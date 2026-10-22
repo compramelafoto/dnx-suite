@@ -69,7 +69,12 @@ export async function recordDischarge(db: Db, input: LedgerEntryInput): Promise<
 }
 
 /**
- * Reverso de una retención cuyo pago terminó reembolsado.
+ * Reverso de una retención cuyo pago terminó reembolsado: REVERSADO **positivo**.
+ *
+ * REVERSADO tiene los dos signos: positivo revierte una retención (acá, y Digitalización con
+ * `recordEntryReturningId`); negativo revierte un devengado cuyo cobro se anuló (sólo
+ * Digitalización, acotado a la deuda pendiente para que el saldo no quede negativo). El saldo es la
+ * suma firmada de la columna, así que el tipo sólo explica el porqué.
  *
  * Sin esto la plataforma se quedaría con una comisión sobre plata que volvió al socio, y la
  * deuda desaparecería sin haberse cobrado.
@@ -114,7 +119,8 @@ export async function recordManualSettlement(
  * igual tiene que quedar marcado para no devengarlo después.
  *
  * El signo lo pone quien llama, con el mismo criterio que el resto del libro: positivo aumenta la
- * deuda (DEVENGADO), negativo la reduce (RETENIDO, o REVERSADO de un devengado).
+ * deuda (DEVENGADO, o REVERSADO de una retención devuelta), negativo la reduce (RETENIDO, o
+ * REVERSADO de un devengado anulado).
  */
 export async function recordEntryReturningId(
   db: Db,

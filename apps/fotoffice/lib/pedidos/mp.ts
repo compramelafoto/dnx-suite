@@ -25,8 +25,8 @@ import {
   tituloPagoSinAplicar,
 } from "./mp-puro";
 import { dejarRastroDePago, type DepsRastro } from "./mp-rastro";
-import { leerRetencionDelPago, metadatosDeRetencion, retencionParaPago, type Retencion } from "@/lib/digitalizacion/comision";
-import { esPedidoDeDigitalizacion, retenerEnTx, tasaDeDigitalizacion } from "@/lib/digitalizacion/servidor/comision";
+import { leerRetencionDelPago, metadatosDeRetencion, retencionParaPago, retenidoPorMp, type Retencion } from "@/lib/digitalizacion/comision";
+import { esPedidoDeDigitalizacion, retenerEnTx, revertirRetencionDelCobro, tasaDeDigitalizacion } from "@/lib/digitalizacion/servidor/comision";
 import { pendingFeeDebtMinor } from "@/lib/platform-fee/ledger";
 
 export { cuotaDeReferencia, hechosDelPago, referenciaCuota, TITULO_TAREA_PAGO_SIN_APLICAR };
@@ -129,13 +129,14 @@ export async function iniciarPagoCuota(input: {
 
 /**
  * La retención de plataforma de un pago de este pedido: null si no es de digitalización o la tasa es
- * 0 (DNX). Si la base falla, no se retiene: el cobro llega sin marca y se devenga, no se pierde.
+ * 0 (DNX). Si la base falla (también al leer la tasa), no se retiene: el cobro llega sin marca y lo
+ * devenga el camino de siempre (o el cron), no se pierde.
  */
 async function retencionDelPedido(workspaceId: string, pedidoId: string, importeMinor: number): Promise<Retencion | null> {
   try {
     if (!(await esPedidoDeDigitalizacion(workspaceId, pedidoId))) return null;
     const bps = await tasaDeDigitalizacion(workspaceId);
-    if (bps <= 0) return null;
+    if (bps === null || bps <= 0) return null;
     return retencionParaPago({ paymentMinor: importeMinor, bps, pendingDebtMinor: await pendingFeeDebtMinor(workspaceId) });
   } catch (error) {
     console.error("[fotoffice][pedidos] no se pudo calcular la comisión de plataforma", { detalle: sanitizeError(error) });
@@ -224,7 +225,12 @@ export async function acreditarPagoMp(workspaceId: string, pago: PagoMp, deps: D
       return { resultado: "acreditado", pedidoId: r.pedidoId };
     }
     console.warn("[fotoffice][pedidos] pago aprobado sin acreditar", { motivo: r.motivo });
-    await avisarPagoSinAplicar(workspaceId, cuota.pedidoId, { providerPaymentId: hechos.providerPaymentId, centavos: hechos.amountMinor, motivo: r.motivo }, deps);
+    await avisarPagoSinAplicar(
+      workspaceId,
+      cuota.pedidoId,
+      { providerPaymentId: hechos.providerPaymentId, centavos: hechos.amountMinor, motivo: r.motivo, retenidoPlataforma: retencion?.retencion.retenidoMinor ?? 0 },
+      deps,
+    );
     return { resultado: "sin_aplicar", motivo: r.motivo, pedidoId: cuota.pedidoId };
   } catch (error) {
     console.error("[fotoffice][pedidos] falló la acreditación de un pago", { detalle: sanitizeError(error) });
@@ -232,8 +238,13 @@ export async function acreditarPagoMp(workspaceId: string, pago: PagoMp, deps: D
   }
 }
 
-/** Lo que retuvo la plataforma de un pago leído, con la tasa de hoy (para la nota). null si no retuvo. */
-async function retencionDeUnPago(workspaceId: string, raw: Record<string, unknown>, montoMinor: number): Promise<{ retencion: Retencion; bps: number } | null> {
+/**
+ * Lo que retuvo la plataforma de un pago leído (sólo el `application_fee` que informa Mercado Pago),
+ * con la tasa de hoy para la nota (null si no se pudo leer). null si no retuvo. Aunque la tasa no se
+ * pueda leer, un pago que retuvo se marca igual: si no, se devengaría encima de lo retenido.
+ */
+async function retencionDeUnPago(workspaceId: string, raw: Record<string, unknown>, montoMinor: number): Promise<{ retencion: Retencion; bps: number | null } | null> {
+  if (!retenidoPorMp(raw)) return null;
   const bps = await tasaDeDigitalizacion(workspaceId);
   const retencion = leerRetencionDelPago(raw, montoMinor, bps);
   return retencion ? { retencion, bps } : null;
@@ -266,7 +277,7 @@ async function cuotaQueNoEsta(workspaceId: string, pago: PagoMp, pedidoId: strin
     workspaceId,
     {
       pedidoId: pedido?.id ?? null,
-      titulo: tituloPagoCuotaInexistente(hechos.providerPaymentId, hechos.amountMinor),
+      titulo: tituloPagoCuotaInexistente(hechos.providerPaymentId, hechos.amountMinor, retenidoPorMp(pago.rawSanitized) ?? 0),
       tituloConsulta: TITULO_TAREA_PAGO_SIN_APLICAR,
       asunto: "Llegó un pago de Mercado Pago por una cuota que ya no existe",
       pagoId: hechos.providerPaymentId,
@@ -294,14 +305,14 @@ function programarRecibo(workspaceId: string, cobroId: string, deps: DepsAcredit
 export async function avisarPagoSinAplicar(
   workspaceId: string,
   pedidoId: string,
-  pago: { providerPaymentId: string; centavos: number; motivo: string },
+  pago: { providerPaymentId: string; centavos: number; motivo: string; retenidoPlataforma?: number },
   deps: DepsRastro = {},
 ): Promise<void> {
   await dejarRastroDePago(
     workspaceId,
     {
       pedidoId,
-      titulo: tituloPagoSinAplicar(pago.providerPaymentId, pago.centavos, pago.motivo),
+      titulo: tituloPagoSinAplicar(pago.providerPaymentId, pago.centavos, pago.motivo, pago.retenidoPlataforma ?? 0),
       tituloConsulta: TITULO_TAREA_PAGO_SIN_APLICAR,
       asunto: "Llegó un pago de Mercado Pago que no se pudo aplicar",
     },
@@ -322,9 +333,12 @@ export async function avisarDevolucionMp(workspaceId: string, pago: PagoMp, deps
     if (!reverso) return "sigue_aprobado";
     const cobro = await prisma.fotofficeCobro.findFirst({
       where: { workspaceId, providerPaymentRef: pago.providerPaymentId },
-      select: { pedidoId: true, amountArs: true, voidedAt: true },
+      select: { id: true, pedidoId: true, amountArs: true, voidedAt: true },
     });
     if (!cobro) return "sin_cobro";
+    // F1: si el pago canceló deuda de comisión y Mercado Pago lo devolvió (o hubo contracargo), esa
+    // deuda vuelve a quedar pendiente. Idempotente y sin lanzar; aunque el cobro ya esté anulado.
+    if (reverso === "refunded" || reverso === "charged_back") await revertirRetencionDelCobro(workspaceId, cobro.id, reverso);
     if (cobro.voidedAt) return "cobro_anulado";
     const r = await dejarRastroDePago(
       workspaceId,

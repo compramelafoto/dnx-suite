@@ -714,9 +714,16 @@ describe("comisión de Mercado Pago en Caja (etapa B)", () => {
 });
 
 describe("comisión de plataforma en pedidos de digitalización (F1)", () => {
+  // Después del corte (23/10, 00:00 de Argentina): el pago se aprobó el 24 y hoy es 25.
+  const DESPUES = { date_approved: "2026-10-24T14:00:00.000Z" };
   beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-25T15:00:00.000Z"));
     B.agregar("digitalizacionEntrega", { id: "ent-1", workspaceId: "ws-1", pedidoId: "ped-1" });
     B.agregar("workspaceModuleFee", { workspaceId: "ws-1", moduleKey: "digitalizacion", feeBps: 500 });
+  });
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("la preferencia retiene la propia más la deuda, y lo deja en la metadata", async () => {
@@ -740,6 +747,7 @@ describe("comisión de plataforma en pedidos de digitalización (F1)", () => {
     const r = await MP.acreditarPagoMp(
       "ws-1",
       pago("pay-1", "ped-1-c1", 40000, {}, {
+        ...DESPUES,
         fee_details: [{ type: "mercadopago_fee", amount: 1000 }, { type: "application_fee", amount: 2300 }],
         platform_fee_metadata: { own_minor: "200000", withheld_minor: "230000" },
       }),
@@ -757,7 +765,7 @@ describe("comisión de plataforma en pedidos de digitalización (F1)", () => {
   });
 
   it("un pago sin retención (abierto antes de la entrega) devenga como un cobro manual", async () => {
-    const r = await MP.acreditarPagoMp("ws-1", pago("pay-1", "ped-1-c1", 40000));
+    const r = await MP.acreditarPagoMp("ws-1", pago("pay-1", "ped-1-c1", 40000, {}, DESPUES));
     expect(r.resultado).toBe("acreditado");
     expect(B.datos.workspaceFeeLedgerEntry.map((a) => [a.kind, a.amountArs])).toEqual([["DEVENGADO", "2000.00"]]);
     expect(B.datos.digitalizacionComision).toHaveLength(1);
@@ -770,10 +778,56 @@ describe("comisión de plataforma en pedidos de digitalización (F1)", () => {
     B.tablas.digitalizacionComision.create = async () => {
       throw new Error("se cayó la base");
     };
-    const r = await MP.acreditarPagoMp("ws-1", pago("pay-1", "ped-1-c1", 40000, {}, { fee_details: [{ type: "application_fee", amount: 2000 }] }));
+    const r = await MP.acreditarPagoMp("ws-1", pago("pay-1", "ped-1-c1", 40000, {}, { ...DESPUES, fee_details: [{ type: "application_fee", amount: 2000 }] }));
     B.tablas.digitalizacionComision.create = original;
     expect(r.resultado).toBe("sin_aplicar");
     expect(B.datos.fotofficeCobro).toHaveLength(0);
     expect(B.datos.workspaceFeeLedgerEntry).toHaveLength(0);
+    // La tarea para el equipo dice cuánto retuvo la plataforma.
+    expect(JSON.stringify(B.datos.fotofficePedidoTarea)).toContain("La plataforma ya retuvo 2.000 pesos de comisión de este pago");
+  });
+
+  it("un pago sin aplicar sin retención no habla de la plataforma", async () => {
+    await MP.acreditarPagoMp("ws-1", pago("pay-1", "ped-1-c1", 999999, {}, DESPUES));
+    expect(JSON.stringify(B.datos.fotofficePedidoTarea)).toContain("no se pudo aplicar");
+    expect(JSON.stringify(B.datos.fotofficePedidoTarea)).not.toContain("retuvo");
+  });
+
+  it("sólo cuenta el application_fee: con metadatos pero sin application_fee, devenga", async () => {
+    await MP.acreditarPagoMp("ws-1", pago("pay-1", "ped-1-c1", 40000, {}, { ...DESPUES, platform_fee_metadata: { own_minor: "200000", withheld_minor: "200000" } }));
+    expect(B.datos.workspaceFeeLedgerEntry.map((a) => [a.kind, a.amountArs])).toEqual([["DEVENGADO", "2000.00"]]);
+  });
+
+  it("un application_fee inválido se ignora y no anula la comisión de Mercado Pago", async () => {
+    await MP.acreditarPagoMp(
+      "ws-1",
+      pago("pay-1", "ped-1-c1", 40000, {}, { ...DESPUES, fee_details: [{ type: "mercadopago_fee", amount: 1000 }, { type: "application_fee", amount: "x" }] }),
+    );
+    expect(B.datos.fotofficeCobro[0]!.feeArs).toBe("1000.00");
+    expect(B.datos.workspaceFeeLedgerEntry.map((a) => a.kind)).toEqual(["DEVENGADO"]);
+  });
+
+  it("si la tasa no se puede leer, la preferencia no retiene (lo concilia el cron después)", async () => {
+    const original = B.tablas.workspaceModuleFee.findUnique;
+    B.tablas.workspaceModuleFee.findUnique = async () => {
+      throw new Error("se cayó la base");
+    };
+    await MP.iniciarPagoCuota({ workspaceId: "ws-1", pedidoId: "ped-1", cuotaId: "ped-1-c1" });
+    B.tablas.workspaceModuleFee.findUnique = original;
+    expect(H.preferencia.mock.calls[0]![0]).not.toHaveProperty("marketplaceFeeMinor");
+  });
+
+  it("la devolución de un pago que canceló deuda la vuelve a dejar pendiente, una sola vez", async () => {
+    B.agregar("workspaceFeeLedgerEntry", { workspaceId: "ws-1", kind: "DEVENGADO", amountArs: "300.00" });
+    const crudo = {
+      ...DESPUES,
+      fee_details: [{ type: "application_fee", amount: 2300 }],
+      platform_fee_metadata: { own_minor: "200000", withheld_minor: "230000" },
+    };
+    await MP.acreditarPagoMp("ws-1", pago("pay-1", "ped-1-c1", 40000, {}, crudo));
+    const devuelto = pago("pay-1", "ped-1-c1", 40000, { status: "REFUNDED" }, { ...crudo, status: "refunded" });
+    await MP.avisarDevolucionMp("ws-1", devuelto);
+    await MP.avisarDevolucionMp("ws-1", devuelto);
+    expect(B.datos.workspaceFeeLedgerEntry.map((a) => [a.kind, a.amountArs])).toEqual([["DEVENGADO", "300.00"], ["RETENIDO", "-300.00"], ["REVERSADO", "300.00"]]);
   });
 });

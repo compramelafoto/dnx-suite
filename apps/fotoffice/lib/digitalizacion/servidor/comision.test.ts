@@ -11,7 +11,8 @@ vi.mock("@repo/db", () => ({ prisma: B.prisma, Prisma: { JsonNull: null } }));
 const C = await import("./comision");
 const { pendingFeeDebtMinor } = await import("@/lib/platform-fee/ledger");
 
-const AHORA = new Date("2026-10-22T15:00:00.000Z");
+const AHORA = new Date("2026-10-25T15:00:00.000Z");
+const PAGADO = new Date("2026-10-24T15:00:00.000Z");
 const asientos = () => B.datos.workspaceFeeLedgerEntry;
 const marcas = () => B.datos.digitalizacionComision;
 /** Una transacción de la base en memoria (como la del cobro). */
@@ -21,7 +22,7 @@ const enTx = (fn: (tx: never) => Promise<void>) =>
 function cobro(id: string, monto: number, extra: Record<string, unknown> = {}) {
   B.agregar("fotofficeCobro", {
     id, workspaceId: "ws-1", pedidoId: "ped-1", clientId: "cli-1", amountArs: monto.toFixed(2), voidedAt: null,
-    receiptNumber: `R-${id}`, receiptTokenHash: `h-${id}`, providerPaymentRef: null, method: "EFECTIVO", ...extra,
+    receiptNumber: `R-${id}`, receiptTokenHash: `h-${id}`, providerPaymentRef: null, method: "EFECTIVO", paidAt: PAGADO, createdAt: PAGADO, ...extra,
   });
 }
 
@@ -69,6 +70,28 @@ describe("devengar los cobros del pedido", () => {
     expect(await C.devengarComisionesDelPedido("ws-1", "ped-1")).toBe(0);
     expect(asientos()).toHaveLength(2);
     expect(await pendingFeeDebtMinor("ws-1")).toBe(150_001);
+  });
+
+  it("sólo los cobros pagados desde el 23/10 (00:00 de Argentina)", async () => {
+    B.agregar("digitalizacionEntrega", { id: "ent-1", workspaceId: "ws-1", pedidoId: "ped-1" });
+    cobro("viejo", 10000, { paidAt: new Date("2026-10-23T02:59:00Z") });
+    cobro("nuevo", 10000, { paidAt: new Date("2026-10-23T03:00:00Z") });
+    expect(await C.devengarComisionesDelPedido("ws-1", "ped-1")).toBe(1);
+    expect(marcas().map((m) => m.cobroId)).toEqual(["nuevo"]);
+  });
+
+  it("si la base no deja leer la tasa, no devenga nada (no supone el 5 %)", async () => {
+    B.agregar("digitalizacionEntrega", { id: "ent-1", workspaceId: "ws-1", pedidoId: "ped-1" });
+    cobro("c-1", 10000);
+    const original = B.tablas.workspaceModuleFee.findUnique;
+    B.tablas.workspaceModuleFee.findUnique = async () => {
+      throw new Error("se cayó la base");
+    };
+    expect(await C.devengarComisionesDelPedido("ws-1", "ped-1")).toBe(0);
+    expect(await C.tasaDeDigitalizacion("ws-1")).toBeNull();
+    B.tablas.workspaceModuleFee.findUnique = original;
+    expect(asientos()).toHaveLength(0);
+    expect(await C.devengarComisionesDelPedido("ws-1", "ped-1")).toBe(1);
   });
 
   it("con 0 bps (DNX) no hace nada", async () => {
@@ -132,7 +155,7 @@ describe("anular un cobro con comisión devengada", () => {
     expect(await C.revertirComisionDelCobro("ws-1", "c-1")).toBe(true);
     const rev = asientos().find((a) => a.kind === "REVERSADO")!;
     expect(rev.amountArs).toBe("-500.00");
-    expect(rev.note).toBe("Cobro anulado: se revierte la comisión devengada · pedido 2026-0001 · recibo R-c-1");
+    expect(rev.note).toBe("Cobro anulado: se revierte la comisión devengada · pedido 2026-0001 · recibo R-c-1 · 500 pesos");
     expect(marcas()[0]!.ledgerEntryId).toBe(rev.id);
     expect(await pendingFeeDebtMinor("ws-1")).toBe(0);
     expect(await C.revertirComisionDelCobro("ws-1", "c-1")).toBe(false);
@@ -140,12 +163,55 @@ describe("anular un cobro con comisión devengada", () => {
     expect(asientos()).toHaveLength(2);
   });
 
-  it("una retención de Mercado Pago no se revierte", async () => {
+  it("el reverso se acota a la deuda pendiente: el saldo nunca queda negativo", async () => {
+    cobro("c-1", 10000);
+    await C.devengarComisionesDelPedido("ws-1", "ped-1");
+    // Un pago de Mercado Pago ya cobró 300 de esos 500 pesos de deuda.
+    B.agregar("workspaceFeeLedgerEntry", { workspaceId: "ws-1", kind: "RETENIDO", amountArs: "-300.00" });
+    B.datos.fotofficeCobro[0]!.voidedAt = AHORA;
+    expect(await C.revertirComisionDelCobro("ws-1", "c-1")).toBe(true);
+    const rev = asientos().find((a) => a.kind === "REVERSADO")!;
+    expect(rev.amountArs).toBe("-200.00");
+    expect(rev.note).toContain("300 pesos no se revirtieron: esa deuda ya se había cobrado");
+    expect(await pendingFeeDebtMinor("ws-1")).toBe(0);
+    const suma = asientos().reduce((s, a) => s + Math.round(Number(a.amountArs) * 100), 0);
+    expect(suma).toBe(0);
+  });
+
+  it("una retención de Mercado Pago no se revierte al anular", async () => {
     cobro("c-mp", 10000, { providerPaymentRef: "pay-1", voidedAt: AHORA });
     await enTx((tx) =>
       C.retenerEnTx(tx as never, { workspaceId: "ws-1", pedidoId: "ped-1", cobroId: "c-mp", reciboNumero: "R", retencion: { propioMinor: 500, retenidoMinor: 500 }, bps: 500 }),
     );
     expect(await C.revertirComisionDelCobro("ws-1", "c-mp")).toBe(false);
+    expect(asientos()).toHaveLength(1);
+  });
+});
+
+describe("devolución de un pago con retención", () => {
+  it("REVERSADO positivo por la deuda que había cancelado; un aviso repetido no lo duplica", async () => {
+    B.agregar("workspaceFeeLedgerEntry", { id: "deuda", workspaceId: "ws-1", kind: "DEVENGADO", amountArs: "150.00" });
+    cobro("c-mp", 10000, { providerPaymentRef: "pay-1" });
+    await enTx((tx) =>
+      C.retenerEnTx(tx, { workspaceId: "ws-1", pedidoId: "ped-1", cobroId: "c-mp", reciboNumero: "R-c-mp", retencion: { propioMinor: 50_000, retenidoMinor: 70_000 }, bps: 500 }),
+    );
+    expect(await pendingFeeDebtMinor("ws-1")).toBe(0);
+    expect(await C.revertirRetencionDelCobro("ws-1", "c-mp", "refunded")).toBe(true);
+    const rev = asientos().find((a) => a.kind === "REVERSADO")!;
+    expect(rev.amountArs).toBe("150.00");
+    expect(rev.note).toBe("Mercado Pago devolvió el pago (devuelto): la deuda que había cancelado vuelve a quedar pendiente · pedido 2026-0001 · recibo R-c-mp · 150 pesos");
+    expect(marcas()[0]!.ledgerEntryId).toBe(rev.id);
+    expect(await pendingFeeDebtMinor("ws-1")).toBe(15_000);
+    expect(await C.revertirRetencionDelCobro("ws-1", "c-mp", "charged_back")).toBe(false);
+    expect(asientos()).toHaveLength(3);
+  });
+
+  it("una retención de 0 pesos (sólo la propia) no tiene nada que revertir", async () => {
+    cobro("c-mp", 10000, { providerPaymentRef: "pay-1" });
+    await enTx((tx) =>
+      C.retenerEnTx(tx, { workspaceId: "ws-1", pedidoId: "ped-1", cobroId: "c-mp", reciboNumero: "R", retencion: { propioMinor: 500, retenidoMinor: 500 }, bps: 500 }),
+    );
+    expect(await C.revertirRetencionDelCobro("ws-1", "c-mp", "refunded")).toBe(false);
     expect(asientos()).toHaveLength(1);
   });
 });
@@ -157,7 +223,7 @@ describe("conciliación de los crons", () => {
     cobro("c-1", 10000);
     // ped-2: con entrega; un cobro devengado y después anulado sin que llegara el reverso.
     B.agregar("fotofficePedido", { id: "ped-2", workspaceId: "ws-1", number: "2026-0002", clientId: "cli-1", status: "EN_CURSO", totalArs: "1000.00" });
-    B.agregar("digitalizacionEntrega", { id: "ent-2", workspaceId: "ws-1", pedidoId: "ped-2" });
+    B.agregar("digitalizacionEntrega", { id: "ent-2", workspaceId: "ws-1", pedidoId: "ped-2", createdAt: PAGADO });
     cobro("c-2", 1000, { pedidoId: "ped-2" });
     await C.devengarComisionesDelPedido("ws-1", "ped-2");
     B.datos.fotofficeCobro.find((c) => c.id === "c-2")!.voidedAt = AHORA;
@@ -169,6 +235,28 @@ describe("conciliación de los crons", () => {
     expect(marcas().map((m) => m.cobroId).sort()).toEqual(["c-1", "c-2"]);
     expect(await pendingFeeDebtMinor("ws-1")).toBe(50_000);
     expect(await C.conciliarComisiones({ ahora: () => AHORA })).toEqual({ devengadas: 0, revertidas: 0 });
+  });
+
+  it("no recorre el historial: cobros de antes del corte, o creados fuera de la ventana, no se miran", async () => {
+    B.agregar("digitalizacionEntrega", { id: "ent-1", workspaceId: "ws-1", pedidoId: "ped-1", createdAt: new Date("2026-01-01T00:00:00Z") });
+    cobro("antes-del-corte", 10000, { paidAt: new Date("2026-10-20T12:00:00Z"), createdAt: new Date("2026-10-20T12:00:00Z") });
+    expect(await C.conciliarComisiones({ ahora: () => AHORA })).toEqual({ devengadas: 0, revertidas: 0 });
+    // Cuatro meses después: el cobro (del corte en adelante) ya quedó fuera de la ventana de 90 días.
+    cobro("viejo", 10000);
+    expect(await C.conciliarComisiones({ ahora: () => new Date("2027-03-01T12:00:00Z") })).toEqual({ devengadas: 0, revertidas: 0 });
+    expect(await C.conciliarComisiones({ ahora: () => AHORA })).toEqual({ devengadas: 1, revertidas: 0 });
+  });
+
+  it("si la tasa no se puede leer, ese negocio queda para la próxima corrida", async () => {
+    B.agregar("digitalizacionEntrega", { id: "ent-1", workspaceId: "ws-1", pedidoId: "ped-1", createdAt: PAGADO });
+    cobro("c-1", 10000);
+    const original = B.tablas.workspaceModuleFee.findUnique;
+    B.tablas.workspaceModuleFee.findUnique = async () => {
+      throw new Error("se cayó la base");
+    };
+    expect(await C.conciliarComisiones({ ahora: () => AHORA })).toEqual({ devengadas: 0, revertidas: 0 });
+    B.tablas.workspaceModuleFee.findUnique = original;
+    expect(await C.conciliarComisiones({ ahora: () => AHORA })).toEqual({ devengadas: 1, revertidas: 0 });
   });
 });
 

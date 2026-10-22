@@ -412,14 +412,19 @@ describe("comisión de plataforma de digitalización (F1)", () => {
   it("un cobro manual de un pedido de digitalización devenga el 5 %; anularlo la revierte", async () => {
     B.agregar("workspaceModuleFee", { workspaceId: "ws-1", moduleKey: "digitalizacion", feeBps: 500 });
     B.agregar("digitalizacionEntrega", { id: "ent-1", workspaceId: "ws-1", pedidoId: "ped-1" });
-    const a = await cobrado("ped-1", 20000);
+    // Antes del corte (23/10, 00:00 de Argentina) no devenga.
+    await cobrado("ped-1", 1000);
+    expect(B.datos.workspaceFeeLedgerEntry).toHaveLength(0);
+    const despues = { ahora: () => new Date("2026-10-25T15:00:00.000Z"), clave: CLAVE };
+    const a = await CO.registrarCobro(DUENO, { pedidoId: "ped-1", importe: 20000, fecha: "2026-10-24", medio: "EFECTIVO", idempotencyKey: clave() }, despues);
+    if (!a.ok) throw new Error(a.error);
     expect(B.datos.workspaceFeeLedgerEntry.map((x) => [x.kind, x.amountArs, x.note])).toEqual([
       ["DEVENGADO", "1000.00", `Comisión 5 % · pedido 2026-0001 · recibo ${a.reciboNumero} · 1.000 pesos`],
     ]);
-    expect(await CO.anularCobro(DUENO, a.cobroId, "Se cargó dos veces", deps)).toMatchObject({ ok: true, yaAnulado: false });
+    expect(await CO.anularCobro(DUENO, a.cobroId, "Se cargó dos veces", despues)).toMatchObject({ ok: true, yaAnulado: false });
     expect(B.datos.workspaceFeeLedgerEntry.map((x) => [x.kind, x.amountArs])).toEqual([["DEVENGADO", "1000.00"], ["REVERSADO", "-1000.00"]]);
     // Anular de nuevo no revierte dos veces.
-    await CO.anularCobro(DUENO, a.cobroId, "Otra vez", deps);
+    await CO.anularCobro(DUENO, a.cobroId, "Otra vez", despues);
     expect(B.datos.workspaceFeeLedgerEntry).toHaveLength(2);
   });
 

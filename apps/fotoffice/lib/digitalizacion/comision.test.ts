@@ -9,8 +9,11 @@ import {
   notaDevengado,
   notaReverso,
   notaRetenido,
+  notaReversoRetencion,
   porcentaje,
   retencionParaPago,
+  reversoAcotado,
+  COMISION_DIGITALIZACION_DESDE,
 } from "./comision";
 
 describe("comisión de un cobro", () => {
@@ -27,10 +30,15 @@ describe("comisión de un cobro", () => {
 });
 
 describe("qué cobros devengan", () => {
-  const c = (id: string, extra: Partial<{ voidedAt: Date | null; amountMinor: number }> = {}) => ({ id, voidedAt: null, amountMinor: 1_000_000, ...extra });
+  const c = (id: string, extra: Partial<{ voidedAt: Date | null; amountMinor: number; paidAt: Date }> = {}) => ({ id, voidedAt: null, amountMinor: 1_000_000, paidAt: new Date("2026-10-23T12:00:00Z"), ...extra });
   it("los vigentes sin comisión marcada, con su monto a devengar", () => {
     const r = cobrosQueDevengan([c("a"), c("b"), c("c", { voidedAt: new Date() })], new Set(["b"]), 500);
     expect(r).toEqual([{ id: "a", comisionMinor: 50_000 }]);
+  });
+  it("sólo los pagados desde las 00:00 de Argentina del 23/10", () => {
+    expect(COMISION_DIGITALIZACION_DESDE.toISOString()).toBe("2026-10-23T03:00:00.000Z");
+    const r = cobrosQueDevengan([c("antes", { paidAt: new Date("2026-10-23T02:59:59Z") }), c("justo", { paidAt: COMISION_DIGITALIZACION_DESDE })], new Set(), 500);
+    expect(r.map((x) => x.id)).toEqual(["justo"]);
   });
   it("nada con 0 bps, ni los que darían 0 centavos", () => {
     expect(cobrosQueDevengan([c("a")], new Set(), 0)).toEqual([]);
@@ -61,8 +69,14 @@ describe("lo que Mercado Pago dice que retuvo", () => {
     };
     expect(leerRetencionDelPago(raw, 1_000_000, 500)).toEqual({ retenidoMinor: 70_000, propioMinor: 50_000 });
   });
-  it("sin application_fee usa la retención de los metadatos", () => {
-    expect(leerRetencionDelPago({ fee_details: [], platform_fee_metadata: { own_minor: "50000", withheld_minor: "70000" } }, 1_000_000, 500)).toEqual({ retenidoMinor: 70_000, propioMinor: 50_000 });
+  it("sin application_fee no hay retención, aunque los metadatos digan que sí: devenga", () => {
+    expect(leerRetencionDelPago({ fee_details: [], platform_fee_metadata: { own_minor: "50000", withheld_minor: "70000" } }, 1_000_000, 500)).toBeNull();
+  });
+  it("un application_fee inválido se ignora", () => {
+    expect(leerRetencionDelPago({ fee_details: [{ type: "application_fee", amount: -5 }, { type: "application_fee", amount: 700 }] }, 1_000_000, 500)).toEqual({ retenidoMinor: 70_000, propioMinor: 50_000 });
+  });
+  it("sin metadatos ni tasa (la base falló), todo lo retenido se toma como propio: no descarga deuda", () => {
+    expect(leerRetencionDelPago({ fee_details: [{ type: "application_fee", amount: 700 }] }, 1_000_000, null)).toEqual({ retenidoMinor: 70_000, propioMinor: 70_000 });
   });
   it("sin metadatos, la propia se recalcula con la tasa de hoy y nunca supera lo retenido", () => {
     expect(leerRetencionDelPago({ fee_details: [{ type: "application_fee", amount: 700 }] }, 1_000_000, 500)).toEqual({ retenidoMinor: 70_000, propioMinor: 50_000 });
@@ -92,7 +106,22 @@ describe("notas del libro", () => {
     expect(notaRetenido({ bps: 500, pedidoNumero: "2026-0001", recibo: "R-0007", retenidoMinor: 70_000, propioMinor: 50_000, descargaMinor: 20_000 })).toBe(
       "Comisión 5 % retenida por Mercado Pago · pedido 2026-0001 · recibo R-0007 · 700 pesos (500 pesos de este cobro y 200 pesos de deuda)",
     );
-    expect(notaReverso({ pedidoNumero: "2026-0001", recibo: "R-0007" })).toBe("Cobro anulado: se revierte la comisión devengada · pedido 2026-0001 · recibo R-0007");
+    expect(notaReverso({ pedidoNumero: "2026-0001", recibo: "R-0007", revertidoMinor: 50_000, sinRevertirMinor: 0 })).toBe("Cobro anulado: se revierte la comisión devengada · pedido 2026-0001 · recibo R-0007 · 500 pesos");
+    expect(notaReverso({ pedidoNumero: "2026-0001", recibo: "R-0007", revertidoMinor: 20_000, sinRevertirMinor: 30_000 })).toBe(
+      "Cobro anulado: se revierte la comisión devengada · pedido 2026-0001 · recibo R-0007 · 200 pesos (300 pesos no se revirtieron: esa deuda ya se había cobrado)",
+    );
+    expect(notaRetenido({ bps: null, pedidoNumero: "1", recibo: "R", retenidoMinor: 100, propioMinor: 100, descargaMinor: 0 })).toMatch(/^Comisión retenida por Mercado Pago/);
+    expect(notaReversoRetencion({ pedidoNumero: "2026-0001", recibo: "R-0007", montoMinor: 20_000, estado: "devuelto" })).toBe(
+      "Mercado Pago devolvió el pago (devuelto): la deuda que había cancelado vuelve a quedar pendiente · pedido 2026-0001 · recibo R-0007 · 200 pesos",
+    );
+  });
+});
+
+describe("reverso de un devengado", () => {
+  it("se acota a la deuda pendiente: el saldo nunca queda negativo", () => {
+    expect(reversoAcotado(50_000, 80_000)).toEqual({ revertidoMinor: 50_000, sinRevertirMinor: 0 });
+    expect(reversoAcotado(50_000, 20_000)).toEqual({ revertidoMinor: 20_000, sinRevertirMinor: 30_000 });
+    expect(reversoAcotado(50_000, 0)).toEqual({ revertidoMinor: 0, sinRevertirMinor: 50_000 });
   });
 });
 
