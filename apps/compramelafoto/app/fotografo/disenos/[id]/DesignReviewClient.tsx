@@ -154,9 +154,9 @@ export default function DesignReviewClient({ designId }: { designId: string }) {
     }
   }
 
-  async function downloadPdf() {
+  async function download(formato: "pdf" | "jpg") {
     if (!(await flush())) return;
-    window.location.href = `/api/fotografo/disenos/${designId}/pdf`;
+    window.location.href = `/api/fotografo/disenos/${designId}/${formato}`;
   }
 
   if (loadError) {
@@ -212,8 +212,17 @@ export default function DesignReviewClient({ designId }: { designId: string }) {
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="secondary" size="sm" onClick={() => void downloadPdf()} disabled={busy !== null}>
+          <Button variant="secondary" size="sm" onClick={() => void download("pdf")} disabled={busy !== null}>
             Descargar PDF
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => void download("jpg")}
+            disabled={busy !== null}
+            title="JPG de 300 dpi para imprenta: un archivo por cara, con el alumno y la cara en el nombre"
+          >
+            Descargar JPG
           </Button>
           <Button variant="secondary" size="sm" onClick={() => setChangesOpen((v) => !v)} disabled={busy !== null}>
             Pedir cambios al cliente
@@ -293,7 +302,7 @@ export default function DesignReviewClient({ designId }: { designId: string }) {
               </a>
             ) : null}
             {data.export.jpgUrls.map((url, i) => (
-              <a key={url} href={url} target="_blank" rel="noreferrer" className="font-medium text-[#c27b3d] underline">
+              <a key={url} href={`/api/fotografo/disenos/${designId}/jpg?cara=${i + 1}`} className="font-medium text-[#c27b3d] underline">
                 JPG {template.pageLabels[i]?.trim() || `cara ${i + 1}`}
               </a>
             ))}

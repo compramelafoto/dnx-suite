@@ -10,6 +10,7 @@ import {
   nombreDeArchivo,
   nombreDelProximoLote,
   ordenDeImpresion,
+  type LibritoConJpg,
   type LibritoEnProduccion,
 } from "./produccion-reglas";
 
@@ -22,6 +23,9 @@ import {
 
 export type LibritoParaProducir = LibritoEnProduccion & {
   pdfKey: string | null;
+  /** Un JPG por cara, generados al aprobar con el mismo dibujo que el PDF. */
+  jpgKeys: string[];
+  templateVersionId: string | null;
   printBatchName: string | null;
   sentToPrintAt: Date | null;
   printedAt: Date | null;
@@ -71,6 +75,8 @@ export async function cargarLibritos(
     return {
       ...datosDelLibrito(r.id, data?.values),
       pdfKey: pdfUrl ? urlToR2Key(pdfUrl) : null,
+      jpgKeys: (data?.export?.jpgUrls ?? []).map((u) => urlToR2Key(u)),
+      templateVersionId: data?.templateV2VersionId || null,
       printBatchName: r.printBatchName,
       sentToPrintAt: r.sentToPrintAt,
       printedAt: r.printedAt,
@@ -161,11 +167,30 @@ export async function listarLotes(actor: DesignActor): Promise<ResumenDeLote[]> 
   return [...porLote.values()].sort((a, b) => (b.enviadoAt?.getTime() ?? 0) - (a.enviadoAt?.getTime() ?? 0));
 }
 
-/** Los archivos del ZIP, en orden de impresión. */
+/**
+ * Los archivos del ZIP, en orden de impresión. El número es el lugar en la lista completa, igual
+ * que en el resumen y las etiquetas: si falta uno, los demás no se corren.
+ */
 export function archivosDelLote(libros: LibritoParaProducir[]) {
-  return libros
-    .filter((l) => l.pdfKey)
-    .map((l, i, todos) => ({ libro: l, nombre: nombreDeArchivo(i + 1, l, todos.length), r2Key: l.pdfKey! }));
+  return libros.flatMap((l, i) =>
+    l.pdfKey ? [{ libro: l, nombre: nombreDeArchivo(i + 1, l, libros.length), r2Key: l.pdfKey }] : [],
+  );
+}
+
+/** Los librititos con las etiquetas de sus caras («Exterior (contratapa + tapa)», «Interior»). */
+export async function conEtiquetasDeCaras(libros: LibritoParaProducir[]): Promise<LibritoConJpg[]> {
+  const ids = [...new Set(libros.map((l) => l.templateVersionId).filter((v): v is string => !!v))];
+  const versiones = ids.length
+    ? await prisma.templateV2Version.findMany({ where: { id: { in: ids } }, select: { id: true, metaJson: true } })
+    : [];
+  const porVersion = new Map(versiones.map((v) => [v.id, etiquetasDeCaras(v.metaJson)]));
+  return libros.map((l) => ({ ...l, etiquetas: (l.templateVersionId && porVersion.get(l.templateVersionId)) || null }));
+}
+
+/** `metaJson.pageLabels` de una versión de plantilla, o null si no tiene. */
+export function etiquetasDeCaras(metaJson: unknown): string[] | null {
+  const meta = metaJson && typeof metaJson === "object" ? (metaJson as { pageLabels?: unknown }) : {};
+  return Array.isArray(meta.pageLabels) ? meta.pageLabels.map((x) => (typeof x === "string" ? x : "")) : null;
 }
 
 /** Todos los librititos en un único PDF, uno detrás del otro, para mandar a la imprenta. */
@@ -201,12 +226,15 @@ export async function resumenDelLote(nombre: string, libros: LibritoParaProducir
   y -= 22;
   page.drawText(`${libros.length} libritos`, { x: 40, y, size: 10, font, color: rgb(0.35, 0.35, 0.35) });
   y -= 24;
+  const ancho = Math.max(3, String(libros.length).length);
   libros.forEach((l, i) => {
     if (y < 50) {
       page = doc.addPage([595, 842]);
       y = 800;
     }
-    page.drawText(`${String(i + 1).padStart(3, "0")}   ${limpio(l.curso)}   ${limpio(l.alumno)}`, { x: 40, y, size: 10, font });
+    // Mismo número y mismo id que en los nombres de los archivos del ZIP.
+    const linea = `${String(i + 1).padStart(ancho, "0")}   ${limpio(l.curso)}   ${limpio(l.alumno)}   (diseno ${l.id})`;
+    page.drawText(linea, { x: 40, y, size: 10, font });
     y -= 15;
   });
   return doc.save();
