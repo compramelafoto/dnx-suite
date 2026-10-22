@@ -1,4 +1,3 @@
-import { argumentosSalidaHls } from "./hls";
 import { expresionMarcaX } from "./marca-tiempo";
 
 export type GrabacionParaPlan = {
@@ -106,37 +105,23 @@ export function filtroComplejo(plan: Convertir): string {
   return partes.join(";");
 }
 
-/**
- * Con `dirHls`, el mismo ffmpeg saca además la versión para mirar: el cuadro final (con la marca y
- * el pillarbox) se parte con `split` y una copia se escala a 1280×720 para el HLS.
- */
 export function argumentosFfmpeg(
   plan: Convertir,
   rutasEntrada: string[],
   rutaMarca: string,
   preset: string,
-  dirHls?: string,
 ): string[] {
   const args = ["-hide_banner", "-nostdin", "-y", "-stats_period", "10"];
   for (const r of rutasEntrada) args.push("-i", r);
   args.push("-loop", "1", "-framerate", "30", "-i", rutaMarca);
-  let filtro = filtroComplejo(plan);
-  let video = "[vout]";
-  let audio = "[ac]";
-  if (dirHls) {
-    filtro += ";[vout]split=2[vmp4][vh];[vh]scale=1280:720,setsar=1[v720];[ac]asplit=2[amp4][a720]";
-    video = "[vmp4]";
-    audio = "[amp4]";
-  }
   args.push(
-    "-filter_complex", filtro,
-    "-map", video, "-map", audio,
+    "-filter_complex", filtroComplejo(plan),
+    "-map", "[vout]", "-map", "[ac]",
     "-c:v", "libx264", "-profile:v", "high", "-preset", preset,
     "-crf", "21", "-maxrate", "10M", "-bufsize", "20M", "-pix_fmt", "yuv420p",
     "-c:a", "aac", "-b:a", "192k", "-ar", "48000",
     "-movflags", "frag_keyframe+empty_moov+default_base_moof",
     "-f", "mp4", "pipe:1",
   );
-  if (dirHls) args.push(...argumentosSalidaHls(dirHls, "[v720]", "[a720]"));
   return args;
 }

@@ -30,7 +30,7 @@ export type Repo = {
   marcarSinImagen(id: string, lock: Date): Promise<number>;
   marcarPartesBorradasSinImagen(id: string): Promise<number>;
   marcarError(id: string, lock: Date, mensaje: string): Promise<number>;
-  marcarLista(id: string, lock: Date, d: { videoKey: string; videoBytes: number; videoDuracionSeg: number; hlsKey?: string | null }): Promise<number>;
+  marcarLista(id: string, lock: Date, d: { videoKey: string; videoBytes: number; videoDuracionSeg: number }): Promise<number>;
   marcarPartesBorradas(id: string, videoKey: string): Promise<number>;
   renovarLock(id: string, viejo: Date, nuevo: Date): Promise<number>;
   estado(id: string): Promise<string | null>;

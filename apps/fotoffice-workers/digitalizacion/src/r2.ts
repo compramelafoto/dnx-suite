@@ -15,7 +15,7 @@ export type R2 = {
   leerParte(clave: string): Promise<Buffer>;
   subirStream(clave: string, stream: Readable, señal?: AbortSignal): Promise<number>;
   borrarPrefijo(prefijo: string): Promise<void>;
-  /** Sube un archivo chico (segmento o playlist HLS); corta a los 2 min. */
+  /** Sube un archivo chico (segmento o playlist HLS); corta a los 30 s (el subidor reintenta). */
   subirArchivo(clave: string, cuerpo: Buffer, tipo: string): Promise<void>;
   /** Lee un objeto grande en streaming; si la conexión se corta, sigue desde el último byte. */
   leerStream(clave: string): Readable;
@@ -90,7 +90,8 @@ export function crearR2(config: Pick<Config, "r2" | "bucket">): R2 {
   };
 }
 
-const SUBIDA_ARCHIVO_MS = 2 * 60_000;
+/** Un segmento de 6 s a ~2 Mbps pesa ~1,6 MB: 30 s alcanzan de sobra; si no, se reintenta. */
+export const SUBIDA_ARCHIVO_MS = 30_000;
 const ESPERAS_LECTURA_MS = [2000, 5000, 15000, 30000, 60000];
 
 /**

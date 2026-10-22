@@ -60,10 +60,10 @@ export async function marcarLista(
   prisma: PrismaCola,
   id: string,
   lock: Date,
-  datos: { videoKey: string; videoBytes: number | bigint; videoDuracionSeg: number; hlsKey?: string | null },
+  datos: { videoKey: string; videoBytes: number | bigint; videoDuracionSeg: number },
 ): Promise<number> {
   return prisma.$executeRawUnsafe(
-    `UPDATE "DigitalizacionGrabacion" SET "conversionEstado"='LISTA', "videoKey"=$2, "videoBytes"=$3, "videoDuracionSeg"=$4, "convertidaAt"=$5, "conversionError"=NULL, "hlsKey"=$7
+    `UPDATE "DigitalizacionGrabacion" SET "conversionEstado"='LISTA', "videoKey"=$2, "videoBytes"=$3, "videoDuracionSeg"=$4, "convertidaAt"=$5, "conversionError"=NULL
      WHERE id=$1 AND ${DUENO}$6`,
     id,
     datos.videoKey,
@@ -71,7 +71,6 @@ export async function marcarLista(
     datos.videoDuracionSeg,
     new Date(),
     lock,
-    datos.hlsKey ?? null,
   );
 }
 
@@ -140,22 +139,48 @@ const RELLENO_TRABADO_MIN = 30;
 const INTENTOS_HLS = `COALESCE(substring("conversionError" from '^HLS:([0-9]+):')::int, 0)`;
 const DUENO_RELLENO = `"conversionEstado"='LISTA' AND "hlsKey" IS NULL AND "conversionLockAt"=`;
 
-/** Toma la LISTA más vieja sin HLS (con prioridad menor que las PENDIENTE: se llama si no hay). */
-export async function tomarRelleno(prisma: PrismaCola, ahora: Date): Promise<Tomada | null> {
+/** Con transacción interactiva (Prisma): el candado de "un solo relleno a la vez" vive en ella. */
+export type PrismaRelleno = PrismaCola & {
+  $transaction<T>(fn: (tx: PrismaCola) => Promise<T>): Promise<T>;
+};
+
+/** Clave del candado de Postgres "relleno HLS de Digitalización" (un número fijo cualquiera). */
+const CANDADO_RELLENO = 7_310_022_610;
+/** Un relleno en curso: tomado (contador sin causa todavía) y con el bloqueo renovado hace poco. */
+const RELLENO_EN_CURSO = `"conversionEstado"='LISTA' AND "hlsKey" IS NULL AND "conversionError" ~ '^HLS:[0-9]+:$' AND "conversionLockAt" >= $1`;
+
+/**
+ * Toma la LISTA más vieja sin HLS (con prioridad menor que las PENDIENTE: se llama si no hay), o
+ * sólo `soloId` (la recién convertida). Un solo relleno a la vez en todo el sistema: la toma va
+ * dentro de un candado de transacción de Postgres (sirve también detrás del pooler) y, si otra
+ * ejecución tiene un relleno en curso, no se toma nada. Entregas vencidas o borradas: no se toman.
+ */
+export async function tomarRelleno(prisma: PrismaRelleno, ahora: Date, soloId?: string): Promise<Tomada | null> {
   const corte = new Date(ahora.getTime() - RELLENO_TRABADO_MIN * MIN);
-  const filas = await prisma.$queryRawUnsafe<{ id: string }[]>(
-    `UPDATE "DigitalizacionGrabacion" SET "conversionLockAt"=$1, "conversionError"='HLS:' || (${INTENTOS_HLS} + 1) || ':'
-     WHERE id = (SELECT g.id FROM "DigitalizacionGrabacion" g
-       WHERE g."conversionEstado"='LISTA' AND g."videoKey" IS NOT NULL AND g."hlsKey" IS NULL AND g."videoBorradoAt" IS NULL
-         AND (g."conversionLockAt" IS NULL OR g."conversionLockAt" < $2)
-         AND ${INTENTOS_HLS.replaceAll('"conversionError"', 'g."conversionError"')} < ${MAX_INTENTOS_HLS}
-       ORDER BY g."convertidaAt" ASC NULLS FIRST FOR UPDATE SKIP LOCKED LIMIT 1)
-     RETURNING id`,
-    ahora,
-    corte,
-  );
-  const id = filas[0]?.id;
-  return id ? { id, lockAt: ahora } : null;
+  return prisma.$transaction(async (tx) => {
+    const candado = await tx.$queryRawUnsafe<{ ok: boolean }[]>(`SELECT pg_try_advisory_xact_lock(${CANDADO_RELLENO}) AS ok`);
+    if (!candado[0]?.ok) return null;
+    const enCurso = await tx.$queryRawUnsafe<{ id: string }[]>(
+      `SELECT id FROM "DigitalizacionGrabacion" WHERE ${RELLENO_EN_CURSO} LIMIT 1`,
+      corte,
+    );
+    if (enCurso.length > 0) return null;
+    const filas = await tx.$queryRawUnsafe<{ id: string }[]>(
+      `UPDATE "DigitalizacionGrabacion" SET "conversionLockAt"=$1, "conversionError"='HLS:' || (${INTENTOS_HLS} + 1) || ':'
+       WHERE id = (SELECT g.id FROM "DigitalizacionGrabacion" g
+         WHERE g."conversionEstado"='LISTA' AND g.estado='COMPLETA' AND g."videoKey" IS NOT NULL AND g."hlsKey" IS NULL AND g."videoBorradoAt" IS NULL
+           AND (g."conversionLockAt" IS NULL OR g."conversionLockAt" < $2)
+           AND ${INTENTOS_HLS.replaceAll('"conversionError"', 'g."conversionError"')} < ${MAX_INTENTOS_HLS}
+           AND NOT EXISTS (SELECT 1 FROM "FotofficeProyecto" p JOIN "DigitalizacionEntrega" e ON e."pedidoId"=p."pedidoId"
+             WHERE p.id=g."proyectoId" AND (e."videosVencenAt" < $1 OR e."videosBorradosAt" IS NOT NULL))
+           ${soloId ? "AND g.id=$3" : ""}
+         ORDER BY g."convertidaAt" ASC NULLS FIRST FOR UPDATE SKIP LOCKED LIMIT 1)
+       RETURNING id`,
+      ...(soloId ? [ahora, corte, soloId] : [ahora, corte]),
+    );
+    const id = filas[0]?.id;
+    return id ? { id, lockAt: ahora } : null;
+  });
 }
 
 export async function renovarLockRelleno(prisma: PrismaCola, id: string, viejo: Date, nuevo: Date): Promise<number> {
@@ -180,11 +205,13 @@ export async function marcarHls(prisma: PrismaCola, id: string, lock: Date, hlsK
 
 /** Deja `HLS:<n>:<causa>`: el contador sigue y la causa queda para los logs de la base. */
 export async function marcarFalloHls(prisma: PrismaCola, id: string, lock: Date, mensaje: string): Promise<number> {
+  // Sin causa, el intento parecería "en curso" y frenaría todos los rellenos durante 30 minutos.
+  const causa = mensaje.trim() || "sin detalle";
   return prisma.$executeRawUnsafe(
     `UPDATE "DigitalizacionGrabacion" SET "conversionError"=COALESCE(substring("conversionError" from '^HLS:[0-9]+:'), 'HLS:1:') || $2
      WHERE id=$1 AND ${DUENO_RELLENO}$3`,
     id,
-    mensaje,
+    causa,
     lock,
   );
 }

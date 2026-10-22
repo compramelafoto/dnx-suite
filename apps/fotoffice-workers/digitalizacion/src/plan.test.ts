@@ -94,23 +94,3 @@ describe("argumentosFfmpeg", () => {
     expect(a[a.indexOf("-filter_complex") + 1]).toContain("shortest=1");
   });
 });
-
-describe("argumentosFfmpeg con versión para mirar (HLS)", () => {
-  it("parte el cuadro final en dos: el MP4 1080p por pipe y el 720p a la carpeta HLS", () => {
-    const plan = convertir(armarPlan(base, [p(1, 0)]));
-    const a = argumentosFfmpeg(plan, ["pipe:3"], "/f/marca.png", "veryfast", "/f/hls");
-    const f = a[a.indexOf("-filter_complex") + 1];
-    // Mismo cuadro (marca y pillarbox incluidos) escalado: 1920×1080 → 1280×720 conserva la proporción.
-    expect(f).toContain("shortest=1[vout];[vout]split=2[vmp4][vh];[vh]scale=1280:720,setsar=1[v720];[ac]asplit=2[amp4][a720]");
-    const s = a.join(" ");
-    expect(s).toContain("-map [vmp4] -map [amp4]");
-    expect(s).toContain("-f mp4 pipe:1 -map [v720] -map [a720]");
-    expect(a.at(-1)).toBe("/f/hls/index.m3u8");
-  });
-  it("sin carpeta HLS queda igual que antes", () => {
-    const plan = convertir(armarPlan(base, [p(1, 0)]));
-    const a = argumentosFfmpeg(plan, ["pipe:3"], "/f/marca.png", "veryfast");
-    expect(a.join(" ")).not.toContain("split");
-    expect(a.join(" ")).toContain("-map [vout] -map [ac]");
-  });
-});

@@ -7,6 +7,70 @@ import { mensajeError } from "./convertir";
 import { argumentosRelleno, crearSubidorHls } from "./hls";
 import type { RepoRelleno } from "./repo";
 
+/** Tope de lo que puede esperar en /tmp (que en Cloud Run es memoria) antes de frenar la entrada. */
+export type LimitesContrapresion = { maxSegmentos: number; maxBytes: number };
+export const CONTRAPRESION_POR_DEFECTO: LimitesContrapresion = { maxSegmentos: 20, maxBytes: 60 * 1024 * 1024 };
+
+const dormir = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Pasa el `final.mp4` de R2 a ffmpeg con contrapresión: si los segmentos sin subir superan el tope
+ * (cantidad o bytes), deja de leer R2 y de escribir en ffmpeg hasta que bajen. ffmpeg, sin
+ * entrada, deja de producir segmentos; el lector reanudable de R2 retoma por `Range` si la
+ * conexión ociosa se corta. También respeta el `drain` del descriptor de ffmpeg.
+ */
+export async function bombear(
+  fuente: AsyncIterable<Uint8Array>,
+  destino: Writable,
+  o: {
+    pendientes(): Promise<{ cantidad: number; bytes: number; subibles: number }>;
+    limites: LimitesContrapresion;
+    cortado(): boolean;
+    /** Cada cuánto se mira la carpeta mientras fluye (default 250 ms) y mientras está frenado (default 200 ms). */
+    mirarCadaMs?: number;
+    esperaMs?: number;
+    alFrenar?(p: { cantidad: number; bytes: number; subibles: number }): void;
+  },
+): Promise<void> {
+  const mirarCada = o.mirarCadaMs ?? 250;
+  const espera = o.esperaMs ?? 200;
+  let ultimaMirada = 0;
+  // Sólo se frena si el subidor puede vaciar algo: si lo único que hay es el segmento a medio
+  // escribir, ffmpeg necesita entrada para cerrarlo y frenar sería trabarse para siempre.
+  const lleno = (p: { cantidad: number; bytes: number; subibles: number }) =>
+    p.subibles > 0 && (p.cantidad >= o.limites.maxSegmentos || p.bytes >= o.limites.maxBytes);
+  for await (const chunk of fuente) {
+    if (o.cortado()) return;
+    if (Date.now() - ultimaMirada >= mirarCada) {
+      let p = await o.pendientes();
+      if (lleno(p)) {
+        o.alFrenar?.(p);
+        while (lleno(p)) {
+          await dormir(espera);
+          if (o.cortado()) return;
+          p = await o.pendientes();
+        }
+      }
+      ultimaMirada = Date.now();
+    }
+    if (o.cortado() || destino.destroyed || destino.writableEnded) return;
+    if (!destino.write(chunk)) {
+      await new Promise<void>((resolve) => {
+        const listo = () => {
+          destino.off("drain", listo);
+          destino.off("close", listo);
+          destino.off("error", listo);
+          resolve();
+        };
+        destino.on("drain", listo);
+        destino.on("close", listo);
+        destino.on("error", listo);
+      });
+    }
+  }
+  if (!destino.destroyed && !destino.writableEnded) destino.end();
+}
+
 export type DepsRelleno = {
   repo: RepoRelleno;
   leerStream(clave: string): Readable;
@@ -21,6 +85,10 @@ export type DepsRelleno = {
   registrar?: (msg: string) => void;
   hlsIntervaloMs?: number;
   hlsEsperasMs?: number[];
+  /** Default 20 segmentos o 60 MB esperando subir. */
+  contrapresion?: LimitesContrapresion;
+  /** Preset de x264 del 720p (default `PRESET_HLS`). */
+  presetHls?: string;
 };
 
 /**
@@ -28,6 +96,10 @@ export type DepsRelleno = {
  * `final.mp4` de R2 en streaming (sin bajarlo al disco). `lockAt` es el token que devolvió
  * `tomarRelleno`; toda escritura exige que siga vigente. El MP4 nunca se toca: si algo falla,
  * se borra lo subido del HLS y se anota el intento.
+ *
+ * Cada intento escribe en su propia carpeta `hls-<lockAt en ms>`. Al empezar se borran las
+ * carpetas `hls*` de intentos anteriores (ya no son de nadie: el bloqueo es nuestro); si este
+ * intento falla, se borra sólo la suya. `hlsKey` apunta a la carpeta del intento que terminó.
  */
 export async function rellenarHls(deps: DepsRelleno, id: string, lockAt: Date): Promise<void> {
   const { repo } = deps;
@@ -43,9 +115,9 @@ export async function rellenarHls(deps: DepsRelleno, id: string, lockAt: Date): 
     if (!/^[A-Za-z0-9_-]{1,64}$/.test(datos.workspaceId) || datos.videoKey !== `${prefijo}final.mp4`) {
       throw new Error("La grabación no tiene un final.mp4 con la clave esperada.");
     }
-    prefijoHls = `${prefijo}hls`;
-    // Restos de un intento anterior (o de una conversión cortada): se empieza de cero.
-    await deps.borrarPrefijo(`${prefijoHls}/`);
+    // Restos de intentos anteriores (`hls`, `hls-<ms>`…): se empieza de cero.
+    await deps.borrarPrefijo(`${prefijo}hls`);
+    prefijoHls = `${prefijo}hls-${lockAt.getTime()}`;
 
     dir = await fs.promises.mkdtemp(path.join(deps.tmpBase ?? os.tmpdir(), "digi-hls-"));
     const subidor = crearSubidorHls({
@@ -57,13 +129,14 @@ export async function rellenarHls(deps: DepsRelleno, id: string, lockAt: Date): 
       registrar: (m) => log(`${id}: ${m}`),
     });
 
-    const ff = spawn(deps.ffmpegPath ?? "ffmpeg", argumentosRelleno("pipe:3", dir), {
+    const ff = spawn(deps.ffmpegPath ?? "ffmpeg", argumentosRelleno("pipe:3", dir, deps.presetHls), {
       stdio: ["ignore", "ignore", "pipe", "pipe"],
     });
     subidor.iniciar();
 
     let falla: Error | null = null;
     let abortado = false;
+    let ffTermino = false;
     const abortar = (e: Error) => {
       if (!falla) falla = e;
       abortado = true;
@@ -74,10 +147,18 @@ export async function rellenarHls(deps: DepsRelleno, id: string, lockAt: Date): 
     const entrada = ff.stdio[3] as Writable;
     entrada.on("error", () => {});
     const fuente = deps.leerStream(datos.videoKey);
-    fuente.on("error", (e) => {
+    fuente.on("error", () => {});
+    let frenadas = 0;
+    const bomba = bombear(fuente, entrada, {
+      pendientes: () => subidor.pendientes(),
+      limites: deps.contrapresion ?? CONTRAPRESION_POR_DEFECTO,
+      cortado: () => abortado || ffTermino,
+      alFrenar: (p) => {
+        if (frenadas++ % 20 === 0) log(`${id}: entrada en pausa, ${p.cantidad} segmentos (${Math.round(p.bytes / 1048576)} MB) esperando subir`);
+      },
+    }).catch((e: Error) => {
       if (!abortado) abortar(new Error(`No se pudo leer el video de R2: ${e.message}`));
     });
-    fuente.pipe(entrada);
 
     const ultimas: string[] = [];
     let ultimoProgreso = Date.now();
@@ -130,8 +211,11 @@ export async function rellenarHls(deps: DepsRelleno, id: string, lockAt: Date): 
         });
         ff.once("close", (c) => resolve(c));
       });
-      fuente.unpipe(entrada);
+      // ffmpeg ya terminó: el vigía no tiene nada que vigilar (subir lo último puede tardar).
+      clearInterval(vigia);
+      ffTermino = true;
       fuente.destroy();
+      await bomba;
       if (!falla && codigo !== 0) falla = new Error(`ffmpeg terminó con código ${codigo}.`);
       if (falla) console.error(`[digitalizacion][relleno] ${id}: ${(falla as Error).message} — ${ultimas.join(" | ").slice(-1500)}`);
       ok = await subidor.terminar(!falla);
@@ -155,7 +239,8 @@ export async function rellenarHls(deps: DepsRelleno, id: string, lockAt: Date): 
   } catch (e) {
     const causa = e instanceof Error ? e.message : String(e);
     console.error(`[digitalizacion][relleno] ${id}: falló:`, causa);
-    if (prefijoHls && !perdida) await deps.borrarPrefijo(`${prefijoHls}/`).catch(() => {});
+    // La carpeta es sólo de este intento: se borra aunque se haya perdido el bloqueo.
+    if (prefijoHls) await deps.borrarPrefijo(`${prefijoHls}/`).catch(() => {});
     if (perdida) return;
     try {
       await repo.marcarFalloHls(id, lock, mensajeError(causa));

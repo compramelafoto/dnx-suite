@@ -6,6 +6,7 @@ import {
   argumentosRelleno,
   argumentosSalidaHls,
   crearSubidorHls,
+  PRESET_HLS,
   nombreDeSegmento,
   segmentosCompletos,
   validarPlaylist,
@@ -17,7 +18,10 @@ describe("argumentosSalidaHls", () => {
     const s = a.join(" ");
     expect(s).toContain("-map [v720] -map [a720]");
     expect(s).toContain("-c:v libx264");
-    expect(s).toContain("-preset veryfast");
+    // Medido con un clip de 30 s 1080p: superfast usa ~23 % menos CPU que veryfast.
+    expect(PRESET_HLS).toBe("superfast");
+    expect(s).toContain("-preset superfast");
+    expect(argumentosSalidaHls("/t/hls", "[v]", "[a]", "ultrafast").join(" ")).toContain("-preset ultrafast");
     expect(s).toContain("-b:v 2000k");
     expect(s).toContain("-c:a aac -b:a 128k");
     // GOP fijo de 6 s a 30 cuadros: cada segmento empieza en un cuadro clave.
@@ -179,6 +183,37 @@ describe("crearSubidorHls", () => {
     await s.revisar();
     expect(s.fallo()).toContain("pendientes");
     expect(subidos).toEqual([]);
+  });
+
+  it("cuenta los pendientes antes de CADA subida: si ffmpeg sigue escribiendo durante una subida lenta, abandona", async () => {
+    const subidos: string[] = [];
+    const s = crearSubidorHls({
+      dir,
+      prefijoHls: "p/hls",
+      subirArchivo: async (c) => {
+        subidos.push(c);
+        // Mientras sube el primero, aparecen tres más.
+        if (subidos.length === 1) for (let i = 4; i <= 6; i++) escribir(nombreDeSegmento(i));
+      },
+      intervaloMs: 10_000,
+      maxPendientes: 3,
+      registrar: () => {},
+    });
+    for (let i = 1; i <= 3; i++) escribir(nombreDeSegmento(i));
+    escribir("seg_00004.ts.tmp");
+    await s.revisar();
+    expect(subidos).toEqual(["p/hls/seg_00001.ts"]);
+    expect(s.fallo()).toContain("pendientes");
+  });
+
+  it("pendientes(): cuántos segmentos (y bytes) hay en el disco sin subir, temporales incluidos", async () => {
+    const { s } = armar();
+    escribir("seg_00001.ts", "a".repeat(100));
+    escribir("seg_00002.ts.tmp", "b".repeat(50));
+    escribir("index.m3u8.tmp", "c".repeat(1000));
+    expect(await s.pendientes()).toEqual({ cantidad: 2, bytes: 150, subibles: 1 });
+    await s.revisar();
+    expect(await s.pendientes()).toEqual({ cantidad: 1, bytes: 50, subibles: 0 });
   });
 
   it("terminar(false) no sube nada más", async () => {

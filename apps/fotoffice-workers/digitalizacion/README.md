@@ -9,25 +9,32 @@ grabación en estado LISTA para verla en la lista.
 
 Además del MP4 Full HD (`final.mp4`, para descargar), el worker arma una versión para mirar en
 el navegador sin esperas: HLS VOD 1280×720 (el mismo cuadro final, con la marca y el pillarbox,
-escalado), H.264 ~2 Mbps y AAC 128k, segmentos MPEG-TS de 6 s. Queda en R2 bajo la carpeta de
-la grabación: `digitalizacion/<ws>/<grabacion>/hls/index.m3u8` y `seg_00001.ts`, `seg_00002.ts`…
-En la base, `hlsKey = digitalizacion/<ws>/<grabacion>/hls` (sin barra final).
+escalado), H.264 ~2 Mbps (`-preset superfast`) y AAC 128k, segmentos MPEG-TS de 6 s.
 
-- **Durante la conversión** (sólo en el primer intento): el mismo ffmpeg saca las dos salidas
-  (`split` del filtro). Los segmentos se escriben en `/tmp` y se suben uno por uno apenas están
-  completos (cuando ya existe el siguiente), y se borran del disco: en memoria quedan 1 o 2.
-  Al final se sube la playlist (con `#EXT-X-ENDLIST`) y `hlsKey` se guarda en la misma escritura
-  que deja la grabación LISTA. Si el HLS falla (una subida, la playlist, más de 40 segmentos
-  esperando), el MP4 sigue: la grabación queda LISTA sin `hlsKey` y se borra lo subido del HLS.
-  Desde el segundo intento sólo se hace el MP4.
-- **Relleno**: cuando no hay conversiones pendientes, el worker toma las grabaciones LISTA con
-  `videoKey`, sin `hlsKey` y sin `videoBorradoAt`, y arma el HLS leyendo el `final.mp4` de R2 en
-  streaming (con reanudación por `Range` si la conexión se corta). No hay columnas propias:
-  - el bloqueo es `conversionLockAt` (renovado cada 5 min; sin renovar 30 min, otro lo retoma) y
-    la toma usa `FOR UPDATE SKIP LOCKED`;
-  - los intentos se cuentan en `conversionError` con el prefijo `HLS:<n>:` (en una grabación
-    LISTA la pantalla no muestra ese campo). Se cuenta al tomarla; con 3 intentos no se reintenta
-    más. Para reintentar a mano: `UPDATE "DigitalizacionGrabacion" SET "conversionError"=NULL WHERE id='…'`.
+**El HLS nunca pone en riesgo el MP4.** La conversión produce sólo el MP4, igual que antes. El HLS
+se arma siempre aparte, en el **relleno**, leyendo el `final.mp4` ya subido de R2 en streaming
+(con reanudación por `Range`). Después de cada conversión exitosa se encadena el relleno de esa
+grabación; si no, el worker toma rellenos cuando la cola de conversión está vacía.
+
+- **Un solo relleno a la vez en todo el sistema**: la toma va dentro de un candado de transacción
+  de Postgres (`pg_try_advisory_xact_lock`) y, si ya hay un relleno en curso (intento tomado sin
+  causa y bloqueo renovado hace menos de 30 min), no se toma otro.
+- **Qué se toma**: LISTA, `estado='COMPLETA'`, con `videoKey`, sin `hlsKey` ni `videoBorradoAt`,
+  sin bloqueo vigente, con menos de 3 intentos y cuya entrega no esté vencida ni borrada.
+- **Carpeta por intento**: `digitalizacion/<ws>/<grabacion>/hls-<lockAt en ms>/` con
+  `index.m3u8` y `seg_00001.ts`… Al tomar se borran todas las carpetas `hls*` de la grabación;
+  si el intento falla, borra sólo la suya. `hlsKey` apunta a la carpeta del intento que terminó.
+- **Contrapresión**: los segmentos se escriben en `/tmp` (memoria en Cloud Run) y se suben uno por
+  uno apenas están completos. Si esperan 20 segmentos o 60 MB, se deja de leer R2 y de alimentar
+  a ffmpeg hasta que bajen (sólo si hay alguno para subir: frenar con el segmento a medio escribir
+  solo trabaría todo). Cada PUT de segmento corta a los 30 s y se reintenta 3 veces. Como red de
+  seguridad, con más de 40 segmentos esperando (contados antes de cada subida) se abandona.
+- **Intentos**: se cuentan en `conversionError` con el prefijo `HLS:<n>:` (en una LISTA la pantalla
+  no muestra ese campo; la causa se agrega al fallar). Se cuenta al tomarla; con 3 intentos no se
+  reintenta más y la app muestra que no se pudo preparar la vista previa. Para reintentar a mano:
+  `UPDATE "DigitalizacionGrabacion" SET "conversionError"=NULL WHERE id='…'`.
+- Prueba local de punta a punta: `pnpm tsx scripts/prueba-relleno.ts` (clip de 30 s por pipe,
+  subidor lento falso; mide lo que se acumula en `/tmp` con y sin contrapresión).
 
 ## Variables de entorno
 

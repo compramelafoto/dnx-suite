@@ -3,8 +3,9 @@ import path from "node:path";
 
 /**
  * Versión para mirar (spec 2026-10-22, E10): HLS VOD 720p, H.264 ~2 Mbps + AAC 128k, segmentos
- * MPEG-TS de 6 s (lo más compatible: Safari nativo y hls.js). En R2 queda bajo
- * `<carpeta de la grabación>/hls/`: `index.m3u8` y `seg_00001.ts`, `seg_00002.ts`…
+ * MPEG-TS de 6 s (lo más compatible: Safari nativo y hls.js). Se arma SIEMPRE aparte, desde el
+ * `final.mp4` ya subido (la conversión del MP4 no sabe nada del HLS). En R2 queda bajo
+ * `<carpeta de la grabación>/hls-<intento>/`: `index.m3u8` y `seg_00001.ts`, `seg_00002.ts`…
  *
  * ffmpeg escribe los segmentos en una carpeta temporal; el subidor sube cada uno apenas está
  * completo y lo borra, así en el disco (que en Cloud Run es memoria) quedan unos pocos.
@@ -15,16 +16,21 @@ const REGEX_SEGMENTO = /^seg_(\d+)\.ts$/;
 const REGEX_TEMPORAL = /^seg_(\d+)\.ts\.tmp$/;
 const TIPO_SEGMENTO = "video/mp2t";
 const TIPO_PLAYLIST = "application/vnd.apple.mpegurl";
+/**
+ * Medido con un clip sintético de 30 s 1080p30 (8 núcleos): veryfast 13,3 s de CPU, superfast
+ * 10,3 s (−23 %), ultrafast 8,5 s pero con peor calidad al mismo bitrate.
+ */
+export const PRESET_HLS = "superfast";
 
 export function nombreDeSegmento(n: number): string {
   return `seg_${String(n).padStart(5, "0")}.ts`;
 }
 
 /** La salida HLS de ffmpeg a partir de las etiquetas de video y audio ya escaladas a 720p. */
-export function argumentosSalidaHls(dir: string, video: string, audio: string): string[] {
+export function argumentosSalidaHls(dir: string, video: string, audio: string, preset: string = PRESET_HLS): string[] {
   return [
     "-map", video, "-map", audio,
-    "-c:v", "libx264", "-profile:v", "main", "-preset", "veryfast",
+    "-c:v", "libx264", "-profile:v", "main", "-preset", preset,
     "-b:v", "2000k", "-maxrate", "2400k", "-bufsize", "4000k", "-pix_fmt", "yuv420p",
     // El cuadro final ya está a 30 fps: un cuadro clave cada 6 s exactos, sin cortes por escena.
     "-g", "180", "-keyint_min", "180", "-sc_threshold", "0",
@@ -41,12 +47,12 @@ export function argumentosSalidaHls(dir: string, video: string, audio: string): 
  * Relleno de lo ya convertido: el `final.mp4` (1920×1080 con la marca y el pillarbox quemados)
  * entra por un descriptor y sólo se escala.
  */
-export function argumentosRelleno(entrada: string, dir: string): string[] {
+export function argumentosRelleno(entrada: string, dir: string, preset: string = PRESET_HLS): string[] {
   return [
     "-hide_banner", "-nostdin", "-y", "-stats_period", "10",
     "-i", entrada,
     "-filter_complex", "[0:v:0]scale=1280:720,setsar=1,format=yuv420p[v720]",
-    ...argumentosSalidaHls(dir, "[v720]", "0:a:0?"),
+    ...argumentosSalidaHls(dir, "[v720]", "0:a:0?", preset),
   ];
 }
 
@@ -96,7 +102,10 @@ export type OpcionesSubidor = {
   intervaloMs?: number;
   /** Esperas entre reintentos de un segmento (default 1/3/10 s). */
   esperasMs?: number[];
-  /** Si se acumulan más segmentos completos sin subir, se abandona el HLS (default 40 ≈ 60 MB). */
+  /**
+   * Red de seguridad: si igual se acumulan más segmentos completos sin subir (se cuenta antes de
+   * cada subida), se abandona el HLS. Default 40 ≈ 60 MB; la contrapresión del relleno frena antes.
+   */
   maxPendientes?: number;
   registrar?: (msg: string) => void;
 };
@@ -113,6 +122,11 @@ export type SubidorHls = {
   fallo(): string | null;
   /** Si subió al menos un archivo (para saber si hay que limpiar en R2). */
   subioAlgo(): boolean;
+  /**
+   * Segmentos en el disco sin subir (completos y el que ffmpeg está escribiendo), sus bytes, y
+   * cuántos ya se pueden subir (si es 0, sólo ffmpeg puede hacer avanzar las cosas).
+   */
+  pendientes(): Promise<{ cantidad: number; bytes: number; subibles: number }>;
 };
 
 export function crearSubidorHls(o: OpcionesSubidor): SubidorHls {
@@ -154,8 +168,13 @@ export function crearSubidorHls(o: OpcionesSubidor): SubidorHls {
       return;
     }
     const completos = segmentosCompletos(nombres, terminado).filter((n) => !subidos.has(n));
-    if (!falla && completos.length > maxPendientes) fallar(`${completos.length} segmentos pendientes de subir`);
     for (const nombre of completos) {
+      if (!falla) {
+        // Se cuenta de nuevo antes de cada subida: mientras una sube lenta, ffmpeg sigue escribiendo.
+        const ahora = await fs.promises.readdir(o.dir).catch(() => nombres);
+        const esperando = segmentosCompletos(ahora, terminado).filter((n) => !subidos.has(n)).length;
+        if (esperando > maxPendientes) fallar(`${esperando} segmentos pendientes de subir`);
+      }
       if (!falla) {
         try {
           const cuerpo = await fs.promises.readFile(path.join(o.dir, nombre));
@@ -217,5 +236,19 @@ export function crearSubidorHls(o: OpcionesSubidor): SubidorHls {
     },
     fallo: () => falla,
     subioAlgo: () => algo,
+    async pendientes() {
+      const nombres = await fs.promises.readdir(o.dir).catch(() => [] as string[]);
+      let cantidad = 0;
+      let bytes = 0;
+      for (const n of nombres) {
+        if (!REGEX_SEGMENTO.test(n) && !REGEX_TEMPORAL.test(n)) continue;
+        const st = await fs.promises.stat(path.join(o.dir, n)).catch(() => null);
+        if (!st) continue;
+        cantidad++;
+        bytes += st.size;
+      }
+      const subibles = segmentosCompletos(nombres, false).filter((n) => !subidos.has(n)).length;
+      return { cantidad, bytes, subibles };
+    },
   };
 }
