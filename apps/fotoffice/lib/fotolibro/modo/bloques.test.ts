@@ -55,3 +55,43 @@ describe("de las fotos de cada página a los bloques del diseño", () => {
     expect(despues.some((b) => b.configJson.fotoId === "b")).toBe(false);
   });
 });
+
+describe("con un estilo aplicado", () => {
+  function conEstilo(textos: Record<string, string> = {}) {
+    const e = estado();
+    e.estilo = {
+      id: "bodas-01-jardin-acuarela",
+      medida: "610×305",
+      fondos: { apertura: "https://x/ap.jpg", interior: "https://x/in.jpg", "interior-alt": "https://x/alt.jpg", cierre: "https://x/ci.jpg" },
+      textos,
+    };
+    return e;
+  }
+
+  it("cada pliego lleva el fondo de su tipo: el primero abre y el último cierra", () => {
+    const fondos = generarBloques(conEstilo(), lienzo, []).filter((b) => b.type === "BACKGROUND");
+    expect(fondos.find((b) => b.pageIndex === 0)!.configJson.src).toBe("https://x/ap.jpg");
+    expect(fondos.find((b) => b.pageIndex === 1)!.configJson.src).toBe("https://x/ci.jpg");
+  });
+
+  it("los títulos salen sólo si se escribieron, con la tipografía del estilo", () => {
+    expect(generarBloques(conEstilo(), lienzo, []).some((b) => b.type === "TEXT")).toBe(false);
+    const titulo = generarBloques(conEstilo({ titulo: "Ana & Luis" }), lienzo, []).find((b) => b.type === "TEXT")!;
+    expect(titulo.configJson.content).toBe("Ana & Luis");
+    expect(titulo.configJson.fontFamily).toBe("Great Vibes");
+    expect(titulo.pageIndex).toBe(0);
+  });
+
+  it("en la apertura, las fotos de la página izquierda van debajo del título", () => {
+    const e = conEstilo();
+    const fotos = generarBloques(e, lienzo, []).filter((b) => b.type === "IMAGE" && b.pageIndex === 0 && b.layout.x < lienzo.width / 2);
+    for (const f of fotos) expect(f.layout.y).toBeGreaterThan(lienzo.height * 0.6);
+  });
+
+  it("sacar el estilo devuelve el papel blanco", () => {
+    const con = generarBloques(conEstilo(), lienzo, []);
+    const e = estado();
+    const sin = generarBloques(e, lienzo, con).filter((b) => b.type === "BACKGROUND");
+    expect(sin.every((b) => b.configJson.src === "")).toBe(true);
+  });
+});
