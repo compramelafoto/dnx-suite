@@ -4,7 +4,7 @@
  * las páginas, también desde el navegador: el token (con `node:crypto`) vive en `token-entrega.ts`.
  */
 import { diaEnBuenosAires } from "@/lib/presupuestos/estados";
-import { diasEntre } from "@/lib/pedidos/plan-cuotas";
+import { diasEntre, sumarDias } from "@/lib/pedidos/plan-cuotas";
 
 /** Días que quedan los videos (y los cassettes) desde que se manda el correo. */
 export const DIAS_VIGENCIA = 30;
@@ -15,7 +15,9 @@ export const UMBRALES_RECORDATORIO = [10, 5, 1] as const;
 export const MAX_FRANJAS = 20;
 const MAX_KM = 10_000;
 const MAX_PRECIO = 100_000_000;
-const DIA_MS = 24 * 60 * 60 * 1000;
+/** El envío automático espera esto desde la última actividad del pedido: puede venir otro cassette. */
+export const HORAS_ESPERA_AUTOMATICO = 12;
+const HORA_MS = 60 * 60 * 1000;
 const ZONA = "America/Argentina/Buenos_Aires";
 
 // --- Cuándo está lista ------------------------------------------------------------------------
@@ -27,9 +29,14 @@ export type PreparacionEntrega = "CONVIRTIENDO" | "CON_ERROR" | "SIN_VIDEOS" | "
  * E2: lista cuando todas las grabaciones completas están LISTA o SIN_IMAGEN y al menos una LISTA.
  * Las DESCARTADAS no cuentan; una que sigue GRABANDO (o en cola, o convirtiéndose) hace esperar.
  * Una con ERROR frena el envío hasta que alguien la reintente o la descarte.
+ *
+ * Grabaciones de antes de la conversión: COMPLETA, sin `conversionEstado` y `sinImagen` cuentan
+ * como SIN_IMAGEN (si no, trabarían el pedido para siempre); con imagen, siguen "convirtiendo".
  */
-export function estadoDeEntrega(grabaciones: readonly { estado: string; conversionEstado: string | null }[]): PreparacionEntrega {
-  const vivas = grabaciones.filter((g) => g.estado !== "DESCARTADA");
+export function estadoDeEntrega(grabaciones: readonly { estado: string; conversionEstado: string | null; sinImagen?: boolean }[]): PreparacionEntrega {
+  const vivas = grabaciones
+    .filter((g) => g.estado !== "DESCARTADA")
+    .map((g) => (g.estado === "COMPLETA" && g.conversionEstado === null && g.sinImagen === true ? { ...g, conversionEstado: "SIN_IMAGEN" } : g));
   if (vivas.some((g) => g.estado !== "COMPLETA" || g.conversionEstado === null || g.conversionEstado === "PENDIENTE" || g.conversionEstado === "PROCESANDO")) {
     return "CONVIRTIENDO";
   }
@@ -52,9 +59,64 @@ export function estadoVisibleDeEntrega(
 
 // --- Vencimientos y cupo ----------------------------------------------------------------------
 
+/** 23:59:59.999 de Argentina (UTC−3, sin horario de verano) del día en que cae `d` allá. */
+export function finDelDiaArgentino(d: Date): Date {
+  return new Date(`${diaEnBuenosAires(d)}T23:59:59.999-03:00`);
+}
+
+/** El día 30 (de Argentina) desde `desde`, al final del día: "disponibles hasta el dd/mm" incluye ese día. */
+export function venceDesde(desde: Date): Date {
+  return new Date(`${sumarDias(diaEnBuenosAires(desde), DIAS_VIGENCIA)}T23:59:59.999-03:00`);
+}
+
 export function vencimientosDesde(enviadoAt: Date): { videosVencenAt: Date; cassettesVencenAt: Date } {
-  const vence = new Date(enviadoAt.getTime() + DIAS_VIGENCIA * DIA_MS);
+  const vence = venceDesde(enviadoAt);
   return { videosVencenAt: vence, cassettesVencenAt: new Date(vence) };
+}
+
+/**
+ * Desde cuándo sale sola la entrega: 12 h después de la última actividad del pedido (el máximo
+ * entre `terminadaAt` y `convertidaAt` de las grabaciones no descartadas), por si falta grabar otro
+ * cassette. null = sin fechas (sale ya). El botón "Enviar al cliente" no espera.
+ */
+export function envioAutomaticoDesde(grabaciones: readonly { estado: string; terminadaAt: Date | null; convertidaAt: Date | null }[]): Date | null {
+  let ultima: number | null = null;
+  for (const g of grabaciones) {
+    if (g.estado === "DESCARTADA") continue;
+    for (const f of [g.terminadaAt, g.convertidaAt]) if (f && (ultima === null || f.getTime() > ultima)) ultima = f.getTime();
+  }
+  return ultima === null ? null : new Date(ultima + HORAS_ESPERA_AUTOMATICO * HORA_MS);
+}
+
+/**
+ * Un video que quedó LISTA después del envío tiene sus 30 días: si `convertidaAt` + 30 días (al
+ * final del día) pasa el vencimiento vigente, devuelve el nuevo; si no, null. Idempotente: una vez
+ * extendido, la condición deja de cumplirse.
+ */
+export function extensionPorVideosNuevos(
+  videosVencenAt: Date | null,
+  grabaciones: readonly { estado: string; conversionEstado: string | null; convertidaAt: Date | null }[],
+): Date | null {
+  if (!videosVencenAt) return null;
+  let nuevo: Date | null = null;
+  for (const g of grabaciones) {
+    if (g.estado === "DESCARTADA" || g.conversionEstado !== "LISTA" || !g.convertidaAt) continue;
+    const v = venceDesde(g.convertidaAt);
+    if (v.getTime() > videosVencenAt.getTime() && (!nuevo || v.getTime() > nuevo.getTime())) nuevo = v;
+  }
+  return nuevo;
+}
+
+/** Duración de una firma: la normal, o lo que falte para el vencimiento si es menos; nunca menos de 60 s. */
+export function segundosDeFirma(normal: number, videosVencenAt: Date | null, ahora: Date): number {
+  if (!videosVencenAt) return normal;
+  const faltan = Math.floor((videosVencenAt.getTime() - ahora.getTime()) / 1000);
+  return Math.max(60, Math.min(normal, faltan));
+}
+
+/** Días de calendario de Argentina de hoy al vencimiento (0 = vence hoy). */
+export function diasQueFaltan(videosVencenAt: Date, ahora: Date): number {
+  return diasEntre(diaEnBuenosAires(ahora), diaEnBuenosAires(videosVencenAt));
 }
 
 /** Llegó la fecha: se trata como borrada aunque el cron todavía no haya pasado. */
@@ -74,7 +136,7 @@ export function descargasRestantes(d: { descargasExtra: number; usadas: number }
  */
 export function recordatorioQueCorresponde(e: { videosVencenAt: Date | null; recordatorios: readonly number[] }, ahora: Date): number | null {
   if (!e.videosVencenAt || videosVencidos(e, ahora)) return null;
-  const faltan = diasEntre(diaEnBuenosAires(ahora), diaEnBuenosAires(e.videosVencenAt));
+  const faltan = diasQueFaltan(e.videosVencenAt, ahora);
   const umbral = [...UMBRALES_RECORDATORIO].sort((a, b) => a - b).find((u) => faltan <= u);
   if (umbral === undefined || e.recordatorios.includes(umbral)) return null;
   return umbral;
@@ -149,6 +211,14 @@ const FECHA_CORTA = new Intl.DateTimeFormat("es-AR", { timeZone: ZONA, day: "2-d
 /** "dd/mm/aaaa" (o "dd/mm") en hora argentina. */
 export function fechaArgentina(d: Date, formato: "larga" | "corta" = "larga"): string {
   return (formato === "corta" ? FECHA_CORTA : FECHA_LARGA).format(d);
+}
+
+const FECHA_HORA = new Intl.DateTimeFormat("es-AR", { timeZone: ZONA, day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+
+/** "dd/mm hh:mm" en hora argentina. */
+export function fechaHoraArgentina(d: Date): string {
+  const p = Object.fromEntries(FECHA_HORA.formatToParts(d).map((x) => [x.type, x.value]));
+  return `${p.day}/${p.month} ${p.hour}:${p.minute}`;
 }
 
 /** "1 h 05 min" o "45 min". */

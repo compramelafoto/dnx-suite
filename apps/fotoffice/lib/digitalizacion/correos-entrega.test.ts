@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { correoRecordatorioVideos, correoVideosListos, type DatosVideosListos } from "./correos-entrega";
+import { correoRecordatorioVideos, correoVideoAgregado, correoVideosListos, type DatosVideosListos } from "./correos-entrega";
 
 const base: DatosVideosListos = {
   estudio: "Foto Positiva",
@@ -54,6 +54,25 @@ describe("correoRecordatorioVideos", () => {
     expect(c.subject).toBe("Tus videos se borran el 21/11 · FP");
     expect(c.text).toContain("¡Hola!");
     expect(c.text).toContain("se borran en 5 días, el 21/11/2026");
+    expect(c.text).toContain("Ver mis videos: https://x/videos/t");
+  });
+});
+
+describe("días que faltan de verdad", () => {
+  const d = { estudio: "FP", nombre: "", pedidoNumero: "P-1", urlVideos: "https://x/videos/t", videosVencenAt: base.videosVencenAt, contacto: null };
+  it("4 días, mañana u hoy", () => {
+    expect(correoRecordatorioVideos({ ...d, dias: 4 }).text).toContain("se borran en 4 días");
+    expect(correoRecordatorioVideos({ ...d, dias: 1 }).text).toContain("se borran mañana");
+    expect(correoRecordatorioVideos({ ...d, dias: 0 }).text).toContain("se borran hoy");
+  });
+});
+
+describe("correoVideoAgregado", () => {
+  it("lista los videos, el vencimiento nuevo y el mismo enlace", () => {
+    const c = correoVideoAgregado({ estudio: "FP", nombre: "Ana", pedidoNumero: "P-1", videos: base.videos, urlVideos: "https://x/videos/t", videosVencenAt: base.videosVencenAt, contacto: null });
+    expect(c.subject).toBe("Agregamos un video a tu pedido · FP");
+    expect(c.text).toContain("• Cassette 2 (30 min)");
+    expect(c.text).toContain("hasta el 21/11/2026");
     expect(c.text).toContain("Ver mis videos: https://x/videos/t");
   });
 });

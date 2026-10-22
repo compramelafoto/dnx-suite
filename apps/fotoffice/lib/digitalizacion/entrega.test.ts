@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { hashDeToken } from "@/lib/presupuestos/enlace";
 import {
-  DESCARGAS_INCLUIDAS, descargasRestantes, estadoDeEntrega, estadoVisibleDeEntrega, fechaArgentina, pesos, tituloDeVideo,
-  recordatorioQueCorresponde, urlDeVideos, validarFranjas, leerFranjas, leerNumero, vencimientosDesde, videosVencidos,
+  DESCARGAS_INCLUIDAS, descargasRestantes, estadoDeEntrega, estadoVisibleDeEntrega, fechaArgentina, fechaHoraArgentina, pesos, tituloDeVideo,
+  recordatorioQueCorresponde, urlDeVideos, diasQueFaltan, envioAutomaticoDesde, extensionPorVideosNuevos, finDelDiaArgentino, segundosDeFirma, validarFranjas, leerFranjas, leerNumero, vencimientosDesde, videosVencidos,
 } from "./entrega";
 import { generacionDeEntrega, tokenDeEntrega } from "./token-entrega";
 
@@ -51,14 +51,76 @@ describe("vencimientos", () => {
   it("videos y cassettes vencen 30 días después del envío", () => {
     const e = new Date("2026-10-22T18:30:00Z");
     const v = vencimientosDesde(e);
-    expect(v.videosVencenAt.toISOString()).toBe("2026-11-21T18:30:00.000Z");
-    expect(v.cassettesVencenAt.toISOString()).toBe("2026-11-21T18:30:00.000Z");
+    // Enviado el 22/10 (Argentina): vence al final del 21/11 de Argentina (02:59:59.999 UTC del 22/11).
+    expect(v.videosVencenAt.toISOString()).toBe("2026-11-22T02:59:59.999Z");
+    expect(v.cassettesVencenAt.toISOString()).toBe("2026-11-22T02:59:59.999Z");
+  });
+  it("cuenta el día de Argentina aunque en UTC ya sea mañana", () => {
+    // 23/10 01:00 UTC = 22/10 22:00 en Argentina.
+    expect(vencimientosDesde(new Date("2026-10-23T01:00:00Z")).videosVencenAt.toISOString()).toBe("2026-11-22T02:59:59.999Z");
+    expect(finDelDiaArgentino(new Date("2026-10-23T01:00:00Z")).toISOString()).toBe("2026-10-23T02:59:59.999Z");
   });
   it("vencida = llegó la fecha; sin fecha no vence", () => {
     const ahora = new Date("2026-11-21T18:30:00Z");
     expect(videosVencidos({ videosVencenAt: new Date("2026-11-21T18:30:00Z") }, ahora)).toBe(true);
     expect(videosVencidos({ videosVencenAt: new Date("2026-11-21T18:31:00Z") }, ahora)).toBe(false);
     expect(videosVencidos({ videosVencenAt: null }, ahora)).toBe(false);
+  });
+});
+
+describe("grabaciones viejas sin conversionEstado", () => {
+  it("sin imagen cuenta como SIN_IMAGEN; con imagen, sigue convirtiendo", () => {
+    expect(estadoDeEntrega([{ estado: "COMPLETA", conversionEstado: "LISTA" }, { estado: "COMPLETA", conversionEstado: null, sinImagen: true }])).toBe("LISTA");
+    expect(estadoDeEntrega([{ estado: "COMPLETA", conversionEstado: "LISTA" }, { estado: "COMPLETA", conversionEstado: null, sinImagen: false }])).toBe("CONVIRTIENDO");
+    expect(estadoDeEntrega([{ estado: "GRABANDO", conversionEstado: null, sinImagen: true }])).toBe("CONVIRTIENDO");
+  });
+});
+
+describe("envioAutomaticoDesde", () => {
+  it("12 h después de la última actividad (terminada o convertida) de las no descartadas", () => {
+    const d = envioAutomaticoDesde([
+      { estado: "COMPLETA", terminadaAt: new Date("2026-10-22T10:00:00Z"), convertidaAt: new Date("2026-10-22T12:00:00Z") },
+      { estado: "COMPLETA", terminadaAt: new Date("2026-10-22T13:00:00Z"), convertidaAt: null },
+      { estado: "DESCARTADA", terminadaAt: new Date("2026-10-23T00:00:00Z"), convertidaAt: null },
+    ]);
+    expect(d?.toISOString()).toBe("2026-10-23T01:00:00.000Z");
+  });
+  it("sin fechas: null", () => {
+    expect(envioAutomaticoDesde([{ estado: "COMPLETA", terminadaAt: null, convertidaAt: null }])).toBeNull();
+  });
+});
+
+describe("extensionPorVideosNuevos", () => {
+  const vence = new Date("2026-11-22T02:59:59.999Z");
+  it("un video convertido después del envío corre el vencimiento", () => {
+    const r = extensionPorVideosNuevos(vence, [
+      { estado: "COMPLETA", conversionEstado: "LISTA", convertidaAt: new Date("2026-10-20T12:00:00Z") },
+      { estado: "COMPLETA", conversionEstado: "LISTA", convertidaAt: new Date("2026-10-25T12:00:00Z") },
+    ]);
+    expect(r?.toISOString()).toBe("2026-11-25T02:59:59.999Z");
+  });
+  it("idempotente: ya extendido, null; sólo LISTA no descartadas", () => {
+    expect(extensionPorVideosNuevos(new Date("2026-11-25T02:59:59.999Z"), [{ estado: "COMPLETA", conversionEstado: "LISTA", convertidaAt: new Date("2026-10-25T12:00:00Z") }])).toBeNull();
+    expect(extensionPorVideosNuevos(vence, [{ estado: "COMPLETA", conversionEstado: "PROCESANDO", convertidaAt: new Date("2026-10-25T12:00:00Z") }])).toBeNull();
+    expect(extensionPorVideosNuevos(vence, [{ estado: "DESCARTADA", conversionEstado: "LISTA", convertidaAt: new Date("2026-10-25T12:00:00Z") }])).toBeNull();
+    expect(extensionPorVideosNuevos(null, [{ estado: "COMPLETA", conversionEstado: "LISTA", convertidaAt: new Date("2026-10-25T12:00:00Z") }])).toBeNull();
+  });
+});
+
+describe("segundosDeFirma", () => {
+  const ahora = new Date("2026-10-22T12:00:00Z");
+  it("la normal si falta mucho; lo que falta si vence antes; piso de 60 s", () => {
+    expect(segundosDeFirma(3600, new Date("2026-11-01T00:00:00Z"), ahora)).toBe(3600);
+    expect(segundosDeFirma(3600, new Date("2026-10-22T12:10:00Z"), ahora)).toBe(600);
+    expect(segundosDeFirma(3600, new Date("2026-10-22T12:00:10Z"), ahora)).toBe(60);
+    expect(segundosDeFirma(3600, null, ahora)).toBe(3600);
+  });
+});
+
+describe("diasQueFaltan", () => {
+  it("días de calendario de Argentina", () => {
+    expect(diasQueFaltan(new Date("2026-10-27T02:59:59.999Z"), new Date("2026-10-22T13:00:00Z"))).toBe(4);
+    expect(diasQueFaltan(new Date("2026-10-23T02:59:59.999Z"), new Date("2026-10-22T13:00:00Z"))).toBe(0);
   });
 });
 
@@ -162,6 +224,8 @@ describe("formatos", () => {
     // 22/11 01:00 UTC = 21/11 en Argentina.
     expect(fechaArgentina(new Date("2026-11-22T01:00:00Z"))).toBe("21/11/2026");
     expect(fechaArgentina(new Date("2026-11-22T01:00:00Z"), "corta")).toBe("21/11");
+    expect(fechaHoraArgentina(new Date("2026-11-22T01:05:00Z"))).toBe("21/11 22:05");
+    expect(fechaHoraArgentina(new Date("2026-11-22T03:00:00Z"))).toBe("22/11 00:00");
   });
 });
 

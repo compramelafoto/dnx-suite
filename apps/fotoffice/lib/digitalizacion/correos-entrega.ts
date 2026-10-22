@@ -94,14 +94,14 @@ export type DatosRecordatorioVideos = {
   pedidoNumero: string;
   urlVideos: string;
   videosVencenAt: Date;
-  /** Días que faltan (10, 5 o 1). */
+  /** Días de calendario que faltan de verdad (0 = hoy), no el umbral del aviso. */
   dias: number;
   contacto: string | null;
 };
 
 /** E8: "Tus videos se borran el dd/mm". */
 export function correoRecordatorioVideos(d: DatosRecordatorioVideos): Correo {
-  const cuando = d.dias <= 1 ? "mañana o antes" : `en ${d.dias} días`;
+  const cuando = d.dias <= 0 ? "hoy" : d.dias === 1 ? "mañana" : `en ${d.dias} días`;
   const bloques: Bloque[] = [
     {
       titulo: null,
@@ -114,4 +114,31 @@ export function correoRecordatorioVideos(d: DatosRecordatorioVideos): Correo {
   ];
   if (d.contacto) bloques.push({ titulo: null, lineas: [`Cualquier duda, escribinos: ${d.contacto}.`] });
   return armar(`Tus videos se borran el ${fechaArgentina(d.videosVencenAt, "corta")} · ${d.estudio}`, bloques, d.estudio);
+}
+
+export type DatosVideoAgregado = {
+  estudio: string;
+  nombre: string;
+  pedidoNumero: string;
+  videos: VideoDelCorreo[];
+  urlVideos: string;
+  videosVencenAt: Date;
+  contacto: string | null;
+};
+
+/** Un video que se convirtió después del envío: el mismo enlace y el vencimiento nuevo. */
+export function correoVideoAgregado(d: DatosVideoAgregado): Correo {
+  const bloques: Bloque[] = [
+    {
+      titulo: null,
+      lineas: [
+        `${saludo(d.nombre)} Agregamos un video a tu pedido N° ${d.pedidoNumero}. Ahora tenés:`,
+        ...d.videos.map((v) => `• ${v.titulo}${v.duracionSeg != null ? ` (${duracionLegible(v.duracionSeg)})` : ""}`),
+        `Están disponibles hasta el ${fechaArgentina(d.videosVencenAt)}. El enlace es el mismo de antes.`,
+      ],
+      enlace: { texto: "Ver mis videos", url: d.urlVideos },
+    },
+  ];
+  if (d.contacto) bloques.push({ titulo: null, lineas: [`Cualquier duda, escribinos: ${d.contacto}.`] });
+  return armar(`Agregamos un video a tu pedido · ${d.estudio}`, bloques, d.estudio);
 }
