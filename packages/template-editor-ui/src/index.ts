@@ -10,6 +10,8 @@ export { TemplateEditorCanvas } from "./TemplateEditorCanvas";
 export { TemplateEditorInspector } from "./TemplateEditorInspector";
 export { TemplateEditorLayers } from "./TemplateEditorLayers";
 export { TemplateCanvasRenderer, type PhotoOverride } from "./TemplateCanvasRenderer";
+export { ImageCropOverlay } from "./ImageCropOverlay";
+export { useNaturalImageSize } from "./inspector/ImageCropSection";
 export { TemplateVersionList } from "./TemplateVersionList";
 export { TemplateDiagnosticsPanel } from "./TemplateDiagnosticsPanel";
 export { TemplateBlockContextToolbar } from "./TemplateBlockContextToolbar";

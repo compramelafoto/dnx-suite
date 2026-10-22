@@ -324,7 +324,15 @@ function ImageBlockRenderer({
 }) {
   const source = (config.source as Record<string, unknown> | undefined) ?? {};
   const variableKey = typeof source.variableKey === "string" ? source.variableKey : "";
-  const srcCandidate = variableKey ? resolvedVariables?.[variableKey] : (config.src ?? source.src ?? source.url);
+  /*
+   * `previewSrc`: una copia liviana de la misma foto, sólo para la pantalla. El fotolibro guarda el
+   * original en `src` —es lo que se imprime— y dibujar veinte originales de 20 MB volvería lento el
+   * editor. Misma proporción, así que el encuadre se ve igual.
+   */
+  const previewSrc = typeof config.previewSrc === "string" && config.previewSrc ? config.previewSrc : null;
+  const srcCandidate = variableKey
+    ? resolvedVariables?.[variableKey]
+    : (previewSrc ?? config.src ?? source.src ?? source.url);
   const src = srcCandidate == null ? "" : String(srcCandidate);
   /*
    * Cover (llenar el marco recortando) salvo que el bloque pida "contain": un logo tiene que

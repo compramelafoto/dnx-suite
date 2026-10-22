@@ -47,7 +47,8 @@ const clamp = (n: number, min: number, max: number) => Math.min(max, Math.max(mi
 
 export function ImageCropOverlay({ block, canvasZoom, onCrop, onExit }: Props) {
   const cfg = block.configJson;
-  const src = String(cfg.src ?? "");
+  // La vista liviana si la hay (fotolibro): misma proporción que el original, carga mucho más rápido.
+  const src = String((typeof cfg.previewSrc === "string" && cfg.previewSrc) || cfg.src || "");
   const natural = useNaturalImageSize(src);
   const crop = cfg.crop ? normalizePhotoCrop(cfg.crop) : DEFAULT_PHOTO_CROP;
   const { width: boxW, height: boxH, rotation = 0 } = block.layout;
