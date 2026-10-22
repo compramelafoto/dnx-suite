@@ -2,7 +2,7 @@
 import { PageHeader } from "@/components/page-header";
 import { AccionesGrabacion, AjusteMinutos } from "@/components/digitalizacion/acciones-grabacion";
 import { AccionesEntrega, AjustesEntrega } from "@/components/digitalizacion/entregas";
-import { estadoVisibleDeEntrega, fechaArgentina, type EstadoVisibleEntrega } from "@/lib/digitalizacion/entrega";
+import { estadoVisibleDeEntrega, fechaArgentina, fechaHoraArgentina, type EstadoVisibleEntrega } from "@/lib/digitalizacion/entrega";
 import { resumenDeEntregas, type ResumenEntrega } from "@/lib/digitalizacion/servidor/entregas";
 import { extensionDeMime } from "@/lib/digitalizacion/claves";
 import { nombreArchivoVideo, nombreCliente } from "@/lib/digitalizacion/nombre-archivo";
@@ -26,8 +26,12 @@ const CONVERSION: Record<string, string> = {
   SIN_IMAGEN: "Sin imagen: no se convierte",
 };
 /** Lo que dice la lista sobre la entrega de un pedido. */
-function textoDeEntrega(estado: EstadoVisibleEntrega, r: ResumenEntrega): string {
+function textoDeEntrega(estado: EstadoVisibleEntrega, r: ResumenEntrega, automatico: boolean, ahora: Date): string {
   const e = r.entrega;
+  if (r.cancelado && estado !== "ENVIADA" && estado !== "BORRADA") return "Pedido cancelado: no se envían los videos.";
+  if (estado === "LISTA_PARA_ENVIAR" && automatico && r.tieneEmail && r.enviaSoloDesde && r.enviaSoloDesde.getTime() > ahora.getTime()) {
+    return `Listo · se envía solo el ${fechaHoraArgentina(r.enviaSoloDesde)} si no grabás otro cassette`;
+  }
   switch (estado) {
     case "CONVIRTIENDO": return "Convirtiendo…";
     case "CON_ERROR": return "Hay un video con error: reintentá la conversión o descartalo para poder enviar.";
@@ -79,8 +83,8 @@ export default async function DigitalizacionPage() {
                     <p className="font-semibold">Pedido {r.pedidoNumero}{r.cliente ? ` · ${r.cliente}` : ""}</p>
                     <span className="text-xs text-gray-600">{r.videos === 1 ? "1 video listo" : `${r.videos} videos listos`}</span>
                   </div>
-                  <p className={estado === "CON_ERROR" ? "fo-alert-warning px-2 text-sm" : "text-sm"}>{textoDeEntrega(estado, r)}</p>
-                  {puedeGrabar ? (
+                  <p className={estado === "CON_ERROR" ? "fo-alert-warning px-2 text-sm" : "text-sm"}>{textoDeEntrega(estado, r, r.entrega?.envioAutomatico ?? ajustes.envioAutomatico, ahora)}</p>
+                  {puedeGrabar && !r.cancelado ? (
                     <AccionesEntrega
                       pedidoId={r.pedidoId}
                       entregaId={r.entrega?.id ?? null}

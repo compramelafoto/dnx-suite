@@ -8,11 +8,12 @@ import { enlaceDelPedidoDelSistema, MENSAJES_ENLACE } from "@/lib/pedidos/enlace
 import { hashDeToken, resolverClaveDeEnlace } from "@/lib/presupuestos/enlace";
 import { sitioDelWorkspace } from "@/lib/presupuestos/sitio";
 import { correoValido } from "@/lib/plantillas/contexto";
-import { ID_VALIDO, prefijoDeGrabacion } from "../claves";
+import { ID_VALIDO, claveDeVideoFinal, esPrefijoHlsDe, prefijoDeGrabacion } from "../claves";
 import { DIGITALIZACION_MODULE_KEY } from "../constants";
-import { correoRecordatorioVideos, correoVideosListos, type Correo } from "../correos-entrega";
+import { correoRecordatorioVideos, correoVideoAgregado, correoVideosListos, type Correo } from "../correos-entrega";
 import {
-  estadoDeEntrega, recordatorioQueCorresponde, tituloDeVideo, urlDeVideos, vencimientosDesde, videosVencidos, type PreparacionEntrega,
+  HORAS_ESPERA_AUTOMATICO, diasQueFaltan, envioAutomaticoDesde, estadoDeEntrega, extensionPorVideosNuevos, recordatorioQueCorresponde, tituloDeVideo,
+  urlDeVideos, vencimientosDesde, videosVencidos, type PreparacionEntrega,
 } from "../entrega";
 import { MAX_GENERACIONES_ENTREGA, generacionDeEntrega, tokenDeEntrega } from "../token-entrega";
 import { borrarVideoFinal } from "./almacen";
@@ -27,6 +28,11 @@ import { borrarVideoFinal } from "./almacen";
  *   manda el mismo correo. Si el correo no sale, se vuelve atrás lo escrito.
  * - **Sin correo del cliente:** el cron no la manda; la lista lo muestra y "Copiar enlace" la da
  *   por enviada para mandarla por WhatsApp.
+ * - **Varios cassettes:** el envío automático espera 12 h desde la última actividad del pedido. Un
+ *   video que se convierte después del envío corre el vencimiento y avisa con el mismo enlace.
+ * - **Pedidos cancelados:** no se envían, no se ven y no se descargan.
+ * - Los correos van con clave de idempotencia (entrega + generación + tipo): un reintento dentro de
+ *   las 24 h no le llega dos veces al cliente.
  * - Todo filtra por `workspaceId`. Nunca loguea datos personales.
  */
 
@@ -51,6 +57,7 @@ export const MENSAJES_ENTREGA = {
   sinEnviar: "Esta entrega todavía no se envió.",
   enParalelo: "Alguien acaba de cambiar esta entrega. Probá de nuevo.",
   sinEmail: "El cliente no tiene correo cargado. Copiá el enlace y mandáselo por WhatsApp.",
+  cancelado: "El pedido está cancelado: no se envían los videos.",
   correoNoSalio: "El correo no salió. Probá de nuevo o copiá el enlace y mandalo por WhatsApp.",
   tope: "Este enlace ya se renovó demasiadas veces.",
 } as const;
@@ -83,6 +90,7 @@ export async function grabacionesDelPedido(workspaceId: string, pedidoId: string
     select: {
       id: true, proyectoId: true, estado: true, conversionEstado: true, titulo: true, tipo: true, cassetteNumero: true,
       videoDuracionSeg: true, videoKey: true, hlsKey: true, videoBorradoAt: true, descargasExtra: true,
+      sinImagen: true, terminadaAt: true, convertidaAt: true,
     },
   });
 }
@@ -92,12 +100,12 @@ export async function grabacionesDelPedido(workspaceId: string, pedidoId: string
 /**
  * La entrega del pedido; si no existe, la crea con `envioAutomatico` de los ajustes. Idempotente:
  * dos llamadas a la vez terminan en la misma fila (el `pedidoId` es único). null si el pedido no es
- * del negocio. Devuelve también si ya está lista para enviar (E2).
+ * del negocio. Devuelve también si ya está lista para enviar (E2) y desde cuándo sale sola.
  */
 export async function asegurarEntrega(
   workspaceId: string,
   pedidoId: string,
-): Promise<{ entrega: EntregaLeida; preparacion: PreparacionEntrega } | null> {
+): Promise<{ entrega: EntregaLeida; preparacion: PreparacionEntrega; enviaSoloDesde: Date | null } | null> {
   if (!ID_VALIDO.test(pedidoId)) return null;
   let entrega = await prisma.digitalizacionEntrega.findUnique({ where: { pedidoId }, select: SELECT_ENTREGA });
   if (entrega && entrega.workspaceId !== workspaceId) return null;
@@ -118,7 +126,7 @@ export async function asegurarEntrega(
     }
   }
   const grabaciones = await grabacionesDelPedido(workspaceId, pedidoId);
-  return { entrega, preparacion: estadoDeEntrega(grabaciones) };
+  return { entrega, preparacion: estadoDeEntrega(grabaciones), enviaSoloDesde: envioAutomaticoDesde(grabaciones) };
 }
 
 /** El interruptor "Enviar automáticamente" de un pedido (crea la entrega si todavía no existe). */
@@ -156,6 +164,7 @@ async function enlaceVigente(e: EntregaLeida, deps: DepsEntrega): Promise<string
 
 type DatosDelPedido = {
   numero: string;
+  cancelado: boolean;
   email: string | null;
   nombre: string;
   videos: { proyectoId: string | null; titulo: string; duracionSeg: number | null }[];
@@ -166,7 +175,7 @@ async function datosDelPedido(workspaceId: string, pedidoId: string): Promise<Da
   const [pedido, grabaciones] = await Promise.all([
     prisma.fotofficePedido.findFirst({
       where: { id: pedidoId, workspaceId },
-      select: { number: true, client: { select: { firstName: true, businessName: true, email: true } } },
+      select: { number: true, status: true, client: { select: { firstName: true, businessName: true, email: true } } },
     }),
     grabacionesDelPedido(workspaceId, pedidoId),
   ]);
@@ -175,6 +184,7 @@ async function datosDelPedido(workspaceId: string, pedidoId: string): Promise<Da
   const email = pedido.client?.email?.trim() ?? "";
   return {
     numero: pedido.number,
+    cancelado: pedido.status === "CANCELADO",
     email: correoValido(email) ? email : null,
     nombre: pedido.client?.firstName?.trim() || pedido.client?.businessName?.trim() || "",
     videos: listas.map((g) => ({ proyectoId: g.proyectoId, titulo: tituloDeVideo(g), duracionSeg: g.videoDuracionSeg })),
@@ -187,10 +197,15 @@ async function contactoDelNegocio(workspaceId: string): Promise<string | null> {
   return b?.whatsapp ? `WhatsApp ${b.whatsapp}` : b?.phone ? `teléfono ${b.phone}` : null;
 }
 
-async function mandar(workspaceId: string, email: string, correo: Correo, deps: DepsEntrega): Promise<boolean> {
+/** Clave de idempotencia del correo: entrega + generación (o vencimiento) + tipo. */
+function claveDeCorreo(entregaId: string, parte: string, tipo: string): string {
+  return `fotoffice-videos:${entregaId}:${parte}:${tipo}`;
+}
+
+async function mandar(workspaceId: string, email: string, correo: Correo, idempotencyKey: string, deps: DepsEntrega): Promise<boolean> {
   try {
     const sender = await loadWorkspaceSender(workspaceId);
-    const r = await (deps.enviar ?? sendTransactionalEmail)({ to: email, ...correo, sender });
+    const r = await (deps.enviar ?? sendTransactionalEmail)({ to: email, ...correo, sender, idempotencyKey });
     if (r.status !== "SENT") console.error("[digitalizacion][entrega] el correo no salió", { status: r.status });
     return r.status === "SENT";
   } catch (e) {
@@ -237,6 +252,7 @@ export async function enviarEntrega(workspaceId: string, entregaId: string, modo
   }
   const datos = await datosDelPedido(workspaceId, e.pedidoId);
   if (!datos) return { ok: false, error: MENSAJES_ENTREGA.noExiste };
+  if (datos.cancelado) return { ok: false, error: MENSAJES_ENTREGA.cancelado };
   if (modo === "CORREO" && !datos.email) return { ok: false, error: MENSAJES_ENTREGA.sinEmail };
   const prep = await prepararEnlace(workspaceId, deps);
   if (!prep.ok) return prep;
@@ -279,7 +295,7 @@ export async function enviarEntrega(workspaceId: string, entregaId: string, modo
     cassettesVencenAt: venc.cassettesVencenAt,
     contacto,
   });
-  const salio = await mandar(workspaceId, datos.email!, correo, deps);
+  const salio = await mandar(workspaceId, datos.email!, correo, claveDeCorreo(e.id, `g${generacion}`, "listos"), deps);
   if (!salio) {
     // Se vuelve atrás sólo si nadie la tocó después (el hash sigue siendo el nuestro).
     await prisma.digitalizacionEntrega.updateMany({
@@ -301,126 +317,269 @@ export type ResumenEntrega = {
   pedidoNumero: string;
   cliente: string | null;
   tieneEmail: boolean;
+  cancelado: boolean;
   preparacion: PreparacionEntrega;
   videos: number;
+  /** Desde cuándo la manda sola el cron (12 h después de la última actividad); null = sin fechas. */
+  enviaSoloDesde: Date | null;
   entrega: Pick<EntregaLeida, "id" | "envioAutomatico" | "enviadoAt" | "videosVencenAt" | "cassettesVencenAt" | "videosBorradosAt"> | null;
 };
 
+export const PEDIDOS_EN_LA_LISTA = 60;
+
 /**
- * Las entregas de los pedidos que tienen grabaciones (las más recientes primero). No crea filas:
- * un pedido sin entrega todavía se muestra con su preparación y el valor por defecto del negocio.
+ * Las entregas de los pedidos con grabaciones (los más nuevos primero). Primero elige los pedidos y
+ * después trae TODAS sus grabaciones, así el estado no depende de cuántas haya en el negocio. No
+ * crea filas: un pedido sin entrega se muestra con su preparación y el valor por defecto.
  */
 export async function resumenDeEntregas(workspaceId: string): Promise<ResumenEntrega[]> {
-  const grabaciones = await prisma.digitalizacionGrabacion.findMany({
-    where: { workspaceId, estado: { not: "DESCARTADA" }, proyecto: { pedidoId: { not: null } } },
-    orderBy: { createdAt: "desc" },
-    take: 300,
-    select: { estado: true, conversionEstado: true, proyecto: { select: { pedidoId: true } } },
+  const pedidos = await prisma.fotofficePedido.findMany({
+    where: { workspaceId, proyectos: { some: { workspaceId, grabaciones: { some: { estado: { not: "DESCARTADA" } } } } } },
+    orderBy: [{ createdAt: "desc" }],
+    take: PEDIDOS_EN_LA_LISTA,
+    select: { id: true, number: true, status: true, client: { select: { firstName: true, lastName: true, businessName: true, email: true } } },
   });
-  const porPedido = new Map<string, { estado: string; conversionEstado: string | null }[]>();
-  for (const g of grabaciones) {
-    const id = g.proyecto?.pedidoId;
-    if (!id) continue;
-    porPedido.set(id, [...(porPedido.get(id) ?? []), g]);
-  }
-  const ids = [...porPedido.keys()].slice(0, 60);
-  if (ids.length === 0) return [];
-  const [pedidos, entregas] = await Promise.all([
-    prisma.fotofficePedido.findMany({
-      where: { workspaceId, id: { in: ids } },
-      select: { id: true, number: true, client: { select: { firstName: true, lastName: true, businessName: true, email: true } } },
+  if (pedidos.length === 0) return [];
+  const ids = pedidos.map((p) => p.id);
+  const [grabaciones, entregas] = await Promise.all([
+    prisma.digitalizacionGrabacion.findMany({
+      where: { workspaceId, proyecto: { workspaceId, pedidoId: { in: ids } } },
+      select: { estado: true, conversionEstado: true, sinImagen: true, terminadaAt: true, convertidaAt: true, proyecto: { select: { pedidoId: true } } },
     }),
     prisma.digitalizacionEntrega.findMany({ where: { workspaceId, pedidoId: { in: ids } }, select: SELECT_ENTREGA }),
   ]);
-  const pedidoDe = new Map(pedidos.map((p) => [p.id, p]));
+  const porPedido = new Map<string, typeof grabaciones>();
+  for (const g of grabaciones) {
+    const id = g.proyecto?.pedidoId;
+    if (id) porPedido.set(id, [...(porPedido.get(id) ?? []), g]);
+  }
   const entregaDe = new Map(entregas.map((e) => [e.pedidoId, e]));
-  return ids.flatMap((id): ResumenEntrega[] => {
-    const p = pedidoDe.get(id);
-    if (!p) return [];
-    const gs = porPedido.get(id) ?? [];
-    const e = entregaDe.get(id) ?? null;
+  return pedidos.map((p): ResumenEntrega => {
+    const gs = porPedido.get(p.id) ?? [];
+    const e = entregaDe.get(p.id) ?? null;
     const c = p.client;
     const cliente = c?.businessName?.trim() || [c?.firstName, c?.lastName].map((x) => x?.trim() ?? "").filter(Boolean).join(" ") || null;
-    return [{
-      pedidoId: id,
+    return {
+      pedidoId: p.id,
       pedidoNumero: p.number,
       cliente,
       tieneEmail: correoValido(c?.email?.trim() ?? ""),
+      cancelado: p.status === "CANCELADO",
       preparacion: estadoDeEntrega(gs),
-      videos: gs.filter((g) => g.conversionEstado === "LISTA").length,
+      videos: gs.filter((g) => g.estado !== "DESCARTADA" && g.conversionEstado === "LISTA").length,
+      enviaSoloDesde: envioAutomaticoDesde(gs),
       entrega: e
         ? { id: e.id, envioAutomatico: e.envioAutomatico, enviadoAt: e.enviadoAt, videosVencenAt: e.videosVencenAt, cassettesVencenAt: e.cassettesVencenAt, videosBorradosAt: e.videosBorradosAt }
         : null,
-    }];
+    };
   });
 }
 
-// --- Cron: envío automático (cada 15 min) -----------------------------------------------------
+// --- Cron: envío automático y videos agregados (cada 15 min) ----------------------------------
 
 export const TOPE_ENVIOS_CORRIDA = 50;
+const CANDIDATAS_POR_CORRIDA = 500;
+const HORA_MS = 60 * 60 * 1000;
 
-export type ReporteEnvios = { revisadas: number; enviadas: number; sinEmail: number; noListas: number; manuales: number; fallidas: number };
+export type ReporteEnvios = {
+  revisadas: number;
+  enviadas: number;
+  /** Sin correo del cliente: no es una falla (se manda por WhatsApp con "Copiar enlace"). */
+  sinEmail: number;
+  noListas: number;
+  esperando: number;
+  manuales: number;
+  fallidas: number;
+  /** Entregas ya enviadas a las que se les sumó un video (vencimiento corrido). */
+  extendidas: number;
+  avisosAgregado: number;
+};
+
+/** Grabaciones que todavía impiden mandar la entrega (en curso, en cola, con error o muy recientes). */
+function trabas(desde: Date): Prisma.DigitalizacionGrabacionWhereInput {
+  return {
+    estado: { not: "DESCARTADA" },
+    OR: [
+      { estado: "GRABANDO" },
+      { conversionEstado: { in: ["PENDIENTE", "PROCESANDO", "ERROR"] } },
+      { terminadaAt: { gt: desde } },
+      { convertidaAt: { gt: desde } },
+    ],
+  };
+}
 
 /**
- * Los pedidos con algún video LISTA cuya entrega no existe o no se envió: crea o mira la entrega y
- * manda las que tienen `envioAutomatico`, están listas y el cliente tiene correo. Sólo negocios con
- * Digitalización encendida. Devuelve contadores.
+ * Los pedidos a mirar, de más nuevo a más viejo:
+ * - los que tienen un video LISTA y todavía no tienen entrega (al crearla salen de este grupo);
+ * - las entregas sin enviar con `envioAutomatico`, cliente con correo y sin trabas: las que no
+ *   pueden salir no se piden, así nunca llenan el cupo de la consulta.
+ * Nunca los cancelados.
+ */
+async function pedidosParaEnviar(ahora: Date): Promise<{ pedidoId: string; workspaceId: string }[]> {
+  const desde = new Date(ahora.getTime() - HORAS_ESPERA_AUTOMATICO * HORA_MS);
+  const [sinEntrega, sinEnviar] = await Promise.all([
+    prisma.fotofficePedido.findMany({
+      where: {
+        status: { not: "CANCELADO" },
+        digitalizacionEntrega: { is: null },
+        proyectos: { some: { grabaciones: { some: { estado: "COMPLETA", conversionEstado: "LISTA" } } } },
+      },
+      orderBy: [{ createdAt: "desc" }],
+      take: CANDIDATAS_POR_CORRIDA,
+      select: { id: true, workspaceId: true },
+    }),
+    prisma.digitalizacionEntrega.findMany({
+      where: {
+        enviadoAt: null,
+        envioAutomatico: true,
+        pedido: {
+          status: { not: "CANCELADO" },
+          client: { email: { contains: "@" } },
+          proyectos: { none: { grabaciones: { some: trabas(desde) } } },
+        },
+      },
+      orderBy: [{ createdAt: "desc" }],
+      take: CANDIDATAS_POR_CORRIDA,
+      select: { pedidoId: true, workspaceId: true },
+    }),
+  ]);
+  const vistos = new Map<string, string>();
+  for (const p of sinEntrega) vistos.set(p.id, p.workspaceId);
+  for (const e of sinEnviar) vistos.set(e.pedidoId, e.workspaceId);
+  return [...vistos].map(([pedidoId, workspaceId]) => ({ pedidoId, workspaceId }));
+}
+
+/**
+ * Manda las entregas listas con `envioAutomatico`, pasadas 12 h de la última actividad del pedido.
+ * Los clientes sin correo no gastan el tope de envíos. Sólo negocios con Digitalización encendida.
+ * Después mira las entregas ya enviadas con videos nuevos (`extenderPorVideosNuevos`).
  */
 export async function enviarEntregasAutomaticas(deps: DepsEntrega & { tope?: number } = {}): Promise<ReporteEnvios> {
-  const reporte: ReporteEnvios = { revisadas: 0, enviadas: 0, sinEmail: 0, noListas: 0, manuales: 0, fallidas: 0 };
-  const candidatas = await prisma.digitalizacionGrabacion.findMany({
-    where: {
-      estado: "COMPLETA",
-      conversionEstado: "LISTA",
-      proyecto: { pedidoId: { not: null }, pedido: { OR: [{ digitalizacionEntrega: { is: null } }, { digitalizacionEntrega: { is: { enviadoAt: null } } }] } },
-    },
-    orderBy: { convertidaAt: "asc" },
-    take: 1000,
-    select: { workspaceId: true, proyecto: { select: { pedidoId: true } } },
-  });
-  const pedidos = new Map<string, string>();
-  for (const c of candidatas) if (c.proyecto?.pedidoId) pedidos.set(c.proyecto.pedidoId, c.workspaceId);
+  const ahora = (deps.ahora ?? (() => new Date()))();
+  const reporte: ReporteEnvios = { revisadas: 0, enviadas: 0, sinEmail: 0, noListas: 0, esperando: 0, manuales: 0, fallidas: 0, extendidas: 0, avisosAgregado: 0 };
   const encendido = new Map<string, boolean>();
+  const estaEncendido = async (ws: string) => {
+    if (!encendido.has(ws)) encendido.set(ws, await isModuleEnabledForWorkspace(ws, DIGITALIZACION_MODULE_KEY));
+    return encendido.get(ws)!;
+  };
   let intentos = 0;
-  for (const [pedidoId, workspaceId] of pedidos) {
+  for (const { pedidoId, workspaceId } of await pedidosParaEnviar(ahora)) {
     if (intentos >= (deps.tope ?? TOPE_ENVIOS_CORRIDA)) break;
     try {
-      if (!encendido.has(workspaceId)) encendido.set(workspaceId, await isModuleEnabledForWorkspace(workspaceId, DIGITALIZACION_MODULE_KEY));
-      if (!encendido.get(workspaceId)) continue;
+      if (!(await estaEncendido(workspaceId))) continue;
       const r = await asegurarEntrega(workspaceId, pedidoId);
       if (!r || r.entrega.enviadoAt) continue;
       reporte.revisadas++;
-      if (r.preparacion !== "LISTA") { reporte.noListas++; continue; }
       if (!r.entrega.envioAutomatico) { reporte.manuales++; continue; }
+      if (r.preparacion !== "LISTA") { reporte.noListas++; continue; }
+      if (r.enviaSoloDesde && r.enviaSoloDesde.getTime() > ahora.getTime()) { reporte.esperando++; continue; }
+      const env = await enviarEntrega(workspaceId, r.entrega.id, "CORREO", { ...deps, ahora: () => ahora });
+      if (!env.ok && env.error === MENSAJES_ENTREGA.sinEmail) { reporte.sinEmail++; continue; }
       intentos++;
-      const env = await enviarEntrega(workspaceId, r.entrega.id, "CORREO", deps);
       if (env.ok) reporte.enviadas++;
-      else if (env.error === MENSAJES_ENTREGA.sinEmail) reporte.sinEmail++;
       else reporte.fallidas++;
     } catch (e) {
       reporte.fallidas++;
       console.error("[digitalizacion][entrega] falló el envío automático de un pedido", { codigo: codigo(e) });
     }
   }
+  await extenderPorVideosNuevos(ahora, reporte, estaEncendido, deps);
   return reporte;
+}
+
+/**
+ * Un video que quedó LISTA después del envío tiene sus 30 días: se corre `videosVencenAt` (y
+ * `cassettesVencenAt` si queda antes), se vacían los recordatorios y se avisa con el enlace
+ * vigente (sin rotarlo). La escritura es condicional sobre el vencimiento leído y, una vez
+ * extendida, la condición deja de cumplirse: no hace falta otra columna. Sin correo, sólo extiende.
+ */
+async function extenderPorVideosNuevos(
+  ahora: Date,
+  reporte: ReporteEnvios,
+  estaEncendido: (ws: string) => Promise<boolean>,
+  deps: DepsEntrega,
+): Promise<void> {
+  // Sólo las que tienen videos convertidos en los últimos 31 días: las demás no pueden extenderse.
+  const reciente = new Date(ahora.getTime() - 31 * 24 * HORA_MS);
+  const entregas = await prisma.digitalizacionEntrega.findMany({
+    where: {
+      enviadoAt: { not: null },
+      videosBorradosAt: null,
+      videosVencenAt: { gt: ahora },
+      pedido: {
+        status: { not: "CANCELADO" },
+        proyectos: { some: { grabaciones: { some: { estado: "COMPLETA", conversionEstado: "LISTA", convertidaAt: { gt: reciente } } } } },
+      },
+    },
+    orderBy: [{ createdAt: "desc" }],
+    take: CANDIDATAS_POR_CORRIDA,
+    select: SELECT_ENTREGA,
+  });
+  for (const e of entregas) {
+    try {
+      if (!(await estaEncendido(e.workspaceId))) continue;
+      const grabaciones = await grabacionesDelPedido(e.workspaceId, e.pedidoId);
+      const nuevo = extensionPorVideosNuevos(e.videosVencenAt, grabaciones);
+      if (!nuevo) continue;
+      const cassettes = e.cassettesVencenAt && e.cassettesVencenAt.getTime() >= nuevo.getTime() ? e.cassettesVencenAt : nuevo;
+      const r = await prisma.digitalizacionEntrega.updateMany({
+        where: { id: e.id, workspaceId: e.workspaceId, videosVencenAt: e.videosVencenAt, videosBorradosAt: null },
+        data: { videosVencenAt: nuevo, cassettesVencenAt: cassettes, recordatorios: [] },
+      });
+      if (r.count !== 1) continue;
+      reporte.extendidas++;
+      const datos = await datosDelPedido(e.workspaceId, e.pedidoId);
+      if (!datos?.email) continue;
+      const url = await enlaceVigente(e, deps);
+      if (!url) continue;
+      const [sitio, contacto] = await Promise.all([sitioDelWorkspace(e.workspaceId), contactoDelNegocio(e.workspaceId)]);
+      const correo = correoVideoAgregado({
+        estudio: sitio?.nombre || "el estudio", nombre: datos.nombre, pedidoNumero: datos.numero, videos: datos.videos, urlVideos: url, videosVencenAt: nuevo, contacto,
+      });
+      if (await mandar(e.workspaceId, datos.email, correo, claveDeCorreo(e.id, `v${nuevo.getTime()}`, "agregado"), deps)) {
+        reporte.avisosAgregado++;
+        await anotar(e.workspaceId, datos.proyectoIds, `Correo «Agregamos un video a tu pedido» enviado a ${datos.email}.`);
+      }
+    } catch (err) {
+      console.error("[digitalizacion][entrega] falló la extensión por un video nuevo", { codigo: codigo(err) });
+    }
+  }
 }
 
 // --- Cron diario: recordatorios y vencimiento (E8) --------------------------------------------
 
-export type ReporteVencimientos = { revisadas: number; recordatorios: number; recordatoriosFallidos: number; borradas: number; borradoFallido: number };
+export type ReporteVencimientos = {
+  revisadas: number;
+  recordatorios: number;
+  /** Sin correo del cliente o de un pedido cancelado: no es una falla. */
+  sinEmail: number;
+  recordatoriosFallidos: number;
+  borradas: number;
+  borradoFallido: number;
+};
 
 /**
  * Borra de R2 los videos de una entrega vencida. Marca `videoBorradoAt` en cada grabación que se
  * pudo borrar y `videosBorradosAt` en la entrega sólo si se borraron todas: si R2 falla en alguna,
  * la entrega queda sin marcar y la corrida de mañana reintenta (borrar lo que ya no está no falla).
+ *
+ * `videoKey` es `digitalizacion/<ws>/<grabacion>/final.mp4`; `hlsKey` es un PREFIJO de carpeta sin
+ * barra final (`digitalizacion/<ws>/<grabacion>/hls`) y se borra todo lo que hay adentro. Una clave
+ * con forma inesperada no se toca (no se borra algo que no es de la grabación): se registra en el
+ * log y la grabación se marca igual, para no fallar todos los días por lo mismo.
  */
 export async function borrarVideosDeEntrega(e: Pick<EntregaLeida, "id" | "workspaceId" | "pedidoId">, ahora: Date): Promise<boolean> {
   const grabaciones = await grabacionesDelPedido(e.workspaceId, e.pedidoId);
   let todas = true;
   for (const g of grabaciones) {
     if (g.videoBorradoAt || (!g.videoKey && !g.hlsKey)) continue;
+    const videoOk = g.videoKey !== null && g.videoKey === claveDeVideoFinal(e.workspaceId, g.id);
+    const hlsOk = g.hlsKey !== null && esPrefijoHlsDe(e.workspaceId, g.id, g.hlsKey);
+    if ((g.videoKey && !videoOk) || (g.hlsKey && !hlsOk)) {
+      console.warn("[digitalizacion][entrega] clave con forma inesperada: no se borra y se marca como borrada", { video: Boolean(g.videoKey && !videoOk), hls: Boolean(g.hlsKey && !hlsOk) });
+    }
     try {
-      await borrarVideoFinal(prefijoDeGrabacion(e.workspaceId, g.id), g.videoKey, g.hlsKey);
+      if (videoOk || hlsOk) await borrarVideoFinal(prefijoDeGrabacion(e.workspaceId, g.id), videoOk ? g.videoKey : null, hlsOk ? g.hlsKey : null);
       await prisma.digitalizacionGrabacion.updateMany({ where: { id: g.id, workspaceId: e.workspaceId }, data: { videoBorradoAt: ahora } });
     } catch (err) {
       todas = false;
@@ -432,17 +591,20 @@ export async function borrarVideosDeEntrega(e: Pick<EntregaLeida, "id" | "worksp
   return true;
 }
 
-/** Manda el recordatorio de `dias` de una entrega. Reserva el umbral antes de mandar; si no sale, lo libera. */
-async function recordar(e: EntregaLeida, dias: number, deps: DepsEntrega): Promise<boolean> {
+/**
+ * Manda el recordatorio del umbral `umbral` de una entrega, con los días que faltan de verdad.
+ * Reserva el umbral antes de mandar; si no sale, lo libera.
+ */
+async function recordar(e: EntregaLeida, umbral: number, ahora: Date, deps: DepsEntrega): Promise<"ENVIADO" | "SIN_EMAIL" | "FALLO"> {
   const datos = await datosDelPedido(e.workspaceId, e.pedidoId);
-  if (!datos?.email) return false;
+  if (!datos || datos.cancelado || !datos.email) return "SIN_EMAIL";
   const url = await enlaceVigente(e, deps);
-  if (!url) return false;
+  if (!url) return "FALLO";
   const reservado = await prisma.digitalizacionEntrega.updateMany({
-    where: { id: e.id, workspaceId: e.workspaceId, videosBorradosAt: null, NOT: { recordatorios: { has: dias } } },
-    data: { recordatorios: { push: dias } },
+    where: { id: e.id, workspaceId: e.workspaceId, videosBorradosAt: null, NOT: { recordatorios: { has: umbral } } },
+    data: { recordatorios: { push: umbral } },
   });
-  if (reservado.count !== 1) return false;
+  if (reservado.count !== 1) return "FALLO";
   const [sitio, contacto] = await Promise.all([sitioDelWorkspace(e.workspaceId), contactoDelNegocio(e.workspaceId)]);
   const correo = correoRecordatorioVideos({
     estudio: sitio?.nombre || "el estudio",
@@ -450,21 +612,22 @@ async function recordar(e: EntregaLeida, dias: number, deps: DepsEntrega): Promi
     pedidoNumero: datos.numero,
     urlVideos: url,
     videosVencenAt: e.videosVencenAt!,
-    dias,
+    dias: diasQueFaltan(e.videosVencenAt!, ahora),
     contacto,
   });
-  if (await mandar(e.workspaceId, datos.email, correo, deps)) {
-    await anotar(e.workspaceId, datos.proyectoIds, `Recordatorio «Tus videos se borran» (faltan ${dias} ${dias === 1 ? "día" : "días"}) enviado a ${datos.email}.`);
-    return true;
+  const clave = claveDeCorreo(e.id, `v${e.videosVencenAt!.getTime()}`, `recordatorio-${umbral}`);
+  if (await mandar(e.workspaceId, datos.email, correo, clave, deps)) {
+    await anotar(e.workspaceId, datos.proyectoIds, `Recordatorio «Tus videos se borran» enviado a ${datos.email}.`);
+    return "ENVIADO";
   }
   await prisma.digitalizacionEntrega.updateMany({ where: { id: e.id, workspaceId: e.workspaceId }, data: { recordatorios: { set: e.recordatorios } } });
-  return false;
+  return "FALLO";
 }
 
 /** La corrida diaria (10:00 de Argentina): avisa los vencimientos y borra lo vencido. Devuelve contadores. */
 export async function recordatoriosYVencimientos(deps: DepsEntrega = {}): Promise<ReporteVencimientos> {
   const ahora = (deps.ahora ?? (() => new Date()))();
-  const reporte: ReporteVencimientos = { revisadas: 0, recordatorios: 0, recordatoriosFallidos: 0, borradas: 0, borradoFallido: 0 };
+  const reporte: ReporteVencimientos = { revisadas: 0, recordatorios: 0, sinEmail: 0, recordatoriosFallidos: 0, borradas: 0, borradoFallido: 0 };
   const entregas = await prisma.digitalizacionEntrega.findMany({
     where: { enviadoAt: { not: null }, videosBorradosAt: null, videosVencenAt: { not: null } },
     orderBy: { videosVencenAt: "asc" },
@@ -479,9 +642,11 @@ export async function recordatoriosYVencimientos(deps: DepsEntrega = {}): Promis
         else reporte.borradoFallido++;
         continue;
       }
-      const dias = recordatorioQueCorresponde(e, ahora);
-      if (dias === null) continue;
-      if (await recordar(e, dias, deps)) reporte.recordatorios++;
+      const umbral = recordatorioQueCorresponde(e, ahora);
+      if (umbral === null) continue;
+      const r = await recordar(e, umbral, ahora, deps);
+      if (r === "ENVIADO") reporte.recordatorios++;
+      else if (r === "SIN_EMAIL") reporte.sinEmail++;
       else reporte.recordatoriosFallidos++;
     } catch (err) {
       reporte.recordatoriosFallidos++;

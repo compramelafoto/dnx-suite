@@ -45,7 +45,9 @@ export default async function VideosPublicosPage({ params }: Props) {
 
       <h1 className="text-2xl font-semibold">{vista.videos.length === 1 ? "Tu video" : "Tus videos"}</h1>
 
-      {vista.borradosAt ? (
+      {vista.cancelado ? (
+        <p className="rounded border p-4">Este pedido fue cancelado.</p>
+      ) : vista.borradosAt ? (
         <p className="rounded border p-4">Los videos se borraron el {fechaArgentina(vista.borradosAt)}.</p>
       ) : vista.saldoMinor > 0 ? (
         <div className="space-y-3 rounded border p-4">
@@ -75,7 +77,7 @@ export default async function VideosPublicosPage({ params }: Props) {
                 )}
               </div>
             ) : null}
-            {!vista.borradosAt ? (
+            {!vista.borradosAt && !vista.cancelado ? (
               <div className="flex flex-wrap items-center gap-2">
                 <button type="button" className="fo-btn fo-btn-secondary text-xs" disabled title="Muy pronto">Comprar otra descarga · Muy pronto</button>
                 <button type="button" className="fo-btn fo-btn-secondary text-xs" disabled title="Muy pronto">Extender 30 días · Muy pronto</button>
@@ -85,7 +87,7 @@ export default async function VideosPublicosPage({ params }: Props) {
         ))}
       </ul>
 
-      {vista.cassettesVencenAt ? (
+      {vista.cassettesVencenAt && !vista.cancelado ? (
         <div className="space-y-2 rounded border p-4">
           <p>Retirá tus cassettes antes del {fechaArgentina(vista.cassettesVencenAt)}: después los descartamos porque no tenemos espacio para guardarlos.</p>
           <button type="button" className="fo-btn fo-btn-secondary text-xs" disabled title="Muy pronto">Pedir envío de los cassettes · Muy pronto</button>

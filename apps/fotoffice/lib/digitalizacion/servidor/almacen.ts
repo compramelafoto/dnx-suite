@@ -71,7 +71,11 @@ export async function urlDeVideo(clave: string, nombre: string, modo: "ver" | "d
   return getSignedUrl(clienteR2Privado(), cmd, { expiresIn: Math.min(Math.max(60, Math.trunc(segundos)), SEGUNDOS_VIDEO) });
 }
 
-/** HLS: `digitalizacion/<ws>/<grabacion>/<carpeta>`, siempre dentro de la carpeta de la grabación. */
+/**
+ * HLS: `hlsKey` es un PREFIJO de carpeta sin barra final (`digitalizacion/<ws>/<grabacion>/hls`),
+ * siempre dentro de la carpeta de la grabación; adentro van `index.m3u8` y los segmentos. Se borra
+ * todo lo que hay bajo `<hlsKey>/`.
+ */
 const REGEX_PREFIJO_HLS = /^digitalizacion\/[A-Za-z0-9_-]{1,64}\/[A-Za-z0-9_-]{1,64}\/[A-Za-z0-9_-]{1,64}\/?$/;
 
 /**

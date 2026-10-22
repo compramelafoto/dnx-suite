@@ -4,7 +4,7 @@ const db = vi.hoisted(() => {
   const d = {
     digitalizacionEntrega: { findFirst: vi.fn() },
     digitalizacionGrabacion: { findMany: vi.fn(), findFirst: vi.fn() },
-    digitalizacionDescarga: { count: vi.fn(), create: vi.fn() },
+    digitalizacionDescarga: { count: vi.fn(), create: vi.fn(), findFirst: vi.fn() },
     fotofficePedido: { findFirst: vi.fn() },
     $queryRaw: vi.fn(async () => []),
     $transaction: vi.fn(),
@@ -13,10 +13,12 @@ const db = vi.hoisted(() => {
   return d;
 });
 vi.mock("@repo/db", () => ({ prisma: db }));
-const almacen = vi.hoisted(() => ({ urlDeVideo: vi.fn(async (_k: string, _n: string, modo: string) => `https://r2/${modo}`), SEGUNDOS_VER_PUBLICO: 10800 }));
+const almacen = vi.hoisted(() => ({ urlDeVideo: vi.fn(async (_k: string, _n: string, modo: string, _s?: number) => `https://r2/${modo}`), SEGUNDOS_VER_PUBLICO: 10800 }));
 vi.mock("./almacen", () => almacen);
 const saldo = vi.hoisted(() => ({ saldoDelPedido: vi.fn() }));
 vi.mock("@/lib/pedidos/candado-saldo", () => saldo);
+const plan = vi.hoisted(() => ({ bloquearPedido: vi.fn(async () => 0) }));
+vi.mock("@/lib/pedidos/plan", () => plan);
 vi.mock("@/lib/pedidos/enlace", () => ({ enlaceDelPedidoDelSistema: vi.fn(async () => ({ ok: true, url: "https://fotoffice.com/w/fp/pedido/PED" })) }));
 vi.mock("@/lib/presupuestos/sitio", () => ({
   sitioDelWorkspace: vi.fn(async () => ({ workspaceId: "ws1", slug: "fp", customDomain: null, nombre: "Foto Positiva", logoUrl: "http://inseguro/logo.png", whatsapp: null, email: null })),
@@ -35,7 +37,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   db.$transaction.mockImplementation(async (fn: (tx: unknown) => unknown) => fn(db));
   db.digitalizacionEntrega.findFirst.mockResolvedValue(entrega());
-  db.fotofficePedido.findFirst.mockResolvedValue({ number: "P-12", client: { firstName: "Ana", lastName: "Gómez", businessName: null } });
+  db.digitalizacionDescarga.findFirst.mockResolvedValue(null);
+  db.fotofficePedido.findFirst.mockResolvedValue({ number: "P-12", status: "CONFIRMADO", client: { firstName: "Ana", lastName: "Gómez", businessName: null } });
   db.digitalizacionGrabacion.findMany.mockResolvedValue([video]);
   saldo.saldoDelPedido.mockResolvedValue({ numero: "P-12", saldoMinor: 0 });
 });
@@ -62,6 +65,17 @@ describe("abrirEntregaPublica", () => {
     expect(v!.videos[0]!.urlVer).toBeNull();
     expect(almacen.urlDeVideo).not.toHaveBeenCalled();
   });
+  it("pedido cancelado: no firma nada", async () => {
+    db.fotofficePedido.findFirst.mockResolvedValue({ number: "P-12", status: "CANCELADO", client: null });
+    const v = await abrirEntregaPublica("ws1", TOKEN, AHORA);
+    expect(v).toMatchObject({ cancelado: true, habilitados: false, urlPedido: null });
+    expect(almacen.urlDeVideo).not.toHaveBeenCalled();
+  });
+  it("a minutos del vencimiento, la firma para mirar dura lo que falta", async () => {
+    db.digitalizacionEntrega.findFirst.mockResolvedValue(entrega({ videosVencenAt: new Date("2026-10-22T15:10:00Z") }));
+    await abrirEntregaPublica("ws1", TOKEN, AHORA);
+    expect(almacen.urlDeVideo.mock.calls[0]![3]).toBe(600);
+  });
   it("vencida aunque no borrada: como borrada, sin firmar", async () => {
     db.digitalizacionEntrega.findFirst.mockResolvedValue(entrega({ videosVencenAt: new Date("2026-10-22T14:00:00Z") }));
     const v = await abrirEntregaPublica("ws1", TOKEN, AHORA);
@@ -71,16 +85,38 @@ describe("abrirEntregaPublica", () => {
 });
 
 describe("registrarDescarga", () => {
-  const g = { id: "g1", titulo: "Boda", tipo: "VHS", cassetteNumero: 1, videoKey: "digitalizacion/ws1/g1/final.mp4", videoBorradoAt: null, descargasExtra: 0, proyecto: { pedido: { number: "P-12", client: null } } };
+  const g = { id: "g1", titulo: "Boda", tipo: "VHS", cassetteNumero: 1, videoKey: "digitalizacion/ws1/g1/final.mp4", videoBorradoAt: null, descargasExtra: 0, proyecto: { pedido: { number: "P-12", status: "CONFIRMADO", client: null } } };
   beforeEach(() => db.digitalizacionGrabacion.findFirst.mockResolvedValue(g));
 
-  it("cuenta dentro de una transacción con la entrega bloqueada y redirige a la firma de descarga", async () => {
+  it("cuenta dentro de una transacción con el pedido y la entrega bloqueados y redirige a la firma de descarga", async () => {
     db.digitalizacionDescarga.count.mockResolvedValue(2);
     expect(await registrarDescarga("ws1", TOKEN, "g1", AHORA)).toEqual({ ok: true, url: "https://r2/descargar" });
+    expect(plan.bloquearPedido).toHaveBeenCalledWith(db, "p1");
+    expect(plan.bloquearPedido.mock.invocationCallOrder[0]!).toBeLessThan(saldo.saldoDelPedido.mock.invocationCallOrder[0]!);
     const sql = (db.$queryRaw.mock.calls[0] as unknown as [TemplateStringsArray])[0].join("?");
     expect(sql).toMatch(/FROM "DigitalizacionEntrega" WHERE id = \? FOR UPDATE/);
     expect(db.digitalizacionDescarga.create).toHaveBeenCalledWith({ data: { workspaceId: "ws1", entregaId: "e1", grabacionId: "g1" } });
-    expect(almacen.urlDeVideo).toHaveBeenCalledWith(g.videoKey, "Pedido P-12 - Boda.mp4", "descargar");
+    expect(almacen.urlDeVideo).toHaveBeenCalledWith(g.videoKey, "Pedido P-12 - Boda.mp4", "descargar", 24 * 3600);
+  });
+  it("otra descarga del mismo video en los últimos 2 minutos: firma de nuevo sin contar", async () => {
+    db.digitalizacionDescarga.findFirst.mockResolvedValue({ id: "d1" });
+    db.digitalizacionDescarga.count.mockResolvedValue(3);
+    expect(await registrarDescarga("ws1", TOKEN, "g1", AHORA)).toEqual({ ok: true, url: "https://r2/descargar" });
+    expect(db.digitalizacionDescarga.create).not.toHaveBeenCalled();
+    expect(db.digitalizacionDescarga.findFirst.mock.calls[0][0].where).toEqual({
+      entregaId: "e1", grabacionId: "g1", createdAt: { gte: new Date("2026-10-22T14:58:00Z") },
+    });
+  });
+  it("a una hora del vencimiento, la firma de descarga dura una hora", async () => {
+    db.digitalizacionEntrega.findFirst.mockResolvedValue(entrega({ videosVencenAt: new Date("2026-10-22T16:00:00Z") }));
+    db.digitalizacionDescarga.count.mockResolvedValue(0);
+    await registrarDescarga("ws1", TOKEN, "g1", AHORA);
+    expect(almacen.urlDeVideo.mock.calls[0]![3]).toBe(3600);
+  });
+  it("pedido cancelado: no registra", async () => {
+    db.digitalizacionGrabacion.findFirst.mockResolvedValue({ ...g, proyecto: { pedido: { number: "P-12", status: "CANCELADO", client: null } } });
+    expect(await registrarDescarga("ws1", TOKEN, "g1", AHORA)).toEqual({ ok: false, motivo: "CANCELADO" });
+    expect(db.$transaction).not.toHaveBeenCalled();
   });
   it("sin cupo: no registra", async () => {
     db.digitalizacionDescarga.count.mockResolvedValue(3);

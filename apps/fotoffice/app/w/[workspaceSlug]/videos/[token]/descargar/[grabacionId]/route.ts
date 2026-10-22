@@ -9,6 +9,7 @@ export const dynamic = "force-dynamic";
 
 const TEXTOS: Record<MotivoSinDescarga, { estado: number; texto: string }> = {
   NO_EXISTE: { estado: 404, texto: "Este enlace no existe o ya no está disponible. Si te lo mandaron hace poco, pedile a quien te lo envió uno nuevo." },
+  CANCELADO: { estado: 410, texto: "Este pedido fue cancelado." },
   SALDO: { estado: 402, texto: "Para descargar tus videos primero tenés que pagar el saldo del pedido. Volvé a la página de tus videos para ver cómo pagarlo." },
   BORRADO: { estado: 410, texto: "Los videos de este pedido ya se borraron." },
   SIN_CUPO: { estado: 403, texto: "Ya usaste todas las descargas de este video." },
