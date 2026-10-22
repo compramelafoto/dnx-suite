@@ -18,7 +18,7 @@ import {
 } from "../entrega";
 import { MAX_GENERACIONES_ENTREGA, generacionDeEntrega, tokenDeEntrega } from "../token-entrega";
 import { borrarVideoFinal } from "./almacen";
-import { aplicarCargosPagados, anularCargosSinSentido, cargosPendientes, type CargoPendiente } from "./cargos";
+import { aplicarCargosPagados, anularCargosSinSentido, cargosARevisar, cargosPendientes, type CargoARevisar, type CargoPendiente } from "./cargos";
 
 /**
  * La entrega de los videos de un pedido (spec 2026-10-22, E1, E2, E3 y E8), del lado del servidor.
@@ -330,6 +330,8 @@ export type ResumenEntrega = {
   envio: { estado: string; direccion: string | null; km: number | null; precioMinor: number | null } | null;
   /** Cargos extra sin pagar (E6). */
   cargosPendientes: CargoPendiente[];
+  /** Cargos "a revisar": el plan se editó a mano y ya no cuadran. */
+  cargosARevisar: CargoARevisar[];
 };
 
 export const PEDIDOS_EN_LA_LISTA = 60;
@@ -358,7 +360,10 @@ export async function resumenDeEntregas(workspaceId: string): Promise<ResumenEnt
       select: { ...SELECT_ENTREGA, envioEstado: true, envioDireccion: true, envioKm: true, envioPrecioArs: true },
     }),
   ]);
-  const pendientes = await cargosPendientes(workspaceId, entregas.map((e) => e.id));
+  const [pendientes, aRevisar] = await Promise.all([
+    cargosPendientes(workspaceId, entregas.map((e) => e.id)),
+    cargosARevisar(workspaceId, entregas.map((e) => ({ id: e.id, pedidoId: e.pedidoId }))),
+  ]);
   const porPedido = new Map<string, typeof grabaciones>();
   for (const g of grabaciones) {
     const id = g.proyecto?.pedidoId;
@@ -390,7 +395,8 @@ export async function resumenDeEntregas(workspaceId: string): Promise<ResumenEnt
             precioMinor: e.envioPrecioArs == null ? null : Math.round(Number(e.envioPrecioArs.toString()) * 100),
           }
         : null,
-      cargosPendientes: e ? pendientes.get(e.id) ?? [] : [],
+      cargosPendientes: e ? (pendientes.get(e.id) ?? []).filter((c) => !(aRevisar.get(e.id) ?? []).some((r) => r.id === c.id)) : [],
+      cargosARevisar: e ? aRevisar.get(e.id) ?? [] : [],
     };
   });
 }

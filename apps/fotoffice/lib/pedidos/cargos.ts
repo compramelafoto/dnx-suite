@@ -53,6 +53,7 @@ export const MENSAJES_CARGO = {
   muchosItems: "El pedido ya tiene demasiados renglones para sumar otro cargo.",
   conCobros: "Ese cargo ya tiene un pago registrado o iniciado: no se puede cambiar.",
   planEditado: "El plan de pagos se editó a mano: revisá ese cargo en el pedido.",
+  sinRenglon: "Ese cargo ya no está en los renglones del pedido.",
   fallo: MENSAJES_PEDIDO.fallo,
 } as const;
 
@@ -131,12 +132,15 @@ export async function agregarCargoAlPedido(d: DatosCargo): Promise<ResultadoCarg
   }
 }
 
+const esperaAbierta = async (tx: Tx, workspaceId: string, cuotaId: string) =>
+  (await tx.fotofficeEsperaPago.count({ where: { workspaceId, cuotaId, estado: "ESPERANDO" } })) > 0;
+
 export type MotivoCargoTrabado = "CON_COBROS" | "PLAN_EDITADO" | "NO_EXISTE";
 export type ResultadoTocarCargo = { ok: true } | { ok: false; motivo: MotivoCargoTrabado; error: string };
 
 /**
  * ¿El cargo sigue tal como se sumó? La cuota existe, no tiene NINGUNA imputación (ni de cobros
- * anulados), vale exactamente el monto del cargo, su renglón `cargo-<cuotaId>` está en los ítems
+ * anulados) ni una transferencia esperada abierta, vale exactamente el monto del cargo, su renglón `cargo-<cuotaId>` está en los ítems
  * con ese precio y el total lo contiene. Si algo no cuadra, alguien editó el plan a mano: tocar el
  * cargo podría borrar deuda que no es suya, así que no se toca.
  */
@@ -157,6 +161,8 @@ async function cargoIntacto(
   if (!cuota) return { ok: false, motivo: "PLAN_EDITADO", error: MENSAJES_CARGO.planEditado };
   const imputaciones = await tx.fotofficeCobroImputacion.count({ where: { workspaceId: d.workspaceId, cuotaId: cuota.id } });
   if (imputaciones > 0) return { ok: false, motivo: "CON_COBROS", error: MENSAJES_CARGO.conCobros };
+  // Una transferencia anunciada para esta cuota: el cliente ya tiene el importe para transferir.
+  if (await esperaAbierta(tx, d.workspaceId, cuota.id)) return { ok: false, motivo: "CON_COBROS", error: MENSAJES_CARGO.conCobros };
   const monto = aCentavos(d.montoArs);
   const precio = precioDelRenglonDeCargo(p.items, cuota.id);
   if (decimalArsToMinor(cuota.amountArs) !== monto || precio === null || aCentavos(precio) !== monto || decimalArsToMinor(p.totalArs) < monto) {
@@ -203,8 +209,7 @@ export async function quitarCargoEnTransaccion(
 /**
  * Cambia el importe de un cargo EN EL LUGAR (la misma cuota, el mismo renglón): cuota, renglón,
  * `totals` y `totalArs` juntos. Así un pago ya abierto (un checkout de Mercado Pago) sigue apuntando
- * a una cuota que existe. Mismas condiciones que quitar; además, sin una transferencia esperada
- * abierta para esa cuota (el cliente ya tiene el importe viejo para transferir).
+ * a una cuota que existe. Mismas condiciones que quitar (`cargoIntacto`).
  */
 export async function cambiarMontoDelCargoEnTransaccion(
   tx: Tx,
@@ -213,8 +218,6 @@ export async function cambiarMontoDelCargoEnTransaccion(
   if (!montoValido(d.montoNuevoArs)) throw new Corte(MENSAJES_CARGO.monto);
   const v = await cargoIntacto(tx, d);
   if (!v.ok) return v;
-  const espera = await tx.fotofficeEsperaPago.count({ where: { workspaceId: d.workspaceId, cuotaId: d.cuotaId, estado: "ESPERANDO" } });
-  if (espera > 0) return { ok: false, motivo: "CON_COBROS", error: MENSAJES_CARGO.conCobros };
   const itemId = itemDeCargo(d.cuotaId);
   const items = itemsConPrecio(v.p.items, itemId, d.montoNuevoArs);
   if (!items) return { ok: false, motivo: "PLAN_EDITADO", error: MENSAJES_CARGO.planEditado };
@@ -247,23 +250,93 @@ export async function quitarCargoDelPedido(d: { workspaceId: string; pedidoId: s
   }
 }
 
+/** El título de la tarea "a revisar" de un cargo (uno por concepto). */
+export function tituloDeRevision(concepto: string): string {
+  return `Revisá el cargo «${concepto.trim().slice(0, 120)}»: el plan se editó a mano y el sistema no lo tocó.`;
+}
+
+/** ¿Ya hay una tarea "a revisar" sin hacer para ese cargo? */
+export async function hayRevisionAbierta(workspaceId: string, pedidoId: string, concepto: string): Promise<boolean> {
+  const t = await prisma.fotofficePedidoTarea.findFirst({ where: { workspaceId, pedidoId, title: tituloDeRevision(concepto), doneAt: null }, select: { id: true } });
+  return t !== null;
+}
+
 /**
  * Deja en el checklist del pedido la tarea «Revisá el cargo …: el plan se editó a mano» (una sola
- * vez por concepto: si ya está sin hacer, no la repite). Nunca lanza.
+ * vez por concepto: si ya está sin hacer, no la repite). Devuelve si la creó (así quien llama deja
+ * su nota sólo la primera vez). Nunca lanza.
  */
-export async function avisarCargoParaRevisar(workspaceId: string, pedidoId: string, concepto: string): Promise<void> {
-  const title = `Revisá el cargo «${concepto.trim().slice(0, 120)}»: el plan se editó a mano y el sistema no lo tocó.`;
+export async function avisarCargoParaRevisar(workspaceId: string, pedidoId: string, concepto: string): Promise<boolean> {
+  const title = tituloDeRevision(concepto);
   try {
-    await prisma.$transaction(async (tx) => {
+    return await prisma.$transaction(async (tx) => {
       await bloquearPedido(tx, pedidoId);
       const ya = await tx.fotofficePedidoTarea.findFirst({ where: { workspaceId, pedidoId, title, doneAt: null }, select: { id: true } });
-      if (ya) return;
+      if (ya) return false;
       const ultima = await tx.fotofficePedidoTarea.findFirst({ where: { workspaceId, pedidoId }, orderBy: [{ position: "desc" }], select: { position: true } });
       await tx.fotofficePedidoTarea.create({ data: { workspaceId, pedidoId, position: (ultima?.position ?? 0) + 1, title }, select: { id: true } });
+      return true;
     }, OPCIONES_TRANSACCION_PEDIDO);
   } catch (e) {
     falla("avisarCargoParaRevisar", e);
+    return false;
   }
+}
+
+export type ResultadoQuitarAMano = { ok: true; montoArs: number; planCuadra: boolean } | { ok: false; error: string };
+
+/**
+ * "Quitar del pedido a mano" (la salida para un cargo "a revisar", lo decide una persona): saca el
+ * renglón `cargo-<cuotaId>` y su precio del total y de los `totals`, con el candado del pedido,
+ * aunque la cuota ya no exista. Si la cuota existe, no puede tener imputaciones (ni de cobros
+ * anulados) ni una transferencia esperada abierta; se le descuenta el precio (y se borra si queda
+ * en cero o menos). Si el plan no vuelve a sumar el total (la plata del cargo se había repartido en
+ * otras cuotas), `planCuadra` es false: la persona termina de ajustarlo con "Editar plan".
+ */
+export async function quitarCargoAManoEnTransaccion(tx: Tx, d: { workspaceId: string; pedidoId: string; cuotaId: string }): Promise<ResultadoQuitarAMano> {
+  await bloquearPedido(tx, d.pedidoId);
+  const p = await tx.fotofficePedido.findFirst({
+    where: { id: d.pedidoId, workspaceId: d.workspaceId },
+    select: { id: true, items: true, totals: true, totalArs: true },
+  });
+  if (!p) return { ok: false, error: MENSAJES_CARGO.noExiste };
+  const precio = precioDelRenglonDeCargo(p.items, d.cuotaId);
+  const items = itemsSinCargo(p.items, itemDeCargo(d.cuotaId));
+  if (precio === null || !items) return { ok: false, error: MENSAJES_CARGO.sinRenglon };
+  if (decimalArsToMinor(p.totalArs) < aCentavos(precio)) return { ok: false, error: MENSAJES_CARGO.planEditado };
+  const cuota = await tx.fotofficePedidoCuota.findFirst({
+    where: { id: d.cuotaId, workspaceId: d.workspaceId, pedidoId: p.id },
+    select: { id: true, position: true, amountArs: true },
+  });
+  if (cuota) {
+    const imputaciones = await tx.fotofficeCobroImputacion.count({ where: { workspaceId: d.workspaceId, cuotaId: cuota.id } });
+    if (imputaciones > 0 || (await esperaAbierta(tx, d.workspaceId, cuota.id))) return { ok: false, error: MENSAJES_CARGO.conCobros };
+    const resto = decimalArsToMinor(cuota.amountArs) - aCentavos(precio);
+    if (resto > 0) {
+      await tx.fotofficePedidoCuota.update({ where: { id: cuota.id }, data: { amountArs: pesosParaBase(resto / 100) }, select: { id: true } });
+    } else {
+      await tx.fotofficePedidoCuota.deleteMany({ where: { id: cuota.id, workspaceId: d.workspaceId } });
+      const siguientes = await tx.fotofficePedidoCuota.findMany({
+        where: { workspaceId: d.workspaceId, pedidoId: p.id, position: { gt: cuota.position } },
+        orderBy: [{ position: "asc" }],
+        select: { id: true, position: true },
+      });
+      for (const c of siguientes) await tx.fotofficePedidoCuota.update({ where: { id: c.id }, data: { position: c.position - 1 }, select: { id: true } });
+    }
+  }
+  const totalNuevo = pesosDeBase(p.totalArs) - precio;
+  await tx.fotofficePedido.update({
+    where: { id: p.id },
+    data: {
+      items: items as unknown as Prisma.InputJsonValue,
+      totals: totalesConCargo(p.totals, itemDeCargo(d.cuotaId), precio, -1) as Prisma.InputJsonValue,
+      totalArs: pesosParaBase(totalNuevo),
+    },
+    select: { id: true },
+  });
+  const cuotas = await tx.fotofficePedidoCuota.findMany({ where: { workspaceId: d.workspaceId, pedidoId: p.id }, select: { amountArs: true } });
+  const suma = cuotas.reduce((s, c) => s + decimalArsToMinor(c.amountArs), 0);
+  return { ok: true, montoArs: precio, planCuadra: suma === aCentavos(totalNuevo) };
 }
 
 /** ¿El error es un corte con mensaje para la persona (y no una falla)? Para los llamadores que comparten la transacción. */

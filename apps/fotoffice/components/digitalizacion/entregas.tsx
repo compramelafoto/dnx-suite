@@ -3,7 +3,9 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { anularCargoAction, cambiarEnvioAutomaticoAction, enviarEntregaAction, guardarAjustesEntregaAction, marcarEnvioEntregadoAction } from "@/app/(shell)/digitalizacion/actions";
+import {
+  anularCargoAction, cambiarEnvioAutomaticoAction, enviarEntregaAction, guardarAjustesEntregaAction, marcarEnvioEntregadoAction, quitarCargoAManoAction,
+} from "@/app/(shell)/digitalizacion/actions";
 import { ETIQUETA_ENVIO, esEstadoEnvio } from "@/lib/digitalizacion/cargos";
 import { leerNumero, pesos, type EstadoVisibleEntrega, type FranjaEnvio } from "@/lib/digitalizacion/entrega";
 
@@ -156,22 +158,25 @@ export function EnvioYCargos({
   entregaId,
   envio,
   cargos,
+  aRevisar = [],
   puedeGestionar,
 }: {
   entregaId: string | null;
   envio: { estado: string; direccion: string | null; km: number | null; precioMinor: number | null } | null;
   cargos: { id: string; tipo: string; montoMinor: number }[];
+  /** Cargos "a revisar" (el plan se editó a mano): con «Quitar del pedido a mano» si no tienen cobros. */
+  aRevisar?: { id: string; concepto: string; montoMinor: number; tieneCobros: boolean }[];
   puedeGestionar: boolean;
 }) {
   const [pendiente, empezar] = useTransition();
   const [aviso, setAviso] = useState<string | null>(null);
   const router = useRouter();
-  if (!envio && cargos.length === 0) return null;
+  if (!envio && cargos.length === 0 && aRevisar.length === 0) return null;
 
-  const correr = (fn: () => Promise<{ ok: boolean; error?: string }>) =>
+  const correr = (fn: () => Promise<{ ok: boolean; error?: string; planCuadra?: boolean }>) =>
     empezar(async () => {
       const r = await fn();
-      setAviso(r.ok ? null : (r.error ?? "No se pudo."));
+      setAviso(!r.ok ? (r.error ?? "No se pudo.") : r.planCuadra === false ? "Listo. Ahora revisá el plan de pagos del pedido: no suma el total nuevo." : null);
       router.refresh();
     });
 
@@ -206,6 +211,29 @@ export function EnvioYCargos({
               }}
             >
               Anular
+            </button>
+          ) : null}
+        </div>
+      ))}
+      {aRevisar.map((c) => (
+        <div key={c.id} className="flex flex-wrap items-center gap-2">
+          <span className="fo-alert-warning px-2">
+            A revisar: {c.concepto} ({pesos(c.montoMinor)}) · el plan se editó a mano
+            {c.tieneCobros ? " · tiene cobros: revisalo en el pedido" : ""}
+          </span>
+          {puedeGestionar && !c.tieneCobros ? (
+            <button
+              type="button"
+              className="fo-btn fo-btn-ghost text-xs"
+              disabled={pendiente}
+              onClick={() => {
+                const ok = window.confirm(
+                  `Se saca del pedido el renglón «${c.concepto}» y ${pesos(c.montoMinor)} del total. Si la plata del cargo se había repartido en otras cuotas, después vas a tener que ajustar el plan de pagos. ¿Seguimos?`,
+                );
+                if (ok) correr(() => quitarCargoAManoAction(c.id));
+              }}
+            >
+              Quitar del pedido a mano
             </button>
           ) : null}
         </div>

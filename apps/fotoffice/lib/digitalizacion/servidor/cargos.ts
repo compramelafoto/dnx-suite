@@ -5,10 +5,10 @@ import { coordenadasDelEstudio, puntoValido } from "@/lib/impresiones/envio";
 import { lugarDelPunto, MAX_DIRECCION, textoLimpio } from "@/lib/impresiones/direccion-servidor";
 import { saldoSinExtrasOpcionales } from "@/lib/pedidos/candado-saldo";
 import {
-  MENSAJES_CARGO, agregarCargoEnTransaccion, avisarCargoParaRevisar, cambiarMontoDelCargoEnTransaccion, mensajeDeCorte, quitarCargoEnTransaccion,
-  type ResultadoTocarCargo,
+  MENSAJES_CARGO, agregarCargoEnTransaccion, avisarCargoParaRevisar, cambiarMontoDelCargoEnTransaccion, hayRevisionAbierta, mensajeDeCorte, tituloDeRevision,
+  quitarCargoAManoEnTransaccion, quitarCargoEnTransaccion, type ResultadoTocarCargo,
 } from "@/lib/pedidos/cargos";
-import { itemDeCargo, sumaDeRenglonesDeCargo } from "@/lib/pedidos/cargos-puro";
+import { itemDeCargo, precioDelRenglonDeCargo, sumaDeRenglonesDeCargo } from "@/lib/pedidos/cargos-puro";
 import { OPCIONES_TRANSACCION_PEDIDO } from "@/lib/pedidos/constantes";
 import { enlaceDelPedidoDelSistema, type DepsEnlace } from "@/lib/pedidos/enlace";
 import { imputadoPorCuota } from "@/lib/pedidos/estado";
@@ -16,6 +16,7 @@ import { bloquearPedido, pesosDeBase, planesDe } from "@/lib/pedidos/plan";
 import { aCentavos } from "@/lib/pedidos/plan-cuotas";
 import { extrasDelWorkspace } from "@/lib/presupuestos/perfil-cobro";
 import { tokenConForma, hashDeToken } from "@/lib/presupuestos/enlace";
+import { decimalArsToMinor } from "@/lib/membership/money";
 import { ID_VALIDO } from "../claves";
 import {
   conceptoDeCargo, cotizarEnvioCassettes, precioDescargaExtra, precioExtension, precioUnitarioDelTrabajo, puedeComprarDescarga, puedeExtender,
@@ -139,9 +140,9 @@ async function anotar(workspaceId: string, pedidoId: string, body: string): Prom
   }
 }
 
-/** Plan editado a mano: tarea en el pedido y nota en los trabajos. Nunca lanza. */
+/** Plan editado a mano: tarea en el pedido y, sólo la primera vez, nota en los trabajos. Nunca lanza. */
 async function avisarParaRevisar(workspaceId: string, pedidoId: string, concepto: string): Promise<void> {
-  await avisarCargoParaRevisar(workspaceId, pedidoId, concepto);
+  if (!(await avisarCargoParaRevisar(workspaceId, pedidoId, concepto))) return;
   await anotar(workspaceId, pedidoId, `El plan de pagos se editó a mano y el cargo «${concepto}» no cuadra: el sistema no lo tocó. Revisalo en el pedido.`);
 }
 
@@ -387,8 +388,10 @@ export async function pedirEnvioCassettes(workspaceId: string, token: unknown, d
   const precio = cot.estado === "A_COORDINAR" ? null : cot.precioArs;
 
   let hecho: { cuotaId: string | null; sinCambios: boolean };
+  let cambioDeMonto: { antes: number; despues: number } | null = null;
   try {
     hecho = await conCandados(workspaceId, ent.id, ent.pedidoId, async (tx, e) => {
+      cambioDeMonto = null;
       if (e.cancelado) throw new Corte(MENSAJES_CARGOS.cancelado);
       if (!puedePedirEnvio(e, ahora)) throw new Corte(e.envioEstado === "CONFIRMADO" || e.envioEstado === "ENTREGADO" ? MENSAJES_CARGOS.envioYaConfirmado : MENSAJES_CARGOS.cassettesVencidos);
       const actual = await tx.digitalizacionEntrega.findFirst({ where: { id: e.id, workspaceId }, select: { envioDireccion: true, envioEstado: true } });
@@ -409,6 +412,7 @@ export async function pedirEnvioCassettes(workspaceId: string, token: unknown, d
             const r = await cambiarMontoDelCargoEnTransaccion(tx, { workspaceId, pedidoId: e.pedidoId, cuotaId: c.cuotaId, montoArs: monto, montoNuevoArs: cot.precioArs });
             if (!r.ok) throw corteDelEnvioPrevio(r, e.pedidoId);
             await tx.digitalizacionCargo.updateMany({ where: { id: c.id, workspaceId, estado: "PENDIENTE" }, data: { montoArs: cot.precioArs.toFixed(2) } });
+            cambioDeMonto = { antes: monto, despues: cot.precioArs };
           } else {
             const cuota = await tx.fotofficePedidoCuota.findFirst({ where: { id: c.cuotaId, workspaceId }, select: { id: true } });
             if (!cuota) throw new Corte(MENSAJES_CARGOS.revisar, { pedidoId: e.pedidoId, concepto: conceptoDeCargo("ENVIO", null) });
@@ -463,6 +467,10 @@ export async function pedirEnvioCassettes(workspaceId: string, token: unknown, d
     const estadoTexto =
       cot.estado === "A_PAGAR" ? `${pesos(cot.precioArs * 100)}, pendiente de pago` : cot.estado === "CONFIRMADO" ? "sin cargo, confirmado" : "a coordinar con el cliente";
     await anotar(workspaceId, ent.pedidoId, `El cliente pidió el envío de los cassettes a ${verificado.direccion}${kmTexto} (${estadoTexto}).${textoDeFicha(ficha)}`);
+  }
+  const cambio = cambioDeMonto as { antes: number; despues: number } | null;
+  if (cambio) {
+    await anotar(workspaceId, ent.pedidoId, `El envío de los cassettes cambió de importe: de ${pesos(cambio.antes * 100)} a ${pesos(cambio.despues * 100)} (misma cuota del pedido).`);
   }
 
   if (cot.estado === "A_COORDINAR") return { ok: true, estado: "A_COORDINAR", mensaje: A_COORDINAR_TEXTO };
@@ -666,19 +674,29 @@ async function aplicarUno(
   return hecho.r;
 }
 
-/** Un pedido abandonado (clic sin pagar) sale del pedido pasadas estas horas. */
-export const HORAS_CARGO_ABANDONADO = 72;
+/** Un pedido abandonado (clic sin pagar) sale del pedido pasados estos días. */
+export const DIAS_CARGO_ABANDONADO = 7;
+
+/** El concepto de un cargo, como su renglón ("Descarga extra · Cassette 1"). */
+async function conceptoDe(workspaceId: string, c: { tipo: string; grabacionId: string | null }): Promise<string> {
+  const video = c.grabacionId
+    ? await prisma.digitalizacionGrabacion.findFirst({ where: { id: c.grabacionId, workspaceId }, select: { titulo: true, tipo: true, cassetteNumero: true } })
+    : null;
+  return conceptoDeCargo(c.tipo as TipoCargo, video ? tituloDeVideo(video) : null);
+}
 
 /**
  * La limpieza diaria de los cargos PENDIENTES que nadie va a pagar:
- * - los abandonados: más de 72 h, sin ningún cobro imputado y sin una transferencia esperada abierta;
+ * - los abandonados: más de 7 días sin pagar;
  * - los que perdieron sentido: descargas extra y extensiones con los videos ya borrados, y envíos
  *   con los cassettes vencidos.
- * Salen del pedido con la regla de `anularCargo` (sólo si siguen intactos; si no, tarea al equipo).
+ * Salen del pedido con la regla de `anularCargo` (sólo si siguen intactos: sin cobros, sin
+ * transferencia anunciada y con el plan sin tocar). Los que ya están "a revisar" (con su tarea sin
+ * hacer) se saltean sin hacer nada. Cada uno que sale deja una nota en el pedido.
  */
 export async function anularCargosSinSentido(deps: { ahora?: () => Date } = {}): Promise<number> {
   const ahora = (deps.ahora ?? (() => new Date()))();
-  const viejo = new Date(ahora.getTime() - HORAS_CARGO_ABANDONADO * HORA_MS);
+  const viejo = new Date(ahora.getTime() - DIAS_CARGO_ABANDONADO * 24 * HORA_MS);
   let anulados = 0;
   try {
     const candidatos = await prisma.digitalizacionCargo.findMany({
@@ -692,13 +710,15 @@ export async function anularCargosSinSentido(deps: { ahora?: () => Date } = {}):
       },
       orderBy: { id: "asc" },
       take: PAGINA_CARGOS * 5,
-      select: { id: true, workspaceId: true, cuotaId: true },
+      select: { id: true, workspaceId: true, pedidoId: true, tipo: true, grabacionId: true, montoArs: true },
     });
     for (const c of candidatos) {
-      const espera = await prisma.fotofficeEsperaPago.count({ where: { workspaceId: c.workspaceId, cuotaId: c.cuotaId, estado: "ESPERANDO" } });
-      if (espera > 0) continue;
+      const concepto = await conceptoDe(c.workspaceId, c);
+      if (await hayRevisionAbierta(c.workspaceId, c.pedidoId, concepto)) continue;
       const r = await anularCargo(c.workspaceId, c.id);
-      if (r.ok) anulados++;
+      if (!r.ok) continue;
+      anulados++;
+      await anotar(c.workspaceId, c.pedidoId, `Se quitó el extra «${concepto}» sin pagar (${pesos(Math.round(pesosDeBase(c.montoArs) * 100))}).`);
     }
   } catch (e) {
     console.error("[digitalizacion][cargos] falló la limpieza de cargos", { codigo: codigo(e) });
@@ -737,14 +757,88 @@ export async function anularCargo(workspaceId: string, cargoId: unknown): Promis
       return { ok: true };
     }, OPCIONES_TRANSACCION_PEDIDO);
     if (r.ok) return r;
-    if (r.motivo === "PLAN_EDITADO") {
-      const video = c.grabacionId ? await prisma.digitalizacionGrabacion.findFirst({ where: { id: c.grabacionId, workspaceId }, select: { titulo: true, tipo: true, cassetteNumero: true } }) : null;
-      await avisarParaRevisar(workspaceId, c.pedidoId, conceptoDeCargo(c.tipo as TipoCargo, video ? tituloDeVideo(video) : null));
-    }
+    if (r.motivo === "PLAN_EDITADO") await avisarParaRevisar(workspaceId, c.pedidoId, await conceptoDe(workspaceId, c));
     return { ok: false, error: r.error };
   } catch (e) {
     if (e instanceof Corte) return { ok: false, error: e.mensaje };
     console.error("[digitalizacion][cargos] anularCargo falló", { codigo: codigo(e) });
+    return { ok: false, error: MENSAJES_CARGOS.fallo };
+  }
+}
+
+export type CargoARevisar = { id: string; concepto: string; montoMinor: number; tieneCobros: boolean };
+
+/**
+ * Los cargos "a revisar" de unas entregas: los que no están aplicados, cuyo renglón sigue en el
+ * pedido pero ya no cuadran (ANULADO con el renglón todavía ahí, o PENDIENTE con la cuota borrada o
+ * con otro importe). `tieneCobros`: su cuota existe y tiene imputaciones (entonces no hay "Quitar a
+ * mano": se revisa en el pedido).
+ */
+export async function cargosARevisar(workspaceId: string, entregas: readonly { id: string; pedidoId: string }[]): Promise<Map<string, CargoARevisar[]>> {
+  const mapa = new Map<string, CargoARevisar[]>();
+  if (entregas.length === 0) return mapa;
+  const filas = await prisma.digitalizacionCargo.findMany({
+    where: { workspaceId, entregaId: { in: entregas.map((e) => e.id) }, estado: { in: ["PENDIENTE", "ANULADO"] } },
+    orderBy: { createdAt: "asc" },
+    select: { id: true, entregaId: true, pedidoId: true, cuotaId: true, tipo: true, grabacionId: true, montoArs: true, estado: true },
+  });
+  if (filas.length === 0) return mapa;
+  const pedidos = await prisma.fotofficePedido.findMany({ where: { workspaceId, id: { in: [...new Set(filas.map((f) => f.pedidoId))] } }, select: { id: true, items: true } });
+  const itemsDe = new Map(pedidos.map((p) => [p.id, p.items]));
+  const cuotas = await prisma.fotofficePedidoCuota.findMany({ where: { workspaceId, id: { in: filas.map((f) => f.cuotaId) } }, select: { id: true, amountArs: true } });
+  const cuotaDe = new Map(cuotas.map((c) => [c.id, decimalArsToMinor(c.amountArs)]));
+  for (const f of filas) {
+    const precio = precioDelRenglonDeCargo(itemsDe.get(f.pedidoId) ?? null, f.cuotaId);
+    if (precio === null) continue;
+    const monto = decimalArsToMinor(f.montoArs);
+    const cuota = cuotaDe.get(f.cuotaId);
+    const trabado = f.estado === "ANULADO" || cuota === undefined || cuota !== monto || aCentavos(precio) !== monto;
+    if (!trabado) continue;
+    const tieneCobros = cuota !== undefined && (await prisma.fotofficeCobroImputacion.count({ where: { workspaceId, cuotaId: f.cuotaId } })) > 0;
+    const lista = mapa.get(f.entregaId) ?? [];
+    lista.push({ id: f.id, concepto: await conceptoDe(workspaceId, f), montoMinor: aCentavos(precio), tieneCobros });
+    mapa.set(f.entregaId, lista);
+  }
+  return mapa;
+}
+
+/**
+ * "Quitar del pedido a mano" de un cargo "a revisar" (lo decide una persona con MANAGE): saca su
+ * renglón y su monto del total con los candados, aunque la cuota ya no exista
+ * (`quitarCargoAManoEnTransaccion`). El cargo queda ANULADO, la tarea "a revisar" se da por hecha y
+ * queda una nota. `planCuadra` false: hay que terminar de ajustar el plan con "Editar plan".
+ */
+export async function quitarCargoAMano(workspaceId: string, cargoId: unknown, userId: number | null): Promise<{ ok: true; planCuadra: boolean } | { ok: false; error: string }> {
+  if (typeof cargoId !== "string" || !ID_VALIDO.test(cargoId)) return { ok: false, error: "No encontramos ese cargo." };
+  const c = await prisma.digitalizacionCargo.findFirst({
+    where: { id: cargoId, workspaceId },
+    select: { id: true, pedidoId: true, entregaId: true, cuotaId: true, tipo: true, grabacionId: true, estado: true },
+  });
+  if (!c || c.estado === "APLICADO") return { ok: false, error: "Ese cargo ya se aplicó: no se quita." };
+  const concepto = await conceptoDe(workspaceId, c);
+  try {
+    const r = await prisma.$transaction(async (tx) => {
+      await bloquearPedido(tx, c.pedidoId);
+      await bloquearEntrega(tx, c.entregaId);
+      const q = await quitarCargoAManoEnTransaccion(tx, { workspaceId, pedidoId: c.pedidoId, cuotaId: c.cuotaId });
+      if (!q.ok) return q;
+      await tx.digitalizacionCargo.updateMany({ where: { id: c.id, workspaceId, estado: { in: ["PENDIENTE", "ANULADO"] } }, data: { estado: "ANULADO" } });
+      if (c.tipo === "ENVIO") await tx.digitalizacionEntrega.updateMany({ where: { id: c.entregaId, workspaceId, envioEstado: "A_PAGAR" }, data: { envioEstado: null } });
+      await tx.fotofficePedidoTarea.updateMany({
+        where: { workspaceId, pedidoId: c.pedidoId, title: tituloDeRevision(concepto), doneAt: null },
+        data: { doneAt: new Date(), doneByUserId: userId },
+      });
+      return q;
+    }, OPCIONES_TRANSACCION_PEDIDO);
+    if (!r.ok) return r;
+    await anotar(
+      workspaceId,
+      c.pedidoId,
+      `Se quitó a mano del pedido el extra «${concepto}» (${pesos(aCentavos(r.montoArs))}).${r.planCuadra ? "" : " Revisá el plan de pagos: no suma el total nuevo."}`,
+    );
+    return { ok: true, planCuadra: r.planCuadra };
+  } catch (e) {
+    console.error("[digitalizacion][cargos] quitarCargoAMano falló", { codigo: codigo(e) });
     return { ok: false, error: MENSAJES_CARGOS.fallo };
   }
 }

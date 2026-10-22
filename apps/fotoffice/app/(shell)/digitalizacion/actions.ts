@@ -172,3 +172,12 @@ export async function anularCargoAction(cargoId: unknown) {
   revalidatePath("/digitalizacion");
   return r;
 }
+
+/** "Quitar del pedido a mano" un cargo "a revisar": saca su renglón y su monto del total. */
+export async function quitarCargoAManoAction(cargoId: unknown) {
+  const ctx = await contextoDigitalizacion("MANAGE");
+  if (!ctx) return SIN_PERMISO;
+  const r = await K.quitarCargoAMano(ctx.workspaceId, cargoId, ctx.userId ?? null);
+  revalidatePath("/digitalizacion");
+  return r;
+}

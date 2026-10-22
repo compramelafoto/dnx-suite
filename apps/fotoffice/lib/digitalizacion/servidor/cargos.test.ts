@@ -157,6 +157,27 @@ describe("aplicar los cargos pagos", () => {
     expect(await C.pedirExtension("ws-1", TOKEN, deps)).toEqual({ ok: false, error: C.MENSAJES_CARGOS.revisar });
     expect(cargos()).toHaveLength(1);
     expect(pedido().totalArs).toBe("45000.00");
+    // Ni la tarea ni la nota se repiten.
+    expect(B.datos.fotofficePedidoTarea).toHaveLength(1);
+    expect(B.datos.fotofficeProyectoNota).toHaveLength(1);
+    // Aparece "a revisar" en la lista interna y se puede quitar a mano (la cuota ya no existe).
+    const lista = await C.cargosARevisar("ws-1", [{ id: "ent-1", pedidoId: "ped-1" }]);
+    expect(lista.get("ent-1")).toEqual([{ id: cargos()[0]!.id, concepto: "Extensión de 30 días de los videos", montoMinor: 1500000, tieneCobros: false }]);
+    expect(await C.quitarCargoAMano("ws-1", cargos()[0]!.id, 7)).toEqual({ ok: true, planCuadra: true });
+    expect(pedido().totalArs).toBe("30000.00");
+    expect(B.datos.fotofficePedidoTarea[0]).toMatchObject({ doneByUserId: 7 });
+    expect(B.datos.fotofficeProyectoNota.at(-1)!.body).toBe("Se quitó a mano del pedido el extra «Extensión de 30 días de los videos» (15.000 pesos).");
+    expect((await C.cargosARevisar("ws-1", [{ id: "ent-1", pedidoId: "ped-1" }])).get("ent-1")).toBeUndefined();
+  });
+
+  it("un cargo a revisar con cobros no se quita a mano", async () => {
+    await C.pedirExtension("ws-1", TOKEN, deps);
+    const c = cargos()[0]!;
+    B.datos.fotofficePedidoCuota.find((q) => q.id === c.cuotaId)!.amountArs = "20000.00";
+    B.agregar("fotofficeCobroImputacion", { workspaceId: "ws-1", cobroId: "cob-x", cuotaId: c.cuotaId, amountArs: "100.00" });
+    expect((await C.cargosARevisar("ws-1", [{ id: "ent-1", pedidoId: "ped-1" }])).get("ent-1")).toEqual([expect.objectContaining({ tieneCobros: true })]);
+    expect(await C.quitarCargoAMano("ws-1", c.id, 7)).toMatchObject({ ok: false });
+    expect(pedido().totalArs).toBe("45000.00");
   });
 
   it("revisa todos los pendientes paginando, no sólo los más viejos", async () => {
@@ -214,6 +235,17 @@ describe("envío de los cassettes", () => {
     expect(pedido().totalArs).toBe("34000.00");
     expect((pedido().totals as { total: number }).total).toBe(34000);
     expect(entrega()).toMatchObject({ envioDireccion: "Centro", envioPrecioArs: "4000.00" });
+    expect(B.datos.fotofficeProyectoNota.at(-1)!.body).toBe("El envío de los cassettes cambió de importe: de 9.000 pesos a 4.000 pesos (misma cuota del pedido).");
+  });
+
+  it("con una transferencia anunciada, pasar a una dirección a coordinar no borra la cuota", async () => {
+    await C.pedirEnvioCassettes("ws-1", TOKEN, FUNES, deps);
+    const cuotaId = cargos()[0]!.cuotaId;
+    B.agregar("fotofficeEsperaPago", { workspaceId: "ws-1", pedidoId: "ped-1", cuotaId, importeEsperadoArs: "9000.00", estado: "ESPERANDO" });
+    H.extras.mockResolvedValueOnce(null);
+    expect(await C.pedirEnvioCassettes("ws-1", TOKEN, { ...FUNES, lat: -32.95 }, deps)).toEqual({ ok: false, error: C.MENSAJES_CARGOS.envioConPago });
+    expect(B.datos.fotofficePedidoCuota.some((q) => q.id === cuotaId)).toBe(true);
+    expect(pedido().totalArs).toBe("39000.00");
   });
 
   it("con un pago iniciado del envío, no cambia la dirección", async () => {
@@ -284,16 +316,30 @@ describe("anular un cargo", () => {
 });
 
 describe("clics abandonados", () => {
-  it("la limpieza diaria saca los pendientes de más de 72 h sin pagos ni transferencia esperada", async () => {
+  const dias = (n: number) => ({ ahora: () => new Date(AHORA.getTime() + n * 24 * 3600_000) });
+
+  it("a los 7 días saca los pendientes sin pagos ni transferencia anunciada, con una nota", async () => {
     await C.pedirDescargaExtra("ws-1", TOKEN, "gra-1", deps);
     await C.pedirExtension("ws-1", TOKEN, deps);
     const [descarga, extension] = cargos();
     B.agregar("fotofficeEsperaPago", { workspaceId: "ws-1", pedidoId: "ped-1", cuotaId: extension!.cuotaId, importeEsperadoArs: "15000.00", estado: "ESPERANDO" });
-    expect(await C.anularCargosSinSentido({ ahora: () => new Date(AHORA.getTime() + 71 * 3600_000) })).toBe(0);
-    expect(await C.anularCargosSinSentido({ ahora: () => new Date(AHORA.getTime() + 73 * 3600_000) })).toBe(1);
+    expect(await C.anularCargosSinSentido(dias(6))).toBe(0);
+    expect(await C.anularCargosSinSentido(dias(8))).toBe(1);
     expect(descarga!.estado).toBe("ANULADO");
     expect(extension!.estado).toBe("PENDIENTE");
     expect(pedido().totalArs).toBe("45000.00");
+    expect(B.datos.fotofficeProyectoNota.map((n) => n.body)).toEqual(["Se quitó el extra «Descarga extra · Cassette 1» sin pagar (3.750 pesos)."]);
+  });
+
+  it("los que ya están a revisar se saltean sin hacer nada", async () => {
+    await C.pedirExtension("ws-1", TOKEN, deps);
+    B.datos.fotofficePedidoCuota.find((q) => q.id === cargos()[0]!.cuotaId)!.amountArs = "20000.00";
+    expect(await C.anularCargosSinSentido(dias(8))).toBe(0);
+    expect(B.datos.fotofficePedidoTarea).toHaveLength(1);
+    expect(B.datos.fotofficeProyectoNota).toHaveLength(1);
+    expect(await C.anularCargosSinSentido(dias(9))).toBe(0);
+    expect(B.datos.fotofficePedidoTarea).toHaveLength(1);
+    expect(B.datos.fotofficeProyectoNota).toHaveLength(1);
   });
 });
 

@@ -242,3 +242,54 @@ describe("saldo sin extras opcionales", () => {
     expect((await saldoSinExtrasOpcionales(B.prisma as never, "ws-1", "ped-1"))!.saldoMinor).toBe(3000000);
   });
 });
+
+describe("transferencia anunciada", () => {
+  it("una transferencia esperada abierta frena también quitar el cargo", async () => {
+    const r = await cargo();
+    if (!r.ok) throw new Error(r.error);
+    B.agregar("fotofficeEsperaPago", { workspaceId: "ws-1", pedidoId: "ped-1", cuotaId: r.cuotaId, importeEsperadoArs: "3750.00", estado: "ESPERANDO" });
+    expect(await CA.quitarCargoDelPedido({ workspaceId: "ws-1", pedidoId: "ped-1", cuotaId: r.cuotaId, montoArs: 3750 })).toMatchObject({ ok: false, motivo: "CON_COBROS" });
+    expect(cuotas()).toHaveLength(3);
+  });
+});
+
+describe("tarea a revisar", () => {
+  it("dice si la creó: la segunda vez no", async () => {
+    expect(await CA.avisarCargoParaRevisar("ws-1", "ped-1", "Envío")).toBe(true);
+    expect(await CA.avisarCargoParaRevisar("ws-1", "ped-1", "Envío")).toBe(false);
+    expect(await CA.hayRevisionAbierta("ws-1", "ped-1", "Envío")).toBe(true);
+  });
+});
+
+describe("quitar del pedido a mano", () => {
+  const aMano = (cuotaId: string) => enTransaccion((tx: never) => CA.quitarCargoAManoEnTransaccion(tx, { workspaceId: "ws-1", pedidoId: "ped-1", cuotaId }));
+
+  it("con la cuota borrada: saca el renglón y su monto del total y avisa que hay que ajustar el plan", async () => {
+    const r = await cargo();
+    if (!r.ok) throw new Error(r.error);
+    // Plan rehecho a mano: la plata del cargo se repartió en la cuota 2.
+    B.datos.fotofficePedidoCuota = B.datos.fotofficePedidoCuota.filter((c) => c.id !== r.cuotaId);
+    B.datos.fotofficePedidoCuota.find((c) => c.id === "ped-1-c2")!.amountArs = "18750.00";
+    expect(await aMano(r.cuotaId)).toEqual({ ok: true, montoArs: 3750, planCuadra: false });
+    expect(fila().totalArs).toBe("30000.00");
+    expect((fila().totals as { total: number }).total).toBe(30000);
+    expect((fila().items as unknown[]).length).toBe(1);
+  });
+
+  it("con la cuota agrandada a mano y sin cobros: le descuenta el precio y el plan cuadra", async () => {
+    const r = await cargo();
+    if (!r.ok) throw new Error(r.error);
+    B.datos.fotofficePedidoCuota = B.datos.fotofficePedidoCuota.filter((c) => c.id !== "ped-1-c2");
+    B.datos.fotofficePedidoCuota.find((c) => c.id === r.cuotaId)!.amountArs = "18750.00";
+    expect(await aMano(r.cuotaId)).toEqual({ ok: true, montoArs: 3750, planCuadra: true });
+    expect(B.datos.fotofficePedidoCuota.find((c) => c.id === r.cuotaId)!.amountArs).toBe("15000.00");
+  });
+
+  it("con cobros imputados no se puede", async () => {
+    const r = await cargo();
+    if (!r.ok) throw new Error(r.error);
+    B.agregar("fotofficeCobroImputacion", { workspaceId: "ws-1", cobroId: "cob-1", cuotaId: r.cuotaId, amountArs: "100.00" });
+    expect(await aMano(r.cuotaId)).toEqual({ ok: false, error: CA.MENSAJES_CARGO.conCobros });
+    expect(fila().totalArs).toBe("33750.00");
+  });
+});

@@ -22,6 +22,7 @@ const cargos = vi.hoisted(() => ({
   aplicarCargosPagados: vi.fn(async () => ({ revisados: 0, aplicados: 0, anulados: 0, fallidos: 0 })),
   anularCargosSinSentido: vi.fn(async () => 0),
   cargosPendientes: vi.fn(async () => new Map()),
+  cargosARevisar: vi.fn(async () => new Map()),
 }));
 vi.mock("./cargos", () => cargos);
 const saldo = vi.hoisted(() => {
@@ -367,6 +368,7 @@ describe("resumenDeEntregas: envío y cargos", () => {
     const [r] = await resumenDeEntregas("ws1");
     expect(r!.envio).toEqual({ estado: "A_PAGAR", direccion: "Av. Real 100", km: 22.4, precioMinor: 900000 });
     expect(r!.cargosPendientes).toEqual([pendiente]);
+    expect(r!.cargosARevisar).toEqual([]);
   });
 });
 
