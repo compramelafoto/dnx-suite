@@ -42,6 +42,11 @@ export type OutboundEmail = {
    * (etapa 5): un solo archivo chico. Resend admite hasta 40 MB entre todos.
    */
   attachments?: { filename: string; content: Uint8Array; contentType?: string }[];
+  /**
+   * Clave de idempotencia (opcional): va como encabezado HTTP `Idempotency-Key`, no en el correo.
+   * Si el mismo envío se reintenta dentro de las 24 h, Resend no lo repite. Sólo el envío suelto.
+   */
+  idempotencyKey?: string;
 };
 
 /** Cuánto se espera a Resend antes de cortar el pedido. */
@@ -159,6 +164,7 @@ export async function sendTransactionalEmail(
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
+        ...(message.idempotencyKey ? { "Idempotency-Key": message.idempotencyKey } : {}),
       },
       body: JSON.stringify(providerPayload(message, from)),
       // Un proveedor colgado no deja la acción esperando para siempre: a los 10 s se corta y
