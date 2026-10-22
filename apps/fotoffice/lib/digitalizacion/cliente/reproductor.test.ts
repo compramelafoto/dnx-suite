@@ -2,10 +2,13 @@ import { describe, expect, it } from "vitest";
 import { accionAnteError, mensajeDeEstado, modoDeReproduccion } from "./reproductor";
 
 describe("modoDeReproduccion", () => {
-  it("Safari reproduce solo; el resto usa hls.js; si no hay ninguno, no se puede", () => {
-    expect(modoDeReproduccion("maybe", true)).toBe("NATIVO");
-    expect(modoDeReproduccion("probably", false)).toBe("NATIVO");
+  it("hls.js siempre que haya Media Source; nativo sólo sin él; si no hay ninguno, no se puede", () => {
+    // Chrome 152 dice "maybe" y su HLS propio falla con la playlist firmada: tiene que ir por hls.js.
+    expect(modoDeReproduccion("maybe", true)).toBe("HLSJS");
+    expect(modoDeReproduccion("probably", true)).toBe("HLSJS");
     expect(modoDeReproduccion("", true)).toBe("HLSJS");
+    expect(modoDeReproduccion("probably", false)).toBe("NATIVO");
+    expect(modoDeReproduccion("maybe", false)).toBe("NATIVO");
     expect(modoDeReproduccion("", false)).toBe("NINGUNO");
   });
 });
