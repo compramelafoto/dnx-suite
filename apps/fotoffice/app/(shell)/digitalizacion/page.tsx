@@ -1,4 +1,5 @@
 // apps/fotoffice/app/(shell)/digitalizacion/page.tsx
+import { vistaPreviaAgotada } from "@/lib/digitalizacion/hls";
 import { PageHeader } from "@/components/page-header";
 import { AccionesGrabacion, AjusteMinutos } from "@/components/digitalizacion/acciones-grabacion";
 import { AccionesEntrega, AjustesEntrega } from "@/components/digitalizacion/entregas";
@@ -121,7 +122,12 @@ export default async function DigitalizacionPage() {
                 </p>
                 {g.conversionEstado ? <p className="text-sm">
                   {g.conversionEstado === "LISTA"
-                    ? `Video listo${g.videoDuracionSeg != null ? ` · ${duracion(g.videoDuracionSeg)}` : ""}${g.videoBytes != null ? ` · ${mb(g.videoBytes)}` : ""}`
+                    ? <>
+                        {`Video listo${g.videoDuracionSeg != null ? ` · ${duracion(g.videoDuracionSeg)}` : ""}${g.videoBytes != null ? ` · ${mb(g.videoBytes)}` : ""}`}
+                        {vistaPreviaAgotada(g.hlsKey, g.conversionError)
+                          ? <span className="fo-alert-warning ml-2 px-2">No se pudo preparar la vista previa (falló 3 veces): el video se puede descargar igual.</span>
+                          : null}
+                      </>
                     : g.conversionEstado === "ERROR"
                       ? <span className="fo-alert-warning px-2">Error: {g.conversionError ?? "falló la conversión"}</span>
                       : CONVERSION[g.conversionEstado] ?? g.conversionEstado}
@@ -132,6 +138,7 @@ export default async function DigitalizacionPage() {
                   puedeGrabar={puedeGrabar}
                   conversionEstado={g.conversionEstado ?? ""}
                   partesBorradas={g.partesBorradasAt != null}
+                  tieneHls={g.hlsKey != null && g.videoBorradoAt == null}
                   titulo={g.titulo}
                   nombreArchivo={nombreArchivoVideo(
                     { pedidoNumero: g.proyecto?.pedido?.number ?? null, clienteNombre: nombreCliente(g.proyecto?.client), titulo: g.titulo, tipo: g.tipo === "DVD" ? "DVD" : "VHS", cassetteNumero: g.cassetteNumero },
