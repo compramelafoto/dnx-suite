@@ -7,7 +7,7 @@ import { enlaceDelPedidoDelSistema } from "@/lib/pedidos/enlace";
 import { hashDeToken, tokenConForma } from "@/lib/presupuestos/enlace";
 import { sitioDelWorkspace } from "@/lib/presupuestos/sitio";
 import { ID_VALIDO, esPrefijoHlsDe, prefijoDeGrabacion } from "../claves";
-import { descargasRestantes, segundosDeFirma, tituloDeVideo, videosVencidos } from "../entrega";
+import { descargasRestantes, segundosDeFirma, tituloDeVideo, vencimientosDesde, videosVencidos } from "../entrega";
 import { vistaPreviaAgotada } from "../hls";
 import { nombreArchivoVideo, nombreCliente } from "../nombre-archivo";
 import { SEGUNDOS_HLS, urlDeVideo } from "./almacen";
@@ -88,13 +88,18 @@ export async function resolverTokenEntrega(workspaceId: string, token: unknown) 
   });
 }
 
-async function videosListos(workspaceId: string, pedidoId: string, entregaId: string) {
+/**
+ * Las grabaciones listas del pedido, con las descargas ya usadas en ESA entrega. Sin entrega
+ * todavía (vista previa de un pedido sin fila): se filtra por un id que no existe, así no cuenta
+ * las de nadie.
+ */
+async function videosListos(workspaceId: string, pedidoId: string, entregaId: string | null) {
   const grabaciones = await prisma.digitalizacionGrabacion.findMany({
     where: { workspaceId, estado: "COMPLETA", conversionEstado: "LISTA", proyecto: { pedidoId, workspaceId } },
     orderBy: [{ iniciadaAt: "asc" }],
     select: {
       id: true, titulo: true, tipo: true, cassetteNumero: true, videoDuracionSeg: true, videoKey: true, hlsKey: true, conversionError: true, videoBorradoAt: true, descargasExtra: true,
-      _count: { select: { descargas: { where: { entregaId } } } },
+      _count: { select: { descargas: { where: { entregaId: entregaId ?? "" } } } },
     },
   });
   return grabaciones;
@@ -106,9 +111,11 @@ function borradoDe(e: { videosBorradosAt: Date | null; videosVencenAt: Date | nu
 }
 
 type EntregaResuelta = NonNullable<Awaited<ReturnType<typeof resolverTokenEntrega>>>;
+/** Lo que necesita la página de la entrega; `id` null = el pedido todavía no tiene fila de entrega. */
+type EntregaParaVista = Omit<EntregaResuelta, "id"> & { id: string | null };
 
 /** Lo que decide si se puede mirar y bajar: pedido no cancelado, saldo 0 y sin vencer ni borrar. */
-async function habilitacion(workspaceId: string, e: EntregaResuelta, ahora: Date) {
+async function habilitacion(workspaceId: string, e: Pick<EntregaParaVista, "pedidoId" | "videosBorradosAt" | "videosVencenAt">, ahora: Date) {
   const [pedido, saldo] = await Promise.all([
     prisma.fotofficePedido.findFirst({
       where: { id: e.pedidoId, workspaceId },
@@ -124,9 +131,15 @@ async function habilitacion(workspaceId: string, e: EntregaResuelta, ahora: Date
   return { pedido, cancelado, saldoMinor, borradosAt, habilitados: !cancelado && saldoMinor === 0 && borradosAt === null };
 }
 
-export async function abrirEntregaPublica(workspaceId: string, token: unknown, ahora: Date = new Date()): Promise<VistaVideosPublica | null> {
-  const e = await resolverTokenEntrega(workspaceId, token);
-  if (!e) return null;
+/** El video de la página con lo que hace falta saber para la vista previa del equipo. */
+type VideoArmado = VideoPublico & { hlsOk: boolean };
+
+/**
+ * Arma la página de una entrega. `previa` = la vista previa del equipo: no pide enlaces para pagar
+ * (generar el del pedido puede escribir) y, si la entrega todavía no se envió, decide qué botones
+ * ve el cliente como si se enviara hoy (30 días), sin escribir nada.
+ */
+async function armarVista(workspaceId: string, e: EntregaParaVista, ahora: Date, previa: boolean): Promise<(Omit<VistaVideosPublica, "videos"> & { videos: VideoArmado[] }) | null> {
   const [h, sitio, grabaciones] = await Promise.all([
     habilitacion(workspaceId, e, ahora),
     sitioDelWorkspace(workspaceId),
@@ -135,13 +148,16 @@ export async function abrirEntregaPublica(workspaceId: string, token: unknown, a
   if (!h || !sitio) return null;
   const { pedido, cancelado, saldoMinor, borradosAt, habilitados } = h;
   const cliente = nombreCliente(pedido.client);
-  const urlPedido = !cancelado && saldoMinor > 0 ? await enlaceDelPedidoDelSistema(workspaceId, e.pedidoId).then((r) => (r.ok ? r.url : null), () => null) : null;
+  const urlPedido = !previa && !cancelado && saldoMinor > 0 ? await enlaceDelPedidoDelSistema(workspaceId, e.pedidoId).then((r) => (r.ok ? r.url : null), () => null) : null;
 
-  const pendientes = (await cargosPendientes(workspaceId, [e.id])).get(e.id) ?? [];
-  const pagar = await urlsParaPagar(workspaceId, e.pedidoId, pendientes.map((c) => c.cuotaId));
+  const pendientes = e.id ? (await cargosPendientes(workspaceId, [e.id])).get(e.id) ?? [] : [];
+  const pagar = previa ? new Map<string, string>() : await urlsParaPagar(workspaceId, e.pedidoId, pendientes.map((c) => c.cuotaId));
   const pendiente = (c: (typeof pendientes)[number] | undefined) => (c ? { montoMinor: c.montoMinor, urlPagar: pagar.get(c.cuotaId) ?? null } : null);
+  // Sin enviar (sólo pasa en la vista previa): los vencimientos que tendría si se enviara ahora.
+  const vigencia = e.videosVencenAt || e.cassettesVencenAt ? e : { ...e, ...vencimientosDesde(ahora) };
+  const paraPedir = { cancelado, videosVencenAt: vigencia.videosVencenAt, videosBorradosAt: e.videosBorradosAt };
 
-  const videos = grabaciones.map((g): VideoPublico => {
+  const videos = grabaciones.map((g): VideoArmado => {
     const cupo = descargasRestantes({ descargasExtra: g.descargasExtra, usadas: g._count.descargas });
     const hlsOk = g.hlsKey !== null && esPrefijoHlsDe(workspaceId, g.id, g.hlsKey) && !g.videoBorradoAt;
     return {
@@ -152,8 +168,9 @@ export async function abrirEntregaPublica(workspaceId: string, token: unknown, a
       total: cupo.total,
       vistaPrevia: habilitados && hlsOk,
       vistaPreviaAgotada: !hlsOk && vistaPreviaAgotada(g.hlsKey, g.conversionError),
-      puedeComprar: puedeComprarDescarga({ cancelado, videosVencenAt: e.videosVencenAt, videosBorradosAt: e.videosBorradosAt }, g, ahora),
+      puedeComprar: puedeComprarDescarga(paraPedir, g, ahora),
       descargaPendiente: pendiente(pendientes.find((c) => c.tipo === "DESCARGA_EXTRA" && c.grabacionId === g.id)),
+      hlsOk,
     };
   });
   return {
@@ -173,16 +190,60 @@ export async function abrirEntregaPublica(workspaceId: string, token: unknown, a
     cassettesVencenAt: e.cassettesVencenAt,
     habilitados,
     videos,
-    puedeExtender: puedeExtender({ cancelado, videosVencenAt: e.videosVencenAt, videosBorradosAt: e.videosBorradosAt }, ahora),
+    puedeExtender: puedeExtender(paraPedir, ahora),
     extensionPendiente: pendiente(pendientes.find((c) => c.tipo === "EXTENSION")),
     envio: {
-      puedePedir: puedePedirEnvio({ cancelado, cassettesVencenAt: e.cassettesVencenAt, envioEstado: e.envioEstado ?? null }, ahora),
+      puedePedir: puedePedirEnvio({ cancelado, cassettesVencenAt: vigencia.cassettesVencenAt, envioEstado: e.envioEstado ?? null }, ahora),
       estado: esEstadoEnvio(e.envioEstado) ? e.envioEstado : null,
       direccion: e.envioDireccion ?? null,
       precioMinor: e.envioPrecioArs == null ? null : Math.round(Number(e.envioPrecioArs.toString()) * 100),
       urlPagar: pendiente(pendientes.find((c) => c.tipo === "ENVIO"))?.urlPagar ?? null,
     },
   };
+}
+
+export async function abrirEntregaPublica(workspaceId: string, token: unknown, ahora: Date = new Date()): Promise<VistaVideosPublica | null> {
+  const e = await resolverTokenEntrega(workspaceId, token);
+  if (!e) return null;
+  const v = await armarVista(workspaceId, e, ahora, false);
+  if (!v) return null;
+  return { ...v, videos: v.videos.map(({ hlsOk: _hlsOk, ...video }) => video) };
+}
+
+export type VideoPrevio = VideoPublico & {
+  /** El equipo lo puede reproducir (hay versión HLS), aunque el cliente todavía no (saldo, vencida). */
+  verComoEquipo: boolean;
+};
+
+export type VistaVideosPrevia = Omit<VistaVideosPublica, "videos"> & {
+  /** false = la entrega todavía no se envió: no hay fechas, se calculan al enviar. */
+  enviada: boolean;
+  videos: VideoPrevio[];
+};
+
+/**
+ * «Ver como el cliente» de la lista de Digitalización: la misma página pública de videos de un
+ * pedido del negocio, para el equipo. Sólo lee: no crea la entrega, no rota el token, no la da por
+ * enviada (no arrancan los 30 días), no cuenta descargas ni genera enlaces para pagar. Funciona
+ * aunque la entrega no se haya enviado (ni exista todavía). null = el pedido no es del negocio.
+ */
+export async function abrirVistaPreviaDelEquipo(workspaceId: string, pedidoId: unknown, ahora: Date = new Date()): Promise<VistaVideosPrevia | null> {
+  if (typeof pedidoId !== "string" || !ID_VALIDO.test(pedidoId)) return null;
+  const fila = await prisma.digitalizacionEntrega.findFirst({
+    where: { workspaceId, pedidoId },
+    select: {
+      id: true, pedidoId: true, enviadoAt: true, videosVencenAt: true, cassettesVencenAt: true, videosBorradosAt: true,
+      envioEstado: true, envioDireccion: true, envioPrecioArs: true,
+    },
+  });
+  const enviada = fila?.enviadoAt != null;
+  // Sin enviar no hay vencimientos de verdad, aunque la fila tenga restos: la página no muestra fechas.
+  const e: EntregaParaVista = fila
+    ? { ...fila, ...(enviada ? {} : { videosVencenAt: null, cassettesVencenAt: null }) }
+    : { id: null, pedidoId, videosVencenAt: null, cassettesVencenAt: null, videosBorradosAt: null, envioEstado: null, envioDireccion: null, envioPrecioArs: null };
+  const v = await armarVista(workspaceId, e, ahora, true);
+  if (!v) return null;
+  return { ...v, enviada, videos: v.videos.map(({ hlsOk, ...video }) => ({ ...video, verComoEquipo: hlsOk })) };
 }
 
 export type MotivoSinVista = "NO_EXISTE" | "CANCELADO" | "SALDO" | "BORRADO" | "PREPARANDO";

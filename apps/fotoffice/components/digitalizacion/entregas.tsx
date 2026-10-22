@@ -1,7 +1,7 @@
 // apps/fotoffice/components/digitalizacion/entregas.tsx
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import {
   anularCargoAction, cambiarEnvioAutomaticoAction, enviarEntregaAction, guardarAjustesEntregaAction, marcarEnvioEntregadoAction, quitarCargoAManoAction,
@@ -15,6 +15,8 @@ type PropsAcciones = {
   estado: EstadoVisibleEntrega;
   tieneEmail: boolean;
   envioAutomatico: boolean;
+  /** Lo que va al lado de «Copiar enlace» (el enlace «Ver como el cliente»). */
+  children?: ReactNode;
 };
 
 async function copiar(texto: string): Promise<boolean> {
@@ -27,7 +29,7 @@ async function copiar(texto: string): Promise<boolean> {
 }
 
 /** Botones de la entrega de un pedido en la lista de Digitalización (sólo con permiso de gestión). */
-export function AccionesEntrega({ pedidoId, entregaId, estado, tieneEmail, envioAutomatico }: PropsAcciones) {
+export function AccionesEntrega({ pedidoId, entregaId, estado, tieneEmail, envioAutomatico, children }: PropsAcciones) {
   const [pendiente, empezar] = useTransition();
   const [aviso, setAviso] = useState<string | null>(null);
   const [enlace, setEnlace] = useState<string | null>(null);
@@ -76,6 +78,7 @@ export function AccionesEntrega({ pedidoId, entregaId, estado, tieneEmail, envio
       {estado === "LISTA_PARA_ENVIAR" || estado === "ENVIADA" ? (
         <button type="button" className="fo-btn fo-btn-secondary text-xs" disabled={pendiente} onClick={copiarEnlace}>Copiar enlace</button>
       ) : null}
+      {children}
       {abierta ? (
         <label className="flex items-center gap-1 text-xs">
           <input type="checkbox" checked={envioAutomatico} disabled={pendiente} onChange={(e) => cambiarAutomatico(e.target.checked)} />
@@ -91,6 +94,18 @@ export function AccionesEntrega({ pedidoId, entregaId, estado, tieneEmail, envio
 type FranjaEditable = { hastaKm: string; precioArs: string };
 
 /** E11: envío automático por defecto y franjas de envío de cassettes. */
+/**
+ * «Ver como el cliente»: abre en otra pestaña la página de videos del pedido tal como la ve el
+ * cliente, sin rotar el token, sin darla por enviada y sin contar descargas.
+ */
+export function VerComoCliente({ pedidoId }: { pedidoId: string }) {
+  return (
+    <a href={`/digitalizacion/vista-cliente/${encodeURIComponent(pedidoId)}`} target="_blank" rel="noopener" className="fo-btn fo-btn-secondary text-xs">
+      Ver como el cliente
+    </a>
+  );
+}
+
 export function AjustesEntrega({ envioAutomatico, franjas }: { envioAutomatico: boolean; franjas: FranjaEnvio[] }) {
   const [auto, setAuto] = useState(envioAutomatico);
   const [filas, setFilas] = useState<FranjaEditable[]>(franjas.map((f) => ({ hastaKm: String(f.hastaKm), precioArs: String(f.precioArs) })));
