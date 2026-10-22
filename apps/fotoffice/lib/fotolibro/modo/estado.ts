@@ -29,9 +29,22 @@ export type PaginaDelPliego = {
 
 export type PliegoDelLibro = { izq: PaginaDelPliego; der: PaginaDelPliego };
 
+/**
+ * El estilo aplicado: cuál es, los fondos ya dibujados a la medida de este libro (uno por tipo de
+ * pliego, en el almacenamiento) y lo que se escribió en sus títulos.
+ */
+export type EstiloAplicado = {
+  id: string;
+  /** Medida para la que se dibujaron los fondos ("ancho×alto" en mm): si cambia, hay que redibujar. */
+  medida: string;
+  fondos: Partial<Record<"apertura" | "interior" | "interior-alt" | "cierre", string>>;
+  textos: Partial<Record<"titulo" | "subtitulo" | "fecha" | "frase", string>>;
+};
+
 export type EstadoFotolibro = {
   fotos: FotoDelLibro[];
   pliegos: PliegoDelLibro[];
+  estilo: EstiloAplicado | null;
   /** Separación entre fotos y margen de la página, en milímetros. */
   separacionMm: number;
   margenMm: number;
@@ -55,6 +68,13 @@ function leerFoto(raw: unknown): FotoDelLibro | null {
   const h = num(raw.h, 0);
   if (!id || !url || w <= 0 || h <= 0) return null;
   return { id, url, vista: txt(raw.vista) || url, mini: txt(raw.mini) || txt(raw.vista) || url, w, h, nombre: txt(raw.nombre) };
+}
+
+function leerEstilo(raw: unknown): EstiloAplicado | null {
+  if (!esObj(raw) || !txt(raw.id)) return null;
+  const mapa = (v: unknown) =>
+    esObj(v) ? Object.fromEntries(Object.entries(v).filter(([, x]) => typeof x === "string")) : {};
+  return { id: txt(raw.id), medida: txt(raw.medida), fondos: mapa(raw.fondos), textos: mapa(raw.textos) };
 }
 
 function leerPagina(raw: unknown, existentes: Set<string>): PaginaDelPliego {
@@ -83,6 +103,7 @@ export function leerEstadoFotolibro(meta: unknown, cantidadPliegos: number): Est
   return {
     fotos,
     pliegos,
+    estilo: leerEstilo(fl.estilo),
     separacionMm: Math.min(30, Math.max(0, num(fl.separacionMm, SEPARACION_MM_INICIAL))),
     margenMm: Math.min(40, Math.max(0, num(fl.margenMm, MARGEN_MM_INICIAL))),
   };
@@ -99,6 +120,7 @@ export function escribirEstadoFotolibro(meta: Record<string, unknown>, estado: E
       hojas: estado.pliegos.length,
       fotos: estado.fotos,
       pliegos: estado.pliegos,
+      estilo: estado.estilo,
       separacionMm: estado.separacionMm,
       margenMm: estado.margenMm,
     },

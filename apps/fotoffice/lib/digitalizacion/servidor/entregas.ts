@@ -9,7 +9,7 @@ import { enlaceDelPedidoDelSistema, MENSAJES_ENLACE } from "@/lib/pedidos/enlace
 import { hashDeToken, resolverClaveDeEnlace } from "@/lib/presupuestos/enlace";
 import { sitioDelWorkspace } from "@/lib/presupuestos/sitio";
 import { correoValido } from "@/lib/plantillas/contexto";
-import { ID_VALIDO, claveDeVideoFinal, esPrefijoHlsDe, prefijoDeGrabacion } from "../claves";
+import { ID_VALIDO, claveDeVideoFinal, prefijoDeGrabacion } from "../claves";
 import { DIGITALIZACION_MODULE_KEY } from "../constants";
 import { correoRecordatorioVideos, correoVideoAgregado, correoVideosListos, type Correo } from "../correos-entrega";
 import {
@@ -599,10 +599,10 @@ export type ReporteVencimientos = {
  * que no existen. Si R2 falla en alguna grabación, se desmarca y la corrida de mañana reintenta
  * (borrar lo que ya no está no falla). Marca `videoBorradoAt` en cada grabación que se pudo borrar.
  *
- * `videoKey` es `digitalizacion/<ws>/<grabacion>/final.mp4`; `hlsKey` es un PREFIJO de carpeta sin
- * barra final (`digitalizacion/<ws>/<grabacion>/hls`) y se borra todo lo que hay adentro. Una clave
- * con forma inesperada no se toca (no se borra algo que no es de la grabación): se registra en el
- * log y la grabación se marca igual, para no fallar todos los días por lo mismo.
+ * `videoKey` es `digitalizacion/<ws>/<grabacion>/final.mp4`. La versión para mirar se borra SIEMPRE
+ * entera: todas las carpetas `hls*` de la grabación, haya `hlsKey` o no (un relleno cortado pudo
+ * dejar restos). Un `videoKey` con forma inesperada no se toca (no se borra algo que no es de la
+ * grabación): se registra en el log y la grabación se marca igual, para no fallar todos los días.
  */
 export async function borrarVideosDeEntrega(
   e: Pick<EntregaLeida, "id" | "workspaceId" | "pedidoId" | "videosVencenAt">,
@@ -621,14 +621,13 @@ export async function borrarVideosDeEntrega(
   const grabaciones = await grabacionesDelPedido(e.workspaceId, e.pedidoId);
   let todas = true;
   for (const g of grabaciones) {
-    if (g.videoBorradoAt || (!g.videoKey && !g.hlsKey)) continue;
+    if (g.videoBorradoAt) continue;
     const videoOk = g.videoKey !== null && g.videoKey === claveDeVideoFinal(e.workspaceId, g.id);
-    const hlsOk = g.hlsKey !== null && esPrefijoHlsDe(e.workspaceId, g.id, g.hlsKey);
-    if ((g.videoKey && !videoOk) || (g.hlsKey && !hlsOk)) {
-      console.warn("[digitalizacion][entrega] clave con forma inesperada: no se borra y se marca como borrada", { video: Boolean(g.videoKey && !videoOk), hls: Boolean(g.hlsKey && !hlsOk) });
+    if (g.videoKey && !videoOk) {
+      console.warn("[digitalizacion][entrega] clave con forma inesperada: no se borra y se marca como borrada", { video: true });
     }
     try {
-      if (videoOk || hlsOk) await borrarVideoFinal(prefijoDeGrabacion(e.workspaceId, g.id), videoOk ? g.videoKey : null, hlsOk ? g.hlsKey : null);
+      await borrarVideoFinal(prefijoDeGrabacion(e.workspaceId, g.id), videoOk ? g.videoKey : null);
       await prisma.digitalizacionGrabacion.updateMany({ where: { id: g.id, workspaceId: e.workspaceId }, data: { videoBorradoAt: ahora } });
     } catch (err) {
       todas = false;

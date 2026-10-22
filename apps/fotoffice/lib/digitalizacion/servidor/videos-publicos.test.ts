@@ -13,7 +13,7 @@ const db = vi.hoisted(() => {
   return d;
 });
 vi.mock("@repo/db", () => ({ prisma: db }));
-const almacen = vi.hoisted(() => ({ urlDeVideo: vi.fn(async (_k: string, _n: string, modo: string, _s?: number) => `https://r2/${modo}`), SEGUNDOS_VER_PUBLICO: 10800 }));
+const almacen = vi.hoisted(() => ({ urlDeVideo: vi.fn(async (_k: string, _n: string, modo: string, _s?: number) => `https://r2/${modo}`), SEGUNDOS_HLS: 14400 }));
 vi.mock("./almacen", () => almacen);
 const saldo = vi.hoisted(() => ({ saldoDelPedido: vi.fn() }));
 vi.mock("@/lib/pedidos/candado-saldo", () => saldo);
@@ -30,14 +30,14 @@ vi.mock("@/lib/presupuestos/sitio", () => ({
   sitioDelWorkspace: vi.fn(async () => ({ workspaceId: "ws1", slug: "fp", customDomain: null, nombre: "Foto Positiva", logoUrl: "http://inseguro/logo.png", whatsapp: null, email: null })),
 }));
 
-import { abrirEntregaPublica, registrarDescarga } from "./videos-publicos";
+import { abrirEntregaPublica, registrarDescarga, vistaDeEntregaPublica } from "./videos-publicos";
 
 const TOKEN = "a".repeat(43);
 const AHORA = new Date("2026-10-22T15:00:00Z");
 const entrega = (extra: Record<string, unknown> = {}) => ({
   id: "e1", pedidoId: "p1", videosVencenAt: new Date("2026-11-21T15:00:00Z"), cassettesVencenAt: new Date("2026-11-21T15:00:00Z"), videosBorradosAt: null, ...extra,
 });
-const video = { id: "g1", titulo: null, tipo: "VHS", cassetteNumero: 2, videoDuracionSeg: 3600, videoKey: "digitalizacion/ws1/g1/final.mp4", videoBorradoAt: null, descargasExtra: 1, _count: { descargas: 2 } };
+const video = { id: "g1", titulo: null, tipo: "VHS", cassetteNumero: 2, videoDuracionSeg: 3600, videoKey: "digitalizacion/ws1/g1/final.mp4", hlsKey: "digitalizacion/ws1/g1/hls", conversionError: null, videoBorradoAt: null, descargasExtra: 1, _count: { descargas: 2 } };
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -57,19 +57,30 @@ describe("abrirEntregaPublica", () => {
     expect(await abrirEntregaPublica("ws1", TOKEN, AHORA)).toBeNull();
     expect(db.digitalizacionEntrega.findFirst.mock.calls[0][0].where).toMatchObject({ workspaceId: "ws1", enviadoAt: { not: null } });
   });
-  it("pagado y vigente: firma para mirar (corto) y cuenta las descargas", async () => {
+  it("pagado y vigente: vista previa HLS y descargas contadas; el MP4 nunca se firma para mirar", async () => {
     const v = await abrirEntregaPublica("ws1", TOKEN, AHORA);
     expect(v).toMatchObject({ habilitados: true, pedidoNumero: "P-12", cliente: "Ana Gómez", borradosAt: null });
     expect(v!.organizacion.logoUrl).toBeNull();
-    expect(v!.videos).toEqual([{ id: "g1", titulo: "Cassette 2", duracionSeg: 3600, quedan: 2, total: 4, urlVer: "https://r2/ver", puedeComprar: true, descargaPendiente: null }]);
+    expect(v!.videos).toEqual([{ id: "g1", titulo: "Cassette 2", duracionSeg: 3600, quedan: 2, total: 4, vistaPrevia: true, vistaPreviaAgotada: false, puedeComprar: true, descargaPendiente: null }]);
     expect(v).toMatchObject({ puedeExtender: true, extensionPendiente: null, envio: { puedePedir: true, estado: null, urlPagar: null } });
-    expect(almacen.urlDeVideo).toHaveBeenCalledWith("digitalizacion/ws1/g1/final.mp4", expect.stringMatching(/\.mp4$/), "ver", 10800);
+    expect(almacen.urlDeVideo).not.toHaveBeenCalled();
+  });
+  it("sin versión HLS (o con una clave ajena): sin vista previa, y tampoco firma el MP4", async () => {
+    db.digitalizacionGrabacion.findMany.mockResolvedValue([{ ...video, hlsKey: null }, { ...video, id: "g2", hlsKey: "digitalizacion/ws1/g1/hls" }]);
+    const v = await abrirEntregaPublica("ws1", TOKEN, AHORA);
+    expect(v!.videos.map((x) => x.vistaPrevia)).toEqual([false, false]);
+    expect(almacen.urlDeVideo).not.toHaveBeenCalled();
+  });
+  it("relleno agotado (3 fallos): lo dice, para ofrecer la descarga", async () => {
+    db.digitalizacionGrabacion.findMany.mockResolvedValue([{ ...video, hlsKey: null, conversionError: "HLS:3:ffmpeg falló" }, { ...video, id: "g2", hlsKey: null, conversionError: "HLS:2:R2" }]);
+    const v = await abrirEntregaPublica("ws1", TOKEN, AHORA);
+    expect(v!.videos.map((x) => [x.vistaPrevia, x.vistaPreviaAgotada])).toEqual([[false, true], [false, false]]);
   });
   it("con saldo: no firma nada y da el enlace del pedido", async () => {
     saldo.saldoDelPedido.mockResolvedValue({ numero: "P-12", saldoMinor: 100000 });
     const v = await abrirEntregaPublica("ws1", TOKEN, AHORA);
     expect(v).toMatchObject({ habilitados: false, saldoMinor: 100000, urlPedido: "https://fotoffice.com/w/fp/pedido/PED" });
-    expect(v!.videos[0]!.urlVer).toBeNull();
+    expect(v!.videos[0]!.vistaPrevia).toBe(false);
     expect(almacen.urlDeVideo).not.toHaveBeenCalled();
   });
   it("pedido cancelado: no firma nada", async () => {
@@ -78,16 +89,53 @@ describe("abrirEntregaPublica", () => {
     expect(v).toMatchObject({ cancelado: true, habilitados: false, urlPedido: null });
     expect(almacen.urlDeVideo).not.toHaveBeenCalled();
   });
-  it("a minutos del vencimiento, la firma para mirar dura lo que falta", async () => {
-    db.digitalizacionEntrega.findFirst.mockResolvedValue(entrega({ videosVencenAt: new Date("2026-10-22T15:10:00Z") }));
-    await abrirEntregaPublica("ws1", TOKEN, AHORA);
-    expect(almacen.urlDeVideo.mock.calls[0]![3]).toBe(600);
-  });
   it("vencida aunque no borrada: como borrada, sin firmar", async () => {
     db.digitalizacionEntrega.findFirst.mockResolvedValue(entrega({ videosVencenAt: new Date("2026-10-22T14:00:00Z") }));
     const v = await abrirEntregaPublica("ws1", TOKEN, AHORA);
     expect(v).toMatchObject({ habilitados: false, borradosAt: new Date("2026-10-22T14:00:00Z") });
-    expect(almacen.urlDeVideo).not.toHaveBeenCalled();
+    expect(v!.videos[0]!.vistaPrevia).toBe(false);
+  });
+});
+
+describe("vistaDeEntregaPublica", () => {
+  const g = { id: "g1", hlsKey: "digitalizacion/ws1/g1/hls", videoBorradoAt: null };
+  beforeEach(() => db.digitalizacionGrabacion.findFirst.mockResolvedValue(g));
+
+  it("pagado y vigente: la carpeta HLS y firmas de 4 h; no cuenta descargas", async () => {
+    expect(await vistaDeEntregaPublica("ws1", TOKEN, "g1", AHORA)).toEqual({ ok: true, hlsKey: "digitalizacion/ws1/g1/hls", segundos: 14400 });
+    expect(db.digitalizacionGrabacion.findFirst.mock.calls[0][0].where).toMatchObject({ id: "g1", workspaceId: "ws1", conversionEstado: "LISTA", proyecto: { pedidoId: "p1", workspaceId: "ws1" } });
+    expect(db.digitalizacionDescarga.create).not.toHaveBeenCalled();
+    expect(db.$transaction).not.toHaveBeenCalled();
+  });
+  it("a minutos del vencimiento, las firmas duran lo que falta", async () => {
+    db.digitalizacionEntrega.findFirst.mockResolvedValue(entrega({ videosVencenAt: new Date("2026-10-22T15:10:00Z") }));
+    expect(await vistaDeEntregaPublica("ws1", TOKEN, "g1", AHORA)).toMatchObject({ ok: true, segundos: 600 });
+  });
+  it("con saldo, cancelado, vencido o borrado: no deja mirar", async () => {
+    saldo.saldoDelPedido.mockResolvedValue({ numero: "P-12", saldoMinor: 1 });
+    expect(await vistaDeEntregaPublica("ws1", TOKEN, "g1", AHORA)).toEqual({ ok: false, motivo: "SALDO" });
+    saldo.saldoDelPedido.mockResolvedValue({ numero: "P-12", saldoMinor: 0 });
+    db.fotofficePedido.findFirst.mockResolvedValue({ number: "P-12", status: "CANCELADO", client: null });
+    expect(await vistaDeEntregaPublica("ws1", TOKEN, "g1", AHORA)).toEqual({ ok: false, motivo: "CANCELADO" });
+    db.fotofficePedido.findFirst.mockResolvedValue({ number: "P-12", status: "CONFIRMADO", client: null });
+    db.digitalizacionEntrega.findFirst.mockResolvedValue(entrega({ videosVencenAt: new Date("2026-10-22T14:00:00Z") }));
+    expect(await vistaDeEntregaPublica("ws1", TOKEN, "g1", AHORA)).toEqual({ ok: false, motivo: "BORRADO" });
+    db.digitalizacionEntrega.findFirst.mockResolvedValue(entrega());
+    db.digitalizacionGrabacion.findFirst.mockResolvedValue({ ...g, videoBorradoAt: new Date("2026-10-20T00:00:00Z") });
+    expect(await vistaDeEntregaPublica("ws1", TOKEN, "g1", AHORA)).toEqual({ ok: false, motivo: "BORRADO" });
+  });
+  it("sin HLS todavía, o con una carpeta de otra grabación: PREPARANDO", async () => {
+    db.digitalizacionGrabacion.findFirst.mockResolvedValue({ ...g, hlsKey: null });
+    expect(await vistaDeEntregaPublica("ws1", TOKEN, "g1", AHORA)).toEqual({ ok: false, motivo: "PREPARANDO" });
+    db.digitalizacionGrabacion.findFirst.mockResolvedValue({ ...g, hlsKey: "digitalizacion/ws1/g2/hls" });
+    expect(await vistaDeEntregaPublica("ws1", TOKEN, "g1", AHORA)).toEqual({ ok: false, motivo: "PREPARANDO" });
+  });
+  it("token desconocido, video de otro pedido o id raro: no existe", async () => {
+    expect(await vistaDeEntregaPublica("ws1", TOKEN, "../x", AHORA)).toEqual({ ok: false, motivo: "NO_EXISTE" });
+    db.digitalizacionGrabacion.findFirst.mockResolvedValue(null);
+    expect(await vistaDeEntregaPublica("ws1", TOKEN, "g9", AHORA)).toEqual({ ok: false, motivo: "NO_EXISTE" });
+    db.digitalizacionEntrega.findFirst.mockResolvedValue(null);
+    expect(await vistaDeEntregaPublica("ws1", TOKEN, "g1", AHORA)).toEqual({ ok: false, motivo: "NO_EXISTE" });
   });
 });
 

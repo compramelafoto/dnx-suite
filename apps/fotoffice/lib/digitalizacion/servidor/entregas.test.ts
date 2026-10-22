@@ -266,7 +266,7 @@ describe("recordatoriosYVencimientos", () => {
     db.digitalizacionEntrega.findMany.mockResolvedValue([enviada("2026-10-22T14:00:00Z")]);
     releida("2026-10-22T14:00:00Z");
     const r = await recordatoriosYVencimientos(deps());
-    expect(almacen.borrarVideoFinal).toHaveBeenCalledWith("digitalizacion/ws1/g1/", "digitalizacion/ws1/g1/final.mp4", null);
+    expect(almacen.borrarVideoFinal).toHaveBeenCalledWith("digitalizacion/ws1/g1/", "digitalizacion/ws1/g1/final.mp4");
     expect(db.digitalizacionGrabacion.updateMany).toHaveBeenCalledWith({ where: { id: "g1", workspaceId: "ws1" }, data: { videoBorradoAt: AHORA } });
     expect(db.digitalizacionEntrega.updateMany).toHaveBeenCalledWith({ where: { id: "e1", workspaceId: "ws1", videosBorradosAt: null }, data: { videosBorradosAt: AHORA } });
     expect(db.$executeRaw).toHaveBeenCalled();
@@ -291,10 +291,17 @@ describe("recordatoriosYVencimientos", () => {
     db.digitalizacionGrabacion.findMany.mockResolvedValue([{ ...lista, videoKey: "otra/cosa.mp4", hlsKey: "digitalizacion/ws1/g1/hls" }]);
     const aviso = vi.spyOn(console, "warn").mockImplementation(() => {});
     const r = await recordatoriosYVencimientos(deps());
-    expect(almacen.borrarVideoFinal).toHaveBeenCalledWith("digitalizacion/ws1/g1/", null, "digitalizacion/ws1/g1/hls");
+    expect(almacen.borrarVideoFinal).toHaveBeenCalledWith("digitalizacion/ws1/g1/", null);
     expect(db.digitalizacionGrabacion.updateMany).toHaveBeenCalled();
     expect(aviso).toHaveBeenCalled();
     expect(r).toMatchObject({ borradas: 1 });
+  });
+  it("sin videoKey ni hlsKey igual limpia las carpetas hls* (un relleno pudo dejar restos)", async () => {
+    db.digitalizacionEntrega.findMany.mockResolvedValue([enviada("2026-10-22T14:00:00Z")]);
+    releida("2026-10-22T14:00:00Z");
+    db.digitalizacionGrabacion.findMany.mockResolvedValue([{ ...lista, videoKey: null, hlsKey: null }]);
+    await recordatoriosYVencimientos(deps());
+    expect(almacen.borrarVideoFinal).toHaveBeenCalledWith("digitalizacion/ws1/g1/", null);
   });
   it("si R2 falla, desmarca la entrega (se reintenta mañana)", async () => {
     db.digitalizacionEntrega.findMany.mockResolvedValue([enviada("2026-10-22T14:00:00Z")]);

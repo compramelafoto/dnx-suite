@@ -19,6 +19,10 @@ type Props = {
   onVaciar: () => void;
   onAgregarPliego: () => void;
   onQuitarPliego: () => void;
+  estilo: { nombre: string; roles: { rol: string; etiqueta: string; ejemplo: string }[]; textos: Record<string, string | undefined> } | null;
+  onAbrirEstilos: () => void;
+  onSacarEstilo: () => void;
+  onTexto: (rol: string, valor: string) => void;
 };
 
 const Titulo = ({ children }: { children: React.ReactNode }) => (
@@ -118,6 +122,41 @@ export function PanelLateral(props: Props) {
           </ul>
         </section>
       )}
+
+      <section>
+        <Titulo>Estilo</Titulo>
+        {props.estilo ? (
+          <div className="space-y-2">
+            <p className="text-sm">{props.estilo.nombre}</p>
+            {props.estilo.roles.map((r) => (
+              <label key={r.rol} className="block text-xs text-white/70">
+                {r.etiqueta}
+                <input
+                  value={props.estilo?.textos[r.rol] ?? ""}
+                  placeholder={r.ejemplo}
+                  onChange={(e) => props.onTexto(r.rol, e.target.value)}
+                  className="mt-1 w-full rounded border border-white/15 bg-black/30 px-2 py-1 text-sm text-white placeholder:text-white/30"
+                />
+              </label>
+            ))}
+            <div className="flex gap-2 pt-1">
+              <button type="button" className={boton} onClick={props.onAbrirEstilos}>
+                Cambiar estilo
+              </button>
+              <button type="button" className={boton} onClick={props.onSacarEstilo}>
+                Sacar estilo
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <p className="text-xs text-white/55">Fondos, adornos, portada y tipografías listos, por temática.</p>
+            <button type="button" className="rounded bg-[var(--fo-accent)] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90" onClick={props.onAbrirEstilos}>
+              Elegir estilo
+            </button>
+          </div>
+        )}
+      </section>
 
       {p ? (
         <section>

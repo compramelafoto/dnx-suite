@@ -6,10 +6,11 @@ import { bloquearPedido } from "@/lib/pedidos/plan";
 import { enlaceDelPedidoDelSistema } from "@/lib/pedidos/enlace";
 import { hashDeToken, tokenConForma } from "@/lib/presupuestos/enlace";
 import { sitioDelWorkspace } from "@/lib/presupuestos/sitio";
-import { ID_VALIDO, prefijoDeGrabacion } from "../claves";
+import { ID_VALIDO, esPrefijoHlsDe, prefijoDeGrabacion } from "../claves";
 import { descargasRestantes, segundosDeFirma, tituloDeVideo, videosVencidos } from "../entrega";
+import { vistaPreviaAgotada } from "../hls";
 import { nombreArchivoVideo, nombreCliente } from "../nombre-archivo";
-import { SEGUNDOS_VER_PUBLICO, urlDeVideo } from "./almacen";
+import { SEGUNDOS_HLS, urlDeVideo } from "./almacen";
 import { cargosPendientes, saldoDeVideosMinor, urlsParaPagar } from "./cargos";
 import { esEstadoEnvio, puedeComprarDescarga, puedeExtender, puedePedirEnvio, type EstadoEnvio } from "../cargos";
 
@@ -24,7 +25,9 @@ export const SEGUNDOS_DESCARGA_REPETIDA = 120;
  *
  * - Con saldo pendiente no se firma ninguna URL: ni para mirar ni para bajar.
  * - Vencida (aunque el cron todavía no haya borrado) se trata como borrada.
- * - Mirar usa firmas cortas inline que no cuentan; descargar pasa por la ruta que cuenta.
+ * - Mirar usa SÓLO la versión HLS 720p (E10), servida por la app con segmentos firmados por 4 h:
+ *   el MP4 Full HD nunca se firma para mirar, así que no se puede bajar sin pasar por la ruta que
+ *   cuenta las descargas.
  * - Ninguna firma dura más que lo que le queda a la entrega (con un piso de 60 s).
  * - Pedido cancelado: no se ve ni se descarga nada.
  * - Los cargos extra sin pagar (E6) no cuentan para el saldo que traba los videos: pedir una
@@ -39,8 +42,10 @@ export type VideoPublico = {
   duracionSeg: number | null;
   quedan: number;
   total: number;
-  /** Sólo si los videos están habilitados (saldo 0 y sin vencer). */
-  urlVer: string | null;
+  /** Hay versión para mirar y los videos están habilitados (saldo 0, sin vencer ni cancelar). */
+  vistaPrevia: boolean;
+  /** El worker no pudo armar la versión para mirar (3 intentos): se ofrece descargar. */
+  vistaPreviaAgotada: boolean;
   /** Se puede pedir otra descarga (video sin borrar y entrega vigente). */
   puedeComprar: boolean;
   /** Descarga extra pedida y sin pagar: importe (centavos) y dónde pagarla. */
@@ -88,7 +93,7 @@ async function videosListos(workspaceId: string, pedidoId: string, entregaId: st
     where: { workspaceId, estado: "COMPLETA", conversionEstado: "LISTA", proyecto: { pedidoId, workspaceId } },
     orderBy: [{ iniciadaAt: "asc" }],
     select: {
-      id: true, titulo: true, tipo: true, cassetteNumero: true, videoDuracionSeg: true, videoKey: true, videoBorradoAt: true, descargasExtra: true,
+      id: true, titulo: true, tipo: true, cassetteNumero: true, videoDuracionSeg: true, videoKey: true, hlsKey: true, conversionError: true, videoBorradoAt: true, descargasExtra: true,
       _count: { select: { descargas: { where: { entregaId } } } },
     },
   });
@@ -100,46 +105,57 @@ function borradoDe(e: { videosBorradosAt: Date | null; videosVencenAt: Date | nu
   return videosVencidos(e, ahora) ? e.videosVencenAt : null;
 }
 
-export async function abrirEntregaPublica(workspaceId: string, token: unknown, ahora: Date = new Date()): Promise<VistaVideosPublica | null> {
-  const e = await resolverTokenEntrega(workspaceId, token);
-  if (!e) return null;
-  const [pedido, sitio, saldo, grabaciones] = await Promise.all([
+type EntregaResuelta = NonNullable<Awaited<ReturnType<typeof resolverTokenEntrega>>>;
+
+/** Lo que decide si se puede mirar y bajar: pedido no cancelado, saldo 0 y sin vencer ni borrar. */
+async function habilitacion(workspaceId: string, e: EntregaResuelta, ahora: Date) {
+  const [pedido, saldo] = await Promise.all([
     prisma.fotofficePedido.findFirst({
       where: { id: e.pedidoId, workspaceId },
       select: { number: true, status: true, client: { select: { firstName: true, lastName: true, businessName: true } } },
     }),
-    sitioDelWorkspace(workspaceId),
+    // Sin los extras opcionales sin pagar (E6): pedir una descarga extra no apaga lo ya pagado.
     saldoDeVideosMinor(prisma as unknown as Tx, workspaceId, e.pedidoId),
-    videosListos(workspaceId, e.pedidoId, e.id),
   ]);
-  const pendientes = (await cargosPendientes(workspaceId, [e.id])).get(e.id) ?? [];
-  const pagar = await urlsParaPagar(workspaceId, e.pedidoId, pendientes.map((c) => c.cuotaId));
-  const pendiente = (c: (typeof pendientes)[number] | undefined) => (c ? { montoMinor: c.montoMinor, urlPagar: pagar.get(c.cuotaId) ?? null } : null);
-  if (!pedido || !sitio) return null;
+  if (!pedido) return null;
   const cancelado = pedido.status === "CANCELADO";
   const saldoMinor = saldo?.saldoMinor ?? 0;
   const borradosAt = borradoDe(e, ahora);
-  const habilitados = !cancelado && saldoMinor === 0 && borradosAt === null;
+  return { pedido, cancelado, saldoMinor, borradosAt, habilitados: !cancelado && saldoMinor === 0 && borradosAt === null };
+}
+
+export async function abrirEntregaPublica(workspaceId: string, token: unknown, ahora: Date = new Date()): Promise<VistaVideosPublica | null> {
+  const e = await resolverTokenEntrega(workspaceId, token);
+  if (!e) return null;
+  const [h, sitio, grabaciones] = await Promise.all([
+    habilitacion(workspaceId, e, ahora),
+    sitioDelWorkspace(workspaceId),
+    videosListos(workspaceId, e.pedidoId, e.id),
+  ]);
+  if (!h || !sitio) return null;
+  const { pedido, cancelado, saldoMinor, borradosAt, habilitados } = h;
   const cliente = nombreCliente(pedido.client);
   const urlPedido = !cancelado && saldoMinor > 0 ? await enlaceDelPedidoDelSistema(workspaceId, e.pedidoId).then((r) => (r.ok ? r.url : null), () => null) : null;
 
-  const videos = await Promise.all(
-    grabaciones.map(async (g): Promise<VideoPublico> => {
-      const cupo = descargasRestantes({ descargasExtra: g.descargasExtra, usadas: g._count.descargas });
-      const claveOk = g.videoKey !== null && g.videoKey === `${prefijoDeGrabacion(workspaceId, g.id)}final.mp4` && !g.videoBorradoAt;
-      const nombre = nombreArchivoVideo({ pedidoNumero: pedido.number, clienteNombre: cliente, titulo: g.titulo, tipo: g.tipo === "DVD" ? "DVD" : "VHS", cassetteNumero: g.cassetteNumero }, "mp4");
-      return {
-        id: g.id,
-        titulo: tituloDeVideo(g),
-        duracionSeg: g.videoDuracionSeg,
-        quedan: cupo.quedan,
-        total: cupo.total,
-        urlVer: habilitados && claveOk ? await urlDeVideo(g.videoKey!, nombre, "ver", segundosDeFirma(SEGUNDOS_VER_PUBLICO, e.videosVencenAt, ahora)) : null,
-        puedeComprar: puedeComprarDescarga({ cancelado, videosVencenAt: e.videosVencenAt, videosBorradosAt: e.videosBorradosAt }, g, ahora),
-        descargaPendiente: pendiente(pendientes.find((c) => c.tipo === "DESCARGA_EXTRA" && c.grabacionId === g.id)),
-      };
-    }),
-  );
+  const pendientes = (await cargosPendientes(workspaceId, [e.id])).get(e.id) ?? [];
+  const pagar = await urlsParaPagar(workspaceId, e.pedidoId, pendientes.map((c) => c.cuotaId));
+  const pendiente = (c: (typeof pendientes)[number] | undefined) => (c ? { montoMinor: c.montoMinor, urlPagar: pagar.get(c.cuotaId) ?? null } : null);
+
+  const videos = grabaciones.map((g): VideoPublico => {
+    const cupo = descargasRestantes({ descargasExtra: g.descargasExtra, usadas: g._count.descargas });
+    const hlsOk = g.hlsKey !== null && esPrefijoHlsDe(workspaceId, g.id, g.hlsKey) && !g.videoBorradoAt;
+    return {
+      id: g.id,
+      titulo: tituloDeVideo(g),
+      duracionSeg: g.videoDuracionSeg,
+      quedan: cupo.quedan,
+      total: cupo.total,
+      vistaPrevia: habilitados && hlsOk,
+      vistaPreviaAgotada: !hlsOk && vistaPreviaAgotada(g.hlsKey, g.conversionError),
+      puedeComprar: puedeComprarDescarga({ cancelado, videosVencenAt: e.videosVencenAt, videosBorradosAt: e.videosBorradosAt }, g, ahora),
+      descargaPendiente: pendiente(pendientes.find((c) => c.tipo === "DESCARGA_EXTRA" && c.grabacionId === g.id)),
+    };
+  });
   return {
     organizacion: {
       nombre: sitio.nombre,
@@ -167,6 +183,33 @@ export async function abrirEntregaPublica(workspaceId: string, token: unknown, a
       urlPagar: pendiente(pendientes.find((c) => c.tipo === "ENVIO"))?.urlPagar ?? null,
     },
   };
+}
+
+export type MotivoSinVista = "NO_EXISTE" | "CANCELADO" | "SALDO" | "BORRADO" | "PREPARANDO";
+export type ResultadoVista = { ok: true; hlsKey: string; segundos: number } | { ok: false; motivo: MotivoSinVista };
+
+/**
+ * "Ver" de la página pública (E10): las mismas reglas que la página (token, pedido no cancelado,
+ * saldo 0, sin vencer) y que el video sea de ESE pedido. Devuelve la carpeta HLS y cuánto pueden
+ * durar las firmas de los segmentos (4 h o lo que le quede a la entrega). Mirar no cuenta descargas.
+ */
+export async function vistaDeEntregaPublica(workspaceId: string, token: unknown, grabacionId: unknown, ahora: Date = new Date()): Promise<ResultadoVista> {
+  if (typeof grabacionId !== "string" || !ID_VALIDO.test(grabacionId)) return { ok: false, motivo: "NO_EXISTE" };
+  const e = await resolverTokenEntrega(workspaceId, token);
+  if (!e) return { ok: false, motivo: "NO_EXISTE" };
+  const [h, g] = await Promise.all([
+    habilitacion(workspaceId, e, ahora),
+    prisma.digitalizacionGrabacion.findFirst({
+      where: { id: grabacionId, workspaceId, estado: "COMPLETA", conversionEstado: "LISTA", proyecto: { pedidoId: e.pedidoId, workspaceId } },
+      select: { id: true, hlsKey: true, videoBorradoAt: true },
+    }),
+  ]);
+  if (!h || !g) return { ok: false, motivo: "NO_EXISTE" };
+  if (h.cancelado) return { ok: false, motivo: "CANCELADO" };
+  if (h.borradosAt || g.videoBorradoAt) return { ok: false, motivo: "BORRADO" };
+  if (h.saldoMinor > 0) return { ok: false, motivo: "SALDO" };
+  if (!g.hlsKey || !esPrefijoHlsDe(workspaceId, g.id, g.hlsKey)) return { ok: false, motivo: "PREPARANDO" };
+  return { ok: true, hlsKey: g.hlsKey, segundos: segundosDeFirma(SEGUNDOS_HLS, e.videosVencenAt, ahora) };
 }
 
 export type MotivoSinDescarga = "NO_EXISTE" | "CANCELADO" | "SALDO" | "BORRADO" | "SIN_CUPO";

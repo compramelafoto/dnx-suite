@@ -113,7 +113,13 @@ export default async function VideosPublicosPage({ params, searchParams }: Props
             </div>
             {vista.habilitados ? (
               <div className="flex flex-wrap items-center gap-2">
-                {v.urlVer ? <VerVideo url={v.urlVer} /> : null}
+                {v.vistaPrevia ? (
+                  <VerVideo src={`${base}/ver/${encodeURIComponent(v.id)}`} />
+                ) : v.vistaPreviaAgotada ? (
+                  <span className="text-sm opacity-80">No pudimos preparar la vista previa; podés descargar el video.</span>
+                ) : (
+                  <span className="text-sm opacity-80">La versión para mirar se está preparando.</span>
+                )}
                 {v.quedan > 0 ? (
                   <a href={`${base}/descargar/${encodeURIComponent(v.id)}`} className="fo-btn fo-btn-secondary text-sm" rel="nofollow">
                     Descargar (quedan {v.quedan} de {v.total})
