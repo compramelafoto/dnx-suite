@@ -18,6 +18,7 @@ import {
 } from "../entrega";
 import { MAX_GENERACIONES_ENTREGA, generacionDeEntrega, tokenDeEntrega } from "../token-entrega";
 import { borrarVideoFinal } from "./almacen";
+import { conciliarComisiones, devengarComisionesDelPedido } from "./comision";
 import { aplicarCargosPagados, anularCargosSinSentido, cargosARevisar, cargosPendientes, type CargoARevisar, type CargoPendiente } from "./cargos";
 
 /**
@@ -120,6 +121,9 @@ export async function asegurarEntrega(
         data: { workspaceId, pedidoId, envioAutomatico: ajustes?.envioAutomatico ?? true },
         select: SELECT_ENTREGA,
       });
+      // F1: desde ahora es un pedido de digitalización; la seña y los cobros previos devengan su
+      // comisión de plataforma (idempotente y sin lanzar; si falla, lo concilia el cron).
+      await devengarComisionesDelPedido(workspaceId, pedidoId);
     } catch (e) {
       // Otra corrida la creó en el medio: se usa esa.
       if (codigo(e) !== "P2002") throw e;
@@ -421,6 +425,9 @@ export type ReporteEnvios = {
   avisosAgregado: number;
   /** Cargos extra con la cuota paga que el cobro no llegó a aplicar (E6). */
   cargosAplicados: number;
+  /** Comisión de plataforma (F1) que el cobro no llegó a devengar o revertir. */
+  comisionesDevengadas: number;
+  comisionesRevertidas: number;
 };
 
 /** Grabaciones que todavía impiden mandar la entrega (en curso, en cola, con error o muy recientes). */
@@ -484,9 +491,16 @@ async function pedidosParaEnviar(ahora: Date): Promise<{ pedidoId: string; works
  */
 export async function enviarEntregasAutomaticas(deps: DepsEntrega & { tope?: number } = {}): Promise<ReporteEnvios> {
   const ahora = (deps.ahora ?? (() => new Date()))();
-  const reporte: ReporteEnvios = { revisadas: 0, enviadas: 0, sinEmail: 0, noListas: 0, esperando: 0, manuales: 0, fallidas: 0, extendidas: 0, avisosAgregado: 0, cargosAplicados: 0 };
+  const reporte: ReporteEnvios = {
+    revisadas: 0, enviadas: 0, sinEmail: 0, noListas: 0, esperando: 0, manuales: 0, fallidas: 0, extendidas: 0, avisosAgregado: 0, cargosAplicados: 0,
+    comisionesDevengadas: 0, comisionesRevertidas: 0,
+  };
   // Primero los cargos pagos que quedaron sin aplicar (el cobro los aplica después del commit, sin reintento).
   reporte.cargosAplicados = (await aplicarCargosPagados(null, { ahora: () => ahora })).aplicados;
+  // Y la comisión de plataforma que el cobro o la anulación no llegaron a asentar (F1). No lanza.
+  const comisiones = await conciliarComisiones({ ahora: () => ahora });
+  reporte.comisionesDevengadas = comisiones.devengadas;
+  reporte.comisionesRevertidas = comisiones.revertidas;
   const encendido = new Map<string, boolean>();
   const estaEncendido = async (ws: string) => {
     if (!encendido.has(ws)) encendido.set(ws, await isModuleEnabledForWorkspace(ws, DIGITALIZACION_MODULE_KEY));

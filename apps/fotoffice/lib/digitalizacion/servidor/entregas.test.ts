@@ -25,6 +25,11 @@ const cargos = vi.hoisted(() => ({
   cargosARevisar: vi.fn(async () => new Map()),
 }));
 vi.mock("./cargos", () => cargos);
+const comision = vi.hoisted(() => ({
+  devengarComisionesDelPedido: vi.fn(async () => 0),
+  conciliarComisiones: vi.fn(async () => ({ devengadas: 0, revertidas: 0 })),
+}));
+vi.mock("./comision", () => comision);
 const saldo = vi.hoisted(() => {
   const saldoDelPedido = vi.fn();
   // El correo usa el saldo sin extras opcionales: acá, el mismo mock.
@@ -80,12 +85,15 @@ describe("asegurarEntrega", () => {
     const r = await asegurarEntrega("ws1", "p1");
     expect(db.digitalizacionEntrega.create.mock.calls[0][0].data).toEqual({ workspaceId: "ws1", pedidoId: "p1", envioAutomatico: false });
     expect(r?.preparacion).toBe("LISTA");
+    // F1: al nacer la entrega devenga la comisión de los cobros que el pedido ya tenía (la seña).
+    expect(comision.devengarComisionesDelPedido).toHaveBeenCalledWith("ws1", "p1");
   });
   it("si ya existe no la vuelve a crear; de otro negocio no la da", async () => {
     db.digitalizacionEntrega.findUnique.mockResolvedValue(entrega());
     expect(await asegurarEntrega("ws1", "p1")).toMatchObject({ entrega: { id: "e1" } });
     expect(await asegurarEntrega("otro", "p1")).toBeNull();
     expect(db.digitalizacionEntrega.create).not.toHaveBeenCalled();
+    expect(comision.devengarComisionesDelPedido).not.toHaveBeenCalled();
   });
   it("dos a la vez: la segunda usa la que creó la primera", async () => {
     db.digitalizacionEntrega.findUnique.mockResolvedValueOnce(null).mockResolvedValueOnce(entrega());
@@ -387,5 +395,9 @@ describe("conciliación de cargos en los crons", () => {
     expect(r).toMatchObject({ cargosAplicados: 1, cargosAnulados: 3 });
     cargos.aplicarCargosPagados.mockResolvedValueOnce({ revisados: 1, aplicados: 1, anulados: 0, fallidos: 0 });
     expect(await enviarEntregasAutomaticas(deps())).toMatchObject({ cargosAplicados: 1 });
+  });
+  it("la corrida de cada 15 minutos concilia la comisión de plataforma (F1)", async () => {
+    comision.conciliarComisiones.mockResolvedValueOnce({ devengadas: 2, revertidas: 1 });
+    expect(await enviarEntregasAutomaticas(deps())).toMatchObject({ comisionesDevengadas: 2, comisionesRevertidas: 1 });
   });
 });
