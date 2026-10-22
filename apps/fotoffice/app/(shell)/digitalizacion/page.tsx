@@ -132,6 +132,7 @@ export default async function DigitalizacionPage() {
                   puedeGrabar={puedeGrabar}
                   conversionEstado={g.conversionEstado ?? ""}
                   partesBorradas={g.partesBorradasAt != null}
+                  tieneHls={g.hlsKey != null && g.videoBorradoAt == null}
                   titulo={g.titulo}
                   nombreArchivo={nombreArchivoVideo(
                     { pedidoNumero: g.proyecto?.pedido?.number ?? null, clienteNombre: nombreCliente(g.proyecto?.client), titulo: g.titulo, tipo: g.tipo === "DVD" ? "DVD" : "VHS", cassetteNumero: g.cassetteNumero },

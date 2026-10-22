@@ -4,6 +4,7 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { bucketR2Privado, clienteR2Privado, esNoEncontrado } from "@/lib/ficha/adjuntos-r2";
 import { MAX_BYTES_PARTE } from "../constants";
 import { esClaveDeParte } from "../claves";
+import { NOMBRE_PLAYLIST, reescribirPlaylist } from "../hls";
 
 const SEGUNDOS_SUBIDA = 15 * 60;
 /** "Descargar crudo" de 3 horas puede tardar: la lectura dura 6 horas. */
@@ -52,9 +53,6 @@ async function borrarTodoBajo(prefijo: string): Promise<void> {
 const SEGUNDOS_VIDEO = 24 * 3600;
 const REGEX_CLAVE_VIDEO = /^digitalizacion\/[A-Za-z0-9_-]{1,64}\/[A-Za-z0-9_-]{1,64}\/final\.mp4$/;
 
-/** Para mirar desde la página pública de videos: firma corta, que no cuenta como descarga. */
-export const SEGUNDOS_VER_PUBLICO = 3 * 3600;
-
 /**
  * URL firmada del MP4 final, para mirarlo en la página (inline) o bajarlo (attachment). Por omisión
  * dura 24 h; la página pública de videos pide firmas más cortas para mirar.
@@ -77,6 +75,41 @@ export async function urlDeVideo(clave: string, nombre: string, modo: "ver" | "d
  * todo lo que hay bajo `<hlsKey>/`.
  */
 const REGEX_PREFIJO_HLS = /^digitalizacion\/[A-Za-z0-9_-]{1,64}\/[A-Za-z0-9_-]{1,64}\/[A-Za-z0-9_-]{1,64}\/?$/;
+
+/** Las firmas de los segmentos HLS: una sesión larga de mirar, pero no un enlace para guardar. */
+export const SEGUNDOS_HLS = 4 * 3600;
+
+/**
+ * La playlist de la versión para mirar, con cada segmento como URL firmada (GET, `segundos`, sin
+ * pasar de 4 h). Se lee de R2 en cada pedido (no se cachea entre pedidos). null si no existe o no
+ * es una VOD terminada con sólo segmentos nuestros. Quien llama ya validó que `hlsKey` es de la
+ * grabación (`esPrefijoHlsDe`).
+ */
+export async function playlistHlsFirmada(hlsKey: string, segundos: number = SEGUNDOS_HLS): Promise<string | null> {
+  if (!REGEX_PREFIJO_HLS.test(hlsKey) || hlsKey.endsWith("/")) throw new Error("Prefijo HLS no válido");
+  const s3 = clienteR2Privado();
+  const Bucket = bucketR2Privado();
+  let texto: string;
+  try {
+    const r = await s3.send(new GetObjectCommand({ Bucket, Key: `${hlsKey}/${NOMBRE_PLAYLIST}` }));
+    if (!r.Body) return null;
+    texto = await r.Body.transformToString("utf-8");
+  } catch (e) {
+    if (esNoEncontrado(e)) return null;
+    throw e;
+  }
+  const expiresIn = Math.min(Math.max(60, Math.trunc(segundos)), SEGUNDOS_HLS);
+  // La firma es local (HMAC): se arma cada URL sin ir a R2. Primero se valida todo y después se firma.
+  const segmentos: string[] = [];
+  if (reescribirPlaylist(texto, (seg) => (segmentos.push(seg), seg)) === null) return null;
+  const firmadas = new Map<string, string>();
+  await Promise.all(
+    segmentos.map(async (seg) => {
+      firmadas.set(seg, await getSignedUrl(s3, new GetObjectCommand({ Bucket, Key: `${hlsKey}/${seg}` }), { expiresIn }));
+    }),
+  );
+  return reescribirPlaylist(texto, (seg) => firmadas.get(seg)!);
+}
 
 /**
  * Al vencer la entrega (E8): borra el MP4 final y, si hay, la versión HLS. Lanza si R2 falla, así

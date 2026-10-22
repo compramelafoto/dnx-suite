@@ -13,7 +13,7 @@ const almacen = vi.hoisted(() => ({ urlDeSubidaParte: vi.fn(async () => "https:/
 vi.mock("./almacen", () => almacen);
 
 import type { NuevaGrabacion } from "../validar";
-import { guardarAjustesEntrega, leerAjustes, cerrarGrabacion, confirmarParte, crearGrabacion, descartarGrabacion, pedirParte, registrarLatido, reintentarConversion, terminarConLoGrabado, urlDeVideo, urlsDeLectura, editarTitulo, listarGrabaciones } from "./grabaciones";
+import { guardarAjustesEntrega, leerAjustes, cerrarGrabacion, confirmarParte, crearGrabacion, descartarGrabacion, pedirParte, registrarLatido, reintentarConversion, terminarConLoGrabado, urlDeVideo, urlsDeLectura, editarTitulo, listarGrabaciones, hlsDeGrabacion } from "./grabaciones";
 
 const ctx = { workspaceId: "ws1", userId: 7 };
 const vhs: NuevaGrabacion = { titulo: null, tipo: "VHS", proyectoId: "p1", cassetteNumero: 1, calidad: "MEDIA", mimeType: "video/webm;codecs=vp9,opus", corregirProporcion: false, equipoId: null, dvdArchivos: null };
@@ -369,5 +369,22 @@ describe("ajustes de la entrega", () => {
   it("leerAjustes: valores por defecto sin fila", async () => {
     db.digitalizacionAjustes.findUnique.mockResolvedValue(null);
     expect(await leerAjustes("ws1")).toEqual({ minutosSinSenal: 5, envioAutomatico: true, franjas: [] });
+  });
+});
+
+describe("hlsDeGrabacion", () => {
+  const lista = { id: "g1", workspaceId: "ws1", conversionEstado: "LISTA", hlsKey: "digitalizacion/ws1/g1/hls", videoBorradoAt: null };
+  it("busca sólo en el negocio y devuelve la carpeta HLS", async () => {
+    db.digitalizacionGrabacion.findFirst.mockResolvedValue(lista);
+    expect(await hlsDeGrabacion(ctx, "g1")).toEqual({ ok: true, hlsKey: "digitalizacion/ws1/g1/hls" });
+    expect(db.digitalizacionGrabacion.findFirst.mock.calls[0][0].where).toEqual({ id: "g1", workspaceId: "ws1" });
+  });
+  it("sin HLS, borrada, no LISTA o con una carpeta ajena: no", async () => {
+    for (const g of [{ ...lista, hlsKey: null }, { ...lista, videoBorradoAt: new Date() }, { ...lista, conversionEstado: "PROCESANDO" }, { ...lista, hlsKey: "digitalizacion/ws2/g1/hls" }]) {
+      db.digitalizacionGrabacion.findFirst.mockResolvedValue(g);
+      expect(await hlsDeGrabacion(ctx, "g1")).toMatchObject({ ok: false });
+    }
+    db.digitalizacionGrabacion.findFirst.mockResolvedValue(null);
+    expect(await hlsDeGrabacion(ctx, "g1")).toMatchObject({ ok: false });
   });
 });
