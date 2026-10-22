@@ -36,6 +36,8 @@ function armar(over: Partial<DepsConvertir> = {}, intentos = 1) {
   const llamadas: string[] = [];
   const borrados: string[] = [];
   const renovaciones: [Date, Date][] = [];
+  const archivos: { clave: string; tipo: string }[] = [];
+  const listas: { hlsKey?: string | null }[] = [];
   const filas = { sinImagen: 1, error: 1, lista: 1, renovar: 1 };
   let estadoFila: string | null = "PROCESANDO";
   const repo: Repo = {
@@ -55,7 +57,7 @@ function armar(over: Partial<DepsConvertir> = {}, intentos = 1) {
     async marcarSinImagen() { llamadas.push("sinImagen"); return filas.sinImagen; },
     async marcarPartesBorradasSinImagen() { llamadas.push("partesBorradasSinImagen"); return 1; },
     async marcarError(_i, _l, m) { llamadas.push(`error:${m}`); return filas.error; },
-    async marcarLista() { llamadas.push("lista"); return filas.lista; },
+    async marcarLista(_i, _l, d) { llamadas.push("lista"); listas.push(d); return filas.lista; },
     async marcarPartesBorradas() { llamadas.push("partesBorradas"); return 1; },
     async renovarLock(_i, v, n) { renovaciones.push([v, n]); return filas.renovar; },
     async estado() { return estadoFila; },
@@ -73,10 +75,13 @@ function armar(over: Partial<DepsConvertir> = {}, intentos = 1) {
       return n;
     },
     borrarPrefijo: async (p) => { borrados.push(p); },
+    subirArchivo: async (clave, _c, tipo) => { archivos.push({ clave, tipo }); },
+    hlsIntervaloMs: 20,
+    hlsEsperasMs: [1, 1],
     ffmpegPath: ffmpegFalso("ok.sh", `echo contenido\nexit 0`),
     ...over,
   };
-  return { deps, llamadas, borrados, filas, renovaciones, poner: (e: string | null) => (estadoFila = e) };
+  return { deps, llamadas, borrados, filas, renovaciones, archivos, listas, poner: (e: string | null) => (estadoFila = e) };
 }
 
 describe("convertirGrabacion", () => {
@@ -186,6 +191,81 @@ describe("convertirGrabacion", () => {
     ctx.deps.repo.marcarError = async () => { throw new Error("base caída"); };
     await expect(convertirGrabacion(ctx.deps, "g1", LOCK)).resolves.toBeUndefined();
     err.mockRestore();
+  });
+});
+
+/** ffmpeg falso que además escribe la versión HLS donde dicen los argumentos (si se la piden). */
+function ffmpegConHls(nombre: string, playlist: string, salida = 0): string {
+  const p = path.join(carpeta, nombre);
+  fs.writeFileSync(
+    p,
+    `#!/bin/sh
+prev=""; seg=""; last=""
+for a in "$@"; do
+  if [ "$prev" = "-i" ]; then case "$a" in pipe:*) n="\${a#pipe:}"; eval "cat <&$n > /dev/null";; esac; fi
+  if [ "$prev" = "-hls_segment_filename" ]; then seg="$a"; fi
+  prev="$a"; last="$a"
+done
+if [ -n "$seg" ]; then
+  d=$(dirname "$last")
+  echo s1 > "$d/seg_00001.ts"; sleep 0.1; echo s2 > "$d/seg_00002.ts"; sleep 0.1
+  printf '${playlist}' > "$last"
+fi
+echo "frame=1 time=00:00:12.00 speed=1x" >&2
+echo contenido
+exit ${salida}
+`,
+    { mode: 0o755 },
+  );
+  return p;
+}
+const PLAYLIST_OK = "#EXTM3U\\n#EXTINF:6,\\nseg_00001.ts\\n#EXTINF:6,\\nseg_00002.ts\\n#EXT-X-ENDLIST\\n";
+
+describe("versión para mirar (HLS) durante la conversión", () => {
+  it("sube los segmentos y la playlist y guarda hlsKey en la misma escritura de LISTA", async () => {
+    const ctx = armar({ ffmpegPath: ffmpegConHls("hls-ok.sh", PLAYLIST_OK) });
+    await convertirGrabacion(ctx.deps, "g1", LOCK);
+    expect(ctx.llamadas).toEqual(["lista", "partesBorradas"]);
+    expect(ctx.listas[0]!.hlsKey).toBe("digitalizacion/ws/g1/hls");
+    expect(ctx.archivos.map((a) => a.clave)).toEqual([
+      "digitalizacion/ws/g1/hls/seg_00001.ts",
+      "digitalizacion/ws/g1/hls/seg_00002.ts",
+      "digitalizacion/ws/g1/hls/index.m3u8",
+    ]);
+    expect(ctx.archivos.at(-1)!.tipo).toBe("application/vnd.apple.mpegurl");
+    expect(ctx.borrados).toEqual(["digitalizacion/ws/g1/t"]);
+  });
+
+  it("si el HLS falla, el MP4 no se pierde: LISTA sin hlsKey y se limpia lo subido del HLS", async () => {
+    const ctx = armar({ ffmpegPath: ffmpegConHls("hls-sin-fin.sh", "#EXTM3U\\n#EXTINF:6,\\nseg_00001.ts\\n") });
+    await convertirGrabacion(ctx.deps, "g1", LOCK);
+    expect(ctx.llamadas).toEqual(["lista", "partesBorradas"]);
+    expect(ctx.listas[0]!.hlsKey).toBeNull();
+    expect(ctx.archivos.map((a) => a.clave)).not.toContain("digitalizacion/ws/g1/hls/index.m3u8");
+    expect(ctx.borrados).toEqual(["digitalizacion/ws/g1/hls/", "digitalizacion/ws/g1/t"]);
+  });
+
+  it("si la subida de un segmento falla, igual queda LISTA sin hlsKey", async () => {
+    const ctx = armar({ ffmpegPath: ffmpegConHls("hls-r2.sh", PLAYLIST_OK), subirArchivo: async () => { throw new Error("R2 caído"); } });
+    await convertirGrabacion(ctx.deps, "g1", LOCK);
+    expect(ctx.llamadas).toEqual(["lista", "partesBorradas"]);
+    expect(ctx.listas[0]!.hlsKey).toBeNull();
+  });
+
+  it("ffmpeg falla: ERROR y se borran el final y el HLS a medias", async () => {
+    const ctx = armar({ ffmpegPath: ffmpegConHls("hls-falla.sh", PLAYLIST_OK, 1) });
+    await convertirGrabacion(ctx.deps, "g1", LOCK);
+    expect(ctx.llamadas).toEqual(["error:ffmpeg terminó con código 1."]);
+    expect(ctx.borrados).toEqual(["digitalizacion/ws/g1/final.mp4", "digitalizacion/ws/g1/hls/"]);
+  });
+
+  it("desde el segundo intento sólo hace el MP4 (el HLS lo arma el relleno)", async () => {
+    let args: string[] = [];
+    const ctx = armar({ ffmpegPath: ffmpegConHls("hls-2do.sh", PLAYLIST_OK), alLanzar: (ff) => (args = ff.spawnargs) }, 2);
+    await convertirGrabacion(ctx.deps, "g1", LOCK);
+    expect(args.join(" ")).not.toContain("-f hls");
+    expect(ctx.archivos).toEqual([]);
+    expect(ctx.listas[0]!.hlsKey).toBeNull();
   });
 });
 

@@ -5,6 +5,30 @@ Convierte las grabaciones de pantalla/cámara que los socios hacen en `/digitali
 ffmpeg, agrega la placa de marca ("Digitalizado por:" + nombre comercial y WhatsApp) y deja la
 grabación en estado LISTA para verla en la lista.
 
+## Versión para mirar (HLS)
+
+Además del MP4 Full HD (`final.mp4`, para descargar), el worker arma una versión para mirar en
+el navegador sin esperas: HLS VOD 1280×720 (el mismo cuadro final, con la marca y el pillarbox,
+escalado), H.264 ~2 Mbps y AAC 128k, segmentos MPEG-TS de 6 s. Queda en R2 bajo la carpeta de
+la grabación: `digitalizacion/<ws>/<grabacion>/hls/index.m3u8` y `seg_00001.ts`, `seg_00002.ts`…
+En la base, `hlsKey = digitalizacion/<ws>/<grabacion>/hls` (sin barra final).
+
+- **Durante la conversión** (sólo en el primer intento): el mismo ffmpeg saca las dos salidas
+  (`split` del filtro). Los segmentos se escriben en `/tmp` y se suben uno por uno apenas están
+  completos (cuando ya existe el siguiente), y se borran del disco: en memoria quedan 1 o 2.
+  Al final se sube la playlist (con `#EXT-X-ENDLIST`) y `hlsKey` se guarda en la misma escritura
+  que deja la grabación LISTA. Si el HLS falla (una subida, la playlist, más de 40 segmentos
+  esperando), el MP4 sigue: la grabación queda LISTA sin `hlsKey` y se borra lo subido del HLS.
+  Desde el segundo intento sólo se hace el MP4.
+- **Relleno**: cuando no hay conversiones pendientes, el worker toma las grabaciones LISTA con
+  `videoKey`, sin `hlsKey` y sin `videoBorradoAt`, y arma el HLS leyendo el `final.mp4` de R2 en
+  streaming (con reanudación por `Range` si la conexión se corta). No hay columnas propias:
+  - el bloqueo es `conversionLockAt` (renovado cada 5 min; sin renovar 30 min, otro lo retoma) y
+    la toma usa `FOR UPDATE SKIP LOCKED`;
+  - los intentos se cuentan en `conversionError` con el prefijo `HLS:<n>:` (en una grabación
+    LISTA la pantalla no muestra ese campo). Se cuenta al tomarla; con 3 intentos no se reintenta
+    más. Para reintentar a mano: `UPDATE "DigitalizacionGrabacion" SET "conversionError"=NULL WHERE id='…'`.
+
 ## Variables de entorno
 
 Definidas en `src/config.ts`:

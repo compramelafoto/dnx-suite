@@ -3,6 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import type { Readable, Writable } from "node:stream";
+import { crearSubidorHls, type SubidorHls } from "./hls";
 import { armarMarca, type BrandingMarca } from "./marca";
 import { argumentosFfmpeg, armarPlan } from "./plan";
 import type { Repo } from "./repo";
@@ -13,6 +14,8 @@ export type DepsConvertir = {
   leerParte(clave: string): Promise<Buffer>;
   subirStream(clave: string, stream: Readable, señal?: AbortSignal): Promise<number>;
   borrarPrefijo(prefijo: string): Promise<void>;
+  /** Segmentos y playlist de la versión para mirar (HLS). */
+  subirArchivo(clave: string, cuerpo: Buffer, tipo: string): Promise<void>;
   preset: string;
   ffmpegPath?: string;
   /** Esperas entre reintentos de escrituras a la base (default 2/5/15/30 s). */
@@ -28,6 +31,9 @@ export type DepsConvertir = {
   registrar?: (msg: string) => void;
   /** Sólo para pruebas: se llama con el proceso recién lanzado. */
   alLanzar?: (ff: import("node:child_process").ChildProcess) => void;
+  /** Cada cuánto se mira la carpeta HLS (default 2 s) y esperas entre reintentos de un segmento. */
+  hlsIntervaloMs?: number;
+  hlsEsperasMs?: number[];
 };
 
 function aSegundos(hms: string): number {
@@ -142,6 +148,11 @@ export async function convertirGrabacion(deps: DepsConvertir, id: string, lockAt
   let perdida = false;
   // El video ya está entero en R2 pero la base no confirmó: se lo deja y recuperarTrabadas reencola.
   let subido = false;
+  // Versión para mirar (E10): sólo en el primer intento. Si un intento falló, los siguientes hacen
+  // sólo el MP4 (menos carga y menos causas de error) y el relleno arma el HLS desde el final.mp4.
+  let subidor: SubidorHls | null = null;
+  let hlsAbierto = false;
+  let prefijoHls: string | null = null;
   try {
     const datos = await repo.cargar(id);
     if (!datos) throw new CausaError("La grabación no existe.");
@@ -175,14 +186,33 @@ export async function convertirGrabacion(deps: DepsConvertir, id: string, lockAt
     const brand: BrandingMarca = datos.branding;
     await fs.promises.writeFile(rutaMarca, await armarMarca(brand, deps.cargarLogo));
 
+    let dirHls: string | undefined;
+    if (datos.intentos <= 1) {
+      dirHls = path.join(dir, "hls");
+      await fs.promises.mkdir(dirHls);
+      prefijoHls = `${prefijo}hls`;
+      subidor = crearSubidorHls({
+        dir: dirHls,
+        prefijoHls,
+        subirArchivo: deps.subirArchivo,
+        intervaloMs: deps.hlsIntervaloMs,
+        esperasMs: deps.hlsEsperasMs,
+        registrar: (m) => log(`${id}: hls: ${m}`),
+      });
+    }
+
     // Entrada i = descriptor 3+i del hijo.
     const entradas = plan.entradas.map((_, i) => `pipe:${3 + i}`);
-    const args = argumentosFfmpeg(plan, entradas, rutaMarca, deps.preset);
+    const args = argumentosFfmpeg(plan, entradas, rutaMarca, deps.preset, dirHls);
     const ff = spawn(deps.ffmpegPath ?? "ffmpeg", args, {
       stdio: ["ignore", "pipe", "pipe", ...plan.entradas.map(() => "pipe" as const)],
     });
 
     deps.alLanzar?.(ff);
+    if (subidor) {
+      subidor.iniciar();
+      hlsAbierto = true;
+    }
     const entradasVigiladas = plan.entradas.map((_, i) => vigilarEntrada(ff.stdio[3 + i] as Writable));
 
     let falla: Error | null = null;
@@ -295,6 +325,17 @@ export async function convertirGrabacion(deps: DepsConvertir, id: string, lockAt
       }
       if (bytes <= 0) throw new CausaError("La subida del video terminó vacía.");
 
+      // El MP4 está entero: un HLS fallado no lo pone en riesgo; la grabación queda LISTA sin hlsKey.
+      let hlsKey: string | null = null;
+      if (subidor && hlsAbierto) {
+        hlsAbierto = false;
+        if (await subidor.terminar(true)) hlsKey = prefijoHls;
+        else {
+          log(`${id}: sin versión para mirar (${subidor.fallo() ?? "sin detalle"}); la arma el relleno`);
+          if (subidor.subioAlgo()) await deps.borrarPrefijo(`${prefijoHls}/`).catch(() => {});
+        }
+      }
+
       const duracion = ultimaTime ? Math.round(aSegundos(ultimaTime)) : 0;
       log(`subido ${claveFinal} ${bytes} bytes, ${duracion}s`);
       subido = true;
@@ -303,7 +344,7 @@ export async function convertirGrabacion(deps: DepsConvertir, id: string, lockAt
       while (renovando) await new Promise((r) => setTimeout(r, 20));
       if (perdida) throw new CausaError("Se perdió la propiedad de la conversión.");
       const n = await conReintentos(deps, "marcarLista", () =>
-        repo.marcarLista(id, lock, { videoKey: claveFinal!, videoBytes: bytes, videoDuracionSeg: duracion }),
+        repo.marcarLista(id, lock, { videoKey: claveFinal!, videoBytes: bytes, videoDuracionSeg: duracion, hlsKey }),
       );
       if (n === 0) {
         perdida = true;
@@ -313,6 +354,11 @@ export async function convertirGrabacion(deps: DepsConvertir, id: string, lockAt
     } finally {
       clearInterval(vigia);
       clearInterval(renovador);
+      if (subidor && hlsAbierto) {
+        // Salió por un error antes de terminar el HLS: se deja de mirar la carpeta.
+        hlsAbierto = false;
+        await subidor.terminar(false);
+      }
     }
 
     // Sólo ahora, con el video subido y la base actualizada, se borran los pedacitos.
@@ -339,7 +385,10 @@ export async function convertirGrabacion(deps: DepsConvertir, id: string, lockAt
     if (claveFinal) {
       // Nunca se borra el video si otro worker ya dejó la grabación LISTA.
       try {
-        if ((await repo.estado(id)) !== "LISTA") await deps.borrarPrefijo(claveFinal);
+        if ((await repo.estado(id)) !== "LISTA") {
+          await deps.borrarPrefijo(claveFinal);
+          if (prefijoHls && subidor?.subioAlgo()) await deps.borrarPrefijo(`${prefijoHls}/`);
+        }
       } catch {
         /* sin certeza del estado, no se borra */
       }
