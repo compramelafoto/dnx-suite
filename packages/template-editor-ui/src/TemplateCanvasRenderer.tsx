@@ -108,6 +108,25 @@ function BlockContainer({
   );
 }
 
+type TextVisual = ReturnType<typeof getTextVisualConfig>;
+
+/** La tipografía del párrafo, sin el tamaño de la caja. */
+function textBodyStyle(t: TextVisual): React.CSSProperties {
+  return {
+    color: t.color,
+    fontFamily: t.fontFamilyCss,
+    fontSize: t.fontSize,
+    fontWeight: t.fontWeight,
+    fontStyle: t.fontStyle,
+    textDecoration: t.textDecoration,
+    textTransform: t.textTransform,
+    lineHeight: String(t.lineHeight),
+    letterSpacing: `${t.letterSpacing}px`,
+    textAlign: t.textAlign,
+    whiteSpace: "pre-wrap",
+  };
+}
+
 function TextBlockRenderer({
   config,
   resolvedVariables,
@@ -119,6 +138,29 @@ function TextBlockRenderer({
   /** Siempre resolver `{variables}` cuando no se edita inline: catálogo + mapa opcional (nunca dejar solo el texto crudo si hay token conocido). */
   const display = resolveBracePlaceholdersInText(raw, resolvedVariables);
   const t = getTextVisualConfig({ ...config, content: display });
+  /*
+   * Arriba es lo de siempre y se dibuja exactamente igual que antes. Centro y abajo envuelven el
+   * párrafo en una columna flexible: el alto del texto es renglones × interlineado, la misma
+   * cuenta que hace la impresión (`desplazamientoVertical` en design-studio). La caja gira con su
+   * contenido, así que en un texto girado la alineación es en el marco de la caja.
+   */
+  if (t.verticalAlign !== "top") {
+    return (
+      <div
+        data-vertical-align={t.verticalAlign}
+        style={{
+          width: "100%",
+          height: "100%",
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: t.verticalAlign === "middle" ? "center" : "flex-end",
+          overflow: "hidden",
+        }}
+      >
+        <div style={{ ...textBodyStyle(t), width: "100%", flexShrink: 0 }}>{t.content}</div>
+      </div>
+    );
+  }
   return (
     <div
       style={{
@@ -165,6 +207,7 @@ function ClassListBlockRenderer({
     fontSize: t.fontSize,
     lineHeight: t.lineHeight,
     columns: options.columns,
+    verticalAlign: t.verticalAlign,
   });
   if (cells.length === 0) {
     return (

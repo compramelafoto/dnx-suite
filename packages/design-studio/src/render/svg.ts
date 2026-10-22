@@ -98,7 +98,7 @@ function svgDePagina(pagina: LayoutPage, qrPorItem: Map<string, string>): string
       partes.push(`<g${alfa}${giro}>`);
       item.lines.forEach((linea, i) => {
         // Sin descendente, la primera línea de base queda a un cuerpo del borde superior.
-        const y = item.yPt + item.sizePt + i * item.lineHeightPt;
+        const y = item.yPt + item.offsetYPt + item.sizePt + i * item.lineHeightPt;
         partes.push(
           `<text x="${x}" y="${y}" text-anchor="${anclaje}" fill="${item.color}"` +
             ` font-family="${escapeXml(def.fallbackStack)}" font-size="${item.sizePt}"` +

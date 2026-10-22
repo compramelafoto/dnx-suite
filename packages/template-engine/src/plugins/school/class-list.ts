@@ -139,6 +139,10 @@ export type ClassListLayout = {
 /**
  * Reparte la lista en columnas, de arriba hacia abajo. Si no entra en el alto del bloque, achica
  * el cuerpo de todos por igual: un nombre más chico que el resto se notaría.
+ *
+ * `verticalAlign` ubica el bloque de filas en el alto de la caja: arriba (lo de siempre), centrado
+ * o abajo. Las columnas se mueven juntas, como un solo párrafo; el hueco se mide con la columna
+ * más larga, que es la que ocupa más alto.
  */
 export function layoutClassList(input: {
   lines: readonly ClassListLine[];
@@ -147,6 +151,7 @@ export function layoutClassList(input: {
   fontSize: number;
   lineHeight: number;
   columns: number;
+  verticalAlign?: "top" | "middle" | "bottom";
 }): ClassListLayout {
   const { lines } = input;
   const lineHeight = input.lineHeight > 0 ? input.lineHeight : 1.2;
@@ -157,10 +162,13 @@ export function layoutClassList(input: {
   const fontSize = rowHeight / lineHeight;
   const gap = columns > 1 ? fontSize * 0.8 : 0;
   const cellWidth = Math.max(1, (input.width - gap * (columns - 1)) / columns);
+  const hueco = Math.max(0, input.height - rows * rowHeight);
+  const top =
+    input.verticalAlign === "middle" ? hueco / 2 : input.verticalAlign === "bottom" ? hueco : 0;
   const cells = lines.map((line, i) => {
     const col = Math.floor(i / rows);
     const row = i % rows;
-    return { ...line, x: col * (cellWidth + gap), y: row * rowHeight, width: cellWidth, height: rowHeight };
+    return { ...line, x: col * (cellWidth + gap), y: top + row * rowHeight, width: cellWidth, height: rowHeight };
   });
   return { cells, fontSize };
 }
