@@ -12,7 +12,6 @@ import {
 import { flushSync } from "react-dom";
 import { TemplateCanvasRenderer } from "./TemplateCanvasRenderer";
 import { ImageCropOverlay } from "./ImageCropOverlay";
-import { getCanvasCenterPoint } from "@repo/template-editor-core";
 import { getSafeAreaRectPx } from "@repo/template-editor-core";
 import { getLayoutSafeAreaStatus, type LayoutSafeAreaStatus } from "@repo/template-editor-core";
 import { buildDiagnosticHighlightMap, collectTemplateDiagnostics } from "@repo/template-editor-core";
@@ -52,6 +51,12 @@ import {
   setGuides,
   type EditorGuides,
   type GuideAxis,
+  buildReferenceGuideLines,
+  referenceGuideSnapLines,
+  REFERENCE_GUIDES_ALL_OFF,
+  type ReferenceGuideCross,
+  type ReferenceGuideLine,
+  type ReferenceGuideSettings,
   takePersistSnapshot,
   toggleBlockInSelection,
   updateBlock,
@@ -100,8 +105,16 @@ type Props = {
   resolvedVariables?: Record<string, unknown>;
   /** Guía visual de márgenes seguros (no es un bloque; no se exporta en preview). Por defecto activa. */
   showSafeArea?: boolean;
-  /** Ejes vertical y horizontal en el centro del lienzo (referencia fija; no es snap dinámico). Por defecto activos. */
+  /**
+   * Ejes vertical y horizontal en el centro del lienzo. Se conserva por compatibilidad: si llega
+   * `referenceGuides`, manda ese.
+   */
   showCenterAxes?: boolean;
+  /**
+   * Guías de referencia (mitades, cuartos, centro de cada cara). Sólo se dibujan en el editor —
+   * nunca en vistas previas, PDF ni miniaturas— y, mientras se ven, el imán también las usa.
+   */
+  referenceGuides?: ReferenceGuideSettings;
   /** Clic en el fondo del lienzo (sin bloque): p. ej. abrir panel de propiedades para el color de fondo. */
   onCanvasBackgroundClick?: () => void;
   /** Herramienta activa: selección, texto (T), mano (H). */
@@ -109,6 +122,76 @@ type Props = {
   /** Escape en modo texto o al desactivar herramienta desde el shell. */
   onExitTextPlacementMode?: () => void;
 };
+
+/**
+ * Guías de referencia dibujadas sobre la hoja: punteadas y finas, con grosor y trazos fijos en
+ * pantalla (la capa está escalada con el zoom). El pliegue va en naranja; mitades y cuartos en
+ * violeta; así no se confunden con las guías de diseño (celeste, continuas) ni con el imán
+ * (magenta). No reciben clics.
+ */
+function ReferenceGuidesOverlay({
+  drawing,
+  zoom,
+}: {
+  drawing: { lines: ReferenceGuideLine[]; crosses: ReferenceGuideCross[] };
+  zoom: number;
+}) {
+  const z = zoom > 0 ? zoom : 1;
+  const thick = 1 / z;
+  const dash = 6 / z;
+  const gap = 4 / z;
+  const color = (kind: ReferenceGuideLine["kind"]) =>
+    kind === "fold" ? "rgba(234, 88, 12, 0.8)" : "rgba(124, 58, 237, 0.55)";
+  const dashed = (c: string, dir: "to bottom" | "to right") =>
+    `repeating-linear-gradient(${dir}, ${c} 0, ${c} ${dash}px, transparent ${dash}px, transparent ${dash + gap}px)`;
+  const arm = 22 / z;
+  const crossColor = "rgba(124, 58, 237, 0.8)";
+  return (
+    <div
+      className="pointer-events-none absolute inset-0 z-[2]"
+      aria-hidden
+      data-testid="template-v2-reference-guides"
+      title="Guías de referencia (solo en pantalla; no se imprimen)"
+    >
+      {drawing.lines.map((l) => (
+        <div
+          key={`${l.axis}-${l.pos}`}
+          data-guide-kind={l.kind}
+          style={{
+            position: "absolute",
+            ...(l.axis === "v"
+              ? { left: l.pos - thick / 2, top: 0, width: thick, height: "100%", background: dashed(color(l.kind), "to bottom") }
+              : { top: l.pos - thick / 2, left: 0, height: thick, width: "100%", background: dashed(color(l.kind), "to right") }),
+          }}
+        />
+      ))}
+      {drawing.crosses.map((c) => (
+        <div key={`x-${c.x}-${c.y}`} data-guide-kind="faceCenters">
+          <div
+            style={{
+              position: "absolute",
+              left: c.x - arm,
+              top: c.y - (1.5 * thick) / 2,
+              width: arm * 2,
+              height: 1.5 * thick,
+              background: crossColor,
+            }}
+          />
+          <div
+            style={{
+              position: "absolute",
+              top: c.y - arm,
+              left: c.x - (1.5 * thick) / 2,
+              height: arm * 2,
+              width: 1.5 * thick,
+              background: crossColor,
+            }}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
 
 type ResizeHandleDef = {
   key: "nw" | "ne" | "sw" | "se" | "n" | "s" | "e" | "w";
@@ -465,6 +548,7 @@ export function TemplateEditorCanvas({
   resolvedVariables: valoresDeMuestra = TEMPLATE_V2_EDITOR_RESOLVED_VARIABLES,
   showSafeArea = true,
   showCenterAxes = true,
+  referenceGuides: referenceGuidesProp,
   onCanvasBackgroundClick,
   canvasTool = "select",
   onExitTextPlacementMode,
@@ -579,7 +663,6 @@ export function TemplateEditorCanvas({
   const primaryBlock = primaryId ? state.blocks.find((b) => b.id === primaryId) ?? null : null;
 
   const safeAreaRect = useMemo(() => getSafeAreaRectPx(state.canvas), [state.canvas]);
-  const centerAxes = useMemo(() => getCanvasCenterPoint(state.canvas), [state.canvas]);
   const primarySafeAreaStatus = useMemo(
     () =>
       primaryBlock ? getLayoutSafeAreaStatus(primaryBlock.layout, safeAreaRect) : ("inside" as LayoutSafeAreaStatus),
@@ -782,6 +865,27 @@ export function TemplateEditorCanvas({
   const [guideMenu, setGuideMenu] = useState<{ axis: GuideAxis; index: number; x: number; y: number } | null>(null);
   const guidesRef = useRef(guides);
   guidesRef.current = guides;
+
+  /*
+   * Guías de referencia: lo que se dibuja y lo que suman al imán. Las líneas que ya son guías de
+   * diseño de la plantilla (el pliegue de los libritos) no se repiten.
+   */
+  const referenceGuides = useMemo<ReferenceGuideSettings>(
+    () => referenceGuidesProp ?? { ...REFERENCE_GUIDES_ALL_OFF, fold: showCenterAxes, halfH: showCenterAxes },
+    [referenceGuidesProp, showCenterAxes]
+  );
+  const referenceDrawing = useMemo(
+    () => buildReferenceGuideLines(referenceGuides, state.canvas.width, state.canvas.height, guides),
+    [referenceGuides, state.canvas.width, state.canvas.height, guides]
+  );
+  const snapGuidesX = useMemo(
+    () => [...guides.v, ...referenceGuideSnapLines(referenceGuides, state.canvas.width, state.canvas.height).xs],
+    [guides.v, referenceGuides, state.canvas.width, state.canvas.height]
+  );
+  const snapGuidesY = useMemo(
+    () => [...guides.h, ...referenceGuideSnapLines(referenceGuides, state.canvas.width, state.canvas.height).ys],
+    [guides.h, referenceGuides, state.canvas.width, state.canvas.height]
+  );
 
   const startGuideDrag = useCallback(
     (axis: GuideAxis, index: number | null, e: ReactPointerEvent<HTMLElement>) => {
@@ -1041,35 +1145,8 @@ export function TemplateEditorCanvas({
               </div>
             ) : null}
 
-            {showCenterAxes ? (
-              <div
-                className="pointer-events-none absolute inset-0 z-[2]"
-                aria-hidden
-                title="Ejes del centro del lienzo (solo referencia; el snap activo usa azul más intenso al arrastrar)"
-              >
-                <div
-                  style={{
-                    position: "absolute",
-                    left: centerAxes.cx,
-                    top: 0,
-                    width: 1,
-                    height: "100%",
-                    transform: "translateX(-0.5px)",
-                    background: "rgba(100, 116, 139, 0.28)",
-                  }}
-                />
-                <div
-                  style={{
-                    position: "absolute",
-                    top: centerAxes.cy,
-                    left: 0,
-                    height: 1,
-                    width: "100%",
-                    transform: "translateY(-0.5px)",
-                    background: "rgba(100, 116, 139, 0.28)",
-                  }}
-                />
-              </div>
+            {referenceDrawing.lines.length > 0 || referenceDrawing.crosses.length > 0 ? (
+              <ReferenceGuidesOverlay drawing={referenceDrawing} zoom={state.zoom} />
             ) : null}
 
             {/* Fondo: marquee de selección o colocación de texto (herramienta T). */}
@@ -1406,7 +1483,7 @@ export function TemplateEditorCanvas({
                       ? blocksOnPage.filter((x) => !drag.grupo!.some((m) => m.id === x.id))
                       : blocksOnPage,
                     sinIman ? 0 : SNAP_SCREEN_PX / zoom,
-                    { safeArea: safeAreaRect, guidesX: guides.v, guidesY: guides.h }
+                    { safeArea: safeAreaRect, guidesX: snapGuidesX, guidesY: snapGuidesY }
                   );
                   // El eje bloqueado no se imanta: el bloque no puede salirse de la línea.
                   if (ejeFijo === "x") {
@@ -1761,7 +1838,7 @@ export function TemplateEditorCanvas({
                               state.canvas.height,
                               blocksOnPage,
                               new Set([rz.blockId]),
-                              { safeArea: safeAreaRect, guidesX: guides.v, guidesY: guides.h }
+                              { safeArea: safeAreaRect, guidesX: snapGuidesX, guidesY: snapGuidesY }
                             );
                             const sr = snapResizeRect(
                               rz.handle,

@@ -85,6 +85,9 @@ import {
 import { editorThemeStyle, type TemplateEditorTheme } from "./theme";
 import { EditorThemeProvider } from "./theme-context";
 import { ActionButton, ToolButton, ToolDivider, ToolGroup } from "./chrome/ToolControls";
+import { ReferenceGuidesMenu } from "./ReferenceGuidesMenu";
+import { useReferenceGuides } from "./useReferenceGuides";
+import { isFoldedSpread } from "@repo/template-editor-core";
 
 
 
@@ -203,15 +206,6 @@ function IconToolbarSafeZone(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 24 24" width={18} height={18} fill="none" stroke="currentColor" strokeWidth="2" strokeDasharray="3 2" aria-hidden {...props}>
       <rect x="4" y="4" width="16" height="16" rx="2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function IconToolbarAxes(props: SVGProps<SVGSVGElement>) {
-  return (
-    <svg viewBox="0 0 24 24" width={18} height={18} fill="none" stroke="currentColor" strokeWidth="2" aria-hidden {...props}>
-      <circle cx="12" cy="12" r="9" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M12 3v18M3 12h18" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -412,7 +406,12 @@ export function TemplateEditorShell({
     };
   }, []);
   const [altoFilaEditor, setAltoFilaEditor] = useState<number | null>(null);
-  const [showCenterAxes, setShowCenterAxes] = useState(true);
+  /*
+   * Guías de referencia (mitades, cuartos, centro de cada cara). Son una preferencia de quien
+   * diseña, guardada en el navegador; en un librito abierto vienen con el pliegue prendido.
+   */
+  const esLibritoAbierto = isFoldedSpread(state.versionMeta, state.canvas);
+  const [referenceGuides, setReferenceGuides] = useReferenceGuides(esLibritoAbierto);
   const [canvasSizeModalOpen, setCanvasSizeModalOpen] = useState(false);
   const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
   /** Capas + inspector a la derecha: oculto por defecto para ganar espacio en el lienzo. */
@@ -1109,14 +1108,12 @@ export function TemplateEditorShell({
                 >
                   <IconToolbarSafeZone />
                 </ToolButton>
-                <ToolButton
-                  label="Ejes del centro"
-                  active={showCenterAxes}
-                  onClick={() => setShowCenterAxes((v) => !v)}
+                <ReferenceGuidesMenu
+                  value={referenceGuides}
+                  onChange={setReferenceGuides}
+                  isSpread={esLibritoAbierto}
                   disabled={!editorReady}
-                >
-                  <IconToolbarAxes />
-                </ToolButton>
+                />
               </ToolGroup>
 
               <div className="ml-auto flex items-center gap-2">
@@ -1675,7 +1672,7 @@ export function TemplateEditorShell({
                 resolvedVariables={valoresDeMuestra}
                 className="min-h-0 flex-1"
                 showSafeArea={showSafeArea}
-                showCenterAxes={showCenterAxes}
+                referenceGuides={referenceGuides}
                 onCanvasBackgroundClick={() => setRightPanelOpen(true)}
                 canvasTool={canvasTool}
                 onExitTextPlacementMode={() => setCanvasTool("select")}
