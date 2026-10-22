@@ -17,6 +17,7 @@ import {
 } from "../entrega";
 import { MAX_GENERACIONES_ENTREGA, generacionDeEntrega, tokenDeEntrega } from "../token-entrega";
 import { borrarVideoFinal } from "./almacen";
+import { aplicarCargosPagados, anularCargosSinSentido, cargosPendientes, type CargoPendiente } from "./cargos";
 
 /**
  * La entrega de los videos de un pedido (spec 2026-10-22, E1, E2, E3 y E8), del lado del servidor.
@@ -323,6 +324,10 @@ export type ResumenEntrega = {
   /** Desde cuándo la manda sola el cron (12 h después de la última actividad); null = sin fechas. */
   enviaSoloDesde: Date | null;
   entrega: Pick<EntregaLeida, "id" | "envioAutomatico" | "enviadoAt" | "videosVencenAt" | "cassettesVencenAt" | "videosBorradosAt"> | null;
+  /** Envío de los cassettes (E9); null = no se pidió. */
+  envio: { estado: string; direccion: string | null; km: number | null; precioMinor: number | null } | null;
+  /** Cargos extra sin pagar (E6). */
+  cargosPendientes: CargoPendiente[];
 };
 
 export const PEDIDOS_EN_LA_LISTA = 60;
@@ -346,8 +351,12 @@ export async function resumenDeEntregas(workspaceId: string): Promise<ResumenEnt
       where: { workspaceId, proyecto: { workspaceId, pedidoId: { in: ids } } },
       select: { estado: true, conversionEstado: true, sinImagen: true, terminadaAt: true, convertidaAt: true, proyecto: { select: { pedidoId: true } } },
     }),
-    prisma.digitalizacionEntrega.findMany({ where: { workspaceId, pedidoId: { in: ids } }, select: SELECT_ENTREGA }),
+    prisma.digitalizacionEntrega.findMany({
+      where: { workspaceId, pedidoId: { in: ids } },
+      select: { ...SELECT_ENTREGA, envioEstado: true, envioDireccion: true, envioKm: true, envioPrecioArs: true },
+    }),
   ]);
+  const pendientes = await cargosPendientes(workspaceId, entregas.map((e) => e.id));
   const porPedido = new Map<string, typeof grabaciones>();
   for (const g of grabaciones) {
     const id = g.proyecto?.pedidoId;
@@ -371,6 +380,15 @@ export async function resumenDeEntregas(workspaceId: string): Promise<ResumenEnt
       entrega: e
         ? { id: e.id, envioAutomatico: e.envioAutomatico, enviadoAt: e.enviadoAt, videosVencenAt: e.videosVencenAt, cassettesVencenAt: e.cassettesVencenAt, videosBorradosAt: e.videosBorradosAt }
         : null,
+      envio: e?.envioEstado
+        ? {
+            estado: e.envioEstado,
+            direccion: e.envioDireccion ?? null,
+            km: e.envioKm ?? null,
+            precioMinor: e.envioPrecioArs == null ? null : Math.round(Number(e.envioPrecioArs.toString()) * 100),
+          }
+        : null,
+      cargosPendientes: e ? pendientes.get(e.id) ?? [] : [],
     };
   });
 }
@@ -393,6 +411,8 @@ export type ReporteEnvios = {
   /** Entregas ya enviadas a las que se les sumó un video (vencimiento corrido). */
   extendidas: number;
   avisosAgregado: number;
+  /** Cargos extra con la cuota paga que el cobro no llegó a aplicar (E6). */
+  cargosAplicados: number;
 };
 
 /** Grabaciones que todavía impiden mandar la entrega (en curso, en cola, con error o muy recientes). */
@@ -456,7 +476,9 @@ async function pedidosParaEnviar(ahora: Date): Promise<{ pedidoId: string; works
  */
 export async function enviarEntregasAutomaticas(deps: DepsEntrega & { tope?: number } = {}): Promise<ReporteEnvios> {
   const ahora = (deps.ahora ?? (() => new Date()))();
-  const reporte: ReporteEnvios = { revisadas: 0, enviadas: 0, sinEmail: 0, noListas: 0, esperando: 0, manuales: 0, fallidas: 0, extendidas: 0, avisosAgregado: 0 };
+  const reporte: ReporteEnvios = { revisadas: 0, enviadas: 0, sinEmail: 0, noListas: 0, esperando: 0, manuales: 0, fallidas: 0, extendidas: 0, avisosAgregado: 0, cargosAplicados: 0 };
+  // Primero los cargos pagos que quedaron sin aplicar (el cobro los aplica después del commit, sin reintento).
+  reporte.cargosAplicados = (await aplicarCargosPagados(null, { ahora: () => ahora })).aplicados;
   const encendido = new Map<string, boolean>();
   const estaEncendido = async (ws: string) => {
     if (!encendido.has(ws)) encendido.set(ws, await isModuleEnabledForWorkspace(ws, DIGITALIZACION_MODULE_KEY));
@@ -556,6 +578,8 @@ export type ReporteVencimientos = {
   recordatoriosFallidos: number;
   borradas: number;
   borradoFallido: number;
+  cargosAplicados: number;
+  cargosAnulados: number;
 };
 
 /**
@@ -627,7 +651,11 @@ async function recordar(e: EntregaLeida, umbral: number, ahora: Date, deps: Deps
 /** La corrida diaria (10:00 de Argentina): avisa los vencimientos y borra lo vencido. Devuelve contadores. */
 export async function recordatoriosYVencimientos(deps: DepsEntrega = {}): Promise<ReporteVencimientos> {
   const ahora = (deps.ahora ?? (() => new Date()))();
-  const reporte: ReporteVencimientos = { revisadas: 0, recordatorios: 0, sinEmail: 0, recordatoriosFallidos: 0, borradas: 0, borradoFallido: 0 };
+  const reporte: ReporteVencimientos = { revisadas: 0, recordatorios: 0, sinEmail: 0, recordatoriosFallidos: 0, borradas: 0, borradoFallido: 0, cargosAplicados: 0, cargosAnulados: 0 };
+  // Antes de borrar nada: una extensión ya paga que el cobro no llegó a aplicar corre el vencimiento.
+  reporte.cargosAplicados = (await aplicarCargosPagados(null, { ahora: () => ahora })).aplicados;
+  // Y se sacan del pedido los cargos sin pagar que perdieron sentido (videos borrados, cassettes vencidos).
+  reporte.cargosAnulados = await anularCargosSinSentido({ ahora: () => ahora });
   const entregas = await prisma.digitalizacionEntrega.findMany({
     where: { enviadoAt: { not: null }, videosBorradosAt: null, videosVencenAt: { not: null } },
     orderBy: { videosVencenAt: "asc" },

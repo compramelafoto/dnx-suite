@@ -3,8 +3,9 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { cambiarEnvioAutomaticoAction, enviarEntregaAction, guardarAjustesEntregaAction } from "@/app/(shell)/digitalizacion/actions";
-import { leerNumero, type EstadoVisibleEntrega, type FranjaEnvio } from "@/lib/digitalizacion/entrega";
+import { anularCargoAction, cambiarEnvioAutomaticoAction, enviarEntregaAction, guardarAjustesEntregaAction, marcarEnvioEntregadoAction } from "@/app/(shell)/digitalizacion/actions";
+import { ETIQUETA_ENVIO, esEstadoEnvio } from "@/lib/digitalizacion/cargos";
+import { leerNumero, pesos, type EstadoVisibleEntrega, type FranjaEnvio } from "@/lib/digitalizacion/entrega";
 
 type PropsAcciones = {
   pedidoId: string;
@@ -140,6 +141,76 @@ export function AjustesEntrega({ envioAutomatico, franjas }: { envioAutomatico: 
         <button type="button" className="fo-btn fo-btn-primary text-xs" disabled={pendiente} onClick={guardar}>Guardar</button>
         {aviso ? <span>{aviso}</span> : null}
       </div>
+    </div>
+  );
+}
+
+const CARGO: Record<string, string> = { DESCARGA_EXTRA: "Descarga extra", EXTENSION: "Extensión de 30 días", ENVIO: "Envío de cassettes" };
+
+/**
+ * Envío de los cassettes y cargos extra sin pagar de una entrega (spec 2026-10-22, E6 y E9): la
+ * dirección, los km, el precio y el estado del envío, con «Marcar entregado»; cada cargo pendiente
+ * con «Anular» (lo saca del pedido). Los botones, sólo con permiso de gestión.
+ */
+export function EnvioYCargos({
+  entregaId,
+  envio,
+  cargos,
+  puedeGestionar,
+}: {
+  entregaId: string | null;
+  envio: { estado: string; direccion: string | null; km: number | null; precioMinor: number | null } | null;
+  cargos: { id: string; tipo: string; montoMinor: number }[];
+  puedeGestionar: boolean;
+}) {
+  const [pendiente, empezar] = useTransition();
+  const [aviso, setAviso] = useState<string | null>(null);
+  const router = useRouter();
+  if (!envio && cargos.length === 0) return null;
+
+  const correr = (fn: () => Promise<{ ok: boolean; error?: string }>) =>
+    empezar(async () => {
+      const r = await fn();
+      setAviso(r.ok ? null : (r.error ?? "No se pudo."));
+      router.refresh();
+    });
+
+  return (
+    <div className="space-y-1 text-sm">
+      {envio ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <span>
+            <span className="font-semibold">Envío de cassettes:</span> {esEstadoEnvio(envio.estado) ? ETIQUETA_ENVIO[envio.estado] : envio.estado}
+            {envio.direccion ? ` · ${envio.direccion}` : ""}
+            {envio.km !== null ? ` · ${String(envio.km).replace(".", ",")} km` : ""}
+            {envio.precioMinor !== null ? ` · ${pesos(envio.precioMinor)}` : ""}
+          </span>
+          {puedeGestionar && entregaId && (envio.estado === "CONFIRMADO" || envio.estado === "A_COORDINAR") ? (
+            <button type="button" className="fo-btn fo-btn-secondary text-xs" disabled={pendiente} onClick={() => correr(() => marcarEnvioEntregadoAction(entregaId))}>
+              Marcar entregado
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+      {cargos.map((c) => (
+        <div key={c.id} className="flex flex-wrap items-center gap-2">
+          <span>{CARGO[c.tipo] ?? c.tipo}: {pesos(c.montoMinor)}, pendiente de pago</span>
+          {puedeGestionar ? (
+            <button
+              type="button"
+              className="fo-btn fo-btn-ghost text-xs"
+              disabled={pendiente}
+              onClick={() => {
+                if (!window.confirm("Se saca el cargo del pedido (el renglón y su cuota). ¿Seguimos?")) return;
+                correr(() => anularCargoAction(c.id));
+              }}
+            >
+              Anular
+            </button>
+          ) : null}
+        </div>
+      ))}
+      {aviso ? <p className="text-gray-600">{aviso}</p> : null}
     </div>
   );
 }

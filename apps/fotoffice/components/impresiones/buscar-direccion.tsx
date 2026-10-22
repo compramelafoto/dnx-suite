@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { MapPin, X } from "lucide-react";
 import { cotizarEnvio, type Punto } from "@/lib/impresiones/envio";
 
@@ -22,15 +22,21 @@ const km = (n: number) => String(n).replace(".", ",");
  * Buscador de la dirección de envío: escribe, espera medio segundo y le pregunta a `/api/geocode` (nuestro proxy
  * de Nominatim). Al elegir un resultado devuelve la dirección y su punto por `onElegir`, y muestra el costo con la
  * misma cuenta que el servidor (acá es sólo informativo: el que vale se calcula al pagar).
+ *
+ * Lo usa también el envío de cassettes de Digitalización, con otra cuenta (franjas de km): en vez de `envio`,
+ * pasa `detalle`, que dibuja lo que va debajo de la dirección elegida.
  */
 export function BuscarDireccion({
   envio,
   elegida,
   onElegir,
+  detalle,
 }: {
-  envio: { baseCents: number; porKmCents: number; maxKm: number | null; estudio: Punto };
+  envio?: { baseCents: number; porKmCents: number; maxKm: number | null; estudio: Punto };
   elegida: DireccionElegida | null;
   onElegir: (d: DireccionElegida | null) => void;
+  /** Lo que se muestra debajo de la dirección elegida; sin esto, el costo de `envio`. */
+  detalle?: (d: DireccionElegida) => ReactNode;
 }) {
   const [texto, setTexto] = useState("");
   const [resultados, setResultados] = useState<Resultado[]>([]);
@@ -84,7 +90,7 @@ export function BuscarDireccion({
   }
 
   if (elegida) {
-    const q = cotizarEnvio({ ...envio, destino: { lat: elegida.lat, lon: elegida.lon } });
+    const q = envio ? cotizarEnvio({ ...envio, destino: { lat: elegida.lat, lon: elegida.lon } }) : null;
     return (
       <div className="space-y-2 rounded-[var(--fo-radius-sm)] border border-[var(--fo-border)] p-3">
         <div className="flex items-start justify-between gap-2">
@@ -97,11 +103,15 @@ export function BuscarDireccion({
             Cambiar
           </button>
         </div>
-        <p role="status" className={q.ok ? "text-[var(--fo-text-secondary)]" : "text-amber-800"}>
-          {q.ok
-            ? `Envío: ${plata(q.cents)} (${km(q.km)} km)`
-            : "Esa dirección está fuera de la zona de envío. Elegí retirar en el local u otra dirección."}
-        </p>
+        {detalle ? (
+          detalle(elegida)
+        ) : q ? (
+          <p role="status" className={q.ok ? "text-[var(--fo-text-secondary)]" : "text-amber-800"}>
+            {q.ok
+              ? `Envío: ${plata(q.cents)} (${km(q.km)} km)`
+              : "Esa dirección está fuera de la zona de envío. Elegí retirar en el local u otra dirección."}
+          </p>
+        ) : null}
       </div>
     );
   }

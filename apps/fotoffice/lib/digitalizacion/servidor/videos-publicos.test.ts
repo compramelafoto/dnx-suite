@@ -17,6 +17,12 @@ const almacen = vi.hoisted(() => ({ urlDeVideo: vi.fn(async (_k: string, _n: str
 vi.mock("./almacen", () => almacen);
 const saldo = vi.hoisted(() => ({ saldoDelPedido: vi.fn() }));
 vi.mock("@/lib/pedidos/candado-saldo", () => saldo);
+const cargos = vi.hoisted(() => ({
+  cargosPendientes: vi.fn(async () => new Map()),
+  urlsParaPagar: vi.fn(async () => new Map()),
+}));
+// El saldo de los videos es el del pedido sin los cargos pendientes: acá, el mismo mock del saldo.
+vi.mock("./cargos", () => ({ ...cargos, saldoDeVideosMinor: (...a: unknown[]) => saldo.saldoDelPedido(...a) }));
 const plan = vi.hoisted(() => ({ bloquearPedido: vi.fn(async () => 0) }));
 vi.mock("@/lib/pedidos/plan", () => plan);
 vi.mock("@/lib/pedidos/enlace", () => ({ enlaceDelPedidoDelSistema: vi.fn(async () => ({ ok: true, url: "https://fotoffice.com/w/fp/pedido/PED" })) }));
@@ -55,7 +61,8 @@ describe("abrirEntregaPublica", () => {
     const v = await abrirEntregaPublica("ws1", TOKEN, AHORA);
     expect(v).toMatchObject({ habilitados: true, pedidoNumero: "P-12", cliente: "Ana Gómez", borradosAt: null });
     expect(v!.organizacion.logoUrl).toBeNull();
-    expect(v!.videos).toEqual([{ id: "g1", titulo: "Cassette 2", duracionSeg: 3600, quedan: 2, total: 4, urlVer: "https://r2/ver" }]);
+    expect(v!.videos).toEqual([{ id: "g1", titulo: "Cassette 2", duracionSeg: 3600, quedan: 2, total: 4, urlVer: "https://r2/ver", puedeComprar: true, descargaPendiente: null }]);
+    expect(v).toMatchObject({ puedeExtender: true, extensionPendiente: null, envio: { puedePedir: true, estado: null, urlPagar: null } });
     expect(almacen.urlDeVideo).toHaveBeenCalledWith("digitalizacion/ws1/g1/final.mp4", expect.stringMatching(/\.mp4$/), "ver", 10800);
   });
   it("con saldo: no firma nada y da el enlace del pedido", async () => {
@@ -138,5 +145,21 @@ describe("registrarDescarga", () => {
     expect(await registrarDescarga("ws1", TOKEN, "g9", AHORA)).toEqual({ ok: false, motivo: "NO_EXISTE" });
     expect(db.digitalizacionGrabacion.findFirst.mock.calls[0][0].where).toMatchObject({ id: "g9", workspaceId: "ws1", proyecto: { pedidoId: "p1", workspaceId: "ws1" } });
     expect(await registrarDescarga("ws1", TOKEN, "../x", AHORA)).toEqual({ ok: false, motivo: "NO_EXISTE" });
+  });
+});
+
+describe("cargos pendientes en la página", () => {
+  it("muestra la extensión, la descarga extra y el envío pendientes con su enlace para pagar", async () => {
+    db.digitalizacionEntrega.findFirst.mockResolvedValue(entrega({ envioEstado: "A_PAGAR", envioDireccion: "Av. Real 100", envioPrecioArs: "9000.00" }));
+    cargos.cargosPendientes.mockResolvedValue(new Map([["e1", [
+      { id: "c1", tipo: "EXTENSION", grabacionId: null, montoMinor: 1500000, cuotaId: "q1" },
+      { id: "c2", tipo: "DESCARGA_EXTRA", grabacionId: "g1", montoMinor: 375000, cuotaId: "q2" },
+      { id: "c3", tipo: "ENVIO", grabacionId: null, montoMinor: 900000, cuotaId: "q3" },
+    ]]]));
+    cargos.urlsParaPagar.mockResolvedValue(new Map([["q1", "u1"], ["q2", "u2"], ["q3", "u3"]]));
+    const v = await abrirEntregaPublica("ws1", TOKEN, AHORA);
+    expect(v!.extensionPendiente).toEqual({ montoMinor: 1500000, urlPagar: "u1" });
+    expect(v!.videos[0]!.descargaPendiente).toEqual({ montoMinor: 375000, urlPagar: "u2" });
+    expect(v!.envio).toEqual({ puedePedir: true, estado: "A_PAGAR", direccion: "Av. Real 100", precioMinor: 900000, urlPagar: "u3" });
   });
 });

@@ -2,7 +2,6 @@ import "server-only";
 import { prisma, type Prisma } from "@repo/db";
 import { buildWhatsappUrl } from "@/lib/contact/whatsapp";
 import type { OrganizacionPublica } from "@/lib/pedidos/vista-publica";
-import { saldoDelPedido } from "@/lib/pedidos/candado-saldo";
 import { bloquearPedido } from "@/lib/pedidos/plan";
 import { enlaceDelPedidoDelSistema } from "@/lib/pedidos/enlace";
 import { hashDeToken, tokenConForma } from "@/lib/presupuestos/enlace";
@@ -11,6 +10,8 @@ import { ID_VALIDO, prefijoDeGrabacion } from "../claves";
 import { descargasRestantes, segundosDeFirma, tituloDeVideo, videosVencidos } from "../entrega";
 import { nombreArchivoVideo, nombreCliente } from "../nombre-archivo";
 import { SEGUNDOS_VER_PUBLICO, urlDeVideo } from "./almacen";
+import { cargosPendientes, saldoDeVideosMinor, urlsParaPagar } from "./cargos";
+import { esEstadoEnvio, puedeComprarDescarga, puedeExtender, puedePedirEnvio, type EstadoEnvio } from "../cargos";
 
 /** Las firmas de descarga duran 24 h (para reanudar), salvo que la entrega venza antes. */
 const SEGUNDOS_DESCARGA = 24 * 3600;
@@ -26,6 +27,8 @@ export const SEGUNDOS_DESCARGA_REPETIDA = 120;
  * - Mirar usa firmas cortas inline que no cuentan; descargar pasa por la ruta que cuenta.
  * - Ninguna firma dura más que lo que le queda a la entrega (con un piso de 60 s).
  * - Pedido cancelado: no se ve ni se descarga nada.
+ * - Los cargos extra sin pagar (E6) no cuentan para el saldo que traba los videos: pedir una
+ *   descarga extra no apaga lo que el cliente ya pagó (`saldoDeVideosMinor`).
  */
 
 type Tx = Prisma.TransactionClient;
@@ -38,6 +41,10 @@ export type VideoPublico = {
   total: number;
   /** Sólo si los videos están habilitados (saldo 0 y sin vencer). */
   urlVer: string | null;
+  /** Se puede pedir otra descarga (video sin borrar y entrega vigente). */
+  puedeComprar: boolean;
+  /** Descarga extra pedida y sin pagar: importe (centavos) y dónde pagarla. */
+  descargaPendiente: { montoMinor: number; urlPagar: string | null } | null;
 };
 
 export type VistaVideosPublica = {
@@ -53,6 +60,15 @@ export type VistaVideosPublica = {
   cassettesVencenAt: Date | null;
   habilitados: boolean;
   videos: VideoPublico[];
+  puedeExtender: boolean;
+  extensionPendiente: { montoMinor: number; urlPagar: string | null } | null;
+  envio: {
+    puedePedir: boolean;
+    estado: EstadoEnvio | null;
+    direccion: string | null;
+    precioMinor: number | null;
+    urlPagar: string | null;
+  };
 };
 
 /** La entrega de un token, dentro del workspace; null si el token no tiene forma, no existe o es de otro. */
@@ -60,7 +76,10 @@ export async function resolverTokenEntrega(workspaceId: string, token: unknown) 
   if (!tokenConForma(token)) return null;
   return prisma.digitalizacionEntrega.findFirst({
     where: { workspaceId, accessTokenHash: hashDeToken(token), enviadoAt: { not: null } },
-    select: { id: true, pedidoId: true, videosVencenAt: true, cassettesVencenAt: true, videosBorradosAt: true },
+    select: {
+      id: true, pedidoId: true, videosVencenAt: true, cassettesVencenAt: true, videosBorradosAt: true,
+      envioEstado: true, envioDireccion: true, envioPrecioArs: true,
+    },
   });
 }
 
@@ -90,9 +109,12 @@ export async function abrirEntregaPublica(workspaceId: string, token: unknown, a
       select: { number: true, status: true, client: { select: { firstName: true, lastName: true, businessName: true } } },
     }),
     sitioDelWorkspace(workspaceId),
-    saldoDelPedido(prisma as unknown as Tx, workspaceId, e.pedidoId),
+    saldoDeVideosMinor(prisma as unknown as Tx, workspaceId, e.pedidoId),
     videosListos(workspaceId, e.pedidoId, e.id),
   ]);
+  const pendientes = (await cargosPendientes(workspaceId, [e.id])).get(e.id) ?? [];
+  const pagar = await urlsParaPagar(workspaceId, e.pedidoId, pendientes.map((c) => c.cuotaId));
+  const pendiente = (c: (typeof pendientes)[number] | undefined) => (c ? { montoMinor: c.montoMinor, urlPagar: pagar.get(c.cuotaId) ?? null } : null);
   if (!pedido || !sitio) return null;
   const cancelado = pedido.status === "CANCELADO";
   const saldoMinor = saldo?.saldoMinor ?? 0;
@@ -113,6 +135,8 @@ export async function abrirEntregaPublica(workspaceId: string, token: unknown, a
         quedan: cupo.quedan,
         total: cupo.total,
         urlVer: habilitados && claveOk ? await urlDeVideo(g.videoKey!, nombre, "ver", segundosDeFirma(SEGUNDOS_VER_PUBLICO, e.videosVencenAt, ahora)) : null,
+        puedeComprar: puedeComprarDescarga({ cancelado, videosVencenAt: e.videosVencenAt, videosBorradosAt: e.videosBorradosAt }, g, ahora),
+        descargaPendiente: pendiente(pendientes.find((c) => c.tipo === "DESCARGA_EXTRA" && c.grabacionId === g.id)),
       };
     }),
   );
@@ -133,6 +157,15 @@ export async function abrirEntregaPublica(workspaceId: string, token: unknown, a
     cassettesVencenAt: e.cassettesVencenAt,
     habilitados,
     videos,
+    puedeExtender: puedeExtender({ cancelado, videosVencenAt: e.videosVencenAt, videosBorradosAt: e.videosBorradosAt }, ahora),
+    extensionPendiente: pendiente(pendientes.find((c) => c.tipo === "EXTENSION")),
+    envio: {
+      puedePedir: puedePedirEnvio({ cancelado, cassettesVencenAt: e.cassettesVencenAt, envioEstado: e.envioEstado ?? null }, ahora),
+      estado: esEstadoEnvio(e.envioEstado) ? e.envioEstado : null,
+      direccion: e.envioDireccion ?? null,
+      precioMinor: e.envioPrecioArs == null ? null : Math.round(Number(e.envioPrecioArs.toString()) * 100),
+      urlPagar: pendiente(pendientes.find((c) => c.tipo === "ENVIO"))?.urlPagar ?? null,
+    },
   };
 }
 
@@ -168,7 +201,7 @@ export async function registrarDescarga(workspaceId: string, token: unknown, gra
     // y toque la entrega (E6), así dos caminos no se esperan entre sí.
     await bloquearPedido(tx, e.pedidoId);
     await tx.$queryRaw`SELECT id FROM "DigitalizacionEntrega" WHERE id = ${e.id} FOR UPDATE`;
-    const saldo = await saldoDelPedido(tx, workspaceId, e.pedidoId);
+    const saldo = await saldoDeVideosMinor(tx, workspaceId, e.pedidoId);
     if (!saldo || saldo.saldoMinor > 0) return "SALDO";
     const repetida = await tx.digitalizacionDescarga.findFirst({
       where: { entregaId: e.id, grabacionId: g.id, createdAt: { gte: new Date(ahora.getTime() - SEGUNDOS_DESCARGA_REPETIDA * 1000) } },

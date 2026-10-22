@@ -1,7 +1,7 @@
 // apps/fotoffice/app/(shell)/digitalizacion/page.tsx
 import { PageHeader } from "@/components/page-header";
 import { AccionesGrabacion, AjusteMinutos } from "@/components/digitalizacion/acciones-grabacion";
-import { AccionesEntrega, AjustesEntrega } from "@/components/digitalizacion/entregas";
+import { AccionesEntrega, AjustesEntrega, EnvioYCargos } from "@/components/digitalizacion/entregas";
 import { estadoVisibleDeEntrega, fechaArgentina, fechaHoraArgentina, type EstadoVisibleEntrega } from "@/lib/digitalizacion/entrega";
 import { resumenDeEntregas, type ResumenEntrega } from "@/lib/digitalizacion/servidor/entregas";
 import { extensionDeMime } from "@/lib/digitalizacion/claves";
@@ -84,6 +84,7 @@ export default async function DigitalizacionPage() {
                     <span className="text-xs text-gray-600">{r.videos === 1 ? "1 video listo" : `${r.videos} videos listos`}</span>
                   </div>
                   <p className={estado === "CON_ERROR" ? "fo-alert-warning px-2 text-sm" : "text-sm"}>{textoDeEntrega(estado, r, r.entrega?.envioAutomatico ?? ajustes.envioAutomatico, ahora)}</p>
+                  <EnvioYCargos entregaId={r.entrega?.id ?? null} envio={r.envio} cargos={r.cargosPendientes} puedeGestionar={puedeGrabar} />
                   {puedeGrabar && !r.cancelado ? (
                     <AccionesEntrega
                       pedidoId={r.pedidoId}

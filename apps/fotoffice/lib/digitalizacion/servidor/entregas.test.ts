@@ -11,6 +11,12 @@ const db = vi.hoisted(() => ({
 vi.mock("@repo/db", () => ({ prisma: db }));
 const almacen = vi.hoisted(() => ({ borrarVideoFinal: vi.fn() }));
 vi.mock("./almacen", () => almacen);
+const cargos = vi.hoisted(() => ({
+  aplicarCargosPagados: vi.fn(async () => ({ revisados: 0, aplicados: 0, anulados: 0, fallidos: 0 })),
+  anularCargosSinSentido: vi.fn(async () => 0),
+  cargosPendientes: vi.fn(async () => new Map()),
+}));
+vi.mock("./cargos", () => cargos);
 const saldo = vi.hoisted(() => ({ saldoDelPedido: vi.fn() }));
 vi.mock("@/lib/pedidos/candado-saldo", () => saldo);
 vi.mock("@/lib/pedidos/enlace", () => ({
@@ -313,5 +319,29 @@ describe("resumenDeEntregas", () => {
     expect(consulta.where).toEqual({ workspaceId: "ws1", proyecto: { workspaceId: "ws1", pedidoId: { in: ["p1"] } } });
     expect(consulta.take).toBeUndefined();
     expect(r).toEqual([expect.objectContaining({ pedidoId: "p1", preparacion: "LISTA", videos: 1, tieneEmail: true, cancelado: false, enviaSoloDesde: new Date("2026-10-21T00:00:00Z") })]);
+  });
+});
+
+describe("resumenDeEntregas: envío y cargos", () => {
+  it("trae el envío de los cassettes y los cargos sin pagar de cada entrega", async () => {
+    db.fotofficePedido.findMany.mockResolvedValue([{ id: "p1", number: "P-12", status: "CONFIRMADO", client: { firstName: "Ana", lastName: null, businessName: null, email: "ana@x.com" } }]);
+    db.digitalizacionGrabacion.findMany.mockResolvedValue([{ ...lista, proyecto: { pedidoId: "p1" } }]);
+    db.digitalizacionEntrega.findMany.mockResolvedValue([entrega({ envioEstado: "A_PAGAR", envioDireccion: "Av. Real 100", envioKm: 22.4, envioPrecioArs: "9000.00" })]);
+    const pendiente = { id: "c1", tipo: "ENVIO", grabacionId: null, montoMinor: 900000, cuotaId: "q1" };
+    cargos.cargosPendientes.mockResolvedValueOnce(new Map([["e1", [pendiente]]]));
+    const [r] = await resumenDeEntregas("ws1");
+    expect(r!.envio).toEqual({ estado: "A_PAGAR", direccion: "Av. Real 100", km: 22.4, precioMinor: 900000 });
+    expect(r!.cargosPendientes).toEqual([pendiente]);
+  });
+});
+
+describe("conciliación de cargos en los crons", () => {
+  it("las dos corridas aplican los cargos pagos y la diaria limpia los que perdieron sentido", async () => {
+    cargos.aplicarCargosPagados.mockResolvedValueOnce({ revisados: 2, aplicados: 1, anulados: 0, fallidos: 0 });
+    cargos.anularCargosSinSentido.mockResolvedValueOnce(3);
+    const r = await recordatoriosYVencimientos(deps());
+    expect(r).toMatchObject({ cargosAplicados: 1, cargosAnulados: 3 });
+    cargos.aplicarCargosPagados.mockResolvedValueOnce({ revisados: 1, aplicados: 1, anulados: 0, fallidos: 0 });
+    expect(await enviarEntregasAutomaticas(deps())).toMatchObject({ cargosAplicados: 1 });
   });
 });

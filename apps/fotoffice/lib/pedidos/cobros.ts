@@ -416,6 +416,7 @@ export async function registrarCobro(ctx: CtxPedidos, datos: DatosCobro, deps: D
   // Doble red: `notificarEvento` no lanza, y si alguna vez lo hiciera, el cobro ya está hecho.
   if (hecho.primero) await avisarSenaCobrada(workspaceId, v.pedidoId, hecho.consultaLeadId, hecho.cobroId);
   await cerrarEsperasPagas(workspaceId, v.pedidoId, hecho.cobroId, ahora);
+  await aplicarEfectosDePago(workspaceId, v.pedidoId, ahora);
   return { ok: true, cobroId: hecho.cobroId, pedidoId: v.pedidoId, reciboNumero: hecho.numero, creado: true, primero: hecho.primero, importe: v.importe };
 }
 
@@ -448,6 +449,21 @@ async function cerrarEsperasPagas(workspaceId: string, pedidoId: string, cobroId
     }
   } catch (e) {
     falla("cerrarEsperasPagas", e);
+  }
+}
+
+/**
+ * Los efectos de las cuotas que quedaron pagas en otros módulos: hoy, los cargos extra de
+ * Digitalización (+1 descarga, +30 días o envío confirmado). Después del commit y sin lanzar nunca:
+ * si falla, el cobro igual está hecho y los crons de Digitalización lo concilian. Se carga recién
+ * acá (import dinámico) para que los pedidos no arrastren el módulo entero.
+ */
+async function aplicarEfectosDePago(workspaceId: string, pedidoId: string, ahora: Date): Promise<void> {
+  try {
+    const { aplicarCargosPagados } = await import("@/lib/digitalizacion/servidor/cargos");
+    await aplicarCargosPagados({ workspaceId, pedidoId }, { ahora: () => ahora });
+  } catch (e) {
+    falla("aplicarEfectosDePago", e);
   }
 }
 
@@ -561,6 +577,7 @@ export async function registrarCobroDelSistema(datos: DatosCobroDelSistema, deps
 
   if (hecho.primero) await avisarSenaCobrada(workspaceId, pedidoId, hecho.consultaLeadId, hecho.cobroId);
   await cerrarEsperasPagas(workspaceId, pedidoId, hecho.cobroId, ahora);
+  await aplicarEfectosDePago(workspaceId, pedidoId, ahora);
   return { ok: true, cobroId: hecho.cobroId, pedidoId, reciboNumero: hecho.numero, creado: true, primero: hecho.primero };
 }
 
