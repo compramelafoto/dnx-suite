@@ -1,6 +1,8 @@
 import { PrismaClient } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
+import { digitalizacionWithheldArs, pendingFeeDebtByWorkspace } from "./compute";
+
 /** Los ingresos se calculan desde acá (decisión de Daniel, 18/10/2026). */
 export const REVENUE_SINCE = { year: 2026, month: 1 };
 const SINCE_DATE = new Date(Date.UTC(REVENUE_SINCE.year, REVENUE_SINCE.month - 1, 1, 3)); // 00:00 en Argentina
@@ -59,7 +61,10 @@ function fotofficeDb(): PrismaClient {
 
 const MP_METHOD = /^mercado_?pago$/i;
 
-/** Comisión de FOTOFFICE que efectivamente entró: cobros por Mercado Pago y comisión saldada a mano. */
+/**
+ * Comisión de FOTOFFICE que efectivamente entró: cobros por Mercado Pago (socios, cursos, reservas,
+ * tienda y pedidos de Digitalización) y comisión saldada a mano. El saldo pendiente se suma por negocio.
+ */
 export async function loadFotofficeRows() {
   const db = fotofficeDb();
   const [cuotas, cursos, reservas, tienda, saldadas] = await Promise.all([
@@ -95,8 +100,42 @@ export async function loadFotofficeRows() {
     ...tienda.map((s) => ({ date: s.paidAt ?? s.createdAt, gross: n(s.totalArs), fee: n(s.feeArs) })),
   ];
   const settledManually = saldadas.map((s) => ({ date: s.createdAt, amount: Math.abs(n(s.amountArs)) }));
-  const debt = await db.workspaceFeeLedgerEntry.aggregate({ _sum: { amountArs: true } });
-  return { collected, settledManually, pendingFeeDebtArs: Math.max(0, n(debt._sum.amountArs)) };
+  const debt = await db.workspaceFeeLedgerEntry.groupBy({ by: ["workspaceId"], _sum: { amountArs: true } });
+  return {
+    collected: [...collected, ...(await loadDigitalizacionCollected(db))],
+    settledManually,
+    pendingFeeDebtArs: pendingFeeDebtByWorkspace(debt.map((d) => ({ workspaceId: d.workspaceId, amountArs: n(d._sum.amountArs) }))),
+  };
+}
+
+/**
+ * Comisión de plataforma cobrada por Mercado Pago en pedidos de Digitalización de otros negocios.
+ * Cada cobro con comisión tiene su marca (`DigitalizacionComision`); sólo cuentan los que apuntan a un
+ * RETENIDO (un 0 también: la retención fue sólo su comisión propia). Si la marca apunta a un REVERSADO,
+ * Mercado Pago devolvió el pago y no cuenta. Los DEVENGADO (cobros manuales) no entraron todavía:
+ * cuentan cuando se retienen en otro pago o se saldan a mano. Monto: ver `digitalizacionWithheldArs`.
+ */
+async function loadDigitalizacionCollected(db: PrismaClient) {
+  const marcas = await db.digitalizacionComision.findMany({ select: { workspaceId: true, cobroId: true, ledgerEntryId: true } });
+  if (marcas.length === 0) return [];
+  const [asientos, cobros] = await Promise.all([
+    db.workspaceFeeLedgerEntry.findMany({
+      where: { kind: "RETENIDO", id: { in: marcas.map((m) => m.ledgerEntryId) } },
+      select: { id: true, workspaceId: true, amountArs: true, note: true },
+    }),
+    db.fotofficeCobro.findMany({
+      where: { id: { in: marcas.map((m) => m.cobroId) }, paidAt: { gte: SINCE_DATE } },
+      select: { id: true, workspaceId: true, paidAt: true, amountArs: true },
+    }),
+  ]);
+  const asientoPorId = new Map(asientos.map((a) => [a.id, a]));
+  const cobroPorId = new Map(cobros.map((c) => [c.id, c]));
+  return marcas.flatMap((m) => {
+    const asiento = asientoPorId.get(m.ledgerEntryId);
+    const cobro = cobroPorId.get(m.cobroId);
+    if (!asiento || !cobro || asiento.workspaceId !== m.workspaceId || cobro.workspaceId !== m.workspaceId) return [];
+    return [{ date: cobro.paidAt, gross: n(cobro.amountArs), fee: digitalizacionWithheldArs({ amountArs: n(asiento.amountArs), note: asiento.note }) }];
+  });
 }
 
 /** Inscripciones pagas de FotoRank (misma base que FOTOFFICE). Centavos. */
