@@ -39,3 +39,16 @@ export function respuestaPlaylist(texto: string): Response {
 export function respuestaSinPlaylist(estado: number, texto: string): Response {
   return new Response(texto, { status: estado, headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "private, no-store" } });
 }
+
+/** Igual que el worker: con 3 intentos fallados el relleno no se reintenta más. */
+export const MAX_INTENTOS_HLS = 3;
+
+/**
+ * El relleno se dio por vencido: sin `hlsKey` y con `conversionError` = `HLS:<n>:<causa>`, n ≥ 3.
+ * `HLS:<n>:` sin causa es un intento todavía en curso.
+ */
+export function vistaPreviaAgotada(hlsKey: string | null, conversionError: string | null): boolean {
+  if (hlsKey || !conversionError) return false;
+  const m = /^HLS:(\d+):(.+)$/s.exec(conversionError);
+  return m !== null && Number(m[1]) >= MAX_INTENTOS_HLS && m[2]!.trim().length > 0;
+}

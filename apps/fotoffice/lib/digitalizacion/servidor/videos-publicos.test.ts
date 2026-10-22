@@ -31,7 +31,7 @@ const AHORA = new Date("2026-10-22T15:00:00Z");
 const entrega = (extra: Record<string, unknown> = {}) => ({
   id: "e1", pedidoId: "p1", videosVencenAt: new Date("2026-11-21T15:00:00Z"), cassettesVencenAt: new Date("2026-11-21T15:00:00Z"), videosBorradosAt: null, ...extra,
 });
-const video = { id: "g1", titulo: null, tipo: "VHS", cassetteNumero: 2, videoDuracionSeg: 3600, videoKey: "digitalizacion/ws1/g1/final.mp4", hlsKey: "digitalizacion/ws1/g1/hls", videoBorradoAt: null, descargasExtra: 1, _count: { descargas: 2 } };
+const video = { id: "g1", titulo: null, tipo: "VHS", cassetteNumero: 2, videoDuracionSeg: 3600, videoKey: "digitalizacion/ws1/g1/final.mp4", hlsKey: "digitalizacion/ws1/g1/hls", conversionError: null, videoBorradoAt: null, descargasExtra: 1, _count: { descargas: 2 } };
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -55,7 +55,7 @@ describe("abrirEntregaPublica", () => {
     const v = await abrirEntregaPublica("ws1", TOKEN, AHORA);
     expect(v).toMatchObject({ habilitados: true, pedidoNumero: "P-12", cliente: "Ana Gómez", borradosAt: null });
     expect(v!.organizacion.logoUrl).toBeNull();
-    expect(v!.videos).toEqual([{ id: "g1", titulo: "Cassette 2", duracionSeg: 3600, quedan: 2, total: 4, vistaPrevia: true }]);
+    expect(v!.videos).toEqual([{ id: "g1", titulo: "Cassette 2", duracionSeg: 3600, quedan: 2, total: 4, vistaPrevia: true, vistaPreviaAgotada: false }]);
     expect(almacen.urlDeVideo).not.toHaveBeenCalled();
   });
   it("sin versión HLS (o con una clave ajena): sin vista previa, y tampoco firma el MP4", async () => {
@@ -63,6 +63,11 @@ describe("abrirEntregaPublica", () => {
     const v = await abrirEntregaPublica("ws1", TOKEN, AHORA);
     expect(v!.videos.map((x) => x.vistaPrevia)).toEqual([false, false]);
     expect(almacen.urlDeVideo).not.toHaveBeenCalled();
+  });
+  it("relleno agotado (3 fallos): lo dice, para ofrecer la descarga", async () => {
+    db.digitalizacionGrabacion.findMany.mockResolvedValue([{ ...video, hlsKey: null, conversionError: "HLS:3:ffmpeg falló" }, { ...video, id: "g2", hlsKey: null, conversionError: "HLS:2:R2" }]);
+    const v = await abrirEntregaPublica("ws1", TOKEN, AHORA);
+    expect(v!.videos.map((x) => [x.vistaPrevia, x.vistaPreviaAgotada])).toEqual([[false, true], [false, false]]);
   });
   it("con saldo: no firma nada y da el enlace del pedido", async () => {
     saldo.saldoDelPedido.mockResolvedValue({ numero: "P-12", saldoMinor: 100000 });

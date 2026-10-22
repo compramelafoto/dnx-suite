@@ -9,6 +9,7 @@ import { hashDeToken, tokenConForma } from "@/lib/presupuestos/enlace";
 import { sitioDelWorkspace } from "@/lib/presupuestos/sitio";
 import { ID_VALIDO, esPrefijoHlsDe, prefijoDeGrabacion } from "../claves";
 import { descargasRestantes, segundosDeFirma, tituloDeVideo, videosVencidos } from "../entrega";
+import { vistaPreviaAgotada } from "../hls";
 import { nombreArchivoVideo, nombreCliente } from "../nombre-archivo";
 import { SEGUNDOS_HLS, urlDeVideo } from "./almacen";
 
@@ -40,6 +41,8 @@ export type VideoPublico = {
   total: number;
   /** Hay versión para mirar y los videos están habilitados (saldo 0, sin vencer ni cancelar). */
   vistaPrevia: boolean;
+  /** El worker no pudo armar la versión para mirar (3 intentos): se ofrece descargar. */
+  vistaPreviaAgotada: boolean;
 };
 
 export type VistaVideosPublica = {
@@ -71,7 +74,7 @@ async function videosListos(workspaceId: string, pedidoId: string, entregaId: st
     where: { workspaceId, estado: "COMPLETA", conversionEstado: "LISTA", proyecto: { pedidoId, workspaceId } },
     orderBy: [{ iniciadaAt: "asc" }],
     select: {
-      id: true, titulo: true, tipo: true, cassetteNumero: true, videoDuracionSeg: true, videoKey: true, hlsKey: true, videoBorradoAt: true, descargasExtra: true,
+      id: true, titulo: true, tipo: true, cassetteNumero: true, videoDuracionSeg: true, videoKey: true, hlsKey: true, conversionError: true, videoBorradoAt: true, descargasExtra: true,
       _count: { select: { descargas: { where: { entregaId } } } },
     },
   });
@@ -124,6 +127,7 @@ export async function abrirEntregaPublica(workspaceId: string, token: unknown, a
       quedan: cupo.quedan,
       total: cupo.total,
       vistaPrevia: habilitados && hlsOk,
+      vistaPreviaAgotada: !hlsOk && vistaPreviaAgotada(g.hlsKey, g.conversionError),
     };
   });
   return {
