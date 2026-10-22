@@ -28,6 +28,8 @@ vi.mock("@/lib/services/settingsService", () => ({ getAppConfig: m.config }));
 
 import type { CompradorActor } from "./identidad";
 import { buildBuyerSituation } from "./situacion";
+// La misma fecha que escribe el bot: armarla con otro formato fallaba los días de un dígito.
+import { fechaAR } from "./herramientas/lectura";
 
 const TOKEN = "a1".repeat(32);
 const DIA = 86_400_000;
@@ -58,7 +60,7 @@ describe("buildBuyerSituation", () => {
       "# Situación",
       "Página: álbum «Maratón Rosario»",
       "Nivel: visitante",
-      `Álbum #3 «Maratón Rosario» · disponible hasta el ${new Intl.DateTimeFormat("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "2-digit", month: "2-digit" }).format(ALBUM.expiresAt)} · 120 fotos · fotos ocultas: no · preventa: no`,
+      `Álbum #3 «Maratón Rosario» · disponible hasta el ${fechaAR(ALBUM.expiresAt).slice(0, 5)} · 120 fotos · fotos ocultas: no · preventa: no`,
       "Los enlaces de descarga duran 15 días.",
     ]);
     // La consulta del álbum no trae precios: salen de cotizar_fotos.
