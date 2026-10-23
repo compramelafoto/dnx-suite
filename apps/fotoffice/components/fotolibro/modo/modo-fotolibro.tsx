@@ -10,18 +10,19 @@ import {
   usosPorFoto,
   type EstadoFotolibro,
   type FotoDelLibro,
-  type LadoPliego,
+  type Lado,
   type TapaDelLibro,
 } from "@/lib/fotolibro/modo/estado";
 import { modelosParaLibro } from "@/lib/fotolibro/tapa/catalogo";
 import { bloquesDeTapa, tapaDelLibro } from "@/lib/fotolibro/tapa/bloques";
 import { TapaVista, type CaraTapa } from "./tapa-vista";
 import { PanelTapa } from "./panel-tapa";
-import { generarBloques, idDeBloque, reindexarHojas } from "@/lib/fotolibro/modo/bloques";
+import { cantidadDeDistribuciones, generarBloques, idDeBloque, reindexarHojas } from "@/lib/fotolibro/modo/bloques";
 import {
   agregarAPagina,
   agregarPliego,
   armarPliego,
+  cambiarModo,
   cambiarVariante,
   intercambiar,
   moverAPagina,
@@ -339,8 +340,12 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
         setSeleccionada(null);
         return;
       }
-      // Las teclas de los diseñadores de fotolibro: A/Q página izquierda, S/W página derecha.
-      const atajos: Record<string, [LadoPliego, number]> = { a: ["izq", 1], q: ["izq", -1], s: ["der", 1], w: ["der", -1] };
+      // Las teclas de los diseñadores de fotolibro. En un pliego entero A/S avanzan y Q/W vuelven;
+      // por páginas, A/Q son de la izquierda y S/W de la derecha.
+      const entero = ref.current.estado?.pliegos[pliego]?.modo === "pliego";
+      const atajos: Record<string, [Lado, number]> = entero
+        ? { a: ["todo", 1], s: ["todo", 1], q: ["todo", -1], w: ["todo", -1] }
+        : { a: ["izq", 1], q: ["izq", -1], s: ["der", 1], w: ["der", -1] };
       const atajo = atajos[tecla];
       if (atajo) {
         ev.preventDefault();
@@ -479,6 +484,7 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
               bloques={bloques}
               pliego={pliego}
               cantidad={cantidad}
+              modo={estado.pliegos[pliego]?.modo ?? "pliego"}
               seleccionada={seleccionada}
               recortando={recortando}
               onIrA={irA}
@@ -513,7 +519,7 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
                 type="button"
                 onClick={() => irA(i)}
                 title={`Pliego ${i + 1}`}
-                className={`h-2.5 rounded-full transition-all ${i === pliego ? "w-6 bg-[var(--fo-accent)]" : p.izq.fotos.length || p.der.fotos.length ? "w-2.5 bg-white/50" : "w-2.5 bg-white/15"}`}
+                className={`h-2.5 rounded-full transition-all ${i === pliego ? "w-6 bg-[var(--fo-accent)]" : p.todo.fotos.length || p.izq.fotos.length || p.der.fotos.length ? "w-2.5 bg-white/50" : "w-2.5 bg-white/15"}`}
               />
             ))}
           </div>
@@ -555,6 +561,11 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
             setSeleccionada(null);
           }}
           onVariante={(lado, paso) => aplicar((e) => cambiarVariante(e, pliego, lado, paso))}
+          distribuciones={cantidadDeDistribuciones(estado, cargado.canvas, pliego)}
+          onModo={(m) => {
+            aplicar((e) => cambiarModo(e, pliego, m));
+            setSeleccionada(null);
+          }}
           onSeparacion={(mm) => aplicar((e) => ({ ...e, separacionMm: mm }))}
           onMargen={(mm) => aplicar((e) => ({ ...e, margenMm: mm }))}
           onVaciar={() => aplicar((e) => vaciarPliego(e, pliego))}

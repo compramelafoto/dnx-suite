@@ -1,6 +1,7 @@
 import type { TemplateV2Block } from "@repo/template-editor-core";
 import { acomodar, type Caja } from "./maquetar";
-import type { EstadoFotolibro, FotoDelLibro, LadoPliego } from "./estado";
+import { ladosDe, type EstadoFotolibro, type FotoDelLibro, type Lado, type LadoPliego } from "./estado";
+import { cantidadDeDisenos, disenoDePliego, type Zonas } from "./disenos";
 import { estiloPorId } from "@/lib/fotolibro/estilos/catalogo";
 import { tipoDePliego, type EstiloFotolibro } from "@/lib/fotolibro/estilos/tipos";
 import { cajaDeFotos } from "@/lib/fotolibro/estilos/vista-previa";
@@ -39,7 +40,7 @@ export function cajaDePagina(lienzo: Lienzo, lado: LadoPliego, margenMm: number)
   return { x: x0 + m, y: m, w: Math.max(1, anchoPagina - 2 * m), h: Math.max(1, lienzo.height - 2 * m) };
 }
 
-export const idDeBloque = (pliego: number, lado: LadoPliego, fotoId: string) => `fl-${pliego}-${lado}-${fotoId}`;
+export const idDeBloque = (pliego: number, lado: Lado, fotoId: string) => `fl-${pliego}-${lado}-${fotoId}`;
 
 export function esBloqueAutomatico(b: Pick<TemplateV2Block, "configJson">): boolean {
   return b.configJson?.fotolibroAuto === true;
@@ -50,7 +51,7 @@ export function marcosDePagina(
   estado: EstadoFotolibro,
   lienzo: Lienzo,
   pliego: number,
-  lado: LadoPliego,
+  lado: Lado,
   fotosPorId: Map<string, FotoDelLibro>,
 ): Caja[] {
   const pagina = estado.pliegos[pliego]?.[lado];
@@ -63,13 +64,39 @@ export function marcosDePagina(
   const sep = pxDeMm(estado.separacionMm, dpi);
   const estilo = estiloPorId(estado.estilo?.id);
   // Con estilo, las fotos respetan la zona que deja libre (títulos y adornos).
-  const caja = estilo
-    ? (() => {
-        const c = cajaDeFotos(estilo, tipoDePliego(pliego, estado.pliegos.length), lado, medidasDelLienzo(lienzo), estado.margenMm);
-        return { x: pxDeMm(c.x, dpi), y: pxDeMm(c.y, dpi), w: pxDeMm(c.w, dpi), h: pxDeMm(c.h, dpi) };
-      })()
-    : cajaDePagina(lienzo, lado, estado.margenMm);
-  return acomodar(aspectos, caja, sep, pagina.variante);
+  const cajaDe = (l: LadoPliego): Caja =>
+    estilo
+      ? (() => {
+          const c = cajaDeFotos(estilo, tipoDePliego(pliego, estado.pliegos.length), l, medidasDelLienzo(lienzo), estado.margenMm);
+          return { x: pxDeMm(c.x, dpi), y: pxDeMm(c.y, dpi), w: pxDeMm(c.w, dpi), h: pxDeMm(c.h, dpi) };
+        })()
+      : cajaDePagina(lienzo, l, estado.margenMm);
+  if (lado === "todo") return disenoDePliego(aspectos, zonasDelPliego(estado, lienzo, pliego), sep, pagina.variante);
+  return acomodar(aspectos, cajaDe(lado), sep, pagina.variante);
+}
+
+/** El pliego entero y la parte útil de cada página (con margen y lo que deja libre el estilo). */
+function zonasDelPliego(estado: EstadoFotolibro, lienzo: Lienzo, pliego: number): Zonas {
+  const dpi = lienzo.dpi ?? 300;
+  const estilo = estiloPorId(estado.estilo?.id);
+  const cajaDe = (l: LadoPliego): Caja => {
+    if (!estilo) return cajaDePagina(lienzo, l, estado.margenMm);
+    const c = cajaDeFotos(estilo, tipoDePliego(pliego, estado.pliegos.length), l, medidasDelLienzo(lienzo), estado.margenMm);
+    return { x: pxDeMm(c.x, dpi), y: pxDeMm(c.y, dpi), w: pxDeMm(c.w, dpi), h: pxDeMm(c.h, dpi) };
+  };
+  return { lienzo: { x: 0, y: 0, w: lienzo.width, h: lienzo.height }, izq: cajaDe("izq"), der: cajaDe("der") };
+}
+
+/** Cuántas distribuciones hay para el pliego entero con sus fotos (para mostrar "7 de 64"). */
+export function cantidadDeDistribuciones(estado: EstadoFotolibro, lienzo: Lienzo, pliego: number): number {
+  const p = estado.pliegos[pliego];
+  if (!p || p.modo !== "pliego") return 0;
+  const fotos = new Map(estado.fotos.map((f) => [f.id, f]));
+  const aspectos = p.todo.fotos.map((id) => {
+    const f = fotos.get(id);
+    return f ? f.w / f.h : 1;
+  });
+  return cantidadDeDisenos(aspectos, zonasDelPliego(estado, lienzo, pliego), pxDeMm(estado.separacionMm, lienzo.dpi ?? 300));
 }
 
 export function generarBloques(
@@ -106,7 +133,7 @@ export function generarBloques(
   if (estilo) resultado.push(...textosDelEstilo(estado, estilo, lienzo));
 
   estado.pliegos.forEach((pliego, i) => {
-    for (const lado of ["izq", "der"] as const) {
+    for (const lado of ladosDe(pliego)) {
       const marcos = marcosDePagina(estado, lienzo, i, lado, fotosPorId);
       pliego[lado].fotos.forEach((fotoId, k) => {
         const foto = fotosPorId.get(fotoId);

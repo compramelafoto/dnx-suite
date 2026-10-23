@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ImageCropOverlay, TemplateCanvasRenderer } from "@repo/template-editor-ui";
 import type { PhotoCrop, TemplateV2Block, TemplateV2Canvas } from "@repo/template-editor-core";
-import type { LadoPliego } from "@/lib/fotolibro/modo/estado";
+import type { Lado, ModoPliego } from "@/lib/fotolibro/modo/estado";
 import type { Ubicacion } from "@/lib/fotolibro/modo/operaciones";
 import { esBloqueAutomatico } from "@/lib/fotolibro/modo/bloques";
 import { ARRASTRE_FOTOS } from "./tira-fotos";
@@ -16,14 +16,15 @@ type Props = {
   bloques: TemplateV2Block[];
   pliego: number;
   cantidad: number;
+  modo: ModoPliego;
   seleccionada: Ubicacion | null;
   recortando: string | null;
   onIrA: (pliego: number) => void;
   onSeleccionar: (u: Ubicacion | null) => void;
-  onSoltarFotos: (lado: LadoPliego, ids: string[]) => void;
+  onSoltarFotos: (lado: Lado, ids: string[]) => void;
   onSoltarSobreFoto: (destino: Ubicacion, ids: string[]) => void;
   onIntercambiar: (a: Ubicacion, b: Ubicacion) => void;
-  onMover: (desde: Ubicacion, lado: LadoPliego) => void;
+  onMover: (desde: Ubicacion, lado: Lado) => void;
   onEmpezarRecorte: (blockId: string) => void;
   onRecorte: (blockId: string, crop: PhotoCrop) => void;
   onTerminarRecorte: () => void;
@@ -31,9 +32,9 @@ type Props = {
 
 const ubicacionDe = (b: TemplateV2Block): Ubicacion | null => {
   const fotoId = typeof b.configJson.fotoId === "string" ? b.configJson.fotoId : null;
-  const m = /^fl-\d+-(izq|der)-/.exec(b.id);
+  const m = /^fl-\d+-(izq|der|todo)-/.exec(b.id);
   if (!fotoId || !m) return null;
-  return { pliego: b.pageIndex ?? 0, lado: m[1] as LadoPliego, fotoId };
+  return { pliego: b.pageIndex ?? 0, lado: m[1] as Lado, fotoId };
 };
 
 function leerJson<T>(dt: DataTransfer, tipo: string): T | null {
@@ -44,6 +45,23 @@ function leerJson<T>(dt: DataTransfer, tipo: string): T | null {
     return null;
   }
 }
+
+/**
+ * Al cambiar de distribución, cada foto viaja de su lugar viejo al nuevo en vez de saltar: el
+ * bloque conserva su id entre variantes, así que alcanza con animar posición y tamaño (y el
+ * recorte de la imagen adentro). Mientras se encuadra no se anima: el arrastre tiene que seguir
+ * al mouse sin demora.
+ */
+const ANIMACION = `
+.fl-animado [data-block-type="IMAGE"],
+.fl-animado [data-block-type="IMAGE"] img,
+.fl-animado-marco {
+  transition: left 480ms cubic-bezier(.22,.9,.24,1), top 480ms cubic-bezier(.22,.9,.24,1),
+    width 480ms cubic-bezier(.22,.9,.24,1), height 480ms cubic-bezier(.22,.9,.24,1) !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .fl-animado [data-block-type="IMAGE"], .fl-animado [data-block-type="IMAGE"] img, .fl-animado-marco { transition: none !important; }
+}`;
 
 /** Un pliego chico (el anterior o el siguiente), para ver dónde se está y saltar con un clic. */
 function Miniatura({ canvas, bloques, pliego, alto, onClick, etiqueta }: { canvas: TemplateV2Canvas; bloques: TemplateV2Block[]; pliego: number; alto: number; onClick: () => void; etiqueta: string }) {
@@ -66,7 +84,7 @@ function Miniatura({ canvas, bloques, pliego, alto, onClick, etiqueta }: { canva
  * la elige, arrastrarla sobre otra las intercambia, doble clic entra a encuadrarla.
  */
 export function PliegoVista(props: Props) {
-  const { canvas, bloques, pliego, cantidad, seleccionada, recortando } = props;
+  const { canvas, bloques, pliego, cantidad, seleccionada, recortando, modo } = props;
   const contenedorRef = useRef<HTMLDivElement>(null);
   const [lugar, setLugar] = useState({ w: 800, h: 500 });
   const [sobre, setSobre] = useState<string | null>(null);
@@ -89,10 +107,18 @@ export function PliegoVista(props: Props) {
   const delPliego = bloques.filter((b) => (b.pageIndex ?? 0) === pliego);
   const fotos = delPliego.filter((b) => b.type === "IMAGE" && esBloqueAutomatico(b));
   const recorte = recortando ? delPliego.find((b) => b.id === recortando) ?? null : null;
-  const vacia = (lado: LadoPliego) => !fotos.some((b) => ubicacionDe(b)?.lado === lado);
+  const vacia = (lado: Lado) => !fotos.some((b) => ubicacionDe(b)?.lado === lado);
+  // En un pliego entero se suelta en cualquier lado; por páginas, en cada página.
+  const zonas: { lado: Lado; left: number; width: number }[] =
+    modo === "pliego"
+      ? [{ lado: "todo", left: 0, width: canvas.width }]
+      : [
+          { lado: "izq", left: 0, width: canvas.width / 2 },
+          { lado: "der", left: canvas.width / 2, width: canvas.width / 2 },
+        ];
   const borde = 2 / s;
 
-  function soltarEnPagina(e: React.DragEvent, lado: LadoPliego) {
+  function soltarEnPagina(e: React.DragEvent, lado: Lado) {
     e.preventDefault();
     setSobre(null);
     const desde = leerJson<Ubicacion>(e.dataTransfer, ARRASTRE_COLOCADA);
@@ -103,6 +129,7 @@ export function PliegoVista(props: Props) {
 
   return (
     <div ref={contenedorRef} className="flex h-full min-h-0 w-full items-center justify-center gap-6 px-4">
+      <style>{ANIMACION}</style>
       {pliego > 0 ? (
         <Miniatura canvas={canvas} bloques={bloques} pliego={pliego - 1} alto={altoMini} etiqueta={`Pliego ${pliego}`} onClick={() => props.onIrA(pliego - 1)} />
       ) : (
@@ -117,15 +144,15 @@ export function PliegoVista(props: Props) {
             if (e.target === e.currentTarget) props.onSeleccionar(null);
           }}
         >
-          <TemplateCanvasRenderer canvas={canvas} blocks={bloques} readOnly pageIndex={pliego} />
+          <TemplateCanvasRenderer canvas={canvas} blocks={bloques} readOnly pageIndex={pliego} className={recortando ? undefined : "fl-animado"} />
 
-          {(["izq", "der"] as const).map((lado) => (
+          {zonas.map(({ lado, left, width }) => (
             <div
               key={lado}
               className="absolute top-0"
               style={{
-                left: lado === "izq" ? 0 : canvas.width / 2,
-                width: canvas.width / 2,
+                left,
+                width,
                 height: canvas.height,
                 background: sobre === lado ? "rgba(250,204,21,0.18)" : "transparent",
                 outline: sobre === lado ? `${borde * 1.5}px dashed #eab308` : "none",
@@ -185,7 +212,7 @@ export function PliegoVista(props: Props) {
                   props.onEmpezarRecorte(b.id);
                 }}
                 title="Clic: elegir · Arrastrar sobre otra: intercambiar · Doble clic: encuadrar"
-                className="absolute cursor-grab"
+                className={`absolute cursor-grab ${recortando ? "" : "fl-animado-marco"}`}
                 style={{
                   left: b.layout.x,
                   top: b.layout.y,

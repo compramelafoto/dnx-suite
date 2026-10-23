@@ -1,7 +1,7 @@
 "use client";
 
 import type { PhotoCrop, TemplateV2Block } from "@repo/template-editor-core";
-import type { EstadoFotolibro, FotoDelLibro, LadoPliego } from "@/lib/fotolibro/modo/estado";
+import type { EstadoFotolibro, FotoDelLibro, Lado, ModoPliego } from "@/lib/fotolibro/modo/estado";
 import type { Ubicacion } from "@/lib/fotolibro/modo/operaciones";
 
 type Props = {
@@ -13,7 +13,10 @@ type Props = {
   bloque: TemplateV2Block | null;
   onCrop: (crop: PhotoCrop | null) => void;
   onQuitar: () => void;
-  onVariante: (lado: LadoPliego, paso: number) => void;
+  onVariante: (lado: Lado, paso: number) => void;
+  /** Cuántas distribuciones tiene el pliego entero con sus fotos. */
+  distribuciones: number;
+  onModo: (modo: ModoPliego) => void;
   onSeparacion: (mm: number) => void;
   onMargen: (mm: number) => void;
   onVaciar: () => void;
@@ -109,10 +112,10 @@ export function PanelLateral(props: Props) {
         <section className="text-xs leading-relaxed text-white/60">
           <Titulo>Cómo se arma</Titulo>
           <ul className="list-disc space-y-1 pl-4">
-            <li>Arrastrá fotos de la tira a una página: se acomodan solas.</li>
-            <li>Elegí varias y apretá <b>Enter</b>: se reparten en las dos páginas.</li>
+            <li>Arrastrá fotos de la tira al pliego: se acomodan solas.</li>
+            <li>Elegí varias y apretá <b>Enter</b>: arman el pliego.</li>
             <li>
-              <b>A</b>/<b>Q</b> cambian el acomodo de la página izquierda; <b>S</b>/<b>W</b>, el de la derecha.
+              <b>A</b>/<b>Q</b> recorren las distribuciones del pliego (por páginas: <b>A</b>/<b>Q</b> la izquierda, <b>S</b>/<b>W</b> la derecha).
             </li>
             <li>Arrastrá una foto sobre otra para intercambiarlas.</li>
             <li>Doble clic en una foto para encuadrarla.</li>
@@ -161,22 +164,66 @@ export function PanelLateral(props: Props) {
       {p ? (
         <section>
           <Titulo>Pliego {pliego + 1}</Titulo>
-          {(["izq", "der"] as const).map((lado) => (
-            <div key={lado} className="mb-2 flex items-center justify-between text-xs text-white/80">
+          <div className="mb-3 grid grid-cols-2 rounded-md bg-black/30 p-0.5 text-xs" role="radiogroup" aria-label="Cómo se arma el pliego">
+            {(
+              [
+                ["pliego", "Pliego entero"],
+                ["paginas", "Por páginas"],
+              ] as const
+            ).map(([m, etiqueta]) => (
+              <button
+                key={m}
+                type="button"
+                role="radio"
+                aria-checked={p.modo === m}
+                onClick={() => props.onModo(m)}
+                className={`rounded px-2 py-1 transition-colors ${p.modo === m ? "bg-[var(--fo-accent)] text-white shadow" : "text-white/70 hover:text-white"}`}
+              >
+                {etiqueta}
+              </button>
+            ))}
+          </div>
+          {p.modo === "pliego" ? (
+            <div className="mb-2 flex items-center justify-between text-xs text-white/80">
               <span>
-                {lado === "izq" ? "Izquierda" : "Derecha"} · {p[lado].fotos.length} {p[lado].fotos.length === 1 ? "foto" : "fotos"}
+                {p.todo.fotos.length ? (
+                  <>
+                    Distribución{" "}
+                    <span className="tabular-nums">
+                      {(((p.todo.variante % props.distribuciones) + props.distribuciones) % props.distribuciones) + 1} de {props.distribuciones}
+                    </span>
+                  </>
+                ) : (
+                  "Sin fotos"
+                )}
               </span>
               <span className="flex gap-1">
-                <button type="button" className={boton} disabled={p[lado].fotos.length < 2} title={lado === "izq" ? "Q" : "W"} onClick={() => props.onVariante(lado, -1)}>
+                <button type="button" className={boton} disabled={props.distribuciones < 2} title="Q" onClick={() => props.onVariante("todo", -1)}>
                   ◀
                 </button>
-                <button type="button" className={boton} disabled={p[lado].fotos.length < 2} title={lado === "izq" ? "A" : "S"} onClick={() => props.onVariante(lado, 1)}>
+                <button type="button" className={boton} disabled={props.distribuciones < 2} title="A" onClick={() => props.onVariante("todo", 1)}>
                   ▶
                 </button>
               </span>
             </div>
-          ))}
-          <button type="button" className={boton} onClick={props.onVaciar} disabled={!p.izq.fotos.length && !p.der.fotos.length}>
+          ) : (
+            (["izq", "der"] as const).map((lado) => (
+              <div key={lado} className="mb-2 flex items-center justify-between text-xs text-white/80">
+                <span>
+                  {lado === "izq" ? "Izquierda" : "Derecha"} · {p[lado].fotos.length} {p[lado].fotos.length === 1 ? "foto" : "fotos"}
+                </span>
+                <span className="flex gap-1">
+                  <button type="button" className={boton} disabled={p[lado].fotos.length < 2} title={lado === "izq" ? "Q" : "W"} onClick={() => props.onVariante(lado, -1)}>
+                    ◀
+                  </button>
+                  <button type="button" className={boton} disabled={p[lado].fotos.length < 2} title={lado === "izq" ? "A" : "S"} onClick={() => props.onVariante(lado, 1)}>
+                    ▶
+                  </button>
+                </span>
+              </div>
+            ))
+          )}
+          <button type="button" className={boton} onClick={props.onVaciar} disabled={!p.todo.fotos.length && !p.izq.fotos.length && !p.der.fotos.length}>
             Vaciar pliego
           </button>
         </section>
