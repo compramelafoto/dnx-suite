@@ -9,6 +9,7 @@ import {
   renderedLightColor,
 } from "./metering";
 import { PRESETS, applyPreset, initialStudioState, makeLight, polarToXZ } from "./presets";
+import { boomOffset } from "./boom";
 import { computeCavityAO } from "./cavity-ao";
 import { FIGURES } from "./figures";
 import { POSES, armDirections } from "./poses";
@@ -62,6 +63,7 @@ test("cada esquema se reconoce como su patrón", () => {
     rembrandt: "rembrandt",
     butterfly: "butterfly",
     split: "split",
+    cenital: "top",
   };
   for (const [id, pattern] of Object.entries(expected)) {
     const s = applyPreset(PRESETS.find((p) => p.id === id)!, initialStudioState());
@@ -180,4 +182,15 @@ test("oclusión de cavidades: un hueco se oscurece y una superficie plana no", (
   const flat = ao[0];
   assert.ok(flat > 0.97, `plano ${flat}`);
   assert.ok(center < 0.6, `pozo ${center}`);
+});
+
+test("luz cenital: cuelga de una jirafa con el pie fuera del sujeto", () => {
+  const s = applyPreset(PRESETS.find((p) => p.id === "cenital")!, initialStudioState());
+  const top = s.lights[0];
+  const boom = boomOffset(top);
+  assert.ok(boom, "la cenital usa jirafa");
+  // El pie queda a más de un metro del eje del sujeto.
+  assert.ok(Math.hypot(top.x + boom.x, top.z + boom.z) > 1);
+  // Una luz lateral común no usa jirafa.
+  assert.equal(boomOffset({ ...top, x: 1.5, z: 0.5, y: 2 }), null);
 });

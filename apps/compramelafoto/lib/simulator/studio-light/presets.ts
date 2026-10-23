@@ -208,6 +208,18 @@ export const PRESETS: StudioPreset[] = [
     ],
   },
   {
+    id: "cenital",
+    name: "Cenital",
+    summary: "Luz justo encima de la cabeza: ojos en sombra y pómulos marcados.",
+    lesson:
+      "Es la luz de escenario y del cine negro. Cuelga de una jirafa para que el pie no entre en cuadro. Sumá un reflector abajo si querés recuperar la mirada.",
+    backdrop: "black",
+    lights: [
+      { modifier: "beauty-dish", az: 0, dist: 0.3, height: 2.75, ev: 0, name: "Cenital" },
+      { modifier: "grid", az: 180, dist: 1.4, height: 1.2, aim: "background", ev: -1.3, name: "Fondo" },
+    ],
+  },
+  {
     id: "ring",
     name: "Ring light",
     summary: "Luz en el eje del objetivo: plana, sin sombras y con aro en los ojos.",
