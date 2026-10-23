@@ -36,8 +36,6 @@ export interface CameraDerivedValues {
   previewExposureMultiplier: number;
   /** Multiplicador de la foto capturada (sin compensación en M). */
   photoExposureMultiplier: number;
-  /** Multiplicador por fotograma (sin tiempo de obturación) para acumulación. */
-  instantPhotoExposureMultiplier: number;
   /** EV medido vs escena (positivo = sobreexpuesto). */
   measuredEv: number;
   /** Posición de la aguja en escala -3…+3 (resta compensación). */

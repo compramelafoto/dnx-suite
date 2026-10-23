@@ -149,6 +149,10 @@ export default function SimulatorHelpModal({ open, onClose }: SimulatorHelpModal
             </li>
           ))}
         </ul>
+
+        <p className="cod-help-modal__intro cod-help-modal__credits">
+          Contenidos pedagógicos basados en los apuntes de la profesora Débora Priasco.
+        </p>
       </div>
     </div>
   );

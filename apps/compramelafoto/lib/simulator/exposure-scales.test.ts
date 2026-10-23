@@ -84,8 +84,9 @@ test("cada objetivo tiene distancia mínima de enfoque y el macro es el más cer
 test("en prioridad de tiempo (S) el diafragma automático no sale del objetivo", () => {
   const range = { maxOpen: 4.5, minAperture: 32 };
   // Escena oscura: la cámara querría abrir a f/1.4, pero el zoom sólo llega a f/4.5.
-  const dark = resolveEffectiveSettings({ ...REFERENCE_CAMERA, mode: "S", apertureRange: range }, -4);
+  const light = (ev: number) => ({ brightnessEv100: ev, meteredEv100: ev, eyeEv100: ev });
+  const dark = resolveEffectiveSettings({ ...REFERENCE_CAMERA, mode: "S", apertureRange: range }, light(3));
   assert.equal(dark.aperture, 4.5);
-  const bright = resolveEffectiveSettings({ ...REFERENCE_CAMERA, mode: "S", apertureRange: range }, 8);
+  const bright = resolveEffectiveSettings({ ...REFERENCE_CAMERA, mode: "S", apertureRange: range }, light(20));
   assert.equal(bright.aperture, 32);
 });

@@ -53,7 +53,7 @@ export default function CameraVisualEffect() {
           exposureGain,
           toneMappingExposure: exposure,
           photoMultiplier: simulatorRuntime.derived?.photoExposureMultiplier,
-          sceneLuminanceEv: simulatorRuntime.sceneLuminanceEv,
+          sceneLight: simulatorRuntime.sceneLight,
         });
       }
     }
