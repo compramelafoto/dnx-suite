@@ -404,6 +404,12 @@
   color: color-mix(in srgb, var(--cod-text) 85%, var(--cod-text-muted));
 }
 
+.cod-hero__note {
+  margin: 1.25rem auto 0;
+  font-size: 0.875rem;
+  color: var(--cod-text-muted);
+}
+
 .cod-hero__actions {
   display: flex;
   flex-direction: column;

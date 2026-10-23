@@ -30,6 +30,10 @@ export default function SimulatorHero() {
             Ver módulos
           </a>
         </div>
+
+        <p className="cod-hero__note">
+          Gratis. Para entrar creá tu cuenta de CompraMeLaFoto (o usá la que ya tenés).
+        </p>
       </div>
     </section>
   );

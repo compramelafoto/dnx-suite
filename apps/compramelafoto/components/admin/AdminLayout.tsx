@@ -51,6 +51,7 @@ const menuGroups: MenuGroup[] = [
         label: "FotoOffice interesados",
         path: "/admin/fotooffice-interesados",
       },
+      { id: "camofduty", label: "Cam Of Duty", path: "/admin/camofduty" },
       {
         id: "pagos-mp-anomalias",
         label: "Pagos MP / anomalías",
@@ -233,6 +234,7 @@ function getActiveMenuId(
   if (pathname?.startsWith("/admin/laboratorios")) return "laboratorios";
   if (pathname?.startsWith("/admin/clientes")) return "clientes";
   if (pathname?.startsWith("/admin/fotooffice-interesados")) return "fotooffice-interesados";
+  if (pathname?.startsWith("/admin/camofduty")) return "camofduty";
   if (pathname === "/dashboard/designs" || pathname?.startsWith("/dashboard/designs/")) return "plantillas-v2-hub";
   if (pathname?.startsWith("/admin/template-v2/plantillas")) return "template-v2-plantillas";
   if (pathname?.startsWith("/admin/template-v2")) return "template-v2-revision";
