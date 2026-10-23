@@ -9,7 +9,7 @@ import {
   resolveStreetCollision,
   streetGroundHeight,
 } from "./street-layout";
-import { pathLength, planStreetPeople, samplePath } from "./street-people";
+import { closestDistanceOnPath, pathLength, planStreetPeople, samplePath } from "./street-people";
 
 const layout = buildStreetLayout();
 
@@ -120,4 +120,11 @@ test("los peatones cruzan la calle por la senda o lejos de la esquina, nunca por
       }
     }
   }
+});
+
+test("después de posar, la persona retoma el circuito desde el punto más cercano", () => {
+  const path = layout.walkPaths[0].points;
+  const at = samplePath(path, 37);
+  const back = closestDistanceOnPath(path, at.x + 0.4, at.z);
+  assert.ok(Math.abs(back - 37) < 0.01, `${back}`);
 });

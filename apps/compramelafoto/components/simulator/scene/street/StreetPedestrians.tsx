@@ -8,12 +8,15 @@ import { figureById, figureUrl, type FigureSpec } from "@/lib/simulator/studio-l
 import { streetGroundHeight, type StreetLayout } from "@/lib/simulator/street/street-layout";
 import { streetRuntime } from "@/lib/simulator/street/street-runtime";
 import {
+  closestDistanceOnPath,
   isWoman,
   planStreetPeople,
   samplePath,
   type StreetStander,
   type StreetWalker,
 } from "@/lib/simulator/street/street-people";
+import { bodyHeading, GAZE_LIMIT_PITCH, GAZE_LIMIT_YAW } from "@/lib/simulator/street/model-direction";
+import { modelStore } from "@/lib/simulator/street/model-store";
 import { useFrame, useLoader } from "@react-three/fiber";
 import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
@@ -29,6 +32,45 @@ class EmptyTextureLoader extends THREE.Loader<THREE.Texture> {
 
 /** Altura del pecho para el autofoco (m). */
 const CHEST_Y = 1.3;
+/** Se le puede hablar a quien está a menos de esta distancia y cerca del centro del cuadro. */
+const TALK_DISTANCE = 9;
+const TALK_ANGLE = (10 * Math.PI) / 180;
+/** Más cerca que esto la persona no se acerca (m). */
+const MODEL_MIN_DISTANCE = 1.2;
+/** Acciones en las que la cabeza va con la animación (no mira a la cámara). */
+const FREE_HEAD = new Set(["idle_look_around_01", "cell_phone_textmessage"]);
+
+/** Clips que se piden recién cuando un modelo los necesita. */
+const clipCache = new Map<string, Promise<THREE.AnimationClip>>();
+function loadClip(url: string): Promise<THREE.AnimationClip> {
+  let hit = clipCache.get(url);
+  if (!hit) {
+    hit = fetch(url)
+      .then((r) => r.json() as Promise<CompactClip>)
+      .then(decodeClip);
+    clipCache.set(url, hit);
+  }
+  return hit;
+}
+
+const _fwd = new THREE.Vector3();
+const _to = new THREE.Vector3();
+const _q = new THREE.Quaternion();
+const _qParent = new THREE.Quaternion();
+const _qBone = new THREE.Quaternion();
+const _qBody = new THREE.Quaternion();
+const _up = new THREE.Vector3(0, 1, 0);
+const _side = new THREE.Vector3(1, 0, 0);
+const _headPos = new THREE.Vector3();
+
+/** Gira un hueso en el mundo (después de la animación) conservando su jerarquía. */
+function rotateBoneWorld(bone: THREE.Object3D, delta: THREE.Quaternion) {
+  bone.getWorldQuaternion(_qBone);
+  bone.parent?.getWorldQuaternion(_qParent);
+  _qBone.premultiply(delta);
+  bone.quaternion.copy(_qParent.invert().multiply(_qBone));
+  bone.updateMatrixWorld(true);
+}
 
 function clipUrl(figure: string, name: string): string {
   return `${ANIMATION_DIR}/${isWoman(figure) ? "f" : "m"}_${name}.json`;
@@ -82,8 +124,19 @@ function dressAvatar(model: THREE.Object3D, figure: FigureSpec, cache: Map<strin
 
 interface Person {
   id: string;
+  name: string;
+  figure: string;
   root: THREE.Group;
+  model: THREE.Object3D;
   mixer: THREE.AnimationMixer;
+  /** Animación de base (caminar o la acción de quien está quieto). */
+  base: THREE.AnimationAction;
+  /** Animación que está sonando ahora. */
+  current: THREE.AnimationAction;
+  /** Acción pedida como modelo (null = no está posando). */
+  posing: string | null;
+  /** Traslado pedido como modelo ("acercate"). */
+  move: { from: THREE.Vector3; to: THREE.Vector3; t: number; seconds: number } | null;
   walker?: StreetWalker;
   /** Metros por segundo que corresponden a la zancada del clip. */
   speed: number;
@@ -129,7 +182,7 @@ function makePerson(
   figure: FigureSpec,
   clip: THREE.AnimationClip,
   cache: Map<string, THREE.Material>,
-): { root: THREE.Group; mixer: THREE.AnimationMixer; model: THREE.Object3D } {
+): { root: THREE.Group; mixer: THREE.AnimationMixer; model: THREE.Object3D; action: THREE.AnimationAction } {
   const model = cloneSkinned(source);
   // El FBX de Rocketbox trae una luz ambiente propia: con muchas personas iluminaba toda la calle.
   const strayLights: THREE.Object3D[] = [];
@@ -151,7 +204,38 @@ function makePerson(
   const action = mixer.clipAction(clip);
   action.time = Math.random() * clip.duration;
   action.play();
-  return { root, mixer, model };
+  return { root, mixer, model, action };
+}
+
+/**
+ * Orienta cuello y cabeza hacia la cámara (más el desvío pedido), después de
+ * la animación. El cuello hace el 40 % del giro y la cabeza el resto.
+ */
+function aimHead(p: Person, camera: THREE.Camera, gazeYawDeg: number, gazePitchDeg: number) {
+  const head = p.model.getObjectByName("Bip01_Head");
+  const neck = p.model.getObjectByName("Bip01_Neck");
+  if (!head || !neck) return;
+  p.root.updateMatrixWorld(true);
+  head.getWorldPosition(_headPos);
+  const toCamera = Math.atan2(camera.position.x - _headPos.x, camera.position.z - _headPos.z);
+  const look = toCamera - (gazeYawDeg * Math.PI) / 180;
+  const limitYaw = (GAZE_LIMIT_YAW * Math.PI) / 180;
+  const limitPitch = (GAZE_LIMIT_PITCH * Math.PI) / 180;
+  const yaw = THREE.MathUtils.clamp(Math.atan2(Math.sin(look - p.heading), Math.cos(look - p.heading)), -limitYaw, limitYaw);
+  const horizontal = Math.hypot(camera.position.x - _headPos.x, camera.position.z - _headPos.z);
+  const pitch = THREE.MathUtils.clamp(
+    Math.atan2(camera.position.y - _headPos.y, horizontal) + (gazePitchDeg * Math.PI) / 180,
+    -limitPitch,
+    limitPitch,
+  );
+  // Giro en el marco del cuerpo: yaw alrededor de la vertical, pitch alrededor del eje lateral.
+  _qBody.setFromAxisAngle(_up, p.heading);
+  for (const [bone, share] of [[neck, 0.4], [head, 0.6]] as const) {
+    _q.setFromAxisAngle(_up, yaw * share).multiply(new THREE.Quaternion().setFromAxisAngle(_side, -pitch * share));
+    // Del marco del cuerpo al mundo: q_mundo = cuerpo · q · cuerpo⁻¹.
+    const world = _qBody.clone().multiply(_q).multiply(_qBody.clone().invert());
+    rotateBoneWorld(bone, world);
+  }
 }
 
 function useCompactClips(urls: string[]): THREE.AnimationClip[] {
@@ -197,14 +281,43 @@ export default function StreetPedestrians({ layout }: { layout: StreetLayout }) 
       const p = makePerson(w.id, sourceFor(w.figure), figure, clip, cache);
       const key = `${w.figure}/${w.gait}`;
       if (!speedCache.has(key)) speedCache.set(key, strideSpeed(p.model, clip));
-      out.push({ id: w.id, root: p.root, mixer: p.mixer, walker: w, speed: speedCache.get(key)!, distance: w.startDistance, heading: 0 });
+      out.push({
+        id: w.id,
+        name: figure.name,
+        figure: w.figure,
+        root: p.root,
+        model: p.model,
+        mixer: p.mixer,
+        base: p.action,
+        current: p.action,
+        posing: null,
+        move: null,
+        walker: w,
+        speed: speedCache.get(key)!,
+        distance: w.startDistance,
+        heading: 0,
+      });
     }
     for (const s of standers as StreetStander[]) {
       const figure = figureById(s.figure)!;
       const p = makePerson(s.id, sourceFor(s.figure), figure, clipFor(clipUrl(s.figure, s.action)), cache);
       p.root.position.set(s.position[0], streetGroundHeight(s.position[0], s.position[1]), s.position[1]);
       p.root.rotation.y = s.heading;
-      out.push({ id: s.id, root: p.root, mixer: p.mixer, speed: 0, distance: 0, heading: s.heading });
+      out.push({
+        id: s.id,
+        name: figure.name,
+        figure: s.figure,
+        root: p.root,
+        model: p.model,
+        mixer: p.mixer,
+        base: p.action,
+        current: p.action,
+        posing: null,
+        move: null,
+        speed: 0,
+        distance: 0,
+        heading: s.heading,
+      });
     }
     return out;
     // clipFor depende de clips/clipNames, ya en la lista.
@@ -235,14 +348,88 @@ export default function StreetPedestrians({ layout }: { layout: StreetLayout }) 
     };
   }, [people]);
 
-  useFrame((_, delta) => {
+  /** Pasa suavemente de una animación a otra. */
+  const crossfade = (p: Person, next: THREE.AnimationAction) => {
+    if (p.current === next) return;
+    next.reset().play();
+    p.current.crossFadeTo(next, 0.4, false);
+    p.current = next;
+  };
+
+  useEffect(() => () => modelStore.setNearby(null), []);
+
+  useFrame(({ camera }, delta) => {
     const dt = Math.min(delta, 0.1);
+    const st = modelStore.getState();
+
+    // ¿A quién estamos mirando? (para poder hablarle)
+    camera.getWorldDirection(_fwd);
+    let nearby: { p: Person; angle: number; dist: number } | null = null;
+    for (const p of people) {
+      _to.set(p.root.position.x - camera.position.x, p.root.position.y + CHEST_Y - camera.position.y, p.root.position.z - camera.position.z);
+      const dist = _to.length();
+      if (dist > TALK_DISTANCE || dist < 0.3) continue;
+      const angle = _to.angleTo(_fwd);
+      if (angle < TALK_ANGLE && (!nearby || angle < nearby.angle)) nearby = { p, angle, dist };
+    }
+    modelStore.setNearby(nearby ? { id: nearby.p.id, name: nearby.p.name, distance: nearby.dist } : null);
     if (streetRuntime.walkers.length !== people.length) {
       streetRuntime.walkers = people.map(() => [0, 0] as [number, number]);
     }
     people.forEach((p, i) => {
+      const isModel = st.model?.id === p.id;
+
+      // Deja de posar: vuelve a su animación y retoma el circuito donde quedó.
+      if (!isModel && p.posing) {
+        p.posing = null;
+        p.move = null;
+        crossfade(p, p.base);
+        if (p.walker) p.distance = closestDistanceOnPath(p.walker.path, p.root.position.x, p.root.position.z);
+      }
+
+      if (isModel) {
+        // Acción pedida (el clip se baja la primera vez que se usa).
+        if (p.posing !== st.pose.action) {
+          p.posing = st.pose.action;
+          const wanted = p.posing;
+          loadClip(clipUrl(p.figure, wanted)).then((clip) => {
+            if (p.posing === wanted) crossfade(p, p.mixer.clipAction(clip));
+          });
+        }
+        // "Acercate" / "alejate": camina en línea recta respecto de la cámara.
+        if (!p.move) {
+          const meters = modelStore.takeMove();
+          if (meters !== null) {
+            const from = p.root.position.clone();
+            _to.set(from.x - camera.position.x, 0, from.z - camera.position.z);
+            const current = _to.length();
+            const target = Math.max(MODEL_MIN_DISTANCE, current + meters);
+            _to.normalize().multiplyScalar(target - current);
+            const to = from.clone().add(_to);
+            to.y = streetGroundHeight(to.x, to.z);
+            p.move = { from, to, t: 0, seconds: Math.max(0.6, Math.abs(target - current) / 1.1) };
+            if (p.walker) crossfade(p, p.base);
+          }
+        }
+        if (p.move) {
+          p.move.t = Math.min(1, p.move.t + dt / p.move.seconds);
+          p.root.position.lerpVectors(p.move.from, p.move.to, p.move.t);
+          if (p.move.t >= 1) {
+            p.move = null;
+            const wanted = p.posing;
+            if (wanted) loadClip(clipUrl(p.figure, wanted)).then((clip) => p.posing === wanted && crossfade(p, p.mixer.clipAction(clip)));
+          }
+        }
+        // El cuerpo gira hacia donde se le pidió, respecto de la cámara.
+        const target = bodyHeading({ x: p.root.position.x, z: p.root.position.z }, { x: camera.position.x, z: camera.position.z }, st.pose.facing);
+        const diff = Math.atan2(Math.sin(target - p.heading), Math.cos(target - p.heading));
+        p.heading += diff * Math.min(1, dt * 3);
+        p.root.rotation.y = p.heading;
+      }
+
       p.mixer.update(dt);
-      if (p.walker) {
+      if (isModel && !FREE_HEAD.has(st.pose.action)) aimHead(p, camera, st.pose.gazeYaw, st.pose.gazePitch);
+      if (p.walker && !isModel) {
         p.distance += p.speed * dt;
         const at = samplePath(p.walker.path, p.distance);
         // Gira suave en las puntas y esquinas (no da media vuelta en un cuadro).
@@ -258,7 +445,8 @@ export default function StreetPedestrians({ layout }: { layout: StreetLayout }) 
         s.position[0] = p.root.position.x;
         s.position[1] = p.root.position.y + CHEST_Y;
         s.position[2] = p.root.position.z;
-        s.velocity = p.walker ? [Math.sin(p.heading) * p.speed, 0, Math.cos(p.heading) * p.speed] : [0, 0, 0];
+        const walking = p.walker && !isModel;
+        s.velocity = walking ? [Math.sin(p.heading) * p.speed, 0, Math.cos(p.heading) * p.speed] : [0, 0, 0];
         s.velocityX = s.velocity[0];
       }
     });

@@ -15,6 +15,7 @@ import ViewfinderLetterbox from "@/components/simulator/viewfinder/ViewfinderLet
 import FocusDofDebugOverlay from "@/components/simulator/viewfinder/FocusDofDebugOverlay";
 import ExposureDebugOverlay from "@/components/simulator/viewfinder/ExposureDebugOverlay";
 import SimulatorCameraHUD from "./SimulatorCameraHUD";
+import StreetModelPanel from "./StreetModelPanel";
 
 const SimulatorCanvas = dynamic(() => import("./scene/SimulatorCanvas"), {
   ssr: false,
@@ -126,6 +127,8 @@ const SimulatorViewport = forwardRef<HTMLDivElement, SimulatorViewportProps>(
         <ViewfinderLetterbox />
 
         <SimulatorCameraHUD />
+
+        <StreetModelPanel />
 
         <FocusDofDebugOverlay />
 

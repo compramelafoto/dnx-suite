@@ -104,3 +104,25 @@ export function samplePath(points: readonly Vec2[], distance: number): { x: numb
   }
   return { x: points[0][0], z: points[0][1], heading: 0 };
 }
+
+/** Metros de recorrido del punto del circuito más cercano a (x, z): para retomar la caminata. */
+export function closestDistanceOnPath(points: readonly Vec2[], x: number, z: number): number {
+  let best = 0;
+  let bestD = Infinity;
+  let acc = 0;
+  for (let i = 0; i < points.length; i += 1) {
+    const [x0, z0] = points[i];
+    const [x1, z1] = points[(i + 1) % points.length];
+    const dx = x1 - x0;
+    const dz = z1 - z0;
+    const seg = Math.hypot(dx, dz);
+    const t = seg > 0 ? Math.max(0, Math.min(1, ((x - x0) * dx + (z - z0) * dz) / (seg * seg))) : 0;
+    const d = Math.hypot(x0 + dx * t - x, z0 + dz * t - z);
+    if (d < bestD) {
+      bestD = d;
+      best = acc + t * seg;
+    }
+    acc += seg;
+  }
+  return best;
+}
