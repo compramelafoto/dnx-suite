@@ -1,6 +1,7 @@
 import { createVerify, generateKeyPairSync } from "node:crypto";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  copyFromUrl,
   createDirectUpload,
   getVideoStatus,
   playbackIframeUrl,
@@ -186,5 +187,32 @@ describe("permiso de reproducción", () => {
     expect(playbackIframeUrl("tok", { startSeconds: 140.7 })).toBe(
       "https://iframe.videodelivery.net/tok?startTime=140s",
     );
+  });
+});
+
+describe("traer un video desde un enlace", () => {
+  it("pide la copia con firma obligatoria y orígenes limitados", async () => {
+    const fetchSimulado = vi.fn().mockResolvedValue(respuesta({ result: { uid: "video-2" } }));
+
+    const r = await copyFromUrl(
+      { url: "https://drive.usercontent.google.com/download?id=abc", name: "Clase 1" },
+      { config, fetchImpl: fetchSimulado },
+    );
+    expect(r).toEqual({ uid: "video-2" });
+
+    const [url, init] = fetchSimulado.mock.calls[0];
+    expect(String(url)).toContain("/accounts/cuenta/stream/copy");
+    const cuerpo = JSON.parse(String((init as RequestInit).body));
+    expect(cuerpo.url).toBe("https://drive.usercontent.google.com/download?id=abc");
+    expect(cuerpo.meta).toEqual({ name: "Clase 1" });
+    expect(cuerpo.requireSignedURLs).toBe(true);
+    expect(cuerpo.allowedOrigins).toContain("fotoffice.com");
+  });
+
+  it("sin identificador del video, falla en vez de guardar una clase rota", async () => {
+    const fetchSimulado = vi.fn().mockResolvedValue(respuesta({ result: {} }));
+    await expect(
+      copyFromUrl({ url: "https://x.com/a.mp4", name: "a" }, { config, fetchImpl: fetchSimulado }),
+    ).rejects.toBeInstanceOf(StreamError);
   });
 });
