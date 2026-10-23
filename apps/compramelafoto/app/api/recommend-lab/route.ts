@@ -7,7 +7,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { queueEmail } from "@/lib/email-queue";
-import { emailSignature } from "@/emails/signature";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -54,7 +53,6 @@ function buildLabRecommendationEmail(params: {
     </ol>
     <p>Si querés más información enviános un WhatsApp al <a href="${WHATSAPP_LAB_URL}">3413748324</a>.</p>
     <p>Saludos,<br/>Equipo de ComprameLaFoto</p>
-    ${emailSignature()}
   `.trim();
 
   return { subject, bodyText, bodyHtml };

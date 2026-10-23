@@ -3,6 +3,7 @@
  */
 
 import { Resend } from "resend";
+import { textToEmailHtml, wrapEmailLayout } from "@/emails/layout";
 
 export interface EmailOptions {
   to: string;
@@ -59,7 +60,7 @@ export async function sendEmail(options: EmailOptions): Promise<{ success: boole
       from: fromEmail,
       to,
       subject,
-      html: html || text || "",
+      html: wrapEmailLayout(html || textToEmailHtml(text || "")),
       text: text || undefined,
     });
 
@@ -80,44 +81,17 @@ export async function sendEmail(options: EmailOptions): Promise<{ success: boole
  * Genera el HTML para el email de recuperación de contraseña
  */
 export function generatePasswordResetEmailHtml(resetUrl: string, userName?: string): string {
-  return `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-</head>
-<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-  <div style="background-color: #f9fafb; padding: 30px; border-radius: 8px;">
-    <h1 style="color: #1a1a1a; margin-bottom: 20px;">Recuperación de Contraseña</h1>
-    
+  return wrapEmailLayout(`
     <p>Hola${userName ? ` ${userName}` : ""},</p>
-    
     <p>Recibimos una solicitud para restablecer tu contraseña en ComprameLaFoto.</p>
-    
-    <p>Hacé clic en el siguiente botón para crear una nueva contraseña:</p>
-    
-    <div style="text-align: center; margin: 30px 0;">
-      <a href="${resetUrl}" style="background-color: #c27b3d; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">
-        Restablecer Contraseña
-      </a>
-    </div>
-    
+    <p><a href="${resetUrl}">Restablecer contraseña</a></p>
     <p style="font-size: 14px; color: #6b7280;">
       O copiá y pegá este enlace en tu navegador:<br>
       <a href="${resetUrl}" style="color: #c27b3d; word-break: break-all;">${resetUrl}</a>
     </p>
-    
-    <p style="font-size: 14px; color: #6b7280; margin-top: 30px;">
+    <p style="font-size: 14px; color: #6b7280;">
       Este enlace expirará en 24 horas. Si no solicitaste este cambio, ignorá este email.
     </p>
-    
-    <p style="margin-top: 30px; font-size: 14px; color: #6b7280;">
-      Saludos,<br>
-      El equipo de ComprameLaFoto
-    </p>
-  </div>
-</body>
-</html>
-  `.trim();
+    <p>Saludos,<br>El equipo de ComprameLaFoto</p>
+  `);
 }
