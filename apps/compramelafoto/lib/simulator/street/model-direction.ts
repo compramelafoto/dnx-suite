@@ -31,6 +31,8 @@ export const MODEL_ACTIONS: { id: ModelAction; label: string }[] = [
   { id: "idle_stretch_arms_01", label: "Estirarse" },
 ];
 
+import type { Expression } from "../face/face-expressions";
+
 export interface ModelPose {
   /**
    * Giro del cuerpo respecto de la cámara (grados). 0 = de frente; positivo =
@@ -41,14 +43,17 @@ export interface ModelPose {
   gazeYaw: number;
   gazePitch: number;
   action: ModelAction;
+  /** Expresión de la cara. */
+  expression: Expression;
 }
 
-export const NATURAL_POSE: ModelPose = { facing: 0, gazeYaw: 0, gazePitch: 0, action: "idle_breathe_01" };
+export const NATURAL_POSE: ModelPose = { facing: 0, gazeYaw: 0, gazePitch: 0, action: "idle_breathe_01", expression: "neutral" };
 
 export type ModelCommand =
   | { kind: "facing"; value: number; relative?: boolean }
   | { kind: "gaze"; yaw: number; pitch: number }
   | { kind: "action"; action: ModelAction }
+  | { kind: "expression"; expression: Expression }
   | { kind: "move"; meters: number }
   | { kind: "release" };
 
@@ -99,8 +104,18 @@ export function parseInstruction(input: string): ModelCommand[] {
   else if (/mira\w*.*(lejos|horizonte|fuera|afuera)/.test(t)) out.push({ kind: "gaze", yaw: 45 * (s || 1), pitch: 0 });
   else if (/mira\w*/.test(t) && s) out.push({ kind: "gaze", yaw: 40 * s, pitch: 0 });
 
+  // Cara.
+  if (/sonre|sonrisa/.test(t)) out.push({ kind: "expression", expression: "smile" });
+  else if (/\brei|risa|carcajada/.test(t)) out.push({ kind: "expression", expression: "laugh" });
+  else if (/serio|seria|seriedad/.test(t)) out.push({ kind: "expression", expression: "serious" });
+  else if (/enoja|bronca|enfada|furios/.test(t)) out.push({ kind: "expression", expression: "angry" });
+  else if (/triste|tristeza/.test(t)) out.push({ kind: "expression", expression: "sad" });
+  else if (/sorprend|asombr/.test(t)) out.push({ kind: "expression", expression: "surprised" });
+  else if (/pensativ|pensa en algo|concentrad/.test(t)) out.push({ kind: "expression", expression: "pensive" });
+  else if (/cara natural|cara normal|relaja la cara/.test(t)) out.push({ kind: "expression", expression: "neutral" });
+
   // Acciones.
-  if (/rei|sonrei|risa|carcajada/.test(t)) out.push({ kind: "action", action: "gestic_laugh_low" });
+  if (/\brei|risa|carcajada/.test(t)) out.push({ kind: "action", action: "gestic_laugh_low" });
   else if (/salud/.test(t)) out.push({ kind: "action", action: "wave_01" });
   else if (/habla|charla|conta(me)?/.test(t)) out.push({ kind: "action", action: "gestic_talk_relaxed_01" });
   else if (/pelo|cabello/.test(t)) out.push({ kind: "action", action: "idle_touch_hair_01" });
@@ -136,6 +151,8 @@ export function applyCommand(pose: ModelPose, cmd: ModelCommand): ModelPose {
       };
     case "action":
       return { ...pose, action: cmd.action };
+    case "expression":
+      return { ...pose, expression: cmd.expression };
     default:
       return pose;
   }

@@ -17,6 +17,17 @@ import {
 } from "@/lib/simulator/street/street-people";
 import { bodyHeading, GAZE_LIMIT_PITCH, GAZE_LIMIT_YAW } from "@/lib/simulator/street/model-direction";
 import { modelStore } from "@/lib/simulator/street/model-store";
+import {
+  EXPRESSION_WEIGHTS,
+  blinkWeight,
+  mixWeights,
+  speechDuration,
+  speechWeights,
+  type Expression,
+  type FaceShape,
+  type FaceWeights,
+} from "@/lib/simulator/face/face-expressions";
+import { applyFaceWeights, findFaceMesh, pruneFaceShapes } from "@/lib/simulator/face/face-rig";
 import { useFrame, useLoader } from "@react-three/fiber";
 import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
@@ -37,6 +48,11 @@ const TALK_DISTANCE = 9;
 const TALK_ANGLE = (10 * Math.PI) / 180;
 /** Más cerca que esto la persona no se acerca (m). */
 const MODEL_MIN_DISTANCE = 1.2;
+/** Más lejos que esto la cara no se anima (no se ve y ahorra trabajo). */
+const FACE_DISTANCE = 25;
+/** Lo que "dice" alguien que habla en una acción de charla. */
+const SMALL_TALK = "mira vos que lindo dia hoy no te parece que esta para sacar fotos";
+
 /** Acciones en las que la cabeza va con la animación (no mira a la cámara). */
 const FREE_HEAD = new Set(["idle_look_around_01", "cell_phone_textmessage"]);
 
@@ -137,6 +153,14 @@ interface Person {
   posing: string | null;
   /** Traslado pedido como modelo ("acercate"). */
   move: { from: THREE.Vector3; to: THREE.Vector3; t: number; seconds: number } | null;
+  /** Cara: malla con formas, ritmo de parpadeo y pesos actuales (suavizados). */
+  face: THREE.Mesh | null;
+  faceSeed: number;
+  faceNow: FaceWeights;
+  /** Expresión de quien camina (algunos van con una sonrisa leve). */
+  idleExpression: Expression;
+  /** Lo último que dijo y cuándo empezó a decirlo (s del reloj de la escena). */
+  speech: { text: string; start: number; replyAt: number } | null;
   walker?: StreetWalker;
   /** Metros por segundo que corresponden a la zancada del clip. */
   speed: number;
@@ -236,6 +260,65 @@ function aimHead(p: Person, camera: THREE.Camera, gazeYawDeg: number, gazePitchD
     const world = _qBody.clone().multiply(_q).multiply(_qBody.clone().invert());
     rotateBoneWorld(bone, world);
   }
+  // Los ojos completan lo que el cuello no llega a girar (hasta ~25°).
+  const rawYaw = Math.atan2(Math.sin(look - p.heading), Math.cos(look - p.heading));
+  const restYaw = THREE.MathUtils.clamp(rawYaw - yaw, -0.45, 0.45);
+  if (Math.abs(restYaw) > 0.01) {
+    const eyeTurn = _qBody.clone().multiply(new THREE.Quaternion().setFromAxisAngle(_up, restYaw)).multiply(_qBody.clone().invert());
+    for (const name of ["Bip01_LEye", "Bip01_REye"]) {
+      const eye = p.model.getObjectByName(name);
+      if (eye) rotateBoneWorld(eye, eyeTurn);
+    }
+  }
+}
+
+/**
+ * Cara viva: parpadeo propio de cada persona, expresión con transición suave
+ * y boca que se mueve al hablar. Lejos de la cámara no se calcula.
+ */
+function updateFace(
+  p: Person,
+  isModel: boolean,
+  st: ReturnType<typeof modelStore.getState>,
+  camera: THREE.Camera,
+  now: number,
+  dt: number,
+) {
+  if (!p.face) return;
+  const far = p.root.position.distanceTo(camera.position) > FACE_DISTANCE;
+  if (far && !isModel) return;
+
+  // Lo que contesta el modelo se ve en la boca.
+  if (isModel && st.reply && st.replyAt !== p.speech?.replyAt) {
+    p.speech = { text: st.reply, start: now, replyAt: st.replyAt };
+  }
+  if (!isModel) p.speech = null;
+  const talking = isModel && st.pose.action === "gestic_talk_relaxed_01";
+  let mouth: FaceWeights = {};
+  if (p.speech && now - p.speech.start < speechDuration(p.speech.text)) {
+    mouth = speechWeights(p.speech.text, now - p.speech.start);
+  } else if (talking) {
+    const loop = speechDuration(SMALL_TALK) + 0.6;
+    mouth = speechWeights(SMALL_TALK, (now + p.faceSeed) % loop);
+  }
+
+  // Expresión: la pedida, o la propia de quien camina. Reírse arrastra la cara de risa.
+  let expression: Expression = isModel ? st.pose.expression : p.idleExpression;
+  if (isModel && expression === "neutral" && st.pose.action === "gestic_laugh_low") expression = "laugh";
+  const target = EXPRESSION_WEIGHTS[expression];
+  const k = 1 - Math.exp(-dt * 6);
+  const next: FaceWeights = {};
+  const keys = new Set([...Object.keys(target), ...Object.keys(p.faceNow)]) as Set<FaceShape>;
+  for (const key of keys) {
+    const v = (p.faceNow[key] ?? 0) + ((target[key] ?? 0) - (p.faceNow[key] ?? 0)) * k;
+    if (v > 0.002) next[key] = v;
+  }
+  p.faceNow = next;
+
+  const blink = blinkWeight(now, p.faceSeed);
+  // Con la sonrisa los párpados ya bajan un poco: el parpadeo completa el resto.
+  const eyes: FaceWeights = { AK_09_EyeBlinkLeft: blink, AK_10_EyeBlinkRight: blink };
+  applyFaceWeights(p.face, mixWeights(next, mouth, eyes));
 }
 
 function useCompactClips(urls: string[]): THREE.AnimationClip[] {
@@ -252,7 +335,7 @@ export default function StreetPedestrians({ layout }: { layout: StreetLayout }) 
   const specs = useMemo(() => figureIds.map((id) => figureById(id)!), [figureIds]);
   const sources = useLoader(
     FBXLoader,
-    specs.map((f) => figureUrl(f, "model.fbx")),
+    specs.map((f) => figureUrl(f, "model-facial.fbx")),
     (loader) => {
       // El FBX menciona texturas .tga que no se publican: se reemplazan en dressAvatar.
       const manager = new THREE.LoadingManager();
@@ -271,6 +354,7 @@ export default function StreetPedestrians({ layout }: { layout: StreetLayout }) 
   const clipFor = (url: string) => clips[clipNames.indexOf(url)];
 
   const people = useMemo(() => {
+    for (const source of sources) pruneFaceShapes(source);
     const cache = new Map<string, THREE.Material>();
     const out: Person[] = [];
     const sourceFor = (figure: string) => sources[figureIds.indexOf(figure)];
@@ -292,6 +376,11 @@ export default function StreetPedestrians({ layout }: { layout: StreetLayout }) 
         current: p.action,
         posing: null,
         move: null,
+        face: findFaceMesh(p.model),
+        faceSeed: out.length * 7.31 + 1,
+        faceNow: {},
+        idleExpression: out.length % 3 === 0 ? "smile" : "neutral",
+        speech: null,
         walker: w,
         speed: speedCache.get(key)!,
         distance: w.startDistance,
@@ -314,6 +403,11 @@ export default function StreetPedestrians({ layout }: { layout: StreetLayout }) 
         current: p.action,
         posing: null,
         move: null,
+        face: findFaceMesh(p.model),
+        faceSeed: out.length * 7.31 + 1,
+        faceNow: {},
+        idleExpression: out.length % 3 === 0 ? "smile" : "neutral",
+        speech: null,
         speed: 0,
         distance: 0,
         heading: s.heading,
@@ -358,7 +452,7 @@ export default function StreetPedestrians({ layout }: { layout: StreetLayout }) 
 
   useEffect(() => () => modelStore.setNearby(null), []);
 
-  useFrame(({ camera }, delta) => {
+  useFrame(({ camera, clock }, delta) => {
     const dt = Math.min(delta, 0.1);
     const st = modelStore.getState();
 
@@ -429,6 +523,7 @@ export default function StreetPedestrians({ layout }: { layout: StreetLayout }) 
 
       p.mixer.update(dt);
       if (isModel && !FREE_HEAD.has(st.pose.action)) aimHead(p, camera, st.pose.gazeYaw, st.pose.gazePitch);
+      updateFace(p, isModel, st, camera, clock.elapsedTime, dt);
       if (p.walker && !isModel) {
         p.distance += p.speed * dt;
         const at = samplePath(p.walker.path, p.distance);

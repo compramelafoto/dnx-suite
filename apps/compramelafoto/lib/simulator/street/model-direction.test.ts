@@ -12,6 +12,11 @@ test("entiende indicaciones típicas de una sesión", () => {
   assert.equal(pose("Mirá a cámara").gazeYaw, 0);
   assert.equal(pose("mirá hacia arriba").gazePitch, 20);
   assert.equal(pose("¡Reíte!").action, "gestic_laugh_low");
+  assert.equal(pose("¡Reíte!").expression, "laugh");
+  assert.equal(pose("sonreí un poco").expression, "smile");
+  assert.equal(pose("poné cara de enojado").expression, "angry");
+  assert.equal(pose("ponete seria").expression, "serious");
+  assert.equal(pose("mirá sorprendida").expression, "surprised");
   assert.equal(pose("Agarrá el celular").action, "cell_phone_textmessage");
   assert.equal(pose("tocate el pelo").action, "idle_touch_hair_01");
 });
@@ -32,7 +37,7 @@ test("los giros relativos se suman y la mirada no pasa el límite del cuello", (
 
 test("varias indicaciones en una frase", () => {
   const cmds = parseInstruction("ponete de perfil, mirá a cámara y reíte");
-  assert.deepEqual(cmds.map((c) => c.kind), ["facing", "gaze", "action"]);
+  assert.deepEqual(cmds.map((c) => c.kind), ["facing", "gaze", "expression", "action"]);
 });
 
 test("acercarse, alejarse y despedirse", () => {

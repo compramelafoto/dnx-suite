@@ -1,6 +1,7 @@
 "use client";
 
 import { useCameraStore } from "@/lib/simulator/camera-store";
+import { EXPRESSIONS } from "@/lib/simulator/face/face-expressions";
 import { MODEL_ACTIONS, type ModelCommand } from "@/lib/simulator/street/model-direction";
 import { modelStore } from "@/lib/simulator/street/model-store";
 import { useEffect, useState, useSyncExternalStore } from "react";
@@ -134,6 +135,22 @@ export default function StreetModelPanel() {
             {g.label}
           </button>
         ))}
+        </div>
+      </details>
+
+      <details className="cod-model-panel__group">
+        <summary className="cod-model-panel__label">Cara</summary>
+        <div className="cod-model-panel__chips">
+          {EXPRESSIONS.map((e) => (
+            <button
+              key={e.id}
+              type="button"
+              className={e.id === state.pose.expression ? "is-active" : ""}
+              onClick={() => modelStore.send([{ kind: "expression", expression: e.id }])}
+            >
+              {e.label}
+            </button>
+          ))}
         </div>
       </details>
 
