@@ -52,7 +52,8 @@ import {
   type EditorGuides,
   type GuideAxis,
   buildReferenceGuideLines,
-  referenceGuideSnapLines,
+  editorSnapGuides,
+  isCanvasDivision,
   REFERENCE_GUIDES_ALL_OFF,
   type ReferenceGuideCross,
   type ReferenceGuideLine,
@@ -203,6 +204,17 @@ type ResizeHandleDef = {
 };
 
 /** Diámetro del control de esquina (área de agarre). Tamaño tipo diseñadores estándar (Canva/Figma). */
+/** Rosa de la línea del imán. Las guías de la plantilla son celestes: no se confunden. */
+const SNAP_GUIDE_PINK = "#ec4899";
+
+/**
+ * Grosor de la línea del imán, fijo en pantalla (la capa está escalada con el zoom). En la mitad
+ * o los cuartos de la hoja sale un poco más gruesa, para que se note que es una división.
+ */
+function snapLineWidth(pos: number, canvasSize: number, zoom: number): number {
+  return (isCanvasDivision(pos, canvasSize) ? 2 : 1.5) / (zoom || 1);
+}
+
 const RESIZE_HANDLE_SIZE_PX = 32;
 const RESIZE_HANDLE_INSET = -RESIZE_HANDLE_SIZE_PX / 2;
 
@@ -878,14 +890,14 @@ export function TemplateEditorCanvas({
     () => buildReferenceGuideLines(referenceGuides, state.canvas.width, state.canvas.height, guides),
     [referenceGuides, state.canvas.width, state.canvas.height, guides]
   );
-  const snapGuidesX = useMemo(
-    () => [...guides.v, ...referenceGuideSnapLines(referenceGuides, state.canvas.width, state.canvas.height).xs],
-    [guides.v, referenceGuides, state.canvas.width, state.canvas.height]
+  // El imán se pega siempre a la mitad y los cuartos de la hoja (y al centro de cada cara), aunque
+  // las guías de referencia estén ocultas; las guías prendidas y las de la plantilla se suman.
+  const editorSnap = useMemo(
+    () => editorSnapGuides(guides, referenceGuides, state.canvas.width, state.canvas.height),
+    [guides, referenceGuides, state.canvas.width, state.canvas.height]
   );
-  const snapGuidesY = useMemo(
-    () => [...guides.h, ...referenceGuideSnapLines(referenceGuides, state.canvas.width, state.canvas.height).ys],
-    [guides.h, referenceGuides, state.canvas.width, state.canvas.height]
-  );
+  const snapGuidesX = editorSnap.xs;
+  const snapGuidesY = editorSnap.ys;
 
   const startGuideDrag = useCallback(
     (axis: GuideAxis, index: number | null, e: ReactPointerEvent<HTMLElement>) => {
@@ -2002,13 +2014,15 @@ export function TemplateEditorCanvas({
                     style={{
                       position: "absolute",
                       // Grosor fijo en pantalla: la capa está escalada con el zoom y 2 px del
-                      // lienzo eran medio píxel con una carpeta al 25 %. Magenta, como las guías
-                      // inteligentes de los editores de imagen: se distingue de la selección.
-                      left: snapGuides.vx - 0.75 / (state.zoom || 1),
+                      // lienzo eran medio píxel con una carpeta al 25 %. Rosa, como las guías
+                      // inteligentes de los editores de imagen: se distingue de la selección y
+                      // de las guías de la plantilla (celestes). En la mitad y los cuartos de la
+                      // hoja va un poco más gruesa: es el centro o una división de la hoja.
+                      left: snapGuides.vx - snapLineWidth(snapGuides.vx, state.canvas.width, state.zoom) / 2,
                       top: 0,
-                      width: 1.5 / (state.zoom || 1),
+                      width: snapLineWidth(snapGuides.vx, state.canvas.width, state.zoom),
                       height: "100%",
-                      background: "#ff2bd6",
+                      background: SNAP_GUIDE_PINK,
                     }}
                   />
                 ) : null}
@@ -2016,11 +2030,11 @@ export function TemplateEditorCanvas({
                   <div
                     style={{
                       position: "absolute",
-                      top: snapGuides.hy - 0.75 / (state.zoom || 1),
+                      top: snapGuides.hy - snapLineWidth(snapGuides.hy, state.canvas.height, state.zoom) / 2,
                       left: 0,
-                      height: 1.5 / (state.zoom || 1),
+                      height: snapLineWidth(snapGuides.hy, state.canvas.height, state.zoom),
                       width: "100%",
-                      background: "#ff2bd6",
+                      background: SNAP_GUIDE_PINK,
                     }}
                   />
                 ) : null}

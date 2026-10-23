@@ -7,6 +7,7 @@ export function valoresDeDemo(demo: DemoDePlantilla, logoUrl: string | null): Re
     studentFirstName: demo.alumno.firstName,
     studentLastName: demo.alumno.lastName,
     courseName: demo.curso,
+    courseShift: demo.turno,
     schoolName: demo.colegio,
     schoolLogoUrl: logoUrl,
     buyerName: `Familia ${demo.alumno.lastName}`,

@@ -2,6 +2,7 @@ import {
   CLASS_LIST_VARIABLE_KEY,
   classListCrowdWarning,
   countClassListStudents,
+  formatClassListHeading,
   isClassListConfig,
   parseClassListGroups,
   readClassListOptions,
@@ -25,6 +26,8 @@ export type CursoDelAlbum = {
   key: string;
   /** Lo que se imprime arriba de sus alumnos («7.° A»). */
   title: string;
+  /** El turno («Mañana»), si el padrón lo trae. */
+  shift?: string;
   students: ClassListStudent[];
 };
 
@@ -32,7 +35,8 @@ export type CursoDelAlbum = {
 export type CursoParaElegir = { key: string; title: string; count: number };
 
 export function cursoParaElegir(c: CursoDelAlbum): CursoParaElegir {
-  return { key: c.key, title: c.title, count: c.students.length };
+  // En las casillas el turno va siempre: dos cursos pueden llamarse igual en distinto turno.
+  return { key: c.key, title: formatClassListHeading(c, true), count: c.students.length };
 }
 
 /** ¿La plantilla deja sumar otros cursos al listado? (opción del bloque, apagada por defecto). */
@@ -64,6 +68,8 @@ function normalizar(t: string): string {
   return t
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")
+    // «3 B», «3.° B» y «3.º B» son el mismo curso (los títulos viejos no llevaban el ordinal).
+    .replace(/[.°º]/g, "")
     .toLowerCase()
     .replace(/\s+/g, " ")
     .trim();
@@ -121,7 +127,12 @@ export function armarListadoConCursos(
   const elegidas = new Set(clavesElegidas);
   const extras = disponibles
     .filter((c) => elegidas.has(c.key) && c.key !== clavePropia)
-    .map((c) => ({ title: c.title, courseKey: c.key, students: c.students.map((s) => ({ firstName: s.firstName, lastName: s.lastName })) }));
+    .map((c) => ({
+      title: c.title,
+      courseKey: c.key,
+      ...(c.shift ? { shift: c.shift } : {}),
+      students: c.students.map((s) => ({ firstName: s.firstName, lastName: s.lastName })),
+    }));
   return [clavePropia && !propio.courseKey ? { ...propio, courseKey: clavePropia } : propio, ...extras];
 }
 

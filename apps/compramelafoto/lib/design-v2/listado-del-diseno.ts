@@ -1,5 +1,5 @@
 import "server-only";
-import { serializeClassListGroups } from "@repo/template-engine";
+import { formatClassListHeading, serializeClassListGroups } from "@repo/template-engine";
 import { prisma } from "@/lib/prisma";
 import { loadAlbumCourses } from "./class-list";
 import type { DesignV2Data } from "./design-data";
@@ -61,7 +61,7 @@ export async function loadListadoDelDiseno(input: {
   return {
     tieneListado,
     permiteSumar,
-    cursos: groups.map((g) => ({ title: g.title, count: g.students.length })),
+    cursos: groups.map((g) => ({ title: formatClassListHeading(g, true), count: g.students.length })),
     paraSumar: cursosParaSumar(groups, disponibles).map(cursoParaElegir),
     sumados: clavesDeCursosSumados(groups, disponibles),
     carasEnLaGrupal: caras,

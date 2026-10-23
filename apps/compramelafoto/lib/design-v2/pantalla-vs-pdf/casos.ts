@@ -114,6 +114,21 @@ function dosCursos(): string {
   });
 }
 
+/** Dos cursos del padrón tal como vienen («3» + «B»), con turno: el título sale «3.° B · Turno mañana». */
+function dosCursosConTurno(): string {
+  const curso = (nombres: string[], dueña: number | null) =>
+    nombres.map((n, i) => {
+      const [f, l] = n.split(" ");
+      return i === dueña ? { f, l, o: 1 } : { f, l };
+    });
+  return JSON.stringify({
+    g: [
+      { t: "3 B", k: "padron|Primario|Mañana|3|B", h: "Mañana", s: curso(ALUMNOS.slice(0, 10), 2) },
+      { t: "3 C", k: "padron|Primario|Tarde|3|C", h: "Tarde", s: curso(ALUMNOS.slice(6), null) },
+    ],
+  });
+}
+
 /** Un curso más largo y con número impar: las dos columnas quedan de distinto largo. */
 const SEPTIMO_A = [
   "lucía acosta", "tomás benítez", "martina castro", "juan cruz díaz", "emilia fernández",
@@ -329,6 +344,28 @@ export function casosDeComparacion(imagenDePrueba: string): CasoDeComparacion[] 
         bloque("VARIABLE_TEXT", 2, { x: 100, y: 100, width: 1300, height: 800 }, {
           variableKey: "course.studentList", fontFamily: "Helvetica", fontSize: 44, color: "#1d3a6b", textAlign: "LEFT",
           classList: { columns: 3, showHeading: false },
+        }),
+      ],
+    },
+    {
+      /*
+       * Dos cursos con turno y el colegio arriba: los nombres van en 4 columnas (aunque el bloque
+       * diga 2), el colegio una sola vez arriba de todo y cada título con su turno. Derecho y
+       * girado 90°.
+       */
+      id: "listado-colegio-y-turno",
+      titulo: "Listado de dos cursos con el colegio arriba y el turno, en 4 columnas",
+      canvas: CHICO,
+      paginas: 2,
+      valores: { "course.studentList": dosCursosConTurno(), "school.name": "Escuela Manuel Belgrano" },
+      blocks: [
+        bloque("VARIABLE_TEXT", 0, { x: 100, y: 100, width: 1300, height: 800 }, {
+          variableKey: "course.studentList", fontFamily: "Helvetica", fontSize: 40, color: "#1d3a6b", textAlign: "LEFT",
+          classList: { columns: 2, showSchoolName: true },
+        }),
+        bloque("VARIABLE_TEXT", 1, { x: 300, y: 100, width: 900, height: 800, rotation: 90 }, {
+          variableKey: "course.studentList", fontFamily: "Helvetica", fontSize: 36, color: "#1d3a6b", textAlign: "CENTER",
+          classList: { columns: 1, showSchoolName: true, headingScale: 1.2 }, verticalAlign: "MIDDLE",
         }),
       ],
     },

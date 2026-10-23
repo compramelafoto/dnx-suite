@@ -237,6 +237,7 @@ export async function renderDesignV2(input: {
     nombre: template.name,
     // Un listado guardado antes de los cursos con título lleva el curso del diseño como título.
     cursosDelListado: parseClassListGroups(data.values[CLASS_LIST_VARIABLE_KEY], data.values["course.displayName"]),
+    colegioDelListado: data.values["school.name"] ?? null,
   });
 
   const slotSizeByBlock = new Map(

@@ -131,6 +131,8 @@ type Persona = { firstName: string; lastName: string };
 
 type DatosDeNivel = {
   curso: string;
+  /** El turno del curso, para el título del listado («3.º B · Turno mañana»). */
+  turno: string | null;
   colegio: string;
   /** [nena, nene] */
   alumnos: [Persona, Persona];
@@ -161,6 +163,7 @@ const COMPANEROS: Persona[] = [
 const NIVELES: Record<NivelDemo, DatosDeNivel> = {
   jardin: {
     curso: "Sala de 5 Celeste",
+    turno: "Tarde",
     colegio: "Jardín Arco Iris",
     alumnos: [
       { firstName: "Emma", lastName: "Gómez" },
@@ -170,6 +173,7 @@ const NIVELES: Record<NivelDemo, DatosDeNivel> = {
   },
   primaria: {
     curso: "3.º B",
+    turno: "Mañana",
     colegio: "Escuela Manuel Belgrano",
     alumnos: [
       { firstName: "Valentina", lastName: "Pérez" },
@@ -179,6 +183,7 @@ const NIVELES: Record<NivelDemo, DatosDeNivel> = {
   },
   secundaria: {
     curso: "4.º año A",
+    turno: "Mañana",
     colegio: "Colegio San Martín",
     alumnos: [
       { firstName: "Lucía", lastName: "Morales" },
@@ -188,6 +193,7 @@ const NIVELES: Record<NivelDemo, DatosDeNivel> = {
   },
   egresados: {
     curso: "6.º año Promo 2026",
+    turno: null,
     colegio: "Instituto Nuestra Señora del Valle",
     alumnos: [
       { firstName: "Camila", lastName: "Torres" },
@@ -211,6 +217,8 @@ export type DemoDePlantilla = {
   archivos: Record<RanuraDemo, string> & { logo: LogoDemo };
   alumno: Persona;
   curso: string;
+  /** El turno del curso; null si no corresponde (egresados, comunión, confirmación). */
+  turno: string | null;
   colegio: string;
   companeros: Array<Persona & { isOwner: boolean }>;
 };
@@ -259,6 +267,7 @@ export function demoDePlantilla(input: { templateId: string; meta: unknown }): D
     archivos: { ...archivosDeRanuras(nivel, evento, variante), logo: logoDemoDeCategoria(categoria) },
     alumno,
     curso: religioso?.curso ?? datos.curso,
+    turno: religioso ? null : datos.turno,
     colegio: religioso?.colegio ?? datos.colegio,
     companeros,
   };

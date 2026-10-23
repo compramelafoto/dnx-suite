@@ -3,6 +3,7 @@ import { EDITOR_FONT_CATALOG } from "./editor-font-catalog";
 import { readTextVerticalAlign } from "./render-core";
 import {
   CLASS_LIST_SAMPLE_GROUPS,
+  CLASS_LIST_SAMPLE_SCHOOL,
   CLASS_LIST_VARIABLE_KEY,
   layoutClassListBlock,
   readClassListOptions,
@@ -213,6 +214,11 @@ export function editorADocumento(input: {
    * valor guardado con `parseClassListGroups`.
    */
   cursosDelListado?: readonly ClassListGroup[];
+  /**
+   * El colegio del diseño (`school.name`), para la línea de arriba del listado cuando el bloque
+   * la pide. Sin esto, con el curso de muestra va el colegio de muestra; con cursos reales, no va.
+   */
+  colegioDelListado?: string | null;
 }): PuenteResultado {
   const avisos: string[] = [];
   const variablesSinteticas: VariableSintetica[] = [];
@@ -326,6 +332,9 @@ export function editorADocumento(input: {
                 // El listado se alinea como un todo: cada alumno sale con su celda ya corrida,
                 // y su texto va arriba de la celda, igual que en el lienzo.
                 verticalAlign: readTextVerticalAlign(cfg).toLowerCase() as "top" | "middle" | "bottom",
+                schoolName:
+                  input.colegioDelListado ??
+                  (input.cursosDelListado || input.listaDelCurso ? null : CLASS_LIST_SAMPLE_SCHOOL),
               });
               const comun = {
                 type: "text" as const,

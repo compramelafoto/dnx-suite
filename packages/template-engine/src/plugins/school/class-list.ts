@@ -44,6 +44,14 @@ export type ClassListOptions = {
    * listado: una foto grupal con 7.° A y 7.° B. Apagado, el listado lleva sólo el curso propio.
    */
   allowExtraCourses: boolean;
+  /**
+   * El turno al lado del título del curso («3.° B · Turno mañana»). Prendido por defecto: si el
+   * curso no trae turno, no se imprime nada. Apagado, igual se muestra cuando dos cursos del
+   * listado se llaman igual y sólo el turno los distingue.
+   */
+  showShift: boolean;
+  /** El nombre del colegio una sola vez, arriba de todo, dentro de la misma caja del listado. */
+  showSchoolName: boolean;
 };
 
 export const CLASS_LIST_MAX_COLUMNS = 4;
@@ -57,6 +65,8 @@ export const DEFAULT_CLASS_LIST_OPTIONS: ClassListOptions = {
   showHeading: true,
   headingScale: 1.2,
   allowExtraCourses: false,
+  showShift: true,
+  showSchoolName: false,
 };
 
 export const CLASS_LIST_HEADING_SCALE_MIN = 0.8;
@@ -89,6 +99,8 @@ export function readClassListOptions(config: unknown): ClassListOptions {
         ? Math.min(CLASS_LIST_HEADING_SCALE_MAX, Math.max(CLASS_LIST_HEADING_SCALE_MIN, raw.headingScale))
         : d.headingScale,
     allowExtraCourses: typeof raw.allowExtraCourses === "boolean" ? raw.allowExtraCourses : d.allowExtraCourses,
+    showShift: typeof raw.showShift === "boolean" ? raw.showShift : d.showShift,
+    showSchoolName: typeof raw.showSchoolName === "boolean" ? raw.showSchoolName : d.showSchoolName,
   };
 }
 
@@ -101,8 +113,51 @@ export type ClassListGroup = {
    * imprime. Falta en los listados guardados antes de que hubiera varios cursos.
    */
   courseKey?: string;
+  /** El turno del curso («Mañana»), si se sabe. Se imprime según la opción «Mostrar turno». */
+  shift?: string;
   students: ClassListStudent[];
 };
+
+/**
+ * El nombre del curso escrito con naturalidad, para el título del listado y el «Curso» del
+ * diseño. Arregla sólo lo que salía mal, sin tocar lo que el fotógrafo escribió a propósito:
+ *
+ * - un número suelto al principio es un ordinal: «3 B» → «3.° B», «3» → «3.°»;
+ * - la coma pegada al ordinal sobra: «3°, B» → «3° B»;
+ * - el agregado entre paréntesis de los listados viejos («1 B (Tarde, Primario)») pasa a ir
+ *   con puntos medios: «1.° B · Tarde · Primario».
+ *
+ * «7° Grado A», «3.º B» o «Sala de 5» quedan como están.
+ */
+export function formatCourseName(raw: string | null | undefined): string {
+  let t = (raw ?? "").replace(/\s+/g, " ").trim();
+  if (!t) return "";
+  let extra: string[] = [];
+  const paren = /\s*\(([^()]*)\)\s*$/.exec(t);
+  if (paren && paren.index > 0) {
+    extra = paren[1]!.split(",").map((x) => x.trim()).filter(Boolean);
+    t = t.slice(0, paren.index).trim();
+  }
+  t = t.replace(/^(\d+\s*\.?\s*[°º]?)\s*,\s*/, "$1 ");
+  t = t.replace(/^(\d+)(?=\s|$)(?!\s*[°º.])/, "$1.°");
+  return [t, ...extra].filter(Boolean).join(" · ");
+}
+
+/** «Mañana» → «Turno mañana». Si ya dice «turno», sólo se ordenan las mayúsculas. */
+export function formatShiftLabel(raw: string | null | undefined): string {
+  const t = (raw ?? "").replace(/\s+/g, " ").trim();
+  if (!t) return "";
+  const lower = t.toLocaleLowerCase("es");
+  const conTurno = lower.startsWith("turno") ? lower : `turno ${lower}`;
+  return conTurno.charAt(0).toLocaleUpperCase("es") + conTurno.slice(1);
+}
+
+/** El título impreso de un curso: «3.° B» o, con el turno, «3.° B · Turno mañana». */
+export function formatClassListHeading(group: Pick<ClassListGroup, "title" | "shift">, showShift: boolean): string {
+  const curso = formatCourseName(group.title);
+  const turno = showShift ? formatShiftLabel(group.shift) : "";
+  return [curso, turno].filter(Boolean).join(" · ");
+}
 
 function studentToWire(s: ClassListStudent) {
   return s.isOwner ? { f: s.firstName, l: s.lastName, o: 1 } : { f: s.firstName, l: s.lastName };
@@ -124,6 +179,7 @@ export function serializeClassListGroups(groups: readonly ClassListGroup[]): str
     g: groups.map((g) => ({
       t: g.title,
       ...(g.courseKey ? { k: g.courseKey } : {}),
+      ...(g.shift?.trim() ? { h: g.shift.trim() } : {}),
       s: g.students.map(studentToWire),
     })),
   });
@@ -174,7 +230,8 @@ export function parseClassListGroups(raw: unknown, fallbackTitle?: string | null
     if (students.length === 0) continue;
     const title = typeof r.t === "string" ? r.t.trim() : "";
     const courseKey = typeof r.k === "string" && r.k ? r.k : undefined;
-    out.push(courseKey ? { title, courseKey, students } : { title, students });
+    const shift = typeof r.h === "string" && r.h.trim() ? r.h.trim() : undefined;
+    out.push({ title, ...(courseKey ? { courseKey } : {}), ...(shift ? { shift } : {}), students });
   }
   return out;
 }
@@ -267,38 +324,116 @@ export type ClassListSection = {
   lines: ClassListLine[];
 };
 
-/** Ordena y escribe cada curso; el título sólo si las opciones lo piden y el curso lo tiene. */
+function courseNameKey(title: string): string {
+  return formatCourseName(title).toLocaleLowerCase("es");
+}
+
+/**
+ * Ordena y escribe cada curso; el título sólo si las opciones lo piden y el curso lo tiene.
+ * El turno va según «Mostrar turno», salvo que dos cursos del listado se llamen igual: ahí el
+ * turno es lo único que los distingue y va siempre.
+ */
 export function formatClassListGroups(
   groups: readonly ClassListGroup[],
   options: ClassListOptions,
 ): ClassListSection[] {
-  return groups
-    .map((g) => ({
-      heading: options.showHeading && g.title.trim() ? g.title.trim() : null,
-      lines: formatClassList(g.students, options),
-    }))
+  const conAlumnos = groups.filter((g) => g.students.length > 0);
+  const nombres = conAlumnos.map((g) => courseNameKey(g.title));
+  return conAlumnos
+    .map((g) => {
+      const nombre = courseNameKey(g.title);
+      const repetido = nombre !== "" && nombres.filter((n) => n === nombre).length > 1;
+      const heading = options.showHeading ? formatClassListHeading(g, options.showShift || repetido) : "";
+      return { heading: heading || null, lines: formatClassList(g.students, options) };
+    })
     .filter((s) => s.lines.length > 0);
 }
 
 export type ClassListSectionCell = ClassListCell & {
   /** El cuerpo de esta celda: el título del curso sale más grande que los nombres. */
   fontSize: number;
-  /** Es el título del curso (va en negrita y ocupa todo el ancho). */
+  /** Es un título: el del curso o el nombre del colegio (va en negrita). */
   heading: boolean;
+  /** Es la línea del colegio, arriba de todo. */
+  school?: boolean;
 };
 
 export type ClassListSectionsLayout = {
   cells: ClassListSectionCell[];
   /** El cuerpo de los nombres (el elegido, o menos si no entra). */
   fontSize: number;
+  /** En cuántas columnas se repartieron los nombres. */
+  columns: number;
 };
 
+/** Aire entre un curso y el siguiente, en renglones de nombre. */
+const SECTION_GAP = 0.5;
+/** Aire debajo de la línea del colegio, en renglones de nombre. */
+const SCHOOL_GAP = 0.4;
 /**
- * Como `layoutClassList`, pero con uno o más cursos: cada uno con su título a todo el ancho y
- * sus alumnos en columnas debajo, y medio renglón de aire entre un curso y el siguiente. Si no
- * entra todo en el alto, se achica todo por igual (títulos y nombres).
+ * Ancho medio de una letra en negrita, en cuerpos. Sirve para achicar un título que no entra en
+ * su columna. Es una estimación (acá no hay medidas de la tipografía), pero es la misma cuenta
+ * en el lienzo, la vista previa y la impresión, así que sale igual en los tres.
+ */
+const AVG_CHAR_EM = 0.56;
+/** Con dos cursos o más, los nombres se reparten siempre en estas columnas. */
+export const CLASS_LIST_MULTI_COURSE_COLUMNS = 4;
+/** Un título de curso no queda solo al pie de una columna: va con al menos estos nombres. */
+const KEEP_WITH_HEADING = 2;
+/** Ancho medio de una letra normal, en cuerpos (los nombres). Misma estimación que arriba. */
+const AVG_NAME_CHAR_EM = 0.5;
+
+function fitFont(text: string, width: number, size: number): number {
+  const chars = [...text].length;
+  if (chars === 0 || width <= 0) return size;
+  return Math.min(size, width / (chars * AVG_CHAR_EM));
+}
+
+type FlowItem =
+  | { kind: "heading"; text: string; sub: string | null; units: number; gapBefore: number; keep: number }
+  | { kind: "name"; line: ClassListLine; units: number; gapBefore: number };
+
+type FlowPlacement = { item: FlowItem; col: number; y: number };
+
+/** Llena las columnas de arriba hacia abajo con un alto máximo `limit`; null si no entra. */
+function flowInto(
+  items: readonly FlowItem[],
+  columns: number,
+  limit: number,
+): { placed: FlowPlacement[]; used: number } | null {
+  const EPS = 1e-9;
+  const placed: FlowPlacement[] = [];
+  let col = 0;
+  let used = 0;
+  let maxUsed = 0;
+  for (const item of items) {
+    let gap = used > 0 ? item.gapBefore : 0;
+    const need = gap + item.units + (item.kind === "heading" ? item.keep : 0);
+    if (used > 0 && used + need > limit + EPS) {
+      col += 1;
+      used = 0;
+      gap = 0;
+    }
+    if (col >= columns) return null;
+    placed.push({ item, col, y: used + gap });
+    used += gap + item.units;
+    maxUsed = Math.max(maxUsed, used);
+  }
+  return { placed, used: maxUsed };
+}
+
+/**
+ * Como `layoutClassList`, pero con uno o más cursos, cada uno con su título, y la línea del
+ * colegio arriba de todo si se pide.
  *
- * Un solo curso sin título da exactamente lo mismo que `layoutClassList`.
+ * - Un curso: su título a todo el ancho y los alumnos debajo, en las columnas del bloque.
+ * - Dos cursos o más: los nombres van siempre en 4 columnas, para que entren. Los cursos
+ *   corren seguidos de arriba hacia abajo y de una columna a la siguiente; cada título va al
+ *   principio de su curso, en el ancho de su columna, y nunca queda solo al pie: si no entra
+ *   con sus primeros nombres, pasa a la columna siguiente.
+ *
+ * Si no entra todo en el alto, se achica todo por igual (colegio, títulos y nombres). Un solo
+ * curso sin título ni colegio da exactamente lo mismo que `layoutClassList`.
  */
 export function layoutClassListSections(input: {
   sections: readonly ClassListSection[];
@@ -310,37 +445,66 @@ export function layoutClassListSections(input: {
   verticalAlign?: "top" | "middle" | "bottom";
   /** Cuánto más grande que los nombres va el título (por defecto el de las opciones). */
   headingScale?: number;
+  /** El colegio, una vez arriba de todo. Vacío o null: no va. */
+  schoolName?: string | null;
 }): ClassListSectionsLayout {
   const lineHeight = input.lineHeight > 0 ? input.lineHeight : 1.2;
   const headingScale = input.headingScale ?? DEFAULT_CLASS_LIST_OPTIONS.headingScale;
   const sections = input.sections.filter((s) => s.lines.length > 0);
-  if (sections.length === 0) return { cells: [], fontSize: input.fontSize };
-  const SECTION_GAP = 0.5;
-  const plan = sections.map((s) => {
-    const columns = Math.max(1, Math.min(input.columns, s.lines.length));
-    return { ...s, columns, rows: Math.ceil(s.lines.length / columns) };
-  });
-  // Alto total en «renglones de nombre»: así el achique es una sola cuenta lineal.
-  const units =
-    plan.reduce((acc, s) => acc + s.rows + (s.heading ? headingScale : 0), 0) + SECTION_GAP * (plan.length - 1);
-  const rowHeight = Math.min(input.fontSize * lineHeight, input.height / units);
-  const fontSize = rowHeight / lineHeight;
-  const total = rowHeight * units;
-  const hueco = Math.max(0, input.height - total);
-  let y = input.verticalAlign === "middle" ? hueco / 2 : input.verticalAlign === "bottom" ? hueco : 0;
+  if (sections.length === 0) return { cells: [], fontSize: input.fontSize, columns: 0 };
+  const school = (input.schoolName ?? "").replace(/\s+/g, " ").trim();
+  const schoolUnits = school ? headingScale + SCHOOL_GAP : 0;
   const cells: ClassListSectionCell[] = [];
-  plan.forEach((s, si) => {
-    if (si > 0) y += rowHeight * SECTION_GAP;
+
+  const alignTop = (total: number) => {
+    const hueco = Math.max(0, input.height - total);
+    return input.verticalAlign === "middle" ? hueco / 2 : input.verticalAlign === "bottom" ? hueco : 0;
+  };
+  const pushSchool = (y: number, rowHeight: number, fontSize: number) => {
+    if (!school) return;
+    cells.push({
+      text: school,
+      bold: true,
+      heading: true,
+      school: true,
+      x: 0,
+      y,
+      width: input.width,
+      height: rowHeight * headingScale,
+      fontSize: fitFont(school, input.width, fontSize * headingScale),
+    });
+  };
+
+  if (sections.length === 1) {
+    const s = sections[0]!;
+    const columns = Math.max(1, Math.min(input.columns, s.lines.length));
+    const rows = Math.ceil(s.lines.length / columns);
+    // Alto total en «renglones de nombre»: así el achique es una sola cuenta lineal.
+    const units = schoolUnits + rows + (s.heading ? headingScale : 0);
+    const rowHeight = Math.min(input.fontSize * lineHeight, input.height / units);
+    const fontSize = rowHeight / lineHeight;
+    let y = alignTop(rowHeight * units);
+    pushSchool(y, rowHeight, fontSize);
+    y += rowHeight * schoolUnits;
     if (s.heading) {
       const h = rowHeight * headingScale;
-      cells.push({ text: s.heading, bold: true, heading: true, x: 0, y, width: input.width, height: h, fontSize: fontSize * headingScale });
+      cells.push({
+        text: s.heading,
+        bold: true,
+        heading: true,
+        x: 0,
+        y,
+        width: input.width,
+        height: h,
+        fontSize: fitFont(s.heading, input.width, fontSize * headingScale),
+      });
       y += h;
     }
-    const gap = s.columns > 1 ? fontSize * 0.8 : 0;
-    const cellWidth = Math.max(1, (input.width - gap * (s.columns - 1)) / s.columns);
+    const gap = columns > 1 ? fontSize * 0.8 : 0;
+    const cellWidth = Math.max(1, (input.width - gap * (columns - 1)) / columns);
     s.lines.forEach((line, i) => {
-      const col = Math.floor(i / s.rows);
-      const row = i % s.rows;
+      const col = Math.floor(i / rows);
+      const row = i % rows;
       cells.push({
         ...line,
         heading: false,
@@ -351,14 +515,102 @@ export function layoutClassListSections(input: {
         height: rowHeight,
       });
     });
-    y += s.rows * rowHeight;
+    return { cells, fontSize, columns };
+  }
+
+  // Varios cursos: una sola corrida en 4 columnas.
+  const nameCount = sections.reduce((acc, s) => acc + s.lines.length, 0);
+  const columns = Math.max(1, Math.min(CLASS_LIST_MULTI_COURSE_COLUMNS, nameCount));
+  /*
+   * En 4 columnas un nombre largo no entra al cuerpo elegido: se achica todo por igual hasta que
+   * entre el más largo (antes de cortarse en el borde de la columna). `widthFont` es el cuerpo
+   * más grande con el que entra, contando el aire entre columnas (0,8 cuerpos).
+   */
+  const longest = Math.max(1, ...sections.flatMap((s) => s.lines.map((l) => [...l.text].length)));
+  const gapsEm = 0.8 * (columns - 1);
+  const widthFont = input.width / (columns * longest * AVG_NAME_CHAR_EM + gapsEm);
+  const planFont = Math.min(input.fontSize, widthFont);
+  const planCell = (input.width - planFont * gapsEm) / columns;
+  const items: FlowItem[] = [];
+  sections.forEach((s, si) => {
+    const gapBefore = si > 0 ? SECTION_GAP : 0;
+    if (s.heading) {
+      /*
+       * Un título que no entra en su columna ni al cuerpo de los nombres se parte en dos
+       * renglones: el curso arriba y el turno abajo («3.° B» / «Turno mañana»). Achicarlo más
+       * que los nombres lo dejaba ilegible.
+       */
+      const corte = s.heading.indexOf(" · ");
+      const noEntra = [...s.heading].length * AVG_CHAR_EM * planFont * headingScale > planCell;
+      const partir = noEntra && corte > 0;
+      const sub = partir ? s.heading.slice(corte + 3) : null;
+      items.push({
+        kind: "heading",
+        text: partir ? s.heading.slice(0, corte) : s.heading,
+        sub,
+        units: headingScale + (sub ? 1 : 0),
+        gapBefore,
+        keep: Math.min(KEEP_WITH_HEADING, s.lines.length),
+      });
+    }
+    s.lines.forEach((line, i) =>
+      items.push({ kind: "name", line, units: 1, gapBefore: i === 0 && !s.heading ? gapBefore : 0 }),
+    );
   });
-  return { cells, fontSize };
+  const total = items.reduce((acc, it) => acc + it.gapBefore + it.units, 0);
+  const tallest = items.reduce((acc, it) => Math.max(acc, it.units + (it.kind === "heading" ? it.keep : 0)), 0);
+  // El alto de columna más chico con el que entra todo, buscado de a un vigésimo de renglón.
+  let flow: { placed: FlowPlacement[]; used: number } | null = null;
+  for (let limit = Math.max(total / columns, tallest); !flow; limit += 0.05) {
+    flow = flowInto(items, columns, limit) ?? (limit >= total ? flowInto(items, columns, Number.POSITIVE_INFINITY) : null);
+  }
+  const units = schoolUnits + flow.used;
+  const rowHeight = Math.min(planFont * lineHeight, input.height / units);
+  const fontSize = rowHeight / lineHeight;
+  const top = alignTop(rowHeight * units);
+  pushSchool(top, rowHeight, fontSize);
+  const y0 = top + rowHeight * schoolUnits;
+  const gap = columns > 1 ? fontSize * 0.8 : 0;
+  const cellWidth = Math.max(1, (input.width - gap * (columns - 1)) / columns);
+  for (const p of flow.placed) {
+    const x = p.col * (cellWidth + gap);
+    const y = y0 + p.y * rowHeight;
+    if (p.item.kind === "heading") {
+      cells.push({
+        text: p.item.text,
+        bold: true,
+        heading: true,
+        x,
+        y,
+        width: cellWidth,
+        height: rowHeight * headingScale,
+        fontSize: fitFont(p.item.text, cellWidth, fontSize * headingScale),
+      });
+      if (p.item.sub) {
+        cells.push({
+          text: p.item.sub,
+          bold: true,
+          heading: true,
+          x,
+          y: y + rowHeight * headingScale,
+          width: cellWidth,
+          height: rowHeight,
+          fontSize: fitFont(p.item.sub, cellWidth, fontSize),
+        });
+      }
+    } else {
+      cells.push({ ...p.item.line, heading: false, fontSize, x, y, width: cellWidth, height: rowHeight });
+    }
+  }
+  return { cells, fontSize, columns };
 }
 
 /**
  * Lo que dibujan el lienzo, la vista previa y la impresión para un bloque «Listado del curso»:
  * los cursos ya ordenados, escritos y repartidos según las opciones del bloque.
+ *
+ * `schoolName` es el colegio del diseño (`school.name`); se imprime sólo si la opción «Mostrar
+ * nombre del colegio» está prendida.
  */
 export function layoutClassListBlock(input: {
   groups: readonly ClassListGroup[];
@@ -368,6 +620,7 @@ export function layoutClassListBlock(input: {
   fontSize: number;
   lineHeight: number;
   verticalAlign?: "top" | "middle" | "bottom";
+  schoolName?: string | null;
 }): ClassListSectionsLayout {
   return layoutClassListSections({
     sections: formatClassListGroups(input.groups, input.options),
@@ -378,6 +631,7 @@ export function layoutClassListBlock(input: {
     columns: input.options.columns,
     verticalAlign: input.verticalAlign,
     headingScale: input.options.headingScale,
+    schoolName: input.options.showSchoolName ? input.schoolName : null,
   });
 }
 
@@ -403,7 +657,13 @@ export function classListCrowdMessage(faces: number, students: number): string {
 }
 
 /** El título del curso de muestra (coincide con el curso de muestra del catálogo). */
-export const CLASS_LIST_SAMPLE_TITLE = "3.º B";
+export const CLASS_LIST_SAMPLE_TITLE = "3.° B";
+
+/** El turno del curso de muestra. */
+export const CLASS_LIST_SAMPLE_SHIFT = "Mañana";
+
+/** El colegio de muestra (el mismo que el ejemplo de «Escuela - Nombre» del catálogo). */
+export const CLASS_LIST_SAMPLE_SCHOOL = "Escuela Ejemplo";
 
 /** Un curso de muestra para diseñar. La dueña coincide con el alumno de muestra del catálogo. */
 export const CLASS_LIST_SAMPLE: ClassListStudent[] = [
@@ -427,5 +687,7 @@ export const CLASS_LIST_SAMPLE: ClassListStudent[] = [
   { firstName: "Bautista", lastName: "Zapata" },
 ];
 
-/** El listado de muestra del editor: un curso con su título. */
-export const CLASS_LIST_SAMPLE_GROUPS: ClassListGroup[] = [{ title: CLASS_LIST_SAMPLE_TITLE, students: CLASS_LIST_SAMPLE }];
+/** El listado de muestra del editor: un curso con su título y su turno. */
+export const CLASS_LIST_SAMPLE_GROUPS: ClassListGroup[] = [
+  { title: CLASS_LIST_SAMPLE_TITLE, shift: CLASS_LIST_SAMPLE_SHIFT, students: CLASS_LIST_SAMPLE },
+];

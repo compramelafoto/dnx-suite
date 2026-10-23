@@ -125,6 +125,7 @@ async function pdfPorPagina(caso: CasoDeComparacion): Promise<{ paginas: Buffer[
     blocks: aBloquesDelPuente(caso.blocks),
     nombre: caso.id,
     cursosDelListado: parseClassListGroups(caso.valores?.[LISTA_DEL_CURSO], caso.valores?.["course.displayName"]),
+    colegioDelListado: caso.valores?.["school.name"] ?? null,
   });
   const salida = await emitDesign({
     document: puente.document as never,

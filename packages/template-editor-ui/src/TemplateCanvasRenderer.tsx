@@ -201,6 +201,7 @@ function ClassListBlockRenderer({
   const t = getTextVisualConfig(config);
   // Un listado guardado antes de los cursos con título usa el curso del diseño como título.
   const fallbackTitle = resolvedVariables?.["course.displayName"];
+  const schoolName = resolvedVariables?.["school.name"];
   const { cells } = layoutClassListBlock({
     groups: parseClassListGroups(resolvedVariables?.[key], typeof fallbackTitle === "string" ? fallbackTitle : null),
     options,
@@ -209,6 +210,7 @@ function ClassListBlockRenderer({
     fontSize: t.fontSize,
     lineHeight: t.lineHeight,
     verticalAlign: t.verticalAlign,
+    schoolName: typeof schoolName === "string" ? schoolName : null,
   });
   if (cells.length === 0) {
     return (

@@ -1,5 +1,6 @@
 import {
   CLASS_LIST_VARIABLE_KEY,
+  formatCourseName,
   serializeClassListGroups,
   type ClassListGroup,
   type ClassListStudent,
@@ -21,6 +22,8 @@ export type DesignValueSources = {
   studentFirstName?: string | null;
   studentLastName?: string | null;
   courseName?: string | null;
+  /** El turno del curso («Mañana»), para el título del listado cuando sale de `courseStudents`. */
+  courseShift?: string | null;
   schoolName?: string | null;
   schoolLogoUrl?: string | null;
   buyerName?: string | null;
@@ -72,7 +75,13 @@ export function buildDesignValues(src: DesignValueSources): Record<string, strin
   const groups = src.courseGroups?.filter((g) => g.students.length > 0).length
     ? src.courseGroups.filter((g) => g.students.length > 0)
     : src.courseStudents?.length
-      ? [{ title: src.courseName?.trim() || "", students: src.courseStudents }]
+      ? [
+          {
+            title: src.courseName?.trim() || "",
+            ...(src.courseShift?.trim() ? { shift: src.courseShift.trim() } : {}),
+            students: src.courseStudents,
+          },
+        ]
       : [];
   if (groups.length) values[CLASS_LIST_VARIABLE_KEY] = serializeClassListGroups(groups);
   if (src.eventDate && !Number.isNaN(src.eventDate.getTime())) {
@@ -81,8 +90,12 @@ export function buildDesignValues(src: DesignValueSources): Record<string, strin
   return values;
 }
 
-/** "3.º" + "B" → "3.º B". */
+/**
+ * El curso para imprimir: "3" + "B" → "3.° B"; "3.º" + "B" → "3.º B". Es la misma escritura que
+ * el título del curso en el «Listado del curso» (`formatCourseName`), así el «Curso» del diseño
+ * y el título del listado dicen lo mismo.
+ */
 export function courseDisplayName(name?: string | null, division?: string | null): string | null {
   const parts = [name?.trim(), division?.trim()].filter(Boolean);
-  return parts.length ? parts.join(" ") : null;
+  return parts.length ? formatCourseName(parts.join(" ")) || null : null;
 }
