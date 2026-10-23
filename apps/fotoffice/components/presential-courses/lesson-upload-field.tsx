@@ -1,7 +1,11 @@
 "use client";
 
-import { useState } from "react";
-import { refrescarEstadoDeVideo } from "@/app/actions/course-lessons";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { refrescarEstadoDeVideo, traerVideoDesdeEnlace } from "@/app/actions/course-lessons";
+
+/** Cada cuánto se pregunta si el proveedor terminó de preparar el video. */
+const ESPERA_ENTRE_CONSULTAS_MS = 15_000;
 
 type Estado = "PENDING" | "UPLOADING" | "PROCESSING" | "READY" | "ERROR";
 
@@ -36,6 +40,40 @@ export function LessonUploadField({
   const [estado, setEstado] = useState<Estado>(estadoInicial);
   const [progreso, setProgreso] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [enlace, setEnlace] = useState("");
+  const [trayendo, setTrayendo] = useState(false);
+  const router = useRouter();
+
+  // Preparar un video lleva minutos: mientras tanto se pregunta solo, y al terminar se
+  // refresca la pantalla para mostrar la duración. Sin esto la clase quedaba "Procesando…"
+  // para siempre y nunca le aparecía al alumno.
+  useEffect(() => {
+    if (estado !== "PROCESSING") return;
+    let vigente = true;
+    const intervalo = setInterval(async () => {
+      const r = await refrescarEstadoDeVideo(lessonId);
+      if (!vigente || !r.videoStatus || r.videoStatus === "PROCESSING") return;
+      setEstado(r.videoStatus);
+      router.refresh();
+    }, ESPERA_ENTRE_CONSULTAS_MS);
+    return () => {
+      vigente = false;
+      clearInterval(intervalo);
+    };
+  }, [estado, lessonId, router]);
+
+  async function traer() {
+    setError(null);
+    setTrayendo(true);
+    const r = await traerVideoDesdeEnlace(lessonId, enlace);
+    setTrayendo(false);
+    if (r.error) {
+      setError(r.error);
+      return;
+    }
+    setEnlace("");
+    setEstado("PROCESSING");
+  }
 
   async function subir(archivo: File) {
     setError(null);
@@ -74,7 +112,6 @@ export function LessonUploadField({
 
       // El proveedor todavía tiene que procesarlo: recién ahí la clase se puede ver.
       setEstado("PROCESSING");
-      await refrescarEstadoDeVideo(lessonId);
     } catch (e) {
       setEstado("ERROR");
       setError(e instanceof Error ? e.message : "No se pudo subir el video.");
@@ -113,6 +150,30 @@ export function LessonUploadField({
         </label>
       </div>
 
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          type="url"
+          className="fo-input min-w-0 flex-1 text-sm"
+          placeholder="…o pegá el enlace del video en Google Drive"
+          aria-label="Enlace del video"
+          value={enlace}
+          onChange={(e) => setEnlace(e.target.value)}
+          disabled={trayendo || estado === "UPLOADING"}
+        />
+        <button
+          type="button"
+          className="fo-btn fo-btn-secondary text-sm"
+          onClick={() => void traer()}
+          disabled={!enlace.trim() || trayendo || estado === "UPLOADING"}
+        >
+          {trayendo ? "Pidiendo…" : "Traer video"}
+        </button>
+      </div>
+      <p className="text-xs text-[var(--fo-muted)]">
+        Desde Drive, el video tiene que estar compartido con &quot;Cualquier persona con el
+        enlace&quot;. Sirve para videos de cualquier tamaño.
+      </p>
+
       {estado === "UPLOADING" ? (
         <div className="space-y-1">
           <div className="h-2 w-full overflow-hidden rounded-full bg-[var(--fo-border)]">
@@ -127,8 +188,8 @@ export function LessonUploadField({
 
       {estado === "PROCESSING" ? (
         <p className="text-xs text-[var(--fo-muted)]">
-          El video se está preparando. Podés seguir cargando el curso: cuando termine, la clase
-          queda lista.
+          El video se está preparando (si viene de un enlace, primero se descarga). Podés seguir
+          cargando el curso: cuando termine, la clase queda lista.
         </p>
       ) : null}
 
