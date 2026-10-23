@@ -10,7 +10,16 @@ import { BACKDROPS } from "./StudioBackdrop";
 import StudioIcon from "./StudioIcons";
 import { ANIMATIONS } from "@/lib/simulator/studio-light/animation-clip";
 import { BUST_LABELS, FIGURES, figureUrl, isBust, type BustId } from "@/lib/simulator/studio-light/figures";
-import { POSES, type ArmPose, type PoseParams } from "@/lib/simulator/studio-light/poses";
+import {
+  POSES,
+  POSE_GROUPS,
+  SEQUENCES,
+  STAND_LEGS,
+  type ArmPose,
+  type LegPose,
+  type PoseGroup,
+  type PoseParams,
+} from "@/lib/simulator/studio-light/poses";
 
 const DEG = 180 / Math.PI;
 
@@ -483,7 +492,9 @@ const ARM_FIELDS: { key: keyof ArmPose; label: string; min: number; max: number 
   { key: "roll", label: "Dirección del codo", min: -90, max: 120 },
 ];
 
-const BODY_FIELDS: { key: Exclude<keyof PoseParams, "left" | "right">; label: string; min: number; max: number; step?: number }[] = [
+type NumericPoseKey = "headTurn" | "headNod" | "headTilt" | "torsoTurn" | "torsoLean" | "torsoBend" | "weight" | "pointe";
+
+const BODY_FIELDS: { key: NumericPoseKey; label: string; min: number; max: number; step?: number }[] = [
   { key: "headTurn", label: "Cabeza: girar", min: -70, max: 70 },
   { key: "headNod", label: "Cabeza: arriba / abajo", min: -35, max: 35 },
   { key: "headTilt", label: "Cabeza: inclinar", min: -30, max: 30 },
@@ -491,6 +502,14 @@ const BODY_FIELDS: { key: Exclude<keyof PoseParams, "left" | "right">; label: st
   { key: "torsoLean", label: "Torso: adelante / atrás", min: -20, max: 30 },
   { key: "torsoBend", label: "Torso: al costado", min: -20, max: 20 },
   { key: "weight", label: "Peso: pierna der. ↔ izq.", min: -1, max: 1, step: 0.1 },
+  { key: "pointe", label: "Pies en punta", min: 0, max: 1, step: 0.1 },
+];
+
+const LEG_FIELDS: { key: keyof LegPose; label: string; min: number; max: number }[] = [
+  { key: "forward", label: "Levantar adelante / atrás", min: -100, max: 120 },
+  { key: "out", label: "Abrir al costado", min: -20, max: 95 },
+  { key: "knee", label: "Rodilla", min: 0, max: 155 },
+  { key: "roll", label: "Dirección de la rodilla", min: -90, max: 90 },
 ];
 
 function PosePicker() {
@@ -499,12 +518,28 @@ function PosePicker() {
   const current = POSES.find((x) => x.id === state.pose);
   const setArm = (side: "left" | "right", key: keyof ArmPose, v: number) =>
     dispatch({ type: "pose-params", patch: { [side]: { ...p[side], [key]: v } } as Partial<PoseParams> });
+  const legs = p.legs ?? STAND_LEGS;
+  const setLeg = (side: "left" | "right", key: keyof LegPose, v: number) =>
+    dispatch({ type: "pose-params", patch: { legs: { ...legs, [side]: { ...legs[side], [key]: v } } } });
+  const [group, setGroup] = useState<PoseGroup>(current?.group ?? "De pie");
 
   return (
     <>
       <span className="cod-studio-field__label">Pose</span>
+      <div className="cod-studio-segment cod-studio-segment--wrap" role="group" aria-label="Tipo de pose">
+        {POSE_GROUPS.map((g) => (
+          <button
+            key={g}
+            type="button"
+            className={`cod-studio-segment__btn${group === g ? " cod-studio-segment__btn--on" : ""}`}
+            onClick={() => setGroup(g)}
+          >
+            {g}
+          </button>
+        ))}
+      </div>
       <div className="cod-studio-chips">
-        {POSES.map((pose) => (
+        {POSES.filter((x) => x.group === group).map((pose) => (
           <button
             key={pose.id}
             type="button"
@@ -550,8 +585,24 @@ function PosePicker() {
           </button>
         ))}
       </div>
+      <span className="cod-studio-field__label">Saltos y coreografías</span>
+      <div className="cod-studio-chips">
+        {SEQUENCES.map((q) => (
+          <button
+            key={q.id}
+            type="button"
+            className={`cod-studio-chip${state.motion.clip === q.id ? " cod-studio-chip--on" : ""}`}
+            onClick={() => dispatch({ type: "motion", patch: { clip: q.id } })}
+          >
+            {q.label}
+          </button>
+        ))}
+      </div>
       {state.motion.clip ? (
-        <p className="cod-studio-hint">Animación real capturada en movimiento. Elegí una pose para volver a posar.</p>
+        <p className="cod-studio-hint">
+          {SEQUENCES.find((q) => q.id === state.motion.clip)?.hint ??
+            "Animación real capturada en movimiento. Elegí una pose para volver a posar."}
+        </p>
       ) : null}
 
       <details className="cod-studio-joints">
@@ -581,6 +632,23 @@ function PosePicker() {
                 step={1}
                 display={`${Math.round(p[side][f.key])}°`}
                 onChange={(v) => setArm(side, f.key, v)}
+              />
+            ))}
+          </fieldset>
+        ))}
+        {(["left", "right"] as const).map((side) => (
+          <fieldset key={`leg-${side}`} className="cod-studio-joints__arm">
+            <legend>{side === "left" ? "Pierna izquierda (del modelo)" : "Pierna derecha (del modelo)"}</legend>
+            {LEG_FIELDS.map((f) => (
+              <Slider
+                key={f.key}
+                label={f.label}
+                value={legs[side][f.key]}
+                min={f.min}
+                max={f.max}
+                step={1}
+                display={`${Math.round(legs[side][f.key])}°`}
+                onChange={(v) => setLeg(side, f.key, v)}
               />
             ))}
           </fieldset>

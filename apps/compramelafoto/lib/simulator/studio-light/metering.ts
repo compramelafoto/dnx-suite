@@ -9,7 +9,9 @@
  * Exposición de cámara: EV = log2(N²_total · ISO/100 / f²); 0 = correcta.
  */
 
+import { isBust } from "./figures";
 import { FLASH_SYNC_SPEED, MODIFIERS, gelById } from "./modifiers";
+import { BASE_HEAD } from "./poses";
 import type { StudioLight, StudioState } from "./types";
 
 export type Vec3 = [number, number, number];
@@ -49,21 +51,30 @@ export function lightPosition(light: StudioLight): Vec3 {
 }
 
 /** Punto al que apunta una luz. */
-export function aimPoint(light: StudioLight): Vec3 {
+/**
+ * Dónde están los ojos del sujeto: depende del apoyo de la pose (de pie,
+ * sentado, acostado…). Los bustos siempre están de pie.
+ */
+export function subjectHead(state: Pick<StudioState, "subject" | "poseParams">): Vec3 {
+  if (isBust(state.subject)) return SUBJECT_HEAD;
+  return BASE_HEAD[state.poseParams.base] ?? SUBJECT_HEAD;
+}
+
+export function aimPoint(light: StudioLight, head: Vec3 = SUBJECT_HEAD): Vec3 {
   switch (light.aim) {
     case "hair":
-      return [SUBJECT_HEAD[0], SUBJECT_HEAD[1] + 0.14, SUBJECT_HEAD[2] - 0.04];
+      return [head[0], head[1] + 0.14, head[2] - 0.04];
     case "background":
       return [light.x * 0.35, 1.3, BACKDROP_Z];
     default:
-      return SUBJECT_HEAD;
+      return head;
   }
 }
 
 /** Atenuación del borde del haz (misma curva que el SpotLight de three.js). */
-export function beamFactor(light: StudioLight, point: Vec3): number {
+export function beamFactor(light: StudioLight, point: Vec3, head: Vec3 = SUBJECT_HEAD): number {
   const spec = MODIFIERS[light.modifier];
-  const axis = norm(sub(aimPoint(light), lightPosition(light)));
+  const axis = norm(sub(aimPoint(light, head), lightPosition(light)));
   const toPoint = norm(sub(point, lightPosition(light)));
   const half = (spec.beamDeg / 2) * DEG;
   const coneCos = Math.cos(half);
@@ -85,9 +96,9 @@ export function emitterOutput(light: StudioLight, shutter: number): number {
 }
 
 /** N² que una luz emisora deja en un punto, con la cara del fotómetro mirando a la luz. */
-export function emitterN2At(light: StudioLight, point: Vec3, shutter: number): number {
+export function emitterN2At(light: StudioLight, point: Vec3, shutter: number, head: Vec3 = SUBJECT_HEAD): number {
   const d = Math.max(0.2, len(sub(point, lightPosition(light))));
-  return (emitterOutput(light, shutter) * beamFactor(light, point)) / (d * d);
+  return (emitterOutput(light, shutter) * beamFactor(light, point, head)) / (d * d);
 }
 
 /** Luces que realmente suman (encendidas y respetando "solo"). */
@@ -102,13 +113,14 @@ export function reflectorOutput(reflector: StudioLight, state: StudioState): num
   const spec = MODIFIERS[reflector.modifier];
   if (spec.nature !== "reflector") return 0;
   const pos = lightPosition(reflector);
-  const normal = norm(sub(aimPoint(reflector), pos));
+  const head = subjectHead(state);
+  const normal = norm(sub(aimPoint(reflector, head), pos));
   let received = 0;
   for (const l of activeLights(state)) {
     if (l.id === reflector.id || MODIFIERS[l.modifier].nature === "reflector") continue;
     const toLight = norm(sub(lightPosition(l), pos));
     const facing = Math.max(0, dot(normal, toLight));
-    received += emitterN2At(l, pos, state.camera.shutter) * facing;
+    received += emitterN2At(l, pos, state.camera.shutter, head) * facing;
   }
   const area = spec.width * spec.height * (spec.shape === "round" ? Math.PI / 4 : 1);
   const directional = spec.beamDeg < 100 ? 2.4 : 1;
@@ -124,14 +136,16 @@ export function lightOutput(light: StudioLight, state: StudioState): number {
 
 /** N² en el sujeto con la cara del fotómetro mirando a la luz. */
 export function lightN2AtSubject(light: StudioLight, state: StudioState): number {
-  const d = Math.max(0.2, len(sub(SUBJECT_HEAD, lightPosition(light))));
-  return (lightOutput(light, state) * beamFactor(light, SUBJECT_HEAD)) / (d * d);
+  const head = subjectHead(state);
+  const d = Math.max(0.2, len(sub(head, lightPosition(light))));
+  return (lightOutput(light, state) * beamFactor(light, head, head)) / (d * d);
 }
 
 /** Peso de una cúpula de fotómetro apuntada a la cámara (1 de frente, 0 desde atrás). */
 export function domeWeight(light: StudioLight, state: StudioState): number {
-  const toCamera = norm(sub([state.camera.x, state.camera.y, state.camera.z], SUBJECT_HEAD));
-  const toLight = norm(sub(lightPosition(light), SUBJECT_HEAD));
+  const head = subjectHead(state);
+  const toCamera = norm(sub([state.camera.x, state.camera.y, state.camera.z], head));
+  const toLight = norm(sub(lightPosition(light), head));
   return Math.max(0, 0.5 + 0.5 * dot(toCamera, toLight));
 }
 
@@ -202,9 +216,9 @@ function wrapDeg(a: number): number {
 }
 
 /** Clasifica el esquema por la posición de la luz principal respecto de la cara. */
-export function classifyPattern(key: StudioLight | null, subjectYaw: number): PatternId {
+export function classifyPattern(key: StudioLight | null, subjectYaw: number, head: Vec3 = SUBJECT_HEAD): PatternId {
   if (!key) return "none";
-  const rel = sub(lightPosition(key), SUBJECT_HEAD);
+  const rel = sub(lightPosition(key), head);
   const az = Math.abs(wrapDeg(azimuthDeg(rel) - subjectYaw));
   const elev = Math.atan2(rel[1], Math.hypot(rel[0], rel[2])) / DEG;
   // Casi encima de la cabeza: cenital, sin importar el ángulo horizontal.
@@ -249,14 +263,15 @@ export function meter(state: StudioState): MeterReport {
   for (const l of active) {
     const spec = MODIFIERS[l.modifier];
     if (spec.nature === "reflector") continue;
-    backN2 += emitterN2At(l, backPoint, shutter);
+    backN2 += emitterN2At(l, backPoint, shutter, subjectHead(state));
   }
 
   const key = active.find((l) => l.id === keyId) ?? null;
   let side: MeterReport["side"] = null;
   if (key && Math.abs(state.subjectYaw) > 8) {
-    const camAz = wrapDeg(azimuthDeg(sub([state.camera.x, state.camera.y, state.camera.z], SUBJECT_HEAD)) - state.subjectYaw);
-    const keyAz = wrapDeg(azimuthDeg(sub(lightPosition(key), SUBJECT_HEAD)) - state.subjectYaw);
+    const head = subjectHead(state);
+    const camAz = wrapDeg(azimuthDeg(sub([state.camera.x, state.camera.y, state.camera.z], head)) - state.subjectYaw);
+    const keyAz = wrapDeg(azimuthDeg(sub(lightPosition(key), head)) - state.subjectYaw);
     side = Math.sign(camAz) === Math.sign(keyAz) ? "broad" : "short";
   }
 
@@ -270,7 +285,7 @@ export function meter(state: StudioState): MeterReport {
     keyId,
     keyEv: readings.find((r) => r.id === keyId)?.ev ?? -Infinity,
     ratio: keyFace > 0 && fillFace > keyFace * 0.004 ? (keyFace + fillFace) / fillFace : null,
-    pattern: classifyPattern(key, state.subjectYaw),
+    pattern: classifyPattern(key, state.subjectYaw, subjectHead(state)),
     side,
     backgroundEv: faceN2 > 0 && backN2 > 0 ? Math.log2(backN2 / faceN2) : -Infinity,
     overSync,

@@ -8,6 +8,7 @@ import { MODIFIERS, powerLabel } from "@/lib/simulator/studio-light/modifiers";
 import {
   activeLights,
   aimPoint,
+  subjectHead,
   lightOutput,
   renderExposure,
   renderedLightColor,
@@ -206,7 +207,7 @@ function RigLight({ light, showHelpers, setZoomEnabled, setOrbitEnabled }: RigLi
   const dragging = useRef(false);
   const gl = useThree((s) => s.gl);
 
-  const rawAim = aimPoint(light);
+  const rawAim = aimPoint(light, subjectHead(state));
   // Si la luz apunta casi en vertical, lookAt (y la cámara de sombra) quedan indefinidos:
   // se corre el blanco unos centímetros hacia la cámara.
   const aim: typeof rawAim =

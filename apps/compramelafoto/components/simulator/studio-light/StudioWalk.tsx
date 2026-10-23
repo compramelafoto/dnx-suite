@@ -3,7 +3,7 @@
 import { useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useRef, type MutableRefObject } from "react";
 import * as THREE from "three";
-import { SUBJECT_HEAD } from "@/lib/simulator/studio-light/metering";
+import { subjectHead } from "@/lib/simulator/studio-light/metering";
 import { SET_BOUNDS, useStudio } from "@/lib/simulator/studio-light/studio-store";
 
 /** Objetivos que se recorren con la rueda en primera persona (como un zoom). */
@@ -64,7 +64,8 @@ export function StudioWalkController({
     if (!active) return;
     const c = stateRef.current.camera;
     pos.current.set(c.x, c.y, c.z);
-    look.current = c.look ?? lookTowards(pos.current, new THREE.Vector3(SUBJECT_HEAD[0], c.aimY, SUBJECT_HEAD[2]));
+    const head = subjectHead(stateRef.current);
+    look.current = c.look ?? lookTowards(pos.current, new THREE.Vector3(head[0], c.aimY, head[2]));
     held.current = null;
   }, [active]);
 
@@ -241,7 +242,7 @@ export function StudioCameraDirector({ requestRef }: { requestRef: MutableRefObj
         top: [new THREE.Vector3(0, 9.5, 1.3), new THREE.Vector3(0, 0, 1.2)],
         camera: [
           new THREE.Vector3(c.x, c.y + 0.25, c.z).add(new THREE.Vector3(c.x, 0, c.z).normalize().multiplyScalar(0.9)),
-          new THREE.Vector3(SUBJECT_HEAD[0], c.aimY, SUBJECT_HEAD[2]),
+          new THREE.Vector3(subjectHead(stateRef.current)[0], c.aimY, subjectHead(stateRef.current)[2]),
         ],
         subject: [new THREE.Vector3(1.6, 1.85, 2.4), new THREE.Vector3(0, 1.45, 0)],
       };

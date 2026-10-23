@@ -5,7 +5,7 @@ import { Canvas, useFrame, useThree, type ThreeEvent } from "@react-three/fiber"
 import { Suspense, useLayoutEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import * as THREE from "three";
 import { RectAreaLightUniformsLib } from "three/examples/jsm/lights/RectAreaLightUniformsLib.js";
-import { SUBJECT_HEAD, renderExposure, roomN2 } from "@/lib/simulator/studio-light/metering";
+import { renderExposure, roomN2, subjectHead } from "@/lib/simulator/studio-light/metering";
 import { SET_BOUNDS, useStudio } from "@/lib/simulator/studio-light/studio-store";
 import { startPlaneDrag } from "./plane-drag";
 import StudioBackdrop from "./StudioBackdrop";
@@ -194,6 +194,7 @@ function PhotographerCamera({
   };
   const group = useRef<THREE.Group>(null);
   const { x, y, z, aimY, look } = state.camera;
+  const head = subjectHead(state);
   useLayoutEffect(() => {
     const g = group.current;
     if (!g) return;
@@ -201,7 +202,7 @@ function PhotographerCamera({
     // Con mirada libre (después de caminar) la cámara queda como la dejó el fotógrafo.
     // El cuerpo mira hacia +Z y la cámara hacia −Z: media vuelta y cabeceo invertido.
     if (look) g.rotation.set(-look.pitch, look.yaw + Math.PI, 0, "YXZ");
-    else g.lookAt(SUBJECT_HEAD[0], aimY, SUBJECT_HEAD[2]);
+    else g.lookAt(head[0], aimY, head[2]);
     g.traverse((o) => o.layers.set(HELPER_LAYER));
     photoCam.fov = focalToFov(state.camera.focalMm);
     photoCam.updateProjectionMatrix();
@@ -209,7 +210,7 @@ function PhotographerCamera({
     if (walking) return;
     photoCam.position.set(x, y, z);
     if (look) photoCam.rotation.set(look.pitch, look.yaw, 0, "YXZ");
-    else photoCam.lookAt(SUBJECT_HEAD[0], aimY, SUBJECT_HEAD[2]);
+    else photoCam.lookAt(head[0], aimY, head[2]);
   });
   return (
     <group

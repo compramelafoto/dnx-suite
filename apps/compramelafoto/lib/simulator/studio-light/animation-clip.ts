@@ -33,6 +33,8 @@ export const ANIMATIONS: StudioAnimation[] = [
   { id: "clap", label: "Aplaudir", file: "claphands_01" },
   { id: "stretch", label: "Estirarse", file: "idle_stretch_arms_01" },
   { id: "cheer", label: "Festejar", file: "cheer_01" },
+  { id: "dance", label: "Bailar", file: "dancing_cool" },
+  { id: "dance-soft", label: "Bailar suave", file: "dancing_neutral" },
 ];
 
 export function animationUrl(anim: StudioAnimation, gender: "mujer" | "hombre"): string {
