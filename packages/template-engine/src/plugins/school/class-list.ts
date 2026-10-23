@@ -328,10 +328,38 @@ function courseNameKey(title: string): string {
   return formatCourseName(title).toLocaleLowerCase("es");
 }
 
+/** «A», «A y B», «A, B y C». */
+function joinSpanish(parts: readonly string[]): string {
+  if (parts.length <= 1) return parts[0] ?? "";
+  return `${parts.slice(0, -1).join(", ")} y ${parts[parts.length - 1]}`;
+}
+
 /**
- * Ordena y escribe cada curso; el título sólo si las opciones lo piden y el curso lo tiene.
+ * Un solo título para varios cursos: «7.° A y 7.° B · Turno mañana». Si los turnos no
+ * coinciden, cada curso lleva el suyo: «7.° A · Turno mañana y 7.° B · Turno tarde».
+ */
+export function combineClassListHeadings(headings: readonly string[]): string {
+  const partes = headings.filter((h) => h.trim() !== "");
+  if (partes.length <= 1) return partes[0] ?? "";
+  const cortes = partes.map((h) => {
+    const i = h.indexOf(" · ");
+    return i > 0 ? { curso: h.slice(0, i), resto: h.slice(i + 3) } : { curso: h, resto: "" };
+  });
+  const resto = cortes[0]!.resto;
+  if (cortes.every((c) => c.resto === resto)) {
+    const cursos = joinSpanish(cortes.map((c) => c.curso));
+    return resto ? `${cursos} · ${resto}` : cursos;
+  }
+  return joinSpanish(partes);
+}
+
+/**
+ * Ordena y escribe el listado; el título sólo si las opciones lo piden y el curso lo tiene.
  * El turno va según «Mostrar turno», salvo que dos cursos del listado se llamen igual: ahí el
  * turno es lo único que los distingue y va siempre.
+ *
+ * Con varios cursos (una foto grupal de 7.° A y 7.° B juntos) sale un solo título con todos los
+ * cursos y los alumnos de todos mezclados, en el orden de las opciones.
  */
 export function formatClassListGroups(
   groups: readonly ClassListGroup[],
@@ -339,11 +367,22 @@ export function formatClassListGroups(
 ): ClassListSection[] {
   const conAlumnos = groups.filter((g) => g.students.length > 0);
   const nombres = conAlumnos.map((g) => courseNameKey(g.title));
+  const titulo = (g: ClassListGroup) => {
+    const nombre = courseNameKey(g.title);
+    const repetido = nombre !== "" && nombres.filter((n) => n === nombre).length > 1;
+    return options.showHeading ? formatClassListHeading(g, options.showShift || repetido) : "";
+  };
+  if (conAlumnos.length > 1) {
+    const heading = options.showHeading ? combineClassListHeadings(conAlumnos.map(titulo)) : "";
+    const lines = formatClassList(
+      conAlumnos.flatMap((g) => g.students),
+      options,
+    );
+    return lines.length > 0 ? [{ heading: heading || null, lines }] : [];
+  }
   return conAlumnos
     .map((g) => {
-      const nombre = courseNameKey(g.title);
-      const repetido = nombre !== "" && nombres.filter((n) => n === nombre).length > 1;
-      const heading = options.showHeading ? formatClassListHeading(g, options.showShift || repetido) : "";
+      const heading = titulo(g);
       return { heading: heading || null, lines: formatClassList(g.students, options) };
     })
     .filter((s) => s.lines.length > 0);
@@ -486,7 +525,17 @@ export function layoutClassListSections(input: {
     const rows = Math.ceil(s.lines.length / columns);
     // Alto total en «renglones de nombre»: así el achique es una sola cuenta lineal.
     const units = schoolUnits + rows + (s.heading ? headingScale + 2 * HEADING_GAP : 0);
-    const rowHeight = Math.min(input.fontSize * lineHeight, input.height / units);
+    /*
+     * En columnas, un nombre largo no debe cortarse en el borde de la suya: se achica todo por
+     * igual hasta que entre el más largo (con el aire entre columnas, 0,8 cuerpos).
+     */
+    const widthFont =
+      columns > 1
+        ? input.width /
+          (columns * Math.max(0.5, ...s.lines.map((l) => [...l.text].length * (l.bold ? AVG_CHAR_EM : AVG_NAME_CHAR_EM))) +
+            0.8 * (columns - 1))
+        : Number.POSITIVE_INFINITY;
+    const rowHeight = Math.min(Math.min(input.fontSize, widthFont) * lineHeight, input.height / units);
     const fontSize = rowHeight / lineHeight;
     let y = alignTop(rowHeight * units);
     pushSchool(y, rowHeight, fontSize);
@@ -638,7 +687,11 @@ export function layoutClassListBlock(input: {
     height: input.height,
     fontSize: input.fontSize,
     lineHeight: input.lineHeight,
-    columns: input.options.columns,
+    // Con dos cursos o más van siempre 4 columnas, para que entren los nombres.
+    columns:
+      input.groups.filter((g) => g.students.length > 0).length > 1
+        ? CLASS_LIST_MULTI_COURSE_COLUMNS
+        : input.options.columns,
     verticalAlign: input.verticalAlign,
     headingScale: input.options.headingScale,
     schoolName: input.options.showSchoolName ? input.schoolName : null,
