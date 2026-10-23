@@ -90,9 +90,32 @@ describe("editorADocumento — listado del curso girado", () => {
     }
   });
 
+  it("con «Mostrar nombre del colegio», el colegio va una vez arriba y girado con el listado", () => {
+    const bloque = listado(90);
+    const cfg = bloque.configJson as Record<string, unknown>;
+    const conColegio = { ...bloque, configJson: { ...cfg, classList: { showSchoolName: true } } };
+    const { document } = editorADocumento({
+      canvas: { width: 3602, height: 2421, dpi: 300 },
+      blocks: [conColegio],
+      cursosDelListado: [
+        { title: "7 A", shift: "Mañana", students: [{ firstName: "Ana", lastName: "Paz" }] },
+        { title: "7 B", shift: "Tarde", students: [{ firstName: "Leo", lastName: "Ruiz" }] },
+      ],
+      colegioDelListado: "Escuela Belgrano",
+    });
+    const sides = (document as { sides: { blocks: Record<string, number | string | undefined>[] }[] }).sides;
+    const textos = sides[0]!.blocks.map((b) => b.content);
+    assert.equal(textos.filter((t) => t === "Escuela Belgrano").length, 1);
+    // En 4 columnas el título no entra en una línea: va el curso y abajo el turno.
+    for (const [curso, turno] of [["7.° A", "Turno mañana"], ["7.° B", "Turno tarde"]]) {
+      assert.ok(textos.includes(`${curso} · ${turno}`) || (textos.includes(curso) && textos.includes(turno)));
+    }
+    assert.ok(sides[0]!.blocks.every((b) => b.rotation === 90));
+  });
+
   it("sin cursos ni lista, el editor muestra el curso de muestra con su título", () => {
     const { document } = editorADocumento({ canvas: { width: 3602, height: 2421, dpi: 300 }, blocks: [listado(0)] });
     const sides = (document as { sides: { blocks: Record<string, number | string | undefined>[] }[] }).sides;
-    assert.ok(sides[0]!.blocks.some((b) => b.content === "3.º B"));
+    assert.ok(sides[0]!.blocks.some((b) => b.content === "3.° B · Turno mañana"));
   });
 });

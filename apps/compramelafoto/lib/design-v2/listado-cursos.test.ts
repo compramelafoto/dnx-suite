@@ -6,6 +6,7 @@ import {
   avisoDeMuchaGente,
   clavesDeCursosSumados,
   claveDelCursoPropio,
+  cursoParaElegir,
   cursosParaSumar,
   fotoGrupalDelDiseno,
   listadoPermiteSumarCursos,
@@ -80,4 +81,17 @@ test("la foto grupal del diseño y la opción de la plantilla", () => {
   });
   assert.equal(listadoPermiteSumarCursos([bloque({})]), false);
   assert.equal(listadoPermiteSumarCursos([bloque({ allowExtraCourses: true })]), true);
+});
+
+test("el turno viaja con el curso sumado y las casillas lo muestran", () => {
+  const conTurno: CursoDelAlbum = { ...C, title: "6.° A", shift: "Tarde" };
+  const out = armarListadoConCursos([propio], [A, B, conTurno], [conTurno.key]);
+  assert.equal(out[1]!.shift, "Tarde");
+  assert.equal(cursoParaElegir(conTurno).title, "6.° A · Turno tarde");
+  assert.equal(cursoParaElegir(A).title, "7.° A");
+});
+
+test("un listado viejo con «7 A» reconoce al curso del padrón «7.° A»", () => {
+  const viejo = { title: "7 A", students: alumnos("x", 3) };
+  assert.equal(claveDelCursoPropio([viejo], disponibles), A.key);
 });

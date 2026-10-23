@@ -5,8 +5,9 @@
  *
  * No son parte de la plantilla, a diferencia de las guías de diseño (`meta.guides`): son una
  * preferencia de quien diseña, que la recuerda el navegador. Por eso no se guardan, no entran
- * en deshacer y nunca se imprimen: sólo existen en el lienzo del editor. Mientras se ven, el
- * imán también se pega a ellas.
+ * en deshacer y nunca se imprimen: sólo existen en el lienzo del editor. El imán se pega a la
+ * mitad y los cuartos de la hoja siempre, aunque estas guías estén ocultas
+ * (`canvasDivisionSnapLines`).
  */
 
 /** Cada guía que se puede prender o apagar desde el menú «Guías». */
@@ -146,6 +147,46 @@ export function referenceGuideSnapLines(
     add(ys, (3 * canvasHeight) / 4);
   }
   return { xs, ys };
+}
+
+/**
+ * Las divisiones de la hoja que imantan siempre, se vean o no las guías de referencia: el 25 %,
+ * la mitad y el 75 % del ancho y del alto. Ahí caen el pliegue, el centro de cada cara de un
+ * librito abierto (cuarto del ancho y mitad del alto) y los cuartos de una hoja común.
+ */
+export function canvasDivisionSnapLines(canvasWidth: number, canvasHeight: number): { xs: number[]; ys: number[] } {
+  return {
+    xs: [canvasWidth / 4, canvasWidth / 2, (3 * canvasWidth) / 4],
+    ys: [canvasHeight / 4, canvasHeight / 2, (3 * canvasHeight) / 4],
+  };
+}
+
+/**
+ * Todas las líneas extra del imán del editor: las guías de diseño de la plantilla, las
+ * divisiones de la hoja (siempre) y las guías de referencia prendidas. Sin repetir.
+ */
+export function editorSnapGuides(
+  templateGuides: { v: number[]; h: number[] },
+  s: ReferenceGuideSettings,
+  canvasWidth: number,
+  canvasHeight: number
+): { xs: number[]; ys: number[] } {
+  const division = canvasDivisionSnapLines(canvasWidth, canvasHeight);
+  const reference = referenceGuideSnapLines(s, canvasWidth, canvasHeight);
+  const merge = (...lists: number[][]) => {
+    const out: number[] = [];
+    for (const v of lists.flat()) if (!out.some((p) => Math.abs(p - v) < SAME_LINE_PX)) out.push(v);
+    return out;
+  };
+  return {
+    xs: merge(templateGuides.v, division.xs, reference.xs),
+    ys: merge(templateGuides.h, division.ys, reference.ys),
+  };
+}
+
+/** ¿Es una de las divisiones de la hoja (25 %, 50 %, 75 %)? Esas se marcan en rosa al imantar. */
+export function isCanvasDivision(pos: number, canvasSize: number): boolean {
+  return [0.25, 0.5, 0.75].some((f) => Math.abs(pos - canvasSize * f) < SAME_LINE_PX);
 }
 
 /**

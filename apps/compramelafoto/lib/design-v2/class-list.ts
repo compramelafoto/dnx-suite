@@ -58,9 +58,11 @@ export async function loadCourseStudentGroup(
 ): Promise<ClassListGroup | null> {
   const r = await loadCourseStudentListWithCourse(db, owner);
   if (!r) return null;
+  const shift = r.shift?.trim();
   return {
     title: courseDisplayName(r.course.courseName, r.course.division) ?? "",
     courseKey: r.courseKey,
+    ...(shift ? { shift } : {}),
     students: r.students,
   };
 }
@@ -75,7 +77,7 @@ export async function loadCourseStudentList(
 async function loadCourseStudentListWithCourse(
   db: Prisma.TransactionClient,
   owner: ClassListOwner,
-): Promise<{ students: ClassListStudent[]; course: CourseFields; courseKey: string } | null> {
+): Promise<{ students: ClassListStudent[]; course: CourseFields; courseKey: string; shift: string | null } | null> {
   const rosterSelect = { id: true, studentId: true, level: true, shift: true, courseName: true, division: true } as const;
   const ownerEntry = owner.albumRosterEntryId
     ? await db.albumStudentRosterEntry.findFirst({
@@ -144,12 +146,13 @@ async function loadCourseStudentListWithCourse(
   }
   // El curso exacto (con nivel y turno) sale de la fila del padrón del dueño o de la primera.
   const exact = ownerEntry ?? entries[0]!;
-  return { students, course, courseKey: rosterCourseKey(exact) };
+  return { students, course, courseKey: rosterCourseKey(exact), shift: exact.shift ?? null };
 }
 
 /**
  * Todos los cursos del padrón del álbum, en el orden del colegio, con sus alumnos activos.
- * Si dos cursos se llaman igual (mismo curso en dos turnos), el título lleva el turno.
+ * Cada curso lleva su turno aparte (el listado lo imprime según «Mostrar turno», y siempre si dos
+ * cursos se llaman igual). Si dos cursos coinciden en nombre y turno, el título suma el nivel.
  */
 export async function loadAlbumRosterCourses(db: Prisma.TransactionClient, albumId: number): Promise<CursoDelAlbum[]> {
   const entries = await db.albumStudentRosterEntry.findMany({
@@ -176,12 +179,19 @@ export async function loadAlbumRosterCourses(db: Prisma.TransactionClient, album
     key,
     fields: c.fields,
     title: courseDisplayName(c.fields.courseName, c.fields.division) ?? "",
+    shift: c.fields.shift?.trim() || "",
     students: c.students,
   }));
-  const repetidos = new Set(cursos.map((c) => c.title).filter((t, i, all) => all.indexOf(t) !== i));
-  return cursos.map((c) => {
-    const extra = repetidos.has(c.title) ? [c.fields.shift?.trim(), c.fields.level?.trim()].filter(Boolean).join(", ") : "";
-    return { key: c.key, title: extra ? `${c.title} (${extra})` : c.title, students: c.students };
+  const conTurno = cursos.map((c) => `${c.title}|${c.shift}`.toLowerCase());
+  return cursos.map((c, i) => {
+    const repetido = conTurno.filter((t) => t === conTurno[i]).length > 1;
+    const nivel = repetido ? c.fields.level?.trim() : "";
+    return {
+      key: c.key,
+      title: nivel ? `${c.title} · ${nivel}` : c.title,
+      ...(c.shift ? { shift: c.shift } : {}),
+      students: c.students,
+    };
   });
 }
 

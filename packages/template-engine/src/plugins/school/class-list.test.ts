@@ -12,6 +12,10 @@ import {
   parseClassListValue,
   readClassListOptions,
   serializeClassList,
+  formatClassListGroups,
+  formatClassListHeading,
+  formatCourseName,
+  formatShiftLabel,
   type ClassListStudent,
 } from "./class-list";
 
@@ -145,24 +149,167 @@ test("el título del curso va siempre, arriba y a todo el ancho, más grande y e
   assert.equal(sin.cells.some((c) => c.heading), false);
 });
 
-test("dos cursos: un título y sus alumnos por curso, y todo se achica junto si no entra", () => {
+test("dos cursos: 4 columnas siempre, un título por curso y todo se achica junto si no entra", () => {
   const groups = [
     { title: "7.° A", students: Array.from({ length: 4 }, (_, i) => ({ firstName: `A${i}`, lastName: "X" })) },
     { title: "7.° B", students: Array.from({ length: 4 }, (_, i) => ({ firstName: `B${i}`, lastName: "Y" })) },
   ];
-  const options = { ...DEFAULT_CLASS_LIST_OPTIONS, columns: 2, headingScale: 1 };
-  // Natural: 2 títulos + 2×2 filas + medio renglón = 6,5 renglones de 50 px = 325 px.
+  // Aunque el bloque diga 1 columna, con dos cursos van 4.
+  const options = { ...DEFAULT_CLASS_LIST_OPTIONS, columns: 1, headingScale: 1 };
   const amplio = layoutClassListBlock({ groups, options, width: 1000, height: 1000, fontSize: 40, lineHeight: 1.25 });
+  assert.equal(amplio.columns, 4);
   assert.deepEqual(
     amplio.cells.filter((c) => c.heading).map((c) => c.text),
     ["7.° A", "7.° B"],
   );
-  const tituloB = amplio.cells.find((c) => c.text === "7.° B")!;
-  assert.equal(tituloB.y, 50 + 100 + 25);
-  const justo = layoutClassListBlock({ groups, options, width: 1000, height: 162.5, fontSize: 40, lineHeight: 1.25 });
+  const xs = new Set(amplio.cells.map((c) => c.x));
+  assert.ok(xs.size >= 3, "los nombres se reparten en varias columnas");
+  // Cada título queda arriba de su primer alumno, en la misma columna.
+  for (const titulo of amplio.cells.filter((c) => c.heading)) {
+    const i = amplio.cells.indexOf(titulo);
+    const primero = amplio.cells[i + 1]!;
+    assert.equal(primero.x, titulo.x);
+    assert.ok(Math.abs(primero.y - (titulo.y + titulo.height)) < 1e-9);
+  }
+  // 10 renglones (2 títulos + 8 nombres) en 4 columnas: entran en 3 renglones de alto.
+  const justo = layoutClassListBlock({ groups, options, width: 1000, height: 75, fontSize: 40, lineHeight: 1.25 });
   assert.equal(justo.fontSize, 20);
-  const ultima = justo.cells[justo.cells.length - 1]!;
-  assert.ok(Math.abs(ultima.y + ultima.height - 162.5) < 1e-9);
+  assert.ok(justo.cells.every((c) => c.y + c.height <= 75 + 1e-9));
+});
+
+test("varios cursos: un título nunca queda solo al pie de una columna", () => {
+  const curso = (t: string, n: number) => ({
+    title: t,
+    students: Array.from({ length: n }, (_, i) => ({ firstName: `${t}${String(i).padStart(2, "0")}`, lastName: "" })),
+  });
+  for (const tamanos of [[7, 9, 5], [3, 3, 3, 3, 3], [10, 1], [2, 2]]) {
+    const groups = tamanos.map((n, i) => curso(`${i + 1}.° A`, n));
+    const { cells } = layoutClassListBlock({
+      groups,
+      options: DEFAULT_CLASS_LIST_OPTIONS,
+      width: 1200,
+      height: 400,
+      fontSize: 30,
+      lineHeight: 1.2,
+    });
+    cells.forEach((c, i) => {
+      if (!c.heading) return;
+      const siguiente = cells.slice(i + 1).find((x) => !x.heading);
+      assert.ok(siguiente, "después del título viene un alumno");
+      assert.equal(siguiente.x, c.x, `«${c.text}» va en la misma columna que su primer alumno (${tamanos})`);
+    });
+    // Todos los alumnos están, en orden.
+    assert.equal(cells.filter((c) => !c.heading).length, tamanos.reduce((a, b) => a + b, 0));
+  }
+});
+
+test("un solo curso respeta las columnas del bloque", () => {
+  const students = Array.from({ length: 12 }, (_, i) => ({ firstName: `N${i}`, lastName: "" }));
+  const { columns } = layoutClassListBlock({
+    groups: [{ title: "3.° B", students }],
+    options: { ...DEFAULT_CLASS_LIST_OPTIONS, columns: 2 },
+    width: 1000,
+    height: 1000,
+    fontSize: 20,
+    lineHeight: 1.2,
+  });
+  assert.equal(columns, 2);
+});
+
+test("el curso se escribe con naturalidad: sin comas y con el ordinal", () => {
+  assert.equal(formatCourseName("3 B"), "3.° B");
+  assert.equal(formatCourseName("3"), "3.°");
+  assert.equal(formatCourseName("3°, B"), "3° B");
+  assert.equal(formatCourseName("3.º, B"), "3.º B");
+  assert.equal(formatCourseName("1 B (Tarde, Primario)"), "1.° B · Tarde · Primario");
+  // Lo que ya se escribió bien no se toca.
+  assert.equal(formatCourseName("7° Grado A"), "7° Grado A");
+  assert.equal(formatCourseName("3.º B"), "3.º B");
+  assert.equal(formatCourseName("Sala de 5 Celeste"), "Sala de 5 Celeste");
+  assert.equal(formatCourseName("  "), "");
+  assert.equal(formatShiftLabel("Mañana"), "Turno mañana");
+  assert.equal(formatShiftLabel("TURNO TARDE"), "Turno tarde");
+  assert.equal(formatShiftLabel(""), "");
+  assert.equal(formatClassListHeading({ title: "3 B", shift: "Mañana" }, true), "3.° B · Turno mañana");
+  assert.equal(formatClassListHeading({ title: "3 B", shift: "Mañana" }, false), "3.° B");
+  assert.equal(formatClassListHeading({ title: "3 B" }, true), "3.° B");
+});
+
+test("el turno va según la opción, y siempre si dos cursos se llaman igual", () => {
+  const alumnos = [{ firstName: "Ana", lastName: "Paz" }];
+  const prendido = formatClassListGroups([{ title: "3 B", shift: "Mañana", students: alumnos }], DEFAULT_CLASS_LIST_OPTIONS);
+  assert.equal(prendido[0]!.heading, "3.° B · Turno mañana");
+  const apagado = { ...DEFAULT_CLASS_LIST_OPTIONS, showShift: false };
+  assert.equal(formatClassListGroups([{ title: "3 B", shift: "Mañana", students: alumnos }], apagado)[0]!.heading, "3.° B");
+  const mismos = formatClassListGroups(
+    [
+      { title: "1 B", shift: "Mañana", students: alumnos },
+      { title: "1.° B", shift: "Tarde", students: alumnos },
+      { title: "2 A", shift: "Tarde", students: alumnos },
+    ],
+    apagado,
+  );
+  assert.deepEqual(
+    mismos.map((s) => s.heading),
+    ["1.° B · Turno mañana", "1.° B · Turno tarde", "2.° A"],
+  );
+  // El turno viaja en el texto guardado y los listados viejos (sin turno) se siguen leyendo.
+  const ida = parseClassListGroups(serializeClassListGroups([{ title: "3 B", shift: "Mañana", students: alumnos }]));
+  assert.deepEqual(ida, [{ title: "3 B", shift: "Mañana", students: alumnos }]);
+  assert.equal(readClassListOptions({}).showShift, true);
+  assert.equal(readClassListOptions({}).showSchoolName, false);
+});
+
+test("el colegio va una sola vez arriba de todo, dentro de la caja, sólo si se pide", () => {
+  const groups = [
+    { title: "7 A", shift: "Mañana", students: [{ firstName: "Ana", lastName: "Paz" }, { firstName: "Leo", lastName: "Ruiz" }] },
+    { title: "7 B", shift: "Tarde", students: [{ firstName: "Lía", lastName: "Sosa" }] },
+  ];
+  const base = { groups, width: 1000, height: 1000, fontSize: 20, lineHeight: 1.25, schoolName: "Escuela Belgrano" };
+  const sin = layoutClassListBlock({ ...base, options: DEFAULT_CLASS_LIST_OPTIONS });
+  assert.equal(sin.cells.some((c) => c.school), false);
+  const con = layoutClassListBlock({ ...base, options: { ...DEFAULT_CLASS_LIST_OPTIONS, showSchoolName: true } });
+  const colegio = con.cells.filter((c) => c.text === "Escuela Belgrano");
+  assert.equal(colegio.length, 1);
+  assert.equal(colegio[0]!.school, true);
+  assert.equal(colegio[0]!.y, 0);
+  assert.equal(colegio[0]!.width, 1000);
+  // Los títulos de los cursos van debajo del colegio.
+  const titulos = con.cells.filter((c) => c.heading && !c.school);
+  assert.deepEqual(titulos.map((c) => c.text), ["7.° A · Turno mañana", "7.° B · Turno tarde"]);
+  assert.ok(titulos.every((t) => t.y >= colegio[0]!.height));
+  // Sin colegio en los datos no se imprime nada, aunque la opción esté prendida.
+  const vacio = layoutClassListBlock({ ...base, schoolName: "", options: { ...DEFAULT_CLASS_LIST_OPTIONS, showSchoolName: true } });
+  assert.equal(vacio.cells.some((c) => c.school), false);
+  // Si no entra, se achica todo junto y nada se sale de la caja.
+  const chico = layoutClassListBlock({ ...base, height: 60, options: { ...DEFAULT_CLASS_LIST_OPTIONS, showSchoolName: true } });
+  assert.ok(chico.cells.every((c) => c.y + c.height <= 60 + 1e-9));
+});
+
+test("un título largo se achica para entrar en su columna", () => {
+  const groups = [
+    { title: "3 B", shift: "Intermedio vespertino", students: [{ firstName: "Ana", lastName: "Paz" }] },
+    { title: "3 C", students: [{ firstName: "Leo", lastName: "Ruiz" }] },
+  ];
+  const { cells } = layoutClassListBlock({ groups, options: DEFAULT_CLASS_LIST_OPTIONS, width: 400, height: 1000, fontSize: 40, lineHeight: 1.2 });
+  // No entra ni al cuerpo de los nombres: el curso arriba y el turno abajo, en la misma columna.
+  const curso = cells.find((c) => c.heading && c.text === "3.° B")!;
+  const turno = cells.find((c) => c.heading && c.text === "Turno intermedio vespertino")!;
+  assert.equal(turno.x, curso.x);
+  assert.ok(Math.abs(turno.y - (curso.y + curso.height)) < 1e-9);
+  for (const t of [curso, turno]) assert.ok([...t.text].length * t.fontSize * 0.6 <= t.width + 1e-9);
+});
+
+test("con varios cursos, un nombre largo achica todo para no cortarse en su columna", () => {
+  const largo = "Valentina Agustina Alvargonzález Etcheverry";
+  const groups = [
+    { title: "7 A", students: [{ firstName: largo, lastName: "" }, { firstName: "Ana", lastName: "" }] },
+    { title: "7 B", students: [{ firstName: "Leo", lastName: "" }] },
+  ];
+  const { cells, fontSize } = layoutClassListBlock({ groups, options: DEFAULT_CLASS_LIST_OPTIONS, width: 1200, height: 2000, fontSize: 40, lineHeight: 1.2 });
+  const celda = cells.find((c) => c.text === largo)!;
+  assert.ok(fontSize < 40);
+  assert.ok([...largo].length * fontSize * 0.5 <= celda.width + 1e-9);
 });
 
 test("un solo curso sin título reparte igual que antes", () => {

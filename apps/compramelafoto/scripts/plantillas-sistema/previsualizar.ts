@@ -208,6 +208,7 @@ export async function dibujarPlantilla(
     blocks: editorBlocks,
     nombre: p.nombre,
     cursosDelListado: parseClassListGroups(VALORES_DE_MUESTRA[CLASS_LIST_VARIABLE_KEY], VALORES_DE_MUESTRA["course.displayName"]),
+    colegioDelListado: VALORES_DE_MUESTRA["school.name"] ?? null,
   });
 
   const tam = new Map(legacy.blocks.map((b) => [b.id, b.layout]));

@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   buildReferenceGuideLines,
+  canvasDivisionSnapLines,
   defaultReferenceGuides,
+  editorSnapGuides,
+  isCanvasDivision,
   isFoldedSpread,
   parseStoredReferenceGuides,
   referenceGuideSnapLines,
@@ -108,4 +111,33 @@ test("la elección se recuerda por separado para libritos y hojas, y lo roto se 
   assert.deepEqual(resolveReferenceGuides(leido, true), apagado);
   // La hoja común sigue con lo de fábrica.
   assert.deepEqual(resolveReferenceGuides(leido, false), defaultReferenceGuides(false));
+});
+
+test("con las guías ocultas, el imán igual se pega a la mitad y a los cuartos de la hoja", () => {
+  const { xs, ys } = editorSnapGuides({ v: [], h: [] }, REFERENCE_GUIDES_ALL_OFF, W, H);
+  for (const x of [W / 4, W / 2, (3 * W) / 4]) assert.ok(xs.some((v) => Math.abs(v - x) < 1e-9));
+  for (const y of [H / 4, H / 2, (3 * H) / 4]) assert.ok(ys.some((v) => Math.abs(v - y) < 1e-9));
+  // Un bloque de 400 de ancho cuyo centro queda a 5 px del cuarto del ancho (centro de la
+  // contratapa): se pega y marca esa línea.
+  const ancho = 400;
+  const r = snapDragPosition(W, H, ancho, 300, W / 4 - ancho / 2 + 5, 1000, "b", [], 9, { guidesX: xs, guidesY: ys });
+  assert.equal(r.x + ancho / 2, W / 4);
+  assert.equal(r.guideVerticalX, W / 4);
+  assert.equal(isCanvasDivision(r.guideVerticalX!, W), true);
+  // El borde de arriba a 4 px del 75 % del alto también se pega.
+  const abajo = snapDragPosition(W, H, 200, 100, 600, (3 * H) / 4 + 4, "b", [], 9, { guidesX: xs, guidesY: ys });
+  assert.equal(abajo.y, (3 * H) / 4);
+  // Sin imán (⌘ / Ctrl: distancia 0) no se pega.
+  const suelto = snapDragPosition(W, H, ancho, 300, W / 4 - ancho / 2 + 5, 1000, "b", [], 0, { guidesX: xs, guidesY: ys });
+  assert.equal(suelto.x, W / 4 - ancho / 2 + 5);
+  assert.equal(suelto.guideVerticalX, null);
+});
+
+test("las divisiones de la hoja no se repiten con las guías de la plantilla ni las prendidas", () => {
+  const { xs } = editorSnapGuides({ v: [W / 2, 500], h: [] }, { ...REFERENCE_GUIDES_ALL_OFF, fold: true, quartersV: true }, W, H);
+  assert.equal(xs.filter((v) => Math.abs(v - W / 2) < 1).length, 1);
+  assert.equal(xs.filter((v) => Math.abs(v - W / 4) < 1).length, 1);
+  assert.ok(xs.includes(500));
+  assert.deepEqual(canvasDivisionSnapLines(400, 200), { xs: [100, 200, 300], ys: [50, 100, 150] });
+  assert.equal(isCanvasDivision(123, 400), false);
 });

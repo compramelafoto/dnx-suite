@@ -692,6 +692,9 @@ function ClassListOptionsPanel({
             label: String(i + 1),
           }))}
         />
+        <p className="mt-1 text-[10px] leading-snug text-[color:var(--te-ink-faint)]">
+          Con dos cursos o más, el listado usa siempre 4 columnas para que entren todos los nombres.
+        </p>
       </div>
       <ToggleSwitch
         checked={options.highlightOwner}
@@ -719,8 +722,27 @@ function ClassListOptionsPanel({
           <p className="mt-1 text-[10px] leading-snug text-[color:var(--te-ink-faint)]">
             El título va en negrita, arriba de cada curso. Con el título no hace falta un texto aparte con el curso.
           </p>
+          <div className="mt-2">
+            <ToggleSwitch
+              checked={options.showShift}
+              onChange={(showShift) => onChange({ showShift })}
+              label="Mostrar turno (por ejemplo «3.° B · Turno mañana»)"
+            />
+          </div>
+          <p className="mt-1 text-[10px] leading-snug text-[color:var(--te-ink-faint)]">
+            Si el curso no tiene turno cargado, no se muestra nada. Si dos cursos del listado se llaman igual, el turno
+            va siempre, para distinguirlos.
+          </p>
         </div>
       ) : null}
+      <ToggleSwitch
+        checked={options.showSchoolName}
+        onChange={(showSchoolName) => onChange({ showSchoolName })}
+        label="Mostrar nombre del colegio arriba del listado"
+      />
+      <p className="text-[10px] leading-snug text-[color:var(--te-ink-faint)]">
+        Va una sola vez, arriba de todo y dentro del mismo recuadro del listado.
+      </p>
       <ToggleSwitch
         checked={options.allowExtraCourses}
         onChange={(allowExtraCourses) => onChange({ allowExtraCourses })}
