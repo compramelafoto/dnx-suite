@@ -1,6 +1,7 @@
 import { Resend } from "resend";
 import { prisma } from "@/lib/prisma";
 import type { SendEmailParams } from "./types";
+import { wrapEmailLayout } from "./layout";
 
 function getEnvOrThrow(key: string): string {
   const value = process.env[key];
@@ -18,7 +19,8 @@ function resolveReplyTo(explicitReplyTo?: string) {
 }
 
 export async function sendEmail(params: SendEmailParams) {
-  const { to, subject, html, replyTo, templateKey, meta } = params;
+  const { to, subject, replyTo, templateKey, meta } = params;
+  const html = wrapEmailLayout(params.html);
   const resendKey = getEnvOrThrow("RESEND_API_KEY");
   const fromEmail = getEnvOrThrow("EMAIL_FROM");
   const resend = new Resend(resendKey);

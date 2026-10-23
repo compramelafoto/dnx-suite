@@ -1,12 +1,7 @@
-import { emailSignature } from "../signature";
+import { wrapEmailLayout } from "../layout";
 
 function wrapEmail(content: string) {
-  return `
-  <div style="font-family: Arial, sans-serif; font-size: 15px; color: #111827; line-height: 1.6;">
-    ${content}
-    ${emailSignature()}
-  </div>
-  `.trim();
+  return wrapEmailLayout(content);
 }
 
 function greet(firstName?: string) {
