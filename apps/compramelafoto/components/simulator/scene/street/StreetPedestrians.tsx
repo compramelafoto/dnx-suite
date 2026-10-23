@@ -424,6 +424,9 @@ export default function StreetPedestrians({ layout }: { layout: StreetLayout }) 
 
   const subjects = useRef<MovingSubjectState[]>([]);
   useEffect(() => {
+    // La limpieza de abajo frena todo: al volver a montar (React lo hace dos
+    // veces en desarrollo) hay que arrancar de nuevo cada animación.
+    for (const p of people) p.current.play();
     subjects.current = people.map((p) => ({
       id: `${STREET_PERSON_ID_PREFIX}${p.id}`,
       subjectKind: "human",
