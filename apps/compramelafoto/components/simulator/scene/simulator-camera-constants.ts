@@ -1,5 +1,4 @@
-import type { SimulatorSceneId } from "@/lib/simulator/scenes";
-import { getSceneMeta } from "@/lib/simulator/scenes";
+import { DEFAULT_SCENE_ID, getSceneMeta, type SimulatorSceneId } from "@/lib/simulator/scenes";
 
 /** Altura de cámara a nivel de ojos humano (metros). */
 export const EYE_HEIGHT = 1.65;
@@ -10,6 +9,6 @@ export const COD_NAV_SURFACE_CLASS = "cod-sim__nav-surface";
 /** Selector usado por PointerLockControls (drei). */
 export const COD_NAV_SURFACE_SELECTOR = `.${COD_NAV_SURFACE_CLASS}`;
 
-export function getSimulatorSpawnPose(sceneId: SimulatorSceneId = "studio") {
+export function getSimulatorSpawnPose(sceneId: SimulatorSceneId = DEFAULT_SCENE_ID) {
   return getSceneMeta(sceneId).spawn;
 }

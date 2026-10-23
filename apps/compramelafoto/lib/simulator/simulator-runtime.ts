@@ -7,7 +7,7 @@ import type { FocusAreaMode, FocusMode } from "./focus-types";
 import type { SunState } from "./natural-light";
 import { computeSunState, DEFAULT_TIME_OF_DAY_MINUTES } from "./natural-light";
 import type { MovingSubjectState } from "./moving-subject-types";
-import type { SimulatorSceneId } from "./scenes";
+import { DEFAULT_SCENE_ID, type SimulatorSceneId } from "./scenes";
 
 /**
  * Puente entre React Context (fuera del Canvas) y el loop R3F (dentro).
@@ -58,7 +58,7 @@ export const simulatorRuntime: SimulatorRuntime = {
   captureExposureGain: null,
   appliedToneMappingExposure: null,
   viewfinderMode: "dslr-view",
-  sceneId: "studio",
+  sceneId: DEFAULT_SCENE_ID,
   timeOfDayMinutes: DEFAULT_TIME_OF_DAY_MINUTES,
   sunState: computeSunState(DEFAULT_TIME_OF_DAY_MINUTES),
   sceneLight: null,

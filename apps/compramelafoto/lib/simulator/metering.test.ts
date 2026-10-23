@@ -13,7 +13,7 @@ import {
 import { shutterSpeedToSeconds } from "./camera-math";
 import { REFERENCE_CAMERA, type CameraState } from "./camera-types";
 import { meteredEv100, meterLuminance, MID_GREY, type MeterGrid } from "./metering";
-import { daylightEv100, sceneBrightnessEv100, STUDIO_EV100 } from "./scene-light";
+import { daylightEv100, SCENE_RENDER_CALIBRATION_LOG2, sceneBrightnessEv100 } from "./scene-light";
 
 const W = 48;
 const H = 32;
@@ -95,12 +95,21 @@ test("EV medido: el doble de luminancia en el cuadro es un paso más", () => {
   assert.ok(Math.abs(meteredEv100(15, MID_GREY * 2) - 16) < 1e-9);
 });
 
-test("la luz del día sigue la hora: atardecer 11, noche 4, estudio fijo", () => {
+test("la luz del día sigue la hora: atardecer 11, noche 4, la calle cambia con la hora", () => {
   assert.equal(daylightEv100(19 * 60 + 30), 11);
   assert.equal(daylightEv100(22 * 60), 4);
   assert.ok(daylightEv100(9 * 60) >= 13.5);
-  assert.equal(sceneBrightnessEv100("studio", 3 * 60), sceneBrightnessEv100("studio", 13 * 60));
-  assert.equal(STUDIO_EV100, 9);
+  assert.ok(
+    sceneBrightnessEv100("photographic-city", 13 * 60) >
+      sceneBrightnessEv100("photographic-city", 3 * 60),
+  );
+});
+
+test("calle calibrada: desde el punto de partida el fotómetro lee el EV100 real de la hora", () => {
+  for (const [minutes, renderLog2] of SCENE_RENDER_CALIBRATION_LOG2["photographic-city"]) {
+    const reading = meteredEv100(sceneBrightnessEv100("photographic-city", minutes), 2 ** renderLog2);
+    assert.ok(Math.abs(reading - daylightEv100(minutes)) < 1e-9, `a los ${minutes} min`);
+  }
 });
 
 test("de noche el visor óptico se ve más oscuro que de día (el ojo no se adapta del todo)", () => {

@@ -5,7 +5,7 @@ import {
   resolvePreviewExposureGain,
   SCENE_RENDER_CALIBRATION,
 } from "@/lib/simulator/camera-exposure";
-import { applyToneMappingToRenderer, usesPhotographicPipeline } from "@/lib/simulator/render";
+import { applyToneMappingToRenderer } from "@/lib/simulator/render";
 import { simulatorRuntime } from "@/lib/simulator/simulator-runtime";
 import { useFrame, useThree } from "@react-three/fiber";
 import { useRef } from "react";
@@ -27,14 +27,7 @@ export default function CameraVisualEffect() {
 
     const exposureGain = resolvePreviewExposureGain();
     const exposure = clampRendererExposure(exposureGain * SCENE_RENDER_CALIBRATION);
-    const sceneId = simulatorRuntime.sceneId;
-
-    if (usesPhotographicPipeline(sceneId)) {
-      applyToneMappingToRenderer(gl, sceneId, exposure);
-    } else {
-      gl.toneMapping = THREE.LinearToneMapping;
-      gl.toneMappingExposure = exposure;
-    }
+    applyToneMappingToRenderer(gl, exposure);
     simulatorRuntime.appliedToneMappingExposure = exposure;
 
     // El balance de blancos lo aplica DepthOfFieldPass a toda la imagen;

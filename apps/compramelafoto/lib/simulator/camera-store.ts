@@ -27,7 +27,7 @@ import {
   type ViewfinderMode,
 } from "./camera-exposure";
 import type { MeteringMode } from "./metering";
-import { STUDIO_EV100 } from "./scene-light";
+import { daylightEv100, sceneBrightnessEv100 } from "./scene-light";
 import { COD_CAPTURE_IMAGE_EVENT, type CodCaptureImageDetail } from "./capture-events";
 import {
   COD_FOCUS_PROGRESS_EVENT,
@@ -47,7 +47,7 @@ import {
   type FocusState,
 } from "./focus-types";
 import type { CaptureUserInfo } from "./capture-metadata";
-import type { SimulatorSceneId } from "./scenes";
+import { DEFAULT_SCENE_ID, type SimulatorSceneId } from "./scenes";
 import {
   computeSunState,
   DEFAULT_TIME_OF_DAY_MINUTES,
@@ -72,7 +72,7 @@ import {
   stepLensFocal,
   type ActiveLensState,
 } from "./lenses";
-import { simulatorRuntime, syncMovingSubjectsRegistry } from "./simulator-runtime";
+import { simulatorRuntime } from "./simulator-runtime";
 import { aperturesForLens, clampApertureToLens } from "./exposure-scales";
 
 export interface CameraStoreValue {
@@ -111,7 +111,6 @@ export interface CameraStoreValue {
   setShowHistogram: (show: boolean) => void;
   setSceneLight: (light: SceneLight) => void;
   setMeteringMode: (mode: MeteringMode) => void;
-  setSceneId: (sceneId: SimulatorSceneId) => void;
   setTimeOfDayMinutes: (minutes: number) => void;
   setPhotoStars: (id: number, stars: PhotoStarRating) => void;
   hydrateGallery: (items: CaptureResult[]) => void;
@@ -129,11 +128,11 @@ export interface CameraStoreValue {
   capturePhoto: () => CaptureResult;
 }
 
-/** Luz inicial: estudio, antes de la primera medición. */
+/** Luz inicial: la calle a la hora de partida, antes de la primera medición. */
 const INITIAL_SCENE_LIGHT: SceneLight = {
-  brightnessEv100: STUDIO_EV100,
-  meteredEv100: STUDIO_EV100,
-  eyeEv100: STUDIO_EV100,
+  brightnessEv100: sceneBrightnessEv100(DEFAULT_SCENE_ID, DEFAULT_TIME_OF_DAY_MINUTES),
+  meteredEv100: daylightEv100(DEFAULT_TIME_OF_DAY_MINUTES),
+  eyeEv100: daylightEv100(DEFAULT_TIME_OF_DAY_MINUTES),
 };
 
 const CameraContext = createContext<CameraStoreValue | null>(null);
@@ -221,7 +220,8 @@ export function CameraProvider({ children }: { children: ReactNode }) {
   );
   const [sceneLight, setSceneLightState] = useState<SceneLight>(INITIAL_SCENE_LIGHT);
   const [meteringMode, setMeteringModeState] = useState<MeteringMode>("MATRIX");
-  const [sceneId, setSceneIdState] = useState<SimulatorSceneId>("studio");
+  // Una sola escena por ahora: la Calle 3D.
+  const sceneId: SimulatorSceneId = DEFAULT_SCENE_ID;
   const [timeOfDayMinutes, setTimeOfDayMinutesState] = useState(DEFAULT_TIME_OF_DAY_MINUTES);
   const [viewfinderMode, setViewfinderMode] = useState<ViewfinderMode>("dslr-view");
   const [compositionGuide, setCompositionGuide] = useState<CompositionGuideMode>("thirds");
@@ -425,11 +425,6 @@ export function CameraProvider({ children }: { children: ReactNode }) {
     setMeteringModeState(mode);
   }, []);
 
-  const setSceneId = useCallback((next: SimulatorSceneId) => {
-    setSceneIdState(next);
-    syncMovingSubjectsRegistry([]);
-  }, []);
-
   const setTimeOfDayMinutes = useCallback((minutes: number) => {
     setTimeOfDayMinutesState(clampTimeOfDayMinutes(minutes));
   }, []);
@@ -599,7 +594,6 @@ export function CameraProvider({ children }: { children: ReactNode }) {
       setShowHistogram,
       setSceneLight,
       setMeteringMode,
-      setSceneId,
       setTimeOfDayMinutes,
       setPhotoStars,
       hydrateGallery,
@@ -646,7 +640,6 @@ export function CameraProvider({ children }: { children: ReactNode }) {
       setShowHistogram,
       setSceneLight,
       setMeteringMode,
-      setSceneId,
       setTimeOfDayMinutes,
       setPhotoStars,
       hydrateGallery,
