@@ -1,0 +1,124 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import {
+  SUBJECT_HEAD,
+  classifyPattern,
+  formatFNumber,
+  lightN2AtSubject,
+  meter,
+  renderedLightColor,
+} from "./metering";
+import { PRESETS, applyPreset, initialStudioState, makeLight, polarToXZ } from "./presets";
+import { deserializeStudio, serializeStudio } from "./share";
+import type { StudioState } from "./types";
+
+function oneLight(dist: number, extra: Partial<StudioState["lights"][number]> = {}): StudioState {
+  const base = initialStudioState();
+  const { x, z } = polarToXZ(30, dist);
+  const light = makeLight(0, { modifier: "bare", x, y: SUBJECT_HEAD[1], z, powerStops: 0, ...extra });
+  return { ...base, roomLux: 0, lights: [light], selectedId: light.id };
+}
+
+test("ley de la inversa del cuadrado: el doble de distancia pierde 2 pasos", () => {
+  const near = oneLight(1);
+  const far = oneLight(2);
+  const evNear = meter(near).readings[0].ev;
+  const evFar = meter(far).readings[0].ev;
+  assert.ok(Math.abs(evNear - evFar - 2) < 0.02, `${evNear} vs ${evFar}`);
+});
+
+test("un reflector estándar a plena potencia y 1 m da su número guía", () => {
+  const s = oneLight(1);
+  const reading = meter(s).readings[0];
+  assert.ok(Math.abs(reading.fNumber - 45) < 0.5, String(reading.fNumber));
+});
+
+test("el flash no depende del obturador; la luz continua sí", () => {
+  const flash = oneLight(1.5);
+  const flashSlow = { ...flash, camera: { ...flash.camera, shutter: 1 / 30 } };
+  assert.equal(lightN2AtSubject(flash.lights[0], flash), lightN2AtSubject(flashSlow.lights[0], flashSlow));
+
+  const led = oneLight(1.5, { modifier: "led-panel" });
+  const ledSlow = { ...led, camera: { ...led.camera, shutter: 1 / 30 } };
+  const gain = lightN2AtSubject(ledSlow.lights[0], ledSlow) / lightN2AtSubject(led.lights[0], led);
+  assert.ok(Math.abs(gain - 125 / 30) < 0.01, String(gain));
+});
+
+test("los esquemas ajustan la luz principal a la exposición de la cámara (TTL)", () => {
+  for (const preset of PRESETS) {
+    const s = applyPreset(preset, initialStudioState());
+    const key = s.lights[0];
+    const ev = meter({ ...s, lights: [key], roomLux: 0 }).readings[0].ev;
+    assert.ok(Math.abs(ev) <= 0.35, `${preset.id}: ${ev}`);
+  }
+});
+
+test("cada esquema se reconoce como su patrón", () => {
+  const expected: Record<string, string> = {
+    loop: "loop",
+    rembrandt: "rembrandt",
+    butterfly: "butterfly",
+    split: "split",
+  };
+  for (const [id, pattern] of Object.entries(expected)) {
+    const s = applyPreset(PRESETS.find((p) => p.id === id)!, initialStudioState());
+    assert.equal(classifyPattern(s.lights[0], s.subjectYaw), pattern, id);
+  }
+});
+
+test("iluminación corta y ancha", () => {
+  const short = applyPreset(PRESETS.find((p) => p.id === "short")!, initialStudioState());
+  const broad = applyPreset(PRESETS.find((p) => p.id === "broad")!, initialStudioState());
+  assert.equal(meter(short).side, "short");
+  assert.equal(meter(broad).side, "broad");
+});
+
+test("el reflector rebota luz sólo si alguna luz le pega", () => {
+  const s = applyPreset(PRESETS.find((p) => p.id === "rembrandt")!, initialStudioState());
+  const reflector = s.lights[1];
+  assert.ok(lightN2AtSubject(reflector, s) > 0);
+  const dark = { ...s, lights: s.lights.map((l, i) => (i === 0 ? { ...l, on: false } : l)) };
+  assert.equal(lightN2AtSubject(reflector, dark), 0);
+});
+
+test("sobre la sincronización avisa la franja negra", () => {
+  const s = oneLight(1);
+  assert.equal(meter(s).overSync, false);
+  const fast = { ...s, camera: { ...s.camera, shutter: 1 / 1000 } };
+  const report = meter(fast);
+  assert.equal(report.overSync, true);
+  assert.ok(report.syncBand > 0.7);
+});
+
+test("relación de luces del esquema de tres puntos ronda 3:1 o 4:1", () => {
+  const s = applyPreset(PRESETS.find((p) => p.id === "three-point")!, initialStudioState());
+  const { ratio } = meter({ ...s, roomLux: 0 });
+  assert.ok(ratio !== null && ratio > 2.5 && ratio < 5, String(ratio));
+});
+
+test("el enlace compartido devuelve el mismo set", () => {
+  const s = applyPreset(PRESETS.find((p) => p.id === "cinema")!, initialStudioState());
+  const back = deserializeStudio(serializeStudio(s));
+  assert.ok(back);
+  assert.equal(back.lights.length, s.lights.length);
+  assert.equal(back.lights[0].gel, "cto");
+  assert.equal(back.backdrop, s.backdrop);
+  assert.ok(Math.abs(back.lights[1].x - s.lights[1].x) < 0.01);
+  assert.equal(deserializeStudio("basura!!"), null);
+});
+
+test("balance de blancos: flash a 5500 K se ve neutro, CTO se ve cálido", () => {
+  const s = oneLight(1);
+  const neutral = renderedLightColor(s.lights[0], 5500);
+  assert.ok(Math.abs(neutral[0] - neutral[2]) < 0.03, neutral.join());
+  const warm = renderedLightColor({ ...s.lights[0], gel: "cto" }, 5500);
+  assert.ok(warm[0] > warm[2] * 1.4, warm.join());
+  const corrected = renderedLightColor({ ...s.lights[0], modifier: "fresnel" }, 3200);
+  assert.ok(Math.abs(corrected[0] - corrected[2]) < 0.05, corrected.join());
+});
+
+test("lectura de fotómetro", () => {
+  assert.equal(formatFNumber(8), "f/8");
+  assert.equal(formatFNumber(8 * Math.pow(2, 0.15)), "f/8 +3");
+  assert.equal(formatFNumber(0), "—");
+});
