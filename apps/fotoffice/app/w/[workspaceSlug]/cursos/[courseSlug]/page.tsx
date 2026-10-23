@@ -13,6 +13,9 @@ import { appUrl as direccionDeLaApp } from "@/lib/app-url";
 import { computeAvailableSpots, getApprovedEnrollmentCountsByInstanceIds } from "@/lib/presential-courses/availability";
 import { InvitacionAEnsenar } from "@/components/course-marketplace/invitacion-a-ensenar";
 import { RecordedCourseSection } from "@/components/presential-courses/recorded-course-section";
+import { CourseHero } from "@/components/presential-courses/course-hero";
+import { duracionLegible } from "@/lib/course-classroom/aula";
+import { montosDeCompraSinReparto } from "@/lib/course-marketplace/compra";
 import { PublicCourseEnrollmentForm } from "@/components/presential-courses/public-course-enrollment-form";
 
 const INCLUDE_CURSO = {
@@ -140,11 +143,58 @@ export default async function PublicCourseLandingPage({ params }: Props) {
     .sort((a, b) => a - b)[0];
   const faqItems = Array.isArray(presentialCourse.faqJson) ? presentialCourse.faqJson : [];
 
+  const etiqueta =
+    presentialCourse.status === "UPCOMING" ? "Próximamente" : esCursoGrabado ? "Curso grabado" : "Cursos presenciales";
+  // Para el encabezado con portada: lo mismo que muestra la sección de clases, en grande.
+  const segundosTotales = presentialCourse.lessons.reduce((s, c) => s + (c.durationSeconds ?? 0), 0);
+  const montosEncabezado =
+    esCursoGrabado && presentialCourse.priceArs
+      ? montosDeCompraSinReparto({
+          listaArs: presentialCourse.priceArs.toString(),
+          comisionPlataformaBps: cargoServicioBps,
+          owner: dueno,
+        })
+      : null;
+  const precioEncabezado = montosEncabezado?.ok
+    ? formatMoney(Number(montosEncabezado.amountArs), "ARS")
+    : esCursoGrabado && presentialCourse.priceArs
+      ? formatMoney(Number(presentialCourse.priceArs), "ARS")
+      : minPrice != null
+        ? `Desde ${formatMoney(minPrice, "ARS")}`
+        : null;
+  const datosEncabezado = esCursoGrabado
+    ? [
+        ...(presentialCourse.lessons.length > 0
+          ? [{ valor: String(presentialCourse.lessons.length), detalle: presentialCourse.lessons.length === 1 ? "clase grabada" : "clases grabadas" }]
+          : []),
+        ...(segundosTotales > 0 ? [{ valor: duracionLegible(segundosTotales), detalle: "de video" }] : []),
+        {
+          valor: presentialCourse.accessMonths === 1 ? "1 mes" : `${presentialCourse.accessMonths} meses`,
+          detalle: "para verlo a tu ritmo",
+        },
+      ]
+    : [];
+  const sePuedeComprar =
+    esCursoGrabado && presentialCourse.status === "PUBLISHED" && aLaVenta && Boolean(presentialCourse.priceArs);
+
   return (
     <main className="max-w-5xl mx-auto px-4 md:px-8 py-12 md:py-16 space-y-10">
+      {presentialCourse.coverImageUrl ? (
+        <CourseHero
+          etiqueta={etiqueta}
+          titulo={presentialCourse.title}
+          bajada={presentialCourse.shortDescription}
+          instructor={presentialCourse.instructorName}
+          nivel={presentialCourse.level}
+          portadaUrl={presentialCourse.coverImageUrl}
+          datos={datosEncabezado}
+          precio={precioEncabezado}
+          comprarHref={sePuedeComprar ? "#comprar" : null}
+        />
+      ) : (
       <header className="space-y-4">
         <p className="text-xs font-semibold uppercase tracking-widest text-[var(--fo-accent)]">
-          {presentialCourse.status === "UPCOMING" ? "Próximamente" : esCursoGrabado ? "Curso grabado" : "Cursos presenciales"}
+          {etiqueta}
         </p>
         <h1 className="text-3xl md:text-4xl font-semibold tracking-tight">{presentialCourse.title}</h1>
         {presentialCourse.shortDescription ? (
@@ -157,15 +207,7 @@ export default async function PublicCourseLandingPage({ params }: Props) {
           {presentialCourse.level ? ` · Nivel: ${presentialCourse.level}` : ""}
         </p>
       </header>
-
-      {presentialCourse.coverImageUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={presentialCourse.coverImageUrl}
-          alt=""
-          className="h-[320px] w-full object-cover rounded-[var(--fo-radius)] border border-[var(--fo-border)]"
-        />
-      ) : null}
+      )}
 
       {presentialCourse.longDescription ? (
         <section className="fo-card">

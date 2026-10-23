@@ -127,7 +127,7 @@ export function RecordedCourseSection({
         </p>
       ) : null}
       {publicado && precioArs && aLaVenta ? (
-        <details className="pt-2">
+        <details id="comprar" className="scroll-mt-6 pt-2" open>
           <summary className="cursor-pointer text-sm text-[var(--fo-accent)]">Comprar el curso</summary>
           <div className="pt-3">
             <PublicCourseEnrollmentForm workspaceSlug={workspaceSlug} courseSlug={courseSlug} />
