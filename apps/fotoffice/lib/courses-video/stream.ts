@@ -47,6 +47,19 @@ function resolverConfig(deps: Deps): StreamConfig {
   return leida.config;
 }
 
+async function motivoDelRechazo(respuesta: Response): Promise<string> {
+  try {
+    const cuerpo = (await respuesta.json()) as { errors?: Array<{ code?: unknown; message?: unknown }> };
+    const motivos = (cuerpo.errors ?? [])
+      .map((e) => [e.code, e.message].filter((x) => typeof x === "number" || typeof x === "string").join(" "))
+      .filter(Boolean)
+      .map((m) => m.slice(0, 200));
+    return motivos.length ? `: ${motivos.join("; ")}` : "";
+  } catch {
+    return "";
+  }
+}
+
 async function pedir(
   ruta: string,
   init: RequestInit,
@@ -65,9 +78,11 @@ async function pedir(
   });
 
   if (!respuesta.ok) {
-    // Sin cuerpo crudo del proveedor: puede traer el pedido completo, token incluido.
+    // Sin cuerpo crudo del proveedor: puede traer el pedido completo, token incluido. Sólo
+    // el código y el mensaje de cada error, que son los que dicen por qué (cupo lleno,
+    // enlace inaccesible) y nunca llevan credenciales.
     throw new StreamError(
-      `El proveedor de video rechazó la operación (${respuesta.status}).`,
+      `El proveedor de video rechazó la operación (${respuesta.status})${await motivoDelRechazo(respuesta)}.`,
       respuesta.status,
     );
   }

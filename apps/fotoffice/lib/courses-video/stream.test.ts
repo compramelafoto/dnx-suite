@@ -216,3 +216,14 @@ describe("traer un video desde un enlace", () => {
     ).rejects.toBeInstanceOf(StreamError);
   });
 });
+
+describe("motivo del rechazo", () => {
+  it("muestra el código y el mensaje del proveedor, pero no el pedido", async () => {
+    const fetchSimulado = vi.fn().mockResolvedValue(
+      respuesta({ errors: [{ code: 10011, message: "Storage capacity exceeded" }], request: "token" }, false, 413),
+    );
+    await expect(
+      copyFromUrl({ url: "https://x.com/a.mp4", name: "a" }, { config, fetchImpl: fetchSimulado }),
+    ).rejects.toThrow("El proveedor de video rechazó la operación (413): 10011 Storage capacity exceeded.");
+  });
+});
