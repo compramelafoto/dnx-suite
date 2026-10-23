@@ -8,6 +8,7 @@ const foto = (id: string, w = 3000, h = 2000) => ({ id, url: `https://x/${id}.jp
 
 function estado(): EstadoFotolibro {
   const e = leerEstadoFotolibro({ fotolibro: { fotos: [foto("a"), foto("b"), foto("c", 2000, 3000)] } }, 2);
+  e.pliegos[0]!.modo = "paginas";
   e.pliegos[0]!.izq.fotos = ["a", "b"];
   e.pliegos[0]!.der.fotos = ["c"];
   return e;
@@ -104,5 +105,23 @@ describe("títulos largos", () => {
     e.estilo.textos.titulo = "Ana Clara, Luis Alberto y toda la familia";
     const largo = generarBloques(e, lienzo, []).find((b) => b.type === "TEXT")!;
     expect(Number(largo.configJson.fontSize)).toBeLessThan(Number(corto.configJson.fontSize));
+  });
+
+  it("en un pliego entero, una foto sola ocupa todo el pliego, a sangre", () => {
+    const e = leerEstadoFotolibro({ fotolibro: { fotos: [foto("a", 4000, 2000)] } }, 1);
+    e.pliegos[0]!.todo.fotos = ["a"];
+    const [b] = generarBloques(e, lienzo, []).filter((x) => x.type === "IMAGE");
+    expect(b!.id).toBe(idDeBloque(0, "todo", "a"));
+    expect(b!.layout).toMatchObject({ x: 0, y: 0, width: lienzo.width, height: lienzo.height });
+  });
+
+  it("al cambiar de distribución, cada foto conserva su bloque (para animar el cambio)", () => {
+    const e = leerEstadoFotolibro({ fotolibro: { fotos: [foto("a"), foto("b"), foto("c")] } }, 1);
+    e.pliegos[0]!.todo.fotos = ["a", "b", "c"];
+    const antes = generarBloques(e, lienzo, []).filter((x) => x.type === "IMAGE");
+    e.pliegos[0]!.todo.variante = 3;
+    const despues = generarBloques(e, lienzo, antes).filter((x) => x.type === "IMAGE");
+    expect(despues.map((b) => b.id).sort()).toEqual(antes.map((b) => b.id).sort());
+    expect(despues.some((b, i) => b.layout.x !== antes[i]!.layout.x || b.layout.width !== antes[i]!.layout.width)).toBe(true);
   });
 });

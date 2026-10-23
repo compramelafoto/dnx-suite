@@ -19,6 +19,15 @@ export type FotoDelLibro = {
 };
 
 export type LadoPliego = "izq" | "der";
+/** Dónde va una foto: en una página, o en el pliego entero ("todo"). */
+export type Lado = LadoPliego | "todo";
+
+/**
+ * Cómo se arma un pliego. "pliego" (lo de entrada, como en los diseñadores profesionales): las
+ * fotos se distribuyen en las dos páginas juntas, con diseños a sangre y a todo el pliego.
+ * "paginas": cada página por su lado.
+ */
+export type ModoPliego = "pliego" | "paginas";
 
 export type PaginaDelPliego = {
   /** Ids de `fotos`, en orden de lectura. */
@@ -27,7 +36,10 @@ export type PaginaDelPliego = {
   variante: number;
 };
 
-export type PliegoDelLibro = { izq: PaginaDelPliego; der: PaginaDelPliego };
+export type PliegoDelLibro = { modo: ModoPliego; todo: PaginaDelPliego; izq: PaginaDelPliego; der: PaginaDelPliego };
+
+/** Las partes del pliego que tienen fotos según su modo. */
+export const ladosDe = (p: PliegoDelLibro): Lado[] => (p.modo === "pliego" ? ["todo"] : ["izq", "der"]);
 
 /**
  * El estilo aplicado: cuál es, los fondos ya dibujados a la medida de este libro (uno por tipo de
@@ -70,7 +82,7 @@ export const SEPARACION_MM_INICIAL = 4;
 export const MARGEN_MM_INICIAL = 12;
 
 const paginaVacia = (): PaginaDelPliego => ({ fotos: [], variante: 0 });
-export const pliegoVacio = (): PliegoDelLibro => ({ izq: paginaVacia(), der: paginaVacia() });
+export const pliegoVacio = (modo: ModoPliego = "pliego"): PliegoDelLibro => ({ modo, todo: paginaVacia(), izq: paginaVacia(), der: paginaVacia() });
 
 const esObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
 const num = (v: unknown, d: number) => (typeof v === "number" && Number.isFinite(v) ? v : d);
@@ -131,7 +143,15 @@ export function leerEstadoFotolibro(meta: unknown, cantidadPliegos: number): Est
   const pliegos: PliegoDelLibro[] = [];
   for (let i = 0; i < Math.max(1, cantidadPliegos); i++) {
     const p = crudos[i];
-    pliegos.push(esObj(p) ? { izq: leerPagina(p.izq, ids), der: leerPagina(p.der, ids) } : pliegoVacio());
+    if (!esObj(p)) {
+      pliegos.push(pliegoVacio());
+      continue;
+    }
+    const izq = leerPagina(p.izq, ids);
+    const der = leerPagina(p.der, ids);
+    // Los libros de antes (sin modo) que ya tenían fotos por página siguen así.
+    const modo: ModoPliego = p.modo === "pliego" || p.modo === "paginas" ? p.modo : izq.fotos.length || der.fotos.length ? "paginas" : "pliego";
+    pliegos.push({ modo, todo: leerPagina(p.todo, ids), izq, der });
   }
   return {
     fotos,
@@ -166,7 +186,7 @@ export function escribirEstadoFotolibro(meta: Record<string, unknown>, estado: E
 export function usosPorFoto(estado: EstadoFotolibro): Map<string, number> {
   const usos = new Map<string, number>();
   for (const p of estado.pliegos) {
-    for (const id of [...p.izq.fotos, ...p.der.fotos]) usos.set(id, (usos.get(id) ?? 0) + 1);
+    for (const lado of ladosDe(p)) for (const id of p[lado].fotos) usos.set(id, (usos.get(id) ?? 0) + 1);
   }
   for (const id of [estado.tapa?.fotoId, estado.tapa?.contratapaFotoId]) {
     if (id) usos.set(id, (usos.get(id) ?? 0) + 1);

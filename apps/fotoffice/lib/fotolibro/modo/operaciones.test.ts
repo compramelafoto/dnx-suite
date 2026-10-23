@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { leerEstadoFotolibro } from "./estado";
-import { agregarAPagina, agregarPliego, armarPliego, cambiarVariante, intercambiar, moverAPagina, quitarDePagina, quitarPliego, reemplazar } from "./operaciones";
+import { agregarAPagina, agregarPliego, armarPliego, cambiarModo, cambiarVariante, intercambiar, moverAPagina, quitarDePagina, quitarPliego, reemplazar } from "./operaciones";
 
 const foto = (id: string) => ({ id, url: `https://x/${id}`, w: 3, h: 2 });
-const base = () => leerEstadoFotolibro({ fotolibro: { fotos: ["a", "b", "c", "d", "e"].map(foto) } }, 2);
+// Las pruebas de siempre son de pliegos armados por páginas.
+const base = () => leerEstadoFotolibro({ fotolibro: { fotos: ["a", "b", "c", "d", "e"].map(foto), pliegos: [{ modo: "paginas" }, { modo: "paginas" }] } }, 2);
+const entero = () => leerEstadoFotolibro({ fotolibro: { fotos: ["a", "b", "c", "d", "e"].map(foto) } }, 2);
 
 describe("operaciones del Modo Fotolibro", () => {
   it("arma el pliego repartiendo la selección entre las dos páginas", () => {
@@ -55,5 +57,26 @@ describe("reemplazar una foto puesta", () => {
     const e = agregarAPagina(base(), 0, "izq", ["a", "b"]);
     expect(reemplazar(e, { pliego: 0, lado: "izq", fotoId: "a" }, "c").pliegos[0]!.izq.fotos).toEqual(["c", "b"]);
     expect(reemplazar(e, { pliego: 0, lado: "izq", fotoId: "a" }, "b")).toBe(e);
+  });
+
+  it("un libro nuevo se arma por pliego entero: las fotos van juntas", () => {
+    const e = armarPliego(entero(), 0, ["a", "b", "c", "d"]);
+    expect(e.pliegos[0]!.modo).toBe("pliego");
+    expect(e.pliegos[0]!.todo.fotos).toEqual(["a", "b", "c", "d"]);
+    expect(e.pliegos[0]!.izq.fotos).toEqual([]);
+  });
+
+  it("pasar a páginas y volver no pierde fotos", () => {
+    const e = armarPliego(entero(), 0, ["a", "b", "c"]);
+    const paginas = cambiarModo(e, 0, "paginas");
+    expect(paginas.pliegos[0]!.izq.fotos).toEqual(["a", "b"]);
+    expect(paginas.pliegos[0]!.der.fotos).toEqual(["c"]);
+    expect(cambiarModo(paginas, 0, "pliego").pliegos[0]!.todo.fotos).toEqual(["a", "b", "c"]);
+  });
+
+  it("los libros de antes con fotos por página siguen por páginas", () => {
+    const e = leerEstadoFotolibro({ fotolibro: { fotos: [foto("a")], pliegos: [{ izq: { fotos: ["a"] } }, {}] } }, 2);
+    expect(e.pliegos[0]!.modo).toBe("paginas");
+    expect(e.pliegos[1]!.modo).toBe("pliego");
   });
 });
