@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import Button from "@/components/ui/Button";
+import { campaignFromSearch } from "@/lib/public/talk-lead-source";
 
 type TalkData = {
   id: number;
@@ -133,7 +134,12 @@ export default function CharlaFotoEscolarClient({
       const res = await fetch("/api/charlafotoescolar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...formData, slug: talkSlug, source: talkSlug }),
+        body: JSON.stringify({
+          ...formData,
+          slug: talkSlug,
+          source: talkSlug,
+          campaign: campaignFromSearch(window.location.search),
+        }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {

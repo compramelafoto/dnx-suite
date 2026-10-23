@@ -23,7 +23,10 @@ export default function SimulatorHero() {
           <Link href="/camofduty/simulador" className="cod-btn cod-btn--primary cod-btn--full-mobile">
             Entrar al simulador
           </Link>
-          <a href="#modulos" className="cod-btn cod-btn--secondary cod-btn--full-mobile">
+          <Link href="/camofduty/estudio" className="cod-btn cod-btn--secondary cod-btn--full-mobile">
+            Estudio de luz 3D
+          </Link>
+          <a href="#modulos" className="cod-btn cod-btn--ghost cod-btn--full-mobile">
             Ver módulos
           </a>
         </div>
