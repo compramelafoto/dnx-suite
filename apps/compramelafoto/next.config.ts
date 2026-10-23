@@ -202,6 +202,26 @@ const nextConfig: NextConfig = {
         destination: "/organizador",
         permanent: true,
       },
+      // camofduty.com cuelga de este proyecto y lleva a Cam Of Duty.
+      // Temporal (307) para poder darle su propia app más adelante.
+      {
+        source: "/",
+        has: [{ type: "host", value: "camofduty.com" }],
+        destination: "https://www.compramelafoto.com/camofduty",
+        permanent: false,
+      },
+      {
+        source: "/camofduty/:path*",
+        has: [{ type: "host", value: "camofduty.com" }],
+        destination: "https://www.compramelafoto.com/camofduty/:path*",
+        permanent: false,
+      },
+      {
+        source: "/:path*",
+        has: [{ type: "host", value: "camofduty.com" }],
+        destination: "https://www.compramelafoto.com/camofduty/:path*",
+        permanent: false,
+      },
     ];
   },
   async rewrites() {
