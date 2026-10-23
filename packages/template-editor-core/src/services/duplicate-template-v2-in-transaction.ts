@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { forkVersionMetaJsonFromCatalog } from "../fork-template-v2-meta";
+import { withoutServerOwnedMeta } from "../template-v2-version-lineage";
 
 type DuplicateSourceVersionShape = {
   canvasJson?: unknown;
@@ -43,12 +44,8 @@ export async function duplicateTemplateV2InsideTransaction(tx: Record<string, an
     ? (sourceVersion.variableBindings as any[])
     : [];
 
-  let metaPayload: Record<string, unknown> =
-    typeof sourceVersion.metaJson === "object" &&
-    sourceVersion.metaJson !== null &&
-    !Array.isArray(sourceVersion.metaJson)
-      ? { ...(sourceVersion.metaJson as Record<string, unknown>) }
-      : {};
+  // La copia es otra plantilla: no hereda de qué versión salió la original.
+  let metaPayload: Record<string, unknown> = withoutServerOwnedMeta(sourceVersion.metaJson);
 
   if (versionMetaStrategy === "fork_from_public_catalog") {
     const catalogId = opts.catalogTemplateIdForMeta ?? source.id;

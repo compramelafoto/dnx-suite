@@ -120,6 +120,15 @@ export type TemplateV2EditorAction =
   | { type: "setVariableBindings"; payload: { variableBindings: TemplateV2VariableBinding[] } }
   | { type: "markDirty" }
   | { type: "markSaved"; payload?: { at?: string | null; revision?: number } }
+  /**
+   * El servidor guardó en otra versión (la anterior estaba en uso y quedó congelada) o les cambió
+   * el id a algunos bloques. El editor pasa a esa versión y traduce los ids en todo lo que tiene,
+   * historial incluido, para que deshacer no vuelva a mandar ids de la versión congelada.
+   */
+  | {
+      type: "rebaseToSavedVersion";
+      payload: { versionId: string; revision: number; at?: string | null; blockIdMap: Record<string, string> };
+    }
   /** Sincroniza la revisión con el servidor (p. ej. tras 409) sin marcar cambios ni tocar el historial. */
   | { type: "syncRevisionFromServer"; payload: { revision: number } }
   | { type: "setSaving"; payload: { isSaving: boolean } }
@@ -254,9 +263,14 @@ function restorePersistIntoState(base: TemplateV2EditorState, snap: TemplateV2Pe
     versionMeta: { ...(snap.versionMeta ?? {}) },
     activePageIndex: activePage,
     templatePageCount: snap.templatePageCount ?? 1,
-    isDirty: snap.isDirty,
-    revision: snap.revision,
-    lastSavedAt: snap.lastSavedAt,
+    /*
+     * La revisión y la fecha de guardado son del servidor, no del documento: deshacer no las
+     * vuelve atrás (si no, el próximo guardado chocaría contra la revisión real). Y lo que se
+     * restaura ya no es lo guardado, así que queda pendiente de guardar.
+     */
+    isDirty: true,
+    revision: base.revision,
+    lastSavedAt: base.lastSavedAt,
     saveStatus: "idle",
     isSaving: false,
     selectedBlockIds,
@@ -809,10 +823,63 @@ export function ajustarFondosAlLienzo(
   });
 }
 
+function remapBlocks(blocks: TemplateV2Block[], map: Record<string, string>): TemplateV2Block[] {
+  return blocks.map((b) => (map[b.id] ? { ...b, id: map[b.id]! } : b));
+}
+
+function remapBindings(
+  bindings: TemplateV2VariableBinding[],
+  map: Record<string, string>,
+  dropIds: boolean
+): TemplateV2VariableBinding[] {
+  return bindings.map((vb) => {
+    const next = { ...vb, blockId: map[vb.blockId] ?? vb.blockId };
+    // Los ids de vínculos de la versión vieja también están ocupados: el servidor pone otros.
+    if (dropIds) delete next.id;
+    return next;
+  });
+}
+
+function remapSnapshot(
+  snap: TemplateV2PersistSnapshot,
+  map: Record<string, string>,
+  dropBindingIds: boolean
+): TemplateV2PersistSnapshot {
+  return {
+    ...snap,
+    blocks: remapBlocks(snap.blocks, map),
+    variableBindings: remapBindings(snap.variableBindings, map, dropBindingIds),
+  };
+}
+
+/** Pasa el editor a la versión donde quedó guardado y traduce ids de bloques. Puro. */
+export function rebaseEditorStateToSavedVersion(
+  state: TemplateV2EditorState,
+  payload: { versionId: string; revision: number; at?: string | null; blockIdMap: Record<string, string> }
+): TemplateV2EditorState {
+  const map = payload.blockIdMap ?? {};
+  const changedVersion = payload.versionId !== state.versionId;
+  return {
+    ...state,
+    versionId: payload.versionId,
+    revision: payload.revision,
+    lastSavedAt: payload.at ?? new Date().toISOString(),
+    blocks: remapBlocks(state.blocks, map),
+    variableBindings: remapBindings(state.variableBindings, map, changedVersion),
+    selectedBlockIds: state.selectedBlockIds.map((id) => map[id] ?? id),
+    hoveredBlockId: state.hoveredBlockId ? (map[state.hoveredBlockId] ?? state.hoveredBlockId) : null,
+    historyPast: state.historyPast.map((snap) => remapSnapshot(snap, map, changedVersion)),
+    historyFuture: state.historyFuture.map((snap) => remapSnapshot(snap, map, changedVersion)),
+  };
+}
+
 export function templateV2EditorReducer(
   state: TemplateV2EditorState,
   action: TemplateV2EditorAction
 ): TemplateV2EditorState {
+  if (action.type === "rebaseToSavedVersion") {
+    return rebaseEditorStateToSavedVersion(state, action.payload);
+  }
   if (action.type === "undo") {
     return applyUndo(state);
   }
