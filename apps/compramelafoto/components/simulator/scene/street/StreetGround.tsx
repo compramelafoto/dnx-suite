@@ -70,22 +70,29 @@ const PAINT = new THREE.MeshStandardMaterial({
   polygonOffsetFactor: -2,
 });
 
-/** Franjas de una senda peatonal (cebra) y la línea de detención. */
+/**
+ * Sendas peatonales (cebra) y líneas de detención. Como en Argentina, la senda
+ * continúa la vereda: va entre el cordón y la línea de edificación.
+ */
 function crosswalkStripes(): { position: [number, number, number]; size: [number, number]; rotY: number }[] {
   const out: { position: [number, number, number]; size: [number, number]; rotY: number }[] = [];
-  const L = BUILDING_LINE;
-  const length = 3;
+  const center = STREET.roadHalf + STREET.sidewalk / 2;
+  const length = STREET.sidewalk - 0.4;
   for (const s of [1, -1]) {
-    // Sobre la calle principal: franjas paralelas al tránsito, a lo ancho de la calzada.
+    // Cruzando la calle principal: franjas paralelas al tránsito.
     for (let x = -STREET.roadHalf + 0.6; x <= STREET.roadHalf - 0.4; x += 1) {
-      out.push({ position: [x, 0.004, s * (L + 0.2 + length / 2)], size: [0.5, length], rotY: 0 });
+      out.push({ position: [x, 0.004, s * center], size: [0.5, length], rotY: 0 });
     }
-    out.push({ position: [0, 0.004, s * (L + 0.2 + length + 1)], size: [STREET.roadHalf * 2 - 0.4, 0.4], rotY: 0 });
-    // Sobre la transversal.
+    // Cruzando la transversal.
     for (let z = -STREET.roadHalf + 0.6; z <= STREET.roadHalf - 0.4; z += 1) {
-      out.push({ position: [s * (L + 0.2 + length / 2), 0.004, z], size: [length, 0.5], rotY: 0 });
+      out.push({ position: [s * center, 0.004, z], size: [length, 0.5], rotY: 0 });
     }
   }
+  // Líneas de detención antes de la senda, del lado por el que llega el tránsito
+  // (la principal sube hacia +Z y la transversal va hacia −X).
+  const stop = STREET.roadHalf + STREET.sidewalk + 0.5;
+  out.push({ position: [0, 0.004, -stop], size: [STREET.roadHalf * 2 - 0.4, 0.4], rotY: 0 });
+  out.push({ position: [stop, 0.004, 0], size: [0.4, STREET.roadHalf * 2 - 0.4], rotY: 0 });
   return out;
 }
 

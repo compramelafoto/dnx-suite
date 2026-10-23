@@ -7,8 +7,11 @@ import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { Sky } from "three/examples/jsm/objects/Sky.js";
 
-/** El cielo es un cubo dentro del plano lejano de la cámara (120 m). */
-const SKY_SCALE = 110;
+/** El cielo es un cubo dentro del plano lejano de la cámara (220 m). */
+const SKY_SCALE = 200;
+/** Bruma: lo lejano se funde con el aire, como en una ciudad real. */
+const FOG_NEAR = 45;
+const FOG_FAR = 190;
 /** Área de sombras alrededor del fotógrafo (m). */
 const SHADOW_HALF = 38;
 const SHADOW_MAP = 4096;
@@ -51,15 +54,20 @@ export default function StreetLighting() {
     return { pmrem, envScene, envSky, target: null as THREE.WebGLRenderTarget | null };
   }, [gl]);
 
+  const fog = useMemo(() => new THREE.Fog("#a8c8e8", FOG_NEAR, FOG_FAR), []);
+  const fogColor = useMemo(() => new THREE.Color(), []);
+
   useEffect(() => {
+    scene.fog = fog;
     return () => {
+      scene.fog = null;
       env.target?.dispose();
       env.pmrem.dispose();
       sky.geometry.dispose();
       (sky.material as THREE.Material).dispose();
       scene.environment = null;
     };
-  }, [env, sky, scene]);
+  }, [env, sky, scene, fog]);
 
   const target = useMemo(() => new THREE.Object3D(), []);
 
@@ -86,10 +94,22 @@ export default function StreetLighting() {
       env.target = env.pmrem.fromScene(env.envScene, 0.02);
       scene.environment = env.target.texture;
     }
+    // La bruma toma el color del horizonte, con el brillo de la luz del momento.
+    const dayFactor = THREE.MathUtils.smoothstep(sunState.elevationDeg, -6, 10);
+    fogColor.set(sunState.fogColor).multiplyScalar(0.02 + 0.9 * dayFactor);
+    fog.color.copy(fogColor);
+
     // De noche el cielo casi no ilumina: mandan los faroles y las vidrieras.
     scene.environmentIntensity = 0.006 + 0.994 * THREE.MathUtils.smoothstep(sunState.elevationDeg, -8, 4);
 
     const sun = sunRef.current;
+    // El tamaño del mapa de sombras sigue la calidad vigente (se rehace al cambiar).
+    const wanted = simulatorRuntime.quality.shadowMapSize;
+    if (sun && sun.shadow.mapSize.x !== wanted) {
+      sun.shadow.mapSize.set(wanted, wanted);
+      sun.shadow.map?.dispose();
+      sun.shadow.map = null;
+    }
     if (sun) {
       const daylight = THREE.MathUtils.smoothstep(sunState.elevationDeg, -2, 6);
       // Iluminancia solar frente al cielo: el sol domina con el sol alto.
@@ -97,7 +117,7 @@ export default function StreetLighting() {
       sun.color.set(sunState.sunColor);
       sun.visible = sun.intensity > 0.01;
       // La sombra sigue al fotógrafo y se ajusta a la grilla de texels (no "nada").
-      const texel = (SHADOW_HALF * 2) / SHADOW_MAP;
+      const texel = (SHADOW_HALF * 2) / sun.shadow.mapSize.x;
       const cx = Math.round(camera.position.x / texel) * texel;
       const cz = Math.round(camera.position.z / texel) * texel;
       target.position.set(cx, 0, cz);

@@ -83,20 +83,41 @@ test("no se puede entrar a las manzanas y la vereda está 15 cm más alta", () =
   assert.equal(streetGroundHeight(5.5, 25), STREET.curbHeight);
 });
 
-test("los peatones van y vuelven por su recorrido sin saltos", () => {
+test("los peatones caminan en circuitos cerrados: sin saltos, cortes ni medias vueltas", () => {
   const { walkers, standers } = planStreetPeople(layout);
   assert.ok(walkers.length >= 10);
   assert.ok(standers.length >= 3);
-  const path = walkers[0].path;
-  const total = pathLength(path);
-  const end = samplePath(path, total - 0.01);
-  const back = samplePath(path, total + 1);
-  assert.ok(Math.hypot(end.x - back.x, end.z - back.z) < 1.1);
-  assert.ok(Math.abs(Math.abs(end.heading - back.heading) - Math.PI) < 1e-6, "da media vuelta");
-  let prev = samplePath(path, 0);
-  for (let d = 0.5; d < total * 3; d += 0.5) {
-    const at = samplePath(path, d);
-    assert.ok(Math.hypot(at.x - prev.x, at.z - prev.z) <= 0.5 + 1e-9);
-    prev = at;
+  for (const w of walkers) {
+    const total = pathLength(w.path);
+    let prev = samplePath(w.path, 0);
+    for (let d = 0.25; d <= total * 2; d += 0.25) {
+      const at = samplePath(w.path, d);
+      // Nunca salta: cada paso de 25 cm avanza a lo sumo 25 cm.
+      assert.ok(Math.hypot(at.x - prev.x, at.z - prev.z) <= 0.25 + 1e-9, `${w.id} en ${d}`);
+      // Nunca da media vuelta: como mucho dobla 90° en una esquina.
+      const turn = Math.abs(Math.atan2(Math.sin(at.heading - prev.heading), Math.cos(at.heading - prev.heading)));
+      assert.ok(turn <= Math.PI / 2 + 1e-6, `${w.id} gira ${turn}`);
+      prev = at;
+    }
+  }
+});
+
+test("los peatones cruzan la calle por la senda o lejos de la esquina, nunca por la esquina misma", () => {
+  for (const path of layout.walkPaths) {
+    for (let i = 0; i < path.points.length; i += 1) {
+      const a = path.points[i];
+      const b = path.points[(i + 1) % path.points.length];
+      const crossesMain = Math.sign(a[0]) !== Math.sign(b[0]);
+      const crossesCross = Math.sign(a[1]) !== Math.sign(b[1]);
+      if (crossesMain) {
+        const z = Math.abs(a[1]);
+        const onCrosswalk = z >= STREET.roadHalf && z <= BUILDING_LINE;
+        assert.ok(onCrosswalk || z > 30, `${path.id} cruza la principal en z=${z}`);
+      }
+      if (crossesCross) {
+        const x = Math.abs(a[0]);
+        assert.ok((x >= STREET.roadHalf && x <= BUILDING_LINE) || x > 20, `${path.id} cruza la transversal en x=${x}`);
+      }
+    }
   }
 });

@@ -9,6 +9,7 @@ import {
   PHOTOGRAPHIC_VEHICLE_SUBJECT_ID,
   VEHICLE_SUBJECT_ID,
   isPhotographicPedestrianId,
+  isStreetCarId,
 } from "./moving-subject-types";
 
 /**
@@ -189,6 +190,7 @@ export function scoreRaycastHit(
     subjectId === MOVING_SUBJECT_ID ||
     subjectId === VEHICLE_SUBJECT_ID ||
     subjectId === PHOTOGRAPHIC_VEHICLE_SUBJECT_ID ||
+    isStreetCarId(subjectId) ||
     isPhotographicPedestrianId(subjectId) ||
     (typeof subjectId === "string" && PEDESTRIAN_SUBJECT_IDS.includes(subjectId as (typeof PEDESTRIAN_SUBJECT_IDS)[number]))
   ) {
@@ -197,7 +199,7 @@ export function scoreRaycastHit(
       : typeof subjectId === "string" &&
           PEDESTRIAN_SUBJECT_IDS.includes(subjectId as (typeof PEDESTRIAN_SUBJECT_IDS)[number])
         ? "Persona"
-        : subjectId === VEHICLE_SUBJECT_ID || subjectId === PHOTOGRAPHIC_VEHICLE_SUBJECT_ID
+        : subjectId === VEHICLE_SUBJECT_ID || subjectId === PHOTOGRAPHIC_VEHICLE_SUBJECT_ID || isStreetCarId(subjectId)
           ? "Vehículo"
           : subjectId === MOVING_SUBJECT_ID
             ? "Sujeto"

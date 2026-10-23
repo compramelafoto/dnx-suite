@@ -19,6 +19,13 @@ const MODEL_BY_KIND: Record<PropKind, string> = {
   plant: STREET_MODELS.plant,
   aircon: STREET_MODELS.aircon,
   car: STREET_MODELS.car,
+  "covered-car": STREET_MODELS.coveredCar,
+};
+
+/** Versión liviana para la distancia (THREE.LOD) y desde dónde se usa. */
+const FAR_MODEL: Partial<Record<PropKind, { url: string; from: number }>> = {
+  tree: { url: STREET_MODELS.treeFar, from: 25 },
+  car: { url: STREET_MODELS.carFar, from: 18 },
 };
 
 /** Escala por tipo: el jacarandá de Poly Haven es un ejemplar adulto de parque. */
@@ -43,16 +50,25 @@ function cloneWithShadows(source: THREE.Object3D): THREE.Object3D {
 
 function PropInstances({ kind, items }: { kind: PropKind; items: StreetProp[] }) {
   const gltf = useGLTF(MODEL_BY_KIND[kind]);
+  const far = FAR_MODEL[kind];
+  const farGltf = useGLTF(far?.url ?? MODEL_BY_KIND[kind]);
   const objects = useMemo(
     () =>
       items.map((p) => {
-        const o = cloneWithShadows(gltf.scene);
+        let o: THREE.Object3D = cloneWithShadows(gltf.scene);
+        if (far) {
+          // De lejos se dibuja la versión liviana: mismo aspecto, una fracción de triángulos.
+          const lod = new THREE.LOD();
+          lod.addLevel(o, 0);
+          lod.addLevel(cloneWithShadows(farGltf.scene), far.from);
+          o = lod;
+        }
         o.position.set(p.position[0], p.position[1], p.position[2]);
         o.rotation.y = p.rotationY;
         o.scale.setScalar(SCALE_BY_KIND[kind] ?? 1);
         return o;
       }),
-    [gltf.scene, items, kind],
+    [gltf.scene, farGltf.scene, far, items, kind],
   );
   return (
     <>
@@ -90,7 +106,7 @@ function LampLights({ lamps }: { lamps: StreetProp[] }) {
     const nearest = heads
       .map((h, i) => ({ i, d: (h.x - camera.position.x) ** 2 + (h.z - camera.position.z) ** 2 }))
       .sort((a, b) => a.d - b.d)
-      .slice(0, ACTIVE_LAMP_LIGHTS);
+      .slice(0, Math.min(ACTIVE_LAMP_LIGHTS, simulatorRuntime.quality.lampLights));
     lights.current.forEach((light, slot) => {
       if (!light) return;
       const pick = nearest[slot];

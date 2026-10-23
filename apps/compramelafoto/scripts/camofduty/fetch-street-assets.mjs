@@ -35,6 +35,9 @@ const MODELS = [
   { id: "exterior_aircon_unit", file: "aircon.glb", res: "1k", size: 512 },
   { id: "potted_plant_02", file: "potted-plant.glb", res: "1k", size: 512 },
   { id: "jacaranda_tree", file: "tree-jacaranda.glb", res: "1k", size: 1024, simplify: 0.04 },
+  // Versión lejana del árbol (a más de ~25 m alcanza con una décima parte).
+  { id: "jacaranda_tree", file: "tree-jacaranda-far.glb", res: "1k", size: 512, simplify: 0.006 },
+  { id: "covered_car", file: "covered-car.glb", res: "1k", size: 1024 },
 ];
 
 /** Texturas de piso: id de Poly Haven → nombre corto. */
@@ -145,6 +148,8 @@ async function main() {
     const carRaw = join(work, "car.glb");
     await download(CAR_URL, carRaw);
     optimize(carRaw, join(OUT, "models", "car-concept.glb"), { size: 1024 });
+    // Versión lejana del auto para el tránsito y los estacionados lejos.
+    optimize(carRaw, join(OUT, "models", "car-concept-far.glb"), { size: 512, simplify: 0.06 });
     writeFileSync(join(OUT, "CREDITOS.md"), CREDITS);
   } finally {
     rmSync(work, { recursive: true, force: true });

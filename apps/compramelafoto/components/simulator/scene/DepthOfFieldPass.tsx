@@ -17,6 +17,7 @@ import { getActiveSensor } from "@/lib/simulator/sensor";
 import { isoNoiseFactor } from "@/lib/simulator/sensor-noise";
 import { canvasSensorHeightMm, computeViewfinderInsets } from "@/lib/simulator/viewfinder-frame";
 import { readAllModes, smoothReadings, type MeterReadings } from "@/lib/simulator/metering";
+import { AO_FRAGMENT_SHADER, AO_RADIUS_M, AO_STRENGTH } from "@/lib/simulator/ao-shader";
 import {
   METER_DOWNSAMPLE_FRAGMENT_SHADER,
   METER_GRID_HEIGHT,
@@ -63,6 +64,8 @@ export default function DepthOfFieldPass() {
         wbTint: { value: new THREE.Vector3(1, 1, 1) },
         isoNoise: { value: 0 },
         noiseSeed: { value: 0 },
+        tAO: { value: null as THREE.Texture | null },
+        aoStrength: { value: 0 },
       },
     });
   }, []);
@@ -72,6 +75,25 @@ export default function DepthOfFieldPass() {
     quadScene.current.add(mesh);
     return mesh;
   }, [dofMaterial]);
+
+  // Sombras de contacto (SSAO) a media resolución.
+  const ao = useMemo(() => {
+    const target = new THREE.WebGLRenderTarget(1, 1, { depthBuffer: false });
+    const material = new THREE.ShaderMaterial({
+      vertexShader: DOF_VERTEX_SHADER,
+      fragmentShader: AO_FRAGMENT_SHADER,
+      uniforms: {
+        tDepth: { value: null as THREE.Texture | null },
+        cameraProjection: { value: new THREE.Matrix4() },
+        cameraInverseProjection: { value: new THREE.Matrix4() },
+        resolution: { value: new THREE.Vector2(1, 1) },
+        radius: { value: AO_RADIUS_M },
+      },
+    });
+    const aoScene = new THREE.Scene();
+    aoScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), material));
+    return { target, material, scene: aoScene };
+  }, []);
 
   // Fotómetro: el recuadro reducido a una grilla de luminancia que se lee de la GPU.
   const meter = useMemo(() => {
@@ -152,6 +174,21 @@ export default function DepthOfFieldPass() {
 
       invProj.current.copy(persp.projectionMatrix).invert();
 
+      const quality = simulatorRuntime.quality;
+      if (quality.ao) {
+        const w = Math.max(1, Math.floor(fbo.width / 2));
+        const hgt = Math.max(1, Math.floor(fbo.height / 2));
+        if (ao.target.width !== w || ao.target.height !== hgt) ao.target.setSize(w, hgt);
+        ao.material.uniforms.tDepth.value = fbo.depthTexture;
+        ao.material.uniforms.cameraProjection.value.copy(persp.projectionMatrix);
+        ao.material.uniforms.cameraInverseProjection.value.copy(invProj.current);
+        ao.material.uniforms.resolution.value.set(w, hgt);
+        renderer.setRenderTarget(ao.target);
+        renderer.render(ao.scene, orthoCam.current);
+      }
+      dofMaterial.uniforms.tAO.value = ao.target.texture;
+      dofMaterial.uniforms.aoStrength.value = quality.ao ? AO_STRENGTH : 0;
+
       const now = performance.now();
       if (!simulatorRuntime.captureActive && !meter.failed && now - meter.lastMs >= METER_INTERVAL_MS) {
         const dt = meter.lastMs ? (now - meter.lastMs) / 1000 : 0;
@@ -213,13 +250,13 @@ export default function DepthOfFieldPass() {
       dofMaterial.uniforms.cameraInverseProjection.value = invProj.current;
       dofMaterial.uniforms.resolution.value.set(size.width * renderer.getPixelRatio(), imageHeightPx);
       dofMaterial.uniforms.maxBlurPx.value = maxBlurPx;
-      dofMaterial.uniforms.radScale.value = dofRadiusScale(maxBlurPx);
+      dofMaterial.uniforms.radScale.value = dofRadiusScale(maxBlurPx, simulatorRuntime.quality.dofSteps);
       dofMaterial.uniforms.exposureGain.value = exposureGain;
       renderer.setRenderTarget(null);
       renderer.clear();
       renderer.render(quadScene.current, orthoCam.current);
     },
-    [dofMaterial, fbo, meter, size.width, size.height],
+    [dofMaterial, fbo, meter, ao, size.width, size.height],
   );
 
   useEffect(() => {
@@ -237,8 +274,10 @@ export default function DepthOfFieldPass() {
       dofMaterial.dispose();
       meter.target.dispose();
       meter.material.dispose();
+      ao.target.dispose();
+      ao.material.dispose();
     };
-  }, [quadMesh, dofMaterial, meter]);
+  }, [quadMesh, dofMaterial, meter, ao]);
 
   return null;
 }

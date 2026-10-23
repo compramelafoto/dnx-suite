@@ -14,6 +14,8 @@ Contenidos pedagógicos basados en los apuntes de la profesora Débora Priasco.
 - `models/aircon.glb` — exterior_aircon_unit
 - `models/potted-plant.glb` — potted_plant_02
 - `models/tree-jacaranda.glb` — jacaranda_tree
+- `models/tree-jacaranda-far.glb` — jacaranda_tree
+- `models/covered-car.glb` — covered_car
 - `textures/asphalt_*.webp` — asphalt_02
 - `textures/sidewalk_*.webp` — concrete_tiles
 - `textures/curb_*.webp` — brushed_concrete_03

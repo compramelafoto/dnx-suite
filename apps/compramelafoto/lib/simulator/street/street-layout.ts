@@ -82,7 +82,8 @@ export type PropKind =
   | "manhole"
   | "plant"
   | "aircon"
-  | "car";
+  | "car"
+  | "covered-car";
 
 export interface StreetProp {
   kind: PropKind;
@@ -98,7 +99,7 @@ export interface CollisionRect {
   zMax: number;
 }
 
-/** Recorrido de un peatón: ida y vuelta por la vereda o cruzando por la senda. */
+/** Recorrido cerrado de un peatón (del último punto vuelve al primero). */
 export interface WalkPath {
   id: string;
   points: readonly Vec2[];
@@ -272,7 +273,9 @@ export function buildStreetLayout(seed = 2026): StreetLayout {
   props.push({ kind: "manhole", position: [-1.4, 0.005, -24], rotationY: 0 });
   // Autos estacionados contra el cordón izquierdo (Rosario: calles de una mano).
   for (const z of [-46, -31, 18, 33, 49]) {
-    props.push({ kind: "car", position: [-(STREET.roadHalf - 1.15), 0, z], rotationY: z > 0 ? Math.PI : 0 });
+    // Algunos con funda: en la cuadra siempre hay alguno guardado así.
+    const covered = z === -31 || z === 33;
+    props.push({ kind: covered ? "covered-car" : "car", position: [-(STREET.roadHalf - 1.15), 0, z], rotationY: 0 });
   }
 
   // No se puede entrar a las manzanas: un rectángulo por cuadrante detrás de la línea.
@@ -289,21 +292,35 @@ export function buildStreetLayout(seed = 2026): StreetLayout {
     }
   }
 
-  // Recorridos: por ambas veredas de la principal, la transversal y cruzando por las sendas.
-  const sw = STREET.roadHalf + STREET.sidewalk * 0.55;
-  const walkPaths: WalkPath[] = [];
-  const speeds = [1.25, 1.35, 1.45, 1.3, 1.5, 1.2];
-  let n = 0;
-  for (const sx of [1, -1] as const) {
-    walkPaths.push({ id: `vereda-${n}`, points: [[sx * sw, -STREET.mainLength + 4], [sx * sw, STREET.mainLength - 4]], speed: speeds[n++ % speeds.length] });
-    walkPaths.push({ id: `vereda-${n}`, points: [[sx * (sw + 0.6), STREET.mainLength - 8], [sx * (sw + 0.6), -STREET.mainLength + 8]], speed: speeds[n++ % speeds.length] });
-  }
-  for (const sz of [1, -1] as const) {
-    walkPaths.push({ id: `vereda-${n}`, points: [[-STREET.crossLength + 4, sz * sw], [STREET.crossLength - 4, sz * sw]], speed: speeds[n++ % speeds.length] });
-  }
-  // Cruce por la senda peatonal de la principal (de vereda a vereda).
-  walkPaths.push({ id: `senda-${n}`, points: [[sw, -30], [sw, -(L + 1.5)], [-sw, -(L + 1.5)], [-sw, -45]], speed: speeds[n++ % speeds.length] });
-  walkPaths.push({ id: `senda-${n}`, points: [[-sw, 40], [-sw, L + 1.5], [sw, L + 1.5], [sw, 26]], speed: speeds[n++ % speeds.length] });
+  // Recorridos cerrados: nadie da media vuelta ni desaparece. Se camina por la
+  // vereda, se cruza por la senda (que continúa la vereda, entre el cordón y la
+  // línea de edificación) y, lejos de la esquina, a veces a mitad de cuadra.
+  const band = STREET.roadHalf + STREET.sidewalk / 2;
+  const far1 = STREET.mainLength - 10;
+  const far2 = STREET.mainLength - 14;
+  const crossFar = STREET.crossLength - 6;
+  const walkPaths: WalkPath[] = [
+    {
+      id: "vuelta-larga-este",
+      points: [[band, -far1], [band, far1], [-band, far1], [-band, -far1]],
+      speed: 1.35,
+    },
+    {
+      id: "vuelta-larga-oeste",
+      points: [[-(band + 0.5), far2], [-(band + 0.5), -far2], [band + 0.5, -far2], [band + 0.5, far2]],
+      speed: 1.3,
+    },
+    {
+      id: "vuelta-transversal",
+      points: [[-crossFar, band + 0.5], [crossFar, band + 0.5], [crossFar, -(band + 0.5)], [-crossFar, -(band + 0.5)]],
+      speed: 1.4,
+    },
+    {
+      id: "vuelta-esquina",
+      points: [[band - 0.5, band - 0.5], [-(band - 0.5), band - 0.5], [-(band - 0.5), -(band - 0.5)], [band - 0.5, -(band - 0.5)]],
+      speed: 1.25,
+    },
+  ];
 
   return {
     buildings,

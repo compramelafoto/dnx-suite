@@ -27,6 +27,8 @@ export interface PiecePlacement {
   tint: string | null;
   /** Ventana o vidriera con luz encendida de noche. */
   lit?: boolean;
+  /** Grupo de dibujo (un frente de cuadra): lo que queda fuera de cuadro no se dibuja. */
+  chunk: string;
 }
 
 /** Marco local de un frente: origen, dirección a lo largo y ángulo en Y. */
@@ -73,8 +75,9 @@ function at(frame: FrontFrame, along: number, y: number): readonly [number, numb
 export function planBuilding(building: StreetBuilding): PiecePlacement[] {
   const frame = frontFrame(building.start, building.end, building.normal);
   const out: PiecePlacement[] = [];
+  const chunk = building.id.replace(/-\d+$/, "");
   const push = (piece: string, along: number, y: number, tint: string | null = null, lit = false) =>
-    out.push({ piece, position: at(frame, along, y), rotationY: frame.rotationY, tint, lit });
+    out.push({ piece, position: at(frame, along, y), rotationY: frame.rotationY, tint, lit, chunk });
 
   const h = STREET.floorHeight;
   const lights = litWindows(building);
@@ -115,7 +118,7 @@ export function planCorner(corner: StreetCorner): PiecePlacement[] {
   const oz = corner.onCross[1];
   const out: PiecePlacement[] = [];
   const push = (piece: string, y: number, tint: string | null = null) =>
-    out.push({ piece, position: [ox, y, oz], rotationY, tint });
+    out.push({ piece, position: [ox, y, oz], rotationY, tint, chunk: corner.id });
   const h = STREET.floorHeight;
   push("wall_door_angled_large_01", 0, corner.tint);
   push("door_angled_large_01", 0);

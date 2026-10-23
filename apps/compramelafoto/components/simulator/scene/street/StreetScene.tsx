@@ -13,6 +13,7 @@ import StreetGround from "./StreetGround";
 import StreetLighting from "./StreetLighting";
 import StreetPedestrians from "./StreetPedestrians";
 import StreetProps from "./StreetProps";
+import StreetTraffic from "./StreetTraffic";
 
 /**
  * Calle 3D: una esquina de barrio con edificios, veredas, mobiliario, luz por
@@ -52,6 +53,9 @@ export default function StreetScene() {
       </Suspense>
       <Suspense fallback={null}>
         <StreetPedestrians layout={layout} />
+      </Suspense>
+      <Suspense fallback={null}>
+        <StreetTraffic />
       </Suspense>
     </group>
   );

@@ -1,11 +1,12 @@
 "use client";
 
-import { syncMovingSubjectsRegistry } from "@/lib/simulator/simulator-runtime";
+import { simulatorRuntime, syncMovingSubjectsRegistry } from "@/lib/simulator/simulator-runtime";
 import type { MovingSubjectState } from "@/lib/simulator/moving-subject-types";
 import { STREET_PERSON_ID_PREFIX } from "@/lib/simulator/moving-subject-types";
 import { ANIMATION_DIR, decodeClip, type CompactClip } from "@/lib/simulator/studio-light/animation-clip";
 import { figureById, figureUrl, type FigureSpec } from "@/lib/simulator/studio-light/figures";
 import { streetGroundHeight, type StreetLayout } from "@/lib/simulator/street/street-layout";
+import { streetRuntime } from "@/lib/simulator/street/street-runtime";
 import {
   isWoman,
   planStreetPeople,
@@ -225,15 +226,20 @@ export default function StreetPedestrians({ layout }: { layout: StreetLayout }) 
       velocityX: 0,
       visible: true,
     }));
-    syncMovingSubjectsRegistry(subjects.current);
+    // Se suman a lo ya registrado (por ejemplo, los autos del tránsito).
+    const others = () => simulatorRuntime.movingSubjects.filter((x) => !x.id.startsWith(STREET_PERSON_ID_PREFIX));
+    syncMovingSubjectsRegistry([...others(), ...subjects.current]);
     return () => {
-      syncMovingSubjectsRegistry([]);
+      syncMovingSubjectsRegistry(others());
       for (const p of people) p.mixer.stopAllAction();
     };
   }, [people]);
 
   useFrame((_, delta) => {
     const dt = Math.min(delta, 0.1);
+    if (streetRuntime.walkers.length !== people.length) {
+      streetRuntime.walkers = people.map(() => [0, 0] as [number, number]);
+    }
     people.forEach((p, i) => {
       p.mixer.update(dt);
       if (p.walker) {
@@ -245,6 +251,8 @@ export default function StreetPedestrians({ layout }: { layout: StreetLayout }) 
         p.root.position.set(at.x, streetGroundHeight(at.x, at.z), at.z);
         p.root.rotation.y = p.heading;
       }
+      (streetRuntime.walkers[i] as [number, number])[0] = p.root.position.x;
+      (streetRuntime.walkers[i] as [number, number])[1] = p.root.position.z;
       const s = subjects.current[i];
       if (s) {
         s.position[0] = p.root.position.x;

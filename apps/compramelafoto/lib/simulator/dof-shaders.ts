@@ -41,6 +41,8 @@ uniform float exposureGain;
 uniform vec3 wbTint;
 uniform float isoNoise;
 uniform float noiseSeed;
+uniform sampler2D tAO;
+uniform float aoStrength;
 
 varying vec2 vUv;
 
@@ -129,12 +131,29 @@ vec4 applyExposure(vec4 color) {
   return vec4(rgb, color.a);
 }
 
+/** Contact shadows: half-res AO, softened with a small depth-aware cross filter. */
+float aoFactor() {
+  if (aoStrength <= 0.0) return 1.0;
+  vec2 t = 2.0 / resolution;
+  float c = texture2D(tAO, vUv).r;
+  float sum = c * 2.0;
+  sum += texture2D(tAO, vUv + vec2(t.x, 0.0)).r;
+  sum += texture2D(tAO, vUv - vec2(t.x, 0.0)).r;
+  sum += texture2D(tAO, vUv + vec2(0.0, t.y)).r;
+  sum += texture2D(tAO, vUv - vec2(0.0, t.y)).r;
+  return mix(1.0, sum / 6.0, aoStrength);
+}
+
+vec4 shade(vec4 color) {
+  return applyExposure(vec4(color.rgb * aoFactor(), color.a));
+}
+
 void main() {
   vec4 sharp = texture2D(tColor, vUv);
   float maxRadius = maxBlurPx * 0.5;
 
   if (maxRadius < 0.25) {
-    gl_FragColor = applyExposure(sharp);
+    gl_FragColor = shade(sharp);
     return;
   }
 
@@ -161,7 +180,7 @@ void main() {
     angle += GOLDEN_ANGLE;
   }
 
-  gl_FragColor = applyExposure(vec4(color / tot, sharp.a));
+  gl_FragColor = shade(vec4(color / tot, sharp.a));
 }
 `;
 
@@ -169,7 +188,7 @@ void main() {
  * Paso de la espiral para cubrir un radio con ~DOF_TARGET_STEPS muestras.
  * radio² crece ≈ 2·radScale por paso; nunca menos de 0,5 px.
  */
-export function dofRadiusScale(maxBlurDiameterPx: number): number {
+export function dofRadiusScale(maxBlurDiameterPx: number, targetSteps = DOF_TARGET_STEPS): number {
   const maxRadius = maxBlurDiameterPx / 2;
-  return Math.max(0.5, (maxRadius * maxRadius) / (2 * DOF_TARGET_STEPS));
+  return Math.max(0.5, (maxRadius * maxRadius) / (2 * Math.min(targetSteps, DOF_MAX_STEPS)));
 }

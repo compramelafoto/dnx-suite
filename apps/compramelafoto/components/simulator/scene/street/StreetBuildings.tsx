@@ -60,14 +60,14 @@ function buildInstances(
 ): THREE.InstancedMesh[] {
   const byPiece = new Map<string, PiecePlacement[]>();
   for (const p of placements) {
-    const key = p.lit ? `${p.piece}#lit` : p.piece;
+    const key = `${p.chunk}|${p.piece}${p.lit ? "#lit" : ""}`;
     const list = byPiece.get(key) ?? [];
     list.push(p);
     byPiece.set(key, list);
   }
   const meshes: THREE.InstancedMesh[] = [];
   for (const [key, list] of byPiece) {
-    const piece = key.replace("#lit", "");
+    const piece = key.split("|")[1].replace("#lit", "");
     const lit = key.endsWith("#lit");
     const parts = kit.get(piece);
     if (!parts) {
