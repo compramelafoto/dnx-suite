@@ -13,9 +13,6 @@ import { clampTimeOfDayMinutes } from "./natural-light";
 import { MID_GREY } from "./metering";
 import type { SimulatorSceneId } from "./scenes";
 
-/** Brillo de un estudio con luz continua fuerte (EV100). */
-export const STUDIO_EV100 = 9;
-
 const SUNRISE_MIN = 6 * 60 + 15;
 const SUNSET_MIN = 19 * 60 + 30;
 const TWILIGHT_MIN = 90;
@@ -63,26 +60,7 @@ export function daylightEv100(minutes: number): number {
  */
 export const SCENE_RENDER_CALIBRATION_LOG2: Record<SimulatorSceneId, readonly [number, number][]> = {
   // Medido el 23/10/2026 en next dev (Playwright, 1400×900), matricial, punto de partida.
-  studio: [[0, -2.06]],
-  city: [
-    [0, -5.54],
-    [285, -5.4],
-    [330, -5.53],
-    [375, -2.89],
-    [435, -2.69],
-    [540, -2.5],
-    [660, -2.28],
-    [750, -2.36],
-    [840, -2.31],
-    [990, -2.43],
-    [1110, -2.74],
-    [1170, -4.91],
-    [1215, -4.98],
-    [1260, -5.43],
-    [1320, -5.4],
-    [1440, -5.54],
-  ],
-  // Calle 3D: medida el 23/10/2026 desde su punto de partida (esquina, vereda este).
+  // Calle 3D: punto de partida en la esquina, vereda este.
   "photographic-city": [
     [0, -6.5],
     [285, -6.5],
@@ -110,8 +88,8 @@ function calibratedRenderLog2(sceneId: SimulatorSceneId, minutes: number): numbe
 }
 
 /** EV100 real de la escena a esa hora (lo que debería leer el fotómetro de partida). */
-export function sceneReferenceEv100(sceneId: SimulatorSceneId, minutes: number): number {
-  return sceneId === "studio" ? STUDIO_EV100 : daylightEv100(minutes);
+export function sceneReferenceEv100(_sceneId: SimulatorSceneId, minutes: number): number {
+  return daylightEv100(minutes);
 }
 
 /**

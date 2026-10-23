@@ -11,7 +11,7 @@ import {
   SCENE_RENDER_CALIBRATION,
   shouldApplyWhiteBalanceToRender,
 } from "@/lib/simulator/camera-exposure";
-import { applyToneMappingToRenderer, usesPhotographicPipeline } from "@/lib/simulator/render";
+import { applyToneMappingToRenderer } from "@/lib/simulator/render";
 import { calculateSceneMaxBlurPx } from "@/lib/simulator/depth-of-field";
 import { getActiveSensor } from "@/lib/simulator/sensor";
 import { isoNoiseFactor } from "@/lib/simulator/sensor-noise";
@@ -131,14 +131,7 @@ export default function DepthOfFieldPass() {
     () => (renderer, sceneRef, cameraRef) => {
       const exposureGain = resolveActiveExposureGain();
       const toneExposure = clampRendererExposure(exposureGain * SCENE_RENDER_CALIBRATION);
-      const sceneId = simulatorRuntime.sceneId;
-
-      if (usesPhotographicPipeline(sceneId)) {
-        applyToneMappingToRenderer(renderer, sceneId, toneExposure);
-      } else {
-        renderer.toneMapping = THREE.LinearToneMapping;
-        renderer.toneMappingExposure = toneExposure;
-      }
+      applyToneMappingToRenderer(renderer, toneExposure);
       if (!simulatorRuntime.captureActive) {
         simulatorRuntime.appliedToneMappingExposure = toneExposure;
       }

@@ -2,7 +2,6 @@ export {
   applyToneMappingToRenderer,
   resolveRenderProfile,
   resolveThreeToneMapping,
-  usesPhotographicPipeline,
   type PhotographicRenderProfile,
   type SimulatorToneMappingMode,
 } from "./render-profile";

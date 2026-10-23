@@ -49,7 +49,7 @@ export default function SimulatorCanvas({ onLockChange, onLoaded }: SimulatorCan
         gl.shadowMap.enabled = true;
         gl.shadowMap.type = THREE.PCFSoftShadowMap;
         gl.outputColorSpace = THREE.SRGBColorSpace;
-        const defaultProfile = resolveRenderProfile("studio");
+        const defaultProfile = resolveRenderProfile();
         gl.toneMapping = resolveThreeToneMapping(defaultProfile.toneMapping);
         gl.toneMappingExposure = SCENE_RENDER_CALIBRATION;
         gl.setClearColor("#1a1a22", 1);

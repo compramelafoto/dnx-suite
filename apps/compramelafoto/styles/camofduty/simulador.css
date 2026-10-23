@@ -282,7 +282,6 @@
 }
 
 .cod-sim .cod-lens-card:hover,
-.cod-sim .cod-scene-card:hover,
 .cod-sim .cod-natural-light-presets__btn:hover {
   background: var(--st-raise);
 }
@@ -304,7 +303,6 @@
 .cod-sim .cod-lens-card__meta,
 .cod-sim .cod-lens-card__uses,
 .cod-sim .cod-scene-card__desc,
-.cod-sim .cod-scene-panel__intro,
 .cod-sim .cod-lenses-panel__intro,
 .cod-sim .cod-natural-light-panel__hint {
   font-size: 0.78rem;
