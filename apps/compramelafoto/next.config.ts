@@ -192,6 +192,17 @@ const nextConfig: NextConfig = {
   },
   async redirects() {
     return [
+      // La página de Ceci Donnelly se llamaba «donelly» (mal escrito): los links viejos siguen andando.
+      {
+        source: "/donelly",
+        destination: "/donnelly",
+        permanent: true,
+      },
+      {
+        source: "/donelly/:path*",
+        destination: "/donnelly/:path*",
+        permanent: true,
+      },
       {
         source: "/organizadores",
         destination: "/organizador",
