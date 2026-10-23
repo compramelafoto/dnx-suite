@@ -15,6 +15,8 @@ export const DOF_MAX_STEPS = 160;
 /** Pasos que se buscan para cubrir el disco más grande de la escena. */
 export const DOF_TARGET_STEPS = 128;
 
+import { CHROMA_NOISE_RATIO, SENSOR_READ_FLOOR } from "./sensor-noise";
+
 export const DOF_VERTEX_SHADER = /* glsl */ `
 varying vec2 vUv;
 
@@ -37,6 +39,8 @@ uniform float maxBlurPx;
 uniform float radScale;
 uniform float exposureGain;
 uniform vec3 wbTint;
+uniform float isoNoise;
+uniform float noiseSeed;
 
 varying vec2 vUv;
 
@@ -54,7 +58,7 @@ float viewSpaceDistance(vec2 uv) {
   return length(view.xyz);
 }
 
-/** Radio (px) del disco de desenfoque de un punto a distM. */
+/** Blur disc radius (px) for a point at distM. */
 float blurRadiusPx(float distM) {
   float f = max(focalLength, 1.0);
   float s = max(focusDistance * 1000.0, f * 1.01);
@@ -64,7 +68,7 @@ float blurRadiusPx(float distM) {
   return min(diameterPx, maxBlurPx) * 0.5;
 }
 
-/** Ruido de gradiente intercalado: cambia el arranque de la espiral por píxel. */
+/** Interleaved gradient noise: per-pixel start angle of the spiral. */
 float interleavedNoise(vec2 px) {
   return fract(52.9829189 * fract(dot(px, vec2(0.06711056, 0.00583715))));
 }
@@ -79,9 +83,34 @@ vec3 compressHighlights(vec3 rgb) {
   return mix(scaled, vec3(knee), blow * 0.9);
 }
 
+float hash12(vec2 p) {
+  vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+  p3 += dot(p3, p3.yzx + 33.33);
+  return fract((p3.x + p3.y) * p3.z);
+}
+
+/** Approximate normal: sum of 4 uniforms, centred, sigma ~ 1. */
+float gaussNoise(vec2 p) {
+  float s = hash12(p) + hash12(p + 17.3) + hash12(p + 41.7) + hash12(p + 73.1);
+  return (s - 2.0) * 1.7320508;
+}
+
+/** Sensor noise: grows with sqrt(ISO), stronger in shadows (see sensor-noise.ts). */
+vec3 applySensorNoise(vec3 rgb) {
+  if (isoNoise <= 0.0) return rgb;
+  vec2 px = gl_FragCoord.xy + noiseSeed * vec2(113.0, 271.0);
+  float lum = dot(rgb, vec3(0.2126, 0.7152, 0.0722));
+  float sigma = isoNoise * sqrt(max(lum, 0.0) + ${SENSOR_READ_FLOOR.toFixed(4)});
+  float luma = gaussNoise(px) * sigma;
+  vec3 chroma = vec3(gaussNoise(px + 5.1), gaussNoise(px + 9.7), gaussNoise(px + 13.3));
+  chroma -= dot(chroma, vec3(0.2126, 0.7152, 0.0722));
+  return max(rgb + luma + chroma * sigma * ${CHROMA_NOISE_RATIO.toFixed(4)}, 0.0);
+}
+
 vec4 applyExposure(vec4 color) {
   vec3 rgb = color.rgb * exposureGain * wbTint;
   rgb = compressHighlights(rgb);
+  rgb = applySensorNoise(rgb);
   return vec4(rgb, color.a);
 }
 
@@ -107,7 +136,7 @@ void main() {
     vec2 tc = vUv + vec2(cos(angle), sin(angle)) * radius / resolution;
     float sampleDist = viewSpaceDistance(tc);
     float sampleSize = blurRadiusPx(sampleDist);
-    // Lo que está detrás no puede desenfocarse sobre algo más cercano y nítido.
+    // Background must not bleed over a closer, sharper subject.
     if (sampleDist > centerDist) sampleSize = clamp(sampleSize, 0.0, centerSize * 2.0);
     float m = smoothstep(radius - 0.5, radius + 0.5, sampleSize);
     vec3 sampleColor = texture2D(tColor, tc).rgb;

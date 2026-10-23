@@ -14,6 +14,7 @@ import {
 import { applyToneMappingToRenderer, usesPhotographicPipeline } from "@/lib/simulator/render";
 import { calculateSceneMaxBlurPx } from "@/lib/simulator/depth-of-field";
 import { getActiveSensor } from "@/lib/simulator/sensor";
+import { isoNoiseFactor } from "@/lib/simulator/sensor-noise";
 import { canvasSensorHeightMm } from "@/lib/simulator/viewfinder-frame";
 import { simulatorRuntime } from "@/lib/simulator/simulator-runtime";
 import {
@@ -53,6 +54,8 @@ export default function DepthOfFieldPass() {
         radScale: { value: 0.5 },
         exposureGain: { value: 1 },
         wbTint: { value: new THREE.Vector3(1, 1, 1) },
+        isoNoise: { value: 0 },
+        noiseSeed: { value: 0 },
       },
     });
   }, []);
@@ -94,6 +97,14 @@ export default function DepthOfFieldPass() {
         applyWb ? wb.g : 1,
         applyWb ? wb.b : 1,
       );
+
+      // El visor óptico no tiene sensor: sólo LIVE VIEW y la foto muestran ruido.
+      const iso = derived?.effectiveSettings.iso ?? 100;
+      dofMaterial.uniforms.isoNoise.value = applyWb ? isoNoiseFactor(iso) : 0;
+      // Durante la toma el patrón queda fijo: promediar cuadros no debe limpiar el ruido.
+      if (!simulatorRuntime.captureActive) {
+        dofMaterial.uniforms.noiseSeed.value = (dofMaterial.uniforms.noiseSeed.value + 1) % 997;
+      }
 
       const persp = cameraRef as THREE.PerspectiveCamera;
       renderer.setRenderTarget(fbo);
