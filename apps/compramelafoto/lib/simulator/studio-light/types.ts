@@ -70,6 +70,11 @@ export interface StudioCamera {
   whiteBalance: number;
   /** Altura a la que apunta la cámara (m): cara, medio cuerpo o cuerpo entero. */
   aimY: number;
+  /**
+   * Mirada libre (radianes) cuando el fotógrafo camina en primera persona.
+   * null = la cámara apunta al sujeto a la altura aimY.
+   */
+  look: { yaw: number; pitch: number } | null;
 }
 
 export interface StudioState {
@@ -82,6 +87,13 @@ export interface StudioState {
   /** Pose del modelo de cuerpo entero ("custom" si se movió alguna articulación). */
   pose: PoseId | "custom";
   poseParams: PoseParams;
+  /** Movimiento del modelo de cuerpo entero. */
+  motion: {
+    /** Respira y se balancea mientras mantiene la pose. */
+    natural: boolean;
+    /** Animación completa en curso (id de ANIMATIONS) o null. */
+    clip: string | null;
+  };
   backdrop: BackdropId;
   /** Luz de la sala (lux). 0 = estudio a oscuras. */
   roomLux: number;

@@ -1,10 +1,11 @@
 "use client";
 
 import { useFrame, useLoader } from "@react-three/fiber";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader.js";
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
+import { ANIMATIONS, animationUrl, decodeClip, type CompactClip } from "@/lib/simulator/studio-light/animation-clip";
 import { bakeCavityAO } from "@/lib/simulator/studio-light/cavity-ao";
 import { figureUrl, type FigureSpec } from "@/lib/simulator/studio-light/figures";
 import { SUBJECT_HEAD } from "@/lib/simulator/studio-light/metering";
@@ -26,10 +27,13 @@ type Bones = Record<string, THREE.Bone | undefined>;
 
 interface Rig {
   root: THREE.Group;
+  /** El FBX clonado: raíz del esqueleto para el mezclador de animaciones. */
+  model: THREE.Group;
   /** Grupo cuyo marco es el del personaje: +Z adelante, +Y arriba. */
   character: THREE.Object3D;
   bones: Bones;
   rest: Map<THREE.Bone, THREE.Quaternion>;
+  restPos: Map<THREE.Bone, THREE.Vector3>;
   materials: THREE.Material[];
   textures: THREE.Texture[];
 }
@@ -130,8 +134,11 @@ function buildRig(source: THREE.Group, figure: FigureSpec): Rig {
     bones[n] = model.getObjectByName(`Bip01_${n}`) as THREE.Bone | undefined;
   }
   const rest = new Map<THREE.Bone, THREE.Quaternion>();
+  const restPos = new Map<THREE.Bone, THREE.Vector3>();
   model.traverse((o) => {
-    if ((o as THREE.Bone).isBone) rest.set(o as THREE.Bone, o.quaternion.clone());
+    if (!(o as THREE.Bone).isBone) return;
+    rest.set(o as THREE.Bone, o.quaternion.clone());
+    restPos.set(o as THREE.Bone, o.position.clone());
   });
 
   // Escala: el FBX viene en centímetros. Llevamos los ojos a la altura que usa el fotómetro.
@@ -150,7 +157,7 @@ function buildRig(source: THREE.Group, figure: FigureSpec): Rig {
 
   const root = new THREE.Group();
   root.add(character);
-  return { root, character, bones, rest, materials, textures };
+  return { root, model, character, bones, rest, restPos, materials, textures };
 }
 
 const tmpQ = new THREE.Quaternion();
@@ -188,6 +195,8 @@ function aim(rig: Rig, bone: THREE.Bone | undefined, child: THREE.Bone | undefin
 
 function applyPose(rig: Rig, p: PoseParams) {
   for (const [bone, q] of rig.rest) bone.quaternion.copy(q);
+  // Una animación pudo mover la raíz y la pelvis: vuelven a su lugar.
+  for (const [bone, v] of rig.restPos) bone.position.copy(v);
   rig.character.updateWorldMatrix(true, true);
   const B = rig.bones;
 
@@ -214,13 +223,65 @@ function applyPose(rig: Rig, p: PoseParams) {
   }
 }
 
-export default function StudioFigure({ figure, yaw, pose }: { figure: FigureSpec; yaw: number; pose: PoseParams }) {
+/**
+ * Movimiento natural encima de la pose: respiración en el pecho, balanceo de
+ * cadera y micro-movimientos de cabeza, con frecuencias que no se repiten juntas.
+ */
+function applyNatural(rig: Rig, t: number) {
+  const B = rig.bones;
+  const breath = Math.sin(t * Math.PI * 2 * 0.24);
+  const sway = Math.sin(t * Math.PI * 2 * 0.085 + 0.6);
+  for (const bone of [B.Spine1, B.Spine2]) rotateEuler(rig, bone, -0.7 * breath, 0, 0);
+  rotateEuler(rig, B.Pelvis, 0, 0.5 * sway, 0.6 * sway);
+  rotateEuler(rig, B.Head, 0.9 * Math.sin(t * 0.83 + 1.1) + 0.5 * breath, 1.6 * Math.sin(t * 0.31 + 2), 0.6 * Math.sin(t * 0.47));
+}
+
+const clipCache = new Map<string, Promise<THREE.AnimationClip>>();
+
+function loadClip(url: string): Promise<THREE.AnimationClip> {
+  let hit = clipCache.get(url);
+  if (!hit) {
+    hit = fetch(url)
+      .then((r) => {
+        if (!r.ok) throw new Error(`No se pudo cargar ${url}`);
+        return r.json();
+      })
+      .then((data: CompactClip) => decodeClip(data));
+    clipCache.set(url, hit);
+  }
+  return hit;
+}
+
+export interface FigureMotion {
+  /** Respira y se balancea mientras mantiene la pose. */
+  natural: boolean;
+  /** Animación completa en curso (id de ANIMATIONS) o null para la pose fija. */
+  clip: string | null;
+}
+
+export default function StudioFigure({
+  figure,
+  yaw,
+  pose,
+  motion,
+}: {
+  figure: FigureSpec;
+  yaw: number;
+  pose: PoseParams;
+  motion: FigureMotion;
+}) {
   const source = useLoader(FBXLoader, figureUrl(figure, "model.fbx"), (loader) => {
     const manager = new THREE.LoadingManager();
     manager.addHandler(/\.tga$/i, new EmptyTextureLoader());
     loader.manager = manager;
   });
   const rig = useMemo(() => buildRig(source, figure), [source, figure]);
+  const mixer = useMemo(() => new THREE.AnimationMixer(rig.model), [rig]);
+  // Se guarda junto con su URL: si cambia la animación pedida, la vieja deja de valer sola.
+  const [loaded, setLoaded] = useState<{ url: string; clip: THREE.AnimationClip } | null>(null);
+  const wanted = ANIMATIONS.find((x) => x.id === motion.clip);
+  const wantedUrl = wanted ? animationUrl(wanted, figure.gender) : null;
+  const clip = loaded && loaded.url === wantedUrl ? loaded.clip : null;
   const current = useRef<PoseParams>(pose);
   const from = useRef<PoseParams>(pose);
   const t = useRef(1);
@@ -243,12 +304,54 @@ export default function StudioFigure({ figure, yaw, pose }: { figure: FigureSpec
     applyPose(rig, current.current);
   }, [rig]);
 
-  useFrame((_, delta) => {
-    if (t.current >= 1) return;
-    t.current = Math.min(1, t.current + delta * 3.5);
-    const k = t.current * t.current * (3 - 2 * t.current);
-    current.current = lerpPose(from.current, pose, k);
+  // Carga la animación elegida (versión de mujer u hombre según el modelo).
+  useEffect(() => {
+    if (!wantedUrl) return;
+    let alive = true;
+    loadClip(wantedUrl)
+      .then((c) => {
+        if (alive) setLoaded({ url: wantedUrl, clip: c });
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [wantedUrl]);
+
+  useEffect(() => {
+    if (!clip) {
+      mixer.stopAllAction();
+      applyPose(rig, current.current);
+      return;
+    }
+    const action = mixer.clipAction(clip);
+    action.reset().setLoop(THREE.LoopRepeat, Infinity).fadeIn(0.35).play();
+    return () => {
+      action.stop();
+    };
+  }, [clip, mixer, rig]);
+
+  useEffect(
+    () => () => {
+      mixer.stopAllAction();
+    },
+    [mixer],
+  );
+
+  useFrame((state, delta) => {
+    if (clip) {
+      mixer.update(delta);
+      return;
+    }
+    const moving = t.current < 1;
+    if (moving) {
+      t.current = Math.min(1, t.current + delta * 3.5);
+      const k = t.current * t.current * (3 - 2 * t.current);
+      current.current = lerpPose(from.current, pose, k);
+    }
+    if (!moving && !motion.natural) return;
     applyPose(rig, current.current);
+    if (motion.natural) applyNatural(rig, state.clock.elapsedTime);
   });
 
   return (

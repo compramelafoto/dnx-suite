@@ -8,6 +8,7 @@ import { FRAMINGS, useSelectedLight, useStudio, type FramingId, type ScenePatch 
 import type { LightAim, ModifierId, StudioLight } from "@/lib/simulator/studio-light/types";
 import { BACKDROPS } from "./StudioBackdrop";
 import StudioIcon from "./StudioIcons";
+import { ANIMATIONS } from "@/lib/simulator/studio-light/animation-clip";
 import { BUST_LABELS, FIGURES, figureUrl, isBust, type BustId } from "@/lib/simulator/studio-light/figures";
 import { POSES, type ArmPose, type PoseParams } from "@/lib/simulator/studio-light/poses";
 
@@ -515,6 +516,43 @@ function PosePicker() {
         ))}
       </div>
       <p className="cod-studio-hint">{current ? current.hint : "Pose personalizada: ajustaste las articulaciones a mano."}</p>
+
+      <span className="cod-studio-field__label">Movimiento</span>
+      <label className="cod-studio-toggle">
+        <button
+          type="button"
+          role="switch"
+          aria-checked={state.motion.natural}
+          className={`cod-studio-power${state.motion.natural ? " cod-studio-power--on" : ""}`}
+          onClick={() => dispatch({ type: "motion", patch: { natural: !state.motion.natural } })}
+        />
+        <span>
+          Natural mientras posa
+          <small>Respira y se balancea apenas, como un modelo real.</small>
+        </span>
+      </label>
+      <div className="cod-studio-chips">
+        <button
+          type="button"
+          className={`cod-studio-chip${state.motion.clip === null ? " cod-studio-chip--on" : ""}`}
+          onClick={() => dispatch({ type: "motion", patch: { clip: null } })}
+        >
+          Pose fija
+        </button>
+        {ANIMATIONS.map((a) => (
+          <button
+            key={a.id}
+            type="button"
+            className={`cod-studio-chip${state.motion.clip === a.id ? " cod-studio-chip--on" : ""}`}
+            onClick={() => dispatch({ type: "motion", patch: { clip: a.id } })}
+          >
+            {a.label}
+          </button>
+        ))}
+      </div>
+      {state.motion.clip ? (
+        <p className="cod-studio-hint">Animación real capturada en movimiento. Elegí una pose para volver a posar.</p>
+      ) : null}
 
       <details className="cod-studio-joints">
         <summary>Articular a mano</summary>

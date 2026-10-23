@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   SUBJECT_HEAD,
@@ -9,6 +10,7 @@ import {
   renderedLightColor,
 } from "./metering";
 import { PRESETS, applyPreset, initialStudioState, makeLight, polarToXZ } from "./presets";
+import { ANIMATIONS, animationUrl, decodeClip } from "./animation-clip";
 import { boomOffset } from "./boom";
 import { computeCavityAO } from "./cavity-ao";
 import { FIGURES } from "./figures";
@@ -193,4 +195,21 @@ test("luz cenital: cuelga de una jirafa con el pie fuera del sujeto", () => {
   assert.ok(Math.hypot(top.x + boom.x, top.z + boom.z) > 1);
   // Una luz lateral común no usa jirafa.
   assert.equal(boomOffset({ ...top, x: 1.5, z: 0.5, y: 2 }), null);
+});
+
+test("animaciones: los 18 clips existen y se decodifican con cuaterniones válidos", () => {
+  for (const anim of ANIMATIONS) {
+    for (const gender of ["mujer", "hombre"] as const) {
+      const file = `public${animationUrl(anim, gender)}`;
+      const clip = decodeClip(JSON.parse(readFileSync(file, "utf8")));
+      assert.ok(clip.duration > 1, `${file} dura ${clip.duration}`);
+      const pelvis = clip.tracks.find((t) => t.name === "Bip01_Pelvis.quaternion");
+      assert.ok(pelvis, `${file} sin pelvis`);
+      const [x, y, z, w] = pelvis.values.slice(0, 4);
+      assert.ok(Math.abs(Math.hypot(x, y, z, w) - 1) < 1e-6);
+      const root = clip.tracks.find((t) => t.name === "Bip01.position");
+      // La raíz queda cerca del piso (en centímetros del FBX): no se recortó.
+      assert.ok(root && Math.abs(root.values[1]) < 3000, `${file} raíz ${root?.values[1]}`);
+    }
+  }
 });
