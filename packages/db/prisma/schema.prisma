@@ -20749,6 +20749,28 @@ model FotofficeJourney {
   @@index([circuitId, stageId])
 }
 
+/// Una falla que dejó la pantalla en blanco en FOTOFFICE: la manda el navegador desde la pantalla
+/// de error, para poder diagnosticarla después (los registros de Vercel duran un día). Sin
+/// relaciones a propósito: tiene que poder guardarse aunque no haya sesión ni workspace.
+model FotofficeErrorPantalla {
+  id           String   @id @default(cuid())
+  createdAt    DateTime @default(now())
+  /// PAGINA (dentro del panel o del portal) | GLOBAL (se cayó el armazón entero).
+  alcance      String
+  ruta         String
+  mensaje      String
+  nombre       String?
+  digest       String?
+  pila         String?
+  /// Versión publicada que atendió el aviso (con skew protection, la de la pestaña).
+  deploymentId String?
+  userAgent    String?
+  userId       Int?
+  workspaceId  String?
+
+  @@index([createdAt])
+}
+
 model FotofficeJourneyStep {
   id                     String   @id @default(cuid())
   journeyId              String
