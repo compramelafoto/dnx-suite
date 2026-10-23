@@ -79,9 +79,6 @@ export const comunionPuntillasFlores: Modelo = {
       familia: "Alex Brush", tam: 140, color: ROSA_TXT,
     });
     a.listado(0, { x: 280, y: 680, w: PLIEGUE - 560, h: 1180 }, { familia: "Lora", tam: 50, color: TEXTO, interlineado: 1.45 });
-    a.variable(0, "curso", "Curso", centrado(CENTRO_IZQ, 1880, 1200, 90), "course.displayName", "Curso", {
-      familia: "Lora", tam: 48, color: ROSA_TXT, italica: true,
-    });
 
     // Tapa
     a.texto(0, "titulo", "Título de tapa", centrado(CENTRO_DER, 1060, 1350, 300), "Mi Primera Comunión", {

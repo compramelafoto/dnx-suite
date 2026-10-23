@@ -67,7 +67,7 @@ export const egresadosMinimalASangre: Modelo = {
       familia: "Lora", tam: 110, color: TINTA, italica: true, alinear: "LEFT",
     });
     a.listado(1, { x: IZQ_INT, y: 680, w: PLIEGUE - 220 - 200, h: 1300 }, { familia: "Raleway", tam: 56, color: TINTA, alinear: "LEFT", interlineado: 1.55 }, 2);
-    a.variable(1, "curso_colegio", "Curso y colegio", { x: IZQ_INT, y: 2050, w: 1300, h: 150 }, "course.withSchool", "Curso - Colegio", {
+    a.variable(1, "curso_colegio", "Nombre del colegio", { x: IZQ_INT, y: 2050, w: 1300, h: 150 }, "school.name", "Colegio", {
       familia: "Lora", tam: 54, color: GRIS, italica: true, alinear: "LEFT", interlineado: 1.2,
     });
   },

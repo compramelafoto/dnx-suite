@@ -20,15 +20,16 @@ import { valoresDeDemo } from "./demo-valores";
  * muestra. Si una foto de demo todavía no se subió, va un gris suave con una cámara.
  *
  * La clave guardada lleva un sello con las fotos de demo que había: cuando se suben las que
- * faltaban, la miniatura se vuelve a dibujar sola.
+ * faltaban, la miniatura se vuelve a dibujar sola. También lleva la revisión de la versión, así
+ * una plantilla editada en el lugar no sigue mostrando la miniatura de antes.
  */
 
 const LADO = 720;
 /** Los huecos que no son del cliente (maestra, amigos, libre) se dibujan como `photo_<n>` desde acá. */
 const PRIMER_HUECO_EXTRA = 900;
 
-function clave(templateId: string, versionId: string, sello: string): string {
-  return `template-thumbs/${templateId}/${versionId}-v2-${sello}.jpg`;
+function clave(templateId: string, versionId: string, revision: number, sello: string): string {
+  return `template-thumbs/${templateId}/${versionId}-r${revision}-v2-${sello}.jpg`;
 }
 
 /** Foto de muestra para los huecos: gris suave con una cámara en el centro. */
@@ -75,7 +76,7 @@ export async function miniaturaDePlantilla(
   const huecos = huecosDeDemo(original.legacy.blocks);
   const subidos = await archivosDeDemoSubidos(archivosNecesarios(demo, huecos));
   const completa = Object.values(subidos).every(Boolean);
-  const key = clave(original.templateId, original.versionId, selloDeDemo(subidos));
+  const key = clave(original.templateId, original.versionId, original.revision ?? 0, selloDeDemo(subidos));
   try {
     if (await fileExistsInR2(key)) return { jpg: new Uint8Array(await readFromR2(key)), completa };
   } catch {
