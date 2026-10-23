@@ -13,6 +13,8 @@ import type { Config } from "./config";
 
 export type R2 = {
   leerParte(clave: string): Promise<Buffer>;
+  /** Sólo los primeros `bytes` de un objeto (o el objeto entero, si es más chico). */
+  leerInicio(clave: string, bytes: number): Promise<Buffer>;
   subirStream(clave: string, stream: Readable, señal?: AbortSignal): Promise<number>;
   borrarPrefijo(prefijo: string): Promise<void>;
   /** Sube un archivo chico (segmento o playlist HLS); corta a los 30 s (el subidor reintenta). */
@@ -41,6 +43,12 @@ export function crearR2(config: Pick<Config, "r2" | "bucket">): R2 {
     /** Baja el objeto entero a memoria y suelta la conexión. */
     async leerParte(clave) {
       const r = await client.send(new GetObjectCommand({ Bucket, Key: clave }));
+      if (!r.Body) throw new Error(`Parte vacía en R2: ${clave}`);
+      return Buffer.from(await r.Body.transformToByteArray());
+    },
+
+    async leerInicio(clave, bytes) {
+      const r = await client.send(new GetObjectCommand({ Bucket, Key: clave, Range: `bytes=0-${bytes - 1}` }));
       if (!r.Body) throw new Error(`Parte vacía en R2: ${clave}`);
       return Buffer.from(await r.Body.transformToByteArray());
     },
