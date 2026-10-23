@@ -1,6 +1,7 @@
 import { FOCUS_POINT_DEFAULT_INDEX } from "./focus-math";
 import type { CameraDerivedValues } from "./camera-types";
-import type { ViewfinderMode } from "./camera-exposure";
+import type { SceneLight, ViewfinderMode } from "./camera-exposure";
+import type { MeteringMode, MeterReadings } from "./metering";
 import type { FocusAreaMode, FocusMode } from "./focus-types";
 import type { SunState } from "./natural-light";
 import { computeSunState, DEFAULT_TIME_OF_DAY_MINUTES } from "./natural-light";
@@ -19,8 +20,12 @@ export interface SimulatorRuntime {
   sceneId: SimulatorSceneId;
   timeOfDayMinutes: number;
   sunState: SunState;
-  sceneLuminanceEv: number;
-  setSceneLuminanceEv: (ev: number) => void;
+  /** Luz que usa la cámara (absoluta + medida), espejo del store. */
+  sceneLight: SceneLight | null;
+  setSceneLight: (light: SceneLight) => void;
+  meteringMode: MeteringMode;
+  /** Últimas lecturas del fotómetro sobre la imagen (log2 de luminancia del render). */
+  meterReadings: MeterReadings | null;
   movingSubject: MovingSubjectState | null;
   movingSubjects: MovingSubjectState[];
   focusDistanceM: number;
@@ -48,8 +53,10 @@ export const simulatorRuntime: SimulatorRuntime = {
   sceneId: "studio",
   timeOfDayMinutes: DEFAULT_TIME_OF_DAY_MINUTES,
   sunState: computeSunState(DEFAULT_TIME_OF_DAY_MINUTES),
-  sceneLuminanceEv: 0,
-  setSceneLuminanceEv: () => {},
+  sceneLight: null,
+  setSceneLight: () => {},
+  meteringMode: "MATRIX",
+  meterReadings: null,
   movingSubject: null,
   movingSubjects: [],
   focusDistanceM: 6.5,

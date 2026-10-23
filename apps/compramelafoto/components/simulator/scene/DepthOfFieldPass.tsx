@@ -15,7 +15,14 @@ import { applyToneMappingToRenderer, usesPhotographicPipeline } from "@/lib/simu
 import { calculateSceneMaxBlurPx } from "@/lib/simulator/depth-of-field";
 import { getActiveSensor } from "@/lib/simulator/sensor";
 import { isoNoiseFactor } from "@/lib/simulator/sensor-noise";
-import { canvasSensorHeightMm } from "@/lib/simulator/viewfinder-frame";
+import { canvasSensorHeightMm, computeViewfinderInsets } from "@/lib/simulator/viewfinder-frame";
+import { readAllModes, smoothReadings, type MeterReadings } from "@/lib/simulator/metering";
+import {
+  METER_DOWNSAMPLE_FRAGMENT_SHADER,
+  METER_GRID_HEIGHT,
+  METER_GRID_WIDTH,
+  METER_INTERVAL_MS,
+} from "@/lib/simulator/meter-shader";
 import { simulatorRuntime } from "@/lib/simulator/simulator-runtime";
 import {
   registerSimulatorFrameRenderer,
@@ -66,6 +73,38 @@ export default function DepthOfFieldPass() {
     return mesh;
   }, [dofMaterial]);
 
+  // Fotómetro: el recuadro reducido a una grilla de luminancia que se lee de la GPU.
+  const meter = useMemo(() => {
+    const target = new THREE.WebGLRenderTarget(METER_GRID_WIDTH, METER_GRID_HEIGHT, {
+      type: THREE.FloatType,
+      minFilter: THREE.NearestFilter,
+      magFilter: THREE.NearestFilter,
+      depthBuffer: false,
+    });
+    const material = new THREE.ShaderMaterial({
+      vertexShader: DOF_VERTEX_SHADER,
+      fragmentShader: METER_DOWNSAMPLE_FRAGMENT_SHADER,
+      uniforms: {
+        tColor: { value: null as THREE.Texture | null },
+        cropMin: { value: new THREE.Vector2(0, 0) },
+        cropSize: { value: new THREE.Vector2(1, 1) },
+        gridSize: { value: new THREE.Vector2(METER_GRID_WIDTH, METER_GRID_HEIGHT) },
+      },
+    });
+    const meterScene = new THREE.Scene();
+    meterScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), material));
+    return {
+      target,
+      material,
+      scene: meterScene,
+      pixels: new Float32Array(METER_GRID_WIDTH * METER_GRID_HEIGHT * 4),
+      luminance: new Float32Array(METER_GRID_WIDTH * METER_GRID_HEIGHT),
+      lastMs: 0,
+      readings: null as MeterReadings | null,
+      failed: false,
+    };
+  }, []);
+
   const renderFrame: SimulatorFrameRenderer = useMemo(
     () => (renderer, sceneRef, cameraRef) => {
       const exposureGain = resolveActiveExposureGain();
@@ -113,6 +152,48 @@ export default function DepthOfFieldPass() {
 
       invProj.current.copy(persp.projectionMatrix).invert();
 
+      const now = performance.now();
+      if (!simulatorRuntime.captureActive && !meter.failed && now - meter.lastMs >= METER_INTERVAL_MS) {
+        const dt = meter.lastMs ? (now - meter.lastMs) / 1000 : 0;
+        meter.lastMs = now;
+        const insets = computeViewfinderInsets(size.width, size.height);
+        meter.material.uniforms.tColor.value = fbo.texture;
+        meter.material.uniforms.cropMin.value.set(insets.x, insets.bottom);
+        meter.material.uniforms.cropSize.value.set(1 - 2 * insets.x, 1 - insets.top - insets.bottom);
+        renderer.setRenderTarget(meter.target);
+        renderer.render(meter.scene, orthoCam.current);
+        try {
+          renderer.readRenderTargetPixels(
+            meter.target,
+            0,
+            0,
+            METER_GRID_WIDTH,
+            METER_GRID_HEIGHT,
+            meter.pixels,
+          );
+          // readPixels arranca abajo; la grilla del fotómetro va de arriba hacia abajo.
+          for (let y = 0; y < METER_GRID_HEIGHT; y += 1) {
+            const srcRow = (METER_GRID_HEIGHT - 1 - y) * METER_GRID_WIDTH;
+            for (let x = 0; x < METER_GRID_WIDTH; x += 1) {
+              meter.luminance[y * METER_GRID_WIDTH + x] = meter.pixels[(srcRow + x) * 4];
+            }
+          }
+          meter.readings = smoothReadings(
+            meter.readings,
+            readAllModes({
+              width: METER_GRID_WIDTH,
+              height: METER_GRID_HEIGHT,
+              luminance: meter.luminance,
+            }),
+            dt,
+          );
+          simulatorRuntime.meterReadings = meter.readings;
+        } catch {
+          // Sin lectura de texturas float no hay fotómetro de imagen: queda la luz absoluta.
+          meter.failed = true;
+        }
+      }
+
       const imageHeightPx = size.height * renderer.getPixelRatio();
       const sensorHeightMm = canvasSensorHeightMm(size.width, size.height);
       const maxBlurPx = calculateSceneMaxBlurPx({
@@ -138,7 +219,7 @@ export default function DepthOfFieldPass() {
       renderer.clear();
       renderer.render(quadScene.current, orthoCam.current);
     },
-    [dofMaterial, fbo, size.width, size.height],
+    [dofMaterial, fbo, meter, size.width, size.height],
   );
 
   useEffect(() => {
@@ -154,8 +235,10 @@ export default function DepthOfFieldPass() {
     return () => {
       quadMesh.geometry.dispose();
       dofMaterial.dispose();
+      meter.target.dispose();
+      meter.material.dispose();
     };
-  }, [quadMesh, dofMaterial]);
+  }, [quadMesh, dofMaterial, meter]);
 
   return null;
 }

@@ -226,6 +226,7 @@ function HelpDialog({ onClose }: { onClose: () => void }) {
           <li>El fotómetro mide como uno de mano: apuntando a la cámara desde la cara del sujeto. 0 EV es la exposición correcta.</li>
         </ul>
         <p className="cod-studio-hint">
+          Contenidos pedagógicos basados en los apuntes de la profesora Débora Priasco.
           Inspirado en Virtual Lighting Studio (zvork) y Set a Light 3D. Escaneo de cabeza: Lee Perry-Smith (Infinite-Realities), licencia CC BY 3.0. Modelos de cuerpo entero: Microsoft Rocketbox Avatar Library, licencia MIT.
         </p>
         <button type="button" className="cod-studio-btn cod-studio-btn--accent" onClick={onClose}>

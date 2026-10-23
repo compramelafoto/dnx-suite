@@ -7,6 +7,7 @@ import {
   TIME_OF_DAY_PRESETS,
   type TimeOfDayPresetId,
 } from "@/lib/simulator/natural-light";
+import { daylightEv100 } from "@/lib/simulator/scene-light";
 import { isExteriorScene } from "@/lib/simulator/scenes";
 
 export default function NaturalLightTab() {
@@ -100,8 +101,10 @@ export default function NaturalLightTab() {
           <dd>{sunState.sunIntensity.toFixed(1)}</dd>
         </div>
         <div>
-          <dt>EV escena</dt>
-          <dd>{sunState.luminanceEvOffset >= 0 ? "+" : ""}{sunState.luminanceEvOffset.toFixed(1)}</dd>
+          <dt>Luz (EV100)</dt>
+          <dd title="Sol pleno = 15: ISO 100, 1/125, f/16">
+            {daylightEv100(timeOfDayMinutes).toFixed(1)}
+          </dd>
         </div>
       </dl>
 

@@ -15,7 +15,6 @@ import {
   buildExposureDebugSnapshot,
   classifyExposure,
   computeMeasuredEv,
-  computeInstantPhotoExposureMultiplier,
   computePhotoExposureMultiplier,
   computePreviewExposureMultiplier,
   formatCaptureEvLabel,
@@ -24,8 +23,11 @@ import {
   type CaptureResult,
   type CompositionGuideMode,
   type PhotoStarRating,
+  type SceneLight,
   type ViewfinderMode,
 } from "./camera-exposure";
+import type { MeteringMode } from "./metering";
+import { STUDIO_EV100 } from "./scene-light";
 import { COD_CAPTURE_IMAGE_EVENT, type CodCaptureImageDetail } from "./capture-events";
 import {
   COD_FOCUS_PROGRESS_EVENT,
@@ -77,7 +79,8 @@ export interface CameraStoreValue {
   settings: CameraState;
   lens: ActiveLensState;
   derived: CameraDerivedValues;
-  sceneLuminanceEv: number;
+  sceneLight: SceneLight;
+  meteringMode: MeteringMode;
   sceneId: SimulatorSceneId;
   timeOfDayMinutes: number;
   sunState: SunState;
@@ -106,7 +109,8 @@ export interface CameraStoreValue {
   setViewfinderMode: (mode: ViewfinderMode) => void;
   setCompositionGuide: (guide: CompositionGuideMode) => void;
   setShowHistogram: (show: boolean) => void;
-  setSceneLuminanceEv: (ev: number) => void;
+  setSceneLight: (light: SceneLight) => void;
+  setMeteringMode: (mode: MeteringMode) => void;
   setSceneId: (sceneId: SimulatorSceneId) => void;
   setTimeOfDayMinutes: (minutes: number) => void;
   setPhotoStars: (id: number, stars: PhotoStarRating) => void;
@@ -124,6 +128,13 @@ export interface CameraStoreValue {
   requestFocus: (source: "center" | "click") => void;
   capturePhoto: () => CaptureResult;
 }
+
+/** Luz inicial: estudio, antes de la primera medición. */
+const INITIAL_SCENE_LIGHT: SceneLight = {
+  brightnessEv100: STUDIO_EV100,
+  meteredEv100: STUDIO_EV100,
+  eyeEv100: STUDIO_EV100,
+};
 
 const CameraContext = createContext<CameraStoreValue | null>(null);
 
@@ -157,27 +168,23 @@ function syncSettingsWithLens(
 
 function deriveValues(
   settings: CameraState,
-  sceneLuminanceEv: number,
+  light: SceneLight,
   viewfinderMode: ViewfinderMode,
 ): CameraDerivedValues {
-  const effectiveSettings = resolveEffectiveSettings(settings, sceneLuminanceEv);
-  const measuredEv = computeMeasuredEv(effectiveSettings, sceneLuminanceEv);
+  const effectiveSettings = resolveEffectiveSettings(settings, light);
+  const measuredEv = computeMeasuredEv(effectiveSettings, light);
   const meterNeedleEv = Math.max(-3, Math.min(3, measuredEv - settings.exposureCompensation));
   const previewExposureMultiplier = computePreviewExposureMultiplier(
     settings,
-    sceneLuminanceEv,
+    light,
     viewfinderMode,
   );
-  const photoExposureMultiplier = computePhotoExposureMultiplier(settings, sceneLuminanceEv);
-  const instantPhotoExposureMultiplier = computeInstantPhotoExposureMultiplier(
-    settings,
-    sceneLuminanceEv,
-  );
+  const photoExposureMultiplier = computePhotoExposureMultiplier(settings, light);
   const exposureVerdict = classifyExposure(measuredEv);
 
   const exposureDebug = buildExposureDebugSnapshot(
     settings,
-    sceneLuminanceEv,
+    light,
     viewfinderMode,
     {
       measuredEv,
@@ -192,7 +199,6 @@ function deriveValues(
     effectiveSettings,
     previewExposureMultiplier,
     photoExposureMultiplier,
-    instantPhotoExposureMultiplier,
     measuredEv,
     meterNeedleEv,
     exposureVerdict,
@@ -213,7 +219,8 @@ export function CameraProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState<CameraState>(
     () => syncSettingsWithLens(REFERENCE_CAMERA, definitionToActiveState(getDefaultLens())).settings,
   );
-  const [sceneLuminanceEv, setSceneLuminanceEvState] = useState(0);
+  const [sceneLight, setSceneLightState] = useState<SceneLight>(INITIAL_SCENE_LIGHT);
+  const [meteringMode, setMeteringModeState] = useState<MeteringMode>("MATRIX");
   const [sceneId, setSceneIdState] = useState<SimulatorSceneId>("studio");
   const [timeOfDayMinutes, setTimeOfDayMinutesState] = useState(DEFAULT_TIME_OF_DAY_MINUTES);
   const [viewfinderMode, setViewfinderMode] = useState<ViewfinderMode>("dslr-view");
@@ -305,8 +312,8 @@ export function CameraProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const derived = useMemo(
-    () => deriveValues(settings, sceneLuminanceEv, viewfinderMode),
-    [settings, sceneLuminanceEv, viewfinderMode],
+    () => deriveValues(settings, sceneLight, viewfinderMode),
+    [settings, sceneLight, viewfinderMode],
   );
 
   const sunState = useMemo(
@@ -403,8 +410,19 @@ export function CameraProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
-  const setSceneLuminanceEv = useCallback((ev: number) => {
-    setSceneLuminanceEvState((prev) => (Math.abs(prev - ev) < 0.04 ? prev : ev));
+  const setSceneLight = useCallback((next: SceneLight) => {
+    setSceneLightState((prev) =>
+      Math.abs(prev.brightnessEv100 - next.brightnessEv100) < 0.04 &&
+      Math.abs(prev.meteredEv100 - next.meteredEv100) < 0.04 &&
+      Math.abs(prev.eyeEv100 - next.eyeEv100) < 0.04
+        ? prev
+        : next,
+    );
+  }, []);
+
+  const setMeteringMode = useCallback((mode: MeteringMode) => {
+    simulatorRuntime.meteringMode = mode;
+    setMeteringModeState(mode);
   }, []);
 
   const setSceneId = useCallback((next: SimulatorSceneId) => {
@@ -517,8 +535,8 @@ export function CameraProvider({ children }: { children: ReactNode }) {
   }, [triggerAutofocus]);
 
   const capturePhoto = useCallback((): CaptureResult => {
-    const effectiveSettings = resolveEffectiveSettings(settings, sceneLuminanceEv);
-    const measuredEv = computeMeasuredEv(effectiveSettings, sceneLuminanceEv);
+    const effectiveSettings = resolveEffectiveSettings(settings, sceneLight);
+    const measuredEv = computeMeasuredEv(effectiveSettings, sceneLight);
     const result: CaptureResult = {
       id: ++captureIdRef.current,
       timestamp: Date.now(),
@@ -535,19 +553,20 @@ export function CameraProvider({ children }: { children: ReactNode }) {
       },
       viewfinderMode,
       sceneId,
-      sceneLuminanceEv,
+      sceneLuminanceEv: sceneLight.meteredEv100,
     };
     setLastCapture(result);
     setGallery((items) => [...items, result]);
     return result;
-  }, [settings, sceneLuminanceEv, sessionUser, focus, viewfinderMode, sceneId]);
+  }, [settings, sceneLight, sessionUser, focus, viewfinderMode, sceneId]);
 
   const value = useMemo<CameraStoreValue>(
     () => ({
       settings,
       lens,
       derived,
-      sceneLuminanceEv,
+      sceneLight,
+      meteringMode,
       sceneId,
       timeOfDayMinutes,
       sunState,
@@ -578,7 +597,8 @@ export function CameraProvider({ children }: { children: ReactNode }) {
       setViewfinderMode,
       setCompositionGuide,
       setShowHistogram,
-      setSceneLuminanceEv,
+      setSceneLight,
+      setMeteringMode,
       setSceneId,
       setTimeOfDayMinutes,
       setPhotoStars,
@@ -600,7 +620,8 @@ export function CameraProvider({ children }: { children: ReactNode }) {
       settings,
       lens,
       derived,
-      sceneLuminanceEv,
+      sceneLight,
+      meteringMode,
       sceneId,
       timeOfDayMinutes,
       sunState,
@@ -623,7 +644,8 @@ export function CameraProvider({ children }: { children: ReactNode }) {
       setViewfinderMode,
       setCompositionGuide,
       setShowHistogram,
-      setSceneLuminanceEv,
+      setSceneLight,
+      setMeteringMode,
       setSceneId,
       setTimeOfDayMinutes,
       setPhotoStars,
