@@ -1,5 +1,6 @@
 import { tomarRelleno, tomarSiguiente, recuperarTrabadas, type PrismaRelleno, type Tomada } from "./cola";
 import { getConfig, loadEnvFiles } from "./config";
+import { detectarAudio, sondearConFfprobe } from "./audio";
 import { convertirGrabacion } from "./convertir";
 import { disconnectPrisma, getPrisma } from "./prisma";
 import { preflightBucket } from "./preflight";
@@ -13,11 +14,14 @@ async function main() {
   const config = getConfig();
   const db = getPrisma() as unknown as PrismaRelleno;
   const r2 = crearR2(config);
+  const registrar = (m: string) => console.log(`[digitalizacion] ${m}`);
+  const sondear = sondearConFfprobe();
   const deps = {
     repo: crearRepo(db),
     ...r2,
     preset: config.preset,
-    registrar: (m: string) => console.log(`[digitalizacion] ${m}`),
+    registrar,
+    detectarAudio: (clave: string) => detectarAudio(clave, { leerInicio: r2.leerInicio, sondear, registrar }),
   };
 
   if (!(await preflightBucket(r2, config.bucket, console.error))) {

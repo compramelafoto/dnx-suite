@@ -16,6 +16,11 @@ export type EntradaPlan = {
   claves: string[];
   desdeSeg: number | null;
   hastaSeg: number | null;
+  /**
+   * Si la primera parte del tramo trae pista de audio (ver audio.ts). Sin el dato (undefined) se
+   * asume que sí, como siempre: el filtro de una grabación con audio no cambia.
+   */
+  tieneAudio?: boolean;
 };
 
 export type Plan =
@@ -65,6 +70,22 @@ export function armarPlan(g: GrabacionParaPlan, partes: ParteR2[]): Plan {
 
 type Convertir = Extract<Plan, { tipo: "CONVERTIR" }>;
 
+/** Le pone a cada entrada del plan si tiene audio (`audios[i]` corresponde a `entradas[i]`). */
+export function conAudio(plan: Convertir, audios: boolean[]): Convertir {
+  return { ...plan, entradas: plan.entradas.map((e, i) => ({ ...e, tieneAudio: audios[i] ?? true })) };
+}
+
+/**
+ * Audio de un tramo sin pista de audio (DVD mudo, capturadora que no manda sonido): una corriente
+ * de silencio VACÍA. No hace falta saber cuánto dura el video: el filtro `concat` rellena con
+ * silencio el audio de cada tramo hasta la duración de su video (ya recortado), salvo en el último
+ * tramo. Por eso, si algún tramo no tiene audio, se agrega al final un tramo vacío (0 cuadros y 0
+ * muestras) y el último tramo real también queda rellenado. La duración sale exacta por
+ * construcción, sin medir nada.
+ */
+const SILENCIO_VACIO = "anullsrc=r=48000:cl=stereo,atrim=end_sample=0";
+const TRAMO_VACIO_V = "color=black:s=1920x1080:r=30,format=yuv420p,setsar=1,trim=end_frame=0";
+
 /**
  * Normalización del volumen percibido (EBU R128): −16 LUFS integrados, pico real ≤ −1 dBTP y rango
  * de sonoridad 11 LU. Va una sola vez, sobre el audio ya concatenado, así todos los tramos quedan
@@ -109,10 +130,19 @@ export function filtroComplejo(plan: Convertir): string {
       `[${i}:v:0]${recorteV}yadif=deint=interlaced,scale=iw*sar:ih,setsar=1,${escala},` +
         `pad=1920:1080:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1,fps=30,format=yuv420p[v${i}]`,
     );
-    partes.push(`[${i}:a:0]${recorteA}aresample=48000[a${i}]`);
+    partes.push(
+      e.tieneAudio === false ? `${SILENCIO_VACIO}[a${i}]` : `[${i}:a:0]${recorteA}aresample=48000[a${i}]`,
+    );
   });
   const n = plan.entradas.length;
-  if (n > 1) {
+  const faltaAudio = plan.entradas.some((e) => e.tieneAudio === false);
+  if (faltaAudio) {
+    // Tramo vacío al final: así `concat` rellena con silencio también el último tramo real.
+    partes.push(`${TRAMO_VACIO_V}[vz]`);
+    partes.push(`${SILENCIO_VACIO}[az]`);
+    const ins = plan.entradas.map((_, i) => `[v${i}][a${i}]`).join("");
+    partes.push(`${ins}[vz][az]concat=n=${n + 1}:v=1:a=1[vc][ac]`);
+  } else if (n > 1) {
     const ins = plan.entradas.map((_, i) => `[v${i}][a${i}]`).join("");
     partes.push(`${ins}concat=n=${n}:v=1:a=1[vc][ac]`);
   } else {
