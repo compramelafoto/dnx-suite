@@ -370,7 +370,10 @@ export type ClassListSectionsLayout = {
 const SECTION_GAP = 0.5;
 /** Aire debajo de la línea del colegio, en renglones de nombre. */
 const SCHOOL_GAP = 0.4;
-/** Aire entre el título de un curso y sus nombres, en renglones de nombre. */
+/**
+ * Aire arriba y abajo del título de un curso, en renglones de nombre. Es el mismo de los dos
+ * lados, así el título queda centrado entre el borde del recuadro y la primera fila de nombres.
+ */
 const HEADING_GAP = 0.6;
 /**
  * Ancho medio de una letra en negrita, en cuerpos. Sirve para achicar un título que no entra en
@@ -482,7 +485,7 @@ export function layoutClassListSections(input: {
     const columns = Math.max(1, Math.min(input.columns, s.lines.length));
     const rows = Math.ceil(s.lines.length / columns);
     // Alto total en «renglones de nombre»: así el achique es una sola cuenta lineal.
-    const units = schoolUnits + rows + (s.heading ? headingScale + HEADING_GAP : 0);
+    const units = schoolUnits + rows + (s.heading ? headingScale + 2 * HEADING_GAP : 0);
     const rowHeight = Math.min(input.fontSize * lineHeight, input.height / units);
     const fontSize = rowHeight / lineHeight;
     let y = alignTop(rowHeight * units);
@@ -490,6 +493,7 @@ export function layoutClassListSections(input: {
     y += rowHeight * schoolUnits;
     if (s.heading) {
       const h = rowHeight * headingScale;
+      y += rowHeight * HEADING_GAP;
       cells.push({
         text: s.heading,
         bold: true,
@@ -554,7 +558,7 @@ export function layoutClassListSections(input: {
         kind: "heading",
         text: partir ? s.heading.slice(0, corte) : s.heading,
         sub,
-        units: headingScale + (sub ? 1 : 0) + HEADING_GAP,
+        units: headingScale + (sub ? 1 : 0) + 2 * HEADING_GAP,
         gapBefore,
         keep: Math.min(KEEP_WITH_HEADING, s.lines.length),
       });
@@ -580,7 +584,7 @@ export function layoutClassListSections(input: {
   const cellWidth = Math.max(1, (input.width - gap * (columns - 1)) / columns);
   for (const p of flow.placed) {
     const x = p.col * (cellWidth + gap);
-    const y = y0 + p.y * rowHeight;
+    const y = y0 + p.y * rowHeight + (p.item.kind === "heading" ? rowHeight * HEADING_GAP : 0);
     if (p.item.kind === "heading") {
       cells.push({
         text: p.item.text,

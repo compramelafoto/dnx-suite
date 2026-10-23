@@ -135,8 +135,9 @@ test("el título del curso va siempre, arriba y a todo el ancho, más grande y e
   assert.equal(titulo.bold, true);
   assert.equal(titulo.width, 1000);
   assert.equal(titulo.fontSize, 48);
-  // Los alumnos arrancan debajo del título, con aire en el medio (0,6 renglones de 50).
-  assert.equal(cells[1]!.y, titulo.height + 30);
+  // El título queda centrado entre el borde y los alumnos: 0,6 renglones de 50 arriba y abajo.
+  assert.equal(titulo.y, 30);
+  assert.equal(cells[1]!.y, titulo.y + titulo.height + 30);
   // Sin título si se apaga.
   const sin = layoutClassListBlock({
     groups: [{ title: "7.° A", students: curso }],
@@ -172,9 +173,9 @@ test("dos cursos: 4 columnas siempre, un título por curso y todo se achica junt
     // Con aire entre el título y sus nombres: 0,6 renglones.
     assert.ok(Math.abs(primero.y - (titulo.y + titulo.height) - 0.6 * primero.height) < 1e-9);
   }
-  // 2 títulos (con su aire de 0,6) + 8 nombres en 4 columnas: entran en 3,6 renglones de alto.
+  // 2 títulos (con 0,6 de aire arriba y abajo) + 8 nombres en 4 columnas: entran en 4,2 renglones.
   const justo = layoutClassListBlock({ groups, options, width: 1000, height: 75, fontSize: 40, lineHeight: 1.25 });
-  assert.ok(Math.abs(justo.fontSize - 75 / 3.6 / 1.25) < 1e-9);
+  assert.ok(Math.abs(justo.fontSize - 75 / 4.2 / 1.25) < 1e-9);
   assert.ok(justo.cells.every((c) => c.y + c.height <= 75 + 1e-9));
 });
 
