@@ -11,7 +11,12 @@ import {
   type EstadoFotolibro,
   type FotoDelLibro,
   type LadoPliego,
+  type TapaDelLibro,
 } from "@/lib/fotolibro/modo/estado";
+import { modelosParaLibro } from "@/lib/fotolibro/tapa/catalogo";
+import { bloquesDeTapa, tapaDelLibro } from "@/lib/fotolibro/tapa/bloques";
+import { TapaVista, type CaraTapa } from "./tapa-vista";
+import { PanelTapa } from "./panel-tapa";
 import { generarBloques, idDeBloque, reindexarHojas } from "@/lib/fotolibro/modo/bloques";
 import {
   agregarAPagina,
@@ -87,6 +92,9 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
   const [subiendo, setSubiendo] = useState<{ hechas: number; total: number; errores: string[] } | null>(null);
   const [eligiendoEstilo, setEligiendoEstilo] = useState(false);
   const [aplicandoEstilo, setAplicandoEstilo] = useState<string | null>(null);
+  // La tapa es la "hoja -1": va antes del primer pliego.
+  const [caraTapa, setCaraTapa] = useState<CaraTapa | null>(null);
+  const [recortandoTapa, setRecortandoTapa] = useState(false);
 
   // Lo último, para el guardado y las subidas, que corren fuera del ciclo de dibujo.
   const ref = useRef({ cargado, estado, bloques });
@@ -204,6 +212,16 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
     [],
   );
 
+  /** Cambios que no van al deshacer (el encuadre mientras se arrastra el deslizador). */
+  const aplicarSinHistoria = useCallback((cambio: (e: EstadoFotolibro) => EstadoFotolibro) => {
+    const { cargado: c, estado: e, bloques: b } = ref.current;
+    if (!c || !e) return;
+    const nuevo = cambio(e);
+    ref.current = { cargado: c, estado: nuevo, bloques: b };
+    setEstado(nuevo);
+    setGuardado("pendiente");
+  }, []);
+
   const cambiarRecorte = useCallback((blockId: string, crop: PhotoCrop | null) => {
     setBloques((prev) =>
       prev.map((b) => {
@@ -227,9 +245,11 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
   const cantidad = estado?.pliegos.length ?? 1;
   const irA = useCallback(
     (i: number) => {
-      setPliego(Math.max(0, Math.min(cantidad - 1, i)));
+      setPliego(Math.max(-1, Math.min(cantidad - 1, i)));
       setSeleccionada(null);
       setRecortando(null);
+      setCaraTapa(null);
+      setRecortandoTapa(false);
     },
     [cantidad],
   );
@@ -288,7 +308,7 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
   // ── Teclado ──
   useEffect(() => {
     const onKey = (ev: KeyboardEvent) => {
-      if (recortando || eligiendoEstilo || esEditable(ev.target)) return;
+      if (recortando || recortandoTapa || eligiendoEstilo || esEditable(ev.target)) return;
       const tecla = ev.key.toLowerCase();
       if ((ev.metaKey || ev.ctrlKey) && tecla === "z") {
         ev.preventDefault();
@@ -298,6 +318,15 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
       if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
       if (ev.key === "ArrowLeft") return void (ev.preventDefault(), irA(pliego - 1));
       if (ev.key === "ArrowRight") return void (ev.preventDefault(), irA(pliego + 1));
+      if (pliego < 0) {
+        if ((ev.key === "Delete" || ev.key === "Backspace") && caraTapa) {
+          ev.preventDefault();
+          const campo = caraTapa === "tapa" ? "fotoId" : "contratapaFotoId";
+          aplicar((e) => (e.tapa ? { ...e, tapa: { ...e.tapa, [campo]: null } } : e));
+          setCaraTapa(null);
+        }
+        return;
+      }
       if (ev.key === "Enter" && seleccionTira.length) {
         ev.preventDefault();
         aplicar((e) => armarPliego(e, pliego, seleccionTira));
@@ -320,10 +349,17 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [recortando, eligiendoEstilo, pliego, seleccionTira, seleccionada, aplicar, deshacer, irA]);
+  }, [recortando, recortandoTapa, caraTapa, eligiendoEstilo, pliego, seleccionTira, seleccionada, aplicar, deshacer, irA]);
 
   const fotosPorId = useMemo(() => new Map((estado?.fotos ?? []).map((f) => [f.id, f])), [estado]);
   const usos = useMemo(() => (estado ? usosPorFoto(estado) : new Map<string, number>()), [estado]);
+  const metaLibro = (cargado?.meta.fotolibro ?? {}) as { medidaId?: string; proveedorNombre?: string | null };
+  const modelosTapa = useMemo(() => modelosParaLibro(metaLibro.medidaId ?? "", metaLibro.proveedorNombre), [metaLibro.medidaId, metaLibro.proveedorNombre]);
+  const armadoTapa = useMemo(() => (estado ? tapaDelLibro(estado, estado.pliegos.length) : null), [estado]);
+  const bloquesTapa = useMemo(
+    () => (estado && cargado ? bloquesDeTapa(estado, estado.pliegos.length, medidasDelLienzo(cargado.canvas)) : []),
+    [estado, cargado],
+  );
 
   if (errorCarga) {
     return (
@@ -354,6 +390,17 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
   const estadoGuardado =
     guardado === "guardando" ? "Guardando…" : guardado === "pendiente" ? "Cambios sin guardar" : guardado === "error" ? "No se guardó" : "Guardado";
 
+  /** Cambia la tapa; si todavía no tenía modelo, usa el primero que corresponde a este libro. */
+  function cambiarTapa(cambio: (t: TapaDelLibro) => TapaDelLibro, sinHistoria = false) {
+    const modeloId = estado?.tapa?.modeloId ?? modelosTapa[0]?.id;
+    if (!modeloId) return;
+    const base: TapaDelLibro = { modeloId, fotoId: null, encuadre: null, contratapaFotoId: null, contratapaEncuadre: null };
+    const f = (e: EstadoFotolibro) => ({ ...e, tapa: cambio(e.tapa ?? base) });
+    if (sinHistoria) aplicarSinHistoria(f);
+    else aplicar(f);
+  }
+  const fotoDeTapa = caraTapa && estado.tapa ? fotosPorId.get((caraTapa === "tapa" ? estado.tapa.fotoId : estado.tapa.contratapaFotoId) ?? "") ?? null : null;
+
   async function salirA(href: string) {
     if (ref.current.estado && guardado !== "al-dia") await guardar();
     router.push(href);
@@ -376,9 +423,7 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
           ← Fotolibros
         </button>
         <h1 className="truncate font-semibold">{cargado.nombre}</h1>
-        <span className="text-white/50">
-          Pliego {pliego + 1} de {cantidad}
-        </span>
+        <span className="text-white/50">{pliego < 0 ? "Tapa" : `Pliego ${pliego + 1} de ${cantidad}`}</span>
         <span className={`ml-auto text-xs ${guardado === "error" ? "text-red-300" : "text-white/50"}`}>{estadoGuardado}</span>
         <button
           type="button"
@@ -392,6 +437,7 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
           templateId={templateId}
           nombre={cargado.nombre}
           cantidadPliegos={cantidad}
+          conTapa={armadoTapa !== null}
           guardarAntes={async () => (ref.current.estado && guardado !== "al-dia" ? guardar() : true)}
         />
       </header>
@@ -408,6 +454,26 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
       <div className="flex min-h-0 flex-1">
         <main className="flex min-h-0 min-w-0 flex-1 flex-col">
           <div className="min-h-0 flex-1 py-4">
+            {pliego < 0 ? (
+              <TapaVista
+                armado={armadoTapa}
+                bloques={bloquesTapa}
+                seleccion={caraTapa}
+                recortando={recortandoTapa}
+                aviso={modelosTapa.length ? null : "Todavía no tenemos la plantilla de tapa de este laboratorio para esta medida."}
+                onSoltar={(cara, fotoId) => {
+                  cambiarTapa((t) => (cara === "tapa" ? { ...t, fotoId, encuadre: null } : { ...t, contratapaFotoId: fotoId, contratapaEncuadre: null }));
+                  setCaraTapa(cara);
+                }}
+                onSeleccionar={(c) => {
+                  setCaraTapa(c);
+                  if (!c) setRecortandoTapa(false);
+                }}
+                onEmpezarRecorte={() => setRecortandoTapa(true)}
+                onRecorte={(cara, crop) => cambiarTapa((t) => (cara === "tapa" ? { ...t, encuadre: crop } : { ...t, contratapaEncuadre: crop }), true)}
+                onTerminarRecorte={() => setRecortandoTapa(false)}
+              />
+            ) : (
             <PliegoVista
               canvas={cargado.canvas}
               bloques={bloques}
@@ -430,8 +496,17 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
               onRecorte={(id, crop) => cambiarRecorte(id, crop)}
               onTerminarRecorte={() => setRecortando(null)}
             />
+            )}
           </div>
           <div className="flex flex-none items-center justify-center gap-1 pb-2">
+            <button
+              type="button"
+              onClick={() => irA(-1)}
+              title="Tapa"
+              className={`mr-1 h-2.5 rounded-sm text-[0] transition-all ${pliego < 0 ? "w-6 bg-[var(--fo-accent)]" : armadoTapa ? "w-3 bg-white/50" : "w-3 bg-white/15"}`}
+            >
+              Tapa
+            </button>
             {estado.pliegos.map((p, i) => (
               <button
                 key={i}
@@ -444,6 +519,28 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
           </div>
         </main>
 
+        {pliego < 0 ? (
+          <PanelTapa
+            modelos={modelosTapa}
+            tapa={estado.tapa}
+            geometria={armadoTapa?.geometria ?? null}
+            seleccion={caraTapa}
+            foto={fotoDeTapa}
+            textos={estado.estilo ? estado.estilo.textos : null}
+            onModelo={(id) => {
+              if (!id) return aplicar((e) => ({ ...e, tapa: null }));
+              cambiarTapa((t) => ({ ...t, modeloId: id, ...(modelosTapa.find((m) => m.id === id)?.tipo === "frente" ? { contratapaFotoId: null, contratapaEncuadre: null } : {}) }));
+            }}
+            onEncuadre={(crop) => cambiarTapa((t) => (caraTapa === "contratapa" ? { ...t, contratapaEncuadre: crop } : { ...t, encuadre: crop }), true)}
+            onQuitarFoto={() => {
+              cambiarTapa((t) => (caraTapa === "contratapa" ? { ...t, contratapaFotoId: null, contratapaEncuadre: null } : { ...t, fotoId: null, encuadre: null }));
+              setCaraTapa(null);
+            }}
+            onTexto={(rol, valor) =>
+              aplicar((e) => (e.estilo ? { ...e, estilo: { ...e.estilo, textos: { ...e.estilo.textos, [rol]: valor } } } : e))
+            }
+          />
+        ) : (
         <PanelLateral
           estado={estado}
           pliego={pliego}
@@ -476,6 +573,7 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
             setPliego(Math.max(0, Math.min(pliego, cantidad - 2)));
           }}
         />
+        )}
       </div>
 
       <div className="h-40 flex-none">

@@ -12,7 +12,17 @@ const bloques = [
 vi.mock("@repo/db", () => ({
   prisma: {
     templateV2: { findUnique: vi.fn(async () => ({ name: "Boda", currentVersionId: "v1" })) },
-    templateV2Version: { findUnique: vi.fn(async () => ({ canvasJson: { width: 1200, height: 600, dpi: 300 } })) },
+    templateV2Version: { findUnique: vi.fn(async () => ({
+        canvasJson: { width: 1200, height: 600, dpi: 300 },
+        metaJson: {
+          templatePageCount: 1,
+          fotolibro: {
+            fotos: [{ id: "f1", url: "https://r2.test/foto.jpg", vista: "https://r2.test/foto.jpg", mini: "", w: 300, h: 200, nombre: "f1" }],
+            tapa: { modeloId: "roman-gold-premium-30x60", fotoId: "f1" },
+            estilo: { id: "bodas-01-jardin-acuarela", medida: "102×51", fondos: {}, textos: { titulo: "Ana & Luis" } },
+          },
+        },
+      })) },
     templateV2Block: { findMany: vi.fn(async ({ where }: { where: { pageIndex: number } }) => (where.pageIndex === 0 ? bloques : [])) },
   },
 }));
@@ -48,4 +58,17 @@ describe("exportar un pliego para el laboratorio", () => {
     const r = await exportarPliego("t1", 5);
     expect(r.ok).toBe(false);
   });
+
+  it("la tapa sale a la medida de la pieza del laboratorio, con la foto", async () => {
+    const { exportarTapa } = await import("./exportar");
+    const r = await exportarTapa("t1");
+    if (!r.ok) throw new Error(r.error);
+    expect(r.nombre).toBe("tapa.jpg");
+    const meta = await sharp(Buffer.from(r.jpg)).metadata();
+    expect([meta.width, meta.height]).toEqual([3602, 4075]);
+    // Arriba a la izquierda es demasía: también lleva foto (la mitad roja), no papel.
+    const { data } = await sharp(Buffer.from(r.jpg)).extract({ left: 40, top: 40, width: 4, height: 4 }).raw().toBuffer({ resolveWithObject: true });
+    expect(data[0]).toBeGreaterThan(150);
+    expect(data[2]).toBeLessThan(90);
+  }, 60_000);
 });

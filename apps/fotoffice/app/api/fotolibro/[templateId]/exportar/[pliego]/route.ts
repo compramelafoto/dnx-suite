@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
-import { exportarPliego } from "@/lib/fotolibro/exportar";
+import { exportarPliego, exportarTapa } from "@/lib/fotolibro/exportar";
 import { puedeEditarFotolibro } from "@/lib/fotolibro/permisos";
 
 export const runtime = "nodejs";
@@ -9,7 +9,7 @@ export const maxDuration = 120;
 
 type Ctx = { params: Promise<{ templateId: string; pliego: string }> };
 
-/** Un pliego del fotolibro en JPG para el laboratorio. Lo arma el Modo Fotolibro de a uno. */
+/** Un pliego del fotolibro (o "tapa") en JPG para el laboratorio. Lo arma el Modo Fotolibro de a uno. */
 export async function GET(_req: Request, context: Ctx) {
   const user = await requireAuth();
   const { templateId, pliego } = await context.params;
@@ -17,10 +17,10 @@ export async function GET(_req: Request, context: Ctx) {
     return NextResponse.json({ error: "No podés exportar este fotolibro." }, { status: 403 });
   }
   const n = Number(pliego);
-  if (!Number.isInteger(n) || n < 0 || n > 200) {
+  if (pliego !== "tapa" && (!Number.isInteger(n) || n < 0 || n > 200)) {
     return NextResponse.json({ error: "Pliego inválido." }, { status: 400 });
   }
-  const r = await exportarPliego(templateId, n);
+  const r = pliego === "tapa" ? await exportarTapa(templateId) : await exportarPliego(templateId, n);
   if (!r.ok) return NextResponse.json({ error: r.error }, { status: 422 });
   return new NextResponse(Buffer.from(r.jpg), {
     headers: {

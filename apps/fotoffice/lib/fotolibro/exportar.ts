@@ -2,6 +2,10 @@ import "server-only";
 import { prisma } from "@repo/db";
 import { emitDesign, type ResourceResolver } from "@repo/design-studio";
 import { editorADocumento } from "@repo/template-editor-core/rendering";
+import type { TemplateV2Block } from "@repo/template-editor-core";
+import { leerEstadoFotolibro } from "./modo/estado";
+import { medidasDelLienzo } from "./modo/bloques";
+import { bloquesDeTapa, tapaDelLibro } from "./tapa/bloques";
 
 /**
  * El archivo que se manda al laboratorio: un pliego del fotolibro en JPG, a la resolución del
@@ -26,40 +30,59 @@ const recursos: ResourceResolver = {
 
 export type ResultadoExportacion = { ok: true; jpg: Uint8Array; nombre: string } | { ok: false; error: string };
 
-export async function exportarPliego(templateId: string, pliego: number): Promise<ResultadoExportacion> {
-  const t = await prisma.templateV2.findUnique({
-    where: { id: templateId },
-    select: { name: true, currentVersionId: true },
+type Cara = { width: number; height: number; dpi: number; background?: string | null };
+type BloquePlano = Omit<Parameters<typeof editorADocumento>[0]["blocks"][number], "pageIndex">;
+
+/** Una cara (un pliego o la tapa) en JPG, con el motor de impresión. */
+async function rasterizar(lienzo: Cara, bloques: BloquePlano[], nombre: string): Promise<Uint8Array | string> {
+  const puente = editorADocumento({
+    canvas: { width: lienzo.width, height: lienzo.height, background: lienzo.background ?? null, dpi: lienzo.dpi, bleedMm: 0, safeAreaMm: 0 },
+    // Una sola cara, como si fuera la primera.
+    blocks: bloques.map((b) => ({ ...b, pageIndex: 0 })),
+    nombre,
   });
-  if (!t?.currentVersionId) return { ok: false, error: "El fotolibro no tiene una versión guardada." };
+  const salida = await emitDesign({
+    document: puente.document,
+    contract: { variables: [] },
+    values: {},
+    formats: ["JPG_PER_SIDE"],
+    pngDpi: lienzo.dpi,
+    jpgQuality: 95,
+    includeBleed: false,
+    resources: recursos,
+    fileBaseName: "cara",
+  });
+  if (!salida.ok) return salida.errors.join(" · ");
+  return salida.files[0]?.bytes ?? "No se generó el archivo.";
+}
+
+const num = (v: unknown, d: number) => (typeof v === "number" && Number.isFinite(v) ? v : d);
+
+async function versionActual(templateId: string) {
+  const t = await prisma.templateV2.findUnique({ where: { id: templateId }, select: { name: true, currentVersionId: true } });
+  if (!t?.currentVersionId) return null;
   const version = await prisma.templateV2Version.findUnique({
     where: { id: t.currentVersionId },
-    select: { canvasJson: true },
+    select: { canvasJson: true, metaJson: true },
   });
+  return { nombre: t.name, versionId: t.currentVersionId, canvas: (version?.canvasJson ?? {}) as Record<string, unknown>, meta: version?.metaJson ?? {} };
+}
+
+export async function exportarPliego(templateId: string, pliego: number): Promise<ResultadoExportacion> {
+  const v = await versionActual(templateId);
+  if (!v) return { ok: false, error: "El fotolibro no tiene una versión guardada." };
   const bloques = await prisma.templateV2Block.findMany({
-    where: { templateVersionId: t.currentVersionId, pageIndex: pliego },
+    where: { templateVersionId: v.versionId, pageIndex: pliego },
     orderBy: { zIndex: "asc" },
   });
   if (bloques.length === 0) return { ok: false, error: `El pliego ${pliego + 1} no existe o está vacío.` };
-
-  const c = (version?.canvasJson ?? {}) as Record<string, unknown>;
-  const num = (v: unknown, d: number) => (typeof v === "number" && Number.isFinite(v) ? v : d);
-  const dpi = num(c.dpi, 300);
-  const puente = editorADocumento({
-    canvas: {
-      width: num(c.width, 0),
-      height: num(c.height, 0),
-      background: typeof c.background === "string" ? c.background : null,
-      dpi,
-      bleedMm: 0,
-      safeAreaMm: 0,
-    },
-    // Una sola cara: el pliego pedido, como si fuera la primera.
-    blocks: bloques.map((b) => ({
+  const c = v.canvas;
+  const jpg = await rasterizar(
+    { width: num(c.width, 0), height: num(c.height, 0), dpi: num(c.dpi, 300), background: typeof c.background === "string" ? c.background : null },
+    bloques.map((b) => ({
       id: b.id,
       type: b.type,
       name: b.name,
-      pageIndex: 0,
       x: b.x,
       y: b.y,
       width: b.width,
@@ -71,22 +94,37 @@ export async function exportarPliego(templateId: string, pliego: number): Promis
       visible: b.visible,
       configJson: b.configJson,
     })),
-    nombre: t.name,
-  });
+    v.nombre,
+  );
+  if (typeof jpg === "string") return { ok: false, error: jpg };
+  return { ok: true, jpg, nombre: `pliego-${String(pliego + 1).padStart(2, "0")}.jpg` };
+}
 
-  const salida = await emitDesign({
-    document: puente.document,
-    contract: { variables: [] },
-    values: {},
-    formats: ["JPG_PER_SIDE"],
-    pngDpi: dpi,
-    jpgQuality: 95,
-    includeBleed: false,
-    resources: recursos,
-    fileBaseName: "pliego",
-  });
-  if (!salida.ok) return { ok: false, error: salida.errors.join(" · ") };
-  const archivo = salida.files[0];
-  if (!archivo) return { ok: false, error: "No se generó el archivo del pliego." };
-  return { ok: true, jpg: archivo.bytes, nombre: `pliego-${String(pliego + 1).padStart(2, "0")}.jpg` };
+/** La tapa, a la medida de la pieza del laboratorio (con su demasía y, si tiene, el lomo). */
+export async function exportarTapa(templateId: string): Promise<ResultadoExportacion> {
+  const v = await versionActual(templateId);
+  if (!v) return { ok: false, error: "El fotolibro no tiene una versión guardada." };
+  const c = v.canvas;
+  const meta = v.meta as Record<string, unknown>;
+  const hojas = num(meta.templatePageCount, 1);
+  const estado = leerEstadoFotolibro(meta, hojas);
+  const armado = tapaDelLibro(estado, hojas);
+  if (!armado) return { ok: false, error: "El fotolibro todavía no tiene tapa elegida." };
+  const medidas = medidasDelLienzo({ width: num(c.width, 0), height: num(c.height, 0), dpi: num(c.dpi, 300) });
+  const bloques = bloquesDeTapa(estado, hojas, medidas).map(({ layout, pageIndex: _p, ...b }: TemplateV2Block) => ({
+    ...b,
+    name: b.name ?? null,
+    x: layout.x,
+    y: layout.y,
+    width: layout.width,
+    height: layout.height,
+    rotation: layout.rotation ?? 0,
+    zIndex: layout.zIndex ?? 0,
+    opacity: layout.opacity ?? 1,
+    locked: layout.locked ?? false,
+    visible: layout.visible ?? true,
+  }));
+  const jpg = await rasterizar(armado.lienzo, bloques, v.nombre);
+  if (typeof jpg === "string") return { ok: false, error: jpg };
+  return { ok: true, jpg, nombre: "tapa.jpg" };
 }
