@@ -3,6 +3,7 @@
 import { useGLTF, useTexture } from "@react-three/drei";
 import { useEffect, useMemo } from "react";
 import * as THREE from "three";
+import { bakeCavityAO } from "@/lib/simulator/studio-light/cavity-ao";
 import { SUBJECT_HEAD } from "@/lib/simulator/studio-light/metering";
 import type { BustId } from "@/lib/simulator/studio-light/figures";
 
@@ -36,13 +37,15 @@ export default function StudioSubject({ subject, yaw }: { subject: BustId; yaw: 
     gltf.scene.traverse((o) => {
       if (!geo && (o as THREE.Mesh).isMesh) geo = (o as THREE.Mesh).geometry;
     });
+    // Oscurece fosas nasales, orejas y comisuras: radio de 2,5 cm en unidades del escaneo.
+    if (geo) bakeCavityAO(geo, { radius: 0.025 / MODEL_SCALE });
     return geo as THREE.BufferGeometry | null;
   }, [gltf]);
 
   const material = useMemo(() => {
     // Las texturas del escaneo vienen aparte del GLB, con la orientación de three.js (flipY).
     colorMap.colorSpace = THREE.SRGBColorSpace;
-    return new THREE.MeshStandardMaterial({ normalMap, normalScale: new THREE.Vector2(0.8, 0.8) });
+    return new THREE.MeshStandardMaterial({ normalMap, normalScale: new THREE.Vector2(0.8, 0.8), vertexColors: true });
   }, [colorMap, normalMap]);
 
   useEffect(() => {

@@ -9,6 +9,7 @@ import {
   renderedLightColor,
 } from "./metering";
 import { PRESETS, applyPreset, initialStudioState, makeLight, polarToXZ } from "./presets";
+import { computeCavityAO } from "./cavity-ao";
 import { FIGURES } from "./figures";
 import { POSES, armDirections } from "./poses";
 import { deserializeStudio, serializeStudio } from "./share";
@@ -161,4 +162,22 @@ test("modelos de cuerpo entero: catálogo completo y enlace con pose a mano", ()
   assert.equal(back.camera.aimY, 0.92);
   const unknown = deserializeStudio(serializeStudio({ ...s, subject: "no-existe" }));
   assert.equal(unknown?.subject, base.subject);
+});
+
+test("oclusión de cavidades: un hueco se oscurece y una superficie plana no", () => {
+  // Plano de 21×21 puntos con un pozo en el centro (como una fosa nasal).
+  const pos: number[] = [];
+  const nor: number[] = [];
+  for (let i = -10; i <= 10; i++) {
+    for (let j = -10; j <= 10; j++) {
+      const r = Math.hypot(i, j);
+      pos.push(i * 0.1, r < 3 ? -0.6 + r * 0.15 : 0, j * 0.1);
+      nor.push(0, 1, 0);
+    }
+  }
+  const ao = computeCavityAO(pos, nor, { radius: 0.5 });
+  const center = ao[10 * 21 + 10];
+  const flat = ao[0];
+  assert.ok(flat > 0.97, `plano ${flat}`);
+  assert.ok(center < 0.6, `pozo ${center}`);
 });

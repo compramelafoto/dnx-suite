@@ -117,14 +117,21 @@ function ModifierBody({ light, glow }: { light: StudioLight; glow: number }) {
   }
 }
 
-function LightStand({ light }: { light: StudioLight }) {
-  const poleTop = Math.max(0.3, light.y - 0.05);
+/** Desplazamiento lateral del pie cuando la luz va con jirafa (m). */
+const BOOM_REACH = 0.95;
+
+/**
+ * Luz delante del sujeto y cerca del eje de cámara (mariposa, clamshell): en un
+ * estudio real va colgada de una jirafa para que el pie no tape la cara.
+ */
+export function usesBoom(light: StudioLight): boolean {
+  if (light.z < 0.25 || light.y < 1.3) return false;
+  return Math.abs(Math.atan2(light.x, light.z)) < (28 * Math.PI) / 180;
+}
+
+function StandLegs() {
   return (
-    <group position={[light.x, 0, light.z]}>
-      <mesh position={[0, poleTop / 2, 0]} castShadow>
-        <cylinderGeometry args={[0.014, 0.018, poleTop, 8]} />
-        <meshStandardMaterial color={METAL} metalness={0.6} roughness={0.4} />
-      </mesh>
+    <>
       {[0, 1, 2].map((i) => {
         const a = (i / 3) * Math.PI * 2;
         return (
@@ -139,6 +146,44 @@ function LightStand({ light }: { light: StudioLight }) {
           </mesh>
         );
       })}
+    </>
+  );
+}
+
+function LightStand({ light }: { light: StudioLight }) {
+  const metal = <meshStandardMaterial color={METAL} metalness={0.6} roughness={0.4} />;
+  if (usesBoom(light)) {
+    const side = light.x >= 0 ? 1 : -1;
+    const top = light.y + 0.18;
+    return (
+      <group position={[light.x, 0, light.z]}>
+        <group position={[side * BOOM_REACH, 0, 0.15]}>
+          <mesh position={[0, top / 2, 0]} castShadow>
+            <cylinderGeometry args={[0.016, 0.02, top, 8]} />
+            {metal}
+          </mesh>
+          <StandLegs />
+        </group>
+        {/* Brazo horizontal y bajada corta hasta el cabezal. */}
+        <mesh position={[(side * BOOM_REACH) / 2, top, 0.075]} rotation={[0, Math.atan2(-0.15, side * BOOM_REACH), Math.PI / 2]} castShadow>
+          <cylinderGeometry args={[0.012, 0.012, Math.hypot(BOOM_REACH, 0.15) + 0.3, 8]} />
+          {metal}
+        </mesh>
+        <mesh position={[0, light.y + 0.09, 0]} castShadow>
+          <cylinderGeometry args={[0.01, 0.01, 0.18, 6]} />
+          {metal}
+        </mesh>
+      </group>
+    );
+  }
+  const poleTop = Math.max(0.3, light.y - 0.05);
+  return (
+    <group position={[light.x, 0, light.z]}>
+      <mesh position={[0, poleTop / 2, 0]} castShadow>
+        <cylinderGeometry args={[0.014, 0.018, poleTop, 8]} />
+        {metal}
+      </mesh>
+      <StandLegs />
     </group>
   );
 }
@@ -291,9 +336,9 @@ function RigLight({ light, showHelpers, setZoomEnabled, setOrbitEnabled }: RigLi
           decay={2}
           distance={0}
           castShadow
-          shadow-mapSize={[1024, 1024]}
-          shadow-bias={-0.0006}
-          shadow-normalBias={0.02}
+          shadow-mapSize={[2048, 2048]}
+          shadow-bias={-0.0003}
+          shadow-normalBias={0.006}
           shadow-radius={shadowRadius}
           shadow-camera-near={0.1}
           shadow-camera-far={14}

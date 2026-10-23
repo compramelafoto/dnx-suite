@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader.js";
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
+import { bakeCavityAO } from "@/lib/simulator/studio-light/cavity-ao";
 import { figureUrl, type FigureSpec } from "@/lib/simulator/studio-light/figures";
 import { SUBJECT_HEAD } from "@/lib/simulator/studio-light/metering";
 import { armDirections, lerpPose, type PoseParams } from "@/lib/simulator/studio-light/poses";
@@ -90,6 +91,8 @@ function buildRig(source: THREE.Group, figure: FigureSpec): Rig {
         normalMap: tex(`${prefix}_${part}_normal.jpg`, false),
         normalScale: new THREE.Vector2(0.9, 0.9),
         roughness: part === "head" ? 0.55 : 0.78,
+        // Oclusión de cavidades horneada en los vértices (ver bakeCavityAO).
+        vertexColors: true,
       });
     }
     m.name = name;
@@ -106,6 +109,14 @@ function buildRig(source: THREE.Group, figure: FigureSpec): Rig {
       mesh.visible = false;
       return;
     }
+    // Radio de ~2,5 cm para nariz, orejas y boca. Las unidades internas del FBX varían,
+    // así que se deduce de la altura de la malla (una persona mide ~1,72 m).
+    // Se hornea en toda malla visible: en algunos modelos piel, ropa y pelo son una sola
+    // malla, y un material con vertexColors sin atributo de color se ve negro.
+    mesh.geometry.computeBoundingBox();
+    const box = mesh.geometry.boundingBox;
+    const height = box ? Math.max(box.max.x - box.min.x, box.max.y - box.min.y, box.max.z - box.min.z) : 0;
+    bakeCavityAO(mesh.geometry, { radius: height > 0 ? (height * 0.025) / 1.72 : 1 });
     const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
     const rebuilt = mats.map((m) => materialFor(m.name));
     mesh.material = Array.isArray(mesh.material) ? rebuilt : rebuilt[0];
