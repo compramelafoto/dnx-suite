@@ -12,7 +12,7 @@ function run(cars: TrafficCar[], seconds: number, walkers: [number, number][] = 
 }
 
 function car(lane: number, s: number, v: number, v0 = Math.max(v, 8)): TrafficCar {
-  return { id: `t${lane}`, lane, s, v, v0, length: 4.4, stoppedFor: 0, clearedStop: false, parked: false, paint: "#fff" };
+  return { id: `t${lane}`, lane, s, v, v0, length: 4.4, stoppedFor: 0, clearedStop: false, parked: false, model: 0 };
 }
 
 test("los autos nunca se chocan entre sí en 5 minutos de tránsito", () => {

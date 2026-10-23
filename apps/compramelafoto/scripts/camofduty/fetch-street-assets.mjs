@@ -2,7 +2,7 @@
 /**
  * Baja y optimiza los modelos y texturas de la Calle 3D de Cam Of Duty.
  *
- * Fuente: Poly Haven (CC0) y Khronos glTF Sample Assets (CC BY 4.0).
+ * Fuente: Poly Haven (CC0). Los autos salen de optimize-street-cars.mjs.
  * Salida: public/camofduty/street/{models,textures}/ + CREDITOS.md
  *
  * Uso (desde apps/compramelafoto):
@@ -15,7 +15,7 @@
  */
 
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
@@ -46,10 +46,6 @@ const TEXTURES = [
   { id: "concrete_tiles", name: "sidewalk", res: "2k" },
   { id: "brushed_concrete_03", name: "curb", res: "1k" },
 ];
-
-/** Auto (CC BY 4.0, requiere atribución). */
-const CAR_URL =
-  "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/CarConcept/glTF-Binary/CarConcept.glb";
 
 async function getJson(url) {
   const res = await fetch(url);
@@ -122,10 +118,7 @@ Contenidos pedagógicos basados en los apuntes de la profesora Débora Priasco.
 ${MODELS.map((m) => `- \`models/${m.file}\` — ${m.id}`).join("\n")}
 ${TEXTURES.map((t) => `- \`textures/${t.name}_*.webp\` — ${t.id}`).join("\n")}
 
-## Khronos glTF Sample Assets (CC BY 4.0)
-- \`models/car-concept.glb\` — CarConcept, © 2024 Darmstadt Graphics Group GmbH; modelo y
-  texturas de Eric Chadwick.
-
+@@AUTOS@@
 ## Microsoft Rocketbox Avatar Library (MIT)
 - Peatones y animaciones: \`public/camofduty/models/figures/\` y \`models/animations/\`.
 
@@ -145,12 +138,11 @@ async function main() {
       console.log(`→ textura ${tex.id}`);
       await fetchTexture(tex);
     }
-    const carRaw = join(work, "car.glb");
-    await download(CAR_URL, carRaw);
-    optimize(carRaw, join(OUT, "models", "car-concept.glb"), { size: 1024 });
-    // Versión lejana del auto para el tránsito y los estacionados lejos.
-    optimize(carRaw, join(OUT, "models", "car-concept-far.glb"), { size: 512, simplify: 0.06 });
-    writeFileSync(join(OUT, "CREDITOS.md"), CREDITS);
+    // Conserva los créditos de los autos (los escribe optimize-street-cars.mjs).
+    const path = join(OUT, "CREDITOS.md");
+    const previous = existsSync(path) ? readFileSync(path, "utf8") : "";
+    const cars = previous.match(/## Autos[\s\S]*?\n(?=## )/)?.[0] ?? "";
+    writeFileSync(path, CREDITS.replace("@@AUTOS@@\n", cars ? `${cars}\n` : ""));
   } finally {
     rmSync(work, { recursive: true, force: true });
   }

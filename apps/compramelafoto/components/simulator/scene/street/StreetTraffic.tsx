@@ -2,46 +2,25 @@
 
 import { simulatorRuntime, syncMovingSubjectsRegistry } from "@/lib/simulator/simulator-runtime";
 import { STREET_CAR_ID_PREFIX as CAR_ID_PREFIX, type MovingSubjectState } from "@/lib/simulator/moving-subject-types";
-import { STREET_MODELS } from "@/lib/simulator/street/street-assets";
 import { streetRuntime } from "@/lib/simulator/street/street-runtime";
 import { LANES, carPose, createTraffic, stepTraffic } from "@/lib/simulator/street/street-traffic";
-import { useGLTF } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import { useEffect, useMemo } from "react";
 import * as THREE from "three";
+import { cloneCar, useStreetCars, type StreetCarPrototype } from "./street-car-models";
 
-/** Piezas de carrocería pintada (el resto: vidrios, gomas, interior, cromados). */
-const BODY_PAINT = /^Body(RoofPanel|RearPanels|FrontPanels|Hood|Door(?!.*Mirror)|Fender|Bumper|.*Color1)/;
+const LAMP = new THREE.SphereGeometry(0.07, 10, 8);
 
-function paintCar(source: THREE.Object3D, paint: string): THREE.Object3D {
-  const car = source.clone(true);
-  // Pintura automotriz: base mate cubierta de laca brillante.
-  const lacquer = new THREE.MeshPhysicalMaterial({
-    color: paint,
-    metalness: 0.4,
-    roughness: 0.42,
-    clearcoat: 1,
-    clearcoatRoughness: 0.08,
-  });
-  car.traverse((o) => {
-    const mesh = o as THREE.Mesh;
-    if (!mesh.isMesh) return;
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
-    if (BODY_PAINT.test(mesh.name)) mesh.material = lacquer;
-  });
-  return car;
-}
-
-/** Faros y luces traseras: brillan de noche. */
-function addLights(car: THREE.Object3D, head: THREE.Material, tail: THREE.Material) {
-  const geo = new THREE.SphereGeometry(0.09, 10, 8);
-  for (const side of [-0.62, 0.62]) {
-    const f = new THREE.Mesh(geo, head);
-    f.position.set(side, 0.72, 2.3);
+/** Faros y luces traseras (brillan de noche), en las puntas de cada modelo. */
+function addLights(car: THREE.Object3D, proto: StreetCarPrototype, head: THREE.Material, tail: THREE.Material) {
+  const half = proto.model.lengthM / 2;
+  const side = proto.width * 0.34;
+  for (const x of [-side, side]) {
+    const f = new THREE.Mesh(LAMP, head);
+    f.position.set(x, 0.66, half - 0.12);
     car.add(f);
-    const t = new THREE.Mesh(geo, tail);
-    t.position.set(side, 0.86, -1.88);
+    const t = new THREE.Mesh(LAMP, tail);
+    t.position.set(x, 0.85, -half + 0.1);
     car.add(t);
   }
 }
@@ -51,21 +30,21 @@ function addLights(car: THREE.Object3D, head: THREE.Material, tail: THREE.Materi
  * respetan el PARE y entran y salen lejos, dentro de la bruma.
  */
 export default function StreetTraffic() {
-  const gltf = useGLTF(STREET_MODELS.carFar);
+  const protos = useStreetCars();
   const cars = useMemo(() => createTraffic(), []);
   const head = useMemo(() => new THREE.MeshStandardMaterial({ color: "#222", emissive: "#fff3dc", emissiveIntensity: 0 }), []);
   const tail = useMemo(() => new THREE.MeshStandardMaterial({ color: "#300", emissive: "#ff2a12", emissiveIntensity: 0 }), []);
   const objects = useMemo(
     () =>
       cars.map((c) => {
-        const o = paintCar(gltf.scene, c.paint);
-        addLights(o, head, tail);
+        const o = cloneCar(protos[c.model]);
+        addLights(o, protos[c.model], head, tail);
         o.traverse((x) => {
           x.userData.codSubjectId = `${CAR_ID_PREFIX}${c.id}`;
         });
         return o;
       }),
-    [cars, gltf.scene, head, tail],
+    [cars, protos, head, tail],
   );
 
   const subjects = useMemo<MovingSubjectState[]>(
@@ -96,6 +75,8 @@ export default function StreetTraffic() {
     const night = THREE.MathUtils.clamp((2 - simulatorRuntime.sunState.elevationDeg) / 8, 0, 1);
     (head as THREE.MeshStandardMaterial).emissiveIntensity = night * 30;
     (tail as THREE.MeshStandardMaterial).emissiveIntensity = night * 8;
+    // De día no se dibujan: los faros del propio modelo ya se ven.
+    head.visible = tail.visible = night > 0.01;
     cars.forEach((c, i) => {
       const o = objects[i];
       o.visible = !c.parked;
@@ -120,5 +101,3 @@ export default function StreetTraffic() {
     </group>
   );
 }
-
-useGLTF.preload(STREET_MODELS.carFar);

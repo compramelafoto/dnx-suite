@@ -15,8 +15,6 @@ export const STREET_MODELS = {
   manhole: `${BASE}/models/manhole.glb`,
   plant: `${BASE}/models/potted-plant.glb`,
   aircon: `${BASE}/models/aircon.glb`,
-  car: `${BASE}/models/car-concept.glb`,
-  carFar: `${BASE}/models/car-concept-far.glb`,
   coveredCar: `${BASE}/models/covered-car.glb`,
   treeFar: `${BASE}/models/tree-jacaranda-far.glb`,
 } as const;

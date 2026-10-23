@@ -9,6 +9,7 @@
  * entran y salen lejos, dentro de la bruma, así nunca aparecen de golpe.
  */
 
+import { STREET_CARS, streetCarFor } from "./street-cars";
 import { STREET, seededRandom, type Vec2 } from "./street-layout";
 
 export interface Lane {
@@ -51,12 +52,9 @@ export interface TrafficCar {
   clearedStop: boolean;
   /** Fuera de la calle, esperando hueco para entrar. */
   parked: boolean;
-  /** Color de pintura. */
-  paint: string;
+  /** Modelo de auto (índice en STREET_CARS). */
+  model: number;
 }
-
-/** Colores reales de un parque automotor: mucho gris, blanco y negro. */
-const PAINTS = ["#d9dadc", "#8c9096", "#2b2d31", "#f2f2ef", "#5b6168", "#7d1f1f", "#1f3456", "#c9c1b0", "#3d4a3a"];
 
 const IDM = {
   /** Aceleración máxima (m/s²). */
@@ -95,17 +93,18 @@ export function createTraffic(seed = 77): TrafficCar[] {
     const len = laneLength(lane);
     for (let k = 0; k < count; k += 1) {
       const v0 = lane.axis === "z" ? 9 + rand() * 3 : 7 + rand() * 2;
+      const model = streetCarFor(cars.length);
       cars.push({
         id: `auto-${li}-${k}`,
         lane: li,
         s: ((k + rand() * 0.4) * len) / count,
         v: v0 * 0.8,
         v0,
-        length: 4.4,
+        length: model.lengthM,
         stoppedFor: 0,
         clearedStop: false,
         parked: false,
-        paint: PAINTS[Math.floor(rand() * PAINTS.length)],
+        model: STREET_CARS.indexOf(model),
       });
     }
   });

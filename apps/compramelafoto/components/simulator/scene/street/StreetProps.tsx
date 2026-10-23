@@ -2,13 +2,19 @@
 
 import { simulatorRuntime } from "@/lib/simulator/simulator-runtime";
 import { STREET_MODELS } from "@/lib/simulator/street/street-assets";
+import { STREET_CARS, streetCarFor } from "@/lib/simulator/street/street-cars";
 import type { PropKind, StreetLayout, StreetProp } from "@/lib/simulator/street/street-layout";
 import { useGLTF } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
 import { useMemo, useRef } from "react";
 import * as THREE from "three";
+import { cloneCar, useStreetCars } from "./street-car-models";
 
-const MODEL_BY_KIND: Record<PropKind, string> = {
+/** Los estacionados siguen la lista donde la dejan los 11 autos del tránsito. */
+const PARKED_MODEL_OFFSET = 11;
+
+/** Los autos estacionados se dibujan aparte (ParkedCars), con modelos variados. */
+const MODEL_BY_KIND: Record<Exclude<PropKind, "car">, string> = {
   lamp: STREET_MODELS.lamp,
   tree: STREET_MODELS.tree,
   trash: STREET_MODELS.trash,
@@ -18,14 +24,12 @@ const MODEL_BY_KIND: Record<PropKind, string> = {
   manhole: STREET_MODELS.manhole,
   plant: STREET_MODELS.plant,
   aircon: STREET_MODELS.aircon,
-  car: STREET_MODELS.car,
   "covered-car": STREET_MODELS.coveredCar,
 };
 
 /** Versión liviana para la distancia (THREE.LOD) y desde dónde se usa. */
 const FAR_MODEL: Partial<Record<PropKind, { url: string; from: number }>> = {
   tree: { url: STREET_MODELS.treeFar, from: 25 },
-  car: { url: STREET_MODELS.carFar, from: 18 },
 };
 
 /** Escala por tipo: el jacarandá de Poly Haven es un ejemplar adulto de parque. */
@@ -48,7 +52,29 @@ function cloneWithShadows(source: THREE.Object3D): THREE.Object3D {
   return copy;
 }
 
-function PropInstances({ kind, items }: { kind: PropKind; items: StreetProp[] }) {
+/** Autos estacionados: cada uno un modelo distinto de los que circulan. */
+function ParkedCars({ items }: { items: StreetProp[] }) {
+  const protos = useStreetCars();
+  const objects = useMemo(
+    () =>
+      items.map((p, i) => {
+        const o = cloneCar(protos[STREET_CARS.indexOf(streetCarFor(PARKED_MODEL_OFFSET + i))]);
+        o.position.set(p.position[0], p.position[1], p.position[2]);
+        o.rotation.y = p.rotationY;
+        return o;
+      }),
+    [items, protos],
+  );
+  return (
+    <>
+      {objects.map((o) => (
+        <primitive key={o.uuid} object={o} />
+      ))}
+    </>
+  );
+}
+
+function PropInstances({ kind, items }: { kind: Exclude<PropKind, "car">; items: StreetProp[] }) {
   const gltf = useGLTF(MODEL_BY_KIND[kind]);
   const far = FAR_MODEL[kind];
   const farGltf = useGLTF(far?.url ?? MODEL_BY_KIND[kind]);
@@ -161,9 +187,9 @@ export default function StreetProps({ layout }: { layout: StreetLayout }) {
 
   return (
     <group>
-      {byKind.map(([kind, items]) => (
-        <PropInstances key={kind} kind={kind} items={items} />
-      ))}
+      {byKind.map(([kind, items]) =>
+        kind === "car" ? <ParkedCars key={kind} items={items} /> : <PropInstances key={kind} kind={kind} items={items} />,
+      )}
       <LampLights lamps={lamps} />
     </group>
   );
