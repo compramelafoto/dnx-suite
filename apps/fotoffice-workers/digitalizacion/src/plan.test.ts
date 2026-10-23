@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { argumentosFfmpeg, armarPlan, filtroComplejo, type GrabacionParaPlan, type ParteR2 } from "./plan";
+import { argumentosFfmpeg, armarPlan, filtroComplejo, FILTRO_NORMALIZAR_AUDIO, type GrabacionParaPlan, type ParteR2 } from "./plan";
 
 const base: GrabacionParaPlan = {
   tipo: "VHS",
@@ -81,6 +81,42 @@ describe("filtroComplejo", () => {
     expect(f).toContain("[2:v:0]trim=end=35,setpts");
     expect(f).toContain("[1:v:0]yadif");
     expect(f).toContain("[vc][3:v]overlay=x='");
+  });
+});
+
+describe("normalización del audio", () => {
+  const veces = (s: string, sub: string) => s.split(sub).length - 1;
+  it("EBU R128 de una pasada y vuelta a 48 kHz", () => {
+    expect(FILTRO_NORMALIZAR_AUDIO).toBe("loudnorm=I=-16:TP=-1:LRA=11,aresample=48000");
+  });
+  it("varios tramos: una sola vez, después del concat, y la salida usa el audio normalizado", () => {
+    const plan = convertir(armarPlan(base, [p(1, 0), p(2, 0), p(3, 0)]));
+    const f = filtroComplejo(plan);
+    expect(veces(f, "loudnorm")).toBe(1);
+    expect(f.indexOf("concat=n=3")).toBeLessThan(f.indexOf("loudnorm"));
+    expect(f).toContain(`[ac]${FILTRO_NORMALIZAR_AUDIO}[aout]`);
+    // Cada tramo sigue igual: sólo se remuestrea, sin normalizar por separado.
+    expect(f).toContain("[0:a:0]aresample=48000[a0]");
+    const a = argumentosFfmpeg(plan, ["/f/0", "/f/1", "/f/2"], "/f/m.png", "veryfast");
+    expect(a.join(" ")).toContain("-map [vout] -map [aout]");
+    expect(a).not.toContain("[ac]");
+    expect(a.join(" ")).toContain("-c:a aac -b:a 192k -ar 48000");
+  });
+  it("un tramo y DVD también se normalizan, una sola vez", () => {
+    const uno = filtroComplejo(convertir(armarPlan(base, [p(1, 0)])));
+    expect(uno).toContain(`[a0]anull[ac];[ac]${FILTRO_NORMALIZAR_AUDIO}[aout]`);
+    const dvd = filtroComplejo(convertir(armarPlan({ ...base, tipo: "DVD" }, [p(1, 0), p(1, 1)])));
+    expect(veces(dvd, "loudnorm")).toBe(1);
+    expect(dvd).toContain(`[ac]${FILTRO_NORMALIZAR_AUDIO}[aout]`);
+  });
+  it("no cambia el video ni los recortes", () => {
+    const f = filtroComplejo(
+      convertir(armarPlan({ ...base, primeraImagenSeg: 20, ultimaImagenSeg: 30, ultimaImagenTramo: 2 }, [p(1, 0), p(2, 0)])),
+    );
+    expect(f).toContain("[0:a:0]atrim=start=15,asetpts=PTS-STARTPTS,aresample=48000[a0]");
+    expect(f).toContain("[1:a:0]atrim=end=35,asetpts=PTS-STARTPTS,aresample=48000[a1]");
+    expect(f).toContain("[vc][2:v]overlay=");
+    expect(f).not.toMatch(/\[v[^\]]*\][^;]*loudnorm/);
   });
 });
 
