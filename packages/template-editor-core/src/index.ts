@@ -45,6 +45,7 @@ export * from "./editor-font-catalog";
 export * from "./editor-mock-variables";
 export * from "./editor-store";
 export * from "./fork-template-v2-meta";
+export * from "./template-v2-version-lineage";
 export * from "./get-canvas-center-axes";
 export * from "./get-safe-area-rect";
 export * from "./layer-order";

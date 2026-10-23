@@ -145,6 +145,19 @@ setTemplateV2Runtime({
    * Alcance: solo la institución activa de quien está mirando, que es quien administra ese
    * padrón. Nunca datos de otra institución.
    */
+  /*
+   * Un carnet impreso anota con qué versión se dibujó (`MemberCard.designTemplateVersionId`).
+   * Si esa versión se pisara, el dato ya no reproduciría la pieza: con carnets emitidos, guardar
+   * crea una versión nueva y la vieja queda congelada. Los carnets se siguen dibujando con la
+   * vigente, como siempre. Fotolibros y placas no guardan versión: se pisan.
+   */
+  resolveVersionSave: async ({ versionId }) => {
+    const emitido = await prisma.memberCard.findFirst({
+      where: { designTemplateVersionId: versionId },
+      select: { id: true },
+    });
+    return emitido ? { mode: "fork" } : { mode: "in-place" };
+  },
   resolvePreviewValues: async () => {
     const user = await getAuthUser();
     if (!user) return null;

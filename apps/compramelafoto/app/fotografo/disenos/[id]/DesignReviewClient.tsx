@@ -18,6 +18,7 @@ type DesignInfo = {
   album: { id: number; title: string } | null;
   orderId: number | null;
   buyer: { name: string | null; email: string | null; student: string | null };
+  armado?: { editadoAMano: boolean; enProduccion: boolean; puedeEditar: boolean; motivo: string | null };
 };
 
 type Loaded = { design: DesignInfo; data: DesignV2Data; template: DesignTemplatePayload; photos: DesignPhotoPayload[] };
@@ -28,7 +29,7 @@ export default function DesignReviewClient({ designId }: { designId: string }) {
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState<"idle" | "pending" | "saving" | "error">("idle");
-  const [busy, setBusy] = useState<"approve" | "changes" | null>(null);
+  const [busy, setBusy] = useState<"approve" | "changes" | "layout" | null>(null);
   const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
   const [changesOpen, setChangesOpen] = useState(false);
   const [changesNote, setChangesNote] = useState("");
@@ -154,6 +155,41 @@ export default function DesignReviewClient({ designId }: { designId: string }) {
     }
   }
 
+  /**
+   * Abre el diseñador completo sobre una copia de la plantilla que es sólo de este diseño: se puede
+   * mover un texto o agrandar una foto sin tocar la plantilla ni los otros libritos.
+   */
+  async function editLayout() {
+    if (!loaded) return;
+    if (
+      !loaded.design.armado?.editadoAMano &&
+      !window.confirm(
+        "Vas a abrir el diseñador sobre una copia de la plantilla que es sólo de este librito. La plantilla y los demás diseños no cambian, y desde ahora los cambios que le hagas a la plantilla no le llegan a este diseño. Si ya estaba aprobado, al retocarlo vuelve a revisión. ¿Seguimos?",
+      )
+    ) {
+      return;
+    }
+    setBusy("layout");
+    setMessage(null);
+    try {
+      if (!(await flush())) return;
+      const res = await fetch(`/api/fotografo/disenos/${designId}/copia-propia`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok || !body.ok || typeof body.editorUrl !== "string") {
+        throw new Error(body.error || "No se pudo abrir el diseñador.");
+      }
+      window.location.href = body.editorUrl;
+    } catch (err) {
+      setMessage({ tone: "error", text: err instanceof Error ? err.message : "No se pudo abrir el diseñador." });
+      setBusy(null);
+    }
+  }
+
   async function download(formato: "pdf" | "jpg") {
     if (!(await flush())) return;
     window.location.href = `/api/fotografo/disenos/${designId}/${formato}`;
@@ -202,6 +238,14 @@ export default function DesignReviewClient({ designId }: { designId: string }) {
             >
               {designStatusLabel(design.status)}
             </span>
+            {design.armado?.editadoAMano ? (
+              <span
+                className="rounded-full bg-violet-50 px-2.5 py-1 text-[11px] font-semibold text-violet-800 ring-1 ring-violet-200"
+                title="Este diseño tiene su propio armado: los cambios de la plantilla no le llegan."
+              >
+                Editado a mano
+              </span>
+            ) : null}
             <span className="text-xs text-[#9ca3af]">
               {saving === "pending" || saving === "saving"
                 ? "Guardando…"
@@ -223,6 +267,18 @@ export default function DesignReviewClient({ designId }: { designId: string }) {
             title="JPG de 300 dpi para imprenta: un archivo por cara, con el alumno y la cara en el nombre"
           >
             Descargar JPG
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => void editLayout()}
+            disabled={busy !== null || !design.armado?.puedeEditar}
+            title={
+              design.armado?.motivo ??
+              "Abre el diseñador completo sobre una copia sólo de este librito: la plantilla y los demás diseños no cambian"
+            }
+          >
+            {busy === "layout" ? "Abriendo…" : "Editar el diseño de este librito"}
           </Button>
           <Button variant="secondary" size="sm" onClick={() => setChangesOpen((v) => !v)} disabled={busy !== null}>
             Pedir cambios al cliente

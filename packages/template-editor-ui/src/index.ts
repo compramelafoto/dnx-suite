@@ -5,7 +5,7 @@
  * y el almacenamiento vía `setTemplateV2Runtime` de `@repo/template-editor-core`,
  * y renderiza `TemplateEditorShell` en la ruta que quiera.
  */
-export { TemplateEditorShell } from "./TemplateEditorShell";
+export { TemplateEditorShell, type TemplateEditorVersionForked } from "./TemplateEditorShell";
 export { TemplateEditorCanvas } from "./TemplateEditorCanvas";
 export { TemplateEditorInspector } from "./TemplateEditorInspector";
 export { TemplateEditorLayers } from "./TemplateEditorLayers";
