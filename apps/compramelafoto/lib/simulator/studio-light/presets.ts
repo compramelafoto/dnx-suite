@@ -1,5 +1,6 @@
 import { MODIFIERS } from "./modifiers";
 import { BACKDROP_Z, SUBJECT_HEAD, aimPoint, emitterN2At, exposureEv } from "./metering";
+import { NEUTRAL_POSE } from "./poses";
 import type { BackdropId, LightAim, ModifierId, StudioLight, StudioState } from "./types";
 
 export const MAX_LIGHTS = 6;
@@ -14,6 +15,7 @@ export const DEFAULT_CAMERA: StudioState["camera"] = {
   shutter: 1 / 125,
   iso: 100,
   whiteBalance: 5500,
+  aimY: SUBJECT_HEAD[1],
 };
 
 const LIGHT_NAMES = ["Principal", "Relleno", "Contra", "Pelo", "Fondo", "Acento"];
@@ -285,6 +287,8 @@ export function initialStudioState(): StudioState {
     camera: DEFAULT_CAMERA,
     subject: "skin-medium",
     subjectYaw: 0,
+    pose: "relaxed",
+    poseParams: NEUTRAL_POSE,
     backdrop: "grey",
     roomLux: 40,
   };

@@ -4,10 +4,11 @@ import { useState } from "react";
 import { GELS, MODIFIERS, MODIFIER_GROUPS, gelById, powerLabel } from "@/lib/simulator/studio-light/modifiers";
 import { formatEv, formatShutter, kelvinToRgb, lightN2AtSubject, exposureEv } from "@/lib/simulator/studio-light/metering";
 import { MAX_LIGHTS, MAX_POWER_STOPS, PRESETS, polarToXZ } from "@/lib/simulator/studio-light/presets";
-import { useSelectedLight, useStudio, type ScenePatch } from "@/lib/simulator/studio-light/studio-store";
-import type { LightAim, ModifierId, StudioLight, SubjectId } from "@/lib/simulator/studio-light/types";
+import { FRAMINGS, useSelectedLight, useStudio, type FramingId, type ScenePatch } from "@/lib/simulator/studio-light/studio-store";
+import type { LightAim, ModifierId, StudioLight } from "@/lib/simulator/studio-light/types";
 import { BACKDROPS } from "./StudioBackdrop";
-import { SUBJECT_LABELS } from "./StudioSubject";
+import { BUST_LABELS, FIGURES, figureUrl, isBust, type BustId } from "@/lib/simulator/studio-light/figures";
+import { POSES, type ArmPose, type PoseParams } from "@/lib/simulator/studio-light/poses";
 
 const DEG = 180 / Math.PI;
 
@@ -299,6 +300,28 @@ export function CameraPanel() {
 
   return (
     <div className="cod-studio-panel">
+      <span className="cod-studio-field__label">Encuadre</span>
+      <div className="cod-studio-chips">
+        {(Object.keys(FRAMINGS) as FramingId[]).map((id) => (
+          <button
+            key={id}
+            type="button"
+            className={`cod-studio-chip${Math.abs(c.aimY - FRAMINGS[id].aimY) < 0.02 ? " cod-studio-chip--on" : ""}`}
+            onClick={() => dispatch({ type: "framing", id })}
+          >
+            {FRAMINGS[id].label}
+          </button>
+        ))}
+      </div>
+      <Slider
+        label="Altura del encuadre"
+        value={c.aimY}
+        min={0.4}
+        max={2}
+        step={0.01}
+        display={m(c.aimY)}
+        onChange={(v) => set({ aimY: v })}
+      />
       <Choice label="Distancia focal" value={c.focalMm} options={FOCALS.map((f) => ({ value: f, label: `${f} mm` }))} onChange={(v) => set({ focalMm: v })} />
       <div className="cod-studio-grid3">
         <Choice label="Diafragma" value={c.aperture} options={APERTURES.map((a) => ({ value: a, label: `f/${a}` }))} onChange={(v) => set({ aperture: v })} />
@@ -363,21 +386,160 @@ const ROOM_OPTIONS = [
   { value: 1000, label: "Muy iluminado (1000 lx)" },
 ];
 
+type GenderFilter = "todos" | "mujer" | "hombre";
+
+function SubjectPicker() {
+  const { state, dispatch } = useStudio();
+  const [kind, setKind] = useState<"figure" | "bust">("figure");
+  const [gender, setGender] = useState<GenderFilter>("todos");
+  const choose = (id: string) => {
+    const wasBust = isBust(state.subject);
+    dispatch({ type: "scene", patch: { subject: id } });
+    // Al pasar de busto a cuerpo entero (o al revés) el encuadre acompaña.
+    if (wasBust !== isBust(id)) dispatch({ type: "framing", id: isBust(id) ? "face" : "full" });
+  };
+  const list = FIGURES.filter((f) => gender === "todos" || f.gender === gender);
+
+  return (
+    <>
+      <div className="cod-studio-segment" role="group" aria-label="Tipo de modelo">
+        <button type="button" className={`cod-studio-segment__btn${kind === "figure" ? " cod-studio-segment__btn--on" : ""}`} onClick={() => setKind("figure")}>
+          Cuerpo entero
+        </button>
+        <button type="button" className={`cod-studio-segment__btn${kind === "bust" ? " cod-studio-segment__btn--on" : ""}`} onClick={() => setKind("bust")}>
+          Busto
+        </button>
+      </div>
+      {kind === "figure" ? (
+        <>
+          <div className="cod-studio-chips">
+            {(["todos", "mujer", "hombre"] as const).map((g) => (
+              <button key={g} type="button" className={`cod-studio-chip${gender === g ? " cod-studio-chip--on" : ""}`} onClick={() => setGender(g)}>
+                {g === "todos" ? "Todos" : g === "mujer" ? "Mujeres" : "Hombres"}
+              </button>
+            ))}
+          </div>
+          <div className="cod-studio-figures">
+            {list.map((f) => (
+              <button
+                key={f.id}
+                type="button"
+                className={`cod-studio-figure${state.subject === f.id ? " cod-studio-figure--on" : ""}`}
+                onClick={() => choose(f.id)}
+                title={`${f.name} — ${f.outfit}`}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={figureUrl(f, "thumb.jpg")} alt="" loading="lazy" />
+                <span className="cod-studio-figure__name">{f.name}</span>
+                <span className="cod-studio-figure__outfit">{f.outfit}</span>
+              </button>
+            ))}
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="cod-studio-chips">
+            {(Object.keys(BUST_LABELS) as BustId[]).map((id) => (
+              <button key={id} type="button" className={`cod-studio-chip${state.subject === id ? " cod-studio-chip--on" : ""}`} onClick={() => choose(id)}>
+                {BUST_LABELS[id]}
+              </button>
+            ))}
+          </div>
+          <p className="cod-studio-hint">El busto de yeso no tiene color ni brillo: sirve para estudiar sólo las formas de la luz.</p>
+        </>
+      )}
+    </>
+  );
+}
+
+const ARM_FIELDS: { key: keyof ArmPose; label: string; min: number; max: number }[] = [
+  { key: "raise", label: "Levantar al costado", min: 0, max: 170 },
+  { key: "forward", label: "Hacia adelante", min: -40, max: 170 },
+  { key: "elbow", label: "Codo", min: 0, max: 150 },
+  { key: "roll", label: "Dirección del codo", min: -90, max: 120 },
+];
+
+const BODY_FIELDS: { key: Exclude<keyof PoseParams, "left" | "right">; label: string; min: number; max: number; step?: number }[] = [
+  { key: "headTurn", label: "Cabeza: girar", min: -70, max: 70 },
+  { key: "headNod", label: "Cabeza: arriba / abajo", min: -35, max: 35 },
+  { key: "headTilt", label: "Cabeza: inclinar", min: -30, max: 30 },
+  { key: "torsoTurn", label: "Torso: girar", min: -45, max: 45 },
+  { key: "torsoLean", label: "Torso: adelante / atrás", min: -20, max: 30 },
+  { key: "torsoBend", label: "Torso: al costado", min: -20, max: 20 },
+  { key: "weight", label: "Peso: pierna der. ↔ izq.", min: -1, max: 1, step: 0.1 },
+];
+
+function PosePicker() {
+  const { state, dispatch } = useStudio();
+  const p = state.poseParams;
+  const current = POSES.find((x) => x.id === state.pose);
+  const setArm = (side: "left" | "right", key: keyof ArmPose, v: number) =>
+    dispatch({ type: "pose-params", patch: { [side]: { ...p[side], [key]: v } } as Partial<PoseParams> });
+
+  return (
+    <>
+      <span className="cod-studio-field__label">Pose</span>
+      <div className="cod-studio-chips">
+        {POSES.map((pose) => (
+          <button
+            key={pose.id}
+            type="button"
+            className={`cod-studio-chip${state.pose === pose.id ? " cod-studio-chip--on" : ""}`}
+            onClick={() => dispatch({ type: "pose", id: pose.id })}
+          >
+            {pose.label}
+          </button>
+        ))}
+      </div>
+      <p className="cod-studio-hint">{current ? current.hint : "Pose personalizada: ajustaste las articulaciones a mano."}</p>
+
+      <details className="cod-studio-joints">
+        <summary>Articular a mano</summary>
+        {BODY_FIELDS.map((f) => (
+          <Slider
+            key={f.key}
+            label={f.label}
+            value={p[f.key]}
+            min={f.min}
+            max={f.max}
+            step={f.step ?? 1}
+            display={f.step ? p[f.key].toFixed(1).replace(".", ",") : `${Math.round(p[f.key])}°`}
+            onChange={(v) => dispatch({ type: "pose-params", patch: { [f.key]: v } })}
+          />
+        ))}
+        {(["left", "right"] as const).map((side) => (
+          <fieldset key={side} className="cod-studio-joints__arm">
+            <legend>{side === "left" ? "Brazo izquierdo (del modelo)" : "Brazo derecho (del modelo)"}</legend>
+            {ARM_FIELDS.map((f) => (
+              <Slider
+                key={f.key}
+                label={f.label}
+                value={p[side][f.key]}
+                min={f.min}
+                max={f.max}
+                step={1}
+                display={`${Math.round(p[side][f.key])}°`}
+                onChange={(v) => setArm(side, f.key, v)}
+              />
+            ))}
+          </fieldset>
+        ))}
+        <button type="button" className="cod-btn cod-btn--ghost cod-btn--sm" onClick={() => dispatch({ type: "pose", id: "relaxed" })}>
+          Volver a la pose neutra
+        </button>
+      </details>
+    </>
+  );
+}
+
 export function ScenePanel() {
   const { state, dispatch } = useStudio();
   const set = (patch: ScenePatch) => dispatch({ type: "scene", patch });
 
   return (
     <div className="cod-studio-panel">
-      <span className="cod-studio-field__label">Modelo</span>
-      <div className="cod-studio-chips">
-        {(Object.keys(SUBJECT_LABELS) as SubjectId[]).map((id) => (
-          <button key={id} type="button" className={`cod-studio-chip${state.subject === id ? " cod-studio-chip--on" : ""}`} onClick={() => set({ subject: id })}>
-            {SUBJECT_LABELS[id]}
-          </button>
-        ))}
-      </div>
-      <p className="cod-studio-hint">El busto de yeso no tiene color ni brillo: sirve para estudiar sólo las formas de la luz.</p>
+      <SubjectPicker />
+      {isBust(state.subject) ? null : <PosePicker />}
 
       <Slider
         label="Giro del sujeto"

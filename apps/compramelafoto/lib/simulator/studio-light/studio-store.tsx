@@ -3,9 +3,18 @@
 import { createContext, useContext, useMemo, useReducer, type ReactNode } from "react";
 import { MODIFIERS } from "./modifiers";
 import { MAX_LIGHTS, PRESETS, applyPreset, initialStudioState, makeLight, polarToXZ, solvePowerStops } from "./presets";
+import { poseById, type PoseId, type PoseParams } from "./poses";
 import type { StudioCamera, StudioLight, StudioState } from "./types";
 
 export type ScenePatch = Partial<Pick<StudioState, "subject" | "subjectYaw" | "backdrop" | "roomLux">>;
+
+/** Encuadres rápidos: a qué altura apunta la cámara, focal y distancia. */
+export const FRAMINGS = {
+  face: { label: "Rostro", aimY: 1.62, focalMm: 85, dist: 2.5, height: 1.62 },
+  half: { label: "Medio cuerpo", aimY: 1.3, focalMm: 85, dist: 4.2, height: 1.45 },
+  full: { label: "Cuerpo entero", aimY: 0.92, focalMm: 50, dist: 4.6, height: 1.15 },
+} as const;
+export type FramingId = keyof typeof FRAMINGS;
 
 type Action =
   | { type: "select"; id: string | null }
@@ -19,6 +28,9 @@ type Action =
   | { type: "camera"; patch: Partial<StudioCamera> }
   | { type: "scene"; patch: ScenePatch }
   | { type: "preset"; id: string }
+  | { type: "pose"; id: PoseId }
+  | { type: "pose-params"; patch: Partial<PoseParams> }
+  | { type: "framing"; id: FramingId }
   | { type: "replace"; state: StudioState }
   | { type: "undo" }
   | { type: "redo" };
@@ -108,9 +120,22 @@ function apply(state: StudioState, action: Action): StudioState {
       return { ...state, camera: { ...state.camera, ...action.patch } };
     case "scene":
       return { ...state, ...action.patch };
+    case "pose":
+      return { ...state, pose: action.id, poseParams: poseById(action.id) };
+    case "pose-params":
+      return { ...state, pose: "custom", poseParams: { ...state.poseParams, ...action.patch } };
+    case "framing": {
+      const f = FRAMINGS[action.id];
+      // Conserva el ángulo de la cámara y sólo cambia distancia, altura y focal.
+      const az = (Math.atan2(state.camera.x, state.camera.z) * 180) / Math.PI;
+      const { x, z } = polarToXZ(az, f.dist);
+      return { ...state, camera: { ...state.camera, x, z, y: f.height, aimY: f.aimY, focalMm: f.focalMm } };
+    }
     case "preset": {
       const preset = PRESETS.find((p) => p.id === action.id);
-      return preset ? { ...applyPreset(preset, state), subject: state.subject } : state;
+      return preset
+        ? { ...applyPreset(preset, state), subject: state.subject, pose: state.pose, poseParams: state.poseParams }
+        : state;
     }
     case "replace":
       return action.state;

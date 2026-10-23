@@ -9,7 +9,9 @@ import { SUBJECT_HEAD, renderExposure, roomN2 } from "@/lib/simulator/studio-lig
 import { useStudio } from "@/lib/simulator/studio-light/studio-store";
 import StudioBackdrop from "./StudioBackdrop";
 import StudioLightRig, { HELPER_LAYER } from "./StudioLightRig";
+import StudioFigure from "./StudioFigure";
 import StudioSubject from "./StudioSubject";
+import { figureById, isBust } from "@/lib/simulator/studio-light/figures";
 
 // Debe correr antes de compilar cualquier material, si no las luces de área no iluminan.
 // El módulo sólo se carga en el navegador (dynamic sin SSR).
@@ -69,15 +71,15 @@ function focalToFov(focalMm: number): number {
 function PhotographerCamera({ photoCam }: { photoCam: THREE.PerspectiveCamera }) {
   const { state } = useStudio();
   const group = useRef<THREE.Group>(null);
-  const { x, y, z } = state.camera;
+  const { x, y, z, aimY } = state.camera;
   useLayoutEffect(() => {
     const g = group.current;
     if (!g) return;
     g.position.set(x, y, z);
-    g.lookAt(SUBJECT_HEAD[0], SUBJECT_HEAD[1], SUBJECT_HEAD[2]);
+    g.lookAt(SUBJECT_HEAD[0], aimY, SUBJECT_HEAD[2]);
     g.traverse((o) => o.layers.set(HELPER_LAYER));
     photoCam.position.set(x, y, z);
-    photoCam.lookAt(SUBJECT_HEAD[0], SUBJECT_HEAD[1], SUBJECT_HEAD[2]);
+    photoCam.lookAt(SUBJECT_HEAD[0], aimY, SUBJECT_HEAD[2]);
     photoCam.fov = focalToFov(state.camera.focalMm);
     photoCam.aspect = PHOTO_ASPECT;
     photoCam.updateProjectionMatrix();
@@ -240,6 +242,7 @@ function SceneContent(props: {
   showPip: boolean;
 }) {
   const { state } = useStudio();
+  const figure = figureById(state.subject);
   const photoCam = useMemo(() => new THREE.PerspectiveCamera(30, PHOTO_ASPECT, 0.05, 40), []);
   const workLight = useMemo(() => {
     const l = new THREE.HemisphereLight("#cfd8ff", "#2a2a30", 0);
@@ -255,7 +258,11 @@ function SceneContent(props: {
       <primitive object={roomLight} />
       <StudioBackdrop backdrop={state.backdrop} />
       <Suspense fallback={null}>
-        <StudioSubject subject={state.subject} yaw={state.subjectYaw} />
+        {isBust(state.subject) ? (
+          <StudioSubject subject={state.subject} yaw={state.subjectYaw} />
+        ) : figure ? (
+          <StudioFigure key={figure.id} figure={figure} yaw={state.subjectYaw} pose={state.poseParams} />
+        ) : null}
       </Suspense>
       <PhotographerCamera photoCam={photoCam} />
       <StudioLightRig

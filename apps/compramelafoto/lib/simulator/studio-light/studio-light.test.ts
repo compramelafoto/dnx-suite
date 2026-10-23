@@ -9,6 +9,8 @@ import {
   renderedLightColor,
 } from "./metering";
 import { PRESETS, applyPreset, initialStudioState, makeLight, polarToXZ } from "./presets";
+import { FIGURES } from "./figures";
+import { POSES, armDirections } from "./poses";
 import { deserializeStudio, serializeStudio } from "./share";
 import type { StudioState } from "./types";
 
@@ -121,4 +123,42 @@ test("lectura de fotómetro", () => {
   assert.equal(formatFNumber(8), "f/8");
   assert.equal(formatFNumber(8 * Math.pow(2, 0.15)), "f/8 +3");
   assert.equal(formatFNumber(0), "—");
+});
+
+test("poses: los ángulos del brazo dan la dirección esperada", () => {
+  const close = (a: number[], b: number[]) => a.every((v, i) => Math.abs(v - b[i]) < 1e-6);
+  const side = armDirections({ raise: 90, forward: 0, elbow: 0, roll: 0 }, 1);
+  assert.ok(close(side.upper, [1, 0, 0]), side.upper.join());
+  assert.ok(close(side.fore, side.upper), "codo estirado");
+  const front = armDirections({ raise: 0, forward: 90, elbow: 0, roll: 0 }, -1);
+  assert.ok(close(front.upper, [0, 0, 1]), front.upper.join());
+  // Brazo derecho al costado (−X) con codo a 90° y roll −90: el antebrazo apunta arriba (saludo).
+  const wave = armDirections({ raise: 90, forward: 0, elbow: 90, roll: -90 }, -1);
+  assert.ok(wave.fore[1] > 0.99, wave.fore.join());
+  // Brazos cruzados: el antebrazo izquierdo cruza hacia la derecha del cuerpo.
+  const crossed = armDirections(POSES.find((p) => p.id === "arms-crossed")!.params.left, 1);
+  assert.ok(crossed.fore[0] < -0.5, crossed.fore.join());
+});
+
+test("modelos de cuerpo entero: catálogo completo y enlace con pose a mano", () => {
+  assert.ok(FIGURES.length >= 10);
+  assert.ok(FIGURES.some((f) => f.gender === "mujer") && FIGURES.some((f) => f.gender === "hombre"));
+  assert.equal(new Set(FIGURES.map((f) => f.folder)).size, FIGURES.length);
+  const base = initialStudioState();
+  const s: StudioState = {
+    ...base,
+    subject: "laura",
+    pose: "custom",
+    poseParams: { ...base.poseParams, headTurn: 25, left: { raise: 40, forward: 10, elbow: 90, roll: 60 } },
+    camera: { ...base.camera, aimY: 0.92 },
+  };
+  const back = deserializeStudio(serializeStudio(s));
+  assert.ok(back);
+  assert.equal(back.subject, "laura");
+  assert.equal(back.pose, "custom");
+  assert.equal(back.poseParams.headTurn, 25);
+  assert.equal(back.poseParams.left.elbow, 90);
+  assert.equal(back.camera.aimY, 0.92);
+  const unknown = deserializeStudio(serializeStudio({ ...s, subject: "no-existe" }));
+  assert.equal(unknown?.subject, base.subject);
 });

@@ -51,7 +51,10 @@ export interface StudioLight {
 
 export type BackdropId = "white" | "grey" | "black" | "blue" | "green" | "warm";
 
-export type SubjectId = "skin-light" | "skin-medium" | "skin-dark" | "plaster";
+import type { SubjectId } from "./figures";
+import type { PoseId, PoseParams } from "./poses";
+
+export type { SubjectId };
 
 export interface StudioCamera {
   x: number;
@@ -65,6 +68,8 @@ export interface StudioCamera {
   iso: number;
   /** Balance de blancos de la cámara (K). */
   whiteBalance: number;
+  /** Altura a la que apunta la cámara (m): cara, medio cuerpo o cuerpo entero. */
+  aimY: number;
 }
 
 export interface StudioState {
@@ -74,6 +79,9 @@ export interface StudioState {
   subject: SubjectId;
   /** Giro del sujeto en grados (positivo = hacia la derecha de cámara). */
   subjectYaw: number;
+  /** Pose del modelo de cuerpo entero ("custom" si se movió alguna articulación). */
+  pose: PoseId | "custom";
+  poseParams: PoseParams;
   backdrop: BackdropId;
   /** Luz de la sala (lux). 0 = estudio a oscuras. */
   roomLux: number;

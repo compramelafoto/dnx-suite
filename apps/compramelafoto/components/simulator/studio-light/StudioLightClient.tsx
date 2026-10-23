@@ -76,27 +76,127 @@ function download(href: string, filename: string) {
   a.click();
 }
 
-function exportPlanSvg() {
+type PlanTheme = "dark" | "light";
+type PlanFormat = "png" | "svg";
+
+const PLAN_THEMES: Record<PlanTheme, { bg: string; text: string; readout: string; ink: string; muted: string }> = {
+  dark: { bg: "#0d0d12", text: "#e5e7eb", readout: "#ffd400", ink: "255,255,255", muted: "110,200,255" },
+  light: { bg: "#ffffff", text: "#1f2937", readout: "#a16207", ink: "17,24,39", muted: "37,99,235" },
+};
+
+/** Copia la planta con colores fijos (el SVG de pantalla depende de las clases CSS). */
+function themedPlan(theme: PlanTheme): { markup: string; width: number; height: number } | null {
   const svg = document.querySelector<SVGSVGElement>(".cod-studio-plan__svg");
-  if (!svg) return;
+  if (!svg) return null;
+  const t = PLAN_THEMES[theme];
   const clone = svg.cloneNode(true) as SVGSVGElement;
   clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+  if (theme === "light") {
+    // Trazos claros pensados para fondo negro: se pasan a tinta oscura.
+    clone.querySelectorAll<SVGElement>("*").forEach((el) => {
+      for (const attr of ["stroke", "fill"]) {
+        const v = el.getAttribute(attr);
+        if (!v) continue;
+        if (v.startsWith("rgba(255,255,255")) el.setAttribute(attr, v.replace("255,255,255", t.ink));
+        else if (v.startsWith("rgba(110,200,255")) el.setAttribute(attr, v.replace("110,200,255", t.muted));
+        else if (v === "#16161a" || v === "#2b2d31") el.setAttribute(attr, "#e5e7eb");
+        else if (v === "#ffd400") el.setAttribute(attr, t.readout);
+      }
+    });
+  }
   const style = document.createElementNS("http://www.w3.org/2000/svg", "style");
-  style.textContent =
-    "text{font-family:Arial,sans-serif;fill:#e5e7eb;font-size:0.16px}.cod-studio-plan__readout{font-size:0.18px;fill:#ffd400}";
+  style.textContent = `text{font-family:Arial,sans-serif;fill:${t.text};font-size:0.16px}.cod-studio-plan__readout{font-size:0.18px;fill:${t.readout}}`;
   clone.insertBefore(style, clone.firstChild);
-  const bg = document.createElementNS("http://www.w3.org/2000/svg", "rect");
   const vb = svg.viewBox.baseVal;
+  const bg = document.createElementNS("http://www.w3.org/2000/svg", "rect");
   bg.setAttribute("x", String(vb.x));
   bg.setAttribute("y", String(vb.y));
   bg.setAttribute("width", String(vb.width));
   bg.setAttribute("height", String(vb.height));
-  bg.setAttribute("fill", "#0d0d12");
+  bg.setAttribute("fill", t.bg);
   clone.insertBefore(bg, style.nextSibling);
-  const blob = new Blob([new XMLSerializer().serializeToString(clone)], { type: "image/svg+xml" });
-  const url = URL.createObjectURL(blob);
-  download(url, "esquema-de-luces.svg");
-  setTimeout(() => URL.revokeObjectURL(url), 2000);
+  const width = 1800;
+  const height = Math.round((width * vb.height) / vb.width);
+  clone.setAttribute("width", String(width));
+  clone.setAttribute("height", String(height));
+  return { markup: new XMLSerializer().serializeToString(clone), width, height };
+}
+
+function exportPlan(theme: PlanTheme, format: PlanFormat) {
+  const plan = themedPlan(theme);
+  if (!plan) return;
+  const svgUrl = URL.createObjectURL(new Blob([plan.markup], { type: "image/svg+xml" }));
+  const name = `esquema-de-luces-${theme === "dark" ? "oscuro" : "claro"}`;
+  if (format === "svg") {
+    download(svgUrl, `${name}.svg`);
+    setTimeout(() => URL.revokeObjectURL(svgUrl), 2000);
+    return;
+  }
+  const img = new Image();
+  img.onload = () => {
+    const canvas = document.createElement("canvas");
+    canvas.width = plan.width;
+    canvas.height = plan.height;
+    canvas.getContext("2d")?.drawImage(img, 0, 0);
+    URL.revokeObjectURL(svgUrl);
+    download(canvas.toDataURL("image/png"), `${name}.png`);
+  };
+  img.src = svgUrl;
+}
+
+function ExportDialog({ onClose }: { onClose: () => void }) {
+  const [theme, setTheme] = useState<PlanTheme>("dark");
+  const [format, setFormat] = useState<PlanFormat>("png");
+  return (
+    <div className="cod-studio-help" role="dialog" aria-modal="true" aria-label="Descargar esquema" onClick={onClose}>
+      <div className="cod-studio-help__box cod-studio-export" onClick={(e) => e.stopPropagation()}>
+        <h2>Descargar esquema de luces</h2>
+        <span className="cod-studio-field__label">Fondo</span>
+        <div className="cod-studio-export__themes">
+          {(["dark", "light"] as const).map((t) => (
+            <button
+              key={t}
+              type="button"
+              aria-pressed={theme === t}
+              className={`cod-studio-export__theme cod-studio-export__theme--${t}${theme === t ? " cod-studio-export__theme--on" : ""}`}
+              onClick={() => setTheme(t)}
+            >
+              <span className="cod-studio-export__swatch" />
+              {t === "dark" ? "Oscuro" : "Claro (para imprimir)"}
+            </button>
+          ))}
+        </div>
+        <span className="cod-studio-field__label">Formato</span>
+        <div className="cod-studio-segment" role="group" aria-label="Formato">
+          {(["png", "svg"] as const).map((f) => (
+            <button
+              key={f}
+              type="button"
+              className={`cod-studio-segment__btn${format === f ? " cod-studio-segment__btn--on" : ""}`}
+              onClick={() => setFormat(f)}
+            >
+              {f === "png" ? "Imagen PNG" : "Vector SVG"}
+            </button>
+          ))}
+        </div>
+        <div className="cod-studio-editor__actions">
+          <button
+            type="button"
+            className="cod-btn cod-btn--primary cod-btn--sm"
+            onClick={() => {
+              exportPlan(theme, format);
+              onClose();
+            }}
+          >
+            Descargar
+          </button>
+          <button type="button" className="cod-btn cod-btn--ghost cod-btn--sm" onClick={onClose}>
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function HelpDialog({ onClose }: { onClose: () => void }) {
@@ -133,6 +233,7 @@ function StudioWorkspace() {
   const [fullImages, setFullImages] = useState<Record<number, string>>({});
   const [toast, setToast] = useState<string | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
   const [flash, setFlash] = useState(false);
   const captureRef = useRef<((dataUrl: string | null) => void) | null>(null);
   const report = meter(state);
@@ -264,7 +365,7 @@ function StudioWorkspace() {
             <button type="button" className="cod-btn cod-btn--ghost cod-btn--sm" disabled={!canRedo} onClick={() => dispatch({ type: "redo" })} title="Rehacer (⇧⌘Z)">
               Rehacer
             </button>
-            <button type="button" className="cod-btn cod-btn--ghost cod-btn--sm" onClick={exportPlanSvg}>
+            <button type="button" className="cod-btn cod-btn--ghost cod-btn--sm" onClick={() => setExportOpen(true)}>
               Descargar esquema
             </button>
             <button type="button" className="cod-btn cod-btn--secondary cod-btn--sm" onClick={share}>
@@ -360,6 +461,7 @@ function StudioWorkspace() {
 
       {toast ? <div className="cod-studio-toast" role="status">{toast}</div> : null}
       {helpOpen ? <HelpDialog onClose={() => setHelpOpen(false)} /> : null}
+      {exportOpen ? <ExportDialog onClose={() => setExportOpen(false)} /> : null}
     </main>
   );
 }

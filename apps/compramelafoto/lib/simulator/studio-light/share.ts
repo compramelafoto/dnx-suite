@@ -5,34 +5,63 @@
 
 import { MODIFIERS } from "./modifiers";
 import { MAX_LIGHTS, initialStudioState, makeLight } from "./presets";
-import type { BackdropId, LightAim, ModifierId, StudioState, SubjectId } from "./types";
+import { isKnownSubject } from "./figures";
+import { NEUTRAL_POSE, POSES, poseById, type PoseParams } from "./poses";
+import type { BackdropId, LightAim, ModifierId, StudioState } from "./types";
 
 const VERSION = 1;
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
 const BACKDROPS: BackdropId[] = ["white", "grey", "black", "blue", "green", "warm"];
-const SUBJECTS: SubjectId[] = ["skin-light", "skin-medium", "skin-dark", "plaster"];
 const AIMS: LightAim[] = ["subject", "hair", "background"];
+
+function num(v: unknown, fallback: number, min: number, max: number): number {
+  const n = typeof v === "number" && Number.isFinite(v) ? v : fallback;
+  return Math.min(max, Math.max(min, n));
+}
+
+const POSE_KEYS = ["headTurn", "headNod", "headTilt", "torsoTurn", "torsoBend", "torsoLean", "weight"] as const;
+const ARM_KEYS = ["raise", "forward", "elbow", "roll"] as const;
+
+function poseToArray(p: PoseParams): number[] {
+  return [
+    ...POSE_KEYS.map((k) => r2(p[k])),
+    ...ARM_KEYS.map((k) => Math.round(p.left[k])),
+    ...ARM_KEYS.map((k) => Math.round(p.right[k])),
+  ];
+}
+
+function poseFromArray(raw: unknown): PoseParams {
+  if (!Array.isArray(raw) || raw.length !== POSE_KEYS.length + ARM_KEYS.length * 2) return NEUTRAL_POSE;
+  const at = (i: number, lo: number, hi: number) => num(raw[i], 0, lo, hi);
+  const pose: PoseParams = { ...NEUTRAL_POSE, left: { ...NEUTRAL_POSE.left }, right: { ...NEUTRAL_POSE.right } };
+  POSE_KEYS.forEach((k, i) => {
+    pose[k] = k === "weight" ? at(i, -1, 1) : at(i, -90, 90);
+  });
+  ARM_KEYS.forEach((k, i) => {
+    pose.left[k] = at(POSE_KEYS.length + i, -180, 180);
+    pose.right[k] = at(POSE_KEYS.length + ARM_KEYS.length + i, -180, 180);
+  });
+  return pose;
+}
+
 
 export function serializeStudio(state: StudioState): string {
   const payload = {
     v: VERSION,
-    c: [r2(state.camera.x), r2(state.camera.y), r2(state.camera.z), state.camera.focalMm, state.camera.aperture, state.camera.shutter, state.camera.iso, state.camera.whiteBalance],
+    c: [r2(state.camera.x), r2(state.camera.y), r2(state.camera.z), state.camera.focalMm, state.camera.aperture, state.camera.shutter, state.camera.iso, state.camera.whiteBalance, r2(state.camera.aimY)],
     s: state.subject,
     y: Math.round(state.subjectYaw),
     b: state.backdrop,
     r: state.roomLux,
+    o: state.pose,
+    q: state.pose === "custom" ? poseToArray(state.poseParams) : undefined,
     l: state.lights.map((l) => [l.name, l.on ? 1 : 0, l.modifier, r2(l.x), r2(l.y), r2(l.z), l.aim, r2(l.powerStops), l.gel, l.kelvin]),
   };
   const json = JSON.stringify(payload);
   const b64 = typeof window === "undefined" ? Buffer.from(json, "utf8").toString("base64") : btoa(unescape(encodeURIComponent(json)));
   return b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-}
-
-function num(v: unknown, fallback: number, min: number, max: number): number {
-  const n = typeof v === "number" && Number.isFinite(v) ? v : fallback;
-  return Math.min(max, Math.max(min, n));
 }
 
 /** Devuelve null si el texto no es un set válido. Nunca lanza. */
@@ -78,8 +107,11 @@ export function deserializeStudio(text: string): StudioState | null {
         shutter: num(c[5], base.camera.shutter, 1 / 8000, 1),
         iso: num(c[6], base.camera.iso, 50, 12800),
         whiteBalance: num(c[7], base.camera.whiteBalance, 2500, 9000),
+        aimY: num(c[8], base.camera.aimY, 0.3, 2.2),
       },
-      subject: SUBJECTS.includes(p.s) ? p.s : base.subject,
+      subject: isKnownSubject(p.s) ? p.s : base.subject,
+      pose: p.o === "custom" ? "custom" : POSES.some((x) => x.id === p.o) ? p.o : "relaxed",
+      poseParams: p.o === "custom" ? poseFromArray(p.q) : poseById(p.o),
       subjectYaw: num(p.y, 0, -90, 90),
       backdrop: BACKDROPS.includes(p.b) ? p.b : base.backdrop,
       roomLux: num(p.r, base.roomLux, 0, 2000),

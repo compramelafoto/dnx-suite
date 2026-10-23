@@ -4,7 +4,7 @@ import { useGLTF, useTexture } from "@react-three/drei";
 import { useEffect, useMemo } from "react";
 import * as THREE from "three";
 import { SUBJECT_HEAD } from "@/lib/simulator/studio-light/metering";
-import type { SubjectId } from "@/lib/simulator/studio-light/types";
+import type { BustId } from "@/lib/simulator/studio-light/figures";
 
 const MODEL_DIR = "/camofduty/models/head";
 const MODEL_URL = `${MODEL_DIR}/LeePerrySmith.glb`;
@@ -16,21 +16,15 @@ const MODEL_EYE_Y = 1.45;
 /** Corte inferior del escaneo (unidades del modelo). */
 const MODEL_MIN_Y = -3.97;
 
-const SKIN: Record<SubjectId, { color: string; roughness: number; textured: boolean }> = {
+const SKIN: Record<BustId, { color: string; roughness: number; textured: boolean }> = {
   "skin-light": { color: "#ffffff", roughness: 0.52, textured: true },
   "skin-medium": { color: "#ead0c0", roughness: 0.5, textured: true },
   "skin-dark": { color: "#8a6656", roughness: 0.46, textured: true },
   plaster: { color: "#d9d6cf", roughness: 0.92, textured: false },
 };
 
-export const SUBJECT_LABELS: Record<SubjectId, string> = {
-  "skin-light": "Piel clara",
-  "skin-medium": "Piel media",
-  "skin-dark": "Piel oscura",
-  plaster: "Busto de yeso",
-};
 
-export default function StudioSubject({ subject, yaw }: { subject: SubjectId; yaw: number }) {
+export default function StudioSubject({ subject, yaw }: { subject: BustId; yaw: number }) {
   const gltf = useGLTF(MODEL_URL);
   const [colorMap, normalMap] = useTexture([
     `${MODEL_DIR}/Map-COL.jpg`,
