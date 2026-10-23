@@ -35,7 +35,7 @@ export function fechaLegibleArgentina(fecha: Date): string {
   return FECHA_ARGENTINA.format(fecha);
 }
 
-export type OrigenAcceso = "PURCHASE" | "MEMBER_BENEFIT";
+export type OrigenAcceso = "PURCHASE" | "MEMBER_BENEFIT" | "INVITATION";
 export type EstadoAccesoAlCurso = "VIGENTE" | "VENCIDO" | "REVOCADO" | "SIN_SOCIO";
 
 /**
@@ -52,7 +52,7 @@ export function estadoDeAccesoAlCurso(
 ): EstadoAccesoAlCurso {
   if (acceso.revokedAt) return "REVOCADO";
   if (acceso.origin === "MEMBER_BENEFIT") return contexto.esSocioActivo ? "VIGENTE" : "SIN_SOCIO";
-  // Una compra siempre nace con vencimiento. Si faltara, no se le quita el curso a quien pagó.
+  // Una compra o una invitación nace con vencimiento. Si faltara, no se le quita el curso.
   if (!acceso.expiresAt) return "VIGENTE";
   return ahora.getTime() < acceso.expiresAt.getTime() ? "VIGENTE" : "VENCIDO";
 }

@@ -95,7 +95,9 @@ export default async function MisCursosPage({ searchParams }: { searchParams: Pr
                     <p className="text-xs text-[var(--fo-muted)]">
                       {curso.origin === "MEMBER_BENEFIT"
                         ? "Gratis por ser socio"
-                        : curso.expiresAt
+                        : curso.origin === "INVITATION" && curso.expiresAt
+                          ? `Invitación sin cargo · hasta el ${fechaLegibleArgentina(curso.expiresAt)}`
+                          : curso.expiresAt
                           ? `Acceso hasta el ${fechaLegibleArgentina(curso.expiresAt)}`
                           : ""}
                     </p>
