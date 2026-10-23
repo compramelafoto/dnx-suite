@@ -65,6 +65,24 @@ export function armarPlan(g: GrabacionParaPlan, partes: ParteR2[]): Plan {
 
 type Convertir = Extract<Plan, { tipo: "CONVERTIR" }>;
 
+/**
+ * Normalización del volumen percibido (EBU R128): −16 LUFS integrados, pico real ≤ −1 dBTP y rango
+ * de sonoridad 11 LU. Va una sola vez, sobre el audio ya concatenado, así todos los tramos quedan
+ * parejos entre sí y con los demás videos. Es de una sola pasada (modo dinámico de `loudnorm`)
+ * porque la entrada llega por pipes en streaming y no se puede leer dos veces para medir antes.
+ *
+ * ¿Por qué no se lleva el pico a 0 dB? Porque en una cinta el pico suele ser un chasquido o un
+ * golpe de cabezal: él definiría la ganancia de todo el video (quedaría bajísimo) y, a 0 dB, se
+ * arriesga distorsión al codificar. Lo que se espera es que todos los videos suenen igual de
+ * fuerte, que es justamente el estándar de volumen percibido.
+ *
+ * `loudnorm` sube internamente a 192 kHz: el `aresample` lo vuelve a 48 kHz.
+ *
+ * La versión HLS sale de este `final.mp4` (ver `argumentosRelleno` en hls.ts): hereda el audio
+ * ya normalizado y no hay que normalizarlo de nuevo.
+ */
+export const FILTRO_NORMALIZAR_AUDIO = "loudnorm=I=-16:TP=-1:LRA=11,aresample=48000";
+
 function num(n: number): string {
   return String(Number(n.toFixed(3)));
 }
@@ -101,6 +119,7 @@ export function filtroComplejo(plan: Convertir): string {
     partes.push("[v0]null[vc]");
     partes.push("[a0]anull[ac]");
   }
+  partes.push(`[ac]${FILTRO_NORMALIZAR_AUDIO}[aout]`);
   partes.push(`[vc][${n}:v]overlay=x='${expresionMarcaX()}':y='H-h-40':eval=frame:shortest=1[vout]`);
   return partes.join(";");
 }
@@ -116,7 +135,7 @@ export function argumentosFfmpeg(
   args.push("-loop", "1", "-framerate", "30", "-i", rutaMarca);
   args.push(
     "-filter_complex", filtroComplejo(plan),
-    "-map", "[vout]", "-map", "[ac]",
+    "-map", "[vout]", "-map", "[aout]",
     "-c:v", "libx264", "-profile:v", "high", "-preset", preset,
     "-crf", "21", "-maxrate", "10M", "-bufsize", "20M", "-pix_fmt", "yuv420p",
     "-c:a", "aac", "-b:a", "192k", "-ar", "48000",

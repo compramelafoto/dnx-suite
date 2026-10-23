@@ -3,7 +3,18 @@
 import { useEffect, useRef } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { pedirVentanaFlotante } from "@/lib/digitalizacion/cliente/apis-navegador";
+import { botonMonitoreoHabilitado, textoBotonMonitoreo, type EstadoMonitoreo } from "@/lib/digitalizacion/cliente/monitoreo";
 import type { AvisoApagado } from "./apagado";
+
+/** El monitoreo de la estación visto desde la ventanita: mismo estado, mismas acciones (un solo AudioContext). */
+export type MonitoreoVentanita = {
+  estado: EstadoMonitoreo;
+  nivel: number;
+  sinAudio: boolean;
+  volumen: number;
+  alAlternar: () => void;
+  alCambiarVolumen: (porcentaje: number) => void;
+};
 
 export type EstadoVentanita = {
   modo: "VHS" | "DVD";
@@ -18,6 +29,8 @@ export type EstadoVentanita = {
   /** La grabación ya se cerró: la ventanita sigue abierta sólo para el aviso de apagado. */
   terminada?: boolean;
   apagado?: { aviso: AvisoApagado; alCancelar: () => void } | null;
+  /** Sólo en la estación de VHS. */
+  monitoreo?: MonitoreoVentanita | null;
 };
 
 const reloj = (s: number) => {
@@ -32,6 +45,33 @@ function Vista({ stream }: { stream: MediaStream }) {
     if (ref.current) ref.current.srcObject = stream;
   }, [stream]);
   return <video ref={ref} autoPlay muted playsInline style={{ width: "100%", background: "#000", aspectRatio: "16/9" }} />;
+}
+
+function Monitoreo({ m }: { m: MonitoreoVentanita }) {
+  const activo = m.estado === "ACTIVO";
+  const habilitado = botonMonitoreoHabilitado(m.estado);
+  return (
+    <div style={{ display: "grid", gap: 4 }}>
+      <button type="button" onClick={m.alAlternar} disabled={!habilitado} aria-pressed={activo} style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid #444", background: activo ? "#166534" : "#222", color: habilitado ? "#fff" : "#888", cursor: habilitado ? "pointer" : "default" }}>
+        {textoBotonMonitoreo(m.estado)}
+      </button>
+      {activo ? (
+        <>
+          <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            Volumen
+            <input type="range" min={0} max={100} step={1} value={m.volumen} onChange={(ev) => m.alCambiarVolumen(Number(ev.target.value))} style={{ flex: 1 }} />
+            <span style={{ width: 36, textAlign: "right" }}>{m.volumen} %</span>
+          </label>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <div role="meter" aria-label="Nivel del monitoreo" aria-valuemin={0} aria-valuemax={100} aria-valuenow={m.nivel} style={{ flex: 1, height: 6, borderRadius: 3, background: "#333" }}>
+              <div style={{ width: `${m.nivel}%`, height: 6, borderRadius: 3, background: "#22c55e" }} />
+            </div>
+            {m.sinAudio ? <span style={{ color: "#fbbf24" }}>Sin audio</span> : null}
+          </div>
+        </>
+      ) : null}
+    </div>
+  );
 }
 
 function Panel({ e, alDetener }: { e: EstadoVentanita; alDetener: () => void }) {
@@ -60,6 +100,7 @@ function Panel({ e, alDetener }: { e: EstadoVentanita; alDetener: () => void }) 
         {e.modo === "VHS" ? (
           <span>{restan === null ? "Señal: OK" : `Sin imagen hace ${reloj(e.sinImagenHaceSeg ?? 0)} — se corta en ${reloj(restan)}`}</span>
         ) : null}
+        {e.monitoreo && !e.terminando && !e.terminada ? <Monitoreo m={e.monitoreo} /> : null}
         {e.terminada ? null : <button type="button" onClick={alDetener} disabled={e.terminando} style={{ marginTop: 4, padding: "6px 10px", borderRadius: 6, border: 0, background: "#ef4444", color: "#fff", cursor: "pointer" }}>
           ⏹ Detener
         </button>}
