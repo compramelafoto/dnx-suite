@@ -8,6 +8,7 @@ import DesignEditor from "@/components/design-v2/DesignEditor";
 import type { DesignPhotoPayload, DesignTemplatePayload } from "@/lib/design-v2/client-payload";
 import { emptySlotIds, type DesignV2Data, type DesignV2Edit } from "@/lib/design-v2/design-data";
 import { DESIGN_STATUS_TONES, designStatusLabel } from "@/lib/design-v2/labels";
+import ListadoDelCursoPanel from "./ListadoDelCursoPanel";
 
 type DesignInfo = {
   id: number;
@@ -365,6 +366,20 @@ export default function DesignReviewClient({ designId }: { designId: string }) {
           </div>
         </Card>
       ) : null}
+
+      <ListadoDelCursoPanel
+        designId={designId}
+        dataVersion={Object.values(data.slots)
+          .map((s) => s.photoId ?? "")
+          .join(",")}
+        clientReview={data.clientReview}
+        beforeSave={flush}
+        onSaved={(next, status) =>
+          setLoaded((prev) =>
+            prev ? { ...prev, data: next, design: { ...prev.design, status: status ?? prev.design.status } } : prev,
+          )
+        }
+      />
 
       <div className="mt-6">
         <DesignEditor template={template} photos={photos} data={data} onChange={onChange} />

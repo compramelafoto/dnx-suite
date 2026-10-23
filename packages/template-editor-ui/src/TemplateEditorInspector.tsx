@@ -698,6 +698,38 @@ function ClassListOptionsPanel({
         onChange={(highlightOwner) => onChange({ highlightOwner })}
         label="Destacar en negrita al alumno del diseño"
       />
+      <ToggleSwitch
+        checked={options.showHeading}
+        onChange={(showHeading) => onChange({ showHeading })}
+        label="Título con el nombre del curso (por ejemplo «7.° A»)"
+      />
+      {options.showHeading ? (
+        <div>
+          <FieldLabel>Tamaño del título</FieldLabel>
+          <SegmentedControl
+            className="w-full"
+            value={String(options.headingScale)}
+            onChange={(v) => onChange({ headingScale: Number(v) })}
+            options={[
+              { value: "1", label: "Igual" },
+              { value: "1.2", label: "Un poco más" },
+              { value: "1.5", label: "Más grande" },
+            ]}
+          />
+          <p className="mt-1 text-[10px] leading-snug text-[color:var(--te-ink-faint)]">
+            El título va en negrita, arriba de cada curso. Con el título no hace falta un texto aparte con el curso.
+          </p>
+        </div>
+      ) : null}
+      <ToggleSwitch
+        checked={options.allowExtraCourses}
+        onChange={(allowExtraCourses) => onChange({ allowExtraCourses })}
+        label="Permitir sumar otros cursos"
+      />
+      <p className="text-[10px] leading-snug text-[color:var(--te-ink-faint)]">
+        Para las fotos grupales con más de un curso (7.° A y 7.° B juntos). Encendido, el fotógrafo al revisar y la
+        familia al confirmar pueden sumar otros cursos del mismo colegio; cada curso sale con su título.
+      </p>
       <p className="text-[10px] leading-snug text-[color:var(--te-ink-faint)]">
         Si la lista no entra en el recuadro, la letra se achica para todos por igual. La tipografía, el tamaño y el
         color se eligen en la barra de texto.

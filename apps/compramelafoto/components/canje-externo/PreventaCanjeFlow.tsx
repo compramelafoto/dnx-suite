@@ -28,6 +28,15 @@ import CanjeExtrasStep, { type CanjeExtrasConfig } from "./CanjeExtrasStep";
 import CanjeLibritoStep, { type CanjeCropEntry } from "./CanjeLibritoStep";
 import MiniaturaDelLibrito from "./MiniaturaDelLibrito";
 import type { DesignTemplatePayload } from "@/lib/design-v2/client-payload";
+import {
+  listadoPermiteSumarCursos,
+  opcionesDelListado,
+  valoresConCursos,
+  type CursoDelAlbum,
+} from "@/lib/design-v2/listado-cursos";
+import { esTextoEditablePorLaFamilia } from "@/lib/revision-de-impresion/revision-del-canje";
+import { tituloDeLaRevision } from "@/lib/revision-de-impresion/autorizacion";
+import RevisionDelLibrito from "./RevisionDelLibrito";
 
 type Paso = "intro" | "elegir" | "librito" | "revisar" | "extras" | "listo";
 
@@ -86,6 +95,11 @@ type Props = {
   comprador?: { nombre: string; email: string; telefono: string };
   /** Pack de prueba del fotógrafo: los extras no se cobran. */
   modoPrueba?: boolean;
+  /**
+   * Los otros cursos del colegio que la familia puede sumar al listado del librito (sólo si la
+   * plantilla lo permite). Sin el curso propio.
+   */
+  cursosParaSumar?: CursoDelAlbum[];
 };
 
 function primerNombre(nombre: string | null): string | null {
@@ -118,6 +132,7 @@ export default function PreventaCanjeFlow({
   extras = null,
   comprador,
   modoPrueba = false,
+  cursosParaSumar = [],
 }: Props) {
   const plan = useMemo(() => buildCanjeSlotPlan(pack.benefits), [pack.benefits]);
   const beneficio = useMemo(() => new Map(pack.benefits.map((b) => [b.stableKey, b])), [pack.benefits]);
@@ -140,6 +155,11 @@ export default function PreventaCanjeFlow({
   const [enviando, setEnviando] = useState(false);
   const [resultado, setResultado] = useState<{ pedido: number; downloadUrl: string | null } | null>(null);
   const selfieInputRef = useRef<HTMLInputElement>(null);
+  /** Revisión del librito: lo que corrige la familia, los cursos que suma, sus avisos y la autorización. */
+  const [textosEditados, setTextosEditados] = useState<Record<string, string>>({});
+  const [cursosElegidos, setCursosElegidos] = useState<string[]>([]);
+  const [avisosListado, setAvisosListado] = useState<string[]>([]);
+  const [autorizado, setAutorizado] = useState(false);
   const { medidas, registrar } = useMedidasDeFotos();
 
   const total = plan.slots.length;
@@ -167,6 +187,31 @@ export default function PreventaCanjeFlow({
   const entregaImpresas = `${impresas === 1 ? "La foto impresa te la entrega" : "Las fotos impresas te las entrega"} ${album.photographerName ?? "el fotógrafo"}.`;
   const stepKey: CanjeStepKey =
     paso === "intro" || paso === "elegir" ? "combo" : paso === "revisar" || paso === "librito" ? "extras" : "confirmar";
+  const textVariablesDelLibrito = useMemo(
+    () => [...new Set(designs.flatMap((d) => d.template.textVariables))],
+    [designs]
+  );
+  const permiteSumarCursos = useMemo(
+    () => designs.some((d) => listadoPermiteSumarCursos(d.template.blocks)),
+    [designs]
+  );
+  /** Los textos del librito como se van a imprimir: con lo que corrigió la familia y los cursos sumados. */
+  const valoresDelLibrito = useMemo(() => {
+    const v = { ...designValues };
+    for (const [k, t] of Object.entries(textosEditados)) {
+      if (esTextoEditablePorLaFamilia(k) && t.trim()) v[k] = t;
+    }
+    return permiteSumarCursos && cursosElegidos.length ? valoresConCursos(v, cursosParaSumar, cursosElegidos) : v;
+  }, [designValues, textosEditados, permiteSumarCursos, cursosElegidos, cursosParaSumar]);
+  const productoDelLibrito =
+    (designs[0] ? beneficio.get(designs[0].benefitKey)?.name : null)?.trim() || pack.name;
+  // La foto grupal que eligió la familia para el librito: con sus caras se avisa si hay más de un curso.
+  const carasEnLaGrupal = (() => {
+    const claves = new Set(designs.map((d) => d.benefitKey));
+    const i = plan.slots.findIndex((s, k) => claves.has(s.benefitKey) && s.role === "group" && filled[k] != null);
+    const id = i >= 0 ? filled[i] : null;
+    return id != null ? (facesById.get(id) ?? null) : null;
+  })();
   // Una foto del librito del pack: un librito extra se pide sobre ella.
   const libritoPhotoId = (() => {
     const clave = designs[0]?.benefitKey;
@@ -232,6 +277,9 @@ export default function PreventaCanjeFlow({
   async function confirmar() {
     if (enviando || !completo) return;
     setError(null);
+    if (hayLibrito && !autorizado) {
+      return setError("Para confirmar, tildá que revisaste todos los datos y autorizás la impresión.");
+    }
     if (pedirContacto) {
       if (!nombre.trim()) return setError("Escribí tu nombre.");
       const errEmail = getCheckoutEmailValidationError(email);
@@ -258,6 +306,18 @@ export default function PreventaCanjeFlow({
           ),
           ...(pedirContacto
             ? { contacto: { nombre: nombre.trim(), email: email.trim(), telefono: telefono.trim() } }
+            : {}),
+          ...(hayLibrito
+            ? {
+                revision: {
+                  autorizado: true,
+                  textos: Object.fromEntries(
+                    Object.entries(textosEditados).filter(([k, v]) => esTextoEditablePorLaFamilia(k) && v.trim())
+                  ),
+                  cursos: permiteSumarCursos ? cursosElegidos : [],
+                  avisos: avisosListado,
+                },
+              }
             : {}),
         }),
       });
@@ -320,7 +380,7 @@ export default function PreventaCanjeFlow({
               }
               onRemove={editable ? tocar : undefined}
               alto={size === "sm" ? 130 : size === "md" ? 200 : 260}
-              values={designValues}
+              values={valoresDelLibrito}
             />
           ) : (
           <ComboFrames
@@ -519,7 +579,7 @@ export default function PreventaCanjeFlow({
               setCrops(c);
             }}
             designs={designs}
-            values={designValues}
+            values={valoresDelLibrito}
             photoUrl={(id) => `/api/photos/${id}/view?mode=preview&albumId=${album.id}`}
             photos={byId}
             studentName={alumno}
@@ -531,7 +591,7 @@ export default function PreventaCanjeFlow({
             {casilleros("lg", false)}
             {avisoBordes ? <p className="m-0 mt-4 text-xs text-[#6b6f76]">{avisoBordes}</p> : null}
             <h1 className="m-0 mt-6 text-2xl font-semibold text-[#1f2328]">
-              {total === 1 ? "¿Es esta?" : "¿Son estas?"}
+              {hayLibrito ? tituloDeLaRevision(productoDelLibrito) : total === 1 ? "¿Es esta?" : "¿Son estas?"}
             </h1>
             <p className="m-0 mt-2 text-[#4b4f56]">
               Al confirmar {total === 1 ? "queda pedida y no se puede cambiar" : "quedan pedidas y no se pueden cambiar"}.
@@ -544,6 +604,32 @@ export default function PreventaCanjeFlow({
             >
               Cambiar fotos
             </button>
+            {hayLibrito ? (
+              <div className="mt-7 border-t border-[#efeae4] pt-6">
+                <RevisionDelLibrito
+                  opcionesDelListado={designs[0] ? opcionesDelListado(designs[0].template.blocks) : undefined}
+                  textVariables={textVariablesDelLibrito}
+                  valores={valoresDelLibrito}
+                  onCambiarTexto={(k, v) => {
+                    setTextosEditados((prev) => ({ ...prev, [k]: v }));
+                    setAutorizado(false);
+                  }}
+                  permiteSumar={permiteSumarCursos}
+                  cursosParaSumar={cursosParaSumar}
+                  cursosElegidos={cursosElegidos}
+                  onCursos={(c) => {
+                    setCursosElegidos(c);
+                    setAutorizado(false);
+                  }}
+                  carasEnLaGrupal={carasEnLaGrupal}
+                  avisos={avisosListado}
+                  onAvisos={setAvisosListado}
+                  fotografo={album.photographerName}
+                  autorizado={autorizado}
+                  onAutorizar={setAutorizado}
+                />
+              </div>
+            ) : null}
             {pedirContacto ? (
               <div className="mt-7 space-y-4 border-t border-[#efeae4] pt-6 text-left">
                 <h2 className="m-0 text-lg font-semibold text-[#1f2328]">Tus datos</h2>
@@ -694,7 +780,7 @@ export default function PreventaCanjeFlow({
             ) : (
               <button
                 type="button"
-                disabled={enviando}
+                disabled={enviando || (hayLibrito && !autorizado)}
                 onClick={() => void confirmar()}
                 className="min-h-12 flex-1 rounded-xl bg-[#c27b3d] px-5 text-base font-semibold text-white hover:bg-[#a8652e] disabled:bg-[#c9c3bc] sm:flex-none"
               >

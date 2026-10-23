@@ -16,10 +16,9 @@ import {
   CLIENT_PHOTO_ROLE_SLOTS,
   CLIENT_PHOTO_VARIABLE_PATTERN,
   SCHOOL_CLIENT_PHOTO_PLACEHOLDER,
-  formatClassList,
   isClassListConfig,
-  layoutClassList,
-  parseClassListValue,
+  layoutClassListBlock,
+  parseClassListGroups,
   readClassListOptions,
   resolveBracePlaceholdersInText,
 } from "@repo/template-editor-core";
@@ -200,13 +199,15 @@ function ClassListBlockRenderer({
   const key = String(config.variableKey ?? "");
   const options = readClassListOptions(config);
   const t = getTextVisualConfig(config);
-  const { cells, fontSize } = layoutClassList({
-    lines: formatClassList(parseClassListValue(resolvedVariables?.[key]), options),
+  // Un listado guardado antes de los cursos con título usa el curso del diseño como título.
+  const fallbackTitle = resolvedVariables?.["course.displayName"];
+  const { cells } = layoutClassListBlock({
+    groups: parseClassListGroups(resolvedVariables?.[key], typeof fallbackTitle === "string" ? fallbackTitle : null),
+    options,
     width: layoutWidth,
     height: layoutHeight,
     fontSize: t.fontSize,
     lineHeight: t.lineHeight,
-    columns: options.columns,
     verticalAlign: t.verticalAlign,
   });
   if (cells.length === 0) {
@@ -241,7 +242,7 @@ function ClassListBlockRenderer({
             height: cell.height,
             color: t.color,
             fontFamily: t.fontFamilyCss,
-            fontSize,
+            fontSize: cell.fontSize,
             fontWeight: cell.bold ? 700 : t.fontWeight,
             fontStyle: t.fontStyle,
             textDecoration: t.textDecoration,

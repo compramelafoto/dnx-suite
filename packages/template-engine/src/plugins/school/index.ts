@@ -1,6 +1,6 @@
 import type { TemplateVariablePlugin } from "../../variables/types";
 import { SCHOOL_TEMPLATE_ALIASES } from "./aliases";
-import { CLASS_LIST_SAMPLE, CLASS_LIST_VARIABLE_KEY, serializeClassList } from "./class-list";
+import { CLASS_LIST_SAMPLE_GROUPS, CLASS_LIST_VARIABLE_KEY, serializeClassListGroups } from "./class-list";
 import {
   SCHOOL_CLIENT_PHOTO_PLACEHOLDER,
   SCHOOL_CLIENT_PHOTO_SLOT_COUNT,
@@ -28,7 +28,7 @@ export const SCHOOL_TEMPLATE_EXAMPLE_DATA: Record<string, unknown> = {
   "buyer.fullName": "Ana Rodríguez",
   "school.name": "Escuela Ejemplo",
   "course.displayName": "3.º B · Mañana",
-  [CLASS_LIST_VARIABLE_KEY]: serializeClassList(CLASS_LIST_SAMPLE),
+  [CLASS_LIST_VARIABLE_KEY]: serializeClassListGroups(CLASS_LIST_SAMPLE_GROUPS),
   "order.referenceShort": "P-1024",
   "order.fulfillmentQrUrl": "https://ejemplo.com/escolar/entrega/preview",
   "photographer.displayName": "Estudio Fotográfico",

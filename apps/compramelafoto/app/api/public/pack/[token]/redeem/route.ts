@@ -11,6 +11,8 @@ import { prisma } from "@/lib/prisma";
 import { getCheckoutEmailValidationError } from "@/lib/email-validation";
 import { digitsOnly, isValidPhoneForPurchase } from "@/lib/phone-validation";
 import { isPlaceholderEmail } from "@/lib/canje-externo/external-preventa";
+import { parsePreventaPackSnapshotV1 } from "@/lib/preventa-canjeable/preventa-pack-snapshot-v1";
+import { packRequiereAutorizacion } from "@/lib/revision-de-impresion/en-el-canje";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -41,6 +43,18 @@ const BodySchema = z.object({
       telefono: z.string().trim().min(6).max(40),
     })
     .optional(),
+  /**
+   * La revisión del librito: la familia vio todos los textos, corrigió los suyos y autorizó la
+   * impresión. Obligatoria para los packs con librito.
+   */
+  revision: z
+    .object({
+      autorizado: z.literal(true),
+      textos: z.record(z.string(), z.string().max(500)).optional(),
+      cursos: z.array(z.string().min(1).max(300)).max(30).optional(),
+      avisos: z.array(z.string().max(2000)).max(5).optional(),
+    })
+    .optional(),
 });
 
 type RouteParams = {
@@ -67,8 +81,26 @@ export async function POST(req: Request, { params }: RouteParams) {
   // Sin email real no hay a dónde mandar los digitales: el pack cargado por fuera los pide acá.
   const pack = await prisma.order.findUnique({
     where: { id: lookup.orderId },
-    select: { buyerEmail: true, redemptionOrderId: true },
+    select: { buyerEmail: true, buyerName: true, redemptionOrderId: true, preventaPackSnapshotJson: true },
   });
+  // Un pack con librito no se canjea sin la autorización de impresión de la familia.
+  if (pack && pack.redemptionOrderId == null && !parsed.data.revision) {
+    let requiere = false;
+    try {
+      requiere = packRequiereAutorizacion(parsePreventaPackSnapshotV1(pack.preventaPackSnapshotJson));
+    } catch {
+      requiere = false;
+    }
+    if (requiere) {
+      return NextResponse.json(
+        {
+          error: "Antes de confirmar, revisá los datos del librito y tildá que autorizás la impresión.",
+          code: "authorization_required",
+        },
+        { status: 400 }
+      );
+    }
+  }
   if (pack && pack.redemptionOrderId == null && isPlaceholderEmail(pack.buyerEmail)) {
     const c = parsed.data.contacto;
     if (!c) {
@@ -86,7 +118,17 @@ export async function POST(req: Request, { params }: RouteParams) {
   }
 
   try {
-    const result = await executePreventaPackRedeemV1(lookup.orderId, parsed.data.selections);
+    const revision = parsed.data.revision
+      ? {
+          pedida: parsed.data.revision,
+          by: {
+            name: parsed.data.contacto?.nombre ?? pack?.buyerName ?? null,
+            email: parsed.data.contacto?.email ?? (isPlaceholderEmail(pack?.buyerEmail) ? null : (pack?.buyerEmail ?? null)),
+          },
+          userAgent: req.headers.get("user-agent"),
+        }
+      : null;
+    const result = await executePreventaPackRedeemV1(lookup.orderId, parsed.data.selections, revision);
     const baseUrl = (process.env.APP_URL || new URL(req.url).origin).replace(/\/+$/, "");
     const { downloadUrl } = await completePreventaRedemption(
       result.redemptionOrderId,

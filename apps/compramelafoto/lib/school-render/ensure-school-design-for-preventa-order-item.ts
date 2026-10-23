@@ -4,8 +4,9 @@ import type { Prisma } from "@/lib/prisma";
 import type { PreventaPackSnapshotV1 } from "@/lib/preventa-canjeable/preventa-pack-snapshot-v1";
 import { createDesignV2Project } from "@/lib/design-v2/projects";
 import { loadDesignTemplateVersion, type DesignTemplateVersion } from "@/lib/design-v2/template";
-import { loadCourseStudentList } from "@/lib/design-v2/class-list";
+import { loadCourseStudentGroup } from "@/lib/design-v2/class-list";
 import { buildDesignValues, courseDisplayName } from "@/lib/design-v2/values";
+import type { RevisionDelCliente } from "@/lib/revision-de-impresion/autorizacion";
 import {
   pickSelectionPhotosForDesign,
   resolveDesignTemplateForRedeem,
@@ -37,6 +38,8 @@ export type SchoolDesignContext = {
   albumId: number;
   photographerUserId: number;
   values: Record<string, string>;
+  /** Lo que revisó y autorizó la familia al confirmar el canje. */
+  clientReview?: RevisionDelCliente | null;
 };
 
 export async function loadSchoolDesignContext(
@@ -69,7 +72,7 @@ export async function loadSchoolDesignContext(
   });
   if (!order) return null;
   const studentName = [order.studentFirstName, order.studentLastName].filter(Boolean).join(" ");
-  const courseStudents = await loadCourseStudentList(db, {
+  const courseGroup = await loadCourseStudentGroup(db, {
     albumId: order.albumId,
     albumRosterEntryId: order.albumRosterEntryId,
     studentId: order.studentId,
@@ -80,6 +83,9 @@ export async function loadSchoolDesignContext(
     courseName: order.studentCourseSnapshot ?? order.schoolCourse?.name,
     division: order.studentDivisionSnapshot ?? order.schoolCourse?.division,
   });
+  const courseName =
+    courseDisplayName(order.schoolCourse?.name, order.schoolCourse?.division) ??
+    courseDisplayName(order.studentCourseSnapshot, order.studentDivisionSnapshot);
   return {
     albumId: order.albumId,
     photographerUserId: order.album.userId,
@@ -87,16 +93,15 @@ export async function loadSchoolDesignContext(
       studentName,
       studentFirstName: order.studentFirstName,
       studentLastName: order.studentLastName,
-      courseName:
-        courseDisplayName(order.schoolCourse?.name, order.schoolCourse?.division) ??
-        courseDisplayName(order.studentCourseSnapshot, order.studentDivisionSnapshot),
+      courseName,
       schoolName: order.album.school?.name,
       schoolLogoUrl: order.album.school?.logoUrl,
       buyerName: order.buyerName,
       photographerName: order.album.user?.name,
       eventDate: order.album.eventDate,
       orderReference: `P-${preCompraOrderId}`,
-      courseStudents,
+      // El título del curso en el listado es el mismo texto que «Curso» del diseño.
+      courseGroups: courseGroup ? [{ ...courseGroup, title: courseName ?? courseGroup.title }] : null,
     }),
   };
 }
@@ -167,6 +172,7 @@ export async function ensureSchoolDesignForPreCompraOrderItem(
     albumOrderId: params.redemptionOrderId ?? null,
     orderItemId: orderItem.id,
     cropsByPhotoId: params.cropsByPhotoId,
+    clientReview: params.context.clientReview ?? null,
   });
 
   await tx.preCompraOrderItem.updateMany({
