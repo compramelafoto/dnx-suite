@@ -12,6 +12,7 @@ import {
   renderExposure,
   renderedLightColor,
 } from "@/lib/simulator/studio-light/metering";
+import { boomOffset } from "@/lib/simulator/studio-light/boom";
 import { MAX_POWER_STOPS } from "@/lib/simulator/studio-light/presets";
 import { useStudio } from "@/lib/simulator/studio-light/studio-store";
 import type { StudioLight } from "@/lib/simulator/studio-light/types";
@@ -20,7 +21,8 @@ import type { StudioLight } from "@/lib/simulator/studio-light/types";
 export const HELPER_LAYER = 1;
 
 const FABRIC = "#121214";
-const METAL = "#2b2d31";
+// Aluminio de pies y jirafas: claro para que se lean en la vista del set.
+const METAL = "#8d939c";
 
 function useHelperLayer<T extends THREE.Object3D>() {
   const ref = useRef<T>(null);
@@ -117,18 +119,6 @@ function ModifierBody({ light, glow }: { light: StudioLight; glow: number }) {
   }
 }
 
-/** Desplazamiento lateral del pie cuando la luz va con jirafa (m). */
-const BOOM_REACH = 0.95;
-
-/**
- * Luz delante del sujeto y cerca del eje de cámara (mariposa, clamshell): en un
- * estudio real va colgada de una jirafa para que el pie no tape la cara.
- */
-export function usesBoom(light: StudioLight): boolean {
-  if (light.z < 0.25 || light.y < 1.3) return false;
-  return Math.abs(Math.atan2(light.x, light.z)) < (28 * Math.PI) / 180;
-}
-
 function StandLegs() {
   return (
     <>
@@ -152,21 +142,26 @@ function StandLegs() {
 
 function LightStand({ light }: { light: StudioLight }) {
   const metal = <meshStandardMaterial color={METAL} metalness={0.6} roughness={0.4} />;
-  if (usesBoom(light)) {
-    const side = light.x >= 0 ? 1 : -1;
+  const boom = boomOffset(light);
+  if (boom) {
     const top = light.y + 0.18;
+    const reach = Math.hypot(boom.x, boom.z);
     return (
       <group position={[light.x, 0, light.z]}>
-        <group position={[side * BOOM_REACH, 0, 0.15]}>
+        <group position={[boom.x, 0, boom.z]}>
           <mesh position={[0, top / 2, 0]} castShadow>
             <cylinderGeometry args={[0.016, 0.02, top, 8]} />
             {metal}
           </mesh>
           <StandLegs />
         </group>
-        {/* Brazo horizontal y bajada corta hasta el cabezal. */}
-        <mesh position={[(side * BOOM_REACH) / 2, top, 0.075]} rotation={[0, Math.atan2(-0.15, side * BOOM_REACH), Math.PI / 2]} castShadow>
-          <cylinderGeometry args={[0.012, 0.012, Math.hypot(BOOM_REACH, 0.15) + 0.3, 8]} />
+        {/* Brazo de la jirafa (con contrapeso del otro lado) y bajada corta hasta el cabezal. */}
+        <mesh position={[boom.x / 2, top, boom.z / 2]} rotation={[0, Math.atan2(boom.z, -boom.x), Math.PI / 2]} castShadow>
+          <cylinderGeometry args={[0.012, 0.012, reach + 0.55, 8]} />
+          {metal}
+        </mesh>
+        <mesh position={[boom.x * (1 + 0.5 / reach), top, boom.z * (1 + 0.5 / reach)]} castShadow>
+          <cylinderGeometry args={[0.045, 0.045, 0.12, 12]} />
           {metal}
         </mesh>
         <mesh position={[0, light.y + 0.09, 0]} castShadow>
@@ -212,7 +207,11 @@ function RigLight({ light, showHelpers, setZoomEnabled, setOrbitEnabled }: RigLi
   const raycaster = useMemo(() => new THREE.Raycaster(), []);
   const ndc = useMemo(() => new THREE.Vector2(), []);
 
-  const aim = aimPoint(light);
+  const rawAim = aimPoint(light);
+  // Si la luz apunta casi en vertical, lookAt (y la cámara de sombra) quedan indefinidos:
+  // se corre el blanco unos centímetros hacia la cámara.
+  const aim: typeof rawAim =
+    Math.hypot(light.x - rawAim[0], light.z - rawAim[2]) < 0.05 ? [rawAim[0], rawAim[1], rawAim[2] + 0.05] : rawAim;
   const output = active ? lightOutput(light, state) : 0;
   const color = useMemo(() => {
     const [r, g, b] = renderedLightColor(light, state.camera.whiteBalance);

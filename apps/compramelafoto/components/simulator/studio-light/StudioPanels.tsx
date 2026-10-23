@@ -176,6 +176,21 @@ function LightEditor({ light }: { light: StudioLight }) {
         ))}
       </div>
 
+      <div className="cod-studio-editor__actions">
+        <button
+          type="button"
+          className="cod-studio-btn"
+          onClick={() => {
+            // Encima de la cabeza y apenas adelante: la jirafa aparece sola.
+            dispatch({ type: "move-light", id: light.id, x: 0, z: 0.3 });
+            update({ y: 2.75, aim: "subject" });
+          }}
+        >
+          <StudioIcon name="light" size={16} />
+          Llevar arriba (cenital)
+        </button>
+      </div>
+
       <Slider label="Ángulo" value={Math.round(az)} min={-180} max={180} step={1} display={`${Math.round(az)}°`} onChange={(v) => setPolar(v, dist)} />
       <Slider label="Distancia" value={dist} min={0.4} max={5} step={0.05} display={m(dist)} onChange={(v) => setPolar(az, v)} />
       <Slider label="Altura" value={light.y} min={0.25} max={3.6} step={0.05} display={m(light.y)} onChange={(v) => update({ y: v })} />

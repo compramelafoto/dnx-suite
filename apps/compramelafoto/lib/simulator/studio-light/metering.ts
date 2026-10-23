@@ -166,6 +166,7 @@ export type PatternId =
   | "split"
   | "rim"
   | "underlight"
+  | "top"
   | "flat";
 
 export interface MeterReport {
@@ -206,6 +207,8 @@ export function classifyPattern(key: StudioLight | null, subjectYaw: number): Pa
   const rel = sub(lightPosition(key), SUBJECT_HEAD);
   const az = Math.abs(wrapDeg(azimuthDeg(rel) - subjectYaw));
   const elev = Math.atan2(rel[1], Math.hypot(rel[0], rel[2])) / DEG;
+  // Casi encima de la cabeza: cenital, sin importar el ángulo horizontal.
+  if (elev > 62) return "top";
   if (az > 110) return "rim";
   if (elev < -12) return "underlight";
   if (az < 14) return elev > 18 ? "butterfly" : "flat";

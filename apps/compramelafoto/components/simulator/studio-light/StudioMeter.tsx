@@ -38,6 +38,10 @@ const PATTERNS: Record<PatternId, { name: string; text: string }> = {
     name: "Luz desde abajo",
     text: "Las sombras suben por la cara: efecto de terror. Útil como relleno muy suave, no como principal.",
   },
+  top: {
+    name: "Cenital",
+    text: "La luz cae desde arriba: los ojos quedan en sombra y se marcan pómulos y nariz. Para recuperar la mirada, rebotá luz desde abajo o inclinala hacia la cara.",
+  },
   flat: {
     name: "Luz plana",
     text: "De frente y a la altura de los ojos: casi sin sombras ni volumen. Subí la luz para modelar.",

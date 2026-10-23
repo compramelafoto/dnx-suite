@@ -67,6 +67,15 @@ function focalToFov(focalMm: number): number {
   return (2 * Math.atan(SENSOR_HEIGHT_MM / 2 / focalMm) * 180) / Math.PI;
 }
 
+/** Grilla de piso de 50 cm, sólo en la vista del set. */
+function SetGrid() {
+  const ref = useRef<THREE.GridHelper>(null);
+  useLayoutEffect(() => {
+    ref.current?.layers.set(HELPER_LAYER);
+  });
+  return <gridHelper ref={ref} args={[14, 28, "#3a3f4a", "#23272f"]} position={[0, 0.004, 1.2]} />;
+}
+
 /** Cuerpo de cámara visible en el set (no aparece en la foto). */
 function PhotographerCamera({ photoCam }: { photoCam: THREE.PerspectiveCamera }) {
   const { state } = useStudio();
@@ -147,6 +156,7 @@ interface RendererProps {
   mode: StudioViewMode;
   photoCam: THREE.PerspectiveCamera;
   workLight: THREE.HemisphereLight;
+  workKey: THREE.DirectionalLight;
   roomLight: THREE.HemisphereLight;
   captureRef: MutableRefObject<((dataUrl: string | null) => void) | null>;
   onHistogram: (h: Histogram) => void;
@@ -154,7 +164,7 @@ interface RendererProps {
 }
 
 /** Dibuja la vista principal y la miniatura (set ↔ foto) en el mismo lienzo. */
-function DualViewRenderer({ mode, photoCam, workLight, roomLight, captureRef, onHistogram, showPip }: RendererProps) {
+function DualViewRenderer({ mode, photoCam, workLight, workKey, roomLight, captureRef, onHistogram, showPip }: RendererProps) {
   const { state } = useStudio();
   const lastHistogram = useRef(0);
   const exposure = renderExposure(state) * RENDER_CALIBRATION;
@@ -172,7 +182,9 @@ function DualViewRenderer({ mode, photoCam, workLight, roomLight, captureRef, on
 
     // La luz de la sala (hemisférica) se ve en la foto; la de trabajo sólo en el set.
     roomLight.intensity = room * 0.6 * Math.PI;
-    workLight.intensity = 0.55 / Math.max(1e-6, exposure);
+    // Luz de trabajo del set: constante a la vista, sin importar la exposición de la foto.
+    workLight.intensity = 1.4 / Math.max(1e-6, exposure);
+    workKey.intensity = 2.2 / Math.max(1e-6, exposure);
 
     gl.autoClear = false;
     gl.setScissorTest(false);
@@ -249,6 +261,13 @@ function SceneContent(props: {
     l.layers.set(HELPER_LAYER);
     return l;
   }, []);
+  // Luz direccional suave sólo para la vista del set: deja ver pies, jirafas y modificadores.
+  const workKey = useMemo(() => {
+    const l = new THREE.DirectionalLight("#ffffff", 0);
+    l.position.set(3, 6, 5);
+    l.layers.set(HELPER_LAYER);
+    return l;
+  }, []);
   const roomLight = useMemo(() => new THREE.HemisphereLight("#fff4e6", "#3a3631", 0), []);
   // Bloqueos de la órbita mientras el mouse está sobre una luz o la arrastra.
   // Van en estado: si se tocaran a mano, cada redibujado los volvería a activar.
@@ -261,6 +280,8 @@ function SceneContent(props: {
   return (
     <>
       <primitive object={workLight} />
+      <primitive object={workKey} />
+      <SetGrid />
       <primitive object={roomLight} />
       <StudioBackdrop backdrop={state.backdrop} />
       <Suspense fallback={null}>
@@ -296,6 +317,7 @@ function SceneContent(props: {
         mode={props.mode}
         photoCam={photoCam}
         workLight={workLight}
+        workKey={workKey}
         roomLight={roomLight}
         captureRef={props.captureRef}
         onHistogram={props.onHistogram}
