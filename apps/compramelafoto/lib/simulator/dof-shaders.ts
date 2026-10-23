@@ -73,14 +73,29 @@ float interleavedNoise(vec2 px) {
   return fract(52.9829189 * fract(dot(px, vec2(0.06711056, 0.00583715))));
 }
 
-vec3 compressHighlights(vec3 rgb) {
-  float peak = max(max(rgb.r, rgb.g), rgb.b);
-  if (peak <= 1.0) return rgb;
+/** Filmic tone curve (ACES, Hill fit): soft highlight roll-off like film. */
+vec3 rrtAndOdtFit(vec3 v) {
+  vec3 a = v * (v + 0.0245786) - 0.000090537;
+  vec3 b = v * (0.983729 * v + 0.4329510) + 0.238081;
+  return a / b;
+}
 
-  float knee = 1.0 + (peak - 1.0) / (1.0 + (peak - 1.0) * 2.8);
-  vec3 scaled = rgb * (knee / peak);
-  float blow = smoothstep(1.0, 2.2, peak);
-  return mix(scaled, vec3(knee), blow * 0.9);
+vec3 acesFilmic(vec3 color) {
+  const mat3 inputMat = mat3(
+    vec3(0.59719, 0.07600, 0.02840),
+    vec3(0.35458, 0.90834, 0.13383),
+    vec3(0.04823, 0.01566, 0.83777));
+  const mat3 outputMat = mat3(
+    vec3(1.60475, -0.10208, -0.00327),
+    vec3(-0.53108, 1.10813, -0.07276),
+    vec3(-0.07367, -0.00605, 1.07602));
+  color *= 1.0 / 0.6;
+  color = outputMat * rrtAndOdtFit(inputMat * color);
+  return clamp(color, 0.0, 1.0);
+}
+
+vec3 linearToSrgb(vec3 c) {
+  return mix(c * 12.92, 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055, step(vec3(0.0031308), c));
 }
 
 float hash12(vec2 p) {
@@ -109,7 +124,7 @@ vec3 applySensorNoise(vec3 rgb) {
 
 vec4 applyExposure(vec4 color) {
   vec3 rgb = color.rgb * exposureGain * wbTint;
-  rgb = compressHighlights(rgb);
+  rgb = linearToSrgb(acesFilmic(rgb));
   rgb = applySensorNoise(rgb);
   return vec4(rgb, color.a);
 }

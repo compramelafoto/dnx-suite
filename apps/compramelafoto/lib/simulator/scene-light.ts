@@ -82,7 +82,25 @@ export const SCENE_RENDER_CALIBRATION_LOG2: Record<SimulatorSceneId, readonly [n
     [1320, -5.4],
     [1440, -5.54],
   ],
-  "photographic-city": [[0, Math.log2(MID_GREY)]],
+  // Calle 3D: medida el 23/10/2026 desde su punto de partida (esquina, vereda este).
+  "photographic-city": [
+    [0, -6.5],
+    [285, -6.5],
+    [330, -6.5],
+    [375, -2.98],
+    [435, -0.88],
+    [540, -0.41],
+    [660, -0.23],
+    [750, -0.11],
+    [840, -0.26],
+    [990, -0.9],
+    [1110, -2.41],
+    [1170, -6.77],
+    [1215, -6.59],
+    [1260, -6.5],
+    [1320, -6.5],
+    [1440, -6.5],
+  ],
 };
 
 function calibratedRenderLog2(sceneId: SimulatorSceneId, minutes: number): number {

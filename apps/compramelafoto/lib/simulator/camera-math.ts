@@ -104,19 +104,23 @@ export function kelvinToRgb(kelvin: number): { r: number; g: number; b: number }
  */
 const SCENE_WHITE_KELVIN = 6500;
 
+function srgbToLinear(v: number): number {
+  return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+}
+
 /**
  * Corrección del balance de blancos de la cámara, como en una cámara real:
  * la cámara divide por el color de la luz que le indicamos. Elegir 3200 K
  * con luz de día ENFRÍA la imagen (azul); elegir 7500 K la calienta. Si el
  * valor coincide con la luz de la escena, el blanco sale neutro.
  * Se normaliza a luminancia 1 para no cambiar la exposición.
- * El cociente va en valores de pantalla (sRGB): el pase final muestra el
- * búfer tal cual, igual que el JPEG de la cámara ya codificado.
+ * El cociente va en luz lineal: se aplica antes de la curva de tonos.
  */
 export function computeWhiteBalanceTint(kelvin: number): { r: number; g: number; b: number } {
   const camera = kelvinToRgb(kelvin);
   const white = kelvinToRgb(SCENE_WHITE_KELVIN);
-  const ratio = (channel: "r" | "g" | "b") => white[channel] / Math.max(0.05, camera[channel]);
+  const ratio = (channel: "r" | "g" | "b") =>
+    srgbToLinear(white[channel]) / Math.max(0.02, srgbToLinear(camera[channel]));
   const r = ratio("r");
   const g = ratio("g");
   const b = ratio("b");

@@ -16,10 +16,14 @@ export const PHOTOGRAPHIC_PEDESTRIAN_SUBJECT_IDS = [
   PHOTOGRAPHIC_PEDESTRIAN_SEATED_SUBJECT_ID,
 ] as const;
 
+/** Prefijo de las personas de la Calle 3D (caminando o quietas). */
+export const STREET_PERSON_ID_PREFIX = "street-person-";
+
 export function isPhotographicPedestrianId(id: string | null | undefined): boolean {
   return (
     typeof id === "string" &&
-    PHOTOGRAPHIC_PEDESTRIAN_SUBJECT_IDS.includes(id as (typeof PHOTOGRAPHIC_PEDESTRIAN_SUBJECT_IDS)[number])
+    (id.startsWith(STREET_PERSON_ID_PREFIX) ||
+      PHOTOGRAPHIC_PEDESTRIAN_SUBJECT_IDS.includes(id as (typeof PHOTOGRAPHIC_PEDESTRIAN_SUBJECT_IDS)[number]))
   );
 }
 

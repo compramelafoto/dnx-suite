@@ -304,7 +304,14 @@ export default function FirstPersonController({ onLockChange }: FirstPersonContr
     const bounds = getSceneMeta(simulatorRuntime.sceneId).bounds;
     camera.position.x = THREE.MathUtils.clamp(camera.position.x, bounds.xMin, bounds.xMax);
     camera.position.z = THREE.MathUtils.clamp(camera.position.z, bounds.zMin, bounds.zMax);
-    camera.position.y = heightRef.current;
+    // Escenas con edificios: no se los atraviesa, y la vereda levanta el punto de vista.
+    const world = simulatorRuntime.walkableWorld;
+    if (world) {
+      const [x, z] = world.resolve(camera.position.x, camera.position.z);
+      camera.position.x = x;
+      camera.position.z = z;
+    }
+    camera.position.y = heightRef.current + (world ? world.groundHeight(camera.position.x, camera.position.z) : 0);
 
     if (Math.abs(rollRef.current) > ROLL_EPSILON) {
       syncCameraRoll(camera, eulerRef.current, rollRef.current);

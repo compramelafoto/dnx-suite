@@ -6,7 +6,7 @@ import { Environment } from "@react-three/drei";
 import { Suspense } from "react";
 import CityScene from "./CityScene";
 import DynamicSky from "./DynamicSky";
-import PhotographicCityContent from "./photographic/PhotographicCityContent";
+import StreetScene from "./street/StreetScene";
 import SceneEnvironmentSync from "./SceneEnvironmentSync";
 import StudioSceneContent from "./StudioSceneContent";
 import SunController from "./SunController";
@@ -27,7 +27,7 @@ function LegacyCityExteriorContent() {
 }
 
 /**
- * Selector de escena activa (estudio | ciudad prototipo | ciudad fotográfica).
+ * Selector de escena activa (estudio | ciudad prototipo | calle 3D).
  */
 export default function SimulatorSceneRoot() {
   const { sceneId } = useCameraStore();
@@ -35,7 +35,7 @@ export default function SimulatorSceneRoot() {
   if (isPhotographicScene(sceneId)) {
     return (
       <group key="photographic-city">
-        <PhotographicCityContent />
+        <StreetScene />
       </group>
     );
   }

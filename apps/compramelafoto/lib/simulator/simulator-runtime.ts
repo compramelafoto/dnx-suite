@@ -37,6 +37,11 @@ export interface SimulatorRuntime {
   focalLengthMm: number;
   lensName: string;
   isZoomLens: boolean;
+  /** Mundo caminable de la escena activa (colisiones y altura del piso), si tiene. */
+  walkableWorld: {
+    resolve: (x: number, z: number) => [number, number];
+    groundHeight: (x: number, z: number) => number;
+  } | null;
   /** Distancia mínima de enfoque del objetivo montado (m). */
   minFocusDistanceM: number;
   getCameraYaw: () => number;
@@ -69,6 +74,7 @@ export const simulatorRuntime: SimulatorRuntime = {
   lensName: "50mm f/1.8",
   isZoomLens: false,
   minFocusDistanceM: 0.45,
+  walkableWorld: null,
   getCameraYaw: () => cameraYawGetter(),
 };
 

@@ -6,6 +6,7 @@ import { useLayoutEffect, useEffect } from "react";
 
 /** Sincroniza el store de cámara con el runtime compartido del canvas 3D. */
 export default function SimulatorRuntimeSync() {
+  const store = useCameraStore();
   const {
     derived,
     setSceneLight,
@@ -18,7 +19,13 @@ export default function SimulatorRuntimeSync() {
     sceneId,
     timeOfDayMinutes,
     sunState,
-  } = useCameraStore();
+  } = store;
+
+  // Sólo en desarrollo: acceso desde la consola o Playwright para probar escenas y ejercicios.
+  useEffect(() => {
+    if (process.env.NODE_ENV !== "development") return;
+    (globalThis as Record<string, unknown>).__cod = { store, runtime: simulatorRuntime };
+  }, [store]);
 
   useLayoutEffect(() => {
     simulatorRuntime.derived = derived;
