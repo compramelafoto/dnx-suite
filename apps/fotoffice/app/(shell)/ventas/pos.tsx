@@ -6,6 +6,7 @@ import {
   ClipboardList,
   ArrowUpRight,
   Banknote,
+  BookOpen,
   CheckCircle2,
   ChevronDown,
   CreditCard,
@@ -47,8 +48,10 @@ import type { ClienteBuscado } from "./mostrador-actions";
 import { checkoutAction, findProductByCodeAction, searchProductsAction, type CheckoutInput } from "./actions";
 import { crearPreparacionAction, produccionDeProductosAction } from "./impresion/actions";
 import { DialogoPreparar, copiasTerminadas } from "./dialogo-preparar";
-import { CalculadoraFotolibro, type LineaFotolibro } from "@/components/fotolibro/calculadora-fotolibro";
-import type { CatalogoFotolibro } from "@/lib/fotolibro/cotizar";
+import { CalculadoraFotolibro, type FotolibroAgregado, type LineaFotolibro } from "@/components/fotolibro/calculadora-fotolibro";
+import type { CatalogoFotolibro, TipoTapa } from "@/lib/fotolibro/cotizar";
+import { esSkuCajaFotolibro, tipoTapaDeSku, type FotolibroVendido } from "@/lib/fotolibro/venta";
+import { crearFotolibroDesdeCobradorAction } from "@/app/actions/fotolibro";
 
 const ETIQUETA_PAGO: Record<SalePaymentMethod, string> = {
   EFECTIVO: "Efectivo",
@@ -190,7 +193,11 @@ export function Pos({
   const [eligiendoTalle, setEligiendoTalle] = useState<ProductRow | null>(null);
 
   const [mostrarSuelto, setMostrarSuelto] = useState(false);
-  const [mostrarFotolibro, setMostrarFotolibro] = useState(false);
+  // La calculadora abierta: la del botón «+ Fotolibro» (sin producto) o la de un producto de fotolibro.
+  const [calculadora, setCalculadora] = useState<{ productId: string | null; tipo: TipoTapa | null; titulo: string; proveedorInicial: string | null } | null>(null);
+  // Lo elegido para cada renglón de libro (por key, aparte de `rows` como las preparaciones) y su fotolibro.
+  const [fotolibros, setFotolibros] = useState<Record<string, FotolibroVendido & { url?: string }>>({});
+  const [creandoFotolibro, setCreandoFotolibro] = useState<string | null>(null);
   const [sueltoDescripcion, setSueltoDescripcion] = useState("");
   const [sueltoPrecio, setSueltoPrecio] = useState("");
 
@@ -344,6 +351,12 @@ export function Pos({
    */
   function agregarProducto(p: ProductRow, talle: ProductVariantRow | null = null, fijarCantidad: number | null = null) {
     limpiarAviso();
+    // Fotolibro tapa flexible / rígida: el precio sale de la calculadora (fotos → hojas → precio).
+    const tipo = tipoTapaDeSku(p.sku);
+    if (tipo && fotolibro) {
+      setCalculadora({ productId: p.id, tipo, titulo: p.name, proveedorInicial: p.preferredProveedorId ?? null });
+      return;
+    }
     if (talle === null && p.variants.length > 0) {
       setEligiendoTalle(p);
       return;
@@ -524,28 +537,58 @@ export function Pos({
     cambiarRenglones((prev) => prev.filter((r) => r.key !== key));
   }
 
-  /** El fotolibro entra como un renglón suelto: descripción y precio de la calculadora, sin stock. */
-  function agregarFotolibro(l: LineaFotolibro) {
+  /**
+   * El libro entra con el producto que abrió la calculadora (o suelto, desde «+ Fotolibro») y la caja
+   * en su propio renglón: el producto "Caja para fotolibro" si está en el catálogo. La caja queda
+   * marcada «Seña» para que viaje en el pedido junto con el libro.
+   */
+  function agregarFotolibro(f: FotolibroAgregado) {
     limpiarAviso();
-    const key = nuevaKey();
-    setActivo(key);
-    cambiarRenglones((prev) => [
-      ...prev,
-      {
-        key,
-        productId: null,
-        variantId: null,
-        description: l.descripcion,
-        qty: 1,
-        unitPriceMinor: l.precioMinor,
-        unitCostMinor: null,
-        priceWasOverridden: false,
-        catalogPriceMinor: null,
-        tracksStock: false,
-        stockQty: null,
-      },
-    ]);
-    setMostrarFotolibro(false);
+    const productId = calculadora?.productId ?? null;
+    const renglon = (l: LineaFotolibro, pid: string | null): TicketRow => ({
+      key: nuevaKey(),
+      productId: pid,
+      variantId: null,
+      description: l.descripcion,
+      qty: 1,
+      unitPriceMinor: l.precioMinor,
+      unitCostMinor: l.costoMinor,
+      priceWasOverridden: false,
+      catalogPriceMinor: null,
+      tracksStock: false,
+      stockQty: null,
+    });
+    const libro = renglon(f.libro, productId);
+    const caja = f.caja ? renglon(f.caja, products.find((p) => esSkuCajaFotolibro(p.sku))?.id ?? null) : null;
+    setActivo(libro.key);
+    cambiarRenglones((prev) => [...prev, libro, ...(caja ? [caja] : [])]);
+    if (productId) setFotolibros((m) => ({ ...m, [libro.key]: { ...f.eleccion, templateId: null } }));
+    if (caja && senaHabilitada) setParaRetirar((m) => ({ ...m, [caja.key]: true }));
+    setCalculadora(null);
+  }
+
+  /** «Crear fotolibro»: el fotolibro vacío con lo elegido, abierto en otra pestaña. Si no, se crea al cobrar. */
+  async function crearFotolibroDelRenglon(key: string) {
+    const f = fotolibros[key];
+    if (!f || creandoFotolibro) return;
+    // La pestaña se abre ya, con el clic: después de esperar al servidor el navegador la bloquea.
+    const pestana = window.open("", "_blank");
+    setCreandoFotolibro(key);
+    try {
+      const r = await crearFotolibroDesdeCobradorAction({ eleccion: f, cliente: cliente?.nombre ?? null });
+      if (!r.ok) {
+        pestana?.close();
+        return setError(r.error);
+      }
+      setFotolibros((m) => (m[key] ? { ...m, [key]: { ...m[key], templateId: r.templateId, url: r.url } } : m));
+      if (pestana) pestana.location.href = r.url;
+      else window.open(r.url, "_blank");
+    } catch {
+      pestana?.close();
+      setError("No se pudo crear el fotolibro. Probá de nuevo: si no, se crea solo al cobrar.");
+    } finally {
+      setCreandoFotolibro(null);
+    }
   }
 
   function agregarSuelto() {
@@ -626,6 +669,7 @@ export function Pos({
   function reiniciarTicket() {
     setRows([]);
     setPreparaciones({});
+    setFotolibros({});
     setParaRetirar({});
     setPreparando(null);
     setCopiasSinTerminar(new Set());
@@ -745,6 +789,7 @@ export function Pos({
             qty: r.qty,
             unitPriceMinor: r.unitPriceMinor,
             paraRetirar: !tieneProceso(r) && paraRetirar[r.key] === true,
+            fotolibro: fotolibros[r.key] ? { ...fotolibros[r.key], url: undefined } : undefined,
           })),
           discountMinor,
           paymentMethod,
@@ -1128,7 +1173,7 @@ export function Pos({
             {fotolibro ? (
               <button
                 type="button"
-                onClick={() => setMostrarFotolibro((v) => !v)}
+                onClick={() => setCalculadora((c) => (c ? null : { productId: null, tipo: null, titulo: "Fotolibro", proveedorInicial: null }))}
                 className="fo-btn fo-btn-ghost whitespace-nowrap px-2 text-xs"
               >
                 + Fotolibro
@@ -1149,14 +1194,18 @@ export function Pos({
         </div>
 
         <div className="px-4">
-          {mostrarFotolibro && fotolibro ? (
+          {calculadora && fotolibro ? (
             <div className="my-3">
               <CalculadoraFotolibro
+                key={calculadora.productId ?? "libre"}
                 catalogo={fotolibro.catalogo}
                 verCostos={fotolibro.verCostos}
                 onAgregar={agregarFotolibro}
-                onCerrar={() => setMostrarFotolibro(false)}
+                onCerrar={() => setCalculadora(null)}
                 textoAgregar="Agregar al ticket"
+                tipo={calculadora.tipo}
+                titulo={calculadora.titulo}
+                proveedorInicial={calculadora.proveedorInicial}
               />
             </div>
           ) : null}
@@ -1254,6 +1303,23 @@ export function Pos({
                         >
                           {produccion[r.productId]?.tipoPieza === "COPIA" ? <Images className="size-3.5" aria-hidden /> : <IdCard className="size-3.5" aria-hidden />}
                           {abriendoPreparacion === r.key ? "Abriendo…" : preparaciones[r.key] ? "Editar fotos" : "Preparar"}
+                        </button>
+                      ) : null}
+                      {fotolibros[r.key] ? (
+                        <button
+                          type="button"
+                          className="fo-btn fo-btn-secondary mt-1 h-7 px-2 text-xs"
+                          disabled={creandoFotolibro !== null || procesando}
+                          title={fotolibros[r.key]!.templateId ? "El fotolibro ya está creado: se ata al trabajo al cobrar." : "Crea el fotolibro con esta medida y estas hojas. Si no, se crea solo al cobrar."}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const url = fotolibros[r.key]!.url;
+                            if (url) window.open(url, "_blank");
+                            else void crearFotolibroDelRenglon(r.key);
+                          }}
+                        >
+                          <BookOpen className="size-3.5" aria-hidden />
+                          {creandoFotolibro === r.key ? "Creando…" : fotolibros[r.key]!.templateId ? "Abrir fotolibro" : "Crear fotolibro"}
                         </button>
                       ) : null}
                       {copiasSinTerminar.has(r.key) ? <span className="ml-2 text-xs font-medium text-[var(--fo-warning)]">Copias sin terminar</span> : null}

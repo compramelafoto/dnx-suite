@@ -38,6 +38,11 @@ describe("modelos y medidas", () => {
   it("los modelos son las tapas, más la tapa flexible si hay hojas", () => {
     expect(modelosDe(catalogo.ofertas[0]!)).toEqual(["Gold Collection", TAPA_FLEXIBLE]);
   });
+  it("por tipo de tapa: la flexible sola o sólo las rígidas", () => {
+    const o = { ...catalogo.ofertas[0]!, tapas: [...catalogo.ofertas[0]!.tapas, pieza("30x45", 9_000, "Flexible Premium")] };
+    expect(modelosDe(o, "FLEXIBLE")).toEqual(["Flexible Premium", TAPA_FLEXIBLE]);
+    expect(modelosDe(o, "RIGIDA")).toEqual(["Gold Collection"]);
+  });
   it("sólo las medidas que tienen tapa de ese modelo y hoja", () => {
     expect(medidasDe(catalogo.ofertas[0]!, "Gold Collection")).toEqual(["15x30", "30x45"]);
     expect(medidasDe(catalogo.ofertas[0]!, TAPA_FLEXIBLE)).toEqual(["15x30", "20x40", "30x45"]);
@@ -45,14 +50,19 @@ describe("modelos y medidas", () => {
 });
 
 describe("cotizarFotolibro", () => {
-  it("tapa + hoja × hojas (+ caja) × 3, redondeado", () => {
+  it("tapa + hoja × hojas × 3, redondeado; la caja aparte con el mismo margen", () => {
     const r = cotizarFotolibro(catalogo, { proveedorId: "roman", modelo: "Gold Collection", medida: "30x45", hojas: 20, conCaja: true });
     expect(r.ok).toBe(true);
     if (!r.ok) return;
-    // (25.000 + 8.400 × 20 + 42.000) × 3 = 705.000
-    expect(r.costoMinor).toBe(23_500_000);
-    expect(r.precioMinor).toBe(70_500_000);
-    expect(r.descripcion).toBe("Fotolibro Gold Collection 30x45 · 20 hojas + caja (Román)");
+    // (25.000 + 8.400 × 20) × 3 = 579.000; caja 42.000 × 3 = 126.000 (juntos, los 705.000 de antes)
+    expect(r.costoMinor).toBe(19_300_000);
+    expect(r.precioMinor).toBe(57_900_000);
+    expect(r.descripcion).toBe("Fotolibro Gold Collection 30x45 · 20 hojas (Román)");
+    expect(r.caja).toEqual({ precioMinor: 12_600_000, costoMinor: 4_200_000, descripcion: "Caja para fotolibro Gold Collection 30x45 (Román)" });
+  });
+  it("sin caja no hay renglón de caja", () => {
+    const r = cotizarFotolibro(catalogo, { proveedorId: "roman", modelo: "Gold Collection", medida: "30x45", hojas: 20, conCaja: false });
+    expect(r.ok && r.caja).toBeNull();
   });
   it("redondea hacia arriba con los tramos", () => {
     const r = cotizarFotolibro({ ...catalogo, marginPct: 170, ofertas: [{ ...catalogo.ofertas[0]!, tapas: [{ medida: "15x30", modelo: "Gold Collection", baseMinor: 4_185_000.5, costoMinor: 1_550_000 }] }] }, { proveedorId: "roman", modelo: "Gold Collection", medida: "15x30", hojas: 2, conCaja: false });
@@ -72,7 +82,8 @@ describe("cotizarFotolibro", () => {
     const sinCostos: CatalogoFotolibro = { ...catalogo, ofertas: catalogo.ofertas.map((o) => ({ ...o, tapas: o.tapas.map((t) => ({ ...t, costoMinor: null })), hojas: o.hojas.map((t) => ({ ...t, costoMinor: null })), cajas: o.cajas.map((t) => ({ ...t, costoMinor: null })) })) };
     const r = cotizarFotolibro(sinCostos, { proveedorId: "roman", modelo: "Gold Collection", medida: "30x45", hojas: 20, conCaja: true });
     expect(r.ok && r.costoMinor).toBeNull();
-    expect(r.ok && r.precioMinor).toBe(70_500_000);
+    expect(r.ok && r.caja?.costoMinor).toBeNull();
+    expect(r.ok && r.precioMinor).toBe(57_900_000);
   });
 });
 

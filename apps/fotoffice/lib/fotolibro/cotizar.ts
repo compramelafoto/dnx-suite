@@ -5,8 +5,9 @@ import { redondearArriba, type TramoRedondeo } from "@/lib/precios-proveedor/red
  * Precio de un fotolibro. Módulo PURO, en centavos.
  *
  * Igual en La Isla, Román y Copy Express: tapa (que define el modelo) + hoja × cantidad de
- * hojas + caja opcional, todo de la última lista aplicada del proveedor. El precio es ese costo
- * con el margen de fotolibros (DNX: ×3), redondeado para la caja como cualquier producto. Ver
+ * hojas, todo de la última lista aplicada del proveedor. El precio es ese costo con el margen de
+ * fotolibros (DNX: ×3), redondeado como cualquier producto. La caja es opcional y se cotiza
+ * aparte, con el mismo margen y su propio redondeo: va en un renglón propio. Ver
  * `docs/superpowers/specs/2026-10-21-listas-de-precios-de-proveedores-design.md` §9.
  *
  * `baseMinor` es el costo ya multiplicado por (1 + margen): así el mostrador puede calcular el
@@ -67,10 +68,19 @@ function porMedida(a: string, b: string): number {
   return (areaCm2(a) ?? 0) - (areaCm2(b) ?? 0) || a.localeCompare(b);
 }
 
-export function modelosDe(o: OfertaFotolibro): string[] {
+/** Los dos productos del catálogo: "Fotolibro tapa flexible" y "Fotolibro tapa rígida". */
+export type TipoTapa = "FLEXIBLE" | "RIGIDA";
+
+export function esTapaFlexible(modelo: string): boolean {
+  return modelo === TAPA_FLEXIBLE || /flexible/i.test(modelo);
+}
+
+/** Los modelos (tapas) del proveedor; con `tipo`, sólo los flexibles o sólo los rígidos. */
+export function modelosDe(o: OfertaFotolibro, tipo: TipoTapa | null = null): string[] {
   const modelos = [...new Set(o.tapas.map((t) => t.modelo).filter((m): m is string => !!m))].sort((a, b) => a.localeCompare(b, "es"));
   if (o.hojas.length > 0 && !modelos.includes(TAPA_FLEXIBLE)) modelos.push(TAPA_FLEXIBLE);
-  return modelos;
+  if (tipo === null) return modelos;
+  return modelos.filter((m) => esTapaFlexible(m) === (tipo === "FLEXIBLE"));
 }
 
 function hojaDe(o: OfertaFotolibro, modelo: string, medida: string): PiezaFotolibro | null {
@@ -99,9 +109,21 @@ export function tieneCaja(o: OfertaFotolibro, modelo: string, medida: string): b
 
 export type EleccionFotolibro = { proveedorId: string; modelo: string; medida: string; hojas: number; conCaja: boolean };
 
+export type RenglonCotizado = { precioMinor: number; costoMinor: number | null; descripcion: string };
+
+/** El libro (tapa + hojas) y, si se pidió, la caja en su propio renglón. */
 export type CotizacionFotolibro =
-  | { ok: true; precioMinor: number; costoMinor: number | null; descripcion: string; vigencia: string }
+  | ({ ok: true; vigencia: string; proveedor: string; caja: RenglonCotizado | null } & RenglonCotizado)
   | { ok: false; error: string };
+
+function cotizarPiezas(piezas: { p: PiezaFotolibro; n: number }[], tramos: TramoRedondeo[]): { precioMinor: number; costoMinor: number | null } {
+  const base = piezas.reduce((s, x) => s + x.p.baseMinor * x.n, 0);
+  const conCosto = piezas.every((x) => x.p.costoMinor !== null);
+  return {
+    precioMinor: redondearArriba(Math.round(base * 100) / 100, tramos),
+    costoMinor: conCosto ? piezas.reduce((s, x) => s + x.p.costoMinor! * x.n, 0) : null,
+  };
+}
 
 export function cotizarFotolibro(c: CatalogoFotolibro, e: EleccionFotolibro): CotizacionFotolibro {
   const o = c.ofertas.find((x) => x.proveedorId === e.proveedorId);
@@ -114,16 +136,13 @@ export function cotizarFotolibro(c: CatalogoFotolibro, e: EleccionFotolibro): Co
   const caja = e.conCaja ? cajaDe(o, e.modelo, e.medida) : null;
   if (e.conCaja && !caja) return { ok: false, error: `${o.proveedor} no tiene caja para ${e.medida}.` };
 
-  const piezas = [{ p: tapa, n: 1 }, { p: hoja, n: e.hojas }, ...(caja ? [{ p: caja, n: 1 }] : [])];
-  const base = piezas.reduce((s, x) => s + x.p.baseMinor * x.n, 0);
-  const conCosto = piezas.every((x) => x.p.costoMinor !== null);
-  const costoMinor = conCosto ? piezas.reduce((s, x) => s + x.p.costoMinor! * x.n, 0) : null;
   return {
     ok: true,
-    precioMinor: redondearArriba(Math.round(base * 100) / 100, c.tramos),
-    costoMinor,
+    ...cotizarPiezas([{ p: tapa, n: 1 }, { p: hoja, n: e.hojas }], c.tramos),
     vigencia: o.vigencia,
-    descripcion: `Fotolibro ${e.modelo} ${e.medida} · ${e.hojas} ${e.hojas === 1 ? "hoja" : "hojas"}${caja ? " + caja" : ""} (${o.proveedor})`,
+    proveedor: o.proveedor,
+    descripcion: `Fotolibro ${e.modelo} ${e.medida} · ${e.hojas} ${e.hojas === 1 ? "hoja" : "hojas"} (${o.proveedor})`,
+    caja: caja ? { ...cotizarPiezas([{ p: caja, n: 1 }], c.tramos), descripcion: `Caja para fotolibro ${e.modelo} ${e.medida} (${o.proveedor})` } : null,
   };
 }
 
