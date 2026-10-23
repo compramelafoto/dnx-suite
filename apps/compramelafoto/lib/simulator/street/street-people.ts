@@ -45,9 +45,10 @@ export function planStreetPeople(layout: StreetLayout): { walkers: StreetWalker[
   const gaits: Gait[] = ["walk_neutral_01", "walk_stroll_01", "walk_fast_01", "walk_neutral_01"];
   const walkers: StreetWalker[] = [];
   layout.walkPaths.forEach((path, i) => {
-    // Repartidos a lo largo del circuito: más gente en las vueltas largas.
+    // Repartidos a lo largo del circuito: más gente en las vueltas largas
+    // (uno cada ~130 m alcanza para que siempre se cruce alguien).
     const total = pathLength(path.points);
-    const count = Math.max(2, Math.round(total / 55));
+    const count = Math.max(1, Math.round(total / 130));
     for (let k = 0; k < count; k += 1) {
       const n = walkers.length;
       const figure = figures[(i * 3 + k * 5) % figures.length];
@@ -61,13 +62,18 @@ export function planStreetPeople(layout: StreetLayout): { walkers: StreetWalker[
     }
   });
 
-  // Contra la pared, para no quedar en el camino de los que caminan.
+  // Contra la pared, para no quedar en el camino de los que caminan; otros en la plaza.
   const front = BUILDING_LINE - 0.3;
+  const [cx, cz] = layout.plaza.center;
+  const cart = layout.plaza.block.x0 + 11;
   const standers: StreetStander[] = [
-    { id: "s0", figure: "valentina", action: "cell_phone_textmessage", position: [front, 15], heading: -Math.PI / 2 },
-    { id: "s1", figure: "martin", action: "cell_phone_talk_01", position: [-front, -19], heading: Math.PI / 2 },
-    { id: "s2", figure: "joaquin", action: "idle_look_around_01", position: [-(STREET.roadHalf + 0.9), BUILDING_LINE + 2.5], heading: -Math.PI / 2 },
-    { id: "s3", figure: "julia", action: "gestic_talk_relaxed_01", position: [-front, 27], heading: Math.PI / 2 },
+    { id: "s0", figure: "valentina", action: "cell_phone_textmessage", position: [front, -20], heading: -Math.PI / 2 },
+    { id: "s1", figure: "martin", action: "cell_phone_talk_01", position: [-front, -31], heading: Math.PI / 2 },
+    { id: "s2", figure: "joaquin", action: "idle_look_around_01", position: [cx + 13, cz + 2], heading: -Math.PI / 2 },
+    { id: "s3", figure: "julia", action: "gestic_talk_relaxed_01", position: [cart + 1.2, cz + 6], heading: -Math.PI / 2 },
+    { id: "s4", figure: "lucas", action: "gestic_talk_relaxed_01", position: [cart + 0.2, cz + 7.6], heading: Math.PI },
+    { id: "s5", figure: "sofia", action: "cell_phone_textmessage", position: [cx - 15, cz - 9], heading: Math.PI / 4 },
+    { id: "s6", figure: "tomas", action: "idle_look_around_01", position: [STREET.roadHalf + 0.9, -(BUILDING_LINE + 2.5)], heading: Math.PI / 2 },
   ];
   return { walkers, standers };
 }

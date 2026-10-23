@@ -8,26 +8,33 @@ import {
 } from "@/lib/simulator/street/street-layout";
 import { useThree } from "@react-three/fiber";
 import { Suspense, useEffect, useMemo } from "react";
+import * as THREE from "three";
 import StreetBuildings from "./StreetBuildings";
+import StreetDecals from "./StreetDecals";
 import StreetGround from "./StreetGround";
 import StreetLighting from "./StreetLighting";
 import StreetPedestrians from "./StreetPedestrians";
+import StreetPlaza from "./StreetPlaza";
 import StreetProps from "./StreetProps";
 import StreetTraffic from "./StreetTraffic";
 
 /**
- * Calle 3D: una esquina de barrio con edificios, veredas, mobiliario, luz por
- * hora y peatones caminando.
+ * Calle 3D: un barrio de 3 × 3 manzanas con plaza, casas, centro y pasajes;
+ * edificios, veredas, mobiliario, detalles en el piso, luz por hora, tránsito
+ * y peatones caminando.
  */
 export default function StreetScene() {
   const layout = useMemo(() => buildStreetLayout(), []);
   const camera = useThree((s) => s.camera);
+  const gl = useThree((s) => s.gl);
 
-  // Sólo en desarrollo: mover la cámara desde la consola o Playwright.
+  // Sólo en desarrollo: mover la cámara y medir el render desde la consola o Playwright.
   useEffect(() => {
     if (process.env.NODE_ENV !== "development") return;
     (globalThis as Record<string, unknown>).__codCamera = camera;
-  }, [camera]);
+    (globalThis as Record<string, unknown>).__codGl = gl;
+    (globalThis as Record<string, unknown>).__codTHREE = THREE;
+  }, [camera, gl]);
 
   useEffect(() => {
     simulatorRuntime.walkableWorld = {
@@ -43,8 +50,10 @@ export default function StreetScene() {
     <group>
       <StreetLighting />
       <Suspense fallback={null}>
-        <StreetGround />
+        <StreetGround layout={layout} />
       </Suspense>
+      <StreetPlaza plaza={layout.plaza} />
+      <StreetDecals layout={layout} />
       <Suspense fallback={null}>
         <StreetBuildings layout={layout} />
       </Suspense>

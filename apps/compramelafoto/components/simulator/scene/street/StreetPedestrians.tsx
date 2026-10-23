@@ -56,6 +56,9 @@ const SMALL_TALK = "mira vos que lindo dia hoy no te parece que esta para sacar 
 /** Acciones en las que la cabeza va con la animación (no mira a la cámara). */
 const FREE_HEAD = new Set(["idle_look_around_01", "cell_phone_textmessage"]);
 
+/** Más allá de esto la gente no se dibuja ni se anima (queda en la bruma). */
+const PEOPLE_DRAW_DISTANCE = 85;
+
 /** Clips que se piden recién cuando un modelo los necesita. */
 const clipCache = new Map<string, Promise<THREE.AnimationClip>>();
 function loadClip(url: string): Promise<THREE.AnimationClip> {
@@ -524,11 +527,16 @@ export default function StreetPedestrians({ layout }: { layout: StreetLayout }) 
         p.root.rotation.y = p.heading;
       }
 
-      // Velocidad pedida ("saludá rápido"); al caminar o al soltarlo, la natural.
-      p.current.timeScale = isModel && !p.move ? st.pose.tempo : 1;
-      p.mixer.update(dt);
-      if (isModel && !FREE_HEAD.has(st.pose.action)) aimHead(p, camera, st.pose.gazeYaw, st.pose.gazePitch);
-      updateFace(p, isModel, st, camera, clock.elapsedTime, dt);
+      // Lejos no se dibuja ni se anima (sigue caminando su recorrido igual).
+      const far = !isModel && p.root.position.distanceTo(camera.position) > PEOPLE_DRAW_DISTANCE;
+      p.root.visible = !far;
+      if (!far) {
+        // Velocidad pedida ("saludá rápido"); al caminar o al soltarlo, la natural.
+        p.current.timeScale = isModel && !p.move ? st.pose.tempo : 1;
+        p.mixer.update(dt);
+        if (isModel && !FREE_HEAD.has(st.pose.action)) aimHead(p, camera, st.pose.gazeYaw, st.pose.gazePitch);
+        updateFace(p, isModel, st, camera, clock.elapsedTime, dt);
+      }
       if (p.walker && !isModel) {
         p.distance += p.speed * dt;
         const at = samplePath(p.walker.path, p.distance);
@@ -553,7 +561,7 @@ export default function StreetPedestrians({ layout }: { layout: StreetLayout }) 
   });
 
   return (
-    <group>
+    <group name="calle-gente">
       {people.map((p) => (
         <primitive key={p.id} object={p.root} />
       ))}

@@ -10,6 +10,8 @@ import * as THREE from "three";
 import { cloneCar, useStreetCars, type StreetCarPrototype } from "./street-car-models";
 
 const LAMP = new THREE.SphereGeometry(0.07, 10, 8);
+/** Más allá de esto los autos que circulan no se dibujan. */
+const DRAW_DISTANCE = 140;
 
 /** Faros y luces traseras (brillan de noche), en las puntas de cada modelo. */
 function addLights(car: THREE.Object3D, proto: StreetCarPrototype, head: THREE.Material, tail: THREE.Material) {
@@ -70,7 +72,7 @@ export default function StreetTraffic() {
     };
   }, [subjects]);
 
-  useFrame((_, delta) => {
+  useFrame(({ camera }, delta) => {
     stepTraffic(cars, streetRuntime.walkers, delta);
     const night = THREE.MathUtils.clamp((2 - simulatorRuntime.sunState.elevationDeg) / 8, 0, 1);
     (head as THREE.MeshStandardMaterial).emissiveIntensity = night * 30;
@@ -79,8 +81,9 @@ export default function StreetTraffic() {
     head.visible = tail.visible = night > 0.01;
     cars.forEach((c, i) => {
       const o = objects[i];
-      o.visible = !c.parked;
       const pose = carPose(LANES[c.lane], c.s);
+      // Lejos (en la bruma) no se dibuja: la ciudad tiene muchos autos.
+      o.visible = !c.parked && Math.hypot(pose.x - camera.position.x, pose.z - camera.position.z) < DRAW_DISTANCE;
       o.position.set(pose.x, 0, pose.z);
       o.rotation.y = pose.heading;
       const s = subjects[i];
@@ -94,7 +97,7 @@ export default function StreetTraffic() {
   });
 
   return (
-    <group>
+    <group name="calle-transito">
       {objects.map((o) => (
         <primitive key={o.uuid} object={o} />
       ))}

@@ -75,7 +75,7 @@ function at(frame: FrontFrame, along: number, y: number): readonly [number, numb
 export function planBuilding(building: StreetBuilding): PiecePlacement[] {
   const frame = frontFrame(building.start, building.end, building.normal);
   const out: PiecePlacement[] = [];
-  const chunk = building.id.replace(/-\d+$/, "");
+  const chunk = building.chunk;
   const push = (piece: string, along: number, y: number, tint: string | null = null, lit = false) =>
     out.push({ piece, position: at(frame, along, y), rotationY: frame.rotationY, tint, lit, chunk });
 
@@ -111,14 +111,15 @@ export function planBuilding(building: StreetBuilding): PiecePlacement[] {
  * líneas de edificación y se gira para mirar a la esquina.
  */
 export function planCorner(corner: StreetCorner): PiecePlacement[] {
-  const sx = Math.sign(corner.onMain[0]);
-  const sz = Math.sign(corner.onCross[1]);
+  // Lado de la manzana respecto del cruce (la normal apunta al cruce).
+  const sx = -Math.sign(corner.normal[0]);
+  const sz = -Math.sign(corner.normal[1]);
   const rotationY = sx > 0 && sz > 0 ? Math.PI : sx > 0 ? -Math.PI / 2 : sz > 0 ? Math.PI / 2 : 0;
   const ox = corner.onMain[0];
   const oz = corner.onCross[1];
   const out: PiecePlacement[] = [];
   const push = (piece: string, y: number, tint: string | null = null) =>
-    out.push({ piece, position: [ox, y, oz], rotationY, tint, chunk: corner.id });
+    out.push({ piece, position: [ox, y, oz], rotationY, tint, chunk: corner.chunk });
   const h = STREET.floorHeight;
   push("wall_door_angled_large_01", 0, corner.tint);
   push("door_angled_large_01", 0);

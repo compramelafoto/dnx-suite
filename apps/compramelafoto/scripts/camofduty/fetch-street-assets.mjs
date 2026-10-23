@@ -38,6 +38,22 @@ const MODELS = [
   // Versión lejana del árbol (a más de ~25 m alcanza con una décima parte).
   { id: "jacaranda_tree", file: "tree-jacaranda-far.glb", res: "1k", size: 512, simplify: 0.006 },
   { id: "covered_car", file: "covered-car.glb", res: "1k", size: 1024 },
+  // Plaza, pasajes y veredas del barrio grande.
+  { id: "horse_statue_01", file: "statue.glb", res: "1k", size: 1024 },
+  { id: "street_lamp_02", file: "plaza-lamp.glb", res: "1k", size: 512, simplify: 0.3 },
+  { id: "painted_wooden_bench", file: "plaza-bench.glb", res: "1k", size: 512 },
+  { id: "shrub_01", file: "shrub.glb", res: "1k", size: 512, simplify: 0.04 },
+  { id: "CoffeeCart_01", file: "coffee-cart.glb", res: "1k", size: 1024 },
+  { id: "outdoor_table_chair_set_01", file: "cafe-table.glb", res: "1k", size: 512 },
+  { id: "plastic_monobloc_chair_01", file: "monobloc.glb", res: "1k", size: 512 },
+  { id: "wooden_crate_01", file: "crate.glb", res: "1k", size: 512 },
+  { id: "trashbag", file: "trashbag.glb", res: "1k", size: 512 },
+  { id: "cardboard_box_01", file: "cardboard.glb", res: "1k", size: 512, simplify: 0.2 },
+  { id: "Barrel_01", file: "barrel.glb", res: "1k", size: 512 },
+  { id: "industrial_wall_lamp", file: "wall-lamp.glb", res: "1k", size: 512 },
+  { id: "modular_electric_cables", file: "cables.glb", res: "1k", size: 512, simplify: 0.3 },
+  { id: "planter_box_01", file: "planter.glb", res: "1k", size: 512 },
+  { id: "street_rat", file: "rat.glb", res: "1k", size: 512, simplify: 0.3 },
 ];
 
 /** Texturas de piso: id de Poly Haven → nombre corto. */
@@ -45,6 +61,9 @@ const TEXTURES = [
   { id: "asphalt_02", name: "asphalt", res: "2k" },
   { id: "concrete_tiles", name: "sidewalk", res: "2k" },
   { id: "brushed_concrete_03", name: "curb", res: "1k" },
+  { id: "leafy_grass", name: "grass", res: "1k" },
+  { id: "red_brick_pavers", name: "bricks", res: "1k" },
+  { id: "cobblestone_floor_08", name: "cobbles", res: "1k" },
 ];
 
 async function getJson(url) {
