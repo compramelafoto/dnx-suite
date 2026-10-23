@@ -3,7 +3,7 @@
 import { createContext, useContext, useMemo, useReducer, type ReactNode } from "react";
 import { MODIFIERS } from "./modifiers";
 import { MAX_LIGHTS, PRESETS, applyPreset, initialStudioState, makeLight, polarToXZ, solvePowerStops } from "./presets";
-import { poseById, type PoseId, type PoseParams } from "./poses";
+import { BASE_HEAD, poseById, type PoseId, type PoseParams } from "./poses";
 import type { StudioCamera, StudioLight, StudioState } from "./types";
 
 export type ScenePatch = Partial<Pick<StudioState, "subject" | "subjectYaw" | "backdrop" | "roomLux">>;
@@ -127,9 +127,24 @@ function apply(state: StudioState, action: Action): StudioState {
     case "scene":
     case "scene-move":
       return { ...state, ...action.patch };
-    case "pose":
+    case "pose": {
       // Elegir una pose detiene la animación completa: el modelo vuelve a posar.
-      return { ...state, pose: action.id, poseParams: poseById(action.id), motion: { ...state.motion, clip: null } };
+      const params = poseById(action.id);
+      const next = { ...state, pose: action.id, poseParams: params, motion: { ...state.motion, clip: null } };
+      if (params.base === state.poseParams.base) return next;
+      // Cambió el apoyo (de pie → sentada, acostada…): la cámara acompaña a la cara.
+      const head = BASE_HEAD[params.base];
+      const lying = params.base.startsWith("lie");
+      return {
+        ...next,
+        camera: {
+          ...state.camera,
+          aimY: head[1],
+          y: lying ? 2.1 : Math.max(0.5, head[1]),
+          look: null,
+        },
+      };
+    }
     case "motion":
       return { ...state, motion: { ...state.motion, ...action.patch } };
     case "pose-params":

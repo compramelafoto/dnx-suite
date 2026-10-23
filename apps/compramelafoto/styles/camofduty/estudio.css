@@ -1747,3 +1747,11 @@
     bottom: 90px;
   }
 }
+
+.cod-studio-segment--wrap {
+  flex-wrap: wrap;
+}
+
+.cod-studio-segment--wrap .cod-studio-segment__btn {
+  flex: 1 1 30%;
+}

@@ -7,7 +7,7 @@ import { MODIFIERS } from "./modifiers";
 import { MAX_LIGHTS, initialStudioState, makeLight } from "./presets";
 import { ANIMATIONS } from "./animation-clip";
 import { isKnownSubject } from "./figures";
-import { NEUTRAL_POSE, POSES, poseById, type PoseParams } from "./poses";
+import { NEUTRAL_POSE, POSES, poseById, type LegPose, type PoseBase, type PoseParams } from "./poses";
 import type { BackdropId, LightAim, ModifierId, StudioState } from "./types";
 
 const VERSION = 1;
@@ -25,16 +25,26 @@ function num(v: unknown, fallback: number, min: number, max: number): number {
 const POSE_KEYS = ["headTurn", "headNod", "headTilt", "torsoTurn", "torsoBend", "torsoLean", "weight"] as const;
 const ARM_KEYS = ["raise", "forward", "elbow", "roll"] as const;
 
+const LEG_KEYS = ["forward", "out", "knee", "roll"] as const;
+const BASES: PoseBase[] = ["stand", "stool", "floor", "kneel", "lie-back", "lie-side", "lie-front"];
+/** Cuerpo y brazos (versión 1 del enlace); después vienen apoyo, puntas y piernas. */
+const V1_LENGTH = POSE_KEYS.length + ARM_KEYS.length * 2;
+
 function poseToArray(p: PoseParams): number[] {
   return [
     ...POSE_KEYS.map((k) => r2(p[k])),
     ...ARM_KEYS.map((k) => Math.round(p.left[k])),
     ...ARM_KEYS.map((k) => Math.round(p.right[k])),
+    BASES.indexOf(p.base),
+    r2(p.pointe),
+    p.legs ? 1 : 0,
+    ...LEG_KEYS.map((k) => Math.round(p.legs?.left[k] ?? 0)),
+    ...LEG_KEYS.map((k) => Math.round(p.legs?.right[k] ?? 0)),
   ];
 }
 
 function poseFromArray(raw: unknown): PoseParams {
-  if (!Array.isArray(raw) || raw.length !== POSE_KEYS.length + ARM_KEYS.length * 2) return NEUTRAL_POSE;
+  if (!Array.isArray(raw) || (raw.length !== V1_LENGTH && raw.length !== V1_LENGTH + 3 + LEG_KEYS.length * 2)) return NEUTRAL_POSE;
   const at = (i: number, lo: number, hi: number) => num(raw[i], 0, lo, hi);
   const pose: PoseParams = { ...NEUTRAL_POSE, left: { ...NEUTRAL_POSE.left }, right: { ...NEUTRAL_POSE.right } };
   POSE_KEYS.forEach((k, i) => {
@@ -44,6 +54,20 @@ function poseFromArray(raw: unknown): PoseParams {
     pose.left[k] = at(POSE_KEYS.length + i, -180, 180);
     pose.right[k] = at(POSE_KEYS.length + ARM_KEYS.length + i, -180, 180);
   });
+  if (raw.length > V1_LENGTH) {
+    pose.base = BASES[Math.round(at(V1_LENGTH, 0, BASES.length - 1))] ?? "stand";
+    pose.pointe = at(V1_LENGTH + 1, 0, 1);
+    if (raw[V1_LENGTH + 2] === 1) {
+      const legAt = (offset: number) => {
+        const out = {} as LegPose;
+        LEG_KEYS.forEach((k, i) => {
+          out[k] = at(V1_LENGTH + 3 + offset + i, -180, 180);
+        });
+        return out;
+      };
+      pose.legs = { left: legAt(0), right: legAt(LEG_KEYS.length) };
+    }
+  }
   return pose;
 }
 

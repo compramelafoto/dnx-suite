@@ -9,7 +9,16 @@ import { ANIMATIONS, animationUrl, decodeClip, type CompactClip } from "@/lib/si
 import { bakeCavityAO } from "@/lib/simulator/studio-light/cavity-ao";
 import { figureUrl, type FigureSpec } from "@/lib/simulator/studio-light/figures";
 import { SUBJECT_HEAD } from "@/lib/simulator/studio-light/metering";
-import { armDirections, lerpPose, type PoseParams } from "@/lib/simulator/studio-light/poses";
+import {
+  SEQUENCES,
+  STOOL_SEAT_Y,
+  armDirections,
+  legDirections,
+  lerpPose,
+  sampleSequence,
+  type PoseBase,
+  type PoseParams,
+} from "@/lib/simulator/studio-light/poses";
 
 /**
  * Las texturas del FBX apuntan a .tga con rutas de Windows; las ignoramos
@@ -34,6 +43,10 @@ interface Rig {
   bones: Bones;
   rest: Map<THREE.Bone, THREE.Quaternion>;
   restPos: Map<THREE.Bone, THREE.Vector3>;
+  /** Altura de los pies sobre el piso en la pose de reposo (referencia de apoyo). */
+  restFootY: number;
+  /** Tutú de la bailarina (sigue a la cadera), si el modelo lo usa. */
+  tutu: THREE.Object3D | null;
   materials: THREE.Material[];
   textures: THREE.Texture[];
 }
@@ -55,9 +68,60 @@ const BONE_NAMES = [
   "L_Calf",
   "R_Thigh",
   "R_Calf",
+  "L_Foot",
+  "R_Foot",
+  "L_Toe0",
+  "R_Toe0",
   "LEye",
   "REye",
 ];
+
+function bonePos(root: THREE.Object3D, bone: THREE.Object3D): THREE.Vector3 {
+  return root.worldToLocal(bone.getWorldPosition(new THREE.Vector3()));
+}
+
+/** Altura de un hueso medida en el marco de la raíz del modelo. */
+function boneY(root: THREE.Object3D, bone: THREE.Bone | undefined): number {
+  return bone ? bonePos(root, bone).y : Infinity;
+}
+
+
+/** Tutú de tul: tres capas cónicas, apenas transparentes. */
+function buildTutu(): THREE.Group {
+  const group = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({
+    color: "#f7f2f4",
+    roughness: 0.9,
+    transparent: true,
+    opacity: 0.88,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+  });
+  [
+    [0.15, 0.42, -0.04],
+    [0.15, 0.38, -0.015],
+    [0.15, 0.33, 0.01],
+  ].forEach(([top, bottom, y]) => {
+    const layer = new THREE.Mesh(new THREE.CylinderGeometry(top, bottom, 0.07, 48, 1, true), mat);
+    layer.position.y = y;
+    layer.castShadow = true;
+    group.add(layer);
+  });
+  return group;
+}
+
+function basisQuat(x: number[], y: number[], z: number[]): THREE.Quaternion {
+  const m = new THREE.Matrix4().makeBasis(new THREE.Vector3(...x), new THREE.Vector3(...y), new THREE.Vector3(...z));
+  return new THREE.Quaternion().setFromRotationMatrix(m);
+}
+
+/** Orientación del cuerpo acostado: la cabeza hacia +X y el cuerpo hacia −X. */
+const LYING: Partial<Record<PoseBase, THREE.Quaternion>> = {
+  "lie-back": basisQuat([0, 0, 1], [1, 0, 0], [0, 1, 0]),
+  "lie-side": basisQuat([0, -1, 0], [1, 0, 0], [0, 0, 1]),
+  "lie-front": basisQuat([0, 0, -1], [1, 0, 0], [0, -1, 0]),
+};
+
 
 function buildRig(source: THREE.Group, figure: FigureSpec): Rig {
   const model = cloneSkinned(source) as THREE.Group;
@@ -157,7 +221,58 @@ function buildRig(source: THREE.Group, figure: FigureSpec): Rig {
 
   const root = new THREE.Group();
   root.add(character);
-  return { root, model, character, bones, rest, restPos, materials, textures };
+  root.updateMatrixWorld(true);
+  const restFootY = Math.min(...["L_Toe0", "R_Toe0", "L_Foot", "R_Foot"].map((n) => boneY(root, bones[n])));
+
+  let tutu: THREE.Object3D | null = null;
+  if (figure.tutu) {
+    tutu = buildTutu();
+    tutu.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (m.isMesh) materials.push(m.material as THREE.Material);
+    });
+    root.add(tutu);
+  }
+  return { root, model, character, bones, rest, restPos, restFootY, tutu, materials, textures };
+}
+
+/**
+ * Ubica el cuerpo según su apoyo, después de posar los huesos: pies en el piso,
+ * pelvis sobre el banquito, rodillas en el piso o acostado con la cabeza en el
+ * centro del set. `lift` eleva (saltos) y `spin` gira sobre sí mismo (piruetas).
+ */
+function placeBody(rig: Rig, base: PoseBase, lift = 0, spin = 0) {
+  const c = rig.character;
+  const B = rig.bones;
+  const lying = LYING[base];
+  c.quaternion.copy(lying ?? new THREE.Quaternion());
+  if (spin) c.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), spin * DEG));
+  c.position.set(0, 0, 0);
+  rig.root.updateMatrixWorld(true);
+
+  const feet = ["L_Toe0", "R_Toe0", "L_Foot", "R_Foot"].map((n) => boneY(rig.root, B[n]));
+  if (base === "stand") {
+    c.position.y = rig.restFootY - Math.min(...feet) + lift;
+  } else if (base === "stool" || base === "floor") {
+    const pelvis = B.Pelvis ? bonePos(rig.root, B.Pelvis) : new THREE.Vector3();
+    c.position.set(-pelvis.x, (base === "stool" ? STOOL_SEAT_Y + 0.1 : 0.11) - pelvis.y, -pelvis.z - 0.02);
+  } else if (base === "kneel") {
+    const pelvis = B.Pelvis ? bonePos(rig.root, B.Pelvis) : new THREE.Vector3();
+    const low = Math.min(...feet, boneY(rig.root, B.L_Calf), boneY(rig.root, B.R_Calf));
+    c.position.set(-pelvis.x, 0.06 - low, -pelvis.z);
+  } else {
+    // Acostado: el punto más bajo del cuerpo apoyado en la colchoneta y la cabeza al centro.
+    let low = Infinity;
+    for (const bone of rig.rest.keys()) low = Math.min(low, boneY(rig.root, bone));
+    const head = B.Head ? bonePos(rig.root, B.Head) : new THREE.Vector3();
+    c.position.set(-head.x, 0.12 - low, -head.z);
+  }
+  rig.root.updateMatrixWorld(true);
+
+  if (rig.tutu && B.Pelvis) {
+    rig.tutu.position.copy(bonePos(rig.root, B.Pelvis)).add(new THREE.Vector3(0, 0.03, 0).applyQuaternion(c.quaternion));
+    rig.tutu.quaternion.copy(c.quaternion);
+  }
 }
 
 const tmpQ = new THREE.Quaternion();
@@ -193,20 +308,26 @@ function aim(rig: Rig, bone: THREE.Bone | undefined, child: THREE.Bone | undefin
   rotateInCharacter(rig, bone, tmpQ.setFromUnitVectors(current, target));
 }
 
-function applyPose(rig: Rig, p: PoseParams) {
+function applyPose(rig: Rig, p: PoseParams, lift = 0, spin = 0) {
   for (const [bone, q] of rig.rest) bone.quaternion.copy(q);
   // Una animación pudo mover la raíz y la pelvis: vuelven a su lugar.
   for (const [bone, v] of rig.restPos) bone.position.copy(v);
+  // Los huesos se posan con el cuerpo derecho; placeBody lo ubica al final.
+  rig.character.position.set(0, 0, 0);
+  rig.character.quaternion.identity();
   rig.character.updateWorldMatrix(true, true);
   const B = rig.bones;
 
-  // Peso en una pierna: cadera inclinada, rodilla libre doblada y torso que compensa.
+  // Peso en una pierna: cadera inclinada; si las piernas no se definen a mano,
+  // la rodilla libre se dobla sola y el torso compensa.
   const w = p.weight;
   rotateEuler(rig, B.Pelvis, 0, 0, 4 * w);
-  const free = w > 0 ? "R" : "L";
-  const bend = 9 * Math.abs(w);
-  rotateEuler(rig, B[`${free}_Thigh`], -bend, 0, 0);
-  rotateEuler(rig, B[`${free}_Calf`], 2 * bend, 0, 0);
+  if (!p.legs) {
+    const free = w > 0 ? "R" : "L";
+    const bend = 9 * Math.abs(w);
+    rotateEuler(rig, B[`${free}_Thigh`], -bend, 0, 0);
+    rotateEuler(rig, B[`${free}_Calf`], 2 * bend, 0, 0);
+  }
 
   const spine = [B.Spine, B.Spine1, B.Spine2].filter(Boolean) as THREE.Bone[];
   for (const bone of spine) {
@@ -221,6 +342,21 @@ function applyPose(rig: Rig, p: PoseParams) {
     aim(rig, B[`${s}_UpperArm`], B[`${s}_Forearm`], dirs.upper);
     aim(rig, B[`${s}_Forearm`], B[`${s}_Hand`], dirs.fore);
   }
+
+  if (p.legs) {
+    for (const side of [1, -1] as const) {
+      const s = side === 1 ? "L" : "R";
+      const dirs = legDirections(side === 1 ? p.legs.left : p.legs.right, side);
+      aim(rig, B[`${s}_Thigh`], B[`${s}_Calf`], dirs.thigh);
+      aim(rig, B[`${s}_Calf`], B[`${s}_Foot`], dirs.calf);
+    }
+  }
+  // Pies en punta: el empeine se estira hacia abajo (relevé).
+  if (p.pointe > 0) {
+    rotateEuler(rig, B.L_Foot, 58 * p.pointe, 0, 0);
+    rotateEuler(rig, B.R_Foot, 58 * p.pointe, 0, 0);
+  }
+  placeBody(rig, p.base, lift, spin);
 }
 
 /**
@@ -250,6 +386,44 @@ function loadClip(url: string): Promise<THREE.AnimationClip> {
     clipCache.set(url, hit);
   }
   return hit;
+}
+
+/** Banquito de estudio: asiento redondo y cuatro patas. */
+function Stool() {
+  const legs = [0, 1, 2, 3].map((i) => (i / 4) * Math.PI * 2 + Math.PI / 4);
+  return (
+    <group position={[0, 0, -0.02]}>
+      <mesh position={[0, STOOL_SEAT_Y - 0.025, 0]} castShadow receiveShadow>
+        <cylinderGeometry args={[0.19, 0.19, 0.05, 32]} />
+        <meshStandardMaterial color="#1c1d21" roughness={0.6} />
+      </mesh>
+      {legs.map((a) => (
+        <mesh
+          key={a}
+          position={[Math.sin(a) * 0.14, (STOOL_SEAT_Y - 0.05) / 2, Math.cos(a) * 0.14]}
+          rotation={[Math.cos(a) * 0.12, 0, -Math.sin(a) * 0.12]}
+          castShadow
+        >
+          <cylinderGeometry args={[0.014, 0.016, STOOL_SEAT_Y - 0.05, 8]} />
+          <meshStandardMaterial color="#8d939c" metalness={0.6} roughness={0.4} />
+        </mesh>
+      ))}
+      <mesh position={[0, 0.22, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[0.135, 0.008, 8, 32]} />
+        <meshStandardMaterial color="#8d939c" metalness={0.6} roughness={0.4} />
+      </mesh>
+    </group>
+  );
+}
+
+/** Colchoneta para las poses en el piso y acostadas. */
+function Mat({ lying }: { lying: boolean }) {
+  return (
+    <mesh position={[lying ? -0.72 : 0, 0.015, lying ? 0 : 0.05]} receiveShadow>
+      <boxGeometry args={[lying ? 2 : 1.3, 0.03, lying ? 0.85 : 1.1]} />
+      <meshStandardMaterial color="#3b3f47" roughness={0.95} />
+    </mesh>
+  );
 }
 
 export interface FigureMotion {
@@ -324,6 +498,8 @@ export default function StudioFigure({
       applyPose(rig, current.current);
       return;
     }
+    rig.character.position.set(0, 0, 0);
+    rig.character.quaternion.identity();
     const action = mixer.clipAction(clip);
     action.reset().setLoop(THREE.LoopRepeat, Infinity).fadeIn(0.35).play();
     return () => {
@@ -338,9 +514,28 @@ export default function StudioFigure({
     [mixer],
   );
 
+  const sequence = SEQUENCES.find((q) => q.id === motion.clip) ?? null;
+  const seqStart = useRef(0);
+  useEffect(() => {
+    seqStart.current = -1;
+  }, [sequence]);
+
   useFrame((state, delta) => {
+    if (sequence) {
+      if (seqStart.current < 0) seqStart.current = state.clock.elapsedTime;
+      const sample = sampleSequence(sequence, state.clock.elapsedTime - seqStart.current);
+      current.current = sample.pose;
+      applyPose(rig, sample.pose, sample.lift, sample.spin);
+      return;
+    }
     if (clip) {
       mixer.update(delta);
+      // El tutú sigue a la cadera también en las animaciones capturadas.
+      if (rig.tutu && rig.bones.Pelvis) {
+        rig.root.updateMatrixWorld(true);
+        rig.tutu.position.copy(bonePos(rig.root, rig.bones.Pelvis)).add(new THREE.Vector3(0, 0.03, 0));
+        rig.tutu.quaternion.identity();
+      }
       return;
     }
     const moving = t.current < 1;
@@ -354,9 +549,12 @@ export default function StudioFigure({
     if (motion.natural) applyNatural(rig, state.clock.elapsedTime);
   });
 
+  const base = current.current.base === pose.base ? pose.base : pose.base;
   return (
     <group rotation={[0, yaw * DEG, 0]}>
       <primitive object={rig.root} />
+      {base === "stool" && !motion.clip ? <Stool /> : null}
+      {(base === "floor" || base === "kneel" || base.startsWith("lie")) && !motion.clip ? <Mat lying={base.startsWith("lie")} /> : null}
     </group>
   );
 }
