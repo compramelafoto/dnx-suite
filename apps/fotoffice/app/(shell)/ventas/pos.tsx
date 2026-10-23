@@ -1214,8 +1214,16 @@ export function Pos({
                           ) : null}
                           {r.description}
                         </p>
-                      {/* Un producto sin proceso también puede quedar señado para retirar. */}
-                      {senaHabilitada && !tieneProceso(r) ? (
+                      {/* Un producto con proceso ya es un pedido: muestra «Seña» prendido y fijo, para
+                          que todos los renglones se vean igual. Uno sin proceso puede quedar señado. */}
+                      {tieneProceso(r) ? (
+                        <span
+                          title="Este producto se produce después: siempre va como pedido. Seña o pago total se eligen abajo."
+                          className="mt-1 inline-flex h-6 cursor-default items-center rounded-full border border-[var(--fo-accent)] bg-[var(--fo-accent-muted)] px-2 text-[11px] font-medium text-[var(--fo-text)]"
+                        >
+                          Seña
+                        </span>
+                      ) : senaHabilitada ? (
                         <button
                           type="button"
                           aria-pressed={paraRetirar[r.key] === true}
