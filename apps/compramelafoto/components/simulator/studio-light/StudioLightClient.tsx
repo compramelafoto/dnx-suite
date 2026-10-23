@@ -8,6 +8,7 @@ import { deserializeStudio, serializeStudio } from "@/lib/simulator/studio-light
 import { StudioProvider, useStudio } from "@/lib/simulator/studio-light/studio-store";
 import type { StudioState } from "@/lib/simulator/studio-light/types";
 import type { Histogram, StudioViewMode } from "./StudioCanvas";
+import StudioIcon, { type StudioIconName } from "./StudioIcons";
 import StudioMeter from "./StudioMeter";
 import { CameraPanel, LightsPanel, PresetsPanel, ScenePanel } from "./StudioPanels";
 import StudioPlanView from "./StudioPlanView";
@@ -19,11 +20,11 @@ const StudioCanvas = dynamic(() => import("./StudioCanvas"), {
 
 type Tab = "lights" | "camera" | "scene" | "presets";
 
-const TABS: { id: Tab; label: string }[] = [
-  { id: "lights", label: "Luces" },
-  { id: "camera", label: "Cámara" },
-  { id: "scene", label: "Escena" },
-  { id: "presets", label: "Esquemas" },
+const TABS: { id: Tab; label: string; icon: StudioIconName }[] = [
+  { id: "lights", label: "Luces", icon: "light" },
+  { id: "camera", label: "Cámara", icon: "camera" },
+  { id: "scene", label: "Escena", icon: "scene" },
+  { id: "presets", label: "Esquemas", icon: "presets" },
 ];
 
 const SLOT_COUNT = 6;
@@ -80,7 +81,7 @@ type PlanTheme = "dark" | "light";
 type PlanFormat = "png" | "svg";
 
 const PLAN_THEMES: Record<PlanTheme, { bg: string; text: string; readout: string; ink: string; muted: string }> = {
-  dark: { bg: "#0d0d12", text: "#e5e7eb", readout: "#ffd400", ink: "255,255,255", muted: "110,200,255" },
+  dark: { bg: "#0d0d12", text: "#e5e7eb", readout: "#ffb547", ink: "255,255,255", muted: "110,200,255" },
   light: { bg: "#ffffff", text: "#1f2937", readout: "#a16207", ink: "17,24,39", muted: "37,99,235" },
 };
 
@@ -100,7 +101,7 @@ function themedPlan(theme: PlanTheme): { markup: string; width: number; height: 
         if (v.startsWith("rgba(255,255,255")) el.setAttribute(attr, v.replace("255,255,255", t.ink));
         else if (v.startsWith("rgba(110,200,255")) el.setAttribute(attr, v.replace("110,200,255", t.muted));
         else if (v === "#16161a" || v === "#2b2d31") el.setAttribute(attr, "#e5e7eb");
-        else if (v === "#ffd400") el.setAttribute(attr, t.readout);
+        else if (v === "#ffb547") el.setAttribute(attr, t.readout);
       }
     });
   }
@@ -182,7 +183,7 @@ function ExportDialog({ onClose }: { onClose: () => void }) {
         <div className="cod-studio-editor__actions">
           <button
             type="button"
-            className="cod-btn cod-btn--primary cod-btn--sm"
+            className="cod-studio-btn cod-studio-btn--accent"
             onClick={() => {
               exportPlan(theme, format);
               onClose();
@@ -190,7 +191,7 @@ function ExportDialog({ onClose }: { onClose: () => void }) {
           >
             Descargar
           </button>
-          <button type="button" className="cod-btn cod-btn--ghost cod-btn--sm" onClick={onClose}>
+          <button type="button" className="cod-studio-btn" onClick={onClose}>
             Cancelar
           </button>
         </div>
@@ -217,7 +218,7 @@ function HelpDialog({ onClose }: { onClose: () => void }) {
         <p className="cod-studio-hint">
           Inspirado en Virtual Lighting Studio (zvork) y Set a Light 3D. Escaneo de cabeza: Lee Perry-Smith (Infinite-Realities), licencia CC BY 3.0. Modelos de cuerpo entero: Microsoft Rocketbox Avatar Library, licencia MIT.
         </p>
-        <button type="button" className="cod-btn cod-btn--primary cod-btn--sm" onClick={onClose}>
+        <button type="button" className="cod-studio-btn cod-studio-btn--accent" onClick={onClose}>
           Entendido
         </button>
       </div>
@@ -350,49 +351,54 @@ function StudioWorkspace() {
   return (
     <main className="cod-studio">
       <section className="cod-studio__stage">
-        <div className="cod-studio__toolbar">
-          <div className="cod-studio-segment" role="group" aria-label="Vista principal">
-            <button type="button" className={`cod-studio-segment__btn${mode === "set" ? " cod-studio-segment__btn--on" : ""}`} onClick={() => setMode("set")}>
-              Vista del set
-            </button>
-            <button type="button" className={`cod-studio-segment__btn${mode === "camera" ? " cod-studio-segment__btn--on" : ""}`} onClick={() => setMode("camera")}>
-              Vista de cámara
-            </button>
-          </div>
-          <div className="cod-studio__actions">
-            <button type="button" className="cod-btn cod-btn--ghost cod-btn--sm" disabled={!canUndo} onClick={() => dispatch({ type: "undo" })} title="Deshacer (⌘Z)">
-              Deshacer
-            </button>
-            <button type="button" className="cod-btn cod-btn--ghost cod-btn--sm" disabled={!canRedo} onClick={() => dispatch({ type: "redo" })} title="Rehacer (⇧⌘Z)">
-              Rehacer
-            </button>
-            <button type="button" className="cod-btn cod-btn--ghost cod-btn--sm" onClick={() => setExportOpen(true)}>
-              Descargar esquema
-            </button>
-            <button type="button" className="cod-btn cod-btn--secondary cod-btn--sm" onClick={share}>
-              Compartir set
-            </button>
-            <button type="button" className="cod-btn cod-btn--ghost cod-btn--sm" onClick={() => setHelpOpen(true)} aria-label="Ayuda">
-              ?
-            </button>
-          </div>
-        </div>
-
         <div className="cod-studio__viewport">
           <StudioCanvas mode={mode} captureRef={captureRef} onHistogram={setHistogram} showPip />
+
+          <div className="cod-studio-dock" role="toolbar" aria-label="Herramientas del estudio">
+            <div className="cod-studio-switch" role="group" aria-label="Vista principal">
+              <button type="button" aria-pressed={mode === "set"} className={mode === "set" ? "is-on" : ""} onClick={() => setMode("set")}>
+                <StudioIcon name="set" />
+                Set
+              </button>
+              <button type="button" aria-pressed={mode === "camera"} className={mode === "camera" ? "is-on" : ""} onClick={() => setMode("camera")}>
+                <StudioIcon name="camera" />
+                Cámara
+              </button>
+            </div>
+            <span className="cod-studio-dock__sep" aria-hidden="true" />
+            <button type="button" className="cod-studio-iconbtn" disabled={!canUndo} onClick={() => dispatch({ type: "undo" })} aria-label="Deshacer" data-tip="Deshacer · ⌘Z">
+              <StudioIcon name="undo" />
+            </button>
+            <button type="button" className="cod-studio-iconbtn" disabled={!canRedo} onClick={() => dispatch({ type: "redo" })} aria-label="Rehacer" data-tip="Rehacer · ⇧⌘Z">
+              <StudioIcon name="redo" />
+            </button>
+            <span className="cod-studio-dock__sep" aria-hidden="true" />
+            <button type="button" className="cod-studio-iconbtn" onClick={() => setExportOpen(true)} aria-label="Descargar esquema" data-tip="Descargar esquema">
+              <StudioIcon name="download" />
+            </button>
+            <button type="button" className="cod-studio-iconbtn" onClick={share} aria-label="Compartir set" data-tip="Copiar enlace del set">
+              <StudioIcon name="share" />
+            </button>
+            <button type="button" className="cod-studio-iconbtn" onClick={() => setHelpOpen(true)} aria-label="Ayuda" data-tip="Atajos y ayuda">
+              <StudioIcon name="help" />
+            </button>
+          </div>
+
           <button
             type="button"
             className="cod-studio__pip"
             onClick={() => setMode((m) => (m === "set" ? "camera" : "set"))}
             aria-label={mode === "set" ? "Ver por la cámara" : "Ver el set"}
           >
-            <span>{mode === "set" ? "Foto" : "Set"}</span>
+            <span>{mode === "set" ? "Ver foto" : "Ver set"}</span>
           </button>
           {mode === "camera" && report.syncBand > 0 ? (
             <div className="cod-studio__syncband" style={{ height: `${report.syncBand * 100}%` }} aria-hidden="true" />
           ) : null}
           {mode === "set" ? (
-            <p className="cod-studio__tip">Arrastrá las luces · Shift para subir/bajar · rueda sobre una luz = potencia</p>
+            <p className="cod-studio__tip">
+              <kbd>Arrastrar</kbd> mueve la luz <kbd>Shift</kbd> cambia la altura <kbd>Rueda</kbd> ajusta la potencia
+            </p>
           ) : null}
           {flash ? <div className="cod-studio__flash" aria-hidden="true" /> : null}
           <button type="button" className="cod-studio__shutter" onClick={captureNext} aria-label="Capturar foto (Espacio)">
@@ -402,7 +408,7 @@ function StudioWorkspace() {
 
         <ol className="cod-studio-slots" aria-label="Capturas">
           {slots.map((slot, i) => (
-            <li key={i} className="cod-studio-slot">
+            <li key={i} className={`cod-studio-slot${slot ? " cod-studio-slot--full" : ""}`}>
               {slot ? (
                 <>
                   <button type="button" className="cod-studio-slot__img" onClick={() => applySlot(slot)} title="Volver a este set">
@@ -411,17 +417,17 @@ function StudioWorkspace() {
                   </button>
                   <span className="cod-studio-slot__label">{slot.label}</span>
                   <span className="cod-studio-slot__tools">
-                    <button type="button" onClick={() => download(fullImages[i] ?? slot.image, `estudio-de-luz-${i + 1}.jpg`)}>
-                      Descargar
+                    <button type="button" aria-label="Descargar foto" onClick={() => download(fullImages[i] ?? slot.image, `estudio-de-luz-${i + 1}.jpg`)}>
+                      <StudioIcon name="download" size={15} />
                     </button>
-                    <button type="button" onClick={() => clearSlot(i)}>
-                      Borrar
+                    <button type="button" aria-label="Borrar captura" onClick={() => clearSlot(i)}>
+                      <StudioIcon name="trash" size={15} />
                     </button>
                   </span>
                 </>
               ) : (
-                <button type="button" className="cod-studio-slot__empty" onClick={() => captureTo(i)}>
-                  Capturar {i + 1}
+                <button type="button" className="cod-studio-slot__empty" onClick={() => captureTo(i)} aria-label={`Capturar en el lugar ${i + 1}`}>
+                  <StudioIcon name="plus" size={16} />
                 </button>
               )}
             </li>
@@ -431,24 +437,25 @@ function StudioWorkspace() {
 
       <aside className="cod-studio__side" aria-label="Controles del estudio">
         <StudioMeter histogram={histogram} />
-        <section className="cod-studio-card">
+        <section className="cod-studio-card cod-studio-card--plan">
           <header className="cod-studio-card__head">
             <h2 className="cod-studio-card__title">Planta</h2>
-            <span className="cod-studio-hint">vista desde arriba</span>
+            <span className="cod-studio-hint">Arrastrá luces y cámara</span>
           </header>
           <StudioPlanView />
         </section>
-        <section className="cod-studio-card">
-          <div className="cod-side-tabs" role="tablist" aria-label="Panel del estudio">
+        <section className="cod-studio-card cod-studio-card--controls">
+          <div className="cod-studio-tabs" role="tablist" aria-label="Panel del estudio">
             {TABS.map((t) => (
               <button
                 key={t.id}
                 type="button"
                 role="tab"
                 aria-selected={tab === t.id}
-                className={`cod-side-tabs__btn${tab === t.id ? " cod-side-tabs__btn--active" : ""}`}
+                className={`cod-studio-tabs__btn${tab === t.id ? " is-on" : ""}`}
                 onClick={() => setTab(t.id)}
               >
+                <StudioIcon name={t.icon} size={17} />
                 {t.label}
               </button>
             ))}

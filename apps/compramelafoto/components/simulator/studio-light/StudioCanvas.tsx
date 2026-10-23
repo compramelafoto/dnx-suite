@@ -1,8 +1,8 @@
 "use client";
 
 import { OrbitControls } from "@react-three/drei";
-import { Canvas, useFrame } from "@react-three/fiber";
-import { Suspense, useLayoutEffect, useMemo, useRef, type ElementRef, type MutableRefObject } from "react";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { Suspense, useLayoutEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import * as THREE from "three";
 import { RectAreaLightUniformsLib } from "three/examples/jsm/lights/RectAreaLightUniformsLib.js";
 import { SUBJECT_HEAD, renderExposure, roomN2 } from "@/lib/simulator/studio-light/metering";
@@ -250,7 +250,13 @@ function SceneContent(props: {
     return l;
   }, []);
   const roomLight = useMemo(() => new THREE.HemisphereLight("#fff4e6", "#3a3631", 0), []);
-  const controls = useRef<ElementRef<typeof OrbitControls>>(null);
+  // Bloqueos de la órbita mientras el mouse está sobre una luz o la arrastra.
+  // Van en estado: si se tocaran a mano, cada redibujado los volvería a activar.
+  const [orbitLocked, setOrbitLocked] = useState(false);
+  const [zoomLocked, setZoomLocked] = useState(false);
+  // El control de órbita escucha el lienzo y recibe el clic antes que la luz:
+  // además del estado, se lo apaga en el acto para que no llegue a girar.
+  const controls = useThree((s) => s.controls) as { enabled: boolean; enableZoom: boolean } | null;
 
   return (
     <>
@@ -268,16 +274,18 @@ function SceneContent(props: {
       <StudioLightRig
         showHelpers={props.mode === "set"}
         setZoomEnabled={(on) => {
-          if (controls.current) controls.current.enableZoom = on;
+          if (controls) controls.enableZoom = on;
+          setZoomLocked(!on);
         }}
         setOrbitEnabled={(on) => {
-          if (controls.current) controls.current.enabled = on;
+          if (controls) controls.enabled = on && props.mode === "set";
+          setOrbitLocked(!on);
         }}
       />
       <OrbitControls
-        ref={controls}
         makeDefault
-        enabled={props.mode === "set"}
+        enabled={props.mode === "set" && !orbitLocked}
+        enableZoom={!zoomLocked}
         target={[0, 1.25, 0]}
         minDistance={1.2}
         maxDistance={12}

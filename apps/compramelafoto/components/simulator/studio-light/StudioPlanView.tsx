@@ -22,7 +22,7 @@ function LightGlyph({ light, selected, lit }: { light: StudioLight; selected: bo
   const w = Math.max(0.16, spec.width);
   const beam = (spec.beamDeg / 2 / DEG);
   const reach = 1.1;
-  const stroke = selected ? "#ffd400" : "rgba(255,255,255,0.75)";
+  const stroke = selected ? "#ffb547" : "rgba(255,255,255,0.75)";
   return (
     <g transform={`translate(${f(light.x)} ${f(light.z)}) rotate(${f(angle)})`} opacity={light.on ? 1 : 0.35}>
       {lit ? (
@@ -54,7 +54,7 @@ function LightGlyph({ light, selected, lit }: { light: StudioLight; selected: bo
           <line x1={0.08} y1={-w / 2} x2={0.08} y2={w / 2} stroke={gel} strokeWidth={0.05} />
         </>
       )}
-      {selected ? <circle r={0.34} fill="none" stroke="#ffd400" strokeWidth={0.025} strokeDasharray="0.06 0.05" /> : null}
+      {selected ? <circle r={0.34} fill="none" stroke="#ffb547" strokeWidth={0.025} strokeDasharray="0.06 0.05" /> : null}
     </g>
   );
 }

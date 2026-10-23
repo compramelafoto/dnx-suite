@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import { GELS, MODIFIERS, MODIFIER_GROUPS, gelById, powerLabel } from "@/lib/simulator/studio-light/modifiers";
 import { formatEv, formatShutter, kelvinToRgb, lightN2AtSubject, exposureEv } from "@/lib/simulator/studio-light/metering";
 import { MAX_LIGHTS, MAX_POWER_STOPS, PRESETS, polarToXZ } from "@/lib/simulator/studio-light/presets";
 import { FRAMINGS, useSelectedLight, useStudio, type FramingId, type ScenePatch } from "@/lib/simulator/studio-light/studio-store";
 import type { LightAim, ModifierId, StudioLight } from "@/lib/simulator/studio-light/types";
 import { BACKDROPS } from "./StudioBackdrop";
+import StudioIcon from "./StudioIcons";
 import { BUST_LABELS, FIGURES, figureUrl, isBust, type BustId } from "@/lib/simulator/studio-light/figures";
 import { POSES, type ArmPose, type PoseParams } from "@/lib/simulator/studio-light/poses";
 
@@ -40,6 +41,8 @@ function Slider(props: {
         max={props.max}
         step={props.step}
         value={props.value}
+        // Tramo recorrido pintado con el color de acento.
+        style={{ "--fill": `${((props.value - props.min) / (props.max - props.min || 1)) * 100}%` } as CSSProperties}
         onChange={(e) => props.onChange(Number(e.target.value))}
       />
     </label>
@@ -150,9 +153,10 @@ function LightEditor({ light }: { light: StudioLight }) {
             </select>
             <button
               type="button"
-              className="cod-btn cod-btn--secondary cod-btn--sm"
+              className="cod-studio-btn"
               onClick={() => dispatch({ type: "auto-power", id: light.id, ev: ttlTarget })}
             >
+              <StudioIcon name="meter" size={16} />
               Ajustar a la cámara (TTL)
             </button>
           </div>
@@ -210,11 +214,13 @@ function LightEditor({ light }: { light: StudioLight }) {
       ) : null}
 
       <div className="cod-studio-editor__actions">
-        <button type="button" className="cod-btn cod-btn--ghost cod-btn--sm" onClick={() => dispatch({ type: "duplicate-light", id: light.id })} disabled={state.lights.length >= MAX_LIGHTS}>
+        <button type="button" className="cod-studio-btn" onClick={() => dispatch({ type: "duplicate-light", id: light.id })} disabled={state.lights.length >= MAX_LIGHTS}>
+          <StudioIcon name="copy" size={16} />
           Duplicar en espejo
         </button>
-        <button type="button" className="cod-btn cod-btn--ghost cod-btn--sm" onClick={() => dispatch({ type: "remove-light", id: light.id })}>
-          Quitar
+        <button type="button" className="cod-studio-btn cod-studio-btn--danger" onClick={() => dispatch({ type: "remove-light", id: light.id })}>
+          <StudioIcon name="trash" size={16} />
+          Quitar luz
         </button>
       </div>
     </div>
@@ -254,9 +260,10 @@ export function LightsPanel() {
                 className={`cod-studio-solo${l.solo ? " cod-studio-solo--on" : ""}`}
                 aria-pressed={l.solo}
                 title="Ver sólo esta luz"
+                aria-label={`Ver sólo ${l.name}`}
                 onClick={() => dispatch({ type: "toggle-solo", id: l.id })}
               >
-                S
+                <StudioIcon name="solo" size={16} />
               </button>
             </li>
           );
@@ -266,7 +273,8 @@ export function LightsPanel() {
       {state.lights.length < MAX_LIGHTS ? (
         <div className="cod-studio-add">
           <ModifierSelect value={adding} onChange={setAdding} />
-          <button type="button" className="cod-btn cod-btn--primary cod-btn--sm" onClick={() => dispatch({ type: "add-light", modifier: adding })}>
+          <button type="button" className="cod-studio-btn cod-studio-btn--accent" onClick={() => dispatch({ type: "add-light", modifier: adding })}>
+            <StudioIcon name="plus" size={16} />
             Agregar luz
           </button>
         </div>
@@ -524,7 +532,7 @@ function PosePicker() {
             ))}
           </fieldset>
         ))}
-        <button type="button" className="cod-btn cod-btn--ghost cod-btn--sm" onClick={() => dispatch({ type: "pose", id: "relaxed" })}>
+        <button type="button" className="cod-studio-btn" onClick={() => dispatch({ type: "pose", id: "relaxed" })}>
           Volver a la pose neutra
         </button>
       </details>
