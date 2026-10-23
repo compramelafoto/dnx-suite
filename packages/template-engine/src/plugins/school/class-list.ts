@@ -370,6 +370,8 @@ export type ClassListSectionsLayout = {
 const SECTION_GAP = 0.5;
 /** Aire debajo de la línea del colegio, en renglones de nombre. */
 const SCHOOL_GAP = 0.4;
+/** Aire entre el título de un curso y sus nombres, en renglones de nombre. */
+const HEADING_GAP = 0.6;
 /**
  * Ancho medio de una letra en negrita, en cuerpos. Sirve para achicar un título que no entra en
  * su columna. Es una estimación (acá no hay medidas de la tipografía), pero es la misma cuenta
@@ -480,7 +482,7 @@ export function layoutClassListSections(input: {
     const columns = Math.max(1, Math.min(input.columns, s.lines.length));
     const rows = Math.ceil(s.lines.length / columns);
     // Alto total en «renglones de nombre»: así el achique es una sola cuenta lineal.
-    const units = schoolUnits + rows + (s.heading ? headingScale : 0);
+    const units = schoolUnits + rows + (s.heading ? headingScale + HEADING_GAP : 0);
     const rowHeight = Math.min(input.fontSize * lineHeight, input.height / units);
     const fontSize = rowHeight / lineHeight;
     let y = alignTop(rowHeight * units);
@@ -498,7 +500,7 @@ export function layoutClassListSections(input: {
         height: h,
         fontSize: fitFont(s.heading, input.width, fontSize * headingScale),
       });
-      y += h;
+      y += h + rowHeight * HEADING_GAP;
     }
     const gap = columns > 1 ? fontSize * 0.8 : 0;
     const cellWidth = Math.max(1, (input.width - gap * (columns - 1)) / columns);
@@ -552,7 +554,7 @@ export function layoutClassListSections(input: {
         kind: "heading",
         text: partir ? s.heading.slice(0, corte) : s.heading,
         sub,
-        units: headingScale + (sub ? 1 : 0),
+        units: headingScale + (sub ? 1 : 0) + HEADING_GAP,
         gapBefore,
         keep: Math.min(KEEP_WITH_HEADING, s.lines.length),
       });
