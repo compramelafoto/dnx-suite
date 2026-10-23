@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { requireCamOfDutyUser } from "@/lib/simulator/cam-of-duty-access";
 import SimulatorSimClient from "@/components/simulator/SimulatorSimClient";
 import "@/styles/camofduty/simulador.css";
 
@@ -12,6 +13,10 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export default function CamOfDutySimuladorPage() {
+/** Uso libre, pero con cuenta: depende de la sesión de cada visitante. */
+export const dynamic = "force-dynamic";
+
+export default async function CamOfDutySimuladorPage() {
+  await requireCamOfDutyUser("/camofduty/simulador");
   return <SimulatorSimClient />;
 }
