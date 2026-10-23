@@ -80,7 +80,8 @@ export default function ListadoDelCursoPanel({
 
   const reports = clientReview?.reports ?? [];
   const autorizacion = clientReview?.authorization ?? null;
-  if (!listado?.tieneListado && reports.length === 0 && !autorizacion) return null;
+  const anulada = !autorizacion ? (clientReview?.revoked?.at(-1) ?? null) : null;
+  if (!listado?.tieneListado && reports.length === 0 && !autorizacion && !anulada) return null;
 
   const cambiado =
     listado != null &&
@@ -166,6 +167,15 @@ export default function ListadoDelCursoPanel({
           {(clientReview?.extraCourseKeys.length ?? 0) > 0 ? (
             <p className="mt-1 text-xs text-emerald-800">Sumó otros cursos al listado.</p>
           ) : null}
+        </Card>
+      ) : null}
+
+      {anulada ? (
+        <Card className="border-amber-200 bg-amber-50 p-3">
+          <p className="text-sm text-amber-900">
+            <span className="font-semibold">La autorización de la familia quedó sin efecto</span> el{" "}
+            {fecha(anulada.revokedAt)}: {anulada.revokedReason} (la había dado el {fecha(anulada.authorizedAt)}).
+          </p>
         </Card>
       ) : null}
     </div>

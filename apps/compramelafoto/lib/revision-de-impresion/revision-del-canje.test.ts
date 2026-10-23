@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { parseClassListGroups, serializeClassListGroups } from "@repo/template-engine";
 import {
+  anularAutorizacion,
   aplicarCorrecciones,
   contenidoCanonico,
   FRASE_DE_AUTORIZACION,
@@ -107,6 +108,23 @@ test("correcciones: sólo claves editables, sin vacíos ni cambios iguales", () 
 
 test("contenido canónico: el orden de las claves no cambia la huella", () => {
   assert.equal(contenidoCanonico({ b: 1, a: [{ y: 2, x: 1 }] }), contenidoCanonico({ a: [{ x: 1, y: 2 }], b: 1 }));
+});
+
+test("anular la autorización la deja guardada con fecha y motivo; sin autorización no cambia nada", () => {
+  const r = aplicarRevisionDelCanje({ ...base, permiteSumar: false, revision: { autorizado: true } }).clientReview;
+  const ahora = new Date("2026-10-23T10:00:00.000Z");
+  const { revision, anulada } = anularAutorizacion(r, "Se pasó a la versión nueva de la plantilla.", ahora);
+  assert.equal(anulada, true);
+  assert.equal(revision!.authorization, null);
+  assert.equal(revision!.revoked!.length, 1);
+  assert.equal(revision!.revoked![0]!.authorizedAt, "2026-10-22T15:00:00.000Z");
+  assert.equal(revision!.revoked![0]!.revokedAt, "2026-10-23T10:00:00.000Z");
+  assert.equal(revision!.revoked![0]!.revokedReason, "Se pasó a la versión nueva de la plantilla.");
+  // Se lee igual desde el JSON guardado, y anular otra vez no hace nada.
+  const leida = parseRevisionDelCliente(JSON.parse(JSON.stringify(revision)));
+  assert.deepEqual(leida, revision);
+  assert.deepEqual(anularAutorizacion(leida, "otra", ahora), { revision: leida, anulada: false });
+  assert.deepEqual(anularAutorizacion(null, "x", ahora), { revision: null, anulada: false });
 });
 
 test("el título de la revisión usa el nombre del producto", () => {

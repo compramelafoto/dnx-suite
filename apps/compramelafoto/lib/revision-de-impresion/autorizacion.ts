@@ -62,9 +62,14 @@ export type AutorizacionDeImpresion = {
   userAgent: string | null;
 };
 
+/** Una autorización que dejó de valer (el diseño cambió por algo que quien autorizó no vio). */
+export type AutorizacionAnulada = AutorizacionDeImpresion & { revokedAt: string; revokedReason: string };
+
 /** Lo que guarda el diseño de la revisión de quien lo recibe. */
 export type RevisionDelCliente = {
   authorization: AutorizacionDeImpresion | null;
+  /** Las autorizaciones anuladas, para que la prueba no se pierda. */
+  revoked?: AutorizacionAnulada[];
   reports: AvisoDeError[];
   /** Cursos que sumó al listado (claves). */
   extraCourseKeys: string[];
@@ -118,11 +123,9 @@ function asRecord(v: unknown): Record<string, unknown> {
 const str = (v: unknown): string | null => (typeof v === "string" ? v : null);
 
 /** Lee la revisión guardada tolerando campos faltantes. Null si no hay. */
-export function parseRevisionDelCliente(raw: unknown): RevisionDelCliente | null {
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
-  const r = asRecord(raw);
-  const a = asRecord(r.authorization);
-  const authorization: AutorizacionDeImpresion | null =
+function parseAutorizacion(raw: unknown): AutorizacionDeImpresion | null {
+  const a = asRecord(raw);
+  return (
     typeof a.authorizedAt === "string"
       ? {
           authorizedAt: a.authorizedAt,
@@ -143,7 +146,18 @@ export function parseRevisionDelCliente(raw: unknown): RevisionDelCliente | null
           revisionId: typeof a.revisionId === "number" ? a.revisionId : null,
           userAgent: str(a.userAgent),
         }
-      : null;
+      : null);
+}
+
+export function parseRevisionDelCliente(raw: unknown): RevisionDelCliente | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const r = asRecord(raw);
+  const authorization = parseAutorizacion(r.authorization);
+  const revoked: AutorizacionAnulada[] = (Array.isArray(r.revoked) ? r.revoked : []).flatMap((x) => {
+    const a = parseAutorizacion(x);
+    const rec = asRecord(x);
+    return a ? [{ ...a, revokedAt: str(rec.revokedAt) ?? "", revokedReason: str(rec.revokedReason) ?? "" }] : [];
+  });
   const reports = (Array.isArray(r.reports) ? r.reports : [])
     .map(asRecord)
     .filter((x) => typeof x.text === "string" && x.text.trim())
@@ -151,8 +165,32 @@ export function parseRevisionDelCliente(raw: unknown): RevisionDelCliente | null
   const extraCourseKeys = (Array.isArray(r.extraCourseKeys) ? r.extraCourseKeys : []).filter(
     (k): k is string => typeof k === "string" && k !== "",
   );
-  if (!authorization && reports.length === 0 && extraCourseKeys.length === 0) return null;
-  return { authorization, reports, extraCourseKeys };
+  if (!authorization && reports.length === 0 && extraCourseKeys.length === 0 && revoked.length === 0) return null;
+  return { authorization, reports, extraCourseKeys, ...(revoked.length ? { revoked } : {}) };
+}
+
+/**
+ * Anula la autorización vigente (el diseño cambió por algo que quien autorizó no vio). La deja
+ * guardada en `revoked`, con cuándo y por qué, para no perder la prueba. Sin autorización
+ * vigente no cambia nada.
+ */
+export function anularAutorizacion(
+  revision: RevisionDelCliente | null,
+  motivo: string,
+  ahora: Date,
+): { revision: RevisionDelCliente | null; anulada: boolean } {
+  if (!revision?.authorization) return { revision, anulada: false };
+  return {
+    revision: {
+      ...revision,
+      authorization: null,
+      revoked: [
+        ...(revision.revoked ?? []),
+        { ...revision.authorization, revokedAt: ahora.toISOString(), revokedReason: motivo.slice(0, 500) },
+      ],
+    },
+    anulada: true,
+  };
 }
 
 /** «Carpeta San Patricio» → «Revisá tu carpeta San Patricio». */
