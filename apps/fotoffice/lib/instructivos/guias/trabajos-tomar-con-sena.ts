@@ -14,7 +14,7 @@ export const guia: Instructivo = {
       titulo: "Sumá el trabajo al ticket",
       texto: [
         "En el Cobrador buscá el producto del trabajo (por ejemplo, «Copias 10x15» o «Fotolibro 20x30») y tocalo, igual que en una venta común.",
-        "Los productos que llevan proceso aparecen en el ticket con la etiqueta «Pedido». Cualquier otro producto (un portarretratos, un marco) tiene un interruptor «Seña»: si el cliente deja seña y lo retira después, activalo y ese renglón también pasa a ser un pedido.",
+        "Todos los renglones muestran «Seña». En los productos que llevan proceso ya viene prendido y no se apaga: siempre se producen después, y aparecen con la etiqueta «Pedido». En cualquier otro producto (un portarretratos, un marco) es un interruptor: si el cliente deja seña y lo retira después, activalo y ese renglón también pasa a ser un pedido.",
         "Debajo aparece el recuadro «Pedido para retirar · N trabajos».",
         "Podés mezclar en el mismo ticket cosas que se lleva ahora (un portarretratos) con trabajos para retirar: el sistema los separa solo.",
       ],
