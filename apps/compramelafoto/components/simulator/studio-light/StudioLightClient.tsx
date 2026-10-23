@@ -210,11 +210,12 @@ function HelpDialog({ onClose }: { onClose: () => void }) {
           <li><b>Rueda del mouse sobre una luz</b> cambia su potencia en tercios de paso.</li>
           <li><b>Arrastrá el fondo</b> para girar alrededor del set; rueda para acercarte.</li>
           <li>La miniatura muestra la otra vista; tocála para intercambiarlas.</li>
+          <li>En <b>Escena</b> elegís entre 14 modelos de cuerpo entero, su pose y, en «Articular a mano», cada articulación. En <b>Cámara</b> cambiás el encuadre: rostro, medio cuerpo o cuerpo entero.</li>
           <li><b>S</b> pone en solo la luz elegida · <b>Espacio</b> captura · <b>V</b> cambia de vista · <b>1–6</b> elige luz · <b>Supr</b> la quita · <b>⌘Z / Ctrl+Z</b> deshace.</li>
           <li>El fotómetro mide como uno de mano: apuntando a la cámara desde la cara del sujeto. 0 EV es la exposición correcta.</li>
         </ul>
         <p className="cod-studio-hint">
-          Inspirado en Virtual Lighting Studio (zvork) y Set a Light 3D. Escaneo de cabeza: Lee Perry-Smith (Infinite-Realities), licencia CC BY 3.0.
+          Inspirado en Virtual Lighting Studio (zvork) y Set a Light 3D. Escaneo de cabeza: Lee Perry-Smith (Infinite-Realities), licencia CC BY 3.0. Modelos de cuerpo entero: Microsoft Rocketbox Avatar Library, licencia MIT.
         </p>
         <button type="button" className="cod-btn cod-btn--primary cod-btn--sm" onClick={onClose}>
           Entendido

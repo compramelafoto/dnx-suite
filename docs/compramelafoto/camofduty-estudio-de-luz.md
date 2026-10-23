@@ -66,8 +66,16 @@ geles, balance de blancos y exportar el esquema de iluminación.
   Loop, Rembrandt, Mariposa, Clamshell, Split, Tres puntos, Clave alta,
   Clave baja, Doble contraluz, Cine cálido/frío, Ring light, Luz de ventana,
   Iluminación corta e Iluminación ancha.
-- **Escena**: 4 modelos (tres tonos de piel y busto de yeso para estudiar sólo
-  formas), giro del sujeto, 6 fondos, luz de la sala.
+- **Modelos de cuerpo entero**: 14 personas (7 mujeres y 7 hombres) con ropa
+  distinta (casual, formal, ejecutiva, vestido, urbano, fiesta, traje, suéter,
+  campera de jean…), de la Microsoft Rocketbox Avatar Library (MIT). Esqueleto
+  completo: 12 poses (contrapposto, manos en la cintura, brazos cruzados, mano
+  en el mentón, saludo, mirada arriba…) y articulación manual de cabeza, torso,
+  peso y cada brazo, con transición suave entre poses.
+- **Bustos**: escaneo de cabeza con tres tonos de piel y busto de yeso para
+  estudiar sólo formas. Giro del sujeto, 6 fondos, luz de la sala.
+- **Encuadre**: rostro, medio cuerpo o cuerpo entero, con altura regulable.
+- **Exportar el esquema**: con fondo oscuro o claro (para imprimir), en PNG o SVG.
 - **Cámara**: focal 24–200 mm, diafragma, obturador, ISO, balance de blancos,
   altura, distancia y ángulo.
 - **6 capturas** que guardan foto y set (quedan en el navegador), descarga en
@@ -81,3 +89,8 @@ geles, balance de blancos y exportar el esquema de iluminación.
 - `components/simulator/studio-light/` — escena 3D, luces, planta, paneles.
 - `public/camofduty/models/head/` — escaneo de Lee Perry-Smith
   (Infinite-Realities, CC BY 3.0), tomado del repositorio de three.js.
+- `public/camofduty/models/figures/` — 14 avatares Rocketbox (FBX original,
+  texturas reducidas a 1024 px, licencia en `LICENSE-Rocketbox.md`). Se
+  cargan con `FBXLoader`; sólo se muestra la malla de máxima calidad.
+- `lib/simulator/studio-light/poses.ts` — poses con ángulos legibles;
+  `components/simulator/studio-light/StudioFigure.tsx` las aplica al esqueleto.
