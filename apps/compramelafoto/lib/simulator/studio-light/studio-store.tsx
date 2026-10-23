@@ -26,9 +26,14 @@ type Action =
   | { type: "toggle-solo"; id: string }
   | { type: "auto-power"; id: string; ev: number }
   | { type: "camera"; patch: Partial<StudioCamera> }
+  /** Movimiento continuo del fotógrafo al caminar: no llena el historial. */
+  | { type: "camera-move"; patch: Partial<StudioCamera> }
   | { type: "scene"; patch: ScenePatch }
+  /** Giro continuo del sujeto desde su manija: no llena el historial. */
+  | { type: "scene-move"; patch: ScenePatch }
   | { type: "preset"; id: string }
   | { type: "pose"; id: PoseId }
+  | { type: "motion"; patch: Partial<StudioState["motion"]> }
   | { type: "pose-params"; patch: Partial<PoseParams> }
   | { type: "framing"; id: FramingId }
   | { type: "replace"; state: StudioState }
@@ -117,11 +122,16 @@ function apply(state: StudioState, action: Action): StudioState {
         ),
       };
     case "camera":
+    case "camera-move":
       return { ...state, camera: { ...state.camera, ...action.patch } };
     case "scene":
+    case "scene-move":
       return { ...state, ...action.patch };
     case "pose":
-      return { ...state, pose: action.id, poseParams: poseById(action.id) };
+      // Elegir una pose detiene la animación completa: el modelo vuelve a posar.
+      return { ...state, pose: action.id, poseParams: poseById(action.id), motion: { ...state.motion, clip: null } };
+    case "motion":
+      return { ...state, motion: { ...state.motion, ...action.patch } };
     case "pose-params":
       return { ...state, pose: "custom", poseParams: { ...state.poseParams, ...action.patch } };
     case "framing": {
@@ -129,12 +139,12 @@ function apply(state: StudioState, action: Action): StudioState {
       // Conserva el ángulo de la cámara y sólo cambia distancia, altura y focal.
       const az = (Math.atan2(state.camera.x, state.camera.z) * 180) / Math.PI;
       const { x, z } = polarToXZ(az, f.dist);
-      return { ...state, camera: { ...state.camera, x, z, y: f.height, aimY: f.aimY, focalMm: f.focalMm } };
+      return { ...state, camera: { ...state.camera, x, z, y: f.height, aimY: f.aimY, focalMm: f.focalMm, look: null } };
     }
     case "preset": {
       const preset = PRESETS.find((p) => p.id === action.id);
       return preset
-        ? { ...applyPreset(preset, state), subject: state.subject, pose: state.pose, poseParams: state.poseParams }
+        ? { ...applyPreset(preset, state), subject: state.subject, pose: state.pose, poseParams: state.poseParams, motion: state.motion }
         : state;
     }
     case "replace":
@@ -145,7 +155,7 @@ function apply(state: StudioState, action: Action): StudioState {
 }
 
 /** Acciones continuas (arrastrar, deslizar) no llenan el historial. */
-const TRANSIENT = new Set<Action["type"]>(["select", "move-light"]);
+const TRANSIENT = new Set<Action["type"]>(["select", "move-light", "camera-move", "scene-move"]);
 
 function reducer(history: History, action: Action): History {
   if (action.type === "undo") {

@@ -16,6 +16,7 @@ export const DEFAULT_CAMERA: StudioState["camera"] = {
   iso: 100,
   whiteBalance: 5500,
   aimY: SUBJECT_HEAD[1],
+  look: null,
 };
 
 const LIGHT_NAMES = ["Principal", "Relleno", "Contra", "Pelo", "Fondo", "Acento"];
@@ -301,6 +302,7 @@ export function initialStudioState(): StudioState {
     subjectYaw: 0,
     pose: "relaxed",
     poseParams: NEUTRAL_POSE,
+    motion: { natural: true, clip: null },
     backdrop: "grey",
     roomLux: 40,
   };

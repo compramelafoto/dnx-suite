@@ -8,6 +8,16 @@ import { deserializeStudio, serializeStudio } from "@/lib/simulator/studio-light
 import { StudioProvider, useStudio } from "@/lib/simulator/studio-light/studio-store";
 import type { StudioState } from "@/lib/simulator/studio-light/types";
 import type { Histogram, StudioViewMode } from "./StudioCanvas";
+import type { QuickView } from "./StudioWalk";
+
+const QUICK_VIEWS: { id: QuickView; label: string }[] = [
+  { id: "overview", label: "General" },
+  { id: "front", label: "Frente" },
+  { id: "side", label: "Costado" },
+  { id: "top", label: "Arriba" },
+  { id: "camera", label: "Detrás de cámara" },
+  { id: "subject", label: "Sujeto" },
+];
 import StudioIcon, { type StudioIconName } from "./StudioIcons";
 import StudioMeter from "./StudioMeter";
 import { CameraPanel, LightsPanel, PresetsPanel, ScenePanel } from "./StudioPanels";
@@ -238,6 +248,17 @@ function StudioWorkspace() {
   const [exportOpen, setExportOpen] = useState(false);
   const [flash, setFlash] = useState(false);
   const captureRef = useRef<((dataUrl: string | null) => void) | null>(null);
+  const viewRef = useRef<((v: QuickView) => void) | null>(null);
+  const [walkLocked, setWalkLocked] = useState(false);
+  // La tarjeta de inicio del modo caminar se va apenas el fotógrafo se mueve.
+  const [walkStarted, setWalkStarted] = useState(false);
+
+  // El visor de primera persona cambia cuando el mouse queda capturado.
+  useEffect(() => {
+    const onChange = () => setWalkLocked(document.pointerLockElement !== null);
+    document.addEventListener("pointerlockchange", onChange);
+    return () => document.removeEventListener("pointerlockchange", onChange);
+  }, []);
   const report = meter(state);
 
   // Al montar se leen las capturas guardadas y un enlace compartido (#s=...).
@@ -311,6 +332,11 @@ function StudioWorkspace() {
         return;
       }
       if (e.metaKey || e.ctrlKey || e.altKey) return;
+      // Caminando, las letras son para moverse: no disparan atajos del estudio.
+      if (mode === "walk" && /^[wasdqef]$/i.test(e.key)) {
+        setWalkStarted(true);
+        return;
+      }
       if (e.key === " ") {
         e.preventDefault();
         captureNext();
@@ -332,7 +358,7 @@ function StudioWorkspace() {
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [dispatch, captureNext, state.selectedId, state.lights]);
+  }, [dispatch, captureNext, state.selectedId, state.lights, mode]);
 
   const applySlot = (slot: CaptureSlot) => {
     const restored: StudioState | null = deserializeStudio(slot.state);
@@ -351,8 +377,37 @@ function StudioWorkspace() {
   return (
     <main className="cod-studio">
       <section className="cod-studio__stage">
-        <div className="cod-studio__viewport">
-          <StudioCanvas mode={mode} captureRef={captureRef} onHistogram={setHistogram} showPip />
+        <div className="cod-studio__viewport" onPointerDown={() => mode === "walk" && setWalkStarted(true)}>
+          <StudioCanvas mode={mode} captureRef={captureRef} onHistogram={setHistogram} showPip onShoot={captureNext} viewRef={viewRef} />
+
+          {mode === "set" ? (
+            <div className="cod-studio-views" role="group" aria-label="Vistas rápidas">
+              {QUICK_VIEWS.map((v) => (
+                <button key={v.id} type="button" onClick={() => viewRef.current?.(v.id)}>
+                  {v.label}
+                </button>
+              ))}
+            </div>
+          ) : null}
+
+          {mode === "walk" ? (
+            <div className={`cod-studio-walk${walkLocked ? " is-locked" : ""}`} aria-hidden={walkLocked}>
+              <div className="cod-studio-walk__frame" />
+              <div className="cod-studio-walk__cross" />
+              <p className="cod-studio-walk__focal">{state.camera.focalMm} mm</p>
+              {walkLocked || walkStarted ? (
+                <p className="cod-studio-walk__keys">
+                  <kbd>W A S D</kbd> caminar <kbd>Shift</kbd> correr <kbd>Q/E</kbd> altura <kbd>Rueda</kbd> zoom <kbd>F</kbd> agarrar luz <kbd>Clic</kbd> disparar <kbd>Esc</kbd> salir
+                </p>
+              ) : (
+                <div className="cod-studio-walk__intro">
+                  <StudioIcon name="walk" size={28} />
+                  <strong>Hacé clic para caminar por el estudio</strong>
+                  <span>Mirás con el mouse (o arrastrando) y te movés con W A S D, como en un juego. Lo que ves es lo que fotografía la cámara.</span>
+                </div>
+              )}
+            </div>
+          ) : null}
 
           <div className="cod-studio-dock" role="toolbar" aria-label="Herramientas del estudio">
             <div className="cod-studio-switch" role="group" aria-label="Vista principal">
@@ -363,6 +418,10 @@ function StudioWorkspace() {
               <button type="button" aria-pressed={mode === "camera"} className={mode === "camera" ? "is-on" : ""} onClick={() => setMode("camera")}>
                 <StudioIcon name="camera" />
                 Cámara
+              </button>
+              <button type="button" aria-pressed={mode === "walk"} className={mode === "walk" ? "is-on" : ""} onClick={() => setMode("walk")}>
+                <StudioIcon name="walk" />
+                Caminar
               </button>
             </div>
             <span className="cod-studio-dock__sep" aria-hidden="true" />

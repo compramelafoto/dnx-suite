@@ -17,6 +17,7 @@ const PATHS = {
   solo: "M12 3v3M12 18v3M3 12h3M18 12h3M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6",
   copy: "M8 8h11v11H8zM5 16V5h11",
   meter: "M5 18a8 8 0 1 1 14 0M12 14l4-5",
+  walk: "M13 4.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3M9 21l2.5-6.5L14 17v4M7.5 11.5 10 8l3.5.5 2 3 2.5 1M11.5 14.5 12.5 9",
 } as const;
 
 export type StudioIconName = keyof typeof PATHS;

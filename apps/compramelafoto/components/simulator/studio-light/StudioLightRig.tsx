@@ -13,6 +13,7 @@ import {
   renderedLightColor,
 } from "@/lib/simulator/studio-light/metering";
 import { boomOffset } from "@/lib/simulator/studio-light/boom";
+import { startPlaneDrag, verticalPlaneFacing } from "./plane-drag";
 import { MAX_POWER_STOPS } from "@/lib/simulator/studio-light/presets";
 import { useStudio } from "@/lib/simulator/studio-light/studio-store";
 import type { StudioLight } from "@/lib/simulator/studio-light/types";
@@ -204,8 +205,6 @@ function RigLight({ light, showHelpers, setZoomEnabled, setOrbitEnabled }: RigLi
   const helpers = useHelperLayer<THREE.Group>();
   const dragging = useRef(false);
   const gl = useThree((s) => s.gl);
-  const raycaster = useMemo(() => new THREE.Raycaster(), []);
-  const ndc = useMemo(() => new THREE.Vector2(), []);
 
   const rawAim = aimPoint(light);
   // Si la luz apunta casi en vertical, lookAt (y la cámara de sombra) quedan indefinidos:
@@ -231,72 +230,51 @@ function RigLight({ light, showHelpers, setZoomEnabled, setOrbitEnabled }: RigLi
     target.updateMatrixWorld();
   });
 
-  /** Punto del plano bajo el mouse; null si el rayo es casi paralelo o se va lejísimos. */
-  function pointOnPlane(ev: PointerEvent, plane: THREE.Plane): THREE.Vector3 | null {
-    const rect = gl.domElement.getBoundingClientRect();
-    ndc.set(((ev.clientX - rect.left) / rect.width) * 2 - 1, -((ev.clientY - rect.top) / rect.height) * 2 + 1);
-    raycaster.setFromCamera(ndc, camera);
-    if (Math.abs(raycaster.ray.direction.dot(plane.normal)) < 0.06) return null;
-    const hit = new THREE.Vector3();
-    if (!raycaster.ray.intersectPlane(plane, hit)) return null;
-    return hit.distanceTo(camera.position) > 25 ? null : hit;
-  }
-
   /**
-   * Arrastre: se toma la luz contra un plano estable (horizontal, o uno vertical
-   * frente a la cámara para la altura) y se mueve por diferencia desde el punto
-   * inicial. Se escucha toda la ventana para no perder el mouse si sale del objeto.
+   * Arrastre de la luz. "free": desde el cuerpo, a la altura del punto tomado
+   * (Shift cambia la altura). "floor": desde el aro del piso. "height": desde la
+   * manija de altura. Siempre por diferencia desde el punto inicial.
    */
-  function onPointerDown(e: ThreeEvent<PointerEvent>) {
+  function beginDrag(e: ThreeEvent<PointerEvent>, kind: "free" | "floor" | "height") {
     if (e.button !== 0) return;
     e.stopPropagation();
     dispatch({ type: "select", id: light.id });
     checkpoint();
     setOrbitEnabled(false);
 
-    const byHeight = e.shiftKey || e.altKey;
+    const byHeight = kind === "height" || (kind === "free" && (e.shiftKey || e.altKey));
     const start = new THREE.Vector3(light.x, light.y, light.z);
-    // Altura del punto exacto donde el mouse tocó la luz: ese punto queda pegado al cursor.
-    const grabY = e.point.y;
+    // Altura del punto exacto tomado: ese punto queda pegado al cursor.
+    const grabY = kind === "floor" ? 0 : e.point.y;
     const plane = byHeight
-      ? new THREE.Plane().setFromNormalAndCoplanarPoint(
-          new THREE.Vector3().subVectors(camera.position, start).setY(0).normalize(),
-          new THREE.Vector3(light.x, grabY, light.z),
-        )
-      : // Plano horizontal a la altura del cabezal: la luz sigue al cursor sin
-        // amplificar. Si la cámara está casi a esa altura el plano se vuelve
-        // inestable y se usa el piso.
+      ? verticalPlaneFacing(camera, new THREE.Vector3(light.x, grabY, light.z))
+      : // Plano horizontal a la altura tomada; si la cámara está casi a esa
+        // altura el plano se vuelve inestable y se usa el piso.
         new THREE.Plane(new THREE.Vector3(0, 1, 0), Math.abs(camera.position.y - grabY) > 0.5 ? -grabY : 0);
-    const startHit = pointOnPlane(e.nativeEvent, plane);
-    if (!startHit) {
-      setOrbitEnabled(true);
-      return;
-    }
-    dragging.current = true;
-    document.body.style.cursor = "grabbing";
+    const ok = startPlaneDrag({
+      start: e.nativeEvent,
+      plane,
+      camera,
+      canvas: gl.domElement,
+      onMove: (delta) => {
+        if (byHeight) {
+          dispatch({ type: "update-light", id: light.id, patch: { y: THREE.MathUtils.clamp(start.y + delta.y, 0.25, 3.6) } });
+        } else {
+          dispatch({ type: "move-light", id: light.id, x: start.x + delta.x, z: start.z + delta.z });
+        }
+      },
+      onEnd: () => {
+        dragging.current = false;
+        setOrbitEnabled(true);
+        setZoomEnabled(true);
+      },
+    });
+    if (ok) dragging.current = true;
+    else setOrbitEnabled(true);
+  }
 
-    const move = (ev: PointerEvent) => {
-      const hit = pointOnPlane(ev, plane);
-      if (!hit) return;
-      const delta = hit.sub(startHit);
-      if (byHeight) {
-        dispatch({ type: "update-light", id: light.id, patch: { y: THREE.MathUtils.clamp(start.y + delta.y, 0.25, 3.6) } });
-      } else {
-        dispatch({ type: "move-light", id: light.id, x: start.x + delta.x, z: start.z + delta.z });
-      }
-    };
-    const up = () => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
-      window.removeEventListener("pointercancel", up);
-      dragging.current = false;
-      document.body.style.cursor = "";
-      setOrbitEnabled(true);
-      setZoomEnabled(true);
-    };
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", up);
-    window.addEventListener("pointercancel", up);
+  function onPointerDown(e: ThreeEvent<PointerEvent>) {
+    beginDrag(e, "free");
   }
 
   function onWheel(e: ThreeEvent<WheelEvent>) {
@@ -306,6 +284,17 @@ function RigLight({ light, showHelpers, setZoomEnabled, setOrbitEnabled }: RigLi
     const next = THREE.MathUtils.clamp(Math.round((light.powerStops + step) * 3) / 3, 0, MAX_POWER_STOPS);
     dispatch({ type: "update-light", id: light.id, patch: { powerStops: next } });
   }
+
+  const hoverHandle = (e: ThreeEvent<PointerEvent>) => {
+    e.stopPropagation();
+    setOrbitEnabled(false);
+    if (!dragging.current) document.body.style.cursor = "grab";
+  };
+  const leaveHandle = () => {
+    if (dragging.current) return;
+    setOrbitEnabled(true);
+    document.body.style.cursor = "";
+  };
 
   const interactive = {
     onPointerDown,
@@ -337,7 +326,7 @@ function RigLight({ light, showHelpers, setZoomEnabled, setOrbitEnabled }: RigLi
     <group>
       <primitive object={target} />
       {/* Sólo se arrastra desde la vista del set: los eventos usan esa cámara. */}
-      <group {...(showHelpers ? interactive : {})}>
+      <group userData={{ studioLightId: light.id }} {...(showHelpers ? interactive : {})}>
         <LightStand light={light} />
         <group ref={head} position={[light.x, light.y, light.z]}>
           <ModifierBody light={light} glow={glow} />
@@ -397,10 +386,39 @@ function RigLight({ light, showHelpers, setZoomEnabled, setOrbitEnabled }: RigLi
             opacity={light.on ? 0.85 : 0.25}
           />
           {selected ? (
-            <mesh position={[light.x, 0.01, light.z]} rotation={[-Math.PI / 2, 0, 0]}>
-              <ringGeometry args={[0.3, 0.36, 48]} />
-              <meshBasicMaterial color="#ffb547" toneMapped={false} />
-            </mesh>
+            <>
+              {/* Manija de piso: arrastrarla mueve la luz sin cambiar su altura. */}
+              <mesh
+                position={[light.x, 0.012, light.z]}
+                rotation={[-Math.PI / 2, 0, 0]}
+                onPointerDown={(e) => beginDrag(e, "floor")}
+                onPointerOver={hoverHandle}
+                onPointerOut={leaveHandle}
+              >
+                <ringGeometry args={[0.26, 0.4, 48]} />
+                <meshBasicMaterial color="#ffb547" toneMapped={false} transparent opacity={0.9} />
+              </mesh>
+              {/* Manija de altura: esfera con flechas arriba y abajo. */}
+              <group
+                position={[light.x, light.y + Math.max(spec.height, 0.2) / 2 + 0.5, light.z]}
+                onPointerDown={(e) => beginDrag(e, "height")}
+                onPointerOver={hoverHandle}
+                onPointerOut={leaveHandle}
+              >
+                <mesh>
+                  <sphereGeometry args={[0.07, 20, 14]} />
+                  <meshBasicMaterial color="#ffb547" toneMapped={false} />
+                </mesh>
+                <mesh position={[0, 0.13, 0]}>
+                  <coneGeometry args={[0.045, 0.09, 16]} />
+                  <meshBasicMaterial color="#ffb547" toneMapped={false} />
+                </mesh>
+                <mesh position={[0, -0.13, 0]} rotation={[Math.PI, 0, 0]}>
+                  <coneGeometry args={[0.045, 0.09, 16]} />
+                  <meshBasicMaterial color="#ffb547" toneMapped={false} />
+                </mesh>
+              </group>
+            </>
           ) : null}
           <Html
             position={[light.x, light.y + Math.max(spec.height, 0.2) / 2 + 0.22, light.z]}
