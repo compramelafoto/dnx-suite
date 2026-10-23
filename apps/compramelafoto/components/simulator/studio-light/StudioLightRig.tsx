@@ -207,7 +207,10 @@ function RigLight({ light, showHelpers, setZoomEnabled, setOrbitEnabled }: RigLi
   const rect = useRef<THREE.RectAreaLight>(null);
   const target = useMemo(() => new THREE.Object3D(), []);
   const helpers = useHelperLayer<THREE.Group>();
-  const drag = useRef<{ mode: "floor" | "height"; plane: THREE.Plane; offset: THREE.Vector3 } | null>(null);
+  const dragging = useRef(false);
+  const gl = useThree((s) => s.gl);
+  const raycaster = useMemo(() => new THREE.Raycaster(), []);
+  const ndc = useMemo(() => new THREE.Vector2(), []);
 
   const aim = aimPoint(light);
   const output = active ? lightOutput(light, state) : 0;
@@ -229,49 +232,72 @@ function RigLight({ light, showHelpers, setZoomEnabled, setOrbitEnabled }: RigLi
     target.updateMatrixWorld();
   });
 
+  /** Punto del plano bajo el mouse; null si el rayo es casi paralelo o se va lejísimos. */
+  function pointOnPlane(ev: PointerEvent, plane: THREE.Plane): THREE.Vector3 | null {
+    const rect = gl.domElement.getBoundingClientRect();
+    ndc.set(((ev.clientX - rect.left) / rect.width) * 2 - 1, -((ev.clientY - rect.top) / rect.height) * 2 + 1);
+    raycaster.setFromCamera(ndc, camera);
+    if (Math.abs(raycaster.ray.direction.dot(plane.normal)) < 0.06) return null;
+    const hit = new THREE.Vector3();
+    if (!raycaster.ray.intersectPlane(plane, hit)) return null;
+    return hit.distanceTo(camera.position) > 25 ? null : hit;
+  }
+
+  /**
+   * Arrastre: se toma la luz contra un plano estable (horizontal, o uno vertical
+   * frente a la cámara para la altura) y se mueve por diferencia desde el punto
+   * inicial. Se escucha toda la ventana para no perder el mouse si sale del objeto.
+   */
   function onPointerDown(e: ThreeEvent<PointerEvent>) {
+    if (e.button !== 0) return;
     e.stopPropagation();
     dispatch({ type: "select", id: light.id });
     checkpoint();
-    const byHeight = e.shiftKey || e.altKey;
-    const pos = new THREE.Vector3(light.x, light.y, light.z);
-    let plane: THREE.Plane;
-    if (byHeight) {
-      const normal = new THREE.Vector3().subVectors(camera.position, pos).setY(0).normalize();
-      plane = new THREE.Plane().setFromNormalAndCoplanarPoint(normal, pos);
-    } else {
-      plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -light.y);
-    }
-    const hit = new THREE.Vector3();
-    e.ray.intersectPlane(plane, hit);
-    drag.current = { mode: byHeight ? "height" : "floor", plane, offset: pos.clone().sub(hit) };
-    (e.target as Element | null)?.setPointerCapture?.(e.pointerId);
     setOrbitEnabled(false);
-  }
 
-  function onPointerMove(e: ThreeEvent<PointerEvent>) {
-    const d = drag.current;
-    if (!d) return;
-    e.stopPropagation();
-    const hit = new THREE.Vector3();
-    if (!e.ray.intersectPlane(d.plane, hit)) return;
-    hit.add(d.offset);
-    if (d.mode === "floor") {
-      dispatch({ type: "move-light", id: light.id, x: hit.x, z: hit.z });
-    } else {
-      dispatch({
-        type: "update-light",
-        id: light.id,
-        patch: { y: THREE.MathUtils.clamp(hit.y, 0.25, 3.6) },
-      });
+    const byHeight = e.shiftKey || e.altKey;
+    const start = new THREE.Vector3(light.x, light.y, light.z);
+    // Altura del punto exacto donde el mouse tocó la luz: ese punto queda pegado al cursor.
+    const grabY = e.point.y;
+    const plane = byHeight
+      ? new THREE.Plane().setFromNormalAndCoplanarPoint(
+          new THREE.Vector3().subVectors(camera.position, start).setY(0).normalize(),
+          new THREE.Vector3(light.x, grabY, light.z),
+        )
+      : // Plano horizontal a la altura del cabezal: la luz sigue al cursor sin
+        // amplificar. Si la cámara está casi a esa altura el plano se vuelve
+        // inestable y se usa el piso.
+        new THREE.Plane(new THREE.Vector3(0, 1, 0), Math.abs(camera.position.y - grabY) > 0.5 ? -grabY : 0);
+    const startHit = pointOnPlane(e.nativeEvent, plane);
+    if (!startHit) {
+      setOrbitEnabled(true);
+      return;
     }
-  }
+    dragging.current = true;
+    document.body.style.cursor = "grabbing";
 
-  function endDrag(e: ThreeEvent<PointerEvent>) {
-    if (!drag.current) return;
-    drag.current = null;
-    (e.target as Element | null)?.releasePointerCapture?.(e.pointerId);
-    setOrbitEnabled(true);
+    const move = (ev: PointerEvent) => {
+      const hit = pointOnPlane(ev, plane);
+      if (!hit) return;
+      const delta = hit.sub(startHit);
+      if (byHeight) {
+        dispatch({ type: "update-light", id: light.id, patch: { y: THREE.MathUtils.clamp(start.y + delta.y, 0.25, 3.6) } });
+      } else {
+        dispatch({ type: "move-light", id: light.id, x: start.x + delta.x, z: start.z + delta.z });
+      }
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", up);
+      dragging.current = false;
+      document.body.style.cursor = "";
+      setOrbitEnabled(true);
+      setZoomEnabled(true);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", up);
   }
 
   function onWheel(e: ThreeEvent<WheelEvent>) {
@@ -284,16 +310,17 @@ function RigLight({ light, showHelpers, setZoomEnabled, setOrbitEnabled }: RigLi
 
   const interactive = {
     onPointerDown,
-    onPointerMove,
-    onPointerUp: endDrag,
-    onPointerCancel: endDrag,
     onWheel,
+    // Al pasar sobre una luz se bloquea la órbita: así el clic no empieza a girar la cámara.
     onPointerOver: (e: ThreeEvent<PointerEvent>) => {
       e.stopPropagation();
+      setOrbitEnabled(false);
       setZoomEnabled(false);
-      document.body.style.cursor = "grab";
+      if (!dragging.current) document.body.style.cursor = "grab";
     },
     onPointerOut: () => {
+      if (dragging.current) return;
+      setOrbitEnabled(true);
       setZoomEnabled(true);
       document.body.style.cursor = "";
     },
@@ -362,7 +389,7 @@ function RigLight({ light, showHelpers, setZoomEnabled, setOrbitEnabled }: RigLi
               [light.x, light.y, light.z],
               [aim[0], aim[1], aim[2]],
             ]}
-            color={selected ? "#ffd400" : "#6ec8ff"}
+            color={selected ? "#ffb547" : "#6ec8ff"}
             lineWidth={selected ? 1.6 : 0.8}
             dashed
             dashSize={0.06}
@@ -373,7 +400,7 @@ function RigLight({ light, showHelpers, setZoomEnabled, setOrbitEnabled }: RigLi
           {selected ? (
             <mesh position={[light.x, 0.01, light.z]} rotation={[-Math.PI / 2, 0, 0]}>
               <ringGeometry args={[0.3, 0.36, 48]} />
-              <meshBasicMaterial color="#ffd400" toneMapped={false} />
+              <meshBasicMaterial color="#ffb547" toneMapped={false} />
             </mesh>
           ) : null}
           <Html

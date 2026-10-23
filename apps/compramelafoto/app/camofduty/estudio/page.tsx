@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import StudioLightClient from "@/components/simulator/studio-light/StudioLightClient";
+import "@/styles/camofduty/estudio.css";
 
 const title = "Estudio de luz — Cam Of Duty";
 const description =
