@@ -232,6 +232,7 @@ model User {
   /// Sesiones DNX (`dnx_session`) — identidad compartida del monorepo.
   sessions                              UserSession[]
   simulatorCaptures                     SimulatorCapture[]
+  camOfDutyMember                       CamOfDutyMember?
   userUpsellConfigs                     UserUpsellConfig[]
   eventFoldersCreated                   EventFolder[]                          @relation("EventFolderCreator")
   eventFoldersOwnedPhotographer         EventFolder[]                          @relation("EventFolderOwnerPhotographer")
@@ -5548,6 +5549,19 @@ model UserLoginDevice {
   @@unique([userId, deviceHash])
   @@index([userId])
   @@index([lastSeenAt])
+}
+
+/// Usuarios de CompraMeLaFoto que usan Cam Of Duty. Es de uso libre, pero para
+/// entrar al simulador o al estudio hay que tener cuenta: la primera entrada crea la fila.
+model CamOfDutyMember {
+  userId       Int      @id
+  firstVisitAt DateTime @default(now())
+  lastVisitAt  DateTime @default(now())
+  /// Entradas (una nueva cada 30 minutos sin volver).
+  visits       Int      @default(1)
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([firstVisitAt])
 }
 
 /// Capturas del simulador Cam Of Duty (retención 7 días por usuario).
