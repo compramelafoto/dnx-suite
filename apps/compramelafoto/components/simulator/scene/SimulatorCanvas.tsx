@@ -9,6 +9,7 @@ import CameraVisualEffect from "./CameraVisualEffect";
 import CanvasPhotoCapture from "./CanvasPhotoCapture";
 import DevDebugScene from "./DevDebugScene";
 import DepthOfFieldPass from "./DepthOfFieldPass";
+import QualityGovernor from "./QualityGovernor";
 import FocusContinuousDrive from "./FocusContinuousDrive";
 import FocusMotorDrive from "./FocusMotorDrive";
 import FocusRaycaster from "./FocusRaycaster";
@@ -35,13 +36,13 @@ export default function SimulatorCanvas({ onLockChange, onLoaded }: SimulatorCan
     <Canvas
       className="cod-sim__canvas"
       shadows
-      dpr={[1, 1.5]}
+      dpr={1}
       frameloop="always"
       resize={{ scroll: false, debounce: { scroll: 0, resize: 0 } }}
       camera={{
         fov: focalLengthToFov(50),
         near: 0.15,
-        far: 120,
+        far: 220,
         position: [0, EYE_HEIGHT, 7],
       }}
       onCreated={({ gl, scene, camera }) => {
@@ -72,6 +73,7 @@ export default function SimulatorCanvas({ onLockChange, onLoaded }: SimulatorCan
       {devDebugScene ? <color attach="background" args={["#b8bcc8"]} /> : null}
 
       <ViewportSizeSync />
+      <QualityGovernor />
       <CameraFovSync />
       <SceneSpawnController />
       {devDebugScene ? <DevDebugScene /> : <SimulatorSceneRoot />}

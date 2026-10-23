@@ -37,10 +37,11 @@ export type CompositionGuideMode = "none" | "thirds" | "center";
 export const SCENE_RENDER_CALIBRATION = 4;
 
 /**
- * Valor de pantalla al que llega un gris medio bien expuesto. El pase final
- * muestra el búfer sin codificar, así que va más alto que 0,18.
+ * Valor lineal (antes de la curva filmica ACES) al que llega un gris medio
+ * bien expuesto: la curva y la codificación sRGB lo dejan en 0,46 de pantalla,
+ * el gris medio de una foto.
  */
-export const DISPLAY_MID_GREY = 0.42;
+export const DISPLAY_MID_GREY = 0.157;
 
 /** Luz de la escena que necesita la cámara para exponer y medir. */
 export interface SceneLight {

@@ -125,6 +125,12 @@ const LYING: Partial<Record<PoseBase, THREE.Quaternion>> = {
 
 function buildRig(source: THREE.Group, figure: FigureSpec): Rig {
   const model = cloneSkinned(source) as THREE.Group;
+  // El FBX de Rocketbox trae una luz ambiente propia que aclaraba el set fuera del fotómetro.
+  const strayLights: THREE.Object3D[] = [];
+  model.traverse((o) => {
+    if ((o as THREE.Light).isLight) strayLights.push(o);
+  });
+  for (const light of strayLights) light.removeFromParent();
   const textureLoader = new THREE.TextureLoader();
   const textures: THREE.Texture[] = [];
   const materials: THREE.Material[] = [];

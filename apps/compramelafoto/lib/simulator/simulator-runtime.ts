@@ -2,6 +2,7 @@ import { FOCUS_POINT_DEFAULT_INDEX } from "./focus-math";
 import type { CameraDerivedValues } from "./camera-types";
 import type { SceneLight, ViewfinderMode } from "./camera-exposure";
 import type { MeteringMode, MeterReadings } from "./metering";
+import { QUALITY_TIERS, type QualityTier } from "./render-quality";
 import type { FocusAreaMode, FocusMode } from "./focus-types";
 import type { SunState } from "./natural-light";
 import { computeSunState, DEFAULT_TIME_OF_DAY_MINUTES } from "./natural-light";
@@ -37,6 +38,13 @@ export interface SimulatorRuntime {
   focalLengthMm: number;
   lensName: string;
   isZoomLens: boolean;
+  /** Calidad de render vigente (la ajusta QualityGovernor según la fluidez). */
+  quality: QualityTier;
+  /** Mundo caminable de la escena activa (colisiones y altura del piso), si tiene. */
+  walkableWorld: {
+    resolve: (x: number, z: number) => [number, number];
+    groundHeight: (x: number, z: number) => number;
+  } | null;
   /** Distancia mínima de enfoque del objetivo montado (m). */
   minFocusDistanceM: number;
   getCameraYaw: () => number;
@@ -69,6 +77,8 @@ export const simulatorRuntime: SimulatorRuntime = {
   lensName: "50mm f/1.8",
   isZoomLens: false,
   minFocusDistanceM: 0.45,
+  walkableWorld: null,
+  quality: QUALITY_TIERS[1],
   getCameraYaw: () => cameraYawGetter(),
 };
 
