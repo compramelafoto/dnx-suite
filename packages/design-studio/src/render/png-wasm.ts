@@ -77,3 +77,43 @@ export async function pdfToPng(
     );
   }
 }
+
+
+export type PdfToJpegOptions = PdfToPngOptions & {
+  /** Calidad JPEG, de 1 a 100. Para imprimir, 95. */
+  calidad?: number;
+};
+
+/**
+ * Lo mismo que `pdfToPng`, pero en JPG y con la resolución marcada en el archivo.
+ *
+ * Es el formato que piden los laboratorios para los pliegos de un fotolibro ("JPG a 300 ppp,
+ * sRGB"): el PNG de un pliego de 30×60 pesa cerca de 80 MB, el JPG de calidad 95, unos pocos.
+ * La resolución va escrita en el JPG porque hay laboratorios que miden el tamaño por ella.
+ */
+export async function pdfToJpeg(
+  pdf: Uint8Array,
+  options: PdfToJpegOptions,
+  deps: PdfToPngDeps = {},
+): Promise<Result<Uint8Array>> {
+  if (options.pageIndex < 0) return fail("El número de cara no puede ser negativo.");
+  try {
+    const cargar = deps.cargarMupdf ?? (() => import("mupdf"));
+    const cargado = await cargar();
+    const mupdf = (
+      "Document" in cargado ? cargado : (cargado as unknown as { default: typeof cargado }).default
+    ) as typeof cargado;
+    const doc = mupdf.Document.openDocument(pdf, "application/pdf");
+    if (options.pageIndex >= doc.countPages()) {
+      return fail(`El PDF no tiene una cara número ${options.pageIndex + 1}.`);
+    }
+    const page = doc.loadPage(options.pageIndex);
+    const escala = options.dpi / 72;
+    const pixmap = page.toPixmap(mupdf.Matrix.scale(escala, escala), mupdf.ColorSpace.DeviceRGB, false, true);
+    pixmap.setResolution(Math.round(options.dpi), Math.round(options.dpi));
+    const calidad = Math.min(100, Math.max(1, Math.round(options.calidad ?? 95)));
+    return ok(new Uint8Array(pixmap.asJPEG(calidad)));
+  } catch (e) {
+    return fail(`No se pudo convertir el PDF a JPG: ${e instanceof Error ? e.message : String(e)}`);
+  }
+}

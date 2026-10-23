@@ -27,6 +27,7 @@ import {
   vaciarPliego,
   type Ubicacion,
 } from "@/lib/fotolibro/modo/operaciones";
+import { ExportarBoton } from "./exportar-boton";
 import { GoogleFontsLoader } from "@repo/template-editor-ui";
 import { estiloPorId } from "@/lib/fotolibro/estilos/catalogo";
 import type { EstiloFotolibro, RolTexto } from "@/lib/fotolibro/estilos/tipos";
@@ -387,6 +388,12 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
         >
           Diseño libre
         </button>
+        <ExportarBoton
+          templateId={templateId}
+          nombre={cargado.nombre}
+          cantidadPliegos={cantidad}
+          guardarAntes={async () => (ref.current.estado && guardado !== "al-dia" ? guardar() : true)}
+        />
       </header>
 
       {errorGuardado ? (
