@@ -41,10 +41,26 @@ export type EstiloAplicado = {
   textos: Partial<Record<"titulo" | "subtitulo" | "fecha" | "frase", string>>;
 };
 
+/** Encuadre de una foto en su marco, igual que `configJson.crop` de los bloques. */
+export type Encuadre = { zoom: number; x: number; y: number };
+
+/**
+ * La tapa: qué modelo del laboratorio (ver `lib/fotolibro/tapa/catalogo.ts`) y qué fotos lleva.
+ * La contratapa sólo existe en las tapas que la imprimen (flexible, completa).
+ */
+export type TapaDelLibro = {
+  modeloId: string;
+  fotoId: string | null;
+  encuadre: Encuadre | null;
+  contratapaFotoId: string | null;
+  contratapaEncuadre: Encuadre | null;
+};
+
 export type EstadoFotolibro = {
   fotos: FotoDelLibro[];
   pliegos: PliegoDelLibro[];
   estilo: EstiloAplicado | null;
+  tapa: TapaDelLibro | null;
   /** Separación entre fotos y margen de la página, en milímetros. */
   separacionMm: number;
   margenMm: number;
@@ -77,6 +93,23 @@ function leerEstilo(raw: unknown): EstiloAplicado | null {
   return { id: txt(raw.id), medida: txt(raw.medida), fondos: mapa(raw.fondos), textos: mapa(raw.textos) };
 }
 
+function leerEncuadre(raw: unknown): Encuadre | null {
+  if (!esObj(raw)) return null;
+  return { zoom: Math.max(1, num(raw.zoom, 1)), x: num(raw.x, 0), y: num(raw.y, 0) };
+}
+
+function leerTapa(raw: unknown, existentes: Set<string>): TapaDelLibro | null {
+  if (!esObj(raw) || !txt(raw.modeloId)) return null;
+  const foto = (v: unknown) => (typeof v === "string" && existentes.has(v) ? v : null);
+  return {
+    modeloId: txt(raw.modeloId),
+    fotoId: foto(raw.fotoId),
+    encuadre: leerEncuadre(raw.encuadre),
+    contratapaFotoId: foto(raw.contratapaFotoId),
+    contratapaEncuadre: leerEncuadre(raw.contratapaEncuadre),
+  };
+}
+
 function leerPagina(raw: unknown, existentes: Set<string>): PaginaDelPliego {
   if (!esObj(raw)) return paginaVacia();
   const fotos = Array.isArray(raw.fotos)
@@ -104,6 +137,7 @@ export function leerEstadoFotolibro(meta: unknown, cantidadPliegos: number): Est
     fotos,
     pliegos,
     estilo: leerEstilo(fl.estilo),
+    tapa: leerTapa(fl.tapa, ids),
     separacionMm: Math.min(30, Math.max(0, num(fl.separacionMm, SEPARACION_MM_INICIAL))),
     margenMm: Math.min(40, Math.max(0, num(fl.margenMm, MARGEN_MM_INICIAL))),
   };
@@ -121,6 +155,7 @@ export function escribirEstadoFotolibro(meta: Record<string, unknown>, estado: E
       fotos: estado.fotos,
       pliegos: estado.pliegos,
       estilo: estado.estilo,
+      tapa: estado.tapa,
       separacionMm: estado.separacionMm,
       margenMm: estado.margenMm,
     },
@@ -132,6 +167,9 @@ export function usosPorFoto(estado: EstadoFotolibro): Map<string, number> {
   const usos = new Map<string, number>();
   for (const p of estado.pliegos) {
     for (const id of [...p.izq.fotos, ...p.der.fotos]) usos.set(id, (usos.get(id) ?? 0) + 1);
+  }
+  for (const id of [estado.tapa?.fotoId, estado.tapa?.contratapaFotoId]) {
+    if (id) usos.set(id, (usos.get(id) ?? 0) + 1);
   }
   return usos;
 }

@@ -7,6 +7,8 @@ type Props = {
   templateId: string;
   nombre: string;
   cantidadPliegos: number;
+  /** Si el libro tiene tapa elegida: va primera en el ZIP, como `tapa.jpg`. */
+  conTapa: boolean;
   /** Guarda lo pendiente antes de exportar: el servidor arma los pliegos desde lo guardado. */
   guardarAntes: () => Promise<boolean>;
 };
@@ -15,7 +17,7 @@ type Props = {
  * "Exportar para el laboratorio": arma cada pliego en JPG a 300 ppp en el servidor (de a uno,
  * porque cada uno baja sus fotos originales) y los junta en un ZIP listo para mandar.
  */
-export function ExportarBoton({ templateId, nombre, cantidadPliegos, guardarAntes }: Props) {
+export function ExportarBoton({ templateId, nombre, cantidadPliegos, conTapa, guardarAntes }: Props) {
   const [avance, setAvance] = useState<{ hechos: number; total: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -25,17 +27,21 @@ export function ExportarBoton({ templateId, nombre, cantidadPliegos, guardarAnte
       setError("No se pudo guardar antes de exportar.");
       return;
     }
-    setAvance({ hechos: 0, total: cantidadPliegos });
+    const caras = [
+      ...(conTapa ? [{ ruta: "tapa", nombre: "tapa.jpg", etiqueta: "la tapa" }] : []),
+      ...Array.from({ length: cantidadPliegos }, (_, i) => ({ ruta: String(i), nombre: `pliego-${String(i + 1).padStart(2, "0")}.jpg`, etiqueta: `el pliego ${i + 1}` })),
+    ];
+    setAvance({ hechos: 0, total: caras.length });
     try {
       const archivos: { nombre: string; datos: Uint8Array }[] = [];
-      for (let i = 0; i < cantidadPliegos; i++) {
-        const r = await fetch(`/api/fotolibro/${encodeURIComponent(templateId)}/exportar/${i}`, { credentials: "include" });
+      for (const [k, cara] of caras.entries()) {
+        const r = await fetch(`/api/fotolibro/${encodeURIComponent(templateId)}/exportar/${cara.ruta}`, { credentials: "include" });
         if (!r.ok) {
           const data = (await r.json().catch(() => ({}))) as { error?: string };
-          throw new Error(data.error || `No se pudo armar el pliego ${i + 1}.`);
+          throw new Error(data.error || `No se pudo armar ${cara.etiqueta}.`);
         }
-        archivos.push({ nombre: `pliego-${String(i + 1).padStart(2, "0")}.jpg`, datos: new Uint8Array(await r.arrayBuffer()) });
-        setAvance({ hechos: i + 1, total: cantidadPliegos });
+        archivos.push({ nombre: cara.nombre, datos: new Uint8Array(await r.arrayBuffer()) });
+        setAvance({ hechos: k + 1, total: caras.length });
       }
       const zip = armarZip(archivos);
       const url = URL.createObjectURL(new Blob([zip as BlobPart], { type: "application/zip" }));
@@ -58,7 +64,7 @@ export function ExportarBoton({ templateId, nombre, cantidadPliegos, guardarAnte
         type="button"
         disabled={avance !== null}
         onClick={() => void exportar()}
-        title="Un JPG por pliego, a 300 ppp, en un ZIP para mandar al laboratorio"
+        title="Un JPG por pliego (y la tapa), a 300 ppp, en un ZIP para mandar al laboratorio"
         className="rounded bg-[var(--fo-accent)] px-2.5 py-1 text-xs font-medium text-white hover:opacity-90 disabled:opacity-60"
       >
         {avance ? `Armando ${avance.hechos} de ${avance.total}…` : "Exportar para el laboratorio"}
