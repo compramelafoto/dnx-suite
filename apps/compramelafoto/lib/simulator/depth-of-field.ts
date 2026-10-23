@@ -1,6 +1,11 @@
 /**
- * Profundidad de campo — modelo fotográfico aproximado (lente delgada).
+ * Profundidad de campo — óptica de lente delgada, como una cámara real.
  * Plano de enfoque por distancia (focusDistanceM), no por objeto.
+ *
+ * El desenfoque de cada punto es el diámetro del disco de desenfoque que
+ * proyecta sobre el sensor, pasado a píxeles de la imagen. No hay curvas
+ * de "calibración visual": cerrar un paso de diafragma achica el disco a
+ * la mitad del área (diámetro ÷ √2), igual que en el estudio.
  */
 
 import {
@@ -13,69 +18,30 @@ import { getActiveSensor, getSensorProfile, type SensorFormatId } from "./sensor
 export { FOCAL_LENGTH_PRESETS, type FocalLengthMm };
 export { DEFAULT_FOCAL_LENGTH_MM };
 
-/** @deprecated Usar getActiveSensor().circleOfConfusionMm */
-export const COC_FULL_FRAME_MM = getActiveSensor().circleOfConfusionMm;
-/** @deprecated Usar SENSOR_PROFILES.APS_C */
-export const COC_APSC_MM = 0.02;
-/** @deprecated Usar SENSOR_PROFILES.MFT */
-export const COC_MFT_MM = 0.015;
-
 export type SensorFormat = SensorFormatId;
 
 export function circleOfConfusionForSensor(format: SensorFormat = "FULL_FRAME"): number {
   return getSensorProfile(format).circleOfConfusionMm;
 }
 
-/** Calibración visual (no sustituye la óptica; afina la percepción en pantalla). */
-export const DOF_BLUR_STRENGTH = 1.0;
-/** 0 = transición más corta; 1 = rampa CoC muy gradual (más realista). */
-export const DOF_TRANSITION_SOFTNESS = 0.94;
-/** Curvas delante/detrás del plano de enfoque (~1 = casi simétrico y suave). */
-export const DOF_FRONT_FALLOFF = 1.08;
-export const DOF_BACK_FALLOFF = 1.08;
+/**
+ * Tope del disco de desenfoque, como fracción del alto de la imagen.
+ * Sólo existe por rendimiento: un macro a f/2.8 puede pedir discos de
+ * cientos de píxeles. 7 % del alto ya es un fondo totalmente disuelto.
+ */
+export const DOF_MAX_BLUR_FRACTION_OF_HEIGHT = 0.07;
 
-/** Por encima de este f-number el postproceso DOF en vivo se omite (casi todo nítido). */
-export const DOF_SKIP_APERTURE = 16;
+/** Por debajo de este diámetro (px) un punto se ve nítido en pantalla. */
+export const DOF_SHARP_THRESHOLD_PX = 0.5;
 
-export interface DofParams {
-  focusDistanceM: number;
-  aperture: number;
-  focalLengthMm: number;
-  circleOfConfusionMm?: number;
-}
+/** Distancia más cercana que se considera al estimar el peor desenfoque de la escena. */
+export const DOF_NEAREST_SCENE_M = 0.4;
 
 export interface DepthOfFieldLimits {
   nearLimitM: number;
   farLimitM: number;
   depthOfFieldM: number;
   hyperfocalM: number;
-}
-
-/** @deprecated Usar DepthOfFieldLimits */
-export interface DofLimits {
-  nearM: number;
-  farM: number;
-}
-
-export interface DefocusParams {
-  subjectDistanceM: number;
-  focusDistanceM: number;
-  nearLimitM: number;
-  farLimitM: number;
-  aperture: number;
-  focalLengthMm: number;
-  circleOfConfusionMm?: number;
-}
-
-function clamp01(value: number): number {
-  return Math.max(0, Math.min(1, value));
-}
-
-/** Curva suave 0…1 entre dos umbrales. */
-export function smoothstep(edge0: number, edge1: number, x: number): number {
-  if (edge0 === edge1) return x >= edge1 ? 1 : 0;
-  const t = clamp01((x - edge0) / (edge1 - edge0));
-  return t * t * (3 - 2 * t);
 }
 
 function focalLengthM(focalLengthMm: number): number {
@@ -143,10 +109,13 @@ export function calculateDepthOfFieldLimits({
 }
 
 /**
- * Diámetro del círculo de confusión en el plano del sujeto (mm).
- * c = f² · |s − d| / (N · d · |s − f|)
+ * Diámetro del disco de desenfoque sobre el SENSOR (mm) para un punto a
+ * subjectDistanceM cuando la lente enfoca a focusDistanceM.
+ *
+ * b = f² · |d − s| / (N · d · (s − f))
+ * Con d = ∞ queda b = f² / (N · (s − f)): el cielo también se desenfoca.
  */
-export function calculateCircleOfConfusionDiameterMm({
+export function calculateBlurDiscOnSensorMm({
   subjectDistanceM,
   focusDistanceM,
   focalLengthMm,
@@ -158,109 +127,72 @@ export function calculateCircleOfConfusionDiameterMm({
   aperture: number;
 }): number {
   const f = Math.max(1, focalLengthMm);
-  const s = Math.max(0.3, focusDistanceM) * 1000;
-  const d = Math.max(0.15, subjectDistanceM) * 1000;
+  const s = Math.max(focusDistanceM * 1000, f * 1.01);
   const N = Math.max(1, aperture);
-  const denom = N * d * Math.abs(s - f);
-  if (denom < 1e-4) return 0;
-  return (f * f * Math.abs(s - d)) / denom;
+  if (!Number.isFinite(subjectDistanceM)) {
+    return (f * f) / (N * (s - f));
+  }
+  const d = Math.max(0.05, subjectDistanceM) * 1000;
+  return (f * f * Math.abs(d - s)) / (N * d * (s - f));
 }
 
+/** @deprecated Nombre viejo: el resultado es sobre el sensor, no sobre el sujeto. */
+export const calculateCircleOfConfusionDiameterMm = calculateBlurDiscOnSensorMm;
+
 /**
- * Cantidad de desenfoque normalizada 0 (nítido) … 1 (máximo).
- * Solo CoC + rampa suave (sin “zona muerta” artificial dentro del DoF).
+ * Diámetro del disco de desenfoque en píxeles de la imagen renderizada.
+ * La cámara 3D usa FOV vertical = alto del sensor, así que el alto del
+ * sensor (mm) se corresponde con el alto de la imagen (px).
  */
-export function calculateDefocusAmount({
+export function calculateBlurDiameterPx({
   subjectDistanceM,
   focusDistanceM,
-  nearLimitM: _nearLimitM,
-  farLimitM: _farLimitM,
-  aperture,
   focalLengthMm,
-  circleOfConfusionMm = getActiveSensor().circleOfConfusionMm,
-}: DefocusParams): number {
-  const coc = calculateCircleOfConfusionDiameterMm({
+  aperture,
+  imageHeightPx,
+  sensorHeightMm = getActiveSensor().heightMm,
+}: {
+  subjectDistanceM: number;
+  focusDistanceM: number;
+  focalLengthMm: number;
+  aperture: number;
+  imageHeightPx: number;
+  sensorHeightMm?: number;
+}): number {
+  const discMm = calculateBlurDiscOnSensorMm({
     subjectDistanceM,
     focusDistanceM,
     focalLengthMm,
     aperture,
   });
-
-  const cocNorm = coc / Math.max(1e-6, circleOfConfusionMm);
-
-  const softLow = 0.04 * (1 - DOF_TRANSITION_SOFTNESS * 0.35);
-  const softHigh = 1.35 + DOF_TRANSITION_SOFTNESS * 1.15;
-
-  let amount = smoothstep(softLow, softHigh, cocNorm);
-
-  const isInFront = subjectDistanceM < focusDistanceM;
-  if (isInFront) {
-    amount = 1 - (1 - amount) ** DOF_FRONT_FALLOFF;
-  } else {
-    amount = 1 - (1 - amount) ** (1 / Math.max(0.5, DOF_BACK_FALLOFF));
-  }
-
-  return clamp01(amount * DOF_BLUR_STRENGTH);
+  return (discMm / Math.max(1e-6, sensorHeightMm)) * imageHeightPx;
 }
 
-/** @deprecated Usar calculateDefocusAmount */
-export function calculateFocusBlur(
-  focusDistanceM: number,
-  pixelDistanceM: number,
-  aperture: number,
-  focalLengthMm: number,
-  circleOfConfusionMm = getActiveSensor().circleOfConfusionMm,
-): number {
-  const limits = calculateDepthOfFieldLimits({
-    focusDistanceM,
-    focalLengthMm,
-    aperture,
-    circleOfConfusionMm,
+/** Tope de diámetro (px) que acepta el render para una imagen de este alto. */
+export function maxRenderableBlurPx(imageHeightPx: number): number {
+  return Math.max(4, imageHeightPx * DOF_MAX_BLUR_FRACTION_OF_HEIGHT);
+}
+
+/**
+ * Peor desenfoque posible en la escena (px): el mayor entre el infinito y
+ * un objeto muy cercano. Limita hasta dónde busca el shader.
+ */
+export function calculateSceneMaxBlurPx(params: {
+  focusDistanceM: number;
+  focalLengthMm: number;
+  aperture: number;
+  imageHeightPx: number;
+  sensorHeightMm?: number;
+}): number {
+  const atInfinity = calculateBlurDiameterPx({
+    ...params,
+    subjectDistanceM: Number.POSITIVE_INFINITY,
   });
-
-  return calculateDefocusAmount({
-    subjectDistanceM: pixelDistanceM,
-    focusDistanceM,
-    nearLimitM: limits.nearLimitM,
-    farLimitM: limits.farLimitM,
-    aperture,
-    focalLengthMm,
-    circleOfConfusionMm,
+  const atNearest = calculateBlurDiameterPx({
+    ...params,
+    subjectDistanceM: Math.min(DOF_NEAREST_SCENE_M, params.focusDistanceM),
   });
-}
-
-export function calculateFocusBlurPx(
-  focusDistanceM: number,
-  pixelDistanceM: number,
-  aperture: number,
-  focalLengthMm: number,
-  maxBlurPx = 14,
-): number {
-  return calculateFocusBlur(focusDistanceM, pixelDistanceM, aperture, focalLengthMm) * maxBlurPx;
-}
-
-/** @deprecated Usar calculateDepthOfFieldLimits */
-export function computeDofLimits(
-  focusDistanceM: number,
-  aperture: number,
-  focalLengthMm: number,
-): DofLimits {
-  const limits = calculateDepthOfFieldLimits({ focusDistanceM, focalLengthMm, aperture });
-  return {
-    nearM: limits.nearLimitM,
-    farM: Number.isFinite(limits.farLimitM) ? limits.farLimitM : focusDistanceM * 4,
-  };
-}
-
-/** @deprecated */
-export function computeDofBlurPx(aperture: number): number {
-  if (aperture >= 11) return 0.5;
-  if (aperture >= 8) return 1.2;
-  if (aperture >= 5.6) return 2.5;
-  if (aperture >= 4) return 4;
-  if (aperture >= 2.8) return 6;
-  if (aperture >= 2) return 8;
-  return 11;
+  return Math.min(maxRenderableBlurPx(params.imageHeightPx), Math.max(atInfinity, atNearest));
 }
 
 export function formatFarDofLimit(farLimitM: number): string {
