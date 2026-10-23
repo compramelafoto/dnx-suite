@@ -30,6 +30,7 @@ import {
   SHUTTER_PRESETS,
   type ExposureVerdict,
 } from "./camera-types";
+import { aperturesForLens, apertureStops, exactAperture, exactIso } from "./exposure-scales";
 
 export type ViewfinderMode = "live-view" | "dslr-view";
 export type CompositionGuideMode = "none" | "thirds" | "center";
@@ -156,7 +157,7 @@ export interface ExposureDebugSnapshot {
 
 /** EV100 = log₂(N² / t) */
 export function computeEv100(aperture: number, shutterSeconds: number): number {
-  const n = Math.max(aperture, 0.5);
+  const n = exactAperture(Math.max(aperture, 0.5));
   const t = Math.max(shutterSeconds, 1e-9);
   return Math.log2((n * n) / t);
 }
@@ -167,7 +168,7 @@ export function computeExposureEv(
   aperture: number,
   shutterSeconds: number,
 ): number {
-  const safeIso = Math.max(iso, 50);
+  const safeIso = exactIso(Math.max(iso, 50));
   return computeEv100(aperture, shutterSeconds) - Math.log2(safeIso / 100);
 }
 
@@ -184,11 +185,11 @@ export function computeExposureEvFromSettings(settings: CameraState): number {
  * ∝ (ISO/ISO_ref) × (t/t_ref) × (N_ref/N)²
  */
 export function computeRelativeExposureMultiplier(settings: CameraState): number {
-  const isoFactor = settings.iso / REFERENCE_CAMERA.iso;
+  const isoFactor = exactIso(settings.iso) / exactIso(REFERENCE_CAMERA.iso);
   const shutterFactor = shutterSpeedToSeconds(settings.shutterSpeed) / REF_SHUTTER_SEC;
-  const apertureFactor =
-    (REFERENCE_CAMERA.aperture * REFERENCE_CAMERA.aperture) /
-    (settings.aperture * settings.aperture);
+  const refN = exactAperture(REFERENCE_CAMERA.aperture);
+  const n = exactAperture(settings.aperture);
+  const apertureFactor = (refN * refN) / (n * n);
   const raw = isoFactor * shutterFactor * apertureFactor;
   if (!Number.isFinite(raw) || raw <= 0) return 1;
   return raw;
@@ -267,11 +268,15 @@ function nearestShutterSeconds(targetSeconds: number): string {
   return best;
 }
 
-function nearestAperture(targetF: number): number {
-  let best: number = APERTURE_PRESETS[0];
+/** Diafragma más cercano (en pasos de luz) dentro del tramo del objetivo. */
+function nearestAperture(targetF: number, range?: CameraState["apertureRange"]): number {
+  const allowed = range ? aperturesForLens(range.maxOpen, range.minAperture) : [...APERTURE_PRESETS];
+  const options = allowed.length ? allowed : [...APERTURE_PRESETS];
+  const target = Math.log2(Math.max(targetF, 0.5) ** 2);
+  let best = options[0];
   let bestDiff = Infinity;
-  for (const f of APERTURE_PRESETS) {
-    const diff = Math.abs(f - targetF);
+  for (const f of options) {
+    const diff = Math.abs(apertureStops(f) - target);
     if (diff < bestDiff) {
       bestDiff = diff;
       best = f;
@@ -290,12 +295,12 @@ export function resolveEffectiveSettings(
 ): CameraState {
   const targetExposureEv =
     REFERENCE_EXPOSURE_EV + sceneLuminanceEv + settings.exposureCompensation;
-  const isoLog = Math.log2(Math.max(settings.iso, 50) / 100);
+  const isoLog = Math.log2(exactIso(Math.max(settings.iso, 50)) / 100);
 
   if (settings.mode === "A") {
     const logN2overT = targetExposureEv + isoLog;
-    const targetSeconds =
-      (settings.aperture * settings.aperture) / Math.pow(2, logN2overT);
+    const n = exactAperture(settings.aperture);
+    const targetSeconds = (n * n) / Math.pow(2, logN2overT);
     return {
       ...settings,
       shutterSpeed: nearestShutterSeconds(targetSeconds),
@@ -308,7 +313,7 @@ export function resolveEffectiveSettings(
     const targetN = Math.sqrt(Math.pow(2, logN2overT) * shutterSec);
     return {
       ...settings,
-      aperture: nearestAperture(targetN),
+      aperture: nearestAperture(targetN, settings.apertureRange),
     };
   }
 

@@ -1,6 +1,12 @@
 "use client";
 
 import CameraParamTimeline from "@/components/simulator/CameraParamTimeline";
+import { shutterSpeedToSeconds } from "@/lib/simulator/camera-math";
+import {
+  isFullStopAperture,
+  isFullStopIso,
+  isFullStopShutterSeconds,
+} from "@/lib/simulator/exposure-scales";
 import {
   CameraOptionBtn,
   CameraOptionStepper,
@@ -106,6 +112,7 @@ export default function CameraTab({ activeIndex }: CameraTabProps) {
             options={presets.iso}
             onChange={setIso}
             formatValue={(v) => String(v)}
+            isMajor={isFullStopIso}
             focused={activeIndex === 0}
             resettable
             onReset={() => setIso(REFERENCE_CAMERA.iso)}
@@ -121,6 +128,7 @@ export default function CameraTab({ activeIndex }: CameraTabProps) {
             options={presets.shutter}
             onChange={setShutterSpeed}
             formatValue={formatShutterSpeed}
+            isMajor={(s) => isFullStopShutterSeconds(shutterSpeedToSeconds(s))}
             scaleDirection="desc"
             focused={activeIndex === 1}
             readOnly={shutterAuto}
@@ -136,6 +144,7 @@ export default function CameraTab({ activeIndex }: CameraTabProps) {
             options={presets.aperture}
             onChange={setAperture}
             formatValue={formatAperture}
+            isMajor={isFullStopAperture}
             focused={activeIndex === 2}
             readOnly={apertureAuto}
           />

@@ -37,7 +37,10 @@ export default function FocusContinuousDrive() {
 
     const [sx, sy, sz] = subject.position;
     const targetM = roundFocusDistanceM(
-      Math.hypot(sx - camera.position.x, sy - camera.position.y, sz - camera.position.z),
+      Math.max(
+        simulatorRuntime.minFocusDistanceM,
+        Math.hypot(sx - camera.position.x, sy - camera.position.y, sz - camera.position.z),
+      ),
     );
 
     if (Math.abs(targetM - lastDistance.current) < TRACK_DISTANCE_EPS) return;
