@@ -521,6 +521,8 @@ export default function StreetPedestrians({ layout }: { layout: StreetLayout }) 
         p.root.rotation.y = p.heading;
       }
 
+      // Velocidad pedida ("saludá rápido"); al caminar o al soltarlo, la natural.
+      p.current.timeScale = isModel && !p.move ? st.pose.tempo : 1;
       p.mixer.update(dt);
       if (isModel && !FREE_HEAD.has(st.pose.action)) aimHead(p, camera, st.pose.gazeYaw, st.pose.gazePitch);
       updateFace(p, isModel, st, camera, clock.elapsedTime, dt);

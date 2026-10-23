@@ -2,7 +2,7 @@
 
 import { useCameraStore } from "@/lib/simulator/camera-store";
 import { EXPRESSIONS } from "@/lib/simulator/face/face-expressions";
-import { MODEL_ACTIONS, type ModelCommand } from "@/lib/simulator/street/model-direction";
+import { MODEL_ACTIONS, MODEL_TEMPOS, type ModelCommand } from "@/lib/simulator/street/model-direction";
 import { modelStore } from "@/lib/simulator/street/model-store";
 import { useEffect, useState, useSyncExternalStore } from "react";
 
@@ -167,6 +167,22 @@ export default function StreetModelPanel() {
             {a.label}
           </button>
         ))}
+        </div>
+      </details>
+
+      <details className="cod-model-panel__group">
+        <summary className="cod-model-panel__label">Velocidad</summary>
+        <div className="cod-model-panel__chips">
+          {MODEL_TEMPOS.map((m) => (
+            <button
+              key={m.value}
+              type="button"
+              className={m.value === state.pose.tempo ? "is-active" : ""}
+              onClick={() => modelStore.send([{ kind: "tempo", value: m.value }])}
+            >
+              {m.label}
+            </button>
+          ))}
         </div>
       </details>
 
