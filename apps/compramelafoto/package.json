@@ -49,7 +49,8 @@
     "test:school-commission": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.json --test lib/school-organizer-commission-logic.test.ts",
     "test:email-layout": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.json --test emails/layout.test.ts",
     "test:aws-costos": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.test.json --test lib/album-cleanup/face-rows-safe-to-forget.test.ts lib/faces/orphan-faces.test.ts lib/album-cleanup/resume-cursor.test.ts",
-    "test:estudio-luz": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.test.json --test lib/simulator/studio-light/studio-light.test.ts"
+    "test:estudio-luz": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.test.json --test lib/simulator/studio-light/studio-light.test.ts",
+    "test:simulador-camara": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.test.json --test lib/simulator/depth-of-field.test.ts"
   },
   "dependencies": {
     "@aws-sdk/client-rekognition": "^3.985.0",
