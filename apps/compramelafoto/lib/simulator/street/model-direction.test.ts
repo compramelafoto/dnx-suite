@@ -40,6 +40,18 @@ test("varias indicaciones en una frase", () => {
   assert.deepEqual(cmds.map((c) => c.kind), ["facing", "gaze", "expression", "action"]);
 });
 
+test("movimientos para larga exposición: brazos, saludo y velocidad", () => {
+  assert.equal(pose("mové las manos rápido").action, "cheer_01");
+  assert.equal(pose("mové las manos rápido").tempo, 1.8);
+  assert.equal(pose("agitá los brazos").action, "cheer_01");
+  assert.equal(pose("saludá sin parar").action, "wave_01");
+  assert.equal(pose("saludá muy rápido").tempo, 2.6);
+  assert.equal(pose("bailá").action, "dancing_neutral");
+  assert.equal(pose("más despacio").tempo, 0.5);
+  // La velocidad se mantiene al cambiar de acción.
+  assert.equal(pose("saludá", pose("más rápido")).tempo, 1.8);
+});
+
 test("acercarse, alejarse y despedirse", () => {
   assert.deepEqual(parseInstruction("acercate un poco"), [{ kind: "move", meters: -0.5 }]);
   assert.deepEqual(parseInstruction("alejate"), [{ kind: "move", meters: 1 }]);

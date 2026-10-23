@@ -17,6 +17,8 @@ export type ModelAction =
   | "idle_touch_hair_01"
   | "cell_phone_textmessage"
   | "claphands_01"
+  | "cheer_01"
+  | "dancing_neutral"
   | "idle_stretch_arms_01";
 
 export const MODEL_ACTIONS: { id: ModelAction; label: string }[] = [
@@ -28,10 +30,23 @@ export const MODEL_ACTIONS: { id: ModelAction; label: string }[] = [
   { id: "cell_phone_textmessage", label: "Mirar el celular" },
   { id: "idle_look_around_01", label: "Mirar alrededor" },
   { id: "claphands_01", label: "Aplaudir" },
+  { id: "cheer_01", label: "Agitar los brazos" },
+  { id: "dancing_neutral", label: "Bailar" },
   { id: "idle_stretch_arms_01", label: "Estirarse" },
 ];
 
 import type { Expression } from "../face/face-expressions";
+
+/**
+ * Velocidad de los movimientos (multiplica la de la animación). Sirve para
+ * practicar larga exposición: un saludo rápido deja la mano barrida.
+ */
+export const MODEL_TEMPOS: { value: number; label: string }[] = [
+  { value: 0.5, label: "Lenta" },
+  { value: 1, label: "Normal" },
+  { value: 1.8, label: "Rápida" },
+  { value: 2.6, label: "Muy rápida" },
+];
 
 export interface ModelPose {
   /**
@@ -45,15 +60,25 @@ export interface ModelPose {
   action: ModelAction;
   /** Expresión de la cara. */
   expression: Expression;
+  /** Velocidad de los movimientos (1 = natural). */
+  tempo: number;
 }
 
-export const NATURAL_POSE: ModelPose = { facing: 0, gazeYaw: 0, gazePitch: 0, action: "idle_breathe_01", expression: "neutral" };
+export const NATURAL_POSE: ModelPose = {
+  facing: 0,
+  gazeYaw: 0,
+  gazePitch: 0,
+  action: "idle_breathe_01",
+  expression: "neutral",
+  tempo: 1,
+};
 
 export type ModelCommand =
   | { kind: "facing"; value: number; relative?: boolean }
   | { kind: "gaze"; yaw: number; pitch: number }
   | { kind: "action"; action: ModelAction }
   | { kind: "expression"; expression: Expression }
+  | { kind: "tempo"; value: number }
   | { kind: "move"; meters: number }
   | { kind: "release" };
 
@@ -116,7 +141,10 @@ export function parseInstruction(input: string): ModelCommand[] {
 
   // Acciones.
   if (/\brei|risa|carcajada/.test(t)) out.push({ kind: "action", action: "gestic_laugh_low" });
-  else if (/salud/.test(t)) out.push({ kind: "action", action: "wave_01" });
+  else if (/(agita|move|mueve|sacudi|revolea|levanta)\w*.*\b(brazos|manos)\b|festeja|hinchada/.test(t)) {
+    out.push({ kind: "action", action: "cheer_01" });
+  } else if (/salud/.test(t)) out.push({ kind: "action", action: "wave_01" });
+  else if (/baila/.test(t)) out.push({ kind: "action", action: "dancing_neutral" });
   else if (/habla|charla|conta(me)?/.test(t)) out.push({ kind: "action", action: "gestic_talk_relaxed_01" });
   else if (/pelo|cabello/.test(t)) out.push({ kind: "action", action: "idle_touch_hair_01" });
   else if (/celular|telefono|mensaje/.test(t)) out.push({ kind: "action", action: "cell_phone_textmessage" });
@@ -124,6 +152,12 @@ export function parseInstruction(input: string): ModelCommand[] {
   else if (/estira/.test(t)) out.push({ kind: "action", action: "idle_stretch_arms_01" });
   else if (/alrededor|distraid/.test(t)) out.push({ kind: "action", action: "idle_look_around_01" });
   else if (/natural|relaj|quiet|tranqui|normal/.test(t)) out.push({ kind: "action", action: "idle_breathe_01" });
+
+  // Velocidad de los movimientos.
+  if (/muy rapido|rapidisimo|a full|lo mas rapido/.test(t)) out.push({ kind: "tempo", value: 2.6 });
+  else if (/rapid|ligero|con energia|con ganas/.test(t)) out.push({ kind: "tempo", value: 1.8 });
+  else if (/lento|lenta|despacio|suave/.test(t)) out.push({ kind: "tempo", value: 0.5 });
+  else if (/velocidad normal|ritmo normal/.test(t)) out.push({ kind: "tempo", value: 1 });
 
   // Distancia.
   if (/acerca|veni|mas cerca/.test(t)) out.push({ kind: "move", meters: /un poco|apenas/.test(t) ? -0.5 : -1 });
@@ -153,6 +187,8 @@ export function applyCommand(pose: ModelPose, cmd: ModelCommand): ModelPose {
       return { ...pose, action: cmd.action };
     case "expression":
       return { ...pose, expression: cmd.expression };
+    case "tempo":
+      return { ...pose, tempo: Math.max(0.25, Math.min(3, cmd.value)) };
     default:
       return pose;
   }
