@@ -1,6 +1,4 @@
 /** Identificadores de sujetos móviles enfocables. */
-export const MOVING_SUBJECT_ID = "moving-subject";
-export const VEHICLE_SUBJECT_ID = "vehicle-1";
 /** Auto principal — Ciudad Fotográfica. */
 export const PHOTOGRAPHIC_VEHICLE_SUBJECT_ID = "vehicle-main";
 /** Peatón principal — Ciudad Fotográfica. */
@@ -34,10 +32,6 @@ export function isPhotographicPedestrianId(id: string | null | undefined): boole
   );
 }
 
-export const PEDESTRIAN_SUBJECT_IDS = ["ped-1", "ped-2", "ped-3", "ped-4"] as const;
-
-export type PedestrianSubjectId = (typeof PEDESTRIAN_SUBJECT_IDS)[number];
-
 export type MovingSubjectKind = "human" | "vehicle" | "generic";
 
 export interface MovingSubjectState {
@@ -48,7 +42,7 @@ export interface MovingSubjectState {
   position: [number, number, number];
   /** Velocidad escalar m/s. */
   speed: number;
-  /** Sentido lateral: 1 = +X, -1 = −X (legacy estudio). */
+  /** Sentido lateral: 1 = +X, -1 = −X. */
   direction: 1 | -1;
   /** Velocidad con signo en X (m/s). */
   velocityX: number;

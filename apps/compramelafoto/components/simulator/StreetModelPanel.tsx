@@ -1,6 +1,5 @@
 "use client";
 
-import { useCameraStore } from "@/lib/simulator/camera-store";
 import { EXPRESSIONS } from "@/lib/simulator/face/face-expressions";
 import { MODEL_ACTIONS, type ModelCommand } from "@/lib/simulator/street/model-direction";
 import { modelStore } from "@/lib/simulator/street/model-store";
@@ -47,7 +46,6 @@ function useTalkKey() {
  * acción y distancia, con botones o con palabras.
  */
 export default function StreetModelPanel() {
-  const { sceneId } = useCameraStore();
   const state = useSyncExternalStore(modelStore.subscribe, modelStore.getState, modelStore.getState);
   const [text, setText] = useState("");
   useTalkKey();
@@ -56,8 +54,6 @@ export default function StreetModelPanel() {
   useEffect(() => {
     if (process.env.NODE_ENV === "development") (globalThis as Record<string, unknown>).__codModel = modelStore;
   }, []);
-
-  if (sceneId !== "photographic-city") return null;
 
   if (!state.model) {
     if (!state.nearby) return null;

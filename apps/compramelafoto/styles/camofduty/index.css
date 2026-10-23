@@ -3974,7 +3974,6 @@
 }
 
 /* Escena + luz natural */
-.cod-scene-panel__intro,
 .cod-natural-light-panel__hint {
   margin: 0 0 0.75rem;
   font-size: 0.72rem;
@@ -3982,23 +3981,14 @@
   color: var(--cod-text-muted);
 }
 
-.cod-scene-list {
-  list-style: none;
-  margin: 0 0 1rem;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.45rem;
-}
-
 .cod-scene-card {
   width: 100%;
+  margin: 0 0 1rem;
   text-align: left;
   padding: 0.65rem 0.75rem;
   border: 1px solid var(--cod-border);
   border-radius: var(--cod-radius);
   background: var(--cod-bg-elevated);
-  cursor: pointer;
 }
 
 .cod-scene-card--active {

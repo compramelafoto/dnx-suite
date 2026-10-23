@@ -7,7 +7,7 @@ const HELP_ITEMS = [
     keys: ["W", "A", "S", "D"],
     title: "Moverse por la escena",
     description:
-      "Desplazá la cámara en primera persona por el estudio. W y S avanzan y retroceden; A y D strafean a los lados. Primero hacé click en la escena para activar el puntero.",
+      "Desplazá la cámara en primera persona por la calle. W y S avanzan y retroceden; A y D strafean a los lados. Primero hacé click en la escena para activar el puntero.",
   },
   {
     keys: ["Mouse"],

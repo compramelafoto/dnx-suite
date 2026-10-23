@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useCameraStore } from "@/lib/simulator/camera-store";
 import {
   formatTimeOfDay,
@@ -8,35 +7,10 @@ import {
   type TimeOfDayPresetId,
 } from "@/lib/simulator/natural-light";
 import { daylightEv100 } from "@/lib/simulator/scene-light";
-import { isExteriorScene } from "@/lib/simulator/scenes";
 
 export default function NaturalLightTab() {
-  const { sceneId, timeOfDayMinutes, sunState, setTimeOfDayMinutes, setWhiteBalance, settings } =
+  const { timeOfDayMinutes, sunState, setTimeOfDayMinutes, setWhiteBalance, settings } =
     useCameraStore();
-
-  const exterior = isExteriorScene(sceneId);
-
-  if (!exterior) {
-    return (
-      <div
-        className="cod-side-panel cod-natural-light-panel"
-        role="tabpanel"
-        id="cod-side-panel-sun"
-        aria-labelledby="cod-side-tab-sun"
-      >
-        <p className="cod-natural-light-panel__hint">
-          La luz natural solar está disponible en escenas exteriores.
-          El estudio usa iluminación artificial fija.
-        </p>
-        <p className="cod-natural-light-panel__hint cod-natural-light-panel__hint--muted">
-          Para trabajar con flashes, softbox y reflectores, abrí el Estudio de luz.
-        </p>
-        <Link href="/camofduty/estudio" className="cod-btn cod-btn--secondary cod-btn--sm">
-          Abrir el Estudio de luz
-        </Link>
-      </div>
-    );
-  }
 
   const applyPreset = (id: TimeOfDayPresetId) => {
     const preset = TIME_OF_DAY_PRESETS.find((p) => p.id === id);
@@ -120,7 +94,7 @@ export default function NaturalLightTab() {
       </button>
 
       <p className="cod-natural-light-panel__hint cod-natural-light-panel__hint--muted">
-        En Ciudad Fotográfica, la hora selecciona el HDRI activo (ej. mediodía → <code>noon.hdr</code>).
+        La hora selecciona el HDRI activo (ej. mediodía → <code>noon.hdr</code>).
       </p>
 
       <p className="cod-natural-light-panel__hint cod-natural-light-panel__hint--muted">
