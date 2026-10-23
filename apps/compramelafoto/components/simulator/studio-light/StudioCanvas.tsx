@@ -1,23 +1,26 @@
 "use client";
 
 import { OrbitControls } from "@react-three/drei";
-import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { Canvas, useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import { Suspense, useLayoutEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import * as THREE from "three";
 import { RectAreaLightUniformsLib } from "three/examples/jsm/lights/RectAreaLightUniformsLib.js";
-import { SUBJECT_HEAD, renderExposure, roomN2 } from "@/lib/simulator/studio-light/metering";
-import { useStudio } from "@/lib/simulator/studio-light/studio-store";
+import { renderExposure, roomN2, subjectHead } from "@/lib/simulator/studio-light/metering";
+import { SET_BOUNDS, useStudio } from "@/lib/simulator/studio-light/studio-store";
+import { startPlaneDrag } from "./plane-drag";
 import StudioBackdrop from "./StudioBackdrop";
 import StudioLightRig, { HELPER_LAYER } from "./StudioLightRig";
 import StudioFigure from "./StudioFigure";
 import StudioSubject from "./StudioSubject";
+import { StudioCameraDirector, StudioWalkController, type QuickView } from "./StudioWalk";
 import { figureById, isBust } from "@/lib/simulator/studio-light/figures";
 
 // Debe correr antes de compilar cualquier material, si no las luces de área no iluminan.
 // El módulo sólo se carga en el navegador (dynamic sin SSR).
 RectAreaLightUniformsLib.init();
 
-export type StudioViewMode = "set" | "camera";
+/** Set: vista orbital del estudio. Cámara: la foto. Caminar: primera persona. */
+export type StudioViewMode = "set" | "camera" | "walk";
 
 /** Relación de aspecto del sensor (3:2, full frame). */
 export const PHOTO_ASPECT = 3 / 2;
@@ -77,24 +80,159 @@ function SetGrid() {
 }
 
 /** Cuerpo de cámara visible en el set (no aparece en la foto). */
-function PhotographerCamera({ photoCam }: { photoCam: THREE.PerspectiveCamera }) {
-  const { state } = useStudio();
+/** Aro alrededor de los pies del sujeto: arrastrarlo lo gira. Sólo en la vista del set. */
+function SubjectRing({ lockOrbit }: { lockOrbit: (locked: boolean) => void }) {
+  const { state, dispatch, checkpoint } = useStudio();
+  const camera = useThree((s) => s.camera);
+  const gl = useThree((s) => s.gl);
+  const ref = useRef<THREE.Group>(null);
+  const dragging = useRef(false);
+  useLayoutEffect(() => {
+    ref.current?.traverse((o) => o.layers.set(HELPER_LAYER));
+  });
+  const onDown = (e: ThreeEvent<PointerEvent>) => {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    checkpoint();
+    lockOrbit(true);
+    const startYaw = state.subjectYaw;
+    const ok = startPlaneDrag({
+      start: e.nativeEvent,
+      plane: new THREE.Plane(new THREE.Vector3(0, 1, 0), 0),
+      camera,
+      canvas: gl.domElement,
+      onMove: (delta, hit) => {
+        // Punto del clic = punto actual menos el desplazamiento: así un arrastre
+        // rápido (un solo movimiento) también gira.
+        const startAngle = (Math.atan2(hit.x - delta.x, hit.z - delta.z) * 180) / Math.PI;
+        const angle = (Math.atan2(hit.x, hit.z) * 180) / Math.PI;
+        let d = angle - startAngle;
+        if (d > 180) d -= 360;
+        if (d < -180) d += 360;
+        dispatch({ type: "scene-move", patch: { subjectYaw: Math.round(THREE.MathUtils.clamp(startYaw + d, -90, 90)) } });
+      },
+      onEnd: () => {
+        dragging.current = false;
+        lockOrbit(false);
+      },
+    });
+    if (ok) dragging.current = true;
+    else lockOrbit(false);
+  };
+  return (
+    <group
+      ref={ref}
+      onPointerDown={onDown}
+      onPointerOver={(e) => {
+        e.stopPropagation();
+        lockOrbit(true);
+        document.body.style.cursor = "grab";
+      }}
+      onPointerOut={() => {
+        if (dragging.current) return;
+        lockOrbit(false);
+        document.body.style.cursor = "";
+      }}
+    >
+      <mesh position={[0, 0.012, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[0.5, 0.6, 64]} />
+        <meshBasicMaterial color="#6ec8ff" toneMapped={false} transparent opacity={0.55} />
+      </mesh>
+      {/* Marca que indica hacia dónde mira el sujeto. */}
+      <mesh
+        position={[Math.sin((state.subjectYaw * Math.PI) / 180) * 0.68, 0.014, Math.cos((state.subjectYaw * Math.PI) / 180) * 0.68]}
+        rotation={[-Math.PI / 2, 0, -(state.subjectYaw * Math.PI) / 180]}
+      >
+        <circleGeometry args={[0.07, 3]} />
+        <meshBasicMaterial color="#6ec8ff" toneMapped={false} />
+      </mesh>
+    </group>
+  );
+}
+
+function PhotographerCamera({
+  photoCam,
+  walking,
+  editable,
+  lockOrbit,
+}: {
+  photoCam: THREE.PerspectiveCamera;
+  walking: boolean;
+  /** En la vista del set el cuerpo de la cámara se puede arrastrar. */
+  editable: boolean;
+  lockOrbit: (locked: boolean) => void;
+}) {
+  const { state, dispatch, checkpoint } = useStudio();
+  const camera = useThree((s) => s.camera);
+  const gl = useThree((s) => s.gl);
+  const dragging = useRef(false);
+  const onDown = (e: ThreeEvent<PointerEvent>) => {
+    if (!editable || e.button !== 0) return;
+    e.stopPropagation();
+    checkpoint();
+    lockOrbit(true);
+    const sx = state.camera.x;
+    const sz = state.camera.z;
+    const ok = startPlaneDrag({
+      start: e.nativeEvent,
+      plane: new THREE.Plane(new THREE.Vector3(0, 1, 0), -e.point.y),
+      camera,
+      canvas: gl.domElement,
+      onMove: (d) => {
+        // No puede quedar detrás del sujeto ni pegada a él.
+        const x = THREE.MathUtils.clamp(sx + d.x, SET_BOUNDS.minX, SET_BOUNDS.maxX);
+        const z = THREE.MathUtils.clamp(sz + d.z, 0.6, SET_BOUNDS.maxZ);
+        dispatch({ type: "camera-move", patch: { x, z, look: null } });
+      },
+      onEnd: () => {
+        dragging.current = false;
+        lockOrbit(false);
+      },
+    });
+    if (ok) dragging.current = true;
+    else lockOrbit(false);
+  };
   const group = useRef<THREE.Group>(null);
-  const { x, y, z, aimY } = state.camera;
+  const { x, y, z, aimY, look } = state.camera;
+  const head = subjectHead(state);
   useLayoutEffect(() => {
     const g = group.current;
     if (!g) return;
     g.position.set(x, y, z);
-    g.lookAt(SUBJECT_HEAD[0], aimY, SUBJECT_HEAD[2]);
+    // Con mirada libre (después de caminar) la cámara queda como la dejó el fotógrafo.
+    // El cuerpo mira hacia +Z y la cámara hacia −Z: media vuelta y cabeceo invertido.
+    if (look) g.rotation.set(-look.pitch, look.yaw + Math.PI, 0, "YXZ");
+    else g.lookAt(head[0], aimY, head[2]);
     g.traverse((o) => o.layers.set(HELPER_LAYER));
-    photoCam.position.set(x, y, z);
-    photoCam.lookAt(SUBJECT_HEAD[0], aimY, SUBJECT_HEAD[2]);
     photoCam.fov = focalToFov(state.camera.focalMm);
-    photoCam.aspect = PHOTO_ASPECT;
     photoCam.updateProjectionMatrix();
+    // Mientras se camina, la posición la maneja el controlador en cada cuadro.
+    if (walking) return;
+    photoCam.position.set(x, y, z);
+    if (look) photoCam.rotation.set(look.pitch, look.yaw, 0, "YXZ");
+    else photoCam.lookAt(head[0], aimY, head[2]);
   });
   return (
-    <group ref={group}>
+    <group
+      ref={group}
+      onPointerDown={onDown}
+      onPointerOver={(e) => {
+        if (!editable) return;
+        e.stopPropagation();
+        lockOrbit(true);
+        document.body.style.cursor = "grab";
+      }}
+      onPointerOut={() => {
+        if (!editable || dragging.current) return;
+        lockOrbit(false);
+        document.body.style.cursor = "";
+      }}
+    >
+      {/* Volumen invisible más grande: es más fácil de agarrar que el cuerpo chico. */}
+      <mesh position={[0, -0.2, 0]}>
+        <boxGeometry args={[0.4, 0.7, 0.4]} />
+        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+      </mesh>
       <mesh position={[0, 0, -0.04]}>
         <boxGeometry args={[0.15, 0.11, 0.08]} />
         <meshStandardMaterial color="#1b1b1e" roughness={0.6} />
@@ -205,6 +343,8 @@ function DualViewRenderer({ mode, photoCam, workLight, workKey, roomLight, captu
 
     const drawPhoto = (outer: Rect, readHistogram: boolean): Rect => {
       const r = fitPhoto(outer);
+      photoCam.aspect = PHOTO_ASPECT;
+      photoCam.updateProjectionMatrix();
       gl.toneMappingExposure = exposure;
       gl.setViewport(r.x, r.y, r.w, r.h);
       gl.setScissor(r.x, r.y, r.w, r.h);
@@ -237,6 +377,22 @@ function DualViewRenderer({ mode, photoCam, workLight, workKey, roomLight, captu
       if (showPip) {
         drawPhoto(pip, true);
       }
+    } else if (mode === "walk") {
+      // Primera persona a pantalla completa; la foto es el recorte 3:2 del centro
+      // (misma altura de campo), que es lo que marcan las guías del visor.
+      photoCam.aspect = full.w / full.h;
+      photoCam.updateProjectionMatrix();
+      gl.toneMappingExposure = exposure;
+      gl.setViewport(full.x, full.y, full.w, full.h);
+      gl.setScissor(full.x, full.y, full.w, full.h);
+      gl.setScissorTest(true);
+      gl.render(scene, photoCam);
+      const now = performance.now();
+      if (now - lastHistogram.current > 900) {
+        lastHistogram.current = now;
+        onHistogram(readLumaHistogram(gl, fitPhoto(full), dpr));
+      }
+      if (showPip) drawSet(pip);
     } else {
       drawPhoto(full, true);
       if (showPip) drawSet(pip);
@@ -252,6 +408,8 @@ function SceneContent(props: {
   captureRef: RendererProps["captureRef"];
   onHistogram: RendererProps["onHistogram"];
   showPip: boolean;
+  onShoot: () => void;
+  viewRef: MutableRefObject<((v: QuickView) => void) | null>;
 }) {
   const { state } = useStudio();
   const figure = figureById(state.subject);
@@ -288,10 +446,28 @@ function SceneContent(props: {
         {isBust(state.subject) ? (
           <StudioSubject subject={state.subject} yaw={state.subjectYaw} />
         ) : figure ? (
-          <StudioFigure key={figure.id} figure={figure} yaw={state.subjectYaw} pose={state.poseParams} />
+          <StudioFigure key={figure.id} figure={figure} yaw={state.subjectYaw} pose={state.poseParams} motion={state.motion} />
         ) : null}
       </Suspense>
-      <PhotographerCamera photoCam={photoCam} />
+      <PhotographerCamera
+        photoCam={photoCam}
+        walking={props.mode === "walk"}
+        editable={props.mode === "set"}
+        lockOrbit={(locked) => {
+          if (controls) controls.enabled = !locked && props.mode === "set";
+          setOrbitLocked(locked);
+        }}
+      />
+      {props.mode === "set" ? (
+        <SubjectRing
+          lockOrbit={(locked) => {
+            if (controls) controls.enabled = !locked;
+            setOrbitLocked(locked);
+          }}
+        />
+      ) : null}
+      <StudioWalkController active={props.mode === "walk"} photoCam={photoCam} onShoot={props.onShoot} />
+      <StudioCameraDirector requestRef={props.viewRef} />
       <StudioLightRig
         showHelpers={props.mode === "set"}
         setZoomEnabled={(on) => {
@@ -332,9 +508,13 @@ export interface StudioCanvasProps {
   captureRef: RendererProps["captureRef"];
   onHistogram: (h: Histogram) => void;
   showPip: boolean;
+  /** Disparo desde la primera persona (clic con el mouse capturado). */
+  onShoot: () => void;
+  /** Vistas rápidas del set: lo llena el lienzo, lo usan los botones. */
+  viewRef: MutableRefObject<((v: QuickView) => void) | null>;
 }
 
-export default function StudioCanvas({ mode, captureRef, onHistogram, showPip }: StudioCanvasProps) {
+export default function StudioCanvas({ mode, captureRef, onHistogram, showPip, onShoot, viewRef }: StudioCanvasProps) {
   return (
     <Canvas
       className="cod-studio__canvas"
@@ -343,12 +523,14 @@ export default function StudioCanvas({ mode, captureRef, onHistogram, showPip }:
       dpr={[1, 1.75]}
       camera={{ position: [4.2, 3.1, 5.2], fov: 42, near: 0.05, far: 60 }}
       gl={{ antialias: true, preserveDrawingBuffer: true, powerPreference: "high-performance" }}
-      onCreated={({ gl }) => {
+      onCreated={({ gl, raycaster }) => {
+        // Las manijas viven en la capa de ayudas: el mouse también tiene que tocarlas.
+        raycaster.layers.enableAll();
         gl.toneMapping = THREE.NeutralToneMapping;
         gl.outputColorSpace = THREE.SRGBColorSpace;
       }}
     >
-      <SceneContent mode={mode} captureRef={captureRef} onHistogram={onHistogram} showPip={showPip} />
+      <SceneContent mode={mode} captureRef={captureRef} onHistogram={onHistogram} showPip={showPip} onShoot={onShoot} viewRef={viewRef} />
     </Canvas>
   );
 }

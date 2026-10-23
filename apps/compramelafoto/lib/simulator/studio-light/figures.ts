@@ -15,6 +15,8 @@ export interface FigureSpec {
   name: string;
   outfit: string;
   gender: "mujer" | "hombre";
+  /** Agrega un tutú de tul que sigue la cadera. */
+  tutu?: boolean;
 }
 
 export const FIGURES: FigureSpec[] = [
@@ -25,6 +27,7 @@ export const FIGURES: FigureSpec[] = [
   { id: "martina", folder: "Female_Adult_11", name: "Martina", outfit: "Vestido y botas", gender: "mujer" },
   { id: "julia", folder: "Female_Adult_12", name: "Julia", outfit: "Buzo urbano y short", gender: "mujer" },
   { id: "mia", folder: "Female_Party_01", name: "Mía", outfit: "Fiesta, top blanco", gender: "mujer" },
+  { id: "bailarina", folder: "Female_Party_01", name: "Lucía", outfit: "Bailarina con tutú", gender: "mujer", tutu: true },
   { id: "tomas", folder: "Male_Adult_02", name: "Tomás", outfit: "Suéter claro", gender: "hombre" },
   { id: "ricardo", folder: "Male_Adult_03", name: "Ricardo", outfit: "Saco gris, adulto mayor", gender: "hombre" },
   { id: "mateo", folder: "Male_Adult_04", name: "Mateo", outfit: "Campera urbana", gender: "hombre" },

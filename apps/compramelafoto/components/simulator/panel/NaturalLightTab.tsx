@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCameraStore } from "@/lib/simulator/camera-store";
 import {
   formatTimeOfDay,
@@ -27,8 +28,11 @@ export default function NaturalLightTab() {
           El estudio usa iluminación artificial fija.
         </p>
         <p className="cod-natural-light-panel__hint cod-natural-light-panel__hint--muted">
-          TODO: flash, softbox y modificadores de estudio en la solapa Iluminación.
+          Para trabajar con flashes, softbox y reflectores, abrí el Estudio de luz.
         </p>
+        <Link href="/camofduty/estudio" className="cod-btn cod-btn--secondary cod-btn--sm">
+          Abrir el Estudio de luz
+        </Link>
       </div>
     );
   }

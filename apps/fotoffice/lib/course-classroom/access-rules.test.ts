@@ -78,3 +78,11 @@ describe("cuándo vale un acceso al curso", () => {
     ).toBe("VIGENTE");
   });
 });
+
+describe("vencimiento de un acceso nuevo", () => {
+  it("cero meses es sin vencimiento", async () => {
+    const { vencimientoDeAcceso } = await import("./access-rules");
+    expect(vencimientoDeAcceso(new Date(Date.UTC(2026, 9, 23)), 0)).toBeNull();
+    expect(vencimientoDeAcceso(new Date(Date.UTC(2026, 9, 23)), 12)?.toISOString()).toBe("2027-10-23T00:00:00.000Z");
+  });
+});

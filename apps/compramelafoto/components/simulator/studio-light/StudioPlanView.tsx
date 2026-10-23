@@ -2,7 +2,7 @@
 
 import { useRef, type PointerEvent as ReactPointerEvent } from "react";
 import { MODIFIERS, gelById } from "@/lib/simulator/studio-light/modifiers";
-import { BACKDROP_Z, SUBJECT_HEAD, activeLights, aimPoint } from "@/lib/simulator/studio-light/metering";
+import { BACKDROP_Z, activeLights, aimPoint, subjectHead, type Vec3 } from "@/lib/simulator/studio-light/metering";
 import { SET_BOUNDS, useStudio } from "@/lib/simulator/studio-light/studio-store";
 import type { StudioLight } from "@/lib/simulator/studio-light/types";
 
@@ -14,9 +14,9 @@ const f = (n: number) => Math.round(n * 1000) / 1000;
 
 type DragTarget = { kind: "light"; id: string } | { kind: "camera" } | null;
 
-function LightGlyph({ light, selected, lit }: { light: StudioLight; selected: boolean; lit: boolean }) {
+function LightGlyph({ light, selected, lit, head }: { light: StudioLight; selected: boolean; lit: boolean; head: Vec3 }) {
   const spec = MODIFIERS[light.modifier];
-  const aim = aimPoint(light);
+  const aim = aimPoint(light, head);
   const angle = Math.atan2(aim[2] - light.z, aim[0] - light.x) * DEG;
   const gel = spec.nature === "reflector" ? (spec.tint ?? "#fff") : gelById(light.gel).color;
   const w = Math.max(0.16, spec.width);
@@ -93,7 +93,7 @@ export default function StudioPlanView() {
       // La cámara no puede quedar detrás del sujeto ni pegada a él.
       const z = Math.min(SET_BOUNDS.maxZ, Math.max(0.6, p.z));
       const x = Math.min(SET_BOUNDS.maxX, Math.max(SET_BOUNDS.minX, p.x));
-      dispatch({ type: "camera", patch: { x, z } });
+      dispatch({ type: "camera", patch: { x, z, look: null } });
     }
   }
 
@@ -104,7 +104,11 @@ export default function StudioPlanView() {
   }
 
   const cam = state.camera;
-  const camAngle = Math.atan2(SUBJECT_HEAD[2] - cam.z, SUBJECT_HEAD[0] - cam.x);
+  const head = subjectHead(state);
+  // Con mirada libre (al caminar) el abanico sigue la mirada; si no, apunta al sujeto.
+  const camAngle = cam.look
+    ? Math.atan2(-Math.cos(cam.look.yaw), -Math.sin(cam.look.yaw))
+    : Math.atan2(head[2] - cam.z, head[0] - cam.x);
   const halfH = Math.atan(18 / cam.focalMm);
   const camReach = Math.hypot(cam.x, cam.z) + 0.8;
   const yawRad = (state.subjectYaw * Math.PI) / 180;
@@ -159,7 +163,7 @@ export default function StudioPlanView() {
         {state.lights.map((l) => (
           <g key={l.id} onPointerDown={(e) => start({ kind: "light", id: l.id }, e)} style={{ cursor: "grab" }}>
             <circle cx={f(l.x)} cy={f(l.z)} r={0.3} fill="transparent" />
-            <LightGlyph light={l} selected={l.id === state.selectedId} lit={lit.has(l.id)} />
+            <LightGlyph light={l} selected={l.id === state.selectedId} lit={lit.has(l.id)} head={head} />
             <text x={f(l.x)} y={f(l.z + 0.44)} className="cod-studio-plan__label" textAnchor="middle">
               {l.name}
             </text>

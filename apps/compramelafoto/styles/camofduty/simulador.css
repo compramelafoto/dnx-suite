@@ -1,0 +1,451 @@
+/**
+ * Cam Of Duty — Simulador: mismo lenguaje visual que el Estudio de luz.
+ * Grafito en capas, selección en ámbar tungsteno, rojo sólo para disparar.
+ * Pisa los estilos viejos de index.css con selectores dentro de .cod-sim.
+ */
+
+.cod-sim,
+.cod-scope .cod-help-modal,
+.cod-scope .cod-gallery-modal {
+  --st-surface: #14161b;
+  --st-surface-2: #1a1d23;
+  --st-raise: #232730;
+  --st-hover: #2a2f39;
+  --st-line: rgba(255, 255, 255, 0.06);
+  --st-line-2: rgba(255, 255, 255, 0.11);
+  --st-text: #eceef2;
+  --st-muted: #8f949e;
+  --st-amber: #ffb547;
+  --st-amber-ink: #241603;
+  --st-amber-soft: rgba(255, 181, 71, 0.13);
+  --st-red: #e5243b;
+  --st-r-sm: 9px;
+  --st-r: 12px;
+  --st-r-lg: 18px;
+}
+
+.cod-sim :focus-visible {
+  outline: 2px solid var(--st-amber);
+  outline-offset: 2px;
+}
+
+/* ── Columna lateral ── */
+
+.cod-sim .cod-sim__sidebar {
+  gap: 14px;
+  background: #101216;
+  border-color: var(--st-line);
+  scrollbar-width: thin;
+  scrollbar-color: var(--st-raise) transparent;
+}
+
+@media (min-width: 900px) {
+  .cod-sim .cod-sim__sidebar {
+    padding: 14px;
+  }
+}
+
+.cod-sim .cod-side-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  padding: 4px;
+  border-radius: var(--st-r);
+  background: #0b0c0f;
+}
+
+.cod-sim .cod-side-tabs__btn {
+  min-height: 38px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  font: 600 0.78rem/1.1 var(--cod-font-body);
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--st-muted);
+}
+
+.cod-sim .cod-side-tabs__btn:hover {
+  color: var(--st-text);
+}
+
+.cod-sim .cod-side-tabs__btn--active {
+  background: var(--st-raise);
+  color: var(--st-text);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06) inset, inset 0 -2px 0 var(--st-amber);
+}
+
+.cod-sim .cod-panel__title,
+.cod-sim .cod-panel__subtitle {
+  font: 700 0.92rem/1.2 var(--cod-font-body);
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--st-text);
+}
+
+/* ── Filas de parámetros (ISO, obturador, diafragma, balance) ── */
+
+.cod-sim .cod-param-form--compact {
+  gap: 6px;
+}
+
+.cod-sim .cod-param-row {
+  gap: 8px;
+  padding: 10px 12px 12px;
+  border-radius: var(--st-r);
+  background: var(--st-surface);
+  box-shadow: 0 0 0 1px var(--st-line) inset;
+}
+
+.cod-sim .cod-param-row--focused {
+  background: var(--st-surface-2);
+  box-shadow: 0 0 0 1px var(--st-amber) inset;
+}
+
+.cod-sim .cod-param-row__label {
+  font: 600 0.82rem/1.2 var(--cod-font-body);
+  letter-spacing: 0;
+  text-transform: none;
+  color: #c3c7ce;
+}
+
+.cod-sim .cod-param-row--focused .cod-param-row__label {
+  color: var(--st-text);
+}
+
+.cod-sim .cod-param-row__value {
+  padding: 3px 9px;
+  border-radius: 7px;
+  background: #0b0c0f;
+  font: 700 0.92rem/1 var(--cod-font-body);
+  font-variant-numeric: tabular-nums;
+  color: var(--st-text);
+}
+
+.cod-sim .cod-param-row--focused .cod-param-row__value {
+  background: var(--st-amber-soft);
+  color: var(--st-amber);
+}
+
+.cod-sim .cod-param-row__track-baseline {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--st-raise);
+}
+
+.cod-sim .cod-param-row__track-fill {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--st-amber);
+}
+
+.cod-sim .cod-param-row__tick {
+  width: 2px;
+  height: 2px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.cod-sim .cod-param-row__tick--passed {
+  background: rgba(36, 22, 3, 0.55);
+}
+
+.cod-sim .cod-param-row__tick--active {
+  width: 2px;
+  height: 2px;
+  background: transparent;
+  box-shadow: none;
+}
+
+.cod-sim .cod-param-row__track-thumb {
+  width: 16px;
+  height: 16px;
+  border: 0;
+  background: #fff;
+  box-shadow: 0 0 0 4px rgba(255, 181, 71, 0.22), 0 2px 6px rgba(0, 0, 0, 0.5);
+  transition: box-shadow 0.15s;
+}
+
+.cod-sim .cod-param-row--focused .cod-param-row__track-thumb,
+.cod-sim .cod-param-row__track:hover .cod-param-row__track-thumb {
+  box-shadow: 0 0 0 6px rgba(255, 181, 71, 0.3), 0 2px 6px rgba(0, 0, 0, 0.5);
+}
+
+.cod-sim .cod-param-row__track--wb .cod-param-row__track-rail {
+  border-radius: 999px;
+  background: linear-gradient(90deg, #ff8a3d 0%, #f2efe9 50%, #6d8bff 100%);
+}
+
+.cod-sim .cod-param-row__track--wb .cod-param-row__track-baseline,
+.cod-sim .cod-param-row__track--wb .cod-param-row__track-fill {
+  background: transparent;
+}
+
+.cod-sim .cod-param-row__track--wb .cod-param-row__track-thumb {
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(11, 12, 15, 0.7), 0 2px 6px rgba(0, 0, 0, 0.5);
+}
+
+.cod-sim .cod-param-row__edge-labels {
+  font: 500 0.68rem/1 var(--cod-font-body);
+  letter-spacing: 0;
+  color: var(--st-muted);
+}
+
+.cod-sim .cod-param-divider {
+  border-color: var(--st-line);
+}
+
+/* ── Botones de opción (modo y área de enfoque, objetivos, escenas) ── */
+
+.cod-sim .cod-param-options,
+.cod-sim .cod-param-option__controls {
+  gap: 4px;
+}
+
+.cod-sim .cod-option-btn {
+  min-height: 38px;
+  border: 0;
+  border-radius: 9px;
+  background: var(--st-surface-2);
+  box-shadow: 0 0 0 1px var(--st-line-2) inset;
+  font: 600 0.8rem/1.1 var(--cod-font-body);
+  letter-spacing: 0;
+  text-transform: none;
+  color: #c3c7ce;
+}
+
+.cod-sim .cod-option-btn:hover:not(:disabled) {
+  background: var(--st-raise);
+  color: var(--st-text);
+}
+
+.cod-sim .cod-option-btn--active,
+.cod-sim .cod-option-btn--active:hover:not(:disabled) {
+  background: var(--st-amber-soft);
+  box-shadow: 0 0 0 1px var(--st-amber) inset;
+  color: var(--st-amber);
+}
+
+.cod-sim .cod-option-stepper__value {
+  border: 0;
+  border-radius: 9px;
+  background: #0b0c0f;
+  font: 700 0.9rem/1 var(--cod-font-body);
+  color: var(--st-text);
+}
+
+.cod-sim .cod-param-option__label,
+.cod-sim .cod-focus-panel__label {
+  font: 600 0.8rem/1.2 var(--cod-font-body);
+  letter-spacing: 0;
+  text-transform: none;
+  color: #c3c7ce;
+}
+
+.cod-sim .cod-focus-panel {
+  padding: 12px;
+  border-radius: var(--st-r);
+  background: var(--st-surface);
+  box-shadow: 0 0 0 1px var(--st-line) inset;
+}
+
+.cod-sim .cod-focus-panel__value {
+  font: 700 0.86rem/1 var(--cod-font-body);
+  color: var(--st-text);
+}
+
+.cod-sim .cod-focus-panel__hint {
+  font-size: 0.76rem;
+  color: var(--st-muted);
+}
+
+/* ── Tarjetas: objetivos, escenas, luz natural ── */
+
+.cod-sim .cod-lens-card,
+.cod-sim .cod-scene-card,
+.cod-sim .cod-natural-light-presets__btn,
+.cod-sim .cod-scene-vehicle__speed-btn {
+  border: 0;
+  border-radius: var(--st-r);
+  background: var(--st-surface-2);
+  box-shadow: 0 0 0 1px var(--st-line) inset;
+  transition: background 0.15s, box-shadow 0.15s;
+}
+
+.cod-sim .cod-lens-card:hover,
+.cod-sim .cod-scene-card:hover,
+.cod-sim .cod-natural-light-presets__btn:hover {
+  background: var(--st-raise);
+}
+
+.cod-sim .cod-lens-card--active,
+.cod-sim .cod-scene-card--active,
+.cod-sim .cod-scene-vehicle__speed-btn--active {
+  background: var(--st-raise);
+  box-shadow: 0 0 0 2px var(--st-amber) inset;
+}
+
+.cod-sim .cod-lens-card__name,
+.cod-sim .cod-scene-card__title {
+  font: 700 0.9rem/1.2 var(--cod-font-body);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.cod-sim .cod-lens-card__meta,
+.cod-sim .cod-lens-card__uses,
+.cod-sim .cod-scene-card__desc,
+.cod-sim .cod-scene-panel__intro,
+.cod-sim .cod-lenses-panel__intro,
+.cod-sim .cod-natural-light-panel__hint {
+  font-size: 0.78rem;
+  line-height: 1.45;
+  letter-spacing: 0;
+  color: var(--st-muted);
+}
+
+.cod-sim .cod-scene-card__badge {
+  border: 0;
+  border-radius: 999px;
+  background: var(--st-amber-soft);
+  font: 700 0.66rem/1 var(--cod-font-body);
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--st-amber);
+}
+
+/* ── Barra del visor ── */
+
+.cod-sim .cod-viewport-toolbar--visor-tr {
+  gap: 4px;
+  padding: 5px;
+  border-radius: 14px;
+  background: rgba(20, 22, 27, 0.72);
+  box-shadow: 0 0 0 1px var(--st-line-2), 0 12px 30px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(14px) saturate(1.3);
+  -webkit-backdrop-filter: blur(14px) saturate(1.3);
+}
+
+.cod-sim .cod-viewport-toolbar__btn {
+  width: 38px;
+  min-width: 38px;
+  min-height: 38px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--st-text);
+  transition: background 0.15s;
+}
+
+.cod-sim .cod-viewport-toolbar__btn:hover {
+  transform: none;
+  background: var(--st-hover);
+}
+
+.cod-sim .cod-viewport-toolbar__btn--help {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  font: 700 1rem/1 var(--cod-font-body);
+  color: var(--st-text);
+}
+
+.cod-sim .cod-viewport-toolbar__btn--help:hover {
+  box-shadow: none;
+  background: var(--st-hover);
+}
+
+.cod-sim .cod-viewport-toolbar__badge {
+  background: var(--st-amber);
+  color: var(--st-amber-ink);
+}
+
+/* Aviso de disparo bajo el visor */
+.cod-sim .cod-hud__shutter {
+  border: 0;
+  border-radius: 999px;
+  background: rgba(20, 22, 27, 0.72);
+  box-shadow: 0 0 0 1px var(--st-line-2);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  font: 600 0.74rem/1 var(--cod-font-body);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+/* ── Ayuda y galería ── */
+
+.cod-scope .cod-help-backdrop,
+.cod-scope .cod-gallery-backdrop {
+  background: rgba(5, 6, 8, 0.62);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.cod-scope .cod-help-modal,
+.cod-scope .cod-gallery-modal {
+  border: 0;
+  border-radius: 20px;
+  background: var(--st-surface);
+  box-shadow: 0 0 0 1px var(--st-line-2), 0 30px 80px rgba(0, 0, 0, 0.6);
+}
+
+.cod-scope .cod-help-modal__title,
+.cod-scope .cod-gallery-modal__title {
+  font: 700 1.3rem/1.2 var(--cod-font-body);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.cod-scope .cod-help-modal__item {
+  border: 0;
+  border-radius: var(--st-r);
+  background: var(--st-surface-2);
+}
+
+.cod-scope .cod-help-modal__item-title {
+  font: 700 0.9rem/1.2 var(--cod-font-body);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.cod-scope .cod-help-modal__close,
+.cod-scope .cod-gallery-modal__close {
+  border: 0;
+  border-radius: 10px;
+  background: var(--st-raise);
+}
+
+.cod-scope .cod-gallery-filter {
+  border: 0;
+  border-radius: 999px;
+  background: var(--st-surface-2);
+  box-shadow: 0 0 0 1px var(--st-line-2) inset;
+  font: 600 0.78rem/1 var(--cod-font-body);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.cod-scope .cod-gallery-filter--active {
+  background: var(--st-amber-soft);
+  box-shadow: 0 0 0 1px var(--st-amber) inset;
+  color: var(--st-amber);
+}
+
+.cod-scope .cod-gallery-thumb {
+  border-radius: 10px;
+}
+
+.cod-scope .cod-gallery-thumb--active {
+  box-shadow: 0 0 0 2px var(--st-amber);
+}
+
+.cod-scope .cod-kbd {
+  border: 0;
+  border-radius: 6px;
+  background: var(--st-raise, #232730);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.11);
+  font-family: var(--cod-font-body);
+}

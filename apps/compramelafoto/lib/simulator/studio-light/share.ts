@@ -5,8 +5,9 @@
 
 import { MODIFIERS } from "./modifiers";
 import { MAX_LIGHTS, initialStudioState, makeLight } from "./presets";
+import { ANIMATIONS } from "./animation-clip";
 import { isKnownSubject } from "./figures";
-import { NEUTRAL_POSE, POSES, poseById, type PoseParams } from "./poses";
+import { NEUTRAL_POSE, POSES, poseById, type LegPose, type PoseBase, type PoseParams } from "./poses";
 import type { BackdropId, LightAim, ModifierId, StudioState } from "./types";
 
 const VERSION = 1;
@@ -24,16 +25,26 @@ function num(v: unknown, fallback: number, min: number, max: number): number {
 const POSE_KEYS = ["headTurn", "headNod", "headTilt", "torsoTurn", "torsoBend", "torsoLean", "weight"] as const;
 const ARM_KEYS = ["raise", "forward", "elbow", "roll"] as const;
 
+const LEG_KEYS = ["forward", "out", "knee", "roll"] as const;
+const BASES: PoseBase[] = ["stand", "stool", "floor", "kneel", "lie-back", "lie-side", "lie-front"];
+/** Cuerpo y brazos (versión 1 del enlace); después vienen apoyo, puntas y piernas. */
+const V1_LENGTH = POSE_KEYS.length + ARM_KEYS.length * 2;
+
 function poseToArray(p: PoseParams): number[] {
   return [
     ...POSE_KEYS.map((k) => r2(p[k])),
     ...ARM_KEYS.map((k) => Math.round(p.left[k])),
     ...ARM_KEYS.map((k) => Math.round(p.right[k])),
+    BASES.indexOf(p.base),
+    r2(p.pointe),
+    p.legs ? 1 : 0,
+    ...LEG_KEYS.map((k) => Math.round(p.legs?.left[k] ?? 0)),
+    ...LEG_KEYS.map((k) => Math.round(p.legs?.right[k] ?? 0)),
   ];
 }
 
 function poseFromArray(raw: unknown): PoseParams {
-  if (!Array.isArray(raw) || raw.length !== POSE_KEYS.length + ARM_KEYS.length * 2) return NEUTRAL_POSE;
+  if (!Array.isArray(raw) || (raw.length !== V1_LENGTH && raw.length !== V1_LENGTH + 3 + LEG_KEYS.length * 2)) return NEUTRAL_POSE;
   const at = (i: number, lo: number, hi: number) => num(raw[i], 0, lo, hi);
   const pose: PoseParams = { ...NEUTRAL_POSE, left: { ...NEUTRAL_POSE.left }, right: { ...NEUTRAL_POSE.right } };
   POSE_KEYS.forEach((k, i) => {
@@ -43,6 +54,20 @@ function poseFromArray(raw: unknown): PoseParams {
     pose.left[k] = at(POSE_KEYS.length + i, -180, 180);
     pose.right[k] = at(POSE_KEYS.length + ARM_KEYS.length + i, -180, 180);
   });
+  if (raw.length > V1_LENGTH) {
+    pose.base = BASES[Math.round(at(V1_LENGTH, 0, BASES.length - 1))] ?? "stand";
+    pose.pointe = at(V1_LENGTH + 1, 0, 1);
+    if (raw[V1_LENGTH + 2] === 1) {
+      const legAt = (offset: number) => {
+        const out = {} as LegPose;
+        LEG_KEYS.forEach((k, i) => {
+          out[k] = at(V1_LENGTH + 3 + offset + i, -180, 180);
+        });
+        return out;
+      };
+      pose.legs = { left: legAt(0), right: legAt(LEG_KEYS.length) };
+    }
+  }
   return pose;
 }
 
@@ -55,8 +80,10 @@ export function serializeStudio(state: StudioState): string {
     y: Math.round(state.subjectYaw),
     b: state.backdrop,
     r: state.roomLux,
+    k: state.camera.look ? [r2(state.camera.look.yaw), r2(state.camera.look.pitch)] : undefined,
     o: state.pose,
     q: state.pose === "custom" ? poseToArray(state.poseParams) : undefined,
+    m: [state.motion.natural ? 1 : 0, state.motion.clip],
     l: state.lights.map((l) => [l.name, l.on ? 1 : 0, l.modifier, r2(l.x), r2(l.y), r2(l.z), l.aim, r2(l.powerStops), l.gel, l.kelvin]),
   };
   const json = JSON.stringify(payload);
@@ -108,10 +135,15 @@ export function deserializeStudio(text: string): StudioState | null {
         iso: num(c[6], base.camera.iso, 50, 12800),
         whiteBalance: num(c[7], base.camera.whiteBalance, 2500, 9000),
         aimY: num(c[8], base.camera.aimY, 0.3, 2.2),
+        look: Array.isArray(p.k) ? { yaw: num(p.k[0], 0, -10, 10), pitch: num(p.k[1], 0, -1.5, 1.5) } : null,
       },
       subject: isKnownSubject(p.s) ? p.s : base.subject,
       pose: p.o === "custom" ? "custom" : POSES.some((x) => x.id === p.o) ? p.o : "relaxed",
       poseParams: p.o === "custom" ? poseFromArray(p.q) : poseById(p.o),
+      motion: {
+        natural: Array.isArray(p.m) ? p.m[0] !== 0 : true,
+        clip: Array.isArray(p.m) && ANIMATIONS.some((a) => a.id === p.m[1]) ? p.m[1] : null,
+      },
       subjectYaw: num(p.y, 0, -90, 90),
       backdrop: BACKDROPS.includes(p.b) ? p.b : base.backdrop,
       roomLux: num(p.r, base.roomLux, 0, 2000),

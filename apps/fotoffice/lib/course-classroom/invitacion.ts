@@ -8,7 +8,7 @@ import { sendTransactionalEmail, type OutboundEmail, type SendOutcome } from "@/
 import type { WorkspaceSender } from "@/lib/communications/sender-name";
 import { logCourseEvent } from "@/lib/presential-courses/log";
 import { appUrl } from "@/lib/app-url";
-import { calcularVencimiento } from "./access-rules";
+import { vencimientoDeAcceso } from "./access-rules";
 import { asegurarCuentaDelAlumno, crearEnlaceParaContrasena } from "./account";
 import { buildInvitacionSinCargoEmailBody } from "./email";
 import type { Invitado } from "./invitados";
@@ -44,7 +44,7 @@ export type InvitacionDeps = {
   cargarCurso: (workspaceId: string, courseId: string) => Promise<Curso | null>;
   asegurarCuenta: typeof asegurarCuentaDelAlumno;
   yaTieneAcceso: (userId: number, courseId: string) => Promise<boolean>;
-  darAcceso: (input: { curso: Curso; invitado: Invitado; userId: number; expiresAt: Date }) => Promise<"CREADO" | "YA_TENIA">;
+  darAcceso: (input: { curso: Curso; invitado: Invitado; userId: number; expiresAt: Date | null }) => Promise<"CREADO" | "YA_TENIA">;
   crearEnlaceContrasena: (userId: number, base: string) => Promise<string>;
   enviar: (mensaje: OutboundEmail) => Promise<SendOutcome>;
   cargarFirma: (workspaceId: string) => Promise<RenderedEmailSignature | null>;
@@ -60,7 +60,7 @@ async function darAccesoEnBase(input: {
   curso: Curso;
   invitado: Invitado;
   userId: number;
-  expiresAt: Date;
+  expiresAt: Date | null;
 }): Promise<"CREADO" | "YA_TENIA"> {
   try {
     await prisma.$transaction(async (tx) => {
@@ -151,7 +151,7 @@ export async function invitarSinCargo(
         resultados.push({ email: invitado.email, estado: "YA_TENIA" });
         continue;
       }
-      const expiresAt = calcularVencimiento(deps.ahora(), curso.accessMonths);
+      const expiresAt = vencimientoDeAcceso(deps.ahora(), curso.accessMonths);
       if ((await deps.darAcceso({ curso, invitado, userId: cuenta.userId, expiresAt })) === "YA_TENIA") {
         resultados.push({ email: invitado.email, estado: "YA_TENIA" });
         continue;

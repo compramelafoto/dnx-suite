@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   SUBJECT_HEAD,
@@ -7,12 +8,14 @@ import {
   lightN2AtSubject,
   meter,
   renderedLightColor,
+  subjectHead,
 } from "./metering";
 import { PRESETS, applyPreset, initialStudioState, makeLight, polarToXZ } from "./presets";
+import { ANIMATIONS, animationUrl, decodeClip } from "./animation-clip";
 import { boomOffset } from "./boom";
 import { computeCavityAO } from "./cavity-ao";
 import { FIGURES } from "./figures";
-import { POSES, armDirections } from "./poses";
+import { BASE_HEAD, POSES, POSE_GROUPS, SEQUENCES, armDirections, legDirections, poseById, sampleSequence } from "./poses";
 import { deserializeStudio, serializeStudio } from "./share";
 import type { StudioState } from "./types";
 
@@ -146,7 +149,7 @@ test("poses: los ángulos del brazo dan la dirección esperada", () => {
 test("modelos de cuerpo entero: catálogo completo y enlace con pose a mano", () => {
   assert.ok(FIGURES.length >= 10);
   assert.ok(FIGURES.some((f) => f.gender === "mujer") && FIGURES.some((f) => f.gender === "hombre"));
-  assert.equal(new Set(FIGURES.map((f) => f.folder)).size, FIGURES.length);
+  assert.equal(new Set(FIGURES.map((f) => f.id)).size, FIGURES.length);
   const base = initialStudioState();
   const s: StudioState = {
     ...base,
@@ -193,4 +196,57 @@ test("luz cenital: cuelga de una jirafa con el pie fuera del sujeto", () => {
   assert.ok(Math.hypot(top.x + boom.x, top.z + boom.z) > 1);
   // Una luz lateral común no usa jirafa.
   assert.equal(boomOffset({ ...top, x: 1.5, z: 0.5, y: 2 }), null);
+});
+
+test("animaciones: los 18 clips existen y se decodifican con cuaterniones válidos", () => {
+  for (const anim of ANIMATIONS) {
+    for (const gender of ["mujer", "hombre"] as const) {
+      const file = `public${animationUrl(anim, gender)}`;
+      const clip = decodeClip(JSON.parse(readFileSync(file, "utf8")));
+      assert.ok(clip.duration > 1, `${file} dura ${clip.duration}`);
+      const pelvis = clip.tracks.find((t) => t.name === "Bip01_Pelvis.quaternion");
+      assert.ok(pelvis, `${file} sin pelvis`);
+      const [x, y, z, w] = pelvis.values.slice(0, 4);
+      assert.ok(Math.abs(Math.hypot(x, y, z, w) - 1) < 1e-6);
+      const root = clip.tracks.find((t) => t.name === "Bip01.position");
+      // La raíz queda cerca del piso (en centímetros del FBX): no se recortó.
+      assert.ok(root && Math.abs(root.values[1]) < 3000, `${file} raíz ${root?.values[1]}`);
+    }
+  }
+});
+
+test("piernas: muslo adelante y rodilla doblada dan la postura de sentado", () => {
+  const close = (a: number[], b: number[]) => a.every((v, i) => Math.abs(v - b[i]) < 1e-6);
+  const seated = legDirections({ forward: 90, out: 0, knee: 90, roll: 0 }, 1);
+  assert.ok(close(seated.thigh, [0, 0, 1]), seated.thigh.join());
+  assert.ok(close(seated.calf, [0, -1, 0]), seated.calf.join());
+  const standing = legDirections({ forward: 0, out: 0, knee: 90, roll: 0 }, -1);
+  assert.ok(close(standing.calf, [0, 0, -1]), "de pie la rodilla dobla hacia atrás");
+});
+
+test("catálogo de poses: todos los grupos tienen poses y apoyos conocidos", () => {
+  for (const g of POSE_GROUPS) assert.ok(POSES.some((p) => p.group === g), g);
+  assert.equal(new Set(POSES.map((p) => p.id)).size, POSES.length);
+  for (const p of POSES) assert.ok(p.params.base in BASE_HEAD, p.id);
+  // Sentada la cara baja: el fotómetro y las luces apuntan más abajo.
+  const s = { ...initialStudioState(), subject: "sofia", poseParams: poseById("stool-upright") };
+  assert.ok(subjectHead(s)[1] < 1.5);
+});
+
+test("coreografías: el salto despega del piso y vuelve", () => {
+  const jump = SEQUENCES.find((q) => q.id === "seq-jump")!;
+  assert.equal(sampleSequence(jump, 0).lift, 0);
+  const peak = Math.max(...Array.from({ length: 50 }, (_, i) => sampleSequence(jump, i * 0.05).lift));
+  assert.ok(peak > 0.4, String(peak));
+  const spin = SEQUENCES.find((q) => q.id === "seq-pirouette")!;
+  assert.ok(sampleSequence(spin, 1.3).spin > 300);
+});
+
+test("enlace: una pose a mano con piernas y apoyo vuelve igual", () => {
+  const base = initialStudioState();
+  const custom = { ...poseById("stool-crossed"), headTurn: 12 };
+  const back = deserializeStudio(serializeStudio({ ...base, subject: "laura", pose: "custom", poseParams: custom }));
+  assert.equal(back?.poseParams.base, "stool");
+  assert.equal(back?.poseParams.legs?.right.forward, 104);
+  assert.equal(back?.poseParams.headTurn, 12);
 });

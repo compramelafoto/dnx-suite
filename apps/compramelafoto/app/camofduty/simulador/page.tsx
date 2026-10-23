@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import SimulatorSimClient from "@/components/simulator/SimulatorSimClient";
+import "@/styles/camofduty/simulador.css";
 
 const title = "Simulador — Cam Of Duty";
 const description =

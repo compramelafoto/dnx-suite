@@ -1,5 +1,5 @@
 import { MODIFIERS } from "./modifiers";
-import { BACKDROP_Z, SUBJECT_HEAD, aimPoint, emitterN2At, exposureEv } from "./metering";
+import { BACKDROP_Z, SUBJECT_HEAD, aimPoint, emitterN2At, exposureEv, subjectHead } from "./metering";
 import { NEUTRAL_POSE } from "./poses";
 import type { BackdropId, LightAim, ModifierId, StudioLight, StudioState } from "./types";
 
@@ -16,6 +16,7 @@ export const DEFAULT_CAMERA: StudioState["camera"] = {
   iso: 100,
   whiteBalance: 5500,
   aimY: SUBJECT_HEAD[1],
+  look: null,
 };
 
 const LIGHT_NAMES = ["Principal", "Relleno", "Contra", "Pelo", "Fondo", "Acento"];
@@ -48,9 +49,9 @@ export function makeLight(
 }
 
 /** Punto donde se mide una luz según adónde apunta. */
-function meterPoint(light: StudioLight) {
+function meterPoint(light: StudioLight, head: [number, number, number]) {
   if (light.aim === "background") return [0, 1.3, BACKDROP_Z] as [number, number, number];
-  return aimPoint(light);
+  return aimPoint(light, head);
 }
 
 /**
@@ -60,7 +61,8 @@ function meterPoint(light: StudioLight) {
 export function solvePowerStops(light: StudioLight, state: StudioState, targetEv: number): number {
   if (MODIFIERS[light.modifier].nature === "reflector") return light.powerStops;
   const full = { ...light, powerStops: 0 };
-  const n2 = emitterN2At(full, meterPoint(full), state.camera.shutter);
+  const head = subjectHead(state);
+  const n2 = emitterN2At(full, meterPoint(full, head), state.camera.shutter, head);
   const evAtFull = exposureEv(n2, state);
   if (!Number.isFinite(evAtFull)) return MAX_POWER_STOPS;
   const stops = Math.round((evAtFull - targetEv) * 3) / 3;
@@ -301,6 +303,7 @@ export function initialStudioState(): StudioState {
     subjectYaw: 0,
     pose: "relaxed",
     poseParams: NEUTRAL_POSE,
+    motion: { natural: true, clip: null },
     backdrop: "grey",
     roomLux: 40,
   };
