@@ -67,4 +67,32 @@ describe("editorADocumento — listado del curso girado", () => {
   it("sin giro el listado queda igual que antes", () => {
     for (const c of celdas(0)) assert.equal(c.rotation, undefined);
   });
+
+  it("con varios cursos: un título por curso, en negrita y más grande, girado igual que los alumnos", () => {
+    const { document } = editorADocumento({
+      canvas: { width: 3602, height: 2421, dpi: 300 },
+      blocks: [listado(90.68)],
+      cursosDelListado: [
+        { title: "7.° A", students: nombres.slice(0, 4).map((firstName) => ({ firstName, lastName: "Pérez" })) },
+        { title: "7.° B", students: nombres.slice(4).map((firstName) => ({ firstName, lastName: "Gómez" })) },
+      ],
+    });
+    const sides = (document as { sides: { blocks: Record<string, number | string | undefined>[] }[] }).sides;
+    const todas = sides[0]!.blocks.filter((b) => String(b.id).startsWith("lista__"));
+    assert.equal(todas.length, nombres.length + 2);
+    const titulos = todas.filter((c) => c.content === "7.° A" || c.content === "7.° B");
+    assert.equal(titulos.length, 2);
+    const alumno = todas.find((c) => c.content === "Sofía Pérez")!;
+    for (const t of titulos) {
+      assert.equal(t.fontWeight, "bold");
+      assert.equal(t.rotation, 90.68);
+      assert.ok(Number(t.fontSize) > Number(alumno.fontSize));
+    }
+  });
+
+  it("sin cursos ni lista, el editor muestra el curso de muestra con su título", () => {
+    const { document } = editorADocumento({ canvas: { width: 3602, height: 2421, dpi: 300 }, blocks: [listado(0)] });
+    const sides = (document as { sides: { blocks: Record<string, number | string | undefined>[] }[] }).sides;
+    assert.ok(sides[0]!.blocks.some((b) => b.content === "3.º B"));
+  });
 });

@@ -21,7 +21,7 @@ import {
 import {
   CLASS_LIST_VARIABLE_KEY,
   isClassListConfig,
-  parseClassListValue,
+  parseClassListGroups,
   resolveTemplateDocument,
   serializeClassList,
   type LegacyTemplateV2Payload,
@@ -207,7 +207,7 @@ export async function dibujarPlantilla(
     canvas: { width: canvas.width, height: canvas.height, background: canvas.background ?? null, dpi: canvas.dpi ?? 300, bleedMm: 0, safeAreaMm: 0 },
     blocks: editorBlocks,
     nombre: p.nombre,
-    listaDelCurso: parseClassListValue(VALORES_DE_MUESTRA[CLASS_LIST_VARIABLE_KEY]),
+    cursosDelListado: parseClassListGroups(VALORES_DE_MUESTRA[CLASS_LIST_VARIABLE_KEY], VALORES_DE_MUESTRA["course.displayName"]),
   });
 
   const tam = new Map(legacy.blocks.map((b) => [b.id, b.layout]));

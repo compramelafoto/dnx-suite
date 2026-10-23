@@ -24,7 +24,7 @@ import { chromium } from "@playwright/test";
 import { emitDesign } from "@repo/design-studio";
 import {
   buildEditorGoogleFontsStylesheetHrefs,
-  parseClassListValue,
+  parseClassListGroups,
   type TemplateV2Block,
 } from "@repo/template-editor-core";
 import { editorADocumento, type EditorBlock } from "@repo/template-editor-core/rendering";
@@ -124,7 +124,7 @@ async function pdfPorPagina(caso: CasoDeComparacion): Promise<{ paginas: Buffer[
     },
     blocks: aBloquesDelPuente(caso.blocks),
     nombre: caso.id,
-    listaDelCurso: parseClassListValue(caso.valores?.[LISTA_DEL_CURSO]),
+    cursosDelListado: parseClassListGroups(caso.valores?.[LISTA_DEL_CURSO], caso.valores?.["course.displayName"]),
   });
   const salida = await emitDesign({
     document: puente.document as never,

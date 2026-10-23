@@ -21,6 +21,8 @@ import { valoresDelPackExterno } from "@/lib/canje-externo/disenos-del-canje-ext
 import { getAuthUser } from "@/lib/auth";
 import { loadDesignTemplateVersion } from "@/lib/design-v2/template";
 import { toDesignTemplatePayload, type DesignTemplatePayload } from "@/lib/design-v2/client-payload";
+import { loadAlbumCourses } from "@/lib/design-v2/class-list";
+import { cursosDelListado, cursosParaSumar, listadoPermiteSumarCursos } from "@/lib/design-v2/listado-cursos";
 import { loadSchoolDesignContext } from "@/lib/school-render/ensure-school-design-for-preventa-order-item";
 import { clientPhotoInputs } from "@repo/template-editor-core";
 
@@ -311,6 +313,18 @@ export default async function PreventaCanjePage({ params }: { params: Promise<{ 
     });
   }
 
+  /*
+   * Si la plantilla deja sumar otros cursos al listado (fotos grupales con 7.° A y 7.° B), la
+   * familia ve los otros cursos del colegio para sumarlos al revisar. Si no, no se manda nada.
+   */
+  const cursosParaSumarAlListado =
+    designs.some((d) => listadoPermiteSumarCursos(d.template.blocks)) && cursosDelListado(designValues).length > 0
+      ? cursosParaSumar(
+          cursosDelListado(designValues),
+          await loadAlbumCourses(prisma as never, album.id).catch(() => [])
+        )
+      : [];
+
   // Rostros por foto, para ofrecer como grupales sólo las fotos con mucha gente. `null` = la
   // foto todavía no se analizó.
   const usaGrupal = benefits.some((b) => "photoInputs" in b && b.photoInputs?.some((i) => i.role === "group"));
@@ -427,6 +441,7 @@ export default async function PreventaCanjePage({ params }: { params: Promise<{ 
         pedirContacto={isPlaceholderEmail(order.buyerEmail)}
         extras={extras}
         modoPrueba={modoPrueba}
+        cursosParaSumar={cursosParaSumarAlListado}
         comprador={{
           nombre: familia ?? "",
           email: isPlaceholderEmail(order.buyerEmail) ? "" : (order.buyerEmail ?? ""),

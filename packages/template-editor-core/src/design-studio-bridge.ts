@@ -2,11 +2,11 @@ import { FONT_CATALOG, GOOGLE_FONT_PREFIX, fontDefinition, isFontId, normalizarE
 import { EDITOR_FONT_CATALOG } from "./editor-font-catalog";
 import { readTextVerticalAlign } from "./render-core";
 import {
-  CLASS_LIST_SAMPLE,
+  CLASS_LIST_SAMPLE_GROUPS,
   CLASS_LIST_VARIABLE_KEY,
-  formatClassList,
-  layoutClassList,
+  layoutClassListBlock,
   readClassListOptions,
+  type ClassListGroup,
   type ClassListStudent,
 } from "@repo/template-engine";
 
@@ -208,6 +208,11 @@ export function editorADocumento(input: {
    * muestra (la vista previa del editor); una lista vacía no dibuja nada.
    */
   listaDelCurso?: readonly ClassListStudent[];
+  /**
+   * Los cursos del listado, cada uno con su título (manda sobre `listaDelCurso`). Se leen del
+   * valor guardado con `parseClassListGroups`.
+   */
+  cursosDelListado?: readonly ClassListGroup[];
 }): PuenteResultado {
   const avisos: string[] = [];
   const variablesSinteticas: VariableSintetica[] = [];
@@ -308,13 +313,16 @@ export function editorADocumento(input: {
                */
               const opciones = readClassListOptions(cfg);
               const pesoBase = num(cfg.fontWeight, 400) >= 600 ? "bold" : "normal";
-              const reparto = layoutClassList({
-                lines: formatClassList(input.listaDelCurso ?? CLASS_LIST_SAMPLE, opciones),
+              const cursos: readonly ClassListGroup[] =
+                input.cursosDelListado ??
+                (input.listaDelCurso ? [{ title: "", students: [...input.listaDelCurso] }] : CLASS_LIST_SAMPLE_GROUPS);
+              const reparto = layoutClassListBlock({
+                groups: cursos,
+                options: opciones,
                 width: num(b.width, 0),
                 height: num(b.height, 0),
                 fontSize: num(cfg.fontSize, 20),
                 lineHeight: num(cfg.lineHeight, 1.2),
-                columns: opciones.columns,
                 // El listado se alinea como un todo: cada alumno sale con su celda ya corrida,
                 // y su texto va arriba de la celda, igual que en el lienzo.
                 verticalAlign: readTextVerticalAlign(cfg).toLowerCase() as "top" | "middle" | "bottom",
@@ -322,7 +330,6 @@ export function editorADocumento(input: {
               const comun = {
                 type: "text" as const,
                 fontId: fuenteDesde(texto(cfg.fontFamily, "Helvetica"), avisos),
-                fontSize: pt(reparto.fontSize),
                 fontStyle: cfg.fontItalic === true ? "italic" : "normal",
                 color: texto(cfg.color, "#111111"),
                 align: alineacion(cfg.textAlign),
@@ -356,6 +363,7 @@ export function editorADocumento(input: {
                   height: mm(celda.height),
                   rotation: giro || undefined,
                   content: celda.text,
+                  fontSize: pt(celda.fontSize),
                   fontWeight: celda.bold ? "bold" : pesoBase,
                 });
               });

@@ -5,7 +5,7 @@ import { editorADocumento } from "@repo/template-editor-core/rendering";
 import {
   CLASS_LIST_VARIABLE_KEY,
   isClassListConfig,
-  parseClassListValue,
+  parseClassListGroups,
   resolveTemplateDocument,
   type LegacyTemplateV2Payload,
 } from "@repo/template-engine";
@@ -235,7 +235,8 @@ export async function renderDesignV2(input: {
     },
     blocks: editorBlocksFromResolved(resolvedDocument),
     nombre: template.name,
-    listaDelCurso: parseClassListValue(data.values[CLASS_LIST_VARIABLE_KEY]),
+    // Un listado guardado antes de los cursos con título lleva el curso del diseño como título.
+    cursosDelListado: parseClassListGroups(data.values[CLASS_LIST_VARIABLE_KEY], data.values["course.displayName"]),
   });
 
   const slotSizeByBlock = new Map(

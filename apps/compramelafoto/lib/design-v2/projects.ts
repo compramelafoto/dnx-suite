@@ -17,6 +17,8 @@ import {
   type DesignV2Edit,
 } from "./design-data";
 import { renderDesignV2 } from "./render";
+import { huellaDelContenido } from "@/lib/revision-de-impresion/en-el-canje";
+import type { RevisionDelCliente } from "@/lib/revision-de-impresion/autorizacion";
 import { loadDesignTemplateVersion, type DesignTemplateVersion } from "./template";
 
 /**
@@ -98,6 +100,8 @@ export type CreateDesignInput = {
   orderItemId?: number | null;
   /** Cómo acomodó la familia cada foto en el canje; sin esto, centradas. */
   cropsByPhotoId?: ReadonlyMap<number, PhotoCrop> | null;
+  /** La revisión y autorización de la familia al confirmar (se guarda como prueba). */
+  clientReview?: RevisionDelCliente | null;
 };
 
 /**
@@ -122,6 +126,18 @@ export async function createDesignV2Project(db: Db, input: CreateDesignInput): P
     values: input.values,
     cropsByPhotoId: input.cropsByPhotoId,
   });
+  // La autorización lleva la huella de lo que se va a imprimir tal como se armó.
+  if (input.clientReview?.authorization) {
+    data.clientReview = {
+      ...input.clientReview,
+      authorization: {
+        ...input.clientReview.authorization,
+        digest: huellaDelContenido({ values: data.values, slots: data.slots }),
+      },
+    };
+  } else if (input.clientReview) {
+    data.clientReview = input.clientReview;
+  }
 
   const project = await db.designProject.create({
     data: {
@@ -141,6 +157,17 @@ export async function createDesignV2Project(db: Db, input: CreateDesignInput): P
     select: { id: true },
   });
   await db.designProject.update({ where: { id: project.id }, data: { currentRevisionId: revision.id } });
+  if (data.clientReview?.authorization) {
+    // Qué revisión se autorizó: la que se acaba de crear.
+    const withRevision: DesignV2Data = {
+      ...data,
+      clientReview: { ...data.clientReview, authorization: { ...data.clientReview.authorization, revisionId: revision.id } },
+    };
+    await db.designRevision.update({
+      where: { id: revision.id },
+      data: { dataJson: withRevision as unknown as Prisma.InputJsonValue },
+    });
+  }
   return { id: project.id, created: true };
 }
 
