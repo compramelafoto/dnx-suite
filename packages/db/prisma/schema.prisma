@@ -11994,6 +11994,8 @@ enum CourseLessonVideoStatus {
 enum CourseAccessOrigin {
   PURCHASE
   MEMBER_BENEFIT
+  /// Lo regaló el dueño del curso desde el panel (por ejemplo, a alumnos de una edición anterior).
+  INVITATION
 }
 
 enum CourseBeneficiaryRole {
@@ -12046,6 +12048,7 @@ enum CourseEnrollmentPaymentStatus {
 enum CourseEnrollmentPaymentMethod {
   MERCADO_PAGO
   MEMBER_BENEFIT
+  INVITATION
 }
 
 enum ServiceLeadStatus {
