@@ -173,6 +173,8 @@ export default function PhotographicMovingVehicle() {
     }
 
     group.position.y = SLOT.position[1];
+    // Al invertir el sentido el auto da la vuelta (no circula marcha atrás).
+    group.rotation.y = (SLOT.rotation?.[1] ?? SLOT.rotationY ?? 0) + (directionRef.current > 0 ? 0 : Math.PI);
 
     const velX = motion.axis === "x" ? directionRef.current * speed : 0;
     const velZ = motion.axis === "z" ? directionRef.current * speed : 0;
