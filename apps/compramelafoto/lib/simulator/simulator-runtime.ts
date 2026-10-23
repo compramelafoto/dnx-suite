@@ -32,6 +32,8 @@ export interface SimulatorRuntime {
   focalLengthMm: number;
   lensName: string;
   isZoomLens: boolean;
+  /** Distancia mínima de enfoque del objetivo montado (m). */
+  minFocusDistanceM: number;
   getCameraYaw: () => number;
 }
 
@@ -59,6 +61,7 @@ export const simulatorRuntime: SimulatorRuntime = {
   focalLengthMm: 50,
   lensName: "50mm f/1.8",
   isZoomLens: false,
+  minFocusDistanceM: 0.45,
   getCameraYaw: () => cameraYawGetter(),
 };
 

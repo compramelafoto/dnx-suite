@@ -612,8 +612,9 @@
 }
 
 .cod-sim__viewport-wrap {
+  /* Valores iniciales; SimulatorViewport los recalcula para un recuadro 3:2. */
   --cod-vf-inset-x: 8%;
-  --cod-vf-inset-top: 11%;
+  --cod-vf-inset-top: 14%;
   --cod-vf-inset-bottom: 14%;
   position: relative;
   flex: 1 1 auto;
@@ -1041,11 +1042,18 @@
   pointer-events: none;
 }
 
+/* Tercios de paso: marca corta; los pasos enteros quedan como referencia. */
+.cod-param-row__tick--minor {
+  height: 0.22rem;
+  opacity: 0.6;
+}
+
 .cod-param-row__tick--passed {
   background: color-mix(in srgb, var(--cod-red) 55%, rgba(255, 255, 255, 0.28));
 }
 
 .cod-param-row__tick--active {
+  opacity: 1;
   width: 2px;
   height: 0.7rem;
   background: var(--cod-red);
@@ -1055,7 +1063,8 @@
 .cod-param-row__track--wb .cod-param-row__track-rail {
   padding: 0.1rem 0;
   border-radius: 2px;
-  background: linear-gradient(90deg, #e85d04 0%, #e9ecef 50%, #4361ee 100%);
+  /* Color que toma la foto: 3200 K enfría (azul), 7500 K calienta (naranja). */
+  background: linear-gradient(90deg, #4361ee 0%, #e9ecef 50%, #e85d04 100%);
 }
 
 .cod-param-row__track--wb .cod-param-row__track-baseline {
@@ -1343,14 +1352,15 @@
   overflow: hidden;
 }
 
+/* Color que toma la foto: 3200 K enfría (azul), 7500 K calienta (naranja). */
 .cod-param-timeline__track--wb {
   background: linear-gradient(
     90deg,
-    #e85d04 0%,
-    #f4a261 22%,
+    #4361ee 0%,
+    #90caf9 22%,
     #e9ecef 50%,
-    #90caf9 78%,
-    #4361ee 100%
+    #f4a261 78%,
+    #e85d04 100%
   );
 }
 

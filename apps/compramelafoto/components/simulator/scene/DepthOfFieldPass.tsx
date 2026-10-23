@@ -14,6 +14,7 @@ import {
 import { applyToneMappingToRenderer, usesPhotographicPipeline } from "@/lib/simulator/render";
 import { calculateSceneMaxBlurPx } from "@/lib/simulator/depth-of-field";
 import { getActiveSensor } from "@/lib/simulator/sensor";
+import { canvasSensorHeightMm } from "@/lib/simulator/viewfinder-frame";
 import { simulatorRuntime } from "@/lib/simulator/simulator-runtime";
 import {
   registerSimulatorFrameRenderer,
@@ -102,7 +103,7 @@ export default function DepthOfFieldPass() {
       invProj.current.copy(persp.projectionMatrix).invert();
 
       const imageHeightPx = size.height * renderer.getPixelRatio();
-      const sensorHeightMm = getActiveSensor().heightMm;
+      const sensorHeightMm = canvasSensorHeightMm(size.width, size.height);
       const maxBlurPx = calculateSceneMaxBlurPx({
         focusDistanceM: focusDistance,
         focalLengthMm: focalLength,

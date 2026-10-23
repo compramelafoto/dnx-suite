@@ -71,6 +71,7 @@ import {
   type ActiveLensState,
 } from "./lenses";
 import { simulatorRuntime, syncMovingSubjectsRegistry } from "./simulator-runtime";
+import { aperturesForLens, clampApertureToLens } from "./exposure-scales";
 
 export interface CameraStoreValue {
   settings: CameraState;
@@ -126,13 +127,16 @@ export interface CameraStoreValue {
 
 const CameraContext = createContext<CameraStoreValue | null>(null);
 
-function clampApertureForLens(aperture: number, lens: ActiveLensState): number {
+/** Tramo de diafragmas del objetivo montado a la focal actual. */
+function lensApertureRange(lens: ActiveLensState): { maxOpen: number; minAperture: number } {
   const def = getLensById(lens.lensId);
-  if (!def) return aperture;
-  const maxOpen = getMaxApertureAtFocal(def, lens.focalLengthMm);
-  if (aperture >= maxOpen) return aperture;
-  const nextPreset = APERTURE_PRESETS.find((value) => value >= maxOpen);
-  return nextPreset ?? maxOpen;
+  const maxOpen = def ? getMaxApertureAtFocal(def, lens.focalLengthMm) : lens.maxAperture;
+  return { maxOpen, minAperture: lens.minAperture };
+}
+
+function clampApertureForLens(aperture: number, lens: ActiveLensState): number {
+  const range = lensApertureRange(lens);
+  return clampApertureToLens(aperture, range.maxOpen, range.minAperture);
 }
 
 function syncSettingsWithLens(
@@ -146,6 +150,7 @@ function syncSettingsWithLens(
       ...prev,
       focalLengthMm: lens.focalLengthMm,
       aperture,
+      apertureRange: lensApertureRange(lens),
     },
   };
 }
@@ -202,9 +207,11 @@ function deriveValues(
 }
 
 export function CameraProvider({ children }: { children: ReactNode }) {
-  const [settings, setSettings] = useState<CameraState>(REFERENCE_CAMERA);
   const [lens, setLens] = useState<ActiveLensState>(() =>
     definitionToActiveState(getDefaultLens()),
+  );
+  const [settings, setSettings] = useState<CameraState>(
+    () => syncSettingsWithLens(REFERENCE_CAMERA, definitionToActiveState(getDefaultLens())).settings,
   );
   const [sceneLuminanceEv, setSceneLuminanceEvState] = useState(0);
   const [sceneId, setSceneIdState] = useState<SimulatorSceneId>("studio");
@@ -322,7 +329,11 @@ export function CameraProvider({ children }: { children: ReactNode }) {
   const setAperture = useCallback((aperture: number) => {
     setSettings((prev) => {
       if (prev.mode === "S") return prev;
-      return { ...prev, aperture };
+      const range = prev.apertureRange;
+      return {
+        ...prev,
+        aperture: range ? clampApertureToLens(aperture, range.maxOpen, range.minAperture) : aperture,
+      };
     });
   }, []);
 
@@ -334,6 +345,7 @@ export function CameraProvider({ children }: { children: ReactNode }) {
     simulatorRuntime.focalLengthMm = nextLens.focalLengthMm;
     simulatorRuntime.lensName = nextLens.lensName;
     simulatorRuntime.isZoomLens = nextLens.isZoomLens;
+    simulatorRuntime.minFocusDistanceM = nextLens.minFocusDistanceM;
     setSettings((prev) => syncSettingsWithLens(prev, nextLens).settings);
   }, []);
 
@@ -547,7 +559,9 @@ export function CameraProvider({ children }: { children: ReactNode }) {
       presets: {
         iso: ISO_PRESETS,
         shutter: SHUTTER_PRESETS,
-        aperture: APERTURE_PRESETS,
+        aperture: settings.apertureRange
+          ? aperturesForLens(settings.apertureRange.maxOpen, settings.apertureRange.minAperture)
+          : APERTURE_PRESETS,
         whiteBalance: WB_PRESETS,
         modes: MODE_PRESETS,
       },

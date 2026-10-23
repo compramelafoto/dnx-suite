@@ -9,7 +9,8 @@ import {
   setSimulatorNavSurface,
 } from "@/lib/simulator/simulator-nav-surface";
 import dynamic from "next/dynamic";
-import { forwardRef, useCallback, useRef, useState } from "react";
+import { forwardRef, useCallback, useEffect, useRef, useState } from "react";
+import { computeViewfinderInsets } from "@/lib/simulator/viewfinder-frame";
 import ViewfinderLetterbox from "@/components/simulator/viewfinder/ViewfinderLetterbox";
 import FocusDofDebugOverlay from "@/components/simulator/viewfinder/FocusDofDebugOverlay";
 import ExposureDebugOverlay from "@/components/simulator/viewfinder/ExposureDebugOverlay";
@@ -58,6 +59,25 @@ const SimulatorViewport = forwardRef<HTMLDivElement, SimulatorViewportProps>(
       },
       [forwardedRef],
     );
+
+    // El recuadro de captura toma la proporción del sensor (3:2) según el tamaño
+    // del visor; los márgenes CSS siguen al mismo cálculo que la cámara 3D.
+    useEffect(() => {
+      const node = viewportRef.current;
+      if (!node) return;
+      const sync = () => {
+        const { width, height } = node.getBoundingClientRect();
+        if (width < 2 || height < 2) return;
+        const insets = computeViewfinderInsets(width, height);
+        node.style.setProperty("--cod-vf-inset-x", `${insets.x * 100}%`);
+        node.style.setProperty("--cod-vf-inset-top", `${insets.top * 100}%`);
+        node.style.setProperty("--cod-vf-inset-bottom", `${insets.bottom * 100}%`);
+      };
+      sync();
+      const observer = new ResizeObserver(sync);
+      observer.observe(node);
+      return () => observer.disconnect();
+    }, []);
 
     const [isNavigating, setIsNavigating] = useState(false);
     const [isSceneReady, setIsSceneReady] = useState(false);

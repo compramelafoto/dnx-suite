@@ -18,6 +18,11 @@ export interface CameraState {
   whiteBalance: number;
   exposureCompensation: number;
   mode: CameraMode;
+  /**
+   * Diafragmas que permite el objetivo montado a la focal actual.
+   * Los modos A/S no salen de este tramo, como en la cámara.
+   */
+  apertureRange?: { maxOpen: number; minAperture: number };
 }
 
 /** Veredicto de exposición de una captura. */
@@ -51,47 +56,30 @@ export interface CameraDerivedValues {
   exposureDebug: ExposureDebugSnapshot;
 }
 
-/** ISO en pasos de luz enteros desde 100 (×2 = +1 EV por paso). */
-export const ISO_PRESETS = [100, 200, 400, 800, 1600, 3200, 6400, 12800, 25600] as const;
-
-/** Multiplicador de exposición de cada ISO respecto a ISO 100 (para validación). */
-export const ISO_EXPOSURE_FROM_100: Record<(typeof ISO_PRESETS)[number], number> = {
-  100: 1,
-  200: 2,
-  400: 4,
-  800: 8,
-  1600: 16,
-  3200: 32,
-  6400: 64,
-  12800: 128,
-  25600: 256,
-};
-
 /**
- * Tiempo de exposición en pasos de luz enteros (×2 por paso = +1 EV).
- * Corto: 1/4000 s — largo: 8 s.
+ * Escalas en tercios de paso, como vienen configuradas las cámaras.
+ * Los números son los nominales que imprime la cámara; para la cuenta de luz
+ * se usa el valor exacto del tercio (ver exposure-scales.ts).
  */
-export const SHUTTER_PRESETS = [
-  "1/4000",
-  "1/2000",
-  "1/1000",
-  "1/500",
-  "1/250",
-  "1/125",
-  "1/60",
-  "1/30",
-  "1/15",
-  "1/8",
-  "1/4",
-  "1/2",
-  '1"',
-  '2"',
-  '4"',
-  '8"',
+export const ISO_PRESETS = [
+  100, 125, 160, 200, 250, 320, 400, 500, 640, 800, 1000, 1250, 1600, 2000, 2500, 3200, 4000,
+  5000, 6400, 8000, 10000, 12800, 16000, 20000, 25600,
 ] as const;
 
-/** Diafragma en pasos de luz enteros hasta f/22. */
-export const APERTURE_PRESETS = [1.4, 2, 2.8, 4, 5.6, 8, 11, 16, 22] as const;
+/** Tiempo de exposición en tercios: corto 1/8000 s — largo 30 s. */
+export const SHUTTER_PRESETS = [
+  "1/8000", "1/6400", "1/5000", "1/4000", "1/3200", "1/2500", "1/2000", "1/1600", "1/1250",
+  "1/1000", "1/800", "1/640", "1/500", "1/400", "1/320", "1/250", "1/200", "1/160", "1/125",
+  "1/100", "1/80", "1/60", "1/50", "1/40", "1/30", "1/25", "1/20", "1/15", "1/13", "1/10",
+  "1/8", "1/6", "1/5", "1/4", '0.3"', '0.4"', '0.5"', '0.6"', '0.8"', '1"', '1.3"', '1.6"',
+  '2"', '2.5"', '3.2"', '4"', '5"', '6"', '8"', '10"', '13"', '15"', '20"', '25"', '30"',
+] as const;
+
+/** Diafragma en tercios de f/1.4 a f/32. Cada objetivo usa sólo su tramo. */
+export const APERTURE_PRESETS = [
+  1.4, 1.6, 1.8, 2, 2.2, 2.5, 2.8, 3.2, 3.5, 4, 4.5, 5, 5.6, 6.3, 7.1, 8, 9, 10, 11, 13, 14, 16,
+  18, 20, 22, 25, 29, 32,
+] as const;
 
 /** Distancias focales pedagógicas (mm). */
 export const FOCAL_LENGTH_PRESETS = [24, 35, 50, 85, 135, 200] as const;
@@ -113,22 +101,3 @@ export const REFERENCE_CAMERA: CameraState = {
   mode: "M",
 };
 
-/** Segundos equivalentes de cada preset de obturador (para validación / tests). */
-export const SHUTTER_PRESET_SECONDS: Record<(typeof SHUTTER_PRESETS)[number], number> = {
-  "1/4000": 1 / 4000,
-  "1/2000": 1 / 2000,
-  "1/1000": 1 / 1000,
-  "1/500": 1 / 500,
-  "1/250": 1 / 250,
-  "1/125": 1 / 125,
-  "1/60": 1 / 60,
-  "1/30": 1 / 30,
-  "1/15": 1 / 15,
-  "1/8": 1 / 8,
-  "1/4": 1 / 4,
-  "1/2": 1 / 2,
-  '1"': 1,
-  '2"': 2,
-  '4"': 4,
-  '8"': 8,
-};

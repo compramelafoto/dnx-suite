@@ -147,6 +147,12 @@
   background: rgba(255, 255, 255, 0.22);
 }
 
+/* Pasos enteros: punto más grande; tercios: punto chico. */
+.cod-sim .cod-param-row__tick:not(.cod-param-row__tick--minor) {
+  width: 4px;
+  height: 4px;
+}
+
 .cod-sim .cod-param-row__tick--passed {
   background: rgba(36, 22, 3, 0.55);
 }
@@ -174,7 +180,8 @@
 
 .cod-sim .cod-param-row__track--wb .cod-param-row__track-rail {
   border-radius: 999px;
-  background: linear-gradient(90deg, #ff8a3d 0%, #f2efe9 50%, #6d8bff 100%);
+  /* Color que toma la foto: 3200 K enfría (azul), 7500 K calienta (naranja). */
+  background: linear-gradient(90deg, #6d8bff 0%, #f2efe9 50%, #ff8a3d 100%);
 }
 
 .cod-sim .cod-param-row__track--wb .cod-param-row__track-baseline,
