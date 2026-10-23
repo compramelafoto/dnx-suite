@@ -14,6 +14,7 @@ import { computeAvailableSpots, getApprovedEnrollmentCountsByInstanceIds } from 
 import { InvitacionAEnsenar } from "@/components/course-marketplace/invitacion-a-ensenar";
 import { RecordedCourseSection } from "@/components/presential-courses/recorded-course-section";
 import { CourseHero } from "@/components/presential-courses/course-hero";
+import { bloquesDeVenta } from "@/lib/presential-courses/texto-de-venta";
 import { duracionLegible } from "@/lib/course-classroom/aula";
 import { montosDeCompraSinReparto } from "@/lib/course-marketplace/compra";
 import { PublicCourseEnrollmentForm } from "@/components/presential-courses/public-course-enrollment-form";
@@ -168,10 +169,12 @@ export default async function PublicCourseLandingPage({ params }: Props) {
           ? [{ valor: String(presentialCourse.lessons.length), detalle: presentialCourse.lessons.length === 1 ? "clase grabada" : "clases grabadas" }]
           : []),
         ...(segundosTotales > 0 ? [{ valor: duracionLegible(segundosTotales), detalle: "de video" }] : []),
-        {
-          valor: presentialCourse.accessMonths === 1 ? "1 mes" : `${presentialCourse.accessMonths} meses`,
-          detalle: "para verlo a tu ritmo",
-        },
+        presentialCourse.accessMonths === 0
+          ? { valor: "Sin vencimiento", detalle: "lo mirás cuando quieras" }
+          : {
+              valor: presentialCourse.accessMonths === 1 ? "1 mes" : `${presentialCourse.accessMonths} meses`,
+              detalle: "para verlo a tu ritmo",
+            },
       ]
     : [];
   const sePuedeComprar =
@@ -210,11 +213,40 @@ export default async function PublicCourseLandingPage({ params }: Props) {
       )}
 
       {presentialCourse.longDescription ? (
-        <section className="fo-card">
-          <h2 className="text-xl font-semibold mb-3">Página de venta</h2>
-          <p className="text-sm text-[var(--fo-muted)] whitespace-pre-line leading-relaxed">
-            {presentialCourse.longDescription}
-          </p>
+        <section className="fo-card space-y-4">
+          <h2 className="text-2xl font-semibold tracking-tight">
+            Sobre {esCursoGrabado ? "el curso" : "esta propuesta"}
+          </h2>
+          <div className="max-w-3xl space-y-4 text-base leading-relaxed">
+            {bloquesDeVenta(presentialCourse.longDescription).map((bloque, i) =>
+              bloque.tipo === "subtitulo" ? (
+                <h3 key={i} className="pt-2 text-lg font-semibold">
+                  {bloque.texto}
+                </h3>
+              ) : bloque.tipo === "lista" ? (
+                <ul key={i} className="list-disc space-y-3 pl-5 marker:text-[var(--fo-accent)]">
+                  {bloque.items.map((item, j) => {
+                    // «Tema: detalle» → el tema en negrita, para poder recorrer la lista de un vistazo.
+                    const dosPuntos = item.indexOf(":");
+                    return dosPuntos > 0 && dosPuntos <= 40 ? (
+                      <li key={j}>
+                        <strong>{item.slice(0, dosPuntos)}</strong>
+                        <span className="text-[var(--fo-muted)]">{item.slice(dosPuntos)}</span>
+                      </li>
+                    ) : (
+                      <li key={j} className="text-[var(--fo-muted)]">
+                        {item}
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : (
+                <p key={i} className="text-[var(--fo-muted)]">
+                  {bloque.texto}
+                </p>
+              ),
+            )}
+          </div>
         </section>
       ) : null}
 

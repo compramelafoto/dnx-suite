@@ -99,7 +99,7 @@ export default async function MisCursosPage({ searchParams }: { searchParams: Pr
                           ? `Invitación sin cargo · hasta el ${fechaLegibleArgentina(curso.expiresAt)}`
                           : curso.expiresAt
                           ? `Acceso hasta el ${fechaLegibleArgentina(curso.expiresAt)}`
-                          : ""}
+                          : "Sin vencimiento"}
                     </p>
                   </div>
                   <div className="h-2 overflow-hidden rounded-full bg-[var(--fo-border)]" aria-hidden>
