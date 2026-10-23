@@ -14,6 +14,7 @@ import { Grabador, probarFormato } from "@/lib/digitalizacion/cliente/grabador";
 import type { ResumenCorte } from "@/lib/digitalizacion/senal/corte";
 import { evaluarFin } from "@/lib/digitalizacion/cliente/apagado";
 import { AvisoApagadoEnPagina, PanelApagado, useApagado } from "./apagado";
+import { PanelMonitoreo, useMonitoreo } from "./monitoreo";
 import { Ventanita, type EstadoVentanita } from "./ventanita";
 
 export type EquipoGuardado = { id: string; etiqueta: string; huellaSinSenal: number[] | null; corregirProporcion: boolean };
@@ -103,6 +104,11 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
   const streamRef = useRef<MediaStream | null>(null);
   useEffect(() => { faseRef.current = fase; streamRef.current = stream; }, [fase, stream]);
 
+  // Monitorear audio: una rama de escucha del mismo stream (no toca lo que graba el MediaRecorder).
+  // Se apaga sola al terminar la grabación (en `detener`) o al cambiar de dispositivo (cambia el stream).
+  const monitoreo = useMonitoreo(stream);
+  const apagarMonitoreo = monitoreo.apagar;
+
   // Apagar la computadora al terminar (F3): "terminó todo" = grabación cerrada y cola vacía sin pérdidas.
   const apagado = useApagado(evaluarFin({ fase, cierreFallido, pendientes: cola.pendientes, descartadas: cola.descartadas }));
   // Con la casilla marcada, la ventanita queda abierta al terminar para mostrar la cuenta regresiva.
@@ -181,7 +187,7 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [videoId, audioId]);
 
-  // Vista previa y medidor de audio (nunca suena por los parlantes).
+  // Vista previa y medidor de audio (no suena por los parlantes: para escuchar está «Monitorear audio»).
   useEffect(() => {
     if (!stream) return;
     if (vistaRef.current) vistaRef.current.srcObject = stream;
@@ -239,9 +245,13 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
       modo: "VHS", stream, segundos: s.segundos, bytesPendientes: cola.bytesPendientes, ultimoError: cola.ultimoError,
       sinImagenHaceSeg: s.sinImagen, minutosSinSenal, avanceDvd: null, terminando: fase === "terminando",
       terminada: fase === "terminada", apagado: apagado.aviso ? { aviso: apagado.aviso, alCancelar: apagado.cancelar } : null,
+      monitoreo: {
+        estado: monitoreo.estado, nivel: monitoreo.nivel, sinAudio: monitoreo.sinAudio, volumen: monitoreo.volumen,
+        alAlternar: monitoreo.alternar, alCambiarVolumen: monitoreo.cambiarVolumen,
+      },
     };
     s.ventanita.mostrar(e);
-  }, [stream, cola, minutosSinSenal, fase, apagado.aviso, apagado.cancelar]);
+  }, [stream, cola, minutosSinSenal, fase, apagado.aviso, apagado.cancelar, monitoreo.estado, monitoreo.nivel, monitoreo.sinAudio, monitoreo.volumen, monitoreo.alternar, monitoreo.cambiarVolumen]);
   useEffect(pintarVentanita, [pintarVentanita]);
 
   const detener = useCallback(async (motivoFin: "MANUAL" | "SIN_SENAL" | "TOPE") => {
@@ -249,6 +259,7 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
     if (!s || s.deteniendo) return;
     s.deteniendo = true;
     if (s.respaldo !== null) { window.clearInterval(s.respaldo); s.respaldo = null; }
+    apagarMonitoreo();
     setFase("terminando");
     try { await s.grabador.detener(); } catch { /* el grabador ya estaba parado */ }
     s.analizador.detener();
@@ -262,7 +273,7 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
     stream?.getTracks().forEach((t) => t.stop());
     setStream(null); // apaga el medidor de audio
     await cerrarRef.current();
-  }, [stream]);
+  }, [stream, apagarMonitoreo]);
 
   // Sólo el cierre en el servidor: si falla, se reintenta sin volver a parar nada.
   const cerrar = useCallback(async () => {
@@ -528,6 +539,7 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
         <div className="h-2 w-full max-w-2xl rounded bg-gray-200" aria-label="Nivel de audio">
           <div className="h-2 rounded bg-green-500" style={{ width: `${Math.round(nivelAudio * 100)}%` }} />
         </div>
+        {fase !== "terminando" && fase !== "terminada" ? <PanelMonitoreo control={monitoreo} /> : null}
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={estirada} disabled={fase !== "preparando"} onChange={(e) => { setEstirada(e.target.checked); void guardarEquipo({ corregirProporcion: e.target.checked }); }} />
           La imagen se ve estirada (la gente se ve ancha)
