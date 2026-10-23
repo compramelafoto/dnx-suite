@@ -375,13 +375,13 @@ const SCHOOL_GAP = 0.4;
  * su columna. Es una estimación (acá no hay medidas de la tipografía), pero es la misma cuenta
  * en el lienzo, la vista previa y la impresión, así que sale igual en los tres.
  */
-const AVG_CHAR_EM = 0.56;
+const AVG_CHAR_EM = 0.6;
 /** Con dos cursos o más, los nombres se reparten siempre en estas columnas. */
 export const CLASS_LIST_MULTI_COURSE_COLUMNS = 4;
 /** Un título de curso no queda solo al pie de una columna: va con al menos estos nombres. */
 const KEEP_WITH_HEADING = 2;
 /** Ancho medio de una letra normal, en cuerpos (los nombres). Misma estimación que arriba. */
-const AVG_NAME_CHAR_EM = 0.5;
+const AVG_NAME_CHAR_EM = 0.52;
 
 function fitFont(text: string, width: number, size: number): number {
   const chars = [...text].length;
@@ -526,9 +526,13 @@ export function layoutClassListSections(input: {
    * entre el más largo (antes de cortarse en el borde de la columna). `widthFont` es el cuerpo
    * más grande con el que entra, contando el aire entre columnas (0,8 cuerpos).
    */
-  const longest = Math.max(1, ...sections.flatMap((s) => s.lines.map((l) => [...l.text].length)));
+  // El ancho del nombre más largo, en cuerpos. El destacado va en negrita, que es más ancha.
+  const longestEm = Math.max(
+    0.5,
+    ...sections.flatMap((s) => s.lines.map((l) => [...l.text].length * (l.bold ? AVG_CHAR_EM : AVG_NAME_CHAR_EM))),
+  );
   const gapsEm = 0.8 * (columns - 1);
-  const widthFont = input.width / (columns * longest * AVG_NAME_CHAR_EM + gapsEm);
+  const widthFont = input.width / (columns * longestEm + gapsEm);
   const planFont = Math.min(input.fontSize, widthFont);
   const planCell = (input.width - planFont * gapsEm) / columns;
   const items: FlowItem[] = [];

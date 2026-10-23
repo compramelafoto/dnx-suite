@@ -106,8 +106,10 @@ describe("editorADocumento — listado del curso girado", () => {
     const sides = (document as { sides: { blocks: Record<string, number | string | undefined>[] }[] }).sides;
     const textos = sides[0]!.blocks.map((b) => b.content);
     assert.equal(textos.filter((t) => t === "Escuela Belgrano").length, 1);
-    assert.ok(textos.includes("7.° A · Turno mañana"));
-    assert.ok(textos.includes("7.° B · Turno tarde"));
+    // En 4 columnas el título no entra en una línea: va el curso y abajo el turno.
+    for (const [curso, turno] of [["7.° A", "Turno mañana"], ["7.° B", "Turno tarde"]]) {
+      assert.ok(textos.includes(`${curso} · ${turno}`) || (textos.includes(curso) && textos.includes(turno)));
+    }
     assert.ok(sides[0]!.blocks.every((b) => b.rotation === 90));
   });
 

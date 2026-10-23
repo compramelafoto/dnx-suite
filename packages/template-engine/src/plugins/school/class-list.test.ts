@@ -297,7 +297,7 @@ test("un título largo se achica para entrar en su columna", () => {
   const turno = cells.find((c) => c.heading && c.text === "Turno intermedio vespertino")!;
   assert.equal(turno.x, curso.x);
   assert.ok(Math.abs(turno.y - (curso.y + curso.height)) < 1e-9);
-  for (const t of [curso, turno]) assert.ok([...t.text].length * t.fontSize * 0.56 <= t.width + 1e-9);
+  for (const t of [curso, turno]) assert.ok([...t.text].length * t.fontSize * 0.6 <= t.width + 1e-9);
 });
 
 test("con varios cursos, un nombre largo achica todo para no cortarse en su columna", () => {
