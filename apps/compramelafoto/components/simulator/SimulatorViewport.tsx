@@ -16,15 +16,12 @@ import FocusDofDebugOverlay from "@/components/simulator/viewfinder/FocusDofDebu
 import ExposureDebugOverlay from "@/components/simulator/viewfinder/ExposureDebugOverlay";
 import SimulatorCameraHUD from "./SimulatorCameraHUD";
 import StreetModelPanel from "./StreetModelPanel";
+import CamOfDutyLoadingScreen from "./CamOfDutyLoadingScreen";
 
 const SimulatorCanvas = dynamic(() => import("./scene/SimulatorCanvas"), {
   ssr: false,
-  loading: () => (
-    <div className="cod-sim__canvas-fallback" role="status" aria-live="polite">
-      <div className="cod-sim__canvas-fallback-spinner" aria-hidden="true" />
-      <p className="cod-sim__canvas-fallback-text">Cargando escena 3D…</p>
-    </div>
-  ),
+  // Mientras baja el código del lienzo ya se ve la pantalla de carga.
+  loading: () => null,
 });
 
 export interface SimulatorViewportProps {
@@ -148,6 +145,8 @@ const SimulatorViewport = forwardRef<HTMLDivElement, SimulatorViewportProps>(
         {onCloseHelp ? (
           <SimulatorHelpModal open={helpOpen} onClose={onCloseHelp} />
         ) : null}
+
+        {canvasError ? null : <CamOfDutyLoadingScreen />}
 
         {canvasError && (
           <div className="cod-sim__canvas-error-banner" role="alert">

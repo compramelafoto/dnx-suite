@@ -17,6 +17,7 @@ import StreetPedestrians from "./StreetPedestrians";
 import StreetPlaza from "./StreetPlaza";
 import StreetProps from "./StreetProps";
 import StreetTraffic from "./StreetTraffic";
+import { LoadingHold } from "../SceneLoadingGate";
 
 /**
  * Calle 3D: un barrio de 3 × 3 manzanas con plaza, casas, centro y pasajes;
@@ -51,21 +52,21 @@ export default function StreetScene() {
   return (
     <group>
       <StreetLighting />
-      <Suspense fallback={null}>
+      <Suspense fallback={<LoadingHold />}>
         <StreetGround layout={layout} />
       </Suspense>
       <StreetPlaza plaza={layout.plaza} />
       <StreetDecals layout={layout} />
-      <Suspense fallback={null}>
+      <Suspense fallback={<LoadingHold />}>
         <StreetBuildings layout={layout} />
       </Suspense>
-      <Suspense fallback={null}>
+      <Suspense fallback={<LoadingHold />}>
         <StreetProps layout={layout} />
       </Suspense>
-      <Suspense fallback={null}>
+      <Suspense fallback={<LoadingHold />}>
         <StreetPedestrians layout={layout} />
       </Suspense>
-      <Suspense fallback={null}>
+      <Suspense fallback={<LoadingHold />}>
         <StreetTraffic />
       </Suspense>
     </group>

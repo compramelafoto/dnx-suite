@@ -6,6 +6,7 @@ import * as THREE from "three";
 import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader.js";
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { ANIMATIONS, animationUrl, decodeClip, type CompactClip } from "@/lib/simulator/studio-light/animation-clip";
+import { loadingGate } from "@/lib/simulator/loading-gate";
 import { bakeCavityAO } from "@/lib/simulator/studio-light/cavity-ao";
 import { figureUrl, type FigureSpec } from "@/lib/simulator/studio-light/figures";
 import { SUBJECT_HEAD } from "@/lib/simulator/studio-light/metering";
@@ -452,6 +453,7 @@ export default function StudioFigure({
 }) {
   const source = useLoader(FBXLoader, figureUrl(figure, "model.fbx"), (loader) => {
     const manager = new THREE.LoadingManager();
+    loadingGate.track(manager);
     manager.addHandler(/\.tga$/i, new EmptyTextureLoader());
     loader.manager = manager;
   });
