@@ -142,7 +142,8 @@ export const GUION_ESCOLAR: Guion = {
     {
       id: "canje",
       vista: "familia",
-      ruta: (c) => (c.ultimoPedidoId ? `/cliente/pack/${c.ultimoPedidoId}` : `/album/${c.albumSlug}`),
+      // El link del correo de la familia (que en la demo no sale): lo genera el servidor.
+      ruta: () => "/api/demo/canje",
       titulo: "9 · Canjea y aprueba su librito",
       texto:
         "Con el link de su compra, la familia elige las fotos, ve el librito armado en 3D, puede cambiar una foto o reencuadrarla, y lo aprueba.",
