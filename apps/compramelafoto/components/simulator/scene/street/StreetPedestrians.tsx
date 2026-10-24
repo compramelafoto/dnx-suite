@@ -3,7 +3,7 @@
 import { simulatorRuntime, syncMovingSubjectsRegistry } from "@/lib/simulator/simulator-runtime";
 import type { MovingSubjectState } from "@/lib/simulator/moving-subject-types";
 import { STREET_PERSON_ID_PREFIX } from "@/lib/simulator/moving-subject-types";
-import { ANIMATION_DIR, decodeClip, type CompactClip } from "@/lib/simulator/studio-light/animation-clip";
+import { ANIMATION_DIR, decodeClip, stripRootMotion, type CompactClip } from "@/lib/simulator/studio-light/animation-clip";
 import { figureById, figureUrl, type FigureSpec } from "@/lib/simulator/studio-light/figures";
 import { streetGroundHeight, type StreetLayout } from "@/lib/simulator/street/street-layout";
 import { streetRuntime } from "@/lib/simulator/street/street-runtime";
@@ -379,7 +379,7 @@ function updateFace(
 
 function useCompactClips(urls: string[]): THREE.AnimationClip[] {
   const texts = useLoader(THREE.FileLoader, urls) as unknown as string[];
-  return useMemo(() => texts.map((t) => decodeClip(JSON.parse(t) as CompactClip)), [texts]);
+  return useMemo(() => texts.map((t) => stripRootMotion(decodeClip(JSON.parse(t) as CompactClip))), [texts]);
 }
 
 export default function StreetPedestrians({ layout }: { layout: StreetLayout }) {

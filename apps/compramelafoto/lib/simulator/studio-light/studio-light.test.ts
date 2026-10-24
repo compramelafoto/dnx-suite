@@ -11,7 +11,7 @@ import {
   subjectHead,
 } from "./metering";
 import { PRESETS, applyPreset, initialStudioState, makeLight, polarToXZ } from "./presets";
-import { ANIMATIONS, animationUrl, decodeClip } from "./animation-clip";
+import { ANIMATIONS, animationUrl, decodeClip, stripRootMotion } from "./animation-clip";
 import { boomOffset } from "./boom";
 import { computeCavityAO } from "./cavity-ao";
 import { FIGURES } from "./figures";
@@ -249,4 +249,21 @@ test("enlace: una pose a mano con piernas y apoyo vuelve igual", () => {
   assert.equal(back?.poseParams.base, "stool");
   assert.equal(back?.poseParams.legs?.right.forward, 104);
   assert.equal(back?.poseParams.headTurn, 12);
+});
+
+test("caminatas: la raíz no avanza, así el cuerpo no vuelve al inicio en cada ciclo", () => {
+  for (const file of ["f_walk_neutral_01", "m_walk_fast_01", "m_walk_stroll_01"]) {
+    const raw = decodeClip(JSON.parse(readFileSync(`public/camofduty/models/animations/${file}.json`, "utf8")));
+    const before = raw.tracks.find((t) => t.name === "Bip01.position")!.values;
+    const span = (v: ArrayLike<number>, k: number) => {
+      let lo = Infinity, hi = -Infinity;
+      for (let i = k; i < v.length; i += 3) { lo = Math.min(lo, v[i]); hi = Math.max(hi, v[i]); }
+      return hi - lo;
+    };
+    assert.ok(span(before, 2) > 90, `${file} ya venía sin avance`);
+    const v = stripRootMotion(raw).tracks.find((t) => t.name === "Bip01.position")!.values;
+    assert.equal(span(v, 0), 0);
+    assert.equal(span(v, 2), 0);
+    assert.ok(span(v, 1) > 1, `${file} perdió el sube y baja de la cadera`);
+  }
 });
