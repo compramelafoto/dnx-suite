@@ -49,7 +49,7 @@ const shareTechMono = localFont({
 
 const title = "Cam Of Duty — Simulador Fotográfico Interactivo";
 const description =
-  "Aprendé fotografía practicando con una cámara virtual: exposición, enfoque, composición e iluminación en un estudio de luz 3D y en la calle, con modelos que posan y luz que cambia según la hora.";
+  "Aprendé fotografía practicando con una cámara virtual: exposición, enfoque, composición e iluminación en un estudio fotográfico 3D y en la calle, con modelos que posan y luz que cambia según la hora.";
 export const metadata: Metadata = {
   title,
   description,

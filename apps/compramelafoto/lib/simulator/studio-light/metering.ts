@@ -1,5 +1,5 @@
 /**
- * Fotómetro del Estudio de luz.
+ * Fotómetro del Estudio Fotográfico.
  *
  * Unidad común ("N²"): la exposición que una luz produce sobre el sujeto se
  * expresa como el cuadrado del número f correcto a ISO 100. Así un flash y

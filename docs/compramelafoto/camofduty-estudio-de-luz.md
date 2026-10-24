@@ -1,4 +1,4 @@
-# Cam Of Duty — Estudio de luz 3D
+# Cam Of Duty — Estudio Fotográfico
 
 Ruta: `/camofduty/estudio` (app `compramelafoto`).
 

@@ -1,4 +1,4 @@
-/** Íconos de trazo del Estudio de luz (24×24, heredan el color del texto). */
+/** Íconos de trazo del Estudio Fotográfico (24×24, heredan el color del texto). */
 
 const PATHS = {
   set: "M12 3 4 7.5v9L12 21l8-4.5v-9zM4 7.5l8 4.5 8-4.5M12 12v9",

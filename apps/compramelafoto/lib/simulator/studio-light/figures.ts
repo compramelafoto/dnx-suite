@@ -1,5 +1,5 @@
 /**
- * Modelos del Estudio de luz.
+ * Modelos del Estudio Fotográfico.
  *
  * - Bustos: escaneo de Lee Perry-Smith (CC BY 3.0) con distintos tonos.
  * - Cuerpo entero: Microsoft Rocketbox Avatar Library (licencia MIT),

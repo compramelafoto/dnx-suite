@@ -17,7 +17,7 @@ export default function SimulatorShell({ children, variant = "landing" }: Simula
           {variant === "landing" ? (
             <>
               <Link href="/camofduty/estudio" className="cod-btn cod-btn--ghost cod-btn--sm">
-                Estudio de luz
+                Estudio Fotográfico
               </Link>
               <Link href="/camofduty/simulador" className="cod-btn cod-btn--primary cod-btn--sm">
                 Entrar al simulador
@@ -26,7 +26,7 @@ export default function SimulatorShell({ children, variant = "landing" }: Simula
           ) : (
             <>
               <Link href="/camofduty/estudio" className="cod-btn cod-btn--ghost cod-btn--sm">
-                Estudio de luz
+                Estudio Fotográfico
               </Link>
               <Link href="/camofduty/simulador" className="cod-btn cod-btn--ghost cod-btn--sm">
                 Simulador

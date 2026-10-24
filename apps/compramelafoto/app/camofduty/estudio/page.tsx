@@ -4,7 +4,7 @@ import StudioLightClient from "@/components/simulator/studio-light/StudioLightCl
 import "@/styles/camofduty/estudio.css";
 import { camOfDutyShareImage } from "../share-image";
 
-const title = "Estudio de luz — Cam Of Duty";
+const title = "Estudio Fotográfico — Cam Of Duty";
 const description =
   "Armá un set de luces en 3D: arrastrá flashes, softbox y reflectores alrededor del modelo, medí con el fotómetro y aprendé los esquemas clásicos de retrato.";
 

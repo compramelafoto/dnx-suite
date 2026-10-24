@@ -52,7 +52,7 @@ export default function LoginForm() {
   };
 
   return (
-    <AccessShell title="Ingresar" subtitle="Usá tu cuenta de fotógrafo para entrar al simulador y al estudio de luz.">
+    <AccessShell title="Ingresar" subtitle="Usá tu cuenta de fotógrafo para entrar al simulador y al Estudio Fotográfico.">
       <a className="cod-btn cod-btn--secondary cod-access__google" href={buildGoogleAuthUrl({ role: "PHOTOGRAPHER", redirect: returnTo })}>
         Continuar con Google
       </a>
