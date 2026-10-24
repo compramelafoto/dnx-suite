@@ -1,19 +1,21 @@
 "use client";
 
 import { STREET_CARS, streetCarUrl, type StreetCarModel } from "@/lib/simulator/street/street-cars";
+import { STREET_RIDES, streetRideUrl, type StreetRideModel } from "@/lib/simulator/street/street-rides";
 import { useGLTF } from "@react-three/drei";
 import { useMemo } from "react";
 import * as THREE from "three";
 
-/** Auto listo para clonar: frente a +Z, apoyado en y = 0, centrado y a escala real. */
-export interface StreetCarPrototype {
-  model: StreetCarModel;
+/** Auto (o bici, o moto) listo para clonar: frente a +Z, apoyado en y = 0, centrado y a escala real. */
+export interface StreetCarPrototype<M extends { yawDeg: number; lengthM: number } = StreetCarModel> {
+  model: M;
   object: THREE.Object3D;
   width: number;
   height: number;
 }
 
 const URLS = STREET_CARS.map(streetCarUrl);
+const RIDE_URLS = STREET_RIDES.map(streetRideUrl);
 
 /** Caja de las mallas visibles (algunos modelos traen un plano de sombra horneada). */
 function visibleBox(root: THREE.Object3D): THREE.Box3 {
@@ -25,7 +27,7 @@ function visibleBox(root: THREE.Object3D): THREE.Box3 {
   return box;
 }
 
-function normalize(source: THREE.Object3D, model: StreetCarModel): StreetCarPrototype {
+function normalize<M extends { yawDeg: number; lengthM: number }>(source: THREE.Object3D, model: M): StreetCarPrototype<M> {
   const inner = source.clone(true);
   inner.traverse((o) => {
     const mesh = o as THREE.Mesh;
@@ -60,9 +62,15 @@ export function useStreetCars(): StreetCarPrototype[] {
   return useMemo(() => gltfs.map((g, i) => normalize(g.scene, STREET_CARS[i])), [gltfs]);
 }
 
+/** Las bicis, monopatines y motos, en el orden de STREET_RIDES. */
+export function useStreetRides(): StreetCarPrototype<StreetRideModel>[] {
+  const gltfs = useGLTF(RIDE_URLS);
+  return useMemo(() => gltfs.map((g, i) => normalize(g.scene, STREET_RIDES[i])), [gltfs]);
+}
+
 /** Copia de un auto (comparte geometría y materiales con el original). */
-export function cloneCar(proto: StreetCarPrototype): THREE.Object3D {
+export function cloneCar(proto: StreetCarPrototype<{ yawDeg: number; lengthM: number }>): THREE.Object3D {
   return proto.object.clone(true);
 }
 
-for (const url of URLS) useGLTF.preload(url);
+for (const url of [...URLS, ...RIDE_URLS]) useGLTF.preload(url);

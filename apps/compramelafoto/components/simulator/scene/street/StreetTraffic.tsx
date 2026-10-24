@@ -4,14 +4,25 @@ import { simulatorRuntime, syncMovingSubjectsRegistry } from "@/lib/simulator/si
 import { STREET_CAR_ID_PREFIX as CAR_ID_PREFIX, type MovingSubjectState } from "@/lib/simulator/moving-subject-types";
 import { streetRuntime } from "@/lib/simulator/street/street-runtime";
 import { LANES, carPose, createTraffic, stepTraffic } from "@/lib/simulator/street/street-traffic";
-import { useFrame } from "@react-three/fiber";
+import { STREET_RIDES, crankRadiansPerMeter } from "@/lib/simulator/street/street-rides";
+import { STREET_FIGURES } from "@/lib/simulator/street/street-people";
+import { figureById } from "@/lib/simulator/studio-light/figures";
+import { useFrame, useLoader } from "@react-three/fiber";
 import { useEffect, useMemo } from "react";
 import * as THREE from "three";
-import { cloneCar, useStreetCars, type StreetCarPrototype } from "./street-car-models";
+import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader.js";
+import { cloneCar, useStreetCars, useStreetRides, type StreetCarPrototype } from "./street-car-models";
+import { avatarUrl, instantiateAvatar, prepareAvatarLoader } from "./street-avatar";
+import { mountRider, pedal, type Rider } from "./rider-pose";
 
 const LAMP = new THREE.SphereGeometry(0.07, 10, 8);
 /** Más allá de esto los autos que circulan no se dibujan. */
 const DRAW_DISTANCE = 140;
+/** Bicis y motos (con su persona arriba): más cerca, como los peatones. */
+const RIDE_DRAW_DISTANCE = 85;
+/** Más cerca que esto se ve pedalear. */
+const PEDAL_DISTANCE = 45;
+const RIDER_SPECS = STREET_FIGURES.map((id) => figureById(id)!);
 
 /** Faros y luces traseras (brillan de noche), en las puntas de cada modelo. */
 function addLights(car: THREE.Object3D, proto: StreetCarPrototype, head: THREE.Material, tail: THREE.Material) {
@@ -33,28 +44,47 @@ function addLights(car: THREE.Object3D, proto: StreetCarPrototype, head: THREE.M
  */
 export default function StreetTraffic() {
   const protos = useStreetCars();
+  const rideProtos = useStreetRides();
+  // Los mismos avatares que los peatones (el cargador los comparte).
+  const riderSources = useLoader(FBXLoader, RIDER_SPECS.map(avatarUrl), prepareAvatarLoader) as THREE.Group[];
   const cars = useMemo(() => createTraffic(), []);
   const head = useMemo(() => new THREE.MeshStandardMaterial({ color: "#222", emissive: "#fff3dc", emissiveIntensity: 0 }), []);
   const tail = useMemo(() => new THREE.MeshStandardMaterial({ color: "#300", emissive: "#ff2a12", emissiveIntensity: 0 }), []);
-  const objects = useMemo(
-    () =>
-      cars.map((c) => {
-        const o = cloneCar(protos[c.model]);
-        addLights(o, protos[c.model], head, tail);
+  const { objects, riders } = useMemo(() => {
+    const avatarCache = new Map<string, THREE.Material>();
+    const riders: (Rider | null)[] = [];
+    let n = 0;
+    const objects = cars.map((c) => {
+      const id = `${CAR_ID_PREFIX}${c.id}`;
+      if (c.ride !== null) {
+        const o = cloneCar(rideProtos[c.ride]);
+        const k = (n * 5 + 2) % RIDER_SPECS.length;
+        n += 1;
+        const { root } = instantiateAvatar(riderSources[k], RIDER_SPECS[k], avatarCache, id);
+        riders.push(mountRider(o, root, STREET_RIDES[c.ride]));
         o.traverse((x) => {
-          x.userData.codSubjectId = `${CAR_ID_PREFIX}${c.id}`;
+          x.userData.codSubjectId = id;
         });
         return o;
-      }),
-    [cars, protos, head, tail],
-  );
+      }
+      const o = cloneCar(protos[c.model]);
+      addLights(o, protos[c.model], head, tail);
+      o.traverse((x) => {
+        x.userData.codSubjectId = id;
+      });
+      riders.push(null);
+      return o;
+    });
+    return { objects, riders };
+  }, [cars, protos, rideProtos, riderSources, head, tail]);
 
   const subjects = useMemo<MovingSubjectState[]>(
     () =>
       cars.map((c) => ({
         id: `${CAR_ID_PREFIX}${c.id}`,
         subjectKind: "vehicle",
-        position: [0, 0.8, 0],
+        // En las bicis y motos, el autofoco apunta a la persona.
+        position: [0, c.ride !== null ? 1.15 : 0.8, 0],
         speed: 0,
         direction: 1,
         velocityX: 0,
@@ -79,13 +109,17 @@ export default function StreetTraffic() {
     (tail as THREE.MeshStandardMaterial).emissiveIntensity = night * 8;
     // De día no se dibujan: los faros del propio modelo ya se ven.
     head.visible = tail.visible = night > 0.01;
+    const dt = Math.min(delta, 0.1);
     cars.forEach((c, i) => {
       const o = objects[i];
       const pose = carPose(LANES[c.lane], c.s);
+      const dist = Math.hypot(pose.x - camera.position.x, pose.z - camera.position.z);
+      const rider = riders[i];
       // Lejos (en la bruma) no se dibuja: la ciudad tiene muchos autos.
-      o.visible = !c.parked && Math.hypot(pose.x - camera.position.x, pose.z - camera.position.z) < DRAW_DISTANCE;
+      o.visible = !c.parked && dist < (rider ? RIDE_DRAW_DISTANCE : DRAW_DISTANCE);
       o.position.set(pose.x, 0, pose.z);
       o.rotation.y = pose.heading;
+      if (rider && o.visible && dist < PEDAL_DISTANCE) pedal(rider, c.v * dt, crankRadiansPerMeter(rider.ride));
       const s = subjects[i];
       s.position[0] = pose.x;
       s.position[2] = pose.z;

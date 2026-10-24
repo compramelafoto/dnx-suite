@@ -54,6 +54,19 @@ Contenidos pedagógicos basados en los apuntes de la profesora Débora Priasco.
 - `models/cars/renault-duster.glb` — "2011 Dacia (Renault) Duster" de razor24, https://sketchfab.com/3d-models/30bc2e09de66426bb67be72c95fa2476
   Optimizados (geometría y texturas reducidas) con `node scripts/camofduty/optimize-street-cars.mjs`.
 
+## Bicis, monopatines y motos — Sketchfab (CC BY 4.0)
+- `models/rides/bici-clasica.glb` — "Classic Bicycle | LowPoly | Game ready" de by__Rx, https://sketchfab.com/3d-models/da6507928c0c4a5c8776008cdb9f747e
+- `models/rides/bici-amarilla.glb` — "Yellow bicycle" de volkovatatyana, https://sketchfab.com/3d-models/4cc719f387cb4cb4aea6e12a27e06e2e
+- `models/rides/triciclo.glb` — "Bicycle" de longtail, https://sketchfab.com/3d-models/25aa85eeba944baea33ce5cde985ca49
+- `models/rides/monopatin-xiaomi.glb` — "Xiaomi Electric Scooter 4" de mmaarriioo, https://sketchfab.com/3d-models/e53ebaf78add4735887023db3a105d1c
+- `models/rides/honda-cb750.glb` — "Honda CB 750 F Super Sport 1970" de Alex.Ka., https://sketchfab.com/3d-models/f121301624174b179ca4d50158797b03
+- `models/rides/moto-si.glb` — "Moto SI" de KidBi-Gaming, https://sketchfab.com/3d-models/80474ebbf5cc4538b21388ca11e4ab24
+- `models/rides/yamaha-xmax.glb` — "Yamaha XMAX – Low Poly / Game Ready" de KidBi-Gaming, https://sketchfab.com/3d-models/b91a844ea42740f8a298574975806445
+- `models/rides/suzuki-skywave.glb` — "Suzuki Skywave" de sassuscus, https://sketchfab.com/3d-models/e1bcfc1ee51b4aab8417b00ab90f89fc
+- `models/rides/vespa.glb` — "Vespa Super Sport 180" de VforValensa, https://sketchfab.com/3d-models/74dfd9925fde4ae5882eb74c77c3c663
+  Optimizados (geometría y texturas reducidas) con `node scripts/camofduty/optimize-street-cars.mjs`.
+
+
 ## Microsoft Rocketbox Avatar Library (MIT)
 - Peatones y animaciones: `public/camofduty/models/figures/` y `models/animations/`.
 
