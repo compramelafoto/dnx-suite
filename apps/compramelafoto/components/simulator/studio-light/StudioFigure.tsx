@@ -182,6 +182,8 @@ function buildRig(source: THREE.Group, figure: FigureSpec): Rig {
     // El FBX trae cinco niveles de detalle: mostramos sólo el de máxima calidad.
     if (!mesh.name.includes("hipoly")) {
       mesh.visible = false;
+      // La carga no los precalienta (warmUpEverything): nunca se dibujan.
+      mesh.userData.neverDrawn = true;
       return;
     }
     // Radio de ~2,5 cm para nariz, orejas y boca. Las unidades internas del FBX varían,

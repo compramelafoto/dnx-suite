@@ -133,8 +133,11 @@ export class PuddleReflector {
     for (const o of hide) o.visible = false;
     const prevTarget = gl.getRenderTarget();
     const shadows = gl.shadowMap.autoUpdate;
-    // Las sombras ya se calcularon para la vista principal: no se rehacen para el espejo.
+    const shadowsPending = gl.shadowMap.needsUpdate;
+    // Las sombras son de la vista principal: el espejo no las rehace ni "gasta" el
+    // aviso de que toca rehacerlas en este cuadro.
     gl.shadowMap.autoUpdate = false;
+    gl.shadowMap.needsUpdate = false;
     // Las matrices de la escena ya están (del cuadro anterior): recorrer toda la
     // ciudad para recalcularlas costaba casi tanto como dibujar el reflejo.
     const autoMatrix = scene.matrixWorldAutoUpdate;
@@ -145,6 +148,7 @@ export class PuddleReflector {
     gl.setRenderTarget(prevTarget);
     scene.matrixWorldAutoUpdate = autoMatrix;
     gl.shadowMap.autoUpdate = shadows;
+    gl.shadowMap.needsUpdate = shadowsPending;
     hide.forEach((o, i) => (o.visible = was[i]));
     return true;
   }

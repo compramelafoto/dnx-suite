@@ -14,7 +14,6 @@ Contenidos pedagógicos basados en los apuntes de la profesora Débora Priasco.
 - `models/aircon.glb` — exterior_aircon_unit
 - `models/potted-plant.glb` — potted_plant_02
 - `models/tree-jacaranda.glb` — jacaranda_tree
-- `models/tree-jacaranda-far.glb` — jacaranda_tree
 - `models/covered-car.glb` — covered_car
 - `models/statue.glb` — horse_statue_01
 - `models/plaza-bench.glb` — painted_wooden_bench

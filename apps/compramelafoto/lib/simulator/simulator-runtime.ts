@@ -27,6 +27,8 @@ export interface SimulatorRuntime {
   meteringMode: MeteringMode;
   /** Últimas lecturas del fotómetro sobre la imagen (log2 de luminancia del render). */
   meterReadings: MeterReadings | null;
+  /** Grilla de luminancia del recuadro (lineal, de arriba hacia abajo): fotómetro e histograma. */
+  meterGrid: { width: number; height: number; luminance: Float32Array } | null;
   movingSubject: MovingSubjectState | null;
   movingSubjects: MovingSubjectState[];
   focusDistanceM: number;
@@ -65,6 +67,7 @@ export const simulatorRuntime: SimulatorRuntime = {
   setSceneLight: () => {},
   meteringMode: "MATRIX",
   meterReadings: null,
+  meterGrid: null,
   movingSubject: null,
   movingSubjects: [],
   focusDistanceM: 6.5,

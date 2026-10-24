@@ -1,5 +1,6 @@
 "use client";
 
+import { loadingGate } from "@/lib/simulator/loading-gate";
 import { simulatorRuntime } from "@/lib/simulator/simulator-runtime";
 import { STREET_MODELS } from "@/lib/simulator/street/street-assets";
 import { STREET_CARS, streetCarFor } from "@/lib/simulator/street/street-cars";
@@ -357,8 +358,21 @@ export default function StreetProps({ layout }: { layout: StreetLayout }) {
       byModel.set(model, [...(byModel.get(model) ?? []), p]);
     });
     for (const [model, items] of byModel) out.push(...buildChunks(items, flattenParts(cars[model].object), SPEC.car!, null));
-    return { list: out, pools, dispose: () => impostors.forEach((x) => x.dispose()) };
+    return { list: out, pools, impostors, dispose: () => impostors.forEach((x) => x.dispose()) };
   }, [layout, gltfs, cars, gl]);
+
+  // Al terminar la carga (texturas ya subidas por el precalentamiento) se rehacen las
+  // fotos de los impostores: sacadas antes podían salir vacías (árboles invisibles de lejos).
+  useEffect(() => {
+    let wasReady = false;
+    const refreshIfReady = () => {
+      const ready = loadingGate.getSnapshot().ready;
+      if (ready && !wasReady) for (const imp of chunks.impostors) imp.refresh();
+      wasReady = ready;
+    };
+    refreshIfReady();
+    return loadingGate.subscribe(refreshIfReady);
+  }, [chunks]);
 
   // Las fotos de los impostores viven en la placa de video: si se liberan no se pueden
   // volver a usar. React (en desarrollo) desmonta y vuelve a montar enseguida: se libera

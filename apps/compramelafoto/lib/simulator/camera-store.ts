@@ -412,9 +412,10 @@ export function CameraProvider({ children }: { children: ReactNode }) {
 
   const setSceneLight = useCallback((next: SceneLight) => {
     setSceneLightState((prev) =>
-      Math.abs(prev.brightnessEv100 - next.brightnessEv100) < 0.04 &&
-      Math.abs(prev.meteredEv100 - next.meteredEv100) < 0.04 &&
-      Math.abs(prev.eyeEv100 - next.eyeEv100) < 0.04
+      // 0,1 paso: la cámara muestra tercios; más fino sólo rearmaba la interfaz al caminar.
+      Math.abs(prev.brightnessEv100 - next.brightnessEv100) < 0.1 &&
+      Math.abs(prev.meteredEv100 - next.meteredEv100) < 0.1 &&
+      Math.abs(prev.eyeEv100 - next.eyeEv100) < 0.1
         ? prev
         : next,
     );

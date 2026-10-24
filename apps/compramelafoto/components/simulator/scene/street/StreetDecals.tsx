@@ -329,7 +329,7 @@ export default function StreetDecals({ layout }: { layout: StreetLayout }) {
   // Las mallas abarcan toda la ciudad: se apagan las que quedan lejos (por su esfera).
   const tick = useRef(0);
   const view = useMemo(
-    () => ({ frustum: new THREE.Frustum(), matrix: new THREE.Matrix4(), sphere: new THREE.Sphere(), seen: [] as GroundDecal[], corners: [] as THREE.Vector3[] }),
+    () => ({ frustum: new THREE.Frustum(), matrix: new THREE.Matrix4(), sphere: new THREE.Sphere(), seen: [] as GroundDecal[], corners: [] as THREE.Vector3[], frame: 0 }),
     [],
   );
   // En el espejo no hace falta el piso ni lo que está pegado a él (queda bajo el agua).
@@ -356,26 +356,34 @@ export default function StreetDecals({ layout }: { layout: StreetLayout }) {
     }
     const u = reflector.uniforms;
     u.time.value = clock.elapsedTime;
-    let drawn = false;
-    if (best && camera instanceof THREE.PerspectiveCamera && camera.position.y > best.position[1]) {
-      // Todos los charcos a la vista que están a la misma altura comparten el espejo.
-      let n = 0;
-      for (const d of view.seen) {
-        if (Math.abs(d.position[1] - best.position[1]) > 0.05) continue;
-        const c = Math.cos(d.rotationY);
-        const sn = Math.sin(d.rotationY);
-        for (const [a, b] of [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]]) {
-          const x = a * d.size[0];
-          const z = b * d.size[1];
-          (view.corners[n] ??= new THREE.Vector3()).set(d.position[0] + x * c + z * sn, d.position[1], d.position[2] - x * sn + z * c);
-          n += 1;
+    // Uno de cada dos cuadros: el reflejo guarda con qué cámara se sacó, así que en
+    // el cuadro intermedio se sigue viendo en su lugar (la gente que pasa, un cuadro tarde).
+    view.frame = (view.frame + 1) % 2;
+    const fade = THREE.MathUtils.clamp((REFLECT_DISTANCE - bestDist) / REFLECT_FADE, 0, 1);
+    if (view.frame === 1 && best && u.reflectStrength.value > 0) {
+      u.reflectStrength.value = fade;
+    } else {
+      let drawn = false;
+      if (best && camera instanceof THREE.PerspectiveCamera && camera.position.y > best.position[1]) {
+        // Todos los charcos a la vista que están a la misma altura comparten el espejo.
+        let n = 0;
+        for (const d of view.seen) {
+          if (Math.abs(d.position[1] - best.position[1]) > 0.05) continue;
+          const c = Math.cos(d.rotationY);
+          const sn = Math.sin(d.rotationY);
+          for (const [a, b] of [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]]) {
+            const x = a * d.size[0];
+            const z = b * d.size[1];
+            (view.corners[n] ??= new THREE.Vector3()).set(d.position[0] + x * c + z * sn, d.position[1], d.position[2] - x * sn + z * c);
+            n += 1;
+          }
         }
+        view.corners.length = n;
+        flat.current ??= ["calle-piso", "calle-detalles"].map((name) => scene.getObjectByName(name)).filter(Boolean) as THREE.Object3D[];
+        drawn = reflector.render(gl, scene, camera, best.position[1], view.corners, flat.current);
       }
-      view.corners.length = n;
-      flat.current ??= ["calle-piso", "calle-detalles"].map((name) => scene.getObjectByName(name)).filter(Boolean) as THREE.Object3D[];
-      drawn = reflector.render(gl, scene, camera, best.position[1], view.corners, flat.current);
+      u.reflectStrength.value = drawn ? fade : 0;
     }
-    u.reflectStrength.value = drawn ? THREE.MathUtils.clamp((REFLECT_DISTANCE - bestDist) / REFLECT_FADE, 0, 1) : 0;
 
     tick.current -= delta;
     if (tick.current > 0) return;

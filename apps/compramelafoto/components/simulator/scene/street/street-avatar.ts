@@ -66,6 +66,8 @@ function dressAvatar(model: THREE.Object3D, figure: FigureSpec, cache: Map<strin
     // El FBX trae cinco niveles de detalle: en la calle alcanza el de máxima calidad.
     if (!mesh.name.includes("hipoly")) {
       mesh.visible = false;
+      // La carga no los precalienta (warmUpEverything): nunca se dibujan.
+      mesh.userData.neverDrawn = true;
       return;
     }
     const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];

@@ -13,6 +13,12 @@ export interface Impostor {
   material: THREE.MeshStandardMaterial;
   /** Para las sombras: recorta igual que el color. */
   depthMaterial: THREE.MeshDepthMaterial;
+  /**
+   * Vuelve a sacar la foto. Si se sacó antes de que llegaran las texturas (las
+   * hojas), quedaba vacía y el árbol lejano era invisible: se repite al
+   * terminar la carga, cuando ya está todo en la placa de video.
+   */
+  refresh: () => void;
   dispose: () => void;
 }
 
@@ -64,19 +70,21 @@ export function makeImpostor(gl: THREE.WebGLRenderer, source: THREE.Object3D): I
     generateMipmaps: true,
     minFilter: THREE.LinearMipmapLinearFilter,
   });
-  const prevTarget = gl.getRenderTarget();
-  const prevClear = gl.getClearColor(new THREE.Color());
-  const prevAlpha = gl.getClearAlpha();
-  const prevTone = gl.toneMapping;
-  gl.toneMapping = THREE.NoToneMapping;
-  gl.setRenderTarget(target);
-  gl.setClearColor(0x000000, 0);
-  gl.clear();
-  gl.render(scene, camera);
-  gl.setRenderTarget(prevTarget);
-  gl.setClearColor(prevClear, prevAlpha);
-  gl.toneMapping = prevTone;
-  for (const m of swapped) m.dispose();
+  const capture = () => {
+    const prevTarget = gl.getRenderTarget();
+    const prevClear = gl.getClearColor(new THREE.Color());
+    const prevAlpha = gl.getClearAlpha();
+    const prevTone = gl.toneMapping;
+    gl.toneMapping = THREE.NoToneMapping;
+    gl.setRenderTarget(target);
+    gl.setClearColor(0x000000, 0);
+    gl.clear();
+    gl.render(scene, camera);
+    gl.setRenderTarget(prevTarget);
+    gl.setClearColor(prevClear, prevAlpha);
+    gl.toneMapping = prevTone;
+  };
+  capture();
 
   // Dos planos cruzados, con la base en y = 0 y el centro en el tronco.
   const a = new THREE.PlaneGeometry(width, height);
@@ -117,11 +125,13 @@ export function makeImpostor(gl: THREE.WebGLRenderer, source: THREE.Object3D): I
     geometry,
     material,
     depthMaterial,
+    refresh: capture,
     dispose: () => {
       geometry.dispose();
       material.dispose();
       depthMaterial.dispose();
       target.dispose();
+      for (const m of swapped) m.dispose();
     },
   };
 }
