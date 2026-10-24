@@ -4,9 +4,10 @@ import { streetTexture, type StreetSurface } from "@/lib/simulator/street/street
 import { BUILDING_LINE, CITY, STREET, laneDirection, type StreetLayout } from "@/lib/simulator/street/street-layout";
 import { useTexture } from "@react-three/drei";
 import { useThree } from "@react-three/fiber";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+import { registerWetSurface } from "./wet-ground";
 
 /** Material PBR con texturas en metros: `metersPerTile` es lo que cubre una repetición. */
 function useSurface(surface: StreetSurface, metersPerTile: number): THREE.MeshStandardMaterial {
@@ -16,7 +17,7 @@ function useSurface(surface: StreetSurface, metersPerTile: number): THREE.MeshSt
     streetTexture(surface, "nor"),
     streetTexture(surface, "arm"),
   ]);
-  return useMemo(() => {
+  const material = useMemo(() => {
     const maxAniso = gl.capabilities.getMaxAnisotropy();
     const prep = (tex: THREE.Texture, color: boolean) => {
       const t = tex.clone();
@@ -39,6 +40,9 @@ function useSurface(surface: StreetSurface, metersPerTile: number): THREE.MeshSt
       roughness: 1,
     });
   }, [diff, nor, arm, gl, metersPerTile]);
+  // Con lluvia se moja (más oscuro y brillante).
+  useEffect(() => registerWetSurface(material), [material]);
+  return material;
 }
 
 /** Rectángulo con esquinas redondeadas (el cordón dobla en la esquina) en el plano XZ. */

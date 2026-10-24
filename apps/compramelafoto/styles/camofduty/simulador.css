@@ -288,6 +288,7 @@
 
 .cod-sim .cod-lens-card--active,
 .cod-sim .cod-scene-card--active,
+.cod-sim .cod-natural-light-presets__btn[aria-pressed="true"],
 .cod-sim .cod-scene-vehicle__speed-btn--active {
   background: var(--st-raise);
   box-shadow: 0 0 0 2px var(--st-amber) inset;

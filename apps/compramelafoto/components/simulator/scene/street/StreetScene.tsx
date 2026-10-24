@@ -17,6 +17,7 @@ import StreetPedestrians from "./StreetPedestrians";
 import StreetPlaza from "./StreetPlaza";
 import StreetProps from "./StreetProps";
 import StreetTraffic from "./StreetTraffic";
+import StreetRain from "./StreetRain";
 import { LoadingHold } from "../SceneLoadingGate";
 
 /**
@@ -52,6 +53,7 @@ export default function StreetScene() {
   return (
     <group>
       <StreetLighting />
+      <StreetRain />
       <Suspense fallback={<LoadingHold />}>
         <StreetGround layout={layout} />
       </Suspense>
