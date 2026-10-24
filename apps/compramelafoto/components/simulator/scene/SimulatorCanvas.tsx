@@ -10,6 +10,7 @@ import CanvasPhotoCapture from "./CanvasPhotoCapture";
 import DevDebugScene from "./DevDebugScene";
 import DepthOfFieldPass from "./DepthOfFieldPass";
 import QualityGovernor from "./QualityGovernor";
+import { SceneLoadingGate } from "./SceneLoadingGate";
 import FocusContinuousDrive from "./FocusContinuousDrive";
 import FocusMotorDrive from "./FocusMotorDrive";
 import FocusRaycaster from "./FocusRaycaster";
@@ -82,6 +83,7 @@ export default function SimulatorCanvas({ onLockChange, onLoaded }: SimulatorCan
       <CanvasPhotoCapture />
       <DepthOfFieldPass />
       <SimulatorSceneHealthCheck onReady={onLoaded} />
+      <SceneLoadingGate />
       <FocusRaycaster />
       <FocusMotorDrive />
       <FocusContinuousDrive />

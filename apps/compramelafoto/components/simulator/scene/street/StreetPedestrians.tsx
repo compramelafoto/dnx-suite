@@ -3,6 +3,7 @@
 import { simulatorRuntime, syncMovingSubjectsRegistry } from "@/lib/simulator/simulator-runtime";
 import type { MovingSubjectState } from "@/lib/simulator/moving-subject-types";
 import { STREET_PERSON_ID_PREFIX } from "@/lib/simulator/moving-subject-types";
+import { loadingGate } from "@/lib/simulator/loading-gate";
 import { ANIMATION_DIR, decodeClip, stripRootMotion, type CompactClip } from "@/lib/simulator/studio-light/animation-clip";
 import { figureById, figureUrl, type FigureSpec } from "@/lib/simulator/studio-light/figures";
 import { streetGroundHeight, type StreetLayout } from "@/lib/simulator/street/street-layout";
@@ -395,6 +396,7 @@ export default function StreetPedestrians({ layout }: { layout: StreetLayout }) 
     (loader) => {
       // El FBX menciona texturas .tga que no se publican: se reemplazan en dressAvatar.
       const manager = new THREE.LoadingManager();
+      loadingGate.track(manager);
       manager.addHandler(/\.tga$/i, new EmptyTextureLoader());
       loader.manager = manager;
     },

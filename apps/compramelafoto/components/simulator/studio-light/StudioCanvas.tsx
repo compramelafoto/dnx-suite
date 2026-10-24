@@ -12,6 +12,7 @@ import StudioBackdrop from "./StudioBackdrop";
 import StudioLightRig, { HELPER_LAYER } from "./StudioLightRig";
 import StudioFigure from "./StudioFigure";
 import StudioSubject from "./StudioSubject";
+import { LoadingHold, SceneLoadingGate } from "../scene/SceneLoadingGate";
 import { StudioCameraDirector, StudioWalkController, type QuickView } from "./StudioWalk";
 import { figureById, isBust } from "@/lib/simulator/studio-light/figures";
 
@@ -442,7 +443,7 @@ function SceneContent(props: {
       <SetGrid />
       <primitive object={roomLight} />
       <StudioBackdrop backdrop={state.backdrop} />
-      <Suspense fallback={null}>
+      <Suspense fallback={<LoadingHold />}>
         {isBust(state.subject) ? (
           <StudioSubject subject={state.subject} yaw={state.subjectYaw} />
         ) : figure ? (
@@ -531,6 +532,7 @@ export default function StudioCanvas({ mode, captureRef, onHistogram, showPip, o
       }}
     >
       <SceneContent mode={mode} captureRef={captureRef} onHistogram={onHistogram} showPip={showPip} onShoot={onShoot} viewRef={viewRef} />
+      <SceneLoadingGate />
     </Canvas>
   );
 }
