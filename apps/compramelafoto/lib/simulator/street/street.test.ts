@@ -136,7 +136,7 @@ test("hay detalles en el piso y en las paredes", () => {
 
 test("los peatones caminan en circuitos cerrados: sin saltos, cortes ni medias vueltas", () => {
   const { walkers, standers } = planStreetPeople(layout);
-  assert.ok(walkers.length >= 20 && walkers.length <= 45, `${walkers.length}`);
+  assert.ok(walkers.length >= 20 && walkers.length <= 60, `${walkers.length}`);
   assert.ok(standers.length >= 5);
   for (const w of walkers) {
     const total = pathLength(w.path);

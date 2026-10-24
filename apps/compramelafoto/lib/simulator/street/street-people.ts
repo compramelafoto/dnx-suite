@@ -48,7 +48,8 @@ export function planStreetPeople(layout: StreetLayout): { walkers: StreetWalker[
     // Repartidos a lo largo del circuito: más gente en las vueltas largas
     // (uno cada ~130 m alcanza para que siempre se cruce alguien).
     const total = pathLength(path.points);
-    const count = Math.max(1, Math.round(total / 130));
+    // Como mucho 4 por recorrido: los largos no llenan la ciudad de gente.
+    const count = Math.min(4, Math.max(1, Math.round(total / 130)));
     for (let k = 0; k < count; k += 1) {
       const n = walkers.length;
       const figure = figures[(i * 3 + k * 5) % figures.length];
