@@ -8,6 +8,7 @@ import DesignEditor from "@/components/design-v2/DesignEditor";
 import type { DesignPhotoPayload, DesignTemplatePayload } from "@/lib/design-v2/client-payload";
 import { emptySlotIds, type DesignV2Data, type DesignV2Edit } from "@/lib/design-v2/design-data";
 import { DESIGN_STATUS_TONES, designStatusLabel } from "@/lib/design-v2/labels";
+import RecortesPanel from "./RecortesPanel";
 import ListadoDelCursoPanel from "./ListadoDelCursoPanel";
 
 type DesignInfo = {
@@ -22,7 +23,13 @@ type DesignInfo = {
   armado?: { editadoAMano: boolean; enProduccion: boolean; puedeEditar: boolean; motivo: string | null };
 };
 
-type Loaded = { design: DesignInfo; data: DesignV2Data; template: DesignTemplatePayload; photos: DesignPhotoPayload[] };
+type Loaded = {
+  design: DesignInfo;
+  data: DesignV2Data;
+  template: DesignTemplatePayload;
+  photos: DesignPhotoPayload[];
+  recortesActivos: boolean;
+};
 
 const SAVE_DELAY_MS = 700;
 
@@ -44,7 +51,13 @@ export default function DesignReviewClient({ designId }: { designId: string }) {
       setLoadError(body.error || "No se pudo abrir el diseño.");
       return;
     }
-    setLoaded({ design: body.design, data: body.data, template: body.template, photos: body.photos });
+    setLoaded({
+      design: body.design,
+      data: body.data,
+      template: body.template,
+      photos: body.photos,
+      recortesActivos: body.recortesActivos === true,
+    });
   }, [designId]);
 
   useEffect(() => {
@@ -366,6 +379,27 @@ export default function DesignReviewClient({ designId }: { designId: string }) {
           </div>
         </Card>
       ) : null}
+
+      <RecortesPanel
+        designId={designId}
+        template={template}
+        data={data}
+        photos={photos}
+        activo={loaded.recortesActivos}
+        onRecortes={(recortes) =>
+          setLoaded((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  photos: prev.photos.map((p) => {
+                    const r = recortes.find((x) => x.photoId === p.id);
+                    return r ? { ...p, cutout: { status: r.status, url: r.status === "READY" ? r.url : null, error: r.error } } : p;
+                  }),
+                }
+              : prev,
+          )
+        }
+      />
 
       <ListadoDelCursoPanel
         designId={designId}

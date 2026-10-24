@@ -3,6 +3,8 @@ import test from "node:test";
 import {
   COURSE_MOSAIC_SAMPLE,
   distributeCourseMosaic,
+  parseCourseMosaicOwner,
+  serializeCourseMosaicOwner,
   DEFAULT_COURSE_MOSAIC_OPTIONS,
   formatMosaicName,
   layoutCourseMosaic,
@@ -262,4 +264,35 @@ test("un eslabón sin tope que no es el último se reparte parejo con los que si
   assert.equal(r.get("der")!.length, 12);
   const tres = splitCourseMosaicChain([...bloques, { id: "c", options: opciones({ chainOrder: 3 }) }], chicos(10));
   assert.deepEqual(["izq", "der", "c"].map((k) => tres.get(k)!.length), [4, 3, 3]);
+});
+
+test("figuritas: las opciones de recuadros vacíos e incluir al dueño se leen y se acotan", () => {
+  const o = readCourseMosaicOptions({ courseMosaic: { emptyPhotos: true, emptyFill: " #fff ", includeOwner: true } });
+  assert.equal(o.emptyPhotos, true);
+  assert.equal(o.emptyFill, "#fff");
+  assert.equal(o.includeOwner, true);
+  const d = readCourseMosaicOptions({});
+  assert.equal(d.emptyPhotos, false);
+  assert.equal(d.includeOwner, false);
+});
+
+test("el dueño se guarda aparte y se lee igual", () => {
+  const dueno = { firstName: "Martina", lastName: "López", photoId: 9 };
+  assert.deepEqual(parseCourseMosaicOwner(serializeCourseMosaicOwner(dueno)), dueno);
+  assert.equal(parseCourseMosaicOwner(""), null);
+  assert.equal(parseCourseMosaicOwner("[1,2]"), null);
+});
+
+test("los bloques que incluyen al dueño lo suman, ordenado con los demás; los otros no", () => {
+  const bloques = [
+    { id: "album", configJson: { variableKey: "course.mosaic", courseMosaic: { chainOrder: 1 } } },
+    { id: "plancha", configJson: { variableKey: "course.mosaic", courseMosaic: { chainOrder: 1, includeOwner: true } } },
+  ];
+  const lista = [
+    { firstName: "Ana", lastName: "Paz" },
+    { firstName: "Zoe", lastName: "Ruiz" },
+  ];
+  const r = distributeCourseMosaic(bloques, lista, { firstName: "Martina", lastName: "López" });
+  assert.deepEqual(r.get("album")!.map((s) => s.lastName), ["Paz", "Ruiz"]);
+  assert.deepEqual(r.get("plancha")!.map((s) => s.lastName), ["López", "Paz", "Ruiz"]);
 });

@@ -173,6 +173,8 @@ function normalizeBlockConfigByType(type: TemplateV2BlockType, input: unknown): 
       photoMode,
       maskShape,
       source,
+      // «Quitar el fondo» del hueco de foto (ver `huecos-sin-fondo.ts`).
+      ...(cfg.removeBackground === true ? { removeBackground: true } : {}),
     };
   }
 
