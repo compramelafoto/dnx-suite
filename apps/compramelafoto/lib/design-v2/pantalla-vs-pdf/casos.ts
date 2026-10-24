@@ -7,6 +7,7 @@
  * están en el formato que guarda el editor, el mismo que dibuja el lienzo.
  */
 import type { TemplateV2Block, TemplateV2Canvas } from "@repo/template-editor-core";
+import type { UMBRALES } from "./comparar";
 
 export type CasoDeComparacion = {
   id: string;
@@ -16,6 +17,11 @@ export type CasoDeComparacion = {
   blocks: TemplateV2Block[];
   /** Valores de las variables (el listado del curso, por ejemplo). */
   valores?: Record<string, string>;
+  /**
+   * Tolerancias propias del caso, sólo cuando hay una diferencia conocida que no es un error. Hay
+   * que decir cuál en un comentario al lado.
+   */
+  umbrales?: Partial<typeof UMBRALES>;
 };
 
 let orden = 0;
@@ -124,10 +130,7 @@ function dosCursosConTurno(): string {
   return JSON.stringify({
     g: [
       { t: "3 B", k: "padron|Primario|Mañana|3|B", h: "Mañana", s: curso(ALUMNOS.slice(0, 10), 2) },
-      // Mismo turno: el título queda corto («3.° B y 3.° C · Turno mañana»). Con turnos distintos
-      // es una frase larga en negrita y la diferencia de medidas entre la letra de la pantalla y
-      // la del PDF la corre unos píxeles al final (no es un error del listado).
-      { t: "3 C", k: "padron|Primario|Mañana|3|C", h: "Mañana", s: curso(ALUMNOS.slice(6), null) },
+      { t: "3 C", k: "padron|Primario|Tarde|3|C", h: "Tarde", s: curso(ALUMNOS.slice(6), null) },
     ],
   });
 }
@@ -353,14 +356,20 @@ export function casosDeComparacion(imagenDePrueba: string): CasoDeComparacion[] 
     {
       /*
        * Dos cursos con turno y el colegio arriba: los nombres van en 4 columnas (aunque el bloque
-       * diga 2), el colegio una sola vez arriba de todo y un solo título con los cursos y el
-       * turno. Derecho y girado 90°.
+       * diga 2), el colegio una sola vez arriba de todo y cada título con su turno. Derecho y
+       * girado 90°.
        */
       id: "listado-colegio-y-turno",
       titulo: "Listado de dos cursos con el colegio arriba y el turno, en 4 columnas",
       canvas: CHICO,
       paginas: 2,
       valores: { "course.studentList": dosCursosConTurno(), "school.name": "Escuela Manuel Belgrano" },
+      /*
+       * El título de dos cursos («3.° B · Turno mañana y 3.° C · Turno tarde») es una línea larga en
+       * negrita: el navegador y el PDF espacian las letras apenas distinto y al final de la línea
+       * suman unos 8 px. Se ve igual (mismo texto, mismo lugar); por eso la peor zona tolera más.
+       */
+      umbrales: { maximoPeorZona: 0.45 },
       blocks: [
         bloque("VARIABLE_TEXT", 0, { x: 100, y: 100, width: 1300, height: 800 }, {
           variableKey: "course.studentList", fontFamily: "Helvetica", fontSize: 40, color: "#1d3a6b", textAlign: "LEFT",

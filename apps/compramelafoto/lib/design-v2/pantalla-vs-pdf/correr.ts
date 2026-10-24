@@ -211,7 +211,7 @@ async function main() {
         await page.close();
         const deLPdf = pdf[pagina];
         if (!deLPdf) throw new Error(`${caso.id}: el PDF no tiene la página ${pagina + 1}.`);
-        const r = await compararImagenes(pantalla, deLPdf);
+        const r = await compararImagenes(pantalla, deLPdf, caso.umbrales);
         const base = path.join(SALIDA, `${caso.id}-p${pagina + 1}`);
         writeFileSync(`${base}-pantalla.png`, pantalla);
         writeFileSync(`${base}-pdf.png`, deLPdf);
