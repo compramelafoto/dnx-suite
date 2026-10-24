@@ -73,6 +73,12 @@ export type AlbumPhotosFolderExplorerProps = {
   albumTitle: string;
   eventId?: number | null;
   isOwner?: boolean;
+  /**
+   * Protección guardada del álbum. El fotógrafo ve sus fotos como las ve el
+   * cliente: desenfoque y franja al ampliar y, si lo encendió, en miniaturas.
+   */
+  scanProtectionEnabled?: boolean;
+  scanProtectionThumbnailsEnabled?: boolean;
   coverPhotoId: number | null;
   photoStats: AlbumPhotoStats;
   initialAlbumFolders?: AlbumFolderApiRow[];
@@ -240,6 +246,8 @@ export default function AlbumPhotosFolderExplorer({
   albumId,
   eventId,
   isOwner,
+  scanProtectionEnabled = false,
+  scanProtectionThumbnailsEnabled = false,
   coverPhotoId,
   photoStats,
   initialAlbumFolders = [],
@@ -860,6 +868,7 @@ export default function AlbumPhotosFolderExplorer({
             onPhotoRemove={onDeletePhoto}
             onPhotoSetCover={onSetCover ? handleSetCoverFromGrid : undefined}
             onPhotoSellOptionChange={showSellOptions ? handlePhotoSellOptionChange : undefined}
+            scanProtectThumbnails={scanProtectionThumbnailsEnabled}
             onPhotoOpenSlide={(id) => {
               const idx = gridPhotos.findIndex((p) => p.id === id);
               if (idx >= 0) {
@@ -1102,6 +1111,7 @@ export default function AlbumPhotosFolderExplorer({
           }
           onDelete={onDeletePhoto}
           enableZoom
+          protectUnpurchased={scanProtectionEnabled}
         />
       ) : null}
 

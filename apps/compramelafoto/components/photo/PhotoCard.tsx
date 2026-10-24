@@ -2,6 +2,7 @@
 
 import { cn } from "@/lib/utils";
 import { GalleryMediaTypeBadgeSingle } from "@/components/gallery/GalleryMediaTypeBadges";
+import ScanProtectedPhoto from "./ScanProtectedPhoto";
 
 interface PhotoCardProps {
   src: string;
@@ -21,6 +22,8 @@ interface PhotoCardProps {
   noDrag?: boolean;
   /** Muestra icono de foto en la esquina (galerías públicas). */
   showMediaTypeBadge?: boolean;
+  /** Miniatura con la ventana de escaneo (desenfoque + franja nítida). */
+  scanProtected?: boolean;
   className?: string;
 }
 
@@ -41,6 +44,7 @@ export default function PhotoCard({
   onSellPrintChange,
   noDrag = false,
   showMediaTypeBadge = false,
+  scanProtected = false,
   className,
 }: PhotoCardProps) {
   const showSellToggles = Boolean(onSellDigitalChange || onSellPrintChange);
@@ -90,6 +94,15 @@ export default function PhotoCard({
         }}
       >
         {showMediaTypeBadge ? <GalleryMediaTypeBadgeSingle type="photo" /> : null}
+        {scanProtected ? (
+          <ScanProtectedPhoto
+            variant="thumbnail"
+            src={src}
+            alt={alt}
+            imageClassName="max-w-full max-h-64 object-contain"
+            imageStyle={{ width: "auto", height: "auto" }}
+          />
+        ) : (
         <img
           src={src}
           alt={alt}
@@ -104,6 +117,7 @@ export default function PhotoCard({
           draggable={!noDrag}
           onDragStart={noDrag ? (e) => e.preventDefault() : undefined}
         />
+        )}
       </div>
       {isCover && (
         <div className="absolute top-2 left-2 bg-[#10b981] text-white text-xs font-medium px-2 py-1 rounded">

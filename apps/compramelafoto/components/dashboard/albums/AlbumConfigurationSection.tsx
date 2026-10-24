@@ -33,6 +33,8 @@ export type AlbumConfigurationSectionProps = {
   textSearchEnabled: boolean | null;
   onTextSearchChange: (value: boolean) => void;
   onScanProtectionChange: (value: boolean) => void;
+  scanProtectionThumbnailsEnabled: boolean;
+  onScanProtectionThumbnailsChange: (value: boolean) => void;
   albumMode: AlbumNextStepsMode;
   albumModeSaving: boolean;
   saving: boolean;
@@ -95,6 +97,8 @@ export default function AlbumConfigurationSection({
   textSearchEnabled,
   onTextSearchChange,
   onScanProtectionChange,
+  scanProtectionThumbnailsEnabled,
+  onScanProtectionThumbnailsChange,
   albumMode,
   albumModeSaving,
   saving,
@@ -266,8 +270,28 @@ export default function AlbumConfigurationSection({
               </span>
               <span className="mt-0.5 block text-xs text-[#6b7280] leading-relaxed">
                 {scanProtectionEnabled
-                  ? "Al ampliar una foto no comprada se ve desenfocada y una franja la recorre mostrando solo una parte nítida. Las miniaturas y las fotos ya compradas no cambian."
+                  ? "Al ampliar una foto no comprada se ve desenfocada y una franja la recorre mostrando solo una parte nítida. Las fotos ya compradas no cambian."
                   : "Las fotos se ven completas y nítidas al ampliarlas, como antes. Se mantienen la marca de agua y el resto de las protecciones."}
+              </span>
+            </span>
+          </label>
+
+          <label className="flex items-start gap-3 rounded-lg border border-[#e5e7eb] bg-[#fafafa] p-3 cursor-pointer">
+            <input
+              type="checkbox"
+              className="mt-1 shrink-0"
+              checked={scanProtectionThumbnailsEnabled}
+              onChange={(e) => onScanProtectionThumbnailsChange(e.target.checked)}
+              disabled={saving}
+            />
+            <span className="min-w-0">
+              <span className="block text-sm font-medium text-[#1a1a1a]">
+                Protección también en las miniaturas
+              </span>
+              <span className="mt-0.5 block text-xs text-[#6b7280] leading-relaxed">
+                {scanProtectionThumbnailsEnabled
+                  ? "Las miniaturas de la galería también se ven desenfocadas, con una franja nítida que las recorre. Sirve contra capturas de pantalla de la grilla completa."
+                  : "Las miniaturas de la galería se ven nítidas, con marca de agua. Encendelo si te preocupa que capturen la grilla de fotos."}
               </span>
             </span>
           </label>

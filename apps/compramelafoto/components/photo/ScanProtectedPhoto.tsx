@@ -13,7 +13,9 @@ import {
   SCAN_BAND_HEIGHT_CSS,
   SCAN_BASE_BLUR_CSS,
   SCAN_FALLBACK_BAND_HEIGHT_PX,
+  SCAN_THUMB_BASE_BLUR_CSS,
   computeContainedRect,
+  computeThumbnailBandPx,
   computeScanDurationMs,
   type ScanContentRect,
 } from "@/lib/photo/scan-protection";
@@ -30,6 +32,11 @@ export interface ScanProtectedPhotoProps {
   /** Estilos del contenedor: acá va el zoom, para que las capas escalen juntas. */
   frameStyle?: CSSProperties;
   onLoad?: () => void;
+  /**
+   * `thumbnail`: miniatura de la galería. Franja proporcional a la foto, menos
+   * desenfoque, carga diferida y animación en pausa mientras no se ve.
+   */
+  variant?: "full" | "thumbnail";
 }
 
 /**
@@ -49,8 +56,12 @@ export default function ScanProtectedPhoto({
   imageStyle,
   frameStyle,
   onLoad,
+  variant = "full",
 }: ScanProtectedPhotoProps) {
+  const isThumb = variant === "thumbnail";
   const baseRef = useRef<HTMLImageElement>(null);
+  const frameRef = useRef<HTMLSpanElement>(null);
+  const [visible, setVisible] = useState(true);
   const patternId = useId().replace(/[^a-zA-Z0-9_-]/g, "");
   const [rect, setRect] = useState<ScanContentRect | null>(null);
 
@@ -110,7 +121,22 @@ export default function ScanProtectedPhoto({
     return () => observer.disconnect();
   }, [measure]);
 
-  const bandHeightPx = rect
+  // Una galería tiene cientos de miniaturas: sólo se animan las que están a la vista.
+  useEffect(() => {
+    const el = frameRef.current;
+    if (!isThumb || !el || typeof IntersectionObserver === "undefined") return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => setVisible(entry?.isIntersecting ?? true),
+      { rootMargin: "200px" },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [isThumb]);
+
+  const bandHeightPx = isThumb
+    ? computeThumbnailBandPx(rect?.height ?? 0)
+    : rect
     ? Math.max(
         SCAN_FALLBACK_BAND_HEIGHT_PX * 0.7,
         Math.min(SCAN_FALLBACK_BAND_HEIGHT_PX * 1.2, rect.height * 0.36),
@@ -128,8 +154,8 @@ export default function ScanProtectedPhoto({
   });
 
   const frameVars = {
-    "--cmf-scan-blur": SCAN_BASE_BLUR_CSS,
-    "--cmf-scan-band": SCAN_BAND_HEIGHT_CSS,
+    "--cmf-scan-blur": isThumb ? SCAN_THUMB_BASE_BLUR_CSS : SCAN_BASE_BLUR_CSS,
+    "--cmf-scan-band": isThumb ? `${bandHeightPx}px` : SCAN_BAND_HEIGHT_CSS,
     "--cmf-scan-duration": `${durationMs}ms`,
     "--cmf-scan-duration-reduced": `${reducedDurationMs}ms`,
     ...(rect
@@ -147,15 +173,19 @@ export default function ScanProtectedPhoto({
 
   return (
     <span
-      className="cmf-scan"
+      ref={frameRef}
+      className={isThumb ? "cmf-scan cmf-scan--thumb" : "cmf-scan"}
       style={frameVars}
       data-scan-protected="true"
       data-scan-measured={measured ? "true" : "false"}
+      data-scan-paused={isThumb && !visible ? "true" : undefined}
     >
       <img
         ref={baseRef}
         src={src}
         alt={alt}
+        loading={isThumb ? "lazy" : undefined}
+        decoding={isThumb ? "async" : undefined}
         draggable={false}
         onDragStart={(e) => e.preventDefault()}
         onContextMenu={(e) => e.preventDefault()}
@@ -172,6 +202,8 @@ export default function ScanProtectedPhoto({
             <img
               src={src}
               alt=""
+              loading={isThumb ? "lazy" : undefined}
+              decoding={isThumb ? "async" : undefined}
               draggable={false}
               className="cmf-scan__sharp"
               aria-hidden="true"

@@ -23,6 +23,8 @@ interface PhotoGridProps {
   onPhotoOpenSlide?: (id: string) => void;
   onPhotoSellOptionChange?: (photoId: string, field: "sellDigital" | "sellPrint", value: boolean) => void;
   noDrag?: boolean;
+  /** Miniaturas con la ventana de escaneo. Independiente de la foto ampliada. */
+  scanProtectThumbnails?: boolean;
 }
 
 export default function PhotoGrid({
@@ -34,6 +36,7 @@ export default function PhotoGrid({
   onPhotoOpenSlide,
   onPhotoSellOptionChange,
   noDrag,
+  scanProtectThumbnails = false,
 }: PhotoGridProps) {
   if (photos.length === 0) {
     return (
@@ -69,6 +72,7 @@ export default function PhotoGrid({
           onSellDigitalChange={onPhotoSellOptionChange ? (v) => onPhotoSellOptionChange(photo.id, "sellDigital", v) : undefined}
           onSellPrintChange={onPhotoSellOptionChange ? (v) => onPhotoSellOptionChange(photo.id, "sellPrint", v) : undefined}
           noDrag={noDrag}
+          scanProtected={scanProtectThumbnails}
         />
       ))}
     </div>

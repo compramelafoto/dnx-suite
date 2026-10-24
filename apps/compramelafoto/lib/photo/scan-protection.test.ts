@@ -4,7 +4,9 @@ import assert from "node:assert/strict";
 import {
   SCAN_MAX_DURATION_MS,
   SCAN_MIN_DURATION_MS,
+  SCAN_THUMB_MIN_BAND_PX,
   computeContainedRect,
+  computeThumbnailBandPx,
   computeScanDurationMs,
   shouldApplyScanProtection,
 } from "./scan-protection";
@@ -134,5 +136,17 @@ describe("computeContainedRect", () => {
     const r2 = computeContainedRect(100, 100, 0, 0);
     assert.equal(r2.width, 0);
     assert.equal(r2.height, 0);
+  });
+});
+
+describe("computeThumbnailBandPx", () => {
+  it("la franja de una miniatura es proporcional a su alto", () => {
+    assert.equal(computeThumbnailBandPx(240), Math.round(240 * 0.34));
+  });
+
+  it("nunca baja del mínimo, ni sin medición", () => {
+    assert.equal(computeThumbnailBandPx(60), SCAN_THUMB_MIN_BAND_PX);
+    assert.equal(computeThumbnailBandPx(0), SCAN_THUMB_MIN_BAND_PX);
+    assert.equal(computeThumbnailBandPx(Number.NaN), SCAN_THUMB_MIN_BAND_PX);
   });
 });

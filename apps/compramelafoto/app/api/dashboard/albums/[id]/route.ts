@@ -511,6 +511,7 @@ export async function PATCH(
       termsAccepted,
       showComingSoonMessage,
       scanProtectionEnabled,
+      scanProtectionThumbnailsEnabled,
       textSearchEnabled,
       preCompraCloseAt,
       requireClientApproval,
@@ -636,6 +637,11 @@ export async function PATCH(
     if (scanProtectionEnabled !== undefined) {
       (updateData as { scanProtectionEnabled?: boolean }).scanProtectionEnabled =
         Boolean(scanProtectionEnabled);
+    }
+    if (scanProtectionThumbnailsEnabled !== undefined) {
+      (
+        updateData as { scanProtectionThumbnailsEnabled?: boolean }
+      ).scanProtectionThumbnailsEnabled = Boolean(scanProtectionThumbnailsEnabled);
     }
 
 

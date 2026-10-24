@@ -834,6 +834,18 @@
   }
 }
 
+/* Miniaturas de la galería: el toque es de la tarjeta, no de las imágenes
+   (globals fuerza pointer-events en las img de la grilla), y la franja se
+   detiene mientras la miniatura está fuera de pantalla. */
+.cmf-scan.cmf-scan--thumb img {
+  pointer-events: none !important;
+}
+
+.cmf-scan[data-scan-paused="true"] .cmf-scan__window,
+.cmf-scan[data-scan-paused="true"] .cmf-scan__inner {
+  animation-play-state: paused;
+}
+
 /* Menos movimiento: el recorrido continúa, mucho más lento.
    No se deja una zona nítida fija, que revelaría siempre la misma sección. */
 @media (prefers-reduced-motion: reduce) {
