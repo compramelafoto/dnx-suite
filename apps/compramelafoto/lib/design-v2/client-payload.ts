@@ -1,4 +1,4 @@
-import { CLASS_LIST_VARIABLE_KEY, COURSE_MOSAIC_VARIABLE_KEY } from "@repo/template-editor-core";
+import { CLASS_LIST_VARIABLE_KEY, COURSE_MOSAIC_VARIABLE_KEY, COURSE_MOSAIC_OWNER_VARIABLE_KEY } from "@repo/template-editor-core";
 import type { ClientPhotoSlot, TemplateV2Block, TemplateV2Canvas } from "@repo/template-editor-core";
 
 /**
@@ -18,7 +18,12 @@ export type DesignTemplatePayload = {
   textVariables: string[];
 };
 
-export type DesignPhotoPayload = { id: number; url: string | null };
+export type DesignPhotoPayload = {
+  id: number;
+  url: string | null;
+  /** El recorte sin fondo, si se pidió: se usa en los huecos «Quitar el fondo». */
+  cutout?: { status: string; url: string | null; error: string | null };
+};
 
 function asRecord(v: unknown): Record<string, unknown> {
   return v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
@@ -45,7 +50,7 @@ export function toDesignTemplatePayload(template: {
         // El listado y el mosaico del curso no se corrigen a mano como un texto: salen del padrón.
         .filter(
           (k): k is string =>
-            typeof k === "string" && k.trim() !== "" && k !== CLASS_LIST_VARIABLE_KEY && k !== COURSE_MOSAIC_VARIABLE_KEY,
+            typeof k === "string" && k.trim() !== "" && k !== CLASS_LIST_VARIABLE_KEY && k !== COURSE_MOSAIC_VARIABLE_KEY && k !== COURSE_MOSAIC_OWNER_VARIABLE_KEY,
         ),
     ),
   ];

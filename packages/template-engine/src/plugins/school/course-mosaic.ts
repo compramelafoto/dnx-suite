@@ -12,6 +12,11 @@
  */
 
 export const COURSE_MOSAIC_VARIABLE_KEY = "course.mosaic";
+/**
+ * El dueño del diseño, aparte: lo usan sólo los bloques con «Incluir al dueño» (la plancha de
+ * figuritas lleva también la del propio chico).
+ */
+export const COURSE_MOSAIC_OWNER_VARIABLE_KEY = "course.mosaicOwner";
 
 export type CourseMosaicCrop = { zoom: number; x: number; y: number };
 
@@ -70,6 +75,14 @@ export type CourseMosaicOptions = {
    * con los bloques que siguen (el último se lleva el resto).
    */
   capacity: number;
+  /**
+   * Recuadros vacíos, sin foto (el álbum de figuritas: ahí se pega cada una). Van con el color
+   * `emptyFill`, el borde y el nombre.
+   */
+  emptyPhotos: boolean;
+  emptyFill: string;
+  /** Sumar al dueño del diseño (la plancha de figuritas lleva también la suya). */
+  includeOwner: boolean;
 };
 
 export const DEFAULT_COURSE_MOSAIC_OPTIONS: CourseMosaicOptions = {
@@ -92,6 +105,9 @@ export const DEFAULT_COURSE_MOSAIC_OPTIONS: CourseMosaicOptions = {
   reserved: null,
   chainOrder: 1,
   capacity: 0,
+  emptyPhotos: false,
+  emptyFill: "#ffffff",
+  includeOwner: false,
 };
 
 export const COURSE_MOSAIC_PHOTO_ASPECT_MIN = 0.2;
@@ -178,6 +194,9 @@ export function readCourseMosaicOptions(config: unknown): CourseMosaicOptions {
     reserved: raw.reserved === undefined ? d.reserved : readReserved(raw.reserved),
     chainOrder: Math.round(num(raw.chainOrder, d.chainOrder, 1, 99)),
     capacity: Math.round(num(raw.capacity, d.capacity, 0, 999)),
+    emptyPhotos: raw.emptyPhotos === true,
+    emptyFill: str(raw.emptyFill, d.emptyFill) || d.emptyFill,
+    includeOwner: raw.includeOwner === true,
   };
 }
 
@@ -218,6 +237,20 @@ export function parseCourseMosaic(value: string | null | undefined): CourseMosai
   }
   if (!Array.isArray(raw)) return [];
   return raw.map(readStudent).filter((s): s is CourseMosaicStudent => s != null);
+}
+
+export function serializeCourseMosaicOwner(owner: CourseMosaicStudent): string {
+  return JSON.stringify(owner);
+}
+
+export function parseCourseMosaicOwner(value: string | null | undefined): CourseMosaicStudent | null {
+  if (!value || !value.trim()) return null;
+  try {
+    const raw = JSON.parse(value);
+    return Array.isArray(raw) ? null : readStudent(raw);
+  } catch {
+    return null;
+  }
 }
 
 export function sortCourseMosaic(students: CourseMosaicStudent[], o: CourseMosaicOptions): CourseMosaicStudent[] {
@@ -479,16 +512,24 @@ export function splitCourseMosaicChain<T extends { id: string; options: CourseMo
 /**
  * Los chicos de cada bloque mosaico de un diseño: se ordenan con las opciones del primer bloque
  * de la cadena y se reparten por `chainOrder`. Lo usan el lienzo y la impresión, así los dos
- * ponen a cada chico en el mismo bloque.
+ * ponen a cada chico en el mismo bloque. Los bloques con «Incluir al dueño» forman su propia
+ * cadena, con el dueño sumado.
  */
 export function distributeCourseMosaic(
   blocks: ReadonlyArray<{ id: string; configJson?: unknown }>,
   students: CourseMosaicStudent[],
+  owner?: CourseMosaicStudent | null,
 ): Map<string, CourseMosaicStudent[]> {
   const chain = blocks
     .filter((b) => isCourseMosaicConfig(b.configJson))
     .map((b) => ({ id: b.id, options: readCourseMosaicOptions(b.configJson) }));
-  if (chain.length === 0) return new Map();
-  const first = [...chain].sort((a, b) => a.options.chainOrder - b.options.chainOrder)[0]!;
-  return splitCourseMosaicChain(chain, sortCourseMosaic(students, first.options));
+  const out = new Map<string, CourseMosaicStudent[]>();
+  for (const conDueno of [false, true]) {
+    const grupo = chain.filter((b) => b.options.includeOwner === conDueno);
+    if (grupo.length === 0) continue;
+    const first = [...grupo].sort((a, b) => a.options.chainOrder - b.options.chainOrder)[0]!;
+    const lista = conDueno && owner ? [...students, owner] : students;
+    for (const [id, l] of splitCourseMosaicChain(grupo, sortCourseMosaic(lista, first.options))) out.set(id, l);
+  }
+  return out;
 }

@@ -35,6 +35,11 @@ export const FIGURES: FigureSpec[] = [
   { id: "martin", folder: "Male_Adult_08", name: "Martín", outfit: "Camisa celeste", gender: "hombre" },
   { id: "samuel", folder: "Male_Adult_12", name: "Samuel", outfit: "Campera de jean", gender: "hombre" },
   { id: "joaquin", folder: "Male_Adult_13", name: "Joaquín", outfit: "Suéter de rombos", gender: "hombre" },
+  // Ropa deportiva: los corredores de la calle (también se pueden usar en el estudio).
+  { id: "paula", folder: "Sports_Female_01", name: "Paula", outfit: "Calza y top deportivo", gender: "mujer" },
+  { id: "carla", folder: "Sports_Female_02", name: "Carla", outfit: "Ropa de running", gender: "mujer" },
+  { id: "diego", folder: "Sports_Male_01", name: "Diego", outfit: "Remera y short deportivo", gender: "hombre" },
+  { id: "nico", folder: "Sports_Male_02", name: "Nicolás", outfit: "Conjunto deportivo", gender: "hombre" },
 ];
 
 export const BUST_LABELS: Record<BustId, string> = {

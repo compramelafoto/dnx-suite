@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { PAPER_TOKENS, TemplateCanvasRenderer, editorThemeStyle } from "@repo/template-editor-ui";
 import { DEFAULT_PHOTO_CROP, PHOTO_CROP_MAX_ZOOM, type PhotoCrop } from "@repo/template-editor-core";
 import { applyDesignV2Edit, type DesignV2Data, type DesignV2Edit } from "@/lib/design-v2/design-data";
-import { designPhotoOverrides, visibleDesignBlocks } from "@/lib/design-v2/render-inputs";
+import { designPhotoOverrides, sinFondoDelDiseno, visibleDesignBlocks } from "@/lib/design-v2/render-inputs";
 import {
   textVariableLabel,
   type DesignPhotoPayload,
@@ -82,7 +82,7 @@ export default function DesignEditor({ template, photos, data, onChange, readOnl
 
   // Lo que se ve tiene que ser lo que se imprime.
   const visibleBlocks = useMemo(() => visibleDesignBlocks(template.blocks, data.values), [template.blocks, data.values]);
-  const overrides = useMemo(() => designPhotoOverrides(data.slots, photoUrlById), [data.slots, photoUrlById]);
+  const overrides = useMemo(() => designPhotoOverrides(data.slots, photoUrlById, sinFondoDelDiseno(template.blocks, photos)), [data.slots, photoUrlById, template, photos]);
 
   function apply(edit: DesignV2Edit) {
     if (readOnly) return;

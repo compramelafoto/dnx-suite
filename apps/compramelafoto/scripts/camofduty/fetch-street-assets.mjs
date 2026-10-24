@@ -40,7 +40,6 @@ const MODELS = [
   { id: "covered_car", file: "covered-car.glb", res: "1k", size: 1024 },
   // Plaza, pasajes y veredas del barrio grande.
   { id: "horse_statue_01", file: "statue.glb", res: "1k", size: 1024 },
-  { id: "street_lamp_02", file: "plaza-lamp.glb", res: "1k", size: 512, simplify: 0.3 },
   { id: "painted_wooden_bench", file: "plaza-bench.glb", res: "1k", size: 512 },
   { id: "shrub_01", file: "shrub.glb", res: "1k", size: 512, simplify: 0.04 },
   { id: "CoffeeCart_01", file: "coffee-cart.glb", res: "1k", size: 1024 },

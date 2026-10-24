@@ -8,7 +8,12 @@
 
 import { BUILDING_LINE, STREET, type StreetLayout, type Vec2 } from "./street-layout";
 
-export type Gait = "walk_neutral_01" | "walk_stroll_01" | "walk_fast_01";
+export type Gait = "walk_neutral_01" | "walk_stroll_01" | "walk_fast_01" | "run_slow_01" | "run_neutral_01";
+
+/** Trote y carrera: la velocidad sale del avance de la propia animación. */
+export function isRunning(gait: Gait): boolean {
+  return gait.startsWith("run_");
+}
 export type StandAction = "cell_phone_textmessage" | "cell_phone_talk_01" | "idle_look_around_01" | "gestic_talk_relaxed_01";
 
 export interface StreetWalker {
@@ -31,8 +36,11 @@ export interface StreetStander {
 }
 
 /** Femeninas y masculinas: el clip tiene que ser del mismo género que el esqueleto. */
-const WOMEN = ["sofia", "laura", "julia", "martina", "valentina"];
-const MEN = ["tomas", "ricardo", "mateo", "samuel", "lucas", "martin", "joaquin"];
+const WOMEN = ["sofia", "laura", "julia", "martina", "valentina", "paula", "carla"];
+const MEN = ["tomas", "ricardo", "mateo", "samuel", "lucas", "martin", "joaquin", "diego", "nico"];
+/** Corredores con ropa deportiva y las vueltas largas por donde corren. */
+const RUNNERS = ["paula", "diego", "carla", "nico"];
+const RUNNING_LOOPS = ["vuelta-al-barrio", "vuelta-al-barrio-contramano", "vuelta-cuatro-manzanas", "vuelta-larga-sur", "vuelta-larga-este"];
 /** Ricardo es un adulto mayor: camina despacio. */
 const SLOW = new Set(["ricardo"]);
 
@@ -65,6 +73,25 @@ export function planStreetPeople(layout: StreetLayout): { walkers: StreetWalker[
       });
     }
   });
+
+  // Corredores: uno o dos por vuelta larga, al trote o más rápido (para la larga exposición).
+  let r = 0;
+  for (const id of RUNNING_LOOPS) {
+    const path = layout.walkPaths.find((p) => p.id === id);
+    if (!path) continue;
+    const total = pathLength(path.points);
+    const count = id === "vuelta-al-barrio" ? 2 : 1;
+    for (let k = 0; k < count; k += 1) {
+      walkers.push({
+        id: `run${r}`,
+        figure: RUNNERS[r % RUNNERS.length],
+        gait: r % 3 === 2 ? "run_neutral_01" : "run_slow_01",
+        path: path.points,
+        startDistance: (total * (k + 0.5)) / count + r * 17,
+      });
+      r += 1;
+    }
+  }
 
   // Contra la pared, para no quedar en el camino de los que caminan; otros en la plaza.
   const front = BUILDING_LINE - 0.3;

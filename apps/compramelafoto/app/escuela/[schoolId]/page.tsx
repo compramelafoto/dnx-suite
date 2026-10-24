@@ -8,6 +8,7 @@ import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import Textarea from "@/components/ui/Textarea";
 import SchoolOrganizerHeader from "@/components/school-organizer/SchoolOrganizerHeader";
+import SchoolProfileEditor from "@/components/school-organizer/SchoolProfileEditor";
 import { RosterImportChatGptTipPanel } from "@/components/roster/RosterImportChatGptTipPanel";
 import { ensureSchoolOrganizerSession } from "@/lib/school-organizer-session-client";
 import {
@@ -409,6 +410,15 @@ export default function EscuelaDetailPage() {
     }
   }
 
+  /** Vuelve a pedir el detalle tras editar el perfil (revalidate = 0 no refresca solo). */
+  async function refreshSchoolDetail() {
+    if (!schoolId) return;
+    const res = await fetch(`/api/school-organizer/schools/${schoolId}`, { credentials: "include" });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok) setDetail(data as SchoolDetailResponse);
+    router.refresh();
+  }
+
   async function handleRequestPayout() {
     if (!schoolId) return;
     setRequestPayoutLoading(true);
@@ -710,6 +720,9 @@ export default function EscuelaDetailPage() {
                     {[detail.school.city, detail.school.province].filter(Boolean).join(", ") || "Sin localidad"}
                   </p>
                 </div>
+              </div>
+              <div className="mt-3">
+                <SchoolProfileEditor schoolId={detail.school.id} onSaved={refreshSchoolDetail} />
               </div>
               <div className="mt-4 grid grid-cols-1 gap-3 text-sm md:grid-cols-3">
                 <p>
