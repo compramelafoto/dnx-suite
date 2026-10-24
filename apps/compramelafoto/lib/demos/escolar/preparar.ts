@@ -248,7 +248,29 @@ function planDeFotos(origen: string): FotoPlan[] {
   return plan;
 }
 
-/** Sube las fotos que falten, con el mismo proceso que una subida desde el panel. */
+/**
+ * Sube una foto al álbum demo con el mismo proceso que una subida desde el panel, y la deja sin
+ * publicar hasta el paso «Subís las fotos».
+ */
+export async function subirFotoDemo(albumId: number, fotografoId: number, archivo: string, buffer: Buffer) {
+  const key = `albums/${albumId}/raw/demo-${randomBytes(6).toString("hex")}-${archivo}`;
+  await uploadToR2(buffer, key, "image/jpeg");
+  const { photo } = await finalizeAlbumPhotoFromRaw({
+    albumId,
+    userId: fotografoId,
+    key,
+    maxBytes: getAlbumPhotoMaxBytes(),
+    maxMb: getAlbumPhotoMaxMb(),
+    originalFilename: archivo,
+  });
+  await prisma.photo.update({
+    where: { id: photo.id },
+    data: { originalFilename: archivo, isRemoved: true, removedAt: new Date(), removedReason: FOTOS_SIN_PUBLICAR },
+  });
+  return photo.id;
+}
+
+/** Sube las fotos que falten. */
 async function asegurarFotos(albumId: number, fotografoId: number, origen: string, presupuestoMs: number) {
   const existentes = await prisma.photo.findMany({
     where: { albumId, originalFilename: { not: null } },
@@ -261,27 +283,7 @@ async function asegurarFotos(albumId: number, fotografoId: number, origen: strin
   for (const foto of plan) {
     if (ya.has(foto.archivo)) continue;
     if (Date.now() - inicio > presupuestoMs) break;
-    const buffer = await foto.obtener();
-    const key = `albums/${albumId}/raw/demo-${randomBytes(6).toString("hex")}-${foto.archivo}`;
-    await uploadToR2(buffer, key, "image/jpeg");
-    const { photo } = await finalizeAlbumPhotoFromRaw({
-      albumId,
-      userId: fotografoId,
-      key,
-      maxBytes: getAlbumPhotoMaxBytes(),
-      maxMb: getAlbumPhotoMaxMb(),
-      originalFilename: foto.archivo,
-    });
-    // Sin publicar hasta el paso «Subís las fotos»: la preventa se muestra antes de la toma.
-    await prisma.photo.update({
-      where: { id: photo.id },
-      data: {
-        originalFilename: foto.archivo,
-        isRemoved: true,
-        removedAt: new Date(),
-        removedReason: FOTOS_SIN_PUBLICAR,
-      },
-    });
+    await subirFotoDemo(albumId, fotografoId, foto.archivo, await foto.obtener());
     ya.add(foto.archivo);
     subidasAhora += 1;
   }
