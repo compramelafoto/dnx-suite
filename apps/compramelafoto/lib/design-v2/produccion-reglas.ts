@@ -245,3 +245,32 @@ export const MAX_LIBRITOS_POR_ZIP = 60;
  */
 export const MAX_LIBRITOS_POR_ZIP_JPG = 30;
 export const MAX_LIBRITOS_POR_PDF_UNICO = 40;
+
+/** 2 cm en puntos PDF (72 por pulgada): lo mínimo para que un celular lea el QR sin acercarse. */
+export const LADO_QR_ETIQUETA = (20 / 25.4) * 72;
+
+export type GeometriaDeEtiqueta = {
+  /** Desde el borde izquierdo de la celda, donde arranca el texto. */
+  textoX: number;
+  /** Ancho disponible para el texto (alumno, curso, colegio). */
+  textoMax: number;
+  /** El QR, relativo a la esquina inferior izquierda de la celda; null si el librito no tiene. */
+  qr: { x: number; y: number; lado: number } | null;
+  /** Dónde va el «#id», relativo a la esquina inferior izquierda de la celda. */
+  id: { x: number; y: number };
+};
+
+/**
+ * Cómo se reparte una etiqueta del sobre. Sin QR queda como siempre (texto a lo ancho, «#id» abajo
+ * a la derecha). Con QR, el código ocupa ~2 cm a la derecha, centrado en alto, y el texto se angosta
+ * para no pisarlo; el «#id» pasa abajo a la izquierda.
+ */
+export function geometriaDeEtiqueta(ancho: number, alto: number, conQr: boolean): GeometriaDeEtiqueta {
+  const textoX = 10;
+  if (!conQr) return { textoX, textoMax: ancho - 20, qr: null, id: { x: ancho - 40, y: 12 } };
+  const margen = 9;
+  const lado = Math.min(LADO_QR_ETIQUETA, alto - margen * 2, ancho / 2);
+  const x = ancho - margen - lado;
+  const y = (alto - lado) / 2;
+  return { textoX, textoMax: x - 6 - textoX, qr: { x, y, lado }, id: { x: textoX, y: 12 } };
+}
