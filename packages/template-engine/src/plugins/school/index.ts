@@ -10,6 +10,7 @@ import {
 
 export { SCHOOL_TEMPLATE_ALIASES } from "./aliases";
 export * from "./class-list";
+export * from "./course-mosaic";
 export {
   SCHOOL_CLIENT_PHOTO_PLACEHOLDER,
   SCHOOL_CLIENT_PHOTO_SLOT_COUNT,
