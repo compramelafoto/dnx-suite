@@ -931,6 +931,12 @@ function makeWalkPaths(blocks: CityBlock[], plaza: Plaza): WalkPath[] {
     // Alrededor de la manzana, por la vereda (sentido antihorario).
     out.push({ id: `vuelta-${b.id}`, points: loop(ax + band, ax + p - band, az + band, az + p - band), speed: 1.25 + ((b.ix + b.iz) % 3) * 0.08 });
   }
+  // Recorridos largos, para poder seguir a alguien un buen rato: la vuelta a todo el barrio
+  // (unos 1,2 km por las veredas de afuera) y la de cuatro manzanas (unos 800 m).
+  const [l0, l1, , l3] = CITY.lines;
+  out.push({ id: "vuelta-al-barrio", points: loop(l0 + band, l3 - band, l0 + band, l3 - band), speed: 1.3 });
+  out.push({ id: "vuelta-al-barrio-contramano", points: loop(l0 + band, l3 - band, l0 + band, l3 - band).reverse(), speed: 1.38 });
+  out.push({ id: "vuelta-cuatro-manzanas", points: loop(l0 + band, CITY.lines[2] - band, l1 + band, l3 - band), speed: 1.25 });
   // Vueltas largas de dos manzanas: cruzan la calle del medio por la senda.
   out.push({ id: "vuelta-larga-sur", points: loop(CITY.lines[0] + band, CITY.lines[2] - band, CITY.lines[0] + band, CITY.lines[1] - band).reverse(), speed: 1.4 });
   out.push({ id: "vuelta-larga-este", points: loop(CITY.lines[2] + band, CITY.lines[3] - band, CITY.lines[0] + band, CITY.lines[2] - band), speed: 1.35 });
