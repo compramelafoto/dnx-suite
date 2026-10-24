@@ -232,6 +232,8 @@ export function editorADocumento(input: {
    * (una vista de ejemplo) pasa `COURSE_MOSAIC_SAMPLE`.
    */
   mosaicoDelCurso?: readonly CourseMosaicStudent[];
+  /** El dueño del diseño, para los bloques con «Incluir al dueño» (la plancha de figuritas). */
+  duenoDelMosaico?: CourseMosaicStudent | null;
 }): PuenteResultado {
   const avisos: string[] = [];
   const variablesSinteticas: VariableSintetica[] = [];
@@ -260,6 +262,7 @@ export function editorADocumento(input: {
   const chicosPorMosaico = distributeCourseMosaic(
     input.blocks.filter((b) => b.type === "VARIABLE_TEXT"),
     [...(input.mosaicoDelCurso ?? [])],
+    input.duenoDelMosaico ?? null,
   );
   let avisoElipse = false;
   let avisoSombra = false;
@@ -690,10 +693,15 @@ function dibujarMosaico(input: {
     if (o.frame === "polaroid") parte("papel", celda.box, { type: "rect", fillColor: "#ffffff" });
 
     const chico = celda.student;
+    if (o.emptyPhotos) {
+      // El álbum de figuritas: el lugar vacío donde se pega cada una.
+      parte("vacio", celda.photo, { type: "rect", fillColor: o.emptyFill, ...redondeo(radio) });
+    }
     // Con prefijo propio, así quien imprime sabe que es un compañero y, si la foto no aparece,
     // pone la silueta en vez de frenar toda la carpeta.
-    const ref =
-      chico.photoId != null
+    const ref = o.emptyPhotos
+      ? null
+      : chico.photoId != null
         ? `mosaic-photo:${chico.photoId}`
         : chico.photoUrl
           ? `mosaic-url:${chico.photoUrl}`
@@ -708,7 +716,7 @@ function dibujarMosaico(input: {
         ...(chico.crop ? { crop: chico.crop } : {}),
         ...(chico.sourceAspect ? { sourceAspect: chico.sourceAspect } : {}),
       });
-    } else {
+    } else if (!o.emptyPhotos) {
       // La silueta es la imagen gris con la misma forma que la foto: así un óvalo es un óvalo
       // también en el papel (la impresión no dibuja óvalos de color).
       parte("silueta", celda.photo, {

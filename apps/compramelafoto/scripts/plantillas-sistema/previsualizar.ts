@@ -21,12 +21,15 @@ import {
 import {
   CLASS_LIST_VARIABLE_KEY,
   COURSE_MOSAIC_VARIABLE_KEY,
+  COURSE_MOSAIC_OWNER_VARIABLE_KEY,
   isClassListConfig,
   isCourseMosaicConfig,
   parseClassListGroups,
   parseCourseMosaic,
+  parseCourseMosaicOwner,
   resolveTemplateDocument,
   serializeCourseMosaic,
+  serializeCourseMosaicOwner,
   serializeClassList,
   type LegacyTemplateV2Payload,
 } from "@repo/template-engine";
@@ -73,6 +76,8 @@ const ALUMNOS: Array<[string, string]> = [
 const RETRATO = "muestra-retrato:";
 
 export const VALORES_DE_MUESTRA: Record<string, string> = {
+  // La dueña de la carpeta, para la plancha de figuritas.
+  [COURSE_MOSAIC_OWNER_VARIABLE_KEY]: serializeCourseMosaicOwner({ firstName: "Martina", lastName: "López", photoUrl: `${RETRATO}99` }),
   // 24 compañeros (sin la dueña), con retrato; uno sin foto, para ver la silueta.
   [COURSE_MOSAIC_VARIABLE_KEY]: serializeCourseMosaic(
     ALUMNOS.filter(([f]) => f !== "Martina")
@@ -243,6 +248,7 @@ export async function dibujarPlantilla(
     nombre: p.nombre,
     cursosDelListado: parseClassListGroups(VALORES_DE_MUESTRA[CLASS_LIST_VARIABLE_KEY], VALORES_DE_MUESTRA["course.displayName"]),
     mosaicoDelCurso: parseCourseMosaic(VALORES_DE_MUESTRA[COURSE_MOSAIC_VARIABLE_KEY]),
+    duenoDelMosaico: parseCourseMosaicOwner(VALORES_DE_MUESTRA[COURSE_MOSAIC_OWNER_VARIABLE_KEY]),
     colegioDelListado: VALORES_DE_MUESTRA["school.name"] ?? null,
   });
 

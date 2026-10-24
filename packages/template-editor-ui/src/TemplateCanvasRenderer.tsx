@@ -21,6 +21,7 @@ import {
   isCourseMosaicConfig,
   layoutCourseMosaic,
   parseCourseMosaic,
+  parseCourseMosaicOwner,
   readCourseMosaicOptions,
   type CourseMosaicCell,
   type CourseMosaicOptions,
@@ -261,8 +262,8 @@ function MosaicCellView({ cell, o, t, index }: { cell: CourseMosaicCell; o: Cour
         />
       ) : null}
       {o.frame === "polaroid" ? <div style={{ ...rel(cell.box), background: "#ffffff" }} /> : null}
-      <div style={{ ...rel(cell.photo), overflow: "hidden", borderRadius: radius }}>
-        {src ? (
+      <div style={{ ...rel(cell.photo), overflow: "hidden", borderRadius: radius, background: o.emptyPhotos ? o.emptyFill : undefined }}>
+        {o.emptyPhotos ? null : src ? (
           <MosaicPhoto student={s} width={cell.photo.width} height={cell.photo.height} />
         ) : (
           <div
@@ -934,9 +935,11 @@ export function TemplateCanvasRenderer({
   // impresión. Sin valor, ninguno: el editor trae la muestra en sus variables de ejemplo, y una
   // carpeta real nunca muestra compañeros inventados.
   const mosaicValue = resolvedVariables?.["course.mosaic"];
+  const mosaicOwner = resolvedVariables?.["course.mosaicOwner"];
   const studentsByMosaic = distributeCourseMosaic(
     blocks.map((b) => ({ id: b.id, configJson: b.type === "VARIABLE_TEXT" ? b.configJson : undefined })),
     typeof mosaicValue === "string" ? parseCourseMosaic(mosaicValue) : [],
+    typeof mosaicOwner === "string" ? parseCourseMosaicOwner(mosaicOwner) : null,
   );
 
   return (

@@ -24,6 +24,11 @@ export type Modelo = {
   };
   fondoExterior: () => string;
   fondoInterior: () => string;
+  /**
+   * Tercera página: la plancha de figuritas para imprimir en papel autoadhesivo y recortar (sólo
+   * los álbumes de figuritas). Se imprime plana: no tiene doblez.
+   */
+  fondoPlancha?: () => string;
   /** Agrega los bloques. Los fondos se agregan solos (zIndex 1 de cada página). */
   armar: (a: Armador) => void;
   /**
@@ -38,5 +43,5 @@ export type Modelo = {
 /** Categorías del catálogo. */
 export const CATEGORIAS = ["Jardín", "Primaria", "Secundaria", "Egresados", "Formal", "Informal", "Religioso"] as const;
 
-export const archivoFondo = (slug: string, pagina: "exterior" | "interior") => `librito-${slug}-${pagina}.jpg`;
+export const archivoFondo = (slug: string, pagina: "exterior" | "interior" | "plancha") => `librito-${slug}-${pagina}.jpg`;
 export const archivoMiniatura = (slug: string) => `librito-${slug}-miniatura.jpg`;
