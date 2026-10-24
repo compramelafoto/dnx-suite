@@ -20,7 +20,6 @@ import {
 } from "@repo/template-editor-core";
 import {
   CLASS_LIST_VARIABLE_KEY,
-  COURSE_MOSAIC_SAMPLE,
   COURSE_MOSAIC_VARIABLE_KEY,
   isClassListConfig,
   isCourseMosaicConfig,
@@ -33,6 +32,27 @@ import {
 } from "@repo/template-engine";
 import type { PlantillaSistema } from "./definiciones";
 import { R2_BASE } from "./lienzo";
+
+/** Un retrato de muestra de un compañero: silueta de cabeza y hombros, con colores que varían. */
+async function retratoDeMuestra(n: number): Promise<Buffer> {
+  const pieles = ["#f1c7a8", "#e3b48f", "#c98e66", "#f6d5bd", "#a8714c"];
+  const pelos = ["#3b2a1e", "#6b4423", "#c89b5b", "#1d1b1a", "#8a5a2b"];
+  const ropa = ["#2e5aa8", "#c0392b", "#16a085", "#8e44ad", "#e67e22", "#2c3e50"];
+  const fondos = ["#d9dde3", "#dfe8ef", "#e6e1da", "#dde5dc"];
+  const piel = pieles[n % pieles.length];
+  const pelo = pelos[(n * 3) % pelos.length];
+  const s = `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="800">
+    <rect width="600" height="800" fill="${fondos[n % fondos.length]}"/>
+    <path d="M 70 800 C 90 560, 510 560, 530 800 Z" fill="${ropa[(n * 5) % ropa.length]}"/>
+    <rect x="255" y="430" width="90" height="120" fill="${piel}"/>
+    <ellipse cx="300" cy="330" rx="${n % 2 ? 165 : 150}" ry="190" fill="${pelo}"/>
+    <ellipse cx="300" cy="360" rx="125" ry="150" fill="${piel}"/>
+    <path d="M 175 300 C 200 180, 400 180, 425 300 C 380 240, 230 240, 175 300 Z" fill="${pelo}"/>
+    <circle cx="255" cy="360" r="12" fill="#2b2b2b"/><circle cx="345" cy="360" r="12" fill="#2b2b2b"/>
+    <path d="M 255 425 q 45 30 90 0" stroke="#9b4b3b" stroke-width="10" fill="none" stroke-linecap="round"/>
+  </svg>`;
+  return sharp(Buffer.from(s)).jpeg({ quality: 85 }).toBuffer();
+}
 
 const FOTO = "muestra-foto:";
 const BASE_FALSA = "https://fondos.local";
@@ -49,8 +69,16 @@ const ALUMNOS: Array<[string, string]> = [
   ["Alma", "Ortiz"], ["Lorenzo", "Rojas"],
 ];
 
+/** Retratos de muestra de los compañeros del mosaico: `muestra-retrato:<n>`, uno distinto por chico. */
+const RETRATO = "muestra-retrato:";
+
 export const VALORES_DE_MUESTRA: Record<string, string> = {
-  [COURSE_MOSAIC_VARIABLE_KEY]: serializeCourseMosaic(COURSE_MOSAIC_SAMPLE),
+  // 24 compañeros (sin la dueña), con retrato; uno sin foto, para ver la silueta.
+  [COURSE_MOSAIC_VARIABLE_KEY]: serializeCourseMosaic(
+    ALUMNOS.filter(([f]) => f !== "Martina")
+      .slice(0, 24)
+      .map(([firstName, lastName], i) => ({ firstName, lastName, ...(i === 17 ? {} : { photoUrl: `${RETRATO}${i}` }) })),
+  ),
   "student.fullName": "Martina López",
   "student.firstName": "Martina",
   "student.lastName": "López",
@@ -225,6 +253,11 @@ export async function dibujarPlantilla(
   const resources: ResourceResolver = {
     async read(ref: string) {
       if (ref === LOGO_DE_MUESTRA) return new Uint8Array(await logoDeMuestra());
+      // La silueta de un compañero sin foto es una imagen en línea.
+      if (ref.startsWith("data:")) return new Uint8Array(Buffer.from(ref.slice(ref.indexOf(",") + 1), "base64"));
+      if (ref.startsWith(`mosaic-url:${RETRATO}`)) {
+        return new Uint8Array(await retratoDeMuestra(Number(ref.slice(`mosaic-url:${RETRATO}`.length))));
+      }
       if (ref.startsWith(BASE_FALSA)) {
         return new Uint8Array(await readFile(path.join(carpetaFondos, path.basename(ref))));
       }

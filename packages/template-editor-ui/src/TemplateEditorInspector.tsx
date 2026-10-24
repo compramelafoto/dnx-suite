@@ -1035,7 +1035,7 @@ function CourseMosaicOptionsPanel({
           max={6}
           onChange={(chainOrder) => onChange({ chainOrder })}
         />
-        <FieldLabel>Cuántos chicos entran como máximo (0 = todos)</FieldLabel>
+        <FieldLabel>Cuántos chicos entran como máximo (0 = reparto parejo)</FieldLabel>
         <NumberSliderField
           ariaLabel="Tope de chicos en este mosaico"
           value={o.capacity}
@@ -1044,8 +1044,8 @@ function CourseMosaicOptionsPanel({
           onChange={(capacity) => onChange({ capacity })}
         />
         <p className="mt-1 text-[10px] leading-snug text-[color:var(--te-ink-faint)]">
-          Para partir el mosaico en dos recuadros (por ejemplo, uno en cada página): el 1 se llena hasta su tope y los
-          demás chicos siguen en el 2.
+          Para partir el mosaico en dos recuadros (por ejemplo, uno en cada página): dales orden 1 y 2. Sin tope se
+          reparten parejo; con tope, el 1 se llena hasta ahí y los demás chicos siguen en el 2.
         </p>
       </div>
       <p className="text-[10px] leading-snug text-[color:var(--te-ink-faint)]">

@@ -251,3 +251,15 @@ test("el ejemplo del catálogo escolar trae compañeros para el mosaico", async 
   const { SCHOOL_TEMPLATE_EXAMPLE_DATA } = await import("./index");
   assert.equal(parseCourseMosaic(String(SCHOOL_TEMPLATE_EXAMPLE_DATA["course.mosaic"])).length, COURSE_MOSAIC_SAMPLE.length);
 });
+
+test("un eslabón sin tope que no es el último se reparte parejo con los que siguen", () => {
+  const bloques = [
+    { id: "izq", options: opciones({ chainOrder: 1, capacity: 0 }) },
+    { id: "der", options: opciones({ chainOrder: 2, capacity: 0 }) },
+  ];
+  const r = splitCourseMosaicChain(bloques, chicos(25));
+  assert.equal(r.get("izq")!.length, 13);
+  assert.equal(r.get("der")!.length, 12);
+  const tres = splitCourseMosaicChain([...bloques, { id: "c", options: opciones({ chainOrder: 3 }) }], chicos(10));
+  assert.deepEqual(["izq", "der", "c"].map((k) => tres.get(k)!.length), [4, 3, 3]);
+});

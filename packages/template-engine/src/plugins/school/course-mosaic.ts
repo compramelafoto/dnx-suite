@@ -65,7 +65,10 @@ export type CourseMosaicOptions = {
    * que esquiva un cartel o que se parte entre dos páginas.
    */
   chainOrder: number;
-  /** Cuántos chicos entran como máximo en este bloque de la cadena. 0 = sin tope. */
+  /**
+   * Cuántos chicos entran como máximo en este bloque de la cadena. 0 = sin tope: se reparte parejo
+   * con los bloques que siguen (el último se lleva el resto).
+   */
   capacity: number;
 };
 
@@ -447,8 +450,8 @@ export function layoutCourseMosaic(input: {
 }
 
 /**
- * Reparte los chicos entre los bloques encadenados, por `chainOrder`; el último eslabón se lleva el
- * resto. Los bloques con el mismo orden son copias (por ejemplo, el mismo mosaico en dos
+ * Reparte los chicos entre los bloques encadenados, por `chainOrder`: cada eslabón lleva hasta su
+ * tope, uno sin tope se reparte parejo con los que siguen y el último se lleva el resto. Los bloques con el mismo orden son copias (por ejemplo, el mismo mosaico en dos
  * páginas): cada uno lleva a los mismos chicos.
  */
 export function splitCourseMosaicChain<T extends { id: string; options: CourseMosaicOptions }>(
@@ -462,7 +465,10 @@ export function splitCourseMosaicChain<T extends { id: string; options: CourseMo
     const link = blocks.filter((b) => b.options.chainOrder === order);
     const capacity = link[0]!.options.capacity;
     const isLast = i === orders.length - 1;
-    const take = isLast || capacity === 0 ? students.length - next : capacity;
+    // Sin tope, un eslabón que no es el último se reparte parejo con los que siguen: un mosaico
+    // partido en dos páginas lleva 13 y 12, no 25 y 0.
+    const remaining = students.length - next;
+    const take = isLast ? remaining : capacity > 0 ? capacity : Math.ceil(remaining / (orders.length - i));
     const slice = students.slice(next, next + take);
     for (const b of link) out.set(b.id, slice);
     next = Math.min(students.length, next + take);

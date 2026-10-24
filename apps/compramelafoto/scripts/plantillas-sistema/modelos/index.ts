@@ -21,6 +21,7 @@ import { formalHeraldico } from "./19-formal-heraldico";
 import { institucionalBanda } from "./20-institucional-banda";
 import { VARIADAS } from "./variadas";
 import { RELIGIOSOS } from "./religiosos";
+import { MOSAICOS } from "./mosaicos";
 
 /** Los modelos, en el orden en que se listan. */
 export const MODELOS: Modelo[] = [
@@ -46,4 +47,5 @@ export const MODELOS: Modelo[] = [
   institucionalBanda,
   ...VARIADAS,
   ...RELIGIOSOS,
+  ...MOSAICOS,
 ];

@@ -8,6 +8,8 @@
  * Todas las medidas están en píxeles del lienzo (300 dpi → 11,81 px por milímetro).
  */
 
+import { DEFAULT_COURSE_MOSAIC_OPTIONS } from "@repo/template-engine";
+
 export const ANCHO = 3543;
 export const ALTO = 2362;
 export const DPI = 300;
@@ -31,6 +33,9 @@ export const VARIABLE_LOGO = "branding.schoolLogoUrl";
 export type Rect = { x: number; y: number; w: number; h: number };
 
 export type TipoBloque = "IMAGE" | "TEXT" | "VARIABLE_TEXT" | "SHAPE";
+
+/** Opciones del «Mosaico del curso» (ver `CourseMosaicOptions` en `@repo/template-engine`). */
+export type OpcionesMosaico = Partial<import("@repo/template-engine").CourseMosaicOptions>;
 
 /**
  * Las fotos que puede pedir un librito, cada una atada a su hueco con nombre (los reconoce
@@ -257,6 +262,31 @@ export class Armador {
           givenNames: "all",
           highlightOwner: true,
         },
+        ...tipografia(e),
+      },
+    });
+  }
+
+  /**
+   * «Mosaico del curso»: los compañeros del alumno con su retrato y su nombre, repartidos solos.
+   * Para partirlo entre las dos mitades, dos bloques con `chainOrder` 1 y 2 (sin tope se reparten
+   * parejo). La tipografía es la de los nombres.
+   */
+  mosaico(pagina: 0 | 1, clave: string, r: Rect, e: Estilo, opciones: OpcionesMosaico = {}, giro = 0) {
+    this.push({
+      clave: `p${pagina}_${clave}`,
+      pagina,
+      tipo: "VARIABLE_TEXT",
+      nombre: "Mosaico del curso",
+      x: r.x,
+      y: r.y,
+      width: r.w,
+      height: r.h,
+      rotation: giro,
+      configJson: {
+        variableKey: "course.mosaic",
+        fallback: "",
+        courseMosaic: { ...DEFAULT_COURSE_MOSAIC_OPTIONS, ...opciones },
         ...tipografia(e),
       },
     });
