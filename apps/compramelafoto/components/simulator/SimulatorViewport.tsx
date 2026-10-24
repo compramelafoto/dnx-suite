@@ -31,6 +31,8 @@ export interface SimulatorViewportProps {
   onCloseHelp?: () => void;
   onOpenGallery?: () => void;
   photoCount?: number;
+  /** Controles táctiles del celular (encima del visor, debajo de la barra de herramientas). */
+  touchOverlay?: React.ReactNode;
 }
 
 const SimulatorViewport = forwardRef<HTMLDivElement, SimulatorViewportProps>(
@@ -42,6 +44,7 @@ const SimulatorViewport = forwardRef<HTMLDivElement, SimulatorViewportProps>(
       onCloseHelp,
       onOpenGallery,
       photoCount = 0,
+      touchOverlay,
     },
     forwardedRef,
   ) {
@@ -130,6 +133,8 @@ const SimulatorViewport = forwardRef<HTMLDivElement, SimulatorViewportProps>(
         <FocusDofDebugOverlay />
 
         <ExposureDebugOverlay />
+
+        {touchOverlay}
 
         {onOpenHelp && onOpenGallery ? (
           <SimulatorViewportToolbar

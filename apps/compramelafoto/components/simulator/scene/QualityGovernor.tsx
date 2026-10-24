@@ -2,6 +2,7 @@
 
 import { QUALITY_TIERS, createGovernor, governorTick } from "@/lib/simulator/render-quality";
 import { simulatorRuntime } from "@/lib/simulator/simulator-runtime";
+import { isTouchGameDevice } from "@/lib/simulator/touch-input";
 import { useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useRef } from "react";
 
@@ -14,6 +15,11 @@ export default function QualityGovernor() {
   const state = useRef(createGovernor(1));
 
   useEffect(() => {
+    // Celulares: arrancan en la calidad baja y no pasan de la media (batería y calor).
+    if (isTouchGameDevice()) {
+      state.current.tier = 0;
+      state.current.ceiling = 1;
+    }
     const tier = QUALITY_TIERS[state.current.tier];
     simulatorRuntime.quality = tier;
     setDpr(Math.min(tier.dpr, window.devicePixelRatio || 1));

@@ -4289,6 +4289,19 @@
   color: var(--cod-text);
 }
 
+/* Celular acostado: el logo se achica para que entren la barra y el porcentaje. */
+@media (max-height: 520px) {
+  .cod-loading {
+    gap: 0.9rem;
+  }
+
+  .cod-loading__logo {
+    width: auto;
+    max-width: 78vw;
+    height: 52dvh;
+  }
+}
+
 /* Pregunta del día (inicio). */
 .cod-daily-section {
   max-width: 46rem;
