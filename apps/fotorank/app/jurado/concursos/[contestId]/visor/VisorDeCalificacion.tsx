@@ -67,6 +67,10 @@ import {
   FOTOS_MINIMAS_PARA_ESTIMAR,
   loQueFalta,
   ritmoDelJurado,
+  descontarLoAnotado,
+  segundosQueCuentan,
+  sumarALaFoto,
+  type TiempoPorFoto,
 } from "../../../../lib/fotorank/jury/ritmoDelJurado";
 import type { ColaDelVisor } from "../../../../lib/fotorank/jury/visor-service";
 
@@ -143,6 +147,14 @@ const RENOVAR_FOTOS_CADA = 10 * 60 * 1000;
 /** Cada cuánto late, mientras haya pantalla a la vista y actividad. */
 const LATIDO_SEGUNDOS = 30;
 
+/**
+ * Cada cuánto se cuenta el tiempo en el navegador.
+ *
+ * Más fino que el latido porque una foto se califica en menos de un minuto: de
+ * a treinta, todo el rato se lo llevaría la que estuviera en pantalla al latir.
+ */
+const TIC_MS = 2000;
+
 const CLAVE_DEL_FONDO = "fr-visor-fondo";
 
 export function VisorDeCalificacion({
@@ -205,7 +217,12 @@ export function VisorDeCalificacion({
   } | null>(null);
   const [enviando, setEnviando] = useState(false);
 
-  const huboInteraccion = useRef(false);
+  /* Cuándo tocó algo por última vez: mirar sin mover el mouse también cuenta. */
+  const ultimaInteraccion = useRef(Date.now());
+  /* El tiempo contado que todavía no llegó al servidor, total y por foto. */
+  const tiempoSinMandar = useRef(0);
+  const tiempoPorFoto = useRef<TiempoPorFoto>({});
+  const snapshotEnPantalla = useRef<string | null>(null);
   /** Lo tecleado seguido en una escala larga (0 a 100), y cuándo. */
   const tecleo = useRef<{ texto: string; en: number }>({ texto: "", en: 0 });
   /* El arrastre en curso sobre la fotografía, para pasar de obra con el dedo. */
@@ -558,24 +575,64 @@ export function VisorDeCalificacion({
   /* ---------- el latido ---------- */
 
   useEffect(() => {
+    snapshotEnPantalla.current =
+      obras.find((o) => o.entryId === entryIdActual)?.snapshotId ?? null;
+  }, [obras, entryIdActual]);
+
+  useEffect(() => {
     const marcar = () => {
-      huboInteraccion.current = true;
+      ultimaInteraccion.current = Date.now();
     };
     window.addEventListener("keydown", marcar);
     window.addEventListener("pointerdown", marcar);
     window.addEventListener("pointermove", marcar);
 
-    const reloj = window.setInterval(() => {
-      // Las dos condiciones: pantalla a la vista y alguien haciendo algo.
-      if (document.hidden || !huboInteraccion.current) return;
-      huboInteraccion.current = false;
+    let ticAnterior = Date.now();
+    const contar = window.setInterval(() => {
+      const ahora = Date.now();
+      const segundos = segundosQueCuentan({
+        desdeElTicAnterior: (ahora - ticAnterior) / 1000,
+        desdeLaUltimaInteraccion: (ahora - ultimaInteraccion.current) / 1000,
+        pantallaVisible: !document.hidden,
+      });
+      ticAnterior = ahora;
+      if (segundos <= 0) return;
+      tiempoSinMandar.current += segundos;
+      const snapshotId = snapshotEnPantalla.current;
+      if (snapshotId) {
+        tiempoPorFoto.current = sumarALaFoto(
+          tiempoPorFoto.current,
+          snapshotId,
+          segundos,
+        );
+      }
+    }, TIC_MS);
+
+    const latir = window.setInterval(() => {
+      const segundos = Math.round(tiempoSinMandar.current);
+      if (segundos <= 0) return;
+      tiempoSinMandar.current -= segundos;
+      const porFoto = Object.entries(tiempoPorFoto.current)
+        .map(([snapshotId, s]) => ({ snapshotId, segundos: Math.round(s) }))
+        .filter((f) => f.segundos > 0);
       void latidoDelVisorAction({
         contestId,
-        segundosDesdeElUltimo: LATIDO_SEGUNDOS,
+        segundosDesdeElUltimo: segundos,
+        porFoto,
       })
-        .then(setRitmo)
+        .then((r) => {
+          setRitmo({ segundosActivos: r.segundosActivos, calificadas: r.calificadas });
+          tiempoPorFoto.current = descontarLoAnotado(
+            tiempoPorFoto.current,
+            porFoto,
+            r.fotosAnotadas,
+          );
+        })
         .catch(() => {
-          /* Un latido perdido no interrumpe la calificación. */
+          /*
+           * Un latido perdido no interrumpe la calificación. El tiempo de cada
+           * foto sigue guardado acá y viaja en el latido siguiente.
+           */
         });
     }, LATIDO_SEGUNDOS * 1000);
 
@@ -583,7 +640,8 @@ export function VisorDeCalificacion({
       window.removeEventListener("keydown", marcar);
       window.removeEventListener("pointerdown", marcar);
       window.removeEventListener("pointermove", marcar);
-      window.clearInterval(reloj);
+      window.clearInterval(contar);
+      window.clearInterval(latir);
     };
   }, [contestId]);
 
