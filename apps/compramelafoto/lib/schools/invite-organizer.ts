@@ -9,6 +9,8 @@
  *
  * Manda un mail a un tercero: no se puede deshacer.
  */
+import { esCorreoDePrueba } from "@/lib/demos/identidad";
+import { esEscuelaDemo } from "@/lib/demos/visibilidad";
 import { Role, SchoolOrganizerStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
@@ -43,6 +45,10 @@ export async function inviteSchoolOrganizer(p: {
   }
   if (!isValidEmail(email)) {
     return { ok: false, status: 400, error: "Email inválido." };
+  }
+  // Escuela de una demo grabable: nunca se invita (ni se le escribe) a un correo real.
+  if (!esCorreoDePrueba(email) && (await esEscuelaDemo(p.schoolId))) {
+    return { ok: false, status: 400, error: "Esto es una demo: usá un correo @demo.compramelafoto.test." };
   }
 
   const targetUser = await prisma.user.findUnique({

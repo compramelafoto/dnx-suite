@@ -47,6 +47,9 @@ const DNX_COOKIE_BASE = {
   ...(COOKIE_DOMAIN ? { domain: COOKIE_DOMAIN } : {}),
 };
 
+/** Opciones base de las cookies de sesión DNX (las usa también la sesión de vuelta de las demos). */
+export const DNX_SESSION_COOKIE_OPTIONS = DNX_COOKIE_BASE;
+
 function logAuthResolution(detail: string): void {
   console.info(`[AUTH] ${detail}`);
 }

@@ -6,6 +6,8 @@ const BASE = "/camofduty/street";
 
 export const STREET_MODELS = {
   facadeKit: `${BASE}/models/facade-kit.glb`,
+  /** El mismo kit simplificado y sin texturas (usa las del completo): fachadas de 22 a 60 m. */
+  facadeKitLod: `${BASE}/models/facade-kit-lod.glb`,
   lamp: `${BASE}/models/street-lamp.glb`,
   tree: `${BASE}/models/tree-jacaranda.glb`,
   trash: `${BASE}/models/trash-can.glb`,
@@ -16,7 +18,6 @@ export const STREET_MODELS = {
   plant: `${BASE}/models/potted-plant.glb`,
   aircon: `${BASE}/models/aircon.glb`,
   coveredCar: `${BASE}/models/covered-car.glb`,
-  treeFar: `${BASE}/models/tree-jacaranda-far.glb`,
   statue: `${BASE}/models/statue.glb`,
   plazaBench: `${BASE}/models/plaza-bench.glb`,
   shrub: `${BASE}/models/shrub.glb`,

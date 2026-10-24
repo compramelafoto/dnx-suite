@@ -62,6 +62,8 @@ type Catalog = {
     allowManualStudentFallback?: boolean;
     /** true solo si el dueño autenticado previsualiza un álbum `isTest` */
     isTestPreview?: boolean;
+    /** Demo grabable: la vista de prueba usa el pago simulado y se ve como la de una familia. */
+    demoPresentacion?: boolean;
     school?: { id: number; name: string; logoUrl?: string | null; courses: SchoolCourse[] } | null;
   };
   packs: Pack[];
@@ -285,7 +287,8 @@ export default function PreventaPage({ testClientPreview = false }: PreventaPage
       setSubmitting(false);
       return;
     }
-    if (Boolean(testClientPreview || catalog.album.isTestPreview)) {
+    const pagoSimulado = Boolean(catalog.album.demoPresentacion);
+    if (Boolean(testClientPreview || catalog.album.isTestPreview) && !pagoSimulado) {
       setError("Este proyecto está en modo prueba. No se pueden generar pedidos reales.");
       setSubmitting(false);
       return;
@@ -376,7 +379,7 @@ export default function PreventaPage({ testClientPreview = false }: PreventaPage
       if (organizerReferralSchoolId != null) {
         body.organizerReferralSchoolId = organizerReferralSchoolId;
       }
-      const res = await fetch("/api/precompra/order", {
+      const res = await fetch(pagoSimulado ? "/api/precompra/order/test" : "/api/precompra/order", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -390,6 +393,11 @@ export default function PreventaPage({ testClientPreview = false }: PreventaPage
       const preCompraOrderId = data.preCompraOrderId ?? data.order?.id;
       const albumOrderId = data.orderId;
       if (!preCompraOrderId || !albumOrderId) throw new Error("No se pudo iniciar el pedido");
+
+      if (pagoSimulado) {
+        router.push(`/pago-simulado/${albumOrderId}`);
+        return;
+      }
 
       const prefRes = await fetch("/api/payments/mp/create-preference", {
         method: "POST",
@@ -476,7 +484,8 @@ export default function PreventaPage({ testClientPreview = false }: PreventaPage
 
   if (!catalog) return null;
 
-  const isTestPreviewUi = Boolean(testClientPreview || catalog.album.isTestPreview);
+  const isTestPreviewUi =
+    Boolean(testClientPreview || catalog.album.isTestPreview) && !catalog.album.demoPresentacion;
 
   const packs = catalog.packs;
   const totalItems = Object.values(quantities).reduce((a, b) => a + b, 0);

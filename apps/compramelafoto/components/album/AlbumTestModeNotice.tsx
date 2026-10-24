@@ -3,7 +3,7 @@
  */
 export function AlbumTestModeClientBanner() {
   return (
-    <div className="w-full bg-amber-50 border-b border-amber-200 text-amber-950 px-4 py-2.5 text-center text-sm font-medium">
+    <div data-demo-ocultar="" className="w-full bg-amber-50 border-b border-amber-200 text-amber-950 px-4 py-2.5 text-center text-sm font-medium">
       Vista simulada — modo TEST
     </div>
   );
@@ -12,6 +12,7 @@ export function AlbumTestModeClientBanner() {
 export function AlbumTestModeDashboardAlert() {
   return (
     <div
+      data-demo-ocultar=""
       className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950 flex flex-wrap items-center gap-2"
       role="status"
     >

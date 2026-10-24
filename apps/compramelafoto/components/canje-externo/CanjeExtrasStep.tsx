@@ -404,7 +404,7 @@ export default function CanjeExtrasStep({
           ) : null}
           {error ? <p className="m-0 mt-2 text-sm text-red-700">{error}</p> : null}
           {avisoPrueba ? (
-            <p className="m-0 mt-2 rounded-lg bg-amber-100 px-3 py-2 text-sm text-amber-900">
+            <p data-demo-ocultar="" className="m-0 mt-2 rounded-lg bg-amber-100 px-3 py-2 text-sm text-amber-900">
               Modo prueba: acá la familia pasa a Mercado Pago y paga {total != null ? pesos(total) : "el total"}. En la
               prueba no se cobra nada.
             </p>
