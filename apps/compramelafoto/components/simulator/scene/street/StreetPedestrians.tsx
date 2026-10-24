@@ -366,7 +366,7 @@ export default function StreetPedestrians({ layout }: { layout: StreetLayout }) 
       const p = makePerson(w.id, sourceFor(w.figure), figure, clip, cache);
       const key = `${w.figure}/${w.gait}`;
       // Al correr el pie apoya mucho menos tiempo: la zancada no sirve, sí el avance del clip.
-      if (!speedCache.has(key)) speedCache.set(key, isRunning(w.gait) ? clip.userData.rootSpeed : strideSpeed(p.model, clip));
+      if (!speedCache.has(key)) speedCache.set(key, isRunning(w.gait) ? (clip.userData.rootSpeed as number) : strideSpeed(p.model, clip));
       out.push({
         id: w.id,
         name: figure.name,
