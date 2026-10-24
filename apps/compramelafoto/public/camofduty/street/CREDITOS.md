@@ -17,7 +17,6 @@ Contenidos pedagógicos basados en los apuntes de la profesora Débora Priasco.
 - `models/tree-jacaranda-far.glb` — jacaranda_tree
 - `models/covered-car.glb` — covered_car
 - `models/statue.glb` — horse_statue_01
-- `models/plaza-lamp.glb` — street_lamp_02
 - `models/plaza-bench.glb` — painted_wooden_bench
 - `models/shrub.glb` — shrub_01
 - `models/coffee-cart.glb` — CoffeeCart_01
