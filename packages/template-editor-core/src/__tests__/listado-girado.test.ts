@@ -68,7 +68,7 @@ describe("editorADocumento — listado del curso girado", () => {
     for (const c of celdas(0)) assert.equal(c.rotation, undefined);
   });
 
-  it("con varios cursos: un solo título que los nombra a todos, en negrita y más grande, girado igual que los alumnos", () => {
+  it("con varios cursos: un solo título con los dos, en negrita y más grande, girado igual que los alumnos", () => {
     const { document } = editorADocumento({
       canvas: { width: 3602, height: 2421, dpi: 300 },
       blocks: [listado(90.68)],
@@ -106,7 +106,7 @@ describe("editorADocumento — listado del curso girado", () => {
     const sides = (document as { sides: { blocks: Record<string, number | string | undefined>[] }[] }).sides;
     const textos = sides[0]!.blocks.map((b) => b.content);
     assert.equal(textos.filter((t) => t === "Escuela Belgrano").length, 1);
-    // Un solo título con todos los cursos; si los turnos difieren, cada curso lleva el suyo.
+    // Un solo título con los dos cursos, cada uno con su turno porque no coinciden.
     assert.ok(textos.includes("7.° A · Turno mañana y 7.° B · Turno tarde"));
     assert.ok(sides[0]!.blocks.every((b) => b.rotation === 90));
   });
