@@ -55,10 +55,10 @@ export const GUION_ESCOLAR: Guion = {
     {
       id: "colegio-comision",
       vista: "fotografo",
-      ruta: (c) => `/dashboard/albums/${c.albumId}?tab=preventa`,
+      ruta: (c) => `/dashboard/albums/${c.albumId}`,
       titulo: "2 · El porcentaje del colegio",
       texto:
-        "Acordás con el colegio qué parte de cada venta se lleva (en la demo, 10 %) y lo cargás en el álbum. El sistema la calcula sola en cada compra.",
+        "Acordás con el colegio qué parte de cada venta se lleva (en la demo, 10 %) y lo cargás en el álbum (pestaña «Pedidos/Escuela»). El sistema la calcula sola en cada compra.",
       bot: "«Poné la comisión del colegio en 10 % para la preventa».",
     },
     {
@@ -93,10 +93,10 @@ export const GUION_ESCOLAR: Guion = {
     {
       id: "pack",
       vista: "fotografo",
-      ruta: (c) => `/dashboard/albums/${c.albumId}?tab=preventa`,
+      ruta: (c) => `/dashboard/albums/${c.albumId}`,
       titulo: "5 · Los packs de preventa",
       texto:
-        "Armás qué vendés antes de sacar las fotos: el librito con 5 digitales y un pack solo digital. La plantilla queda ligada al pack con librito.",
+        "Armás qué vendés antes de sacar las fotos (pestaña «Venta» → Preventa): el librito con 5 digitales y un pack solo digital. La plantilla queda ligada al pack con librito.",
       bot: "«Creá un pack de 10 digitales a 18.000 pesos».",
     },
     {
@@ -116,10 +116,10 @@ export const GUION_ESCOLAR: Guion = {
     {
       id: "subida",
       vista: "fotografo",
-      ruta: (c) => `/dashboard/albums/${c.albumId}?tab=fotos`,
+      ruta: (c) => `/dashboard/albums/${c.albumId}`,
       titulo: "7 · Subís las fotos",
       texto:
-        "El día de la toma subís todo junto al álbum. El sistema reconoce las caras de cada foto en segundo plano. En la demo las fotos de la toma ya están cargadas: publicalas con el botón (y si querés, subí alguna más a mano).",
+        "El día de la toma subís todo junto al álbum (pestaña «Contenido»). El sistema reconoce las caras de cada foto en segundo plano. En la demo las fotos de la toma ya están cargadas: publicalas con el botón (y si querés, subí alguna más a mano).",
       accion: {
         etiqueta: "Publicar las fotos de la toma",
         endpoint: "/api/demo/fotos",

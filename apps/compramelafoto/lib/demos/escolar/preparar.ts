@@ -83,6 +83,14 @@ async function asegurarUsuario(opts: {
 }
 
 async function asegurarAlumnosYCursos(schoolId: number, albumId: number) {
+  // Ciclo lectivo: el panel del colegio muestra curso y división desde la matrícula.
+  const label = String(new Date().getFullYear());
+  const anio = await prisma.academicYear.upsert({
+    where: { schoolId_label: { schoolId, label } },
+    create: { schoolId, label, isCurrent: true },
+    update: {},
+    select: { id: true },
+  });
   for (const [ci, curso] of DEMO_ESCOLAR.cursos.entries()) {
     let course = await prisma.schoolCourse.findFirst({
       where: { schoolId, name: curso.nombre, division: curso.division },
@@ -109,6 +117,21 @@ async function asegurarAlumnosYCursos(schoolId: number, albumId: number) {
         update: {},
         select: { id: true },
       });
+      const enrollment = await prisma.studentEnrollment.upsert({
+        where: { studentId_academicYearId: { studentId: student.id, academicYearId: anio.id } },
+        create: {
+          studentId: student.id,
+          schoolId,
+          academicYearId: anio.id,
+          level: NIVEL[curso.codigo] ?? "Primaria",
+          shift: "Mañana",
+          courseName: curso.nombre,
+          division: curso.division,
+          sourceType: StudentSourceType.MANUAL_PHOTOGRAPHER,
+        },
+        update: {},
+        select: { id: true },
+      });
       await prisma.albumStudentRosterEntry.upsert({
         where: { albumId_studentId: { albumId, studentId: student.id } },
         create: {
@@ -123,8 +146,9 @@ async function asegurarAlumnosYCursos(schoolId: number, albumId: number) {
           snapshotLastName: alumno.apellido,
           sourceType: StudentSourceType.MANUAL_PHOTOGRAPHER,
           isManual: true,
+          enrollmentId: enrollment.id,
         },
-        update: {},
+        update: { enrollmentId: enrollment.id },
       });
     }
   }
@@ -281,10 +305,17 @@ export async function prepararDemoEscolar(opts: { origen: string; presupuestoFot
       whatsapp: d.fotografo.telefono,
       city: d.fotografo.ciudad,
       province: d.fotografo.provincia,
+      // Rosario centro: sin ubicación de trabajo el panel muestra un aviso que tapa la demo.
+      latitude: -32.9468,
+      longitude: -60.6393,
       // Sin esto el panel no deja subir fotos; nunca se usa para cobrar (el pago es simulado).
       mpAccessToken: MP_TOKEN_DEMO,
       mpConnectedAt: new Date(),
     },
+  });
+  await prisma.user.updateMany({
+    where: { id: fotografoId, latitude: null },
+    data: { latitude: -32.9468, longitude: -60.6393 },
   });
   const colegioUserId = await asegurarUsuario({
     email: d.colegioUsuario.email,
