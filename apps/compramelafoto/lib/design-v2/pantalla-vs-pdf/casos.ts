@@ -130,10 +130,7 @@ function dosCursosConTurno(): string {
   return JSON.stringify({
     g: [
       { t: "3 B", k: "padron|Primario|Mañana|3|B", h: "Mañana", s: curso(ALUMNOS.slice(0, 10), 2) },
-      // Mismo turno: el título queda corto («3.° B y 3.° C · Turno mañana»). Con turnos distintos
-      // es una frase larga en negrita y la diferencia de medidas entre la letra de la pantalla y
-      // la del PDF la corre unos píxeles al final (no es un error del listado).
-      { t: "3 C", k: "padron|Primario|Mañana|3|C", h: "Mañana", s: curso(ALUMNOS.slice(6), null) },
+      { t: "3 C", k: "padron|Primario|Tarde|3|C", h: "Tarde", s: curso(ALUMNOS.slice(6), null) },
     ],
   });
 }
@@ -359,8 +356,8 @@ export function casosDeComparacion(imagenDePrueba: string): CasoDeComparacion[] 
     {
       /*
        * Dos cursos con turno y el colegio arriba: los nombres van en 4 columnas (aunque el bloque
-       * diga 2), el colegio una sola vez arriba de todo y un solo título con los cursos y el
-       * turno. Derecho y girado 90°.
+       * diga 2), el colegio una sola vez arriba de todo y cada título con su turno. Derecho y
+       * girado 90°.
        */
       id: "listado-colegio-y-turno",
       titulo: "Listado de dos cursos con el colegio arriba y el turno, en 4 columnas",
