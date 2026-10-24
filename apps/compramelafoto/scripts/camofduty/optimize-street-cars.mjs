@@ -1,17 +1,19 @@
 #!/usr/bin/env node
 /**
- * Optimiza los autos de la Calle 3D de Cam Of Duty.
+ * Optimiza los autos, bicis, monopatines y motos de la Calle 3D de Cam Of Duty.
  *
  * Fuente: Sketchfab (CC BY 4.0, requiere atribución). Sketchfab sólo deja
  * bajar con sesión iniciada, así que los .glb se bajan a mano (versión
- * "glb" más liviana de cada página) con el nombre `cod-car-<id>.glb`.
+ * "glb" más liviana de cada página) con el nombre `cod-car-<id>.glb` para los
+ * autos y `cod-<id>.glb` para el resto.
  *
  * Uso (desde apps/compramelafoto):
  *   node scripts/camofduty/optimize-street-cars.mjs <carpeta-con-los-glb>
  *
- * Salida: public/camofduty/street/models/cars/<id>.glb (geometría meshopt,
- * texturas WebP de 512 px) y la sección de autos de CREDITOS.md. La escala y
- * la orientación de cada modelo se corrigen en lib/simulator/street/street-cars.ts.
+ * Salida: public/camofduty/street/models/cars/<id>.glb y models/rides/<id>.glb
+ * (geometría meshopt, texturas WebP de 512 px) y sus secciones de CREDITOS.md.
+ * La escala y la orientación de cada modelo se corrigen en
+ * lib/simulator/street/street-cars.ts y street-rides.ts.
  */
 
 import { execFileSync } from "node:child_process";
@@ -41,8 +43,21 @@ export const CARS = [
   { id: "renault-duster", name: "2011 Dacia (Renault) Duster", author: "razor24", uid: "30bc2e09de66426bb67be72c95fa2476" },
 ];
 
+/** Bicis, monopatines y motos (`cod-<id>.glb`). */
+export const RIDES = [
+  { id: "bici-clasica", file: "bici_clasica", name: "Classic Bicycle | LowPoly | Game ready", author: "by__Rx", uid: "da6507928c0c4a5c8776008cdb9f747e" },
+  { id: "bici-amarilla", file: "bici_amarilla", name: "Yellow bicycle", author: "volkovatatyana", uid: "4cc719f387cb4cb4aea6e12a27e06e2e" },
+  { id: "triciclo", file: "bici_longtail", name: "Bicycle", author: "longtail", uid: "25aa85eeba944baea33ce5cde985ca49" },
+  { id: "monopatin-xiaomi", file: "monopatin_xiaomi", name: "Xiaomi Electric Scooter 4", author: "mmaarriioo", uid: "e53ebaf78add4735887023db3a105d1c" },
+  { id: "honda-cb750", file: "moto_cb750", name: "Honda CB 750 F Super Sport 1970", author: "Alex.Ka.", uid: "f121301624174b179ca4d50158797b03", simplify: 0.5 },
+  { id: "moto-si", file: "moto_si", name: "Moto SI", author: "KidBi-Gaming", uid: "80474ebbf5cc4538b21388ca11e4ab24", simplify: 0.4 },
+  { id: "yamaha-xmax", file: "moto_xmax", name: "Yamaha XMAX – Low Poly / Game Ready", author: "KidBi-Gaming", uid: "b91a844ea42740f8a298574975806445", simplify: 0.4 },
+  { id: "suzuki-skywave", file: "skywave", name: "Suzuki Skywave", author: "sassuscus", uid: "e1bcfc1ee51b4aab8417b00ab90f89fc", simplify: 0.25 },
+  { id: "vespa", file: "vespa", name: "Vespa Super Sport 180", author: "VforValensa", uid: "74dfd9925fde4ae5882eb74c77c3c663" },
+];
+
 function optimize(input, output, { simplify, error = 0.005 }) {
-  mkdirSync(join(OUT, "models/cars"), { recursive: true });
+  mkdirSync(join(output, ".."), { recursive: true });
   const args = [
     ...GLTF_TRANSFORM,
     "optimize",
@@ -63,18 +78,17 @@ function optimize(input, output, { simplify, error = 0.005 }) {
   execFileSync("npx", args, { stdio: "inherit" });
 }
 
-const CREDITS_HEADER = "## Autos — Sketchfab (CC BY 4.0)";
-
-function writeCredits() {
+/** Escribe (o reemplaza) una sección de CREDITOS.md. */
+function writeCredits(header, dir, list) {
   const path = join(OUT, "CREDITOS.md");
   const current = readFileSync(path, "utf8");
-  const section = `${CREDITS_HEADER}
-${CARS.map((c) => `- \`models/cars/${c.id}.glb\` — "${c.name}" de ${c.author}, https://sketchfab.com/3d-models/${c.uid}`).join("\n")}
+  const section = `${header}
+${list.map((c) => `- \`models/${dir}/${c.id}.glb\` — "${c.name}" de ${c.author}, https://sketchfab.com/3d-models/${c.uid}`).join("\n")}
   Optimizados (geometría y texturas reducidas) con \`node scripts/camofduty/optimize-street-cars.mjs\`.
 
 `;
-  const start = current.indexOf(CREDITS_HEADER);
-  const next = start < 0 ? -1 : current.indexOf("\n## ", start + CREDITS_HEADER.length);
+  const start = current.indexOf(header);
+  const next = start < 0 ? -1 : current.indexOf("\n## ", start + header.length);
   const updated =
     start < 0
       ? current.replace("\n## Microsoft Rocketbox", `\n${section}\n## Microsoft Rocketbox`)
@@ -84,17 +98,23 @@ ${CARS.map((c) => `- \`models/cars/${c.id}.glb\` — "${c.name}" de ${c.author},
 
 function main() {
   const dir = process.argv[2];
-  if (!dir) throw new Error("Falta la carpeta con los cod-car-<id>.glb");
-  for (const car of CARS) {
-    const input = join(dir, `cod-car-${car.id}.glb`);
-    if (!existsSync(input)) {
-      console.warn(`Falta ${input}`);
-      continue;
+  if (!dir) throw new Error("Falta la carpeta con los cod-car-<id>.glb / cod-<id>.glb");
+  const groups = [
+    { list: CARS, out: "cars", input: (c) => `cod-car-${c.id}.glb`, header: "## Autos — Sketchfab (CC BY 4.0)" },
+    { list: RIDES, out: "rides", input: (c) => `cod-${c.file}.glb`, header: "## Bicis, monopatines y motos — Sketchfab (CC BY 4.0)" },
+  ];
+  for (const g of groups) {
+    let found = 0;
+    for (const item of g.list) {
+      const input = join(dir, g.input(item));
+      if (!existsSync(input)) continue;
+      found += 1;
+      console.log(`→ ${item.name}`);
+      optimize(input, join(OUT, "models", g.out, `${item.id}.glb`), item);
     }
-    console.log(`→ ${car.name}`);
-    optimize(input, join(OUT, "models/cars", `${car.id}.glb`), car);
+    // Sólo se reescriben los créditos del grupo que se procesó.
+    if (found) writeCredits(g.header, g.out, g.list);
   }
-  writeCredits();
 }
 
 main();

@@ -7,10 +7,14 @@
  * inteligente (IDM): mantiene distancia con el de adelante, frena ante
  * peatones en su carril, respeta el PARE y no entra a una esquina ocupada.
  * Los autos entran y salen lejos, dentro de la bruma, así nunca aparecen de golpe.
+ *
+ * Entre los autos andan motos; las bicis y los monopatines van por su propio
+ * carril, contra el cordón del lado contrario al estacionamiento.
  */
 
 import { STREET_CARS, streetCarFor } from "./street-cars";
-import { BUILDING_LINE, CITY, STREET, laneDirection, laneOffsets, seededRandom, type Vec2 } from "./street-layout";
+import { BUILDING_LINE, CITY, STREET, laneDirection, laneOffsets, parkingSide, seededRandom, type Vec2 } from "./street-layout";
+import { CURB_RIDES, MOTOR_RIDES, STREET_RIDES, rideSpeed } from "./street-rides";
 
 export interface Lane {
   id: string;
@@ -27,7 +31,12 @@ export interface Lane {
   to: number;
   /** Tiene PARE en cada esquina (las que corren en X). */
   yields: boolean;
+  /** Carril de bicis y monopatines (junto al cordón sin autos estacionados). */
+  curb: boolean;
 }
+
+/** Del cordón al centro del carril de las bicis (m). */
+const CURB_LANE_INSET = 0.85;
 
 /** Entradas y salidas: dentro de la bruma, pasando el anillo de manzanas. */
 const EDGE_LO = CITY.reach[0] - 25;
@@ -49,8 +58,23 @@ function buildLanes(): Lane[] {
           from: dir > 0 ? EDGE_LO : EDGE_HI,
           to: dir > 0 ? EDGE_HI : EDGE_LO,
           yields: axis === "x",
+          curb: false,
         });
       });
+      // La calle del centro tiene dos carriles de autos: no queda lugar para las bicis.
+      if (at !== 0) {
+        out.push({
+          id: `${axis}${at}-bici`,
+          axis,
+          dir,
+          offset: at - parkingSide(st) * (STREET.roadHalf - CURB_LANE_INSET),
+          street: at,
+          from: dir > 0 ? EDGE_LO : EDGE_HI,
+          to: dir > 0 ? EDGE_HI : EDGE_LO,
+          yields: axis === "x",
+          curb: true,
+        });
+      }
     }
   }
   return out;
@@ -74,8 +98,10 @@ export interface TrafficCar {
   clearedAt: number | null;
   /** Fuera de la calle, esperando hueco para entrar. */
   parked: boolean;
-  /** Modelo de auto (índice en STREET_CARS). */
+  /** Modelo de auto (índice en STREET_CARS), o −1 si es una bici, monopatín o moto. */
   model: number;
+  /** Bici, monopatín o moto (índice en STREET_RIDES), o null si es un auto. */
+  ride: number | null;
 }
 
 const IDM = {
@@ -114,15 +140,44 @@ function sOf(lane: Lane, coord: number): number {
 
 /** Autos por carril: pocos, pero siempre se ve pasar alguno. */
 const CARS_PER_LANE = 3;
+/** Bicis y monopatines por carril de cordón. */
+const CURB_RIDERS_PER_LANE = 3;
 
 export function createTraffic(seed = 77): TrafficCar[] {
   const rand = seededRandom(seed);
+  // Otra semilla para las bicis y motos: los autos quedan donde estaban.
+  const rideRand = seededRandom(seed + 1);
   const cars: TrafficCar[] = [];
+  let motors = 0;
+  let carCount = 0;
+  let curbs = 0;
   LANES.forEach((lane, li) => {
     const len = laneLength(lane);
+    if (lane.curb) {
+      for (let k = 0; k < CURB_RIDERS_PER_LANE; k += 1) {
+        const model = CURB_RIDES[(curbs * 3 + 1) % CURB_RIDES.length];
+        curbs += 1;
+        const v0 = rideSpeed(model.kind, rideRand());
+        cars.push({
+          id: `bici-${li}-${k}`,
+          lane: li,
+          s: ((k + rideRand() * 0.5) * len) / CURB_RIDERS_PER_LANE,
+          v: v0 * 0.8,
+          v0,
+          length: model.lengthM,
+          stoppedFor: 0,
+          clearedAt: null,
+          parked: false,
+          model: -1,
+          ride: STREET_RIDES.indexOf(model),
+        });
+      }
+      return;
+    }
     for (let k = 0; k < CARS_PER_LANE; k += 1) {
       const v0 = lane.axis === "z" ? 9 + rand() * 3 : 7 + rand() * 2;
-      const model = streetCarFor(cars.length);
+      const model = streetCarFor(carCount);
+      carCount += 1;
       cars.push({
         id: `auto-${li}-${k}`,
         lane: li,
@@ -134,6 +189,26 @@ export function createTraffic(seed = 77): TrafficCar[] {
         clearedAt: null,
         parked: false,
         model: STREET_CARS.indexOf(model),
+        ride: null,
+      });
+    }
+    // Una moto cada dos carriles, a mitad de camino entre dos autos.
+    if (li % 2 === 0) {
+      const model = MOTOR_RIDES[motors % MOTOR_RIDES.length];
+      motors += 1;
+      const v0 = rideSpeed(model.kind, rideRand());
+      cars.push({
+        id: `moto-${li}`,
+        lane: li,
+        s: (0.5 * len) / CARS_PER_LANE + rideRand() * 4,
+        v: v0 * 0.8,
+        v0,
+        length: model.lengthM,
+        stoppedFor: 0,
+        clearedAt: null,
+        parked: false,
+        model: -1,
+        ride: STREET_RIDES.indexOf(model),
       });
     }
   });

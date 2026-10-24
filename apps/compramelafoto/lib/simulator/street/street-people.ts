@@ -40,8 +40,11 @@ export function isWoman(figure: string): boolean {
   return WOMEN.includes(figure);
 }
 
+/** Las personas que andan por la calle (caminando, en bici o en moto). */
+export const STREET_FIGURES: readonly string[] = [...WOMEN.slice(0, 4), ...MEN.slice(0, 5)];
+
 export function planStreetPeople(layout: StreetLayout): { walkers: StreetWalker[]; standers: StreetStander[] } {
-  const figures = [...WOMEN.slice(0, 4), ...MEN.slice(0, 5)];
+  const figures = STREET_FIGURES;
   const gaits: Gait[] = ["walk_neutral_01", "walk_stroll_01", "walk_fast_01", "walk_neutral_01"];
   const walkers: StreetWalker[] = [];
   layout.walkPaths.forEach((path, i) => {
