@@ -6,7 +6,7 @@ import { nombreDeContacto } from "@/lib/pedidos/nombre-contacto";
 import { MENSAJES_PROYECTO, puedeGestionarProyectos, type CtxProyectos } from "./acceso";
 import { correoParaProveedor } from "./correo-proveedor";
 import { moverAFase } from "./avance";
-import { enlaceLaboratorioSiHayArchivos } from "@/lib/carpetas/carpeta";
+import { enlaceDeCarpeta, enlaceLaboratorioSiHayArchivos } from "@/lib/carpetas/carpeta";
 
 /**
  * El proveedor (laboratorio) de un trabajo: a quién se mandó, su número de pedido, lo que cobra y
@@ -106,7 +106,13 @@ export type ResultadoEnvio = { ok: true; porCorreo: boolean; aviso: string } | {
  * el remitente del estudio (las respuestas llegan al correo de contacto del estudio). Queda una
  * nota en el trabajo con lo que pasó.
  */
-export async function enviarAlProveedor(ctx: CtxProyectos, proyectoId: unknown, proveedorIdRaw: unknown, notasRaw: unknown): Promise<ResultadoEnvio> {
+export async function enviarAlProveedor(
+  ctx: CtxProyectos,
+  proyectoId: unknown,
+  proveedorIdRaw: unknown,
+  notasRaw: unknown,
+  opciones: { siempreConCarpeta?: boolean } = {},
+): Promise<ResultadoEnvio> {
   if (!puedeGestionarProyectos(ctx)) return { ok: false, error: MENSAJES_PROYECTO.sinPermiso };
   if (typeof proyectoId !== "string" || !ID.test(proyectoId)) return { ok: false, error: MENSAJES_PROYECTO.datosInvalidos };
   const proveedorId = texto(proveedorIdRaw, 64);
@@ -144,7 +150,10 @@ export async function enviarAlProveedor(ctx: CtxProyectos, proyectoId: unknown, 
       entregaDeseada: ymd(p.entregaPrometida),
       notas,
       // Si la carpeta tiene archivos, el laboratorio los descarga desde acá (sin Drive).
-      enlaceArchivos: await enlaceLaboratorioSiHayArchivos(ctx, proyectoId),
+      // Al cargar el pedido la carpeta todavía está vacía: va el enlace igual y los archivos aparecen ahí cuando se suben.
+      enlaceArchivos: opciones.siempreConCarpeta
+        ? await enlaceDeCarpeta(ctx, proyectoId, "LABORATORIO").then((r) => (r.ok ? r.url : null))
+        : await enlaceLaboratorioSiHayArchivos(ctx, proyectoId),
     });
     const sender = await loadWorkspaceSender(ctx.workspaceId);
     const r = await sendTransactionalEmail({ to: proveedor.email, ...correo, sender });
@@ -174,4 +183,25 @@ export async function enviarAlProveedor(ctx: CtxProyectos, proyectoId: unknown, 
   const avance = await moverAFase(ctx, proyectoId, "EN_PROVEEDOR", `Enviado a ${proveedor.name}.`);
   if (avance.ok && avance.movido) aviso = `${aviso} Pasó a «${avance.etapa}».`;
   return { ok: true, porCorreo, aviso };
+}
+
+/**
+ * Al cargar un pedido: cada trabajo que tiene proveedor (el «proveedor por defecto» del producto)
+ * se le manda por correo en el momento, con el enlace a su carpeta, y pasa solo a «En el
+ * proveedor». Corre después de responder (`after`): si un correo falla, queda la nota en el
+ * trabajo y el botón «Enviar» del tablero sigue disponible. No vuelve a mandar uno ya enviado.
+ */
+export async function enviarTrabajosDelPedidoAlProveedor(ctx: CtxProyectos, pedidoId: string): Promise<void> {
+  try {
+    const trabajos = await prisma.fotofficeProyecto.findMany({
+      where: { workspaceId: ctx.workspaceId, pedidoId, proveedorId: { not: null }, proveedorEnviadoAt: null },
+      select: { id: true, proveedorId: true },
+    });
+    for (const t of trabajos) {
+      const r = await enviarAlProveedor(ctx, t.id, t.proveedorId, null, { siempreConCarpeta: true });
+      if (!r.ok) console.error("[proyectos][proveedor] envío automático falló", { error: r.error });
+    }
+  } catch (e) {
+    console.error("[proyectos][proveedor] envío automático falló", { error: e instanceof Error ? e.message : "desconocido" });
+  }
 }
