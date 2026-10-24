@@ -68,7 +68,7 @@ describe("editorADocumento — listado del curso girado", () => {
     for (const c of celdas(0)) assert.equal(c.rotation, undefined);
   });
 
-  it("con varios cursos: un título por curso, en negrita y más grande, girado igual que los alumnos", () => {
+  it("con varios cursos: un solo título que los nombra a todos, en negrita y más grande, girado igual que los alumnos", () => {
     const { document } = editorADocumento({
       canvas: { width: 3602, height: 2421, dpi: 300 },
       blocks: [listado(90.68)],
@@ -79,9 +79,9 @@ describe("editorADocumento — listado del curso girado", () => {
     });
     const sides = (document as { sides: { blocks: Record<string, number | string | undefined>[] }[] }).sides;
     const todas = sides[0]!.blocks.filter((b) => String(b.id).startsWith("lista__"));
-    assert.equal(todas.length, nombres.length + 2);
-    const titulos = todas.filter((c) => c.content === "7.° A" || c.content === "7.° B");
-    assert.equal(titulos.length, 2);
+    assert.equal(todas.length, nombres.length + 1);
+    const titulos = todas.filter((c) => c.content === "7.° A y 7.° B");
+    assert.equal(titulos.length, 1);
     const alumno = todas.find((c) => c.content === "Sofía Pérez")!;
     for (const t of titulos) {
       assert.equal(t.fontWeight, "bold");
@@ -106,10 +106,8 @@ describe("editorADocumento — listado del curso girado", () => {
     const sides = (document as { sides: { blocks: Record<string, number | string | undefined>[] }[] }).sides;
     const textos = sides[0]!.blocks.map((b) => b.content);
     assert.equal(textos.filter((t) => t === "Escuela Belgrano").length, 1);
-    // En 4 columnas el título no entra en una línea: va el curso y abajo el turno.
-    for (const [curso, turno] of [["7.° A", "Turno mañana"], ["7.° B", "Turno tarde"]]) {
-      assert.ok(textos.includes(`${curso} · ${turno}`) || (textos.includes(curso) && textos.includes(turno)));
-    }
+    // Un solo título con todos los cursos; si los turnos difieren, cada curso lleva el suyo.
+    assert.ok(textos.includes("7.° A · Turno mañana y 7.° B · Turno tarde"));
     assert.ok(sides[0]!.blocks.every((b) => b.rotation === 90));
   });
 
