@@ -12,14 +12,14 @@ export interface HistogramData {
   clippedHighlights: number;
 }
 
-/** Curva ACES filmic (aproximación de Narkowicz), la misma familia que usa el render. */
+/**
+ * Curva ACES filmic (ajuste de Hill), la misma del shader final (dof-shaders).
+ * Sobre grises las matrices de entrada y salida dan la identidad: alcanza con el ajuste.
+ */
 function acesFilmic(x: number): number {
-  const a = 2.51;
-  const b = 0.03;
-  const c = 2.43;
-  const d = 0.59;
-  const e = 0.14;
-  return Math.min(1, Math.max(0, (x * (a * x + b)) / (x * (c * x + d) + e)));
+  const a = x * (x + 0.0245786) - 0.000090537;
+  const b = x * (0.983729 * x + 0.432951) + 0.238081;
+  return Math.min(1, Math.max(0, a / b));
 }
 
 /** Lineal → sRGB (0–1). */

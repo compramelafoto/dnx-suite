@@ -1,5 +1,6 @@
 "use client";
 
+import { SCENE_RENDER_CALIBRATION } from "@/lib/simulator/camera-exposure";
 import { useCameraStore } from "@/lib/simulator/camera-store";
 import { histogramFromLuminance, type HistogramData } from "@/lib/simulator/histogram";
 import { simulatorRuntime } from "@/lib/simulator/simulator-runtime";
@@ -75,8 +76,10 @@ export default function SimpleHistogram() {
       const grid = simulatorRuntime.meterGrid;
       if (!grid || grid.luminance === lastGrid) return;
       lastGrid = grid.luminance;
-      // La curva ACES de three.js divide la exposición por 0,6.
-      const exposure = (simulatorRuntime.appliedToneMappingExposure ?? 1) / 0.6;
+      // La imagen final multiplica por la ganancia de exposición (la del renderer
+      // dividida por la calibración de la escena) y la curva ACES divide por 0,6.
+      const gain = (simulatorRuntime.appliedToneMappingExposure ?? SCENE_RENDER_CALIBRATION) / SCENE_RENDER_CALIBRATION;
+      const exposure = gain / 0.6;
       setData(histogramFromLuminance(grid.luminance, exposure, SAMPLE_COUNT));
     }, REFRESH_MS);
     return () => window.clearInterval(id);
