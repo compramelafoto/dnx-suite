@@ -1,7 +1,10 @@
 import {
   CLASS_LIST_VARIABLE_KEY,
   COURSE_MOSAIC_VARIABLE_KEY,
+  COURSE_MOSAIC_OWNER_VARIABLE_KEY,
   parseCourseMosaic,
+  parseCourseMosaicOwner,
+  serializeCourseMosaicOwner,
   serializeCourseMosaic,
   type CourseMosaicStudent,
   formatCourseName,
@@ -44,6 +47,8 @@ export type DesignValueSources = {
   courseGroups?: ClassListGroup[] | null;
   /** Los compañeros del bloque «Mosaico del curso», ya sin el dueño del diseño. */
   courseMosaic?: CourseMosaicStudent[] | null;
+  /** El dueño, para los bloques con «Incluir al dueño» (la plancha de figuritas). */
+  courseMosaicOwner?: CourseMosaicStudent | null;
 };
 
 const DATE_FORMAT = new Intl.DateTimeFormat("es-AR", {
@@ -91,6 +96,7 @@ export function buildDesignValues(src: DesignValueSources): Record<string, strin
       : [];
   if (groups.length) values[CLASS_LIST_VARIABLE_KEY] = serializeClassListGroups(groups);
   if (src.courseMosaic?.length) values[COURSE_MOSAIC_VARIABLE_KEY] = serializeCourseMosaic(src.courseMosaic);
+  if (src.courseMosaicOwner) values[COURSE_MOSAIC_OWNER_VARIABLE_KEY] = serializeCourseMosaicOwner(src.courseMosaicOwner);
   if (src.eventDate && !Number.isNaN(src.eventDate.getTime())) {
     put("event.dateFormatted", DATE_FORMAT.format(src.eventDate));
   }
@@ -113,4 +119,9 @@ export function courseDisplayName(name?: string | null, division?: string | null
  */
 export function courseMosaicForPrint(values: Record<string, string>): CourseMosaicStudent[] {
   return parseCourseMosaic(values[COURSE_MOSAIC_VARIABLE_KEY]);
+}
+
+/** El dueño de la carpeta para los bloques con «Incluir al dueño». */
+export function courseMosaicOwnerForPrint(values: Record<string, string>): CourseMosaicStudent | null {
+  return parseCourseMosaicOwner(values[COURSE_MOSAIC_OWNER_VARIABLE_KEY]);
 }

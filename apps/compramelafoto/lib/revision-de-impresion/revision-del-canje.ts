@@ -1,6 +1,7 @@
 import {
   CLASS_LIST_VARIABLE_KEY,
   COURSE_MOSAIC_VARIABLE_KEY,
+  COURSE_MOSAIC_OWNER_VARIABLE_KEY,
   DEFAULT_CLASS_LIST_OPTIONS,
   formatClassList,
   type ClassListOptions,
@@ -48,7 +49,7 @@ export function esTextoEditablePorLaFamilia(key: string): boolean {
 /** Los textos que se van a imprimir, en el orden de la plantilla, con lo que valen ahora. */
 export function textosAImprimir(textVariables: readonly string[], values: Record<string, string>): TextoAImprimir[] {
   return textVariables
-    .filter((k) => k !== CLASS_LIST_VARIABLE_KEY && k !== COURSE_MOSAIC_VARIABLE_KEY)
+    .filter((k) => k !== CLASS_LIST_VARIABLE_KEY && k !== COURSE_MOSAIC_VARIABLE_KEY && k !== COURSE_MOSAIC_OWNER_VARIABLE_KEY)
     .map((key) => ({
       key,
       label: textVariableLabel(key),

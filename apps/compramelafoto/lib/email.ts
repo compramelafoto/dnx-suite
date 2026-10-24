@@ -4,6 +4,7 @@
 
 import { Resend } from "resend";
 import { textToEmailHtml, wrapEmailLayout } from "@/emails/layout";
+import { filtrarDestinatariosDePrueba } from "@/lib/demos/identidad";
 
 export interface EmailOptions {
   to: string;
@@ -35,6 +36,12 @@ export async function sendEmail(options: EmailOptions): Promise<{ success: boole
   // Validar que tenemos al menos texto o HTML
   if (!text && !html) {
     return { success: false, error: "Se requiere texto o HTML para el email" };
+  }
+
+  // Demos con datos falsos: un destinatario `.test` no recibe nada (ni existe).
+  if (filtrarDestinatariosDePrueba(to).enviar.length === 0) {
+    console.info("[DEMO] correo descartado", { to, subject });
+    return { success: true };
   }
 
   const client = getResendClient();

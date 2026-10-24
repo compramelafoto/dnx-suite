@@ -1,5 +1,5 @@
 import type { PhotoOverride } from "@repo/template-editor-ui";
-import { clientPhotoSlotNumber, imageBlockVariableKey, type TemplateV2Block } from "@repo/template-editor-core";
+import { clientPhotoSlotNumber, huecosSinFondo, imageBlockVariableKey, type TemplateV2Block } from "@repo/template-editor-core";
 import type { DesignV2Data } from "./design-data";
 
 /**
@@ -24,11 +24,27 @@ export function visibleDesignBlocks(blocks: TemplateV2Block[], values: DesignV2D
 export function designPhotoOverrides(
   slots: DesignV2Data["slots"],
   photoUrlById: Map<number, string | null>,
+  /** Los huecos «Quitar el fondo» y los recortes listos: ahí va el recorte, como al imprimir. */
+  sinFondo?: { huecos: ReadonlySet<string>; recorteById: Map<number, string> },
 ): Record<string, PhotoOverride> {
   const result: Record<string, PhotoOverride> = {};
   for (const [blockId, s] of Object.entries(slots)) {
-    const url = s.photoId != null ? photoUrlById.get(s.photoId) : null;
+    const recorte = s.photoId != null && sinFondo?.huecos.has(blockId) ? sinFondo.recorteById.get(s.photoId) : undefined;
+    const url = recorte ?? (s.photoId != null ? photoUrlById.get(s.photoId) : null);
     if (url) result[blockId] = { src: url, crop: s.crop };
   }
   return result;
+}
+
+/** Lo que necesita `designPhotoOverrides` para mostrar los recortes sin fondo. */
+export function sinFondoDelDiseno(
+  blocks: ReadonlyArray<{ id: string; type: string; configJson?: unknown }>,
+  photos: ReadonlyArray<{ id: number; cutout?: { status: string; url: string | null } }>,
+) {
+  return {
+    huecos: huecosSinFondo(blocks),
+    recorteById: new Map(
+      photos.flatMap((p) => (p.cutout?.status === "READY" && p.cutout.url ? [[p.id, p.cutout.url] as const] : [])),
+    ),
+  };
 }
