@@ -59,6 +59,21 @@ export {
   type ClassListLine,
   type ClassListOptions,
   type ClassListStudent,
+  COURSE_MOSAIC_PHOTO_ASPECT_MAX,
+  COURSE_MOSAIC_PHOTO_ASPECT_MIN,
+  COURSE_MOSAIC_SAMPLE,
+  COURSE_MOSAIC_TILT_MAX,
+  COURSE_MOSAIC_VARIABLE_KEY,
+  DEFAULT_COURSE_MOSAIC_OPTIONS,
+  distributeCourseMosaic,
+  isCourseMosaicConfig,
+  layoutCourseMosaic,
+  parseCourseMosaic,
+  readCourseMosaicOptions,
+  serializeCourseMosaic,
+  type CourseMosaicCell,
+  type CourseMosaicOptions,
+  type CourseMosaicStudent,
 } from "@repo/template-engine";
 export * from "./clamp-block-position";
 export * from "./create-default-blocks";

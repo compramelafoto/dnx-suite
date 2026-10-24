@@ -18,6 +18,12 @@ import {
   isClassListConfig,
   readClassListOptions,
   type ClassListOptions,
+  COURSE_MOSAIC_PHOTO_ASPECT_MAX,
+  COURSE_MOSAIC_PHOTO_ASPECT_MIN,
+  COURSE_MOSAIC_TILT_MAX,
+  isCourseMosaicConfig,
+  readCourseMosaicOptions,
+  type CourseMosaicOptions,
 } from "@repo/template-editor-core";
 import {
   alignBlocksToSelectionBounds,
@@ -306,7 +312,16 @@ export function TemplateEditorInspector({
         />
       )}
 
-      {selectedBlock.type === "VARIABLE_TEXT" && !isClassListConfig(cfg) && (
+      {selectedBlock.type === "VARIABLE_TEXT" && isCourseMosaicConfig(cfg) && (
+        <CourseMosaicOptionsPanel
+          options={readCourseMosaicOptions(cfg)}
+          templateId={templateId}
+          versionId={versionId}
+          onChange={(patch) => updateConfig({ courseMosaic: { ...readCourseMosaicOptions(cfg), ...patch } })}
+        />
+      )}
+
+      {selectedBlock.type === "VARIABLE_TEXT" && !isClassListConfig(cfg) && !isCourseMosaicConfig(cfg) && (
         <InspectorPanel title="Contenido">
           <div>
             <FieldLabel>Variable de datos</FieldLabel>
@@ -763,6 +778,273 @@ function ClassListOptionsPanel({
       >
         Usar otro dato en este bloque
       </button>
+    </InspectorPanel>
+  );
+}
+
+/** Proporciones de retrato que se ofrecen: las de foto carné y las cuadradas. */
+const MOSAIC_ASPECTS: Array<{ value: string; label: string }> = [
+  { value: "0.75", label: "3:4" },
+  { value: "0.8", label: "4:5" },
+  { value: "1", label: "1:1" },
+  { value: "0.6667", label: "2:3" },
+];
+
+function CourseMosaicOptionsPanel({
+  options: o,
+  templateId,
+  versionId,
+  onChange,
+}: {
+  options: CourseMosaicOptions;
+  templateId: string;
+  versionId: string;
+  onChange: (patch: Partial<CourseMosaicOptions>) => void;
+}) {
+  const aspect = MOSAIC_ASPECTS.find((a) => Math.abs(Number(a.value) - o.photoAspect) < 0.01)?.value ?? "";
+  const reserved = o.reserved ?? { x: 0.6, y: 0, width: 0.4, height: 0.3 };
+  const pct = (v: number) => Math.round(v * 100);
+  return (
+    <InspectorPanel title="Mosaico del curso">
+      <p className="text-[11px] leading-snug text-[color:var(--te-ink-muted)]">
+        Los compañeros del alumno, cada uno con su retrato y su nombre. Se reparten solos: con más chicos, los
+        retratos se achican. En el lienzo se ve un curso de muestra; el alumno dueño de la carpeta no aparece en su
+        propio mosaico.
+      </p>
+      <div>
+        <FieldLabel>Forma</FieldLabel>
+        <SegmentedControl
+          className="w-full"
+          value={o.frame}
+          onChange={(frame) => onChange({ frame })}
+          options={[
+            { value: "rect", label: "Recto" },
+            { value: "rounded", label: "Redondeado" },
+            { value: "circle", label: "Círculo" },
+            { value: "ellipse", label: "Óvalo" },
+            { value: "polaroid", label: "Polaroid" },
+          ]}
+        />
+      </div>
+      {o.frame === "rounded" ? (
+        <div>
+          <FieldLabel>Redondeo de las esquinas</FieldLabel>
+          <NumberSliderField
+            ariaLabel="Redondeo de las esquinas en píxeles"
+            value={o.cornerRadius}
+            min={0}
+            max={200}
+            onChange={(cornerRadius) => onChange({ cornerRadius })}
+          />
+        </div>
+      ) : null}
+      <div>
+        <FieldLabel>Proporción del retrato</FieldLabel>
+        <SegmentedControl
+          className="w-full"
+          value={aspect}
+          onChange={(v) =>
+            onChange({
+              photoAspect: Math.min(COURSE_MOSAIC_PHOTO_ASPECT_MAX, Math.max(COURSE_MOSAIC_PHOTO_ASPECT_MIN, Number(v))),
+            })
+          }
+          options={MOSAIC_ASPECTS}
+        />
+      </div>
+      <div>
+        <FieldLabel>Separación entre retratos (a lo ancho)</FieldLabel>
+        <NumberSliderField ariaLabel="Separación horizontal en píxeles" value={o.gapX} min={0} max={200} onChange={(gapX) => onChange({ gapX })} />
+      </div>
+      <div>
+        <FieldLabel>Separación entre filas</FieldLabel>
+        <NumberSliderField ariaLabel="Separación vertical en píxeles" value={o.gapY} min={0} max={200} onChange={(gapY) => onChange({ gapY })} />
+        <p className="mt-1 text-[10px] leading-snug text-[color:var(--te-ink-faint)]">En 0 quedan pegados.</p>
+      </div>
+      <div>
+        <FieldLabel>Borde</FieldLabel>
+        <NumberSliderField
+          ariaLabel="Grosor del borde en píxeles"
+          value={o.borderWidth}
+          min={0}
+          max={60}
+          onChange={(borderWidth) => onChange({ borderWidth })}
+        />
+        {o.borderWidth > 0 ? (
+          <ColorField label="Color del borde" value={o.borderColor} onChange={(borderColor) => onChange({ borderColor })} />
+        ) : null}
+        {o.borderWidth > 0 && o.frame === "ellipse" ? (
+          <p className="mt-1 text-[10px] leading-snug text-[color:var(--te-ink-faint)]">
+            El óvalo se imprime sin borde: la impresión no dibuja óvalos con borde.
+          </p>
+        ) : null}
+      </div>
+      <ToggleSwitch
+        checked={o.shadow != null}
+        onChange={(on) => onChange({ shadow: on ? { dx: 16, dy: 16, color: "#f5c518" } : null })}
+        label="Recuadro de color corrido detrás de cada retrato"
+      />
+      {o.shadow ? (
+        <div className="space-y-1">
+          <ColorField label="Color" value={o.shadow.color} onChange={(color) => onChange({ shadow: { ...o.shadow!, color } })} />
+          <FieldLabel>Corrimiento</FieldLabel>
+          <NumberSliderField
+            ariaLabel="Corrimiento del recuadro en píxeles"
+            value={o.shadow.dx}
+            min={-80}
+            max={80}
+            onChange={(d) => onChange({ shadow: { ...o.shadow!, dx: d, dy: d } })}
+          />
+        </div>
+      ) : null}
+      <div>
+        <FieldLabel>Giro alternado (fotos pegadas a mano)</FieldLabel>
+        <NumberSliderField
+          ariaLabel="Giro alternado en grados"
+          value={o.tilt}
+          min={0}
+          max={COURSE_MOSAIC_TILT_MAX}
+          step={0.5}
+          onChange={(tilt) => onChange({ tilt })}
+        />
+      </div>
+      <div>
+        <FieldLabel>Marco encima de cada retrato (PNG con transparencia)</FieldLabel>
+        <BackgroundImageField
+          templateId={templateId}
+          versionId={versionId}
+          src={o.frameSrc}
+          onChange={(frameSrc) => onChange({ frameSrc })}
+        />
+      </div>
+      <div>
+        <FieldLabel>Nombre</FieldLabel>
+        <SegmentedControl
+          className="w-full"
+          value={o.namePosition}
+          onChange={(namePosition) => onChange({ namePosition })}
+          options={[
+            { value: "below", label: "Debajo" },
+            { value: "above", label: "Arriba" },
+            { value: "insideBottom", label: "Sobre la foto" },
+            { value: "none", label: "Sin nombre" },
+          ]}
+        />
+      </div>
+      {o.namePosition !== "none" ? (
+        <>
+          <div>
+            <FieldLabel>Líneas</FieldLabel>
+            <SegmentedControl
+              className="w-full"
+              value={String(o.nameLines)}
+              onChange={(v) => onChange({ nameLines: v === "1" ? 1 : 2 })}
+              options={[
+                { value: "2", label: "Nombre / Apellido" },
+                { value: "1", label: "En una línea" },
+              ]}
+            />
+          </div>
+          <div>
+            <FieldLabel>Nombres</FieldLabel>
+            <SegmentedControl
+              className="w-full"
+              value={o.givenNames}
+              onChange={(givenNames) => onChange({ givenNames })}
+              options={[
+                { value: "first", label: "Sólo el primero (María)" },
+                { value: "all", label: "Todos (María Sol)" },
+              ]}
+            />
+          </div>
+          <ToggleSwitch
+            checked={o.nameBackground !== ""}
+            onChange={(on) => onChange({ nameBackground: on ? "#ffffff" : "" })}
+            label="Cinta de color detrás del nombre"
+          />
+          {o.nameBackground ? (
+            <ColorField label="Color de la cinta" value={o.nameBackground} onChange={(nameBackground) => onChange({ nameBackground })} />
+          ) : null}
+        </>
+      ) : null}
+      <div>
+        <FieldLabel>Ordenar por</FieldLabel>
+        <SegmentedControl
+          className="w-full"
+          value={o.sortBy}
+          onChange={(sortBy) => onChange({ sortBy })}
+          options={[
+            { value: "lastName", label: "Apellido" },
+            { value: "firstName", label: "Nombre" },
+          ]}
+        />
+      </div>
+      <div>
+        <FieldLabel>Última fila incompleta</FieldLabel>
+        <SegmentedControl
+          className="w-full"
+          value={o.lastRowAlign}
+          onChange={(lastRowAlign) => onChange({ lastRowAlign })}
+          options={[
+            { value: "left", label: "Izquierda" },
+            { value: "center", label: "Centro" },
+            { value: "right", label: "Derecha" },
+          ]}
+        />
+      </div>
+      <ToggleSwitch
+        checked={o.reserved != null}
+        onChange={(on) => onChange({ reserved: on ? reserved : null })}
+        label="Dejar una zona libre para un cartel"
+      />
+      {o.reserved ? (
+        <div className="grid grid-cols-2 gap-2">
+          {(
+            [
+              ["x", "Desde la izquierda %"],
+              ["y", "Desde arriba %"],
+              ["width", "Ancho %"],
+              ["height", "Alto %"],
+            ] as const
+          ).map(([k, label]) => (
+            <div key={k}>
+              <FieldLabel>{label}</FieldLabel>
+              <NumberSliderField
+                ariaLabel={label}
+                value={pct(o.reserved![k])}
+                min={0}
+                max={100}
+                onChange={(v) => onChange({ reserved: { ...o.reserved!, [k]: v / 100 } })}
+              />
+            </div>
+          ))}
+        </div>
+      ) : null}
+      <div>
+        <FieldLabel>Orden en la cadena</FieldLabel>
+        <NumberSliderField
+          ariaLabel="Orden en la cadena de mosaicos"
+          value={o.chainOrder}
+          min={1}
+          max={6}
+          onChange={(chainOrder) => onChange({ chainOrder })}
+        />
+        <FieldLabel>Cuántos chicos entran como máximo (0 = todos)</FieldLabel>
+        <NumberSliderField
+          ariaLabel="Tope de chicos en este mosaico"
+          value={o.capacity}
+          min={0}
+          max={60}
+          onChange={(capacity) => onChange({ capacity })}
+        />
+        <p className="mt-1 text-[10px] leading-snug text-[color:var(--te-ink-faint)]">
+          Para partir el mosaico en dos recuadros (por ejemplo, uno en cada página): el 1 se llena hasta su tope y los
+          demás chicos siguen en el 2.
+        </p>
+      </div>
+      <p className="text-[10px] leading-snug text-[color:var(--te-ink-faint)]">
+        La tipografía, el tamaño y el color de los nombres se eligen en la barra de texto. Si un nombre no entra, se
+        achica y, si hace falta, se corta con «…».
+      </p>
     </InspectorPanel>
   );
 }

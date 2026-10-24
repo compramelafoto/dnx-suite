@@ -10,6 +10,7 @@ import {
 } from "@repo/template-engine";
 import { createDefaultCourseMosaicBlock } from "../create-default-blocks";
 import { editorADocumento, type EditorBlock } from "../design-studio-bridge";
+import { normalizeBlockConfig } from "../render-core";
 
 /**
  * El mosaico del curso llega al papel: cada compañero sale como bloques comunes (sombra, papel,
@@ -147,5 +148,13 @@ describe("editorADocumento — mosaico del curso", () => {
     assert.deepEqual(readCourseMosaicOptions(b.configJson), DEFAULT_COURSE_MOSAIC_OPTIONS);
     assert.equal(b.type, "VARIABLE_TEXT");
     assert.equal(b.name, "Mosaico del curso");
+  });
+});
+
+describe("normalizeBlockConfig — mosaico del curso", () => {
+  it("conserva las opciones del mosaico al normalizar el bloque", () => {
+    const cfg = { variableKey: "course.mosaic", courseMosaic: { frame: "polaroid", tilt: 3 } };
+    const n = normalizeBlockConfig("VARIABLE_TEXT", cfg) as Record<string, unknown>;
+    assert.deepEqual(n.courseMosaic, { frame: "polaroid", tilt: 3 });
   });
 });

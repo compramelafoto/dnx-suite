@@ -64,6 +64,7 @@ import {
   getQrVariablesForProduct,
   editorResolvedVariablesForProduct,
   createDefaultClassListBlock,
+  createDefaultCourseMosaicBlock,
   createDefaultVariableTextBlock,
 } from "@repo/template-editor-core";
 import { asObject } from "@repo/template-editor-core";
@@ -576,6 +577,12 @@ export function TemplateEditorShell({
     const ap = state.activePageIndex ?? 0;
     const onPage = state.blocks.filter((b) => (b.pageIndex ?? 0) === ap);
     dispatch(addBlock(createDefaultClassListBlock(state.canvas, onPage, ap)));
+  }
+  function handleAddCourseMosaic() {
+    setCanvasTool("select");
+    const ap = state.activePageIndex ?? 0;
+    const onPage = state.blocks.filter((b) => (b.pageIndex ?? 0) === ap);
+    dispatch(addBlock(createDefaultCourseMosaicBlock(state.canvas, onPage, ap)));
   }
   function handleAddShape() {
     setCanvasTool("select");
@@ -1637,6 +1644,19 @@ export function TemplateEditorShell({
                     <circle cx="4.5" cy="6" r="1" />
                     <circle cx="4.5" cy="12" r="1" />
                     <circle cx="4.5" cy="18" r="1" />
+                  </svg>
+                </EditorToolButton>
+              ) : null}
+              {producto === "school" ? (
+                <EditorToolButton label="Mosaico del curso" onClick={handleAddCourseMosaic}>
+                  <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                    <rect x="3" y="3" width="5" height="5" rx="1" />
+                    <rect x="9.5" y="3" width="5" height="5" rx="1" />
+                    <rect x="16" y="3" width="5" height="5" rx="1" />
+                    <rect x="3" y="10" width="5" height="5" rx="1" />
+                    <rect x="9.5" y="10" width="5" height="5" rx="1" />
+                    <rect x="16" y="10" width="5" height="5" rx="1" />
+                    <path d="M4 19h3M10.5 19h3M17 19h3" strokeLinecap="round" />
                   </svg>
                 </EditorToolButton>
               ) : null}

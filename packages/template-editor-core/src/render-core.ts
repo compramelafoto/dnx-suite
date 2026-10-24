@@ -122,6 +122,8 @@ function normalizeBlockConfigByType(type: TemplateV2BlockType, input: unknown): 
       variableKey: typeof cfg.variableKey === "string" ? cfg.variableKey : "",
       // Opciones del «Listado del curso»; se leen con `readClassListOptions`.
       ...(cfg.classList && typeof cfg.classList === "object" ? { classList: cfg.classList } : {}),
+      // Opciones del «Mosaico del curso»; se leen con `readCourseMosaicOptions`.
+      ...(cfg.courseMosaic && typeof cfg.courseMosaic === "object" ? { courseMosaic: cfg.courseMosaic } : {}),
       fallback:
         typeof cfg.fallback === "string"
           ? cfg.fallback

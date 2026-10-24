@@ -1,7 +1,7 @@
 "use client";
 
 import { QrBlockRenderer } from "./QrBlockRenderer";
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   computeCoverCropRect,
   getResolvedVariableText,
@@ -16,7 +16,16 @@ import {
   CLIENT_PHOTO_ROLE_SLOTS,
   CLIENT_PHOTO_VARIABLE_PATTERN,
   SCHOOL_CLIENT_PHOTO_PLACEHOLDER,
+  COURSE_MOSAIC_SAMPLE,
+  distributeCourseMosaic,
   isClassListConfig,
+  isCourseMosaicConfig,
+  layoutCourseMosaic,
+  parseCourseMosaic,
+  readCourseMosaicOptions,
+  type CourseMosaicCell,
+  type CourseMosaicOptions,
+  type CourseMosaicStudent,
   layoutClassListBlock,
   parseClassListGroups,
   readClassListOptions,
@@ -180,6 +189,203 @@ function TextBlockRenderer({
       }}
     >
       {t.content}
+    </div>
+  );
+}
+
+/** La foto de un compañero, con su encuadre: la misma cuenta que usa la impresión. */
+function MosaicPhoto({ src, crop, width, height }: { src: string; crop?: CourseMosaicStudent["crop"]; width: number; height: number }) {
+  const [natural, setNatural] = useState<{ src: string; w: number; h: number } | null>(null);
+  const size = natural && natural.src === src ? natural : null;
+  let style: React.CSSProperties = {
+    position: "absolute",
+    left: 0,
+    top: 0,
+    width: "100%",
+    height: "100%",
+    objectFit: "cover",
+    display: "block",
+    maxWidth: "none",
+  };
+  if (size) {
+    const rect = computeCoverCropRect({ srcWidth: size.w, srcHeight: size.h, slotWidth: width, slotHeight: height, crop });
+    const scale = width / rect.width;
+    style = { ...style, width: size.w * scale, height: size.h * scale, left: -rect.left * scale, top: -rect.top * scale };
+  }
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={src}
+      alt=""
+      draggable={false}
+      style={style}
+      onLoad={(e) => setNatural({ src, w: e.currentTarget.naturalWidth, h: e.currentTarget.naturalHeight })}
+    />
+  );
+}
+
+function initialsOf(s: CourseMosaicStudent): string {
+  return [s.firstName, s.lastName]
+    .map((p) => p.trim().charAt(0).toUpperCase())
+    .filter(Boolean)
+    .join("");
+}
+
+/** Una celda del mosaico: sombra, papel, foto (o silueta), borde, marco, cinta y nombre. */
+function MosaicCellView({ cell, o, t, index }: { cell: CourseMosaicCell; o: CourseMosaicOptions; t: ReturnType<typeof getTextVisualConfig>; index: number }) {
+  const round = o.frame === "circle" || o.frame === "ellipse";
+  const radius = round ? "50%" : o.frame === "rounded" ? o.cornerRadius : 0;
+  const rel = (r: { x: number; y: number; width: number; height: number }): React.CSSProperties => ({
+    position: "absolute",
+    left: r.x - cell.box.x,
+    top: r.y - cell.box.y,
+    width: r.width,
+    height: r.height,
+  });
+  const paper = o.frame === "polaroid" ? cell.box : cell.photo;
+  const s = cell.student;
+  const src = s.photoUrl;
+  return (
+    <div
+      data-mosaic-cell={index}
+      style={{
+        position: "absolute",
+        left: cell.box.x,
+        top: cell.box.y,
+        width: cell.box.width,
+        height: cell.box.height,
+        transform: cell.rotation ? `rotate(${cell.rotation}deg)` : undefined,
+      }}
+    >
+      {o.shadow ? (
+        <div
+          style={{
+            ...rel({ ...paper, x: paper.x + o.shadow.dx, y: paper.y + o.shadow.dy }),
+            background: o.shadow.color,
+            borderRadius: o.frame === "polaroid" ? 0 : radius,
+          }}
+        />
+      ) : null}
+      {o.frame === "polaroid" ? <div style={{ ...rel(cell.box), background: "#ffffff" }} /> : null}
+      <div style={{ ...rel(cell.photo), overflow: "hidden", borderRadius: radius, background: src ? undefined : "#d6d3d1" }}>
+        {src ? (
+          <MosaicPhoto src={src} crop={s.crop} width={cell.photo.width} height={cell.photo.height} />
+        ) : (
+          <div
+            style={{
+              width: "100%",
+              height: "100%",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "#78716c",
+              fontWeight: 700,
+              fontFamily: t.fontFamilyCss,
+              fontSize: cell.photo.width * 0.3,
+            }}
+          >
+            {initialsOf(s)}
+          </div>
+        )}
+      </div>
+      {o.borderWidth > 0 && o.frame !== "ellipse" ? (
+        <div
+          style={{
+            ...rel(cell.photo),
+            border: `${o.borderWidth}px solid ${o.borderColor}`,
+            borderRadius: radius,
+            boxSizing: "border-box",
+          }}
+        />
+      ) : null}
+      {o.frameSrc ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={o.frameSrc} alt="" draggable={false} style={{ ...rel(cell.photo), objectFit: "cover" }} />
+      ) : null}
+      {cell.name ? (
+        <>
+          {o.nameBackground ? (
+            <div
+              style={{
+                ...rel({
+                  x: cell.name.x,
+                  y: cell.name.y - cell.name.fontSize * 0.15,
+                  width: cell.name.width,
+                  height: cell.name.height + cell.name.fontSize * 0.3,
+                }),
+                background: o.nameBackground,
+              }}
+            />
+          ) : null}
+          <div
+            style={{
+              ...rel(cell.name),
+              color: t.color,
+              fontFamily: t.fontFamilyCss,
+              fontSize: cell.name.fontSize,
+              fontWeight: t.fontWeight,
+              fontStyle: t.fontStyle,
+              textTransform: t.textTransform,
+              lineHeight: String(t.lineHeight),
+              textAlign: "center",
+              whiteSpace: "pre",
+              overflow: "hidden",
+            }}
+          >
+            {cell.name.lines.join("\n")}
+          </div>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+/** «Mosaico del curso»: la misma cuenta de reparto que usa la impresión. */
+function CourseMosaicBlockRenderer({
+  config,
+  students,
+  layoutWidth,
+  layoutHeight,
+}: {
+  config: Record<string, unknown>;
+  students: CourseMosaicStudent[];
+  layoutWidth: number;
+  layoutHeight: number;
+}) {
+  const o = readCourseMosaicOptions(config);
+  const t = getTextVisualConfig(config);
+  const { cells } = layoutCourseMosaic({
+    students,
+    options: o,
+    width: layoutWidth,
+    height: layoutHeight,
+    fontSize: t.fontSize,
+    lineHeight: t.lineHeight,
+  });
+  if (cells.length === 0) {
+    return (
+      <div
+        style={{
+          width: "100%",
+          height: "100%",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          border: "1px dashed #94a3b8",
+          color: "#64748b",
+          fontSize: Math.max(12, Math.min(layoutWidth, layoutHeight) * 0.08),
+          fontFamily: "system-ui, sans-serif",
+        }}
+      >
+        Mosaico del curso (sin compañeros)
+      </div>
+    );
+  }
+  return (
+    <div style={{ position: "relative", width: "100%", height: "100%" }}>
+      {cells.map((cell, i) => (
+        <MosaicCellView key={i} cell={cell} o={o} t={t} index={i} />
+      ))}
     </div>
   );
 }
@@ -723,6 +929,17 @@ export function TemplateCanvasRenderer({
     pageIndex == null ? blocks : blocks.filter((b) => (b.pageIndex ?? 0) === pageIndex),
   );
   const selectedSet = new Set(selectedBlockIds);
+  // Los bloques del mosaico se reparten los chicos entre todos (de todas las páginas), como en la
+  // impresión. Sin valor, los compañeros de muestra.
+  const mosaicValue = resolvedVariables?.["course.mosaic"];
+  const studentsByMosaic = useMemo(
+    () =>
+      distributeCourseMosaic(
+        blocks.map((b) => ({ id: b.id, configJson: b.type === "VARIABLE_TEXT" ? b.configJson : undefined })),
+        typeof mosaicValue === "string" ? parseCourseMosaic(mosaicValue) : COURSE_MOSAIC_SAMPLE,
+      ),
+    [blocks, mosaicValue],
+  );
 
   return (
     <div
@@ -760,6 +977,13 @@ export function TemplateCanvasRenderer({
             {block.type === "VARIABLE_TEXT" ? (
               hideTextBodyForBlockId === block.id ? (
                 <div style={{ width: "100%", height: "100%" }} aria-hidden />
+              ) : isCourseMosaicConfig(block.configJson) ? (
+                <CourseMosaicBlockRenderer
+                  config={block.configJson}
+                  students={studentsByMosaic.get(block.id) ?? []}
+                  layoutWidth={block.layout.width}
+                  layoutHeight={block.layout.height}
+                />
               ) : isClassListConfig(block.configJson) ? (
                 <ClassListBlockRenderer
                   config={block.configJson}
