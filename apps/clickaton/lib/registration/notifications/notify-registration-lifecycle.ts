@@ -32,7 +32,7 @@ export async function notifyPaidRegistrationConfirmed(input: {
         instagramHandle: true,
         edition: { select: { name: true, slug: true, startAt: true } },
         items: {
-          where: { isIncluded: true },
+          where: { isIncluded: true, fulfillmentStatus: { not: "CANCELLED" } },
           select: {
             nameSnapshot: true,
             variantNameSnapshot: true,
