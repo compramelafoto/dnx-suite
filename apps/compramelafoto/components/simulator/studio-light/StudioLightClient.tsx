@@ -214,7 +214,7 @@ function HelpDialog({ onClose }: { onClose: () => void }) {
   return (
     <div className="cod-studio-help" role="dialog" aria-modal="true" aria-label="Cómo usar el estudio" onClick={onClose}>
       <div className="cod-studio-help__box" onClick={(e) => e.stopPropagation()}>
-        <h2>Cómo usar el Estudio de luz</h2>
+        <h2>Cómo usar el Estudio Fotográfico</h2>
         <ul>
           <li><b>Arrastrá una luz</b> en la vista 3D o en la planta para moverla por el piso.</li>
           <li><b>Shift + arrastrar</b> sube o baja la luz.</li>

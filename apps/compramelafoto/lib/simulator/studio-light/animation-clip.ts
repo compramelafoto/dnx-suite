@@ -1,5 +1,5 @@
 /**
- * Lector de las animaciones compactas del Estudio de luz (ver
+ * Lector de las animaciones compactas del Estudio Fotográfico (ver
  * scripts/camofduty/convert-rocketbox-animations.ts): valores en 16 bits,
  * base64, a cuadros fijos por segundo.
  */

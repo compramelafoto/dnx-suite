@@ -17,7 +17,7 @@ const FEATURES = [
   },
   {
     id: "studio",
-    title: "Estudio de Luz 3D",
+    title: "Estudio Fotográfico",
     text: "Arrastrá flashes, softbox y reflectores alrededor del modelo, medí con el fotómetro y aprendé Rembrandt, mariposa, loop y más.",
     icon: "sun",
     soon: false,

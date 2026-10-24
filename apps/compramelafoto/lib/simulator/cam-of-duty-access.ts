@@ -1,5 +1,5 @@
 /**
- * Entrada a Cam Of Duty: es de uso libre, pero el simulador y el estudio de luz
+ * Entrada a Cam Of Duty: es de uso libre, pero el simulador y el Estudio Fotográfico
  * piden cuenta de fotógrafo de CompraMeLaFoto con el email validado y los
  * datos completos. Quien entra queda registrado en `CamOfDutyMember`, así los
  * usuarios de Cam Of Duty son fotógrafos de CLF.
