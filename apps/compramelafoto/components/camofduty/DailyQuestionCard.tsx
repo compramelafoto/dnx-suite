@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { DAILY_QUESTIONS } from "@/lib/camofduty/daily-questions";
 import { argentinaDateKey, questionIndexForDay, randomOtherIndex } from "@/lib/camofduty/daily-question-pick";
 
@@ -40,6 +40,8 @@ export default function DailyQuestionCard() {
   const [index, setIndex] = useState<number | null>(null);
   const [chosen, setChosen] = useState<number | null>(null);
   const [isDaily, setIsDaily] = useState(true);
+  // La tarjeta puede estar dos veces (ventana emergente y sección): cada una con su id.
+  const questionId = useId();
 
   useEffect(() => {
     const date = argentinaDateKey();
@@ -70,12 +72,12 @@ export default function DailyQuestionCard() {
   };
 
   return (
-    <article className="cod-daily" aria-labelledby="cod-daily-question">
+    <article className="cod-daily" aria-labelledby={questionId}>
       <header className="cod-daily__head">
         <span className="cod-daily__tag">{q.niche}</span>
         <span className="cod-daily__count">{isDaily ? "Hoy" : "Pregunta extra"}</span>
       </header>
-      <h3 id="cod-daily-question" className="cod-daily__question">
+      <h3 id={questionId} className="cod-daily__question">
         {q.question}
       </h3>
       <ol className="cod-daily__options">
