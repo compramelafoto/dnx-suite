@@ -25,6 +25,7 @@ import {
   METER_GRID_HEIGHT,
   METER_GRID_WIDTH,
   METER_INTERVAL_MS,
+  decodeMeterByte,
 } from "@/lib/simulator/meter-shader";
 import { simulatorRuntime } from "@/lib/simulator/simulator-runtime";
 import {
@@ -113,6 +114,7 @@ export default function DepthOfFieldPass() {
         cropMin: { value: new THREE.Vector2(0, 0) },
         cropSize: { value: new THREE.Vector2(1, 1) },
         gridSize: { value: new THREE.Vector2(METER_GRID_WIDTH, METER_GRID_HEIGHT) },
+        logEncode: { value: 0 },
       },
     });
     const meterScene = new THREE.Scene();
@@ -122,6 +124,8 @@ export default function DepthOfFieldPass() {
       material,
       scene: meterScene,
       pixels: new Float32Array(METER_GRID_WIDTH * METER_GRID_HEIGHT * 4),
+      /** Modo de un byte por celda (celulares sin render en punto flotante). */
+      bytes: null as Uint8Array | null,
       luminance: new Float32Array(METER_GRID_WIDTH * METER_GRID_HEIGHT),
       lastMs: 0,
       /** Última lectura recibida (para el suavizado). */
@@ -196,19 +200,35 @@ export default function DepthOfFieldPass() {
       if (!meter.failed && !meter.reader) {
         const ctx = renderer.getContext();
         if (typeof WebGL2RenderingContext !== "undefined" && ctx instanceof WebGL2RenderingContext) {
-          meter.reader = new AsyncPixelReader(ctx, METER_GRID_WIDTH, METER_GRID_HEIGHT);
+          if (renderer.extensions.has("EXT_color_buffer_float")) {
+            meter.reader = new AsyncPixelReader(ctx, METER_GRID_WIDTH, METER_GRID_HEIGHT);
+          } else {
+            // Muchos celulares no dibujan en punto flotante: la grilla en punto flotante
+            // salía en cero, el visor creía que era de noche y aclaraba todo hasta el blanco.
+            meter.target.dispose();
+            meter.target = new THREE.WebGLRenderTarget(METER_GRID_WIDTH, METER_GRID_HEIGHT, {
+              type: THREE.UnsignedByteType,
+              minFilter: THREE.NearestFilter,
+              magFilter: THREE.NearestFilter,
+              depthBuffer: false,
+            });
+            meter.material.uniforms.logEncode.value = 1;
+            meter.bytes = new Uint8Array(METER_GRID_WIDTH * METER_GRID_HEIGHT * 4);
+            meter.reader = new AsyncPixelReader(ctx, METER_GRID_WIDTH, METER_GRID_HEIGHT, "byte");
+          }
         } else {
           meter.failed = true;
         }
       }
-      if (meter.reader?.poll(meter.pixels)) {
+      if (meter.reader?.poll(meter.bytes ?? meter.pixels)) {
         const dt = meter.lastReadMs ? (now - meter.lastReadMs) / 1000 : 0;
         meter.lastReadMs = now;
         // readPixels arranca abajo; la grilla del fotómetro va de arriba hacia abajo.
         for (let y = 0; y < METER_GRID_HEIGHT; y += 1) {
           const srcRow = (METER_GRID_HEIGHT - 1 - y) * METER_GRID_WIDTH;
           for (let x = 0; x < METER_GRID_WIDTH; x += 1) {
-            meter.luminance[y * METER_GRID_WIDTH + x] = meter.pixels[(srcRow + x) * 4];
+            const i = (srcRow + x) * 4;
+            meter.luminance[y * METER_GRID_WIDTH + x] = meter.bytes ? decodeMeterByte(meter.bytes[i]) : meter.pixels[i];
           }
         }
         meter.readings = smoothReadings(

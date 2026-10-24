@@ -26,7 +26,7 @@ function SimulatorSimContent() {
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [sideTab, setSideTab] = useState<SimulatorSideTabId>("camera");
   const isFullscreen = useFullscreenElement(viewportRef);
-  const { gallery } = useCameraStore();
+  const { gallery, setViewfinderMode, setMode } = useCameraStore();
   // Celular: pantalla de juego con controles táctiles y el panel como cajón.
   const [touchMode, setTouchMode] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
@@ -34,7 +34,18 @@ function SimulatorSimContent() {
   useState(() => {
     if (typeof window !== "undefined") setViewfinderCompact(isTouchGameDevice());
   });
-  useEffect(() => setTouchMode(isTouchGameDevice()), []);
+  useEffect(() => {
+    const touch = isTouchGameDevice();
+    setTouchMode(touch);
+    // En el celular la pantalla muestra la exposición real (como la del teléfono):
+    // con el visor óptico (DSLR) mover ISO, tiempo o diafragma no cambia la imagen.
+    // Y arranca en prioridad de diafragma: en manual con los valores de fábrica, de día,
+    // la primera imagen salía quemada. Se puede pasar a M desde los ajustes.
+    if (touch) {
+      setViewfinderMode("live-view");
+      setMode("A");
+    }
+  }, [setViewfinderMode, setMode]);
 
   const { activeIndex } = useSimulatorParamKeyboard({
     onOpenHelp: () => setHelpOpen(true),
