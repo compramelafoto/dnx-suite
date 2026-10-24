@@ -458,3 +458,20 @@ export function splitCourseMosaicChain<T extends { id: string; options: CourseMo
   });
   return out;
 }
+
+/**
+ * Los chicos de cada bloque mosaico de un diseño: se ordenan con las opciones del primer bloque
+ * de la cadena y se reparten por `chainOrder`. Lo usan el lienzo y la impresión, así los dos
+ * ponen a cada chico en el mismo bloque.
+ */
+export function distributeCourseMosaic(
+  blocks: ReadonlyArray<{ id: string; configJson?: unknown }>,
+  students: CourseMosaicStudent[],
+): Map<string, CourseMosaicStudent[]> {
+  const chain = blocks
+    .filter((b) => isCourseMosaicConfig(b.configJson))
+    .map((b) => ({ id: b.id, options: readCourseMosaicOptions(b.configJson) }));
+  if (chain.length === 0) return new Map();
+  const first = [...chain].sort((a, b) => a.options.chainOrder - b.options.chainOrder)[0]!;
+  return splitCourseMosaicChain(chain, sortCourseMosaic(students, first.options));
+}

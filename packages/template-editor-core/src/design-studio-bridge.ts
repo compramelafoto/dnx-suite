@@ -5,6 +5,13 @@ import {
   CLASS_LIST_SAMPLE_GROUPS,
   CLASS_LIST_SAMPLE_SCHOOL,
   CLASS_LIST_VARIABLE_KEY,
+  COURSE_MOSAIC_SAMPLE,
+  distributeCourseMosaic,
+  isCourseMosaicConfig,
+  layoutCourseMosaic,
+  readCourseMosaicOptions,
+  type CourseMosaicRect,
+  type CourseMosaicStudent,
   layoutClassListBlock,
   readClassListOptions,
   type ClassListGroup,
@@ -219,6 +226,11 @@ export function editorADocumento(input: {
    * la pide. Sin esto, con el curso de muestra va el colegio de muestra; con cursos reales, no va.
    */
   colegioDelListado?: string | null;
+  /**
+   * Los compañeros del bloque «Mosaico del curso», ya sin el dueño del diseño. Sin esto se
+   * dibujan los compañeros de muestra (la vista previa del editor); una lista vacía no dibuja nada.
+   */
+  mosaicoDelCurso?: readonly CourseMosaicStudent[];
 }): PuenteResultado {
   const avisos: string[] = [];
   const variablesSinteticas: VariableSintetica[] = [];
@@ -241,6 +253,14 @@ export function editorADocumento(input: {
     porCara.get(cara)!.push(b);
   }
   if (porCara.size === 0) porCara.set(0, []);
+
+  // Los bloques del mosaico se reparten los chicos entre todos, en todas las caras: una cadena
+  // puede empezar en una página y seguir en la otra.
+  const chicosPorMosaico = distributeCourseMosaic(
+    input.blocks.filter((b) => b.type === "VARIABLE_TEXT"),
+    [...(input.mosaicoDelCurso ?? COURSE_MOSAIC_SAMPLE)],
+  );
+  let avisoElipse = false;
 
   const sides = [...porCara.entries()]
     .sort(([a], [b]) => a - b)
@@ -309,6 +329,23 @@ export function editorADocumento(input: {
             const clave = texto(cfg.variableKey);
             if (!clave) {
               avisos.push(`Un bloque de dato variable quedó sin variable elegida; no se imprimió.`);
+              break;
+            }
+            if (isCourseMosaicConfig(cfg)) {
+              const dibujado = dibujarMosaico({
+                bloque: b,
+                cfg,
+                geo,
+                chicos: chicosPorMosaico.get(b.id) ?? [],
+                mm,
+                pt,
+                fuente: fuenteDesde(texto(cfg.fontFamily, "Helvetica"), avisos),
+              });
+              dibujables.push(...dibujado.partes);
+              if (dibujado.bordeDeElipse && !avisoElipse) {
+                avisoElipse = true;
+                avisos.push("El mosaico va sin borde de elipse: la impresión no dibuja elipses con borde.");
+              }
               break;
             }
             if (clave === CLASS_LIST_VARIABLE_KEY) {
@@ -543,6 +580,170 @@ export function editorADocumento(input: {
     variablesSinteticas,
     avisos,
   };
+}
+
+/** Gris de la silueta de un chico sin foto, y el de sus iniciales. */
+const SILUETA_FONDO = "#d6d3d1";
+const SILUETA_LETRAS = "#78716c";
+
+function iniciales(s: CourseMosaicStudent): string {
+  return [s.firstName, s.lastName]
+    .map((p) => p.trim().charAt(0).toUpperCase())
+    .filter(Boolean)
+    .join("");
+}
+
+/**
+ * Un bloque «Mosaico del curso» convertido en bloques comunes: por cada chico, la sombra, el
+ * papel de la polaroid, la foto (o la silueta), el borde, el marco, la cinta y el nombre, en ese
+ * orden de dibujo. La cuenta del reparto es la del lienzo (`layoutCourseMosaic`).
+ *
+ * Cada parte gira dos veces: con el giro propio de la celda (el «pegado a mano»), alrededor del
+ * centro de la celda, y con el giro del bloque, alrededor del centro del bloque, igual que el
+ * listado.
+ */
+function dibujarMosaico(input: {
+  bloque: EditorBlock;
+  cfg: Record<string, unknown>;
+  geo: Record<string, unknown>;
+  chicos: CourseMosaicStudent[];
+  mm: (px: number) => number;
+  pt: (px: number) => number;
+  fuente: FontId;
+}): { partes: Record<string, unknown>[]; bordeDeElipse: boolean } {
+  const { bloque: b, cfg, geo, chicos, mm, pt, fuente } = input;
+  const o = readCourseMosaicOptions(cfg);
+  const fontSize = num(cfg.fontSize, 24);
+  const reparto = layoutCourseMosaic({
+    students: chicos,
+    options: o,
+    width: num(b.width, 0),
+    height: num(b.height, 0),
+    fontSize,
+    lineHeight: num(cfg.lineHeight, 1.15),
+  });
+
+  const bx = num(b.x, 0);
+  const by = num(b.y, 0);
+  const giroBloque = num(b.rotation, 0);
+  const centroX = bx + num(b.width, 0) / 2;
+  const centroY = by + num(b.height, 0) / 2;
+  const girar = (x: number, y: number, cx: number, cy: number, grados: number) => {
+    if (!grados) return { x, y };
+    const rad = (grados * Math.PI) / 180;
+    const dx = x - cx;
+    const dy = y - cy;
+    return { x: cx + dx * Math.cos(rad) - dy * Math.sin(rad), y: cy + dx * Math.sin(rad) + dy * Math.cos(rad) };
+  };
+
+  const color = texto(cfg.color, "#111111");
+  const peso = num(cfg.fontWeight, 400) >= 600 ? "bold" : "normal";
+  const radioDeForma = (r: CourseMosaicRect) =>
+    o.frame === "circle" || o.frame === "ellipse"
+      ? Math.min(r.width, r.height) / 2
+      : o.frame === "rounded"
+        ? o.cornerRadius
+        : 0;
+
+  const partes: Record<string, unknown>[] = [];
+  let bordeDeElipse = false;
+
+  reparto.cells.forEach((celda, i) => {
+    const cx = bx + celda.box.x + celda.box.width / 2;
+    const cy = by + celda.box.y + celda.box.height / 2;
+    const giro = giroBloque + celda.rotation;
+    /** Un rectángulo de la celda (relativo al bloque) en milímetros, ya ubicado y girado. */
+    const ubicar = (r: CourseMosaicRect) => {
+      const enCelda = girar(bx + r.x + r.width / 2, by + r.y + r.height / 2, cx, cy, celda.rotation);
+      const c = girar(enCelda.x, enCelda.y, centroX, centroY, giroBloque);
+      return {
+        x: mm(c.x - r.width / 2),
+        y: mm(c.y - r.height / 2),
+        width: mm(r.width),
+        height: mm(r.height),
+        rotation: giro || undefined,
+      };
+    };
+    const parte = (nombre: string, r: CourseMosaicRect, resto: Record<string, unknown>) =>
+      partes.push({ ...geo, ...ubicar(r), ...resto, id: `${b.id}__m${i}_${nombre}` });
+
+    const papel = o.frame === "polaroid" ? celda.box : celda.photo;
+    const radio = radioDeForma(celda.photo);
+    const redondeo = (px: number) => (px > 0 ? { cornerRadius: mm(px) } : {});
+
+    if (o.shadow) {
+      parte(
+        "sombra",
+        { ...papel, x: papel.x + o.shadow.dx, y: papel.y + o.shadow.dy },
+        { type: "rect", fillColor: o.shadow.color, ...redondeo(o.frame === "polaroid" ? 0 : radio) },
+      );
+    }
+    if (o.frame === "polaroid") parte("papel", celda.box, { type: "rect", fillColor: "#ffffff" });
+
+    const chico = celda.student;
+    const ref = chico.photoId != null ? `mosaic-photo:${chico.photoId}` : chico.photoUrl;
+    if (ref) {
+      parte("foto", celda.photo, {
+        type: "image",
+        resourceRef: ref,
+        fit: "cover",
+        mask: o.frame === "circle" || o.frame === "ellipse" ? o.frame : "rect",
+        ...(o.frame === "rounded" ? redondeo(o.cornerRadius) : {}),
+        ...(chico.crop ? { crop: chico.crop } : {}),
+        ...(chico.sourceAspect ? { sourceAspect: chico.sourceAspect } : {}),
+      });
+    } else {
+      parte("silueta", celda.photo, { type: "rect", fillColor: SILUETA_FONDO, ...redondeo(radio) });
+      parte("iniciales", celda.photo, {
+        type: "text",
+        content: iniciales(chico),
+        fontId: fuente,
+        fontSize: pt(celda.photo.width * 0.3),
+        fontWeight: "bold",
+        color: SILUETA_LETRAS,
+        align: "center",
+        verticalAlign: "middle",
+      });
+    }
+
+    if (o.borderWidth > 0) {
+      if (o.frame === "ellipse") bordeDeElipse = true;
+      else {
+        parte("borde", celda.photo, {
+          type: "rect",
+          strokeColor: o.borderColor,
+          strokeWidth: mm(o.borderWidth),
+          ...redondeo(radio),
+        });
+      }
+    }
+    if (o.frameSrc) parte("marco", celda.photo, { type: "image", resourceRef: o.frameSrc, fit: "cover" });
+
+    if (celda.name) {
+      if (o.nameBackground) {
+        const margen = celda.name.fontSize * 0.15;
+        parte(
+          "cinta",
+          { x: celda.name.x, y: celda.name.y - margen, width: celda.name.width, height: celda.name.height + 2 * margen },
+          { type: "rect", fillColor: o.nameBackground },
+        );
+      }
+      parte("nombre", celda.name, {
+        type: "text",
+        content: celda.name.lines.join("\n"),
+        fontId: fuente,
+        fontSize: pt(celda.name.fontSize),
+        fontWeight: peso,
+        fontStyle: cfg.fontItalic === true ? "italic" : "normal",
+        color,
+        align: "center",
+        textTransform: conversionDeLetras(cfg.textTransform),
+        lineHeight: num(cfg.lineHeight, 1.15),
+      });
+    }
+  });
+
+  return { partes, bordeDeElipse };
 }
 
 /* ────────────────────────────────────────────────────────────────────────── */

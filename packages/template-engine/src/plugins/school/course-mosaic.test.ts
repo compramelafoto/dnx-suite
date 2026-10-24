@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   COURSE_MOSAIC_SAMPLE,
+  distributeCourseMosaic,
   DEFAULT_COURSE_MOSAIC_OPTIONS,
   formatMosaicName,
   layoutCourseMosaic,
@@ -208,4 +209,18 @@ test("los nombres largos no se salen del ancho de su foto", () => {
 
 test("hay 24 compañeros de muestra", () => {
   assert.equal(COURSE_MOSAIC_SAMPLE.length, 24);
+});
+
+test("la cadena se ordena con las opciones de su primer bloque y reparte por bloque", () => {
+  const bloques = [
+    { id: "b", configJson: { variableKey: "course.mosaic", courseMosaic: { chainOrder: 2 } } },
+    { id: "a", configJson: { variableKey: "course.mosaic", courseMosaic: { chainOrder: 1, capacity: 1, sortBy: "firstName" } } },
+  ];
+  const lista = [
+    { firstName: "Zoe", lastName: "Alba" },
+    { firstName: "Ana", lastName: "Zapata" },
+  ];
+  const r = distributeCourseMosaic(bloques, lista);
+  assert.deepEqual(r.get("a")!.map((s) => s.firstName), ["Ana"]);
+  assert.deepEqual(r.get("b")!.map((s) => s.firstName), ["Zoe"]);
 });

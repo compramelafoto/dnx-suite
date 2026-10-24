@@ -142,6 +142,7 @@ export {
   serializeCourseMosaic,
   sortCourseMosaic,
   splitCourseMosaicChain,
+  distributeCourseMosaic,
   type CourseMosaicCell,
   type CourseMosaicCrop,
   type CourseMosaicFrame,
