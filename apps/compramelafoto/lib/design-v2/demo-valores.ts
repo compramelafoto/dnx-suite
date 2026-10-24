@@ -21,5 +21,10 @@ export function valoresDeDemo(
     photographerName: "Tu estudio de fotografía",
     courseStudents: demo.companeros,
     courseMosaic: mosaicoDeDemo(demo, urlDeRetrato ?? (() => null)),
+    // El propio alumno, para la plancha de figuritas (bloques con «Incluir al dueño»).
+    courseMosaicOwner: (() => {
+      const url = urlDeRetrato?.(demo.archivos.individual) ?? null;
+      return { firstName: demo.alumno.firstName, lastName: demo.alumno.lastName, ...(url ? { photoUrl: url } : {}) };
+    })(),
   });
 }

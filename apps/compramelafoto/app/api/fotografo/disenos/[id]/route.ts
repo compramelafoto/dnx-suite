@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { estadosDeRecortes, recortesActivos } from "@/lib/recortes/recortes";
 import { prisma } from "@/lib/prisma";
 import { readPrivateCopy } from "@repo/template-editor-core";
 import { toDesignTemplatePayload } from "@/lib/design-v2/client-payload";
@@ -62,6 +63,8 @@ export async function GET(_req: Request, context: Ctx) {
     const plantillaPropia = actor.role === "ADMIN" || template.ownerUserId === actor.id;
     const photoById = new Map(photos.map((p) => [p.id, p]));
 
+    // Los recortes sin fondo de las fotos del diseño (para los huecos «Quitar el fondo»).
+    const recortes = new Map((await estadosDeRecortes(data.photoIds)).map((r) => [r.photoId, r]));
     return NextResponse.json({
       ok: true,
       design: {
@@ -94,8 +97,14 @@ export async function GET(_req: Request, context: Ctx) {
       template: toDesignTemplatePayload(template),
       photos: data.photoIds.map((pid) => {
         const p = photoById.get(pid);
-        return { id: pid, url: p ? designPhotoDisplayUrl(p) : null };
+        const r = recortes.get(pid);
+        return {
+          id: pid,
+          url: p ? designPhotoDisplayUrl(p) : null,
+          ...(r ? { cutout: { status: r.status, url: r.status === "READY" ? r.url : null, error: r.error } } : {}),
+        };
       }),
+      recortesActivos: recortesActivos(),
     });
   } catch (err) {
     return designErrorResponse(err, "leer diseño");

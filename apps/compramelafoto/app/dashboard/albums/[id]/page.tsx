@@ -24,6 +24,7 @@ import AlbumUpsellConfigCard from "@/components/dashboard/preventa-packs/AlbumUp
 import PreventaAvisoFamiliasCard from "@/components/dashboard/preventa-packs/PreventaAvisoFamiliasCard";
 import ProbarComoClienteButton from "@/components/dashboard/preventa-packs/ProbarComoClienteButton";
 import AlbumStudentRosterSection from "@/components/dashboard/album-school/AlbumStudentRosterSection";
+import AlbumMosaicoSection from "@/components/dashboard/album-school/AlbumMosaicoSection";
 import AlbumSchoolOperationsSection from "@/components/dashboard/album-school/AlbumSchoolOperationsSection";
 import AlbumPacksSection from "@/components/dashboard/album-packs/AlbumPacksSection";
 import AlbumVideosSection from "@/components/dashboard/album-videos/AlbumVideosSection";
@@ -569,7 +570,10 @@ export default function DashboardAlbumDetailPage() {
   );
 
   const resolvedAlbumTab = useMemo(() => {
-    if (!schoolLinked && (configTab === "escuela" || configTab === "operativo")) {
+    if (
+      !schoolLinked &&
+      (configTab === "escuela" || configTab === "mosaico" || configTab === "operativo")
+    ) {
       return ALBUM_DASHBOARD_DEFAULT_TAB;
     }
     if (!schoolAlbumMode && configTab === "comision-escolar") {
@@ -698,7 +702,7 @@ export default function DashboardAlbumDetailPage() {
   useEffect(() => {
     if (
       !schoolLinked &&
-      (configTab === "operativo" || configTab === "escuela")
+      (configTab === "operativo" || configTab === "escuela" || configTab === "mosaico")
     ) {
       changeAlbumTab(ALBUM_DASHBOARD_DEFAULT_TAB);
     }
@@ -2506,6 +2510,11 @@ export default function DashboardAlbumDetailPage() {
                     )
                   }
                 />
+              </div>
+            )}
+            {resolvedAlbumTab === "mosaico" && schoolLinked && (
+              <div className="ds-tab-panel ds-stack-section w-full self-stretch">
+                <AlbumMosaicoSection albumId={album.id} />
               </div>
             )}
             {resolvedAlbumTab === "operativo" && schoolLinked && (

@@ -9,6 +9,7 @@ import { streetGroundHeight, type StreetLayout } from "@/lib/simulator/street/st
 import { streetRuntime } from "@/lib/simulator/street/street-runtime";
 import {
   closestDistanceOnPath,
+  isRunning,
   isWoman,
   planStreetPeople,
   samplePath,
@@ -309,9 +310,26 @@ function updateFace(
   applyFaceWeights(p.face, mixWeights(next, mouth, eyes));
 }
 
+/** Cuánto avanza la raíz en un ciclo, en m/s (el esqueleto está en centímetros). */
+function rootSpeed(clip: THREE.AnimationClip): number {
+  const v = clip.tracks.find((t) => t.name === "Bip01.position")?.values;
+  if (!v || clip.duration <= 0) return 0;
+  const n = v.length - 3;
+  return Math.hypot(v[n] - v[0], v[n + 2] - v[2]) / 100 / clip.duration;
+}
+
 function useCompactClips(urls: string[]): THREE.AnimationClip[] {
   const texts = useLoader(THREE.FileLoader, urls) as unknown as string[];
-  return useMemo(() => texts.map((t) => stripRootMotion(decodeClip(JSON.parse(t) as CompactClip))), [texts]);
+  return useMemo(
+    () =>
+      texts.map((t) => {
+        const clip = decodeClip(JSON.parse(t) as CompactClip);
+        // Antes de dejarla en el lugar: el avance real sirve de velocidad al correr.
+        clip.userData.rootSpeed = rootSpeed(clip);
+        return stripRootMotion(clip);
+      }),
+    [texts],
+  );
 }
 
 export default function StreetPedestrians({ layout }: { layout: StreetLayout }) {
@@ -347,7 +365,8 @@ export default function StreetPedestrians({ layout }: { layout: StreetLayout }) 
       const clip = clipFor(clipUrl(w.figure, w.gait));
       const p = makePerson(w.id, sourceFor(w.figure), figure, clip, cache);
       const key = `${w.figure}/${w.gait}`;
-      if (!speedCache.has(key)) speedCache.set(key, strideSpeed(p.model, clip));
+      // Al correr el pie apoya mucho menos tiempo: la zancada no sirve, sí el avance del clip.
+      if (!speedCache.has(key)) speedCache.set(key, isRunning(w.gait) ? (clip.userData.rootSpeed as number) : strideSpeed(p.model, clip));
       out.push({
         id: w.id,
         name: figure.name,

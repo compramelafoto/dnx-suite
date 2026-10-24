@@ -430,5 +430,31 @@ export function casosDeComparacion(imagenDePrueba: string): CasoDeComparacion[] 
         }),
       ],
     },
+    {
+      /* El álbum de figuritas: recuadros vacíos con el nombre, y la plancha con el dueño sumado. */
+      id: "figuritas",
+      titulo: "Álbum de figuritas: recuadros vacíos y plancha con el dueño",
+      canvas: CHICO,
+      paginas: 2,
+      valores: {
+        "course.mosaic": JSON.stringify(
+          [...ALUMNOS].slice(0, 12).map((nombre, i) => {
+            const [firstName, ...resto] = nombre.split(" ");
+            return { firstName, lastName: resto.join(" "), ...(i % 5 === 4 ? {} : { photoUrl: imagenDePrueba }) };
+          }),
+        ),
+        "course.mosaicOwner": JSON.stringify({ firstName: "Martina", lastName: "López", photoUrl: imagenDePrueba }),
+      },
+      blocks: [
+        bloque("VARIABLE_TEXT", 0, { x: 60, y: 60, width: 1380, height: 880 }, {
+          variableKey: "course.mosaic", fontFamily: "Helvetica", fontSize: 20, color: "#0b2a1a",
+          courseMosaic: { frame: "rounded", cornerRadius: 16, emptyPhotos: true, emptyFill: "#dfeee0", borderWidth: 4, borderColor: "#0f6b3a" },
+        }),
+        bloque("VARIABLE_TEXT", 1, { x: 60, y: 60, width: 1380, height: 880 }, {
+          variableKey: "course.mosaic", fontFamily: "Helvetica", fontSize: 20, color: "#0b2a1a",
+          courseMosaic: { frame: "rounded", cornerRadius: 16, namePosition: "none", includeOwner: true, borderWidth: 6, borderColor: "#e6b422" },
+        }),
+      ],
+    },
   ];
 }
