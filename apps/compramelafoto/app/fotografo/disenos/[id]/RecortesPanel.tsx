@@ -59,14 +59,16 @@ export default function RecortesPanel({
     }
   }
 
-  const faltan = fotos.some((f) => !f.cutout || f.cutout.status === "FAILED" || f.cutout.status === "PENDING");
+  const faltan = fotos.some((f) => !f.cutout || f.cutout.status === "PENDING");
+  const fallaron = fotos.some((f) => f.cutout?.status === "FAILED");
 
   return (
     <Card className="mt-4 p-4">
       <p className="text-sm font-semibold text-[#111827]">Fotos sin fondo</p>
       <p className="mt-1 text-xs text-[#6b7280]">
         La plantilla pide la foto del alumno recortada, sin fondo. Mirá que el recorte haya quedado bien (sobre todo el
-        pelo); si no te gusta, descartalo y se imprime la foto entera.
+        pelo); si no te gusta, descartalo y se imprime la foto entera. Descartar vale para esa foto en todos los diseños
+        que la usen.
       </p>
       {!activo ? (
         <p className="mt-2 text-xs text-amber-800">
@@ -108,6 +110,14 @@ export default function RecortesPanel({
           );
         })}
       </div>
+      {activo && fallaron ? (
+        <div className="mt-3">
+          <Button size="sm" variant="secondary" onClick={() => void pedir({ accion: "reintentar" })} disabled={busy}>
+            {busy ? "Recortando…" : "Volver a intentar los que fallaron"}
+          </Button>
+          <p className="mt-1 text-[11px] text-[#9ca3af]">Cada intento se cobra como una foto nueva.</p>
+        </div>
+      ) : null}
       {activo && faltan ? (
         <div className="mt-3">
           <Button size="sm" variant="secondary" onClick={() => void pedir({ accion: "generar" })} disabled={busy}>

@@ -13,7 +13,7 @@ type Ctx = { params: Promise<{ id: string }> };
 
 /**
  * POST /api/fotografo/disenos/[id]/recortes — las fotos sin fondo de los huecos «Quitar el fondo».
- * Body: `{ accion: "generar" }` (las que falten), `{ accion: "descartar" | "usar", photoId }`.
+ * Body: `{ accion: "generar" }` (las que falten), `{ accion: "reintentar" }` (también las que fallaron), `{ accion: "descartar" | "usar", photoId }`.
  */
 export async function POST(req: Request, context: Ctx) {
   const actor = await requireDesignActor();
@@ -31,14 +31,15 @@ export async function POST(req: Request, context: Ctx) {
       return pid != null ? [pid] : [];
     });
 
-    if (body.accion === "generar") {
+    if (body.accion === "generar" || body.accion === "reintentar") {
       if (!recortesActivos()) {
         return NextResponse.json(
           { ok: false, error: "El servicio para quitar fondos todavía no está configurado: por ahora se imprime la foto entera." },
           { status: 409 },
         );
       }
-      await asegurarRecortes(fotos);
+      // «Generar» hace los que faltan; «reintentar» vuelve a probar los que fallaron (cuesta otra vez).
+      await asegurarRecortes(fotos, { reintentar: body.accion === "reintentar" });
     } else if (body.accion === "descartar" || body.accion === "usar") {
       const photoId = typeof body.photoId === "number" ? body.photoId : NaN;
       if (!fotos.includes(photoId)) return NextResponse.json({ ok: false, error: "Esa foto no va sin fondo en este diseño." }, { status: 400 });

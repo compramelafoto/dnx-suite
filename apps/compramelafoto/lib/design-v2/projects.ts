@@ -100,6 +100,8 @@ export type CreateDesignInput = {
   albumOrderId?: number | null;
   albumPackDraftId?: string | null;
   orderItemId?: number | null;
+  /** El alumno del padrón dueño (carpetas armadas para todo el curso). */
+  rosterEntryId?: number | null;
   /** Cómo acomodó la familia cada foto en el canje; sin esto, centradas. */
   cropsByPhotoId?: ReadonlyMap<number, PhotoCrop> | null;
   /** La revisión y autorización de la familia al confirmar (se guarda como prueba). */
@@ -151,6 +153,7 @@ export async function createDesignV2Project(db: Db, input: CreateDesignInput): P
       albumOrderId: input.albumOrderId ?? null,
       albumPackDraftId: input.albumPackDraftId ?? null,
       orderItemId: input.orderItemId ?? null,
+      rosterEntryId: input.rosterEntryId ?? null,
     },
     select: { id: true },
   });

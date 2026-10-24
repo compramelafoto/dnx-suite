@@ -37,7 +37,14 @@ export async function plantillasConMosaico(userId: number): Promise<Array<{ id: 
   return candidatas.filter((c) => ids.has(c.id));
 }
 
-export type ResultadoDeCarpetas = { creadas: number; yaEstaban: number; sinRetrato: string[]; designIds: number[] };
+export type ResultadoDeCarpetas = {
+  creadas: number;
+  yaEstaban: number;
+  sinRetrato: string[];
+  designIds: number[];
+  /** Las que todavía no están aprobadas con archivos: las que «Aprobar todas» tiene que procesar. */
+  paraAprobar: number[];
+};
 
 export async function armarCarpetasDelCurso(input: {
   albumId: number;
@@ -73,7 +80,7 @@ export async function armarCarpetasDelCurso(input: {
   const filas = (await filasDelCurso(prisma, input.albumId, curso)).map((f) => ({ ...f, urlDeVista: urlDeVistaDelRetrato(f.mosaicPhoto) }));
   const courseName = courseDisplayName(curso.courseName, curso.division);
 
-  const resultado: ResultadoDeCarpetas = { creadas: 0, yaEstaban: 0, sinRetrato: [], designIds: [] };
+  const resultado: ResultadoDeCarpetas = { creadas: 0, yaEstaban: 0, sinRetrato: [], designIds: [], paraAprobar: [] };
   for (const f of filas) {
     if (f.mosaicPhotoId == null) {
       resultado.sinRetrato.push(`${f.snapshotFirstName} ${f.snapshotLastName}`.trim());
@@ -100,13 +107,21 @@ export async function armarCarpetasDelCurso(input: {
       photographerUserId: input.photographerUserId,
       albumId: input.albumId,
       albumPackDraftId: `curso:${input.albumId}:${f.id}:${input.templateId}`,
+      rosterEntryId: f.id,
     });
-    if (created) {
-      await prisma.designProject.update({ where: { id }, data: { rosterEntryId: f.id } });
-      resultado.creadas++;
-    } else resultado.yaEstaban++;
+    if (created) resultado.creadas++;
+    else {
+      resultado.yaEstaban++;
+      // Una carpeta vieja sin dueño anotado (por ejemplo, de un corte a mitad de camino) se repara.
+      await prisma.designProject.updateMany({ where: { id, rosterEntryId: null }, data: { rosterEntryId: f.id } });
+    }
     resultado.designIds.push(id);
   }
+  const pendientes = await prisma.designProject.findMany({
+    where: { id: { in: resultado.designIds }, status: { notIn: ["EXPORTED"] } },
+    select: { id: true },
+  });
+  resultado.paraAprobar = pendientes.map((p) => p.id);
   return resultado;
 }
 

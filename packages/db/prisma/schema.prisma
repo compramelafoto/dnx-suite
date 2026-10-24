@@ -3125,8 +3125,6 @@ model AlbumStudentRosterEntry {
   @@index([albumId, snapshotLastName, snapshotFirstName], map: "AlbumStudentRosterEntry_albumId_snapshotLastName_snapshotFirstN")
 }
 
-/// Estado de un curso del padrón para el «Mosaico del curso»: cerrado o no, maestra y directivos,
-/// retratos sin identificar y el enlace del colegio para ponerles nombre.
 /// La foto sin fondo, para los huecos de plantilla marcados «Quitar el fondo». Se genera con un
 /// servicio externo (que no guarda la foto) cuando hace falta y el fotógrafo la puede descartar.
 model PhotoCutout {
@@ -3143,6 +3141,8 @@ model PhotoCutout {
   photo     Photo     @relation(fields: [photoId], references: [id], onDelete: Cascade)
 }
 
+/// Estado de un curso del padrón para el «Mosaico del curso»: cerrado o no, maestra y directivos,
+/// retratos sin identificar y el enlace del colegio para ponerles nombre.
 model AlbumCourseMosaic {
   id                       Int       @id @default(autoincrement())
   albumId                  Int

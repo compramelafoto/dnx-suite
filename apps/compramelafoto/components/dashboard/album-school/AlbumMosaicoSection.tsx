@@ -968,7 +968,7 @@ export default function AlbumMosaicoSection({ albumId }: { albumId: number }) {
 
 /* ------------------------------ Carpetas de todo el curso ------------------------------ */
 
-type ResultadoCarpetas = { creadas: number; yaEstaban: number; sinRetrato: string[]; designIds: number[] };
+type ResultadoCarpetas = { creadas: number; yaEstaban: number; sinRetrato: string[]; designIds: number[]; paraAprobar: number[] };
 
 /**
  * Con el curso cerrado: una carpeta por alumno con su retrato como foto grande y el mosaico de
@@ -1030,8 +1030,10 @@ function CarpetasDelCurso({ albumId, courseKey, conRetrato }: { albumId: number;
     setOcupado("aprobar");
     setError(null);
     const fallas: string[] = [];
-    setAvance({ hechas: 0, total: resultado.designIds.length, fallas });
-    for (const [i, id] of resultado.designIds.entries()) {
+    // Sólo las que no están aprobadas: las ya impresas no se vuelven a generar.
+    const lista = resultado.paraAprobar;
+    setAvance({ hechas: 0, total: lista.length, fallas });
+    for (const [i, id] of lista.entries()) {
       try {
         const res = await fetch(`/api/fotografo/disenos/${id}/approve`, {
           method: "POST",
@@ -1044,7 +1046,7 @@ function CarpetasDelCurso({ albumId, courseKey, conRetrato }: { albumId: number;
       } catch {
         fallas.push(`Diseño ${id}: se cortó la conexión`);
       }
-      setAvance({ hechas: i + 1, total: resultado.designIds.length, fallas: [...fallas] });
+      setAvance({ hechas: i + 1, total: lista.length, fallas: [...fallas] });
     }
     setOcupado(null);
   };
@@ -1104,8 +1106,12 @@ function CarpetasDelCurso({ albumId, courseKey, conRetrato }: { albumId: number;
             <a href="/fotografo/disenos" className="font-medium text-[#c27b3d] underline">
               Revisarlas en «Diseños»
             </a>
-            <Button type="button" variant="secondary" disabled={ocupado != null || resultado.designIds.length === 0} onClick={() => void aprobarTodas()}>
-              {ocupado === "aprobar" ? "Aprobando…" : "Aprobar e imprimir todas"}
+            <Button type="button" variant="secondary" disabled={ocupado != null || resultado.paraAprobar.length === 0} onClick={() => void aprobarTodas()}>
+              {ocupado === "aprobar"
+                ? "Aprobando…"
+                : resultado.paraAprobar.length
+                  ? `Aprobar e imprimir las ${resultado.paraAprobar.length} pendientes`
+                  : "Ya están todas aprobadas"}
             </Button>
           </div>
           {avance ? (
