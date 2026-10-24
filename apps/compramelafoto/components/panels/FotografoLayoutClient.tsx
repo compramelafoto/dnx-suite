@@ -11,6 +11,7 @@ import { UploadProgressProvider, useUploadProgress } from "@/contexts/UploadProg
 import FloatingUploadBar from "@/components/photo/FloatingUploadBar";
 import PhotographerWorkLocationPromptGate from "@/components/photographer/PhotographerWorkLocationPromptGate";
 import { isTemplateV2EditorPath } from "./template-v2-editor-path";
+import { isPantallaPedidosPath } from "./pantalla-pedidos-path";
 
 const fallback = (
   <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -28,7 +29,8 @@ function BotBubbleMount() {
 
 function FotografoLayoutInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const templateV2EditorFullscreen = isTemplateV2EditorPath(pathname);
+  const pantallaPedidos = isPantallaPedidosPath(pathname);
+  const sinMenu = isTemplateV2EditorPath(pathname) || pantallaPedidos;
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [logoFetched, setLogoFetched] = useState(false);
 
@@ -63,19 +65,19 @@ function FotografoLayoutInner({ children }: { children: React.ReactNode }) {
   return (
     <UploadProgressProvider>
       <PanelLayout
-        hideShell={templateV2EditorFullscreen}
+        hideShell={sinMenu}
         topBar2={
-          templateV2EditorFullscreen ? undefined : (
+          sinMenu ? undefined : (
             <PhotographerSidebarTopBar logoUrl={logoUrl} logoFetched={logoFetched} />
           )
         }
-        sidebar={templateV2EditorFullscreen ? null : <PhotographerSidebar showHeader={false} />}
+        sidebar={sinMenu ? null : <PhotographerSidebar showHeader={false} />}
       >
         {children}
       </PanelLayout>
       <FloatingUploadBar />
       <PhotographerWorkLocationPromptGate variant="clf" />
-      <BotBubbleMount />
+      {pantallaPedidos ? null : <BotBubbleMount />}
     </UploadProgressProvider>
   );
 }
