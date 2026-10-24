@@ -22,7 +22,7 @@ export async function pedirRecorte(
   fetchImpl: typeof fetch = fetch,
 ): Promise<Uint8Array> {
   const form = new FormData();
-  form.append("image_file", new Blob([jpg], { type: "image/jpeg" }), "foto.jpg");
+  form.append("image_file", new Blob([new Uint8Array(jpg)], { type: "image/jpeg" }), "foto.jpg");
   form.append("size", "auto");
   form.append("type", "person");
   form.append("format", "png");

@@ -22,9 +22,7 @@ export async function GET(_req: Request, context: Ctx) {
   const actor = await requireDesignActor();
   if (actor instanceof NextResponse) return actor;
   const id = parseId((await context.params).id);
-  if (!id) // Los recortes sin fondo de las fotos del diseño (para los huecos «Quitar el fondo»).
-    const recortes = new Map((await estadosDeRecortes(data.photoIds)).map((r) => [r.photoId, r]));
-    return NextResponse.json({ ok: false, error: "Diseño inválido." }, { status: 400 });
+  if (!id) return NextResponse.json({ ok: false, error: "Diseño inválido." }, { status: 400 });
 
   try {
     const { project, data } = await loadDesignProjectForActor(id, actor);
@@ -65,6 +63,8 @@ export async function GET(_req: Request, context: Ctx) {
     const plantillaPropia = actor.role === "ADMIN" || template.ownerUserId === actor.id;
     const photoById = new Map(photos.map((p) => [p.id, p]));
 
+    // Los recortes sin fondo de las fotos del diseño (para los huecos «Quitar el fondo»).
+    const recortes = new Map((await estadosDeRecortes(data.photoIds)).map((r) => [r.photoId, r]));
     return NextResponse.json({
       ok: true,
       design: {
