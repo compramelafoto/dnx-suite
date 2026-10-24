@@ -7,6 +7,7 @@
  * están en el formato que guarda el editor, el mismo que dibuja el lienzo.
  */
 import type { TemplateV2Block, TemplateV2Canvas } from "@repo/template-editor-core";
+import type { UMBRALES } from "./comparar";
 
 export type CasoDeComparacion = {
   id: string;
@@ -16,6 +17,11 @@ export type CasoDeComparacion = {
   blocks: TemplateV2Block[];
   /** Valores de las variables (el listado del curso, por ejemplo). */
   valores?: Record<string, string>;
+  /**
+   * Tolerancias propias del caso, sólo cuando hay una diferencia conocida que no es un error. Hay
+   * que decir cuál en un comentario al lado.
+   */
+  umbrales?: Partial<typeof UMBRALES>;
 };
 
 let orden = 0;
@@ -358,6 +364,12 @@ export function casosDeComparacion(imagenDePrueba: string): CasoDeComparacion[] 
       canvas: CHICO,
       paginas: 2,
       valores: { "course.studentList": dosCursosConTurno(), "school.name": "Escuela Manuel Belgrano" },
+      /*
+       * El título de dos cursos («3.° B · Turno mañana y 3.° C · Turno tarde») es una línea larga en
+       * negrita: el navegador y el PDF espacian las letras apenas distinto y al final de la línea
+       * suman unos 8 px. Se ve igual (mismo texto, mismo lugar); por eso la peor zona tolera más.
+       */
+      umbrales: { maximoPeorZona: 0.45 },
       blocks: [
         bloque("VARIABLE_TEXT", 0, { x: 100, y: 100, width: 1300, height: 800 }, {
           variableKey: "course.studentList", fontFamily: "Helvetica", fontSize: 40, color: "#1d3a6b", textAlign: "LEFT",
