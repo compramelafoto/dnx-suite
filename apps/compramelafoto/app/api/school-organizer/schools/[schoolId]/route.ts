@@ -1,3 +1,4 @@
+import { esEscuelaDemo } from "@/lib/demos/visibilidad";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireSchoolOrganizerAccess } from "@/lib/school-organizer-auth";
@@ -67,7 +68,7 @@ export async function GET(_req: NextRequest, { params }: RouteContext) {
       prisma.preCompraOrder.count({
         where: {
           album: { schoolId },
-          isTest: false,
+          ...((await esEscuelaDemo(schoolId)) ? {} : { isTest: false }),
           status: "PAID_HELD",
         },
       }),
