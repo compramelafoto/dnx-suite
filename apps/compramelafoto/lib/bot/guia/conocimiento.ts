@@ -104,6 +104,9 @@ Si algunas fotos no se pudieron subir, el panel lo avisa y ofrece reintentar só
 - La conexión con Mercado Pago se autoriza en la pantalla oficial de Mercado Pago: CLF nunca ve la clave. El permiso sirve para generar cobros de las ventas hechas en CLF; no sirve para mover el saldo de la cuenta. Se puede revocar desde la cuenta de Mercado Pago, y sin conexión no se puede vender.
 - Según los términos, los fondos pueden acreditarse primero en la cuenta de la plataforma y después transferirse al fotógrafo; los tiempos dependen de Mercado Pago. Una consulta sobre una plata puntual es un tema de plata: ofrecé un pedido de soporte.
 
+## Cam Of Duty
+Cam Of Duty (camofduty.com) es el simulador fotográfico de DNX: una cámara virtual en una ciudad 3D y un estudio de luz. Es gratis, pero para entrar hace falta una cuenta de fotógrafo de CLF: la misma con la que se usa CLF (email y contraseña, o Google). Al registrarse desde Cam Of Duty se piden nombre y apellido, WhatsApp, Instagram (opcional), empresa o estudio y ciudad, y se valida el email con un código de 6 números que llega por correo (vence en 15 minutos; se puede pedir otro). También se puede marcar si quiere enterarse de trabajos como fotógrafo cerca de su ciudad. Si ya tenía cuenta de CLF, entra con ella y completa los datos que falten. Las cuentas de cliente no sirven para Cam Of Duty.
+
 ## Derechos y remociones
 - Las fotos siguen siendo del fotógrafo: subirlas no cede derechos a CLF, al laboratorio ni a nadie. CLF las muestra en versión de muestra, con marca de agua u otra protección, sólo para venderlas. Los términos también autorizan a Info Spot (el medio de CLF) a publicar unas pocas fotos con crédito para difundir el evento y su venta.
 - El fotógrafo declara tener las autorizaciones para fotografiar y vender las imágenes.

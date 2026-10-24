@@ -47,8 +47,10 @@ export async function GET(req: Request) {
     let loginPath = isAuto ? "/login" : "/fotografo/login";
     let redirectPath = "/fotografo/dashboard";
 
+    // Cam Of Duty entra con cuenta de fotógrafo y vuelve a su propia página de ingreso.
+    const isCamOfDutyFlow = !!cuantoCobroRedirect?.startsWith("/camofduty");
     if (isCuantoCobroFlow && cuantoCobroRedirect) {
-      loginPath = "/cuantocobro/login";
+      loginPath = isCamOfDutyFlow ? "/camofduty/ingresar" : "/cuantocobro/login";
       redirectPath = cuantoCobroRedirect;
       role = "PHOTOGRAPHER";
     } else if (state === "CUSTOMER" || state === "CLIENT") {
@@ -225,6 +227,14 @@ export async function GET(req: Request) {
       });
     }
 
+    // Cam Of Duty pide el email validado: si Google ya lo verificó, no hace falta el código.
+    if (isCamOfDutyFlow && googleUser.verified_email === true && !user.emailVerifiedAt) {
+      user = await prisma.user.update({
+        where: { id: user.id },
+        data: { emailVerifiedAt: new Date() },
+      });
+    }
+
     if (isNewUser) {
       const verifyToken = randomBytes(32).toString("hex");
       const verifyExpires = new Date();
@@ -295,6 +305,9 @@ export async function GET(req: Request) {
 
     // Verificar que el rol coincida; si no, redirigir al destino correcto por su rol real (mejor UX)
     if (!allowedRoles.includes(user.role)) {
+      if (isCamOfDutyFlow) {
+        return NextResponse.redirect(`${baseUrl}/camofduty/ingresar?cuenta=no-fotografo`);
+      }
       if (isCuantoCobroFlow) {
         return NextResponse.redirect(
           `${baseUrl}/cuantocobro?error=${encodeURIComponent("acceso")}`,
