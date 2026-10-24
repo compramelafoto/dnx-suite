@@ -1,3 +1,4 @@
+import { esEscuelaDemo } from "@/lib/demos/visibilidad";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireSchoolOrganizerAccess } from "@/lib/school-organizer-auth";
@@ -40,7 +41,7 @@ export async function GET(_req: NextRequest, { params }: RouteContext) {
     }
 
     const albums = await prisma.album.findMany({
-      where: { schoolId, deletedAt: null, isTest: false },
+      where: { schoolId, deletedAt: null, ...((await esEscuelaDemo(schoolId)) ? {} : { isTest: false }) },
       orderBy: [{ eventDate: "desc" }, { createdAt: "desc" }],
       select: { id: true, title: true, organizerCommissionPercentage: true },
     });

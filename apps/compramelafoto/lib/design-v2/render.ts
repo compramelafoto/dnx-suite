@@ -2,6 +2,7 @@ import "server-only";
 import sharp from "sharp";
 import { emitDesign, type ResourceResolver, type VariableDeclaration } from "@repo/design-studio";
 import { editorADocumento } from "@repo/template-editor-core/rendering";
+import { huecosSinFondo } from "@repo/template-editor-core";
 import {
   CLASS_LIST_VARIABLE_KEY,
   isClassListConfig,
@@ -19,7 +20,7 @@ import {
 } from "@/lib/template-v2/server";
 import type { DesignV2Data } from "./design-data";
 import { leerRecursoDelMosaico } from "./mosaico-recursos";
-import { courseMosaicForPrint } from "./values";
+import { courseMosaicForPrint, courseMosaicOwnerForPrint } from "./values";
 import type { DesignTemplateVersion } from "./template";
 
 /**
@@ -136,6 +137,8 @@ export async function cropPhotoForSlot(input: {
   slotWidth: number;
   slotHeight: number;
   crop: DesignV2Data["slots"][string]["crop"];
+  /** Un recorte sin fondo: sale en PNG para conservar la transparencia. */
+  transparente?: boolean;
 }): Promise<Uint8Array> {
   const rotated = await sharp(input.bytes, { failOn: "none" })
     .rotate()
@@ -156,7 +159,7 @@ export async function cropPhotoForSlot(input: {
   const out = await sharp(rotated.data)
     .extract({ left, top, width, height })
     .resize({ width: Math.max(1, targetWidth), withoutEnlargement: true })
-    .jpeg({ quality: 90, mozjpeg: true })
+    [input.transparente ? "png" : "jpeg"](input.transparente ? { compressionLevel: 9 } : { quality: 90, mozjpeg: true })
     .toBuffer();
   return new Uint8Array(out);
 }
@@ -202,6 +205,11 @@ export async function renderDesignV2(input: {
   template: DesignTemplateVersion;
   data: DesignV2Data;
   loadPhoto: DesignPhotoLoader;
+  /**
+   * El recorte sin fondo de una foto, para los huecos marcados «Quitar el fondo». Sin esto (o sin
+   * recorte para esa foto) va la foto entera.
+   */
+  loadCutout?: DesignPhotoLoader;
   formats: { pdf: boolean; jpg: boolean };
   /** Para vistas rápidas: achica las caras a este lado mayor. Sin valor, la resolución del lienzo. */
   jpgMaxSide?: number;
@@ -244,12 +252,14 @@ export async function renderDesignV2(input: {
     colegioDelListado: data.values["school.name"] ?? null,
     // Sin valor guardado, ninguno: una carpeta real nunca lleva compañeros inventados.
     mosaicoDelCurso: courseMosaicForPrint(data.values),
+    duenoDelMosaico: courseMosaicOwnerForPrint(data.values),
   });
 
   const slotSizeByBlock = new Map(
     template.legacy.blocks.map((b) => [b.id, { width: b.layout.width, height: b.layout.height }]),
   );
   const photoCache = new Map<number, Promise<Uint8Array | null>>();
+  const sinFondo = huecosSinFondo(template.legacy.blocks as Array<{ id: string; type: string; configJson?: unknown }>);
   const leerSinMemoria: ResourceResolver = {
     async read(ref: string) {
       const delMosaico = await leerRecursoDelMosaico(ref, {
@@ -269,12 +279,14 @@ export async function renderDesignV2(input: {
       const assignment = data.slots[blockId];
       const size = slotSizeByBlock.get(blockId);
       if (!assignment || assignment.photoId == null || !size) return null;
+      const recorte =
+        sinFondo.has(blockId) && input.loadCutout ? await input.loadCutout(assignment.photoId) : null;
       let pending = photoCache.get(assignment.photoId);
-      if (!pending) {
+      if (!pending && !recorte) {
         pending = input.loadPhoto(assignment.photoId);
         photoCache.set(assignment.photoId, pending);
       }
-      const bytes = await pending;
+      const bytes = recorte ?? (await pending);
       if (!bytes) return null;
       try {
         return await cropPhotoForSlot({
@@ -282,6 +294,7 @@ export async function renderDesignV2(input: {
           slotWidth: size.width,
           slotHeight: size.height,
           crop: assignment.crop,
+          transparente: recorte != null,
         });
       } catch {
         return null;

@@ -411,7 +411,7 @@ export default async function PreventaCanjePage({ params }: { params: Promise<{ 
   return (
     <ProtectedAlbumWrapper albumId={album.id} enableProtection>
       {modoPrueba ? (
-        <div className="bg-amber-100 px-4 py-2 text-center text-sm text-amber-900">
+        <div data-demo-ocultar="" className="bg-amber-100 px-4 py-2 text-center text-sm text-amber-900">
           <strong>Modo prueba.</strong> Estás viendo el canje como una familia. Ves todas las fotos
           del álbum sin selfie; una familia real primero se verifica y ve sólo las suyas. Lo que
           confirmes queda en tus Pedidos como DEMO, en $0: no se cobra, no entra en tus ventas y no

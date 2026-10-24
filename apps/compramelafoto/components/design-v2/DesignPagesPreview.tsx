@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { PAPER_TOKENS, TemplateCanvasRenderer, editorThemeStyle } from "@repo/template-editor-ui";
 import type { DesignV2Data } from "@/lib/design-v2/design-data";
-import { designPhotoOverrides, visibleDesignBlocks } from "@/lib/design-v2/render-inputs";
+import { designPhotoOverrides, sinFondoDelDiseno, visibleDesignBlocks } from "@/lib/design-v2/render-inputs";
 import type { DesignPhotoPayload, DesignTemplatePayload } from "@/lib/design-v2/client-payload";
 
 /**
@@ -59,7 +59,7 @@ export default function DesignPagesPreview({
   const paginas = Math.max(1, template.pageCount);
   const photoUrlById = useMemo(() => new Map(photos.map((p) => [p.id, p.url])), [photos]);
   const visibles = useMemo(() => visibleDesignBlocks(template.blocks, data.values), [template.blocks, data.values]);
-  const overrides = useMemo(() => designPhotoOverrides(data.slots, photoUrlById), [data.slots, photoUrlById]);
+  const overrides = useMemo(() => designPhotoOverrides(data.slots, photoUrlById, sinFondoDelDiseno(template.blocks, photos)), [data.slots, photoUrlById, template, photos]);
   const bloquePorId = useMemo(() => new Map(template.blocks.map((b) => [b.id, b])), [template.blocks]);
   const { columnas, escala } = mejorGrilla(paginas, caja, { width: canvasW, height: canvasH });
   const etiqueta = (i: number) => template.pageLabels[i]?.trim() || `Cara ${i + 1}`;

@@ -9,6 +9,8 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
 import { isAlbumTestOwnerPhotographer } from "@/lib/public-album-test-access";
 import { createPackAccessTokenForOrder } from "@/lib/preventa-canjeable/pack-access-tokens";
+import { esUsuarioDemo } from "@/lib/demos/identidad";
+import { finalizeAlbumOrderSimulatedApproved } from "@/lib/demos/pago-simulado";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -80,6 +82,29 @@ export async function POST(req: NextRequest) {
     const pcoId = parseInt(String(orderRow.preCompraPaymentRef).trim(), 10);
     if (!Number.isFinite(pcoId) || pcoId <= 0) {
       return NextResponse.json({ error: "Referencia de precompra inválida" }, { status: 400 });
+    }
+
+    // Demos grabables: el "pago" deja el pedido igual que uno aprobado de verdad (comisiones,
+    // entrega digital, diseños), sin avisos. Los demás álbumes de prueba siguen como antes.
+    const owner = orderRow.album?.userId
+      ? await prisma.user.findUnique({ where: { id: orderRow.album.userId }, select: { tags: true } })
+      : null;
+    if (result === "approved" && esUsuarioDemo(owner)) {
+      const fin = await finalizeAlbumOrderSimulatedApproved(orderId);
+      if (!fin.ok) {
+        console.error(LOG_SIM, { orderId, error: fin.error });
+        return NextResponse.json({ error: "No se pudo simular el pago." }, { status: 400 });
+      }
+      console.info(LOG_SIM, { orderId, preCompraOrderId: pcoId, result, demo: true, userId: user.id });
+      return NextResponse.json({
+        ok: true,
+        orderId,
+        preCompraOrderId: pcoId,
+        result,
+        orderStatus: OrderStatus.PAID,
+        preCompraOrderStatus: PreCompraOrderStatus.PAID_HELD,
+        packAccessUrl: fin.packToken ? `/cliente/pack/${fin.packToken}` : null,
+      });
     }
 
     let orderStatus: OrderStatus;
