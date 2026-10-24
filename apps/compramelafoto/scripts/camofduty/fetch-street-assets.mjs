@@ -26,17 +26,20 @@ const GLTF_TRANSFORM = ["-y", "@gltf-transform/cli@4.1.1"];
 const MODELS = [
   { id: "modular_urban_apartments_facade", file: "facade-kit.glb", res: "2k", size: 2048, keepNodes: true },
   { id: "rollershutter_door", file: "rollershutter-door.glb", res: "1k", size: 1024 },
-  { id: "street_lamp_01", file: "street-lamp.glb", res: "1k", size: 1024 },
-  { id: "fire_hydrant", file: "fire-hydrant.glb", res: "1k", size: 512 },
+  // 30 000 triángulos por farol: a 6 000 se ve igual (respeta texturas).
+  { id: "street_lamp_01", file: "street-lamp.glb", res: "1k", size: 1024, simplify: 0.2, simplifyError: 0.004 },
+  // 43 000 triángulos para un hidrante: se simplifica respetando las texturas (6 500).
+  { id: "fire_hydrant", file: "fire-hydrant.glb", res: "1k", size: 512, simplify: 0.15, simplifyError: 0.01 },
   { id: "metal_trash_can", file: "trash-can.glb", res: "1k", size: 512 },
   { id: "modular_street_seating", file: "street-bench.glb", res: "1k", size: 1024, keepNodes: true },
   { id: "utility_box_01", file: "utility-box.glb", res: "1k", size: 512 },
   { id: "water_manhole_cover", file: "manhole.glb", res: "1k", size: 512 },
   { id: "exterior_aircon_unit", file: "aircon.glb", res: "1k", size: 512 },
   { id: "potted_plant_02", file: "potted-plant.glb", res: "1k", size: 512 },
+  // Después pasar scripts/camofduty/reduce-foliage.mjs (ramas 12 %, hojas 55 %): el
+  // simplificador común no baja de ~340 000 triángulos por las costuras de las hojas.
   { id: "jacaranda_tree", file: "tree-jacaranda.glb", res: "1k", size: 1024, simplify: 0.04 },
   // Versión lejana del árbol (a más de ~25 m alcanza con una décima parte).
-  { id: "jacaranda_tree", file: "tree-jacaranda-far.glb", res: "1k", size: 512, simplify: 0.006 },
   { id: "covered_car", file: "covered-car.glb", res: "1k", size: 1024 },
   // Plaza, pasajes y veredas del barrio grande.
   { id: "horse_statue_01", file: "statue.glb", res: "1k", size: 1024 },
@@ -78,7 +81,7 @@ async function download(url, path) {
   writeFileSync(path, Buffer.from(await res.arrayBuffer()));
 }
 
-function optimize(input, output, { size, keepNodes = false, simplify }) {
+function optimize(input, output, { size, keepNodes = false, simplify, simplifyError = 0.05 }) {
   const args = [
     ...GLTF_TRANSFORM,
     "optimize",
@@ -97,7 +100,7 @@ function optimize(input, output, { size, keepNodes = false, simplify }) {
   ];
   if (keepNodes) args.push("--join", "false", "--flatten", "false", "--palette", "false");
   // El error por defecto (0,0001) casi no deja simplificar: las hojas admiten 5 %.
-  if (simplify) args.push("--simplify-ratio", String(simplify), "--simplify-error", "0.05");
+  if (simplify) args.push("--simplify-ratio", String(simplify), "--simplify-error", String(simplifyError));
   else args.push("--simplify", "false");
   execFileSync("npx", args, { stdio: "inherit" });
 }
