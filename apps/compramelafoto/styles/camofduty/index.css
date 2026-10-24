@@ -4465,3 +4465,69 @@
 .cod-photo-histogram__caption .is-warn {
   color: #f87171;
 }
+
+/* Pregunta del día en ventana emergente al entrar. */
+.cod-daily-popup {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgb(4 5 8 / 72%);
+  backdrop-filter: blur(3px);
+  animation: cod-daily-popup-in 0.25s ease-out;
+}
+
+.cod-daily-popup__dialog {
+  width: min(40rem, 100%);
+  max-height: calc(100dvh - 2rem);
+  overflow-y: auto;
+  padding: 1rem 1rem 1.1rem;
+  border: 1px solid var(--cod-border-strong);
+  border-radius: var(--cod-radius-lg);
+  background: var(--cod-bg-deep);
+  box-shadow: 0 30px 80px rgb(0 0 0 / 60%);
+}
+
+.cod-daily-popup__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.6rem;
+}
+
+.cod-daily-popup__top .cod-section-label {
+  margin: 0;
+}
+
+.cod-daily-popup__close {
+  width: 2.2rem;
+  height: 2.2rem;
+  border: 1px solid var(--cod-border);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--cod-text);
+  font-size: 1.3rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.cod-daily-popup__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  justify-content: flex-end;
+  margin-top: 0.9rem;
+}
+
+@keyframes cod-daily-popup-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
