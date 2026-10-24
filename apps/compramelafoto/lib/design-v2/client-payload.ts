@@ -1,4 +1,4 @@
-import { CLASS_LIST_VARIABLE_KEY } from "@repo/template-editor-core";
+import { CLASS_LIST_VARIABLE_KEY, COURSE_MOSAIC_VARIABLE_KEY } from "@repo/template-editor-core";
 import type { ClientPhotoSlot, TemplateV2Block, TemplateV2Canvas } from "@repo/template-editor-core";
 
 /**
@@ -42,8 +42,11 @@ export function toDesignTemplatePayload(template: {
       blocks
         .filter((b) => b.type === "VARIABLE_TEXT")
         .map((b) => asRecord(b.configJson).variableKey)
-        // El listado del curso no se corrige a mano como un texto: sale del padrón.
-        .filter((k): k is string => typeof k === "string" && k.trim() !== "" && k !== CLASS_LIST_VARIABLE_KEY),
+        // El listado y el mosaico del curso no se corrigen a mano como un texto: salen del padrón.
+        .filter(
+          (k): k is string =>
+            typeof k === "string" && k.trim() !== "" && k !== CLASS_LIST_VARIABLE_KEY && k !== COURSE_MOSAIC_VARIABLE_KEY,
+        ),
     ),
   ];
   return {

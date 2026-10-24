@@ -21,6 +21,7 @@ import {
 import {
   CLASS_LIST_VARIABLE_KEY,
   isClassListConfig,
+  isCourseMosaicConfig,
   parseClassListGroups,
   resolveTemplateDocument,
   serializeClassList,
@@ -181,7 +182,7 @@ export async function dibujarPlantilla(
       if (src) config = fixedImageConfig(config, src);
       else if (type !== "BACKGROUND") return [];
     }
-    if (type === "VARIABLE_TEXT" && !isClassListConfig(config)) type = "TEXT";
+    if (type === "VARIABLE_TEXT" && !isClassListConfig(config) && !isCourseMosaicConfig(config)) type = "TEXT";
     return [
       {
         id: block.id,

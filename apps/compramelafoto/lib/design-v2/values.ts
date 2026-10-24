@@ -1,5 +1,8 @@
 import {
   CLASS_LIST_VARIABLE_KEY,
+  COURSE_MOSAIC_VARIABLE_KEY,
+  serializeCourseMosaic,
+  type CourseMosaicStudent,
   formatCourseName,
   serializeClassListGroups,
   type ClassListGroup,
@@ -38,6 +41,8 @@ export type DesignValueSources = {
   courseStudents?: ClassListStudent[] | null;
   /** Los cursos del listado, cada uno con su título. Manda sobre `courseStudents`. */
   courseGroups?: ClassListGroup[] | null;
+  /** Los compañeros del bloque «Mosaico del curso», ya sin el dueño del diseño. */
+  courseMosaic?: CourseMosaicStudent[] | null;
 };
 
 const DATE_FORMAT = new Intl.DateTimeFormat("es-AR", {
@@ -84,6 +89,7 @@ export function buildDesignValues(src: DesignValueSources): Record<string, strin
         ]
       : [];
   if (groups.length) values[CLASS_LIST_VARIABLE_KEY] = serializeClassListGroups(groups);
+  if (src.courseMosaic?.length) values[COURSE_MOSAIC_VARIABLE_KEY] = serializeCourseMosaic(src.courseMosaic);
   if (src.eventDate && !Number.isNaN(src.eventDate.getTime())) {
     put("event.dateFormatted", DATE_FORMAT.format(src.eventDate));
   }

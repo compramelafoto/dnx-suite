@@ -25,6 +25,7 @@ import { emitDesign } from "@repo/design-studio";
 import {
   buildEditorGoogleFontsStylesheetHrefs,
   parseClassListGroups,
+  parseCourseMosaic,
   type TemplateV2Block,
 } from "@repo/template-editor-core";
 import { editorADocumento, type EditorBlock } from "@repo/template-editor-core/rendering";
@@ -126,6 +127,7 @@ async function pdfPorPagina(caso: CasoDeComparacion): Promise<{ paginas: Buffer[
     nombre: caso.id,
     cursosDelListado: parseClassListGroups(caso.valores?.[LISTA_DEL_CURSO], caso.valores?.["course.displayName"]),
     colegioDelListado: caso.valores?.["school.name"] ?? null,
+    mosaicoDelCurso: caso.valores?.["course.mosaic"] != null ? parseCourseMosaic(caso.valores["course.mosaic"]) : undefined,
   });
   const salida = await emitDesign({
     document: puente.document as never,

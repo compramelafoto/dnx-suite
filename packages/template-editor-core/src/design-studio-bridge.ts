@@ -613,14 +613,17 @@ function dibujarMosaico(input: {
 }): { partes: Record<string, unknown>[]; bordeDeElipse: boolean } {
   const { bloque: b, cfg, geo, chicos, mm, pt, fuente } = input;
   const o = readCourseMosaicOptions(cfg);
-  const fontSize = num(cfg.fontSize, 24);
+  // Los mismos valores por defecto que el lienzo (`getTextVisualConfig`): si no, las filas se
+  // corren entre la pantalla y el PDF.
+  const fontSize = num(cfg.fontSize, 20);
+  const lineHeight = num(cfg.lineHeight, 1.2);
   const reparto = layoutCourseMosaic({
     students: chicos,
     options: o,
     width: num(b.width, 0),
     height: num(b.height, 0),
     fontSize,
-    lineHeight: num(cfg.lineHeight, 1.15),
+    lineHeight,
   });
 
   const bx = num(b.x, 0);
@@ -738,7 +741,7 @@ function dibujarMosaico(input: {
         color,
         align: "center",
         textTransform: conversionDeLetras(cfg.textTransform),
-        lineHeight: num(cfg.lineHeight, 1.15),
+        lineHeight,
       });
     }
   });

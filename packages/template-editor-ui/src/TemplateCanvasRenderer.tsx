@@ -1,7 +1,7 @@
 "use client";
 
 import { QrBlockRenderer } from "./QrBlockRenderer";
-import React, { useMemo, useState } from "react";
+import React, { useState } from "react";
 import {
   computeCoverCropRect,
   getResolvedVariableText,
@@ -193,10 +193,12 @@ function TextBlockRenderer({
   );
 }
 
-/** La foto de un compañero, con su encuadre: la misma cuenta que usa la impresión. */
-function MosaicPhoto({ src, crop, width, height }: { src: string; crop?: CourseMosaicStudent["crop"]; width: number; height: number }) {
-  const [natural, setNatural] = useState<{ src: string; w: number; h: number } | null>(null);
-  const size = natural && natural.src === src ? natural : null;
+/**
+ * La foto de un compañero, con su encuadre: la misma cuenta que usa la impresión. Sin estado a
+ * propósito (la comparación pantalla/PDF dibuja esto en el servidor): la proporción de la foto
+ * sale de `sourceAspect`; sin ella, la foto se centra.
+ */
+function MosaicPhoto({ student, width, height }: { student: CourseMosaicStudent; width: number; height: number }) {
   let style: React.CSSProperties = {
     position: "absolute",
     left: 0,
@@ -207,21 +209,14 @@ function MosaicPhoto({ src, crop, width, height }: { src: string; crop?: CourseM
     display: "block",
     maxWidth: "none",
   };
-  if (size) {
-    const rect = computeCoverCropRect({ srcWidth: size.w, srcHeight: size.h, slotWidth: width, slotHeight: height, crop });
+  if (student.sourceAspect) {
+    const srcWidth = 1000 * student.sourceAspect;
+    const rect = computeCoverCropRect({ srcWidth, srcHeight: 1000, slotWidth: width, slotHeight: height, crop: student.crop });
     const scale = width / rect.width;
-    style = { ...style, width: size.w * scale, height: size.h * scale, left: -rect.left * scale, top: -rect.top * scale };
+    style = { ...style, width: srcWidth * scale, height: 1000 * scale, left: -rect.left * scale, top: -rect.top * scale };
   }
-  return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src={src}
-      alt=""
-      draggable={false}
-      style={style}
-      onLoad={(e) => setNatural({ src, w: e.currentTarget.naturalWidth, h: e.currentTarget.naturalHeight })}
-    />
-  );
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src={student.photoUrl} alt="" draggable={false} style={style} />;
 }
 
 function initialsOf(s: CourseMosaicStudent): string {
@@ -269,7 +264,7 @@ function MosaicCellView({ cell, o, t, index }: { cell: CourseMosaicCell; o: Cour
       {o.frame === "polaroid" ? <div style={{ ...rel(cell.box), background: "#ffffff" }} /> : null}
       <div style={{ ...rel(cell.photo), overflow: "hidden", borderRadius: radius, background: src ? undefined : "#d6d3d1" }}>
         {src ? (
-          <MosaicPhoto src={src} crop={s.crop} width={cell.photo.width} height={cell.photo.height} />
+          <MosaicPhoto student={s} width={cell.photo.width} height={cell.photo.height} />
         ) : (
           <div
             style={{
@@ -932,13 +927,9 @@ export function TemplateCanvasRenderer({
   // Los bloques del mosaico se reparten los chicos entre todos (de todas las páginas), como en la
   // impresión. Sin valor, los compañeros de muestra.
   const mosaicValue = resolvedVariables?.["course.mosaic"];
-  const studentsByMosaic = useMemo(
-    () =>
-      distributeCourseMosaic(
-        blocks.map((b) => ({ id: b.id, configJson: b.type === "VARIABLE_TEXT" ? b.configJson : undefined })),
-        typeof mosaicValue === "string" ? parseCourseMosaic(mosaicValue) : COURSE_MOSAIC_SAMPLE,
-      ),
-    [blocks, mosaicValue],
+  const studentsByMosaic = distributeCourseMosaic(
+    blocks.map((b) => ({ id: b.id, configJson: b.type === "VARIABLE_TEXT" ? b.configJson : undefined })),
+    typeof mosaicValue === "string" ? parseCourseMosaic(mosaicValue) : COURSE_MOSAIC_SAMPLE,
   );
 
   return (

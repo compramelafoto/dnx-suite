@@ -4,7 +4,9 @@ import {
   COURSE_MOSAIC_SAMPLE,
   DEFAULT_COURSE_MOSAIC_OPTIONS,
   isCourseMosaicConfig,
+  layoutCourseMosaic,
   readCourseMosaicOptions,
+  sortCourseMosaic,
   type CourseMosaicOptions,
   type CourseMosaicStudent,
 } from "@repo/template-engine";
@@ -156,5 +158,26 @@ describe("normalizeBlockConfig — mosaico del curso", () => {
     const cfg = { variableKey: "course.mosaic", courseMosaic: { frame: "polaroid", tilt: 3 } };
     const n = normalizeBlockConfig("VARIABLE_TEXT", cfg) as Record<string, unknown>;
     assert.deepEqual(n.courseMosaic, { frame: "polaroid", tilt: 3 });
+  });
+});
+
+describe("editorADocumento — mosaico sin tipografía guardada", () => {
+  it("usa el mismo cuerpo e interlineado por defecto que el lienzo (20 y 1,2)", () => {
+    const b = mosaico("mos");
+    const cfg = { ...(b.configJson as Record<string, unknown>) };
+    delete cfg.fontSize;
+    delete cfg.lineHeight;
+    const { todos } = dibujar([{ ...b, configJson: cfg }], tres);
+    const esperado = layoutCourseMosaic({
+      students: sortCourseMosaic(tres, readCourseMosaicOptions(cfg)),
+      options: readCourseMosaicOptions(cfg),
+      width: 1500,
+      height: 1000,
+      fontSize: 20,
+      lineHeight: 1.2,
+    });
+    const pxAmm = 25.4 / 300;
+    const foto = partes(todos, "mos", "foto")[0]!;
+    assert.ok(Math.abs(Number(foto.y) - (100 + esperado.cells[0]!.photo.y) * pxAmm) < 1e-6);
   });
 });

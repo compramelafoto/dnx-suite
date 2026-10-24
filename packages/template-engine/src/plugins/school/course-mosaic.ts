@@ -442,18 +442,25 @@ export function layoutCourseMosaic(input: {
   return { cells, overflow: 0 };
 }
 
-/** Reparte los chicos entre los bloques encadenados, por `chainOrder`; el último se lleva el resto. */
+/**
+ * Reparte los chicos entre los bloques encadenados, por `chainOrder`; el último eslabón se lleva el
+ * resto. Los bloques con el mismo orden son copias (por ejemplo, el mismo mosaico en dos
+ * páginas): cada uno lleva a los mismos chicos.
+ */
 export function splitCourseMosaicChain<T extends { id: string; options: CourseMosaicOptions }>(
   blocks: T[],
   students: CourseMosaicStudent[],
 ): Map<string, CourseMosaicStudent[]> {
-  const ordered = [...blocks].sort((a, b) => a.options.chainOrder - b.options.chainOrder);
+  const orders = [...new Set(blocks.map((b) => b.options.chainOrder))].sort((a, b) => a - b);
   const out = new Map<string, CourseMosaicStudent[]>();
   let next = 0;
-  ordered.forEach((b, i) => {
-    const isLast = i === ordered.length - 1;
-    const take = isLast || b.options.capacity === 0 ? students.length - next : b.options.capacity;
-    out.set(b.id, students.slice(next, next + take));
+  orders.forEach((order, i) => {
+    const link = blocks.filter((b) => b.options.chainOrder === order);
+    const capacity = link[0]!.options.capacity;
+    const isLast = i === orders.length - 1;
+    const take = isLast || capacity === 0 ? students.length - next : capacity;
+    const slice = students.slice(next, next + take);
+    for (const b of link) out.set(b.id, slice);
     next = Math.min(students.length, next + take);
   });
   return out;

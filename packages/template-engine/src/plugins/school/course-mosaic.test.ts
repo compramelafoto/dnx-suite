@@ -224,3 +224,14 @@ test("la cadena se ordena con las opciones de su primer bloque y reparte por blo
   assert.deepEqual(r.get("a")!.map((s) => s.firstName), ["Ana"]);
   assert.deepEqual(r.get("b")!.map((s) => s.firstName), ["Zoe"]);
 });
+
+test("dos mosaicos con el mismo orden son copias: cada uno lleva a todos", () => {
+  const bloques = [
+    { id: "a", options: opciones({ chainOrder: 1 }) },
+    { id: "b", options: opciones({ chainOrder: 1 }) },
+  ];
+  const lista = chicos(5);
+  const r = splitCourseMosaicChain(bloques, lista);
+  assert.deepEqual(r.get("a"), lista);
+  assert.deepEqual(r.get("b"), lista);
+});
