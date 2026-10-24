@@ -181,8 +181,9 @@ async function asegurarPacks(albumId: number, fotografoId: number): Promise<stri
       includedQuantity: pack.digitales,
       sortOrder: 1,
       templatePolicy: BenefitTemplatePolicy.NONE,
-      requiredPhotoCount: pack.digitales,
-      selectionMode: BenefitSelectionMode.MULTI_PHOTO_FIXED,
+      // N descargas de una foto cada una: «10 fotos digitales», no 10 de 10.
+      requiredPhotoCount: 1,
+      selectionMode: BenefitSelectionMode.SINGLE_PHOTO,
     });
     for (const cuerpo of beneficios) {
       // Mismas reglas que el panel: la plantilla de sistema se copia a la cuenta del fotógrafo.

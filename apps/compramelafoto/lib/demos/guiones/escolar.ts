@@ -102,7 +102,8 @@ export const GUION_ESCOLAR: Guion = {
     {
       id: "preventa",
       vista: "familia",
-      ruta: (c) => `/album/${c.albumSlug}/preventa`,
+      // Con el link que comparte el colegio (`?ref=school_<id>`): así la venta le suma comisión.
+      ruta: (c) => `/album/${c.albumSlug}?ref=school_${c.schoolId}`,
       titulo: "6 · La familia compra en preventa",
       texto:
         "La familia entra con el link que le pasa el colegio, elige el pack, busca a su hijo en el listado del curso y paga. Acá el pago es simulado: apretás «Pagar» y sigue como un pago real.",
