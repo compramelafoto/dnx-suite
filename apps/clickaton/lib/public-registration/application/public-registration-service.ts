@@ -16,6 +16,7 @@ import {
   resolveHighestActivePricePhase,
 } from "@/lib/pricing/domain/resolve-price-phase";
 import { assertInstagramHandle } from "@repo/media-composition";
+import { validarFechaNacimiento } from "@/lib/registration/domain/fecha-nacimiento";
 import { resolveLocationConsent } from "@/lib/broadcast-consent/domain/location-consent";
 import { systemClock, type EditionClock } from "@/lib/timeline/clock";
 import {
@@ -144,6 +145,8 @@ function validateParticipant(p: CreatePublicRegistrationInput["participant"]) {
   if (p.documentNumber && p.documentNumber.trim().length < 5) {
     errors.documentNumber = "Documento inválido.";
   }
+  const nacimiento = validarFechaNacimiento(p.birthDate);
+  if (!nacimiento.ok) errors.birthDate = nacimiento.error;
   if (Object.keys(errors).length) {
     throw new PublicRegistrationValidationError(errors);
   }

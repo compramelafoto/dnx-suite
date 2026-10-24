@@ -87,6 +87,7 @@ function inscribir(
       lastName: "Pérez",
       email: `ana+${newIdempotencyKey()}@example.com`,
       country: "AR",
+      birthDate: "1990-04-12",
     },
     acceptTerms: true,
     acceptPrivacy: true,

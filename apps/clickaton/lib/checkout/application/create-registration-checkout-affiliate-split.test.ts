@@ -85,6 +85,7 @@ async function seed() {
       firstName: "Ana",
       lastName: "Split",
       email: "ana.split@example.com",
+      birthDate: "1990-04-12",
       phone: "11111111",
       documentNumber: "30111222",
       country: "AR",

@@ -15,6 +15,7 @@ const participant = {
   email: "beto@example.test",
   phone: "1122334455",
   documentNumber: "30111222",
+  birthDate: "1990-04-12",
 };
 
 async function setup(opts: { paid?: boolean; enabled?: boolean; now?: Date } = {}) {
@@ -153,6 +154,19 @@ describe("canje del regalo", () => {
   it("exige usuario de Instagram", async () => {
     const { use } = await setup();
     await assert.rejects(() => use.execute(input({ instagramHandle: "  " })), /instagram/i);
+  });
+
+  it("exige la fecha de nacimiento", async () => {
+    const { use, completed } = await setup();
+    await assert.rejects(
+      () => use.execute(input({ participant: { ...participant, birthDate: undefined } })),
+      /fecha de nacimiento/i,
+    );
+    await assert.rejects(
+      () => use.execute(input({ participant: { ...participant, birthDate: "1990-02-31" } })),
+      /no existe/i,
+    );
+    assert.equal(completed.length, 0);
   });
 
   it("exige nombre, apellido y email válidos", async () => {

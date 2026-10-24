@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/Card";
 import { AffiliateSection } from "@/components/account/AffiliateSection";
 import { ReferralSection } from "@/components/account/ReferralSection";
 import { ClickatonerOptOutSection } from "@/components/account/ClickatonerOptOutSection";
+import { BirthDateSection } from "@/components/account/BirthDateSection";
 import { isOptedOut } from "@/lib/clickatoner/repository";
 import { adminRoutes } from "@/config/admin/navigation";
 import { logoutClickatonAction } from "@/app/(public)/login/actions";
@@ -70,7 +71,12 @@ async function cargarMisCodigosDeFotografo(userId: number) {
 }
 
 type Props = {
-  searchParams: Promise<{ afiliadoOk?: string; afiliadoError?: string }>;
+  searchParams: Promise<{
+    afiliadoOk?: string;
+    afiliadoError?: string;
+    nacimientoOk?: string;
+    nacimientoError?: string;
+  }>;
 };
 
 export default async function MiCuentaPage({ searchParams }: Props) {
@@ -105,6 +111,10 @@ export default async function MiCuentaPage({ searchParams }: Props) {
     searchParams,
   ]);
   const yaParticipo = registrations.some((reg) => reg.status === "CONFIRMED");
+  // La fecha que ya cargó, en cualquiera de sus inscripciones. Se guarda como medianoche UTC del
+  // día elegido: la fecha es la parte UTC.
+  const nacimiento = registrations.find((reg) => reg.birthDate)?.birthDate ?? null;
+  const fechaNacimiento = nacimiento ? nacimiento.toISOString().slice(0, 10) : null;
   // Best-effort, como los demás bloques opcionales: sin la tabla, Mi cuenta sigue andando.
   const salioDelClickatoner = yaParticipo
     ? await isOptedOut(user.email).catch((error: unknown) => {
@@ -154,6 +164,15 @@ export default async function MiCuentaPage({ searchParams }: Props) {
           </form>
         </div>
       </Card>
+
+      {/* Sólo a quien ya se inscribió: a los demás se les pide en la inscripción. */}
+      {registrations.length > 0 ? (
+        <BirthDateSection
+          fecha={fechaNacimiento}
+          ok={flash.nacimientoOk === "1"}
+          error={flash.nacimientoError}
+        />
+      ) : null}
 
       {misCodigos ? (
         <AffiliateSection
