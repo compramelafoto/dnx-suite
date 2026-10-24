@@ -400,10 +400,12 @@ export async function executePreventaPackRedeemV1InTransaction(
         .filter((x): x is number => x != null)
     ),
   ];
+  // Sin filtrar por activo: el pack ya se cobró con ese producto. Si el fotógrafo lo desactiva
+  // después (dejó de venderlo suelto), las familias que ya pagaron igual tienen que poder canjear.
   const products =
     productIds.length > 0
       ? await tx.photographerProduct.findMany({
-          where: { id: { in: productIds }, isActive: true },
+          where: { id: { in: productIds } },
           select: { id: true, size: true, acabado: true },
         })
       : [];
