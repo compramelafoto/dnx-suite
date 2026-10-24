@@ -41,6 +41,7 @@ type DatosPremio = {
   prizeTitle: string;
   prizeConditions?: string | null;
   partnerName: string;
+  partnerEmail?: string | null;
   partnerAddress?: string | null;
   partnerPhone?: string | null;
   partnerHours?: string | null;
@@ -49,31 +50,39 @@ type DatosPremio = {
   signature: RenderedEmailSignature | null;
 };
 
-/** Junta los datos del local en una sola línea, salteando lo que no esté cargado. */
-function dondeRetirar(p: DatosPremio): string[] {
-  const lineas = [`Lo retirás en ${p.partnerName}.`];
+/** Los datos de contacto del aliado, uno por renglón, salteando lo que no esté cargado. */
+function contactoAliado(p: DatosPremio): string[] {
+  const lineas: string[] = [];
+  if (p.partnerEmail) lineas.push(`Correo: ${p.partnerEmail}`);
+  if (p.partnerPhone) lineas.push(`Teléfono: ${p.partnerPhone}`);
   if (p.partnerAddress) lineas.push(`Dirección: ${p.partnerAddress}`);
   if (p.partnerHours) lineas.push(`Horarios: ${p.partnerHours}`);
-  if (p.partnerPhone) lineas.push(`Teléfono: ${p.partnerPhone}`);
   return lineas;
 }
 
 /**
  * El aviso al ganador.
  *
- * Lo primero que tiene que quedar claro es que ganó; lo segundo, hasta cuándo tiene. El plazo
- * va en el cuerpo y repetido al pie, porque es el dato por el que después se reclama.
+ * Lo primero que tiene que quedar claro es que ganó; lo segundo, con quién coordina la entrega
+ * y hasta cuándo tiene. No se le dice «pasá por el local»: hay aliados que están en otra
+ * ciudad, y cómo se entrega (en mano, por correo, en la institución) lo arreglan el ganador y
+ * el aliado. Por eso van los datos de contacto del aliado, y al aliado le llegan los del
+ * ganador. El plazo va en el cuerpo y repetido al pie, porque es el dato por el que después
+ * se reclama.
  */
 export function buildWinnerNoticeEmail(
   input: DatosPremio & { winnerFirstName: string },
 ): EmailBody {
   const vence = fechaLarga(input.pickupDeadline);
+  const contacto = contactoAliado(input);
 
   const parrafos = [
     `Saliste sorteado en ${input.raffleTitle}: ganaste ${input.prizeTitle}, que dona ${input.partnerName}.`,
-    ...dondeRetirar(input),
-    `Tenés tiempo hasta el ${vence}. Si no vas antes de esa fecha, el premio se pierde.`,
-    "Llevá tu carnet de socio: te lo van a pedir para entregártelo.",
+    `Para recibirlo, comunicate con ${input.partnerName} y coordiná con ellos la entrega. Ya les avisamos que ganaste y les pasamos tus datos de contacto.`,
+    ...(contacto.length > 0 ? [`Datos de ${input.partnerName}:`, ...contacto] : []),
+    `Tenés tiempo hasta el ${vence}. Si no lo coordinás antes de esa fecha, el premio se pierde.`,
+    "Si hace falta enviártelo, el costo del envío lo pagás vos.",
+    "Si lo retirás en persona, llevá tu carnet de socio: te lo van a pedir para entregártelo.",
   ];
   if (input.prizeConditions?.trim()) parrafos.push(input.prizeConditions.trim());
 
@@ -81,41 +90,53 @@ export function buildWinnerNoticeEmail(
     subject: `Ganaste ${input.prizeTitle}`,
     greetingName: input.winnerFirstName,
     paragraphs: parrafos,
-    notes: [`Retirá el premio antes del ${vence}.`],
+    notes: [`Coordiná la entrega con ${input.partnerName} antes del ${vence}.`],
     signature: input.signature,
   });
 }
 
 /**
- * El aviso al aliado que dona el premio.
+ * El aviso al aliado que dona el premio. Sale siempre, se entregue como se entregue.
  *
- * Cumple tres cosas a la vez: le dice a quién entregarle, hasta cuándo, y le pide el
- * comprobante que la institución necesita para justificar de dónde salió el premio. El pedido
- * es para **después** de la entrega, no antes: el remito documenta algo que ya pasó.
+ * Cumple tres cosas a la vez: le dice quién ganó y cómo contactarlo, hasta cuándo, y le pide
+ * el comprobante que la institución necesita para justificar de dónde salió el premio. El
+ * pedido es para **después** de la entrega, no antes: el remito documenta algo que ya pasó.
  */
 export function buildSponsorNoticeEmail(
   input: DatosPremio & {
     winnerFullName: string;
     winnerMemberNumber: string;
+    winnerEmail?: string | null;
+    winnerPhone?: string | null;
     /** A dónde tiene que mandar el comprobante. Es el correo de la institución. */
     receiptEmail: string;
   },
 ): EmailBody {
   const vence = fechaLarga(input.pickupDeadline);
+  const contactoGanador: string[] = [];
+  if (input.winnerEmail) contactoGanador.push(`Correo: ${input.winnerEmail}`);
+  if (input.winnerPhone) contactoGanador.push(`Teléfono: ${input.winnerPhone}`);
 
   return compose({
     subject: `Ya hay ganador para ${input.prizeTitle}`,
     greetingName: null,
     paragraphs: [
       `Se sorteó ${input.raffleTitle} y ${input.prizeTitle}, que ustedes donaron, le tocó a ${input.winnerFullName}, socio N° ${input.winnerMemberNumber} de ${input.institutionName}.`,
-      `Va a pasar a retirarlo por ${input.partnerName} hasta el ${vence}. Pasada esa fecha el premio se pierde y no hay que entregarlo.`,
-      "Le pedimos el carnet de socio al retirar, así confirman que es la persona correcta.",
-      `Cuando el socio retire el premio, ¿nos mandan a ${input.receiptEmail} una foto o un PDF del remito? También sirve una factura por $0, con la leyenda «Sin valor comercial — Destinado a sorteo entre asociados».`,
+      `Le pedimos que se comunique con ustedes para coordinar la entrega.${
+        contactoGanador.length > 0
+          ? " Estos son sus datos, por si prefieren escribirle ustedes:"
+          : ` No tenemos su correo ni su teléfono cargados: si no les escribe, avísennos a ${input.receiptEmail} y los ponemos en contacto.`
+      }`,
+      ...contactoGanador,
+      `Tiene tiempo hasta el ${vence}. Pasada esa fecha el premio se pierde y no hay que entregarlo.`,
+      "Si hace falta enviárselo, el costo del envío lo paga el ganador, no ustedes.",
+      "Si lo retira en persona, pídanle el carnet de socio, así confirman que es la persona correcta.",
+      `Cuando le entreguen el premio, ¿nos mandan a ${input.receiptEmail} una foto o un PDF del remito? También sirve una factura por $0, con la leyenda «Sin valor comercial — Destinado a sorteo entre asociados».`,
       "Con eso ustedes justifican la salida de mercadería y nosotros dejamos constancia de cómo llegó el premio a la institución.",
     ],
     notes: [
       `Ganador: ${input.winnerFullName} (socio N° ${input.winnerMemberNumber}).`,
-      `Retira hasta el ${vence}.`,
+      `Plazo para la entrega: hasta el ${vence}.`,
     ],
     signature: input.signature,
   });

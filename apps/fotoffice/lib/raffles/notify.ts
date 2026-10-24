@@ -18,7 +18,8 @@ import { recordRaffleEvent } from "./events";
  * no se manda dos veces.
  *
  * Los dos correos son independientes: que el socio no tenga dirección de correo no puede
- * impedir que al aliado le llegue el aviso de a quién entregarle el premio.
+ * impedir que al aliado le llegue el aviso de a quién entregarle el premio. Cada uno lleva los
+ * datos de contacto del otro: la entrega la coordinan entre ellos.
  */
 
 export type NotifyReport = {
@@ -38,7 +39,7 @@ export async function notifyPendingAwards(now: Date = new Date()): Promise<Notif
       raffleId: true,
       notifiedAt: true,
       sponsorNotifiedAt: true,
-      member: { select: { firstName: true, lastName: true, memberNumber: true, email: true } },
+      member: { select: { firstName: true, lastName: true, memberNumber: true, email: true, phone: true } },
       prize: {
         select: {
           title: true,
@@ -81,6 +82,7 @@ export async function notifyPendingAwards(now: Date = new Date()): Promise<Notif
       prizeTitle: a.prize.title,
       prizeConditions: a.prize.conditions,
       partnerName: a.prize.partnerNameSnapshot ?? a.raffle.workspace.name,
+      partnerEmail: a.prize.partnerEmailSnapshot,
       partnerAddress: a.prize.partnerAddressSnapshot,
       partnerPhone: a.prize.partnerPhoneSnapshot,
       partnerHours: a.prize.partnerHoursSnapshot,
@@ -147,6 +149,8 @@ export async function notifyPendingAwards(now: Date = new Date()): Promise<Notif
             ...base,
             winnerFullName: `${a.member.firstName} ${a.member.lastName}`.trim(),
             winnerMemberNumber: a.member.memberNumber,
+            winnerEmail: a.member.email,
+            winnerPhone: a.member.phone,
             receiptEmail,
           }),
         });

@@ -8,6 +8,7 @@ const premio = {
   prizeTitle: "Mochila para equipo fotográfico",
   prizeConditions: "Se retira personalmente, con carnet de socio.",
   partnerName: "Casa de Fotografía Norte",
+  partnerEmail: "ventas@casanorte.com.ar",
   partnerAddress: "San Martín 1234, Rosario",
   partnerPhone: "341 555-0198",
   partnerHours: "Lunes a viernes de 9 a 18",
@@ -35,11 +36,21 @@ describe("el aviso al ganador", () => {
     expect(email.text.toLowerCase()).toMatch(/pierde|perdés|no vas/);
   });
 
-  it("le dice dónde retirarlo: nombre, dirección, teléfono y horarios del aliado", () => {
+  it("le pide coordinar la entrega con el aliado y le da todos sus datos de contacto", () => {
+    expect(email.text.toLowerCase()).toContain("coordiná");
     expect(email.text).toContain("Casa de Fotografía Norte");
+    expect(email.text).toContain("ventas@casanorte.com.ar");
     expect(email.text).toContain("San Martín 1234, Rosario");
     expect(email.text).toContain("341 555-0198");
     expect(email.text).toContain("Lunes a viernes de 9 a 18");
+  });
+
+  it("le aclara que el envío, si hace falta, lo paga el ganador", () => {
+    expect(email.text).toContain("el costo del envío lo pagás vos");
+  });
+
+  it("no le dice que vaya al local: el aliado puede estar en otra ciudad", () => {
+    expect(email.text).not.toContain("Lo retirás en");
   });
 
   it("le recuerda llevar el carnet", () => {
@@ -54,6 +65,7 @@ describe("el aviso al ganador", () => {
     const sinDatos = buildWinnerNoticeEmail({
       ...premio,
       winnerFirstName: "Ana",
+      partnerEmail: null,
       partnerAddress: null,
       partnerPhone: null,
       partnerHours: null,
@@ -85,7 +97,30 @@ describe("el aviso al aliado que dona el premio", () => {
     ...premio,
     winnerFullName: "Ana Díaz",
     winnerMemberNumber: "114",
+    winnerEmail: "ana.diaz@example.com",
+    winnerPhone: "341 600-1234",
     receiptEmail: "sfprosario@gmail.com",
+  });
+
+  it("le pasa el correo y el teléfono del ganador para coordinar la entrega", () => {
+    expect(email.text).toContain("ana.diaz@example.com");
+    expect(email.text).toContain("341 600-1234");
+    expect(email.text.toLowerCase()).toContain("coordinar la entrega");
+  });
+
+  it("aclara que el envío, si hace falta, lo paga el ganador", () => {
+    expect(email.text).toContain("el costo del envío lo paga el ganador");
+  });
+
+  it("sin contacto del ganador, ofrece a la institución como intermediaria", () => {
+    const sinContacto = buildSponsorNoticeEmail({
+      ...premio,
+      winnerFullName: "Ana Díaz",
+      winnerMemberNumber: "114",
+      receiptEmail: "sfprosario@gmail.com",
+    });
+    expect(sinContacto.text).toContain("No tenemos su correo ni su teléfono");
+    expect(sinContacto.text).not.toContain("null");
   });
 
   it("dice quién ganó, con nombre y número de socio", () => {
@@ -113,8 +148,8 @@ describe("el aviso al aliado que dona el premio", () => {
     expect(t).toMatch(/sin valor comercial|costo \$?\s?0/);
   });
 
-  it("pide el comprobante para cuando el socio retire, no antes", () => {
-    expect(email.text.toLowerCase()).toMatch(/cuando .{0,30}retire/);
+  it("pide el comprobante para después de la entrega, no antes", () => {
+    expect(email.text.toLowerCase()).toMatch(/cuando le entreguen/);
   });
 
   it("el asunto identifica el premio y la institución", () => {
