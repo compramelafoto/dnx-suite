@@ -12,9 +12,18 @@ import {
   tieneCaja,
   MAXIMO_HOJAS,
   type CatalogoFotolibro,
+  type TipoTapa,
 } from "@/lib/fotolibro/cotizar";
+import type { FotolibroVendido } from "@/lib/fotolibro/venta";
 
 export type LineaFotolibro = { descripcion: string; precioMinor: number; costoMinor: number | null };
+
+/** El libro, la caja en su propio renglón (si se pidió) y lo elegido, para crear el fotolibro. */
+export type FotolibroAgregado = {
+  libro: LineaFotolibro;
+  caja: LineaFotolibro | null;
+  eleccion: Omit<FotolibroVendido, "templateId">;
+};
 
 function pesos(minor: number): string {
   return formatMinorArs(minor).replace(/,00$/, "");
@@ -22,8 +31,10 @@ function pesos(minor: number): string {
 
 /**
  * Calculadora de fotolibros: cuántas fotos → hojas sugeridas por medida → modelo (la tapa),
- * medida, hojas y caja → un solo renglón con su precio. La cantidad de hojas es sólo una
- * sugerencia: se puede cambiar. Se usa en el mostrador y en los presupuestos.
+ * medida, hojas y caja → el renglón del libro y, aparte, el de la caja. La cantidad de hojas es
+ * sólo una sugerencia: se puede cambiar. Se usa en el mostrador y en los presupuestos.
+ *
+ * Con `tipo` (los productos "Fotolibro tapa flexible" / "tapa rígida") sólo ofrece esos modelos.
  */
 export function CalculadoraFotolibro({
   catalogo,
@@ -31,16 +42,27 @@ export function CalculadoraFotolibro({
   onAgregar,
   onCerrar,
   textoAgregar = "Agregar",
+  tipo = null,
+  titulo = "Fotolibro",
+  proveedorInicial = null,
 }: {
   catalogo: CatalogoFotolibro;
   verCostos: boolean;
-  onAgregar: (l: LineaFotolibro) => void;
+  onAgregar: (f: FotolibroAgregado) => void;
   onCerrar: () => void;
   textoAgregar?: string;
+  tipo?: TipoTapa | null;
+  titulo?: string;
+  /** El proveedor por omisión (el del producto); si no tiene lista, el primero. */
+  proveedorInicial?: string | null;
 }) {
-  const [proveedorId, setProveedorId] = useState(catalogo.ofertas[0]?.proveedorId ?? "");
-  const oferta = catalogo.ofertas.find((o) => o.proveedorId === proveedorId) ?? catalogo.ofertas[0]!;
-  const modelos = useMemo(() => modelosDe(oferta), [oferta]);
+  const conModelos = useMemo(() => catalogo.ofertas.filter((o) => modelosDe(o, tipo).length > 0), [catalogo, tipo]);
+  const ofertas = conModelos.length > 0 ? conModelos : catalogo.ofertas;
+  const [proveedorId, setProveedorId] = useState(
+    ofertas.find((o) => o.proveedorId === proveedorInicial)?.proveedorId ?? ofertas[0]?.proveedorId ?? "",
+  );
+  const oferta = ofertas.find((o) => o.proveedorId === proveedorId) ?? ofertas[0]!;
+  const modelos = useMemo(() => modelosDe(oferta, tipo), [oferta, tipo]);
   const [modelo, setModelo] = useState(modelos[0] ?? "");
   const modeloVigente = modelos.includes(modelo) ? modelo : (modelos[0] ?? "");
   const medidas = useMemo(() => medidasDe(oferta, modeloVigente), [oferta, modeloVigente]);
@@ -64,8 +86,8 @@ export function CalculadoraFotolibro({
     <div className="space-y-4 rounded-[var(--fo-radius-sm)] border border-[var(--fo-border)] bg-[var(--fo-surface)] p-4 text-sm">
       <div className="flex items-start justify-between gap-2">
         <div>
-          <p className="font-semibold">Fotolibro</p>
-          <p className="fo-helper">Tapa + hojas (+ caja), con los precios de la última lista del proveedor.</p>
+          <p className="font-semibold">{titulo}</p>
+          <p className="fo-helper">Tapa + hojas, con los precios de la última lista del proveedor. La caja va en un renglón aparte.</p>
         </div>
         <button type="button" className="fo-btn fo-btn-ghost text-xs" onClick={onCerrar}>
           Cerrar
@@ -75,12 +97,12 @@ export function CalculadoraFotolibro({
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="fo-field-stack">
           <span className="fo-label">¿Cuántas fotos quiere imprimir?</span>
-          <input className="fo-input" inputMode="numeric" value={fotosTexto} onChange={(e) => { setFotosTexto(e.target.value.replace(/\D/g, "")); setHojasTexto(null); }} placeholder="Ej.: 100" />
+          <input autoFocus className="fo-input" inputMode="numeric" value={fotosTexto} onChange={(e) => { setFotosTexto(e.target.value.replace(/\D/g, "")); setHojasTexto(null); }} placeholder="Ej.: 100" />
         </label>
         <label className="fo-field-stack">
           <span className="fo-label">Proveedor</span>
           <select className="fo-input" value={oferta.proveedorId} onChange={(e) => { setProveedorId(e.target.value); setHojasTexto(null); }}>
-            {catalogo.ofertas.map((o) => (
+            {ofertas.map((o) => (
               <option key={o.proveedorId} value={o.proveedorId}>
                 {o.proveedor} · lista {o.vigencia}
               </option>
@@ -164,9 +186,14 @@ export function CalculadoraFotolibro({
           <div>
             <p className="font-medium">{r.descripcion}</p>
             <p className="text-lg font-semibold tabular-nums">{pesos(r.precioMinor)}</p>
+            {r.caja ? (
+              <p className="tabular-nums">
+                + {r.caja.descripcion}: <span className="font-semibold">{pesos(r.caja.precioMinor)}</span>
+              </p>
+            ) : null}
             {verCostos && r.costoMinor !== null ? (
               <p className="fo-helper tabular-nums">
-                Costo {pesos(r.costoMinor)} · margen {catalogo.marginPct} % (×{String(1 + catalogo.marginPct / 100).replace(".", ",")})
+                Costo {pesos(r.costoMinor + (r.caja?.costoMinor ?? 0))} · margen {catalogo.marginPct} % (×{String(1 + catalogo.marginPct / 100).replace(".", ",")})
               </p>
             ) : null}
           </div>
@@ -177,7 +204,22 @@ export function CalculadoraFotolibro({
           type="button"
           className="fo-btn fo-btn-primary text-sm"
           disabled={!r.ok}
-          onClick={() => r.ok && onAgregar({ descripcion: r.descripcion, precioMinor: r.precioMinor, costoMinor: r.costoMinor })}
+          onClick={() =>
+            r.ok &&
+            onAgregar({
+              libro: { descripcion: r.descripcion, precioMinor: r.precioMinor, costoMinor: r.costoMinor },
+              caja: r.caja,
+              eleccion: {
+                proveedorId: oferta.proveedorId,
+                modelo: modeloVigente,
+                medida: medidaVigente,
+                hojas,
+                fotos: fotos > 0 ? fotos : null,
+                costoMinor: r.costoMinor,
+                cajaCostoMinor: r.caja?.costoMinor ?? null,
+              },
+            })
+          }
         >
           {textoAgregar}
         </button>

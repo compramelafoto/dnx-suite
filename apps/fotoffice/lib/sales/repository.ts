@@ -30,6 +30,8 @@ export type ProductRow = {
   isActive: boolean;
   categoryId: string | null;
   categoryName: string | null;
+  /** El proveedor del costo (listas de proveedores): el fotolibro abre la calculadora en él. */
+  preferredProveedorId?: string | null;
   /** Sólo los insumos: en qué unidad se cuenta y, si se compra en otra presentación, cuál. */
   insumo: { unidad: string; unidadCompra: string | null; unidadesPorCompra: number | null } | null;
   /**
@@ -66,6 +68,7 @@ const PRODUCT_ROW_SELECT = {
   imageUrl: true,
   isActive: true,
   categoryId: true,
+  preferredProveedorId: true,
   category: { select: { name: true } },
   fotofficeInsumo: { select: { unidad: true, unidadCompra: true, unidadesPorCompra: true } },
   variants: {
@@ -89,6 +92,7 @@ type ProductRowRecord = {
   imageUrl: string | null;
   isActive: boolean;
   categoryId: string | null;
+  preferredProveedorId: string | null;
   category: { name: string } | null;
   fotofficeInsumo: { unidad: string; unidadCompra: string | null; unidadesPorCompra: number | null } | null;
   variants: { id: string; name: string; priceArs: { toString(): string } | null; stockQty: number }[];
@@ -111,6 +115,7 @@ function toProductRow(r: ProductRowRecord): ProductRow {
     isActive: r.isActive,
     categoryId: r.categoryId,
     categoryName: r.category?.name ?? null,
+    preferredProveedorId: r.preferredProveedorId,
     insumo: r.fotofficeInsumo,
     variants: r.variants.map((v) => ({
       id: v.id,

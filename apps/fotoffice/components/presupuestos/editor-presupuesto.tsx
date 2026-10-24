@@ -281,9 +281,13 @@ export function EditorPresupuesto({
               verCostos={!!internos}
               textoAgregar="Agregar al presupuesto"
               onCerrar={() => setCalculadoraFotolibro(false)}
-              onAgregar={(l) => {
+              onAgregar={(f) => {
                 // Ítem de lista con nombre, detalle y precio de la calculadora: el servidor lo guarda tal cual.
-                cambiar([...items, { ...itemLibre(nuevaClave(), seccionActual), nombre: "Fotolibro", descripcion: l.descripcion, precioUnitario: l.precioMinor / 100 }]);
+                cambiar([
+                  ...items,
+                  { ...itemLibre(nuevaClave(), seccionActual), nombre: "Fotolibro", descripcion: f.libro.descripcion, precioUnitario: f.libro.precioMinor / 100 },
+                  ...(f.caja ? [{ ...itemLibre(nuevaClave(), seccionActual), nombre: "Caja para fotolibro", descripcion: f.caja.descripcion, precioUnitario: f.caja.precioMinor / 100 }] : []),
+                ]);
                 setCalculadoraFotolibro(false);
               }}
             />
