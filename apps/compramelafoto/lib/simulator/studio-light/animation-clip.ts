@@ -69,3 +69,19 @@ export function decodeClip(data: CompactClip): THREE.AnimationClip {
   });
   return new THREE.AnimationClip(data.name, times[times.length - 1], tracks);
 }
+
+/**
+ * Deja la caminata "en el lugar": las de Rocketbox avanzan ~1,4 m por ciclo en
+ * la raíz y, al repetirse, el cuerpo volvía de golpe al punto de partida. El
+ * avance lo pone la escena; acá sólo queda el sube y baja de la cadera.
+ */
+export function stripRootMotion(clip: THREE.AnimationClip): THREE.AnimationClip {
+  const root = clip.tracks.find((t) => t.name === "Bip01.position");
+  if (!root) return clip;
+  const v = root.values;
+  for (let i = 3; i < v.length; i += 3) {
+    v[i] = v[0];
+    v[i + 2] = v[2];
+  }
+  return clip;
+}
