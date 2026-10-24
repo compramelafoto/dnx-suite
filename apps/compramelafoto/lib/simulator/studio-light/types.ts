@@ -1,5 +1,5 @@
 /**
- * Cam Of Duty — Estudio de luz.
+ * Cam Of Duty — Estudio Fotográfico.
  *
  * Coordenadas del set (metros, Y hacia arriba):
  * - El sujeto está en el origen mirando hacia +Z (hacia la cámara por defecto).

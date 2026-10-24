@@ -40,7 +40,7 @@ export default function AdminCamOfDutyPage() {
       <header className="min-w-0">
         <h1 className="text-2xl font-semibold text-[var(--ds-color-text)]">Usuarios de Cam Of Duty</h1>
         <p className="mt-1 text-sm text-[var(--ds-color-muted)]">
-          Cuentas de CompraMeLaFoto que entraron al simulador o al estudio de luz. Cam Of Duty es gratis, pero
+          Cuentas de CompraMeLaFoto que entraron al simulador o al Estudio Fotográfico. Cam Of Duty es gratis, pero
           para usarlo hay que registrarse.
         </p>
       </header>

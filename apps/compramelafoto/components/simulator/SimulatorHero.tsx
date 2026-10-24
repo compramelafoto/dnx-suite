@@ -24,7 +24,7 @@ export default function SimulatorHero() {
             Entrar al simulador
           </Link>
           <Link href="/camofduty/estudio" className="cod-btn cod-btn--secondary cod-btn--full-mobile">
-            Estudio de luz 3D
+            Estudio Fotográfico
           </Link>
           <a href="#modulos" className="cod-btn cod-btn--ghost cod-btn--full-mobile">
             Ver módulos
