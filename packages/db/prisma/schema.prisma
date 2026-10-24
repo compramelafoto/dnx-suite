@@ -5559,9 +5559,30 @@ model CamOfDutyMember {
   lastVisitAt  DateTime @default(now())
   /// Entradas (una nueva cada 30 minutos sin volver).
   visits       Int      @default(1)
+  /// "¿Te gustaría enterarte de trabajos como fotógrafo cerca de tu ciudad?" (consentimiento explícito).
+  jobAlertsOptIn   Boolean   @default(false)
+  jobAlertsOptInAt DateTime?
+  jobAlertsOptInIp String?
+  /// Completó los datos pedidos (nombre, WhatsApp, empresa, ciudad en el mapa).
+  profileCompletedAt DateTime?
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([firstVisitAt])
+  @@index([jobAlertsOptIn])
+}
+
+/// Códigos de 6 dígitos para validar el email de quien se registra en Cam Of Duty.
+model CamOfDutyEmailCode {
+  id        Int       @id @default(autoincrement())
+  email     String
+  /// sha256 de "email:código" (el código no se guarda).
+  codeHash  String
+  expiresAt DateTime
+  attempts  Int       @default(0)
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([email, createdAt])
 }
 
 /// Capturas del simulador Cam Of Duty (retención 7 días por usuario).

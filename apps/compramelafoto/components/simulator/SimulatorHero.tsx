@@ -32,7 +32,8 @@ export default function SimulatorHero() {
         </div>
 
         <p className="cod-hero__note">
-          Gratis. Para entrar creá tu cuenta de CompraMeLaFoto (o usá la que ya tenés).
+          Gratis para fotógrafos. <Link href="/camofduty/registro">Registrate</Link> o{" "}
+          <Link href="/camofduty/ingresar">ingresá</Link> con tu cuenta de CompraMeLaFoto o con Google.
         </p>
       </div>
     </section>
