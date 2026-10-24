@@ -134,6 +134,7 @@ export type PropKind =
   | "statue"
   | "plaza-lamp"
   | "plaza-bench"
+  | "plaza-bench-forjado"
   | "shrub"
   | "coffee-cart"
   | "cafe-table"
@@ -232,6 +233,8 @@ export interface Plaza {
   monumentRadius: number;
   /** Fuente: centro y radio. */
   fountain: { center: Vec2; radius: number };
+  /** Mástil de la bandera, respecto del centro: detrás del monumento (que mira al noroeste). */
+  flagOffset: Vec2;
   /** Senderos (tramos rectos con ancho). */
   paths: { from: Vec2; to: Vec2; width: number }[];
 }
@@ -492,6 +495,7 @@ function makePlaza(block: CityBlock): Plaza {
     center: [cx, cz],
     monumentRadius: r,
     fountain: { center: [cx + 24, cz - 24], radius: 3.2 },
+    flagOffset: [5.3, -5.3],
     paths,
   };
 }
@@ -654,8 +658,8 @@ function plazaProps(rand: () => number, plaza: Plaza): StreetProp[] {
   const h = STREET.curbHeight;
   const [cx, cz] = plaza.center;
   const b = plaza.block;
-  // Sobre el pedestal (StreetPlaza): la placa de arriba termina a 2,7 m.
-  out.push({ kind: "statue", position: [cx, h + 2.7, cz], rotationY: -Math.PI / 4 });
+  // El Libertador a caballo sobre el pedestal alto (StreetPlaza): la cornisa termina a 5,32 m.
+  out.push({ kind: "statue", position: [cx, h + 5.32, cz], rotationY: -Math.PI / 4 });
   // Faroles y bancos a lo largo de los senderos.
   for (const p of plaza.paths) {
     const dx = p.to[0] - p.from[0];
@@ -671,8 +675,9 @@ function plazaProps(rand: () => number, plaza: Plaza): StreetProp[] {
       out.push({ kind: "plaza-lamp", position: [x, h, z], rotationY: heading });
       const bx = p.from[0] + ux * (d + 6) - uz * side;
       const bz = p.from[1] + uz * (d + 6) + ux * side;
-      // El banco mira al sendero.
-      out.push({ kind: "plaza-bench", position: [bx, h, bz], rotationY: heading + (side > 0 ? Math.PI / 2 : -Math.PI / 2) });
+      // El banco mira al sendero; los dos modelos de hierro y madera se van alternando.
+      const bench: PropKind = Math.floor(d / 14) % 3 === 1 ? "plaza-bench-forjado" : "plaza-bench";
+      out.push({ kind: bench, position: [bx, h, bz], rotationY: heading + (side > 0 ? Math.PI / 2 : -Math.PI / 2) });
     }
   }
   // Bancos alrededor del monumento.
