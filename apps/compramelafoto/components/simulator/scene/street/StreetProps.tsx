@@ -26,7 +26,9 @@ const MODEL_BY_KIND: Record<ModelKind, string> = {
   aircon: STREET_MODELS.aircon,
   "covered-car": STREET_MODELS.coveredCar,
   statue: STREET_MODELS.statue,
-  "plaza-lamp": STREET_MODELS.plazaLamp,
+  // El de plaza es el mismo poste victoriano, un poco más alto: el modelo de
+  // "farol de plaza" era sólo la cabeza del farol y quedaba petiso y enterrado.
+  "plaza-lamp": STREET_MODELS.lamp,
   "plaza-bench": STREET_MODELS.plazaBench,
   shrub: STREET_MODELS.shrub,
   "coffee-cart": STREET_MODELS.coffeeCart,
@@ -65,7 +67,7 @@ const SMALL: KindSpec = { near: 55, draw: 55 };
 const SPEC: Partial<Record<PropKind, KindSpec>> = {
   lamp: { near: 30, draw: 190, impostor: true, pool: 10, shadow: true },
   tree: { scale: 0.62, near: 22, draw: 190, impostor: true, pool: 4, shadow: true },
-  "plaza-lamp": { scale: 2.2, near: 25, draw: 150, impostor: true, pool: 6, shadow: true },
+  "plaza-lamp": { scale: 1.1, near: 25, draw: 150, impostor: true, pool: 6, shadow: true },
   statue: { scale: 15, near: 400, draw: 400, shadow: true },
   shrub: { scale: 1.4, near: 70, draw: 90 },
   cables: { scale: 2.9, near: 80, draw: 80 },
@@ -88,8 +90,8 @@ const ACTIVE_LAMP_LIGHTS = 12;
 /** Altura de la luminaria del farol de calle (m) y largo de su brazo. */
 const LAMP_HEAD_HEIGHT = 5.6;
 const LAMP_ARM = 1.1;
-/** Farol de plaza: la luz va arriba del poste. */
-const PLAZA_LAMP_HEAD = 3.5;
+/** Farol de plaza (poste de 3,9 m × 1,1 sobre la vereda): la luz va en el farolito de arriba. */
+const PLAZA_LAMP_HEAD = 4.0;
 
 interface Part {
   geometry: THREE.BufferGeometry;

@@ -11,7 +11,7 @@ import {
   resolveStreetCollision,
   streetGroundHeight,
 } from "./street-layout";
-import { closestDistanceOnPath, pathLength, planStreetPeople, samplePath } from "./street-people";
+import { closestDistanceOnPath, isRunning, pathLength, planStreetPeople, samplePath } from "./street-people";
 
 const layout = buildStreetLayout();
 
@@ -136,7 +136,9 @@ test("hay detalles en el piso y en las paredes", () => {
 
 test("los peatones caminan en circuitos cerrados: sin saltos, cortes ni medias vueltas", () => {
   const { walkers, standers } = planStreetPeople(layout);
-  assert.ok(walkers.length >= 20 && walkers.length <= 60, `${walkers.length}`);
+  // Caminantes y unos pocos corredores (ropa deportiva) en las vueltas largas.
+  assert.ok(walkers.length >= 20 && walkers.length <= 70, `${walkers.length}`);
+  assert.ok(walkers.filter((w) => isRunning(w.gait)).length >= 4, "faltan corredores");
   assert.ok(standers.length >= 5);
   for (const w of walkers) {
     const total = pathLength(w.path);

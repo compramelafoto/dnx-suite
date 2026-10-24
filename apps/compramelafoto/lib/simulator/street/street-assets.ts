@@ -18,7 +18,6 @@ export const STREET_MODELS = {
   coveredCar: `${BASE}/models/covered-car.glb`,
   treeFar: `${BASE}/models/tree-jacaranda-far.glb`,
   statue: `${BASE}/models/statue.glb`,
-  plazaLamp: `${BASE}/models/plaza-lamp.glb`,
   plazaBench: `${BASE}/models/plaza-bench.glb`,
   shrub: `${BASE}/models/shrub.glb`,
   coffeeCart: `${BASE}/models/coffee-cart.glb`,
