@@ -197,6 +197,18 @@ export interface WallDecal {
   variant: number;
 }
 
+/** Bar con luces de neón en un pasaje: vidriera, cartel y mesas afuera (para fotos nocturnas). */
+export interface NeonBar {
+  /** Centro del frente, sobre la pared (a nivel de la vereda). */
+  center: Vec2;
+  /** Hacia dónde mira el frente (hacia el pasaje). */
+  normal: Vec2;
+  /** Dirección a lo largo de la pared. */
+  along: Vec2;
+  /** Ancho del frente (m). */
+  width: number;
+}
+
 /** Pared lisa (fondo de un pasaje, muro de la plaza). */
 export interface PlainWall {
   start: Vec2;
@@ -249,6 +261,7 @@ export interface StreetLayout {
   groundDecals: GroundDecal[];
   wallDecals: WallDecal[];
   plaza: Plaza;
+  neonBar: NeonBar | null;
   colliders: CollisionRect[];
   walkPaths: WalkPath[];
   bounds: { xMin: number; xMax: number; zMin: number; zMax: number };
@@ -277,6 +290,9 @@ const BLOCK_KINDS: BlockKind[][] = [
 
 /** Manzanas con pasaje: la mixta del sur lo tiene a lo largo de X; la casas del noroeste, a lo largo de Z. */
 const ALLEYS: Record<string, "x" | "z"> = { "m2-0": "x", "m0-2": "z" };
+/** El bar de neón: en el pasaje de la manzana mixta, sobre la medianera alta del lado sur. */
+const NEON_BAR_BLOCK = "m2-0";
+const NEON_BAR_WIDTH = 7;
 
 /** Generador pseudoaleatorio con semilla (mulberry32). */
 export function seededRandom(seed: number): () => number {
@@ -785,6 +801,35 @@ function alleyWalls(rand: () => number, block: CityBlock, alley: Alley): PlainWa
   return out;
 }
 
+function makeNeonBar(blocks: CityBlock[]): NeonBar | null {
+  const alley = blocks.find((b) => b.id === NEON_BAR_BLOCK)?.alley;
+  if (!alley) return null;
+  const d = alley.from + (alley.to - alley.from) * 0.45;
+  const lateral = alley.at - alley.width / 2;
+  return alley.axis === "x"
+    ? { center: [d, lateral], normal: [0, 1], along: [1, 0], width: NEON_BAR_WIDTH }
+    : { center: [lateral, d], normal: [1, 0], along: [0, 1], width: NEON_BAR_WIDTH };
+}
+
+/** Despeja el frente del bar (cajones, persianas, faroles) y le pone dos mesas afuera. */
+function withNeonBar(props: StreetProp[], bar: NeonBar | null): StreetProp[] {
+  if (!bar) return props;
+  const [cx, cz] = bar.center;
+  const [ax, az] = bar.along;
+  const [nx, nz] = bar.normal;
+  const local = (p: readonly number[]) => ({ along: (p[0] - cx) * ax + (p[2] - cz) * az, out: (p[0] - cx) * nx + (p[2] - cz) * nz });
+  const kept = props.filter((p) => {
+    const l = local(p.position);
+    return !(Math.abs(l.along) < bar.width / 2 + 1.5 && l.out < 2.5 && p.kind !== "cables");
+  });
+  const h = STREET.curbHeight;
+  const facing = Math.atan2(nx, nz);
+  for (const along of [-1.9, 1.9]) {
+    kept.push({ kind: "cafe-table", position: [cx + ax * along + nx * 1.5, h, cz + az * along + nz * 1.5], rotationY: facing + along * 0.2 });
+  }
+  return kept;
+}
+
 /** Grafitis en el pasaje y en persianas, afiches cerca de las esquinas. */
 function makeWallDecals(rand: () => number, blocks: CityBlock[], walls: PlainWall[], buildings: StreetBuilding[]): WallDecal[] {
   const out: WallDecal[] = [];
@@ -1003,7 +1048,8 @@ export function buildStreetLayout(seed = 2026): StreetLayout {
   }
   const streets = makeStreets();
   const plaza = makePlaza(blocks.find((b) => b.kind === "plaza")!);
-  const props = makeProps(rand, blocks, streets, plaza);
+  const neonBar = makeNeonBar(blocks);
+  const props = withNeonBar(makeProps(rand, blocks, streets, plaza), neonBar);
   const groundDecals = makeGroundDecals(rand, streets, props, plaza, blocks);
   const wallDecals = makeWallDecals(rand, blocks, walls, buildings);
   return {
@@ -1016,6 +1062,7 @@ export function buildStreetLayout(seed = 2026): StreetLayout {
     groundDecals,
     wallDecals,
     plaza,
+    neonBar,
     colliders: makeColliders(blocks, plaza),
     walkPaths: makeWalkPaths(blocks, plaza),
     bounds: { xMin: CITY.reach[0] + 1, xMax: CITY.reach[1] - 1, zMin: CITY.reach[0] + 1, zMax: CITY.reach[1] - 1 },

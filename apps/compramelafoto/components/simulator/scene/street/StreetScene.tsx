@@ -13,6 +13,7 @@ import StreetBuildings from "./StreetBuildings";
 import StreetDecals from "./StreetDecals";
 import StreetGround from "./StreetGround";
 import StreetLighting from "./StreetLighting";
+import StreetNeonBar from "./StreetNeonBar";
 import StreetPedestrians from "./StreetPedestrians";
 import StreetPlaza from "./StreetPlaza";
 import StreetProps from "./StreetProps";
@@ -58,6 +59,7 @@ export default function StreetScene() {
         <StreetGround layout={layout} />
       </Suspense>
       <StreetPlaza plaza={layout.plaza} />
+      {layout.neonBar ? <StreetNeonBar bar={layout.neonBar} /> : null}
       <StreetDecals layout={layout} />
       <Suspense fallback={<LoadingHold />}>
         <StreetBuildings layout={layout} />
