@@ -1,5 +1,9 @@
 import {
   CLASS_LIST_VARIABLE_KEY,
+  COURSE_MOSAIC_VARIABLE_KEY,
+  parseCourseMosaic,
+  serializeCourseMosaic,
+  type CourseMosaicStudent,
   formatCourseName,
   serializeClassListGroups,
   type ClassListGroup,
@@ -38,6 +42,8 @@ export type DesignValueSources = {
   courseStudents?: ClassListStudent[] | null;
   /** Los cursos del listado, cada uno con su título. Manda sobre `courseStudents`. */
   courseGroups?: ClassListGroup[] | null;
+  /** Los compañeros del bloque «Mosaico del curso», ya sin el dueño del diseño. */
+  courseMosaic?: CourseMosaicStudent[] | null;
 };
 
 const DATE_FORMAT = new Intl.DateTimeFormat("es-AR", {
@@ -84,6 +90,7 @@ export function buildDesignValues(src: DesignValueSources): Record<string, strin
         ]
       : [];
   if (groups.length) values[CLASS_LIST_VARIABLE_KEY] = serializeClassListGroups(groups);
+  if (src.courseMosaic?.length) values[COURSE_MOSAIC_VARIABLE_KEY] = serializeCourseMosaic(src.courseMosaic);
   if (src.eventDate && !Number.isNaN(src.eventDate.getTime())) {
     put("event.dateFormatted", DATE_FORMAT.format(src.eventDate));
   }
@@ -98,4 +105,12 @@ export function buildDesignValues(src: DesignValueSources): Record<string, strin
 export function courseDisplayName(name?: string | null, division?: string | null): string | null {
   const parts = [name?.trim(), division?.trim()].filter(Boolean);
   return parts.length ? formatCourseName(parts.join(" ")) || null : null;
+}
+
+/**
+ * Los compañeros del mosaico que se imprimen. Sin valor guardado, ninguno: los compañeros de
+ * muestra son sólo para el editor y las vistas de ejemplo, nunca para una carpeta real.
+ */
+export function courseMosaicForPrint(values: Record<string, string>): CourseMosaicStudent[] {
+  return parseCourseMosaic(values[COURSE_MOSAIC_VARIABLE_KEY]);
 }

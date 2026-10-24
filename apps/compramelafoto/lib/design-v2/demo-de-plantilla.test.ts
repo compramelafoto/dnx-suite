@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   ARCHIVOS_DEMO,
+  RETRATOS_DE_COMPANEROS,
+  mosaicoDeDemo,
   FOTO_DE_MUESTRA_DATA_URL,
   archivosNecesarios,
   categoriaDeMeta,
@@ -226,4 +228,18 @@ test("el sello de la miniatura cambia cuando se suben las fotos", () => {
   assert.notEqual(una, todas);
   assert.equal(todas, selloDeDemo({ "a.jpg": true, "b.jpg": true }));
   assert.match(todas, /^2de2-[0-9a-z]+$/);
+});
+
+test("el mosaico de demo lleva a los compañeros sin el alumno, con retratos de demo en ronda", () => {
+  const demo = demoDePlantilla({ templateId: "t1", meta: { categoria: "Primaria" } });
+  const url = (archivo: string) => `https://r2.example/template-v2/demo/${archivo}`;
+  const mosaico = mosaicoDeDemo(demo, url);
+  const companeros = demo.companeros.filter((c) => !c.isOwner);
+  assert.equal(mosaico.length, companeros.length);
+  assert.ok(!mosaico.some((s) => s.firstName === demo.alumno.firstName && s.lastName === demo.alumno.lastName));
+  assert.ok(mosaico.every((s) => s.photoUrl && RETRATOS_DE_COMPANEROS.some((a) => s.photoUrl === url(a))));
+  // En ronda: los primeros no repiten foto.
+  assert.notEqual(mosaico[0]!.photoUrl, mosaico[1]!.photoUrl);
+  // Sin el archivo subido, el chico va sin foto (silueta), nunca con la foto de otro archivo.
+  assert.ok(mosaicoDeDemo(demo, () => null).every((s) => s.photoUrl === undefined));
 });

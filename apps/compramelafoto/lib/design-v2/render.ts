@@ -5,6 +5,7 @@ import { editorADocumento } from "@repo/template-editor-core/rendering";
 import {
   CLASS_LIST_VARIABLE_KEY,
   isClassListConfig,
+  isCourseMosaicConfig,
   parseClassListGroups,
   resolveTemplateDocument,
   type LegacyTemplateV2Payload,
@@ -17,6 +18,8 @@ import {
   resolveTemplateVariablePlugin,
 } from "@/lib/template-v2/server";
 import type { DesignV2Data } from "./design-data";
+import { leerRecursoDelMosaico } from "./mosaico-recursos";
+import { courseMosaicForPrint } from "./values";
 import type { DesignTemplateVersion } from "./template";
 
 /**
@@ -30,6 +33,7 @@ import type { DesignTemplateVersion } from "./template";
  */
 
 const PHOTO_REF_PREFIX = "design-photo:";
+
 /** Lado máximo de una foto ya recortada: más que eso no suma nada a 300 dpi en una carpeta. */
 const MAX_PHOTO_SIDE_PX = 4000;
 const IMAGE_BLOCK_TYPES = new Set(["IMAGE", "PHOTO"]);
@@ -172,8 +176,8 @@ function editorBlocksFromResolved(
       if (type === "PHOTO" && src) type = "IMAGE";
     }
     // El texto ya viene resuelto: si siguiera como variable, el puente reescribiría el marcador.
-    // El listado del curso sigue como variable: el puente lo reparte con `listaDelCurso`.
-    if (type === "VARIABLE_TEXT" && !isClassListConfig(config)) type = "TEXT";
+    // El listado y el mosaico del curso siguen como variable: el puente los reparte.
+    if (type === "VARIABLE_TEXT" && !isClassListConfig(config) && !isCourseMosaicConfig(config)) type = "TEXT";
     blocks.push({
       id: block.id,
       type,
@@ -238,14 +242,28 @@ export async function renderDesignV2(input: {
     // Un listado guardado antes de los cursos con título lleva el curso del diseño como título.
     cursosDelListado: parseClassListGroups(data.values[CLASS_LIST_VARIABLE_KEY], data.values["course.displayName"]),
     colegioDelListado: data.values["school.name"] ?? null,
+    // Sin valor guardado, ninguno: una carpeta real nunca lleva compañeros inventados.
+    mosaicoDelCurso: courseMosaicForPrint(data.values),
   });
 
   const slotSizeByBlock = new Map(
     template.legacy.blocks.map((b) => [b.id, { width: b.layout.width, height: b.layout.height }]),
   );
   const photoCache = new Map<number, Promise<Uint8Array | null>>();
-  const resources: ResourceResolver = {
+  const leerSinMemoria: ResourceResolver = {
     async read(ref: string) {
+      const delMosaico = await leerRecursoDelMosaico(ref, {
+        cargarFoto: (photoId) => {
+          let pending = photoCache.get(photoId);
+          if (!pending) {
+            pending = input.loadPhoto(photoId);
+            photoCache.set(photoId, pending);
+          }
+          return pending;
+        },
+        cargarUrl: loadStaticImage,
+      });
+      if (delMosaico !== undefined) return delMosaico;
       if (!ref.startsWith(PHOTO_REF_PREFIX)) return loadStaticImage(ref);
       const blockId = ref.slice(PHOTO_REF_PREFIX.length);
       const assignment = data.slots[blockId];
@@ -268,6 +286,20 @@ export async function renderDesignV2(input: {
       } catch {
         return null;
       }
+    },
+  };
+
+  // Una sola lectura por recurso: el marco del mosaico (o una foto de demo repetida) se pide una
+  // vez por compañero y no hace falta bajarlo 24 veces.
+  const leidos = new Map<string, Promise<Uint8Array | null>>();
+  const resources: ResourceResolver = {
+    read(ref: string) {
+      let pendiente = leidos.get(ref);
+      if (!pendiente) {
+        pendiente = leerSinMemoria.read(ref);
+        leidos.set(ref, pendiente);
+      }
+      return pendiente;
     },
   };
 

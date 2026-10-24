@@ -1,3 +1,4 @@
+import type { CourseMosaicStudent } from "@repo/template-engine";
 /**
  * Datos de demostración para mostrar una plantilla «terminada», como la recibiría una familia:
  * retrato, foto grupal, con la maestra, con amigos, una foto libre, logo de colegio, nombre del
@@ -51,6 +52,14 @@ export const ARCHIVOS_DEMO: readonly string[] = [
   "logo-escudo-clasico.png",
   "logo-moderno.png",
 ];
+
+/**
+ * Los retratos que se reparten en ronda en el mosaico de demo: los de todos los niveles. Son
+ * pocos (dos por nivel), así que en un curso de 18 se repiten; alcanza para ver cómo queda.
+ */
+export const RETRATOS_DE_COMPANEROS: readonly string[] = (["jardin", "primaria", "secundaria", "egresados"] as const).flatMap(
+  (n) => [`retrato-${n}-1.jpg`, `retrato-${n}-2.jpg`],
+);
 
 /** La ranura de una variable de imagen, o null si no es un hueco de foto. `photo_<n>` es un retrato. */
 export function ranuraDeVariable(key: string | null | undefined): RanuraDemo | null {
@@ -346,4 +355,24 @@ export function fotosDeDemoPorBloque(
   const out: Record<string, { src: string }> = {};
   for (const h of huecos) out[h.blockId] = { src: urlSiEsta(demo.archivos[h.ranura]) ?? FOTO_DE_MUESTRA_DATA_URL };
   return out;
+}
+
+/**
+ * Los compañeros del mosaico de demo: los del curso sin el alumno de la demo, cada uno con un
+ * retrato de demo en ronda. `urlDe` devuelve null si el archivo no está subido: ese chico va sin
+ * foto (silueta).
+ */
+export function mosaicoDeDemo(
+  demo: DemoDePlantilla,
+  urlDe: (archivo: string) => string | null,
+): CourseMosaicStudent[] {
+  // El nivel de la demo primero, así los primeros retratos son de la edad que corresponde.
+  const propios = RETRATOS_DE_COMPANEROS.filter((a) => a.includes(`-${demo.nivel}-`));
+  const ronda = [...propios, ...RETRATOS_DE_COMPANEROS.filter((a) => !propios.includes(a))];
+  return demo.companeros
+    .filter((c) => !c.isOwner)
+    .map((c, i) => {
+      const url = urlDe(ronda[i % ronda.length]!);
+      return { firstName: c.firstName, lastName: c.lastName, ...(url ? { photoUrl: url } : {}) };
+    });
 }

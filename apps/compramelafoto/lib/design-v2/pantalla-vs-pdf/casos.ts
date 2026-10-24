@@ -398,5 +398,37 @@ export function casosDeComparacion(imagenDePrueba: string): CasoDeComparacion[] 
         texto(1, { x: 2418, y: 1165, width: 2082, height: 91, rotation: -89.65 }, "5.º A - Colegio San Patricio", { fontFamily: "Helvetica", fontSize: 70 }),
       ],
     },
+    {
+      /*
+       * El mosaico del curso: 22 compañeros con foto y 2 sin (silueta con iniciales), en polaroid
+       * con giro alternado y sombra corrida; en la segunda página, círculos con borde, cinta detrás
+       * del nombre y una zona libre para el cartel, girado 90°.
+       */
+      id: "mosaico-del-curso",
+      titulo: "Mosaico del curso en polaroid con giro, y en círculos girado",
+      canvas: CHICO,
+      paginas: 2,
+      valores: {
+        "course.mosaic": JSON.stringify(
+          [...ALUMNOS, ...ALUMNOS].slice(0, 24).map((nombre, i) => {
+            const [firstName, ...resto] = nombre.split(" ");
+            return { firstName, lastName: resto.join(" "), ...(i % 11 === 10 ? {} : { photoUrl: imagenDePrueba }) };
+          }),
+        ),
+      },
+      blocks: [
+        bloque("VARIABLE_TEXT", 0, { x: 60, y: 60, width: 1380, height: 880 }, {
+          variableKey: "course.mosaic", fontFamily: "Helvetica", fontSize: 18, color: "#1d3a6b",
+          courseMosaic: { frame: "polaroid", tilt: 3, gapX: 24, gapY: 24, shadow: { dx: 8, dy: 8, color: "#f5c518" } },
+        }),
+        bloque("VARIABLE_TEXT", 1, { x: 300, y: 50, width: 900, height: 900, rotation: 90 }, {
+          variableKey: "course.mosaic", fontFamily: "Helvetica", fontSize: 16, color: "#1d3a6b",
+          courseMosaic: {
+            frame: "circle", photoAspect: 1, borderWidth: 4, borderColor: "#1d3a6b", nameBackground: "#f4f1ec",
+            nameLines: 1, reserved: { x: 0.6, y: 0, width: 0.4, height: 0.3 },
+          },
+        }),
+      ],
+    },
   ];
 }

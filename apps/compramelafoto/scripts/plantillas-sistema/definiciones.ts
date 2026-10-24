@@ -58,7 +58,7 @@ export const ids = (slug: string) => {
 };
 
 /**
- * Los campos de filtro del catálogo (`estilo`, `orientacion`, `cantidadFotos`, `conListado`,
+ * Los campos de filtro del catálogo (`estilo`, `orientacion`, `cantidadFotos`, `conListado`, `conMosaico`,
  * `conLogo`, `evento`, `etiquetas`). Sólo para los modelos que declaran `filtros`: los ya
  * cargados quedan con el mismo metaJson.
  */
@@ -71,6 +71,7 @@ function filtrosDelCatalogo(modelo: Modelo, bloques: FilaBloque[], bindings: Fil
     orientacion: modelo.filtros.orientacion ?? "vertical",
     cantidadFotos: fotos.size,
     conListado: bloques.some((b) => (b.configJson as { variableKey?: string }).variableKey === "course.studentList"),
+    conMosaico: bloques.some((b) => (b.configJson as { variableKey?: string }).variableKey === "course.mosaic"),
     conLogo: bindings.some((b) => b.variableKey === VARIABLE_LOGO),
     ...(modelo.filtros.evento ? { evento: modelo.filtros.evento } : {}),
     etiquetas: modelo.filtros.etiquetas,

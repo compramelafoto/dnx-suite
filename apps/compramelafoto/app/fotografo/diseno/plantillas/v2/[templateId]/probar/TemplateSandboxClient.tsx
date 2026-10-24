@@ -9,6 +9,9 @@ import DesignEditor from "@/components/design-v2/DesignEditor";
 import {
   CLASS_LIST_SAMPLE,
   CLASS_LIST_VARIABLE_KEY,
+  COURSE_MOSAIC_SAMPLE,
+  COURSE_MOSAIC_VARIABLE_KEY,
+  serializeCourseMosaic,
   countClientPhotoInputs,
   serializeClassList,
 } from "@repo/template-editor-core";
@@ -96,6 +99,8 @@ export default function TemplateSandboxClient({ templateId }: { templateId: stri
           "course.displayName": "5.º A",
           "school.name": "Escuela de prueba",
           [CLASS_LIST_VARIABLE_KEY]: serializeClassList(CLASS_LIST_SAMPLE),
+          // «Probar con fotos» muestra compañeros de muestra en el mosaico (sin fotos: siluetas).
+          [COURSE_MOSAIC_VARIABLE_KEY]: serializeCourseMosaic(COURSE_MOSAIC_SAMPLE),
         },
       }),
     );
