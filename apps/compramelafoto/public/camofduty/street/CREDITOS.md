@@ -16,9 +16,27 @@ Contenidos pedagógicos basados en los apuntes de la profesora Débora Priasco.
 - `models/tree-jacaranda.glb` — jacaranda_tree
 - `models/tree-jacaranda-far.glb` — jacaranda_tree
 - `models/covered-car.glb` — covered_car
+- `models/statue.glb` — horse_statue_01
+- `models/plaza-lamp.glb` — street_lamp_02
+- `models/plaza-bench.glb` — painted_wooden_bench
+- `models/shrub.glb` — shrub_01
+- `models/coffee-cart.glb` — CoffeeCart_01
+- `models/cafe-table.glb` — outdoor_table_chair_set_01
+- `models/monobloc.glb` — plastic_monobloc_chair_01
+- `models/crate.glb` — wooden_crate_01
+- `models/trashbag.glb` — trashbag
+- `models/cardboard.glb` — cardboard_box_01
+- `models/barrel.glb` — Barrel_01
+- `models/wall-lamp.glb` — industrial_wall_lamp
+- `models/cables.glb` — modular_electric_cables
+- `models/planter.glb` — planter_box_01
+- `models/rat.glb` — street_rat
 - `textures/asphalt_*.webp` — asphalt_02
 - `textures/sidewalk_*.webp` — concrete_tiles
 - `textures/curb_*.webp` — brushed_concrete_03
+- `textures/grass_*.webp` — leafy_grass
+- `textures/bricks_*.webp` — red_brick_pavers
+- `textures/cobbles_*.webp` — cobblestone_floor_08
 
 ## Autos — Sketchfab (CC BY 4.0)
 - `models/cars/fiat-uno-1994.glb` — "Fiat Uno 1994" de ARDmation, https://sketchfab.com/3d-models/e81d01b9513947ac9e223fff1e669eff

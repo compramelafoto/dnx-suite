@@ -1,17 +1,12 @@
 "use client";
 
 import { simulatorRuntime } from "@/lib/simulator/simulator-runtime";
-import {
-  planBuilding,
-  planCorner,
-  frontFrame,
-  type PiecePlacement,
-} from "@/lib/simulator/street/facade-plan";
-import { STREET, type StreetLayout } from "@/lib/simulator/street/street-layout";
+import { planBuilding, planCorner, frontFrame, type PiecePlacement } from "@/lib/simulator/street/facade-plan";
+import { STREET, type CityBlock, type StreetLayout, type Vec2 } from "@/lib/simulator/street/street-layout";
 import { STREET_MODELS } from "@/lib/simulator/street/street-assets";
 import { useGLTF } from "@react-three/drei";
-import { useFrame } from "@react-three/fiber";
-import { useEffect, useMemo } from "react";
+import { useFrame, useThree } from "@react-three/fiber";
+import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 
 interface KitPart {
@@ -42,6 +37,13 @@ const _scale = new THREE.Vector3(1, 1, 1);
 const _up = new THREE.Vector3(0, 1, 0);
 const _color = new THREE.Color();
 
+/** Hasta dónde se dibuja la fachada completa del kit (m); más allá, el volumen con ventanas pintadas. */
+const DETAIL_DISTANCE = 60;
+/** Más allá de esto la manzana no se dibuja (queda en la bruma). */
+const DRAW_DISTANCE = 200;
+/** Fondo de los edificios (m). */
+const DEPTH = 12;
+
 /** Vidrio de las ventanas con luz: brilla cálido de noche (intensidad en useFrame). */
 function litGlassFrom(glass: THREE.Material): THREE.MeshStandardMaterial {
   const base = glass as THREE.MeshStandardMaterial;
@@ -53,11 +55,12 @@ function litGlassFrom(glass: THREE.Material): THREE.MeshStandardMaterial {
   return lit;
 }
 
+/** Piezas del kit instanciadas, agrupadas por manzana. */
 function buildInstances(
   kit: Map<string, KitPart[]>,
   placements: PiecePlacement[],
   litGlass: (glass: THREE.Material) => THREE.Material,
-): THREE.InstancedMesh[] {
+): Map<string, THREE.InstancedMesh[]> {
   const byPiece = new Map<string, PiecePlacement[]>();
   for (const p of placements) {
     const key = `${p.chunk}|${p.piece}${p.lit ? "#lit" : ""}`;
@@ -65,10 +68,11 @@ function buildInstances(
     list.push(p);
     byPiece.set(key, list);
   }
-  const meshes: THREE.InstancedMesh[] = [];
+  const out = new Map<string, THREE.InstancedMesh[]>();
   for (const [key, list] of byPiece) {
-    const piece = key.split("|")[1].replace("#lit", "");
-    const lit = key.endsWith("#lit");
+    const [chunk, raw] = key.split("|");
+    const piece = raw.replace("#lit", "");
+    const lit = raw.endsWith("#lit");
     const parts = kit.get(piece);
     if (!parts) {
       if (process.env.NODE_ENV === "development") console.warn("[Calle] pieza faltante", piece);
@@ -85,91 +89,146 @@ function buildInstances(
         inst.setMatrixAt(i, _matrix.compose(_pos, _quat, _scale));
         if (tinted) inst.setColorAt(i, _color.set(p.tint ?? "#ffffff"));
       });
-      inst.castShadow = true;
+      // La sombra la da el volumen del edificio: las molduras del kit no se dibujan otra vez en el mapa de sombras.
+      inst.castShadow = false;
       inst.receiveShadow = true;
       inst.computeBoundingSphere();
-      meshes.push(inst);
+      // Agrupado por manzana (el nombre del lado queda después de ":").
+      const block = chunk.split(":")[0];
+      out.set(block, [...(out.get(block) ?? []), inst]);
     }
   }
-  return meshes;
+  return out;
 }
 
-interface Backdrop {
-  material: THREE.MeshStandardMaterial;
+/** Caja a juntar en un volumen: dónde va, de qué color y qué tiene en la cara de adelante. */
+interface MassBox {
+  origin: Vec2;
+  rotationY: number;
+  length: number;
+  height: number;
+  depth: number;
+  /** Corrimiento hacia atrás de la cara de adelante (m). */
+  inset: number;
+  tint: string;
+  /** La cara de adelante es fachada (el kit adelante, o ventanas pintadas de lejos). */
+  facade: boolean;
 }
+
+const ROOF = new THREE.Color("#5d5a55");
+const INTERIOR = new THREE.Color("#16130f");
 
 /**
- * Interior detrás de las ventanas y volumen del edificio para los costados
- * y techos que asoman.
+ * Junta las cajas de una manzana en una geometría con tres grupos:
+ * revoque (costados y fondo), techo y frente. `farFront` decide el frente:
+ * interior oscuro (detrás del kit) o fachada pintada (de lejos).
  */
-/** Caja con UV en metros (una repetición cada 3 m), para revoque a escala real. */
-function metricBox(width: number, height: number, depth: number): THREE.BoxGeometry {
-  const geo = new THREE.BoxGeometry(width, height, depth);
-  const uv = geo.getAttribute("uv") as THREE.BufferAttribute;
-  // Orden de caras de BoxGeometry: +x, −x, +y, −y, +z, −z (4 vértices cada una).
-  const faceSize: [number, number][] = [
-    [depth, height],
-    [depth, height],
-    [width, depth],
-    [width, depth],
-    [width, height],
-    [width, height],
-  ];
-  faceSize.forEach(([w, h], face) => {
-    // La cara de adelante (+z) es el interior oscuro: no lleva revoque.
-    if (face === 4) return;
-    for (let v = face * 4; v < face * 4 + 4; v += 1) uv.setXY(v, (uv.getX(v) * w) / 3, (uv.getY(v) * h) / 3);
+function mergeMasses(boxes: MassBox[], farFront: boolean): THREE.BufferGeometry {
+  const buckets = [0, 1, 2].map(() => ({ pos: [] as number[], nor: [] as number[], uv: [] as number[], col: [] as number[] }));
+  const v = new THREE.Vector3();
+  const n = new THREE.Vector3();
+  const c = new THREE.Color();
+  for (const b of boxes) {
+    const geo = new THREE.BoxGeometry(b.length, b.height, b.depth);
+    const m = new THREE.Matrix4().makeRotationY(b.rotationY);
+    m.multiply(new THREE.Matrix4().makeTranslation(b.length / 2, b.height / 2, -b.inset - b.depth / 2));
+    m.premultiply(new THREE.Matrix4().makeTranslation(b.origin[0], 0, b.origin[1]));
+    const normalMatrix = new THREE.Matrix3().getNormalMatrix(m);
+    const pos = geo.getAttribute("position");
+    const nor = geo.getAttribute("normal");
+    const uv = geo.getAttribute("uv");
+    const index = geo.getIndex()!;
+    // Caras de BoxGeometry: +x, −x, +y, −y, +z, −z; las medidas para que la textura vaya en metros.
+    const faceSize: [number, number][] = [
+      [b.depth, b.height],
+      [b.depth, b.height],
+      [b.length, b.depth],
+      [b.length, b.depth],
+      [b.length, b.height],
+      [b.length, b.height],
+    ];
+    geo.groups.forEach((g, face) => {
+      const isFront = face === 4 && b.facade;
+      const bucket = face === 2 || face === 3 ? 1 : isFront ? 2 : 0;
+      if (bucket === 1) c.copy(ROOF);
+      else if (isFront && !farFront) c.copy(INTERIOR);
+      else c.set(b.tint);
+      for (let k = g.start; k < g.start + g.count; k += 1) {
+        const i = index.getX(k);
+        v.fromBufferAttribute(pos, i).applyMatrix4(m);
+        n.fromBufferAttribute(nor, i).applyMatrix3(normalMatrix).normalize();
+        const t = buckets[bucket];
+        t.pos.push(v.x, v.y, v.z);
+        t.nor.push(n.x, n.y, n.z);
+        t.uv.push((uv.getX(i) * faceSize[face][0]) / 3, (uv.getY(i) * faceSize[face][1]) / 3);
+        t.col.push(c.r, c.g, c.b);
+      }
+    });
+    geo.dispose();
+  }
+  const out = new THREE.BufferGeometry();
+  const all = { pos: [] as number[], nor: [] as number[], uv: [] as number[], col: [] as number[] };
+  let start = 0;
+  buckets.forEach((t, gi) => {
+    all.pos.push(...t.pos);
+    all.nor.push(...t.nor);
+    all.uv.push(...t.uv);
+    all.col.push(...t.col);
+    out.addGroup(start, t.pos.length / 3, gi);
+    start += t.pos.length / 3;
   });
-  return geo;
+  out.setAttribute("position", new THREE.Float32BufferAttribute(all.pos, 3));
+  out.setAttribute("normal", new THREE.Float32BufferAttribute(all.nor, 3));
+  out.setAttribute("uv", new THREE.Float32BufferAttribute(all.uv, 2));
+  out.setAttribute("color", new THREE.Float32BufferAttribute(all.col, 3));
+  out.computeBoundingSphere();
+  return out;
 }
 
-function buildBackdropsAndMasses(
-  layout: StreetLayout,
-  plasterBase: THREE.Material | undefined,
-): { backdrops: Backdrop[]; masses: THREE.Mesh[] } {
-  const backdrops: Backdrop[] = [];
-  const masses: THREE.Mesh[] = [];
-  const roof = new THREE.MeshStandardMaterial({ color: "#5d5a55", roughness: 0.95 });
-  for (const b of layout.buildings) {
-    const frame = frontFrame(b.start, b.end, b.normal);
-    const height = b.floors * STREET.floorHeight;
-    const group = new THREE.Group();
-    group.position.set(frame.origin[0], 0, frame.origin[1]);
-    group.rotation.y = frame.rotationY;
+/** Fachada pintada de un módulo de 3 × 3 m (para ver de lejos): revoque claro y una ventana. */
+function windowTexture(): THREE.CanvasTexture {
+  const c = document.createElement("canvas");
+  c.width = 128;
+  c.height = 128;
+  const g = c.getContext("2d")!;
+  g.fillStyle = "#ffffff";
+  g.fillRect(0, 0, 128, 128);
+  g.fillStyle = "#d9d6cf";
+  g.fillRect(0, 118, 128, 10);
+  g.fillStyle = "#2a3038";
+  g.fillRect(36, 26, 56, 70);
+  g.fillStyle = "#4b5663";
+  g.fillRect(40, 30, 22, 62);
+  g.fillStyle = "#e9e4da";
+  g.fillRect(30, 96, 68, 6);
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = THREE.RepeatWrapping;
+  t.wrapT = THREE.RepeatWrapping;
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
 
-    // Interior oscuro detrás de las ventanas (las que tienen luz se encienden en el vidrio).
-    const material = new THREE.MeshStandardMaterial({ color: "#16130f", roughness: 0.85 });
-    // Medianeras y fondo con el mismo revoque del kit, teñido como la fachada.
-    const plaster =
-      plasterBase instanceof THREE.MeshStandardMaterial
-        ? Object.assign(plasterBase.clone(), { color: new THREE.Color(b.tint) })
-        : new THREE.MeshStandardMaterial({ color: b.tint, roughness: 0.92 });
-    const depth = 12;
-    // La cara de adelante (detrás de las ventanas) es el interior.
-    const mass = new THREE.Mesh(metricBox(frame.length, height, depth), [
-      plaster,
-      plaster,
-      roof,
-      roof,
-      material,
-      plaster,
-    ]);
-    mass.position.set(frame.length / 2, height / 2, -0.3 - depth / 2);
-    mass.castShadow = true;
-    mass.receiveShadow = true;
-    group.add(mass);
-    group.updateMatrixWorld(true);
-    masses.push(group as unknown as THREE.Mesh);
-    backdrops.push({ material });
-  }
-  return { backdrops, masses };
+/** Distancia (en planta) de un punto a la manzana. */
+function distanceToBlock(b: CityBlock, x: number, z: number): number {
+  const dx = Math.max(b.x0 - x, 0, x - b.x1);
+  const dz = Math.max(b.z0 - z, 0, z - b.z1);
+  return Math.hypot(dx, dz);
+}
+
+interface BlockGroup {
+  block: CityBlock;
+  near: THREE.Group;
+  far: THREE.Group;
+  masses: THREE.BufferGeometry[];
 }
 
 /**
- * Edificios de la calle: piezas del kit instanciadas, interiores y volúmenes.
- * De noche se prenden algunas ventanas.
+ * Edificios de toda la ciudad, agrupados por manzana: de cerca las piezas del
+ * kit, de lejos el volumen con ventanas pintadas, y más lejos nada. De noche
+ * se prenden algunas ventanas.
  */
 export default function StreetBuildings({ layout }: { layout: StreetLayout }) {
+  const camera = useThree((s) => s.camera);
   const gltf = useGLTF(STREET_MODELS.facadeKit);
   const kit = useMemo(() => indexKit(gltf.scene), [gltf.scene]);
 
@@ -185,43 +244,95 @@ export default function StreetBuildings({ layout }: { layout: StreetLayout }) {
     return { get, all: () => [...cache.values()] };
   }, []);
 
-  const instances = useMemo(() => {
+  const materials = useMemo(() => {
+    const base = kit.get("wall_standard_standard_01")?.[0]?.material;
+    const plaster =
+      base instanceof THREE.MeshStandardMaterial
+        ? Object.assign(base.clone(), { vertexColors: true, color: new THREE.Color("#ffffff") })
+        : new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.92 });
+    const roof = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95 });
+    const interior = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 });
+    const windows = windowTexture();
+    const painted = new THREE.MeshStandardMaterial({
+      vertexColors: true,
+      map: windows,
+      roughness: 0.8,
+      emissive: new THREE.Color("#ffc985"),
+      emissiveMap: windows,
+      emissiveIntensity: 0,
+    });
+    return { near: [plaster, roof, interior], far: [plaster, roof, painted], painted };
+  }, [kit]);
+
+  const groups = useMemo(() => {
+    // Una malla por pieza y por lado de manzana: lo que queda fuera de cuadro se descarta entero.
     const placements = [
-      ...layout.buildings.flatMap(planBuilding),
+      ...layout.buildings.flatMap((b) => planBuilding(b).map((p) => ({ ...p, chunk: `${b.chunk}:${b.id.replace(/-\d+$/, "")}` }))),
       ...layout.corners.flatMap(planCorner),
     ];
-    return buildInstances(kit, placements, litGlass.get);
-  }, [kit, layout, litGlass]);
-
-  const { backdrops, masses } = useMemo(
-    () => buildBackdropsAndMasses(layout, kit.get("wall_standard_standard_01")?.[0]?.material),
-    [layout, kit],
-  );
+    const kitByBlock = buildInstances(kit, placements, litGlass.get);
+    const boxesByBlock = new Map<string, MassBox[]>();
+    const add = (chunk: string, box: MassBox) => boxesByBlock.set(chunk, [...(boxesByBlock.get(chunk) ?? []), box]);
+    for (const b of layout.buildings) {
+      const frame = frontFrame(b.start, b.end, b.normal);
+      add(b.chunk, { origin: frame.origin, rotationY: frame.rotationY, length: frame.length, height: b.floors * STREET.floorHeight, depth: DEPTH, inset: 0.3, tint: b.tint, facade: true });
+    }
+    for (const w of layout.walls) {
+      const frame = frontFrame(w.start, w.end, w.normal);
+      add(w.chunk, { origin: frame.origin, rotationY: frame.rotationY, length: frame.length, height: w.height, depth: w.thickness, inset: 0, tint: w.tint, facade: false });
+    }
+    const out: BlockGroup[] = [];
+    for (const block of layout.blocks) {
+      const boxes = boxesByBlock.get(block.id);
+      if (!boxes) continue;
+      const near = new THREE.Group();
+      for (const inst of kitByBlock.get(block.id) ?? []) near.add(inst);
+      const nearMass = new THREE.Mesh(mergeMasses(boxes, false), materials.near);
+      nearMass.castShadow = true;
+      nearMass.receiveShadow = true;
+      near.add(nearMass);
+      const far = new THREE.Group();
+      const farMass = new THREE.Mesh(mergeMasses(boxes, true), materials.far);
+      farMass.castShadow = true;
+      farMass.receiveShadow = true;
+      far.add(farMass);
+      out.push({ block, near, far, masses: [nearMass.geometry, farMass.geometry] });
+    }
+    return out;
+  }, [kit, layout, litGlass, materials]);
 
   useEffect(
     () => () => {
-      for (const m of instances) m.dispose();
-      for (const b of backdrops) {
-        b.material.dispose();
-      }
+      // Sólo los volúmenes son propios: las piezas del kit se comparten con el modelo cargado.
+      for (const g of groups) for (const m of g.masses) m.dispose();
     },
-    [instances, backdrops],
+    [groups],
   );
 
-  // Las ventanas se prenden al caer el sol.
-  useFrame(() => {
+  // Las ventanas se prenden al caer el sol; cada ~0,2 s se decide qué manzanas se ven y cómo.
+  const tick = useRef(0);
+  useFrame((_, delta) => {
     const sun = simulatorRuntime.sunState;
     const night = THREE.MathUtils.clamp((4 - sun.elevationDeg) / 10, 0, 1);
     for (const g of litGlass.all()) g.emissiveIntensity = night * 2.2;
+    materials.painted.emissiveIntensity = night * 0.25;
+    tick.current -= delta;
+    if (tick.current > 0) return;
+    tick.current = 0.2;
+    for (const g of groups) {
+      const d = distanceToBlock(g.block, camera.position.x, camera.position.z);
+      g.near.visible = d < DETAIL_DISTANCE;
+      g.far.visible = !g.near.visible && d < DRAW_DISTANCE;
+    }
   });
 
   return (
-    <group>
-      {instances.map((m) => (
-        <primitive key={m.uuid} object={m} />
-      ))}
-      {masses.map((m) => (
-        <primitive key={m.uuid} object={m} />
+    <group name="calle-edificios">
+      {groups.map((g) => (
+        <group key={g.block.id}>
+          <primitive object={g.near} />
+          <primitive object={g.far} />
+        </group>
       ))}
     </group>
   );

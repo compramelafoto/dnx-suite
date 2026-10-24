@@ -28,6 +28,8 @@ import {
   type FaceWeights,
 } from "@/lib/simulator/face/face-expressions";
 import { applyFaceWeights, findFaceMesh, pruneFaceShapes } from "@/lib/simulator/face/face-rig";
+import { createEyeState, lidFollow, stepEyes, vergence, type EyeState } from "@/lib/simulator/face/eye-motion";
+import { seededRandom } from "@/lib/simulator/street/street-layout";
 import { useFrame, useLoader } from "@react-three/fiber";
 import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
@@ -55,6 +57,9 @@ const SMALL_TALK = "mira vos que lindo dia hoy no te parece que esta para sacar 
 
 /** Acciones en las que la cabeza va con la animación (no mira a la cámara). */
 const FREE_HEAD = new Set(["idle_look_around_01", "cell_phone_textmessage"]);
+
+/** Más allá de esto la gente no se dibuja ni se anima (queda en la bruma). */
+const PEOPLE_DRAW_DISTANCE = 85;
 
 /** Clips que se piden recién cuando un modelo los necesita. */
 const clipCache = new Map<string, Promise<THREE.AnimationClip>>();
@@ -161,6 +166,13 @@ interface Person {
   idleExpression: Expression;
   /** Lo último que dijo y cuándo empezó a decirlo (s del reloj de la escena). */
   speech: { text: string; start: number; replyAt: number } | null;
+  /** Ojos: saltos y pausas como los de una persona (ver eye-motion). */
+  eyes: EyeState;
+  eyeRand: () => number;
+  /** Giro actual de la cabeza hacia lo que mira (grados): la cabeza llega después que los ojos. */
+  headAim: { yaw: number; pitch: number };
+  /** Último parpadeo pedido por un salto grande de los ojos (s del reloj). */
+  blinkAt: number;
   walker?: StreetWalker;
   /** Metros por segundo que corresponden a la zancada del clip. */
   speed: number;
@@ -235,23 +247,30 @@ function makePerson(
  * Orienta cuello y cabeza hacia la cámara (más el desvío pedido), después de
  * la animación. El cuello hace el 40 % del giro y la cabeza el resto.
  */
-function aimHead(p: Person, camera: THREE.Camera, gazeYawDeg: number, gazePitchDeg: number) {
+/**
+ * La cabeza gira (cuello y cabeza) hacia donde se le pidió mirar, pero
+ * despacio: los ojos llegan primero y la cabeza los alcanza. Devuelve hacia
+ * dónde quiere mirar en total y cuánto ya giró la cabeza (grados, marco del cuerpo).
+ */
+function aimHead(p: Person, camera: THREE.Camera, gazeYawDeg: number, gazePitchDeg: number, dt: number) {
   const head = p.model.getObjectByName("Bip01_Head");
   const neck = p.model.getObjectByName("Bip01_Neck");
-  if (!head || !neck) return;
+  if (!head || !neck) return null;
   p.root.updateMatrixWorld(true);
   head.getWorldPosition(_headPos);
   const toCamera = Math.atan2(camera.position.x - _headPos.x, camera.position.z - _headPos.z);
   const look = toCamera - (gazeYawDeg * Math.PI) / 180;
-  const limitYaw = (GAZE_LIMIT_YAW * Math.PI) / 180;
-  const limitPitch = (GAZE_LIMIT_PITCH * Math.PI) / 180;
-  const yaw = THREE.MathUtils.clamp(Math.atan2(Math.sin(look - p.heading), Math.cos(look - p.heading)), -limitYaw, limitYaw);
   const horizontal = Math.hypot(camera.position.x - _headPos.x, camera.position.z - _headPos.z);
-  const pitch = THREE.MathUtils.clamp(
-    Math.atan2(camera.position.y - _headPos.y, horizontal) + (gazePitchDeg * Math.PI) / 180,
-    -limitPitch,
-    limitPitch,
-  );
+  const totalYaw = THREE.MathUtils.radToDeg(Math.atan2(Math.sin(look - p.heading), Math.cos(look - p.heading)));
+  const totalPitch = THREE.MathUtils.radToDeg(Math.atan2(camera.position.y - _headPos.y, horizontal)) + gazePitchDeg;
+  const wantYaw = THREE.MathUtils.clamp(totalYaw, -GAZE_LIMIT_YAW, GAZE_LIMIT_YAW);
+  const wantPitch = THREE.MathUtils.clamp(totalPitch, -GAZE_LIMIT_PITCH, GAZE_LIMIT_PITCH);
+  // La cabeza tarda unos 300 ms en acomodarse (los ojos, 50 ms).
+  const k = 1 - Math.exp(-dt / 0.3);
+  p.headAim.yaw += (wantYaw - p.headAim.yaw) * k;
+  p.headAim.pitch += (wantPitch - p.headAim.pitch) * k;
+  const yaw = THREE.MathUtils.degToRad(p.headAim.yaw);
+  const pitch = THREE.MathUtils.degToRad(p.headAim.pitch);
   // Giro en el marco del cuerpo: yaw alrededor de la vertical, pitch alrededor del eje lateral.
   _qBody.setFromAxisAngle(_up, p.heading);
   for (const [bone, share] of [[neck, 0.4], [head, 0.6]] as const) {
@@ -260,16 +279,52 @@ function aimHead(p: Person, camera: THREE.Camera, gazeYawDeg: number, gazePitchD
     const world = _qBody.clone().multiply(_q).multiply(_qBody.clone().invert());
     rotateBoneWorld(bone, world);
   }
-  // Los ojos completan lo que el cuello no llega a girar (hasta ~25°).
-  const rawYaw = Math.atan2(Math.sin(look - p.heading), Math.cos(look - p.heading));
-  const restYaw = THREE.MathUtils.clamp(rawYaw - yaw, -0.45, 0.45);
-  if (Math.abs(restYaw) > 0.01) {
-    const eyeTurn = _qBody.clone().multiply(new THREE.Quaternion().setFromAxisAngle(_up, restYaw)).multiply(_qBody.clone().invert());
-    for (const name of ["Bip01_LEye", "Bip01_REye"]) {
-      const eye = p.model.getObjectByName(name);
-      if (eye) rotateBoneWorld(eye, eyeTurn);
-    }
+  return { yaw: totalYaw, pitch: totalPitch, headYaw: p.headAim.yaw, headPitch: p.headAim.pitch, distance: camera.position.distanceTo(_headPos) };
+}
+
+/** Más lejos que esto los paseantes no "ven" la cámara (no la miran). */
+const NOTICE_CAMERA = 12;
+
+/**
+ * Ojos: saltos rápidos y pausas como los de una persona. `fixate` es lo que
+ * mira (relativo a la cabeza, grados); sin eso mira alrededor y a veces a la cámara.
+ */
+function moveEyes(p: Person, camera: THREE.Camera, now: number, dt: number, fixate: [number, number] | null, distance: number) {
+  const head = p.model.getObjectByName("Bip01_Head");
+  if (!head) return;
+  head.getWorldPosition(_headPos);
+  const dx = camera.position.x - _headPos.x;
+  const dz = camera.position.z - _headPos.z;
+  const yaw = THREE.MathUtils.radToDeg(Math.atan2(Math.sin(Math.atan2(dx, dz) - p.heading), Math.cos(Math.atan2(dx, dz) - p.heading)));
+  const pitch = THREE.MathUtils.radToDeg(Math.atan2(camera.position.y - _headPos.y, Math.hypot(dx, dz)));
+  const seen = Math.hypot(dx, dz) < NOTICE_CAMERA && Math.abs(yaw) < 60;
+  stepEyes(p.eyes, { fixate, camera: seen ? [yaw, pitch] : null }, now, dt, p.eyeRand);
+  if (p.eyes.blinkRequest) {
+    p.eyes.blinkRequest = false;
+    p.blinkAt = now;
   }
+  _qBody.setFromAxisAngle(_up, p.heading);
+  const verge = vergence(distance);
+  for (const [name, inward] of [["Bip01_LEye", -1], ["Bip01_REye", 1]] as const) {
+    const eye = p.model.getObjectByName(name);
+    if (!eye) continue;
+    // Las animaciones no mueven los ojos: sin volver a la posición de reposo, cada
+    // cuadro se sumaría al anterior y los ojos se irían para cualquier lado.
+    const rest = (eye.userData.restQuaternion ??= eye.quaternion.clone()) as THREE.Quaternion;
+    eye.quaternion.copy(rest);
+    eye.updateMatrixWorld(true);
+    const y = THREE.MathUtils.degToRad(p.eyes.yaw + inward * verge);
+    const x = THREE.MathUtils.degToRad(p.eyes.pitch);
+    _q.setFromAxisAngle(_up, y).multiply(new THREE.Quaternion().setFromAxisAngle(_side, -x));
+    rotateBoneWorld(eye, _qBody.clone().multiply(_q).multiply(_qBody.clone().invert()));
+  }
+}
+
+/** Parpadeo que acompaña un salto grande de los ojos (0 abierto … 1 cerrado). */
+function saccadeBlink(sinceS: number): number {
+  const x = sinceS / 0.15;
+  if (x < 0 || x > 1) return 0;
+  return x < 0.4 ? x / 0.4 : 1 - (x - 0.4) / 0.6;
 }
 
 /**
@@ -315,7 +370,8 @@ function updateFace(
   }
   p.faceNow = next;
 
-  const blink = blinkWeight(now, p.faceSeed);
+  // Parpadeo propio, el que acompaña los saltos grandes y el párpado que sigue a la mirada.
+  const blink = Math.min(1, Math.max(blinkWeight(now, p.faceSeed), saccadeBlink(now - p.blinkAt)) + lidFollow(p.eyes.pitch));
   // Con la sonrisa los párpados ya bajan un poco: el parpadeo completa el resto.
   const eyes: FaceWeights = { AK_09_EyeBlinkLeft: blink, AK_10_EyeBlinkRight: blink };
   applyFaceWeights(p.face, mixWeights(next, mouth, eyes));
@@ -381,6 +437,10 @@ export default function StreetPedestrians({ layout }: { layout: StreetLayout }) 
         faceNow: {},
         idleExpression: out.length % 3 === 0 ? "smile" : "neutral",
         speech: null,
+        eyes: createEyeState(),
+        eyeRand: seededRandom(out.length * 13 + 5),
+        headAim: { yaw: 0, pitch: 0 },
+        blinkAt: -10,
         walker: w,
         speed: speedCache.get(key)!,
         distance: w.startDistance,
@@ -408,6 +468,10 @@ export default function StreetPedestrians({ layout }: { layout: StreetLayout }) 
         faceNow: {},
         idleExpression: out.length % 3 === 0 ? "smile" : "neutral",
         speech: null,
+        eyes: createEyeState(),
+        eyeRand: seededRandom(out.length * 13 + 5),
+        headAim: { yaw: 0, pitch: 0 },
+        blinkAt: -10,
         speed: 0,
         distance: 0,
         heading: s.heading,
@@ -479,6 +543,7 @@ export default function StreetPedestrians({ layout }: { layout: StreetLayout }) 
       // Deja de posar: vuelve a su animación y retoma el circuito donde quedó.
       if (!isModel && p.posing) {
         p.posing = null;
+        p.headAim = { yaw: 0, pitch: 0 };
         p.move = null;
         crossfade(p, p.base);
         if (p.walker) p.distance = closestDistanceOnPath(p.walker.path, p.root.position.x, p.root.position.z);
@@ -524,11 +589,22 @@ export default function StreetPedestrians({ layout }: { layout: StreetLayout }) 
         p.root.rotation.y = p.heading;
       }
 
-      // Velocidad pedida ("saludá rápido"); al caminar o al soltarlo, la natural.
-      p.current.timeScale = isModel && !p.move ? st.pose.tempo : 1;
-      p.mixer.update(dt);
-      if (isModel && !FREE_HEAD.has(st.pose.action)) aimHead(p, camera, st.pose.gazeYaw, st.pose.gazePitch);
-      updateFace(p, isModel, st, camera, clock.elapsedTime, dt);
+      // Lejos no se dibuja ni se anima (sigue caminando su recorrido igual).
+      const far = !isModel && p.root.position.distanceTo(camera.position) > PEOPLE_DRAW_DISTANCE;
+      p.root.visible = !far;
+      if (!far) {
+        // Velocidad pedida ("saludá rápido"); al caminar o al soltarlo, la natural.
+        p.current.timeScale = isModel && !p.move ? st.pose.tempo : 1;
+        p.mixer.update(dt);
+        const aim = isModel && !FREE_HEAD.has(st.pose.action) ? aimHead(p, camera, st.pose.gazeYaw, st.pose.gazePitch, dt) : null;
+        const near = p.root.position.distanceTo(camera.position);
+        if (near < FACE_DISTANCE) {
+          // Lo que le falta girar a la cabeza lo completan los ojos (lo que mira, relativo a la cabeza).
+          const fixate: [number, number] | null = aim ? [aim.yaw - aim.headYaw, aim.pitch - aim.headPitch] : null;
+          moveEyes(p, camera, clock.elapsedTime, dt, fixate, aim?.distance ?? near);
+        }
+        updateFace(p, isModel, st, camera, clock.elapsedTime, dt);
+      }
       if (p.walker && !isModel) {
         p.distance += p.speed * dt;
         const at = samplePath(p.walker.path, p.distance);
@@ -553,7 +629,7 @@ export default function StreetPedestrians({ layout }: { layout: StreetLayout }) 
   });
 
   return (
-    <group>
+    <group name="calle-gente">
       {people.map((p) => (
         <primitive key={p.id} object={p.root} />
       ))}

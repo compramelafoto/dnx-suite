@@ -31,6 +31,12 @@ const _world = new THREE.Vector3();
 /**
  * Adquisición AF por raycast + contraste simulado (delay pedagógico).
  */
+/** ¿Se dibuja? (el objeto y todos sus padres visibles). */
+function isShown(object: THREE.Object3D): boolean {
+  for (let o: THREE.Object3D | null = object; o; o = o.parent) if (!o.visible) return false;
+  return true;
+}
+
 export default function FocusRaycaster() {
   const { camera, scene, size } = useThree();
   const pendingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -47,7 +53,8 @@ export default function FocusRaycaster() {
         _ndc.set(nx, ny);
         raycaster.setFromCamera(_ndc, camera);
         const hits = raycaster.intersectObjects(scene.children, true);
-        const hit = hits.find((h) => h.object instanceof THREE.Mesh && h.distance > 0.05);
+        // Lo apagado por distancia también se cruza el rayo: sólo cuenta lo que se ve.
+        const hit = hits.find((h) => h.object instanceof THREE.Mesh && h.distance > 0.05 && isShown(h.object));
         if (!hit) continue;
 
         const distanceM = camera.position.distanceTo(hit.point);
