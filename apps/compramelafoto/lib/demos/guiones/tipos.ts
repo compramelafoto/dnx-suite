@@ -25,6 +25,8 @@ export type PasoGuion = {
   aclaracion?: { titulo: string; texto: string };
   /** Qué se le puede pedir al bot en este paso. */
   bot?: string;
+  /** Botón propio de la demo en el cuadro guía (por ejemplo, publicar las fotos de la toma). */
+  accion?: { etiqueta: string; endpoint: string; hecho: string };
 };
 
 export type Guion = {

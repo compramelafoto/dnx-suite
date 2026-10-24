@@ -34,14 +34,14 @@ export async function POST(req: NextRequest, context: Ctx) {
     if (!ctx) return NextResponse.json({ error: "Primero tocá «Preparar»." }, { status: 409 });
 
     if (accion === "analizar") {
-      const resultado = await runAnalysisPipeline({
+      const res = await runAnalysisPipeline({
         ocrRequested: false,
         debug: false,
         source: "admin",
         albumId: ctx.albumId,
         maxRunMs: 240_000,
       });
-      return NextResponse.json({ ok: true, resultado });
+      return NextResponse.json({ ok: true, resultado: await res.json().catch(() => null) });
     }
     if (accion === "entrar") {
       await entrarADemo(ctx.fotografoId);

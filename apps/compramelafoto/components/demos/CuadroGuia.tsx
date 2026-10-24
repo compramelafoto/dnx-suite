@@ -51,6 +51,7 @@ export default function CuadroGuia() {
   const [minimizado, setMinimizado] = useState(false);
   const [indiceAbierto, setIndiceAbierto] = useState(false);
   const [trabajando, setTrabajando] = useState(false);
+  const [avisoAccion, setAvisoAccion] = useState<string | null>(null);
   const vistasRef = useRef<Set<string>>(new Set());
   const pasos = GUION_ESCOLAR.pasos;
 
@@ -72,12 +73,19 @@ export default function CuadroGuia() {
   }, [pathname]);
 
   useEffect(() => {
-    setIndice(indiceValido(leer(CLAVE_PASO), pasos.length));
+    const guardado = leer(CLAVE_PASO);
+    setIndice(indiceValido(guardado, pasos.length));
     setMinimizado(leer(CLAVE_MINI) === "1");
     try {
       vistasRef.current = new Set(JSON.parse(leer(CLAVE_VISTAS) || "[]"));
     } catch {}
-  }, [pasos.length]);
+    // Primera vez en la demo: la tarjeta de apertura para el público.
+    if (guardado == null && pasos[0]?.aclaracion && !vistasRef.current.has(pasos[0].id)) {
+      vistasRef.current.add(pasos[0].id);
+      guardar(CLAVE_VISTAS, JSON.stringify([...vistasRef.current]));
+      setAclaracion(pasos[0]);
+    }
+  }, [pasos]);
 
   const activa = Boolean(estado?.activa);
   useEffect(() => {
@@ -178,6 +186,23 @@ export default function CuadroGuia() {
     return () => window.removeEventListener("keydown", onKey);
   }, [activa, aclaracion, cerrarAclaracion, indice, moverA, pasos.length]);
 
+  const ejecutarAccion = useCallback(async (p: PasoGuion) => {
+    if (!p.accion) return;
+    setTrabajando(true);
+    setAvisoAccion("Trabajando…");
+    try {
+      const res = await fetch(p.accion.endpoint, { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || "No se pudo completar.");
+      setAvisoAccion(p.accion.hecho);
+      window.setTimeout(() => window.location.reload(), 1200);
+    } catch (err) {
+      setAvisoAccion(err instanceof Error ? err.message : "No se pudo completar.");
+    } finally {
+      setTrabajando(false);
+    }
+  }, []);
+
   if (!activa || !paso) return null;
 
   const enPantallaDelPaso =
@@ -267,6 +292,19 @@ export default function CuadroGuia() {
                 <strong>Con el bot:</strong> {paso.bot}
               </p>
             ) : null}
+            {paso.accion ? (
+              <div className="mt-2 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => void ejecutarAccion(paso)}
+                  disabled={trabajando}
+                  className="rounded-full bg-gray-900 px-3 py-1 text-xs font-semibold text-white disabled:opacity-50"
+                >
+                  {paso.accion.etiqueta}
+                </button>
+                {avisoAccion ? <span className="text-xs text-gray-600">{avisoAccion}</span> : null}
+              </div>
+            ) : null}
             {!ctx ? (
               <p className="mt-2 text-xs text-red-700">La demo no está preparada: tocá «Preparar» en Admin → Demos.</p>
             ) : null}
@@ -288,7 +326,7 @@ export default function CuadroGuia() {
             type="button"
             onClick={() => moverA(pasoAnterior(indice), "atras")}
             disabled={indice === 0 || trabajando}
-            className="rounded-full border border-gray-300 px-3 py-1 text-sm disabled:opacity-40"
+            className="whitespace-nowrap rounded-full border border-gray-300 px-3 py-1 text-sm disabled:opacity-40"
           >
             ‹ Anterior
           </button>
@@ -299,7 +337,7 @@ export default function CuadroGuia() {
                 type="button"
                 disabled={trabajando}
                 onClick={() => void cambiarVista(v.id)}
-                className={`rounded-full px-2 py-1 text-xs ${paso.vista === v.id ? "bg-[#c27b3d] text-white" : "bg-gray-100 text-gray-700"}`}
+                className={`whitespace-nowrap rounded-full px-2 py-1 text-xs ${paso.vista === v.id ? "bg-[#c27b3d] text-white" : "bg-gray-100 text-gray-700"}`}
                 title={`Cambiar a la vista ${v.etiqueta.toLowerCase()}`}
               >
                 {v.etiqueta}
@@ -310,13 +348,22 @@ export default function CuadroGuia() {
             type="button"
             onClick={() => moverA(siguientePaso(indice, pasos.length), "adelante")}
             disabled={indice >= pasos.length - 1 || trabajando}
-            className="rounded-full bg-[#c27b3d] px-3 py-1 text-sm font-semibold text-white disabled:opacity-40"
+            className="whitespace-nowrap rounded-full bg-[#c27b3d] px-3 py-1 text-sm font-semibold text-white disabled:opacity-40"
           >
             Siguiente ›
           </button>
         </div>
         <div className="flex justify-between px-3 pb-2 text-[11px] text-gray-500">
-          <button type="button" onClick={() => moverA(0, "salto")} className="underline">
+          <button
+            type="button"
+            onClick={() => {
+              // Una pasada nueva: vuelven a salir todas las tarjetas para el público.
+              vistasRef.current = new Set();
+              guardar(CLAVE_VISTAS, "[]");
+              moverA(0, "adelante");
+            }}
+            className="underline"
+          >
             Volver al inicio
           </button>
           <button type="button" onClick={() => void cambiarVista("salir")} className="underline">

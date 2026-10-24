@@ -35,6 +35,8 @@ const ACCIONES: Array<{ id: Accion; etiqueta: string; ayuda: string; variant: "p
 
 export default function DemosClient({ preparada, albumSlug }: { preparada: boolean; albumSlug: string | null }) {
   const [enCurso, setEnCurso] = useState<Accion | null>(null);
+  const [lista, setLista] = useState(preparada);
+  const [slug, setSlug] = useState(albumSlug);
   const [resultado, setResultado] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -55,6 +57,10 @@ export default function DemosClient({ preparada, albumSlug }: { preparada: boole
         } catch {}
         window.location.href = data.destino || "/fotografo/escuelas";
         return;
+      }
+      if (accion === "preparar" && data.resumen?.albumSlug) {
+        setLista(true);
+        setSlug(data.resumen.albumSlug);
       }
       setResultado(JSON.stringify(data.resumen ?? data.resultado ?? data, null, 2));
     } catch (err) {
@@ -78,7 +84,7 @@ export default function DemosClient({ preparada, albumSlug }: { preparada: boole
         <div>
           <h2 className="text-lg font-semibold text-gray-900">Venta escolar de punta a punta</h2>
           <p className="text-sm text-gray-600">
-            Escuela Demo Los Aromos · {preparada ? `preparada (álbum ${albumSlug})` : "todavía sin preparar"}
+            Escuela Demo Los Aromos · {lista ? `preparada (álbum ${slug})` : "todavía sin preparar"}
           </p>
         </div>
         <div className="grid gap-3 md:grid-cols-2">
@@ -87,7 +93,7 @@ export default function DemosClient({ preparada, albumSlug }: { preparada: boole
               <Button
                 variant={a.variant}
                 onClick={() => ejecutar(a.id)}
-                disabled={enCurso !== null || (!preparada && a.id !== "preparar")}
+                disabled={enCurso !== null || (!lista && a.id !== "preparar")}
               >
                 {enCurso === a.id ? "Trabajando…" : a.etiqueta}
               </Button>

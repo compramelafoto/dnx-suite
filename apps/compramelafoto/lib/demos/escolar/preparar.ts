@@ -29,6 +29,7 @@ import { uploadToR2 } from "@/lib/r2-client";
 import { finalizeAlbumPhotoFromRaw } from "@/lib/albums/finalize-album-photo-from-raw";
 import { getAlbumPhotoMaxBytes, getAlbumPhotoMaxMb } from "@/lib/albums/album-photo-upload-limits";
 import { TERMS_VERSION } from "@/lib/terms/photographerTerms";
+import { FOTOS_SIN_PUBLICAR } from "@/lib/demos/escolar/fotos-toma";
 
 export type ResumenDemo = {
   fotografoId: number;
@@ -246,7 +247,16 @@ async function asegurarFotos(albumId: number, fotografoId: number, origen: strin
       maxMb: getAlbumPhotoMaxMb(),
       originalFilename: foto.archivo,
     });
-    await prisma.photo.update({ where: { id: photo.id }, data: { originalFilename: foto.archivo } });
+    // Sin publicar hasta el paso «Subís las fotos»: la preventa se muestra antes de la toma.
+    await prisma.photo.update({
+      where: { id: photo.id },
+      data: {
+        originalFilename: foto.archivo,
+        isRemoved: true,
+        removedAt: new Date(),
+        removedReason: FOTOS_SIN_PUBLICAR,
+      },
+    });
     ya.add(foto.archivo);
     subidasAhora += 1;
   }

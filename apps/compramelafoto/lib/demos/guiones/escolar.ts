@@ -118,7 +118,12 @@ export const GUION_ESCOLAR: Guion = {
       ruta: (c) => `/dashboard/albums/${c.albumId}?tab=fotos`,
       titulo: "7 · Subís las fotos",
       texto:
-        "El día de la toma subís todo junto al álbum. El sistema reconoce las caras de cada foto en segundo plano.",
+        "El día de la toma subís todo junto al álbum. El sistema reconoce las caras de cada foto en segundo plano. En la demo las fotos de la toma ya están cargadas: publicalas con el botón (y si querés, subí alguna más a mano).",
+      accion: {
+        etiqueta: "Publicar las fotos de la toma",
+        endpoint: "/api/demo/fotos",
+        hecho: "Listo: fotos publicadas y analizadas.",
+      },
     },
     {
       id: "selfie",

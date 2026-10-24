@@ -10,6 +10,7 @@
 import { prisma } from "@/lib/prisma";
 import { esUsuarioDemo } from "@/lib/demos/identidad";
 import { DEMO_ESCOLAR } from "@/lib/demos/escolar/datos";
+import { ocultarFotosDeLaToma } from "@/lib/demos/escolar/fotos-toma";
 
 export type ResumenReinicio = { borrados: Record<string, number>; avisos: string[] };
 
@@ -81,6 +82,8 @@ export async function reiniciarDemoEscolar(): Promise<ResumenReinicio> {
   await paso("consultas de la landing", () =>
     prisma.schoolLead.deleteMany({ where: { referredByUserId: fotografo.id } }),
   );
+
+  await paso("fotos vueltas a ocultar", () => ocultarFotosDeLaToma(albumId));
 
   // Lo creado en vivo: colegios nuevos, alumnos cargados a mano, usuarios del colegio sumados.
   const escuelaSembrada = album.schoolId;
