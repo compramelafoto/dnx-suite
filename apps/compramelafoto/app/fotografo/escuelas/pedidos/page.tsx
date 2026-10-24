@@ -870,6 +870,12 @@ export default function FotografoEscuelasPedidosPage() {
   const formatARS = (cents: number) =>
     new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", minimumFractionDigits: 0 }).format(cents / 100);
   const tituloVista = vistaEfectiva === "FUERA" ? "Fuera de la línea" : INFO_PASOS[vistaEfectiva].titulo;
+  // La pantalla para el televisor abre con la misma escuela y curso que se están mirando.
+  const filtroPantalla = new URLSearchParams();
+  if (filterSchool) filtroPantalla.set("schoolId", filterSchool);
+  if (filterCurso) filtroPantalla.set("curso", filterCurso);
+  const consultaPantalla = filtroPantalla.toString();
+  const urlPantalla = `/fotografo/escuelas/pedidos/pantalla${consultaPantalla ? `?${consultaPantalla}` : ""}`;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -884,7 +890,16 @@ export default function FotografoEscuelasPedidosPage() {
                 tenés que hacer.
               </p>
             </div>
-            <div className="ds-split-panel__aside shrink-0">
+            <div className="ds-split-panel__aside flex shrink-0 flex-col items-start gap-2 sm:items-end">
+              {/* Para un televisor o una videollamada: los mismos pedidos, grandes y en oscuro. */}
+              <a
+                href={urlPantalla}
+                target="_blank"
+                rel="noopener"
+                className="inline-flex items-center gap-2 rounded-lg bg-[#1f2937] px-4 py-2 text-sm font-semibold text-white hover:bg-[#111827]"
+              >
+                Pantalla de pedidos
+              </a>
               <Link href="/fotografo/escuelas" className="text-[#c27b3d] hover:underline text-sm">
                 ← Volver a Escolar
               </Link>
