@@ -93,23 +93,18 @@ describe("pantalla Equipo", () => {
   });
 
   it("invitaciones pendientes: enviada, vencimiento y estado del correo (hora argentina)", async () => {
-    // La invitación vence el 24/10 a las 02:00 UTC: con el reloj real, desde ese día dice
-    // «venció». La prueba fija el día en que todavía está vigente.
+    m.role.mockReturnValue("WORKSPACE_ADMIN");
+    // Reloj fijo antes del vencimiento: con el reloj real, desde el 24/10 decía "venció".
     vi.useFakeTimers({ toFake: ["Date"] });
-    vi.setSystemTime(new Date("2026-10-20T12:00:00Z"));
-    try {
-      m.role.mockReturnValue("WORKSPACE_ADMIN");
-      const h = await render();
-      expect(h).toContain("cami@x.test");
-      // 02:00 UTC del 17 son las 23:00 del 16 en Buenos Aires.
-      expect(h).toContain("enviada el 16/10/2026");
-      expect(h).toContain("vence el 23/10/2026");
-      expect(h).toContain("El correo no salió");
-      expect(h).toContain("Reenviar");
-      expect(h).toContain("Cancelar");
-    } finally {
-      vi.useRealTimers();
-    }
+    vi.setSystemTime(new Date("2026-10-20T15:00:00Z"));
+    const h = await render().finally(() => vi.useRealTimers());
+    expect(h).toContain("cami@x.test");
+    // 02:00 UTC del 17 son las 23:00 del 16 en Buenos Aires.
+    expect(h).toContain("enviada el 16/10/2026");
+    expect(h).toContain("vence el 23/10/2026");
+    expect(h).toContain("El correo no salió");
+    expect(h).toContain("Reenviar");
+    expect(h).toContain("Cancelar");
   });
 
   it("roles: Administrador y Equipo con lo que puede cada uno; nunca Colaborador ni Dueño", async () => {

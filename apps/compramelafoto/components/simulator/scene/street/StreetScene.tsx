@@ -17,6 +17,7 @@ import StreetPedestrians from "./StreetPedestrians";
 import StreetPlaza from "./StreetPlaza";
 import StreetProps from "./StreetProps";
 import StreetTraffic from "./StreetTraffic";
+import { LoadingHold } from "../SceneLoadingGate";
 
 /**
  * Calle 3D: un barrio de 3 × 3 manzanas con plaza, casas, centro y pasajes;
@@ -27,14 +28,16 @@ export default function StreetScene() {
   const layout = useMemo(() => buildStreetLayout(), []);
   const camera = useThree((s) => s.camera);
   const gl = useThree((s) => s.gl);
+  const scene = useThree((s) => s.scene);
 
   // Sólo en desarrollo: mover la cámara y medir el render desde la consola o Playwright.
   useEffect(() => {
     if (process.env.NODE_ENV !== "development") return;
     (globalThis as Record<string, unknown>).__codCamera = camera;
     (globalThis as Record<string, unknown>).__codGl = gl;
+    (globalThis as Record<string, unknown>).__codScene = scene;
     (globalThis as Record<string, unknown>).__codTHREE = THREE;
-  }, [camera, gl]);
+  }, [camera, gl, scene]);
 
   useEffect(() => {
     simulatorRuntime.walkableWorld = {
@@ -49,21 +52,21 @@ export default function StreetScene() {
   return (
     <group>
       <StreetLighting />
-      <Suspense fallback={null}>
+      <Suspense fallback={<LoadingHold />}>
         <StreetGround layout={layout} />
       </Suspense>
       <StreetPlaza plaza={layout.plaza} />
       <StreetDecals layout={layout} />
-      <Suspense fallback={null}>
+      <Suspense fallback={<LoadingHold />}>
         <StreetBuildings layout={layout} />
       </Suspense>
-      <Suspense fallback={null}>
+      <Suspense fallback={<LoadingHold />}>
         <StreetProps layout={layout} />
       </Suspense>
-      <Suspense fallback={null}>
+      <Suspense fallback={<LoadingHold />}>
         <StreetPedestrians layout={layout} />
       </Suspense>
-      <Suspense fallback={null}>
+      <Suspense fallback={<LoadingHold />}>
         <StreetTraffic />
       </Suspense>
     </group>

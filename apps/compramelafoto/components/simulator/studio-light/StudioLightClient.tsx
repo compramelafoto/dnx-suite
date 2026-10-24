@@ -22,10 +22,19 @@ import StudioIcon, { type StudioIconName } from "./StudioIcons";
 import StudioMeter from "./StudioMeter";
 import { CameraPanel, LightsPanel, PresetsPanel, ScenePanel } from "./StudioPanels";
 import StudioPlanView from "./StudioPlanView";
+import CamOfDutyLoadingScreen from "@/components/simulator/CamOfDutyLoadingScreen";
+
+function studioStage(percent: number): string {
+  if (percent < 40) return "Armando el estudio…";
+  if (percent < 75) return "Llamando a la modelo…";
+  if (percent < 100) return "Encendiendo las luces…";
+  return "¡Listo!";
+}
 
 const StudioCanvas = dynamic(() => import("./StudioCanvas"), {
   ssr: false,
-  loading: () => <div className="cod-studio__loading">Armando el estudio…</div>,
+  // Mientras baja el código del lienzo ya se ve la pantalla de carga.
+  loading: () => null,
 });
 
 type Tab = "lights" | "camera" | "scene" | "presets";
@@ -380,6 +389,7 @@ function StudioWorkspace() {
       <section className="cod-studio__stage">
         <div className="cod-studio__viewport" onPointerDown={() => mode === "walk" && setWalkStarted(true)}>
           <StudioCanvas mode={mode} captureRef={captureRef} onHistogram={setHistogram} showPip onShoot={captureNext} viewRef={viewRef} />
+          <CamOfDutyLoadingScreen stage={studioStage} />
 
           {mode === "set" ? (
             <div className="cod-studio-views" role="group" aria-label="Vistas rápidas">
