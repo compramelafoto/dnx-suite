@@ -3,6 +3,7 @@
 import type { GroundDecal, GroundDecalKind, StreetLayout, WallDecal, WallDecalKind } from "@/lib/simulator/street/street-layout";
 import { seededRandom } from "@/lib/simulator/street/street-layout";
 import { useFrame, useThree } from "@react-three/fiber";
+import { PuddleReflector, addPuddleReflection, type PuddleUniforms } from "./puddle-reflection";
 import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 
@@ -225,11 +226,15 @@ const _p = new THREE.Vector3();
 const _s = new THREE.Vector3();
 const _up = new THREE.Vector3(0, 1, 0);
 
-function groundMaterial(kind: GroundDecalKind, tex: THREE.Texture): THREE.Material {
+function groundMaterial(kind: GroundDecalKind, tex: THREE.Texture, reflection: PuddleUniforms): THREE.Material {
   const common = { transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4 };
   if (kind === "puddle") {
-    // Agua: casi negra, lisa y brillante; refleja el cielo del entorno.
-    return new THREE.MeshPhysicalMaterial({ ...common, color: "#0d1013", roughness: 0.03, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.02, envMapIntensity: 1.6, alphaMap: tex, opacity: 0.92 });
+    // Agua: casi negra y lisa. Lo que se ve encima es el reflejo real de la escena
+    // (puddle-reflection). Sin brillo propio: el del entorno contaba el cielo dos
+    // veces y el del sol, rasante, cubría todo el charco de blanco.
+    const water = new THREE.MeshPhysicalMaterial({ ...common, color: "#0b0d10", roughness: 0.08, metalness: 0, specularIntensity: 0, envMapIntensity: 0, alphaMap: tex, opacity: 0.95 });
+    addPuddleReflection(water, reflection);
+    return water;
   }
   if (kind === "patch") return new THREE.MeshStandardMaterial({ ...common, map: tex, roughness: 0.75 });
   if (kind === "oil") return new THREE.MeshPhysicalMaterial({ ...common, map: tex, roughness: 0.15, iridescence: 0.6, iridescenceIOR: 1.4 });
@@ -237,7 +242,7 @@ function groundMaterial(kind: GroundDecalKind, tex: THREE.Texture): THREE.Materi
 }
 
 /** Una malla instanciada por tipo y variante, con todas las copias de la ciudad. */
-function groundMeshes(decals: GroundDecal[]): THREE.InstancedMesh[] {
+function groundMeshes(decals: GroundDecal[], reflection: PuddleUniforms): THREE.InstancedMesh[] {
   const groups = new Map<string, GroundDecal[]>();
   for (const d of decals) {
     const key = `${d.kind}|${d.variant % VARIANTS}`;
@@ -251,7 +256,8 @@ function groundMeshes(decals: GroundDecal[]): THREE.InstancedMesh[] {
     const variant = Number(v);
     const size = kind === "chalk" ? 512 : 256;
     const tex = canvasTexture(size, size, (g) => GROUND_PAINTERS[kind](g, size, seededRandom(variant * 97 + kind.length), variant), kind !== "puddle");
-    const mesh = new THREE.InstancedMesh(geo, groundMaterial(kind, tex), list.length);
+    const mesh = new THREE.InstancedMesh(geo, groundMaterial(kind, tex, reflection), list.length);
+    mesh.userData.puddle = kind === "puddle";
     list.forEach((d, i) => {
       _q.setFromAxisAngle(_up, d.rotationY);
       mesh.setMatrixAt(i, _m.compose(_p.set(d.position[0], d.position[1], d.position[2]), _q, _s.set(d.size[0], 1, d.size[1])));
@@ -293,10 +299,20 @@ function wallMeshes(decals: WallDecal[]): THREE.InstancedMesh[] {
 
 /** Lo que queda a más de esto no se dibuja (son detalles para ver de cerca). */
 const DRAW_DISTANCE = 120;
+/** Más cerca que esto un charco refleja la escena (más lejos se ve sólo el brillo). */
+const REFLECT_DISTANCE = 30;
+/** Últimos metros en los que el reflejo se desvanece. */
+const REFLECT_FADE = 8;
 
 export default function StreetDecals({ layout }: { layout: StreetLayout }) {
   const camera = useThree((s) => s.camera);
-  const meshes = useMemo(() => [...groundMeshes(layout.groundDecals), ...wallMeshes(layout.wallDecals)], [layout]);
+  const reflector = useMemo(() => new PuddleReflector(), []);
+  const meshes = useMemo(() => [...groundMeshes(layout.groundDecals, reflector.uniforms), ...wallMeshes(layout.wallDecals)], [layout, reflector]);
+  const puddles = useMemo(() => layout.groundDecals.filter((d) => d.kind === "puddle"), [layout]);
+  useEffect(() => {
+    if (process.env.NODE_ENV === "development") (globalThis as Record<string, unknown>).__codPuddleReflector = reflector;
+    return () => reflector.dispose();
+  }, [reflector]);
 
   useEffect(
     () => () => {
@@ -312,7 +328,55 @@ export default function StreetDecals({ layout }: { layout: StreetLayout }) {
 
   // Las mallas abarcan toda la ciudad: se apagan las que quedan lejos (por su esfera).
   const tick = useRef(0);
-  useFrame((_, delta) => {
+  const view = useMemo(
+    () => ({ frustum: new THREE.Frustum(), matrix: new THREE.Matrix4(), sphere: new THREE.Sphere(), seen: [] as GroundDecal[], corners: [] as THREE.Vector3[] }),
+    [],
+  );
+  // En el espejo no hace falta el piso ni lo que está pegado a él (queda bajo el agua).
+  const flat = useRef<THREE.Object3D[] | null>(null);
+  useFrame(({ gl, scene, clock }, delta) => {
+    // Reflejo de los charcos dentro del cuadro y cerca. Si no se ve ninguno, no
+    // se dibuja: es una segunda pasada de la escena.
+    view.matrix.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+    view.frustum.setFromProjectionMatrix(view.matrix);
+    view.seen.length = 0;
+    let best: GroundDecal | null = null;
+    let bestDist = REFLECT_DISTANCE;
+    for (const d of puddles) {
+      const dist = Math.hypot(d.position[0] - camera.position.x, d.position[2] - camera.position.z);
+      if (dist >= REFLECT_DISTANCE) continue;
+      view.sphere.center.set(d.position[0], d.position[1], d.position[2]);
+      view.sphere.radius = Math.max(d.size[0], d.size[1]) / 2;
+      if (!view.frustum.intersectsSphere(view.sphere)) continue;
+      view.seen.push(d);
+      if (dist < bestDist) {
+        best = d;
+        bestDist = dist;
+      }
+    }
+    const u = reflector.uniforms;
+    u.time.value = clock.elapsedTime;
+    let drawn = false;
+    if (best && camera instanceof THREE.PerspectiveCamera && camera.position.y > best.position[1]) {
+      // Todos los charcos a la vista que están a la misma altura comparten el espejo.
+      let n = 0;
+      for (const d of view.seen) {
+        if (Math.abs(d.position[1] - best.position[1]) > 0.05) continue;
+        const c = Math.cos(d.rotationY);
+        const sn = Math.sin(d.rotationY);
+        for (const [a, b] of [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]]) {
+          const x = a * d.size[0];
+          const z = b * d.size[1];
+          (view.corners[n] ??= new THREE.Vector3()).set(d.position[0] + x * c + z * sn, d.position[1], d.position[2] - x * sn + z * c);
+          n += 1;
+        }
+      }
+      view.corners.length = n;
+      flat.current ??= ["calle-piso", "calle-detalles"].map((name) => scene.getObjectByName(name)).filter(Boolean) as THREE.Object3D[];
+      drawn = reflector.render(gl, scene, camera, best.position[1], view.corners, flat.current);
+    }
+    u.reflectStrength.value = drawn ? THREE.MathUtils.clamp((REFLECT_DISTANCE - bestDist) / REFLECT_FADE, 0, 1) : 0;
+
     tick.current -= delta;
     if (tick.current > 0) return;
     tick.current = 0.3;

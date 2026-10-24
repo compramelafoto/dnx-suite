@@ -128,6 +128,14 @@ export default function FirstPersonController({ onLockChange }: FirstPersonContr
     rollRef.current = 0;
   }, [camera]);
 
+  // Sólo en desarrollo: fijar la altura de la cámara desde la consola o Playwright.
+  useEffect(() => {
+    if (process.env.NODE_ENV !== "development") return;
+    (globalThis as Record<string, unknown>).__codSetHeight = (h: number) => {
+      heightRef.current = THREE.MathUtils.clamp(h, CAMERA_HEIGHT_MIN, CAMERA_HEIGHT_MAX);
+    };
+  }, []);
+
   useEffect(() => {
     const euler = eulerRef.current;
     registerSimulatorCameraYaw(() => {
