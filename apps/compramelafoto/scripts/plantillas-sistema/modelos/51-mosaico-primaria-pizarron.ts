@@ -72,8 +72,8 @@ export const mosaicoPrimariaPizarron: Modelo = {
   fondoExterior: () =>
     svg(
       `${pizarra()}
-       ${lapiz(2050, 2140, 360, -8, AMARILLO)}
-       ${garabatos(4, [{ x: 3280, y: 260 }, { x: 3300, y: 1150 }, { x: 3330, y: 2120 }, { x: 1550, y: 1660 }, { x: 1500, y: 2140 }, { x: 260, y: 230 }])}`,
+       ${lapiz(1980, 2270, 300, 0, AMARILLO)}
+       ${garabatos(4, [{ x: 3330, y: 1500 }, { x: 3300, y: 1150 }, { x: 3330, y: 2120 }, { x: 1550, y: 1660 }, { x: 1500, y: 2140 }, { x: 260, y: 230 }])}`,
       DEFS,
     ),
 
