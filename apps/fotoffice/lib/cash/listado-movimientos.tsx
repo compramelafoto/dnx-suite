@@ -27,6 +27,7 @@ const ETIQUETA_ORIGEN: Record<MovementSource, string> = {
   "pedidos-comision": "Comisión de Mercado Pago",
   galerias: "Galerías",
   impresiones: "Pedidos de impresión",
+  "saldo-inicial": "Saldo inicial",
 };
 
 const fechaHoraAR = new Intl.DateTimeFormat("es-AR", {

@@ -1,12 +1,13 @@
 import { Wallet } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { requireCashConfigurer } from "@/lib/cash/access";
-import { listAccounts } from "@/lib/cash/repository";
+import { listAccounts, openingBalancesByAccount } from "@/lib/cash/repository";
 import { listarRubros } from "@/lib/rubros/repositorio";
 import { agruparRubros, type LadoRubro, type RubroFila } from "@/lib/rubros/rubros";
 import { loadPublicSlug } from "@/lib/blog/admin-queries";
 import { esSlugDnx } from "@/lib/slug-dnx";
 import { AccountForm } from "../account-form";
+import { OpeningBalanceForm } from "../opening-balance-form";
 import { CategoryForm } from "../category-form";
 import { enableCashForWorkspaceAction, sembrarPlanDnxAction } from "../actions";
 
@@ -20,10 +21,11 @@ export default async function CajaConfiguracionPage({
   const { workspace } = await requireCashConfigurer();
   const params = await searchParams;
 
-  const [cuentas, categorias, slug] = await Promise.all([
+  const [cuentas, categorias, slug, saldosIniciales] = await Promise.all([
     listAccounts(workspace.id, { includeInactive: true }),
     listarRubros(workspace.id, { includeInactive: true }),
     loadPublicSlug(workspace.id),
+    openingBalancesByAccount(workspace.id),
   ]);
   const esDnx = esSlugDnx(slug);
 
@@ -71,8 +73,9 @@ export default async function CajaConfiguracionPage({
             <h2 className="text-base font-semibold">Cuentas</h2>
             <div className="space-y-4">
               {cuentas.map((c) => (
-                <div key={c.id} className={`fo-card p-5 ${c.isActive ? "" : "opacity-60"}`}>
+                <div key={c.id} className={`fo-card space-y-3 p-5 ${c.isActive ? "" : "opacity-60"}`}>
                   <AccountForm account={c} />
+                  <OpeningBalanceForm accountId={c.id} existing={saldosIniciales.get(c.id)} />
                 </div>
               ))}
             </div>

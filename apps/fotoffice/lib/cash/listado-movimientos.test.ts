@@ -91,6 +91,10 @@ describe("whereMovimientos", () => {
 
   it("sin nada, sólo el workspace", () => expect(whereMovimientos("w1", base)).toEqual({ workspaceId: "w1" }));
 
+  it("filtra por origen saldo inicial", () => {
+    expect(whereMovimientos("w1", { ...base, filtros: { origen: "saldo-inicial" } })).toEqual({ workspaceId: "w1", sourceModule: "saldo-inicial" });
+  });
+
   it("cuenta, rubro, medio y origen", () => {
     expect(whereMovimientos("w1", { ...base, filtros: { cuenta: "a1", rubro: "r1", medio: "TARJETA", origen: "sales" } })).toEqual({
       workspaceId: "w1", accountId: "a1", categoryId: "r1", paymentMethod: "TARJETA", sourceModule: "sales",
