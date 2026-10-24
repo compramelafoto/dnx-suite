@@ -15,7 +15,14 @@ export async function GET() {
     activa: true,
     guion: demo.demo,
     ctx: ctx
-      ? { albumId: ctx.albumId, albumSlug: ctx.albumSlug, schoolId: ctx.schoolId, handler: ctx.handler }
+      ? {
+          albumId: ctx.albumId,
+          albumSlug: ctx.albumSlug,
+          schoolId: ctx.schoolId,
+          handler: ctx.handler,
+          ultimoPedidoId: ctx.ultimoPedidoId,
+          plantillaId: ctx.plantillaId,
+        }
       : null,
     sesion: user ? (String(user.role) === "SCHOOL_ORGANIZER" ? "colegio" : "fotografo") : null,
   });

@@ -6,6 +6,10 @@ export type CtxGuion = {
   albumSlug: string;
   schoolId: number;
   handler: string;
+  /** Último pedido de la demo (para ir directo a su canje), si ya hubo una compra. */
+  ultimoPedidoId: number | null;
+  /** Plantilla del librito del fotógrafo demo (copia de la de sistema). */
+  plantillaId: string | null;
 };
 
 export type PasoGuion = {

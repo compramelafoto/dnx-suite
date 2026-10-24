@@ -15,6 +15,17 @@ export async function getContextoDemoEscolar(): Promise<
     }),
   ]);
   if (!fotografo || !colegio || !album?.schoolId) return null;
+  const [ultimoPedido, beneficio] = await Promise.all([
+    prisma.order.findFirst({
+      where: { albumId: album.id, status: "PAID" },
+      orderBy: { id: "desc" },
+      select: { id: true },
+    }),
+    prisma.benefitDefinition.findFirst({
+      where: { packDefinition: { albumId: album.id }, templateV2Id: { not: null } },
+      select: { templateV2Id: true },
+    }),
+  ]);
   return {
     fotografoId: fotografo.id,
     colegioUserId: colegio.id,
@@ -22,5 +33,7 @@ export async function getContextoDemoEscolar(): Promise<
     albumSlug: album.publicSlug,
     schoolId: album.schoolId,
     handler: DEMO_ESCOLAR.fotografo.handler,
+    ultimoPedidoId: ultimoPedido?.id ?? null,
+    plantillaId: beneficio?.templateV2Id ?? null,
   };
 }

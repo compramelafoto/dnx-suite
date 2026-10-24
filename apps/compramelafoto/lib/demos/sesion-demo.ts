@@ -16,6 +16,11 @@ import { DNX_SESSION_COOKIE_OPTIONS } from "@/lib/auth";
 import { esUsuarioDemo, puedeAdministrarDemos } from "@/lib/demos/identidad";
 
 export const DEMO_RETURN_COOKIE = "dnx_demo_vuelta";
+/**
+ * Marca visible para el navegador (sin secreto): el cuadro guía solo consulta el estado de la demo
+ * si existe, así el resto de las visitas no hace ningún pedido extra.
+ */
+export const DEMO_MARCA_COOKIE = "dnx_demo_activa";
 /** Una demo dura una charla: 12 horas alcanzan y no deja una puerta abierta para siempre. */
 const DEMO_RETURN_MAX_AGE = 60 * 60 * 12;
 
@@ -66,6 +71,7 @@ export async function entrarADemo(destinoUserId: number): Promise<void> {
     ...DNX_SESSION_COOKIE_OPTIONS,
     maxAge: DEMO_RETURN_MAX_AGE,
   });
+  store.set(DEMO_MARCA_COOKIE, "1", { ...DNX_SESSION_COOKIE_OPTIONS, httpOnly: false, maxAge: DEMO_RETURN_MAX_AGE });
   await emitirSesion(destinoUserId);
 }
 
@@ -101,4 +107,5 @@ export async function salirDeDemo(): Promise<void> {
     store.set(DNX_SESSION_COOKIE, "", { ...DNX_SESSION_COOKIE_OPTIONS, maxAge: 0, expires: new Date(0) });
   }
   store.set(DEMO_RETURN_COOKIE, "", { ...DNX_SESSION_COOKIE_OPTIONS, maxAge: 0, expires: new Date(0) });
+  store.set(DEMO_MARCA_COOKIE, "", { ...DNX_SESSION_COOKIE_OPTIONS, httpOnly: false, maxAge: 0, expires: new Date(0) });
 }
