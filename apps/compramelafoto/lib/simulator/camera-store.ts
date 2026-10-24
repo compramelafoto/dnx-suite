@@ -225,7 +225,8 @@ export function CameraProvider({ children }: { children: ReactNode }) {
   const [timeOfDayMinutes, setTimeOfDayMinutesState] = useState(DEFAULT_TIME_OF_DAY_MINUTES);
   const [viewfinderMode, setViewfinderMode] = useState<ViewfinderMode>("dslr-view");
   const [compositionGuide, setCompositionGuide] = useState<CompositionGuideMode>("thirds");
-  const [showHistogram, setShowHistogram] = useState(false);
+  // Visible de entrada: es una de las herramientas que más se usan para exponer.
+  const [showHistogram, setShowHistogram] = useState(true);
   const [lastCapture, setLastCapture] = useState<CaptureResult | null>(null);
   const [gallery, setGallery] = useState<CaptureResult[]>([]);
   const [focus, setFocus] = useState<FocusState>(DEFAULT_FOCUS_STATE);

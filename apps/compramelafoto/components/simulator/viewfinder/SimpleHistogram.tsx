@@ -1,23 +1,13 @@
 "use client";
 
 import { useCameraStore } from "@/lib/simulator/camera-store";
-import { useId, useMemo } from "react";
+import { histogramFromLuminance, type HistogramData } from "@/lib/simulator/histogram";
+import { simulatorRuntime } from "@/lib/simulator/simulator-runtime";
+import { useEffect, useId, useMemo, useState } from "react";
 
 const GRAPH_WIDTH = 160;
 const GRAPH_HEIGHT = 52;
-const SAMPLE_COUNT = 96;
-
-function buildSmoothValues(bias: number): number[] {
-  const center = SAMPLE_COUNT * 0.5 + bias * SAMPLE_COUNT * 0.34;
-  const spread = bias < -0.3 ? 9 : bias > 0.3 ? 15 : 12;
-
-  return Array.from({ length: SAMPLE_COUNT }, (_, i) => {
-    const dist = (i - center) / spread;
-    const core = Math.exp(-0.5 * dist * dist);
-    const shoulder = Math.exp(-0.5 * ((i - center * 0.72) / (spread * 1.6)) ** 2) * 0.18;
-    return Math.min(1, core + shoulder);
-  });
-}
+const SAMPLE_COUNT = 64;
 
 /** Curva suave tipo área (spline cúbica entre muestras). */
 function buildAreaPath(values: number[], width: number, height: number): string {
@@ -65,28 +55,43 @@ function buildStrokePath(values: number[], width: number, height: number): strin
   return path;
 }
 
+/** Cada cuánto se rehace (ms): el fotómetro lee la imagen cada ~120 ms. */
+const REFRESH_MS = 200;
+
 /**
- * Histograma pedagógico simplificado según exposición medida.
+ * Histograma de la imagen como el de la cámara: de negro (izquierda) a blanco
+ * (derecha), ya con la exposición aplicada. Avisa si se queman las luces o se
+ * empastan las sombras.
  */
 export default function SimpleHistogram() {
-  const { derived, showHistogram } = useCameraStore();
-  const { histogramBias } = derived;
+  const { showHistogram } = useCameraStore();
   const gradientId = useId();
+  const [data, setData] = useState<HistogramData | null>(null);
 
-  const values = useMemo(() => buildSmoothValues(histogramBias), [histogramBias]);
-  const areaPath = useMemo(
-    () => buildAreaPath(values, GRAPH_WIDTH, GRAPH_HEIGHT),
-    [values],
-  );
-  const strokePath = useMemo(
-    () => buildStrokePath(values, GRAPH_WIDTH, GRAPH_HEIGHT),
-    [values],
-  );
+  useEffect(() => {
+    if (!showHistogram) return;
+    let lastGrid: unknown = null;
+    const id = window.setInterval(() => {
+      const grid = simulatorRuntime.meterGrid;
+      if (!grid || grid.luminance === lastGrid) return;
+      lastGrid = grid.luminance;
+      // La curva ACES de three.js divide la exposición por 0,6.
+      const exposure = (simulatorRuntime.appliedToneMappingExposure ?? 1) / 0.6;
+      setData(histogramFromLuminance(grid.luminance, exposure, SAMPLE_COUNT));
+    }, REFRESH_MS);
+    return () => window.clearInterval(id);
+  }, [showHistogram]);
+
+  const values = data?.bins ?? new Array<number>(SAMPLE_COUNT).fill(0);
+  const areaPath = useMemo(() => buildAreaPath(values, GRAPH_WIDTH, GRAPH_HEIGHT), [values]);
+  const strokePath = useMemo(() => buildStrokePath(values, GRAPH_WIDTH, GRAPH_HEIGHT), [values]);
 
   if (!showHistogram) return null;
+  const burnt = (data?.clippedHighlights ?? 0) > 0.02;
+  const blocked = (data?.clippedShadows ?? 0) > 0.02;
 
   return (
-    <div className="cod-vf-histogram" aria-label="Histograma simplificado" role="img">
+    <div className="cod-vf-histogram" aria-label="Histograma de la imagen" role="img">
       <svg
         className="cod-vf-histogram__svg"
         viewBox={`0 0 ${GRAPH_WIDTH} ${GRAPH_HEIGHT}`}
@@ -102,6 +107,8 @@ export default function SimpleHistogram() {
         </defs>
         <path className="cod-vf-histogram__area" d={areaPath} fill={`url(#${gradientId})`} />
         <path className="cod-vf-histogram__stroke" d={strokePath} />
+        {blocked ? <rect x="0" y="0" width="3" height={GRAPH_HEIGHT} fill="#3b82f6" /> : null}
+        {burnt ? <rect x={GRAPH_WIDTH - 3} y="0" width="3" height={GRAPH_HEIGHT} fill="#ef4444" /> : null}
       </svg>
     </div>
   );

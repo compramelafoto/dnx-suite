@@ -4424,3 +4424,31 @@
   justify-content: flex-end;
   margin-top: 1rem;
 }
+
+/* Histograma de la foto (galería). */
+.cod-photo-histogram {
+  margin: 0 0 1rem;
+}
+
+.cod-photo-histogram__svg {
+  display: block;
+  width: 100%;
+  height: 70px;
+  border-radius: var(--cod-radius);
+  background: rgba(255, 255, 255, 0.04);
+  fill: rgba(147, 197, 253, 0.85);
+}
+
+.cod-photo-histogram__caption {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: 0.35rem;
+  font-family: var(--cod-font-mono);
+  font-size: 0.68rem;
+  color: var(--cod-text-muted);
+}
+
+.cod-photo-histogram__caption .is-warn {
+  color: #f87171;
+}
