@@ -82,6 +82,17 @@ export async function cargarCompanerosDelMosaico(
   );
 }
 
+/** El dueño de la carpeta como figurita (para los bloques con «Incluir al dueño»). */
+export async function cargarDuenoDelMosaico(
+  db: Db,
+  input: { albumId: number; rosterEntryId: number | null | undefined },
+): Promise<CourseMosaicStudent | null> {
+  if (!input.rosterEntryId) return null;
+  const f = await db.albumStudentRosterEntry.findFirst({ where: { id: input.rosterEntryId, albumId: input.albumId }, select: SELECT_FILA });
+  if (!f) return null;
+  return armarCompaneros([{ ...f, urlDeVista: urlDeVistaDelRetrato(f.mosaicPhoto) }], -1)[0] ?? null;
+}
+
 /**
  * Proporción y encuadre de cara de una foto. La proporción sale de la vista (es liviana); la cara,
  * de la detección guardada si la foto ya se analizó.
@@ -185,7 +196,11 @@ export async function registrarRetratoDeLaFamilia(
   });
 }
 
-/** Mide los retratos de un curso que todavía no tienen proporción ni encuadre (los puso la familia al canjear). */
+/**
+ * Mide los retratos de un curso que todavía no tienen encuadre (los puso la familia al canjear o
+ * el colegio). Cuatro a la vez; una foto que no se pudo medir queda con el encuadre de plano medio
+ * y no se vuelve a intentar.
+ */
 export async function completarMediciones(
   db: Db,
   albumId: number,
@@ -200,13 +215,17 @@ export async function completarMediciones(
       courseName: curso.courseName,
       division: curso.division,
       mosaicPhotoId: { not: null },
-      mosaicPhotoAspect: null,
+      mosaicPhotoCrop: { equals: Prisma.DbNull },
     },
     select: { id: true, mosaicPhotoId: true },
   });
-  for (const p of pendientes) {
-    const { aspect, crop } = await medirRetrato(db, p.mosaicPhotoId!);
-    await db.albumStudentRosterEntry.update({ where: { id: p.id }, data: { mosaicPhotoAspect: aspect, mosaicPhotoCrop: crop } });
-  }
+  const cola = [...pendientes];
+  const trabajar = async () => {
+    for (let p = cola.shift(); p; p = cola.shift()) {
+      const { aspect, crop } = await medirRetrato(db, p.mosaicPhotoId!);
+      await db.albumStudentRosterEntry.update({ where: { id: p.id }, data: { mosaicPhotoAspect: aspect, mosaicPhotoCrop: crop } });
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(4, cola.length) }, trabajar));
   return pendientes.length;
 }

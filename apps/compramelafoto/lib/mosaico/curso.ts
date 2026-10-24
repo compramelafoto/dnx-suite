@@ -1,5 +1,5 @@
 import "server-only";
-import { Prisma } from "@/lib/prisma";
+import { Prisma, type PrismaClient } from "@/lib/prisma";
 import { rosterCourseKey } from "@/lib/design-v2/class-list";
 import { courseDisplayName } from "@/lib/design-v2/values";
 import { asignarRetrato, completarMediciones, urlDeVistaDelRetrato, type FuenteDelRetrato } from "./retratos";
@@ -108,7 +108,7 @@ export type ResumenDelCurso = {
 async function urlsDeFotos(db: Db, albumId: number, ids: number[]): Promise<Map<number, string | null>> {
   if (ids.length === 0) return new Map();
   const fotos = await db.photo.findMany({
-    where: { id: { in: ids }, albumId },
+    where: { id: { in: ids }, albumId, isRemoved: false },
     select: { id: true, previewUrl: true, originalKey: true, previewWatermarkedKey: true },
   });
   return new Map(fotos.map((f) => [f.id, urlDeVistaDelRetrato(f)]));
@@ -195,7 +195,7 @@ export async function guardarIntegrantes(db: Db, input: { albumId: number; cours
     const n = await db.photo.count({ where: { id: { in: ids }, albumId: input.albumId, isRemoved: false } });
     if (n !== new Set(ids).size) throw new MosaicoError("Alguna foto no es de este álbum.", 422);
   }
-  await asegurarEstado(db, input.albumId, input.courseKey);
+  exigirAbierto(await asegurarEstado(db, input.albumId, input.courseKey));
   await db.albumCourseMosaic.update({
     where: { albumId_courseKey: { albumId: input.albumId, courseKey: input.courseKey } },
     data: { staffJson: integrantes as unknown as Prisma.InputJsonValue },
@@ -204,20 +204,25 @@ export async function guardarIntegrantes(db: Db, input: { albumId: number; cours
 
 /** Agrega (o saca) retratos sin identificar: fotos del álbum que el colegio va a nombrar. */
 export async function cambiarSinIdentificar(
-  db: Db,
+  db: PrismaClient,
   input: { albumId: number; courseKey: string; agregar?: number[]; quitar?: number[] },
 ) {
   if (!cursoDeLaClave(input.courseKey)) throw new MosaicoError("Ese curso no existe.", 404);
-  const e = await asegurarEstado(db, input.albumId, input.courseKey);
-  exigirAbierto(e);
   const agregar = leerIdsDeFotos(input.agregar ?? []);
   if (agregar.length) {
     const n = await db.photo.count({ where: { id: { in: agregar }, albumId: input.albumId, isRemoved: false } });
     if (n !== agregar.length) throw new MosaicoError("Alguna foto no es de este álbum.", 422);
   }
   const quitar = new Set(leerIdsDeFotos(input.quitar ?? []));
-  const lista = [...new Set([...leerIdsDeFotos(e.unidentifiedPhotoIdsJson), ...agregar])].filter((id) => !quitar.has(id)).slice(0, 200);
-  await db.albumCourseMosaic.update({ where: { id: e.id }, data: { unidentifiedPhotoIdsJson: lista } });
+  await db.$transaction(async (tx) => {
+    const creado = await asegurarEstado(tx, input.albumId, input.courseKey);
+    // Bloqueada mientras se reescribe la lista: el colegio puede estar nombrando al mismo tiempo.
+    await tx.$queryRaw`SELECT id FROM "AlbumCourseMosaic" WHERE id = ${creado.id} FOR UPDATE`;
+    const e = (await tx.albumCourseMosaic.findUnique({ where: { id: creado.id } }))!;
+    exigirAbierto(e);
+    const lista = [...new Set([...leerIdsDeFotos(e.unidentifiedPhotoIdsJson), ...agregar])].filter((id) => !quitar.has(id)).slice(0, 200);
+    await tx.albumCourseMosaic.update({ where: { id: e.id }, data: { unidentifiedPhotoIdsJson: lista } });
+  });
 }
 
 /** Un enlace nuevo para el colegio (el anterior deja de andar). Devuelve el token una sola vez. */
@@ -263,38 +268,52 @@ export async function cursoDelEnlace(db: Db, token: string) {
   return e;
 }
 
-/** ¿Esta foto la puede ver el colegio con su enlace? (sin identificar, docentes o retrato del curso) */
+/**
+ * ¿Esta foto la puede ver el colegio con su enlace? Sólo los retratos sin identificar y las fotos
+ * de los docentes: nunca los retratos que eligieron las familias.
+ */
 export async function fotoVisibleParaElColegio(db: Db, token: string, photoId: number): Promise<boolean> {
   const e = await cursoDelEnlace(db, token);
   if (!e) return false;
-  const r = await resumenDelCurso(db, e.albumId, e.courseKey);
-  return (
-    r.sinIdentificar.some((s) => s.photoId === photoId) ||
-    r.integrantes.some((i) => i.photoId === photoId) ||
-    r.alumnos.some((a) => a.retrato?.photoId === photoId)
-  );
+  const estado = await db.albumCourseMosaic.findUnique({ where: { id: e.id }, select: { unidentifiedPhotoIdsJson: true, staffJson: true } });
+  const visibles = new Set([
+    ...leerIdsDeFotos(estado?.unidentifiedPhotoIdsJson),
+    ...leerIntegrantes(estado?.staffJson).flatMap((i) => (i.photoId ? [i.photoId] : [])),
+  ]);
+  if (!visibles.has(photoId)) return false;
+  return (await db.photo.count({ where: { id: photoId, albumId: e.albumId, isRemoved: false } })) === 1;
 }
 
-/** El colegio dice de quién es un retrato sin identificar. Queda a confirmar por el fotógrafo. */
-export async function asignarDesdeElColegio(db: Db, input: { token: string; photoId: number; rosterEntryId: number }) {
+/**
+ * El colegio dice de quién es un retrato sin identificar. Queda a confirmar por el fotógrafo. No
+ * pisa a un chico que ya tiene retrato (el que eligió la familia o puso el fotógrafo), y la fila
+ * del curso se bloquea para que la misma foto no termine en dos chicos.
+ */
+export async function asignarDesdeElColegio(db: PrismaClient, input: { token: string; photoId: number; rosterEntryId: number }) {
   const e = await cursoDelEnlace(db, input.token);
   if (!e) throw new MosaicoError("Este enlace venció o el curso ya se cerró. Pedile uno nuevo al fotógrafo.", 410);
-  const sinIdentificar = leerIdsDeFotos(
-    (await db.albumCourseMosaic.findUnique({ where: { id: e.id }, select: { unidentifiedPhotoIdsJson: true } }))?.unidentifiedPhotoIdsJson,
-  );
-  if (!sinIdentificar.includes(input.photoId)) throw new MosaicoError("Esa foto ya no está para nombrar.", 409);
-  await filaDelCurso(db, e.albumId, e.courseKey, input.rosterEntryId);
-  const ok = await asignarRetrato(db, {
-    albumId: e.albumId,
-    rosterEntryId: input.rosterEntryId,
-    photoId: input.photoId,
-    fuente: "SCHOOL",
-    revisar: true,
-  });
-  if (!ok) throw new MosaicoError("No se pudo guardar.", 422);
-  await db.albumCourseMosaic.update({
-    where: { id: e.id },
-    data: { unidentifiedPhotoIdsJson: sinIdentificar.filter((id) => id !== input.photoId) },
+  await db.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "AlbumCourseMosaic" WHERE id = ${e.id} FOR UPDATE`;
+    const fila = await tx.albumCourseMosaic.findUnique({ where: { id: e.id }, select: { unidentifiedPhotoIdsJson: true, closedAt: true } });
+    if (fila?.closedAt) throw new MosaicoError("El curso ya se cerró.", 410);
+    const sinIdentificar = leerIdsDeFotos(fila?.unidentifiedPhotoIdsJson);
+    if (!sinIdentificar.includes(input.photoId)) throw new MosaicoError("Esa foto ya no está para nombrar.", 409);
+    await filaDelCurso(tx, e.albumId, e.courseKey, input.rosterEntryId);
+    const chico = await tx.albumStudentRosterEntry.findUnique({ where: { id: input.rosterEntryId }, select: { mosaicPhotoId: true } });
+    if (chico?.mosaicPhotoId != null) throw new MosaicoError("Ese chico ya tiene su retrato.", 409);
+    const ok = await asignarRetrato(tx, {
+      albumId: e.albumId,
+      rosterEntryId: input.rosterEntryId,
+      photoId: input.photoId,
+      fuente: "SCHOOL",
+      revisar: true,
+      medir: false,
+    });
+    if (!ok) throw new MosaicoError("No se pudo guardar.", 422);
+    await tx.albumCourseMosaic.update({
+      where: { id: e.id },
+      data: { unidentifiedPhotoIdsJson: sinIdentificar.filter((id) => id !== input.photoId) },
+    });
   });
 }
 
@@ -311,7 +330,7 @@ export async function corregirIntegrantesDesdeElColegio(db: Db, input: { token: 
   const texto = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : null);
   const corregidos = actuales.map((a, i) => {
     const r = crudos[i] && typeof crudos[i] === "object" ? (crudos[i] as Record<string, unknown>) : {};
-    return { ...a, role: texto(r.role, 60) || a.role, name: texto(r.name, 120) ?? a.name };
+    return { ...a, role: texto(r.role, 60) || a.role, name: texto(r.name, 120) || a.name };
   });
   await db.albumCourseMosaic.update({ where: { id: e.id }, data: { staffJson: corregidos as unknown as Prisma.InputJsonValue } });
 }

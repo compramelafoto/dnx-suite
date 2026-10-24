@@ -879,6 +879,10 @@ export default function AlbumMosaicoSection({ albumId }: { albumId: number }) {
         </>
       ) : null}
 
+      {courseKey && resumen && cerrado ? (
+        <CarpetasDelCurso albumId={albumId} courseKey={courseKey} conRetrato={conRetrato} />
+      ) : null}
+
       <SelectorDeFotos
         albumId={albumId}
         abierto={selector != null}
@@ -959,5 +963,172 @@ export default function AlbumMosaicoSection({ albumId }: { albumId: number }) {
         </AppModal>
       ) : null}
     </div>
+  );
+}
+
+/* ------------------------------ Carpetas de todo el curso ------------------------------ */
+
+type ResultadoCarpetas = { creadas: number; yaEstaban: number; sinRetrato: string[]; designIds: number[] };
+
+/**
+ * Con el curso cerrado: una carpeta por alumno con su retrato como foto grande y el mosaico de
+ * sus compañeros. Quedan como diseños para revisar y se pueden aprobar todos juntos.
+ */
+function CarpetasDelCurso({ albumId, courseKey, conRetrato }: { albumId: number; courseKey: string; conRetrato: number }) {
+  const [plantillas, setPlantillas] = useState<Array<{ id: string; name: string }> | null>(null);
+  const [templateId, setTemplateId] = useState("");
+  const [grupal, setGrupal] = useState<number | null>(null);
+  const [elegirGrupal, setElegirGrupal] = useState(false);
+  const [ocupado, setOcupado] = useState<"armar" | "aprobar" | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [resultado, setResultado] = useState<ResultadoCarpetas | null>(null);
+  const [avance, setAvance] = useState<{ hechas: number; total: number; fallas: string[] } | null>(null);
+
+  useEffect(() => {
+    let vivo = true;
+    void (async () => {
+      try {
+        const res = await fetch(`/api/dashboard/albums/${albumId}/mosaico/plantillas`, { credentials: "include", cache: "no-store" });
+        const d = await res.json().catch(() => ({}));
+        if (!vivo) return;
+        const lista = Array.isArray(d.plantillas) ? (d.plantillas as Array<{ id: string; name: string }>) : [];
+        setPlantillas(lista);
+        if (lista[0]) setTemplateId((t) => t || lista[0]!.id);
+      } catch {
+        if (vivo) setPlantillas([]);
+      }
+    })();
+    return () => {
+      vivo = false;
+    };
+  }, [albumId]);
+
+  const armar = async () => {
+    setOcupado("armar");
+    setError(null);
+    try {
+      const res = await fetch(`/api/dashboard/albums/${albumId}/mosaico/${encodeURIComponent(courseKey)}`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accion: "armarCarpetas", templateId, groupPhotoId: grupal }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok || !d.ok) throw new Error(d.error || "No se pudieron armar las carpetas.");
+      setResultado(d as ResultadoCarpetas);
+      setAvance(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudieron armar las carpetas.");
+    } finally {
+      setOcupado(null);
+    }
+  };
+
+  /** Aprueba una por una (cada una se dibuja y se sube): se ve el avance y una falla no frena las demás. */
+  const aprobarTodas = async () => {
+    if (!resultado) return;
+    setOcupado("aprobar");
+    setError(null);
+    const fallas: string[] = [];
+    setAvance({ hechas: 0, total: resultado.designIds.length, fallas });
+    for (const [i, id] of resultado.designIds.entries()) {
+      try {
+        const res = await fetch(`/api/fotografo/disenos/${id}/approve`, {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+        });
+        const d = await res.json().catch(() => ({}));
+        if (!res.ok || !d.ok || d.status !== "EXPORTED") fallas.push(`Diseño ${id}: ${d.error || "no se generaron los archivos"}`);
+      } catch {
+        fallas.push(`Diseño ${id}: se cortó la conexión`);
+      }
+      setAvance({ hechas: i + 1, total: resultado.designIds.length, fallas: [...fallas] });
+    }
+    setOcupado(null);
+  };
+
+  return (
+    <Card className="p-5 space-y-3">
+      <div>
+        <h3 className="text-base font-semibold text-[#111827] m-0">Carpetas de todo el curso</h3>
+        <p className="text-sm text-[#4b5563] mt-1 mb-0">
+          Arma una carpeta por alumno ({conRetrato} con retrato), con su retrato como foto grande y el mosaico de sus
+          compañeros. Es para el pedido del colegio: no se cobra nada adentro del sistema. Quedan en «Diseños» para
+          revisar, y las podés aprobar todas juntas para imprimir.
+        </p>
+      </div>
+      {plantillas == null ? (
+        <p className="text-sm text-[#6b7280] m-0">Buscando plantillas con mosaico…</p>
+      ) : plantillas.length === 0 ? (
+        <p className="text-sm text-[#6b7280] m-0">
+          No tenés plantillas con el bloque «Mosaico del curso». Elegí una del catálogo (filtro «Mosaico de compañeros»).
+        </p>
+      ) : (
+        <div className="space-y-3">
+          <label className="block text-sm text-[#374151]">
+            Plantilla
+            <select
+              className="mt-1 block w-full rounded-lg border border-[#d1d5db] px-3 py-2 text-sm"
+              value={templateId}
+              onChange={(e) => setTemplateId(e.target.value)}
+              disabled={ocupado != null}
+            >
+              {plantillas.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="flex flex-wrap items-center gap-3 text-sm text-[#374151]">
+            <span>Foto grupal: {grupal ? `foto ${grupal}` : "ninguna"}</span>
+            <Button type="button" variant="secondary" disabled={ocupado != null} onClick={() => setElegirGrupal(true)}>
+              {grupal ? "Cambiar" : "Elegir la foto grupal"}
+            </Button>
+          </div>
+          <Button type="button" disabled={ocupado != null || !templateId} onClick={() => void armar()}>
+            {ocupado === "armar" ? "Armando las carpetas…" : "Armar las carpetas"}
+          </Button>
+        </div>
+      )}
+      {resultado ? (
+        <div className="space-y-2 text-sm text-[#374151]">
+          <p className="m-0">
+            Listo: {resultado.creadas} {resultado.creadas === 1 ? "carpeta nueva" : "carpetas nuevas"}
+            {resultado.yaEstaban ? ` y ${resultado.yaEstaban} que ya estaban` : ""}.
+            {resultado.sinRetrato.length ? ` Sin retrato (no se armaron): ${resultado.sinRetrato.join(", ")}.` : ""}
+          </p>
+          <div className="flex flex-wrap gap-3">
+            <a href="/fotografo/disenos" className="font-medium text-[#c27b3d] underline">
+              Revisarlas en «Diseños»
+            </a>
+            <Button type="button" variant="secondary" disabled={ocupado != null || resultado.designIds.length === 0} onClick={() => void aprobarTodas()}>
+              {ocupado === "aprobar" ? "Aprobando…" : "Aprobar e imprimir todas"}
+            </Button>
+          </div>
+          {avance ? (
+            <p className="m-0 text-[#4b5563]">
+              {avance.hechas} de {avance.total} procesadas
+              {avance.fallas.length ? ` · ${avance.fallas.length} con problemas: ${avance.fallas.join(" · ")}` : ""}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+      {error ? <p className="text-sm text-[#b91c1c] m-0">{error}</p> : null}
+      <SelectorDeFotos
+        albumId={albumId}
+        abierto={elegirGrupal}
+        multiple={false}
+        titulo="Foto grupal del curso"
+        descripcion="Va en el hueco de la foto grupal de cada carpeta."
+        onCerrar={() => setElegirGrupal(false)}
+        onElegir={(ids) => {
+          setGrupal(ids[0] ?? null);
+          setElegirGrupal(false);
+        }}
+      />
+    </Card>
   );
 }

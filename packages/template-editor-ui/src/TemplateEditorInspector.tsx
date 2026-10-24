@@ -513,6 +513,20 @@ export function TemplateEditorInspector({
               }
             />
           ) : null}
+          {offersClassList && /^photo_/.test(String(asObject(cfg.source).variableKey ?? "")) ? (
+            <InspectorPanel title="Fondo de la foto">
+              <ToggleSwitch
+                checked={cfg.removeBackground === true}
+                onChange={(on) => updateConfig({ removeBackground: on ? true : undefined })}
+                label="Quitar el fondo (recorte automático de la persona)"
+              />
+              <p className="text-[10px] leading-snug text-[color:var(--te-ink-faint)]">
+                La foto del cliente se imprime recortada, sin fondo, sobre el dibujo de la plantilla. Funciona mejor con
+                fotos de fondo liso. El fotógrafo ve el recorte antes de aprobar y, si no le gusta o no hay recorte, va la
+                foto entera: diseñá el hueco para que se vea bien de las dos formas.
+              </p>
+            </InspectorPanel>
+          ) : null}
           <InspectorPanel title="Contenedor de imagen">
             {/*
               "Uso del marco" distingue foto individual de foto grupal, que es una noción de
@@ -838,6 +852,23 @@ function CourseMosaicOptionsPanel({
           />
         </div>
       ) : null}
+      <ToggleSwitch
+        checked={o.emptyPhotos}
+        onChange={(emptyPhotos) => onChange({ emptyPhotos })}
+        label="Recuadros vacíos, para pegar figuritas"
+      />
+      {o.emptyPhotos ? (
+        <ColorField label="Color del lugar de cada figurita" value={o.emptyFill} onChange={(emptyFill) => onChange({ emptyFill })} />
+      ) : null}
+      <ToggleSwitch
+        checked={o.includeOwner}
+        onChange={(includeOwner) => onChange({ includeOwner })}
+        label="Incluir al dueño de la carpeta (plancha de figuritas)"
+      />
+      <p className="text-[10px] leading-snug text-[color:var(--te-ink-faint)]">
+        Álbum de figuritas: una página con recuadros vacíos y el nombre de cada chico, y otra con las figuritas (fotos sin
+        nombre, con el dueño incluido) para imprimir en papel autoadhesivo y recortar.
+      </p>
       {o.frame === "circle" ? null : (
       <div>
         <FieldLabel>Proporción del retrato</FieldLabel>

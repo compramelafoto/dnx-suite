@@ -7,7 +7,7 @@ import { loadDesignTemplateVersion, type DesignTemplateVersion } from "@/lib/des
 import { loadCourseStudentGroup } from "@/lib/design-v2/class-list";
 import { buildDesignValues, courseDisplayName } from "@/lib/design-v2/values";
 import { parseDesignV2Data } from "@/lib/design-v2/design-data";
-import { cargarCompanerosDelMosaico, registrarRetratoDeLaFamilia } from "@/lib/mosaico/retratos";
+import { cargarCompanerosDelMosaico, cargarDuenoDelMosaico, registrarRetratoDeLaFamilia } from "@/lib/mosaico/retratos";
 import type { RevisionDelCliente } from "@/lib/revision-de-impresion/autorizacion";
 import {
   pickSelectionPhotosForDesign,
@@ -92,6 +92,7 @@ export async function loadSchoolDesignContext(
     courseDisplayName(order.studentCourseSnapshot, order.studentDivisionSnapshot);
   // Los compañeros del mosaico, con los retratos que haya hoy; al imprimir se vuelven a armar.
   const courseMosaic = await cargarCompanerosDelMosaico(db, { albumId: order.albumId, rosterEntryId: order.albumRosterEntryId });
+  const courseMosaicOwner = await cargarDuenoDelMosaico(db, { albumId: order.albumId, rosterEntryId: order.albumRosterEntryId });
   return {
     albumId: order.albumId,
     albumRosterEntryId: order.albumRosterEntryId,
@@ -110,6 +111,7 @@ export async function loadSchoolDesignContext(
       // El título del curso en el listado es el mismo texto que «Curso» del diseño.
       courseGroups: courseGroup ? [{ ...courseGroup, title: courseName ?? courseGroup.title }] : null,
       courseMosaic,
+      courseMosaicOwner,
     }),
   };
 }

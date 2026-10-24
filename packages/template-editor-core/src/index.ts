@@ -69,6 +69,9 @@ export {
   isCourseMosaicConfig,
   layoutCourseMosaic,
   parseCourseMosaic,
+  parseCourseMosaicOwner,
+  serializeCourseMosaicOwner,
+  COURSE_MOSAIC_OWNER_VARIABLE_KEY,
   readCourseMosaicOptions,
   serializeCourseMosaic,
   type CourseMosaicCell,
@@ -77,6 +80,7 @@ export {
 } from "@repo/template-engine";
 export * from "./clamp-block-position";
 export * from "./create-default-blocks";
+export * from "./huecos-sin-fondo";
 export * from "./diagnostic-quick-fixes";
 export * from "./editor-canvas-tool";
 export * from "./editor-font-catalog";

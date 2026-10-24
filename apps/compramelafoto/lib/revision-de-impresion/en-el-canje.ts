@@ -1,5 +1,5 @@
 import "server-only";
-import { COURSE_MOSAIC_VARIABLE_KEY } from "@repo/template-engine";
+import { COURSE_MOSAIC_OWNER_VARIABLE_KEY, COURSE_MOSAIC_VARIABLE_KEY } from "@repo/template-engine";
 import { createHash } from "node:crypto";
 import type { Prisma } from "@/lib/prisma";
 import type { PreventaPackSnapshotV1 } from "@/lib/preventa-canjeable/preventa-pack-snapshot-v1";
@@ -77,6 +77,6 @@ export async function prepararRevisionDelCanje(
 export function huellaDelContenido(content: { values: Record<string, string>; slots: unknown }): string {
   // El mosaico del curso no entra: son los compañeros, que se completan después y no los revisa
   // la familia. Si entrara, el retrato de cualquier compañero anularía su autorización.
-  const { [COURSE_MOSAIC_VARIABLE_KEY]: _mosaico, ...values } = content.values;
+  const { [COURSE_MOSAIC_VARIABLE_KEY]: _mosaico, [COURSE_MOSAIC_OWNER_VARIABLE_KEY]: _dueno, ...values } = content.values;
   return createHash("sha256").update(contenidoCanonico({ values, slots: content.slots })).digest("hex");
 }

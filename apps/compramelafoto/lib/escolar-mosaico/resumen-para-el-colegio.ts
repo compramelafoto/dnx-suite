@@ -66,6 +66,7 @@ export function leerAccionDelColegio(body: unknown): AccionDelColegio | null {
       const r = x && typeof x === "object" ? (x as Record<string, unknown>) : {};
       return {
         role: typeof r.role === "string" ? r.role.trim().slice(0, 60) : "",
+        // Vacío o ausente: se conserva el nombre que había (el colegio no borra nombres).
         name: typeof r.name === "string" ? r.name.trim().slice(0, 120) : "",
       };
     });

@@ -1,5 +1,5 @@
 import "server-only";
-import type { PhotoCrop } from "@repo/template-editor-core";
+import { huecosSinFondo, type PhotoCrop } from "@repo/template-editor-core";
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
@@ -21,6 +21,7 @@ import { huellaDelContenido } from "@/lib/revision-de-impresion/en-el-canje";
 import type { RevisionDelCliente } from "@/lib/revision-de-impresion/autorizacion";
 import { loadDesignTemplateVersion, type DesignTemplateVersion } from "./template";
 import { CursoAbiertoError, prepararMosaicoParaImprimir } from "@/lib/mosaico/al-aprobar";
+import { asegurarRecortes, cargarRecorte } from "@/lib/recortes/recortes";
 
 /**
  * Diseños armados con el diseñador nuevo: crearlos, corregirlos, aprobarlos y pedir cambios.
@@ -185,6 +186,7 @@ const PROJECT_SELECT = {
   albumId: true,
   albumOrderId: true,
   orderItemId: true,
+  rosterEntryId: true,
   reviewNote: true,
   approvedAt: true,
   createdAt: true,
@@ -280,6 +282,7 @@ export async function approveDesignProject(
     data0 = await prepararMosaicoParaImprimir({
       albumId: loaded.project.albumId,
       orderItemId: loaded.project.orderItemId,
+      rosterEntryId: loaded.project.rosterEntryId,
       template,
       data: loaded.data,
     });
@@ -316,10 +319,19 @@ export async function approveDesignProject(
   let pdfUrl: string | null = null;
   const jpgUrls: string[] = [];
   try {
+    // Los huecos «Quitar el fondo» usan la foto sin fondo: se generan las que falten (si el
+    // servicio está configurado; si no, o si el fotógrafo la descartó, va la foto entera).
+    const sinFondo = huecosSinFondo(template.legacy.blocks as Array<{ id: string; type: string; configJson?: unknown }>);
+    const fotosSinFondo = [...sinFondo].flatMap((b) => {
+      const id = data0.slots[b]?.photoId;
+      return id != null ? [id] : [];
+    });
+    if (fotosSinFondo.length) await asegurarRecortes(fotosSinFondo);
     const rendered = await renderDesignV2({
       template,
       data: data0,
       loadPhoto: loadDesignPhotoBytes,
+      loadCutout: fotosSinFondo.length ? cargarRecorte : undefined,
       formats: { pdf: true, jpg: true },
       fileBaseName: `diseno-${id}`,
     });

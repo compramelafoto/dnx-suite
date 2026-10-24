@@ -200,3 +200,28 @@ describe("editorADocumento — mosaico sin tipografía guardada", () => {
     assert.ok(Math.abs(Number(foto.y) - (100 + esperado.cells[0]!.photo.y) * pxAmm) < 1e-6);
   });
 });
+
+describe("editorADocumento — figuritas", () => {
+  it("con recuadros vacíos no hay foto ni silueta: un recuadro del color elegido y el nombre", () => {
+    const { todos } = dibujar([mosaico("alb", { emptyPhotos: true, emptyFill: "#fef3c7" })], tres);
+    assert.equal(partes(todos, "alb", "foto").length, 0);
+    assert.equal(partes(todos, "alb", "silueta").length, 0);
+    const vacios = partes(todos, "alb", "vacio");
+    assert.equal(vacios.length, 3);
+    assert.equal(vacios[0]!.fillColor, "#fef3c7");
+    assert.equal(partes(todos, "alb", "nombre").length, 3);
+  });
+
+  it("la plancha con «incluir al dueño» lo suma; el álbum no", () => {
+    const r = editorADocumento({
+      canvas: { width: 3600, height: 2400, dpi: 300 },
+      blocks: [mosaico("alb"), mosaico("pla", { includeOwner: true }, { pageIndex: 1 })],
+      mosaicoDelCurso: tres,
+      duenoDelMosaico: { firstName: "Martina", lastName: "López", photoId: 9 },
+    });
+    const todos = (r.document as { sides: { blocks: Dibujable[] }[] }).sides.flatMap((s) => s.blocks);
+    assert.equal(partes(todos, "alb", "nombre").length, 3);
+    assert.equal(partes(todos, "pla", "nombre").length, 4);
+    assert.ok(partes(todos, "pla", "foto").some((f) => f.resourceRef === "mosaic-photo:9"));
+  });
+});

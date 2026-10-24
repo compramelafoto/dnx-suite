@@ -3127,6 +3127,22 @@ model AlbumStudentRosterEntry {
 
 /// Estado de un curso del padrón para el «Mosaico del curso»: cerrado o no, maestra y directivos,
 /// retratos sin identificar y el enlace del colegio para ponerles nombre.
+/// La foto sin fondo, para los huecos de plantilla marcados «Quitar el fondo». Se genera con un
+/// servicio externo (que no guarda la foto) cuando hace falta y el fotógrafo la puede descartar.
+model PhotoCutout {
+  id        Int       @id @default(autoincrement())
+  photoId   Int       @unique
+  /// PENDING | READY | FAILED | DISCARDED
+  status    String    @default("PENDING")
+  /// Clave del PNG con transparencia en R2.
+  key       String?
+  provider  String?
+  error     String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  photo     Photo     @relation(fields: [photoId], references: [id], onDelete: Cascade)
+}
+
 model AlbumCourseMosaic {
   id                       Int       @id @default(autoincrement())
   albumId                  Int
@@ -3259,6 +3275,7 @@ model Photo {
   albumsAsCover            Album[]                      @relation("AlbumCoverPhoto")
   faceDetections           FaceDetection[]
   rosterMosaicPortraits    AlbumStudentRosterEntry[] @relation("AlbumRosterMosaicPhoto")
+  cutout                   PhotoCutout?
   faceMatches              FaceMatch[]
   faceMatchEvents          FaceMatchEvent[]
   ocrTokens                OcrToken[]
@@ -4585,6 +4602,8 @@ model DesignProject {
   /// Pack de galería: el pedido pagado y el borrador del pack (uno por pack dentro del pedido).
   albumOrderId        Int?
   albumPackDraftId    String?             @unique
+  /// Carpetas armadas para todo el curso desde el «Mosaico del curso»: el alumno del padrón dueño.
+  rosterEntryId       Int?
   albumId             Int?
   /// Dueño del álbum: quien revisa y aprueba. Evita recorrer el pedido para cada permiso.
   photographerUserId  Int?
@@ -4616,6 +4635,7 @@ model DesignProject {
   @@index([photographerUserId, status])
   @@index([albumOrderId])
   @@index([photographerUserId, printBatchName])
+  @@index([rosterEntryId])
 }
 
 model DesignRevision {

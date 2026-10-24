@@ -96,7 +96,7 @@ async function main() {
   for (const p of plantillas) {
     const { pngs, avisos } = await dibujarPlantilla(p, fondos, DPI_VERIFICACION);
     for (const [i, png] of pngs.entries()) {
-      await writeFile(path.join(verif, `${p.modelo.slug}-${i === 0 ? "exterior" : "interior"}.png`), png);
+      await writeFile(path.join(verif, `${p.modelo.slug}-${["exterior", "interior", "plancha"][i] ?? `cara-${i + 1}`}.png`), png);
     }
     if (avisos.length) console.log(`  avisos ${p.modelo.slug}: ${avisos.join(" | ")}`);
     // Con logo del colegio, también cómo queda si el colegio no lo cargó (el bloque no se dibuja).

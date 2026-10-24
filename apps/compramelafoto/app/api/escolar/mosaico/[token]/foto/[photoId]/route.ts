@@ -58,7 +58,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ token: stri
     const e = await cursoDelEnlace(prisma, token);
     if (!e) return noEncontrada();
     const foto = await prisma.photo.findFirst({
-      where: { id: photoId, albumId: e.albumId },
+      where: { id: photoId, albumId: e.albumId, isRemoved: false },
       select: { previewWatermarkedKey: true, previewUrl: true, originalKey: true },
     });
     if (!foto) return noEncontrada();
@@ -73,7 +73,13 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ token: stri
 
     const base = await leerPrimera([keyDe(normalizePreviewUrl(foto.previewUrl, foto.originalKey)), foto.originalKey]);
     if (!base) return noEncontrada();
-    const img = await sharp(base).rotate().resize({ width: ANCHO, height: ANCHO, fit: "inside", withoutEnlargement: true }).jpeg({ quality: 80 }).toBuffer();
+    // Sin vista con marca de agua generada, nunca la foto limpia: se le pone una marca encima.
+    const chica = await sharp(base).rotate().resize({ width: ANCHO, height: ANCHO, fit: "inside", withoutEnlargement: true }).toBuffer({ resolveWithObject: true });
+    const { width: w, height: h } = chica.info;
+    const marca = Buffer.from(
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><g transform="rotate(-30 ${w / 2} ${h / 2})" fill="#ffffff" fill-opacity="0.45" stroke="#000000" stroke-opacity="0.25" stroke-width="1" font-family="Helvetica, Arial, sans-serif" font-weight="700" font-size="${Math.round(w / 9)}" text-anchor="middle"><text x="${w / 2}" y="${h / 2 - w / 6}">MUESTRA</text><text x="${w / 2}" y="${h / 2 + w / 12}">MUESTRA</text><text x="${w / 2}" y="${h / 2 + w / 3}">MUESTRA</text></g></svg>`,
+    );
+    const img = await sharp(chica.data).composite([{ input: marca }]).jpeg({ quality: 78 }).toBuffer();
     return responder(img);
   } catch (err) {
     console.error("[escolar/mosaico foto]", err);

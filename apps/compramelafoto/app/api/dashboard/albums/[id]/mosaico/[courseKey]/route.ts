@@ -12,9 +12,12 @@ import {
   reabrirCurso,
   resumenDelCurso,
 } from "@/lib/mosaico/curso";
+import { armarCarpetasDelCurso } from "@/lib/mosaico/carpetas-del-curso";
 import { accesoAlMosaico, respuestaDeError } from "../acceso";
 
 export const runtime = "nodejs";
+// Medir los retratos de un curso entero (y generar recortes) puede llevar un rato.
+export const maxDuration = 300;
 export const dynamic = "force-dynamic";
 
 type Ctx = { params: Promise<{ id: string; courseKey: string }> };
@@ -101,6 +104,19 @@ export async function POST(req: Request, context: Ctx) {
       case "cerrar":
         await cerrarCurso(prisma, { albumId, courseKey, userId });
         return NextResponse.json({ ok: true });
+      case "armarCarpetas": {
+        if (typeof body.templateId !== "string" || !body.templateId.trim()) {
+          throw new MosaicoError("Elegí la plantilla de la carpeta.", 400);
+        }
+        const resultado = await armarCarpetasDelCurso({
+          albumId,
+          courseKey,
+          templateId: body.templateId.trim(),
+          photographerUserId: userId,
+          groupPhotoId: body.groupPhotoId == null ? null : idPositivo(body.groupPhotoId, "la foto grupal"),
+        });
+        return NextResponse.json({ ok: true, ...resultado });
+      }
       case "reabrir":
         await reabrirCurso(prisma, { albumId, courseKey });
         return NextResponse.json({ ok: true });
