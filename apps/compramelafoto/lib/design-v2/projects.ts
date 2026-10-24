@@ -20,6 +20,7 @@ import { renderDesignV2 } from "./render";
 import { huellaDelContenido } from "@/lib/revision-de-impresion/en-el-canje";
 import type { RevisionDelCliente } from "@/lib/revision-de-impresion/autorizacion";
 import { loadDesignTemplateVersion, type DesignTemplateVersion } from "./template";
+import { CursoAbiertoError, prepararMosaicoParaImprimir } from "@/lib/mosaico/al-aprobar";
 
 /**
  * Diseños armados con el diseñador nuevo: crearlos, corregirlos, aprobarlos y pedir cambios.
@@ -273,6 +274,26 @@ export async function approveDesignProject(
   const loaded = await loadDesignProjectForActor(id, actor);
   const template = await loadTemplateForDesign(loaded.data);
 
+  // Una carpeta con mosaico se imprime con los compañeros de ahora y sólo con el curso cerrado.
+  let data0: DesignV2Data;
+  try {
+    data0 = await prepararMosaicoParaImprimir({
+      albumId: loaded.project.albumId,
+      orderItemId: loaded.project.orderItemId,
+      template,
+      data: loaded.data,
+    });
+  } catch (err) {
+    if (err instanceof CursoAbiertoError) throw new DesignProjectError(err.message, 409);
+    throw err;
+  }
+  if (data0 !== loaded.data) {
+    await prisma.designRevision.update({
+      where: { id: loaded.revisionId },
+      data: { dataJson: data0 as unknown as Prisma.InputJsonValue },
+    });
+  }
+
   await prisma.designProject.update({
     where: { id },
     data: {
@@ -284,7 +305,7 @@ export async function approveDesignProject(
   });
 
   const fail = async (error: string) => {
-    const data = { ...loaded.data, exportError: error.slice(0, 1000) };
+    const data = { ...data0, exportError: error.slice(0, 1000) };
     await prisma.designRevision.update({
       where: { id: loaded.revisionId },
       data: { dataJson: data as unknown as Prisma.InputJsonValue },
@@ -297,7 +318,7 @@ export async function approveDesignProject(
   try {
     const rendered = await renderDesignV2({
       template,
-      data: loaded.data,
+      data: data0,
       loadPhoto: loadDesignPhotoBytes,
       formats: { pdf: true, jpg: true },
       fileBaseName: `diseno-${id}`,
@@ -316,7 +337,7 @@ export async function approveDesignProject(
   }
 
   const data: DesignV2Data = {
-    ...loaded.data,
+    ...data0,
     export: { pdfUrl, jpgUrls, generatedAt: new Date().toISOString() },
     exportError: null,
   };

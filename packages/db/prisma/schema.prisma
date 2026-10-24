@@ -2374,6 +2374,7 @@ model Album {
   salesSettings                   AlbumSalesSettings?
   slugAliases                     AlbumSlugAlias[]
   studentRosterEntries            AlbumStudentRosterEntry[]
+  courseMosaics                   AlbumCourseMosaic[]
   hiddenAlbumAttempts             HiddenAlbumAttempt[]
   hiddenAlbumGrants               HiddenAlbumGrant[]
   orders                          Order[]
@@ -3093,6 +3094,18 @@ model AlbumStudentRosterEntry {
   photosTakenAt            DateTime?
   photosTakenByUserId      Int?
   notes                    String?
+  /// Retrato oficial del chico para el «Mosaico del curso»: la foto que eligió la familia (o la que
+  /// puso el fotógrafo o el colegio). Es la misma en las carpetas de todos los compañeros.
+  mosaicPhotoId            Int?
+  /// Ancho ÷ alto de esa foto (para ubicar el encuadre en pantalla sin leer el archivo).
+  mosaicPhotoAspect        Float?
+  /// Encuadre de la cara dentro del recuadro del mosaico: { zoom, x, y }.
+  mosaicPhotoCrop          Json?
+  /// FAMILY | PHOTOGRAPHER | SCHOOL
+  mosaicPhotoSource        String?
+  /// Lo puso el colegio y el fotógrafo todavía no lo confirmó.
+  mosaicPhotoNeedsReview   Boolean            @default(false)
+  mosaicPhoto              Photo?             @relation("AlbumRosterMosaicPhoto", fields: [mosaicPhotoId], references: [id], onDelete: SetNull)
   createdAt                DateTime           @default(now())
   updatedAt                DateTime           @default(now()) @updatedAt
   album                    Album              @relation(fields: [albumId], references: [id], onDelete: Cascade)
@@ -3110,6 +3123,31 @@ model AlbumStudentRosterEntry {
   @@index([studentId])
   @@index([albumId, level, shift, courseName, division], map: "AlbumStudentRosterEntry_albumId_level_shift_courseName_division")
   @@index([albumId, snapshotLastName, snapshotFirstName], map: "AlbumStudentRosterEntry_albumId_snapshotLastName_snapshotFirstN")
+}
+
+/// Estado de un curso del padrón para el «Mosaico del curso»: cerrado o no, maestra y directivos,
+/// retratos sin identificar y el enlace del colegio para ponerles nombre.
+model AlbumCourseMosaic {
+  id                       Int       @id @default(autoincrement())
+  albumId                  Int
+  /// `padron|nivel|turno|curso|división` (ver `rosterCourseKey`).
+  courseKey                String
+  /// Con el curso cerrado se pueden imprimir las carpetas con mosaico y nadie cambia los retratos.
+  closedAt                 DateTime?
+  closedByUserId           Int?
+  /// [{ role, name, photoId }]: maestra, directora, auxiliar…
+  staffJson                Json?
+  /// photoIds de retratos que el fotógrafo subió sin saber de quién son (los nombra el colegio).
+  unidentifiedPhotoIdsJson Json?
+  /// Enlace sin cuenta para el colegio: sólo se guarda el hash.
+  schoolTokenHash          String?   @unique
+  schoolTokenExpiresAt     DateTime?
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
+  album                    Album     @relation(fields: [albumId], references: [id], onDelete: Cascade)
+
+  @@unique([albumId, courseKey])
+  @@index([albumId])
 }
 
 /// Cabecera de importación de padrón
@@ -3220,6 +3258,7 @@ model Photo {
   eventFolder              EventFolder?                 @relation(fields: [eventFolderId], references: [id], onDelete: SetNull)
   albumsAsCover            Album[]                      @relation("AlbumCoverPhoto")
   faceDetections           FaceDetection[]
+  rosterMosaicPortraits    AlbumStudentRosterEntry[] @relation("AlbumRosterMosaicPhoto")
   faceMatches              FaceMatch[]
   faceMatchEvents          FaceMatchEvent[]
   ocrTokens                OcrToken[]
