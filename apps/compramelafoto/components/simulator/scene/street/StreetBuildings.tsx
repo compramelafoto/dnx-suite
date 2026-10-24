@@ -14,8 +14,12 @@ interface KitPart {
   material: THREE.Material;
 }
 
-/** Piezas del kit por nombre de nodo (una pieza puede tener varios materiales). */
-function indexKit(root: THREE.Object3D): Map<string, KitPart[]> {
+/**
+ * Piezas del kit por nombre de nodo (una pieza puede tener varios materiales).
+ * `materialsFrom`: la versión simplificada viene sin texturas y usa los
+ * materiales de la completa (mismo nombre).
+ */
+function indexKit(root: THREE.Object3D, materialsFrom?: Map<string, THREE.Material>): Map<string, KitPart[]> {
   const kit = new Map<string, KitPart[]>();
   root.traverse((obj) => {
     const mesh = obj as THREE.Mesh;
@@ -24,7 +28,8 @@ function indexKit(root: THREE.Object3D): Map<string, KitPart[]> {
     const owner = mesh.parent && mesh.parent !== root && !kit.has(mesh.name) ? mesh.parent.name : mesh.name;
     const name = owner || mesh.name;
     const parts = kit.get(name) ?? [];
-    parts.push({ geometry: mesh.geometry, material: mesh.material as THREE.Material });
+    const own = mesh.material as THREE.Material;
+    parts.push({ geometry: mesh.geometry, material: materialsFrom?.get(own.name) ?? own });
     kit.set(name, parts);
   });
   return kit;
@@ -37,8 +42,14 @@ const _scale = new THREE.Vector3(1, 1, 1);
 const _up = new THREE.Vector3(0, 1, 0);
 const _color = new THREE.Color();
 
-/** Hasta dónde se dibuja la fachada completa del kit (m); más allá, el volumen con ventanas pintadas. */
+/** Hasta dónde se dibuja la fachada con el kit (m); más allá, el volumen con ventanas pintadas. */
 const DETAIL_DISTANCE = 60;
+/**
+ * Más cerca que esto, el kit con todo su detalle; entre esto y DETAIL_DISTANCE,
+ * el kit simplificado (29 % de los triángulos): de lejos no se distingue y
+ * eran millones de triángulos por cuadro.
+ */
+const FULL_DETAIL_DISTANCE = 22;
 /** Más allá de esto la manzana no se dibuja (queda en la bruma). */
 const DRAW_DISTANCE = 200;
 /** Fondo de los edificios (m). */
@@ -55,20 +66,45 @@ function litGlassFrom(glass: THREE.Material): THREE.MeshStandardMaterial {
   return lit;
 }
 
-/** Piezas del kit instanciadas, agrupadas por manzana. */
+/** Una fachada (un lado de manzana u ochava): sus piezas y dónde mira. */
+interface FacadeSide {
+  group: THREE.Group;
+  /** Las mismas piezas, simplificadas (se usa de lejos). */
+  lod: THREE.Group;
+  min: Vec2;
+  max: Vec2;
+  /** Hacia dónde mira la fachada (hacia la calle). */
+  facing: Vec2;
+}
+
+type Placement = PiecePlacement & { facing: Vec2 };
+
+/** Piezas del kit instanciadas, agrupadas por fachada (manzana:lado). */
 function buildInstances(
   kit: Map<string, KitPart[]>,
-  placements: PiecePlacement[],
+  placements: Placement[],
   litGlass: (glass: THREE.Material) => THREE.Material,
-): Map<string, THREE.InstancedMesh[]> {
-  const byPiece = new Map<string, PiecePlacement[]>();
+): Map<string, FacadeSide> {
+  const byPiece = new Map<string, Placement[]>();
   for (const p of placements) {
     const key = `${p.chunk}|${p.piece}${p.lit ? "#lit" : ""}`;
     const list = byPiece.get(key) ?? [];
     list.push(p);
     byPiece.set(key, list);
   }
-  const out = new Map<string, THREE.InstancedMesh[]>();
+  const out = new Map<string, FacadeSide>();
+  const sideFor = (chunk: string, list: Placement[]) => {
+    let side = out.get(chunk);
+    if (!side) {
+      side = { group: new THREE.Group(), lod: new THREE.Group(), min: [Infinity, Infinity], max: [-Infinity, -Infinity], facing: list[0].facing };
+      out.set(chunk, side);
+    }
+    for (const p of list) {
+      side.min = [Math.min(side.min[0], p.position[0]), Math.min(side.min[1], p.position[2])];
+      side.max = [Math.max(side.max[0], p.position[0]), Math.max(side.max[1], p.position[2])];
+    }
+    return side;
+  };
   for (const [key, list] of byPiece) {
     const [chunk, raw] = key.split("|");
     const piece = raw.replace("#lit", "");
@@ -93,9 +129,7 @@ function buildInstances(
       inst.castShadow = false;
       inst.receiveShadow = true;
       inst.computeBoundingSphere();
-      // Agrupado por manzana (el nombre del lado queda después de ":").
-      const block = chunk.split(":")[0];
-      out.set(block, [...(out.get(block) ?? []), inst]);
+      sideFor(chunk, list).group.add(inst);
     }
   }
   return out;
@@ -219,7 +253,27 @@ interface BlockGroup {
   block: CityBlock;
   near: THREE.Group;
   far: THREE.Group;
+  /** Fachadas con el kit: cada una se prende sólo si está cerca y mirando hacia la cámara. */
+  sides: FacadeSide[];
   masses: THREE.BufferGeometry[];
+}
+
+/** Distancia (en planta) de un punto a la caja de una fachada. */
+function distanceToSide(side: FacadeSide, x: number, z: number): number {
+  const dx = Math.max(side.min[0] - x, 0, x - side.max[0]);
+  const dz = Math.max(side.min[1] - z, 0, z - side.max[1]);
+  return Math.hypot(dx, dz);
+}
+
+/**
+ * ¿La cámara está del lado de la calle de esta fachada? Si está detrás, el
+ * volumen del edificio la tapa: dibujar sus molduras era trabajo perdido.
+ * Margen de 2 m para que no se apague justo al pasar por la esquina.
+ */
+function facesCamera(side: FacadeSide, x: number, z: number): boolean {
+  const cx = (side.min[0] + side.max[0]) / 2;
+  const cz = (side.min[1] + side.max[1]) / 2;
+  return (x - cx) * side.facing[0] + (z - cz) * side.facing[1] > -2;
 }
 
 /**
@@ -230,7 +284,16 @@ interface BlockGroup {
 export default function StreetBuildings({ layout }: { layout: StreetLayout }) {
   const camera = useThree((s) => s.camera);
   const gltf = useGLTF(STREET_MODELS.facadeKit);
+  const gltfLod = useGLTF(STREET_MODELS.facadeKitLod);
   const kit = useMemo(() => indexKit(gltf.scene), [gltf.scene]);
+  const kitLod = useMemo(() => {
+    const byName = new Map<string, THREE.Material>();
+    gltf.scene.traverse((o) => {
+      const m = (o as THREE.Mesh).material as THREE.Material | undefined;
+      if (m && !Array.isArray(m)) byName.set(m.name, m);
+    });
+    return indexKit(gltfLod.scene, byName);
+  }, [gltf.scene, gltfLod.scene]);
 
   const litGlass = useMemo(() => {
     const cache = new Map<THREE.Material, THREE.MeshStandardMaterial>();
@@ -266,11 +329,16 @@ export default function StreetBuildings({ layout }: { layout: StreetLayout }) {
 
   const groups = useMemo(() => {
     // Una malla por pieza y por lado de manzana: lo que queda fuera de cuadro se descarta entero.
-    const placements = [
-      ...layout.buildings.flatMap((b) => planBuilding(b).map((p) => ({ ...p, chunk: `${b.chunk}:${b.id.replace(/-\d+$/, "")}` }))),
-      ...layout.corners.flatMap(planCorner),
+    const placements: Placement[] = [
+      ...layout.buildings.flatMap((b) => planBuilding(b).map((p) => ({ ...p, chunk: `${b.chunk}:${b.id.replace(/-\d+$/, "")}`, facing: b.normal }))),
+      ...layout.corners.flatMap((c) => planCorner(c).map((p) => ({ ...p, chunk: `${c.chunk}:ochava-${c.onMain[0]}-${c.onCross[1]}`, facing: c.normal }))),
     ];
-    const kitByBlock = buildInstances(kit, placements, litGlass.get);
+    const sides = buildInstances(kit, placements, litGlass.get);
+    // La versión simplificada, con las mismas fachadas: cada lado guarda las dos.
+    for (const [chunk, simple] of buildInstances(kitLod, placements, litGlass.get)) {
+      const side = sides.get(chunk);
+      if (side) side.lod = simple.group;
+    }
     const boxesByBlock = new Map<string, MassBox[]>();
     const add = (chunk: string, box: MassBox) => boxesByBlock.set(chunk, [...(boxesByBlock.get(chunk) ?? []), box]);
     for (const b of layout.buildings) {
@@ -286,7 +354,8 @@ export default function StreetBuildings({ layout }: { layout: StreetLayout }) {
       const boxes = boxesByBlock.get(block.id);
       if (!boxes) continue;
       const near = new THREE.Group();
-      for (const inst of kitByBlock.get(block.id) ?? []) near.add(inst);
+      const blockSides = [...sides.entries()].filter(([chunk]) => chunk.split(":")[0] === block.id).map(([, side]) => side);
+      for (const side of blockSides) near.add(side.group, side.lod);
       const nearMass = new THREE.Mesh(mergeMasses(boxes, false), materials.near);
       nearMass.castShadow = true;
       nearMass.receiveShadow = true;
@@ -296,10 +365,10 @@ export default function StreetBuildings({ layout }: { layout: StreetLayout }) {
       farMass.castShadow = true;
       farMass.receiveShadow = true;
       far.add(farMass);
-      out.push({ block, near, far, masses: [nearMass.geometry, farMass.geometry] });
+      out.push({ block, near, far, sides: blockSides, masses: [nearMass.geometry, farMass.geometry] });
     }
     return out;
-  }, [kit, layout, litGlass, materials]);
+  }, [kit, kitLod, layout, litGlass, materials]);
 
   useEffect(
     () => () => {
@@ -319,10 +388,20 @@ export default function StreetBuildings({ layout }: { layout: StreetLayout }) {
     tick.current -= delta;
     if (tick.current > 0) return;
     tick.current = 0.2;
+    const { x, z } = camera.position;
     for (const g of groups) {
-      const d = distanceToBlock(g.block, camera.position.x, camera.position.z);
+      const d = distanceToBlock(g.block, x, z);
       g.near.visible = d < DETAIL_DISTANCE;
       g.far.visible = !g.near.visible && d < DRAW_DISTANCE;
+      if (!g.near.visible) continue;
+      // Sólo se apagan las que dan la espalda: una de frente sin kit mostraría el
+      // frente oscuro del volumen (el que va detrás de las piezas).
+      for (const side of g.sides) {
+        const facing = facesCamera(side, x, z);
+        const close = distanceToSide(side, x, z) < FULL_DETAIL_DISTANCE;
+        side.group.visible = facing && close;
+        side.lod.visible = facing && !close;
+      }
     }
   });
 
@@ -339,3 +418,4 @@ export default function StreetBuildings({ layout }: { layout: StreetLayout }) {
 }
 
 useGLTF.preload(STREET_MODELS.facadeKit);
+useGLTF.preload(STREET_MODELS.facadeKitLod);

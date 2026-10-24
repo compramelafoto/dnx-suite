@@ -842,3 +842,16 @@
     animation-duration: var(--cmf-scan-duration-reduced);
   }
 }
+
+/*
+ * Demos grabables (cuadro guía activo): la esquina inferior derecha queda libre para la cámara del
+ * presentador en la videollamada. Lo que flota ahí sube por encima de esa zona.
+ */
+body[data-demo="1"] .dnxbot-raiz,
+body[data-demo="1"] [data-dnxbot-evitar].fixed,
+body[data-demo="1"] [data-demo-esquina] {
+  bottom: 260px !important;
+}
+body[data-demo="1"] [data-demo-ocultar] {
+  display: none !important;
+}

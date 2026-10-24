@@ -11,6 +11,7 @@ import {
 } from "./email-queue";
 import { textToEmailHtml, wrapEmailLayout } from "@/emails/layout";
 import { Resend } from "resend";
+import { filtrarDestinatariosDePrueba } from "@/lib/demos/identidad";
 
 /**
  * Envía un email usando Resend
@@ -22,6 +23,12 @@ async function sendEmailViaProvider(params: {
   bodyHtml?: string;
 }): Promise<{ success: boolean; error?: string }> {
   const { to, subject, bodyText, bodyHtml } = params;
+
+  // Demos con datos falsos: un destinatario `.test` no recibe nada (ni existe).
+  if (filtrarDestinatariosDePrueba(to).enviar.length === 0) {
+    console.info("[DEMO] correo descartado", { to, subject });
+    return { success: true };
+  }
 
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {

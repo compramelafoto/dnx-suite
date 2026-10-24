@@ -1,5 +1,6 @@
 "use client";
 
+import { AsyncPixelReader } from "./async-readback";
 import {
   DOF_FRAGMENT_SHADER,
   DOF_VERTEX_SHADER,
@@ -122,6 +123,9 @@ export default function DepthOfFieldPass() {
       pixels: new Float32Array(METER_GRID_WIDTH * METER_GRID_HEIGHT * 4),
       luminance: new Float32Array(METER_GRID_WIDTH * METER_GRID_HEIGHT),
       lastMs: 0,
+      /** Última lectura recibida (para el suavizado). */
+      lastReadMs: 0,
+      reader: null as AsyncPixelReader | null,
       readings: null as MeterReadings | null,
       failed: false,
     };
@@ -183,8 +187,44 @@ export default function DepthOfFieldPass() {
       dofMaterial.uniforms.aoStrength.value = quality.ao ? AO_STRENGTH : 0;
 
       const now = performance.now();
-      if (!simulatorRuntime.captureActive && !meter.failed && now - meter.lastMs >= METER_INTERVAL_MS) {
-        const dt = meter.lastMs ? (now - meter.lastMs) / 1000 : 0;
+      // Lectura asincrónica: lo pedido en un cuadro llega uno o dos cuadros después,
+      // sin que el procesador espere a la placa de video.
+      if (!meter.failed && !meter.reader) {
+        const ctx = renderer.getContext();
+        if (typeof WebGL2RenderingContext !== "undefined" && ctx instanceof WebGL2RenderingContext) {
+          meter.reader = new AsyncPixelReader(ctx, METER_GRID_WIDTH, METER_GRID_HEIGHT);
+        } else {
+          meter.failed = true;
+        }
+      }
+      if (meter.reader?.poll(meter.pixels)) {
+        const dt = meter.lastReadMs ? (now - meter.lastReadMs) / 1000 : 0;
+        meter.lastReadMs = now;
+        // readPixels arranca abajo; la grilla del fotómetro va de arriba hacia abajo.
+        for (let y = 0; y < METER_GRID_HEIGHT; y += 1) {
+          const srcRow = (METER_GRID_HEIGHT - 1 - y) * METER_GRID_WIDTH;
+          for (let x = 0; x < METER_GRID_WIDTH; x += 1) {
+            meter.luminance[y * METER_GRID_WIDTH + x] = meter.pixels[(srcRow + x) * 4];
+          }
+        }
+        meter.readings = smoothReadings(
+          meter.readings,
+          readAllModes({
+            width: METER_GRID_WIDTH,
+            height: METER_GRID_HEIGHT,
+            luminance: meter.luminance,
+          }),
+          dt,
+        );
+        simulatorRuntime.meterReadings = meter.readings;
+        simulatorRuntime.meterGrid = { width: METER_GRID_WIDTH, height: METER_GRID_HEIGHT, luminance: meter.luminance };
+      }
+      if (
+        meter.reader &&
+        !meter.reader.pending &&
+        !simulatorRuntime.captureActive &&
+        now - meter.lastMs >= METER_INTERVAL_MS
+      ) {
         meter.lastMs = now;
         const insets = computeViewfinderInsets(size.width, size.height);
         meter.material.uniforms.tColor.value = fbo.texture;
@@ -192,36 +232,7 @@ export default function DepthOfFieldPass() {
         meter.material.uniforms.cropSize.value.set(1 - 2 * insets.x, 1 - insets.top - insets.bottom);
         renderer.setRenderTarget(meter.target);
         renderer.render(meter.scene, orthoCam.current);
-        try {
-          renderer.readRenderTargetPixels(
-            meter.target,
-            0,
-            0,
-            METER_GRID_WIDTH,
-            METER_GRID_HEIGHT,
-            meter.pixels,
-          );
-          // readPixels arranca abajo; la grilla del fotómetro va de arriba hacia abajo.
-          for (let y = 0; y < METER_GRID_HEIGHT; y += 1) {
-            const srcRow = (METER_GRID_HEIGHT - 1 - y) * METER_GRID_WIDTH;
-            for (let x = 0; x < METER_GRID_WIDTH; x += 1) {
-              meter.luminance[y * METER_GRID_WIDTH + x] = meter.pixels[(srcRow + x) * 4];
-            }
-          }
-          meter.readings = smoothReadings(
-            meter.readings,
-            readAllModes({
-              width: METER_GRID_WIDTH,
-              height: METER_GRID_HEIGHT,
-              luminance: meter.luminance,
-            }),
-            dt,
-          );
-          simulatorRuntime.meterReadings = meter.readings;
-        } catch {
-          // Sin lectura de texturas float no hay fotómetro de imagen: queda la luz absoluta.
-          meter.failed = true;
-        }
+        meter.reader.request();
       }
 
       const imageHeightPx = size.height * renderer.getPixelRatio();
@@ -267,6 +278,7 @@ export default function DepthOfFieldPass() {
       dofMaterial.dispose();
       meter.target.dispose();
       meter.material.dispose();
+      meter.reader?.dispose();
       ao.target.dispose();
       ao.material.dispose();
     };

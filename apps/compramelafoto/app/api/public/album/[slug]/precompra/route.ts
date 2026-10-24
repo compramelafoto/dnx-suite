@@ -1,3 +1,4 @@
+import { esUsuarioDemo } from "@/lib/demos/identidad";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { buildBenefitPublicShortLine } from "@/lib/preventa-canjeable/benefit-copy";
@@ -56,7 +57,7 @@ export async function GET(
         organizerCommissionEnabled: true,
         organizerCommissionPercentage: true,
         organizerCommissionAppliesTo: true,
-        user: { select: { id: true, name: true, logoUrl: true } },
+        user: { select: { id: true, name: true, logoUrl: true, tags: true } },
         selectedLab: { select: { id: true, name: true, logoUrl: true } },
         school: {
           select: {
@@ -185,6 +186,8 @@ export async function GET(
         isSchool,
         preventaMode,
         isTestPreview: testGate.isTestPreview,
+        /** Demo grabable (dueño con etiqueta demo): la vista de prueba usa el pago simulado. */
+        demoPresentacion: Boolean(testGate.isTestPreview && esUsuarioDemo(album.user)),
         school: isSchool
           ? {
               id: album.school!.id,

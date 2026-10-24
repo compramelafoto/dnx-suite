@@ -12,6 +12,13 @@ const SKY_SCALE = 200;
 /** Bruma: lo lejano se funde con el aire, como en una ciudad real. */
 const FOG_NEAR = 45;
 const FOG_FAR = 190;
+/**
+ * El mapa de sombras del sol se rehace uno de cada tantos cuadros: costaba
+ * ~24 ms por cuadro (toda la ciudad dibujada de nuevo desde el sol). El sol
+ * casi no se mueve y three.js guarda con el mapa desde dónde se sacó, así que
+ * la sombra sigue en su lugar; la de quien camina llega un cuadro tarde.
+ */
+const SHADOW_EVERY_FRAMES = 2;
 /** Área de sombras alrededor del fotógrafo (m). */
 const SHADOW_HALF = 38;
 const SHADOW_MAP = 4096;
@@ -70,8 +77,20 @@ export default function StreetLighting() {
   }, [env, sky, scene, fog]);
 
   const target = useMemo(() => new THREE.Object3D(), []);
+  const shadowFrame = useRef(0);
+
+  useEffect(() => {
+    gl.shadowMap.autoUpdate = false;
+    gl.shadowMap.needsUpdate = true;
+    return () => {
+      gl.shadowMap.autoUpdate = true;
+    };
+  }, [gl]);
 
   useFrame(() => {
+    // Durante la toma se rehace siempre: la foto tiene que salir exacta.
+    shadowFrame.current = (shadowFrame.current + 1) % SHADOW_EVERY_FRAMES;
+    if (shadowFrame.current === 0 || simulatorRuntime.captureActive) gl.shadowMap.needsUpdate = true;
     const sunState = simulatorRuntime.sunState;
     const [px, py, pz] = sunPositionFromState(sunState);
     const sunDir = new THREE.Vector3(px, py, pz).normalize();

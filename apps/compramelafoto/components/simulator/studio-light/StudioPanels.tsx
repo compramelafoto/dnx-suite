@@ -697,7 +697,7 @@ export function ScenePanel() {
 
       <Choice label="Luz de la sala" value={state.roomLux} options={ROOM_OPTIONS} onChange={(v) => set({ roomLux: v })} />
       <p className="cod-studio-hint">
-        La luz de la sala es continua: si bajás la velocidad de obturación, entra más. Probá 1/30 con la sala en «Oficina».
+        La luz de la sala es continua: si alargás el tiempo de exposición, entra más. Probá 1/30 con la sala en «Oficina».
       </p>
     </div>
   );
