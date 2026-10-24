@@ -5,6 +5,7 @@ import {
   ArrowLeftRight,
   ClipboardList,
   ArrowUpRight,
+  BadgePercent,
   Banknote,
   BookOpen,
   CheckCircle2,
@@ -52,6 +53,8 @@ import { CalculadoraFotolibro, type FotolibroAgregado, type LineaFotolibro } fro
 import type { CatalogoFotolibro, TipoTapa } from "@/lib/fotolibro/cotizar";
 import { esSkuCajaFotolibro, tipoTapaDeSku, type FotolibroVendido } from "@/lib/fotolibro/venta";
 import { crearFotolibroDesdeCobradorAction } from "@/app/actions/fotolibro";
+import { miComisionAction } from "./comisiones/actions";
+import type { MiComision } from "@/lib/comisiones/calculo";
 
 const ETIQUETA_PAGO: Record<SalePaymentMethod, string> = {
   EFECTIVO: "Efectivo",
@@ -139,6 +142,7 @@ export function Pos({
   qrActivo = false,
   permisosCarnet = { puedeBuscarClientes: false, puedeAltaCliente: false },
   fotolibro = null,
+  comision = null,
 }: {
   products: ProductRow[];
   categories: ProductCategoryRow[];
@@ -164,6 +168,11 @@ export function Pos({
   permisosCarnet?: { puedeBuscarClientes: boolean; puedeAltaCliente: boolean };
   /** Calculadora de fotolibros: null si no hay ninguna lista de proveedor con tapas y hojas. */
   fotolibro?: { catalogo: CatalogoFotolibro; verCostos: boolean } | null;
+  /**
+   * Comisión de venta (fotolibros): los productos que la dan, el porcentaje para el cartel verde y,
+   * si quien vende cobra comisión, lo suyo acumulado. null si nadie del equipo cobra comisión.
+   */
+  comision?: { porcentaje: number; productIds: string[]; mia: MiComision | null } | null;
 }) {
   // El mostrador necesita el ancho: el menú lateral se oculta mientras está abierto.
   useOcultarMenuEnEstaPantalla();
@@ -221,10 +230,24 @@ export function Pos({
       .then(setProduccion)
       .catch(() => undefined);
   }, []);
+  const conComision = useMemo(() => new Set(comision?.productIds ?? []), [comision]);
+  const [miComision, setMiComision] = useState<MiComision | null>(comision?.mia ?? null);
+  /** Lo que gana quien vende con un renglón (null si no da comisión o no cobra comisión). */
+  const comisionDelRenglon = (r: { productId: string | null; qty: number; unitPriceMinor: number }) =>
+    miComision && r.productId !== null && conComision.has(r.productId) ? Math.round((r.qty * r.unitPriceMinor * miComision.porcentaje) / 100) : null;
+  /** Después de cada cobro: lo acumulado al día (un saldo cobrado completa comisiones). */
+  function refrescarComision() {
+    if (!miComision) return;
+    miComisionAction()
+      .then((m) => m && setMiComision(m))
+      .catch(() => undefined);
+  }
   const [ultimaVenta, setUltimaVenta] = useState<{
     saleNumber: number | null;
     deposited: boolean;
     vueltoMinor: number | null;
+    /** Lo que ganó quien vendió con este cobro; `ganada` = ya cobrado entero. */
+    comision?: { minor: number; ganada: boolean } | null;
     pedido?: { numero: string; cobradoMinor: number; saldoMinor: number; aviso: string | null };
   } | null>(null);
   // Pedido para retirar (cuando el ticket tiene trabajos con proceso).
@@ -263,6 +286,7 @@ export function Pos({
       setAvisoSaldo(r.ok ? { ok: true, texto: r.mensaje } : { ok: false, texto: r.error });
       if (r.ok) setPagoVerificado(null);
       if (r.ok && cliente) setPedidosCliente(await pedidosParaRetirarAction(cliente.id));
+      if (r.ok) refrescarComision();
     });
   }
 
@@ -755,6 +779,7 @@ export function Pos({
         ? `Pagó con ${formatMinorArs(recibidoMinor)} · vuelto ${formatMinorArs(vueltoAlCobrar.vueltoMinor)}`
         : "";
     const notaFinal = [note.trim(), notaDePago].filter((t) => t !== "").join(" — ");
+    const comisionDelTicket = rows.reduce((s, r) => s + (comisionDelRenglon(r) ?? 0), 0);
 
     const input: CheckoutInput = {
       // `priceWasOverridden` no viaja: lo recalcula el servidor comparando contra el precio
@@ -811,7 +836,9 @@ export function Pos({
             deposited: true,
             vueltoMinor: vueltoAlCobrar.estado === "ok" ? vueltoAlCobrar.vueltoMinor : null,
             pedido: { numero: r.pedidoNumero, cobradoMinor: r.cobradoMinor, saldoMinor: r.saldoMinor, aviso: r.aviso },
+            comision: comisionDelTicket > 0 ? { minor: comisionDelTicket, ganada: r.saldoMinor <= 0 } : null,
           });
+          refrescarComision();
           reiniciarTicket();
           historialRef.current = [];
           setActivo(null);
@@ -830,7 +857,9 @@ export function Pos({
           saleNumber: resultado.saleNumber,
           deposited: resultado.deposited,
           vueltoMinor: vueltoAlCobrar.estado === "ok" ? vueltoAlCobrar.vueltoMinor : null,
+          comision: comisionDelTicket > 0 ? { minor: comisionDelTicket, ganada: true } : null,
         });
+        refrescarComision();
         reiniciarTicket();
         // Lo cobrado no se deshace con Ctrl/⌘+Z: para eso está anular la venta.
         historialRef.current = [];
@@ -1124,6 +1153,12 @@ export function Pos({
                         {sinStock ? <span className="font-semibold text-[var(--fo-danger)]"> Sin existencia</span> : null}
                       </span>
                     ) : null}
+                    {comision && conComision.has(p.id) ? (
+                      <span className="mt-0.5 inline-flex items-center gap-1 rounded-full border border-[var(--fo-success-border)] bg-[var(--fo-success-soft)] px-1.5 text-[11px] font-semibold text-[var(--fo-success)]">
+                        <BadgePercent className="size-3" aria-hidden />
+                        Comisión de venta {String(comision.porcentaje).replace(".", ",")} %
+                      </span>
+                    ) : null}
                   </span>
                   <span className="flex shrink-0 flex-col items-end gap-0.5">
                     <span className="text-[13px] font-semibold tabular-nums">{formatMinorArs(p.priceMinor).replace(",00", "")}</span>
@@ -1142,6 +1177,22 @@ export function Pos({
 
       {/* Centro: el carrito, siempre a la vista. */}
       <section className="fo-card h-fit min-w-0 overflow-hidden p-0" aria-label="Lo que lleva">
+        {miComision ? (
+          <a
+            href="/ventas/comisiones"
+            className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--fo-success-border)] bg-[var(--fo-success-soft)] px-4 py-2 text-sm"
+          >
+            <span className="flex items-center gap-1.5 font-semibold text-[var(--fo-success)]">
+              <BadgePercent className="size-4" aria-hidden />
+              Tus comisiones este mes: {formatMinorArs(miComision.resumen.mesMinor).replace(/,00$/, "")}
+            </span>
+            {miComision.resumen.aCobrarMinor > 0 ? (
+              <span className="text-xs text-[var(--fo-muted)]">
+                + {formatMinorArs(miComision.resumen.aCobrarMinor).replace(/,00$/, "")} cuando se cobren los saldos
+              </span>
+            ) : null}
+          </a>
+        ) : null}
         <div className="flex items-center justify-between gap-2 border-b border-[var(--fo-border)] px-4 py-3">
           <h2 className="flex items-baseline gap-2 whitespace-nowrap text-base font-semibold">
             Ticket
@@ -1351,6 +1402,11 @@ export function Pos({
                       )}
                       {r.tracksStock && r.stockQty !== null && r.stockQty <= 0 ? (
                         <p className="text-xs font-semibold text-[var(--fo-danger)]">Sin existencia cargada</p>
+                      ) : null}
+                      {comisionDelRenglon(r) ? (
+                        <p className="text-xs font-semibold text-[var(--fo-success)]">
+                          Ganás {formatMinorArs(comisionDelRenglon(r)!).replace(/,00$/, "")} cuando se cobre el total
+                        </p>
                       ) : null}
                     </div>
                     <div className="flex shrink-0 items-center rounded-full border border-[var(--fo-border)] bg-[var(--fo-bg-elevated)]">
@@ -1693,6 +1749,13 @@ export function Pos({
                 ) : (
                   <p className="font-semibold text-[var(--fo-success)]">Venta #{ultimaVenta.saleNumber} cobrada</p>
                 )}
+                {ultimaVenta.comision ? (
+                  <p className="font-semibold text-[var(--fo-success)]">
+                    {ultimaVenta.comision.ganada
+                      ? `Ganaste ${formatMinorArs(ultimaVenta.comision.minor).replace(/,00$/, "")} de comisión.`
+                      : `Tu comisión: ${formatMinorArs(ultimaVenta.comision.minor).replace(/,00$/, "")}. Se suma cuando se cobre el saldo.`}
+                  </p>
+                ) : null}
                 {ultimaVenta.vueltoMinor !== null && ultimaVenta.vueltoMinor > 0 ? (
                   <p className="text-[var(--fo-text)]">Dar de vuelto {formatMinorArs(ultimaVenta.vueltoMinor)}</p>
                 ) : null}
