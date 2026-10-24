@@ -1,5 +1,7 @@
 "use client";
 
+// Primero: en el celular achica las texturas antes de que empiecen a bajar los modelos.
+import "@/lib/simulator/mobile-textures-install";
 import { Canvas } from "@react-three/fiber";
 import { Suspense } from "react";
 import * as THREE from "three";

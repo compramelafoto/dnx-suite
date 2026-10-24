@@ -1,6 +1,7 @@
 "use client";
 
 import * as THREE from "three";
+import { isTouchGameDevice } from "@/lib/simulator/touch-input";
 
 /**
  * Impostor: una "foto" del modelo (con transparencia) sobre dos planos
@@ -23,6 +24,8 @@ export interface Impostor {
 }
 
 const RESOLUTION = 1024;
+/** Celular: foto más chica y sin suavizado múltiple (las dos sumaban más de 200 MB de memoria). */
+const MOBILE_RESOLUTION = 256;
 
 export function makeImpostor(gl: THREE.WebGLRenderer, source: THREE.Object3D): Impostor {
   const model = source.clone(true);
@@ -64,8 +67,10 @@ export function makeImpostor(gl: THREE.WebGLRenderer, source: THREE.Object3D): I
   camera.position.set(center.x, 0, center.z + 500);
   camera.lookAt(center.x, 0, center.z);
 
-  const target = new THREE.WebGLRenderTarget(RESOLUTION, Math.max(64, Math.round((RESOLUTION * height) / width)), {
-    samples: 4,
+  const mobile = isTouchGameDevice();
+  const resolution = mobile ? MOBILE_RESOLUTION : RESOLUTION;
+  const target = new THREE.WebGLRenderTarget(resolution, Math.max(64, Math.round((resolution * height) / width)), {
+    samples: mobile ? 0 : 4,
     colorSpace: THREE.LinearSRGBColorSpace,
     generateMipmaps: true,
     minFilter: THREE.LinearMipmapLinearFilter,

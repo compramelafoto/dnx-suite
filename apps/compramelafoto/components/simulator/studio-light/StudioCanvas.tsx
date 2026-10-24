@@ -1,5 +1,7 @@
 "use client";
 
+// Primero: en el celular achica las texturas antes de que empiecen a bajar los modelos.
+import "@/lib/simulator/mobile-textures-install";
 import { OrbitControls } from "@react-three/drei";
 import { Canvas, useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import { Suspense, useLayoutEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
