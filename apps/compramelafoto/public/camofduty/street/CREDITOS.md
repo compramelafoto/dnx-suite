@@ -15,8 +15,6 @@ Contenidos pedagógicos basados en los apuntes de la profesora Débora Priasco.
 - `models/potted-plant.glb` — potted_plant_02
 - `models/tree-jacaranda.glb` — jacaranda_tree
 - `models/covered-car.glb` — covered_car
-- `models/statue.glb` — horse_statue_01
-- `models/plaza-bench.glb` — painted_wooden_bench
 - `models/shrub.glb` — shrub_01
 - `models/coffee-cart.glb` — CoffeeCart_01
 - `models/cafe-table.glb` — outdoor_table_chair_set_01
@@ -64,6 +62,11 @@ Contenidos pedagógicos basados en los apuntes de la profesora Débora Priasco.
 - `models/rides/vespa.glb` — "Vespa Super Sport 180" de VforValensa, https://sketchfab.com/3d-models/74dfd9925fde4ae5882eb74c77c3c663
   Optimizados (geometría y texturas reducidas) con `node scripts/camofduty/optimize-street-cars.mjs`.
 
+
+## Monumento y bancos de plaza — Sketchfab (CC BY 4.0)
+- `models/statue.glb` — "Estatua Ecuestre de Simón Bolívar" de eliezerfajardo3d, https://sketchfab.com/3d-models/b89e594ed17f49b0b586a1f40c75b0d0 (sin pedestal, simplificada y en bronce: hace de monumento al Libertador San Martín)
+- `models/plaza-bench.glb` — "Fancy Bench" de SomeKevin, https://sketchfab.com/3d-models/82cadef8dfb24c0784eefff7be71610c
+- `models/plaza-bench-forjado.glb` — "Bench_ Park" de ahmagh2e, https://sketchfab.com/3d-models/6081a54e64a94edda2c444d81e8aec2c
 
 ## Microsoft Rocketbox Avatar Library (MIT)
 - Peatones y animaciones: `public/camofduty/models/figures/` y `models/animations/`.

@@ -19,7 +19,9 @@ export const STREET_MODELS = {
   aircon: `${BASE}/models/aircon.glb`,
   coveredCar: `${BASE}/models/covered-car.glb`,
   statue: `${BASE}/models/statue.glb`,
+  /** Bancos de plaza de hierro de fundición con listones de madera (dos modelos que se alternan). */
   plazaBench: `${BASE}/models/plaza-bench.glb`,
+  plazaBenchForjado: `${BASE}/models/plaza-bench-forjado.glb`,
   shrub: `${BASE}/models/shrub.glb`,
   coffeeCart: `${BASE}/models/coffee-cart.glb`,
   cafeTable: `${BASE}/models/cafe-table.glb`,

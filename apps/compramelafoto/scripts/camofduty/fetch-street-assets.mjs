@@ -42,8 +42,7 @@ const MODELS = [
   // Versión lejana del árbol (a más de ~25 m alcanza con una décima parte).
   { id: "covered_car", file: "covered-car.glb", res: "1k", size: 1024 },
   // Plaza, pasajes y veredas del barrio grande.
-  { id: "horse_statue_01", file: "statue.glb", res: "1k", size: 1024 },
-  { id: "painted_wooden_bench", file: "plaza-bench.glb", res: "1k", size: 512 },
+  // El monumento (statue.glb) y los bancos de plaza son de Sketchfab: ver CREDITOS.md.
   { id: "shrub_01", file: "shrub.glb", res: "1k", size: 512, simplify: 0.04 },
   { id: "CoffeeCart_01", file: "coffee-cart.glb", res: "1k", size: 1024 },
   { id: "outdoor_table_chair_set_01", file: "cafe-table.glb", res: "1k", size: 512 },
@@ -159,10 +158,10 @@ async function main() {
       console.log(`→ textura ${tex.id}`);
       await fetchTexture(tex);
     }
-    // Conserva los créditos de los autos (los escribe optimize-street-cars.mjs).
+    // Conserva los créditos de Sketchfab (autos, bicis, monumento y bancos), que no salen de acá.
     const path = join(OUT, "CREDITOS.md");
     const previous = existsSync(path) ? readFileSync(path, "utf8") : "";
-    const cars = previous.match(/## Autos[\s\S]*?\n(?=## )/)?.[0] ?? "";
+    const cars = [...previous.matchAll(/## [^\n]*Sketchfab[\s\S]*?\n(?=## )/g)].map((m) => m[0]).join("");
     writeFileSync(path, CREDITS.replace("@@AUTOS@@\n", cars ? `${cars}\n` : ""));
   } finally {
     rmSync(work, { recursive: true, force: true });

@@ -31,6 +31,7 @@ const MODEL_BY_KIND: Record<ModelKind, string> = {
   // "farol de plaza" era sólo la cabeza del farol y quedaba petiso y enterrado.
   "plaza-lamp": STREET_MODELS.lamp,
   "plaza-bench": STREET_MODELS.plazaBench,
+  "plaza-bench-forjado": STREET_MODELS.plazaBenchForjado,
   shrub: STREET_MODELS.shrub,
   "coffee-cart": STREET_MODELS.coffeeCart,
   "cafe-table": STREET_MODELS.cafeTable,
@@ -47,7 +48,7 @@ const MODEL_BY_KIND: Record<ModelKind, string> = {
 };
 
 interface KindSpec {
-  /** Escala del modelo (el jacarandá es de parque; la estatua viene en miniatura). */
+  /** Escala del modelo (el jacarandá es de parque). */
   scale?: number;
   /** Hasta dónde se dibuja el modelo completo (m). */
   near: number;
@@ -69,7 +70,7 @@ const SPEC: Partial<Record<PropKind, KindSpec>> = {
   lamp: { near: 30, draw: 190, impostor: true, pool: 10, shadow: true },
   tree: { scale: 0.62, near: 22, draw: 190, impostor: true, pool: 4, shadow: true },
   "plaza-lamp": { scale: 1.1, near: 25, draw: 150, impostor: true, pool: 6, shadow: true },
-  statue: { scale: 15, near: 400, draw: 400, shadow: true },
+  statue: { scale: 1.35, near: 400, draw: 400, shadow: true },
   shrub: { scale: 1.4, near: 70, draw: 90 },
   cables: { scale: 2.9, near: 80, draw: 80 },
   car: { near: 70, draw: 70, shadow: true },
@@ -80,6 +81,7 @@ const SPEC: Partial<Record<PropKind, KindSpec>> = {
   utility: { near: 70, draw: 70, shadow: true },
   bench: { near: 70, draw: 70, shadow: true },
   "plaza-bench": { near: 70, draw: 70, shadow: true },
+  "plaza-bench-forjado": { near: 70, draw: 70, shadow: true },
 };
 
 const BRONZE = new THREE.MeshStandardMaterial({ color: "#5c4327", metalness: 0.85, roughness: 0.42 });

@@ -4,6 +4,7 @@ import { STREET, type Plaza } from "@/lib/simulator/street/street-layout";
 import { useFrame } from "@react-three/fiber";
 import { useMemo } from "react";
 import * as THREE from "three";
+import ArgentineFlag from "./ArgentineFlag";
 
 /** Normal de agua con ondas suaves (se desplaza para que el reflejo tiemble). */
 function rippleTexture(): THREE.CanvasTexture {
@@ -35,13 +36,14 @@ function rippleTexture(): THREE.CanvasTexture {
 }
 
 /**
- * Lo construido de la plaza: el pedestal del monumento y la fuente con agua
+ * Lo construido de la plaza: el monumento (pedestal y mástil con la bandera) y la fuente con agua
  * que refleja el cielo. La estatua, los bancos y los faroles están en StreetProps.
  */
 export default function StreetPlaza({ plaza }: { plaza: Plaza }) {
   const h = STREET.curbHeight;
   const stone = useMemo(() => new THREE.MeshStandardMaterial({ color: "#a39c8e", roughness: 0.82 }), []);
   const darkStone = useMemo(() => new THREE.MeshStandardMaterial({ color: "#7a746a", roughness: 0.85 }), []);
+  const granite = useMemo(() => new THREE.MeshStandardMaterial({ color: "#8c4a3b", roughness: 0.38, metalness: 0.05 }), []);
   const ripples = useMemo(rippleTexture, []);
   const water = useMemo(
     () =>
@@ -80,19 +82,29 @@ export default function StreetPlaza({ plaza }: { plaza: Plaza }) {
   const f = plaza.fountain;
   return (
     <group name="calle-plaza">
-      {/* Pedestal escalonado del monumento. */}
-      <mesh position={[cx, h + 0.2, cz]} material={darkStone} castShadow receiveShadow>
-        <boxGeometry args={[6.2, 0.4, 6.2]} />
+      {/* Monumento al Libertador: escalinata, pedestal alto de granito rojizo pulido y cornisa (como el de Rosario). */}
+      <mesh position={[cx, h + 0.15, cz]} material={darkStone} castShadow receiveShadow>
+        <boxGeometry args={[9, 0.3, 9]} />
       </mesh>
-      <mesh position={[cx, h + 0.55, cz]} material={stone} castShadow receiveShadow>
-        <boxGeometry args={[5.2, 0.3, 5.2]} />
+      <mesh position={[cx, h + 0.45, cz]} material={granite} castShadow receiveShadow>
+        <boxGeometry args={[7.6, 0.3, 7.6]} />
       </mesh>
-      <mesh position={[cx, h + 1.65, cz]} material={stone} castShadow receiveShadow>
-        <boxGeometry args={[3.6, 1.9, 3.6]} />
+      <mesh position={[cx, h + 0.75, cz]} material={granite} castShadow receiveShadow>
+        <boxGeometry args={[6.4, 0.3, 6.4]} />
       </mesh>
-      <mesh position={[cx, h + 2.65, cz]} material={darkStone} castShadow receiveShadow>
-        <boxGeometry args={[4, 0.1, 4]} />
+      <mesh position={[cx, h + 1.15, cz]} material={granite} castShadow receiveShadow>
+        <boxGeometry args={[5.2, 0.5, 5.2]} />
       </mesh>
+      <mesh position={[cx, h + 3.2, cz]} material={granite} castShadow receiveShadow>
+        <boxGeometry args={[4.2, 3.6, 4.2]} />
+      </mesh>
+      <mesh position={[cx, h + 5.1, cz]} material={granite} castShadow receiveShadow>
+        <boxGeometry args={[4.7, 0.25, 4.7]} />
+      </mesh>
+      <mesh position={[cx, h + 5.27, cz]} material={granite} castShadow receiveShadow>
+        <boxGeometry args={[4.4, 0.1, 4.4]} />
+      </mesh>
+      <ArgentineFlag position={[cx + plaza.flagOffset[0], h, cz + plaza.flagOffset[1]]} />
 
       {/* Fuente: borde, agua y columna con taza. */}
       <group position={[f.center[0], h, f.center[1]]}>
