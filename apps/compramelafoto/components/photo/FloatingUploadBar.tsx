@@ -16,6 +16,7 @@ export default function FloatingUploadBar() {
 
   return (
     <div
+      data-demo-esquina=""
       className="fixed bottom-6 right-6 z-[9999] flex flex-col gap-2 w-[min(100vw-2rem,320px)] rounded-xl border-2 border-[#c27b3d]/30 bg-white shadow-xl p-3"
       role="status"
       aria-live="polite"

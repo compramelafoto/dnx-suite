@@ -3,6 +3,7 @@ import "./globals.css";
 import MainLayout from "@/components/layout/MainLayout";
 import ComprameLaFotoDesignProvider from "@/components/providers/ComprameLaFotoDesignProvider";
 import { getPublicSiteOrigin } from "@/lib/public-site-url";
+import CuadroGuia from "@/components/demos/CuadroGuia";
 
 const defaultTitle = "ComprameLaFoto - Compra y descarga tus fotos digitales e impresas";
 const defaultDescription =
@@ -36,6 +37,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body suppressHydrationWarning>
         <ComprameLaFotoDesignProvider>
           <MainLayout>{children}</MainLayout>
+          <CuadroGuia />
         </ComprameLaFotoDesignProvider>
       </body>
     </html>
