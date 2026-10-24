@@ -7,6 +7,8 @@ import {
   type TimeOfDayPresetId,
 } from "@/lib/simulator/natural-light";
 import { daylightEv100 } from "@/lib/simulator/scene-light";
+import { WEATHER_IDS, WEATHER_LOOKS, weatherStore } from "@/lib/simulator/weather";
+import { useSyncExternalStore } from "react";
 
 export default function NaturalLightTab() {
   const { timeOfDayMinutes, sunState, setTimeOfDayMinutes, setWhiteBalance, settings } =
@@ -16,6 +18,8 @@ export default function NaturalLightTab() {
     const preset = TIME_OF_DAY_PRESETS.find((p) => p.id === id);
     if (preset) setTimeOfDayMinutes(preset.minutes);
   };
+
+  const weather = useSyncExternalStore(weatherStore.subscribe, weatherStore.get, weatherStore.get);
 
   const applySuggestedWb = () => {
     setWhiteBalance(sunState.suggestedWbKelvin);
@@ -64,6 +68,22 @@ export default function NaturalLightTab() {
         ))}
       </div>
 
+      <h3 className="cod-panel__subtitle">Clima</h3>
+      <div className="cod-natural-light-presets" role="group" aria-label="Clima">
+        {WEATHER_IDS.map((id) => (
+          <button
+            key={id}
+            type="button"
+            className="cod-natural-light-presets__btn"
+            aria-pressed={weather === id}
+            onClick={() => weatherStore.set(id)}
+          >
+            {WEATHER_LOOKS[id].label}
+          </button>
+        ))}
+      </div>
+      <p className="cod-natural-light-panel__hint">{WEATHER_LOOKS[weather].hint}</p>
+
       <h3 className="cod-panel__subtitle">Sol</h3>
       <dl className="cod-natural-light-stats">
         <div>
@@ -97,9 +117,6 @@ export default function NaturalLightTab() {
         La hora selecciona el HDRI activo (ej. mediodía → <code>noon.hdr</code>).
       </p>
 
-      <p className="cod-natural-light-panel__hint cod-natural-light-panel__hint--muted">
-        TODO: clima, nubes, lluvia, niebla, nieve, tormenta y estaciones.
-      </p>
     </div>
   );
 }

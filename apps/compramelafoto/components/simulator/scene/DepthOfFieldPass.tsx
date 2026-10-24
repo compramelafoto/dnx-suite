@@ -1,5 +1,6 @@
 "use client";
 
+import { WEATHER_LOOKS, weatherStore } from "@/lib/simulator/weather";
 import { AsyncPixelReader } from "./async-readback";
 import {
   DOF_FRAGMENT_SHADER,
@@ -172,7 +173,10 @@ export default function DepthOfFieldPass() {
       invProj.current.copy(persp.projectionMatrix).invert();
 
       const quality = simulatorRuntime.quality;
-      if (quality.ao) {
+      // Con cielo cubierto no hay sol directo: las sombras suaves de contacto las da
+      // la oclusión ambiental, así que se prende aunque la calidad sea baja.
+      const aoOn = quality.ao || WEATHER_LOOKS[weatherStore.get()].overcast > 0;
+      if (aoOn) {
         const w = Math.max(1, Math.floor(fbo.width / 2));
         const hgt = Math.max(1, Math.floor(fbo.height / 2));
         if (ao.target.width !== w || ao.target.height !== hgt) ao.target.setSize(w, hgt);
@@ -184,7 +188,7 @@ export default function DepthOfFieldPass() {
         renderer.render(ao.scene, orthoCam.current);
       }
       dofMaterial.uniforms.tAO.value = ao.target.texture;
-      dofMaterial.uniforms.aoStrength.value = quality.ao ? AO_STRENGTH : 0;
+      dofMaterial.uniforms.aoStrength.value = aoOn ? AO_STRENGTH : 0;
 
       const now = performance.now();
       // Lectura asincrónica: lo pedido en un cuadro llega uno o dos cuadros después,

@@ -2,6 +2,8 @@
 
 import { sunPositionFromState } from "@/lib/simulator/natural-light";
 import { simulatorRuntime } from "@/lib/simulator/simulator-runtime";
+import { WEATHER_LOOKS, weatherStore } from "@/lib/simulator/weather";
+import { setGroundWetness } from "./wet-ground";
 import { useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
@@ -9,9 +11,13 @@ import { Sky } from "three/examples/jsm/objects/Sky.js";
 
 /** El cielo es un cubo dentro del plano lejano de la cámara (220 m). */
 const SKY_SCALE = 200;
-/** Bruma: lo lejano se funde con el aire, como en una ciudad real. */
-const FOG_NEAR = 45;
-const FOG_FAR = 190;
+/**
+ * Cielo cubierto (nublado o lluvia): una cúpula gris por delante del cielo
+ * despejado. Brillo relativo al sol pleno; calibrado para que el fotómetro
+ * marque ~3 pasos menos nublado y ~4 con lluvia (la regla del "sol 16").
+ */
+const OVERCAST_SKY = { cloudy: 1.15, rain: 0.38 } as const;
+const OVERCAST_COLOR = new THREE.Color("#b9c0c8");
 /**
  * El mapa de sombras del sol se rehace uno de cada tantos cuadros: costaba
  * ~24 ms por cuadro (toda la ciudad dibujada de nuevo desde el sol). El sol
@@ -22,6 +28,17 @@ const SHADOW_EVERY_FRAMES = 2;
 /** Área de sombras alrededor del fotógrafo (m). */
 const SHADOW_HALF = 38;
 const SHADOW_MAP = 4096;
+
+/** Cúpula del cielo cubierto (una para la vista y otra para el mapa de entorno). */
+function makeDome(radius: number): THREE.Mesh {
+  const dome = new THREE.Mesh(
+    new THREE.SphereGeometry(radius, 32, 16),
+    new THREE.MeshBasicMaterial({ color: OVERCAST_COLOR, side: THREE.BackSide, transparent: true, depthWrite: false, fog: false }),
+  );
+  dome.renderOrder = -1;
+  dome.visible = false;
+  return dome;
+}
 
 function skyParams(elevationDeg: number) {
   // Más turbidez cerca del horizonte: el atardecer se pone naranja.
@@ -52,16 +69,20 @@ export default function StreetLighting() {
     return s;
   }, []);
 
+  const dome = useMemo(() => makeDome(SKY_SCALE * 0.45), []);
+
   const env = useMemo(() => {
     const pmrem = new THREE.PMREMGenerator(gl);
     const envScene = new THREE.Scene();
     const envSky = new Sky();
     envSky.scale.setScalar(10);
     envScene.add(envSky);
-    return { pmrem, envScene, envSky, target: null as THREE.WebGLRenderTarget | null };
+    const envDome = makeDome(4);
+    envScene.add(envDome);
+    return { pmrem, envScene, envSky, envDome, target: null as THREE.WebGLRenderTarget | null };
   }, [gl]);
 
-  const fog = useMemo(() => new THREE.Fog("#a8c8e8", FOG_NEAR, FOG_FAR), []);
+  const fog = useMemo(() => new THREE.Fog("#a8c8e8", WEATHER_LOOKS.sunny.fogNear, WEATHER_LOOKS.sunny.fogFar), []);
   const fogColor = useMemo(() => new THREE.Color(), []);
 
   useEffect(() => {
@@ -105,10 +126,27 @@ export default function StreetLighting() {
       u.sunPosition.value.copy(sunDir);
     }
     sky.position.copy(camera.position);
+    dome.position.copy(camera.position);
 
-    // Regenerar el entorno cuesta: sólo cuando cambia la hora.
-    if (lastEnvMinutes.current !== sunState.minutes) {
-      lastEnvMinutes.current = sunState.minutes;
+    // Clima: cielo cubierto, bruma y piso mojado.
+    const weather = weatherStore.get();
+    const look = WEATHER_LOOKS[weather];
+    const dayLight = THREE.MathUtils.smoothstep(sunState.elevationDeg, -8, 12);
+    const overcastLevel = weather === "sunny" ? 0 : OVERCAST_SKY[weather] * (0.01 + 0.99 * dayLight);
+    for (const d of [dome, env.envDome]) {
+      d.visible = look.overcast > 0;
+      const m = d.material as THREE.MeshBasicMaterial;
+      m.opacity = look.overcast;
+      m.color.copy(OVERCAST_COLOR).multiplyScalar(overcastLevel);
+    }
+    fog.near = look.fogNear;
+    fog.far = look.fogFar;
+    setGroundWetness(look.wet);
+
+    // Regenerar el entorno cuesta: sólo cuando cambia la hora o el clima.
+    const envKey = sunState.minutes * 10 + ["sunny", "cloudy", "rain"].indexOf(weather);
+    if (lastEnvMinutes.current !== envKey) {
+      lastEnvMinutes.current = envKey;
       env.target?.dispose();
       env.target = env.pmrem.fromScene(env.envScene, 0.02);
       scene.environment = env.target.texture;
@@ -116,10 +154,12 @@ export default function StreetLighting() {
     // La bruma toma el color del horizonte, con el brillo de la luz del momento.
     const dayFactor = THREE.MathUtils.smoothstep(sunState.elevationDeg, -6, 10);
     fogColor.set(sunState.fogColor).multiplyScalar(0.02 + 0.9 * dayFactor);
+    // Con el cielo cubierto el horizonte es gris (sin cambiar cuánto se ve a lo lejos).
+    if (look.overcast > 0) fogColor.lerp(OVERCAST_COLOR.clone().multiplyScalar(overcastLevel * 0.55), look.overcast);
     fog.color.copy(fogColor);
 
     // De noche el cielo casi no ilumina: mandan los faroles y las vidrieras.
-    scene.environmentIntensity = 0.006 + 0.994 * THREE.MathUtils.smoothstep(sunState.elevationDeg, -8, 4);
+    scene.environmentIntensity = (0.006 + 0.994 * THREE.MathUtils.smoothstep(sunState.elevationDeg, -8, 4)) * (look.overcast > 0 ? 1 : look.sky);
 
     const sun = sunRef.current;
     // El tamaño del mapa de sombras sigue la calidad vigente (se rehace al cambiar).
@@ -132,7 +172,7 @@ export default function StreetLighting() {
     if (sun) {
       const daylight = THREE.MathUtils.smoothstep(sunState.elevationDeg, -2, 6);
       // Iluminancia solar frente al cielo: el sol domina con el sol alto.
-      sun.intensity = daylight * (1.2 + 2.6 * THREE.MathUtils.smoothstep(sunState.elevationDeg, 5, 45));
+      sun.intensity = daylight * (1.2 + 2.6 * THREE.MathUtils.smoothstep(sunState.elevationDeg, 5, 45)) * look.sun;
       sun.color.set(sunState.sunColor);
       sun.visible = sun.intensity > 0.01;
       // La sombra sigue al fotógrafo y se ajusta a la grilla de texels (no "nada").
@@ -162,6 +202,7 @@ export default function StreetLighting() {
   return (
     <>
       <primitive object={sky} />
+      <primitive object={dome} />
       <primitive object={target} />
       <directionalLight
         ref={sunRef}
