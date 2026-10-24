@@ -13,6 +13,7 @@ import {
 } from "@/lib/simulator/simulator-runtime";
 import { getSceneMeta } from "@/lib/simulator/scenes";
 import { simulatorRuntime } from "@/lib/simulator/simulator-runtime";
+import { TOUCH_SPRINT_THRESHOLD, touchInput } from "@/lib/simulator/touch-input";
 import { useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
@@ -30,6 +31,8 @@ const ROLL_SPEED = 1.15;
 const ROLL_EPSILON = 1e-4;
 const MAX_PITCH = THREE.MathUtils.degToRad(89);
 const MOUSE_SENSITIVITY = 0.002;
+/** En el celular el dedo recorre menos: gira un poco más por píxel. */
+const TOUCH_LOOK_SENSITIVITY = 0.0042;
 
 const _euler = new THREE.Euler(0, 0, 0, "YXZ");
 const _forward = new THREE.Vector3();
@@ -257,7 +260,10 @@ export default function FirstPersonController({ onLockChange }: FirstPersonContr
     };
   }, []);
 
-  useFrame((_, delta) => {
+  useFrame((_, frameDelta) => {
+    // Un cuadro largo (tirón o celular lento) no debe hacer saltar la cámara: el
+    // freno se vuelve inestable con pasos de más de un par de décimas.
+    const delta = Math.min(frameDelta, 0.05);
     if (process.env.NODE_ENV === "development") {
       const now = performance.now();
       if (now - lastCameraLogMsRef.current > 5000) {
@@ -271,10 +277,22 @@ export default function FirstPersonController({ onLockChange }: FirstPersonContr
       }
     }
 
-    if (engagedRef.current) {
+    // Celular: mirar arrastrando el dedo (lo acumulado desde el último cuadro).
+    if (touchInput.lookDX !== 0 || touchInput.lookDY !== 0) {
+      _euler.setFromQuaternion(camera.quaternion, "YXZ");
+      _euler.y -= touchInput.lookDX * TOUCH_LOOK_SENSITIVITY;
+      _euler.x -= touchInput.lookDY * TOUCH_LOOK_SENSITIVITY;
+      _euler.x = Math.max(-MAX_PITCH, Math.min(MAX_PITCH, _euler.x));
+      camera.quaternion.setFromEuler(_euler);
+      touchInput.lookDX = 0;
+      touchInput.lookDY = 0;
+    }
+
+    if (engagedRef.current || touchInput.active) {
       const { forward, backward, left, right, sprint, heightUp, heightDown, rollLeft, rollRight } =
         keys.current;
-      const speed = sprint ? SPRINT_SPEED : WALK_SPEED;
+      const stick = Math.hypot(touchInput.moveX, touchInput.moveY);
+      const speed = sprint || stick > TOUCH_SPRINT_THRESHOLD ? SPRINT_SPEED : WALK_SPEED;
 
       velocity.current.x -= velocity.current.x * DAMPING * delta;
       velocity.current.z -= velocity.current.z * DAMPING * delta;
@@ -287,6 +305,11 @@ export default function FirstPersonController({ onLockChange }: FirstPersonContr
 
       if (direction.current.lengthSq() > 0) {
         direction.current.normalize();
+      } else if (stick > 0.05) {
+        // Joystick: cuanto más se lo empuja, más rápido (hasta caminar normal).
+        direction.current.set(touchInput.moveX, 0, touchInput.moveY).multiplyScalar(Math.min(1, stick) / stick);
+      }
+      if (direction.current.lengthSq() > 0) {
         velocity.current.x -= direction.current.x * speed * delta * 60;
         velocity.current.z -= direction.current.z * speed * delta * 60;
       }

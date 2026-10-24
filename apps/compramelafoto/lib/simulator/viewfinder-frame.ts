@@ -27,6 +27,18 @@ export interface ViewfinderInsets {
   bottom: number;
 }
 
+/**
+ * Celular: el visor ocupa casi toda la pantalla (los controles van encima),
+ * con un margen chico para no pegarse a los bordes.
+ */
+const COMPACT_INSET = 0.02;
+let compact = false;
+
+/** Cambia a los márgenes del celular (se llama antes de montar el visor). */
+export function setViewfinderCompact(value: boolean) {
+  compact = value;
+}
+
 /** Proporción del sensor (36×24 mm = 3:2). */
 function sensorAspect(): number {
   const sensor = getActiveSensor();
@@ -40,8 +52,10 @@ function sensorAspect(): number {
 export function computeViewfinderInsets(canvasWidth: number, canvasHeight: number): ViewfinderInsets {
   const w = Math.max(1, canvasWidth);
   const h = Math.max(1, canvasHeight);
-  const availW = w * (1 - 2 * VIEWFINDER_INSET_X);
-  const availH = h * (1 - VIEWFINDER_INSET_TOP - VIEWFINDER_INSET_BOTTOM);
+  const insetX = compact ? COMPACT_INSET : VIEWFINDER_INSET_X;
+  const insetY = compact ? COMPACT_INSET * 2 : VIEWFINDER_INSET_TOP + VIEWFINDER_INSET_BOTTOM;
+  const availW = w * (1 - 2 * insetX);
+  const availH = h * (1 - insetY);
   const aspect = sensorAspect();
   const frameW = Math.min(availW, availH * aspect);
   const frameH = frameW / aspect;
