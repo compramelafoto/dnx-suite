@@ -23125,6 +23125,24 @@ model FotofficeSalidaTamano {
 }
 
 /// Un producto que se produce en el local: qué pieza es, por dónde sale y qué hoja usa.
+/// Comisión de venta del equipo: quién cobra comisión por vender fotolibros, con qué porcentaje
+/// y desde cuándo. Lo ganado no se guarda: sale de las ventas y los pedidos cobrados enteros
+/// (`apps/fotoffice/lib/comisiones/`). Sin claves foráneas.
+model FotofficeComisionVendedor {
+  id          String   @id @default(cuid())
+  workspaceId String
+  userId      Int
+  /// % del precio de venta (10 = 10 %).
+  porcentaje  Decimal  @db.Decimal(5, 2)
+  /// Las ventas anteriores no suman.
+  desde       DateTime @default(now())
+  activa      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([workspaceId, userId])
+}
+
 model FotofficeProductoProduccion {
   id           String   @id @default(cuid())
   workspaceId  String

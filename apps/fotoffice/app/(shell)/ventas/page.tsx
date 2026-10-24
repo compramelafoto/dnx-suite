@@ -14,6 +14,7 @@ import { contextoDePedidos } from "@/lib/pedidos/contexto";
 import { proyectosEncendidos } from "@/lib/proyectos/crear";
 import { Pos } from "./pos";
 import { leerQrMostrador } from "@/lib/sales/qr-mp-servidor";
+import { esDuenoOAdmin, leerReglas, miComision, productosConComision } from "@/lib/comisiones/servidor";
 
 export const dynamic = "force-dynamic";
 
@@ -72,6 +73,14 @@ export default async function VentasPage() {
     leerQrMostrador(workspace.id),
   ]);
 
+  // Comisión de venta: el cartel verde lo ven quien cobra comisión y el dueño; el acumulado, sólo quien cobra.
+  const reglasActivas = (await leerReglas(workspace.id)).filter((r) => r.activa);
+  const mia = reglasActivas.some((r) => r.userId === user.id) ? await miComision(workspace.id, user.id) : null;
+  const comision =
+    reglasActivas.length > 0 && (mia || (await esDuenoOAdmin(user.id, workspace.id)))
+      ? { porcentaje: mia?.porcentaje ?? Math.max(...reglasActivas.map((r) => r.porcentaje)), productIds: await productosConComision(workspace.id), mia }
+      : null;
+
   return (
     <div className="space-y-6">
       <PageHeader title="Mostrador" description="Tocá los productos, elegí cómo paga y cobrá." />
@@ -83,6 +92,7 @@ export default async function VentasPage() {
         procesos={procesos}
         senaHabilitada={senaHabilitada}
         qrActivo={qr.activo}
+        comision={comision}
         fotolibro={await leerCatalogoFotolibro(workspace.id, { conCostos: canEditCatalog }).then((catalogo) => (catalogo ? { catalogo, verCostos: canEditCatalog } : null))}
         permisosCarnet={{ puedeBuscarClientes: hasLevel(nivelClientes, "VIEW"), puedeAltaCliente: hasLevel(nivelClientes, "MANAGE") }}
         egresos={
