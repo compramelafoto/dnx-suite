@@ -20,10 +20,14 @@ import {
 } from "@repo/template-editor-core";
 import {
   CLASS_LIST_VARIABLE_KEY,
+  COURSE_MOSAIC_SAMPLE,
+  COURSE_MOSAIC_VARIABLE_KEY,
   isClassListConfig,
   isCourseMosaicConfig,
   parseClassListGroups,
+  parseCourseMosaic,
   resolveTemplateDocument,
+  serializeCourseMosaic,
   serializeClassList,
   type LegacyTemplateV2Payload,
 } from "@repo/template-engine";
@@ -46,6 +50,7 @@ const ALUMNOS: Array<[string, string]> = [
 ];
 
 export const VALORES_DE_MUESTRA: Record<string, string> = {
+  [COURSE_MOSAIC_VARIABLE_KEY]: serializeCourseMosaic(COURSE_MOSAIC_SAMPLE),
   "student.fullName": "Martina López",
   "student.firstName": "Martina",
   "student.lastName": "López",
@@ -209,6 +214,7 @@ export async function dibujarPlantilla(
     blocks: editorBlocks,
     nombre: p.nombre,
     cursosDelListado: parseClassListGroups(VALORES_DE_MUESTRA[CLASS_LIST_VARIABLE_KEY], VALORES_DE_MUESTRA["course.displayName"]),
+    mosaicoDelCurso: parseCourseMosaic(VALORES_DE_MUESTRA[COURSE_MOSAIC_VARIABLE_KEY]),
     colegioDelListado: VALORES_DE_MUESTRA["school.name"] ?? null,
   });
 

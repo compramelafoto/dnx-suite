@@ -838,6 +838,7 @@ function CourseMosaicOptionsPanel({
           />
         </div>
       ) : null}
+      {o.frame === "circle" ? null : (
       <div>
         <FieldLabel>Proporción del retrato</FieldLabel>
         <SegmentedControl
@@ -851,6 +852,7 @@ function CourseMosaicOptionsPanel({
           options={MOSAIC_ASPECTS}
         />
       </div>
+      )}
       <div>
         <FieldLabel>Separación entre retratos (a lo ancho)</FieldLabel>
         <NumberSliderField ariaLabel="Separación horizontal en píxeles" value={o.gapX} min={0} max={200} onChange={(gapX) => onChange({ gapX })} />
@@ -883,6 +885,11 @@ function CourseMosaicOptionsPanel({
         onChange={(on) => onChange({ shadow: on ? { dx: 16, dy: 16, color: "#f5c518" } : null })}
         label="Recuadro de color corrido detrás de cada retrato"
       />
+      {o.shadow && o.frame === "ellipse" ? (
+        <p className="text-[10px] leading-snug text-[color:var(--te-ink-faint)]">
+          El óvalo va sin recuadro de color: la impresión no dibuja óvalos de color.
+        </p>
+      ) : null}
       {o.shadow ? (
         <div className="space-y-1">
           <ColorField label="Color" value={o.shadow.color} onChange={(color) => onChange({ shadow: { ...o.shadow!, color } })} />

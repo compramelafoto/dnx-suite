@@ -102,8 +102,9 @@ export const COURSE_MOSAIC_CHAR_WIDTH = 0.55;
 const FRAMES: readonly CourseMosaicFrame[] = ["rect", "rounded", "circle", "ellipse", "polaroid"];
 const NAME_POSITIONS: readonly CourseMosaicNamePosition[] = ["below", "above", "insideBottom", "none"];
 
-const MAX_COLUMNS = 14;
-const MAX_ROWS = 40;
+/** Topes de la búsqueda de grilla: alcanzan para un curso entero en una sola fila o columna. */
+const MAX_COLUMNS = 60;
+const MAX_ROWS = 60;
 
 type Rec = Record<string, unknown>;
 
@@ -374,7 +375,10 @@ export function layoutCourseMosaic(input: {
   fontSize: number;
   lineHeight: number;
 }): { cells: CourseMosaicCell[]; overflow: number } {
-  const { students, options: o, width: w, height: h, fontSize, lineHeight } = input;
+  const { students, width: w, height: h, fontSize, lineHeight } = input;
+  // Un círculo es redondo: el retrato va cuadrado aunque la proporción guardada sea otra. Si no,
+  // la pantalla dibuja un óvalo y la impresión un círculo.
+  const o = input.options.frame === "circle" ? { ...input.options, photoAspect: 1 } : input.options;
   const n = students.length;
   if (n === 0 || w <= 0 || h <= 0) return { cells: [], overflow: n };
   const g = geometry(o, fontSize, lineHeight);

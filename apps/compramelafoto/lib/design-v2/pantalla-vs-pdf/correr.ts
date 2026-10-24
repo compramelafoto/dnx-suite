@@ -145,7 +145,9 @@ async function pdfPorPagina(caso: CasoDeComparacion): Promise<{ paginas: Buffer[
     pngDpi: dpi,
     fileBaseName: caso.id,
     resources: {
-      async read(ref: string) {
+      async read(refDelPuente: string) {
+        // Las fotos del mosaico llegan con su prefijo; acá son las mismas imágenes en línea.
+        const ref = refDelPuente.startsWith("mosaic-url:") ? refDelPuente.slice("mosaic-url:".length) : refDelPuente;
         const coma = ref.indexOf(",");
         if (!ref.startsWith("data:") || coma < 0) return null;
         return new Uint8Array(Buffer.from(ref.slice(coma + 1), "base64"));

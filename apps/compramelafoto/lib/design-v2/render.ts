@@ -4,11 +4,9 @@ import { emitDesign, type ResourceResolver, type VariableDeclaration } from "@re
 import { editorADocumento } from "@repo/template-editor-core/rendering";
 import {
   CLASS_LIST_VARIABLE_KEY,
-  COURSE_MOSAIC_VARIABLE_KEY,
   isClassListConfig,
   isCourseMosaicConfig,
   parseClassListGroups,
-  parseCourseMosaic,
   resolveTemplateDocument,
   type LegacyTemplateV2Payload,
 } from "@repo/template-engine";
@@ -20,6 +18,8 @@ import {
   resolveTemplateVariablePlugin,
 } from "@/lib/template-v2/server";
 import type { DesignV2Data } from "./design-data";
+import { leerRecursoDelMosaico } from "./mosaico-recursos";
+import { courseMosaicForPrint } from "./values";
 import type { DesignTemplateVersion } from "./template";
 
 /**
@@ -33,10 +33,7 @@ import type { DesignTemplateVersion } from "./template";
  */
 
 const PHOTO_REF_PREFIX = "design-photo:";
-/** Un compañero del mosaico del curso: la foto entera, achicada; el encuadre lo aplica design-studio. */
-const MOSAIC_PHOTO_REF_PREFIX = "mosaic-photo:";
-/** Lado mayor de un retrato del mosaico: son recuadros chicos, más que esto no se ve. */
-const MAX_MOSAIC_PHOTO_SIDE_PX = 1200;
+
 /** Lado máximo de una foto ya recortada: más que eso no suma nada a 300 dpi en una carpeta. */
 const MAX_PHOTO_SIDE_PX = 4000;
 const IMAGE_BLOCK_TYPES = new Set(["IMAGE", "PHOTO"]);
@@ -245,38 +242,28 @@ export async function renderDesignV2(input: {
     // Un listado guardado antes de los cursos con título lleva el curso del diseño como título.
     cursosDelListado: parseClassListGroups(data.values[CLASS_LIST_VARIABLE_KEY], data.values["course.displayName"]),
     colegioDelListado: data.values["school.name"] ?? null,
-    // Sin valor, el puente dibuja los compañeros de muestra (la vista de una plantilla sin datos).
-    mosaicoDelCurso:
-      data.values[COURSE_MOSAIC_VARIABLE_KEY] != null ? parseCourseMosaic(data.values[COURSE_MOSAIC_VARIABLE_KEY]) : undefined,
+    // Sin valor guardado, ninguno: una carpeta real nunca lleva compañeros inventados.
+    mosaicoDelCurso: courseMosaicForPrint(data.values),
   });
 
   const slotSizeByBlock = new Map(
     template.legacy.blocks.map((b) => [b.id, { width: b.layout.width, height: b.layout.height }]),
   );
   const photoCache = new Map<number, Promise<Uint8Array | null>>();
-  const resources: ResourceResolver = {
+  const leerSinMemoria: ResourceResolver = {
     async read(ref: string) {
-      if (ref.startsWith(MOSAIC_PHOTO_REF_PREFIX)) {
-        const photoId = Number(ref.slice(MOSAIC_PHOTO_REF_PREFIX.length));
-        if (!Number.isInteger(photoId) || photoId <= 0) return null;
-        let pending = photoCache.get(photoId);
-        if (!pending) {
-          pending = input.loadPhoto(photoId);
-          photoCache.set(photoId, pending);
-        }
-        const bytes = await pending;
-        if (!bytes) return null;
-        try {
-          const out = await sharp(bytes, { failOn: "none" })
-            .rotate()
-            .resize({ width: MAX_MOSAIC_PHOTO_SIDE_PX, height: MAX_MOSAIC_PHOTO_SIDE_PX, fit: "inside", withoutEnlargement: true })
-            .jpeg({ quality: 88, mozjpeg: true })
-            .toBuffer();
-          return new Uint8Array(out);
-        } catch {
-          return null;
-        }
-      }
+      const delMosaico = await leerRecursoDelMosaico(ref, {
+        cargarFoto: (photoId) => {
+          let pending = photoCache.get(photoId);
+          if (!pending) {
+            pending = input.loadPhoto(photoId);
+            photoCache.set(photoId, pending);
+          }
+          return pending;
+        },
+        cargarUrl: loadStaticImage,
+      });
+      if (delMosaico !== undefined) return delMosaico;
       if (!ref.startsWith(PHOTO_REF_PREFIX)) return loadStaticImage(ref);
       const blockId = ref.slice(PHOTO_REF_PREFIX.length);
       const assignment = data.slots[blockId];
@@ -299,6 +286,20 @@ export async function renderDesignV2(input: {
       } catch {
         return null;
       }
+    },
+  };
+
+  // Una sola lectura por recurso: el marco del mosaico (o una foto de demo repetida) se pide una
+  // vez por compañero y no hace falta bajarlo 24 veces.
+  const leidos = new Map<string, Promise<Uint8Array | null>>();
+  const resources: ResourceResolver = {
+    read(ref: string) {
+      let pendiente = leidos.get(ref);
+      if (!pendiente) {
+        pendiente = leerSinMemoria.read(ref);
+        leidos.set(ref, pendiente);
+      }
+      return pendiente;
     },
   };
 

@@ -6,6 +6,7 @@ import {
   isCourseMosaicConfig,
   layoutCourseMosaic,
   readCourseMosaicOptions,
+  SCHOOL_CLIENT_PHOTO_PLACEHOLDER,
   sortCourseMosaic,
   type CourseMosaicOptions,
   type CourseMosaicStudent,
@@ -68,14 +69,13 @@ describe("editorADocumento — mosaico del curso", () => {
     assert.equal(fotos.length, 2);
     // Van por apellido: Díaz, Gómez, Pérez.
     assert.equal(fotos[0]!.type, "image");
-    assert.equal(fotos[0]!.resourceRef, "https://r2.example/bruno.jpg");
+    assert.equal(fotos[0]!.resourceRef, "mosaic-url:https://r2.example/bruno.jpg");
     assert.equal(fotos[1]!.resourceRef, "mosaic-photo:7");
     assert.deepEqual(fotos[1]!.crop, { zoom: 1.4, x: 0, y: -0.3 });
     assert.equal(fotos[1]!.sourceAspect, 0.66);
     const silueta = partes(todos, "mos", "silueta");
     assert.equal(silueta.length, 1);
-    assert.equal(silueta[0]!.type, "rect");
-    assert.equal(silueta[0]!.fillColor, "#d6d3d1");
+    assert.equal(silueta[0]!.type, "image");
     const iniciales = partes(todos, "mos", "iniciales");
     assert.equal(iniciales[0]!.content, "JP");
     assert.deepEqual(
@@ -129,9 +129,28 @@ describe("editorADocumento — mosaico del curso", () => {
     assert.equal(g.rotation, 90);
   });
 
-  it("sin chicos dados dibuja los compañeros de muestra; con lista vacía no dibuja nada", () => {
-    assert.equal(partes(dibujar([mosaico("mos")]).todos, "mos", "nombre").length, COURSE_MOSAIC_SAMPLE.length);
+  it("sin chicos dados no dibuja nada: nunca compañeros inventados en una carpeta real", () => {
+    assert.equal(dibujar([mosaico("mos")]).todos.length, 0);
     assert.equal(dibujar([mosaico("mos")], []).todos.length, 0);
+    assert.equal(partes(dibujar([mosaico("mos")], COURSE_MOSAIC_SAMPLE).todos, "mos", "nombre").length, COURSE_MOSAIC_SAMPLE.length);
+  });
+
+  it("la foto de pantalla va con prefijo propio, así la impresión puede reemplazarla si falla", () => {
+    const fotos = partes(dibujar([mosaico("mos")], tres).todos, "mos", "foto");
+    assert.equal(fotos[0]!.resourceRef, "mosaic-url:https://r2.example/bruno.jpg");
+  });
+
+  it("la silueta es la imagen gris con la forma del recuadro, y en óvalo no hay sombra", () => {
+    const { todos, avisos } = dibujar(
+      [mosaico("mos", { frame: "ellipse", shadow: { dx: 10, dy: 10, color: "#ff0000" } })],
+      tres,
+    );
+    const silueta = partes(todos, "mos", "silueta")[0]!;
+    assert.equal(silueta.type, "image");
+    assert.equal(silueta.resourceRef, SCHOOL_CLIENT_PHOTO_PLACEHOLDER);
+    assert.equal(silueta.mask, "ellipse");
+    assert.equal(partes(todos, "mos", "sombra").length, 0);
+    assert.ok(avisos.some((a) => a.includes("sombra")));
   });
 
   it("la sombra va debajo de la foto, corrida y del color elegido", () => {

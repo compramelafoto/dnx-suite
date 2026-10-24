@@ -1,6 +1,7 @@
 import {
   CLASS_LIST_VARIABLE_KEY,
   COURSE_MOSAIC_VARIABLE_KEY,
+  parseCourseMosaic,
   serializeCourseMosaic,
   type CourseMosaicStudent,
   formatCourseName,
@@ -104,4 +105,12 @@ export function buildDesignValues(src: DesignValueSources): Record<string, strin
 export function courseDisplayName(name?: string | null, division?: string | null): string | null {
   const parts = [name?.trim(), division?.trim()].filter(Boolean);
   return parts.length ? formatCourseName(parts.join(" ")) || null : null;
+}
+
+/**
+ * Los compañeros del mosaico que se imprimen. Sin valor guardado, ninguno: los compañeros de
+ * muestra son sólo para el editor y las vistas de ejemplo, nunca para una carpeta real.
+ */
+export function courseMosaicForPrint(values: Record<string, string>): CourseMosaicStudent[] {
+  return parseCourseMosaic(values[COURSE_MOSAIC_VARIABLE_KEY]);
 }

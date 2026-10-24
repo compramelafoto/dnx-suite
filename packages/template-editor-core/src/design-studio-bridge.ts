@@ -5,7 +5,7 @@ import {
   CLASS_LIST_SAMPLE_GROUPS,
   CLASS_LIST_SAMPLE_SCHOOL,
   CLASS_LIST_VARIABLE_KEY,
-  COURSE_MOSAIC_SAMPLE,
+  SCHOOL_CLIENT_PHOTO_PLACEHOLDER,
   distributeCourseMosaic,
   isCourseMosaicConfig,
   layoutCourseMosaic,
@@ -227,8 +227,9 @@ export function editorADocumento(input: {
    */
   colegioDelListado?: string | null;
   /**
-   * Los compañeros del bloque «Mosaico del curso», ya sin el dueño del diseño. Sin esto se
-   * dibujan los compañeros de muestra (la vista previa del editor); una lista vacía no dibuja nada.
+   * Los compañeros del bloque «Mosaico del curso», ya sin el dueño del diseño. Sin esto no se
+   * dibuja ninguno: una carpeta real nunca lleva compañeros inventados. Quien quiera la muestra
+   * (una vista de ejemplo) pasa `COURSE_MOSAIC_SAMPLE`.
    */
   mosaicoDelCurso?: readonly CourseMosaicStudent[];
 }): PuenteResultado {
@@ -258,9 +259,10 @@ export function editorADocumento(input: {
   // puede empezar en una página y seguir en la otra.
   const chicosPorMosaico = distributeCourseMosaic(
     input.blocks.filter((b) => b.type === "VARIABLE_TEXT"),
-    [...(input.mosaicoDelCurso ?? COURSE_MOSAIC_SAMPLE)],
+    [...(input.mosaicoDelCurso ?? [])],
   );
   let avisoElipse = false;
+  let avisoSombra = false;
 
   const sides = [...porCara.entries()]
     .sort(([a], [b]) => a - b)
@@ -345,6 +347,10 @@ export function editorADocumento(input: {
               if (dibujado.bordeDeElipse && !avisoElipse) {
                 avisoElipse = true;
                 avisos.push("El mosaico va sin borde de elipse: la impresión no dibuja elipses con borde.");
+              }
+              if (dibujado.sombraDeElipse && !avisoSombra) {
+                avisoSombra = true;
+                avisos.push("El mosaico en óvalo va sin sombra: la impresión no dibuja óvalos de color.");
               }
               break;
             }
@@ -582,8 +588,7 @@ export function editorADocumento(input: {
   };
 }
 
-/** Gris de la silueta de un chico sin foto, y el de sus iniciales. */
-const SILUETA_FONDO = "#d6d3d1";
+/** Color de las iniciales sobre la silueta de un chico sin foto. */
 const SILUETA_LETRAS = "#78716c";
 
 function iniciales(s: CourseMosaicStudent): string {
@@ -610,7 +615,7 @@ function dibujarMosaico(input: {
   mm: (px: number) => number;
   pt: (px: number) => number;
   fuente: FontId;
-}): { partes: Record<string, unknown>[]; bordeDeElipse: boolean } {
+}): { partes: Record<string, unknown>[]; bordeDeElipse: boolean; sombraDeElipse: boolean } {
   const { bloque: b, cfg, geo, chicos, mm, pt, fuente } = input;
   const o = readCourseMosaicOptions(cfg);
   // Los mismos valores por defecto que el lienzo (`getTextVisualConfig`): si no, las filas se
@@ -650,6 +655,7 @@ function dibujarMosaico(input: {
 
   const partes: Record<string, unknown>[] = [];
   let bordeDeElipse = false;
+  const sombraDeElipse = o.frame === "ellipse" && o.shadow != null;
 
   reparto.cells.forEach((celda, i) => {
     const cx = bx + celda.box.x + celda.box.width / 2;
@@ -674,7 +680,7 @@ function dibujarMosaico(input: {
     const radio = radioDeForma(celda.photo);
     const redondeo = (px: number) => (px > 0 ? { cornerRadius: mm(px) } : {});
 
-    if (o.shadow) {
+    if (o.shadow && o.frame !== "ellipse") {
       parte(
         "sombra",
         { ...papel, x: papel.x + o.shadow.dx, y: papel.y + o.shadow.dy },
@@ -684,7 +690,14 @@ function dibujarMosaico(input: {
     if (o.frame === "polaroid") parte("papel", celda.box, { type: "rect", fillColor: "#ffffff" });
 
     const chico = celda.student;
-    const ref = chico.photoId != null ? `mosaic-photo:${chico.photoId}` : chico.photoUrl;
+    // Con prefijo propio, así quien imprime sabe que es un compañero y, si la foto no aparece,
+    // pone la silueta en vez de frenar toda la carpeta.
+    const ref =
+      chico.photoId != null
+        ? `mosaic-photo:${chico.photoId}`
+        : chico.photoUrl
+          ? `mosaic-url:${chico.photoUrl}`
+          : null;
     if (ref) {
       parte("foto", celda.photo, {
         type: "image",
@@ -696,7 +709,15 @@ function dibujarMosaico(input: {
         ...(chico.sourceAspect ? { sourceAspect: chico.sourceAspect } : {}),
       });
     } else {
-      parte("silueta", celda.photo, { type: "rect", fillColor: SILUETA_FONDO, ...redondeo(radio) });
+      // La silueta es la imagen gris con la misma forma que la foto: así un óvalo es un óvalo
+      // también en el papel (la impresión no dibuja óvalos de color).
+      parte("silueta", celda.photo, {
+        type: "image",
+        resourceRef: SCHOOL_CLIENT_PHOTO_PLACEHOLDER,
+        fit: "cover",
+        mask: o.frame === "circle" || o.frame === "ellipse" ? o.frame : "rect",
+        ...(o.frame === "rounded" ? redondeo(o.cornerRadius) : {}),
+      });
       parte("iniciales", celda.photo, {
         type: "text",
         content: iniciales(chico),
@@ -746,7 +767,7 @@ function dibujarMosaico(input: {
     }
   });
 
-  return { partes, bordeDeElipse };
+  return { partes, bordeDeElipse, sombraDeElipse };
 }
 
 /* ────────────────────────────────────────────────────────────────────────── */

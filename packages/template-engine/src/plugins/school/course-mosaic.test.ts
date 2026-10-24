@@ -235,3 +235,19 @@ test("dos mosaicos con el mismo orden son copias: cada uno lleva a todos", () =>
   assert.deepEqual(r.get("a"), lista);
   assert.deepEqual(r.get("b"), lista);
 });
+
+test("en círculo el retrato es cuadrado aunque la proporción guardada sea 3:4", () => {
+  const { cells } = repartir(10, 1000, 800, { frame: "circle", photoAspect: 0.75 });
+  for (const c of cells) assert.ok(Math.abs(c.photo.width - c.photo.height) < EPS);
+});
+
+test("un bloque muy apaisado usa más de 14 columnas si hace falta", () => {
+  const { cells } = repartir(40, 3000, 400);
+  assert.equal(cells.length, 40);
+  assert.ok(cells[0]!.photo.width > 90, `foto de ${cells[0]!.photo.width}`);
+});
+
+test("el ejemplo del catálogo escolar trae compañeros para el mosaico", async () => {
+  const { SCHOOL_TEMPLATE_EXAMPLE_DATA } = await import("./index");
+  assert.equal(parseCourseMosaic(String(SCHOOL_TEMPLATE_EXAMPLE_DATA["course.mosaic"])).length, COURSE_MOSAIC_SAMPLE.length);
+});

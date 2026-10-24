@@ -16,7 +16,6 @@ import {
   CLIENT_PHOTO_ROLE_SLOTS,
   CLIENT_PHOTO_VARIABLE_PATTERN,
   SCHOOL_CLIENT_PHOTO_PLACEHOLDER,
-  COURSE_MOSAIC_SAMPLE,
   distributeCourseMosaic,
   isClassListConfig,
   isCourseMosaicConfig,
@@ -252,7 +251,7 @@ function MosaicCellView({ cell, o, t, index }: { cell: CourseMosaicCell; o: Cour
         transform: cell.rotation ? `rotate(${cell.rotation}deg)` : undefined,
       }}
     >
-      {o.shadow ? (
+      {o.shadow && o.frame !== "ellipse" ? (
         <div
           style={{
             ...rel({ ...paper, x: paper.x + o.shadow.dx, y: paper.y + o.shadow.dy }),
@@ -262,7 +261,7 @@ function MosaicCellView({ cell, o, t, index }: { cell: CourseMosaicCell; o: Cour
         />
       ) : null}
       {o.frame === "polaroid" ? <div style={{ ...rel(cell.box), background: "#ffffff" }} /> : null}
-      <div style={{ ...rel(cell.photo), overflow: "hidden", borderRadius: radius, background: src ? undefined : "#d6d3d1" }}>
+      <div style={{ ...rel(cell.photo), overflow: "hidden", borderRadius: radius }}>
         {src ? (
           <MosaicPhoto student={s} width={cell.photo.width} height={cell.photo.height} />
         ) : (
@@ -270,6 +269,9 @@ function MosaicCellView({ cell, o, t, index }: { cell: CourseMosaicCell; o: Cour
             style={{
               width: "100%",
               height: "100%",
+              // La misma imagen gris que usa la impresión para la silueta.
+              backgroundImage: `url("${SCHOOL_CLIENT_PHOTO_PLACEHOLDER}")`,
+              backgroundSize: "cover",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -341,11 +343,14 @@ function CourseMosaicBlockRenderer({
   students,
   layoutWidth,
   layoutHeight,
+  readOnly,
 }: {
   config: Record<string, unknown>;
   students: CourseMosaicStudent[];
   layoutWidth: number;
   layoutHeight: number;
+  /** En las vistas de la familia un mosaico vacío no se ve, igual que en el papel. */
+  readOnly: boolean;
 }) {
   const o = readCourseMosaicOptions(config);
   const t = getTextVisualConfig(config);
@@ -358,6 +363,7 @@ function CourseMosaicBlockRenderer({
     lineHeight: t.lineHeight,
   });
   if (cells.length === 0) {
+    if (readOnly) return null;
     return (
       <div
         style={{
@@ -925,11 +931,12 @@ export function TemplateCanvasRenderer({
   );
   const selectedSet = new Set(selectedBlockIds);
   // Los bloques del mosaico se reparten los chicos entre todos (de todas las páginas), como en la
-  // impresión. Sin valor, los compañeros de muestra.
+  // impresión. Sin valor, ninguno: el editor trae la muestra en sus variables de ejemplo, y una
+  // carpeta real nunca muestra compañeros inventados.
   const mosaicValue = resolvedVariables?.["course.mosaic"];
   const studentsByMosaic = distributeCourseMosaic(
     blocks.map((b) => ({ id: b.id, configJson: b.type === "VARIABLE_TEXT" ? b.configJson : undefined })),
-    typeof mosaicValue === "string" ? parseCourseMosaic(mosaicValue) : COURSE_MOSAIC_SAMPLE,
+    typeof mosaicValue === "string" ? parseCourseMosaic(mosaicValue) : [],
   );
 
   return (
@@ -974,6 +981,7 @@ export function TemplateCanvasRenderer({
                   students={studentsByMosaic.get(block.id) ?? []}
                   layoutWidth={block.layout.width}
                   layoutHeight={block.layout.height}
+                  readOnly={readOnly}
                 />
               ) : isClassListConfig(block.configJson) ? (
                 <ClassListBlockRenderer
