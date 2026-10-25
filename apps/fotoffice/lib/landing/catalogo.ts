@@ -8,6 +8,7 @@ import { FOTOLIBROS_SOCIO_MODULE_KEY } from "@/lib/fotolibro/constantes";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 import { PRINT_ORDERS_MODULE_KEY } from "@/lib/impresiones/constantes";
 import { DIGITALIZACION_MODULE_KEY } from "@/lib/digitalizacion/constants";
+import { INVOICING_MODULE_KEY } from "@/lib/invoicing/constants";
 import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
 import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
 import { EVALUACIONES_MODULE_KEY } from "@/lib/evaluaciones/constants";
@@ -403,6 +404,14 @@ export const MODULOS_DISPONIBLES: FichaModulo[] = [
     resuelve:
       "Tu cliente pide sus copias desde el mismo enlace de sus fotos: elige tamaño, cantidad y recorte, paga online y el pedido le llega solo al laboratorio. Vos no tomás pedidos por WhatsApp ni pasás archivos a mano.",
     pantallas: ["Configuración de impresiones"],
+  },
+  {
+    key: INVOICING_MODULE_KEY,
+    cuadro: "30",
+    nombre: "Facturación electrónica",
+    resuelve:
+      "Facturás tus ventas y pedidos con ARCA sin salir de FOTOFFICE: Factura C con su CAE y el código QR, y la nota de crédito para anular. Sin cargar dos veces lo mismo.",
+    pantallas: ["Facturación", "Configuración de facturación"],
   },
 ];
 /** Lo que está siempre, se encienda lo que se encienda. No son módulos con interruptor. */

@@ -46,3 +46,22 @@ clases A y B, CAEA.
 5. **Módulo** `invoicing` en el registro, disponible y apagado por defecto.
 6. **Verificación:** `tsc`, vitest, `pnpm build`. Commit, push, PR. Sin fusionar, sin aplicar la
    migración, sin encender el módulo, sin llamar a ARCA.
+
+## Estado al abrir el PR
+
+Hecho: todo lo de arriba. Verificado con vitest (incluye `openssl req -verify` del CSR y
+`openssl cms -verify` de la firma, con y sin cadena), `tsc`, `next build`, y una corrida de la
+emisión real (repositorio Prisma) contra un Postgres local descartable con la migración aplicada.
+
+No hecho (a propósito): aplicar la migración, encender el módulo, llamar a ARCA de verdad, la
+facturación masiva de cuotas (§11.8), clases A y B, CAEA, la tabla de puntos de venta (por ahora
+un punto de venta por omisión en el perfil fiscal), el aviso por correo del vencimiento del
+certificado (se ve en la pantalla, en rojo con menos de 30 días).
+
+## Antes de encender el módulo
+
+1. Aplicar `packages/db/prisma/migrations/20261214120000_fotoffice_facturacion_arca/migration.sql`
+   en la base de FOTOFFICE y registrarla.
+2. Confirmar que `DNX_INTEGRATIONS_VAULT_MASTER_KEY` está en Vercel (ya la usa Google Calendar).
+3. Encender `invoicing` para el workspace y seguir los pasos de Configuración → Facturación
+   electrónica (homologación primero; producción sólo después de una factura de prueba autorizada).

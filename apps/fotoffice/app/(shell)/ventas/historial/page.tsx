@@ -3,6 +3,13 @@ import { formatMinorArs } from "@/lib/membership/money";
 import { requireSalesStaff } from "@/lib/sales/access";
 import { listSales, type SaleRow } from "@/lib/sales/repository";
 import { voidSaleAction } from "../actions";
+import Link from "next/link";
+import { contextoFacturacion } from "@/lib/invoicing/access";
+import { facturasDe } from "@/lib/invoicing/servicio";
+import { numeroComprobante } from "@/lib/invoicing/pdf";
+
+/** La factura de cada venta, cuando el módulo de facturación está encendido. */
+type FacturaDeVenta = { id: string; status: string; etiqueta: string };
 
 export const dynamic = "force-dynamic";
 
@@ -39,6 +46,22 @@ export default async function HistorialPage({
   const sp = await searchParams;
 
   const ventas = await listSales(workspace.id);
+  // Facturación: sólo con el módulo encendido se consulta su tabla (puede no existir todavía).
+  const fact = await contextoFacturacion();
+  const facturas = new Map<string, FacturaDeVenta>();
+  if (fact) {
+    const filas = await facturasDe(workspace.id, { saleIds: ventas.map((v) => v.id) });
+    for (const f of filas) {
+      if (!f.saleId) continue;
+      const viva = f.status !== "ANULADA";
+      if (facturas.has(f.saleId) && !viva) continue;
+      facturas.set(f.saleId, {
+        id: f.id,
+        status: f.status,
+        etiqueta: f.cbteNumero !== null ? `Factura C ${numeroComprobante(f.pointOfSale, f.cbteNumero)}${f.status === "ANULADA" ? " (anulada)" : ""}` : "Factura en curso",
+      });
+    }
+  }
 
   return (
     <div className="space-y-8">
@@ -58,7 +81,7 @@ export default async function HistorialPage({
       ) : (
         <div className="space-y-3">
           {ventas.map((venta) => (
-            <SaleCard key={venta.id} venta={venta} />
+            <SaleCard key={venta.id} venta={venta} factura={facturas.get(venta.id) ?? null} puedeFacturar={fact?.puedeEmitir ?? false} />
           ))}
         </div>
       )}
@@ -66,8 +89,9 @@ export default async function HistorialPage({
   );
 }
 
-function SaleCard({ venta }: { venta: SaleRow }) {
+function SaleCard({ venta, factura, puedeFacturar }: { venta: SaleRow; factura: FacturaDeVenta | null; puedeFacturar: boolean }) {
   const anulada = venta.status === "ANULADA";
+  const facturable = puedeFacturar && !anulada && (!factura || factura.status === "ANULADA");
 
   return (
     <details className="fo-card group overflow-hidden">
@@ -80,6 +104,9 @@ function SaleCard({ venta }: { venta: SaleRow }) {
           <span className="rounded-full border border-[var(--fo-danger)] px-2 py-0.5 text-xs text-[var(--fo-danger)]">
             Anulada
           </span>
+        ) : null}
+        {factura ? (
+          <span className="rounded-full border border-[var(--fo-border)] px-2 py-0.5 text-xs text-[var(--fo-muted)]">{factura.etiqueta}</span>
         ) : null}
         <span
           className={`ml-auto font-medium ${anulada ? "text-[var(--fo-muted-soft)] line-through" : "text-[var(--fo-text)]"}`}
@@ -111,6 +138,17 @@ function SaleCard({ venta }: { venta: SaleRow }) {
             </tbody>
           </table>
         </div>
+
+        {factura || facturable ? (
+          <div className="flex flex-wrap gap-2 text-sm">
+            {factura ? <Link className="underline" href="/facturacion">Ver en Facturación</Link> : null}
+            {facturable ? (
+              <Link className="fo-btn fo-btn-secondary text-sm" href={`/facturacion/nueva?venta=${venta.id}`}>
+                Facturar
+              </Link>
+            ) : null}
+          </div>
+        ) : null}
 
         {anulada ? (
           <p className="text-sm text-[var(--fo-muted)]">
