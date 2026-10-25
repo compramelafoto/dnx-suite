@@ -9,14 +9,16 @@ import { redirect } from "next/navigation";
 import { getAuthUser, type AuthUser } from "@/lib/auth";
 import { isProfileComplete } from "@/lib/camofduty/photographer-profile";
 import { prisma } from "@/lib/prisma";
-import { camOfDutyAccessUrl, camOfDutyGate, camOfDutySignupUrl, isNewVisit } from "./cam-of-duty-visits";
+import { accountBornInCamOfDuty, camOfDutyAccessUrl, camOfDutyGate, camOfDutySignupUrl, isNewVisit } from "./cam-of-duty-visits";
 
 /** Anota la entrada. Nunca corta el paso: si la base falla, se usa igual. */
 export async function recordCamOfDutyVisit(userId: number, now = new Date()): Promise<void> {
   try {
     const member = await prisma.camOfDutyMember.findUnique({ where: { userId } });
     if (!member) {
-      await prisma.camOfDutyMember.create({ data: { userId, firstVisitAt: now, lastVisitAt: now } });
+      const user = await prisma.user.findUnique({ where: { id: userId }, select: { createdAt: true } });
+      const accountFromCamOfDuty = user ? accountBornInCamOfDuty(user.createdAt, now) : false;
+      await prisma.camOfDutyMember.create({ data: { userId, firstVisitAt: now, lastVisitAt: now, accountFromCamOfDuty } });
       return;
     }
     await prisma.camOfDutyMember.update({

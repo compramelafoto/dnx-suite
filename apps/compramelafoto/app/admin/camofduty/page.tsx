@@ -13,11 +13,13 @@ function km(aLat: number, aLon: number, bLat: number, bLon: number): number {
   return 6371 * 2 * Math.asin(Math.sqrt(h));
 }
 
+const ORIGIN_LABEL = (fromCamOfDuty: boolean) => (fromCamOfDuty ? "Se registró en Cam Of Duty" : "Ya era de CLF");
+
 function toCsv(rows: CamOfDutyMemberAdminRow[]): string {
-  const head = ["Nombre", "Email", "Email validado", "WhatsApp", "Instagram", "Empresa", "Ciudad", "Provincia", "País", "Latitud", "Longitud", "Quiere trabajos", "Desde", "Primera entrada", "Última entrada", "Entradas"];
+  const head = ["Nombre", "Email", "Email validado", "Origen", "WhatsApp", "Instagram", "Empresa", "Ciudad", "Provincia", "País", "Latitud", "Longitud", "Quiere trabajos", "Desde", "Primera entrada", "Última entrada", "Entradas"];
   const cell = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
   const lines = rows.map((r) =>
-    [r.name, r.email, r.emailVerified ? "sí" : "no", r.whatsapp, r.instagram ? `@${r.instagram}` : "", r.company, r.city, r.province, r.country, r.latitude, r.longitude, r.jobAlerts ? "sí" : "no", r.jobAlertsAt ? formatDate(r.jobAlertsAt) : "", formatDate(r.firstVisitAt), formatDate(r.lastVisitAt), r.visits]
+    [r.name, r.email, r.emailVerified ? "sí" : "no", ORIGIN_LABEL(r.fromCamOfDuty), r.whatsapp, r.instagram ? `@${r.instagram}` : "", r.company, r.city, r.province, r.country, r.latitude, r.longitude, r.jobAlerts ? "sí" : "no", r.jobAlertsAt ? formatDate(r.jobAlertsAt) : "", formatDate(r.firstVisitAt), formatDate(r.lastVisitAt), r.visits]
       .map(cell)
       .join(","),
   );
@@ -30,6 +32,7 @@ export default function AdminCamOfDutyPage() {
   const [total, setTotal] = useState(0);
   const [search, setSearch] = useState("");
   const [onlyAlerts, setOnlyAlerts] = useState(false);
+  const [origin, setOrigin] = useState<"todos" | "cod" | "clf">("todos");
   const [near, setNear] = useState("");
   const [radius, setRadius] = useState(50);
   const [center, setCenter] = useState<{ label: string; lat: number; lon: number } | null>(null);
@@ -72,6 +75,8 @@ export default function AdminCamOfDutyPage() {
     const q = search.trim().toLowerCase();
     return rows.filter((r) => {
       if (onlyAlerts && !r.jobAlerts) return false;
+      if (origin === "cod" && !r.fromCamOfDuty) return false;
+      if (origin === "clf" && r.fromCamOfDuty) return false;
       if (q.length >= 2 && ![r.name, r.email, r.company, r.whatsapp, r.instagram, r.city].filter(Boolean).join(" ").toLowerCase().includes(q)) return false;
       if (center) {
         if (r.latitude == null || r.longitude == null) return false;
@@ -79,7 +84,7 @@ export default function AdminCamOfDutyPage() {
       }
       return true;
     });
-  }, [rows, search, onlyAlerts, center, radius]);
+  }, [rows, search, onlyAlerts, origin, center, radius]);
 
   const download = () => {
     const blob = new Blob([`﻿${toCsv(filtered)}`], { type: "text/csv;charset=utf-8" });
@@ -133,6 +138,11 @@ export default function AdminCamOfDutyPage() {
               <input type="checkbox" checked={onlyAlerts} onChange={(e) => setOnlyAlerts(e.target.checked)} />
               Sólo quieren trabajos
             </label>
+            <select className="min-h-[36px] rounded-md border px-2 text-sm" value={origin} onChange={(e) => setOrigin(e.target.value as typeof origin)} aria-label="Origen de la cuenta">
+              <option value="todos">Todos los orígenes</option>
+              <option value="cod">Se registraron en Cam Of Duty ({rows.filter((r) => r.fromCamOfDuty).length})</option>
+              <option value="clf">Ya eran de CLF ({rows.filter((r) => !r.fromCamOfDuty).length})</option>
+            </select>
             <button type="button" className="rounded-md bg-[var(--ds-color-text)] px-3 py-2 text-sm text-white disabled:opacity-50" onClick={download} disabled={filtered.length === 0}>
               Exportar ({filtered.length})
             </button>
@@ -155,6 +165,7 @@ export default function AdminCamOfDutyPage() {
                 <tr>
                   <th>Nombre</th>
                   <th>Contacto</th>
+                  <th>Origen</th>
                   <th>Empresa</th>
                   <th>Ciudad</th>
                   <th>Trabajos cerca</th>
@@ -186,6 +197,7 @@ export default function AdminCamOfDutyPage() {
                         </div>
                       ) : null}
                     </td>
+                    <td>{ORIGIN_LABEL(r.fromCamOfDuty)}</td>
                     <td>{r.company || "—"}</td>
                     <td>{[r.city, r.province].filter(Boolean).join(", ") || "—"}</td>
                     <td>{r.jobAlerts ? `Sí${r.jobAlertsAt ? ` (desde ${formatDate(r.jobAlertsAt)})` : ""}` : "No"}</td>

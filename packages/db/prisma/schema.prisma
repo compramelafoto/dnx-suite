@@ -5626,6 +5626,8 @@ model CamOfDutyMember {
   jobAlertsOptInIp String?
   /// Completó los datos pedidos (nombre, WhatsApp, empresa, ciudad en el mapa).
   profileCompletedAt DateTime?
+  /// La cuenta de CLF se creó para entrar a Cam Of Duty (no era fotógrafo de CLF de antes).
+  accountFromCamOfDuty Boolean @default(false)
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([firstVisitAt])
