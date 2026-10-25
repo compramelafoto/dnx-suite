@@ -23143,6 +23143,17 @@ model FotofficeComisionVendedor {
   @@unique([workspaceId, userId])
 }
 
+/// Qué productos dan comisión de venta al equipo. Sin filas para el workspace, rigen los de
+/// fotolibro (por código). Sin claves foráneas.
+model FotofficeComisionProducto {
+  id          String   @id @default(cuid())
+  workspaceId String
+  productId   String
+  createdAt   DateTime @default(now())
+
+  @@unique([workspaceId, productId])
+}
+
 model FotofficeProductoProduccion {
   id           String   @id @default(cuid())
   workspaceId  String

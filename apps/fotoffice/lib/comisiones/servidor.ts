@@ -17,7 +17,8 @@ import {
 /**
  * Comisión de venta del equipo: quién la cobra (`FotofficeComisionVendedor`) y lo ganado, que
  * se calcula de las ventas y los pedidos cada vez que se mira (así está siempre al día: un saldo
- * cobrado mañana suma mañana). Los productos con comisión son los de fotolibro, por código.
+ * cobrado mañana suma mañana). Los productos con comisión los elige el dueño
+ * (`FotofficeComisionProducto`); sin elegir ninguno, rigen los de fotolibro, por código.
  */
 
 export const SKUS_CON_COMISION = [SKU_FOTOLIBRO_FLEXIBLE, SKU_FOTOLIBRO_RIGIDA, SKU_CAJA_FOTOLIBRO];
@@ -31,8 +32,10 @@ export async function esDuenoOAdmin(userId: number, workspaceId: string): Promis
 
 export type ReglaVendedor = ReglaComision & { activa: boolean };
 
-/** Los productos del workspace que dan comisión. */
+/** Los productos del workspace que dan comisión: los elegidos o, sin elegir, los de fotolibro. */
 export async function productosConComision(workspaceId: string): Promise<string[]> {
+  const elegidos = await prisma.fotofficeComisionProducto.findMany({ where: { workspaceId }, select: { productId: true } });
+  if (elegidos.length > 0) return elegidos.map((e) => e.productId);
   const filas = await prisma.product.findMany({
     where: { workspaceId, OR: SKUS_CON_COMISION.map((sku) => ({ sku: { equals: sku, mode: "insensitive" as const } })) },
     select: { id: true },
@@ -164,5 +167,39 @@ export async function guardarReglas(
       }),
     ),
   );
+  return { ok: true };
+}
+
+/** El catálogo para elegir qué da comisión, con su margen (sin insumos ni inactivos). */
+export async function catalogoParaComision(workspaceId: string): Promise<
+  { id: string; nombre: string; categoria: string; precioMinor: number; margenPct: number | null }[]
+> {
+  const filas = await prisma.product.findMany({
+    where: { workspaceId, isActive: true, kind: { not: "INSUMO" } },
+    select: { id: true, name: true, priceArs: true, costArs: true, category: { select: { name: true } } },
+    orderBy: [{ category: { name: "asc" } }, { name: "asc" }],
+  });
+  return filas.map((p) => {
+    const precio = decimalArsToMinor(p.priceArs);
+    const costo = p.costArs ? decimalArsToMinor(p.costArs) : null;
+    return {
+      id: p.id,
+      nombre: p.name,
+      categoria: p.category?.name ?? "Sin categoría",
+      precioMinor: precio,
+      margenPct: costo !== null && costo > 0 && precio > 0 ? Math.round((100 * (precio - costo)) / precio) : null,
+    };
+  });
+}
+
+/** Reemplaza la lista de productos con comisión por la elegida. */
+export async function guardarProductosConComision(workspaceId: string, productIds: string[]): Promise<{ ok: true } | { ok: false; error: string }> {
+  const unicos = [...new Set(productIds)];
+  const validos = await prisma.product.count({ where: { workspaceId, id: { in: unicos } } });
+  if (validos !== unicos.length) return { ok: false, error: "Hay un producto que no es de este negocio." };
+  await prisma.$transaction([
+    prisma.fotofficeComisionProducto.deleteMany({ where: { workspaceId } }),
+    prisma.fotofficeComisionProducto.createMany({ data: unicos.map((productId) => ({ workspaceId, productId })) }),
+  ]);
   return { ok: true };
 }
