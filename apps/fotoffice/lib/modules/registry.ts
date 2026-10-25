@@ -21,6 +21,7 @@ import { PRINT_ORDERS_MODULE_KEY } from "@/lib/impresiones/constantes";
 import { BANDEJA_MODULE_KEY } from "@/lib/bandeja/constantes";
 import { CUANTO_COBRO_SOCIO_MODULE_KEY } from "@/lib/cuanto-cobro-socio/constants";
 import { FOTOLIBROS_SOCIO_MODULE_KEY } from "@/lib/fotolibro/constantes";
+import { EQUIPO_MODULE_KEY } from "@/lib/equipo/constantes";
 
 /**
  * Catálogo central de módulos de FotoOffice.
@@ -444,6 +445,21 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
     status: "AVAILABLE",
     route: "/informes",
     family: "negocio",
+  },
+  {
+    // Equipo (etapas 1 y 2): fichas de empleada, jornada del día desde la caja, pase de turno y
+    // mensajes al abrir, antes de salir y al cerrar. Apagado por omisión, como todos: lo enciende
+    // el administrador de la plataforma. El panel es sólo de dueño o administrador.
+    key: EQUIPO_MODULE_KEY,
+    label: "Equipo",
+    description:
+      "Fichas y horarios del equipo de mostrador, la jornada de cada día según la apertura y el cierre de caja, y saludos que cambian todos los días.",
+    category: "GENERAL",
+    order: 38,
+    route: "/equipo",
+    status: "AVAILABLE",
+    family: "negocio",
+    dependsOn: [CASH_MODULE_KEY],
   },
 ] as const;
 

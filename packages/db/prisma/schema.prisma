@@ -26742,3 +26742,175 @@ model FotofficeAliasProveedor {
   @@unique([proveedorId, textoNormalizado])
   @@index([workspaceId, proveedorId])
 }
+
+// ─── FOTOFFICE · Equipo (etapas 1 y 2): fichas, jornadas, pase de turno y mensajes ───
+// Tablas nuevas, sin claves foráneas a tablas existentes (la ficha se une a
+// `WorkspaceMembership` por `membershipId` y `userId`, y las consultas lo verifican).
+// Las fechas de calendario van como texto "AAAA-MM-DD" (hora argentina) y las horas como
+// minutos desde la medianoche: así no hay husos horarios que se corran.
+
+/// La ficha de una persona del equipo. Una por membresía.
+model FotofficeEquipoFicha {
+  id                String   @id @default(cuid())
+  workspaceId       String
+  membershipId      String   @unique
+  userId            Int
+  /// Cómo la saludan los mensajes ("Cami"). Si está vacío, el primer nombre.
+  apodo             String?
+  /// "AAAA-MM-DD".
+  fechaNacimiento   String?
+  /// Duración de la jornada de referencia, en minutos (5 h = 300).
+  jornadaMinutos    Int      @default(300)
+  /// Si trabaja un sábado sí y otro no.
+  sabadosAlternados Boolean  @default(false)
+  /// Un sábado ("AAAA-MM-DD") que le toca trabajar: desde ahí se cuenta la alternancia.
+  sabadoReferencia  String?
+  /// Si el módulo la cuenta.
+  activa            Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  franjas FotofficeEquipoFranja[]
+  valores FotofficeEquipoValorJornada[]
+  cambios FotofficeEquipoCambio[]
+
+  @@unique([workspaceId, userId])
+  @@index([workspaceId, activa])
+}
+
+/// Una franja del horario semanal fijo. Un día puede tener más de una (8 a 13 y 15 a 19).
+model FotofficeEquipoFranja {
+  id        String @id @default(cuid())
+  fichaId   String
+  /// 0 = lunes … 6 = domingo.
+  diaSemana Int
+  /// Minutos desde la medianoche (8:00 = 480).
+  inicioMin Int
+  finMin    Int
+
+  ficha FotofficeEquipoFicha @relation(fields: [fichaId], references: [id], onDelete: Cascade)
+
+  @@index([fichaId, diaSemana])
+}
+
+/// El valor de la jornada, con la fecha desde la que rige. No se edita: se agrega uno nuevo.
+model FotofficeEquipoValorJornada {
+  id              String   @id @default(cuid())
+  fichaId         String
+  /// "AAAA-MM-DD".
+  desde           String
+  valorArs        Decimal  @db.Decimal(12, 2)
+  createdByUserId Int?
+  createdAt       DateTime @default(now())
+
+  ficha FotofficeEquipoFicha @relation(fields: [fichaId], references: [id], onDelete: Cascade)
+
+  @@unique([fichaId, desde])
+}
+
+/// Un cambio puntual del horario en una fecha: cambió el turno, faltó con aviso, vacaciones.
+model FotofficeEquipoCambio {
+  id              String   @id @default(cuid())
+  fichaId         String
+  /// "AAAA-MM-DD".
+  fecha           String
+  /// TRABAJA (con otro horario) | NO_TRABAJA
+  tipo            String
+  /// CAMBIO_TURNO | FALTA_CON_AVISO | VACACIONES | OTRO
+  motivo          String   @default("OTRO")
+  inicioMin       Int?
+  finMin          Int?
+  nota            String?
+  createdByUserId Int?
+  createdAt       DateTime @default(now())
+
+  ficha FotofficeEquipoFicha @relation(fields: [fichaId], references: [id], onDelete: Cascade)
+
+  @@unique([fichaId, fecha])
+}
+
+/// Corrección a mano de la entrada o la salida de un día. No se borra: la última vale y todas
+/// quedan registradas.
+model FotofficeEquipoCorreccion {
+  id              String   @id @default(cuid())
+  workspaceId     String
+  userId          Int
+  /// "AAAA-MM-DD".
+  fecha           String
+  entradaMin      Int?
+  salidaMin       Int?
+  nota            String
+  createdByUserId Int
+  createdAt       DateTime @default(now())
+
+  @@index([workspaceId, userId, fecha])
+}
+
+/// Un día para revisar: por ejemplo, alguien siguió vendiendo sin cerrar el turno de la
+/// compañera. La etapa de alertas las va a convertir en alertas.
+model FotofficeEquipoMarca {
+  id          String   @id @default(cuid())
+  workspaceId String
+  userId      Int
+  /// "AAAA-MM-DD".
+  fecha       String
+  /// PASE_OMITIDO
+  motivo      String
+  shiftId     String?
+  createdAt   DateTime @default(now())
+
+  @@unique([workspaceId, userId, fecha, motivo])
+}
+
+/// Ajustes del módulo Equipo, uno por espacio.
+model FotofficeEquipoAjustes {
+  id                String   @id @default(cuid())
+  workspaceId       String   @unique
+  /// Minutos de tolerancia para llegar tarde o irse antes.
+  toleranciaMinutos Int      @default(10)
+  updatedAt         DateTime @updatedAt
+}
+
+/// Una pieza del repertorio de mensajes: se arman combinando saludo + frase del medio + cierre.
+model FotofficeEquipoPieza {
+  id          String   @id @default(cuid())
+  workspaceId String
+  /// Clave estable de las piezas del repertorio inicial; las que agrega el dueño no la llevan.
+  clave       String?
+  /// APERTURA | SALIDA | CIERRE | CUALQUIERA
+  momento     String
+  /// SALUDO | MEDIO | CIERRE
+  parte       String
+  /// Vacío en las de todos los días; CUMPLEANOS | FERIADO | VISPERA_FERIADO | FIN_DE_SEMANA | FIN_DE_MES
+  ocasion     String?
+  texto       String
+  activa      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([workspaceId, clave])
+  @@index([workspaceId, momento, parte])
+}
+
+/// Un mensaje que se le mostró a una persona. Sirve para mostrarle el mismo si vuelve a entrar
+/// ese día y para no repetir la misma combinación en 30 días.
+model FotofficeEquipoMensaje {
+  id          String    @id @default(cuid())
+  workspaceId String
+  userId      Int
+  /// "AAAA-MM-DD".
+  fecha       String
+  /// APERTURA | SALIDA | CIERRE
+  momento     String
+  /// Los ids de las piezas, "saludo|medio|cierre".
+  combinacion String
+  texto       String
+  /// La ocasión que usó el mensaje (CUMPLEANOS, FERIADO…), si hubo.
+  ocasion     String?
+  /// Cuándo cerró el aviso con la cruz (sólo el aviso de salida).
+  cerradoAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@unique([workspaceId, userId, fecha, momento])
+  @@index([workspaceId, userId, createdAt])
+}

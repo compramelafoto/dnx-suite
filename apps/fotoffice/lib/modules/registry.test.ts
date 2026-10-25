@@ -77,6 +77,7 @@ describe("MODULE_REGISTRY", () => {
         "gallery",
         PRINT_ORDERS_MODULE_KEY,
         BANDEJA_MODULE_KEY,
+        "equipo",
       ].sort(),
     );
   });
