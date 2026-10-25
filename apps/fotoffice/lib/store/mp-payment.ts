@@ -4,6 +4,8 @@ import { resolveWorkspaceCollector } from "@/lib/payments/connect/collector";
 import { sanitizeError } from "@/lib/payments/connect/log";
 import { creditStorePayment, type CreditStorePaymentResult } from "./credit-payment";
 import { parseStoreExternalReference, storeExternalReference } from "./external-reference";
+import { fetchMpPayment } from "@/lib/payments/mp/client";
+import { recordStoreOrderFees } from "./mp-settlement";
 
 /**
  * Preguntarle a Mercado Pago por el pago de un pedido y, si está aprobado, acreditarlo. Lo usan
@@ -83,6 +85,17 @@ export async function checkStoreOrderPayment(input: {
 
   try {
     const result = await creditStorePayment({ orderId: input.orderId, ...storePaymentFacts(pago) });
+    // Las comisiones se leen aparte (el adaptador las descarta). Si falla, la revisión diaria
+    // las completa: no puede deshacer una acreditación que ya pasó.
+    try {
+      const hechos = await fetchMpPayment(collector.collector.accessToken, pago.providerPaymentId);
+      await recordStoreOrderFees(input.orderId, hechos);
+    } catch (error) {
+      console.warn("[fotoffice][tienda] no se pudieron asentar las comisiones", {
+        storeOrderId: input.orderId,
+        detalle: sanitizeError(error),
+      });
+    }
     return { outcome: "credited", result };
   } catch (error) {
     console.error("[fotoffice][tienda] falló la acreditación de un pago aprobado", {

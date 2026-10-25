@@ -493,6 +493,25 @@ const VENTAS: SubmoduleItem[] = [
     activeMatch: "under",
   },
   {
+    // Mismo permiso que la página (`requireSalesAdmin`): gestionar Ventas + `sales.catalog`.
+    href: "/ventas/analisis",
+    label: "Análisis de ventas",
+    icon: "BarChart3",
+    description: "Horas pico, mejores días, productos más vendidos y quién vendió.",
+    requiresManage: true,
+    requiresAction: SALES_CATALOG_ACTION,
+    activeMatch: "under",
+  },
+  {
+    // La página pide gestionar Ventas: cada vendedora ve lo suyo; el dueño, a todas y la configuración.
+    href: "/ventas/comisiones",
+    label: "Comisiones",
+    icon: "BarChart3",
+    description: "Lo que gana el equipo por vender los productos con comisión.",
+    requiresManage: true,
+    activeMatch: "under",
+  },
+  {
     href: "/ventas/historial",
     label: "Ventas hechas",
     icon: "ReceiptText",

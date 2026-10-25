@@ -196,3 +196,18 @@ export async function guardarReglas(workspaceId: string, productId: string, entr
     return { ok: true } as const;
   });
 }
+
+/**
+ * «Proveedor por defecto» de la ficha del producto: el mismo campo de sus reglas de «Proyecto que
+ * genera», puesto a la vista. Se aplica a todas las reglas del producto (casi siempre una).
+ */
+export async function guardarProveedorPorDefecto(workspaceId: string, productId: string, proveedorId: string | null): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!/^[A-Za-z0-9_-]{1,64}$/.test(productId)) return { ok: false, error: "El producto no es válido." };
+  if (proveedorId !== null) {
+    if (!/^[A-Za-z0-9_-]{1,64}$/.test(proveedorId)) return { ok: false, error: "El proveedor no es válido." };
+    const existe = await prisma.fotofficeProveedor.count({ where: { id: proveedorId, workspaceId } });
+    if (existe === 0) return { ok: false, error: "Ese proveedor no existe." };
+  }
+  const r = await prisma.fotofficeProductoProyecto.updateMany({ where: { workspaceId, productId }, data: { proveedorId } });
+  return r.count > 0 ? { ok: true } : { ok: false, error: "Este producto no genera un trabajo: activá «Proyecto que genera» primero." };
+}
