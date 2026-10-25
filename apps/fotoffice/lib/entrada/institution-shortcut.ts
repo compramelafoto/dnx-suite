@@ -48,6 +48,8 @@ export const RESERVED_SLUGS: ReadonlySet<string> = new Set([
   "elegir-perfil",
   "equipo",
   "evaluaciones",
+  // Facturación electrónica con ARCA (lib/invoicing).
+  "facturacion",
   // La ruta interna del formulario de consulta para insertar en otra web (lib/service-leads/insertar.ts).
   "formulario-insertado",
   "galerias",

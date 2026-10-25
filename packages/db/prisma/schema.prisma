@@ -26885,6 +26885,178 @@ model FotofficeAliasProveedor {
   @@index([workspaceId, proveedorId])
 }
 
+// ---------------------------------------------------------------------------
+// FOTOFFICE: facturación electrónica con ARCA (WSAA + WSFEv1), sólo comprobantes clase C.
+// Diseño: apps/fotoffice/docs/superpowers/specs/2026-09-13-negocio-caja-ventas-servicio-tecnico-y-club-design.md §11
+//
+// Sin claves foráneas a Workspace, Sale, Client ni FotofficePedido, a propósito: un comprobante
+// fiscal se conserva diez años aunque se borre la venta, el cliente o el workspace.
+// ---------------------------------------------------------------------------
+
+/// La identidad fiscal del negocio. Una por workspace.
+model FotofficeFiscalProfile {
+  id                 String   @id @default(cuid())
+  workspaceId        String   @unique
+  /// 11 dígitos, sin guiones.
+  cuit               String
+  razonSocial        String
+  /// MONOTRIBUTO | EXENTO (esta versión sólo emite clase C).
+  ivaCondition       String   @default("MONOTRIBUTO")
+  domicilioFiscal    String
+  ingresosBrutos     String?
+  /// Fecha de inicio de actividades, AAAA-MM-DD (texto: es una fecha civil, sin hora ni zona).
+  inicioActividades  String?
+  /// Punto de venta de Web Services. Distinto del que se usa para facturar a mano.
+  defaultPointOfSale Int?
+  /// HOMOLOGACION | PRODUCCION: con qué ambiente se emite.
+  activeEnvironment  String   @default("HOMOLOGACION")
+  updatedByUserId    Int?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+/// La credencial de ARCA de un ambiente: la clave privada (cifrada con el cofre de integraciones,
+/// cuatro columnas inseparables), el pedido de certificado y, cuando se sube, el certificado.
+model FotofficeArcaCredential {
+  id              String    @id @default(cuid())
+  workspaceId     String
+  /// HOMOLOGACION | PRODUCCION
+  environment     String
+  alias           String
+  /// ESPERANDO_CERTIFICADO | ACTIVA
+  status          String    @default("ESPERANDO_CERTIFICADO")
+  csrPem          String
+  keyCiphertext   String
+  keyNonce        String
+  keyAuthTag      String
+  keyVersion      String
+  /// El certificado es público (lo firma ARCA): va en claro para poder leer su vencimiento.
+  certPem         String?
+  certSerial      String?
+  certExpiresAt   DateTime?
+  certUploadedAt  DateTime?
+  createdByUserId Int?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([workspaceId, environment])
+}
+
+/// El ticket de doce horas de WSAA, guardado para no pedir uno por operación.
+model FotofficeArcaTicket {
+  id             String   @id @default(cuid())
+  workspaceId    String
+  environment    String
+  service        String
+  token          String
+  sign           String
+  generationTime DateTime
+  expirationTime DateTime
+  updatedAt      DateTime @updatedAt
+
+  @@unique([workspaceId, environment, service])
+}
+
+/// Un comprobante electrónico (Factura C o Nota de crédito C). Una vez AUTORIZADA no se edita ni se
+/// borra: se corrige con una nota de crédito que la referencia (`relatedInvoiceId`).
+///
+/// En el SQL, además: un solo comprobante vivo por venta y una sola nota de crédito viva por
+/// factura (índices únicos parciales).
+model FotofficeInvoice {
+  id                     String    @id @default(cuid())
+  workspaceId            String
+  environment            String
+  pointOfSale            Int
+  /// 11 = Factura C, 13 = Nota de crédito C.
+  cbteTipo               Int
+  /// Se asigna al emitir; nulo en borrador o si ARCA lo rechazó.
+  cbteNumero             Int?
+  /// 1 productos, 2 servicios, 3 ambos.
+  concepto               Int
+  /// AAAAMMDD, fecha de Argentina.
+  cbteFch                String
+  servDesde              String?
+  servHasta              String?
+  vtoPago                String?
+  clientId               String?
+  /// Instantáneas del receptor: la factura se lee igual dentro de diez años.
+  receptorDocTipo        Int
+  receptorDocNro         String
+  receptorName           String
+  receptorIvaCondition   String
+  receptorCondicionIvaId Int
+  receptorDomicilio      String?
+  /// Instantánea del emisor (CUIT, razón social, condición, domicilio, IIBB, inicio de actividades).
+  emisorSnapshot         Json
+  impNeto                Decimal   @db.Decimal(14, 2)
+  impIVA                 Decimal   @default(0) @db.Decimal(14, 2)
+  impTotConc             Decimal   @default(0) @db.Decimal(14, 2)
+  impOpEx                Decimal   @default(0) @db.Decimal(14, 2)
+  impTrib                Decimal   @default(0) @db.Decimal(14, 2)
+  impTotal               Decimal   @db.Decimal(14, 2)
+  cae                    String?
+  /// AAAAMMDD
+  caeVto                 String?
+  /// BORRADOR | PENDIENTE | AUTORIZADA | RECHAZADA | ANULADA
+  status                 String    @default("BORRADOR")
+  /// El pedido y la respuesta crudos, siempre.
+  arcaRequestJson        Json?
+  arcaResponseJson       Json?
+  sentAt                 DateTime?
+  authorizedAt           DateTime?
+  relatedInvoiceId       String?
+  saleId                 String?
+  pedidoId               String?
+  membershipChargeId     String?
+  createdByUserId        Int?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  relatedInvoice FotofficeInvoice?       @relation("FotofficeInvoiceCorrige", fields: [relatedInvoiceId], references: [id], onDelete: Restrict)
+  corrections    FotofficeInvoice[]      @relation("FotofficeInvoiceCorrige")
+  items          FotofficeInvoiceItem[]
+  events         FotofficeInvoiceEvent[]
+
+  @@unique([workspaceId, environment, pointOfSale, cbteTipo, cbteNumero])
+  @@index([workspaceId, status])
+  @@index([workspaceId, createdAt])
+  @@index([workspaceId, saleId])
+  @@index([workspaceId, pedidoId])
+  @@index([relatedInvoiceId])
+}
+
+model FotofficeInvoiceItem {
+  id           String   @id @default(cuid())
+  invoiceId    String
+  order        Int      @default(0)
+  description  String
+  qty          Int
+  unitPriceArs Decimal  @db.Decimal(14, 2)
+  /// Alícuota de IVA del renglón de origen. En un comprobante C no se informa a ARCA.
+  ivaRate      Decimal? @db.Decimal(5, 2)
+  lineTotalArs Decimal  @db.Decimal(14, 2)
+
+  invoice FotofficeInvoice @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+
+  @@index([invoiceId])
+}
+
+/// La historia del comprobante: creado, enviado, sin respuesta, conciliado, autorizado, rechazado.
+model FotofficeInvoiceEvent {
+  id          String   @id @default(cuid())
+  invoiceId   String
+  type        String
+  actorUserId Int?
+  actorLabel  String?
+  note        String?
+  data        Json?
+  createdAt   DateTime @default(now())
+
+  invoice FotofficeInvoice @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+
+  @@index([invoiceId, createdAt])
+}
+
 // ─── FOTOFFICE · Equipo (etapas 1 y 2): fichas, jornadas, pase de turno y mensajes ───
 // Tablas nuevas, sin claves foráneas a tablas existentes (la ficha se une a
 // `WorkspaceMembership` por `membershipId` y `userId`, y las consultas lo verifican).

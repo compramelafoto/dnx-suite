@@ -8,6 +8,7 @@ import { FOTOLIBROS_SOCIO_MODULE_KEY } from "@/lib/fotolibro/constantes";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 import { PRINT_ORDERS_MODULE_KEY } from "@/lib/impresiones/constantes";
 import { DIGITALIZACION_MODULE_KEY } from "@/lib/digitalizacion/constants";
+import { INVOICING_MODULE_KEY } from "@/lib/invoicing/constants";
 import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
 import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
 import { EVALUACIONES_MODULE_KEY } from "@/lib/evaluaciones/constants";
@@ -411,6 +412,14 @@ export const MODULOS_DISPONIBLES: FichaModulo[] = [
     resuelve:
       "Cada persona del mostrador tiene su ficha con su horario fijo, y la jornada de cada día sale sola de la apertura y el cierre de caja. Si una llega y la caja de la compañera quedó abierta, se la guía para contar y cerrarla sin trabar la venta. Y el equipo recibe saludos que cambian todos los días: al abrir, antes de salir y al cerrar, con el cumpleaños incluido.",
     pantallas: ["Jornadas del día", "Ficha y horario de cada persona", "Pase de turno en Caja", "Mensajes al equipo"],
+  },
+  {
+    key: INVOICING_MODULE_KEY,
+    cuadro: "31",
+    nombre: "Facturación electrónica",
+    resuelve:
+      "Facturás tus ventas y pedidos con ARCA sin salir de FOTOFFICE: Factura C con su CAE y el código QR, y la nota de crédito para anular. Sin cargar dos veces lo mismo.",
+    pantallas: ["Facturación", "Configuración de facturación"],
   },
 ];
 /** Lo que está siempre, se encienda lo que se encienda. No son módulos con interruptor. */
