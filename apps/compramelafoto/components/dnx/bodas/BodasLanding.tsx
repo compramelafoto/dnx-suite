@@ -3,6 +3,7 @@ import Image from "next/image";
 import DnxImageSlot from "@/components/dnx/DnxImageSlot";
 import { DnxCtaEntrevista, DnxCtaWhatsapp, DnxEnlaceExterno, type DnxPagina } from "@/components/dnx/DnxCta";
 import DnxPlanes, { DnxPropuestasSinPrecio } from "@/components/dnx/DnxPlanes";
+import { DnxCtaPresupuesto, DnxFormularioPresupuesto, PRESUPUESTO_SECTION_ID } from "@/components/dnx/DnxPresupuesto";
 import {
   DNX_WEB_URL,
   GOOGLE_REVIEWS_URL,
@@ -34,8 +35,19 @@ function Tarjeta({ title, body }: { title: string; body: string }) {
   );
 }
 
-export default function BodasLanding({ mostrarPrecios }: { mostrarPrecios: boolean }) {
-  const pagina: DnxPagina = mostrarPrecios ? "bodas" : "bodas-sp";
+export default function BodasLanding({
+  mostrarPrecios,
+  pagina: paginaElegida,
+}: {
+  mostrarPrecios: boolean;
+  /** Para las métricas: la dirección principal ya no muestra importes, pero sigue siendo "bodas". */
+  pagina?: DnxPagina;
+}) {
+  const pagina: DnxPagina = paginaElegida ?? (mostrarPrecios ? "bodas" : "bodas-sp");
+
+  const presupuesto = (variant: "primary" | "secondary" = "primary") => (
+    <DnxCtaPresupuesto pagina={pagina} paleta={PALETA} variant={variant} />
+  );
 
   const entrevistaPresencial = (variant: "primary" | "secondary" = "primary") => (
     <DnxCtaEntrevista href={PRESENCIAL_CALENDAR_URL} pagina={pagina} paleta={PALETA} modo="presencial" variant={variant}>
@@ -84,7 +96,8 @@ export default function BodasLanding({ mostrarPrecios }: { mostrarPrecios: boole
               Funes, Rosario y alrededores · Entrevistas presenciales u online · Sin costo
             </p>
             <div className="flex flex-wrap gap-3">
-              {entrevistaPresencial()}
+              {presupuesto()}
+              {entrevistaPresencial("secondary")}
               {entrevistaOnline}
             </div>
             {whatsapp}
@@ -403,13 +416,23 @@ export default function BodasLanding({ mostrarPrecios }: { mostrarPrecios: boole
           )}
         </div>
 
+        <div
+          id={PRESUPUESTO_SECTION_ID}
+          className="mx-auto mt-12 w-full max-w-2xl scroll-mt-6 rounded-3xl border border-stone-200 bg-white p-4 shadow-sm md:p-8"
+        >
+          <h3 className="text-center text-xl font-semibold text-stone-900 md:text-2xl">Pedí tu presupuesto</h3>
+          <p className="mt-2 text-center text-sm text-stone-600">
+            Dejanos la fecha y el lugar de la boda y te mandamos la propuesta completa, con importes y formas de pago, por WhatsApp y por correo.
+          </p>
+          <div className="mt-4">
+            <DnxFormularioPresupuesto formulario="boda" titulo="Pedí el presupuesto de tu boda" />
+          </div>
+        </div>
         <p className="mx-auto mt-8 max-w-3xl text-center text-sm text-stone-600">
-          {mostrarPrecios
-            ? "No hace falta que decidan todo ahora. En la entrevista revisamos la fecha, el lugar, el estilo de boda, qué productos les interesan y cuál de las propuestas tiene más sentido para ustedes."
-            : "Los valores dependen de la fecha, la disponibilidad, la ciudad y los adicionales que sumen. Escribinos con la fecha de la boda y te pasamos la propuesta completa con importes y formas de pago."}
+          ¿Preferís conversarlo antes? Agendá una entrevista sin costo o escribinos por WhatsApp.
         </p>
-        <div className="mt-6 flex flex-wrap justify-center gap-3">
-          {entrevistaPresencial()}
+        <div className="mt-4 flex flex-wrap justify-center gap-3">
+          {entrevistaPresencial("secondary")}
           {entrevistaOnline}
           {whatsapp}
         </div>
@@ -526,6 +549,7 @@ export default function BodasLanding({ mostrarPrecios }: { mostrarPrecios: boole
             </p>
             <p className="text-stone-400">La entrevista es sin costo y no te compromete a contratar.</p>
             <div className="flex flex-wrap gap-3">
+              {presupuesto("secondary")}
               {entrevistaPresencial("secondary")}
               {entrevistaOnline}
               {whatsapp}
@@ -558,24 +582,18 @@ export default function BodasLanding({ mostrarPrecios }: { mostrarPrecios: boole
 
       <div className="fixed bottom-3 left-1/2 z-50 w-[calc(100%-1.5rem)] -translate-x-1/2 rounded-2xl border border-stone-200 bg-white/95 p-2 shadow-lg backdrop-blur md:hidden">
         <div className="grid grid-cols-2 gap-2">
+          <DnxCtaPresupuesto pagina={pagina} paleta={PALETA} className="w-full !px-4">
+            Presupuesto
+          </DnxCtaPresupuesto>
           <DnxCtaEntrevista
             href={PRESENCIAL_CALENDAR_URL}
             pagina={pagina}
             paleta={PALETA}
             modo="presencial"
-            className="w-full !px-4"
-          >
-            Presencial
-          </DnxCtaEntrevista>
-          <DnxCtaEntrevista
-            href={ONLINE_CALENDAR_URL}
-            pagina={pagina}
-            paleta={PALETA}
-            modo="online"
             variant="secondary"
             className="w-full !px-4"
           >
-            Online
+            Entrevista
           </DnxCtaEntrevista>
         </div>
       </div>

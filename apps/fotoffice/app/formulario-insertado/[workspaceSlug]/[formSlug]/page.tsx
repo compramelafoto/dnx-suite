@@ -5,7 +5,7 @@ import { prisma } from "@repo/db";
 import { loadPublicSite } from "@/lib/website/public-site";
 import { websiteDesignCssVars, websiteFontsHref } from "@/lib/website/design-presets";
 import { resolveCoverageBrand } from "@/lib/coverages/branding";
-import { esFormularioInsertable } from "@/lib/service-leads/insertar";
+import { esFormularioInsertable, eventoDelFormulario } from "@/lib/service-leads/insertar";
 import { AltoInsertado } from "@/components/consultas/alto-insertado";
 import { PublicDynamicServiceLeadForm } from "@/app/w/[workspaceSlug]/public-dynamic-service-lead-form";
 import { PublicServiceLeadForm } from "@/app/w/[workspaceSlug]/xv/public-service-lead-form";
@@ -33,6 +33,7 @@ export const metadata: Metadata = {
 export default async function FormularioInsertadoPage({ params }: Props) {
   const { workspaceSlug, formSlug } = await params;
   if (!esFormularioInsertable(formSlug)) notFound();
+  const evento = eventoDelFormulario(formSlug);
 
   const site = await loadPublicSite(workspaceSlug);
   if (!site) notFound();
@@ -68,11 +69,12 @@ export default async function FormularioInsertadoPage({ params }: Props) {
       <AltoInsertado>
         <main className="p-4" style={estilo} data-fotoffice-insertado={formSlug}>
           <h1 className="sr-only">{titulo}</h1>
-          {formSlug === "xv" ? (
+          {evento ? (
             <PublicServiceLeadForm
               workspaceSlug={workspaceSlug}
               formId={form?.id}
-              formSlug="xv"
+              formSlug={formSlug}
+              eventType={evento}
               configJson={form?.configJson}
               insertado
             />

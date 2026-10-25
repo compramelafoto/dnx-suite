@@ -29,16 +29,33 @@ function getPostSubmitAction(config: XvFormConfig): { type: "NONE" | "WHATSAPP" 
   return { type, delaySeconds, url };
 }
 
+/** Lo que cambia entre el formulario de XV y el de boda: el tipo y algunos textos. */
+const TEXTOS = {
+  XV: {
+    gracias: "Recibimos tus datos y te vamos a contactar pronto con una propuesta para tu cobertura de XV.",
+    lugar: "Ciudad / salón",
+    mensaje: "Cantidad de horas, estilo, si querés video, etc.",
+  },
+  BODA: {
+    gracias: "Recibimos sus datos y les vamos a mandar pronto la propuesta para su boda.",
+    lugar: "Ciudad / lugar de la ceremonia y de la fiesta",
+    mensaje: "Horarios, si hay civil e iglesia, si quieren sesión pre boda o video, etc.",
+  },
+} as const;
+
 export function PublicServiceLeadForm({
   workspaceSlug,
   formId,
   formSlug,
+  eventType = "XV",
   configJson,
   insertado = false,
 }: {
   workspaceSlug: string;
   formId?: string;
   formSlug?: string;
+  /** El tipo de la consulta: define la categoría (y con ella la propuesta modelo). */
+  eventType?: keyof typeof TEXTOS;
   configJson?: unknown;
   /** Dibujado dentro de otra web (`/w/<slug>/insertar/xv`): no salta de página al terminar. */
   insertado?: boolean;
@@ -70,7 +87,7 @@ export function PublicServiceLeadForm({
       <div className="fo-alert-success rounded-[var(--fo-radius-sm)] p-6 text-center">
         <p className="text-[var(--fo-text)] font-medium">¡Gracias por tu consulta!</p>
         <p className="text-sm text-[var(--fo-muted)] mt-2 leading-relaxed">
-          Recibimos tus datos y te vamos a contactar pronto con una propuesta para tu cobertura de XV.
+          {TEXTOS[eventType].gracias}
         </p>
         {insertado && postSubmitAction.type !== "NONE" && postSubmitAction.url ? (
           <a
@@ -102,7 +119,7 @@ export function PublicServiceLeadForm({
           name: formData.get("name")?.toString() ?? "",
           email: formData.get("email")?.toString() ?? "",
           phone: formData.get("phone")?.toString() ?? "",
-          eventType: "XV",
+          eventType,
           eventDate: formData.get("eventDate")?.toString() ?? "",
           eventLocation: formData.get("eventLocation")?.toString() ?? "",
           message: formData.get("message")?.toString() ?? "",
@@ -146,14 +163,14 @@ export function PublicServiceLeadForm({
         <label className="fo-label" htmlFor="xv-date">
           Fecha del evento
         </label>
-        <input id="xv-date" name="eventDate" type="date" className="fo-input" />
+        <input id="xv-date" name="eventDate" type="date" required className="fo-input" />
       </div>
 
       <div className="fo-field-stack">
         <label className="fo-label" htmlFor="xv-location">
           Lugar
         </label>
-        <input id="xv-location" name="eventLocation" className="fo-input" placeholder="Ciudad / salón" />
+        <input id="xv-location" name="eventLocation" required className="fo-input" placeholder={TEXTOS[eventType].lugar} />
       </div>
 
       <div className="fo-field-stack">
@@ -165,7 +182,7 @@ export function PublicServiceLeadForm({
           name="message"
           rows={4}
           className="fo-input"
-          placeholder="Cantidad de horas, estilo, si querés video, etc."
+          placeholder={TEXTOS[eventType].mensaje}
         />
       </div>
 
