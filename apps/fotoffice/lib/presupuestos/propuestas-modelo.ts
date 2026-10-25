@@ -3,6 +3,7 @@ import { prisma, type Prisma } from "@repo/db";
 import { NO_ES_INSUMO } from "@/lib/sales/vendible";
 import { MENSAJES_PRESUPUESTO, puedeConfigurarPresupuestos, type CtxPresupuestos } from "./acceso";
 import { validarItems, type ItemPresupuesto, type ResultadoValidacion } from "./constantes";
+import { validarFotolibroDeModelo } from "./fotolibro-de-modelo";
 import { itemsDeLaPropuesta } from "./items-de-la-propuesta";
 import { CAMPO_DE_ACTIVIDAD, TIPOS_TRABAJO } from "./panel-cuanto-cobro";
 import { asegurarPlantillasPresupuesto } from "./plantillas";
@@ -21,7 +22,9 @@ import { asignarItems, validarAlternativas, type Alternativa } from "./alternati
  * - configurar: SÓLO con `configurar` (dueño y administradores), como el resto de
  *   Configuración → Presupuestos;
  * - los ítems son productos activos del catálogo (modo LISTA: al enviarla, nombre, descripción y
- *   precio se toman del catálogo en ese momento) o conceptos calculados (CALCULO, sin producto):
+ *   precio se toman del catálogo en ese momento), fotolibros del proveedor (LISTA sin producto, con
+ *   `fotolibro`: se cotizan con la lista del día, `./fotolibro-de-modelo.ts`) o conceptos
+ *   calculados (CALCULO, sin producto):
  *   de éstos se guarda SÓLO el trabajo (`calculo.entrada.presupuesto`), NUNCA el perfil de precios
  *   (privado); el precio se calcula al instanciar la propuesta con el perfil del workspace
  *   (`./instanciar-propuesta.ts`). Mismos topes que un presupuesto (`validarItems`);
@@ -39,6 +42,7 @@ export const MENSAJES_PROPUESTA_MODELO = {
   producto: MENSAJES_PRESUPUESTO.producto,
   sinPerfil: "Para que salga sola con conceptos calculados, primero cargá tu perfil en Configuración → Precios.",
   calculoSinPrecio: "Uno de los conceptos calculados no da precio con tu perfil actual: revisalo antes de activar el envío automático.",
+  fotolibroSinPrecio: "Uno de los fotolibros ya no está en la lista de hoy del proveedor: elegilo de nuevo antes de activar el envío automático.",
   plantilla: "Elegí una plantilla de correo de tipo Presupuesto.",
   sinItems: "Para que salga sola, la propuesta necesita al menos un ítem.",
   sinPlantilla: "Para que salga sola, elegí la plantilla de correo con la que se envía.",
@@ -161,9 +165,15 @@ export function validarItemsDeModelo(raw: unknown): ResultadoValidacion<ItemPres
   const v = validarItems(raw);
   if (!v.ok) return v;
   const out: ItemPresupuesto[] = [];
-  for (const it of v.valor) {
+  for (const [k, it] of v.valor.entries()) {
     if (it.modoPrecio === "LISTA") {
-      if (it.productId === null) return { ok: false, error: MENSAJES_PROPUESTA_MODELO.soloLista };
+      if (it.productId === null) {
+        // Sin producto, sólo un fotolibro del proveedor (se cotiza con la lista al enviarla).
+        const fotolibro = validarFotolibroDeModelo((raw as { fotolibro?: unknown }[])[k]?.fotolibro);
+        if (!fotolibro) return { ok: false, error: MENSAJES_PROPUESTA_MODELO.soloLista };
+        out.push({ ...it, precioUnitario: 0, calculo: null, fotolibro });
+        continue;
+      }
       out.push({ ...it, calculo: null });
     } else if (it.modoPrecio === "CALCULO") {
       const presupuesto = it.productId === null ? trabajoDelConcepto(it.calculo) : null;
@@ -337,6 +347,7 @@ export async function guardarPropuestaModelo(ctx: CtxPresupuestos, datos: DatosP
     if (!real.ok) {
       if (real.motivo === "SIN_PERFIL") return no(MENSAJES_PROPUESTA_MODELO.sinPerfil);
       if (real.motivo === "CALCULO") return no(MENSAJES_PROPUESTA_MODELO.calculoSinPrecio);
+      if (real.motivo === "FOTOLIBRO") return no(MENSAJES_PROPUESTA_MODELO.fotolibroSinPrecio);
       return no(MENSAJES_PROPUESTA_MODELO.producto);
     }
   }
