@@ -1,0 +1,253 @@
+import { createHash } from "node:crypto";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { MAX_WORKS } from "@repo/muestras";
+import {
+  LIMITES, LIMITES_POR_EMAIL, LIMITES_POR_MUESTRA, LIMITES_POR_PEDIDO, LIMITES_PUBLICOS, checkRateLimit, frenarPorEmail, frenarPorIp,
+  frenarPorMuestra, frenarPorPedido, frenarPorUsuario, huellaDeIp, ipDeLaPeticion, MAX_ENTRADAS, prefijoDeIp, resetRateLimit, tamanoDelFreno,
+} from "./limite";
+
+beforeEach(() => resetRateLimit());
+
+describe("checkRateLimit", () => {
+  it("deja pasar hasta el tope y frena el siguiente", () => {
+    const pedir = () => checkRateLimit({ key: "k", limit: 2, windowMs: 60_000 });
+    expect(pedir().allowed).toBe(true);
+    expect(pedir().allowed).toBe(true);
+    expect(pedir().allowed).toBe(false);
+  });
+});
+
+describe("frenarPorUsuario", () => {
+  it("cuenta por persona: el tope de una no frena a otra", () => {
+    for (let i = 0; i < LIMITES.enviarARevision.limit; i++) expect(frenarPorUsuario("enviarARevision", 1).allowed).toBe(true);
+    expect(frenarPorUsuario("enviarARevision", 1).allowed).toBe(false);
+    expect(frenarPorUsuario("enviarARevision", 2).allowed).toBe(true);
+  });
+  it("cada cosa lleva su propio conteo", () => {
+    for (let i = 0; i < LIMITES.enviarARevision.limit; i++) frenarPorUsuario("enviarARevision", 1);
+    expect(frenarPorUsuario("crearBorrador", 1).allowed).toBe(true);
+  });
+});
+
+describe("tope de fichas", () => {
+  it("alcanza para bajar la ficha de cada obra de una muestra llena y el PDF completo en dos tamaños", () => {
+    for (let i = 0; i < MAX_WORKS + 2; i++) expect(frenarPorUsuario("fichas", 1).allowed).toBe(true);
+  });
+  it("sigue teniendo tope", () => {
+    for (let i = 0; i < LIMITES.fichas.limit; i++) frenarPorUsuario("fichas", 1);
+    expect(frenarPorUsuario("fichas", 1).allowed).toBe(false);
+  });
+});
+
+describe("frenarPorIp", () => {
+  const h = (o: Record<string, string>) => ({ get: (n: string) => o[n] ?? null });
+  it("toma el primer valor de x-forwarded-for", () => expect(ipDeLaPeticion(h({ "x-forwarded-for": "200.1.2.3, 10.0.0.1" }))).toBe("200.1.2.3"));
+  it("si no hay, usa x-real-ip", () => expect(ipDeLaPeticion(h({ "x-real-ip": "2800:810::1" }))).toBe("2800:810::1"));
+  it("lo que no parece una IP cae en el balde común", () => {
+    expect(ipDeLaPeticion(h({}))).toBe("sin-ip");
+    expect(ipDeLaPeticion(h({ "x-forwarded-for": "<script>" }))).toBe("sin-ip");
+  });
+  it("cuenta por IP: el tope de una no frena a otra", () => {
+    for (let i = 0; i < LIMITES_PUBLICOS.buscarCerca.limit; i++) expect(frenarPorIp("buscarCerca", "1.1.1.1").allowed).toBe(true);
+    expect(frenarPorIp("buscarCerca", "1.1.1.1").allowed).toBe(false);
+    expect(frenarPorIp("buscarCerca", "2.2.2.2").allowed).toBe(true);
+  });
+});
+
+
+describe("huella de IP", () => {
+  it("no es la IP, es estable y distingue IPs", () => {
+    const a = huellaDeIp("181.1.2.3");
+    expect(a).toBe(huellaDeIp("181.1.2.3"));
+    expect(a).not.toBe(huellaDeIp("181.1.2.4"));
+  });
+});
+
+describe("IPv6: se cuenta por el prefijo /64", () => {
+  it("dos direcciones de la misma red /64 dan la misma huella", () => {
+    expect(huellaDeIp("2800:810:1:2:aaaa::1")).toBe(huellaDeIp("2800:810:1:2:bbbb:cccc:dddd:2"));
+    expect(huellaDeIp("2800:0810:0001:0002::1")).toBe(huellaDeIp("2800:810:1:2::5"));
+    expect(huellaDeIp("2800:810:1:2::1")).not.toBe(huellaDeIp("2800:810:1:3::1"));
+  });
+  it("normaliza la forma comprimida y deja igual una IPv4", () => {
+    expect(prefijoDeIp("2800:810::1")).toBe("2800:810:0:0::/64");
+    expect(prefijoDeIp("::1")).toBe("0:0:0:0::/64");
+    expect(prefijoDeIp("2800:810:1:2:3:4:5:6")).toBe("2800:810:1:2::/64");
+    expect(prefijoDeIp("181.1.2.3")).toBe("181.1.2.3");
+    expect(prefijoDeIp("::ffff:181.1.2.3")).toBe("181.1.2.3");
+    expect(prefijoDeIp("sin-ip")).toBe("sin-ip");
+  });
+  it("el freno por IP también cuenta por /64", () => {
+    for (let i = 0; i < LIMITES_PUBLICOS.buscarCerca.limit; i++) frenarPorIp("buscarCerca", `2800:810:1:2::${i + 1}`);
+    expect(frenarPorIp("buscarCerca", "2800:810:1:2:ffff::9").allowed).toBe(false);
+    expect(frenarPorIp("buscarCerca", "2800:810:1:3::1").allowed).toBe(true);
+  });
+});
+
+describe("huella con sal fija", () => {
+  it("es el sha256 de sal + IP en base64url, cortado a 22", () => {
+    const esperado = createHash("sha256").update("s").update("181.1.2.3").digest("base64url").slice(0, 22);
+    expect(huellaDeIp("181.1.2.3", "s")).toBe(esperado);
+    expect(huellaDeIp("181.1.2.3", "s")).toHaveLength(22);
+  });
+});
+
+describe("tope de tamaño del freno", () => {
+  it("nunca pasa de MAX_ENTRADAS: se van las claves más viejas", () => {
+    resetRateLimit();
+    for (let i = 0; i < MAX_ENTRADAS + 50; i++) checkRateLimit({ key: `k${i}`, limit: 5, windowMs: 60_000 });
+    expect(tamanoDelFreno()).toBeLessThanOrEqual(MAX_ENTRADAS);
+    // La más vieja se fue (vuelve a empezar en 1); la más nueva sigue contando.
+    expect(checkRateLimit({ key: "k0", limit: 5, windowMs: 60_000 }).remaining).toBe(4);
+    expect(checkRateLimit({ key: `k${MAX_ENTRADAS + 49}`, limit: 5, windowMs: 60_000 }).remaining).toBe(3);
+    resetRateLimit();
+  });
+  it("barre lo vencido a lo sumo una vez por segundo", () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2026-10-10T12:00:00Z"));
+      for (let i = 0; i < 600; i++) checkRateLimit({ key: `v${i}`, limit: 5, windowMs: 100 });
+      vi.setSystemTime(new Date("2026-10-10T12:00:00.500Z"));
+      checkRateLimit({ key: "nueva", limit: 5, windowMs: 60_000 });
+      // Ya barrió al llegar a 500 claves (en el mismo segundo): las vencidas de después siguen.
+      expect(tamanoDelFreno()).toBeGreaterThan(1);
+      vi.setSystemTime(new Date("2026-10-10T12:00:02Z"));
+      checkRateLimit({ key: "otra", limit: 5, windowMs: 60_000 });
+      expect(tamanoDelFreno()).toBe(2);
+    } finally {
+      vi.useRealTimers();
+      resetRateLimit();
+    }
+  });
+});
+
+describe("frenos de la sala", () => {
+  it("el libro se cuenta por IP y por muestra", () => {
+    for (let i = 0; i < LIMITES_PUBLICOS.libro.limit; i++) expect(frenarPorIp("libro", "1.1.1.1", "m1").allowed).toBe(true);
+    expect(frenarPorIp("libro", "1.1.1.1", "m1").allowed).toBe(false);
+    expect(frenarPorIp("libro", "1.1.1.1", "m2").allowed).toBe(true);
+  });
+  it("tope por muestra para todas las IPs juntas", () => {
+    for (let i = 0; i < LIMITES_POR_MUESTRA.libro.limit; i++) expect(frenarPorMuestra("libro", "m1").allowed).toBe(true);
+    expect(frenarPorMuestra("libro", "m1").allowed).toBe(false);
+  });
+});
+
+describe("frenos de difusión y equipo (etapa 5)", () => {
+  it("invitar al equipo 30 por hora y aceptar 20 por hora, por persona", () => {
+    expect(LIMITES.invitarEquipo).toEqual({ limit: 30, windowMs: 60 * 60_000 });
+    expect(LIMITES.aceptarEquipo).toEqual({ limit: 20, windowMs: 60 * 60_000 });
+    for (let i = 0; i < 30; i++) expect(frenarPorUsuario("invitarEquipo", 1).allowed).toBe(true);
+    expect(frenarPorUsuario("invitarEquipo", 1).allowed).toBe(false);
+    expect(frenarPorUsuario("invitarEquipo", 2).allowed).toBe(true);
+  });
+});
+
+describe("frenos de la asistencia (etapa 5)", () => {
+  it("por IP y por muestra, con los topes del diseño", () => {
+    expect(LIMITES_PUBLICOS.asistencia).toEqual({ limit: 10, windowMs: 10 * 60_000 });
+    expect(LIMITES_PUBLICOS.asistenciaConsultas).toEqual({ limit: 120, windowMs: 10 * 60_000 });
+    expect(LIMITES_PUBLICOS.miAsistencia).toEqual({ limit: 30, windowMs: 10 * 60_000 });
+    expect(LIMITES_POR_MUESTRA.asistencia).toEqual({ limit: 300, windowMs: 60 * 60_000 });
+    for (let i = 0; i < 10; i++) expect(frenarPorIp("asistencia", "1.1.1.1", "m1").allowed).toBe(true);
+    expect(frenarPorIp("asistencia", "1.1.1.1", "m1").allowed).toBe(false);
+    expect(frenarPorIp("asistencia", "1.1.1.1", "m2").allowed).toBe(true);
+  });
+});
+
+describe("frenos de la sorpresa (etapa 6)", () => {
+  it("anticipo: 60 cada 10 minutos por IP", () => {
+    expect(LIMITES_PUBLICOS.anticipo).toEqual({ limit: 60, windowMs: 10 * 60_000 });
+    for (let i = 0; i < 60; i++) expect(frenarPorIp("anticipo", "1.1.1.1").allowed).toBe(true);
+    expect(frenarPorIp("anticipo", "1.1.1.1").allowed).toBe(false);
+    expect(frenarPorIp("anticipo", "2.2.2.2").allowed).toBe(true);
+  });
+  it("anticipo por muestra: 20 cada 10 minutos por IP y por muestra", () => {
+    expect(LIMITES_PUBLICOS.anticipoPorMuestra).toEqual({ limit: 20, windowMs: 10 * 60_000 });
+    for (let i = 0; i < 20; i++) expect(frenarPorIp("anticipoPorMuestra", "1.1.1.1", "m1").allowed).toBe(true);
+    expect(frenarPorIp("anticipoPorMuestra", "1.1.1.1", "m1").allowed).toBe(false);
+    expect(frenarPorIp("anticipoPorMuestra", "1.1.1.1", "m2").allowed).toBe(true);
+  });
+  it("guardar la visibilidad: 60 por hora por persona", () => {
+    expect(LIMITES.guardarVisibilidad).toEqual({ limit: 60, windowMs: 60 * 60_000 });
+  });
+  it("portfolio: 300 por hora por persona", () => {
+    expect(LIMITES.guardarPortfolio).toEqual({ limit: 300, windowMs: 60 * 60_000 });
+  });
+  it("enlace de expositores: 30 por hora por persona", () => {
+    expect(LIMITES.enlaceExpositores).toEqual({ limit: 30, windowMs: 60 * 60_000 });
+  });
+  it("sumarse como expositor: 20 por hora por persona; la página del enlace, 60 cada 10 minutos por IP", () => {
+    expect(LIMITES.sumarseExpositor).toEqual({ limit: 20, windowMs: 60 * 60_000 });
+    expect(LIMITES_PUBLICOS.paginaExpositores).toEqual({ limit: 60, windowMs: 10 * 60_000 });
+  });
+  it("obras de quien expone: guardar 300 por hora y enviar 60 por hora", () => {
+    expect(LIMITES.guardarObraExpositor).toEqual({ limit: 300, windowMs: 60 * 60_000 });
+    expect(LIMITES.enviarObraExpositor).toEqual({ limit: 60, windowMs: 60 * 60_000 });
+  });
+  it("revisar expositores: 600 cada 10 minutos por persona", () => {
+    expect(LIMITES.revisarExpositores).toEqual({ limit: 600, windowMs: 10 * 60_000 });
+  });
+  it("vista de sala 300 e imágenes de sala 600, cada 10 minutos por IP", () => {
+    expect(LIMITES_PUBLICOS.vistaSala).toEqual({ limit: 300, windowMs: 10 * 60_000 });
+    expect(LIMITES_PUBLICOS.imagenSala).toEqual({ limit: 600, windowMs: 10 * 60_000 });
+  });
+});
+
+describe("frenos de las piezas (etapa 6)", () => {
+  it("el marco de una obra va aparte: alcanza para pedir uno por obra de una muestra llena", () => {
+    expect(LIMITES.piezaObra).toEqual({ limit: 400, windowMs: 10 * 60_000 });
+    for (let i = 0; i < MAX_WORKS; i++) expect(frenarPorUsuario("piezaObra", 1).allowed).toBe(true);
+    // Y no gasta el de los PDF pesados.
+    expect(frenarPorUsuario("piezas", 1).allowed).toBe(true);
+  });
+  it("tandas, catálogo y demás siguen con 60 cada 10 minutos", () => {
+    expect(LIMITES.piezas).toEqual({ limit: 60, windowMs: 10 * 60_000 });
+  });
+});
+
+describe("frenos del concurso de FotoRank (etapa 7)", () => {
+  it("armar 10 y actualizar 30 por hora; copiar imágenes y casillas 600 cada 10 minutos; respuestas del autor 120 por hora", () => {
+    expect(LIMITES.armarDesdeConcurso).toEqual({ limit: 10, windowMs: 60 * 60_000 });
+    expect(LIMITES.actualizarConcurso).toEqual({ limit: 30, windowMs: 60 * 60_000 });
+    expect(LIMITES.copiarImagenesConcurso).toEqual({ limit: 600, windowMs: 10 * 60_000 });
+    expect(LIMITES.opcionesConcurso).toEqual({ limit: 600, windowMs: 10 * 60_000 });
+    expect(LIMITES.respuestaAutor).toEqual({ limit: 120, windowMs: 60 * 60_000 });
+  });
+  it("copiar las imágenes de una muestra llena (300 obras, de a 6) entra en el tope", () => {
+    for (let i = 0; i < Math.ceil(MAX_WORKS / 6) + 10; i++) expect(frenarPorUsuario("copiarImagenesConcurso", 1).allowed).toBe(true);
+  });
+});
+
+describe("frenos de la venta (etapa 8)", () => {
+  const h = 60 * 60_000;
+  const diez = 10 * 60_000;
+  it("con sesión", () => {
+    expect(LIMITES.invitarCobro).toEqual({ limit: 10, windowMs: h });
+    expect(LIMITES.verificarCobro).toEqual({ limit: 60, windowMs: h });
+    expect(LIMITES.ventaConfig).toEqual({ limit: 60, windowMs: h });
+    expect(LIMITES.ofertaAutor).toEqual({ limit: 300, windowMs: h });
+    expect(LIMITES.subirOriginal).toEqual({ limit: 30, windowMs: h });
+    expect(LIMITES.revisarOfertas).toEqual({ limit: 600, windowMs: diez });
+    expect(LIMITES.pedidosPanel).toEqual({ limit: 600, windowMs: diez });
+  });
+  it("sin sesión, por IP", () => {
+    expect(LIMITES_PUBLICOS.reservarCopia).toEqual({ limit: 20, windowMs: diez });
+    expect(LIMITES_PUBLICOS.verificar).toEqual({ limit: 60, windowMs: diez });
+    expect(LIMITES_PUBLICOS.avisoPagos).toEqual({ limit: 600, windowMs: diez });
+  });
+  it("por pedido", () => {
+    expect(LIMITES_POR_PEDIDO.pagarPedido).toEqual({ limit: 10, windowMs: diez });
+    expect(LIMITES_POR_PEDIDO.verPedido).toEqual({ limit: 120, windowMs: diez });
+    expect(LIMITES_POR_PEDIDO.descargaVenta).toEqual({ limit: 30, windowMs: h });
+    for (let i = 0; i < 10; i++) expect(frenarPorPedido("pagarPedido", "p1").allowed).toBe(true);
+    expect(frenarPorPedido("pagarPedido", "p1").allowed).toBe(false);
+    expect(frenarPorPedido("pagarPedido", "p2").allowed).toBe(true);
+  });
+  it("por email del comprador, sin guardar el email en claro", () => {
+    expect(LIMITES_POR_EMAIL.reservarCopia).toEqual({ limit: 10, windowMs: diez });
+    for (let i = 0; i < 10; i++) expect(frenarPorEmail("reservarCopia", "Ana@Example.com ").allowed).toBe(true);
+    expect(frenarPorEmail("reservarCopia", "ana@example.com").allowed).toBe(false);
+    expect(frenarPorEmail("reservarCopia", "otra@example.com").allowed).toBe(true);
+  });
+});

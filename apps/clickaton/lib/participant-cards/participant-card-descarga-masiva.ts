@@ -10,6 +10,7 @@ import type { ClickatonParticipantCardType } from "./participant-card-types";
 const NOMBRE_DE_PLACA: Record<ClickatonParticipantCardType, string> = {
   welcome: "bienvenida",
   member: "soy-parte",
+  diploma: "diploma",
 };
 
 /**
@@ -56,5 +57,25 @@ export function nombresSinRepetir(nombres: readonly string[]): string[] {
     const base = punto === -1 ? nombre : nombre.slice(0, punto);
     const extension = punto === -1 ? "" : nombre.slice(punto);
     return `${base}-${vistas + 1}${extension}`;
+  });
+}
+
+/**
+ * Recorta las piezas a bajar por tipo de placa y/o por inscripciones elegidas.
+ *
+ * Sin filtros, se comporta como la descarga de siempre: trae todo. Una lista de
+ * inscripciones vacía es una elección explícita de "ninguna", no un atajo para "todas".
+ */
+export function filtrarPiezasParaDescarga<
+  T extends { registrationId: string; cardType: ClickatonParticipantCardType },
+>(
+  piezas: readonly T[],
+  filtros: { cardType?: ClickatonParticipantCardType; registrationIds?: readonly string[] },
+): T[] {
+  const elegidas = filtros.registrationIds ? new Set(filtros.registrationIds) : null;
+  return piezas.filter((p) => {
+    if (filtros.cardType && p.cardType !== filtros.cardType) return false;
+    if (elegidas && !elegidas.has(p.registrationId)) return false;
+    return true;
   });
 }

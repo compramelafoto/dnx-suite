@@ -2,6 +2,7 @@ import "server-only";
 import { prisma } from "@repo/db";
 import { DETAIL_MAX } from "./constants";
 import { sendTransactionalEmail, type SendOutcome } from "./send-email";
+import { loadWorkspaceSender } from "./load-workspace-sender";
 
 /**
  * Envía un email transaccional y deja constancia del desenlace.
@@ -21,10 +22,16 @@ export async function sendAndLogEmail(input: {
   body: { subject: string; html: string; text: string };
   /** Usuario asociado, si lo hay. Un aspirante todavía no tiene cuenta: va en `null`. */
   userId?: number | null;
+  /**
+   * Institución que manda el correo: el socio ve su nombre como remitente («SFPR») y, si
+   * contesta, le escribe a su casilla de contacto. Sin esto sale con el remitente del entorno.
+   */
+  workspaceId?: string | null;
 }): Promise<SendOutcome> {
   let outcome: SendOutcome;
   try {
-    outcome = await sendTransactionalEmail({ to: input.to, ...input.body });
+    const sender = input.workspaceId ? await loadWorkspaceSender(input.workspaceId) : null;
+    outcome = await sendTransactionalEmail({ to: input.to, ...input.body, sender });
   } catch (error) {
     // El transporte promete no lanzar; si algún día rompe esa promesa, no se lleva puesta la
     // operación que lo llamó.

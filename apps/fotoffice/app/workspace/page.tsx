@@ -1,3 +1,4 @@
+import { SALES_MODULE_KEY } from "@/lib/sales/constants";
 import { prisma } from "@repo/db";
 import { requireAuth } from "@/lib/auth";
 import { requireOwnWorkspace } from "@/lib/entrada/require-own-workspace";
@@ -10,7 +11,10 @@ import { getGrantedActions, getModuleLevels } from "@/lib/permissions/module-acc
 import { hasLevel } from "@/lib/permissions/levels";
 import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
 import { resolveWorkspaceRole } from "@/lib/workspace-role";
+import { isFullAccessRole } from "@/lib/permissions/levels";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
+import { puede } from "@/lib/access/policy";
+import { getOrganizationType } from "@/lib/workspace-type";
 import { loadWorkspaceHome } from "@/lib/workspace-home/load";
 import { WorkspaceHome } from "@/components/workspace-home/workspace-home";
 
@@ -49,7 +53,8 @@ export default async function WorkspaceHomePage() {
     getGrantedActions(user.id, workspaceId),
   ]);
   // Las mismas acciones sensibles que usa el menú lateral (`AdminShell`), con la misma función.
-  const acceso = { levels, actions };
+  // `fullAccess`: dueño o admin (`isFullAccessRole`), igual que el menú; decide Cobros.
+  const acceso = { levels, actions, fullAccess: isFullAccessRole(role) };
   // Sólo para el aviso "Completar los datos de la institución", que lleva a Configuración.
   const admin = canManageWorkspaceSettings(role);
   // Una tarjeta por módulo que esta persona puede al menos ver: las de un módulo en NONE
@@ -58,6 +63,9 @@ export default async function WorkspaceHomePage() {
     hasLevel(levels[m.key] ?? "NONE", "VIEW"),
   );
   const puedeAdministrarSocios = levels[MEMBERS_MODULE_KEY] === "MANAGE";
+  // Sin tipo elegido no se puede ordenar el menú ni sugerir módulos: se lo pedimos a quien puede decidirlo.
+  const faltaTipoDeOrganizacion =
+    puede(role, "configurar") && (await getOrganizationType(workspaceId)) === null;
 
   const nombre = (profile?.displayName ?? user.name ?? "").split(" ")[0] || "equipo";
   const institucion = branding?.commercialName?.trim() || activa?.name || "tu institución";
@@ -78,6 +86,8 @@ export default async function WorkspaceHomePage() {
       vocabulary={vocabulary}
       puedeCrearSocio={puedeAdministrarSocios && enabled.has(MEMBERS_MODULE_KEY)}
       faltaConfigurar={faltaConfigurar}
+      faltaTipoDeOrganizacion={faltaTipoDeOrganizacion}
+      puedeCobrar={enabled.has(SALES_MODULE_KEY) && levels[SALES_MODULE_KEY] === "MANAGE"}
       modulos={modulos.map((m) => ({
         ...m,
         // Las mismas pantallas, con la misma regla, que muestra el menú lateral.

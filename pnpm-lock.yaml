@@ -65,6 +65,9 @@ importers:
       '@repo/promotions':
         specifier: workspace:*
         version: link:../../packages/promotions
+      '@repo/quick-search':
+        specifier: workspace:*
+        version: link:../../packages/quick-search
       '@repo/social-publisher':
         specifier: workspace:*
         version: link:../../packages/social-publisher
@@ -222,6 +225,9 @@ importers:
       '@repo/design-system':
         specifier: workspace:*
         version: link:../../packages/design-system
+      '@repo/dnx-bot':
+        specifier: workspace:*
+        version: link:../../packages/dnx-bot
       '@repo/finance-control':
         specifier: workspace:*
         version: link:../../packages/finance-control
@@ -240,6 +246,9 @@ importers:
       '@repo/payments':
         specifier: workspace:*
         version: link:../../packages/payments
+      '@repo/quick-search':
+        specifier: workspace:*
+        version: link:../../packages/quick-search
       '@repo/social-pieces':
         specifier: workspace:*
         version: link:../../packages/social-pieces
@@ -324,6 +333,9 @@ importers:
       lucide-react:
         specifier: ^0.544.0
         version: 0.544.0(react@19.2.4)
+      mupdf:
+        specifier: ^1.28.1
+        version: 1.28.1
       next:
         specifier: 16.2.1
         version: 16.2.1(@babel/core@7.29.0)(@playwright/test@1.51.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -432,9 +444,18 @@ importers:
       '@aws-sdk/client-s3':
         specifier: ^3.972.0
         version: 3.1079.0
+      '@aws-sdk/s3-request-presigner':
+        specifier: ^3.972.0
+        version: 3.1079.0
+      '@prisma/client':
+        specifier: ^6.19.2
+        version: 6.19.2(prisma@6.19.2(typescript@5.9.2))(typescript@5.9.2)
       '@repo/db':
         specifier: workspace:*
         version: link:../../../packages/db
+      '@repo/geo':
+        specifier: workspace:*
+        version: link:../../../packages/geo
       basic-ftp:
         specifier: ^5.0.5
         version: 5.3.1
@@ -595,12 +616,18 @@ importers:
       '@repo/content-ui':
         specifier: workspace:*
         version: link:../../packages/content-ui
+      '@repo/cuanto-cobro-core':
+        specifier: workspace:*
+        version: link:../../packages/cuanto-cobro-core
       '@repo/db':
         specifier: workspace:*
         version: link:../../packages/db
       '@repo/design-studio':
         specifier: workspace:*
         version: link:../../packages/design-studio
+      '@repo/dnx-bot':
+        specifier: workspace:*
+        version: link:../../packages/dnx-bot
       '@repo/geo':
         specifier: workspace:*
         version: link:../../packages/geo
@@ -610,6 +637,9 @@ importers:
       '@repo/payments':
         specifier: workspace:*
         version: link:../../packages/payments
+      '@repo/quick-search':
+        specifier: workspace:*
+        version: link:../../packages/quick-search
       '@repo/template-editor-core':
         specifier: workspace:*
         version: link:../../packages/template-editor-core
@@ -625,6 +655,9 @@ importers:
       bcryptjs:
         specifier: ^3.0.3
         version: 3.0.3
+      hls.js:
+        specifier: 1.6.16
+        version: 1.6.16
       leaflet:
         specifier: ^1.9.4
         version: 1.9.4
@@ -640,6 +673,9 @@ importers:
       papaparse:
         specifier: ^5.5.4
         version: 5.5.4
+      pdf-lib:
+        specifier: 1.17.1
+        version: 1.17.1
       qrcode:
         specifier: ^1.5.4
         version: 1.5.4
@@ -649,6 +685,9 @@ importers:
       react-dom:
         specifier: 19.2.4
         version: 19.2.4(react@19.2.4)
+      react-easy-crop:
+        specifier: ^5.5.6
+        version: 5.5.7(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       react-leaflet:
         specifier: ^5.0.0
         version: 5.0.0(leaflet@1.9.4)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -692,6 +731,40 @@ importers:
       tailwindcss:
         specifier: ^4
         version: 4.2.2
+      typescript:
+        specifier: ^5
+        version: 5.9.2
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.7(@types/debug@4.1.13)(@types/node@20.19.37)(jiti@2.6.1)(jsdom@28.1.0)(lightningcss@1.32.0)(tsx@4.23.0)
+
+  apps/fotoffice-workers/digitalizacion:
+    dependencies:
+      '@aws-sdk/client-s3':
+        specifier: ^3.972.0
+        version: 3.1079.0
+      '@aws-sdk/lib-storage':
+        specifier: ^3.1079.0
+        version: 3.1079.0(@aws-sdk/client-s3@3.1079.0)
+      '@repo/db':
+        specifier: workspace:*
+        version: link:../../../packages/db
+      dotenv:
+        specifier: ^17.2.3
+        version: 17.4.2
+      sharp:
+        specifier: ^0.33.0
+        version: 0.33.5
+      zod:
+        specifier: ^4.3.6
+        version: 4.3.6
+    devDependencies:
+      '@types/node':
+        specifier: ^20
+        version: 20.19.37
+      tsx:
+        specifier: ^4.21.0
+        version: 4.21.0
       typescript:
         specifier: ^5
         version: 5.9.2
@@ -779,6 +852,9 @@ importers:
       '@repo/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@repo/design-studio':
+        specifier: workspace:*
+        version: link:../../packages/design-studio
       '@repo/design-system':
         specifier: workspace:*
         version: link:../../packages/design-system
@@ -791,6 +867,15 @@ importers:
       '@repo/payments':
         specifier: workspace:*
         version: link:../../packages/payments
+      '@repo/quick-search':
+        specifier: workspace:*
+        version: link:../../packages/quick-search
+      '@repo/template-editor-core':
+        specifier: workspace:*
+        version: link:../../packages/template-editor-core
+      '@repo/template-editor-ui':
+        specifier: workspace:*
+        version: link:../../packages/template-editor-ui
       '@repo/template-engine':
         specifier: workspace:*
         version: link:../../packages/template-engine
@@ -815,6 +900,9 @@ importers:
       lucide-react:
         specifier: ^0.544.0
         version: 0.544.0(react@19.2.0)
+      mupdf:
+        specifier: ^1.28.1
+        version: 1.28.1
       next:
         specifier: 16.2.0
         version: 16.2.0(@playwright/test@1.51.1)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
@@ -921,6 +1009,9 @@ importers:
       '@repo/partners':
         specifier: workspace:*
         version: link:../../packages/partners
+      '@repo/quick-search':
+        specifier: workspace:*
+        version: link:../../packages/quick-search
       '@repo/recommendations':
         specifier: workspace:*
         version: link:../../packages/recommendations
@@ -1027,6 +1118,97 @@ importers:
       typescript:
         specifier: 5.9.2
         version: 5.9.2
+
+  apps/muestras:
+    dependencies:
+      '@aws-sdk/client-s3':
+        specifier: ^3.972.0
+        version: 3.1079.0
+      '@aws-sdk/s3-request-presigner':
+        specifier: ^3.972.0
+        version: 3.1079.0
+      '@repo/auth':
+        specifier: workspace:*
+        version: link:../../packages/auth
+      '@repo/auth-ui':
+        specifier: workspace:*
+        version: link:../../packages/auth-ui
+      '@repo/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@repo/geo':
+        specifier: workspace:*
+        version: link:../../packages/geo
+      '@repo/muestras':
+        specifier: workspace:*
+        version: link:../../packages/muestras
+      '@repo/payments':
+        specifier: workspace:*
+        version: link:../../packages/payments
+      leaflet:
+        specifier: ^1.9.4
+        version: 1.9.4
+      next:
+        specifier: 16.2.1
+        version: 16.2.1(@babel/core@7.29.0)(@playwright/test@1.51.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      pdf-lib:
+        specifier: ^1.17.1
+        version: 1.17.1
+      qrcode:
+        specifier: ^1.5.4
+        version: 1.5.4
+      react:
+        specifier: 19.2.4
+        version: 19.2.4
+      react-dom:
+        specifier: 19.2.4
+        version: 19.2.4(react@19.2.4)
+      react-leaflet:
+        specifier: ^5.0.0
+        version: 5.0.0(leaflet@1.9.4)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      resend:
+        specifier: ^6.14.0
+        version: 6.17.1
+      server-only:
+        specifier: ^0.0.1
+        version: 0.0.1
+      sharp:
+        specifier: ^0.34.5
+        version: 0.34.5
+    devDependencies:
+      '@tailwindcss/postcss':
+        specifier: ^4
+        version: 4.2.2
+      '@types/leaflet':
+        specifier: ^1.9.21
+        version: 1.9.21
+      '@types/node':
+        specifier: ^20
+        version: 20.19.37
+      '@types/qrcode':
+        specifier: ^1.5.6
+        version: 1.5.6
+      '@types/react':
+        specifier: ^19
+        version: 19.2.2
+      '@types/react-dom':
+        specifier: ^19
+        version: 19.2.2(@types/react@19.2.2)
+      eslint:
+        specifier: ^9
+        version: 9.39.1(jiti@2.6.1)
+      eslint-config-next:
+        specifier: 16.2.1
+        version: 16.2.1(@typescript-eslint/parser@8.62.1(eslint@9.39.1(jiti@2.6.1))(typescript@5.9.3))(eslint@9.39.1(jiti@2.6.1))(typescript@5.9.3)
+      tailwindcss:
+        specifier: ^4
+        version: 4.2.2
+      typescript:
+        specifier: ^5
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.7(@types/debug@4.1.13)(@types/node@20.19.37)(jiti@2.6.1)(jsdom@28.1.0)(lightningcss@1.32.0)(tsx@4.23.0)
 
   apps/subilafoto:
     dependencies:
@@ -1455,6 +1637,46 @@ importers:
         specifier: 5.9.2
         version: 5.9.2
 
+  packages/dnx-bot:
+    dependencies:
+      '@anthropic-ai/sdk':
+        specifier: ^0.133.0
+        version: 0.133.0(zod@4.3.6)
+      react:
+        specifier: ^19.2.0
+        version: 19.2.8
+      react-dom:
+        specifier: ^19.2.0
+        version: 19.2.8(react@19.2.8)
+      zod:
+        specifier: ^4.3.6
+        version: 4.3.6
+    devDependencies:
+      '@repo/eslint-config':
+        specifier: workspace:*
+        version: link:../eslint-config
+      '@repo/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
+      '@types/node':
+        specifier: ^22.15.3
+        version: 22.20.1
+      '@types/react':
+        specifier: 19.2.2
+        version: 19.2.2
+      '@types/react-dom':
+        specifier: 19.2.2
+        version: 19.2.2(@types/react@19.2.2)
+      eslint:
+        specifier: ^9.39.1
+        version: 9.39.1(jiti@2.6.1)
+      typescript:
+        specifier: 5.9.2
+        version: 5.9.2
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.7(@types/debug@4.1.13)(@types/node@22.20.1)(jiti@2.6.1)(jsdom@28.1.0)(lightningcss@1.32.0)(tsx@4.23.0)
+
   packages/editor:
     dependencies:
       '@tiptap/core':
@@ -1649,6 +1871,31 @@ importers:
         specifier: 5.9.2
         version: 5.9.2
 
+  packages/muestras:
+    dependencies:
+      '@repo/geo':
+        specifier: workspace:*
+        version: link:../geo
+    devDependencies:
+      '@repo/eslint-config':
+        specifier: workspace:*
+        version: link:../eslint-config
+      '@repo/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
+      '@types/node':
+        specifier: ^22.15.3
+        version: 22.20.1
+      eslint:
+        specifier: ^9.39.1
+        version: 9.39.1(jiti@2.6.1)
+      typescript:
+        specifier: 5.9.2
+        version: 5.9.2
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.7(@types/debug@4.1.13)(@types/node@22.20.1)(jiti@2.6.1)(jsdom@28.1.0)(lightningcss@1.32.0)(tsx@4.23.0)
+
   packages/notifications:
     dependencies:
       '@repo/geo':
@@ -1755,6 +2002,40 @@ importers:
       typescript:
         specifier: 5.9.2
         version: 5.9.2
+
+  packages/quick-search:
+    dependencies:
+      react:
+        specifier: ^19.2.0
+        version: 19.2.8
+      react-dom:
+        specifier: ^19.2.0
+        version: 19.2.8(react@19.2.8)
+    devDependencies:
+      '@repo/eslint-config':
+        specifier: workspace:*
+        version: link:../eslint-config
+      '@repo/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
+      '@types/node':
+        specifier: ^22.15.3
+        version: 22.20.1
+      '@types/react':
+        specifier: 19.2.2
+        version: 19.2.2
+      '@types/react-dom':
+        specifier: 19.2.2
+        version: 19.2.2(@types/react@19.2.2)
+      eslint:
+        specifier: ^9.39.1
+        version: 9.39.1(jiti@2.6.1)
+      typescript:
+        specifier: 5.9.2
+        version: 5.9.2
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.7(@types/debug@4.1.13)(@types/node@22.20.1)(jiti@2.6.1)(jsdom@28.1.0)(lightningcss@1.32.0)(tsx@4.23.0)
 
   packages/recommendations:
     dependencies:
@@ -2124,6 +2405,15 @@ packages:
   '@alloc/quick-lru@5.2.0':
     resolution: {integrity: sha512-UrcABB+4bUrFABwbluTIBErXwvbsU/V7TZWfmbgJfbkwiBuziS9gxdODUyuiecfdGQ85jglMW6juS3+z5TsKLw==}
     engines: {node: '>=10'}
+
+  '@anthropic-ai/sdk@0.133.0':
+    resolution: {integrity: sha512-jlqUN8p8ESTJj+GJnA4KjzbEfF1waEoGzRT8jwytlYGFFgv+/DUQOxlYGvYw10UzhD1kwLqYzxvA3FrTB2YWuQ==}
+    hasBin: true
+    peerDependencies:
+      zod: ^3.25.0 || ^4.0.0
+    peerDependenciesMeta:
+      zod:
+        optional: true
 
   '@asamuzakjp/css-color@5.1.11':
     resolution: {integrity: sha512-KVw6qIiCTUQhByfTd78h2yD1/00waTmm9uy/R7Ck/ctUyAPj+AEDLkQIdJW0T8+qGgj3j5bpNKK7Q3G+LedJWg==}
@@ -6297,6 +6587,10 @@ packages:
   json-buffer@3.0.1:
     resolution: {integrity: sha512-4bV5BfR2mqfQTJm+V5tPPdf+ZpuhiIvTuAB5g8kcrXOZpTT/QwwVRWBywX1ozr6lEuPdbHxwaJlm9G6mI2sfSQ==}
 
+  json-schema-to-ts@3.1.1:
+    resolution: {integrity: sha512-+DWg8jCJG2TEnpy7kOm/7/AxaYoaRbjVB4LFZLySZlWn8exGs3A4OLJR966cVvU26N7X9TWxl+Jsw7dzAqKT6g==}
+    engines: {node: '>=16'}
+
   json-schema-traverse@0.4.1:
     resolution: {integrity: sha512-xbbCH5dCYU5T8LcEhhuh7HJ88HXuW3qsI3Y0zOZFKfZEHcpWiHU/Jxzk629Brsab/mMiHQti9wMP+845RPe3Vg==}
 
@@ -7948,6 +8242,9 @@ packages:
   trough@2.2.0:
     resolution: {integrity: sha512-tmMpK00BjZiUyVyvrBK7knerNgmgvcV/KLVyuma/SC+TQN167GrMRciANTz09+k3zW8L8t60jWO1GpfkZdjTaw==}
 
+  ts-algebra@2.0.0:
+    resolution: {integrity: sha512-FPAhNPFMrkwz76P7cdjdmiShwMynZYN6SgOujD1urY4oNm80Ou9oMdmbR45LotcKOXoy7wSmHkRFE6Mxbrhefw==}
+
   ts-api-utils@2.1.0:
     resolution: {integrity: sha512-CUgTZL1irw8u29bzrOD/nH85jqyc74D6SshFgujOIA7osm2Rz7dYH77agkx7H4FBNxDq7Cjf+IjaX/8zwFW+ZQ==}
     engines: {node: '>=18.12'}
@@ -8414,6 +8711,13 @@ snapshots:
   '@acemir/cssom@0.9.31': {}
 
   '@alloc/quick-lru@5.2.0': {}
+
+  '@anthropic-ai/sdk@0.133.0(zod@4.3.6)':
+    dependencies:
+      json-schema-to-ts: 3.1.1
+      standardwebhooks: 1.0.0
+    optionalDependencies:
+      zod: 4.3.6
 
   '@asamuzakjp/css-color@5.1.11':
     dependencies:
@@ -12824,6 +13128,11 @@ snapshots:
 
   json-buffer@3.0.1: {}
 
+  json-schema-to-ts@3.1.1:
+    dependencies:
+      '@babel/runtime': 7.29.7
+      ts-algebra: 2.0.0
+
   json-schema-traverse@0.4.1: {}
 
   json-schema-traverse@1.0.0: {}
@@ -14925,6 +15234,8 @@ snapshots:
   troika-worker-utils@0.52.0: {}
 
   trough@2.2.0: {}
+
+  ts-algebra@2.0.0: {}
 
   ts-api-utils@2.1.0(typescript@5.9.2):
     dependencies:

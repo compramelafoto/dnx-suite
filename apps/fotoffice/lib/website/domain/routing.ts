@@ -4,6 +4,8 @@
  * Vive separada para poder probar la decisión entera sin levantar Next.
  */
 
+import { rutaInternaInsertada } from "@/lib/service-leads/insertar";
+
 export type CustomDomainDecision =
   /** Seguir sin tocar: recursos de Next, API, archivos estáticos. */
   | { kind: "pass" }
@@ -54,8 +56,10 @@ const FOTOFFICE_ONLY_SEGMENTS = new Set([
  * - `reservas` cobra distinto al socio que al que no lo es. En el dominio propio el navegador
  *   no manda la cookie de FOTOFFICE, así que ahí todo socio se vería como no socio y pagaría
  *   la tarifa plena. Allá se lo reconoce y se lo lleva a su portal.
+ * - `proyecto` y `reunion` son los enlaces de la comisión para compartir por WhatsApp
+ *   (`lib/governance/share.ts`): deciden según quién los abre.
  */
-const SITE_SEGMENTS_ON_FOTOFFICE = new Set(["entrar", "reservas"]);
+const SITE_SEGMENTS_ON_FOTOFFICE = new Set(["entrar", "reservas", "proyecto", "reunion"]);
 
 const STATIC_FILE = /\.(?:png|jpe?g|gif|webp|avif|svg|ico|mp4|webm|woff2?|ttf|css|js|map|pdf)$/i;
 
@@ -90,7 +94,9 @@ export function decideCustomDomainRoute(args: {
   if (FOTOFFICE_ONLY_SEGMENTS.has(first)) return toFotoffice(pathname);
   if (SITE_SEGMENTS_ON_FOTOFFICE.has(first)) return toFotoffice(`${ownPrefix}${pathname}`);
 
-  return { kind: "rewrite", pathname: pathname === "/" ? ownPrefix : `${ownPrefix}${pathname}` };
+  const sitio = pathname === "/" ? ownPrefix : `${ownPrefix}${pathname}`;
+  // `/insertar[/<formulario>]`: el formulario solo, para insertar en otra web (sin el armazón).
+  return { kind: "rewrite", pathname: rutaInternaInsertada(sitio) ?? sitio };
 }
 
 /**

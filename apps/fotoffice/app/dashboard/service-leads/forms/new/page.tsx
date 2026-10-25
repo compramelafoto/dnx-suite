@@ -8,7 +8,7 @@ export default async function NewServiceLeadFormPage() {
 
   return (
     <div className="space-y-10">
-      <PageHeader title="Nuevo formulario" description="Creá un formulario público de captación para este workspace." />
+      <PageHeader title="Nuevo formulario" description="Creá un formulario público de consultas para este workspace." />
 
       <form action={createServiceLeadForm} className="fo-card space-y-6 max-w-2xl">
         <div className="fo-field-stack">

@@ -50,6 +50,7 @@ export type AlbumDashboardLegacyTabId =
   | "adicionales"
   | "comision-escolar"
   | "escuela"
+  | "mosaico"
   | "operativo"
   | "publicacion"
   | "configuracion";
@@ -59,7 +60,8 @@ export type AlbumPublicationPanelId =
   | "visibilidad"
   | "proteccion"
   | "portada"
-  | "instructivos";
+  | "instructivos"
+  | "canjes";
 
 export const ALBUM_PUBLICATION_DEFAULT_PANEL: AlbumPublicationPanelId = "compartir";
 
@@ -85,6 +87,7 @@ const LEGACY_TAB_TO_SECTION: Record<
   adicionales: { section: "venta", legacySubTab: "adicionales" },
   "comision-escolar": { section: "venta", legacySubTab: "comision-escolar" },
   escuela: { section: "escuela" },
+  mosaico: { section: "escuela" },
   operativo: { section: "pedidos" },
   publicacion: { section: "publicacion" },
   configuracion: { section: "configuracion" },
@@ -220,6 +223,12 @@ export function buildAlbumWorkspaceNavAreas(opts: {
           label: "Instructivos",
           publicationPanel: "instructivos",
         },
+        {
+          id: "publicacion",
+          navKey: "publicacion-canjes",
+          label: "Canjes",
+          publicationPanel: "canjes",
+        },
       ],
     },
     {
@@ -235,6 +244,7 @@ export function buildAlbumWorkspaceNavAreas(opts: {
       label: "Pedidos/Escuela",
       subtabs: [
         { id: "escuela", label: "Escuela" },
+        { id: "mosaico", label: "Mosaico" },
         { id: "operativo", label: "Operativo escolar" },
       ],
     });
@@ -272,7 +282,9 @@ export function resolveLegacyTabForWorkspaceAreaClick(
     case "configuracion":
       return "configuracion";
     case "pedidos":
-      if (currentTab === "escuela" || currentTab === "operativo") return currentTab;
+      if (currentTab === "escuela" || currentTab === "mosaico" || currentTab === "operativo") {
+        return currentTab;
+      }
       return "escuela";
     default:
       return ALBUM_DASHBOARD_DEFAULT_TAB;
@@ -312,7 +324,7 @@ export function parseLegacyAlbumTabFromQuery(
     return "vista-comercial";
   }
   if (raw === "videos" && opts.videoMvpEnabled) return "videos";
-  if (opts.schoolLinked && (raw === "escuela" || raw === "operativo")) {
+  if (opts.schoolLinked && (raw === "escuela" || raw === "mosaico" || raw === "operativo")) {
     return raw;
   }
   return null;
@@ -327,7 +339,9 @@ export function parsePublicationPanelFromQuery(
     lower === "compartir" ||
     lower === "visibilidad" ||
     lower === "proteccion" ||
-    lower === "portada"
+    lower === "portada" ||
+    lower === "instructivos" ||
+    lower === "canjes"
   ) {
     return lower;
   }

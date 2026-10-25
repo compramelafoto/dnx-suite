@@ -1,9 +1,11 @@
 import type { ReactNode } from "react";
 import { RoleSelector } from "@/components/shell/role-selector";
-import type { RoleSelector as RoleSelectorData } from "@/lib/portal/profiles";
+import { AccountMenu } from "@/components/shell/account-menu";
+import type { AccountMenu as AccountMenuData, RoleSelector as RoleSelectorData } from "@/lib/portal/profiles";
 import { type ResolvedPortalItem } from "@/lib/portal/menu";
 import type { PersonVocabulary } from "@/lib/vocabulario/personas";
 import { PortalNav, PortalSidebar } from "./portal-nav";
+import { NotificationBell } from "./notification-bell";
 
 /**
  * El marco del portal: identidad arriba, navegación al costado (computadora) o abajo
@@ -22,6 +24,8 @@ export function PortalShell({
   institution,
   vocabulary,
   roleSelector = null,
+  account = null,
+  notifications = false,
   children,
 }: {
   items: ResolvedPortalItem[];
@@ -30,6 +34,13 @@ export function PortalShell({
   vocabulary: PersonVocabulary;
   /** Si el socio también es equipo de esta institución: el selector de rol (socio activo). */
   roleSelector?: RoleSelectorData | null;
+  /**
+   * El menú de la cuenta, colgado de la foto. Nulo sólo donde no se puede armar (el alumno,
+   * que no tiene perfiles que listar): ahí la foto vuelve a ser una foto y nada más.
+   */
+  account?: { userEmail: string; menu: AccountMenuData } | null;
+  /** La campanita de novedades: sólo para el socio (el alumno no tiene de qué enterarse acá). */
+  notifications?: boolean;
   children: ReactNode;
 }) {
   return (
@@ -54,6 +65,8 @@ export function PortalShell({
           </div>
 
           <div className="flex min-w-0 items-center gap-3">
+            {/* A la izquierda del nombre: se ve sin tapar la identidad y queda a mano del pulgar. */}
+            {notifications ? <NotificationBell /> : null}
             <div className="min-w-0 text-right">
               <p className="truncate text-sm font-semibold leading-tight">{member.fullName}</p>
               <p className="truncate text-xs text-[var(--fo-muted)]">
@@ -67,7 +80,17 @@ export function PortalShell({
                 {member.category ? <span className="hidden sm:inline"> · {member.category}</span> : null}
               </p>
             </div>
-            <PortalAvatar name={member.fullName} src={member.photoUrl} className="h-10 w-10" />
+            {account ? (
+              <AccountMenu
+                userName={member.fullName}
+                userEmail={account.userEmail}
+                userAvatarUrl={member.photoUrl}
+                menu={account.menu}
+                roleSelector={roleSelector}
+              />
+            ) : (
+              <PortalAvatar name={member.fullName} src={member.photoUrl} className="h-10 w-10" />
+            )}
           </div>
         </div>
       </header>

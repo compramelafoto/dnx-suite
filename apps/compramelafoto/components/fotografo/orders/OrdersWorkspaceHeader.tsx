@@ -1,5 +1,7 @@
 "use client";
 
+import { sinPedidosDemo } from "@/lib/canje-externo/pack-de-prueba";
+
 import OrdersSummaryCards from "./OrdersSummaryCards";
 import OrdersWorkspaceNav from "./OrdersWorkspaceNav";
 import OrdersSearchBar from "./OrdersSearchBar";
@@ -28,7 +30,8 @@ export default function OrdersWorkspaceHeader({
   onClearSearch,
   shownCount,
 }: OrdersWorkspaceHeaderProps) {
-  const stats = computeOrdersWorkspaceStats(orders);
+  // Los pedidos DEMO (pruebas del fotógrafo) se listan pero no cuentan.
+  const stats = computeOrdersWorkspaceStats(sinPedidosDemo(orders));
 
   return (
     <div className="flex flex-col gap-2.5 w-full min-w-0">

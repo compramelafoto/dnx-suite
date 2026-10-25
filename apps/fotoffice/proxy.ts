@@ -3,6 +3,7 @@ import { institutionShortcutRedirect } from "@/lib/entrada/institution-shortcut"
 import { hostWithoutPort } from "@/lib/website/domain/normalize";
 import { decideCustomDomainRoute, isFotofficeHost } from "@/lib/website/domain/routing";
 import { lookupCustomDomainSlug } from "@/lib/website/domain/proxy-lookup";
+import { rutaInternaInsertada } from "@/lib/service-leads/insertar";
 
 // Next 16 renombró `middleware.ts` a `proxy.ts`. No carga Prisma: para resolver un dominio
 // propio le pregunta a `/api/dominio-propio` (ver `lib/website/domain/proxy-lookup.ts`).
@@ -19,6 +20,9 @@ const PROTECTED_PREFIXES = [
   "/members",
   "/website",
   "/admin",
+  // Sin sesión, el login vuelve a la pantalla del portal que se pidió (p. ej. "Presentar un
+  // proyecto" desde la página Institucional) en vez de dejar al socio en el inicio.
+  "/portal",
 ];
 
 const FOTOFFICE_ORIGIN = (process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || "").trim().replace(/\/+$/, "");
@@ -30,6 +34,11 @@ export async function proxy(req: NextRequest) {
     const custom = await handleCustomDomain(req, host);
     if (custom) return custom;
   }
+
+  // Un formulario de consulta para insertar en otra web (`/w/<slug>/insertar[/<formulario>]`):
+  // se dibuja en una ruta sin el encabezado ni el pie del sitio. Ver lib/service-leads/insertar.ts.
+  const insertado = rutaInternaInsertada(req.nextUrl.pathname);
+  if (insertado) return NextResponse.rewrite(new URL(`${insertado}${req.nextUrl.search}`, req.url));
 
   return protectPanel(req);
 }

@@ -17,6 +17,8 @@ export type AutorDeObra = {
   email: string;
   numero: string | null;
   instagram: string | null;
+  /** Si autorizó que su obra se publique en redes (`socialPublicationConsent`). */
+  autorizaRedes: boolean;
 };
 
 export type FilaConAutor = FilaDeResultado & { autor: AutorDeObra | null };
@@ -187,6 +189,7 @@ async function autoresDeLasObras(
         email: true,
         visibleCode: true,
         instagramHandle: true,
+        socialPublicationConsent: true,
       },
     }),
     prisma.clickatonPhotoSubmission.findMany({
@@ -208,6 +211,7 @@ async function autoresDeLasObras(
       email: i.email,
       numero: i.visibleCode,
       instagram: i.instagramHandle,
+      autorizaRedes: i.socialPublicationConsent,
     });
   }
   return autores;

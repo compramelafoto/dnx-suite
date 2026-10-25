@@ -68,6 +68,10 @@ function pedido(
 
 function crearTx(order: ReturnType<typeof pedido> | null, ultimaSinStock: string | null = null) {
   return {
+    artworkRoyalty: {
+      updateMany: vi.fn<(args: unknown) => Promise<{ count: number }>>(async () => ({ count: 0 })),
+      count: vi.fn<(args: unknown) => Promise<number>>(async () => 0),
+    },
     sale: { findFirst: vi.fn(async (): Promise<{ status: string } | null> => ({ status: "COMPLETADA" })) },
     $queryRaw: vi.fn(async () => []),
     storeOrder: {
@@ -335,6 +339,54 @@ describe("changeOrderStatus — cancelar", () => {
     expect(r).toEqual({ ok: true });
     expect(h.voidSale).not.toHaveBeenCalled();
     expect(datosDelUpdate()).toMatchObject({ status: "CANCELLED", holdExpiresAt: null });
+  });
+});
+
+describe("changeOrderStatus — cancelar un pedido con obras (regalías, O11)", () => {
+  it.each(["PAID", "READY", "SHIPPED"] as const)(
+    "desde %s: anula las regalías ACCRUED del pedido en la misma transacción",
+    async (from) => {
+      preparar(pedido(from, { deliveryMethod: from === "SHIPPED" ? "SHIPPING" : "PICKUP" }));
+      tx.artworkRoyalty.updateMany.mockResolvedValue({ count: 2 });
+      const r = await changeOrderStatus({ ...base, to: "CANCELLED", note: "Se arrepintió" });
+      expect(r).toEqual({ ok: true });
+      expect(tx.artworkRoyalty.updateMany).toHaveBeenCalledWith({
+        where: { workspaceId: "ws1", orderId: "ord1", status: "ACCRUED" },
+        data: { status: "VOIDED" },
+      });
+      // Las pagadas no se tocan: sólo se cuentan para avisar.
+      expect(tx.artworkRoyalty.count).toHaveBeenCalledWith({ where: { workspaceId: "ws1", orderId: "ord1", status: "PAID" } });
+      // Sin regalías pagadas, una sola constancia: la de la cancelación.
+      expect(tx.storeOrderEvent.create).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it("una regalía ya PAGADA queda PAGADA y el pedido lleva UNA constancia para recuperarla", async () => {
+    preparar(pedido("PAID"));
+    tx.artworkRoyalty.count.mockResolvedValue(2);
+    const r = await changeOrderStatus({ ...base, to: "CANCELLED", note: "Se arrepintió" });
+    expect(r).toEqual({ ok: true });
+    for (const c of tx.artworkRoyalty.updateMany.mock.calls) {
+      expect((c[0] as { where: { status: string } }).where.status).toBe("ACCRUED");
+    }
+    const notas = tx.storeOrderEvent.create.mock.calls.map((c) => (c[0] as { data: { note: string | null } }).data.note);
+    expect(notas).toEqual(["Se arrepintió", "Regalía ya pagada al autor: hay que recuperarla"]);
+    expect(isProblemOrder({ status: "CANCELLED", events: notas.map((note) => ({ note, actorUserId: 42 })) })).toBe(true);
+  });
+
+  it("si la venta no se puede anular, tampoco se anulan las regalías", async () => {
+    preparar(pedido("PAID"));
+    h.voidSale.mockResolvedValue({ ok: false, error: "No se pudo anular." });
+    await changeOrderStatus({ ...base, to: "CANCELLED", note: "x" });
+    expect(tx.artworkRoyalty.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("PAID_NO_STOCK nunca generó regalías (no hubo venta): no hay nada que anular ni recuperar", async () => {
+    preparar(pedido("PAID_NO_STOCK"));
+    const r = await changeOrderStatus({ ...base, to: "CANCELLED", note: "Devuelto en MP" });
+    expect(r).toEqual({ ok: true });
+    expect(tx.artworkRoyalty.updateMany).not.toHaveBeenCalled();
+    expect(tx.storeOrderEvent.create).toHaveBeenCalledTimes(1);
   });
 });
 

@@ -135,6 +135,13 @@ export default function OrderDetailDrawer({
             {/* Bloque 1 — Resumen */}
             <section className="ds-stack-section gap-2">
               <SectionTitle>Resumen</SectionTitle>
+              {order.isDemo ? (
+                <div className="rounded-xl bg-fuchsia-50 px-3 py-2 text-xs text-fuchsia-900 ring-1 ring-fuchsia-200">
+                  <strong>Pedido DEMO.</strong> Es tu prueba del canje con &laquo;Probar como cliente&raquo;: está en $0,
+                  no se cobra, no entra en tus ventas ni en tus totales y no se le mandó nada a nadie. Las
+                  descargas funcionan igual que en un pedido real.
+                </div>
+              ) : null}
               <div className="ds-card rounded-xl border border-gray-200 p-3 space-y-2">
                 <div className="flex flex-wrap items-center gap-2">
                   <OrdersTypeBadge order={order} />
@@ -209,8 +216,27 @@ export default function OrderDetailDrawer({
             {paid ? (
               <section className="ds-stack-section gap-2">
                 <SectionTitle>Archivos</SectionTitle>
-                <div className="ds-card rounded-xl border border-gray-200 p-3 text-xs text-gray-600">
-                  Descargá carpetas ZIP, exportaciones de impresión y links desde acciones abajo.
+                <div className="ds-card rounded-xl border border-gray-200 p-3 text-xs text-gray-600 space-y-2">
+                  <p className="m-0">Descargá carpetas ZIP, exportaciones de impresión y links desde acciones abajo.</p>
+                  {(order.designProjectIds ?? []).map((designId, i, all) => (
+                    <div key={designId} className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                      <span className="font-medium text-gray-900">
+                        Diseño armado{all.length > 1 ? ` ${i + 1}` : ""} (librito)
+                      </span>
+                      <a
+                        href={`/fotografo/disenos/${designId}`}
+                        className="font-medium text-[#c27b3d] hover:underline"
+                      >
+                        Ver, aprobar y bajar PDF/JPG →
+                      </a>
+                      <a
+                        href={`/api/fotografo/disenos/${designId}/pdf`}
+                        className="font-medium text-[#c27b3d] hover:underline"
+                      >
+                        Bajar PDF
+                      </a>
+                    </div>
+                  ))}
                 </div>
               </section>
             ) : null}

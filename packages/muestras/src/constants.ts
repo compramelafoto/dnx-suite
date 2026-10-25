@@ -1,0 +1,78 @@
+/**
+ * Vocabulario de Muestras Fotográficas.
+ *
+ * Todo va como texto y no como enum de Prisma: el schema lo comparten todas las apps de la
+ * suite y un enum que falte en alguna base rompe sus escrituras (mismo criterio que `Raffle`).
+ */
+export const ACTIVITY_TYPES = ["MUESTRA", "CHARLA", "TALLER", "SALIDA", "LIBRO", "PROYECCION", "OTRA"] as const;
+export type ActivityType = (typeof ACTIVITY_TYPES)[number];
+
+export const ACTIVITY_TYPE_LABELS: Record<ActivityType, string> = {
+  MUESTRA: "Muestra",
+  CHARLA: "Charla",
+  TALLER: "Taller",
+  SALIDA: "Salida fotográfica",
+  LIBRO: "Presentación de libro",
+  PROYECCION: "Proyección",
+  OTRA: "Otra actividad",
+};
+
+export const REVIEW_STATUSES = ["DRAFT", "IN_REVIEW", "APPROVED", "REJECTED", "UNPUBLISHED"] as const;
+export type ReviewStatus = (typeof REVIEW_STATUSES)[number];
+
+export const REVIEW_STATUS_LABELS: Record<ReviewStatus, string> = {
+  DRAFT: "Borrador",
+  IN_REVIEW: "En revisión",
+  APPROVED: "Publicada",
+  REJECTED: "Rechazada",
+  UNPUBLISHED: "Despublicada",
+};
+
+export const GALLERY_MODES = ["HIGHLIGHTS_UNTIL_CLOSED", "FULL"] as const;
+export type GalleryMode = (typeof GALLERY_MODES)[number];
+
+/**
+ * Tope técnico (spec D17), no de diseño: lo fija el armado de PDF (una foto por vez, ≈ 0,3–0,5 s
+ * cada una) y lo que un teléfono maneja en la galería y el editor. Cuántas obras tiene una
+ * muestra lo decide quien organiza.
+ */
+export const MAX_WORKS = 300;
+/**
+ * Tope de destacadas: sólo para el modo "Las destacadas" de la sorpresa (spec D19). Más de 12 deja
+ * de ser un anticipo; quien quiera mostrar más usa "al azar" o "todas".
+ */
+export const MAX_HIGHLIGHTS = 12;
+/** "Últimos días": cierra dentro de esta cantidad de días. */
+export const LAST_DAYS_WINDOW = 7;
+
+export function isActivityType(v: unknown): v is ActivityType {
+  return typeof v === "string" && (ACTIVITY_TYPES as readonly string[]).includes(v);
+}
+export function isGalleryMode(v: unknown): v is GalleryMode {
+  return typeof v === "string" && (GALLERY_MODES as readonly string[]).includes(v);
+}
+
+/**
+ * Países en los que se pueden cargar muestras, con su código ISO para buscar direcciones.
+ * `country` se guarda con el nombre en español; el primero es el de siempre.
+ */
+export const COUNTRIES = [
+  { name: "Argentina", code: "AR" },
+  { name: "Bolivia", code: "BO" },
+  { name: "Brasil", code: "BR" },
+  { name: "Chile", code: "CL" },
+  { name: "Paraguay", code: "PY" },
+  { name: "Perú", code: "PE" },
+  { name: "Uruguay", code: "UY" },
+  { name: "Venezuela", code: "VE" },
+] as const;
+export const DEFAULT_COUNTRY = "Argentina";
+
+export function isCountry(v: unknown): v is (typeof COUNTRIES)[number]["name"] {
+  return typeof v === "string" && COUNTRIES.some((c) => c.name === v);
+}
+
+/** Código ISO de un país de la lista (para el buscador de direcciones); `null` si no está. */
+export function countryCode(name: string | null | undefined): string | null {
+  return COUNTRIES.find((c) => c.name === name)?.code ?? null;
+}

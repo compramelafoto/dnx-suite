@@ -66,6 +66,8 @@ interface CameraParamTimelineProps<T extends string | number> {
   readOnly?: boolean;
   resettable?: boolean;
   onReset?: () => void;
+  /** Paso entero de luz: marca larga. Los tercios llevan marca corta. */
+  isMajor?: (value: T) => boolean;
 }
 
 /**
@@ -85,6 +87,7 @@ export default function CameraParamTimeline<T extends string | number>({
   readOnly = false,
   resettable = false,
   onReset,
+  isMajor,
 }: CameraParamTimelineProps<T>) {
   const trackRef = useRef<HTMLDivElement>(null);
   const draggingRef = useRef(false);
@@ -194,10 +197,11 @@ export default function CameraParamTimeline<T extends string | number>({
               const left = indexToVisualPercent(tickIndex, options.length, scaleDirection);
               const isActive = tickIndex === index;
               const isPassed = left <= progress;
+              const isMinor = isMajor ? !isMajor(option) : false;
               return (
                 <span
                   key={`${String(option)}-${tickIndex}`}
-                  className={`cod-param-row__tick${isActive ? " cod-param-row__tick--active" : ""}${isPassed ? " cod-param-row__tick--passed" : ""}`}
+                  className={`cod-param-row__tick${isMinor ? " cod-param-row__tick--minor" : ""}${isActive ? " cod-param-row__tick--active" : ""}${isPassed ? " cod-param-row__tick--passed" : ""}`}
                   style={{ left: `${left}%` }}
                   title={formatValue(option)}
                 />

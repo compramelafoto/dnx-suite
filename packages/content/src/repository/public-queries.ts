@@ -110,12 +110,15 @@ export async function listPublishedPosts(input: {
   order?: ContentListOrder;
   limit?: number;
   excludeId?: number;
+  /** Solo estos artículos (los que alguien eligió destacar). Los que no estén publicados no vuelven. */
+  ids?: number[];
 }): Promise<PublicContentPostListItem[]> {
   const platform = assertContentPlatform(input.platform);
   return input.prisma.blogPost.findMany({
     where: {
       ...publishedWhereFor(platform, input.workspaceKey),
       ...(input.excludeId ? { id: { not: input.excludeId } } : {}),
+      ...(input.ids ? { id: { in: input.ids } } : {}),
     },
     orderBy: orderByFor(input.order),
     take: input.limit ?? 9,

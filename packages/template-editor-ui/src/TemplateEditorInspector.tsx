@@ -1,12 +1,30 @@
 "use client";
 
 import { useMemo } from "react";
+import { BackgroundImageField } from "./inspector/BackgroundImageField";
+import { BlockSizePanel } from "./inspector/BlockSizePanel";
 import { ColorField } from "./inspector/ColorField";
 import { ImageBlockUploadSection } from "./inspector/ImageBlockUploadSection";
+import { ImageCropSection } from "./inspector/ImageCropSection";
 import { FieldLabel, InspectorPanel } from "./inspector/InspectorPanel";
 import { NumberSliderField } from "./inspector/NumberSliderField";
 import { SegmentedControl } from "./inspector/SegmentedControl";
+import { ToggleSwitch } from "./inspector/ToggleSwitch";
 import type { CanvasQuickAlignment } from "@repo/template-editor-core";
+import {
+  CLASS_LIST_MAX_COLUMNS,
+  CLASS_LIST_VARIABLE_KEY,
+  DEFAULT_CLASS_LIST_OPTIONS,
+  isClassListConfig,
+  readClassListOptions,
+  type ClassListOptions,
+  COURSE_MOSAIC_PHOTO_ASPECT_MAX,
+  COURSE_MOSAIC_PHOTO_ASPECT_MIN,
+  COURSE_MOSAIC_TILT_MAX,
+  isCourseMosaicConfig,
+  readCourseMosaicOptions,
+  type CourseMosaicOptions,
+} from "@repo/template-editor-core";
 import {
   alignBlocksToSelectionBounds,
   anySelectedBlockLocked,
@@ -30,6 +48,7 @@ import {
 } from "@repo/template-editor-core";
 import { AlignmentGlyph } from "./alignment-glyph";
 import { TemplateVariableBraceInsertPanel } from "./TemplateVariableBraceInsertPanel";
+import { variableTextFormatsFor } from "@repo/template-editor-core";
 import { cn } from "./primitives/cn";
 
 type Props = {
@@ -60,17 +79,17 @@ function clamp(n: number, min: number, max: number) {
 }
 
 const inputBase =
-  "w-full rounded-lg border border-[color:var(--te-line)] bg-white px-2 py-2 text-xs text-[color:var(--te-ink)] shadow-sm focus:border-[color:var(--te-accent)] focus:outline-none focus:ring-1 focus:ring-[color:var(--te-accent-wash)]";
+  "h-6 w-full rounded-[var(--te-radius)] border border-[color:var(--te-line)] bg-[color:var(--te-surface)] px-1.5 text-[11px] text-[color:var(--te-ink)] focus:border-[color:var(--te-accent)] focus:outline-none";
 
 const selectBase =
-  "w-full rounded-lg border border-[color:var(--te-line)] bg-white px-2 py-2 text-xs shadow-sm focus:border-[color:var(--te-accent)] focus:outline-none focus:ring-1 focus:ring-[color:var(--te-accent-wash)]";
+  "h-6 w-full rounded-[var(--te-radius)] border border-[color:var(--te-line)] bg-[color:var(--te-surface)] px-1.5 text-[11px] text-[color:var(--te-ink)] focus:border-[color:var(--te-accent)] focus:outline-none";
 
 const alignBtnClass =
-  "rounded-lg border border-[color:var(--te-line)] bg-white px-2 py-1.5 text-[11px] font-medium text-[color:var(--te-ink)] shadow-sm transition-colors hover:border-[color:var(--te-line-strong)] hover:bg-[color:var(--te-chrome)] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-white";
+  "h-6 rounded-[var(--te-radius)] border border-[color:var(--te-line)] bg-[color:var(--te-surface)] px-2 text-[11px] font-medium text-[color:var(--te-ink)] transition-colors hover:border-[color:var(--te-line-strong)] hover:bg-[color:var(--te-chrome)] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-[color:var(--te-surface)]";
 
 /** Botón cuadrado con icono de alineación (zona segura / conjunto). */
 const alignIconBtnClass =
-  "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-[color:var(--te-line)] bg-white text-[color:var(--te-ink)] shadow-sm transition-colors hover:border-[color:var(--te-accent)] hover:bg-[color:var(--te-accent-wash)] hover:text-[color:var(--te-accent)] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:border-[color:var(--te-line)] disabled:hover:bg-white disabled:hover:text-[color:var(--te-ink)]";
+  "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-[var(--te-radius)] border border-[color:var(--te-line)] bg-[color:var(--te-surface)] text-[color:var(--te-ink)] transition-colors hover:border-[color:var(--te-accent)] hover:bg-[color:var(--te-accent-wash)] hover:text-[color:var(--te-accent)] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:border-[color:var(--te-line)] disabled:hover:bg-[color:var(--te-surface)] disabled:hover:text-[color:var(--te-ink)]";
 
 export function TemplateEditorInspector({
   selectedBlock,
@@ -86,6 +105,8 @@ export function TemplateEditorInspector({
   className,
 }: Props) {
   const TEXT_VARIABLE_GROUPS = getTextVariableGroupsForProduct(product);
+  /** El listado del curso existe sólo en las plantillas escolares (CLF). */
+  const offersClassList = product === "school" || product === "unknown";
   const TEXT_VARIABLE_CATALOG_KEYS = new Set(
     TEXT_VARIABLE_GROUPS.flatMap((g) => g.variables.map((v) => v.key))
   );
@@ -93,27 +114,16 @@ export function TemplateEditorInspector({
   if (!selectedBlock) {
     const bg = typeof canvas.background === "string" ? canvas.background : "var(--te-surface)";
     return (
-      <div className={cn("w-full min-w-0 space-y-4", className)}>
-        <div>
-          <h2 className="text-sm font-semibold text-[color:var(--te-ink)]">Inspector</h2>
-          <p className="mt-0.5 text-[11px] text-[color:var(--te-ink-faint)]">Lienzo o bloques seleccionados.</p>
-        </div>
-
-        <InspectorPanel title="Fondo de la hoja">
-          <p className="text-[11px] leading-relaxed text-[color:var(--te-ink-muted)]">
-            Hacé clic en un área vacía del lienzo (sin bloques) para quitar la selección y ajustar el color de fondo.
-          </p>
-          <div className="mt-3">
-            <ColorField
-              label="Color de fondo del lienzo"
-              value={bg}
-              onChange={(hex) => dispatch(setCanvas({ background: hex }))}
-            />
-          </div>
+      <div className={cn("w-full min-w-0", className)}>
+        <InspectorPanel title="Hoja">
+          <ColorField
+            label="Color de fondo"
+            value={bg}
+            onChange={(hex) => dispatch(setCanvas({ background: hex }))}
+          />
         </InspectorPanel>
-
-        <p className="text-xs leading-relaxed text-[color:var(--te-ink-muted)]">
-          Elegí un bloque en el lienzo para ver y editar sus propiedades aquí.
+        <p className="px-3 py-2 text-[11px] leading-snug text-[color:var(--te-ink-faint)]">
+          Elegí un bloque en el lienzo para editar sus propiedades.
         </p>
       </div>
     );
@@ -166,11 +176,9 @@ export function TemplateEditorInspector({
   }
 
   return (
-    <div className={cn("w-full min-w-[280px] space-y-4", className)}>
-      <div>
-        <h2 className="text-sm font-semibold text-[color:var(--te-ink)]">Inspector</h2>
-        <p className="mt-0.5 text-[11px] text-[color:var(--te-ink-faint)]">Cambios locales hasta que guardes.</p>
-      </div>
+    <div className={cn("w-full min-w-[240px]", className)}>
+
+      <BlockSizePanel block={selectedBlock} canvas={canvas} dispatch={dispatch} />
 
       {/*
         La opacidad estaba en cada fila de la lista de capas, con su deslizador siempre a la
@@ -178,20 +186,15 @@ export function TemplateEditorInspector({
         propiedades del bloque.
       */}
       <InspectorPanel title="Opacidad">
-        <div className="flex items-center gap-3">
-          <NumberSliderField
-            value={Math.round((selectedBlock.layout.opacity ?? 1) * 100)}
-            onChange={(v) => updateLayout({ opacity: v / 100 })}
-            min={0}
-            max={100}
-            step={1}
-            ariaLabel={`Opacidad de ${selectedBlock.name ?? "el bloque"}`}
-            className="flex-1"
-          />
-          <span className="w-11 shrink-0 text-right text-[11px] tabular-nums text-[color:var(--te-ink-muted)]">
-            {Math.round((selectedBlock.layout.opacity ?? 1) * 100)} %
-          </span>
-        </div>
+        {/* El número del deslizador ya muestra el valor; repetirlo con "%" al lado era ruido. */}
+        <NumberSliderField
+          value={Math.round((selectedBlock.layout.opacity ?? 1) * 100)}
+          onChange={(v) => updateLayout({ opacity: v / 100 })}
+          min={0}
+          max={100}
+          step={1}
+          ariaLabel={`Opacidad de ${selectedBlock.name ?? "el bloque"}`}
+        />
       </InspectorPanel>
 
       <TemplateVariableBraceInsertPanel
@@ -203,7 +206,8 @@ export function TemplateEditorInspector({
       />
 
       {selectedBlockCount > 1 ? (
-        <p className="rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 text-[11px] leading-snug text-amber-950">
+        <p className="flex items-center gap-1.5 border-b border-[color:var(--te-line)] bg-amber-400/10 px-3 py-1.5 text-[11px] leading-snug text-amber-200">
+          <span aria-hidden className="text-amber-400">⚠</span>
           Hay {selectedBlockCount} bloques seleccionados. Las propiedades de abajo siguen al{" "}
           <span className="font-medium">último seleccionado (primario)</span>. Usá la sección siguiente para alinear o
           distribuir todo el conjunto.
@@ -216,7 +220,7 @@ export function TemplateEditorInspector({
             Respecto del rectángulo que envuelve los seleccionados (no del lienzo). La selección se mantiene.
           </p>
           {multiLocked ? (
-            <p className="mt-1.5 text-[10px] leading-snug text-amber-900">
+            <p className="mt-1.5 text-[10px] leading-snug text-amber-200">
               Desbloqueá todos los bloques seleccionados para alinear, distribuir o mover el conjunto.
             </p>
           ) : null}
@@ -276,32 +280,70 @@ export function TemplateEditorInspector({
             </p>
           ) : null}
           {canDistribute && multiLocked ? (
-            <p className="mt-1.5 text-[10px] text-amber-900/90">Quitá el candado de todos los seleccionados para distribuir.</p>
+            <p className="mt-1.5 text-[10px] text-amber-200">Quitá el candado de todos los seleccionados para distribuir.</p>
           ) : null}
         </InspectorPanel>
       ) : null}
 
-      {primarySafeAreaStatus !== "inside" ? (
-        <p className="rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 text-[11px] leading-snug text-amber-950">
+      {primarySafeAreaStatus !== "inside" && selectedBlock.type !== "BACKGROUND" ? (
+        <p className="flex items-center gap-1.5 border-b border-[color:var(--te-line)] bg-amber-400/10 px-3 py-1.5 text-[11px] leading-snug text-amber-200">
+          <span aria-hidden className="text-amber-400">⚠</span>
           {primarySafeAreaStatus === "outside" ? (
             <>Fuera de la zona segura.</>
           ) : (
             <>Parcialmente fuera de la zona segura.</>
           )}{" "}
-          <span className="text-[10px] text-amber-900/80">(rectángulo de layout)</span>
+
         </p>
       ) : null}
 
-      {selectedBlock.type === "VARIABLE_TEXT" && (
+      {selectedBlock.type === "VARIABLE_TEXT" && isClassListConfig(cfg) && (
+        <ClassListOptionsPanel
+          options={readClassListOptions(cfg)}
+          onChange={(patch) => updateConfig({ classList: { ...readClassListOptions(cfg), ...patch } })}
+          onUseOtherVariable={() => {
+            const next: Record<string, unknown> = { ...cfg, variableKey: "student.fullName" };
+            delete next.classList;
+            dispatch({
+              type: "updateBlock",
+              payload: { blockId: selectedBlock.id, patch: { configJson: next } },
+            });
+          }}
+        />
+      )}
+
+      {selectedBlock.type === "VARIABLE_TEXT" && isCourseMosaicConfig(cfg) && (
+        <CourseMosaicOptionsPanel
+          options={readCourseMosaicOptions(cfg)}
+          templateId={templateId}
+          versionId={versionId}
+          onChange={(patch) => updateConfig({ courseMosaic: { ...readCourseMosaicOptions(cfg), ...patch } })}
+        />
+      )}
+
+      {selectedBlock.type === "VARIABLE_TEXT" && !isClassListConfig(cfg) && !isCourseMosaicConfig(cfg) && (
         <InspectorPanel title="Contenido">
           <div>
             <FieldLabel>Variable de datos</FieldLabel>
             <select
               className={selectBase}
               value={String(cfg.variableKey ?? "")}
-              onChange={(e) => updateConfig({ variableKey: e.target.value })}
+              onChange={(e) =>
+                e.target.value === CLASS_LIST_VARIABLE_KEY
+                  ? updateConfig({
+                      variableKey: CLASS_LIST_VARIABLE_KEY,
+                      classList: { ...DEFAULT_CLASS_LIST_OPTIONS },
+                      textAlign: "LEFT",
+                    })
+                  : updateConfig({ variableKey: e.target.value })
+              }
             >
               <option value="">— Elegir variable —</option>
+              {offersClassList ? (
+                <optgroup label="Listados">
+                  <option value={CLASS_LIST_VARIABLE_KEY}>Listado de alumnos del curso</option>
+                </optgroup>
+              ) : null}
               {TEXT_VARIABLE_GROUPS.map((group) => (
                 <optgroup key={group.id} label={group.label}>
                   {group.variables.map((v) => (
@@ -320,12 +362,28 @@ export function TemplateEditorInspector({
                 </optgroup>
               ) : null}
             </select>
+            {variableTextFormatsFor(String(cfg.variableKey ?? "")) ? (
+              <div className="mt-2">
+                <FieldLabel>Formato</FieldLabel>
+                <select
+                  className={selectBase}
+                  value={String(cfg.variableKey ?? "")}
+                  onChange={(e) => updateConfig({ variableKey: e.target.value })}
+                >
+                  {variableTextFormatsFor(String(cfg.variableKey ?? ""))!.map((f) => (
+                    <option key={f.key} value={f.key}>
+                      {f.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : null}
             {variableCatalogHint ? (
               <p className="mt-1.5 text-[11px] leading-snug text-[color:var(--te-ink-muted)]">
                 {variableCatalogHint.description}
               </p>
             ) : variableKeyStr ? (
-              <p className="mt-1.5 text-[11px] text-amber-800/90">
+              <p className="mt-1.5 text-[11px] text-amber-300/90">
                 Esta clave no está en el catálogo v1; se guarda igual por compatibilidad.
               </p>
             ) : null}
@@ -441,6 +499,20 @@ export function TemplateEditorInspector({
             inputBase={inputBase}
             product={product}
           />
+          {String(cfg.src ?? "").trim() !== "" && cfg.fit !== "contain" ? (
+            <ImageCropSection
+              src={String(cfg.src)}
+              cfg={cfg}
+              rotation={Number(selectedBlock.layout.rotation ?? 0)}
+              updateConfig={updateConfig}
+              setRotation={(deg) =>
+                dispatch({
+                  type: "updateBlock",
+                  payload: { blockId: selectedBlock.id, patch: { layout: { rotation: deg } } },
+                })
+              }
+            />
+          ) : null}
           <InspectorPanel title="Contenedor de imagen">
             {/*
               "Uso del marco" distingue foto individual de foto grupal, que es una noción de
@@ -543,18 +615,19 @@ export function TemplateEditorInspector({
       )}
 
       {selectedBlock.type === "BACKGROUND" && (
-        <InspectorPanel title="Fondo (legacy)">
+        <InspectorPanel title="Fondo">
           <ColorField
             label="Color de fondo"
             value={String(cfg.backgroundColor ?? "var(--te-surface)")}
             onChange={(hex) => updateConfig({ backgroundColor: hex })}
           />
           <div>
-            <FieldLabel>Imagen (URL)</FieldLabel>
-            <input
-              className={inputBase}
-              value={String(cfg.src ?? "")}
-              onChange={(e) => updateConfig({ src: e.target.value })}
+            <FieldLabel>Imagen</FieldLabel>
+            <BackgroundImageField
+              templateId={templateId}
+              versionId={versionId}
+              src={String(cfg.src ?? "")}
+              onChange={(src) => updateConfig({ src, fit: "cover" })}
             />
           </div>
         </InspectorPanel>
@@ -568,5 +641,434 @@ export function TemplateEditorInspector({
         </InspectorPanel>
       )}
     </div>
+  );
+}
+
+/** Opciones del «Listado del curso»: orden, cómo se escribe cada nombre y el destacado. */
+function ClassListOptionsPanel({
+  options,
+  onChange,
+  onUseOtherVariable,
+}: {
+  options: ClassListOptions;
+  onChange: (patch: Partial<ClassListOptions>) => void;
+  onUseOtherVariable: () => void;
+}) {
+  return (
+    <InspectorPanel title="Listado del curso">
+      <p className="text-[11px] leading-snug text-[color:var(--te-ink-muted)]">
+        Todos los alumnos del curso del diseño. En el lienzo se ve un curso de muestra; al armar cada diseño se
+        usa el curso real del alumno.
+      </p>
+      <div>
+        <FieldLabel>Ordenar por</FieldLabel>
+        <SegmentedControl
+          className="w-full"
+          value={options.sortBy}
+          onChange={(sortBy) => onChange({ sortBy })}
+          options={[
+            { value: "lastName", label: "Apellido" },
+            { value: "firstName", label: "Nombre" },
+          ]}
+        />
+      </div>
+      <div>
+        <FieldLabel>Cómo se escribe</FieldLabel>
+        <SegmentedControl
+          className="w-full"
+          value={options.nameOrder}
+          onChange={(nameOrder) => onChange({ nameOrder })}
+          options={[
+            { value: "firstLast", label: "Nombre Apellido" },
+            { value: "lastFirst", label: "Apellido, Nombre" },
+          ]}
+        />
+      </div>
+      <div>
+        <FieldLabel>Nombres</FieldLabel>
+        <SegmentedControl
+          className="w-full"
+          value={options.givenNames}
+          onChange={(givenNames) => onChange({ givenNames })}
+          options={[
+            { value: "all", label: "Todos (María Sol)" },
+            { value: "first", label: "Sólo el primero (María)" },
+          ]}
+        />
+      </div>
+      <div>
+        <FieldLabel>Columnas</FieldLabel>
+        <SegmentedControl
+          className="w-full"
+          value={String(options.columns)}
+          onChange={(v) => onChange({ columns: Number(v) })}
+          options={Array.from({ length: CLASS_LIST_MAX_COLUMNS }, (_, i) => ({
+            value: String(i + 1),
+            label: String(i + 1),
+          }))}
+        />
+        <p className="mt-1 text-[10px] leading-snug text-[color:var(--te-ink-faint)]">
+          Con dos cursos o más, el listado usa siempre 4 columnas para que entren todos los nombres.
+        </p>
+      </div>
+      <ToggleSwitch
+        checked={options.highlightOwner}
+        onChange={(highlightOwner) => onChange({ highlightOwner })}
+        label="Destacar en negrita al alumno del diseño"
+      />
+      <ToggleSwitch
+        checked={options.showHeading}
+        onChange={(showHeading) => onChange({ showHeading })}
+        label="Título con el nombre del curso (por ejemplo «7.° A»)"
+      />
+      {options.showHeading ? (
+        <div>
+          <FieldLabel>Tamaño del título</FieldLabel>
+          <SegmentedControl
+            className="w-full"
+            value={String(options.headingScale)}
+            onChange={(v) => onChange({ headingScale: Number(v) })}
+            options={[
+              { value: "1", label: "Igual" },
+              { value: "1.2", label: "Un poco más" },
+              { value: "1.5", label: "Más grande" },
+            ]}
+          />
+          <p className="mt-1 text-[10px] leading-snug text-[color:var(--te-ink-faint)]">
+            El título va en negrita, arriba de cada curso. Con el título no hace falta un texto aparte con el curso.
+          </p>
+          <div className="mt-2">
+            <ToggleSwitch
+              checked={options.showShift}
+              onChange={(showShift) => onChange({ showShift })}
+              label="Mostrar turno (por ejemplo «3.° B · Turno mañana»)"
+            />
+          </div>
+          <p className="mt-1 text-[10px] leading-snug text-[color:var(--te-ink-faint)]">
+            Si el curso no tiene turno cargado, no se muestra nada. Si dos cursos del listado se llaman igual, el turno
+            va siempre, para distinguirlos.
+          </p>
+        </div>
+      ) : null}
+      <ToggleSwitch
+        checked={options.showSchoolName}
+        onChange={(showSchoolName) => onChange({ showSchoolName })}
+        label="Mostrar nombre del colegio arriba del listado"
+      />
+      <p className="text-[10px] leading-snug text-[color:var(--te-ink-faint)]">
+        Va una sola vez, arriba de todo y dentro del mismo recuadro del listado.
+      </p>
+      <ToggleSwitch
+        checked={options.allowExtraCourses}
+        onChange={(allowExtraCourses) => onChange({ allowExtraCourses })}
+        label="Permitir sumar otros cursos"
+      />
+      <p className="text-[10px] leading-snug text-[color:var(--te-ink-faint)]">
+        Para las fotos grupales con más de un curso (7.° A y 7.° B juntos). Encendido, el fotógrafo al revisar y la
+        familia al confirmar pueden sumar otros cursos del mismo colegio; cada curso sale con su título.
+      </p>
+      <p className="text-[10px] leading-snug text-[color:var(--te-ink-faint)]">
+        Si la lista no entra en el recuadro, la letra se achica para todos por igual. La tipografía, el tamaño y el
+        color se eligen en la barra de texto.
+      </p>
+      <button
+        type="button"
+        className="text-left text-[11px] font-medium text-[color:var(--te-ink-muted)] underline hover:text-[color:var(--te-ink)]"
+        onClick={onUseOtherVariable}
+      >
+        Usar otro dato en este bloque
+      </button>
+    </InspectorPanel>
+  );
+}
+
+/** Proporciones de retrato que se ofrecen: las de foto carné y las cuadradas. */
+const MOSAIC_ASPECTS: Array<{ value: string; label: string }> = [
+  { value: "0.75", label: "3:4" },
+  { value: "0.8", label: "4:5" },
+  { value: "1", label: "1:1" },
+  { value: "0.6667", label: "2:3" },
+];
+
+function CourseMosaicOptionsPanel({
+  options: o,
+  templateId,
+  versionId,
+  onChange,
+}: {
+  options: CourseMosaicOptions;
+  templateId: string;
+  versionId: string;
+  onChange: (patch: Partial<CourseMosaicOptions>) => void;
+}) {
+  const aspect = MOSAIC_ASPECTS.find((a) => Math.abs(Number(a.value) - o.photoAspect) < 0.01)?.value ?? "";
+  const reserved = o.reserved ?? { x: 0.6, y: 0, width: 0.4, height: 0.3 };
+  const pct = (v: number) => Math.round(v * 100);
+  return (
+    <InspectorPanel title="Mosaico del curso">
+      <p className="text-[11px] leading-snug text-[color:var(--te-ink-muted)]">
+        Los compañeros del alumno, cada uno con su retrato y su nombre. Se reparten solos: con más chicos, los
+        retratos se achican. En el lienzo se ve un curso de muestra; el alumno dueño de la carpeta no aparece en su
+        propio mosaico.
+      </p>
+      <div>
+        <FieldLabel>Forma</FieldLabel>
+        <SegmentedControl
+          className="w-full"
+          value={o.frame}
+          onChange={(frame) => onChange({ frame })}
+          options={[
+            { value: "rect", label: "Recto" },
+            { value: "rounded", label: "Redondeado" },
+            { value: "circle", label: "Círculo" },
+            { value: "ellipse", label: "Óvalo" },
+            { value: "polaroid", label: "Polaroid" },
+          ]}
+        />
+      </div>
+      {o.frame === "rounded" ? (
+        <div>
+          <FieldLabel>Redondeo de las esquinas</FieldLabel>
+          <NumberSliderField
+            ariaLabel="Redondeo de las esquinas en píxeles"
+            value={o.cornerRadius}
+            min={0}
+            max={200}
+            onChange={(cornerRadius) => onChange({ cornerRadius })}
+          />
+        </div>
+      ) : null}
+      <ToggleSwitch
+        checked={o.emptyPhotos}
+        onChange={(emptyPhotos) => onChange({ emptyPhotos })}
+        label="Recuadros vacíos, para pegar figuritas"
+      />
+      {o.emptyPhotos ? (
+        <ColorField label="Color del lugar de cada figurita" value={o.emptyFill} onChange={(emptyFill) => onChange({ emptyFill })} />
+      ) : null}
+      <ToggleSwitch
+        checked={o.includeOwner}
+        onChange={(includeOwner) => onChange({ includeOwner })}
+        label="Incluir al dueño de la carpeta (plancha de figuritas)"
+      />
+      <p className="text-[10px] leading-snug text-[color:var(--te-ink-faint)]">
+        Álbum de figuritas: una página con recuadros vacíos y el nombre de cada chico, y otra con las figuritas (fotos sin
+        nombre, con el dueño incluido) para imprimir en papel autoadhesivo y recortar.
+      </p>
+      {o.frame === "circle" ? null : (
+      <div>
+        <FieldLabel>Proporción del retrato</FieldLabel>
+        <SegmentedControl
+          className="w-full"
+          value={aspect}
+          onChange={(v) =>
+            onChange({
+              photoAspect: Math.min(COURSE_MOSAIC_PHOTO_ASPECT_MAX, Math.max(COURSE_MOSAIC_PHOTO_ASPECT_MIN, Number(v))),
+            })
+          }
+          options={MOSAIC_ASPECTS}
+        />
+      </div>
+      )}
+      <div>
+        <FieldLabel>Separación entre retratos (a lo ancho)</FieldLabel>
+        <NumberSliderField ariaLabel="Separación horizontal en píxeles" value={o.gapX} min={0} max={200} onChange={(gapX) => onChange({ gapX })} />
+      </div>
+      <div>
+        <FieldLabel>Separación entre filas</FieldLabel>
+        <NumberSliderField ariaLabel="Separación vertical en píxeles" value={o.gapY} min={0} max={200} onChange={(gapY) => onChange({ gapY })} />
+        <p className="mt-1 text-[10px] leading-snug text-[color:var(--te-ink-faint)]">En 0 quedan pegados.</p>
+      </div>
+      <div>
+        <FieldLabel>Borde</FieldLabel>
+        <NumberSliderField
+          ariaLabel="Grosor del borde en píxeles"
+          value={o.borderWidth}
+          min={0}
+          max={60}
+          onChange={(borderWidth) => onChange({ borderWidth })}
+        />
+        {o.borderWidth > 0 ? (
+          <ColorField label="Color del borde" value={o.borderColor} onChange={(borderColor) => onChange({ borderColor })} />
+        ) : null}
+        {o.borderWidth > 0 && o.frame === "ellipse" ? (
+          <p className="mt-1 text-[10px] leading-snug text-[color:var(--te-ink-faint)]">
+            El óvalo se imprime sin borde: la impresión no dibuja óvalos con borde.
+          </p>
+        ) : null}
+      </div>
+      <ToggleSwitch
+        checked={o.shadow != null}
+        onChange={(on) => onChange({ shadow: on ? { dx: 16, dy: 16, color: "#f5c518" } : null })}
+        label="Recuadro de color corrido detrás de cada retrato"
+      />
+      {o.shadow && o.frame === "ellipse" ? (
+        <p className="text-[10px] leading-snug text-[color:var(--te-ink-faint)]">
+          El óvalo va sin recuadro de color: la impresión no dibuja óvalos de color.
+        </p>
+      ) : null}
+      {o.shadow ? (
+        <div className="space-y-1">
+          <ColorField label="Color" value={o.shadow.color} onChange={(color) => onChange({ shadow: { ...o.shadow!, color } })} />
+          <FieldLabel>Corrimiento</FieldLabel>
+          <NumberSliderField
+            ariaLabel="Corrimiento del recuadro en píxeles"
+            value={o.shadow.dx}
+            min={-80}
+            max={80}
+            onChange={(d) => onChange({ shadow: { ...o.shadow!, dx: d, dy: d } })}
+          />
+        </div>
+      ) : null}
+      <div>
+        <FieldLabel>Giro alternado (fotos pegadas a mano)</FieldLabel>
+        <NumberSliderField
+          ariaLabel="Giro alternado en grados"
+          value={o.tilt}
+          min={0}
+          max={COURSE_MOSAIC_TILT_MAX}
+          step={0.5}
+          onChange={(tilt) => onChange({ tilt })}
+        />
+      </div>
+      <div>
+        <FieldLabel>Marco encima de cada retrato (PNG con transparencia)</FieldLabel>
+        <BackgroundImageField
+          templateId={templateId}
+          versionId={versionId}
+          src={o.frameSrc}
+          onChange={(frameSrc) => onChange({ frameSrc })}
+        />
+      </div>
+      <div>
+        <FieldLabel>Nombre</FieldLabel>
+        <SegmentedControl
+          className="w-full"
+          value={o.namePosition}
+          onChange={(namePosition) => onChange({ namePosition })}
+          options={[
+            { value: "below", label: "Debajo" },
+            { value: "above", label: "Arriba" },
+            { value: "insideBottom", label: "Sobre la foto" },
+            { value: "none", label: "Sin nombre" },
+          ]}
+        />
+      </div>
+      {o.namePosition !== "none" ? (
+        <>
+          <div>
+            <FieldLabel>Líneas</FieldLabel>
+            <SegmentedControl
+              className="w-full"
+              value={String(o.nameLines)}
+              onChange={(v) => onChange({ nameLines: v === "1" ? 1 : 2 })}
+              options={[
+                { value: "2", label: "Nombre / Apellido" },
+                { value: "1", label: "En una línea" },
+              ]}
+            />
+          </div>
+          <div>
+            <FieldLabel>Nombres</FieldLabel>
+            <SegmentedControl
+              className="w-full"
+              value={o.givenNames}
+              onChange={(givenNames) => onChange({ givenNames })}
+              options={[
+                { value: "first", label: "Sólo el primero (María)" },
+                { value: "all", label: "Todos (María Sol)" },
+              ]}
+            />
+          </div>
+          <ToggleSwitch
+            checked={o.nameBackground !== ""}
+            onChange={(on) => onChange({ nameBackground: on ? "#ffffff" : "" })}
+            label="Cinta de color detrás del nombre"
+          />
+          {o.nameBackground ? (
+            <ColorField label="Color de la cinta" value={o.nameBackground} onChange={(nameBackground) => onChange({ nameBackground })} />
+          ) : null}
+        </>
+      ) : null}
+      <div>
+        <FieldLabel>Ordenar por</FieldLabel>
+        <SegmentedControl
+          className="w-full"
+          value={o.sortBy}
+          onChange={(sortBy) => onChange({ sortBy })}
+          options={[
+            { value: "lastName", label: "Apellido" },
+            { value: "firstName", label: "Nombre" },
+          ]}
+        />
+      </div>
+      <div>
+        <FieldLabel>Última fila incompleta</FieldLabel>
+        <SegmentedControl
+          className="w-full"
+          value={o.lastRowAlign}
+          onChange={(lastRowAlign) => onChange({ lastRowAlign })}
+          options={[
+            { value: "left", label: "Izquierda" },
+            { value: "center", label: "Centro" },
+            { value: "right", label: "Derecha" },
+          ]}
+        />
+      </div>
+      <ToggleSwitch
+        checked={o.reserved != null}
+        onChange={(on) => onChange({ reserved: on ? reserved : null })}
+        label="Dejar una zona libre para un cartel"
+      />
+      {o.reserved ? (
+        <div className="grid grid-cols-2 gap-2">
+          {(
+            [
+              ["x", "Desde la izquierda %"],
+              ["y", "Desde arriba %"],
+              ["width", "Ancho %"],
+              ["height", "Alto %"],
+            ] as const
+          ).map(([k, label]) => (
+            <div key={k}>
+              <FieldLabel>{label}</FieldLabel>
+              <NumberSliderField
+                ariaLabel={label}
+                value={pct(o.reserved![k])}
+                min={0}
+                max={100}
+                onChange={(v) => onChange({ reserved: { ...o.reserved!, [k]: v / 100 } })}
+              />
+            </div>
+          ))}
+        </div>
+      ) : null}
+      <div>
+        <FieldLabel>Orden en la cadena</FieldLabel>
+        <NumberSliderField
+          ariaLabel="Orden en la cadena de mosaicos"
+          value={o.chainOrder}
+          min={1}
+          max={6}
+          onChange={(chainOrder) => onChange({ chainOrder })}
+        />
+        <FieldLabel>Cuántos chicos entran como máximo (0 = reparto parejo)</FieldLabel>
+        <NumberSliderField
+          ariaLabel="Tope de chicos en este mosaico"
+          value={o.capacity}
+          min={0}
+          max={60}
+          onChange={(capacity) => onChange({ capacity })}
+        />
+        <p className="mt-1 text-[10px] leading-snug text-[color:var(--te-ink-faint)]">
+          Para partir el mosaico en dos recuadros (por ejemplo, uno en cada página): dales orden 1 y 2. Sin tope se
+          reparten parejo; con tope, el 1 se llena hasta ahí y los demás chicos siguen en el 2.
+        </p>
+      </div>
+      <p className="text-[10px] leading-snug text-[color:var(--te-ink-faint)]">
+        La tipografía, el tamaño y el color de los nombres se eligen en la barra de texto. Si un nombre no entra, se
+        achica y, si hace falta, se corta con «…».
+      </p>
+    </InspectorPanel>
   );
 }

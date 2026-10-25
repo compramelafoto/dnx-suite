@@ -33,4 +33,14 @@ describe("deliveryTermsParagraphs", () => {
     expect(texto).not.toContain("retiro en la sede");
     expect(texto).not.toContain("Correo Argentino");
   });
+
+  it("con Andreani lo nombra en el domicilio y en la sucursal", () => {
+    const texto = deliveryTermsParagraphs(
+      { pickup: false, home: true, branch: true, handlingNote: null, carrier: "ANDREANI" },
+      sede,
+    ).join("\n");
+    expect(texto).toContain("envío a domicilio por Andreani");
+    expect(texto).toContain("envío a una sucursal de Andreani");
+    expect(texto).not.toContain("Correo Argentino");
+  });
 });

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
 import { runAnalysisPipeline } from "@/lib/analysis/analysis-runner";
-import { resolveIncludeOcrFromRequest } from "@/lib/analysis/resolve-include-ocr";
+import { resolveOcrRequestedFromRequest } from "@/lib/analysis/resolve-include-ocr";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,14 +25,14 @@ export async function POST(req: Request) {
 
     const url = new URL(req.url);
     const debug = url.searchParams.get("debug") === "1";
-    const includeOcr = resolveIncludeOcrFromRequest(url);
+    const ocrRequested = resolveOcrRequestedFromRequest(url);
     const albumIdRaw = url.searchParams.get("albumId");
     const albumIdParsed = albumIdRaw ? Number(albumIdRaw) : NaN;
     const albumId = Number.isFinite(albumIdParsed) ? albumIdParsed : undefined;
     // Presupuesto corto: el panel llama esto desde el navegador y espera la respuesta.
     // El cron es el que corre hasta vaciar la cola.
     return runAnalysisPipeline({
-      includeOcr,
+      ocrRequested,
       debug,
       source: "admin",
       albumId,

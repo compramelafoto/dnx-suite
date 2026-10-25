@@ -151,13 +151,27 @@ export async function quoteShippingAction(workspaceSlug: unknown, raw: unknown):
 
 export type ListAgenciesResult = { ok: true; agencies: PublicAgency[] } | { ok: false; message: string };
 
-/** Sucursales de Correo Argentino de una provincia. Pública, con freno por IP. */
-export async function listAgenciesAction(workspaceSlug: unknown, provinceCode: unknown): Promise<ListAgenciesResult> {
+/**
+ * Sucursales para retirar: de una provincia (Correo Argentino) o de un código postal (Andreani).
+ * Cuál se usa lo decide la fuente de la institución en el servidor. Pública, con freno por IP.
+ */
+export async function listAgenciesAction(
+  workspaceSlug: unknown,
+  provinceCode: unknown,
+  postalCode?: unknown,
+): Promise<ListAgenciesResult> {
   if (!slugValido(workspaceSlug)) return { ok: false, message: "La tienda no existe." };
   if (typeof provinceCode !== "string" || provinceCode.length > 5) return { ok: false, message: "Elegí la provincia." };
+  if (postalCode !== undefined && postalCode !== null && (typeof postalCode !== "string" || postalCode.length > 10)) {
+    return { ok: false, message: "Ingresá un código postal válido (4 números, ej. 2000)." };
+  }
   if (await frenado("sucursales")) return { ok: false, message: FRENO_MENSAJE };
   const store = await loadOpenStore(workspaceSlug);
   if (!store) return { ok: false, message: "La tienda no está disponible en este momento." };
-  // Si Correo falló o no está conectado vuelve `ok: false` con el mensaje: no es "no hay sucursales".
-  return listAgenciesForCheckout({ workspaceId: store.workspace.id, provinceCode });
+  // Si el correo falló o no está conectado vuelve `ok: false` con el mensaje: no es "no hay sucursales".
+  return listAgenciesForCheckout({
+    workspaceId: store.workspace.id,
+    provinceCode,
+    postalCode: typeof postalCode === "string" ? postalCode : null,
+  });
 }

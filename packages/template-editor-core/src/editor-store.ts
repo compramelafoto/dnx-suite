@@ -1,5 +1,6 @@
 import { getBlockDisplayName } from "./block-display-name";
 import { clampBlockPosition } from "./clamp-block-position";
+import { readGuides, TEMPLATE_V2_GUIDES_META_KEY, type EditorGuides } from "./editor-guides";
 import type {
   TemplateV2Block,
   TemplateV2BlockLayout,
@@ -115,9 +116,19 @@ export type TemplateV2EditorAction =
   | { type: "setZoom"; payload: { zoom: number; source?: "user" | "auto" | "fit" } }
   | { type: "setPan"; payload: { pan: Partial<TemplateV2EditorPan> } }
   | { type: "setCanvas"; payload: { canvas: Partial<TemplateV2Canvas> } }
+  | { type: "setGuides"; payload: { guides: EditorGuides } }
   | { type: "setVariableBindings"; payload: { variableBindings: TemplateV2VariableBinding[] } }
   | { type: "markDirty" }
   | { type: "markSaved"; payload?: { at?: string | null; revision?: number } }
+  /**
+   * El servidor guardó en otra versión (la anterior estaba en uso y quedó congelada) o les cambió
+   * el id a algunos bloques. El editor pasa a esa versión y traduce los ids en todo lo que tiene,
+   * historial incluido, para que deshacer no vuelva a mandar ids de la versión congelada.
+   */
+  | {
+      type: "rebaseToSavedVersion";
+      payload: { versionId: string; revision: number; at?: string | null; blockIdMap: Record<string, string> };
+    }
   /** Sincroniza la revisión con el servidor (p. ej. tras 409) sin marcar cambios ni tocar el historial. */
   | { type: "syncRevisionFromServer"; payload: { revision: number } }
   | { type: "setSaving"; payload: { isSaving: boolean } }
@@ -252,9 +263,14 @@ function restorePersistIntoState(base: TemplateV2EditorState, snap: TemplateV2Pe
     versionMeta: { ...(snap.versionMeta ?? {}) },
     activePageIndex: activePage,
     templatePageCount: snap.templatePageCount ?? 1,
-    isDirty: snap.isDirty,
-    revision: snap.revision,
-    lastSavedAt: snap.lastSavedAt,
+    /*
+     * La revisión y la fecha de guardado son del servidor, no del documento: deshacer no las
+     * vuelve atrás (si no, el próximo guardado chocaría contra la revisión real). Y lo que se
+     * restaura ya no es lo guardado, así que queda pendiente de guardar.
+     */
+    isDirty: true,
+    revision: base.revision,
+    lastSavedAt: base.lastSavedAt,
     saveStatus: "idle",
     isSaving: false,
     selectedBlockIds,
@@ -315,6 +331,7 @@ function shouldRecordHistory(action: TemplateV2EditorAction): boolean {
     case "duplicateBlock":
     case "pasteBlockFromClipboard":
     case "setCanvas":
+    case "setGuides":
     case "setVariableBindings":
     case "markDirty":
     case "updateBlock":
@@ -719,11 +736,22 @@ function coreTemplateV2EditorReducer(
       return {
         ...state,
         canvas: nextCanvas,
+        ...(dimChanged
+          ? { blocks: ajustarFondosAlLienzo(state.blocks, state.canvas, nextCanvas) }
+          : {}),
         ...(dimChanged ? { zoomUserAdjusted: false } : {}),
         isDirty: true,
         saveStatus: "idle",
       };
     }
+
+    case "setGuides":
+      return {
+        ...state,
+        versionMeta: { ...state.versionMeta, [TEMPLATE_V2_GUIDES_META_KEY]: action.payload.guides },
+        isDirty: true,
+        saveStatus: "idle",
+      };
 
     case "setVariableBindings":
       return {
@@ -773,10 +801,85 @@ function coreTemplateV2EditorReducer(
   }
 }
 
+/**
+ * El fondo nace del tamaño de la hoja y queda bloqueado: si la hoja cambia de tamaño y el
+ * fondo no la acompaña, queda un rectángulo en una esquina que nadie puede estirar.
+ * Sólo se ajustan los fondos que cubrían la hoja entera; uno que el usuario achicó a
+ * propósito se respeta.
+ */
+export function ajustarFondosAlLienzo(
+  blocks: TemplateV2Block[],
+  anterior: Pick<TemplateV2Canvas, "width" | "height">,
+  nuevo: Pick<TemplateV2Canvas, "width" | "height">,
+): TemplateV2Block[] {
+  const casi = (a: number, b: number) => Math.abs(a - b) < 0.5;
+  return blocks.map((b) => {
+    if (b.type !== "BACKGROUND") return b;
+    const l = b.layout;
+    const cubriaLaHoja =
+      casi(l.x, 0) && casi(l.y, 0) && casi(l.width, anterior.width) && casi(l.height, anterior.height);
+    if (!cubriaLaHoja) return b;
+    return { ...b, layout: { ...l, width: nuevo.width, height: nuevo.height } };
+  });
+}
+
+function remapBlocks(blocks: TemplateV2Block[], map: Record<string, string>): TemplateV2Block[] {
+  return blocks.map((b) => (map[b.id] ? { ...b, id: map[b.id]! } : b));
+}
+
+function remapBindings(
+  bindings: TemplateV2VariableBinding[],
+  map: Record<string, string>,
+  dropIds: boolean
+): TemplateV2VariableBinding[] {
+  return bindings.map((vb) => {
+    const next = { ...vb, blockId: map[vb.blockId] ?? vb.blockId };
+    // Los ids de vínculos de la versión vieja también están ocupados: el servidor pone otros.
+    if (dropIds) delete next.id;
+    return next;
+  });
+}
+
+function remapSnapshot(
+  snap: TemplateV2PersistSnapshot,
+  map: Record<string, string>,
+  dropBindingIds: boolean
+): TemplateV2PersistSnapshot {
+  return {
+    ...snap,
+    blocks: remapBlocks(snap.blocks, map),
+    variableBindings: remapBindings(snap.variableBindings, map, dropBindingIds),
+  };
+}
+
+/** Pasa el editor a la versión donde quedó guardado y traduce ids de bloques. Puro. */
+export function rebaseEditorStateToSavedVersion(
+  state: TemplateV2EditorState,
+  payload: { versionId: string; revision: number; at?: string | null; blockIdMap: Record<string, string> }
+): TemplateV2EditorState {
+  const map = payload.blockIdMap ?? {};
+  const changedVersion = payload.versionId !== state.versionId;
+  return {
+    ...state,
+    versionId: payload.versionId,
+    revision: payload.revision,
+    lastSavedAt: payload.at ?? new Date().toISOString(),
+    blocks: remapBlocks(state.blocks, map),
+    variableBindings: remapBindings(state.variableBindings, map, changedVersion),
+    selectedBlockIds: state.selectedBlockIds.map((id) => map[id] ?? id),
+    hoveredBlockId: state.hoveredBlockId ? (map[state.hoveredBlockId] ?? state.hoveredBlockId) : null,
+    historyPast: state.historyPast.map((snap) => remapSnapshot(snap, map, changedVersion)),
+    historyFuture: state.historyFuture.map((snap) => remapSnapshot(snap, map, changedVersion)),
+  };
+}
+
 export function templateV2EditorReducer(
   state: TemplateV2EditorState,
   action: TemplateV2EditorAction
 ): TemplateV2EditorState {
+  if (action.type === "rebaseToSavedVersion") {
+    return rebaseEditorStateToSavedVersion(state, action.payload);
+  }
   if (action.type === "undo") {
     return applyUndo(state);
   }
@@ -932,6 +1035,16 @@ export function markSaved(at?: string | null, revision?: number): TemplateV2Edit
 
 export function syncRevisionFromServer(revision: number): TemplateV2EditorAction {
   return { type: "syncRevisionFromServer", payload: { revision } };
+}
+
+/** Reemplaza las guías de diseño (se guardan en la meta de la versión). */
+export function setGuides(guides: EditorGuides): TemplateV2EditorAction {
+  return { type: "setGuides", payload: { guides } };
+}
+
+/** Las guías de diseño de la plantilla abierta. */
+export function selectGuides(state: TemplateV2EditorState): EditorGuides {
+  return readGuides(state.versionMeta);
 }
 
 export function setCanvas(canvas: Partial<TemplateV2Canvas>): TemplateV2EditorAction {

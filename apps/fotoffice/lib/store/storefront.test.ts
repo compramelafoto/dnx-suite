@@ -208,6 +208,7 @@ describe("checkCartLines", () => {
     expect(r.problems).toEqual([]);
     expect(r.lines).toEqual([
       {
+        kind: "product",
         key: "p1:-",
         productId: "p1",
         variantId: null,

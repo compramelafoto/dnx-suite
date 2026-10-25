@@ -34,8 +34,35 @@ export function sanitizeMercadoPagoPaymentResponse(
     live_mode: body.live_mode === true,
     // Cuándo se aprobó (la fecha de la venta en FOTOFFICE). No es un dato personal.
     date_approved: typeof body.date_approved === "string" ? body.date_approved : null,
+    // Comisiones que MP descontó (tipo y monto en pesos): sirven para el neto de un cobro. No son datos personales.
+    fee_details: sanitizeFeeDetails(body.fee_details),
+    // Sólo las dos cifras de la comisión de plataforma que FOTOFFICE pone en la metadata de la
+    // preferencia (centavos, como texto). El resto de la metadata no se copia.
+    platform_fee_metadata: sanitizePlatformFeeMetadata(body.metadata),
     // omit payer, card, token, phone, email
   };
+}
+
+function sanitizePlatformFeeMetadata(raw: unknown): { own_minor: string; withheld_minor: string } | null {
+  if (typeof raw !== "object" || raw === null) return null;
+  const m = raw as Record<string, unknown>;
+  const digits = (v: unknown) => (typeof v === "string" && /^\d{1,12}$/.test(v) ? v : typeof v === "number" && Number.isInteger(v) && v >= 0 ? String(v) : null);
+  const own = digits(m.fo_comision_propia_minor);
+  const withheld = digits(m.fo_retencion_minor);
+  return own !== null && withheld !== null ? { own_minor: own, withheld_minor: withheld } : null;
+}
+
+function sanitizeFeeDetails(raw: unknown): Array<{ type: string; amount: number }> {
+  if (!Array.isArray(raw)) return [];
+  const out: Array<{ type: string; amount: number }> = [];
+  for (const row of raw) {
+    if (typeof row !== "object" || row === null) continue;
+    const { type, amount } = row as { type?: unknown; amount?: unknown };
+    if (typeof type === "string" && typeof amount === "number" && Number.isFinite(amount)) {
+      out.push({ type: type.slice(0, 64), amount });
+    }
+  }
+  return out;
 }
 
 export function assertNoSecretLeak(payload: unknown, token: string): void {

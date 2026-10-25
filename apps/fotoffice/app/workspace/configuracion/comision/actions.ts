@@ -639,6 +639,7 @@ async function sendAddedEmail(input: {
       endsAt: input.endsAt,
     });
     const outcome = await sendAndLogEmail({
+      workspaceId: input.workspaceId,
       to,
       templateKey: "commission-added",
       body,

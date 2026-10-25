@@ -401,7 +401,7 @@ function VistaMes({
                   href={aDia(d)}
                   className={`inline-flex size-7 items-center justify-center rounded-full text-xs tabular-nums transition-colors ${
                     hoy
-                      ? "bg-[var(--fo-accent)] font-semibold text-white"
+                      ? "bg-[var(--fo-accent)] font-semibold text-[var(--fo-on-accent,#fff)]"
                       : fuera
                         ? "text-[var(--fo-muted-soft)] hover:bg-[var(--fo-surface-hover)]"
                         : "font-medium text-[var(--fo-text)] hover:bg-[var(--fo-surface-hover)]"

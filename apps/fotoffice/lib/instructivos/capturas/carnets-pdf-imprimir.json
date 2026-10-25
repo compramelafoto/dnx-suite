@@ -1,0 +1,7 @@
+[
+  {"archivo":"01-menu-carnets.png","ruta":"/members/carnets","que_mostrar":"menú lateral con Comunicación abierto y Carnets","selector_recorte":"#fo-shell-nav"},
+  {"archivo":"02-tablero.png","ruta":"/members/carnets","que_mostrar":"tablero completo","selector_recorte":"main"},
+  {"archivo":"03-detalle.png","ruta":"/members/carnets?grupo=para-imprimir","que_mostrar":"click en Detalle de la primera fila","selector_recorte":"main"},
+  {"archivo":"04-pdf.png","ruta":"/api/members/carnets/<id>/pdf","que_mostrar":"el PDF abierto","selector_recorte":null},
+  {"archivo":"05-marcar-impreso.png","ruta":"/members/carnets?grupo=para-imprimir","que_mostrar":"dos casillas tildadas y barra de acciones","selector_recorte":"main"}
+]

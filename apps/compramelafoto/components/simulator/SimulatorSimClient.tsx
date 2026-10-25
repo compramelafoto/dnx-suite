@@ -12,9 +12,13 @@ import SimulatorShell from "@/components/simulator/SimulatorShell";
 import SimulatorShutterListener from "@/components/simulator/SimulatorShutterListener";
 import SimulatorViewport from "@/components/simulator/SimulatorViewport";
 import SimulatorZoomKeyboardListener from "@/components/simulator/SimulatorZoomKeyboardListener";
+import TouchGameControls from "@/components/simulator/TouchGameControls";
+import TouchGameStart from "@/components/simulator/TouchGameStart";
+import { isTouchGameDevice } from "@/lib/simulator/touch-input";
+import { setViewfinderCompact } from "@/lib/simulator/viewfinder-frame";
 import { CameraProvider, useCameraStore } from "@/lib/simulator/camera-store";
 import { useFullscreenElement } from "@/components/simulator/useFullscreenElement";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 function SimulatorSimContent() {
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -22,7 +26,28 @@ function SimulatorSimContent() {
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [sideTab, setSideTab] = useState<SimulatorSideTabId>("camera");
   const isFullscreen = useFullscreenElement(viewportRef);
-  const { gallery } = useCameraStore();
+  const { gallery, setViewfinderMode, setMode, setIso } = useCameraStore();
+  // Celular: pantalla de juego con controles táctiles y el panel como cajón.
+  const [touchMode, setTouchMode] = useState(false);
+  const [panelOpen, setPanelOpen] = useState(false);
+  // Los márgenes del visor se fijan antes de que el visor (hijo) mida su recuadro.
+  useState(() => {
+    if (typeof window !== "undefined") setViewfinderCompact(isTouchGameDevice());
+  });
+  useEffect(() => {
+    const touch = isTouchGameDevice();
+    setTouchMode(touch);
+    // En el celular la pantalla muestra la exposición real (como la del teléfono):
+    // con el visor óptico (DSLR) mover ISO, tiempo o diafragma no cambia la imagen.
+    // Y arranca en prioridad de diafragma con ISO 100: en manual con los valores de
+    // fábrica, de día, la primera imagen salía quemada (y con ISO 400 a f/2.8 ni 1/8000
+    // alcanzaba). Se puede pasar a M desde los ajustes.
+    if (touch) {
+      setViewfinderMode("live-view");
+      setMode("A");
+      setIso(100);
+    }
+  }, [setViewfinderMode, setMode, setIso]);
 
   const { activeIndex } = useSimulatorParamKeyboard({
     onOpenHelp: () => setHelpOpen(true),
@@ -37,7 +62,7 @@ function SimulatorSimContent() {
       <SimulatorShutterListener />
       <SimulatorZoomKeyboardListener />
       <SimulatorShell variant="simulator">
-        <main className="cod-sim">
+        <main className={`cod-sim${touchMode ? " cod-sim--touch" : ""}`}>
           <div className="cod-sim__body">
             <SimulatorViewport
               ref={viewportRef}
@@ -47,9 +72,21 @@ function SimulatorSimContent() {
               onCloseHelp={() => setHelpOpen(false)}
               onOpenGallery={() => setGalleryOpen(true)}
               photoCount={gallery.length}
+              touchOverlay={touchMode ? <TouchGameControls onOpenPanel={() => setPanelOpen(true)} /> : null}
             />
 
-            <aside className="cod-sim__sidebar" aria-label="Panel de cámara y controles">
+            {touchMode && panelOpen ? (
+              <button type="button" className="cod-sim__drawer-backdrop" aria-label="Cerrar ajustes" onClick={() => setPanelOpen(false)} />
+            ) : null}
+            <aside
+              className={`cod-sim__sidebar${touchMode && panelOpen ? " cod-sim__sidebar--open" : ""}`}
+              aria-label="Panel de cámara y controles"
+            >
+              {touchMode ? (
+                <button type="button" className="cod-sim__drawer-close" onClick={() => setPanelOpen(false)}>
+                  Volver a la cámara
+                </button>
+              ) : null}
               <SimulatorParamPanel
                 activeIndex={activeIndex}
                 sideTab={sideTab}
@@ -59,6 +96,8 @@ function SimulatorSimContent() {
           </div>
         </main>
       </SimulatorShell>
+
+      {touchMode ? <TouchGameStart /> : null}
 
       <SimulatorPhotoGallery open={galleryOpen} onClose={() => setGalleryOpen(false)} />
     </>

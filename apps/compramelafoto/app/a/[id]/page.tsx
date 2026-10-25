@@ -116,12 +116,20 @@ export default async function Page({
   searchParams,
 }: {
   params: Promise<{ id?: string }>;
-  searchParams?: Promise<{ vista?: string }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const resolved = await Promise.resolve(params);
-  const resolvedSearchParams: { vista?: string } = searchParams
-    ? await searchParams
-    : {};
+  const resolvedSearchParams: { vista?: string } & Record<string, string | string[] | undefined> =
+    searchParams ? await searchParams : {};
+  // La redirección a /album/[slug] tiene que conservar la query: el link de canje de
+  // preventa (`?preventaPackToken=…`) llega por acá y sin ella la galería abría en modo
+  // compra normal.
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(resolvedSearchParams)) {
+    if (typeof value === "string") query.set(key, value);
+    else if (Array.isArray(value)) value.forEach((v) => query.append(key, v));
+  }
+  const querySuffix = query.toString() ? `?${query.toString()}` : "";
   const simulateClientView = resolvedSearchParams.vista === "cliente";
   const slugOrId = String(resolved?.id || "");
   
@@ -136,7 +144,7 @@ export default async function Page({
       select: { publicSlug: true },
     });
     if (byId?.publicSlug) {
-      permanentRedirect(`/album/${byId.publicSlug}`);
+      permanentRedirect(`/album/${byId.publicSlug}${querySuffix}`);
     }
   } else {
     const bySlug = await prisma.album.findUnique({
@@ -144,7 +152,7 @@ export default async function Page({
       select: { publicSlug: true },
     });
     if (bySlug?.publicSlug) {
-      permanentRedirect(`/album/${bySlug.publicSlug}`);
+      permanentRedirect(`/album/${bySlug.publicSlug}${querySuffix}`);
     }
   }
 

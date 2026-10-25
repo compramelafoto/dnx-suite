@@ -5,7 +5,10 @@
  * No expone `clickaton/private/` ni welcome/profile (tienen proxies autenticados).
  */
 import { NextResponse } from "next/server";
-import { isPublicMediaKey } from "@/lib/content/public-media-keys";
+import {
+  isPublicMediaKey,
+  shouldNoIndexMediaKey,
+} from "@/lib/content/public-media-keys";
 import { getWelcomeCardStorage } from "@/lib/welcome-card/storage";
 
 export const dynamic = "force-dynamic";
@@ -31,14 +34,17 @@ export async function GET(_request: Request, { params }: Params) {
 
   try {
     const body = await getWelcomeCardStorage().get(key);
-    return new NextResponse(new Uint8Array(body), {
-      status: 200,
-      headers: {
-        "Content-Type": contentTypeForKey(key),
-        "Cache-Control": "public, max-age=86400, stale-while-revalidate=604800",
-        "X-Content-Type-Options": "nosniff",
-      },
-    });
+    const headers: Record<string, string> = {
+      "Content-Type": contentTypeForKey(key),
+      "Cache-Control": "public, max-age=86400, stale-while-revalidate=604800",
+      "X-Content-Type-Options": "nosniff",
+    };
+    // El diploma es público para el correo, pero no para los buscadores:
+    // lleva el nombre de una persona impreso.
+    if (shouldNoIndexMediaKey(key)) {
+      headers["X-Robots-Tag"] = "noindex, nofollow";
+    }
+    return new NextResponse(new Uint8Array(body), { status: 200, headers });
   } catch {
     return NextResponse.json({ ok: false, error: "NOT_FOUND" }, { status: 404 });
   }

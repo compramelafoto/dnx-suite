@@ -42,6 +42,13 @@ export async function generateMonthlyCharges(input: {
     },
   });
 
+  // Los meses que el socio ya pagó al asociarse (cuotas de ingreso) no se le vuelven a cobrar.
+  const conIngreso = await prisma.membershipCharge.findMany({
+    where: { workspaceId: input.workspaceId, concept: "INGRESO", period: input.period },
+    select: { memberId: true },
+  });
+  const cubiertosPorIngreso = new Set(conIngreso.map((c) => c.memberId));
+
   // El valor de referencia se resuelve al día del vencimiento del período, no a hoy: generar
   // agosto en septiembre tiene que usar el valor que regía en agosto.
   const [anio = "1970", mes = "01"] = input.period.split("-");
@@ -69,6 +76,7 @@ export async function generateMonthlyCharges(input: {
     // todavía no fue clasificado, en silencio.
     categoryGeneratesDues: s.category?.generatesDues ?? true,
     referenceAmount: valorPorCategoria.get(s.categoryId) ?? null,
+    coveredByIngreso: cubiertosPorIngreso.has(s.id),
   }));
 
   const plan = planMonthlyCharges({

@@ -7,6 +7,7 @@
 import { prisma } from "@/lib/prisma";
 import { getAlbumReadiness } from "@/lib/analysis/album-analysis-readiness";
 import { countPublicReadyVideos } from "@/lib/videos/public-ready-videos";
+import { computeAlbumHideAt } from "@/lib/album-cleanup/eligibility";
 import { getR2PublicUrl, urlToR2Key } from "@/lib/r2-client";
 
 /**
@@ -48,8 +49,13 @@ const SELECCION_ALBUM = {
   includeDigitalWithPrint: true,
   deliveryType: true,
   pickupBy: true,
-  expiresAt: true,
   deletedAt: true,
+  mode: true,
+  type: true,
+  schoolId: true,
+  firstPhotoDate: true,
+  expirationExtensionDays: true,
+  cleanupStatus: true,
   selectedLabId: true,
   user: {
     select: { name: true, logoUrl: true, primaryColor: true, handler: true },
@@ -129,7 +135,9 @@ export async function loadAlbumInstructivo(
       includeDigitalWithPrint: album.includeDigitalWithPrint,
       deliveryType: album.deliveryType ? String(album.deliveryType) : null,
       pickupBy: album.pickupBy ? String(album.pickupBy) : null,
-      expiresAt: album.expiresAt,
+      escolar: album.mode === "SCHOOL" || album.schoolId != null || album.type === "SCHOOL",
+      tipoEvento: album.type ? String(album.type) : null,
+      disponibleHasta: computeAlbumHideAt(album),
     },
     fotografo: {
       nombre: album.user?.name ?? null,

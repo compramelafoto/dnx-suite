@@ -1,5 +1,6 @@
 "use server";
 
+import { enlaceDeBannerValido } from "@/lib/banner";
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { DNX_SESSION_COOKIE, getSessionUserByRawToken } from "@repo/auth";
@@ -37,6 +38,8 @@ export async function guardarPerfilAction(
     headline: texto("headline"),
     descripcion: texto("descripcion"),
     logoUrl: texto("logoUrl"),
+    bannerUrl: texto("bannerUrl"),
+    bannerLinkUrl: enlaceDeBannerValido(texto("bannerLinkUrl")),
     brandColor: texto("brandColor"),
     termsText: texto("termsText"),
     publicar: formData.get("publicar") === "on",

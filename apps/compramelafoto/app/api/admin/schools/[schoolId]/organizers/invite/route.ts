@@ -1,12 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Role, SchoolOrganizerStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireSchoolOrganizerManagementAccess } from "@/lib/school-organizer-management-access";
-import {
-  createSchoolOrganizerInvitation,
-  isValidEmail,
-  normalizeEmail,
-} from "@/lib/school-organizer-invitations";
+import { inviteSchoolOrganizer } from "@/lib/schools/invite-organizer";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -74,77 +69,21 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
       email?: unknown;
     };
 
-    const name = String(body.name ?? "").trim();
-    const email = normalizeEmail(String(body.email ?? ""));
-
-    if (!name) {
-      return NextResponse.json({ error: "El nombre es obligatorio." }, { status: 400 });
-    }
-    if (!isValidEmail(email)) {
-      return NextResponse.json({ error: "Email inválido." }, { status: 400 });
-    }
-
-    const targetUser = await prisma.user.findUnique({
-      where: { email },
-      select: { id: true, role: true },
-    });
-
-    if (targetUser && targetUser.role !== Role.SCHOOL_ORGANIZER) {
-      return NextResponse.json(
-        { error: "Ya existe un usuario con ese email y no es usuario de escuela." },
-        { status: 409 }
-      );
-    }
-
-    if (targetUser && targetUser.role === Role.SCHOOL_ORGANIZER) {
-      const existingMembership = await prisma.schoolOrganizer.findUnique({
-        where: {
-          schoolId_userId: {
-            schoolId,
-            userId: targetUser.id,
-          },
-        },
-        select: { id: true, status: true },
-      });
-
-      if (!existingMembership) {
-        await prisma.schoolOrganizer.create({
-          data: {
-            schoolId,
-            userId: targetUser.id,
-            status: SchoolOrganizerStatus.ACTIVE,
-          },
-        });
-      } else if (existingMembership.status !== SchoolOrganizerStatus.ACTIVE) {
-        await prisma.schoolOrganizer.update({
-          where: { id: existingMembership.id },
-          data: { status: SchoolOrganizerStatus.ACTIVE },
-        });
-      }
-    }
-
-    const school = await prisma.school.findUnique({
-      where: { id: schoolId },
-      select: { id: true, name: true },
-    });
-    if (!school) {
-      return NextResponse.json({ error: "Escuela no encontrada." }, { status: 404 });
-    }
-
-    const { invitation, emailSent, emailError } = await createSchoolOrganizerInvitation({
+    const result = await inviteSchoolOrganizer({
       schoolId,
-      email,
-      name,
-      invitedByUserId: access.user.id,
-      invitedByName: access.user.name,
-      schoolName: school.name,
+      inviter: { id: access.user.id, name: access.user.name },
+      name: body.name,
+      email: body.email,
     });
+    if (!result.ok) {
+      return NextResponse.json({ error: result.error }, { status: result.status });
+    }
 
     return NextResponse.json(
       {
-        invitation,
-        emailSent,
-        emailError,
+        invitation: result.invitation,
+        emailSent: result.emailSent,
+        emailError: result.emailError,
       },
       { status: 201 }
     );

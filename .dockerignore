@@ -1,0 +1,11 @@
+# Contexto de build de Docker / Fly.io: se construye desde la raíz del
+# monorepo, así que se deja afuera lo pesado que la imagen nunca usa.
+**/node_modules
+**/.next
+**/.turbo
+**/.vercel
+.git
+**/.env
+**/.env.*
+!**/.env.example
+.superpowers

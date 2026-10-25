@@ -125,7 +125,7 @@ export default async function EscolarEntregaFichaPage({
               {designProjectId != null ? (
                 <li>
                   <Link
-                    href={`/dashboard/design-projects/${designProjectId}`}
+                    href={`/fotografo/disenos/${designProjectId}`}
                     className="text-[#c27b3d] hover:underline"
                   >
                     Abrir diseño

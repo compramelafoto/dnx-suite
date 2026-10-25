@@ -6,6 +6,8 @@ import { ACTIVE_BOOKING_STATUSES, type BookingStatus } from "./constants";
 import { checkRange, rejectionMessage } from "./availability";
 import { blockingSpaceIds } from "./conflicts";
 import { quoteForSpace, type CustomerType, type Quote } from "./pricing";
+import { canCoverWithCredits, clubBalanceOf, creditsNeededFor } from "./club-credits";
+import { professionalShareMinor } from "./settlement";
 import { aplicarVocabulario } from "@/lib/vocabulario/plantilla";
 import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { getBookingSettings, getSpace, listCompatibilities, listSpaces } from "./repository";
@@ -54,6 +56,12 @@ export type CreateBookingInput = {
    * tomado sin los extras que la persona pidió y va a pagar.
    */
   extraLines?: BookingExtraLineInput[];
+  /**
+   * Que el turno salga de la bolsa del club (Club VIP) si alcanza. Se decide adentro de la
+   * transacción, con el saldo de ese instante: si mientras tanto se gastó, se rechaza en vez de
+   * cobrar de golpe lo que la pantalla mostraba sin cargo.
+   */
+  useClubCredits?: boolean;
   now?: Date;
 };
 
@@ -70,7 +78,15 @@ export type BookingExtraLineInput = {
 };
 
 export type CreateBookingResult =
-  | { ok: true; bookingId: string; quote: Quote; status: BookingStatus; totalMinor: number }
+  | {
+      ok: true;
+      bookingId: string;
+      quote: Quote;
+      status: BookingStatus;
+      totalMinor: number;
+      /** Turnos del club que usó esta reserva (0 si se pagó). */
+      creditsUsed: number;
+    }
   | { ok: false; error: string };
 
 const CHOQUE = "Ese horario se acaba de ocupar. Elegí otro.";
@@ -133,36 +149,47 @@ export async function createBooking(input: CreateBookingInput): Promise<CreateBo
     freeMinutesAvailable: input.freeMinutesAvailable,
   });
 
-  // El total es el espacio MÁS los extras: las horas bonificadas cubren el espacio y no el
-  // equipamiento. Ver `lib/bookings/portal.ts`.
+  // El total es el espacio MÁS los extras: las horas bonificadas (y los turnos del club) cubren
+  // el espacio y no el equipamiento. Ver `lib/bookings/portal.ts`.
   const extraLines = input.extraLines ?? [];
   const extrasMinor = extraLines.reduce((s, l) => s + Math.max(0, l.amountMinor), 0);
-  const totalMinor = quote.totalMinor + extrasMinor;
 
   // Un extra que hay que coordinar deja la reserva a aprobar, igual que un espacio que lo
   // requiere: es el mismo estado y el mismo circuito, sin inventar uno nuevo.
   const hayQueCoordinar = extraLines.some((l) => l.status === "PENDING_CONFIRMATION");
 
-  // Una reserva sin cargo no espera ningún pago; una que requiere aprobación no cobra
-  // hasta que alguien decida. El resto nace bloqueada con su vencimiento.
-  const sinCargo = totalMinor === 0;
-  const status: BookingStatus = espacio.requiresApproval || hayQueCoordinar
-    ? "PENDING_APPROVAL"
-    : sinCargo || input.paymentMethod === "PRESENCIAL"
-      ? "CONFIRMED"
-      : "HOLD";
+  const creditsNeeded = creditsNeededFor({
+    pricingMode: espacio.pricingMode,
+    blockMinutes: espacio.blockMinutes,
+    minutes: minutos,
+  });
 
-  const holdExpiresAt =
-    status === "CONFIRMED"
-      ? null
-      : // Nunca más tarde que el comienzo de la reserva: un bloqueo que vence después de
-        // que la reserva empezó no protege nada.
-        new Date(
-          Math.min(
-            addMinutes(now, settings.holdHours * 60).getTime(),
-            input.range.startAt.getTime(),
-          ),
-        );
+  const requiereAprobacion = espacio.requiresApproval;
+
+  /** Total, estado y vencimiento, según cuánto cueste el espacio (cero si sale del club). */
+  function armar(espacioMinor: number) {
+    const totalMinor = espacioMinor + extrasMinor;
+    // Una reserva sin cargo no espera ningún pago; una que requiere aprobación no cobra
+    // hasta que alguien decida. El resto nace bloqueada con su vencimiento.
+    const sinCargo = totalMinor === 0;
+    const status: BookingStatus = requiereAprobacion || hayQueCoordinar
+      ? "PENDING_APPROVAL"
+      : sinCargo || input.paymentMethod === "PRESENCIAL"
+        ? "CONFIRMED"
+        : "HOLD";
+    const holdExpiresAt =
+      status === "CONFIRMED"
+        ? null
+        : // Nunca más tarde que el comienzo de la reserva: un bloqueo que vence después de
+          // que la reserva empezó no protege nada.
+          new Date(
+            Math.min(
+              addMinutes(now, settings.holdHours * 60).getTime(),
+              input.range.startAt.getTime(),
+            ),
+          );
+    return { totalMinor, sinCargo, status, holdExpiresAt };
+  }
 
   try {
     const creada = await prisma.$transaction(async (tx) => {
@@ -197,6 +224,44 @@ export async function createBooking(input: CreateBookingInput): Promise<CreateBo
       });
       if (!veredicto.ok) throw new BookingRejected(rejectionMessage(veredicto.reason));
 
+      // Turnos del club: la bolsa se bloquea (FOR UPDATE) para que dos reservas simultáneas no
+      // gasten el mismo turno, y el saldo se cuenta recién ahí adentro.
+      let creditGrantId: string | null = null;
+      let creditsUsed = 0;
+      if (input.useClubCredits && !espacio.acceptsClubCredits) {
+        throw new BookingRejected("Los turnos incluidos no se pueden usar con este profesional.");
+      }
+      if (input.useClubCredits && input.customerType === "MEMBER" && input.memberId) {
+        const bolsas = await tx.$queryRaw<
+          { id: string; credits: number; validFrom: Date; validUntil: Date }[]
+        >`SELECT "id", "credits", "validFrom", "validUntil" FROM "MemberBookingCreditGrant"
+          WHERE "workspaceId" = ${input.workspaceId} AND "memberId" = ${input.memberId}
+            AND "validFrom" <= ${now} AND "validUntil" > ${now}
+          ORDER BY "validFrom" DESC LIMIT 1 FOR UPDATE`;
+        const bolsa = bolsas[0];
+        if (bolsa) {
+          const usados = await tx.booking.aggregate({
+            where: { creditGrantId: bolsa.id, status: { in: [...ACTIVE_BOOKING_STATUSES] } },
+            _sum: { creditsUsed: true },
+          });
+          const saldo = clubBalanceOf(
+            { ...bolsa, credits: Number(bolsa.credits) },
+            usados._sum.creditsUsed ?? 0,
+          );
+          if (canCoverWithCredits({ balance: saldo, needed: creditsNeeded, startAt: input.range.startAt })) {
+            creditGrantId = bolsa.id;
+            creditsUsed = creditsNeeded;
+          }
+        }
+        if (!creditGrantId) {
+          throw new BookingRejected(
+            "Ya no te alcanzan los turnos incluidos para este horario. Elegí otro o reservalo pagando.",
+          );
+        }
+      }
+
+      const { totalMinor, sinCargo, status, holdExpiresAt } = armar(creditGrantId ? 0 : quote.totalMinor);
+
       const reserva = await tx.booking.create({
         data: {
           workspaceId: input.workspaceId,
@@ -219,6 +284,13 @@ export async function createBooking(input: CreateBookingInput): Promise<CreateBo
           blockPriceArs: quote.mode === "BLOCK" ? minorToDecimalString(quote.blockPriceMinor) : null,
           blocksBilled: quote.mode === "BLOCK" ? quote.blocksBilled : null,
           totalArs: minorToDecimalString(totalMinor),
+          creditGrantId,
+          creditsUsed,
+          // La parte de quien atiende, congelada: corte y extras, al porcentaje de hoy.
+          professionalShareBps: espacio.professionalShareBps,
+          professionalShareArs: minorToDecimalString(
+            professionalShareMinor(totalMinor, espacio.professionalShareBps),
+          ),
           paymentMethod: sinCargo ? "SIN_CARGO" : input.paymentMethod,
           paymentStatus: sinCargo ? "NOT_REQUIRED" : "PENDING",
           notes: input.notes ?? null,
@@ -242,10 +314,17 @@ export async function createBooking(input: CreateBookingInput): Promise<CreateBo
         });
       }
 
-      return reserva;
+      return { id: reserva.id, status, totalMinor, creditsUsed };
     });
 
-    return { ok: true, bookingId: creada.id, quote, status, totalMinor };
+    return {
+      ok: true,
+      bookingId: creada.id,
+      quote,
+      status: creada.status,
+      totalMinor: creada.totalMinor,
+      creditsUsed: creada.creditsUsed,
+    };
   } catch (error) {
     if (error instanceof BookingRejected) return { ok: false, error: error.message };
     if (isOverlapConstraintError(error)) return { ok: false, error: CHOQUE };

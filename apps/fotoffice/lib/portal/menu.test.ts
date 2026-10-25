@@ -150,3 +150,16 @@ describe("la sección Cursos del socio", () => {
     expect(items.find((i) => i.href === "/portal/cursos")?.state).toBe("DISPONIBLE");
   });
 });
+
+describe("Beneficios en el menú del socio", () => {
+  it("está construido y depende del módulo de sponsors", () => {
+    const item = PORTAL_MENU.find((i) => i.href === "/portal/beneficios");
+    expect(item?.built).toBe(true);
+    expect(item?.requiresModule).toBe("sponsors");
+  });
+
+  it("con sponsors apagado se muestra como Próximamente; encendido, disponible", () => {
+    expect(resolvePortalMenu(new Set<string>()).find((i) => i.href === "/portal/beneficios")?.state).toBe("PROXIMAMENTE");
+    expect(resolvePortalMenu(new Set(["sponsors"])).find((i) => i.href === "/portal/beneficios")?.state).toBe("DISPONIBLE");
+  });
+});

@@ -26,6 +26,10 @@ export const memberSchema = z.object({
   city: z.string().max(120).optional().nullable(),
   province: z.string().max(120).optional().nullable(),
   postalCode: z.string().max(20).optional().nullable(),
+  /**
+   * Sólo lo usa la importación por CSV (columna "notes"). El formulario de alta/edición ya no
+   * lo manda: las observaciones viven en las notas de la ficha. Si falta, la columna no se toca.
+   */
   notes: z.string().max(4000).optional().nullable(),
 });
 
@@ -36,6 +40,12 @@ export const memberCategorySchema = z.object({
   description: z.string().max(2000).optional().nullable(),
   order: z.number().int().min(0).max(10000),
   isActive: z.boolean(),
+  /** Club con turnos incluidos: cuántos abre cada pago, cuántos días valen y cómo se llaman. */
+  bookingCreditsPerPayment: z.number().int().min(0, "No puede ser negativo").max(100),
+  bookingCreditValidityDays: z.number().int().min(1, "Al menos un día").max(366),
+  bookingCreditLabel: z.string().max(40).optional().nullable(),
+  /** Se renueva cuando quiere, sin deuda (VIP). Con esto, la categoría no genera cuotas mensuales. */
+  selfRenew: z.boolean().optional(),
 });
 
 export type MemberCategoryFormValues = z.infer<typeof memberCategorySchema>;
@@ -70,7 +80,7 @@ export function formToMemberPayload(formData: FormData) {
     city: emptyToNull(formData.get("city")?.toString()),
     province: emptyToNull(formData.get("province")?.toString()),
     postalCode: emptyToNull(formData.get("postalCode")?.toString()),
-    notes: emptyToNull(formData.get("notes")?.toString()),
+    // `notes` no se lee del formulario: las observaciones se cargan como notas de la ficha.
   };
 }
 
@@ -100,7 +110,9 @@ export function memberValuesToRepositoryInput(d: MemberFormValues) {
     city: d.city ?? null,
     province: d.province ?? null,
     postalCode: d.postalCode ?? null,
-    notes: d.notes ?? null,
+    // Sólo si vino (importación por CSV). Del formulario nunca viene, y entonces la columna
+    // queda como está: nunca se pisa con null.
+    ...(d.notes !== undefined ? { notes: d.notes } : {}),
   };
 }
 

@@ -134,6 +134,14 @@ describe("correos de envío", () => {
     expect(llamada.body.text).toContain("Mitre 10");
   });
 
+  it("despachado por Andreani: el enlace de Andreani, nombrándolo", async () => {
+    conEnvio({ shippingSource: "ANDREANI", trackingNumber: "360000123" });
+    await sendOrderShippedEmail(ref);
+    const texto = h.sendAndLogEmail.mock.calls[0]![0].body.text as string;
+    expect(texto).toContain("Podés seguirlo en Andreani: https://www.andreani.com/#!/informacionEnvio/360000123");
+    expect(texto).not.toContain("Correo Argentino");
+  });
+
   it("despachado con tabla propia: el número sin enlace", async () => {
     conEnvio({ shippingSource: "TABLE" });
     await sendOrderShippedEmail(ref);

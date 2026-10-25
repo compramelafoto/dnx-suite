@@ -23,6 +23,7 @@ import CheckoutMpPreparingOverlay from "@/components/checkout/CheckoutMpPreparin
 import { savePendingOrderSession } from "@/lib/checkout/pending-order-session";
 import { redirectToMercadoPago } from "@/lib/checkout/mp-redirect";
 import { trackFunnelEvent, FUNNEL_EVENTS } from "@/lib/funnel-track-client";
+import { clearCanjeToken, readCanjeToken } from "@/lib/canje-externo/canje-token-storage";
 
 type Item = {
   fileKey: string;
@@ -87,6 +88,14 @@ type FaceBulkPackSnapshot = {
   packBaseCents: number;
   packClientTotalCents: number;
   packPhotoCount: number;
+};
+
+type QuoteCanje = {
+  ok: boolean;
+  error?: string;
+  creditedPrintUnits?: number;
+  discountArs?: number;
+  discountDigitalArs?: number;
 };
 
 type QuoteTotals = {
@@ -167,7 +176,11 @@ export default function AlbumResumenPage() {
     totals: QuoteTotals;
     items: QuoteItem[];
     snapshot: QuoteSnapshot;
+    canje?: QuoteCanje;
   } | null>(null);
+  // Link único de una familia que pagó un combo por fuera (ver lib/canje-externo).
+  const [canjeToken, setCanjeToken] = useState<string | null>(null);
+  const [canjeTokenRead, setCanjeTokenRead] = useState(false);
   const [quoteLoading, setQuoteLoading] = useState(false);
   const [quoteError, setQuoteError] = useState<string | null>(null);
   const [albumPricing, setAlbumPricing] = useState<AlbumPricing | null>(null);
@@ -193,6 +206,11 @@ export default function AlbumResumenPage() {
     submitAttemptKeyRef.current = `album-order:${albumId}:${generated}`;
     return submitAttemptKeyRef.current;
   }
+
+  useEffect(() => {
+    setCanjeToken(readCanjeToken(albumId));
+    setCanjeTokenRead(true);
+  }, [albumId]);
 
   // Cargar albumPricing y fotógrafo desde sessionStorage
   useEffect(() => {
@@ -458,6 +476,10 @@ export default function AlbumResumenPage() {
     });
   }, [albumPricing, pricingItems, quote]);
 
+  const canjeAplicado =
+    quote?.canje?.ok === true && (quote.canje.creditedPrintUnits ?? 0) > 0 ? quote.canje : null;
+  // El combo pagado se muestra aparte: no es un descuento por cantidad del fotógrafo.
+  const bulkDiscountArs = Math.max(0, totalDiscountArs - (canjeAplicado?.discountDigitalArs ?? 0));
   const photoTotalArs = totals.displayTotalCents;
   // Lo que realmente va a pagar: fotos + videos. Tiene que coincidir con lo que
   // cobra el servidor, que suma las mismas dos partes.
@@ -465,7 +487,7 @@ export default function AlbumResumenPage() {
   const extensionSurchargeArs = totals.extensionSurchargeCents ?? 0;
 
   useEffect(() => {
-    if (!pricingItems.length) return;
+    if (!pricingItems.length || !canjeTokenRead) return;
     let cancelled = false;
     async function loadQuote() {
       try {
@@ -478,6 +500,7 @@ export default function AlbumResumenPage() {
           body: JSON.stringify({
             items: pricingItems,
             ...(faceBulkPackPhotoIds.length > 0 ? { faceBulkPackPhotoIds } : {}),
+            ...(canjeToken ? { canjeToken } : {}),
           }),
         });
         const data = await res.json().catch(() => ({}));
@@ -499,6 +522,7 @@ export default function AlbumResumenPage() {
             },
             items: Array.isArray(data.items) ? data.items : [],
             snapshot: (data?.snapshot ?? null) as QuoteSnapshot,
+            canje: (data?.canje ?? undefined) as QuoteCanje | undefined,
           });
         }
       } catch (err) {
@@ -518,7 +542,7 @@ export default function AlbumResumenPage() {
     return () => {
       cancelled = true;
     };
-  }, [albumId, pricingItems, faceBulkPackPhotoIds, checkoutDebugEnabled]);
+  }, [albumId, pricingItems, faceBulkPackPhotoIds, checkoutDebugEnabled, canjeToken, canjeTokenRead]);
 
   async function handleSubmit() {
     if (loading) return;
@@ -564,7 +588,7 @@ export default function AlbumResumenPage() {
       setLoading(false);
       return;
     }
-    if ((items.length > 0 && !quote) || totalDisplayArs <= 0) {
+    if ((items.length > 0 && !quote) || (totalDisplayArs <= 0 && !canjeAplicado)) {
       setError(
         quoteError ??
           "No pudimos calcular el total de tu pedido. Volvé al carrito, actualizá la selección e intentá de nuevo."
@@ -621,6 +645,7 @@ export default function AlbumResumenPage() {
           idempotencyKey,
           termsAccepted: true,
           ...(faceBulkPackPhotoIds.length > 0 ? { faceBulkPackPhotoIds } : {}),
+          ...(canjeAplicado && canjeToken ? { canjeToken } : {}),
           // Los videos elegidos viajan en el MISMO pedido que las fotos: el
           // cliente paga una sola vez y descarga todo del mismo lugar.
           ...(videoCartIds.length > 0 ? { videoIds: videoCartIds } : {}),
@@ -637,6 +662,17 @@ export default function AlbumResumenPage() {
       }
       if (!res.ok) {
         throw new Error(data?.error || "No se pudo crear el pedido.");
+      }
+      if (canjeToken && (data?.paid || data?.initPoint)) {
+        // El combo quedó reservado para este pedido: no se vuelve a ofrecer.
+        clearCanjeToken(albumId);
+      }
+      if (data?.paid === true && typeof data?.id === "number") {
+        // El combo cubrió todo: no hay pago, el pedido ya está confirmado.
+        sessionStorage.removeItem(`album_${albumId}_items`);
+        if (videoCartIds.length > 0) clearVideoCart(Number(albumId));
+        router.push(`/a/${albumId}/canje/listo?pedido=${data.id}`);
+        return;
       }
       if (data?.initPoint) {
         const oid = typeof data?.id === "number" ? data.id : undefined;
@@ -939,13 +975,26 @@ export default function AlbumResumenPage() {
           {/* Resumen final */}
           <Card className="bg-[#f8f9fa]">
             <div className="space-y-4">
-              {totalDiscountArs > 0 && (
+              {canjeAplicado ? (
+                <div className="flex justify-between items-center">
+                  <span className="text-lg font-medium text-[#1a1a1a]">
+                    Combo ya pagado ({canjeAplicado.creditedPrintUnits} impresas con su digital)
+                  </span>
+                  <span className="text-xl font-normal text-[#10b981]">
+                    -{formatARS(canjeAplicado.discountArs ?? 0)}
+                  </span>
+                </div>
+              ) : null}
+              {quote?.canje && !quote.canje.ok ? (
+                <p className="m-0 text-sm text-red-700">{quote.canje.error}</p>
+              ) : null}
+              {bulkDiscountArs > 0 && !canjeAplicado && (
                 <div className="flex justify-between items-center">
                   <span className="text-lg font-medium text-[#1a1a1a]">
                     Total descuento
                   </span>
                   <span className="text-xl font-normal text-[#10b981]">
-                    -{formatARS(totalDiscountArs)}
+                    -{formatARS(bulkDiscountArs)}
                   </span>
                 </div>
               )}
@@ -961,10 +1010,16 @@ export default function AlbumResumenPage() {
                   <span className="font-medium">+{formatARS(extensionSurchargeArs)}</span>
                 </div>
               )}
-              {totalDiscountArs > 0 ? (
+              {canjeAplicado && totalDisplayArs <= 0 ? (
                 <div className="mt-4 p-3 bg-[#10b981]/10 border border-[#10b981]/20 rounded-lg">
                   <p className="text-sm text-[#10b981] font-medium">
-                    ✅ En este pedido ahorraste {formatARS(totalDiscountArs)} gracias a
+                    Tu combo cubre todo el pedido: no tenés que pagar nada.
+                  </p>
+                </div>
+              ) : bulkDiscountArs > 0 ? (
+                <div className="mt-4 p-3 bg-[#10b981]/10 border border-[#10b981]/20 rounded-lg">
+                  <p className="text-sm text-[#10b981] font-medium">
+                    ✅ En este pedido ahorraste {formatARS(bulkDiscountArs)} gracias a
                     los descuentos por cantidad de la lista del fotógrafo.
                   </p>
                 </div>
@@ -1091,15 +1146,17 @@ export default function AlbumResumenPage() {
                 // La cotización de fotos sólo se exige si hay fotos: un pedido
                 // de sólo videos no tiene nada que cotizar por ese lado.
                 (items.length > 0 && (quoteLoading || !quote)) ||
-                totalDisplayArs <= 0 ||
+                (totalDisplayArs <= 0 && !canjeAplicado) ||
                 !termsAccepted
               }
             >
               {loading || mpPreparing ? (
                 <span className="inline-flex items-center gap-2">
                   <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
-                  Preparando pago…
+                  {canjeAplicado && totalDisplayArs <= 0 ? "Confirmando…" : "Preparando pago…"}
                 </span>
+              ) : canjeAplicado && totalDisplayArs <= 0 ? (
+                "Confirmar canje"
               ) : (
                 "Confirmar pedido"
               )}

@@ -10,22 +10,33 @@ export function getParticipantCardKeyPrefix(): string {
   return getParticipantCardsKeyPrefix();
 }
 
+const CARD_SEGMENT_BY_TYPE: Record<string, string> = {
+  WELCOME: "welcome",
+  MEMBER: "member",
+  DIPLOMA: "diploma",
+};
+
+function resolveCardSegment(cardType: string): string {
+  const segment = CARD_SEGMENT_BY_TYPE[cardType.toUpperCase()];
+  if (!segment) throw new Error(`UNKNOWN_CARD_TYPE: ${cardType}`);
+  return segment;
+}
+
 export function buildParticipantCardStorageKey(input: {
   editionId: string;
   registrationId: string;
-  cardType: ClickatonParticipantCardType | "WELCOME" | "MEMBER";
+  cardType: ClickatonParticipantCardType | "WELCOME" | "MEMBER" | "DIPLOMA";
   templateVersion: number;
   renderHash: string;
+  /** `png` por defecto; `pdf` para el diploma imprimible. */
+  extension?: "png" | "pdf";
 }): string {
-  const cardSegment =
-    String(input.cardType).toUpperCase() === "MEMBER" ||
-    String(input.cardType).toLowerCase() === "member"
-      ? "member"
-      : "welcome";
+  const cardSegment = resolveCardSegment(String(input.cardType));
   const edition = sanitizeSegment(input.editionId);
   const registration = sanitizeSegment(input.registrationId);
   const version = Math.max(1, Math.floor(input.templateVersion));
   const hash = sanitizeSegment(input.renderHash);
   const prefix = getParticipantCardKeyPrefix();
-  return `${prefix}/edition-${edition}/registration-${registration}/${cardSegment}/v${version}/${hash}.png`;
+  const ext = input.extension ?? "png";
+  return `${prefix}/edition-${edition}/registration-${registration}/${cardSegment}/v${version}/${hash}.${ext}`;
 }

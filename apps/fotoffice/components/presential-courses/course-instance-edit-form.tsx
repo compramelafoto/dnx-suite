@@ -5,6 +5,7 @@ import {
   updateCourseInstanceAction,
   type PresentialCourseActionState,
 } from "@/app/actions/presential-courses";
+import { InputMoneda } from "@/components/campos/input-moneda";
 
 const initialState: PresentialCourseActionState = { error: null };
 
@@ -104,14 +105,12 @@ export function CourseInstanceEditForm({ courseId, instance }: CourseInstanceEdi
         </div>
         <div className="fo-field-stack">
           <label className="fo-label" htmlFor={`edit-instance-price-${instance.id}`}>
-            Precio ARS
+            Precio (pesos)
           </label>
-          <input
+          <InputMoneda
             id={`edit-instance-price-${instance.id}`}
             name="priceArs"
-            type="number"
-            min={0}
-            step="0.01"
+            envio="punto"
             className="fo-input"
             defaultValue={instance.priceArs}
             required

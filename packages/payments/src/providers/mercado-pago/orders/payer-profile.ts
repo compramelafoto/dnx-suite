@@ -17,7 +17,13 @@ export interface OrderPayerProfile {
   lastName?: string;
   identification?: { type: string; number: string };
   phone?: { areaCode?: string; number?: string };
-  address?: { zipCode?: string; streetName?: string; streetNumber?: string };
+  address?: {
+    zipCode?: string;
+    streetName?: string;
+    streetNumber?: string;
+    neighborhood?: string;
+    city?: string;
+  };
   /** ISO 8601 — fecha en que el cliente se registró en la plataforma. */
   registrationDate?: string;
   isPrimeUser?: boolean;
@@ -61,13 +67,42 @@ export function buildMercadoPagoPayer(
     };
   }
 
+  const zipCode = clean(profile.address?.zipCode);
+  const streetName = clean(profile.address?.streetName);
+  const streetNumber = clean(profile.address?.streetNumber);
+  const neighborhood = clean(profile.address?.neighborhood);
+  const city = clean(profile.address?.city);
+  if (zipCode || streetName || streetNumber || neighborhood || city) {
+    payer.address = {
+      ...(zipCode ? { zip_code: zipCode } : {}),
+      ...(streetName ? { street_name: streetName } : {}),
+      ...(streetNumber ? { street_number: streetNumber } : {}),
+      ...(neighborhood ? { neighborhood } : {}),
+      ...(city ? { city } : {}),
+    };
+  }
+
   return payer;
 }
 
 /**
- * Contexto e historial que van en `additional_info.payer`.
- * Devuelve `undefined` cuando no hay nada que informar, para no agregar un
- * nodo vacío al payload.
+ * Historial y contexto del pagador para `additional_info`.
+ *
+ * Mercado Pago lo aclaró el 09/10/2026 (IXFS-16376): el nodo **anidado**
+ * `additional_info.payer` pertenece a la API de Payments y Orders lo rechaza
+ * con `additionalProperties 'payer' not allowed`. En Orders estos campos van
+ * en `additional_info` con **claves planas**, con el prefijo `payer.` dentro
+ * del nombre de la clave:
+ *
+ *     "additional_info": {
+ *       "payer.authentication_type": "WEB",
+ *       "payer.is_prime_user": true
+ *     }
+ *
+ * La identidad y el contacto —incluida la dirección— siguen yendo en `payer`.
+ *
+ * Devuelve `undefined` cuando no hay nada que informar, para no agregar un nodo
+ * vacío al payload.
  */
 export function buildMercadoPagoAdditionalInfoPayer(
   profile?: OrderPayerProfile,
@@ -75,31 +110,20 @@ export function buildMercadoPagoAdditionalInfoPayer(
   if (!profile) return undefined;
   const info: Record<string, unknown> = {};
 
-  const zipCode = clean(profile.address?.zipCode);
-  const streetName = clean(profile.address?.streetName);
-  const streetNumber = clean(profile.address?.streetNumber);
-  if (zipCode || streetName || streetNumber) {
-    info.address = {
-      ...(zipCode ? { zip_code: zipCode } : {}),
-      ...(streetName ? { street_name: streetName } : {}),
-      ...(streetNumber ? { street_number: streetNumber } : {}),
-    };
-  }
-
   const registrationDate = clean(profile.registrationDate);
-  if (registrationDate) info.registration_date = registrationDate;
+  if (registrationDate) info["payer.registration_date"] = registrationDate;
 
   const lastPurchase = clean(profile.lastPurchase);
-  if (lastPurchase) info.last_purchase = lastPurchase;
+  if (lastPurchase) info["payer.last_purchase"] = lastPurchase;
 
   const authenticationType = clean(profile.authenticationType);
-  if (authenticationType) info.authentication_type = authenticationType;
+  if (authenticationType) info["payer.authentication_type"] = authenticationType;
 
   if (typeof profile.isPrimeUser === "boolean") {
-    info.is_prime_user = profile.isPrimeUser;
+    info["payer.is_prime_user"] = profile.isPrimeUser;
   }
   if (typeof profile.isFirstPurchaseOnline === "boolean") {
-    info.is_first_purchase_online = profile.isFirstPurchaseOnline;
+    info["payer.is_first_purchase_online"] = profile.isFirstPurchaseOnline;
   }
 
   return Object.keys(info).length > 0 ? info : undefined;

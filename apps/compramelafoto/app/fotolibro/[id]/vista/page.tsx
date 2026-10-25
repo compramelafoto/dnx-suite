@@ -258,7 +258,7 @@ export default function FotolibroVistaPage() {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-[#f1f5f9] p-6">
         <p className="text-red-600 mb-4">{error || "Proyecto no encontrado"}</p>
-        <Link href="/admin/plantillas/disenador">
+        <Link href="/dashboard/designs">
           <Button variant="secondary">Volver al diseñador</Button>
         </Link>
       </div>
@@ -271,7 +271,7 @@ export default function FotolibroVistaPage() {
     return (
       <div className="min-h-screen flex flex-col bg-[#f1f5f9]">
         <header className="shrink-0 flex items-center justify-between px-4 py-3 bg-white border-b border-[#e5e7eb] shadow-sm">
-          <Link href="/admin/plantillas/disenador" className="text-sm text-[#6b7280] hover:text-[#1a1a1a]">
+          <Link href="/dashboard/designs" className="text-sm text-[#6b7280] hover:text-[#1a1a1a]">
             ← Diseñador
           </Link>
           <Link href={`/fotolibro/${id}/imprimir`}>
@@ -320,7 +320,7 @@ export default function FotolibroVistaPage() {
   return (
     <div className="min-h-screen flex flex-col bg-[#f1f5f9]">
       <header className="shrink-0 flex items-center justify-between px-4 py-3 bg-white border-b border-[#e5e7eb] shadow-sm">
-        <Link href="/admin/plantillas/disenador" className="text-sm text-[#6b7280] hover:text-[#1a1a1a]">
+        <Link href="/dashboard/designs" className="text-sm text-[#6b7280] hover:text-[#1a1a1a]">
           ← Diseñador
         </Link>
         <div className="flex items-center gap-4">

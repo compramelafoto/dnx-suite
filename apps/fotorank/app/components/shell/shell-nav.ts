@@ -19,6 +19,8 @@ export type ShellNavItem = {
   roles?: string[];
   /** Un número al costado: cuánto trabajo espera ahí adentro. */
   badge?: number;
+  /** Qué se hace en esa pantalla, en una línea. No se dibuja en la barra: lo usa el buscador. */
+  description?: string;
 };
 
 export type ShellSection = {

@@ -65,6 +65,7 @@ export async function GET(request: Request) {
     // El cartel del perfil reutiliza el motor del cartel de álbum: el "álbum" es la
     // página del fotógrafo y la línea de acción, la de una galería sin fotos propias.
     const comoPerfil: AlbumInstructivoProfile = {
+      publico: "general",
       entrada: "abierta",
       busqueda: ["navegar"],
       momento: "postventa",

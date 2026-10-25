@@ -24,8 +24,32 @@ export type EntryExifResult = {
   rawMetadataJson: Record<string, unknown> | null;
 };
 
+/**
+ * Postgres no acepta el carácter nulo (U+0000) ni en `text` ni en `jsonb`.
+ * exifr ya corta los textos EXIF clásicos en el primer nulo, pero los que lee
+ * del bloque XMP (Lightroom y otros editores) pasan enteros: si traen un nulo,
+ * el INSERT de la metadata falla y con él toda la carga (pasó con
+ * SANTAF-000083 el 09/10/2026).
+ */
+export function sinNulos(texto: string): string {
+  return texto.replace(/\u0000/g, "");
+}
+
+/** Saca los nulos de todos los textos de un valor EXIF crudo, a cualquier profundidad. */
+export function limpiarNulosProfundo(valor: unknown): unknown {
+  if (typeof valor === "string") return sinNulos(valor);
+  if (Array.isArray(valor)) return valor.map(limpiarNulosProfundo);
+  if (valor && typeof valor === "object" && Object.getPrototypeOf(valor) === Object.prototype) {
+    const limpio: Record<string, unknown> = {};
+    for (const [clave, v] of Object.entries(valor)) limpio[sinNulos(clave)] = limpiarNulosProfundo(v);
+    return limpio;
+  }
+  return valor;
+}
+
 function pickString(...values: unknown[]): string | null {
-  for (const v of values) {
+  for (const raw of values) {
+    const v = typeof raw === "string" ? sinNulos(raw) : raw;
     if (typeof v === "string" && v.trim()) return v.trim();
     if (typeof v === "number" && Number.isFinite(v)) return String(v);
   }
@@ -44,14 +68,14 @@ function formatExposure(value: unknown): string | null {
     if (value >= 1) return `${value}s`;
     return `1/${Math.round(1 / value)}`;
   }
-  const s = String(value).trim();
+  const s = sinNulos(String(value)).trim();
   return s || null;
 }
 
 function formatAperture(value: unknown): string | null {
   if (value == null) return null;
   if (typeof value === "number" && Number.isFinite(value)) return `f/${value}`;
-  const s = String(value).trim();
+  const s = sinNulos(String(value)).trim();
   return s || null;
 }
 
@@ -118,7 +142,7 @@ export async function extractEntryExif(buffer: Uint8Array | Buffer): Promise<Ent
       "Orientation",
       "ColorSpace",
     ]) {
-      if (parsed[key] != null) raw[key] = parsed[key];
+      if (parsed[key] != null) raw[key] = limpiarNulosProfundo(parsed[key]);
     }
 
     return { ...fields, metadataStatus: status, rawMetadataJson: raw };

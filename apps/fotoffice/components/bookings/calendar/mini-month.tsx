@@ -100,7 +100,7 @@ export function MiniMonth({
                         aria-current={ymd === selectedYmd ? "date" : undefined}
                         className={`mx-auto flex size-7 items-center justify-center rounded-full transition-colors ${
                           hoy
-                            ? "bg-[var(--fo-accent)] font-semibold text-white"
+                            ? "bg-[var(--fo-accent)] font-semibold text-[var(--fo-on-accent,#fff)]"
                             : elegido
                               ? "bg-[var(--fo-accent-soft)] font-semibold text-[var(--fo-accent-hover)]"
                               : fuera

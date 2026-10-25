@@ -1,7 +1,9 @@
+import { miniaturaDePlantillaUrl } from "@/lib/design-v2/miniatura-url";
 import type { Role, TemplateV2Status } from "@/lib/prisma";
 import { Role as RoleEnum } from "@/lib/prisma";
 import { prisma } from "@/lib/prisma";
 import { isTemplateDesignerMetaV2, isTemplateSystemFlagInMeta } from "@/lib/dashboard/template-v2-design-meta";
+import { rasgosDePlantilla, type BloqueParaRasgos, type RasgosDePlantilla } from "@/lib/design-v2/rasgos-de-plantilla";
 
 export type DesignDashboardTemplateCard = {
   id: string;
@@ -19,6 +21,8 @@ export type DesignDashboardTemplateCard = {
     visibility: string;
   } | null;
   isSystemCatalog: boolean;
+  /** Para los filtros del catálogo: del meta o deducidos de los bloques. */
+  rasgos: RasgosDePlantilla;
   ownerName: string | null;
   ownerEmail: string | null;
 };
@@ -69,7 +73,7 @@ type TemplateRow = {
   updatedAt: Date;
 };
 
-type VersionMetaRow = Map<string, { canvasJson: unknown; metaJson: unknown | null }>;
+type VersionMetaRow = Map<string, { canvasJson: unknown; metaJson: unknown | null; revision: number }>;
 
 function cvMeta(metaByVersionId: VersionMetaRow, currentVersionId: string | null): unknown | null {
   if (!currentVersionId) return null;
@@ -157,12 +161,46 @@ export async function listDesignDashboardTemplateGroups(params: {
     versionIds.length > 0 ?
       await prisma.templateV2Version.findMany({
         where: { id: { in: versionIds } },
-        select: { id: true, canvasJson: true, metaJson: true },
+        select: { id: true, canvasJson: true, metaJson: true, revision: true },
       })
     : [];
   const metaByVersionId: VersionMetaRow = new Map(
-    versions.map((v) => [v.id, { canvasJson: v.canvasJson, metaJson: v.metaJson ?? null }])
+    versions.map((v) => [v.id, { canvasJson: v.canvasJson, metaJson: v.metaJson ?? null, revision: v.revision }])
   );
+
+  /*
+   * Bloques para deducir los rasgos (filtros) de las plantillas que no los traen en el meta. Sólo
+   * de las que se filtran (las del sistema y las propias), no del listado completo del admin.
+   */
+  const versionesConFiltro = templateRows
+    .filter((r) => {
+      if (!r.currentVersionId) return false;
+      return r.ownerUserId === params.userId || isTemplateSystemFlagInMeta(cvMeta(metaByVersionId, r.currentVersionId));
+    })
+    .map((r) => r.currentVersionId as string);
+  const [bloquesDeRasgos, vinculosDeRasgos] =
+    versionesConFiltro.length > 0 ?
+      await Promise.all([
+        prisma.templateV2Block.findMany({
+          where: { templateVersionId: { in: versionesConFiltro } },
+          select: { templateVersionId: true, type: true, configJson: true },
+        }),
+        prisma.templateV2VariableBinding.findMany({
+          where: { templateVersionId: { in: versionesConFiltro } },
+          select: { templateVersionId: true, variableKey: true },
+        }),
+      ])
+    : [[], []];
+  const bloquesPorVersion = new Map<string, BloqueParaRasgos[]>();
+  for (const b of bloquesDeRasgos) {
+    const lista = bloquesPorVersion.get(b.templateVersionId) ?? [];
+    lista.push({ type: b.type, configJson: b.configJson });
+    bloquesPorVersion.set(b.templateVersionId, lista);
+  }
+  const vinculosPorVersion = new Map<string, string[]>();
+  for (const v of vinculosDeRasgos) {
+    vinculosPorVersion.set(v.templateVersionId, [...(vinculosPorVersion.get(v.templateVersionId) ?? []), v.variableKey]);
+  }
 
   const mapToCard = (row: TemplateRow): DesignDashboardTemplateCard => {
     const metaJson = cvMeta(metaByVersionId, row.currentVersionId);
@@ -185,7 +223,12 @@ export async function listDesignDashboardTemplateGroups(params: {
       description: row.description,
       status: row.status,
       currentVersionId: row.currentVersionId,
-      thumbnailUrl: pickThumbFromMeta(metaJson),
+      // Sin imagen propia, la que dibuja el servidor: así todo el catálogo muestra el diseño.
+      thumbnailUrl: pickThumbFromMeta(metaJson) ?? miniaturaDePlantillaUrl(
+        row.id,
+        row.currentVersionId,
+        row.currentVersionId ? metaByVersionId.get(row.currentVersionId)?.revision : null,
+      ),
       preview: parsePreviewFromCanvas(cvRow?.canvasJson),
       tipoLabel: tipoParts.join(" · "),
       publication:
@@ -196,6 +239,11 @@ export async function listDesignDashboardTemplateGroups(params: {
           }
         : null,
       isSystemCatalog: systemFlag,
+      rasgos: rasgosDePlantilla({
+        meta: metaJson,
+        blocks: (row.currentVersionId && bloquesPorVersion.get(row.currentVersionId)) || [],
+        bindingKeys: (row.currentVersionId && vinculosPorVersion.get(row.currentVersionId)) || [],
+      }),
       ownerName: owner?.name ?? null,
       ownerEmail: owner?.email ?? null,
     };

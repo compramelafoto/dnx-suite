@@ -71,6 +71,9 @@ export function chargePeriodLabel(period: string): string {
   // El carnet no cubre un mes: es un objeto que se pide una vez. Mostrar «septiembre de
   // 2026» lo haría pasar por la cuota de ese mes, que es la confusión que se quiere evitar.
   if (isPrintedCardCharge(period)) return PRINTED_CARD_LABEL;
+  // La renovación del club ("RENOV-20261013-153045"): el día en que se renovó.
+  const renov = /^RENOV-(\d{4})(\d{2})(\d{2})-/.exec(period);
+  if (renov) return `Renovación del ${Number(renov[3])} de ${MESES[Number(renov[2]) - 1]} de ${renov[1]}`;
   return periodoLegible(period);
 }
 
@@ -84,6 +87,7 @@ export function chargePeriodLabel(period: string): string {
 export function chargeConceptLabel(concept: string, period: string): string {
   if (isOpeningBalance(period)) return "Saldo traído del sistema anterior";
   if (isPrintedCardCharge(period)) return "Impresión de carnet";
+  if (period.startsWith("RENOV-")) return "Renovación";
   switch (concept) {
     case "INGRESO":
       return "Cuota de ingreso";

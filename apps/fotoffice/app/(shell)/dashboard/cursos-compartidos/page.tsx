@@ -95,6 +95,11 @@ export default async function CursosCompartidosPage({
         <p className="max-w-2xl text-sm leading-relaxed text-[var(--fo-muted)]">
           Otros negocios te sumaron para cobrar una parte de las ventas de sus cursos. Mirá cómo se reparte y aceptá o rechazá.
         </p>
+        <p className="text-sm">
+          <Link href="/dashboard/cobros-de-cursos" className="text-[var(--fo-accent)] underline">
+            Ver tus cobros
+          </Link>
+        </p>
       </header>
 
       {mensaje ? (

@@ -57,6 +57,7 @@ export function BlogPostForm({ mode, postId, initialValues }: Props) {
         labels={BLOG_EDITOR_LABELS}
         typeLabels={BLOG_TYPE_LABELS}
         mediaAdapter={mediaAdapter}
+        capabilities={{ canSchedule: true }}
         EditorComponent={BlogEditorClient}
         onSubmit={async ({ data }) => submitBlogPost({ mode, postId, data })}
         onDelete={

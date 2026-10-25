@@ -50,6 +50,8 @@ export type AlbumPackRowForPublic = {
   requiresSelection: boolean;
   requiresDesign: boolean;
   templateId: number | null;
+  /** Plantilla del diseñador nuevo: un pack con diseño solo se vende si la tiene. */
+  templateV2Id?: string | null;
   availabilityPhase: "PRE_UPLOAD" | "POST_UPLOAD" | "ALWAYS";
   isActive: boolean;
   packType?: AlbumPackType;

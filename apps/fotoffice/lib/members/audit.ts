@@ -10,9 +10,12 @@ import type { MemberStatus } from "./status-labels";
  * cargado — por eso el historial queda restringido a OWNER/ADMIN, que ya pueden ver los datos
  * de contacto del padrón. Nunca se guardan tokens ni credenciales.
  */
-export function auditActorFrom(user: AuthUser): { userId: number; label: string } {
+/** Lo único que la auditoría lee del usuario. Permite armar el actor desde el contexto de un listado. */
+export type AuditActorUser = Pick<AuthUser, "id" | "name"> & { email: string | null };
+
+export function auditActorFrom(user: AuditActorUser): { userId: number; label: string } {
   const name = user.name?.trim();
-  return { userId: user.id, label: name || user.email };
+  return { userId: user.id, label: name || user.email?.trim() || `Usuario ${user.id}` };
 }
 
 /**

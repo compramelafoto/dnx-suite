@@ -24,6 +24,7 @@ import { requireBookingsConfigurer, requireBookingsOperator } from "@/lib/bookin
 import { slugify } from "@/lib/slug";
 import { parseLocalDateTime } from "@/lib/bookings/local-datetime";
 import { BOOKINGS_TIME_ZONE } from "@/lib/bookings/time";
+import { normalizeAgendaKind } from "@/lib/bookings/wording";
 
 const AGENDA = "/reservas";
 const ESPACIOS = "/reservas/espacios";
@@ -72,6 +73,16 @@ export async function saveSpaceAction(formData: FormData): Promise<void> {
     if (propio === 0) redirect(`${ESPACIOS}?error=${encodeURIComponent("Ese espacio no existe.")}`);
   }
 
+  // Sólo se puede vincular a alguien del equipo de ESTA institución.
+  if (v.professionalUserId !== null) {
+    const enElEquipo = await prisma.workspaceMembership.count({
+      where: { workspaceId: workspace.id, userId: v.professionalUserId },
+    });
+    if (enElEquipo === 0) {
+      redirect(`${destinoError}?error=${encodeURIComponent("Esa persona no es del equipo.")}`);
+    }
+  }
+
   try {
     await prisma.$transaction(async (tx) => {
       const datos = {
@@ -92,6 +103,9 @@ export async function saveSpaceAction(formData: FormData): Promise<void> {
         nonMemberBlockPriceArs: minorToDecimalString(v.nonMemberBlockPriceMinor),
         memberFreeHoursPerMonth: v.memberFreeHoursPerMonth,
         allowsNonMembers: v.allowsNonMembers,
+        professionalShareBps: v.professionalShareBps,
+        professionalUserId: v.professionalUserId,
+        acceptsClubCredits: v.acceptsClubCredits,
       };
 
       const espacio = spaceId
@@ -216,16 +230,24 @@ export async function cancelBookingAction(formData: FormData): Promise<void> {
 const CONFIGURACION = "/reservas/configuracion";
 const EXTRAS = "/reservas/extras";
 
-/** Plazos de la institución: cuánto vive un bloqueo y hasta cuándo se puede cancelar. */
+/**
+ * Plazos de la institución —cuánto vive un bloqueo y hasta cuándo se puede cancelar— y cómo se
+ * presenta la agenda al público (espacios para alquilar o turnos con profesionales).
+ */
 export async function saveBookingSettingsAction(formData: FormData): Promise<void> {
   const { workspace } = await requireBookingsConfigurer();
   const holdHours = Math.max(1, Number(formData.get("holdHours") ?? 24) || 24);
   const cancelWindowHours = Math.max(0, Number(formData.get("cancelWindowHours") ?? 24) || 0);
+  const agendaKind = normalizeAgendaKind(String(formData.get("agendaKind") ?? ""));
+  const texto = (k: string) => String(formData.get(k) ?? "").trim().slice(0, 40) || null;
+  const resourceSingular = texto("resourceSingular");
+  const resourcePlural = texto("resourcePlural");
+  const datos = { holdHours, cancelWindowHours, agendaKind, resourceSingular, resourcePlural };
 
   await prisma.bookingSettings.upsert({
     where: { workspaceId: workspace.id },
-    create: { workspaceId: workspace.id, holdHours, cancelWindowHours },
-    update: { holdHours, cancelWindowHours },
+    create: { workspaceId: workspace.id, ...datos },
+    update: datos,
   });
 
   revalidatePath(CONFIGURACION);

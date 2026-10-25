@@ -8,17 +8,40 @@
 export const SALES_MODULE_KEY = "sales";
 
 /** Qué es la cosa. No cambia ninguna regla: agrupa en pantalla y separa la línea del reporte. */
-export const PRODUCT_KINDS = ["PRODUCTO", "SERVICIO"] as const;
+export const PRODUCT_KINDS = ["PRODUCTO", "SERVICIO", "INSUMO"] as const;
 export type ProductKind = (typeof PRODUCT_KINDS)[number];
 
 export const PRODUCT_KIND_LABELS: Record<ProductKind, string> = {
   PRODUCTO: "Producto",
   SERVICIO: "Servicio",
+  INSUMO: "Insumo",
 };
 
 /** Por qué se movió la existencia. */
-export const STOCK_REASONS = ["VENTA", "ENTRADA", "AJUSTE", "DEVOLUCION", "INICIAL"] as const;
+export const STOCK_REASONS = [
+  "VENTA",
+  "ENTRADA",
+  "AJUSTE",
+  "DEVOLUCION",
+  "INICIAL",
+  "PEDIDO",
+  "CONSUMO",
+] as const;
 export type StockReason = (typeof STOCK_REASONS)[number];
+
+/**
+ * Cómo se muestra cada motivo. `PEDIDO` es la mercadería apartada para un pedido «para retirar».
+ * `CONSUMO` es el insumo que se gasta al vender o al producir (receta o consumo por tamaño).
+ */
+export const STOCK_REASON_LABELS: Record<StockReason, string> = {
+  VENTA: "Venta",
+  ENTRADA: "Entrada",
+  AJUSTE: "Ajuste",
+  DEVOLUCION: "Devolución",
+  INICIAL: "Stock inicial",
+  PEDIDO: "Apartado para pedido",
+  CONSUMO: "Consumo",
+};
 
 export const SALE_STATUSES = ["COMPLETADA", "ANULADA"] as const;
 export type SaleStatus = (typeof SALE_STATUSES)[number];

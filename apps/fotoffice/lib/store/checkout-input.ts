@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CART_MAX_ARTWORK_QTY } from "./cart/constants";
 import { normalizePostalCode } from "./shipping/package";
 import { isProvinceCode } from "./shipping/provinces";
 
@@ -15,14 +16,32 @@ export type CheckoutAddress = {
 };
 
 /**
- * Cómo se entrega. La sucursal sólo trae la FORMA que eligió el navegador: que exista y sea de
- * esa provincia se vuelve a comprobar en el servidor al crear el pedido. Y el precio del envío
- * nunca viene de acá: se cotiza en el servidor (E10).
+ * Cómo se entrega. La sucursal sólo trae la FORMA que eligió el navegador y con qué se buscó: la
+ * provincia (Correo Argentino) o el código postal (Andreani). Que la sucursal exista en esa
+ * búsqueda se vuelve a comprobar en el servidor al crear el pedido. Y el precio del envío nunca
+ * viene de acá: se cotiza en el servidor (E10).
  */
 export type CheckoutDelivery =
   | { method: "PICKUP" }
   | { method: "HOME"; address: CheckoutAddress }
-  | { method: "BRANCH"; provinceCode: string; agency: { id: string; name: string; address: string } };
+  | {
+      method: "BRANCH";
+      /** `null` sólo si la búsqueda fue por código postal (Andreani). */
+      provinceCode: string | null;
+      /** El CP con el que se buscó la sucursal (Andreani). Sin él, la búsqueda fue por provincia. */
+      postalCode?: string;
+      agency: { id: string; name: string; address: string };
+    };
+
+/** Un producto (con o sin talle). Sin `kind`: así compraban los carritos de antes de las obras. */
+export type CheckoutProductLine = { kind?: "product"; productId: string; variantId: string | null; qty: number };
+/** Una obra de concurso en un formato de impresión. Precio, título y formato los pone el servidor. */
+export type CheckoutArtworkLine = { kind: "artwork"; artworkListingId: string; printFormatId: string; qty: number };
+export type CheckoutLine = CheckoutProductLine | CheckoutArtworkLine;
+
+export function isCheckoutArtworkLine(l: CheckoutLine): l is CheckoutArtworkLine {
+  return l.kind === "artwork";
+}
 
 export type CheckoutInput = {
   buyerName: string;
@@ -30,7 +49,7 @@ export type CheckoutInput = {
   buyerPhone: string | null;
   acceptsTerms: true;
   clientIdempotencyKey: string;
-  lines: { productId: string; variantId: string | null; qty: number }[];
+  lines: CheckoutLine[];
   delivery: CheckoutDelivery;
   /**
    * El envío que el navegador le MOSTRÓ (centavos), sólo para comparar: si el que se re-cotiza en
@@ -85,6 +104,29 @@ const codigoPostal = z.string({ message: "Ingresá el código postal." }).transf
   return cp;
 });
 
+/** Vacío (o ausente) es `null`; si viene, tiene que ser válido. */
+function vacioONulo(v: unknown): boolean {
+  return v === undefined || v === null || (typeof v === "string" && v.trim() === "");
+}
+const provinciaOpcional = z.unknown().transform((v, ctx) => {
+  if (vacioONulo(v)) return null;
+  const code = typeof v === "string" ? v.trim().toUpperCase() : "";
+  if (!isProvinceCode(code)) {
+    ctx.addIssue({ code: "custom", message: "Elegí la provincia." });
+    return z.NEVER;
+  }
+  return code;
+});
+const codigoPostalOpcional = z.unknown().transform((v, ctx) => {
+  if (vacioONulo(v)) return null;
+  const cp = typeof v === "string" ? normalizePostalCode(v) : null;
+  if (!cp) {
+    ctx.addIssue({ code: "custom", message: "Ingresá un código postal válido (4 números, ej. 2000)." });
+    return z.NEVER;
+  }
+  return cp;
+});
+
 const SUCURSAL = "Elegí una sucursal de la lista.";
 const sucursalTexto = z.string({ message: SUCURSAL }).trim().min(1, SUCURSAL).max(200, SUCURSAL);
 
@@ -112,7 +154,10 @@ const delivery = z.preprocess(
       }),
       z.object({
         method: z.literal("BRANCH"),
-        provinceCode: provincia,
+        // Una de las dos, según el correo: provincia (Correo Argentino) o CP (Andreani). Que haya
+        // al menos una se mira en `parseCheckoutInput`.
+        provinceCode: provinciaOpcional,
+        postalCode: codigoPostalOpcional,
         agency: z.object(
           { id: sucursalTexto, name: sucursalTexto, address: sucursalTexto },
           { message: SUCURSAL },
@@ -141,11 +186,20 @@ const schema = z.object({
     .max(64, "La clave de la compra es inválida."),
   lines: z
     .array(
-      z.object({
-        productId: z.string().min(1),
-        variantId: z.string().min(1).nullable(),
-        qty: z.number().int().min(1).max(99),
-      }),
+      z.union([
+        z.object({
+          kind: z.literal("artwork"),
+          artworkListingId: z.string().min(1).max(64),
+          printFormatId: z.string().min(1).max(64),
+          qty: z.number().int().min(1).max(CART_MAX_ARTWORK_QTY),
+        }),
+        z.object({
+          kind: z.literal("product").optional(),
+          productId: z.string().min(1),
+          variantId: z.string().min(1).nullable(),
+          qty: z.number().int().min(1).max(99),
+        }),
+      ]),
       { message: "El carrito es inválido." },
     )
     .min(1, "El carrito está vacío.")
@@ -176,7 +230,19 @@ export function parseCheckoutInput(
 ): { ok: true; value: CheckoutInput } | { ok: false; errors: Record<string, string> } {
   const r = schema.safeParse(raw);
   if (r.success) {
-    const value = r.data as CheckoutInput;
+    const { delivery: d, ...resto } = r.data;
+    let entrega: CheckoutDelivery;
+    if (d.method !== "BRANCH") {
+      entrega = d;
+    } else {
+      if (d.provinceCode === null && d.postalCode === null) {
+        return { ok: false, errors: { "delivery.provinceCode": "Elegí la provincia." } };
+      }
+      // Sin CP no se manda la clave: así queda igual que antes para Correo.
+      const { postalCode, ...sucursal } = d;
+      entrega = postalCode ? { ...sucursal, postalCode } : sucursal;
+    }
+    const value = { ...resto, delivery: entrega } as CheckoutInput;
     if (value.delivery.method === "HOME" && value.delivery.address.recipientPhone === null) {
       value.delivery.address.recipientPhone = value.buyerPhone;
     }

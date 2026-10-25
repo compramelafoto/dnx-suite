@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BookOpen } from "lucide-react";
 import { FotofficeLogo } from "@/components/fotoffice-logo";
 import { NavToggle } from "./nav-toggle";
 import { ShellNav } from "./shell-nav";
@@ -12,9 +13,13 @@ export function ShellSidebar({
   levels,
   actions,
   canManageWorkspaceSettings,
+  organizationType,
   platformAdmin,
   vocabulary,
   roleSelector = null,
+  openGroups = [],
+  bandejaNoLeidos = 0,
+  logoPropio = null,
 }: {
   /**
    * Nombre de la organización activa. Antes acá decía "Venta de cursos", fijo en el código:
@@ -28,10 +33,18 @@ export function ShellSidebar({
   actions: readonly string[];
   /** Sólo para la sección Institución: Configuración no se delega. */
   canManageWorkspaceSettings: boolean;
+  /** Tipo de organización (etapa 0.1): ordena las secciones del menú por familia. */
+  organizationType: string | null;
   platformAdmin: boolean;
   vocabulary: PersonVocabulary;
   /** Socio y equipo en esta institución: el selector de rol (Comisión/Administración activo). */
   roleSelector?: RoleSelectorData | null;
+  /** Grupos del menú que la persona dejó desplegados (cookie `fo_nav_grupos`). */
+  openGroups?: readonly string[];
+  /** Mensajes sin leer de la Bandeja de WhatsApp (0 si no hay o no corresponde). */
+  bandejaNoLeidos?: number;
+  /** Con colores propios del panel, el logo del negocio va en lugar del de FOTOFFICE. */
+  logoPropio?: string | null;
 }) {
   return (
     <aside className="min-h-full md:min-h-screen border-b md:border-b-0 md:border-r border-[var(--fo-border)] bg-[var(--fo-bg-elevated)] p-4 md:p-5">
@@ -42,7 +55,12 @@ export function ShellSidebar({
         >
           <span className="sr-only">Fotoffice — ir al inicio</span>
           <div className="px-0 py-1 md:py-2">
-            <FotofficeLogo variant="sidebar" />
+            {logoPropio ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={logoPropio} alt="" className="h-11 w-11 rounded-full object-contain" />
+            ) : (
+              <FotofficeLogo variant="sidebar" />
+            )}
           </div>
           {workspaceName ? (
             <span className="block truncate text-xs text-[var(--fo-muted)] mt-2.5">
@@ -58,9 +76,22 @@ export function ShellSidebar({
         levels={levels}
         actions={actions}
         canManageWorkspaceSettings={canManageWorkspaceSettings}
+        organizationType={organizationType}
         platformAdmin={platformAdmin}
         vocabulary={vocabulary}
+        openGroups={openGroups}
+        bandejaNoLeidos={bandejaNoLeidos}
       />
+      {/* Al pie, a mano para todo el equipo: las guías paso a paso de cada pantalla. */}
+      <div className="mt-8 border-t border-[var(--fo-border)] pt-4">
+        <Link
+          href="/instructivos"
+          className="flex items-center gap-2 rounded-[var(--fo-radius-sm)] px-2 py-2 text-sm text-[var(--fo-muted)] hover:bg-[var(--fo-bg)] hover:text-[var(--fo-text)]"
+        >
+          <BookOpen className="h-4 w-4" aria-hidden />
+          Instructivos
+        </Link>
+      </div>
     </aside>
   );
 }

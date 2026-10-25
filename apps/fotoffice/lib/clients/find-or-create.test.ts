@@ -16,8 +16,9 @@ import { findOrCreateClient } from "./find-or-create";
  */
 // Mismo molde que `saleTx` en `lib/sales/record-sale.test.ts`: el objeto queda con su tipo
 // inferido para poder leer los espías, y el `as never` va recién en cada llamada.
+// Con la ficha estándar el alta deja además su fila de auditoría en la misma transacción.
 function clientTx<T extends Record<string, unknown>>(client: T) {
-  return { client };
+  return { client, clientAudit: { create: vi.fn(async () => ({})) } };
 }
 
 const input = { workspaceId: "w1", firstName: "Ana", lastName: "Pérez" };
@@ -81,5 +82,43 @@ describe("findOrCreateClient — el número de cliente se recalcula en el reinte
     const resultado = await findOrCreateClient(tx as never, { ...input, email: "ANA@x.com" });
 
     expect(resultado).toEqual({ id: "cli-9", created: false });
+  });
+});
+
+describe("findOrCreateClient — auditoría del alta (ficha estándar)", () => {
+  function txConAuditoria(existentes: { id: string; docNumber: string | null; email: string | null; phone: string | null }[] = []) {
+    return {
+      client: {
+        findMany: vi.fn(async () => existentes),
+        findFirst: vi.fn(async () => null),
+        createMany: vi.fn(async () => ({ count: 1 })),
+        findUniqueOrThrow: vi.fn(async () => ({ id: "c-nuevo" })),
+      },
+      clientAudit: { create: vi.fn(async () => ({})) },
+    };
+  }
+
+  it("al crear, escribe ClientAudit CREATED como Sistema en la misma transacción", async () => {
+    const tx = txConAuditoria();
+    const r = await findOrCreateClient(tx as never, { workspaceId: "ws-1", firstName: "Ana" });
+    expect(r).toEqual({ id: "c-nuevo", created: true });
+    expect(tx.clientAudit.create).toHaveBeenCalledWith({
+      data: { workspaceId: "ws-1", clientId: "c-nuevo", action: "CREATED", actorUserId: null, actorLabel: "Sistema" },
+    });
+  });
+
+  it("si se pasa un actor, queda registrado", async () => {
+    const tx = txConAuditoria();
+    await findOrCreateClient(tx as never, { workspaceId: "ws-1", firstName: "Ana" }, { userId: 7, label: "Lucía" });
+    expect(tx.clientAudit.create).toHaveBeenCalledWith({
+      data: { workspaceId: "ws-1", clientId: "c-nuevo", action: "CREATED", actorUserId: 7, actorLabel: "Lucía" },
+    });
+  });
+
+  it("si el cliente ya existía, no escribe auditoría", async () => {
+    const tx = txConAuditoria([{ id: "c-viejo", docNumber: null, email: "a@b.com", phone: null }]);
+    const r = await findOrCreateClient(tx as never, { workspaceId: "ws-1", email: "a@b.com" });
+    expect(r).toEqual({ id: "c-viejo", created: false });
+    expect(tx.clientAudit.create).not.toHaveBeenCalled();
   });
 });

@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { AGENCY_SECTIONS } from "@/lib/agencies/sections";
 
 export type SidebarNavItem = {
   id: string;
@@ -103,12 +104,30 @@ export function getPhotographerSidebarItems(icons: {
       label: "Escolar",
       path: "/fotografo/escuelas",
       icon: icons.schools ?? icons.albums,
-      badge: "BETA",
+      badge: "NEW",
       children: [
         { id: "escolar-instituciones", label: "Instituciones", path: "/fotografo/escuelas" },
         { id: "escolar-pedidos", label: "Pedidos escolares", path: "/fotografo/escuelas/pedidos" },
         { id: "escolar-disenos", label: "Diseños escolares", path: "/dashboard/designs" },
-        { id: "escolar-revisiones", label: "Revisiones", path: "/dashboard/design-projects" },
+        { id: "escolar-landing", label: "Mi landing escolar", path: "/fotografo/escuelas/landing" },
+      ],
+    },
+    {
+      id: "agencias",
+      label: "Agencias",
+      path: "/fotografo/agencias",
+      icon: icons.events ?? icons.albums,
+      badge: "NEW",
+      children: AGENCY_SECTIONS.map((s) => ({ id: `agencias-${s.id}`, label: s.label, path: s.path })),
+    },
+    {
+      id: "disenos",
+      label: "Diseños",
+      path: "/fotografo/disenos",
+      icon: icons.design ?? icons.albums,
+      children: [
+        { id: "disenos-revisar", label: "Para revisar", path: "/fotografo/disenos" },
+        { id: "disenos-plantillas", label: "Mis plantillas", path: "/fotografo/diseno/plantillas/v2" },
       ],
     },
     {

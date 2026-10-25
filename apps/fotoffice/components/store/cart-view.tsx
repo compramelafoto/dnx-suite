@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Minus, Plus, Trash2 } from "lucide-react";
-import { lineKey } from "@/lib/store/cart";
+import { cartLineDetail, cartLineHref, cartLineName, lineKey, maxQtyForLine } from "@/lib/store/cart";
 import { STORE_PUBLIC_SEGMENT } from "@/lib/store/constants";
 import { useCart } from "./cart-provider";
 import { useCartRevalidation } from "./use-cart-revalidation";
@@ -68,26 +68,29 @@ export function CartView({
       <ul className="divide-y divide-[var(--fo-border)] border-y border-[var(--fo-border)]">
         {state.lines.map((l) => {
           const key = lineKey(l);
-          const max = maxPorLinea[key] ?? 99;
+          const max = maxPorLinea[key] ?? maxQtyForLine(l);
+          const nombre = cartLineName(l);
+          const detalle = cartLineDetail(l);
+          const href = cartLineHref(base, l);
           return (
             <li key={key} className="flex gap-3 py-4 sm:gap-4">
               <Link
-                href={`${base}/${l.slug}`}
+                href={href}
                 className="h-20 w-20 shrink-0 overflow-hidden rounded-[var(--fo-radius-sm)] border border-[var(--fo-border)]"
                 style={{ backgroundColor: "color-mix(in srgb, var(--fo-text) 5%, transparent)" }}
               >
                 {l.imageUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={l.imageUrl} alt={l.name} className="h-full w-full object-cover" />
+                  <img src={l.imageUrl} alt={nombre} className="h-full w-full object-cover" />
                 ) : null}
               </Link>
               <div className="flex min-w-0 flex-1 flex-col gap-2">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <Link href={`${base}/${l.slug}`} className="line-clamp-2 text-sm font-medium hover:underline">
-                      {l.name}
+                    <Link href={href} className="line-clamp-2 text-sm font-medium hover:underline">
+                      {nombre}
                     </Link>
-                    {l.variantName ? <p className="text-xs text-[var(--fo-muted)]">Talle {l.variantName}</p> : null}
+                    {detalle ? <p className="text-xs text-[var(--fo-muted)]">{detalle}</p> : null}
                     <Price minor={l.unitPriceMinor} className="text-xs text-[var(--fo-muted)]" />
                   </div>
                   <Price minor={l.unitPriceMinor * l.qty} className="shrink-0 text-sm font-semibold" />
@@ -96,7 +99,7 @@ export function CartView({
                   <div
                     className="inline-flex items-center rounded-[var(--fo-radius-sm)] border border-[var(--fo-border-strong)]"
                     role="group"
-                    aria-label={`Cantidad de ${l.name}`}
+                    aria-label={`Cantidad de ${nombre}`}
                   >
                     <button
                       type="button"

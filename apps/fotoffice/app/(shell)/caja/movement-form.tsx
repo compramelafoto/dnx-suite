@@ -1,5 +1,6 @@
 "use client";
 
+import { InputMoneda } from "@/components/campos/input-moneda";
 import { useState } from "react";
 import { createMovementAction } from "./actions";
 import { MOVEMENT_KINDS, PAYMENT_METHODS, type MovementKind, type PaymentMethod } from "@/lib/cash/constants";
@@ -41,11 +42,14 @@ export function MovementForm({
   categories,
   clients,
   returnTo,
+  projects = [],
 }: {
   accounts: CashAccountRow[];
   categories: CashCategoryRow[];
   clients: ClientRow[];
   returnTo?: string;
+  /** Proyectos de la comisión a los que se puede imputar (sólo quien maneja su plata los recibe). */
+  projects?: { id: string; title: string }[];
 }) {
   const [kind, setKind] = useState<MovementKind>("INGRESO");
   const categoriasDelLado = categories.filter((c) => c.kind === kind);
@@ -93,7 +97,7 @@ export function MovementForm({
           <label className="fo-label" htmlFor="mov-amount">
             Importe
           </label>
-          <input id="mov-amount" name="amountArs" className="fo-input" placeholder="5.000" required />
+          <InputMoneda id="mov-amount" name="amountArs" placeholder="5.000" required />
         </div>
         <div className="fo-field-stack">
           <label className="fo-label" htmlFor="mov-category">
@@ -120,19 +124,23 @@ export function MovementForm({
             ))}
           </select>
         </div>
-        <div className="fo-field-stack">
-          <label className="fo-label" htmlFor="mov-client">
-            Cliente
-          </label>
-          <select id="mov-client" name="clientId" className="fo-input" defaultValue="">
-            <option value="">Sin cliente</option>
-            {clients.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.displayName}
-              </option>
-            ))}
-          </select>
-        </div>
+        {/* El cliente es de los ingresos (le suma puntos del Club). En un gasto no va: ahí
+            lo que importa es a quién se le pagó, que por ahora se escribe en la descripción. */}
+        {kind === "INGRESO" ? (
+          <div className="fo-field-stack">
+            <label className="fo-label" htmlFor="mov-client">
+              Cliente
+            </label>
+            <select id="mov-client" name="clientId" className="fo-input" defaultValue="">
+              <option value="">Sin cliente</option>
+              {clients.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.displayName}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : null}
         <div className="fo-field-stack">
           <label className="fo-label" htmlFor="mov-receipt">
             Comprobante
@@ -141,11 +149,34 @@ export function MovementForm({
         </div>
       </div>
 
+      {projects.length > 0 ? (
+        <div className="fo-field-stack">
+          <label className="fo-label" htmlFor="mov-project">
+            Proyecto de la comisión (opcional)
+          </label>
+          <select id="mov-project" name="govProjectId" className="fo-input" defaultValue="">
+            <option value="">Ninguno</option>
+            {projects.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.title}
+              </option>
+            ))}
+          </select>
+          <p className="fo-helper">Si es un gasto o un ingreso de un proyecto, queda sumado en sus números.</p>
+        </div>
+      ) : null}
+
       <div className="fo-field-stack">
         <label className="fo-label" htmlFor="mov-description">
           Descripción
         </label>
-        <input id="mov-description" name="description" className="fo-input" placeholder="De qué se trata" required />
+        <input
+          id="mov-description"
+          name="description"
+          className="fo-input"
+          placeholder={kind === "EGRESO" ? "Qué se pagó y a quién (ej.: resmas — Papelería Norte)" : "De qué se trata"}
+          required
+        />
       </div>
 
       <div className="fo-form-actions">

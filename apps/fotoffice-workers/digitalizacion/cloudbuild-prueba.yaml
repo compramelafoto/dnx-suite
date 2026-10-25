@@ -1,0 +1,39 @@
+# Construye la imagen y corre las pruebas de punta a punta DENTRO de ella (Linux, ffmpeg 5.1 de Debian).
+# No usa base, R2 ni variables de entorno: todo es falso y queda en /tmp del contenedor.
+# Desde la raíz del monorepo:
+#   gcloud builds submit --config apps/fotoffice-workers/digitalizacion/cloudbuild-prueba.yaml --project dnx-video-worker .
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -f
+      - apps/fotoffice-workers/digitalizacion/Dockerfile
+      - -t
+      - digitalizacion-prueba
+      - .
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - run
+      - --rm
+      - -e
+      - UV_THREADPOOL_SIZE=16
+      - --entrypoint
+      - pnpm
+      - digitalizacion-prueba
+      - exec
+      - tsx
+      - scripts/prueba-local.ts
+  # Grabaciones sin pista de audio (DVD mudo, capturadora sin sonido) con el ffmpeg 5.1 de la imagen.
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - run
+      - --rm
+      - -e
+      - UV_THREADPOOL_SIZE=16
+      - --entrypoint
+      - pnpm
+      - digitalizacion-prueba
+      - exec
+      - tsx
+      - scripts/prueba-sin-audio.ts
+timeout: 3600s

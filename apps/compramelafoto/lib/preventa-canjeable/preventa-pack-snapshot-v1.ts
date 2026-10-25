@@ -37,6 +37,8 @@ export type PreventaPackSnapshotBenefitV1 = {
   photographerProductId: number | null;
   templatePolicy: string;
   templateId: number | null;
+  /** Plantilla del diseñador nuevo que arma el diseño al canjear. */
+  templateV2Id?: string | null;
   extraUnitPriceOverrideArs: number | null;
   regularUnitPriceAfterPreventaArs: number | null;
   sortOrder: number;
@@ -46,6 +48,13 @@ export type PreventaPackSnapshotBenefitV1 = {
   kindLabel: string;
   /** Texto largo para UI cliente / soporte */
   summary: string;
+  /**
+   * Impreso que trae además el digital de las mismas fotos (p. ej. "librito + su digital" de
+   * una preventa cobrada por fuera). Al canjear se agrega la línea digital de cada foto.
+   */
+  includesDigital?: boolean;
+  /** Boceto que ve la familia mientras elige (p. ej. cómo queda el librito). Sólo https. */
+  previewImageUrl?: string | null;
 };
 
 export type PreventaPackSnapshotV1 = {
@@ -132,6 +141,7 @@ export function buildPreventaPackSnapshotV1(
       photographerProductId: b.photographerProductId ?? null,
       templatePolicy: b.templatePolicy,
       templateId: b.templateId ?? null,
+      templateV2Id: b.templateV2Id ?? null,
       extraUnitPriceOverrideArs: b.extraUnitPriceOverrideArs ?? null,
       regularUnitPriceAfterPreventaArs: b.regularUnitPriceAfterPreventaArs ?? null,
       sortOrder: b.sortOrder,
@@ -166,6 +176,7 @@ export function scalePreventaPackSnapshotV1ByPackQuantity(
         photographerProductId: b.photographerProductId,
         templatePolicy: b.templatePolicy as BenefitTemplatePolicy,
         templateId: b.templateId,
+        templateV2Id: b.templateV2Id ?? null,
         extraUnitPriceOverrideArs: b.extraUnitPriceOverrideArs,
         regularUnitPriceAfterPreventaArs: b.regularUnitPriceAfterPreventaArs,
         requiredPhotoCount: b.requiredPhotoCount,
@@ -240,6 +251,7 @@ function enrichBenefitHumanFields(
     photographerProductId: b.photographerProductId,
     templatePolicy: b.templatePolicy,
     templateId: b.templateId,
+    templateV2Id: b.templateV2Id ?? null,
     extraUnitPriceOverrideArs: b.extraUnitPriceOverrideArs,
     regularUnitPriceAfterPreventaArs: b.regularUnitPriceAfterPreventaArs,
     requiredPhotoCount: b.requiredPhotoCount,
@@ -351,6 +363,8 @@ export function parsePreventaPackSnapshotV1(raw: unknown): PreventaPackSnapshotV
       templatePolicy: expectString("templatePolicy", b.templatePolicy),
       templateId:
         b.templateId == null ? null : expectInt("templateId", b.templateId, { min: 1 }),
+      templateV2Id:
+        typeof b.templateV2Id === "string" && b.templateV2Id.trim() ? b.templateV2Id.trim() : null,
       extraUnitPriceOverrideArs:
         b.extraUnitPriceOverrideArs == null
           ? null
@@ -368,6 +382,11 @@ export function parsePreventaPackSnapshotV1(raw: unknown): PreventaPackSnapshotV
       description: b.description as string | null | undefined,
       kindLabel: typeof b.kindLabel === "string" ? b.kindLabel : undefined,
       summary: typeof b.summary === "string" ? b.summary : undefined,
+      includesDigital: b.includesDigital === true,
+      previewImageUrl:
+        typeof b.previewImageUrl === "string" && /^https:\/\/\S+$/.test(b.previewImageUrl.trim())
+          ? b.previewImageUrl.trim()
+          : null,
     };
     benefits.push(enrichBenefitHumanFields(packDefinitionId, technical));
   }
@@ -397,6 +416,11 @@ export type RedeemUnitSelectionInput = {
   benefitStableKey: string;
   /** Por beneficio: una fila por unidad incluida; cada fila son photoIds de esa unidad */
   units: number[][];
+  /**
+   * Cómo acomodó la familia cada foto en la vista del librito, alineado con `units`. Opcional:
+   * sin esto el diseño arranca con las fotos centradas.
+   */
+  crops?: Array<Array<{ zoom: number; x: number; y: number } | null>>;
 };
 
 export class PreventaPackRedeemValidationError extends Error {

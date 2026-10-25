@@ -1,3 +1,4 @@
+import { PRINT_ORDERS_MODULE_KEY } from "@/lib/impresiones/constantes";
 import { describe, expect, it } from "vitest";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 import { EVALUACIONES_MODULE_KEY } from "@/lib/evaluaciones/constants";
@@ -6,15 +7,22 @@ import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
 import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
 import { MEMBERSHIP_DUES_MODULE_KEY } from "@/lib/membership/constants";
 import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
+import { SPONSORS_MODULE_KEY } from "@/lib/sponsors/constants";
 import { WEBSITE_MODULE_KEY } from "@/lib/website/constants";
 import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
 import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
 import { CASH_MODULE_KEY } from "@/lib/cash/constants";
 import { PORTFOLIO_MODULE_KEY } from "@/lib/portfolio/constants";
+import { BANDEJA_MODULE_KEY } from "@/lib/bandeja/constantes";
 import { COMMUNICATIONS_MODULE_KEY } from "@/lib/communications/constants";
+import { DIGITALIZACION_MODULE_KEY } from "@/lib/digitalizacion/constants";
 import { SALES_MODULE_KEY } from "@/lib/sales/constants";
 import { STORE_MODULE_KEY } from "@/lib/store/constants";
+import { GOVERNANCE_MODULE_KEY } from "@/lib/governance/constants";
+import { CUANTO_COBRO_SOCIO_MODULE_KEY } from "@/lib/cuanto-cobro-socio/constants";
+import { FOTOLIBROS_SOCIO_MODULE_KEY } from "@/lib/fotolibro/constantes";
 import {
+  FAMILY_LABELS,
   MODULE_REGISTRY,
   findDuplicateModuleKeys,
   getModuleDefinition,
@@ -37,7 +45,7 @@ describe("MODULE_REGISTRY", () => {
     }
   });
 
-  it("los módulos AVAILABLE hoy son exactamente courses-sales, evaluaciones, website, reservas, coberturas, members, membership-dues, sorteos, portfolios, caja, clientes, captación, ventas, comunicación y tienda online", () => {
+  it("los módulos AVAILABLE hoy son exactamente courses-sales, evaluaciones, website, reservas, coberturas, members, membership-dues, sorteos, sponsors, portfolios, caja, clientes, captación, ventas, comunicación, tienda online, proyectos de la comisión, ¿Cuánto Cobro? para socios, fotolibros para socios, presupuestos, pedidos, proyectos, agenda, contratos, informes, digitalización, galería y pedidos de impresión", () => {
     expect(listAvailableModuleKeys().sort()).toEqual(
       [
         COURSES_SALES_MODULE_KEY,
@@ -48,13 +56,27 @@ describe("MODULE_REGISTRY", () => {
         MEMBERS_MODULE_KEY,
         MEMBERSHIP_DUES_MODULE_KEY,
         RAFFLES_MODULE_KEY,
+        SPONSORS_MODULE_KEY,
         PORTFOLIO_MODULE_KEY,
         CASH_MODULE_KEY,
         CLIENTS_MODULE_KEY,
         SERVICE_LEADS_MODULE_KEY,
         SALES_MODULE_KEY,
         COMMUNICATIONS_MODULE_KEY,
+        DIGITALIZACION_MODULE_KEY,
         STORE_MODULE_KEY,
+        GOVERNANCE_MODULE_KEY,
+        CUANTO_COBRO_SOCIO_MODULE_KEY,
+        FOTOLIBROS_SOCIO_MODULE_KEY,
+        "quotes",
+        "orders",
+        "projects",
+        "agenda",
+        "contracts",
+        "reports",
+        "gallery",
+        PRINT_ORDERS_MODULE_KEY,
+        BANDEJA_MODULE_KEY,
       ].sort(),
     );
   });
@@ -111,6 +133,20 @@ describe("sorteos", () => {
   });
 });
 
+describe("familias y dependencias (0.1)", () => {
+  it("todo módulo tiene familia con etiqueta", () => {
+    for (const m of MODULE_REGISTRY) expect(FAMILY_LABELS[m.family]).toBeTruthy();
+  });
+  it("dependsOn apunta a claves existentes", () => {
+    for (const m of MODULE_REGISTRY) for (const d of m.dependsOn ?? []) expect(getModuleDefinition(d)).toBeDefined();
+  });
+  it("los módulos con comisión son exactamente cuotas, reservas, digitalización y cursos", () => {
+    expect(MODULE_REGISTRY.filter((m) => m.platformFee).map((m) => m.key).sort()).toEqual(
+      ["bookings", "courses-sales", "digitalizacion", "membership-dues"],
+    );
+  });
+});
+
 describe("portfolios", () => {
   it("está en el catálogo, disponible, con su ruta y en el grupo institucional", () => {
     const def = getModuleDefinition(PORTFOLIO_MODULE_KEY);
@@ -136,5 +172,30 @@ describe("tienda online", () => {
     expect(tienda?.status).toBe("AVAILABLE");
     expect(tienda?.description).toContain("Ventas");
     expect(tienda?.description).toContain("Sitio web");
+  });
+});
+
+describe("presupuestos (etapa 2)", () => {
+  it("figura disponible, con su ruta, en Negocio y dependiendo de Consultas", () => {
+    const m = getModuleDefinition("quotes");
+    expect(m?.status).toBe("AVAILABLE");
+    expect(m?.label).toBe("Presupuestos");
+    expect(m?.route).toBe("/presupuestos");
+    expect(m?.family).toBe("negocio");
+    expect(m?.dependsOn).toEqual([SERVICE_LEADS_MODULE_KEY]);
+    // Sin comisión: lo enciende el administrador de la plataforma desde Módulos, como el resto.
+    expect(m?.platformFee).toBeUndefined();
+  });
+});
+
+describe("pedidos (etapa 3)", () => {
+  it("figura disponible, con su ruta, en Negocio y dependiendo de Presupuestos", () => {
+    const m = getModuleDefinition("orders");
+    expect(m?.status).toBe("AVAILABLE");
+    expect(m?.label).toBe("Pedidos");
+    expect(m?.route).toBe("/pedidos");
+    expect(m?.family).toBe("negocio");
+    expect(m?.dependsOn).toEqual(["quotes"]);
+    expect(m?.platformFee).toBeUndefined();
   });
 });

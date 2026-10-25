@@ -1,10 +1,7 @@
 "use client";
 
-import { usePathname } from "next/navigation";
-import { LogOut, Repeat } from "lucide-react";
-import { switchWorkspaceAction } from "@/app/actions/workspace";
-import { fotofficeLogoutAction } from "@/app/actions/auth";
-import { switchProfileAction } from "@/app/actions/profile-choice";
+import type { AccountMenu as AccountMenuData, RoleSelector as RoleSelectorData } from "@/lib/portal/profiles";
+import { AccountMenu } from "./account-menu";
 import { NavToggle } from "./nav-toggle";
 import { useShellNav } from "./shell-frame";
 
@@ -13,6 +10,7 @@ const ROLES: Record<string, string> = {
   WORKSPACE_OWNER: "Dueño",
   WORKSPACE_ADMIN: "Administrador",
   STAFF: "Equipo",
+  COLLABORATOR: "Colaborador",
 };
 
 /**
@@ -28,7 +26,8 @@ export function ShellHeader({
   userAvatarUrl,
   workspaceRole,
   workspaceLogoUrl,
-  canSwitchProfile,
+  menu,
+  roleSelector,
   memberships,
   activeWorkspaceId,
 }: {
@@ -37,23 +36,16 @@ export function ShellHeader({
   userAvatarUrl: string | null;
   workspaceRole: string | null;
   workspaceLogoUrl: string | null;
-  canSwitchProfile: boolean;
+  menu: AccountMenuData;
+  roleSelector: RoleSelectorData | null;
   memberships: { workspaceId: string; name: string }[];
   activeWorkspaceId: string | null;
 }) {
-  const pathname = usePathname() ?? "/workspace";
   // Con el menú oculto el encabezado también se ensancha: si quedara centrado en 6xl, el
   // contenido de abajo ocuparía toda la pantalla y el de arriba no, y se vería torcido.
   const { hidden } = useShellNav();
   const activa = memberships.find((m) => m.workspaceId === activeWorkspaceId) ?? memberships[0];
-  const otras = memberships.filter((m) => m.workspaceId !== activa?.workspaceId);
   const nombre = userName || userEmail;
-  const iniciales = nombre
-    .split(/[\s@.]+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((p) => p[0]?.toUpperCase() ?? "")
-    .join("");
 
   return (
     <header className="sticky top-0 z-30 border-b border-[var(--fo-border)] bg-[var(--fo-bg-elevated)]/90 px-4 py-3 backdrop-blur-md md:px-8">
@@ -82,22 +74,6 @@ export function ShellHeader({
             ) : (
               <p className="text-sm text-[var(--fo-muted)]">Sin institución asignada</p>
             )}
-            {otras.length > 0 ? (
-              <div className="mt-1 flex flex-wrap gap-1.5">
-                {otras.map((m) => (
-                  <form key={m.workspaceId} action={switchWorkspaceAction}>
-                    <input type="hidden" name="workspaceId" value={m.workspaceId} />
-                    <input type="hidden" name="next" value={pathname} />
-                    <button
-                      type="submit"
-                      className="rounded-full border border-[var(--fo-border)] px-2 py-0.5 text-xs text-[var(--fo-muted)] hover:border-[var(--fo-accent)] hover:text-[var(--fo-text)]"
-                    >
-                      Ir a {m.name}
-                    </button>
-                  </form>
-                ))}
-              </div>
-            ) : null}
           </div>
         </div>
 
@@ -109,43 +85,13 @@ export function ShellHeader({
               {userEmail}
             </p>
           </div>
-          {userAvatarUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element -- la foto vive en R2
-            <img
-              src={userAvatarUrl}
-              alt=""
-              className="size-10 shrink-0 rounded-full border border-[var(--fo-border)] object-cover"
-            />
-          ) : (
-            <span
-              aria-hidden
-              className="grid size-10 shrink-0 place-items-center rounded-full bg-[var(--fo-accent-soft)] text-sm font-semibold text-[var(--fo-accent-hover)]"
-            >
-              {iniciales || "·"}
-            </span>
-          )}
-          {canSwitchProfile ? (
-            <form action={switchProfileAction}>
-              <button
-                type="submit"
-                className="inline-flex size-10 items-center justify-center rounded-full border border-[var(--fo-border)] text-[var(--fo-muted)] hover:border-[var(--fo-accent)] hover:text-[var(--fo-text)]"
-                aria-label="Cambiar de perfil"
-                title="Cambiar de perfil"
-              >
-                <Repeat className="size-4" aria-hidden />
-              </button>
-            </form>
-          ) : null}
-          <form action={fotofficeLogoutAction}>
-            <button
-              type="submit"
-              className="inline-flex size-10 items-center justify-center rounded-full border border-[var(--fo-border)] text-[var(--fo-muted)] hover:border-[var(--fo-danger-border)] hover:text-[var(--fo-danger)] md:w-auto md:gap-2 md:px-4"
-              aria-label="Cerrar sesión"
-            >
-              <LogOut className="size-4" aria-hidden />
-              <span className="hidden text-sm md:inline">Salir</span>
-            </button>
-          </form>
+          <AccountMenu
+            userName={userName}
+            userEmail={userEmail}
+            userAvatarUrl={userAvatarUrl}
+            menu={menu}
+            roleSelector={roleSelector}
+          />
         </div>
       </div>
     </header>

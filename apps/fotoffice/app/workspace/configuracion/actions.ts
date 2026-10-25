@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { loadWorkspaceSender } from "@/lib/communications/load-workspace-sender";
 import { prisma } from "@repo/db";
 import { requireAuth } from "@/lib/auth";
 import { requireOwnWorkspace } from "@/lib/entrada/require-own-workspace";
@@ -90,7 +91,13 @@ export async function sendTestEmailAction(
     sentAt: new Date(),
   });
 
-  const outcome = await sendTransactionalEmail({ to, subject, html, text });
+  const outcome = await sendTransactionalEmail({
+    to,
+    subject,
+    html,
+    text,
+    sender: await loadWorkspaceSender(ensured.workspaceId),
+  });
 
   await recordTestEmailAttempt({
     userId: user.id,
@@ -128,6 +135,8 @@ export async function updateWorkspaceSettingsAction(
   const phone = formData.get("phone")?.toString()?.trim() || null;
   const whatsapp = formData.get("whatsapp")?.toString()?.trim() || null;
   const city = formData.get("city")?.toString()?.trim() || null;
+  const atencionDireccion = formData.get("atencionDireccion")?.toString()?.trim().slice(0, 300) || null;
+  const atencionHorario = formData.get("atencionHorario")?.toString()?.trim().slice(0, 300) || null;
   const province = formData.get("province")?.toString()?.trim() || null;
   const country = formData.get("country")?.toString()?.trim() || null;
   const website = formData.get("website")?.toString()?.trim() || null;
@@ -178,6 +187,8 @@ export async function updateWorkspaceSettingsAction(
       phone,
       whatsapp,
       city,
+      atencionDireccion,
+      atencionHorario,
       province,
       country,
       website,

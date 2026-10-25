@@ -7,7 +7,8 @@ import { getPlatformFeePercent } from "@/lib/pricing/print-pricing";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// GET: Precios públicos. ?photographerId=X, ?handler=slug (fotógrafo) o ?labId=X (laboratorio landing)
+// GET: Precios públicos. ?photographerId=X, ?handler=slug (fotógrafo) o ?labId=X (laboratorio landing).
+// ?albumId=X: el catálogo de la galería de ese álbum (sus productos propios, si tiene).
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
@@ -71,7 +72,9 @@ export async function GET(req: Request) {
       resolvedPhotographerId = photographer.id;
     }
 
-    const pricing = await getPhotographerPricing(resolvedPhotographerId);
+    const albumIdParam = Number(searchParams.get("albumId"));
+    const albumId = Number.isInteger(albumIdParam) && albumIdParam > 0 ? albumIdParam : null;
+    const pricing = await getPhotographerPricing(resolvedPhotographerId, albumId);
     const platformCommissionPercent = await resolvePlatformCommissionPercent({
       photographerId: pricing.photographerId ?? photographerId,
     });

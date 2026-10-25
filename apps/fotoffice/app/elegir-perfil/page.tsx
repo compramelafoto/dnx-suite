@@ -5,6 +5,7 @@ import { findClaimableMembership } from "@/lib/portal/claim";
 import { tieneCursos } from "@/lib/course-classroom/alumno";
 import {
   entryProfileForInstitution,
+  hasOwnBusiness,
   institutionChoices,
   listUserProfiles,
   profileDestination,
@@ -57,7 +58,7 @@ export default async function ChooseProfilePage() {
     institutions.map((i) => (i.memberNumber ? loadPersonVocabulary(i.workspaceId) : null)),
   );
   const conCursos = await tieneCursos(user.id);
-  const hasBusiness = profiles.some((p) => p.kind === "TEAM");
+  const hasBusiness = hasOwnBusiness(profiles);
 
   return (
     <div className="min-h-screen bg-[var(--fo-bg)] text-[var(--fo-text)]">
@@ -80,11 +81,7 @@ export default async function ChooseProfilePage() {
                   institution.memberNumber && vocabulary
                     ? `${vocabulary.Singular} N° ${institution.memberNumber}`
                     : null,
-                  team?.kind === "TEAM"
-                    ? team.role === "STAFF"
-                      ? "Comisión"
-                      : "Administración"
-                    : null,
+                  team?.kind === "TEAM" ? "Comisión Directiva" : null,
                 ]
                   .filter(Boolean)
                   .join(" · ");

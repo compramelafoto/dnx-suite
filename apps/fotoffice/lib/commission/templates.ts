@@ -32,7 +32,7 @@ export const ROLE_TEMPLATES: readonly RoleTemplate[] = [
   {
     key: "president",
     name: "Presidencia",
-    description: "Ve todo y conduce proyectos y reuniones. No carga plata.",
+    description: "Ve todo y conduce proyectos y reuniones. No carga dinero.",
     permissions: [
       { moduleKey: "members", level: V },
       { moduleKey: "membership-dues", level: V },
@@ -61,7 +61,7 @@ export const ROLE_TEMPLATES: readonly RoleTemplate[] = [
   {
     key: "treasury",
     name: "Tesorería",
-    description: "Cuotas, Caja y la plata de los proyectos.",
+    description: "Cuotas, Caja y el dinero de los proyectos.",
     permissions: [
       { moduleKey: "members", level: V },
       { moduleKey: "membership-dues", level: M },
@@ -72,7 +72,7 @@ export const ROLE_TEMPLATES: readonly RoleTemplate[] = [
   {
     key: "auditor",
     name: "Revisor de cuentas",
-    description: "Órgano fiscalizador: sólo lectura de la plata y de los proyectos.",
+    description: "Órgano fiscalizador: sólo lectura del dinero y de los proyectos.",
     permissions: [
       { moduleKey: "membership-dues", level: V },
       { moduleKey: "cash", level: V },
@@ -83,7 +83,7 @@ export const ROLE_TEMPLATES: readonly RoleTemplate[] = [
   {
     key: "communication",
     name: "Comunicación",
-    description: "Sitio, blog y correos. Ve la ficha y las redes de los socios; nunca la plata.",
+    description: "Sitio, blog y correos. Ve la ficha y las redes de los socios; nunca el dinero.",
     permissions: [
       { moduleKey: "website", level: M },
       { moduleKey: "communications", level: M },

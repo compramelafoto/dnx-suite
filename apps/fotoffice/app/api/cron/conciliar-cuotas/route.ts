@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { reconcilePendingDues } from "@/lib/membership/reconcile";
+import { cleanupAbandonedRenewals } from "@/lib/membership/enrollment-store";
 import { isAuthorizedCronRequest } from "@/lib/security/cron-auth";
 import { sanitizeError } from "@/lib/payments/connect/log";
 
@@ -25,7 +26,10 @@ export async function POST(request: Request) {
   }
   try {
     const reporte = await reconcilePendingDues();
-    return NextResponse.json({ ok: true, ...reporte });
+    // Después de conciliar: un pago que acaba de acreditarse ya imputó su renovación y no se
+    // borra. Las que siguen intactas a los 3 días se borran para que no queden como deuda.
+    const renovacionesBorradas = await cleanupAbandonedRenewals();
+    return NextResponse.json({ ok: true, ...reporte, renovacionesBorradas });
   } catch (error) {
     console.error("[fotoffice][conciliacion] fallo la corrida", {
       detalle: sanitizeError(error),

@@ -1,3 +1,4 @@
+import { ImporteConContador } from "@/components/campos/contador-billetes";
 import { formatMinorArs } from "@/lib/membership/money";
 import type { OpenShiftRow } from "@/lib/cash/repository";
 import { closeShiftAction } from "./actions";
@@ -19,41 +20,46 @@ export function ShiftBlock({
   canOperate: boolean;
 }) {
   return (
-    <div className="space-y-3 rounded-[var(--fo-radius)] border border-[var(--fo-border)] bg-[var(--fo-bg-elevated)] p-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--fo-muted-soft)]">Turno abierto</p>
-          <p className="text-sm text-[var(--fo-muted)]">
-            Desde el {shift.openedAt.toLocaleString("es-AR")} con {formatMinorArs(shift.openingAmountMinor)} de
-            fondo inicial.
-          </p>
-        </div>
-        <div className="text-right">
-          <p className="text-xs uppercase tracking-wide text-[var(--fo-muted-soft)]">Esperado</p>
-          <p className="text-lg font-semibold">{formatMinorArs(expectedMinor)}</p>
-        </div>
+    <div className="space-y-4 rounded-[var(--fo-radius)] border border-[var(--fo-border)] bg-[var(--fo-bg-elevated)] p-4">
+      <div className="space-y-1">
+        <p className="text-xs font-semibold uppercase tracking-wide text-[var(--fo-muted-soft)]">Turno abierto</p>
+        {/* Hora argentina explícita: esto se arma en el servidor, que corre en UTC. */}
+        <p className="text-sm text-[var(--fo-muted)]">
+          Desde el{" "}
+          {shift.openedAt.toLocaleString("es-AR", {
+            timeZone: "America/Argentina/Buenos_Aires",
+            dateStyle: "short",
+            timeStyle: "short",
+          })}{" "}
+          con {formatMinorArs(shift.openingAmountMinor)} de fondo inicial.
+        </p>
       </div>
 
+      <div className="flex items-baseline justify-between gap-3 border-t border-[var(--fo-border)] pt-3">
+        <p className="text-sm text-[var(--fo-muted)]">Debería haber</p>
+        <p className="text-lg font-semibold tabular-nums">{formatMinorArs(expectedMinor)}</p>
+      </div>
+
+      {/* La tarjeta vive en una columna angosta del panorama: los campos van uno debajo del
+          otro y a lo ancho. En tres columnas, las etiquetas se partían palabra por palabra. */}
       {canOperate ? (
-        <form action={closeShiftAction} className="grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
+        <form action={closeShiftAction} className="space-y-3">
           <input type="hidden" name="shiftId" value={shift.id} />
           <div className="fo-field-stack">
             <label className="fo-label" htmlFor={`contado-${shift.id}`}>
               Cuánto contaste
             </label>
-            <input id={`contado-${shift.id}`} name="countedAmountArs" className="fo-input" placeholder="47.300" required />
+            <ImporteConContador id={`contado-${shift.id}`} name="countedAmountArs" placeholder="47.300" required />
           </div>
           <div className="fo-field-stack">
             <label className="fo-label" htmlFor={`diferencia-${shift.id}`}>
               Si no cuadra, explicá por qué
             </label>
-            <input id={`diferencia-${shift.id}`} name="differenceNote" className="fo-input" placeholder="Vuelto de más" />
+            <input id={`diferencia-${shift.id}`} name="differenceNote" className="fo-input" placeholder="Ej.: vuelto de más" />
           </div>
-          <div className="self-end">
-            <button type="submit" className="fo-btn fo-btn-primary text-sm">
-              Cerrar turno
-            </button>
-          </div>
+          <button type="submit" className="fo-btn fo-btn-primary w-full text-sm">
+            Cerrar turno
+          </button>
         </form>
       ) : null}
     </div>

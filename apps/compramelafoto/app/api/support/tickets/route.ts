@@ -3,6 +3,7 @@ import { prisma, Role } from "@/lib/prisma";
 import { getAuthUser } from "@/lib/auth";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { buildUserTicketsWhere } from "@/lib/support/access";
+import { createSupportTicket } from "@/lib/support/create-ticket";
 import {
   sanitizeCreateTicketBody,
   toPublicSupportTicket,
@@ -98,33 +99,10 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Descripción vive en el ticket (UI la muestra aparte); mensajes son respuestas.
-    const ticket = await prisma.supportTicket.create({
-      data: {
-        printOrderId: data.printOrderId,
-        reason: data.reason,
-        description: data.description,
-        requesterName: data.requesterName,
-        requesterEmail: data.requesterEmail,
-        requesterPhone: data.requesterPhone,
-        requesterRole: data.requesterRole,
-        status: "OPEN",
-      },
-      select: { id: true, createdAt: true },
+    const ticket = await createSupportTicket({
+      data,
+      requesterLabel: `${data.requesterName || user.email} · ${user.email}`,
     });
-
-    try {
-      await prisma.adminSystemMessage.create({
-        data: {
-          type: `SUPPORT_TICKET_CREATED:${ticket.id}`,
-          title: "Nueva incidencia de soporte",
-          body: `Ticket #${ticket.id} · ${data.reason}\n${data.requesterName || user.email} · ${user.email}\n\n${data.description.slice(0, 280)}${data.description.length > 280 ? "…" : ""}`,
-          isRead: false,
-        },
-      });
-    } catch (notifyErr) {
-      console.error("[support-create] aviso admin no creado:", notifyErr);
-    }
 
     return NextResponse.json({
       success: true,

@@ -61,6 +61,11 @@ export function listBlogPosts(blog: PublicBlog, opts: { limit?: number; excludeI
   return listPublishedPosts({ ...blogScope(blog.workspaceId), order: ORDEN, limit: opts.limit ?? 60, excludeId: opts.excludeId });
 }
 
+/** Artículos elegidos uno por uno (las placas del banner). Solo vuelven los publicados. */
+export function listBlogPostsByIds(blog: PublicBlog, ids: number[]) {
+  return listPublishedPosts({ ...blogScope(blog.workspaceId), order: ORDEN, limit: ids.length, ids });
+}
+
 export function getBlogPost(blog: PublicBlog, slug: string) {
   return getPublishedPostBySlug({ ...blogScope(blog.workspaceId), slug });
 }

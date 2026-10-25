@@ -1,19 +1,31 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { findFirstMock, updateMock, createManyMock, transactionMock, eventMock, membersMock } =
-  vi.hoisted(() => ({
-    findFirstMock: vi.fn(),
-    updateMock: vi.fn(),
-    createManyMock: vi.fn(),
-    transactionMock: vi.fn(),
-    eventMock: vi.fn(),
-    membersMock: vi.fn(),
-  }));
+const {
+  findFirstMock,
+  updateMock,
+  createManyMock,
+  transactionMock,
+  eventMock,
+  membersMock,
+  settingsMock,
+  awardsMock,
+} = vi.hoisted(() => ({
+  findFirstMock: vi.fn(),
+  updateMock: vi.fn(),
+  createManyMock: vi.fn(),
+  transactionMock: vi.fn(),
+  eventMock: vi.fn(),
+  membersMock: vi.fn(),
+  settingsMock: vi.fn(),
+  awardsMock: vi.fn(),
+}));
 
 vi.mock("@repo/db", () => ({
   prisma: {
     raffle: { findFirst: findFirstMock, findMany: vi.fn(), update: updateMock },
     raffleEntry: { createMany: createManyMock },
+    raffleSettings: { findUnique: settingsMock },
+    rafflePrizeAward: { findMany: awardsMock },
     $transaction: transactionMock,
   },
   Prisma: {},
@@ -30,6 +42,11 @@ const sorteo = {
   id: "r-1",
   status: "ANUNCIADO",
   entriesCloseAt: CIERRE,
+  drawsAt: new Date("2026-09-30T23:00:00Z"),
+  prizes: [
+    { order: 1, commitmentId: "c-sensor", partnerId: "p-1", partnerNameSnapshot: "Tecnoflash", title: "Limpieza" },
+    { order: 2, commitmentId: "c-curso", partnerId: "p-2", partnerNameSnapshot: "Arte", title: "Curso" },
+  ],
   entrantsHash: null as string | null,
   entrantsCount: null as number | null,
   _count: { prizes: 2 },
@@ -51,6 +68,8 @@ beforeEach(() => {
   createManyMock.mockReset().mockResolvedValue({ count: 0 });
   eventMock.mockReset();
   membersMock.mockReset().mockResolvedValue([socio("m-1", "10"), socio("m-2", "20")]);
+  settingsMock.mockReset().mockResolvedValue(null);
+  awardsMock.mockReset().mockResolvedValue([]);
   transactionMock.mockReset().mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) =>
     fn({ raffle: { update: updateMock }, raffleEntry: { createMany: createManyMock } }),
   );
@@ -171,5 +190,57 @@ describe("sellar el padrón", () => {
   it("un sorteo de otra institución no existe para esta", async () => {
     findFirstMock.mockResolvedValue(null);
     expect((await sellar()).ok).toBe(false);
+  });
+});
+
+describe("sellar con la regla de no repetir premio", () => {
+  const AGOSTO = new Date("2026-08-30T23:00:00Z");
+  const ganoElSensor = {
+    memberId: "m-1",
+    prize: { commitmentId: "c-sensor", partnerId: "p-1", partnerNameSnapshot: "Tecnoflash", title: "Limpieza" },
+    raffle: { drawsAt: AGOSTO },
+  };
+
+  it("con la regla apagada no excluye a nadie y la huella es la de siempre", async () => {
+    awardsMock.mockResolvedValue([ganoElSensor]);
+    const r = await sellar();
+    const filas = createManyMock.mock.calls[0][0].data;
+    expect(filas.every((f: { excludedPrizeOrders: number[] }) => f.excludedPrizeOrders.length === 0)).toBe(true);
+    expect(awardsMock).not.toHaveBeenCalled();
+    expect(r.ok).toBe(true);
+  });
+
+  it("con la regla encendida, quien ganó un premio queda afuera sólo de ese premio", async () => {
+    settingsMock.mockResolvedValue({ samePrizeCooldownMonths: 6 });
+    awardsMock.mockResolvedValue([ganoElSensor]);
+    await sellar();
+    const filas = createManyMock.mock.calls[0][0].data;
+    expect(filas[0]).toMatchObject({ memberId: "m-1", excludedPrizeOrders: [1] });
+    expect(filas[1]).toMatchObject({ memberId: "m-2", excludedPrizeOrders: [] });
+  });
+
+  it("las exclusiones entran en la huella", async () => {
+    const sin = await sellar();
+    settingsMock.mockResolvedValue({ samePrizeCooldownMonths: 6 });
+    awardsMock.mockResolvedValue([ganoElSensor]);
+    const con = await sellar();
+    expect(sin.ok && con.ok).toBe(true);
+    if (sin.ok && con.ok) expect(con.entrantsHash).not.toBe(sin.entrantsHash);
+  });
+
+  it("no cuenta los premios anulados ni las victorias de otras instituciones", async () => {
+    settingsMock.mockResolvedValue({ samePrizeCooldownMonths: 6 });
+    await sellar();
+    const where = awardsMock.mock.calls[0][0].where;
+    expect(where.status).toEqual({ not: "ANULADO" });
+    expect(where.raffle.workspaceId).toBe("ws-1");
+    expect(where.raffle.id).toEqual({ not: "r-1" });
+  });
+
+  it("deja dicho en el registro cuántos quedaron afuera de algún premio", async () => {
+    settingsMock.mockResolvedValue({ samePrizeCooldownMonths: 6 });
+    awardsMock.mockResolvedValue([ganoElSensor]);
+    await sellar();
+    expect(eventMock.mock.calls[0][1].note).toMatch(/1 no puede repetir premio/);
   });
 });

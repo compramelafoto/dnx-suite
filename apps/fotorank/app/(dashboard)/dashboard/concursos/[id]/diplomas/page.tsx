@@ -5,8 +5,9 @@ import { resolveActiveOrganizationForUser } from "../../../../../lib/fotorank/da
 import { prisma } from "@repo/db";
 import { PageContainer } from "../../../../../components/PageContainer";
 import { routes } from "../../../../../lib/routes";
-import { ensureDefaultDiplomaTemplateAction } from "../../../../../actions/diplomas";
+import { ensureDefaultDiplomaTemplate } from "../../../../../lib/fotorank/diplomas/diplomaDesign";
 import { DiplomasContestPanel } from "./DiplomasContestPanel";
+import { readDiplomaDesignLink } from "../../../../../lib/fotorank/design/constants";
 
 export const dynamic = "force-dynamic";
 
@@ -36,21 +37,35 @@ export default async function ContestDiplomasPage({ params }: PageProps) {
   });
   if (!contest) notFound();
 
-  await ensureDefaultDiplomaTemplateAction(contest.id);
+  // Sólo la organización dueña crea el diploma por defecto (un super admin mirando no).
+  if (orgRes.ok && orgRes.org.id === contest.organizationId) {
+    await ensureDefaultDiplomaTemplate({
+      organizationId: contest.organizationId,
+      contestId: contest.id,
+      userId: user.id,
+    });
+  }
 
-  const templates = await prisma.fotorankDiplomaTemplate.findMany({
+  const filas = await prisma.fotorankDiplomaTemplate.findMany({
     where: { contestId: contest.id, organizationId: contest.organizationId },
     orderBy: { updatedAt: "desc" },
-    select: {
-      id: true,
-      name: true,
-      status: true,
-      layoutJson: true,
-      widthPt: true,
-      heightPt: true,
-      backgroundColor: true,
-      backgroundImageUrl: true,
+    select: { id: true, name: true, status: true, layoutJson: true, updatedAt: true },
+  });
+  // La vista previa se renueva cuando cambia el diseño, que se guarda en el diseñador y no en la fila.
+  const disenos = await prisma.templateV2.findMany({
+    where: {
+      id: {
+        in: filas
+          .map((f) => readDiplomaDesignLink(f.layoutJson)?.designTemplateId)
+          .filter((id): id is string => Boolean(id)),
+      },
     },
+    select: { id: true, updatedAt: true },
+  });
+  const disenoActualizado = new Map(disenos.map((d) => [d.id, d.updatedAt]));
+  const templates = filas.map((f) => {
+    const diseno = disenoActualizado.get(readDiplomaDesignLink(f.layoutJson)?.designTemplateId ?? "");
+    return { ...f, updatedAt: diseno && diseno > f.updatedAt ? diseno : f.updatedAt };
   });
 
   const categories = await prisma.fotorankContestCategory.findMany({

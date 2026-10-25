@@ -5,6 +5,8 @@ export type EntryErrorCode =
   | "REGISTRATION_NOT_CONFIRMED"
   | "ENTRY_NOT_FOUND"
   | "ENTRY_QUOTA_EXCEEDED"
+  /** La obra pide una categoría que el concurso no habilita para esta inscripción. */
+  | "CATEGORY_NOT_ALLOWED"
   | "UPLOAD_WINDOW_CLOSED"
   | "INVALID_FILE"
   | "PROCESSING_FAILED"

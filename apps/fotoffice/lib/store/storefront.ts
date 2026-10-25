@@ -2,7 +2,7 @@ import { decimalArsToMinor, formatMinorArs } from "@/lib/membership/money";
 import { availableQty, effectiveUnitPriceMinor } from "./availability";
 import { CART_MAX_QTY } from "./cart/constants";
 import { lineKey } from "./cart/line-key";
-import type { CartLine } from "./cart/types";
+import type { ArtworkCartLine, ProductCartLine } from "./cart/types";
 
 /**
  * Lo que ve el comprador en la tienda pública, armado a partir de las filas de la base. Módulo
@@ -71,8 +71,12 @@ export type StoreProductDetail = {
   soldOut: boolean;
 };
 
-/** Lo que llega para revalidar: del carrito (con precio y nombre) o del checkout (sin ellos). */
-export type CartLineInput = {
+/**
+ * Lo que llega para revalidar: del carrito (con precio y nombre) o del checkout (sin ellos).
+ * Sin `kind` es un producto (el checkout y los carritos de antes de las obras).
+ */
+export type ProductCartLineInput = {
+  kind?: "product";
   productId: string;
   variantId: string | null;
   qty: number;
@@ -80,14 +84,39 @@ export type CartLineInput = {
   name?: string;
 };
 
-/** Una línea que se puede comprar ahora, con los datos y el precio del servidor. */
-export type ValidatedLine = CartLine & {
+/** Una obra en un formato. Del navegador sólo valen el listing, el formato y la cantidad. */
+export type ArtworkCartLineInput = {
+  kind: "artwork";
+  artworkListingId: string;
+  printFormatId: string;
+  qty: number;
+  unitPriceMinor?: number;
+  name?: string;
+};
+
+export type CartLineInput = ProductCartLineInput | ArtworkCartLineInput;
+
+export function isArtworkLineInput(l: CartLineInput): l is ArtworkCartLineInput {
+  return l.kind === "artwork";
+}
+
+export function isProductLineInput(l: CartLineInput): l is ProductCartLineInput {
+  return l.kind !== "artwork";
+}
+
+type Revalidacion = {
   key: string;
   /** `null` = sin límite de stock. */
   available: number | null;
   /** Lo máximo que puede llevar esta línea (stock, máximo por compra y tope del carrito). */
   maxQty: number;
 };
+
+/** Una línea que se puede comprar ahora, con los datos y el precio del servidor. */
+export type ValidatedProductLine = ProductCartLine & Revalidacion;
+/** Una obra en un formato que se puede comprar ahora (las obras no tienen stock: `available` null). */
+export type ValidatedArtworkLine = ArtworkCartLine & Revalidacion & { available: null };
+export type ValidatedLine = ValidatedProductLine | ValidatedArtworkLine;
 
 export type CartProblem = { key: string; message: string };
 
@@ -208,7 +237,8 @@ export function maxAddableQty(input: {
 }
 
 /**
- * Revalida un carrito contra el catálogo público. No reserva nada: sólo dice qué se puede comprar
+ * Revalida los PRODUCTOS de un carrito contra el catálogo público (las obras las revalida
+ * `checkArtworkCartLines`, en `artworks/storefront.ts`). No reserva nada: sólo dice qué se puede comprar
  * ahora y qué cambió. Las líneas que no se pueden comprar se quitan; las que se pueden, salen con
  * el precio y los nombres del servidor y la cantidad acotada. Cada ajuste deja un aviso.
  *
@@ -216,12 +246,12 @@ export function maxAddableQty(input: {
  */
 export function checkCartLines(
   catalog: Map<string, StorefrontProductRow>,
-  input: CartLineInput[],
+  input: readonly ProductCartLineInput[],
   reserved: Map<string, number>,
-): { lines: ValidatedLine[]; problems: CartProblem[] } {
+): { lines: ValidatedProductLine[]; problems: CartProblem[] } {
   // Las repetidas se unen primero: validar dos veces la misma línea contaría el stock dos veces.
-  const unidas: CartLineInput[] = [];
-  const porClave = new Map<string, CartLineInput>();
+  const unidas: ProductCartLineInput[] = [];
+  const porClave = new Map<string, ProductCartLineInput>();
   for (const l of input) {
     const key = lineKey(l);
     const previa = porClave.get(key);
@@ -233,7 +263,7 @@ export function checkCartLines(
     }
   }
 
-  const lines: ValidatedLine[] = [];
+  const lines: ValidatedProductLine[] = [];
   const problems: CartProblem[] = [];
   const usadoPorProducto = new Map<string, number>();
 
@@ -305,6 +335,7 @@ export function checkCartLines(
 
     usadoPorProducto.set(row.id, usado + qty);
     lines.push({
+      kind: "product",
       key,
       productId: row.id,
       variantId: l.variantId,

@@ -5,7 +5,7 @@ import type { RenderedEmailSignature } from "@repo/communications/signature";
 import { loadWorkspaceSignature } from "@/lib/communications/load-workspace-signature";
 import { logCourseEvent } from "@/lib/presential-courses/log";
 import { appUrl } from "@/lib/app-url";
-import { calcularVencimiento } from "./access-rules";
+import { vencimientoDeAcceso } from "./access-rules";
 import { invitacionASociarse } from "./asociarse";
 import { asegurarCuentaDelAlumno, crearEnlaceParaContrasena } from "./account";
 import { sendBienvenidaAlumnoEmail, sendCursoEnTuPortalEmail, type InvitacionASociarse } from "./email";
@@ -42,7 +42,7 @@ export async function otorgarAccesoPorCompra(
   if (inscripcion.course.deliveryMode !== "RECORDED") return { ok: false, reason: "no_es_grabado" };
 
   const clave = { userId_courseId: { userId: input.userId, courseId: inscripcion.courseId } };
-  const vence = calcularVencimiento(ahora, inscripcion.course.accessMonths);
+  const vence = vencimientoDeAcceso(ahora, inscripcion.course.accessMonths);
   const existente = await prisma.courseAccess.findUnique({
     where: clave,
     select: {
@@ -68,7 +68,7 @@ export async function otorgarAccesoPorCompra(
       existente.origin === "PURCHASE" && existente.expiresAt && existente.expiresAt > ahora
         ? existente.expiresAt
         : ahora;
-    const expiresAt = calcularVencimiento(desde, inscripcion.course.accessMonths);
+    const expiresAt = vencimientoDeAcceso(desde, inscripcion.course.accessMonths);
     await prisma.courseAccess.update({
       where: { id: existente.id },
       data: { origin: "PURCHASE", enrollmentId: inscripcion.id, expiresAt, revokedAt: null },

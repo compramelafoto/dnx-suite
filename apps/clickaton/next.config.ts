@@ -44,6 +44,7 @@ const nextConfig: NextConfig = {
   },
   // @repo/db se externaliza (no transpile) para conservar el Query Engine de Prisma.
   transpilePackages: [
+    "@repo/quick-search",
     "@repo/auth",
     "@repo/content",
     "@repo/content-ui",

@@ -4,6 +4,7 @@ export type DnxAuthApplicationId =
   | "fotorank"
   | "infospot"
   | "fotoffice"
+  | "muestras"
   | (string & {});
 
 export type AuthLogoConfig = {

@@ -9,6 +9,7 @@ import {
 } from "@/app/actions/dues-settings";
 import type { PersonVocabulary } from "@/lib/vocabulario/personas";
 import { WhatsappGroupButton } from "@/components/brand/whatsapp-group-button";
+import { InputMoneda } from "@/components/campos/input-moneda";
 
 function Estado({ ok, error }: { ok: string | null; error: string | null }) {
   if (error) {
@@ -143,7 +144,7 @@ export function FeeValueForm({
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="space-y-1 text-xs">
           <span className="text-[var(--fo-muted-soft)]">Importe de la cuota</span>
-          <input name="amount" inputMode="decimal" placeholder="47.000" className="fo-input w-full" />
+          <InputMoneda name="amount" envio="coma" placeholder="47.000" className="fo-input w-full" />
         </label>
         <label className="space-y-1 text-xs">
           <span className="text-[var(--fo-muted-soft)]">Rige desde</span>

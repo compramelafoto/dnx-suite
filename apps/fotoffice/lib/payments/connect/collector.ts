@@ -32,3 +32,16 @@ export async function resolveWorkspaceCollector(
     now: opciones.now,
   });
 }
+
+/**
+ * ¿La organización puede cobrar con Mercado Pago? Sólo el sí o el no (nunca la cuenta ni el
+ * token). Cualquier error cuenta como "no": sin Mercado Pago conectado se ofrece transferencia o
+ * efectivo (etapa B).
+ */
+export async function puedeCobrarConMercadoPago(workspaceId: string): Promise<boolean> {
+  try {
+    return (await resolveWorkspaceCollector(workspaceId)).ok;
+  } catch {
+    return false;
+  }
+}

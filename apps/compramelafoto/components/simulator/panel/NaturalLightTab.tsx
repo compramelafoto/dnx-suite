@@ -6,37 +6,20 @@ import {
   TIME_OF_DAY_PRESETS,
   type TimeOfDayPresetId,
 } from "@/lib/simulator/natural-light";
-import { isExteriorScene } from "@/lib/simulator/scenes";
+import { daylightEv100 } from "@/lib/simulator/scene-light";
+import { WEATHER_IDS, WEATHER_LOOKS, weatherStore } from "@/lib/simulator/weather";
+import { useSyncExternalStore } from "react";
 
 export default function NaturalLightTab() {
-  const { sceneId, timeOfDayMinutes, sunState, setTimeOfDayMinutes, setWhiteBalance, settings } =
+  const { timeOfDayMinutes, sunState, setTimeOfDayMinutes, setWhiteBalance, settings } =
     useCameraStore();
-
-  const exterior = isExteriorScene(sceneId);
-
-  if (!exterior) {
-    return (
-      <div
-        className="cod-side-panel cod-natural-light-panel"
-        role="tabpanel"
-        id="cod-side-panel-sun"
-        aria-labelledby="cod-side-tab-sun"
-      >
-        <p className="cod-natural-light-panel__hint">
-          La luz natural solar está disponible en escenas exteriores.
-          El estudio usa iluminación artificial fija.
-        </p>
-        <p className="cod-natural-light-panel__hint cod-natural-light-panel__hint--muted">
-          TODO: flash, softbox y modificadores de estudio en la solapa Iluminación.
-        </p>
-      </div>
-    );
-  }
 
   const applyPreset = (id: TimeOfDayPresetId) => {
     const preset = TIME_OF_DAY_PRESETS.find((p) => p.id === id);
     if (preset) setTimeOfDayMinutes(preset.minutes);
   };
+
+  const weather = useSyncExternalStore(weatherStore.subscribe, weatherStore.get, weatherStore.get);
 
   const applySuggestedWb = () => {
     setWhiteBalance(sunState.suggestedWbKelvin);
@@ -85,6 +68,22 @@ export default function NaturalLightTab() {
         ))}
       </div>
 
+      <h3 className="cod-panel__subtitle">Clima</h3>
+      <div className="cod-natural-light-presets" role="group" aria-label="Clima">
+        {WEATHER_IDS.map((id) => (
+          <button
+            key={id}
+            type="button"
+            className="cod-natural-light-presets__btn"
+            aria-pressed={weather === id}
+            onClick={() => weatherStore.set(id)}
+          >
+            {WEATHER_LOOKS[id].label}
+          </button>
+        ))}
+      </div>
+      <p className="cod-natural-light-panel__hint">{WEATHER_LOOKS[weather].hint}</p>
+
       <h3 className="cod-panel__subtitle">Sol</h3>
       <dl className="cod-natural-light-stats">
         <div>
@@ -96,8 +95,10 @@ export default function NaturalLightTab() {
           <dd>{sunState.sunIntensity.toFixed(1)}</dd>
         </div>
         <div>
-          <dt>EV escena</dt>
-          <dd>{sunState.luminanceEvOffset >= 0 ? "+" : ""}{sunState.luminanceEvOffset.toFixed(1)}</dd>
+          <dt>Luz (EV100)</dt>
+          <dd title="Sol pleno = 15: ISO 100, 1/125, f/16">
+            {daylightEv100(timeOfDayMinutes).toFixed(1)}
+          </dd>
         </div>
       </dl>
 
@@ -113,12 +114,9 @@ export default function NaturalLightTab() {
       </button>
 
       <p className="cod-natural-light-panel__hint cod-natural-light-panel__hint--muted">
-        En Ciudad Fotográfica, la hora selecciona el HDRI activo (ej. mediodía → <code>noon.hdr</code>).
+        La hora selecciona el HDRI activo (ej. mediodía → <code>noon.hdr</code>).
       </p>
 
-      <p className="cod-natural-light-panel__hint cod-natural-light-panel__hint--muted">
-        TODO: clima, nubes, lluvia, niebla, nieve, tormenta y estaciones.
-      </p>
     </div>
   );
 }

@@ -10,14 +10,15 @@ export const SUPPORT_MESSAGE_MAX_LENGTH = 5000;
 export const SUPPORT_DESCRIPTION_MAX_LENGTH = 8000;
 export const SUPPORT_REASON_MAX_LENGTH = 80;
 
-const ALLOWED_REASONS = new Set([
+export const ALLOWED_REASONS = [
   "PAYMENT_FAILED",
   "ORDER_STATUS",
   "LAB_ISSUE",
   "COMMISSION_ISSUE",
   "TECHNICAL_ISSUE",
   "OTHER",
-]);
+] as const;
+const ALLOWED_REASONS_SET = new Set<string>(ALLOWED_REASONS);
 
 /** Texto plano: quita tags HTML y control chars. */
 export function sanitizeSupportText(raw: string, maxLen: number): string {
@@ -50,6 +51,8 @@ export type CreateTicketInput = {
   reason: string;
   description: string;
   printOrderId: number | null;
+  /** Pedido de fotos digitales (sólo lo manda DNX Bot de compradores; la ruta pública no). */
+  orderId?: number | null;
   requesterName: string | null;
   requesterEmail: string | null;
   requesterPhone: string | null;
@@ -73,7 +76,7 @@ export function sanitizeCreateTicketBody(
   if (!reason || !description) {
     return { ok: false, error: "El motivo y la descripción son requeridos" };
   }
-  if (!ALLOWED_REASONS.has(reason) && reason.length < 2) {
+  if (!ALLOWED_REASONS_SET.has(reason) && reason.length < 2) {
     return { ok: false, error: "Motivo inválido" };
   }
 

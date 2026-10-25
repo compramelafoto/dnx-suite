@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { pickSelectionPhotosForDesign } from "./ensure-school-design-for-preventa-order-item";
+import { pickSelectionPhotosForDesign } from "./pick-selection-photos-for-design";
 
 /**
  * Regresión: cuando el pack mezcla beneficios digitales e impresos, el diseño de la carpeta

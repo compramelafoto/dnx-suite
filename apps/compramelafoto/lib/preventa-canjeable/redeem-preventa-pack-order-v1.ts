@@ -17,10 +17,25 @@ import {
 import { assertPreventaPackOrderRedeemable } from "@/lib/preventa-canjeable/assert-preventa-pack-redeemable";
 import {
   ensureSchoolDesignForPreCompraOrderItem,
+  loadSchoolDesignContext,
   PRE_DESIGN_ITEM_STATUSES,
-  type TemplateRow,
 } from "@/lib/school-render/ensure-school-design-for-preventa-order-item";
+import type { DesignTemplateVersion } from "@/lib/design-v2/template";
+import { notifyPhotographerDesignToReview } from "@/lib/design-v2/notify";
+import { armarDisenosDelCanjeExterno } from "@/lib/canje-externo/disenos-del-canje-externo";
 import { ensureDigitalDelivery } from "@/lib/digital-delivery";
+import { prepararRevisionDelCanje, type RevisionPreparada } from "@/lib/revision-de-impresion/en-el-canje";
+import type { RevisionPedida } from "@/lib/revision-de-impresion/revision-del-canje";
+
+/**
+ * Lo que la familia revisó y autorizó en la pantalla del canje: correcciones de sus textos,
+ * cursos sumados al listado, avisos de error y la autorización de impresión.
+ */
+export type RevisionDelCanjeInput = {
+  pedida: RevisionPedida;
+  by: { name: string | null; email: string | null };
+  userAgent: string | null;
+};
 
 export { PreventaPackRedeemValidationError };
 
@@ -69,7 +84,9 @@ async function persistSchoolSelectionsFromRedeem(
   tx: Prisma.TransactionClient,
   preCompraOrderId: number | null,
   snapshot: PreventaPackSnapshotV1,
-  selections: RedeemUnitSelectionInput[]
+  selections: RedeemUnitSelectionInput[],
+  redemptionOrderId: number,
+  revision: RevisionPreparada | null = null
 ): Promise<void> {
   if (!preCompraOrderId) return;
   const preCompra = await tx.preCompraOrder.findUnique({
@@ -82,7 +99,6 @@ async function persistSchoolSelectionsFromRedeem(
           id: true,
           subjectId: true,
           status: true,
-          albumProduct: { select: { requiresDesign: true, defaultTemplateId: true } },
         },
         orderBy: { id: "asc" },
       },
@@ -138,7 +154,21 @@ async function persistSchoolSelectionsFromRedeem(
     }
   }
 
-  const templateCache = new Map<number, TemplateRow | null>();
+  const templateCache = new Map<string, DesignTemplateVersion | null>();
+  const contextoBase = await loadSchoolDesignContext(tx, preCompraOrderId);
+  // Lo que la familia corrigió y autorizó va en el diseño, con los textos del servidor.
+  const designContext =
+    contextoBase && revision ? { ...contextoBase, ...(await revision.aplicar(contextoBase.values)) } : contextoBase;
+  // Una foto no se repite en el canje, así que el encuadre se puede guardar por foto.
+  const cropsByPhotoId = new Map<number, { zoom: number; x: number; y: number }>();
+  for (const sel of selections) {
+    sel.units.forEach((unit, u) =>
+      unit.forEach((photoId, p) => {
+        const crop = sel.crops?.[u]?.[p];
+        if (crop) cropsByPhotoId.set(photoId, crop);
+      })
+    );
+  }
 
   for (const chunk of perItemPhotoIds) {
     if (chunk.photoIds.length === 0) continue;
@@ -197,17 +227,18 @@ async function persistSchoolSelectionsFromRedeem(
       continue;
     }
 
-    const item = items.find((i) => i.id === chunk.orderItemId) ?? null;
-    const designResult = await ensureSchoolDesignForPreCompraOrderItem(tx, {
-      snapshot,
-      orderItem: {
-        id: chunk.orderItemId,
-        albumProduct: item?.albumProduct ?? null,
-      },
-      selectionPhotos,
-      photoIdsByBenefitKey: chunk.photoIdsByBenefitKey,
-      templateCache,
-    });
+    const designResult = designContext
+      ? await ensureSchoolDesignForPreCompraOrderItem(tx, {
+          snapshot,
+          orderItem: { id: chunk.orderItemId },
+          selectionPhotos,
+          photoIdsByBenefitKey: chunk.photoIdsByBenefitKey,
+          context: designContext,
+          redemptionOrderId,
+          templateCache,
+          cropsByPhotoId,
+        })
+      : ({ outcome: "skipped", reason: "context_missing" } as const);
     if (designResult.outcome === "skipped") {
       // El pack puede no tener pieza para diseñar (por ejemplo, solo digitales). Igual la familia
       // ya eligió: dejarlo en "Esperando selfie" hace que el panel del fotógrafo mienta.
@@ -269,7 +300,8 @@ export async function executePreventaPackRedeemV1InTransaction(
   tx: Prisma.TransactionClient,
   preventaOrderId: number,
   selections: RedeemUnitSelectionInput[],
-  now: Date = new Date()
+  now: Date = new Date(),
+  revision: RevisionDelCanjeInput | null = null
 ): Promise<PreventaPackRedeemResultV1> {
   const parent = await tx.order.findUnique({
     where: { id: preventaOrderId },
@@ -286,6 +318,7 @@ export async function executePreventaPackRedeemV1InTransaction(
       preventaPackSnapshotJson: true,
       organizerSchoolId: true,
       organizerReferralApplied: true,
+      isTest: true,
     },
   });
   if (!parent) {
@@ -426,6 +459,28 @@ export async function executePreventaPackRedeemV1InTransaction(
     for (let unitIdx = 0; unitIdx < sel.units.length; unitIdx++) {
       const unit = sel.units[unitIdx];
       for (const photoId of unit) {
+        // Impreso con su digital (librito + digital): la misma foto también sale en digital.
+        if (ben.kind === "PHYSICAL" && ben.includesDigital) {
+          itemsToCreate.push({
+            photoId,
+            productType: OrderItemType.DIGITAL,
+            priceCents: 0,
+            subtotalCents: 0,
+            quantity: 1,
+            size: null,
+            finish: null,
+            lineOrigin: OrderItemLineOrigin.PACK_INCLUDED,
+            benefitStableKey: ben.stableKey,
+            packSlotIndex: unitIdx,
+            metadata: {
+              unitIndex: unitIdx,
+              redeemedFromOrderId: parent.id,
+              snapshotSchemaVersion: snapshot.schemaVersion,
+              packDefinitionIdSnapshot: snapshot.packDefinitionId,
+              includedWithPrint: true,
+            },
+          });
+        }
         itemsToCreate.push({
           photoId,
           productType:
@@ -469,6 +524,8 @@ export async function executePreventaPackRedeemV1InTransaction(
       redeemsOrderId: parent.id,
       organizerSchoolId: parent.organizerSchoolId,
       organizerReferralApplied: parent.organizerReferralApplied,
+      // El canje de un pack de prueba es de prueba: no entra en ventas ni en informes.
+      isTest: parent.isTest,
       pricingSnapshot: pricingSnapshot,
       items: {
         create: itemsToCreate,
@@ -484,7 +541,18 @@ export async function executePreventaPackRedeemV1InTransaction(
     tx,
     Number.isFinite(preCompraOrderId) ? preCompraOrderId : null,
     snapshot,
-    selections
+    selections,
+    child.id,
+    revision && parent.albumId
+      ? await prepararRevisionDelCanje(tx, {
+          albumId: parent.albumId,
+          snapshot,
+          revision: revision.pedida,
+          by: revision.by,
+          userAgent: revision.userAgent,
+          now,
+        })
+      : null
   );
 
   const updated = await tx.order.updateMany({
@@ -508,7 +576,8 @@ export async function executePreventaPackRedeemV1InTransaction(
 
 export async function executePreventaPackRedeemV1(
   preventaOrderId: number,
-  selections: RedeemUnitSelectionInput[]
+  selections: RedeemUnitSelectionInput[],
+  revision: RevisionDelCanjeInput | null = null
 ): Promise<PreventaPackRedeemResultV1> {
   const gate = await assertPreventaPackOrderRedeemable(preventaOrderId);
   if (!gate.ok) {
@@ -518,7 +587,7 @@ export async function executePreventaPackRedeemV1(
   const now = new Date();
   try {
     const resultado = await prisma.$transaction(
-      (tx) => executePreventaPackRedeemV1InTransaction(tx, preventaOrderId, selections, now),
+      (tx) => executePreventaPackRedeemV1InTransaction(tx, preventaOrderId, selections, now, revision),
       {
         isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
         maxWait: 10_000,
@@ -529,6 +598,34 @@ export async function executePreventaPackRedeemV1(
     // El pedido de canje nace pagado sin pasar por el webhook de Mercado Pago, que es quien
     // normalmente prepara la entrega. Sin esto la familia canjea y nunca recibe sus fotos.
     // Fuera de la transacción y sin propagar el error: el canje ya está confirmado.
+    // Pack cobrado por fuera (sin pedido de la tienda escolar): el librito se arma acá. Sin
+    // propagar el error: el canje ya está confirmado y el diseño se puede volver a armar.
+    try {
+      await armarDisenosDelCanjeExterno({
+        preventaOrderId,
+        redemptionOrderId: resultado.redemptionOrderId,
+        selections,
+        revision,
+        now,
+      });
+    } catch (err) {
+      console.error("[preventa_redeem] external_design_failed", {
+        redemptionOrderId: resultado.redemptionOrderId,
+        err,
+      });
+    }
+
+    // Diseños armados en el canje: el fotógrafo tiene que enterarse para revisarlos.
+    try {
+      const designs = await prisma.designProject.findMany({
+        where: { albumOrderId: resultado.redemptionOrderId },
+        select: { id: true },
+      });
+      for (const d of designs) await notifyPhotographerDesignToReview(d.id);
+    } catch (err) {
+      console.error("[preventa_redeem] design_notify_failed", { err });
+    }
+
     try {
       await ensureDigitalDelivery(resultado.redemptionOrderId);
     } catch (err) {

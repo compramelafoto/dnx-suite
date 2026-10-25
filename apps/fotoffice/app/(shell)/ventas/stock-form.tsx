@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { InputMoneda } from "@/components/campos/input-moneda";
 import type { ProductRow } from "@/lib/sales/repository";
 import { recordAdjustmentAction, recordStockEntryAction } from "./actions";
 
@@ -16,8 +17,21 @@ type Modo = "cerrado" | "entrada" | "ajuste";
  * de `lib/sales/stock.ts`; esto sólo junta lo que ya tipeó la persona en un `FormData` y lo
  * manda al servidor.
  */
-export function StockForm({ product, destacado }: { product: ProductRow; destacado: boolean }) {
+export function StockForm({
+  product,
+  destacado,
+  cobertura,
+  aviso,
+}: {
+  product: ProductRow;
+  destacado: boolean;
+  /** «Te alcanza para ~N días», «Se termina hoy», «Ya no queda» o «Sin consumo en 30 días». */
+  cobertura?: string | null;
+  /** Por qué está para comprar, si no se ve en la cobertura (p. ej. «Debajo del mínimo (5)»). */
+  aviso?: string | null;
+}) {
   const [modo, setModo] = useState<Modo>("cerrado");
+  const [enKit, setEnKit] = useState(false);
 
   return (
     <div
@@ -34,11 +48,21 @@ export function StockForm({ product, destacado }: { product: ProductRow; destaca
               {product.variants.map((v) => `${v.name}: ${v.stockQty}`).join(" · ")}
             </p>
           ) : null}
+          {cobertura || aviso ? (
+            <p className="text-xs">
+              {cobertura ? (
+                <span className={destacado ? "text-[var(--fo-danger)]" : "text-[var(--fo-muted)]"}>{cobertura}</span>
+              ) : null}
+              {cobertura && aviso ? <span className="text-[var(--fo-muted)]"> · </span> : null}
+              {aviso ? <span className="font-medium text-[var(--fo-danger)]">{aviso}</span> : null}
+            </p>
+          ) : null}
         </div>
 
         <div className="flex items-center gap-4 text-sm">
           <span className={destacado ? "font-semibold text-[var(--fo-danger)]" : "text-[var(--fo-text)]"}>
             Existencia: {product.stockQty}
+            {product.insumo ? ` ${product.insumo.unidad}` : ""}
           </span>
           <span className="text-[var(--fo-muted)]">Mínimo: {product.minStockQty ?? "—"}</span>
         </div>
@@ -84,15 +108,21 @@ export function StockForm({ product, destacado }: { product: ProductRow; destaca
           </div>
           <div className="fo-field-stack">
             <label className="fo-label" htmlFor={`entrada-costo-${product.id}`}>
-              Costo unitario (opcional)
+              {enKit ? "Costo por kit (opcional)" : "Costo unitario (opcional)"}
             </label>
-            <input
-              id={`entrada-costo-${product.id}`}
-              name="unitCostArs"
-              className="fo-input"
-              placeholder="$"
-            />
+            <InputMoneda id={`entrada-costo-${product.id}`} name="unitCostArs" />
           </div>
+          {product.insumo?.unidadCompra && product.insumo.unidadesPorCompra ? (
+            <label className="flex items-center gap-2 text-sm sm:col-span-full">
+              <input
+                type="checkbox"
+                name="enUnidadDeCompra"
+                checked={enKit}
+                onChange={(e) => setEnKit(e.target.checked)}
+              />
+              Cargo en {product.insumo.unidadCompra} ({product.insumo.unidadesPorCompra} c/u)
+            </label>
+          ) : null}
           <button type="submit" className="fo-btn fo-btn-primary text-sm">
             Confirmar entrada
           </button>

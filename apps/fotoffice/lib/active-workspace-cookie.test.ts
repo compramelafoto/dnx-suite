@@ -55,7 +55,7 @@ const user = { id: 4, email: "a@b.test", name: "Daniel" };
 beforeEach(() => {
   H.cookieValue = null;
   H.wmFindMany.mockReset().mockResolvedValue([ESTUDIO, SFPR]);
-  // `dnx-estudio` apunta al estudio propio: antes ganaba siempre, incluso contra la cookie.
+  // `dnxestudio` (DNX Estudio) apunta al estudio propio: antes ganaba siempre, incluso contra la cookie.
   H.brandingFindUnique.mockReset().mockResolvedValue({ workspaceId: "ws-estudio" });
   H.brandingCreate.mockReset();
   H.workspaceCreate.mockReset();
@@ -72,11 +72,11 @@ describe("resolveActiveWorkspace", () => {
     expect(await resolveActiveWorkspace(4)).toEqual({ id: "ws-estudio", name: "Mi Estudio" });
   });
 
-  it("sin cookie, el comportamiento de antes (preferencia dnx-estudio)", async () => {
+  it("sin cookie, el comportamiento de antes (preferencia DNX Estudio)", async () => {
     expect(await resolveActiveWorkspace(4)).toEqual({ id: "ws-estudio", name: "Mi Estudio" });
   });
 
-  it("sin cookie ni dnx-estudio, la primera membresía", async () => {
+  it("sin cookie ni DNX Estudio, la primera membresía", async () => {
     H.brandingFindUnique.mockResolvedValue(null);
     H.wmFindMany.mockResolvedValue([SFPR, ESTUDIO]);
     expect(await resolveActiveWorkspace(4)).toEqual({ id: "ws-sfpr", name: "SFPR" });

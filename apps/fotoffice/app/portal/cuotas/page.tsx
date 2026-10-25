@@ -72,6 +72,16 @@ export default async function CuotasPage({
 
   const alDia = cuenta.charges.length === 0;
 
+  const adelantoSinPagar =
+    oferta.pending.length > 0
+      ? {
+          count: oferta.pending.length,
+          firstLabel: chargePeriodLabel(oferta.pending[0]!.period),
+          lastLabel: chargePeriodLabel(oferta.pending[oferta.pending.length - 1]!.period),
+          totalLabel: formatMinorArs(oferta.pending.reduce((s, p) => s + p.amountMinor, 0)),
+        }
+      : null;
+
   // Se ofrece 1, 3 y 6: una lista de seis opciones es una decisión que nadie quiere tomar.
   const opcionesAdelanto = [1, 3, 6]
     .filter((n) => n <= oferta.periods.length)
@@ -242,7 +252,16 @@ export default async function CuotasPage({
           justo quien puede adelantar, y con deuda también sirve — adelanta lo que viene
           después de lo que ya debe.
         */}
-        {cobros.canCharge ? <AdvanceForm options={opcionesAdelanto} /> : null}
+        {/*
+          Quitar un adelanto sin pagar se ofrece aunque el cobro esté apagado: es salir de una
+          deuda, no crearla.
+        */}
+        {cobros.canCharge || adelantoSinPagar ? (
+          <AdvanceForm
+            options={cobros.canCharge ? opcionesAdelanto : []}
+            pending={adelantoSinPagar}
+          />
+        ) : null}
 
         <CreditCallout creditMinor={cuenta.creditMinor} tone="socio" />
 

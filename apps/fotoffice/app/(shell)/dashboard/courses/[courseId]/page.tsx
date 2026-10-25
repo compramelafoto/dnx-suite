@@ -13,13 +13,15 @@ import {
 } from "@/app/actions/presential-courses";
 import { prisma } from "@repo/db";
 import { CourseLessonsSection } from "@/components/presential-courses/course-lessons-section";
+import { CourseInvitationSection } from "@/components/presential-courses/course-invitation-section";
 import { explicarConfiguracionFaltante, readStreamConfig } from "@/lib/courses-video/config";
 import { esGrabado } from "@/lib/presential-courses/delivery-mode";
 import { cargarBeneficiarios, cargarDueno } from "@/lib/course-marketplace/cargar";
 import { formatoPorcentaje } from "@/lib/course-marketplace/reparto";
-import { estadoDeVenta } from "@/lib/course-marketplace/beneficiarios";
+import { beneficiariosParaMotor, estadoDeVenta } from "@/lib/course-marketplace/beneficiarios";
 import { requireCoursesSalesContext } from "@/lib/workspace";
 import { isFullAccessRole } from "@/lib/permissions/levels";
+import { OfertaReventaForm } from "@/components/course-marketplace/oferta-reventa-form";
 import { BeneficiariosEditor } from "@/components/course-marketplace/beneficiarios-editor";
 
 export default async function DashboardCourseDetailPage({
@@ -72,6 +74,9 @@ export default async function DashboardCourseDetailPage({
   const ESTADOS = { INVITADO: "Invitado", ACEPTADO: "Aceptó", RECHAZADO: "Rechazó" } as const;
   const ROLES = { DOCENTE: "Docente", PRODUCTOR: "Productor", INSTITUCION: "Institución", OTRO: "Otro" } as const;
   const estado = dueno ? estadoDeVenta(dueno.workspaceId, beneficiarios) : null;
+  const pedidosPendientes = grabado
+    ? await prisma.courseResaleAgreement.count({ where: { courseId: course.id, status: "PENDIENTE" } })
+    : 0;
 
   return (
     <div className="space-y-10">
@@ -111,13 +116,20 @@ export default async function DashboardCourseDetailPage({
       />
 
       {grabado ? (
-        <CourseLessonsSection
-          courseId={course.id}
-          clases={clases}
-          faltaConfigurarVideo={
-            configVideo.ok ? null : explicarConfiguracionFaltante(configVideo.missing)
-          }
-        />
+        <>
+          <CourseLessonsSection
+            courseId={course.id}
+            clases={clases}
+            faltaConfigurarVideo={
+              configVideo.ok ? null : explicarConfiguracionFaltante(configVideo.missing)
+            }
+          />
+          <CourseInvitationSection
+            courseId={course.id}
+            courseTitle={course.title}
+            hayClasesListas={clases.some((c) => c.videoStatus === "READY")}
+          />
+        </>
       ) : (
       <section className="fo-card space-y-6">
         <h2 className="text-lg font-semibold">Ediciones</h2>
@@ -212,6 +224,27 @@ export default async function DashboardCourseDetailPage({
             iniciales={beneficiarios}
           />
           )}
+        </section>
+      ) : null}
+
+      {grabado && dueno && puedeEditarReparto && precioCentavos > 0 ? (
+        <section className="space-y-4">
+          <h2 className="text-lg font-semibold">Ofrecer a otras instituciones</h2>
+          <OfertaReventaForm
+            courseId={course.id}
+            ofrecido={course.offeredToResellers}
+            sugeridoBps={course.suggestedResellerBps}
+            listaCentavos={precioCentavos}
+            comisionPlataformaBps={feeBps}
+            beneficiarios={beneficiariosParaMotor(dueno, beneficiarios)}
+          />
+          {pedidosPendientes > 0 ? (
+            <p className="text-sm">
+              <Link href="/dashboard/mercado-de-cursos/acuerdos" className="text-[var(--fo-accent)] underline">
+                {pedidosPendientes === 1 ? "Un pedido de reventa espera tu respuesta" : `${pedidosPendientes} pedidos de reventa esperan tu respuesta`}
+              </Link>
+            </p>
+          ) : null}
         </section>
       ) : null}
     </div>

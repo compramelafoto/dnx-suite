@@ -5,6 +5,8 @@ import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import AlbumSharePanel from "@/components/dashboard/albums/AlbumSharePanel";
 import AlbumCoverManager from "@/components/dashboard/albums/AlbumCoverManager";
+import AlbumCanjesPanel from "./AlbumCanjesPanel";
+import ProbarComoClienteButton from "@/components/dashboard/preventa-packs/ProbarComoClienteButton";
 import AlbumInstructivosPanel from "@/components/dashboard/albums/AlbumInstructivosPanel";
 import { AlbumTestModeDashboardAlert } from "@/components/album/AlbumTestModeNotice";
 import type { AlbumNextStepsMode } from "@/components/dashboard/albums/AlbumNextSteps";
@@ -67,8 +69,8 @@ function resolvePublicationVisibilityLabel(props: {
   }
   if (props.isPublic === false) {
     return {
-      label: "Privado",
-      detail: "No está publicado para venta pública. Solo accesible con link directo.",
+      label: "No listado",
+      detail: "No aparece en los listados públicos. Solo entra quien tenga el enlace.",
     };
   }
   return {
@@ -349,6 +351,13 @@ export default function AlbumPublicationSection({
           publicSlug={publicSlug}
           disabled={!canShareWithClients}
         />
+      ) : null}
+
+      {activePanel === "canjes" ? (
+        <>
+          <ProbarComoClienteButton albumId={albumId} />
+          <AlbumCanjesPanel albumId={albumId} />
+        </>
       ) : null}
     </div>
   );

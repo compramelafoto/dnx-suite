@@ -14,6 +14,8 @@ const PERMITIDOS = [
   "app/actions/split-consent.ts",
   "app/api/payments/mercadopago/connect/start/route.ts",
   "app/workspace/configuracion/cobros/page.tsx",
+  // Activar el QR del mostrador crea la sucursal y la caja en la cuenta de Mercado Pago del negocio.
+  "app/workspace/configuracion/cobros/qr-actions.ts",
   "lib/payments/connect/authz.ts",
 ].sort();
 

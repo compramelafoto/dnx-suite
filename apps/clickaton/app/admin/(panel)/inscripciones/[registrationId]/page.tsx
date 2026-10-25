@@ -32,7 +32,6 @@ import {
   presentAdminPublicationStatus,
   presentAdminRegistrationStatus,
   presentAdminResendClassification,
-  presentAdminWelcomeCardStatus,
 } from "@/lib/admin-registration/ui/admin-status-presentation";
 import { esFilaDeRegaloSinActivar } from "@/lib/admin-registration/ui/gift-row-presentation";
 import {
@@ -49,13 +48,6 @@ import { getCheckoutService } from "@/lib/checkout/actions/runtime";
 import { syncRegistrationFotoRankFormAction } from "@/lib/fotorank-sync/actions/fotorank-sync-admin";
 import { getAdminIntegrations } from "@/config/admin/integrations";
 import { prisma } from "@/lib/admin/db";
-import {
-  approveWelcomeCardAction,
-  enqueueWelcomeCardForRegistrationAction,
-  regenerateWelcomeCardAction,
-  rejectWelcomeCardAction,
-  retryWelcomeCardAction,
-} from "@/lib/welcome-card/admin-actions";
 import { adminResendConfirmationEmailAction } from "@/lib/registration/notifications/admin-resend-confirmation-action";
 import { classifyResendStatus } from "@/lib/registration/notifications/resend-delivery-status";
 import { inviteOneRegistrationAction } from "@/lib/testimonials/admin/invite-action";
@@ -112,7 +104,7 @@ export default async function AdminRegistrationDetailPage({ params, searchParams
     where: {
       application: "CLICKATON",
       entityType: "WELCOME_CARD",
-      entityId: { in: [reg.id, reg.welcomeCard?.id ?? ""] },
+      entityId: reg.id,
     },
     orderBy: { createdAt: "desc" },
     select: { id: true, status: true, scheduleAt: true, publishedAt: true, lastErrorCode: true, permalink: true },
@@ -146,11 +138,8 @@ export default async function AdminRegistrationDetailPage({ params, searchParams
   });
   const regStatus = presentAdminRegistrationStatus(reg.status);
   const payStatus = presentAdminPaymentStatus(reg.paymentStatus);
-  const welcomeStatus = presentAdminWelcomeCardStatus(
-    reg.welcomeCardStatus ?? reg.welcomeCard?.status,
-  );
   const publicationStatus = presentAdminPublicationStatus(
-    reg.welcomePublicationStatus ?? reg.welcomeCard?.publicationStatus ?? socialPublish?.status,
+    reg.welcomePublicationStatus ?? socialPublish?.status,
   );
   const fotoRankStatus = presentAdminFotoRankSyncStatus(
     reg.fotoRankSyncStatus ?? reg.fotoRankSync?.status,
@@ -238,9 +227,6 @@ export default async function AdminRegistrationDetailPage({ params, searchParams
     reg.itemFulfillmentStatus !== "CANCELLED"
   ) {
     pendingActions.push("Registrá la entrega del kit cuando corresponda.");
-  }
-  if (welcomeStatus.attention === "action") {
-    pendingActions.push(welcomeStatus.nextAction ?? "Revisá la placa de bienvenida.");
   }
 
   return (
@@ -558,79 +544,14 @@ export default async function AdminRegistrationDetailPage({ params, searchParams
         </Button>
       </section>
 
-      {/* 7. Placa */}
+      {/* 7. Redes. La placa de bienvenida está en "Placas del participante". */}
       <section
         className="space-y-4 rounded-[var(--ck-radius-card)] border border-ck-border p-5 md:p-6"
-        aria-labelledby="welcome-card-heading"
+        aria-labelledby="social-heading"
       >
-        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-          <div className="space-y-2">
-            <h2 id="welcome-card-heading" className="text-lg font-semibold">
-              Placa de bienvenida
-            </h2>
-            <p className="text-sm text-ck-text-secondary">{welcomeStatus.description}</p>
-          </div>
-          <Badge variant={adminToneToBadgeVariant(welcomeStatus.tone)}>
-            {welcomeStatus.label}
-          </Badge>
-        </div>
-        <p className="text-sm text-ck-text-muted">
-          Generá y administrá la pieza que el participante puede compartir en sus redes. Aprobar
-          una placa no implica publicarla automáticamente.
-        </p>
-        <div className="flex w-full min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap">
-          {reg.welcomeCard?.id ? (
-            <>
-              <form action={regenerateWelcomeCardAction.bind(null, reg.welcomeCard.id)}>
-                <ConfirmSubmitButton
-                  confirmMessage={SOCIAL_SENSITIVE_CONFIRM.regenerateWelcome}
-                  variant="secondary"
-                  className="min-h-11 w-full sm:w-auto"
-                >
-                  Volver a generar
-                </ConfirmSubmitButton>
-              </form>
-              <form action={retryWelcomeCardAction.bind(null, reg.welcomeCard.id)}>
-                <ConfirmSubmitButton
-                  confirmMessage={SOCIAL_SENSITIVE_CONFIRM.retryWelcome}
-                  variant="outline"
-                  className="min-h-11 w-full sm:w-auto"
-                >
-                  Volver a intentar la generación
-                </ConfirmSubmitButton>
-              </form>
-              <form action={approveWelcomeCardAction.bind(null, reg.welcomeCard.id)}>
-                <ConfirmSubmitButton
-                  confirmMessage={SOCIAL_SENSITIVE_CONFIRM.approveWelcome}
-                  variant="secondary"
-                  className="min-h-11 w-full sm:w-auto"
-                >
-                  Aprobar placa
-                </ConfirmSubmitButton>
-              </form>
-              <form action={rejectWelcomeCardAction.bind(null, reg.welcomeCard.id)}>
-                <ConfirmSubmitButton
-                  confirmMessage={SOCIAL_SENSITIVE_CONFIRM.rejectWelcome}
-                  variant="outline"
-                  className="min-h-11 w-full sm:w-auto"
-                >
-                  Rechazar placa
-                </ConfirmSubmitButton>
-              </form>
-            </>
-          ) : reg.status === "CONFIRMED" && reg.paymentStatus === "APPROVED" ? (
-            <form action={enqueueWelcomeCardForRegistrationAction.bind(null, reg.id)}>
-              <Button type="submit" variant="secondary" className="min-h-11 w-full sm:w-auto">
-                Generar placa
-              </Button>
-            </form>
-          ) : (
-            <p className="text-sm text-ck-text-muted">
-              La placa se puede generar cuando la inscripción esté confirmada y el pago
-              acreditado.
-            </p>
-          )}
-        </div>
+        <h2 id="social-heading" className="text-lg font-semibold">
+          Redes
+        </h2>
         <dl className="grid gap-4 sm:grid-cols-2">
           <Field label="Usuario de Instagram del participante">
             {reg.instagramHandle ? (
@@ -660,39 +581,6 @@ export default async function AdminRegistrationDetailPage({ params, searchParams
             </div>
           </Field>
         </dl>
-        {reg.welcomeCard?.pngUrl ? (
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={reg.welcomeCard.pngUrl}
-              alt="Vista previa de la placa de bienvenida"
-              className="h-auto w-full max-w-[220px] aspect-[9/16] rounded border border-ck-border object-cover"
-            />
-            <div className="flex flex-col gap-2">
-              <Button
-                href={reg.welcomeCard.pngUrl}
-                variant="secondary"
-                className="min-h-11 w-full sm:w-auto"
-              >
-                Descargar
-              </Button>
-              {reg.welcomeCard.webpUrl ? (
-                <Button
-                  href={reg.welcomeCard.webpUrl}
-                  variant="outline"
-                  className="min-h-11 w-full sm:w-auto"
-                >
-                  Descargar versión liviana
-                </Button>
-              ) : null}
-            </div>
-          </div>
-        ) : (
-          <p className="text-sm text-ck-text-muted">
-            Todavía no hay placas generadas para este participante. Puede tardar unos segundos
-            después de pedirla.
-          </p>
-        )}
         {socialPublish?.permalink ? (
           <Button
             href={socialPublish.permalink}
@@ -1095,26 +983,6 @@ export default async function AdminRegistrationDetailPage({ params, searchParams
             value: reg.profilePhotoAssetId ?? "Sin fotografía",
             mono: true,
             copyText: reg.profilePhotoAssetId ?? undefined,
-          },
-          {
-            label: "ID de placa",
-            value: reg.welcomeCard?.id ?? reg.welcomeCardId ?? "Sin placa",
-            mono: true,
-            copyText: reg.welcomeCard?.id ?? reg.welcomeCardId ?? undefined,
-          },
-          {
-            label: "Intentos de generación de placa",
-            value: String(reg.welcomeCard?.attemptCount ?? "0"),
-          },
-          {
-            label: "Último error de placa",
-            value: reg.welcomeCard?.lastErrorCode
-              ? `${reg.welcomeCard.lastErrorCode}${
-                  reg.welcomeCard.lastErrorMessage
-                    ? `: ${reg.welcomeCard.lastErrorMessage}`
-                    : ""
-                }`
-              : "Sin errores",
           },
           {
             label: "Último error FotoRank",

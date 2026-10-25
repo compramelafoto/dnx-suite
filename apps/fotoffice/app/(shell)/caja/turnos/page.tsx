@@ -1,3 +1,4 @@
+import { InputMoneda } from "@/components/campos/input-moneda";
 import { prisma } from "@repo/db";
 import { PageHeader } from "@/components/page-header";
 import { requireCashViewer } from "@/lib/cash/access";
@@ -9,7 +10,7 @@ import { transferAction } from "../actions";
 export const dynamic = "force-dynamic";
 
 function fecha(d: Date) {
-  return d.toLocaleString("es-AR");
+  return d.toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" });
 }
 
 export default async function TurnosPage({
@@ -100,10 +101,9 @@ export default async function TurnosPage({
               <label className="fo-label" htmlFor="pase-amount">
                 ¿Pasás cuánto a {propuestaDePase.toAccountName}?
               </label>
-              <input
+              <InputMoneda
                 id="pase-amount"
                 name="amountArs"
-                className="fo-input"
                 defaultValue={formatMinorArs(propuestaDePase.suggestedMinor).replace("$", "").trim()}
               />
             </div>

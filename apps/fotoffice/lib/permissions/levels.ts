@@ -60,7 +60,7 @@ export function isFullAccessRole(role: string | null | undefined): boolean {
 /**
  * Lo que `STAFF` puede hoy en cada módulo ya migrado, copiado de los `access.ts` previos.
  * Es la red de seguridad de la etapa 1: mientras alguien nunca haya tenido roles asignados, sigue
- * exactamente igual que antes. Un módulo que no figura acá todavía no pregunta por niveles.
+ * exactamente igual que antes. Un módulo que no figura acá le da NONE a ese STAFF.
  */
 const LEGACY_STAFF_LEVELS: Readonly<Record<string, ModuleLevel>> = {
   [MEMBERS_MODULE_KEY]: "VIEW",
@@ -88,6 +88,25 @@ const LEGACY_STAFF_LEVELS: Readonly<Record<string, ModuleLevel>> = {
   [SERVICE_LEADS_MODULE_KEY]: "MANAGE",
   // Portfolio: ocultar o publicar portfolios era sólo de dueño/admin.
   [PORTFOLIO_MODULE_KEY]: "NONE",
+  // ── Empresa del fotógrafo (estudio) ──
+  // Lo decidido para el equipo de un estudio (DNX, 29/09): "todo menos configuración". La
+  // configuración de cada módulo sigue siendo de dueño/admin: vive en Institución
+  // (`canManageWorkspaceSettings`) o en una acción sensible (`sales.catalog`, `store.configure`)
+  // que un STAFF sin roles nunca tiene. Verificado el 2026-10-17 en producción: ningún STAFF
+  // existente tiene estos módulos encendidos (SFPR no usa ninguno), así que nadie gana acceso
+  // por sorpresa. Claves literales a propósito: los `acceso.ts` de cada módulo importan
+  // `lib/access/policy`, que importa este archivo (se armaría un ciclo); `levels.test.ts`
+  // verifica que coincidan con las constantes.
+  agenda: "MANAGE",
+  quotes: "MANAGE",
+  orders: "MANAGE",
+  projects: "MANAGE",
+  gallery: "MANAGE",
+  contracts: "MANAGE",
+  sales: "MANAGE",
+  store: "MANAGE",
+  // Informes: sólo mirar (crear y editar informes es `configurar`, de dueño/admin).
+  reports: "VIEW",
 };
 
 export function legacyStaffLevel(moduleKey: string): ModuleLevel {
@@ -122,7 +141,7 @@ export function isAssignmentActive(
  * El orden importa (spec §9):
  * 1. módulo apagado → nada; 2. sin rol en el workspace → nada;
  * 3. dueño/admin → todo; 4. con asignaciones (cualquiera) → el máximo entre las vigentes, o NONE;
- * 5. STAFF que nunca tuvo asignaciones → lo de hoy.
+ * 5. STAFF que nunca tuvo asignaciones → lo de hoy (el colaborador de 0.1, nada).
  */
 export function resolveModuleLevel(input: {
   moduleKey: string;
@@ -145,7 +164,17 @@ export function resolveModuleLevel(input: {
       ),
     );
   }
+  // `COLLABORATOR` (etapa 0.1, ya en el enum de la base) no es personal: sin roles de la
+  // comisión no ve ningún módulo. Sin esto caería en la compatibilidad de STAFF.
+  if (!hasLegacyStaffFallback(input.workspaceRole)) return "NONE";
   return legacyStaffLevel(input.moduleKey);
+}
+
+/** Roles sin compatibilidad de STAFF: sin asignaciones no tienen nivel en ningún módulo. */
+const ROLES_SIN_COMPATIBILIDAD = new Set(["COLLABORATOR"]);
+
+export function hasLegacyStaffFallback(role: string): boolean {
+  return !ROLES_SIN_COMPATIBILIDAD.has(role);
 }
 
 /**

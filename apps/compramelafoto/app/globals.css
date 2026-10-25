@@ -1,6 +1,11 @@
 @import "tailwindcss";
 @import "../styles/design-system/index.css";
 
+/* El diseñador de plantillas vive en paquetes: sin esto Tailwind no genera sus clases y el editor
+   se ve con bordes negros y sin colores. FOTOFFICE, Clickatón y FotoRank ya lo tenían. */
+@source "../../../packages/template-editor-ui/src";
+@source "../../../packages/template-editor-core/src";
+
 @theme {
   /* Paleta principal */
   --color-dark: #111827;
@@ -836,4 +841,17 @@
   .cmf-scan__inner {
     animation-duration: var(--cmf-scan-duration-reduced);
   }
+}
+
+/*
+ * Demos grabables (cuadro guía activo): la esquina inferior derecha queda libre para la cámara del
+ * presentador en la videollamada. Lo que flota ahí sube por encima de esa zona.
+ */
+body[data-demo="1"] .dnxbot-raiz,
+body[data-demo="1"] [data-dnxbot-evitar].fixed,
+body[data-demo="1"] [data-demo-esquina] {
+  bottom: 260px !important;
+}
+body[data-demo="1"] [data-demo-ocultar] {
+  display: none !important;
 }

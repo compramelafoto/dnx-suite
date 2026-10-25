@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { Icon } from "@repo/design-system";
+import { Trophy } from "lucide-react";
 import { ContestStatusBadge } from "./ContestStatusBadge";
 import { ContestStatusSelector } from "./ContestStatusSelector";
 import { DeleteContestButton } from "./DeleteContestButton";
@@ -116,6 +117,15 @@ export function ContestHeader({ contest }: ContestHeaderProps) {
             title="Diplomas"
           >
             <Icon name="receipt" size="sm" />
+          </Link>
+
+          <Link
+            href={routes.dashboard.concursos.ganadores(contest.id)}
+            className="fr-btn fr-btn-secondary px-3"
+            aria-label="Imágenes de ganadores"
+            title="Imágenes de ganadores"
+          >
+            <Trophy className="h-4 w-4" aria-hidden />
           </Link>
 
           <Link

@@ -1,3 +1,4 @@
+import { InputMoneda } from "@/components/campos/input-moneda";
 import { PageHeader } from "@/components/page-header";
 import { requireCashViewer } from "@/lib/cash/access";
 import { listAccounts, listTransfers, userDisplayNames } from "@/lib/cash/repository";
@@ -7,7 +8,7 @@ import { transferAction } from "../actions";
 export const dynamic = "force-dynamic";
 
 function fecha(d: Date) {
-  return d.toLocaleString("es-AR");
+  return d.toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" });
 }
 
 /**
@@ -30,7 +31,7 @@ export default async function PasesPage({
 
   return (
     <div className="space-y-8">
-      <PageHeader title="Pases" description="Los pases de plata entre cuentas: de la caja del mostrador a la caja fuerte, o al revés." />
+      <PageHeader title="Pases" description="Los pases de dinero entre cuentas: de la caja del mostrador a la caja fuerte, o al revés." />
 
       {params.error ? (
         <p className="fo-card p-4 text-sm text-[var(--fo-danger)]" role="alert">
@@ -70,7 +71,7 @@ export default async function PasesPage({
             <label className="fo-label" htmlFor="amountArs">
               Importe
             </label>
-            <input id="amountArs" name="amountArs" className="fo-input" placeholder="10.000" required />
+            <InputMoneda id="amountArs" name="amountArs" placeholder="10.000" required />
           </div>
           <div className="fo-field-stack">
             <label className="fo-label" htmlFor="note">
@@ -86,7 +87,7 @@ export default async function PasesPage({
         </form>
       ) : (
         <p className="text-sm text-[var(--fo-muted-soft)]">
-          Hacen falta al menos dos cuentas para pasar plata de una a otra.
+          Hacen falta al menos dos cuentas para pasar dinero de una a otra.
         </p>
       )}
 

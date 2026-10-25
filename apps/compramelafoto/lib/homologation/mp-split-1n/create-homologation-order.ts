@@ -144,7 +144,7 @@ export async function createClfMpSplit1nHomologationOrder(
     allowTestFixtures: false,
     // Homologation surface: staging gate via flag+env hard blocks already applied.
     enforceOrders1nStagingGate: false,
-    defaultStatementDescriptor: "DNX TEST",
+    defaultStatementDescriptor: "CLF FOTOS",
   });
 
   const created = await adapter.createSplitOrder({
@@ -161,7 +161,7 @@ export async function createClfMpSplit1nHomologationOrder(
     ...(input.payerIdentification
       ? { payerProfile: { identification: input.payerIdentification } }
       : {}),
-    statementDescriptor: "DNX TEST",
+    statementDescriptor: "CLF FOTOS",
     items: [
       singleIntangibleItem({
         title: "CLF homologation intangible (sandbox)",

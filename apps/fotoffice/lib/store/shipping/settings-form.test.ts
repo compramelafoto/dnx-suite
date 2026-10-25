@@ -6,6 +6,7 @@ import {
   parsePercentToBps,
   parseShippingArsToMinor,
   parseShippingSettingsForm,
+  settingsAfterAndreaniDisconnect,
   settingsAfterCorreoDisconnect,
 } from "./settings-form";
 
@@ -89,7 +90,7 @@ describe("parseShippingSettingsForm", () => {
 
   it("sucursal con la tabla como fuente → error", () => {
     const r = parseShippingSettingsForm(form({ ...base, branchDeliveryEnabled: ON }), conCorreo);
-    expect(r).toEqual({ ok: false, error: "El envío a sucursal sólo funciona con Correo Argentino como fuente." });
+    expect(r).toEqual({ ok: false, error: "El envío a sucursal sólo funciona con Correo Argentino o Andreani como fuente." });
   });
 
   it("sucursal con Correo como fuente pero sin conexión activa → error", () => {
@@ -257,5 +258,62 @@ describe("settingsAfterCorreoDisconnect", () => {
     expect(
       settingsAfterCorreoDisconnect({ source: "CORREO_ARGENTINO", branchDeliveryEnabled: true, pickupEnabled: false, homeDeliveryEnabled: true }),
     ).toEqual({ data: { source: "TABLE", branchDeliveryEnabled: false }, pickupForced: false });
+  });
+});
+
+describe("parseShippingSettingsForm — Andreani", () => {
+  const conAndreani = { correoActive: false, andreaniActive: true, andreaniBranchContract: true, previous: null };
+
+  it("pasar a Andreani exige la conexión activa", () => {
+    expect(parseShippingSettingsForm(form({ ...base, source: "ANDREANI" }), { ...conAndreani, andreaniActive: false })).toEqual({
+      ok: false,
+      error: "Para usar Andreani (y el envío a sucursal) primero conectá Andreani más abajo.",
+    });
+    const r = parseShippingSettingsForm(form({ ...base, source: "ANDREANI" }), conAndreani);
+    expect(r.ok && r.values.source).toBe("ANDREANI");
+  });
+
+  it("Correo conectado no alcanza para Andreani, ni al revés", () => {
+    const soloCorreo = { correoActive: true, andreaniActive: false, previous: null };
+    expect(parseShippingSettingsForm(form({ ...base, source: "ANDREANI" }), soloCorreo).ok).toBe(false);
+    expect(parseShippingSettingsForm(form({ ...base, source: "CORREO_ARGENTINO" }), conAndreani).ok).toBe(false);
+  });
+
+  it("ya guardado con Andreani y la conexión a reconectar: se puede seguir guardando lo demás", () => {
+    const ctx = { correoActive: false, andreaniActive: false, andreaniBranchContract: true, previous: { source: "ANDREANI" as const, branchDeliveryEnabled: true } };
+    expect(parseShippingSettingsForm(form({ ...base, source: "ANDREANI", branchDeliveryEnabled: ON }), ctx).ok).toBe(true);
+  });
+
+  it("prender sucursal con Andreani exige la conexión activa y el contrato de sucursal", () => {
+    const previa = { source: "ANDREANI" as const, branchDeliveryEnabled: false };
+    const conSucursal = form({ ...base, source: "ANDREANI", branchDeliveryEnabled: ON });
+    expect(parseShippingSettingsForm(conSucursal, { ...conAndreani, andreaniActive: false, previous: previa }).ok).toBe(false);
+    expect(parseShippingSettingsForm(conSucursal, { ...conAndreani, andreaniBranchContract: false, previous: previa })).toEqual({
+      ok: false,
+      error: "Para enviar a sucursal de Andreani falta el contrato de sucursal: cargalo en la conexión de Andreani, más abajo.",
+    });
+    const r = parseShippingSettingsForm(conSucursal, { ...conAndreani, previous: previa });
+    expect(r.ok && r.values).toMatchObject({ source: "ANDREANI", branchDeliveryEnabled: true });
+  });
+
+  it("pasar de Correo a Andreani con la sucursal prendida también exige Andreani", () => {
+    const ctx = { correoActive: true, andreaniActive: false, andreaniBranchContract: true, previous: { source: "CORREO_ARGENTINO" as const, branchDeliveryEnabled: true } };
+    expect(parseShippingSettingsForm(form({ ...base, source: "ANDREANI", branchDeliveryEnabled: ON }), ctx).ok).toBe(false);
+  });
+});
+
+describe("desconectar un correo sólo toca lo suyo", () => {
+  const prev = { branchDeliveryEnabled: true, pickupEnabled: false, homeDeliveryEnabled: false };
+
+  it("desconectar Andreani con Andreani como fuente: tabla, sin sucursal y con retiro", () => {
+    expect(settingsAfterAndreaniDisconnect({ ...prev, source: "ANDREANI" })).toEqual({
+      data: { source: "TABLE", branchDeliveryEnabled: false, pickupEnabled: true },
+      pickupForced: true,
+    });
+  });
+
+  it("desconectar Correo no apaga la sucursal de Andreani, ni al revés", () => {
+    expect(settingsAfterCorreoDisconnect({ ...prev, source: "ANDREANI" })).toBe(null);
+    expect(settingsAfterAndreaniDisconnect({ ...prev, source: "CORREO_ARGENTINO" })).toBe(null);
   });
 });

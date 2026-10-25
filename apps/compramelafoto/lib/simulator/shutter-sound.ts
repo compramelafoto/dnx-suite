@@ -1,6 +1,11 @@
 /**
- * Sonido sintético de obturador DSLR — Cam Of Duty.
- * Web Audio API — sin archivos externos.
+ * Sonido de obturador DSLR — Cam Of Duty.
+ *
+ * Grabación real (CC0, ver public/camofduty/audio/CREDITOS.md) en dos partes:
+ * el espejo que sube con la primera cortinilla y la segunda cortinilla con el
+ * espejo que baja. Entre las dos pasa el tiempo de exposición, como en una
+ * cámara de verdad (en 1" se oyen los dos golpes separados por un segundo).
+ * Mientras la grabación no cargó, suena la versión sintética.
  */
 
 import { shutterSpeedToSeconds } from "./camera-math";
@@ -16,6 +21,39 @@ export const COD_OBTURAR_EVENT = "cod-obturar";
 
 export interface CodObturarDetail {
   durationMs: number;
+}
+
+const SAMPLE_URLS = { open: "/camofduty/audio/shutter-open.wav", close: "/camofduty/audio/shutter-close.wav" } as const;
+/** Entre el arranque de una parte y la otra en tomas rápidas (espejo y cortinillas). */
+const SAMPLE_MIN_GAP_SEC = 0.09;
+
+let samples: { open: AudioBuffer; close: AudioBuffer } | null = null;
+let loading: Promise<void> | null = null;
+
+/** Baja y decodifica la grabación una sola vez (después del primer gesto, cuando hay audio). */
+export function preloadShutterSamples(): Promise<void> {
+  const ctx = getSimulatorAudioContext();
+  if (!ctx || samples) return Promise.resolve();
+  loading ??= (async () => {
+    const decode = async (url: string) => ctx.decodeAudioData(await (await fetch(url)).arrayBuffer());
+    const [open, close] = await Promise.all([decode(SAMPLE_URLS.open), decode(SAMPLE_URLS.close)]);
+    samples = { open, close };
+  })().catch(() => {
+    loading = null;
+  });
+  return loading;
+}
+
+function playBuffer(ctx: AudioContext, dest: AudioNode, buffer: AudioBuffer, at: number, gain: number) {
+  const src = ctx.createBufferSource();
+  src.buffer = buffer;
+  // Cada toma suena apenas distinta, como en la realidad.
+  src.playbackRate.value = 0.98 + Math.random() * 0.04;
+  const g = ctx.createGain();
+  g.gain.value = gain;
+  src.connect(g);
+  g.connect(dest);
+  src.start(at);
 }
 
 /** Mínimo entre apertura y cierre en obturaciones muy rápidas. */
@@ -138,6 +176,12 @@ export function playShutterSound(durationMs: number): void {
     const exposureSec = Math.max(durationMs / 1000, MIN_OPEN_SEC);
     const dest = getSimulatorMasterGain(ctx);
     const now = ctx.currentTime;
+    if (samples) {
+      playBuffer(ctx, dest, samples.open, now + 0.005, 1.4);
+      playBuffer(ctx, dest, samples.close, now + 0.005 + Math.max(SAMPLE_MIN_GAP_SEC, exposureSec + 0.06), 1.3);
+      return;
+    }
+    void preloadShutterSamples();
     const curtainOpenAt = now + MIRROR_TO_CURTAIN_SEC;
     const curtainCloseAt = curtainOpenAt + exposureSec;
 

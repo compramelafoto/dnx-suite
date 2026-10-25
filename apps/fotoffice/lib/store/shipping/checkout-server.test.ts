@@ -12,6 +12,10 @@ vi.mock("@/lib/integrations/correo-argentino/credentials", () => ({
   isCorreoArgentinoActive,
 }));
 
+const loadAndreaniClient = vi.fn<(workspaceId: string) => Promise<unknown>>(async () => null);
+const markAndreaniNeedsReconsent = vi.fn(async () => undefined);
+vi.mock("@/lib/integrations/andreani/credentials", () => ({ loadAndreaniClient, markAndreaniNeedsReconsent }));
+
 const { listAgenciesForCheckout, loadAgenciesForOrder, loadCheckoutDeliveryOptions, quoteForCheckout, resetAgenciesCacheForTests } =
   await import("./checkout-server");
 
@@ -243,5 +247,126 @@ describe("listAgenciesForCheckout", () => {
       ok: true,
       agencies: [{ id: "A1", name: "Centro", address: "Córdoba 721", city: "Rosario", postalCode: "2000" }],
     });
+  });
+});
+
+describe("Andreani: opciones y sucursales por código postal", () => {
+  const sucursales = [
+    { id: "101", code: "SFN", name: "Rosario Centro", address: "Sarmiento 1100", postalCode: "2000", city: "Rosario" },
+    // Sin CP no se puede cotizar: no se ofrece.
+    { id: "102", code: "SFX", name: "Sin CP", address: "Calle 1", postalCode: "", city: "Rosario" },
+  ];
+
+  function andreani(opts: { contractBranch?: string | null; branches?: () => Promise<unknown[]> } = {}) {
+    const branches = vi.fn(opts.branches ?? (async () => sucursales));
+    const conexion = {
+      client: { cacheKey: "k", branches, quote: vi.fn(), getToken: vi.fn() },
+      clientCode: "CL1",
+      contractHome: "400006709",
+      contractBranch: opts.contractBranch === undefined ? "400006711" : opts.contractBranch,
+      originBranch: null,
+    };
+    const loadAndreani = vi.fn(async () => conexion);
+    return { branches, loadAndreani };
+  }
+
+  beforeEach(() => {
+    loadAndreaniClient.mockReset().mockResolvedValue(null);
+    markAndreaniNeedsReconsent.mockReset();
+  });
+
+  it("opciones: con Andreani activo y contrato de sucursal, todo; sin contrato, sin sucursal", async () => {
+    findUnique.mockResolvedValue(settings({ source: "ANDREANI" }));
+    const conContrato = andreani();
+    expect(await loadCheckoutDeliveryOptions("w1", { loadAndreani: conContrato.loadAndreani as never })).toEqual({
+      pickup: true,
+      home: true,
+      branch: true,
+      handlingNote: null,
+      carrier: "ANDREANI",
+    });
+    expect(conContrato.loadAndreani).toHaveBeenCalledWith("w1");
+    expect(isCorreoArgentinoActive).not.toHaveBeenCalled();
+    const sinContrato = andreani({ contractBranch: null });
+    expect(await loadCheckoutDeliveryOptions("w1", { loadAndreani: sinContrato.loadAndreani as never })).toMatchObject({
+      home: true,
+      branch: false,
+    });
+    // Desconectado (o a reconectar): nada que cotizar.
+    expect(await loadCheckoutDeliveryOptions("w1", { loadAndreani: vi.fn(async () => null) })).toMatchObject({
+      home: false,
+      branch: false,
+      pickup: true,
+    });
+  });
+
+  it("lista por CP (no por provincia), sólo las que se pueden cotizar, y guarda en memoria por CP", async () => {
+    findUnique.mockResolvedValue(settings({ source: "ANDREANI" }));
+    const { branches, loadAndreani } = andreani();
+    const deps = { loadAndreani: loadAndreani as never };
+    expect(await listAgenciesForCheckout({ workspaceId: "w1", postalCode: "S2000ABC", deps })).toEqual({
+      ok: true,
+      agencies: [{ id: "101", name: "Rosario Centro", address: "Sarmiento 1100", city: "Rosario", postalCode: "2000" }],
+    });
+    expect(branches).toHaveBeenCalledWith({ postalCode: "2000" });
+    await listAgenciesForCheckout({ workspaceId: "w1", postalCode: "2000", deps });
+    expect(branches).toHaveBeenCalledTimes(1);
+    await listAgenciesForCheckout({ workspaceId: "w1", postalCode: "5000", deps });
+    expect(branches).toHaveBeenCalledTimes(2);
+  });
+
+  it("con Andreani, una provincia sola no alcanza (vacía, sin pedir nada)", async () => {
+    findUnique.mockResolvedValue(settings({ source: "ANDREANI" }));
+    const { branches, loadAndreani } = andreani();
+    expect(await loadAgenciesForOrder({ workspaceId: "w1", provinceCode: "S", deps: { loadAndreani: loadAndreani as never } })).toEqual(
+      { ok: true, agencies: [] },
+    );
+    expect(branches).not.toHaveBeenCalled();
+  });
+
+  it("con Correo, un CP solo no alcanza: Correo sigue por provincia", async () => {
+    findUnique.mockResolvedValue(settings());
+    const loadCorreo = vi.fn();
+    expect(await loadAgenciesForOrder({ workspaceId: "w1", postalCode: "2000", deps: { loadCorreo } })).toEqual({
+      ok: true,
+      agencies: [],
+    });
+    expect(loadCorreo).not.toHaveBeenCalled();
+  });
+
+  it("sin contrato de sucursal: vacía; desconectado: falla, no 'no hay sucursales'", async () => {
+    findUnique.mockResolvedValue(settings({ source: "ANDREANI" }));
+    const sinContrato = andreani({ contractBranch: null });
+    expect(
+      await loadAgenciesForOrder({ workspaceId: "w1", postalCode: "2000", deps: { loadAndreani: sinContrato.loadAndreani as never } }),
+    ).toEqual({ ok: true, agencies: [] });
+    expect(sinContrato.branches).not.toHaveBeenCalled();
+    expect(
+      await loadAgenciesForOrder({ workspaceId: "w1", postalCode: "2000", deps: { loadAndreani: vi.fn(async () => null) } }),
+    ).toEqual({ ok: false });
+  });
+
+  it("una falla de Andreani: mensaje, log sólo con kind y status, AUTH marca reconexión, y no queda en memoria", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const { AndreaniError } = await import("@/lib/integrations/andreani/errors");
+    findUnique.mockResolvedValue(settings({ source: "ANDREANI" }));
+    let falla = true;
+    const { branches, loadAndreani } = andreani({
+      branches: async () => {
+        if (falla) throw new AndreaniError("AUTH", "credencial de usuario-x", 401);
+        return sucursales;
+      },
+    });
+    const deps = { loadAndreani: loadAndreani as never };
+    expect(await listAgenciesForCheckout({ workspaceId: "w1", postalCode: "2000", deps })).toEqual({
+      ok: false,
+      message: "No pudimos calcular el envío. Probá de nuevo o elegí retiro en la sede.",
+    });
+    expect(markAndreaniNeedsReconsent).toHaveBeenCalledWith("w1");
+    expect(JSON.stringify(warn.mock.calls)).not.toContain("usuario-x");
+    falla = false;
+    const r = await listAgenciesForCheckout({ workspaceId: "w1", postalCode: "2000", deps });
+    expect(r.ok && r.agencies).toHaveLength(1);
+    expect(branches).toHaveBeenCalledTimes(2);
   });
 });

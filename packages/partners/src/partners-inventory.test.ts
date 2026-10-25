@@ -23,10 +23,10 @@ describe("mapa de inventario", () => {
     }
   });
 
-  it("hay nueve espacios montados y veintiuno sin montar", () => {
+  it("hay trece espacios montados y diecisiete sin montar", () => {
     const montados = DNX_INVENTORY.filter((e) => e.mounted);
-    assert.equal(montados.length, 9);
-    assert.equal(DNX_INVENTORY.length - montados.length, 21);
+    assert.equal(montados.length, 13);
+    assert.equal(DNX_INVENTORY.length - montados.length, 17);
   });
 
   it("el concurso de FotoRank es del organizador y la portada de la plataforma", () => {
@@ -55,8 +55,18 @@ describe("listSellableSpaces", () => {
     assert.ok(espacios.every((e) => e.mounted));
   });
 
-  it("un workspace no ve nada montado todavía, pero sí lo declarado", () => {
-    assert.deepEqual(listSellableSpaces({ owner: "WORKSPACE" }), []);
+  it("un workspace ve los cuatro espacios del módulo de sponsors, y declarados los seis", () => {
+    assert.deepEqual(
+      listSellableSpaces({ owner: "WORKSPACE" })
+        .map((e) => e.placementKey)
+        .sort(),
+      [
+        "FOTOFFICE_PORTAL_MARQUEE",
+        "FOTOFFICE_PORTAL_SPONSORS",
+        "FOTOFFICE_PORTAL_WELCOME",
+        "FOTOFFICE_PUBLIC_MARQUEE",
+      ],
+    );
     const declarados = listSellableSpaces({ owner: "WORKSPACE", includeUnmounted: true });
     assert.equal(declarados.length, 6);
     assert.ok(declarados.every((e) => e.application === "FOTO_OFFICE"));

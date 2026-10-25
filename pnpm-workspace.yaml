@@ -2,5 +2,6 @@ packages:
   - "apps/*"
   - "apps/compramelafoto-workers"
   - "apps/compramelafoto-workers/*"
+  - "apps/fotoffice-workers/*"
   - "packages/*"
   - "services/*"

@@ -6,35 +6,47 @@ import { listProducts, listProductCategories } from "@/lib/sales/repository";
 import { PRODUCT_KIND_LABELS, type ProductKind } from "@/lib/sales/constants";
 import { formatMinorArs } from "@/lib/membership/money";
 import { CategoryForm } from "../category-form";
+import { loadPublicSlug } from "@/lib/blog/admin-queries";
+import { asegurarCategoriasProductoDnx } from "@/lib/catalogo/semillas";
 
 export const dynamic = "force-dynamic";
 
 export default async function CatalogoPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; categoryId?: string; inactivos?: string; error?: string; ok?: string }>;
+  searchParams: Promise<{ q?: string; categoryId?: string; tipo?: string; inactivos?: string; error?: string; ok?: string }>;
 }) {
   const { workspace, canEditCatalog } = await requireSalesStaff();
   const sp = await searchParams;
   const q = sp.q?.trim() || undefined;
   const categoryId = sp.categoryId?.trim() || undefined;
   const verInactivos = sp.inactivos === "1";
+  const soloInsumos = sp.tipo === "INSUMO";
   // Editar el catálogo es ADMIN+: esconder acá el alta y la administración de categorías es
   // sólo cosmético, el control de verdad vuelve a pedirse en cada pantalla y cada acción.
   const puedeEditar = canEditCatalog;
 
+  // DNX Estudio recibe sus 11 categorías de producto (etapa 2): sólo las que faltan, y sólo
+  // cuando entra alguien que puede editar el catálogo. Para las demás organizaciones no hace nada.
+  if (puedeEditar) await asegurarCategoriasProductoDnx(workspace.id, await loadPublicSlug(workspace.id));
+
   const [productos, categorias] = await Promise.all([
-    listProducts(workspace.id, { search: q, categoryId, onlyActive: !verInactivos }),
+    listProducts(workspace.id, {
+      search: q,
+      categoryId,
+      onlyActive: !verInactivos,
+      kind: soloInsumos ? "INSUMO" : undefined,
+    }),
     listProductCategories(workspace.id, { includeInactive: puedeEditar }),
   ]);
 
-  const sinProductos = productos.length === 0 && !q && !categoryId && !verInactivos;
+  const sinProductos = productos.length === 0 && !q && !categoryId && !verInactivos && !soloInsumos;
 
   return (
     <div className="space-y-8">
       <PageHeader
         title="Catálogo"
-        description="Lo que el negocio vende: productos y servicios, con su precio y su existencia."
+        description="Lo que el negocio vende —productos y servicios, con su precio y su existencia— y los insumos que gasta."
         actions={
           puedeEditar ? (
             <Link href="/ventas/catalogo/nuevo" className="fo-btn fo-btn-primary text-sm">
@@ -99,6 +111,10 @@ export default async function CatalogoPage({
               </select>
             </div>
             <label className="flex items-center gap-2 pb-2 text-sm">
+              <input type="checkbox" name="tipo" value="INSUMO" defaultChecked={soloInsumos} />
+              Sólo insumos
+            </label>
+            <label className="flex items-center gap-2 pb-2 text-sm">
               <input type="checkbox" name="inactivos" value="1" defaultChecked={verInactivos} />
               Mostrar inactivos
             </label>
@@ -106,7 +122,7 @@ export default async function CatalogoPage({
               <button type="submit" className="fo-btn fo-btn-primary min-h-10 text-sm">
                 Buscar
               </button>
-              {q || categoryId || verInactivos ? (
+              {q || categoryId || verInactivos || soloInsumos ? (
                 <Link href="/ventas/catalogo" className="fo-btn fo-btn-ghost min-h-10 text-sm">
                   Limpiar
                 </Link>
@@ -164,7 +180,10 @@ export default async function CatalogoPage({
                         <td className="px-4 py-3 text-[var(--fo-muted)]">
                           {PRODUCT_KIND_LABELS[p.kind as ProductKind] ?? p.kind}
                         </td>
-                        <td className="px-4 py-3 text-[var(--fo-text)]">{formatMinorArs(p.priceMinor)}</td>
+                        <td className="px-4 py-3 text-[var(--fo-text)]">
+                          {/* Un insumo no se vende: no tiene precio que mostrar. */}
+                          {p.kind === "INSUMO" ? "—" : formatMinorArs(p.priceMinor)}
+                        </td>
                         <td className={`px-4 py-3 ${bajoMinimo ? "font-semibold text-[var(--fo-danger)]" : "text-[var(--fo-muted)]"}`}>
                           {p.tracksStock ? p.stockQty : "—"}
                         </td>

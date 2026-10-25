@@ -146,6 +146,7 @@ export async function sendPendingRaffleResults(now: Date = new Date()): Promise<
     const firma = await loadWorkspaceSignature(s.workspaceId);
     for (const m of pendientes.slice(0, cupo)) {
       const salida = await sendAndLogEmail({
+        workspaceId: s.workspaceId,
         to: (m.email as string).trim(),
         templateKey: clave,
         userId: m.userId,

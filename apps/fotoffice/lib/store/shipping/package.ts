@@ -33,6 +33,15 @@ export type ShippingPackage = {
 export const CORREO_MAX_WEIGHT_GRAMS = 25000;
 export const CORREO_MAX_SIDE_CM = 150;
 
+/**
+ * Límites de Andreani para un envío B2C de un solo bulto: 50 kg, 165 cm de lado máximo y 300 cm
+ * de suma de lados (`docs/integraciones/andreani-api.md`, "Aforo"; INFERIDO del plugin, a
+ * confirmar en QA). Más que eso es "Bigger/B2B", que no cotizamos.
+ */
+export const ANDREANI_MAX_WEIGHT_GRAMS = 50000;
+export const ANDREANI_MAX_SIDE_CM = 165;
+export const ANDREANI_MAX_SIDES_SUM_CM = 300;
+
 /** Entero hacia arriba, nunca menor que 1. */
 function ceilMin1(n: number): number {
   return Math.max(1, Math.ceil(n));
@@ -79,5 +88,16 @@ export function exceedsCorreoLimits(pkg: ShippingPackage): boolean {
     pkg.lengthCm > CORREO_MAX_SIDE_CM ||
     pkg.widthCm > CORREO_MAX_SIDE_CM ||
     pkg.heightCm > CORREO_MAX_SIDE_CM
+  );
+}
+
+/** ¿El paquete supera lo que Andreani acepta como un bulto B2C? */
+export function exceedsAndreaniLimits(pkg: ShippingPackage): boolean {
+  return (
+    pkg.weightGrams > ANDREANI_MAX_WEIGHT_GRAMS ||
+    pkg.lengthCm > ANDREANI_MAX_SIDE_CM ||
+    pkg.widthCm > ANDREANI_MAX_SIDE_CM ||
+    pkg.heightCm > ANDREANI_MAX_SIDE_CM ||
+    pkg.lengthCm + pkg.widthCm + pkg.heightCm > ANDREANI_MAX_SIDES_SUM_CM
   );
 }

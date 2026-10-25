@@ -21,6 +21,23 @@ const LOG_BLOCKED = "[TEST_CHECKOUT] blocked real payment flow";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+/**
+ * Un pedido ya cobrado nunca devuelve su link de pago guardado: Mercado Pago deja pagar
+ * la misma preferencia otra vez y el comprador terminaría pagando dos veces
+ * (pedido 4645, 11/10/2026). Se chequea antes de reusar `mpInitPoint`.
+ */
+function alreadyPaidResponse(orderId: number, orderType: OrderType) {
+  return NextResponse.json(
+    {
+      error: "Este pedido ya está pagado. Para comprar otras fotos iniciá una compra nueva.",
+      code: "ORDER_ALREADY_PAID",
+      orderId,
+      orderType,
+    },
+    { status: 409 }
+  );
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => ({}));
@@ -70,6 +87,10 @@ export async function POST(req: Request) {
           { error: "Este pedido es de simulación; no se crea preferencia de Mercado Pago.", code: "SIMULATED_ORDER" },
           { status: 400 }
         );
+      }
+
+      if (order.status === "PAID_HELD") {
+        return alreadyPaidResponse(orderId, orderType);
       }
 
       if (order.mpInitPoint && order.mpPreferenceId) {
@@ -174,6 +195,10 @@ export async function POST(req: Request) {
         );
       }
 
+      if (order.paymentStatus === "PAID" || order.paymentStatus === "REFUNDED") {
+        return alreadyPaidResponse(orderId, orderType);
+      }
+
       if (order.mpInitPoint && order.mpPreferenceId) {
         return NextResponse.json(
           {
@@ -254,6 +279,10 @@ export async function POST(req: Request) {
           { error: "Este pedido es de simulación; no se crea preferencia de Mercado Pago.", code: "SIMULATED_ORDER" },
           { status: 400 }
         );
+      }
+
+      if (order.status === "PAID" || order.status === "REFUNDED") {
+        return alreadyPaidResponse(orderId, orderType);
       }
 
       if (order.mpInitPoint && order.mpPreferenceId) {

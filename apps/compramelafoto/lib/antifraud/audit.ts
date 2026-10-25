@@ -37,7 +37,9 @@ export type OrderAuditEventType =
   /** Reconciliación/webhook: pedido FAILED local con pago approved en MP → PAID */
   | "MP_RECONCILIATION_ALBUM_FAILED_RECOVERED"
   /** Checkout cliente: aceptación de Términos + Política de Privacidad */
-  | "TERMS_ACCEPTED";
+  | "TERMS_ACCEPTED"
+  /** Mercado Pago aprobó un segundo pago sobre un pedido que ya estaba PAID (cobro duplicado) */
+  | "PAYMENT_DUPLICATE";
 
 export interface RegisterAuditEventParams {
   actorUserId?: number | null;

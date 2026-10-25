@@ -1,4 +1,4 @@
-import { readFontBytes } from "@repo/design-studio";
+import { medirTexto, textoATrazos } from "@repo/design-studio";
 import { createHash } from "node:crypto";
 import sharp from "sharp";
 import { extractSquareCrop, resolveCropParams } from "./crop";
@@ -47,17 +47,14 @@ async function prepareLogo(
 }
 
 /**
- * La familia que se declara dentro del dibujo.
+ * Los textos de la placa van en trazos (`<path>`), no en `<text>`.
  *
  * En el servidor no hay ninguna tipografía instalada: pedir "Arial" hacía que librsvg no
- * encontrara con qué escribir y no dibujara **ningún** texto. Salían la franja y la foto, y ni
- * una palabra. En una computadora de trabajo Arial existe, así que sólo fallaba en producción.
- *
- * La tipografía viaja incrustada en el propio dibujo, tomada del módulo de diseño, que ya la
- * lleva en base64 por exactamente el mismo motivo.
+ * encontrara con qué escribir y no dibujara **ningún** texto. Después se probó incrustar
+ * DM Sans con un `@font-face`, pero librsvg lo ignora —con y sin él los píxeles salen
+ * idénticos, byte a byte—: en una Mac escribía con Helvetica y en el servidor, nada.
+ * Un `<path>` no le pide nada al sistema: las letras viajan ya dibujadas.
  */
-const FAMILIA = "DM Sans";
-
 async function buildTextSvg(
   template: CompositionTemplate,
   variables: RenderRequest["variables"],
@@ -71,16 +68,8 @@ async function buildTextSvg(
     province: "",
   };
 
-  const [normal, bold] = await Promise.all([
-    readFontBytes("dmSans", "normal"),
-    readFontBytes("dmSans", "bold"),
-  ]);
-  const cara = (bytes: Uint8Array, weight: number) =>
-    `@font-face{font-family:"${FAMILIA}";font-weight:${weight};src:url(data:font/woff;base64,${Buffer.from(bytes).toString("base64")}) format("woff");}`;
-
   const parts: string[] = [
     `<svg width="${template.width}" height="${template.height}" xmlns="http://www.w3.org/2000/svg">`,
-    `<defs><style>${cara(normal, 400)}${cara(bold, 700)}</style></defs>`,
   ];
 
   for (const block of template.blocks) {
@@ -94,22 +83,22 @@ async function buildTextSvg(
     if (block.type !== "text") continue;
     const raw = interpolateTemplate(block.content, vars).trim();
     if (!raw) continue;
-    const anchor =
-      block.align === "left" ? "start" : block.align === "right" ? "end" : "middle";
-    const x =
-      block.align === "left"
-        ? block.x
-        : block.align === "right"
-          ? block.x + block.width
-          : block.x + block.width / 2;
-    const weight = block.fontWeight === "bold" ? "700" : "400";
+    const slot = block.fontWeight === "bold" ? "bold" : "normal";
     const lines = raw.split("\n").slice(0, block.maxLines ?? 3);
-    lines.forEach((line, i) => {
+    for (const [i, line] of lines.entries()) {
+      const medida = { texto: line, fontId: "dmSans" as const, slot, tamano: block.fontSize } as const;
+      // Lo que antes resolvía `text-anchor`: el punto de anclaje y cuánto se corre el renglón.
+      const ancho = block.align === "left" ? 0 : await medirTexto(medida);
+      const x =
+        block.align === "left"
+          ? block.x
+          : block.align === "right"
+            ? block.x + block.width - ancho
+            : block.x + block.width / 2 - ancho / 2;
       const y = block.y + i * (block.fontSize * 1.25);
-      parts.push(
-        `<text x="${x}" y="${y}" text-anchor="${anchor}" font-family="${FAMILIA}" font-size="${block.fontSize}" font-weight="${weight}" fill="${escapeXml(block.color)}">${escapeXml(line)}</text>`,
-      );
-    });
+      const { svg } = await textoATrazos({ ...medida, x, y, color: block.color });
+      parts.push(svg);
+    }
   }
 
   parts.push("</svg>");
@@ -211,5 +200,5 @@ export function hashRenderInputs(parts: Array<string | Buffer | null | undefined
   return h.digest("hex");
 }
 
-/** Sólo para pruebas: el dibujo de texto tiene que declarar la tipografía que lleva adentro. */
+/** Sólo para pruebas: el dibujo de texto no puede tener ningún `<text>`. */
 export const buildTextSvgParaTest = buildTextSvg;

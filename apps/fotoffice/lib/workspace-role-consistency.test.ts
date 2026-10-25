@@ -102,12 +102,15 @@ describe("resolución de rol de workspace — menú y páginas leen lo mismo", (
     }
     // `canManageWorkspaceSettings` sólo decide lo que es de Configuración: la sección
     // Institución, la configuración de cursos (que guarda `app/actions/settings.ts`, dueño/admin)
-    // y el dominio propio del sitio (`app/actions/website-domain.ts`, dueño/admin).
+    // y el dominio propio del sitio (`app/actions/website-domain.ts`, dueño/admin). Además, los
+    // mismos roles (`isFullAccessRole`) deciden las pantallas de plata que no se delegan (Cobros,
+    // `requiresFullAccess`), que se pasan como `fullAccess` del acceso a submódulos.
     const usos = navSrc.match(/\bcanManageWorkspaceSettings\b/g) ?? [];
     assert.match(navSrc, /const institucion: Item\[\] = canManageWorkspaceSettings/);
     assert.match(navSrc, /ve\(COURSES_SALES_MODULE_KEY\) && canManageWorkspaceSettings/);
     assert.match(navSrc, /canManageWorkspaceSettings\s*\?\s*\[\{ href: "\/website\/dominio"/);
-    assert.equal(usos.length, 5, "canManageWorkspaceSettings se usa en el menú fuera de Configuración");
+    assert.match(navSrc, /fullAccess: canManageWorkspaceSettings \}/);
+    assert.equal(usos.length, 6, "canManageWorkspaceSettings se usa en el menú fuera de Configuración");
   });
 
   it("el inicio arma los números y las tarjetas por nivel, no por rol", () => {
@@ -186,6 +189,10 @@ describe("nadie fuera de Configuración decide el acceso por el rol crudo", () =
     { patron: /^app\/onboarding\//, razon: "el alta de la institución la hace el dueño" },
     { patron: /^lib\/payments\/connect\/authz\.ts$/, razon: "conectar Mercado Pago es de Configuración" },
     { patron: /^lib\/commission\/access\.ts$/, razon: "la Comisión directiva es de Configuración" },
+    {
+      patron: /^lib\/store\/artworks\/links\.ts$/,
+      razon: "vincular una organización de FotoRank a la tienda exige dueño/admin en los dos lados (spec etapa 3, O1)",
+    },
     { patron: /^app\/actions\/settings\.ts$/, razon: "ajustes del workspace y de venta de cursos" },
     { patron: /^app\/actions\/website-domain\.ts$/, razon: "el dominio propio es un dato de la institución" },
     { patron: /^components\/shell\/admin-shell\.tsx$/, razon: "sólo la sección Institución del menú" },
@@ -204,6 +211,11 @@ describe("nadie fuera de Configuración decide el acceso por el rol crudo", () =
     {
       patron: /^lib\/post-login\.ts$/,
       razon: "sólo el desvío al onboarding después del login, igual que el layout del panel",
+    },
+    {
+      patron: /^lib\/access\/policy\.ts$/,
+      razon:
+        "adaptador de las etapas 0.1–0.6: `configurar` ES la regla de Configuración (catálogos de la ficha, circuitos, campos, plantillas, numeración); `operar`/`ver` van por nivel",
     },
     // Las propias definiciones.
     { patron: /^lib\/workspace-settings-access\.ts$/, razon: "definición" },

@@ -21,6 +21,24 @@ export type GoogleContactsAccount = {
  * Integraciones— y confundirlas le hace decirle a alguien "falta conectar" cuando en
  * realidad ya había una cuenta y hay que retomarla, no empezar de cero.
  */
+/** Lo que cambia entre Socios y Clientes. Por defecto, Socios. */
+export type GoogleContactsCopy = {
+  titulo: string;
+  descripcion: string;
+  /** Plural en minúscula: "socios", "clientes". */
+  plural: string;
+  /** Nombre del grupo en Google, sin el prefijo: "Socios", "Clientes". */
+  grupo: string;
+};
+
+const COPY_SOCIOS: GoogleContactsCopy = {
+  titulo: "Agendar los socios en Google",
+  descripcion:
+    "Cada socio del padrón se agenda en los contactos de la institución, y las correcciones que se hagan desde el celular vuelven al padrón.",
+  plural: "socios",
+  grupo: "Socios",
+};
+
 export function GoogleContactsCard({
   enabled,
   account,
@@ -28,7 +46,11 @@ export function GoogleContactsCard({
   lastSyncOk,
   lastSyncMessage,
   syncedContacts,
+  copy = COPY_SOCIOS,
+  action = toggleGoogleContactsAction,
 }: {
+  copy?: GoogleContactsCopy;
+  action?: (formData: FormData) => Promise<void>;
   enabled: boolean;
   /** `null` = la institución no conectó ninguna cuenta de Google todavía. */
   account: GoogleContactsAccount | null;
@@ -47,15 +69,12 @@ export function GoogleContactsCard({
     <section className="fo-card space-y-4 p-5">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="space-y-1 min-w-0">
-          <h2 className="text-base font-semibold">Agendar los socios en Google</h2>
-          <p className="text-sm text-[var(--fo-muted)] leading-relaxed max-w-2xl">
-            Cada socio del padrón se agenda en los contactos de la institución, y las
-            correcciones que se hagan desde el celular vuelven al padrón.
-          </p>
+          <h2 className="text-base font-semibold">{copy.titulo}</h2>
+          <p className="text-sm text-[var(--fo-muted)] leading-relaxed max-w-2xl">{copy.descripcion}</p>
           {activa && account ? (
             <p className="text-xs text-[var(--fo-muted-soft)] leading-relaxed">
               Van a la cuenta <span className="font-medium">{account.email}</span>, al grupo
-              &ldquo;FOTOFFICE · Socios&rdquo;. Los contactos que ya estaban en esa cuenta no
+              &ldquo;FOTOFFICE · {copy.grupo}&rdquo;. Los contactos que ya estaban en esa cuenta no
               se tocan, y nada se borra.
             </p>
           ) : null}
@@ -63,7 +82,7 @@ export function GoogleContactsCard({
 
         <div className="flex flex-col items-start gap-2 shrink-0 sm:items-end">
           {activa && account ? (
-            <form action={toggleGoogleContactsAction}>
+            <form action={action}>
               <input type="hidden" name="enabled" value={enabled ? "false" : "true"} />
               <button
                 type="submit"
@@ -110,8 +129,8 @@ export function GoogleContactsCard({
       ) : enabled ? (
         <p className="text-xs text-[var(--fo-muted-soft)]">
           {lastSyncAt
-            ? `Última sincronización: ${lastSyncAt.toLocaleString("es-AR")} · ${syncedContacts} socios agendados.`
-            : "La primera sincronización está en curso: en unos minutos los socios aparecen en la agenda. Después se sincroniza todos los días a la madrugada y cuando cierra el padrón de un sorteo."}
+            ? `Última sincronización: ${lastSyncAt.toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" })} · ${syncedContacts} ${copy.plural} agendados.`
+            : `La primera sincronización está en curso: en unos minutos los ${copy.plural} aparecen en la agenda. Después se sincroniza todos los días a la madrugada.`}
         </p>
       ) : null}
 

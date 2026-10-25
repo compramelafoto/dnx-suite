@@ -9,12 +9,10 @@ import {
   presentSocialEntityType,
   presentSocialPublisherLiveMode,
   presentSocialPublishStatus,
-  presentWelcomeCardAdminActionLabels,
 } from "./social-communications-status-presentation";
 import {
   presentAdminEmailQueueStatus,
   presentAdminPublicationStatus,
-  presentAdminWelcomeCardStatus,
 } from "@/lib/admin-registration/ui/admin-status-presentation";
 
 const ROOT = join(process.cwd());
@@ -53,13 +51,6 @@ describe("social communications status presentation", () => {
     assert.match(entity.publicationType, /Historia/i);
   });
 
-  it("differentiates generate vs regenerate labels", () => {
-    const labels = presentWelcomeCardAdminActionLabels(true);
-    assert.equal(labels.generate, "Generar placa");
-    assert.equal(labels.regenerate, "Volver a generar");
-    assert.notEqual(labels.generate, labels.regenerate);
-  });
-
   it("distinguishes email sent vs delivered", () => {
     const sent = presentEmailQueueOperationalStatus("SENT");
     const delivered = presentEmailQueueOperationalStatus("DELIVERED");
@@ -94,8 +85,7 @@ describe("social communications status presentation", () => {
     );
   });
 
-  it("presents welcome and publication admin statuses in Spanish", () => {
-    assert.match(presentAdminWelcomeCardStatus("GENERATED").label, /placa/i);
+  it("presents publication admin statuses in Spanish", () => {
     assert.match(presentAdminPublicationStatus("PENDING_APPROVAL").label, /revisar/i);
     assert.equal(
       looksLikeRawStatusEnum(presentAdminPublicationStatus("PUBLISHED").label),
@@ -120,33 +110,17 @@ describe("social communications UI source contracts", () => {
     assert.doesNotMatch(page, /PENDING_APPROVAL<\/option>/);
   });
 
-  it("registration detail differentiates regenerate and warns on resend", () => {
+  it("registration detail warns on resend", () => {
     const page = readFileSync(
       join(ROOT, "app/admin/(panel)/inscripciones/[registrationId]/page.tsx"),
       "utf8",
     );
-    assert.match(page, /Volver a generar/);
-    assert.match(page, /Generar placa/);
     assert.match(page, /Reenviar correo/);
     assert.match(page, /SOCIAL_SENSITIVE_CONFIRM/);
     assert.match(page, /Usuario de Instagram del participante/);
     assert.match(page, /Instagram no informado/);
   });
 
-  it("welcome card public preview uses authenticated proxy path", () => {
-    const card = readFileSync(
-      join(ROOT, "components/account/WelcomeCardShareCard.tsx"),
-      "utf8",
-    );
-    // La ruta se arma en `welcomeCardMediaUrl`, que es el proxy autenticado: la
-    // placa lleva cara y nombre, así que no puede servirse por el proxy público.
-    assert.match(card, /welcomeCardMediaUrl/);
-    assert.doesNotMatch(card, /r2\.|amazonaws|X-Amz-Signature/);
-    assert.match(card, /aspect-\[9\/16\]/);
-
-    const helper = readFileSync(join(ROOT, "lib/welcome-card/media-url.ts"), "utf8");
-    assert.match(helper, /\/api\/public\/registrations\/\$\{encodeURIComponent\(registrationId\)\}\/welcome-card/);
-  });
 
   it("does not modify social publisher worker logic", () => {
     const worker = readFileSync(join(ROOT, "lib/social-publisher/worker.ts"), "utf8");

@@ -33,7 +33,9 @@ export function AddToCart({ product }: { product: StoreProductDetail }) {
   const available = tieneTalles ? (talle?.available ?? null) : product.available;
 
   const enCarritoLinea = cart.state.lines.find((l) => lineKey(l) === lineKey({ productId: product.productId, variantId }))?.qty ?? 0;
-  const enCarritoProducto = cart.state.lines.filter((l) => l.productId === product.productId).reduce((s, l) => s + l.qty, 0);
+  const enCarritoProducto = cart.state.lines
+    .filter((l) => l.kind === "product" && l.productId === product.productId)
+    .reduce((s, l) => s + l.qty, 0);
   const maximo = maxAddableQty({
     available,
     maxPerOrder: product.maxPerOrder,
@@ -48,6 +50,7 @@ export function AddToCart({ product }: { product: StoreProductDetail }) {
   function agregar() {
     if (!puedeAgregar) return;
     cart.add({
+      kind: "product",
       productId: product.productId,
       variantId: talle?.id ?? null,
       slug: product.slug,

@@ -1,0 +1,146 @@
+import { NextResponse } from "next/server";
+import { estadosDeRecortes, recortesActivos } from "@/lib/recortes/recortes";
+import { prisma } from "@/lib/prisma";
+import { readPrivateCopy } from "@repo/template-editor-core";
+import { toDesignTemplatePayload } from "@/lib/design-v2/client-payload";
+import type { DesignV2Edit } from "@/lib/design-v2/design-data";
+import { designErrorResponse, parseId, requireDesignActor } from "@/lib/design-v2/http";
+import {
+  designPhotoDisplayUrl,
+  loadDesignProjectForActor,
+  loadTemplateForDesign,
+  saveDesignEdits,
+} from "@/lib/design-v2/projects";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+type Ctx = { params: Promise<{ id: string }> };
+
+/** GET /api/fotografo/disenos/[id] — todo lo que necesita la pantalla de revisión. */
+export async function GET(_req: Request, context: Ctx) {
+  const actor = await requireDesignActor();
+  if (actor instanceof NextResponse) return actor;
+  const id = parseId((await context.params).id);
+  if (!id) return NextResponse.json({ ok: false, error: "Diseño inválido." }, { status: 400 });
+
+  try {
+    const { project, data } = await loadDesignProjectForActor(id, actor);
+    const template = await loadTemplateForDesign(data);
+
+    const [photos, album, order, item, produccion, version] = await Promise.all([
+      prisma.photo.findMany({
+        where: { id: { in: data.photoIds } },
+        select: { id: true, previewUrl: true, originalKey: true },
+      }),
+      project.albumId
+        ? prisma.album.findUnique({ where: { id: project.albumId }, select: { id: true, title: true } })
+        : null,
+      project.albumOrderId
+        ? prisma.order.findUnique({
+            where: { id: project.albumOrderId },
+            select: { id: true, buyerName: true, buyerEmail: true },
+          })
+        : null,
+      project.orderItemId
+        ? prisma.preCompraOrderItem.findUnique({
+            where: { id: project.orderItemId },
+            select: {
+              id: true,
+              order: { select: { buyerName: true, buyerEmail: true, studentFirstName: true, studentLastName: true } },
+            },
+          })
+        : null,
+      prisma.designProject.findUnique({
+        where: { id: project.id },
+        select: { sentToPrintAt: true, printedAt: true, deliveredAt: true },
+      }),
+      prisma.templateV2Version.findUnique({ where: { id: template.versionId }, select: { metaJson: true } }),
+    ]);
+    const enProduccion = Boolean(produccion?.sentToPrintAt || produccion?.printedAt || produccion?.deliveredAt);
+    const copia = readPrivateCopy(version?.metaJson);
+    const editadoAMano = copia?.kind === "design-project" && copia.id === String(project.id);
+    const plantillaPropia = actor.role === "ADMIN" || template.ownerUserId === actor.id;
+    const photoById = new Map(photos.map((p) => [p.id, p]));
+
+    // Los recortes sin fondo de las fotos del diseño (para los huecos «Quitar el fondo»).
+    const recortes = new Map((await estadosDeRecortes(data.photoIds)).map((r) => [r.photoId, r]));
+    return NextResponse.json({
+      ok: true,
+      design: {
+        id: project.id,
+        status: project.status,
+        reviewNote: project.reviewNote,
+        approvedAt: project.approvedAt?.toISOString() ?? null,
+        createdAt: project.createdAt.toISOString(),
+        album: album ? { id: album.id, title: album.title } : null,
+        orderId: order?.id ?? null,
+        buyer: {
+          name: order?.buyerName ?? item?.order.buyerName ?? null,
+          email: order?.buyerEmail ?? item?.order.buyerEmail ?? null,
+          student:
+            [item?.order.studentFirstName, item?.order.studentLastName].filter(Boolean).join(" ").trim() || null,
+        },
+        /** Retocar el armado en el diseñador completo, sobre una copia sólo de este diseño. */
+        armado: {
+          editadoAMano,
+          enProduccion,
+          puedeEditar: !enProduccion && plantillaPropia,
+          motivo: enProduccion
+            ? "Ya se mandó a imprimir: el diseño no se puede cambiar."
+            : !plantillaPropia
+              ? "La plantilla no es tuya: duplicala en tus plantillas para poder retocar el armado."
+              : null,
+        },
+      },
+      data,
+      template: toDesignTemplatePayload(template),
+      photos: data.photoIds.map((pid) => {
+        const p = photoById.get(pid);
+        const r = recortes.get(pid);
+        return {
+          id: pid,
+          url: p ? designPhotoDisplayUrl(p) : null,
+          ...(r ? { cutout: { status: r.status, url: r.status === "READY" ? r.url : null, error: r.error } } : {}),
+        };
+      }),
+      recortesActivos: recortesActivos(),
+    });
+  } catch (err) {
+    return designErrorResponse(err, "leer diseño");
+  }
+}
+
+const EDIT_KINDS = new Set(["set-photo", "swap", "set-crop", "set-value", "reset"]);
+
+/** PATCH /api/fotografo/disenos/[id] — guarda correcciones. Body: `{ edits: DesignV2Edit[] }`. */
+export async function PATCH(req: Request, context: Ctx) {
+  const actor = await requireDesignActor();
+  if (actor instanceof NextResponse) return actor;
+  const id = parseId((await context.params).id);
+  if (!id) return NextResponse.json({ ok: false, error: "Diseño inválido." }, { status: 400 });
+
+  const body = (await req.json().catch(() => ({}))) as { edits?: unknown };
+  const edits = Array.isArray(body.edits) ? body.edits : [];
+  if (edits.length === 0 || edits.length > 50) {
+    return NextResponse.json({ ok: false, error: "No hay cambios para guardar." }, { status: 400 });
+  }
+  for (const e of edits) {
+    const kind = (e as { kind?: unknown })?.kind;
+    if (typeof kind !== "string" || !EDIT_KINDS.has(kind)) {
+      return NextResponse.json({ ok: false, error: "Cambio inválido." }, { status: 400 });
+    }
+  }
+
+  try {
+    // `reset` no necesita los huecos del navegador: se recalculan con la plantilla del diseño.
+    const normalized = edits.map((e) =>
+      (e as { kind: string }).kind === "reset" ? ({ kind: "reset", slots: [] } as DesignV2Edit) : (e as DesignV2Edit),
+    );
+    const data = await saveDesignEdits(id, actor, normalized);
+    const project = await prisma.designProject.findUnique({ where: { id }, select: { status: true } });
+    return NextResponse.json({ ok: true, data, status: project?.status ?? null });
+  } catch (err) {
+    return designErrorResponse(err, "guardar diseño");
+  }
+}

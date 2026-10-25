@@ -25,7 +25,7 @@ function benefitListSummary(
   templates: TemplateOption[]
 ): string {
   const photographerProductName = benefitProductName(b, products);
-  const tpl = templates.find((t) => t.id === b.templateId);
+  const tpl = templates.find((t) => t.id === b.templateV2Id);
   return buildBenefitDashboardSummary({
     kind: b.kind,
     includedQuantity: b.includedQuantity,
@@ -338,6 +338,7 @@ export default function PreventaPackBenefitsEditor({
             templateOptions={templateOptions}
             saving={benefitSaving}
             hideHeading
+            albumId={albumId}
             onCancel={() => {
               setEditingBenefit(null);
               setView("list");

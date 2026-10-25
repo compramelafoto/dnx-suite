@@ -20,7 +20,7 @@ export function TemplateEditorExitModal({ open, saving, onCancel, onExitWithoutS
       title="¿Salir del editor?"
       titleId="template-editor-exit-title"
       description={
-        <p className="max-w-2xl text-sm leading-relaxed text-gray-600">
+        <p className="max-w-2xl text-sm leading-relaxed text-[color:var(--te-ink-muted)]">
           Hay cambios sin guardar. Podés guardarlos antes de volver al listado, o salir y descartarlos.
         </p>
       }

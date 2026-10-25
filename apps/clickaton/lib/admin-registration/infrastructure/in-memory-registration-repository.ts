@@ -118,9 +118,6 @@ function toListItem(row: InMemoryAdminRegistrationRow): AdminRegistrationListIte
     fotoRankSyncedAt: null,
     instagramHandle: null,
     profilePhotoAssetId: null,
-    welcomeCardId: null,
-    welcomeCardStatus: null,
-    welcomeCardAssetId: null,
     welcomePublicationStatus: null,
   };
 }
@@ -130,7 +127,6 @@ function toDetail(row: InMemoryAdminRegistrationRow): AdminRegistrationDetail {
   return {
     ...list,
     fotoRankSync: null,
-    welcomeCard: null,
     userId: row.userId,
     phone: row.phone,
     city: row.city,

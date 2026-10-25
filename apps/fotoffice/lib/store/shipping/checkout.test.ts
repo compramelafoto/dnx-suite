@@ -82,6 +82,29 @@ describe("parseQuoteRequest", () => {
     expect(r.ok && r.value.lines).toEqual([{ productId: "p1", variantId: "v1", qty: 1 }]);
   });
 
+  it("las obras se cotizan con su formato (el listing no hace falta para el peso)", () => {
+    const r = parseQuoteRequest({
+      method: "HOME",
+      postalCode: "2000",
+      provinceCode: "S",
+      lines: [
+        { productId: "p1", variantId: null, qty: 1 },
+        { kind: "artwork", artworkListingId: "al1", printFormatId: "f1", qty: 2, unitPriceMinor: 5, name: "x" },
+      ],
+    });
+    expect(r.ok && r.value.lines).toEqual([
+      { productId: "p1", variantId: null, qty: 1 },
+      { kind: "artwork", printFormatId: "f1", qty: 2 },
+    ]);
+    const soloObras = parseQuoteRequest({
+      method: "HOME",
+      postalCode: "2000",
+      provinceCode: "S",
+      lines: [{ kind: "artwork", artworkListingId: "al1", printFormatId: "f1", qty: 1 }],
+    });
+    expect(soloObras.ok).toBe(true);
+  });
+
   it("rechaza con un mensaje para mostrar", () => {
     expect(parseQuoteRequest({ method: "PICKUP", postalCode: "2000", provinceCode: "S", lines })).toEqual({
       ok: false,
@@ -181,5 +204,54 @@ describe("publicAgencies", () => {
       { id: "A1", name: "Centro", address: "Córdoba 721", city: "Rosario", postalCode: "2000" },
       { id: "A3", name: "n".repeat(200), address: "a".repeat(200), city: "c", postalCode: "2000" },
     ]);
+  });
+});
+
+describe("Andreani en el checkout", () => {
+  const row = {
+    pickupEnabled: true,
+    homeDeliveryEnabled: true,
+    branchDeliveryEnabled: true,
+    source: "ANDREANI",
+    tableAsFallback: false,
+    handlingNote: null,
+  };
+
+  it("con la conexión activa ofrece domicilio y sucursal, y marca el correo", () => {
+    expect(deliveryOptionsFromSettings(row, true, { branchContract: true })).toEqual({
+      pickup: true,
+      home: true,
+      branch: true,
+      handlingNote: null,
+      carrier: "ANDREANI",
+    });
+  });
+
+  it("sin contrato de sucursal no ofrece sucursal", () => {
+    expect(deliveryOptionsFromSettings(row, true, { branchContract: false })).toMatchObject({ home: true, branch: false });
+  });
+
+  it("desconectado: sucursal nunca; domicilio sólo con la tabla de respaldo", () => {
+    expect(deliveryOptionsFromSettings(row, false, { branchContract: true })).toMatchObject({ home: false, branch: false });
+    expect(deliveryOptionsFromSettings({ ...row, tableAsFallback: true }, false, { branchContract: true })).toMatchObject({
+      home: true,
+      branch: false,
+    });
+  });
+
+  it("cotizar a sucursal sin provincia (se busca por CP); domicilio sigue pidiéndola", () => {
+    expect(parseQuoteRequest({ method: "BRANCH", postalCode: "5000", provinceCode: "", lines })).toEqual({
+      ok: true,
+      value: { method: "BRANCH", postalCode: "5000", provinceCode: "", lines },
+    });
+    expect(parseQuoteRequest({ method: "BRANCH", postalCode: "5000", lines }).ok).toBe(true);
+    expect(parseQuoteRequest({ method: "HOME", postalCode: "5000", provinceCode: "", lines })).toEqual({
+      ok: false,
+      message: "Elegí la provincia.",
+    });
+    expect(parseQuoteRequest({ method: "BRANCH", postalCode: "5000", provinceCode: "Ñ", lines })).toEqual({
+      ok: false,
+      message: "Elegí la provincia.",
+    });
   });
 });

@@ -13,7 +13,7 @@ function form(campos: Record<string, string | string[]>): FormData {
 const base = { sellOnline: ["on", "off"], sellAtCounter: ["on", "off"] };
 
 describe("parseListingForm", () => {
-  it.each(["carrito", "Carrito", " checkout ", "pedido", "arrepentimiento", "términos"])(
+  it.each(["carrito", "Carrito", " checkout ", "pedido", "arrepentimiento", "términos", "obras", "Obras"])(
     "rechaza la dirección reservada %j",
     (slug) => {
       expect(parseListingForm(form({ ...base, slug }))).toEqual({

@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  ALBOOM_INTEGRATION_KEY,
+  ANDREANI_INTEGRATION_KEY,
+  WHATSAPP_INTEGRATION_KEY,
   CORREO_ARGENTINO_INTEGRATION_KEY,
   GOOGLE_CALENDAR_INTEGRATION_KEY,
   GOOGLE_CONTACTS_INTEGRATION_KEY,
@@ -15,18 +18,22 @@ describe("catálogo de integraciones", () => {
     expect(findDuplicateIntegrationKeys()).toEqual([]);
   });
 
-  it("Google Calendar, Contacts y Correo Argentino son las implementadas hoy", () => {
+  it("Google Calendar, Contacts, Correo Argentino, Andreani, Alboom y WhatsApp son las implementadas hoy", () => {
     expect(listAvailableIntegrationKeys()).toEqual([
       GOOGLE_CALENDAR_INTEGRATION_KEY,
       GOOGLE_CONTACTS_INTEGRATION_KEY,
       CORREO_ARGENTINO_INTEGRATION_KEY,
+      ANDREANI_INTEGRATION_KEY,
+      ALBOOM_INTEGRATION_KEY,
+      WHATSAPP_INTEGRATION_KEY,
     ]);
   });
 
-  it("se puede filtrar por proveedor: la pantalla de Google no ofrece Correo", () => {
+  it("se puede filtrar por proveedor: la pantalla de Google no ofrece Correo ni Andreani", () => {
     const google = listIntegrations({ status: "AVAILABLE", provider: "GOOGLE" }).map((i) => i.key);
     expect(google).toEqual([GOOGLE_CALENDAR_INTEGRATION_KEY, GOOGLE_CONTACTS_INTEGRATION_KEY]);
     expect(google).not.toContain(CORREO_ARGENTINO_INTEGRATION_KEY);
+    expect(google).not.toContain(ANDREANI_INTEGRATION_KEY);
   });
 
   it("Calendar pide permiso de eventos y la necesita el módulo de reservas", () => {
@@ -34,6 +41,8 @@ describe("catálogo de integraciones", () => {
     expect(calendar).toBeDefined();
     expect(calendar!.scopes).toContain("https://www.googleapis.com/auth/calendar.events");
     expect(calendar!.requiredByModules).toContain("bookings");
+    // La Agenda usa la misma cuenta (calendario propio).
+    expect(calendar!.requiredByModules).toContain("agenda");
   });
 
   it("las integraciones previstas existen en el catálogo pero no se ofrecen", () => {
@@ -87,5 +96,28 @@ describe("Correo Argentino", () => {
     expect(correo?.status).toBe("AVAILABLE");
     expect(correo?.scopes).toEqual([]);
     expect(correo?.requiredByModules).toEqual([]);
+  });
+});
+
+describe("Andreani", () => {
+  it("se ofrece, sin permisos OAuth y sin módulos que la exijan", () => {
+    const andreani = getIntegrationDefinition(ANDREANI_INTEGRATION_KEY);
+    expect(andreani?.key).toBe("andreani");
+    expect(andreani?.provider).toBe("ANDREANI");
+    expect(andreani?.status).toBe("AVAILABLE");
+    expect(andreani?.scopes).toEqual([]);
+    expect(andreani?.requiredByModules).toEqual([]);
+  });
+});
+
+describe("Alboom CRM", () => {
+  it("se ofrece sin permisos OAuth, sin módulos que la exijan y fuera de la pantalla de Google", () => {
+    const alboom = getIntegrationDefinition(ALBOOM_INTEGRATION_KEY);
+    expect(alboom?.key).toBe("alboom-crm");
+    expect(alboom?.provider).toBe("ALBOOM");
+    expect(alboom?.status).toBe("AVAILABLE");
+    expect(alboom?.scopes).toEqual([]);
+    expect(alboom?.requiredByModules).toEqual([]);
+    expect(listIntegrations({ status: "AVAILABLE", provider: "GOOGLE" }).map((i) => i.key)).not.toContain(ALBOOM_INTEGRATION_KEY);
   });
 });

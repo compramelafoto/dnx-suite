@@ -171,12 +171,15 @@ export function normalizeQuoteItem(raw: Partial<CuantoCobroQuoteItem>): CuantoCo
   });
 }
 
+/** Disparos del trabajo en la cámara PRINCIPAL (las demás cámaras no gastan su obturador). */
 export function getQuoteTotalEstimatedShots(items: CuantoCobroQuoteItem[]): number {
   return items.reduce((total, item) => {
     if (item.itemType !== "own-service") return total;
+    const camera = typeof item.cameraId === "string" ? item.cameraId.trim() : "";
+    if (camera && camera !== "primary") return total;
     const shots = parseCuantoCobroAmount(item.estimatedShots) ?? 0;
     if (shots <= 0) return total;
-    return total + shots * parseQuoteItemQuantity(item.quantity);
+    return total + (item.shotsPer === "job" ? shots : shots * parseQuoteItemQuantity(item.quantity));
   }, 0);
 }
 

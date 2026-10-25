@@ -9,7 +9,21 @@ import {
   moveTo,
   popGraphicsState,
   pushGraphicsState,
+  beginText,
+  endText,
+  PDFHexString,
+  PDFNumber,
+  PDFOperator,
+  PDFOperatorNames,
   rgb,
+  setFillingColor,
+  setFontAndSize,
+  setGraphicsState,
+  setTextMatrix,
+  setLineWidth,
+  setStrokingColor,
+  setTextRenderingMode,
+  TextRenderingMode,
   type PDFImage,
   type PDFPage,
 } from "pdf-lib";
@@ -19,8 +33,15 @@ import type { DesignDocument } from "../document/schema";
 import type { ResolvedVariables } from "../variables/contract";
 import { buildLayoutPlan, type LayoutPage, type LayoutTextItem } from "../layout/plan";
 import { isFontId, slotFor, type FontId, type FontSlot } from "../fonts/catalog";
-import { createPdfFontSet, type PdfFontSet } from "./fonts-pdf";
+import {
+  anchoDeTexto,
+  componerRenglon,
+  createPdfFontSet,
+  fuenteConKerning,
+  type PdfFontSet,
+} from "./fonts-pdf";
 import { RENDERER_VERSION } from "./version";
+import { ubicarFotoEncuadrada } from "../layout/encuadre";
 import { detectImageFormat, type ResourceResolver } from "./resources";
 
 export type RenderPdfOptions = {
@@ -59,30 +80,96 @@ function dibujarTexto(
   fuentes: PdfFontSet,
 ): void {
   const font = fuentes.get(item.fontId, item.slot);
-  // Alto de la mayúscula, sin descendente: fija la primera línea de base bajo el borde
-  // superior de la caja.
-  const ascenso = font.heightAtSize(item.sizePt, { descender: false });
+  /*
+   * Cada renglón se ubica como lo hace el navegador: la altura de la letra (ascendente más
+   * descendente) va centrada en el interlineado, y la línea de base queda a un ascendente de
+   * ese borde. Antes la base iba a un ascendente del borde de la caja, sin repartir el
+   * interlineado: el PDF quedaba unos puntos más arriba que la pantalla, y más con
+   * interlineados amplios.
+   */
+  const { ascendente, descendente, negritaSimulada, cursivaSimulada } = fuentes.metricas(
+    item.fontId,
+    item.slot,
+  );
+  const ascenso = ascendente * item.sizePt;
+  const altoDeLetra = (ascendente + descendente) * item.sizePt;
+  const medioInterlineado = (item.lineHeightPt - altoDeLetra) / 2;
   const color = hexToRgb(item.color);
 
+  /*
+   * Un texto girado se gira alrededor del centro de su caja, igual que las imágenes y que el
+   * lienzo del editor. Antes cada línea llevaba su propio `rotate`, que pdf-lib aplica alrededor
+   * del inicio de la línea: a 90° el texto terminaba fuera de su lugar —o fuera de la hoja— y
+   * los textos verticales del costado no salían en el PDF.
+   */
+  const gira = Boolean(item.rotation);
+  if (gira) {
+    const cx = item.xPt + item.widthPt / 2;
+    const cy = altoPagina - (item.yPt + item.heightPt / 2);
+    const rad = (-item.rotation * Math.PI) / 180;
+    const cos = Math.cos(rad);
+    const sen = Math.sin(rad);
+    page.pushOperators(
+      pushGraphicsState(),
+      concatTransformationMatrix(1, 0, 0, 1, cx, cy),
+      concatTransformationMatrix(cos, sen, -sen, cos, 0, 0),
+      concatTransformationMatrix(1, 0, 0, 1, -cx, -cy),
+    );
+  }
+
+  /*
+   * Negrita y cursiva que la familia no trae: el navegador las simula engrosando el contorno y
+   * inclinando la letra, y el PDF hace lo mismo. Antes salía la letra normal y el diseño
+   * impreso no se parecía al de la pantalla. El grosor es el del motor de Chrome (un treintaidosavo
+   * del cuerpo) y la inclinación, un cuarto (unos 14°).
+   */
+  if (negritaSimulada) {
+    page.pushOperators(
+      pushGraphicsState(),
+      setTextRenderingMode(TextRenderingMode.FillAndOutline),
+      setLineWidth(item.sizePt / 32),
+      setStrokingColor(color),
+    );
+  }
+
+  const conKerning = fuenteConKerning(font);
   item.lines.forEach((linea, i) => {
-    const ancho = font.widthOfTextAtSize(linea, item.sizePt);
+    const ancho = anchoDeTexto(font, linea, item.sizePt);
     const desplazamiento =
       item.align === "center"
         ? (item.widthPt - ancho) / 2
         : item.align === "right"
           ? item.widthPt - ancho
           : 0;
-    const baseY = altoPagina - (item.yPt + ascenso + i * item.lineHeightPt);
+    const baseY =
+      altoPagina -
+      (item.yPt + item.offsetYPt + medioInterlineado + ascenso + i * item.lineHeightPt);
+    const x = item.xPt + desplazamiento;
+    if (conKerning) {
+      escribirConKerning(page, font, conKerning, linea, {
+        x,
+        y: baseY,
+        sizePt: item.sizePt,
+        color,
+        opacity: item.opacity,
+        inclinacion: cursivaSimulada ? 0.25 : 0,
+      });
+      return;
+    }
     page.drawText(linea, {
-      x: item.xPt + desplazamiento,
+      x,
       y: baseY,
       size: item.sizePt,
       font,
       color,
       opacity: item.opacity,
-      ...(item.rotation ? { rotate: degrees(-item.rotation) } : {}),
+      ...(cursivaSimulada ? { xSkew: degrees(14.04) } : {}),
     });
   });
+
+  if (negritaSimulada) page.pushOperators(popGraphicsState());
+
+  if (gira) page.pushOperators(popGraphicsState());
 }
 
 async function dibujarPagina(
@@ -106,17 +193,51 @@ async function dibujarPagina(
     const yPdf = alto - item.yPt - item.heightPt;
 
     if (item.kind === "rect") {
-      page.drawRectangle({
-        x: item.xPt,
-        y: yPdf,
-        width: item.widthPt,
-        height: item.heightPt,
-        opacity: item.opacity,
-        ...(item.fillColor ? { color: hexToRgb(item.fillColor) } : {}),
-        ...(item.strokeColor ? { borderColor: hexToRgb(item.strokeColor) } : {}),
-        ...(item.strokeWidthPt ? { borderWidth: item.strokeWidthPt } : {}),
-        ...(item.rotation ? { rotate: degrees(-item.rotation) } : {}),
-      });
+      // Igual que textos e imágenes: el giro es alrededor del centro de la caja.
+      if (item.rotation) {
+        const cx = item.xPt + item.widthPt / 2;
+        const cy = yPdf + item.heightPt / 2;
+        const rad = (-item.rotation * Math.PI) / 180;
+        page.pushOperators(
+          pushGraphicsState(),
+          concatTransformationMatrix(1, 0, 0, 1, cx, cy),
+          concatTransformationMatrix(Math.cos(rad), Math.sin(rad), -Math.sin(rad), Math.cos(rad), 0, 0),
+          concatTransformationMatrix(1, 0, 0, 1, -cx, -cy),
+        );
+      }
+      /*
+       * Como en el lienzo (CSS con `box-sizing: border-box`): el relleno ocupa toda la caja, el
+       * borde va por dentro y las esquinas redondeadas se respetan. Antes el borde quedaba
+       * centrado sobre el contorno —la mitad afuera— y el radio se ignoraba: las esquinas
+       * redondeadas salían rectas en el PDF.
+       */
+      const w = item.widthPt;
+      const h = item.heightPt;
+      const radio = Math.min(item.cornerRadiusPt ?? 0, w / 2, h / 2);
+      const arriba = alto - item.yPt;
+      if (item.fillColor) {
+        page.drawSvgPath(trazoRectangulo(0, 0, w, h, radio), {
+          x: item.xPt,
+          y: arriba,
+          color: hexToRgb(item.fillColor),
+          opacity: item.opacity,
+          borderWidth: 0,
+        });
+      }
+      const trazo = item.strokeColor ? Math.min(item.strokeWidthPt ?? 0, w / 2, h / 2) : 0;
+      if (trazo > 0 && item.strokeColor) {
+        page.drawSvgPath(
+          trazoRectangulo(trazo / 2, trazo / 2, w - trazo, h - trazo, Math.max(0, radio - trazo / 2)),
+          {
+            x: item.xPt,
+            y: arriba,
+            borderColor: hexToRgb(item.strokeColor),
+            borderWidth: trazo,
+            borderOpacity: item.opacity,
+          },
+        );
+      }
+      if (item.rotation) page.pushOperators(popGraphicsState());
       continue;
     }
 
@@ -224,13 +345,30 @@ async function dibujarPagina(
 
     page.pushOperators(...operadoresDeClip(item, yPdf), clip(), endPath());
 
-    page.drawImage(imagen, {
-      x: item.xPt + (item.widthPt - ancho) / 2,
-      y: yPdf + (item.heightPt - altoImg) / 2,
-      width: ancho,
-      height: altoImg,
-      opacity: item.opacity,
-    });
+    if (item.fit === "cover" && item.crop) {
+      // Encuadrada: la cuenta va de arriba hacia abajo, como en pantalla; el PDF mide desde abajo.
+      const u = ubicarFotoEncuadrada({
+        anchoRecuadro: item.widthPt,
+        altoRecuadro: item.heightPt,
+        aspectoFoto: imagen.width / imagen.height,
+        crop: item.crop,
+      });
+      page.drawImage(imagen, {
+        x: item.xPt + u.x,
+        y: yPdf + item.heightPt - u.y - u.height,
+        width: u.width,
+        height: u.height,
+        opacity: item.opacity,
+      });
+    } else {
+      page.drawImage(imagen, {
+        x: item.xPt + (item.widthPt - ancho) / 2,
+        y: yPdf + (item.heightPt - altoImg) / 2,
+        width: ancho,
+        height: altoImg,
+        opacity: item.opacity,
+      });
+    }
 
     page.pushOperators(popGraphicsState());
   }
@@ -296,12 +434,67 @@ function operadoresDeClip(
   ];
 }
 
+/** Rectángulo con esquinas redondeadas como trazado SVG (y hacia abajo), para `drawSvgPath`. */
+function trazoRectangulo(x: number, y: number, w: number, h: number, r: number): string {
+  if (r <= 0) return `M ${x} ${y} H ${x + w} V ${y + h} H ${x} Z`;
+  return (
+    `M ${x + r} ${y} H ${x + w - r} A ${r} ${r} 0 0 1 ${x + w} ${y + r} ` +
+    `V ${y + h - r} A ${r} ${r} 0 0 1 ${x + w - r} ${y + h} ` +
+    `H ${x + r} A ${r} ${r} 0 0 1 ${x} ${y + h - r} ` +
+    `V ${y + r} A ${r} ${r} 0 0 1 ${x + r} ${y} Z`
+  );
+}
+
+/**
+ * Escribe un renglón letra por letra con el ajuste entre pares de la tipografía (operador TJ),
+ * que es lo que hace el navegador. Ver `fuenteConKerning`.
+ */
+function escribirConKerning(
+  page: PDFPage,
+  font: Parameters<PDFPage["setFont"]>[0],
+  fk: NonNullable<ReturnType<typeof fuenteConKerning>>,
+  linea: string,
+  o: { x: number; y: number; sizePt: number; color: ReturnType<typeof rgb>; opacity: number; inclinacion: number },
+): void {
+  const { glyphs, positions } = componerRenglon(fk, linea);
+  const partes: Array<PDFHexString | PDFNumber> = [];
+  glyphs.forEach((g, i) => {
+    partes.push(PDFHexString.of(g.id.toString(16).padStart(4, "0")));
+    const ajuste = ((g.advanceWidth - (positions[i]?.xAdvance ?? g.advanceWidth)) * 1000) / fk.unitsPerEm;
+    if (Math.abs(ajuste) > 0.001) partes.push(PDFNumber.of(ajuste));
+  });
+  const interno = page as unknown as {
+    node: { newFontDictionary(name: string, ref: unknown): Parameters<typeof setFontAndSize>[0] };
+    doc: { context: { obj(v: unknown[]): never } };
+    maybeEmbedGraphicsState(o: { opacity?: number }): string | undefined;
+  };
+  const clave = interno.node.newFontDictionary(font.name, font.ref);
+  const estado = o.opacity < 1 ? interno.maybeEmbedGraphicsState({ opacity: o.opacity }) : undefined;
+  page.pushOperators(
+    pushGraphicsState(),
+    ...(estado ? [setGraphicsState(estado)] : []),
+    beginText(),
+    setFillingColor(o.color),
+    setFontAndSize(clave, o.sizePt),
+    setTextMatrix(1, 0, o.inclinacion, 1, o.x, o.y),
+    PDFOperator.of(PDFOperatorNames.ShowTextAdjusted, [interno.doc.context.obj(partes)]),
+    endText(),
+    popGraphicsState(),
+  );
+}
+
 export async function renderPdf(
   doc: DesignDocument,
   resolved: ResolvedVariables,
   options: RenderPdfOptions,
 ): Promise<Result<Uint8Array>> {
-  const fuentes = await createPdfFontSet(fuentesUsadas(doc));
+  let fuentes: PdfFontSet;
+  try {
+    fuentes = await createPdfFontSet(fuentesUsadas(doc));
+  } catch (e) {
+    // Una tipografía de Google que no se pudo bajar: mejor no emitir que imprimir con otra letra.
+    return { ok: false, errors: [e instanceof Error ? e.message : String(e)] };
+  }
 
   const plan = buildLayoutPlan(doc, resolved, {
     measurer: fuentes.measurer,

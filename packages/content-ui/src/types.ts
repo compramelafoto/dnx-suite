@@ -27,6 +27,9 @@ export type ContentPostFormValue = {
   lastReviewedAt: string;
   isFeatured: boolean;
   featuredUntil: string;
+  /** Fecha y hora de publicación (`datetime-local`, o ISO tal como llega). Solo la usa el
+   * formulario con `canSchedule`: una fecha futura deja el artículo programado. */
+  publishedAt?: string;
 };
 
 export type ContentPostFormSubmitPayload = {
@@ -49,6 +52,8 @@ export type ContentPostFormSubmitPayload = {
   lastReviewedAt: string | null;
   isFeatured: boolean;
   featuredUntil: string | null;
+  /** Solo viaja si el formulario la definió (ver `publishedAtFor`); si no, el servidor decide. */
+  publishedAt?: string | null;
 };
 
 export type ContentPostSubmitResult = {
@@ -68,6 +73,8 @@ export type ContentFormCapabilities = {
   canArchive?: boolean;
   canDelete?: boolean;
   canManageMedia?: boolean;
+  /** Permite programar la publicación para una fecha y hora futuras. Apagado por defecto. */
+  canSchedule?: boolean;
 };
 
 export type ContentMediaItem = {

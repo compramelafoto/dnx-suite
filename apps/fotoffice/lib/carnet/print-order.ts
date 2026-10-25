@@ -87,6 +87,17 @@ export async function requestPrintedCard(input: {
    * tarjeta se emite recién cuando llega la foto. Sin esto se le cobraría dos veces.
    */
   existingChargeId?: string;
+  /**
+   * Sólo enganchar a un cargo ya pagado; nunca crear uno nuevo.
+   *
+   * Lo usa la Secretaría al emitir desde el panel una tarjeta que el socio ya pagó: si el
+   * cargo libre desapareció entre que se mostró el botón y se lo tocó, emitir igual sería
+   * cobrarle una tarjeta que nadie pidió.
+   */
+  requirePrepaid?: boolean;
+  /** Quién figura en el primer paso del recorrido. Por defecto, el propio socio. */
+  actorLabel?: string;
+  actorUserId?: number;
 }): Promise<PrintOrderResult> {
   const ahora = input.now ?? new Date();
 
@@ -140,6 +151,9 @@ export async function requestPrintedCard(input: {
   // pantalla del socio, y un `2026-09` a secas se leía como la cuota de septiembre.
   const period = printedCardPeriod(ahora);
   const reutilizable = input.existingChargeId ?? (await cargoPagadoLibre(input.workspaceId, input.memberId));
+  if (input.requirePrepaid && !reutilizable) {
+    return { ok: false, error: "No tiene una tarjeta impresa pagada sin emitir." };
+  }
   const dueDate = new Date(ahora.getTime() + PRINT_ORDER_DUE_DAYS * 24 * 60 * 60 * 1000);
   const validUntil = addMonthsUtc(ahora, CARNET_VALIDITY_MONTHS);
 
@@ -204,7 +218,8 @@ export async function requestPrintedCard(input: {
             cardId: card.id,
             fromState: null,
             toState: "PENDIENTE_PAGO",
-            actorLabel: "El socio pidió la tarjeta",
+            actorLabel: input.actorLabel ?? "El socio pidió la tarjeta",
+            actorUserId: input.actorUserId ?? null,
             note: null,
           },
         });

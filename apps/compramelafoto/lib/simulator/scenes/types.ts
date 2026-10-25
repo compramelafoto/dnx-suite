@@ -2,9 +2,10 @@
  * Tipos del sistema de escenas — Cam Of Duty.
  */
 
-export type SimulatorSceneId = "studio" | "city" | "photographic-city";
+/** Única escena del simulador: la Calle 3D. */
+export type SimulatorSceneId = "photographic-city";
 
-export type SceneType = "studio" | "exterior" | "photographic-exterior";
+export type SceneType = "photographic-exterior";
 
 /** Escenas planificadas (futuro). */
 export type PlannedSceneId =
@@ -39,7 +40,7 @@ export interface SimulatorSceneMeta {
   experimental?: boolean;
   bounds: SceneBounds;
   spawn: SceneSpawnPose;
-  /** Usa luz solar dinámica (exterior legacy: cielo procedural). */
+  /** Usa luz solar dinámica (hora del día). */
   usesNaturalLight: boolean;
   /** Pipeline fotográfico: HDRI por hora, ACES, glTF, sin primitivas. */
   usesPhotographicPipeline?: boolean;

@@ -6,6 +6,7 @@ import {
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useReducer,
   useRef,
@@ -62,6 +63,8 @@ import {
   getInsertableImageVariablesForProduct,
   getQrVariablesForProduct,
   editorResolvedVariablesForProduct,
+  createDefaultClassListBlock,
+  createDefaultCourseMosaicBlock,
   createDefaultVariableTextBlock,
 } from "@repo/template-editor-core";
 import { asObject } from "@repo/template-editor-core";
@@ -83,12 +86,15 @@ import {
 import { editorThemeStyle, type TemplateEditorTheme } from "./theme";
 import { EditorThemeProvider } from "./theme-context";
 import { ActionButton, ToolButton, ToolDivider, ToolGroup } from "./chrome/ToolControls";
+import { ReferenceGuidesMenu } from "./ReferenceGuidesMenu";
+import { useReferenceGuides } from "./useReferenceGuides";
+import { isFoldedSpread } from "@repo/template-editor-core";
 
 
 
 
 const sheetToolbarIconClass =
-  "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border text-[color:var(--te-ink-muted)] transition-colors disabled:pointer-events-none disabled:opacity-40 [&>svg]:pointer-events-none";
+  "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border text-[color:var(--te-ink-muted)] transition-colors disabled:pointer-events-none disabled:opacity-40 [&>svg]:pointer-events-none";
 
 function IconToolbarUndo(props: SVGProps<SVGSVGElement>) {
   return (
@@ -205,15 +211,6 @@ function IconToolbarSafeZone(props: SVGProps<SVGSVGElement>) {
   );
 }
 
-function IconToolbarAxes(props: SVGProps<SVGSVGElement>) {
-  return (
-    <svg viewBox="0 0 24 24" width={18} height={18} fill="none" stroke="currentColor" strokeWidth="2" aria-hidden {...props}>
-      <circle cx="12" cy="12" r="9" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M12 3v18M3 12h18" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
 function IconToolbarSpinner({ className }: { className?: string }) {
   return (
     <svg className={cn("h-[18px] w-[18px] animate-spin", className)} viewBox="0 0 24 24" fill="none" aria-hidden>
@@ -240,11 +237,11 @@ function EditorToolButton({
       aria-label={label}
       aria-pressed={pressed ?? false}
       className={cn(
-        "flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-transparent text-[color:var(--te-line-strong)] transition-colors",
+        "flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-transparent transition-colors",
         "hover:border-white/10 hover:bg-white/10 hover:text-white",
         "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[color:var(--te-accent)]",
         "disabled:pointer-events-none disabled:opacity-40",
-        pressed ? "border-white/15 bg-white/10 text-white" : "text-[color:var(--te-ink-faint)]",
+        pressed ? "border-white/15 bg-white/10 text-white" : "text-[color:var(--te-ink-muted)]",
         className
       )}
       {...props}
@@ -267,14 +264,18 @@ function RightSidebarSectionChevron({ open, className }: { open: boolean; classN
   );
 }
 
-/** Encabezado + botón para plegar/desplegar; el panel lateral hace scroll único. */
+/**
+ * Encabezado plegable al estilo de los paneles de Photoshop: una franja baja que se cliquea
+ * entera. El panel lateral hace scroll único. `flush` deja el contenido sin margen para los
+ * paneles que ya traen sus propias secciones con separadores.
+ */
 function RightSidebarSection({
   sectionId,
   title,
   open,
   onToggle,
   children,
-  variant = "muted",
+  flush = false,
 }: {
   sectionId: string;
   title: string;
@@ -282,38 +283,32 @@ function RightSidebarSection({
   onToggle: () => void;
   children: ReactNode;
   variant?: "muted" | "white";
+  flush?: boolean;
 }) {
   return (
-    <section
-      className={cn(
-        "border-b border-[color:var(--te-line)]",
-        variant === "muted" ? "bg-[color:var(--te-chrome)]" : "bg-white"
-      )}
-    >
-      <div className="flex items-center justify-between gap-2 px-3 py-2">
+    <section className="border-b border-[color:var(--te-line)] bg-[color:var(--te-chrome)]">
+      <button
+        type="button"
+        className="flex h-7 w-full items-center gap-1.5 border-b border-[color:var(--te-line)] bg-[color:var(--te-chrome-sunken)] px-2 text-left transition-colors hover:bg-[color:var(--te-line)] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[color:var(--te-accent)]"
+        onClick={onToggle}
+        aria-expanded={open}
+        aria-controls={`${sectionId}-content`}
+        title={open ? "Minimizar panel" : "Desplegar panel"}
+      >
+        <RightSidebarSectionChevron open={open} className="h-3 w-3" />
         <h3
           id={`${sectionId}-heading`}
-          className="text-xs font-semibold uppercase tracking-wide text-[color:var(--te-ink-muted)]"
+          className="text-[11px] font-semibold uppercase tracking-wider text-[color:var(--te-ink)]"
         >
           {title}
         </h3>
-        <button
-          type="button"
-          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-[color:var(--te-ink-muted)] transition-colors hover:bg-black/[0.04] hover:text-[color:var(--te-ink)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[color:var(--te-accent)]"
-          onClick={onToggle}
-          aria-expanded={open}
-          aria-controls={`${sectionId}-content`}
-          title={open ? "Minimizar bloque" : "Desplegar bloque"}
-        >
-          <RightSidebarSectionChevron open={open} />
-        </button>
-      </div>
+      </button>
       {open ? (
         <div
           id={`${sectionId}-content`}
           role="region"
           aria-labelledby={`${sectionId}-heading`}
-          className="px-3 pb-3 pt-0"
+          className={flush ? "" : "px-3 py-2"}
         >
           {children}
         </div>
@@ -322,9 +317,24 @@ function RightSidebarSection({
   );
 }
 
+/** Se guardó en una versión nueva porque la anterior estaba en uso (y quedó congelada). */
+export type TemplateEditorVersionForked = {
+  templateId: string;
+  fromVersionId: string;
+  toVersionId: string;
+  versionNumber: number;
+};
+
 type TemplateEditorShellProps = {
   templateId: string;
+  /** La versión con la que abre. Si al guardar se crea una nueva, el editor sigue en la nueva. */
   versionId: string;
+  /** Adónde vuelve «Cerrar». Por defecto, la lista de plantillas (`basePath`). */
+  exitHref?: string;
+  /** Aviso fijo arriba del lienzo (p. ej. «estás editando sólo este diseño»). */
+  notice?: ReactNode;
+  /** Avisa que los cambios quedaron en una versión nueva (la anterior estaba en uso). */
+  onVersionForked?: (info: TemplateEditorVersionForked) => void;
   /** Dónde monta el editor la app que hospeda. Obligatorio: ver `TEMPLATE_V2_BASE_PATHS`. */
   basePath: string;
   className?: string;
@@ -346,6 +356,7 @@ type LoadResponse = {
   meta?: Record<string, unknown>;
   updatedAt?: string;
   versionNumber?: number;
+  privateCopy?: { kind: string; id: string } | null;
   error?: string;
   code?: string;
   details?: string;
@@ -356,12 +367,23 @@ const BARRA_ESTADO_PX = 36;
 
 export function TemplateEditorShell({
   templateId,
-  versionId,
+  versionId: initialVersionId,
   className,
   theme,
   basePath,
+  exitHref,
+  notice,
+  onVersionForked,
 }: TemplateEditorShellProps) {
   const router = useRouter();
+  /*
+   * La versión en la que se guarda. Arranca en la de la dirección, pero si estaba en uso (un diseño
+   * armado, un carnet impreso…) el primer guardado crea otra y el editor sigue en esa.
+   */
+  const [versionId, setVersionId] = useState(initialVersionId);
+  const versionIdRef = useRef(initialVersionId);
+  versionIdRef.current = versionId;
+  const [forkNotice, setForkNotice] = useState<string | null>(null);
   const [state, dispatch] = useReducer(templateV2EditorReducer, TEMPLATE_V2_EDITOR_INITIAL_STATE);
   const [templateName, setTemplateName] = useState<string>("Plantilla");
   const [versionNumber, setVersionNumber] = useState<number | null>(null);
@@ -381,7 +403,43 @@ export function TemplateEditorShell({
   const [imagenMenuOpen, setImagenMenuOpen] = useState(false);
   /** El área donde se dibuja. De ahí sale la medida para ajustar el zoom. */
   const areaLienzoRef = useRef<HTMLDivElement | null>(null);
-  const [showCenterAxes, setShowCenterAxes] = useState(true);
+  /*
+   * La fila del editor (herramientas, lienzo, panel derecho) ocupa exactamente desde donde
+   * empieza hasta el borde inferior de la ventana. Sin ese tope, el panel de propiedades largo
+   * estiraba la fila: el lienzo quedaba centrado en un área más alta que la pantalla, corrido
+   * hacia abajo y cortado. Se mide en vivo porque cada app pone una cabecera de distinto alto.
+   */
+  const filaEditorRef = useRef<HTMLDivElement | null>(null);
+  /*
+   * Chrome convierte el pellizco del trackpad (y Ctrl/⌘ + rueda) en zoom de la página y lo
+   * recuerda para todo el sitio. El lienzo ya lo toma para ampliar la hoja, pero hecho sobre un
+   * panel o una barra ampliaba la página entera: la próxima vez el diseñador abría mostrando sólo
+   * una esquina de la mesa, sin barras, y había que apretar ⌘0. En todo el editor se frena.
+   */
+  const raizEditorRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const raiz = raizEditorRef.current;
+    if (!raiz) return;
+    const frenarZoom = (e: WheelEvent) => {
+      if (e.ctrlKey || e.metaKey) e.preventDefault();
+    };
+    const frenarGesto = (e: Event) => e.preventDefault();
+    raiz.addEventListener("wheel", frenarZoom, { passive: false });
+    raiz.addEventListener("gesturestart", frenarGesto);
+    raiz.addEventListener("gesturechange", frenarGesto);
+    return () => {
+      raiz.removeEventListener("wheel", frenarZoom);
+      raiz.removeEventListener("gesturestart", frenarGesto);
+      raiz.removeEventListener("gesturechange", frenarGesto);
+    };
+  }, []);
+  const [altoFilaEditor, setAltoFilaEditor] = useState<number | null>(null);
+  /*
+   * Guías de referencia (mitades, cuartos, centro de cada cara). Son una preferencia de quien
+   * diseña, guardada en el navegador; en un librito abierto vienen con el pliegue prendido.
+   */
+  const esLibritoAbierto = isFoldedSpread(state.versionMeta, state.canvas);
+  const [referenceGuides, setReferenceGuides] = useReferenceGuides(esLibritoAbierto);
   const [canvasSizeModalOpen, setCanvasSizeModalOpen] = useState(false);
   const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
   /** Capas + inspector a la derecha: oculto por defecto para ganar espacio en el lienzo. */
@@ -415,13 +473,22 @@ export function TemplateEditorShell({
     }
   }, [saveErrorMessage]);
 
+  const loadedKeyRef = useRef<string | null>(null);
   useEffect(() => {
+    // Tras guardar en una versión nueva se cambia la dirección; si la página vuelve a montar con
+    // esa versión, ya está abierta: no se recarga (se perdería el deshacer).
+    const key = `${templateId}:${initialVersionId}`;
+    if (loadedKeyRef.current === key || (loadedKeyRef.current?.startsWith(`${templateId}:`) && versionIdRef.current === initialVersionId)) {
+      return;
+    }
     let cancelled = false;
+    setVersionId(initialVersionId);
+    versionIdRef.current = initialVersionId;
     dispatch({ type: "setLoadStatus", payload: { loadStatus: "loading" } });
     setLoadError(null);
     setSaveAsNewError(null);
 
-    fetch(`/api/template-v2/templates/${encodeURIComponent(templateId)}/versions/${encodeURIComponent(versionId)}/save`, {
+    fetch(`/api/template-v2/templates/${encodeURIComponent(templateId)}/versions/${encodeURIComponent(initialVersionId)}/save`, {
       credentials: "include",
       cache: "no-store",
     })
@@ -443,10 +510,11 @@ export function TemplateEditorShell({
         try {
           setTemplateName(data.template?.name || "Plantilla");
           setVersionNumber(typeof data.versionNumber === "number" ? data.versionNumber : 1);
+          loadedKeyRef.current = key;
           dispatch(
             initializeEditor({
               templateId,
-              versionId,
+              versionId: initialVersionId,
               revision: Number(data.revision ?? 0),
               canvas: data.canvas ?? { width: 1200, height: 1800, background: "var(--te-surface)" },
               blocks: data.blocks ?? [],
@@ -469,7 +537,7 @@ export function TemplateEditorShell({
     return () => {
       cancelled = true;
     };
-  }, [templateId, versionId]);
+  }, [templateId, initialVersionId]);
 
   const selectedBlock = useMemo(() => selectSelectedBlock(state), [state]);
 
@@ -503,6 +571,18 @@ export function TemplateEditorShell({
     const ap = state.activePageIndex ?? 0;
     const onPage = state.blocks.filter((b) => (b.pageIndex ?? 0) === ap);
     dispatch(addBlock(createDefaultVariableTextBlock(state.canvas, onPage, ap)));
+  }
+  function handleAddClassList() {
+    setCanvasTool("select");
+    const ap = state.activePageIndex ?? 0;
+    const onPage = state.blocks.filter((b) => (b.pageIndex ?? 0) === ap);
+    dispatch(addBlock(createDefaultClassListBlock(state.canvas, onPage, ap)));
+  }
+  function handleAddCourseMosaic() {
+    setCanvasTool("select");
+    const ap = state.activePageIndex ?? 0;
+    const onPage = state.blocks.filter((b) => (b.pageIndex ?? 0) === ap);
+    dispatch(addBlock(createDefaultCourseMosaicBlock(state.canvas, onPage, ap)));
   }
   function handleAddShape() {
     setCanvasTool("select");
@@ -568,12 +648,17 @@ export function TemplateEditorShell({
     const caja = areaLienzoRef.current?.getBoundingClientRect();
     if (!caja) return;
     const s = stateRef.current;
+    /*
+     * El área puede ser más alta que la pantalla: el panel de propiedades largo estira la fila
+     * entera. Lo que importa es lo que se ve, así que el alto se corta en el borde de la ventana.
+     */
+    const altoVisible = Math.min(caja.height, window.innerHeight - Math.max(caja.top, 0));
     const z = fitZoom({
       canvasWidth: s.canvas.width,
       canvasHeight: s.canvas.height,
       viewportWidth: caja.width,
       // La barra de estado no es lienzo: descontarla evita que la pieza quede tapada abajo.
-      viewportHeight: caja.height - BARRA_ESTADO_PX,
+      viewportHeight: altoVisible - BARRA_ESTADO_PX,
     });
     /*
      * El ajuste automático se marca como "auto" para no contar como zoom elegido a mano: si
@@ -713,8 +798,8 @@ export function TemplateEditorShell({
   }
 
   const navigateToTemplateList = useCallback(() => {
-    router.push(basePath);
-  }, [router]);
+    router.push(exitHref || basePath);
+  }, [router, exitHref, basePath]);
 
   const handleRequestCloseEditor = useCallback(() => {
     if (loadError) {
@@ -750,6 +835,10 @@ export function TemplateEditorShell({
       revision?: number;
       currentRevision?: number;
       updatedAt?: string;
+      versionId?: string;
+      versionNumber?: number;
+      forkedFromVersionId?: string | null;
+      blockIdMap?: Record<string, string>;
     };
 
     try {
@@ -784,14 +873,38 @@ export function TemplateEditorShell({
         throw new Error(msg);
       }
 
-      dispatch({
-        type: "markSaved",
-        payload: {
-          at: typeof data?.updatedAt === "string" ? data.updatedAt : new Date().toISOString(),
-          revision: typeof data?.revision === "number" ? data.revision : s.revision + 1,
-        },
-      });
+      const savedAt = typeof data?.updatedAt === "string" ? data.updatedAt : new Date().toISOString();
+      const savedRevision = typeof data?.revision === "number" ? data.revision : s.revision + 1;
+      const savedVersionId = typeof data?.versionId === "string" && data.versionId ? data.versionId : versionId;
+      const idMap = data?.blockIdMap && typeof data.blockIdMap === "object" ? data.blockIdMap : {};
+      if (savedVersionId !== versionId || Object.keys(idMap).length > 0) {
+        dispatch({
+          type: "rebaseToSavedVersion",
+          payload: { versionId: savedVersionId, revision: savedRevision, at: savedAt, blockIdMap: idMap },
+        });
+      }
+      dispatch({ type: "markSaved", payload: { at: savedAt, revision: savedRevision } });
       dispatch({ type: "setSaveStatus", payload: { saveStatus: "saved" } });
+      if (savedVersionId !== versionId) {
+        // La versión anterior estaba en uso: quedó congelada y desde ahora se edita la nueva.
+        versionIdRef.current = savedVersionId;
+        setVersionId(savedVersionId);
+        if (typeof data?.versionNumber === "number") setVersionNumber(data.versionNumber);
+        setForkNotice(
+          `Guardamos los cambios como versión ${data?.versionNumber ?? "nueva"}: la anterior ya estaba en uso y quedó tal cual, así que lo que ya se armó con ella no cambia.`
+        );
+        try {
+          window.history.replaceState(window.history.state, "", templateV2EditorPath(basePath, templateId, savedVersionId));
+        } catch {
+          // la dirección vieja sigue funcionando: abre la versión congelada, que al guardar avisa
+        }
+        onVersionForked?.({
+          templateId,
+          fromVersionId: data?.forkedFromVersionId ?? versionId,
+          toVersionId: savedVersionId,
+          versionNumber: typeof data?.versionNumber === "number" ? data.versionNumber : 0,
+        });
+      }
       return true;
     } catch (err) {
       const message = err instanceof Error ? err.message : "Error al guardar";
@@ -800,7 +913,7 @@ export function TemplateEditorShell({
       dispatch({ type: "setSaveStatus", payload: { saveStatus: "error" } });
       return false;
     }
-  }, [templateId, versionId, dispatch, revisionConflictLocked]);
+  }, [templateId, versionId, dispatch, revisionConflictLocked, basePath, onVersionForked]);
 
   const handleSaveAndExit = useCallback(async () => {
     const ok = await handleSave();
@@ -893,6 +1006,18 @@ export function TemplateEditorShell({
 
   const editorReady = state.loadStatus === "ready";
 
+  useLayoutEffect(() => {
+    const fila = filaEditorRef.current;
+    if (!fila || !editorReady) return;
+    const medir = () => {
+      const top = fila.getBoundingClientRect().top + window.scrollY;
+      setAltoFilaEditor(Math.max(360, Math.floor(window.innerHeight - top)));
+    };
+    medir();
+    window.addEventListener("resize", medir);
+    return () => window.removeEventListener("resize", medir);
+  }, [editorReady]);
+
   /*
    * Al abrir, la plantilla entra entera. Antes se abría al 100% y una pieza más grande que la
    * ventana aparecía cortada: había que alejar a mano antes de poder ver lo que se editaba.
@@ -906,11 +1031,17 @@ export function TemplateEditorShell({
 
     ajustarALaVentana("auto");
 
-    const observer = new ResizeObserver(() => {
+    const reajustar = () => {
       if (!stateRef.current.zoomUserAdjusted) ajustarALaVentana("auto");
-    });
+    };
+    const observer = new ResizeObserver(reajustar);
     observer.observe(area);
-    return () => observer.disconnect();
+    // El alto que se ve depende de la ventana, no sólo del área: achicarla no siempre la redimensiona.
+    window.addEventListener("resize", reajustar);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", reajustar);
+    };
   }, [editorReady, ajustarALaVentana, state.canvas.width, state.canvas.height]);
 
 
@@ -928,6 +1059,7 @@ export function TemplateEditorShell({
   return (
     <EditorThemeProvider theme={theme}>
     <div
+      ref={raizEditorRef}
       className={cn("flex h-full min-h-0 flex-col", className)}
       style={editorThemeStyle(theme)}
       data-testid="template-v2-editor"
@@ -1048,14 +1180,12 @@ export function TemplateEditorShell({
                 >
                   <IconToolbarSafeZone />
                 </ToolButton>
-                <ToolButton
-                  label="Ejes del centro"
-                  active={showCenterAxes}
-                  onClick={() => setShowCenterAxes((v) => !v)}
+                <ReferenceGuidesMenu
+                  value={referenceGuides}
+                  onChange={setReferenceGuides}
+                  isSpread={esLibritoAbierto}
                   disabled={!editorReady}
-                >
-                  <IconToolbarAxes />
-                </ToolButton>
+                />
               </ToolGroup>
 
               <div className="ml-auto flex items-center gap-2">
@@ -1140,8 +1270,8 @@ export function TemplateEditorShell({
                         className={cn(
                           "min-w-[4.5rem] max-w-[160px] rounded-md border px-2 py-1 text-[11px] font-medium text-[color:var(--te-ink)] shadow-sm outline-none focus:ring-2 focus:ring-[color:var(--te-accent-wash)]",
                           active
-                            ? "border-[color:var(--te-accent)] bg-white"
-                            : "border-[color:var(--te-ink-faint)] bg-white"
+                            ? "border-[color:var(--te-accent)] bg-[color:var(--te-surface)]"
+                            : "border-[color:var(--te-ink-faint)] bg-[color:var(--te-surface)]"
                         )}
                         value={pageLabelEdit.value}
                         onChange={(e) => setPageLabelEdit({ index: i, value: e.target.value })}
@@ -1182,8 +1312,8 @@ export function TemplateEditorShell({
                       className={cn(
                         "max-w-[160px] truncate rounded-md border px-2 py-1 text-[11px] font-medium transition-colors",
                         active
-                          ? "border-[color:var(--te-accent)] bg-white text-[color:var(--te-accent)] shadow-sm"
-                          : "border-transparent bg-white/60 text-[color:var(--te-ink-muted)] hover:bg-white hover:text-[color:var(--te-ink)]",
+                          ? "border-[color:var(--te-accent)] bg-[color:var(--te-accent-wash)] text-[color:var(--te-ink)] shadow-sm"
+                          : "border-[color:var(--te-line)] bg-[color:var(--te-chrome-sunken)] text-[color:var(--te-ink)] hover:bg-[color:var(--te-surface)]",
                         canReorder && "cursor-grab active:cursor-grabbing",
                         sheetDragFrom === i && "opacity-60",
                         sheetDragOver === i && sheetDragFrom !== i && "ring-2 ring-[color:var(--te-accent-wash)] ring-offset-1"
@@ -1239,7 +1369,7 @@ export function TemplateEditorShell({
                   type="button"
                   className={cn(
                     sheetToolbarIconClass,
-                    "border-dashed border-[color:var(--te-ink-faint)] bg-white/50 hover:border-[color:var(--te-accent)] hover:bg-[color:var(--te-accent-wash)] hover:text-[color:var(--te-accent)]"
+                    "border-dashed border-[color:var(--te-ink-faint)] bg-[color:var(--te-chrome-sunken)] text-[color:var(--te-ink-muted)] hover:border-[color:var(--te-accent)] hover:bg-[color:var(--te-accent-wash)] hover:text-[color:var(--te-accent)]"
                   )}
                   onClick={() => dispatch(addTemplatePage())}
                   title="Añadir una hoja vacía (carpetas escolares, tapa/contraportada, etc.)"
@@ -1251,7 +1381,7 @@ export function TemplateEditorShell({
                   type="button"
                   className={cn(
                     sheetToolbarIconClass,
-                    "border-[color:var(--te-line)] bg-white/60 hover:border-[color:var(--te-danger-wash)] hover:bg-[#fff1f2] hover:text-[color:var(--te-danger)]"
+                    "border-[color:var(--te-line)] bg-[color:var(--te-chrome-sunken)] text-[color:var(--te-ink-muted)] disabled:opacity-40 hover:border-[color:var(--te-danger-wash)] hover:bg-[color:var(--te-danger-wash)] hover:text-[color:var(--te-danger)]"
                   )}
                   onClick={() => dispatch(removeTemplatePage())}
                   disabled={state.templatePageCount <= 1}
@@ -1281,15 +1411,39 @@ export function TemplateEditorShell({
               )
             ) : null}
 
+            {notice ? (
+              <div
+                className="border-t border-[color:var(--te-line)] bg-[color:var(--te-accent-wash,var(--te-surface))] px-3 py-1.5 text-xs text-[color:var(--te-ink)]"
+                data-testid="template-v2-notice"
+              >
+                {notice}
+              </div>
+            ) : null}
+            {forkNotice ? (
+              <div
+                className="flex flex-wrap items-center justify-between gap-2 border-t border-[color:var(--te-line)] bg-[color:var(--te-surface)] px-3 py-1.5"
+                data-testid="template-v2-fork-notice"
+                role="status"
+              >
+                <p className="text-xs text-[color:var(--te-ink)]">{forkNotice}</p>
+                <button
+                  type="button"
+                  className="text-xs text-[color:var(--te-ink-faint)] underline"
+                  onClick={() => setForkNotice(null)}
+                >
+                  Entendido
+                </button>
+              </div>
+            ) : null}
             {saveErrorMessage ? (
               <div
                 ref={conflictBannerRef}
-                className="flex flex-wrap items-center justify-between gap-2 border-t border-[color:var(--te-danger-wash)] bg-red-50/90 px-3 py-1.5"
+                className="flex flex-wrap items-center justify-between gap-2 border-t border-[color:var(--te-danger-wash)] bg-[color:var(--te-danger-wash)]/90 px-3 py-1.5"
                 data-testid="template-v2-error-banner"
                 role="alert"
                 tabIndex={-1}
               >
-                <p className="text-xs text-red-700">{saveErrorMessage}</p>
+                <p className="text-xs text-[color:var(--te-danger)]">{saveErrorMessage}</p>
                 {saveErrorMessage === TEMPLATE_V2_REVISION_CONFLICT_MESSAGE ? (
                   <Button
                     type="button"
@@ -1305,9 +1459,9 @@ export function TemplateEditorShell({
               </div>
             ) : null}
             {backgroundUploadError ? (
-              <p className="border-t border-[color:var(--te-danger-wash)] bg-red-50/90 px-3 py-1.5 text-xs text-red-700">{backgroundUploadError}</p>
+              <p className="border-t border-[color:var(--te-danger-wash)] bg-[color:var(--te-danger-wash)]/90 px-3 py-1.5 text-xs text-[color:var(--te-danger)]">{backgroundUploadError}</p>
             ) : null}
-            {saveAsNewError ? <p className="border-t border-[color:var(--te-danger-wash)] bg-red-50/90 px-3 py-1.5 text-xs text-red-700">{saveAsNewError}</p> : null}
+            {saveAsNewError ? <p className="border-t border-[color:var(--te-danger-wash)] bg-[color:var(--te-danger-wash)]/90 px-3 py-1.5 text-xs text-[color:var(--te-danger)]">{saveAsNewError}</p> : null}
             </>
           ) : null}
         </header>
@@ -1322,31 +1476,31 @@ export function TemplateEditorShell({
             <ul className="mt-3 max-h-[min(50vh,420px)] space-y-2.5 overflow-y-auto text-xs text-[color:var(--te-ink)]">
               <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[color:var(--te-line)] pb-2">
                 <span className="text-[color:var(--te-ink-muted)]">Guardar</span>
-                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-white px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
+                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-[color:var(--te-surface)] px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
                   ⌘/Ctrl + S
                 </kbd>
               </li>
               <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[color:var(--te-line)] pb-2">
                 <span className="text-[color:var(--te-ink-muted)]">Herramienta texto / selección / mano</span>
-                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-white px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
+                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-[color:var(--te-surface)] px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
                   T · V · H
                 </kbd>
               </li>
               <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[color:var(--te-line)] pb-2">
                 <span className="text-[color:var(--te-ink-muted)]">Mover vista del lienzo (arrastrar el área gris)</span>
-                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-white px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
+                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-[color:var(--te-surface)] px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
                   Barra espaciadora + arrastrar
                 </kbd>
               </li>
               <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[color:var(--te-line)] pb-2">
                 <span className="text-[color:var(--te-ink-muted)]">Duplicar bloque (selección primaria)</span>
-                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-white px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
+                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-[color:var(--te-surface)] px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
                   ⌘/Ctrl + D
                 </kbd>
               </li>
               <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[color:var(--te-line)] pb-2">
                 <span className="text-[color:var(--te-ink-muted)]">Eliminar selección</span>
-                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-white px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
+                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-[color:var(--te-surface)] px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
                   Supr / Retroceso
                 </kbd>
               </li>
@@ -1354,7 +1508,7 @@ export function TemplateEditorShell({
                 <span className="text-[color:var(--te-ink-muted)]">
                   Sumar o quitar de la selección · arrastrar en conjunto
                 </span>
-                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-white px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
+                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-[color:var(--te-surface)] px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
                   Mayús + clic
                 </kbd>
               </li>
@@ -1362,61 +1516,61 @@ export function TemplateEditorShell({
                 <span className="text-[color:var(--te-ink-muted)]">
                   Elegir lo que está debajo (una capa por clic)
                 </span>
-                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-white px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
+                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-[color:var(--te-surface)] px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
                   ⌘/Ctrl + clic
                 </kbd>
               </li>
               <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[color:var(--te-line)] pb-2">
                 <span className="text-[color:var(--te-ink-muted)]">Mover bloque · paso fino / grueso</span>
-                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-white px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
+                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-[color:var(--te-surface)] px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
                   Flechas · Mayús + Flechas
                 </kbd>
               </li>
               <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[color:var(--te-line)] pb-2">
                 <span className="text-[color:var(--te-ink-muted)]">Deshacer</span>
-                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-white px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
+                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-[color:var(--te-surface)] px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
                   ⌘/Ctrl + Z
                 </kbd>
               </li>
               <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[color:var(--te-line)] pb-2">
                 <span className="text-[color:var(--te-ink-muted)]">Rehacer</span>
-                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-white px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
+                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-[color:var(--te-surface)] px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
                   ⌘/Ctrl + Mayús + Z · Ctrl + Y
                 </kbd>
               </li>
               <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[color:var(--te-line)] pb-2">
                 <span className="text-[color:var(--te-ink-muted)]">Copiar / pegar bloque (primario)</span>
-                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-white px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
+                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-[color:var(--te-surface)] px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
                   ⌘/Ctrl + C · ⌘/Ctrl + V
                 </kbd>
               </li>
               <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[color:var(--te-line)] pb-2">
                 <span className="text-[color:var(--te-ink-muted)]">Vista previa</span>
-                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-white px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
+                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-[color:var(--te-surface)] px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
                   ⌘/Ctrl + Mayús + P
                 </kbd>
               </li>
               <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[color:var(--te-line)] pb-2">
                 <span className="text-[color:var(--te-ink-muted)]">Quitar selección · cerrar preview</span>
-                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-white px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
+                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-[color:var(--te-surface)] px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
                   Escape
                 </kbd>
               </li>
               <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[color:var(--te-line)] pb-2">
                 <span className="text-[color:var(--te-ink-muted)]">Zoom · vista 100% y centrar</span>
-                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-white px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
+                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-[color:var(--te-surface)] px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
                   ⌘/Ctrl + ± · ⌘/Ctrl + 0
                 </kbd>
               </li>
               <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[color:var(--te-line)] pb-2">
                 <span className="text-[color:var(--te-ink-muted)]">Duplicar y arrastrar copia (el original no se mueve)</span>
-                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-white px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
+                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-[color:var(--te-surface)] px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
                   Alt + arrastrar
                 </kbd>
               </li>
               <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
                 <span className="text-[color:var(--te-ink-muted)]">Capa adelante / atrás (primario)</span>
-                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-white px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
+                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-[color:var(--te-surface)] px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
                   ⌘/Ctrl + ] · ⌘/Ctrl + [
                 </kbd>
               </li>
@@ -1436,15 +1590,19 @@ export function TemplateEditorShell({
 
         {loadError ? (
           <Card className="m-4 p-6">
-            <p className="text-sm text-red-600">Error al cargar versión de plantilla.</p>
+            <p className="text-sm text-[color:var(--te-danger)]">Error al cargar versión de plantilla.</p>
             <p className="mt-2 break-all text-xs text-[color:var(--te-ink-muted)]">{loadError}</p>
           </Card>
         ) : !editorReady ? (
           <div className="flex flex-1 items-center justify-center py-20 text-sm text-[color:var(--te-ink-muted)]">Cargando editor…</div>
         ) : (
-          <div className="flex min-h-[min(88vh,calc(100vh-8rem))] w-full min-w-0 flex-1">
+          <div
+            ref={filaEditorRef}
+            className="flex min-h-[360px] w-full min-w-0 flex-1"
+            style={altoFilaEditor ? { height: altoFilaEditor } : { minHeight: "min(88vh, calc(100vh - 8rem))" }}
+          >
             <aside
-              className="flex w-[52px] shrink-0 flex-col items-center gap-0.5 border-r border-[#1a1d24] bg-[#2b3038] py-2"
+              className="flex w-[44px] shrink-0 flex-col items-center gap-0.5 border-r border-[color:var(--te-line)] bg-[color:var(--te-chrome)] py-2"
               aria-label="Herramientas"
             >
               <EditorToolButton
@@ -1479,6 +1637,29 @@ export function TemplateEditorShell({
               <EditorToolButton label="Variable" onClick={handleAddVariable}>
                 <span className="font-mono text-sm font-semibold leading-none">{"{}"}</span>
               </EditorToolButton>
+              {producto === "school" ? (
+                <EditorToolButton label="Listado del curso" onClick={handleAddClassList}>
+                  <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                    <path d="M9 6h11M9 12h11M9 18h11" strokeLinecap="round" />
+                    <circle cx="4.5" cy="6" r="1" />
+                    <circle cx="4.5" cy="12" r="1" />
+                    <circle cx="4.5" cy="18" r="1" />
+                  </svg>
+                </EditorToolButton>
+              ) : null}
+              {producto === "school" ? (
+                <EditorToolButton label="Mosaico del curso" onClick={handleAddCourseMosaic}>
+                  <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                    <rect x="3" y="3" width="5" height="5" rx="1" />
+                    <rect x="9.5" y="3" width="5" height="5" rx="1" />
+                    <rect x="16" y="3" width="5" height="5" rx="1" />
+                    <rect x="3" y="10" width="5" height="5" rx="1" />
+                    <rect x="9.5" y="10" width="5" height="5" rx="1" />
+                    <rect x="16" y="10" width="5" height="5" rx="1" />
+                    <path d="M4 19h3M10.5 19h3M17 19h3" strokeLinecap="round" />
+                  </svg>
+                </EditorToolButton>
+              ) : null}
               <EditorToolButton label="Forma" onClick={handleAddShape}>
                 <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
                   <rect x="4" y="4" width="16" height="16" rx="2" />
@@ -1597,9 +1778,10 @@ export function TemplateEditorShell({
               <TemplateEditorCanvas
                 state={state}
                 dispatch={dispatch}
+                resolvedVariables={valoresDeMuestra}
                 className="min-h-0 flex-1"
                 showSafeArea={showSafeArea}
-                showCenterAxes={showCenterAxes}
+                referenceGuides={referenceGuides}
                 onCanvasBackgroundClick={() => setRightPanelOpen(true)}
                 canvasTool={canvasTool}
                 onExitTextPlacementMode={() => setCanvasTool("select")}
@@ -1667,7 +1849,7 @@ export function TemplateEditorShell({
                   title="Capas"
                   open={rightPanelLayersOpen}
                   onToggle={() => setRightPanelLayersOpen((v) => !v)}
-                  variant="muted"
+                  flush
                 >
                   <TemplateEditorLayers state={state} dispatch={dispatch} />
                 </RightSidebarSection>
@@ -1677,7 +1859,7 @@ export function TemplateEditorShell({
                   title="Propiedades"
                   open={rightPanelInspectorOpen}
                   onToggle={() => setRightPanelInspectorOpen((v) => !v)}
-                  variant="white"
+                  flush
                 >
                   <TemplateEditorInspector
                     selectedBlock={selectedBlock}
@@ -1749,7 +1931,7 @@ export function TemplateEditorShell({
           onClick={closePreview}
         >
           <div
-            className="relative flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-[color:var(--te-line)] bg-white shadow-2xl"
+            className="relative flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-[color:var(--te-line)] bg-[color:var(--te-surface)] shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between gap-3 border-b border-[color:var(--te-line)] bg-[color:var(--te-chrome)] px-4 py-3">
@@ -1768,7 +1950,7 @@ export function TemplateEditorShell({
                 </div>
               ) : previewError ? (
                 <p
-                  className="text-center text-sm text-red-600"
+                  className="text-center text-sm text-[color:var(--te-danger)]"
                   data-testid="template-v2-preview-error"
                 >
                   {previewError}
@@ -1779,7 +1961,7 @@ export function TemplateEditorShell({
                     data-testid="template-v2-preview-image"
                     role="img"
                     aria-label="Vista previa de la plantilla"
-                    className="max-h-[min(78vh,1200px)] max-w-full overflow-hidden rounded-lg border border-[color:var(--te-line)] bg-white shadow-sm [&>svg]:h-auto [&>svg]:max-h-[min(78vh,1200px)] [&>svg]:w-auto [&>svg]:max-w-full"
+                    className="max-h-[min(78vh,1200px)] max-w-full overflow-hidden rounded-lg border border-[color:var(--te-line)] bg-[color:var(--te-surface)] shadow-sm [&>svg]:h-auto [&>svg]:max-h-[min(78vh,1200px)] [&>svg]:w-auto [&>svg]:max-w-full"
                     // El dibujo lo produce el módulo de impresión de este mismo monorepo, no
                     // el navegador ni contenido de terceros: los textos van escapados y las
                     // imágenes se limitan a direcciones http(s) y a mapas de bits.

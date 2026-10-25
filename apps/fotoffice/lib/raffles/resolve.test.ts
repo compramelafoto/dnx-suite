@@ -213,3 +213,26 @@ describe("resolver el sorteo", () => {
     expect(eventMock.mock.calls[0][1].note).toContain("1000");
   });
 });
+
+describe("resolver con la regla de no repetir premio", () => {
+  const conExclusiones = {
+    ...sorteo,
+    entries: sorteo.entries.map((e) => ({ ...e, excludedPrizeOrders: e.position < 4 ? [1] : [] })),
+  };
+
+  it("el premio del que todos menos uno quedaron afuera lo gana ese uno", async () => {
+    findFirstMock.mockResolvedValue(conExclusiones);
+    const r = await resolver();
+    if (!r.ok) throw new Error("debía resolver");
+    expect(r.awards.find((a) => a.prizeId === "p-1")?.memberId).toBe("m-4");
+  });
+
+  it("si la regla tuvo que ceder, queda escrito en el registro", async () => {
+    findFirstMock.mockResolvedValue({
+      ...sorteo,
+      entries: sorteo.entries.map((e) => ({ ...e, excludedPrizeOrders: [1] })),
+    });
+    await resolver();
+    expect(eventMock.mock.calls[0][1].note).toMatch(/premio 1 se sorteó entre todos/);
+  });
+});

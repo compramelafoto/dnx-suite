@@ -27,6 +27,7 @@ import {
   type FetchCanonicalOrder,
 } from "@repo/payments/next";
 import { prisma } from "@repo/db";
+import { esOrdenDeMuestras } from "../../dnx-payments/aviso-muestras";
 
 export type ClfOrdersWebhookDenial =
   | "OBSERVE_FLAG_OFF"
@@ -110,11 +111,25 @@ export function buildClfFetchCanonicalOrder(): FetchCanonicalOrder | null {
   };
 }
 
+/**
+ * A quién hay que avisar de esta orden (además de CLF). Sólo las órdenes de venta de obras de
+ * Muestras (`muestras-venta-…`), y sólo la primera vez que se procesan (no los duplicados).
+ */
+export function destinoDelAviso(
+  outcome: "processed" | "duplicate",
+  externalReference: string | null | undefined,
+): "muestras" | null {
+  return outcome === "processed" && esOrdenDeMuestras(externalReference) ? "muestras" : null;
+}
+
 export type ClfOrdersWebhookOutcome =
   | { ok: false; code: string; status: number }
   | {
       ok: true;
       status: 200;
+      /** No va en la respuesta a Mercado Pago: lo usa la ruta para avisar a Muestras en segundo plano. */
+      routeTo: "muestras" | null;
+      providerOrderId: string;
       evidence: {
         WEBHOOK_RECEIVED: true;
         SIGNATURE_VALID: true;
@@ -185,6 +200,8 @@ export async function handleClfOrdersWebhook(input: {
   return {
     ok: true,
     status: 200,
+    routeTo: destinoDelAviso(observed.outcome, canonical?.externalReference),
+    providerOrderId: observed.providerOrderId,
     evidence: {
       WEBHOOK_RECEIVED: true,
       SIGNATURE_VALID: true,

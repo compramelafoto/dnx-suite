@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState, useTransition } from "react";
+import { InputMoneda } from "@/components/campos/input-moneda";
 import { ImageUploadField } from "@/components/image-upload-field";
 import { formatMinorArs } from "@/lib/membership/money";
 import type { ProductDetail, ProductVariantDetail } from "@/lib/sales/repository";
@@ -292,6 +293,7 @@ function GallerySection({ product, storeEnabled }: { product: ProductDetail; sto
         name="galleryImageUrl"
         presetKey="productGallery"
         label="Agregar una foto"
+        allowUrl
         onUploaded={(url) => {
           if (!url) return;
           correr(async () => {
@@ -415,11 +417,10 @@ function VariantsSection({ product, storeEnabled }: { product: ProductDetail; st
                     />
                   </td>
                   <td className="py-2 pr-2">
-                    <input
+                    <InputMoneda
                       name={`variants.${i}.price`}
-                      className="fo-input"
                       value={f.price}
-                      onChange={(e) => cambiar(f.clave, { price: e.target.value })}
+                      onChange={(valor) => cambiar(f.clave, { price: valor })}
                       placeholder={`Igual al producto (${precioProducto})`}
                       aria-label="Precio del talle"
                     />

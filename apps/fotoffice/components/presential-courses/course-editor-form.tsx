@@ -6,6 +6,7 @@ import {
   updatePresentialCourseAction,
   type PresentialCourseActionState,
 } from "@/app/actions/presential-courses";
+import { InputMoneda } from "@/components/campos/input-moneda";
 
 const initialState: PresentialCourseActionState = { error: null };
 
@@ -100,11 +101,11 @@ export function CourseEditorForm({
             <div className="grid gap-4 md:grid-cols-3">
               <div className="fo-field-stack">
                 <label className="fo-label" htmlFor="priceArs">Precio (pesos)</label>
-                <input id="priceArs" name="priceArs" inputMode="decimal" defaultValue={initial?.priceArs ?? ""} className="fo-input" />
+                <InputMoneda id="priceArs" name="priceArs" envio="coma" defaultValue={initial?.priceArs ?? ""} className="fo-input" />
               </div>
               <div className="fo-field-stack">
-                <label className="fo-label" htmlFor="accessMonths">Meses de acceso</label>
-                <input id="accessMonths" name="accessMonths" type="number" min={1} max={120} defaultValue={initial?.accessMonths ?? 12} className="fo-input" />
+                <label className="fo-label" htmlFor="accessMonths">Meses de acceso (0 = sin vencimiento)</label>
+                <input id="accessMonths" name="accessMonths" type="number" min={0} max={120} defaultValue={initial?.accessMonths ?? 12} className="fo-input" />
               </div>
               <div className="fo-field-stack">
                 <label className="fo-label" htmlFor="completionPercent">% visto para terminarlo</label>

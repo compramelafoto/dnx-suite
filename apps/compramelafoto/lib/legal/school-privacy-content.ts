@@ -1,9 +1,10 @@
 /**
- * Política Escolar y Tratamiento de Datos de Menores — LEGAL-PACK-2026-06 / SCHOOL-PRIVACY-v1.0
+ * Política Escolar y Tratamiento de Datos de Menores — LEGAL-PACK-2026-06 / SCHOOL-PRIVACY-v1.1
+ * v1.1 (2026-10-13): plazo y borrado de la selfie del álbum con fotos ocultas según lo que hace el sistema.
  */
 
-export const SCHOOL_PRIVACY_VERSION = "SCHOOL-PRIVACY-v1.0";
-export const SCHOOL_PRIVACY_EFFECTIVE_DATE = "2026-06-01";
+export const SCHOOL_PRIVACY_VERSION = "SCHOOL-PRIVACY-v1.1";
+export const SCHOOL_PRIVACY_EFFECTIVE_DATE = "2026-10-13";
 
 const CONTACT_EMAIL = process.env.PRIVACY_CONTACT_EMAIL || "privacidad@compramelafoto.com";
 
@@ -58,8 +59,11 @@ Al confirmar una preventa, el adulto declara ser padre/madre/tutor o estar autor
     title: "Selfies y reconocimiento facial de menores",
     content: `- Solo el **adulto responsable** puede subir una selfie del menor para búsqueda de fotos en preventa.
 - Aplica el [Consentimiento Biométrico](/consentimiento-biometrico) en nombre del menor.
-- Plazo máximo de conservación: **90 días** o fin del álbum, lo primero.
-- Eliminación automática al canjear el pack, cancelar el pedido o solicitud ARCO.
+- Antes de subir la selfie hay que aceptar el Consentimiento Biométrico y esta Política.
+- La selfie que se usa para ver un álbum con fotos ocultas **no se guarda por defecto**: se usa para buscar las fotos en ese momento y se descarta.
+- Si el fotógrafo configura un plazo de guardado, la selfie se **borra automáticamente al vencer ese plazo (máximo 90 días)** o cuando se elimina el álbum, lo que ocurra primero.
+- Cuando la selfie se guarda, la familia recibe en pantalla un enlace para **borrarla en el momento**, sin esperar al vencimiento. También puede pedir el borrado desde [/privacidad/solicitud](/privacidad/solicitud).
+- El registro técnico de cada intento de verificación (sin la selfie: resultado, dispositivo y dirección IP cifrada) se borra a los 90 días.
 
 **La Plataforma no garantiza que el reconocimiento facial encuentre todas las fotos del menor.**`,
   },

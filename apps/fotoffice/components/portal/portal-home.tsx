@@ -1,5 +1,7 @@
 import Link from "next/link";
-import { createOwnBusinessAction, switchProfileAction } from "@/app/actions/profile-choice";
+import { ContestCarousel } from "@/components/contests/contest-carousel";
+import type { ShowcaseItem } from "@/lib/contests/showcase";
+import { createOwnBusinessAction } from "@/app/actions/profile-choice";
 import type { MemberBalance } from "@/lib/membership/balance";
 import { formatMinorArs } from "@/lib/membership/money";
 import { recommendationBenefitPhrase } from "@/lib/membership/recommendation-labels";
@@ -19,6 +21,8 @@ import { PrizeCards } from "@/components/raffles/prize-cards";
 import { WhatsappGroupButton } from "@/components/brand/whatsapp-group-button";
 import { SpotlightCard } from "@/components/spotlight/spotlight-card";
 import type { SpotlightCardView } from "@/lib/spotlight/view";
+import { BirthdaysCard } from "@/components/birthdays/birthdays-card";
+import type { BirthdayView } from "@/lib/birthdays/week";
 
 export type PortalHomeProps = {
   institution: string;
@@ -41,7 +45,6 @@ export type PortalHomeProps = {
   /** Porcentaje del beneficio por recomendar, o null si la sección no está disponible. */
   recommendationBenefitPercent: number | null;
   perfilVacio: boolean;
-  puedeCambiarPerfil: boolean;
   tieneNegocio: boolean;
   /** El sorteo abierto, si hay uno y el módulo está prendido. */
   sorteo: PortalRaffleView | null;
@@ -49,6 +52,26 @@ export type PortalHomeProps = {
   whatsappGroupUrl?: string | null;
   /** El Socio de la semana, si Comunicación está prendido y hay uno. */
   socioDeLaSemana?: { card: SpotlightCardView; weekLabel: string } | null;
+  /** Los socios que cumplen años esta semana (lunes a domingo). */
+  cumpleanos?: BirthdayView[];
+  /** Proyectos de la comisión: invitar a proponer y a tomar tareas sin responsable. */
+  /** La vitrina de concursos (FotoRank y Clickatón): lo abierto y lo que viene. */
+  concursos?: ShowcaseItem[];
+  /** La bolsa del club con turnos incluidos (Club VIP), si tiene una abierta. */
+  club?: {
+    available: number;
+    credits: number;
+    plural: string;
+    validUntilLabel: string;
+    /** Si la institución tiene Reservas prendido, el atajo para usarlos. */
+    reservarHref: string | null;
+  } | null;
+  /** Si su categoría se renueva cuando quiere (VIP): el precio y la acción de renovar. */
+  renovacion?: { categoryName: string; amountLabel: string; action: () => Promise<void> } | null;
+  gobierno?: {
+    tareasLibres: { id: string; title: string; projectTitle: string; dueAt: Date | null }[];
+    totalLibres: number;
+  } | null;
 };
 
 /**
@@ -68,11 +91,15 @@ export function PortalHome({
   vocabulary: v,
   recommendationBenefitPercent,
   perfilVacio,
-  puedeCambiarPerfil,
   tieneNegocio,
   sorteo,
   whatsappGroupUrl,
   socioDeLaSemana,
+  cumpleanos = [],
+  gobierno = null,
+  concursos = [],
+  club = null,
+  renovacion = null,
 }: PortalHomeProps) {
   const cuotasPendientes = cuenta.charges.filter((c) => !isOpeningBalance(c.period));
   const alDia = cuenta.charges.length === 0;
@@ -82,106 +109,7 @@ export function PortalHome({
   const accesos = secciones.filter((s) => s.state === "DISPONIBLE" && s.href !== "/portal");
   const proximas = secciones.filter((s) => s.state === "PROXIMAMENTE");
 
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Link href="/portal/perfil" aria-label="Cambiar mi foto" className="shrink-0">
-          <PortalAvatar name={member.fullName} src={member.photoUrl} className="h-16 w-16 text-lg sm:h-20 sm:w-20" />
-        </Link>
-        <div className="min-w-0">
-          <p className="text-sm text-[var(--fo-muted)]">{institution}</p>
-          <h1 className="text-2xl font-semibold tracking-tight">Hola, {member.firstName}</h1>
-          {member.businessName || member.businessLogoUrl ? (
-            <div className="mt-1 flex min-w-0 items-center gap-2">
-              {member.businessLogoUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element -- el logo vive en R2, fuera del build
-                <img
-                  src={member.businessLogoUrl}
-                  alt={member.businessName ?? "Logo de tu empresa"}
-                  className="h-8 w-auto max-w-28 shrink-0 rounded bg-white object-contain"
-                />
-              ) : null}
-              {member.businessName ? (
-                <p className="truncate text-sm font-medium text-[var(--fo-text-secondary)]">
-                  {member.businessName}
-                </p>
-              ) : null}
-            </div>
-          ) : member.photoUrl ? null : (
-            <Link href="/portal/perfil" className="text-xs text-[var(--fo-accent-hover)] hover:underline">
-              Subí tu foto
-            </Link>
-          )}
-        </div>
-      </div>
-
-      {/*
-        El grupo va arriba de todo: es lo primero que busca quien recién se asocia, y quien ya
-        está en el grupo lo pasa de largo sin costo.
-      */}
-      {whatsappGroupUrl ? (
-        <div className="fo-card flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between md:p-5">
-          <div className="min-w-0">
-            <p className="text-sm font-semibold text-[var(--fo-text)]">{`El grupo de ${v.plural} de ${institution}`}</p>
-            <p className="text-sm text-[var(--fo-muted)]">
-              {`Novedades, convocatorias y charlas entre ${v.plural}, en WhatsApp.`}
-            </p>
-          </div>
-          <WhatsappGroupButton href={whatsappGroupUrl} className="shrink-0" />
-        </div>
-      ) : null}
-
-      {/*
-        Identidad antes que trámite: lo primero que ve el socio es que la institución sabe quién
-        es. Son datos que ya existen en la ficha, así que nunca quedan desactualizados.
-      */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Indicador
-          rotulo="Tu cuenta"
-          valor={alDia ? "Al día" : formatMinorArs(cuenta.dueMinor)}
-          tono={alDia ? "success" : cuenta.overdueCount > 0 ? "danger" : "warning"}
-          detalle={
-            alDia
-              ? "Sin cuotas pendientes"
-              : cuenta.overdueCount > 0
-                ? `${cuenta.overdueCount} ${cuenta.overdueCount === 1 ? "cuota vencida" : "cuotas vencidas"}`
-                : "Pendiente de pago"
-          }
-        />
-        <Indicador
-          rotulo="Carnet"
-          valor={faltaFoto ? "Falta tu foto" : "Vigente"}
-          tono={faltaFoto ? "warning" : "success"}
-          detalle={faltaFoto ? "Para emitir la impresa" : `Acredita que sos ${v.singular}`}
-        />
-        <Indicador
-          rotulo="Categoría"
-          valor={member.categoryName ?? "—"}
-          detalle={`${v.Singular} N° ${member.memberNumber}`}
-        />
-        <Indicador
-          rotulo="Antigüedad"
-          valor={
-            antiguedad.anios
-              ? `${antiguedad.anios} ${antiguedad.anios === 1 ? "año" : "años"}`
-              : "Menos de 1 año"
-          }
-          detalle={antiguedad.desde ? `Desde ${antiguedad.desde}` : null}
-        />
-      </div>
-
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="space-y-6 lg:col-span-2">
-          {socioDeLaSemana ? (
-            <SpotlightCard
-              card={socioDeLaSemana.card}
-              weekLabel={socioDeLaSemana.weekLabel}
-              audience="portal"
-            />
-          ) : null}
-
-          {sorteo ? <TarjetaSorteo sorteo={sorteo} /> : null}
-
+  const cuotasCard = (
           <section className="fo-card space-y-4 p-5">
             <div className="flex flex-wrap items-baseline justify-between gap-3">
               <h2 className="text-base font-semibold">Tus cuotas</h2>
@@ -245,25 +173,190 @@ export function PortalHome({
               {alDia ? "Ver mis pagos" : "Ver y pagar"}
             </Link>
           </section>
+  );
 
-          <section className="space-y-3">
-            <h2 className="text-base font-semibold">Accesos directos</h2>
-            <ul className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-              {accesos.map((s) => (
-                <li key={s.href}>
-                  <Link
-                    href={s.href}
-                    className="flex h-full flex-col items-center gap-2 rounded-[var(--fo-radius)] border border-[var(--fo-border)] bg-[var(--fo-surface)] px-2 py-4 text-center text-xs font-medium transition-colors hover:border-[var(--fo-accent)] hover:text-[var(--fo-accent-hover)]"
-                  >
-                    <span className="grid h-10 w-10 place-items-center rounded-full bg-[var(--fo-accent-soft)] text-[var(--fo-accent-hover)]">
-                      <PortalIcon name={s.icon} />
-                    </span>
-                    {aplicarVocabulario(s.label, v)}
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center gap-4">
+        <Link href="/portal/perfil" aria-label="Cambiar mi foto" className="shrink-0">
+          <PortalAvatar name={member.fullName} src={member.photoUrl} className="h-16 w-16 text-lg sm:h-20 sm:w-20" />
+        </Link>
+        <div className="min-w-0">
+          <p className="text-sm text-[var(--fo-muted)]">{institution}</p>
+          <h1 className="text-2xl font-semibold tracking-tight">Hola, {member.firstName}</h1>
+          {member.businessName || member.businessLogoUrl ? (
+            <div className="mt-1 flex min-w-0 items-center gap-2">
+              {member.businessLogoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element -- el logo vive en R2, fuera del build
+                <img
+                  src={member.businessLogoUrl}
+                  alt={member.businessName ?? "Logo de tu empresa"}
+                  className="h-8 w-auto max-w-28 shrink-0 rounded bg-white object-contain"
+                />
+              ) : null}
+              {member.businessName ? (
+                <p className="truncate text-sm font-medium text-[var(--fo-text-secondary)]">
+                  {member.businessName}
+                </p>
+              ) : null}
+            </div>
+          ) : member.photoUrl ? null : (
+            <Link href="/portal/perfil" className="text-xs text-[var(--fo-accent-hover)] hover:underline">
+              Subí tu foto
+            </Link>
+          )}
+        </div>
+      </div>
+
+      {/*
+        Los accesos van arriba de todo y en una sola fila: es lo que el socio viene a buscar. En el
+        teléfono la fila se desliza de costado en vez de partirse en renglones.
+      */}
+      {accesos.length > 0 ? (
+        <nav aria-label="Accesos directos" className="-mx-1 overflow-x-auto px-1 pb-1">
+          <ul className="flex gap-2 lg:grid lg:auto-cols-fr lg:grid-flow-col">
+            {accesos.map((s) => (
+              <li key={s.href} className="w-24 shrink-0 lg:w-auto">
+                <Link
+                  href={s.href}
+                  className="flex h-full flex-col items-center gap-2 rounded-[var(--fo-radius)] border border-[var(--fo-border)] bg-[var(--fo-surface)] px-2 py-3 text-center text-xs font-medium transition-colors hover:border-[var(--fo-accent)] hover:text-[var(--fo-accent-hover)]"
+                >
+                  <span className="grid h-10 w-10 place-items-center rounded-full bg-[var(--fo-accent-soft)] text-[var(--fo-accent-hover)]">
+                    <PortalIcon name={s.icon} />
+                  </span>
+                  {aplicarVocabulario(s.label, v)}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </nav>
+      ) : null}
+
+      {/*
+        Identidad antes que trámite: lo primero que ve el socio es que la institución sabe quién
+        es. Son datos que ya existen en la ficha, así que nunca quedan desactualizados.
+      */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Indicador
+          rotulo="Tu cuenta"
+          valor={alDia ? "Al día" : formatMinorArs(cuenta.dueMinor)}
+          tono={alDia ? "success" : cuenta.overdueCount > 0 ? "danger" : "warning"}
+          detalle={
+            alDia
+              ? "Sin cuotas pendientes"
+              : cuenta.overdueCount > 0
+                ? `${cuenta.overdueCount} ${cuenta.overdueCount === 1 ? "cuota vencida" : "cuotas vencidas"}`
+                : "Pendiente de pago"
+          }
+        />
+        <Indicador
+          rotulo="Carnet"
+          valor={faltaFoto ? "Falta tu foto" : "Vigente"}
+          tono={faltaFoto ? "warning" : "success"}
+          detalle={faltaFoto ? "Para emitir la impresa" : `Acredita que sos ${v.singular}`}
+        />
+        <Indicador
+          rotulo="Categoría"
+          valor={member.categoryName ?? "—"}
+          detalle={`${v.Singular} N° ${member.memberNumber}`}
+        />
+        <Indicador
+          rotulo="Antigüedad"
+          valor={
+            antiguedad.anios
+              ? `${antiguedad.anios} ${antiguedad.anios === 1 ? "año" : "años"}`
+              : "Menos de 1 año"
+          }
+          detalle={antiguedad.desde ? `Desde ${antiguedad.desde}` : null}
+        />
+      </div>
+
+      {/*
+        Orden de prioridad: primero lo que le pide algo al socio (una deuda), después participar
+        (ayudar, el sorteo) y al final la comunidad (socio de la semana, cumpleaños).
+      */}
+      <div className="grid gap-6 lg:grid-cols-3">
+        <div className="space-y-6 lg:col-span-2">
+          {alDia ? null : cuotasCard}
+
+          {club || renovacion ? (
+            <section className="space-y-3 rounded-[var(--fo-radius)] border border-[var(--fo-accent)] bg-[var(--fo-accent-soft)] p-5">
+              <h2 className="text-base font-semibold">
+                {!club
+                  ? `Tu ${renovacion?.categoryName ?? "membresía"} no está vigente`
+                  : club.available === 0
+                    ? `Usaste tus ${club.credits} ${club.plural} incluidos`
+                    : `Te quedan ${club.available} de ${club.credits} ${club.plural} incluidos`}
+              </h2>
+              <p className="text-sm leading-relaxed text-[var(--fo-text-secondary)]">
+                {!club
+                  ? "Renová cuando quieras: no se te acumula deuda por los meses que no renovaste."
+                  : club.available === 0
+                    ? "Con tu próximo pago se renuevan."
+                    : `Vencen el ${club.validUntilLabel}. Lo que no uses hasta entonces no se acumula.`}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {club?.reservarHref && club.available > 0 ? (
+                  <Link href={club.reservarHref} className="fo-btn fo-btn-primary inline-flex text-sm">
+                    Reservar turno
                   </Link>
-                </li>
-              ))}
-            </ul>
-          </section>
+                ) : null}
+                {renovacion ? (
+                  <form action={renovacion.action}>
+                    <button
+                      type="submit"
+                      className={`fo-btn ${club && club.available > 0 ? "fo-btn-secondary" : "fo-btn-primary"} text-sm`}
+                    >
+                      {`Renovar ${renovacion.categoryName} — ${renovacion.amountLabel}`}
+                    </button>
+                  </form>
+                ) : null}
+              </div>
+              {renovacion && club && club.available > 0 ? (
+                <p className="text-xs text-[var(--fo-muted)]">
+                  {`Si renovás ahora, los ${club.available} ${club.plural} que te quedan se reemplazan por los nuevos.`}
+                </p>
+              ) : null}
+            </section>
+          ) : null}
+
+          {/* Sólo cuando hay algo para tomar: si no, la tarjeta no le pide nada al socio. */}
+          {gobierno && gobierno.totalLibres > 0 ? (
+            <section className="space-y-3 rounded-[var(--fo-radius)] border border-[var(--fo-warning-border)] bg-[var(--fo-warning-soft)] p-5">
+              <h2 className="text-base font-semibold">Tareas a realizar en {institution}: ¡necesitamos tu ayuda!</h2>
+              <p className="text-sm leading-relaxed text-[var(--fo-text-secondary)]">
+                {gobierno.totalLibres === 1
+                  ? "Hay una tarea que todavía no tiene a nadie a cargo."
+                  : `Hay ${gobierno.totalLibres} tareas que todavía no tienen a nadie a cargo.`}
+              </p>
+              <ul className="space-y-1 text-sm">
+                {gobierno.tareasLibres.map((t) => (
+                  <li key={t.id}>
+                    <span className="font-medium">{t.title}</span>
+                    <span className="text-[var(--fo-muted)]"> · {t.projectTitle}</span>
+                  </li>
+                ))}
+              </ul>
+              <Link href="/portal/tareas#ayudar" className="fo-btn fo-btn-primary inline-flex text-sm">
+                Quiero ayudar
+              </Link>
+            </section>
+          ) : null}
+
+          {sorteo ? <TarjetaSorteo sorteo={sorteo} /> : null}
+
+          {alDia ? cuotasCard : null}
+
+          {socioDeLaSemana ? (
+            <SpotlightCard
+              card={socioDeLaSemana.card}
+              weekLabel={socioDeLaSemana.weekLabel}
+              audience="portal"
+            />
+          ) : null}
+
+          <BirthdaysCard birthdays={cumpleanos} />
+
         </div>
 
         <div className="space-y-6">
@@ -301,6 +394,37 @@ export function PortalHome({
           ) : null}
 
           {/*
+            Los socios del padrón migrado llegan sin estos datos: nunca hubo un formulario donde
+            cargarlos. El aviso desaparece solo cuando ya cargó algo.
+          */}
+          {perfilVacio ? (
+            <section className="fo-card space-y-2 p-5">
+              <h2 className="text-sm font-semibold">Completá tu perfil profesional</h2>
+              <p className="text-sm leading-relaxed text-[var(--fo-muted)]">
+                Contanos a qué te dedicás y dónde se ve tu trabajo. Es lo que {institution} usa
+                para recomendarte. Se publica solo si lo autorizás.
+              </p>
+              <Link href="/portal/perfil" className="fo-btn fo-btn-secondary inline-flex text-sm">
+                Completar mi perfil
+              </Link>
+            </section>
+          ) : null}
+
+          {gobierno ? (
+          <section className="space-y-2 rounded-[var(--fo-radius)] border border-[var(--fo-accent)] bg-[var(--fo-accent-soft)] p-5">
+            <h2 className="text-sm font-semibold">Proponé tus proyectos</h2>
+            <p className="text-sm leading-relaxed text-[var(--fo-text-secondary)]">
+              ¿Tenés una idea para {institution}? Una muestra, un taller, una salida. Contala y la comisión directiva la
+              trata en su próxima reunión.
+            </p>
+            <Link href="/portal/proyectos/proponer" className="fo-btn fo-btn-primary inline-flex text-sm">
+              Proponer un proyecto
+            </Link>
+          </section>
+
+          ) : null}
+
+          {/*
             Solo se muestra cuando la sección está realmente disponible: los dos interruptores
             —módulo de socios y beneficio resuelto por la comisión— ya los resolvió el menú.
           */}
@@ -318,20 +442,31 @@ export function PortalHome({
             </section>
           ) : null}
 
+          {whatsappGroupUrl ? (
+            <div className="fo-card flex flex-col gap-3 p-5">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-[var(--fo-text)]">{`El grupo de ${v.plural} de ${institution}`}</p>
+                <p className="text-sm text-[var(--fo-muted)]">
+                  {`Novedades, convocatorias y charlas entre ${v.plural}, en WhatsApp.`}
+                </p>
+              </div>
+              <WhatsappGroupButton href={whatsappGroupUrl} className="self-start" />
+            </div>
+          ) : null}
+
           {/*
-            Los socios del padrón migrado llegan sin estos datos: nunca hubo un formulario donde
-            cargarlos. El aviso desaparece solo cuando ya cargó algo.
+            Los concursos van en la columna lateral, de a una ficha que va pasando sola: muestra
+            todo lo abierto sin ocupar una fila entera. "Ver más" lleva a la lista completa.
           */}
-          {perfilVacio ? (
-            <section className="fo-card space-y-2 p-5">
-              <h2 className="text-sm font-semibold">Completá tu perfil profesional</h2>
-              <p className="text-sm leading-relaxed text-[var(--fo-muted)]">
-                Contanos a qué te dedicás y dónde se ve tu trabajo. Es lo que {institution} usa
-                para recomendarte. Se publica solo si lo autorizás.
-              </p>
-              <Link href="/portal/perfil" className="fo-btn fo-btn-secondary inline-flex text-sm">
-                Completar mi perfil
-              </Link>
+          {concursos.length > 0 ? (
+            <section className="space-y-3" aria-label="Concursos fotográficos">
+              <div className="flex items-baseline justify-between gap-3">
+                <h2 className="text-sm font-semibold">Concursos fotográficos</h2>
+                <Link href="/portal/concursos" className="text-sm text-[var(--fo-accent-hover)] hover:underline">
+                  Ver más →
+                </Link>
+              </div>
+              <ContestCarousel items={concursos} institution={institution} now={new Date()} />
             </section>
           ) : null}
 
@@ -374,16 +509,9 @@ export function PortalHome({
         creación del negocio es siempre explícita: nunca ocurre por visitar una ruta.
       */}
       <footer className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-[var(--fo-border)] pt-4 text-xs text-[var(--fo-muted)]">
-        {puedeCambiarPerfil ? (
-          <form action={switchProfileAction}>
-            <button type="submit" className="underline underline-offset-2 hover:text-[var(--fo-text)]">
-              Cambiar de perfil
-            </button>
-          </form>
-        ) : null}
         {!tieneNegocio ? (
           <form action={createOwnBusinessAction} className="leading-relaxed">
-            {`¿Tenés tu propio estudio? Podés usar FotoOffice para administrar tu negocio fotográfico, aparte de tu ficha de ${v.singular}.`}{" "}
+            {`¿Tenés tu propio estudio o querés enseñar? Creá tu espacio en FotoOffice para administrar tu negocio o subir tus cursos y que las instituciones los vendan, aparte de tu ficha de ${v.singular}.`}{" "}
             <button type="submit" className="underline underline-offset-2 hover:text-[var(--fo-text)]">
               Crear mi negocio
             </button>

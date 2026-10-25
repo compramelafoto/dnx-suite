@@ -24,8 +24,8 @@ export default function DisenoDeshabilitadoPage() {
           Usá el <strong>Diseñador de plantillas</strong> en Admin para crear y editar diseños.
         </p>
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
-          <Link href="/admin/plantillas/disenador">
-            <Button>Ir al Diseñador de plantillas</Button>
+          <Link href="/dashboard/designs">
+            <Button>Ir al diseñador de plantillas</Button>
           </Link>
           {albumId && (
             <Link href={`/dashboard/albums/${albumId}`}>

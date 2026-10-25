@@ -54,6 +54,7 @@ describe("la lista de reservados no se queda vieja", () => {
     for (const entrada of readdirSync(dir)) {
       if (!statSync(join(dir, entrada)).isDirectory()) continue;
       if (entrada.startsWith("[")) continue; // dinámico: no ocupa un nombre fijo
+      if (entrada.startsWith("_")) continue; // carpeta privada de Next (p.ej. _fonts): nunca es una ruta
       if (entrada.startsWith("(") && entrada.endsWith(")")) {
         out.push(...segmentosReales(join(dir, entrada)));
         continue;

@@ -7,7 +7,13 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@repo/db";
 import { requireAuth } from "../lib/auth";
 import { resolveActiveOrganizationForUser } from "../lib/fotorank/dashboard-org-context";
-import { defaultDiplomaLayoutJson } from "../lib/fotorank/diplomas/layoutSchema";
+import {
+  archiveDiplomaDesign,
+  createDiplomaTemplate,
+  ensureDefaultDiplomaTemplate,
+  duplicateDiplomaTemplate,
+} from "../lib/fotorank/diplomas/diplomaDesign";
+import { readDiplomaFile } from "../lib/fotorank/diplomas/diplomaStorage";
 import type { DiplomaIssuanceMode } from "../lib/fotorank/diplomas/issuanceTypes";
 import { resolveDiplomaPlanRows } from "../lib/fotorank/diplomas/resolveRecipients";
 import {
@@ -45,19 +51,12 @@ export async function ensureDefaultDiplomaTemplateAction(contestId: string) {
   const contest = await assertContestScope(contestId, org.organizationId);
   if (!contest) return { ok: false as const, error: "Concurso no encontrado." };
 
-  const count = await prisma.fotorankDiplomaTemplate.count({ where: { contestId } });
-  if (count > 0) return { ok: true as const, created: false };
-
-  await prisma.fotorankDiplomaTemplate.create({
-    data: {
-      organizationId: org.organizationId,
-      contestId,
-      name: "Plantilla estándar",
-      status: "ACTIVE",
-      layoutJson: defaultDiplomaLayoutJson() as unknown as object,
-      createdByUserId: user.id,
-    },
+  const created = await ensureDefaultDiplomaTemplate({
+    organizationId: org.organizationId,
+    contestId,
+    userId: user.id,
   });
+  if (!created) return { ok: true as const, created: false };
   revalidatePath(routes.dashboard.concursos.diplomas(contestId));
   return { ok: true as const, created: true };
 }
@@ -282,17 +281,13 @@ export async function createDiplomaTemplateAction(contestId: string, name?: stri
   const contest = await assertContestScope(contestId, org.organizationId);
   if (!contest) return { ok: false as const, error: "Concurso no encontrado." };
 
-  const n = name?.trim() || "plantilla nueva";
-  const created = await prisma.fotorankDiplomaTemplate.create({
-    data: {
-      organizationId: org.organizationId,
-      contestId,
-      name: n.slice(0, 120),
-      status: "DRAFT",
-      layoutJson: defaultDiplomaLayoutJson() as unknown as object,
-      createdByUserId: user.id,
-    },
-    select: { id: true },
+  const n = name?.trim() || "Diploma nuevo";
+  const created = await createDiplomaTemplate({
+    organizationId: org.organizationId,
+    contestId,
+    userId: user.id,
+    name: n,
+    status: "DRAFT",
   });
   revalidatePath(routes.dashboard.concursos.diplomas(contestId));
   return { ok: true as const, id: created.id };
@@ -313,21 +308,19 @@ export async function duplicateDiplomaTemplateAction(contestId: string, template
   const baseName = src.name.trimEnd();
   const name = `${baseName.slice(0, 100)} (copia)`.slice(0, 120);
 
-  const created = await prisma.fotorankDiplomaTemplate.create({
-    data: {
-      organizationId: org.organizationId,
-      contestId,
-      name,
-      status: "DRAFT",
-      widthPt: src.widthPt,
-      heightPt: src.heightPt,
-      backgroundColor: src.backgroundColor,
-      backgroundImageUrl: src.backgroundImageUrl,
-      layoutJson: src.layoutJson as object,
-      createdByUserId: user.id,
-    },
-    select: { id: true },
+  const created = await duplicateDiplomaTemplate({
+    organizationId: org.organizationId,
+    contestId,
+    userId: user.id,
+    sourceLayoutJson: src.layoutJson,
+    name,
   });
+  if (!created) {
+    return {
+      ok: false as const,
+      error: "Esta plantilla se hizo con el editor anterior y no se puede duplicar. Creá una nueva.",
+    };
+  }
   revalidatePath(routes.dashboard.concursos.diplomas(contestId));
   return { ok: true as const, id: created.id };
 }
@@ -341,7 +334,7 @@ export async function deleteDiplomaTemplateAction(contestId: string, templateId:
 
   const tpl = await prisma.fotorankDiplomaTemplate.findFirst({
     where: { id: templateId, contestId, organizationId: org.organizationId },
-    select: { id: true },
+    select: { id: true, layoutJson: true },
   });
   if (!tpl) return { ok: false as const, error: "Plantilla no encontrada." };
 
@@ -357,6 +350,7 @@ export async function deleteDiplomaTemplateAction(contestId: string, templateId:
   }
 
   await prisma.fotorankDiplomaTemplate.delete({ where: { id: tpl.id } });
+  await archiveDiplomaDesign(org.organizationId, tpl.layoutJson);
   revalidatePath(routes.dashboard.concursos.diplomas(contestId));
   return { ok: true as const };
 }
@@ -366,15 +360,9 @@ export type UpdateDiplomaTemplateInput = {
   contestId: string;
   name?: string;
   status?: (typeof TEMPLATE_STATUSES)[number];
-  widthPt?: number;
-  heightPt?: number;
-  backgroundColor?: string;
-  /** Ruta pública bajo /uploads/... o null para quitar */
-  backgroundImageUrl?: string | null;
-  /** JSON de layout; si se omite no se toca */
-  layoutJsonText?: string | null;
 };
 
+/** Nombre y estado. El diseño se cambia en el diseñador, no acá. */
 export async function updateDiplomaTemplateAction(input: UpdateDiplomaTemplateInput) {
   const user = await requireAuth();
   const org = await requireOrgForUser(user.id);
@@ -388,20 +376,9 @@ export async function updateDiplomaTemplateAction(input: UpdateDiplomaTemplateIn
       contestId: input.contestId,
       organizationId: org.organizationId,
     },
-    select: { id: true, version: true },
+    select: { id: true },
   });
   if (!existing) return { ok: false as const, error: "Plantilla no encontrada." };
-
-  let layoutJson: object | undefined;
-  if (input.layoutJsonText != null) {
-    try {
-      const parsed = JSON.parse(input.layoutJsonText) as unknown;
-      const { parseDiplomaLayoutJson } = await import("../lib/fotorank/diplomas/layoutSchema");
-      layoutJson = parseDiplomaLayoutJson(parsed) as unknown as object;
-    } catch {
-      return { ok: false as const, error: "El layout JSON no es válido." };
-    }
-  }
 
   if (input.status != null && !TEMPLATE_STATUSES.includes(input.status as (typeof TEMPLATE_STATUSES)[number])) {
     return { ok: false as const, error: "Estado de plantilla no válido." };
@@ -411,127 +388,12 @@ export async function updateDiplomaTemplateAction(input: UpdateDiplomaTemplateIn
     where: { id: existing.id },
     data: {
       version: { increment: 1 },
-      ...(input.name != null ? { name: input.name.slice(0, 120) } : {}),
+      ...(input.name != null && input.name.trim() ? { name: input.name.trim().slice(0, 120) } : {}),
       ...(input.status != null ? { status: input.status } : {}),
-      ...(input.widthPt != null && Number.isFinite(input.widthPt) && input.widthPt > 0 ? { widthPt: input.widthPt } : {}),
-      ...(input.heightPt != null && Number.isFinite(input.heightPt) && input.heightPt > 0 ? { heightPt: input.heightPt } : {}),
-      ...(input.backgroundColor != null ? { backgroundColor: input.backgroundColor.slice(0, 32) } : {}),
-      ...(input.backgroundImageUrl !== undefined ? { backgroundImageUrl: input.backgroundImageUrl } : {}),
-      ...(layoutJson !== undefined ? { layoutJson } : {}),
     },
   });
   revalidatePath(routes.dashboard.concursos.diplomas(input.contestId));
   return { ok: true as const };
-}
-
-export async function uploadDiplomaTemplateBackgroundAction(formData: FormData) {
-  const user = await requireAuth();
-  const org = await requireOrgForUser(user.id);
-  if (!org.ok) return { ok: false as const, error: org.error };
-
-  const contestId = String(formData.get("contestId") ?? "").trim();
-  const templateId = String(formData.get("templateId") ?? "").trim();
-  const file = formData.get("file");
-  if (!contestId || !templateId) return { ok: false as const, error: "Datos incompletos." };
-  if (!(file instanceof File) || file.size === 0) return { ok: false as const, error: "Elegí un archivo de imagen." };
-
-  const contest = await assertContestScope(contestId, org.organizationId);
-  if (!contest) return { ok: false as const, error: "Concurso no encontrado." };
-
-  const tpl = await prisma.fotorankDiplomaTemplate.findFirst({
-    where: { id: templateId, contestId, organizationId: org.organizationId },
-    select: { id: true },
-  });
-  if (!tpl) return { ok: false as const, error: "Plantilla no encontrada." };
-
-  const mime = file.type;
-  if (!["image/jpeg", "image/png", "image/webp"].includes(mime)) {
-    return { ok: false as const, error: "Solo JPG, PNG o WebP." };
-  }
-  if (file.size > 8 * 1024 * 1024) return { ok: false as const, error: "Máximo 8 MB." };
-
-  const ext = mime === "image/jpeg" ? "jpg" : mime === "image/png" ? "png" : "webp";
-  const buf = Buffer.from(await file.arrayBuffer());
-  const safeContest = contestId.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 64) || "c";
-  const dir = path.join(process.cwd(), "public", "uploads", "diplomas", "backgrounds", safeContest);
-  await fs.mkdir(dir, { recursive: true });
-  const fname = `${templateId}-${Date.now()}.${ext}`;
-  const full = path.join(dir, fname);
-  await fs.writeFile(full, buf);
-  const publicUrl = `/uploads/diplomas/backgrounds/${safeContest}/${fname}`;
-
-  await prisma.fotorankDiplomaTemplate.update({
-    where: { id: templateId },
-    data: { backgroundImageUrl: publicUrl, version: { increment: 1 } },
-  });
-  revalidatePath(routes.dashboard.concursos.diplomas(contestId));
-  return { ok: true as const, backgroundImageUrl: publicUrl };
-}
-
-/** Imagen embebida en la plantilla (logo/firma), distinta del fondo de página */
-export async function uploadDiplomaTemplateOverlayAction(formData: FormData) {
-  const user = await requireAuth();
-  const org = await requireOrgForUser(user.id);
-  if (!org.ok) return { ok: false as const, error: org.error };
-
-  const contestId = String(formData.get("contestId") ?? "").trim();
-  const templateId = String(formData.get("templateId") ?? "").trim();
-  const file = formData.get("file");
-  if (!contestId || !templateId) return { ok: false as const, error: "Datos incompletos." };
-  if (!(file instanceof File) || file.size === 0) return { ok: false as const, error: "Elegí un archivo de imagen." };
-
-  const contest = await assertContestScope(contestId, org.organizationId);
-  if (!contest) return { ok: false as const, error: "Concurso no encontrado." };
-
-  const tpl = await prisma.fotorankDiplomaTemplate.findFirst({
-    where: { id: templateId, contestId, organizationId: org.organizationId },
-    select: { id: true },
-  });
-  if (!tpl) return { ok: false as const, error: "Plantilla no encontrada." };
-
-  const mime = file.type;
-  if (!["image/jpeg", "image/png", "image/webp"].includes(mime)) {
-    return { ok: false as const, error: "Solo JPG, PNG o WebP." };
-  }
-  if (file.size > 8 * 1024 * 1024) return { ok: false as const, error: "Máximo 8 MB." };
-
-  const ext = mime === "image/jpeg" ? "jpg" : mime === "image/png" ? "png" : "webp";
-  const buf = Buffer.from(await file.arrayBuffer());
-  const safeContest = contestId.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 64) || "c";
-  const dir = path.join(process.cwd(), "public", "uploads", "diplomas", "overlays", safeContest);
-  await fs.mkdir(dir, { recursive: true });
-  const fname = `${templateId.slice(0, 36)}-${Date.now()}.${ext}`;
-  const full = path.join(dir, fname);
-  await fs.writeFile(full, buf);
-  const publicUrl = `/uploads/diplomas/overlays/${safeContest}/${fname}`;
-
-  revalidatePath(routes.dashboard.concursos.diplomas(contestId));
-  return { ok: true as const, imageUrl: publicUrl };
-}
-
-export async function getDiplomaPreviewSampleVariablesAction(contestId: string) {
-  const user = await requireAuth();
-  const org = await requireOrgForUser(user.id);
-  if (!org.ok) return { ok: false as const, error: org.error };
-  const contest = await prisma.fotorankContest.findFirst({
-    where: { id: contestId, organizationId: org.organizationId },
-    select: { title: true, organization: { select: { name: true } } },
-  });
-  if (!contest) return { ok: false as const, error: "Concurso no encontrado." };
-  return {
-    ok: true as const,
-    variables: {
-      recipientName: "Nombre del destinatario",
-      entryTitle: "Título de la obra o proyecto",
-      contestTitle: contest.title,
-      organizerName: contest.organization.name,
-      categoryName: "Nombre de categoría",
-      prizeLabel: "Premio / reconocimiento",
-      diplomaCode: "FR-EJEMPLO-00000000",
-      issuedDate: new Date().toLocaleDateString("es-AR"),
-      verificationUrl: "https://fotorank.app/diplomas/verificar/ejemplo",
-    },
-  };
 }
 
 type ExcelBatchDraft = {
@@ -710,7 +572,7 @@ export async function generateDiplomasFromExcelDraftAction(input: {
   const issuedRows = okIds.length
     ? await prisma.fotorankDiplomaIssued.findMany({
         where: { id: { in: okIds } },
-        select: { recipientName: true, pdfUrl: true, pngUrl: true },
+        select: { id: true, recipientName: true, pdfUrl: true, pngUrl: true },
       })
     : [];
 
@@ -718,20 +580,12 @@ export async function generateDiplomasFromExcelDraftAction(input: {
   for (const row of issuedRows) {
     const base = sanitizeFileSlug(`${contest.slug}-${row.recipientName}`).slice(0, 120);
     if (row.pdfUrl && outputFormats.pdf) {
-      try {
-        const abs = path.join(process.cwd(), "public", row.pdfUrl.replace(/^\//, ""));
-        zip.file(`${base}.pdf`, await fs.readFile(abs));
-      } catch {
-        /* ignore missing */
-      }
+      const pdf = await readDiplomaFile(input.contestId, row.id, "pdf");
+      if (pdf) zip.file(`${base}.pdf`, pdf);
     }
     if (row.pngUrl && outputFormats.png) {
-      try {
-        const abs = path.join(process.cwd(), "public", row.pngUrl.replace(/^\//, ""));
-        zip.file(`${base}.png`, await fs.readFile(abs));
-      } catch {
-        /* ignore missing */
-      }
+      const png = await readDiplomaFile(input.contestId, row.id, "png");
+      if (png) zip.file(`${base}.png`, png);
     }
   }
 

@@ -4,6 +4,10 @@ import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
 import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
 import { PORTFOLIO_MODULE_KEY } from "@/lib/portfolio/constants";
+import { GOVERNANCE_MODULE_KEY } from "@/lib/governance/constants";
+import { SPONSORS_MODULE_KEY } from "@/lib/sponsors/constants";
+import { CUANTO_COBRO_SOCIO_MODULE_KEY, RUTA_CUANTO_COBRO_SOCIO } from "@/lib/cuanto-cobro-socio/constants";
+import { FOTOLIBROS_SOCIO_MODULE_KEY, RUTA_FOTOLIBROS_SOCIO } from "@/lib/fotolibro/constantes";
 
 /**
  * El menú del socio, en un solo lugar.
@@ -67,7 +71,11 @@ export type PortalIconName =
   | "school"
   | "institution"
   | "share"
-  | "camera";
+  | "camera"
+  | "tasks"
+  | "trophy"
+  | "calculator"
+  | "book";
 
 /**
  * El mapa del §5 del documento de navegación, con su orden.
@@ -124,12 +132,31 @@ export const PORTAL_MENU: PortalMenuItem[] = [
     built: true,
   },
   {
+    order: 47,
+    label: "¿Cuánto Cobro?",
+    href: RUTA_CUANTO_COBRO_SOCIO,
+    description: "Calculá el valor de tu hora y cuánto cobrar un trabajo sin regalarlo.",
+    icon: "calculator",
+    requiresModule: CUANTO_COBRO_SOCIO_MODULE_KEY,
+    built: true,
+  },
+  {
+    order: 48,
+    label: "Mis fotolibros",
+    href: RUTA_FOTOLIBROS_SOCIO,
+    description: "Diseñá tus fotolibros con la medida real del pliego, listos para el laboratorio.",
+    icon: "book",
+    requiresModule: FOTOLIBROS_SOCIO_MODULE_KEY,
+    built: true,
+  },
+  {
     order: 50,
     label: "Beneficios",
     href: "/portal/beneficios",
     description: "Descuentos y convenios con comercios y escuelas.",
     icon: "gift",
-    built: false,
+    requiresModule: SPONSORS_MODULE_KEY,
+    built: true,
   },
   {
     order: 60,
@@ -168,13 +195,30 @@ export const PORTAL_MENU: PortalMenuItem[] = [
     built: true,
   },
   {
+    order: 85,
+    label: "Concursos",
+    href: "/portal/concursos",
+    description: "Concursos de FotoRank y maratones de Clickatón abiertos para participar.",
+    icon: "trophy",
+    built: true,
+  },
+  {
     order: 90,
-    label: "Institucional",
-    href: "/portal/institucional",
-    description: "Novedades, actas y en qué se usa la cuota.",
+    label: "Mis proyectos",
+    href: "/portal/proyectos",
+    description: "Proponé un proyecto a la comisión, mirá en qué quedó y seguí los proyectos de la institución.",
     icon: "institution",
-    requiresModule: "governance",
-    built: false,
+    requiresModule: GOVERNANCE_MODULE_KEY,
+    built: true,
+  },
+  {
+    order: 95,
+    label: "Mis tareas",
+    href: "/portal/tareas",
+    description: "Lo que te encargaron en un proyecto: para cuándo es, contar cómo va y darlo por hecho.",
+    icon: "tasks",
+    requiresModule: GOVERNANCE_MODULE_KEY,
+    built: true,
   },
   {
     order: 100,

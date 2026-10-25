@@ -148,35 +148,23 @@ export async function loadMemberForRaffle(
  *
  * Si la conexión no está configurada, cae a la base propia en vez de romper el formulario:
  * el aliado siempre se puede escribir a mano, y un buscador vacío es mejor que una pantalla
- * que no carga.
+ * que no carga. La elección de la base vive en `lib/sponsors/clients.ts`.
  */
-export async function searchPartners(texto: string): Promise<PartnerOption[]> {
-  const q = texto.trim();
-  if (q.length < 2) return [];
-
-  const consulta = {
-    where: { archivedAt: null, name: { contains: q, mode: "insensitive" as const } },
-    orderBy: { name: "asc" as const },
-    take: 10,
-    select: { id: true, name: true, logoUrl: true, email: true },
-  };
-
-  const { getClickatonReadonlyClient, isClickatonReadonlyAvailable } = await import(
-    "@repo/db/clickaton-readonly-client"
-  );
-
-  if (isClickatonReadonlyAvailable()) {
-    try {
-      return await getClickatonReadonlyClient().dnxPartner.findMany(consulta);
-    } catch (error) {
-      // Que el panel de aliados esté caído no puede impedir cargar un premio.
-      console.error("[fotoffice][sorteos] no se pudo leer los aliados de Partners", {
-        detalle: error instanceof Error ? error.message : String(error),
-      });
-    }
+export async function searchPartners(workspaceId: string, texto: string): Promise<PartnerOption[]> {
+  try {
+    // El buscador de la base común, con el mismo filtro que el módulo de sponsors: de los
+    // sponsors ajenos a la institución sólo se ve nombre y logo, nunca su email. Antes este
+    // buscador devolvía el email de cualquier sponsor de la red.
+    const { searchCatalog } = await import("@/lib/sponsors/repository");
+    const opciones = await searchCatalog(workspaceId, texto);
+    return opciones.slice(0, 10).map((o) => ({ id: o.id, name: o.name, logoUrl: o.logoUrl, email: o.email }));
+  } catch (error) {
+    // Que el panel de aliados esté caído no puede impedir cargar un premio.
+    console.error("[fotoffice][sorteos] no se pudo leer los aliados de Partners", {
+      detalle: error instanceof Error ? error.message : String(error),
+    });
+    return [];
   }
-
-  return prisma.dnxPartner.findMany(consulta);
 }
 
 export type PartnerOption = {

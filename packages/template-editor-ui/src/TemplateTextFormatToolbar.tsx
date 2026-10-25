@@ -10,7 +10,13 @@ import {
   type EditorFontEntry,
 } from "@repo/template-editor-core";
 import { TemplateBlockSafeAreaAlignmentStrip } from "./TemplateBlockSafeAreaAlignmentStrip";
-import { asObject, formatFontFamilyCss, normalizeBlockConfig, type TemplateV2Block } from "@repo/template-editor-core";
+import {
+  asObject,
+  formatFontFamilyCss,
+  normalizeBlockConfig,
+  readTextVerticalAlign,
+  type TemplateV2Block,
+} from "@repo/template-editor-core";
 import { cn } from "./primitives/cn";
 
 type Props = {
@@ -88,6 +94,34 @@ function IconAlignRight({ className }: { className?: string }) {
   );
 }
 
+/*
+ * Alineación vertical: el recuadro y tres renglones apoyados arriba, en el medio o abajo. Se ven
+ * distintos de los de alineación horizontal (que son renglones sueltos, sin marco).
+ */
+function IconVAlign({ className, at }: { className?: string; at: "top" | "middle" | "bottom" }) {
+  const y0 = at === "top" ? 3.5 : at === "middle" ? 6 : 8.5;
+  return (
+    <svg className={className} width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
+      <rect x="1" y="1" width="14" height="14" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1" opacity={0.45} />
+      <rect x="4" y={y0} width="8" height="1.2" rx="0.4" />
+      <rect x="4" y={y0 + 2} width="8" height="1.2" rx="0.4" />
+      <rect x="5.5" y={y0 + 4} width="5" height="1.2" rx="0.4" />
+    </svg>
+  );
+}
+
+function IconVAlignTop({ className }: { className?: string }) {
+  return <IconVAlign className={className} at="top" />;
+}
+
+function IconVAlignMiddle({ className }: { className?: string }) {
+  return <IconVAlign className={className} at="middle" />;
+}
+
+function IconVAlignBottom({ className }: { className?: string }) {
+  return <IconVAlign className={className} at="bottom" />;
+}
+
 function IconChevronDown({ className }: { className?: string }) {
   return (
     <svg className={className} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden>
@@ -97,7 +131,7 @@ function IconChevronDown({ className }: { className?: string }) {
 }
 
 const fmtMiniBtn =
-  "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded border border-[color:var(--te-line)] bg-white text-[color:var(--te-ink)] shadow-sm hover:bg-[#f8f9fa] disabled:cursor-not-allowed disabled:opacity-40";
+  "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded border border-[color:var(--te-line)] bg-[color:var(--te-surface)] text-[color:var(--te-ink)] shadow-sm hover:bg-[color:var(--te-chrome-sunken)] disabled:cursor-not-allowed disabled:opacity-40";
 
 /** Slider compacto para la barra de formato (accent = color de marca). */
 const fmtRange =
@@ -156,6 +190,7 @@ export function TemplateTextFormatToolbar({ state, dispatch, shellClassName }: P
   const lineHeight = typeof cfg.lineHeight === "number" ? cfg.lineHeight : 1.2;
   const letterSpacing = typeof cfg.letterSpacing === "number" ? cfg.letterSpacing : 0;
   const textAlignRaw = String(cfg.textAlign ?? "CENTER").toUpperCase();
+  const verticalAlign = readTextVerticalAlign(cfg);
   const color = String(cfg.color ?? "#111111");
   const fontItalic = cfg.fontItalic === true;
   const underline = cfg.underline === true;
@@ -201,7 +236,7 @@ export function TemplateTextFormatToolbar({ state, dispatch, shellClassName }: P
           disabled={locked}
           onClick={() => setFontOpen((o) => !o)}
           className={cn(
-            "flex h-8 max-w-[min(100%,220px)] min-w-[148px] items-center justify-between gap-1 rounded border border-[#babfc5] bg-white px-2.5 text-left text-[12px] text-[color:var(--te-ink)] shadow-sm",
+            "flex h-8 max-w-[min(100%,220px)] min-w-[148px] items-center justify-between gap-1 rounded border border-[color:var(--te-line-strong)] bg-[color:var(--te-surface)] px-2.5 text-left text-[12px] text-[color:var(--te-ink)] shadow-sm",
             locked && "cursor-not-allowed opacity-50"
           )}
           style={{ fontFamily: formatFontFamilyCss(fontFamily) }}
@@ -212,7 +247,7 @@ export function TemplateTextFormatToolbar({ state, dispatch, shellClassName }: P
         </button>
         {fontOpen && !locked ? (
           <div
-            className="absolute left-0 top-full z-50 mt-1 max-h-[min(70vh,320px)] w-[min(100vw-2rem,280px)] overflow-y-auto rounded-md border border-[color:var(--te-line)] bg-white py-1 shadow-lg"
+            className="absolute left-0 top-full z-50 mt-1 max-h-[min(70vh,320px)] w-[min(100vw-2rem,280px)] overflow-y-auto rounded-md border border-[color:var(--te-line)] bg-[color:var(--te-surface)] py-1 shadow-lg"
             role="listbox"
           >
             {categoryOrder.map((cat) => {
@@ -220,7 +255,7 @@ export function TemplateTextFormatToolbar({ state, dispatch, shellClassName }: P
               if (!items?.length) return null;
               return (
                 <div key={cat}>
-                  <p className="sticky top-0 bg-white px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-[color:var(--te-ink-faint)]">
+                  <p className="sticky top-0 bg-[color:var(--te-surface)] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-[color:var(--te-ink-faint)]">
                     {EDITOR_FONT_CATEGORY_LABELS[cat]}
                   </p>
                   {items.map((f) => (
@@ -230,7 +265,7 @@ export function TemplateTextFormatToolbar({ state, dispatch, shellClassName }: P
                       role="option"
                       className={cn(
                         "flex w-full items-center px-2.5 py-2 text-left text-[13px] hover:bg-[color:var(--te-chrome-sunken)]",
-                        f.family === fontFamily && "bg-[#e8f0fe]"
+                        f.family === fontFamily && "bg-[color:var(--te-accent-wash)]"
                       )}
                       style={{ fontFamily: formatFontFamilyCss(f.family) }}
                       onClick={() => {
@@ -267,7 +302,7 @@ export function TemplateTextFormatToolbar({ state, dispatch, shellClassName }: P
         <input
           type="number"
           disabled={locked}
-          className="h-7 w-11 rounded border border-[color:var(--te-line)] bg-white px-1 text-center text-[12px] text-[color:var(--te-ink)] shadow-sm"
+          className="h-7 w-11 rounded border border-[color:var(--te-line)] bg-[color:var(--te-surface)] px-1 text-center text-[12px] text-[color:var(--te-ink)] shadow-sm"
           value={Math.round(fontSize)}
           min={8}
           max={400}
@@ -350,7 +385,7 @@ export function TemplateTextFormatToolbar({ state, dispatch, shellClassName }: P
         </button>
         <label
           className={cn(
-            "inline-flex h-7 w-9 cursor-pointer items-center justify-center overflow-hidden rounded border border-[color:var(--te-line)] bg-white shadow-sm",
+            "inline-flex h-7 w-9 cursor-pointer items-center justify-center overflow-hidden rounded border border-[color:var(--te-line)] bg-[color:var(--te-surface)] shadow-sm",
             locked && "pointer-events-none opacity-40"
           )}
           title="Color del texto"
@@ -394,6 +429,30 @@ export function TemplateTextFormatToolbar({ state, dispatch, shellClassName }: P
             aria-label={title}
             aria-pressed={textAlignRaw === al}
             onClick={() => patchConfig({ textAlign: al })}
+          >
+            <Icon className="block opacity-90" />
+          </button>
+        ))}
+      </div>
+
+      <div className="flex items-center gap-0.5" role="group" aria-label="Alineación vertical del texto en la caja">
+        {(
+          [
+            { va: "TOP" as const, Icon: IconVAlignTop, title: "Arriba", label: "Alinear el texto arriba de la caja" },
+            { va: "MIDDLE" as const, Icon: IconVAlignMiddle, title: "Centro", label: "Centrar el texto en el alto de la caja" },
+            { va: "BOTTOM" as const, Icon: IconVAlignBottom, title: "Abajo", label: "Alinear el texto abajo de la caja" },
+          ] as const
+        ).map(({ va, Icon, title, label }) => (
+          <button
+            key={va}
+            type="button"
+            data-vertical-align-button={va}
+            className={cn(fmtMiniBtn, verticalAlign === va && "border-[color:var(--te-accent-wash)] bg-[color:var(--te-accent-wash)]")}
+            disabled={locked}
+            title={title}
+            aria-label={label}
+            aria-pressed={verticalAlign === va}
+            onClick={() => patchConfig({ verticalAlign: va })}
           >
             <Icon className="block opacity-90" />
           </button>

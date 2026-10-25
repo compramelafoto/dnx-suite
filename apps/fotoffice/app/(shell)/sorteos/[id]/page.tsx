@@ -38,6 +38,8 @@ const EVENTOS: Record<string, string> = {
   PREMIO_NO_RETIRADO: "Venció el plazo de retiro",
   PREMIO_ANULADO: "Se anuló un premio",
   CANCELADO: "Se canceló",
+  RESULTADOS_ENVIADOS: "Salió el correo con los resultados a los socios",
+  RESUMEN_INSTITUCION_ENVIADO: "Salió el resumen con los ganadores a la institución",
 };
 
 export default async function SorteoPage({

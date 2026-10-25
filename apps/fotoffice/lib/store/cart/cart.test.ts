@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  CART_MAX_ARTWORK_QTY,
   CART_MAX_LINES,
   CART_MAX_QTY,
   cartReducer,
@@ -10,11 +11,16 @@ import {
   loadCart,
   parseCartState,
   saveCart,
-  type CartLine,
+  cartLineDetail,
+  cartLineHref,
+  cartLineName,
+  type ArtworkCartLine,
   type CartState,
+  type ProductCartLine,
 } from "./index";
 
-const line = (o: Partial<CartLine> = {}): CartLine => ({
+const line = (o: Partial<ProductCartLine> = {}): ProductCartLine => ({
+  kind: "product",
   productId: "p1",
   variantId: null,
   slug: "remera",
@@ -25,12 +31,45 @@ const line = (o: Partial<CartLine> = {}): CartLine => ({
   qty: 1,
   ...o,
 });
+const obra = (o: Partial<ArtworkCartLine> = {}): ArtworkCartLine => ({
+  kind: "artwork",
+  artworkListingId: "l1",
+  printFormatId: "f1",
+  slug: "atardecer",
+  title: "Atardecer",
+  formatName: "Copia 30 × 45",
+  imageUrl: "https://r2/preview.jpg",
+  unitPriceMinor: 4500000,
+  qty: 1,
+  ...o,
+});
 const empty: CartState = { version: 1, lines: [] };
 
 describe("lineKey", () => {
   it("usa '-' sin variante", () => {
     expect(lineKey(line())).toBe("p1:-");
     expect(lineKey(line({ variantId: "v9" }))).toBe("p1:v9");
+  });
+  it("sin kind es un producto (pedidos y retenciones)", () => {
+    expect(lineKey({ productId: "p1", variantId: null })).toBe("p1:-");
+  });
+  it("obra: a:<listing>:<formato>", () => {
+    expect(lineKey(obra())).toBe("a:l1:f1");
+    expect(lineKey(obra({ printFormatId: "f2" }))).not.toBe(lineKey(obra()));
+  });
+});
+
+describe("nombre, detalle y ficha de la línea", () => {
+  it("producto", () => {
+    expect(cartLineName(line())).toBe("Remera");
+    expect(cartLineDetail(line())).toBeNull();
+    expect(cartLineDetail(line({ variantName: "M" }))).toBe("Talle M");
+    expect(cartLineHref("/w/x/tienda", line())).toBe("/w/x/tienda/remera");
+  });
+  it("obra", () => {
+    expect(cartLineName(obra())).toBe("Atardecer");
+    expect(cartLineDetail(obra())).toBe("Copia 30 × 45");
+    expect(cartLineHref("/w/x/tienda", obra())).toBe("/w/x/tienda/obras/atardecer");
   });
 });
 
@@ -59,6 +98,22 @@ describe("cartReducer", () => {
     let s = cartReducer(empty, { type: "add", line: line({ variantId: "a" }) });
     s = cartReducer(s, { type: "add", line: line({ variantId: "b" }) });
     expect(s.lines).toHaveLength(2);
+  });
+  it("una obra se acota a 20 copias por formato; otro formato es otra línea", () => {
+    let s = cartReducer(empty, { type: "add", line: obra({ qty: 15 }) });
+    s = cartReducer(s, { type: "add", line: obra({ qty: 15 }) });
+    expect(s.lines).toHaveLength(1);
+    expect(s.lines[0].qty).toBe(CART_MAX_ARTWORK_QTY);
+    s = cartReducer(s, { type: "setQty", key: "a:l1:f1", qty: 50 });
+    expect(s.lines[0].qty).toBe(20);
+    s = cartReducer(s, { type: "add", line: obra({ printFormatId: "f2" }) });
+    expect(s.lines).toHaveLength(2);
+  });
+  it("producto y obra conviven", () => {
+    let s = cartReducer(empty, { type: "add", line: line() });
+    s = cartReducer(s, { type: "add", line: obra() });
+    expect(s.lines.map((l) => l.kind)).toEqual(["product", "artwork"]);
+    expect(cartTotals(s)).toEqual({ itemsCount: 2, subtotalMinor: 1500000 + 4500000 });
   });
   it("no pasa del máximo de líneas", () => {
     let s = empty;
@@ -102,6 +157,24 @@ describe("cartTotals", () => {
 describe("parseCartState", () => {
   it("acepta un estado válido", () => {
     expect(parseCartState({ version: 1, lines: [line()] })).toEqual({ version: 1, lines: [line()] });
+    expect(parseCartState({ version: 1, lines: [line(), obra()] })).toEqual({ version: 1, lines: [line(), obra()] });
+  });
+  it("un carrito guardado antes de las obras (sin kind) se lee como productos", () => {
+    const { kind: _kind, ...viejo } = line({ variantId: "v1", variantName: "M", qty: 3 });
+    void _kind;
+    expect(parseCartState(JSON.parse(JSON.stringify({ version: 1, lines: [viejo] })))).toEqual({
+      version: 1,
+      lines: [line({ variantId: "v1", variantName: "M", qty: 3 })],
+    });
+  });
+  it.each([
+    { kind: "otra" },
+    { kind: "artwork", artworkListingId: "" },
+    { kind: "artwork", printFormatId: 3 },
+    { kind: "artwork", qty: 21 },
+    { kind: "artwork", title: null },
+  ])("una obra inválida (%j) vacía el carrito", (o) => {
+    expect(parseCartState({ version: 1, lines: [{ ...obra(), ...o }] })).toEqual(empty);
   });
   it.each([null, "x", 5, [], {}, { version: 2, lines: [] }, { version: 1, lines: "no" }, { version: 1, lines: [{ productId: 1 }] }, { version: 1, lines: [line({ unitPriceMinor: -1 })] }, { version: 1, lines: [line({ qty: 0 })] }])(
     "devuelve vacío con %j",

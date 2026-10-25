@@ -1,5 +1,6 @@
 import type { CSSProperties, ReactNode } from "react";
 import { websiteDesignCssVars } from "@/lib/website/design-presets";
+import { darkSiteThemeStyle } from "@/lib/website/site-theme";
 import { resolveSiteNav } from "@/lib/website/site-menu";
 import { doorPathFor } from "@/lib/entrada/institution-door";
 import type { PublicSite } from "@/lib/website/public-site";
@@ -47,6 +48,8 @@ export function PublicSiteShell({
     "--wsite-text": site.colors.textColor,
     "--wsite-accent": site.colors.accentColor,
     ...websiteDesignCssVars(site.designPresets),
+    // Con fondo oscuro, las páginas de módulos (escritas con `--fo-*`) toman la paleta del sitio.
+    ...darkSiteThemeStyle(site.colors),
   } as CSSProperties;
 
   return (

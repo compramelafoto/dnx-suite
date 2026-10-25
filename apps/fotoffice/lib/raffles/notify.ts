@@ -99,6 +99,7 @@ export async function notifyPendingAwards(now: Date = new Date()): Promise<Notif
         fallados += 1;
       } else {
         const salida = await sendAndLogEmail({
+          workspaceId: a.raffle.workspaceId,
           to: a.member.email,
           templateKey: "raffle-winner",
           body: buildWinnerNoticeEmail({ ...base, winnerFirstName: a.member.firstName }),
@@ -139,6 +140,7 @@ export async function notifyPendingAwards(now: Date = new Date()): Promise<Notif
         fallados += 1;
       } else {
         const salida = await sendAndLogEmail({
+          workspaceId: a.raffle.workspaceId,
           to: a.prize.partnerEmailSnapshot,
           templateKey: "raffle-sponsor",
           body: buildSponsorNoticeEmail({

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { prisma } from "@repo/db";
 import { PageHeader } from "@/components/page-header";
 import { requireStoreConfigurer } from "@/lib/store/access";
-import { loadShippingZones } from "@/lib/store/shipping/repository";
+import { loadShippingZones, toShippingSource } from "@/lib/store/shipping/repository";
 import {
   SHIPPING_SETTINGS_DEFAULTS,
   bpsToPercentText,
@@ -14,13 +14,15 @@ import { maskCustomerId } from "@/lib/integrations/correo-argentino/user-message
 import { ShippingSettingsForm } from "./shipping-settings-form";
 import { ShippingZonesEditor, type ZoneView } from "./zones-editor";
 import { CorreoConnectionCard } from "./correo-connection";
+import { describeAndreaniConnection } from "@/lib/integrations/andreani/credentials";
+import { AndreaniConnectionCard } from "./andreani-connection";
 
 export const dynamic = "force-dynamic";
 
 export default async function TiendaEnviosPage() {
   const { workspace } = await requireStoreConfigurer();
 
-  const [fila, zonas, correo, sinPeso] = await Promise.all([
+  const [fila, zonas, correo, andreani, sinPeso] = await Promise.all([
     prisma.storeShippingSettings.findUnique({
       where: { workspaceId: workspace.id },
       select: {
@@ -42,6 +44,8 @@ export default async function TiendaEnviosPage() {
     }),
     loadShippingZones(workspace.id),
     describeCorreoArgentinoConnection(workspace.id),
+    // Enmascarada: nunca la contraseña, y códigos y contratos sólo con los últimos 4.
+    describeAndreaniConnection(workspace.id),
     prisma.productStoreListing.findMany({
       where: {
         workspaceId: workspace.id,
@@ -58,7 +62,7 @@ export default async function TiendaEnviosPage() {
   const settings: ShippingSettingsValues = fila
     ? {
         ...fila,
-        source: fila.source === "CORREO_ARGENTINO" ? "CORREO_ARGENTINO" : "TABLE",
+        source: toShippingSource(fila.source),
         surchargeKind:
           fila.surchargeKind === "PERCENT" || fila.surchargeKind === "FIXED" ? fila.surchargeKind : "NONE",
       }
@@ -83,6 +87,7 @@ export default async function TiendaEnviosPage() {
   }));
 
   const correoActivo = correo?.status === "ACTIVE";
+  const andreaniActivo = andreani?.status === "ACTIVE";
   const usaTabla = settings.source === "TABLE" || settings.tableAsFallback;
   const faltanZonas = settings.homeDeliveryEnabled && usaTabla && zonas.length === 0;
 
@@ -90,13 +95,20 @@ export default async function TiendaEnviosPage() {
     <div className="space-y-8">
       <PageHeader
         title="Envíos"
-        description="Cómo le llega lo comprado al cliente: retiro, envío a domicilio o a una sucursal de Correo Argentino, y cuánto cuesta."
+        description="Cómo le llega lo comprado al cliente: retiro, envío a domicilio o a una sucursal de Correo Argentino o Andreani, y cuánto cuesta."
       />
 
       {correo && correo.status !== "ACTIVE" ? (
         <p className="fo-card p-4 text-sm text-[var(--fo-danger)]" role="alert">
           Correo Argentino dejó de aceptar tus credenciales: volvé a conectarlo más abajo. Mientras tanto, los envíos
           {settings.tableAsFallback ? " se cotizan con tu tabla." : " por Correo no se pueden cotizar."}
+        </p>
+      ) : null}
+
+      {andreani && andreani.status !== "ACTIVE" ? (
+        <p className="fo-card p-4 text-sm text-[var(--fo-danger)]" role="alert">
+          Andreani dejó de aceptar tus credenciales: volvé a conectarlo más abajo. Mientras tanto, los envíos
+          {settings.tableAsFallback ? " a domicilio se cotizan con tu tabla." : " por Andreani no se pueden cotizar."}
         </p>
       ) : null}
 
@@ -107,7 +119,13 @@ export default async function TiendaEnviosPage() {
         </p>
       ) : null}
 
-      <ShippingSettingsForm settings={settings} surchargeText={surchargeText} correoActive={correoActivo} />
+      <ShippingSettingsForm
+        settings={settings}
+        surchargeText={surchargeText}
+        correoActive={correoActivo}
+        andreaniActive={andreaniActivo}
+        andreaniBranchContract={Boolean(andreani?.contractBranch)}
+      />
 
       <ShippingZonesEditor zones={zonasVista} />
 
@@ -122,6 +140,23 @@ export default async function TiendaEnviosPage() {
               }
             : null
         }
+      />
+
+      <AndreaniConnectionCard
+        connection={
+          andreani
+            ? {
+                status: andreani.status,
+                env: andreani.env,
+                userMasked: andreani.user,
+                clientCodeMasked: andreani.clientCode,
+                contractHomeMasked: andreani.contractHome,
+                contractBranchMasked: andreani.contractBranch,
+                originBranch: andreani.originBranch,
+              }
+            : null
+        }
+        originPostalCode={settings.originPostalCode}
       />
 
       <section className="fo-card space-y-3 p-5">

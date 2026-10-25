@@ -1,3 +1,4 @@
+import { ImporteConContador } from "@/components/campos/contador-billetes";
 import { formatMinorArs } from "@/lib/membership/money";
 import type { CashAccountRow, OpenShiftRow } from "@/lib/cash/repository";
 import { openShiftAction } from "./actions";
@@ -44,7 +45,7 @@ export function AccountCard({
           <h2 className="text-base font-semibold">{cuenta.name}</h2>
           <p className="text-xs uppercase tracking-wide text-[var(--fo-muted-soft)]">{accountTypeLabel(cuenta)}</p>
         </div>
-        <p className="text-lg font-semibold">{formatMinorArs(balanceMinor)}</p>
+        <p className="text-lg font-semibold tabular-nums">{formatMinorArs(balanceMinor)}</p>
       </div>
 
       {llevaTurno ? (
@@ -53,26 +54,18 @@ export function AccountCard({
         ) : canOperate ? (
           <form
             action={openShiftAction}
-            className="grid gap-3 rounded-[var(--fo-radius)] border border-dashed border-[var(--fo-border)] p-4 sm:grid-cols-[1fr_auto]"
+            className="space-y-3 rounded-[var(--fo-radius)] border border-dashed border-[var(--fo-border)] p-4"
           >
             <input type="hidden" name="accountId" value={cuenta.id} />
             <div className="fo-field-stack">
               <label className="fo-label" htmlFor={`apertura-${cuenta.id}`}>
-                Abrir turno — con cuánto
+                Abrir turno: ¿cuánto efectivo hay?
               </label>
-              <input
-                id={`apertura-${cuenta.id}`}
-                name="openingAmountArs"
-                className="fo-input"
-                placeholder="20.000"
-                required
-              />
+              <ImporteConContador id={`apertura-${cuenta.id}`} name="openingAmountArs" placeholder="20.000" required />
             </div>
-            <div className="self-end">
-              <button type="submit" className="fo-btn fo-btn-secondary text-sm">
-                Abrir turno
-              </button>
-            </div>
+            <button type="submit" className="fo-btn fo-btn-secondary w-full text-sm">
+              Abrir turno
+            </button>
           </form>
         ) : null
       ) : null}

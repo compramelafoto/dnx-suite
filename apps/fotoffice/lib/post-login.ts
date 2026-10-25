@@ -3,11 +3,13 @@ import { syncPendingTeamMemberships } from "@/lib/commission/team-membership";
 import { findFotofficeWorkspaceForUser } from "@/lib/ensure-workspace";
 import { WELCOME_PATH } from "@/lib/entrada/welcome";
 import { doorReturnPath } from "@/lib/entrada/institution-door";
+import { sharedReturnPath } from "@/lib/governance/share";
 import { findClaimableMembership } from "@/lib/portal/claim";
 import { isFotofficePlatformAdminRole, resolvePlatformRole } from "@/lib/fotoffice-roles";
 import { safeFotofficeNextPath } from "@/lib/google-login";
 import { resolveInvitationContinuityPath } from "@/lib/members/invitation-continuity-resolve";
 import { resolvePortalDestination } from "@/lib/portal/destination";
+import { resolveTeamInvitationContinuityPath } from "@/lib/team/continuity";
 import { readProfileChoice } from "@/lib/portal/profile-choice";
 import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
 import { listUserProfiles, resolveEntryProfile } from "@/lib/portal/profiles";
@@ -73,6 +75,11 @@ export async function resolveFotofficePostLoginDestination(params: {
   const continuity = await resolveInvitationContinuityPath(user.email);
   if (continuity) return { path: continuity, workspaceId: null };
 
+  // Después, la de una invitación al equipo. Si hay de las dos, la de socios tiene prioridad;
+  // la de equipo sigue guardada y se retoma en el próximo ingreso.
+  const teamContinuity = await resolveTeamInvitationContinuityPath(user.email);
+  if (teamContinuity) return { path: teamContinuity, workspaceId: null };
+
   /*
     Quien entró por la puerta de una institución —`/w/sfpr/entrar`— ya dijo a dónde viene, y
     eso vale más que cualquier cosa que pueda decidirse acá: más que el selector de perfil
@@ -84,6 +91,11 @@ export async function resolveFotofficePostLoginDestination(params: {
   */
   const door = doorReturnPath(params.next);
   if (door) return { path: door, workspaceId: null };
+
+  // Lo mismo con el enlace de un proyecto o una reunión que llegó por WhatsApp: la ruta del
+  // enlace sabe a dónde va cada uno (comisión o socio), así que se vuelve a ella.
+  const shared = sharedReturnPath(params.next);
+  if (shared) return { path: shared, workspaceId: null };
 
   /**
    * Con qué perfil entra. Sólo se pregunta cuando los perfiles están repartidos en más de una

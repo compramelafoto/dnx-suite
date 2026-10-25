@@ -2,24 +2,46 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
+import { serializeOpenGroupsCookie, toggleGroup, visibleOpenGroups } from "@/lib/shell/nav-groups";
 import {
+  ArrowDownToLine,
   Building2,
+  Calculator,
+  CalendarDays,
+  ChartColumn,
+  ChevronDown,
   ClipboardCheck,
+  ClipboardList,
   FileText,
+  FolderKanban,
+  Hash,
   Globe,
+  Images,
   Link2,
   Plug,
   Inbox,
+  MessageCircle,
   LayoutDashboard,
+  LayoutGrid,
+  ListPlus,
+  MessageSquareText,
   Newspaper,
   Settings,
   Shield,
+  Tags,
   UserCog,
+  UserPlus,
   Users,
   Wallet2,
+  Workflow,
+  Truck,
+  Printer,
+  Coins,
 } from "lucide-react";
 import type { ComponentType } from "react";
 import { useShellNav } from "./shell-frame";
+import { MenuSearch, type MenuSearchSection } from "./menu-search";
 import { ICONOS } from "./nav-icons";
 import {
   claimedPrefixes,
@@ -27,18 +49,43 @@ import {
   type SubmoduleAccess,
   type SubmoduleItem,
 } from "@/lib/modules/submodules";
+import { BANDEJA_MODULE_KEY } from "@/lib/bandeja/constantes";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
 import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
+import { SPONSORS_MODULE_KEY } from "@/lib/sponsors/constants";
+import { GOVERNANCE_MODULE_KEY } from "@/lib/governance/constants";
 import { COMMUNICATIONS_MODULE_KEY } from "@/lib/communications/constants";
 import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
+import { CASH_MODULE_KEY } from "@/lib/cash/constants";
+import { SALES_MODULE_KEY } from "@/lib/sales/constants";
+import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 import { EVALUACIONES_MODULE_KEY } from "@/lib/evaluaciones/constants";
 import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
 import { WEBSITE_MODULE_KEY } from "@/lib/website/constants";
 import { hasLevel, type ModuleLevels } from "@/lib/permissions/levels";
+import { ordenarSecciones } from "@/lib/modules/nav-order";
+import { itemsMenuInformes } from "@/lib/informes/menu";
 import type { PersonVocabulary } from "@/lib/vocabulario/personas";
 import { isBlogNavActive, isDomainNavActive, isWebsiteNavActive } from "@/lib/blog/admin-nav";
+
+// Clave del módulo como texto: `lib/presupuestos/acceso` arrastra la política de acceso al navegador.
+const QUOTES_MODULE_KEY = "quotes";
+// Ídem `lib/pedidos/acceso`.
+const ORDERS_MODULE_KEY = "orders";
+// Ídem `lib/proyectos/acceso`.
+const PROJECTS_MODULE_KEY = "projects";
+// Ídem `lib/agenda/acceso`.
+const AGENDA_MODULE_KEY = "agenda";
+// Ídem `lib/contratos/acceso`.
+const CONTRACTS_MODULE_KEY = "contracts";
+// Ídem `lib/galerias/acceso`.
+const GALLERY_MODULE_KEY = "gallery";
+// Ídem `lib/informes/constantes`.
+const REPORTS_MODULE_KEY = "reports";
+// Ídem `lib/impresiones/constantes`.
+const PRINT_ORDERS_MODULE_KEY = "print-orders";
 
 /**
  * Menú principal.
@@ -68,6 +115,10 @@ type Item = {
   icon: ComponentType<{ className?: string }>;
   /** Cuándo se marca como actual. Por omisión, coincidencia exacta. */
   isActive: (path: string) => boolean;
+  /** Qué se hace ahí, en una línea. No se dibuja en el menú: el buscador busca dentro. */
+  description?: string;
+  /** Cantidad a mostrar al lado del nombre (ej. mensajes sin leer). Se omite si es 0. */
+  badge?: number;
 };
 
 function exact(href: string) {
@@ -93,6 +144,7 @@ function itemsDeModulo(
   return submodulesFor(moduleKey, access, vocabulary).map((sub: SubmoduleItem) => ({
     href: sub.href,
     label: sub.label,
+    description: sub.description,
     icon: ICONOS[sub.icon] ?? LayoutDashboard,
     isActive:
       sub.activeMatch === "exact"
@@ -125,35 +177,69 @@ function Section({
   items,
   path,
   onNavigate,
+  open,
+  onToggle,
 }: {
   title: string | null;
   items: Item[];
   path: string;
   /** En el teléfono el menú tapa el contenido: elegir una opción tiene que cerrarlo. */
   onNavigate: () => void;
+  /** Desplegado. El grupo sin título (Inicio) se ve siempre. */
+  open: boolean;
+  onToggle: () => void;
 }) {
   if (items.length === 0) return null;
+  const visible = title === null || open;
+  const id = title ? `menu-grupo-${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}` : undefined;
+  const tieneActivo = items.some((i) => i.isActive(path));
   return (
     <div className="flex flex-col gap-0.5">
       {title ? (
-        <p className="px-3 pb-1 pt-4 text-[11px] font-semibold uppercase tracking-wider text-[var(--fo-muted-soft)]">
-          {title}
-        </p>
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={open}
+          aria-controls={id}
+          className="group mt-2 flex items-center gap-2 rounded-lg px-3 py-1.5 text-left text-[11px] font-semibold uppercase tracking-wider text-[var(--fo-muted-soft)] transition-colors hover:bg-[var(--fo-surface-hover)] hover:text-[var(--fo-text-secondary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--fo-accent)]"
+        >
+          <span className="min-w-0 flex-1 truncate">{title}</span>
+          {!open ? (
+            <span className="flex items-center gap-1.5 normal-case tracking-normal">
+              {tieneActivo ? <span className="size-1.5 rounded-full bg-[var(--fo-accent)]" aria-hidden /> : null}
+              <span className="text-[10px] font-medium tabular-nums">{items.length}</span>
+            </span>
+          ) : null}
+          <ChevronDown
+            className={`size-3.5 shrink-0 transition-transform motion-reduce:transition-none ${open ? "" : "-rotate-90"}`}
+            aria-hidden
+          />
+        </button>
       ) : null}
-      {items.map((item) => {
-        const Icon = item.icon;
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            onClick={onNavigate}
-            className={itemClass(item.isActive(path))}
-          >
-            <Icon className="size-4 shrink-0 opacity-80" aria-hidden />
-            {item.label}
-          </Link>
-        );
-      })}
+      {visible ? (
+        <div id={id} className="flex flex-col gap-0.5">
+          {items.map((item) => {
+            const Icon = item.icon;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={onNavigate}
+                className={itemClass(item.isActive(path))}
+              >
+                <Icon className="size-4 shrink-0 opacity-80" aria-hidden />
+                <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                {item.badge && item.badge > 0 ? (
+                  <span className="rounded-full bg-[var(--fo-accent)] px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white">
+                    {item.badge > 99 ? "99+" : item.badge}
+                    <span className="sr-only"> sin leer</span>
+                  </span>
+                ) : null}
+              </Link>
+            );
+          })}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -162,8 +248,11 @@ export function ShellNav({
   levels,
   actions,
   canManageWorkspaceSettings,
+  organizationType = null,
   platformAdmin,
   vocabulary,
+  openGroups = [],
+  bandejaNoLeidos = 0,
 }: {
   /** Nivel en cada módulo, de `getModuleLevels`. Un módulo apagado viene en NONE. */
   levels: ModuleLevels;
@@ -171,12 +260,23 @@ export function ShellNav({
   actions: readonly string[];
   /** Sólo para la sección Institución: Configuración no se delega. */
   canManageWorkspaceSettings: boolean;
+  /** Tipo de organización (etapa 0.1): ordena las secciones de módulos por familia. */
+  organizationType?: string | null;
   platformAdmin: boolean;
   vocabulary: PersonVocabulary;
+  /** Grupos que la persona dejó desplegados, leídos de la cookie en el servidor. */
+  openGroups?: readonly string[];
+  /** Mensajes sin leer de la Bandeja de WhatsApp (se calculan en el servidor). */
+  bandejaNoLeidos?: number;
 }) {
   const path = usePathname() ?? "";
   const { closeDrawer } = useShellNav();
-  const access: SubmoduleAccess = { levels, actions };
+  const [guardados, setGuardados] = useState<string[]>(() => [...openGroups]);
+  // Cerrar el grupo de la pantalla actual vale hasta cambiar de pantalla: al llegar a otra,
+  // su grupo se abre solo.
+  const [cerradoAqui, setCerradoAqui] = useState<{ path: string; title: string } | null>(null);
+  // Mismos roles que `isFullAccessRole` (dueño o admin): decide las pantallas de plata, como Cobros.
+  const access: SubmoduleAccess = { levels, actions, fullAccess: canManageWorkspaceSettings };
   const ve = (moduleKey: string) => hasLevel(levels[moduleKey] ?? "NONE", "VIEW");
   const gestiona = (moduleKey: string) => hasLevel(levels[moduleKey] ?? "NONE", "MANAGE");
 
@@ -185,9 +285,29 @@ export function ShellNav({
 
   const reservas: Item[] = itemsDeModulo(BOOKINGS_MODULE_KEY, access, vocabulary);
 
+  // Agenda (etapa 4, entrega B): módulo propio (`agenda`), con su nivel. Apagado, nadie tiene nivel y no aparece.
+  const agenda: Item[] = ve(AGENDA_MODULE_KEY)
+    ? [
+        {
+          href: "/agenda",
+          label: "Agenda",
+          description: "Las citas del equipo, con las entregas, tareas y vencimientos en un solo calendario.",
+          icon: CalendarDays,
+          isActive: under("/agenda"),
+        },
+      ]
+    : [];
+
   // Sorteos vive en el grupo Socios: es una de las cosas que la institución le da al socio
   // al día, y separarlo en su propia sección lo dejaría suelto al lado de Cuotas.
   const sorteos: Item[] = itemsDeModulo(RAFFLES_MODULE_KEY, access, vocabulary);
+
+  // Sponsors al lado de Sorteos: muchas de esas marcas son las mismas que donan los premios.
+  const sponsors: Item[] = itemsDeModulo(SPONSORS_MODULE_KEY, access, vocabulary);
+
+  // Comisión: los proyectos de la comisión directiva y sus tareas. Grupo propio: lo usa la
+  // comisión, que no necesariamente gestiona el padrón.
+  const comision: Item[] = itemsDeModulo(GOVERNANCE_MODULE_KEY, access, vocabulary);
 
   // Comunicación: las placas para redes. Grupo propio porque lo usa un área —quien lleva las
   // redes de la institución—, que puede no tener nada que ver con el padrón.
@@ -200,6 +320,12 @@ export function ShellNav({
 
   const cursos: Item[] = itemsDeModulo(COURSES_SALES_MODULE_KEY, access, vocabulary);
 
+  // Ventas (con el Mostrador primero), Caja y Clientes: antes sólo se llegaba desde las
+  // tarjetas del inicio, y el equipo de un local no encontraba dónde cobrar.
+  const ventas: Item[] = itemsDeModulo(SALES_MODULE_KEY, access, vocabulary);
+  const caja: Item[] = itemsDeModulo(CASH_MODULE_KEY, access, vocabulary);
+  const clientes: Item[] = itemsDeModulo(CLIENTS_MODULE_KEY, access, vocabulary);
+
   // Evaluaciones evalúa actividades de los cursos: es del mismo dominio, no un módulo suelto.
   // Tiene su propia llave, así que puede estar encendido sin cursos — en ese caso la sección
   // "Cursos" muestra solo este ítem, que sigue siendo cierto.
@@ -210,6 +336,7 @@ export function ShellNav({
           {
             href: "/evaluaciones",
             label: "Evaluaciones",
+            description: "Las evaluaciones de las actividades de cada curso.",
             icon: ClipboardCheck,
             isActive: under("/evaluaciones"),
           },
@@ -223,6 +350,7 @@ export function ShellNav({
           {
             href: "/courses/settings",
             label: "Configuración",
+            description: "Moneda, texto de inscripción y comisión del módulo de cursos.",
             icon: Settings,
             isActive: under("/courses/settings"),
           },
@@ -237,22 +365,129 @@ export function ShellNav({
     mundo** usara o no la función —la deuda estaba anotada en este mismo lugar desde que se
     agregaron—. Ahora es un módulo como los demás y arranca apagado.
   */
-  const captacion: Item[] = ve(SERVICE_LEADS_MODULE_KEY)
+  // Bandeja de WhatsApp: módulo propio (`whatsapp-inbox`). Apagado en el workspace, nadie tiene nivel.
+  const whatsapp: Item[] = ve(BANDEJA_MODULE_KEY)
+    ? [
+        {
+          href: "/bandeja",
+          label: "Bandeja de WhatsApp",
+          description: "Los chats de WhatsApp: quién los atiende, respuestas y clientes vinculados.",
+          icon: MessageCircle,
+          isActive: under("/bandeja"),
+          badge: bandejaNoLeidos,
+        },
+      ]
+    : [];
+
+  const captacion: Item[] = [
+    ...(ve(SERVICE_LEADS_MODULE_KEY)
     ? [
         {
           href: "/dashboard/service-leads/forms",
           label: "Formularios",
+          description: "Los formularios públicos para pedir presupuesto.",
           icon: FileText,
           isActive: under("/dashboard/service-leads/forms"),
         },
         {
-          href: "/dashboard/service-leads",
-          label: "Leads",
+          // La bandeja pasó al panel con tablero por etapas, lista e informe (etapa 0.4);
+          // `/dashboard/service-leads` redirige acá.
+          // El grupo ya se llama "Consultas" (antes "Captación"): el ítem no repite el nombre.
+          href: "/consultas",
+          label: "Bandeja",
+          description: "Las consultas y pedidos de presupuesto que llegaron, por etapa.",
           icon: Inbox,
-          isActive: exact("/dashboard/service-leads"),
+          isActive: under("/consultas"),
         },
       ]
-    : [];
+    : []),
+    // Presupuestos (etapa 2): módulo propio (`quotes`), con su nivel. Apagado en el workspace,
+    // nadie tiene nivel y el ítem no aparece.
+    ...(ve(QUOTES_MODULE_KEY)
+      ? [
+          {
+            href: "/presupuestos",
+            label: "Presupuestos",
+            description: "Los presupuestos de las consultas: armarlos, versionarlos y seguirlos.",
+            icon: Calculator,
+            isActive: under("/presupuestos"),
+          },
+          // Precios (¿Cuánto Cobro? y Mi estudio): antes sólo se llegaba desde "Datos de la institución".
+          // Es configuración, así que sólo para quien puede configurar (dueño o administrador): el
+          // mismo acceso completo que decide los ajustes de Informes.
+          ...(access.fullAccess === true
+            ? [
+                {
+                  href: "/workspace/configuracion/precios",
+                  label: "Precios",
+                  description: "Tus costos, tus horas, Mi estudio y el valor de la hora para cotizar.",
+                  icon: Coins,
+                  isActive: under("/workspace/configuracion/precios"),
+                },
+              ]
+            : []),
+        ]
+      : []),
+    // Pedidos (etapa 3): módulo propio (`orders`, depende de Presupuestos), con su nivel.
+    ...(ve(ORDERS_MODULE_KEY)
+      ? [
+          {
+            href: "/pedidos",
+            label: "Pedidos",
+            description: "Los trabajos confirmados: plan de cuotas, cobros y recibos.",
+            icon: ClipboardList,
+            isActive: under("/pedidos"),
+          },
+        ]
+      : []),
+    // Proyectos (etapa 4): módulo propio (`projects`, depende de Pedidos), con su nivel.
+    ...(ve(PROJECTS_MODULE_KEY)
+      ? [
+          {
+            href: "/proyectos/en-curso",
+            label: "Proyectos",
+            // Abre en "En curso": todos los trabajos juntos, para operar el día a día.
+            description: "Los trabajos en curso de todos los recorridos: etapas, entregas, proveedores y saldos.",
+            icon: FolderKanban,
+            isActive: under("/proyectos"),
+          },
+        ]
+      : []),
+    // Contratos (etapa 5): módulo propio (`contracts`, depende de Pedidos), con su nivel.
+    ...(ve(CONTRACTS_MODULE_KEY)
+      ? [
+          {
+            href: "/contratos",
+            label: "Contratos",
+            description: "Los contratos de cada pedido: generarlos, mandarlos a firmar y seguir quién firmó.",
+            icon: FileText,
+            isActive: under("/contratos"),
+          },
+        ]
+      : []),
+    // Galería (etapa 7): módulo propio (`gallery`, depende de Proyectos), con su nivel.
+    ...(ve(GALLERY_MODULE_KEY)
+      ? [
+          {
+            href: "/galerias",
+            label: "Galerías",
+            description: "Las fotos de cada proyecto para que los clientes elijan: subirlas, compartir el enlace y revisar lo que eligieron.",
+            icon: Images,
+            isActive: under("/galerias"),
+          },
+        ]
+      : []),
+  ];
+
+  // Informes (etapa 6): módulo propio (`reports`), con su nivel. Apagado, nadie tiene nivel y no aparece.
+  // Ajustes sólo para quien puede configurar (dueño o administrador), como la pantalla.
+  const informes: Item[] = itemsMenuInformes({ veInformes: ve(REPORTS_MODULE_KEY), puedeConfigurar: access.fullAccess === true }).map((i) => ({
+    href: i.href,
+    label: i.label,
+    description: i.description,
+    icon: ChartColumn,
+    isActive: i.activeMatch === "exact" ? exact(i.href) : under(i.href),
+  }));
 
   // Presencia pública: el sitio y su blog. Es donde aterrizan los portfolios y las redes
   // cuando existan.
@@ -263,13 +498,13 @@ export function ShellNav({
   // los dos encendidos. Sólo lo ven quienes pueden escribir en él (`website` MANAGE).
   const presencia: Item[] = ve(WEBSITE_MODULE_KEY)
     ? [
-        { href: "/website", label: "Sitio web", icon: Globe, isActive: isWebsiteNavActive },
+        { href: "/website", label: "Sitio web", description: "El sitio público de la institución: páginas, diseño y menú.", icon: Globe, isActive: isWebsiteNavActive },
         ...(gestiona(WEBSITE_MODULE_KEY)
-          ? [{ href: "/website/blog", label: "Blog", icon: Newspaper, isActive: isBlogNavActive }]
+          ? [{ href: "/website/blog", label: "Blog", description: "Los artículos y novedades del sitio.", icon: Newspaper, isActive: isBlogNavActive }]
           : []),
         // Conectar el dominio propio (ej. sfpr.com.ar) es un dato de la institución: dueño o admin.
         ...(canManageWorkspaceSettings
-          ? [{ href: "/website/dominio", label: "Dominio", icon: Link2, isActive: isDomainNavActive }]
+          ? [{ href: "/website/dominio", label: "Dominio", description: "Conectar el dominio propio del sitio.", icon: Link2, isActive: isDomainNavActive }]
           : []),
       ]
     : [];
@@ -279,66 +514,262 @@ export function ShellNav({
         {
           href: "/workspace/configuracion",
           label: "Datos de la institución",
+          description: "Nombre, logo, domicilio y datos de contacto de la institución.",
           icon: Settings,
           isActive: exact("/workspace/configuracion"),
         },
         {
           href: "/workspace/configuracion/comision",
           label: "Comisión directiva",
+          description: "Quién integra la comisión, con qué cargo y qué puede hacer cada uno.",
           icon: Users,
           isActive: under("/workspace/configuracion/comision"),
         },
         {
+          href: "/workspace/configuracion/equipo",
+          label: "Equipo",
+          description: "Quiénes trabajan en este espacio: invitar por correo y dar de baja.",
+          icon: UserPlus,
+          isActive: under("/workspace/configuracion/equipo"),
+        },
+        {
           href: "/workspace/configuracion/integraciones",
           label: "Integraciones",
+          description: "Conexiones con Google, WhatsApp y otros servicios.",
           icon: Plug,
           isActive: under("/workspace/configuracion/integraciones"),
         },
         {
           href: "/workspace/configuracion/cobros",
           label: "Cobros",
+          description: "Cómo cobra la institución y en qué cuenta entra la plata.",
           icon: Wallet2,
           isActive: under("/workspace/configuracion/cobros"),
+        },
+        // Etapas 0.1–0.6: configuración de dueño o admin, igual que el resto de Institución.
+        {
+          href: "/workspace/configuracion/modulos",
+          label: "Módulos",
+          description: "Encendé o apagá lo que usa tu organización.",
+          icon: LayoutGrid,
+          isActive: under("/workspace/configuracion/modulos"),
+        },
+        {
+          href: "/workspace/configuracion/ficha",
+          label: "Ficha",
+          description: "Categorías de las notas y etiquetas de las fichas.",
+          icon: Tags,
+          isActive: under("/workspace/configuracion/ficha"),
+        },
+        {
+          href: "/workspace/configuracion/circuitos",
+          label: "Circuitos",
+          description: "Etapas de ventas y trabajos, tareas automáticas y motivos de pérdida.",
+          icon: Workflow,
+          isActive: under("/workspace/configuracion/circuitos"),
+        },
+        {
+          href: "/workspace/configuracion/campos",
+          label: "Campos",
+          description: "Datos propios para las fichas.",
+          icon: ListPlus,
+          isActive: under("/workspace/configuracion/campos"),
+        },
+        // Etapa 1: categorías, orígenes, roles y avisos de Consultas, sólo con el módulo encendido.
+        ...(ve(SERVICE_LEADS_MODULE_KEY)
+          ? [
+              {
+                href: "/workspace/configuracion/consultas",
+                label: "Consultas",
+                description: "Categorías, orígenes, roles de participante y avisos de consultas nuevas.",
+                icon: Inbox,
+                isActive: under("/workspace/configuracion/consultas"),
+              },
+            ]
+          : []),
+        // Etapa 2: ajustes de Presupuestos. Con Consultas o Presupuestos encendido: los ajustes se
+        // pueden dejar listos antes de encender el módulo `quotes`.
+        ...(ve(SERVICE_LEADS_MODULE_KEY) || ve(QUOTES_MODULE_KEY)
+          ? [
+              {
+                href: "/workspace/configuracion/presupuestos",
+                label: "Presupuestos",
+                description: "Validez, condiciones generales, propuesta de pago y seguimiento de los presupuestos.",
+                icon: Calculator,
+                isActive: under("/workspace/configuracion/presupuestos"),
+              },
+            ]
+          : []),
+        // Etapa 3, Entrega B1: ajustes de Pedidos. Con Presupuestos o Pedidos encendido: se pueden
+        // dejar listos antes de encender el módulo `orders`.
+        ...(ve(QUOTES_MODULE_KEY) || ve(ORDERS_MODULE_KEY)
+          ? [
+              {
+                href: "/workspace/configuracion/pedidos",
+                label: "Pedidos",
+                description: "Recordatorio de cuotas, rubro de ingreso por omisión y checklist de los pedidos.",
+                icon: ClipboardList,
+                isActive: under("/workspace/configuracion/pedidos"),
+              },
+            ]
+          : []),
+        // Etapa 5: ajustes y plantillas de Contratos, sólo con el módulo encendido.
+        ...(ve(CONTRACTS_MODULE_KEY)
+          ? [
+              {
+                href: "/workspace/configuracion/contratos",
+                label: "Contratos",
+                description: "Plantillas de contrato, datos de la empresa y recordatorios de firma.",
+                icon: FileText,
+                isActive: under("/workspace/configuracion/contratos"),
+              },
+            ]
+          : []),
+        // Etapa 7: valores por omisión de las galerías, sólo con el módulo encendido.
+        ...(ve(GALLERY_MODULE_KEY)
+          ? [
+              {
+                href: "/workspace/configuracion/galeria",
+                label: "Galería",
+                description: "Mensaje de bienvenida, comentarios y descarga con los que nace cada galería.",
+                icon: Images,
+                isActive: under("/workspace/configuracion/galeria"),
+              },
+            ]
+          : []),
+        {
+          href: "/workspace/configuracion/plantillas",
+          label: "Plantillas",
+          description: "Textos de correo y WhatsApp para mandar desde las fichas, y la respuesta automática.",
+          icon: MessageSquareText,
+          isActive: under("/workspace/configuracion/plantillas"),
+        },
+        {
+          href: "/workspace/configuracion/numeracion",
+          label: "Numeración",
+          description: "Prefijo, año y próximo número de consultas, presupuestos, pedidos y proyectos.",
+          icon: Hash,
+          isActive: under("/workspace/configuracion/numeracion"),
+        },
+        {
+          href: "/workspace/configuracion/proveedores",
+          label: "Proveedores",
+          description: "Los laboratorios y talleres a los que se mandan trabajos (La Isla, Román, Fotolag…).",
+          icon: Truck,
+          isActive: under("/workspace/configuracion/proveedores"),
+        },
+        // Pedidos de impresión: tamaños y precios, sólo con el módulo encendido.
+        ...(ve(PRINT_ORDERS_MODULE_KEY)
+          ? [
+              {
+                href: "/workspace/configuracion/impresiones",
+                label: "Impresiones",
+                description: "Tamaños, costos y precios de las copias que piden los clientes desde su carpeta.",
+                icon: Printer,
+                isActive: under("/workspace/configuracion/impresiones"),
+              },
+            ]
+          : []),
+        // Etapa 8A: traer el CRM de Alboom. Dueño o admin, sin módulo propio.
+        {
+          href: "/workspace/configuracion/alboom",
+          label: "Migración desde Alboom",
+          description: "Conectar la cuenta de Alboom y copiar todo su CRM para migrarlo.",
+          icon: ArrowDownToLine,
+          isActive: under("/workspace/configuracion/alboom"),
         },
       ]
     : [];
 
   const plataforma: Item[] = platformAdmin
     ? [
-        { href: "/admin", label: "Administración", icon: Shield, isActive: exact("/admin") },
-        { href: "/admin/workspaces", label: "Workspaces", icon: Building2, isActive: under("/admin/workspaces") },
-        { href: "/admin/users", label: "Usuarios", icon: UserCog, isActive: under("/admin/users") },
-        { href: "/admin/owners", label: "Dueños", icon: Users, isActive: under("/admin/owners") },
+        { href: "/admin", label: "Administración", description: "El panel de la plataforma.", icon: Shield, isActive: exact("/admin") },
+        { href: "/admin/workspaces", label: "Workspaces", description: "Todas las instituciones de la plataforma.", icon: Building2, isActive: under("/admin/workspaces") },
+        { href: "/admin/users", label: "Usuarios", description: "Todas las cuentas de la plataforma.", icon: UserCog, isActive: under("/admin/users") },
+        { href: "/admin/owners", label: "Dueños", description: "Quién es dueño de cada institución.", icon: Users, isActive: under("/admin/owners") },
       ]
     : [];
 
+  // Una sola lista para el menú y para el buscador: el buscador no puede ofrecer una pantalla
+  // que el menú no dibuja, y una pantalla nueva aparece en los dos lados sin acordarse.
+  // Las secciones con módulo se ordenan por la familia que le corresponde al tipo de
+  // organización (etapa 0.1); Inicio, Institución y Plataforma conservan su lugar.
+  const secciones: { title: string | null; items: Item[]; moduleKey: string | null }[] = ordenarSecciones([
+    {
+      title: null,
+      moduleKey: null,
+      items: [
+        // El tablero de la institución. `/dashboard` queda como pantalla de rescate para quien
+        // no tiene permiso en algún módulo, y se marca igual: también es "el inicio".
+        {
+          href: "/workspace",
+          label: "Inicio",
+          description: "El tablero de la institución: lo pendiente y lo último que pasó.",
+          icon: LayoutDashboard,
+          isActive: (p: string) => p === "/workspace" || p === "/dashboard",
+        },
+      ],
+    },
+    { title: vocabulary.Plural, items: socios, moduleKey: MEMBERS_MODULE_KEY },
+    { title: "Ventas", items: ventas, moduleKey: SALES_MODULE_KEY },
+    { title: "Caja", items: caja, moduleKey: CASH_MODULE_KEY },
+    { title: "Clientes", items: clientes, moduleKey: CLIENTS_MODULE_KEY },
+    { title: "Sorteos", items: sorteos, moduleKey: RAFFLES_MODULE_KEY },
+    { title: "Sponsors", items: sponsors, moduleKey: SPONSORS_MODULE_KEY },
+    { title: "Comisión", items: comision, moduleKey: GOVERNANCE_MODULE_KEY },
+    { title: "Comunicación", items: comunicacion, moduleKey: COMMUNICATIONS_MODULE_KEY },
+    { title: "WhatsApp", items: whatsapp, moduleKey: BANDEJA_MODULE_KEY },
+    { title: "Coberturas", items: coberturas, moduleKey: COVERAGES_MODULE_KEY },
+    { title: "Cursos", items: cursosItems, moduleKey: COURSES_SALES_MODULE_KEY },
+    { title: "Reservas", items: reservas, moduleKey: BOOKINGS_MODULE_KEY },
+    { title: "Agenda", items: agenda, moduleKey: AGENDA_MODULE_KEY },
+    { title: "Consultas", items: captacion, moduleKey: SERVICE_LEADS_MODULE_KEY },
+    { title: "Informes", items: informes, moduleKey: REPORTS_MODULE_KEY },
+    { title: "Presencia pública", items: presencia, moduleKey: WEBSITE_MODULE_KEY },
+    { title: "Institución", items: institucion, moduleKey: null },
+    { title: "Plataforma", items: plataforma, moduleKey: null },
+  ], organizationType);
+
+  const buscables: MenuSearchSection[] = secciones.map((sec) => ({
+    title: sec.title ?? "Inicio",
+    items: sec.items.map(({ href, label, description, icon: Icon }) => ({
+      href,
+      label,
+      description,
+      icon: <Icon className="size-4" aria-hidden />,
+    })),
+  }));
+
+  const grupoActivo = secciones.find((sec) => sec.title && sec.items.some((i) => i.isActive(path)))?.title ?? null;
+  const abiertos = visibleOpenGroups(guardados, grupoActivo);
+  if (cerradoAqui && cerradoAqui.path === path) abiertos.delete(cerradoAqui.title);
+
+  function alternar(title: string) {
+    const abierto = abiertos.has(title);
+    const siguiente = abierto ? guardados.filter((t) => t !== title) : toggleGroup(guardados.filter((t) => t !== title), title);
+    setGuardados(siguiente);
+    setCerradoAqui(abierto && title === grupoActivo ? { path, title } : null);
+    try {
+      document.cookie = serializeOpenGroupsCookie(siguiente);
+    } catch {
+      // Sin cookies el menú igual se pliega; sólo no lo recuerda.
+    }
+  }
+
   return (
     <nav className="flex flex-col gap-0.5" aria-label="Principal">
-      <Section
-        title={null}
-        path={path}
-        onNavigate={closeDrawer}
-        items={[
-          // El tablero de la institución. `/dashboard` queda como pantalla de rescate para quien
-          // no tiene permiso en algún módulo, y se marca igual: también es "el inicio".
-          {
-            href: "/workspace",
-            label: "Inicio",
-            icon: LayoutDashboard,
-            isActive: (p: string) => p === "/workspace" || p === "/dashboard",
-          },
-        ]}
-      />
-      <Section title={vocabulary.Plural} items={socios} path={path} onNavigate={closeDrawer} />
-      <Section title="Sorteos" items={sorteos} path={path} onNavigate={closeDrawer} />
-      <Section title="Comunicación" items={comunicacion} path={path} onNavigate={closeDrawer} />
-      <Section title="Coberturas" items={coberturas} path={path} onNavigate={closeDrawer} />
-      <Section title="Cursos" items={cursosItems} path={path} onNavigate={closeDrawer} />
-      <Section title="Reservas" items={reservas} path={path} onNavigate={closeDrawer} />
-      <Section title="Captación" items={captacion} path={path} onNavigate={closeDrawer} />
-      <Section title="Presencia pública" items={presencia} path={path} onNavigate={closeDrawer} />
-      <Section title="Institución" items={institucion} path={path} onNavigate={closeDrawer} />
-      <Section title="Plataforma" items={plataforma} path={path} onNavigate={closeDrawer} />
+      <MenuSearch sections={buscables} onNavigate={closeDrawer} />
+      {secciones.map((sec) => (
+        <Section
+          key={sec.title ?? "inicio"}
+          title={sec.title}
+          items={sec.items}
+          path={path}
+          onNavigate={closeDrawer}
+          open={sec.title ? abiertos.has(sec.title) : true}
+          onToggle={() => sec.title && alternar(sec.title)}
+        />
+      ))}
     </nav>
   );
 }

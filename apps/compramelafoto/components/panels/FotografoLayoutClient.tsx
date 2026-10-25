@@ -5,9 +5,13 @@ import { usePathname } from "next/navigation";
 import PanelLayout from "./PanelLayout";
 import PhotographerSidebar, { PhotographerSidebarTopBar } from "./PhotographerSidebar";
 import { ensurePhotographerSession } from "@/lib/photographer-session-client";
-import { UploadProgressProvider } from "@/contexts/UploadProgressContext";
+import { DnxBotBubble } from "@repo/dnx-bot/ui";
+import { RUTAS_PERMITIDAS_BOT } from "@/lib/bot/rutas-panel";
+import { UploadProgressProvider, useUploadProgress } from "@/contexts/UploadProgressContext";
 import FloatingUploadBar from "@/components/photo/FloatingUploadBar";
 import PhotographerWorkLocationPromptGate from "@/components/photographer/PhotographerWorkLocationPromptGate";
+import { isTemplateV2EditorPath } from "./template-v2-editor-path";
+import { isPantallaPedidosPath } from "./pantalla-pedidos-path";
 
 const fallback = (
   <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -16,14 +20,17 @@ const fallback = (
 );
 
 /** Editor de plantilla V2: una versión concreta (sin listado). */
-function isTemplateV2EditorPath(pathname: string | null): boolean {
-  if (!pathname) return false;
-  return /^\/fotografo\/diseno\/plantillas\/v2\/[^/]+\/[^/]+\/?$/.test(pathname);
+/** La burbuja sube por encima de la barra de subida sólo mientras hay una subida en curso. */
+function BotBubbleMount() {
+  const upload = useUploadProgress();
+  const uploading = Boolean(upload?.state.uploading && upload.state.total > 0);
+  return <DnxBotBubble basePath="/api/bot" mascotSrc="/dnx-bot/mascota.webp" mascotSpriteSrc="/dnx-bot/mascota-foto.webp" bottomOffsetPx={uploading ? 96 : 24} rutasPermitidas={RUTAS_PERMITIDAS_BOT} />;
 }
 
 function FotografoLayoutInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const templateV2EditorFullscreen = isTemplateV2EditorPath(pathname);
+  const pantallaPedidos = isPantallaPedidosPath(pathname);
+  const sinMenu = isTemplateV2EditorPath(pathname) || pantallaPedidos;
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [logoFetched, setLogoFetched] = useState(false);
 
@@ -58,18 +65,19 @@ function FotografoLayoutInner({ children }: { children: React.ReactNode }) {
   return (
     <UploadProgressProvider>
       <PanelLayout
-        hideShell={templateV2EditorFullscreen}
+        hideShell={sinMenu}
         topBar2={
-          templateV2EditorFullscreen ? undefined : (
+          sinMenu ? undefined : (
             <PhotographerSidebarTopBar logoUrl={logoUrl} logoFetched={logoFetched} />
           )
         }
-        sidebar={templateV2EditorFullscreen ? null : <PhotographerSidebar showHeader={false} />}
+        sidebar={sinMenu ? null : <PhotographerSidebar showHeader={false} />}
       >
         {children}
       </PanelLayout>
       <FloatingUploadBar />
       <PhotographerWorkLocationPromptGate variant="clf" />
+      {pantallaPedidos ? null : <BotBubbleMount />}
     </UploadProgressProvider>
   );
 }

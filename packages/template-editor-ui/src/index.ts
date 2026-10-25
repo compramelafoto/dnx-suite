@@ -5,11 +5,13 @@
  * y el almacenamiento vía `setTemplateV2Runtime` de `@repo/template-editor-core`,
  * y renderiza `TemplateEditorShell` en la ruta que quiera.
  */
-export { TemplateEditorShell } from "./TemplateEditorShell";
+export { TemplateEditorShell, type TemplateEditorVersionForked } from "./TemplateEditorShell";
 export { TemplateEditorCanvas } from "./TemplateEditorCanvas";
 export { TemplateEditorInspector } from "./TemplateEditorInspector";
 export { TemplateEditorLayers } from "./TemplateEditorLayers";
-export { TemplateCanvasRenderer } from "./TemplateCanvasRenderer";
+export { TemplateCanvasRenderer, type PhotoOverride } from "./TemplateCanvasRenderer";
+export { ImageCropOverlay } from "./ImageCropOverlay";
+export { useNaturalImageSize } from "./inspector/ImageCropSection";
 export { TemplateVersionList } from "./TemplateVersionList";
 export { TemplateDiagnosticsPanel } from "./TemplateDiagnosticsPanel";
 export { TemplateBlockContextToolbar } from "./TemplateBlockContextToolbar";
@@ -19,6 +21,7 @@ export { TemplateBlockSafeAreaAlignmentStrip } from "./TemplateBlockSafeAreaAlig
 export { TemplateEditorExitModal } from "./TemplateEditorExitModal";
 export { CanvasSizeModal } from "./CanvasSizeModal";
 export { CreateTemplateV2Button } from "./CreateTemplateV2Button";
+export { TemplateV2RowActions } from "./TemplateV2RowActions";
 export { GoogleFontsLoader } from "./GoogleFontsLoader";
 export { useTemplateEditorAutosave } from "./useTemplateEditorAutosave";
 export { useTemplateEditorHotkeys } from "./useTemplateEditorHotkeys";

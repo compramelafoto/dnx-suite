@@ -16,11 +16,11 @@
       "schedule": "*/5 * * * *"
     },
     {
-      "path": "/api/cron/welcome-cards",
+      "path": "/api/cron/participant-cards",
       "schedule": "*/5 * * * *"
     },
     {
-      "path": "/api/cron/participant-cards",
+      "path": "/api/cron/diplomas",
       "schedule": "*/5 * * * *"
     },
     {

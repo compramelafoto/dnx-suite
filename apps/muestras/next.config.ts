@@ -1,0 +1,50 @@
+import type { NextConfig } from "next";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const appDir = path.dirname(fileURLToPath(import.meta.url));
+
+const nextConfig: NextConfig = {
+  // @repo/db no se transpila: se externaliza para conservar el Query Engine de Prisma.
+  // Mismo criterio que fotoffice y clickaton — con webpack, el motor nativo no llega al
+  // bundle si se transpila, y toda consulta falla en runtime.
+  serverExternalPackages: ["@prisma/client", "@repo/db"],
+  transpilePackages: ["@repo/muestras", "@repo/geo", "@repo/auth-ui", "@repo/payments"],
+  outputFileTracingRoot: path.join(appDir, "../.."),
+  outputFileTracingIncludes: {
+    "/**": [
+      "../../node_modules/.pnpm/@prisma+client@*/node_modules/.prisma/client/**",
+      "../../node_modules/.pnpm/@prisma+client@*/node_modules/@prisma/client/**",
+      "../../packages/db/prisma/**",
+    ],
+    // La fuente de las piezas para redes se lee con `fs` (lib/redes/fuentes.ts): el rastreo de
+    // Next no la ve solo. Sin ella, en Vercel el texto no se dibuja y la ruta responde 500.
+    "/api/redes/**": ["./assets/fonts/**"],
+  },
+  // Las URLs de la etapa 1 siguen andando: hay enlaces en correos ya enviados y en favoritos.
+  // `/proponer` es temporal (307): es el enlace de difusión y mañana puede ser una página pública.
+  async redirects() {
+    return [
+      { source: "/mis-muestras", destination: "/panel/muestras", permanent: true },
+      { source: "/mis-muestras/:id", destination: "/panel/muestras/:id", permanent: true },
+      { source: "/admin", destination: "/panel/revision", permanent: true },
+      { source: "/proponer", destination: "/panel/proponer", permanent: false },
+    ];
+  },
+  // @repo/payments importa sus propios archivos .ts con extensión ".js" (estilo ESM de Node):
+  // webpack los busca como .ts. Mismo ajuste que compramelafoto, fotoffice y clickaton.
+  webpack(config) {
+    config.resolve.extensionAlias = {
+      ...(config.resolve.extensionAlias ?? {}),
+      ".js": [".ts", ".tsx", ".js"],
+      ".mjs": [".mts", ".mjs"],
+    };
+    return config;
+  },
+  turbopack: {
+    // Silencia la detección errónea de root por lockfiles fuera del monorepo.
+    root: path.join(appDir, "../.."),
+  },
+};
+
+export default nextConfig;

@@ -7,6 +7,7 @@ import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
 import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
 import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
 import { COMMUNICATIONS_MODULE_KEY } from "@/lib/communications/constants";
+import { SALES_MODULE_KEY } from "@/lib/sales/constants";
 
 export type HomeWidgetGates = {
   socios: boolean;
@@ -18,6 +19,7 @@ export type HomeWidgetGates = {
   coberturas: boolean;
   pedidos: boolean;
   comunicacion: boolean;
+  stock: boolean;
 };
 
 /**
@@ -43,5 +45,7 @@ export function homeWidgetGates(levels: ModuleLevels): HomeWidgetGates {
     pedidos: al(SERVICE_LEADS_MODULE_KEY, "VIEW"),
     // Placas por publicar: lo que ve quien lleva las redes.
     comunicacion: al(COMMUNICATIONS_MODULE_KEY, "VIEW"),
+    // «Para comprar» lleva a Stock, que exige MANAGE en Ventas (`requireSalesStaff`).
+    stock: al(SALES_MODULE_KEY, "MANAGE"),
   };
 }

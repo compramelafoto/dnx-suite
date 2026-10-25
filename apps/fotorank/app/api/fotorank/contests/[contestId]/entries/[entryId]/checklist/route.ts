@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAuthUser } from "../../../../../../../lib/auth";
-import { EntryError, getMyEntry, listContestEntriesForOrganizer } from "../../../../../../../lib/fotorank/entries";
+import { EntryError, getMyEntries, listContestEntriesForOrganizer } from "../../../../../../../lib/fotorank/entries";
 import { prisma } from "@repo/db";
 
 type Ctx = { params: Promise<{ contestId: string; entryId: string }> };
@@ -33,8 +33,8 @@ export async function GET(_req: Request, ctx: Ctx) {
       throw err;
     }
   } else {
-    const mine = await getMyEntry(contestId, user.id);
-    if (!mine || mine.id !== entryId) {
+    const mine = await getMyEntries(contestId, user.id);
+    if (!mine.some((e) => e.id === entryId)) {
       return NextResponse.json({ error: { code: "FORBIDDEN", message: "No autorizado." } }, { status: 403 });
     }
   }

@@ -1,4 +1,5 @@
 import { fail, ok, type Result } from "../result";
+import { normalizarEncuadre } from "../layout/encuadre";
 import {
   BLOCK_TYPES,
   DESIGN_SCHEMA_VERSION,
@@ -104,7 +105,10 @@ function leerBloque(raw: unknown, donde: string, e: Errores): DesignBlock | null
     if (!col) e.add(`Bloque de texto "${geo.id}": el color tiene que ser un hexadecimal como #112233.`);
     if (!fontId || fontSize === null || fontSize < 4 || contenido === null || !col) return null;
     const align = raw.align === "center" || raw.align === "right" ? raw.align : "left";
+    const verticalAlign =
+      raw.verticalAlign === "middle" || raw.verticalAlign === "bottom" ? raw.verticalAlign : null;
     const maxLines = numeroFinito(raw.maxLines);
+    const interlineado = numeroFinito(raw.lineHeight);
     const transform =
       raw.textTransform === "uppercase" ||
       raw.textTransform === "lowercase" ||
@@ -121,9 +125,12 @@ function leerBloque(raw: unknown, donde: string, e: Errores): DesignBlock | null
       fontStyle: raw.fontStyle === "italic" ? "italic" : "normal",
       color: col,
       align,
+      // Arriba no se escribe: es lo que hace un documento sin la propiedad.
+      ...(verticalAlign ? { verticalAlign } : {}),
       textTransform: transform,
       content: contenido,
       ...(maxLines !== null && maxLines > 0 ? { maxLines: Math.floor(maxLines) } : {}),
+      ...(interlineado !== null && interlineado >= 0.5 && interlineado <= 4 ? { lineHeight: interlineado } : {}),
     };
   }
 
@@ -161,6 +168,8 @@ function leerBloque(raw: unknown, donde: string, e: Errores): DesignBlock | null
       );
       return null;
     }
+    const encuadre = raw.fit === "contain" ? null : normalizarEncuadre(raw.crop);
+    const aspecto = numeroFinito(raw.sourceAspect);
     return {
       ...geo,
       ...chrome,
@@ -171,6 +180,8 @@ function leerBloque(raw: unknown, donde: string, e: Errores): DesignBlock | null
       mask:
         raw.mask === "circle" || raw.mask === "ellipse" ? raw.mask : "rect",
       ...(numeroFinito(raw.cornerRadius) ? { cornerRadius: numeroFinito(raw.cornerRadius)! } : {}),
+      ...(encuadre ? { crop: encuadre } : {}),
+      ...(aspecto !== null && aspecto > 0 ? { sourceAspect: aspecto } : {}),
     };
   }
 

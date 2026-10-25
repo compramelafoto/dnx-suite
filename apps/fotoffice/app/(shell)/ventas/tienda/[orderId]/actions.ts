@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import type { StoreOrderStatus } from "@repo/db";
 import { requireStoreOperator } from "@/lib/store/access";
+import { resolveOriginalDownload, type OriginalDownloadResult } from "@/lib/store/artworks/production";
 import { changeOrderStatus, markOrderReviewed, type OrderAdminResult } from "@/lib/store/order-admin";
 
 /**
@@ -52,4 +53,21 @@ export async function markOrderReviewedAction(input: { orderId: string; note: st
   });
   if (r.ok) refrescar(input.orderId);
   return r;
+}
+
+/**
+ * Enlace firmado (10 minutos) al original de una obra para imprimirla. Firmar es autorizar:
+ * `resolveOriginalDownload` verifica workspace, estado del pedido y renglón. El navegador
+ * recibe el enlace y navega; no se guarda en ningún lado.
+ */
+export async function downloadArtworkOriginalAction(input: {
+  orderId: string;
+  itemId: string;
+}): Promise<OriginalDownloadResult> {
+  const { workspace } = await requireStoreOperator();
+  return resolveOriginalDownload({
+    workspaceId: workspace.id,
+    orderId: String(input.orderId),
+    itemId: String(input.itemId),
+  });
 }

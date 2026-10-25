@@ -1,9 +1,13 @@
 import { parseCuantoCobroAmount } from "./amount-format";
 import { getEffectiveRenewalMonthly } from "./equipment/calculations";
-import type { CuantoCobroProfileInput, CuantoCobroQuoteInput } from "./types";
+import { resolveCameraWearModel, type CameraWearModel, type CuantoCobroProfileInput, type CuantoCobroQuoteInput } from "./types";
 import { getQuoteConcepts } from "./quote-access";
 import { getQuoteTotalEstimatedShots } from "./quote-items";
 
+/**
+ * "per-job": el desgaste de la cámara se suma al costo de cada trabajo (modelo vigente).
+ * "structural": sólo en el modelo anterior ("legacy-structural"), para presupuestos guardados.
+ */
 export type EquipmentDepreciationMode = "structural" | "per-job";
 
 export type CameraBodyPreset = {
@@ -41,7 +45,7 @@ export type CameraWearAnalysis = {
   jobWearCost: number | null;
   /** Igual que jobWearCost cuando la cámara está configurada. */
   jobWearCostInformative: number | null;
-  /** Solo en modo per-job; lo que suma al precio del presupuesto. */
+  /** Lo que suma al precio del presupuesto (en el modelo vigente, igual que el informativo). */
   jobWearCostCharged: number | null;
   depreciationMode: EquipmentDepreciationMode;
   jobWearPercentOfRating: number | null;
@@ -82,8 +86,12 @@ export function resolveShutterRating(profile: CuantoCobroProfileInput): number {
   return preset && preset.id !== "custom" ? preset.shutterRating : 0;
 }
 
-export function getEquipmentDepreciationMode(profile: CuantoCobroProfileInput): EquipmentDepreciationMode {
-  const renewal = getEffectiveRenewalMonthly(profile);
+export function getEquipmentDepreciationMode(
+  profile: CuantoCobroProfileInput,
+  model: CameraWearModel = "per-job",
+): EquipmentDepreciationMode {
+  if (model === "per-job") return "per-job";
+  const renewal = getEffectiveRenewalMonthly(profile, "legacy-structural");
   return renewal > 0 ? "structural" : "per-job";
 }
 
@@ -111,7 +119,7 @@ export function analyzeCameraWear(
 
   const costPerShot = getCameraCostPerShot(profile);
   const isConfigured = costPerShot !== null;
-  const depreciationMode = getEquipmentDepreciationMode(profile);
+  const depreciationMode = getEquipmentDepreciationMode(profile, resolveCameraWearModel(quote));
   const remainingActuations = Math.max(0, shutterRating - currentShutterCount);
   const remainingLifePercent =
     shutterRating > 0 ? Math.round((remainingActuations / shutterRating) * 1000) / 10 : 0;

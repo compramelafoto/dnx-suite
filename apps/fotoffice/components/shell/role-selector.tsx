@@ -6,7 +6,7 @@ import type { RoleSelector as RoleSelectorData } from "@/lib/portal/profiles";
  *
  * Sólo aparece si la persona tiene los dos perfiles —socio y equipo— en la institución que
  * está viendo; eso lo decide `roleSelector`, acá sólo se dibuja. El activo sale de la pantalla
- * en la que está (portal → socio; panel → Comisión/Administración), así que no hay estado que
+ * en la que está (portal → socio; panel → Comisión Directiva), así que no hay estado que
  * se pueda desfasar. El otro botón usa las acciones de cambio, que rearman los perfiles en el
  * servidor: el `workspaceId` oculto no se cree.
  */
@@ -26,7 +26,7 @@ export function RoleSelector({
       </p>
       <div className="flex gap-1 rounded-[var(--fo-radius-sm)] border border-[var(--fo-border)] bg-[var(--fo-bg)] p-1">
         {selector.options.map((option) => {
-          // Angosto (cajón de 288 px, panel del portal de 240 px): "Administración" o una palabra
+          // Angosto (cajón de 288 px, panel del portal de 240 px): "Comisión Directiva" o una palabra
           // larga del vocabulario parte en dos líneas en vez de cortarse o desbordar.
           const base =
             "flex min-h-11 w-full min-w-0 items-center justify-center rounded-[var(--fo-radius-sm)] px-2 py-1 text-center text-xs font-semibold leading-tight break-words transition-colors";

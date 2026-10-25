@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
 import { Role } from "@/lib/prisma";
+import { canCollaboratorDownloadOrder } from "@/lib/agencies/order-visibility";
 import { ensureDigitalDelivery } from "@/lib/digital-delivery";
 import { resolveOrderDigitalDownloadLinks } from "@/lib/digital-download/resolve-order-digital-links";
 
@@ -43,14 +44,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ord
     where: { id },
     select: {
       status: true,
-      album: { select: { userId: true } },
+      album: { select: { userId: true, agencyAlbum: { select: { id: true } } } },
       items: { select: { photo: { select: { userId: true } } } },
     },
   });
   const isOwner = digitalOrder?.album?.userId === user.id;
-  const isCollaborator = digitalOrder?.items?.some(
-    (it) => it.photo?.userId === user.id
-  );
+  const isCollaborator = canCollaboratorDownloadOrder({
+    isCollaborator: Boolean(digitalOrder?.items?.some((it) => it.photo?.userId === user.id)),
+    isAgencyAlbum: Boolean(digitalOrder?.album?.agencyAlbum),
+  });
   if (!digitalOrder || (!isAdmin && !isOwner && !isCollaborator)) {
     return NextResponse.json({ error: "No autorizado para ver este pedido" }, { status: 403 });
   }

@@ -1,3 +1,9 @@
+import {
+  CLASS_LIST_VARIABLE_KEY,
+  COURSE_MOSAIC_VARIABLE_KEY,
+  DEFAULT_CLASS_LIST_OPTIONS,
+  DEFAULT_COURSE_MOSAIC_OPTIONS,
+} from "@repo/template-engine";
 import type { TemplateV2Block, TemplateV2Canvas } from "./render-core";
 
 function newBlockId(): string {
@@ -218,6 +224,72 @@ export function createDefaultVariableTextBlock(
       letterSpacing: 0,
       textAlign: "CENTER",
       color: "#334155",
+    },
+  };
+}
+
+/**
+ * «Listado del curso»: un dato variable con la lista de alumnos. Nace alto, para que se vea la
+ * lista entera en dos columnas.
+ */
+export function createDefaultClassListBlock(
+  canvas: TemplateV2Canvas,
+  blocks: TemplateV2Block[],
+  pageIndex = 0
+): TemplateV2Block {
+  const w = Math.min(900, Math.max(160, canvas.width - 48));
+  const h = Math.min(700, Math.max(120, canvas.height - 48));
+  const { x, y, zIndex } = placeBlock({ canvas, blocks, width: w, height: h });
+  return {
+    id: newBlockId(),
+    type: "VARIABLE_TEXT",
+    pageIndex,
+    name: "Listado del curso",
+    layout: { x, y, width: w, height: h, rotation: 0, zIndex, opacity: 1, locked: false, visible: true },
+    configJson: {
+      variableKey: CLASS_LIST_VARIABLE_KEY,
+      fallback: "",
+      fontFamily: "Helvetica",
+      fontSize: 28,
+      fontWeight: 400,
+      lineHeight: 1.3,
+      letterSpacing: 0,
+      textAlign: "LEFT",
+      color: "#334155",
+      classList: { ...DEFAULT_CLASS_LIST_OPTIONS },
+    },
+  };
+}
+
+/**
+ * «Mosaico del curso»: los compañeros del alumno con su retrato y su nombre. Nace grande (80 %
+ * del ancho y 60 % del alto), porque una grilla de 25 caras en un recuadro chico no se ve.
+ */
+export function createDefaultCourseMosaicBlock(
+  canvas: TemplateV2Canvas,
+  blocks: TemplateV2Block[],
+  pageIndex = 0
+): TemplateV2Block {
+  const w = Math.max(200, Math.round(canvas.width * 0.8));
+  const h = Math.max(160, Math.round(canvas.height * 0.6));
+  const { x, y, zIndex } = placeBlock({ canvas, blocks, width: w, height: h });
+  return {
+    id: newBlockId(),
+    type: "VARIABLE_TEXT",
+    pageIndex,
+    name: "Mosaico del curso",
+    layout: { x, y, width: w, height: h, rotation: 0, zIndex, opacity: 1, locked: false, visible: true },
+    configJson: {
+      variableKey: COURSE_MOSAIC_VARIABLE_KEY,
+      fallback: "",
+      fontFamily: "Helvetica",
+      fontSize: 24,
+      fontWeight: 400,
+      lineHeight: 1.15,
+      letterSpacing: 0,
+      textAlign: "CENTER",
+      color: "#334155",
+      courseMosaic: { ...DEFAULT_COURSE_MOSAIC_OPTIONS },
     },
   };
 }

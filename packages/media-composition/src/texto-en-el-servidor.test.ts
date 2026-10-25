@@ -8,13 +8,13 @@ import { renderComposition } from "./render";
  * En el servidor no hay ninguna tipografía instalada.
  *
  * La placa pedía "Arial, Helvetica, sans-serif" y librsvg, al no encontrar ninguna, no dibujaba
- * los textos: salían la franja y la foto, y ni una palabra. En una computadora de trabajo Arial
- * existe, así que el fallo sólo aparecía en producción — y estuvo un mes y medio sin verse
- * porque la vista previa del panel también estaba rota.
+ * los textos: salían la franja y la foto, y ni una palabra. Después se incrustó DM Sans con un
+ * `@font-face`, pero librsvg lo ignora y en una Mac escribía igual con Helvetica: el test de
+ * píxeles pasaba acá y en el servidor seguía sin texto.
  *
- * El test que captura el requisito es el segundo: la tipografía tiene que viajar **dentro** del
- * dibujo. El primero no puede fallar en una computadora de trabajo —acá Arial existe— y está
- * para lo otro: comprobar que declarar la tipografía incrustada no rompe el dibujo del texto.
+ * El test que captura el requisito es el segundo: en el dibujo no puede haber ni un `<text>`,
+ * porque cualquier `<text>` depende de las fuentes de la máquina. El primero no puede fallar en
+ * una computadora de trabajo y está para lo otro: comprobar que los trazos se ven.
  */
 const PIXEL_PNG = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5/hPwAIAgL/4d1j8wAAAABJRU5ErkJggg==",
@@ -30,7 +30,7 @@ async function pixelesClaros(png: Buffer): Promise<number> {
   return claros;
 }
 
-test("el texto sigue dibujándose con la tipografía incrustada", async () => {
+test("los textos se ven en la placa", async () => {
   const salida = await renderComposition({
     template: CLICKATON_WELCOME_STORY_V1,
     variables: {
@@ -53,13 +53,19 @@ test("el texto sigue dibujándose con la tipografía incrustada", async () => {
   );
 });
 
-test("el dibujo declara la tipografía que lleva adentro, y no la pide al sistema", async () => {
+test("el dibujo no tiene ningún <text>: las letras viajan en trazos", async () => {
   const { buildTextSvgParaTest } = await import("./render");
   const svg = await buildTextSvgParaTest(CLICKATON_WELCOME_STORY_V1, {
-    participantName: "Ana",
+    participantName: "María Belén Fernández",
+    instagram: "mbfernandez",
+    participantNumber: "CKA26-00023",
+    city: "Rosario",
+    province: "Santa Fe",
+    editionName: "Clickatón Rosario",
+    editionDate: "19/09/2026",
   });
 
-  assert.match(svg, /@font-face/, "sin @font-face depende de lo que el servidor tenga instalado");
-  assert.match(svg, /base64,/, "la tipografía tiene que viajar dentro del dibujo");
-  assert.ok(!/font-family="Arial/.test(svg), "Arial no existe en el servidor");
+  assert.doesNotMatch(svg, /<text/i, "un <text> depende de las fuentes de la máquina: en el servidor no sale");
+  assert.doesNotMatch(svg, /font-family|@font-face/, "librsvg ignora @font-face; las letras van en trazos");
+  assert.match(svg, /<path /, "los textos tienen que estar dibujados como trazos");
 });

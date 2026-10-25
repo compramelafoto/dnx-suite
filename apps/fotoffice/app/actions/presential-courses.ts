@@ -39,7 +39,8 @@ const courseSchema = z.object({
     .min(0)
     .optional()
     .nullable(),
-  accessMonths: z.coerce.number().int().min(1).max(120).default(12),
+  // 0 = sin vencimiento: el curso queda disponible para siempre.
+  accessMonths: z.coerce.number().int().min(0).max(120).default(12),
   completionPercent: z.coerce.number().int().min(1).max(100).default(80),
   freeForMembers: z.boolean().default(false),
   classroomLink: z.string().url().optional().nullable().or(z.literal("")),

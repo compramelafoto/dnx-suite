@@ -26,7 +26,16 @@ const SELECT_PAGINA = {
   createdAt: true,
   items: {
     orderBy: { id: "asc" },
-    select: { id: true, productName: true, variantName: true, qty: true, unitPriceArs: true, lineTotalArs: true, imageUrl: true },
+    select: {
+      id: true,
+      productName: true,
+      variantName: true,
+      printFormatName: true,
+      qty: true,
+      unitPriceArs: true,
+      lineTotalArs: true,
+      imageUrl: true,
+    },
   },
 } satisfies Prisma.StoreOrderSelect;
 

@@ -31,7 +31,10 @@ export type {
   MonthlyExpenseGroup,
   MonthlyExpenseItem,
   PhotographyTimeDistribution,
+  CuantoCobroAssignmentActivity,
+  CuantoCobroQuoteAssignment,
 } from "./types";
+export type { QuoteItemPersonLabor } from "./quote-item-calculations";
 
 export {
   CC_WIZARD_STEPS,
@@ -82,3 +85,94 @@ export { INITIAL_EQUIPMENT_INVENTORY } from "./equipment/normalize";
 export { INITIAL_CUANTO_COBRO_PAYMENT_OPTIONS } from "./payment/payment-options-types";
 export type { CuantoCobroPaymentOptionsInput } from "./payment/payment-options-types";
 export type { CuantoCobroCommercialDisplayMode } from "./commercial-presentation";
+
+// Precio completo (FOTOFFICE, 15/10/2026): impuestos, comisión, seña, recargos, viáticos, feriados.
+export {
+  buildPriceBuildUp,
+  isPricingExtrasActive,
+  monthsBetween,
+  normalizePricingExtras,
+  parsePercent,
+  pricingExtrasFixedMonthly,
+  roundUpTo,
+  withoutOneTimeAdjustments,
+} from "./pricing-extras/price-build-up";
+export { summarizeJobPricing, type CuantoCobroJobPricingSummary } from "./pricing-extras/summarize";
+export { computeTravel, resolveDistanceKm, straightLineKm } from "./pricing-extras/travel";
+export {
+  argentinaHolidays,
+  easterSunday,
+  eventDayType,
+  isValidYmd,
+  ARGENTINA_HOLIDAY_YEARS_WITH_DECREE,
+  type ArgentinaHoliday,
+  type EventDayInfo,
+  type EventDayType,
+} from "./pricing-extras/holidays";
+export {
+  INITIAL_CUANTO_COBRO_PRICING_EXTRAS,
+  CUANTO_COBRO_PRICE_ROUNDING_STEP,
+  CUANTO_COBRO_DEFAULT_IVA_PERCENT,
+  CUANTO_COBRO_ROUTE_FACTOR,
+  type CuantoCobroIvaCondition,
+  type CuantoCobroJobAdjustments,
+  type CuantoCobroPriceBuildUp,
+  type CuantoCobroPricingExtras,
+  type CuantoCobroTravelMode,
+  type CuantoCobroTravelZone,
+} from "./pricing-extras/types";
+
+// Mi estudio (FOTOFFICE, 16/10/2026): estructura de costos de un estudio con equipo.
+export {
+  getProfileResultSteps,
+  type CuantoCobroStudioStepId,
+} from "./calculate-cuanto-cobro";
+export {
+  activeStudioStructure,
+  isStudioModeActive,
+  normalizeStudioStructure,
+  parseStudioDecimal,
+} from "./studio/normalize";
+export {
+  computeStudioBreakdown,
+  computeStudioBreakdownFor,
+  computeStudioPersonHours,
+  computeStudioPersonMonthlyCost,
+  getStudioMissingFields,
+  isInStudioStructure,
+  sumStudioFixedCosts,
+} from "./studio/capacity";
+export {
+  createDefaultStudioBusinessLines,
+  createDefaultStudioFixedCostGroups,
+  createStudioOwner,
+  createStudioPerson,
+  INITIAL_STUDIO_STRUCTURE,
+  STUDIO_DEFAULT_BILLABLE_PERCENT,
+  STUDIO_EMPLOYMENT_TYPES,
+  STUDIO_MAX_PEOPLE,
+  STUDIO_OWNER_ID,
+  STUDIO_SKILLS,
+  type CuantoCobroStudioBreakdown,
+  type CuantoCobroStudioStructure,
+  type StudioBusinessLine,
+  type StudioEmploymentType,
+  type StudioFixedCostGroup,
+  type StudioFixedCostItem,
+  type StudioPerson,
+  type StudioPersonBreakdown,
+  type StudioProfitMode,
+  type StudioSkill,
+} from "./studio/types";
+
+// Varias cámaras: la principal es la #1 ("primary"); las demás en `profile.cameras`.
+export {
+  createCamera,
+  MAX_EXTRA_CAMERAS,
+  normalizeCameras,
+  PRIMARY_CAMERA_ID,
+  resolveProfileCameras,
+  type CuantoCobroCamera,
+  type ResolvedCamera,
+} from "./cameras";
+export { CAMERA_BODY_PRESETS } from "./camera-equipment";

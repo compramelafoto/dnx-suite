@@ -72,6 +72,7 @@ describe("orderQuoteSummary", () => {
       sourceLabel: "Correo Argentino (cotización en el momento)",
       serviceName: "Correo Argentino a domicilio",
       packageLine: "600 g · 30 × 20 × 10 cm",
+      testMode: false,
     });
   });
 
@@ -80,6 +81,14 @@ describe("orderQuoteSummary", () => {
       sourceLabel: "Tabla de precios propia",
       serviceName: null,
       packageLine: "1500 g",
+      testMode: false,
+    });
+  });
+
+  it("cotizada con Andreani en modo prueba: lo marca", () => {
+    expect(orderQuoteSummary({ source: "ANDREANI", serviceName: "Andreani a domicilio", testMode: true })).toMatchObject({
+      sourceLabel: expect.any(String),
+      testMode: true,
     });
   });
 

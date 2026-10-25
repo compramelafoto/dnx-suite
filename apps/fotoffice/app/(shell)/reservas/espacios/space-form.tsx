@@ -20,7 +20,10 @@ export function SpaceForm({
   otrosEspacios,
   compatibleCon,
   error,
+  equipo = [],
 }: {
+  /** Las personas del equipo, para vincular a quien atiende con su cuenta. */
+  equipo?: { id: number; name: string }[];
   space: SpaceRecord | null;
   otrosEspacios: { id: string; name: string }[];
   compatibleCon: string[];
@@ -331,6 +334,61 @@ export function SpaceForm({
         {/* Va después de la casilla: destildada, el navegador no la manda y queda sólo este
             "off"; tildada, el "on" llega primero y es el que se lee. */}
         <input type="hidden" name="allowsNonMembers" value="off" />
+      </section>
+
+      <section className="fo-card space-y-4 p-5">
+        <h2 className="text-base font-semibold">Profesional y reparto</h2>
+        <p className="fo-helper">
+          Para agendas de profesionales, como una barbería donde cada barbero le alquila el lugar
+          a la institución: qué parte de cada turno (turno y extras) le corresponde a quien atiende.
+          Se liquida en Reservas → Liquidaciones. Dejá 0 si todo es de la institución.
+        </p>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="fo-field-stack">
+            <label className="fo-label" htmlFor="professionalSharePct">
+              Porcentaje para el profesional
+            </label>
+            <input
+              id="professionalSharePct"
+              name="professionalSharePct"
+              inputMode="decimal"
+              className="fo-input"
+              defaultValue={space && space.professionalShareBps > 0 ? String(space.professionalShareBps / 100).replace(".", ",") : ""}
+              placeholder="0"
+            />
+            <p className="fo-helper">Por ejemplo 60: de un turno de $15.000, $9.000 son suyos.</p>
+          </div>
+          <div className="fo-field-stack">
+            <label className="fo-label" htmlFor="professionalUserId">
+              Su cuenta
+            </label>
+            <select
+              id="professionalUserId"
+              name="professionalUserId"
+              className="fo-input"
+              defaultValue={space?.professionalUserId ? String(space.professionalUserId) : ""}
+            >
+              <option value="">Sin vincular</option>
+              {equipo.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+            <p className="fo-helper">
+              Con un rol que sólo vea Reservas, ve únicamente su agenda y su liquidación.
+            </p>
+          </div>
+        </div>
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            name="acceptsClubCredits"
+            defaultChecked={space?.acceptsClubCredits ?? true}
+          />
+          Acepta los turnos incluidos del club (por ejemplo, los cortes del VIP)
+        </label>
+        <input type="hidden" name="acceptsClubCredits" value="off" />
       </section>
 
       <section className="fo-card space-y-4 p-5">

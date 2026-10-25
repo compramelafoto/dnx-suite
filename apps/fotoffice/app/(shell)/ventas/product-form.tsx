@@ -1,6 +1,7 @@
 "use client";
 
 import { useTransition, useState } from "react";
+import { InputMoneda } from "@/components/campos/input-moneda";
 import { ImageUploadField } from "@/components/image-upload-field";
 import { formatMinorArs } from "@/lib/membership/money";
 import { PRODUCT_KINDS, PRODUCT_KIND_LABELS, type ProductKind } from "@/lib/sales/constants";
@@ -26,10 +27,13 @@ export function ProductForm({
   product,
   categories,
   error,
+  proveedores = [],
 }: {
   product: ProductDetail | null;
   categories: ProductCategoryRow[];
   error?: string;
+  /** Los proveedores activos, para el proveedor preferido (del que sale el costo). */
+  proveedores?: { id: string; name: string }[];
 }) {
   const esAlta = product === null;
 
@@ -44,6 +48,7 @@ export function ProductForm({
   // propio estado interno a partir de `initialUrl`, y no lo vuelve a leer si sólo cambia el
   // prop en un re-render.
   const [imageKey, setImageKey] = useState(0);
+  const esInsumo = kind === "INSUMO";
   const [aviso, setAviso] = useState<string | null>(null);
   const [buscando, startTransition] = useTransition();
 
@@ -204,29 +209,30 @@ export function ProductForm({
       </section>
 
       <section className="fo-card space-y-4 p-5">
-        <h2 className="text-base font-semibold">Precio y costo</h2>
+        <h2 className="text-base font-semibold">{esInsumo ? "Costo" : "Precio y costo"}</h2>
         <div className="grid gap-4 sm:grid-cols-2">
-          <div className="fo-field-stack">
-            <label className="fo-label" htmlFor="priceArs">
-              Precio de venta
-            </label>
-            <input
-              id="priceArs"
-              name="priceArs"
-              className="fo-input"
-              defaultValue={minorToInputText(product?.priceMinor ?? null)}
-              placeholder="0,00"
-              required
-            />
-          </div>
+          {/* Un insumo no se vende: sin precio. `parseProductForm` guarda cero si no viaja. */}
+          {esInsumo ? null : (
+            <div className="fo-field-stack">
+              <label className="fo-label" htmlFor="priceArs">
+                Precio de venta
+              </label>
+              <InputMoneda
+                id="priceArs"
+                name="priceArs"
+                defaultValue={minorToInputText(product?.priceMinor ?? null)}
+                placeholder="0,00"
+                required
+              />
+            </div>
+          )}
           <div className="fo-field-stack">
             <label className="fo-label" htmlFor="costArs">
               Costo
             </label>
-            <input
+            <InputMoneda
               id="costArs"
               name="costArs"
-              className="fo-input"
               defaultValue={minorToInputText(product?.costMinor ?? null)}
               placeholder="0,00"
             />
@@ -269,6 +275,70 @@ export function ProductForm({
             </div>
           ) : null}
         </section>
+      ) : esInsumo ? (
+        <section className="fo-card space-y-4 p-5">
+          <h2 className="text-base font-semibold">Insumo</h2>
+          <p className="fo-helper">
+            Un insumo se gasta pero no se vende: papel, tinta, kits. Su existencia baja sola cuando se
+            vende o se pide algo que lo usa en su receta.
+          </p>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="fo-field-stack">
+              <label className="fo-label" htmlFor="unidad">
+                ¿En qué se cuenta?
+              </label>
+              <input
+                id="unidad"
+                name="unidad"
+                className="fo-input"
+                defaultValue={product?.insumo?.unidad ?? ""}
+                placeholder="copias, sobres, ml…"
+                required
+              />
+            </div>
+            <div className="fo-field-stack">
+              <label className="fo-label" htmlFor="minStockQty">
+                Mínimo antes de avisar
+              </label>
+              <input
+                id="minStockQty"
+                name="minStockQty"
+                type="number"
+                min={0}
+                className="fo-input"
+                defaultValue={product?.minStockQty ?? ""}
+              />
+            </div>
+            <div className="fo-field-stack">
+              <label className="fo-label" htmlFor="unidadCompra">
+                Cómo lo comprás (opcional)
+              </label>
+              <input
+                id="unidadCompra"
+                name="unidadCompra"
+                className="fo-input"
+                defaultValue={product?.insumo?.unidadCompra ?? ""}
+                placeholder="Kit 305 6R, caja, resma…"
+              />
+            </div>
+            <div className="fo-field-stack">
+              <label className="fo-label" htmlFor="unidadesPorCompra">
+                Cuántas unidades trae cada una
+              </label>
+              <input
+                id="unidadesPorCompra"
+                name="unidadesPorCompra"
+                type="number"
+                min={1}
+                step={1}
+                className="fo-input"
+                defaultValue={product?.insumo?.unidadesPorCompra ?? ""}
+                placeholder="640"
+              />
+              <p className="fo-helper">Sólo si cargaste cómo lo comprás.</p>
+            </div>
+          </div>
+        </section>
       ) : (
         // Un servicio no tiene nada que contar. `parseProductForm` ya fuerza `tracksStock` a
         // `false` para SERVICIO aunque este campo no viaje, pero no está de más no mostrar
@@ -285,14 +355,35 @@ export function ProductForm({
           label="Foto del producto"
           initialUrl={imageUrl}
           onUploaded={setImageUrl}
+          allowUrl
         />
       </section>
 
       <section className="fo-card space-y-4 p-5">
         <h2 className="text-base font-semibold">Proveedor</h2>
         <div className="fo-field-stack">
+          <label className="fo-label" htmlFor="preferredProveedorId">
+            Proveedor preferido
+          </label>
+          <select id="preferredProveedorId" name="preferredProveedorId" className="fo-input" defaultValue={product?.preferredProveedorId ?? ""}>
+            <option value="">Ninguno</option>
+            {proveedores.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+            {product?.preferredProveedorId && !proveedores.some((p) => p.id === product.preferredProveedorId) ? (
+              <option value={product.preferredProveedorId}>(proveedor inactivo)</option>
+            ) : null}
+          </select>
+          <p className="fo-helper">
+            De su lista de precios sale el costo. El margen y las listas se manejan en Ventas → Costos y márgenes.
+            {product?.marginPct != null ? ` Margen actual: ${String(product.marginPct).replace(".", ",")} % sobre el costo (si cambiás el precio, se ajusta).` : ""}
+          </p>
+        </div>
+        <div className="fo-field-stack">
           <label className="fo-label" htmlFor="supplierName">
-            Proveedor
+            Proveedor (texto libre)
           </label>
           <input
             id="supplierName"

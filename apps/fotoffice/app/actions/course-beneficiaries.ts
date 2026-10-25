@@ -11,6 +11,7 @@ import { esSinReparto, estadoTrasGuardar, validarFilas, type FilaBeneficiario } 
 import { formatoPorcentaje } from "@/lib/course-marketplace/reparto";
 import { buildAvisoBeneficiarioEmail } from "@/lib/course-marketplace/aviso-beneficiario";
 import { cargarDueno } from "@/lib/course-marketplace/cargar";
+import { correosDeDuenos } from "@/lib/course-marketplace/correos";
 import { invitacionesPendientesWhere, requireDuenoOAdminDelNegocio } from "@/lib/course-marketplace/access";
 
 const ROLES: Record<FilaBeneficiario["role"], string> = {
@@ -19,15 +20,6 @@ const ROLES: Record<FilaBeneficiario["role"], string> = {
   INSTITUCION: "Institución",
   OTRO: "Otro",
 };
-
-/** Correos de los dueños y administradores de un negocio, para avisarles. */
-async function correosDeDuenos(workspaceId: string): Promise<string[]> {
-  const filas = await prisma.workspaceMembership.findMany({
-    where: { workspaceId, role: { in: ["WORKSPACE_OWNER", "WORKSPACE_ADMIN"] } },
-    select: { user: { select: { email: true } } },
-  });
-  return filas.map((f) => f.user.email).filter(Boolean);
-}
 
 /**
  * Guarda la lista completa de beneficiarios de un curso (reemplaza la anterior).

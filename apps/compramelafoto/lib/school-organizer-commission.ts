@@ -1,9 +1,14 @@
+import { esUsuarioDemo } from "@/lib/demos/identidad";
 import {
   OrganizerCommissionAppliesTo,
   OrderOrigin,
   OrganizerCommissionStatus,
 } from "@/lib/prisma";
 import { prisma } from "@/lib/prisma";
+import {
+  COMMISSION_STATUSES_CANCELLED_ON_REVERSAL,
+  computeOrganizerCommissionDraft,
+} from "@/lib/school-organizer-commission-logic";
 
 function getCommissionKindFromOrderOrigin(origin: OrderOrigin): OrganizerCommissionAppliesTo | null {
   if (origin === OrderOrigin.PREVENTA_PACK) return OrganizerCommissionAppliesTo.PREVENTA;
@@ -101,6 +106,7 @@ export async function createOrganizerCommissionForPaidOrder(input: {
     select: {
       id: true,
       albumId: true,
+      status: true,
       origin: true,
       totalCents: true,
       platformCommissionCents: true,
@@ -108,6 +114,7 @@ export async function createOrganizerCommissionForPaidOrder(input: {
       organizerSchoolId: true,
       redeemsOrderId: true,
       pricingSnapshot: true,
+      isTest: true,
     },
   });
   if (!order) return;
@@ -120,9 +127,12 @@ export async function createOrganizerCommissionForPaidOrder(input: {
       organizerCommissionEnabled: true,
       organizerCommissionPercentage: true,
       organizerCommissionAppliesTo: true,
+      user: { select: { tags: true } },
     },
   });
   if (!album) return;
+  // Un pedido de prueba no le genera plata a ningún colegio; solo las demos grabables la muestran.
+  if (order.isTest && !esUsuarioDemo(album.user)) return;
   if (!album.organizerCommissionEnabled) return;
   if (album.schoolId == null) return;
 
@@ -142,15 +152,15 @@ export async function createOrganizerCommissionForPaidOrder(input: {
   });
   if (schoolId == null || schoolId !== album.schoolId) return;
 
-  const percentage = Number(album.organizerCommissionPercentage ?? 0);
-  if (!Number.isFinite(percentage) || percentage <= 0) return;
-
-  const baseAmount = Math.max(
-    0,
-    Number(order.totalCents ?? 0) - Number(order.platformCommissionCents ?? 0)
-  );
-  const amount = Math.max(0, Math.round((baseAmount * percentage) / 100));
-  if (amount <= 0) return;
+  // Base = totalCents − platformCommissionCents (pesos). Sólo pedidos con pago confirmado.
+  const draft = computeOrganizerCommissionDraft({
+    orderStatus: order.status,
+    totalCents: order.totalCents,
+    platformCommissionCents: order.platformCommissionCents,
+    percentage: album.organizerCommissionPercentage,
+  });
+  if (!draft) return;
+  const { amount, percentage, baseAmount } = draft;
 
   const existing = await prisma.organizerCommission.findUnique({
     where: { orderId: order.id },
@@ -184,16 +194,34 @@ export async function createOrganizerCommissionForPaidOrder(input: {
   }
 }
 
+/**
+ * La venta se reembolsó / anuló (ver reverse-album-order-mercado-pago.ts).
+ * - Comisión no pagada (PENDING / REQUESTED) → CANCELLED: no se paga comisión sobre ventas anuladas.
+ * - Comisión ya PAID → CANCELLED conservando paidAt / paymentMethod / paymentProofUrl:
+ *   "CANCELLED con paidAt" = pagada y luego anulada → saldo a compensar con el fotógrafo.
+ * - REJECTED o ya CANCELLED → sin cambios.
+ * No se tocan los campos de pago (sólo `status`), así queda la traza.
+ */
 export async function cancelOrganizerCommissionForOrder(orderId: number): Promise<void> {
-  await prisma.organizerCommission.updateMany({
-    where: {
-      orderId,
-      status: {
-        not: OrganizerCommissionStatus.CANCELLED,
-      },
-    },
-    data: {
-      status: OrganizerCommissionStatus.CANCELLED,
-    },
+  const rows = await prisma.organizerCommission.findMany({
+    where: { orderId, status: { in: COMMISSION_STATUSES_CANCELLED_ON_REVERSAL } },
+    select: { id: true, status: true, amount: true, paidAt: true },
   });
+  if (rows.length === 0) return;
+
+  await prisma.organizerCommission.updateMany({
+    where: { orderId, status: { in: COMMISSION_STATUSES_CANCELLED_ON_REVERSAL } },
+    data: { status: OrganizerCommissionStatus.CANCELLED },
+  });
+
+  for (const row of rows) {
+    if (row.status === OrganizerCommissionStatus.PAID) {
+      console.warn("[school-organizer-commission] comisión pagada anulada por reversión: saldo a compensar", {
+        commissionId: row.id,
+        orderId,
+        amount: row.amount,
+        paidAt: row.paidAt,
+      });
+    }
+  }
 }

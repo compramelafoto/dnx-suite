@@ -40,6 +40,18 @@ setTemplateV2Runtime({
       key: stored.key,
     };
   },
+  /*
+   * Una edición que fijó una versión de la plantilla (`ClickatonCardTemplateAssignment.versionId`)
+   * espera que las placas y diplomas sigan saliendo con esa. Si se pisara, la fijación no servía:
+   * con una versión fijada, guardar crea una versión nueva y la fijada queda congelada.
+   */
+  resolveVersionSave: async ({ versionId }) => {
+    const fijada = await prisma.clickatonCardTemplateAssignment.findFirst({
+      where: { versionId },
+      select: { id: true },
+    });
+    return fijada ? { mode: "fork" } : { mode: "in-place" };
+  },
   policy: {
     // `requireClickatonAdmin` ya rechazó a cualquiera que no sea admin.
     canDesign: () => true,

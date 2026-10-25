@@ -5,12 +5,17 @@ import { revalidatePath } from "next/cache";
 import { prisma, Prisma } from "@repo/db";
 import { decimalArsToMinor, minorToDecimalString, parseArsToMinor } from "@/lib/membership/money";
 import { parseProductForm } from "@/lib/sales/product-form";
+import { parseInsumoForm, type InsumoFormValues } from "@/lib/stock/insumo-form";
+import { guardarInsumo, validarCambioDeTipo } from "@/lib/stock/insumo-guardas";
 import { parseCategoryForm } from "@/lib/sales/category-form";
 import { findGlobalByBarcode, upsertGlobalProduct } from "@/lib/sales/global-catalog";
 import { globalFieldsFromProduct, prefillFromGlobal, type ProductPrefill } from "@/lib/sales/global-catalog-fields";
 import { requireSalesAdmin, requireSalesStaff } from "@/lib/sales/access";
 import { findProductByCode, listProducts, type ProductByCode, type ProductRow } from "@/lib/sales/repository";
-import { validateTicket } from "@/lib/sales/ticket";
+import { MENSAJE_INSUMO_NO_SE_VENDE, esVendible } from "@/lib/sales/vendible";
+import { ticketTotals, validateTicket } from "@/lib/sales/ticket";
+import { confirmarUsoPagoMp, liberarPagoMp, reservarCobroMp } from "@/lib/sales/verificar-pago-servidor";
+import { notaDePagoVerificado } from "@/lib/sales/verificar-pago";
 import {
   buildTicketLines,
   resolveCheckoutClientInput,
@@ -20,11 +25,14 @@ import {
   type RawCheckoutLine,
 } from "@/lib/sales/checkout";
 import { recordSale } from "@/lib/sales/record-sale";
+import { etiquetaDeUsuario } from "@/lib/listado/acceso";
 import { voidSale } from "@/lib/sales/void-sale";
 import { SALE_PAYMENT_METHODS, type SalePaymentMethod } from "@/lib/sales/constants";
 import { adjustmentQty, validateAdjustment, validateStockEntry } from "@/lib/sales/stock";
 import { applyStockMovement } from "@/lib/sales/variant-stock";
 import { lockStockRows } from "@/lib/sales/stock-lock";
+import { asegurarKodak305, entradaEnUnidades } from "@/lib/stock/kodak305";
+import { calibrarMargenPct, margenValido } from "@/lib/precios-proveedor/margen";
 
 const CATALOGO = "/ventas/catalogo";
 const STOCK = "/ventas/stock";
@@ -50,6 +58,14 @@ export async function saveProductAction(formData: FormData): Promise<void> {
   if (!parsed.ok) redirect(`${destinoError}?error=${encodeURIComponent(parsed.error)}`);
   const v = parsed.values;
 
+  // Los datos propios del insumo (unidad y presentación de compra) sólo se leen si es insumo.
+  let insumo: InsumoFormValues | null = null;
+  if (v.kind === "INSUMO") {
+    const parsedInsumo = parseInsumoForm(formData);
+    if (!parsedInsumo.ok) redirect(`${destinoError}?error=${encodeURIComponent(parsedInsumo.error)}`);
+    insumo = parsedInsumo.values;
+  }
+
   if (productId) {
     // El `where` de un update tiene que ser único, así que el workspace no puede viajar ahí.
     const propio = await prisma.product.count({ where: { id: productId, workspaceId: workspace.id } });
@@ -69,6 +85,24 @@ export async function saveProductAction(formData: FormData): Promise<void> {
     if (propia === 0) redirect(`${destinoError}?error=${encodeURIComponent("Esa categoría no existe.")}`);
   }
 
+  // Mismo control que la categoría: un proveedor de otro negocio no se puede colgar acá.
+  if (v.preferredProveedorId) {
+    const propio = await prisma.fotofficeProveedor.count({ where: { id: v.preferredProveedorId, workspaceId: workspace.id } });
+    if (propio === 0) redirect(`${destinoError}?error=${encodeURIComponent("Ese proveedor no existe.")}`);
+  }
+
+  // Con margen guardado (Ventas → Costos y márgenes), la ficha manda precio y costo y el margen
+  // los sigue: cambiar el precio a mano es recalibrar ese producto (spec de listas, §14).
+  let marginPct: string | undefined;
+  if (productId) {
+    const previo = await prisma.product.findFirst({ where: { id: productId, workspaceId: workspace.id }, select: { marginPct: true } });
+    const calibrado = previo?.marginPct != null ? calibrarMargenPct(v.priceMinor, v.costMinor) : null;
+    if (calibrado !== null && !margenValido(calibrado)) {
+      redirect(`${destinoError}?error=${encodeURIComponent(`Con ese precio y ese costo el margen daría ${calibrado} %: revisá el costo.`)}`);
+    }
+    if (calibrado !== null) marginPct = calibrado.toFixed(2);
+  }
+
   // La base guarda `Decimal(12,2)`; el formulario trabaja en centavos enteros. `priceMinor`
   // y `costMinor` no son columnas de `Product` —lo son `priceArs` y `costArs`— así que no se
   // puede volcar `v` entero en el `data` de Prisma sin antes convertirlos.
@@ -77,40 +111,65 @@ export async function saveProductAction(formData: FormData): Promise<void> {
     ...camposProducto,
     priceArs: minorToDecimalString(priceMinor),
     costArs: costMinor === null ? null : minorToDecimalString(costMinor),
+    ...(marginPct !== undefined ? { marginPct } : {}),
   };
 
   try {
-    if (v.barcode) {
-      const barcode = v.barcode;
-      await prisma.$transaction(async (tx) => {
+    // Todo en UNA transacción: el producto, su ficha del catálogo maestro (si trae código de
+    // barras) y su ficha de insumo. Un producto que pasa a ser INSUMO no puede quedar sin
+    // `FotofficeInsumo` (el consumo y el stock la leen), ni al revés.
+    const errorDeTipo = await prisma.$transaction(async (tx) => {
+      let kindAnterior: string | null = null;
+      if (productId) {
+        const actual = await tx.product.findFirst({
+          where: { id: productId, workspaceId: workspace.id },
+          select: { kind: true },
+        });
+        kindAnterior = actual?.kind ?? null;
+        const bloqueo = await validarCambioDeTipo(tx, {
+          workspaceId: workspace.id,
+          productId,
+          kindAnterior,
+          kindNuevo: v.kind,
+        });
+        if (bloqueo) return bloqueo;
+      }
+
+      let data: typeof datosProducto & { globalProductId: string | null };
+      if (v.barcode) {
         const global = await upsertGlobalProduct(tx, {
-          barcode,
+          barcode: v.barcode,
           ...globalFieldsFromProduct(v),
           workspaceId: workspace.id,
           userId: user.id,
         });
-        const data = { ...datosProducto, globalProductId: global.id };
-        if (productId) {
-          await tx.product.update({ where: { id: productId }, data });
-        } else {
-          await tx.product.create({
-            data: { ...data, workspaceId: workspace.id, createdByUserId: user.id },
-          });
-        }
-      });
-    } else {
-      // Sin código de barras no hay catálogo maestro que tocar. Si el producto tenía uno
-      // antes y se lo borraron acá, `globalProductId` se limpia: no tiene sentido dejar
-      // colgada la referencia a una ficha que este producto ya no reclama.
-      const data = { ...datosProducto, globalProductId: null };
-      if (productId) {
-        await prisma.product.update({ where: { id: productId }, data });
+        data = { ...datosProducto, globalProductId: global.id };
       } else {
-        await prisma.product.create({
-          data: { ...data, workspaceId: workspace.id, createdByUserId: user.id },
-        });
+        // Sin código de barras no hay catálogo maestro que tocar. Si el producto tenía uno
+        // antes y se lo borraron acá, `globalProductId` se limpia: no tiene sentido dejar
+        // colgada la referencia a una ficha que este producto ya no reclama.
+        data = { ...datosProducto, globalProductId: null };
       }
-    }
+
+      let guardadoId: string;
+      if (productId) {
+        await tx.product.update({ where: { id: productId }, data });
+        guardadoId = productId;
+      } else {
+        const creado = await tx.product.create({
+          data: { ...data, workspaceId: workspace.id, createdByUserId: user.id },
+          select: { id: true },
+        });
+        guardadoId = creado.id;
+      }
+
+      // Si el producto deja de ser insumo, su ficha queda (inofensiva) y la pantalla no la muestra.
+      if (insumo) {
+        await guardarInsumo(tx, { workspaceId: workspace.id, productId: guardadoId, values: insumo });
+      }
+      return null;
+    });
+    if (errorDeTipo) redirect(`${destinoError}?error=${encodeURIComponent(errorDeTipo)}`);
   } catch (e) {
     // P2002 = choque con un índice único. El único índice único de `Product` que un
     // formulario puede disparar es `[workspaceId, sku]`: el mensaje crudo de Prisma no le
@@ -236,6 +295,10 @@ export type CheckoutInput = {
   paymentMethod: string;
   note: string;
   client: RawCheckoutClient;
+  /** El cobro de Mercado Pago que "Verificar pago" encontró para este ticket (opcional). */
+  mpPaymentId?: string | null;
+  /** La order del QR del mostrador ya pagada (opcional). */
+  mpOrderId?: string | null;
 };
 
 export type CheckoutResult =
@@ -273,9 +336,11 @@ export async function checkoutAction(input: CheckoutInput): Promise<CheckoutResu
     productIds.length > 0
       ? await prisma.product.findMany({
           where: { id: { in: productIds }, workspaceId: workspace.id },
-          select: { id: true, name: true, priceArs: true, costArs: true },
+          select: { id: true, name: true, priceArs: true, costArs: true, kind: true },
         })
       : [];
+  // Un insumo se gasta, no se vende: aunque el navegador lo mande, el servidor no lo cobra.
+  if (productos.some((p) => !esVendible(p.kind))) return { ok: false, error: MENSAJE_INSUMO_NO_SE_VENDE };
   // Los talles activos de esos productos, también filtrados por workspace: un `variantId`
   // que no vuelva acá (de otro producto, de otro negocio, o desactivado) hace que
   // `buildTicketLines` rechace el ticket entero, igual que un `productId` ajeno.
@@ -315,12 +380,42 @@ export async function checkoutAction(input: CheckoutInput): Promise<CheckoutResu
   const validacion = validateTicket(armado.lines, input.discountMinor);
   if (!validacion.ok) return { ok: false, error: validacion.error };
 
+  // Foto carnet preparada en el Mostrador: se valida antes de cobrar y se ata al renglón dentro de
+  // la misma transacción de la venta (el candado de `vincularConVenta` impide cobrarla dos veces).
+  // `armado.lines[i]` es el renglón de `input.lines[i]`: `buildTicketLines` no junta ni saltea.
+  // Las copias además exigen que la cantidad del renglón sea el total de copias armado (`qty`).
+  const preparaciones = input.lines
+    .map((l, i) => ({ i, preparacionId: l.preparacionId ?? null, productId: l.productId, qty: armado.lines[i]!.qty }))
+    .filter((p): p is { i: number; preparacionId: string; productId: string | null; qty: number } => typeof p.preparacionId === "string");
+  // Import dinámico: el motor de impresión (sharp) sólo se carga si el ticket trae una preparación.
+  const impresion = preparaciones.length > 0 ? await import("@/lib/impresion/preparaciones") : null;
+  if (impresion) {
+    const v = await impresion.validarParaCobrar(workspace.id, preparaciones);
+    if (!v.ok) return { ok: false, error: v.error };
+  }
+
   const client = resolveCheckoutClientInput(input.client);
-  const note = input.note.trim();
+  let note = input.note.trim();
+
+  // Pago verificado en Mercado Pago: se reserva antes de registrar (una transferencia, una venta).
+  let reservaId: string | null = null;
+  if (input.mpPaymentId || input.mpOrderId) {
+    if (paymentMethod !== "TRANSFERENCIA" && paymentMethod !== "MERCADO_PAGO") {
+      return { ok: false, error: "El pago verificado sólo vale para transferencia o Mercado Pago." };
+    }
+    const reserva = await reservarCobroMp(workspace.id, user.id, input, ticketTotals(armado.lines, input.discountMinor).totalMinor);
+    if (!reserva) return { ok: false, error: "Falta el pago verificado." };
+    if (!reserva.ok) return { ok: false, error: reserva.error };
+    reservaId = reserva.reservaId;
+    note = [note, notaDePagoVerificado(reserva.pago)].filter(Boolean).join(" — ");
+  }
 
   try {
-    const venta = await prisma.$transaction((tx) =>
-      recordSale(tx, {
+    // Sin nivel de aislamiento explícito: READ COMMITTED (el de Postgres). Si dos ventas se
+    // disputan la misma preparación, la segunda espera el candado de la fila, relee
+    // `saleItemId` ya escrito, su `updateMany` cuenta 0 y lanza `PreparacionNoVinculable`.
+    const venta = await prisma.$transaction(async (tx) => {
+      const v = await recordSale(tx, {
         workspaceId: workspace.id,
         createdByUserId: user.id,
         occurredAt: new Date(),
@@ -329,13 +424,50 @@ export async function checkoutAction(input: CheckoutInput): Promise<CheckoutResu
         note: note === "" ? null : note,
         client,
         lines: armado.lines,
-      }),
-    );
+      });
+      if (impresion) {
+        await impresion.vincularConVenta(
+          tx,
+          { workspaceId: workspace.id, userId: user.id, userLabel: etiquetaDeUsuario(user) },
+          preparaciones.map((p) => ({ preparacionId: p.preparacionId, saleItemId: v.itemIds[p.i]! })),
+          v.clientId,
+        );
+      }
+      return v;
+    });
     revalidatePath("/ventas");
+    if (reservaId) await confirmarUsoPagoMp(reservaId, `Venta #${venta.saleNumber}`);
+    if (impresion) await despuesDeCobrarPreparaciones(workspace.id, user, preparaciones);
     return { ok: true, saleNumber: venta.saleNumber, deposited: venta.deposited };
   } catch (e) {
+    if (reservaId) await liberarPagoMp(reservaId);
+    if (impresion && e instanceof impresion.PreparacionNoVinculable) return { ok: false, error: e.message };
     console.error("[fotoffice][ventas] error al cobrar", e);
     return { ok: false, error: "No se pudo registrar la venta. Probá de nuevo." };
+  }
+}
+
+/**
+ * Después de cobrar un ticket con foto carnet preparada: copia el original a la ficha del cliente
+ * de la venta. La venta ya está registrada, así que nada de esto puede volverla atrás ni mostrar
+ * "no se pudo registrar": si falla, queda en el log y se reintenta al asignar cliente.
+ * Privada: en un archivo "use server" todo lo exportado es una acción.
+ */
+async function despuesDeCobrarPreparaciones(
+  workspaceId: string,
+  user: Parameters<typeof etiquetaDeUsuario>[0],
+  preparaciones: { preparacionId: string }[],
+): Promise<void> {
+  const avisar = (e: unknown) =>
+    console.error("[fotoffice][ventas] no se guardó la foto carnet en la ficha", { error: e instanceof Error ? e.name : "?" });
+  try {
+    // También sin cliente en la venta: la preparación puede conservar el suyo.
+    const { guardarOriginalesEnFicha } = await import("@/lib/impresion/ficha-carnet");
+    const ctx = { workspaceId, userId: user.id, userLabel: etiquetaDeUsuario(user) };
+    for (const p of preparaciones) await guardarOriginalesEnFicha(ctx, p.preparacionId).catch(avisar);
+    revalidatePath("/ventas/impresiones");
+  } catch (e) {
+    avisar(e);
   }
 }
 
@@ -370,6 +502,29 @@ export async function recordStockEntryAction(formData: FormData): Promise<void> 
   const destino = await resolverDestinoDeStock(workspace.id, productId, formData);
   if (!destino.ok) redirect(`${STOCK}?error=${encodeURIComponent(destino.error)}`);
 
+  // Un insumo se compra en kits pero se descuenta en copias: si la casilla está marcada, la
+  // cantidad y el costo se pasan a la unidad de uso con la ficha del servidor (no con lo que
+  // diga el formulario).
+  let qtyFinal = qty;
+  let costoFinal = unitCostMinor;
+  if (formData.get("enUnidadDeCompra") === "on") {
+    const ficha = await prisma.fotofficeInsumo.findFirst({
+      where: { productId, workspaceId: workspace.id },
+      select: { unidadesPorCompra: true },
+    });
+    if (!ficha?.unidadesPorCompra) {
+      redirect(`${STOCK}?error=${encodeURIComponent("Ese insumo no tiene unidad de compra cargada.")}`);
+    }
+    const conv = entradaEnUnidades({
+      cantidad: qty,
+      enUnidadDeCompra: true,
+      unidadesPorCompra: ficha.unidadesPorCompra,
+      costoMinor: unitCostMinor,
+    });
+    qtyFinal = conv.qty;
+    costoFinal = conv.unitCostMinor;
+  }
+
   await prisma.$transaction(async (tx) => {
     // Mismo orden de bloqueo que la tienda y que vender (ver `lib/sales/stock-lock.ts`).
     await lockStockRows(tx, {
@@ -381,18 +536,31 @@ export async function recordStockEntryAction(formData: FormData): Promise<void> 
       workspaceId: workspace.id,
       productId,
       variantId: destino.variantId,
-      qty,
+      qty: qtyFinal,
       reason: "ENTRADA",
       sourceModule: "sales",
       sourceRef: null,
       note: null,
-      unitCostArs: unitCostMinor === null ? null : minorToDecimalString(unitCostMinor),
+      unitCostArs: costoFinal === null ? null : minorToDecimalString(costoFinal),
       createdByUserId: user.id,
     });
   });
 
   revalidatePath(STOCK);
   redirect(`${STOCK}?ok=1`);
+}
+
+/**
+ * "Configurar" la Kodak 305: crea (o reconoce) el insumo del kit y su consumo por tamaño.
+ * Mismo permiso que el resto de la pantalla Stock (STAFF+). No toca la existencia: después
+ * la persona carga lo que tiene con "Ajustar por conteo".
+ */
+export async function configurarKodak305Action(): Promise<void> {
+  const { workspace } = await requireSalesStaff();
+  const r = await asegurarKodak305(workspace.id);
+  if (!r.ok) redirect(`${STOCK}?error=${encodeURIComponent(r.error)}`);
+  revalidatePath(STOCK);
+  redirect(`${STOCK}?kodak=1`);
 }
 
 /**

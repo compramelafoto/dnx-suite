@@ -35,6 +35,14 @@ export type ContentUiLabels = {
   featurePublishFirst: string;
   featureCheckbox: string;
   featuredUntilLabel: string;
+  scheduleTitle: string;
+  scheduleDateLabel: string;
+  scheduleHint: string;
+  scheduleButton: string;
+  scheduleNeedsFutureDate: string;
+  scheduledNotice: string;
+  scheduledSuccess: string;
+  publishNow: string;
   saveDraft: string;
   publish: string;
   archive: string;
@@ -131,6 +139,14 @@ export const DEFAULT_CONTENT_UI_LABELS: ContentUiLabels = {
   featurePublishFirst: "Para destacar un artículo, primero publicalo.",
   featureCheckbox: "Destacar en home",
   featuredUntilLabel: "Destacado hasta (opcional)",
+  scheduleTitle: "Programar publicación",
+  scheduleDateLabel: "Fecha y hora de publicación",
+  scheduleHint: "Elegí una fecha y hora futuras y tocá «Programar»: el artículo se publica solo en ese momento.",
+  scheduleButton: "Programar",
+  scheduleNeedsFutureDate: "Elegí una fecha y hora que todavía no hayan pasado.",
+  scheduledNotice: "Programado para el {fecha}. Hasta entonces no se ve en el sitio. Para cancelarlo, guardalo como borrador.",
+  scheduledSuccess: "Artículo programado.",
+  publishNow: "Publicar ahora",
   saveDraft: "Guardar borrador",
   publish: "Publicar",
   archive: "Archivar",

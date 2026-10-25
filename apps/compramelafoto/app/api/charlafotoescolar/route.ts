@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { buildTalkLeadSource } from "@/lib/public/talk-lead-source";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,6 +25,7 @@ export async function POST(req: NextRequest) {
     const email = normalizeEmail(String(body?.email ?? ""));
     const slug = String(body?.slug ?? "charlafotoescolar").trim() || "charlafotoescolar";
     const source = String(body?.source ?? slug).trim() || slug;
+    const campaign = body?.campaign;
 
     const talk = await prisma.talk.findUnique({
       where: { slug },
@@ -57,7 +59,7 @@ export async function POST(req: NextRequest) {
         name,
         whatsapp,
         email,
-        source: talk.sourceTag || source,
+        source: buildTalkLeadSource(talk.sourceTag || source, campaign),
       },
     });
 

@@ -39,11 +39,12 @@ function voidTx(over: {
   }>;
   saleItem?: Partial<{ findMany: ReturnType<typeof vi.fn> }>;
   product?: Partial<{ findMany: ReturnType<typeof vi.fn>; update: ReturnType<typeof vi.fn> }>;
-  stockMovement?: Partial<{ create: ReturnType<typeof vi.fn> }>;
+  stockMovement?: Partial<{ create: ReturnType<typeof vi.fn>; findMany: ReturnType<typeof vi.fn> }>;
   productVariant?: Partial<{ updateMany: ReturnType<typeof vi.fn> }>;
   cashMovement?: Partial<{ findFirst: ReturnType<typeof vi.fn>; create: ReturnType<typeof vi.fn> }>;
   cashShift?: Partial<{ findFirst: ReturnType<typeof vi.fn> }>;
   storeOrder?: Partial<{ findFirst: ReturnType<typeof vi.fn> }>;
+  fotofficePreparacionImpresion?: Partial<{ updateMany: ReturnType<typeof vi.fn> }>;
 } = {}) {
   return {
     // `lockStockRows` (el bloqueo de filas de stock) pasa por acá: no devuelve nada útil.
@@ -65,7 +66,8 @@ function voidTx(over: {
       update: vi.fn(async () => ({})),
       ...over.product,
     },
-    stockMovement: { create: vi.fn(async () => ({})), ...over.stockMovement },
+    // Sin movimientos de consumo por omisión: la venta no descontó insumos.
+    stockMovement: { create: vi.fn(async () => ({})), findMany: vi.fn(async () => []), ...over.stockMovement },
     productVariant: { updateMany: vi.fn(async () => ({ count: 1 })), ...over.productVariant },
     cashMovement: {
       findFirst: tablaAusente("cash_movement"),
@@ -73,6 +75,7 @@ function voidTx(over: {
       ...over.cashMovement,
     },
     cashShift: { findFirst: tablaAusente("cash_shift"), ...over.cashShift },
+    fotofficePreparacionImpresion: { updateMany: vi.fn(async () => ({ count: 0 })), ...over.fotofficePreparacionImpresion },
   };
 }
 
@@ -523,5 +526,183 @@ describe("voidSale — orden de bloqueo (mismo que la tienda)", () => {
     expect(ultimoBloqueo).toBeLessThan(tx.productVariant.updateMany.mock.invocationCallOrder[0]);
     expect(ultimoBloqueo).toBeLessThan(tx.product.update.mock.invocationCallOrder[0]);
     expect(ultimoBloqueo).toBeLessThan(tx.stockMovement.create.mock.invocationCallOrder[0]);
+  });
+});
+
+describe("voidSale — foto carnet preparada", () => {
+  it("libera las preparaciones de sus renglones: vuelven a «Preparado sin cobrar»", async () => {
+    const tx = voidTx({
+      saleItem: {
+        findMany: vi.fn(async () => [
+          { id: "item1", productId: null, variantId: null, qty: 1 },
+          { id: "item2", productId: null, variantId: null, qty: 2 },
+        ]),
+      },
+    });
+
+    const resultado = await voidSale(tx as never, inputBase);
+
+    expect(resultado).toEqual({ ok: true, saleNumber: 5 });
+    expect(tx.fotofficePreparacionImpresion.updateMany).toHaveBeenCalledWith({
+      where: { workspaceId: inputBase.workspaceId, saleItemId: { in: ["item1", "item2"] } },
+      data: { saleItemId: null },
+    });
+  });
+
+  it("una venta que no se anula no libera nada", async () => {
+    const tx = voidTx({
+      sale: { findFirst: vi.fn(async () => ({ id: "sale1", saleNumber: 5, status: "ANULADA", cashMovementId: null })) },
+    });
+
+    await voidSale(tx as never, inputBase);
+
+    expect(tx.fotofficePreparacionImpresion.updateMany).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Libro de movimientos en memoria: `create` agrega y `findMany` filtra como lo haría la base
+ * para la consulta de `consumosPendientesDeDevolver` (fuente, motivo y prefijo de nota).
+ */
+function libroDeMovimientos(iniciales: Array<Record<string, unknown>>) {
+  const filas = [...iniciales];
+  type Where = {
+    workspaceId: string;
+    sourceModule: string;
+    sourceRef: string;
+    reason: { in: string[] };
+    note: { startsWith: string };
+  };
+  return {
+    filas,
+    create: vi.fn(async ({ data }: { data: Record<string, unknown> }) => {
+      filas.push(data);
+      return data;
+    }),
+    findMany: vi.fn(async ({ where }: { where: Where }) =>
+      filas.filter(
+        (f) =>
+          f.workspaceId === where.workspaceId &&
+          f.sourceModule === where.sourceModule &&
+          f.sourceRef === where.sourceRef &&
+          where.reason.in.includes(String(f.reason)) &&
+          typeof f.note === "string" &&
+          f.note.startsWith(where.note.startsWith),
+      ),
+    ),
+  };
+}
+
+const consumoDelKit = {
+  workspaceId: "ws1",
+  productId: "kit",
+  variantId: null,
+  qty: -6,
+  reason: "CONSUMO",
+  sourceModule: "sales",
+  sourceRef: "sale1",
+  note: "consumo:item:x",
+};
+
+describe("voidSale — insumos consumidos", () => {
+  it("devuelve lo descontado aunque la receta haya cambiado", async () => {
+    // La venta descontó 6 copias del kit; la receta de hoy diría 1. Anular no relee la
+    // receta: devuelve exactamente lo que dicen los movimientos de esa venta.
+    const libro = libroDeMovimientos([consumoDelKit]);
+    const tx = voidTx({
+      saleItem: { findMany: vi.fn(async () => [{ id: "x", productId: "p1", variantId: null, qty: 3 }]) },
+      product: {
+        findMany: vi.fn(async () => [{ id: "p1", tracksStock: false }]),
+        update: vi.fn(async () => ({})),
+      },
+      stockMovement: { create: libro.create, findMany: libro.findMany },
+    });
+
+    const resultado = await voidSale(tx as never, inputBase);
+
+    expect(resultado).toEqual({ ok: true, saleNumber: 5 });
+    expect(tx.stockMovement.create).toHaveBeenCalledTimes(1);
+    expect(tx.stockMovement.create).toHaveBeenCalledWith({
+      data: {
+        workspaceId: "ws1",
+        productId: "kit",
+        variantId: null,
+        qty: 6,
+        reason: "DEVOLUCION",
+        sourceModule: "sales",
+        sourceRef: "sale1",
+        note: "consumo:item:x",
+        unitCostArs: null,
+        createdByUserId: 7,
+      },
+    });
+    expect(tx.product.update).toHaveBeenCalledWith({ where: { id: "kit" }, data: { stockQty: { increment: 6 } } });
+  });
+
+  it("bloquea en UNA sola consulta los productos de la venta y los insumos a devolver, antes de escribir", async () => {
+    const libro = libroDeMovimientos([consumoDelKit]);
+    const tx = voidTx({
+      saleItem: { findMany: vi.fn(async () => [{ id: "x", productId: "p1", variantId: "v1", qty: 3 }]) },
+      product: {
+        findMany: vi.fn(async () => [{ id: "p1", tracksStock: true }]),
+        update: vi.fn(async () => ({})),
+      },
+      stockMovement: { create: libro.create, findMany: libro.findMany },
+    });
+
+    await voidSale(tx as never, inputBase);
+
+    const consultas = tx.$queryRaw.mock.calls.map((c) => (c as unknown as [{ sql: string; values: unknown[] }])[0]);
+    expect(consultas).toHaveLength(2);
+    expect(consultas[0].sql).toMatch(/FROM "Product"[\s\S]*FOR UPDATE/);
+    expect(consultas[0].values).toEqual([["kit", "p1"], "ws1"]);
+    expect(consultas[1].sql).toMatch(/FROM "ProductVariant"[\s\S]*FOR UPDATE/);
+    expect(consultas[1].values).toEqual([["v1"], "ws1"]);
+
+    // Los pendientes se leen antes de bloquear (hacen falta sus ids), y nada se escribe antes.
+    const primerBloqueo = Math.min(...tx.$queryRaw.mock.invocationCallOrder);
+    const ultimoBloqueo = Math.max(...tx.$queryRaw.mock.invocationCallOrder);
+    expect(tx.stockMovement.findMany.mock.invocationCallOrder[0]).toBeLessThan(primerBloqueo);
+    expect(ultimoBloqueo).toBeLessThan(Math.min(...tx.stockMovement.create.mock.invocationCallOrder));
+
+    // Primero vuelve el producto (como siempre), después el insumo.
+    const devueltos = libro.filas.filter((f) => f.reason === "DEVOLUCION").map((f) => [f.productId, f.qty]);
+    expect(devueltos).toEqual([
+      ["p1", 3],
+      ["kit", 6],
+    ]);
+  });
+
+  it("anular dos veces no devuelve dos veces", async () => {
+    // La venta sigue figurando COMPLETADA en el `tx` falso: así se prueba que, aunque la guarda
+    // del estado se saltee (una carrera, un dato viejo), el insumo no vuelve dos veces.
+    const libro = libroDeMovimientos([consumoDelKit]);
+    const tx = voidTx({
+      saleItem: { findMany: vi.fn(async () => [{ id: "x", productId: "p1", variantId: null, qty: 3 }]) },
+      product: {
+        findMany: vi.fn(async () => [{ id: "p1", tracksStock: false }]),
+        update: vi.fn(async () => ({})),
+      },
+      stockMovement: { create: libro.create, findMany: libro.findMany },
+    });
+
+    await voidSale(tx as never, inputBase);
+    await voidSale(tx as never, inputBase);
+
+    const devoluciones = libro.filas.filter((f) => f.productId === "kit" && f.reason === "DEVOLUCION");
+    expect(devoluciones).toHaveLength(1);
+    expect(devoluciones[0].qty).toBe(6);
+  });
+
+  it("consulta sólo los consumos de ESTA venta, en el módulo de ventas", async () => {
+    const tx = voidTx();
+
+    await voidSale(tx as never, inputBase);
+
+    expect(tx.stockMovement.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ workspaceId: "ws1", sourceModule: "sales", sourceRef: "sale1" }),
+      }),
+    );
   });
 });

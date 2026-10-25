@@ -36,7 +36,7 @@ const csp = [
   `worker-src 'self' 'unsafe-inline' 'unsafe-eval' blob:`,
   "style-src 'self' 'unsafe-inline' https:",
   "img-src 'self' data: blob: https:",
-  "connect-src 'self' https: https://api.mercadopago.com https://api.mercadolibre.com https://events.mercadopago.com https://auth.mercadopago.com https://sdk.mercadopago.com https://http2.mlstatic.com https://secure-fields.mercadopago.com https://www.mercadolibre.com https://vercel.live wss://vercel.live",
+  "connect-src 'self' blob: https: https://api.mercadopago.com https://api.mercadolibre.com https://events.mercadopago.com https://auth.mercadopago.com https://sdk.mercadopago.com https://http2.mlstatic.com https://secure-fields.mercadopago.com https://www.mercadolibre.com https://vercel.live wss://vercel.live",
   `frame-src ${frameSrcValue}`,
   "child-src 'self' blob: https://secure-fields.mercadopago.com https://www.mercadolibre.com https://sdk.mercadopago.com https://http2.mlstatic.com",
   "object-src 'none'",
@@ -88,6 +88,8 @@ const nextConfig: NextConfig = {
   // Evita que un pnpm-lock.yaml fuera del monorepo hijackee la resolución de @prisma/client.
   outputFileTracingRoot: monorepoRoot,
   transpilePackages: [
+    "@repo/quick-search",
+    "@repo/dnx-bot",
     "@repo/db",
     "@repo/partners",
     "@repo/auth",
@@ -108,9 +110,20 @@ const nextConfig: NextConfig = {
     // apps/fotoffice, que consume el mismo paquete.
     "pdf-to-png-converter",
     "@napi-rs/canvas",
+    // Los diseños aprobados (`lib/design-v2/render.ts`) se rasterizan a JPG con `mupdf`, que es
+    // WebAssembly: igual en todos los sistemas, corre en Vercel. Webpack no sabe empaquetar su
+    // `.wasm`; lo carga Node en tiempo de ejecución. Mismo criterio que FOTOFFICE y Clickatón.
+    "mupdf",
   ],
   // @repo/payments usa imports ESM con extensión .js apuntando a fuentes .ts.
-  webpack: (config, { isServer }) => {
+  webpack: (config, { isServer, dev }) => {
+    /**
+     * En Vercel, sin caché de webpack: el caché restaurado del deploy anterior crece hasta que
+     * cargarlo pasa los 8 GB de la máquina y el build muere sin mensaje (15/10/2026). Mismo
+     * arreglo que FOTOFFICE (PR 459). En local el caché sigue (sin `VERCEL`).
+     */
+    if (!dev && process.env.VERCEL) config.cache = false;
+
     config.resolve = config.resolve ?? {};
     config.resolve.extensionAlias = {
       ...(config.resolve.extensionAlias ?? {}),
@@ -136,6 +149,10 @@ const nextConfig: NextConfig = {
             request?.startsWith("@napi-rs/canvas-")
           ) {
             return callback(undefined, `commonjs ${request}`);
+          }
+          // `mupdf` es ESM con `await` en el nivel superior: va como `import()` nativo.
+          if (request === "mupdf") {
+            return callback(undefined, "import mupdf");
           }
           return callback();
         },
@@ -175,6 +192,17 @@ const nextConfig: NextConfig = {
   },
   async redirects() {
     return [
+      // La página de Ceci Donnelly se llamaba «donelly» (mal escrito): los links viejos siguen andando.
+      {
+        source: "/donelly",
+        destination: "/donnelly",
+        permanent: true,
+      },
+      {
+        source: "/donelly/:path*",
+        destination: "/donnelly/:path*",
+        permanent: true,
+      },
       {
         source: "/organizadores",
         destination: "/organizador",
@@ -184,6 +212,26 @@ const nextConfig: NextConfig = {
         source: "/Organizadores",
         destination: "/organizador",
         permanent: true,
+      },
+      // camofduty.com cuelga de este proyecto y lleva a Cam Of Duty.
+      // Temporal (307) para poder darle su propia app más adelante.
+      {
+        source: "/",
+        has: [{ type: "host", value: "camofduty.com" }],
+        destination: "https://www.compramelafoto.com/camofduty",
+        permanent: false,
+      },
+      {
+        source: "/camofduty/:path*",
+        has: [{ type: "host", value: "camofduty.com" }],
+        destination: "https://www.compramelafoto.com/camofduty/:path*",
+        permanent: false,
+      },
+      {
+        source: "/:path*",
+        has: [{ type: "host", value: "camofduty.com" }],
+        destination: "https://www.compramelafoto.com/camofduty/:path*",
+        permanent: false,
       },
     ];
   },
@@ -221,6 +269,15 @@ const nextConfig: NextConfig = {
   },
   outputFileTracingIncludes: {
     "/api/photos/**": ["./assets/fonts/Roboto-Regular.ttf", "./assets/watermark.png"],
+    /*
+     * El motor que pasa el diseño aprobado a JPG. Solo en la ruta que lo usa: el `.wasm` pesa
+     * 10 MB y Next lo copia una vez por función (aplicado a todas, el build se queda sin disco).
+     */
+    "/api/fotografo/disenos/[id]/approve": [
+      "../../node_modules/.pnpm/mupdf@*/node_modules/mupdf/dist/*.js",
+      "../../node_modules/.pnpm/mupdf@*/node_modules/mupdf/dist/*.wasm",
+      "../../node_modules/.pnpm/mupdf@*/node_modules/mupdf/package.json",
+    ],
   },
   outputFileTracingExcludes: {
     "/api/photos/**": photoViewTraceExcludes,

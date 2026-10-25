@@ -39,6 +39,12 @@ describe("decideCustomDomainRoute", () => {
     expect(decide("/w/sfpr/reservas/abc")).toEqual({ kind: "redirect", url: `${ORIGIN}/w/sfpr/reservas/abc` });
   });
 
+  it("los enlaces de la comisión se abren en FOTOFFICE, donde está la sesión", () => {
+    expect(decide("/proyecto/cmabc123")).toEqual({ kind: "redirect", url: `${ORIGIN}/w/sfpr/proyecto/cmabc123` });
+    expect(decide("/reunion/cmabc123")).toEqual({ kind: "redirect", url: `${ORIGIN}/w/sfpr/reunion/cmabc123` });
+    expect(decide("/w/sfpr/proyecto/cmabc123")).toEqual({ kind: "redirect", url: `${ORIGIN}/w/sfpr/proyecto/cmabc123` });
+  });
+
   it("no toca recursos de Next, la API ni archivos", () => {
     expect(decide("/_next/data/x.json")).toEqual({ kind: "pass" });
     expect(decide("/api/w/sfpr/blog/views")).toEqual({ kind: "pass" });
@@ -57,5 +63,24 @@ describe("isFotofficeHost", () => {
     expect(isFotofficeHost("localhost", ORIGIN)).toBe(true);
     expect(isFotofficeHost("fotoffice-git-x.vercel.app", ORIGIN)).toBe(true);
     expect(isFotofficeHost("sfpr.com.ar", ORIGIN)).toBe(false);
+  });
+});
+
+describe("formulario insertable en el dominio propio", () => {
+  it("/insertar[/<formulario>] se dibuja sin el armazón del sitio", () => {
+    expect(decide("/insertar")).toEqual({ kind: "rewrite", pathname: "/formulario-insertado/sfpr/general" });
+    expect(decide("/insertar/xv")).toEqual({ kind: "rewrite", pathname: "/formulario-insertado/sfpr/xv" });
+    // El script de alto automático es un archivo estático: pasa sin tocar.
+    expect(decide("/insertar.js")).toEqual({ kind: "pass" });
+  });
+});
+
+describe("enlaces personales de módulos (galería, contrato, presupuesto)", () => {
+  it("/galeria/<token> en el dominio propio se sirve internamente bajo /w/<slug> (sin redirigir a FOTOFFICE)", () => {
+    expect(decide("/galeria/abc123")).toEqual({ kind: "rewrite", pathname: "/w/sfpr/galeria/abc123" });
+    expect(decide("/contrato/abc123")).toEqual({ kind: "rewrite", pathname: "/w/sfpr/contrato/abc123" });
+  });
+  it("el enlace con /w/<slug> se limpia con un salto,", () => {
+    expect(decide("/w/sfpr/galeria/abc123")).toEqual({ kind: "redirect", url: "/galeria/abc123" });
   });
 });

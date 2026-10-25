@@ -15,6 +15,7 @@ import {
 } from "./template-v2-mappers";
 import { loadTemplateV2BlocksForVersion } from "./load-template-v2-blocks-from-db";
 import { TEMPLATE_SCHEMA_VERSION } from "@repo/template-engine";
+import { readPrivateCopy, withoutServerOwnedMeta } from "../template-v2-version-lineage";
 
 
 const ALLOWED_SORT = new Set(["updatedAt", "createdAt", "name"] as const);
@@ -286,9 +287,12 @@ export async function loadEditorVersion(
     canvas: legacy.canvas,
     blocks: legacy.blocks,
     variableBindings: legacy.variableBindings,
-    meta: legacy.meta,
+    // Las marcas del servidor (origen, copia privada) no viajan: al guardar se conservan solas.
+    meta: withoutServerOwnedMeta(legacy.meta),
     updatedAt: detail.meta.updatedAt,
     versionNumber: detail.meta.versionNumber,
+    /** Ver `template-v2-version-lineage.ts`: copia de un solo diseño, si lo es. */
+    privateCopy: readPrivateCopy(legacy.meta),
   };
 }
 
@@ -309,18 +313,22 @@ export async function listTemplateVersions(user: TemplateV2AuthUser, templateId:
   const versions = await db.templateV2Version.findMany({
     where: { templateId },
     orderBy: { versionNumber: "desc" },
-    select: { id: true, versionNumber: true, updatedAt: true },
+    select: { id: true, versionNumber: true, updatedAt: true, isLocked: true, metaJson: true },
   });
 
   return {
     ok: true as const,
     currentVersionId: template!.currentVersionId,
-    versions: versions.map((v: { id: string; versionNumber: number; updatedAt: Date }) => ({
-      id: v.id,
-      versionNumber: v.versionNumber,
-      updatedAt: v.updatedAt.toISOString(),
-      isCurrent: v.id === template!.currentVersionId,
-    })),
+    versions: versions
+      // Las copias de un solo diseño no son versiones de la plantilla.
+      .filter((v: { metaJson: unknown }) => !readPrivateCopy(v.metaJson))
+      .map((v: { id: string; versionNumber: number; updatedAt: Date; isLocked: boolean }) => ({
+        id: v.id,
+        versionNumber: v.versionNumber,
+        updatedAt: v.updatedAt.toISOString(),
+        isCurrent: v.id === template!.currentVersionId,
+        isLocked: Boolean(v.isLocked),
+      })),
   };
 }
 

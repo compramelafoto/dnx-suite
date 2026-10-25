@@ -139,7 +139,7 @@ export function counterpartProfile(
 
 export type RoleOption = {
   kind: "TEAM" | "MEMBER";
-  /** "Socio" (palabra del vocabulario) o "Comisión" / "Administración" según el rol de equipo. */
+  /** "Socio" (palabra del vocabulario) o "Comisión Directiva". */
   label: string;
   /** El activo sale de la pantalla en la que está la persona, no de un estado guardado. */
   active: boolean;
@@ -151,8 +151,7 @@ export type RoleSelector = { workspaceId: string; options: RoleOption[] };
  * El selector de rol del menú lateral, como el de FotoRank.
  *
  * Sólo existe si la persona tiene los DOS perfiles (socio y equipo) en la institución que está
- * viendo; perfiles en otras instituciones no cuentan. El equipo se llama "Comisión" cuando su
- * rol es STAFF y "Administración" cuando es dueño o admin.
+ * viendo; perfiles en otras instituciones no cuentan. El equipo se llama "Comisión Directiva".
  *
  * Pura a propósito: los marcos sólo dibujan lo que esto decide.
  */
@@ -176,8 +175,12 @@ export function roleSelector(
   };
 }
 
-function teamRoleLabel(role: string): string {
-  return PANEL_DAILY_ROLES.has(role) ? "Administración" : "Comisión";
+/**
+ * El selector sólo aparece en una institución de la que la persona es socia: ahí el equipo es la
+ * Comisión Directiva, administre o no (pedido de SFPR, 06/10/2026). El rol no cambia el nombre.
+ */
+function teamRoleLabel(_role: string): string {
+  return "Comisión Directiva";
 }
 
 export type InstitutionChoice = {
@@ -230,4 +233,67 @@ export function entryProfileForInstitution(
   const own = profiles.filter((p) => p.workspaceId === workspaceId);
   const decision = resolveEntryProfile(own, rememberedKey);
   return decision.kind === "go" ? decision.profile : null;
+}
+
+/**
+ * Si la persona ya tiene SU propio negocio en FotoOffice.
+ *
+ * Reusa la regla de `institutionChoices`: es su negocio el workspace del que es dueña y del
+ * que NO es socia. Administrar la institución de la que se es socio no cuenta.
+ *
+ * La distinción no es cosmética. Antes, "tener negocio" era "tener cualquier perfil de equipo",
+ * y con esa regla todo socio con rol en su sociedad —toda la Comisión Directiva de la SFPR—
+ * quedaba inhabilitado para siempre de administrar su estudio con FotoOffice: no veía la
+ * invitación a crearlo, y si llegaba a la acción, ésta le devolvía la institución en vez de
+ * crear nada. El caso está documentado arriba como el esperado.
+ */
+export function hasOwnBusiness(profiles: UserProfile[]): boolean {
+  return institutionChoices(profiles).some((c) => c.ownBusiness);
+}
+
+export type AccountPlace = {
+  workspaceId: string;
+  name: string;
+  /** Su negocio, por oposición a una institución de la que participa. */
+  ownBusiness: boolean;
+  /** Su número de socio ahí, si lo es. */
+  memberNumber: string | null;
+  /** Si además tiene perfil de equipo ahí (dibuja "Comisión Directiva" cuando no es socia). */
+  isTeam: boolean;
+  /** La que se está mirando ahora. */
+  active: boolean;
+};
+
+/** Lo que muestra el menú de la cuenta: dónde puede entrar y si le falta crear su negocio. */
+export type AccountMenu = {
+  places: AccountPlace[];
+  canCreateBusiness: boolean;
+};
+
+/**
+ * El menú colgado del avatar, igual en el panel y en el portal.
+ *
+ * Pura a propósito, como `roleSelector`: los marcos sólo dibujan lo que esto decide. No incluye
+ * el rol —socio ⇄ Comisión Directiva— porque ése depende del vocabulario de la institución
+ * activa, que cada marco ya carga y le pasa al `RoleSelector` que existe desde antes.
+ *
+ * El negocio propio va primero: es el único lugar donde la persona manda sola, y el que busca
+ * cuando viene a trabajar en lo suyo.
+ */
+export function accountMenu(
+  profiles: UserProfile[],
+  activeWorkspaceId: string | null,
+): AccountMenu {
+  const places = institutionChoices(profiles).map((c): AccountPlace => ({
+    workspaceId: c.workspaceId,
+    name: c.workspaceName,
+    ownBusiness: c.ownBusiness,
+    memberNumber: c.memberNumber,
+    isTeam: c.profiles.some((p) => p.kind === "TEAM"),
+    active: c.workspaceId === activeWorkspaceId,
+  }));
+
+  places.sort((a, b) => Number(b.ownBusiness) - Number(a.ownBusiness));
+
+  return { places, canCreateBusiness: !places.some((p) => p.ownBusiness) };
 }

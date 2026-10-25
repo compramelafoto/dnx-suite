@@ -4,6 +4,7 @@ export { ToolbarButton } from "./editor/ToolbarButton";
 export { ContentPostForm, type ContentPostFormProps } from "./form/ContentPostForm";
 export { buildContentPostSubmitPayload, toDatetimeLocal } from "./form/buildSubmitPayload";
 export { syncContentPostImageFields, type ContentImageFields } from "./form/syncImages";
+export { isScheduledPublication, publishedAtFor, type ContentPublishAction } from "./form/schedule";
 
 export { ContentMediaLibrary, type ContentMediaLibraryProps } from "./media/ContentMediaLibrary";
 export { ContentMediaPicker, type ContentMediaPickerProps } from "./media/ContentMediaPicker";

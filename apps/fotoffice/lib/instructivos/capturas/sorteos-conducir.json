@@ -1,0 +1,32 @@
+[
+  {
+    "archivo": "01-nuevo-sorteo.png",
+    "ruta": "/sorteos/nuevo",
+    "que_mostrar": "El formulario Nuevo sorteo con datos de ejemplo (Título «Sorteo de noviembre», una fecha de acto) y Cierre del padrón vacío, sin enviar.",
+    "selector_recorte": "form"
+  },
+  {
+    "archivo": "02-agregar-premio.png",
+    "ruta": "/sorteos/<id de un sorteo en Borrador>",
+    "que_mostrar": "Bajar hasta Agregar un premio en un sorteo en Borrador y completar un premio de ejemplo eligiendo una marca de la lista de aliados. No apretar Agregar premio.",
+    "selector_recorte": "form:has(#partnerName)"
+  },
+  {
+    "archivo": "03-anunciar.png",
+    "ruta": "/sorteos/<id de un sorteo en Borrador con al menos un premio>",
+    "que_mostrar": "La tabla de Premios con uno o dos premios cargados y, debajo, la sección Qué se puede hacer ahora con el botón Anunciar el sorteo. No apretarlo en la base real.",
+    "selector_recorte": null
+  },
+  {
+    "archivo": "04-sorteado.png",
+    "ruta": "/sorteos/<id de un sorteo ya Sorteado>",
+    "que_mostrar": "Un sorteo resuelto: la tarjeta de estado y fechas, la sección La prueba y la tabla de premios con los ganadores. Si se publica, tapar o difuminar nombres y números de socio.",
+    "selector_recorte": null
+  },
+  {
+    "archivo": "05-entregas.png",
+    "ruta": "/sorteos/entregas",
+    "que_mostrar": "La pantalla Premios por entregar con al menos un premio pendiente, mostrando los avisos al socio y al aliado y los botones Ya le avisamos, Lo retiró y Anular. Difuminar datos del socio (nombre, correo, teléfono).",
+    "selector_recorte": null
+  }
+]

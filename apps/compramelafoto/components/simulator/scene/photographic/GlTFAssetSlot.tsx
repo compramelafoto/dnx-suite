@@ -136,10 +136,11 @@ export default function GlTFAssetSlot({ slot }: GlTFAssetSlotProps) {
     };
   }, [url, slot.id, slot.label]);
 
+  // El wrapper recién existe en fase "ready": re-aplicar al cambiar de fase.
   useEffect(() => {
     if (!wrapperRef.current) return;
     applySlotTransform(wrapperRef.current, slot);
-  }, [slot]);
+  }, [slot, phase]);
 
   if (!url || phase === "idle" || phase === "checking") return null;
 

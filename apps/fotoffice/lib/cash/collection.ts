@@ -24,7 +24,11 @@ import { buildReversal } from "./reverse";
 type Tx = Prisma.TransactionClient | PrismaClient;
 type AutoSource = Exclude<MovementSource, "manual">;
 
-export const MP_FEE_CATEGORY = "Comisión Mercado Pago";
+/**
+ * El mismo rubro que usan los cobros de pedidos (`RUBRO_COMISIONES_MP` en `lib/pedidos/cobros.ts`):
+ * todas las comisiones de Mercado Pago de Caja quedan juntas en un solo rubro de egreso.
+ */
+export const MP_FEE_CATEGORY = "Comisiones de Mercado Pago";
 export const PLATFORM_FEE_CATEGORY = "Comisión plataforma";
 export const REFUND_CATEGORY = "Devoluciones";
 

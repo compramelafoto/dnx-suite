@@ -11,8 +11,10 @@ type Params = {
 
 /**
  * GET /api/account/registrations/[registrationId]/cards/[cardType]
- * cardType: welcome | member
- * Requiere sesión + ownership. PNG get-or-generate con persistencia.
+ * cardType: welcome | member | diploma
+ * Requiere sesión + ownership. PNG get-or-generate con persistencia para
+ * welcome/member; el diploma no se genera acá, sólo se sirve lo que ya
+ * emitió el admin (PNG por defecto, PDF con `?format=pdf`).
  */
 export async function GET(req: Request, { params }: Params) {
   const user = await getClickatonAuthUser();

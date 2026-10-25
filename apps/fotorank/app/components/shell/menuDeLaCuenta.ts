@@ -69,14 +69,14 @@ function menuDelFotografo(esOrganizador: boolean): ShellSection[] {
     {
       title: SECCION.fotografo,
       items: [
-        { label: "Inicio", href: INICIO_DEL_ROL.fotografo, icon: "home" },
-        { label: "Mis participaciones", href: "/participaciones", icon: "gallery" },
-        { label: "Explorar concursos", href: "/", icon: "search" },
+        { label: "Inicio", href: INICIO_DEL_ROL.fotografo, icon: "home", description: "Lo último de tus concursos y participaciones" },
+        { label: "Mis participaciones", href: "/participaciones", icon: "gallery", description: "Las fotos que mandaste, en qué estado están y sus resultados" },
+        { label: "Explorar concursos", href: "/", icon: "search", description: "Concursos abiertos para inscribirte" },
         // Quien todavía no organiza tiene por dónde empezar; quien ya organiza
         // tiene su propio rol.
         ...(esOrganizador
           ? []
-          : [{ label: "Organizar un concurso", href: "/onboarding", icon: "plus" }]),
+          : [{ label: "Organizar un concurso", href: "/onboarding", icon: "plus", description: "Creá tu organización y armá tu primer concurso" }]),
       ],
     },
   ];
@@ -86,9 +86,9 @@ const MENU_DEL_JURADO: ShellSection[] = [
   {
     title: SECCION.jurado,
     items: [
-      { label: "Concursos a calificar", href: INICIO_DEL_ROL.jurado, icon: "favorite" },
-      { label: "Invitaciones recibidas", href: "/jurado/invitaciones", icon: "email" },
-      { label: "Mi ficha de jurado", href: "/jurado/perfil", icon: "user" },
+      { label: "Concursos a calificar", href: INICIO_DEL_ROL.jurado, icon: "favorite", description: "Las fotos que te toca puntuar, concurso por concurso" },
+      { label: "Invitaciones recibidas", href: "/jurado/invitaciones", icon: "email", description: "Aceptá o rechazá las invitaciones para ser jurado" },
+      { label: "Mi ficha de jurado", href: "/jurado/perfil", icon: "user", description: "Tu biografía y datos de jurado, los que ven los organizadores" },
     ],
   },
 ];
@@ -101,9 +101,9 @@ const HERRAMIENTAS_DE_CONCURSOS: ShellSection[] = [
   {
     title: SECCION.concursos,
     items: [
-      { label: "Resumen", href: INICIO_DEL_ROL.organizador, icon: "dashboard" },
-      { label: "Mis concursos", href: "/concursos", icon: "camera" },
-      { label: "Categorías", href: "/categorias", icon: "album" },
+      { label: "Resumen", href: INICIO_DEL_ROL.organizador, icon: "dashboard", description: "Cómo vienen tus concursos: inscripciones, fotos y jurados" },
+      { label: "Mis concursos", href: "/concursos", icon: "camera", description: "Creá, editá y seguí tus concursos" },
+      { label: "Categorías", href: "/categorias", icon: "album", description: "Las categorías en las que compiten las fotos" },
     ],
   },
   {
@@ -111,22 +111,22 @@ const HERRAMIENTAS_DE_CONCURSOS: ShellSection[] = [
     items: [
       // El circuito en orden: buscar, invitar, ver quién aceptó, repartir.
       // Las invitaciones por correo y el historial se abren desde "Mis jurados".
-      { label: "Buscar jurados", href: "/jurados/directorio", icon: "search" },
-      { label: "Invitaciones", href: "/jurados/directorio/invitaciones", icon: "send" },
-      { label: "Mis jurados", href: "/jurados", icon: "user" },
-      { label: "Asignaciones", href: "/jurados/asignaciones", icon: "plus" },
+      { label: "Buscar jurados", href: "/jurados/directorio", icon: "search", description: "Encontrá jurados disponibles en la bolsa de FotoRank" },
+      { label: "Invitaciones", href: "/jurados/directorio/invitaciones", icon: "send", description: "Las invitaciones que mandaste y quién aceptó" },
+      { label: "Mis jurados", href: "/jurados", icon: "user", description: "Los jurados de tu organización, invitaciones por correo e historial" },
+      { label: "Asignaciones", href: "/jurados/asignaciones", icon: "plus", description: "Repartí concursos y categorías entre los jurados" },
     ],
   },
   {
     title: SECCION.resultados,
     items: [
-      { label: "Ranking", href: "/ranking", icon: "sort" },
-      { label: "Diplomas", href: "/diplomas", icon: "invoice" },
+      { label: "Ranking", href: "/ranking", icon: "sort", description: "Los puntajes, las posiciones y la publicación de resultados" },
+      { label: "Diplomas", href: "/diplomas", icon: "invoice", description: "Generá y descargá los diplomas de premiados y menciones" },
     ],
   },
   {
     title: SECCION.organizacion,
-    items: [{ label: "Datos de la organización", href: "/dashboard/settings", icon: "settings" }],
+    items: [{ label: "Datos de la organización", href: "/dashboard/settings", icon: "settings", description: "Nombre, logo y datos de tu organización" }],
   },
 ];
 
@@ -134,19 +134,20 @@ function plataforma(juradosPorRevisar: number): ShellSection {
   return {
     title: SECCION.plataforma,
     items: [
-      { label: "Panorama general", href: "/super-admin", icon: "dashboard" },
-      { label: "Organizaciones", href: "/super-admin#organizaciones", icon: "home" },
-      { label: "Todos los concursos", href: "/super-admin#concursos", icon: "camera" },
-      { label: "Usuarios", href: "/super-admin#usuarios", icon: "user" },
+      { label: "Panorama general", href: "/super-admin", icon: "dashboard", description: "Los números de toda la plataforma" },
+      { label: "Organizaciones", href: "/super-admin#organizaciones", icon: "home", description: "Todas las organizaciones que usan FotoRank" },
+      { label: "Todos los concursos", href: "/super-admin#concursos", icon: "camera", description: "Los concursos de todas las organizaciones" },
+      { label: "Usuarios", href: "/super-admin#usuarios", icon: "user", description: "Las cuentas de la plataforma" },
       {
         label: "Jurados por revisar",
         href: COLA_DE_REVISION_HREF,
         icon: "success",
+        description: "Fichas de jurado que esperan aprobación",
         // El número es la razón para entrar; con la cola vacía no se muestra.
         ...(juradosPorRevisar > 0 ? { badge: juradosPorRevisar } : {}),
       },
-      { label: "Conexión con Clickatón", href: CONEXION_CLICKATON_HREF, icon: "sync" },
-      { label: "Auditoría", href: "/super-admin#logs", icon: "security" },
+      { label: "Conexión con Clickatón", href: CONEXION_CLICKATON_HREF, icon: "sync", description: "El vínculo entre FotoRank y Clickatón" },
+      { label: "Auditoría", href: "/super-admin#logs", icon: "security", description: "Quién hizo qué y cuándo en la plataforma" },
     ],
   };
 }

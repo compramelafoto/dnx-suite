@@ -144,7 +144,7 @@ export default function Home() {
                 <span
                   aria-hidden
                   className="block text-2xl font-extrabold tabular-nums"
-                  style={{ color: "var(--slf-violeta)" }}
+                  style={{ color: "var(--slf-violeta-texto)" }}
                 >
                   {String(i + 1).padStart(2, "0")}
                 </span>
@@ -272,7 +272,7 @@ export default function Home() {
         <div className="mx-auto max-w-5xl">
           <p className="max-w-[52ch] text-lg leading-relaxed">
             Estamos terminando de construirla. SubiLaFoto abre en{" "}
-            <strong className="font-extrabold" style={{ color: "var(--slf-violeta)" }}>
+            <strong className="font-extrabold" style={{ color: "var(--slf-violeta-texto)" }}>
               octubre de 2026
             </strong>
             .

@@ -26,10 +26,13 @@ export async function notifyClientDigitalZipReady(
       createdAt: true,
       buyerEmail: true,
       buyerUserId: true,
+      isTest: true,
     },
   });
 
-  if (!order?.buyerEmail) {
+  // Pedido de prueba (p. ej. el DEMO de "Probar como cliente"): el ZIP se arma igual para
+  // descargarlo desde Pedidos, pero no se avisa por correo.
+  if (!order?.buyerEmail || order.isTest) {
     return;
   }
 

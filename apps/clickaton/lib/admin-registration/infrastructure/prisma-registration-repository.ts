@@ -1,6 +1,5 @@
 import { prisma, Prisma } from "@/lib/admin/db";
 import { reverseAffiliateCommission } from "@/lib/affiliates/infrastructure/commission-lifecycle";
-import { welcomeCardMediaUrl } from "@/lib/welcome-card/media-url";
 import type {
   ClickatonPaymentStatus,
   ClickatonRegistrationStatus,
@@ -72,9 +71,6 @@ function mapList(row: {
   fotoRankSyncedAt: Date | null;
   instagramHandle: string | null;
   profilePhotoAssetId: string | null;
-  welcomeCardId: string | null;
-  welcomeCardStatus: string | null;
-  welcomeCardAssetId: string | null;
   welcomePublicationStatus: string | null;
   _count: { items: number; audits: number };
   items?: Array<{
@@ -115,9 +111,6 @@ function mapList(row: {
     fotoRankSyncedAt: row.fotoRankSyncedAt,
     instagramHandle: row.instagramHandle,
     profilePhotoAssetId: row.profilePhotoAssetId,
-    welcomeCardId: row.welcomeCardId,
-    welcomeCardStatus: row.welcomeCardStatus,
-    welcomeCardAssetId: row.welcomeCardAssetId,
     welcomePublicationStatus: row.welcomePublicationStatus,
   };
 }
@@ -145,40 +138,12 @@ async function loadDetail(id: string): Promise<AdminRegistrationDetail | null> {
           updatedAt: true,
         },
       },
-      welcomeCards: {
-        orderBy: { updatedAt: "desc" },
-        take: 1,
-        select: {
-          id: true,
-          status: true,
-          templateId: true,
-          templateVersion: true,
-          pngAssetId: true,
-          webpAssetId: true,
-          publicationStatus: true,
-          lastErrorCode: true,
-          lastErrorMessage: true,
-          attemptCount: true,
-          generatedAt: true,
-        },
-      },
     },
   });
   if (!row) return null;
 
   const hasInternalNotes = row.audits.some((a) => a.action === "INTERNAL_NOTE");
   const latestSync = row.fotoRankSyncs[0] ?? null;
-  const latestCard = row.welcomeCards[0] ?? null;
-  const assetIds = [latestCard?.pngAssetId, latestCard?.webpAssetId].filter(
-    (v): v is string => Boolean(v),
-  );
-  const assets = assetIds.length
-    ? await prisma.dnxMediaAsset.findMany({
-        where: { id: { in: assetIds } },
-        select: { id: true, publicUrl: true },
-      })
-    : [];
-  const assetUrl = new Map(assets.map((a) => [a.id, a.publicUrl]));
 
   return {
     id: row.id,
@@ -210,9 +175,6 @@ async function loadDetail(id: string): Promise<AdminRegistrationDetail | null> {
     fotoRankSyncedAt: row.fotoRankSyncedAt,
     instagramHandle: row.instagramHandle,
     profilePhotoAssetId: row.profilePhotoAssetId,
-    welcomeCardId: row.welcomeCardId,
-    welcomeCardStatus: row.welcomeCardStatus,
-    welcomeCardAssetId: row.welcomeCardAssetId,
     welcomePublicationStatus: row.welcomePublicationStatus,
     userId: row.userId,
     phone: row.phone,
@@ -294,28 +256,6 @@ async function loadDetail(id: string): Promise<AdminRegistrationDetail | null> {
           fotoRankContestId: latestSync.fotoRankContestId,
           completedAt: latestSync.completedAt,
           updatedAt: latestSync.updatedAt,
-        }
-      : null,
-    welcomeCard: latestCard
-      ? {
-          id: latestCard.id,
-          status: latestCard.status,
-          templateId: latestCard.templateId,
-          templateVersion: latestCard.templateVersion,
-          /*
-           * Por el proxy autenticado y no por la dirección que guarda el archivo: esa apunta
-           * al proxy de medios públicos, que rechaza a propósito las placas y devuelve 404.
-           * Era lo que dejaba la vista previa del panel siempre rota.
-           */
-          pngUrl: latestCard.pngAssetId ? welcomeCardMediaUrl(row.id) : null,
-          webpUrl: latestCard.webpAssetId
-            ? welcomeCardMediaUrl(row.id, { format: "webp" })
-            : null,
-          publicationStatus: latestCard.publicationStatus,
-          lastErrorCode: latestCard.lastErrorCode,
-          lastErrorMessage: latestCard.lastErrorMessage,
-          attemptCount: latestCard.attemptCount,
-          generatedAt: latestCard.generatedAt,
         }
       : null,
     commercial: {
@@ -415,9 +355,6 @@ export function createPrismaAdminRegistrationRepository(): ClickatonAdminRegistr
           fotoRankSyncedAt: true,
           instagramHandle: true,
           profilePhotoAssetId: true,
-          welcomeCardId: true,
-          welcomeCardStatus: true,
-          welcomeCardAssetId: true,
           welcomePublicationStatus: true,
           items: {
             where: { isIncluded: true },

@@ -15,11 +15,22 @@ export default function SimulatorShell({ children, variant = "landing" }: Simula
 
         <nav className="cod-nav" aria-label="Navegación Cam Of Duty">
           {variant === "landing" ? (
-            <Link href="/camofduty/simulador" className="cod-btn cod-btn--primary cod-btn--sm">
-              Entrar al simulador
-            </Link>
+            <>
+              <Link href="/camofduty/estudio" className="cod-btn cod-btn--ghost cod-btn--sm">
+                Estudio Fotográfico
+              </Link>
+              <Link href="/camofduty/simulador" className="cod-btn cod-btn--primary cod-btn--sm">
+                Entrar al simulador
+              </Link>
+            </>
           ) : (
             <>
+              <Link href="/camofduty/estudio" className="cod-btn cod-btn--ghost cod-btn--sm">
+                Estudio Fotográfico
+              </Link>
+              <Link href="/camofduty/simulador" className="cod-btn cod-btn--ghost cod-btn--sm">
+                Simulador
+              </Link>
               <Link href="/camofduty#modulos" className="cod-btn cod-btn--ghost cod-btn--sm">
                 Módulos
               </Link>
