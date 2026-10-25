@@ -53,6 +53,8 @@ export const NAV_KEYWORDS: Record<string, string[]> = {
   "/evaluaciones": ["notas", "calificaciones", "examenes", "trabajos practicos"],
   "/courses/settings": ["ajustes", "moneda", "comision"],
 
+  "/ventas/analisis": ["análisis", "analisis", "estadísticas", "horas pico", "mejores días", "más vendidos", "ranking", "informe de ventas"],
+  "/ventas/comisiones": ["comisión", "comision", "comisiones", "incentivo", "ganancia del equipo", "vendedora"],
   "/ventas/costos": ["costos", "costo", "margen", "ganancia", "proveedor", "lista de precios", "listas", "la isla", "fotolag", "roman", "redondeo", "actualizar precios"],
   "/ventas/foto-carnet": ["foto carnet", "fotocarnet", "recortar", "recorte", "encuadrar", "dni", "pasaporte", "plancha", "4x4", "imprimir"],
   "/ventas/impresiones": ["imprimir", "impresion", "cola", "para imprimir", "kodak", "epson", "carnet", "reimprimir"],
