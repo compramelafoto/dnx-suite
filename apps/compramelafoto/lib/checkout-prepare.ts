@@ -10,6 +10,13 @@ export const CHECKOUT_PREPARE_READY_EVENT = "checkout-prepare-ready";
 
 export const CHECKOUT_PREPARE_TIMEOUT_MS = 60_000;
 
+/**
+ * Si la navegación interna al checkout no aterrizó en este tiempo, se fuerza una carga
+ * completa de la página. En algunos celulares (conexión débil, navegadores dentro de
+ * WhatsApp/Instagram) `router.push` queda colgado aunque el servidor ya respondió.
+ */
+export const CHECKOUT_HARD_NAV_FALLBACK_MS = 8_000;
+
 export function checkoutPrepareStorageKey(albumId: string | number) {
   return `album_${albumId}_checkout_prepared`;
 }

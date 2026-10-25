@@ -40,6 +40,7 @@ import type { PublicVideoDto } from "@/lib/videos/public-video-dto";
 import {
   CHECKOUT_NAV_LANDED_EVENT,
   CHECKOUT_PREPARE_READY_EVENT,
+  CHECKOUT_HARD_NAV_FALLBACK_MS,
   CHECKOUT_PREPARE_TIMEOUT_MS,
   messageForCheckoutPrepareError,
 } from "@/lib/checkout-prepare";
@@ -630,6 +631,7 @@ export default function ClientAlbumView({
   });
   const [checkoutSubmitError, setCheckoutSubmitError] = useState<string | null>(null);
   const checkoutFallbackTimerRef = useRef<number | null>(null);
+  const checkoutHardNavTimerRef = useRef<number | null>(null);
   const checkoutRetryHrefRef = useRef<string | null>(null);
 
   const clearCheckoutPrepareTimer = useCallback(() => {
@@ -637,6 +639,10 @@ export default function ClientAlbumView({
     if (checkoutFallbackTimerRef.current != null) {
       window.clearTimeout(checkoutFallbackTimerRef.current);
       checkoutFallbackTimerRef.current = null;
+    }
+    if (checkoutHardNavTimerRef.current != null) {
+      window.clearTimeout(checkoutHardNavTimerRef.current);
+      checkoutHardNavTimerRef.current = null;
     }
   }, []);
   const [packSelectionMode, setPackSelectionMode] = useState<PackSelectionModeState | null>(null);
@@ -749,6 +755,13 @@ export default function ClientAlbumView({
       setCheckoutSubmitting(false);
       setCheckoutSubmitError(messageForCheckoutPrepareError("timeout"));
     }, CHECKOUT_PREPARE_TIMEOUT_MS);
+    // Si router.push se cuelga en el celular, el cliente quedaba un minuto en
+    // "Procesando..." y volvía al botón sin poder comprar: forzamos la carga completa.
+    checkoutHardNavTimerRef.current = window.setTimeout(() => {
+      checkoutHardNavTimerRef.current = null;
+      console.warn("[checkout-prepare] hard navigation fallback", { albumId: album.id });
+      window.location.assign(href);
+    }, CHECKOUT_HARD_NAV_FALLBACK_MS);
     router.push(href);
   }, [router, album.id, checkoutDebugEnabled, clearCheckoutPrepareTimer]);
 
