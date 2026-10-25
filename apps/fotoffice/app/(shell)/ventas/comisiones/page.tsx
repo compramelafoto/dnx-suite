@@ -3,8 +3,9 @@ import { PageHeader } from "@/components/page-header";
 import { formatMinorArs } from "@/lib/membership/money";
 import { requireSalesStaff } from "@/lib/sales/access";
 import { inicioDelMesEnArgentina, resumir, type Comision } from "@/lib/comisiones/calculo";
-import { comisionesDelWorkspace, equipoDelWorkspace, esDuenoOAdmin, leerReglas } from "@/lib/comisiones/servidor";
+import { catalogoParaComision, comisionesDelWorkspace, equipoDelWorkspace, esDuenoOAdmin, leerReglas, productosConComision } from "@/lib/comisiones/servidor";
 import { AjustesComisiones } from "./ajustes-comisiones";
+import { ProductosComision } from "./productos-comision";
 
 export const dynamic = "force-dynamic";
 
@@ -32,7 +33,7 @@ function Resumen({ comisiones }: { comisiones: Comision[] }) {
 }
 
 function Detalle({ comisiones, nombres }: { comisiones: Comision[]; nombres: Map<number, string> | null }) {
-  if (comisiones.length === 0) return <p className="fo-helper">Todavía no hay ventas de fotolibros con comisión.</p>;
+  if (comisiones.length === 0) return <p className="fo-helper">Todavía no hay ventas con comisión.</p>;
   return (
     <div className="fo-card overflow-x-auto p-0">
       <table className="w-full text-left text-sm">
@@ -91,11 +92,11 @@ export default async function ComisionesPage() {
     const regla = reglas[0];
     return (
       <div className="space-y-6">
-        <PageHeader title="Mis comisiones" description="Lo que ganás por vender fotolibros. Se suma cuando la venta queda cobrada entera." />
+        <PageHeader title="Mis comisiones" description="Lo que ganás por vender. Se suma cuando la venta queda cobrada entera." />
         {regla ? (
           <>
             <p className="text-sm">
-              Ganás el <span className="font-semibold text-[var(--fo-success)]">{String(regla.porcentaje).replace(".", ",")} %</span> del precio de venta de cada fotolibro y su caja.
+              Ganás el <span className="font-semibold text-[var(--fo-success)]">{String(regla.porcentaje).replace(".", ",")} %</span> del precio de venta de los productos con el cartel verde «Comisión de venta» en el Cobrador.
             </p>
             <Resumen comisiones={comisiones} />
             <Detalle comisiones={comisiones} nombres={null} />
@@ -107,15 +108,22 @@ export default async function ComisionesPage() {
     );
   }
 
-  const [equipo, reglas, { comisiones }] = await Promise.all([equipoDelWorkspace(workspace.id), leerReglas(workspace.id), comisionesDelWorkspace(workspace.id)]);
+  const [equipo, reglas, { comisiones }, catalogo, elegidos] = await Promise.all([
+    equipoDelWorkspace(workspace.id),
+    leerReglas(workspace.id),
+    comisionesDelWorkspace(workspace.id),
+    catalogoParaComision(workspace.id),
+    productosConComision(workspace.id),
+  ]);
   const nombres = new Map(equipo.map((m) => [m.userId, m.nombre]));
   return (
     <div className="space-y-6">
-      <PageHeader title="Comisiones de venta" description="Lo que gana el equipo por vender fotolibros (tapa flexible, tapa rígida y caja). Se gana cuando la venta queda cobrada entera." />
+      <PageHeader title="Comisiones de venta" description="Lo que gana el equipo por vender los productos elegidos. Se gana cuando la venta queda cobrada entera." />
       <AjustesComisiones
         equipo={equipo.filter((m) => m.userId !== user.id).map((m) => ({ userId: m.userId, nombre: m.nombre, email: m.email }))}
         reglas={reglas.map((r) => ({ userId: r.userId, porcentaje: r.porcentaje, activa: r.activa }))}
       />
+      <ProductosComision productos={catalogo} elegidos={elegidos} />
       <Resumen comisiones={comisiones} />
       <Detalle comisiones={comisiones} nombres={nombres} />
     </div>
