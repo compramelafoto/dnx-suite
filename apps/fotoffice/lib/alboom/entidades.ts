@@ -148,20 +148,32 @@ const listado =
 
 const get = (ruta: string): PedidoLectura => ({ method: "GET", ruta });
 
-/** Cuentas a cobrar y a pagar (doc 04 §20): `type` ar, ap, ar_paid, ap_paid → `{ rows, count, total }`. */
-const cuentas = (type: string) =>
-  listado({
-    type,
-    class_id: "all",
-    doc_type: "all",
-    customer_id: "all",
-    user_id: "all",
-    groupBy: "",
-    period: "all",
-    start_date: "",
-    end_date: "",
-    csv_mode: 0,
-  });
+/** Todo el historial: el panel manda un rango de fechas aunque el período sea "todos". */
+const DESDE_SIEMPRE = "2000-01-01T03:00:00.000Z";
+const HASTA_SIEMPRE = "2099-12-31T03:00:00.000Z";
+
+/**
+ * Cuentas a cobrar y a pagar (doc 04 §20): `type` ar, ap, ar_paid, ap_paid → `{ rows, count, total }`.
+ * Lo mismo que manda el panel (`getAPRData` en `js/alboomcrm.min.js`): `customer_id` y `groupBy` nulos, sin
+ * `user_id`, orden por `account_trans.id`. Con `customer_id`/`user_id` en "all" o `groupBy` vacío Alboom
+ * respondía 500 (probado en el panel de DNX el 25/10/2026: ar 151, ap 163, ar_paid 1395, ap_paid 260).
+ */
+const cuentas = (type: string) => (pageNumber: number, pageSize: number) => ({
+  type,
+  class_id: "all",
+  doc_type: "all",
+  customer_id: null,
+  groupBy: null,
+  pageNumber,
+  pageSize,
+  sortBy: "account_trans.id",
+  sortDir: "ASC",
+  searchTerm: "",
+  period: "all",
+  start_date: DESDE_SIEMPRE,
+  end_date: HASTA_SIEMPRE,
+  csv_mode: 0,
+});
 
 export const ENTIDADES: readonly Entidad[] = [
   // ── Configuración y catálogos ─────────────────────────────────────────────
@@ -334,12 +346,29 @@ export const ENTIDADES: readonly Entidad[] = [
     fuente: { tipo: "porPadre", padre: "contratos", mismoId: true, pedido: (id) => get(`/agreements/${id}`), filas: filaUnica },
   },
   {
+    // Lo mismo que manda el panel (`ProjectsController.getData`): `class_id` (no `class`) y `expired`, que es
+    // obligatorio. "false" trae todos (1010 en DNX, incluidos los 84 vencidos que trae "true"); sin `expired`
+    // Alboom responde 500 hasta de a 1 (extracciones del 21/10/2026, probado en el panel el 25/10).
     clave: "proyectos",
     nombre: "Proyectos",
+    version: 2,
+    tamanoPagina: 25,
     fuente: {
       tipo: "paginada",
       ruta: "/projects/paginate",
-      body: listado({ type: "all", user: "all", pipeline: "all", stage: "all", class: "all", period: "all" }),
+      body: (pageNumber, pageSize) => ({
+        type: "all",
+        class_id: "all",
+        user: "all",
+        expired: "false",
+        pageNumber,
+        pageSize,
+        pipeline: "all",
+        stage: "all",
+        sortBy: "id",
+        sortDir: "DESC",
+        searchTerm: "",
+      }),
     },
   },
   {
@@ -354,18 +383,22 @@ export const ENTIDADES: readonly Entidad[] = [
     fuente: {
       tipo: "porPadre",
       padre: "proyectos",
-      pedido: (id) => ({ method: "POST", ruta: "/participants/paginate", body: { type: "projects", id } }),
+      // El panel pide de a `count` desde `offset` (`ParticipantsController.getData`); sin esos campos, 500.
+      pedido: (id) => ({ method: "POST", ruta: "/participants/paginate", body: { type: "projects", id, offset: 0, count: 500, searchTerm: "" } }),
       filas: filasDeLista,
     },
   },
   { clave: "tareas", nombre: "Tareas", fuente: { tipo: "porDesplazamiento", ruta: (offset) => `/tasks?offset=${offset}&filteruser=all` } },
   {
+    // Lo mismo que manda la lista del calendario (`CalendarController.getData`): `start_type` "other" (Otro
+    // período) con el rango de fechas; "all" da 500 y "0" es sólo desde hoy (453 citas en DNX el 25/10/2026).
     clave: "citas",
     nombre: "Citas",
+    version: 2,
     fuente: {
       tipo: "paginada",
       ruta: "/events/paginate",
-      body: listado({ type: "all", user: "all", period: "all", start_date: "2000-01-01", end_date: "2099-12-31", is_csv: 0 }),
+      body: listado({ start_type: "other", type: "all", class_id: "all", status: "All", user: "all", start_date: DESDE_SIEMPRE, end_date: HASTA_SIEMPRE, is_csv: 0 }),
     },
   },
 
@@ -377,11 +410,25 @@ export const ENTIDADES: readonly Entidad[] = [
   {
     clave: "movimientos_bancos",
     nombre: "Movimientos de bancos",
+    version: 2,
     fuente: {
       tipo: "paginada",
       ruta: "/account_trans/paginate",
-      // "Todos" muestra los movimientos de todas las cuentas (doc 04 §12.1).
-      body: listado({ data_type: "all", id: "all", user_id: "all", class_id: "all", period: "all", start_date: "", end_date: "" }),
+      // Lo mismo que manda Bancos → Movimientos con "Todas" las cuentas (`getTransactionsData`): `type`
+      // "transactions" y `account_id` "all" (1713 movimientos en DNX el 25/10/2026; lo de antes daba 500).
+      body: (pageNumber, pageSize) => ({
+        type: "transactions",
+        account_id: "all",
+        pageNumber,
+        pageSize,
+        sortBy: "account_trans.id",
+        sortDir: "ASC",
+        searchTerm: "",
+        period: "all",
+        start_date: DESDE_SIEMPRE,
+        end_date: HASTA_SIEMPRE,
+        csv_mode: 0,
+      }),
     },
   },
 
