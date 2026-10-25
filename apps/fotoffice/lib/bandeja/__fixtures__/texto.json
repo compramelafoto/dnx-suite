@@ -1,0 +1,21 @@
+{
+  "object": "whatsapp_business_account",
+  "entry": [{
+    "id": "102290129340398",
+    "changes": [{
+      "field": "messages",
+      "value": {
+        "messaging_product": "whatsapp",
+        "metadata": { "display_phone_number": "5493415550100", "phone_number_id": "106540352242922" },
+        "contacts": [{ "profile": { "name": "Lucía Pérez" }, "wa_id": "5493413419869" }],
+        "messages": [{
+          "from": "5493413419869",
+          "id": "wamid.HBgNNTQ5MzQxMzQxOTg2ORUCABIYFjNFQjBDQTE1",
+          "timestamp": "1791558000",
+          "type": "text",
+          "text": { "body": "Hola, quería consultar por una sesión de fotos" }
+        }]
+      }
+    }]
+  }]
+}

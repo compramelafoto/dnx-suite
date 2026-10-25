@@ -13,7 +13,7 @@ const SHOW_EXPOSURE_DEBUG =
  * Activar con NEXT_PUBLIC_COD_EXPOSURE_DEBUG=true
  */
 export default function ExposureDebugOverlay() {
-  const { derived, viewfinderMode, sceneLuminanceEv } = useCameraStore();
+  const { derived, viewfinderMode, sceneLight } = useCameraStore();
   const [visible, setVisible] = useState(SHOW_EXPOSURE_DEBUG);
   const [applied, setApplied] = useState<number | null>(null);
 
@@ -70,8 +70,12 @@ export default function ExposureDebugOverlay() {
           <dd>{fmt(d.referenceExposureEv)}</dd>
         </div>
         <div>
-          <dt>sceneLuminanceEv</dt>
-          <dd>{fmt(sceneLuminanceEv)}</dd>
+          <dt>Brillo escena (EV100)</dt>
+          <dd>{fmt(sceneLight.brightnessEv100)}</dd>
+        </div>
+        <div>
+          <dt>Medido (EV100)</dt>
+          <dd>{fmt(sceneLight.meteredEv100)}</dd>
         </div>
         <div>
           <dt>meterEv (foto)</dt>
@@ -84,10 +88,6 @@ export default function ExposureDebugOverlay() {
         <div>
           <dt>Pasos vs ref.</dt>
           <dd>{fmt(d.relativeStops)}</dd>
-        </div>
-        <div>
-          <dt>Factor escena 2^S</dt>
-          <dd>{fmt(d.sceneBrightnessFactor)}</dd>
         </div>
         <div>
           <dt>previewMultiplier</dt>

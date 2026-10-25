@@ -10,6 +10,10 @@
 export const FASES = ["RECIBIDO", "EN_PROCESO", "EN_PROVEEDOR", "LISTO", "ENTREGADO"] as const;
 export type Fase = (typeof FASES)[number];
 
+export function esFase(v: unknown): v is Fase {
+  return typeof v === "string" && (FASES as readonly string[]).includes(v);
+}
+
 export const FASE_INFO: Record<Fase, { titulo: string; ayuda: string }> = {
   RECIBIDO: { titulo: "Recibido", ayuda: "Entró el pedido; todavía no se empezó." },
   EN_PROCESO: { titulo: "En proceso", ayuda: "Se está trabajando en el estudio." },
@@ -59,4 +63,81 @@ export function etapaSiguiente(etapas: readonly EtapaVista[], actualId: string):
   const orden = [...etapas].sort((a, b) => a.order - b.order);
   const i = orden.findIndex((e) => e.id === actualId);
   return i >= 0 && i < orden.length - 1 ? orden[i + 1]! : null;
+}
+
+/** La fase de una etapa dentro de su recorrido (la última cuenta como entregado si no tiene color). */
+export function faseDeEtapaEn(etapas: readonly EtapaVista[], id: string): Fase | null {
+  const orden = [...etapas].sort((a, b) => a.order - b.order);
+  const i = orden.findIndex((e) => e.id === id);
+  return i < 0 ? null : faseDeEtapa({ ...orden[i]!, esUltima: i === orden.length - 1 });
+}
+
+/**
+ * La etapa anterior del recorrido (el botón "volver"). Para un trabajo ya cerrado (`actualId`
+ * null) es la última etapa: reabrirlo lo deja donde estaba antes de entregarse. null si no hay.
+ */
+export function etapaAnterior(etapas: readonly EtapaVista[], actualId: string | null): EtapaVista | null {
+  const orden = [...etapas].sort((a, b) => a.order - b.order);
+  if (actualId === null) return orden.at(-1) ?? null;
+  const i = orden.findIndex((e) => e.id === actualId);
+  return i > 0 ? orden[i - 1]! : null;
+}
+
+export type DestinoDeFase =
+  | { tipo: "MOVER"; etapa: EtapaVista }
+  | { tipo: "REABRIR"; etapa: EtapaVista }
+  | { tipo: "CERRAR" };
+
+/**
+ * Adónde va un trabajo que se arrastra a la columna `fase`. Cada recorrido tiene sus etapas, así
+ * que se elige la de esa fase más cercana a la actual: hacia adelante, la primera que viene;
+ * hacia atrás, la última que quedó atrás. Arrastrar a "Entregado" un recorrido sin etapa de esa
+ * fase lo termina. Uno ya cerrado (`actualId` null) se reabre en la última etapa de la fase.
+ * null si no hay nada que hacer (misma columna, o el recorrido no tiene etapa de esa fase).
+ */
+export function destinoParaFase(etapas: readonly EtapaVista[], actualId: string | null, fase: Fase): DestinoDeFase | null {
+  const orden = [...etapas].sort((a, b) => a.order - b.order);
+  const conFase = orden.map((e, i) => ({ etapa: e, fase: faseDeEtapa({ ...e, esUltima: i === orden.length - 1 }) }));
+  const deLaFase = conFase.filter((e) => e.fase === fase).map((e) => e.etapa);
+
+  if (actualId === null) {
+    if (fase === "ENTREGADO") return null;
+    const ultima = deLaFase.at(-1);
+    return ultima ? { tipo: "REABRIR", etapa: ultima } : null;
+  }
+
+  const actual = conFase.find((e) => e.etapa.id === actualId);
+  if (!actual || actual.fase === fase) return null;
+  const adelante = FASES.indexOf(fase) > FASES.indexOf(actual.fase);
+  const elegida = adelante
+    ? (deLaFase.find((e) => e.order > actual.etapa.order) ?? deLaFase[0])
+    : ([...deLaFase].reverse().find((e) => e.order < actual.etapa.order) ?? deLaFase.at(-1));
+  if (elegida) return { tipo: "MOVER", etapa: elegida };
+  return fase === "ENTREGADO" ? { tipo: "CERRAR" } : null;
+}
+
+/**
+ * Si entrar a esta etapa es entregar: su fase (la del tablero «En curso») es ENTREGADO, o es la
+ * última etapa activa de su flujo y no es de fase LISTO. Lo de "la última" va aparte a propósito:
+ * en `faseDeEtapa` manda el color, y como toda etapa tiene uno (gris de fábrica), la última de un
+ * flujo armado a mano caería en otra fase y dejaría entregar con deuda. Una última de fase LISTO
+ * («Listo para retirar») sí se deja: entrar ahí es cuando se le avisa al cliente que pase a pagar
+ * y retirar; terminar el recorrido (`cerrar` con éxito) igual queda frenado por el candado.
+ * El tablero sigue mostrando por color.
+ */
+export function esEtapaDeEntrega(
+  etapa: { name: string; color: string; order: number },
+  activas: readonly { order: number }[],
+): boolean {
+  const esUltima = etapa.order === Math.max(...activas.map((e) => e.order));
+  const fase = faseDeEtapa({ ...etapa, esUltima });
+  return fase === "ENTREGADO" || (esUltima && fase !== "LISTO");
+}
+
+/**
+ * Trabajo retenido: está «Listo para retirar» pero su pedido todavía debe plata, así que no se
+ * puede entregar hasta cobrar el saldo (candado de `lib/pedidos/candado-saldo`).
+ */
+export function retenido(t: { fase: Fase; pedido: { saldoMinor: number } | null }): boolean {
+  return t.fase === "LISTO" && t.pedido !== null && t.pedido.saldoMinor > 0;
 }

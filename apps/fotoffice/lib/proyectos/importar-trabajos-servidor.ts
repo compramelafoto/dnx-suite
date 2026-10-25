@@ -138,6 +138,12 @@ export async function importarTrabajos(ctx: CtxProyectos & CtxPedidos, filas: Fi
         },
       });
       let etapa: string | null = null;
+      /**
+       * Por qué un trabajo no avanzó a la etapa de la planilla (p. ej. el candado del saldo: la
+       * etapa es la última del flujo y el pedido debe). Se informa en la fila: si no, figuraría
+       * importado sin decir que quedó en la primera etapa.
+       */
+      let noAvanzo: string | null = null;
       for (const p of proyectos) {
         await prisma.fotofficeProyectoNota.create({
           data: {
@@ -150,11 +156,12 @@ export async function importarTrabajos(ctx: CtxProyectos & CtxPedidos, filas: Fi
         if (f.fase !== "RECIBIDO") {
           const m = await moverAFase(ctx, p.id, f.fase, "Importado de la planilla.");
           if (m.ok && m.etapa) etapa = m.etapa;
+          if (!m.ok) noAvanzo = m.error;
         }
       }
       r(
         "IMPORTADO",
-        [`Pedido ${alta.numero}`, resta > 0 ? `debe ${pesos(resta)}` : "pagado", etapa ? `en «${etapa}»` : null, clienteNuevo ? "cliente nuevo" : null]
+        [`Pedido ${alta.numero}`, resta > 0 ? `debe ${pesos(resta)}` : "pagado", etapa ? `en «${etapa}»` : null, noAvanzo ? `no avanzó de etapa: ${noAvanzo}` : null, clienteNuevo ? "cliente nuevo" : null]
           .filter(Boolean)
           .join(" · "),
       );

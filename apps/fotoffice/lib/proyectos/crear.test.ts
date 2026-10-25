@@ -377,3 +377,84 @@ describe("agregar un proyecto a mano", () => {
     expect(await K.crearProyectoManual(DUENO, { pedidoId: 5, circuitId: "ct-album" }, deps)).toEqual({ ok: false, error: M.datosInvalidos });
   });
 });
+
+describe("crear un trabajo del sistema (pagos automáticos)", () => {
+  it("crea el trabajo sin pedido ni usuario, con el plan de las etapas vivas y el recorrido en la primera", async () => {
+    const r = (await (B.prisma as unknown as { $transaction: (f: (tx: never) => Promise<unknown>) => Promise<unknown> }).$transaction((tx: never) =>
+      K.crearProyectoDeSistema(tx, "ws-1", { clientId: "cli-lead-1", circuitId: "ct-album", nombre: "Copias impresas · pedido 8", baseDate: "2026-10-20", proveedorId: "lab-1", ahora: AHORA }),
+    )) as { id: string; number: string };
+    expect(typeof r.number).toBe("string");
+    const p = proyectos().find((x) => x.id === r.id)!;
+    expect(p).toMatchObject({ workspaceId: "ws-1", number: r.number, name: "Copias impresas · pedido 8", clientId: "cli-lead-1", pedidoId: null, circuitId: "ct-album", ownerUserId: null, createdByUserId: null, proveedorId: "lab-1" });
+    expect(ymd(p.baseDate)).toBe("2026-10-20");
+    // La etapa archivada no entra en el plan.
+    expect(B.datos.fotofficeProyectoEtapaPlan.filter((x) => x.proyectoId === r.id).map((x) => x.stageId)).toEqual(["al1", "al2"]);
+    expect(B.datos.fotofficeJourney.filter((j) => j.subjectType === "PROYECTO" && j.subjectId === r.id && j.stageId === "al1")).toHaveLength(1);
+  });
+});
+
+describe("trabajos de las líneas «para retirar»", () => {
+  const items = (...extra: Record<string, unknown>[]) => [item("m0", { productId: "prod-album" }), item("m1"), ...extra];
+  const crear = (itemsPedido: unknown[], paraRetirar?: Set<number>) =>
+    (B.prisma as unknown as { $transaction: (f: (tx: never) => Promise<unknown>) => Promise<{ creados: number; salteados: string[] }> }).$transaction((tx: never) =>
+      K.crearProyectosDelPedido(tx, DUENO, {
+        pedidoId: "ped-x", clientId: "cli-lead-1", items: itemsPedido, fechaEvento: null, eventLabel: null,
+        numeroPedido: "2026-0009", ownerUserId: 7, confirmadoEn: AHORA, ...(paraRetirar ? { paraRetirar } : {}),
+      }),
+    );
+  const estandar = () => B.datos.fotofficeCircuit.find((c) => c.systemKey === "PARA_RETIRAR");
+
+  it("un producto sin regla marcado genera su trabajo en el flujo estándar", async () => {
+    const r = await crear(items(), new Set([0]));
+    expect(r.creados).toBe(1);
+    const [p] = delPedido("ped-x");
+    expect(delPedido("ped-x")).toHaveLength(1);
+    expect(p).toMatchObject({ pedidoItemIndex: 0, productId: "prod-album", circuitId: estandar()!.id, name: "Laura Pérez · Álbum" });
+    expect(ymd(p!.baseDate)).toBe("2026-10-07");
+    expect(ymd(p!.finalDueDate)).toBe("2026-10-07");
+  });
+
+  it("un ítem a mano marcado genera su trabajo sin producto y con el nombre del ítem", async () => {
+    await crear(items(), new Set([1]));
+    const [p] = delPedido("ped-x");
+    expect(p).toMatchObject({ pedidoItemIndex: 1, productId: null, name: "Laura Pérez · Ítem m1" });
+  });
+
+  it("un producto con regla marcado sólo genera el proyecto de la regla", async () => {
+    regla("r1", "prod-album", "ct-album");
+    await crear(items(), new Set([0]));
+    expect(delPedido("ped-x").map((p) => p.circuitId)).toEqual(["ct-album"]);
+    expect(estandar()).toBeUndefined();
+  });
+
+  it("una regla destildada o salteada tampoco deja el estándar", async () => {
+    regla("r1", "prod-album", "ct-archivado");
+    expect(await crear(items(), new Set([0]))).toMatchObject({ creados: 0 });
+    expect(delPedido("ped-x")).toHaveLength(0);
+  });
+
+  it("un combo sin regla con un componente con regla sólo genera el del componente", async () => {
+    B.agregar("fotofficeComboItem", { workspaceId: "ws-1", comboProductId: "prod-combo", componentProductId: "prod-album", quantity: 1 });
+    regla("r1", "prod-album", "ct-album");
+    await crear([item("c0", { productId: "prod-combo" })], new Set([0]));
+    expect(delPedido("ped-x").map((p) => p.circuitId)).toEqual(["ct-album"]);
+  });
+
+  it("ignora posiciones fuera de rango y de ítems opcionales", async () => {
+    const r = await crear(items(item("op", { opcional: true })), new Set([2, 9, -1]));
+    expect(r.creados).toBe(0);
+    expect(estandar()).toBeUndefined();
+  });
+
+  it("sin paraRetirar no crea nada del estándar", async () => {
+    await crear(items());
+    expect(delPedido("ped-x")).toHaveLength(0);
+    expect(estandar()).toBeUndefined();
+  });
+
+  it("llamado dos veces con el mismo pedido no duplica", async () => {
+    await crear(items(), new Set([0, 1]));
+    expect(await crear(items(), new Set([0, 1]))).toEqual({ creados: 0, salteados: [] });
+    expect(delPedido("ped-x")).toHaveLength(2);
+  });
+});

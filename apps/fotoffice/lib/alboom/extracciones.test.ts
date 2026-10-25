@@ -84,12 +84,12 @@ beforeEach(() => {
 describe("almacén de datos crudos", () => {
   it("es idempotente por huella y siempre va por workspace", async () => {
     const fila = (id: string, v: number) => ({ alboomId: id, payload: { id, v }, hash: String(v).padStart(64, "0") });
-    expect(await almacenPrisma.guardarFilas("ws-1", "contactos", [fila("1", 1), fila("2", 1)])).toEqual({ nuevos: 2, cambiados: 0, iguales: 0 });
-    expect(await almacenPrisma.guardarFilas("ws-1", "contactos", [fila("1", 1), fila("2", 2), fila("3", 1)])).toEqual({ nuevos: 1, cambiados: 1, iguales: 1 });
+    expect(await almacenPrisma.guardarFilas("ws-1", "contactos", [fila("1", 1), fila("2", 1)])).toEqual({ nuevos: 2, cambiados: 0, iguales: 0, tocados: ["1", "2"] });
+    expect(await almacenPrisma.guardarFilas("ws-1", "contactos", [fila("1", 1), fila("2", 2), fila("3", 1)])).toEqual({ nuevos: 1, cambiados: 1, iguales: 1, tocados: ["3", "2"] });
     expect(B.datos.crudos).toHaveLength(3);
     expect(B.datos.crudos.find((f) => f.alboomId === "2")!.payload).toEqual({ id: "2", v: 2 });
     // Mismo id en otro workspace: es otro registro.
-    expect(await almacenPrisma.guardarFilas("ws-2", "contactos", [fila("1", 1)])).toEqual({ nuevos: 1, cambiados: 0, iguales: 0 });
+    expect(await almacenPrisma.guardarFilas("ws-2", "contactos", [fila("1", 1)])).toEqual({ nuevos: 1, cambiados: 0, iguales: 0, tocados: ["1"] });
     expect((await almacenPrisma.leerLote("ws-1", "contactos", "1", 10)).map((f) => f.alboomId)).toEqual(["2", "3"]);
     expect(await almacenPrisma.leerLote("ws-2", "contactos", null, 10)).toHaveLength(1);
   });
@@ -269,6 +269,23 @@ describe("tanda del cron", () => {
     await correrExtraccionesAlboom({ ahora: relojFalso().ahora, opcionesCliente: { fetchImpl: red.impl } });
     expect(red.llamadas.length).toBe(antes);
     expect(B.datos.extracciones.at(-1)).toMatchObject({ status: "ERROR" });
+  });
+
+  it("Alboom caído a mitad de un listado (todo 5xx): pausas sin saltear filas y, tras MAX_REINTENTOS, ERROR", async () => {
+    await preparar();
+    const reloj = relojFalso();
+    // La primera página (100 contactos) anda; todo lo que sigue da 500, de cualquier tamaño.
+    const red = alboomFetch({ contactos: (p) => (p >= 2 ? json(500, {}) : null) });
+    for (let i = 0; i <= MAX_REINTENTOS + 1; i++) {
+      reloj.avanzar(2 * 60 * 60_000);
+      await correrExtraccionesAlboom({ ahora: reloj.ahora, opcionesCliente: { fetchImpl: red.impl, esperar: reloj.esperar } });
+    }
+    expect(B.datos.extracciones[0]).toMatchObject({ status: "ERROR" });
+    expect(String(B.datos.extracciones[0]!.errorReason)).toMatch(/varios intentos/);
+    const a = leerAvance(B.datos.extracciones[0]!.progress);
+    expect(a.entidades.contactos).toMatchObject({ cantidad: 100, desde: 100 });
+    expect(a.entidades.contactos!.saltados).toBeUndefined();
+    expect(B.datos.crudos.filter((f) => f.entity === "contactos")).toHaveLength(100);
   });
 
   it("un 429 espera (cada vez más) y reintenta en una tanda posterior; tras muchos, ERROR", async () => {

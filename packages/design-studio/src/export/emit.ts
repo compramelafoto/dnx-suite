@@ -3,7 +3,7 @@ import { readDesignDocument } from "../document/migrate";
 import { DESIGN_SCHEMA_VERSION } from "../document/schema";
 import { resolveVariables } from "../variables/resolve";
 import { renderPdf } from "../render/pdf";
-import { pdfToPng } from "../render/png-wasm";
+import { pdfToJpeg, pdfToPng } from "../render/png-wasm";
 import { renderSvgPages } from "../render/svg";
 import { RENDERER_VERSION } from "../render/version";
 import type { EmitOutcome, EmitRequest, EmittedFile } from "./contract";
@@ -37,7 +37,9 @@ export async function emitDesign(request: EmitRequest): Promise<EmitOutcome> {
   const doc = documento.value;
   const files: EmittedFile[] = [];
   const necesitaPdf =
-    request.formats.includes("PDF") || request.formats.includes("PNG_PER_SIDE");
+    request.formats.includes("PDF") ||
+    request.formats.includes("PNG_PER_SIDE") ||
+    request.formats.includes("JPG_PER_SIDE");
 
   let pdfBytes: Uint8Array | null = null;
   if (necesitaPdf) {
@@ -59,6 +61,16 @@ export async function emitDesign(request: EmitRequest): Promise<EmitOutcome> {
       const png = await pdfToPng(pdfBytes, { dpi, pageIndex: indice });
       if (!png.ok) return { ok: false, errors: png.errors };
       files.push(archivo(`${request.fileBaseName}-${cara.id}.png`, "image/png", png.value));
+    }
+  }
+
+  // JPG por cara: lo que piden los laboratorios para los pliegos de un fotolibro.
+  if (request.formats.includes("JPG_PER_SIDE") && pdfBytes) {
+    const dpi = request.pngDpi ?? doc.format.dpi ?? 300;
+    for (const [indice, cara] of doc.sides.entries()) {
+      const jpg = await pdfToJpeg(pdfBytes, { dpi, pageIndex: indice, calidad: request.jpgQuality ?? 95 });
+      if (!jpg.ok) return { ok: false, errors: jpg.errors };
+      files.push(archivo(`${request.fileBaseName}-${cara.id}.jpg`, "image/jpeg", jpg.value));
     }
   }
 

@@ -1,0 +1,7 @@
+[
+  { "archivo": "01-stock.png", "ruta": "/ventas/stock", "que_mostrar": "Pantalla Stock con el botón 'Recibir pedido' y el bloque 'Insumos'.", "selector_recorte": null },
+  { "archivo": "02-recepcion.png", "ruta": "/ventas/stock", "que_mostrar": "Recepción de pedido abierta con proveedor, comprobante y líneas cargadas. NO confirmar.", "selector_recorte": null },
+  { "archivo": "03-importar.png", "ruta": "/ventas/stock", "que_mostrar": "Bloque 'Importar desde factura o remito' desplegado, con 'Subir foto o PDF', 'Pegar texto' y plantilla CSV.", "selector_recorte": null },
+  { "archivo": "04-revisar-lineas.png", "ruta": "/ventas/stock", "que_mostrar": "Líneas importadas, una con 'Elegí el producto' en rojo. NO confirmar.", "selector_recorte": null },
+  { "archivo": "08-para-comprar.png", "ruta": "/ventas/stock", "que_mostrar": "Bloque 'Para comprar' arriba de Stock (vacío: 'Nada para comprar por ahora').", "selector_recorte": null }
+]

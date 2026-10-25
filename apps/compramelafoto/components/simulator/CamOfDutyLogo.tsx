@@ -2,6 +2,8 @@ import Image from "next/image";
 import Link from "next/link";
 
 const LOGO_SRC = "/camofduty/logo.jpg";
+/** El mismo logo sin el fondo negro de la foto, para apoyarlo sobre cualquier color. */
+const LOGO_TRANSPARENT_SRC = "/camofduty/logo-transparente.png";
 const LOGO_ALT = "Cam Of Duty — Simulador Fotográfico Interactivo";
 
 export type CamOfDutyLogoVariant = "header" | "hero";
@@ -11,6 +13,8 @@ export interface CamOfDutyLogoProps {
   /** Si se define, el logo es un enlace (p. ej. al inicio de Cam Of Duty). */
   href?: string;
   className?: string;
+  /** Sin fondo (PNG transparente) en lugar de la foto con fondo negro. */
+  transparent?: boolean;
 }
 
 /**
@@ -20,6 +24,7 @@ export default function CamOfDutyLogo({
   variant = "header",
   href,
   className = "",
+  transparent = false,
 }: CamOfDutyLogoProps) {
   const isHero = variant === "hero";
   const width = isHero ? 520 : 168;
@@ -27,7 +32,7 @@ export default function CamOfDutyLogo({
 
   const image = (
     <Image
-      src={LOGO_SRC}
+      src={transparent ? LOGO_TRANSPARENT_SRC : LOGO_SRC}
       alt={LOGO_ALT}
       width={width}
       height={height}

@@ -4,8 +4,11 @@ import type { Prisma } from "@/lib/prisma";
 import type { PreventaPackSnapshotV1 } from "@/lib/preventa-canjeable/preventa-pack-snapshot-v1";
 import { createDesignV2Project } from "@/lib/design-v2/projects";
 import { loadDesignTemplateVersion, type DesignTemplateVersion } from "@/lib/design-v2/template";
-import { loadCourseStudentList } from "@/lib/design-v2/class-list";
+import { loadCourseStudentGroup } from "@/lib/design-v2/class-list";
 import { buildDesignValues, courseDisplayName } from "@/lib/design-v2/values";
+import { parseDesignV2Data } from "@/lib/design-v2/design-data";
+import { cargarCompanerosDelMosaico, cargarDuenoDelMosaico, registrarRetratoDeLaFamilia } from "@/lib/mosaico/retratos";
+import type { RevisionDelCliente } from "@/lib/revision-de-impresion/autorizacion";
 import {
   pickSelectionPhotosForDesign,
   resolveDesignTemplateForRedeem,
@@ -34,9 +37,13 @@ export const PRE_DESIGN_ITEM_STATUSES = [
 
 /** Lo que el diseño necesita saber del pedido de preventa: quién lo revisa y qué textos lleva. */
 export type SchoolDesignContext = {
+  /** El alumno del padrón dueño del diseño (para su retrato del mosaico); null sin padrón. */
+  albumRosterEntryId?: number | null;
   albumId: number;
   photographerUserId: number;
   values: Record<string, string>;
+  /** Lo que revisó y autorizó la familia al confirmar el canje. */
+  clientReview?: RevisionDelCliente | null;
 };
 
 export async function loadSchoolDesignContext(
@@ -69,7 +76,7 @@ export async function loadSchoolDesignContext(
   });
   if (!order) return null;
   const studentName = [order.studentFirstName, order.studentLastName].filter(Boolean).join(" ");
-  const courseStudents = await loadCourseStudentList(db, {
+  const courseGroup = await loadCourseStudentGroup(db, {
     albumId: order.albumId,
     albumRosterEntryId: order.albumRosterEntryId,
     studentId: order.studentId,
@@ -80,23 +87,31 @@ export async function loadSchoolDesignContext(
     courseName: order.studentCourseSnapshot ?? order.schoolCourse?.name,
     division: order.studentDivisionSnapshot ?? order.schoolCourse?.division,
   });
+  const courseName =
+    courseDisplayName(order.schoolCourse?.name, order.schoolCourse?.division) ??
+    courseDisplayName(order.studentCourseSnapshot, order.studentDivisionSnapshot);
+  // Los compañeros del mosaico, con los retratos que haya hoy; al imprimir se vuelven a armar.
+  const courseMosaic = await cargarCompanerosDelMosaico(db, { albumId: order.albumId, rosterEntryId: order.albumRosterEntryId });
+  const courseMosaicOwner = await cargarDuenoDelMosaico(db, { albumId: order.albumId, rosterEntryId: order.albumRosterEntryId });
   return {
     albumId: order.albumId,
+    albumRosterEntryId: order.albumRosterEntryId,
     photographerUserId: order.album.userId,
     values: buildDesignValues({
       studentName,
       studentFirstName: order.studentFirstName,
       studentLastName: order.studentLastName,
-      courseName:
-        courseDisplayName(order.schoolCourse?.name, order.schoolCourse?.division) ??
-        courseDisplayName(order.studentCourseSnapshot, order.studentDivisionSnapshot),
+      courseName,
       schoolName: order.album.school?.name,
       schoolLogoUrl: order.album.school?.logoUrl,
       buyerName: order.buyerName,
       photographerName: order.album.user?.name,
       eventDate: order.album.eventDate,
       orderReference: `P-${preCompraOrderId}`,
-      courseStudents,
+      // El título del curso en el listado es el mismo texto que «Curso» del diseño.
+      courseGroups: courseGroup ? [{ ...courseGroup, title: courseName ?? courseGroup.title }] : null,
+      courseMosaic,
+      courseMosaicOwner,
     }),
   };
 }
@@ -167,7 +182,21 @@ export async function ensureSchoolDesignForPreCompraOrderItem(
     albumOrderId: params.redemptionOrderId ?? null,
     orderItemId: orderItem.id,
     cropsByPhotoId: params.cropsByPhotoId,
+    clientReview: params.context.clientReview ?? null,
   });
+
+  // La foto que eligió la familia para la carpeta pasa a ser el retrato del chico en el mosaico de
+  // sus compañeros (si el fotógrafo no puso otro y el curso no está cerrado).
+  const individual = template.slots.find((sl) => sl.role === "individual");
+  if (individual && params.context.albumRosterEntryId) {
+    const creado = await tx.designProject.findUnique({ where: { id }, select: { currentRevision: { select: { dataJson: true } } } });
+    const photoId = parseDesignV2Data(creado?.currentRevision?.dataJson)?.slots[individual.blockId]?.photoId ?? null;
+    await registrarRetratoDeLaFamilia(tx, {
+      albumId: params.context.albumId,
+      rosterEntryId: params.context.albumRosterEntryId,
+      photoId,
+    });
+  }
 
   await tx.preCompraOrderItem.updateMany({
     where: { id: orderItem.id, status: { in: [...PRE_DESIGN_ITEM_STATUSES] } },

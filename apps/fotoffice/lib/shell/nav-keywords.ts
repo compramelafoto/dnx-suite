@@ -53,7 +53,11 @@ export const NAV_KEYWORDS: Record<string, string[]> = {
   "/evaluaciones": ["notas", "calificaciones", "examenes", "trabajos practicos"],
   "/courses/settings": ["ajustes", "moneda", "comision"],
 
+  "/ventas/costos": ["costos", "costo", "margen", "ganancia", "proveedor", "lista de precios", "listas", "la isla", "fotolag", "roman", "redondeo", "actualizar precios"],
   "/ventas/foto-carnet": ["foto carnet", "fotocarnet", "recortar", "recorte", "encuadrar", "dni", "pasaporte", "plancha", "4x4", "imprimir"],
+  "/ventas/impresiones": ["imprimir", "impresion", "cola", "para imprimir", "kodak", "epson", "carnet", "reimprimir"],
+  "/ventas/fotolibros": ["fotolibro", "fotolibros", "album", "libro", "pliego", "pliegos", "diseñar", "maquetar", "la isla", "roman", "copy express"],
+  "/ventas/impresion/configuracion": ["impresoras", "kodak", "epson", "nitidez", "hojas", "tamanos", "papel"],
 
   // Informes
   "/informes": ["tablero", "resumen", "por cobrar", "por pagar", "saldo", "finanzas", "dinero", "balance"],

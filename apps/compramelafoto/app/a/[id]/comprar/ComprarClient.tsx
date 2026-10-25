@@ -1481,6 +1481,12 @@ export default function ComprarClient() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
+        // Un pack con librito se confirma revisando los textos y autorizando la impresión, y eso
+        // se hace en la pantalla del canje.
+        if (isTokenFlow && data?.code === "authorization_required") {
+          router.push(`/canje/preventa/${encodeURIComponent(preventaPackTokenParam || "")}`);
+          return;
+        }
         setError(typeof data?.error === "string" ? data.error : "No se pudo completar el canje");
         return;
       }

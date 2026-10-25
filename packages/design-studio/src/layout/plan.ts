@@ -1,6 +1,7 @@
 import { fail, ok, type Result } from "../result";
 import { mmToPt, pxToPt } from "../document/units";
-import type { DesignDocument, DesignMedium, TextAlign } from "../document/schema";
+import type { DesignDocument, DesignMedium, TextAlign, VerticalAlign } from "../document/schema";
+import type { ImageCrop } from "./encuadre";
 import type { ResolvedVariables } from "../variables/contract";
 import { interpolate } from "../variables/resolve";
 import { isFontId, slotFor, type FontId, type FontSlot } from "../fonts/catalog";
@@ -29,6 +30,12 @@ export type LayoutTextItem = ItemBase & {
   lineHeightPt: number;
   color: string;
   align: TextAlign;
+  verticalAlign: VerticalAlign;
+  /**
+   * Cuánto baja el primer renglón desde el borde de arriba de la caja, en el marco de la caja
+   * (antes de girarla). Cero con alineación arriba. Ver `desplazamientoVertical`.
+   */
+  offsetYPt: number;
   lines: string[];
   /** El texto no entra en `maxLines` o excede el alto de la caja. */
   overflow: boolean;
@@ -52,6 +59,10 @@ export type LayoutImageItem = ItemBase & {
   mask: "rect" | "circle" | "ellipse";
   /** Solo con `mask: "rect"`. */
   cornerRadiusPt?: number;
+  /** Encuadre de la foto en el recuadro. Ver `layout/encuadre.ts`. */
+  crop?: ImageCrop;
+  /** Ancho ÷ alto de la foto original, si el documento lo trae. */
+  sourceAspect?: number;
 };
 
 export type LayoutLineItem = ItemBase & {
@@ -99,6 +110,27 @@ export type LayoutOptions = {
   /** PRINT: agrandar la página con el sangrado y correr el contenido. */
   includeBleed: boolean;
 };
+
+/**
+ * Cuánto se baja el bloque de renglones para alinearlo verticalmente en su caja.
+ *
+ * El alto del texto es renglones × interlineado, igual que el alto de un párrafo en el
+ * navegador: así la cuenta coincide con la pantalla, que alinea con flexbox. Si el texto es más
+ * alto que la caja, el resultado es negativo —centrado desborda por los dos lados, abajo desborda
+ * hacia arriba—, que es lo mismo que hace el navegador.
+ *
+ * Se aplica antes de girar: la caja gira alrededor de su centro con el texto ya ubicado, así que
+ * en una caja a 90° «centro» reparte el hueco a los dos lados de los renglones, no de la hoja.
+ */
+export function desplazamientoVertical(
+  altoCaja: number,
+  altoTexto: number,
+  modo: VerticalAlign | undefined,
+): number {
+  if (modo === "middle") return (altoCaja - altoTexto) / 2;
+  if (modo === "bottom") return altoCaja - altoTexto;
+  return 0;
+}
 
 /** Proporción de interlineado. 1,2 es el valor tipográfico habitual para texto corto. */
 const LINE_HEIGHT_RATIO = 1.2;
@@ -277,6 +309,12 @@ export function buildLayoutPlan(
           lineHeightPt,
           color: bloque.color,
           align: bloque.align ?? "left",
+          verticalAlign: bloque.verticalAlign ?? "top",
+          offsetYPt: desplazamientoVertical(
+            base.heightPt,
+            lines.length * lineHeightPt,
+            bloque.verticalAlign,
+          ),
           lines,
           overflow: ajuste.overflow,
         });
@@ -334,6 +372,8 @@ export function buildLayoutPlan(
           fit: bloque.fit,
           mask: bloque.mask ?? "rect",
           ...(bloque.cornerRadius ? { cornerRadiusPt: aPuntos(bloque.cornerRadius) } : {}),
+          ...(bloque.crop ? { crop: bloque.crop } : {}),
+          ...(bloque.sourceAspect ? { sourceAspect: bloque.sourceAspect } : {}),
         });
         continue;
       }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { claveDeArchivo, limpiarNombreArchivo, nuevoVencimiento, tamanoLegible, tipoDeArchivo } from "./reglas";
+import { claveDeArchivo, limpiarNombreArchivo, nuevoVencimiento, tamanoLegible, tipoDeArchivo, vencimientoAlSubir } from "./reglas";
 
 describe("limpiarNombreArchivo", () => {
   it("saca rutas y caracteres raros, conserva la extensión", () => {
@@ -39,5 +39,16 @@ describe("tamanoLegible", () => {
     expect(tamanoLegible(512)).toBe("512 B");
     expect(tamanoLegible(3 * 1024 ** 2)).toBe("3,0 MB");
     expect(tamanoLegible(2.5 * 1024 ** 3)).toBe("2,50 GB");
+  });
+});
+
+describe("vencimientoAlSubir", () => {
+  const ahora = new Date("2026-10-20T15:00:00.000Z");
+  it("sin vencimiento, vence a los 30 días de subido", () => {
+    expect(vencimientoAlSubir(null, ahora).toISOString()).toBe("2026-11-19T15:00:00.000Z");
+  });
+  it("con vencimiento ya puesto (aunque sea más corto), no lo toca", () => {
+    const antes = new Date("2026-10-25T00:00:00.000Z");
+    expect(vencimientoAlSubir(antes, ahora)).toBe(antes);
   });
 });

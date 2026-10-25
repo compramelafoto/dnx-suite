@@ -14,12 +14,16 @@ const H = vi.hoisted(() => ({
   crear: vi.fn(),
   borrar: vi.fn(),
   entrega: vi.fn(),
+  reabrir: vi.fn(),
+  retroceso: vi.fn(),
+  avisar: vi.fn(),
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath: H.revalidate }));
 vi.mock("next/server", () => ({ after: (f: () => unknown) => void f() }));
 vi.mock("@/lib/agenda/google/empuje", () => ({ alCambiarProyecto: H.entrega }));
 vi.mock("@repo/db", () => ({ prisma: {} }));
+vi.mock("@/lib/proyectos/aviso-listo-servidor", () => ({ avisarSiQuedoListo: H.avisar }));
 vi.mock("@/lib/modules/gating", () => ({ isModuleEnabledForWorkspace: H.modulo }));
 vi.mock("@/lib/circuitos/acceso", () => ({ contextoDeCircuitos: H.ctx }));
 vi.mock("@/lib/circuitos/recorridos", () => ({
@@ -27,6 +31,8 @@ vi.mock("@/lib/circuitos/recorridos", () => ({
   sujetoDeRecorrido: H.sujetoRec,
   mover: H.mover,
   cerrar: H.cerrar,
+  reabrir: H.reabrir,
+  esRetrocesoDelRecorrido: H.retroceso,
   cambiarVencimiento: H.vencimiento,
   asignarResponsable: H.asignar,
 }));
@@ -44,7 +50,7 @@ const ADMIN = { ...EQUIPO, role: "WORKSPACE_ADMIN" };
 const CONSULTA = { tipo: "CAPTACION", id: "lead-1" };
 const INVALIDOS = { ok: false, error: "Los datos no son válidos." };
 const SIN_ACCESO = { ok: false, error: "No tenés permiso para hacer esto." };
-const MOTOR = [H.mover, H.cerrar, H.vencimiento, H.asignar, H.tildar, H.crear, H.borrar];
+const MOTOR = [H.mover, H.cerrar, H.reabrir, H.vencimiento, H.asignar, H.tildar, H.crear, H.borrar];
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -54,12 +60,14 @@ beforeEach(() => {
   H.sujetoTarea.mockResolvedValue(CONSULTA);
   for (const f of MOTOR) f.mockResolvedValue({ ok: true });
   H.crear.mockResolvedValue({ ok: true, id: "k9" });
+  H.retroceso.mockResolvedValue(false);
 });
 
 /** Una llamada válida de cada acción. */
 const LLAMADAS: [string, () => Promise<unknown>][] = [
   ["mover", () => A.moverAction({ journeyId: "j1", destinoId: "s2" })],
   ["cerrar", () => A.cerrarAction({ journeyId: "j1", salida: "GANADA" })],
+  ["reabrir", () => A.reabrirAction({ journeyId: "j1", destinoId: "s2" })],
   ["vencimiento", () => A.cambiarVencimientoAction({ journeyId: "j1", dueAt: null })],
   ["asignar", () => A.asignarResponsableAction({ journeyId: "j1", userId: 7 })],
   ["tildar", () => A.tildarTareaAction({ taskId: "k1", hecha: true })],
@@ -129,6 +137,27 @@ describe("el módulo se decide por el tipo del registro", () => {
     expect(H.revalidate.mock.calls.map((c) => c[0])).toContain("/proyectos/p1");
     // Cerrar el proyecto le avisa a Google (se borra la entrega); mover una etapa no.
     expect(H.entrega.mock.calls).toEqual([["ws-1", "p1"]]);
+  });
+
+  it("un proyecto que avanza avisa si quedó listo; uno que vuelve atrás, no", async () => {
+    H.ctx.mockResolvedValue(acceso({ projects: "MANAGE", "service-leads": "NONE" }));
+    H.sujetoRec.mockResolvedValue(PROYECTO);
+    expect(await A.moverAction({ journeyId: "j1", destinoId: "s2" })).toEqual({ ok: true });
+    expect(H.avisar).toHaveBeenCalledTimes(1);
+    H.retroceso.mockResolvedValue(true);
+    expect(await A.moverAction({ journeyId: "j1", destinoId: "s1" })).toEqual({ ok: true });
+    expect(H.avisar).toHaveBeenCalledTimes(1);
+  });
+
+  it("reabrir un proyecto lo devuelve a Google y no le avisa al cliente", async () => {
+    H.ctx.mockResolvedValue(acceso({ projects: "MANAGE", "service-leads": "NONE" }));
+    H.sujetoRec.mockResolvedValue(PROYECTO);
+    const cierre = "2026-10-20T15:00:00.000Z";
+    expect(await A.reabrirAction({ journeyId: "j1", destinoId: "s2", esperado: cierre })).toEqual({ ok: true });
+    expect(H.reabrir).toHaveBeenCalledWith(expect.objectContaining({ workspaceId: "ws-1" }), "j1", "s2", { nota: undefined, esperado: new Date(cierre) });
+    expect(H.entrega.mock.calls).toEqual([["ws-1", "p1"]]);
+    expect(H.avisar).not.toHaveBeenCalled();
+    expect(await A.reabrirAction({ journeyId: "j1", destinoId: "s2", esperado: "no es fecha" })).toEqual(INVALIDOS);
   });
 
   it("quien sólo gestiona Consultas no toca un proyecto", async () => {

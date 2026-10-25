@@ -14,8 +14,8 @@ import type { CuantoCobroStepId } from "@repo/cuanto-cobro-core/types";
 import { CC_DATA_SECURITY_NOTICE } from "@repo/cuanto-cobro-core/types";
 import { validarPerfil } from "@/lib/precios/perfil-datos";
 import { resumirPerfil } from "@/lib/precios/resumen";
-import { pesos } from "@/lib/presupuestos/editor";
-import { guardarPerfilPreciosAction } from "./actions";
+import { useFormatearPesos } from "@/components/campos/formato-pesos";
+import { guardarPerfilPreciosAction, type ResultadoPerfilPrecios } from "./actions";
 import { OfertaArmarConversando } from "@/components/dnx-bot/oferta-perfil";
 import {
   Aviso,
@@ -71,6 +71,16 @@ const CONTENIDO_ESTUDIO: Partial<Record<string, (p: PropsSeccionEstudio) => Reac
 type Paso = { id: string; title: string; description: string; motor: boolean };
 
 /**
+ * Un paso que agrega quien usa el formulario, después de los del perfil. Lo usa el portal del socio
+ * para cerrar con el valor de la hora y el presupuesto de un trabajo: no son parte del perfil, pero
+ * se calculan con el perfil que se está editando, sin guardar.
+ */
+export type PasoAgregado = { id: string; title: string; description: string; Contenido: (p: PropsSeccionEstudio) => React.ReactNode };
+
+/** Otro título o explicación para un paso del perfil, en la lengua de quien lo mira. */
+export type TextoDePaso = { title?: string; description?: string };
+
+/**
  * Paso propio de FOTOFFICE (no está en el asistente de CLF): impuestos, cobros y recargos. Es
  * opcional: nunca bloquea el «Siguiente» ni el guardado.
  */
@@ -104,6 +114,9 @@ const PASOS_ESTUDIO: Paso[] = [
   { id: "studio-summary", title: "Resumen del estudio", description: "Lo que cuesta el estudio por mes, las horas que puede cobrar y cuánto vale la hora de cada uno.", motor: false },
 ];
 
+const SIN_TEXTOS: Partial<Record<string, TextoDePaso>> = {};
+const SIN_PASOS: PasoAgregado[] = [];
+
 /**
  * Formulario del perfil de precios, con la forma del asistente de ¿Cuánto Cobro?: un paso por vez,
  * los pasos a la izquierda con su estado y el resumen en vivo (el mismo cálculo de los presupuestos).
@@ -113,6 +126,9 @@ export function PerfilForm({
   version,
   bot = null,
   estudio = null,
+  accion = guardarPerfilPreciosAction,
+  textos = SIN_TEXTOS,
+  pasosAgregados = SIN_PASOS,
 }: {
   inicial: CuantoCobroProfileInput;
   version: string | null;
@@ -120,11 +136,27 @@ export function PerfilForm({
   bot?: { workspaceId: string } | null;
   /** Mi estudio: si se ofrece (workspace de tipo estudio) y los miembros para vincular a cada persona. */
   estudio?: { ofrece: boolean; miembros: MiembroParaVincular[] } | null;
+  /** Dónde se guarda. Por omisión, el perfil del workspace (Configuración → Precios). */
+  accion?: (perfil: unknown, versionCargada?: string | null) => Promise<ResultadoPerfilPrecios>;
+  /** Títulos y explicaciones propios para algunos pasos, por id. */
+  textos?: Partial<Record<string, TextoDePaso>>;
+  /** Pasos que van al final, después de los del perfil. */
+  pasosAgregados?: PasoAgregado[];
 }) {
+  const pesos = useFormatearPesos();
   const [perfil, setPerfil] = useState(inicial);
   const modoEstudio = isStudioModeActive(perfil);
-  const PASOS = modoEstudio ? PASOS_ESTUDIO : PASOS_SOLO;
-  const contenidos = modoEstudio ? CONTENIDO_ESTUDIO : CONTENIDO;
+  const PASOS = useMemo(
+    () => [
+      ...(modoEstudio ? PASOS_ESTUDIO : PASOS_SOLO).map((p) => ({ ...p, ...textos[p.id] })),
+      ...pasosAgregados.map((p) => ({ id: p.id, title: p.title, description: p.description, motor: false })),
+    ],
+    [modoEstudio, textos, pasosAgregados],
+  );
+  const contenidos = useMemo(
+    () => ({ ...(modoEstudio ? CONTENIDO_ESTUDIO : CONTENIDO), ...Object.fromEntries(pasosAgregados.map((p) => [p.id, p.Contenido])) }),
+    [modoEstudio, pasosAgregados],
+  );
   /** Cuándo se guardó el perfil que se está editando (null: no había): para no pisar un cambio de otro (o de DNX Bot). */
   const [versionCargada, setVersionCargada] = useState(version);
   const [error, setError] = useState<string | null>(null);
@@ -184,7 +216,7 @@ export function PerfilForm({
       return;
     }
     empezar(async () => {
-      const r = await guardarPerfilPreciosAction(perfil, versionCargada);
+      const r = await accion(perfil, versionCargada);
       if (r.ok) {
         setVersionCargada(r.actualizado);
         setOk("Perfil guardado.");

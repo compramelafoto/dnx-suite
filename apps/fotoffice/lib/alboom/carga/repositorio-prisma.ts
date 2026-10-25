@@ -375,6 +375,12 @@ export const repoPrisma: RepoCarga = {
             id = p.id;
             await tx.fotofficeProductoCatalogo.create({ data: { workspaceId: ws, productId: id, inPriceList: v.inPriceList === true, isCombo: v.isCombo === true } });
           } else {
+            // Un producto con margen guardado toma costo y precio de su lista de proveedor
+            // (Ventas → Costos y márgenes): Alboom no los pisa.
+            if (("priceArs" in producto || "costArs" in producto) && (await tx.product.count({ where: { id, workspaceId: ws, marginPct: { not: null } } })) > 0) {
+              delete producto.priceArs;
+              delete producto.costArs;
+            }
             if (Object.keys(producto).length > 0) unoSolo(await tx.product.updateMany({ where: { id, workspaceId: ws }, data: producto }));
             if (Object.keys(catalogo).length > 0) {
               const propio = await tx.product.findFirst({ where: { id, workspaceId: ws }, select: { id: true } });

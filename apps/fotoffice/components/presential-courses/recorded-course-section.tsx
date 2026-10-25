@@ -55,14 +55,15 @@ export function RecordedCourseSection({
     ? montosDeCompraSinReparto({ listaArs: precioArs, comisionPlataformaBps: cargoServicioBps, owner: dueno })
     : null;
   const total = clases.reduce((s, c) => s + (c.durationSeconds ?? 0), 0);
-  const plazo = accessMonths === 1 ? "1 mes" : `${accessMonths} meses`;
+  const plazo =
+    accessMonths === 0 ? "cuando quieras, sin vencimiento" : accessMonths === 1 ? "durante 1 mes" : `durante ${accessMonths} meses`;
   return (
     <section className="fo-card space-y-4">
       {cursoDe ? <p className="text-xs text-[var(--fo-muted)]">Un curso de {cursoDe}</p> : null}
       <h2 className="text-xl font-semibold">Clases</h2>
       <p className="text-sm text-[var(--fo-muted)]">
         {clases.length} {clases.length === 1 ? "clase" : "clases"}
-        {total > 0 ? ` · ${duracionLegible(total)} en total` : ""} · Lo mirás a tu ritmo, durante {plazo}.
+        {total > 0 ? ` · ${duracionLegible(total)} en total` : ""} · Lo mirás a tu ritmo, {plazo}.
       </p>
       <ol className="space-y-2">
         {clases.map((clase, i) => (
@@ -127,7 +128,7 @@ export function RecordedCourseSection({
         </p>
       ) : null}
       {publicado && precioArs && aLaVenta ? (
-        <details className="pt-2">
+        <details id="comprar" className="scroll-mt-6 pt-2" open>
           <summary className="cursor-pointer text-sm text-[var(--fo-accent)]">Comprar el curso</summary>
           <div className="pt-3">
             <PublicCourseEnrollmentForm workspaceSlug={workspaceSlug} courseSlug={courseSlug} />

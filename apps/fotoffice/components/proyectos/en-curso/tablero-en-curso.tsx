@@ -3,11 +3,37 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
-import { AlertTriangle, ArrowRight, CalendarDays, Check, CheckCircle2, ClipboardList, Mail, MessageCircle, PackageCheck, Search, Send, Wallet } from "lucide-react";
-import { cerrarAction, moverAction } from "@/app/actions/circuitos";
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  TouchSensor,
+  useDraggable,
+  useDroppable,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+} from "@dnd-kit/core";
+import { AlertTriangle, ArrowRight, CalendarDays, Check, CheckCircle2, ClipboardList, Mail, MessageCircle, PackageCheck, Search, Send, Undo2, Wallet } from "lucide-react";
+import { cerrarAction, moverAction, reabrirAction } from "@/app/actions/circuitos";
 import { avisarListoAction, enviarAlProveedorAction, llegoDelProveedorAction } from "@/app/actions/proyectos-proveedor";
 import { formatMinorArs } from "@/lib/membership/money";
-import { FASES, FASE_INFO, etapaSiguiente, urgenciaDeEntrega, type Fase, type Urgencia } from "@/lib/proyectos/en-curso-puro";
+import {
+  FASES,
+  FASE_INFO,
+  destinoParaFase,
+  esFase,
+  etapaAnterior,
+  etapaSiguiente,
+  faseDeEtapaEn,
+  retenido,
+  urgenciaDeEntrega,
+  type DestinoDeFase,
+  type Fase,
+  type Urgencia,
+} from "@/lib/proyectos/en-curso-puro";
+import { importeSinCentavos, mensajeCandado } from "@/lib/pedidos/candado-saldo-puro";
 import type { TarjetaTrabajo } from "@/lib/proyectos/en-curso";
 
 /** Color de cada columna: el mismo criterio que los colores de las etapas de DNX. */
@@ -70,6 +96,18 @@ export function TableroEnCurso({
   const [ocupada, setOcupada] = useState<string | null>(null);
   const [aviso, setAviso] = useState<{ ok: boolean; texto: string } | null>(null);
   const [, start] = useTransition();
+  // Movimientos recién hechos, para que la tarjeta cambie de columna sin esperar al servidor. Vale
+  // sólo para las tarjetas con las que se hizo: cuando llegan las nuevas del refresco, se descarta.
+  const [optimista, setOptimista] = useState<{ base: TarjetaTrabajo[]; fases: Map<string, Fase> }>({ base: tarjetas, fases: new Map() });
+  const movidas = optimista.base === tarjetas ? optimista.fases : null;
+  const faseDe = (t: TarjetaTrabajo): Fase => movidas?.get(t.journeyId) ?? t.fase;
+  const [arrastrada, setArrastrada] = useState<TarjetaTrabajo | null>(null);
+  // Mouse: arrastra al moverse 6 px (un clic sigue siendo clic). Táctil: mantener apretado, para no
+  // pelear con el desplazamiento del tablero.
+  const sensores = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } }),
+  );
 
   const recorridos = useMemo(() => {
     const m = new Map<string, { nombre: string; n: number }>();
@@ -100,7 +138,7 @@ export function TableroEnCurso({
 
   const porFase = (f: Fase) =>
     visibles
-      .filter((t) => t.fase === f)
+      .filter((t) => faseDe(t) === f)
       .sort((a, b) => (a.entrega ?? "9999").localeCompare(b.entrega ?? "9999") || a.cliente.localeCompare(b.cliente));
 
   function avisarPorCorreo(t: TarjetaTrabajo) {
@@ -139,6 +177,66 @@ export function TableroEnCurso({
       setAviso({ ok: true, texto: `${t.cliente}: listo para retirar.${correo}` });
       router.refresh();
     });
+  }
+
+  /**
+   * Mueve, reabre o termina un trabajo según `destino` (de arrastrarlo o del botón volver). La
+   * tarjeta pasa a `fase` enseguida; si el servidor lo rechaza, vuelve a donde estaba.
+   */
+  function aplicar(t: TarjetaTrabajo, destino: DestinoDeFase, fase: Fase) {
+    setOcupada(t.journeyId);
+    setAviso(null);
+    const fases = new Map(movidas ?? []);
+    fases.set(t.journeyId, fase);
+    setOptimista({ base: tarjetas, fases });
+    const deshacer = () =>
+      setOptimista((o) => {
+        const sin = new Map(o.fases);
+        sin.delete(t.journeyId);
+        return { ...o, fases: sin };
+      });
+    start(async () => {
+      const r =
+        destino.tipo === "MOVER"
+          ? await moverAction({ journeyId: t.journeyId, destinoId: destino.etapa.id, esperado: t.enteredStageAt })
+          : destino.tipo === "REABRIR"
+            ? await reabrirAction({ journeyId: t.journeyId, destinoId: destino.etapa.id, esperado: t.cerradoAt ?? undefined })
+            : await cerrarAction({ journeyId: t.journeyId, salida: "TERMINADO", esperado: t.enteredStageAt });
+      setOcupada(null);
+      if (!r.ok) {
+        deshacer();
+        setAviso({ ok: false, texto: `${t.cliente}: ${r.error}` });
+        return;
+      }
+      const adelante = FASES.indexOf(fase) > FASES.indexOf(t.fase);
+      const correo = destino.tipo === "MOVER" && adelante && fase === "LISTO" && t.email ? ` Se le avisa por correo a ${t.email}.` : "";
+      setAviso({
+        ok: true,
+        texto: destino.tipo === "CERRAR" ? `${t.cliente}: trabajo terminado.` : `${t.cliente}: pasó a «${destino.etapa.name}».${correo}`,
+      });
+      router.refresh();
+    });
+  }
+
+  /** Volver una etapa atrás; un trabajo ya entregado se reabre en su última etapa. */
+  function volver(t: TarjetaTrabajo) {
+    const anterior = etapaAnterior(t.etapas, t.etapaActualId);
+    if (!anterior) return;
+    const fase = faseDeEtapaEn(t.etapas, anterior.id) ?? t.fase;
+    aplicar(t, t.cerrado ? { tipo: "REABRIR", etapa: anterior } : { tipo: "MOVER", etapa: anterior }, fase);
+  }
+
+  function alSoltar(e: DragEndEvent) {
+    setArrastrada(null);
+    const t = tarjetas.find((x) => x.journeyId === e.active.id);
+    const fase = e.over?.id;
+    if (!t || !esFase(fase) || fase === faseDe(t)) return;
+    const destino = destinoParaFase(t.etapas, t.etapaActualId, fase);
+    if (!destino) {
+      setAviso({ ok: false, texto: `${t.cliente}: el recorrido «${t.recorrido.nombre}» no tiene una etapa de «${FASE_INFO[fase].titulo}».` });
+      return;
+    }
+    aplicar(t, destino, fase);
   }
 
   function avanzar(t: TarjetaTrabajo) {
@@ -234,6 +332,13 @@ export function TableroEnCurso({
         </div>
       ) : null}
 
+      {puedeOperar && tarjetas.length > 0 ? (
+        <p className="-mt-2 text-xs text-[var(--fo-muted)]">
+          Arrastrá una tarjeta a otra columna para adelantarla o atrasarla, o tocá <Undo2 className="inline size-3" aria-label="volver" /> para volver
+          un paso.
+        </p>
+      ) : null}
+
       {aviso ? (
         <p role="status" className={`text-sm ${aviso.ok ? "text-[var(--fo-success)]" : "text-[var(--fo-danger)]"}`}>
           {aviso.texto}
@@ -244,15 +349,22 @@ export function TableroEnCurso({
       {tarjetas.length === 0 ? (
         <div className="fo-card flex flex-col items-center gap-2 px-6 py-14 text-center text-sm text-[var(--fo-muted)]">
           <ClipboardList className="size-8" aria-hidden />
-          <p>No hay trabajos en curso. Se crean solos al cobrar en el Mostrador un producto con proceso.</p>
+          <p>No hay trabajos en curso. Se crean solos al cobrar en el Mostrador un producto con proceso o con «Seña».</p>
         </div>
       ) : (
+        <DndContext
+          id="tablero-en-curso"
+          sensors={sensores}
+          onDragStart={(e: DragStartEvent) => setArrastrada(tarjetas.find((x) => x.journeyId === e.active.id) ?? null)}
+          onDragEnd={alSoltar}
+          onDragCancel={() => setArrastrada(null)}
+        >
         <div className="-mx-1 overflow-x-auto pb-2">
           <div className="grid min-w-[1100px] grid-cols-5 gap-3 px-1">
             {FASES.map((f) => {
               const lista = porFase(f);
               return (
-                <section key={f} className="flex min-w-0 flex-col gap-2" aria-label={FASE_INFO[f].titulo}>
+                <Columna key={f} fase={f} activa={arrastrada !== null && faseDe(arrastrada) !== f}>
                   <header className={`rounded-[var(--fo-radius-sm)] ${COLOR_FASE[f].suave} px-3 py-2`}>
                     <div className="flex items-center justify-between gap-2">
                       <h2 className="flex items-center gap-2 text-sm font-semibold">
@@ -269,26 +381,70 @@ export function TableroEnCurso({
                     </p>
                   ) : (
                     lista.map((t) => (
-                      <Tarjeta
-                        key={t.journeyId}
-                        t={t}
-                        hoy={hoy}
-                        estudio={estudio}
-                        puedeOperar={puedeOperar}
-                        ocupada={ocupada === t.journeyId}
-                        onAvanzar={() => avanzar(t)}
-                        onCorreo={() => avisarPorCorreo(t)}
-                        onEnviar={() => enviarAlProveedor(t)}
-                        onLlego={() => llego(t)}
-                      />
+                      <Arrastrable key={t.journeyId} id={t.journeyId} habilitado={puedeOperar && ocupada !== t.journeyId}>
+                        <Tarjeta
+                          t={t}
+                          hoy={hoy}
+                          estudio={estudio}
+                          puedeOperar={puedeOperar}
+                          ocupada={ocupada === t.journeyId}
+                          movida={movidas?.has(t.journeyId) ?? false}
+                          onAvanzar={() => avanzar(t)}
+                          onVolver={() => volver(t)}
+                          onCorreo={() => avisarPorCorreo(t)}
+                          onEnviar={() => enviarAlProveedor(t)}
+                          onLlego={() => llego(t)}
+                        />
+                      </Arrastrable>
                     ))
                   )}
-                </section>
+                </Columna>
               );
             })}
           </div>
         </div>
+        <DragOverlay dropAnimation={null}>
+          {arrastrada ? (
+            <div className="rotate-1 cursor-grabbing shadow-[var(--fo-shadow-md)]">
+              <Tarjeta t={arrastrada} hoy={hoy} estudio={estudio} puedeOperar={false} ocupada={false} movida={false} />
+            </div>
+          ) : null}
+        </DragOverlay>
+        </DndContext>
       )}
+    </div>
+  );
+}
+
+/** Una columna del tablero: recibe tarjetas arrastradas y se resalta mientras se arrastra una de otra. */
+function Columna({ fase, activa, children }: { fase: Fase; activa: boolean; children: React.ReactNode }) {
+  const { setNodeRef, isOver } = useDroppable({ id: fase });
+  return (
+    <section
+      ref={setNodeRef}
+      className={`flex min-h-[240px] min-w-0 flex-col gap-2 rounded-[var(--fo-radius-sm)] transition ${
+        isOver && activa ? "bg-[var(--fo-accent-soft)] ring-2 ring-[var(--fo-accent)]" : activa ? "ring-1 ring-dashed ring-[var(--fo-border)]" : ""
+      }`}
+      aria-label={FASE_INFO[fase].titulo}
+    >
+      {children}
+    </section>
+  );
+}
+
+/** Envoltorio que hace arrastrable una tarjeta. Mientras viaja, el original queda tenue en su lugar. */
+function Arrastrable({ id, habilitado, children }: { id: string; habilitado: boolean; children: React.ReactNode }) {
+  const { setNodeRef, listeners, attributes, isDragging } = useDraggable({ id, disabled: !habilitado });
+  return (
+    <div
+      ref={setNodeRef}
+      {...listeners}
+      {...attributes}
+      role={undefined}
+      tabIndex={undefined}
+      className={`${habilitado ? "cursor-grab touch-manipulation" : ""} ${isDragging ? "opacity-30" : ""}`}
+    >
+      {children}
     </div>
   );
 }
@@ -330,7 +486,7 @@ function BotonIcono({ titulo, onClick, href, disabled, children }: { titulo: str
   const clase =
     "flex size-7 shrink-0 items-center justify-center rounded-[var(--fo-radius-sm)] border border-[var(--fo-border)] bg-[var(--fo-bg-elevated)] text-[var(--fo-muted)] transition hover:border-[var(--fo-accent)] hover:text-[var(--fo-text)] disabled:opacity-50";
   return href ? (
-    <a href={href} target="_blank" rel="noreferrer" title={titulo} aria-label={titulo} className={clase}>
+    <a href={href} target="_blank" rel="noreferrer" draggable={false} title={titulo} aria-label={titulo} className={clase}>
       {children}
     </a>
   ) : (
@@ -354,27 +510,34 @@ function Tarjeta({
   estudio,
   puedeOperar,
   ocupada,
-  onAvanzar,
-  onCorreo,
-  onEnviar,
-  onLlego,
+  movida,
+  onAvanzar = () => {},
+  onVolver = () => {},
+  onCorreo = () => {},
+  onEnviar = () => {},
+  onLlego = () => {},
 }: {
   t: TarjetaTrabajo;
   hoy: string;
   estudio: string;
   puedeOperar: boolean;
   ocupada: boolean;
-  onAvanzar: () => void;
-  onCorreo: () => void;
-  onEnviar: () => void;
-  onLlego: () => void;
+  /** Recién arrastrada a otra columna: sus botones esperan a que el servidor confirme. */
+  movida: boolean;
+  onAvanzar?: () => void;
+  onVolver?: () => void;
+  onCorreo?: () => void;
+  onEnviar?: () => void;
+  onLlego?: () => void;
 }) {
   const orden = [...t.etapas].sort((a, b) => a.order - b.order);
   const indice = t.cerrado ? orden.length : Math.max(0, orden.findIndex((e) => e.id === t.etapaActualId));
   const actual = t.cerrado ? null : (orden[indice] ?? null);
   const siguiente = actual ? etapaSiguiente(orden, actual.id) : null;
+  const anterior = etapaAnterior(orden, t.etapaActualId);
   const u = t.cerrado ? "OK" : urgenciaDeEntrega(t.entrega, hoy);
   const debe = t.pedido && t.pedido.saldoMinor > 0 ? t.pedido.saldoMinor : 0;
+  const retiene = retenido(t);
   const whatsapp =
     t.fase === "LISTO"
       ? enlaceWhatsApp(
@@ -388,11 +551,11 @@ function Tarjeta({
   const detalle = [t.producto ?? t.nombre, t.proveedor].filter(Boolean).join(" · ");
   const ayuda = `${t.recorrido.nombre} · ${t.cerrado ? "Terminado" : `paso ${indice + 1} de ${orden.length}: ${actual?.name ?? ""}`}`;
 
-  let principal: { texto: string; icono: React.ReactNode; onClick: () => void; titulo: string } | null = null;
-  if (!t.cerrado && puedeOperar) {
+  let principal: { texto: string; icono: React.ReactNode; onClick: () => void; titulo: string; bloqueado?: boolean } | null = null;
+  if (!t.cerrado && puedeOperar && !movida) {
     if (porEnviar) principal = { texto: `Enviar a ${t.proveedor}`, icono: <Send className="size-3.5" aria-hidden />, onClick: onEnviar, titulo: "Le manda el pedido por correo y pasa a En el proveedor" };
     else if (t.fase === "EN_PROVEEDOR") principal = { texto: "Llegó", icono: <PackageCheck className="size-3.5" aria-hidden />, onClick: onLlego, titulo: "Pasa a Listo para retirar y le avisa al cliente por correo" };
-    else if (t.fase === "LISTO") principal = { texto: "Entregado", icono: <Check className="size-3.5" aria-hidden />, onClick: onAvanzar, titulo: siguiente ? `Pasar a «${siguiente.name}»` : "Terminar el trabajo" };
+    else if (t.fase === "LISTO") principal = { texto: "Entregado", icono: <Check className="size-3.5" aria-hidden />, onClick: onAvanzar, titulo: retiene && t.pedido ? mensajeCandado(t.pedido.numero, t.pedido.saldoMinor) : siguiente ? `Pasar a «${siguiente.name}»` : "Terminar el trabajo", bloqueado: retiene };
     else principal = { texto: siguiente ? siguiente.name : "Terminar", icono: siguiente ? <ArrowRight className="size-3.5" aria-hidden /> : <CheckCircle2 className="size-3.5" aria-hidden />, onClick: onAvanzar, titulo: siguiente ? `Pasar a «${siguiente.name}»` : "Terminar el trabajo" };
   }
 
@@ -413,18 +576,34 @@ function Tarjeta({
       ) : null}
 
       <div className="flex items-baseline justify-between gap-2">
-        <Link href={`/proyectos/${t.proyectoId}`} className="min-w-0 truncate text-[13px] font-semibold text-[var(--fo-text)] hover:underline">
+        <Link href={`/proyectos/${t.proyectoId}`} draggable={false} className="min-w-0 truncate text-[13px] font-semibold text-[var(--fo-text)] hover:underline">
           {t.cliente}
         </Link>
         {t.pedido ? (
           debe > 0 ? (
-            <span className="shrink-0 text-[11px] font-semibold tabular-nums text-[var(--fo-danger)]">Debe {formatMinorArs(debe).replace(",00", "")}</span>
+            <span className="shrink-0 text-[11px] font-semibold tabular-nums text-[var(--fo-danger)]">
+              {retiene ? "Retenido · debe" : "Debe"} {importeSinCentavos(debe)}
+            </span>
           ) : (
             <span className="shrink-0 text-[11px] font-semibold text-[var(--fo-success)]">Pagado</span>
           )
         ) : null}
       </div>
-      <p className="truncate text-[11px] text-[var(--fo-muted)]">{detalle}</p>
+      <div className="flex items-center gap-1">
+        <p className="min-w-0 flex-1 truncate text-[11px] text-[var(--fo-muted)]">{detalle}</p>
+        {puedeOperar && anterior && !movida ? (
+          <button
+            type="button"
+            onClick={onVolver}
+            disabled={ocupada}
+            title={t.cerrado ? `Reabrir en «${anterior.name}»` : `Volver a «${anterior.name}»`}
+            aria-label={t.cerrado ? `Reabrir en «${anterior.name}»` : `Volver a «${anterior.name}»`}
+            className="flex size-5 shrink-0 items-center justify-center rounded-[var(--fo-radius-sm)] text-[var(--fo-muted)] transition hover:bg-[var(--fo-surface-hover)] hover:text-[var(--fo-text)] disabled:opacity-50"
+          >
+            <Undo2 className="size-3.5" aria-hidden />
+          </button>
+        ) : null}
+      </div>
 
       <div className="flex items-center gap-1.5">
         <span className={`inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-[10.5px] tabular-nums ${ESTILO_URGENCIA[u]}`}>
@@ -432,7 +611,7 @@ function Tarjeta({
           {t.cerrado ? "Entregado" : textoEntrega(t.entrega, u)}
         </span>
         <span className="flex-1" />
-        {t.fase === "LISTO" && !t.cerrado && puedeOperar ? (
+        {t.fase === "LISTO" && !t.cerrado && puedeOperar && !movida ? (
           <>
             {whatsapp ? (
               <BotonIcono titulo="Avisar por WhatsApp" href={whatsapp}>
@@ -455,7 +634,7 @@ function Tarjeta({
           <button
             type="button"
             onClick={principal.onClick}
-            disabled={ocupada}
+            disabled={ocupada || principal.bloqueado}
             title={principal.titulo}
             className="inline-flex h-7 min-w-0 max-w-[60%] items-center gap-1 rounded-[var(--fo-radius-sm)] bg-[var(--fo-accent)] px-2 text-[11px] font-semibold text-[var(--fo-on-accent,#fff)] transition hover:bg-[var(--fo-accent-hover)] disabled:opacity-50"
           >

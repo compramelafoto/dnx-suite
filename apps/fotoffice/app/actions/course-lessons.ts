@@ -5,7 +5,8 @@ import { unstable_rethrow } from "next/navigation";
 import { prisma } from "@repo/db";
 import { z } from "zod";
 import { requireCoursesSalesContext } from "@/lib/workspace";
-import { createDirectUpload, getVideoStatus } from "@/lib/courses-video/stream";
+import { copyFromUrl, createDirectUpload, getVideoStatus } from "@/lib/courses-video/stream";
+import { enlaceDeDescargaDirecta } from "@/lib/courses-video/video-link";
 import { logCourseEvent } from "@/lib/presential-courses/log";
 import { calcularNuevoOrden } from "@/lib/presential-courses/lesson-order";
 
@@ -23,7 +24,12 @@ const claseSchema = z.object({
   isPreview: z.boolean().optional(),
 });
 
-export type CourseLessonActionState = { error: string | null; ok?: boolean };
+export type CourseLessonActionState = {
+  error: string | null;
+  ok?: boolean;
+  /** Cómo quedó el video, para que la pantalla sepa si seguir preguntando. */
+  videoStatus?: "PENDING" | "UPLOADING" | "PROCESSING" | "READY" | "ERROR";
+};
 
 async function asegurarCursoDelWorkspace(workspaceId: string, courseId: string) {
   const curso = await prisma.course.findFirst({
@@ -214,7 +220,7 @@ export async function refrescarEstadoDeVideo(lessonId: string): Promise<CourseLe
       },
     });
     revalidatePath(`/dashboard/courses/${clase.courseId}`);
-    return { error: null, ok: true };
+    return { error: null, ok: true, videoStatus: estado.status };
   } catch (error) {
     // El `redirect` de la guarda no es un error: que llegue a Next.
     unstable_rethrow(error);
@@ -248,4 +254,53 @@ export async function prepararSubidaDeVideo(
     lessonId,
   });
   return { ok: true, uploadUrl: subida.uploadUrl };
+}
+
+/**
+ * Trae el video de una clase desde un enlace (Google Drive u otro sitio público).
+ *
+ * El proveedor lo baja por su cuenta: no hay tope de tamaño del navegador y no pasa por la
+ * computadora del fotógrafo. Si la clase ya tenía video, el nuevo lo reemplaza.
+ */
+export async function traerVideoDesdeEnlace(
+  lessonId: string,
+  enlace: string,
+): Promise<CourseLessonActionState> {
+  try {
+    const { workspace } = await requireCoursesSalesContext("MANAGE");
+    const clase = await asegurarClaseDelWorkspace(workspace.id, lessonId);
+    const destino = enlaceDeDescargaDirecta(enlace);
+    if (!destino.ok) return { error: destino.error };
+
+    const datos = await prisma.courseLesson.findUniqueOrThrow({
+      where: { id: lessonId },
+      select: { title: true },
+    });
+    const copia = await copyFromUrl({ url: destino.url, name: datos.title });
+
+    await prisma.courseLesson.update({
+      where: { id: lessonId },
+      data: {
+        videoUid: copia.uid,
+        videoStatus: "PROCESSING",
+        durationSeconds: null,
+        thumbnailUrl: null,
+      },
+    });
+    logCourseEvent("video_traido_de_enlace", {
+      workspaceId: workspace.id,
+      courseId: clase.courseId,
+      lessonId,
+    });
+    revalidatePath(`/dashboard/courses/${clase.courseId}`);
+    return { error: null, ok: true, videoStatus: "PROCESSING" };
+  } catch (error) {
+    unstable_rethrow(error);
+    return {
+      error:
+        error instanceof Error
+          ? error.message
+          : "No se pudo traer el video. Revisá que el archivo esté compartido con cualquiera que tenga el enlace.",
+    };
+  }
 }

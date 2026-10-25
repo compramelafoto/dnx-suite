@@ -55,7 +55,13 @@ export type BuildPreventaTermsInput = {
 };
 
 function fmtDate(d: Date): string {
-  return d.toLocaleString("es-AR", { dateStyle: "long", timeStyle: "short" });
+  // En hora argentina: el servidor corre en UTC y mostraba "11 de noviembre 2:59" para un cierre
+  // del 10 de noviembre a las 23:59.
+  return d.toLocaleString("es-AR", {
+    dateStyle: "long",
+    timeStyle: "short",
+    timeZone: "America/Argentina/Buenos_Aires",
+  });
 }
 
 function getSharedPackCloseAt(

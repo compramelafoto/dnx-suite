@@ -1,6 +1,11 @@
 import { buildDesignValues } from "@/lib/design-v2/values";
 import { splitExcelStudentName, type ExternalPreventaRefs } from "./external-preventa";
 
+/** La clave de un curso de los packs cargados del Excel (la misma que usa `class-list`). */
+export function excelCourseKey(courseName: string): string {
+  return `excel|${courseName.trim()}`;
+}
+
 /**
  * Los textos (y el logo) del librito de un pack cobrado por fuera, a partir del pack y de los
  * otros packs del mismo álbum. Sin base: la consulta la hace `valoresDelPackExterno`.
@@ -42,6 +47,9 @@ export function valoresDelPackExternoDesdePacks(input: {
     schoolLogoUrl: input.schoolLogoUrl,
     buyerName: input.buyerName,
     photographerName: input.photographerName,
-    courseStudents,
+    courseGroups:
+      externo.courseName && courseStudents.length
+        ? [{ title: externo.courseName.trim(), courseKey: excelCourseKey(externo.courseName), students: courseStudents }]
+        : null,
   });
 }

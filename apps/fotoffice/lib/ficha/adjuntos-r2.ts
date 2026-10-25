@@ -49,7 +49,15 @@ function s3(): S3Client {
   if (!adjuntosR2Configurado() || !endpoint || !accessKeyId || !secretAccessKey) {
     throw new Error("Adjuntos R2 incompleto");
   }
-  cliente = new S3Client({ region: "auto", endpoint, credentials: { accessKeyId, secretAccessKey } });
+  // WHEN_REQUIRED: sin esto el SDK firma `x-amz-checksum-crc32` (CRC32 de un cuerpo vacío) en las
+  // URLs de subida y R2 puede rechazar el cuerpo real.
+  cliente = new S3Client({
+    region: "auto",
+    endpoint,
+    credentials: { accessKeyId, secretAccessKey },
+    requestChecksumCalculation: "WHEN_REQUIRED",
+    responseChecksumValidation: "WHEN_REQUIRED",
+  });
   return cliente;
 }
 

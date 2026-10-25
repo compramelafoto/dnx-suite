@@ -5,6 +5,8 @@ import QRCode from "qrcode";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
 import { Role } from "@/lib/prisma";
+import { ensureFulfillmentQrTokenForPreCompraOrderItem } from "@/lib/school-fulfillment/ensure-fulfillment-qr-token";
+import { baseAppUrl, urlDeEntregaEscolar } from "@/lib/school-fulfillment/entrega-url";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -28,11 +30,6 @@ const GUIDE_COLOR = rgb(0.88, 0.88, 0.88);
 function referenciaLegible(token: string): string {
   if (token.length <= 10) return token;
   return `${token.slice(0, 4)}…${token.slice(-4)}`;
-}
-
-function baseAppUrl(): string {
-  const raw = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || "http://localhost:3000";
-  return raw.replace(/\/$/, "");
 }
 
 function fitWidth(text: string, maxW: number, font: PDFFont, size: number): string {
@@ -207,15 +204,17 @@ export async function GET(_req: Request, context: RouteCtx) {
     return NextResponse.json({ error: "Pedido no encontrado" }, { status: 404 });
   }
 
-  const itemsWithToken = order.items.filter((it) => Boolean(it.fulfillmentQrToken?.length));
+  // Cada ítem tiene su código de entrega: si no lo tenía todavía, se le crea ahora (queda guardado).
+  const itemsWithToken: { id: number; fulfillmentQrToken: string }[] = [];
+  for (const it of order.items) {
+    const token = it.fulfillmentQrToken?.length
+      ? it.fulfillmentQrToken
+      : (await ensureFulfillmentQrTokenForPreCompraOrderItem(prisma, it.id)).token;
+    itemsWithToken.push({ id: it.id, fulfillmentQrToken: token });
+  }
 
   if (itemsWithToken.length === 0) {
-    return NextResponse.json(
-      {
-        error: "No hay productos con código de etiqueta en este pedido. El código se asigna cuando el diseño queda exportado.",
-      },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: "Este pedido no tiene productos para etiquetar." }, { status: 400 });
   }
 
   const alumno =
@@ -248,8 +247,8 @@ export async function GET(_req: Request, context: RouteCtx) {
     const y0 = A4_H - (row + 1) * CELL_H;
 
     const item = itemsWithToken[i];
-    const token = item.fulfillmentQrToken as string;
-    const qrUrl = `${baseUrl}/escolar/entrega/${encodeURIComponent(token)}`;
+    const token = item.fulfillmentQrToken;
+    const qrUrl = urlDeEntregaEscolar(baseUrl, token);
     const pngBuffer = await QRCode.toBuffer(qrUrl, { type: "png", width: 240, margin: 1 });
     const qrImage = await pdfDoc.embedPng(pngBuffer);
 

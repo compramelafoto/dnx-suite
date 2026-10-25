@@ -1,5 +1,6 @@
 import { COMMUNICATIONS_MODULE_KEY } from "@/lib/communications/constants";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
+import { DIGITALIZACION_MODULE_KEY } from "@/lib/digitalizacion/constants";
 import { EVALUACIONES_MODULE_KEY } from "@/lib/evaluaciones/constants";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
@@ -16,6 +17,10 @@ import { STORE_MODULE_KEY } from "@/lib/store/constants";
 import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
 import { PORTFOLIO_MODULE_KEY } from "@/lib/portfolio/constants";
 import { GOVERNANCE_MODULE_KEY } from "@/lib/governance/constants";
+import { PRINT_ORDERS_MODULE_KEY } from "@/lib/impresiones/constantes";
+import { BANDEJA_MODULE_KEY } from "@/lib/bandeja/constantes";
+import { CUANTO_COBRO_SOCIO_MODULE_KEY } from "@/lib/cuanto-cobro-socio/constants";
+import { FOTOLIBROS_SOCIO_MODULE_KEY } from "@/lib/fotolibro/constantes";
 
 /**
  * Catálogo central de módulos de FotoOffice.
@@ -181,6 +186,18 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
     family: "negocio",
   },
   {
+    key: DIGITALIZACION_MODULE_KEY,
+    label: "Digitalización",
+    description:
+      "Digitalización de VHS y DVD: graba desde la capturadora en segundo plano, sube en tiempo real y corta sola cuando la cinta termina.",
+    category: "GENERAL",
+    order: 37,
+    route: "/digitalizacion",
+    status: "AVAILABLE",
+    family: "negocio",
+    platformFee: true,
+  },
+  {
     // Que la tienda necesita Ventas (vende el mismo catálogo y el mismo stock) lo hace cumplir
     // `lib/store/access.ts`, y que necesita el Sitio web para verse lo resuelve el sitio
     // público, que sin él no existe. `dependsOn` sólo lo usa la pantalla de Módulos para avisar.
@@ -204,6 +221,19 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
     category: "GENERAL",
     order: 40,
     route: "/comunicacion/placas",
+    status: "AVAILABLE",
+    family: "base",
+  },
+  {
+    // Bandeja de WhatsApp (Etapa A): chats de la línea de la institución, con bot, toma por una
+    // persona y respuesta desde el panel. La conexión real con Meta se configura aparte.
+    key: BANDEJA_MODULE_KEY,
+    label: "Bandeja de WhatsApp",
+    description:
+      "Los chats de WhatsApp de la institución en una bandeja: quién los atiende (bot o una persona), respuestas desde el panel y cada cliente vinculado a su ficha.",
+    category: "GENERAL",
+    order: 41,
+    route: "/bandeja",
     status: "AVAILABLE",
     family: "base",
   },
@@ -284,6 +314,31 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
     family: "institucion",
   },
   {
+    // Sin `route` a propósito: no tiene pantalla en el panel. Lo que el socio carga es suyo y la
+    // institución no lo ve; el interruptor sólo decide si aparece en el portal.
+    key: CUANTO_COBRO_SOCIO_MODULE_KEY,
+    label: "¿Cuánto Cobro? para {personas}",
+    description:
+      "Cada una de las {personas} calcula desde su portal cuánto cobrar: lo que necesita ganar por mes, sus gastos fijos, sus horas y los gastos de cada trabajo. Lo que carga es personal: la institución no lo ve.",
+    category: "INSTITUTIONAL",
+    order: 119,
+    status: "AVAILABLE",
+    family: "institucion",
+    dependsOn: [MEMBERS_MODULE_KEY],
+  },
+  {
+    // Sin `route`, como ¿Cuánto Cobro?: lo que diseña el socio es suyo y la institución no lo ve.
+    key: FOTOLIBROS_SOCIO_MODULE_KEY,
+    label: "Fotolibros para {personas}",
+    description:
+      "Cada una de las {personas} diseña sus fotolibros desde su portal, con la medida real del pliego de los laboratorios, encuadre de cada foto y listos para imprimir. Lo que diseña es personal: la institución no lo ve.",
+    category: "INSTITUTIONAL",
+    order: 119.5,
+    status: "AVAILABLE",
+    family: "institucion",
+    dependsOn: [MEMBERS_MODULE_KEY],
+  },
+  {
     key: GOVERNANCE_MODULE_KEY,
     label: "Proyectos de la comisión",
     description:
@@ -345,6 +400,17 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
     order: 29,
     status: "AVAILABLE",
     route: "/galerias",
+    family: "negocio",
+    dependsOn: ["projects"],
+  },
+  {
+    key: PRINT_ORDERS_MODULE_KEY,
+    label: "Pedidos de impresión",
+    description: "Tus clientes piden copias impresas desde el enlace de sus fotos, pagan online y el pedido sale solo al laboratorio.",
+    category: "GENERAL",
+    order: 95,
+    status: "AVAILABLE",
+    route: "/workspace/configuracion/impresiones",
     family: "negocio",
     dependsOn: ["projects"],
   },

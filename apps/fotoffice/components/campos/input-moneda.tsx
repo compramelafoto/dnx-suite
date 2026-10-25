@@ -10,6 +10,7 @@ import {
   textoVisible,
   type SeparadorEnvio,
 } from "@/lib/moneda/entrada";
+import { useModoPesos } from "./formato-pesos";
 
 type Props = Omit<
   InputHTMLAttributes<HTMLInputElement>,
@@ -56,6 +57,7 @@ export function InputMoneda({
   placeholder,
   ...resto
 }: Props) {
+  const palabra = useModoPesos() === "palabra";
   const controlado = value !== undefined;
   const [visible, setVisible] = useState(() => textoVisible(leerValor(controlado ? value : defaultValue, decimales)));
   const ref = useRef<HTMLInputElement>(null);
@@ -79,11 +81,12 @@ export function InputMoneda({
 
   return (
     <div className={`relative ${wrapperClassName ?? ""}`}>
+      {/* Donde los importes se escriben con la palabra (portal del socio), «pesos» va al final. */}
       <span
         aria-hidden
-        className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-sm text-[var(--fo-muted)]"
+        className={`pointer-events-none absolute top-1/2 -translate-y-1/2 text-sm text-[var(--fo-muted)] ${palabra ? "right-3.5" : "left-3.5"}`}
       >
-        $
+        {palabra ? "pesos" : "$"}
       </span>
       <input
         {...resto}
@@ -91,7 +94,7 @@ export function InputMoneda({
         type="text"
         inputMode={decimales ? "decimal" : "numeric"}
         autoComplete="off"
-        className={`${className} !pl-7 tabular-nums`}
+        className={`${className} ${palabra ? "!pr-16" : "!pl-7"} tabular-nums`}
         placeholder={placeholderVisible}
         value={visible}
         onChange={(e) => {

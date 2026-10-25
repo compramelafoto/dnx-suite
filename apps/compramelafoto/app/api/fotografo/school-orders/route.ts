@@ -178,6 +178,7 @@ export async function GET(req: NextRequest) {
           buyerPhone: true,
           totalCents: true,
           isTest: true,
+          preCompraPaymentRef: true,
           redemptionOrderId: true,
           redemptionPaymentRefsJson: true,
           album: { select: { id: true, title: true, publicSlug: true, schoolId: true, school: { select: { id: true, name: true } } } },
@@ -210,6 +211,8 @@ export async function GET(req: NextRequest) {
         // Sólo los packs cargados del Excel y las pruebas: los packs comprados en la plataforma
         // ya tienen su pedido escolar.
         if (!externo && !p.isTest) continue;
+        // Preventa de prueba comprada en la tienda (pago simulado): ya figura por su pre-compra.
+        if (p.isTest && p.preCompraPaymentRef) continue;
         const escuela = p.album?.school ?? (externo?.schoolName ? { id: 0, name: externo.schoolName } : null);
         if (escuelaElegida) {
           const coincide =

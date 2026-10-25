@@ -5,6 +5,7 @@ import { requireActiveWorkspaceRole } from "@/lib/access/active-context";
 import { puede } from "@/lib/access/policy";
 import { etiquetaDeUsuario } from "@/lib/listado/acceso";
 import { guardarPerfilPrecios } from "@/lib/precios/perfil";
+import { copiarPerfilDelPortal } from "@/lib/cuanto-cobro-socio/perfil";
 import type { CtxPresupuestos } from "@/lib/presupuestos/acceso";
 
 export type ResultadoPerfilPrecios = { ok: true; actualizado: string } | { ok: false; error: string };
@@ -36,6 +37,19 @@ export async function guardarPerfilPreciosAction(perfil: unknown, versionCargada
     esperado = null;
   }
   const r = esperado === undefined ? await guardarPerfilPrecios(ctx, perfil) : await guardarPerfilPrecios(ctx, perfil, { esperado });
+  if (!r.ok) return { ok: false, error: r.error };
+  revalidatePath(RUTA);
+  return { ok: true, actualizado: r.actualizado.toISOString() };
+}
+
+/**
+ * Copia al negocio el perfil de ¿Cuánto Cobro? que la persona armó en su portal de socio. Para quien
+ * acaba de crear su negocio: no vuelve a cargar todo. Nunca pisa un perfil que el negocio ya tenga.
+ */
+export async function copiarPerfilDelPortalAction(): Promise<ResultadoPerfilPrecios> {
+  const ctx = await contexto();
+  if (!ctx) return SIN_PERMISO;
+  const r = await copiarPerfilDelPortal(ctx);
   if (!r.ok) return { ok: false, error: r.error };
   revalidatePath(RUTA);
   return { ok: true, actualizado: r.actualizado.toISOString() };

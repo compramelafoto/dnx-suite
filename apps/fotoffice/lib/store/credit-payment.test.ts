@@ -102,10 +102,18 @@ function pedido(over: { status?: Status; mpPaymentId?: string | null } = {}) {
 function crearTx(
   order: ReturnType<typeof pedido>,
   stock: { p1?: number; v1?: number; p2?: number } = {},
-  over: { eventoDuplicado?: boolean; p2Talles?: boolean } = {},
+  over: { eventoDuplicado?: boolean; p2Talles?: boolean; recetaP2?: boolean } = {},
 ) {
   return {
     $queryRaw: vi.fn(async () => []),
+    // Recetas de insumos (`planificarConsumo`): por omisión nada consume insumos. Con
+    // `recetaP2`, la taza gasta 1 "kit" por unidad.
+    fotofficeComboItem: { findMany: vi.fn(async () => []) },
+    fotofficeRecetaInsumo: {
+      findMany: vi.fn(async () =>
+        over.recetaP2 ? [{ productId: "p2", insumoId: "kit", quantity: 1, porCada: 1 }] : [],
+      ),
+    },
     storeOrder: {
       findFirst: vi.fn(async () => order),
       updateMany: vi.fn<(args: unknown) => Promise<{ count: number }>>(async () => ({ count: 1 })),
@@ -115,7 +123,8 @@ function crearTx(
       findFirst: vi.fn(async () => (over.eventoDuplicado ? { id: "ev" } : null)),
     },
     product: {
-      findMany: vi.fn(async () => [
+      findMany: vi.fn(async (args?: { where?: { kind?: string } }) =>
+        args?.where?.kind === "INSUMO" ? [{ id: "kit" }] : [
         { id: "p1", tracksStock: true, stockQty: stock.p1 ?? 10, costArs: "4000.00", variants: [{ id: "v1" }] },
         {
           id: "p2",
@@ -279,6 +288,18 @@ describe("lockAndCheckOrderStock (también lo usa reponer: PAID_NO_STOCK → PAI
   it("si al producto le cargaron talles después del pedido, el renglón sin talle no alcanza", async () => {
     const t = crearTx(pedido(), {}, { p2Talles: true });
     expect(await lockAndCheckOrderStock(t as never, pedido() as never)).toBe(false);
+  });
+
+  it("bloquea los insumos del pedido en la MISMA llamada que sus productos, antes que los talles", async () => {
+    // Si los insumos se bloquearan recién dentro de `recordSale` (después de los talles), una
+    // venta de mostrador que toma {insumo, producto} ordenados podía esperar en cruz con ésta.
+    h.lockStockRows.mockClear();
+    const t = crearTx(pedido(), {}, { recetaP2: true });
+    await lockAndCheckOrderStock(t as never, pedido() as never);
+    expect(h.lockStockRows).toHaveBeenCalledTimes(1);
+    const [, arg] = h.lockStockRows.mock.calls[0] as [unknown, { productIds: string[]; variantIds: string[] }];
+    expect([...arg.productIds].sort()).toEqual(["kit", "p1", "p2"]);
+    expect(arg.variantIds).toEqual(["v1"]);
   });
 });
 

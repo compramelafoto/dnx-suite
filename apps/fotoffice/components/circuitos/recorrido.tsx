@@ -6,6 +6,7 @@ import { asignarResponsableAction, cambiarVencimientoAction, cerrarAction, mover
 import { ETIQUETA_SALIDA } from "@/lib/circuitos/constantes";
 import { finDelDiaElegido, valoresDeVencimiento } from "@/lib/circuitos/ficha-vista";
 import type { RecorridoFicha } from "@/lib/circuitos/ficha";
+import type { CandadoFicha } from "@/lib/proyectos/candado-ficha-puro";
 import { claseDeColorEtiqueta, fechaBA, fechaHoraBA } from "@/lib/ficha/formato";
 import { DialogoGanada } from "./dialogo-ganada";
 import { DialogoPerdida } from "./dialogo-perdida";
@@ -36,6 +37,7 @@ export function Recorrido({
   responsables,
   puedePasarIgual,
   tipo = "CAPTACION",
+  candado = null,
 }: {
   /** Qué registro es: cambia los textos de los diálogos de cierre. */
   tipo?: "CAPTACION" | "PROYECTO";
@@ -45,6 +47,11 @@ export function Recorrido({
   responsables: { id: number; nombre: string }[];
   /** El rol puede `configurar`: ofrece "Pasar igual" ante tareas obligatorias pendientes. */
   puedePasarIgual: boolean;
+  /**
+   * Trabajo de un pedido que todavía debe plata: no se ofrece entregar (las etapas de entrega y
+   * terminar quedan deshabilitadas, con el mensaje del candado de `title`). El motor lo rechaza igual.
+   */
+  candado?: CandadoFicha | null;
 }) {
   const router = useRouter();
   const [pendiente, iniciar] = useTransition();
@@ -173,11 +180,17 @@ export function Recorrido({
         </h2>
         <span className="text-sm text-[var(--fo-muted)]">{recorrido.circuito.nombre}</span>
       </div>
+      {candado ? (
+        <p className="text-sm font-semibold tabular-nums text-[var(--fo-danger)]" title={candado.mensaje}>
+          {candado.etiqueta}
+        </p>
+      ) : null}
 
       <ol aria-label="Etapas del circuito" className="flex flex-wrap gap-1.5">
         {recorrido.etapas.map((e) => {
           const actual = e.id === recorrido.etapaActualId;
-          const elegible = abierto && !actual && !e.archivada;
+          const bloqueada = candado !== null && candado.etapasBloqueadas.includes(e.id);
+          const elegible = abierto && !actual && !e.archivada && !bloqueada;
           return (
             <li key={e.id}>
               <button
@@ -188,7 +201,7 @@ export function Recorrido({
                   setAviso(null);
                   setDestino({ id: e.id, nombre: e.nombre });
                 }}
-                title={elegible ? `Mover a ${e.nombre}` : undefined}
+                title={bloqueada ? candado?.mensaje : elegible ? `Mover a ${e.nombre}` : undefined}
                 className={`rounded px-2.5 py-1 text-xs font-medium ${claseDeColorEtiqueta(e.color)} ${
                   actual ? "ring-2 ring-[var(--fo-accent)] ring-offset-1" : abierto ? "opacity-70 hover:opacity-100" : "opacity-60"
                 } disabled:cursor-default`}
@@ -308,7 +321,13 @@ export function Recorrido({
 
       {abierto ? (
         <div className="flex flex-wrap gap-2">
-          <button type="button" className="fo-btn fo-btn-primary text-sm" disabled={pendiente} onClick={() => setGanando(true)}>
+          <button
+            type="button"
+            className="fo-btn fo-btn-primary text-sm"
+            disabled={pendiente || candado !== null}
+            title={candado?.mensaje}
+            onClick={() => setGanando(true)}
+          >
             {ETIQUETA_SALIDA[salidas.exito] ?? salidas.exito}
           </button>
           <button type="button" className="fo-btn fo-btn-danger text-sm" disabled={pendiente} onClick={() => setPerdiendo(true)}>

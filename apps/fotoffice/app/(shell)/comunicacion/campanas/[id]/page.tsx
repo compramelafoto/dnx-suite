@@ -8,7 +8,7 @@ import { loadMailingContext } from "@/lib/mailing/context";
 import { buildCustomEmail } from "@/lib/mailing/custom-email";
 import { MESSAGE_LIMITS, toArgentinaInputValue } from "@/lib/mailing/message-form";
 import { MESSAGE_STATUS_LABEL } from "@/lib/mailing/constants";
-import { MESSAGE_TOPIC, countMessageAudience, getMessage, metricsByCampaign } from "@/lib/mailing/messages";
+import { MESSAGE_TOPIC, countMessageAudience, getMessage, linkedPostWarningFor, metricsByCampaign } from "@/lib/mailing/messages";
 import { percent } from "@/lib/mailing/webhook-events";
 import { especialidadesPorGrupo } from "@/lib/membership/specialties";
 import {
@@ -26,7 +26,7 @@ export const maxDuration = 120;
 const fecha = (v: Date) =>
   new Intl.DateTimeFormat("es-AR", { dateStyle: "medium", timeStyle: "short", timeZone: "America/Argentina/Buenos_Aires" }).format(v);
 
-type Props = { params: Promise<{ id: string }>; searchParams: Promise<{ ok?: string; error?: string }> };
+type Props = { params: Promise<{ id: string }>; searchParams: Promise<{ ok?: string; error?: string; aviso?: string }> };
 
 /** Comunicación → Campañas → una campaña. */
 export default async function CampanaPage({ params, searchParams }: Props) {
@@ -36,7 +36,7 @@ export default async function CampanaPage({ params, searchParams }: Props) {
   const m = await getMessage(workspace.id, id).catch(() => null);
   if (!m) notFound();
 
-  const [ctx, settings, audiencia, categorias, personas] = await Promise.all([
+  const [ctx, settings, audiencia, categorias, personas, avisoArticulo] = await Promise.all([
     loadMailingContext(workspace.id),
     getMailingSettings(workspace.id),
     countMessageAudience(workspace.id, m),
@@ -45,6 +45,7 @@ export default async function CampanaPage({ params, searchParams }: Props) {
       where: { id: { in: [m.createdByUserId, m.approvedByUserId].filter((x): x is number => x !== null) } },
       select: { id: true, name: true, email: true },
     }),
+    m.status === "SENT" ? null : linkedPostWarningFor(workspace.id, m, new Date()).catch(() => null),
   ]);
   const nombreDe = (uid: number | null) => {
     const p = personas.find((x) => x.id === uid);
@@ -89,6 +90,7 @@ export default async function CampanaPage({ params, searchParams }: Props) {
         </p>
       ) : null}
       {sp.ok ? <p className="fo-alert-success p-4 text-sm">{sp.ok}</p> : null}
+      {sp.aviso ? <p className="fo-alert-warning p-4 text-sm">Atención: {sp.aviso}</p> : null}
       {!settings.bulkEnabled ? (
         <p className="fo-alert-warning p-4 text-sm">
           Los envíos a socios están apagados: podés redactar y probar, pero no enviar hasta encenderlos en{" "}
@@ -96,6 +98,12 @@ export default async function CampanaPage({ params, searchParams }: Props) {
             Comunicación → Correo
           </Link>
           .
+        </p>
+      ) : null}
+
+      {avisoArticulo ? (
+        <p className="fo-alert-warning p-4 text-sm" role="status">
+          {avisoArticulo}
         </p>
       ) : null}
 

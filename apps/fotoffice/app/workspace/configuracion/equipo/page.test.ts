@@ -94,7 +94,10 @@ describe("pantalla Equipo", () => {
 
   it("invitaciones pendientes: enviada, vencimiento y estado del correo (hora argentina)", async () => {
     m.role.mockReturnValue("WORKSPACE_ADMIN");
-    const h = await render();
+    // Reloj fijo antes del vencimiento: con el reloj real, desde el 24/10 decía "venció".
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-20T15:00:00Z"));
+    const h = await render().finally(() => vi.useRealTimers());
     expect(h).toContain("cami@x.test");
     // 02:00 UTC del 17 son las 23:00 del 16 en Buenos Aires.
     expect(h).toContain("enviada el 16/10/2026");

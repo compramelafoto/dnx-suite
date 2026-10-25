@@ -57,6 +57,10 @@
       "schedule": "*/5 * * * *"
     },
     {
+      "path": "/api/cron/impresiones",
+      "schedule": "*/5 * * * *"
+    },
+    {
       "path": "/api/cron/tienda",
       "schedule": "*/15 * * * *"
     },
@@ -87,6 +91,14 @@
     {
       "path": "/api/cron/alboom-carga",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/digitalizacion-entregas",
+      "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/digitalizacion-vencimientos",
+      "schedule": "0 13 * * *"
     }
   ]
 }

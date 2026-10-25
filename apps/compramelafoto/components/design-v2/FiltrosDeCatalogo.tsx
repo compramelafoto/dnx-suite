@@ -100,6 +100,7 @@ export default function FiltrosDeCatalogo({
           op.cantidades.map((n) => ({ v: String(n), t: n === 1 ? "1 foto" : `${n} fotos` })),
         )}
         {select("Listado del curso", filtros.listado, (v) => poner("listado", v as Filtros["listado"]), siNo)}
+        {select("Mosaico de compañeros", filtros.mosaico, (v) => poner("mosaico", v as Filtros["mosaico"]), siNo)}
         {select("Logo del colegio", filtros.logo, (v) => poner("logo", v as Filtros["logo"]), siNo)}
       </div>
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-sm">

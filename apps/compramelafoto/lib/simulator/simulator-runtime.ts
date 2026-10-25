@@ -1,11 +1,13 @@
 import { FOCUS_POINT_DEFAULT_INDEX } from "./focus-math";
 import type { CameraDerivedValues } from "./camera-types";
-import type { ViewfinderMode } from "./camera-exposure";
+import type { SceneLight, ViewfinderMode } from "./camera-exposure";
+import type { MeteringMode, MeterReadings } from "./metering";
+import { QUALITY_TIERS, type QualityTier } from "./render-quality";
 import type { FocusAreaMode, FocusMode } from "./focus-types";
 import type { SunState } from "./natural-light";
 import { computeSunState, DEFAULT_TIME_OF_DAY_MINUTES } from "./natural-light";
 import type { MovingSubjectState } from "./moving-subject-types";
-import type { SimulatorSceneId } from "./scenes";
+import { DEFAULT_SCENE_ID, type SimulatorSceneId } from "./scenes";
 
 /**
  * Puente entre React Context (fuera del Canvas) y el loop R3F (dentro).
@@ -19,8 +21,14 @@ export interface SimulatorRuntime {
   sceneId: SimulatorSceneId;
   timeOfDayMinutes: number;
   sunState: SunState;
-  sceneLuminanceEv: number;
-  setSceneLuminanceEv: (ev: number) => void;
+  /** Luz que usa la cámara (absoluta + medida), espejo del store. */
+  sceneLight: SceneLight | null;
+  setSceneLight: (light: SceneLight) => void;
+  meteringMode: MeteringMode;
+  /** Últimas lecturas del fotómetro sobre la imagen (log2 de luminancia del render). */
+  meterReadings: MeterReadings | null;
+  /** Grilla de luminancia del recuadro (lineal, de arriba hacia abajo): fotómetro e histograma. */
+  meterGrid: { width: number; height: number; luminance: Float32Array } | null;
   movingSubject: MovingSubjectState | null;
   movingSubjects: MovingSubjectState[];
   focusDistanceM: number;
@@ -32,6 +40,15 @@ export interface SimulatorRuntime {
   focalLengthMm: number;
   lensName: string;
   isZoomLens: boolean;
+  /** Calidad de render vigente (la ajusta QualityGovernor según la fluidez). */
+  quality: QualityTier;
+  /** Mundo caminable de la escena activa (colisiones y altura del piso), si tiene. */
+  walkableWorld: {
+    resolve: (x: number, z: number) => [number, number];
+    groundHeight: (x: number, z: number) => number;
+  } | null;
+  /** Distancia mínima de enfoque del objetivo montado (m). */
+  minFocusDistanceM: number;
   getCameraYaw: () => number;
 }
 
@@ -43,11 +60,14 @@ export const simulatorRuntime: SimulatorRuntime = {
   captureExposureGain: null,
   appliedToneMappingExposure: null,
   viewfinderMode: "dslr-view",
-  sceneId: "studio",
+  sceneId: DEFAULT_SCENE_ID,
   timeOfDayMinutes: DEFAULT_TIME_OF_DAY_MINUTES,
   sunState: computeSunState(DEFAULT_TIME_OF_DAY_MINUTES),
-  sceneLuminanceEv: 0,
-  setSceneLuminanceEv: () => {},
+  sceneLight: null,
+  setSceneLight: () => {},
+  meteringMode: "MATRIX",
+  meterReadings: null,
+  meterGrid: null,
   movingSubject: null,
   movingSubjects: [],
   focusDistanceM: 6.5,
@@ -59,6 +79,9 @@ export const simulatorRuntime: SimulatorRuntime = {
   focalLengthMm: 50,
   lensName: "50mm f/1.8",
   isZoomLens: false,
+  minFocusDistanceM: 0.45,
+  walkableWorld: null,
+  quality: QUALITY_TIERS[1],
   getCameraYaw: () => cameraYawGetter(),
 };
 

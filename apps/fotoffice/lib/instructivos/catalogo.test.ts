@@ -43,9 +43,15 @@ describe("catálogo de instructivos", () => {
       gallery: "MANAGE",
     });
     const temas = agruparPorSeccion(visibles).map((g) => g.seccion);
-    expect(temas).toEqual(["Primeros pasos", "Caja", "Mostrador", "Trabajos y entregas", "Clientes y pedidos", "Galerías"]);
+    expect(temas).toEqual(["Primeros pasos", "Caja", "Mostrador", "Trabajos y entregas", "Stock", "Clientes y pedidos", "Galerías"]);
     expect(visibles.some((g) => g.slug === "primeros-pasos-mostrador")).toBe(true);
     expect(visibles.some((g) => g.slug === "primeros-pasos")).toBe(false);
+  });
+
+  it("la sección Stock tiene las guías de insumos, con módulo de ventas", () => {
+    const stock = INSTRUCTIVOS.filter((g) => g.seccion === "Stock").map((g) => g.slug);
+    expect(stock).toEqual(["stock-cargar-paso-a-paso", "stock-insumos-alta", "stock-receta-consumo", "stock-contar-y-ajustar", "stock-recibir-pedido", "stock-importar-factura", "stock-importar-con-chatgpt", "stock-avisos-y-compras"]);
+    for (const g of INSTRUCTIVOS.filter((x) => x.seccion === "Stock")) expect(g.moduleKey).toBe("sales");
   });
 
   it("ningún paso tiene un recuadro del sistema vacío", () => {

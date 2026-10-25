@@ -2,7 +2,8 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { prisma, type Prisma } from "@repo/db";
 import { iniciarEnTransaccion } from "@/lib/circuitos/recorridos";
-import type { CtxCircuitos } from "@/lib/circuitos/acceso";
+import { asegurarFlujoParaRetirar } from "@/lib/circuitos/semillas/para-retirar";
+import { contextoDeSistema, type CtxCircuitos } from "@/lib/circuitos/acceso";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import { asignarNumero } from "@/lib/numeracion/asignar";
 import { OPCIONES_TRANSACCION_PEDIDO } from "@/lib/pedidos/constantes";
@@ -236,6 +237,43 @@ async function insertarProyecto(tx: Tx, ctx: CtxCircuitos, d: DatosProyecto): Pr
   return { id, numero: numero.display };
 }
 
+/**
+ * Crea un trabajo sin usuario (pagos automáticos: un pedido de copias impresas acreditado por Mercado Pago).
+ * Mismo camino que `insertarProyecto` con el contexto del sistema. Las etapas se leen como en
+ * `crearProyectoManual` (las no archivadas del flujo, de esta organización). Sin permisos ni chequeo del
+ * módulo adentro: lo llama código ya autorizado, en su transacción.
+ */
+export async function crearProyectoDeSistema(
+  tx: Tx,
+  workspaceId: string,
+  d: { clientId: string; circuitId: string; nombre: string; baseDate: string; proveedorId: string | null; ahora: Date },
+): Promise<{ id: string; number: string }> {
+  const ctx = contextoDeSistema(workspaceId);
+  const etapas = await tx.fotofficeStage.findMany({
+    where: { circuitId: d.circuitId, circuit: { workspaceId }, archivedAt: null },
+    orderBy: [{ order: "asc" }],
+    select: { id: true, days: true },
+  });
+  const r = await insertarProyecto(tx, ctx, {
+    workspaceId,
+    clientId: d.clientId,
+    pedidoId: null,
+    pedidoItemIndex: null,
+    productId: null,
+    circuitId: d.circuitId,
+    nombre: d.nombre,
+    eventDate: null,
+    baseDate: d.baseDate,
+    finalDueDate: null,
+    ownerUserId: null,
+    etapas,
+    createdByUserId: null,
+    ahora: d.ahora,
+    proveedorId: d.proveedorId,
+  });
+  return { id: r.id, number: r.numero };
+}
+
 function diaDeEvento(f: string | Date | null): string | null {
   return f === null ? null : typeof f === "string" ? f : f.toISOString().slice(0, 10);
 }
@@ -244,6 +282,12 @@ export type DatosCrearDelPedido = DatosPlanificacion & {
   pedidoId: string;
   /** Posiciones (de la lista de `planificarProyectos`) que la persona destildó. */
   omitidos?: ReadonlySet<number>;
+  /**
+   * Posiciones de los ítems del pedido marcados «para retirar». Los que no generaron ningún
+   * proyecto por regla reciben el trabajo del flujo estándar «Para retirar». Los que apuntan a un
+   * ítem opcional o inexistente se ignoran.
+   */
+  paraRetirar?: ReadonlySet<number>;
 };
 
 export type ResultadoCrearDelPedido = { creados: number; salteados: string[] };
@@ -295,7 +339,69 @@ export async function crearProyectosDelPedido(tx: Tx, ctx: CtxCircuitos, d: Dato
     });
     creados++;
   }
+  creados += await crearTrabajosParaRetirar(tx, ctx, d, planificados);
   return { creados, salteados };
+}
+
+/**
+ * Un trabajo del flujo estándar «Para retirar» por cada ítem marcado que no tiene regla propia.
+ * Un ítem con regla (aunque la regla se haya salteado o destildado) NO recibe el estándar: su
+ * aviso ya explica qué pasó. El flujo se asegura recién cuando hace falta el primero.
+ */
+async function crearTrabajosParaRetirar(tx: Tx, ctx: CtxCircuitos, d: DatosCrearDelPedido, planificados: readonly ProyectoPlanificado[]): Promise<number> {
+  if (!d.paraRetirar || d.paraRetirar.size === 0) return 0;
+  const items = itemsGuardados(d.items);
+  const conRegla = new Set(planificados.map((p) => p.regla.pedidoItemIndex));
+  const marcados = [...d.paraRetirar]
+    .filter((i) => Number.isInteger(i) && i >= 0 && i < items.length && !items[i]!.opcional && !conRegla.has(i))
+    .sort((a, b) => a - b);
+  if (marcados.length === 0) return 0;
+
+  const { workspaceId } = ctx;
+  const flujo = await asegurarFlujoParaRetirar(tx, workspaceId);
+  const productIds = [...new Set(marcados.map((i) => items[i]!.productId).filter((x): x is string => typeof x === "string" && x.length > 0))];
+  const [contacto, productos, miembro] = await Promise.all([
+    tx.client.findFirst({ where: { id: d.clientId, workspaceId }, select: { firstName: true, lastName: true, businessName: true } }),
+    productIds.length ? tx.product.findMany({ where: { workspaceId, id: { in: productIds } }, select: { id: true, name: true } }) : Promise.resolve([]),
+    d.ownerUserId !== null ? tx.workspaceMembership.findFirst({ where: { workspaceId, userId: d.ownerUserId }, select: { userId: true } }) : Promise.resolve(null),
+  ]);
+  const nombreProducto = new Map(productos.map((p) => [p.id, p.name]));
+  const nombreContacto = nombreDeContacto(contacto);
+  const base = fechaBase(d.fechaEvento, d.confirmadoEn);
+  const evento = d.fechaEvento ? fechaCorta(base) : d.eventLabel;
+  let creados = 0;
+  for (const i of marcados) {
+    const ya = await tx.fotofficeProyecto.findFirst({
+      where: { pedidoId: d.pedidoId, pedidoItemIndex: i, circuitId: flujo.circuitId },
+      select: { id: true },
+    });
+    if (ya) continue;
+    const item = items[i]!;
+    const productId = item.productId || null;
+    await insertarProyecto(tx, ctx, {
+      workspaceId,
+      clientId: d.clientId,
+      pedidoId: d.pedidoId,
+      pedidoItemIndex: i,
+      productId,
+      circuitId: flujo.circuitId,
+      nombre: aplicarPlantillaNombre(null, {
+        contacto: nombreContacto,
+        producto: (productId ? nombreProducto.get(productId) : null) ?? item.nombre,
+        evento,
+        pedido: d.numeroPedido,
+      }),
+      eventDate: diaDeEvento(d.fechaEvento),
+      baseDate: base,
+      finalDueDate: base,
+      ownerUserId: miembro ? d.ownerUserId : null,
+      etapas: flujo.etapas,
+      createdByUserId: ctx.userId,
+      ahora: d.confirmadoEn,
+    });
+    creados++;
+  }
+  return creados;
 }
 
 // --- "Agregar proyecto" desde la ficha del pedido -------------------------------------------------

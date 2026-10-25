@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@repo/db";
+import { NO_ES_INSUMO } from "@/lib/sales/vendible";
 import { decimalArsToMinor } from "@/lib/membership/money";
 import { leerPerfilPreciosDelSistema } from "@/lib/precios/perfil";
 import type { ItemPresupuesto } from "./constantes";
@@ -20,7 +21,7 @@ export async function itemsDeLaPropuesta(
 ): Promise<ResultadoInstanciar> {
   const ids = [...new Set(items.map((i) => i.productId).filter((x): x is string => x !== null))];
   const productos = await prisma.product.findMany({
-    where: { workspaceId, id: { in: ids }, isActive: true },
+    where: { workspaceId, id: { in: ids }, isActive: true, ...NO_ES_INSUMO },
     select: { id: true, name: true, description: true, priceArs: true },
   });
   const deId = new Map<string, ProductoDeCatalogo>(

@@ -16,6 +16,7 @@ describe("homeWidgetGates — cada número del inicio, por el nivel de su módul
       coberturas: false,
       pedidos: false,
       comunicacion: false,
+      stock: false,
     });
   });
 
@@ -40,6 +41,7 @@ describe("homeWidgetGates — cada número del inicio, por el nivel de su módul
       coberturas: true,
       pedidos: true,
       comunicacion: true,
+      stock: false,
     });
   });
 
@@ -58,5 +60,11 @@ describe("homeWidgetGates — cada número del inicio, por el nivel de su módul
   it("el contador de pedidos de Captación no depende de ser dueño: alcanza con verlos", () => {
     expect(homeWidgetGates({ "service-leads": "VIEW" }).pedidos).toBe(true);
     expect(homeWidgetGates({ "service-leads": "NONE" }).pedidos).toBe(false);
+  });
+
+  it("«Para comprar» lleva a Stock: hace falta gestionar Ventas, igual que la pantalla", () => {
+    expect(homeWidgetGates({ sales: "MANAGE" }).stock).toBe(true);
+    expect(homeWidgetGates({ sales: "VIEW" }).stock).toBe(false);
+    expect(homeWidgetGates({}).stock).toBe(false);
   });
 });

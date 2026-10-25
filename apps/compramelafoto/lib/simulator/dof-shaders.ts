@@ -1,7 +1,21 @@
 /**
  * Shader de profundidad de campo por distancia (plano de enfoque).
- * CoC físico + rampa gradual; sin zona “todo nítido” artificial.
+ *
+ * Cada píxel calcula el disco de desenfoque físico (lente delgada) en px
+ * y junta las muestras vecinas con el método "bokeh de una pasada"
+ * (espiral de ángulo áureo, Gustafsson 2018):
+ * - un fondo desenfocado no se mete sobre un sujeto nítido delante;
+ * - un primer plano desenfocado sí se derrama sobre lo que tiene detrás,
+ *   como pasa con una lente real.
+ * El cielo (sin profundidad) se trata como infinito: también se desenfoca.
  */
+
+/** Pasos máximos de la espiral (tope del bucle en GLSL). */
+export const DOF_MAX_STEPS = 160;
+/** Pasos que se buscan para cubrir el disco más grande de la escena. */
+export const DOF_TARGET_STEPS = 128;
+
+import { CHROMA_NOISE_RATIO, SENSOR_READ_FLOOR } from "./sensor-noise";
 
 export const DOF_VERTEX_SHADER = /* glsl */ `
 varying vec2 vUv;
@@ -18,121 +32,163 @@ uniform sampler2D tDepth;
 uniform float focusDistance;
 uniform float aperture;
 uniform float focalLength;
-uniform float cameraNear;
-uniform float cameraFar;
+uniform float sensorHeightMm;
 uniform mat4 cameraInverseProjection;
 uniform vec2 resolution;
 uniform float maxBlurPx;
-uniform float nearLimit;
-uniform float farLimit;
-uniform float farLimitFinite;
-uniform float cocMm;
-uniform float blurStrength;
-uniform float transitionSoftness;
-uniform float frontFalloff;
-uniform float backFalloff;
+uniform float radScale;
 uniform float exposureGain;
 uniform vec3 wbTint;
+uniform float isoNoise;
+uniform float noiseSeed;
+uniform sampler2D tAO;
+uniform float aoStrength;
 
 varying vec2 vUv;
 
-float smoothstep01(float edge0, float edge1, float x) {
-  float denom = edge1 - edge0;
-  if (abs(denom) < 1e-6) return x >= edge1 ? 1.0 : 0.0;
-  float t = clamp((x - edge0) / denom, 0.0, 1.0);
-  return t * t * (3.0 - 2.0 * t);
-}
+#define MAX_STEPS ${DOF_MAX_STEPS}
+#define GOLDEN_ANGLE 2.39996323
+#define FAR_AWAY_M 100000.0
 
-float viewSpaceDistance(vec2 uv, float depthSample) {
+float viewSpaceDistance(vec2 uv) {
+  float depthSample = texture2D(tDepth, uv).r;
+  if (depthSample >= 1.0) return FAR_AWAY_M;
   vec2 ndc = uv * 2.0 - 1.0;
   float z = depthSample * 2.0 - 1.0;
-  vec4 clip = vec4(ndc, z, 1.0);
-  vec4 view = cameraInverseProjection * clip;
+  vec4 view = cameraInverseProjection * vec4(ndc, z, 1.0);
   view /= view.w;
   return length(view.xyz);
 }
 
-float cocDiameterMm(float focusDist, float pixelDist, float focalMm, float ap) {
-  float f = max(focalMm, 1.0);
-  float s = max(focusDist, 0.3) * 1000.0;
-  float d = max(pixelDist, 0.15) * 1000.0;
-  float denom = max(ap, 1.0) * d * abs(s - f);
-  if (denom < 1e-4) return 0.0;
-  return (f * f * abs(s - d)) / denom;
+/** Blur disc radius (px) for a point at distM. */
+float blurRadiusPx(float distM) {
+  float f = max(focalLength, 1.0);
+  float s = max(focusDistance * 1000.0, f * 1.01);
+  float d = max(distM, 0.05) * 1000.0;
+  float discMm = (f * f * abs(d - s)) / (max(aperture, 1.0) * d * (s - f));
+  float diameterPx = discMm / max(sensorHeightMm, 1e-3) * resolution.y;
+  return min(diameterPx, maxBlurPx) * 0.5;
 }
 
-float defocusAmount(float pixelDist) {
-  float coc = cocDiameterMm(focusDistance, pixelDist, focalLength, aperture);
-  float cocNorm = coc / max(cocMm, 1e-6);
-
-  float softLow = 0.04 * (1.0 - transitionSoftness * 0.35);
-  float softHigh = 1.35 + transitionSoftness * 1.15;
-  float amount = smoothstep01(softLow, softHigh, cocNorm);
-
-  bool inFront = pixelDist < focusDistance;
-  if (inFront) {
-    amount = 1.0 - pow(max(1.0 - amount, 0.0), frontFalloff);
-  } else {
-    amount = 1.0 - pow(max(1.0 - amount, 0.0), 1.0 / max(backFalloff, 0.5));
-  }
-
-  return clamp(amount * blurStrength, 0.0, 1.0);
+/** Interleaved gradient noise: per-pixel start angle of the spiral. */
+float interleavedNoise(vec2 px) {
+  return fract(52.9829189 * fract(dot(px, vec2(0.06711056, 0.00583715))));
 }
 
-vec4 sampleBlur(sampler2D tex, vec2 uv, float radiusPx) {
-  vec4 sum = vec4(0.0);
-  float wSum = 0.0;
-  float sigma = max(radiusPx * 0.55, 0.001);
-
-  for (int x = -5; x <= 5; x++) {
-    for (int y = -5; y <= 5; y++) {
-      vec2 offset = vec2(float(x), float(y)) * sigma / resolution;
-      float r2 = float(x * x + y * y);
-      float w = exp(-r2 / 18.0);
-      sum += texture2D(tex, uv + offset) * w;
-      wSum += w;
-    }
-  }
-
-  return sum / max(wSum, 1e-4);
+/** Filmic tone curve (ACES, Hill fit): soft highlight roll-off like film. */
+vec3 rrtAndOdtFit(vec3 v) {
+  vec3 a = v * (v + 0.0245786) - 0.000090537;
+  vec3 b = v * (0.983729 * v + 0.4329510) + 0.238081;
+  return a / b;
 }
 
-vec3 compressHighlights(vec3 rgb) {
-  float peak = max(max(rgb.r, rgb.g), rgb.b);
-  if (peak <= 1.0) return rgb;
+vec3 acesFilmic(vec3 color) {
+  const mat3 inputMat = mat3(
+    vec3(0.59719, 0.07600, 0.02840),
+    vec3(0.35458, 0.90834, 0.13383),
+    vec3(0.04823, 0.01566, 0.83777));
+  const mat3 outputMat = mat3(
+    vec3(1.60475, -0.10208, -0.00327),
+    vec3(-0.53108, 1.10813, -0.07276),
+    vec3(-0.07367, -0.00605, 1.07602));
+  color *= 1.0 / 0.6;
+  color = outputMat * rrtAndOdtFit(inputMat * color);
+  return clamp(color, 0.0, 1.0);
+}
 
-  float knee = 1.0 + (peak - 1.0) / (1.0 + (peak - 1.0) * 2.8);
-  vec3 scaled = rgb * (knee / peak);
-  float blow = smoothstep(1.0, 2.2, peak);
-  return mix(scaled, vec3(knee), blow * 0.9);
+vec3 linearToSrgb(vec3 c) {
+  return mix(c * 12.92, 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055, step(vec3(0.0031308), c));
+}
+
+float hash12(vec2 p) {
+  vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+  p3 += dot(p3, p3.yzx + 33.33);
+  return fract((p3.x + p3.y) * p3.z);
+}
+
+/** Approximate normal: sum of 4 uniforms, centred, sigma ~ 1. */
+float gaussNoise(vec2 p) {
+  float s = hash12(p) + hash12(p + 17.3) + hash12(p + 41.7) + hash12(p + 73.1);
+  return (s - 2.0) * 1.7320508;
+}
+
+/** Sensor noise: grows with sqrt(ISO), stronger in shadows (see sensor-noise.ts). */
+vec3 applySensorNoise(vec3 rgb) {
+  if (isoNoise <= 0.0) return rgb;
+  vec2 px = gl_FragCoord.xy + noiseSeed * vec2(113.0, 271.0);
+  float lum = dot(rgb, vec3(0.2126, 0.7152, 0.0722));
+  float sigma = isoNoise * sqrt(max(lum, 0.0) + ${SENSOR_READ_FLOOR.toFixed(4)});
+  float luma = gaussNoise(px) * sigma;
+  vec3 chroma = vec3(gaussNoise(px + 5.1), gaussNoise(px + 9.7), gaussNoise(px + 13.3));
+  chroma -= dot(chroma, vec3(0.2126, 0.7152, 0.0722));
+  return max(rgb + luma + chroma * sigma * ${CHROMA_NOISE_RATIO.toFixed(4)}, 0.0);
 }
 
 vec4 applyExposure(vec4 color) {
   vec3 rgb = color.rgb * exposureGain * wbTint;
-  rgb = compressHighlights(rgb);
+  rgb = linearToSrgb(acesFilmic(rgb));
+  rgb = applySensorNoise(rgb);
   return vec4(rgb, color.a);
+}
+
+/** Contact shadows: half-res AO, softened with a small depth-aware cross filter. */
+float aoFactor() {
+  if (aoStrength <= 0.0) return 1.0;
+  vec2 t = 2.0 / resolution;
+  float c = texture2D(tAO, vUv).r;
+  float sum = c * 2.0;
+  sum += texture2D(tAO, vUv + vec2(t.x, 0.0)).r;
+  sum += texture2D(tAO, vUv - vec2(t.x, 0.0)).r;
+  sum += texture2D(tAO, vUv + vec2(0.0, t.y)).r;
+  sum += texture2D(tAO, vUv - vec2(0.0, t.y)).r;
+  return mix(1.0, sum / 6.0, aoStrength);
+}
+
+vec4 shade(vec4 color) {
+  return applyExposure(vec4(color.rgb * aoFactor(), color.a));
 }
 
 void main() {
   vec4 sharp = texture2D(tColor, vUv);
-  float depth = texture2D(tDepth, vUv).r;
+  float maxRadius = maxBlurPx * 0.5;
 
-  if (depth >= 1.0) {
-    gl_FragColor = applyExposure(sharp);
+  if (maxRadius < 0.25) {
+    gl_FragColor = shade(sharp);
     return;
   }
 
-  float pixelDist = viewSpaceDistance(vUv, depth);
-  float blurNorm = defocusAmount(pixelDist);
+  float centerDist = viewSpaceDistance(vUv);
+  float centerSize = blurRadiusPx(centerDist);
 
-  if (blurNorm < 0.0008) {
-    gl_FragColor = applyExposure(sharp);
-    return;
+  vec3 color = sharp.rgb;
+  float tot = 1.0;
+  float radius = sqrt(radScale);
+  float angle = interleavedNoise(gl_FragCoord.xy) * 6.2831853;
+
+  for (int i = 0; i < MAX_STEPS; i++) {
+    if (radius >= maxRadius) break;
+    vec2 tc = vUv + vec2(cos(angle), sin(angle)) * radius / resolution;
+    float sampleDist = viewSpaceDistance(tc);
+    float sampleSize = blurRadiusPx(sampleDist);
+    // Background must not bleed over a closer, sharper subject.
+    if (sampleDist > centerDist) sampleSize = clamp(sampleSize, 0.0, centerSize * 2.0);
+    float m = smoothstep(radius - 0.5, radius + 0.5, sampleSize);
+    vec3 sampleColor = texture2D(tColor, tc).rgb;
+    color += mix(color / tot, sampleColor, m);
+    tot += 1.0;
+    radius += radScale / radius;
+    angle += GOLDEN_ANGLE;
   }
 
-  float radiusPx = blurNorm * maxBlurPx;
-  vec4 blurred = sampleBlur(tColor, vUv, radiusPx);
-  float blend = smoothstep01(0.0, 1.0, pow(blurNorm, 0.82));
-  gl_FragColor = applyExposure(mix(sharp, blurred, blend));
+  gl_FragColor = shade(vec4(color / tot, sharp.a));
 }
 `;
+
+/**
+ * Paso de la espiral para cubrir un radio con ~DOF_TARGET_STEPS muestras.
+ * radio² crece ≈ 2·radScale por paso; nunca menos de 0,5 px.
+ */
+export function dofRadiusScale(maxBlurDiameterPx: number, targetSteps = DOF_TARGET_STEPS): number {
+  const maxRadius = maxBlurDiameterPx / 2;
+  return Math.max(0.5, (maxRadius * maxRadius) / (2 * Math.min(targetSteps, DOF_MAX_STEPS)));
+}

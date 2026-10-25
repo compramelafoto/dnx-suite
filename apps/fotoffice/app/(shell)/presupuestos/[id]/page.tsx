@@ -4,6 +4,7 @@ import { PageHeader } from "@/components/page-header";
 import { ConfirmarPedido } from "@/components/pedidos/confirmar-pedido";
 import { AccionesPresupuesto } from "@/components/presupuestos/acciones-presupuesto";
 import { EditorPresupuesto } from "@/components/presupuestos/editor-presupuesto";
+import { leerCatalogoFotolibro } from "@/lib/fotolibro/catalogo-precios";
 import { botEnPanel } from "@/lib/dnx-bot/panel";
 import { EnviarPresupuesto } from "@/components/presupuestos/enviar-presupuesto";
 import { VistaPresupuesto } from "@/components/presupuestos/vista-presupuesto";
@@ -82,6 +83,7 @@ export default async function PresupuestoPage({ params }: { params: Promise<{ id
         datos={datos}
         puedeGuardar
         botPresupuestoId={bot?.capacidades.configurar ? detalle.id : null}
+        fotolibro={await leerCatalogoFotolibro(workspace.id, { conCostos: detalle.veCostos })}
       />
     );
   }

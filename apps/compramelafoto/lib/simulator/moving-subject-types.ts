@@ -1,6 +1,4 @@
 /** Identificadores de sujetos móviles enfocables. */
-export const MOVING_SUBJECT_ID = "moving-subject";
-export const VEHICLE_SUBJECT_ID = "vehicle-1";
 /** Auto principal — Ciudad Fotográfica. */
 export const PHOTOGRAPHIC_VEHICLE_SUBJECT_ID = "vehicle-main";
 /** Peatón principal — Ciudad Fotográfica. */
@@ -16,16 +14,23 @@ export const PHOTOGRAPHIC_PEDESTRIAN_SUBJECT_IDS = [
   PHOTOGRAPHIC_PEDESTRIAN_SEATED_SUBJECT_ID,
 ] as const;
 
+/** Prefijo de los autos de la Calle 3D. */
+export const STREET_CAR_ID_PREFIX = "street-car-";
+
+export function isStreetCarId(id: string | null | undefined): boolean {
+  return typeof id === "string" && id.startsWith(STREET_CAR_ID_PREFIX);
+}
+
+/** Prefijo de las personas de la Calle 3D (caminando o quietas). */
+export const STREET_PERSON_ID_PREFIX = "street-person-";
+
 export function isPhotographicPedestrianId(id: string | null | undefined): boolean {
   return (
     typeof id === "string" &&
-    PHOTOGRAPHIC_PEDESTRIAN_SUBJECT_IDS.includes(id as (typeof PHOTOGRAPHIC_PEDESTRIAN_SUBJECT_IDS)[number])
+    (id.startsWith(STREET_PERSON_ID_PREFIX) ||
+      PHOTOGRAPHIC_PEDESTRIAN_SUBJECT_IDS.includes(id as (typeof PHOTOGRAPHIC_PEDESTRIAN_SUBJECT_IDS)[number]))
   );
 }
-
-export const PEDESTRIAN_SUBJECT_IDS = ["ped-1", "ped-2", "ped-3", "ped-4"] as const;
-
-export type PedestrianSubjectId = (typeof PEDESTRIAN_SUBJECT_IDS)[number];
 
 export type MovingSubjectKind = "human" | "vehicle" | "generic";
 
@@ -37,7 +42,7 @@ export interface MovingSubjectState {
   position: [number, number, number];
   /** Velocidad escalar m/s. */
   speed: number;
-  /** Sentido lateral: 1 = +X, -1 = −X (legacy estudio). */
+  /** Sentido lateral: 1 = +X, -1 = −X. */
   direction: 1 | -1;
   /** Velocidad con signo en X (m/s). */
   velocityX: number;

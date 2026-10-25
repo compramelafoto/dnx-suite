@@ -17,6 +17,7 @@ import {
 import { useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
+import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { GlTFAssetSlotDevMarker } from "./GlTFAssetSlotDevMarker";
 
 type StaticPhase = "idle" | "checking" | "missing" | "ready";
@@ -91,7 +92,8 @@ export function PhotographicStaticPedestrianInstance({ slot }: { slot: Photograp
       .then((gltf) => {
         if (cancelled || !groupRef.current) return;
 
-        const model = gltf.scene.clone(true);
+        // SkeletonUtils re-enlaza el esqueleto; Object3D.clone deja el personaje en pose T.
+        const model = cloneSkinned(gltf.scene);
         const stats = prepareGltfScene(model, slot);
         tagPedestrianSubjectId(model, subjectId);
 
@@ -144,7 +146,7 @@ export function PhotographicStaticPedestrianInstance({ slot }: { slot: Photograp
     if (!group) return;
     group.position.set(slot.position[0], slot.position[1], slot.position[2]);
     applySlotTransform(group, slot);
-  }, [slot]);
+  }, [slot, phase]);
 
   useFrame((_, delta) => {
     mixerRef.current?.update(delta);
