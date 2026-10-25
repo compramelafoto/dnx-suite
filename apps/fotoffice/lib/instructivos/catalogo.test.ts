@@ -38,9 +38,12 @@ describe("catálogo de instructivos", () => {
       sales: "MANAGE",
       cash: "MANAGE",
       projects: "MANAGE",
+      clients: "MANAGE",
+      orders: "MANAGE",
+      gallery: "MANAGE",
     });
     const temas = agruparPorSeccion(visibles).map((g) => g.seccion);
-    expect(temas).toEqual(["Primeros pasos", "Caja", "Mostrador", "Trabajos y entregas", "Stock"]);
+    expect(temas).toEqual(["Primeros pasos", "Caja", "Mostrador", "Trabajos y entregas", "Stock", "Clientes y pedidos", "Galerías"]);
     expect(visibles.some((g) => g.slug === "primeros-pasos-mostrador")).toBe(true);
     expect(visibles.some((g) => g.slug === "primeros-pasos")).toBe(false);
   });

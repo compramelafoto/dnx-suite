@@ -6,7 +6,8 @@
  *
  * Las anulaciones entran en las dos cosas —ése es el punto de anular en vez de borrar—. Las
  * transferencias entre cuentas entran en el saldo y NO en los ingresos y egresos: la plata
- * no entró ni salió, cambió de lugar.
+ * no entró ni salió, cambió de lugar. El saldo inicial, igual: suma al saldo, pero la plata ya
+ * estaba antes de empezar a usar el sistema y nadie la ganó ese mes.
  */
 
 export type BalanceMovement = {
@@ -14,7 +15,14 @@ export type BalanceMovement = {
   amountMinor: number;
   /** Es una pata de un pase entre cuentas. Quien lee de la base lo pasa como `transferId !== null`. */
   isTransfer?: boolean;
+  /** Es un saldo inicial o su anulación (`isOpeningBalanceModule` sobre `sourceModule`). */
+  isOpeningBalance?: boolean;
 };
+
+/** Si entra en lo que entró y salió del negocio: ni las patas de un pase ni el saldo inicial. */
+function esDelNegocio(m: BalanceMovement): boolean {
+  return !m.isTransfer && !m.isOpeningBalance;
+}
 
 /**
  * El saldo de una cuenta. **Incluye las transferencias**: si el pase a la caja fuerte no
@@ -66,7 +74,7 @@ export function periodSummary(movements: readonly BalanceMovement[]): {
   let incomeMinor = 0;
   let expenseMinor = 0;
   for (const m of movements) {
-    if (m.isTransfer) continue;
+    if (!esDelNegocio(m)) continue;
     if (m.kind === "INGRESO") incomeMinor += m.amountMinor;
     else expenseMinor += m.amountMinor;
   }
@@ -96,8 +104,9 @@ export type CategoryTotal = {
 export function totalsByCategory(movements: readonly CategorizedMovement[]): CategoryTotal[] {
   const mapa = new Map<string, CategoryTotal>();
   for (const m of movements) {
-    // Mismo criterio que `periodSummary`: un pase entre cuentas no es ingreso ni egreso.
-    if (m.isTransfer) continue;
+    // Mismo criterio que `periodSummary`: un pase entre cuentas o un saldo inicial no es
+    // ingreso ni egreso.
+    if (!esDelNegocio(m)) continue;
     const clave = `${m.kind}|${m.categoryId ?? ""}`;
     const actual = mapa.get(clave);
     if (actual) {
