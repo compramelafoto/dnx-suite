@@ -2,6 +2,7 @@ import "server-only";
 import { prisma } from "@repo/db";
 import { numeroDe } from "@/lib/numeracion/asignar";
 import { CODIGO_ENVIO_EN_CURSO } from "@/lib/plantillas/envio";
+import { eventosDeAprobacion } from "@/lib/presupuesto-automatico/historial";
 import { puedeVerPresupuestos, type CtxPresupuestos } from "./acceso";
 import { ENTIDAD_NUMERACION } from "./constantes";
 
@@ -26,7 +27,9 @@ export async function eventosDePresupuestos(ctx: CtxPresupuestos, leadId: string
     where: { workspaceId, consultaLeadId: leadId },
     select: { id: true },
   });
-  if (presupuestos.length === 0) return [];
+  // Presupuesto automático con aprobación por Telegram (spec 2026-10-25): armado, aviso y envío.
+  const automaticos = await eventosDeAprobacion(workspaceId, leadId);
+  if (presupuestos.length === 0) return automaticos.sort((a, b) => b.fecha.getTime() - a.fecha.getTime());
   const ids = presupuestos.map((p) => p.id);
   const [versiones, numeros] = await Promise.all([
     prisma.fotofficePresupuestoVersion.findMany({
@@ -50,7 +53,7 @@ export async function eventosDePresupuestos(ctx: CtxPresupuestos, leadId: string
     else porVersion.set(v.versionId, { primera: v.viewedAt, cantidad: 1 });
   }
 
-  const out: EventoDePresupuesto[] = [];
+  const out: EventoDePresupuesto[] = [...automaticos];
   for (const v of versiones) {
     const numero = numeros.get(v.presupuestoId);
     const cual = `${numero ? `N° ${numero}` : "sin número"} (V${v.number})`;

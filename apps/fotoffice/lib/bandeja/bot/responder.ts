@@ -78,7 +78,7 @@ async function turno(chatId: string, deps: DepsResponder): Promise<SalidaBot> {
 
   const chat = await prisma.fotofficeWaChat.findUnique({
     where: { id: chatId },
-    select: { id: true, workspaceId: true, estado: true, asignadoUserId: true, botPausadoHasta: true, ultimoEntranteEn: true, nombre: true },
+    select: { id: true, workspaceId: true, waId: true, clientId: true, estado: true, asignadoUserId: true, botPausadoHasta: true, ultimoEntranteEn: true, nombre: true },
   });
   if (!chat) return "nada";
   const workspaceId = chat.workspaceId;
@@ -124,7 +124,12 @@ async function turno(chatId: string, deps: DepsResponder): Promise<SalidaBot> {
     .findUnique({ where: { workspaceId }, select: { commercialName: true } })
     .then((b) => b?.commercialName ?? "el estudio")
     .catch(() => "el estudio");
-  const { tools, pedidoDePersona } = herramientasDeAtencion(workspaceId, deps.herramientas);
+  const { tools, pedidoDePersona } = herramientasDeAtencion(workspaceId, deps.herramientas, {
+    id: chat.id, waId: chat.waId, clientId: chat.clientId, nombre: chat.nombre,
+  });
+  const enPreparacion = await import("@/lib/presupuesto-automatico/flujo")
+    .then((m) => m.enPreparacionParaWhatsapp(workspaceId, chat.waId))
+    .catch(() => false);
 
   let result: BotTurnResult;
   try {
@@ -133,7 +138,7 @@ async function turno(chatId: string, deps: DepsResponder): Promise<SalidaBot> {
       model: cfg.model,
       effort: cfg.effort,
       systemGuide: guiaDeAtencion(),
-      situation: situacionDeAtencion({ estudio, cliente: chat.nombre, ahora: ahora() }),
+      situation: situacionDeAtencion({ estudio, cliente: chat.nombre, ahora: ahora(), presupuestoEnPreparacion: enPreparacion }),
       tools,
       actor: { userId: 0, role: "CLIENTE_WHATSAPP", email: "", name: chat.nombre },
       history: h.history,

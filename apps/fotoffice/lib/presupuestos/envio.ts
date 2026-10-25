@@ -188,7 +188,15 @@ type Hecho =
   | { tipo: "NUEVA" | "REENVIO"; versionId: string; validUntil: Date | null; numero: string | null; totals: TotalesGuardados | null };
 
 /** Quién envía: una persona del equipo (con "Gestionar") o el sistema (la propuesta modelo, Entrega B). */
-type Emisor = { workspaceId: string; ctxEnvio: CtxEnvio; nombre: string | null; automatico: boolean; registroId?: string };
+type Emisor = {
+  workspaceId: string;
+  ctxEnvio: CtxEnvio;
+  nombre: string | null;
+  automatico: boolean;
+  registroId?: string;
+  /** Congela la versión y devuelve el enlace SIN mandar correo (el presupuesto aprobado que sale sólo por WhatsApp). */
+  soloEnlace?: boolean;
+};
 
 export async function enviarPresupuesto(
   ctx: CtxPresupuestos,
@@ -208,16 +216,18 @@ export async function enviarPresupuesto(
  * (`TOPE_AUTOMATICOS_DIA`), no en el de los manuales, y queda registrado con `automatic=true`.
  * La regla de una respuesta por dirección cada 24 h la mira quien llama, antes de crear nada; con
  * `registroId` el registro completa la reserva que hizo quien llama (`reservarEnvioAutomatico`).
+ * Con `sinCorreo` congela la versión y devuelve el enlace sin mandar nada (el presupuesto aprobado
+ * por Telegram de un cliente que no dejó correo sale sólo por WhatsApp).
  */
 export async function enviarPresupuestoDelSistema(
   workspaceId: string,
   presupuestoId: string,
   templateId: string,
   deps: DepsEnvioPresupuesto = {},
-  opciones: { registroId?: string } = {},
+  opciones: { registroId?: string; sinCorreo?: boolean } = {},
 ): Promise<ResultadoEnvioPresupuesto> {
   const ctxEnvio: CtxEnvio = { workspaceId, userId: null, userLabel: null, userName: null, userEmail: null, role: null };
-  const emisor: Emisor = { workspaceId, ctxEnvio, nombre: null, automatico: true, registroId: opciones.registroId };
+  const emisor: Emisor = { workspaceId, ctxEnvio, nombre: null, automatico: true, registroId: opciones.registroId, soloEnlace: opciones.sinCorreo === true };
   return enviarComo(emisor, presupuestoId, { canal: "EMAIL", templateId }, deps);
 }
 
@@ -258,7 +268,7 @@ async function enviarComo(
   const leido = await contextoDe(workspaceId, "CONSULTA", p.consultaLeadId, usuario, ahora);
   if (!leido) return no(MENSAJES_PRESUPUESTO.consulta);
   const contexto = await conListaDePrecios(workspaceId, leido, fuente.asunto, fuente.cuerpo);
-  if (canal === "EMAIL" && !correoValido(contexto.destino.email)) return no(MENSAJES_ENVIO.sinCorreo);
+  if (canal === "EMAIL" && !emisor.soloEnlace && !correoValido(contexto.destino.email)) return no(MENSAJES_ENVIO.sinCorreo);
   if (canal === "WHATSAPP" && !normalizeWhatsappNumber(contexto.destino.telefono)) return no(MENSAJES_ENVIO.sinWhatsapp);
   const borradorAntes = await prisma.fotofficePresupuestoVersion.findFirst({
     where: { workspaceId, presupuestoId, sentAt: null },
@@ -275,7 +285,7 @@ async function enviarComo(
     vence: ddmmaaaa(datosDeEnvio(ahora, ajustes).validUntil),
   });
   if (!prueba.ok) return prueba;
-  if (canal === "EMAIL") {
+  if (canal === "EMAIL" && !emisor.soloEnlace) {
     // Cada grupo con su tope: los automáticos no consumen el de los manuales (ni al revés).
     if (emisor.automatico) {
       if ((await correosEnviadosHoy(workspaceId, ahora, true)) >= TOPE_AUTOMATICOS_DIA) return no(MENSAJES_ENVIO.topeAutomaticos);
@@ -383,6 +393,8 @@ async function enviarComo(
     enviado: true,
     enlace,
   });
+  // Sólo el enlace (sale por WhatsApp desde el presupuesto automático): no se manda correo.
+  if (emisor.soloEnlace) return { ok: true, repetido: false, versionId: hecho.versionId, numero, enlace, whatsappUrl: null };
   if (!textos.ok) return quedoEnviado(textos.error);
 
   const { ctxEnvio } = emisor;

@@ -242,6 +242,21 @@ export default async function WorkspaceSettingsPage() {
         </Link>
       ) : null}
 
+      {membership?.role && puede(membership.role, "configurar") ? (
+        <Link
+          href="/workspace/configuracion/telegram"
+          className="fo-card flex items-center justify-between gap-4 p-4 transition hover:border-[var(--fo-accent,#1d4ed8)]"
+        >
+          <span className="space-y-0.5">
+            <span className="block text-sm font-semibold">Telegram</span>
+            <span className="block text-xs text-[var(--fo-muted)]">
+              Presupuestos armados solos que te llegan a Telegram para aprobar, y el portfolio de cada tipo de evento.
+            </span>
+          </span>
+          <span className="text-sm text-[var(--fo-accent,#1d4ed8)]">Ver →</span>
+        </Link>
+      ) : null}
+
       {membership?.role && puede(membership.role, "configurar") && pedidosVisible ? (
         <Link
           href="/workspace/configuracion/pedidos"

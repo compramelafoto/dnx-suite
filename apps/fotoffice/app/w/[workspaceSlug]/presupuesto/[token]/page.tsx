@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { AccionesPublicas } from "@/components/presupuestos/acciones-publicas";
+import { PortfolioPublico } from "@/components/presupuestos/portfolio-publico";
+import { portfolioDelEnlace } from "@/lib/presupuesto-automatico/portfolio";
 import { ESTILO_IMPRESION, PresupuestoPublico } from "@/components/presupuestos/presupuesto-publico";
 import { abrirPresupuestoPublico } from "@/lib/presupuestos/publico";
 import { workspaceDelSlug } from "@/lib/presupuestos/sitio";
@@ -62,11 +64,14 @@ export default async function PresupuestoPublicoPage({ params }: Props) {
   if (!r) notFound();
   if ("redirigir" in r) redirect(r.redirigir);
   const { vista } = r;
+  // El portfolio del tipo de evento de la consulta (spec 2026-10-25): sólo mientras se puede aceptar.
+  const portfolio = vista.estado === "ACTIVO" ? await portfolioDelEnlace(workspaceId, token) : null;
 
   return (
     <main className="mx-auto max-w-3xl space-y-6 px-4 py-8 md:px-8 md:py-12">
       <style>{ESTILO_IMPRESION}</style>
       <Aviso vista={vista} />
+      {portfolio ? <PortfolioPublico portfolio={portfolio} /> : null}
       <PresupuestoPublico vista={vista} />
       <AccionesPublicas
         slug={workspaceSlug}

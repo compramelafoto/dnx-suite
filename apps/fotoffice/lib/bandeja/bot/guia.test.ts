@@ -4,7 +4,7 @@ import { guiaDeAtencion, situacionDeAtencion } from "./guia";
 describe("guía del bot de atención", () => {
   it("nombra las tres herramientas y las reglas que no se negocian", () => {
     const g = guiaDeAtencion();
-    for (const t of ["buscar_productos", "datos_del_estudio", "pasar_a_persona"]) expect(g).toContain(t);
+    for (const t of ["buscar_productos", "datos_del_estudio", "preparar_presupuesto", "pasar_a_persona"]) expect(g).toContain(t);
     expect(g).toMatch(/Nunca inventes precios/);
     expect(g).toMatch(/markdown/);
   });
