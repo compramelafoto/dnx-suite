@@ -1,0 +1,26 @@
+[
+  {
+    "archivo": "01-importar-desde-factura.png",
+    "ruta": "/ventas/stock/recepcion/[id]",
+    "que_mostrar": "Recepción en borrador con la sección 'Importar desde factura o remito' a la vista: 'Subir foto o PDF', 'Pegar texto' y 'Con la plantilla CSV'.",
+    "selector_recorte": null
+  },
+  {
+    "archivo": "02-lineas-sin-asociar.png",
+    "ruta": "/ventas/stock/recepcion/[id]",
+    "que_mostrar": "Tras importar: mensaje 'Se agregaron N líneas' y una línea con 'Elegí el producto' y sus sugerencias. NO confirmar.",
+    "selector_recorte": null
+  },
+  {
+    "archivo": "03-avisos.png",
+    "ruta": "/ventas/stock/recepcion/[id]",
+    "que_mostrar": "Los avisos 'Lo leído no suma igual que el total de la factura' y 'Proveedor detectado'.",
+    "selector_recorte": null
+  },
+  {
+    "archivo": "04-copiar-instrucciones.png",
+    "ruta": "/ventas/stock/recepcion/[id]",
+    "que_mostrar": "Bloque 'Con la plantilla CSV' con 'Subir CSV', 'Descargar plantilla CSV' y 'Copiar instrucciones para la IA'.",
+    "selector_recorte": null
+  }
+]

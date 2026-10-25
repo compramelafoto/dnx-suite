@@ -1,4 +1,5 @@
 import type { CameraState } from "./camera-types";
+import { DEFAULT_SCENE_ID } from "./scenes";
 import type { ExposureVerdict } from "./camera-types";
 import type {
   CaptureFocusSnapshot,
@@ -7,7 +8,7 @@ import type {
   ViewfinderMode,
 } from "./camera-exposure";
 
-export const SIMULATOR_SCENE_ID = "studio";
+export const SIMULATOR_SCENE_ID = DEFAULT_SCENE_ID;
 export const SIMULATOR_CAPTURE_RETENTION_DAYS = 7;
 
 export type { CaptureUserInfo, CaptureFocusSnapshot } from "./camera-exposure";

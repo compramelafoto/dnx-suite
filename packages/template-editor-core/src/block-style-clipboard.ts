@@ -1,6 +1,7 @@
 import {
   asObject,
   normalizeBlockConfig,
+  readTextVerticalAlign,
   type TemplateV2Block,
   type TemplateV2BlockLayout,
   type TemplateV2BlockType,
@@ -24,6 +25,7 @@ export type TemplateV2CopiedTextStyle = {
   lineHeight: number;
   letterSpacing: number;
   textAlign: string;
+  verticalAlign: string;
   color: string;
   fontItalic: boolean;
   underline: boolean;
@@ -63,6 +65,7 @@ export function extractBlockStyle(block: TemplateV2Block): TemplateV2CopiedBlock
       lineHeight: Number(n.lineHeight),
       letterSpacing: Number(n.letterSpacing),
       textAlign: String(n.textAlign),
+      verticalAlign: readTextVerticalAlign(n),
       color: String(n.color),
       fontItalic: n.fontItalic === true,
       underline: n.underline === true,
@@ -79,6 +82,7 @@ export function extractBlockStyle(block: TemplateV2Block): TemplateV2CopiedBlock
       lineHeight: Number(n.lineHeight),
       letterSpacing: Number(n.letterSpacing),
       textAlign: String(n.textAlign),
+      verticalAlign: readTextVerticalAlign(n),
       color: String(n.color),
       fontItalic: n.fontItalic === true,
       underline: n.underline === true,
@@ -123,6 +127,7 @@ const TEXT_STYLE_KEYS = [
   "lineHeight",
   "letterSpacing",
   "textAlign",
+  "verticalAlign",
   "color",
   "fontItalic",
   "underline",

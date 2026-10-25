@@ -2,23 +2,41 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { descartarGrabacionAction, guardarAjustesAction, reintentarConversionAction, terminarConLoGrabadoAction, urlDeVideoAction, urlsDeLecturaAction } from "@/app/(shell)/digitalizacion/actions";
+import { useRouter } from "next/navigation";
+import { descartarGrabacionAction, editarTituloAction, guardarAjustesAction, reintentarConversionAction, terminarConLoGrabadoAction, urlDeVideoAction, urlsDeLecturaAction } from "@/app/(shell)/digitalizacion/actions";
 import { elegirArchivoDeDestino } from "@/lib/digitalizacion/cliente/apis-navegador";
 import { descargarCrudo } from "@/lib/digitalizacion/cliente/descargar-crudo";
 import type { EstadoVisible } from "@/lib/digitalizacion/validar";
+import { ReproductorHls } from "./ver-video";
 
 type Props = {
   id: string;
   estado: EstadoVisible;
   nombreArchivo: string;
+  titulo: string | null;
   puedeGrabar: boolean;
   conversionEstado: string;
   partesBorradas: boolean;
+  /** Tiene versión para mirar (HLS 720p, E10): "Ver video" la reproduce acá mismo. */
+  tieneHls: boolean;
 };
 
-export function AccionesGrabacion({ id, estado, nombreArchivo, puedeGrabar, conversionEstado, partesBorradas }: Props) {
+export function AccionesGrabacion({ id, estado, nombreArchivo, titulo, puedeGrabar, conversionEstado, partesBorradas, tieneHls }: Props) {
   const [pendiente, empezar] = useTransition();
   const [aviso, setAviso] = useState<string | null>(null);
+  const router = useRouter();
+  const [editando, setEditando] = useState(false);
+  const [valorTitulo, setValorTitulo] = useState(titulo ?? "");
+  const [mirando, setMirando] = useState(false);
+
+  const guardarTitulo = () =>
+    empezar(async () => {
+      const r = await editarTituloAction(id, valorTitulo);
+      if (!r.ok) { setAviso(r.error); return; }
+      setAviso(null);
+      setEditando(false);
+      router.refresh();
+    });
 
   const bajar = async () => {
     // El selector de archivos va primero: el navegador sólo lo abre si es lo primero que pasa dentro del clic.
@@ -43,6 +61,9 @@ export function AccionesGrabacion({ id, estado, nombreArchivo, puedeGrabar, conv
   };
 
   const verVideo = async () => {
+    // Con versión HLS se mira en la misma página y se puede saltar a cualquier momento sin esperas.
+    if (tieneHls) { setMirando((m) => !m); return; }
+    // Sin HLS (todavía no se rellenó): el MP4 Full HD en otra pestaña, como antes.
     // La pestaña se abre ya, dentro del clic, para que el navegador no la bloquee; después se le pone la dirección.
     const pestana = window.open("about:blank", "_blank");
     if (pestana) pestana.opener = null;
@@ -75,7 +96,7 @@ export function AccionesGrabacion({ id, estado, nombreArchivo, puedeGrabar, conv
     <div className="flex flex-wrap items-center gap-2 text-sm">
       {conversionEstado === "LISTA" ? (
         <>
-          <button type="button" className="fo-btn fo-btn-primary text-xs" onClick={() => void verVideo()}>Ver video</button>
+          <button type="button" className="fo-btn fo-btn-primary text-xs" onClick={() => void verVideo()}>{mirando ? "Cerrar video" : "Ver video"}</button>
           <button type="button" className="fo-btn fo-btn-secondary text-xs" onClick={() => void descargarVideo()}>Descargar video</button>
         </>
       ) : null}
@@ -104,7 +125,28 @@ export function AccionesGrabacion({ id, estado, nombreArchivo, puedeGrabar, conv
           Descartar
         </button>
       ) : null}
+      {puedeGrabar && !editando ? (
+        <button type="button" className="fo-btn fo-btn-secondary text-xs" onClick={() => { setValorTitulo(titulo ?? ""); setEditando(true); }}>Editar título</button>
+      ) : null}
+      {puedeGrabar && editando ? (
+        <span className="flex flex-wrap items-center gap-2">
+          <input
+            className="w-72 max-w-full rounded border p-1 text-sm"
+            aria-label="Título del video"
+            maxLength={120}
+            placeholder="Ej.: Casamiento de Juan y Ana, 1998"
+            value={valorTitulo}
+            onChange={(e) => setValorTitulo(e.target.value)}
+          />
+          <button type="button" className="fo-btn fo-btn-primary text-xs" disabled={pendiente} onClick={guardarTitulo}>Guardar</button>
+        </span>
+      ) : null}
       {aviso ? <span className="text-gray-600">{aviso}</span> : null}
+      {mirando && tieneHls && conversionEstado === "LISTA" ? (
+        <div className="w-full max-w-3xl basis-full">
+          <ReproductorHls src={`/api/digitalizacion/grabaciones/${encodeURIComponent(id)}/hls`} />
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -23,10 +23,18 @@ export default function SimulatorHero() {
           <Link href="/camofduty/simulador" className="cod-btn cod-btn--primary cod-btn--full-mobile">
             Entrar al simulador
           </Link>
-          <a href="#modulos" className="cod-btn cod-btn--secondary cod-btn--full-mobile">
+          <Link href="/camofduty/estudio" className="cod-btn cod-btn--secondary cod-btn--full-mobile">
+            Estudio Fotográfico
+          </Link>
+          <a href="#modulos" className="cod-btn cod-btn--ghost cod-btn--full-mobile">
             Ver módulos
           </a>
         </div>
+
+        <p className="cod-hero__note">
+          Gratis para fotógrafos. <Link href="/camofduty/registro">Registrate</Link> o{" "}
+          <Link href="/camofduty/ingresar">ingresá</Link> con tu cuenta de CompraMeLaFoto o con Google.
+        </p>
       </div>
     </section>
   );

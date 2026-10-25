@@ -6,7 +6,11 @@ const B = await vi.hoisted(async () => {
 });
 
 vi.mock("server-only", () => ({}));
-vi.mock("@repo/db", () => ({ prisma: B.prisma, Prisma: { JsonNull: null } }));
+// `Prisma.sql` arma `{ strings, values }` como el real: lo usa `lockStockRows` (insumos al confirmar).
+vi.mock("@repo/db", () => ({
+  prisma: B.prisma,
+  Prisma: { JsonNull: null, sql: (strings: readonly string[], ...values: unknown[]) => ({ strings, values }) },
+}));
 
 const C = await import("./confirmar");
 const P = await import("./pedidos");
@@ -114,6 +118,7 @@ beforeEach(() => {
   B.agregar("product", { id: "prod-sin-rubro", workspaceId: "ws-1", name: "Álbum" });
   B.agregar("product", { id: "prod-con-rubro", workspaceId: "ws-1", name: "Cobertura" });
   B.agregar("product", { id: "prod-ajeno", workspaceId: "ws-2", name: "Ajeno" });
+  B.agregar("product", { id: "prod-insumo", workspaceId: "ws-1", name: "Papel", kind: "INSUMO" });
   B.agregar("fotofficeProductoCatalogo", { workspaceId: "ws-1", productId: "prod-sin-rubro" });
   B.agregar("fotofficeProductoCatalogo", { workspaceId: "ws-1", productId: "prod-con-rubro", incomeCategoryId: "rubro-bodas" });
   aceptado("pre-1");
@@ -238,6 +243,49 @@ describe("confirmar desde el presupuesto", () => {
   it("sólo un presupuesto aceptado", async () => {
     B.datos.fotofficePresupuesto[0]!.status = "ENVIADO";
     expect(await C.confirmarPedido(DUENO, "pre-1", undefined, deps)).toEqual({ ok: false, error: M.noAceptado });
+  });
+});
+
+describe("insumos al confirmar desde el presupuesto", () => {
+  beforeEach(() => {
+    B.agregar("product", { id: "kit-305", workspaceId: "ws-1", name: "Kit Kodak 305", kind: "INSUMO", tracksStock: true, stockQty: 0 });
+    B.agregar("product", { id: "prod-15x20", workspaceId: "ws-1", name: "Copia 15x20", tracksStock: false, stockQty: 0 });
+    B.agregar("product", { id: "prod-taza", workspaceId: "ws-1", name: "Taza", tracksStock: true, stockQty: 10 });
+    B.agregar("fotofficeRecetaInsumo", { workspaceId: "ws-1", productId: "prod-15x20", insumoId: "kit-305", quantity: 2, porCada: 1 });
+    aceptado("pre-copias", {
+      leadId: "lead-1",
+      items: [item("x1", { productId: "prod-15x20", cantidad: 10 }), item("x2", { productId: "prod-15x20", cantidad: 3 }), item("x3", { productId: "prod-taza", cantidad: 2 })],
+    });
+  });
+  const kit = () => B.datos.product.find((p) => p.id === "kit-305")!.stockQty;
+
+  it("confirmar descuenta las recetas de todos los ítems y no aparta productos", async () => {
+    const r = await confirmado("pre-copias");
+    expect(B.datos.stockMovement.map((m) => [m.reason, m.productId, m.note, m.qty, m.sourceModule, m.sourceRef])).toEqual([
+      ["CONSUMO", "kit-305", "consumo:item:x1", -20, "pedidos", r.pedidoId],
+      ["CONSUMO", "kit-305", "consumo:item:x2", -6, "pedidos", r.pedidoId],
+    ]);
+    expect(kit()).toBe(-26);
+    expect(B.datos.product.find((p) => p.id === "prod-taza")!.stockQty).toBe(10);
+  });
+
+  it("cancelar el pedido devuelve el insumo de lo no entregado", async () => {
+    const r = await confirmado("pre-copias");
+    // x1 ya se entregó: su trabajo terminó.
+    B.agregar("fotofficeProyecto", { id: "trab-x1", workspaceId: "ws-1", pedidoId: r.pedidoId, pedidoItemIndex: 0 });
+    B.agregar("fotofficeJourney", { workspaceId: "ws-1", subjectType: "PROYECTO", subjectId: "trab-x1", circuitId: "circ-x", stageId: null, outcome: "TERMINADO", closedAt: AHORA, kind: "PROYECTO" });
+    expect(await P.cambiarEstadoPedido(DUENO, r.pedidoId, "CANCELADO", "Se arrepintió")).toEqual({ ok: true });
+    expect(B.datos.stockMovement.filter((m) => m.reason === "DEVOLUCION").map((m) => [m.productId, m.note, m.qty])).toEqual([
+      ["kit-305", "consumo:item:x2", 6],
+    ]);
+    expect(kit()).toBe(-20);
+  });
+
+  it("un presupuesto sin recetas confirma sin bloquear stock", async () => {
+    const antes = B.sql.length;
+    await confirmado("pre-1");
+    expect(B.datos.stockMovement).toHaveLength(0);
+    expect(B.sql.slice(antes).some((q) => /FROM "(Product|ProductVariant)"/.test(q.texto))).toBe(false);
   });
 });
 
@@ -379,6 +427,7 @@ describe("alta manual desde un contacto", () => {
     expect(await P.crearPedidoManual(SABI, { ...base, opcion: { tipo: "CUOTAS", cuotas: 0 } }, deps)).toEqual({ ok: false, error: M.opcion });
     expect(await P.crearPedidoManual(SABI, { ...base, items: [item("x", { modoPrecio: "CALCULO", calculo: CALCULO })] }, deps)).toEqual({ ok: false, error: M.calculo });
     expect(await P.crearPedidoManual(SABI, { ...base, items: [item("x", { productId: "prod-ajeno" })] }, deps)).toEqual({ ok: false, error: M.producto });
+    expect(await P.crearPedidoManual(SABI, { ...base, items: [item("x", { productId: "prod-insumo" })] }, deps)).toEqual({ ok: false, error: "Eso es un insumo: no se vende." });
     expect(await P.crearPedidoManual(SABI, { ...base, clientId: "cli-lead-9" }, deps)).toEqual({ ok: false, error: M.contacto });
     expect(await P.crearPedidoManual(SABI, { ...base, fechaEvento: "2026-02-30" }, deps)).toEqual({ ok: false, error: M.fecha });
     expect((await P.crearPedidoManual(SABI, { ...base, plan: [{ dueDate: "2026-10-10", amountArs: 1 }] }, deps)).ok).toBe(false);

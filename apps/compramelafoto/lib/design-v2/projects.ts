@@ -1,5 +1,5 @@
 import "server-only";
-import type { PhotoCrop } from "@repo/template-editor-core";
+import { huecosSinFondo, type PhotoCrop } from "@repo/template-editor-core";
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
@@ -17,7 +17,11 @@ import {
   type DesignV2Edit,
 } from "./design-data";
 import { renderDesignV2 } from "./render";
+import { huellaDelContenido } from "@/lib/revision-de-impresion/en-el-canje";
+import type { RevisionDelCliente } from "@/lib/revision-de-impresion/autorizacion";
 import { loadDesignTemplateVersion, type DesignTemplateVersion } from "./template";
+import { CursoAbiertoError, prepararMosaicoParaImprimir } from "@/lib/mosaico/al-aprobar";
+import { asegurarRecortes, cargarRecorte } from "@/lib/recortes/recortes";
 
 /**
  * Diseños armados con el diseñador nuevo: crearlos, corregirlos, aprobarlos y pedir cambios.
@@ -96,8 +100,12 @@ export type CreateDesignInput = {
   albumOrderId?: number | null;
   albumPackDraftId?: string | null;
   orderItemId?: number | null;
+  /** El alumno del padrón dueño (carpetas armadas para todo el curso). */
+  rosterEntryId?: number | null;
   /** Cómo acomodó la familia cada foto en el canje; sin esto, centradas. */
   cropsByPhotoId?: ReadonlyMap<number, PhotoCrop> | null;
+  /** La revisión y autorización de la familia al confirmar (se guarda como prueba). */
+  clientReview?: RevisionDelCliente | null;
 };
 
 /**
@@ -122,6 +130,18 @@ export async function createDesignV2Project(db: Db, input: CreateDesignInput): P
     values: input.values,
     cropsByPhotoId: input.cropsByPhotoId,
   });
+  // La autorización lleva la huella de lo que se va a imprimir tal como se armó.
+  if (input.clientReview?.authorization) {
+    data.clientReview = {
+      ...input.clientReview,
+      authorization: {
+        ...input.clientReview.authorization,
+        digest: huellaDelContenido({ values: data.values, slots: data.slots }),
+      },
+    };
+  } else if (input.clientReview) {
+    data.clientReview = input.clientReview;
+  }
 
   const project = await db.designProject.create({
     data: {
@@ -133,6 +153,7 @@ export async function createDesignV2Project(db: Db, input: CreateDesignInput): P
       albumOrderId: input.albumOrderId ?? null,
       albumPackDraftId: input.albumPackDraftId ?? null,
       orderItemId: input.orderItemId ?? null,
+      rosterEntryId: input.rosterEntryId ?? null,
     },
     select: { id: true },
   });
@@ -141,6 +162,17 @@ export async function createDesignV2Project(db: Db, input: CreateDesignInput): P
     select: { id: true },
   });
   await db.designProject.update({ where: { id: project.id }, data: { currentRevisionId: revision.id } });
+  if (data.clientReview?.authorization) {
+    // Qué revisión se autorizó: la que se acaba de crear.
+    const withRevision: DesignV2Data = {
+      ...data,
+      clientReview: { ...data.clientReview, authorization: { ...data.clientReview.authorization, revisionId: revision.id } },
+    };
+    await db.designRevision.update({
+      where: { id: revision.id },
+      data: { dataJson: withRevision as unknown as Prisma.InputJsonValue },
+    });
+  }
   return { id: project.id, created: true };
 }
 
@@ -157,6 +189,7 @@ const PROJECT_SELECT = {
   albumId: true,
   albumOrderId: true,
   orderItemId: true,
+  rosterEntryId: true,
   reviewNote: true,
   approvedAt: true,
   createdAt: true,
@@ -246,6 +279,27 @@ export async function approveDesignProject(
   const loaded = await loadDesignProjectForActor(id, actor);
   const template = await loadTemplateForDesign(loaded.data);
 
+  // Una carpeta con mosaico se imprime con los compañeros de ahora y sólo con el curso cerrado.
+  let data0: DesignV2Data;
+  try {
+    data0 = await prepararMosaicoParaImprimir({
+      albumId: loaded.project.albumId,
+      orderItemId: loaded.project.orderItemId,
+      rosterEntryId: loaded.project.rosterEntryId,
+      template,
+      data: loaded.data,
+    });
+  } catch (err) {
+    if (err instanceof CursoAbiertoError) throw new DesignProjectError(err.message, 409);
+    throw err;
+  }
+  if (data0 !== loaded.data) {
+    await prisma.designRevision.update({
+      where: { id: loaded.revisionId },
+      data: { dataJson: data0 as unknown as Prisma.InputJsonValue },
+    });
+  }
+
   await prisma.designProject.update({
     where: { id },
     data: {
@@ -257,7 +311,7 @@ export async function approveDesignProject(
   });
 
   const fail = async (error: string) => {
-    const data = { ...loaded.data, exportError: error.slice(0, 1000) };
+    const data = { ...data0, exportError: error.slice(0, 1000) };
     await prisma.designRevision.update({
       where: { id: loaded.revisionId },
       data: { dataJson: data as unknown as Prisma.InputJsonValue },
@@ -268,10 +322,19 @@ export async function approveDesignProject(
   let pdfUrl: string | null = null;
   const jpgUrls: string[] = [];
   try {
+    // Los huecos «Quitar el fondo» usan la foto sin fondo: se generan las que falten (si el
+    // servicio está configurado; si no, o si el fotógrafo la descartó, va la foto entera).
+    const sinFondo = huecosSinFondo(template.legacy.blocks as Array<{ id: string; type: string; configJson?: unknown }>);
+    const fotosSinFondo = [...sinFondo].flatMap((b) => {
+      const id = data0.slots[b]?.photoId;
+      return id != null ? [id] : [];
+    });
+    if (fotosSinFondo.length) await asegurarRecortes(fotosSinFondo);
     const rendered = await renderDesignV2({
       template,
-      data: loaded.data,
+      data: data0,
       loadPhoto: loadDesignPhotoBytes,
+      loadCutout: fotosSinFondo.length ? cargarRecorte : undefined,
       formats: { pdf: true, jpg: true },
       fileBaseName: `diseno-${id}`,
     });
@@ -289,7 +352,7 @@ export async function approveDesignProject(
   }
 
   const data: DesignV2Data = {
-    ...loaded.data,
+    ...data0,
     export: { pdfUrl, jpgUrls, generatedAt: new Date().toISOString() },
     exportError: null,
   };

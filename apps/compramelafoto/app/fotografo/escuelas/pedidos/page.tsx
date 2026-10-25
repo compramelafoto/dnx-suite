@@ -11,6 +11,7 @@ import RevisionDeCorrido, {
   type DisenoEnFila,
   type ResumenRevision,
 } from "@/components/fotografo/escolar/RevisionDeCorrido";
+import { MAX_LIBRITOS_POR_ZIP_JPG as MAX_ZIP_JPG } from "@/lib/design-v2/produccion-reglas";
 import { ensurePhotographerSession } from "@/lib/photographer-session-client";
 import {
   INFO_FUERA,
@@ -402,10 +403,11 @@ export default function FotografoEscuelasPedidosPage() {
     void cargarLotes();
   }, [cargarLotes]);
 
-  const descargar = (ruta: string, filtro: { ids?: number[]; lote?: string }) => {
+  const descargar = (ruta: string, filtro: { ids?: number[]; lote?: string }, formato?: "jpg") => {
     const q = new URLSearchParams();
     if (filtro.ids?.length) q.set("ids", filtro.ids.join(","));
     if (filtro.lote) q.set("lote", filtro.lote);
+    if (formato) q.set("formato", formato);
     window.open(`/api/fotografo/escolar/${ruta}?${q.toString()}`, "_blank");
   };
 
@@ -548,9 +550,16 @@ export default function FotografoEscuelasPedidosPage() {
         return (
           <div className="flex flex-col gap-0.5">
             {o.disenos.map((d, i) => (
-              <a key={d.id} href={`/api/fotografo/disenos/${d.id}/pdf`} className={link}>
-                {o.disenos.length > 1 ? `Descargar PDF ${i + 1}` : "Descargar PDF"}
-              </a>
+              <span key={d.id} className="flex flex-wrap items-center gap-x-1 text-xs text-gray-500">
+                <span>{o.disenos.length > 1 ? `Descargar ${i + 1}:` : "Descargar:"}</span>
+                <a href={`/api/fotografo/disenos/${d.id}/pdf`} className={link}>
+                  PDF
+                </a>
+                <span aria-hidden>·</span>
+                <a href={`/api/fotografo/disenos/${d.id}/jpg`} className={link} title="JPG de 300 dpi para imprenta, un archivo por cara">
+                  JPG
+                </a>
+              </span>
             ))}
             {o.disenos.length === 0 ? <span className="text-xs text-gray-600">Copias sueltas, sin librito</span> : null}
             {verPedido}
@@ -623,6 +632,8 @@ export default function FotografoEscuelasPedidosPage() {
     const btnSecundario =
       "inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2 text-sm font-semibold text-gray-800 ring-1 ring-gray-200 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50";
     const nota = (t: string) => <p className="m-0 text-xs text-gray-500">{t}</p>;
+    const btnFormato =
+      "flex flex-col items-center justify-center rounded-lg bg-white px-2 py-2 text-sm font-semibold text-gray-800 ring-1 ring-gray-200 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50";
 
     switch (vistaEfectiva) {
       case "POR_CANJEAR": {
@@ -681,18 +692,30 @@ export default function FotografoEscuelasPedidosPage() {
               <button type="button" className={btnPrincipal} disabled={!!ocupado || paraLote.length === 0} onClick={() => void crearLote()}>
                 {ocupado === "lote" ? "Armando el lote…" : `Crear lote de impresión${paraLote.length ? ` (${paraLote.length})` : ""}`}
               </button>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-medium text-gray-600">Descargar sin armar lote:</span>
               <button
                 type="button"
                 className={btnSecundario}
                 disabled={paraLote.length === 0}
                 onClick={() => descargar("lotes/zip", { ids: paraLote })}
               >
-                Descargar ZIP sin armar lote
+                ZIP de PDF
+              </button>
+              <button
+                type="button"
+                className={btnSecundario}
+                disabled={paraLote.length === 0 || paraLote.length > MAX_ZIP_JPG}
+                title={paraLote.length > MAX_ZIP_JPG ? `El ZIP de JPG admite hasta ${MAX_ZIP_JPG}: marcá menos o armá lotes por curso.` : undefined}
+                onClick={() => descargar("lotes/zip", { ids: paraLote }, "jpg")}
+              >
+                ZIP de JPG
               </button>
             </div>
             {nota(
               (elegidas.length ? "Va sólo lo que marcaste. " : "Sin marcar nada, va todo lo de este paso. ") +
-                "El lote junta los PDF finales en orden de impresión (colegio, curso y alumno). Conviene un lote por curso: el PDF único admite hasta 40 librititos y el ZIP hasta 60.",
+                `El lote junta los archivos finales en orden de impresión (colegio, curso y alumno). Conviene un lote por curso: el PDF único admite hasta 40 librititos, el ZIP de PDF hasta 60 y el ZIP de JPG hasta ${MAX_ZIP_JPG} (un JPG de 300 dpi por cara, con el alumno y la cara en el nombre).`,
             )}
           </>
         );
@@ -710,19 +733,43 @@ export default function FotografoEscuelasPedidosPage() {
                   <p className="m-0 text-xs text-gray-600">
                     {plural(l.cantidad, "librito", "librititos")} · {l.impresos} impresos
                   </p>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    <button type="button" className={btnSecundario} onClick={() => descargar("lotes/zip", { lote: l.nombre })}>
-                      ZIP
+                  <p className="m-0 mt-2 text-xs font-medium text-gray-600">Descargar para la imprenta</p>
+                  <div className="mt-1 grid grid-cols-3 gap-2">
+                    <button
+                      type="button"
+                      className={btnFormato}
+                      onClick={() => descargar("lotes/zip", { lote: l.nombre })}
+                      title="Un PDF por trabajo, en orden de impresión"
+                    >
+                      <span>PDF</span>
+                      <span className="text-[11px] font-normal text-gray-500">ZIP, uno por trabajo</span>
                     </button>
                     <button
                       type="button"
-                      className={btnSecundario}
+                      className={btnFormato}
+                      disabled={l.cantidad > MAX_ZIP_JPG}
+                      title={
+                        l.cantidad > MAX_ZIP_JPG
+                          ? `El ZIP de JPG admite hasta ${MAX_ZIP_JPG}: bajá el de PDF o armá lotes más chicos.`
+                          : "Un JPG de 300 dpi por cara, con el alumno y la cara en el nombre"
+                      }
+                      onClick={() => descargar("lotes/zip", { lote: l.nombre }, "jpg")}
+                    >
+                      <span>JPG</span>
+                      <span className="text-[11px] font-normal text-gray-500">ZIP, uno por cara</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={btnFormato}
                       disabled={l.cantidad > 40}
-                      title={l.cantidad > 40 ? "El PDF único admite hasta 40: bajá el ZIP." : undefined}
+                      title={l.cantidad > 40 ? "El PDF único admite hasta 40: bajá el ZIP." : "Todos los trabajos en un solo PDF"}
                       onClick={() => descargar("lotes/pdf", { lote: l.nombre })}
                     >
-                      PDF único
+                      <span>PDF único</span>
+                      <span className="text-[11px] font-normal text-gray-500">todo junto</span>
                     </button>
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-2">
                     <button
                       type="button"
                       className={btnPrincipal}
@@ -823,6 +870,12 @@ export default function FotografoEscuelasPedidosPage() {
   const formatARS = (cents: number) =>
     new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", minimumFractionDigits: 0 }).format(cents / 100);
   const tituloVista = vistaEfectiva === "FUERA" ? "Fuera de la línea" : INFO_PASOS[vistaEfectiva].titulo;
+  // La pantalla para el televisor abre con la misma escuela y curso que se están mirando.
+  const filtroPantalla = new URLSearchParams();
+  if (filterSchool) filtroPantalla.set("schoolId", filterSchool);
+  if (filterCurso) filtroPantalla.set("curso", filterCurso);
+  const consultaPantalla = filtroPantalla.toString();
+  const urlPantalla = `/fotografo/escuelas/pedidos/pantalla${consultaPantalla ? `?${consultaPantalla}` : ""}`;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -837,7 +890,16 @@ export default function FotografoEscuelasPedidosPage() {
                 tenés que hacer.
               </p>
             </div>
-            <div className="ds-split-panel__aside shrink-0">
+            <div className="ds-split-panel__aside flex shrink-0 flex-col items-start gap-2 sm:items-end">
+              {/* Para un televisor o una videollamada: los mismos pedidos, grandes y en oscuro. */}
+              <a
+                href={urlPantalla}
+                target="_blank"
+                rel="noopener"
+                className="inline-flex items-center gap-2 rounded-lg bg-[#1f2937] px-4 py-2 text-sm font-semibold text-white hover:bg-[#111827]"
+              >
+                Pantalla de pedidos
+              </a>
               <Link href="/fotografo/escuelas" className="text-[#c27b3d] hover:underline text-sm">
                 ← Volver a Escolar
               </Link>

@@ -86,9 +86,6 @@ export const confirmacionPalomaLlamas: Modelo = {
       familia: "Great Vibes", tam: 116, color: ORO_TXT,
     });
     a.listado(0, { x: 270, y: 940, w: PLIEGUE - 540, h: 1080 }, { familia: "Libre Baskerville", tam: 46, color: TEXTO, interlineado: 1.5 });
-    a.variable(0, "curso", "Curso", centrado(CENTRO_IZQ, 2070, 1250, 90), "course.displayName", "Curso", {
-      familia: "Libre Baskerville", tam: 46, color: ORO_TXT, italica: true,
-    });
 
     // Tapa
     a.texto(0, "titulo", "Título de tapa", centrado(CENTRO_DER, 1170, 1350, 280), "Mi Confirmación", {

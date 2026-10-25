@@ -15,6 +15,7 @@ import { ProveedorProyecto } from "@/components/proyectos/proveedor-proyecto";
 import { CarpetaProyecto } from "@/components/proyectos/carpeta-proyecto";
 import { PedidoDelTrabajo } from "@/components/impresiones/pedido-del-trabajo";
 import { pedidoDelTrabajo } from "@/lib/impresiones/trabajo-servidor";
+import { fotolibroDelTrabajo } from "@/lib/fotolibro/venta-servidor";
 import { listarArchivos } from "@/lib/carpetas/carpeta";
 import { leerProveedorDelTrabajo } from "@/lib/proyectos/proveedor";
 import { ReasignarTareas } from "@/components/proyectos/reasignar-tareas";
@@ -51,12 +52,14 @@ export default async function FichaProyectoPage({ params }: { params: Promise<{ 
   if (!ID_VALIDO.test(id)) notFound();
   await prepararProyectos(workspace.id);
 
-  const [ficha, role, proveedor, pedidoImpresion] = await Promise.all([
+  const [ficha, role, proveedor, pedidoImpresion, fotolibro] = await Promise.all([
     cargarFichaProyecto(ctx, id, new Date()),
     resolveWorkspaceRole(user.id, workspace.id),
     leerProveedorDelTrabajo(ctx, id),
     // Sólo si el trabajo nació de un pedido de copias impresas (acotado al workspace de la sesión).
     pedidoDelTrabajo(workspace.id, id),
+    // El fotolibro vendido en el Cobrador (ver `lib/fotolibro/venta-servidor.ts`).
+    fotolibroDelTrabajo(workspace.id, id),
   ]);
   const archivos = adjuntosR2Configurado() ? await listarArchivos(ctx, id) : null;
   if (!ficha) notFound();
@@ -131,6 +134,17 @@ export default async function FichaProyectoPage({ params }: { params: Promise<{ 
               <Link href={`/pedidos/${encodeURIComponent(ficha.pedido.id)}`} className="block rounded-[var(--fo-radius-sm)] text-sm hover:bg-[var(--fo-surface-hover)]">
                 <span className="font-medium text-[var(--fo-text)]">Pedido N° {ficha.pedido.numero}</span>
                 <span className="ml-2 text-xs text-[var(--fo-muted)]">{ficha.pedido.estado}</span>
+              </Link>
+            </section>
+          ) : null}
+          {fotolibro ? (
+            <section aria-labelledby="fotolibro-titulo" className="fo-card space-y-2 p-4">
+              <h2 id="fotolibro-titulo" className="text-sm font-semibold uppercase tracking-wide text-[var(--fo-muted-soft)]">
+                Fotolibro
+              </h2>
+              <p className="text-sm font-medium text-[var(--fo-text)]">{fotolibro.nombre}</p>
+              <Link href={fotolibro.url} target="_blank" className="fo-btn fo-btn-primary text-sm">
+                Abrir el fotolibro
               </Link>
             </section>
           ) : null}

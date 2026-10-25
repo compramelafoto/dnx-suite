@@ -21,6 +21,7 @@ import { Ajustes } from "./ajustes";
 import { VistaRecorte } from "./vistas";
 import { FotosAnteriores } from "./fotos-anteriores";
 import { PasoPlancha } from "./paso-plancha";
+import { PasoArchivo } from "./paso-archivo";
 import { recetaDesdeEditor } from "./receta-desde-editor";
 
 /** Igual que el servidor (`lib/impresion/almacen.ts`): 60 MB. */
@@ -48,8 +49,11 @@ export type ModoEditorFotoCarnet =
       tipo: "mostrador";
       preparacionId: string;
       clienteInicial: ClienteBuscado | null;
-      /** La impresora y la hoja del producto del ticket (nombres, para mostrarlos en la plancha). */
-      produccion: { salida: string; hoja: string };
+      /**
+       * La impresora y la hoja del producto del ticket (nombres, para mostrarlos en la plancha).
+       * `digital`: el producto se entrega como archivo (sin plancha ni impresora).
+       */
+      produccion: { salida: string; hoja: string; digital?: boolean };
       onListo: (r: { hojas: number; preparacionId: string }) => void;
       onCancelar: () => void;
     };
@@ -89,6 +93,7 @@ const cm = (n: number) => String(n).replace(".", ",");
  * Sirve suelto (Ventas → Foto carnet) y dentro del Mostrador, atado a una preparación del ticket.
  */
 export function EditorFotoCarnet({ puedeBuscarClientes, puedeAltaCliente, modo }: EditorFotoCarnetProps) {
+  const digital = modo.tipo === "mostrador" && modo.produccion.digital === true;
   const [paso, setPaso] = useState<Paso>(1);
   const [preparacionId, setPreparacionId] = useState<string | null>(modo.tipo === "mostrador" ? modo.preparacionId : null);
   const [cliente, setCliente] = useState<ClienteBuscado | null>(modo.tipo === "mostrador" ? modo.clienteInicial : null);
@@ -127,7 +132,7 @@ export function EditorFotoCarnet({ puedeBuscarClientes, puedeAltaCliente, modo }
         if (!vigente) return;
         if (!e) return setErrorFoto("Esa preparación ya no existe. Cerrá y volvé a tocar «Preparar».");
         // El cliente de la preparación manda sobre el del ticket (al cobrar, es el de la venta).
-        if (e.cliente) setCliente({ ...e.cliente, documento: null, email: null, telefono: null });
+        if (e.cliente) setCliente({ ...e.cliente, documento: null, telefono: null });
         if (!e.original) return;
         setOriginal({ id: e.original.id, vista: { ancho: e.original.vistaAncho, alto: e.original.vistaAlto }, ancho: e.original.ancho, alto: e.original.alto });
         if (!e.pieza) return;
@@ -141,8 +146,8 @@ export function EditorFotoCarnet({ puedeBuscarClientes, puedeAltaCliente, modo }
           calidad: { ppp: e.pieza.ppp, aviso: e.pieza.aviso },
           hoja: e.hoja,
         });
-        // Con la plancha ya armada, abre en la plancha; si no, en la foto (con la pieza guardada a mano).
-        if (e.hoja) setPaso(4);
+        // Con la plancha ya armada (o el archivo, si es digital), abre en el último paso; si no, en la foto.
+        if (e.hoja || digital) setPaso(4);
       })
       .catch(() => {
         if (vigente) setErrorFoto("No se pudo leer lo ya preparado. Probá de nuevo.");
@@ -153,7 +158,7 @@ export function EditorFotoCarnet({ puedeBuscarClientes, puedeAltaCliente, modo }
     return () => {
       vigente = false;
     };
-  }, [preparacionInicial]);
+  }, [preparacionInicial, digital]);
 
   /** Ir a un paso. Volver a encuadrar o retocar descarta lo guardado: la plancha se arma de nuevo. */
   function irAPaso(n: Paso) {
@@ -235,6 +240,18 @@ export function EditorFotoCarnet({ puedeBuscarClientes, puedeAltaCliente, modo }
     if (!r.ok) setErrorCliente(r.error);
   }
 
+  // La pieza del paso 4: la guardada (se reabrió) o la que sale del encuadre hecho en esta pantalla.
+  const piezaActual =
+    guardada?.pieza ??
+    (original && cropPixels
+      ? {
+          originalId: original.id,
+          anchoMm: Math.round(medida.anchoCm * 100) / 10,
+          altoMm: Math.round(medida.altoCm * 100) / 10,
+          receta: recetaDesdeEditor({ cropPx: cropPixels, vista: original.vista, rotacion, ajustes }),
+        }
+      : null);
+
   return (
     <div className="space-y-5">
       <nav aria-label="Pasos" className="flex flex-wrap gap-2">
@@ -254,7 +271,7 @@ export function EditorFotoCarnet({ puedeBuscarClientes, puedeAltaCliente, modo }
                   : "border-[var(--fo-border)] text-[var(--fo-text)] hover:border-[var(--fo-accent)]"
               }`}
             >
-              {p.n}. {p.titulo}
+              {p.n}. {p.n === 4 && digital ? "Archivo" : p.titulo}
             </button>
           );
         })}
@@ -406,29 +423,33 @@ export function EditorFotoCarnet({ puedeBuscarClientes, puedeAltaCliente, modo }
         </section>
       ) : null}
 
-      {paso === 4 && original && (guardada || cropPixels) && preparacionId ? (
+      {paso === 4 && piezaActual && preparacionId ? (
         <section className="fo-card space-y-5 p-5">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-base font-semibold">La plancha para imprimir</h2>
+            <h2 className="text-base font-semibold">{digital ? "El archivo para entregar" : "La plancha para imprimir"}</h2>
             {guardada ? (
               <button type="button" className="fo-btn fo-btn-secondary" onClick={() => irAPaso(2)}>
                 Volver a encuadrar
               </button>
             ) : null}
           </div>
-          <PasoPlancha
-            modo={modo}
-            preparacionId={preparacionId}
-            pieza={
-              guardada?.pieza ?? {
-                originalId: original.id,
-                anchoMm: Math.round(medida.anchoCm * 100) / 10,
-                altoMm: Math.round(medida.altoCm * 100) / 10,
-                receta: recetaDesdeEditor({ cropPx: cropPixels!, vista: original.vista, rotacion, ajustes }),
-              }
-            }
-            inicial={guardada?.hoja ? { ...guardada.hoja, ...guardada.calidad } : null}
-          />
+          {modo.tipo === "mostrador" && digital ? (
+            <PasoArchivo
+              preparacionId={preparacionId}
+              pieza={piezaActual}
+              emailInicial={cliente?.email ?? null}
+              inicial={guardada ? guardada.calidad : null}
+              onListo={() => modo.onListo({ hojas: 1, preparacionId })}
+            />
+          ) : (
+            <PasoPlancha
+              modo={modo}
+              preparacionId={preparacionId}
+              pieza={piezaActual}
+              emailInicial={cliente?.email ?? null}
+              inicial={guardada?.hoja ? { ...guardada.hoja, ...guardada.calidad } : null}
+            />
+          )}
         </section>
       ) : null}
 

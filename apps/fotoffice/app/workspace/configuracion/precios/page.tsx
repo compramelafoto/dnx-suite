@@ -6,7 +6,9 @@ import { etiquetaDeUsuario } from "@/lib/listado/acceso";
 import { leerPerfilPrecios } from "@/lib/precios/perfil";
 import { botEnPanel } from "@/lib/dnx-bot/panel";
 import { datosDeMiEstudio } from "@/lib/precios/estudio-servidor";
+import { hayPerfilDelPortalParaCopiar } from "@/lib/cuanto-cobro-socio/perfil";
 import { PerfilForm } from "./perfil-form";
+import { CopiarPerfilDelPortal } from "./copiar-perfil-del-portal";
 
 export const dynamic = "force-dynamic";
 
@@ -26,18 +28,16 @@ export default async function ConfiguracionPreciosPage() {
     );
   }
 
-  const [guardado, bot, estudio] = await Promise.all([
-    leerPerfilPrecios({
-      workspaceId: workspace.id,
-      userId: user.id,
-      userLabel: etiquetaDeUsuario(user),
-      role,
-    }),
+  const ctx = { workspaceId: workspace.id, userId: user.id, userLabel: etiquetaDeUsuario(user), role };
+  const [guardado, bot, estudio, copiable] = await Promise.all([
+    leerPerfilPrecios(ctx),
     // DNX Bot: el formulario es el camino principal; armarlo conversando se ofrece sólo si la persona
     // parece trabada (`OfertaArmarConversando`, dentro del formulario) y el bot está encendido.
     botEnPanel(),
     // Mi estudio: sólo se ofrece a workspaces de tipo estudio; los miembros, para vincular a cada persona.
     datosDeMiEstudio(workspace.id),
+    // Quien creó su negocio desde el portal de socio y ya había armado su ¿Cuánto Cobro? ahí.
+    hayPerfilDelPortalParaCopiar(ctx),
   ]);
 
   return (
@@ -51,12 +51,20 @@ export default async function ConfiguracionPreciosPage() {
           Importado de ¿Cuánto Cobro? de CompraMeLaFoto.
         </p>
       ) : null}
+      {guardado?.source === "portal" ? (
+        <p role="status" className="fo-card p-4 text-sm text-[var(--fo-muted)]">
+          Copiado de tu ¿Cuánto Cobro? del portal de socio.
+        </p>
+      ) : null}
+      {copiable ? <CopiarPerfilDelPortal /> : null}
       {guardado?.source === "dnx-bot" ? (
         <p role="status" className="fo-card p-4 text-sm text-[var(--fo-muted)]">
           Armado con DNX Bot.
         </p>
       ) : null}
       <PerfilForm
+        // Al copiar el perfil del portal cambia la versión: el formulario arranca de nuevo con él.
+        key={guardado ? guardado.actualizado.toISOString() : "sin-perfil"}
         inicial={guardado?.perfil ?? INITIAL_CUANTO_COBRO_PROFILE}
         version={guardado ? guardado.actualizado.toISOString() : null}
         bot={bot ? { workspaceId: workspace.id } : null}

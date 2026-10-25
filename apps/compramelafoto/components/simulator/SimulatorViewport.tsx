@@ -9,20 +9,20 @@ import {
   setSimulatorNavSurface,
 } from "@/lib/simulator/simulator-nav-surface";
 import dynamic from "next/dynamic";
-import { forwardRef, useCallback, useRef, useState } from "react";
+import { forwardRef, useCallback, useEffect, useRef, useState } from "react";
+import { computeViewfinderInsets } from "@/lib/simulator/viewfinder-frame";
 import ViewfinderLetterbox from "@/components/simulator/viewfinder/ViewfinderLetterbox";
 import FocusDofDebugOverlay from "@/components/simulator/viewfinder/FocusDofDebugOverlay";
 import ExposureDebugOverlay from "@/components/simulator/viewfinder/ExposureDebugOverlay";
 import SimulatorCameraHUD from "./SimulatorCameraHUD";
+import StreetModelPanel from "./StreetModelPanel";
+import CamOfDutyLoadingScreen from "./CamOfDutyLoadingScreen";
+import RenderDiagnosticsPanel from "./RenderDiagnosticsPanel";
 
 const SimulatorCanvas = dynamic(() => import("./scene/SimulatorCanvas"), {
   ssr: false,
-  loading: () => (
-    <div className="cod-sim__canvas-fallback" role="status" aria-live="polite">
-      <div className="cod-sim__canvas-fallback-spinner" aria-hidden="true" />
-      <p className="cod-sim__canvas-fallback-text">Cargando escena 3D…</p>
-    </div>
-  ),
+  // Mientras baja el código del lienzo ya se ve la pantalla de carga.
+  loading: () => null,
 });
 
 export interface SimulatorViewportProps {
@@ -32,6 +32,8 @@ export interface SimulatorViewportProps {
   onCloseHelp?: () => void;
   onOpenGallery?: () => void;
   photoCount?: number;
+  /** Controles táctiles del celular (encima del visor, debajo de la barra de herramientas). */
+  touchOverlay?: React.ReactNode;
 }
 
 const SimulatorViewport = forwardRef<HTMLDivElement, SimulatorViewportProps>(
@@ -43,6 +45,7 @@ const SimulatorViewport = forwardRef<HTMLDivElement, SimulatorViewportProps>(
       onCloseHelp,
       onOpenGallery,
       photoCount = 0,
+      touchOverlay,
     },
     forwardedRef,
   ) {
@@ -58,6 +61,25 @@ const SimulatorViewport = forwardRef<HTMLDivElement, SimulatorViewportProps>(
       },
       [forwardedRef],
     );
+
+    // El recuadro de captura toma la proporción del sensor (3:2) según el tamaño
+    // del visor; los márgenes CSS siguen al mismo cálculo que la cámara 3D.
+    useEffect(() => {
+      const node = viewportRef.current;
+      if (!node) return;
+      const sync = () => {
+        const { width, height } = node.getBoundingClientRect();
+        if (width < 2 || height < 2) return;
+        const insets = computeViewfinderInsets(width, height);
+        node.style.setProperty("--cod-vf-inset-x", `${insets.x * 100}%`);
+        node.style.setProperty("--cod-vf-inset-top", `${insets.top * 100}%`);
+        node.style.setProperty("--cod-vf-inset-bottom", `${insets.bottom * 100}%`);
+      };
+      sync();
+      const observer = new ResizeObserver(sync);
+      observer.observe(node);
+      return () => observer.disconnect();
+    }, []);
 
     const [isNavigating, setIsNavigating] = useState(false);
     const [isSceneReady, setIsSceneReady] = useState(false);
@@ -107,9 +129,15 @@ const SimulatorViewport = forwardRef<HTMLDivElement, SimulatorViewportProps>(
 
         <SimulatorCameraHUD />
 
+        <StreetModelPanel />
+
         <FocusDofDebugOverlay />
 
         <ExposureDebugOverlay />
+
+        {touchOverlay}
+
+        <RenderDiagnosticsPanel />
 
         {onOpenHelp && onOpenGallery ? (
           <SimulatorViewportToolbar
@@ -125,6 +153,8 @@ const SimulatorViewport = forwardRef<HTMLDivElement, SimulatorViewportProps>(
         {onCloseHelp ? (
           <SimulatorHelpModal open={helpOpen} onClose={onCloseHelp} />
         ) : null}
+
+        {canvasError ? null : <CamOfDutyLoadingScreen />}
 
         {canvasError && (
           <div className="cod-sim__canvas-error-banner" role="alert">

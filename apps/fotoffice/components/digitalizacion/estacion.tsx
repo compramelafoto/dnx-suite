@@ -8,9 +8,13 @@ import type { MensajeDelWorker } from "@/lib/digitalizacion/cliente/analisis.wor
 import { almacenIndexedDb } from "@/lib/digitalizacion/cliente/almacen-indexeddb";
 import { navegadorCompatible } from "@/lib/digitalizacion/cliente/apis-navegador";
 import { AVISO_SIN_ESPACIO, ColaDeSubida, ErrorDefinitivo, idParte, type ParteEnCola, type ResumenCola } from "@/lib/digitalizacion/cliente/cola";
-import { elegirFormato } from "@/lib/digitalizacion/cliente/formato";
-import { Grabador } from "@/lib/digitalizacion/cliente/grabador";
+import { faltantesParaGrabar } from "@/lib/digitalizacion/cliente/faltantes";
+import { elegirFormato, elegirFormatoQueFunciona } from "@/lib/digitalizacion/cliente/formato";
+import { Grabador, probarFormato } from "@/lib/digitalizacion/cliente/grabador";
 import type { ResumenCorte } from "@/lib/digitalizacion/senal/corte";
+import { evaluarFin } from "@/lib/digitalizacion/cliente/apagado";
+import { AvisoApagadoEnPagina, PanelApagado, useApagado } from "./apagado";
+import { PanelMonitoreo, useMonitoreo } from "./monitoreo";
 import { Ventanita, type EstadoVentanita } from "./ventanita";
 
 export type EquipoGuardado = { id: string; etiqueta: string; huellaSinSenal: number[] | null; corregirProporcion: boolean };
@@ -67,6 +71,7 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
   const [trabajos, setTrabajos] = useState<{ id: string; numero: string; nombre: string }[]>([]);
   const [proyectoId, setProyectoId] = useState<string | null>(continuar?.proyectoId ?? null);
   const [sinPedido, setSinPedido] = useState(continuar ? continuar.proyectoId === null : false);
+  const [titulo, setTitulo] = useState("");
   const [cassette, setCassette] = useState(continuar?.cassetteNumero ?? 1);
   const [listaOk, setListaOk] = useState(false);
   const [fase, setFase] = useState<"preparando" | "iniciando" | "grabando" | "terminando" | "terminada">("preparando");
@@ -98,6 +103,17 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
   const cerrandoRef = useRef(false);
   const streamRef = useRef<MediaStream | null>(null);
   useEffect(() => { faseRef.current = fase; streamRef.current = stream; }, [fase, stream]);
+
+  // Monitorear audio: una rama de escucha del mismo stream (no toca lo que graba el MediaRecorder).
+  // Se apaga sola al terminar la grabación (en `detener`) o al cambiar de dispositivo (cambia el stream).
+  const monitoreo = useMonitoreo(stream);
+  const apagarMonitoreo = monitoreo.apagar;
+
+  // Apagar la computadora al terminar (F3): "terminó todo" = grabación cerrada y cola vacía sin pérdidas.
+  const apagado = useApagado(evaluarFin({ fase, cierreFallido, pendientes: cola.pendientes, descartadas: cola.descartadas }));
+  // Con la casilla marcada, la ventanita queda abierta al terminar para mostrar la cuenta regresiva.
+  const apagadoArmadoRef = useRef(false);
+  useEffect(() => { apagadoArmadoRef.current = apagado.marcada; }, [apagado.marcada]);
 
   // Manda un latido con el último resumen conocido, si pasó al menos `cadaMs` desde el anterior.
   // Lo usan el worker (grabando), la cola (terminando) y el temporizador de respaldo de la página.
@@ -171,7 +187,7 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [videoId, audioId]);
 
-  // Vista previa y medidor de audio (nunca suena por los parlantes).
+  // Vista previa y medidor de audio (no suena por los parlantes: para escuchar está «Monitorear audio»).
   useEffect(() => {
     if (!stream) return;
     if (vistaRef.current) vistaRef.current.srcObject = stream;
@@ -216,15 +232,26 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
     if (r.ok) setTrabajos(r.trabajos);
   };
 
+  // La lista de pedidos arranca con los últimos trabajos: vacía parecía que no había nada para elegir.
+  useEffect(() => {
+    if (continuar) return;
+    void buscarTrabajosAction("").then((r) => { if (r.ok) setTrabajos(r.trabajos); });
+  }, [continuar]);
+
   const pintarVentanita = useCallback(() => {
     const s = sesion.current;
     if (!s?.ventanita) return;
     const e: EstadoVentanita = {
       modo: "VHS", stream, segundos: s.segundos, bytesPendientes: cola.bytesPendientes, ultimoError: cola.ultimoError,
       sinImagenHaceSeg: s.sinImagen, minutosSinSenal, avanceDvd: null, terminando: fase === "terminando",
+      terminada: fase === "terminada", apagado: apagado.aviso ? { aviso: apagado.aviso, alCancelar: apagado.cancelar } : null,
+      monitoreo: {
+        estado: monitoreo.estado, nivel: monitoreo.nivel, sinAudio: monitoreo.sinAudio, volumen: monitoreo.volumen,
+        alAlternar: monitoreo.alternar, alCambiarVolumen: monitoreo.cambiarVolumen,
+      },
     };
     s.ventanita.mostrar(e);
-  }, [stream, cola, minutosSinSenal, fase]);
+  }, [stream, cola, minutosSinSenal, fase, apagado.aviso, apagado.cancelar, monitoreo.estado, monitoreo.nivel, monitoreo.sinAudio, monitoreo.volumen, monitoreo.alternar, monitoreo.cambiarVolumen]);
   useEffect(pintarVentanita, [pintarVentanita]);
 
   const detener = useCallback(async (motivoFin: "MANUAL" | "SIN_SENAL" | "TOPE") => {
@@ -232,6 +259,7 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
     if (!s || s.deteniendo) return;
     s.deteniendo = true;
     if (s.respaldo !== null) { window.clearInterval(s.respaldo); s.respaldo = null; }
+    apagarMonitoreo();
     setFase("terminando");
     try { await s.grabador.detener(); } catch { /* el grabador ya estaba parado */ }
     s.analizador.detener();
@@ -241,12 +269,11 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
     await colaRef.current?.vaciada();
     const resumen = s.resumen ?? { duracionSeg: s.segundos, primeraImagenSeg: null, ultimaImagenSeg: null, sinImagen: true, tramos: [] };
     s.cierre = { ...latidoDe(resumen, s.tramo), motivoFin };
-    s.ventanita?.cerrar();
-    s.ventanita = null;
+    if (!apagadoArmadoRef.current) { s.ventanita?.cerrar(); s.ventanita = null; }
     stream?.getTracks().forEach((t) => t.stop());
     setStream(null); // apaga el medidor de audio
     await cerrarRef.current();
-  }, [stream]);
+  }, [stream, apagarMonitoreo]);
 
   // Sólo el cierre en el servidor: si falla, se reintenta sin volver a parar nada.
   const cerrar = useCallback(async () => {
@@ -301,8 +328,7 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
 
   const grabar = async () => {
     if (iniciandoRef.current || sesion.current || !stream || !colaRef.current) return;
-    const mime = elegirFormato((m) => MediaRecorder.isTypeSupported(m));
-    if (!mime) { setAviso("Este navegador no puede grabar video. Usá Chrome o Edge actualizados."); return; }
+    if (!elegirFormato((m) => MediaRecorder.isTypeSupported(m))) { setAviso("Este navegador no puede grabar video. Usá Chrome o Edge actualizados."); return; }
     iniciandoRef.current = true;
     setFase("iniciando");
     // Primero la ventanita: el navegador sólo la abre dentro del clic.
@@ -324,6 +350,19 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
       iniciandoRef.current = false;
       setFase("preparando");
     };
+    // "Lo soporto" no alcanza: con algunas capturadoras el codificador falla al arrancar (así se
+    // cortaba la grabación al instante). Se prueba con la señal real y se usa el que graba.
+    setAviso("Probando con tu capturadora el formato de grabación…");
+    const eleccion = await elegirFormatoQueFunciona(
+      (m) => MediaRecorder.isTypeSupported(m),
+      (m) => probarFormato(stream, m, CALIDADES[calidad]),
+    );
+    if (abandonada()) return;
+    if (!eleccion.ok) {
+      return fallar(`El navegador no puede grabar con esta capturadora. Probamos: ${eleccion.fallas.join("; ")}. Probá con Chrome actualizado o con otra capturadora.`);
+    }
+    const mime = eleccion.mime;
+    setAviso(null);
     let id: string;
     let tramo: number;
     try {
@@ -336,7 +375,7 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
         tramo = r.tramo;
       } else {
         const r = await crearGrabacionAction({
-          tipo: "VHS", proyectoId: sinPedido ? null : proyectoId, cassetteNumero: sinPedido ? null : cassette, calidad, mimeType: mime,
+          titulo, tipo: "VHS", proyectoId: sinPedido ? null : proyectoId, cassetteNumero: sinPedido ? null : cassette, calidad, mimeType: mime,
           corregirProporcion: estirada, equipoId: equipo?.id ?? null, dvdArchivos: null,
         });
         if (abandonada()) return;
@@ -360,7 +399,7 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
     const pendientes = new Set<Promise<void>>();
     const grabador = new Grabador({
       stream, mimeType: mime, bitsVideo: CALIDADES[calidad],
-      alError: () => perder("Se perdió la señal de la capturadora."),
+      alError: (detalle) => perder(`El grabador del navegador falló (${detalle}). Lo grabado hasta acá se sube.`),
       alPedacito: (datos, indice) => {
         const guardado = cola
           .agregar({ id: idParte(id, tramo, indice), grabacionId: id, tramo, indice, datos })
@@ -373,7 +412,7 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
     sesion.current = { grabacionId: id, tramo, grabador, analizador, ventanita, resumen: null, segundos: 0, sinImagen: null, deteniendo: false, pendientes, cierre: null, inicioMs: Date.now(), respaldo: null, perdida: null };
     ultimoLatidoMs.current = Date.now();
     const pista = stream.getVideoTracks()[0];
-    pista?.addEventListener("ended", () => perder("Se perdió la señal de la capturadora."), { once: true });
+    pista?.addEventListener("ended", () => perder("La capturadora dejó de enviar imagen: se desconectó o la tomó otro programa."), { once: true });
     // Respaldo de la página: si el worker se calla, igual hay latido y se respeta el tope por reloj de pared.
     sesion.current.respaldo = window.setInterval(() => {
       const s = sesion.current;
@@ -405,6 +444,15 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
     };
   }, []);
 
+  // La ventanita que quedó abierta por el apagado se cierra cuando ya no hay nada que avisar
+  // (casilla desmarcada o cancelado). Si el apagado falló, queda abierta mostrando por qué.
+  useEffect(() => {
+    const s = sesion.current;
+    if (!s?.ventanita || fase !== "terminada" || apagado.marcada || apagado.estado.tipo === "error") return;
+    s.ventanita.cerrar();
+    s.ventanita = null;
+  }, [fase, apagado.marcada, apagado.estado.tipo]);
+
   // Volver a abrir la ventanita si la cerraron: tiene que ser dentro del clic.
   const abrirVentanita = async () => {
     const s = sesion.current;
@@ -430,9 +478,20 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
     return <p className="fo-alert-error p-4 text-sm">La estación necesita Chrome o Edge de escritorio actualizados (versión 116 o mayor).</p>;
   }
 
-  const puedeGrabar = Boolean(stream) && !dvdSubiendo && listaOk && (sinPedido || proyectoId) && fase === "preparando";
+  const faltan = faltantesParaGrabar({
+    videoElegido: Boolean(videoId),
+    audioElegido: Boolean(audioId),
+    vistaPrevia: Boolean(stream),
+    listaOk,
+    sinPedido,
+    proyectoElegido: Boolean(proyectoId),
+    dvdSubiendo,
+    continuando: Boolean(continuar),
+  });
+  const puedeGrabar = faltan.length === 0 && fase === "preparando";
   return (
     <div className="space-y-6">
+      <AvisoApagadoEnPagina apagado={apagado} />
       {aviso ? <p className="fo-alert-warning p-3 text-sm">{aviso}</p> : null}
       {fase === "grabando" ? (
         <p className="fo-alert-warning p-3 text-sm">No salgas de esta página mientras graba: la grabación sigue con la ventana minimizada.</p>
@@ -480,6 +539,7 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
         <div className="h-2 w-full max-w-2xl rounded bg-gray-200" aria-label="Nivel de audio">
           <div className="h-2 rounded bg-green-500" style={{ width: `${Math.round(nivelAudio * 100)}%` }} />
         </div>
+        {fase !== "terminando" && fase !== "terminada" ? <PanelMonitoreo control={monitoreo} /> : null}
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={estirada} disabled={fase !== "preparando"} onChange={(e) => { setEstirada(e.target.checked); void guardarEquipo({ corregirProporcion: e.target.checked }); }} />
           La imagen se ve estirada (la gente se ve ancha)
@@ -505,6 +565,9 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
           <p className="text-sm">Continuás la grabación (tramo {continuar.tipo === "DVD" ? 1 : continuar.tramo + 1}).</p>
         ) : (
           <>
+            <label className="block text-sm">Título del video (opcional)
+              <input className="mt-1 block w-full max-w-md rounded border p-2 text-sm" maxLength={120} placeholder="Ej.: Casamiento de Juan y Ana, 1998" value={titulo} onChange={(e) => setTitulo(e.target.value)} />
+            </label>
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" checked={sinPedido} onChange={(e) => setSinPedido(e.target.checked)} /> Sin pedido (prueba)
             </label>
@@ -535,8 +598,13 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
             {fase === "iniciando" ? "Empezando…" : "● Grabar"}
           </button>
         ) : null}
-        {fase === "preparando" && dvdSubiendo ? (
-          <p className="text-sm">Hay un DVD subiendo: esperá a que termine para grabar un VHS.</p>
+        {fase === "preparando" && continuar?.tipo !== "DVD" && faltan.length > 0 ? (
+          <div className="text-sm text-gray-600">
+            <p className="font-semibold">Para poder grabar falta:</p>
+            <ul className="ml-5 list-disc">
+              {faltan.map((f) => <li key={f}>{f}</li>)}
+            </ul>
+          </div>
         ) : null}
         {fase === "grabando" ? <button type="button" className="fo-btn fo-btn-danger" onClick={() => void detener("MANUAL")}>⏹ Detener</button> : null}
         {fase === "grabando" && !ventanitaAbierta ? (
@@ -555,6 +623,7 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
           </div>
         ) : null}
         {fase === "terminada" ? <a className="fo-btn fo-btn-primary" href="/digitalizacion">Ver grabaciones</a> : null}
+        {continuar?.tipo !== "DVD" ? <PanelApagado apagado={apagado} /> : null}
       </section>
 
       {fase === "preparando" && !continuar ? <section className="space-y-3 border-t pt-6">{dvd}</section> : null}

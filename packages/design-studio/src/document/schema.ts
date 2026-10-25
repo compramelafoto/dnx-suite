@@ -46,6 +46,13 @@ export type BlockGeometry = {
 export type TextAlign = "left" | "center" | "right";
 
 /**
+ * Dónde queda el texto dentro del alto de su caja: pegado arriba (lo de siempre), centrado o
+ * pegado abajo. Se mide en el marco de la caja, no de la hoja: en una caja girada 90°, «arriba»
+ * es el lado hacia donde apunta la parte de arriba de las letras.
+ */
+export type VerticalAlign = "top" | "middle" | "bottom";
+
+/**
  * Cómo se escriben las letras al dibujar.
  *
  * Es una propiedad de presentación, como la negrita, y no una transformación del dato: se
@@ -66,6 +73,8 @@ export type TextBlock = BlockGeometry &
     fontStyle?: FontStyle;
     color: string;
     align?: TextAlign;
+    /** Sin valor, arriba: así se dibujaba todo antes de que existiera la opción. */
+    verticalAlign?: VerticalAlign;
     textTransform?: TextTransform;
     /** Texto fijo o con marcadores `{{clave}}` declarados en el contrato de variables. */
     content: string;
@@ -88,6 +97,10 @@ export type QrBlock = BlockGeometry &
     darkColor?: string;
     lightColor?: string;
   };
+
+import type { ImageCrop } from "../layout/encuadre";
+
+export type { ImageCrop };
 
 export type ImageFit = "cover" | "contain";
 
@@ -114,6 +127,16 @@ export type ImageBlock = BlockGeometry &
     mask?: ImageMask;
     /** Solo con `mask: "rect"`. Radio de esquina, en las unidades del documento. */
     cornerRadius?: number;
+    /**
+     * Encuadre de la foto dentro del recuadro (sólo con `fit: "cover"`). Sin él, la foto se
+     * centra. Ver `layout/encuadre.ts`.
+     */
+    crop?: ImageCrop;
+    /**
+     * Ancho ÷ alto de la foto original. El PDF lo lee de los bytes; la vista SVG no los tiene y
+     * lo necesita para ubicar el encuadre.
+     */
+    sourceAspect?: number;
   };
 
 export type LineBlock = BlockGeometry &

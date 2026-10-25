@@ -80,9 +80,6 @@ export const comunionClasicaDorada: Modelo = {
       familia: "Great Vibes", tam: 120, color: ORO_TXT,
     });
     a.listado(0, { x: 270, y: 930, w: PLIEGUE - 540, h: 1090 }, { familia: "Lora", tam: 50, color: TINTA, interlineado: 1.45 });
-    a.variable(0, "curso", "Curso", centrado(CENTRO_IZQ, 2070, 1250, 90), "course.displayName", "Curso", {
-      familia: "Lora", tam: 50, color: ORO_TXT, italica: true,
-    });
 
     // Tapa
     a.texto(0, "titulo", "Título de tapa", centrado(CENTRO_DER, 1235, 1320, 250), "Mi Primera Comunión", {

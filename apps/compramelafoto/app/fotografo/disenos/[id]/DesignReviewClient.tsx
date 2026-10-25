@@ -8,6 +8,8 @@ import DesignEditor from "@/components/design-v2/DesignEditor";
 import type { DesignPhotoPayload, DesignTemplatePayload } from "@/lib/design-v2/client-payload";
 import { emptySlotIds, type DesignV2Data, type DesignV2Edit } from "@/lib/design-v2/design-data";
 import { DESIGN_STATUS_TONES, designStatusLabel } from "@/lib/design-v2/labels";
+import RecortesPanel from "./RecortesPanel";
+import ListadoDelCursoPanel from "./ListadoDelCursoPanel";
 
 type DesignInfo = {
   id: number;
@@ -18,9 +20,16 @@ type DesignInfo = {
   album: { id: number; title: string } | null;
   orderId: number | null;
   buyer: { name: string | null; email: string | null; student: string | null };
+  armado?: { editadoAMano: boolean; enProduccion: boolean; puedeEditar: boolean; motivo: string | null };
 };
 
-type Loaded = { design: DesignInfo; data: DesignV2Data; template: DesignTemplatePayload; photos: DesignPhotoPayload[] };
+type Loaded = {
+  design: DesignInfo;
+  data: DesignV2Data;
+  template: DesignTemplatePayload;
+  photos: DesignPhotoPayload[];
+  recortesActivos: boolean;
+};
 
 const SAVE_DELAY_MS = 700;
 
@@ -28,7 +37,7 @@ export default function DesignReviewClient({ designId }: { designId: string }) {
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState<"idle" | "pending" | "saving" | "error">("idle");
-  const [busy, setBusy] = useState<"approve" | "changes" | null>(null);
+  const [busy, setBusy] = useState<"approve" | "changes" | "layout" | null>(null);
   const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
   const [changesOpen, setChangesOpen] = useState(false);
   const [changesNote, setChangesNote] = useState("");
@@ -42,7 +51,13 @@ export default function DesignReviewClient({ designId }: { designId: string }) {
       setLoadError(body.error || "No se pudo abrir el diseño.");
       return;
     }
-    setLoaded({ design: body.design, data: body.data, template: body.template, photos: body.photos });
+    setLoaded({
+      design: body.design,
+      data: body.data,
+      template: body.template,
+      photos: body.photos,
+      recortesActivos: body.recortesActivos === true,
+    });
   }, [designId]);
 
   useEffect(() => {
@@ -154,9 +169,44 @@ export default function DesignReviewClient({ designId }: { designId: string }) {
     }
   }
 
-  async function downloadPdf() {
+  /**
+   * Abre el diseñador completo sobre una copia de la plantilla que es sólo de este diseño: se puede
+   * mover un texto o agrandar una foto sin tocar la plantilla ni los otros libritos.
+   */
+  async function editLayout() {
+    if (!loaded) return;
+    if (
+      !loaded.design.armado?.editadoAMano &&
+      !window.confirm(
+        "Vas a abrir el diseñador sobre una copia de la plantilla que es sólo de este librito. La plantilla y los demás diseños no cambian, y desde ahora los cambios que le hagas a la plantilla no le llegan a este diseño. Si ya estaba aprobado, al retocarlo vuelve a revisión. ¿Seguimos?",
+      )
+    ) {
+      return;
+    }
+    setBusy("layout");
+    setMessage(null);
+    try {
+      if (!(await flush())) return;
+      const res = await fetch(`/api/fotografo/disenos/${designId}/copia-propia`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok || !body.ok || typeof body.editorUrl !== "string") {
+        throw new Error(body.error || "No se pudo abrir el diseñador.");
+      }
+      window.location.href = body.editorUrl;
+    } catch (err) {
+      setMessage({ tone: "error", text: err instanceof Error ? err.message : "No se pudo abrir el diseñador." });
+      setBusy(null);
+    }
+  }
+
+  async function download(formato: "pdf" | "jpg") {
     if (!(await flush())) return;
-    window.location.href = `/api/fotografo/disenos/${designId}/pdf`;
+    window.location.href = `/api/fotografo/disenos/${designId}/${formato}`;
   }
 
   if (loadError) {
@@ -202,6 +252,14 @@ export default function DesignReviewClient({ designId }: { designId: string }) {
             >
               {designStatusLabel(design.status)}
             </span>
+            {design.armado?.editadoAMano ? (
+              <span
+                className="rounded-full bg-violet-50 px-2.5 py-1 text-[11px] font-semibold text-violet-800 ring-1 ring-violet-200"
+                title="Este diseño tiene su propio armado: los cambios de la plantilla no le llegan."
+              >
+                Editado a mano
+              </span>
+            ) : null}
             <span className="text-xs text-[#9ca3af]">
               {saving === "pending" || saving === "saving"
                 ? "Guardando…"
@@ -212,8 +270,29 @@ export default function DesignReviewClient({ designId }: { designId: string }) {
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="secondary" size="sm" onClick={() => void downloadPdf()} disabled={busy !== null}>
+          <Button variant="secondary" size="sm" onClick={() => void download("pdf")} disabled={busy !== null}>
             Descargar PDF
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => void download("jpg")}
+            disabled={busy !== null}
+            title="JPG de 300 dpi para imprenta: un archivo por cara, con el alumno y la cara en el nombre"
+          >
+            Descargar JPG
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => void editLayout()}
+            disabled={busy !== null || !design.armado?.puedeEditar}
+            title={
+              design.armado?.motivo ??
+              "Abre el diseñador completo sobre una copia sólo de este librito: la plantilla y los demás diseños no cambian"
+            }
+          >
+            {busy === "layout" ? "Abriendo…" : "Editar el diseño de este librito"}
           </Button>
           <Button variant="secondary" size="sm" onClick={() => setChangesOpen((v) => !v)} disabled={busy !== null}>
             Pedir cambios al cliente
@@ -293,13 +372,48 @@ export default function DesignReviewClient({ designId }: { designId: string }) {
               </a>
             ) : null}
             {data.export.jpgUrls.map((url, i) => (
-              <a key={url} href={url} target="_blank" rel="noreferrer" className="font-medium text-[#c27b3d] underline">
+              <a key={url} href={`/api/fotografo/disenos/${designId}/jpg?cara=${i + 1}`} className="font-medium text-[#c27b3d] underline">
                 JPG {template.pageLabels[i]?.trim() || `cara ${i + 1}`}
               </a>
             ))}
           </div>
         </Card>
       ) : null}
+
+      <RecortesPanel
+        designId={designId}
+        template={template}
+        data={data}
+        photos={photos}
+        activo={loaded.recortesActivos}
+        onRecortes={(recortes) =>
+          setLoaded((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  photos: prev.photos.map((p) => {
+                    const r = recortes.find((x) => x.photoId === p.id);
+                    return r ? { ...p, cutout: { status: r.status, url: r.status === "READY" ? r.url : null, error: r.error } } : p;
+                  }),
+                }
+              : prev,
+          )
+        }
+      />
+
+      <ListadoDelCursoPanel
+        designId={designId}
+        dataVersion={Object.values(data.slots)
+          .map((s) => s.photoId ?? "")
+          .join(",")}
+        clientReview={data.clientReview}
+        beforeSave={flush}
+        onSaved={(next, status) =>
+          setLoaded((prev) =>
+            prev ? { ...prev, data: next, design: { ...prev.design, status: status ?? prev.design.status } } : prev,
+          )
+        }
+      />
 
       <div className="mt-6">
         <DesignEditor template={template} photos={photos} data={data} onChange={onChange} />

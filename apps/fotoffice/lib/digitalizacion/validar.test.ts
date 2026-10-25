@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { estadoVisible, validarCierre, validarLatido, validarNuevaGrabacion, validarPedidoParte } from "./validar";
+import { estadoVisible, validarCierre, validarLatido, validarNuevaGrabacion, validarPedidoParte, validarTitulo } from "./validar";
 import { cortesDeArchivo } from "./dvd";
 
 const ahora = new Date("2026-11-01T15:00:00Z");
@@ -67,5 +67,24 @@ describe("validaciones", () => {
     expect(cortesDeArchivo(100, 1.5)).toEqual([]);
     expect(cortesDeArchivo(100, 0)).toEqual([]);
     expect(cortesDeArchivo(100, -10)).toEqual([]);
+  });
+});
+
+describe("título de la grabación", () => {
+  const vhs = { tipo: "VHS", proyectoId: "p1", cassetteNumero: 1, calidad: "MEDIA", mimeType: "video/webm", corregirProporcion: false, equipoId: null, dvdArchivos: null };
+  it("es opcional, se recorta y vacío pasa a null", () => {
+    expect(validarNuevaGrabacion(vhs)).toMatchObject({ titulo: null });
+    expect(validarNuevaGrabacion({ ...vhs, titulo: "  Boda de Ana  " })).toMatchObject({ titulo: "Boda de Ana" });
+    expect(validarNuevaGrabacion({ ...vhs, titulo: "   " })).toMatchObject({ titulo: null });
+  });
+  it("rechaza no-strings y más de 120 caracteres", () => {
+    expect(validarNuevaGrabacion({ ...vhs, titulo: 5 })).toBeNull();
+    expect(validarNuevaGrabacion({ ...vhs, titulo: "a".repeat(121) })).toBeNull();
+    expect(validarNuevaGrabacion({ ...vhs, titulo: "a".repeat(120) })).toMatchObject({ titulo: "a".repeat(120) });
+  });
+  it("validarTitulo", () => {
+    expect(validarTitulo(" x ")).toEqual({ ok: true, titulo: "x" });
+    expect(validarTitulo("")).toEqual({ ok: true, titulo: null });
+    expect(validarTitulo({})).toEqual({ ok: false });
   });
 });

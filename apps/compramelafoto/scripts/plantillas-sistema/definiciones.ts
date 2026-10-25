@@ -49,7 +49,7 @@ export type PlantillaSistema = {
   bloques: FilaBloque[];
   bindings: FilaBinding[];
   assets: FilaAsset[];
-  fondos: Array<{ archivo: string; pagina: "exterior" | "interior"; svg: () => string }>;
+  fondos: Array<{ archivo: string; pagina: "exterior" | "interior" | "plancha"; svg: () => string }>;
 };
 
 export const ids = (slug: string) => {
@@ -58,7 +58,7 @@ export const ids = (slug: string) => {
 };
 
 /**
- * Los campos de filtro del catálogo (`estilo`, `orientacion`, `cantidadFotos`, `conListado`,
+ * Los campos de filtro del catálogo (`estilo`, `orientacion`, `cantidadFotos`, `conListado`, `conMosaico`,
  * `conLogo`, `evento`, `etiquetas`). Sólo para los modelos que declaran `filtros`: los ya
  * cargados quedan con el mismo metaJson.
  */
@@ -71,6 +71,7 @@ function filtrosDelCatalogo(modelo: Modelo, bloques: FilaBloque[], bindings: Fil
     orientacion: modelo.filtros.orientacion ?? "vertical",
     cantidadFotos: fotos.size,
     conListado: bloques.some((b) => (b.configJson as { variableKey?: string }).variableKey === "course.studentList"),
+    conMosaico: bloques.some((b) => (b.configJson as { variableKey?: string }).variableKey === "course.mosaic"),
     conLogo: bindings.some((b) => b.variableKey === VARIABLE_LOGO),
     ...(modelo.filtros.evento ? { evento: modelo.filtros.evento } : {}),
     etiquetas: modelo.filtros.etiquetas,
@@ -82,9 +83,11 @@ export function definirPlantilla(modelo: Modelo): PlantillaSistema {
   const exterior = archivoFondo(modelo.slug, "exterior");
   const interior = archivoFondo(modelo.slug, "interior");
 
+  const plancha = modelo.fondoPlancha ? archivoFondo(modelo.slug, "plancha") : null;
   const a = new Armador();
   a.fondo(0, exterior);
   a.fondo(1, interior);
+  if (plancha) a.fondo(2, plancha);
   modelo.armar(a);
 
   const bloques: FilaBloque[] = a.bloques.map((b) => ({
@@ -140,6 +143,9 @@ export function definirPlantilla(modelo: Modelo): PlantillaSistema {
   const assets: FilaAsset[] = [
     { id: `${templateId}_fondo_exterior`, storageKey: `${CARPETA_R2}/${exterior}`, mimeType: "image/jpeg", metaJson: { originalName: exterior } },
     { id: `${templateId}_fondo_interior`, storageKey: `${CARPETA_R2}/${interior}`, mimeType: "image/jpeg", metaJson: { originalName: interior } },
+    ...(plancha
+      ? [{ id: `${templateId}_fondo_plancha`, storageKey: `${CARPETA_R2}/${plancha}`, mimeType: "image/jpeg", metaJson: { originalName: plancha } }]
+      : []),
   ];
 
   return {
@@ -158,8 +164,10 @@ export function definirPlantilla(modelo: Modelo): PlantillaSistema {
       product: "school",
       categoria: modelo.categoria,
       ...filtrosDelCatalogo(modelo, bloques, bindings),
-      templatePageCount: 2,
-      pageLabels: ["Exterior (contratapa + tapa)", "Interior"],
+      templatePageCount: plancha ? 3 : 2,
+      pageLabels: plancha
+        ? ["Exterior (contratapa + tapa)", "Interior (álbum)", "Plancha de figuritas (papel autoadhesivo)"]
+        : ["Exterior (contratapa + tapa)", "Interior"],
       guides: { h: [], v: [PLIEGUE] },
       physicalTrimMm: { width: 300, height: 200 },
       safeMarginMm: 5,
@@ -173,6 +181,7 @@ export function definirPlantilla(modelo: Modelo): PlantillaSistema {
     fondos: [
       { archivo: exterior, pagina: "exterior", svg: modelo.fondoExterior },
       { archivo: interior, pagina: "interior", svg: modelo.fondoInterior },
+      ...(plancha && modelo.fondoPlancha ? [{ archivo: plancha, pagina: "plancha" as const, svg: modelo.fondoPlancha }] : []),
     ],
   };
 }
@@ -208,6 +217,8 @@ function revisarReglas(modelo: Modelo, bloques: FilaBloque[]) {
   if (!(CATEGORIAS as readonly string[]).includes(modelo.categoria)) errores.push(`categoría «${modelo.categoria}» desconocida`);
   for (const b of bloques) {
     if (b.locked) continue;
+    // La plancha de figuritas se imprime plana: sólo cuenta el margen contra el corte.
+    const plana = b.pageIndex === 2;
     const k = caja(b);
     const esTexto = b.type === "TEXT" || b.type === "VARIABLE_TEXT";
     const esFoto = b.type === "IMAGE";
@@ -215,13 +226,13 @@ function revisarReglas(modelo: Modelo, bloques: FilaBloque[]) {
       if (k.x0 < SEGURIDAD - 1 || k.y0 < SEGURIDAD - 1 || k.x1 > ANCHO - SEGURIDAD + 1 || k.y1 > ALTO - SEGURIDAD + 1) {
         errores.push(`${b.name}: a menos de 5 mm del corte`);
       }
-      if (k.x1 > PLIEGUE - TUBO_PLIEGUE && k.x0 < PLIEGUE + TUBO_PLIEGUE) errores.push(`${b.name}: a menos de 10 mm del doblez`);
+      if (!plana && k.x1 > PLIEGUE - TUBO_PLIEGUE && k.x0 < PLIEGUE + TUBO_PLIEGUE) errores.push(`${b.name}: a menos de 10 mm del doblez`);
       const cx = (k.x0 + k.x1) / 2;
       const esperado = !apaisado ? 0 : b.pageIndex === 1 ? -90 : cx < PLIEGUE ? 90 : -90;
       const giro = normalizar(Math.round(b.rotation / 90) * 90);
       if (giro !== esperado) errores.push(`${b.name}: mira a ${giro}° y su cara a ${esperado}°`);
     }
-    if (esFoto && k.x0 < PLIEGUE - 2 && k.x1 > PLIEGUE + 2) errores.push(`${b.name}: cruza el doblez`);
+    if (esFoto && !plana && k.x0 < PLIEGUE - 2 && k.x1 > PLIEGUE + 2) errores.push(`${b.name}: cruza el doblez`);
   }
   // El visor 3D endereza cada cara mirando sus textos: en un apaisado, cada cara necesita alguno.
   if (apaisado) {

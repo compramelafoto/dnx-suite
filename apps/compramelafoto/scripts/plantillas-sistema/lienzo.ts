@@ -8,6 +8,8 @@
  * Todas las medidas están en píxeles del lienzo (300 dpi → 11,81 px por milímetro).
  */
 
+import { DEFAULT_COURSE_MOSAIC_OPTIONS } from "@repo/template-engine";
+
 export const ANCHO = 3543;
 export const ALTO = 2362;
 export const DPI = 300;
@@ -30,7 +32,13 @@ export const VARIABLE_LOGO = "branding.schoolLogoUrl";
 
 export type Rect = { x: number; y: number; w: number; h: number };
 
+/** 0 = exterior, 1 = interior, 2 = la plancha de figuritas (sólo los álbumes de figuritas). */
+export type Pagina = 0 | 1 | 2;
+
 export type TipoBloque = "IMAGE" | "TEXT" | "VARIABLE_TEXT" | "SHAPE";
+
+/** Opciones del «Mosaico del curso» (ver `CourseMosaicOptions` en `@repo/template-engine`). */
+export type OpcionesMosaico = Partial<import("@repo/template-engine").CourseMosaicOptions>;
 
 /**
  * Las fotos que puede pedir un librito, cada una atada a su hueco con nombre (los reconoce
@@ -49,7 +57,7 @@ export type RolFoto = keyof typeof FOTOS;
 export type Bloque = {
   /** Sufijo estable; el id final es `<idVersion>_<clave>`. */
   clave: string;
-  pagina: 0 | 1;
+  pagina: Pagina;
   tipo: TipoBloque;
   nombre: string;
   x: number;
@@ -115,12 +123,12 @@ export class Armador {
   }
 
   /** Fondo de página entera: imagen fija bloqueada (como San Patricio). */
-  fondo(pagina: 0 | 1, archivo: string) {
+  fondo(pagina: Pagina, archivo: string) {
     this.push({
       clave: `p${pagina}_fondo`,
       pagina,
       tipo: "IMAGE",
-      nombre: pagina === 0 ? "Fondo exterior" : "Fondo interior",
+      nombre: pagina === 0 ? "Fondo exterior" : pagina === 1 ? "Fondo interior" : "Fondo de la plancha",
       x: 0,
       y: 0,
       width: ANCHO,
@@ -142,7 +150,7 @@ export class Armador {
    * foto puede ir en dos huecos (en la tapa y en el interior): el segundo lleva otra `clave`.
    */
   foto(
-    pagina: 0 | 1,
+    pagina: Pagina,
     rol: RolFoto,
     r: Rect,
     opts: { radio?: number; mascara?: "rect" | "circle"; giro?: number; clave?: string } = {},
@@ -174,7 +182,7 @@ export class Armador {
    * Si el colegio no tiene logo cargado, el bloque no se dibuja (ni en pantalla ni en el PDF):
    * el diseño tiene que verse bien también sin él.
    */
-  logo(pagina: 0 | 1, clave: string, r: Rect, giro = 0) {
+  logo(pagina: Pagina, clave: string, r: Rect, giro = 0) {
     this.push({
       clave: `p${pagina}_${clave}`,
       pagina,
@@ -196,7 +204,7 @@ export class Armador {
     });
   }
 
-  texto(pagina: 0 | 1, clave: string, nombre: string, r: Rect, contenido: string, e: Estilo, giro = 0) {
+  texto(pagina: Pagina, clave: string, nombre: string, r: Rect, contenido: string, e: Estilo, giro = 0) {
     this.push({
       clave: `p${pagina}_${clave}`,
       pagina,
@@ -212,7 +220,7 @@ export class Armador {
   }
 
   variable(
-    pagina: 0 | 1,
+    pagina: Pagina,
     clave: string,
     nombre: string,
     r: Rect,
@@ -236,7 +244,7 @@ export class Armador {
   }
 
   /** «Listado del curso»: el bloque reparte los alumnos en columnas y achica si no entran. */
-  listado(pagina: 0 | 1, r: Rect, e: Estilo, columnas = 2, giro = 0) {
+  listado(pagina: Pagina, r: Rect, e: Estilo, columnas = 2, giro = 0) {
     this.push({
       clave: `p${pagina}_listado`,
       pagina,
@@ -262,8 +270,33 @@ export class Armador {
     });
   }
 
+  /**
+   * «Mosaico del curso»: los compañeros del alumno con su retrato y su nombre, repartidos solos.
+   * Para partirlo entre las dos mitades, dos bloques con `chainOrder` 1 y 2 (sin tope se reparten
+   * parejo). La tipografía es la de los nombres.
+   */
+  mosaico(pagina: Pagina, clave: string, r: Rect, e: Estilo, opciones: OpcionesMosaico = {}, giro = 0) {
+    this.push({
+      clave: `p${pagina}_${clave}`,
+      pagina,
+      tipo: "VARIABLE_TEXT",
+      nombre: "Mosaico del curso",
+      x: r.x,
+      y: r.y,
+      width: r.w,
+      height: r.h,
+      rotation: giro,
+      configJson: {
+        variableKey: "course.mosaic",
+        fallback: "",
+        courseMosaic: { ...DEFAULT_COURSE_MOSAIC_OPTIONS, ...opciones },
+        ...tipografia(e),
+      },
+    });
+  }
+
   forma(
-    pagina: 0 | 1,
+    pagina: Pagina,
     clave: string,
     nombre: string,
     r: Rect,

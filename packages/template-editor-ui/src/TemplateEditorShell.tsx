@@ -64,6 +64,7 @@ import {
   getQrVariablesForProduct,
   editorResolvedVariablesForProduct,
   createDefaultClassListBlock,
+  createDefaultCourseMosaicBlock,
   createDefaultVariableTextBlock,
 } from "@repo/template-editor-core";
 import { asObject } from "@repo/template-editor-core";
@@ -85,6 +86,9 @@ import {
 import { editorThemeStyle, type TemplateEditorTheme } from "./theme";
 import { EditorThemeProvider } from "./theme-context";
 import { ActionButton, ToolButton, ToolDivider, ToolGroup } from "./chrome/ToolControls";
+import { ReferenceGuidesMenu } from "./ReferenceGuidesMenu";
+import { useReferenceGuides } from "./useReferenceGuides";
+import { isFoldedSpread } from "@repo/template-editor-core";
 
 
 
@@ -207,15 +211,6 @@ function IconToolbarSafeZone(props: SVGProps<SVGSVGElement>) {
   );
 }
 
-function IconToolbarAxes(props: SVGProps<SVGSVGElement>) {
-  return (
-    <svg viewBox="0 0 24 24" width={18} height={18} fill="none" stroke="currentColor" strokeWidth="2" aria-hidden {...props}>
-      <circle cx="12" cy="12" r="9" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M12 3v18M3 12h18" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
 function IconToolbarSpinner({ className }: { className?: string }) {
   return (
     <svg className={cn("h-[18px] w-[18px] animate-spin", className)} viewBox="0 0 24 24" fill="none" aria-hidden>
@@ -322,9 +317,24 @@ function RightSidebarSection({
   );
 }
 
+/** Se guardó en una versión nueva porque la anterior estaba en uso (y quedó congelada). */
+export type TemplateEditorVersionForked = {
+  templateId: string;
+  fromVersionId: string;
+  toVersionId: string;
+  versionNumber: number;
+};
+
 type TemplateEditorShellProps = {
   templateId: string;
+  /** La versión con la que abre. Si al guardar se crea una nueva, el editor sigue en la nueva. */
   versionId: string;
+  /** Adónde vuelve «Cerrar». Por defecto, la lista de plantillas (`basePath`). */
+  exitHref?: string;
+  /** Aviso fijo arriba del lienzo (p. ej. «estás editando sólo este diseño»). */
+  notice?: ReactNode;
+  /** Avisa que los cambios quedaron en una versión nueva (la anterior estaba en uso). */
+  onVersionForked?: (info: TemplateEditorVersionForked) => void;
   /** Dónde monta el editor la app que hospeda. Obligatorio: ver `TEMPLATE_V2_BASE_PATHS`. */
   basePath: string;
   className?: string;
@@ -346,6 +356,7 @@ type LoadResponse = {
   meta?: Record<string, unknown>;
   updatedAt?: string;
   versionNumber?: number;
+  privateCopy?: { kind: string; id: string } | null;
   error?: string;
   code?: string;
   details?: string;
@@ -356,12 +367,23 @@ const BARRA_ESTADO_PX = 36;
 
 export function TemplateEditorShell({
   templateId,
-  versionId,
+  versionId: initialVersionId,
   className,
   theme,
   basePath,
+  exitHref,
+  notice,
+  onVersionForked,
 }: TemplateEditorShellProps) {
   const router = useRouter();
+  /*
+   * La versión en la que se guarda. Arranca en la de la dirección, pero si estaba en uso (un diseño
+   * armado, un carnet impreso…) el primer guardado crea otra y el editor sigue en esa.
+   */
+  const [versionId, setVersionId] = useState(initialVersionId);
+  const versionIdRef = useRef(initialVersionId);
+  versionIdRef.current = versionId;
+  const [forkNotice, setForkNotice] = useState<string | null>(null);
   const [state, dispatch] = useReducer(templateV2EditorReducer, TEMPLATE_V2_EDITOR_INITIAL_STATE);
   const [templateName, setTemplateName] = useState<string>("Plantilla");
   const [versionNumber, setVersionNumber] = useState<number | null>(null);
@@ -412,7 +434,12 @@ export function TemplateEditorShell({
     };
   }, []);
   const [altoFilaEditor, setAltoFilaEditor] = useState<number | null>(null);
-  const [showCenterAxes, setShowCenterAxes] = useState(true);
+  /*
+   * Guías de referencia (mitades, cuartos, centro de cada cara). Son una preferencia de quien
+   * diseña, guardada en el navegador; en un librito abierto vienen con el pliegue prendido.
+   */
+  const esLibritoAbierto = isFoldedSpread(state.versionMeta, state.canvas);
+  const [referenceGuides, setReferenceGuides] = useReferenceGuides(esLibritoAbierto);
   const [canvasSizeModalOpen, setCanvasSizeModalOpen] = useState(false);
   const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
   /** Capas + inspector a la derecha: oculto por defecto para ganar espacio en el lienzo. */
@@ -446,13 +473,22 @@ export function TemplateEditorShell({
     }
   }, [saveErrorMessage]);
 
+  const loadedKeyRef = useRef<string | null>(null);
   useEffect(() => {
+    // Tras guardar en una versión nueva se cambia la dirección; si la página vuelve a montar con
+    // esa versión, ya está abierta: no se recarga (se perdería el deshacer).
+    const key = `${templateId}:${initialVersionId}`;
+    if (loadedKeyRef.current === key || (loadedKeyRef.current?.startsWith(`${templateId}:`) && versionIdRef.current === initialVersionId)) {
+      return;
+    }
     let cancelled = false;
+    setVersionId(initialVersionId);
+    versionIdRef.current = initialVersionId;
     dispatch({ type: "setLoadStatus", payload: { loadStatus: "loading" } });
     setLoadError(null);
     setSaveAsNewError(null);
 
-    fetch(`/api/template-v2/templates/${encodeURIComponent(templateId)}/versions/${encodeURIComponent(versionId)}/save`, {
+    fetch(`/api/template-v2/templates/${encodeURIComponent(templateId)}/versions/${encodeURIComponent(initialVersionId)}/save`, {
       credentials: "include",
       cache: "no-store",
     })
@@ -474,10 +510,11 @@ export function TemplateEditorShell({
         try {
           setTemplateName(data.template?.name || "Plantilla");
           setVersionNumber(typeof data.versionNumber === "number" ? data.versionNumber : 1);
+          loadedKeyRef.current = key;
           dispatch(
             initializeEditor({
               templateId,
-              versionId,
+              versionId: initialVersionId,
               revision: Number(data.revision ?? 0),
               canvas: data.canvas ?? { width: 1200, height: 1800, background: "var(--te-surface)" },
               blocks: data.blocks ?? [],
@@ -500,7 +537,7 @@ export function TemplateEditorShell({
     return () => {
       cancelled = true;
     };
-  }, [templateId, versionId]);
+  }, [templateId, initialVersionId]);
 
   const selectedBlock = useMemo(() => selectSelectedBlock(state), [state]);
 
@@ -540,6 +577,12 @@ export function TemplateEditorShell({
     const ap = state.activePageIndex ?? 0;
     const onPage = state.blocks.filter((b) => (b.pageIndex ?? 0) === ap);
     dispatch(addBlock(createDefaultClassListBlock(state.canvas, onPage, ap)));
+  }
+  function handleAddCourseMosaic() {
+    setCanvasTool("select");
+    const ap = state.activePageIndex ?? 0;
+    const onPage = state.blocks.filter((b) => (b.pageIndex ?? 0) === ap);
+    dispatch(addBlock(createDefaultCourseMosaicBlock(state.canvas, onPage, ap)));
   }
   function handleAddShape() {
     setCanvasTool("select");
@@ -755,8 +798,8 @@ export function TemplateEditorShell({
   }
 
   const navigateToTemplateList = useCallback(() => {
-    router.push(basePath);
-  }, [router]);
+    router.push(exitHref || basePath);
+  }, [router, exitHref, basePath]);
 
   const handleRequestCloseEditor = useCallback(() => {
     if (loadError) {
@@ -792,6 +835,10 @@ export function TemplateEditorShell({
       revision?: number;
       currentRevision?: number;
       updatedAt?: string;
+      versionId?: string;
+      versionNumber?: number;
+      forkedFromVersionId?: string | null;
+      blockIdMap?: Record<string, string>;
     };
 
     try {
@@ -826,14 +873,38 @@ export function TemplateEditorShell({
         throw new Error(msg);
       }
 
-      dispatch({
-        type: "markSaved",
-        payload: {
-          at: typeof data?.updatedAt === "string" ? data.updatedAt : new Date().toISOString(),
-          revision: typeof data?.revision === "number" ? data.revision : s.revision + 1,
-        },
-      });
+      const savedAt = typeof data?.updatedAt === "string" ? data.updatedAt : new Date().toISOString();
+      const savedRevision = typeof data?.revision === "number" ? data.revision : s.revision + 1;
+      const savedVersionId = typeof data?.versionId === "string" && data.versionId ? data.versionId : versionId;
+      const idMap = data?.blockIdMap && typeof data.blockIdMap === "object" ? data.blockIdMap : {};
+      if (savedVersionId !== versionId || Object.keys(idMap).length > 0) {
+        dispatch({
+          type: "rebaseToSavedVersion",
+          payload: { versionId: savedVersionId, revision: savedRevision, at: savedAt, blockIdMap: idMap },
+        });
+      }
+      dispatch({ type: "markSaved", payload: { at: savedAt, revision: savedRevision } });
       dispatch({ type: "setSaveStatus", payload: { saveStatus: "saved" } });
+      if (savedVersionId !== versionId) {
+        // La versión anterior estaba en uso: quedó congelada y desde ahora se edita la nueva.
+        versionIdRef.current = savedVersionId;
+        setVersionId(savedVersionId);
+        if (typeof data?.versionNumber === "number") setVersionNumber(data.versionNumber);
+        setForkNotice(
+          `Guardamos los cambios como versión ${data?.versionNumber ?? "nueva"}: la anterior ya estaba en uso y quedó tal cual, así que lo que ya se armó con ella no cambia.`
+        );
+        try {
+          window.history.replaceState(window.history.state, "", templateV2EditorPath(basePath, templateId, savedVersionId));
+        } catch {
+          // la dirección vieja sigue funcionando: abre la versión congelada, que al guardar avisa
+        }
+        onVersionForked?.({
+          templateId,
+          fromVersionId: data?.forkedFromVersionId ?? versionId,
+          toVersionId: savedVersionId,
+          versionNumber: typeof data?.versionNumber === "number" ? data.versionNumber : 0,
+        });
+      }
       return true;
     } catch (err) {
       const message = err instanceof Error ? err.message : "Error al guardar";
@@ -842,7 +913,7 @@ export function TemplateEditorShell({
       dispatch({ type: "setSaveStatus", payload: { saveStatus: "error" } });
       return false;
     }
-  }, [templateId, versionId, dispatch, revisionConflictLocked]);
+  }, [templateId, versionId, dispatch, revisionConflictLocked, basePath, onVersionForked]);
 
   const handleSaveAndExit = useCallback(async () => {
     const ok = await handleSave();
@@ -1109,14 +1180,12 @@ export function TemplateEditorShell({
                 >
                   <IconToolbarSafeZone />
                 </ToolButton>
-                <ToolButton
-                  label="Ejes del centro"
-                  active={showCenterAxes}
-                  onClick={() => setShowCenterAxes((v) => !v)}
+                <ReferenceGuidesMenu
+                  value={referenceGuides}
+                  onChange={setReferenceGuides}
+                  isSpread={esLibritoAbierto}
                   disabled={!editorReady}
-                >
-                  <IconToolbarAxes />
-                </ToolButton>
+                />
               </ToolGroup>
 
               <div className="ml-auto flex items-center gap-2">
@@ -1342,6 +1411,30 @@ export function TemplateEditorShell({
               )
             ) : null}
 
+            {notice ? (
+              <div
+                className="border-t border-[color:var(--te-line)] bg-[color:var(--te-accent-wash,var(--te-surface))] px-3 py-1.5 text-xs text-[color:var(--te-ink)]"
+                data-testid="template-v2-notice"
+              >
+                {notice}
+              </div>
+            ) : null}
+            {forkNotice ? (
+              <div
+                className="flex flex-wrap items-center justify-between gap-2 border-t border-[color:var(--te-line)] bg-[color:var(--te-surface)] px-3 py-1.5"
+                data-testid="template-v2-fork-notice"
+                role="status"
+              >
+                <p className="text-xs text-[color:var(--te-ink)]">{forkNotice}</p>
+                <button
+                  type="button"
+                  className="text-xs text-[color:var(--te-ink-faint)] underline"
+                  onClick={() => setForkNotice(null)}
+                >
+                  Entendido
+                </button>
+              </div>
+            ) : null}
             {saveErrorMessage ? (
               <div
                 ref={conflictBannerRef}
@@ -1554,6 +1647,19 @@ export function TemplateEditorShell({
                   </svg>
                 </EditorToolButton>
               ) : null}
+              {producto === "school" ? (
+                <EditorToolButton label="Mosaico del curso" onClick={handleAddCourseMosaic}>
+                  <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                    <rect x="3" y="3" width="5" height="5" rx="1" />
+                    <rect x="9.5" y="3" width="5" height="5" rx="1" />
+                    <rect x="16" y="3" width="5" height="5" rx="1" />
+                    <rect x="3" y="10" width="5" height="5" rx="1" />
+                    <rect x="9.5" y="10" width="5" height="5" rx="1" />
+                    <rect x="16" y="10" width="5" height="5" rx="1" />
+                    <path d="M4 19h3M10.5 19h3M17 19h3" strokeLinecap="round" />
+                  </svg>
+                </EditorToolButton>
+              ) : null}
               <EditorToolButton label="Forma" onClick={handleAddShape}>
                 <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
                   <rect x="4" y="4" width="16" height="16" rx="2" />
@@ -1675,7 +1781,7 @@ export function TemplateEditorShell({
                 resolvedVariables={valoresDeMuestra}
                 className="min-h-0 flex-1"
                 showSafeArea={showSafeArea}
-                showCenterAxes={showCenterAxes}
+                referenceGuides={referenceGuides}
                 onCanvasBackgroundClick={() => setRightPanelOpen(true)}
                 canvasTool={canvasTool}
                 onExitTextPlacementMode={() => setCanvasTool("select")}

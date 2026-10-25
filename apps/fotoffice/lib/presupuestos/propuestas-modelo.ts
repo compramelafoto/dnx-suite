@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma, type Prisma } from "@repo/db";
+import { NO_ES_INSUMO } from "@/lib/sales/vendible";
 import { MENSAJES_PRESUPUESTO, puedeConfigurarPresupuestos, type CtxPresupuestos } from "./acceso";
 import { validarItems, type ItemPresupuesto, type ResultadoValidacion } from "./constantes";
 import { itemsDeLaPropuesta } from "./items-de-la-propuesta";
@@ -263,7 +264,7 @@ export async function guardarPropuestaModelo(ctx: CtxPresupuestos, datos: DatosP
   const productIds = [...new Set(items.valor.map((i) => i.productId).filter((x): x is string => x !== null))];
   if (productIds.length > 0) {
     const encontrados = await prisma.product.findMany({
-      where: { workspaceId, id: { in: productIds }, isActive: true },
+      where: { workspaceId, id: { in: productIds }, isActive: true, ...NO_ES_INSUMO },
       select: { id: true },
     });
     if (encontrados.length !== productIds.length) return no(MENSAJES_PROPUESTA_MODELO.producto);

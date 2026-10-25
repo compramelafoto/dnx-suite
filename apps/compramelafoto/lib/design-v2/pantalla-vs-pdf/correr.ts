@@ -24,7 +24,9 @@ import { chromium } from "@playwright/test";
 import { emitDesign } from "@repo/design-studio";
 import {
   buildEditorGoogleFontsStylesheetHrefs,
-  parseClassListValue,
+  parseClassListGroups,
+  parseCourseMosaic,
+  parseCourseMosaicOwner,
   type TemplateV2Block,
 } from "@repo/template-editor-core";
 import { editorADocumento, type EditorBlock } from "@repo/template-editor-core/rendering";
@@ -124,7 +126,10 @@ async function pdfPorPagina(caso: CasoDeComparacion): Promise<{ paginas: Buffer[
     },
     blocks: aBloquesDelPuente(caso.blocks),
     nombre: caso.id,
-    listaDelCurso: parseClassListValue(caso.valores?.[LISTA_DEL_CURSO]),
+    cursosDelListado: parseClassListGroups(caso.valores?.[LISTA_DEL_CURSO], caso.valores?.["course.displayName"]),
+    colegioDelListado: caso.valores?.["school.name"] ?? null,
+    mosaicoDelCurso: caso.valores?.["course.mosaic"] != null ? parseCourseMosaic(caso.valores["course.mosaic"]) : undefined,
+    duenoDelMosaico: parseCourseMosaicOwner(caso.valores?.["course.mosaicOwner"]),
   });
   const salida = await emitDesign({
     document: puente.document as never,
@@ -142,7 +147,9 @@ async function pdfPorPagina(caso: CasoDeComparacion): Promise<{ paginas: Buffer[
     pngDpi: dpi,
     fileBaseName: caso.id,
     resources: {
-      async read(ref: string) {
+      async read(refDelPuente: string) {
+        // Las fotos del mosaico llegan con su prefijo; acá son las mismas imágenes en línea.
+        const ref = refDelPuente.startsWith("mosaic-url:") ? refDelPuente.slice("mosaic-url:".length) : refDelPuente;
         const coma = ref.indexOf(",");
         if (!ref.startsWith("data:") || coma < 0) return null;
         return new Uint8Array(Buffer.from(ref.slice(coma + 1), "base64"));
@@ -210,7 +217,7 @@ async function main() {
         await page.close();
         const deLPdf = pdf[pagina];
         if (!deLPdf) throw new Error(`${caso.id}: el PDF no tiene la página ${pagina + 1}.`);
-        const r = await compararImagenes(pantalla, deLPdf);
+        const r = await compararImagenes(pantalla, deLPdf, caso.umbrales);
         const base = path.join(SALIDA, `${caso.id}-p${pagina + 1}`);
         writeFileSync(`${base}-pantalla.png`, pantalla);
         writeFileSync(`${base}-pdf.png`, deLPdf);

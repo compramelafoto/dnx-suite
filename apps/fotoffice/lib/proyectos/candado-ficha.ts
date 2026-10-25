@@ -1,17 +1,18 @@
 import "server-only";
 import { prisma } from "@repo/db";
-import { saldoDelPedido } from "@/lib/pedidos/candado-saldo";
+import { saldoSinExtrasOpcionales } from "@/lib/pedidos/candado-saldo";
 import { candadoDeLaFicha, type CandadoFicha } from "./candado-ficha-puro";
 
 /**
  * El candado del saldo para la ficha de un trabajo atado a un pedido: null si no debe nada (o el
- * pedido no existe). Sólo lee —acotado al workspace—; el que decide al mover es el motor.
+ * pedido no existe). Sólo lee —acotado al workspace—; el que decide al mover es el motor. Con la
+ * misma cuenta que el motor: los extras opcionales de Digitalización sin pagar no cuentan.
  */
 export async function leerCandadoDeLaFicha(
   workspaceId: string,
   d: { pedidoId: string; circuitId: string; etapaActualId: string | null },
 ): Promise<CandadoFicha | null> {
-  const pedido = await saldoDelPedido(prisma, workspaceId, d.pedidoId);
+  const pedido = await saldoSinExtrasOpcionales(prisma, workspaceId, d.pedidoId);
   if (!pedido || pedido.saldoMinor <= 0) return null;
   const etapas = await prisma.fotofficeStage.findMany({
     where: { circuitId: d.circuitId, circuit: { workspaceId } },

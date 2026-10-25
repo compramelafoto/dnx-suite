@@ -2,26 +2,26 @@ import type { Metadata } from "next";
 import CharlaFotoEscolarClient from "@/components/land/charla-foto-escolar/CharlaFotoEscolarClient";
 
 export const metadata: Metadata = {
-  title: "Automatizá tu negocio de fotografía escolar | ComprameLaFoto",
+  title: "Charla gratuita: vendé fotografía escolar sin listados ni cobros a mano | ComprameLaFoto",
   description:
-    "Charla gratuita para fotógrafos argentinos. Descubrí cómo ordenar pedidos, automatizar procesos y vender fotografía escolar de forma mucho más simple.",
+    "Jueves 29 de octubre, 19 hs, por Google Meet. Ahorrate muchísimo tiempo en fotografía escolar: preventa por curso, diseños automáticos y cobro por Mercado Pago.",
   openGraph: {
-    title: "Automatizá tu negocio de fotografía escolar | ComprameLaFoto",
+    title: "Charla gratuita: vendé fotografía escolar sin listados ni cobros a mano | ComprameLaFoto",
     description:
-      "Charla gratuita para fotógrafos argentinos. Descubrí cómo ordenar pedidos, automatizar procesos y vender fotografía escolar de forma mucho más simple.",
+      "Jueves 29 de octubre, 19 hs, por Google Meet. Ahorrate muchísimo tiempo en fotografía escolar: preventa por curso, diseños automáticos y cobro por Mercado Pago.",
     images: [
       {
-        url: "/charla-foto-escolar-flyer.png",
+        url: "/charla-escolar-29-10.jpg",
       },
     ],
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Automatizá tu negocio de fotografía escolar | ComprameLaFoto",
+    title: "Charla gratuita: vendé fotografía escolar sin listados ni cobros a mano | ComprameLaFoto",
     description:
-      "Charla gratuita para fotógrafos argentinos. Descubrí cómo ordenar pedidos, automatizar procesos y vender fotografía escolar de forma mucho más simple.",
-    images: ["/charla-foto-escolar-flyer.png"],
+      "Jueves 29 de octubre, 19 hs, por Google Meet. Ahorrate muchísimo tiempo en fotografía escolar: preventa por curso, diseños automáticos y cobro por Mercado Pago.",
+    images: ["/charla-escolar-29-10.jpg"],
   },
 };
 

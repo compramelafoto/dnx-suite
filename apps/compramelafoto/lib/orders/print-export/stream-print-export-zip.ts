@@ -24,7 +24,14 @@ export type PrintExportFile = {
   /** Línea del MANIFEST si el archivo entró / si no se encontró. */
   manifestLine: string;
   missingLine: string;
+  /** Ajuste del archivo antes de entrar al ZIP (p. ej. la marca de 300 dpi de un JPG). */
+  transform?: (bytes: Buffer) => Buffer | Uint8Array;
 };
+
+/** De dónde salen los archivos: R2, salvo en las pruebas. Null si no existe. */
+export type LectorDeArchivos = (r2Key: string) => Promise<Buffer | null>;
+
+const leerDeR2: LectorDeArchivos = async (r2Key) => ((await fileExistsInR2(r2Key)) ? readFromR2(r2Key) : null);
 
 export type PrintExportPlan = {
   /** Carpeta del pedido dentro del ZIP. */
@@ -34,6 +41,9 @@ export type PrintExportPlan = {
   pdfBytes: Uint8Array;
   /** Avisos de texto dentro de la carpeta del pedido (p. ej. un diseño todavía sin aprobar). */
   notes?: Array<{ name: string; content: string }>;
+  /** Nombres del control y del resumen dentro de la carpeta (por defecto MANIFEST.txt y RESUMEN_PEDIDO.pdf). */
+  manifestName?: string;
+  summaryName?: string;
 };
 
 function appendAndWait(archive: Archiver, data: Buffer | string, name: string): Promise<void> {
@@ -57,14 +67,15 @@ function appendAndWait(archive: Archiver, data: Buffer | string, name: string): 
   });
 }
 
-async function writePlan(archive: Archiver, plan: PrintExportPlan): Promise<void> {
+async function writePlan(archive: Archiver, plan: PrintExportPlan, leer: LectorDeArchivos): Promise<void> {
   const lines = [...plan.manifestHeader];
   for (const file of plan.files) {
     let ok = false;
     try {
-      if (await fileExistsInR2(file.r2Key)) {
-        const buffer = await readFromR2(file.r2Key);
-        await appendAndWait(archive, buffer, file.zipPath);
+      const buffer = await leer(file.r2Key);
+      if (buffer) {
+        const final = file.transform ? Buffer.from(file.transform(buffer)) : buffer;
+        await appendAndWait(archive, final, file.zipPath);
         ok = true;
       }
     } catch (err) {
@@ -76,21 +87,22 @@ async function writePlan(archive: Archiver, plan: PrintExportPlan): Promise<void
   for (const note of plan.notes ?? []) {
     await appendAndWait(archive, note.content, `${plan.folder}/${note.name}`);
   }
-  await appendAndWait(archive, lines.join("\n"), `${plan.folder}/MANIFEST.txt`);
-  await appendAndWait(archive, Buffer.from(plan.pdfBytes), `${plan.folder}/RESUMEN_PEDIDO.pdf`);
+  await appendAndWait(archive, lines.join("\n"), `${plan.folder}/${plan.manifestName ?? "MANIFEST.txt"}`);
+  await appendAndWait(archive, Buffer.from(plan.pdfBytes), `${plan.folder}/${plan.summaryName ?? "RESUMEN_PEDIDO.pdf"}`);
 }
 
 export function streamPrintExportZip(
   plans: PrintExportPlan[],
   zipName: string,
-  extras: Array<{ name: string; content: string }> = []
+  extras: Array<{ name: string; content: string }> = [],
+  leer: LectorDeArchivos = leerDeR2,
 ): Response {
   const archive = archiver("zip", { store: true });
   archive.on("warning", (err) => console.warn("[print-export] advertencia", err));
 
   void (async () => {
     try {
-      for (const plan of plans) await writePlan(archive, plan);
+      for (const plan of plans) await writePlan(archive, plan, leer);
       for (const extra of extras) await appendAndWait(archive, extra.content, extra.name);
       await archive.finalize();
     } catch (err) {

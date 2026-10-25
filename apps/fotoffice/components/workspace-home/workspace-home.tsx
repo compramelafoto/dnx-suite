@@ -317,6 +317,26 @@ export function WorkspaceHome({
         </div>
 
         <div className="space-y-6">
+          {datos.paraComprar && datos.paraComprar.total > 0 ? (
+            <Panel
+              titulo={`Para comprar: ${datos.paraComprar.total}`}
+              accion={{ label: "Ver stock", href: "/ventas/stock" }}
+            >
+              <ul className="space-y-1 text-sm">
+                {datos.paraComprar.nombres.map((n, i) => (
+                  <li key={`${i}-${n}`} className="truncate">
+                    {n}
+                  </li>
+                ))}
+                {datos.paraComprar.total > datos.paraComprar.nombres.length ? (
+                  <li className="text-[var(--fo-muted)]">
+                    y {datos.paraComprar.total - datos.paraComprar.nombres.length} más
+                  </li>
+                ) : null}
+              </ul>
+            </Panel>
+          ) : null}
+
           {datos.sorteo ? (
             <Panel titulo="Sorteo" accion={{ label: "Abrir", href: `/sorteos/${datos.sorteo.id}` }}>
               <div className="space-y-1">

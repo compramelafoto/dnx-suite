@@ -215,13 +215,17 @@ export function isCommissionRequestableBy(
   return !input.activeOrganizerUserIds.includes(row.organizerUserId);
 }
 
-/** Pre-compras reales de los álbumes de la escuela (excluye pedidos de prueba). */
+/**
+ * Pre-compras reales de los álbumes de la escuela (excluye pedidos de prueba, salvo en las
+ * escuelas de las demos grabables, que solo tienen pedidos de prueba).
+ */
 export function buildSchoolPortalPreCompraWhere(
   schoolId: number,
-  albumIds: ReadonlyArray<number>
-): { albumId: { in: number[] }; album: { schoolId: number }; isTest: false } {
+  albumIds: ReadonlyArray<number>,
+  incluirPruebas = false
+): { albumId: { in: number[] }; album: { schoolId: number }; isTest?: false } {
   assertValidSchoolId(schoolId);
-  return { albumId: { in: [...albumIds] }, album: { schoolId }, isTest: false };
+  return { albumId: { in: [...albumIds] }, album: { schoolId }, ...(incluirPruebas ? {} : { isTest: false as const }) };
 }
 
 /**
@@ -230,18 +234,19 @@ export function buildSchoolPortalPreCompraWhere(
  */
 export function buildSchoolPortalOrderWhere(
   schoolId: number,
-  albumIds: ReadonlyArray<number>
+  albumIds: ReadonlyArray<number>,
+  incluirPruebas = false
 ): {
   albumId: { in: number[] };
   album: { schoolId: number };
-  isTest: false;
+  isTest?: false;
   OR: Array<{ origin: { not: "PACK_REDEMPTION" } } | { totalCents: { gt: number } }>;
 } {
   assertValidSchoolId(schoolId);
   return {
     albumId: { in: [...albumIds] },
     album: { schoolId },
-    isTest: false,
+    ...(incluirPruebas ? {} : { isTest: false as const }),
     OR: [{ origin: { not: "PACK_REDEMPTION" } }, { totalCents: { gt: 0 } }],
   };
 }

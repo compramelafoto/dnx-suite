@@ -36,6 +36,7 @@
     "@repo/template-engine-renderer": "workspace:*",
     "@repo/quick-search": "workspace:*",
     "bcryptjs": "^3.0.3",
+    "hls.js": "1.6.16",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.544.0",
     "mupdf": "^1.28.1",

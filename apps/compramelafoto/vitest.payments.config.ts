@@ -22,6 +22,8 @@ export default defineConfig({
       "lib/album-packs/album-pack-cart-storage.test.ts",
       "lib/mercadopago/duplicate-album-order-payment-rules.test.ts",
       "lib/mercadopago/finalize-album-order-mp-approved.duplicate.test.ts",
+      "lib/mercadopago/finalize-album-order-paid-side-effects.test.ts",
+      "lib/cron/reencolar-confirmaciones-pedido.test.ts",
       "app/api/album-pack-orders/**/route.test.ts",
     ],
   },

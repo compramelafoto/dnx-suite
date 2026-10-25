@@ -14,6 +14,7 @@ import {
   UI_LABEL_EXPOSURE_TIME,
 } from "@/lib/simulator/camera-settings";
 import { verdictLabel } from "@/lib/simulator/camera-exposure";
+import PhotoHistogram from "./PhotoHistogram";
 
 export interface CaptureMetadataPanelProps {
   photo: CaptureResult;
@@ -25,6 +26,12 @@ export default function CaptureMetadataPanel({ photo }: CaptureMetadataPanelProp
 
   return (
     <aside className="cod-gallery-metadata" aria-label="Metadatos de la foto">
+      {photo.previewUrl ? (
+        <>
+          <h3 className="cod-gallery-metadata__title">Histograma</h3>
+          <PhotoHistogram src={photo.previewUrl} />
+        </>
+      ) : null}
       <h3 className="cod-gallery-metadata__title">Metadatos</h3>
 
       <dl className="cod-gallery-metadata__list">

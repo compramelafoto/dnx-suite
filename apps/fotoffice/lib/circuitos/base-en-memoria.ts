@@ -36,6 +36,8 @@ const TABLAS = [
   "fotofficeListActivity",
   // Catálogo de Ventas y su ampliación para presupuestos (etapa 2).
   "product", "productCategory", "fotofficeProductoCatalogo", "fotofficeComboItem", "fotofficeCostoPlantilla", "fotofficeProveedor",
+  // Recetas de insumos (stock de insumos, etapa 1): lo que gasta cada producto al tomarse un pedido.
+  "fotofficeRecetaInsumo",
   // Presupuestos (etapa 2).
   "fotofficePresupuesto", "fotofficePresupuestoVersion", "fotofficePresupuestoVista", "fotofficePresupuestoAjustes",
   // Propuesta modelo por categoría (etapa 2, Entrega B).
@@ -61,8 +63,8 @@ const TABLAS = [
   "fotofficeGaleriaRonda", "fotofficeGaleriaDecision",
   // Caja (los cobros de pedidos depositan y se anulan con contramovimiento), módulos encendidos y adjuntos.
   "cashAccount", "cashShift", "cashMovement", "workspaceFeatureModule", "fotofficeAttachment",
-  // Perfil de precios del workspace.
-  "fotofficePerfilPrecios",
+  // Perfil de precios del workspace y el personal del socio (portal).
+  "fotofficePerfilPrecios", "fotofficePerfilPreciosSocio",
   // Etapa B: ajustes de cobro y transferencias esperadas.
   "fotofficeCobroAjustes", "fotofficeEsperaPago",
   // Impresión (etapa 1).
@@ -73,6 +75,10 @@ const TABLAS = [
   "fotofficeWaConexion", "fotofficeWaChat", "fotofficeWaMensaje",
   // Stock (la seña de un pedido aparta unidades con `applyStockMovement`).
   "productVariant", "stockMovement",
+  // Digitalización: entregas de videos y cargos extra (spec 2026-10-22, E6).
+  "digitalizacionEntrega", "digitalizacionGrabacion", "digitalizacionCargo", "digitalizacionAjustes",
+  // Comisión de plataforma (F1): el libro, la tasa por módulo y la marca de los cobros de digitalización.
+  "workspaceFeeLedgerEntry", "workspaceModuleFee", "digitalizacionComision",
 ] as const;
 export type Tabla = (typeof TABLAS)[number];
 
@@ -82,6 +88,9 @@ const RELACIONES: Record<string, { columna: string; tabla: Tabla }> = {
   stage: { columna: "stageId", tabla: "fotofficeStage" },
   journey: { columna: "journeyId", tabla: "fotofficeJourney" },
   field: { columna: "fieldId", tabla: "fotofficeCustomField" },
+  // Digitalización: la grabación es de un trabajo y el cargo, de una entrega.
+  proyecto: { columna: "proyectoId", tabla: "fotofficeProyecto" },
+  entrega: { columna: "entregaId", tabla: "digitalizacionEntrega" },
 };
 
 const DEFECTOS: Partial<Record<Tabla, () => Fila>> = {
@@ -141,6 +150,7 @@ const DEFECTOS: Partial<Record<Tabla, () => Fila>> = {
     inPriceList: false, incomeLabel: null, incomeCategoryId: null, isCombo: false, createdAt: new Date(), updatedAt: new Date(),
   }),
   fotofficeComboItem: () => ({ quantity: 1, order: 0, createdAt: new Date() }),
+  fotofficeRecetaInsumo: () => ({ porCada: 1, order: 0, createdAt: new Date(), updatedAt: new Date() }),
   fotofficeCostoPlantilla: () => ({ supplierClientId: null, perUnit: false, daysFromEvent: 0, order: 0, createdAt: new Date(), updatedAt: new Date() }),
   fotofficePresupuesto: () => ({
     status: "BORRADOR", currentVersionId: null, acceptedVersionId: null, ownerUserId: null, validUntil: null,
@@ -295,11 +305,14 @@ const DEFECTOS: Partial<Record<Tabla, () => Fila>> = {
   fotofficeHojaImpresion: () => ({ finalKey: null, finalHuella: null, finalAnchoPx: 0, finalAltoPx: 0, copias: 1, createdAt: new Date(), updatedAt: new Date() }),
   fotofficeRegistroImpresion: () => ({ hojaId: null, productId: null, saleItemId: null, proyectoId: null, userId: null, createdAt: new Date() }),
   fotofficePerfilPrecios: () => ({ schemaVersion: 1, source: null, updatedAt: new Date(), updatedByUserId: null }),
+  fotofficePerfilPreciosSocio: () => ({ schemaVersion: 1, createdAt: new Date(), updatedAt: new Date() }),
   fotofficeCobroAjustes: () => ({
     autoConfirmarPedido: false, alias: null, cbuCvu: null, titular: null, cuit: null, banco: null, montoUnico: false,
     updatedAt: new Date(), updatedByUserId: null,
   }),
   fotofficeEsperaPago: () => ({ importeUnicoArs: null, estado: "ESPERANDO", creadaEn: new Date(), conciliadaEn: null, cobroId: null, updatedAt: new Date() }),
+  workspaceFeeLedgerEntry: () => ({ membershipPaymentId: null, bookingId: null, note: null, actorUserId: null, createdAt: new Date() }),
+  digitalizacionComision: () => ({ createdAt: new Date() }),
 };
 
 function igual(a: unknown, b: unknown): boolean {
@@ -348,6 +361,7 @@ export function crearBaseEnMemoria() {
             if (c.mode !== "insensitive") return igual(v, x);
             return String(v).toLowerCase() === String(x).toLowerCase();
           }
+          if (op === "startsWith") return String(v).startsWith(String(x));
           if (op === "contains") {
             const a = String(v), b = String(x);
             return c.mode === "insensitive" ? a.toLowerCase().includes(b.toLowerCase()) : a.includes(b);
@@ -420,6 +434,7 @@ export function crearBaseEnMemoria() {
     productCategory: [{ columnas: ["workspaceId", "name"] }],
     fotofficeProductoCatalogo: [{ columnas: ["productId"] }],
     fotofficeComboItem: [{ columnas: ["comboProductId", "componentProductId"] }],
+    fotofficeRecetaInsumo: [{ columnas: ["productId", "insumoId"] }],
     fotofficePresupuesto: [
       { columnas: ["currentVersionId"], aplica: (f) => f.currentVersionId !== null && f.currentVersionId !== undefined },
       { columnas: ["acceptedVersionId"], aplica: (f) => f.acceptedVersionId !== null && f.acceptedVersionId !== undefined },
@@ -516,7 +531,10 @@ export function crearBaseEnMemoria() {
       { columnas: ["reversesMovementId"], aplica: (f) => f.reversesMovementId !== null && f.reversesMovementId !== undefined },
     ],
     workspaceFeatureModule: [{ columnas: ["workspaceId", "moduleKey"] }],
+    workspaceModuleFee: [{ columnas: ["workspaceId", "moduleKey"] }],
+    digitalizacionComision: [{ columnas: ["cobroId"] }, { columnas: ["ledgerEntryId"] }],
     fotofficePerfilPrecios: [{ columnas: ["workspaceId"] }],
+    fotofficePerfilPreciosSocio: [{ columnas: ["userId"] }],
     fotofficeCobroAjustes: [{ columnas: ["workspaceId"] }],
     // Como en la migración: una abierta por cuota y un monto único que no se repite entre las abiertas.
     fotofficeEsperaPago: [
@@ -640,7 +658,8 @@ export function crearBaseEnMemoria() {
           return [c, v.length ? Math.max(...v) : null];
         }));
         const _sum = Object.fromEntries(
-          Object.keys(a._sum ?? {}).map((c) => [c, filas.length === 0 ? null : filas.reduce((s, f) => s + ((f[c] as number | null) ?? 0), 0)]),
+          // Los Decimal llegan como texto ("-200.00"): se suman en centavos para no arrastrar la coma flotante.
+          Object.keys(a._sum ?? {}).map((c) => [c, filas.length === 0 ? null : filas.reduce((s, f) => s + Math.round(Number(f[c] ?? 0) * 100), 0) / 100]),
         );
         return { _max, _sum };
       },
@@ -733,6 +752,8 @@ export function crearBaseEnMemoria() {
     }
     // `lockStockRows`: el `FOR UPDATE` de productos y talles acá no bloquea nada.
     if (texto.includes("FOR UPDATE") && /FROM "(Product|ProductVariant)"/.test(texto)) return [];
+    // El candado de la entrega de videos (acá no hay concurrencia: sólo lee).
+    if (texto.includes("FOR UPDATE") && texto.includes('FROM "DigitalizacionEntrega"')) return [];
     if (texto.includes("numeracion-asignar")) return emularAsignacion(valores);
     if (texto.includes("numeracion-candado")) return emularCandado(valores);
     if (texto.includes("numeracion-anio-anterior")) return emularAnioAnterior(valores);

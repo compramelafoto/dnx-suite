@@ -80,6 +80,38 @@ function armar(over: Partial<DepsConvertir> = {}, intentos = 1) {
 }
 
 describe("convertirGrabacion", () => {
+  it("detecta el audio de la 1.ª parte de cada tramo y arma el filtro con silencio donde falta", async () => {
+    let args: string[] = [];
+    const pedidas: string[] = [];
+    const log: string[] = [];
+    const { deps, llamadas } = armar({
+      detectarAudio: async (clave) => {
+        pedidas.push(clave);
+        return !clave.includes("/t2/");
+      },
+      alLanzar: (ff) => (args = ff.spawnargs),
+      registrar: (m) => log.push(m),
+    });
+    await convertirGrabacion(deps, "g1", LOCK);
+    expect(llamadas).toEqual(["lista", "partesBorradas"]);
+    expect(pedidas.sort()).toEqual(["digitalizacion/ws/g1/t1/0", "digitalizacion/ws/g1/t2/0"]);
+    const filtro = args[args.indexOf("-filter_complex") + 1];
+    expect(filtro).toContain("[0:a:0]aresample=48000[a0]");
+    expect(filtro).toContain("anullsrc=r=48000:cl=stereo,atrim=end_sample=0[a1]");
+    expect(filtro).toContain("concat=n=3:v=1:a=1");
+    expect(log.some((m) => m.includes("tramo 2 no tiene pista de audio"))).toBe(true);
+  });
+
+  it("sin detector (o si dice que todo tiene audio) el filtro es el de siempre", async () => {
+    let args: string[] = [];
+    const { deps } = armar({ detectarAudio: async () => true, alLanzar: (ff) => (args = ff.spawnargs) });
+    await convertirGrabacion(deps, "g1", LOCK);
+    const filtro = args[args.indexOf("-filter_complex") + 1];
+    expect(filtro).toContain("[1:a:0]aresample=48000[a1]");
+    expect(filtro).toContain("[v0][a0][v1][a1]concat=n=2:v=1:a=1[vc][ac]");
+    expect(filtro).not.toContain("anullsrc");
+  });
+
   it("camino feliz: LISTA, después borra los pedacitos", async () => {
     const { deps, llamadas, borrados } = armar();
     await convertirGrabacion(deps, "g1", LOCK);

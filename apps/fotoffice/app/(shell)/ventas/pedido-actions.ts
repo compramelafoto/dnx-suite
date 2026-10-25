@@ -18,6 +18,9 @@ import { buscarPagosParaCobrar, confirmarUsoPagoMp, liberarPagoMp, reservarCobro
 import { notaDePagoVerificado } from "@/lib/sales/verificar-pago";
 import { cancelarOrdenQr, consultarOrdenQr, crearOrdenQr } from "@/lib/sales/qr-mp-servidor";
 import type { OrdenQr } from "@/lib/sales/qr-mp";
+import { leerFotolibroVendido } from "@/lib/fotolibro/venta";
+import { atarFotolibrosAlPedido } from "@/lib/fotolibro/venta-servidor";
+import { clientDisplayName } from "@/lib/clients/display";
 
 /**
  * El Mostrador con trabajos "con proceso" o renglones marcados «Seña». Esa parte se vuelve un pedido (con su seña
@@ -43,6 +46,8 @@ export type LineaMostrador = {
    * proceso no cambia nada: ése va al pedido siempre.
    */
   paraRetirar?: boolean;
+  /** El libro de un producto de fotolibro: lo elegido en la calculadora (ver `lib/fotolibro/venta.ts`). */
+  fotolibro?: unknown;
 };
 
 export type CobroConPedidoInput = {
@@ -208,6 +213,32 @@ export async function cobrarConPedidoAction(input: CobroConPedidoInput): Promise
   });
 
   const avisos: string[] = [];
+  // Los fotolibros: cada uno queda atado a su trabajo (y se crea si no se creó antes de cobrar).
+  const libros = delPedido.flatMap((l, itemIndex) => {
+    const fotolibro = l.fotolibro === undefined ? null : leerFotolibroVendido(l.fotolibro);
+    return fotolibro ? [{ itemIndex, fotolibro }] : [];
+  });
+  if (libros.length > 0) {
+    try {
+      const c = await prisma.client.findFirst({
+        where: { id: input.clientId, workspaceId: workspace.id },
+        select: { kind: true, firstName: true, lastName: true, businessName: true },
+      });
+      avisos.push(
+        ...(await atarFotolibrosAlPedido({
+          workspaceId: workspace.id,
+          userId: user.id,
+          pedidoId: alta.pedidoId,
+          pedidoNumero: alta.numero,
+          cliente: c ? clientDisplayName(c) : null,
+          libros,
+        })),
+      );
+    } catch (e) {
+      console.error("[cobrador] fotolibros del pedido", e);
+      avisos.push(`El pedido ${alta.numero} quedó bien, pero no se pudo preparar su fotolibro: crealo desde el trabajo.`);
+    }
+  }
   // 2. La seña (o el total) del pedido: entra a Caja como cobro del pedido.
   let cobrado = 0;
   if (sena > 0) {

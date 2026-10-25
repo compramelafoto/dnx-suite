@@ -24,7 +24,7 @@ export type DepsAtencion = {
 };
 
 const DEPS: DepsAtencion = {
-  productos: (workspaceId) => listProducts(workspaceId, { onlyActive: true }),
+  productos: (workspaceId) => listProducts(workspaceId, { onlyActive: true, onlyVendible: true }),
   estudio: async (workspaceId) => {
     const b = await prisma.fotofficeWorkspaceBranding.findUnique({
       where: { workspaceId },

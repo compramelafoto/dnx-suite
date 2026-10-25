@@ -1,6 +1,13 @@
 "use client";
 
 import CameraParamTimeline from "@/components/simulator/CameraParamTimeline";
+import { METERING_LABELS, METERING_MODES } from "@/lib/simulator/metering";
+import { shutterSpeedToSeconds } from "@/lib/simulator/camera-math";
+import {
+  isFullStopAperture,
+  isFullStopIso,
+  isFullStopShutterSeconds,
+} from "@/lib/simulator/exposure-scales";
 import {
   CameraOptionBtn,
   CameraOptionStepper,
@@ -25,6 +32,14 @@ import type { FocusAreaMode, FocusMode } from "@/lib/simulator/focus-types";
 import { focusModeToLabel } from "@/lib/simulator/focus-types";
 import Button from "@/components/ui/Button";
 import { useEffect, useRef } from "react";
+
+const METERING_SHORT = { MATRIX: "Matricial", CENTER: "Central", SPOT: "Puntual" } as const;
+
+const METERING_TITLES = {
+  MATRIX: `${METERING_LABELS.MATRIX}: todo el cuadro por zonas, sin dejarse llevar por el sol o el cielo`,
+  CENTER: `${METERING_LABELS.CENTER}: 75 % el círculo central, 25 % el resto`,
+  SPOT: `${METERING_LABELS.SPOT}: sólo el 3,5 % del centro del cuadro`,
+} as const;
 
 const FOCUS_MODES: { id: FocusMode; title: string }[] = [
   { id: "AF_S", title: "Enfoca una vez y bloquea" },
@@ -52,6 +67,8 @@ export default function CameraTab({ activeIndex }: CameraTabProps) {
     settings,
     derived,
     presets,
+    meteringMode,
+    setMeteringMode,
     viewfinderMode,
     compositionGuide,
     showHistogram,
@@ -106,6 +123,7 @@ export default function CameraTab({ activeIndex }: CameraTabProps) {
             options={presets.iso}
             onChange={setIso}
             formatValue={(v) => String(v)}
+            isMajor={isFullStopIso}
             focused={activeIndex === 0}
             resettable
             onReset={() => setIso(REFERENCE_CAMERA.iso)}
@@ -121,6 +139,7 @@ export default function CameraTab({ activeIndex }: CameraTabProps) {
             options={presets.shutter}
             onChange={setShutterSpeed}
             formatValue={formatShutterSpeed}
+            isMajor={(s) => isFullStopShutterSeconds(shutterSpeedToSeconds(s))}
             scaleDirection="desc"
             focused={activeIndex === 1}
             readOnly={shutterAuto}
@@ -136,6 +155,7 @@ export default function CameraTab({ activeIndex }: CameraTabProps) {
             options={presets.aperture}
             onChange={setAperture}
             formatValue={formatAperture}
+            isMajor={isFullStopAperture}
             focused={activeIndex === 2}
             readOnly={apertureAuto}
           />
@@ -250,6 +270,19 @@ export default function CameraTab({ activeIndex }: CameraTabProps) {
             ))}
           </CameraParamOptionRow>
         </div>
+
+        <CameraParamOptionRow label="Medición">
+          {METERING_MODES.map((mode) => (
+            <CameraOptionBtn
+              key={mode}
+              active={meteringMode === mode}
+              onClick={() => setMeteringMode(mode)}
+              title={METERING_TITLES[mode]}
+            >
+              {METERING_SHORT[mode]}
+            </CameraOptionBtn>
+          ))}
+        </CameraParamOptionRow>
 
         <div ref={setParamRef(5)}>
           <CameraParamOptionRow
