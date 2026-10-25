@@ -68,6 +68,8 @@ export async function guardarBorradorAction(datos: {
   condiciones?: string | null;
   propuestaPago?: string | null;
   opcionesPago?: unknown;
+  /** Opciones del presupuesto (Básico, Premium…); [] = presupuesto común. */
+  alternativas?: unknown;
   /** Lo que tenía el editor al abrirse: si otro (DNX Bot u otra persona) guardó el borrador después, no se pisa. */
   control?: { version: string; firma: string };
 }): Promise<Resultado> {
@@ -91,6 +93,7 @@ export async function guardarBorradorAction(datos: {
       condiciones: datos.condiciones,
       propuestaPago: datos.propuestaPago,
       opcionesPago: datos.opcionesPago,
+      alternativas: datos.alternativas,
     },
     {},
     control,

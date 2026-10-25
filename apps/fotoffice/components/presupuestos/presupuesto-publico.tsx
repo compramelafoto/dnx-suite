@@ -1,6 +1,6 @@
 import { pesos } from "@/lib/presupuestos/editor";
 import { importeDeOpcion, type OpcionPublica } from "@/lib/presupuestos/opciones-pago";
-import type { ItemDeLaVista, VistaPublica } from "@/lib/presupuestos/vista-publica";
+import type { AlternativaDeLaVista, ItemDeLaVista, VistaPublica } from "@/lib/presupuestos/vista-publica";
 
 /**
  * El presupuesto como lo ve el cliente (enlace público y vista para imprimir). Sólo recibe la
@@ -59,7 +59,83 @@ function OpcionesDePago({ opciones }: { opciones: OpcionPublica[] }) {
   );
 }
 
+/** El plan en cuotas sin interés más largo de una opción (null si no hay). */
+export function cuotasSinInteres(opciones: readonly OpcionPublica[], total: number): OpcionPublica | null {
+  const sin = opciones.filter((o) => o.cuotas > 1 && o.total <= total + 0.5);
+  return sin.sort((a, b) => b.cuotas - a.cuotas)[0] ?? null;
+}
+
+/** Una opción del presupuesto (Básico, Premium…): qué incluye, su precio y «Elegir esta». */
+function TarjetaAlternativa({ a }: { a: AlternativaDeLaVista }) {
+  const total = a.cobro && a.cobro.iva > 0 ? a.cobro.totalConIva : a.totales.total;
+  const cuotas = cuotasSinInteres(a.opcionesPago, total);
+  const incluye = a.items.filter((i) => !i.opcional);
+  const opcionales = a.items.filter((i) => i.opcional);
+  return (
+    <section
+      aria-label={`Opción ${a.nombre}`}
+      className={`flex flex-col gap-4 rounded-xl border p-4 ${a.masElegida ? "border-2 border-[var(--fo-accent)]" : "border-[var(--fo-border)]"}`}
+    >
+      <div className="space-y-1">
+        {a.masElegida ? (
+          <span className="inline-block rounded-full bg-[var(--fo-accent)] px-2 py-0.5 text-xs font-semibold text-white">La más elegida</span>
+        ) : null}
+        <h2 className="text-lg font-semibold">{a.nombre}</h2>
+        {a.descripcion ? <p className="whitespace-pre-line text-sm opacity-75">{a.descripcion}</p> : null}
+      </div>
+      <div>
+        <p className="text-2xl font-semibold tabular-nums">{pesos(total)}</p>
+        {a.cobro && a.cobro.iva > 0 ? <p className="text-xs opacity-70">IVA incluido ({a.cobro.ivaPorcentaje} %)</p> : null}
+        {cuotas ? <p className="text-sm opacity-80">Sin interés: {importeDeOpcion(cuotas)}</p> : null}
+        {a.totales.descuentos > 0 ? <p className="text-xs opacity-70">Con {pesos(a.totales.descuentos)} de descuento</p> : null}
+        {a.cobro && a.cobro.senaPorcentaje > 0 ? (
+          <p className="text-xs opacity-70">Reservás la fecha con una seña del {a.cobro.senaPorcentaje} %.</p>
+        ) : null}
+      </div>
+      <div className="flex-1 space-y-1">
+        <h3 className="text-sm font-semibold">Qué incluye</h3>
+        <ul className="space-y-1 text-sm">
+          {incluye.map((i) => (
+            <li key={i.id} className="flex gap-2">
+              <span aria-hidden>✓</span>
+              <span>
+                {i.cantidad !== 1 ? `${i.cantidad.toLocaleString("es-AR")} × ` : ""}
+                {i.nombre}
+                {i.descripcion ? <span className="block whitespace-pre-line text-xs opacity-70">{i.descripcion}</span> : null}
+              </span>
+            </li>
+          ))}
+        </ul>
+        {opcionales.length > 0 ? (
+          <p className="pt-1 text-xs opacity-70">
+            Opcionales (aparte): {opcionales.map((i) => `${i.nombre} (${pesos(i.neto)})`).join(", ")}
+          </p>
+        ) : null}
+      </div>
+      <a href={`#elegir-${encodeURIComponent(a.id)}`} className="no-imprimir fo-btn fo-btn-primary text-center text-sm">
+        Elegir esta
+      </a>
+    </section>
+  );
+}
+
+/** Las opciones lado a lado (en el celular, una debajo de otra). */
+function Alternativas({ alternativas }: { alternativas: AlternativaDeLaVista[] }) {
+  const columnas = alternativas.length >= 3 ? "md:grid-cols-2 lg:grid-cols-3" : "md:grid-cols-2";
+  return (
+    <section aria-label="Opciones del presupuesto" className="space-y-3">
+      <p className="text-sm opacity-80">Te armamos {alternativas.length} opciones. Elegí la que más te guste y aceptala más abajo.</p>
+      <div className={`grid gap-4 ${alternativas.length >= 4 ? "md:grid-cols-2 xl:grid-cols-4" : columnas}`}>
+        {alternativas.map((a) => (
+          <TarjetaAlternativa key={a.id} a={a} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
 export function PresupuestoPublico({ vista }: { vista: VistaPublica }) {
+  const conAlternativas = vista.alternativas.length > 0;
   const secciones: (string | null)[] = [];
   for (const i of vista.items) if (!secciones.includes(i.seccion)) secciones.push(i.seccion);
   return (
@@ -79,6 +155,11 @@ export function PresupuestoPublico({ vista }: { vista: VistaPublica }) {
         </div>
       </header>
 
+      {conAlternativas ? <Alternativas alternativas={vista.alternativas} /> : null}
+      {vista.alternativaElegida ? <p className="text-sm font-semibold">Opción elegida: {vista.alternativaElegida}</p> : null}
+
+      {conAlternativas ? null : (
+      <>
       <section aria-label="Ítems" className="space-y-4">
         {vista.items.length === 0 ? <p className="opacity-70">Este presupuesto no tiene ítems.</p> : null}
         {secciones.map((sec) => (
@@ -138,6 +219,8 @@ export function PresupuestoPublico({ vista }: { vista: VistaPublica }) {
       </section>
 
       {vista.opcionesPago.length > 0 ? <OpcionesDePago opciones={vista.opcionesPago} /> : null}
+      </>
+      )}
       {vista.cobro && vista.cobro.descuentoTransferencia > 0 ? (
         <p className="text-sm opacity-80">
           Pagando por transferencia o en efectivo tenés un {vista.cobro.descuentoTransferencia} % de descuento.
@@ -165,6 +248,7 @@ export function PresupuestoPublico({ vista }: { vista: VistaPublica }) {
       {vista.aceptacion ? (
         <p className="rounded-lg border border-[var(--fo-border)] p-3 text-sm">
           Aceptado por {vista.aceptacion.nombre} el {vista.aceptacion.fecha} (hora de Argentina).
+          {vista.alternativaElegida ? ` Opción: ${vista.alternativaElegida}.` : ""}
           {vista.aceptacion.opcion ? ` Forma de pago elegida: ${vista.aceptacion.opcion}.` : ""}
         </p>
       ) : null}

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { CONFLICTOS, DUDAS, MOTIVOS, huellasDe } from "../campos";
 import { COMBO, COSTO, ITEM_COMBO, PRODUCTO, crudo, mapaDe } from "../ejemplos-alboom";
 import {
+  CATEGORIA_HISTORICA,
   TIPO_PRODUCTO,
   actualDeProducto,
   registrarCosto,
@@ -34,29 +35,46 @@ const existente = (over: Partial<ProductoExistente> = {}): ProductoExistente => 
 const ctx = (productos: ProductoExistente[] = []): CtxProductos => ({ productos, mapa: new Map() });
 
 describe("productos", () => {
-  it("crea con precio, costo, categoría, lista de precios y combo; los de evento/sesión son servicios", () => {
-    expect(traducirProducto(crudo("productos", "55", PRODUCTO), ctx())).toMatchObject({
+  it("crea INACTIVO en la categoría Histórico Alboom (la de Alboom queda en la descripción); los de evento/sesión son servicios", () => {
+    const d = traducirProducto(crudo("productos", "55", PRODUCTO), ctx());
+    expect(d).toMatchObject({
       accion: "CREAR",
-      datos: { name: PRODUCTO.name, sku: "EV-01", priceArs: "150000.00", costArs: "20000.00", categoria: "Evento", inPriceList: true, isCombo: false, isActive: true, kind: "SERVICIO" },
+      datos: { name: PRODUCTO.name, sku: "EV-01", priceArs: "150000.00", costArs: "20000.00", categoria: CATEGORIA_HISTORICA, inPriceList: true, isCombo: false, isActive: false, kind: "SERVICIO" },
     });
-    expect(traducirProducto(crudo("productos", "60", { ...COMBO, category_name: "Fotolibros" }), ctx())).toMatchObject({ datos: { isCombo: true, kind: "PRODUCTO" } });
+    expect(d.datos!.description).toBe("Hasta 6 horas de cobertura\n\nCategoría en Alboom: Evento");
+    expect(d.dudas).toContain(DUDAS.productoHistorico);
+    expect(traducirProducto(crudo("productos", "60", { ...COMBO, category_name: "Fotolibros" }), ctx())).toMatchObject({ datos: { isCombo: true, kind: "PRODUCTO", isActive: false } });
   });
 
-  it("empareja por nombre (nunca sólo por código) y sólo completa lo vacío; el precio distinto es conflicto", () => {
+  it("vinculado por nombre con uno de FOTOFFICE (nunca sólo por código): no se toca", () => {
     const d = traducirProducto(crudo("productos", "55", PRODUCTO), ctx([existente()]));
-    expect(d).toMatchObject({ accion: "ACTUALIZAR", targetId: "p1", vincula: true, datos: { sku: "EV-01", description: "Hasta 6 horas de cobertura", costArs: "20000.00" } });
-    expect(d.conservados).toEqual(expect.arrayContaining(["priceArs", "inPriceList"]));
+    expect(d).toEqual({ accion: "IGUAL", targetId: "p1", vincula: true, huellas: {} });
+    // Un vínculo anterior (mapa sin huellas) tampoco se toca aunque Alboom cambie.
+    const c = ctx([existente()]);
+    c.mapa.set("55", mapaDe(crudo("productos", "55", { ...PRODUCTO, price: "1" }), TIPO_PRODUCTO, "p1"));
+    expect(traducirProducto(crudo("productos", "55", PRODUCTO), c)).toMatchObject({ accion: "IGUAL", targetId: "p1", vincula: false });
     // Por código solo, nunca: otro nombre → se crea (y el código, ocupado, queda vacío con duda).
     expect(traducirProducto(crudo("productos", "55", PRODUCTO), ctx([existente({ name: "Otro nombre", sku: "EV-01" })]))).toMatchObject({ accion: "CREAR", datos: { sku: null } });
   });
 
   it("código usado por otro producto → se carga sin código (duda); sin precio → 0 (duda); sin nombre → OMITIR", () => {
-    expect(traducirProducto(crudo("productos", "55", PRODUCTO), ctx([existente({ id: "p9", name: "X", sku: "EV-01" }), existente({ id: "p1" })]))).toMatchObject({
-      targetId: "p1",
-      dudas: [DUDAS.codigoRepetido],
-    });
-    expect(traducirProducto(crudo("productos", "56", { ...PRODUCTO, name: "Nuevo", code: "", price: "" }), ctx())).toMatchObject({ accion: "CREAR", datos: { priceArs: "0.00", sku: null }, dudas: [DUDAS.precioFaltante] });
+    expect(traducirProducto(crudo("productos", "55", PRODUCTO), ctx([existente({ id: "p9", name: "X", sku: "EV-01" })])).dudas).toContain(DUDAS.codigoRepetido);
+    const sinPrecio = traducirProducto(crudo("productos", "56", { ...PRODUCTO, name: "Nuevo", code: "", price: "" }), ctx());
+    expect(sinPrecio).toMatchObject({ accion: "CREAR", datos: { priceArs: "0.00", sku: null } });
+    expect(sinPrecio.dudas).toContain(DUDAS.precioFaltante);
     expect(traducirProducto(crudo("productos", "57", { ...PRODUCTO, name: " " }), ctx())).toEqual({ accion: "OMITIR", motivo: MOTIVOS.sinNombre });
+  });
+
+  it("creado por la carga y vuelto a cargar: nunca lo reactiva ni le cambia la categoría", () => {
+    const antes = crudo("productos", "55", PRODUCTO);
+    const creado = traducirProducto(antes, ctx());
+    const cargado = existente({ name: PRODUCTO.name, sku: "EV-01", description: String(creado.datos!.description), priceArs: "150000.00", costArs: "20000.00", inPriceList: true, isActive: false, categoria: CATEGORIA_HISTORICA });
+    const c = ctx([cargado]);
+    c.mapa.set("55", mapaDe(antes, TIPO_PRODUCTO, "p1", creado.huellas));
+    const d = traducirProducto(crudo("productos", "55", { ...PRODUCTO, price: "175000", active: "1" }), c);
+    expect(d).toMatchObject({ accion: "ACTUALIZAR", datos: { priceArs: "175000.00" } });
+    expect(d.datos).not.toHaveProperty("isActive");
+    expect(d.datos).not.toHaveProperty("categoria");
   });
 
   it("ya cargado: actualiza lo que cambió en Alboom salvo lo editado en FOTOFFICE", () => {
@@ -118,7 +136,7 @@ describe("nunca se fusionan productos distintos", () => {
     const nuevo = crudo("productos", "51", { ...PRODUCTO, id: "51", code: "AL-2", name: "Album 30x30", price: "120000", active: "1" });
     const ctx = conNombres([viejo, nuevo]);
     expect(traducirProducto(viejo, ctx)).toEqual({ accion: "OMITIR", motivo: MOTIVOS.productoInactivoRepetido });
-    expect(traducirProducto(nuevo, ctx)).toMatchObject({ accion: "CREAR", datos: { priceArs: "120000.00", isActive: true } });
+    expect(traducirProducto(nuevo, ctx)).toMatchObject({ accion: "CREAR", datos: { priceArs: "120000.00", isActive: false } });
 
     const otro = crudo("productos", "52", { ...PRODUCTO, id: "52", code: "AL-3", name: "Álbum 30x30", active: "1" });
     const dos = conNombres([nuevo, otro]);

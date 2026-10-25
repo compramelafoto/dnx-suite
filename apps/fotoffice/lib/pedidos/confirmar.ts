@@ -5,6 +5,7 @@ import { agendaEncendida, aVistaPrevia as aVistaPreviaCitas, crearCitasDelPedido
 import { aVistaPrevia, crearProyectosDelPedido, IndiceInvalido, planificarProyectos, proyectosEncendidos, type ProyectoVistaPrevia } from "@/lib/proyectos/crear";
 import { diaEnBuenosAires } from "@/lib/presupuestos/estados";
 import { bloquearPresupuesto, itemsGuardados, type TotalesGuardados } from "@/lib/presupuestos/versiones";
+import { itemsQueValen } from "@/lib/presupuestos/alternativas";
 import { MENSAJES_PEDIDO, puedeGestionarPedidos, type CtxPedidos } from "./acceso";
 import { copiarTareasAlPedido, leerPlantillasChecklist, titulosParaPedidoNuevo } from "./checklist";
 import { OPCIONES_TRANSACCION_PEDIDO } from "./constantes";
@@ -21,7 +22,8 @@ import { apartarStock, etiquetaDeEvento, insertarPedido, nombreDeContacto, rubro
  * En una sola transacción, con el candado del presupuesto (el mismo de guardar, versionar,
  * enviar y aceptar):
  * - el presupuesto tiene que ser del workspace, estar ACEPTADO y no tener pedido;
- * - copia `items` y `totals` de la versión aceptada;
+ * - copia `items` y `totals` de la versión aceptada. Con opciones (Básico, Premium…), SÓLO los
+ *   ítems de la opción que eligió el cliente: los totales ya quedaron fijados en la elegida al aceptar;
  * - el total es el de la opción de pago elegida: el financiado si tiene interés, el de contado
  *   con su descuento, o el del presupuesto. Una versión sin opciones congeladas (enviada antes de
  *   la etapa 3) toma la de por omisión, calculada ahora;
@@ -139,7 +141,9 @@ async function preparar(cliente: Lector, workspaceId: string, presupuestoId: str
   // Condiciones de cobro congeladas al enviar (etapa B): la seña es la cuota 1.
   const senaPorcentaje = condicionesDeInstantanea(v.paymentOptions)?.senaPorcentaje ?? 0;
   const plan = opcion && total > 0 ? planDesdeOpcion(opcion, { desde: hoy, fechaEvento, senaPorcentaje }) : { cuotas: [], aviso: null };
-  const items = itemsGuardados(v.items);
+  // Con opciones, sólo los de la elegida (también en el JSON que se copia al pedido).
+  const itemsCrudos = Array.isArray(v.items) ? itemsQueValen(v.items as unknown[], v.totals) : v.items;
+  const items = itemsGuardados(itemsCrudos);
   const incomeCategoryId = await rubroDeItems(cliente, workspaceId, items);
 
   return {
@@ -148,7 +152,7 @@ async function preparar(cliente: Lector, workspaceId: string, presupuestoId: str
     consultaLeadId: p.consultaLeadId,
     clientId: p.clientId,
     ownerUserId: p.ownerUserId,
-    items: v.items,
+    items: itemsCrudos,
     totals: (v.totals as TotalesGuardados | null) ?? null,
     totalPresupuesto,
     total,

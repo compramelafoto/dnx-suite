@@ -204,7 +204,12 @@ async function armarBorradorBase(
   const ajustes = await leerAjustes(workspaceId);
   const borrador = await normalizarBorrador(
     workspaceId,
-    { items: instanciada.items, condiciones: propuesta.condiciones ?? ajustes.condiciones, propuestaPago: ajustes.propuestaPago },
+    {
+      items: instanciada.items,
+      alternativas: propuesta.alternativas,
+      condiciones: propuesta.condiciones ?? ajustes.condiciones,
+      propuestaPago: ajustes.propuestaPago,
+    },
     new Map(),
     ahora,
   );
@@ -265,35 +270,68 @@ export async function armarBorradorDePropuesta(
   leadId: string,
   deps: DepsPropuestaAutomatica = {},
 ): Promise<ResultadoBorradorDePropuesta> {
+  const { resultado } = await armarBorrador(workspaceId, leadId, deps, false);
+  return resultado === "SIN_PROPUESTA" ? "NO_APLICA" : resultado;
+}
+
+export type ResultadoBorradorParaAprobar = {
+  resultado: ResultadoBorradorDePropuesta | "SIN_PROPUESTA";
+  /** El presupuesto armado o, si la consulta ya tenía uno, ese. */
+  presupuestoId: string | null;
+};
+
+/**
+ * Presupuesto automático con aprobación por Telegram (spec 2026-10-25): lo mismo que el borrador
+ * automático, pero sin mirar su interruptor (lo decide "Aprobar por Telegram") y diciendo qué
+ * presupuesto quedó. Si la consulta ya tenía uno, devuelve ése. Nunca lanza.
+ */
+export async function armarBorradorParaAprobar(
+  workspaceId: string,
+  leadId: string,
+  deps: DepsPropuestaAutomatica = {},
+): Promise<ResultadoBorradorParaAprobar> {
+  return armarBorrador(workspaceId, leadId, deps, true);
+}
+
+async function armarBorrador(
+  workspaceId: string,
+  leadId: string,
+  deps: DepsPropuestaAutomatica,
+  paraAprobar: boolean,
+): Promise<ResultadoBorradorParaAprobar> {
+  const sin = (resultado: ResultadoBorradorParaAprobar["resultado"]): ResultadoBorradorParaAprobar => ({ resultado, presupuestoId: null });
   try {
     const ahora = (deps.ahora ?? (() => new Date()))();
-    if (!(await isModuleEnabledForWorkspace(workspaceId, QUOTES_MODULE_KEY))) return "NO_APLICA";
+    if (!(await isModuleEnabledForWorkspace(workspaceId, QUOTES_MODULE_KEY))) return sin("NO_APLICA");
     const ficha = await prisma.fotofficeConsulta.findFirst({ where: { workspaceId, leadId }, select: { categoryId: true, clientId: true } });
-    if (!ficha || !ficha.categoryId) return "NO_APLICA";
-    if (!(await armaBorradorAuto(workspaceId, ficha.categoryId))) return "NO_APLICA";
+    if (!ficha || !ficha.categoryId) return sin("NO_APLICA");
+    if (!paraAprobar && !(await armaBorradorAuto(workspaceId, ficha.categoryId))) return sin("NO_APLICA");
     const propuesta = await leerPropuestaModelo(workspaceId, ficha.categoryId);
-    if (!propuesta || propuesta.items.length === 0) return "NO_APLICA";
-    if (await tienePresupuesto(workspaceId, leadId)) return "YA_TIENE_PRESUPUESTO";
+    if (!propuesta || propuesta.items.length === 0) return sin(paraAprobar ? "SIN_PROPUESTA" : "NO_APLICA");
+    const previo = await presupuestoDeLaConsulta(workspaceId, leadId);
+    if (previo) return { resultado: "YA_TIENE_PRESUPUESTO", presupuestoId: paraAprobar ? previo : null };
 
     const armado = await armarBorradorBase(workspaceId, propuesta, ahora, deps);
-    if (!armado.ok) return "FALLO";
+    if (!armado.ok) return sin("FALLO");
     const { borrador, ajustes, owner } = armado;
 
     const creado = await prisma.$transaction(async (tx) => {
       // Dos altas a la vez de la misma consulta: el candado las pone en fila y la segunda ve el presupuesto de la primera.
       // Nota: `crearPresupuesto` manual no toma este mismo candado (carrera aceptada, muy improbable).
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`fotoffice-borrador-auto:${workspaceId}:${leadId}`}))`;
-      if (await tienePresupuesto(workspaceId, leadId, tx)) return null;
-      return crearPresupuestoDelSistema(tx, { workspaceId, leadId, clientId: ficha.clientId, owner, ajustes, borrador: borrador.valor, ahora });
+      const otro = await presupuestoDeLaConsulta(workspaceId, leadId, tx);
+      if (otro) return { id: otro, nuevo: false };
+      const p = await crearPresupuestoDelSistema(tx, { workspaceId, leadId, clientId: ficha.clientId, owner, ajustes, borrador: borrador.valor, ahora });
+      return { id: p.id, nuevo: true };
     }, OPCIONES_TRANSACCION);
-    if (!creado) return "YA_TIENE_PRESUPUESTO";
+    if (!creado.nuevo) return { resultado: "YA_TIENE_PRESUPUESTO", presupuestoId: paraAprobar ? creado.id : null };
 
     const numeroConsulta = await numeroDeConsulta(workspaceId, leadId);
     await tareaDeRevision(workspaceId, leadId, creado.id, owner, ahora, () => tituloDeBorrador(numeroConsulta));
-    return "ARMADO";
+    return { resultado: "ARMADO", presupuestoId: creado.id };
   } catch (e) {
     console.error("[presupuestos] falló el borrador automático", { codigo: (e as { code?: unknown })?.code ?? "desconocido" });
-    return "ERROR";
+    return sin("ERROR");
   }
 }
 
@@ -306,9 +344,13 @@ async function numeroDeConsulta(workspaceId: string, leadId: string): Promise<st
   }
 }
 
-async function tienePresupuesto(workspaceId: string, leadId: string, cliente: Pick<Prisma.TransactionClient, "fotofficePresupuesto"> = prisma): Promise<boolean> {
+async function presupuestoDeLaConsulta(
+  workspaceId: string,
+  leadId: string,
+  cliente: Pick<Prisma.TransactionClient, "fotofficePresupuesto"> = prisma,
+): Promise<string | null> {
   const p = await cliente.fotofficePresupuesto.findFirst({ where: { workspaceId, consultaLeadId: leadId }, select: { id: true } });
-  return p !== null;
+  return p?.id ?? null;
 }
 
 /** ¿El correo llegó a intentarse? (la reserva ya no está EN_CURSO). Ante la duda, sí. */

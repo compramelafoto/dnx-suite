@@ -21,6 +21,7 @@ import { PRINT_ORDERS_MODULE_KEY } from "@/lib/impresiones/constantes";
 import { BANDEJA_MODULE_KEY } from "@/lib/bandeja/constantes";
 import { CUANTO_COBRO_SOCIO_MODULE_KEY } from "@/lib/cuanto-cobro-socio/constants";
 import { FOTOLIBROS_SOCIO_MODULE_KEY } from "@/lib/fotolibro/constantes";
+import { INVOICING_MODULE_KEY } from "@/lib/invoicing/constants";
 import { EQUIPO_MODULE_KEY } from "@/lib/equipo/constantes";
 
 /**
@@ -183,6 +184,20 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
     category: "GENERAL",
     order: 35,
     route: "/ventas",
+    status: "AVAILABLE",
+    family: "negocio",
+  },
+  {
+    // Facturación electrónica con ARCA (§11 del diseño de negocio): Factura C y Nota de crédito C
+    // con CAE en tiempo real. Apagado por omisión; la puesta en marcha (certificado, punto de venta,
+    // homologación) la hace el titular del CUIT desde Configuración → Facturación electrónica.
+    key: INVOICING_MODULE_KEY,
+    label: "Facturación electrónica",
+    description:
+      "Factura C y nota de crédito C con CAE de ARCA, desde las ventas y los pedidos, con el PDF y el código QR.",
+    category: "GENERAL",
+    order: 38,
+    route: "/facturacion",
     status: "AVAILABLE",
     family: "negocio",
   },

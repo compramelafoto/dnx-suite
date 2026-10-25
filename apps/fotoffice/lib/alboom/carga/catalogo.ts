@@ -1,8 +1,21 @@
 import { randomBytes } from "node:crypto";
 import type { FuenteCruda, RepoCarga } from "./repositorio";
-import type { Crudo, Decision, EntradaMapa } from "./tipos";
+import { idsDe, porAlboomId, todosLosCrudos } from "./contexto";
+import { PARTES_8B2 } from "./catalogo-8b2";
+import type { Crudo, Decision } from "./tipos";
 import { PREFIJO_CATEGORIA, TIPO_CATEGORIA, registrarCategoria, traducirCategoria, type CtxCategorias } from "./traductores/categorias";
-import { TIPO_CIRCUITO, TIPO_ETAPA, traducirCircuito, traducirEtapa, type CtxCircuitos, type CtxEtapas } from "./traductores/circuitos";
+import {
+  TIPO_CIRCUITO,
+  TIPO_ETAPA,
+  deducirEmbudos,
+  fueCreado,
+  registrarCircuito,
+  registrarEtapa,
+  traducirCircuito,
+  traducirEtapa,
+  type CtxCircuitos,
+  type CtxEtapas,
+} from "./traductores/circuitos";
 import { TIPO_CLIENTE, compartidos, crearCtxContactos, registrarContacto, traducirContacto, type CtxContactos, type Visto } from "./traductores/contactos";
 import { TIPO_ETIQUETA, registrarEtiqueta, traducirEtiqueta, type CtxEtiquetas } from "./traductores/etiquetas";
 import { TIPO_ORIGEN, registrarOrigen, traducirOrigen, type CtxOrigenes } from "./traductores/origenes";
@@ -48,10 +61,15 @@ export type Progreso = {
   reintentos: number;
   /** En una CARGA: la simulación que la habilitó. */
   simulacionId?: string;
+  /** Día de la corrida ("aaaa-mm-dd", Argentina): decide qué consultas abiertas ya tienen el evento pasado. */
+  hoy: string;
 };
 
+/** Hoy en Argentina (UTC−3, sin horario de verano). */
+export const hoyArgentina = (ahora = new Date()) => new Date(ahora.getTime() - 3 * 3600_000).toISOString().slice(0, 10);
+
 export function progresoInicial(extra: Partial<Progreso> = {}): Progreso {
-  return { indice: 0, fuente: 0, cursor: null, vistos: {}, sal: randomBytes(16).toString("hex"), simulados: {}, reintentos: 0, ...extra };
+  return { indice: 0, fuente: 0, cursor: null, vistos: {}, sal: randomBytes(16).toString("hex"), simulados: {}, reintentos: 0, hoy: hoyArgentina(), ...extra };
 }
 
 export function leerProgreso(json: unknown): Progreso {
@@ -65,6 +83,7 @@ export function leerProgreso(json: unknown): Progreso {
     simulados: typeof p.simulados === "object" && p.simulados !== null ? p.simulados : {},
     reintentos: typeof p.reintentos === "number" ? p.reintentos : 0,
     ...(typeof p.simulacionId === "string" ? { simulacionId: p.simulacionId } : {}),
+    hoy: typeof p.hoy === "string" && /^\d{4}-\d{2}-\d{2}$/.test(p.hoy) ? p.hoy : hoyArgentina(),
   };
 }
 
@@ -84,28 +103,16 @@ export type ParteCarga = {
   registrar?(ctx: Ctx, c: Crudo, d: Decision, targetId: string): void;
 };
 
-function porAlboomId(filas: EntradaMapa[], entity: string): Map<string, EntradaMapa> {
-  return new Map(filas.filter((f) => f.entity === entity).map((f) => [f.alboomId, f]));
-}
-
-/** Id de Alboom → id de FOTOFFICE de una entidad: el mapa y, en una simulación, lo simulado. */
-async function idsDe(repo: RepoCarga, ws: string, progreso: Progreso, entity: string, conPrefijo = false): Promise<Map<string, string>> {
-  const m = new Map<string, string>();
-  for (const f of await repo.leerMapa(ws, [entity])) m.set(conPrefijo ? `${entity}/${f.alboomId}` : f.alboomId, f.targetId);
-  for (const [id, target] of Object.entries(progreso.simulados[entity] ?? {})) m.set(conPrefijo ? `${entity}/${id}` : id, target);
-  return m;
-}
-
 const siguienteOrden = (filas: { order: number }[]) => filas.reduce((m, f) => Math.max(m, f.order), -1) + 1;
 
-export const PARTES: readonly ParteCarga[] = [
+const PARTES_8B1: readonly ParteCarga[] = [
   {
     clave: "usuarios",
     nombre: "Usuarios del equipo",
     fuentes: [{ entity: "usuarios" }],
     depende: [],
     targetType: TIPO_USUARIO,
-    exporta: false,
+    exporta: true,
     async contexto(repo, ws): Promise<CtxUsuarios> {
       return { miembros: await repo.miembros(ws), mapa: porAlboomId(await repo.leerMapa(ws, ["usuarios"]), "usuarios") };
     },
@@ -117,7 +124,7 @@ export const PARTES: readonly ParteCarga[] = [
     fuentes: [{ entity: "origenes" }],
     depende: [],
     targetType: TIPO_ORIGEN,
-    exporta: false,
+    exporta: true,
     async contexto(repo, ws): Promise<CtxOrigenes> {
       const origenes = await repo.origenes(ws);
       return { origenes, ordenBase: siguienteOrden(origenes), mapa: porAlboomId(await repo.leerMapa(ws, ["origenes"]), "origenes") };
@@ -131,7 +138,7 @@ export const PARTES: readonly ParteCarga[] = [
     fuentes: [{ entity: "categorias", prefijo: PREFIJO_CATEGORIA }],
     depende: [],
     targetType: TIPO_CATEGORIA,
-    exporta: false,
+    exporta: true,
     async contexto(repo, ws): Promise<CtxCategorias> {
       const categorias = await repo.categoriasConsulta(ws);
       return { categorias, ordenBase: siguienteOrden(categorias), mapa: porAlboomId(await repo.leerMapa(ws, ["categorias"]), "categorias") };
@@ -169,6 +176,7 @@ export const PARTES: readonly ParteCarga[] = [
       const propia = x.mapa.get(`${c.entity}/${c.alboomId}`);
       return traducirCircuito(c, { ...x, mapa: new Map(propia ? [[c.alboomId, propia]] : []) });
     },
+    registrar: (ctx, _c, d, id) => registrarCircuito(ctx as CtxCircuitos, d, id),
   },
   {
     clave: "etapas",
@@ -176,17 +184,26 @@ export const PARTES: readonly ParteCarga[] = [
     fuentes: [{ entity: "etapas_embudo" }, { entity: "etapas_flujo" }],
     depende: ["circuitos"],
     targetType: TIPO_ETAPA,
-    exporta: false,
+    exporta: true,
     async contexto(repo, ws, progreso): Promise<CtxEtapas> {
       const circuitoDe = new Map([...(await idsDe(repo, ws, progreso, "embudos", true)), ...(await idsDe(repo, ws, progreso, "flujos_proyecto", true))]);
       const mapa = await repo.leerMapa(ws, ["etapas_embudo", "etapas_flujo"]);
-      return { circuitoDe, etapas: await repo.etapas(ws), mapa: new Map(mapa.map((f) => [`${f.entity}/${f.alboomId}`, f])) };
+      // Circuitos que creó la carga (marcados en el mapa) o la simulación (ids simulados).
+      const creados = new Set((await repo.leerMapa(ws, ["embudos", "flujos_proyecto"])).filter(fueCreado).map((f) => f.targetId));
+      // Etapas extraídas antes de que el extractor les pusiera su embudo: se deduce por el orden de los ids.
+      const deducido = new Map<string, string>();
+      for (const [etapas, embudos] of [["etapas_embudo", "embudos"], ["etapas_flujo", "flujos_proyecto"]] as const) {
+        for (const [id, emb] of deducirEmbudos(await todosLosCrudos(repo, ws, etapas), await todosLosCrudos(repo, ws, embudos))) deducido.set(`${etapas}/${id}`, emb);
+      }
+      return { circuitoDe, creados, deducido, etapas: await repo.etapas(ws), mapa: new Map(mapa.map((f) => [`${f.entity}/${f.alboomId}`, f])) };
     },
     traducir: (c, ctx) => {
       const x = ctx as CtxEtapas;
       const propia = x.mapa.get(`${c.entity}/${c.alboomId}`);
-      return traducirEtapa(c, { ...x, mapa: new Map(propia ? [[c.alboomId, propia]] : []) });
+      const emb = x.deducido?.get(`${c.entity}/${c.alboomId}`);
+      return traducirEtapa(c, { ...x, deducido: new Map(emb ? [[c.alboomId, emb]] : []), mapa: new Map(propia ? [[c.alboomId, propia]] : []) });
     },
+    registrar: (ctx, _c, d, id) => registrarEtapa(ctx as CtxEtapas, d, id),
   },
   {
     clave: "contactos",
@@ -285,6 +302,9 @@ export const PARTES: readonly ParteCarga[] = [
     registrar: (ctx, _c, d, id) => registrarCosto(ctx as CtxCostos, d, id),
   },
 ];
+
+/** 8B-1 (catálogos y contactos) y después 8B-2 (lo histórico), en orden de dependencias. */
+export const PARTES: readonly ParteCarga[] = [...PARTES_8B1, ...PARTES_8B2];
 
 export const CLAVES_CARGA = PARTES.map((p) => p.clave);
 

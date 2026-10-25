@@ -25,7 +25,7 @@ concurrency:
 
 jobs:
   tipos-y-pruebas:
-    # Fijada: en ubuntu-latest (26.04) Playwright todavía no instala Chromium y el chequeo fallaba.
+    # Fija: con ubuntu-latest pasó a 26.04 y Playwright no tiene Chromium para esa versión.
     runs-on: ubuntu-24.04
     timeout-minutes: 25
 

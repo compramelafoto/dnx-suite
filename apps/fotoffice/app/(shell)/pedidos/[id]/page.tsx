@@ -43,6 +43,10 @@ import { proyectosEncendidos } from "@/lib/proyectos/crear";
 import { proyectosDeUnPedido } from "@/lib/proyectos/del-pedido";
 import { opcionesDeRegla } from "@/lib/proyectos/reglas-catalogo";
 import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
+import { contextoFacturacion } from "@/lib/invoicing/access";
+import { facturasDe } from "@/lib/invoicing/servicio";
+import { numeroComprobante } from "@/lib/invoicing/pdf";
+import { decimalArsToMinor } from "@/lib/membership/money";
 
 export const dynamic = "force-dynamic";
 
@@ -160,6 +164,12 @@ export default async function PedidoPage({ params }: { params: Promise<{ id: str
     ...hitos.map((h): Entrada => ({ tipo: "hito", hito: h, fecha: h.fecha })),
     ...mensajes.map((m): Entrada => ({ tipo: "mensaje", mensaje: m, fecha: m.fecha })),
   ].sort((a, b) => b.fecha.localeCompare(a.fecha));
+
+  // Facturación: sólo con el módulo encendido se consulta su tabla (puede no existir todavía).
+  const fact = await contextoFacturacion();
+  const facturas = fact ? await facturasDe(workspace.id, { pedidoId: detalle.id }) : [];
+  const facturadoCentavos = facturas.filter((f) => f.status !== "ANULADA").reduce((a, f) => a + decimalArsToMinor(f.impTotal), 0);
+  const puedeFacturar = !!fact?.puedeEmitir && !cancelado && facturadoCentavos < Math.round(plan.total * 100);
 
   const veContacto = puedeEnContexto(ctx, "ver", CLIENTS_MODULE_KEY);
   const vePresupuesto = detalle.presupuestoId !== null && puedeEnContexto(ctx, "ver", QUOTES_MODULE_KEY);
@@ -286,6 +296,38 @@ export default async function PedidoPage({ params }: { params: Promise<{ id: str
               ) : null}
             </dl>
           </section>
+
+          {fact ? (
+            <section aria-labelledby="facturas-titulo" className="fo-card space-y-3">
+              <h2 id="facturas-titulo" className="text-base font-semibold text-[var(--fo-text)]">
+                Facturas
+              </h2>
+              {facturas.length === 0 ? <p className="text-sm text-[var(--fo-muted)]">Todavía no se facturó.</p> : null}
+              <ul className="space-y-1 text-sm">
+                {facturas.map((f) => (
+                  <li key={f.id} className="flex justify-between gap-2">
+                    <span>
+                      {f.cbteNumero !== null ? `Factura C ${numeroComprobante(f.pointOfSale, f.cbteNumero)}` : "Factura en curso"}
+                      {f.status === "ANULADA" ? " (anulada)" : ""}
+                    </span>
+                    <span className="tabular-nums">{pesosPedido(decimalArsToMinor(f.impTotal) / 100)}</span>
+                  </li>
+                ))}
+              </ul>
+              <div className="flex flex-wrap gap-2">
+                {facturas.length ? (
+                  <Link href="/facturacion" className="text-sm underline">
+                    Ver en Facturación
+                  </Link>
+                ) : null}
+                {puedeFacturar ? (
+                  <Link href={`/facturacion/nueva?pedido=${encodeURIComponent(detalle.id)}`} className="fo-btn fo-btn-secondary text-sm">
+                    Facturar
+                  </Link>
+                ) : null}
+              </div>
+            </section>
+          ) : null}
 
           <section aria-labelledby="cobros-titulo" className="fo-card space-y-3">
             <h2 id="cobros-titulo" className="text-base font-semibold text-[var(--fo-text)]">

@@ -461,9 +461,15 @@ export async function userDisplayNames(ids: readonly (number | null)[]): Promise
 /**
  * El saldo inicial vigente de cada cuenta del workspace: el que no es una anulación ni fue
  * anulado. Una cuenta sin entrada en el mapa no tiene (o el suyo se anuló).
+ *
+ * `db` es opcional: el comando `caja:apertura` lo llama con su propio cliente (la base de
+ * FOTOFFICE) o dentro de su transacción.
  */
-export async function openingBalancesByAccount(workspaceId: string): Promise<Map<string, OpeningBalanceRow>> {
-  const rows = await prisma.cashMovement.findMany({
+export async function openingBalancesByAccount(
+  workspaceId: string,
+  db: { cashMovement: Pick<Prisma.TransactionClient["cashMovement"], "findMany"> } = prisma,
+): Promise<Map<string, OpeningBalanceRow>> {
+  const rows = await db.cashMovement.findMany({
     where: {
       workspaceId,
       sourceModule: OPENING_BALANCE_MODULE,

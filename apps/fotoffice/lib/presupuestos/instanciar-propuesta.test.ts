@@ -71,3 +71,49 @@ describe("instanciarPropuesta (puro)", () => {
     expect(instanciarPropuesta([roto], { productos, perfil: createBaseCompleteProfile(), nuevaClave })).toEqual({ ok: false, motivo: "CALCULO" });
   });
 });
+
+describe("instanciarPropuesta: fotolibro del proveedor", () => {
+  const catalogo = {
+    ofertas: [{
+      proveedorId: "prov-roman", proveedor: "Román", vigencia: "2026-10",
+      tapas: [{ medida: "30x60", modelo: "Gold", baseMinor: 27_000_00 * 3, costoMinor: null }],
+      hojas: [{ medida: "30x60", modelo: null, baseMinor: 9_500_00 * 3, costoMinor: null }],
+      cajas: [{ medida: "30x60", modelo: "Gold", baseMinor: 20_000_00 * 3, costoMinor: null }],
+    }],
+    tramos: [], fotosPorHoja: {}, marginPct: 200,
+  };
+  const libro = (id: string, conCaja = false): ItemPresupuesto =>
+    base(id, {
+      productId: null, nombre: "Fotolibro de la fiesta", precioUnitario: 0, cantidad: 1, seccion: "Álbum", alternativaId: "premium",
+      fotolibro: { proveedorId: "prov-roman", modelo: "Gold", medida: "30x60", hojas: 20, conCaja },
+    });
+
+  it("sale con el precio de la lista de hoy, sin la elección del proveedor", () => {
+    const r = instanciarPropuesta([libro("f")], { productos, perfil: null, fotolibro: catalogo, nuevaClave, ahora });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.items).toHaveLength(1);
+    expect(r.items[0]).toMatchObject({
+      id: expect.stringMatching(/^nuevo-/), nombre: "Fotolibro de la fiesta", precioUnitario: 651_000, modoPrecio: "LISTA",
+      productId: null, calculo: null, seccion: "Álbum", alternativaId: "premium",
+    });
+    expect(r.items[0]!.descripcion).toContain("Gold 30x60");
+    expect("fotolibro" in r.items[0]!).toBe(false);
+  });
+
+  it("con caja, la caja sale en su propio renglón de la misma opción", () => {
+    const r = instanciarPropuesta([libro("f", true)], { productos, perfil: null, fotolibro: catalogo, nuevaClave, ahora });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.items.map((i) => [i.nombre, i.precioUnitario, i.alternativaId])).toEqual([
+      ["Fotolibro de la fiesta", 651_000, "premium"],
+      ["Caja para fotolibro", 60_000, "premium"],
+    ]);
+  });
+
+  it("sin lista de fotolibros o sin ese modelo, no sale", () => {
+    expect(instanciarPropuesta([libro("f")], { productos, perfil: null, fotolibro: null, nuevaClave })).toEqual({ ok: false, motivo: "FOTOLIBRO" });
+    const sinGold = { ...catalogo, ofertas: [{ ...catalogo.ofertas[0]!, tapas: [] }] };
+    expect(instanciarPropuesta([libro("f")], { productos, perfil: null, fotolibro: sinGold, nuevaClave })).toEqual({ ok: false, motivo: "FOTOLIBRO" });
+  });
+});

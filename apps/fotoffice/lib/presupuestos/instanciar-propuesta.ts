@@ -1,5 +1,7 @@
 import type { CuantoCobroProfileInput } from "@repo/cuanto-cobro-core";
+import type { CatalogoFotolibro } from "@/lib/fotolibro/cotizar";
 import { MAX_DESCRIPCION_ITEM, MAX_NOMBRE_ITEM, type ItemPresupuesto } from "./constantes";
+import { cotizarFotolibroDeModelo } from "./fotolibro-de-modelo";
 import { calcularItemDelPanel, trabajoDesdeMotor } from "./panel-cuanto-cobro";
 
 /**
@@ -7,24 +9,47 @@ import { calcularItemDelPanel, trabajoDesdeMotor } from "./panel-cuanto-cobro";
  * presupuesto nuevo, "a hoy":
  * - producto de lista: nombre, descripción y precio del catálogo de ahora, clave nueva;
  * - concepto calculado: se vuelve a correr el motor con el perfil de precios del workspace
- *   (el perfil NO vive en la propuesta). Sin perfil, no se puede.
+ *   (el perfil NO vive en la propuesta). Sin perfil, no se puede;
+ * - fotolibro del proveedor: se cotiza con la última lista aplicada (y la caja, si lleva, en su
+ *   propio renglón). Sin lista o sin ese modelo, no se puede.
  */
 export type ProductoDeCatalogo = { nombre: string; descripcion: string | null; precio: number };
 
 export type DepsInstanciar = {
   productos: Map<string, ProductoDeCatalogo>;
   perfil: CuantoCobroProfileInput | null;
+  /** Las listas de fotolibros de hoy; sólo hace falta si la propuesta tiene fotolibros. */
+  fotolibro?: CatalogoFotolibro | null;
   nuevaClave: () => string;
   ahora?: Date;
 };
 
 export type ResultadoInstanciar =
   | { ok: true; items: ItemPresupuesto[] }
-  | { ok: false; motivo: "PRODUCTO_INACTIVO" | "SIN_PERFIL" | "CALCULO" };
+  | { ok: false; motivo: "PRODUCTO_INACTIVO" | "SIN_PERFIL" | "CALCULO" | "FOTOLIBRO" };
 
 export function instanciarPropuesta(items: ItemPresupuesto[], deps: DepsInstanciar): ResultadoInstanciar {
   const out: ItemPresupuesto[] = [];
   for (const it of items) {
+    if (it.fotolibro) {
+      const cot = cotizarFotolibroDeModelo(deps.fotolibro ?? null, it.fotolibro);
+      if (!cot.ok) return { ok: false, motivo: "FOTOLIBRO" };
+      // La elección del proveedor queda en la propuesta; el presupuesto lleva el precio de hoy.
+      const { fotolibro: _eleccion, ...resto } = it;
+      const renglon = (nombre: string, r: { precio: number; descripcion: string }): ItemPresupuesto => ({
+        ...resto,
+        id: deps.nuevaClave(),
+        productId: null,
+        nombre,
+        descripcion: r.descripcion.slice(0, MAX_DESCRIPCION_ITEM),
+        precioUnitario: r.precio,
+        modoPrecio: "LISTA",
+        calculo: null,
+      });
+      out.push(renglon(it.nombre, cot.libro));
+      if (cot.caja) out.push(renglon("Caja para fotolibro", cot.caja));
+      continue;
+    }
     if (it.modoPrecio === "CALCULO") {
       if (!deps.perfil) return { ok: false, motivo: "SIN_PERFIL" };
       const concepto = trabajoDesdeMotor((it.calculo as { entrada?: { presupuesto?: unknown } } | null)?.entrada?.presupuesto);
@@ -37,7 +62,8 @@ export function instanciarPropuesta(items: ItemPresupuesto[], deps: DepsInstanci
         deps.ahora,
       );
       if (!r.ok) return { ok: false, motivo: "CALCULO" };
-      out.push(r.item);
+      // La opción del presupuesto a la que pertenece (si la propuesta tiene opciones).
+      out.push(it.alternativaId ? { ...r.item, alternativaId: it.alternativaId } : r.item);
       continue;
     }
     const p = it.productId ? deps.productos.get(it.productId) : undefined;

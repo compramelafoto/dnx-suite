@@ -33,7 +33,9 @@ import { asegurarCatalogosDelWorkspace } from "./semillas";
  *   4. respuesta automática a la persona (0.6), SÓLO desde el formulario web: la propuesta modelo
  *      de la categoría si sale sola (etapa 2, Entrega B) o, si no salió, la común; nunca las dos.
  *      Si la propuesta no salió, además queda armado el borrador del presupuesto (sin enviar) para
- *      las categorías con "Armar el borrador solo" (`armarBorradorDePropuesta`).
+ *      las categorías con "Armar el borrador solo" (`armarBorradorDePropuesta`). En las categorías
+ *      con "Aprobar por Telegram" la propuesta no sale sola: va la común como acuse y el borrador
+ *      espera la aprobación (`lib/presupuesto-automatico/flujo.ts`).
  *
  * El formulario público NUNCA pierde una consulta: si la transacción falla por algo que no es
  * una validación (la base, un bloqueo, los catálogos, ninguna categoría), se guarda sólo la
@@ -495,14 +497,26 @@ export async function altaDeConsulta(
   //    que se arme y se mande el correo.
   if (origenDelAlta === "WEB") {
     await despuesDeResponder(async () => {
+      // Presupuesto automático con aprobación por Telegram (spec 2026-10-25): en esas categorías la
+      // propuesta modelo NO sale sola; la respuesta automática común hace de acuse y el presupuesto
+      // espera el "Aprobar y enviar" de Telegram.
+      let porTelegram = false;
+      try {
+        const { consultaVaPorTelegram } = await import("@/lib/presupuesto-automatico/flujo");
+        porTelegram = await consultaVaPorTelegram(workspaceId, leadId);
+      } catch (error) {
+        registrarFalla("consultaVaPorTelegram", error);
+      }
       let comun = true;
       let resultado: ResultadoPropuestaAutomatica | undefined;
-      try {
-        const { correspondeAutorespuestaComun, enviarPropuestaModelo } = await import("@/lib/presupuestos/propuesta-automatica");
-        resultado = await enviarPropuestaModelo(workspaceId, leadId, deps);
-        comun = correspondeAutorespuestaComun(resultado);
-      } catch (error) {
-        registrarFalla("enviarPropuestaModelo", error);
+      if (!porTelegram) {
+        try {
+          const { correspondeAutorespuestaComun, enviarPropuestaModelo } = await import("@/lib/presupuestos/propuesta-automatica");
+          resultado = await enviarPropuestaModelo(workspaceId, leadId, deps);
+          comun = correspondeAutorespuestaComun(resultado);
+        } catch (error) {
+          registrarFalla("enviarPropuestaModelo", error);
+        }
       }
       if (comun) {
         try {
@@ -510,6 +524,15 @@ export async function altaDeConsulta(
         } catch (error) {
           registrarFalla("responderConsultaNueva", error);
         }
+      }
+      if (porTelegram) {
+        try {
+          const { alLlegarConsulta } = await import("@/lib/presupuesto-automatico/flujo");
+          await alLlegarConsulta(workspaceId, leadId, "WEB", {}, deps);
+        } catch (error) {
+          registrarFalla("alLlegarConsulta", error);
+        }
+        return;
       }
       // Si la propuesta no salió, queda el borrador armado para el responsable (sin enviar nada).
       if (resultado !== "ENVIADA" && resultado !== "ERROR_TRAS_ENVIO") {

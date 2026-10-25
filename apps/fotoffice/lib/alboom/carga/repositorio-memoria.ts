@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { huella } from "../huella";
-import type { ActorCarga, FilaCarga, FuenteCruda, RepoCarga } from "./repositorio";
+import type { ActorCarga, CatalogosHistoricos, FilaCarga, FuenteCruda, RepoCarga } from "./repositorio";
 import { huellaCampo } from "./campos";
 import { claveEtiqueta } from "./normalizar";
 import type { Campos, Crudo, Decision, EntradaMapa, FilaMapa } from "./tipos";
@@ -35,6 +35,15 @@ export function crearRepoMemoria() {
     items: [] as ConWs<{ id: string; comboProductId: string; componentProductId: string; quantity: number; order: number }>[],
     costos: [] as ConWs<{ id: string; productId: string; concept: string; amountArs: string; daysFromEvent: number; supplierClientId: string | null; perUnit: boolean }>[],
     clientes: [] as ConWs<{ id: string; clientNumber: number; campos: Campos; creadoPor: ActorCarga }>[],
+    /** Lo histórico de la 8B-2 (consultas, pedidos, cobros…): una fila por registro creado. */
+    historicos: [] as ConWs<{ clave: string; tipo: string; id: string; datos: Campos; extra: Record<string, unknown> }>[],
+    /** Cuotas y citas marcadas como "ya avisadas" (lo que hace el escritor real para que los crons no avisen). */
+    recordatoriosCuota: [] as ConWs<{ cuotaId: string; dueDate: string }>[],
+    recordatoriosCita: [] as ConWs<{ citaId: string; startAt: string }>[],
+    /** Movimientos de la Caja operativa: ninguna parte de la carga escribe acá. */
+    movimientosCaja: [] as ConWs<{ id: string }>[],
+    /** Lo que ya existe en FOTOFFICE para los contextos de la 8B-2. */
+    catalogos: {} as Record<string, Partial<CatalogosHistoricos>>,
     /** Cantidad de escrituras (registros o mapa) hechas: la simulación tiene que dejarlo en 0. */
     escrituras: 0,
   };
@@ -72,6 +81,30 @@ export function crearRepoMemoria() {
     d.categoriasProducto.push({ workspaceId: ws, id, name: nombre });
     return id;
   }
+
+  /** Tipo de registro de FOTOFFICE de lo que escribe cada parte de la 8B-2. */
+  const TIPO_DE: Record<string, string> = {
+    consultas: "CONSULTA",
+    consultas_historial: "JOURNEY_STEP",
+    proyectos_historial: "JOURNEY_STEP",
+    consultas_notas: "NOTE",
+    consultas_actividades: "PERSON_EVENT",
+    consultas_correos: "MESSAGE",
+    presupuestos: "PRESUPUESTO",
+    pedidos: "PEDIDO",
+    cuotas: "PEDIDO_CUOTA",
+    costos_pedido: "CUENTA_PAGAR",
+    cuentas_pagar: "CUENTA_PAGAR",
+    pagos: "CUENTA_PAGAR",
+    cobros: "FINANZA_HISTORICA",
+    cuentas_cobrar: "FINANZA_HISTORICA",
+    movimientos_bancos: "FINANZA_HISTORICA",
+    contratos: "CONTRATO",
+    proyectos: "PROYECTO",
+    proyectos_participantes: "PROYECTO_PARTICIPANTE",
+    citas: "CITA",
+    tareas: "TAREA",
+  };
 
   const repo: RepoCarga = {
     async leerCrudos(ws, fuente: FuenteCruda, despuesDe, limite) {
@@ -136,6 +169,32 @@ export function crearRepoMemoria() {
         campos: { ...c.campos },
         tagKeys: d.asignaciones.filter((a) => a.workspaceId === ws && a.clientId === c.id).map((a) => d.etiquetas.find((e) => e.id === a.tagId)!.nameKey),
       }));
+    },
+
+    async idsExistentes(ws, tipo) {
+      const ids = deWs(d.historicos, ws).filter((h) => h.tipo === tipo).map((h) => h.id);
+      return new Set(ids);
+    },
+    async catalogosHistoricos(ws) {
+      const c = d.catalogos[ws] ?? {};
+      const pedidos = deWs(d.historicos, ws).filter((h) => h.tipo === "PEDIDO");
+      return {
+        numerosPedido: [...(c.numerosPedido ?? []), ...pedidos.map((h) => String(h.datos.number))],
+        numerosProyecto: [...(c.numerosProyecto ?? []), ...deWs(d.historicos, ws).filter((h) => h.tipo === "PROYECTO").map((h) => String(h.datos.number))],
+        numerosContrato: [...(c.numerosContrato ?? []), ...deWs(d.historicos, ws).filter((h) => h.tipo === "CONTRATO").map((h) => String(h.datos.number))],
+        presupuestosConPedido: [...(c.presupuestosConPedido ?? []), ...pedidos.map((h) => h.datos.presupuestoId).filter((x): x is string => typeof x === "string")],
+        categoriasNota: c.categoriasNota ?? [],
+        tiposCita: c.tiposCita ?? [],
+        rolesProyecto: c.rolesProyecto ?? [],
+        rubrosEgreso: c.rubrosEgreso ?? [],
+        imputado: (() => {
+          const out: Record<string, number> = { ...(c.imputado ?? {}) };
+          for (const h of deWs(d.historicos, ws).filter((x) => x.tipo === "COBRO")) {
+            for (const i of (h.extra.imputaciones as { cuotaId: string; amountArs: string }[] | undefined) ?? []) out[i.cuotaId] = (out[i.cuotaId] ?? 0) + Math.round(Number(i.amountArs) * 100);
+          }
+          return out;
+        })(),
+      };
     },
 
     async escribir(ws, clave, dec, filas, actor) {
@@ -222,8 +281,39 @@ export function crearRepoMemoria() {
             });
           } else Object.assign(d.costos.find((x) => x.id === id)!, v);
           break;
-        default:
-          throw new Error(`Parte sin escritor: ${clave}`);
+        case "circuitos":
+          id = nuevoId("circ");
+          d.circuitos.push({ workspaceId: ws, id, name: String(v.name), kind: String(v.kind) });
+          break;
+        case "etapas":
+          if (!d.circuitos.some((x) => x.workspaceId === ws && x.id === v.circuitId)) throw Object.assign(new Error("circuito ajeno"), { code: "P2025" });
+          id = nuevoId("etapa");
+          d.etapas.push({ workspaceId: ws, id, circuitId: String(v.circuitId), name: String(v.name) });
+          break;
+        default: {
+          const tipoBase = TIPO_DE[clave];
+          if (!tipoBase || !crear) throw new Error(`Parte sin escritor: ${clave}`);
+          // Como el de Prisma: los cobros sin pedido van al libro Histórico Alboom, no a Caja.
+          const tipo = tipoBase;
+          id = nuevoId(tipo.toLowerCase());
+          d.historicos.push({ workspaceId: ws, clave, tipo, id, datos: { ...v }, extra: structuredClone((dec.extra ?? {}) as Record<string, unknown>) });
+          if (clave === "cuotas") {
+            d.recordatoriosCuota.push({ workspaceId: ws, cuotaId: id, dueDate: String(v.dueDate) });
+            // Como el de Prisma: la cuota cobrada trae su cobro (sin Caja), imputado entero a ella.
+            if (v.cobrada === true) {
+              const pedido = d.historicos.find((h) => h.workspaceId === ws && h.id === v.pedidoId);
+              d.historicos.push({
+                workspaceId: ws,
+                clave,
+                tipo: "COBRO",
+                id: nuevoId("cobro"),
+                datos: { pedidoId: v.pedidoId ?? null, clientId: pedido?.datos.clientId ?? null, paidAt: v.paidAt ?? null, method: v.method ?? null, amountArs: v.amountArs ?? null, receiptNumber: v.receiptNumber ?? null },
+                extra: { imputaciones: [{ cuotaId: id, amountArs: String(v.amountArs) }] },
+              });
+            }
+          }
+          if (clave === "citas") d.recordatoriosCita.push({ workspaceId: ws, citaId: id, startAt: String(v.startAt) });
+        }
       }
       upsertMapa(ws, filas, id);
       return id;

@@ -105,7 +105,7 @@ Se publica en **dos entregas** **[decisión]**.
 
 - IVA (DNX no factura con IVA; el campo queda en 0 sin calcular).
 - Varias listas de precios.
-- Alternativas A/B/C dentro del mismo presupuesto.
+- Alternativas A/B/C dentro del mismo presupuesto. (Hecho el 25/10/2026: `2026-10-25-presupuesto-con-opciones-design.md`.)
 - Plan de cuotas: Etapa 3.
 - Adjuntos en las plantillas.
 - Firma de contrato: Etapa 5.

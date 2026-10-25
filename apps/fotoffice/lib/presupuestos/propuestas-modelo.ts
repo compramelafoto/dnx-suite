@@ -3,10 +3,12 @@ import { prisma, type Prisma } from "@repo/db";
 import { NO_ES_INSUMO } from "@/lib/sales/vendible";
 import { MENSAJES_PRESUPUESTO, puedeConfigurarPresupuestos, type CtxPresupuestos } from "./acceso";
 import { validarItems, type ItemPresupuesto, type ResultadoValidacion } from "./constantes";
+import { validarFotolibroDeModelo } from "./fotolibro-de-modelo";
 import { itemsDeLaPropuesta } from "./items-de-la-propuesta";
-import { TIPOS_TRABAJO } from "./panel-cuanto-cobro";
+import { CAMPO_DE_ACTIVIDAD, TIPOS_TRABAJO } from "./panel-cuanto-cobro";
 import { asegurarPlantillasPresupuesto } from "./plantillas";
 import { MAX_TEXTO_VERSION } from "./versiones";
+import { asignarItems, validarAlternativas, type Alternativa } from "./alternativas";
 
 /**
  * Propuesta modelo por categoría de consulta (etapa 2, Entrega B, spec §2 B.13 y §3.4).
@@ -20,7 +22,9 @@ import { MAX_TEXTO_VERSION } from "./versiones";
  * - configurar: SÓLO con `configurar` (dueño y administradores), como el resto de
  *   Configuración → Presupuestos;
  * - los ítems son productos activos del catálogo (modo LISTA: al enviarla, nombre, descripción y
- *   precio se toman del catálogo en ese momento) o conceptos calculados (CALCULO, sin producto):
+ *   precio se toman del catálogo en ese momento), fotolibros del proveedor (LISTA sin producto, con
+ *   `fotolibro`: se cotizan con la lista del día, `./fotolibro-de-modelo.ts`) o conceptos
+ *   calculados (CALCULO, sin producto):
  *   de éstos se guarda SÓLO el trabajo (`calculo.entrada.presupuesto`), NUNCA el perfil de precios
  *   (privado); el precio se calcula al instanciar la propuesta con el perfil del workspace
  *   (`./instanciar-propuesta.ts`). Mismos topes que un presupuesto (`validarItems`);
@@ -38,6 +42,7 @@ export const MENSAJES_PROPUESTA_MODELO = {
   producto: MENSAJES_PRESUPUESTO.producto,
   sinPerfil: "Para que salga sola con conceptos calculados, primero cargá tu perfil en Configuración → Precios.",
   calculoSinPrecio: "Uno de los conceptos calculados no da precio con tu perfil actual: revisalo antes de activar el envío automático.",
+  fotolibroSinPrecio: "Uno de los fotolibros ya no está en la lista de hoy del proveedor: elegilo de nuevo antes de activar el envío automático.",
   plantilla: "Elegí una plantilla de correo de tipo Presupuesto.",
   sinItems: "Para que salga sola, la propuesta necesita al menos un ítem.",
   sinPlantilla: "Para que salga sola, elegí la plantilla de correo con la que se envía.",
@@ -49,6 +54,8 @@ export const MENSAJES_PROPUESTA_MODELO = {
 export type PropuestaModelo = {
   categoriaId: string;
   items: ItemPresupuesto[];
+  /** Opciones de la propuesta (Básico, Premium…); [] si es una propuesta común. */
+  alternativas: Alternativa[];
   condiciones: string | null;
   enviarSola: boolean;
   plantillaId: string | null;
@@ -67,6 +74,8 @@ export type ResumenPropuestaCategoria = {
 export type DatosPropuestaModelo = {
   categoriaId: unknown;
   items: unknown;
+  /** Opciones (1 a 4). Sin el campo o vacío: propuesta común. */
+  alternativas?: unknown;
   condiciones?: unknown;
   enviarSola?: unknown;
   plantillaId?: unknown;
@@ -91,16 +100,31 @@ export type ConceptoDePropuesta = { entrada: { presupuesto: unknown } };
 const CAMPOS_DEL_CONCEPTO = [
   "name", "itemType", "quantity", "coverageHours", "editingHours", "deliveryHours", "travelHours", "directCost",
   "supplierCost", "productionHours", "shippingCost", "outsourcedLaborCost", "managementHours", "expenseCost",
-  "desiredMarginPercent",
+  "desiredMarginPercent", "estimatedShots", "packagingCost", "cameraId",
 ] as const;
 
 const objetoPlano = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
 const comoTexto = (v: unknown): string | undefined => (typeof v === "string" ? v : typeof v === "number" && Number.isFinite(v) ? String(v) : undefined);
 
 /**
+ * Quién hace cada parte (Mi estudio), también con lista blanca: persona, actividad conocida y
+ * horas. Sin esto el trabajo se cobraba entero al valor hora del estudio.
+ */
+function asignacionesDelConcepto(raw: unknown): { personId: string; activity: string; hours: string }[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.flatMap((a) => {
+    if (!objetoPlano(a) || typeof a.personId !== "string" || !a.personId.trim()) return [];
+    if (typeof a.activity !== "string" || !Object.hasOwn(CAMPO_DE_ACTIVIDAD, a.activity)) return [];
+    const hours = comoTexto(a.hours);
+    return hours === undefined ? [] : [{ personId: a.personId, activity: a.activity, hours }];
+  });
+}
+
+/**
  * El trabajo del concepto, armado con una lista blanca: sólo lo que lee `trabajoDesdeMotor`
- * (primer concepto, tipo de trabajo, horas con el cliente, precio manual). Nada de `perfil` ni
- * de otros campos. null si no hay un primer concepto que sea un objeto.
+ * (primer concepto, tipo de trabajo, horas con el cliente, precio manual, quién hace cada parte,
+ * línea del estudio). Nada de `perfil` ni de otros campos. null si no hay un primer concepto que
+ * sea un objeto.
  */
 function trabajoDelConcepto(calculo: unknown): unknown | null {
   if (!objetoPlano(calculo) || !objetoPlano(calculo.entrada)) return null;
@@ -111,18 +135,23 @@ function trabajoDelConcepto(calculo: unknown): unknown | null {
   const nombre = comoTexto(c.name);
   if (nombre === undefined || nombre.trim() === "") return null;
   if (!TIPOS_TRABAJO.some((t) => t.valor === c.itemType)) return null;
-  const concepto: Record<string, string> = {};
+  const concepto: Record<string, unknown> = {};
   for (const k of CAMPOS_DEL_CONCEPTO) {
     const t = comoTexto(c[k]);
     if (t !== undefined) concepto[k] = t;
   }
+  if (c.shotsPer === "job") concepto.shotsPer = "job";
+  const asignaciones = asignacionesDelConcepto(c.assignments);
+  if (asignaciones.length > 0) concepto.assignments = asignaciones;
   const client = objetoPlano(presupuesto.client) ? presupuesto.client : {};
   const horas = objetoPlano(client.hours) ? comoTexto(client.hours.salesHours) : undefined;
   const jobType = comoTexto(client.jobType);
   const chosenPrice = comoTexto(presupuesto.chosenPrice);
+  const linea = typeof presupuesto.businessLineId === "string" && presupuesto.businessLineId.trim() ? presupuesto.businessLineId : undefined;
   return {
     client: { ...(jobType !== undefined ? { jobType } : {}), ...(horas !== undefined ? { hours: { salesHours: horas } } : {}) },
     ...(chosenPrice !== undefined ? { chosenPrice } : {}),
+    ...(linea !== undefined ? { businessLineId: linea } : {}),
     concepts: [concepto],
   };
 }
@@ -136,9 +165,15 @@ export function validarItemsDeModelo(raw: unknown): ResultadoValidacion<ItemPres
   const v = validarItems(raw);
   if (!v.ok) return v;
   const out: ItemPresupuesto[] = [];
-  for (const it of v.valor) {
+  for (const [k, it] of v.valor.entries()) {
     if (it.modoPrecio === "LISTA") {
-      if (it.productId === null) return { ok: false, error: MENSAJES_PROPUESTA_MODELO.soloLista };
+      if (it.productId === null) {
+        // Sin producto, sólo un fotolibro del proveedor (se cotiza con la lista al enviarla).
+        const fotolibro = validarFotolibroDeModelo((raw as { fotolibro?: unknown }[])[k]?.fotolibro);
+        if (!fotolibro) return { ok: false, error: MENSAJES_PROPUESTA_MODELO.soloLista };
+        out.push({ ...it, precioUnitario: 0, calculo: null, fotolibro });
+        continue;
+      }
       out.push({ ...it, calculo: null });
     } else if (it.modoPrecio === "CALCULO") {
       const presupuesto = it.productId === null ? trabajoDelConcepto(it.calculo) : null;
@@ -151,6 +186,35 @@ export function validarItemsDeModelo(raw: unknown): ResultadoValidacion<ItemPres
     }
   }
   return { ok: true, valor: out };
+}
+
+/**
+ * PURO. Lo que hay en `FotofficePropuestaModelo.items`: la lista de ítems de siempre o, con
+ * opciones, `{ alternativas, items }` (sin migración: la columna es JSON). Lo de antes se lee igual.
+ */
+export function contenidoDelModelo(raw: unknown): { items: unknown; alternativas: unknown } {
+  if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+    const r = raw as { items?: unknown; alternativas?: unknown };
+    return { items: r.items ?? [], alternativas: r.alternativas ?? [] };
+  }
+  return { items: raw, alternativas: [] };
+}
+
+/** PURO. Valida opciones e ítems de la propuesta juntos (cada ítem en una opción que existe). */
+export function validarContenidoDeModelo(
+  itemsCrudos: unknown,
+  alternativasCrudas: unknown,
+): ResultadoValidacion<{ items: ItemPresupuesto[]; alternativas: Alternativa[] }> {
+  const alternativas = validarAlternativas(alternativasCrudas);
+  if (!alternativas.ok) return alternativas;
+  const items = validarItemsDeModelo(itemsCrudos);
+  if (!items.ok) return items;
+  return { ok: true, valor: { items: asignarItems(items.valor, alternativas.valor), alternativas: alternativas.valor } };
+}
+
+/** Lo que se guarda en la columna: la lista sola si no hay opciones (exactamente como antes). */
+export function contenidoParaGuardar(items: ItemPresupuesto[], alternativas: Alternativa[]): unknown {
+  return alternativas.length > 0 ? { alternativas, items } : items;
 }
 
 function textoCondiciones(v: unknown): string | null | undefined {
@@ -188,10 +252,12 @@ export async function leerPropuestaModelo(workspaceId: string, categoriaId: stri
     select: { categoryId: true, items: true, terms: true, autoSendOnWeb: true, templateId: true, updatedAt: true },
   });
   if (!f) return null;
-  const items = validarItemsDeModelo(f.items);
+  const crudo = contenidoDelModelo(f.items);
+  const contenido = validarContenidoDeModelo(crudo.items, crudo.alternativas);
   return {
     categoriaId: f.categoryId,
-    items: items.ok ? items.valor : [],
+    items: contenido.ok ? contenido.valor.items : [],
+    alternativas: contenido.ok ? contenido.valor.alternativas : [],
     condiciones: f.terms,
     enviarSola: f.autoSendOnWeb,
     plantillaId: f.templateId,
@@ -225,7 +291,10 @@ export async function listarPropuestasModelo(ctx: CtxPresupuestos): Promise<Resu
       grupo: c.group,
       tienePropuesta: p !== undefined,
       enviarSola: p?.autoSendOnWeb === true,
-      cantidadItems: Array.isArray(p?.items) ? p.items.length : 0,
+      cantidadItems: (() => {
+        const items = contenidoDelModelo(p?.items).items;
+        return Array.isArray(items) ? items.length : 0;
+      })(),
     };
   });
 }
@@ -251,8 +320,10 @@ export async function guardarPropuestaModelo(ctx: CtxPresupuestos, datos: DatosP
   const { workspaceId } = ctx;
   const categoriaId = datos.categoriaId;
 
-  const items = validarItemsDeModelo(datos.items);
-  if (!items.ok) return no(items.error);
+  const contenido = validarContenidoDeModelo(datos.items, datos.alternativas);
+  if (!contenido.ok) return no(contenido.error);
+  const items = { valor: contenido.valor.items };
+  const alternativas = contenido.valor.alternativas;
   const condiciones = textoCondiciones(datos.condiciones);
   if (condiciones === undefined) return no(MENSAJES_PROPUESTA_MODELO.texto);
   if (datos.enviarSola !== undefined && typeof datos.enviarSola !== "boolean") return no(MENSAJES_PROPUESTA_MODELO.datosInvalidos);
@@ -276,6 +347,7 @@ export async function guardarPropuestaModelo(ctx: CtxPresupuestos, datos: DatosP
     if (!real.ok) {
       if (real.motivo === "SIN_PERFIL") return no(MENSAJES_PROPUESTA_MODELO.sinPerfil);
       if (real.motivo === "CALCULO") return no(MENSAJES_PROPUESTA_MODELO.calculoSinPrecio);
+      if (real.motivo === "FOTOLIBRO") return no(MENSAJES_PROPUESTA_MODELO.fotolibroSinPrecio);
       return no(MENSAJES_PROPUESTA_MODELO.producto);
     }
   }
@@ -290,7 +362,7 @@ export async function guardarPropuestaModelo(ctx: CtxPresupuestos, datos: DatosP
   if (enviarSola && plantillaId === null) return no(MENSAJES_PROPUESTA_MODELO.sinPlantilla);
 
   const valores = {
-    items: items.valor as unknown as Prisma.InputJsonValue,
+    items: contenidoParaGuardar(items.valor, alternativas) as Prisma.InputJsonValue,
     terms: condiciones,
     autoSendOnWeb: enviarSola,
     templateId: plantillaId,

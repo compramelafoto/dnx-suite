@@ -7445,6 +7445,10 @@ model Workspace {
   fotofficeCobros                FotofficeCobro[]
   fotofficeCobroImputaciones     FotofficeCobroImputacion[]
   fotofficeRubros                FotofficeRubro[]
+  /// Histórico de Caja (etapa E): relaciones inversas, no son columnas.
+  fotofficeHistoricoLotes        FotofficeHistoricoLote[]
+  fotofficeHistoricoMovimientos  FotofficeHistoricoMovimiento[]
+  fotofficeHistoricoMapeos       FotofficeHistoricoMapeo[]
   fotofficeCuentasPagar          FotofficeCuentaPagar[]
   fotofficeCuotaRecordatorios    FotofficeCuotaRecordatorio[]
   fotofficePedidoAjustes         FotofficePedidoAjustes?
@@ -7497,6 +7501,7 @@ model Workspace {
   fotofficeAlboomExtracciones    FotofficeAlboomExtraccion[]
   fotofficeAlboomMapas           FotofficeAlboomMapa[]
   fotofficeAlboomCargas          FotofficeAlboomCarga[]
+  fotofficeAlboomFinanzas        FotofficeAlboomFinanza[]
   fotofficeContratoAjustes       FotofficeContratoAjustes?
   fotofficeInformesAjustes       FotofficeInformesAjustes?
   clientAudits                   ClientAudit[]
@@ -21913,6 +21918,102 @@ model FotofficeRubro {
   @@index([parentCategoryId])
 }
 
+/// Histórico de Caja (etapa E, spec 7.6): un lote por mes importado de los libros viejos.
+/// NO es Caja: no toca saldos, turnos ni arqueos (no son `CashMovement`). Re-importar un mes reemplaza
+/// sus movimientos. estado: BORRADOR | CONFIRMADO | DESCARTADO; mes: "AAAA-MM" (CHECK en el SQL).
+/// Los informes y el tablero sólo suman los lotes CONFIRMADOS.
+model FotofficeHistoricoLote {
+  id                  String    @id @default(cuid())
+  workspaceId         String
+  mes                 String
+  estado              String    @default("BORRADOR")
+  /// Nombre del archivo importado (sin ruta).
+  archivo             String
+  /// sha-256 del contenido del lote: misma entrada, misma huella.
+  huella              String
+  /// Filas del archivo (sin estimados).
+  filas               Int
+  ingresosArs         Decimal   @db.Decimal(14, 2)
+  /// Egresos anotados en el libro (4…, 5… y 6…), con signo negativo. Sin estimados.
+  egresosArs          Decimal   @db.Decimal(14, 2)
+  /// Gastos estimados del mes, con signo negativo.
+  estimadosArs        Decimal   @db.Decimal(14, 2)
+  filasRevisar        Int       @default(0)
+  /// Resumen para revisar (totales por clase y rubro, estimados, faltantes). Lo valida `lib/historico-caja`.
+  resumen             Json      @default("{}")
+  /// Avisos del mes, p. ej. "Gastos fijos incompletos".
+  avisos              String[]  @default([])
+  confirmadoPorUserId Int?
+  confirmadoAt        DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  workspace   Workspace                      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  movimientos FotofficeHistoricoMovimiento[]
+
+  @@unique([workspaceId, mes])
+  @@index([workspaceId, estado])
+}
+
+/// Un movimiento del histórico de Caja. Importe con signo: + entra, − sale (CHECK distinto de 0).
+/// clase: INGRESO | COSTO_VARIABLE | GASTO_FIJO | RETIRO_DUENO | MOVIMIENTO_INTERNO | SIN_CLASIFICAR
+/// (sale del código de rubro: 3, 4, 5, 6 y 0). origen: CSV | EXTRACTO | ESTIMADO; `estimado` va con ESTIMADO.
+model FotofficeHistoricoMovimiento {
+  id                  String   @id @default(cuid())
+  workspaceId         String
+  loteId              String
+  orden               Int
+  fecha               DateTime @db.Date
+  turno               String?
+  /// EFECTIVO | DIGITAL
+  medio               String?
+  conceptoOriginal    String
+  conceptoNormalizado String
+  importeArs          Decimal  @db.Decimal(14, 2)
+  clase               String
+  rubroCodigo         String?
+  rubroNombre         String?
+  /// Clave de la regla de mapeo que lo clasificó ("CONCEPTO|signo|monto mínimo").
+  regla               String?
+  origen              String   @default("CSV")
+  estimado            Boolean  @default(false)
+  revisar             Boolean  @default(false)
+  motivosRevision     String[] @default([])
+  /// Dónde está en la planilla original ("archivo | pestaña | celda").
+  referenciaOrigen    String?
+  filaOrigen          Int?
+  observacion         String?
+  createdAt           DateTime @default(now())
+
+  workspace Workspace              @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  lote      FotofficeHistoricoLote @relation(fields: [loteId], references: [id], onDelete: Cascade)
+
+  @@unique([loteId, orden])
+  @@index([workspaceId, fecha])
+  @@index([workspaceId, clase, fecha])
+}
+
+/// Mapeo aprendido del histórico: concepto (+ signo y monto mínimo) → rubro. Se guarda al confirmar
+/// un lote. clave = "CONCEPTO|signo|monto mínimo".
+model FotofficeHistoricoMapeo {
+  id             String   @id @default(cuid())
+  workspaceId    String
+  clave          String
+  concepto       String
+  /// "+" | "-" | null (los dos)
+  signo          String?
+  montoMinimoArs Decimal? @db.Decimal(14, 2)
+  clase          String
+  rubroCodigo    String
+  rubroNombre    String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, clave])
+}
+
 /// Cuenta a pagar (Entrega B1): un costo de un pedido (o suelto) que se le debe a un proveedor.
 /// Nace de los costos-plantilla del catálogo (`lib/pedidos/costos.ts`) o se carga a mano. Nunca se
 /// borra una pagada: el pago se anula con motivo y un contramovimiento en Caja.
@@ -26183,6 +26284,44 @@ model FotofficeAlboomCrudo {
   @@index([workspaceId, entity])
 }
 
+/// Etapa 8B-2: libro "Histórico Alboom". Lo que el dinero de Alboom deja y no tiene lugar sin tocar la Caja: los
+/// movimientos de bancos y los cobros y cuentas a cobrar sin pedido. De SÓLO LECTURA y FUERA de la Caja: no suma en los
+/// saldos de las cuentas, ni en los informes de Caja, ni en los puntos del Club (desde el 19/10/2026 DNX opera la Caja
+/// en FOTOFFICE). source BANCO | COBRO | A_COBRAR; kind INGRESO | EGRESO | TRANSFERENCIA | A_COBRAR | A_PAGAR (CHECK).
+/// `clientId` y `pedidoId` son referencias sueltas (sin FK): un borrado en FOTOFFICE no toca el histórico.
+model FotofficeAlboomFinanza {
+  id             String    @id @default(cuid())
+  workspaceId    String
+  alboomEntity   String
+  alboomId       String
+  source         String
+  kind           String
+  /// Siempre positivo; el sentido lo da `kind`.
+  amountArs      Decimal   @db.Decimal(14, 2)
+  /// Fecha del movimiento (fecha de Argentina).
+  occurredOn     DateTime  @db.Date
+  dueOn          DateTime? @db.Date
+  /// Banco o caja de Alboom ("1.1.<id>") y su nombre.
+  accountCode    String?
+  accountName    String?
+  methodName     String?
+  documentNumber String?
+  /// Categoría del asiento en Alboom (71 débito, 72 depósito, 74 transferencia, 83 cobro, 84 pago…).
+  alboomCategory String?
+  alboomOrderId  String?
+  clientId       String?
+  pedidoId       String?
+  memo           String?
+  cleared        Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, alboomEntity, alboomId])
+  @@index([workspaceId, occurredOn])
+  @@index([workspaceId, clientId])
+}
+
 /// Etapa 8A: una extracción del CRM de Alboom. status PENDIENTE|CORRIENDO|LISTA|ERROR|CANCELADA (CHECK); a lo sumo
 /// una PENDIENTE o CORRIENDO por workspace (índice único parcial, no lo modela Prisma). `progress` guarda el avance
 /// por entidad (página, cantidades, errores) para retomar en la próxima tanda del cron. `lockedUntil` evita que
@@ -26816,6 +26955,178 @@ model FotofficeAliasProveedor {
   @@index([workspaceId, proveedorId])
 }
 
+// ---------------------------------------------------------------------------
+// FOTOFFICE: facturación electrónica con ARCA (WSAA + WSFEv1), sólo comprobantes clase C.
+// Diseño: apps/fotoffice/docs/superpowers/specs/2026-09-13-negocio-caja-ventas-servicio-tecnico-y-club-design.md §11
+//
+// Sin claves foráneas a Workspace, Sale, Client ni FotofficePedido, a propósito: un comprobante
+// fiscal se conserva diez años aunque se borre la venta, el cliente o el workspace.
+// ---------------------------------------------------------------------------
+
+/// La identidad fiscal del negocio. Una por workspace.
+model FotofficeFiscalProfile {
+  id                 String   @id @default(cuid())
+  workspaceId        String   @unique
+  /// 11 dígitos, sin guiones.
+  cuit               String
+  razonSocial        String
+  /// MONOTRIBUTO | EXENTO (esta versión sólo emite clase C).
+  ivaCondition       String   @default("MONOTRIBUTO")
+  domicilioFiscal    String
+  ingresosBrutos     String?
+  /// Fecha de inicio de actividades, AAAA-MM-DD (texto: es una fecha civil, sin hora ni zona).
+  inicioActividades  String?
+  /// Punto de venta de Web Services. Distinto del que se usa para facturar a mano.
+  defaultPointOfSale Int?
+  /// HOMOLOGACION | PRODUCCION: con qué ambiente se emite.
+  activeEnvironment  String   @default("HOMOLOGACION")
+  updatedByUserId    Int?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+/// La credencial de ARCA de un ambiente: la clave privada (cifrada con el cofre de integraciones,
+/// cuatro columnas inseparables), el pedido de certificado y, cuando se sube, el certificado.
+model FotofficeArcaCredential {
+  id              String    @id @default(cuid())
+  workspaceId     String
+  /// HOMOLOGACION | PRODUCCION
+  environment     String
+  alias           String
+  /// ESPERANDO_CERTIFICADO | ACTIVA
+  status          String    @default("ESPERANDO_CERTIFICADO")
+  csrPem          String
+  keyCiphertext   String
+  keyNonce        String
+  keyAuthTag      String
+  keyVersion      String
+  /// El certificado es público (lo firma ARCA): va en claro para poder leer su vencimiento.
+  certPem         String?
+  certSerial      String?
+  certExpiresAt   DateTime?
+  certUploadedAt  DateTime?
+  createdByUserId Int?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([workspaceId, environment])
+}
+
+/// El ticket de doce horas de WSAA, guardado para no pedir uno por operación.
+model FotofficeArcaTicket {
+  id             String   @id @default(cuid())
+  workspaceId    String
+  environment    String
+  service        String
+  token          String
+  sign           String
+  generationTime DateTime
+  expirationTime DateTime
+  updatedAt      DateTime @updatedAt
+
+  @@unique([workspaceId, environment, service])
+}
+
+/// Un comprobante electrónico (Factura C o Nota de crédito C). Una vez AUTORIZADA no se edita ni se
+/// borra: se corrige con una nota de crédito que la referencia (`relatedInvoiceId`).
+///
+/// En el SQL, además: un solo comprobante vivo por venta y una sola nota de crédito viva por
+/// factura (índices únicos parciales).
+model FotofficeInvoice {
+  id                     String    @id @default(cuid())
+  workspaceId            String
+  environment            String
+  pointOfSale            Int
+  /// 11 = Factura C, 13 = Nota de crédito C.
+  cbteTipo               Int
+  /// Se asigna al emitir; nulo en borrador o si ARCA lo rechazó.
+  cbteNumero             Int?
+  /// 1 productos, 2 servicios, 3 ambos.
+  concepto               Int
+  /// AAAAMMDD, fecha de Argentina.
+  cbteFch                String
+  servDesde              String?
+  servHasta              String?
+  vtoPago                String?
+  clientId               String?
+  /// Instantáneas del receptor: la factura se lee igual dentro de diez años.
+  receptorDocTipo        Int
+  receptorDocNro         String
+  receptorName           String
+  receptorIvaCondition   String
+  receptorCondicionIvaId Int
+  receptorDomicilio      String?
+  /// Instantánea del emisor (CUIT, razón social, condición, domicilio, IIBB, inicio de actividades).
+  emisorSnapshot         Json
+  impNeto                Decimal   @db.Decimal(14, 2)
+  impIVA                 Decimal   @default(0) @db.Decimal(14, 2)
+  impTotConc             Decimal   @default(0) @db.Decimal(14, 2)
+  impOpEx                Decimal   @default(0) @db.Decimal(14, 2)
+  impTrib                Decimal   @default(0) @db.Decimal(14, 2)
+  impTotal               Decimal   @db.Decimal(14, 2)
+  cae                    String?
+  /// AAAAMMDD
+  caeVto                 String?
+  /// BORRADOR | PENDIENTE | AUTORIZADA | RECHAZADA | ANULADA
+  status                 String    @default("BORRADOR")
+  /// El pedido y la respuesta crudos, siempre.
+  arcaRequestJson        Json?
+  arcaResponseJson       Json?
+  sentAt                 DateTime?
+  authorizedAt           DateTime?
+  relatedInvoiceId       String?
+  saleId                 String?
+  pedidoId               String?
+  membershipChargeId     String?
+  createdByUserId        Int?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  relatedInvoice FotofficeInvoice?       @relation("FotofficeInvoiceCorrige", fields: [relatedInvoiceId], references: [id], onDelete: Restrict)
+  corrections    FotofficeInvoice[]      @relation("FotofficeInvoiceCorrige")
+  items          FotofficeInvoiceItem[]
+  events         FotofficeInvoiceEvent[]
+
+  @@unique([workspaceId, environment, pointOfSale, cbteTipo, cbteNumero])
+  @@index([workspaceId, status])
+  @@index([workspaceId, createdAt])
+  @@index([workspaceId, saleId])
+  @@index([workspaceId, pedidoId])
+  @@index([relatedInvoiceId])
+}
+
+model FotofficeInvoiceItem {
+  id           String   @id @default(cuid())
+  invoiceId    String
+  order        Int      @default(0)
+  description  String
+  qty          Int
+  unitPriceArs Decimal  @db.Decimal(14, 2)
+  /// Alícuota de IVA del renglón de origen. En un comprobante C no se informa a ARCA.
+  ivaRate      Decimal? @db.Decimal(5, 2)
+  lineTotalArs Decimal  @db.Decimal(14, 2)
+
+  invoice FotofficeInvoice @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+
+  @@index([invoiceId])
+}
+
+/// La historia del comprobante: creado, enviado, sin respuesta, conciliado, autorizado, rechazado.
+model FotofficeInvoiceEvent {
+  id          String   @id @default(cuid())
+  invoiceId   String
+  type        String
+  actorUserId Int?
+  actorLabel  String?
+  note        String?
+  data        Json?
+  createdAt   DateTime @default(now())
+
+  invoice FotofficeInvoice @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+
+  @@index([invoiceId, createdAt])
+}
+
 // ─── FOTOFFICE · Equipo (etapas 1 y 2): fichas, jornadas, pase de turno y mensajes ───
 // Tablas nuevas, sin claves foráneas a tablas existentes (la ficha se une a
 // `WorkspaceMembership` por `membershipId` y `userId`, y las consultas lo verifican).
@@ -26986,4 +27297,92 @@ model FotofficeEquipoMensaje {
 
   @@unique([workspaceId, userId, fecha, momento])
   @@index([workspaceId, userId, createdAt])
+}
+
+// ─── FOTOFFICE · Presupuesto automático con aprobación por Telegram (2026-10-25) ────────────────
+// Sólo tablas nuevas, sin relaciones con tablas existentes: publicar el código antes del SQL no rompe
+// ningún modelo (el código tolera que falten y queda todo apagado).
+// Diseño: apps/fotoffice/docs/superpowers/specs/2026-10-25-presupuesto-automatico-telegram-design.md
+
+/// El bot de Telegram de un workspace y el chat que recibe los avisos. El token NO está acá: vive
+/// cifrado en `WorkspaceIntegration` (clave `telegram`). El secreto del webhook se guarda sólo como hash.
+model FotofficeTelegramConexion {
+  id                String    @id @default(cuid())
+  workspaceId       String    @unique
+  /// Id numérico del bot (lo devuelve `getMe`).
+  botId             String
+  /// Usuario del bot, sin "@".
+  botUsername       String
+  /// Chat privado vinculado con /start <código>; nulo hasta vincular.
+  chatId            String?
+  /// Nombre de quien vinculó el chat (para mostrar).
+  chatNombre        String?
+  /// Código de un solo uso para vincular el chat, y su vencimiento.
+  linkCode          String?
+  linkCodeExpiresAt DateTime?
+  /// SHA-256 (hex) del `secret_token` de setWebhook.
+  webhookSecretHash String
+  linkedAt          DateTime?
+  connectedByUserId Int?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}
+
+/// Presupuesto automático por categoría de consulta: el interruptor "Aprobar por Telegram"
+/// (apagado por omisión) y el portfolio que ve el cliente en la página de su presupuesto.
+model FotofficePresupuestoAutoCategoria {
+  id              String   @id @default(cuid())
+  workspaceId     String
+  categoryId      String
+  telegramEnabled Boolean  @default(false)
+  /// Lista de `{ tipo: "GALERIA" | "FOTO" | "SUBIDA", ... }` (la valida `lib/presupuesto-automatico/portfolio-items.ts`).
+  portfolio       Json?
+  updatedByUserId Int?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([workspaceId, categoryId])
+}
+
+/// Ajustes del presupuesto automático de un workspace: el acuse inmediato por WhatsApp.
+model FotofficePresupuestoAutoAjustes {
+  id              String   @id @default(cuid())
+  workspaceId     String   @unique
+  acuseEnabled    Boolean  @default(true)
+  acuseText       String?
+  updatedByUserId Int?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+/// Un presupuesto armado solo que espera la aprobación de Daniel. Una por consulta (nunca dos avisos).
+/// `status`: AVISADO | AVISO_FALLIDO | SIN_PROPUESTA | ENVIANDO | ENVIADO | FALLO.
+model FotofficePresupuestoAprobacion {
+  id                String    @id @default(cuid())
+  workspaceId       String
+  leadId            String
+  /// Nulo cuando la categoría no tiene propuesta modelo (el aviso ofrece abrir la consulta).
+  presupuestoId     String?
+  categoryId        String?
+  /// WEB | WHATSAPP
+  origin            String
+  /// Teléfono de WhatsApp (E.164 sin "+") cuando la consulta entró por el bot.
+  waId              String?
+  status            String
+  telegramChatId    String?
+  telegramMessageId String?
+  /// `{ email: "...", whatsapp: "..." }` con el resultado de cada canal.
+  channels          Json?
+  errorCode         String?
+  /// TELEGRAM | PANEL
+  approvedVia       String?
+  approvedByUserId  Int?
+  approvedAt        DateTime?
+  sentAt            DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@unique([workspaceId, leadId])
+  @@index([workspaceId, status, createdAt])
+  @@index([workspaceId, waId])
 }

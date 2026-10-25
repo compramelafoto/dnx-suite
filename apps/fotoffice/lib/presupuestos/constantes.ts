@@ -7,6 +7,7 @@
  * ítems y el SQL no lo puede chequear: por eso se valida acá (`validarItem`).
  */
 import type { CuantoCobroPriceBuildUp } from "@repo/cuanto-cobro-core";
+import type { FotolibroDeModelo } from "./fotolibro-de-modelo";
 
 // --- Estados ----------------------------------------------------------------------------------
 
@@ -136,6 +137,16 @@ export type ItemPresupuesto = {
   seccion: string | null;
   /** Se muestra aparte y no suma al total. */
   opcional: boolean;
+  /**
+   * La opción del presupuesto a la que pertenece (Básico, Intermedio, Premium…; `./alternativas.ts`).
+   * Sin opciones, no está (o es null): todo funciona como siempre.
+   */
+  alternativaId?: string | null;
+  /**
+   * Sólo en una propuesta modelo: el fotolibro elegido en la calculadora, que se cotiza con la lista
+   * del proveedor al enviarla (`./fotolibro-de-modelo.ts`). En un presupuesto no existe.
+   */
+  fotolibro?: FotolibroDeModelo;
 };
 
 /** El ítem tal como lo ven el cliente y quien no tiene permiso de costos. */
@@ -153,6 +164,7 @@ export function itemSinDatosInternos(item: ItemPresupuesto): ItemPublico {
     modoPrecio: item.modoPrecio,
     seccion: item.seccion,
     opcional: item.opcional,
+    ...(item.alternativaId ? { alternativaId: item.alternativaId } : {}),
   };
 }
 
@@ -227,6 +239,8 @@ export function validarItem(raw: unknown): ResultadoValidacion<ItemPresupuesto> 
   if (seccion !== null && seccion.length > MAX_SECCION_ITEM) {
     return { ok: false, error: `La sección de "${nombre}" puede tener hasta ${MAX_SECCION_ITEM} caracteres.` };
   }
+  const alternativaId = textoOpcional(r.alternativaId);
+  if (alternativaId !== null && alternativaId.length > MAX_CLAVE_ITEM) return { ok: false, error: `La opción de "${nombre}" no es válida.` };
   return {
     ok: true,
     valor: {
@@ -241,6 +255,8 @@ export function validarItem(raw: unknown): ResultadoValidacion<ItemPresupuesto> 
       calculo,
       seccion,
       opcional: r.opcional === true,
+      // Sólo si tiene: así un presupuesto sin opciones queda idéntico a como era.
+      ...(alternativaId !== null ? { alternativaId } : {}),
     },
   };
 }

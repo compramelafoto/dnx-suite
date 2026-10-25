@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@repo/db";
 import { PageHeader } from "@/components/page-header";
 import { EditorPropuestaModelo } from "@/components/presupuestos/editor-propuesta-modelo";
+import { leerCatalogoFotolibro } from "@/lib/fotolibro/catalogo-precios";
 import { etiquetaDeUsuario } from "@/lib/listado/acceso";
 import { leerPerfilPrecios } from "@/lib/precios/perfil";
 import { requireActiveWorkspaceRole } from "@/lib/access/active-context";
@@ -41,12 +42,14 @@ export default async function PropuestaModeloPage({ params }: { params: Promise<
   if (!categoria) notFound();
 
   // El perfil sólo se lee acá, dentro del bloque con `configurar`: llega al navegador para mostrar el precio de hoy.
-  const [propuesta, catalogo, plantillas, perfil, conBorrador] = await Promise.all([
+  const [propuesta, catalogo, plantillas, perfil, conBorrador, fotolibro] = await Promise.all([
     leerPropuestaModelo(workspace.id, categoria.id),
     catalogoParaEditor(workspace.id),
     plantillasParaPropuesta(workspace.id),
     leerPerfilPrecios({ workspaceId: workspace.id, userId: user.id, userLabel: etiquetaDeUsuario(user), role }),
     categoriasConBorradorAuto(workspace.id),
+    // Las listas de fotolibros de hoy, sin costos: para elegir el fotolibro y mostrar su precio.
+    leerCatalogoFotolibro(workspace.id, { conCostos: false }),
   ]);
 
   return (
@@ -57,12 +60,21 @@ export default async function PropuestaModeloPage({ params }: { params: Promise<
         <Link href="/workspace/configuracion/presupuestos/propuestas" className="text-[var(--fo-accent)] hover:underline">
           ← Todas las categorías
         </Link>
+        {" · "}
+        <Link href={`/workspace/configuracion/telegram/portfolio/${encodeURIComponent(categoria.id)}`} className="text-[var(--fo-accent)] hover:underline">
+          Portfolio de esta categoría
+        </Link>
+        {" · "}
+        <Link href="/workspace/configuracion/telegram" className="text-[var(--fo-accent)] hover:underline">
+          Aprobar por Telegram
+        </Link>
       </p>
       <EditorPropuestaModelo
         key={propuesta?.actualizadaEn.getTime() ?? "nueva"}
         categoriaId={categoria.id}
         existe={propuesta !== null}
         items={propuesta?.items ?? []}
+        alternativas={propuesta?.alternativas ?? []}
         condiciones={propuesta?.condiciones ?? null}
         enviarSola={propuesta?.enviarSola ?? false}
         borradorAuto={conBorrador?.has(categoria.id) ?? false}
@@ -71,6 +83,7 @@ export default async function PropuestaModeloPage({ params }: { params: Promise<
         catalogo={catalogo}
         plantillas={plantillas}
         perfilDelWorkspace={perfil?.perfil ?? null}
+        fotolibro={fotolibro}
       />
     </div>
   );

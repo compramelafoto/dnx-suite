@@ -32,6 +32,7 @@ import { condicionesDeCobro } from "./cobro";
 import { extrasDelWorkspace } from "./perfil-cobro";
 import { entradaGuardada } from "./opciones-pago";
 import { bloquearPresupuesto, congelarVersion, itemsGuardados, revocarAnteriores, type TotalesGuardados } from "./versiones";
+import { alternativasGuardadas, itemsDeAlternativa, MENSAJES_ALTERNATIVAS, totalParaMensaje } from "./alternativas";
 
 /**
  * Enviar un presupuesto (spec etapa 2 §2 A.4, A.8; Task 5).
@@ -188,7 +189,15 @@ type Hecho =
   | { tipo: "NUEVA" | "REENVIO"; versionId: string; validUntil: Date | null; numero: string | null; totals: TotalesGuardados | null };
 
 /** Quién envía: una persona del equipo (con "Gestionar") o el sistema (la propuesta modelo, Entrega B). */
-type Emisor = { workspaceId: string; ctxEnvio: CtxEnvio; nombre: string | null; automatico: boolean; registroId?: string };
+type Emisor = {
+  workspaceId: string;
+  ctxEnvio: CtxEnvio;
+  nombre: string | null;
+  automatico: boolean;
+  registroId?: string;
+  /** Congela la versión y devuelve el enlace SIN mandar correo (el presupuesto aprobado que sale sólo por WhatsApp). */
+  soloEnlace?: boolean;
+};
 
 export async function enviarPresupuesto(
   ctx: CtxPresupuestos,
@@ -208,16 +217,18 @@ export async function enviarPresupuesto(
  * (`TOPE_AUTOMATICOS_DIA`), no en el de los manuales, y queda registrado con `automatic=true`.
  * La regla de una respuesta por dirección cada 24 h la mira quien llama, antes de crear nada; con
  * `registroId` el registro completa la reserva que hizo quien llama (`reservarEnvioAutomatico`).
+ * Con `sinCorreo` congela la versión y devuelve el enlace sin mandar nada (el presupuesto aprobado
+ * por Telegram de un cliente que no dejó correo sale sólo por WhatsApp).
  */
 export async function enviarPresupuestoDelSistema(
   workspaceId: string,
   presupuestoId: string,
   templateId: string,
   deps: DepsEnvioPresupuesto = {},
-  opciones: { registroId?: string } = {},
+  opciones: { registroId?: string; sinCorreo?: boolean } = {},
 ): Promise<ResultadoEnvioPresupuesto> {
   const ctxEnvio: CtxEnvio = { workspaceId, userId: null, userLabel: null, userName: null, userEmail: null, role: null };
-  const emisor: Emisor = { workspaceId, ctxEnvio, nombre: null, automatico: true, registroId: opciones.registroId };
+  const emisor: Emisor = { workspaceId, ctxEnvio, nombre: null, automatico: true, registroId: opciones.registroId, soloEnlace: opciones.sinCorreo === true };
   return enviarComo(emisor, presupuestoId, { canal: "EMAIL", templateId }, deps);
 }
 
@@ -258,7 +269,7 @@ async function enviarComo(
   const leido = await contextoDe(workspaceId, "CONSULTA", p.consultaLeadId, usuario, ahora);
   if (!leido) return no(MENSAJES_PRESUPUESTO.consulta);
   const contexto = await conListaDePrecios(workspaceId, leido, fuente.asunto, fuente.cuerpo);
-  if (canal === "EMAIL" && !correoValido(contexto.destino.email)) return no(MENSAJES_ENVIO.sinCorreo);
+  if (canal === "EMAIL" && !emisor.soloEnlace && !correoValido(contexto.destino.email)) return no(MENSAJES_ENVIO.sinCorreo);
   if (canal === "WHATSAPP" && !normalizeWhatsappNumber(contexto.destino.telefono)) return no(MENSAJES_ENVIO.sinWhatsapp);
   const borradorAntes = await prisma.fotofficePresupuestoVersion.findFirst({
     where: { workspaceId, presupuestoId, sentAt: null },
@@ -275,7 +286,7 @@ async function enviarComo(
     vence: ddmmaaaa(datosDeEnvio(ahora, ajustes).validUntil),
   });
   if (!prueba.ok) return prueba;
-  if (canal === "EMAIL") {
+  if (canal === "EMAIL" && !emisor.soloEnlace) {
     // Cada grupo con su tope: los automáticos no consumen el de los manuales (ni al revés).
     if (emisor.automatico) {
       if ((await correosEnviadosHoy(workspaceId, ahora, true)) >= TOPE_AUTOMATICOS_DIA) return no(MENSAJES_ENVIO.topeAutomaticos);
@@ -300,25 +311,32 @@ async function enviarComo(
         select: { id: true, items: true, totals: true, paymentOptions: true },
       });
       if (borrador) {
-        if (itemsGuardados(borrador.items).length === 0) throw new Corte(MENSAJES_ENVIO_PRESUPUESTO.sinItems);
+        const itemsDelBorrador = itemsGuardados(borrador.items);
+        if (itemsDelBorrador.length === 0) throw new Corte(MENSAJES_ENVIO_PRESUPUESTO.sinItems);
+        // Con opciones, cada una tiene que tener algo que ofrecer.
+        const alternativas = alternativasGuardadas(borrador.totals);
+        const vacia = alternativas.find((a) => itemsDeAlternativa(itemsDelBorrador, a.id).length === 0);
+        if (vacia) throw new Corte(MENSAJES_ALTERNATIVAS.sinItems(vacia.nombre));
         const envio = datosDeEnvio(ahora, ajustes);
         const token = tokenDeVersion(borrador.id, clave);
         // Opciones de pago congeladas sobre el total de la versión: las del presupuesto o, si nunca
         // se tocaron, las de la organización; sin ninguna, la de omisión (con la fecha del evento).
         // Etapa B: condiciones de cobro del perfil (IVA, seña, descuento por transferencia, política de
         // cancelación), congeladas junto a las opciones; las opciones van sobre el total con IVA.
+        const entradaPago = entradaGuardada(borrador.paymentOptions) ?? ajustes.opcionesPago;
+        const congelarSobre = (totalSinIva: number) => {
+          const cobro = condicionesDeCobro(extras, totalSinIva);
+          return conCondicionesCobro(
+            opcionesParaPresupuesto({ paymentOptions: entradaPago }, cobro?.total ?? totalSinIva, fechaEvento, diaEnBuenosAires(ahora), ahora.toISOString()),
+            cobro,
+          );
+        };
         const totalSinIva = (borrador.totals as TotalesGuardados | null)?.total ?? 0;
-        const cobro = condicionesDeCobro(extras, totalSinIva);
-        const opciones = conCondicionesCobro(
-          opcionesParaPresupuesto(
-            { paymentOptions: entradaGuardada(borrador.paymentOptions) ?? ajustes.opcionesPago },
-            cobro?.total ?? totalSinIva,
-            fechaEvento,
-            diaEnBuenosAires(ahora),
-            ahora.toISOString(),
-          ),
-          cobro,
-        );
+        // Con opciones: además, las de cada una sobre SU total (al aceptar se fija la elegida).
+        const opciones =
+          alternativas.length > 0
+            ? { ...congelarSobre(totalSinIva), porAlternativa: Object.fromEntries(alternativas.map((a) => [a.id, congelarSobre(a.totales.total)])) }
+            : congelarSobre(totalSinIva);
         const congelada = await congelarVersion(tx, {
           workspaceId, versionId: borrador.id, ahora, tokenHash: hashDeToken(token), tokenExpiresAt: vencimientoDelToken(envio.validUntil),
           paymentOptions: opciones as unknown as Prisma.InputJsonValue,
@@ -368,7 +386,8 @@ async function enviarComo(
   const textos = textosFinales(contexto, canal, fuente, {
     numero,
     enlace,
-    total: pesos(hecho.totals?.total ?? 0),
+    // Con opciones: «desde» la más barata.
+    total: totalParaMensaje(hecho.totals, pesos),
     vence: ddmmaaaa(hecho.validUntil),
   });
 
@@ -383,6 +402,8 @@ async function enviarComo(
     enviado: true,
     enlace,
   });
+  // Sólo el enlace (sale por WhatsApp desde el presupuesto automático): no se manda correo.
+  if (emisor.soloEnlace) return { ok: true, repetido: false, versionId: hecho.versionId, numero, enlace, whatsappUrl: null };
   if (!textos.ok) return quedoEnviado(textos.error);
 
   const { ctxEnvio } = emisor;

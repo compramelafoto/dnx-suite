@@ -23,6 +23,8 @@ const TIPO_POR_KIND: Record<string, TipoEvento> = {
   NOTA_BORRADA: "notas",
   ADJUNTO_BORRADO: "adjuntos",
   ADJUNTO_RESTAURADO: "adjuntos",
+  /** Actividad de una oportunidad de Alboom (migración 8B-2). */
+  ALBOOM_ACTIVIDAD: "cambios",
 };
 
 function kindsDe(tipo: TipoEvento | null | undefined): string[] {
@@ -52,6 +54,10 @@ function titulo(kind: string, detalle: unknown, persona: string): string {
       return nombre ? `Adjunto borrado: ${nombre}` : "Adjunto borrado";
     case "ADJUNTO_RESTAURADO":
       return nombre ? `Adjunto restaurado: ${nombre}` : "Adjunto restaurado";
+    case "ALBOOM_ACTIVIDAD": {
+      const t = texto(detalle, "texto");
+      return t ? `Alboom: ${t}` : "Actividad en Alboom";
+    }
     default:
       return kind;
   }

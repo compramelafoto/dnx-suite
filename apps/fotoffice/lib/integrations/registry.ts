@@ -17,7 +17,7 @@
  * proveedor: la credencial cifrada de un transportista es usuario y clave, y mandarla a
  * Google sería filtrarla.
  */
-export type IntegrationProvider = "GOOGLE" | "CORREO_ARGENTINO" | "ANDREANI" | "ALBOOM" | "WHATSAPP";
+export type IntegrationProvider = "GOOGLE" | "CORREO_ARGENTINO" | "ANDREANI" | "ALBOOM" | "WHATSAPP" | "TELEGRAM";
 export type IntegrationStatus = "AVAILABLE" | "PLANNED";
 
 export type IntegrationDefinition = {
@@ -40,6 +40,7 @@ export const CORREO_ARGENTINO_INTEGRATION_KEY = "correo-argentino";
 export const ANDREANI_INTEGRATION_KEY = "andreani";
 export const ALBOOM_INTEGRATION_KEY = "alboom-crm";
 export const WHATSAPP_INTEGRATION_KEY = "whatsapp";
+export const TELEGRAM_INTEGRATION_KEY = "telegram";
 
 export const INTEGRATION_REGISTRY: readonly IntegrationDefinition[] = [
   {
@@ -125,6 +126,17 @@ export const INTEGRATION_REGISTRY: readonly IntegrationDefinition[] = [
       "Envía las respuestas de la Bandeja de WhatsApp con el número de la institución en la API de Meta.",
     // No es OAuth: el token permanente del usuario del sistema de Meta se carga en la configuración
     // de la Bandeja. No pasa por la pantalla de Integraciones.
+    scopes: [],
+    requiredByModules: [],
+    status: "AVAILABLE",
+  },
+  {
+    key: TELEGRAM_INTEGRATION_KEY,
+    provider: "TELEGRAM",
+    label: "Telegram",
+    description:
+      "Avisa al dueño por Telegram cuando hay un presupuesto armado solo para aprobar, con los botones Aprobar y enviar y Corregir.",
+    // No es OAuth: el token del bot que da @BotFather se carga en Configuración → Telegram.
     scopes: [],
     requiredByModules: [],
     status: "AVAILABLE",

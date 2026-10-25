@@ -17,7 +17,32 @@ type ItemVista = {
   modoPrecio: "LISTA" | "CALCULO";
   seccion: string | null;
   opcional: boolean;
+  alternativaId?: string | null;
 };
+
+/** Una opción del presupuesto (Básico, Premium…), para leer. */
+export type AlternativaVista = {
+  id: string;
+  nombre: string;
+  descripcion: string | null;
+  masElegida: boolean;
+  /** La que eligió el cliente al aceptar. */
+  elegida: boolean;
+  totales: TotalesPresupuesto;
+  /** Sólo con permiso de costos. */
+  costos: CostosVersion | null;
+};
+
+function Linea({ etiqueta, valor, fuerte = false }: { etiqueta: string; valor: string; fuerte?: boolean }) {
+  return (
+    <div className={`flex justify-between gap-2 ${fuerte ? "font-medium" : ""}`}>
+      <span className={fuerte ? "" : "text-[var(--fo-muted)]"}>{etiqueta}</span>
+      <span className="tabular-nums">{valor}</span>
+    </div>
+  );
+}
+
+const margenTexto = (c: CostosVersion) => `${pesos(c.margen)}${c.margenProporcion !== null ? ` (${Math.round(c.margenProporcion * 100)} %)` : ""}`;
 
 export function VistaPresupuesto({
   items,
@@ -25,12 +50,67 @@ export function VistaPresupuesto({
   condiciones,
   propuestaPago,
   costos,
+  alternativas = [],
 }: {
   items: readonly ItemVista[];
   totales: TotalesPresupuesto;
   condiciones: string | null;
   propuestaPago: string | null;
   costos?: CostosVersion | null;
+  /** Con opciones: los ítems se agrupan por opción, cada una con su total. */
+  alternativas?: AlternativaVista[];
+}) {
+  if (alternativas.length > 0) {
+    return (
+      <div className="space-y-6">
+        {alternativas.map((a) => (
+          <div key={a.id} className="space-y-2">
+            <h2 className="text-base font-semibold text-[var(--fo-text)]">
+              Opción {a.nombre}
+              {a.masElegida ? <span className="ml-2 text-xs font-normal text-[var(--fo-muted)]">· la más elegida</span> : null}
+              {a.elegida ? <strong className="ml-2 text-xs text-[var(--fo-success)]">Elegida por el cliente</strong> : null}
+            </h2>
+            {a.descripcion ? <p className="text-sm text-[var(--fo-muted)]">{a.descripcion}</p> : null}
+            <VistaSimple
+              items={items.filter((i) => i.alternativaId === a.id)}
+              totales={{ ...a.totales, renglones: totales.renglones }}
+              condiciones={null}
+              propuestaPago={null}
+              costos={a.costos ? { ...a.costos, porItem: costos?.porItem ?? a.costos.porItem } : null}
+              soloItemsYTotales
+            />
+          </div>
+        ))}
+        <section aria-label="Condiciones" className="fo-card space-y-3 text-sm">
+          <div>
+            <h3 className="text-xs text-[var(--fo-muted)]">Condiciones</h3>
+            <p className="whitespace-pre-line">{condiciones || "—"}</p>
+          </div>
+          <div>
+            <h3 className="text-xs text-[var(--fo-muted)]">Propuesta de pago</h3>
+            <p className="whitespace-pre-line">{propuestaPago || "—"}</p>
+          </div>
+        </section>
+      </div>
+    );
+  }
+  return <VistaSimple items={items} totales={totales} condiciones={condiciones} propuestaPago={propuestaPago} costos={costos} />;
+}
+
+function VistaSimple({
+  items,
+  totales,
+  condiciones,
+  propuestaPago,
+  costos,
+  soloItemsYTotales = false,
+}: {
+  items: readonly ItemVista[];
+  totales: TotalesPresupuesto;
+  condiciones: string | null;
+  propuestaPago: string | null;
+  costos?: CostosVersion | null;
+  soloItemsYTotales?: boolean;
 }) {
   const secciones: (string | null)[] = [];
   for (const i of items) if (!secciones.includes(i.seccion)) secciones.push(i.seccion);
@@ -84,6 +164,7 @@ export function VistaPresupuesto({
       </section>
 
       <div className="grid gap-6 lg:grid-cols-2">
+        {soloItemsYTotales ? <div /> : (
         <section aria-label="Condiciones" className="fo-card space-y-3 text-sm">
           <div>
             <h3 className="text-xs text-[var(--fo-muted)]">Condiciones</h3>
@@ -94,6 +175,7 @@ export function VistaPresupuesto({
             <p className="whitespace-pre-line">{propuestaPago || "—"}</p>
           </div>
         </section>
+        )}
         <section aria-label="Totales" className="fo-card space-y-2 text-sm">
           <div className="flex justify-between gap-2"><span className="text-[var(--fo-muted)]">Subtotal</span><span className="tabular-nums">{pesos(totales.subtotal)}</span></div>
           <div className="flex justify-between gap-2"><span className="text-[var(--fo-muted)]">Descuentos</span><span className="tabular-nums">−{pesos(totales.descuentoItems + totales.descuentoGlobal)}</span></div>
@@ -104,7 +186,7 @@ export function VistaPresupuesto({
           {costos ? (
             <div className="space-y-1 border-t border-[var(--fo-border)] pt-2">
               <div className="flex justify-between gap-2"><span className="text-[var(--fo-muted)]">Costo conocido</span><span className="tabular-nums">{pesos(costos.costoTotal)}</span></div>
-              <div className="flex justify-between gap-2 font-medium"><span>Margen</span><span className="tabular-nums">{pesos(costos.margen)}</span></div>
+              <Linea etiqueta="Margen" valor={margenTexto(costos)} fuerte />
             </div>
           ) : null}
         </section>

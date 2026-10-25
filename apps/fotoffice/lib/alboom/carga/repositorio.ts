@@ -34,6 +34,22 @@ export type FilaCarga = {
 
 export type ActorCarga = { userId: number | null; label: string };
 
+/** Lo que ya existe en FOTOFFICE y miran los traductores de la 8B-2 (sólo lectura). */
+export type CatalogosHistoricos = {
+  numerosPedido: string[];
+  numerosProyecto: string[];
+  numerosContrato: string[];
+  /** Presupuestos que ya tienen pedido (uno por presupuesto). */
+  presupuestosConPedido: string[];
+  categoriasNota: { id: string; name: string }[];
+  tiposCita: { id: string; name: string }[];
+  rolesProyecto: { id: string; name: string }[];
+  /** Rubros de EGRESO de Caja (para el costo de una cuenta a pagar; nunca se crean). */
+  rubrosEgreso: { id: string; name: string }[];
+  /** Cuota → centavos ya imputados por cobros sin anular. */
+  imputado: Record<string, number>;
+};
+
 export interface RepoCarga {
   // ── Datos crudos (sólo lectura) ──
   leerCrudos(workspaceId: string, fuente: FuenteCruda, despuesDe: string | null, limite: number): Promise<Crudo[]>;
@@ -58,6 +74,9 @@ export interface RepoCarga {
   itemsCombo(workspaceId: string): Promise<ItemComboExistente[]>;
   costos(workspaceId: string): Promise<CostoExistente[]>;
   clientes(workspaceId: string): Promise<ClienteExistente[]>;
+  /** Ids de los registros de FOTOFFICE de ese tipo (`targetType` del mapa) que hay en el workspace. */
+  idsExistentes(workspaceId: string, targetType: string): Promise<Set<string>>;
+  catalogosHistoricos(workspaceId: string): Promise<CatalogosHistoricos>;
 
   /**
    * Aplica un CREAR o ACTUALIZAR de la entidad `clave` y escribe sus filas del mapa en la MISMA transacción (si se

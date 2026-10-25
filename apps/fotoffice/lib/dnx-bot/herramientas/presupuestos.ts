@@ -5,6 +5,7 @@ import { leerPerfilPrecios } from "@/lib/precios/perfil";
 import { MENSAJES_PRESUPUESTO } from "@/lib/presupuestos/acceso";
 import type { ItemPresupuesto } from "@/lib/presupuestos/constantes";
 import { ajustadosIniciales, firmaDelBorrador, itemsParaGuardar } from "@/lib/presupuestos/editor";
+import { alternativasGuardadas } from "@/lib/presupuestos/alternativas";
 import { perfilParaPanel } from "@/lib/presupuestos/panel-cuanto-cobro";
 import { leerPropuestaModelo } from "@/lib/presupuestos/propuestas-modelo";
 import { crearPresupuesto, guardarBorrador, leerPresupuesto, type DetallePresupuesto } from "@/lib/presupuestos/presupuestos";
@@ -296,7 +297,7 @@ export function herramientasDePresupuestos(ctx: CtxBot, depsParciales: Partial<D
           // Con lo que se acaba de leer: si alguien guardó el borrador en el medio, no se pisa.
           const control = {
             version: v.d.updatedAt,
-            firma: firmaDelBorrador(v.existentes, v.borrador.terms, v.borrador.paymentProposal, v.borrador.totals.descuento ?? null),
+            firma: firmaDelBorrador(v.existentes, v.borrador.terms, v.borrador.paymentProposal, v.borrador.totals.descuento ?? null, alternativasGuardadas(v.borrador.totals)),
           };
           const g = await deps.guardarBorrador(ctx, v.d.id, entradaCon(todos, v.borrador), control);
           if (!g.ok) return { ok: false, message: g.error };

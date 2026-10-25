@@ -355,8 +355,9 @@ describe("sólo el formulario público responde", () => {
     expect(quienesLlaman()).toEqual(["lib/consultas/alta.ts", "lib/plantillas/automaticos.ts"]);
     const alta = readFileSync(path.resolve(__dirname, "../consultas/alta.ts"), "utf8");
     // Entrega B: dentro de la rama WEB, primero la propuesta modelo y la común sólo si corresponde.
+    // (Antes, si la categoría aprueba por Telegram, la propuesta no sale sola: spec 2026-10-25.)
     expect(alta).toMatch(
-      /if \(origenDelAlta === "WEB"\) \{\s*await despuesDeResponder\(async \(\) => \{\s*let comun = true;[\s\S]*?enviarPropuestaModelo\([\s\S]*?if \(comun\) \{\s*try \{\s*await responderConsultaNueva\(/,
+      /if \(origenDelAlta === "WEB"\) \{\s*await despuesDeResponder\(async \(\) => \{[\s\S]*?consultaVaPorTelegram\([\s\S]*?let comun = true;[\s\S]*?if \(!porTelegram\) \{[\s\S]*?enviarPropuestaModelo\([\s\S]*?if \(comun\) \{\s*try \{\s*await responderConsultaNueva\(/,
     );
     const formulario = readFileSync(path.resolve(__dirname, "../../app/actions/service-lead.ts"), "utf8");
     expect(formulario).toContain('{ origenDelAlta: "WEB" }');

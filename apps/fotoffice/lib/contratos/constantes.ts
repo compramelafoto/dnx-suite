@@ -31,6 +31,7 @@ export const ESTADOS_FINALES: readonly EstadoContrato[] = ["FIRMADO", "RECHAZADO
 export const TIPOS_EVENTO = [
   "CREADO", "EDITADO", "ENVIADO", "REENVIADO", "VISTO", "CODIGO_ENVIADO", "CODIGO_VERIFICADO", "CODIGO_FALLIDO",
   "FIRMADO", "RECHAZADO", "RECORDATORIO", "PDF_GENERADO", "PDF_ENVIADO", "VERSION_REVOCADA", "ANULADO", "FIRMADO_EN_PAPEL",
+  "ALBOOM_HISTORICO",
 ] as const;
 export type TipoEventoContrato = (typeof TIPOS_EVENTO)[number];
 
@@ -51,6 +52,7 @@ export const ETIQUETA_EVENTO: Record<TipoEventoContrato, string> = {
   VERSION_REVOCADA: "Versión reemplazada",
   ANULADO: "Contrato anulado",
   FIRMADO_EN_PAPEL: "Marcado como firmado en papel",
+  ALBOOM_HISTORICO: "Histórico de Alboom (enviado, visto o firmado allá)",
 };
 
 // --- Plantillas automáticas de correo ---------------------------------------------------------

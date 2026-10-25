@@ -95,9 +95,16 @@ export const filaUnica: Filas = (json) => (esObjeto(json) ? [json] : null);
 
 /** `GET /stages/list` → `{ stage_list: [embudos], stages: { <id>: [etapas] } }`. */
 const embudosDe: Filas = (json) => (esObjeto(json) && Array.isArray(json.stage_list) ? json.stage_list : null);
+/**
+ * Las etapas de cada embudo o flujo. La etapa real de Alboom (`{id, name, stage, tasks, offset_days}`, extracción de
+ * DNX del 25/10/2026) NO trae su embudo: está sólo en la clave de `stages`. Se le agrega como `type_id` (si la etapa
+ * ya lo trae, se respeta) para que la carga sepa a qué circuito va.
+ */
 const etapasDe: Filas = (json) => {
   if (!esObjeto(json) || !esObjeto(json.stages)) return null;
-  return Object.values(json.stages).flatMap((v) => (Array.isArray(v) ? v : []));
+  return Object.entries(json.stages).flatMap(([idEmbudo, v]) =>
+    Array.isArray(v) ? v.map((e) => (esObjeto(e) && (e.type_id === undefined || e.type_id === null || e.type_id === "") ? { ...e, type_id: idEmbudo } : e)) : [],
+  );
 };
 
 /** Orígenes de oportunidad: `lead_origin` es texto, una opción por línea (doc 05 §3.24). */
@@ -147,6 +154,9 @@ const listado =
   });
 
 const get = (ruta: string): PedidoLectura => ({ method: "GET", ruta });
+
+/** Alboom devuelve las tareas de a 100. */
+const TAREAS_POR_PAGINA = 100;
 
 /** Todo el historial: el panel manda un rango de fechas aunque el período sea "todos". */
 const DESDE_SIEMPRE = "2000-01-01T03:00:00.000Z";
@@ -202,9 +212,9 @@ export const ENTIDADES: readonly Entidad[] = [
   },
   { clave: "usuarios", nombre: "Usuarios", claves: ["email"], fuente: { tipo: "paginada", ruta: "/users/paginate", body: listado({ type: "all" }) } },
   { clave: "embudos", nombre: "Embudos de venta", fuente: { tipo: "simple", pedido: get("/stages/list?type=lead_stage"), filas: embudosDe } },
-  { clave: "etapas_embudo", nombre: "Etapas de los embudos", fuente: { tipo: "simple", pedido: get("/stages/list?type=lead_stage"), filas: etapasDe } },
+  { clave: "etapas_embudo", nombre: "Etapas de los embudos", version: 2, fuente: { tipo: "simple", pedido: get("/stages/list?type=lead_stage"), filas: etapasDe } },
   { clave: "flujos_proyecto", nombre: "Flujos de proyecto", fuente: { tipo: "simple", pedido: get("/stages/list?type=stage"), filas: embudosDe } },
-  { clave: "etapas_flujo", nombre: "Etapas de los flujos", fuente: { tipo: "simple", pedido: get("/stages/list?type=stage"), filas: etapasDe } },
+  { clave: "etapas_flujo", nombre: "Etapas de los flujos", version: 2, fuente: { tipo: "simple", pedido: get("/stages/list?type=stage"), filas: etapasDe } },
   {
     clave: "tareas_pedido",
     nombre: "Plantillas de tareas de pedido",
@@ -389,7 +399,15 @@ export const ENTIDADES: readonly Entidad[] = [
       filas: filasDeLista,
     },
   },
-  { clave: "tareas", nombre: "Tareas", fuente: { tipo: "porDesplazamiento", ruta: (offset) => `/tasks?offset=${offset}&filteruser=all` } },
+  // `offset` en /tasks es el NÚMERO DE PÁGINA (0, 1, 2…), de a 100: así lo pide el panel (`loadTasks`, que suma 1
+  // a `tasks_page`). Con el desplazamiento en filas (100) Alboom devolvía la página 100, vacía, y quedaban 100 de 832
+  // (extracción del 25/10/2026). El extractor cuenta filas leídas; acá se pasa a página.
+  {
+    clave: "tareas",
+    nombre: "Tareas",
+    version: 2,
+    fuente: { tipo: "porDesplazamiento", ruta: (filasLeidas) => `/tasks?offset=${Math.floor(filasLeidas / TAREAS_POR_PAGINA)}&filteruser=all` },
+  },
   {
     // Lo mismo que manda la lista del calendario (`CalendarController.getData`): `start_type` "other" (Otro
     // período) con el rango de fechas; "all" da 500 y "0" es sólo desde hoy (453 citas en DNX el 25/10/2026).

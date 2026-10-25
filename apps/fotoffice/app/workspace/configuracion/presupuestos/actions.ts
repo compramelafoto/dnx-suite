@@ -80,6 +80,7 @@ export type ResultadoPropuestaModeloAction = { ok: true } | { ok: false; error: 
 export async function guardarPropuestaModeloAction(datos: {
   categoriaId: unknown;
   items: unknown;
+  alternativas?: unknown;
   condiciones?: unknown;
   enviarSola?: unknown;
   plantillaId?: unknown;
@@ -90,6 +91,7 @@ export async function guardarPropuestaModeloAction(datos: {
   const r = await guardarPropuestaModelo(ctx, {
     categoriaId: datos.categoriaId,
     items: datos.items,
+    alternativas: datos.alternativas,
     condiciones: datos.condiciones,
     enviarSola: datos.enviarSola,
     plantillaId: datos.plantillaId,

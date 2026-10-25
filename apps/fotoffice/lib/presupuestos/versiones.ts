@@ -16,6 +16,14 @@ import { ESTADOS_CERRADOS } from "./estados";
 import { costosDeVersion, type CostoDeCatalogo, type CostosVersion } from "./costos";
 import { entradaGuardada } from "./opciones-pago";
 import { calcularTotales, type TotalesPresupuesto } from "./totales";
+import {
+  asignarItems,
+  costosConAlternativas,
+  totalesConAlternativas,
+  validarAlternativas,
+  type Alternativa,
+  type AlternativaConTotales,
+} from "./alternativas";
 
 export { costosDeVersion, type CostoDeCatalogo, type CostosVersion, type OrigenCosto } from "./costos";
 
@@ -37,8 +45,16 @@ export { costosDeVersion, type CostoDeCatalogo, type CostosVersion, type OrigenC
 
 type Tx = Prisma.TransactionClient;
 
-/** Lo que se guarda en `totals`: los totales y el descuento global que los produjo. */
-export type TotalesGuardados = TotalesPresupuesto & { descuento: Descuento | null };
+/**
+ * Lo que se guarda en `totals`: los totales y el descuento global que los produjo. Con opciones
+ * (`./alternativas.ts`), además cada opción con sus totales (los de arriba son los de la principal
+ * o, ya aceptado, los de la elegida) y la que eligió el cliente.
+ */
+export type TotalesGuardados = TotalesPresupuesto & {
+  descuento: Descuento | null;
+  alternativas?: AlternativaConTotales[];
+  alternativaElegidaId?: string | null;
+};
 
 export type EntradaBorrador = {
   items: unknown;
@@ -47,6 +63,11 @@ export type EntradaBorrador = {
   propuestaPago?: unknown;
   /** Opciones de pago del presupuesto (etapa 3). Sin el campo, las guardadas no se tocan. */
   opcionesPago?: unknown;
+  /**
+   * Opciones del presupuesto (Básico, Premium…). Sin el campo (DNX Bot, por ejemplo), quedan las
+   * guardadas (`alternativasAnteriores`); `[]` las quita.
+   */
+  alternativas?: unknown;
 };
 
 export type BorradorNormalizado = {
@@ -128,10 +149,14 @@ export async function normalizarBorrador(
   entrada: EntradaBorrador,
   guardadas: ReadonlyMap<string, CalculoGuardado>,
   ahora: Date,
+  /** Las opciones que ya tenía el borrador: se usan si la entrada no trae `alternativas`. */
+  alternativasAnteriores: readonly Alternativa[] = [],
 ): Promise<ResultadoValidacion<BorradorNormalizado>> {
   if (!entrada || typeof entrada !== "object") return { ok: false, error: MENSAJES_PRESUPUESTO.datosInvalidos };
   const v = validarItems(entrada.items);
   if (!v.ok) return v;
+  const alts = entrada.alternativas === undefined ? { ok: true as const, valor: [...alternativasAnteriores] } : validarAlternativas(entrada.alternativas);
+  if (!alts.ok) return alts;
   const descuento = validarDescuento(entrada.descuento);
   if (!descuento.ok) return descuento;
   const terms = textoVersion(entrada.condiciones);
@@ -165,15 +190,18 @@ export async function normalizarBorrador(
   const catalogo = await costosDelCatalogo(workspaceId, productIds);
   if (productIds.some((id) => !catalogo.has(id))) return { ok: false, error: MENSAJES_PRESUPUESTO.producto };
 
-  const totales = calcularTotales(items, descuento.valor);
+  // Cada ítem en una opción que existe (o en ninguna, si no hay opciones).
+  const asignados = asignarItems(items, alts.valor);
+  const { totales, alternativas } = totalesConAlternativas(asignados, alts.valor, descuento.valor);
   return {
     ok: true,
     valor: {
-      items,
-      totals: { ...totales, descuento: descuento.valor },
+      items: asignados,
+      // Sin opciones, exactamente lo de siempre (ni la clave `alternativas`).
+      totals: { ...totales, descuento: descuento.valor, ...(alternativas.length > 0 ? { alternativas } : {}) },
       terms,
       paymentProposal,
-      costSnapshot: costosDeVersion(items, totales, catalogo),
+      costSnapshot: costosConAlternativas(asignados, totales, alternativas, catalogo),
     },
   };
 }
