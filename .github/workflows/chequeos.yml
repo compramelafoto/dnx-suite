@@ -25,7 +25,8 @@ concurrency:
 
 jobs:
   tipos-y-pruebas:
-    runs-on: ubuntu-latest
+    # Fijada: en ubuntu-latest (26.04) Playwright todavía no instala Chromium y el chequeo fallaba.
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
 
     steps:
