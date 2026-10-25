@@ -136,6 +136,11 @@ export type ItemPresupuesto = {
   seccion: string | null;
   /** Se muestra aparte y no suma al total. */
   opcional: boolean;
+  /**
+   * La opción del presupuesto a la que pertenece (Básico, Intermedio, Premium…; `./alternativas.ts`).
+   * Sin opciones, no está (o es null): todo funciona como siempre.
+   */
+  alternativaId?: string | null;
 };
 
 /** El ítem tal como lo ven el cliente y quien no tiene permiso de costos. */
@@ -153,6 +158,7 @@ export function itemSinDatosInternos(item: ItemPresupuesto): ItemPublico {
     modoPrecio: item.modoPrecio,
     seccion: item.seccion,
     opcional: item.opcional,
+    ...(item.alternativaId ? { alternativaId: item.alternativaId } : {}),
   };
 }
 
@@ -227,6 +233,8 @@ export function validarItem(raw: unknown): ResultadoValidacion<ItemPresupuesto> 
   if (seccion !== null && seccion.length > MAX_SECCION_ITEM) {
     return { ok: false, error: `La sección de "${nombre}" puede tener hasta ${MAX_SECCION_ITEM} caracteres.` };
   }
+  const alternativaId = textoOpcional(r.alternativaId);
+  if (alternativaId !== null && alternativaId.length > MAX_CLAVE_ITEM) return { ok: false, error: `La opción de "${nombre}" no es válida.` };
   return {
     ok: true,
     valor: {
@@ -241,6 +249,8 @@ export function validarItem(raw: unknown): ResultadoValidacion<ItemPresupuesto> 
       calculo,
       seccion,
       opcional: r.opcional === true,
+      // Sólo si tiene: así un presupuesto sin opciones queda idéntico a como era.
+      ...(alternativaId !== null ? { alternativaId } : {}),
     },
   };
 }

@@ -71,6 +71,7 @@ export default async function PropuestaModeloPage({ params }: { params: Promise<
         categoriaId={categoria.id}
         existe={propuesta !== null}
         items={propuesta?.items ?? []}
+        alternativas={propuesta?.alternativas ?? []}
         condiciones={propuesta?.condiciones ?? null}
         enviarSola={propuesta?.enviarSola ?? false}
         borradorAuto={conBorrador?.has(categoria.id) ?? false}

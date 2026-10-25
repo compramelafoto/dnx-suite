@@ -12,6 +12,7 @@ import { costosDeVersion, type CostoDeCatalogo, type CostosVersion } from "./cos
 import type { OpcionesPagoEditor } from "./opciones-pago";
 import type { CuantoCobroProfileInput } from "@repo/cuanto-cobro-core";
 import type { TotalesPresupuesto } from "./totales";
+import { alternativasGuardadas, definicionDe, type Alternativa } from "./alternativas";
 
 /** Un producto del catálogo, como lo ofrece el buscador del editor (sin costos). */
 export type ProductoParaEditor = {
@@ -39,6 +40,8 @@ export type DatosEditor = {
   presupuestoId: string;
   versionNumero: number;
   items: ItemPresupuesto[];
+  /** Opciones del presupuesto (Básico, Premium…); [] si es un presupuesto común. */
+  alternativas: Alternativa[];
   descuento: Descuento | null;
   condiciones: string | null;
   propuestaPago: string | null;
@@ -55,7 +58,7 @@ type BorradorParaEditor = {
   id: string;
   number: number;
   items: readonly ItemPresupuesto[];
-  totals: { descuento?: Descuento | null } | null;
+  totals: { descuento?: Descuento | null; alternativas?: unknown } | null;
   terms: string | null;
   paymentProposal: string | null;
 };
@@ -79,10 +82,12 @@ export function armarDatosEditor(args: {
   const items: ItemPresupuesto[] = veCostos
     ? borrador.items.map((i) => ({ ...i }))
     : borrador.items.map((i) => ({ ...itemSinDatosInternos(i), productId: i.productId ?? null, calculo: null }));
+  const alternativas = alternativasGuardadas(borrador.totals).map(definicionDe);
   const datos: DatosEditor = {
     presupuestoId: args.presupuestoId,
     versionNumero: borrador.number,
     items,
+    alternativas,
     descuento: borrador.totals?.descuento ?? null,
     condiciones: borrador.terms,
     propuestaPago: borrador.paymentProposal,
@@ -92,7 +97,7 @@ export function armarDatosEditor(args: {
   if (args.version) {
     datos.control = {
       version: args.version.toISOString(),
-      firma: firmaDelBorrador(items, borrador.terms, borrador.paymentProposal, borrador.totals?.descuento ?? null),
+      firma: firmaDelBorrador(items, borrador.terms, borrador.paymentProposal, borrador.totals?.descuento ?? null, alternativas),
     };
   }
   if (veCostos) datos.internos = { costosCatalogo: args.costosCatalogo ?? {}, perfil: args.perfil ?? null };
@@ -108,17 +113,25 @@ export function armarDatosEditor(args: {
  * la firma también, otro guardó el borrador mientras el editor estaba abierto.
  */
 export function firmaDelBorrador(
-  items: readonly Pick<ItemPresupuesto, "id" | "nombre" | "descripcion" | "cantidad" | "precioUnitario" | "modoPrecio" | "seccion" | "opcional" | "descuento">[],
+  items: readonly Pick<ItemPresupuesto, "id" | "nombre" | "descripcion" | "cantidad" | "precioUnitario" | "modoPrecio" | "seccion" | "opcional" | "descuento" | "alternativaId">[],
   condiciones: string | null,
   propuestaPago: string | null,
   descuento: Descuento | null,
+  /** Opciones del presupuesto: sólo entran en la firma si hay (sin opciones, la firma es la de siempre). */
+  alternativas: readonly Alternativa[] = [],
 ): string {
-  const contenido = JSON.stringify([
-    items.map((i) => [i.id, i.nombre, i.descripcion ?? null, i.cantidad, i.precioUnitario, i.modoPrecio, i.seccion ?? null, i.opcional, i.descuento ?? null]),
+  const partes: unknown[] = [
+    items.map((i) => {
+      const fila: unknown[] = [i.id, i.nombre, i.descripcion ?? null, i.cantidad, i.precioUnitario, i.modoPrecio, i.seccion ?? null, i.opcional, i.descuento ?? null];
+      if (i.alternativaId) fila.push(i.alternativaId);
+      return fila;
+    }),
     condiciones ?? null,
     propuestaPago ?? null,
     descuento ?? null,
-  ]);
+  ];
+  if (alternativas.length > 0) partes.push(alternativas.map((a) => [a.id, a.nombre, a.descripcion ?? null, a.masElegida]));
+  const contenido = JSON.stringify(partes);
   // FNV-1a de 32 bits: corre igual en el navegador y en el servidor.
   let h = 0x811c9dc5;
   for (let k = 0; k < contenido.length; k++) {

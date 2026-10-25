@@ -68,7 +68,7 @@ export default async function PresupuestoPublicoPage({ params }: Props) {
   const portfolio = vista.estado === "ACTIVO" ? await portfolioDelEnlace(workspaceId, token) : null;
 
   return (
-    <main className="mx-auto max-w-3xl space-y-6 px-4 py-8 md:px-8 md:py-12">
+    <main className={`mx-auto ${vista.alternativas.length >= 3 ? "max-w-6xl" : "max-w-3xl"} space-y-6 px-4 py-8 md:px-8 md:py-12`}>
       <style>{ESTILO_IMPRESION}</style>
       <Aviso vista={vista} />
       {portfolio ? <PortfolioPublico portfolio={portfolio} /> : null}
@@ -82,6 +82,12 @@ export default async function PresupuestoPublicoPage({ params }: Props) {
         // Relativo: sirve igual en `/w/<slug>/presupuesto/<token>` y en el dominio propio.
         hrefImprimir={`${encodeURIComponent(token)}/imprimir`}
         opciones={vista.opcionesPago}
+        alternativas={vista.alternativas.map((a) => ({
+          id: a.id,
+          nombre: a.nombre,
+          total: a.cobro && a.cobro.iva > 0 ? a.cobro.totalConIva : a.totales.total,
+          opciones: a.opcionesPago,
+        }))}
       />
     </main>
   );

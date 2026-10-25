@@ -11,6 +11,7 @@ import type { Descuento, ItemPresupuesto } from "./constantes";
 import { condicionesDeInstantanea } from "@/lib/pedidos/opciones-pago";
 import { opcionesPublicas, type OpcionPublica } from "./opciones-pago";
 import type { TotalesGuardados } from "./versiones";
+import { alternativaElegidaId, alternativasGuardadas, alternativaPrincipal, itemsDeAlternativa, pagoDeAlternativa } from "./alternativas";
 
 /** El estado del enlace. REEMPLAZADO nunca llega a la vista: la página redirige a la vigente. */
 export type EstadoDelEnlace = "ACTIVO" | "VENCIDO" | "ACEPTADO" | "RECHAZADO" | "REEMPLAZADO";
@@ -26,6 +27,19 @@ export type ItemDeLaVista = {
   neto: number;
   seccion: string | null;
   opcional: boolean;
+};
+
+/** Una opción del presupuesto (Básico, Premium…) como la ve el cliente. Sin costos. */
+export type AlternativaDeLaVista = {
+  id: string;
+  nombre: string;
+  descripcion: string | null;
+  masElegida: boolean;
+  items: ItemDeLaVista[];
+  totales: VistaPublica["totales"];
+  /** Las formas de pago de ESTA opción (calculadas sobre su total al enviar). */
+  opcionesPago: OpcionPublica[];
+  cobro: VistaPublica["cobro"];
 };
 
 export type VistaPublica = {
@@ -59,6 +73,14 @@ export type VistaPublica = {
   mercadoPago: boolean;
   /** Aceptado y con pedido: el enlace del pedido (para pagar la seña). */
   pedidoUrl: string | null;
+  /**
+   * Presupuesto con opciones y todavía sin elegir: cada opción con lo suyo ([] si no tiene opciones
+   * o ya se aceptó). Con opciones, `items`, `totales`, `opcionesPago` y `cobro` de arriba son los de
+   * la principal o, aceptado, los de la elegida.
+   */
+  alternativas: AlternativaDeLaVista[];
+  /** Aceptado con opciones: el nombre de la que eligió el cliente. */
+  alternativaElegida: string | null;
 };
 
 const numero = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);
@@ -76,6 +98,30 @@ const fechaHoraBA = new Intl.DateTimeFormat("es-AR", {
 /** "aaaa-mm-dd" de una columna DATE → "dd/mm/aaaa". */
 function ddmmaaaa(fecha: Date | null): string | null {
   return fecha ? fecha.toISOString().slice(0, 10).split("-").reverse().join("/") : null;
+}
+
+function totalesDe(t: Partial<TotalesGuardados> | null | undefined): VistaPublica["totales"] {
+  return {
+    subtotal: numero(t?.subtotal),
+    descuentos: numero(t?.descuentoItems) + numero(t?.descuentoGlobal),
+    total: numero(t?.total),
+    opcionales: numero(t?.opcionales?.total),
+    cantidadOpcionales: numero(t?.opcionales?.cantidad),
+  };
+}
+
+function cobroDe(paymentOptions: unknown): VistaPublica["cobro"] {
+  const c = condicionesDeInstantanea(paymentOptions);
+  return c
+    ? {
+        ivaPorcentaje: c.ivaPorcentaje,
+        iva: c.iva,
+        totalConIva: c.total,
+        senaPorcentaje: c.senaPorcentaje,
+        descuentoTransferencia: c.descuentoTransferenciaPorcentaje,
+        politicaCancelacion: c.politicaCancelacion,
+      }
+    : null;
 }
 
 export function armarVistaPublica(args: {
@@ -104,8 +150,40 @@ export function armarVistaPublica(args: {
   // La forma de pago ya elegida se busca entre todas (aunque hoy no haya Mercado Pago).
   const todas = opcionesPublicas(args.version.paymentOptions);
   const opcionesPago = opcionesPublicas(args.version.paymentOptions, { mercadoPago });
-  const c = condicionesDeInstantanea(args.version.paymentOptions);
   const elegida = todas.find((o) => o.id === args.version.chosenPaymentOptionId)?.etiqueta ?? null;
+  const item = (i: ItemPresupuesto): ItemDeLaVista => ({
+    id: i.id,
+    nombre: i.nombre,
+    descripcion: i.descripcion,
+    cantidad: i.cantidad,
+    precioUnitario: i.precioUnitario,
+    descuento: i.descuento ? { tipo: i.descuento.tipo, valor: i.descuento.valor } : null,
+    neto: numero(renglones[i.id]?.neto),
+    seccion: i.seccion,
+    opcional: i.opcional,
+  });
+  // Opciones: aceptado, sólo la elegida (como un presupuesto común); si no, todas lado a lado.
+  const alternativas = alternativasGuardadas(t);
+  const idElegida = alternativaElegidaId(t);
+  const principal = alternativaPrincipal(alternativas);
+  const idQueVale = idElegida ?? principal?.id ?? null;
+  const itemsArriba = idQueVale ? itemsDeAlternativa(args.version.items, idQueVale) : args.version.items;
+  const aElegir =
+    idElegida || args.estado === "ACEPTADO"
+      ? []
+      : alternativas.map((a) => {
+          const pago = pagoDeAlternativa(args.version.paymentOptions, a.id);
+          return {
+            id: a.id,
+            nombre: a.nombre,
+            descripcion: a.descripcion,
+            masElegida: a.masElegida,
+            items: itemsDeAlternativa(args.version.items, a.id).map(item),
+            totales: totalesDe(a.totales),
+            opcionesPago: opcionesPublicas(pago, { mercadoPago }),
+            cobro: cobroDe(pago),
+          };
+        });
   return {
     estado: args.estado,
     organizacion: {
@@ -116,24 +194,8 @@ export function armarVistaPublica(args: {
     },
     numero: args.numero,
     version: args.version.number,
-    items: args.version.items.map((i) => ({
-      id: i.id,
-      nombre: i.nombre,
-      descripcion: i.descripcion,
-      cantidad: i.cantidad,
-      precioUnitario: i.precioUnitario,
-      descuento: i.descuento ? { tipo: i.descuento.tipo, valor: i.descuento.valor } : null,
-      neto: numero(renglones[i.id]?.neto),
-      seccion: i.seccion,
-      opcional: i.opcional,
-    })),
-    totales: {
-      subtotal: numero(t?.subtotal),
-      descuentos: numero(t?.descuentoItems) + numero(t?.descuentoGlobal),
-      total: numero(t?.total),
-      opcionales: numero(t?.opcionales?.total),
-      cantidadOpcionales: numero(t?.opcionales?.cantidad),
-    },
+    items: itemsArriba.map(item),
+    totales: totalesDe(t),
     vence: ddmmaaaa(args.validUntil),
     condiciones: args.version.terms,
     propuestaPago: args.version.paymentProposal,
@@ -142,18 +204,11 @@ export function armarVistaPublica(args: {
       args.estado === "ACEPTADO" && args.version.acceptedAt
         ? { fecha: fechaHoraBA.format(args.version.acceptedAt).replace(",", ""), nombre: args.version.acceptedName ?? "", opcion: elegida }
         : null,
-    cobro: c
-      ? {
-          ivaPorcentaje: c.ivaPorcentaje,
-          iva: c.iva,
-          totalConIva: c.total,
-          senaPorcentaje: c.senaPorcentaje,
-          descuentoTransferencia: c.descuentoTransferenciaPorcentaje,
-          politicaCancelacion: c.politicaCancelacion,
-        }
-      : null,
+    cobro: cobroDe(args.version.paymentOptions),
     mercadoPago,
     pedidoUrl: args.estado === "ACEPTADO" ? (args.pedidoUrl ?? null) : null,
+    alternativas: aElegir,
+    alternativaElegida: idElegida ? (alternativas.find((a) => a.id === idElegida)?.nombre ?? null) : null,
   };
 }
 

@@ -37,7 +37,8 @@ export function instanciarPropuesta(items: ItemPresupuesto[], deps: DepsInstanci
         deps.ahora,
       );
       if (!r.ok) return { ok: false, motivo: "CALCULO" };
-      out.push(r.item);
+      // La opción del presupuesto a la que pertenece (si la propuesta tiene opciones).
+      out.push(it.alternativaId ? { ...r.item, alternativaId: it.alternativaId } : r.item);
       continue;
     }
     const p = it.productId ? deps.productos.get(it.productId) : undefined;

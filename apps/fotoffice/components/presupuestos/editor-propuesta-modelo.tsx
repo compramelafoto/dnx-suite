@@ -8,7 +8,16 @@ import { borrarPropuestaModeloAction, guardarBorradorAutoAction, guardarPropuest
 import type { ItemPresupuesto } from "@/lib/presupuestos/constantes";
 import { itemDesdeProducto, nuevaClave, pesos, type ProductoParaEditor } from "@/lib/presupuestos/editor";
 import { calcularItemDelPanel, entradaDelPanel, trabajoDesdeMotor, trabajoVacio, type TrabajoPanel } from "@/lib/presupuestos/panel-cuanto-cobro";
-import { calcularTotales } from "@/lib/presupuestos/totales";
+import {
+  agregarAlternativa,
+  alternativaPrincipal,
+  copiarItemA,
+  moverItemA,
+  quitarAlternativa,
+  totalesConAlternativas,
+  type Alternativa,
+} from "@/lib/presupuestos/alternativas";
+import { PanelAlternativas } from "./editor-presupuesto";
 import { AvisoSinPerfil, CampoTexto, CamposTrabajo } from "./panel-cuanto-cobro";
 import { BuscadorCatalogo } from "./buscador-catalogo";
 
@@ -20,6 +29,9 @@ import { BuscadorCatalogo } from "./buscador-catalogo";
  * porque quien la ve tiene `configurar`, y se usa sólo para mostrar el precio de hoy. Al enviarla,
  * los ítems de lista toman nombre, descripción y precio del catálogo en ese momento, y los
  * calculados se recalculan con el perfil de ese momento.
+ *
+ * Opciones (Básico, Premium…): como en el editor de presupuestos, de 1 a 4, cada una con sus ítems;
+ * el presupuesto que nace de la propuesta las trae.
  */
 
 function aNumero(v: string): number {
@@ -38,6 +50,8 @@ export function EditorPropuestaModelo(props: {
   categoriaId: string;
   existe: boolean;
   items: ItemPresupuesto[];
+  /** Opciones de la propuesta ([] si es una propuesta común). */
+  alternativas?: Alternativa[];
   condiciones: string | null;
   enviarSola: boolean;
   /** El borrador automático está encendido para esta categoría. */
@@ -61,6 +75,12 @@ export function EditorPropuestaModelo(props: {
       return p ? { ...i, nombre: p.nombre, descripcion: p.descripcion, precioUnitario: p.precio } : i;
     }),
   );
+  const [alternativas, setAlternativas] = useState<Alternativa[]>(props.alternativas ?? []);
+  const [activa, setActiva] = useState<string | null>(() => alternativaPrincipal(props.alternativas ?? [])?.id ?? null);
+  const idActiva = alternativas.some((a) => a.id === activa) ? activa : (alternativas[0]?.id ?? null);
+  const visibles = idActiva ? items.filter((i) => i.alternativaId === idActiva) : items;
+  /** Lo nuevo va a la opción activa. */
+  const enActiva = (it: ItemPresupuesto): ItemPresupuesto => (idActiva ? { ...it, alternativaId: idActiva } : it);
   const [condiciones, setCondiciones] = useState(props.condiciones ?? "");
   const [enviarSola, setEnviarSola] = useState(props.enviarSola);
   const [borradorAuto, setBorradorAuto] = useState(props.borradorAuto);
@@ -79,10 +99,13 @@ export function EditorPropuestaModelo(props: {
     return r.ok ? r.item.precioUnitario : null;
   }
   const preciosDeHoy = new Map(items.filter(esConcepto).map((i) => [i.id, precioDeHoy(i)]));
-  const totales = calcularTotales(
+  const conAlternativas = totalesConAlternativas(
     items.map((i) => (esConcepto(i) ? { ...i, precioUnitario: preciosDeHoy.get(i.id) ?? 0 } : i)),
+    alternativas,
     null,
   );
+  const deActiva = idActiva ? conAlternativas.alternativas.find((a) => a.id === idActiva) : undefined;
+  const totales = deActiva ? { ...deActiva.totales, renglones: conAlternativas.totales.renglones } : conAlternativas.totales;
   const vistaPrevia =
     edicion && props.perfilDelWorkspace
       ? calcularItemDelPanel(props.perfilDelWorkspace, edicion.trabajo, edicion.tipoDeTrabajo, { id: edicion.id ?? "vista-previa", nombre: edicion.trabajo.nombre })
@@ -100,7 +123,7 @@ export function EditorPropuestaModelo(props: {
     } else {
       cambiar([
         ...items,
-        { ...vistaPrevia.item, id: nuevaClave(), seccion: seccionNueva.trim() || null, productId: null, precioUnitario: 0, modoPrecio: "CALCULO", calculo },
+        enActiva({ ...vistaPrevia.item, id: nuevaClave(), seccion: seccionNueva.trim() || null, productId: null, precioUnitario: 0, modoPrecio: "CALCULO", calculo }),
       ]);
     }
     setEdicion(null);
@@ -118,9 +141,12 @@ export function EditorPropuestaModelo(props: {
   }
   const actualizar = (clave: string, parche: Partial<ItemPresupuesto>) => cambiar(items.map((i) => (i.id === clave ? { ...i, ...parche } : i)));
   function mover(clave: string, paso: -1 | 1) {
+    // Con el vecino que se ve (con opciones, el de la misma opción).
+    const k = visibles.findIndex((x) => x.id === clave);
+    const vecino = visibles[k + paso];
+    if (k < 0 || !vecino) return;
     const i = items.findIndex((x) => x.id === clave);
-    const j = i + paso;
-    if (i < 0 || j < 0 || j >= items.length) return;
+    const j = items.findIndex((x) => x.id === vecino.id);
     const copia = [...items];
     [copia[i], copia[j]] = [copia[j]!, copia[i]!];
     cambiar(copia);
@@ -137,6 +163,7 @@ export function EditorPropuestaModelo(props: {
               { ...i, productId: null, precioUnitario: 0, modoPrecio: "CALCULO", calculo: { entrada: { presupuesto: presupuestoDe(i) } } }
             : { ...i, modoPrecio: "LISTA", calculo: null },
         ),
+        alternativas,
         condiciones,
         enviarSola,
         plantillaId: plantillaId || null,
@@ -183,7 +210,7 @@ export function EditorPropuestaModelo(props: {
           <BuscadorCatalogo
             id={`${id}-buscar`}
             catalogo={props.catalogo}
-            onElegir={(p) => cambiar([...items, itemDesdeProducto(p, nuevaClave(), seccionNueva.trim() || null)])}
+            onElegir={(p) => cambiar([...items, enActiva(itemDesdeProducto(p, nuevaClave(), seccionNueva.trim() || null))])}
           />
           <div className="fo-field-stack">
             <label htmlFor={`${id}-sec`} className="fo-label">
@@ -234,14 +261,40 @@ export function EditorPropuestaModelo(props: {
         <p className="text-xs text-[var(--fo-muted)]">El perfil de precios no se guarda en la propuesta: sólo el trabajo. Al enviarla se calcula con tu perfil de ese día.</p>
       </section>
 
+      <PanelAlternativas
+        alternativas={alternativas}
+        activa={idActiva}
+        totales={Object.fromEntries(conAlternativas.alternativas.map((a) => [a.id, a.totales.total]))}
+        deshabilitado={false}
+        onActivar={setActiva}
+        onCambiar={(xs) => {
+          setAlternativas(xs);
+          setMensaje(null);
+        }}
+        onAgregar={() => {
+          const r = agregarAlternativa({ alternativas, items });
+          setAlternativas(r.alternativas);
+          cambiar(r.items);
+          if (r.nueva) setActiva(r.nueva);
+        }}
+        onQuitar={(clave) => {
+          const r = quitarAlternativa({ alternativas, items }, clave);
+          setAlternativas(r.alternativas);
+          cambiar(r.items);
+          setActiva(alternativaPrincipal(r.alternativas)?.id ?? null);
+        }}
+      />
+
       <section aria-label="Productos de la propuesta" className="fo-card space-y-3 overflow-x-auto">
-        {items.length === 0 ? <p className="text-sm text-[var(--fo-muted)]">Todavía no hay productos. Buscalos en el catálogo o agregá un concepto calculado.</p> : null}
+        {idActiva ? <h2 className="text-base font-semibold">Productos de la opción {alternativas.find((a) => a.id === idActiva)?.nombre}</h2> : null}
+        {idActiva && visibles.length === 0 ? <p className="text-sm text-[var(--fo-muted)]">Esta opción todavía no tiene productos.</p> : null}
+        {items.length === 0 && !idActiva ? <p className="text-sm text-[var(--fo-muted)]">Todavía no hay productos. Buscalos en el catálogo o agregá un concepto calculado.</p> : null}
         {fueraDelCatalogo.length > 0 ? (
           <p role="alert" className="text-sm text-[var(--fo-danger)]">
             Hay productos que ya no están en el catálogo: quitalos antes de guardar.
           </p>
         ) : null}
-        {items.length > 0 ? (
+        {visibles.length > 0 ? (
           <table className="w-full min-w-[640px] text-sm">
             <thead>
               <tr className="text-left text-xs text-[var(--fo-muted)]">
@@ -255,7 +308,7 @@ export function EditorPropuestaModelo(props: {
               </tr>
             </thead>
             <tbody>
-              {items.map((it, i) => {
+              {visibles.map((it, i) => {
                 const etiquetaFila = `"${it.nombre}"`;
                 return (
                   <tr key={it.id} className="border-t border-[var(--fo-border)] align-top">
@@ -278,6 +331,44 @@ export function EditorPropuestaModelo(props: {
                         />
                         Opcional (no suma al total)
                       </label>
+                      {alternativas.length > 1 ? (
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          <select
+                            aria-label={`Mover ${etiquetaFila} a otra opción`}
+                            className="fo-input text-xs"
+                            value=""
+                            onChange={(e) => {
+                              if (e.target.value) cambiar(moverItemA(items, it.id, e.target.value));
+                            }}
+                          >
+                            <option value="">Mover a…</option>
+                            {alternativas
+                              .filter((a) => a.id !== idActiva)
+                              .map((a) => (
+                                <option key={a.id} value={a.id}>
+                                  {a.nombre || "Sin nombre"}
+                                </option>
+                              ))}
+                          </select>
+                          <select
+                            aria-label={`Copiar ${etiquetaFila} a otra opción`}
+                            className="fo-input text-xs"
+                            value=""
+                            onChange={(e) => {
+                              if (e.target.value) cambiar(copiarItemA(items, it.id, e.target.value, nuevaClave()));
+                            }}
+                          >
+                            <option value="">Copiar a…</option>
+                            {alternativas
+                              .filter((a) => a.id !== idActiva)
+                              .map((a) => (
+                                <option key={a.id} value={a.id}>
+                                  {a.nombre || "Sin nombre"}
+                                </option>
+                              ))}
+                          </select>
+                        </div>
+                      ) : null}
                     </td>
                     <td className="py-2 pr-2">
                       {esConcepto(it) ? (
@@ -302,7 +393,7 @@ export function EditorPropuestaModelo(props: {
                         <button type="button" className="fo-btn fo-btn-ghost p-1" aria-label={`Subir ${etiquetaFila}`} disabled={i === 0} onClick={() => mover(it.id, -1)}>
                           <ArrowUp className="h-4 w-4" aria-hidden />
                         </button>
-                        <button type="button" className="fo-btn fo-btn-ghost p-1" aria-label={`Bajar ${etiquetaFila}`} disabled={i === items.length - 1} onClick={() => mover(it.id, 1)}>
+                        <button type="button" className="fo-btn fo-btn-ghost p-1" aria-label={`Bajar ${etiquetaFila}`} disabled={i === visibles.length - 1} onClick={() => mover(it.id, 1)}>
                           <ArrowDown className="h-4 w-4" aria-hidden />
                         </button>
                         {esConcepto(it) && props.perfilDelWorkspace ? (
@@ -321,7 +412,7 @@ export function EditorPropuestaModelo(props: {
             </tbody>
           </table>
         ) : null}
-        {items.length > 0 ? <p className="text-right text-sm font-semibold tabular-nums">Total {pesos(totales.total)}</p> : null}
+        {visibles.length > 0 ? <p className="text-right text-sm font-semibold tabular-nums">Total {pesos(totales.total)}</p> : null}
       </section>
 
       <section aria-label="Condiciones y envío" className="fo-card space-y-4">

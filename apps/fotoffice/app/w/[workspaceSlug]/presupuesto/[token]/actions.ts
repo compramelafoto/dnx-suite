@@ -25,19 +25,23 @@ async function visitante() {
   return { ip, ipHash: hashDeIp(ip === "desconocido" ? null : ip, salDeIp()), userAgent: navegadorCorto(h.get("user-agent")) };
 }
 
-/** "Acepto": nombre, tilde de las condiciones y la forma de pago elegida (sin elegir, la primera). */
+/**
+ * "Acepto": nombre, tilde de las condiciones, la forma de pago elegida (sin elegir, la primera) y,
+ * si el presupuesto tiene opciones (Básico, Premium…), la opción que eligió el cliente.
+ */
 export async function aceptarPresupuestoAction(
   slug: unknown,
   token: unknown,
   nombre: unknown,
   acepta: unknown,
   opcion?: unknown,
+  alternativa?: unknown,
 ): Promise<ResultadoAceptarPublico> {
   const v = await visitante();
   if (!checkRateLimit({ key: `presupuesto-aceptar:${v.ip}`, limit: 10, windowMs: DIEZ_MINUTOS }).allowed) return { ok: false, error: DEMASIADOS };
   const workspaceId = await workspaceDelSlug(slug);
   if (!workspaceId) return { ok: false, error: MENSAJES_ACEPTACION.enlaceInvalido };
-  const r = await aceptarPresupuesto(workspaceId, token, { nombre, acepta, opcion }, { ipHash: v.ipHash, userAgent: v.userAgent });
+  const r = await aceptarPresupuesto(workspaceId, token, { nombre, acepta, opcion, alternativa }, { ipHash: v.ipHash, userAgent: v.userAgent });
   return r.ok ? { ok: true, pedidoUrl: r.pedidoUrl } : r;
 }
 

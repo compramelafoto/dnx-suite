@@ -7,6 +7,7 @@ import { itemsDeLaPropuesta } from "./items-de-la-propuesta";
 import { TIPOS_TRABAJO } from "./panel-cuanto-cobro";
 import { asegurarPlantillasPresupuesto } from "./plantillas";
 import { MAX_TEXTO_VERSION } from "./versiones";
+import { asignarItems, validarAlternativas, type Alternativa } from "./alternativas";
 
 /**
  * Propuesta modelo por categoría de consulta (etapa 2, Entrega B, spec §2 B.13 y §3.4).
@@ -49,6 +50,8 @@ export const MENSAJES_PROPUESTA_MODELO = {
 export type PropuestaModelo = {
   categoriaId: string;
   items: ItemPresupuesto[];
+  /** Opciones de la propuesta (Básico, Premium…); [] si es una propuesta común. */
+  alternativas: Alternativa[];
   condiciones: string | null;
   enviarSola: boolean;
   plantillaId: string | null;
@@ -67,6 +70,8 @@ export type ResumenPropuestaCategoria = {
 export type DatosPropuestaModelo = {
   categoriaId: unknown;
   items: unknown;
+  /** Opciones (1 a 4). Sin el campo o vacío: propuesta común. */
+  alternativas?: unknown;
   condiciones?: unknown;
   enviarSola?: unknown;
   plantillaId?: unknown;
@@ -153,6 +158,35 @@ export function validarItemsDeModelo(raw: unknown): ResultadoValidacion<ItemPres
   return { ok: true, valor: out };
 }
 
+/**
+ * PURO. Lo que hay en `FotofficePropuestaModelo.items`: la lista de ítems de siempre o, con
+ * opciones, `{ alternativas, items }` (sin migración: la columna es JSON). Lo de antes se lee igual.
+ */
+export function contenidoDelModelo(raw: unknown): { items: unknown; alternativas: unknown } {
+  if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+    const r = raw as { items?: unknown; alternativas?: unknown };
+    return { items: r.items ?? [], alternativas: r.alternativas ?? [] };
+  }
+  return { items: raw, alternativas: [] };
+}
+
+/** PURO. Valida opciones e ítems de la propuesta juntos (cada ítem en una opción que existe). */
+export function validarContenidoDeModelo(
+  itemsCrudos: unknown,
+  alternativasCrudas: unknown,
+): ResultadoValidacion<{ items: ItemPresupuesto[]; alternativas: Alternativa[] }> {
+  const alternativas = validarAlternativas(alternativasCrudas);
+  if (!alternativas.ok) return alternativas;
+  const items = validarItemsDeModelo(itemsCrudos);
+  if (!items.ok) return items;
+  return { ok: true, valor: { items: asignarItems(items.valor, alternativas.valor), alternativas: alternativas.valor } };
+}
+
+/** Lo que se guarda en la columna: la lista sola si no hay opciones (exactamente como antes). */
+export function contenidoParaGuardar(items: ItemPresupuesto[], alternativas: Alternativa[]): unknown {
+  return alternativas.length > 0 ? { alternativas, items } : items;
+}
+
 function textoCondiciones(v: unknown): string | null | undefined {
   if (v === null || v === undefined) return null;
   if (typeof v !== "string") return undefined;
@@ -188,10 +222,12 @@ export async function leerPropuestaModelo(workspaceId: string, categoriaId: stri
     select: { categoryId: true, items: true, terms: true, autoSendOnWeb: true, templateId: true, updatedAt: true },
   });
   if (!f) return null;
-  const items = validarItemsDeModelo(f.items);
+  const crudo = contenidoDelModelo(f.items);
+  const contenido = validarContenidoDeModelo(crudo.items, crudo.alternativas);
   return {
     categoriaId: f.categoryId,
-    items: items.ok ? items.valor : [],
+    items: contenido.ok ? contenido.valor.items : [],
+    alternativas: contenido.ok ? contenido.valor.alternativas : [],
     condiciones: f.terms,
     enviarSola: f.autoSendOnWeb,
     plantillaId: f.templateId,
@@ -225,7 +261,10 @@ export async function listarPropuestasModelo(ctx: CtxPresupuestos): Promise<Resu
       grupo: c.group,
       tienePropuesta: p !== undefined,
       enviarSola: p?.autoSendOnWeb === true,
-      cantidadItems: Array.isArray(p?.items) ? p.items.length : 0,
+      cantidadItems: (() => {
+        const items = contenidoDelModelo(p?.items).items;
+        return Array.isArray(items) ? items.length : 0;
+      })(),
     };
   });
 }
@@ -251,8 +290,10 @@ export async function guardarPropuestaModelo(ctx: CtxPresupuestos, datos: DatosP
   const { workspaceId } = ctx;
   const categoriaId = datos.categoriaId;
 
-  const items = validarItemsDeModelo(datos.items);
-  if (!items.ok) return no(items.error);
+  const contenido = validarContenidoDeModelo(datos.items, datos.alternativas);
+  if (!contenido.ok) return no(contenido.error);
+  const items = { valor: contenido.valor.items };
+  const alternativas = contenido.valor.alternativas;
   const condiciones = textoCondiciones(datos.condiciones);
   if (condiciones === undefined) return no(MENSAJES_PROPUESTA_MODELO.texto);
   if (datos.enviarSola !== undefined && typeof datos.enviarSola !== "boolean") return no(MENSAJES_PROPUESTA_MODELO.datosInvalidos);
@@ -290,7 +331,7 @@ export async function guardarPropuestaModelo(ctx: CtxPresupuestos, datos: DatosP
   if (enviarSola && plantillaId === null) return no(MENSAJES_PROPUESTA_MODELO.sinPlantilla);
 
   const valores = {
-    items: items.valor as unknown as Prisma.InputJsonValue,
+    items: contenidoParaGuardar(items.valor, alternativas) as Prisma.InputJsonValue,
     terms: condiciones,
     autoSendOnWeb: enviarSola,
     templateId: plantillaId,
