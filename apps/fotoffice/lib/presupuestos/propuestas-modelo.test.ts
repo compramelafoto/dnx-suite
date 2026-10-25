@@ -145,6 +145,16 @@ describe("conceptos calculados: lista blanca", () => {
     expect(leido!.trabajo.asignaciones).toEqual([{ persona: "owner", actividad: "coverage", horas: "6" }]);
   });
 
+  it("un fotolibro del proveedor se guarda con su elección y sin precio; sin elección válida, no", () => {
+    const fotolibro = { proveedorId: "prov-roman", modelo: "Gold", medida: "30x60", hojas: 20, conCaja: false };
+    const r = PM.validarItemsDeModelo([item("f", null, { precioUnitario: 651000, fotolibro: { ...fotolibro, precio: 1 } })]);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.valor[0]).toMatchObject({ productId: null, modoPrecio: "LISTA", precioUnitario: 0, calculo: null, fotolibro });
+    expect(PM.validarItemsDeModelo([item("f", null, { fotolibro: { ...fotolibro, hojas: 0 } })])).toEqual({ ok: false, error: M.soloLista });
+    expect(PM.validarItemsDeModelo([item("f", null)])).toEqual({ ok: false, error: M.soloLista });
+  });
+
   it("rechaza un primer concepto que no es un objeto", () => {
     expect(PM.validarItemsDeModelo([concepto("c", { calculo: { entrada: { presupuesto: { concepts: ["x"] } } } })])).toEqual({ ok: false, error: M.conceptoInvalido });
   });

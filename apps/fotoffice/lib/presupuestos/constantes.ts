@@ -7,6 +7,7 @@
  * ítems y el SQL no lo puede chequear: por eso se valida acá (`validarItem`).
  */
 import type { CuantoCobroPriceBuildUp } from "@repo/cuanto-cobro-core";
+import type { FotolibroDeModelo } from "./fotolibro-de-modelo";
 
 // --- Estados ----------------------------------------------------------------------------------
 
@@ -141,6 +142,11 @@ export type ItemPresupuesto = {
    * Sin opciones, no está (o es null): todo funciona como siempre.
    */
   alternativaId?: string | null;
+  /**
+   * Sólo en una propuesta modelo: el fotolibro elegido en la calculadora, que se cotiza con la lista
+   * del proveedor al enviarla (`./fotolibro-de-modelo.ts`). En un presupuesto no existe.
+   */
+  fotolibro?: FotolibroDeModelo;
 };
 
 /** El ítem tal como lo ven el cliente y quien no tiene permiso de costos. */
