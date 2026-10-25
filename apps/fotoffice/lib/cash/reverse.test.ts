@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildReversal } from "./reverse";
+import { buildReversal, noSeAnulaEnCaja } from "./reverse";
 
 const ingreso = {
   id: "mov-1",
@@ -126,5 +126,31 @@ describe("movimientos que se anulan en su módulo", () => {
     const tabla = readFileSync(join(raiz, "movements-table.tsx"), "utf8");
     const boton = tabla.slice(tabla.indexOf("export function AnularMovimiento"));
     expect(boton.indexOf("noSeAnulaEnCaja(m.sourceModule, m.reversesSourceModule)")).toBeLessThan(boton.indexOf("<form action={reverseMovementAction}"));
+  });
+});
+
+describe("buildReversal con saldo inicial", () => {
+  it("la anulación de un saldo inicial conserva el origen saldo-inicial", () => {
+    const r = buildReversal({ ...ingreso, categoryId: null, sourceModule: "saldo-inicial" }, "faltaban 900 pesos");
+    expect(r.ok && r.values.sourceModule).toBe("saldo-inicial");
+  });
+
+  it("cualquier otro movimiento sigue anulándose como manual", () => {
+    const venta = buildReversal({ ...ingreso, sourceModule: "sales" }, "x");
+    expect(venta.ok && venta.values.sourceModule).toBe("manual");
+    const sinOrigen = buildReversal(ingreso, "x");
+    expect(sinOrigen.ok && sinOrigen.values.sourceModule).toBe("manual");
+  });
+});
+
+describe("noSeAnulaEnCaja con saldo inicial", () => {
+  it("el saldo inicial se puede anular", () => {
+    expect(noSeAnulaEnCaja("saldo-inicial", null)).toBeNull();
+  });
+
+  it("la anulación de un saldo inicial no se deshace: revivirlo dejaría cargar otro y duplicaría el saldo", () => {
+    expect(noSeAnulaEnCaja("saldo-inicial", "saldo-inicial")).toBe(
+      "La anulación de un saldo inicial no se deshace: cargalo de nuevo desde Configuración.",
+    );
   });
 });

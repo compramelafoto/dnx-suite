@@ -45,7 +45,9 @@ function Barras({ filas }: { filas: { nombre: string; celda: Celda }[] }) {
       {filas.map((f) => (
         <li key={f.nombre} className="grid grid-cols-[6.5rem_1fr_auto] items-center gap-3 text-sm" title={`${f.nombre}: ${f.celda.cantidad} ventas, ${pesos(f.celda.importeMinor)}`}>
           <span className="text-[var(--fo-muted)]">{f.nombre}</span>
-          <span className="h-3 rounded-r-[4px] bg-[#2a78d6]" style={{ width: `${(100 * f.celda.importeMinor) / max}%`, minWidth: f.celda.importeMinor > 0 ? 2 : 0 }} />
+          <span className="block h-3 w-full">
+            <span className="block h-3 rounded-r-[4px] bg-[#2a78d6]" style={{ width: `${(100 * f.celda.importeMinor) / max}%`, minWidth: f.celda.importeMinor > 0 ? 2 : 0 }} />
+          </span>
           <span className="tabular-nums">
             {pesos(f.celda.importeMinor)} <span className="text-xs text-[var(--fo-muted)]">· {f.celda.cantidad}</span>
           </span>

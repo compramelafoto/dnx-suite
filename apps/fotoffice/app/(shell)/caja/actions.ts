@@ -16,12 +16,15 @@ import {
 } from "@/lib/cash/shift";
 import { parseMovementForm } from "@/lib/cash/movement-form";
 import { buildReversal, noSeAnulaEnCaja } from "@/lib/cash/reverse";
+import { OPENING_BALANCE_MODULE, openingBalanceDescription, parseOpeningBalanceForm } from "@/lib/cash/opening-balance";
+import { canAddOpeningBalance } from "@/lib/cash/opening-balance-rules";
 import { accountBalanceMinor } from "@/lib/cash/balance";
 import { createCashTransfer, validateTransfer } from "@/lib/cash/transfer";
 import { parseAccountForm } from "@/lib/cash/account-form";
 import { parseCategoryForm } from "@/lib/cash/category-form";
 import { seedRowsFor } from "@/lib/cash/seed";
 import { sanitizeReturnTo } from "@/lib/cash/return-to";
+import { openingBalancesByAccount } from "@/lib/cash/repository";
 import { escribirPerfilRubro, validarPerfilRubro } from "@/lib/rubros/repositorio";
 import { sembrarPlanDnx } from "@/lib/rubros/semilla";
 
@@ -298,6 +301,7 @@ export async function reverseMovementAction(formData: FormData): Promise<void> {
       description: original.description,
       alreadyReversed: original.reversedBy !== null,
       transferId: original.transferId,
+      sourceModule: original.sourceModule,
     },
     reason,
   );
@@ -307,10 +311,14 @@ export async function reverseMovementAction(formData: FormData): Promise<void> {
   await prisma.$transaction(async (tx) => {
     // Si la anulación pasa con el turno todavía abierto, el contramovimiento entra en su
     // arqueo igual que cualquier otro: no hay motivo para que quede afuera.
-    const turno = await tx.cashShift.findFirst({
-      where: { workspaceId: workspace.id, accountId: v.accountId, status: "ABIERTO" },
-      select: { id: true },
-    });
+    // La excepción es el saldo inicial: nunca entró a un arqueo, así que su anulación tampoco.
+    const esSaldoInicial = v.sourceModule === OPENING_BALANCE_MODULE;
+    const turno = esSaldoInicial
+      ? null
+      : await tx.cashShift.findFirst({
+          where: { workspaceId: workspace.id, accountId: v.accountId, status: "ABIERTO" },
+          select: { id: true },
+        });
     await tx.cashMovement.create({
       data: {
         workspaceId: workspace.id,
@@ -529,6 +537,52 @@ export async function enableCashForWorkspaceAction(): Promise<void> {
     prisma.cashAccount.createMany({ data: accounts, skipDuplicates: true }),
     prisma.cashCategory.createMany({ data: categories, skipDuplicates: true }),
   ]);
+  revalidatePath(CONFIGURACION);
+  redirect(`${CONFIGURACION}?ok=1`);
+}
+
+/**
+ * Carga el saldo inicial de una cuenta: la plata que ya había antes de empezar a usar el sistema.
+ *
+ * Suma al saldo pero no es un ingreso del negocio (`sourceModule` "saldo-inicial"; los reportes lo
+ * saltean). Sin turno, a propósito: no es plata que entró durante un turno, y meterla en un arqueo
+ * abierto lo haría dar mal. Sin categoría, porque no es ni venta ni nada que se ganó.
+ */
+export async function saveOpeningBalanceAction(formData: FormData): Promise<void> {
+  const { workspace, user } = await requireCashConfigurer();
+
+  const parsed = parseOpeningBalanceForm(formData, new Date());
+  if (!parsed.ok) redirect(`${CONFIGURACION}?error=${encodeURIComponent(parsed.error)}`);
+  const v = parsed.values;
+
+  const cuenta = await prisma.cashAccount.findFirst({
+    where: { id: v.accountId, workspaceId: workspace.id },
+    select: { id: true, kind: true },
+  });
+  if (!cuenta) redirect(`${CONFIGURACION}?error=${encodeURIComponent("Esa cuenta no existe.")}`);
+
+  const vigentes = await openingBalancesByAccount(workspace.id);
+  const regla = canAddOpeningBalance(vigentes.get(cuenta.id));
+  if (!regla.ok) redirect(`${CONFIGURACION}?error=${encodeURIComponent(regla.error)}`);
+
+  await prisma.cashMovement.create({
+    data: {
+      workspaceId: workspace.id,
+      accountId: cuenta.id,
+      shiftId: null,
+      kind: "INGRESO",
+      amountArs: minorToDecimalString(v.amountMinor),
+      occurredAt: v.occurredAt,
+      categoryId: null,
+      paymentMethod: cuenta.kind === "EFECTIVO" ? "EFECTIVO" : "OTRO",
+      description: openingBalanceDescription(v.note),
+      sourceModule: OPENING_BALANCE_MODULE,
+      sourceRef: null,
+      createdByUserId: user.id,
+    },
+  });
+
+  revalidatePath(CAJA);
   revalidatePath(CONFIGURACION);
   redirect(`${CONFIGURACION}?ok=1`);
 }

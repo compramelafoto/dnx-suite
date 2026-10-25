@@ -10,6 +10,7 @@
  * - Resultado = Ingresos − Costos − Gastos + Sin clasificar de ingreso − Sin clasificar de egreso.
  */
 import { compararCodigos } from "@/lib/rubros/rubros";
+import { isOpeningBalanceModule } from "@/lib/cash/opening-balance";
 import { diaEnBuenosAires } from "./fechas";
 import { bloqueDeRubro, ladoDeBloque, type BloqueResultado } from "./bloques";
 import { MODULOS_CAJA_DE_PEDIDOS } from "./constantes";
@@ -249,6 +250,9 @@ export function asientoDeMovimiento(
   excluidos: ReadonlySet<string> = new Set(),
 ): Asiento | null {
   if (m.transferId !== null) return null;
+  // El saldo inicial (y su anulación, que conserva el origen) suma al saldo de la cuenta pero no
+  // es resultado: esa plata ya estaba antes de empezar a usar el sistema.
+  if (isOpeningBalanceModule(m.sourceModule)) return null;
   const mes = mesDeDia(diaEnBuenosAires(m.occurredAt));
   if (m.reversesMovementId === null) {
     if (excluidos.has(m.sourceModule)) return null;
@@ -257,6 +261,7 @@ export function asientoDeMovimiento(
   const original = porId.get(m.reversesMovementId);
   if (original) {
     if (original.transferId) return null;
+    if (isOpeningBalanceModule(original.sourceModule)) return null;
     if (excluidos.has(original.sourceModule ?? m.sourceModule)) return null;
     return { mes, categoryId: original.categoryId, kind: original.kind, centavos: m.centavos, signo: -1 };
   }

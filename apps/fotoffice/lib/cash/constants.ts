@@ -47,6 +47,8 @@ export const MOVEMENT_SOURCES = [
   "galerias",
   /** Cobro de un pedido de impresión (Mercado Pago): `sourceRef` es el cobro. Si hay que devolverlo, se anula a mano desde Caja, como en galerías. */
   "impresiones",
+  /** Saldo inicial de una cuenta: suma al saldo pero no es ingreso (ver `lib/cash/opening-balance.ts`). */
+  "saldo-inicial",
 ] as const;
 export type MovementSource = (typeof MOVEMENT_SOURCES)[number];
 
