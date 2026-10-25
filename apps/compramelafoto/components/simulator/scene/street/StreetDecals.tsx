@@ -7,6 +7,7 @@ import { PuddleReflector, addPuddleReflection, type PuddleUniforms } from "./pud
 import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { isTouchGameDevice } from "@/lib/simulator/touch-input";
+import { simulatorRuntime } from "@/lib/simulator/simulator-runtime";
 
 /**
  * Detalles del piso y de las paredes: charcos que reflejan el cielo, hojas
@@ -356,6 +357,8 @@ export default function StreetDecals({ layout }: { layout: StreetLayout }) {
         bestDist = dist;
       }
     }
+    // El curso pregunta si hay un charco a la vista (lección de reflejos).
+    simulatorRuntime.nearestPuddleM = best ? bestDist : null;
     const u = reflector.uniforms;
     u.time.value = clock.elapsedTime;
     // Uno de cada dos cuadros: el reflejo guarda con qué cámara se sacó, así que en

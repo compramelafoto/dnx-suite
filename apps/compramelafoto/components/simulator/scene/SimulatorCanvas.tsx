@@ -18,6 +18,7 @@ import FocusMotorDrive from "./FocusMotorDrive";
 import FocusRaycaster from "./FocusRaycaster";
 import FirstPersonController from "./FirstPersonController";
 import SceneMeterProbe from "./SceneMeterProbe";
+import ShotGeometryProbe from "./ShotGeometryProbe";
 import SceneSpawnController from "./SceneSpawnController";
 import SimulatorSceneHealthCheck from "./SimulatorSceneHealthCheck";
 import SimulatorSceneRoot from "./SimulatorSceneRoot";
@@ -87,6 +88,7 @@ export default function SimulatorCanvas({ onLockChange, onLoaded }: SimulatorCan
       {devDebugScene ? <DevDebugScene /> : <SimulatorSceneRoot />}
       <CameraVisualEffect />
       <SceneMeterProbe />
+      <ShotGeometryProbe />
       <CanvasPhotoCapture />
       <DepthOfFieldPass />
       <SimulatorSceneHealthCheck onReady={onLoaded} />

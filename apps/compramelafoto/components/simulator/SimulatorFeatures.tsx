@@ -25,17 +25,19 @@ const FEATURES = [
   },
   {
     id: "training",
-    title: "Entrenamiento Interactivo",
-    text: "Movete libremente por los escenarios y resolvé desafíos fotográficos.",
+    title: "Curso de fotografía",
+    text: "Veinte lecciones paso a paso, de nivel inicial a avanzado, con una tarea en los simuladores que se corrige sola.",
     icon: "move",
     soon: false,
+    href: "/camofduty/curso",
   },
   {
-    id: "upcoming",
-    title: "Próximamente",
-    text: "Ejercicios guiados, desafíos de iluminación y certificaciones.",
+    id: "certificate",
+    title: "Medallas y certificado",
+    text: "Sumá estrellas en cada tarea, ganá medallas de bronce, plata u oro y descargá tu certificado de cada nivel.",
     icon: "spark",
-    soon: true,
+    soon: false,
+    href: "/camofduty/curso",
   },
 ] as const;
 
@@ -93,7 +95,7 @@ export default function SimulatorFeatures() {
               {feature.soon && <span className="cod-feature-card__tag">En desarrollo</span>}
               {"href" in feature ? (
                 <Link href={feature.href} className="cod-btn cod-btn--secondary cod-btn--sm">
-                  Abrir el estudio
+                  {feature.href === "/camofduty/estudio" ? "Abrir el estudio" : "Ir al curso"}
                 </Link>
               ) : null}
             </article>

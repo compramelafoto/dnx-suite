@@ -1,7 +1,7 @@
 "use client";
 
 import { useCameraStore } from "@/lib/simulator/camera-store";
-import { COD_CAPTURE_FRAME_EVENT, type CodCaptureFrameDetail } from "@/lib/simulator/capture-events";
+import { COD_CAPTURE_FRAME_EVENT, COD_SHOT_TAKEN_EVENT, type CodCaptureFrameDetail, type CodShotTakenDetail } from "@/lib/simulator/capture-events";
 import { playShutterSound, preloadShutterSamples, COD_OBTURAR_EVENT, type CodObturarDetail } from "@/lib/simulator/shutter-sound";
 import { shutterSpeedToSeconds } from "@/lib/simulator/camera-math";
 import { unlockSimulatorAudioFromGesture } from "@/lib/simulator/sound-engine";
@@ -18,7 +18,8 @@ export default function SimulatorShutterListener() {
     const durationMs = Math.max(shutterSpeedToSeconds(effectiveShutter) * 1000, 32);
     unlockSimulatorAudioFromGesture();
     playShutterSound(durationMs);
-    capturePhoto();
+    const result = capturePhoto();
+    window.dispatchEvent(new CustomEvent<CodShotTakenDetail>(COD_SHOT_TAKEN_EVENT, { detail: { result } }));
     window.dispatchEvent(
       new CustomEvent<CodCaptureFrameDetail>(COD_CAPTURE_FRAME_EVENT, {
         detail: {

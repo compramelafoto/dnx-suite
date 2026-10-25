@@ -233,6 +233,7 @@ model User {
   sessions                              UserSession[]
   simulatorCaptures                     SimulatorCapture[]
   camOfDutyMember                       CamOfDutyMember?
+  camOfDutyLessonProgress               CamOfDutyLessonProgress[]
   userUpsellConfigs                     UserUpsellConfig[]
   eventFoldersCreated                   EventFolder[]                          @relation("EventFolderCreator")
   eventFoldersOwnedPhotographer         EventFolder[]                          @relation("EventFolderOwnerPhotographer")
@@ -5628,6 +5629,24 @@ model CamOfDutyMember {
 
   @@index([firstVisitAt])
   @@index([jobAlertsOptIn])
+}
+
+/// Curso de fotografía de Cam Of Duty: la mejor nota de cada lección por fotógrafo.
+model CamOfDutyLessonProgress {
+  userId    Int
+  /// Id de la lección (lib/camofduty/course/lessons.ts).
+  lessonId  String
+  /// Mejor nota (0 = no aprobó todavía; 1 a 3 estrellas).
+  stars     Int       @default(0)
+  attempts  Int       @default(0)
+  passedAt  DateTime?
+  /// Datos de la mejor toma (ajustes de cámara o de luces), para mostrarla en el curso.
+  bestShot  Json?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, lessonId])
 }
 
 /// Códigos de 6 dígitos para validar el email de quien se registra en Cam Of Duty.
