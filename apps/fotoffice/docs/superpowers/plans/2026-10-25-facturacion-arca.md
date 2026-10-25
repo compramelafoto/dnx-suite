@@ -60,7 +60,7 @@ certificado (se ve en la pantalla, en rojo con menos de 30 días).
 
 ## Antes de encender el módulo
 
-1. Aplicar `packages/db/prisma/migrations/20261214120000_fotoffice_facturacion_arca/migration.sql`
+1. Aplicar `packages/db/prisma/migrations/20261217120000_fotoffice_facturacion_arca/migration.sql`
    en la base de FOTOFFICE y registrarla.
 2. Confirmar que `DNX_INTEGRATIONS_VAULT_MASTER_KEY` está en Vercel (ya la usa Google Calendar).
 3. Encender `invoicing` para el workspace y seguir los pasos de Configuración → Facturación
