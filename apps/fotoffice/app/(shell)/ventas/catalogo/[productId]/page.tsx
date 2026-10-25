@@ -16,6 +16,8 @@ import { RecetaSection } from "./receta-section";
 import { leerReceta, listarInsumosParaReceta } from "@/lib/stock/receta-servidor";
 import { piezasPorHojaSugeridas } from "@/lib/stock/receta";
 import { PresupuestoSections } from "./presupuesto-sections";
+import { ProveedorPorDefecto } from "./proveedor-por-defecto";
+import { prisma } from "@repo/db";
 import { leerPerfil, rubrosDeIngreso } from "@/lib/catalogo/perfil";
 import { sugerirRubro } from "@/lib/rubros/rubros";
 import { leerCombo, productosParaCombo } from "@/lib/catalogo/combos";
@@ -128,6 +130,22 @@ export default async function ProductoPage({
           receta={receta[0].map(({ insumoId, quantity, porCada }) => ({ insumoId, quantity, porCada }))}
           insumos={receta[1]}
           sugerencia={produccion ? { pideCuantasPorHoja: produccion.unidad === "PIEZA", piezasPorHoja: piezasSugeridas } : null}
+        />
+      ) : null}
+
+      {proyectos ? (
+        <ProveedorPorDefecto
+          productId={producto.id}
+          actual={(() => {
+            const ids = [...new Set(proyectos.reglas.map((r) => r.proveedorId ?? ""))];
+            return ids.length > 1 ? "varios" : ids[0] || null;
+          })()}
+          proveedores={await prisma.fotofficeProveedor.findMany({
+            where: { workspaceId: workspace.id, active: true },
+            orderBy: { name: "asc" },
+            select: { id: true, name: true, email: true },
+          })}
+          generaTrabajo={proyectos.reglas.length > 0}
         />
       ) : null}
 
