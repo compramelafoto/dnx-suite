@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { ImporteConContador } from "@/components/campos/contador-billetes";
 import { formatMinorArs } from "@/lib/membership/money";
 import type { OpenShiftRow } from "@/lib/cash/repository";
@@ -43,11 +44,17 @@ export function ShiftBlock({
       {/* La tarjeta vive en una columna angosta del panorama: los campos van uno debajo del
           otro y a lo ancho. En tres columnas, las etiquetas se partían palabra por palabra. */}
       {canOperate ? (
+        <Link href={`/caja/arqueo/${shift.accountId}`} className="fo-btn fo-btn-primary w-full text-sm">
+          Cerrar contando billetes
+        </Link>
+      ) : null}
+
+      {canOperate ? (
         <form action={closeShiftAction} className="space-y-3">
           <input type="hidden" name="shiftId" value={shift.id} />
           <div className="fo-field-stack">
             <label className="fo-label" htmlFor={`contado-${shift.id}`}>
-              Cuánto contaste
+              O escribí el total contado
             </label>
             <ImporteConContador id={`contado-${shift.id}`} name="countedAmountArs" placeholder="47.300" required />
           </div>
@@ -57,7 +64,7 @@ export function ShiftBlock({
             </label>
             <input id={`diferencia-${shift.id}`} name="differenceNote" className="fo-input" placeholder="Ej.: vuelto de más" />
           </div>
-          <button type="submit" className="fo-btn fo-btn-primary w-full text-sm">
+          <button type="submit" className="fo-btn fo-btn-secondary w-full text-sm">
             Cerrar turno
           </button>
         </form>

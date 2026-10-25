@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { ImporteConContador } from "@/components/campos/contador-billetes";
 import { formatMinorArs } from "@/lib/membership/money";
 import type { CashAccountRow, OpenShiftRow } from "@/lib/cash/repository";
@@ -68,6 +69,13 @@ export function AccountCard({
             </button>
           </form>
         ) : null
+      ) : null}
+
+      {/* Con turno abierto el contador ya se ofrece dentro del bloque del turno. */}
+      {canOperate && cuenta.kind === "EFECTIVO" && !turno ? (
+        <Link href={`/caja/arqueo/${cuenta.id}`} className="fo-btn fo-btn-ghost text-sm">
+          Contar billetes (arqueo)
+        </Link>
       ) : null}
     </section>
   );
