@@ -7344,6 +7344,7 @@ model Workspace {
   cashShifts                     CashShift[]
   cashMovements                  CashMovement[]
   cashTransfers                  CashTransfer[]
+  cashCounts                     CashCount[]
   productCategories              ProductCategory[]
   products                       Product[]
   stockMovements                 StockMovement[]
@@ -19048,6 +19049,7 @@ model CashAccount {
   movements    CashMovement[]
   transfersOut CashTransfer[] @relation("CashTransferFrom")
   transfersIn  CashTransfer[] @relation("CashTransferTo")
+  counts       CashCount[]
 
   @@unique([workspaceId, name])
   @@index([workspaceId, isActive])
@@ -19146,9 +19148,49 @@ model CashShift {
   workspace Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   account   CashAccount    @relation(fields: [accountId], references: [id], onDelete: Restrict)
   movements CashMovement[]
+  counts    CashCount[]
 
   @@index([workspaceId, openedAt])
   @@index([accountId, status])
+}
+
+/// Un conteo de billetes de una caja de efectivo: la foto del arqueo, para auditar.
+///
+/// Guarda qué se contó (cada denominación con su cantidad), contra qué se comparó y qué se
+/// hizo después: cuánto quedó de cambio y cuánto se pasó a la caja fuerte. Como el arqueo del
+/// turno, se escribe una vez y no se recalcula.
+model CashCount {
+  id          String  @id @default(cuid())
+  workspaceId String
+  accountId   String
+  /// El turno que se cerró con este conteo. Null si fue un arqueo suelto, sin turno.
+  shiftId     String?
+
+  /// [{ id, tipo, pesos, cantidad, subtotalMinor }] — sólo las denominaciones contadas.
+  denominations     Json
+  countedAmountArs  Decimal  @db.Decimal(12, 2)
+  /// Lo que el sistema esperaba: el del turno, o el saldo de la cuenta sin turno.
+  expectedAmountArs Decimal? @db.Decimal(12, 2)
+  differenceArs     Decimal? @db.Decimal(12, 2)
+  /// El cambio que quedó en el mostrador para el turno siguiente.
+  floatAmountArs    Decimal  @db.Decimal(12, 2)
+  /// Contado − cambio: lo que va a la caja fuerte (se haya hecho el pase o no).
+  toVaultAmountArs  Decimal  @db.Decimal(12, 2)
+  note              String?
+  /// El pase a la caja fuerte que se hizo con este conteo, si se hizo.
+  transferId           String?
+  /// El asiento de sobrante o faltante, si se registró.
+  adjustmentMovementId String?
+
+  createdByUserId Int?
+  createdAt       DateTime @default(now())
+
+  workspace Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  account   CashAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  shift     CashShift?  @relation(fields: [shiftId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, createdAt])
+  @@index([accountId, createdAt])
 }
 
 /// Un asiento del libro.
