@@ -9,6 +9,7 @@ vi.mock("server-only", () => ({}));
 vi.mock("@repo/db", () => ({ prisma: B.prisma, Prisma: { JsonNull: null } }));
 
 import { createBaseCompleteProfile } from "@repo/cuanto-cobro-core/__fixtures__/characterization-fixtures";
+import { trabajoDesdeMotor } from "./panel-cuanto-cobro";
 
 const PM = await import("./propuestas-modelo");
 const M = PM.MENSAJES_PROPUESTA_MODELO;
@@ -99,6 +100,49 @@ describe("conceptos calculados: lista blanca", () => {
       client: { jobType: "Boda", hours: { salesHours: "2" } }, chosenPrice: "5000",
       concepts: [{ name: "Cobertura", itemType: "own-service", quantity: "2", coverageHours: "6" }],
     } });
+  });
+
+  it("conserva quién hace cada parte, embalaje, disparos, cámara y línea del estudio", () => {
+    const r = PM.validarItemsDeModelo([concepto("c", { calculo: { entrada: { presupuesto: {
+      businessLineId: "events",
+      concepts: [{
+        name: "Fiesta", itemType: "own-service", coverageHours: "8", editingHours: "8", estimatedShots: "1500",
+        packagingCost: "100", cameraId: "cam-2", shotsPer: "job",
+        assignments: [
+          { personId: "owner", activity: "coverage", hours: "8" },
+          { personId: "owner", activity: "editing", hours: 8 },
+          { personId: "owner", activity: "volar", hours: "1" },
+          { personId: { x: 1 }, activity: "coverage", hours: "1" },
+          { personId: "owner", activity: "coverage", hours: "1", perfil: { gastos: 1 } },
+          "x",
+        ],
+      }],
+    } } } })]);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect((r.valor[0]!.calculo as never as { entrada: unknown }).entrada).toEqual({ presupuesto: {
+      client: {}, businessLineId: "events",
+      concepts: [{
+        name: "Fiesta", itemType: "own-service", coverageHours: "8", editingHours: "8", estimatedShots: "1500",
+        packagingCost: "100", cameraId: "cam-2", shotsPer: "job",
+        assignments: [
+          { personId: "owner", activity: "coverage", hours: "8" },
+          { personId: "owner", activity: "editing", hours: "8" },
+          { personId: "owner", activity: "coverage", hours: "1" },
+        ],
+      }],
+    } });
+  });
+
+  it("guardar y leer conserva quién hace cada parte", async () => {
+    const conAsignacion = concepto("c", { calculo: { entrada: { presupuesto: { concepts: [{
+      name: "Cobertura", itemType: "own-service", coverageHours: "6",
+      assignments: [{ personId: "owner", activity: "coverage", hours: "6" }],
+    }] } } } });
+    expect(await guardar({ items: [conAsignacion] as never, enviarSola: false })).toEqual({ ok: true });
+    const p = await PM.leerPropuestaModelo("ws-1", "cat-boda");
+    const leido = trabajoDesdeMotor((p!.items[0]!.calculo as never as { entrada: { presupuesto: unknown } }).entrada.presupuesto);
+    expect(leido!.trabajo.asignaciones).toEqual([{ persona: "owner", actividad: "coverage", horas: "6" }]);
   });
 
   it("rechaza un primer concepto que no es un objeto", () => {
