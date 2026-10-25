@@ -1,18 +1,17 @@
 /**
  * Saldo de apertura de las cuentas de Caja al arrancar (etapa E, spec 7.5). Módulo PURO.
  *
- * El saldo de apertura es un INGRESO con `sourceModule = "apertura"` y `sourceRef = accountId`, sin
- * turno ni categoría. El único `(sourceModule, sourceRef)` que ya tiene `CashMovement` garantiza uno
- * por cuenta. Cuenta para el saldo de la cuenta; los informes lo excluyen (no es plata que entró
- * al negocio: ya estaba).
+ * Es el mismo **saldo inicial** que se carga a mano en Caja → Configuración
+ * (`lib/cash/opening-balance.ts`): un INGRESO con `sourceModule = "saldo-inicial"`, sin turno ni
+ * categoría, que suma al saldo de la cuenta y que los informes saltean (no es plata que entró al
+ * negocio: ya estaba). Este módulo sólo arma el plan para cargarlo de una vez desde un archivo,
+ * creando las cuentas que falten. Las reglas son las de la pantalla: a lo sumo un saldo inicial
+ * vigente por cuenta, y para cambiarlo se anula (queda a la vista) y se vuelve a cargar.
  *
  * Un saldo que todavía no se sabe queda "pendiente": no se crea nada, y se carga después con el
- * mismo archivo. Corregir un saldo ya registrado (antes de operar) es a propósito (`--corregir`).
+ * mismo archivo o desde Configuración. Reemplazar un saldo ya cargado es a propósito (`--reemplazar`).
  */
 import { z } from "zod";
-
-/** El `sourceModule` del asiento de apertura. No vive en `constants.ts` a propósito (otras etapas lo editan). */
-export const SOURCE_APERTURA = "apertura";
 
 export type CuentaApertura = {
   nombre: string;
@@ -25,13 +24,15 @@ export type CuentaApertura = {
 };
 
 export type CuentaExistente = { id: string; name: string; kind: string; isVault: boolean; isActive: boolean };
+/** El saldo inicial vigente de una cuenta (`openingBalancesByAccount`). */
 export type AperturaExistente = { accountId: string; movementId: string; centavos: number };
 
 export type PasoApertura =
   | { tipo: "crear-cuenta"; cuenta: string; kind: "EFECTIVO" | "DIGITAL"; isVault: boolean }
   /** `cuentaId` null = la cuenta se crea en el paso anterior. */
   | { tipo: "registrar-saldo"; cuenta: string; cuentaId: string | null; centavos: number }
-  | { tipo: "corregir-saldo"; cuenta: string; cuentaId: string; movimientoId: string; deCentavos: number; aCentavos: number }
+  /** Anula el saldo inicial vigente y carga el nuevo (`aCentavos` 0 = sólo anularlo). */
+  | { tipo: "reemplazar-saldo"; cuenta: string; cuentaId: string; movimientoId: string; deCentavos: number; aCentavos: number }
   | { tipo: "pendiente"; cuenta: string; cuentaId: string | null; motivo: string }
   | { tipo: "sin-cambios"; cuenta: string; cuentaId: string | null; motivo: string }
   | { tipo: "conflicto"; cuenta: string; motivo: string };
@@ -44,7 +45,7 @@ export function planDeApertura(
   pedido: readonly CuentaApertura[],
   existentes: readonly CuentaExistente[],
   aperturas: readonly AperturaExistente[],
-  opciones: { corregir?: boolean } = {},
+  opciones: { reemplazar?: boolean } = {},
 ): PasoApertura[] {
   const pasos: PasoApertura[] = [];
   for (const c of pedido) {
@@ -76,13 +77,15 @@ export function planDeApertura(
       continue;
     }
     if (previa.centavos === c.saldoCentavos) {
-      pasos.push({ tipo: "sin-cambios", cuenta: c.nombre, cuentaId: id, motivo: "El saldo de apertura ya está registrado con ese importe." });
-    } else if (c.saldoCentavos === 0) {
-      pasos.push({ tipo: "conflicto", cuenta: c.nombre, motivo: "Para dejar la apertura en $0 hay que anular el asiento de apertura desde Caja → Movimientos." });
-    } else if (!opciones.corregir) {
-      pasos.push({ tipo: "conflicto", cuenta: c.nombre, motivo: "Ya tiene otro saldo de apertura. Para cambiarlo, correr con --corregir." });
+      pasos.push({ tipo: "sin-cambios", cuenta: c.nombre, cuentaId: id, motivo: "El saldo inicial ya está cargado con ese importe." });
+    } else if (!opciones.reemplazar) {
+      pasos.push({
+        tipo: "conflicto",
+        cuenta: c.nombre,
+        motivo: "Ya tiene otro saldo inicial. Para cambiarlo, correr con --reemplazar (se anula el actual y se carga el nuevo).",
+      });
     } else {
-      pasos.push({ tipo: "corregir-saldo", cuenta: c.nombre, cuentaId: id!, movimientoId: previa.movementId, deCentavos: previa.centavos, aCentavos: c.saldoCentavos });
+      pasos.push({ tipo: "reemplazar-saldo", cuenta: c.nombre, cuentaId: id!, movimientoId: previa.movementId, deCentavos: previa.centavos, aCentavos: c.saldoCentavos });
     }
   }
   return pasos;

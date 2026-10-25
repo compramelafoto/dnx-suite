@@ -1,17 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { leerPedidoApertura, planDeApertura, SOURCE_APERTURA, type CuentaExistente } from "./apertura";
+import { leerPedidoApertura, planDeApertura, type CuentaExistente } from "./apertura";
 
 const EXISTENTES: CuentaExistente[] = [
   { id: "a1", name: "Caja diaria", kind: "EFECTIVO", isVault: false, isActive: true },
   { id: "a2", name: "Caja fuerte", kind: "EFECTIVO", isVault: true, isActive: true },
   { id: "a3", name: "Mercado Pago", kind: "DIGITAL", isVault: false, isActive: true },
 ];
-
-describe("SOURCE_APERTURA", () => {
-  it("es el módulo que excluyen los informes", () => {
-    expect(SOURCE_APERTURA).toBe("apertura");
-  });
-});
 
 describe("planDeApertura", () => {
   it("Mercado Pago en 0 no necesita asiento; los saldos sin informar quedan pendientes", () => {
@@ -44,21 +38,29 @@ describe("planDeApertura", () => {
     expect(pasos).toEqual([{ tipo: "registrar-saldo", cuenta: "caja FUERTE", cuentaId: "a2", centavos: 500_000_00 }]);
   });
 
-  it("un saldo ya registrado igual no se toca; distinto se corrige sólo a propósito", () => {
+  it("un saldo ya cargado igual no se toca; distinto se reemplaza (anular y cargar) sólo a propósito", () => {
     const pedido = [{ nombre: "Caja fuerte", tipo: "EFECTIVO" as const, esBoveda: true, saldoCentavos: 600_000_00 }];
     expect(planDeApertura(pedido, EXISTENTES, [{ accountId: "a2", movementId: "m1", centavos: 600_000_00 }])[0].tipo).toBe("sin-cambios");
     const sin = planDeApertura(pedido, EXISTENTES, [{ accountId: "a2", movementId: "m1", centavos: 500_000_00 }]);
-    expect(sin[0]).toMatchObject({ tipo: "conflicto", motivo: expect.stringMatching(/--corregir/) });
-    const con = planDeApertura(pedido, EXISTENTES, [{ accountId: "a2", movementId: "m1", centavos: 500_000_00 }], { corregir: true });
-    expect(con).toEqual([{ tipo: "corregir-saldo", cuenta: "Caja fuerte", cuentaId: "a2", movimientoId: "m1", deCentavos: 500_000_00, aCentavos: 600_000_00 }]);
+    expect(sin[0]).toMatchObject({ tipo: "conflicto", motivo: expect.stringMatching(/--reemplazar/) });
+    const con = planDeApertura(pedido, EXISTENTES, [{ accountId: "a2", movementId: "m1", centavos: 500_000_00 }], { reemplazar: true });
+    expect(con).toEqual([{ tipo: "reemplazar-saldo", cuenta: "Caja fuerte", cuentaId: "a2", movimientoId: "m1", deCentavos: 500_000_00, aCentavos: 600_000_00 }]);
   });
 
-  it("conflictos: tipo distinto, cuenta dada de baja, saldo negativo, dejar en 0 una apertura registrada", () => {
+  it("dejar en $0 un saldo inicial cargado: conflicto sin --reemplazar; con --reemplazar sólo se anula", () => {
+    const pedido = [{ nombre: "Caja fuerte", tipo: "EFECTIVO" as const, esBoveda: true, saldoCentavos: 0 }];
+    const previa = [{ accountId: "a2", movementId: "m", centavos: 5 }];
+    expect(planDeApertura(pedido, EXISTENTES, previa)[0].tipo).toBe("conflicto");
+    expect(planDeApertura(pedido, EXISTENTES, previa, { reemplazar: true })).toEqual([
+      { tipo: "reemplazar-saldo", cuenta: "Caja fuerte", cuentaId: "a2", movimientoId: "m", deCentavos: 5, aCentavos: 0 },
+    ]);
+  });
+
+  it("conflictos: tipo distinto, cuenta dada de baja, saldo negativo", () => {
     const p = (x: Partial<Parameters<typeof planDeApertura>[0][number]>) => ({ nombre: "Caja fuerte", tipo: "EFECTIVO" as const, esBoveda: true, saldoCentavos: 1, ...x });
     expect(planDeApertura([p({ tipo: "DIGITAL" })], EXISTENTES, [])[0].tipo).toBe("conflicto");
     expect(planDeApertura([p({})], [{ ...EXISTENTES[1], isActive: false }], [])[0].tipo).toBe("conflicto");
     expect(planDeApertura([p({ saldoCentavos: -1 })], EXISTENTES, [])[0].tipo).toBe("conflicto");
-    expect(planDeApertura([p({ saldoCentavos: 0 })], EXISTENTES, [{ accountId: "a2", movementId: "m", centavos: 5 }], { corregir: true })[0].tipo).toBe("conflicto");
   });
 });
 

@@ -12,8 +12,8 @@ analítica que va a usar el tablero del estudio.
 ## Límites (para no chocar con la etapa B, que se programa en paralelo)
 
 - No se toca `lib/pedidos`, `lib/presupuestos` ni el código de Mercado Pago.
-- No se toca `lib/cash/constants.ts` (la etapa B le suma un `sourceModule`): la apertura define su constante
-  en `lib/cash/apertura.ts`.
+- No se toca `lib/cash/constants.ts`: la apertura usa el `sourceModule` del saldo inicial (#681),
+  `OPENING_BALANCE_MODULE` de `lib/cash/opening-balance.ts`.
 - En el esquema sólo se agregan tablas nuevas y relaciones inversas en `Workspace`.
 
 ## Diseño
@@ -61,12 +61,14 @@ con totales por línea y por clase, estimados, filas para revisar, faltantes; bo
 
 ### Saldo de apertura (spec 7.5)
 
-`lib/cash/apertura.ts`: plan puro (crear cuenta si falta; registrar, corregir o dejar pendiente el saldo) y
-aplicación en una transacción. Movimiento `sourceModule = "apertura"`, `sourceRef = accountId` (el único
-`(sourceModule, sourceRef)` que ya existe garantiza uno por cuenta: no hace falta índice nuevo), sin turno.
-Saldo desconocido = pendiente (no se crea nada); saldo 0 = nada que registrar. Los informes lo excluyen
-(`asientoDeMovimiento` y `movementsForReport`); el saldo de la cuenta sí lo cuenta. Script `caja:apertura`, en
-seco por omisión.
+`lib/cash/apertura.ts`: plan puro (crear cuenta si falta; cargar, reemplazar o dejar pendiente el saldo) y
+aplicación en una transacción (`apertura-aplicar.ts`). **Es el mismo saldo inicial de Caja → Configuración
+(#681)**, no un concepto aparte: movimiento `sourceModule = "saldo-inicial"`, `sourceRef = null`, sin turno ni
+categoría. Lee el vigente con `openingBalancesByAccount` y respeta `canAddOpeningBalance` (uno vigente por
+cuenta). Reemplazar (`--reemplazar`) = anular el vigente con `buildReversal` (la anulación conserva el origen)
+y cargar el nuevo; nunca se edita un importe. Saldo desconocido = pendiente (no se crea nada); saldo 0 = nada
+que cargar. Los informes y el saldo lo tratan como cualquier saldo inicial (`isOpeningBalanceModule`). Script
+`caja:apertura`, en seco por omisión.
 
 ### Analítica (`analitica.ts`, pura)
 

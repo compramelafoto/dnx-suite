@@ -1,11 +1,13 @@
 /**
- * Saldo de apertura de las cuentas de Caja (etapa E, spec 7.5). Lee un JSON con la fecha de arranque
- * y las cuentas (saldo en pesos, o `null` si todavía no se sabe), compara con la base y muestra el
- * plan. En seco por omisión: sólo LEE la base. Con `--aplicar` crea las cuentas que faltan y registra
- * los saldos; con `--corregir`, cambia una apertura ya registrada.
+ * Saldo de apertura de las cuentas de Caja (etapa E, spec 7.5). Carga el mismo **saldo inicial** que
+ * Caja → Configuración (`sourceModule = "saldo-inicial"`), pero de una vez desde un archivo. Lee un
+ * JSON con la fecha de arranque y las cuentas (saldo en pesos, o `null` si todavía no se sabe),
+ * compara con la base y muestra el plan. En seco por omisión: sólo LEE la base. Con `--aplicar` crea
+ * las cuentas que faltan y carga los saldos; con `--reemplazar`, anula el saldo inicial vigente de una
+ * cuenta y carga el nuevo (nunca edita un importe).
  *
  * Uso:
- *   DATABASE_URL_FOTOFFICE=... pnpm --filter fotoffice caja:apertura --workspace <slug> --cuentas <apertura.json> [--aplicar] [--corregir]
+ *   DATABASE_URL_FOTOFFICE=... pnpm --filter fotoffice caja:apertura --workspace <slug> --cuentas <apertura.json> [--aplicar] [--reemplazar]
  *
  * Ejemplo de apertura.json:
  *   { "fecha": "2026-10-16", "cuentas": [
@@ -33,7 +35,7 @@ async function main() {
   const args = process.argv.slice(2);
   const slug = valorDe(args, "--workspace");
   const ruta = valorDe(args, "--cuentas");
-  if (!slug || !ruta) salir("Uso: --workspace <slug> --cuentas <apertura.json> [--aplicar] [--corregir]");
+  if (!slug || !ruta) salir("Uso: --workspace <slug> --cuentas <apertura.json> [--aplicar] [--reemplazar]");
   const pedido = leerPedidoApertura(JSON.parse(readFileSync(ruta, "utf8")));
   if (!pedido.ok) salir(`El archivo de cuentas tiene errores: ${pedido.error}`);
   const url = process.env.DATABASE_URL_FOTOFFICE?.trim();
@@ -45,11 +47,16 @@ async function main() {
     const branding = await db.fotofficeWorkspaceBranding.findUnique({ where: { publicSlug: slug }, select: { workspaceId: true } });
     if (!branding) salir(`No se encontró un workspace con el slug «${slug}».`);
     const estado = await leerEstadoApertura(db, branding.workspaceId);
-    const pasos = planDeApertura(pedido.cuentas, estado.cuentas, estado.aperturas, { corregir: args.includes("--corregir") });
+    const pasos = planDeApertura(pedido.cuentas, estado.cuentas, estado.aperturas, { reemplazar: args.includes("--reemplazar") });
     for (const p of pasos) {
       if (p.tipo === "crear-cuenta") console.log(`${p.cuenta}: crear cuenta ${p.kind}${p.isVault ? " (caja fuerte)" : ""}`);
-      else if (p.tipo === "registrar-saldo") console.log(`${p.cuenta}: registrar saldo de apertura ${formatMinorArs(p.centavos)}`);
-      else if (p.tipo === "corregir-saldo") console.log(`${p.cuenta}: corregir apertura ${formatMinorArs(p.deCentavos)} → ${formatMinorArs(p.aCentavos)}`);
+      else if (p.tipo === "registrar-saldo") console.log(`${p.cuenta}: cargar saldo inicial ${formatMinorArs(p.centavos)}`);
+      else if (p.tipo === "reemplazar-saldo")
+        console.log(
+          p.aCentavos > 0
+            ? `${p.cuenta}: anular el saldo inicial de ${formatMinorArs(p.deCentavos)} y cargar ${formatMinorArs(p.aCentavos)}`
+            : `${p.cuenta}: anular el saldo inicial de ${formatMinorArs(p.deCentavos)} (queda sin saldo inicial)`,
+        );
       else console.log(`${p.cuenta}: ${p.tipo} — ${p.motivo}`);
     }
     if (pasos.some((p) => p.tipo === "conflicto")) salir("Hay conflictos: no se aplicó nada.");

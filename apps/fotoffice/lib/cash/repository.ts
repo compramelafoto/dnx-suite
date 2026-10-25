@@ -2,7 +2,8 @@ import "server-only";
 import { prisma, type Prisma } from "@repo/db";
 import { decimalArsToMinor } from "@/lib/membership/money";
 import { clientDisplayName } from "@/lib/clients/display";
-import { SOURCE_APERTURA } from "./apertura";
+import { isOpeningBalanceModule, OPENING_BALANCE_MODULE } from "@/lib/cash/opening-balance";
+import type { OpeningBalanceRow } from "@/lib/cash/opening-balance-rules";
 
 /**
  * Las consultas de Caja.
@@ -368,6 +369,8 @@ export type ReportMovementRow = {
   amountMinor: number;
   /** Es una pata de un pase entre cuentas. Se lo pasa tal cual a `lib/cash/balance.ts`. */
   isTransfer: boolean;
+  /** Es un saldo inicial o su anulación: entra en el saldo, no en ingresos ni egresos. */
+  isOpeningBalance: boolean;
   categoryId: string | null;
   categoryName: string | null;
   clientId: string | null;
@@ -393,13 +396,12 @@ export async function movementsForReport(
       workspaceId,
       occurredAt: { gte: filtros.from, lte: filtros.to },
       ...(filtros.accountId ? { accountId: filtros.accountId } : {}),
-      // El saldo de apertura (y su anulación) no es plata que entró o salió del negocio.
-      NOT: [{ sourceModule: SOURCE_APERTURA }, { reverses: { is: { sourceModule: SOURCE_APERTURA } } }],
     },
     select: {
       kind: true,
       amountArs: true,
       transferId: true,
+      sourceModule: true,
       categoryId: true,
       category: { select: { name: true } },
       clientId: true,
@@ -410,6 +412,7 @@ export async function movementsForReport(
     kind: r.kind as "INGRESO" | "EGRESO",
     amountMinor: decimalArsToMinor(r.amountArs),
     isTransfer: r.transferId !== null,
+    isOpeningBalance: isOpeningBalanceModule(r.sourceModule),
     categoryId: r.categoryId,
     categoryName: r.category?.name ?? null,
     clientId: r.clientId,
@@ -453,4 +456,34 @@ export async function userDisplayNames(ids: readonly (number | null)[]): Promise
     select: { id: true, name: true, email: true },
   });
   return new Map(rows.map((r) => [r.id, r.name?.trim() || r.email]));
+}
+
+/**
+ * El saldo inicial vigente de cada cuenta del workspace: el que no es una anulación ni fue
+ * anulado. Una cuenta sin entrada en el mapa no tiene (o el suyo se anuló).
+ *
+ * `db` es opcional: el comando `caja:apertura` lo llama con su propio cliente (la base de
+ * FOTOFFICE) o dentro de su transacción.
+ */
+export async function openingBalancesByAccount(
+  workspaceId: string,
+  db: { cashMovement: Pick<Prisma.TransactionClient["cashMovement"], "findMany"> } = prisma,
+): Promise<Map<string, OpeningBalanceRow>> {
+  const rows = await db.cashMovement.findMany({
+    where: {
+      workspaceId,
+      sourceModule: OPENING_BALANCE_MODULE,
+      kind: "INGRESO",
+      reversesMovementId: null,
+      reversedBy: { is: null },
+    },
+    select: { id: true, accountId: true, amountArs: true, occurredAt: true },
+    orderBy: { occurredAt: "asc" },
+  });
+  const mapa = new Map<string, OpeningBalanceRow>();
+  for (const r of rows) {
+    if (mapa.has(r.accountId)) continue;
+    mapa.set(r.accountId, { movementId: r.id, amountMinor: decimalArsToMinor(r.amountArs), occurredAt: r.occurredAt });
+  }
+  return mapa;
 }

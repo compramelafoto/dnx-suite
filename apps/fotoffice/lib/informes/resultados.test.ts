@@ -161,10 +161,14 @@ describe("asientosDeCaja", () => {
     expect(asientosDeCaja([r], [{ id: "t1", kind: "INGRESO", categoryId: null, transferId: "t" }])).toEqual([]);
   });
 
-  it("el saldo de apertura no es un ingreso (ni su anulación un egreso)", () => {
-    expect(asientosDeCaja([mov("ap", { sourceModule: "apertura" })], [])).toEqual([]);
-    const r = mov("r", { reversesMovementId: "ap", kind: "EGRESO" });
-    expect(asientosDeCaja([r], [{ id: "ap", kind: "INGRESO", categoryId: null, sourceModule: "apertura" }])).toEqual([]);
+  it("un saldo inicial no genera asiento", () => {
+    expect(asientosDeCaja([mov("s", { categoryId: null, sourceModule: "saldo-inicial" })], [])).toEqual([]);
+  });
+
+  it("la anulación de un saldo inicial no genera asiento, con o sin el original a mano", () => {
+    const anul = mov("x", { kind: "EGRESO", reversesMovementId: "s", sourceModule: "saldo-inicial" });
+    expect(asientosDeCaja([anul], [{ id: "s", kind: "INGRESO", categoryId: null, sourceModule: "saldo-inicial" }])).toEqual([]);
+    expect(asientosDeCaja([anul], [])).toEqual([]);
   });
 
   it("sin el original, resta del lado contrario en la categoría del contramovimiento", () => {
