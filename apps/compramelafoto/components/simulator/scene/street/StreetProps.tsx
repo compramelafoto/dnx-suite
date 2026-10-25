@@ -11,6 +11,7 @@ import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { makeImpostor, type Impostor } from "./impostor";
 import { useStreetCars } from "./street-car-models";
+import { isTouchGameDevice } from "@/lib/simulator/touch-input";
 
 /** Los autos estacionados se dibujan con los modelos de autos (ver street-car-models). */
 type ModelKind = Exclude<PropKind, "car">;
@@ -89,7 +90,12 @@ const BRONZE = new THREE.MeshStandardMaterial({ color: "#5c4327", metalness: 0.8
 /** Lado de cada grupo de dibujo (m): lo que queda lejos se apaga por grupo. */
 const CHUNK = 40;
 /** Luces reales encendidas a la vez (las demás sólo brillan): cuidan el rendimiento. */
-const ACTIVE_LAMP_LIGHTS = 12;
+const DESKTOP_LAMP_LIGHTS = 12;
+/**
+ * Celular: cada luz suma datos a todos los materiales y muchos chips de Android
+ * no aceptan tantos (los edificios y el piso no se dibujaban): sólo 3 iluminan.
+ */
+const MOBILE_LAMP_LIGHTS = 3;
 /** Altura de la luminaria del farol de calle (m) y largo de su brazo. */
 const LAMP_HEAD_HEIGHT = 5.6;
 const LAMP_ARM = 1.1;
@@ -264,7 +270,8 @@ const KINDS = Object.keys(MODEL_BY_KIND) as ModelKind[];
 function LampLights({ heads }: { heads: THREE.Vector3[] }) {
   const camera = useThree((s) => s.camera);
   const lights = useRef<(THREE.SpotLight | null)[]>([]);
-  const targets = useMemo(() => Array.from({ length: ACTIVE_LAMP_LIGHTS }, () => new THREE.Object3D()), []);
+  const activeLamps = useMemo(() => (isTouchGameDevice() ? MOBILE_LAMP_LIGHTS : DESKTOP_LAMP_LIGHTS), []);
+  const targets = useMemo(() => Array.from({ length: activeLamps }, () => new THREE.Object3D()), [activeLamps]);
   const glow = useMemo(() => new THREE.MeshStandardMaterial({ color: "#2a2620", emissive: "#ffd7a0", emissiveIntensity: 0 }), []);
   const bulbs = useMemo(() => {
     const geo = new THREE.SphereGeometry(0.16, 12, 8);
@@ -281,7 +288,7 @@ function LampLights({ heads }: { heads: THREE.Vector3[] }) {
     const nearest = heads
       .map((h, i) => ({ i, d: (h.x - camera.position.x) ** 2 + (h.z - camera.position.z) ** 2 }))
       .sort((a, b) => a.d - b.d)
-      .slice(0, Math.min(ACTIVE_LAMP_LIGHTS, simulatorRuntime.quality.lampLights));
+      .slice(0, Math.min(activeLamps, simulatorRuntime.quality.lampLights));
     lights.current.forEach((light, slot) => {
       if (!light) return;
       const pick = nearest[slot];

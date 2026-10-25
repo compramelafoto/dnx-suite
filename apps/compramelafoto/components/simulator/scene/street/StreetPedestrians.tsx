@@ -36,6 +36,7 @@ import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader.js";
 import { avatarUrl, instantiateAvatar, prepareAvatarLoader } from "./street-avatar";
+import { isTouchGameDevice } from "@/lib/simulator/touch-input";
 
 /** Altura del pecho para el autofoco (m). */
 const CHEST_Y = 1.3;
@@ -333,7 +334,7 @@ function useCompactClips(urls: string[]): THREE.AnimationClip[] {
 }
 
 export default function StreetPedestrians({ layout }: { layout: StreetLayout }) {
-  const { walkers, standers } = useMemo(() => planStreetPeople(layout), [layout]);
+  const { walkers, standers } = useMemo(() => planStreetPeople(layout, isTouchGameDevice()), [layout]);
   const figureIds = useMemo(
     () => [...new Set([...walkers, ...standers].map((p) => p.figure))],
     [walkers, standers],

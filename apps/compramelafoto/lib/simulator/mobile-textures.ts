@@ -10,7 +10,7 @@ import * as THREE from "three";
 /** Lado máximo de textura en el celular según la memoria del teléfono. */
 export function mobileTextureCap(): number {
   const memoryGb = (navigator as Navigator & { deviceMemory?: number }).deviceMemory ?? 4;
-  return memoryGb <= 4 ? 256 : 320;
+  return memoryGb <= 4 ? 192 : 256;
 }
 
 /** Medidas achicadas para que el lado mayor no pase de `cap` (null si ya entra). */

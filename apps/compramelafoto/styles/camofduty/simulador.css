@@ -932,3 +932,27 @@
     aspect-ratio: 3 / 2;
   }
 }
+
+/* Diagnóstico del render (?diag=1). */
+.cod-diag {
+  position: absolute;
+  top: 70px;
+  left: 50%;
+  z-index: 5;
+  width: min(34rem, 80%);
+  padding: 0.5rem 0.7rem;
+  border-radius: 0.5rem;
+  background: rgb(0 0 0 / 82%);
+  color: #fff;
+  font: 11px/1.4 ui-monospace, monospace;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.cod-diag p {
+  margin: 0.2rem 0 0;
+}
+
+.cod-diag__bad {
+  color: #ff8a80;
+}

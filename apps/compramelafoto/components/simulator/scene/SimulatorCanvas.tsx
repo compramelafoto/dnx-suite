@@ -26,6 +26,7 @@ import { resolveRenderProfile } from "@/lib/simulator/render";
 import { resolveThreeToneMapping } from "@/lib/simulator/render/render-profile";
 import { focalLengthToFov } from "@/lib/simulator/camera-math";
 import { EYE_HEIGHT } from "./simulator-camera-constants";
+import { diagnosticsRequested, installRenderDiagnostics } from "@/lib/simulator/render-diagnostics";
 
 export interface SimulatorCanvasProps {
   onLockChange?: (locked: boolean) => void;
@@ -57,6 +58,7 @@ export default function SimulatorCanvas({ onLockChange, onLoaded }: SimulatorCan
         gl.toneMappingExposure = SCENE_RENDER_CALIBRATION;
         gl.setClearColor("#1a1a22", 1);
         gl.setClearAlpha(1);
+        if (diagnosticsRequested()) installRenderDiagnostics(gl);
 
         if (process.env.NODE_ENV === "development") {
           console.info("[Cam Of Duty] Canvas mounted", {
