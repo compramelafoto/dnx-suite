@@ -53,6 +53,12 @@ export const NAV_KEYWORDS: Record<string, string[]> = {
   "/evaluaciones": ["notas", "calificaciones", "examenes", "trabajos practicos"],
   "/courses/settings": ["ajustes", "moneda", "comision"],
 
+  "/ventas/costos": ["costos", "costo", "margen", "ganancia", "proveedor", "lista de precios", "listas", "la isla", "fotolag", "roman", "redondeo", "actualizar precios"],
+  "/ventas/foto-carnet": ["foto carnet", "fotocarnet", "recortar", "recorte", "encuadrar", "dni", "pasaporte", "plancha", "4x4", "imprimir"],
+  "/ventas/impresiones": ["imprimir", "impresion", "cola", "para imprimir", "kodak", "epson", "carnet", "reimprimir"],
+  "/ventas/fotolibros": ["fotolibro", "fotolibros", "album", "libro", "pliego", "pliegos", "diseñar", "maquetar", "la isla", "roman", "copy express"],
+  "/ventas/impresion/configuracion": ["impresoras", "kodak", "epson", "nitidez", "hojas", "tamanos", "papel"],
+
   // Informes
   "/informes": ["tablero", "resumen", "por cobrar", "por pagar", "saldo", "finanzas", "dinero", "balance"],
   "/informes/resultados": ["ganancia", "perdida", "ingresos", "costos", "gastos", "rubros", "meses", "balance", "estado de resultados", "devengado", "percibido"],
@@ -78,7 +84,7 @@ export const NAV_KEYWORDS: Record<string, string[]> = {
   "/pedidos": ["pedido", "cobro", "cobrar", "cuotas", "recibo", "saldo", "seña", "sena"],
   "/contratos": ["contrato", "firma", "firmar", "firmado", "firmante", "pdf", "enviar contrato", "papel", "anular"],
   "/galerias": ["galeria", "galerias", "fotos", "seleccion", "elegir", "fotolibro", "subir fotos", "enlace", "cliente elige", "proof", "lightroom"],
-  "/proyectos": ["proyecto", "trabajo", "entrega", "entregas", "tablero", "etapas", "tareas", "equipo", "atraso", "suspendido"],
+  "/proyectos/en-curso": ["proyecto", "trabajo", "entrega", "entregas", "tablero", "etapas", "tareas", "equipo", "atraso", "suspendido"],
 
   // Presencia pública
   "/website": ["web", "pagina", "sitio", "portal", "home publica", "constructor", "menu"],
@@ -87,6 +93,7 @@ export const NAV_KEYWORDS: Record<string, string[]> = {
 
   // Institución
   "/workspace/configuracion": ["ajustes", "logo", "domicilio", "datos", "nombre", "configuracion"],
+  "/workspace/configuracion/equipo": ["empleados", "personal", "invitar", "usuarios", "colaboradores", "acceso"],
   "/workspace/configuracion/comision": ["autoridades", "presidente", "tesorero", "secretario", "roles", "permisos"],
   "/workspace/configuracion/integraciones": ["conexiones", "servicios", "google", "whatsapp", "calendario", "contactos"],
   "/workspace/configuracion/cobros": ["plata", "dinero", "facturacion", "mercado pago", "mp", "cobrar", "cuenta bancaria"],

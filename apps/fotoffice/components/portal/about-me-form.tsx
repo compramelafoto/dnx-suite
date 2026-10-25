@@ -165,7 +165,7 @@ export function AboutMeForm({
                     {/* eslint-disable-next-line @next/next/no-img-element -- foto de R2 */}
                     <img src={url} alt="" className="h-full w-full object-cover" />
                     {activa ? (
-                      <span className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-[var(--fo-accent)] text-xs font-semibold text-white">
+                      <span className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-[var(--fo-accent)] text-xs font-semibold text-[var(--fo-on-accent,#fff)]">
                         {orden + 1}
                       </span>
                     ) : null}

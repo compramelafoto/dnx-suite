@@ -2,6 +2,7 @@
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { descargarOriginalAction, reproducirVideoAction, vistasAction } from "@/app/w/[workspaceSlug]/galeria/[token]/acciones";
+import { EnlacePedirCopias } from "@/components/impresiones/enlace-pedir-copias";
 import { MAX_VISTAS_POR_LOTE, MENSAJES_PUBLICO, idsParaPrecargar, type FotoPublica, type VistaGaleria } from "@/lib/galerias/publico-tipos";
 import { IconoCerrar, IconoDescarga, IconoFlechaDer, IconoFlechaIzq, IconoPlay } from "./iconos";
 
@@ -207,7 +208,20 @@ function VisorEntrega(p: PropsVisor) {
  * reproductor y "Descargar" por archivo (el original). No hay selección, comentarios ni compra. `slotRecibirTodo`
  * deja el lugar de «Recibir todo por correo».
  */
-export function GaleriaEntrega({ slug, token, vista, slotRecibirTodo = null }: { slug: string; token: string; vista: VistaGaleria; slotRecibirTodo?: ReactNode }) {
+export function GaleriaEntrega({
+  slug,
+  token,
+  vista,
+  slotRecibirTodo = null,
+  enlaceImprimir,
+}: {
+  slug: string;
+  token: string;
+  vista: VistaGaleria;
+  slotRecibirTodo?: ReactNode;
+  /** Sólo si el estudio ofrece copias y la entrega tiene alguna foto. */
+  enlaceImprimir?: string;
+}) {
   const [visor, setVisor] = useState<{ ids: string[]; indice: number } | null>(null);
   const [vistas, setVistas] = useState<Record<string, string>>({});
   const [videos, setVideos] = useState<Record<string, string>>({});
@@ -362,6 +376,7 @@ export function GaleriaEntrega({ slug, token, vista, slotRecibirTodo = null }: {
           <p className="text-sm opacity-80">
             {resumen ? `Tu entrega tiene ${resumen}. ` : ""}Tocá un archivo para verlo en grande y «Descargar» para bajarlo tal como lo subió el estudio, en alta calidad.
           </p>
+          {enlaceImprimir ? <EnlacePedirCopias href={enlaceImprimir} /> : null}
         </header>
 
         {/* Lugar de «Recibir todo por correo» (lo conecta la descarga por correo). */}

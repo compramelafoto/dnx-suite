@@ -204,7 +204,7 @@ export function GaleriaAlbum({ slug, token, vista }: { slug: string; token: stri
                 key={r.numero}
                 href={`?ronda=${r.numero}`}
                 aria-current={r.numero === vista.ronda.numero ? "page" : undefined}
-                className={`rounded-full border px-3 py-1.5 text-sm ${r.numero === vista.ronda.numero ? "border-[var(--fo-accent)] bg-[var(--fo-accent)] text-white" : "border-neutral-300"}`}
+                className={`rounded-full border px-3 py-1.5 text-sm ${r.numero === vista.ronda.numero ? "border-[var(--fo-accent)] bg-[var(--fo-accent)] text-[var(--fo-on-accent,#fff)]" : "border-neutral-300"}`}
               >
                 Ronda {r.numero}
                 {r.numero === ultima && r.estado === "ABIERTA" ? " · actual" : ""}
@@ -293,7 +293,7 @@ export function GaleriaAlbum({ slug, token, vista }: { slug: string; token: stri
                         <span className="text-xs opacity-60">{i + 1}</span>
                       )}
                     </button>
-                    {n > 0 ? <span className="pointer-events-none absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--fo-accent)] px-1 text-xs font-semibold text-white">{n}</span> : null}
+                    {n > 0 ? <span className="pointer-events-none absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--fo-accent)] px-1 text-xs font-semibold text-[var(--fo-on-accent,#fff)]">{n}</span> : null}
                   </li>
                 );
               })}
@@ -315,7 +315,7 @@ export function GaleriaAlbum({ slug, token, vista }: { slug: string; token: stri
                             setPinAbierto(g.numero);
                           }}
                           aria-label={`Ver el punto ${g.numero} en la lámina`}
-                          className="mt-2 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--fo-accent)] text-sm font-semibold text-white"
+                          className="mt-2 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--fo-accent)] text-sm font-semibold text-[var(--fo-on-accent,#fff)]"
                         >
                           {g.numero}
                         </button>

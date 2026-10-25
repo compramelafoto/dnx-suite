@@ -18,7 +18,7 @@ analítica que va a usar el tablero del estudio.
 
 ## Diseño
 
-### Datos (SQL aditivo, migración `20261118120000_fotoffice_historico_caja`; NO se aplica en este PR)
+### Datos (SQL aditivo, migración `20261214120000_fotoffice_historico_caja`; NO se aplica en este PR)
 
 - `FotofficeHistoricoLote`: un lote por (workspace, mes "AAAA-MM"). Estado `BORRADOR | CONFIRMADO | DESCARTADO`,
   archivo, huella (sha-256 del contenido), cantidad de filas, totales y resumen (JSON), avisos, quién confirmó.

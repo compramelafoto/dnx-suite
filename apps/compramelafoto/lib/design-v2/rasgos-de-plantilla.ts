@@ -18,6 +18,8 @@ export type RasgosDePlantilla = {
   orientacion: Orientacion;
   cantidadFotos: number;
   conListado: boolean;
+  /** Lleva el bloque «Mosaico del curso». */
+  conMosaico: boolean;
   conLogo: boolean;
   evento: string | null;
   etiquetas: string[];
@@ -26,6 +28,7 @@ export type RasgosDePlantilla = {
 export type BloqueParaRasgos = { type: string; configJson?: unknown };
 
 const LISTADO = "course.studentList";
+const MOSAICO = "course.mosaic";
 const LOGO = "branding.schoolLogoUrl";
 /** Ranuras de foto: `photo_<n>` y las que tienen nombre. */
 const RANURA_DE_FOTO = /^photo_(\d+|individual|group|teacher|friends|extra)$/;
@@ -75,6 +78,7 @@ export function rasgosDePlantilla(input: {
         ? Math.round(meta.cantidadFotos)
         : Math.max(ranuras.size, entradas),
     conListado: typeof meta.conListado === "boolean" ? meta.conListado : claves.has(LISTADO),
+    conMosaico: typeof meta.conMosaico === "boolean" ? meta.conMosaico : claves.has(MOSAICO),
     conLogo: typeof meta.conLogo === "boolean" ? meta.conLogo : claves.has(LOGO),
     evento: texto(meta.evento),
     etiquetas,
@@ -94,6 +98,7 @@ export type FiltrosDeCatalogo = {
   /** Cantidad exacta de fotos, como texto ("" = todas). */
   cantidadFotos: string;
   listado: SiNo;
+  mosaico: SiNo;
   logo: SiNo;
 };
 
@@ -105,6 +110,7 @@ export const FILTROS_VACIOS: FiltrosDeCatalogo = {
   orientacion: "",
   cantidadFotos: "",
   listado: "",
+  mosaico: "",
   logo: "",
 };
 
@@ -133,6 +139,7 @@ export function filtrarPlantillas<T extends { name: string; rasgos: RasgosDePlan
     if (f.orientacion && r.orientacion !== f.orientacion) return false;
     if (f.cantidadFotos && String(r.cantidadFotos) !== f.cantidadFotos) return false;
     if (!cumpleSiNo(r.conListado, f.listado)) return false;
+    if (!cumpleSiNo(r.conMosaico, f.mosaico)) return false;
     if (!cumpleSiNo(r.conLogo, f.logo)) return false;
     if (palabras.length) {
       const pajar = normal([name, ...r.etiquetas, r.categoria ?? "", r.evento ?? "", r.estilo ?? ""].join(" "));

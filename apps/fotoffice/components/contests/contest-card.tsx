@@ -35,7 +35,7 @@ export function ContestCard({
         )}
         <span
           className={`absolute left-2 top-2 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
-            item.own ? "bg-[var(--fo-accent)] text-white" : "bg-[var(--fo-surface)]/90 text-[var(--fo-text)]"
+            item.own ? "bg-[var(--fo-accent)] text-[var(--fo-on-accent,#fff)]" : "bg-[var(--fo-surface)]/90 text-[var(--fo-text)]"
           }`}
         >
           {item.own ? `Organiza ${institution}` : ETIQUETA[item.source]}

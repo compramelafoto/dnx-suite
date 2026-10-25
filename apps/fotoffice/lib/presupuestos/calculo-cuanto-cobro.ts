@@ -99,6 +99,17 @@ export function itemDesdeCalculo(resultado: CuantoCobroCalculationResult, entrad
     advertencias: [...resultado.warnings],
     entrada: entrada.parametros ?? null,
     ...(desglose ? { desglose } : {}),
+    ...(resultado.quoteSummary.laborByPerson
+      ? {
+          porPersona: resultado.quoteSummary.laborByPerson.map((l) => ({
+            persona: l.personId,
+            nombre: resultado.studio?.people.find((p) => p.id === l.personId)?.name.trim() || "Sin nombre",
+            horas: Math.round(l.hours * 100) / 100,
+            costo: redondear2(finito(l.cost)),
+            alValorDelEstudio: l.atStudioRate,
+          })),
+        }
+      : {}),
   };
 
   return {

@@ -6,6 +6,7 @@ import { normalizeFotofficeOrganizationType } from "@/lib/onboarding-constants";
 import { puede } from "@/lib/access/policy";
 import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
 import { WorkspaceSettingsForm } from "./settings-form";
+import { PanelColorForm } from "./panel-color-form";
 import { EmailSignaturePreview } from "@/components/communications/email-signature-preview";
 import { TestEmailPanel } from "@/components/communications/test-email-panel";
 import { toEmailSignatureData } from "@/lib/communications/workspace-signature";
@@ -209,6 +210,21 @@ export default async function WorkspaceSettingsPage() {
         </Link>
       ) : null}
 
+      {membership?.role && puede(membership.role, "configurar") ? (
+        <Link
+          href="/workspace/configuracion/whatsapp"
+          className="fo-card flex items-center justify-between gap-4 p-4 transition hover:border-[var(--fo-accent,#1d4ed8)]"
+        >
+          <span className="space-y-0.5">
+            <span className="block text-sm font-semibold">WhatsApp</span>
+            <span className="block text-xs text-[var(--fo-muted)]">
+              Conexión de la Bandeja, pausa del bot y simulador de mensajes.
+            </span>
+          </span>
+          <span className="text-sm text-[var(--fo-accent,#1d4ed8)]">Ver →</span>
+        </Link>
+      ) : null}
+
       {membership?.role && puede(membership.role, "configurar") && pedidosVisible ? (
         <Link
           href="/workspace/configuracion/pedidos"
@@ -337,6 +353,8 @@ export default async function WorkspaceSettingsPage() {
           phone: branding?.phone ?? profile?.phone ?? "",
           whatsapp: branding?.whatsapp ?? "",
           city: branding?.city ?? "",
+          atencionDireccion: branding?.atencionDireccion ?? "",
+          atencionHorario: branding?.atencionHorario ?? "",
           province: branding?.province ?? "",
           country: branding?.country ?? "",
           website: branding?.website ?? "",
@@ -350,6 +368,9 @@ export default async function WorkspaceSettingsPage() {
           displayName: profile?.displayName ?? user.name ?? "",
         }}
       />
+      {canEdit ? (
+        <PanelColorForm actual={branding?.panelColor ?? null} sugerido={branding?.accentColor ?? "#0ea5e9"} />
+      ) : null}
       {canEdit ? (
         <EmailSignaturePreview
           data={toEmailSignatureData(

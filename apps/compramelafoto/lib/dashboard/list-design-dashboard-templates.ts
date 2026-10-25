@@ -73,7 +73,7 @@ type TemplateRow = {
   updatedAt: Date;
 };
 
-type VersionMetaRow = Map<string, { canvasJson: unknown; metaJson: unknown | null }>;
+type VersionMetaRow = Map<string, { canvasJson: unknown; metaJson: unknown | null; revision: number }>;
 
 function cvMeta(metaByVersionId: VersionMetaRow, currentVersionId: string | null): unknown | null {
   if (!currentVersionId) return null;
@@ -161,11 +161,11 @@ export async function listDesignDashboardTemplateGroups(params: {
     versionIds.length > 0 ?
       await prisma.templateV2Version.findMany({
         where: { id: { in: versionIds } },
-        select: { id: true, canvasJson: true, metaJson: true },
+        select: { id: true, canvasJson: true, metaJson: true, revision: true },
       })
     : [];
   const metaByVersionId: VersionMetaRow = new Map(
-    versions.map((v) => [v.id, { canvasJson: v.canvasJson, metaJson: v.metaJson ?? null }])
+    versions.map((v) => [v.id, { canvasJson: v.canvasJson, metaJson: v.metaJson ?? null, revision: v.revision }])
   );
 
   /*
@@ -224,7 +224,11 @@ export async function listDesignDashboardTemplateGroups(params: {
       status: row.status,
       currentVersionId: row.currentVersionId,
       // Sin imagen propia, la que dibuja el servidor: así todo el catálogo muestra el diseño.
-      thumbnailUrl: pickThumbFromMeta(metaJson) ?? miniaturaDePlantillaUrl(row.id, row.currentVersionId),
+      thumbnailUrl: pickThumbFromMeta(metaJson) ?? miniaturaDePlantillaUrl(
+        row.id,
+        row.currentVersionId,
+        row.currentVersionId ? metaByVersionId.get(row.currentVersionId)?.revision : null,
+      ),
       preview: parsePreviewFromCanvas(cvRow?.canvasJson),
       tipoLabel: tipoParts.join(" · "),
       publication:

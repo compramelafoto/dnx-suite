@@ -60,6 +60,11 @@ import { resolveParticipantPhotoDataUrl } from "../participant-cards/participant
 import { requireParticipantCardAdminAccess } from "../participant-cards/participant-card-authorization";
 import { CLICKATON_CARD_RENDERER_VERSION } from "../participant-cards/participant-card-renderer-version";
 import {
+  buildDiplomaRankingVariables,
+  loadDiplomaRanking,
+  type DiplomaRanking,
+} from "./diploma-ranking";
+import {
   instantiatePresetPayload,
   type ClickatonCardPreset,
 } from "../participant-cards/participant-card-presets";
@@ -252,6 +257,16 @@ export type DiplomaServiceDeps = {
     editionId: string;
   }) => Promise<DiplomaTemplateResolution>;
   resolvePhoto?: (input: DiplomaResolvePhotoInput) => Promise<string | null>;
+  /**
+   * Puesto, calificación y categoría del ranking general de la edición.
+   * null = sin fotos calificadas: las variables salen en blanco y el diploma
+   * de participación se emite igual. Un error de base sí corta la emisión,
+   * para no imprimir en blanco por un fallo pasajero.
+   */
+  loadRanking?: (input: {
+    editionId: string;
+    registrationId: string;
+  }) => Promise<DiplomaRanking | null>;
   renderPng?: (input: DiplomaRenderPngInput) => Promise<DiplomaRenderPngResult>;
   saveToStorage?: (
     input: DiplomaSaveToStorageInput
@@ -707,6 +722,7 @@ function resolveDeps(deps: DiplomaServiceDeps) {
     loadRegistration: deps.loadRegistration ?? defaultLoadRegistration,
     resolveTemplate: deps.resolveTemplate ?? resolveDiplomaTemplate,
     resolvePhoto: deps.resolvePhoto ?? defaultResolvePhoto,
+    loadRanking: deps.loadRanking ?? loadDiplomaRanking,
     renderPng: deps.renderPng ?? defaultRenderPng,
     saveToStorage: deps.saveToStorage ?? defaultSaveToStorage,
     upsertCard: deps.upsertCard ?? defaultUpsertCard,
@@ -768,6 +784,7 @@ function buildDiplomaTemplateData(input: {
   accreditedAt: Date;
   issuedAt: Date;
   timezone: string;
+  ranking: DiplomaRanking | null;
 }): Record<string, unknown> {
   const base = buildClickatonParticipantTemplateData({
     registration: input.registration,
@@ -779,6 +796,7 @@ function buildDiplomaTemplateData(input: {
     issuedAtFormatted: formatDateShort(input.issuedAt, input.timezone),
     accreditedAtFormatted: formatDateWithTime(input.accreditedAt, input.timezone),
     verificationUrl: buildDiplomaVerificationUrl(input.verificationToken),
+    ...buildDiplomaRankingVariables(input.ranking),
   };
 
   // El armado compartido devuelve las variables dos veces: anidadas y
@@ -791,6 +809,11 @@ function buildDiplomaTemplateData(input: {
     "diploma.issuedAtFormatted": diploma.issuedAtFormatted,
     "diploma.accreditedAtFormatted": diploma.accreditedAtFormatted,
     "diploma.verificationUrl": diploma.verificationUrl,
+    "diploma.position": diploma.position,
+    "diploma.positionOrdinal": diploma.positionOrdinal,
+    "diploma.rankingTotal": diploma.rankingTotal,
+    "diploma.score": diploma.score,
+    "diploma.category": diploma.category,
   };
 }
 
@@ -798,10 +821,14 @@ function computeDiplomaRenderHash(input: {
   registrationId: string;
   diplomaCode: string;
   source: { templateId: string; versionId: string; versionNumber: number; revision: number };
+  ranking: DiplomaRanking | null;
 }): string {
   const payload = JSON.stringify({
     registrationId: input.registrationId,
     diplomaCode: input.diplomaCode,
+    // Si el ranking cambia (una calificación anulada, un jurado que termina
+    // tarde), el diploma rehecho es otro archivo y no pisa al anterior.
+    ranking: buildDiplomaRankingVariables(input.ranking),
     templateId: input.source.templateId,
     versionId: input.source.versionId,
     versionNumber: input.source.versionNumber,
@@ -1062,6 +1089,10 @@ export async function issueDiploma(
 
     const timezone = registration.edition.timezone?.trim() || CLICKATON_DEFAULT_TIMEZONE;
     const accreditedAt = earliestAccreditedAt(registration.checkIns, issuedAt);
+    const ranking = await deps.loadRanking({
+      editionId: registration.editionId,
+      registrationId: registration.id,
+    });
 
     const templateData = buildDiplomaTemplateData({
       registration,
@@ -1071,6 +1102,7 @@ export async function issueDiploma(
       accreditedAt,
       issuedAt,
       timezone,
+      ranking,
     });
 
     const rendered = await deps.renderPng({ preset: template.preset, templateData });
@@ -1079,6 +1111,7 @@ export async function issueDiploma(
       registrationId: registration.id,
       diplomaCode,
       source: template.source,
+      ranking,
     });
 
     const storageKey = buildParticipantCardStorageKey({
@@ -1281,6 +1314,10 @@ export async function renderDiplomaPreview(
     const timezone = registration.edition.timezone?.trim() || CLICKATON_DEFAULT_TIMEZONE;
     const now = deps.now();
     const accreditedAt = earliestAccreditedAt(registration.checkIns, now);
+    const ranking = await deps.loadRanking({
+      editionId: registration.editionId,
+      registrationId: registration.id,
+    });
 
     const templateData = buildDiplomaTemplateData({
       registration,
@@ -1293,6 +1330,7 @@ export async function renderDiplomaPreview(
       accreditedAt,
       issuedAt: now,
       timezone,
+      ranking,
     });
 
     const rendered = await deps.renderPng({ preset: template.preset, templateData });

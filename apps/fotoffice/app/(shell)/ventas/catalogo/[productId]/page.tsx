@@ -7,9 +7,17 @@ import { loadPublicSlug } from "@/lib/blog/admin-queries";
 import { STORE_MODULE_KEY } from "@/lib/store/constants";
 import { QUOTES_MODULE_KEY } from "@/lib/presupuestos/acceso";
 import { ProductForm } from "../../product-form";
+import { listarProveedores } from "@/lib/proveedores/repositorio";
 import { toggleProductActiveAction } from "../../actions";
 import { StoreSections } from "./store-sections";
+import { ProduccionSection } from "./produccion-section";
+import { asegurarConfiguracion, leerProduccion, listarSalidas } from "@/lib/impresion/configuracion";
+import { RecetaSection } from "./receta-section";
+import { leerReceta, listarInsumosParaReceta } from "@/lib/stock/receta-servidor";
+import { piezasPorHojaSugeridas } from "@/lib/stock/receta";
 import { PresupuestoSections } from "./presupuesto-sections";
+import { ProveedorPorDefecto } from "./proveedor-por-defecto";
+import { prisma } from "@repo/db";
 import { leerPerfil, rubrosDeIngreso } from "@/lib/catalogo/perfil";
 import { sugerirRubro } from "@/lib/rubros/rubros";
 import { leerCombo, productosParaCombo } from "@/lib/catalogo/combos";
@@ -40,6 +48,21 @@ export default async function ProductoPage({
     isModuleEnabledForWorkspace(workspace.id, QUOTES_MODULE_KEY),
   ]);
   if (!producto) notFound();
+
+  await asegurarConfiguracion(workspace.id);
+  const [produccion, salidasImpresion] = await Promise.all([leerProduccion(workspace.id, producto.id), listarSalidas(workspace.id)]);
+
+  // Receta de consumo: un insumo no lleva receta. La sugerencia sólo aparece si el producto se produce en el local.
+  const receta =
+    producto.kind !== "INSUMO"
+      ? await Promise.all([leerReceta(workspace.id, producto.id), listarInsumosParaReceta(workspace.id)])
+      : null;
+  const tamanoHoja = produccion
+    ? salidasImpresion.flatMap((s) => s.tamanos).find((t) => t.id === produccion.tamanoHojaId)?.nombre ?? ""
+    : "";
+  const piezasSugeridas = produccion
+    ? piezasPorHojaSugeridas({ tipoPieza: produccion.tipoPieza, unidad: produccion.unidad, tamanoHoja })
+    : 1;
 
   // Etapa 2: combo, costos-plantilla y datos para presupuestos, SÓLO con el módulo Presupuestos
   // encendido (si no, la ficha queda como antes y ni se leen). Esta ficha ya exige
@@ -92,7 +115,39 @@ export default async function ProductoPage({
         </p>
       ) : null}
 
-      <ProductForm product={producto} categories={categorias} error={query.error} />
+      <ProductForm
+        product={producto}
+        categories={categorias}
+        error={query.error}
+        proveedores={(await listarProveedores(workspace.id, { soloActivos: true })).map((p) => ({ id: p.id, name: p.name }))}
+      />
+
+      <ProduccionSection productId={producto.id} produccion={produccion} salidas={salidasImpresion} />
+
+      {receta ? (
+        <RecetaSection
+          productId={producto.id}
+          receta={receta[0].map(({ insumoId, quantity, porCada }) => ({ insumoId, quantity, porCada }))}
+          insumos={receta[1]}
+          sugerencia={produccion ? { pideCuantasPorHoja: produccion.unidad === "PIEZA", piezasPorHoja: piezasSugeridas } : null}
+        />
+      ) : null}
+
+      {proyectos ? (
+        <ProveedorPorDefecto
+          productId={producto.id}
+          actual={(() => {
+            const ids = [...new Set(proyectos.reglas.map((r) => r.proveedorId ?? ""))];
+            return ids.length > 1 ? "varios" : ids[0] || null;
+          })()}
+          proveedores={await prisma.fotofficeProveedor.findMany({
+            where: { workspaceId: workspace.id, active: true },
+            orderBy: { name: "asc" },
+            select: { id: true, name: true, email: true },
+          })}
+          generaTrabajo={proyectos.reglas.length > 0}
+        />
+      ) : null}
 
       {etapa2 ? (
         <PresupuestoSections
@@ -110,7 +165,10 @@ export default async function ProductoPage({
         />
       ) : null}
 
-      <StoreSections product={producto} publicSlug={publicSlug} storeEnabled={storeEnabled} />
+      {/* Un insumo no se vende: no se ofrece publicarlo en la tienda. */}
+      {producto.kind !== "INSUMO" ? (
+        <StoreSections product={producto} publicSlug={publicSlug} storeEnabled={storeEnabled} />
+      ) : null}
     </div>
   );
 }

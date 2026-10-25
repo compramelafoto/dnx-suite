@@ -91,6 +91,31 @@ export async function agregarMensajes(conversationId: string, msgs: { role: stri
   });
 }
 
+/** Suma tokens y gasto al día argentino de la persona en esa plataforma (`botUsageDaily`). */
+async function sumarUsoDiario(p: { plataforma: string; userId: number; usage: TokenUsage; costMicroUsd: number; mensajes: number }): Promise<void> {
+  const day = diaArgentino();
+  const actorKey = claveUsuario(p.userId);
+  await prisma.botUsageDaily.upsert({
+    where: { platform_day_actorKey: { platform: p.plataforma, day, actorKey } },
+    create: {
+      platform: p.plataforma,
+      day,
+      userId: p.userId,
+      actorKey,
+      messages: p.mensajes,
+      inputTokens: p.usage.input_tokens,
+      outputTokens: p.usage.output_tokens,
+      costMicroUsd: p.costMicroUsd,
+    },
+    update: {
+      ...(p.mensajes ? { messages: { increment: p.mensajes } } : {}),
+      inputTokens: { increment: p.usage.input_tokens },
+      outputTokens: { increment: p.usage.output_tokens },
+      costMicroUsd: { increment: p.costMicroUsd },
+    },
+  });
+}
+
 export async function registrarUso(p: {
   plataforma: string;
   userId: number;
@@ -99,28 +124,7 @@ export async function registrarUso(p: {
   costMicroUsd: number;
   contarMensaje: boolean;
 }): Promise<void> {
-  const day = diaArgentino();
-  const actorKey = claveUsuario(p.userId);
-  const mensajes = p.contarMensaje ? 1 : 0;
-  await prisma.botUsageDaily.upsert({
-    where: { platform_day_actorKey: { platform: p.plataforma, day, actorKey } },
-    create: {
-      platform: p.plataforma,
-      day,
-      userId: p.userId,
-      actorKey,
-      messages: mensajes,
-      inputTokens: p.usage.input_tokens,
-      outputTokens: p.usage.output_tokens,
-      costMicroUsd: p.costMicroUsd,
-    },
-    update: {
-      messages: { increment: mensajes },
-      inputTokens: { increment: p.usage.input_tokens },
-      outputTokens: { increment: p.usage.output_tokens },
-      costMicroUsd: { increment: p.costMicroUsd },
-    },
-  });
+  await sumarUsoDiario({ ...p, mensajes: p.contarMensaje ? 1 : 0 });
   await prisma.botConversation.update({
     where: { id: p.conversationId },
     data: {
@@ -130,6 +134,19 @@ export async function registrarUso(p: {
       costMicroUsd: { increment: p.costMicroUsd },
     },
   });
+}
+
+/**
+ * Gasto de leer una factura con IA (stock etapa 3): va al mismo `botUsageDaily` que DNX Bot, así
+ * entra en los topes del mes, pero sin conversación y sin contar un mensaje del chat.
+ */
+export async function registrarUsoImportacion(p: {
+  plataforma: string;
+  userId: number;
+  usage: TokenUsage;
+  costMicroUsd: number;
+}): Promise<void> {
+  await sumarUsoDiario({ ...p, mensajes: 0 });
 }
 
 /** Mensajes de hoy de la persona (en todos sus workspaces), gasto del mes de todo FOTOFFICE y del workspace. */

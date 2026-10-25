@@ -5,7 +5,7 @@ import type { ResourceResolver } from "../render/resources";
  * Formatos de esta primera versión. El contrato admite más —plancha imprimible, ZIP, marcas
  * de corte, perfil de color— y esos llegan cuando haya emisión masiva.
  */
-export type EmissionFormat = "PDF" | "PNG_PER_SIDE" | "SVG_PER_SIDE";
+export type EmissionFormat = "PDF" | "PNG_PER_SIDE" | "JPG_PER_SIDE" | "SVG_PER_SIDE";
 
 export type EmittedFile = {
   name: string;
@@ -23,8 +23,10 @@ export type EmitRequest = {
   formats: EmissionFormat[];
   /** Solo PRINT. Por defecto, sin sangrado. */
   includeBleed?: boolean;
-  /** Solo PNG. Por defecto, el dpi que declara el documento. */
+  /** PNG y JPG. Por defecto, el dpi que declara el documento. */
   pngDpi?: number;
+  /** Solo JPG: calidad de 1 a 100 (por defecto 95). */
+  jpgQuality?: number;
   resources: ResourceResolver;
   /** Sin extensión. Se le agrega la cara y el formato. */
   fileBaseName: string;

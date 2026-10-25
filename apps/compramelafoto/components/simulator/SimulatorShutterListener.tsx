@@ -2,7 +2,7 @@
 
 import { useCameraStore } from "@/lib/simulator/camera-store";
 import { COD_CAPTURE_FRAME_EVENT, type CodCaptureFrameDetail } from "@/lib/simulator/capture-events";
-import { playShutterSound, COD_OBTURAR_EVENT, type CodObturarDetail } from "@/lib/simulator/shutter-sound";
+import { playShutterSound, preloadShutterSamples, COD_OBTURAR_EVENT, type CodObturarDetail } from "@/lib/simulator/shutter-sound";
 import { shutterSpeedToSeconds } from "@/lib/simulator/camera-math";
 import { unlockSimulatorAudioFromGesture } from "@/lib/simulator/sound-engine";
 import { useCallback, useEffect } from "react";
@@ -32,6 +32,17 @@ export default function SimulatorShutterListener() {
       new CustomEvent<CodObturarDetail>(COD_OBTURAR_EVENT, { detail: { durationMs } }),
     );
   }, [derived.effectiveSettings.shutterSpeed, derived.effectiveSettings.aperture, focus.distanceM, capturePhoto]);
+
+  // La grabación del obturador se baja con el primer gesto (antes no hay audio).
+  useEffect(() => {
+    const load = () => void preloadShutterSamples();
+    window.addEventListener("pointerdown", load, { once: true });
+    window.addEventListener("keydown", load, { once: true });
+    return () => {
+      window.removeEventListener("pointerdown", load);
+      window.removeEventListener("keydown", load);
+    };
+  }, []);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {

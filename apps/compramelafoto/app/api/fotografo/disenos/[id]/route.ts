@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
+import { estadosDeRecortes, recortesActivos } from "@/lib/recortes/recortes";
 import { prisma } from "@/lib/prisma";
+import { readPrivateCopy } from "@repo/template-editor-core";
 import { toDesignTemplatePayload } from "@/lib/design-v2/client-payload";
 import type { DesignV2Edit } from "@/lib/design-v2/design-data";
 import { designErrorResponse, parseId, requireDesignActor } from "@/lib/design-v2/http";
@@ -26,7 +28,7 @@ export async function GET(_req: Request, context: Ctx) {
     const { project, data } = await loadDesignProjectForActor(id, actor);
     const template = await loadTemplateForDesign(data);
 
-    const [photos, album, order, item] = await Promise.all([
+    const [photos, album, order, item, produccion, version] = await Promise.all([
       prisma.photo.findMany({
         where: { id: { in: data.photoIds } },
         select: { id: true, previewUrl: true, originalKey: true },
@@ -49,9 +51,20 @@ export async function GET(_req: Request, context: Ctx) {
             },
           })
         : null,
+      prisma.designProject.findUnique({
+        where: { id: project.id },
+        select: { sentToPrintAt: true, printedAt: true, deliveredAt: true },
+      }),
+      prisma.templateV2Version.findUnique({ where: { id: template.versionId }, select: { metaJson: true } }),
     ]);
+    const enProduccion = Boolean(produccion?.sentToPrintAt || produccion?.printedAt || produccion?.deliveredAt);
+    const copia = readPrivateCopy(version?.metaJson);
+    const editadoAMano = copia?.kind === "design-project" && copia.id === String(project.id);
+    const plantillaPropia = actor.role === "ADMIN" || template.ownerUserId === actor.id;
     const photoById = new Map(photos.map((p) => [p.id, p]));
 
+    // Los recortes sin fondo de las fotos del diseño (para los huecos «Quitar el fondo»).
+    const recortes = new Map((await estadosDeRecortes(data.photoIds)).map((r) => [r.photoId, r]));
     return NextResponse.json({
       ok: true,
       design: {
@@ -68,13 +81,30 @@ export async function GET(_req: Request, context: Ctx) {
           student:
             [item?.order.studentFirstName, item?.order.studentLastName].filter(Boolean).join(" ").trim() || null,
         },
+        /** Retocar el armado en el diseñador completo, sobre una copia sólo de este diseño. */
+        armado: {
+          editadoAMano,
+          enProduccion,
+          puedeEditar: !enProduccion && plantillaPropia,
+          motivo: enProduccion
+            ? "Ya se mandó a imprimir: el diseño no se puede cambiar."
+            : !plantillaPropia
+              ? "La plantilla no es tuya: duplicala en tus plantillas para poder retocar el armado."
+              : null,
+        },
       },
       data,
       template: toDesignTemplatePayload(template),
       photos: data.photoIds.map((pid) => {
         const p = photoById.get(pid);
-        return { id: pid, url: p ? designPhotoDisplayUrl(p) : null };
+        const r = recortes.get(pid);
+        return {
+          id: pid,
+          url: p ? designPhotoDisplayUrl(p) : null,
+          ...(r ? { cutout: { status: r.status, url: r.status === "READY" ? r.url : null, error: r.error } } : {}),
+        };
       }),
+      recortesActivos: recortesActivos(),
     });
   } catch (err) {
     return designErrorResponse(err, "leer diseño");

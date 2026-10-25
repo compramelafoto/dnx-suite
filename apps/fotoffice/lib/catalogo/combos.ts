@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@repo/db";
+import { NO_ES_INSUMO, esVendible } from "@/lib/sales/vendible";
 import { decimalArsToMinor } from "@/lib/membership/money";
 import { NO_EXISTE, type ResultadoCatalogo } from "./perfil";
 import { formaCiclo, normalizarComponentes, resumenCombo, type ComponenteEntrada, type ResumenCombo } from "./reglas";
@@ -57,7 +58,7 @@ export async function leerCombo(workspaceId: string, comboProductId: string, pre
 /** Lo que se ofrece para agregar a un combo: los productos activos del workspace, menos él mismo. */
 export async function productosParaCombo(workspaceId: string, comboProductId: string): Promise<{ id: string; name: string; priceMinor: number }[]> {
   const filas = await prisma.product.findMany({
-    where: { workspaceId, isActive: true, id: { not: comboProductId } },
+    where: { workspaceId, isActive: true, id: { not: comboProductId }, ...NO_ES_INSUMO },
     orderBy: [{ name: "asc" }],
     select: { id: true, name: true, priceArs: true },
     take: 500,
@@ -82,8 +83,9 @@ export async function guardarComponentes(
 
     const ids = componentes.map((c) => c.productId);
     if (ids.length > 0) {
-      const propios = await tx.product.findMany({ where: { workspaceId, id: { in: ids } }, select: { id: true } });
+      const propios = await tx.product.findMany({ where: { workspaceId, id: { in: ids } }, select: { id: true, kind: true } });
       if (propios.length !== new Set(ids).size) return { ok: false, error: "Uno de los componentes no es un producto de tu catálogo." };
+      if (propios.some((p) => !esVendible(p.kind))) return { ok: false, error: "Un insumo no se puede vender dentro de un combo." };
 
       const existentes = await tx.fotofficeComboItem.findMany({
         where: { workspaceId },

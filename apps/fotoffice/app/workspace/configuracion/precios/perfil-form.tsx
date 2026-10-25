@@ -6,14 +6,16 @@ import {
   CC_WIZARD_STEPS,
   getCuantoCobroMissingFields,
   INITIAL_CUANTO_COBRO_QUOTE,
+  isStudioModeActive,
   type CuantoCobroProfileInput,
+  type CuantoCobroStudioStepId,
 } from "@repo/cuanto-cobro-core";
 import type { CuantoCobroStepId } from "@repo/cuanto-cobro-core/types";
 import { CC_DATA_SECURITY_NOTICE } from "@repo/cuanto-cobro-core/types";
 import { validarPerfil } from "@/lib/precios/perfil-datos";
 import { resumirPerfil } from "@/lib/precios/resumen";
-import { pesos } from "@/lib/presupuestos/editor";
-import { guardarPerfilPreciosAction } from "./actions";
+import { useFormatearPesos } from "@/components/campos/formato-pesos";
+import { guardarPerfilPreciosAction, type ResultadoPerfilPrecios } from "./actions";
 import { OfertaArmarConversando } from "@/components/dnx-bot/oferta-perfil";
 import {
   Aviso,
@@ -26,12 +28,23 @@ import {
   SeccionNegocio,
   SeccionPosicionamiento,
   SeccionTiempo,
-  type PropsSeccion,
+
 } from "./secciones";
 import { SeccionCobros } from "./secciones-cobros";
+import { encenderMiEstudio } from "@/lib/precios/estudio";
+import type { MiembroParaVincular } from "@/lib/precios/estudio-servidor";
+import {
+  SeccionEquipoEstudio,
+  SeccionEquipoYCamaras,
+  SeccionGastosFijos,
+  SeccionOtrasLineas,
+  SeccionResumenEstudio,
+  SeccionVosEnElEstudio,
+  type PropsSeccionEstudio,
+} from "./secciones-estudio";
 
 /** Los pasos del perfil del ¿Cuánto Cobro? original (la moneda no: FOTOFFICE cotiza en pesos). */
-const CONTENIDO: Partial<Record<string, (p: PropsSeccion) => React.ReactNode>> = {
+const CONTENIDO: Partial<Record<string, (p: PropsSeccionEstudio) => React.ReactNode>> = {
   employment: SeccionIngresos,
   personal: SeccionGastosPersonales,
   business: SeccionNegocio,
@@ -44,7 +57,28 @@ const CONTENIDO: Partial<Record<string, (p: PropsSeccion) => React.ReactNode>> =
   "pricing-extras": SeccionCobros,
 };
 
+/** Mi estudio: los pasos que cambian (los demás son los de siempre). */
+const CONTENIDO_ESTUDIO: Partial<Record<string, (p: PropsSeccionEstudio) => React.ReactNode>> = {
+  ...CONTENIDO,
+  "studio-costs": SeccionGastosFijos,
+  "studio-team": SeccionEquipoEstudio,
+  "studio-owner": SeccionVosEnElEstudio,
+  investment: SeccionEquipoYCamaras,
+  "studio-lines": SeccionOtrasLineas,
+  "studio-summary": SeccionResumenEstudio,
+};
+
 type Paso = { id: string; title: string; description: string; motor: boolean };
+
+/**
+ * Un paso que agrega quien usa el formulario, después de los del perfil. Lo usa el portal del socio
+ * para cerrar con el valor de la hora y el presupuesto de un trabajo: no son parte del perfil, pero
+ * se calculan con el perfil que se está editando, sin guardar.
+ */
+export type PasoAgregado = { id: string; title: string; description: string; Contenido: (p: PropsSeccionEstudio) => React.ReactNode };
+
+/** Otro título o explicación para un paso del perfil, en la lengua de quien lo mira. */
+export type TextoDePaso = { title?: string; description?: string };
 
 /**
  * Paso propio de FOTOFFICE (no está en el asistente de CLF): impuestos, cobros y recargos. Es
@@ -57,10 +91,31 @@ const PASO_COBROS: Paso = {
   motor: false,
 };
 
-const PASOS: Paso[] = [
+const PASOS_SOLO: Paso[] = [
   ...CC_WIZARD_STEPS.filter((p) => p.block === "profile" && CONTENIDO[p.id]).map((p) => ({ id: p.id, title: p.title, description: p.description, motor: true })),
   PASO_COBROS,
 ];
+
+const pasoDelMotor = (id: CuantoCobroStepId): Paso => {
+  const p = CC_WIZARD_STEPS.find((x) => x.id === id)!;
+  return { id: p.id, title: p.title, description: p.description, motor: true };
+};
+
+/** Mi estudio (spec 2026-10-15, §4): gastos fijos, equipo, vos, equipamiento, emergencia, otras líneas, posicionamiento, impuestos y resumen. */
+const PASOS_ESTUDIO: Paso[] = [
+  { id: "studio-costs", title: "Gastos fijos del estudio", description: "Lo que pagás todos los meses haya trabajo o no: local, servicios, software, publicidad, contador…", motor: true },
+  { id: "studio-team", title: "Equipo", description: "Cada persona con su contratación, su sueldo y su jornada (días por semana × horas por día).", motor: true },
+  { id: "studio-owner", title: "Vos en el estudio", description: "Tu retiro por mes y tu jornada.", motor: true },
+  { ...pasoDelMotor("investment"), description: "La inversión mensual en equipo, tu cámara principal y las otras cámaras del estudio." },
+  { ...pasoDelMotor("emergency-fund"), description: "Reserva mensual del estudio para imprevistos." },
+  { id: "studio-lines", title: "Otras líneas y ganancia", description: "Lo que dejan los productos o los cursos y la ganancia del estudio para reinvertir.", motor: false },
+  pasoDelMotor("commercial-positioning"),
+  PASO_COBROS,
+  { id: "studio-summary", title: "Resumen del estudio", description: "Lo que cuesta el estudio por mes, las horas que puede cobrar y cuánto vale la hora de cada uno.", motor: false },
+];
+
+const SIN_TEXTOS: Partial<Record<string, TextoDePaso>> = {};
+const SIN_PASOS: PasoAgregado[] = [];
 
 /**
  * Formulario del perfil de precios, con la forma del asistente de ¿Cuánto Cobro?: un paso por vez,
@@ -70,13 +125,38 @@ export function PerfilForm({
   inicial,
   version,
   bot = null,
+  estudio = null,
+  accion = guardarPerfilPreciosAction,
+  textos = SIN_TEXTOS,
+  pasosAgregados = SIN_PASOS,
 }: {
   inicial: CuantoCobroProfileInput;
   version: string | null;
   /** DNX Bot encendido para este workspace: se ofrece armarlo conversando sólo si la persona parece trabada. */
   bot?: { workspaceId: string } | null;
+  /** Mi estudio: si se ofrece (workspace de tipo estudio) y los miembros para vincular a cada persona. */
+  estudio?: { ofrece: boolean; miembros: MiembroParaVincular[] } | null;
+  /** Dónde se guarda. Por omisión, el perfil del workspace (Configuración → Precios). */
+  accion?: (perfil: unknown, versionCargada?: string | null) => Promise<ResultadoPerfilPrecios>;
+  /** Títulos y explicaciones propios para algunos pasos, por id. */
+  textos?: Partial<Record<string, TextoDePaso>>;
+  /** Pasos que van al final, después de los del perfil. */
+  pasosAgregados?: PasoAgregado[];
 }) {
+  const pesos = useFormatearPesos();
   const [perfil, setPerfil] = useState(inicial);
+  const modoEstudio = isStudioModeActive(perfil);
+  const PASOS = useMemo(
+    () => [
+      ...(modoEstudio ? PASOS_ESTUDIO : PASOS_SOLO).map((p) => ({ ...p, ...textos[p.id] })),
+      ...pasosAgregados.map((p) => ({ id: p.id, title: p.title, description: p.description, motor: false })),
+    ],
+    [modoEstudio, textos, pasosAgregados],
+  );
+  const contenidos = useMemo(
+    () => ({ ...(modoEstudio ? CONTENIDO_ESTUDIO : CONTENIDO), ...Object.fromEntries(pasosAgregados.map((p) => [p.id, p.Contenido])) }),
+    [modoEstudio, pasosAgregados],
+  );
   /** Cuándo se guardó el perfil que se está editando (null: no había): para no pisar un cambio de otro (o de DNX Bot). */
   const [versionCargada, setVersionCargada] = useState(version);
   const [error, setError] = useState<string | null>(null);
@@ -88,15 +168,15 @@ export function PerfilForm({
   /** Intentó guardar y no pudo, o lo que guardó sigue incompleto: una señal de que está trabada (oferta del bot). */
   const [guardadoTrabado, setGuardadoTrabado] = useState(false);
   const faltanPorPaso = useMemo(
-    () => PASOS.map((p) => (p.motor ? getCuantoCobroMissingFields(p.id as CuantoCobroStepId, perfil, INITIAL_CUANTO_COBRO_QUOTE) : [])),
-    [perfil],
+    () => PASOS.map((p) => (p.motor ? getCuantoCobroMissingFields(p.id as CuantoCobroStepId | CuantoCobroStudioStepId, perfil, INITIAL_CUANTO_COBRO_QUOTE) : [])),
+    [perfil, PASOS],
   );
 
-  const paso = PASOS[indice];
+  const paso = PASOS[Math.min(indice, PASOS.length - 1)];
   const faltan = faltanPorPaso[indice];
   const progreso = ((indice + 1) / PASOS.length) * 100;
   const ultimo = indice === PASOS.length - 1;
-  const Contenido = CONTENIDO[paso.id]!;
+  const Contenido = contenidos[paso.id]!;
 
   const cambiar = (parcial: Partial<CuantoCobroProfileInput>) => {
     setPerfil((p) => ({ ...p, ...parcial }));
@@ -104,6 +184,13 @@ export function PerfilForm({
     setError(null);
     setMostrarFaltan(false);
   };
+
+  /** Encender o apagar Mi estudio. Apagar no borra nada: el bloque queda guardado con `enabled: false`. */
+  function cambiarModo(encender: boolean) {
+    const actual = perfil.studioStructure;
+    cambiar({ studioStructure: encender ? encenderMiEstudio(perfil) : actual ? { ...actual, enabled: false } : undefined });
+    setIndice(0);
+  }
 
   function irA(i: number) {
     setMostrarFaltan(false);
@@ -129,7 +216,7 @@ export function PerfilForm({
       return;
     }
     empezar(async () => {
-      const r = await guardarPerfilPreciosAction(perfil, versionCargada);
+      const r = await accion(perfil, versionCargada);
       if (r.ok) {
         setVersionCargada(r.actualizado);
         setOk("Perfil guardado.");
@@ -164,7 +251,7 @@ export function PerfilForm({
         className={
           "inline-flex h-[1.625rem] w-[1.625rem] shrink-0 items-center justify-center rounded-full " +
           (actual
-            ? "bg-[var(--fo-accent)] text-white shadow-[0_0_0_3px_var(--fo-accent-muted)]"
+            ? "bg-[var(--fo-accent)] text-[var(--fo-on-accent,#fff)] shadow-[0_0_0_3px_var(--fo-accent-muted)]"
             : completo
               ? "bg-[color-mix(in_srgb,var(--fo-success)_14%,transparent)] text-[var(--fo-success)]"
               : "bg-[color-mix(in_srgb,var(--fo-warning,#d97706)_14%,transparent)] text-[var(--fo-warning,#d97706)]")
@@ -178,6 +265,24 @@ export function PerfilForm({
   return (
     <div className="space-y-6">
       {bot ? <OfertaArmarConversando workspaceId={bot.workspaceId} perfilCompleto={resumen.completo} guardadoTrabado={guardadoTrabado} /> : null}
+      {estudio?.ofrece || modoEstudio ? (
+        <div className="fo-card flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+          {modoEstudio ? (
+            <p className="text-sm">
+              <strong>Mi estudio está encendido.</strong> Los gastos del local, tu retiro y los sueldos van separados, y cada hora se puede cobrar según quién la hace.
+              {estudio?.ofrece ? null : " Tu organización ya no es de tipo estudio: podés apagarlo."}
+            </p>
+          ) : (
+            <p className="text-sm">
+              <strong>¿Trabajás con equipo?</strong> Encendé «Mi estudio» para separar los gastos del local, tu retiro y los sueldos, y para que cada hora se cobre
+              según quién la hace. Si lo apagás, vuelve todo como estaba.
+            </p>
+          )}
+          <button type="button" className={modoEstudio ? "fo-btn fo-btn-secondary shrink-0" : "fo-btn fo-btn-primary shrink-0"} onClick={() => cambiarModo(!modoEstudio)}>
+            {modoEstudio ? "Apagar Mi estudio" : "Encender Mi estudio"}
+          </button>
+        </div>
+      ) : null}
     <div className="w-full min-w-0 overflow-hidden rounded-2xl border border-[var(--fo-border)] bg-[var(--fo-bg-elevated)] shadow-[var(--fo-shadow-xs)] lg:grid lg:grid-cols-[16rem_1fr]">
       <aside
         className="hidden flex-col border-r border-[var(--fo-border)] bg-[color-mix(in_srgb,var(--fo-surface-muted)_55%,var(--fo-bg-elevated))] lg:flex"
@@ -193,7 +298,7 @@ export function PerfilForm({
           {barra}
         </div>
         <nav className="flex-1 px-2.5 py-3">
-          <p className="px-2 pb-2 text-[0.6875rem] font-semibold uppercase tracking-wider text-[var(--fo-muted)]">Perfil del fotógrafo</p>
+          <p className="px-2 pb-2 text-[0.6875rem] font-semibold uppercase tracking-wider text-[var(--fo-muted)]">{modoEstudio ? "Mi estudio" : "Perfil del fotógrafo"}</p>
           <ul className="space-y-0.5">
             {PASOS.map((p, i) => (
               <li key={p.id}>
@@ -221,7 +326,7 @@ export function PerfilForm({
             {[
               ["Necesidad mensual", pesos(resumen.necesidadMensual)],
               ["Horas que se cobran por mes", String(Math.round(resumen.horasFacturablesMes * 10) / 10)],
-              ["Costo de tu hora", resumen.costoHora === null ? "—" : pesos(resumen.costoHora)],
+              ...(modoEstudio ? [] : [["Costo de tu hora", resumen.costoHora === null ? "—" : pesos(resumen.costoHora)]]),
             ].map(([t, v]) => (
               <div key={t} className="flex justify-between gap-2">
                 <dt className="text-[var(--fo-muted)]">{t}</dt>
@@ -229,7 +334,7 @@ export function PerfilForm({
               </div>
             ))}
             <div className="flex justify-between gap-2 pt-1">
-              <dt className="font-semibold">Valor de tu hora</dt>
+              <dt className="font-semibold">{modoEstudio ? "Valor hora del estudio" : "Valor de tu hora"}</dt>
               <dd className="font-bold tabular-nums text-[var(--fo-accent)]">{resumen.valorHora === null ? "—" : pesos(resumen.valorHora)}</dd>
             </div>
           </dl>
@@ -247,7 +352,7 @@ export function PerfilForm({
         {/* En el celular: el paso actual, la barra y los pasos como fichas. */}
         <div className="space-y-3 border-b border-[var(--fo-border)] p-4 lg:hidden">
           <p className="text-xs font-semibold uppercase tracking-wider text-[var(--fo-muted)]">
-            Paso {indice + 1} de {PASOS.length} · Perfil del fotógrafo
+            Paso {indice + 1} de {PASOS.length} · {modoEstudio ? "Mi estudio" : "Perfil del fotógrafo"}
           </p>
           {barra}
           <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1" role="tablist" aria-label="Elegir paso">
@@ -273,7 +378,7 @@ export function PerfilForm({
             ))}
           </div>
           <p className="text-sm">
-            Valor de tu hora:{" "}
+            {modoEstudio ? "Valor hora del estudio" : "Valor de tu hora"}:{" "}
             <strong className="text-[var(--fo-accent)]">{resumen.valorHora === null ? "—" : pesos(resumen.valorHora)}</strong>
           </p>
         </div>
@@ -288,7 +393,7 @@ export function PerfilForm({
           </header>
 
           <div className="space-y-5 p-5 sm:p-6">
-            <Contenido perfil={perfil} cambiar={cambiar} />
+            <Contenido perfil={perfil} cambiar={cambiar} miembros={estudio?.miembros ?? []} />
             {mostrarFaltan && faltan.length > 0 ? (
               <div role="alert">
                 <Aviso tono="alerta">

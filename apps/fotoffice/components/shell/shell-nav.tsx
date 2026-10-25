@@ -21,6 +21,7 @@ import {
   Link2,
   Plug,
   Inbox,
+  MessageCircle,
   LayoutDashboard,
   LayoutGrid,
   ListPlus,
@@ -30,9 +31,13 @@ import {
   Shield,
   Tags,
   UserCog,
+  UserPlus,
   Users,
   Wallet2,
   Workflow,
+  Truck,
+  Printer,
+  Coins,
 } from "lucide-react";
 import type { ComponentType } from "react";
 import { useShellNav } from "./shell-frame";
@@ -44,6 +49,7 @@ import {
   type SubmoduleAccess,
   type SubmoduleItem,
 } from "@/lib/modules/submodules";
+import { BANDEJA_MODULE_KEY } from "@/lib/bandeja/constantes";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
 import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
@@ -51,6 +57,9 @@ import { SPONSORS_MODULE_KEY } from "@/lib/sponsors/constants";
 import { GOVERNANCE_MODULE_KEY } from "@/lib/governance/constants";
 import { COMMUNICATIONS_MODULE_KEY } from "@/lib/communications/constants";
 import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
+import { CASH_MODULE_KEY } from "@/lib/cash/constants";
+import { SALES_MODULE_KEY } from "@/lib/sales/constants";
+import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 import { EVALUACIONES_MODULE_KEY } from "@/lib/evaluaciones/constants";
 import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
@@ -75,6 +84,8 @@ const CONTRACTS_MODULE_KEY = "contracts";
 const GALLERY_MODULE_KEY = "gallery";
 // Ídem `lib/informes/constantes`.
 const REPORTS_MODULE_KEY = "reports";
+// Ídem `lib/impresiones/constantes`.
+const PRINT_ORDERS_MODULE_KEY = "print-orders";
 
 /**
  * Menú principal.
@@ -106,6 +117,8 @@ type Item = {
   isActive: (path: string) => boolean;
   /** Qué se hace ahí, en una línea. No se dibuja en el menú: el buscador busca dentro. */
   description?: string;
+  /** Cantidad a mostrar al lado del nombre (ej. mensajes sin leer). Se omite si es 0. */
+  badge?: number;
 };
 
 function exact(href: string) {
@@ -215,7 +228,13 @@ function Section({
                 className={itemClass(item.isActive(path))}
               >
                 <Icon className="size-4 shrink-0 opacity-80" aria-hidden />
-                {item.label}
+                <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                {item.badge && item.badge > 0 ? (
+                  <span className="rounded-full bg-[var(--fo-accent)] px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white">
+                    {item.badge > 99 ? "99+" : item.badge}
+                    <span className="sr-only"> sin leer</span>
+                  </span>
+                ) : null}
               </Link>
             );
           })}
@@ -233,6 +252,7 @@ export function ShellNav({
   platformAdmin,
   vocabulary,
   openGroups = [],
+  bandejaNoLeidos = 0,
 }: {
   /** Nivel en cada módulo, de `getModuleLevels`. Un módulo apagado viene en NONE. */
   levels: ModuleLevels;
@@ -246,6 +266,8 @@ export function ShellNav({
   vocabulary: PersonVocabulary;
   /** Grupos que la persona dejó desplegados, leídos de la cookie en el servidor. */
   openGroups?: readonly string[];
+  /** Mensajes sin leer de la Bandeja de WhatsApp (se calculan en el servidor). */
+  bandejaNoLeidos?: number;
 }) {
   const path = usePathname() ?? "";
   const { closeDrawer } = useShellNav();
@@ -298,6 +320,12 @@ export function ShellNav({
 
   const cursos: Item[] = itemsDeModulo(COURSES_SALES_MODULE_KEY, access, vocabulary);
 
+  // Ventas (con el Mostrador primero), Caja y Clientes: antes sólo se llegaba desde las
+  // tarjetas del inicio, y el equipo de un local no encontraba dónde cobrar.
+  const ventas: Item[] = itemsDeModulo(SALES_MODULE_KEY, access, vocabulary);
+  const caja: Item[] = itemsDeModulo(CASH_MODULE_KEY, access, vocabulary);
+  const clientes: Item[] = itemsDeModulo(CLIENTS_MODULE_KEY, access, vocabulary);
+
   // Evaluaciones evalúa actividades de los cursos: es del mismo dominio, no un módulo suelto.
   // Tiene su propia llave, así que puede estar encendido sin cursos — en ese caso la sección
   // "Cursos" muestra solo este ítem, que sigue siendo cierto.
@@ -337,6 +365,20 @@ export function ShellNav({
     mundo** usara o no la función —la deuda estaba anotada en este mismo lugar desde que se
     agregaron—. Ahora es un módulo como los demás y arranca apagado.
   */
+  // Bandeja de WhatsApp: módulo propio (`whatsapp-inbox`). Apagado en el workspace, nadie tiene nivel.
+  const whatsapp: Item[] = ve(BANDEJA_MODULE_KEY)
+    ? [
+        {
+          href: "/bandeja",
+          label: "Bandeja de WhatsApp",
+          description: "Los chats de WhatsApp: quién los atiende, respuestas y clientes vinculados.",
+          icon: MessageCircle,
+          isActive: under("/bandeja"),
+          badge: bandejaNoLeidos,
+        },
+      ]
+    : [];
+
   const captacion: Item[] = [
     ...(ve(SERVICE_LEADS_MODULE_KEY)
     ? [
@@ -370,6 +412,20 @@ export function ShellNav({
             icon: Calculator,
             isActive: under("/presupuestos"),
           },
+          // Precios (¿Cuánto Cobro? y Mi estudio): antes sólo se llegaba desde "Datos de la institución".
+          // Es configuración, así que sólo para quien puede configurar (dueño o administrador): el
+          // mismo acceso completo que decide los ajustes de Informes.
+          ...(access.fullAccess === true
+            ? [
+                {
+                  href: "/workspace/configuracion/precios",
+                  label: "Precios",
+                  description: "Tus costos, tus horas, Mi estudio y el valor de la hora para cotizar.",
+                  icon: Coins,
+                  isActive: under("/workspace/configuracion/precios"),
+                },
+              ]
+            : []),
         ]
       : []),
     // Pedidos (etapa 3): módulo propio (`orders`, depende de Presupuestos), con su nivel.
@@ -388,9 +444,10 @@ export function ShellNav({
     ...(ve(PROJECTS_MODULE_KEY)
       ? [
           {
-            href: "/proyectos",
+            href: "/proyectos/en-curso",
             label: "Proyectos",
-            description: "Los trabajos de cada pedido: etapas, tareas, fechas y equipo.",
+            // Abre en "En curso": todos los trabajos juntos, para operar el día a día.
+            description: "Los trabajos en curso de todos los recorridos: etapas, entregas, proveedores y saldos.",
             icon: FolderKanban,
             isActive: under("/proyectos"),
           },
@@ -467,6 +524,13 @@ export function ShellNav({
           description: "Quién integra la comisión, con qué cargo y qué puede hacer cada uno.",
           icon: Users,
           isActive: under("/workspace/configuracion/comision"),
+        },
+        {
+          href: "/workspace/configuracion/equipo",
+          label: "Equipo",
+          description: "Quiénes trabajan en este espacio: invitar por correo y dar de baja.",
+          icon: UserPlus,
+          isActive: under("/workspace/configuracion/equipo"),
         },
         {
           href: "/workspace/configuracion/integraciones",
@@ -587,6 +651,25 @@ export function ShellNav({
           icon: Hash,
           isActive: under("/workspace/configuracion/numeracion"),
         },
+        {
+          href: "/workspace/configuracion/proveedores",
+          label: "Proveedores",
+          description: "Los laboratorios y talleres a los que se mandan trabajos (La Isla, Román, Fotolag…).",
+          icon: Truck,
+          isActive: under("/workspace/configuracion/proveedores"),
+        },
+        // Pedidos de impresión: tamaños y precios, sólo con el módulo encendido.
+        ...(ve(PRINT_ORDERS_MODULE_KEY)
+          ? [
+              {
+                href: "/workspace/configuracion/impresiones",
+                label: "Impresiones",
+                description: "Tamaños, costos y precios de las copias que piden los clientes desde su carpeta.",
+                icon: Printer,
+                isActive: under("/workspace/configuracion/impresiones"),
+              },
+            ]
+          : []),
         // Etapa 8A: traer el CRM de Alboom. Dueño o admin, sin módulo propio.
         {
           href: "/workspace/configuracion/alboom",
@@ -628,10 +711,14 @@ export function ShellNav({
       ],
     },
     { title: vocabulary.Plural, items: socios, moduleKey: MEMBERS_MODULE_KEY },
+    { title: "Ventas", items: ventas, moduleKey: SALES_MODULE_KEY },
+    { title: "Caja", items: caja, moduleKey: CASH_MODULE_KEY },
+    { title: "Clientes", items: clientes, moduleKey: CLIENTS_MODULE_KEY },
     { title: "Sorteos", items: sorteos, moduleKey: RAFFLES_MODULE_KEY },
     { title: "Sponsors", items: sponsors, moduleKey: SPONSORS_MODULE_KEY },
     { title: "Comisión", items: comision, moduleKey: GOVERNANCE_MODULE_KEY },
     { title: "Comunicación", items: comunicacion, moduleKey: COMMUNICATIONS_MODULE_KEY },
+    { title: "WhatsApp", items: whatsapp, moduleKey: BANDEJA_MODULE_KEY },
     { title: "Coberturas", items: coberturas, moduleKey: COVERAGES_MODULE_KEY },
     { title: "Cursos", items: cursosItems, moduleKey: COURSES_SALES_MODULE_KEY },
     { title: "Reservas", items: reservas, moduleKey: BOOKINGS_MODULE_KEY },

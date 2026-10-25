@@ -1,6 +1,6 @@
 import SimulatorFeatures from "@/components/simulator/SimulatorFeatures";
 import SimulatorHero from "@/components/simulator/SimulatorHero";
-import SimulatorPreview from "@/components/simulator/SimulatorPreview";
+import DailyQuestionSection from "@/components/simulator/DailyQuestionSection";
 import SimulatorShell from "@/components/simulator/SimulatorShell";
 
 export default function CamOfDutyPage() {
@@ -9,7 +9,7 @@ export default function CamOfDutyPage() {
       <main>
         <SimulatorHero />
         <SimulatorFeatures />
-        <SimulatorPreview />
+        <DailyQuestionSection />
       </main>
     </SimulatorShell>
   );

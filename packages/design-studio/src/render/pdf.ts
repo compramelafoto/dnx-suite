@@ -41,6 +41,7 @@ import {
   type PdfFontSet,
 } from "./fonts-pdf";
 import { RENDERER_VERSION } from "./version";
+import { ubicarFotoEncuadrada } from "../layout/encuadre";
 import { detectImageFormat, type ResourceResolver } from "./resources";
 
 export type RenderPdfOptions = {
@@ -140,7 +141,9 @@ function dibujarTexto(
         : item.align === "right"
           ? item.widthPt - ancho
           : 0;
-    const baseY = altoPagina - (item.yPt + medioInterlineado + ascenso + i * item.lineHeightPt);
+    const baseY =
+      altoPagina -
+      (item.yPt + item.offsetYPt + medioInterlineado + ascenso + i * item.lineHeightPt);
     const x = item.xPt + desplazamiento;
     if (conKerning) {
       escribirConKerning(page, font, conKerning, linea, {
@@ -342,13 +345,30 @@ async function dibujarPagina(
 
     page.pushOperators(...operadoresDeClip(item, yPdf), clip(), endPath());
 
-    page.drawImage(imagen, {
-      x: item.xPt + (item.widthPt - ancho) / 2,
-      y: yPdf + (item.heightPt - altoImg) / 2,
-      width: ancho,
-      height: altoImg,
-      opacity: item.opacity,
-    });
+    if (item.fit === "cover" && item.crop) {
+      // Encuadrada: la cuenta va de arriba hacia abajo, como en pantalla; el PDF mide desde abajo.
+      const u = ubicarFotoEncuadrada({
+        anchoRecuadro: item.widthPt,
+        altoRecuadro: item.heightPt,
+        aspectoFoto: imagen.width / imagen.height,
+        crop: item.crop,
+      });
+      page.drawImage(imagen, {
+        x: item.xPt + u.x,
+        y: yPdf + item.heightPt - u.y - u.height,
+        width: u.width,
+        height: u.height,
+        opacity: item.opacity,
+      });
+    } else {
+      page.drawImage(imagen, {
+        x: item.xPt + (item.widthPt - ancho) / 2,
+        y: yPdf + (item.heightPt - altoImg) / 2,
+        width: ancho,
+        height: altoImg,
+        opacity: item.opacity,
+      });
+    }
 
     page.pushOperators(popGraphicsState());
   }

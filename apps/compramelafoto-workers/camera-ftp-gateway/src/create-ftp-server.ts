@@ -6,7 +6,7 @@ import {
   FtpServer,
   GeneralError,
   type FtpConnection,
-} from "ftp-srv";
+} from "./ftp-srv-compat.js";
 import type { GatewayConfig } from "./config.js";
 import { authenticateFtpUser, type CameraFtpAuthContext } from "./authenticate.js";
 import {

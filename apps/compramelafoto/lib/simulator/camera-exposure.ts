@@ -3,24 +3,19 @@
  *
  * Modelo EV (referencia ISO 100):
  *   EV100 = log₂(N² / t)     — N = diafragma, t = tiempo de exposición (s)
- *   EV    = EV100 − log₂(ISO / 100)
+ *   EV    = EV100 − log₂(ISO / 100)   (EV de la cámara)
  *
- * Referencia pedagógica de escena neutra:
- *   ISO 400 · 1/250 s · f/2.8 → fotómetro en 0 EV (sceneLuminanceEv = 0)
+ * Luz de la escena (ver scene-light.ts y metering.ts):
+ *   brillo B   = EV100 de un gris medio de 0,18 unidades de render (luz absoluta)
+ *   medición M = EV100 que lee el fotómetro en la imagen real del recuadro
  *
- * Multiplicador de render (luminancia relativa):
- *   k × 2^(sceneLuminanceEv) × (ISO/ISO_ref) × (t/t_ref) × (N_ref/N)²
- *   donde k = SCENE_RENDER_CALIBRATION
- *
- * Modo M: la compensación de exposición NO altera imagen ni captura; solo el fotómetro.
- * Modos A/S: la compensación altera el autoajuste y por tanto LIVE VIEW y captura.
+ * Imagen (LIVE VIEW y foto): píxel = render × (gris de pantalla / 0,18) × 2^(B − EV cámara)
+ * Fotómetro: M − EV cámara (positivo = sobreexpuesto).
+ * Modos A/S: eligen el valor automático para que EV cámara = M − compensación.
+ * Modo M: la compensación sólo mueve la aguja del fotómetro.
  */
 
 import { shutterSpeedToSeconds } from "./camera-math";
-import { computeSunState } from "./natural-light";
-import { estimateSceneLuminanceForScene } from "./scene-luminance";
-import type { SimulatorSceneId } from "./scenes";
-import type { SunState } from "./natural-light";
 import { defaultCompare, stepOption } from "./param-step";
 import { simulatorRuntime } from "./simulator-runtime";
 import type { CameraState } from "./camera-types";
@@ -30,19 +25,50 @@ import {
   SHUTTER_PRESETS,
   type ExposureVerdict,
 } from "./camera-types";
+import { aperturesForLens, apertureStops, exactAperture, exactIso } from "./exposure-scales";
 
 export type ViewfinderMode = "live-view" | "dslr-view";
 export type CompositionGuideMode = "none" | "thirds" | "center";
 
 /**
- * Calibración del render 3D: con ajustes de referencia y sceneLuminanceEv = 0
- * la escena se ve con exposición neutra (ni quemada ni negra).
+ * Escala interna del multiplicador del render (la ganancia real es
+ * multiplicador / SCENE_RENDER_CALIBRATION).
  */
 export const SCENE_RENDER_CALIBRATION = 4;
 
-/** Visor óptico DSLR: brillo fijo tipo ojo humano (solo luminancia de escena). */
-export function computeDslrViewfinderExposureMultiplier(sceneLuminanceEv: number): number {
-  return SCENE_RENDER_CALIBRATION * Math.pow(2, sceneLuminanceEv);
+/**
+ * Valor lineal (antes de la curva filmica ACES) al que llega un gris medio
+ * bien expuesto: la curva y la codificación sRGB lo dejan en 0,46 de pantalla,
+ * el gris medio de una foto.
+ */
+export const DISPLAY_MID_GREY = 0.157;
+
+/** Luz de la escena que necesita la cámara para exponer y medir. */
+export interface SceneLight {
+  /** EV100 de un gris medio de 0,18 unidades de render (luz absoluta del lugar). */
+  brightnessEv100: number;
+  /** EV100 que lee el fotómetro en el modo elegido. */
+  meteredEv100: number;
+  /** EV100 al que se adapta el ojo en el visor óptico (medición de todo el cuadro). */
+  eyeEv100: number;
+}
+
+/** Ganancia del render que deja un gris medio en DISPLAY_MID_GREY cuando EV cámara = B. */
+function renderGain(brightnessEv100: number, cameraEv: number): number {
+  return (DISPLAY_MID_GREY / 0.18) * Math.pow(2, brightnessEv100 - cameraEv);
+}
+
+/**
+ * El ojo se adapta a casi todo, pero de noche ve más oscuro: por debajo de
+ * EV100 7 el visor óptico pierde ~1/3 de paso por cada paso de luz.
+ */
+export function eyeAdaptationEv(eyeEv100: number): number {
+  return eyeEv100 + Math.max(0, 7 - eyeEv100) * 0.35;
+}
+
+/** Visor óptico DSLR: lo que ve el ojo (sin ISO, tiempo ni diafragma de la cámara). */
+export function computeDslrViewfinderExposureMultiplier(light: SceneLight): number {
+  return SCENE_RENDER_CALIBRATION * renderGain(light.brightnessEv100, eyeAdaptationEv(light.eyeEv100));
 }
 
 /** @deprecated El visor óptico ya no usa boost de exposición de cámara. */
@@ -139,11 +165,11 @@ export interface ExposureDebugSnapshot {
   ev100: number;
   exposureEv: number;
   referenceExposureEv: number;
-  sceneLuminanceEv: number;
+  sceneBrightnessEv100: number;
+  meteredEv100: number;
   measuredEv: number;
   meterNeedleEv: number;
   relativeStops: number;
-  sceneBrightnessFactor: number;
   previewExposureMultiplier: number;
   photoExposureMultiplier: number;
   viewfinderMode: ViewfinderMode;
@@ -156,7 +182,7 @@ export interface ExposureDebugSnapshot {
 
 /** EV100 = log₂(N² / t) */
 export function computeEv100(aperture: number, shutterSeconds: number): number {
-  const n = Math.max(aperture, 0.5);
+  const n = exactAperture(Math.max(aperture, 0.5));
   const t = Math.max(shutterSeconds, 1e-9);
   return Math.log2((n * n) / t);
 }
@@ -167,7 +193,7 @@ export function computeExposureEv(
   aperture: number,
   shutterSeconds: number,
 ): number {
-  const safeIso = Math.max(iso, 50);
+  const safeIso = exactIso(Math.max(iso, 50));
   return computeEv100(aperture, shutterSeconds) - Math.log2(safeIso / 100);
 }
 
@@ -184,11 +210,11 @@ export function computeExposureEvFromSettings(settings: CameraState): number {
  * ∝ (ISO/ISO_ref) × (t/t_ref) × (N_ref/N)²
  */
 export function computeRelativeExposureMultiplier(settings: CameraState): number {
-  const isoFactor = settings.iso / REFERENCE_CAMERA.iso;
+  const isoFactor = exactIso(settings.iso) / exactIso(REFERENCE_CAMERA.iso);
   const shutterFactor = shutterSpeedToSeconds(settings.shutterSpeed) / REF_SHUTTER_SEC;
-  const apertureFactor =
-    (REFERENCE_CAMERA.aperture * REFERENCE_CAMERA.aperture) /
-    (settings.aperture * settings.aperture);
+  const refN = exactAperture(REFERENCE_CAMERA.aperture);
+  const n = exactAperture(settings.aperture);
+  const apertureFactor = (refN * refN) / (n * n);
   const raw = isoFactor * shutterFactor * apertureFactor;
   if (!Number.isFinite(raw) || raw <= 0) return 1;
   return raw;
@@ -213,12 +239,16 @@ export function computeTriangleMultiplier(settings: CameraState): number {
 }
 
 /**
- * EV de la toma respecto a la escena (positivo = sobreexpuesto).
- * measuredEv = pasos_luminancia − sceneLuminanceEv
+ * Lectura del fotómetro (positivo = sobreexpuesto): EV medido − EV de la cámara.
+ * Sin límite; la aguja del visor se recorta aparte a ±3.
  */
-export function computeMeasuredEv(settings: CameraState, sceneLuminanceEv: number): number {
-  const brightnessStops = computeExposureStopsRelativeToReference(settings);
-  return clampMeterEv(brightnessStops - sceneLuminanceEv);
+export function computeMeasuredEv(settings: CameraState, light: SceneLight): number {
+  const cameraEv = computeExposureEv(
+    settings.iso,
+    settings.aperture,
+    shutterSpeedToSeconds(settings.shutterSpeed),
+  );
+  return light.meteredEv100 - cameraEv;
 }
 
 export function classifyExposure(meterEv: number): ExposureVerdict {
@@ -267,11 +297,15 @@ function nearestShutterSeconds(targetSeconds: number): string {
   return best;
 }
 
-function nearestAperture(targetF: number): number {
-  let best: number = APERTURE_PRESETS[0];
+/** Diafragma más cercano (en pasos de luz) dentro del tramo del objetivo. */
+function nearestAperture(targetF: number, range?: CameraState["apertureRange"]): number {
+  const allowed = range ? aperturesForLens(range.maxOpen, range.minAperture) : [...APERTURE_PRESETS];
+  const options = allowed.length ? allowed : [...APERTURE_PRESETS];
+  const target = Math.log2(Math.max(targetF, 0.5) ** 2);
+  let best = options[0];
   let bestDiff = Infinity;
-  for (const f of APERTURE_PRESETS) {
-    const diff = Math.abs(f - targetF);
+  for (const f of options) {
+    const diff = Math.abs(apertureStops(f) - target);
     if (diff < bestDiff) {
       bestDiff = diff;
       best = f;
@@ -282,20 +316,19 @@ function nearestAperture(targetF: number): number {
 
 /**
  * Resuelve ajustes efectivos según modo.
- * Objetivo EV = REFERENCE_EXPOSURE_EV + sceneLuminanceEv + compensación.
+ * Objetivo: EV de la cámara = EV medido − compensación (+1 aclara un paso).
  */
 export function resolveEffectiveSettings(
   settings: CameraState,
-  sceneLuminanceEv: number,
+  light: SceneLight,
 ): CameraState {
-  const targetExposureEv =
-    REFERENCE_EXPOSURE_EV + sceneLuminanceEv + settings.exposureCompensation;
-  const isoLog = Math.log2(Math.max(settings.iso, 50) / 100);
+  const targetExposureEv = light.meteredEv100 - settings.exposureCompensation;
+  const isoLog = Math.log2(exactIso(Math.max(settings.iso, 50)) / 100);
 
   if (settings.mode === "A") {
     const logN2overT = targetExposureEv + isoLog;
-    const targetSeconds =
-      (settings.aperture * settings.aperture) / Math.pow(2, logN2overT);
+    const n = exactAperture(settings.aperture);
+    const targetSeconds = (n * n) / Math.pow(2, logN2overT);
     return {
       ...settings,
       shutterSpeed: nearestShutterSeconds(targetSeconds),
@@ -308,7 +341,7 @@ export function resolveEffectiveSettings(
     const targetN = Math.sqrt(Math.pow(2, logN2overT) * shutterSec);
     return {
       ...settings,
-      aperture: nearestAperture(targetN),
+      aperture: nearestAperture(targetN, settings.apertureRange),
     };
   }
 
@@ -319,47 +352,23 @@ export function resolveEffectiveSettings(
 // Multiplicadores de render y captura
 // ---------------------------------------------------------------------------
 
-function settingsForPhotoExposure(
-  settings: CameraState,
-  sceneLuminanceEv: number,
-): CameraState {
-  const effective =
-    settings.mode === "M" ? settings : resolveEffectiveSettings(settings, sceneLuminanceEv);
+function settingsForPhotoExposure(settings: CameraState, light: SceneLight): CameraState {
+  const effective = settings.mode === "M" ? settings : resolveEffectiveSettings(settings, light);
   return { ...effective, exposureCompensation: 0 };
 }
 
 /**
- * Multiplicador de luminancia para la foto (y LIVE VIEW WYSIWYG).
- * Incluye luminancia de escena × triángulo de exposición efectivo.
+ * Multiplicador de luminancia para la foto (y LIVE VIEW WYSIWYG): luz
+ * absoluta de la escena frente al EV de la cámara con los ajustes efectivos.
  */
-export function computePhotoExposureMultiplier(
-  settings: CameraState,
-  sceneLuminanceEv: number,
-): number {
-  const photoSettings = settingsForPhotoExposure(settings, sceneLuminanceEv);
-  const sceneFactor = Math.pow(2, sceneLuminanceEv);
-  const relativeMult = computeRelativeExposureMultiplier(photoSettings);
-  return SCENE_RENDER_CALIBRATION * sceneFactor * relativeMult;
-}
-
-/** Multiplicador por fotograma (sin tiempo de obturación) para acumulación temporal. */
-export function computeInstantPhotoExposureMultiplier(
-  settings: CameraState,
-  sceneLuminanceEv: number,
-): number {
-  const photoSettings = settingsForPhotoExposure(settings, sceneLuminanceEv);
-  const instantSettings = {
-    ...photoSettings,
-    shutterSpeed: REFERENCE_CAMERA.shutterSpeed,
-  };
-  const sceneFactor = Math.pow(2, sceneLuminanceEv);
-  const relativeMult = computeRelativeExposureMultiplier(instantSettings);
-  return SCENE_RENDER_CALIBRATION * sceneFactor * relativeMult;
-}
-
-/** Ganancia de luz por tiempo de obturación respecto a la referencia (1/250 s). */
-export function computeShutterExposureGain(shutterSeconds: number): number {
-  return Math.max(1 / 8192, shutterSeconds / REF_SHUTTER_SEC);
+export function computePhotoExposureMultiplier(settings: CameraState, light: SceneLight): number {
+  const photo = settingsForPhotoExposure(settings, light);
+  const cameraEv = computeExposureEv(
+    photo.iso,
+    photo.aperture,
+    shutterSpeedToSeconds(photo.shutterSpeed),
+  );
+  return SCENE_RENDER_CALIBRATION * renderGain(light.brightnessEv100, cameraEv);
 }
 
 /**
@@ -368,13 +377,13 @@ export function computeShutterExposureGain(shutterSeconds: number): number {
  */
 export function computePreviewExposureMultiplier(
   settings: CameraState,
-  sceneLuminanceEv: number,
+  light: SceneLight,
   viewfinderMode: ViewfinderMode,
 ): number {
   if (viewfinderMode === "dslr-view") {
-    return computeDslrViewfinderExposureMultiplier(sceneLuminanceEv);
+    return computeDslrViewfinderExposureMultiplier(light);
   }
-  return computePhotoExposureMultiplier(settings, sceneLuminanceEv);
+  return computePhotoExposureMultiplier(settings, light);
 }
 
 /** WB digital: live view y captura. El visor óptico DSLR no aplica WB. */
@@ -388,7 +397,7 @@ export function shouldApplyWhiteBalanceToRender(
 
 export function buildExposureDebugSnapshot(
   settings: CameraState,
-  sceneLuminanceEv: number,
+  light: SceneLight,
   viewfinderMode: ViewfinderMode,
   derived: {
     measuredEv: number;
@@ -411,31 +420,16 @@ export function buildExposureDebugSnapshot(
     ev100: computeEv100(settings.aperture, shutterSeconds),
     exposureEv,
     referenceExposureEv: REFERENCE_EXPOSURE_EV,
-    sceneLuminanceEv,
+    sceneBrightnessEv100: light.brightnessEv100,
+    meteredEv100: light.meteredEv100,
     measuredEv: derived.measuredEv,
     meterNeedleEv: derived.meterNeedleEv,
     relativeStops,
-    sceneBrightnessFactor: Math.pow(2, sceneLuminanceEv),
     previewExposureMultiplier: derived.previewExposureMultiplier,
     photoExposureMultiplier: derived.photoExposureMultiplier,
     viewfinderMode,
     appliedToneMappingExposure,
   };
-}
-
-export function estimateSceneLuminanceEv(x: number, z: number): number {
-  const sceneId = simulatorRuntime.sceneId ?? "studio";
-  const sun = simulatorRuntime.sunState ?? computeSunState(simulatorRuntime.timeOfDayMinutes);
-  return estimateSceneLuminanceForScene(sceneId, x, z, sun);
-}
-
-export function estimateSceneLuminanceAt(
-  sceneId: SimulatorSceneId,
-  x: number,
-  z: number,
-  sun: SunState,
-): number {
-  return estimateSceneLuminanceForScene(sceneId, x, z, sun);
 }
 
 export function stepShutterTowardEv(

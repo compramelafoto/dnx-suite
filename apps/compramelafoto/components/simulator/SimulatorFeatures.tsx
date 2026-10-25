@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 const FEATURES = [
   {
     id: "manual",
@@ -14,6 +16,14 @@ const FEATURES = [
     soon: false,
   },
   {
+    id: "studio",
+    title: "Estudio Fotográfico",
+    text: "Arrastrá flashes, softbox y reflectores alrededor del modelo, medí con el fotómetro y aprendé Rembrandt, mariposa, loop y más.",
+    icon: "sun",
+    soon: false,
+    href: "/camofduty/estudio",
+  },
+  {
     id: "training",
     title: "Entrenamiento Interactivo",
     text: "Movete libremente por los escenarios y resolvé desafíos fotográficos.",
@@ -23,7 +33,7 @@ const FEATURES = [
   {
     id: "upcoming",
     title: "Próximamente",
-    text: "Flash, modificadores de luz, ejercicios guiados y certificaciones.",
+    text: "Ejercicios guiados, desafíos de iluminación y certificaciones.",
     icon: "spark",
     soon: true,
   },
@@ -81,6 +91,11 @@ export default function SimulatorFeatures() {
               <h3 className="cod-feature-card__title">{feature.title}</h3>
               <p className="cod-feature-card__text">{feature.text}</p>
               {feature.soon && <span className="cod-feature-card__tag">En desarrollo</span>}
+              {"href" in feature ? (
+                <Link href={feature.href} className="cod-btn cod-btn--secondary cod-btn--sm">
+                  Abrir el estudio
+                </Link>
+              ) : null}
             </article>
           ))}
         </div>

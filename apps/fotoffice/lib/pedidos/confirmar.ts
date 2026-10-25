@@ -13,7 +13,7 @@ import { contextoDeSistema, type CtxCircuitos } from "@/lib/circuitos/acceso";
 import { buscarOpcion, condicionesDeInstantanea, opcionesParaPresupuesto, parsePaymentOptionsSnapshot, type OpcionPago } from "./opciones-pago";
 import { leerCuotasEditadas, type CuotaParaGuardar } from "./plan";
 import { planDesdeOpcion, validarPlan, type AvisoPlan, type CuotaPlan } from "./plan-cuotas";
-import { etiquetaDeEvento, insertarPedido, nombreDeContacto, rubroDeItems } from "./pedidos";
+import { apartarStock, etiquetaDeEvento, insertarPedido, nombreDeContacto, rubroDeItems } from "./pedidos";
 
 /**
  * "Confirmar pedido" desde un presupuesto aceptado (spec §2 A.2 y §5).
@@ -332,6 +332,9 @@ async function escribirPedido(
     ahora,
   });
   await copiarTareasAlPedido(tx, { workspaceId, pedidoId: r.id, titulos: o.titulos });
+  // Los insumos de sus recetas se descuentan al tomar el pedido, como en el alta manual. Sin
+  // líneas que apartar: confirmar un presupuesto nunca movió stock de productos, y sigue sin hacerlo.
+  await apartarStock(tx, { workspaceId, pedidoId: r.id, items: itemsGuardados(d.items), lineas: [], createdByUserId: o.createdByUserId });
   await crearCuentasDelPedido(tx, { workspaceId, pedidoId: r.id, items: d.items, fechaEvento: d.fechaEvento, createdByUserId: o.createdByUserId });
   if (conProyectos) {
     await crearProyectosDelPedido(tx, ctx, {

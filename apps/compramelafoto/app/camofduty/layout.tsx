@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "@/styles/camofduty/index.css";
 import codIcon from "./icon.png";
+import { camOfDutyShareImage } from "./share-image";
 
 /*
  * Tipografías guardadas en el proyecto (camofduty/fonts, del juego latino de Fontsource) en lugar de
@@ -48,8 +49,7 @@ const shareTechMono = localFont({
 
 const title = "Cam Of Duty — Simulador Fotográfico Interactivo";
 const description =
-  "Entrená exposición, enfoque, composición e iluminación en un entorno virtual diseñado para aprender fotografía practicando.";
-
+  "Aprendé fotografía practicando con una cámara virtual: exposición, enfoque, composición e iluminación en un estudio fotográfico 3D y en la calle, con modelos que posan y luz que cambia según la hora.";
 export const metadata: Metadata = {
   title,
   description,
@@ -64,16 +64,21 @@ export const metadata: Metadata = {
     shortcut: codIcon.src,
     apple: codIcon.src,
   },
+  applicationName: "Cam Of Duty",
   openGraph: {
     title,
     description,
     type: "website",
     locale: "es_AR",
+    siteName: "Cam Of Duty",
+    url: "/camofduty",
+    images: [camOfDutyShareImage],
   },
   twitter: {
-    card: "summary",
+    card: "summary_large_image",
     title,
     description,
+    images: [camOfDutyShareImage],
   },
 };
 

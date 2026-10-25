@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { PAPER_TOKENS, TemplateCanvasRenderer, editorThemeStyle, type PhotoOverride } from "@repo/template-editor-ui";
 import type { DesignTemplatePayload } from "@/lib/design-v2/client-payload";
-import { placesForUnit } from "./CanjeLibritoStep";
+import { placesForUnit } from "@/lib/preventa-canjeable/preventa-canje-slots";
 
 /**
  * Miniatura del librito mientras la familia elige fotos: el diseño real, achicado, con cada

@@ -5,7 +5,20 @@ import {
   parseCuantoCobroAmount,
   type CuantoCobroPricingExtras,
   type CuantoCobroProfileInput,
+  type CuantoCobroStudioStructure,
+  type StudioEmploymentType,
+  type StudioPerson,
 } from "@repo/cuanto-cobro-core";
+import {
+  desgloseDelEstudio,
+  encenderMiEstudio,
+  estudioEncendido,
+  MAX_CAMARAS_ADICIONALES,
+  MAX_PERSONAS_DEL_ESTUDIO,
+  normalizarCamaras,
+  nuevaCamara,
+  nuevaPersonaDelEstudio,
+} from "@/lib/precios/estudio";
 import {
   CLAVES_DISTRIBUCION,
   distribucionDesdeHoras,
@@ -128,6 +141,76 @@ const esquemaCobros = z
   })
   .describe("Impuestos, cobros y recargos: sólo lo que dijo la persona.");
 
+const diasOHoras = z.string().regex(/^\d{1,2}([.,]\d{1,2})?$/).describe("Número, con coma si hace falta (\"5,5\").");
+
+/** Mi estudio (16/10/2026): sólo para workspaces de tipo estudio. Todo opcional; sólo lo que dijo la persona. */
+const esquemaEstudio = z
+  .object({
+    activar: z.boolean().optional().describe("true: encender «Mi estudio» (gastos del local, retiro y sueldos por separado). false: apagarlo (no se borra nada)."),
+    gastosFijos: z
+      .array(
+        z.object({
+          rubroId: z.string().max(40).describe("id del rubro de gastos fijos, de ver_perfil_de_precios (premises, utilities, software, marketing, admin, maintenance, insurance, other)."),
+          renglonId: z.string().max(80).optional().describe("id del renglón; si no existe, omitilo y mandá `etiqueta`."),
+          etiqueta: z.string().min(1).max(60).optional(),
+          monto: montoMes,
+        }),
+      )
+      .max(40)
+      .optional()
+      .describe("Gastos fijos del estudio (los que se pagan haya trabajo o no). Sin monotributo ni seguro del equipo: van en «cobros»."),
+    retiro: montoMes.optional().describe("Lo que se lleva el dueño por mes, aparte del estudio."),
+    tuJornada: z
+      .object({ dias: diasOHoras.optional(), horasDia: diasOHoras.optional(), vacaciones: diasOHoras.optional().describe("Semanas por año."), vendible: porcentaje.optional().describe("% de su tiempo que termina en un presupuesto.") })
+      .optional()
+      .describe("La jornada del dueño."),
+    personas: z
+      .array(
+        z.object({
+          nombre: z.string().min(1).max(60).describe("Nombre de la persona: así se la encuentra para corregirla."),
+          contratacion: z
+            .enum(["dependencia", "informal", "monotributo", "jornal", "por_trabajo"])
+            .optional()
+            .describe("dependencia = registrada (con cargas); informal = sin registrar pero con aguinaldo y vacaciones pagas, sin cargas; monotributo = factura fija por mes; jornal = por día trabajado; por_trabajo = no es estructura (al cotizar va como tercerizado)."),
+          sueldo: monto.optional().describe("Dependencia o informal: sueldo por mes. Monotributo: lo que factura por mes."),
+          cargas: porcentaje.optional().describe("Sólo dependencia: cargas sociales (%). Si no lo sabe, no lo inventes."),
+          aguinaldo: z.boolean().optional(),
+          vacacionesPagas: z.boolean().optional(),
+          jornal: monto.optional().describe("Sólo jornal: lo que cobra por día."),
+          tarifaPorTrabajo: monto.optional(),
+          unidadPorTrabajo: z.enum(["hora", "trabajo"]).optional(),
+          dias: diasOHoras.optional().describe("Días por semana. 5 días + sábados alternados = \"5,5\"."),
+          horasDia: diasOHoras.optional(),
+          vacaciones: diasOHoras.optional().describe("Semanas de vacaciones por año."),
+          vendible: porcentaje.optional().describe("% de su tiempo que termina en un presupuesto."),
+          insumos: montoMes.optional().describe("Insumos y gastos de la persona por mes (viáticos, celular, uniforme)."),
+          activa: z.boolean().optional(),
+          quitar: z.boolean().optional().describe("true: sacarla del equipo."),
+        }),
+      )
+      .max(MAX_PERSONAS_DEL_ESTUDIO)
+      .optional(),
+    otrasLineas: montoMes.optional().describe("Lo que dejan por mes productos, impresiones o cursos después de sus costos (se descuenta)."),
+    ganancia: z
+      .object({ monto: montoMes.optional().describe("Ganancia del estudio por mes, monto fijo."), porcentaje: porcentaje.optional().describe("O un % de la estructura.") })
+      .optional()
+      .describe("Ganancia del estudio para reinvertir, aparte del retiro."),
+  })
+  .describe("«Mi estudio»: estructura de costos de un estudio con equipo. Sólo si la situación dice que el workspace es un estudio.");
+
+const esquemaCamaras = z
+  .array(
+    z.object({
+      nombre: z.string().min(1).max(60).describe("Nombre de la cámara (la de carnets, la segunda…). No la principal: esa va en «equipo»."),
+      valorReposicion: monto.optional(),
+      vidaUtil: entero.optional().describe("Vida útil del obturador, en disparos."),
+      disparosActuales: entero.optional(),
+      quitar: z.boolean().optional(),
+    }),
+  )
+  .max(MAX_CAMARAS_ADICIONALES)
+  .describe("Otras cámaras del estudio, además de la principal.");
+
 export const esquemaParchePerfil = z
   .object({
     moneda: z.string().regex(/^[A-Z]{3}$/).optional().describe("Código de moneda, por ejemplo ARS. Casi siempre ARS."),
@@ -182,6 +265,8 @@ export const esquemaParchePerfil = z
     fondoEmergencia: montoMes.optional(),
     ahorro: montoMes.optional().describe("Ahorro y vacaciones por mes."),
     cobros: esquemaCobros.optional(),
+    estudio: esquemaEstudio.optional(),
+    camaras: esquemaCamaras.optional(),
     posicionamiento: z.enum(POSICIONAMIENTOS).optional().describe(
       `Momento del negocio: ${COMMERCIAL_POSITIONING_OPTIONS.map((o) => `${o.id} = «${o.title}»`).join(", ")}.`,
     ),
@@ -242,9 +327,24 @@ export function perfilBase(guardado: CuantoCobroProfileInput | null): CuantoCobr
   return normalizarPerfil(guardado ?? {})!;
 }
 
+const CONTRATACION: Record<string, Exclude<StudioEmploymentType, "">> = {
+  dependencia: "employee",
+  informal: "informal",
+  monotributo: "monotributista",
+  jornal: "daily",
+  por_trabajo: "per-job",
+};
+
+const igual = (a: string, b: string) =>
+  a.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLocaleLowerCase("es") === b.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLocaleLowerCase("es");
+
+/** Opciones de `aplicarParche`. `permitirEstudio`: el workspace es de tipo estudio (lo decide la herramienta). */
+export type OpcionesParche = { permitirEstudio?: boolean };
+
 export function aplicarParche(
   base: CuantoCobroProfileInput,
   parche: ParchePerfil,
+  opciones: OpcionesParche = {},
 ): { perfil: CuantoCobroProfileInput; errores: string[]; conversiones: Conversion[] } {
   const errores: string[] = [];
   const conversiones: Conversion[] = [];
@@ -306,6 +406,9 @@ export function aplicarParche(
   }
 
   const n = parche.negocio;
+  if (estudioEncendido(p) && (n?.colaboradores !== undefined || n?.costoColaboradores !== undefined) && !parche.estudio) {
+    errores.push("Con «Mi estudio» encendido, cada persona va en el equipo (estudio.personas), no como colaboradores.");
+  }
   poner(n?.alquiler, "Alquiler o estudio", (v) => (p.businessRent = v));
   poner(n?.software, "Software", (v) => (p.businessSoftware = v));
   poner(n?.publicidad, "Publicidad", (v) => (p.businessMarketing = v));
@@ -396,6 +499,119 @@ export function aplicarParche(
     p.pricingExtras = x;
   }
 
+  const est = parche.estudio;
+  if (est) {
+    const yaActivo = estudioEncendido(p);
+    if (est.activar === false) {
+      if (p.studioStructure) p.studioStructure = { ...p.studioStructure, enabled: false };
+    } else if (!yaActivo && !opciones.permitirEstudio) {
+      errores.push("«Mi estudio» es para estudios con equipo: este workspace no es de tipo estudio. Se cambia en Configuración → Módulos.");
+    } else {
+      const e: CuantoCobroStudioStructure = yaActivo ? structuredClone(p.studioStructure!) : encenderMiEstudio(p);
+      for (const g of est.gastosFijos ?? []) {
+        const grupo = e.fixedCostGroups.find((x) => x.id === g.rubroId);
+        if (!grupo) {
+          errores.push(`No existe el rubro de gastos fijos «${g.rubroId}»: usá uno de ver_perfil_de_precios.`);
+          continue;
+        }
+        const item = g.renglonId ? grupo.items.find((i) => i.id === g.renglonId) : grupo.items.find((i) => g.etiqueta && igual(i.label, g.etiqueta));
+        if (g.renglonId && !item) {
+          errores.push(`El rubro «${grupo.title}» no tiene el renglón «${g.renglonId}».`);
+          continue;
+        }
+        if (!item && !g.etiqueta) {
+          errores.push(`Falta el renglón del gasto fijo de «${grupo.title}».`);
+          continue;
+        }
+        const m = mes(g.monto, item?.label ?? g.etiqueta!);
+        if (m === undefined) continue;
+        if (item) item.amount = m;
+        else grupo.items.push({ id: idPropio(g.etiqueta!), label: g.etiqueta!.trim(), amount: m, isCustom: true });
+      }
+      poner(est.retiro, "Tu retiro", (v) => (e.ownerDrawMonthly = v));
+      poner(est.otrasLineas, "Lo que dejan otras líneas", (v) => (e.otherLinesMonthlyContribution = v));
+      if (est.ganancia?.monto !== undefined) {
+        poner(est.ganancia.monto, "Ganancia del estudio", (v) => {
+          e.desiredProfitMonthly = v;
+          e.desiredProfitMode = "amount";
+        });
+      } else if (est.ganancia?.porcentaje !== undefined) {
+        if (!porcentajeValido(est.ganancia.porcentaje)) errores.push("Ganancia del estudio: tiene que ser un porcentaje entre 0 y 100.");
+        else {
+          e.desiredProfitPercent = est.ganancia.porcentaje;
+          e.desiredProfitMode = "percent";
+        }
+      }
+      const owner = e.people.find((x) => x.role === "owner");
+      if (owner && est.tuJornada) {
+        const j = est.tuJornada;
+        if (j.dias !== undefined) owner.workdaysPerWeek = j.dias;
+        if (j.horasDia !== undefined) owner.hoursPerWorkday = j.horasDia;
+        if (j.vacaciones !== undefined) owner.vacationWeeksPerYear = j.vacaciones;
+        if (j.vendible !== undefined) owner.billablePercent = j.vendible;
+      }
+      for (const q of est.personas ?? []) {
+        let persona: StudioPerson | undefined = e.people.find((x) => x.role !== "owner" && igual(x.name, q.nombre));
+        if (q.quitar) {
+          if (persona) e.people = e.people.filter((x) => x !== persona);
+          continue;
+        }
+        if (!persona) {
+          if (e.people.length >= MAX_PERSONAS_DEL_ESTUDIO) {
+            errores.push("El equipo ya tiene el máximo de personas.");
+            continue;
+          }
+          persona = nuevaPersonaDelEstudio({ id: idPropio(q.nombre).replace("dnxbot-", "sp-"), name: q.nombre.trim() });
+          e.people.push(persona);
+        }
+        const x = persona;
+        if (q.contratacion) {
+          x.employmentType = CONTRATACION[q.contratacion]!;
+          if (x.employmentType === "informal") {
+            x.includeSac = true;
+            x.paidVacations = true;
+            x.socialChargesPercent = "";
+          }
+        }
+        if (q.sueldo !== undefined) x.monthlySalary = q.sueldo;
+        if (q.cargas !== undefined) x.socialChargesPercent = q.cargas;
+        if (q.aguinaldo !== undefined) x.includeSac = q.aguinaldo;
+        if (q.vacacionesPagas !== undefined) x.paidVacations = q.vacacionesPagas;
+        if (q.jornal !== undefined) x.dailyRate = q.jornal;
+        if (q.tarifaPorTrabajo !== undefined) x.perJobRate = q.tarifaPorTrabajo;
+        if (q.unidadPorTrabajo) x.perJobUnit = q.unidadPorTrabajo === "hora" ? "hour" : "job";
+        if (q.dias !== undefined) x.workdaysPerWeek = q.dias;
+        if (q.horasDia !== undefined) x.hoursPerWorkday = q.horasDia;
+        if (q.vacaciones !== undefined) x.vacationWeeksPerYear = q.vacaciones;
+        if (q.vendible !== undefined) x.billablePercent = q.vendible;
+        if (q.activa !== undefined) x.active = q.activa;
+        poner(q.insumos, `Insumos de ${x.name}`, (v) => (x.monthlySupplies = v));
+      }
+      p.studioStructure = e;
+    }
+  }
+
+  if (parche.camaras) {
+    let camaras = normalizarCamaras(p.cameras);
+    for (const c of parche.camaras) {
+      const existente = camaras.find((x) => igual(x.name, c.nombre));
+      if (c.quitar) {
+        camaras = camaras.filter((x) => x !== existente);
+        continue;
+      }
+      const cam = existente ?? nuevaCamara({ id: idPropio(c.nombre).replace("dnxbot-", "cam-"), name: c.nombre.trim(), presetId: "custom" });
+      if (c.valorReposicion !== undefined) cam.replacementValue = c.valorReposicion;
+      if (c.vidaUtil !== undefined) cam.shutterRating = c.vidaUtil;
+      if (c.disparosActuales !== undefined) cam.currentShutterCount = c.disparosActuales;
+      if (!existente) {
+        if (camaras.length >= MAX_CAMARAS_ADICIONALES) errores.push("Ya hay el máximo de cámaras adicionales.");
+        else camaras.push(cam);
+      }
+    }
+    if (camaras.length > 0) p.cameras = camaras;
+    else delete p.cameras;
+  }
+
   return { perfil: p, errores, conversiones };
 }
 
@@ -422,6 +638,7 @@ export function vistaDelPerfil(perfil: CuantoCobroProfileInput, source: string |
     origen,
     completo: r.completo,
     faltan: r.faltan,
+    estudio: vistaDelEstudio(perfil),
     resumen: {
       valorHora: r.completo ? plata(r.valorHora, m) : null,
       costoHora: r.completo ? plata(r.costoHora, m) : null,
@@ -452,6 +669,11 @@ export function vistaDelPerfil(perfil: CuantoCobroProfileInput, source: string |
       fondoEmergencia: plataDe(perfil.emergencyFundMonthly, m),
       ahorro: plataDe(perfil.savingsGoalsMonthly, m),
       posicionamiento: perfil.commercialPositioningId || null,
+      camarasAdicionales: normalizarCamaras(perfil.cameras).map((c) => ({
+        nombre: c.name,
+        valorReposicion: plataDe(c.replacementValue, m),
+        vidaUtil: c.shutterRating || null,
+      })),
       gastosPersonalesPorGrupo: perfil.personalExpenseGroups.map((g) => ({
         grupoId: g.id,
         titulo: g.title,
@@ -464,11 +686,63 @@ export function vistaDelPerfil(perfil: CuantoCobroProfileInput, source: string |
 
 export type VistaPerfil = ReturnType<typeof vistaDelPerfil>;
 
+const TEXTO_CONTRATACION: Record<string, string> = {
+  employee: "dependencia",
+  informal: "informal (aguinaldo y vacaciones pagas)",
+  monotributista: "monotributo",
+  daily: "jornal",
+  "per-job": "por trabajo",
+};
+
+/** Mi estudio, como lo ve el modelo: cifras del motor ya formateadas (nunca para que las calcule). null sin el modo. */
+export function vistaDelEstudio(perfil: CuantoCobroProfileInput) {
+  const d = desgloseDelEstudio(perfil);
+  const e = perfil.studioStructure;
+  if (!d || !e) return null;
+  const m = perfil.currency || "ARS";
+  return {
+    valorHoraDelEstudio: plata(d.studioHourRate, m),
+    necesidadMensual: plata(d.monthlyNeed, m),
+    horasQueSeCobranPorMes: `${Math.round(d.capacityHours)} h`,
+    gastosFijos: plata(d.fixedCosts, m),
+    equipo: plata(d.teamCost, m),
+    reservas: plata(d.reserves, m),
+    retiro: plata(d.ownerDraw, m),
+    otrasLineas: plata(d.otherLinesContribution, m),
+    ganancia: plata(d.profit, m),
+    gananciaComo: e.desiredProfitMode === "percent" ? "porcentaje" : "monto fijo",
+    personas: d.people.map((x) => {
+      const p = e.people.find((y) => y.id === x.id);
+      return {
+        nombre: x.name || (x.role === "owner" ? "Dueño" : "Sin nombre"),
+        esDueno: x.role === "owner",
+        contratacion: x.role === "owner" ? "dueño (retiro)" : (TEXTO_CONTRATACION[x.employmentType] ?? "sin elegir"),
+        jornada: p ? `${p.workdaysPerWeek || "?"} días × ${p.hoursPerWorkday || "?"} h` : null,
+        costoPorMes: x.inStructure ? plata(x.monthlyCost, m) : null,
+        horasQueCobraPorMes: x.inStructure ? `${Math.round(x.billableHours)} h` : null,
+        valorDeSuHora: plata(x.rate, m),
+        activa: p?.active ?? true,
+      };
+    }),
+    gastosFijosPorRubro: e.fixedCostGroups.map((g) => ({
+      rubroId: g.id,
+      titulo: g.title,
+      renglones: g.items.map((i) => ({ renglonId: i.id, etiqueta: i.label, monto: plataDe(i.amount, m) })),
+    })),
+    avisos: d.warnings,
+  };
+}
+
 export type Simulacion = { perfil: CuantoCobroProfileInput; errores: string[]; vista: VistaPerfil; conversiones: Conversion[] };
 
 /** El perfil con el parche aplicado, SIN guardar, con los errores del formulario y su resumen. */
-export function simularPerfil(base: CuantoCobroProfileInput, parche: ParchePerfil, source: string | null = null): Simulacion {
-  const { perfil, errores, conversiones } = aplicarParche(base, parche);
+export function simularPerfil(
+  base: CuantoCobroProfileInput,
+  parche: ParchePerfil,
+  source: string | null = null,
+  opciones: OpcionesParche = {},
+): Simulacion {
+  const { perfil, errores, conversiones } = aplicarParche(base, parche, opciones);
   const v = validarPerfil(perfil);
   const propios = [...errores];
   // Si ya se explicó cuánto falta repartir, el error genérico de la distribución sobra.
@@ -484,6 +758,26 @@ export type TarjetaCalculo = { titulo: string; filas: { etiqueta: string; valor:
 export function tarjetaDelPerfil(s: Simulacion): TarjetaCalculo {
   const r = s.vista.resumen;
   const falta = "Falta completar";
+  const est = s.vista.estudio;
+  if (est) {
+    return {
+      titulo: "Mi estudio",
+      filas: [
+        { etiqueta: "Valor hora del estudio", valor: s.vista.completo ? (est.valorHoraDelEstudio ?? falta) : falta },
+        { etiqueta: "Lo que tienen que cubrir las horas", valor: est.necesidadMensual ?? falta },
+        { etiqueta: "Horas que se cobran por mes", valor: est.horasQueSeCobranPorMes },
+        { etiqueta: "Gastos fijos del estudio", valor: est.gastosFijos ?? "$ 0" },
+        { etiqueta: "Equipo", valor: est.equipo ?? "$ 0" },
+        { etiqueta: "Tu retiro", valor: est.retiro ?? "$ 0" },
+        { etiqueta: "Ganancia del estudio", valor: est.ganancia ?? "$ 0" },
+        ...est.personas
+          .filter((x) => x.valorDeSuHora)
+          .map((x) => ({ etiqueta: `Hora de ${x.nombre}`, valor: x.valorDeSuHora! })),
+        ...s.conversiones.map((c) => ({ etiqueta: c.etiqueta, valor: c.detalle })),
+      ],
+      avisos: [...s.errores, ...est.avisos, ...(s.vista.faltan.length ? [`Falta: ${s.vista.faltan.join(", ")}.`] : [])],
+    };
+  }
   return {
     titulo: "Tu perfil de precios",
     filas: [
@@ -534,6 +828,44 @@ function camposPlanos(p: CuantoCobroProfileInput): Campo[] {
     { clave: "ahorro", etiqueta: "Ahorro y vacaciones", valor: $(p.savingsGoalsMonthly) },
     { clave: "posicionamiento", etiqueta: "Momento del negocio", valor: pos ?? "sin dato" },
     ...camposDeCobros(p.pricingExtras, $),
+    ...camposDelEstudio(p, $),
+    ...normalizarCamaras(p.cameras).map((c) => ({
+      clave: `cam:${c.id}`,
+      etiqueta: `Cámara «${c.name}»`,
+      valor: `${$(c.replacementValue)}, ${texto(c.shutterRating)} disparos de vida útil`,
+    })),
+  ];
+}
+
+/** Mi estudio en la tarjeta «¿Lo hago?»: un perfil sin el bloque no suma campos. */
+function camposDelEstudio(p: CuantoCobroProfileInput, $: (t: string) => string): Campo[] {
+  const e = p.studioStructure;
+  if (!e) return [];
+  const texto = (t: string) => (t?.trim() ? t.trim() : "sin dato");
+  return [
+    { clave: "e:modo", etiqueta: "Mi estudio", valor: e.enabled ? "encendido" : "apagado" },
+    { clave: "e:retiro", etiqueta: "Tu retiro", valor: $(e.ownerDrawMonthly) },
+    { clave: "e:otras", etiqueta: "Lo que dejan otras líneas", valor: $(e.otherLinesMonthlyContribution) },
+    {
+      clave: "e:ganancia",
+      etiqueta: "Ganancia del estudio",
+      valor: e.desiredProfitMode === "percent" ? (e.desiredProfitPercent.trim() ? `${e.desiredProfitPercent} %` : "sin dato") : $(e.desiredProfitMonthly),
+    },
+    ...e.fixedCostGroups.flatMap((g) => g.items.map((i) => ({ clave: `e:fijo:${g.id}:${i.id}`, etiqueta: `${g.title} · ${i.label}`, valor: $(i.amount) }))),
+    ...e.people.map((x) => ({
+      clave: `e:persona:${x.id}`,
+      etiqueta: x.role === "owner" ? "Tu jornada" : `Equipo · ${x.name || "sin nombre"}`,
+      valor: [
+        x.role === "owner" ? null : TEXTO_CONTRATACION[x.employmentType] ?? "sin contratación",
+        x.monthlySalary.trim() ? $(x.monthlySalary) : null,
+        x.employmentType === "employee" && x.socialChargesPercent.trim() ? `cargas ${x.socialChargesPercent} %` : null,
+        `${texto(x.workdaysPerWeek)} días × ${texto(x.hoursPerWorkday)} h`,
+        x.billablePercent.trim() ? `${x.billablePercent} % vendible` : null,
+        x.active ? null : "inactiva",
+      ]
+        .filter(Boolean)
+        .join(", "),
+    })),
   ];
 }
 

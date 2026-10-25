@@ -42,7 +42,12 @@ export default async function NuevoSponsorPage({
       ) : null}
 
       <section className="fo-card space-y-4 p-5">
-        <h2 className="text-base font-semibold">1. Buscar en la base común</h2>
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="text-base font-semibold">1. Buscar en la base común</h2>
+          <Link href="/sponsors/red" className="text-sm text-[var(--fo-accent)] hover:underline">
+            Ver todas las marcas de la red DNX
+          </Link>
+        </div>
         <BuscadorDeSponsors />
       </section>
 

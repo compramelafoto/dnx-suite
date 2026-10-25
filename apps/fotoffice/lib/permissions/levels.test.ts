@@ -24,6 +24,15 @@ import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 import { EVALUACIONES_MODULE_KEY } from "@/lib/evaluaciones/constants";
 import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
 import { PORTFOLIO_MODULE_KEY } from "@/lib/portfolio/constants";
+import { AGENDA_MODULE_KEY } from "@/lib/agenda/acceso";
+import { QUOTES_MODULE_KEY } from "@/lib/presupuestos/acceso";
+import { ORDERS_MODULE_KEY } from "@/lib/pedidos/acceso";
+import { PROJECTS_MODULE_KEY } from "@/lib/proyectos/acceso";
+import { GALLERY_MODULE_KEY } from "@/lib/galerias/acceso";
+import { CONTRACTS_MODULE_KEY } from "@/lib/contratos/acceso";
+import { SALES_MODULE_KEY } from "@/lib/sales/constants";
+import { STORE_MODULE_KEY } from "@/lib/store/constants";
+import { REPORTS_MODULE_KEY } from "@/lib/informes/constantes";
 
 const now = new Date("2026-10-03T12:00:00Z");
 const ayer = new Date("2026-10-02T12:00:00Z");
@@ -96,6 +105,41 @@ describe("compatibilidad: STAFF sin asignaciones conserva lo de hoy", () => {
   ])("%s → %s", (key, esperado) => {
     expect(legacyStaffLevel(key)).toBe(esperado);
     expect(nivel({ moduleKey: key })).toBe(esperado);
+  });
+});
+
+describe("compatibilidad: STAFF de un estudio, todo menos configuración", () => {
+  it.each([
+    [AGENDA_MODULE_KEY, "MANAGE"],
+    [QUOTES_MODULE_KEY, "MANAGE"],
+    [ORDERS_MODULE_KEY, "MANAGE"],
+    [PROJECTS_MODULE_KEY, "MANAGE"],
+    [GALLERY_MODULE_KEY, "MANAGE"],
+    [CONTRACTS_MODULE_KEY, "MANAGE"],
+    [SALES_MODULE_KEY, "MANAGE"],
+    [STORE_MODULE_KEY, "MANAGE"],
+    [REPORTS_MODULE_KEY, "VIEW"],
+  ])("%s → %s (la clave literal coincide con la constante del módulo)", (key, esperado) => {
+    expect(legacyStaffLevel(key)).toBe(esperado);
+    expect(nivel({ moduleKey: key })).toBe(esperado);
+  });
+
+  it("las acciones de configuración siguen siendo de dueño/admin", () => {
+    for (const [moduleKey, action] of [
+      [SALES_MODULE_KEY, "sales.catalog"],
+      [STORE_MODULE_KEY, "store.configure"],
+    ] as const) {
+      expect(
+        resolveModuleAction({ moduleKey, action, moduleEnabled: true, workspaceRole: "STAFF", assignments: [], now }),
+      ).toBe(false);
+    }
+  });
+
+  it("el colaborador sigue sin nada y quien tuvo roles usa sólo sus roles", () => {
+    expect(nivel({ moduleKey: AGENDA_MODULE_KEY, workspaceRole: "COLLABORATOR" })).toBe("NONE");
+    expect(
+      nivel({ moduleKey: AGENDA_MODULE_KEY, assignments: [asignacion([{ moduleKey: CASH_MODULE_KEY, level: "VIEW" }])] }),
+    ).toBe("NONE");
   });
 });
 

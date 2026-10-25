@@ -14,6 +14,7 @@ import {
   updateSponsorCommon,
   updateSponsorLocal,
 } from "@/lib/sponsors/repository";
+import { estaEnDirectorio } from "@/lib/sponsors/directory";
 
 /**
  * Las acciones del módulo de sponsors.
@@ -63,6 +64,26 @@ export async function vincularSponsorAction(formData: FormData): Promise<void> {
   if (!partnerId) conError(`${LISTA}/nuevo`, "Elegí un sponsor de la lista.");
   await intentar(`${LISTA}/nuevo`, () => linkSponsor({ workspaceId: workspace.id, partnerId }));
   refrescar(partnerId);
+  redirect(ficha(partnerId, "ok=vinculado"));
+}
+
+/**
+ * "Agregar a mis sponsors" desde el directorio de la red. Es el mismo vínculo que el buscador
+ * de "Agregar sponsor" (no copia la ficha: la marca es una sola en toda la red), pero sólo
+ * acepta marcas que están en el directorio público. Después lleva a la ficha, donde se eligen
+ * los espacios.
+ */
+export async function sumarDesdeRedAction(formData: FormData): Promise<void> {
+  const { workspace } = await requireSponsorsManager();
+  const partnerId = texto(formData, "partnerId").trim();
+  const volver = texto(formData, "volver");
+  const destinoError = volver.startsWith(`${LISTA}/red`) ? volver : `${LISTA}/red`;
+  if (!partnerId) conError(destinoError, "Elegí una marca del directorio.");
+  const publica = await intentar(destinoError, () => estaEnDirectorio(workspace.id, partnerId));
+  if (!publica) conError(destinoError, "Esa marca no está en el directorio público de la red DNX.");
+  await intentar(destinoError, () => linkSponsor({ workspaceId: workspace.id, partnerId }));
+  refrescar(partnerId);
+  revalidatePath(`${LISTA}/red`);
   redirect(ficha(partnerId, "ok=vinculado"));
 }
 

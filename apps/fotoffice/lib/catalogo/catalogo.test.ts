@@ -132,6 +132,14 @@ describe("combos", () => {
     expect(B.datos.fotofficeComboItem.filter((x) => x.comboProductId === "A")).toHaveLength(0);
   });
 
+  it("un insumo no entra en un combo ni se ofrece para armarlo", async () => {
+    producto("I", { kind: "INSUMO" });
+    const r = await C.guardarComponentes("ws-1", "A", [{ productId: "I", quantity: 1 }]);
+    expect(r).toEqual({ ok: false, error: "Un insumo no se puede vender dentro de un combo." });
+    expect(B.datos.fotofficeComboItem).toHaveLength(0);
+    expect((await C.productosParaCombo("ws-1", "A")).map((p) => p.id)).not.toContain("I");
+  });
+
   it("un combo no se contiene a sí mismo", async () => {
     expect((await C.guardarComponentes("ws-1", "A", [{ productId: "A", quantity: 1 }])).ok).toBe(false);
   });
@@ -237,9 +245,9 @@ describe("fuente de la ficha", () => {
 
   it("cada acción exige sales.catalog (requireSalesAdmin) y toma el workspace de la sesión", () => {
     const exportadas = acciones.match(/export async function \w+/g) ?? [];
-    // Perfil, combo, costos y (Etapa 4) "Proyecto que genera" y "Cita que genera".
-    expect(exportadas).toHaveLength(5);
-    expect(acciones.match(/await requireSalesAdmin\(\)/g)).toHaveLength(5);
+    // Perfil, combo, costos, (Etapa 4) "Proyecto que genera" y "Cita que genera", y "Proveedor por defecto".
+    expect(exportadas).toHaveLength(6);
+    expect(acciones.match(/await requireSalesAdmin\(\)/g)).toHaveLength(6);
     expect(acciones).not.toMatch(/workspaceId\s*[:,]\s*(formData|c\.|costos|componentes)/);
   });
 

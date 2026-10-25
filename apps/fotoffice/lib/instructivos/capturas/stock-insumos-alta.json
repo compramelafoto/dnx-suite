@@ -1,0 +1,20 @@
+[
+  {
+    "archivo": "01-nuevo-insumo.png",
+    "ruta": "/ventas/catalogo/nuevo",
+    "que_mostrar": "Formulario de producto con Tipo = Insumo, nombre 'Sobres de carnet' y la sección 'Insumo' visible con '¿En qué se cuenta?' (sobres) y 'Mínimo antes de avisar'. Workspace de demostración.",
+    "selector_recorte": null
+  },
+  {
+    "archivo": "02-unidad-de-compra.png",
+    "ruta": "/ventas/catalogo/nuevo",
+    "que_mostrar": "Tipo Insumo 'Kit Kodak 305 (copias 10x15)' con 'Cómo lo comprás' = Kit 305 6R y 'Cuántas unidades trae cada una' = 640. Recortar la sección 'Insumo'. NO guardar.",
+    "selector_recorte": "section.fo-card:has(#unidadCompra)"
+  },
+  {
+    "archivo": "03-configurar-kodak.png",
+    "ruta": "/ventas/stock",
+    "que_mostrar": "Tarjeta 'Controlá el ribbon de la Kodak 305' con el botón 'Configurar', en un workspace de demostración donde el kit todavía no existe. NO tocar Configurar.",
+    "selector_recorte": null
+  }
+]

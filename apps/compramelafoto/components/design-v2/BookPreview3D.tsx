@@ -5,7 +5,7 @@ import { PAPER_TOKENS, TemplateCanvasRenderer, editorThemeStyle } from "@repo/te
 import type { DesignV2Data } from "@/lib/design-v2/design-data";
 import type { DesignPhotoPayload, DesignTemplatePayload } from "@/lib/design-v2/client-payload";
 import { bookLeaves, bookSpreadLabel, type BookFace } from "@/lib/design-v2/book-leaves";
-import { designPhotoOverrides, visibleDesignBlocks } from "@/lib/design-v2/render-inputs";
+import { designPhotoOverrides, sinFondoDelDiseno, visibleDesignBlocks } from "@/lib/design-v2/render-inputs";
 
 /**
  * El librito armado, encuadernado y con giro de páginas en 3D. Solo para que el fotógrafo vea
@@ -52,7 +52,7 @@ export default function BookPreview3D({ template, photos, data, onClose }: Props
 
   const photoUrlById = useMemo(() => new Map(photos.map((p) => [p.id, p.url])), [photos]);
   const blocks = useMemo(() => visibleDesignBlocks(template.blocks, data.values), [template.blocks, data.values]);
-  const overrides = useMemo(() => designPhotoOverrides(data.slots, photoUrlById), [data.slots, photoUrlById]);
+  const overrides = useMemo(() => designPhotoOverrides(data.slots, photoUrlById, sinFondoDelDiseno(template.blocks, photos)), [data.slots, photoUrlById, template, photos]);
 
   const canvasW = Number(template.canvas.width) || 1;
   const canvasH = Number(template.canvas.height) || 1;

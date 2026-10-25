@@ -3,11 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { alCambiarProyecto } from "@/lib/agenda/google/empuje";
+import { avisarSiQuedoListo } from "@/lib/proyectos/aviso-listo-servidor";
 import { puede, puedeEnContexto } from "@/lib/access/policy";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import { contextoDeCircuitos, type CtxCircuitos } from "@/lib/circuitos/acceso";
 import { SALIDAS } from "@/lib/circuitos/constantes";
-import { asignarResponsable, cambiarVencimiento, cerrar, MENSAJES, mover, sujetoDeRecorrido } from "@/lib/circuitos/recorridos";
+import { asignarResponsable, cambiarVencimiento, cerrar, esRetrocesoDelRecorrido, MENSAJES, mover, reabrir, sujetoDeRecorrido } from "@/lib/circuitos/recorridos";
 import { borrarTareaSuelta, crearTareaSuelta, sujetoDeTarea, tildarTarea } from "@/lib/circuitos/tareas";
 import { adaptadorDe, type Adaptador, type Sujeto } from "@/lib/circuitos/sujetos";
 
@@ -94,8 +95,19 @@ export async function moverAction(datos: {
   if (esFalla(p)) return p;
   // Pasar con tareas obligatorias pendientes es de quien puede configurar.
   const forzar = datos.forzar === true && puede(p.ctx.role, "configurar");
+  const retroceso = p.sujeto.tipo === "PROYECTO" && (await esRetrocesoDelRecorrido(p.ctx.workspaceId, datos.journeyId, datos.destinoId));
   const r = await mover(p.ctx, datos.journeyId, datos.destinoId, { nota: datos.nota, forzar, esperado });
-  if (r.ok) revalidar(p);
+  if (r.ok) {
+    revalidar(p);
+    // Un trabajo que llega a "Listo para retirar" le avisa al cliente por correo (después de
+    // responder). Volver atrás (p. ej. de "Entregado" a "Listo") no lo vuelve a avisar.
+    if (p.sujeto.tipo === "PROYECTO" && !retroceso) {
+      const workspaceId = p.ctx.workspaceId;
+      const proyectoId = p.sujeto.id;
+      const autor = p.ctx.userId;
+      after(() => avisarSiQuedoListo(workspaceId, proyectoId, autor));
+    }
+  }
   return r;
 }
 
@@ -122,6 +134,30 @@ export async function cerrarAction(datos: {
   if (r.ok) {
     revalidar(p);
     // Un proyecto cerrado deja de entregarse: su evento se borra de Google Calendar (después de responder).
+    if (p.sujeto.tipo === "PROYECTO") {
+      const workspaceId = p.ctx.workspaceId;
+      const proyectoId = p.sujeto.id;
+      after(() => alCambiarProyecto(workspaceId, proyectoId));
+    }
+  }
+  return r;
+}
+
+/**
+ * Reabre un recorrido terminado en la etapa elegida: un trabajo que se marcó "Entregado" por
+ * error vuelve al tablero. `esperado` es el cierre que se leyó (control de cambios simultáneos).
+ * No avisa al cliente: es volver atrás.
+ */
+export async function reabrirAction(datos: { journeyId: string; destinoId: string; nota?: string; esperado?: Date | string }): Promise<Resultado> {
+  if (!esObjeto(datos) || !idValido(datos.journeyId) || !idValido(datos.destinoId) || !notaValida(datos.nota)) return DATOS_INVALIDOS;
+  const esperado = leerFecha(datos.esperado);
+  if (esperado === null) return DATOS_INVALIDOS;
+  const p = await preparar(deRecorrido(datos.journeyId));
+  if (esFalla(p)) return p;
+  const r = await reabrir(p.ctx, datos.journeyId, datos.destinoId, { nota: datos.nota, esperado });
+  if (r.ok) {
+    revalidar(p);
+    // Un proyecto reabierto vuelve a entregarse: su evento vuelve a Google Calendar (después de responder).
     if (p.sujeto.tipo === "PROYECTO") {
       const workspaceId = p.ctx.workspaceId;
       const proyectoId = p.sujeto.id;

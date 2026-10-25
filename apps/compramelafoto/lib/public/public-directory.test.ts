@@ -22,6 +22,7 @@ import {
   assert.deepEqual(where.role.in, [Role.PHOTOGRAPHER, Role.LAB_PHOTOGRAPHER]);
   assert.equal(where.isPublicPageEnabled, true);
   assert.equal(where.isBlocked, false);
+  assert.deepEqual(where.NOT, { tags: { has: "DEMO_PRESENTACION" } });
 }
 
 {

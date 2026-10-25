@@ -7,6 +7,9 @@ vi.mock("@/lib/ficha/adjuntos-r2", () => ({ adjuntosR2Configurado: H.configurado
 vi.mock("@/lib/payments/connect/log", () => ({ sanitizeError: (e: unknown) => String(e) }));
 const L = vi.hoisted(() => ({ limpiar: vi.fn() }));
 vi.mock("@/lib/dnx-bot/limpieza", () => ({ borrarConversacionesViejas: L.limpiar }));
+vi.mock("@/lib/carpetas/carpeta", () => ({ purgarCarpetas: async () => 0 }));
+const P = vi.hoisted(() => ({ preparaciones: vi.fn() }));
+vi.mock("@/lib/impresion/preparaciones", () => ({ purgarPreparaciones: P.preparaciones }));
 
 const { POST, GET, maxDuration } = await import("./route");
 
@@ -22,6 +25,7 @@ beforeEach(() => {
   H.purgarProy.mockReset().mockResolvedValue({ purgados: 0, pendientesLimpios: 0, fallidos: 0 });
   H.configurado.mockReset().mockReturnValue(true);
   L.limpiar.mockReset().mockResolvedValue({ conversaciones: 0, acciones: 0 });
+  P.preparaciones.mockReset().mockResolvedValue(0);
   process.env.CRON_SECRET = "s3creto";
   delete process.env.FOTOFFICE_CRON_SECRET;
 });
@@ -63,13 +67,26 @@ describe("cron de adjuntos", () => {
   it("con secreto purga y devuelve los números", async () => {
     const r = await GET(pedido("Bearer s3creto"));
     expect(r.status).toBe(200);
-    expect(await r.json()).toEqual({ ok: true, purgados: 2, pendientesLimpios: 1, fallidos: 0 });
+    expect(await r.json()).toEqual({ ok: true, carpetas: 0, preparaciones: 0, purgados: 2, pendientesLimpios: 1, fallidos: 0 });
     expect(H.purgar).toHaveBeenCalledTimes(1);
   });
   it("suma también lo purgado de los adjuntos de proyectos", async () => {
     H.purgarProy.mockResolvedValue({ purgados: 3, pendientesLimpios: 2, fallidos: 1 });
     const r = await GET(pedido("Bearer s3creto"));
-    expect(await r.json()).toEqual({ ok: true, purgados: 5, pendientesLimpios: 3, fallidos: 1 });
+    expect(await r.json()).toEqual({ ok: true, carpetas: 0, preparaciones: 0, purgados: 5, pendientesLimpios: 3, fallidos: 1 });
+  });
+  it("purga también las preparaciones de impresión y las cuenta", async () => {
+    P.preparaciones.mockResolvedValue(4);
+    const r = await GET(pedido("Bearer s3creto"));
+    expect((await r.json()).preparaciones).toBe(4);
+    expect(P.preparaciones).toHaveBeenCalledTimes(1);
+  });
+  it("si la purga de preparaciones falla, el resto del trabajo igual responde 200 y lo informa", async () => {
+    P.preparaciones.mockRejectedValue(new Error("db"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const r = await GET(pedido("Bearer s3creto"));
+    expect(r.status).toBe(200);
+    expect(await r.json()).toMatchObject({ ok: true, purgados: 2, preparaciones: null, preparacionesFallo: true });
   });
   it("bucket sin configurar → no hace nada", async () => {
     H.configurado.mockReturnValue(false);

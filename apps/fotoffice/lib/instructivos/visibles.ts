@@ -3,10 +3,14 @@ import type { Instructivo } from "./tipos";
 
 export const ORDEN_SECCIONES: readonly Instructivo["seccion"][] = [
   "Primeros pasos",
+  "Caja",
+  "Mostrador",
+  "Trabajos y entregas",
+  "Stock",
   "Socios",
+  "Cuotas",
   "Comunicación",
   "Comisión",
-  "Dinero",
   "Actividades",
 ];
 

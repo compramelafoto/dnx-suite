@@ -210,7 +210,7 @@ export function EditorPropuestaModelo(props: {
               onCambio={(v) => setEdicion({ ...edicion, tipoDeTrabajo: v })}
               ayuda="Por ejemplo: Boda, 15 años, Corporativo."
             />
-            <CamposTrabajo trabajo={edicion.trabajo} onCambio={(t) => setEdicion({ ...edicion, trabajo: t })} />
+            <CamposTrabajo trabajo={edicion.trabajo} perfil={props.perfilDelWorkspace} onCambio={(t) => setEdicion({ ...edicion, trabajo: t })} />
             <p role="status" className="text-sm font-semibold tabular-nums text-[var(--fo-text)]">
               {vistaPrevia?.ok ? `Precio hoy: ${pesos(vistaPrevia.item.precioUnitario)}` : vistaPrevia ? vistaPrevia.error : ""}
             </p>

@@ -35,7 +35,7 @@ export const CLIENT_HOUR_HINTS: Partial<Record<ClientHourField, string>> = {
 };
 
 /** Mapeo al mismo motor de tarifas por categoría (sin cambiar fórmulas). */
-export const CLIENT_HOUR_RATE_KEY: Record<ClientHourField, keyof QuoteLaborRates> = {
+export const CLIENT_HOUR_RATE_KEY: Record<ClientHourField, Exclude<keyof QuoteLaborRates, "byPerson">> = {
   salesHours: "sales",
   meetingsHours: "administration",
   generalPrepHours: "administration",

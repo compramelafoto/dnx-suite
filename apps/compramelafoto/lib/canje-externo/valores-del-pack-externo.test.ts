@@ -51,7 +51,14 @@ describe("valoresDelPackExternoDesdePacks", () => {
       buyerName: null,
       photographerName: null,
     });
-    const lista = JSON.parse(v["course.studentList"]!) as Array<{ f: string; l: string; o?: number }>;
+    const listado = JSON.parse(v["course.studentList"]!) as {
+      g: Array<{ t: string; k: string; s: Array<{ f: string; l: string; o?: number }> }>;
+    };
+    // Un curso, con su título: el listado siempre lleva el nombre del curso arriba.
+    assert.equal(listado.g.length, 1);
+    assert.equal(listado.g[0]!.t, "5.º A");
+    assert.equal(listado.g[0]!.k, "excel|5.º A");
+    const lista = listado.g[0]!.s;
     assert.equal(lista.length, 2);
     assert.equal(lista.filter((a) => a.o === 1).length, 1);
   });

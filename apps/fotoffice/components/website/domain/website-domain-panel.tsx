@@ -262,7 +262,7 @@ function DnsInstructions({ domain, records, dns }: { domain: string; records: Dn
 function Step({ n, title, children }: { n: number; title: string; children: ReactNode }) {
   return (
     <section className="flex gap-3">
-      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--fo-accent)] text-xs font-semibold text-white">
+      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--fo-accent)] text-xs font-semibold text-[var(--fo-on-accent,#fff)]">
         {n}
       </span>
       <div className="min-w-0 flex-1 space-y-2 text-sm text-[var(--fo-text)]">

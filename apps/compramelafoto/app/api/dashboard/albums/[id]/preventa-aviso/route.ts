@@ -5,6 +5,7 @@ import { findAlbumOwnedByUser } from "@/lib/preventa-canjeable/dashboard-pack-he
 import {
   getPreventaPhotosReadyStatus,
   notifyPreventaPhotosReady,
+  parseAvisoOrderIds,
 } from "@/lib/preventa-canjeable/notify-preventa-photos-ready";
 
 export const runtime = "nodejs";
@@ -30,11 +31,16 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   return NextResponse.json(await getPreventaPhotosReadyStatus(r.albumId));
 }
 
-/** POST: manda el aviso "ya están las fotos" a las familias que todavía no canjearon. */
+/**
+ * POST: manda el aviso "ya están las fotos" a las familias que todavía no canjearon. Body
+ * opcional `{ orderIds: number[] }`: sólo a esos packs (p. ej. los de un curso).
+ */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const r = await ownedAlbumId(params);
   if ("response" in r) return r.response;
+  const body = (await req.json().catch(() => null)) as { orderIds?: unknown } | null;
+  const orderIds = parseAvisoOrderIds(body?.orderIds);
   const baseUrl = (process.env.APP_URL || req.nextUrl.origin).replace(/\/+$/, "");
-  const result = await notifyPreventaPhotosReady({ albumId: r.albumId, baseUrl });
+  const result = await notifyPreventaPhotosReady({ albumId: r.albumId, baseUrl, orderIds });
   return NextResponse.json(result);
 }

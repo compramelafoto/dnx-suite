@@ -23,7 +23,7 @@ import {
 import { CC_COMMERCIAL_POSITIONING_INTRO, CC_COMMERCIAL_POSITIONING_QUESTION } from "@repo/cuanto-cobro-core/commercial-positioning";
 import { InputMoneda } from "@/components/campos/input-moneda";
 import { CampoTexto } from "@/components/presupuestos/panel-cuanto-cobro";
-import { pesos } from "@/lib/presupuestos/editor";
+import { useFormatearPesos } from "@/components/campos/formato-pesos";
 
 /** Cada sección recibe el perfil y un `cambiar` que mezcla un parcial. */
 export type PropsSeccion = {
@@ -86,6 +86,7 @@ export function SeccionIngresos({ perfil, cambiar }: PropsSeccion) {
 const GRUPOS_DE_FABRICA = new Set(createDefaultPersonalExpenseGroups().map((g) => g.id));
 
 export function SeccionGastosPersonales({ perfil, cambiar }: PropsSeccion) {
+  const pesos = useFormatearPesos();
   const grupos = perfil.personalExpenseGroups;
   const [abierto, setAbierto] = useState<string | null>(grupos[0]?.id ?? null);
   const poner = (g: MonthlyExpenseGroup[]) => cambiar({ personalExpenseGroups: g });
@@ -354,7 +355,7 @@ export function SeccionPosicionamiento({ perfil, cambiar }: PropsSeccion) {
               <span className="flex flex-wrap items-center gap-2">
                 <span className="text-sm font-semibold">{o.title}</span>
                 {o.isRecommended ? (
-                  <span className="rounded-full bg-[var(--fo-accent)] px-2 py-0.5 text-[0.6875rem] font-semibold text-white">Recomendado</span>
+                  <span className="rounded-full bg-[var(--fo-accent)] px-2 py-0.5 text-[0.6875rem] font-semibold text-[var(--fo-on-accent,#fff)]">Recomendado</span>
                 ) : null}
               </span>
               <span className="mt-1 block text-[0.8125rem] leading-snug text-[var(--fo-muted)]">{o.description}</span>

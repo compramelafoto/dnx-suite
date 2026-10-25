@@ -1,22 +1,34 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import BookPreview3D from "@/components/design-v2/BookPreview3D";
 import DesignEditor from "@/components/design-v2/DesignEditor";
-import {
-  CLASS_LIST_SAMPLE,
-  CLASS_LIST_VARIABLE_KEY,
-  countClientPhotoInputs,
-  serializeClassList,
-} from "@repo/template-editor-core";
+import { countClientPhotoInputs } from "@repo/template-editor-core";
 import type { DesignPhotoPayload, DesignTemplatePayload } from "@/lib/design-v2/client-payload";
 import { isBookTemplate } from "@/lib/design-v2/book-leaves";
 import { buildInitialDesignData, type DesignV2Data } from "@/lib/design-v2/design-data";
+import {
+  cursosDelPadronDeLaEscuela,
+  etiquetaDelAlumno,
+  moverAlumno,
+  reemplazarValoresDelListado,
+  valoresDeEjemplo,
+  valoresDelAlumno,
+  type CursoDelPadron,
+  type FilaDelPadron,
+} from "@/lib/design-v2/probar-con-listado";
 
 type AlbumOption = { id: number; title: string; photoCount: number };
+type SchoolOption = { id: number; name: string; logoUrl: string | null };
+
+/** ¿La tecla viene de un campo donde se escribe? Ahí las flechas mueven el cursor, no el alumno. */
+function teclaEnCampo(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  return target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName);
+}
 
 /**
  * Probar una plantilla con fotos reales antes de ofrecerla: el fotógrafo elige fotos de uno de
@@ -34,6 +46,13 @@ export default function TemplateSandboxClient({ templateId }: { templateId: stri
   const [downloading, setDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [showBook, setShowBook] = useState(false);
+  // «Listado de alumnos»: el de ejemplo (sin escuela) o el padrón de un curso del fotógrafo.
+  const [schools, setSchools] = useState<SchoolOption[] | null>(null);
+  const [schoolId, setSchoolId] = useState<number | null>(null);
+  const [courses, setCourses] = useState<CursoDelPadron[] | null>(null);
+  const [coursesTruncated, setCoursesTruncated] = useState(false);
+  const [courseKey, setCourseKey] = useState<string | null>(null);
+  const [studentIndex, setStudentIndex] = useState(0);
 
   useEffect(() => {
     void (async () => {
@@ -51,6 +70,65 @@ export default function TemplateSandboxClient({ templateId }: { templateId: stri
       setAlbums(a.albums ?? []);
     })();
   }, [templateId]);
+
+  useEffect(() => {
+    void (async () => {
+      const res = await fetch("/api/fotografo/schools", { credentials: "include" });
+      const body = await res.json().catch(() => null);
+      setSchools(
+        res.ok && Array.isArray(body)
+          ? body.map((s: SchoolOption) => ({ id: s.id, name: s.name, logoUrl: s.logoUrl ?? null }))
+          : [],
+      );
+    })();
+  }, []);
+
+  useEffect(() => {
+    if (schoolId == null) return;
+    setCourses(null);
+    setCoursesTruncated(false);
+    void (async () => {
+      const res = await fetch(`/api/fotografo/schools/${schoolId}/roster-entries?take=800`, { credentials: "include" });
+      const body = await res.json().catch(() => ({}));
+      const entries: FilaDelPadron[] = res.ok && Array.isArray(body.entries) ? body.entries : [];
+      setCourses(cursosDelPadronDeLaEscuela(entries));
+      setCoursesTruncated(res.ok && body.truncatedHint === true);
+    })();
+  }, [schoolId]);
+
+  const school = schools?.find((s) => s.id === schoolId) ?? null;
+  const course = (courseKey != null ? courses?.find((c) => c.key === courseKey) : null) ?? null;
+  const studentCount = course?.students.length ?? 0;
+  const listadoValues = useMemo(
+    () =>
+      course && course.students.length > 0
+        ? valoresDelAlumno({
+            curso: course,
+            indice: studentIndex,
+            schoolName: school?.name,
+            schoolLogoUrl: school?.logoUrl,
+          })
+        : valoresDeEjemplo(),
+    [course, studentIndex, school],
+  );
+
+  // Con el diseño ya armado, cambiar de curso o de alumno cambia sólo esos textos (el PDF usa los mismos).
+  useEffect(() => {
+    setData((prev) => (prev ? { ...prev, values: reemplazarValoresDelListado(prev.values, listadoValues) } : prev));
+  }, [listadoValues]);
+
+  // ← / → pasan de alumno, salvo que se esté escribiendo en un campo o mirando el librito en 3D.
+  useEffect(() => {
+    if (studentCount < 2 || showBook) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+      if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || teclaEnCampo(e.target)) return;
+      e.preventDefault();
+      setStudentIndex((i) => moverAlumno(i, studentCount, e.key === "ArrowLeft" ? -1 : 1));
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [studentCount, showBook]);
 
   useEffect(() => {
     if (albumId == null) return;
@@ -91,15 +169,107 @@ export default function TemplateSandboxClient({ templateId }: { templateId: stri
         templateV2VersionId: template.versionId,
         slots: template.slots,
         photoIds: picked,
-        values: {
-          "student.fullName": "Nombre del Alumno",
-          "course.displayName": "5.º A",
-          "school.name": "Escuela de prueba",
-          [CLASS_LIST_VARIABLE_KEY]: serializeClassList(CLASS_LIST_SAMPLE),
-        },
+        values: listadoValues,
       }),
     );
   }
+
+  const listadoCard = (
+    <Card className="mt-5 p-4">
+      <p className="text-sm font-medium text-[#111827]">Listado de alumnos</p>
+      <p className="mt-1 text-xs text-[#6b7280]">
+        Con un curso tuyo, el listado y el mosaico llevan sus alumnos y el nombre es el del alumno elegido.
+      </p>
+      <div className="mt-3 flex flex-wrap items-end gap-3">
+        <div>
+          <label className="block text-xs text-[#6b7280]" htmlFor="sandbox-school">
+            Escuela
+          </label>
+          <select
+            id="sandbox-school"
+            value={schoolId ?? ""}
+            onChange={(e) => {
+              setSchoolId(e.target.value ? Number(e.target.value) : null);
+              setCourses(null);
+              setCourseKey(null);
+              setStudentIndex(0);
+            }}
+            className="mt-1 w-64 max-w-full rounded-lg border border-[#d1d5db] px-3 py-2 text-sm"
+          >
+            <option value="">Ejemplo</option>
+            {(schools ?? []).map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        {schoolId != null ? (
+          <div>
+            <label className="block text-xs text-[#6b7280]" htmlFor="sandbox-course">
+              Curso
+            </label>
+            <select
+              id="sandbox-course"
+              value={courseKey ?? ""}
+              disabled={courses == null || courses.length === 0}
+              onChange={(e) => {
+                setCourseKey(e.target.value || null);
+                setStudentIndex(0);
+              }}
+              className="mt-1 w-64 max-w-full rounded-lg border border-[#d1d5db] px-3 py-2 text-sm"
+            >
+              <option value="">
+                {courses == null
+                  ? "Cargando cursos…"
+                  : courses.length === 0
+                    ? "Esta escuela no tiene padrón cargado"
+                    : "Elegí un curso"}
+              </option>
+              {(courses ?? []).map((c) => (
+                <option key={c.key} value={c.key}>
+                  {c.title}
+                  {c.shift ? ` (${c.shift})` : ""} · {c.students.length} alumno{c.students.length === 1 ? "" : "s"}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : null}
+        {course && studentCount > 0 ? (
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={studentCount < 2}
+              onClick={() => setStudentIndex((i) => moverAlumno(i, studentCount, -1))}
+            >
+              ‹ Anterior
+            </Button>
+            <span className="text-sm text-[#374151]" aria-live="polite">
+              {etiquetaDelAlumno(studentIndex, studentCount)}:{" "}
+              <span className="font-semibold">{listadoValues["student.fullName"]}</span>
+            </span>
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={studentCount < 2}
+              onClick={() => setStudentIndex((i) => moverAlumno(i, studentCount, 1))}
+            >
+              Siguiente ›
+            </Button>
+          </div>
+        ) : null}
+      </div>
+      {course && studentCount > 1 ? (
+        <p className="mt-2 text-xs text-[#6b7280]">También podés pasar de alumno con las flechas ← y → del teclado.</p>
+      ) : null}
+      {coursesTruncated ? (
+        <p className="mt-2 text-xs text-amber-700">
+          La escuela tiene un padrón muy grande: puede que algún curso no muestre a todos sus alumnos.
+        </p>
+      ) : null}
+    </Card>
+  );
 
   async function downloadPdf() {
     if (!data) return;
@@ -219,6 +389,8 @@ export default function TemplateSandboxClient({ templateId }: { templateId: stri
               )
             ) : null}
           </Card>
+
+          {listadoCard}
         </>
       ) : (
         <>
@@ -235,10 +407,13 @@ export default function TemplateSandboxClient({ templateId }: { templateId: stri
               Cambiar fotos
             </Button>
             <span className="text-xs text-[#6b7280]">
-              Así le va a llegar a tu cliente. Los textos son de ejemplo: con un pedido real salen sus datos.
+              {course
+                ? "Así le va a llegar a cada familia del curso: con un pedido real salen sus datos."
+                : "Así le va a llegar a tu cliente. Los textos son de ejemplo: con un pedido real salen sus datos."}
             </span>
           </div>
           {downloadError ? <p className="mt-2 text-sm text-red-600">{downloadError}</p> : null}
+          {listadoCard}
           <div className="mt-5">
             <DesignEditor
               template={template}

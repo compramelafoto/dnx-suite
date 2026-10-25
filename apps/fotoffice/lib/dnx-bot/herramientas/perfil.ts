@@ -42,6 +42,8 @@ const BORRADOR: DepsBorrador = { leer: leerBorrador, anotar: anotarEnBorrador, l
 const DEPS: DepsPerfil = { leer: leerPerfilPrecios, guardar: guardarPerfilPrecios, borrador: BORRADOR };
 
 const ref = (ctx: CtxBot): RefBorrador => ({ plataforma: ctx.plataforma, userId: ctx.userId! });
+/** «Mi estudio» sólo se arma en workspaces de tipo estudio (o si el perfil ya lo tiene encendido). */
+const opcionesDe = (ctx: CtxBot) => ({ permitirEstudio: ctx.ofreceMiEstudio === true });
 
 async function base(ctx: CtxBot, deps: DepsPerfil = DEPS) {
   const g = await deps.leer(ctx);
@@ -54,7 +56,7 @@ async function borrador(ctx: CtxBot, deps: DepsPerfil = DEPS): Promise<Anotacion
 
 async function prepararGuardado(ctx: CtxBot, parche: ParchePerfil, deps: DepsPerfil) {
   const b = await base(ctx, deps);
-  const s = simularPerfil(b.perfil, parche, "dnx-bot");
+  const s = simularPerfil(b.perfil, parche, "dnx-bot", opcionesDe(ctx));
   const cambios = cambiosEntre(b.perfil, s.perfil);
   const antes = vistaDelPerfil(b.perfil, b.source).resumen.valorHora ?? "sin calcular";
   const ahora = s.vista.resumen.valorHora ?? "sin calcular";
@@ -62,8 +64,8 @@ async function prepararGuardado(ctx: CtxBot, parche: ParchePerfil, deps: DepsPer
 }
 
 /** Lo que se cuenta del borrador al modelo: qué está anotado (sin montos), totales del motor y lo que falta. */
-function vistaDelBorrador(perfil: ReturnType<typeof perfilBase>, parche: ParchePerfil, source: string | null) {
-  const s = simularPerfil(perfil, parche, source);
+function vistaDelBorrador(perfil: ReturnType<typeof perfilBase>, parche: ParchePerfil, source: string | null, ctx?: CtxBot) {
+  const s = simularPerfil(perfil, parche, source, ctx ? opcionesDe(ctx) : {});
   return {
     anotado: loAnotado(parche, perfil),
     rubrosSinDatos: rubrosSinDatos(parche, perfil),
@@ -87,7 +89,7 @@ export async function estadoDelPerfil(ctx: CtxBot, opts: { borradorHasta?: Date 
   const estado: EstadoPerfil = { existe: !!b.guardado, completo: v.completo, faltan: v.faltan, origen: v.origen };
   const parche = parcheDelBorrador(anotaciones, opts.borradorHasta);
   if (Object.keys(parche).length === 0) return estado;
-  const vb = vistaDelBorrador(b.perfil, parche, b.source);
+  const vb = vistaDelBorrador(b.perfil, parche, b.source, ctx);
   return { ...estado, borrador: { anotado: vb.anotado, faltan: vb.faltan, rubrosSinDatos: vb.rubrosSinDatos } };
 }
 
@@ -115,7 +117,8 @@ export function herramientasDePerfil(ctx: CtxBot, deps: DepsPerfil = DEPS): BotT
           data: {
             existe: !!b.guardado,
             ...vistaDelPerfil(b.perfil, b.source),
-            borrador: hayBorrador ? vistaDelBorrador(b.perfil, parche, b.source) : null,
+            borrador: hayBorrador ? vistaDelBorrador(b.perfil, parche, b.source, ctx) : null,
+            ofreceMiEstudio: ctx.ofreceMiEstudio === true,
           },
         };
       },
@@ -130,17 +133,17 @@ export function herramientasDePerfil(ctx: CtxBot, deps: DepsPerfil = DEPS): BotT
         const [b, anotaciones] = await Promise.all([base(ctx, deps), borrador(ctx, deps)]);
         const previo = parcheDelBorrador(anotaciones);
         // Los errores del dato nuevo, sobre el perfil con lo ya anotado (p. ej. horas por tarea con las horas por semana del borrador).
-        const conPrevio = aplicarParche(b.perfil, previo).perfil;
-        const nuevo = aplicarParche(conPrevio, parche);
+        const conPrevio = aplicarParche(b.perfil, previo, opcionesDe(ctx)).perfil;
+        const nuevo = aplicarParche(conPrevio, parche, opcionesDe(ctx));
         if (nuevo.errores.length) return { ok: false, message: `No lo anoté: ${nuevo.errores.join(" ")}` };
         const todas = await dbBorrador.anotar(ref(ctx), parche);
         const total = parcheDelBorrador(todas);
-        const s = simularPerfil(b.perfil, total, b.source);
+        const s = simularPerfil(b.perfil, total, b.source, opcionesDe(ctx));
         const tarjeta = { ...tarjetaDelPerfil({ ...s, conversiones: nuevo.conversiones }), titulo: "Tu perfil hasta ahora (borrador, sin guardar)" };
         return {
           ok: true,
           message: "Anotado en el borrador (todavía sin guardar en el perfil).",
-          data: { ...vistaDelBorrador(b.perfil, total, b.source), conversiones: nuevo.conversiones, tarjeta },
+          data: { ...vistaDelBorrador(b.perfil, total, b.source, ctx), conversiones: nuevo.conversiones, tarjeta },
         };
       },
     }),
@@ -152,7 +155,7 @@ export function herramientasDePerfil(ctx: CtxBot, deps: DepsPerfil = DEPS): BotT
       kind: "read",
       run: async ({ parche }) => {
         const [b, anotaciones] = await Promise.all([base(ctx, deps), borrador(ctx, deps)]);
-        const s = simularPerfil(b.perfil, fusionarParches(parcheDelBorrador(anotaciones), parche), b.source);
+        const s = simularPerfil(b.perfil, fusionarParches(parcheDelBorrador(anotaciones), parche), b.source, opcionesDe(ctx));
         return {
           ok: true,
           message: s.errores.length ? "Hay datos para revisar." : "Simulación lista (sin guardar).",

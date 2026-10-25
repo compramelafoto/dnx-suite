@@ -24,6 +24,18 @@ import type { DesignTemplateVersion } from "@/lib/design-v2/template";
 import { notifyPhotographerDesignToReview } from "@/lib/design-v2/notify";
 import { armarDisenosDelCanjeExterno } from "@/lib/canje-externo/disenos-del-canje-externo";
 import { ensureDigitalDelivery } from "@/lib/digital-delivery";
+import { prepararRevisionDelCanje, type RevisionPreparada } from "@/lib/revision-de-impresion/en-el-canje";
+import type { RevisionPedida } from "@/lib/revision-de-impresion/revision-del-canje";
+
+/**
+ * Lo que la familia revisó y autorizó en la pantalla del canje: correcciones de sus textos,
+ * cursos sumados al listado, avisos de error y la autorización de impresión.
+ */
+export type RevisionDelCanjeInput = {
+  pedida: RevisionPedida;
+  by: { name: string | null; email: string | null };
+  userAgent: string | null;
+};
 
 export { PreventaPackRedeemValidationError };
 
@@ -73,7 +85,8 @@ async function persistSchoolSelectionsFromRedeem(
   preCompraOrderId: number | null,
   snapshot: PreventaPackSnapshotV1,
   selections: RedeemUnitSelectionInput[],
-  redemptionOrderId: number
+  redemptionOrderId: number,
+  revision: RevisionPreparada | null = null
 ): Promise<void> {
   if (!preCompraOrderId) return;
   const preCompra = await tx.preCompraOrder.findUnique({
@@ -142,7 +155,10 @@ async function persistSchoolSelectionsFromRedeem(
   }
 
   const templateCache = new Map<string, DesignTemplateVersion | null>();
-  const designContext = await loadSchoolDesignContext(tx, preCompraOrderId);
+  const contextoBase = await loadSchoolDesignContext(tx, preCompraOrderId);
+  // Lo que la familia corrigió y autorizó va en el diseño, con los textos del servidor.
+  const designContext =
+    contextoBase && revision ? { ...contextoBase, ...(await revision.aplicar(contextoBase.values)) } : contextoBase;
   // Una foto no se repite en el canje, así que el encuadre se puede guardar por foto.
   const cropsByPhotoId = new Map<number, { zoom: number; x: number; y: number }>();
   for (const sel of selections) {
@@ -284,7 +300,8 @@ export async function executePreventaPackRedeemV1InTransaction(
   tx: Prisma.TransactionClient,
   preventaOrderId: number,
   selections: RedeemUnitSelectionInput[],
-  now: Date = new Date()
+  now: Date = new Date(),
+  revision: RevisionDelCanjeInput | null = null
 ): Promise<PreventaPackRedeemResultV1> {
   const parent = await tx.order.findUnique({
     where: { id: preventaOrderId },
@@ -525,7 +542,17 @@ export async function executePreventaPackRedeemV1InTransaction(
     Number.isFinite(preCompraOrderId) ? preCompraOrderId : null,
     snapshot,
     selections,
-    child.id
+    child.id,
+    revision && parent.albumId
+      ? await prepararRevisionDelCanje(tx, {
+          albumId: parent.albumId,
+          snapshot,
+          revision: revision.pedida,
+          by: revision.by,
+          userAgent: revision.userAgent,
+          now,
+        })
+      : null
   );
 
   const updated = await tx.order.updateMany({
@@ -549,7 +576,8 @@ export async function executePreventaPackRedeemV1InTransaction(
 
 export async function executePreventaPackRedeemV1(
   preventaOrderId: number,
-  selections: RedeemUnitSelectionInput[]
+  selections: RedeemUnitSelectionInput[],
+  revision: RevisionDelCanjeInput | null = null
 ): Promise<PreventaPackRedeemResultV1> {
   const gate = await assertPreventaPackOrderRedeemable(preventaOrderId);
   if (!gate.ok) {
@@ -559,7 +587,7 @@ export async function executePreventaPackRedeemV1(
   const now = new Date();
   try {
     const resultado = await prisma.$transaction(
-      (tx) => executePreventaPackRedeemV1InTransaction(tx, preventaOrderId, selections, now),
+      (tx) => executePreventaPackRedeemV1InTransaction(tx, preventaOrderId, selections, now, revision),
       {
         isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
         maxWait: 10_000,
@@ -577,6 +605,8 @@ export async function executePreventaPackRedeemV1(
         preventaOrderId,
         redemptionOrderId: resultado.redemptionOrderId,
         selections,
+        revision,
+        now,
       });
     } catch (err) {
       console.error("[preventa_redeem] external_design_failed", {

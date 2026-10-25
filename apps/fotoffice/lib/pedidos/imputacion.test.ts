@@ -136,3 +136,20 @@ describe("imputarConPreferida", () => {
     expect(imputarConPreferida(CUOTAS, 10.123, "c2").ok).toBe(false);
   });
 });
+
+describe("cuotas de cargos extra", () => {
+  // Regresión: cuota 3 impaga que vence el 30/11 y un cargo extra pedido hoy (vence hoy).
+  const plan: CuotaConSaldo[] = [
+    { id: "c3", position: 3, dueDate: "2026-11-30", saldo: 10000 },
+    { id: "cargo", position: 4, dueDate: "2026-10-22", saldo: 3750, esCargo: true },
+  ];
+  it("el cobro automático va a la cuota del plan aunque el cargo venza antes", () => {
+    expect(imputarAutomatico(plan, 10000)).toEqual({ ok: true, imputaciones: [{ cuotaId: "c3", amountArs: 10000 }] });
+    expect(imputarConPreferida(plan, 5000, null)).toEqual({ ok: true, imputaciones: [{ cuotaId: "c3", amountArs: 5000 }] });
+  });
+  it("el cargo recibe si es la preferida o si las demás ya quedaron pagas", () => {
+    expect(imputarConPreferida(plan, 3750, "cargo")).toEqual({ ok: true, imputaciones: [{ cuotaId: "cargo", amountArs: 3750 }] });
+    expect(imputarAutomatico(plan, 13750)).toEqual({ ok: true, imputaciones: [{ cuotaId: "c3", amountArs: 10000 }, { cuotaId: "cargo", amountArs: 3750 }] });
+    expect(imputarAutomatico([{ ...plan[0]!, saldo: 0 }, plan[1]!], 3750)).toEqual({ ok: true, imputaciones: [{ cuotaId: "cargo", amountArs: 3750 }] });
+  });
+});

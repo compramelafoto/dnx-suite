@@ -25,8 +25,11 @@ import {
   type CuantoCobroJobAdjustments,
   type CuantoCobroProfileInput,
   type CuantoCobroQuoteInput,
+  type CuantoCobroAssignmentActivity,
+  type CuantoCobroQuoteAssignment,
   type CuantoCobroQuoteItem,
   type CuantoCobroQuoteItemType,
+  type StudioPerson,
 } from "@repo/cuanto-cobro-core";
 import { itemDesdeCalculo, presupuestoParaElMotor, type EntradaMotor, type ResultadoItemCalculado } from "./calculo-cuanto-cobro";
 import { normalizarPerfil, perfilesIguales } from "@/lib/precios/perfil-datos";
@@ -72,7 +75,71 @@ export type TrabajoPanel = {
   horasCliente: string;
   /** Precio elegido a mano en el motor (vacío: el recomendado). */
   precioManual: string;
+  /** Mi estudio: quién hace cada parte (horas-persona por actividad). */
+  asignaciones?: AsignacionPanel[];
+  /** Cámara de los disparos ("" o ausente: la principal). Servicio propio y producto. */
+  camara?: string;
+  /** "job": los disparos son del trabajo entero; si no, por unidad (lo de siempre). */
+  disparosPor?: "unit" | "job";
+  /** Mi estudio: la línea del estudio del trabajo (informativo). */
+  linea?: string;
+  /** Mi estudio: la persona «por trabajo» que hace este tercerizado (para recordar la elección). */
+  tercerizadoPor?: string;
 };
+
+/** Una parte del trabajo asignada a una persona del estudio. */
+export type AsignacionPanel = { persona: string; actividad: CuantoCobroAssignmentActivity; horas: string };
+
+/** El campo de horas del panel de cada actividad asignable. */
+export const CAMPO_DE_ACTIVIDAD: Record<CuantoCobroAssignmentActivity, keyof TrabajoPanel> = {
+  coverage: "horasCobertura",
+  editing: "horasEdicion",
+  delivery: "horasEntrega",
+  travel: "horasViaje",
+  production: "horasDiseno",
+  management: "horasGestion",
+};
+
+/** Las actividades que se asignan según el tipo de concepto. */
+export const ACTIVIDADES_DEL_TIPO: Record<CuantoCobroQuoteItemType, CuantoCobroAssignmentActivity[]> = {
+  "own-service": ["coverage", "editing", "delivery", "travel"],
+  "physical-product": ["production"],
+  outsourced: ["management"],
+  expense: [],
+};
+
+const horasNum = (v: string): number => {
+  const n = Number(String(v).trim().replace(",", "."));
+  return Number.isFinite(n) && n > 0 ? n : 0;
+};
+
+/**
+ * Cambia las asignaciones y deja las horas de cada actividad asignada = la suma de lo asignado
+ * (horas-persona: dos fotógrafos 6 h = 12 h de cobertura). Las actividades sin asignar no se tocan.
+ */
+export function conAsignaciones(t: TrabajoPanel, asignaciones: AsignacionPanel[]): TrabajoPanel {
+  const out: TrabajoPanel = { ...t, asignaciones };
+  const suma = new Map<CuantoCobroAssignmentActivity, number>();
+  for (const a of asignaciones) suma.set(a.actividad, (suma.get(a.actividad) ?? 0) + horasNum(a.horas));
+  for (const [actividad, total] of suma) {
+    const campo = CAMPO_DE_ACTIVIDAD[actividad];
+    (out as Record<string, unknown>)[campo] = total > 0 ? String(Math.round(total * 100) / 100).replace(".", ",") : "";
+  }
+  return out;
+}
+
+/** Un tercerizado hecho por una persona «por trabajo» del estudio: su tarifa (por trabajo, o por hora × horas). */
+export function tercerizadoDePersona(t: TrabajoPanel, persona: StudioPerson, horas = ""): TrabajoPanel {
+  const tarifa = parseCuantoCobroAmount(persona.perJobRate) ?? 0;
+  const costo = persona.perJobUnit === "hour" ? Math.round(tarifa * horasNum(horas)) : tarifa;
+  return {
+    ...t,
+    tipo: "outsourced",
+    nombre: t.nombre.trim() || persona.name.trim(),
+    tercerizadoPor: persona.id,
+    costoTercerizado: costo > 0 ? String(costo) : "",
+  };
+}
 
 export function trabajoVacio(nombre = ""): TrabajoPanel {
   return {
@@ -185,7 +252,18 @@ function conceptoAlMotor(t: TrabajoPanel, id: string): CuantoCobroQuoteItem {
     managementHours: t.horasGestion.trim(),
     desiredMarginPercent: t.margenDeseado.trim(),
     expenseCost: t.costoGasto.trim(),
+    ...(t.camara?.trim() ? { cameraId: t.camara.trim() } : {}),
+    ...(t.disparosPor === "job" ? { shotsPer: "job" as const } : {}),
+    ...(asignacionesAlMotor(t)),
   };
+}
+
+function asignacionesAlMotor(t: TrabajoPanel): { assignments?: CuantoCobroQuoteAssignment[] } {
+  const validas = ACTIVIDADES_DEL_TIPO[t.tipo];
+  const assignments = (t.asignaciones ?? [])
+    .filter((a) => a.persona && validas.includes(a.actividad) && horasNum(a.horas) > 0)
+    .map((a) => ({ personId: a.persona, activity: a.actividad, hours: a.horas.trim() }));
+  return assignments.length > 0 ? { assignments } : {};
 }
 
 export function trabajoAlMotor(
@@ -206,6 +284,7 @@ export function trabajoAlMotor(
     // La cámara se cobra por trabajo (los disparos de este trabajo); ver `presupuestoParaElMotor`.
     cameraWearModel: "per-job",
     ...(jobAdjustments ? { jobAdjustments } : {}),
+    ...(t.linea?.trim() ? { businessLineId: t.linea.trim() } : {}),
   };
 }
 
@@ -274,6 +353,16 @@ export function trabajoDesdeMotor(raw: unknown): { trabajo: TrabajoPanel; tipoDe
       margenDeseado: c.desiredMarginPercent ?? "",
       horasCliente: q.client?.hours?.salesHours ?? "",
       precioManual: q.chosenPrice ?? "",
+      ...(Array.isArray(c.assignments) && c.assignments.length > 0
+        ? {
+            asignaciones: c.assignments
+              .filter((a) => a && typeof a.personId === "string" && typeof a.hours === "string")
+              .map((a) => ({ persona: a.personId, actividad: a.activity, horas: a.hours })),
+          }
+        : {}),
+      ...(typeof c.cameraId === "string" && c.cameraId ? { camara: c.cameraId } : {}),
+      ...(c.shotsPer === "job" ? { disparosPor: "job" as const } : {}),
+      ...(typeof q.businessLineId === "string" && q.businessLineId ? { linea: q.businessLineId } : {}),
     },
   };
 }

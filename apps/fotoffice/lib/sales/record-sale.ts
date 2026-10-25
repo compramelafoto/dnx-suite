@@ -1,4 +1,5 @@
 import "server-only";
+import { randomUUID } from "node:crypto";
 import { Prisma, type PrismaClient } from "@repo/db";
 import { minorToDecimalString } from "@/lib/membership/money";
 import { findOrCreateClient } from "@/lib/clients/find-or-create";
@@ -11,6 +12,7 @@ import { lineTotalMinor, ticketTotals, type TicketLine } from "./ticket";
 import { nextSaleNumber } from "./sale-number";
 import { applyStockMovement } from "./variant-stock";
 import { lockStockRows } from "./stock-lock";
+import { aplicarConsumo, planificarConsumo } from "@/lib/stock/consumo-servidor";
 import { SALES_CASH_CATEGORY_NAME, type SalePaymentMethod } from "./constants";
 import type { CheckoutClientResolution } from "./checkout";
 
@@ -211,18 +213,38 @@ async function depositarEnCaja(
 export async function recordSale(
   tx: Tx,
   input: RecordSaleInput,
-): Promise<{ saleId: string; saleNumber: number; deposited: boolean }> {
+): Promise<{ saleId: string; saleNumber: number; deposited: boolean; itemIds: string[]; clientId: string | null }> {
   const totals = ticketTotals(input.lines, input.discountMinor);
 
-  // Lo PRIMERO es bloquear las filas de stock del ticket, en el mismo orden que la tienda
-  // (productos y después talles, por id — ver `stock-lock.ts`). `applyStockMovement` escribe
+  // Los insumos que consume el ticket (recetas, también dentro de combos) se calculan ANTES
+  // del bloqueo, porque sus filas tienen que entrar en el MISMO `lockStockRows`: pedirlas en
+  // una segunda llamada rompería el orden por id que evita el interbloqueo con la tienda.
+  // Sólo lee. El `ref` es provisorio (el índice del renglón): el id real del `SaleItem` todavía
+  // no existe y se re-mapea más abajo. Las recetas valen aunque el producto vendido no
+  // controle existencia (un servicio también gasta papel). Los renglones sueltos
+  // (`productId` nulo) van igual para que el índice coincida con `itemIds`; el plan los ignora.
+  const planConsumo = await planificarConsumo(
+    tx,
+    input.workspaceId,
+    input.lines.map((l, i) => ({ ref: String(i), productId: l.productId, qty: l.qty })),
+  );
+
+  // Lo PRIMERO que bloquea o escribe: las filas de stock del ticket —productos vendidos e
+  // insumos juntos—, en el mismo orden que la tienda (productos y después talles, por id —
+  // ver `stock-lock.ts`). `applyStockMovement` escribe
   // el talle antes que el producto: si el mostrador tomara los bloqueos en ese orden mientras
   // un pedido online los toma al revés, cada uno podía quedar esperando al otro (interbloqueo).
   // Cuando la venta sale de un pedido, quien llama ya bloqueó estas filas: volver a pedirlas en
-  // la misma transacción no espera a nadie.
+  // la misma transacción no espera a nadie. Por eso quien bloquea ANTES de llamar tiene que
+  // incluir también los insumos en su propio bloqueo (como `lockAndCheckOrderStock` en
+  // `lib/store/credit-payment.ts`): si no, se tomarían acá, después de sus talles, y se
+  // rompería el orden global.
   await lockStockRows(tx, {
     workspaceId: input.workspaceId,
-    productIds: input.lines.map((l) => l.productId).filter((id): id is string => id !== null),
+    productIds: [
+      ...input.lines.map((l) => l.productId).filter((id): id is string => id !== null),
+      ...planConsumo.insumoIds,
+    ],
     variantIds: input.lines.map((l) => l.variantId).filter((id): id is string => id !== null),
   });
 
@@ -297,8 +319,12 @@ export async function recordSale(
   // Los renglones van aparte: `createMany` no admite `items: { create: [...] }` anidado como
   // sí admitía el `create` que reemplaza. `saleId` ya es conocido porque la fila de `Sale`
   // existe.
+  // Los ids se generan acá porque `createMany` no los devuelve, y la impresión necesita atar
+  // cada preparación a su renglón (`itemIds[i]` es el renglón de `input.lines[i]`).
+  const itemIds = input.lines.map(() => randomUUID());
   await tx.saleItem.createMany({
-    data: input.lines.map((line) => ({
+    data: input.lines.map((line, i) => ({
+      id: itemIds[i],
       saleId,
       productId: line.productId,
       variantId: line.variantId,
@@ -312,6 +338,26 @@ export async function recordSale(
   });
 
   await descontarStock(tx, input.workspaceId, creada.id, input.createdByUserId, input.lines);
+
+  // Consumo de insumos, con la nota atada al renglón real (`consumo:item:<SaleItem.id>`), que
+  // es lo que la anulación usa para devolverlo. Como `descontarStock`, nunca verifica que
+  // alcance: el insumo puede quedar negativo y la venta sale igual.
+  if (planConsumo.consumos.length > 0) {
+    await aplicarConsumo(tx, {
+      workspaceId: input.workspaceId,
+      plan: {
+        insumoIds: planConsumo.insumoIds,
+        consumos: planConsumo.consumos.map((c) => {
+          const itemId = itemIds[Number(c.ref)];
+          if (!itemId) throw new Error("Consumo de insumos sin renglón de venta.");
+          return { ...c, ref: itemId };
+        }),
+      },
+      sourceModule: "sales",
+      sourceRef: creada.id,
+      createdByUserId: input.createdByUserId,
+    });
+  }
 
   const { cashMovementId, deposited } = await depositarEnCaja(
     tx,
@@ -329,5 +375,5 @@ export async function recordSale(
     await tx.sale.update({ where: { id: creada.id }, data: { cashMovementId } });
   }
 
-  return { saleId: creada.id, saleNumber: creada.saleNumber, deposited };
+  return { saleId: creada.id, saleNumber: creada.saleNumber, deposited, itemIds, clientId };
 }

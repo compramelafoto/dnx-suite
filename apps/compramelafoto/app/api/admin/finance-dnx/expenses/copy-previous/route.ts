@@ -46,9 +46,9 @@ export async function POST(req: NextRequest) {
     });
     const ocupados = new Set(yaCargados.map((entrada) => entrada.vendorId));
 
-    // Se omiten los proveedores que ya tienen gasto en el mes destino: la
-    // restricción única lo impediría igual, pero fallar a mitad dejaría la
-    // copia incompleta y sin aviso.
+    // Se omiten los proveedores que ya tienen gasto en el mes destino, para no
+    // duplicar. Si el mes anterior un proveedor tuvo varias facturas, se copian
+    // todas como estimado: la suma estimada es la del mes pasado.
     const aCopiar = origen.filter((entrada) => !ocupados.has(entrada.vendorId));
 
     const creados = await prisma.$transaction(

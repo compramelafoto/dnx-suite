@@ -174,7 +174,7 @@ export function AlbumVisor(p: PropsVisor) {
             aria-label={`Ver el comentario ${pin.numero}`}
             aria-expanded={abierto}
             style={{ left: pos.left, top: pos.top }}
-            className={`absolute z-10 flex h-8 w-8 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 text-sm font-semibold shadow-lg ${abierto ? "border-white bg-white text-neutral-900" : "border-white bg-[var(--fo-accent)] text-white"}`}
+            className={`absolute z-10 flex h-8 w-8 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 text-sm font-semibold shadow-lg ${abierto ? "border-white bg-white text-neutral-900" : "border-white bg-[var(--fo-accent)] text-[var(--fo-on-accent,#fff)]"}`}
           >
             {pin.numero}
           </button>
@@ -187,7 +187,7 @@ export function AlbumVisor(p: PropsVisor) {
           <span
             data-no-toque
             style={{ left: pos.left, top: pos.top }}
-            className="pointer-events-none absolute z-10 flex h-8 w-8 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 border-dashed border-white bg-[var(--fo-accent)]/80 text-sm font-semibold text-white shadow-lg"
+            className="pointer-events-none absolute z-10 flex h-8 w-8 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 border-dashed border-white bg-[var(--fo-accent)]/80 text-sm font-semibold text-[var(--fo-on-accent,#fff)] shadow-lg"
           >
             {proximoPin(p.comentarios)}
           </span>

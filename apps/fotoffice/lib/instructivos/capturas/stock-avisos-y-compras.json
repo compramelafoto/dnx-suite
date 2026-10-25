@@ -1,0 +1,26 @@
+[
+  {
+    "archivo": "01-tarjeta-inicio.png",
+    "ruta": "/workspace",
+    "que_mostrar": "Inicio con la tarjeta 'Para comprar: N', los nombres y el botón 'Ver stock'.",
+    "selector_recorte": null
+  },
+  {
+    "archivo": "02-para-comprar.png",
+    "ruta": "/ventas/stock",
+    "que_mostrar": "Pantalla Stock con el bloque 'Para comprar' mostrando 'Te alcanza para ~N días', 'Se termina hoy', 'Ya no queda' y 'Debajo del mínimo'.",
+    "selector_recorte": null
+  },
+  {
+    "archivo": "03-lista-proveedor.png",
+    "ruta": "/ventas/stock",
+    "que_mostrar": "Bloque 'Lista para el proveedor' con un proveedor, sus renglones y el botón 'Copiar lista'.",
+    "selector_recorte": null
+  },
+  {
+    "archivo": "04-minimo-en-la-ficha.png",
+    "ruta": "/ventas/catalogo/[productId]",
+    "que_mostrar": "Ficha de un insumo con el campo 'Mínimo antes de avisar'. NO guardar.",
+    "selector_recorte": null
+  }
+]

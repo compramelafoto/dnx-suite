@@ -1,0 +1,16 @@
+# Desde la raíz del monorepo:
+#   gcloud builds submit --config apps/fotoffice-workers/digitalizacion/cloudbuild.yaml --project dnx-video-worker .
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -f
+      - apps/fotoffice-workers/digitalizacion/Dockerfile
+      - -t
+      - us-east1-docker.pkg.dev/dnx-video-worker/dnx-video/digitalizacion:$_TAG
+      - .
+images:
+  - us-east1-docker.pkg.dev/dnx-video-worker/dnx-video/digitalizacion:$_TAG
+substitutions:
+  _TAG: v1
+timeout: 3600s

@@ -1,3 +1,4 @@
+import type { CourseMosaicStudent } from "@repo/template-engine";
 /**
  * Datos de demostración para mostrar una plantilla «terminada», como la recibiría una familia:
  * retrato, foto grupal, con la maestra, con amigos, una foto libre, logo de colegio, nombre del
@@ -45,11 +46,20 @@ export const ARCHIVOS_DEMO: readonly string[] = [
   "comunion-grupal.jpg",
   "comunion-con-catequista.jpg",
   "comunion-detalle.jpg",
+  "comunion-momento.jpg",
   "confirmacion-retrato.jpg",
   "confirmacion-grupal.jpg",
   "logo-escudo-clasico.png",
   "logo-moderno.png",
 ];
+
+/**
+ * Los retratos que se reparten en ronda en el mosaico de demo: los de todos los niveles. Son
+ * pocos (dos por nivel), así que en un curso de 18 se repiten; alcanza para ver cómo queda.
+ */
+export const RETRATOS_DE_COMPANEROS: readonly string[] = (["jardin", "primaria", "secundaria", "egresados"] as const).flatMap(
+  (n) => [`retrato-${n}-1.jpg`, `retrato-${n}-2.jpg`],
+);
 
 /** La ranura de una variable de imagen, o null si no es un hueco de foto. `photo_<n>` es un retrato. */
 export function ranuraDeVariable(key: string | null | undefined): RanuraDemo | null {
@@ -130,6 +140,8 @@ type Persona = { firstName: string; lastName: string };
 
 type DatosDeNivel = {
   curso: string;
+  /** El turno del curso, para el título del listado («3.º B · Turno mañana»). */
+  turno: string | null;
   colegio: string;
   /** [nena, nene] */
   alumnos: [Persona, Persona];
@@ -160,6 +172,7 @@ const COMPANEROS: Persona[] = [
 const NIVELES: Record<NivelDemo, DatosDeNivel> = {
   jardin: {
     curso: "Sala de 5 Celeste",
+    turno: "Tarde",
     colegio: "Jardín Arco Iris",
     alumnos: [
       { firstName: "Emma", lastName: "Gómez" },
@@ -169,6 +182,7 @@ const NIVELES: Record<NivelDemo, DatosDeNivel> = {
   },
   primaria: {
     curso: "3.º B",
+    turno: "Mañana",
     colegio: "Escuela Manuel Belgrano",
     alumnos: [
       { firstName: "Valentina", lastName: "Pérez" },
@@ -178,6 +192,7 @@ const NIVELES: Record<NivelDemo, DatosDeNivel> = {
   },
   secundaria: {
     curso: "4.º año A",
+    turno: "Mañana",
     colegio: "Colegio San Martín",
     alumnos: [
       { firstName: "Lucía", lastName: "Morales" },
@@ -187,6 +202,7 @@ const NIVELES: Record<NivelDemo, DatosDeNivel> = {
   },
   egresados: {
     curso: "6.º año Promo 2026",
+    turno: null,
     colegio: "Instituto Nuestra Señora del Valle",
     alumnos: [
       { firstName: "Camila", lastName: "Torres" },
@@ -210,6 +226,8 @@ export type DemoDePlantilla = {
   archivos: Record<RanuraDemo, string> & { logo: LogoDemo };
   alumno: Persona;
   curso: string;
+  /** El turno del curso; null si no corresponde (egresados, comunión, confirmación). */
+  turno: string | null;
   colegio: string;
   companeros: Array<Persona & { isOwner: boolean }>;
 };
@@ -223,12 +241,14 @@ function archivosDeRanuras(nivel: NivelDemo, evento: EventoDemo, variante: Varia
     extra: "libre-patio.jpg",
   };
   if (evento === "comunion") {
+    // Foto libre: la nena con la vela en la misa sólo cuando la protagonista es nena (coincide
+    // con el retrato); con nene, el detalle de las manos con rosario y vela, que sirve para los dos.
     return {
       ...general,
       individual: `comunion-retrato-${variante}.jpg`,
       grupal: "comunion-grupal.jpg",
       maestra: "comunion-con-catequista.jpg",
-      extra: "comunion-detalle.jpg",
+      extra: variante === 1 ? "comunion-momento.jpg" : "comunion-detalle.jpg",
     };
   }
   if (evento === "confirmacion") {
@@ -256,6 +276,7 @@ export function demoDePlantilla(input: { templateId: string; meta: unknown }): D
     archivos: { ...archivosDeRanuras(nivel, evento, variante), logo: logoDemoDeCategoria(categoria) },
     alumno,
     curso: religioso?.curso ?? datos.curso,
+    turno: religioso ? null : datos.turno,
     colegio: religioso?.colegio ?? datos.colegio,
     companeros,
   };
@@ -334,4 +355,24 @@ export function fotosDeDemoPorBloque(
   const out: Record<string, { src: string }> = {};
   for (const h of huecos) out[h.blockId] = { src: urlSiEsta(demo.archivos[h.ranura]) ?? FOTO_DE_MUESTRA_DATA_URL };
   return out;
+}
+
+/**
+ * Los compañeros del mosaico de demo: los del curso sin el alumno de la demo, cada uno con un
+ * retrato de demo en ronda. `urlDe` devuelve null si el archivo no está subido: ese chico va sin
+ * foto (silueta).
+ */
+export function mosaicoDeDemo(
+  demo: DemoDePlantilla,
+  urlDe: (archivo: string) => string | null,
+): CourseMosaicStudent[] {
+  // El nivel de la demo primero, así los primeros retratos son de la edad que corresponde.
+  const propios = RETRATOS_DE_COMPANEROS.filter((a) => a.includes(`-${demo.nivel}-`));
+  const ronda = [...propios, ...RETRATOS_DE_COMPANEROS.filter((a) => !propios.includes(a))];
+  return demo.companeros
+    .filter((c) => !c.isOwner)
+    .map((c, i) => {
+      const url = urlDe(ronda[i % ronda.length]!);
+      return { firstName: c.firstName, lastName: c.lastName, ...(url ? { photoUrl: url } : {}) };
+    });
 }

@@ -15,8 +15,12 @@ import type {
 
 export type CanjeSlotKind = "PHYSICAL" | "DIGITAL";
 
-/** Qué foto pide un lugar cuando la plantilla del beneficio lo dice. */
-export type CanjePhotoRole = "individual" | "group";
+/**
+ * Qué foto pide un lugar cuando la plantilla del beneficio lo dice: la individual, la grupal, la
+ * foto con la maestra, con amigos o una libre. Es el mismo rol que da `@repo/template-editor-core`
+ * a cada hueco con nombre; sólo la grupal filtra las fotos que se ofrecen.
+ */
+export type CanjePhotoRole = "individual" | "group" | "teacher" | "friends" | "extra";
 
 export type CanjePhotoInput = { label: string; role: CanjePhotoRole | null };
 
@@ -24,7 +28,7 @@ export type CanjeSlot = {
   benefitKey: string;
   kind: CanjeSlotKind;
   unitIndex: number;
-  /** "Foto individual", "Foto grupal"… Sólo si la plantilla del beneficio nombra sus huecos. */
+  /** "Foto individual", "Foto con la maestra"… Sólo si la plantilla del beneficio nombra sus huecos. */
   label?: string;
   role?: CanjePhotoRole | null;
 };
@@ -70,6 +74,32 @@ function groupLabel(b: BenefitInput): string {
   if (conProducto?.[1]) return conProducto[1].trim();
   if (!nombre || /^\d+\s+(impres|descarg|foto|producto)/i.test(nombre)) return generico;
   return nombre;
+}
+
+/** Lo mínimo de un hueco de la plantilla para ubicarlo (ver `ClientPhotoSlot`). */
+type HuecoDelDiseno = { blockId: string; slotNumber: number };
+
+/**
+ * Une cada hueco del diseño con su lugar del canje: la foto `p` de la unidad va al hueco `p`
+ * (contando los huecos distintos en el orden del armado, `autoAssignClientPhotos`). Los huecos
+ * que comparten foto (la misma foto en tapa e interior) apuntan al mismo lugar. Si la plantilla
+ * pide más fotos que las del beneficio, los huecos de más quedan sin lugar.
+ */
+export function placesForUnit(
+  slots: readonly HuecoDelDiseno[],
+  slotIndexes: number[],
+  unit: number,
+  perUnit: number
+): Map<string, number> {
+  const numbers = [...new Set(slots.map((s) => s.slotNumber))].sort((a, b) => a - b);
+  const map = new Map<string, number>();
+  for (const s of slots) {
+    const order = numbers.indexOf(s.slotNumber);
+    if (order < 0 || order >= perUnit) continue;
+    const place = slotIndexes[unit * perUnit + order];
+    if (place != null) map.set(s.blockId, place);
+  }
+  return map;
 }
 
 export function buildCanjeSlotPlan(benefits: BenefitInput[]): CanjeSlotPlan {

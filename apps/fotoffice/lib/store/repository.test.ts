@@ -152,7 +152,7 @@ describe("consultas del catálogo público", () => {
     expect(args.where).toEqual({
       workspaceId: "ws-1",
       sellOnline: true,
-      product: { workspaceId: "ws-1", isActive: true, categoryId: "c1" },
+      product: { workspaceId: "ws-1", isActive: true, kind: { not: "INSUMO" }, categoryId: "c1" },
     });
     expect(args.orderBy).toEqual([{ sortOrder: "asc" }, { product: { name: "asc" } }]);
     expect(args.select.product.select.variants.where).toEqual({ isActive: true });
@@ -180,7 +180,7 @@ describe("consultas del catálogo público", () => {
       workspaceId: "ws-1",
       slug: "remera",
       sellOnline: true,
-      product: { workspaceId: "ws-1", isActive: true },
+      product: { workspaceId: "ws-1", isActive: true, kind: { not: "INSUMO" } },
     });
   });
 
@@ -196,7 +196,7 @@ describe("consultas del catálogo público", () => {
       workspaceId: "ws-1",
       sellOnline: true,
       productId: { in: ["p1", "px"] },
-      product: { workspaceId: "ws-1", isActive: true },
+      product: { workspaceId: "ws-1", isActive: true, kind: { not: "INSUMO" } },
     });
   });
 
@@ -206,7 +206,7 @@ describe("consultas del catálogo público", () => {
     expect(category.findMany.mock.calls[0][0].where).toEqual({
       workspaceId: "ws-1",
       isActive: true,
-      products: { some: { workspaceId: "ws-1", isActive: true, storeListing: { is: { sellOnline: true } } } },
+      products: { some: { workspaceId: "ws-1", isActive: true, kind: { not: "INSUMO" }, storeListing: { is: { sellOnline: true } } } },
     });
   });
 

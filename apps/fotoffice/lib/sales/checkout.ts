@@ -25,6 +25,8 @@ export type RawCheckoutLine = {
   description: string;
   qty: number;
   unitPriceMinor: number;
+  /** La preparación de impresión de este renglón (foto carnet). La valida y la ata el servidor. */
+  preparacionId?: string | null;
 };
 
 /**

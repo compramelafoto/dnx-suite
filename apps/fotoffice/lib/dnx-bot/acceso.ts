@@ -11,6 +11,7 @@ import { QUOTES_MODULE_KEY, type CtxPresupuestos } from "@/lib/presupuestos/acce
 import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
 import { leerConfigBot, MODULO_DNX_BOT, plataformaDe } from "./config";
 import { avisarSinClave } from "./incidentes";
+import { ofreceMiEstudio } from "@/lib/precios/estudio";
 
 /**
  * Las puertas de DNX Bot en FOTOFFICE (spec §8), en una sola función que usan el panel, `estado`,
@@ -41,6 +42,8 @@ export type CtxBot = CtxPresupuestos & {
   capacidades: Capacidades;
   /** "FOTOFFICE:<workspaceId>". */
   plataforma: string;
+  /** El workspace es de tipo estudio: el bot puede ofrecer y armar «Mi estudio». */
+  ofreceMiEstudio?: boolean;
 };
 
 export type MotivoApagado =
@@ -121,6 +124,7 @@ export async function resolverBot(): Promise<ResultadoPuertas> {
       nombre: user.name,
       capacidades: capacidadesDe(acceso),
       plataforma: plataformaDe(workspace.id),
+      ofreceMiEstudio: ofreceMiEstudio(branding),
     },
   };
 }

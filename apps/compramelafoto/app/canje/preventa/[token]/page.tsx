@@ -16,11 +16,13 @@ import type { CanjeExtrasConfig } from "@/components/canje-externo/CanjeExtrasSt
 import { productsForAlbum } from "@/lib/pricing/album-scoped-products";
 import ReiniciarPruebaButton from "@/components/canje-externo/ReiniciarPruebaButton";
 import { puedeUsarPackDePrueba } from "@/lib/canje-externo/reiniciar-pack-de-prueba";
-import { isPlaceholderEmail, parseExternalPreventaRefs } from "@/lib/canje-externo/external-preventa";
+import { isPlaceholderEmail, nombreNaturalDesdeExcel, parseExternalPreventaRefs } from "@/lib/canje-externo/external-preventa";
 import { valoresDelPackExterno } from "@/lib/canje-externo/disenos-del-canje-externo";
 import { getAuthUser } from "@/lib/auth";
 import { loadDesignTemplateVersion } from "@/lib/design-v2/template";
 import { toDesignTemplatePayload, type DesignTemplatePayload } from "@/lib/design-v2/client-payload";
+import { loadAlbumCourses } from "@/lib/design-v2/class-list";
+import { cursosDelListado, cursosParaSumar, listadoPermiteSumarCursos } from "@/lib/design-v2/listado-cursos";
 import { loadSchoolDesignContext } from "@/lib/school-render/ensure-school-design-for-preventa-order-item";
 import { clientPhotoInputs } from "@repo/template-editor-core";
 
@@ -216,9 +218,11 @@ export default async function PreventaCanjePage({ params }: { params: Promise<{ 
     : null;
   // Pack cobrado por fuera: no hay PreCompraOrder; alumno y adulto vienen con el pack.
   const externo = parseExternalPreventaRefs(order.redemptionPaymentRefsJson);
-  const familia = externo?.parentName || order.buyerName?.trim() || preCompra?.buyerName?.trim() || null;
+  // El Excel trae "Apellido Nombre": se da vuelta para saludar con el nombre de pila.
+  const familia =
+    nombreNaturalDesdeExcel(externo?.parentName) || order.buyerName?.trim() || preCompra?.buyerName?.trim() || null;
   const alumno = studentNameForGreeting(
-    externo?.studentName ||
+    nombreNaturalDesdeExcel(externo?.studentName) ||
       [preCompra?.studentFirstName, preCompra?.studentLastName].filter(Boolean).join(" "),
     familia
   );
@@ -231,7 +235,14 @@ export default async function PreventaCanjePage({ params }: { params: Promise<{ 
     { photographerBypassGrant: modoPrueba, simulateClientView: false, grantCookieValue: grantCookie }
   );
 
-  if (album.hiddenPhotosEnabled && !visible.initialHasGrant) {
+  /*
+   * La selfie no encontró a nadie (casi siempre: la sacó el adulto, que no está en las fotos del
+   * colegio). Antes quedaba un permiso con cero fotos y la familia veía la grilla vacía, sin forma
+   * de reintentar durante 30 minutos. Ahora vuelve a ver la verificación, con el porqué.
+   */
+  const selfieSinFotos = album.hiddenPhotosEnabled && visible.initialHasGrant && visible.photos.length === 0;
+  if (album.hiddenPhotosEnabled && (!visible.initialHasGrant || selfieSinFotos)) {
+    const quien = alumno ? alumno : "tu hija o tu hijo";
     return (
       <ProtectedAlbumWrapper albumId={album.id} enableProtection>
         <section className="mx-auto max-w-lg px-4 pt-10">
@@ -240,6 +251,16 @@ export default async function PreventaCanjePage({ params }: { params: Promise<{ 
             {alumno ? `El pack de ${alumno} ya está pago. ` : "Tu pack ya está pago. "}
             En esta galería cada familia ve sólo sus fotos: primero verificá con una selfie y después elegís
             las fotos de tu pack.
+          </p>
+          {selfieSinFotos ? (
+            <p role="alert" className="m-0 mt-3 rounded-lg bg-[#fff4e5] px-3 py-2 text-sm text-[#7a4a12]">
+              No encontramos fotos con esa cara. Probá de nuevo con la cara de {quien}: de frente, con buena
+              luz y sin anteojos de sol. Si sigue sin aparecer, escribile a {album.user?.name ?? "la fotógrafa"}.
+            </p>
+          ) : null}
+          <p className="m-0 mt-3 rounded-lg bg-[#eef6f1] px-3 py-2 text-sm text-[#1f5b3f]">
+            <strong>Importante:</strong> la selfie tiene que ser la cara de {quien}, no la tuya: las fotos son
+            del colegio. Usá la cámara de adelante del celular, con {quien} mirando a la pantalla.
           </p>
         </section>
         <HiddenAlbumVerificationGate albumId={album.id} albumTitle={album.title} />
@@ -292,6 +313,18 @@ export default async function PreventaCanjePage({ params }: { params: Promise<{ 
     });
   }
 
+  /*
+   * Si la plantilla deja sumar otros cursos al listado (fotos grupales con 7.° A y 7.° B), la
+   * familia ve los otros cursos del colegio para sumarlos al revisar. Si no, no se manda nada.
+   */
+  const cursosParaSumarAlListado =
+    designs.some((d) => listadoPermiteSumarCursos(d.template.blocks)) && cursosDelListado(designValues).length > 0
+      ? cursosParaSumar(
+          cursosDelListado(designValues),
+          await loadAlbumCourses(prisma as never, album.id).catch(() => [])
+        )
+      : [];
+
   // Rostros por foto, para ofrecer como grupales sólo las fotos con mucha gente. `null` = la
   // foto todavía no se analizó.
   const usaGrupal = benefits.some((b) => "photoInputs" in b && b.photoInputs?.some((i) => i.role === "group"));
@@ -306,6 +339,34 @@ export default async function PreventaCanjePage({ params }: { params: Promise<{ 
     const vistas = new Set(analizadas.map((a) => a.id));
     for (const id of ids) facesById.set(id, porFoto.get(id) ?? (vistas.has(id) ? 0 : null));
   }
+
+  /*
+   * Medida de cada copia impresa del pack ("15x21"), la misma que lleva el pedido al canjear:
+   * la familia ve "Copia 15x21 · se imprime horizontal" junto a la foto que eligió.
+   */
+  const productoIds = [
+    ...new Set(
+      snapshot.benefits
+        .filter((b) => b.kind === "PHYSICAL" && b.photographerProductId != null)
+        .map((b) => b.photographerProductId as number)
+    ),
+  ];
+  const medidaPorProducto = new Map(
+    productoIds.length > 0
+      ? (
+          await prisma.photographerProduct
+            .findMany({ where: { id: { in: productoIds } }, select: { id: true, size: true } })
+            .catch(() => [])
+        ).map((p) => [p.id, p.size?.trim() || null] as const)
+      : []
+  );
+  const benefitsConMedida = benefits.map((b) => ({
+    ...b,
+    printSize:
+      b.kind === "PHYSICAL" && b.photographerProductId != null
+        ? (medidaPorProducto.get(b.photographerProductId) ?? null)
+        : null,
+  }));
 
   /*
    * Extras que se ofrecen apenas se confirma el canje: fotos sueltas (impresa con el producto
@@ -350,7 +411,7 @@ export default async function PreventaCanjePage({ params }: { params: Promise<{ 
   return (
     <ProtectedAlbumWrapper albumId={album.id} enableProtection>
       {modoPrueba ? (
-        <div className="bg-amber-100 px-4 py-2 text-center text-sm text-amber-900">
+        <div data-demo-ocultar="" className="bg-amber-100 px-4 py-2 text-center text-sm text-amber-900">
           <strong>Modo prueba.</strong> Estás viendo el canje como una familia. Ves todas las fotos
           del álbum sin selfie; una familia real primero se verifica y ve sólo las suyas. Lo que
           confirmes queda en tus Pedidos como DEMO, en $0: no se cobra, no entra en tus ventas y no
@@ -370,7 +431,7 @@ export default async function PreventaCanjePage({ params }: { params: Promise<{ 
         }}
         pack={{
           name: snapshot.packName,
-          benefits,
+          benefits: benefitsConMedida,
           parentName: familia,
           studentName: alumno,
         }}
@@ -380,6 +441,7 @@ export default async function PreventaCanjePage({ params }: { params: Promise<{ 
         pedirContacto={isPlaceholderEmail(order.buyerEmail)}
         extras={extras}
         modoPrueba={modoPrueba}
+        cursosParaSumar={cursosParaSumarAlListado}
         comprador={{
           nombre: familia ?? "",
           email: isPlaceholderEmail(order.buyerEmail) ? "" : (order.buyerEmail ?? ""),

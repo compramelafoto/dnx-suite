@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { checkAgencyAlbumUpload } from "@/lib/agencies/access";
 import { Role } from "@/lib/prisma";
 import { canCreateAlbumFoldersOnUpload } from "@/lib/albums/album-folder-permissions";
 import { ensureAlbumFolderPath } from "@/lib/albums/ensure-album-folder-path";
@@ -57,6 +58,15 @@ export async function ensureAlbumUploadAccess(
 
   if (!album) {
     return { ok: false, error: "Álbum no encontrado", status: 404 };
+  }
+
+  // Álbum de agencia: sólo el dueño y su equipo activo, sea público o no.
+  const agency = await checkAgencyAlbumUpload(albumId, userId);
+  if (agency.agencyAlbum) {
+    if (!agency.allowed) {
+      return { ok: false, error: agency.error ?? "No autorizado", status: 403 };
+    }
+    return { ok: true, error: null, status: 200, albumEventId: album.eventId };
   }
 
   if (album.userId !== userId) {

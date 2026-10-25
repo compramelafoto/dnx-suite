@@ -13,6 +13,7 @@ import {
 } from "@/app/actions/presential-courses";
 import { prisma } from "@repo/db";
 import { CourseLessonsSection } from "@/components/presential-courses/course-lessons-section";
+import { CourseInvitationSection } from "@/components/presential-courses/course-invitation-section";
 import { explicarConfiguracionFaltante, readStreamConfig } from "@/lib/courses-video/config";
 import { esGrabado } from "@/lib/presential-courses/delivery-mode";
 import { cargarBeneficiarios, cargarDueno } from "@/lib/course-marketplace/cargar";
@@ -115,13 +116,20 @@ export default async function DashboardCourseDetailPage({
       />
 
       {grabado ? (
-        <CourseLessonsSection
-          courseId={course.id}
-          clases={clases}
-          faltaConfigurarVideo={
-            configVideo.ok ? null : explicarConfiguracionFaltante(configVideo.missing)
-          }
-        />
+        <>
+          <CourseLessonsSection
+            courseId={course.id}
+            clases={clases}
+            faltaConfigurarVideo={
+              configVideo.ok ? null : explicarConfiguracionFaltante(configVideo.missing)
+            }
+          />
+          <CourseInvitationSection
+            courseId={course.id}
+            courseTitle={course.title}
+            hayClasesListas={clases.some((c) => c.videoStatus === "READY")}
+          />
+        </>
       ) : (
       <section className="fo-card space-y-6">
         <h2 className="text-lg font-semibold">Ediciones</h2>

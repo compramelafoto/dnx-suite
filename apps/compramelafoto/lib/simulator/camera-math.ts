@@ -4,16 +4,20 @@
  */
 
 import type { CameraState } from "./camera-types";
-import { REFERENCE_CAMERA, SHUTTER_PRESET_SECONDS } from "./camera-types";
+import { REFERENCE_CAMERA } from "./camera-types";
+import { exactAperture, exactIso, exactShutterSeconds } from "./exposure-scales";
 import { getActiveSensor } from "./sensor";
 
-/** Convierte tiempo de exposición a segundos. Soporta 1/250, 2", 8", etc. */
+/**
+ * Convierte tiempo de exposición a segundos. Soporta 1/250, 2", 0.3", 8s, etc.
+ * Devuelve el tercio de paso exacto (1/125 → 1/128), como la cámara real.
+ */
 export function shutterSpeedToSeconds(shutterSpeed: string): number {
-  const trimmed = shutterSpeed.trim();
+  return exactShutterSeconds(parseShutterSeconds(shutterSpeed));
+}
 
-  if (trimmed in SHUTTER_PRESET_SECONDS) {
-    return SHUTTER_PRESET_SECONDS[trimmed as keyof typeof SHUTTER_PRESET_SECONDS];
-  }
+function parseShutterSeconds(shutterSpeed: string): number {
+  const trimmed = shutterSpeed.trim();
 
   const fraction = trimmed.match(/^1\/(\d+)$/);
   if (fraction) return 1 / Number(fraction[1]);
@@ -36,11 +40,11 @@ export function computeIsoStopsFrom100(iso: number): number {
 
 /** Factor de exposición solo por ISO (respecto a la referencia ISO 400). */
 export function computeIsoExposureFactor(iso: number): number {
-  return iso / REFERENCE_CAMERA.iso;
+  return exactIso(iso) / exactIso(REFERENCE_CAMERA.iso);
 }
 
 const REF_SHUTTER_SEC = shutterSpeedToSeconds(REFERENCE_CAMERA.shutterSpeed);
-const REF_APERTURE = REFERENCE_CAMERA.aperture;
+const REF_APERTURE = exactAperture(REFERENCE_CAMERA.aperture);
 
 /**
  * Multiplicador ∝ (ISO × t) / N² con compensación de exposición.
@@ -49,7 +53,8 @@ const REF_APERTURE = REFERENCE_CAMERA.aperture;
 export function computeRawExposureMultiplier(settings: CameraState): number {
   const isoFactor = computeIsoExposureFactor(settings.iso);
   const shutterFactor = shutterSpeedToSeconds(settings.shutterSpeed) / REF_SHUTTER_SEC;
-  const apertureFactor = (REF_APERTURE * REF_APERTURE) / (settings.aperture * settings.aperture);
+  const n = exactAperture(settings.aperture);
+  const apertureFactor = (REF_APERTURE * REF_APERTURE) / (n * n);
   const raw = isoFactor * shutterFactor * apertureFactor;
   return raw * Math.pow(2, settings.exposureCompensation);
 }
@@ -93,16 +98,34 @@ export function kelvinToRgb(kelvin: number): { r: number; g: number; b: number }
   return { r, g, b };
 }
 
-const NEUTRAL_KELVIN = 5600;
+/**
+ * Temperatura que la escena 3D dibuja como blanco: el blanco de sRGB es D65.
+ * Una luz "#ffffff" equivale a ~6500 K.
+ */
+const SCENE_WHITE_KELVIN = 6500;
 
+function srgbToLinear(v: number): number {
+  return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+}
+
+/**
+ * Corrección del balance de blancos de la cámara, como en una cámara real:
+ * la cámara divide por el color de la luz que le indicamos. Elegir 3200 K
+ * con luz de día ENFRÍA la imagen (azul); elegir 7500 K la calienta. Si el
+ * valor coincide con la luz de la escena, el blanco sale neutro.
+ * Se normaliza a luminancia 1 para no cambiar la exposición.
+ * El cociente va en luz lineal: se aplica antes de la curva de tonos.
+ */
 export function computeWhiteBalanceTint(kelvin: number): { r: number; g: number; b: number } {
-  const target = kelvinToRgb(kelvin);
-  const neutral = kelvinToRgb(NEUTRAL_KELVIN);
-  return {
-    r: target.r / neutral.r,
-    g: target.g / neutral.g,
-    b: target.b / neutral.b,
-  };
+  const camera = kelvinToRgb(kelvin);
+  const white = kelvinToRgb(SCENE_WHITE_KELVIN);
+  const ratio = (channel: "r" | "g" | "b") =>
+    srgbToLinear(white[channel]) / Math.max(0.02, srgbToLinear(camera[channel]));
+  const r = ratio("r");
+  const g = ratio("g");
+  const b = ratio("b");
+  const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  return { r: r / luminance, g: g / luminance, b: b / luminance };
 }
 
 export function tintHexColor(baseHex: string, tint: { r: number; g: number; b: number }): string {
@@ -119,10 +142,15 @@ export function tintHexColor(baseHex: string, tint: { r: number; g: number; b: n
   return `#${toByte(r * tint.r)}${toByte(g * tint.g)}${toByte(b * tint.b)}`;
 }
 
-/** FOV vertical desde distancia focal y sensor activo (Full Frame por defecto). */
-export function focalLengthToFov(focalLengthMm: number): number {
-  const sensor = getActiveSensor();
+/**
+ * FOV vertical desde distancia focal. `sensorHeightMm` es el alto que cubre
+ * la imagen renderizada (ver canvasSensorHeightMm); por defecto, el sensor.
+ */
+export function focalLengthToFov(
+  focalLengthMm: number,
+  sensorHeightMm = getActiveSensor().heightMm,
+): number {
   const focal = Math.max(8, Math.min(600, focalLengthMm));
-  const radians = 2 * Math.atan(sensor.heightMm / (2 * focal));
+  const radians = 2 * Math.atan(sensorHeightMm / (2 * focal));
   return (radians * 180) / Math.PI;
 }
