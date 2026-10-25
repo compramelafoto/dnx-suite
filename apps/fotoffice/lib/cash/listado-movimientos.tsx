@@ -21,6 +21,7 @@ const ETIQUETA_ORIGEN: Record<MovementSource, string> = {
   bookings: "Reservas",
   sales: "Ventas",
   "work-orders": "Órdenes de trabajo",
+  courses: "Cursos",
   governance: "Proyectos de la comisión",
   pedidos: "Pedidos",
   "pedidos-pagos": "Pagos a proveedores",

@@ -35,6 +35,7 @@ export const MOVEMENT_SOURCES = [
   "bookings",
   "sales",
   "work-orders",
+  "courses",
   /** Gasto o ingreso de un proyecto de la comisión, cargado desde el proyecto. */
   "governance",
   "pedidos",
