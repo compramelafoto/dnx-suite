@@ -16,6 +16,9 @@ export default function SimulatorShell({ children, variant = "landing" }: Simula
         <nav className="cod-nav" aria-label="Navegación Cam Of Duty">
           {variant === "landing" ? (
             <>
+              <Link href="/camofduty/curso" className="cod-btn cod-btn--ghost cod-btn--sm">
+                Curso
+              </Link>
               <Link href="/camofduty/estudio" className="cod-btn cod-btn--ghost cod-btn--sm">
                 Estudio Fotográfico
               </Link>
@@ -31,8 +34,8 @@ export default function SimulatorShell({ children, variant = "landing" }: Simula
               <Link href="/camofduty/simulador" className="cod-btn cod-btn--ghost cod-btn--sm">
                 Simulador
               </Link>
-              <Link href="/camofduty#modulos" className="cod-btn cod-btn--ghost cod-btn--sm">
-                Módulos
+              <Link href="/camofduty/curso" className="cod-btn cod-btn--ghost cod-btn--sm">
+                Curso
               </Link>
               <Link href="/camofduty" className="cod-btn cod-btn--secondary cod-btn--sm">
                 Inicio

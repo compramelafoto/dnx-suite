@@ -13,6 +13,11 @@ import SimulatorShutterListener from "@/components/simulator/SimulatorShutterLis
 import SimulatorViewport from "@/components/simulator/SimulatorViewport";
 import SimulatorZoomKeyboardListener from "@/components/simulator/SimulatorZoomKeyboardListener";
 import TouchGameControls from "@/components/simulator/TouchGameControls";
+import LessonPanel from "@/components/camofduty/course/LessonPanel";
+import StreetLessonShots from "@/components/camofduty/course/StreetLessonShots";
+import { lessonById } from "@/lib/camofduty/course/lessons";
+import type { Lesson } from "@/lib/camofduty/course/types";
+import { weatherStore } from "@/lib/simulator/weather";
 import TouchGameStart from "@/components/simulator/TouchGameStart";
 import { isTouchGameDevice } from "@/lib/simulator/touch-input";
 import { setViewfinderCompact } from "@/lib/simulator/viewfinder-frame";
@@ -26,7 +31,9 @@ function SimulatorSimContent() {
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [sideTab, setSideTab] = useState<SimulatorSideTabId>("camera");
   const isFullscreen = useFullscreenElement(viewportRef);
-  const { gallery, setViewfinderMode, setMode, setIso } = useCameraStore();
+  const { gallery, setViewfinderMode, setMode, setIso, setTimeOfDayMinutes } = useCameraStore();
+  // Tarea del curso (?leccion=…): prepara la escena y muestra la consigna.
+  const [lesson, setLesson] = useState<Lesson | null>(null);
   // Celular: pantalla de juego con controles táctiles y el panel como cajón.
   const [touchMode, setTouchMode] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
@@ -47,7 +54,17 @@ function SimulatorSimContent() {
       setMode("A");
       setIso(100);
     }
-  }, [setViewfinderMode, setMode, setIso]);
+    const id = new URLSearchParams(window.location.search).get("leccion");
+    const task = id ? lessonById(id) : null;
+    if (task?.simulator === "calle") {
+      if (task.setup.timeOfDayMinutes != null) setTimeOfDayMinutes(task.setup.timeOfDayMinutes);
+      if (task.setup.weather) weatherStore.set(task.setup.weather);
+      if (task.setup.mode) setMode(task.setup.mode);
+      // En las tareas el visor muestra la exposición real: así se ve el efecto de cada ajuste.
+      setViewfinderMode("live-view");
+      setLesson(task);
+    }
+  }, [setViewfinderMode, setMode, setIso, setTimeOfDayMinutes]);
 
   const { activeIndex } = useSimulatorParamKeyboard({
     onOpenHelp: () => setHelpOpen(true),
@@ -98,6 +115,12 @@ function SimulatorSimContent() {
       </SimulatorShell>
 
       {touchMode ? <TouchGameStart /> : null}
+      {lesson ? (
+        <>
+          <StreetLessonShots />
+          <LessonPanel lesson={lesson} />
+        </>
+      ) : null}
 
       <SimulatorPhotoGallery open={galleryOpen} onClose={() => setGalleryOpen(false)} />
     </>

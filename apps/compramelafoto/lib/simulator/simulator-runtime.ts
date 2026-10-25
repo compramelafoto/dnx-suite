@@ -50,6 +50,21 @@ export interface SimulatorRuntime {
   /** Distancia mínima de enfoque del objetivo montado (m). */
   minFocusDistanceM: number;
   getCameraYaw: () => number;
+  /** Charco visible más cercano (m) o null: lo usa el curso (lección de reflejos). */
+  nearestPuddleM: number | null;
+  /** Geometría de la toma (altura, inclinación, dónde quedó el sujeto en el cuadro), para el curso. */
+  shotGeometry: (() => ShotGeometry) | null;
+}
+
+export interface ShotGeometry {
+  /** Altura de la cámara sobre el piso (m). */
+  cameraHeightM: number;
+  /** Inclinación (grados, 0 = horizonte derecho). */
+  rollDeg: number;
+  /** Distancia y posición en el cuadro (0–1) del sujeto enfocado, si se ve. */
+  subjectDistanceM: number | null;
+  subjectFrameX: number | null;
+  subjectFrameY: number | null;
 }
 
 let cameraYawGetter: () => number = () => 0;
@@ -83,6 +98,8 @@ export const simulatorRuntime: SimulatorRuntime = {
   walkableWorld: null,
   quality: QUALITY_TIERS[1],
   getCameraYaw: () => cameraYawGetter(),
+  nearestPuddleM: null,
+  shotGeometry: null,
 };
 
 export function registerSimulatorCameraYaw(getter: () => number) {

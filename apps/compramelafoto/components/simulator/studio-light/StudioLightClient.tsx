@@ -23,6 +23,10 @@ import StudioMeter from "./StudioMeter";
 import { CameraPanel, LightsPanel, PresetsPanel, ScenePanel } from "./StudioPanels";
 import StudioPlanView from "./StudioPlanView";
 import CamOfDutyLoadingScreen from "@/components/simulator/CamOfDutyLoadingScreen";
+import LessonPanel, { COD_LESSON_SHOT_EVENT, type CodLessonShotDetail } from "@/components/camofduty/course/LessonPanel";
+import { buildStudioShot } from "@/lib/camofduty/course/build-studio-shot";
+import { lessonById } from "@/lib/camofduty/course/lessons";
+import type { Lesson } from "@/lib/camofduty/course/types";
 
 function studioStage(percent: number): string {
   if (percent < 40) return "Armando el estudio…";
@@ -260,6 +264,7 @@ function StudioWorkspace() {
   const captureRef = useRef<((dataUrl: string | null) => void) | null>(null);
   const viewRef = useRef<((v: QuickView) => void) | null>(null);
   const [walkLocked, setWalkLocked] = useState(false);
+  const [lesson, setLesson] = useState<Lesson | null>(null);
   // La tarjeta de inicio del modo caminar se va apenas el fotógrafo se mueve.
   const [walkStarted, setWalkStarted] = useState(false);
 
@@ -282,6 +287,13 @@ function StudioWorkspace() {
         dispatch({ type: "replace", state: shared });
         setToast("Se cargó el set compartido.");
       }
+      // Tarea del curso (?leccion=…): arranca con el esquema de la lección.
+      const id = new URLSearchParams(window.location.search).get("leccion");
+      const task = id ? lessonById(id) : null;
+      if (task?.simulator === "estudio") {
+        if (task.setup.studioPreset) dispatch({ type: "preset", id: task.setup.studioPreset });
+        setLesson(task);
+      }
     });
     return () => cancelAnimationFrame(frame);
   }, [dispatch]);
@@ -298,6 +310,9 @@ function StudioWorkspace() {
       setTimeout(() => setFlash(false), 180);
       const snapshot = serializeStudio(state);
       const label = `f/${state.camera.aperture} · ${formatShutter(state.camera.shutter)} · ISO ${state.camera.iso}`;
+      if (lesson) {
+        window.dispatchEvent(new CustomEvent<CodLessonShotDetail>(COD_LESSON_SHOT_EVENT, { detail: { shot: buildStudioShot(state) } }));
+      }
       captureRef.current = async (dataUrl) => {
         if (!dataUrl) {
           setToast("No se pudo capturar la foto.");
@@ -313,7 +328,7 @@ function StudioWorkspace() {
         });
       };
     },
-    [state],
+    [state, lesson],
   );
 
   const captureNext = useCallback(() => {
@@ -539,6 +554,7 @@ function StudioWorkspace() {
 
       {toast ? <div className="cod-studio-toast" role="status">{toast}</div> : null}
       {helpOpen ? <HelpDialog onClose={() => setHelpOpen(false)} /> : null}
+      {lesson ? <LessonPanel lesson={lesson} placement="estudio" /> : null}
       {exportOpen ? <ExportDialog onClose={() => setExportOpen(false)} /> : null}
     </main>
   );
