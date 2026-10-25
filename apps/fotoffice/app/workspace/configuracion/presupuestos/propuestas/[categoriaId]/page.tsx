@@ -57,6 +57,14 @@ export default async function PropuestaModeloPage({ params }: { params: Promise<
         <Link href="/workspace/configuracion/presupuestos/propuestas" className="text-[var(--fo-accent)] hover:underline">
           ← Todas las categorías
         </Link>
+        {" · "}
+        <Link href={`/workspace/configuracion/telegram/portfolio/${encodeURIComponent(categoria.id)}`} className="text-[var(--fo-accent)] hover:underline">
+          Portfolio de esta categoría
+        </Link>
+        {" · "}
+        <Link href="/workspace/configuracion/telegram" className="text-[var(--fo-accent)] hover:underline">
+          Aprobar por Telegram
+        </Link>
       </p>
       <EditorPropuestaModelo
         key={propuesta?.actualizadaEn.getTime() ?? "nueva"}

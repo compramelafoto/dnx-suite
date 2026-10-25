@@ -27228,3 +27228,91 @@ model FotofficeEquipoMensaje {
   @@unique([workspaceId, userId, fecha, momento])
   @@index([workspaceId, userId, createdAt])
 }
+
+// ─── FOTOFFICE · Presupuesto automático con aprobación por Telegram (2026-10-25) ────────────────
+// Sólo tablas nuevas, sin relaciones con tablas existentes: publicar el código antes del SQL no rompe
+// ningún modelo (el código tolera que falten y queda todo apagado).
+// Diseño: apps/fotoffice/docs/superpowers/specs/2026-10-25-presupuesto-automatico-telegram-design.md
+
+/// El bot de Telegram de un workspace y el chat que recibe los avisos. El token NO está acá: vive
+/// cifrado en `WorkspaceIntegration` (clave `telegram`). El secreto del webhook se guarda sólo como hash.
+model FotofficeTelegramConexion {
+  id                String    @id @default(cuid())
+  workspaceId       String    @unique
+  /// Id numérico del bot (lo devuelve `getMe`).
+  botId             String
+  /// Usuario del bot, sin "@".
+  botUsername       String
+  /// Chat privado vinculado con /start <código>; nulo hasta vincular.
+  chatId            String?
+  /// Nombre de quien vinculó el chat (para mostrar).
+  chatNombre        String?
+  /// Código de un solo uso para vincular el chat, y su vencimiento.
+  linkCode          String?
+  linkCodeExpiresAt DateTime?
+  /// SHA-256 (hex) del `secret_token` de setWebhook.
+  webhookSecretHash String
+  linkedAt          DateTime?
+  connectedByUserId Int?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}
+
+/// Presupuesto automático por categoría de consulta: el interruptor "Aprobar por Telegram"
+/// (apagado por omisión) y el portfolio que ve el cliente en la página de su presupuesto.
+model FotofficePresupuestoAutoCategoria {
+  id              String   @id @default(cuid())
+  workspaceId     String
+  categoryId      String
+  telegramEnabled Boolean  @default(false)
+  /// Lista de `{ tipo: "GALERIA" | "FOTO" | "SUBIDA", ... }` (la valida `lib/presupuesto-automatico/portfolio-items.ts`).
+  portfolio       Json?
+  updatedByUserId Int?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([workspaceId, categoryId])
+}
+
+/// Ajustes del presupuesto automático de un workspace: el acuse inmediato por WhatsApp.
+model FotofficePresupuestoAutoAjustes {
+  id              String   @id @default(cuid())
+  workspaceId     String   @unique
+  acuseEnabled    Boolean  @default(true)
+  acuseText       String?
+  updatedByUserId Int?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+/// Un presupuesto armado solo que espera la aprobación de Daniel. Una por consulta (nunca dos avisos).
+/// `status`: AVISADO | AVISO_FALLIDO | SIN_PROPUESTA | ENVIANDO | ENVIADO | FALLO.
+model FotofficePresupuestoAprobacion {
+  id                String    @id @default(cuid())
+  workspaceId       String
+  leadId            String
+  /// Nulo cuando la categoría no tiene propuesta modelo (el aviso ofrece abrir la consulta).
+  presupuestoId     String?
+  categoryId        String?
+  /// WEB | WHATSAPP
+  origin            String
+  /// Teléfono de WhatsApp (E.164 sin "+") cuando la consulta entró por el bot.
+  waId              String?
+  status            String
+  telegramChatId    String?
+  telegramMessageId String?
+  /// `{ email: "...", whatsapp: "..." }` con el resultado de cada canal.
+  channels          Json?
+  errorCode         String?
+  /// TELEGRAM | PANEL
+  approvedVia       String?
+  approvedByUserId  Int?
+  approvedAt        DateTime?
+  sentAt            DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@unique([workspaceId, leadId])
+  @@index([workspaceId, status, createdAt])
+  @@index([workspaceId, waId])
+}

@@ -4,8 +4,9 @@ import { precioDeLista } from "@/lib/presupuestos/lista-precios";
 import { listProducts } from "@/lib/sales/repository";
 
 /**
- * Herramientas del bot que atiende a los clientes por WhatsApp. Todas son de LECTURA: el bot no
- * crea ni cambia nada en esta etapa. `pasar_a_persona` tampoco tiene efectos: deja anotado el
+ * Herramientas del bot que atiende a los clientes por WhatsApp. Son de LECTURA salvo
+ * `preparar_presupuesto` (spec 2026-10-25), que da de alta la consulta y deja el presupuesto
+ * armado esperando la aprobación de una persona: el bot nunca dice el precio. `pasar_a_persona` tampoco tiene efectos: deja anotado el
  * motivo y quien orquesta el turno (`responder.ts`) pasa el chat después de enviar la respuesta.
  * El `workspaceId` va por closure: nunca sale del modelo.
  */
@@ -18,9 +19,23 @@ export type ProductoAtencion = {
 };
 export type EstudioAtencion = { nombre: string; direccion: string | null; horario: string | null; ciudad: string | null };
 
+/** El chat que atiende el bot (para `preparar_presupuesto`). */
+export type ChatAtencion = { id: string; waId: string; clientId: string | null; nombre: string | null };
+export type DatosPresupuestoBot = {
+  tipo: string;
+  nombre: string;
+  fecha?: string | null;
+  lugar?: string | null;
+  invitados?: number | null;
+  email?: string | null;
+  detalle?: string | null;
+};
+
 export type DepsAtencion = {
   productos: (workspaceId: string) => Promise<ProductoAtencion[]>;
   estudio: (workspaceId: string) => Promise<EstudioAtencion | null>;
+  /** Da de alta la consulta y arma el presupuesto para aprobar (spec 2026-10-25). */
+  prepararPresupuesto: (workspaceId: string, chat: ChatAtencion, datos: DatosPresupuestoBot) => Promise<{ ok: boolean; message: string }>;
 };
 
 const DEPS: DepsAtencion = {
@@ -31,6 +46,11 @@ const DEPS: DepsAtencion = {
       select: { commercialName: true, atencionDireccion: true, atencionHorario: true, city: true },
     });
     return b ? { nombre: b.commercialName, direccion: b.atencionDireccion, horario: b.atencionHorario, ciudad: b.city } : null;
+  },
+  prepararPresupuesto: async (workspaceId, chat, datos) => {
+    // Se carga recién acá: el alta de consultas y Presupuestos no hacen falta para contestar precios.
+    const { prepararDesdeWhatsapp } = await import("@/lib/presupuesto-automatico/whatsapp");
+    return prepararDesdeWhatsapp(workspaceId, chat, datos);
   },
 };
 
@@ -70,6 +90,7 @@ function lineaDe(p: ProductoAtencion): string {
 export function herramientasDeAtencion(
   workspaceId: string,
   parciales: Partial<DepsAtencion> = {},
+  chat: ChatAtencion | null = null,
 ): { tools: BotTool[]; pedidoDePersona: () => string | null } {
   const deps: DepsAtencion = { ...DEPS, ...parciales };
   let motivoPersona: string | null = null;
@@ -108,9 +129,28 @@ export function herramientasDeAtencion(
       },
     }),
     defineTool({
+      name: "preparar_presupuesto",
+      description:
+        "Para XV / 15 años, casamientos, bautismos, sesiones, books o eventos: registra la consulta y el estudio arma el presupuesto (te lo aprueba una persona y le llega al cliente por WhatsApp y correo). Usala cuando ya sepas el tipo de evento y el nombre del cliente; si podés, también la fecha (aaaa-mm-dd), el lugar, los invitados y el correo. No digas precios: el presupuesto lo manda el estudio. Si la herramienta te dice que no hay presupuesto automático para ese tipo, usá pasar_a_persona.",
+      input: z.object({
+        tipo: z.string().min(2).max(80),
+        nombre: z.string().min(2).max(80),
+        fecha: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+        lugar: z.string().max(200).optional(),
+        invitados: z.number().int().min(1).max(100000).optional(),
+        email: z.string().email().max(200).optional(),
+        detalle: z.string().max(500).optional(),
+      }),
+      kind: "read",
+      run: async (datos) => {
+        if (!chat) return { ok: true, message: "Ahora no puedo registrar la consulta. Usá pasar_a_persona con un resumen de lo que pide." };
+        return deps.prepararPresupuesto(workspaceId, chat, datos);
+      },
+    }),
+    defineTool({
       name: "pasar_a_persona",
       description:
-        "Deja el chat para que lo atienda una persona del estudio. Usala para presupuestos de XV, bodas, sesiones o eventos; reclamos; pedidos de descuento; cuando el cliente pide hablar con alguien; cuando quiere encargar algo (todavía no podés armar pedidos ni cobrar); o cuando no sabés la respuesta. Después de usarla, avisale al cliente que en breve le escribe alguien del estudio.",
+        "Deja el chat para que lo atienda una persona del estudio. Usala para presupuestos de eventos cuando preparar_presupuesto no los arma; reclamos; pedidos de descuento; cuando el cliente pide hablar con alguien; cuando quiere encargar algo (todavía no podés armar pedidos ni cobrar); o cuando no sabés la respuesta. Después de usarla, avisale al cliente que en breve le escribe alguien del estudio.",
       input: z.object({ motivo: z.string().min(3).max(200) }),
       kind: "read",
       run: async ({ motivo }) => {

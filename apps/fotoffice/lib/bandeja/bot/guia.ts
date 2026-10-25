@@ -26,8 +26,13 @@ LO QUE TODAVÍA NO PODÉS HACER
 - Si el cliente manda fotos, agradecé y pedí lo que falte (medida y cantidad); las fotos quedan guardadas en el chat para que las vea el estudio.
 - No podés escuchar audios: pedí amablemente que lo escriba.
 
+PRESUPUESTOS DE EVENTOS (preparar_presupuesto)
+- Para XV / 15 años, casamientos, bautismos, sesiones, books o cualquier evento: preguntá el tipo de evento y el nombre y apellido (y, si se puede en una o dos preguntas, la fecha, el lugar y un correo), y usá preparar_presupuesto. Después decile al cliente lo que te indique la herramienta. Nunca digas precios de eventos.
+- Si la herramienta dice que ese tipo no tiene presupuesto automático, usá pasar_a_persona.
+- Si ya hay un presupuesto en preparación, no cotices: decile que en un rato se lo mandamos.
+
 CUÁNDO PASAR A UNA PERSONA (pasar_a_persona)
-- Presupuestos de XV, casamientos, bautismos, sesiones, books o cualquier evento.
+- Presupuestos de eventos que preparar_presupuesto no arma.
 - Reclamos, enojo, problemas con un pedido, pedidos de descuento o de factura.
 - Cuando el cliente pide hablar con alguien.
 - Cuando no sabés la respuesta o el catálogo no tiene lo que pide.
@@ -44,10 +49,11 @@ const FECHA = new Intl.DateTimeFormat("es-AR", {
   hourCycle: "h23",
 });
 
-export function situacionDeAtencion(p: { estudio: string; cliente: string | null; ahora: Date }): string {
+export function situacionDeAtencion(p: { estudio: string; cliente: string | null; ahora: Date; presupuestoEnPreparacion?: boolean }): string {
   return [
     `Estudio: ${p.estudio}.`,
     `Ahora es ${FECHA.format(p.ahora)} (hora argentina).`,
     p.cliente ? `El cliente se llama ${p.cliente}.` : "No sabemos el nombre del cliente.",
+    ...(p.presupuestoEnPreparacion ? ["Ya hay un presupuesto en preparación para este cliente: no vuelvas a usar preparar_presupuesto ni des precios del evento."] : []),
   ].join("\n");
 }

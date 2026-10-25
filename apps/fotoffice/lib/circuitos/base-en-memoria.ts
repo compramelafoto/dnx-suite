@@ -79,6 +79,9 @@ const TABLAS = [
   "digitalizacionEntrega", "digitalizacionGrabacion", "digitalizacionCargo", "digitalizacionAjustes",
   // Comisión de plataforma (F1): el libro, la tasa por módulo y la marca de los cobros de digitalización.
   "workspaceFeeLedgerEntry", "workspaceModuleFee", "digitalizacionComision",
+  // Presupuesto automático con aprobación por Telegram (2026-10-25).
+  "fotofficeTelegramConexion", "fotofficePresupuestoAutoCategoria", "fotofficePresupuestoAutoAjustes", "fotofficePresupuestoAprobacion",
+  "workspaceIntegration",
 ] as const;
 export type Tabla = (typeof TABLAS)[number];
 
@@ -168,6 +171,16 @@ const DEFECTOS: Partial<Record<Tabla, () => Fila>> = {
     updatedAt: new Date(),
   }),
   fotofficePropuestaModelo: () => ({ terms: null, autoSendOnWeb: false, templateId: null, updatedAt: new Date(), updatedByUserId: null }),
+  fotofficeTelegramConexion: () => ({
+    chatId: null, chatNombre: null, linkCode: null, linkCodeExpiresAt: null, linkedAt: null, connectedByUserId: null,
+    createdAt: new Date(), updatedAt: new Date(),
+  }),
+  fotofficePresupuestoAutoCategoria: () => ({ telegramEnabled: false, portfolio: null, updatedByUserId: null, createdAt: new Date(), updatedAt: new Date() }),
+  fotofficePresupuestoAutoAjustes: () => ({ acuseEnabled: true, acuseText: null, updatedByUserId: null, createdAt: new Date(), updatedAt: new Date() }),
+  fotofficePresupuestoAprobacion: () => ({
+    presupuestoId: null, categoryId: null, waId: null, telegramChatId: null, telegramMessageId: null, channels: null, errorCode: null,
+    approvedVia: null, approvedByUserId: null, approvedAt: null, sentAt: null, createdAt: new Date(), updatedAt: new Date(),
+  }),
   fotofficePropuestaBorradorAuto: () => ({ createdAt: new Date(), createdByUserId: null }),
   fotofficeWaConexion: () => ({
     phoneNumberId: null, wabaId: null, displayPhone: null, modo: "SIMULADO", pausaBotHoras: 4,
@@ -402,6 +415,10 @@ export function crearBaseEnMemoria() {
   const UNICOS: Partial<Record<Tabla, Unico[]>> = {
     fotofficeJourney: [{ columnas: ["workspaceId", "subjectType", "subjectId", "kind"], aplica: (f) => f.closedAt === null }],
     fotofficeProcessedEvent: [{ columnas: ["journeyId", "event", "sourceRef"] }],
+    // Presupuesto automático: una aprobación por consulta y un ajuste por categoría.
+    fotofficePresupuestoAprobacion: [{ columnas: ["workspaceId", "leadId"] }],
+    fotofficePresupuestoAutoCategoria: [{ columnas: ["workspaceId", "categoryId"] }],
+    fotofficeTelegramConexion: [{ columnas: ["workspaceId"] }],
     // Como en el schema (@@unique workspaceId+name) y la migración (único parcial donde systemKey no es null).
     fotofficeCircuit: [
       { columnas: ["workspaceId", "name"] },
