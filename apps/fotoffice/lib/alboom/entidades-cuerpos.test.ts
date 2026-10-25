@@ -34,4 +34,11 @@ describe("cuerpos de los listados de Alboom", () => {
     expect(f.pedido("2025556", 100)).toMatchObject({ method: "POST", body: { type: "projects", id: "2025556", offset: 100, count: 100 } });
     expect(f.paginaDe).toBe(100);
   });
+  it("tareas: el offset es el número de página (de a 100)", () => {
+    const f = entidadPorClave("tareas")!.fuente;
+    if (f.tipo !== "porDesplazamiento") throw new Error("no es porDesplazamiento");
+    expect(f.ruta(0)).toBe("/tasks?offset=0&filteruser=all");
+    expect(f.ruta(100)).toBe("/tasks?offset=1&filteruser=all");
+    expect(f.ruta(800)).toBe("/tasks?offset=8&filteruser=all");
+  });
 });

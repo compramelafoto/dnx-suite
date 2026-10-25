@@ -148,6 +148,9 @@ const listado =
 
 const get = (ruta: string): PedidoLectura => ({ method: "GET", ruta });
 
+/** Alboom devuelve las tareas de a 100. */
+const TAREAS_POR_PAGINA = 100;
+
 /** Todo el historial: el panel manda un rango de fechas aunque el período sea "todos". */
 const DESDE_SIEMPRE = "2000-01-01T03:00:00.000Z";
 const HASTA_SIEMPRE = "2099-12-31T03:00:00.000Z";
@@ -389,7 +392,15 @@ export const ENTIDADES: readonly Entidad[] = [
       filas: filasDeLista,
     },
   },
-  { clave: "tareas", nombre: "Tareas", fuente: { tipo: "porDesplazamiento", ruta: (offset) => `/tasks?offset=${offset}&filteruser=all` } },
+  // `offset` en /tasks es el NÚMERO DE PÁGINA (0, 1, 2…), de a 100: así lo pide el panel (`loadTasks`, que suma 1
+  // a `tasks_page`). Con el desplazamiento en filas (100) Alboom devolvía la página 100, vacía, y quedaban 100 de 832
+  // (extracción del 25/10/2026). El extractor cuenta filas leídas; acá se pasa a página.
+  {
+    clave: "tareas",
+    nombre: "Tareas",
+    version: 2,
+    fuente: { tipo: "porDesplazamiento", ruta: (filasLeidas) => `/tasks?offset=${Math.floor(filasLeidas / TAREAS_POR_PAGINA)}&filteruser=all` },
+  },
   {
     // Lo mismo que manda la lista del calendario (`CalendarController.getData`): `start_type` "other" (Otro
     // período) con el rango de fechas; "all" da 500 y "0" es sólo desde hoy (453 citas en DNX el 25/10/2026).
