@@ -16,7 +16,7 @@ comisiones por rubro (etapas 3 a 6).
 
 ## Pasos
 
-1. **Base de datos** (`packages/db`): migración `20261214120000_fotoffice_equipo_etapa_1_2`, sólo
+1. **Base de datos** (`packages/db`): migración `20261216120000_fotoffice_equipo_etapa_1_2`, sólo
    tablas nuevas, idempotente, sin claves foráneas a tablas existentes. Tablas: ficha, valor de la
    jornada (con fecha desde), franjas del horario semanal, cambios puntuales, correcciones de la
    jornada, marcas para revisar, ajustes (tolerancia), piezas de mensajes y mensajes mostrados.
