@@ -7,6 +7,7 @@ import { randomBytes } from "crypto";
 import bcrypt from "bcryptjs";
 import type { CameraUploadLog, Prisma } from "@/lib/prisma";
 import { prisma } from "@/lib/prisma";
+import { checkAgencyAlbumUpload } from "@/lib/agencies/access";
 import {
   type CameraConnectionUserRef,
   type CreateCameraUploadLogInput,
@@ -152,7 +153,12 @@ export async function validateActiveAlbumForCameraConnection(
     return { ok: false, error: "Álbum no encontrado", status: 404 };
   }
 
-  if (album.userId !== userId) {
+  const agency = await checkAgencyAlbumUpload(album.id, userId);
+  if (agency.agencyAlbum) {
+    if (!agency.allowed) {
+      return { ok: false, error: agency.error ?? "No autorizado", status: 403 };
+    }
+  } else if (album.userId !== userId) {
     if (!album.isPublic || album.isHidden) {
       return {
         ok: false,

@@ -1,13 +1,20 @@
 import "server-only";
 import sharp from "sharp";
-import { CLASS_LIST_VARIABLE_KEY, serializeClassList } from "@repo/template-engine";
+import { CLASS_LIST_VARIABLE_KEY, isCourseMosaicConfig, serializeClassList } from "@repo/template-engine";
 import { clientPhotoSlotNumber } from "@/lib/template-v2/server";
 import { fileExistsInR2, readFromR2, uploadToR2 } from "@/lib/r2-client";
 import { DESIGN_V2_SCHEMA_VERSION, type DesignV2Data } from "./design-data";
 import { renderDesignV2 } from "./render";
 import { loadDesignTemplateVersion, type DesignTemplateVersion } from "./template";
 import { archivosDeDemoSubidos, leerArchivoDeDemo, urlPublicaDeDemo } from "./demo-archivos";
-import { FOTO_DE_MUESTRA_SVG, archivosNecesarios, demoDePlantilla, huecosDeDemo, selloDeDemo } from "./demo-de-plantilla";
+import {
+  FOTO_DE_MUESTRA_SVG,
+  RETRATOS_DE_COMPANEROS,
+  archivosNecesarios,
+  demoDePlantilla,
+  huecosDeDemo,
+  selloDeDemo,
+} from "./demo-de-plantilla";
 import { valoresDeDemo } from "./demo-valores";
 
 /**
@@ -20,15 +27,16 @@ import { valoresDeDemo } from "./demo-valores";
  * muestra. Si una foto de demo todavía no se subió, va un gris suave con una cámara.
  *
  * La clave guardada lleva un sello con las fotos de demo que había: cuando se suben las que
- * faltaban, la miniatura se vuelve a dibujar sola.
+ * faltaban, la miniatura se vuelve a dibujar sola. También lleva la revisión de la versión, así
+ * una plantilla editada en el lugar no sigue mostrando la miniatura de antes.
  */
 
 const LADO = 720;
 /** Los huecos que no son del cliente (maestra, amigos, libre) se dibujan como `photo_<n>` desde acá. */
 const PRIMER_HUECO_EXTRA = 900;
 
-function clave(templateId: string, versionId: string, sello: string): string {
-  return `template-thumbs/${templateId}/${versionId}-v2-${sello}.jpg`;
+function clave(templateId: string, versionId: string, revision: number, sello: string): string {
+  return `template-thumbs/${templateId}/${versionId}-r${revision}-v2-${sello}.jpg`;
 }
 
 /** Foto de muestra para los huecos: gris suave con una cámara en el centro. */
@@ -73,9 +81,15 @@ export async function miniaturaDePlantilla(
 
   const demo = demoDePlantilla({ templateId: original.templateId, meta: original.legacy.meta });
   const huecos = huecosDeDemo(original.legacy.blocks);
-  const subidos = await archivosDeDemoSubidos(archivosNecesarios(demo, huecos));
+  // Los retratos de los compañeros sólo cuentan si la plantilla tiene mosaico: así el sello (y la
+  // miniatura guardada) de las demás plantillas no cambia.
+  const conMosaico = (original.legacy.blocks as Array<{ configJson?: unknown }>).some((b) => isCourseMosaicConfig(b.configJson));
+  const subidos = await archivosDeDemoSubidos([
+    ...archivosNecesarios(demo, huecos),
+    ...(conMosaico ? RETRATOS_DE_COMPANEROS : []),
+  ]);
   const completa = Object.values(subidos).every(Boolean);
-  const key = clave(original.templateId, original.versionId, selloDeDemo(subidos));
+  const key = clave(original.templateId, original.versionId, original.revision ?? 0, selloDeDemo(subidos));
   try {
     if (await fileExistsInR2(key)) return { jpg: new Uint8Array(await readFromR2(key)), completa };
   } catch {
@@ -97,7 +111,11 @@ export async function miniaturaDePlantilla(
     return bytes ?? deMuestra();
   };
 
-  const values = valoresDeDemo(demo, subidos[demo.archivos.logo] ? urlPublicaDeDemo(demo.archivos.logo) : null);
+  const values = valoresDeDemo(
+    demo,
+    subidos[demo.archivos.logo] ? urlPublicaDeDemo(demo.archivos.logo) : null,
+    (archivo) => (subidos[archivo] ? urlPublicaDeDemo(archivo) : null),
+  );
   if (!values[CLASS_LIST_VARIABLE_KEY]) {
     values[CLASS_LIST_VARIABLE_KEY] = serializeClassList([
       { firstName: demo.alumno.firstName, lastName: demo.alumno.lastName, isOwner: true },

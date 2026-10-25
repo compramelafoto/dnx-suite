@@ -1,29 +1,16 @@
 import {
   INITIAL_CUANTO_COBRO_QUOTE,
   computeMonthlyBillableHours,
+  computeStudioBreakdown,
   getCuantoCobroMissingFields,
   getProfileCostHour,
   getProfileHourlyRate,
   getProfileMonthlyNeed,
+  getProfileResultSteps,
   parseCuantoCobroAmount,
   type CuantoCobroProfileInput,
+  type CuantoCobroStudioBreakdown,
 } from "@repo/cuanto-cobro-core";
-
-type PasoPerfil = Parameters<typeof getCuantoCobroMissingFields>[0];
-
-/** Refleja `PROFILE_RESULT_STEPS` de packages/cuanto-cobro-core/src/calculate-cuanto-cobro.ts (no se exporta). */
-const PASOS_DEL_PERFIL: readonly PasoPerfil[] = [
-  "currency",
-  "employment",
-  "personal",
-  "business",
-  "team",
-  "availability",
-  "investment",
-  "emergency-fund",
-  "savings-goals",
-  "commercial-positioning",
-];
 
 export type ResumenPerfil = {
   completo: boolean;
@@ -35,6 +22,8 @@ export type ResumenPerfil = {
   gastosPersonales: number;
   gastosNegocio: number;
   reservas: number;
+  /** Mi estudio: el desglose del motor (null si el perfil no está en modo estudio). */
+  estudio: CuantoCobroStudioBreakdown | null;
 };
 
 function monto(valor: string): number {
@@ -42,13 +31,29 @@ function monto(valor: string): number {
 }
 
 export function resumirPerfil(p: CuantoCobroProfileInput): ResumenPerfil {
+  // Los pasos salen del motor según el modo (solo o estudio): no se copian acá.
   const faltan = [
-    ...new Set(
-      PASOS_DEL_PERFIL.flatMap((paso) => getCuantoCobroMissingFields(paso, p, INITIAL_CUANTO_COBRO_QUOTE)),
-    ),
+    ...new Set(getProfileResultSteps(p).flatMap((paso) => getCuantoCobroMissingFields(paso, p, INITIAL_CUANTO_COBRO_QUOTE))),
   ];
 
   const necesidadMensual = getProfileMonthlyNeed(p);
+  const estudio = computeStudioBreakdown(p);
+  if (estudio) {
+    return {
+      completo: faltan.length === 0,
+      faltan,
+      necesidadMensual,
+      horasFacturablesMes: estudio.capacityHours,
+      valorHora: estudio.studioHourRate,
+      costoHora: estudio.studioHourRate,
+      // En modo estudio: el retiro hace de "personales" y fijos + equipo de "negocio".
+      gastosPersonales: estudio.ownerDraw,
+      gastosNegocio: estudio.fixedCosts + estudio.teamCost + estudio.fixedFromExtras,
+      reservas: estudio.reserves,
+      estudio,
+    };
+  }
+
   const gastosPersonales = p.personalExpenseGroups.reduce(
     (total, g) => total + g.items.reduce((s, i) => s + monto(i.amount), 0),
     0,
@@ -69,5 +74,6 @@ export function resumirPerfil(p: CuantoCobroProfileInput): ResumenPerfil {
     gastosPersonales,
     gastosNegocio,
     reservas,
+    estudio: null,
   };
 }

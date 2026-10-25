@@ -562,7 +562,7 @@ describe("aceptar", () => {
     const avisos = enviador();
     const cuando = new Date(AHORA.getTime() + 10 * MINUTO);
     const r = await AC.aceptarPresupuesto("ws-1", token(versionId), { nombre: "  Laura   Pérez ", acepta: true }, evidencia, { ahora: () => cuando, enviar: avisos, appOrigin: ORIGEN });
-    expect(r).toEqual({ ok: true, fecha: cuando });
+    expect(r).toEqual({ ok: true, fecha: cuando, pedidoUrl: null });
     expect(version(versionId)).toMatchObject({ acceptedAt: cuando, acceptedName: "Laura Pérez", acceptedIpHash: "hash-ip", acceptedUserAgent: "Mozilla/5.0" });
     expect(presupuesto(presupuestoId)).toMatchObject({ status: "ACEPTADO", acceptedVersionId: versionId, pedidoPorConfirmar: true });
     expect(H.notificar).toHaveBeenLastCalledWith("ws-1", { tipo: "CAPTACION", id: "lead-1" }, "PRESUPUESTO_ACEPTADO", versionId);
@@ -740,9 +740,9 @@ describe("opciones de pago", () => {
     const { versionId } = await enviado(DUENO, "lead-1", items);
     const vista = vistaDe(await PU.abrirPresupuestoPublico("ws-1", token(versionId), { registrar: false, ipHash: null, userAgent: null }, depsPublico()));
     expect(vista?.opcionesPago).toEqual([
-      { id: "contado", etiqueta: "Contado con 10% de descuento", cuotas: 1, importeCuota: 270_000, total: 270_000, nota: null },
-      { id: "p3", etiqueta: "3 cuotas sin interés", cuotas: 3, importeCuota: 100_000, total: 300_000, nota: "Sin recargo" },
-      { id: "p6", etiqueta: "6 cuotas con 15% de interés", cuotas: 6, importeCuota: 57_500, total: 345_000, nota: null },
+      { id: "contado", etiqueta: "Contado con 10% de descuento", cuotas: 1, importeCuota: 270_000, total: 270_000, nota: null, medio: null, sena: 0 },
+      { id: "p3", etiqueta: "3 cuotas sin interés", cuotas: 3, importeCuota: 100_000, total: 300_000, nota: "Sin recargo", medio: null, sena: 0 },
+      { id: "p6", etiqueta: "6 cuotas con 15% de interés", cuotas: 6, importeCuota: 57_500, total: 345_000, nota: null, medio: null, sena: 0 },
     ]);
     const json = JSON.stringify(vista);
     for (const interno of ["rateMetadata", "rateSource", "basePrice", "interestPercent", "costo", "margen"]) expect(json).not.toContain(interno);
@@ -797,5 +797,100 @@ describe("opciones de pago", () => {
     expect((await AC.aceptarPresupuesto("ws-1", token(versionId), { nombre: "Laura", acepta: true, opcion: "contado" }, evidencia, { ahora: () => AHORA, enviar: enviador() })).ok).toBe(false);
     expect((await AC.aceptarPresupuesto("ws-1", token(versionId), { nombre: "Laura", acepta: true }, evidencia, { ahora: () => AHORA, enviar: enviador() })).ok).toBe(true);
     expect(version(versionId).chosenPaymentOptionId).toBeNull();
+  });
+});
+
+describe("etapa B: total con IVA, seña, plan, medio de pago y pedido al aceptar", () => {
+  const evidencia = { ipHash: "hash-ip", userAgent: "Mozilla/5.0" };
+  const items = [itemLista("a", { precioUnitario: 1_000_000 })];
+  const OPCIONES = {
+    cashEnabled: true,
+    cashDiscountPercent: "",
+    cashCommercialNote: "",
+    installmentPlans: [{ id: "p3", numberOfInstallments: "3", interestMode: "none", interestPercent: "", commercialNote: "" }],
+  };
+  const perfilCon = (extras: Record<string, unknown>) =>
+    B.agregar("fotofficePerfilPrecios", { workspaceId: "ws-1", schemaVersion: 1, profileData: { pricingExtras: extras } });
+  const conOpciones = () =>
+    B.agregar("fotofficePresupuestoAjustes", { workspaceId: "ws-1", validityDays: 15, followUpDays: 3, followUpEnabled: false, paymentOptions: OPCIONES });
+  const abrir = async (versionId: string, mercadoPago: boolean) =>
+    vistaDe(await PU.abrirPresupuestoPublico("ws-1", token(versionId), { registrar: false, ipHash: null, userAgent: null }, { ...depsPublico(), mercadoPago: async () => mercadoPago }));
+
+  it("sin impuestos ni cobros en el perfil: nada cambia (sin condiciones de cobro)", async () => {
+    conOpciones();
+    const { versionId } = await enviado(DUENO, "lead-1", items);
+    expect((version(versionId).paymentOptions as { cobro?: unknown }).cobro).toBeUndefined();
+    const v = await abrir(versionId, true);
+    expect(v?.cobro).toBeNull();
+    expect(v?.opcionesPago.map((o) => o.id)).toEqual(["contado", "p3"]);
+  });
+
+  it("responsable inscripto: las opciones van sobre el total con IVA y el enlace muestra el IVA", async () => {
+    conOpciones();
+    perfilCon({ ivaCondition: "responsable_inscripto" });
+    const { versionId } = await enviado(DUENO, "lead-1", items);
+    expect((version(versionId).paymentOptions as { basePrice: number }).basePrice).toBe(1_210_000);
+    const v = await abrir(versionId, true);
+    expect(v?.cobro).toMatchObject({ ivaPorcentaje: 21, iva: 210_000, totalConIva: 1_210_000 });
+    expect(v?.opcionesPago[0]).toMatchObject({ id: "contado", total: 1_210_000 });
+  });
+
+  it("seña, descuento por transferencia y política de cancelación; sin Mercado Pago sólo se ofrece transferencia", async () => {
+    conOpciones();
+    perfilCon({ depositPercent: "30", paymentCommissionPercent: "6", cancellationPolicy: "La seña no se devuelve." });
+    const { versionId } = await enviado(DUENO, "lead-1", items);
+    const conMp = await abrir(versionId, true);
+    expect(conMp?.opcionesPago.map((o) => [o.id, o.medio, o.total, o.sena])).toEqual([
+      ["contado", "MERCADO_PAGO", 1_000_000, 300_000],
+      ["contado~transferencia", "TRANSFERENCIA", 940_000, 282_000],
+      ["p3", "MERCADO_PAGO", 1_000_000, 300_000],
+      ["p3~transferencia", "TRANSFERENCIA", 940_000, 282_000],
+    ]);
+    expect(conMp?.opcionesPago[2]).toMatchObject({ cuotas: 3, importeCuota: 233_333.33 });
+    expect(conMp?.cobro).toMatchObject({ senaPorcentaje: 30, descuentoTransferencia: 6, politicaCancelacion: "La seña no se devuelve." });
+    const sinMp = await abrir(versionId, false);
+    expect(sinMp?.opcionesPago.map((o) => o.medio)).toEqual(["TRANSFERENCIA", "TRANSFERENCIA"]);
+    expect(sinMp?.mercadoPago).toBe(false);
+  });
+
+  it("sin Mercado Pago, aceptar una opción de Mercado Pago no se puede", async () => {
+    conOpciones();
+    perfilCon({ paymentCommissionPercent: "6" });
+    const { versionId } = await enviado(DUENO, "lead-1", items);
+    const r = await AC.aceptarPresupuesto("ws-1", token(versionId), { nombre: "Laura", acepta: true, opcion: "p3" }, evidencia, { ahora: () => AHORA, enviar: enviador(), mercadoPago: async () => false });
+    expect(r).toEqual({ ok: false, error: "La forma de pago elegida no es válida. Recargá la página y elegí una de las opciones." });
+    const ok = await AC.aceptarPresupuesto("ws-1", token(versionId), { nombre: "Laura", acepta: true, opcion: "p3~transferencia" }, evidencia, { ahora: () => AHORA, enviar: enviador(), mercadoPago: async () => false });
+    expect(ok.ok).toBe(true);
+  });
+
+  it("con «crear el pedido al aceptar» encendido: se crea y la respuesta trae el enlace del pedido; apagado, no", async () => {
+    conOpciones();
+    const crear = vi.fn(async () => ({ ok: true as const, pedidoId: "ped-1", numero: "P-1", aviso: null }));
+    const enlace = vi.fn(async () => ({ ok: true as const, url: "https://fotoffice.test/w/dnx/pedido/tok" }));
+    const { versionId } = await enviado(DUENO, "lead-1", items);
+    const apagado = await AC.aceptarPresupuesto("ws-1", token(versionId), { nombre: "Laura", acepta: true, opcion: "p3" }, evidencia, {
+      ahora: () => AHORA, enviar: enviador(), mercadoPago: async () => true, autoPedido: async () => false, crearPedido: crear, enlaceDelPedido: enlace,
+    });
+    expect(apagado).toEqual({ ok: true, fecha: AHORA, pedidoUrl: null });
+    expect(crear).not.toHaveBeenCalled();
+
+    consulta("lead-2");
+    const otro = await enviado(DUENO, "lead-2", items);
+    const encendido = await AC.aceptarPresupuesto("ws-1", token(otro.versionId), { nombre: "Laura", acepta: true, opcion: "p3" }, evidencia, {
+      ahora: () => AHORA, enviar: enviador(), mercadoPago: async () => true, autoPedido: async () => true, crearPedido: crear, enlaceDelPedido: enlace,
+    });
+    expect(encendido).toEqual({ ok: true, fecha: AHORA, pedidoUrl: "https://fotoffice.test/w/dnx/pedido/tok" });
+    expect(crear).toHaveBeenCalledWith("ws-1", otro.presupuestoId);
+  });
+
+  it("si el pedido automático falla, la aceptación vale igual (queda «Pedido por confirmar»)", async () => {
+    conOpciones();
+    const { versionId, presupuestoId } = await enviado(DUENO, "lead-1", items);
+    const r = await AC.aceptarPresupuesto("ws-1", token(versionId), { nombre: "Laura", acepta: true, opcion: "p3" }, evidencia, {
+      ahora: () => AHORA, enviar: enviador(), mercadoPago: async () => true, autoPedido: async () => true,
+      crearPedido: async () => ({ ok: false as const, error: "no" }), enlaceDelPedido: async () => ({ ok: false as const, error: "no" }),
+    });
+    expect(r).toEqual({ ok: true, fecha: AHORA, pedidoUrl: null });
+    expect(presupuesto(presupuestoId)).toMatchObject({ status: "ACEPTADO", pedidoPorConfirmar: true });
   });
 });

@@ -47,6 +47,19 @@ function resolverConfig(deps: Deps): StreamConfig {
   return leida.config;
 }
 
+async function motivoDelRechazo(respuesta: Response): Promise<string> {
+  try {
+    const cuerpo = (await respuesta.json()) as { errors?: Array<{ code?: unknown; message?: unknown }> };
+    const motivos = (cuerpo.errors ?? [])
+      .map((e) => [e.code, e.message].filter((x) => typeof x === "number" || typeof x === "string").join(" "))
+      .filter(Boolean)
+      .map((m) => m.slice(0, 200));
+    return motivos.length ? `: ${motivos.join("; ")}` : "";
+  } catch {
+    return "";
+  }
+}
+
 async function pedir(
   ruta: string,
   init: RequestInit,
@@ -65,9 +78,11 @@ async function pedir(
   });
 
   if (!respuesta.ok) {
-    // Sin cuerpo crudo del proveedor: puede traer el pedido completo, token incluido.
+    // Sin cuerpo crudo del proveedor: puede traer el pedido completo, token incluido. Sólo
+    // el código y el mensaje de cada error, que son los que dicen por qué (cupo lleno,
+    // enlace inaccesible) y nunca llevan credenciales.
     throw new StreamError(
-      `El proveedor de video rechazó la operación (${respuesta.status}).`,
+      `El proveedor de video rechazó la operación (${respuesta.status})${await motivoDelRechazo(respuesta)}.`,
       respuesta.status,
     );
   }
@@ -103,6 +118,39 @@ export async function createDirectUpload(
     throw new StreamError("El proveedor de video no devolvió la URL de subida.", 0);
   }
   return { uid: result.uid, uploadUrl: result.uploadURL };
+}
+
+/**
+ * Que el proveedor traiga el video desde un enlace público.
+ *
+ * Sirve para lo que ya está en Drive: Cloudflare lo baja por su cuenta, sin pasar por la
+ * computadora del fotógrafo ni por nuestro servidor, y sin el tope de 200 MB que tiene la
+ * subida desde el navegador. La descarga y el procesado siguen solos; el estado se consulta
+ * igual que una subida.
+ */
+export async function copyFromUrl(
+  input: { url: string; name: string },
+  deps: Deps = {},
+): Promise<{ uid: string }> {
+  const json = await pedir(
+    "/stream/copy",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        url: input.url,
+        meta: { name: input.name },
+        requireSignedURLs: true,
+        allowedOrigins: ORIGENES_PERMITIDOS,
+      }),
+    },
+    deps,
+  );
+
+  const result = (json.result ?? {}) as { uid?: string };
+  if (!result.uid) {
+    throw new StreamError("El proveedor de video no aceptó el enlace.", 0);
+  }
+  return { uid: result.uid };
 }
 
 export type VideoStatus = "PROCESSING" | "READY" | "ERROR";

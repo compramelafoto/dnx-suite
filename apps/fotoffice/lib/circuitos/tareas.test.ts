@@ -28,7 +28,7 @@ function sembrar() {
   B.agregar("fotofficeJourney", {
     id: "j-ajeno", workspaceId: "ws-2", circuitId: "c2", kind: "VENTA", subjectType: "CAPTACION", subjectId: "x", stageId: "t1",
   });
-  B.agregar("fotofficeTask", { id: "k1", workspaceId: "ws-1", journeyId: "j1", stageId: "s1", subjectType: "CAPTACION", subjectId: "lead-1", title: "Llamar", required: true });
+  B.agregar("fotofficeTask", { id: "k1", workspaceId: "ws-1", journeyId: "j1", stageId: "s1", subjectType: "CAPTACION", subjectId: "lead-1", title: "Llamar", required: true, createdAt: new Date("2026-01-01T12:00:00.000Z") });
   B.agregar("fotofficeTask", { id: "k-ajena", workspaceId: "ws-2", journeyId: "j-ajeno", stageId: "t1", subjectType: "CAPTACION", subjectId: "x", title: "Ajena" });
 }
 

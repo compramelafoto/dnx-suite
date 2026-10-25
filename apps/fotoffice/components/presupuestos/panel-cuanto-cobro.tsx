@@ -20,6 +20,7 @@ import {
   type TrabajoPanel,
 } from "@/lib/presupuestos/panel-cuanto-cobro";
 import { CamposAjustes, DesglosePrecio } from "./desglose-precio";
+import { CamposEstudio } from "./campos-estudio";
 
 /**
  * Panel de ¿Cuánto Cobro? de un ítem (spec §3.2). SÓLO se dibuja para quien tiene `configurar`
@@ -89,10 +90,10 @@ export function AvisoSinPerfil() {
 
 /** El perfil que se está usando, en una línea. Lo comparten el panel y el asistente. */
 export function PerfilEnUso({ perfil, anterior = false }: { perfil: CuantoCobroProfileInput; anterior?: boolean }) {
-  const { valorHora } = resumirPerfil(perfil);
+  const { valorHora, estudio } = resumirPerfil(perfil);
   return (
     <p className="text-xs text-[var(--fo-muted)]">
-      {valorHora !== null ? `Valor de tu hora: ${pesos(valorHora)} · ` : ""}
+      {valorHora !== null ? `${estudio ? "Valor hora del estudio" : "Valor de tu hora"}: ${pesos(valorHora)} · ` : ""}
       <Link href={RUTA_PRECIOS} className="text-[var(--fo-accent)] hover:underline">
         {anterior ? "Perfil con el que se calculó este ítem" : "Perfil de Configuración → Precios"}
       </Link>
@@ -101,7 +102,18 @@ export function PerfilEnUso({ perfil, anterior = false }: { perfil: CuantoCobroP
 }
 
 /** Los datos de un concepto del trabajo, según su tipo. */
-export function CamposTrabajo({ trabajo, onCambio, conNombre = true }: { trabajo: TrabajoPanel; onCambio: (t: TrabajoPanel) => void; conNombre?: boolean }) {
+export function CamposTrabajo({
+  trabajo,
+  onCambio,
+  conNombre = true,
+  perfil = null,
+}: {
+  trabajo: TrabajoPanel;
+  onCambio: (t: TrabajoPanel) => void;
+  conNombre?: boolean;
+  /** Con el perfil, se suman los campos de «Mi estudio» (quién lo hace, cámara, línea) si corresponden. */
+  perfil?: CuantoCobroProfileInput | null;
+}) {
   const set = (k: keyof TrabajoPanel) => (v: string) => onCambio({ ...trabajo, [k]: v });
   const idTipo = useId();
   return (
@@ -148,6 +160,9 @@ export function CamposTrabajo({ trabajo, onCambio, conNombre = true }: { trabajo
           <CampoTexto tipo="moneda" etiqueta="Envío ($)" valor={trabajo.costoEnvio} onCambio={set("costoEnvio")} />
           <CampoTexto tipo="moneda" etiqueta="Embalaje ($)" valor={trabajo.costoEmbalaje} onCambio={set("costoEmbalaje")} />
           <CampoTexto etiqueta="Ganancia deseada (%)" valor={trabajo.margenDeseado} onCambio={set("margenDeseado")} />
+          {trabajo.camara ? (
+            <CampoTexto etiqueta="Disparos" valor={trabajo.disparosEstimados} onCambio={set("disparosEstimados")} ayuda="Con la cámara elegida, suma su desgaste (carnet: 3 por unidad)." />
+          ) : null}
         </>
       ) : null}
       {trabajo.tipo === "outsourced" ? (
@@ -163,6 +178,7 @@ export function CamposTrabajo({ trabajo, onCambio, conNombre = true }: { trabajo
           <CampoTexto etiqueta="Recargo (%)" valor={trabajo.margenDeseado} onCambio={set("margenDeseado")} />
         </>
       ) : null}
+      {perfil ? <CamposEstudio trabajo={trabajo} onCambio={onCambio} perfil={perfil} /> : null}
       <CampoTexto etiqueta="Horas con el cliente" valor={trabajo.horasCliente} onCambio={set("horasCliente")} ayuda="Reuniones, ventas, coordinación." />
       <CampoTexto tipo="moneda" etiqueta="Precio a mano en el motor ($)" valor={trabajo.precioManual} onCambio={set("precioManual")} ayuda="Vacío: el recomendado." />
     </div>
@@ -233,7 +249,7 @@ export function PanelCuantoCobro({
       ) : null}
 
       <CampoTexto etiqueta="Tipo de trabajo" tipo="text" valor={tipoDeTrabajo} onCambio={setTipoDeTrabajo} ayuda="Por ejemplo: Boda, 15 años, Corporativo." />
-      <CamposTrabajo trabajo={trabajo} onCambio={setTrabajo} />
+      <CamposTrabajo trabajo={trabajo} onCambio={setTrabajo} perfil={perfil} />
       {perfil ? <CamposAjustes ajustes={ajustes} onCambio={setAjustes} perfil={perfil} /> : null}
 
       {/* Región viva siempre presente: anuncia sólo el resultado final, no cada dato que falta. */}
@@ -251,6 +267,21 @@ export function PanelCuantoCobro({
             <div className="flex justify-between gap-2"><dt className="text-[var(--fo-muted)]">Valor hora</dt><dd>{pesos(c.valorHora)}</dd></div>
             <div className="flex justify-between gap-2"><dt className="text-[var(--fo-muted)]">Horas totales</dt><dd>{Math.round(c.horasTotales * 10) / 10} h</dd></div>
           </dl>
+          {c.porPersona && c.porPersona.length > 0 ? (
+            <div>
+              <p className="text-xs font-semibold text-[var(--fo-muted)]">Quién lo hace</p>
+              <ul className="mt-1 space-y-0.5">
+                {c.porPersona.map((p) => (
+                  <li key={p.persona} className="flex justify-between gap-2">
+                    <span>
+                      {p.nombre} · {Math.round(p.horas * 10) / 10} h{p.alValorDelEstudio ? " (al valor del estudio)" : ""}
+                    </span>
+                    <span className="tabular-nums">{pesos(p.costo)}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
           {c.desglose ? <DesglosePrecio linea={c.desglose} /> : null}
           {c.advertencias.length > 0 ? (
             <ul className="list-disc space-y-1 pl-5 text-xs text-[var(--fo-muted)]">

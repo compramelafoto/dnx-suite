@@ -106,10 +106,30 @@ export function PresupuestoPublico({ vista }: { vista: VistaPublica }) {
             <span className="tabular-nums">−{pesos(vista.totales.descuentos)}</span>
           </div>
         ) : null}
-        <div className="flex justify-between gap-2 border-t border-[var(--fo-border)] pt-2 text-lg font-semibold">
-          <span>Total</span>
-          <span className="tabular-nums">{pesos(vista.totales.total)}</span>
-        </div>
+        {vista.cobro && vista.cobro.iva > 0 ? (
+          <>
+            <div className="flex justify-between gap-2 border-t border-[var(--fo-border)] pt-2">
+              <span className="opacity-70">Total sin IVA</span>
+              <span className="tabular-nums">{pesos(vista.totales.total)}</span>
+            </div>
+            <div className="flex justify-between gap-2">
+              <span className="opacity-70">IVA ({vista.cobro.ivaPorcentaje} %)</span>
+              <span className="tabular-nums">{pesos(vista.cobro.iva)}</span>
+            </div>
+            <div className="flex justify-between gap-2 border-t border-[var(--fo-border)] pt-2 text-lg font-semibold">
+              <span>Total</span>
+              <span className="tabular-nums">{pesos(vista.cobro.totalConIva)}</span>
+            </div>
+          </>
+        ) : (
+          <div className="flex justify-between gap-2 border-t border-[var(--fo-border)] pt-2 text-lg font-semibold">
+            <span>Total</span>
+            <span className="tabular-nums">{pesos(vista.totales.total)}</span>
+          </div>
+        )}
+        {vista.cobro && vista.cobro.senaPorcentaje > 0 ? (
+          <p className="text-xs opacity-70">Para reservar la fecha se paga una seña del {vista.cobro.senaPorcentaje} % al aceptar.</p>
+        ) : null}
         {vista.totales.cantidadOpcionales > 0 ? (
           <p className="text-xs opacity-70">
             Los opcionales ({pesos(vista.totales.opcionales)}) no están incluidos en el total.
@@ -118,16 +138,28 @@ export function PresupuestoPublico({ vista }: { vista: VistaPublica }) {
       </section>
 
       {vista.opcionesPago.length > 0 ? <OpcionesDePago opciones={vista.opcionesPago} /> : null}
+      {vista.cobro && vista.cobro.descuentoTransferencia > 0 ? (
+        <p className="text-sm opacity-80">
+          Pagando por transferencia o en efectivo tenés un {vista.cobro.descuentoTransferencia} % de descuento.
+          {vista.mercadoPago ? "" : " Por ahora los pagos se hacen por transferencia o en efectivo."}
+        </p>
+      ) : null}
       {vista.propuestaPago ? (
         <section aria-label="Propuesta de pago" className="space-y-1">
           <h2 className="text-base font-semibold">Forma de pago</h2>
           <p className="whitespace-pre-line text-sm">{vista.propuestaPago}</p>
         </section>
       ) : null}
-      {vista.condiciones ? (
+      {vista.condiciones || vista.cobro?.politicaCancelacion ? (
         <section aria-label="Condiciones" className="space-y-1">
           <h2 className="text-base font-semibold">Condiciones</h2>
-          <p className="whitespace-pre-line text-sm">{vista.condiciones}</p>
+          {vista.condiciones ? <p className="whitespace-pre-line text-sm">{vista.condiciones}</p> : null}
+          {vista.cobro?.politicaCancelacion ? (
+            <div className="space-y-1 pt-1">
+              <h3 className="text-sm font-semibold">Política de cancelación</h3>
+              <p className="whitespace-pre-line text-sm">{vista.cobro.politicaCancelacion}</p>
+            </div>
+          ) : null}
         </section>
       ) : null}
       {vista.aceptacion ? (

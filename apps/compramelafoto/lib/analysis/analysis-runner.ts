@@ -19,6 +19,7 @@ import {
 import { analysisFailureKind, retryDelayMs } from "./analysis-failure-kind";
 import sharp from "sharp";
 import { shouldRunOcr } from "@/lib/analysis/should-run-ocr";
+import { agencyPriorityQuota, claimAgencyPriorityJobs, combineClaims } from "./agency-priority";
 
 const MAX_ATTEMPTS = 3;
 
@@ -104,10 +105,9 @@ async function claimJobsAtomic(
     select: { id: true },
   });
 
-  // Usamos FOR UPDATE SKIP LOCKED para evitar doble toma entre workers concurrentes.
-  const locked =
-    scopedAlbum != null
-      ? await prisma.$queryRaw<Array<{ id: number; photoId: number }>>`
+  type ClaimedRows = Array<{ id: number; photoId: number }>;
+  const claimScoped = (): Promise<ClaimedRows> =>
+    prisma.$queryRaw<Array<{ id: number; photoId: number }>>`
           WITH claimed AS (
             SELECT j.id
             FROM "PhotoAnalysisJob" j
@@ -124,9 +124,10 @@ async function claimJobsAtomic(
           SET status = 'PROCESSING', "lockedAt" = ${now}
           WHERE id IN (SELECT id FROM claimed)
           RETURNING id, "photoId"
-        `
-      : ageCutoff
-        ? await prisma.$queryRaw<Array<{ id: number; photoId: number }>>`
+        `;
+  const claimFifo = (remaining: number): Promise<ClaimedRows> =>
+    ageCutoff
+      ? prisma.$queryRaw<Array<{ id: number; photoId: number }>>`
             WITH claimed AS (
               SELECT j.id
               FROM "PhotoAnalysisJob" j
@@ -136,7 +137,7 @@ async function claimJobsAtomic(
                 AND p."isRemoved" = false
                 AND (p."createdAt" >= ${ageCutoff} OR j."infraFailureAt" IS NOT NULL)
               ORDER BY j."createdAt" ASC
-              LIMIT ${batchSize}
+              LIMIT ${remaining}
               FOR UPDATE OF j SKIP LOCKED
             )
             UPDATE "PhotoAnalysisJob"
@@ -144,14 +145,14 @@ async function claimJobsAtomic(
             WHERE id IN (SELECT id FROM claimed)
             RETURNING id, "photoId"
           `
-        : await prisma.$queryRaw<Array<{ id: number; photoId: number }>>`
+      : prisma.$queryRaw<Array<{ id: number; photoId: number }>>`
             WITH claimed AS (
               SELECT id
               FROM "PhotoAnalysisJob"
               WHERE status = 'PENDING'
                 AND ("runAfter" IS NULL OR "runAfter" <= ${now})
               ORDER BY "createdAt" ASC
-              LIMIT ${batchSize}
+              LIMIT ${remaining}
               FOR UPDATE SKIP LOCKED
             )
             UPDATE "PhotoAnalysisJob"
@@ -160,7 +161,18 @@ async function claimJobsAtomic(
             RETURNING id, "photoId"
           `;
 
-  return { jobsFound: candidates.length, locked };
+  // Usamos FOR UPDATE SKIP LOCKED para evitar doble toma entre workers concurrentes.
+  // Sin álbum fijo (cron general), primero hasta la mitad del lote para álbumes de agencia.
+  const { priority, locked } =
+    scopedAlbum != null
+      ? { priority: [] as ClaimedRows, locked: await claimScoped() }
+      : await combineClaims({
+          batchSize,
+          claimPriority: () => claimAgencyPriorityJobs(now, agencyPriorityQuota(batchSize), ageCutoff),
+          claimFifo,
+        });
+
+  return { jobsFound: candidates.length + priority.length, locked };
 }
 
 async function matchFacesWithInterested(

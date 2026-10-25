@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ShoppingCart } from "lucide-react";
 import type { PersonVocabulary } from "@/lib/vocabulario/personas";
 import type { SubmoduleItem } from "@/lib/modules/submodules";
 import { formatMinorArs } from "@/lib/membership/money";
@@ -63,6 +64,8 @@ export type WorkspaceHomeProps = {
   /** Quien puede configurar y todavía no eligió el tipo de organización (ordena el menú y sugiere módulos). */
   faltaTipoDeOrganizacion?: boolean;
   modulos: { key: string; label: string; route: string; pantallas: SubmoduleItem[] }[];
+  /** Puede cobrar en el Mostrador: muestra el botón grande «Cobrador». */
+  puedeCobrar?: boolean;
 };
 
 export function WorkspaceHome({
@@ -76,6 +79,7 @@ export function WorkspaceHome({
   faltaConfigurar,
   faltaTipoDeOrganizacion = false,
   modulos,
+  puedeCobrar = false,
 }: WorkspaceHomeProps) {
   // ── Lo que espera a alguien ──
   const pendientes: Pendiente[] = [];
@@ -170,7 +174,13 @@ export function WorkspaceHome({
           </h1>
           <p className="text-sm text-[var(--fo-muted)]">Así viene {institucion}.</p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {puedeCobrar ? (
+            <Link href="/ventas" className="fo-btn fo-btn-primary inline-flex items-center gap-2 px-5 py-3 text-base font-semibold shadow-[var(--fo-shadow-sm)]">
+              <ShoppingCart className="size-5" aria-hidden />
+              Cobrador
+            </Link>
+          ) : null}
           {puedeCrearSocio ? (
             <Link href="/members/new" className="fo-btn fo-btn-secondary text-sm">
               Nuevo {vocabulary.singular}
@@ -307,6 +317,26 @@ export function WorkspaceHome({
         </div>
 
         <div className="space-y-6">
+          {datos.paraComprar && datos.paraComprar.total > 0 ? (
+            <Panel
+              titulo={`Para comprar: ${datos.paraComprar.total}`}
+              accion={{ label: "Ver stock", href: "/ventas/stock" }}
+            >
+              <ul className="space-y-1 text-sm">
+                {datos.paraComprar.nombres.map((n, i) => (
+                  <li key={`${i}-${n}`} className="truncate">
+                    {n}
+                  </li>
+                ))}
+                {datos.paraComprar.total > datos.paraComprar.nombres.length ? (
+                  <li className="text-[var(--fo-muted)]">
+                    y {datos.paraComprar.total - datos.paraComprar.nombres.length} más
+                  </li>
+                ) : null}
+              </ul>
+            </Panel>
+          ) : null}
+
           {datos.sorteo ? (
             <Panel titulo="Sorteo" accion={{ label: "Abrir", href: `/sorteos/${datos.sorteo.id}` }}>
               <div className="space-y-1">

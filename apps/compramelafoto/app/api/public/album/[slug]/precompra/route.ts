@@ -1,8 +1,10 @@
+import { esUsuarioDemo } from "@/lib/demos/identidad";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { buildBenefitPublicShortLine } from "@/lib/preventa-canjeable/benefit-copy";
 import { aggregateExtraUnitClientMins } from "@/lib/preventa-canjeable/public-catalog-extras";
 import { listActivePacksForPublicCatalog } from "@/lib/preventa-canjeable/pack-service";
+import { packListPrice } from "@/lib/preventa-canjeable/pack-list-price";
 import {
   buildClientDigitalPackPricing,
   resolveClientMarketplaceFeePercent,
@@ -55,7 +57,7 @@ export async function GET(
         organizerCommissionEnabled: true,
         organizerCommissionPercentage: true,
         organizerCommissionAppliesTo: true,
-        user: { select: { id: true, name: true, logoUrl: true } },
+        user: { select: { id: true, name: true, logoUrl: true, tags: true } },
         selectedLab: { select: { id: true, name: true, logoUrl: true } },
         school: {
           select: {
@@ -129,6 +131,7 @@ export async function GET(
     const sharedPackCloseAt = getSharedPackCloseAt(packRows);
     const packs = packRows.map((p) => {
       const pricing = buildClientDigitalPackPricing(p.priceClientArs, platformPercent);
+      const listPrice = packListPrice(pricing.clientPriceArs, p.benefits);
       return {
         id: p.id,
         name: p.name,
@@ -140,6 +143,9 @@ export async function GET(
         marketplaceFeePercent: pricing.marketplaceFeePercent,
         marketplaceFeeArs: pricing.marketplaceFeeArs,
         clientPriceArs: pricing.clientPriceArs,
+        /** Precio de lista final (tachado) y % de descuento; null si el pack no tiene descuento real. */
+        listPriceArs: listPrice?.listPriceArs ?? null,
+        discountPercent: listPrice?.discountPercent ?? null,
         validFrom: p.validFrom,
         validUntil: p.validUntil,
         redemptionDeadlineAt: p.redemptionDeadlineAt,
@@ -180,6 +186,8 @@ export async function GET(
         isSchool,
         preventaMode,
         isTestPreview: testGate.isTestPreview,
+        /** Demo grabable (dueño con etiqueta demo): la vista de prueba usa el pago simulado. */
+        demoPresentacion: Boolean(testGate.isTestPreview && esUsuarioDemo(album.user)),
         school: isSchool
           ? {
               id: album.school!.id,

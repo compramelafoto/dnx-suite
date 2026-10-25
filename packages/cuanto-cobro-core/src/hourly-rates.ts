@@ -12,6 +12,7 @@ import {
 } from "./equipment/calculations";
 import { sumPersonalExpenseGroups } from "./personal-expenses";
 import { normalizePricingExtras, pricingExtrasFixedMonthly } from "./pricing-extras/price-build-up";
+import { computeStudioBreakdown } from "./studio/capacity";
 import type { CameraWearModel, CuantoCobroProfileInput, PhotographyTimeDistribution } from "./types";
 
 function sumAmounts(...values: string[]): number {
@@ -23,6 +24,9 @@ function sumAmounts(...values: string[]): number {
  * Impuestos fijos: el monotributo y el seguro de equipo (anual ÷ 12) de `pricingExtras`, si están.
  */
 export function getProfileMonthlyNeed(profile: CuantoCobroProfileInput, model: CameraWearModel = "per-job"): number {
+  // Mi estudio: fijos + equipo + reservas + retiro + ganancia − otras líneas (ver studio/capacity.ts).
+  const studio = computeStudioBreakdown(profile, model);
+  if (studio) return studio.monthlyNeed;
   const personalExpenses = sumPersonalExpenseGroups(profile.personalExpenseGroups);
   const businessExpenses = sumAmounts(profile.businessRent, profile.businessSoftware, profile.businessMarketing);
   const teamExpenses =
@@ -40,8 +44,13 @@ export function getProfileMonthlyNeed(profile: CuantoCobroProfileInput, model: C
   return Math.max(0, personalExpenses + businessExpenses + teamExpenses + profileReserves + fixedFromExtras - externalIncome);
 }
 
-/** Horas mensuales disponibles = weeklyHours × 4.33 */
+/**
+ * Horas mensuales disponibles = weeklyHours × 4.33.
+ * Mi estudio: las horas que el equipo entero puede cobrar (con el % vendible de cada persona).
+ */
 export function getProfileMonthlyHours(profile: CuantoCobroProfileInput): number {
+  const studio = computeStudioBreakdown(profile);
+  if (studio) return studio.capacityHours;
   return computeMonthlyAvailableHours(profile.weeklyHours);
 }
 
@@ -94,6 +103,11 @@ export function getCategoryHourlyRate(
 export type QuoteLaborRates = Record<keyof PhotographyTimeDistribution, number> & {
   travel: number;
   delivery: number;
+  /**
+   * Mi estudio: tarifa por hora de cada persona (su costo por hora + estructura por hora). Sólo con el
+   * modo encendido; las horas asignadas a alguien que no está acá van al valor hora del estudio.
+   */
+  byPerson?: Record<string, number>;
 };
 
 function buildUniformLaborRates(costHour: number): QuoteLaborRates {
@@ -111,7 +125,12 @@ function buildUniformLaborRates(costHour: number): QuoteLaborRates {
 export function getQuoteLaborRates(profile: CuantoCobroProfileInput, model: CameraWearModel = "per-job"): QuoteLaborRates | null {
   const costHour = getProfileCostHour(profile, model);
   if (costHour === null) return null;
-  return buildUniformLaborRates(costHour);
+  const rates = buildUniformLaborRates(costHour);
+  const studio = computeStudioBreakdown(profile, model);
+  if (!studio) return rates;
+  const byPerson: Record<string, number> = {};
+  for (const p of studio.people) if (p.inStructure && p.rate !== null) byPerson[p.id] = p.rate;
+  return { ...rates, byPerson };
 }
 
 /**

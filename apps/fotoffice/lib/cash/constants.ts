@@ -40,8 +40,12 @@ export const MOVEMENT_SOURCES = [
   "pedidos",
   /** Pago de una cuenta a pagar de un pedido (a un proveedor): se anula desde el pedido. */
   "pedidos-pagos",
+  /** Comisión real de Mercado Pago de un cobro de pedido (etapa B): `sourceRef` es el cobro. Se anula con él. */
+  "pedidos-comision",
   /** Venta de fotos extra de una galería (cobro a mano o por Mercado Pago): `sourceRef` es la compra. */
   "galerias",
+  /** Cobro de un pedido de impresión (Mercado Pago): `sourceRef` es el cobro. Si hay que devolverlo, se anula a mano desde Caja, como en galerías. */
+  "impresiones",
 ] as const;
 export type MovementSource = (typeof MOVEMENT_SOURCES)[number];
 

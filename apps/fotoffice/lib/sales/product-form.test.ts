@@ -65,6 +65,26 @@ describe("parseProductForm", () => {
     expect(r.ok && r.values.tracksStock).toBe(false);
   });
 
+  it("la foto puede ser un enlace https pegado a mano", () => {
+    const r = parseProductForm(form({ ...base, imageUrl: "  https://ejemplo.com/cuadro.jpg  " }));
+    expect(r.ok && r.values.imageUrl).toBe("https://ejemplo.com/cuadro.jpg");
+  });
+
+  it("sin foto queda null", () => {
+    const r = parseProductForm(form({ ...base, imageUrl: "" }));
+    expect(r.ok && r.values.imageUrl).toBeNull();
+  });
+
+  it.each(["http://ejemplo.com/a.jpg", "javascript:alert(1)", "foto.jpg"])(
+    "un enlace de foto que no es https se rechaza: %s",
+    (imageUrl) => {
+      expect(parseProductForm(form({ ...base, imageUrl }))).toEqual({
+        ok: false,
+        error: "El enlace de la foto tiene que empezar con https://.",
+      });
+    },
+  );
+
   it("sin nombre se rechaza", () => {
     expect(parseProductForm(form({ ...base, name: "  " }))).toEqual({
       ok: false,
@@ -152,5 +172,29 @@ describe("parseProductForm", () => {
       ok: false,
       error: "El mínimo de stock no puede ser negativo.",
     });
+  });
+
+  it("un insumo fuerza controlar existencia y acepta precio vacío como cero", () => {
+    const r = parseProductForm(
+      form({ name: "Kit Kodak 305", kind: "INSUMO", priceArs: "", tracksStock: "off" }),
+    );
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.values.kind).toBe("INSUMO");
+    expect(r.values.priceMinor).toBe(0);
+    expect(r.values.tracksStock).toBe(true);
+  });
+
+  it("un producto con precio vacío sigue siendo error", () => {
+    expect(parseProductForm(form({ name: "Marco", kind: "PRODUCTO", priceArs: "" })).ok).toBe(false);
+  });
+});
+
+describe("parseProductForm: proveedor preferido", () => {
+  it("vacío queda null y con valor se conserva", () => {
+    const sin = parseProductForm(form({ name: "Ampliación 20x40", priceArs: "7200", preferredProveedorId: "" }));
+    expect(sin.ok && sin.values.preferredProveedorId).toBeNull();
+    const con = parseProductForm(form({ name: "Ampliación 20x40", priceArs: "7200", preferredProveedorId: "prov1" }));
+    expect(con.ok && con.values.preferredProveedorId).toBe("prov1");
   });
 });

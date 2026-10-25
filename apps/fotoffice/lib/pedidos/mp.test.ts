@@ -143,6 +143,12 @@ describe("lo puro", () => {
     expect(f({ fee_details: "x" })).toBeNull();
   });
 
+  it("la comisión suma también la de la plataforma (application_fee), no la de financiación", () => {
+    const h = PURO.hechosDelPago(pago("1", "c", 1000, {}, { fee_details: [{ type: "mercadopago_fee", amount: 40 }, { type: "application_fee", amount: 50 }, { type: "financing_fee", amount: 3 }] }));
+    expect(h).toMatchObject({ feeMinor: 9000, conPlataforma: true });
+    expect(PURO.hechosDelPago(pago("1", "c", 1000)).conPlataforma).toBe(false);
+  });
+
   it("la fecha ilegible es null", () => {
     expect(PURO.hechosDelPago(pago("1", "c", 1, {}, { date_approved: "no" })).paidAt).toBeNull();
     expect(PURO.hechosDelPago(pago("1", "c", 1, {}, { date_approved: null })).paidAt).toBeNull();
@@ -159,8 +165,13 @@ describe("acreditar un pago aprobado", () => {
       createdByUserId: null, receiptNumber: "2026-0001", paidAt: new Date("2026-10-07T14:00:00.000Z"),
     });
     expect(imputaciones(c.id as string)).toEqual([["ped-1-c1", "40000.00"]]);
-    expect(B.datos.cashMovement).toHaveLength(1);
+    // Etapa B: el INGRESO por el bruto y la comisión real de Mercado Pago como EGRESO, en la misma cuenta.
+    expect(B.datos.cashMovement).toHaveLength(2);
     expect(B.datos.cashMovement[0]).toMatchObject({ kind: "INGRESO", amountArs: "40000.00", accountId: "mp", createdByUserId: null, sourceRef: c.id });
+    expect(B.datos.cashMovement[1]).toMatchObject({
+      kind: "EGRESO", amountArs: "5.50", accountId: "mp", paymentMethod: "MERCADO_PAGO", sourceModule: "pedidos-comision", sourceRef: c.id,
+      categoryId: B.datos.cashCategory.find((x) => x.name === "Comisiones de Mercado Pago" && x.kind === "EGRESO")!.id,
+    });
     expect(B.datos.fotofficePedido[0]!.status).toBe("EN_CURSO");
     expect(H.notificar).toHaveBeenCalledWith("ws-1", { tipo: "CAPTACION", id: "lead-1" }, "SENA_COBRADA", c.id);
     expect(H.recibo).toHaveBeenCalledWith("ws-1", c.id);
@@ -170,6 +181,8 @@ describe("acreditar un pago aprobado", () => {
   it("sin fee_details, comisión y neto quedan null", async () => {
     await MP.acreditarPagoMp("ws-1", pago("pay-1", "ped-1-c1", 40000, {}, { fee_details: [] }));
     expect(B.datos.fotofficeCobro[0]).toMatchObject({ feeArs: null, netArs: null });
+    // Sin comisión conocida, no hay EGRESO.
+    expect(B.datos.cashMovement.map((m) => m.kind)).toEqual(["INGRESO"]);
   });
 
   it("el mismo aviso repetido no acredita dos veces", async () => {
@@ -177,7 +190,7 @@ describe("acreditar un pago aprobado", () => {
     const otra = await MP.acreditarPagoMp("ws-1", pago("pay-1", "ped-1-c1", 40000));
     expect(otra).toEqual({ resultado: "ya_acreditado", pedidoId: "ped-1" });
     expect(B.datos.fotofficeCobro).toHaveLength(1);
-    expect(B.datos.cashMovement).toHaveLength(1);
+    expect(B.datos.cashMovement).toHaveLength(2);
     expect(H.recibo).toHaveBeenCalledTimes(1);
     expect(H.notificar).toHaveBeenCalledTimes(1);
   });
@@ -231,7 +244,8 @@ describe("acreditar un pago aprobado", () => {
     const r = await MP.acreditarPagoMp("ws-1", pago("pay-2", "ped-1-c1", 40000)); // pago doble
     expect(r).toEqual({ resultado: "sin_aplicar", motivo: "EXCEDE", pedidoId: "ped-1" });
     expect(B.datos.fotofficeCobro).toHaveLength(1);
-    expect(B.datos.cashMovement).toHaveLength(1);
+    // Sólo los del primer pago: su ingreso y su comisión.
+    expect(B.datos.cashMovement.map((m) => m.kind)).toEqual(["INGRESO", "EGRESO"]);
     expect(tareas()).toHaveLength(1);
     expect(tareas()[0]).toMatchObject({ workspaceId: "ws-1", subjectType: "CAPTACION", subjectId: "lead-1", title: PURO.TITULO_TAREA_PAGO_SIN_APLICAR, assigneeUserId: 7 });
   });
@@ -616,7 +630,7 @@ describe("devoluciones y contracargos de un pago ya acreditado (B2-4)", () => {
     await vi.waitFor(() => expect(H.enviar).toHaveBeenCalledTimes(1));
     expect((H.enviar.mock.calls[0]![0] as { subject: string }).subject).toMatch(/devolvió/);
     expect(B.datos.fotofficeCobro[0]!.voidedAt ?? null).toBeNull();
-    expect(B.datos.cashMovement).toHaveLength(1);
+    expect(B.datos.cashMovement).toHaveLength(2);
   });
 
   it("después de la devolución, un contracargo del mismo pago avisa de nuevo (otro estado)", async () => {
@@ -675,5 +689,145 @@ describe("devoluciones y contracargos de un pago ya acreditado (B2-4)", () => {
     await vi.waitFor(() => expect(H.enviar).toHaveBeenCalledTimes(1));
     expect(JSON.stringify([checklist(), H.enviar.mock.calls])).not.toMatch(/plata/i);
     expect(JSON.stringify([errores.mock.calls, avisos.mock.calls])).not.toMatch(/estudio\.test/);
+  });
+});
+
+
+describe("comisión de Mercado Pago en Caja (etapa B)", () => {
+  it("al anular el cobro se anulan el ingreso y la comisión", async () => {
+    await MP.acreditarPagoMp("ws-1", pago("pay-1", "ped-1-c1", 40000));
+    const c = B.datos.fotofficeCobro[0]!;
+    const DUENO = { workspaceId: "ws-1", userId: 1, userLabel: "Dueño", role: "WORKSPACE_OWNER", acceso: { role: "WORKSPACE_OWNER", levels: { orders: "MANAGE" } } as never };
+    const r = await CO.anularCobro(DUENO, c.id as string, "Devuelto", { ahora: () => AHORA });
+    expect(r).toMatchObject({ ok: true, yaAnulado: false });
+    const ingreso = B.datos.cashMovement.find((m) => m.sourceModule === "pedidos")!;
+    const comision = B.datos.cashMovement.find((m) => m.sourceModule === "pedidos-comision")!;
+    expect(B.datos.cashMovement.filter((m) => m.reversesMovementId === ingreso.id)).toHaveLength(1);
+    expect(B.datos.cashMovement.filter((m) => m.reversesMovementId === comision.id)).toEqual([expect.objectContaining({ kind: "INGRESO", amountArs: "5.50" })]);
+  });
+
+  it("dos comisiones usan el mismo rubro (no lo crea dos veces)", async () => {
+    await MP.acreditarPagoMp("ws-1", pago("pay-1", "ped-1-c1", 40000));
+    await MP.acreditarPagoMp("ws-1", pago("pay-2", "ped-1-c2", 40000));
+    expect(B.datos.cashCategory.filter((x) => x.name === "Comisiones de Mercado Pago")).toHaveLength(1);
+  });
+});
+
+describe("comisión de plataforma en pedidos de digitalización (F1)", () => {
+  // Después del corte (23/10, 00:00 de Argentina): el pago se aprobó el 24 y hoy es 25.
+  const DESPUES = { date_approved: "2026-10-24T14:00:00.000Z" };
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-25T15:00:00.000Z"));
+    B.agregar("digitalizacionEntrega", { id: "ent-1", workspaceId: "ws-1", pedidoId: "ped-1" });
+    B.agregar("workspaceModuleFee", { workspaceId: "ws-1", moduleKey: "digitalizacion", feeBps: 500 });
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("la preferencia retiene la propia más la deuda, y lo deja en la metadata", async () => {
+    B.agregar("workspaceFeeLedgerEntry", { workspaceId: "ws-1", kind: "DEVENGADO", amountArs: "300.00" });
+    await MP.iniciarPagoCuota({ workspaceId: "ws-1", pedidoId: "ped-1", cuotaId: "ped-1-c1" });
+    const arg = H.preferencia.mock.calls[0]![0] as Record<string, unknown>;
+    expect(arg).toMatchObject({ amountMinor: 4_000_000, marketplaceFeeMinor: 230_000 });
+    expect(arg.metadata).toMatchObject({ fo_comision_propia_minor: "200000", fo_retencion_minor: "230000" });
+  });
+
+  it("con 0 bps (DNX) no retiene nada", async () => {
+    B.datos.workspaceModuleFee[0]!.feeBps = 0;
+    await MP.iniciarPagoCuota({ workspaceId: "ws-1", pedidoId: "ped-1", cuotaId: "ped-1-c1" });
+    const arg = H.preferencia.mock.calls[0]![0] as Record<string, unknown>;
+    expect(arg).not.toHaveProperty("marketplaceFeeMinor");
+    expect(arg.metadata).not.toHaveProperty("fo_retencion_minor");
+  });
+
+  it("al acreditar: neto y EGRESO con las dos comisiones, deuda descargada y cobro marcado (no se devenga)", async () => {
+    B.agregar("workspaceFeeLedgerEntry", { workspaceId: "ws-1", kind: "DEVENGADO", amountArs: "300.00" });
+    const r = await MP.acreditarPagoMp(
+      "ws-1",
+      pago("pay-1", "ped-1-c1", 40000, {}, {
+        ...DESPUES,
+        fee_details: [{ type: "mercadopago_fee", amount: 1000 }, { type: "application_fee", amount: 2300 }],
+        platform_fee_metadata: { own_minor: "200000", withheld_minor: "230000" },
+      }),
+    );
+    expect(r.resultado).toBe("acreditado");
+    const c = B.datos.fotofficeCobro[0]!;
+    expect([c.feeArs, c.netArs]).toEqual(["3300.00", "36700.00"]);
+    const egreso = B.datos.cashMovement.find((m) => m.sourceModule === "pedidos-comision")!;
+    expect(egreso).toMatchObject({ kind: "EGRESO", amountArs: "3300.00" });
+    expect(String(egreso.description)).toMatch(/^Comisiones Mercado Pago y plataforma · pedido N° /);
+    const ret = B.datos.workspaceFeeLedgerEntry.find((a) => a.kind === "RETENIDO")!;
+    expect(ret.amountArs).toBe("-300.00");
+    expect(B.datos.digitalizacionComision).toEqual([expect.objectContaining({ cobroId: c.id, ledgerEntryId: ret.id })]);
+    expect(B.datos.workspaceFeeLedgerEntry.filter((a) => a.kind === "DEVENGADO")).toHaveLength(1);
+  });
+
+  it("un pago sin retención (abierto antes de la entrega) devenga como un cobro manual", async () => {
+    const r = await MP.acreditarPagoMp("ws-1", pago("pay-1", "ped-1-c1", 40000, {}, DESPUES));
+    expect(r.resultado).toBe("acreditado");
+    expect(B.datos.workspaceFeeLedgerEntry.map((a) => [a.kind, a.amountArs])).toEqual([["DEVENGADO", "2000.00"]]);
+    expect(B.datos.digitalizacionComision).toHaveLength(1);
+    const egreso = B.datos.cashMovement.find((m) => m.sourceModule === "pedidos-comision")!;
+    expect(String(egreso.description)).toMatch(/^Comisión Mercado Pago · /);
+  });
+
+  it("si la marca falla, el cobro tampoco queda (como cualquier falla de la acreditación)", async () => {
+    const original = B.tablas.digitalizacionComision.create;
+    B.tablas.digitalizacionComision.create = async () => {
+      throw new Error("se cayó la base");
+    };
+    const r = await MP.acreditarPagoMp("ws-1", pago("pay-1", "ped-1-c1", 40000, {}, { ...DESPUES, fee_details: [{ type: "application_fee", amount: 2000 }] }));
+    B.tablas.digitalizacionComision.create = original;
+    expect(r.resultado).toBe("sin_aplicar");
+    expect(B.datos.fotofficeCobro).toHaveLength(0);
+    expect(B.datos.workspaceFeeLedgerEntry).toHaveLength(0);
+    // La tarea para el equipo dice cuánto retuvo la plataforma.
+    expect(JSON.stringify(B.datos.fotofficePedidoTarea)).toContain("La plataforma ya retuvo 2.000 pesos de comisión de este pago");
+  });
+
+  it("un pago sin aplicar sin retención no habla de la plataforma", async () => {
+    await MP.acreditarPagoMp("ws-1", pago("pay-1", "ped-1-c1", 999999, {}, DESPUES));
+    expect(JSON.stringify(B.datos.fotofficePedidoTarea)).toContain("no se pudo aplicar");
+    expect(JSON.stringify(B.datos.fotofficePedidoTarea)).not.toContain("retuvo");
+  });
+
+  it("sólo cuenta el application_fee: con metadatos pero sin application_fee, devenga", async () => {
+    await MP.acreditarPagoMp("ws-1", pago("pay-1", "ped-1-c1", 40000, {}, { ...DESPUES, platform_fee_metadata: { own_minor: "200000", withheld_minor: "200000" } }));
+    expect(B.datos.workspaceFeeLedgerEntry.map((a) => [a.kind, a.amountArs])).toEqual([["DEVENGADO", "2000.00"]]);
+  });
+
+  it("un application_fee inválido se ignora y no anula la comisión de Mercado Pago", async () => {
+    await MP.acreditarPagoMp(
+      "ws-1",
+      pago("pay-1", "ped-1-c1", 40000, {}, { ...DESPUES, fee_details: [{ type: "mercadopago_fee", amount: 1000 }, { type: "application_fee", amount: "x" }] }),
+    );
+    expect(B.datos.fotofficeCobro[0]!.feeArs).toBe("1000.00");
+    expect(B.datos.workspaceFeeLedgerEntry.map((a) => a.kind)).toEqual(["DEVENGADO"]);
+  });
+
+  it("si la tasa no se puede leer, la preferencia no retiene (lo concilia el cron después)", async () => {
+    const original = B.tablas.workspaceModuleFee.findUnique;
+    B.tablas.workspaceModuleFee.findUnique = async () => {
+      throw new Error("se cayó la base");
+    };
+    await MP.iniciarPagoCuota({ workspaceId: "ws-1", pedidoId: "ped-1", cuotaId: "ped-1-c1" });
+    B.tablas.workspaceModuleFee.findUnique = original;
+    expect(H.preferencia.mock.calls[0]![0]).not.toHaveProperty("marketplaceFeeMinor");
+  });
+
+  it("la devolución de un pago que canceló deuda la vuelve a dejar pendiente, una sola vez", async () => {
+    B.agregar("workspaceFeeLedgerEntry", { workspaceId: "ws-1", kind: "DEVENGADO", amountArs: "300.00" });
+    const crudo = {
+      ...DESPUES,
+      fee_details: [{ type: "application_fee", amount: 2300 }],
+      platform_fee_metadata: { own_minor: "200000", withheld_minor: "230000" },
+    };
+    await MP.acreditarPagoMp("ws-1", pago("pay-1", "ped-1-c1", 40000, {}, crudo));
+    const devuelto = pago("pay-1", "ped-1-c1", 40000, { status: "REFUNDED" }, { ...crudo, status: "refunded" });
+    await MP.avisarDevolucionMp("ws-1", devuelto);
+    await MP.avisarDevolucionMp("ws-1", devuelto);
+    expect(B.datos.workspaceFeeLedgerEntry.map((a) => [a.kind, a.amountArs])).toEqual([["DEVENGADO", "300.00"], ["RETENIDO", "-300.00"], ["REVERSADO", "300.00"]]);
   });
 });

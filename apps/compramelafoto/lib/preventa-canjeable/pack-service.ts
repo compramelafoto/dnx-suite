@@ -107,6 +107,8 @@ export type PublicCatalogPackRow = {
     selectionMode: BenefitSelectionMode;
     requiredPhotoCount: number;
     extraUnitPriceOverrideArs: number | null;
+    /** Precio final por unidad después de la preventa: con esto se arma el precio de lista tachado. */
+    regularUnitPriceAfterPreventaArs?: number | null;
     photographerProduct: { name: string } | null;
   }>;
 };
@@ -146,6 +148,7 @@ export async function listActivePacksForPublicCatalog(
           selectionMode: true,
           requiredPhotoCount: true,
           extraUnitPriceOverrideArs: true,
+          regularUnitPriceAfterPreventaArs: true,
           photographerProduct: { select: { name: true } },
         },
       },

@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   ARCHIVOS_DEMO,
+  RETRATOS_DE_COMPANEROS,
+  mosaicoDeDemo,
   FOTO_DE_MUESTRA_DATA_URL,
   archivosNecesarios,
   categoriaDeMeta,
@@ -26,6 +28,7 @@ test("los archivos esperados son exactamente los acordados", () => {
     "comunion-con-catequista.jpg",
     "comunion-detalle.jpg",
     "comunion-grupal.jpg",
+    "comunion-momento.jpg",
     "comunion-retrato-1.jpg",
     "comunion-retrato-2.jpg",
     "con-maestra-jardin.jpg",
@@ -132,9 +135,13 @@ test("religiosas: el evento elige las fotos", () => {
     assert.equal(c.archivos.individual, `comunion-retrato-${c.variante}.jpg`);
     assert.equal(c.archivos.grupal, "comunion-grupal.jpg");
     assert.equal(c.archivos.maestra, "comunion-con-catequista.jpg");
-    assert.equal(c.archivos.extra, "comunion-detalle.jpg");
+    // Foto libre: con nena, la nena con la vela en la misa; con nene, el detalle de las manos.
+    assert.equal(c.archivos.extra, c.variante === 1 ? "comunion-momento.jpg" : "comunion-detalle.jpg");
+    for (const a of Object.values(c.archivos)) assert.ok(ARCHIVOS_DEMO.includes(a), a);
     assert.equal(c.curso, "Primera Comunión 2026");
   }
+  const variantes = new Set(["a", "b", "c", "d", "e", "f"].map((templateId) => demoDePlantilla({ templateId, meta: { categoria: "Religioso", evento: "Primera Comunión" } }).archivos.extra));
+  assert.deepEqual([...variantes].sort(), ["comunion-detalle.jpg", "comunion-momento.jpg"]);
   const conf = demoDePlantilla({ templateId: "a", meta: { categoria: "Religioso", evento: "Confirmación" } });
   assert.equal(conf.archivos.individual, "confirmacion-retrato.jpg");
   assert.equal(conf.archivos.grupal, "confirmacion-grupal.jpg");
@@ -221,4 +228,18 @@ test("el sello de la miniatura cambia cuando se suben las fotos", () => {
   assert.notEqual(una, todas);
   assert.equal(todas, selloDeDemo({ "a.jpg": true, "b.jpg": true }));
   assert.match(todas, /^2de2-[0-9a-z]+$/);
+});
+
+test("el mosaico de demo lleva a los compañeros sin el alumno, con retratos de demo en ronda", () => {
+  const demo = demoDePlantilla({ templateId: "t1", meta: { categoria: "Primaria" } });
+  const url = (archivo: string) => `https://r2.example/template-v2/demo/${archivo}`;
+  const mosaico = mosaicoDeDemo(demo, url);
+  const companeros = demo.companeros.filter((c) => !c.isOwner);
+  assert.equal(mosaico.length, companeros.length);
+  assert.ok(!mosaico.some((s) => s.firstName === demo.alumno.firstName && s.lastName === demo.alumno.lastName));
+  assert.ok(mosaico.every((s) => s.photoUrl && RETRATOS_DE_COMPANEROS.some((a) => s.photoUrl === url(a))));
+  // En ronda: los primeros no repiten foto.
+  assert.notEqual(mosaico[0]!.photoUrl, mosaico[1]!.photoUrl);
+  // Sin el archivo subido, el chico va sin foto (silueta), nunca con la foto de otro archivo.
+  assert.ok(mosaicoDeDemo(demo, () => null).every((s) => s.photoUrl === undefined));
 });

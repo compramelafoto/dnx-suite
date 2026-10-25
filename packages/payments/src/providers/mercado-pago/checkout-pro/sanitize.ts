@@ -36,8 +36,20 @@ export function sanitizeMercadoPagoPaymentResponse(
     date_approved: typeof body.date_approved === "string" ? body.date_approved : null,
     // Comisiones que MP descontó (tipo y monto en pesos): sirven para el neto de un cobro. No son datos personales.
     fee_details: sanitizeFeeDetails(body.fee_details),
+    // Sólo las dos cifras de la comisión de plataforma que FOTOFFICE pone en la metadata de la
+    // preferencia (centavos, como texto). El resto de la metadata no se copia.
+    platform_fee_metadata: sanitizePlatformFeeMetadata(body.metadata),
     // omit payer, card, token, phone, email
   };
+}
+
+function sanitizePlatformFeeMetadata(raw: unknown): { own_minor: string; withheld_minor: string } | null {
+  if (typeof raw !== "object" || raw === null) return null;
+  const m = raw as Record<string, unknown>;
+  const digits = (v: unknown) => (typeof v === "string" && /^\d{1,12}$/.test(v) ? v : typeof v === "number" && Number.isInteger(v) && v >= 0 ? String(v) : null);
+  const own = digits(m.fo_comision_propia_minor);
+  const withheld = digits(m.fo_retencion_minor);
+  return own !== null && withheld !== null ? { own_minor: own, withheld_minor: withheld } : null;
 }
 
 function sanitizeFeeDetails(raw: unknown): Array<{ type: string; amount: number }> {

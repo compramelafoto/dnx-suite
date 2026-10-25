@@ -8,6 +8,7 @@
  * aunque mañana se sumen campos internos al ítem, no llegan solos a la página.
  */
 import type { Descuento, ItemPresupuesto } from "./constantes";
+import { condicionesDeInstantanea } from "@/lib/pedidos/opciones-pago";
 import { opcionesPublicas, type OpcionPublica } from "./opciones-pago";
 import type { TotalesGuardados } from "./versiones";
 
@@ -42,6 +43,22 @@ export type VistaPublica = {
   opcionesPago: OpcionPublica[];
   /** Sólo si ESTA versión se aceptó. `opcion`: la forma de pago elegida, o null. */
   aceptacion: { fecha: string; nombre: string; opcion: string | null } | null;
+  /**
+   * Condiciones de cobro congeladas al enviar (etapa B): IVA, seña, descuento por transferencia y
+   * política de cancelación. null en las versiones sin ellas (todo como antes).
+   */
+  cobro: {
+    ivaPorcentaje: number;
+    iva: number;
+    totalConIva: number;
+    senaPorcentaje: number;
+    descuentoTransferencia: number;
+    politicaCancelacion: string | null;
+  } | null;
+  /** La organización puede cobrar con Mercado Pago (si no, sólo se ofrecen transferencia o efectivo). */
+  mercadoPago: boolean;
+  /** Aceptado y con pedido: el enlace del pedido (para pagar la seña). */
+  pedidoUrl: string | null;
 };
 
 const numero = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);
@@ -77,11 +94,18 @@ export function armarVistaPublica(args: {
     acceptedName: string | null;
   };
   validUntil: Date | null;
+  /** Por omisión, sí (como antes de la etapa B). */
+  mercadoPago?: boolean;
+  pedidoUrl?: string | null;
 }): VistaPublica {
   const t = args.version.totals;
   const renglones = t?.renglones ?? {};
-  const opcionesPago = opcionesPublicas(args.version.paymentOptions);
-  const elegida = opcionesPago.find((o) => o.id === args.version.chosenPaymentOptionId)?.etiqueta ?? null;
+  const mercadoPago = args.mercadoPago !== false;
+  // La forma de pago ya elegida se busca entre todas (aunque hoy no haya Mercado Pago).
+  const todas = opcionesPublicas(args.version.paymentOptions);
+  const opcionesPago = opcionesPublicas(args.version.paymentOptions, { mercadoPago });
+  const c = condicionesDeInstantanea(args.version.paymentOptions);
+  const elegida = todas.find((o) => o.id === args.version.chosenPaymentOptionId)?.etiqueta ?? null;
   return {
     estado: args.estado,
     organizacion: {
@@ -118,6 +142,18 @@ export function armarVistaPublica(args: {
       args.estado === "ACEPTADO" && args.version.acceptedAt
         ? { fecha: fechaHoraBA.format(args.version.acceptedAt).replace(",", ""), nombre: args.version.acceptedName ?? "", opcion: elegida }
         : null,
+    cobro: c
+      ? {
+          ivaPorcentaje: c.ivaPorcentaje,
+          iva: c.iva,
+          totalConIva: c.total,
+          senaPorcentaje: c.senaPorcentaje,
+          descuentoTransferencia: c.descuentoTransferenciaPorcentaje,
+          politicaCancelacion: c.politicaCancelacion,
+        }
+      : null,
+    mercadoPago,
+    pedidoUrl: args.estado === "ACEPTADO" ? (args.pedidoUrl ?? null) : null,
   };
 }
 

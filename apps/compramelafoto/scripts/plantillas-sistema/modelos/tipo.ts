@@ -1,4 +1,4 @@
-import type { Armador } from "../lienzo";
+import type { Armador, RolFoto } from "../lienzo";
 
 /** Un modelo de librito: sus dos fondos (SVG) y sus bloques. */
 export type Modelo = {
@@ -24,9 +24,24 @@ export type Modelo = {
   };
   fondoExterior: () => string;
   fondoInterior: () => string;
+  /**
+   * Tercera página: la plancha de figuritas para imprimir en papel autoadhesivo y recortar (sólo
+   * los álbumes de figuritas). Se imprime plana: no tiene doblez.
+   */
+  fondoPlancha?: () => string;
   /** Agrega los bloques. Los fondos se agregan solos (zIndex 1 de cada página). */
   armar: (a: Armador) => void;
+  /**
+   * Otro nombre para alguna foto que se le pide a la familia (va a `metaJson.photoInputs` y lo
+   * muestra el canje). Por ejemplo `{ maestra: "Foto con la catequista" }`.
+   */
+  etiquetasDeFotos?: Partial<Record<RolFoto, string>>;
+  /** Tanda a la que pertenece, para generar sólo esa con `--serie=<nombre>` (con su SQL). */
+  serie?: string;
 };
 
-export const archivoFondo = (slug: string, pagina: "exterior" | "interior") => `librito-${slug}-${pagina}.jpg`;
+/** Categorías del catálogo. */
+export const CATEGORIAS = ["Jardín", "Primaria", "Secundaria", "Egresados", "Formal", "Informal", "Religioso"] as const;
+
+export const archivoFondo = (slug: string, pagina: "exterior" | "interior" | "plancha") => `librito-${slug}-${pagina}.jpg`;
 export const archivoMiniatura = (slug: string) => `librito-${slug}-miniatura.jpg`;

@@ -11,6 +11,13 @@ import { DatosProyecto } from "@/components/proyectos/datos-proyecto";
 import { NotasProyecto } from "@/components/proyectos/notas-proyecto";
 import { ParticipantesProyecto } from "@/components/proyectos/participantes-proyecto";
 import { PlanProyecto } from "@/components/proyectos/plan-proyecto";
+import { ProveedorProyecto } from "@/components/proyectos/proveedor-proyecto";
+import { CarpetaProyecto } from "@/components/proyectos/carpeta-proyecto";
+import { PedidoDelTrabajo } from "@/components/impresiones/pedido-del-trabajo";
+import { pedidoDelTrabajo } from "@/lib/impresiones/trabajo-servidor";
+import { fotolibroDelTrabajo } from "@/lib/fotolibro/venta-servidor";
+import { listarArchivos } from "@/lib/carpetas/carpeta";
+import { leerProveedorDelTrabajo } from "@/lib/proyectos/proveedor";
 import { ReasignarTareas } from "@/components/proyectos/reasignar-tareas";
 import { TarjetaCitas } from "@/components/agenda/tarjeta-citas";
 import { TarjetaGaleriasProyecto } from "@/components/galerias/tarjeta-galerias-proyecto";
@@ -25,6 +32,7 @@ import { galeriasDeProyecto } from "@/lib/galerias/galerias";
 import { ORDERS_MODULE_KEY } from "@/lib/pedidos/acceso";
 import { PROJECTS_MODULE_KEY } from "@/lib/proyectos/acceso";
 import { cargarFichaProyecto } from "@/lib/proyectos/ficha";
+import { leerCandadoDeLaFicha } from "@/lib/proyectos/candado-ficha";
 import { prepararProyectos, requireProyectos } from "@/lib/proyectos/pagina";
 import { resolveWorkspaceRole } from "@/lib/workspace-role";
 
@@ -44,7 +52,16 @@ export default async function FichaProyectoPage({ params }: { params: Promise<{ 
   if (!ID_VALIDO.test(id)) notFound();
   await prepararProyectos(workspace.id);
 
-  const [ficha, role] = await Promise.all([cargarFichaProyecto(ctx, id, new Date()), resolveWorkspaceRole(user.id, workspace.id)]);
+  const [ficha, role, proveedor, pedidoImpresion, fotolibro] = await Promise.all([
+    cargarFichaProyecto(ctx, id, new Date()),
+    resolveWorkspaceRole(user.id, workspace.id),
+    leerProveedorDelTrabajo(ctx, id),
+    // Sólo si el trabajo nació de un pedido de copias impresas (acotado al workspace de la sesión).
+    pedidoDelTrabajo(workspace.id, id),
+    // El fotolibro vendido en el Cobrador (ver `lib/fotolibro/venta-servidor.ts`).
+    fotolibroDelTrabajo(workspace.id, id),
+  ]);
+  const archivos = adjuntosR2Configurado() ? await listarArchivos(ctx, id) : null;
   if (!ficha) notFound();
   // Tarjeta "Citas": sólo con el módulo Agenda encendido y "Ver" en Agenda (si no, null y no se lee nada).
   const citas = await citasDeOrigen(ctx, { proyectoId: ficha.id });
@@ -58,6 +75,12 @@ export default async function FichaProyectoPage({ params }: { params: Promise<{ 
   const vePedido = puedeEnContexto(ctx, "ver", ORDERS_MODULE_KEY);
   const { recorrido } = ficha;
   const abierto = recorrido?.recorrido.abierto === true;
+  // Candado del saldo: si el pedido debe plata, la ficha lo dice y no ofrece entregar (el motor
+  // lo rechazaría igual, con el mismo mensaje).
+  const candado =
+    abierto && recorrido && ficha.pedido
+      ? await leerCandadoDeLaFicha(workspace.id, { pedidoId: ficha.pedido.id, circuitId: recorrido.recorrido.circuito.id, etapaActualId: recorrido.recorrido.etapaActualId })
+      : null;
 
   // Nombre de cada persona del equipo del workspace (responsable, delegado, dueños de tareas).
   const nombres: Record<string, string> = {};
@@ -114,6 +137,31 @@ export default async function FichaProyectoPage({ params }: { params: Promise<{ 
               </Link>
             </section>
           ) : null}
+          {fotolibro ? (
+            <section aria-labelledby="fotolibro-titulo" className="fo-card space-y-2 p-4">
+              <h2 id="fotolibro-titulo" className="text-sm font-semibold uppercase tracking-wide text-[var(--fo-muted-soft)]">
+                Fotolibro
+              </h2>
+              <p className="text-sm font-medium text-[var(--fo-text)]">{fotolibro.nombre}</p>
+              <Link href={fotolibro.url} target="_blank" className="fo-btn fo-btn-primary text-sm">
+                Abrir el fotolibro
+              </Link>
+            </section>
+          ) : null}
+          {pedidoImpresion ? <PedidoDelTrabajo pedido={pedidoImpresion} puedeEditar={puedeEditar} /> : null}
+          {proveedor ? (
+            <ProveedorProyecto
+              key={`${proveedor.proveedorId ?? ""}:${proveedor.enviadoAt?.toISOString() ?? ""}`}
+              proyectoId={ficha.id}
+              inicial={proveedor}
+              proveedores={proveedor.proveedores}
+              enviadoAt={proveedor.enviadoAt ? proveedor.enviadoAt.toISOString() : null}
+              puedeEditar={puedeEditar}
+            />
+          ) : null}
+          {archivos ? (
+            <CarpetaProyecto proyectoId={ficha.id} archivos={archivos} vence={proveedor?.carpetaVence ?? null} puedeEditar={puedeEditar} />
+          ) : null}
           {galerias ? <TarjetaGaleriasProyecto proyectoId={ficha.id} galerias={galerias} puedeCrear={puedeGestionarGalerias(ctx)} /> : null}
           <ParticipantesProyecto
             proyectoId={ficha.id}
@@ -139,6 +187,7 @@ export default async function FichaProyectoPage({ params }: { params: Promise<{ 
                 motivos={ficha.motivos}
                 responsables={ficha.equipo}
                 puedePasarIgual={puede(role, "configurar")}
+                candado={candado}
               />
               <PlanProyecto plan={ficha.plan} atraso={ficha.atraso} />
               <Tareas key={recorrido.recorrido.id} journeyId={recorrido.recorrido.id} tareas={recorrido.tareas} abierto={abierto} responsables={ficha.miembros} />

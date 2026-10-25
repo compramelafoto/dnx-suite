@@ -1238,6 +1238,15 @@ export async function DELETE(
       return NextResponse.json({ error: "No autorizado para eliminar este álbum" }, { status: 403 });
     }
 
+    // Álbum de agencia: no se borra ni se transfiere hasta quitarlo de la agencia.
+    const agencyLink = await prisma.agencyAlbum.findUnique({ where: { albumId }, select: { id: true } });
+    if (agencyLink) {
+      return NextResponse.json(
+        { error: "Este álbum es de tu agencia. Quitalo de la agencia en Agencias → Mi agencia antes de eliminarlo." },
+        { status: 409 }
+      );
+    }
+
     const isOwner = album.userId === user.id;
     const myPhotos = album.photos.filter(
       (p) => p.userId === user.id || (p.userId == null && isOwner)

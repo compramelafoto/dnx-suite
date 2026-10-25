@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { OrderOrigin, OrderStatus, Role, prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
 import { recuperarLinksDePack } from "@/lib/preventa-canjeable/recuperar-pack";
+import { isPlaceholderEmail } from "@/lib/canje-externo/external-preventa";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -46,7 +47,9 @@ export async function POST(req: NextRequest) {
   let sinEmail = 0;
   for (const p of pedidos) {
     const email = p.buyerEmail?.trim() ?? "";
-    if (!email.includes("@")) {
+    // Los packs cobrados por fuera tienen un email de relleno hasta que la familia canjea: a
+    // esos el link les llega por WhatsApp desde el panel Canjes, no por correo.
+    if (!email.includes("@") || isPlaceholderEmail(email)) {
       sinEmail += 1;
       continue;
     }

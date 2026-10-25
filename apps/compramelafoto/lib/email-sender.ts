@@ -9,8 +9,9 @@ import {
   markEmailFailed,
   renderTemplate,
 } from "./email-queue";
-import { emailSignature } from "@/emails/signature";
+import { textToEmailHtml, wrapEmailLayout } from "@/emails/layout";
 import { Resend } from "resend";
+import { filtrarDestinatariosDePrueba } from "@/lib/demos/identidad";
 
 /**
  * Envía un email usando Resend
@@ -22,6 +23,12 @@ async function sendEmailViaProvider(params: {
   bodyHtml?: string;
 }): Promise<{ success: boolean; error?: string }> {
   const { to, subject, bodyText, bodyHtml } = params;
+
+  // Demos con datos falsos: un destinatario `.test` no recibe nada (ni existe).
+  if (filtrarDestinatariosDePrueba(to).enviar.length === 0) {
+    console.info("[DEMO] correo descartado", { to, subject });
+    return { success: true };
+  }
 
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
@@ -74,11 +81,10 @@ export async function processEmailQueueItem() {
       subject = rendered.subject;
       bodyText = rendered.bodyText;
       bodyHtml = rendered.bodyHtml;
-      // Firma con logo ComprameLaFoto (como en el resto de plantillas)
-      if (bodyHtml) {
-        bodyHtml = `<div style="font-family: Arial, sans-serif; font-size: 15px; color: #111827; line-height: 1.6;">${bodyHtml}${emailSignature()}</div>`;
-      }
     }
+
+    // Todo correo de la cola sale con el diseño de ComprameLaFoto (logo, tarjeta y pie)
+    bodyHtml = wrapEmailLayout(bodyHtml || textToEmailHtml(bodyText));
 
     // Enviar email
     const result = await sendEmailViaProvider({

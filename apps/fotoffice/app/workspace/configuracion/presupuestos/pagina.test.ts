@@ -39,8 +39,8 @@ describe("Configuración → Presupuestos", () => {
     expect(a.startsWith('"use server";')).toBe(true);
     expect(a.match(/^export (?!async function |type )/gm)).toBeNull();
     const acciones = a.split("export async function ").slice(1);
-    expect(acciones.length).toBe(4);
-    const llamadas = ["guardarAjustes(", "guardarPropuestaModelo(", "borrarPropuestaModelo(", "guardarBorradorAuto("];
+    expect(acciones.length).toBe(5);
+    const llamadas = ["guardarAjustes(", "guardarPropuestaModelo(", "borrarPropuestaModelo(", "guardarBorradorAuto(", "guardarAjustesCobro("];
     acciones.forEach((cuerpo, i) => {
       const ctx = cuerpo.indexOf("await contexto()");
       expect(ctx).toBeGreaterThan(0);
@@ -129,5 +129,26 @@ describe("Configuración → Presupuestos", () => {
     expect(p.indexOf("categoriasConBorradorAuto(")).toBeGreaterThan(p.indexOf('puede(role, "configurar")'));
     expect(p).toContain("sqlPendiente={conBorrador === null}");
     expect(aqui("propuestas/page.tsx")).toContain("Borrador automático");
+  });
+});
+
+describe("Configuración → Presupuestos: cobro al aceptar (etapa B)", () => {
+  it("lee los ajustes de cobro después de `configurar` y muestra el formulario", () => {
+    const p = aqui("page.tsx");
+    const guarda = p.indexOf('puede(role, "configurar")');
+    expect(p.indexOf("leerAjustesCobro(")).toBeGreaterThan(guarda);
+    expect(p.indexOf("puedeCobrarConMercadoPago(")).toBeGreaterThan(guarda);
+    expect(p).toContain("<CobroForm ajustes={cobro} mercadoPago={mercadoPago} />");
+  });
+
+  it("la acción pasa por el contexto con `configurar` y usa guardarAjustesCobro (que valida)", () => {
+    const a = aqui("actions.ts");
+    const f = a.slice(a.indexOf("export async function guardarAjustesCobroAction"));
+    expect(f.indexOf("await contexto()")).toBeLessThan(f.indexOf("guardarAjustesCobro(ctx"));
+    expect(f).toContain('fd.get("autoConfirmarPedido") === "on"');
+  });
+
+  it("el interruptor nace apagado", () => {
+    expect(leer("lib", "cobro-ajustes", "datos.ts")).toMatch(/AJUSTES_COBRO_DE_FABRICA: AjustesCobro = \{\s*autoConfirmarPedido: false/);
   });
 });

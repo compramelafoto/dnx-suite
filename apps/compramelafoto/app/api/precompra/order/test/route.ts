@@ -49,6 +49,7 @@ export async function POST(req: NextRequest) {
       studentFirstName,
       studentLastName,
       albumRosterEntryId,
+      organizerReferralSchoolId,
       items,
     } = parsePrecompraRequest(body);
 
@@ -94,6 +95,13 @@ export async function POST(req: NextRequest) {
         { status: 403 }
       );
     }
+
+    // Igual que la preventa real: el link del colegio (`?ref=school_<id>`) le da su comisión.
+    const referralSchoolIdNum = Number(organizerReferralSchoolId);
+    const resolvedOrganizerReferralSchoolId =
+      Number.isInteger(referralSchoolIdNum) && referralSchoolIdNum > 0 && album.schoolId === referralSchoolIdNum
+        ? referralSchoolIdNum
+        : null;
 
     const isSchool = isSchoolAlbum(album);
     const preventaReqs = getPreventaRequirements(album);
@@ -248,8 +256,10 @@ export async function POST(req: NextRequest) {
         isTest: true,
         checkoutPaymentSource: CheckoutPaymentSource.SIMULATED,
         preventaReqs,
-        organizerReferralSchoolId: null,
-      })
+        organizerReferralSchoolId: resolvedOrganizerReferralSchoolId,
+      }),
+      // Pedido de simulación: se usa en vivo en las demos; mejor esperar que fallar a mitad.
+      { timeout: 20_000 }
     );
 
     console.info(LOG, {

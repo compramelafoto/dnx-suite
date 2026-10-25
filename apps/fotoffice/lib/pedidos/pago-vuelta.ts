@@ -20,7 +20,11 @@ const MOTIVOS: Record<string, string> = {
   sinDireccion: "No pudimos abrir el pago. Escribile a la organización.",
   sinEnlace: "No pudimos abrir el pago. Escribile a la organización.",
   fallo: "No pudimos abrir el pago. Probá de nuevo en unos minutos.",
+  sinDatos: "La organización todavía no cargó sus datos para transferir. Escribile para pagar de otra forma.",
+  sinMontoUnico: "No pudimos reservar un monto para tu transferencia. Escribile a la organización.",
 };
+
+const TRANSFERENCIA = "Anotamos que vas a transferir. Usá los datos de abajo y transferí el monto exacto: cuando la organización la reciba, te llega el recibo.";
 
 const PENDIENTE = "Tu pago está en proceso. Te avisamos cuando se acredite.";
 
@@ -38,6 +42,7 @@ export function avisoDeVuelta(pago: unknown, motivo: unknown, verificacion: Resu
     return { tono: "error", conRecibo: false, texto: mensajeDeMotivo(motivo) ?? "No se pudo completar el pago. Podés intentarlo de nuevo." };
   }
   if (pago === "pendiente") return { tono: "info", conRecibo: false, texto: PENDIENTE };
+  if (pago === "transferencia") return { tono: "ok", conRecibo: false, texto: TRANSFERENCIA };
   if (pago !== "ok") return null;
   switch (verificacion) {
     case "acreditado":

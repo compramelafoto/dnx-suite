@@ -1,3 +1,5 @@
+import { esCorreoDePrueba } from "@/lib/demos/identidad";
+import { esEscuelaDemo } from "@/lib/demos/visibilidad";
 import { NextRequest, NextResponse } from "next/server";
 import { hashPassword } from "@repo/auth";
 import { Role, SchoolOrganizerStatus } from "@prisma/client";
@@ -51,6 +53,9 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     }
     if (!isValidEmail(email)) {
       return NextResponse.json({ error: "Email inválido." }, { status: 400 });
+    }
+    if (!esCorreoDePrueba(email) && (await esEscuelaDemo(schoolId))) {
+      return NextResponse.json({ error: "Esto es una demo: usá un correo @demo.compramelafoto.test." }, { status: 400 });
     }
     if (password.length < 8) {
       return NextResponse.json(

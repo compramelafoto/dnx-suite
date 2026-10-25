@@ -38,7 +38,7 @@ export function MoverA({
 
   return (
     <form
-      className="flex gap-1"
+      className="flex items-center gap-1"
       onSubmit={(ev) => {
         ev.preventDefault();
         if (!destino) return;
@@ -48,7 +48,7 @@ export function MoverA({
     >
       <select
         aria-label={`Mover a… (${titulo})`}
-        className="fo-input h-8 min-w-0 flex-1 py-0 text-xs"
+        className="h-7 min-w-0 flex-1 cursor-pointer rounded-md border border-transparent bg-transparent px-1.5 text-xs text-[var(--fo-muted)] outline-none transition-colors hover:bg-[var(--fo-surface-hover)] hover:text-[var(--fo-text)] focus-visible:border-[var(--fo-accent)] focus-visible:text-[var(--fo-text)] disabled:cursor-not-allowed disabled:opacity-50"
         value={elegido}
         disabled={deshabilitado}
         onChange={(ev) => setElegido(ev.target.value)}
@@ -71,9 +71,12 @@ export function MoverA({
           ))}
         </optgroup>
       </select>
-      <button type="submit" className="fo-btn fo-btn-secondary h-8 px-2 text-xs" disabled={deshabilitado || !destino} aria-label={`Mover ${titulo}`}>
-        Mover
-      </button>
+      {/* El botón aparece al elegir un destino: elegir en la lista sola no mueve nada. */}
+      {destino ? (
+        <button type="submit" className="fo-btn fo-btn-primary h-7 min-h-0! px-3! text-xs!" disabled={deshabilitado || !destino} aria-label={`Mover ${titulo}`}>
+          Mover
+        </button>
+      ) : null}
     </form>
   );
 }

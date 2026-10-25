@@ -27,6 +27,15 @@ describe("recuperarLinksDePack", () => {
     expect(await recuperarLinksDePack("nada")).toEqual({ enviados: 0 });
     expect(m.find).not.toHaveBeenCalled();
   });
+  it("el email de relleno de los packs cobrados por fuera → 0 sin consultar ni revocar", async () => {
+    expect(await recuperarLinksDePack("sin-email@canje-externo.invalid")).toEqual({ enviados: 0 });
+    expect(await recuperarLinksDePack(" SIN-EMAIL@canje-externo.INVALID ", { soloPedidoId: 4339 })).toEqual({
+      enviados: 0,
+    });
+    expect(m.find).not.toHaveBeenCalled();
+    expect(m.token).not.toHaveBeenCalled();
+    expect(m.mail).not.toHaveBeenCalled();
+  });
   it("sin soloPedidoId el where no filtra por id", async () => {
     m.find.mockResolvedValue([]);
     expect(await recuperarLinksDePack(" A@B.com ")).toEqual({ enviados: 0 });

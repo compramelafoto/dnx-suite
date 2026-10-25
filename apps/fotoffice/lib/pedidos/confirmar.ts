@@ -9,10 +9,11 @@ import { MENSAJES_PEDIDO, puedeGestionarPedidos, type CtxPedidos } from "./acces
 import { copiarTareasAlPedido, leerPlantillasChecklist, titulosParaPedidoNuevo } from "./checklist";
 import { OPCIONES_TRANSACCION_PEDIDO } from "./constantes";
 import { crearCuentasDelPedido } from "./cuentas-pagar";
-import { buscarOpcion, opcionesParaPresupuesto, parsePaymentOptionsSnapshot, type OpcionPago } from "./opciones-pago";
+import { contextoDeSistema, type CtxCircuitos } from "@/lib/circuitos/acceso";
+import { buscarOpcion, condicionesDeInstantanea, opcionesParaPresupuesto, parsePaymentOptionsSnapshot, type OpcionPago } from "./opciones-pago";
 import { leerCuotasEditadas, type CuotaParaGuardar } from "./plan";
 import { planDesdeOpcion, validarPlan, type AvisoPlan, type CuotaPlan } from "./plan-cuotas";
-import { etiquetaDeEvento, insertarPedido, nombreDeContacto, rubroDeItems } from "./pedidos";
+import { apartarStock, etiquetaDeEvento, insertarPedido, nombreDeContacto, rubroDeItems } from "./pedidos";
 
 /**
  * "Confirmar pedido" desde un presupuesto aceptado (spec §2 A.2 y §5).
@@ -135,7 +136,9 @@ async function preparar(cliente: Lector, workspaceId: string, presupuestoId: str
     opcion = buscarOpcion(snapshot, v.chosenPaymentOptionId) ?? buscarOpcion(snapshot, null);
   }
   const total = opcion ? opcion.total : totalPresupuesto;
-  const plan = opcion && total > 0 ? planDesdeOpcion(opcion, { desde: hoy, fechaEvento }) : { cuotas: [], aviso: null };
+  // Condiciones de cobro congeladas al enviar (etapa B): la seña es la cuota 1.
+  const senaPorcentaje = condicionesDeInstantanea(v.paymentOptions)?.senaPorcentaje ?? 0;
+  const plan = opcion && total > 0 ? planDesdeOpcion(opcion, { desde: hoy, fechaEvento, senaPorcentaje }) : { cuotas: [], aviso: null };
   const items = itemsGuardados(v.items);
   const incomeCategoryId = await rubroDeItems(cliente, workspaceId, items);
 
@@ -281,50 +284,109 @@ export async function confirmarPedido(
       }
       const tareas = await titulosParaPedidoNuevo(tx, workspaceId, checklist);
       if (!tareas.ok) throw new Corte(tareas.error);
-      const r = await insertarPedido(tx, {
-        workspaceId,
-        presupuestoId,
-        acceptedVersionId: d.acceptedVersionId,
-        consultaLeadId: d.consultaLeadId,
-        clientId: d.clientId,
-        items: d.items,
-        totals: d.totals,
-        total: d.total,
-        paymentOption: d.opcion,
-        eventDate: d.fechaEvento,
-        eventLabel: d.eventLabel,
-        incomeCategoryId: d.incomeCategoryId,
-        ownerUserId: d.ownerUserId,
-        createdByUserId: ctx.userId,
-        cuotas,
-        ahora,
+      return escribirPedido(tx, d, {
+        ctx, cuotas, aviso, titulos: tareas.titulos, createdByUserId: ctx.userId, conProyectos, conCitas, omitidos, citasSinCrear, ahora,
       });
-      await copiarTareasAlPedido(tx, { workspaceId, pedidoId: r.id, titulos: tareas.titulos });
-      await crearCuentasDelPedido(tx, { workspaceId, pedidoId: r.id, items: d.items, fechaEvento: d.fechaEvento, createdByUserId: ctx.userId });
-      if (conProyectos) {
-        await crearProyectosDelPedido(tx, ctx, {
-          pedidoId: r.id, clientId: d.clientId, items: d.items, fechaEvento: d.fechaEvento, eventLabel: d.eventLabel,
-          numeroPedido: r.numero, ownerUserId: d.ownerUserId, confirmadoEn: ahora, omitidos,
-        });
-      }
-      if (conCitas) {
-        await crearCitasDelPedido(tx, workspaceId, {
-          pedidoId: r.id, clientId: d.clientId, items: d.items, fechaEvento: d.fechaEvento, eventLabel: d.eventLabel,
-          numeroPedido: r.numero, ownerUserId: d.ownerUserId, createdByUserId: ctx.userId, omitidos: citasSinCrear,
-        });
-      }
-      await tx.fotofficePresupuesto.updateMany({ where: { id: presupuestoId, workspaceId }, data: { pedidoPorConfirmar: false, updatedAt: ahora } });
-      return { ok: true, pedidoId: r.id, numero: r.numero, aviso };
     }, OPCIONES_TRANSACCION_PEDIDO);
   } catch (e) {
-    if (e instanceof Corte) return { ok: false, error: e.mensaje, ...(e.pedidoId ? { pedidoId: e.pedidoId } : {}) };
-    if (e instanceof IndiceInvalido || e instanceof IndiceCitaInvalido) return { ok: false, error: MENSAJES_PEDIDO.datosInvalidos };
-    // Otra confirmación del mismo presupuesto ganó (único `presupuestoId`): devolver la suya.
-    if ((e as { code?: unknown } | null)?.code === "P2002") {
-      const ganador = await prisma.fotofficePedido.findFirst({ where: { presupuestoId, workspaceId }, select: { id: true } });
-      if (ganador) return { ok: false, error: MENSAJES_PEDIDO.yaTienePedido, pedidoId: ganador.id };
-    }
-    falla("confirmarPedido", e);
-    return { ok: false, error: MENSAJES_PEDIDO.fallo };
+    return await resolverError(e, workspaceId, presupuestoId, "confirmarPedido");
+  }
+}
+
+/** La escritura del pedido: la comparten la confirmación a mano y la del sistema. */
+async function escribirPedido(
+  tx: Tx,
+  d: ConfirmacionPreparada,
+  o: {
+    ctx: CtxCircuitos;
+    cuotas: CuotaParaGuardar[];
+    aviso: AvisoPlan | null;
+    titulos: string[];
+    createdByUserId: number | null;
+    conProyectos: boolean;
+    conCitas: boolean;
+    omitidos: Set<number>;
+    citasSinCrear: Set<number>;
+    ahora: Date;
+  },
+): Promise<ResultadoConfirmacion> {
+  const { workspaceId } = o.ctx;
+  const { presupuestoId } = d;
+  const { ctx, cuotas, aviso, ahora, omitidos, citasSinCrear, conProyectos, conCitas } = o;
+  const r = await insertarPedido(tx, {
+    workspaceId,
+    presupuestoId,
+    acceptedVersionId: d.acceptedVersionId,
+    consultaLeadId: d.consultaLeadId,
+    clientId: d.clientId,
+    items: d.items,
+    totals: d.totals,
+    total: d.total,
+    paymentOption: d.opcion,
+    eventDate: d.fechaEvento,
+    eventLabel: d.eventLabel,
+    incomeCategoryId: d.incomeCategoryId,
+    ownerUserId: d.ownerUserId,
+    createdByUserId: o.createdByUserId,
+    cuotas,
+    ahora,
+  });
+  await copiarTareasAlPedido(tx, { workspaceId, pedidoId: r.id, titulos: o.titulos });
+  // Los insumos de sus recetas se descuentan al tomar el pedido, como en el alta manual. Sin
+  // líneas que apartar: confirmar un presupuesto nunca movió stock de productos, y sigue sin hacerlo.
+  await apartarStock(tx, { workspaceId, pedidoId: r.id, items: itemsGuardados(d.items), lineas: [], createdByUserId: o.createdByUserId });
+  await crearCuentasDelPedido(tx, { workspaceId, pedidoId: r.id, items: d.items, fechaEvento: d.fechaEvento, createdByUserId: o.createdByUserId });
+  if (conProyectos) {
+    await crearProyectosDelPedido(tx, ctx, {
+      pedidoId: r.id, clientId: d.clientId, items: d.items, fechaEvento: d.fechaEvento, eventLabel: d.eventLabel,
+      numeroPedido: r.numero, ownerUserId: d.ownerUserId, confirmadoEn: ahora, omitidos,
+    });
+  }
+  if (conCitas) {
+    await crearCitasDelPedido(tx, workspaceId, {
+      pedidoId: r.id, clientId: d.clientId, items: d.items, fechaEvento: d.fechaEvento, eventLabel: d.eventLabel,
+      numeroPedido: r.numero, ownerUserId: d.ownerUserId, createdByUserId: o.createdByUserId, omitidos: citasSinCrear,
+    });
+  }
+  await tx.fotofficePresupuesto.updateMany({ where: { id: presupuestoId, workspaceId }, data: { pedidoPorConfirmar: false, updatedAt: ahora } });
+  return { ok: true, pedidoId: r.id, numero: r.numero, aviso };
+}
+
+async function resolverError(e: unknown, workspaceId: string, presupuestoId: string, donde: string): Promise<ResultadoConfirmacion> {
+  if (e instanceof Corte) return { ok: false, error: e.mensaje, ...(e.pedidoId ? { pedidoId: e.pedidoId } : {}) };
+  if (e instanceof IndiceInvalido || e instanceof IndiceCitaInvalido) return { ok: false, error: MENSAJES_PEDIDO.datosInvalidos };
+  // Otra confirmación del mismo presupuesto ganó (único `presupuestoId`): devolver la suya.
+  if ((e as { code?: unknown } | null)?.code === "P2002") {
+    const ganador = await prisma.fotofficePedido.findFirst({ where: { presupuestoId, workspaceId }, select: { id: true } });
+    if (ganador) return { ok: false, error: MENSAJES_PEDIDO.yaTienePedido, pedidoId: ganador.id };
+  }
+  falla(donde, e);
+  return { ok: false, error: MENSAJES_PEDIDO.fallo };
+}
+
+/**
+ * El pedido que se crea SOLO al aceptar el presupuesto (etapa B), con el interruptor
+ * «Crear el pedido al aceptar» encendido. Misma escritura que `confirmarPedido`, como sistema:
+ * plan de la opción elegida (con la seña, si la hay), la checklist por omisión, las cuentas a pagar
+ * y los proyectos y citas de sus reglas (si esos módulos están encendidos). Nunca lanza.
+ */
+export async function confirmarPedidoPorSistema(workspaceId: string, presupuestoId: string, deps: DepsConfirmar = {}): Promise<ResultadoConfirmacion> {
+  if (!idValido(presupuestoId)) return { ok: false, error: MENSAJES_PEDIDO.datosInvalidos };
+  const ahora = deps.ahora?.() ?? new Date();
+  try {
+    const conProyectos = await proyectosEncendidos(workspaceId);
+    const conCitas = await agendaEncendida(workspaceId);
+    return await prisma.$transaction(async (tx): Promise<ResultadoConfirmacion> => {
+      await bloquearPresupuesto(tx, presupuestoId);
+      const d = await preparar(tx, workspaceId, presupuestoId, ahora);
+      const tareas = await titulosParaPedidoNuevo(tx, workspaceId, undefined);
+      if (!tareas.ok) throw new Corte(tareas.error);
+      return escribirPedido(tx, d, {
+        ctx: contextoDeSistema(workspaceId), cuotas: d.cuotas, aviso: d.aviso, titulos: tareas.titulos, createdByUserId: null,
+        conProyectos, conCitas, omitidos: new Set(), citasSinCrear: new Set(), ahora,
+      });
+    }, OPCIONES_TRANSACCION_PEDIDO);
+  } catch (e) {
+    return await resolverError(e, workspaceId, presupuestoId, "confirmarPedidoPorSistema");
   }
 }

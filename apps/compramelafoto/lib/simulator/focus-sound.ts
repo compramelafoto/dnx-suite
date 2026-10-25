@@ -14,7 +14,10 @@ import {
 /** Umbral alineado con FOCUS_OK en FocusMotorDrive. */
 export const FOCUS_CONFIRM_MIN_CONFIDENCE = 0.4;
 
-/** Pitido breve tipo cámara digital (1600–2200 Hz, ~100 ms). */
+/**
+ * Confirmación de foco: el doble "pi-pip" del zumbador piezoeléctrico de una
+ * réflex (dos tonos cortos de ~2,7 kHz). Con poca confianza no suena.
+ */
 export function playFocusConfirmSound(confidence = 1): void {
   if (confidence < FOCUS_CONFIRM_MIN_CONFIDENCE) return;
 
@@ -25,21 +28,27 @@ export function playFocusConfirmSound(confidence = 1): void {
 
   try {
     const dest = getSimulatorMasterGain(ctx);
+    // El piezo es áspero (onda cuadrada) pero chico: se le sacan los agudos de más.
+    const tone = ctx.createBiquadFilter();
+    tone.type = "lowpass";
+    tone.frequency.value = 5200;
+    tone.Q.value = 0.7;
+    tone.connect(dest);
     const t0 = ctx.currentTime + 0.004;
-    const freq = 1600 + Math.min(1, confidence) * 600;
-
-    const osc = ctx.createOscillator();
-    osc.type = "sine";
-    osc.frequency.setValueAtTime(freq, t0);
-
-    const gain = ctx.createGain();
-    applyExpEnvelope(gain, t0, 0.004, 0.12, 0.096);
-
-    osc.connect(gain);
-    gain.connect(dest);
-
-    osc.start(t0);
-    osc.stop(t0 + 0.102);
+    for (const at of [t0, t0 + 0.095]) {
+      const osc = ctx.createOscillator();
+      osc.type = "square";
+      osc.frequency.setValueAtTime(2730, at);
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0.0001, at);
+      gain.gain.linearRampToValueAtTime(0.032, at + 0.003);
+      gain.gain.setValueAtTime(0.032, at + 0.047);
+      gain.gain.linearRampToValueAtTime(0.0001, at + 0.052);
+      osc.connect(gain);
+      gain.connect(tone);
+      osc.start(at);
+      osc.stop(at + 0.055);
+    }
   } catch {
     /* audio bloqueado o contexto cerrado */
   }
@@ -50,69 +59,68 @@ export function playFocusConfirmBeep(confidence = 1): void {
   playFocusConfirmSound(confidence);
 }
 
+/**
+ * Motor del objetivo (ultrasónico o paso a paso): un "zzt" suave y agudo,
+ * con el leve tableteo de los engranajes, y un clic al arrancar y al frenar.
+ * Nada de zumbido grave: los objetivos modernos casi no se oyen.
+ */
 function playLensMotorWhir(
   ctx: AudioContext,
   dest: AudioNode,
   startAt: number,
   durationSec: number,
 ): void {
-  const duration = Math.min(1.6, Math.max(0.1, durationSec));
+  const duration = Math.min(1.2, Math.max(0.08, durationSec));
   const t0 = startAt;
 
-  const motor = ctx.createOscillator();
-  motor.type = "sawtooth";
-  motor.frequency.setValueAtTime(165, t0);
-  motor.frequency.exponentialRampToValueAtTime(420, t0 + duration * 0.45);
-  motor.frequency.exponentialRampToValueAtTime(240, t0 + duration * 0.82);
-  motor.frequency.exponentialRampToValueAtTime(190, t0 + duration);
+  const buffer = createNoiseBuffer(ctx, duration + 0.02);
+  const noise = ctx.createBufferSource();
+  noise.buffer = buffer;
 
-  const motorFilter = ctx.createBiquadFilter();
-  motorFilter.type = "lowpass";
-  motorFilter.frequency.setValueAtTime(520, t0);
-  motorFilter.frequency.linearRampToValueAtTime(780, t0 + duration * 0.4);
-  motorFilter.frequency.linearRampToValueAtTime(380, t0 + duration);
-  motorFilter.Q.value = 1.1;
+  const band = ctx.createBiquadFilter();
+  band.type = "bandpass";
+  band.frequency.setValueAtTime(2300, t0);
+  // Acelera al empezar a buscar y desacelera al llegar.
+  band.frequency.linearRampToValueAtTime(3100, t0 + duration * 0.35);
+  band.frequency.linearRampToValueAtTime(2500, t0 + duration);
+  band.Q.value = 2.4;
 
-  const motorGain = ctx.createGain();
-  motorGain.gain.setValueAtTime(0.0001, t0);
-  motorGain.gain.exponentialRampToValueAtTime(0.055, t0 + 0.018);
-  motorGain.gain.setValueAtTime(0.048, t0 + duration * 0.75);
-  motorGain.gain.exponentialRampToValueAtTime(0.0001, t0 + duration);
+  // Tableteo de engranajes: la amplitud ondula ~110 veces por segundo.
+  const ripple = ctx.createOscillator();
+  ripple.frequency.value = 110;
+  const rippleDepth = ctx.createGain();
+  rippleDepth.gain.value = 0.006;
+  const level = ctx.createGain();
+  level.gain.setValueAtTime(0.0001, t0);
+  level.gain.linearRampToValueAtTime(0.014, t0 + 0.012);
+  level.gain.setValueAtTime(0.014, t0 + duration - 0.02);
+  level.gain.linearRampToValueAtTime(0.0001, t0 + duration);
+  ripple.connect(rippleDepth);
+  rippleDepth.connect(level.gain);
 
-  motor.connect(motorFilter);
-  motorFilter.connect(motorGain);
-  motorGain.connect(dest);
-  motor.start(t0);
-  motor.stop(t0 + duration + 0.02);
+  noise.connect(band);
+  band.connect(level);
+  level.connect(dest);
+  noise.start(t0);
+  noise.stop(t0 + duration + 0.02);
+  ripple.start(t0);
+  ripple.stop(t0 + duration + 0.02);
 
-  const buffer = createNoiseBuffer(ctx, duration);
-  const data = buffer.getChannelData(0);
-  for (let i = 0; i < data.length; i += 1) {
-    const p = i / data.length;
-    const env = p < 0.15 ? p / 0.15 : p > 0.88 ? (1 - p) / 0.12 : 1;
-    data[i] *= env * 0.85;
+  // Clic mecánico al arrancar y al frenar.
+  for (const at of [t0, t0 + duration]) {
+    const click = ctx.createBufferSource();
+    click.buffer = createNoiseBuffer(ctx, 0.008);
+    const hp = ctx.createBiquadFilter();
+    hp.type = "highpass";
+    hp.frequency.value = 3500;
+    const g = ctx.createGain();
+    applyExpEnvelope(g, at, 0.0008, 0.05, 0.006);
+    click.connect(hp);
+    hp.connect(g);
+    g.connect(dest);
+    click.start(at);
+    click.stop(at + 0.01);
   }
-
-  const grit = ctx.createBufferSource();
-  grit.buffer = buffer;
-
-  const gritFilter = ctx.createBiquadFilter();
-  gritFilter.type = "bandpass";
-  gritFilter.frequency.setValueAtTime(340, t0);
-  gritFilter.frequency.exponentialRampToValueAtTime(620, t0 + duration * 0.5);
-  gritFilter.frequency.exponentialRampToValueAtTime(300, t0 + duration);
-  gritFilter.Q.value = 0.9;
-
-  const gritGain = ctx.createGain();
-  gritGain.gain.setValueAtTime(0.0001, t0);
-  gritGain.gain.exponentialRampToValueAtTime(0.11, t0 + 0.02);
-  gritGain.gain.exponentialRampToValueAtTime(0.0001, t0 + duration);
-
-  grit.connect(gritFilter);
-  gritFilter.connect(gritGain);
-  gritGain.connect(dest);
-  grit.start(t0);
-  grit.stop(t0 + duration + 0.02);
 }
 
 /**

@@ -3,75 +3,110 @@ import { SALES_MODULE_KEY } from "@/lib/sales/constants";
 
 export const guia: Instructivo = {
   slug: "ventas-mostrador",
-  titulo: "Vender en el mostrador",
+  titulo: "Cobrar una venta en el Cobrador",
   resumen:
-    "Cómo armar un ticket con productos del catálogo, cobrarlo y, si hace falta, anular una venta ya hecha.",
-  seccion: "Dinero",
+    "Armar el ticket con productos del catálogo, elegir cómo paga el cliente, calcular el vuelto y cobrar.",
+  seccion: "Mostrador",
   moduleKey: SALES_MODULE_KEY,
-  minutos: 5,
+  minutos: 6,
   pasos: [
     {
-      titulo: "Entrá al Mostrador",
+      titulo: "Abrí el Cobrador",
       texto: [
-        "En el menú de la izquierda abrí Ventas y elegí Mostrador.",
-        "A la izquierda están los productos del catálogo; a la derecha, el «Ticket» de la venta que estás armando.",
+        "Tocá el botón grande «Cobrador» en el inicio, o elegí «Cobrador» primero en el menú de Caja. Las dos llevan a la pantalla «Mostrador».",
+        "La pantalla tiene tres partes: a la izquierda el catálogo, en el medio el «Ticket» y a la derecha el cobro. El menú lateral se esconde para que haya más lugar.",
       ],
-      nota: "Si ves el aviso «El módulo de Caja está apagado», la venta se registra igual, pero el dinero no queda anotado en Caja.",
+      imagen: "/instructivos/ventas-mostrador/01-mostrador.jpg",
+      imagenAlt:
+        "Pantalla Mostrador: a la izquierda el buscador y el catálogo con precios, en el medio el Ticket vacío con los atajos de teclado y a la derecha el buscador de cliente, el total, los medios de pago y el botón Cobrar.",
+      nota: "Si arriba dice «La Caja está apagada: las ventas se registran, pero el dinero no entra al libro.», avisale a quien administra FOTOFFICE antes de cobrar.",
     },
     {
       titulo: "Buscá el producto",
       texto: [
-        "Escribí parte del nombre en el buscador «Escaneá un código, o buscá por nombre…». La grilla se filtra mientras escribís. También podés elegir una categoría en «Todas las categorías».",
-        "Si tenés lector de códigos de barras, escaneá el producto: se suma directo al ticket.",
+        "Escribí parte del nombre en «Nombre o código de barras», o elegí una categoría en «Todas las categorías».",
+        "Con lector de códigos de barras, escaneá el producto: entra directo al ticket.",
+        "Con el teclado: ↑ y ↓ recorren la lista y Enter suma el marcado.",
       ],
     },
     {
       titulo: "Sumalo al ticket",
       texto: [
-        "Hacé clic en el producto. Se agrega al ticket con cantidad 1; si lo tocás de nuevo, suma uno más.",
-        "Si el producto tiene talles, primero aparece «Elegí el talle de …»: tocá el talle que corresponde.",
-        "En el ticket podés cambiar la cantidad o el precio de cada renglón, y sacarlo con «Quitar». Si cambiás el precio, queda marcado «Precio pisado a mano.».",
+        "Tocá el producto: se suma 1 al ticket y en la tarjeta aparece «×1». Cada toque suma uno más.",
+        "Si el producto tiene talles aparece «Elegí el talle de …», con la existencia de cada uno. Tocá el talle.",
       ],
-      nota: "Si un producto dice «Sin existencia», se puede vender igual; el aviso es para que sepas que hay que reponerlo.",
+      nota: "«Sin existencia» no impide vender: es un aviso de que hay que reponer.",
+    },
+    {
+      titulo: "Ajustá el ticket",
+      texto: [
+        "Con − y + cambiás la cantidad. Cuando la cantidad es 1, el − se convierte en un tacho que saca el renglón.",
+        "Tocá el precio («$… c/u») para cambiarlo. El renglón queda marcado «· precio cambiado».",
+        "El tacho de arriba del ticket lo vacía entero.",
+      ],
+      imagen: "/instructivos/ventas-mostrador/02-ticket.jpg",
+      imagenAlt:
+        "Ticket con dos renglones, Fotocopia color por 2 y Sticker por 1, con los botones de cantidad y el total de $ 2.100.",
     },
     {
       titulo: "Algo que no está en el catálogo",
       texto: [
-        "Tocá «+ Renglón suelto», escribí la «Descripción» y el «Precio» y tocá «Agregar al ticket».",
+        "Tocá «+ Otro», escribí «Qué es» y el «Precio», y tocá «Agregar».",
         "Sirve para algo que se vende una sola vez. No descuenta stock.",
       ],
     },
     {
-      titulo: "Revisá el total y elegí cómo paga",
+      titulo: "Elegí el cliente (si corresponde)",
       texto: [
-        "Abajo del ticket está el «Subtotal». Si hacés un descuento, escribilo en «Descuento» (el importe en pesos, no el porcentaje). El «Total» se actualiza solo.",
-        "Si aparece el campo «Cliente», podés dejar «Sin cliente», elegir un «Cliente ya cargado» o cargar un «Cliente nuevo».",
-        "En «Medio de pago» elegí Efectivo, Mercado Pago, Transferencia, Tarjeta u Otro. Si querés, agregá una «Nota (opcional)».",
+        "En «Buscar cliente» escribí nombre, apellido, DNI, teléfono o correo y elegilo de la lista.",
+        "Si es la primera vez que viene, tocá «Cliente nuevo», completá Nombre, Apellido, DNI, «Teléfono o WhatsApp» y Correo, y tocá «Guardar y usar».",
+        "En una venta común el cliente es opcional. Para un trabajo que queda para retirar es obligatorio (ver «Tomar un trabajo para retirar»).",
       ],
+      sistema: [
+        "Si el DNI, el teléfono o el correo ya están cargados, usa esa ficha en vez de crear un cliente repetido.",
+        "Si el cliente tiene trabajos en curso, aparecen debajo con lo que debe.",
+      ],
+    },
+    {
+      titulo: "Descuento o nota",
+      texto: [
+        "Abrí «Descuento o nota». En «Descuento» escribí el importe en pesos (no el porcentaje). El «Total» se recalcula.",
+        "En «Nota (opcional)» podés dejar un comentario sobre la venta.",
+      ],
+    },
+    {
+      titulo: "Elegí cómo paga",
+      texto: [
+        "Tocá el medio: «Efectivo», «Mercado Pago», «Transferencia», «Tarjeta» u «Otro».",
+        "Si paga en efectivo, en «Paga con» tocá «Justo» o el billete con el que paga (los botones ya vienen redondeados). Si no está, usá «Otro monto».",
+        "Aparece «Vuelto $…» con lo que tenés que devolver. Si dice «Faltan $…» en rojo, lo que entregó no alcanza y el botón de cobrar queda bloqueado.",
+        "Para transferencia y Mercado Pago mirá la guía «Cobrar por transferencia o con el QR».",
+      ],
+      imagen: "/instructivos/ventas-mostrador/03-paga-con-y-vuelto.jpg",
+      imagenAlt:
+        "Medio Efectivo con el bloque Paga con: botones Justo, $ 3.000, $ 4.000, $ 10.000 y $ 20.000, el monto elegido y el vuelto de $ 900 en verde.",
     },
     {
       titulo: "Cobrá",
       texto: [
-        "Tocá el botón «Cobrar $…». Aparece «Venta #… registrada.» y el ticket queda vacío, listo para la siguiente venta.",
-        "El dinero se anota solo en Caja, en la categoría «Ventas», y el stock de los productos baja solo.",
+        "Tocá «Cobrar $…» (o apretá Ctrl+Enter; en Mac, ⌘+Enter). Mientras procesa dice «Cobrando…».",
+        "Aparece «Venta #… cobrada» y, si hay vuelto, «Dar de vuelto $…». El ticket queda vacío para la próxima venta.",
       ],
-      nota: "Si además aparece «No se depositó en Caja», la venta quedó hecha pero el dinero no se anotó en Caja. Avisale a quien administra Caja.",
+      sistema: [
+        "Registra la venta con número y baja el stock de cada producto.",
+        "También descuenta los insumos de la receta de cada producto.",
+        "Anota el ingreso en Caja con la categoría «Ventas»: el efectivo va a la caja del mostrador (y al turno abierto) y Mercado Pago, transferencia y tarjeta van a la cuenta digital.",
+        "Escribe en la venta con cuánto pagó y cuánto vuelto se dio, para que el cierre de caja se pueda explicar.",
+      ],
+      nota: "Si después de cobrar aparece «No se depositó en Caja: no va a aparecer en el libro.», la venta quedó hecha pero la plata no se anotó. Avisale a quien administra la Caja.",
     },
     {
-      titulo: "Mirá las ventas hechas",
+      titulo: "Atajos de teclado",
       texto: [
-        "Entrá a Ventas → Ventas hechas. Ahí está cada venta, de la más nueva a la más vieja, con su número, fecha, cliente, medio de pago y total.",
-        "Hacé clic en una venta para ver el detalle de lo que se vendió.",
+        "+ y − cambian la cantidad del último renglón; escribir un número (por ejemplo 10) la fija.",
+        "↑ ↓ y Enter recorren y suman del catálogo. Esc vacía el ticket.",
+        "Ctrl+Z (⌘+Z en Mac) deshace el último cambio, mientras no hayas cobrado. Ctrl+Enter (⌘+Enter) cobra.",
       ],
-    },
-    {
-      titulo: "Si te equivocaste, anulá la venta",
-      texto: [
-        "Abrí la venta en «Ventas hechas», escribí el «Motivo de la anulación» y tocá «Anular venta».",
-        "La venta no se borra: queda marcada como «Anulada» y con el importe tachado. El stock vuelve y el dinero sale de Caja solo.",
-        "Después, si hace falta, hacé la venta correcta desde el Mostrador.",
-      ],
-      nota: "Una venta que vino de un pedido de la tienda online no se anula desde acá: se cancela el pedido desde Pedidos online.",
     },
   ],
 };

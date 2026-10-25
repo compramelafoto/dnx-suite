@@ -39,6 +39,36 @@ export type AvanceEntidad = {
   fallasSeguidas?: number;
   /** Versión de la forma de pedir con la que se recorrió (ver `Entidad.version`). Sin dato = 1. */
   version?: number;
+  /**
+   * Listados paginados: desplazamiento absoluto (en filas) de la próxima página. Manda sobre `pagina`, que queda
+   * como dato para la pantalla. Sin dato (avance viejo) sale de `pagina`.
+   */
+  desde?: number;
+  /**
+   * Listados paginados: tramos con páginas más chicas porque una página dio 5xx (25 → 5 → 1). Una pila: el último
+   * manda hasta llegar a su `hasta` (desplazamiento donde termina la página que falló).
+   */
+  tramos?: { tamano: number; hasta: number }[];
+  /** Listados paginados: filas salteadas porque Alboom dio 5xx incluso pidiéndolas de a una. */
+  saltados?: number;
+  /** Desplazamientos de esas filas (sin datos de la cuenta), hasta `MAX_SALTADAS`. */
+  filasSalteadas?: number[];
+  /** Listados paginados: páginas iguales seguidas (corrimientos en orden descendente). */
+  repetidas?: number;
+  /** Listados paginados: el último `count` que informó Alboom. */
+  total?: number;
+  /**
+   * Entidades que son padre de otras (`porPadre`): ids nuevos o cambiados de huella EN ESTA extracción, hasta
+   * `MAX_TOCADOS`. Con eso, "Volver a extraer" pide los hijos sólo de lo que cambió. Sin dato = no se sabe.
+   */
+  tocados?: string[];
+  /** Hubo más de `MAX_TOCADOS` (o no se pudo saber): los hijos se piden de todos los padres. */
+  tocadosDesbordado?: boolean;
+  /** Hijos (`porPadre`): padres cuyo pedido falló en esta extracción, hasta `MAX_FALLIDOS`. */
+  fallidos?: string[];
+  fallidosDesbordado?: boolean;
+  /** Hijos (`porPadre`) en "Volver a extraer": padres sin cambios que no se volvieron a pedir. */
+  salteados?: number;
   /** Mensaje legible del último error. Nunca lleva datos de la cuenta ni de clientes. */
   ultimoError?: string;
   /** ISO. */
@@ -56,6 +86,11 @@ export type Avance = {
   reintentarDesde: string | null;
 };
 
+/** Topes de las listas del avance, para que el JSON no crezca sin límite. */
+export const MAX_TOCADOS = 1000;
+export const MAX_FALLIDOS = 500;
+export const MAX_SALTADAS = 100;
+
 export function avanceEntidadInicial(): AvanceEntidad {
   return { estado: "PENDIENTE", paginas: 0, cantidad: 0, nuevos: 0, cambiados: 0, iguales: 0, errores: 0, dudas: 0 };
 }
@@ -67,6 +102,20 @@ export function avanceInicial(): Avance {
     entidades[e.clave] = e.fuente.tipo === "noDisponible" ? { ...inicial, estado: "NO_DISPONIBLE", ultimoError: e.fuente.motivo } : inicial;
   }
   return { version: 1, entidades, pedidos: 0, reintentos: 0, reintentarDesde: null };
+}
+
+function textos(v: unknown, max: number): string[] | undefined {
+  if (!Array.isArray(v)) return undefined;
+  return v.filter((x): x is string => typeof x === "string" && x.length > 0 && x.length <= 200).slice(0, max);
+}
+
+function tramos(v: unknown): { tamano: number; hasta: number }[] | undefined {
+  if (!Array.isArray(v)) return undefined;
+  const r = v
+    .filter((t): t is { tamano: number; hasta: number } => typeof t === "object" && t !== null && typeof t.tamano === "number" && typeof t.hasta === "number")
+    .map((t) => ({ tamano: Math.max(1, numero(t.tamano)), hasta: numero(t.hasta) }))
+    .slice(0, 5);
+  return r.length > 0 ? r : undefined;
 }
 
 function numero(v: unknown): number {
@@ -105,6 +154,20 @@ export function leerAvance(json: unknown): Avance {
       ...(typeof r.fallasSeguidas === "number" ? { fallasSeguidas: numero(r.fallasSeguidas) } : {}),
       // Sin `version` guardada es la 1 (avances anteriores a este campo), aunque el catálogo ya esté en otra.
       ...(typeof r.version === "number" ? { version: numero(r.version) } : {}),
+      // Campos nuevos (oct. 2026): opcionales, un avance viejo sin ellos se lee igual.
+      ...(typeof r.desde === "number" ? { desde: numero(r.desde) } : {}),
+      ...(tramos(r.tramos) ? { tramos: tramos(r.tramos) } : {}),
+      ...(typeof r.saltados === "number" ? { saltados: numero(r.saltados) } : {}),
+      ...(Array.isArray(r.filasSalteadas)
+        ? { filasSalteadas: r.filasSalteadas.filter((x): x is number => typeof x === "number").map(numero).slice(0, MAX_SALTADAS) }
+        : {}),
+      ...(typeof r.repetidas === "number" ? { repetidas: numero(r.repetidas) } : {}),
+      ...(typeof r.total === "number" ? { total: numero(r.total) } : {}),
+      ...(textos(r.tocados, MAX_TOCADOS) ? { tocados: textos(r.tocados, MAX_TOCADOS) } : {}),
+      ...(r.tocadosDesbordado === true ? { tocadosDesbordado: true } : {}),
+      ...(textos(r.fallidos, MAX_FALLIDOS) ? { fallidos: textos(r.fallidos, MAX_FALLIDOS) } : {}),
+      ...(r.fallidosDesbordado === true ? { fallidosDesbordado: true } : {}),
+      ...(typeof r.salteados === "number" ? { salteados: numero(r.salteados) } : {}),
       ...(typeof r.ultimoError === "string" ? { ultimoError: r.ultimoError.slice(0, 300) } : previo.ultimoError ? { ultimoError: previo.ultimoError } : {}),
       ...(typeof r.actualizado === "string" ? { actualizado: r.actualizado } : {}),
     };

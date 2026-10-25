@@ -19,7 +19,18 @@ export async function generateMetadata(): Promise<Metadata> {
 
 function Aviso({ vista }: { vista: VistaPublica }) {
   if (vista.estado === "ACEPTADO") {
-    return <p className="fo-card p-4 font-semibold">¡Gracias! Este presupuesto ya está aceptado. Te vamos a escribir para confirmar los detalles.</p>;
+    return (
+      <div className="fo-card space-y-2 p-4">
+        <p className="font-semibold">¡Gracias! Este presupuesto ya está aceptado.</p>
+        {vista.pedidoUrl ? (
+          <a href={vista.pedidoUrl} className="fo-btn fo-btn-primary text-sm" rel="noreferrer">
+            Ver tu pedido y pagar la seña
+          </a>
+        ) : (
+          <p className="text-sm">Te vamos a escribir para confirmar los detalles.</p>
+        )}
+      </div>
+    );
   }
   if (vista.estado === "RECHAZADO") {
     return <p className="fo-card p-4">Este presupuesto ya no está disponible. Si te interesa, escribinos y armamos uno nuevo.</p>;

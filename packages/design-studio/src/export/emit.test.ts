@@ -165,3 +165,27 @@ test("de documento crudo a carnet impreso, en un solo paso", async () => {
   const pngFrente = r.files.find((f) => f.name.endsWith("-frente.png"));
   assert.ok(pngFrente && pngFrente.bytes.byteLength > 10000);
 });
+
+test("emite un JPG por cara, a la resolución pedida y con la resolución escrita en el archivo", async () => {
+  const sharp = (await import("sharp")).default;
+  const r = await emitDesign({
+    document: documentoCrudo,
+    contract: contrato,
+    values: datos,
+    formats: ["JPG_PER_SIDE"],
+    pngDpi: 300,
+    resources: recursos,
+    fileBaseName: "carnet-128",
+  });
+  assert.ok(r.ok, r.ok ? "" : r.errors.join(" | "));
+  if (!r.ok) return;
+  assert.equal(r.files.length, 2);
+  const [frente] = r.files;
+  assert.equal(frente!.contentType, "image/jpeg");
+  assert.equal(frente!.bytes[0], 0xff);
+  assert.equal(frente!.bytes[1], 0xd8);
+  const meta = await sharp(Buffer.from(frente!.bytes)).metadata();
+  // 85,6 mm a 300 ppp ≈ 1011 px.
+  assert.ok(Math.abs((meta.width ?? 0) - 1011) <= 2, `ancho ${meta.width}`);
+  assert.equal(meta.density, 300);
+});

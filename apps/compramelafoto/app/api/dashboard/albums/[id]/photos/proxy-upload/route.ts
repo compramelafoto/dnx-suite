@@ -161,8 +161,12 @@ export async function POST(
       folderId: resolvedFolders.folderId,
       maxBytes,
       maxMb,
+      originalFilename: originalName,
     });
 
+    if (result.duplicate) {
+      return NextResponse.json({ photo: result.photo, duplicate: true }, { status: 200 });
+    }
     return NextResponse.json({ photo: result.photo }, { status: 201 });
   } catch (err: unknown) {
     console.error("POST proxy-upload ERROR >>>", err);

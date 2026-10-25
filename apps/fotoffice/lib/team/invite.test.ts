@@ -50,8 +50,13 @@ describe("inviteTeamMember", () => {
 
   it("envío ok", async () => {
     send.mockResolvedValue({ status: "SENT" });
-    expect(await inviteTeamMember(P)).toEqual({ ok: true, sentTo: "juan@test.com" });
+    const r = await inviteTeamMember(P);
+    expect(r).toEqual({ ok: true, sentTo: "juan@test.com", url: expect.stringMatching(/^https:\/\/app\.test\/invitacion\/equipo\/.+/) });
     expect(mark).toHaveBeenCalledWith("inv1", true);
+    // El enlace lleva el token en claro; a la base va sólo su hash.
+    const token = (r as { url: string }).url.split("/").pop()!;
+    expect(create.mock.calls[0][0].tokenHash).not.toBe(token);
+    expect(JSON.stringify(create.mock.calls[0][0])).not.toContain(token);
   });
 
   it("envío fallido", async () => {
@@ -59,7 +64,8 @@ describe("inviteTeamMember", () => {
     expect(await inviteTeamMember(P)).toEqual({
       ok: true,
       sentTo: "juan@test.com",
-      warn: "La invitación quedó creada pero el correo no salió. Podés reenviarla.",
+      url: expect.stringContaining("/invitacion/equipo/"),
+      warn: "La invitación quedó creada pero el correo no salió. Podés reenviarla o mandarle el enlace.",
     });
     expect(mark).toHaveBeenCalledWith("inv1", false);
   });

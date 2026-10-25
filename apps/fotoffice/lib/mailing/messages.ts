@@ -1,10 +1,13 @@
 import "server-only";
 import { prisma } from "@repo/db";
+import { appUrl } from "@/lib/app-url";
+import { FOTOFFICE_BLOG_PLATFORM } from "@/lib/blog/scope";
 import { CAMPAIGN_KINDS } from "./constants";
 import { createCampaign, loadAudience, processCampaign } from "./campaigns";
 import { loadMailingContext } from "./context";
 import { readyToSend, type MessageFields } from "./message-form";
 import { getMailingSettings } from "./settings";
+import { holdForLinkedPost, linkedBlogPostSlug, linkedPostWarning, type LinkedPost } from "./linked-post";
 import type { MetricCounts } from "./webhook-events";
 
 /**
@@ -108,6 +111,44 @@ export async function countMessageAudience(workspaceId: string, m: { categoryIds
   return { recipients: recipients.length, optedOut };
 }
 
+/**
+ * El artículo del blog propio al que lleva el botón, si lleva a uno. `post` es null si no existe.
+ * Ver `lib/mailing/linked-post.ts`.
+ */
+export async function loadLinkedPost(
+  workspaceId: string,
+  ctaUrl: string | null,
+): Promise<{ slug: string; post: LinkedPost | null } | null> {
+  if (!ctaUrl) return null;
+  const [branding, domain] = await Promise.all([
+    prisma.fotofficeWorkspaceBranding.findUnique({ where: { workspaceId }, select: { publicSlug: true } }),
+    prisma.fotofficeWorkspaceDomain.findUnique({ where: { workspaceId }, select: { domain: true } }).catch(() => null),
+  ]);
+  const slug = linkedBlogPostSlug(ctaUrl, {
+    appBase: appUrl() || null,
+    publicSlug: branding?.publicSlug ?? null,
+    domain: domain?.domain ?? null,
+  });
+  if (!slug) return null;
+  const post = await prisma.blogPost.findUnique({
+    where: { platform_workspaceKey_slug: { platform: FOTOFFICE_BLOG_PLATFORM, workspaceKey: workspaceId, slug } },
+    select: { title: true, status: true, publishedAt: true },
+  });
+  return { slug, post };
+}
+
+/** Aviso del panel sobre el artículo enlazado (null si no hay nada que avisar). */
+export async function linkedPostWarningFor(
+  workspaceId: string,
+  m: { ctaUrl: string | null; scheduledAt: Date | null },
+  now: Date,
+  opts: { test?: boolean } = {},
+): Promise<string | null> {
+  const linked = await loadLinkedPost(workspaceId, m.ctaUrl);
+  if (!linked) return null;
+  return linkedPostWarning({ ...linked, sendAt: m.scheduledAt, now, test: opts.test });
+}
+
 export type Outcome = { ok: true; message: string } | { ok: false; error: string };
 
 async function precondiciones(workspaceId: string, m: { subject: string; body: string }): Promise<string | null> {
@@ -176,10 +217,15 @@ async function scheduleOrLaunch(
       where: { id, workspaceId, status: from },
       data: { status: "SCHEDULED" },
     });
+    // Si el artículo del botón se publica después, la página lo avisa (y la tarea programada espera).
     return r.count === 1
       ? { ok: true, message: "Programada. Sale sola a la hora elegida (con unos minutos de margen)." }
       : { ok: false, error: "Alguien la cambió recién. Recargá la página." };
   }
+  // Sin fecha futura saldría ya: con el artículo todavía invisible, el enlace no abriría.
+  const m = await getMessage(workspaceId, id);
+  const aviso = m ? await linkedPostWarningFor(workspaceId, { ctaUrl: m.ctaUrl, scheduledAt: null }, now) : null;
+  if (aviso) return { ok: false, error: aviso };
   return launchMessage(workspaceId, id, from, Date.now() + 45_000);
 }
 
@@ -241,9 +287,10 @@ async function launchMessage(
 export async function sendDueMessages(now: Date, deadline: number) {
   const vencidas = await prisma.fotofficeMailingMessage.findMany({
     where: { status: "SCHEDULED", scheduledAt: { lte: now } },
-    select: { id: true, workspaceId: true },
+    select: { id: true, workspaceId: true, ctaUrl: true },
     orderBy: { scheduledAt: "asc" },
-    take: 20,
+    // Holgura para que las que esperan un artículo no tapen a las demás.
+    take: 50,
   });
   const resultado: Record<string, string> = {};
   for (const m of vencidas) {
@@ -251,6 +298,19 @@ export async function sendDueMessages(now: Date, deadline: number) {
     const settings = await getMailingSettings(m.workspaceId);
     if (!settings.bulkEnabled) {
       resultado[m.id] = "OFF";
+      continue;
+    }
+    // Sigue programada: se reintenta en la próxima vuelta, hasta que el artículo se vea.
+    const linked = await loadLinkedPost(m.workspaceId, m.ctaUrl);
+    const espera = linked ? holdForLinkedPost(linked.slug, linked.post, new Date()) : null;
+    if (espera) {
+      resultado[m.id] = `ESPERA_ARTICULO:${espera}`;
+      console.warn("[fotoffice][correo] campaña retenida: el artículo del botón todavía no se ve", {
+        id: m.id,
+        workspaceId: m.workspaceId,
+        articulo: linked?.slug,
+        motivo: espera,
+      });
       continue;
     }
     const r = await launchMessage(m.workspaceId, m.id, "SCHEDULED", deadline);

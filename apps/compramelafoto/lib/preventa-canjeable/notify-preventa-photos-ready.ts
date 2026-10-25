@@ -58,14 +58,26 @@ ComprameLaFoto`;
   return { subject, text, html };
 }
 
-function pendingWhere(albumId: number): Prisma.OrderWhereInput {
+/**
+ * Packs pendientes de canje del álbum. Con `orderIds`, sólo esos: así se avisa a un curso (las
+ * fotos se suben curso por curso y avisarle a todo el colegio hace entrar a familias cuyas
+ * fotos todavía no están).
+ */
+export function pendingWhere(albumId: number, orderIds?: readonly number[] | null): Prisma.OrderWhereInput {
   return {
     albumId,
     origin: OrderOrigin.PREVENTA_PACK,
     status: OrderStatus.PAID,
     isTest: false,
     redemptionOrderId: null,
+    ...(orderIds ? { id: { in: [...orderIds] } } : {}),
   };
+}
+
+/** Los ids que manda el panel: enteros positivos, sin repetir. `null` si no mandó la lista. */
+export function parseAvisoOrderIds(raw: unknown): number[] | null {
+  if (!Array.isArray(raw)) return null;
+  return [...new Set(raw.filter((n): n is number => Number.isInteger(n) && (n as number) > 0))];
 }
 
 export type PhotosReadyStatus = {
@@ -125,7 +137,10 @@ export async function notifyPreventaPhotosReady(params: {
   albumId: number;
   baseUrl: string;
   now?: Date;
+  /** Sólo estos packs (p. ej. los de un curso). Sin la lista, todos los pendientes del álbum. */
+  orderIds?: readonly number[] | null;
 }): Promise<{ enviados: number; sinEmail: number }> {
+  if (params.orderIds && params.orderIds.length === 0) return { enviados: 0, sinEmail: 0 };
   const now = params.now ?? new Date();
   const album = await prisma.album.findUnique({
     where: { id: params.albumId },
@@ -134,7 +149,7 @@ export async function notifyPreventaPhotosReady(params: {
   if (!album) return { enviados: 0, sinEmail: 0 };
 
   const orders = await prisma.order.findMany({
-    where: pendingWhere(params.albumId),
+    where: pendingWhere(params.albumId, params.orderIds),
     select: {
       id: true,
       buyerEmail: true,

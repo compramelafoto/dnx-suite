@@ -301,33 +301,12 @@ export async function POST(
       return NextResponse.json({ error: "ID de álbum inválido" }, { status: 400 });
     }
 
-    // Verificar que el álbum existe y es público (permite colaboración)
-    const album = await prisma.album.findUnique({
-      where: { id: albumId },
-      select: {
-        userId: true,
-        isPublic: true,
-        isHidden: true,
-        eventId: true,
-      },
-    });
-
-    if (!album) {
-      return NextResponse.json({ error: "Álbum no encontrado" }, { status: 404 });
+    // Mismo criterio que el resto de las subidas (incluye álbumes de agencia).
+    const access = await ensureAlbumUploadAccess(albumId, user.id);
+    if (!access.ok) {
+      return NextResponse.json({ error: access.error }, { status: access.status });
     }
-
-    // Permitir subir fotos si:
-    // 1. Es el creador del álbum, O
-    // 2. El álbum es público y no está oculto (colaboración)
-    if (album.userId !== user.id) {
-      if (!album.isPublic || album.isHidden) {
-        return NextResponse.json(
-          { error: "Este álbum no permite colaboración. Solo el creador puede agregar fotos." },
-          { status: 403 }
-        );
-      }
-      // Si es público, permitir colaboración (cualquier usuario puede agregar fotos)
-    }
+    const album = { eventId: access.albumEventId };
 
     const formData = await req.formData();
     const files = formData.getAll("files");

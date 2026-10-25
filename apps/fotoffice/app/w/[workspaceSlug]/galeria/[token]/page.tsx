@@ -7,6 +7,7 @@ import { RecibirTodoPorCorreo } from "@/components/galeria-publica/recibir-todo"
 import { estadoDescargaDeCliente } from "@/lib/galerias/descargas";
 import { avisoDeVueltaGaleria, type ResultadoVueltaGaleria } from "@/lib/galerias/venta-publica";
 import { verificarVueltaGaleria } from "@/lib/galerias/pago";
+import { ofertaPublica } from "@/lib/impresiones/configuracion-servidor";
 import { armarVistaAlbum } from "@/lib/galerias/publico-album";
 import { armarVistaGaleria, registrarEntrada, resolverTokenGaleria } from "@/lib/galerias/publico";
 import { workspaceDelSlug } from "@/lib/presupuestos/sitio";
@@ -64,6 +65,11 @@ export default async function GaleriaPublicaPage({ params, searchParams }: Props
     verificacion = await verificarVueltaGaleria(workspaceId, token, { compraId: unico(q.compra), paymentId: unico(q.payment_id) });
   }
   const vista = await armarVistaGaleria(r);
+  // «Pedir copias impresas»: sólo con el módulo encendido y alguna FOTO cuyo original puede bajar el cliente
+  // (la misma regla que usa la pantalla del pedido, `idsImprimibles`).
+  const originales = new Set(vista.originales);
+  const hayImprimibles = vista.fotos.some((f) => f.tipo === "FOTO" && originales.has(f.id));
+  const enlaceImprimir = hayImprimibles && (await ofertaPublica(workspaceId)) !== null ? `/w/${workspaceSlug}/galeria/${encodeURIComponent(token)}/imprimir` : undefined;
   // Galería de entrega: sin selección ni pago; la vuelta de Mercado Pago no aplica.
   if (vista.galeria.tipo === "ENTREGA") {
     const descarga = await estadoDescargaDeCliente(workspaceId, r.galeria.id, r.cliente.id, r.cliente.email);
@@ -72,9 +78,10 @@ export default async function GaleriaPublicaPage({ params, searchParams }: Props
         slug={workspaceSlug}
         token={token}
         vista={vista}
+        enlaceImprimir={enlaceImprimir}
         slotRecibirTodo={vista.fotos.length > 0 ? <RecibirTodoPorCorreo slug={workspaceSlug} token={token} tieneCorreo={descarga.tieneCorreo} activa={descarga.activa} lista={descarga.lista} topeAlcanzado={descarga.topeAlcanzado} /> : null}
       />
     );
   }
-  return <GaleriaCliente slug={workspaceSlug} token={token} vista={vista} avisoPago={avisoDeVueltaGaleria(pago, verificacion)} />;
+  return <GaleriaCliente slug={workspaceSlug} token={token} vista={vista} avisoPago={avisoDeVueltaGaleria(pago, verificacion)} enlaceImprimir={enlaceImprimir} />;
 }

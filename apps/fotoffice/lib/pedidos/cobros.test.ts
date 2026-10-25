@@ -369,3 +369,83 @@ describe("recibo", () => {
     expect(await RE.leerRecibo("ws-2", a.cobroId)).toBeNull();
   });
 });
+
+describe("transferencias esperadas (etapa B)", () => {
+  it("un cobro que deja la cuota paga cierra su espera (CONCILIADA, con el cobro); una parcial sigue abierta", async () => {
+    B.agregar("fotofficeEsperaPago", { id: "e1", workspaceId: "ws-1", pedidoId: "ped-1", cuotaId: "ped-1-c1", importeEsperadoArs: "40000.00" });
+    B.agregar("fotofficeEsperaPago", { id: "e2", workspaceId: "ws-1", pedidoId: "ped-1", cuotaId: "ped-1-c2", importeEsperadoArs: "40000.00" });
+    const r = await cobrado("ped-1", 50000, { medio: "TRANSFERENCIA" });
+    expect(B.datos.fotofficeEsperaPago.find((e) => e.id === "e1")).toMatchObject({ estado: "CONCILIADA", cobroId: r.cobroId, conciliadaEn: AHORA });
+    expect(B.datos.fotofficeEsperaPago.find((e) => e.id === "e2")).toMatchObject({ estado: "ESPERANDO", cobroId: null });
+  });
+
+  it("si la tabla de esperas no está en la base, el cobro igual queda hecho", async () => {
+    const original = B.tablas.fotofficeEsperaPago.findMany;
+    B.tablas.fotofficeEsperaPago.findMany = async () => {
+      throw Object.assign(new Error("no existe"), { code: "P2021" });
+    };
+    try {
+      expect((await cobrar("ped-1", 40000)).ok).toBe(true);
+    } finally {
+      B.tablas.fotofficeEsperaPago.findMany = original;
+    }
+  });
+});
+
+describe("efectos del pago en otros módulos", () => {
+  it("la cuota paga de un cargo de Digitalización lo aplica después del cobro", async () => {
+    B.agregar("digitalizacionEntrega", { id: "ent-1", workspaceId: "ws-1", pedidoId: "ped-1", videosVencenAt: null, videosBorradosAt: null, envioDireccion: null });
+    B.agregar("digitalizacionGrabacion", { id: "gra-1", workspaceId: "ws-1", proyectoId: null, titulo: "Boda", tipo: "VHS", cassetteNumero: 1, descargasExtra: 0 });
+    B.agregar("digitalizacionCargo", {
+      id: "car-1", workspaceId: "ws-1", entregaId: "ent-1", pedidoId: "ped-1", cuotaId: "ped-1-c1", tipo: "DESCARGA_EXTRA", grabacionId: "gra-1",
+      montoArs: "40000.00", estado: "PENDIENTE", createdAt: AHORA,
+    });
+    await cobrado("ped-1", 20000);
+    expect(B.datos.digitalizacionCargo[0]!.estado).toBe("PENDIENTE");
+    await cobrado("ped-1", 20000);
+    expect(B.datos.digitalizacionCargo[0]!.estado).toBe("APLICADO");
+    expect(B.datos.digitalizacionGrabacion[0]!.descargasExtra).toBe(1);
+  });
+});
+
+describe("comisión de plataforma de digitalización (F1)", () => {
+  it("un cobro manual de un pedido de digitalización devenga el 5 %; anularlo la revierte", async () => {
+    B.agregar("workspaceModuleFee", { workspaceId: "ws-1", moduleKey: "digitalizacion", feeBps: 500 });
+    B.agregar("digitalizacionEntrega", { id: "ent-1", workspaceId: "ws-1", pedidoId: "ped-1" });
+    // Antes del corte (23/10, 00:00 de Argentina) no devenga.
+    await cobrado("ped-1", 1000);
+    expect(B.datos.workspaceFeeLedgerEntry).toHaveLength(0);
+    const despues = { ahora: () => new Date("2026-10-25T15:00:00.000Z"), clave: CLAVE };
+    const a = await CO.registrarCobro(DUENO, { pedidoId: "ped-1", importe: 20000, fecha: "2026-10-24", medio: "EFECTIVO", idempotencyKey: clave() }, despues);
+    if (!a.ok) throw new Error(a.error);
+    expect(B.datos.workspaceFeeLedgerEntry.map((x) => [x.kind, x.amountArs, x.note])).toEqual([
+      ["DEVENGADO", "1000.00", `Comisión 5 % · pedido 2026-0001 · recibo ${a.reciboNumero} · 1.000 pesos`],
+    ]);
+    expect(await CO.anularCobro(DUENO, a.cobroId, "Se cargó dos veces", despues)).toMatchObject({ ok: true, yaAnulado: false });
+    expect(B.datos.workspaceFeeLedgerEntry.map((x) => [x.kind, x.amountArs])).toEqual([["DEVENGADO", "1000.00"], ["REVERSADO", "-1000.00"]]);
+    // Anular de nuevo no revierte dos veces.
+    await CO.anularCobro(DUENO, a.cobroId, "Otra vez", despues);
+    expect(B.datos.workspaceFeeLedgerEntry).toHaveLength(2);
+  });
+
+  it("un pedido que no es de digitalización, o con 0 bps, no devenga", async () => {
+    await cobrado("ped-1", 20000);
+    B.agregar("workspaceModuleFee", { workspaceId: "ws-1", moduleKey: "digitalizacion", feeBps: 0 });
+    B.agregar("digitalizacionEntrega", { id: "ent-1", workspaceId: "ws-1", pedidoId: "ped-1" });
+    await cobrado("ped-1", 20000);
+    expect(B.datos.workspaceFeeLedgerEntry).toHaveLength(0);
+  });
+});
+
+describe("cuotas de cargos extra en el reparto automático", () => {
+  it("regresión: con la cuota 3 impaga y un cargo de hoy, el cobro automático va a la cuota 3", async () => {
+    const { agregarCargoAlPedido } = await import("./cargos");
+    await cobrado("ped-1", 80000);
+    const c = await agregarCargoAlPedido({ workspaceId: "ws-1", pedidoId: "ped-1", concepto: "Extensión", montoArs: 15000, origen: "prueba", ahora: AHORA });
+    if (!c.ok) throw new Error(c.error);
+    const r = await cobrado("ped-1", 40000);
+    expect(imputacionesDe(r.cobroId)).toEqual([["ped-1-c3", "40000.00"]]);
+    const r2 = await cobrado("ped-1", 15000);
+    expect(imputacionesDe(r2.cobroId)).toEqual([[c.cuotaId, "15000.00"]]);
+  });
+});

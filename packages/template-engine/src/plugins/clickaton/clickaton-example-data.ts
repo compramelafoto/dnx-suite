@@ -120,6 +120,11 @@ export function createClickatonTemplateExampleData(
       issuedAtFormatted: "22/09/2026",
       accreditedAtFormatted: "19/09/2026, 16:30",
       verificationUrl: "https://maratonfotografica.com/diplomas/verificar/AB12CD34",
+      position: "4",
+      positionOrdinal: "4.º",
+      rankingTotal: "26",
+      score: "7,20",
+      category: "Titanic",
     },
   };
 

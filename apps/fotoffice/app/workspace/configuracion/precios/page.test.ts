@@ -1,18 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { isValidElement, type ReactElement, type ReactNode } from "react";
 
-const H = vi.hoisted(() => ({ bot: null as { rutas: string[] } | null, role: "WORKSPACE_OWNER", source: "manual" as string | null }));
+const H = vi.hoisted(() => ({ bot: null as { rutas: string[] } | null, role: "WORKSPACE_OWNER", source: "manual" as string | null, copiable: false }));
 vi.mock("@/lib/access/active-context", () => ({
   requireActiveWorkspaceRole: async () => ({ user: { id: 7, name: "Daniel", email: "d@x.test" }, workspace: { id: "ws1" }, role: H.role }),
 }));
 vi.mock("@/lib/precios/perfil", () => ({ leerPerfilPrecios: async () => (H.source ? { perfil: {}, source: H.source, actualizado: new Date("2026-10-12T14:00:00.456Z") } : null) }));
 vi.mock("@/lib/dnx-bot/panel", () => ({ botEnPanel: async () => H.bot }));
+vi.mock("@/lib/precios/estudio-servidor", () => ({ datosDeMiEstudio: async () => ({ ofrece: true, miembros: [{ userId: 7, etiqueta: "Daniel" }] }) }));
 vi.mock("./perfil-form", () => ({ PerfilForm: () => null }));
+vi.mock("@/lib/cuanto-cobro-socio/perfil", () => ({ hayPerfilDelPortalParaCopiar: async () => H.copiable }));
+vi.mock("./copiar-perfil-del-portal", () => ({ CopiarPerfilDelPortal: () => null }));
 const ACTUALIZADO = new Date("2026-10-12T14:00:00.456Z");
 
 const { default: Page } = await import("./page");
 const { PreguntaleAlBot } = await import("@/components/dnx-bot/preguntale-al-bot");
 const { PerfilForm } = await import("./perfil-form");
+const { CopiarPerfilDelPortal } = await import("./copiar-perfil-del-portal");
 
 function buscar(nodo: ReactNode, tipo: unknown): ReactElement[] {
   if (Array.isArray(nodo)) return nodo.flatMap((n) => buscar(n, tipo));
@@ -31,6 +35,7 @@ beforeEach(() => {
   H.bot = null;
   H.role = "WORKSPACE_OWNER";
   H.source = "manual";
+  H.copiable = false;
 });
 
 describe("Configuración → Precios y DNX Bot", () => {
@@ -47,6 +52,9 @@ describe("Configuración → Precios y DNX Bot", () => {
     H.bot = null;
     expect(buscar(await Page(), PerfilForm)[0]!.props).toMatchObject({ bot: null });
   });
+  it("Mi estudio: el formulario recibe si se ofrece y los miembros para vincular", async () => {
+    expect(buscar(await Page(), PerfilForm)[0]!.props).toMatchObject({ estudio: { ofrece: true, miembros: [{ userId: 7, etiqueta: "Daniel" }] } });
+  });
   it("perfil guardado por el bot: lo dice", async () => {
     H.source = "dnx-bot";
     expect(textos(await Page())).toContain("Armado con DNX Bot.");
@@ -55,5 +63,15 @@ describe("Configuración → Precios y DNX Bot", () => {
     expect(buscar(await Page(), PerfilForm)[0]!.props).toMatchObject({ version: ACTUALIZADO.toISOString() });
     H.source = null;
     expect(buscar(await Page(), PerfilForm)[0]!.props).toMatchObject({ version: null });
+  });
+  it("perfil copiado del portal de socio: lo dice", async () => {
+    H.source = "portal";
+    expect(textos(await Page())).toContain("Copiado de tu ¿Cuánto Cobro? del portal de socio.");
+  });
+  it("ofrece copiar el perfil del portal sólo cuando hay uno para copiar", async () => {
+    expect(buscar(await Page(), CopiarPerfilDelPortal)).toHaveLength(0);
+    H.copiable = true;
+    H.source = null;
+    expect(buscar(await Page(), CopiarPerfilDelPortal)).toHaveLength(1);
   });
 });

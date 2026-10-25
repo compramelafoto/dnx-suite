@@ -2,10 +2,12 @@ import "server-only";
 import sharp from "sharp";
 import { emitDesign, type ResourceResolver, type VariableDeclaration } from "@repo/design-studio";
 import { editorADocumento } from "@repo/template-editor-core/rendering";
+import { huecosSinFondo } from "@repo/template-editor-core";
 import {
   CLASS_LIST_VARIABLE_KEY,
   isClassListConfig,
-  parseClassListValue,
+  isCourseMosaicConfig,
+  parseClassListGroups,
   resolveTemplateDocument,
   type LegacyTemplateV2Payload,
 } from "@repo/template-engine";
@@ -17,6 +19,8 @@ import {
   resolveTemplateVariablePlugin,
 } from "@/lib/template-v2/server";
 import type { DesignV2Data } from "./design-data";
+import { leerRecursoDelMosaico } from "./mosaico-recursos";
+import { courseMosaicForPrint, courseMosaicOwnerForPrint } from "./values";
 import type { DesignTemplateVersion } from "./template";
 
 /**
@@ -30,6 +34,7 @@ import type { DesignTemplateVersion } from "./template";
  */
 
 const PHOTO_REF_PREFIX = "design-photo:";
+
 /** Lado máximo de una foto ya recortada: más que eso no suma nada a 300 dpi en una carpeta. */
 const MAX_PHOTO_SIDE_PX = 4000;
 const IMAGE_BLOCK_TYPES = new Set(["IMAGE", "PHOTO"]);
@@ -132,6 +137,8 @@ export async function cropPhotoForSlot(input: {
   slotWidth: number;
   slotHeight: number;
   crop: DesignV2Data["slots"][string]["crop"];
+  /** Un recorte sin fondo: sale en PNG para conservar la transparencia. */
+  transparente?: boolean;
 }): Promise<Uint8Array> {
   const rotated = await sharp(input.bytes, { failOn: "none" })
     .rotate()
@@ -152,7 +159,7 @@ export async function cropPhotoForSlot(input: {
   const out = await sharp(rotated.data)
     .extract({ left, top, width, height })
     .resize({ width: Math.max(1, targetWidth), withoutEnlargement: true })
-    .jpeg({ quality: 90, mozjpeg: true })
+    [input.transparente ? "png" : "jpeg"](input.transparente ? { compressionLevel: 9 } : { quality: 90, mozjpeg: true })
     .toBuffer();
   return new Uint8Array(out);
 }
@@ -172,8 +179,8 @@ function editorBlocksFromResolved(
       if (type === "PHOTO" && src) type = "IMAGE";
     }
     // El texto ya viene resuelto: si siguiera como variable, el puente reescribiría el marcador.
-    // El listado del curso sigue como variable: el puente lo reparte con `listaDelCurso`.
-    if (type === "VARIABLE_TEXT" && !isClassListConfig(config)) type = "TEXT";
+    // El listado y el mosaico del curso siguen como variable: el puente los reparte.
+    if (type === "VARIABLE_TEXT" && !isClassListConfig(config) && !isCourseMosaicConfig(config)) type = "TEXT";
     blocks.push({
       id: block.id,
       type,
@@ -198,6 +205,11 @@ export async function renderDesignV2(input: {
   template: DesignTemplateVersion;
   data: DesignV2Data;
   loadPhoto: DesignPhotoLoader;
+  /**
+   * El recorte sin fondo de una foto, para los huecos marcados «Quitar el fondo». Sin esto (o sin
+   * recorte para esa foto) va la foto entera.
+   */
+  loadCutout?: DesignPhotoLoader;
   formats: { pdf: boolean; jpg: boolean };
   /** Para vistas rápidas: achica las caras a este lado mayor. Sin valor, la resolución del lienzo. */
   jpgMaxSide?: number;
@@ -235,26 +247,46 @@ export async function renderDesignV2(input: {
     },
     blocks: editorBlocksFromResolved(resolvedDocument),
     nombre: template.name,
-    listaDelCurso: parseClassListValue(data.values[CLASS_LIST_VARIABLE_KEY]),
+    // Un listado guardado antes de los cursos con título lleva el curso del diseño como título.
+    cursosDelListado: parseClassListGroups(data.values[CLASS_LIST_VARIABLE_KEY], data.values["course.displayName"]),
+    colegioDelListado: data.values["school.name"] ?? null,
+    // Sin valor guardado, ninguno: una carpeta real nunca lleva compañeros inventados.
+    mosaicoDelCurso: courseMosaicForPrint(data.values),
+    duenoDelMosaico: courseMosaicOwnerForPrint(data.values),
   });
 
   const slotSizeByBlock = new Map(
     template.legacy.blocks.map((b) => [b.id, { width: b.layout.width, height: b.layout.height }]),
   );
   const photoCache = new Map<number, Promise<Uint8Array | null>>();
-  const resources: ResourceResolver = {
+  const sinFondo = huecosSinFondo(template.legacy.blocks as Array<{ id: string; type: string; configJson?: unknown }>);
+  const leerSinMemoria: ResourceResolver = {
     async read(ref: string) {
+      const delMosaico = await leerRecursoDelMosaico(ref, {
+        cargarFoto: (photoId) => {
+          let pending = photoCache.get(photoId);
+          if (!pending) {
+            pending = input.loadPhoto(photoId);
+            photoCache.set(photoId, pending);
+          }
+          return pending;
+        },
+        cargarUrl: loadStaticImage,
+      });
+      if (delMosaico !== undefined) return delMosaico;
       if (!ref.startsWith(PHOTO_REF_PREFIX)) return loadStaticImage(ref);
       const blockId = ref.slice(PHOTO_REF_PREFIX.length);
       const assignment = data.slots[blockId];
       const size = slotSizeByBlock.get(blockId);
       if (!assignment || assignment.photoId == null || !size) return null;
+      const recorte =
+        sinFondo.has(blockId) && input.loadCutout ? await input.loadCutout(assignment.photoId) : null;
       let pending = photoCache.get(assignment.photoId);
-      if (!pending) {
+      if (!pending && !recorte) {
         pending = input.loadPhoto(assignment.photoId);
         photoCache.set(assignment.photoId, pending);
       }
-      const bytes = await pending;
+      const bytes = recorte ?? (await pending);
       if (!bytes) return null;
       try {
         return await cropPhotoForSlot({
@@ -262,10 +294,25 @@ export async function renderDesignV2(input: {
           slotWidth: size.width,
           slotHeight: size.height,
           crop: assignment.crop,
+          transparente: recorte != null,
         });
       } catch {
         return null;
       }
+    },
+  };
+
+  // Una sola lectura por recurso: el marco del mosaico (o una foto de demo repetida) se pide una
+  // vez por compañero y no hace falta bajarlo 24 veces.
+  const leidos = new Map<string, Promise<Uint8Array | null>>();
+  const resources: ResourceResolver = {
+    read(ref: string) {
+      let pendiente = leidos.get(ref);
+      if (!pendiente) {
+        pendiente = leerSinMemoria.read(ref);
+        leidos.set(ref, pendiente);
+      }
+      return pendiente;
     },
   };
 
@@ -301,9 +348,20 @@ export async function renderDesignV2(input: {
 
   const pdfFile = out.files.find((f) => f.contentType === "application/pdf");
   const pngs = out.files.filter((f) => f.contentType === "image/png");
+  // A resolución completa, el JPG es para la imprenta: perfil sRGB adentro, marca de dpi (si no,
+  // se abre como «72 dpi» y lo escalan) y calidad alta sin submuestrear el color (los textos finos
+  // y los bordes de color quedan nítidos). Las vistas rápidas achicadas siguen livianas.
+  const paraImprenta = pngDpi === dpi;
   const jpgs: Uint8Array[] = [];
   for (const png of pngs) {
-    const jpg = await sharp(png.bytes).flatten({ background: "#ffffff" }).jpeg({ quality: 90 }).toBuffer();
+    const base = sharp(png.bytes).flatten({ background: "#ffffff" });
+    const jpg = paraImprenta
+      ? await base
+          .withIccProfile("srgb")
+          .withMetadata({ density: Math.round(dpi) })
+          .jpeg({ quality: 95, chromaSubsampling: "4:4:4" })
+          .toBuffer()
+      : await base.jpeg({ quality: 90 }).toBuffer();
     jpgs.push(new Uint8Array(jpg));
   }
 

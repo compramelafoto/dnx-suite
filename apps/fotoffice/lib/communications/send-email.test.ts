@@ -30,6 +30,17 @@ describe("sendTransactionalEmail", () => {
     expect(result.providerId).toBe("email_123");
   });
 
+  it("con idempotencyKey manda el encabezado Idempotency-Key (no va en el cuerpo); sin ella, no", async () => {
+    const fetchImpl = vi.fn(async () => jsonResponse(200, { id: "email_123" }));
+    await sendTransactionalEmail({ ...MESSAGE, idempotencyKey: "clave-1" }, { env: ENV, fetchImpl });
+    await sendTransactionalEmail(MESSAGE, { env: ENV, fetchImpl });
+    const [, con] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
+    const [, sin] = fetchImpl.mock.calls[1] as unknown as [string, RequestInit];
+    expect((con.headers as Record<string, string>)["Idempotency-Key"]).toBe("clave-1");
+    expect(JSON.parse(String(con.body)).idempotencyKey).toBeUndefined();
+    expect((sin.headers as Record<string, string>)["Idempotency-Key"]).toBeUndefined();
+  });
+
   it("manda un único destinatario, con HTML y texto plano", async () => {
     const fetchImpl = vi.fn(async () => jsonResponse(200, { id: "email_123" }));
     await sendTransactionalEmail(MESSAGE, { env: ENV, fetchImpl });

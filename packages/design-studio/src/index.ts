@@ -19,7 +19,9 @@ export type {
   ImageBlock,
   LineBlock,
   RectBlock,
+  VerticalAlign,
 } from "./document/schema";
+export { desplazamientoVertical } from "./layout/plan";
 export { mmToPt, ptToMm, mmToPx, pxToPt, ptToPx } from "./document/units";
 
 export type {
@@ -64,6 +66,8 @@ export type { CuratedFontId, FontId, FontSlot, FontDefinition, GoogleFontId } fr
 export { RENDERER_VERSION } from "./render/version";
 export type { ResourceResolver } from "./render/resources";
 export { renderSvgPages } from "./render/svg";
+export { normalizarEncuadre, ubicarFotoEncuadrada, ZOOM_MAXIMO_ENCUADRE } from "./layout/encuadre";
+export type { ImageCrop } from "./layout/encuadre";
 
 export type { Result } from "./result";
 export type { TextMeasurer, LayoutPlan, LayoutPage, LayoutItem } from "./layout/plan";

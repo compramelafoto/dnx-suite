@@ -9,7 +9,7 @@ import type { Almacen, FilaCruda } from "./extractor";
  */
 export const almacenPrisma: Almacen = {
   async guardarFilas(workspaceId, entity, filas: FilaCruda[]) {
-    if (filas.length === 0) return { nuevos: 0, cambiados: 0, iguales: 0 };
+    if (filas.length === 0) return { nuevos: 0, cambiados: 0, iguales: 0, tocados: [] };
     const existentes = await prisma.fotofficeAlboomCrudo.findMany({
       where: { workspaceId, entity, alboomId: { in: filas.map((f) => f.alboomId) } },
       select: { alboomId: true, hash: true },
@@ -47,7 +47,12 @@ export const almacenPrisma: Almacen = {
         data: { fetchedAt: ahora },
       });
     }
-    return { nuevos: nuevas.length, cambiados: cambiadas.length, iguales: iguales.length };
+    return {
+      nuevos: nuevas.length,
+      cambiados: cambiadas.length,
+      iguales: iguales.length,
+      tocados: [...nuevas, ...cambiadas].map((f) => f.alboomId),
+    };
   },
 
   async leerLote(workspaceId, entity, despuesDe, limite) {

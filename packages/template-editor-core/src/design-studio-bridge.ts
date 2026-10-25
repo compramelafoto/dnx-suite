@@ -1,11 +1,20 @@
-import { FONT_CATALOG, GOOGLE_FONT_PREFIX, fontDefinition, isFontId, type FontId } from "@repo/design-studio";
+import { FONT_CATALOG, GOOGLE_FONT_PREFIX, fontDefinition, isFontId, normalizarEncuadre, type FontId, type ImageCrop } from "@repo/design-studio";
 import { EDITOR_FONT_CATALOG } from "./editor-font-catalog";
+import { readTextVerticalAlign } from "./render-core";
 import {
-  CLASS_LIST_SAMPLE,
+  CLASS_LIST_SAMPLE_GROUPS,
+  CLASS_LIST_SAMPLE_SCHOOL,
   CLASS_LIST_VARIABLE_KEY,
-  formatClassList,
-  layoutClassList,
+  SCHOOL_CLIENT_PHOTO_PLACEHOLDER,
+  distributeCourseMosaic,
+  isCourseMosaicConfig,
+  layoutCourseMosaic,
+  readCourseMosaicOptions,
+  type CourseMosaicRect,
+  type CourseMosaicStudent,
+  layoutClassListBlock,
   readClassListOptions,
+  type ClassListGroup,
   type ClassListStudent,
 } from "@repo/template-engine";
 
@@ -159,6 +168,15 @@ function conversionDeLetras(v: unknown): "none" | "uppercase" | "lowercase" | "c
   return v === "uppercase" || v === "lowercase" || v === "capitalize" ? v : "none";
 }
 
+/**
+ * La alineación vertical para design-studio. Arriba no se escribe: el documento queda igual al
+ * de antes de que existiera la opción.
+ */
+function alineacionVertical(cfg: Record<string, unknown>): { verticalAlign?: "middle" | "bottom" } {
+  const v = readTextVerticalAlign(cfg);
+  return v === "MIDDLE" ? { verticalAlign: "middle" } : v === "BOTTOM" ? { verticalAlign: "bottom" } : {};
+}
+
 function alineacion(v: unknown): "left" | "center" | "right" {
   const a = texto(v, "CENTER").toLowerCase();
   return a === "left" || a === "right" ? a : "center";
@@ -198,6 +216,24 @@ export function editorADocumento(input: {
    * muestra (la vista previa del editor); una lista vacía no dibuja nada.
    */
   listaDelCurso?: readonly ClassListStudent[];
+  /**
+   * Los cursos del listado, cada uno con su título (manda sobre `listaDelCurso`). Se leen del
+   * valor guardado con `parseClassListGroups`.
+   */
+  cursosDelListado?: readonly ClassListGroup[];
+  /**
+   * El colegio del diseño (`school.name`), para la línea de arriba del listado cuando el bloque
+   * la pide. Sin esto, con el curso de muestra va el colegio de muestra; con cursos reales, no va.
+   */
+  colegioDelListado?: string | null;
+  /**
+   * Los compañeros del bloque «Mosaico del curso», ya sin el dueño del diseño. Sin esto no se
+   * dibuja ninguno: una carpeta real nunca lleva compañeros inventados. Quien quiera la muestra
+   * (una vista de ejemplo) pasa `COURSE_MOSAIC_SAMPLE`.
+   */
+  mosaicoDelCurso?: readonly CourseMosaicStudent[];
+  /** El dueño del diseño, para los bloques con «Incluir al dueño» (la plancha de figuritas). */
+  duenoDelMosaico?: CourseMosaicStudent | null;
 }): PuenteResultado {
   const avisos: string[] = [];
   const variablesSinteticas: VariableSintetica[] = [];
@@ -220,6 +256,16 @@ export function editorADocumento(input: {
     porCara.get(cara)!.push(b);
   }
   if (porCara.size === 0) porCara.set(0, []);
+
+  // Los bloques del mosaico se reparten los chicos entre todos, en todas las caras: una cadena
+  // puede empezar en una página y seguir en la otra.
+  const chicosPorMosaico = distributeCourseMosaic(
+    input.blocks.filter((b) => b.type === "VARIABLE_TEXT"),
+    [...(input.mosaicoDelCurso ?? [])],
+    input.duenoDelMosaico ?? null,
+  );
+  let avisoElipse = false;
+  let avisoSombra = false;
 
   const sides = [...porCara.entries()]
     .sort(([a], [b]) => a - b)
@@ -277,6 +323,7 @@ export function editorADocumento(input: {
               fontStyle: cfg.fontItalic === true ? "italic" : "normal",
               color: texto(cfg.color, "#111111"),
               align: alineacion(cfg.textAlign),
+              ...alineacionVertical(cfg),
               textTransform: conversionDeLetras(cfg.textTransform),
               lineHeight: num(cfg.lineHeight, 1.2),
             });
@@ -289,6 +336,27 @@ export function editorADocumento(input: {
               avisos.push(`Un bloque de dato variable quedó sin variable elegida; no se imprimió.`);
               break;
             }
+            if (isCourseMosaicConfig(cfg)) {
+              const dibujado = dibujarMosaico({
+                bloque: b,
+                cfg,
+                geo,
+                chicos: chicosPorMosaico.get(b.id) ?? [],
+                mm,
+                pt,
+                fuente: fuenteDesde(texto(cfg.fontFamily, "Helvetica"), avisos),
+              });
+              dibujables.push(...dibujado.partes);
+              if (dibujado.bordeDeElipse && !avisoElipse) {
+                avisoElipse = true;
+                avisos.push("El mosaico va sin borde de elipse: la impresión no dibuja elipses con borde.");
+              }
+              if (dibujado.sombraDeElipse && !avisoSombra) {
+                avisoSombra = true;
+                avisos.push("El mosaico en óvalo va sin sombra: la impresión no dibuja óvalos de color.");
+              }
+              break;
+            }
             if (clave === CLASS_LIST_VARIABLE_KEY) {
               /*
                * design-studio no mezcla negrita y normal dentro de un mismo texto, así que el
@@ -297,18 +365,26 @@ export function editorADocumento(input: {
                */
               const opciones = readClassListOptions(cfg);
               const pesoBase = num(cfg.fontWeight, 400) >= 600 ? "bold" : "normal";
-              const reparto = layoutClassList({
-                lines: formatClassList(input.listaDelCurso ?? CLASS_LIST_SAMPLE, opciones),
+              const cursos: readonly ClassListGroup[] =
+                input.cursosDelListado ??
+                (input.listaDelCurso ? [{ title: "", students: [...input.listaDelCurso] }] : CLASS_LIST_SAMPLE_GROUPS);
+              const reparto = layoutClassListBlock({
+                groups: cursos,
+                options: opciones,
                 width: num(b.width, 0),
                 height: num(b.height, 0),
                 fontSize: num(cfg.fontSize, 20),
                 lineHeight: num(cfg.lineHeight, 1.2),
-                columns: opciones.columns,
+                // El listado se alinea como un todo: cada alumno sale con su celda ya corrida,
+                // y su texto va arriba de la celda, igual que en el lienzo.
+                verticalAlign: readTextVerticalAlign(cfg).toLowerCase() as "top" | "middle" | "bottom",
+                schoolName:
+                  input.colegioDelListado ??
+                  (input.cursosDelListado || input.listaDelCurso ? null : CLASS_LIST_SAMPLE_SCHOOL),
               });
               const comun = {
                 type: "text" as const,
                 fontId: fuenteDesde(texto(cfg.fontFamily, "Helvetica"), avisos),
-                fontSize: pt(reparto.fontSize),
                 fontStyle: cfg.fontItalic === true ? "italic" : "normal",
                 color: texto(cfg.color, "#111111"),
                 align: alineacion(cfg.textAlign),
@@ -342,6 +418,7 @@ export function editorADocumento(input: {
                   height: mm(celda.height),
                   rotation: giro || undefined,
                   content: celda.text,
+                  fontSize: pt(celda.fontSize),
                   fontWeight: celda.bold ? "bold" : pesoBase,
                 });
               });
@@ -357,6 +434,7 @@ export function editorADocumento(input: {
               fontStyle: cfg.fontItalic === true ? "italic" : "normal",
               color: texto(cfg.color, "#111111"),
               align: alineacion(cfg.textAlign),
+              ...alineacionVertical(cfg),
               textTransform: conversionDeLetras(cfg.textTransform),
               lineHeight: num(cfg.lineHeight, 1.2),
             });
@@ -409,10 +487,15 @@ export function editorADocumento(input: {
              * salía recortado sin que nada lo avisara. `cover` sigue siendo el valor por defecto.
              */
             const encaje = texto(cfg.fit) === "contain" ? "contain" : "cover";
+            /*
+             * El reencuadre de la foto dentro del marco (zoom y corrimiento). Viaja con la
+             * proporción de la foto original, que la vista previa necesita para ubicarla.
+             */
+            const encuadre = encaje === "cover" ? encuadreDeImagen(cfg) : {};
             if (clave) {
-              dibujables.push({ ...geo, type: "image", variableKey: clave, fit: encaje, ...forma });
+              dibujables.push({ ...geo, type: "image", variableKey: clave, fit: encaje, ...forma, ...encuadre });
             } else if (src) {
-              dibujables.push({ ...geo, type: "image", resourceRef: src, fit: encaje, ...forma });
+              dibujables.push({ ...geo, type: "image", resourceRef: src, fit: encaje, ...forma, ...encuadre });
             } else {
               avisos.push("Una imagen quedó sin archivo ni variable; no se imprimió.");
             }
@@ -508,6 +591,193 @@ export function editorADocumento(input: {
   };
 }
 
+/** Color de las iniciales sobre la silueta de un chico sin foto. */
+const SILUETA_LETRAS = "#78716c";
+
+function iniciales(s: CourseMosaicStudent): string {
+  return [s.firstName, s.lastName]
+    .map((p) => p.trim().charAt(0).toUpperCase())
+    .filter(Boolean)
+    .join("");
+}
+
+/**
+ * Un bloque «Mosaico del curso» convertido en bloques comunes: por cada chico, la sombra, el
+ * papel de la polaroid, la foto (o la silueta), el borde, el marco, la cinta y el nombre, en ese
+ * orden de dibujo. La cuenta del reparto es la del lienzo (`layoutCourseMosaic`).
+ *
+ * Cada parte gira dos veces: con el giro propio de la celda (el «pegado a mano»), alrededor del
+ * centro de la celda, y con el giro del bloque, alrededor del centro del bloque, igual que el
+ * listado.
+ */
+function dibujarMosaico(input: {
+  bloque: EditorBlock;
+  cfg: Record<string, unknown>;
+  geo: Record<string, unknown>;
+  chicos: CourseMosaicStudent[];
+  mm: (px: number) => number;
+  pt: (px: number) => number;
+  fuente: FontId;
+}): { partes: Record<string, unknown>[]; bordeDeElipse: boolean; sombraDeElipse: boolean } {
+  const { bloque: b, cfg, geo, chicos, mm, pt, fuente } = input;
+  const o = readCourseMosaicOptions(cfg);
+  // Los mismos valores por defecto que el lienzo (`getTextVisualConfig`): si no, las filas se
+  // corren entre la pantalla y el PDF.
+  const fontSize = num(cfg.fontSize, 20);
+  const lineHeight = num(cfg.lineHeight, 1.2);
+  const reparto = layoutCourseMosaic({
+    students: chicos,
+    options: o,
+    width: num(b.width, 0),
+    height: num(b.height, 0),
+    fontSize,
+    lineHeight,
+  });
+
+  const bx = num(b.x, 0);
+  const by = num(b.y, 0);
+  const giroBloque = num(b.rotation, 0);
+  const centroX = bx + num(b.width, 0) / 2;
+  const centroY = by + num(b.height, 0) / 2;
+  const girar = (x: number, y: number, cx: number, cy: number, grados: number) => {
+    if (!grados) return { x, y };
+    const rad = (grados * Math.PI) / 180;
+    const dx = x - cx;
+    const dy = y - cy;
+    return { x: cx + dx * Math.cos(rad) - dy * Math.sin(rad), y: cy + dx * Math.sin(rad) + dy * Math.cos(rad) };
+  };
+
+  const color = texto(cfg.color, "#111111");
+  const peso = num(cfg.fontWeight, 400) >= 600 ? "bold" : "normal";
+  const radioDeForma = (r: CourseMosaicRect) =>
+    o.frame === "circle" || o.frame === "ellipse"
+      ? Math.min(r.width, r.height) / 2
+      : o.frame === "rounded"
+        ? o.cornerRadius
+        : 0;
+
+  const partes: Record<string, unknown>[] = [];
+  let bordeDeElipse = false;
+  const sombraDeElipse = o.frame === "ellipse" && o.shadow != null;
+
+  reparto.cells.forEach((celda, i) => {
+    const cx = bx + celda.box.x + celda.box.width / 2;
+    const cy = by + celda.box.y + celda.box.height / 2;
+    const giro = giroBloque + celda.rotation;
+    /** Un rectángulo de la celda (relativo al bloque) en milímetros, ya ubicado y girado. */
+    const ubicar = (r: CourseMosaicRect) => {
+      const enCelda = girar(bx + r.x + r.width / 2, by + r.y + r.height / 2, cx, cy, celda.rotation);
+      const c = girar(enCelda.x, enCelda.y, centroX, centroY, giroBloque);
+      return {
+        x: mm(c.x - r.width / 2),
+        y: mm(c.y - r.height / 2),
+        width: mm(r.width),
+        height: mm(r.height),
+        rotation: giro || undefined,
+      };
+    };
+    const parte = (nombre: string, r: CourseMosaicRect, resto: Record<string, unknown>) =>
+      partes.push({ ...geo, ...ubicar(r), ...resto, id: `${b.id}__m${i}_${nombre}` });
+
+    const papel = o.frame === "polaroid" ? celda.box : celda.photo;
+    const radio = radioDeForma(celda.photo);
+    const redondeo = (px: number) => (px > 0 ? { cornerRadius: mm(px) } : {});
+
+    if (o.shadow && o.frame !== "ellipse") {
+      parte(
+        "sombra",
+        { ...papel, x: papel.x + o.shadow.dx, y: papel.y + o.shadow.dy },
+        { type: "rect", fillColor: o.shadow.color, ...redondeo(o.frame === "polaroid" ? 0 : radio) },
+      );
+    }
+    if (o.frame === "polaroid") parte("papel", celda.box, { type: "rect", fillColor: "#ffffff" });
+
+    const chico = celda.student;
+    if (o.emptyPhotos) {
+      // El álbum de figuritas: el lugar vacío donde se pega cada una.
+      parte("vacio", celda.photo, { type: "rect", fillColor: o.emptyFill, ...redondeo(radio) });
+    }
+    // Con prefijo propio, así quien imprime sabe que es un compañero y, si la foto no aparece,
+    // pone la silueta en vez de frenar toda la carpeta.
+    const ref = o.emptyPhotos
+      ? null
+      : chico.photoId != null
+        ? `mosaic-photo:${chico.photoId}`
+        : chico.photoUrl
+          ? `mosaic-url:${chico.photoUrl}`
+          : null;
+    if (ref) {
+      parte("foto", celda.photo, {
+        type: "image",
+        resourceRef: ref,
+        fit: "cover",
+        mask: o.frame === "circle" || o.frame === "ellipse" ? o.frame : "rect",
+        ...(o.frame === "rounded" ? redondeo(o.cornerRadius) : {}),
+        ...(chico.crop ? { crop: chico.crop } : {}),
+        ...(chico.sourceAspect ? { sourceAspect: chico.sourceAspect } : {}),
+      });
+    } else if (!o.emptyPhotos) {
+      // La silueta es la imagen gris con la misma forma que la foto: así un óvalo es un óvalo
+      // también en el papel (la impresión no dibuja óvalos de color).
+      parte("silueta", celda.photo, {
+        type: "image",
+        resourceRef: SCHOOL_CLIENT_PHOTO_PLACEHOLDER,
+        fit: "cover",
+        mask: o.frame === "circle" || o.frame === "ellipse" ? o.frame : "rect",
+        ...(o.frame === "rounded" ? redondeo(o.cornerRadius) : {}),
+      });
+      parte("iniciales", celda.photo, {
+        type: "text",
+        content: iniciales(chico),
+        fontId: fuente,
+        fontSize: pt(celda.photo.width * 0.3),
+        fontWeight: "bold",
+        color: SILUETA_LETRAS,
+        align: "center",
+        verticalAlign: "middle",
+      });
+    }
+
+    if (o.borderWidth > 0) {
+      if (o.frame === "ellipse") bordeDeElipse = true;
+      else {
+        parte("borde", celda.photo, {
+          type: "rect",
+          strokeColor: o.borderColor,
+          strokeWidth: mm(o.borderWidth),
+          ...redondeo(radio),
+        });
+      }
+    }
+    if (o.frameSrc) parte("marco", celda.photo, { type: "image", resourceRef: o.frameSrc, fit: "cover" });
+
+    if (celda.name) {
+      if (o.nameBackground) {
+        const margen = celda.name.fontSize * 0.15;
+        parte(
+          "cinta",
+          { x: celda.name.x, y: celda.name.y - margen, width: celda.name.width, height: celda.name.height + 2 * margen },
+          { type: "rect", fillColor: o.nameBackground },
+        );
+      }
+      parte("nombre", celda.name, {
+        type: "text",
+        content: celda.name.lines.join("\n"),
+        fontId: fuente,
+        fontSize: pt(celda.name.fontSize),
+        fontWeight: peso,
+        fontStyle: cfg.fontItalic === true ? "italic" : "normal",
+        color,
+        align: "center",
+        textTransform: conversionDeLetras(cfg.textTransform),
+        lineHeight,
+      });
+    }
+  });
+
+  return { partes, bordeDeElipse, sombraDeElipse };
+}
+
 /* ────────────────────────────────────────────────────────────────────────── */
 
 export type SemillaEditor = {
@@ -523,6 +793,15 @@ export type SemillaEditor = {
  * la abriría vacía —no entiende ese formato— y quien fuera a retocar el carnet se encontraría
  * con un lienzo en blanco en lugar de su diseño.
  */
+/** `crop` y `sourceAspect` del bloque imagen, si los tiene. Ver `@repo/design-studio` → encuadre. */
+function encuadreDeImagen(cfg: Record<string, unknown>): { crop?: ImageCrop; sourceAspect?: number } {
+  const crop = normalizarEncuadre(cfg.crop);
+  if (!crop) return {};
+  const w = num(cfg.srcWidth, 0);
+  const h = num(cfg.srcHeight, 0);
+  return { crop, ...(w > 0 && h > 0 ? { sourceAspect: w / h } : {}) };
+}
+
 export function documentoAEditor(documento: unknown): SemillaEditor {
   const doc = obj(documento);
   const formato = obj(doc.format);
@@ -571,6 +850,9 @@ export function documentoAEditor(documento: unknown): SemillaEditor {
           fontItalic: texto(b.fontStyle) === "italic",
           color: texto(b.color, "#111111"),
           textAlign: texto(b.align, "left").toUpperCase(),
+          ...(b.verticalAlign === "middle" || b.verticalAlign === "bottom"
+            ? { verticalAlign: texto(b.verticalAlign).toUpperCase() }
+            : {}),
           // Las mayúsculas del diseño base se conservaban al imprimir pero no al pasar al editor.
           ...(conversionDeLetras(b.textTransform) !== "none"
             ? { textTransform: conversionDeLetras(b.textTransform) }
@@ -603,6 +885,15 @@ export function documentoAEditor(documento: unknown): SemillaEditor {
           ...(recorte === "circle" || recorte === "ellipse" ? { maskShape: recorte } : {}),
           ...(num(b.cornerRadius, 0) > 0 ? { borderRadius: px(num(b.cornerRadius, 0)) } : {}),
         };
+        const encuadre = normalizarEncuadre(b.crop);
+        const aspecto = num(b.sourceAspect, 0);
+        if (encuadre) {
+          // Sólo la proporción importa: se guarda como medidas relativas.
+          Object.assign(forma, {
+            crop: encuadre,
+            ...(aspecto > 0 ? { srcWidth: Math.round(aspecto * 1000), srcHeight: 1000 } : {}),
+          });
+        }
         blocks.push(
           clave === "photo"
             ? {

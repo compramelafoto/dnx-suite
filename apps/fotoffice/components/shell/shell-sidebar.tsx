@@ -18,6 +18,8 @@ export function ShellSidebar({
   vocabulary,
   roleSelector = null,
   openGroups = [],
+  bandejaNoLeidos = 0,
+  logoPropio = null,
 }: {
   /**
    * Nombre de la organización activa. Antes acá decía "Venta de cursos", fijo en el código:
@@ -39,6 +41,10 @@ export function ShellSidebar({
   roleSelector?: RoleSelectorData | null;
   /** Grupos del menú que la persona dejó desplegados (cookie `fo_nav_grupos`). */
   openGroups?: readonly string[];
+  /** Mensajes sin leer de la Bandeja de WhatsApp (0 si no hay o no corresponde). */
+  bandejaNoLeidos?: number;
+  /** Con colores propios del panel, el logo del negocio va en lugar del de FOTOFFICE. */
+  logoPropio?: string | null;
 }) {
   return (
     <aside className="min-h-full md:min-h-screen border-b md:border-b-0 md:border-r border-[var(--fo-border)] bg-[var(--fo-bg-elevated)] p-4 md:p-5">
@@ -49,7 +55,12 @@ export function ShellSidebar({
         >
           <span className="sr-only">Fotoffice — ir al inicio</span>
           <div className="px-0 py-1 md:py-2">
-            <FotofficeLogo variant="sidebar" />
+            {logoPropio ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={logoPropio} alt="" className="h-11 w-11 rounded-full object-contain" />
+            ) : (
+              <FotofficeLogo variant="sidebar" />
+            )}
           </div>
           {workspaceName ? (
             <span className="block truncate text-xs text-[var(--fo-muted)] mt-2.5">
@@ -69,6 +80,7 @@ export function ShellSidebar({
         platformAdmin={platformAdmin}
         vocabulary={vocabulary}
         openGroups={openGroups}
+        bandejaNoLeidos={bandejaNoLeidos}
       />
       {/* Al pie, a mano para todo el equipo: las guías paso a paso de cada pantalla. */}
       <div className="mt-8 border-t border-[var(--fo-border)] pt-4">

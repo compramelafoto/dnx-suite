@@ -170,6 +170,16 @@ async function idsDeOriginales(r: Resuelto): Promise<string[]> {
   return fotosDescargables({ downloadMode: r.galeria.downloadMode, estadoCliente: r.cliente.status, incluidas: carrito.incluidas, pagadas });
 }
 
+/**
+ * Ids de las fotos que este cliente puede pedir IMPRESAS: las mismas cuyo original puede bajar (pagadas,
+ * incluidas con la selección enviada, o todo en una entrega). Un álbum nunca ofrece copias. No cambia nada de
+ * las descargas: es la misma regla, leída de la base en cada llamada.
+ */
+export async function idsImprimibles(r: Resuelto): Promise<string[]> {
+  if (r.galeria.kind === "ALBUM") return [];
+  return idsDeOriginales(r);
+}
+
 // --- La página ---------------------------------------------------------------------------------------------
 
 /**

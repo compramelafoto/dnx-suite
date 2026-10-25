@@ -1,8 +1,13 @@
 import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
 import { CASH_MODULE_KEY } from "@/lib/cash/constants";
 import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
+import { BANDEJA_MODULE_KEY } from "@/lib/bandeja/constantes";
 import { COMMUNICATIONS_MODULE_KEY } from "@/lib/communications/constants";
+import { CUANTO_COBRO_SOCIO_MODULE_KEY } from "@/lib/cuanto-cobro-socio/constants";
+import { FOTOLIBROS_SOCIO_MODULE_KEY } from "@/lib/fotolibro/constantes";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
+import { PRINT_ORDERS_MODULE_KEY } from "@/lib/impresiones/constantes";
+import { DIGITALIZACION_MODULE_KEY } from "@/lib/digitalizacion/constants";
 import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
 import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
 import { EVALUACIONES_MODULE_KEY } from "@/lib/evaluaciones/constants";
@@ -117,6 +122,22 @@ export const MODULOS_DISPONIBLES: FichaModulo[] = [
       "Propuestas y apoyo de los socios desde el portal",
       "Tareas para socios voluntarios",
     ],
+  },
+  {
+    key: CUANTO_COBRO_SOCIO_MODULE_KEY,
+    cuadro: "03d",
+    nombre: "¿Cuánto Cobro? para socios",
+    resuelve:
+      "Cada socio calcula en su portal cuánto cobrar un trabajo sin regalarlo: parte de lo que necesita ganar por mes para vivir de la fotografía, suma sus gastos fijos, reparte sus horas y le agrega los gastos de cada evento. Lo que carga es personal: la institución no lo ve. Si después crea su negocio en FotoOffice, se lleva el perfil armado.",
+    pantallas: ["¿Cuánto Cobro?, en el portal del socio", "Valor de la hora y presupuesto de un trabajo, con el desglose"],
+  },
+  {
+    key: FOTOLIBROS_SOCIO_MODULE_KEY,
+    cuadro: "03e",
+    nombre: "Fotolibros para socios",
+    resuelve:
+      "Cada socio diseña sus fotolibros desde su portal: elige la medida y el pliego sale con la medida real que imprime el laboratorio, una hoja por pliego. Encuadra cada foto dentro de su marco arrastrándola, y lo que ve es lo que se imprime. Lo que diseña es personal: la institución no lo ve.",
+    pantallas: ["Mis fotolibros, en el portal del socio", "Editor por pliegos con encuadre de foto"],
   },
   {
     key: BOOKINGS_MODULE_KEY,
@@ -341,6 +362,19 @@ export const MODULOS_DISPONIBLES: FichaModulo[] = [
     ],
   },
   {
+    key: BANDEJA_MODULE_KEY,
+    cuadro: "27",
+    nombre: "Bandeja de WhatsApp",
+    resuelve:
+      "Todos los chats de WhatsApp de la institución en una sola bandeja. Ves quién escribió, si lo atiende el bot o una persona del equipo, y respondés desde el panel dentro de la ventana de 24 horas. Cada conversación se vincula a la ficha del cliente.",
+    pantallas: [
+      "Bandeja de chats con no leídos",
+      "Tomar, devolver al bot y resolver",
+      "Respuesta con registro de quién la mandó",
+      "Cliente vinculado a su ficha",
+    ],
+  },
+  {
     key: STORE_MODULE_KEY,
     cuadro: "14",
     nombre: "Tienda online",
@@ -354,8 +388,23 @@ export const MODULOS_DISPONIBLES: FichaModulo[] = [
       "Abrir y cerrar la tienda",
     ],
   },
+  {
+    key: DIGITALIZACION_MODULE_KEY,
+    cuadro: "28",
+    nombre: "Digitalización de VHS y DVD",
+    resuelve:
+      "Grabá cassettes y DVD desde la capturadora mientras seguís trabajando: se suben solos y se cortan cuando termina la cinta.",
+    pantallas: ["Grabaciones", "Estación de grabación"],
+  },
+  {
+    key: PRINT_ORDERS_MODULE_KEY,
+    cuadro: "29",
+    nombre: "Pedidos de impresión",
+    resuelve:
+      "Tu cliente pide sus copias desde el mismo enlace de sus fotos: elige tamaño, cantidad y recorte, paga online y el pedido le llega solo al laboratorio. Vos no tomás pedidos por WhatsApp ni pasás archivos a mano.",
+    pantallas: ["Configuración de impresiones"],
+  },
 ];
-
 /** Lo que está siempre, se encienda lo que se encienda. No son módulos con interruptor. */
 export const BASE_DEL_SISTEMA: FichaModulo[] = [
   {

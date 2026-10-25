@@ -2,6 +2,7 @@ import { PageHeader } from "@/components/page-header";
 import { requireSalesAdmin } from "@/lib/sales/access";
 import { listProductCategories } from "@/lib/sales/repository";
 import { ProductForm } from "../../product-form";
+import { listarProveedores } from "@/lib/proveedores/repositorio";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +13,10 @@ export default async function NuevoProductoPage({
 }) {
   const { workspace } = await requireSalesAdmin();
   const params = await searchParams;
-  const categorias = await listProductCategories(workspace.id);
+  const [categorias, proveedores] = await Promise.all([
+    listProductCategories(workspace.id),
+    listarProveedores(workspace.id, { soloActivos: true }).then((ps) => ps.map((p) => ({ id: p.id, name: p.name }))),
+  ]);
 
   return (
     <div className="space-y-8">
@@ -20,7 +24,7 @@ export default async function NuevoProductoPage({
         title="Nuevo producto"
         description="Escaneá el código de barras si lo tiene: si ya está en el catálogo compartido, se precarga solo."
       />
-      <ProductForm product={null} categories={categorias} error={params.error} />
+      <ProductForm product={null} categories={categorias} error={params.error} proveedores={proveedores} />
     </div>
   );
 }

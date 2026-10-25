@@ -20,6 +20,7 @@ import {
   PHOTOGRAPHIC_PEDESTRIAN_SUBJECT_ID,
 } from "@/lib/simulator/moving-subject-types";
 import { simulatorRuntime } from "@/lib/simulator/simulator-runtime";
+import { frameNdcToCanvasNdc } from "@/lib/simulator/viewfinder-frame";
 import { useThree } from "@react-three/fiber";
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
@@ -30,8 +31,14 @@ const _world = new THREE.Vector3();
 /**
  * Adquisición AF por raycast + contraste simulado (delay pedagógico).
  */
+/** ¿Se dibuja? (el objeto y todos sus padres visibles). */
+function isShown(object: THREE.Object3D): boolean {
+  for (let o: THREE.Object3D | null = object; o; o = o.parent) if (!o.visible) return false;
+  return true;
+}
+
 export default function FocusRaycaster() {
-  const { camera, scene } = useThree();
+  const { camera, scene, size } = useThree();
   const pendingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -40,11 +47,14 @@ export default function FocusRaycaster() {
     const acquireAtNdc = (ndcSamples: [number, number][]): SimulatedFocusHit[] => {
       const candidates: SimulatedFocusHit[] = [];
 
-      for (const [nx, ny] of ndcSamples) {
+      for (const [fx, fy] of ndcSamples) {
+        // Los puntos AF se dibujan dentro del recuadro de captura, no del canvas.
+        const [nx, ny] = frameNdcToCanvasNdc(fx, fy, size.width, size.height);
         _ndc.set(nx, ny);
         raycaster.setFromCamera(_ndc, camera);
         const hits = raycaster.intersectObjects(scene.children, true);
-        const hit = hits.find((h) => h.object instanceof THREE.Mesh && h.distance > 0.05);
+        // Lo apagado por distancia también se cruza el rayo: sólo cuenta lo que se ve.
+        const hit = hits.find((h) => h.object instanceof THREE.Mesh && h.distance > 0.05 && isShown(h.object));
         if (!hit) continue;
 
         const distanceM = camera.position.distanceTo(hit.point);
@@ -99,7 +109,13 @@ export default function FocusRaycaster() {
           focusConfidence = best.focusConfidence;
           focusedObjectId = best.focusedObjectId;
         } else {
-          raycaster.setFromCamera(_ndc.set(ndcSamples[0][0], ndcSamples[0][1]), camera);
+          const [nx, ny] = frameNdcToCanvasNdc(
+            ndcSamples[0][0],
+            ndcSamples[0][1],
+            size.width,
+            size.height,
+          );
+          raycaster.setFromCamera(_ndc.set(nx, ny), camera);
           raycaster.ray.at(40, _world);
           distanceM = roundFocusDistanceM(camera.position.distanceTo(_world));
           targetLabel = "Infinito";
@@ -157,7 +173,7 @@ export default function FocusRaycaster() {
       window.removeEventListener(COD_FOCUS_REQUEST_EVENT, onFocusRequest);
       if (pendingRef.current) clearTimeout(pendingRef.current);
     };
-  }, [camera, scene]);
+  }, [camera, scene, size.width, size.height]);
 
   return null;
 }

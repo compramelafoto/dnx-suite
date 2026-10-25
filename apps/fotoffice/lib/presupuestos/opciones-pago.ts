@@ -15,8 +15,11 @@
  * Cobro?); acá van la validación de lo que llega del formulario y lo que ve el cliente.
  */
 import {
+  condicionesDeInstantanea,
   normalizePaymentOptions,
   opcionesDeInstantanea,
+  opcionesSegunCobros,
+  resumenPlanOpcion,
   parsePaymentOptionsSnapshot,
   type CuantoCobroInstallmentPlanInput,
   type CuantoCobroPaymentOptionsInput,
@@ -163,7 +166,10 @@ export type OpcionesPagoEditor = {
 
 // --- Lo que ve el cliente --------------------------------------------------------------------
 
-/** Una opción en el enlace público: nombre, importe por cuota, total y nota. Nada más. */
+/**
+ * Una opción en el enlace público: nombre, importe por cuota, total y nota; y (etapa B) el medio de
+ * pago y la seña. Con seña, `importeCuota` es la cuota del saldo (lo que queda después de la seña).
+ */
 export type OpcionPublica = {
   id: string;
   etiqueta: string;
@@ -171,20 +177,32 @@ export type OpcionPublica = {
   importeCuota: number;
   total: number;
   nota: string | null;
+  medio: "MERCADO_PAGO" | "TRANSFERENCIA" | null;
+  /** Seña de esta opción (0 sin seña). */
+  sena: number;
 };
 
-/** Copia campo por campo lo que se puede mostrar de cada opción congelada. */
-export function opcionesPublicas(raw: unknown): OpcionPublica[] {
+/**
+ * Copia campo por campo lo que se puede mostrar de cada opción congelada. `mercadoPago: false`
+ * (la organización no puede cobrar con Mercado Pago) deja sólo las que no lo necesitan.
+ */
+export function opcionesPublicas(raw: unknown, cobros: { mercadoPago?: boolean } = {}): OpcionPublica[] {
   const s = parsePaymentOptionsSnapshot(raw);
   if (!s) return [];
-  return opcionesDeInstantanea(s).map((o: OpcionPago) => ({
-    id: o.id,
-    etiqueta: o.etiqueta,
-    cuotas: o.cuotas,
-    importeCuota: o.importeCuota,
-    total: o.total,
-    nota: o.nota.trim() ? o.nota.trim() : null,
-  }));
+  const sena = condicionesDeInstantanea(s)?.senaPorcentaje ?? 0;
+  return opcionesSegunCobros(opcionesDeInstantanea(s), cobros.mercadoPago !== false).map((o: OpcionPago) => {
+    const plan = resumenPlanOpcion(o, sena);
+    return {
+      id: o.id,
+      etiqueta: o.etiqueta,
+      cuotas: o.cuotas,
+      importeCuota: sena > 0 ? plan.importeCuota : o.importeCuota,
+      total: o.total,
+      nota: o.nota.trim() ? o.nota.trim() : null,
+      medio: o.medio,
+      sena: plan.sena,
+    };
+  });
 }
 
 /**
@@ -193,8 +211,8 @@ export function opcionesPublicas(raw: unknown): OpcionPublica[] {
  * - sin elección (undefined, null o ""): la primera;
  * - un id que no está en la instantánea, u otra cosa: error.
  */
-export function opcionElegida(raw: unknown, elegida: unknown): ResultadoValidacion<string | null> {
-  const opciones = opcionesPublicas(raw);
+export function opcionElegida(raw: unknown, elegida: unknown, cobros: { mercadoPago?: boolean } = {}): ResultadoValidacion<string | null> {
+  const opciones = opcionesPublicas(raw, cobros);
   const vacia = elegida === undefined || elegida === null || elegida === "";
   if (opciones.length === 0) return vacia ? { ok: true, valor: null } : { ok: false, error: MENSAJES_OPCIONES_PAGO.elegida };
   if (vacia) return { ok: true, valor: opciones[0]!.id };
@@ -214,7 +232,12 @@ export function pesosCuota(n: number): string {
 const formatoTotal = formatoEntero;
 
 /** "3 cuotas de $ 40.000 · total $ 120.000" (o sólo el total, si es una). */
-export function importeDeOpcion(o: Pick<OpcionPublica, "cuotas" | "importeCuota" | "total">): string {
+export function importeDeOpcion(o: Pick<OpcionPublica, "cuotas" | "importeCuota" | "total"> & { sena?: number }): string {
   const total = formatoTotal.format(Math.round(o.total));
+  // Etapa B: con seña, la seña y las cuotas del saldo.
+  if (o.sena && o.sena > 0) {
+    const resto = o.cuotas > 1 ? `${o.cuotas} cuotas de ${pesosCuota(o.importeCuota)}` : `saldo de ${pesosCuota(o.importeCuota)}`;
+    return `Seña de ${pesosCuota(o.sena)} + ${resto} · total ${total}`;
+  }
   return o.cuotas > 1 ? `${o.cuotas} cuotas de ${pesosCuota(o.importeCuota)} · total ${total}` : total;
 }

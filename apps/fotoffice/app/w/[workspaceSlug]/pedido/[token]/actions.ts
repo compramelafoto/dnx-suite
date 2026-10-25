@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { pasaElFrenoDePagos } from "@/lib/pedidos/freno-publico";
 import { idDeCuotaValido } from "@/lib/pedidos/mp-puro";
 import { iniciarPagoCuota, MENSAJES_PAGO_CUOTA } from "@/lib/pedidos/mp";
+import { esperarTransferencia, MENSAJES_ESPERA } from "@/lib/pedidos/espera-pago";
 import { resolverTokenPedido } from "@/lib/pedidos/enlace";
 import { workspaceDelSlug } from "@/lib/presupuestos/sitio";
 
@@ -43,4 +44,35 @@ export async function pagarCuotaAction(formData: FormData): Promise<void> {
   if (!r.ok) return volver(motivoDe(r.error));
   // El checkout es de Mercado Pago (https): redirect() fuera de cualquier try/catch.
   return redirect(r.checkoutUrl);
+}
+
+/** El código corto de cada mensaje conocido de `esperarTransferencia`. */
+function motivoDeEspera(error: string): string {
+  const par = Object.entries(MENSAJES_ESPERA).find(([, texto]) => texto === error);
+  return par ? par[0] : "fallo";
+}
+
+/**
+ * «Pagar por transferencia» (etapa B): anota que el cliente va a transferir esa cuota (con el monto
+ * único, si la organización lo usa) y vuelve a la página, que muestra los datos y el monto exacto.
+ * Mismas validaciones que «Pagar con Mercado Pago».
+ */
+export async function transferirCuotaAction(formData: FormData): Promise<void> {
+  const slug = formData.get("slug");
+  const token = formData.get("token");
+  const cuotaId = formData.get("cuotaId");
+  if (typeof slug !== "string" || !SLUG.test(slug) || typeof token !== "string" || token.length > 200) redirect("/");
+  const base = `/w/${encodeURIComponent(slug)}/pedido/${encodeURIComponent(token)}`;
+  const volver = (motivo: string): never => redirect(`${base}?pago=error&motivo=${motivo}`);
+
+  if (!(await pasaElFrenoDePagos())) return volver("limite");
+  const workspaceId = await workspaceDelSlug(slug);
+  if (!workspaceId) return volver("enlace");
+  const pedido = await resolverTokenPedido(workspaceId, token);
+  if (!pedido) return volver("enlace");
+  if (!idDeCuotaValido(cuotaId)) return volver("noExiste");
+
+  const r = await esperarTransferencia({ workspaceId, pedidoId: pedido.pedidoId, cuotaId });
+  if (!r.ok) return volver(motivoDeEspera(r.error));
+  return redirect(`${base}?pago=transferencia&pagar=${encodeURIComponent(cuotaId)}`);
 }

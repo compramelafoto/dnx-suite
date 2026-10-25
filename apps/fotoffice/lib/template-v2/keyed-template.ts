@@ -73,6 +73,40 @@ export async function listKeyedTemplates(workspaceId: string): Promise<KeyedTemp
   return resultado;
 }
 
+/**
+ * Todas las plantillas con marca de una institución, **sin** quedarse con una por marca.
+ *
+ * `listKeyedTemplates` deja una sola por marca porque el carnet es uno solo. Los fotolibros son
+ * muchos con la misma marca, y para saber a cuáles puede entrar alguien hacen falta todos.
+ */
+export async function listKeyedTemplatesTodas(workspaceId: string): Promise<KeyedTemplateRef[]> {
+  const plantillas = await prisma.templateV2.findMany({
+    where: { workspaceId, status: { not: "ARCHIVED" }, currentVersionId: { not: null } },
+    orderBy: { updatedAt: "desc" },
+    take: 2000,
+    select: { id: true, name: true, currentVersionId: true, updatedAt: true },
+  });
+  if (plantillas.length === 0) return [];
+  const versiones = await prisma.templateV2Version.findMany({
+    where: { id: { in: plantillas.map((p) => p.currentVersionId as string) } },
+    select: { id: true, metaJson: true },
+  });
+  const marcaPorVersion = new Map(versiones.map((v) => [v.id, templateKeyOf(v.metaJson)]));
+  const resultado: KeyedTemplateRef[] = [];
+  for (const p of plantillas) {
+    const key = marcaPorVersion.get(p.currentVersionId as string);
+    if (!key) continue;
+    resultado.push({
+      templateId: p.id,
+      versionId: p.currentVersionId as string,
+      templateKey: key,
+      name: p.name,
+      updatedAt: p.updatedAt,
+    });
+  }
+  return resultado;
+}
+
 /** La marca de una plantilla concreta de la institución, o `null` si no la tiene o no es suya. */
 export async function templateKeyForTemplate(
   workspaceId: string,

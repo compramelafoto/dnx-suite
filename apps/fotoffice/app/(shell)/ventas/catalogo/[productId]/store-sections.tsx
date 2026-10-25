@@ -293,6 +293,7 @@ function GallerySection({ product, storeEnabled }: { product: ProductDetail; sto
         name="galleryImageUrl"
         presetKey="productGallery"
         label="Agregar una foto"
+        allowUrl
         onUploaded={(url) => {
           if (!url) return;
           correr(async () => {

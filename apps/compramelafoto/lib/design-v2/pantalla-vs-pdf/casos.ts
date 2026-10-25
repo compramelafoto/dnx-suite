@@ -7,6 +7,7 @@
  * están en el formato que guarda el editor, el mismo que dibuja el lienzo.
  */
 import type { TemplateV2Block, TemplateV2Canvas } from "@repo/template-editor-core";
+import type { UMBRALES } from "./comparar";
 
 export type CasoDeComparacion = {
   id: string;
@@ -16,6 +17,11 @@ export type CasoDeComparacion = {
   blocks: TemplateV2Block[];
   /** Valores de las variables (el listado del curso, por ejemplo). */
   valores?: Record<string, string>;
+  /**
+   * Tolerancias propias del caso, sólo cuando hay una diferencia conocida que no es un error. Hay
+   * que decir cuál en un comentario al lado.
+   */
+  umbrales?: Partial<typeof UMBRALES>;
 };
 
 let orden = 0;
@@ -96,6 +102,83 @@ function listaDelCurso(): string {
       const [f, l] = n.split(" ");
       return i === 3 ? { f, l, o: 1 } : { f, l };
     }),
+  );
+}
+
+/** Dos cursos de la misma foto grupal (7.° A y 7.° B), cada uno con su título. */
+function dosCursos(): string {
+  const curso = (nombres: string[], dueña: number | null) =>
+    nombres.map((n, i) => {
+      const [f, l] = n.split(" ");
+      return i === dueña ? { f, l, o: 1 } : { f, l };
+    });
+  return JSON.stringify({
+    g: [
+      { t: "7.° A", k: "padron|||7.°|A", s: curso(ALUMNOS.slice(0, 9), 3) },
+      { t: "7.° B", k: "padron|||7.°|B", s: curso(ALUMNOS.slice(9), null) },
+    ],
+  });
+}
+
+/** Dos cursos del padrón tal como vienen («3» + «B»), con turno: el título sale «3.° B · Turno mañana». */
+function dosCursosConTurno(): string {
+  const curso = (nombres: string[], dueña: number | null) =>
+    nombres.map((n, i) => {
+      const [f, l] = n.split(" ");
+      return i === dueña ? { f, l, o: 1 } : { f, l };
+    });
+  return JSON.stringify({
+    g: [
+      { t: "3 B", k: "padron|Primario|Mañana|3|B", h: "Mañana", s: curso(ALUMNOS.slice(0, 10), 2) },
+      { t: "3 C", k: "padron|Primario|Tarde|3|C", h: "Tarde", s: curso(ALUMNOS.slice(6), null) },
+    ],
+  });
+}
+
+/** Un curso más largo y con número impar: las dos columnas quedan de distinto largo. */
+const SEPTIMO_A = [
+  "lucía acosta", "tomás benítez", "martina castro", "juan cruz díaz", "emilia fernández",
+  "bruno giménez", "julieta gómez", "franco herrera", "agustina lópez", "ignacio martínez",
+  "camila morales", "nicolás pérez", "abril quiroga", "facundo romero", "victoria sosa",
+  "lorenzo torres", "zoe vega", "máximo zapata", "pilar aguirre", "gael bustos",
+  "renata cabrera", "ciro domínguez", "alma espinoza",
+];
+
+function septimoA(): string {
+  return JSON.stringify(
+    SEPTIMO_A.map((n, i) => {
+      const partes = n.split(" ");
+      const l = partes.pop()!;
+      return i === 6 ? { f: partes.join(" "), l, o: 1 } : { f: partes.join(" "), l };
+    }),
+  );
+}
+
+/**
+ * El bloque «Listado del curso» de 7.º A, copiado tal cual de la plantilla de San Patricio
+ * (TemplateV2 cmv36vjbc0000l8066hx8tjex): posición, tamaño, giro, columnas y tipografía.
+ */
+function listadoSanPatricio(pageIndex: number, verticalAlign?: string): TemplateV2Block {
+  return bloque(
+    "VARIABLE_TEXT",
+    pageIndex,
+    { x: -153.4737183511329, y: 590.8512944622227, width: 1969.923309783439, height: 1239.297411075555, rotation: 90.68413159032582 },
+    {
+      color: "#334155",
+      fallback: "",
+      fontSize: 67,
+      classList: { sortBy: "lastName", columns: 2, nameOrder: "firstLast", givenNames: "all", highlightOwner: true },
+      textAlign: "CENTER",
+      underline: false,
+      fontFamily: "Helvetica",
+      fontItalic: false,
+      fontWeight: 400,
+      lineHeight: 1.3,
+      variableKey: "course.studentList",
+      letterSpacing: 0,
+      textTransform: "capitalize",
+      ...(verticalAlign ? { verticalAlign } : {}),
+    },
   );
 }
 
@@ -202,6 +285,103 @@ export function casosDeComparacion(imagenDePrueba: string): CasoDeComparacion[] 
       ],
     },
     {
+      /*
+       * Alineación vertical: arriba (lo de siempre), centro y abajo, con varias líneas e
+       * interlineado amplio, y textos girados, que se alinean en el marco de su caja.
+       */
+      id: "alineacion-vertical",
+      titulo: "Texto arriba, centrado y abajo en su caja, derecho y girado",
+      canvas: CHICO,
+      paginas: 1,
+      blocks: [
+        forma(0, { x: 40, y: 40, width: 400, height: 380 }, { fill: "#f4f1ec" }),
+        texto(0, { x: 40, y: 40, width: 400, height: 380 }, "Arriba", { verticalAlign: "TOP" }),
+        forma(0, { x: 480, y: 40, width: 400, height: 380 }, { fill: "#f4f1ec" }),
+        texto(0, { x: 480, y: 40, width: 400, height: 380 }, "Centro con interlineado amplio", { verticalAlign: "MIDDLE", lineHeight: 1.6, textAlign: "LEFT" }),
+        forma(0, { x: 920, y: 40, width: 400, height: 380 }, { fill: "#f4f1ec" }),
+        texto(0, { x: 920, y: 40, width: 400, height: 380 }, "Abajo\ncon salto manual", { verticalAlign: "BOTTOM", textAlign: "RIGHT" }),
+        forma(0, { x: 60, y: 610, width: 540, height: 200, rotation: 90 }, { fill: "#e6eef8" }),
+        texto(0, { x: 60, y: 610, width: 540, height: 200, rotation: 90 }, "Girado 90° y centrado", { verticalAlign: "MIDDLE" }),
+        forma(0, { x: 520, y: 610, width: 540, height: 200, rotation: -90 }, { fill: "#e6eef8" }),
+        texto(0, { x: 520, y: 610, width: 540, height: 200, rotation: -90 }, "Menos noventa, abajo", { verticalAlign: "BOTTOM" }),
+        forma(0, { x: 980, y: 640, width: 480, height: 220, rotation: 180 }, { fill: "#e6eef8" }),
+        texto(0, { x: 980, y: 640, width: 480, height: 220, rotation: 180 }, "Cabeza abajo, abajo", { verticalAlign: "BOTTOM", fontWeight: 700 }),
+      ],
+    },
+    {
+      /*
+       * El listado de 7.º A de San Patricio, girado 90,68°, centrado en el alto de su recuadro (lo
+       * que pidió Daniel). En la segunda página, un listado derecho alineado abajo.
+       */
+      id: "listado-centrado-vertical",
+      titulo: "Listado de 7.º A de San Patricio centrado en su recuadro girado",
+      canvas: { width: 3602, height: 2421, dpi: 300, background: "#ffffff" } as TemplateV2Canvas,
+      paginas: 2,
+      valores: { "course.studentList": septimoA() },
+      blocks: [
+        forma(0, { x: -153.4737183511329, y: 590.8512944622227, width: 1969.923309783439, height: 1239.297411075555, rotation: 90.68413159032582 }, { fill: "#f4f1ec" }),
+        listadoSanPatricio(0, "MIDDLE"),
+        forma(1, { x: 200, y: 200, width: 3200, height: 2000 }, { fill: "#f4f1ec" }),
+        bloque("VARIABLE_TEXT", 1, { x: 200, y: 200, width: 3200, height: 2000 }, {
+          variableKey: "course.studentList", fontFamily: "Helvetica", fontSize: 67, lineHeight: 1.3, color: "#1d3a6b",
+          classList: { columns: 3 }, textAlign: "LEFT", verticalAlign: "BOTTOM",
+        }),
+      ],
+    },
+    {
+      /*
+       * Un listado con dos cursos: cada uno con su título más grande, derecho y girado 90° (como
+       * la carpeta de San Patricio), y un listado viejo de un curso que toma el título del curso.
+       */
+      id: "listado-dos-cursos",
+      titulo: "Listado con dos cursos y sus títulos, derecho y girado",
+      canvas: CHICO,
+      paginas: 3,
+      valores: { "course.studentList": dosCursos() },
+      blocks: [
+        bloque("VARIABLE_TEXT", 0, { x: 100, y: 100, width: 1300, height: 800 }, {
+          variableKey: "course.studentList", fontFamily: "Helvetica", fontSize: 44, color: "#1d3a6b", columns: 2, textAlign: "LEFT",
+          classList: { columns: 2, allowExtraCourses: true },
+        }),
+        bloque("VARIABLE_TEXT", 1, { x: 300, y: 150, width: 900, height: 700, rotation: 90 }, {
+          variableKey: "course.studentList", fontFamily: "Helvetica", fontSize: 40, color: "#1d3a6b", textAlign: "CENTER",
+          classList: { columns: 2, headingScale: 1.5 }, verticalAlign: "MIDDLE",
+        }),
+        bloque("VARIABLE_TEXT", 2, { x: 100, y: 100, width: 1300, height: 800 }, {
+          variableKey: "course.studentList", fontFamily: "Helvetica", fontSize: 44, color: "#1d3a6b", textAlign: "LEFT",
+          classList: { columns: 3, showHeading: false },
+        }),
+      ],
+    },
+    {
+      /*
+       * Dos cursos con turno y el colegio arriba: los nombres van en 4 columnas (aunque el bloque
+       * diga 2), el colegio una sola vez arriba de todo y cada título con su turno. Derecho y
+       * girado 90°.
+       */
+      id: "listado-colegio-y-turno",
+      titulo: "Listado de dos cursos con el colegio arriba y el turno, en 4 columnas",
+      canvas: CHICO,
+      paginas: 2,
+      valores: { "course.studentList": dosCursosConTurno(), "school.name": "Escuela Manuel Belgrano" },
+      /*
+       * El título de dos cursos («3.° B · Turno mañana y 3.° C · Turno tarde») es una línea larga en
+       * negrita: el navegador y el PDF espacian las letras apenas distinto y al final de la línea
+       * suman unos 8 px. Se ve igual (mismo texto, mismo lugar); por eso la peor zona tolera más.
+       */
+      umbrales: { maximoPeorZona: 0.45 },
+      blocks: [
+        bloque("VARIABLE_TEXT", 0, { x: 100, y: 100, width: 1300, height: 800 }, {
+          variableKey: "course.studentList", fontFamily: "Helvetica", fontSize: 40, color: "#1d3a6b", textAlign: "LEFT",
+          classList: { columns: 2, showSchoolName: true },
+        }),
+        bloque("VARIABLE_TEXT", 1, { x: 300, y: 100, width: 900, height: 800, rotation: 90 }, {
+          variableKey: "course.studentList", fontFamily: "Helvetica", fontSize: 36, color: "#1d3a6b", textAlign: "CENTER",
+          classList: { columns: 1, showSchoolName: true, headingScale: 1.2 }, verticalAlign: "MIDDLE",
+        }),
+      ],
+    },
+    {
       id: "san-patricio",
       titulo: "Copia de la carpeta de San Patricio (3602×2421 a 300 dpi)",
       canvas: { width: 3602, height: 2421, dpi: 300, background: "#ffffff" } as TemplateV2Canvas,
@@ -216,6 +396,64 @@ export function casosDeComparacion(imagenDePrueba: string): CasoDeComparacion[] 
         imagen(1, { x: 2450, y: 500, width: 700, height: 900 }, imagenDePrueba),
         imagen(1, { x: 300, y: 500, width: 1400, height: 1000, rotation: -89.67 }, imagenDePrueba),
         texto(1, { x: 2418, y: 1165, width: 2082, height: 91, rotation: -89.65 }, "5.º A - Colegio San Patricio", { fontFamily: "Helvetica", fontSize: 70 }),
+      ],
+    },
+    {
+      /*
+       * El mosaico del curso: 22 compañeros con foto y 2 sin (silueta con iniciales), en polaroid
+       * con giro alternado y sombra corrida; en la segunda página, círculos con borde, cinta detrás
+       * del nombre y una zona libre para el cartel, girado 90°.
+       */
+      id: "mosaico-del-curso",
+      titulo: "Mosaico del curso en polaroid con giro, y en círculos girado",
+      canvas: CHICO,
+      paginas: 2,
+      valores: {
+        "course.mosaic": JSON.stringify(
+          [...ALUMNOS, ...ALUMNOS].slice(0, 24).map((nombre, i) => {
+            const [firstName, ...resto] = nombre.split(" ");
+            return { firstName, lastName: resto.join(" "), ...(i % 11 === 10 ? {} : { photoUrl: imagenDePrueba }) };
+          }),
+        ),
+      },
+      blocks: [
+        bloque("VARIABLE_TEXT", 0, { x: 60, y: 60, width: 1380, height: 880 }, {
+          variableKey: "course.mosaic", fontFamily: "Helvetica", fontSize: 18, color: "#1d3a6b",
+          courseMosaic: { frame: "polaroid", tilt: 3, gapX: 24, gapY: 24, shadow: { dx: 8, dy: 8, color: "#f5c518" } },
+        }),
+        bloque("VARIABLE_TEXT", 1, { x: 300, y: 50, width: 900, height: 900, rotation: 90 }, {
+          variableKey: "course.mosaic", fontFamily: "Helvetica", fontSize: 16, color: "#1d3a6b",
+          courseMosaic: {
+            frame: "circle", photoAspect: 1, borderWidth: 4, borderColor: "#1d3a6b", nameBackground: "#f4f1ec",
+            nameLines: 1, reserved: { x: 0.6, y: 0, width: 0.4, height: 0.3 },
+          },
+        }),
+      ],
+    },
+    {
+      /* El álbum de figuritas: recuadros vacíos con el nombre, y la plancha con el dueño sumado. */
+      id: "figuritas",
+      titulo: "Álbum de figuritas: recuadros vacíos y plancha con el dueño",
+      canvas: CHICO,
+      paginas: 2,
+      valores: {
+        "course.mosaic": JSON.stringify(
+          [...ALUMNOS].slice(0, 12).map((nombre, i) => {
+            const [firstName, ...resto] = nombre.split(" ");
+            return { firstName, lastName: resto.join(" "), ...(i % 5 === 4 ? {} : { photoUrl: imagenDePrueba }) };
+          }),
+        ),
+        "course.mosaicOwner": JSON.stringify({ firstName: "Martina", lastName: "López", photoUrl: imagenDePrueba }),
+      },
+      blocks: [
+        bloque("VARIABLE_TEXT", 0, { x: 60, y: 60, width: 1380, height: 880 }, {
+          variableKey: "course.mosaic", fontFamily: "Helvetica", fontSize: 20, color: "#0b2a1a",
+          courseMosaic: { frame: "rounded", cornerRadius: 16, emptyPhotos: true, emptyFill: "#dfeee0", borderWidth: 4, borderColor: "#0f6b3a" },
+        }),
+        bloque("VARIABLE_TEXT", 1, { x: 60, y: 60, width: 1380, height: 880 }, {
+          variableKey: "course.mosaic", fontFamily: "Helvetica", fontSize: 20, color: "#0b2a1a",
+          courseMosaic: { frame: "rounded", cornerRadius: 16, namePosition: "none", includeOwner: true, borderWidth: 6, borderColor: "#e6b422" },
+        }),
       ],
     },
   ];

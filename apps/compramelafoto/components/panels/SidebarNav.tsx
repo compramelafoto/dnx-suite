@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
 import MenuSearch, { type MenuSearchSection } from "./MenuSearch";
+import { navBadgeClass } from "./nav-badge";
 
 export type SidebarItem = {
   id: string;
@@ -240,7 +241,7 @@ export default function SidebarNav({
                         </span>
                       )}
                       {!dynamicBadgeCounts[item.id] && item.badge && (
-                        <span className="shrink-0 rounded bg-blue-500 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
+                        <span className={navBadgeClass(item.badge)}>
                           {item.badge}
                         </span>
                       )}
@@ -328,7 +329,7 @@ export default function SidebarNav({
                     </span>
                   )}
                   {!linkCount && item.badge && (
-                    <span className="shrink-0 rounded bg-blue-500 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
+                    <span className={navBadgeClass(item.badge)}>
                       {item.badge}
                     </span>
                   )}

@@ -1,3 +1,4 @@
+import { esEscuelaDemo } from "@/lib/demos/visibilidad";
 import { prisma } from "@/lib/prisma";
 import {
   addToOperationBuckets,
@@ -25,7 +26,7 @@ export async function loadPreCompraBucketsByAlbum(
   if (albumIds.length === 0) return result;
 
   const preCompras = await prisma.preCompraOrder.findMany({
-    where: buildSchoolPortalPreCompraWhere(schoolId, albumIds),
+    where: buildSchoolPortalPreCompraWhere(schoolId, albumIds, await esEscuelaDemo(schoolId)),
     select: { id: true, albumId: true, status: true, totalCents: true },
   });
   if (preCompras.length === 0) return result;
@@ -64,7 +65,7 @@ export async function loadOrderBucketsByAlbum(
   if (albumIds.length === 0) return result;
   const groups = await prisma.order.groupBy({
     by: ["albumId", "status"],
-    where: buildSchoolPortalOrderWhere(schoolId, albumIds),
+    where: buildSchoolPortalOrderWhere(schoolId, albumIds, await esEscuelaDemo(schoolId)),
     _count: { _all: true },
     _sum: { totalCents: true },
   });

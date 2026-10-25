@@ -10,13 +10,14 @@ import {
   imageBlockVariableKey,
   normalizePhotoCrop,
   PHOTO_CROP_MAX_ZOOM,
-  type ClientPhotoSlot,
   type PhotoCrop,
 } from "@repo/template-editor-core";
 import type { DesignTemplatePayload } from "@/lib/design-v2/client-payload";
 import {
   GROUP_PHOTO_MIN_FACES,
   photosForCanjeRole,
+  placesForUnit,
+  type CanjePhotoRole,
   type CanjeSlotPlan,
 } from "@/lib/preventa-canjeable/preventa-canje-slots";
 
@@ -76,19 +77,6 @@ function useWidth(ref: React.RefObject<HTMLElement | null>): number {
     return () => ro.disconnect();
   }, [ref]);
   return width;
-}
-
-/** Une cada hueco del diseño con su lugar del canje: la foto `p` de la unidad va al hueco `p`. */
-export function placesForUnit(slots: ClientPhotoSlot[], slotIndexes: number[], unit: number, perUnit: number) {
-  const numbers = [...new Set(slots.map((s) => s.slotNumber))].sort((a, b) => a - b);
-  const map = new Map<string, number>();
-  for (const s of slots) {
-    const order = numbers.indexOf(s.slotNumber);
-    if (order < 0 || order >= perUnit) continue;
-    const place = slotIndexes[unit * perUnit + order];
-    if (place != null) map.set(s.blockId, place);
-  }
-  return map;
 }
 
 function fits(kind: "PHYSICAL" | "DIGITAL", photo: { sellPrint: boolean; sellDigital: boolean } | undefined) {
@@ -594,7 +582,7 @@ function CambiarFoto({
   onPick,
 }: {
   place: number;
-  role: "individual" | "group" | null;
+  role: CanjePhotoRole | null;
   plan: CanjeSlotPlan;
   filled: Array<number | null>;
   photos: Props["photos"];

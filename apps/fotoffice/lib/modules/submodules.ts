@@ -16,6 +16,7 @@ import {
   CASH_CONFIGURE_ACTION,
   COMMUNICATIONS_CARNETS_ACTION,
   COVERAGES_COORDINATE_ACTION,
+  SALES_CATALOG_ACTION,
   STORE_CONFIGURE_ACTION,
 } from "@/lib/permissions/actions";
 import { hasLevel, type ModuleLevels } from "@/lib/permissions/levels";
@@ -301,6 +302,16 @@ const GOBIERNO: SubmoduleItem[] = [
 
 const CAJA: SubmoduleItem[] = [
   {
+    // Acceso rápido al Mostrador (el cobrador), arriba de todo: es lo que más se usa en el día.
+    href: "/ventas",
+    label: "Cobrador",
+    icon: "ShoppingCart",
+    description: "El Mostrador: buscá, sumá al ticket y cobrá.",
+    requiresManage: true,
+    levelModuleKey: SALES_MODULE_KEY,
+    activeMatch: "exact",
+  },
+  {
     href: "/caja",
     label: "Panorama",
     icon: "Wallet",
@@ -338,6 +349,16 @@ const CAJA: SubmoduleItem[] = [
     icon: "CreditCard",
     description: "Cada pase de una cuenta a otra, como el de mostrador a caja fuerte.",
     requiresManage: false,
+    activeMatch: "under",
+  },
+  {
+    // Sólo dueño o admin: muestra lo que entró a la cuenta de Mercado Pago entera.
+    href: "/caja/mercado-pago",
+    label: "Cobros en Mercado Pago",
+    icon: "ReceiptText",
+    description: "Lo que entró a la cuenta de Mercado Pago del negocio, leído en el momento.",
+    requiresManage: true,
+    requiresAction: CASH_CONFIGURE_ACTION,
     activeMatch: "under",
   },
   {
@@ -422,6 +443,52 @@ const VENTAS: SubmoduleItem[] = [
     icon: "Boxes",
     description: "Qué queda, qué entró y qué hay que reponer.",
     requiresManage: false,
+    activeMatch: "under",
+  },
+  {
+    // Mismo permiso que la página (`requireSalesAdmin`): ver y tocar costos es `sales.catalog`.
+    href: "/ventas/costos",
+    label: "Costos y márgenes",
+    icon: "Tag",
+    description: "El costo de cada producto según su proveedor, el margen y las listas de precios.",
+    requiresManage: true,
+    requiresAction: SALES_CATALOG_ACTION,
+    activeMatch: "under",
+  },
+  {
+    href: "/ventas/foto-carnet",
+    label: "Foto carnet",
+    icon: "Crop",
+    description: "Encuadrar una foto a la medida del trámite y armar la plancha para imprimir.",
+    requiresManage: false,
+    activeMatch: "under",
+  },
+  {
+    // La página pide gestionar Ventas (`requireSalesStaff`).
+    href: "/ventas/impresiones",
+    label: "Impresiones",
+    icon: "Printer",
+    description: "Lo que hay que imprimir, lo preparado sin cobrar y lo que salió hoy.",
+    requiresManage: true,
+    activeMatch: "under",
+  },
+  {
+    // La página pide gestionar Ventas (`requireSalesStaff`).
+    href: "/ventas/fotolibros",
+    label: "Fotolibros",
+    icon: "LayoutTemplate",
+    description: "Armar el fotolibro con la medida real del pliego y diseñarlo hoja por hoja.",
+    requiresManage: true,
+    activeMatch: "under",
+  },
+  {
+    // Mismo permiso que la página (`requireSalesAdmin`): gestionar Ventas + `sales.catalog`.
+    href: "/ventas/impresion/configuracion",
+    label: "Impresoras",
+    icon: "Settings",
+    description: "Las impresoras, los tamaños de hoja y la nitidez de cada una.",
+    requiresManage: true,
+    requiresAction: SALES_CATALOG_ACTION,
     activeMatch: "under",
   },
   {

@@ -27,7 +27,9 @@ import { fechaDelEvento } from "./evento";
 import { asegurarPlantillasPresupuesto } from "./plantillas";
 import { datosDeEnvio, numerarPresupuesto, pasarEstado } from "./presupuestos";
 import { sitioDelWorkspace, type SitioDelPresupuesto } from "./sitio";
-import { opcionesParaPresupuesto } from "@/lib/pedidos/opciones-pago";
+import { conCondicionesCobro, opcionesParaPresupuesto } from "@/lib/pedidos/opciones-pago";
+import { condicionesDeCobro } from "./cobro";
+import { extrasDelWorkspace } from "./perfil-cobro";
 import { entradaGuardada } from "./opciones-pago";
 import { bloquearPresupuesto, congelarVersion, itemsGuardados, revocarAnteriores, type TotalesGuardados } from "./versiones";
 
@@ -263,6 +265,7 @@ async function enviarComo(
     select: { id: true },
   });
   const ajustes = await leerAjustes(workspaceId);
+  const extras = await extrasDelWorkspace(workspaceId);
   const fechaEvento = await fechaDelEvento(workspaceId, p.consultaLeadId);
   const objetivo = borradorAntes?.id ?? p.currentVersionId;
   const prueba = textosFinales(contexto, canal, fuente, {
@@ -302,12 +305,19 @@ async function enviarComo(
         const token = tokenDeVersion(borrador.id, clave);
         // Opciones de pago congeladas sobre el total de la versión: las del presupuesto o, si nunca
         // se tocaron, las de la organización; sin ninguna, la de omisión (con la fecha del evento).
-        const opciones = opcionesParaPresupuesto(
-          { paymentOptions: entradaGuardada(borrador.paymentOptions) ?? ajustes.opcionesPago },
-          (borrador.totals as TotalesGuardados | null)?.total ?? 0,
-          fechaEvento,
-          diaEnBuenosAires(ahora),
-          ahora.toISOString(),
+        // Etapa B: condiciones de cobro del perfil (IVA, seña, descuento por transferencia, política de
+        // cancelación), congeladas junto a las opciones; las opciones van sobre el total con IVA.
+        const totalSinIva = (borrador.totals as TotalesGuardados | null)?.total ?? 0;
+        const cobro = condicionesDeCobro(extras, totalSinIva);
+        const opciones = conCondicionesCobro(
+          opcionesParaPresupuesto(
+            { paymentOptions: entradaGuardada(borrador.paymentOptions) ?? ajustes.opcionesPago },
+            cobro?.total ?? totalSinIva,
+            fechaEvento,
+            diaEnBuenosAires(ahora),
+            ahora.toISOString(),
+          ),
+          cobro,
         );
         const congelada = await congelarVersion(tx, {
           workspaceId, versionId: borrador.id, ahora, tokenHash: hashDeToken(token), tokenExpiresAt: vencimientoDelToken(envio.validUntil),

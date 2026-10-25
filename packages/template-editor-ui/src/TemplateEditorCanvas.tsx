@@ -11,13 +11,14 @@ import {
 } from "react";
 import { flushSync } from "react-dom";
 import { TemplateCanvasRenderer } from "./TemplateCanvasRenderer";
-import { getCanvasCenterPoint } from "@repo/template-editor-core";
+import { ImageCropOverlay } from "./ImageCropOverlay";
 import { getSafeAreaRectPx } from "@repo/template-editor-core";
 import { getLayoutSafeAreaStatus, type LayoutSafeAreaStatus } from "@repo/template-editor-core";
 import { buildDiagnosticHighlightMap, collectTemplateDiagnostics } from "@repo/template-editor-core";
 import {
   getTextVisualConfig,
   normalizeBlockConfig,
+  readTextVerticalAlign,
 } from "@repo/template-editor-core";
 import type { TemplateV2Block } from "@repo/template-editor-core";
 import { measureTextBlockBoundsPx } from "@repo/template-editor-core";
@@ -50,13 +51,20 @@ import {
   setGuides,
   type EditorGuides,
   type GuideAxis,
+  buildReferenceGuideLines,
+  editorSnapGuides,
+  isCanvasDivision,
+  REFERENCE_GUIDES_ALL_OFF,
+  type ReferenceGuideCross,
+  type ReferenceGuideLine,
+  type ReferenceGuideSettings,
   takePersistSnapshot,
   toggleBlockInSelection,
   updateBlock,
   type TemplateV2EditorDispatch,
   type TemplateV2EditorState,
 } from "@repo/template-editor-core";
-import { TEMPLATE_V2_EDITOR_RESOLVED_VARIABLES, isClassListConfig } from "@repo/template-editor-core";
+import { TEMPLATE_V2_EDITOR_RESOLVED_VARIABLES, isClassListConfig, isCourseMosaicConfig } from "@repo/template-editor-core";
 import {
   notifyTemplateTextEditingBlockId,
   registerTemplateTextInsert,
@@ -98,8 +106,16 @@ type Props = {
   resolvedVariables?: Record<string, unknown>;
   /** Guía visual de márgenes seguros (no es un bloque; no se exporta en preview). Por defecto activa. */
   showSafeArea?: boolean;
-  /** Ejes vertical y horizontal en el centro del lienzo (referencia fija; no es snap dinámico). Por defecto activos. */
+  /**
+   * Ejes vertical y horizontal en el centro del lienzo. Se conserva por compatibilidad: si llega
+   * `referenceGuides`, manda ese.
+   */
   showCenterAxes?: boolean;
+  /**
+   * Guías de referencia (mitades, cuartos, centro de cada cara). Sólo se dibujan en el editor —
+   * nunca en vistas previas, PDF ni miniaturas— y, mientras se ven, el imán también las usa.
+   */
+  referenceGuides?: ReferenceGuideSettings;
   /** Clic en el fondo del lienzo (sin bloque): p. ej. abrir panel de propiedades para el color de fondo. */
   onCanvasBackgroundClick?: () => void;
   /** Herramienta activa: selección, texto (T), mano (H). */
@@ -107,6 +123,76 @@ type Props = {
   /** Escape en modo texto o al desactivar herramienta desde el shell. */
   onExitTextPlacementMode?: () => void;
 };
+
+/**
+ * Guías de referencia dibujadas sobre la hoja: punteadas y finas, con grosor y trazos fijos en
+ * pantalla (la capa está escalada con el zoom). El pliegue va en naranja; mitades y cuartos en
+ * violeta; así no se confunden con las guías de diseño (celeste, continuas) ni con el imán
+ * (magenta). No reciben clics.
+ */
+function ReferenceGuidesOverlay({
+  drawing,
+  zoom,
+}: {
+  drawing: { lines: ReferenceGuideLine[]; crosses: ReferenceGuideCross[] };
+  zoom: number;
+}) {
+  const z = zoom > 0 ? zoom : 1;
+  const thick = 1 / z;
+  const dash = 6 / z;
+  const gap = 4 / z;
+  const color = (kind: ReferenceGuideLine["kind"]) =>
+    kind === "fold" ? "rgba(234, 88, 12, 0.8)" : "rgba(124, 58, 237, 0.55)";
+  const dashed = (c: string, dir: "to bottom" | "to right") =>
+    `repeating-linear-gradient(${dir}, ${c} 0, ${c} ${dash}px, transparent ${dash}px, transparent ${dash + gap}px)`;
+  const arm = 22 / z;
+  const crossColor = "rgba(124, 58, 237, 0.8)";
+  return (
+    <div
+      className="pointer-events-none absolute inset-0 z-[2]"
+      aria-hidden
+      data-testid="template-v2-reference-guides"
+      title="Guías de referencia (solo en pantalla; no se imprimen)"
+    >
+      {drawing.lines.map((l) => (
+        <div
+          key={`${l.axis}-${l.pos}`}
+          data-guide-kind={l.kind}
+          style={{
+            position: "absolute",
+            ...(l.axis === "v"
+              ? { left: l.pos - thick / 2, top: 0, width: thick, height: "100%", background: dashed(color(l.kind), "to bottom") }
+              : { top: l.pos - thick / 2, left: 0, height: thick, width: "100%", background: dashed(color(l.kind), "to right") }),
+          }}
+        />
+      ))}
+      {drawing.crosses.map((c) => (
+        <div key={`x-${c.x}-${c.y}`} data-guide-kind="faceCenters">
+          <div
+            style={{
+              position: "absolute",
+              left: c.x - arm,
+              top: c.y - (1.5 * thick) / 2,
+              width: arm * 2,
+              height: 1.5 * thick,
+              background: crossColor,
+            }}
+          />
+          <div
+            style={{
+              position: "absolute",
+              top: c.y - arm,
+              left: c.x - (1.5 * thick) / 2,
+              height: arm * 2,
+              width: 1.5 * thick,
+              background: crossColor,
+            }}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
 
 type ResizeHandleDef = {
   key: "nw" | "ne" | "sw" | "se" | "n" | "s" | "e" | "w";
@@ -118,6 +204,17 @@ type ResizeHandleDef = {
 };
 
 /** Diámetro del control de esquina (área de agarre). Tamaño tipo diseñadores estándar (Canva/Figma). */
+/** Rosa de la línea del imán. Las guías de la plantilla son celestes: no se confunden. */
+const SNAP_GUIDE_PINK = "#ec4899";
+
+/**
+ * Grosor de la línea del imán, fijo en pantalla (la capa está escalada con el zoom). En la mitad
+ * o los cuartos de la hoja sale un poco más gruesa, para que se note que es una división.
+ */
+function snapLineWidth(pos: number, canvasSize: number, zoom: number): number {
+  return (isCanvasDivision(pos, canvasSize) ? 2 : 1.5) / (zoom || 1);
+}
+
 const RESIZE_HANDLE_SIZE_PX = 32;
 const RESIZE_HANDLE_INSET = -RESIZE_HANDLE_SIZE_PX / 2;
 
@@ -359,7 +456,10 @@ function InlineTextEditOverlay({
     };
   }, [block.id]);
 
-  return (
+  /** Centro y abajo: mientras se escribe, el texto queda donde va a quedar al terminar. */
+  const alineadoVertical = t.verticalAlign !== "top";
+
+  const editable = (
     <div
       ref={ref}
       contentEditable
@@ -368,7 +468,8 @@ function InlineTextEditOverlay({
       data-template-inline-text="1"
       style={{
         width: "100%",
-        height: "100%",
+        height: alineadoVertical ? "auto" : "100%",
+        ...(alineadoVertical ? { maxHeight: "100%", flexShrink: 0 } : {}),
         color: t.color,
         fontFamily: t.fontFamilyCss,
         fontSize: t.fontSize,
@@ -408,7 +509,15 @@ function InlineTextEditOverlay({
               layout: {
                 ...cur.layout,
                 width: bounds.width,
-                height: bounds.height,
+                /*
+                 * Con el texto centrado o abajo, la caja es el espacio donde se alinea: escribir no
+                 * la achica al alto del texto (si no, la alineación dejaría de tener efecto).
+                 * Sólo crece si el texto ya no entra.
+                 */
+                height:
+                  readTextVerticalAlign(patch) === "TOP"
+                    ? bounds.height
+                    : Math.max(cur.layout.height, bounds.height),
               },
             },
             skipHistory: true,
@@ -427,6 +536,21 @@ function InlineTextEditOverlay({
       onMouseDown={(e) => e.stopPropagation()}
     />
   );
+
+  if (!alineadoVertical) return editable;
+  return (
+    <div
+      style={{
+        width: "100%",
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: t.verticalAlign === "middle" ? "center" : "flex-end",
+      }}
+    >
+      {editable}
+    </div>
+  );
 }
 
 export function TemplateEditorCanvas({
@@ -436,6 +560,7 @@ export function TemplateEditorCanvas({
   resolvedVariables: valoresDeMuestra = TEMPLATE_V2_EDITOR_RESOLVED_VARIABLES,
   showSafeArea = true,
   showCenterAxes = true,
+  referenceGuides: referenceGuidesProp,
   onCanvasBackgroundClick,
   canvasTool = "select",
   onExitTextPlacementMode,
@@ -458,6 +583,9 @@ export function TemplateEditorCanvas({
 
   const [draggingBlockId, setDraggingBlockId] = useState<string | null>(null);
   const [editingTextBlockId, setEditingTextBlockId] = useState<string | null>(null);
+  /** Foto que se está encuadrando (doble clic): el arrastre mueve la foto, no el marco. */
+  const [croppingBlockId, setCroppingBlockId] = useState<string | null>(null);
+  const cropStartSnapshotRef = useRef<ReturnType<typeof takePersistSnapshot> | null>(null);
   const textEditStartSnapshotRef = useRef<ReturnType<typeof takePersistSnapshot> | null>(null);
   const [rotatingBlockId, setRotatingBlockId] = useState<string | null>(null);
   /** Bloque que se está estirando: mientras dura el gesto, el recuadro muestra su medida. */
@@ -547,7 +675,6 @@ export function TemplateEditorCanvas({
   const primaryBlock = primaryId ? state.blocks.find((b) => b.id === primaryId) ?? null : null;
 
   const safeAreaRect = useMemo(() => getSafeAreaRectPx(state.canvas), [state.canvas]);
-  const centerAxes = useMemo(() => getCanvasCenterPoint(state.canvas), [state.canvas]);
   const primarySafeAreaStatus = useMemo(
     () =>
       primaryBlock ? getLayoutSafeAreaStatus(primaryBlock.layout, safeAreaRect) : ("inside" as LayoutSafeAreaStatus),
@@ -570,6 +697,26 @@ export function TemplateEditorCanvas({
       dispatch(commitHistoryCheckpoint(snap));
     }
   }, [dispatch]);
+
+  /** Termina el encuadre: todo el gesto queda como un solo paso para deshacer. */
+  const endImageCrop = useCallback(() => {
+    const snap = cropStartSnapshotRef.current;
+    cropStartSnapshotRef.current = null;
+    setCroppingBlockId(null);
+    if (snap) dispatch(commitHistoryCheckpoint(snap));
+  }, [dispatch]);
+
+  const croppingBlock =
+    croppingBlockId != null ? state.blocks.find((b) => b.id === croppingBlockId) ?? null : null;
+
+  // Si la foto desaparece, cambia de hoja o se selecciona otra cosa, el encuadre termina solo.
+  useEffect(() => {
+    if (!croppingBlockId) return;
+    const b = state.blocks.find((x) => x.id === croppingBlockId);
+    if (!b || (b.pageIndex ?? 0) !== activePage || !state.selectedBlockIds.includes(croppingBlockId)) {
+      queueMicrotask(endImageCrop);
+    }
+  }, [activePage, croppingBlockId, state.blocks, state.selectedBlockIds, endImageCrop]);
 
   useEffect(() => {
     if (!editingTextBlockId) return;
@@ -730,6 +877,27 @@ export function TemplateEditorCanvas({
   const [guideMenu, setGuideMenu] = useState<{ axis: GuideAxis; index: number; x: number; y: number } | null>(null);
   const guidesRef = useRef(guides);
   guidesRef.current = guides;
+
+  /*
+   * Guías de referencia: lo que se dibuja y lo que suman al imán. Las líneas que ya son guías de
+   * diseño de la plantilla (el pliegue de los libritos) no se repiten.
+   */
+  const referenceGuides = useMemo<ReferenceGuideSettings>(
+    () => referenceGuidesProp ?? { ...REFERENCE_GUIDES_ALL_OFF, fold: showCenterAxes, halfH: showCenterAxes },
+    [referenceGuidesProp, showCenterAxes]
+  );
+  const referenceDrawing = useMemo(
+    () => buildReferenceGuideLines(referenceGuides, state.canvas.width, state.canvas.height, guides),
+    [referenceGuides, state.canvas.width, state.canvas.height, guides]
+  );
+  // El imán se pega siempre a la mitad y los cuartos de la hoja (y al centro de cada cara), aunque
+  // las guías de referencia estén ocultas; las guías prendidas y las de la plantilla se suman.
+  const editorSnap = useMemo(
+    () => editorSnapGuides(guides, referenceGuides, state.canvas.width, state.canvas.height),
+    [guides, referenceGuides, state.canvas.width, state.canvas.height]
+  );
+  const snapGuidesX = editorSnap.xs;
+  const snapGuidesY = editorSnap.ys;
 
   const startGuideDrag = useCallback(
     (axis: GuideAxis, index: number | null, e: ReactPointerEvent<HTMLElement>) => {
@@ -989,35 +1157,8 @@ export function TemplateEditorCanvas({
               </div>
             ) : null}
 
-            {showCenterAxes ? (
-              <div
-                className="pointer-events-none absolute inset-0 z-[2]"
-                aria-hidden
-                title="Ejes del centro del lienzo (solo referencia; el snap activo usa azul más intenso al arrastrar)"
-              >
-                <div
-                  style={{
-                    position: "absolute",
-                    left: centerAxes.cx,
-                    top: 0,
-                    width: 1,
-                    height: "100%",
-                    transform: "translateX(-0.5px)",
-                    background: "rgba(100, 116, 139, 0.28)",
-                  }}
-                />
-                <div
-                  style={{
-                    position: "absolute",
-                    top: centerAxes.cy,
-                    left: 0,
-                    height: 1,
-                    width: "100%",
-                    transform: "translateY(-0.5px)",
-                    background: "rgba(100, 116, 139, 0.28)",
-                  }}
-                />
-              </div>
+            {referenceDrawing.lines.length > 0 || referenceDrawing.crosses.length > 0 ? (
+              <ReferenceGuidesOverlay drawing={referenceDrawing} zoom={state.zoom} />
             ) : null}
 
             {/* Fondo: marquee de selección o colocación de texto (herramienta T). */}
@@ -1145,7 +1286,9 @@ export function TemplateEditorCanvas({
             {orderedVisibleBlocks.map((b) => {
               const hitSelected = state.selectedBlockIds.includes(b.id);
               const isTextKind =
-                (b.type === "TEXT" || b.type === "VARIABLE_TEXT") && !isClassListConfig(b.configJson);
+                (b.type === "TEXT" || b.type === "VARIABLE_TEXT") &&
+                !isClassListConfig(b.configJson) &&
+                !isCourseMosaicConfig(b.configJson);
               return (
               <button
                 key={`hit-${b.id}`}
@@ -1166,6 +1309,19 @@ export function TemplateEditorCanvas({
                   e.preventDefault();
                   e.stopPropagation();
                   if (b.layout.locked) return;
+                  if (
+                    b.type === "IMAGE" &&
+                    String(b.configJson.src ?? "").trim() !== "" &&
+                    b.configJson.fit !== "contain"
+                  ) {
+                    dragRef.current = null;
+                    gesturePersistSnapshotRef.current = null;
+                    setDraggingBlockId(null);
+                    cropStartSnapshotRef.current = takePersistSnapshot(state);
+                    dispatch(selectBlock(b.id));
+                    setCroppingBlockId(b.id);
+                    return;
+                  }
                   if (!isTextKind) return;
                   dragRef.current = null;
                   altDuplicateGestureRef.current = false;
@@ -1341,7 +1497,7 @@ export function TemplateEditorCanvas({
                       ? blocksOnPage.filter((x) => !drag.grupo!.some((m) => m.id === x.id))
                       : blocksOnPage,
                     sinIman ? 0 : SNAP_SCREEN_PX / zoom,
-                    { safeArea: safeAreaRect, guidesX: guides.v, guidesY: guides.h }
+                    { safeArea: safeAreaRect, guidesX: snapGuidesX, guidesY: snapGuidesY }
                   );
                   // El eje bloqueado no se imanta: el bloque no puede salirse de la línea.
                   if (ejeFijo === "x") {
@@ -1410,8 +1566,32 @@ export function TemplateEditorCanvas({
             );
             })}
 
+            {croppingBlock ? (
+              <ImageCropOverlay
+                block={croppingBlock}
+                canvasZoom={state.zoom}
+                onCrop={(crop, natural) =>
+                  dispatch(
+                    updateBlock(
+                      croppingBlock.id,
+                      {
+                        configJson: {
+                          ...croppingBlock.configJson,
+                          crop,
+                          srcWidth: natural.w,
+                          srcHeight: natural.h,
+                        },
+                      },
+                      { skipHistory: true }
+                    )
+                  )
+                }
+                onExit={endImageCrop}
+              />
+            ) : null}
+
             {/* Marco y handles solo en el bloque primario; el resto de seleccionados llevan outline en el renderer. */}
-            {primaryBlock && editingTextBlockId !== primaryBlock.id ? (
+            {primaryBlock && editingTextBlockId !== primaryBlock.id && croppingBlockId !== primaryBlock.id ? (
               <div
                 style={{
                   ...getOverlayStyle(primaryBlock),
@@ -1595,11 +1775,12 @@ export function TemplateEditorCanvas({
                           if (rotateRef.current) return;
                           gesturePersistSnapshotRef.current = takePersistSnapshot(state);
                           (e.currentTarget as HTMLButtonElement).setPointerCapture(e.pointerId);
-                          // El listado del curso se agranda como caja: la lista se reparte sola.
+                          // El listado y el mosaico del curso se agrandan como caja: se reparten solos.
                           // Un lado estira la caja sin cambiar la tipografía.
                           const isTextKind =
                             (primaryBlock.type === "TEXT" || primaryBlock.type === "VARIABLE_TEXT") &&
                             !isClassListConfig(primaryBlock.configJson) &&
+                            !isCourseMosaicConfig(primaryBlock.configJson) &&
                             !isResizeEdge(h.key);
                           const nb = normalizeBlockConfig(primaryBlock.type, primaryBlock.configJson) as {
                             fontSize?: number;
@@ -1672,7 +1853,7 @@ export function TemplateEditorCanvas({
                               state.canvas.height,
                               blocksOnPage,
                               new Set([rz.blockId]),
-                              { safeArea: safeAreaRect, guidesX: guides.v, guidesY: guides.h }
+                              { safeArea: safeAreaRect, guidesX: snapGuidesX, guidesY: snapGuidesY }
                             );
                             const sr = snapResizeRect(
                               rz.handle,
@@ -1836,13 +2017,15 @@ export function TemplateEditorCanvas({
                     style={{
                       position: "absolute",
                       // Grosor fijo en pantalla: la capa está escalada con el zoom y 2 px del
-                      // lienzo eran medio píxel con una carpeta al 25 %. Magenta, como las guías
-                      // inteligentes de los editores de imagen: se distingue de la selección.
-                      left: snapGuides.vx - 0.75 / (state.zoom || 1),
+                      // lienzo eran medio píxel con una carpeta al 25 %. Rosa, como las guías
+                      // inteligentes de los editores de imagen: se distingue de la selección y
+                      // de las guías de la plantilla (celestes). En la mitad y los cuartos de la
+                      // hoja va un poco más gruesa: es el centro o una división de la hoja.
+                      left: snapGuides.vx - snapLineWidth(snapGuides.vx, state.canvas.width, state.zoom) / 2,
                       top: 0,
-                      width: 1.5 / (state.zoom || 1),
+                      width: snapLineWidth(snapGuides.vx, state.canvas.width, state.zoom),
                       height: "100%",
-                      background: "#ff2bd6",
+                      background: SNAP_GUIDE_PINK,
                     }}
                   />
                 ) : null}
@@ -1850,11 +2033,11 @@ export function TemplateEditorCanvas({
                   <div
                     style={{
                       position: "absolute",
-                      top: snapGuides.hy - 0.75 / (state.zoom || 1),
+                      top: snapGuides.hy - snapLineWidth(snapGuides.hy, state.canvas.height, state.zoom) / 2,
                       left: 0,
-                      height: 1.5 / (state.zoom || 1),
+                      height: snapLineWidth(snapGuides.hy, state.canvas.height, state.zoom),
                       width: "100%",
-                      background: "#ff2bd6",
+                      background: SNAP_GUIDE_PINK,
                     }}
                   />
                 ) : null}

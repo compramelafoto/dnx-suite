@@ -1,0 +1,20 @@
+[
+  {
+    "archivo": "01-stock-insumos.png",
+    "ruta": "/ventas/stock",
+    "que_mostrar": "Pantalla Stock con el bloque 'Insumos' y la tarjeta del Kit Kodak 305 mostrando Existencia, Mínimo y los botones 'Cargar entrada' y 'Ajustar por conteo'.",
+    "selector_recorte": null
+  },
+  {
+    "archivo": "02-cargar-entrada-kit.png",
+    "ruta": "/ventas/stock",
+    "que_mostrar": "Tarjeta del kit con 'Cargar entrada' abierto, casilla 'Cargo en Kit 305 6R (640 c/u)' tildada y 'Costo por kit (opcional)'. NO confirmar.",
+    "selector_recorte": null
+  },
+  {
+    "archivo": "03-ajustar-por-conteo.png",
+    "ruta": "/ventas/stock",
+    "que_mostrar": "Tarjeta con 'Ajustar por conteo' abierto: 'Contaste' con un número y 'Por qué ajustás' con 'Conteo de fin de mes'. NO confirmar.",
+    "selector_recorte": null
+  }
+]
