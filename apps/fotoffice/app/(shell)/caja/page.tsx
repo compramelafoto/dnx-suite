@@ -21,6 +21,9 @@ import { MovementForm } from "./movement-form";
 import { canHandleProjectMoney, committedMinor, listMoneyProjects } from "@/lib/governance/money-server";
 import { formatMinorArs } from "@/lib/membership/money";
 import { MovementsTable } from "./movements-table";
+import { pasesPendientes } from "@/lib/equipo/pase-servidor";
+import { AbrirDespuesDelPase, PaseDeTurno } from "@/components/equipo/pase-turno";
+import { SaludoEquipo } from "@/components/equipo/saludo-equipo";
 
 export const dynamic = "force-dynamic";
 
@@ -42,7 +45,7 @@ const MOVIMIENTOS_RECIENTES = 20;
 export default async function CajaPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; ok?: string }>;
+  searchParams: Promise<{ error?: string; ok?: string; saludo?: string; pase?: string; cuenta?: string; monto?: string }>;
 }) {
   const { workspace, canOperate, canConfigure, user } = await requireCashViewer();
   const params = await searchParams;
@@ -115,12 +118,45 @@ export default async function CajaPage({
     ),
   );
 
+  // Equipo: el pase de turno. Si quien entra es del equipo y el turno abierto de una caja lo abrió
+  // otra persona, se le pide contar y cerrarlo antes de empezar. Nunca traba: puede seguir sin
+  // cerrar, y si el módulo está apagado o algo falla, la lista viene vacía.
+  const pases = canOperate
+    ? await pasesPendientes({
+        workspaceId: workspace.id,
+        userId: user.id,
+        turnos: cuentasDeMostrador.flatMap((c) => {
+          const t = turnosPorCuenta.get(c.id)?.turno;
+          return t ? [{ accountId: c.id, accountName: c.name, shiftId: t.id, openedAt: t.openedAt, openedByUserId: t.openedByUserId }] : [];
+        }),
+      })
+    : [];
+  // Recién cerró el turno de la compañera: se le ofrece abrir el suyo con lo que contó.
+  const cuentaDelPase =
+    canOperate && params.pase === "abrir" && params.cuenta && !turnosPorCuenta.get(params.cuenta)?.turno
+      ? cuentasDeMostrador.find((c) => c.id === params.cuenta) ?? null
+      : null;
+  const montoDelPase = Number.parseInt(params.monto ?? "", 10);
+
   return (
     <div className="space-y-8">
       <PageHeader
         title="Caja"
         description="Saldo por cuenta, lo último que entró y salió, y el turno de cada mostrador."
       />
+
+      {params.saludo === "apertura" ? <SaludoEquipo momento="APERTURA" /> : null}
+
+      {pases.map((p) => (
+        <PaseDeTurno key={p.shiftId} pase={p} />
+      ))}
+      {cuentaDelPase ? (
+        <AbrirDespuesDelPase
+          accountId={cuentaDelPase.id}
+          accountName={cuentaDelPase.name}
+          montoMinor={Number.isFinite(montoDelPase) && montoDelPase >= 0 ? montoDelPase : 0}
+        />
+      ) : null}
 
       {params.error ? (
         <p className="fo-card p-4 text-sm text-[var(--fo-danger)]" role="alert">

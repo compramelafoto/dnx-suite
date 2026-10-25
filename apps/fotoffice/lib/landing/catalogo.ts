@@ -404,6 +404,14 @@ export const MODULOS_DISPONIBLES: FichaModulo[] = [
       "Tu cliente pide sus copias desde el mismo enlace de sus fotos: elige tamaño, cantidad y recorte, paga online y el pedido le llega solo al laboratorio. Vos no tomás pedidos por WhatsApp ni pasás archivos a mano.",
     pantallas: ["Configuración de impresiones"],
   },
+  {
+    key: "equipo",
+    cuadro: "30",
+    nombre: "Equipo",
+    resuelve:
+      "Cada persona del mostrador tiene su ficha con su horario fijo, y la jornada de cada día sale sola de la apertura y el cierre de caja. Si una llega y la caja de la compañera quedó abierta, se la guía para contar y cerrarla sin trabar la venta. Y el equipo recibe saludos que cambian todos los días: al abrir, antes de salir y al cerrar, con el cumpleaños incluido.",
+    pantallas: ["Jornadas del día", "Ficha y horario de cada persona", "Pase de turno en Caja", "Mensajes al equipo"],
+  },
 ];
 /** Lo que está siempre, se encienda lo que se encienda. No son módulos con interruptor. */
 export const BASE_DEL_SISTEMA: FichaModulo[] = [
@@ -453,7 +461,7 @@ export const BASE_DEL_SISTEMA: FichaModulo[] = [
     pantallas: ["Firma y remitente propios", "Registro de envíos", "Envío de prueba"],
   },
   {
-    key: "equipo",
+    key: "permisos",
     cuadro: "A6",
     nombre: "Equipo y permisos",
     resuelve:

@@ -238,6 +238,20 @@ export function armarMensaje(piezas: readonly Pieza[], ctx: ContextoMensaje): Me
   };
 }
 
+export const LARGO_MAXIMO_PIEZA = 200;
+
+/** Valida el texto de una pieza que escribe el dueño: no vacío, corto y sólo con variables conocidas. */
+export function validarTextoPieza(texto: string): { ok: true; texto: string } | { ok: false; error: string } {
+  const limpio = texto.replace(/\s+/g, " ").trim();
+  if (!limpio) return { ok: false, error: "Escribí el texto de la frase." };
+  if (limpio.length > LARGO_MAXIMO_PIEZA) return { ok: false, error: `La frase puede tener hasta ${LARGO_MAXIMO_PIEZA} letras.` };
+  const desconocidas = (limpio.match(/\{[^}]*\}/g) ?? []).filter((v) => !(VARIABLES as readonly string[]).includes(v));
+  if (desconocidas.length > 0) {
+    return { ok: false, error: `No conozco ${desconocidas.join(", ")}. Se pueden usar ${VARIABLES.join(", ")}.` };
+  }
+  return { ok: true, texto: limpio };
+}
+
 /**
  * Cuándo se muestra el aviso de salida: desde 5 minutos antes del fin de su horario, si tiene
  * un turno abierto a su nombre y no lo cerró con la cruz.

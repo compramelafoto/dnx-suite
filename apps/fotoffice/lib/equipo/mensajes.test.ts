@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { armarMensaje, avisoDeSalidaVisible, completarTexto, ocasionesDelDia, type ContextoMensaje, type Pieza } from "./mensajes";
+import {
+  armarMensaje,
+  avisoDeSalidaVisible,
+  completarTexto,
+  ocasionesDelDia,
+  validarTextoPieza,
+  type ContextoMensaje,
+  type Pieza,
+} from "./mensajes";
 import { REPERTORIO_INICIAL } from "./repertorio";
 import { debeOfrecerPase } from "./pase";
 import { sumarDias } from "./fechas";
@@ -137,6 +145,15 @@ describe("ocasionesDelDia", () => {
   });
   it("no se confunde con el mes siguiente", () => {
     expect(sumarDias("2026-10-31", 1).slice(0, 7)).toBe("2026-11");
+  });
+});
+
+describe("validarTextoPieza", () => {
+  it("acepta variables conocidas y rechaza vacías, largas o desconocidas", () => {
+    expect(validarTextoPieza("  ¡Hola,   {nombre}! ")).toEqual({ ok: true, texto: "¡Hola, {nombre}!" });
+    expect(validarTextoPieza(" ").ok).toBe(false);
+    expect(validarTextoPieza("x".repeat(201)).ok).toBe(false);
+    expect(validarTextoPieza("Hola {apellido}").ok).toBe(false);
   });
 });
 

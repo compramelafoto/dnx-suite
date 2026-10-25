@@ -4,12 +4,12 @@ import { getAuthUser, requireAuth } from "@/lib/auth";
 import { resolveActiveWorkspace } from "@/lib/workspace";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import { resolveWorkspaceRole } from "@/lib/workspace-role";
-import { canManageWorkspaceSettings } from "@/lib/workspace-settings-access";
+import { puede } from "@/lib/access/policy";
 import { EQUIPO_MODULE_KEY } from "./constantes";
 
 /**
  * Acceso al panel Equipo: sesión, espacio activo, módulo `equipo` encendido y ser dueño o
- * administrador (`canManageWorkspaceSettings`). Las empleadas (STAFF) nunca entran: ni con un
+ * administrador (`puede(rol, "configurar")`, la misma regla que Configuración). Las empleadas (STAFF) nunca entran: ni con un
  * rol de la comisión, porque acá se ven horarios, jornadas y correcciones de cada una.
  */
 export type CtxEquipo = { workspaceId: string; userId: number };
@@ -21,7 +21,7 @@ export async function requireEquipo(): Promise<CtxEquipo> {
   if (!workspace) redirect("/workspace");
   if (!(await isModuleEnabledForWorkspace(workspace.id, EQUIPO_MODULE_KEY))) redirect("/dashboard?module=off");
   const role = await resolveWorkspaceRole(user.id, workspace.id);
-  if (!canManageWorkspaceSettings(role)) redirect("/dashboard");
+  if (!puede(role, "configurar")) redirect("/dashboard");
   return { workspaceId: workspace.id, userId: user.id };
 }
 
@@ -33,7 +33,7 @@ export async function contextoEquipo(): Promise<CtxEquipo | null> {
   if (!workspace) return null;
   if (!(await isModuleEnabledForWorkspace(workspace.id, EQUIPO_MODULE_KEY))) return null;
   const role = await resolveWorkspaceRole(user.id, workspace.id);
-  if (!canManageWorkspaceSettings(role)) return null;
+  if (!puede(role, "configurar")) return null;
   return { workspaceId: workspace.id, userId: user.id };
 }
 
