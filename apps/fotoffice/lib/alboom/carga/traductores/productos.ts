@@ -7,8 +7,11 @@ import type { Campos, Crudo, Decision, EntradaMapa } from "../tipos";
  *
  * - Producto (`/products/all`, doc 02 §17.6: `id, code, name, description, category_id, category_name, pack,
  *   price, min_price, active, list, cost`) → `Product` + `FotofficeProductoCatalogo` (lista de precios, combo).
- *   Se empareja por nombre (y si no, por código) con los existentes; si no, se crea. Sin stock (Alboom no lo
- *   lleva). La categoría se busca por nombre en las categorías de producto y, si falta, se crea.
+ *   Se empareja por nombre con los existentes: el que se VINCULA con uno de FOTOFFICE no se toca (sólo se ata en
+ *   el mapa). El que se CREA es catálogo viejo de Alboom (simulación real del 25/10/2026: 238 productos, con precios
+ *   viejos o en 0): nace INACTIVO (no aparece en el mostrador ni en la tienda), sin stock, en la categoría de
+ *   producto "Histórico Alboom" (se crea si falta), sólo para que los pedidos históricos de la 8B-2 lo referencien.
+ *   La categoría que tenía en Alboom queda al final de la descripción.
  * - Ítem de combo (`/products/pack/:id`, §17.7: `pack_id, product_id, qty, price, discount`) → `FotofficeComboItem`.
  *   FOTOFFICE no guarda precio ni descuento por ítem: si venían, es una duda.
  * - Costo (`/products/costs/:id`, §17.5: `vendor_id, name, cost, cost_due_days, account_cogs_name`) →
@@ -24,6 +27,10 @@ export const MAX_IMPORTE = 9_999_999_999.99;
 export const MAX_CONCEPTO = 120;
 export const MAX_DIAS = 3650;
 export const MAX_CANTIDAD = 1000;
+/** Categoría de producto de todo lo que crea la carga. */
+export const CATEGORIA_HISTORICA = "Histórico Alboom";
+/** Campos que la carga fija al crear y nunca vuelve a cambiar desde Alboom. */
+const FIJOS_AL_CREAR = new Set(["isActive", "categoria"]);
 
 /** Categorías de Alboom que son servicios (lo demás se carga como producto). Ajustable con los datos reales. */
 const CATEGORIAS_SERVICIO = new Set(["evento", "sesion", "otro"]);
@@ -87,9 +94,11 @@ function camposDeProducto(c: Crudo, ctx: CtxProductos, targetId: string | null):
     sku = null;
     dudas.push(DUDAS.codigoRepetido);
   }
+  const categoriaAlboom = texto(p.category_name, 80);
+  const descripcion = textoLargo(p.description, 1900);
   const nuevos: Campos = {
     sku,
-    description: textoLargo(p.description, 2000),
+    description: categoriaAlboom ? `${descripcion ? `${descripcion}\n\n` : ""}Categoría en Alboom: ${categoriaAlboom}` : descripcion,
     priceArs: price,
     costArs: importeValido(p.cost),
     isActive: siNo(p.active) ?? true,
@@ -141,15 +150,28 @@ export function traducirProducto(c: Crudo, ctx: CtxProductos): Decision {
   const { nuevos, dudas } = camposDeProducto(c, ctx, existente?.id ?? null);
   if (nombreCompleto.length > MAX_NOMBRE_PRODUCTO) dudas.push(DUDAS.nombreLargo);
   const extra: Partial<Decision> = { ...(dudas.length ? { dudas } : {}), ...(conflictos.length ? { conflictos } : {}) };
-  if (existente) return actualizarOIgual(existente.id, nuevos, actualDeProducto(existente), mapa, extra);
-  const categoria = typeof nuevos.categoria === "string" ? nuevos.categoria : null;
-  const escritos = { ...nuevos, priceArs: nuevos.priceArs ?? "0.00" };
+  // Vinculado con uno que ya estaba en FOTOFFICE (primera vez, o un vínculo anterior: mapa sin huellas): no se toca.
+  if (existente && (!mapa || Object.keys(mapa.fieldHashes).length === 0)) {
+    return { accion: "IGUAL", targetId: existente.id, vincula: !mapa, huellas: {}, ...(conflictos.length ? { conflictos } : {}) };
+  }
+  // Creado por la carga: se actualiza lo que cambió en Alboom, menos lo que la carga fija (inactivo, categoría).
+  const sinFijos = (x: Campos) => Object.fromEntries(Object.entries(x).filter(([k]) => !FIJOS_AL_CREAR.has(k)));
+  if (existente) return actualizarOIgual(existente.id, sinFijos(nuevos), sinFijos(actualDeProducto(existente)), mapa, extra);
+  const categoria = texto(campos(c.payload).category_name, 80);
+  const escritos = { ...sinFijos(nuevos), priceArs: nuevos.priceArs ?? "0.00" };
   return {
     accion: "CREAR",
-    datos: { name, ...escritos, kind: categoria && CATEGORIAS_SERVICIO.has(clave(categoria)) ? "SERVICIO" : "PRODUCTO" },
+    datos: {
+      name,
+      ...escritos,
+      isActive: false,
+      categoria: CATEGORIA_HISTORICA,
+      kind: categoria && CATEGORIAS_SERVICIO.has(clave(categoria)) ? "SERVICIO" : "PRODUCTO",
+    },
     // Huella de lo realmente escrito: un precio que faltó (0) se actualiza cuando Alboom lo tenga.
     huellas: huellasDe(escritos),
     ...extra,
+    dudas: [...(dudas ?? []), DUDAS.productoHistorico],
   };
 }
 

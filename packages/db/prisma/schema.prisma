@@ -7470,6 +7470,7 @@ model Workspace {
   fotofficeAlboomExtracciones    FotofficeAlboomExtraccion[]
   fotofficeAlboomMapas           FotofficeAlboomMapa[]
   fotofficeAlboomCargas          FotofficeAlboomCarga[]
+  fotofficeAlboomFinanzas        FotofficeAlboomFinanza[]
   fotofficeContratoAjustes       FotofficeContratoAjustes?
   fotofficeInformesAjustes       FotofficeInformesAjustes?
   clientAudits                   ClientAudit[]
@@ -26250,6 +26251,44 @@ model FotofficeAlboomCrudo {
 
   @@unique([workspaceId, entity, alboomId])
   @@index([workspaceId, entity])
+}
+
+/// Etapa 8B-2: libro "Histórico Alboom". Lo que el dinero de Alboom deja y no tiene lugar sin tocar la Caja: los
+/// movimientos de bancos y los cobros y cuentas a cobrar sin pedido. De SÓLO LECTURA y FUERA de la Caja: no suma en los
+/// saldos de las cuentas, ni en los informes de Caja, ni en los puntos del Club (desde el 19/10/2026 DNX opera la Caja
+/// en FOTOFFICE). source BANCO | COBRO | A_COBRAR; kind INGRESO | EGRESO | TRANSFERENCIA | A_COBRAR | A_PAGAR (CHECK).
+/// `clientId` y `pedidoId` son referencias sueltas (sin FK): un borrado en FOTOFFICE no toca el histórico.
+model FotofficeAlboomFinanza {
+  id             String    @id @default(cuid())
+  workspaceId    String
+  alboomEntity   String
+  alboomId       String
+  source         String
+  kind           String
+  /// Siempre positivo; el sentido lo da `kind`.
+  amountArs      Decimal   @db.Decimal(14, 2)
+  /// Fecha del movimiento (fecha de Argentina).
+  occurredOn     DateTime  @db.Date
+  dueOn          DateTime? @db.Date
+  /// Banco o caja de Alboom ("1.1.<id>") y su nombre.
+  accountCode    String?
+  accountName    String?
+  methodName     String?
+  documentNumber String?
+  /// Categoría del asiento en Alboom (71 débito, 72 depósito, 74 transferencia, 83 cobro, 84 pago…).
+  alboomCategory String?
+  alboomOrderId  String?
+  clientId       String?
+  pedidoId       String?
+  memo           String?
+  cleared        Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, alboomEntity, alboomId])
+  @@index([workspaceId, occurredOn])
+  @@index([workspaceId, clientId])
 }
 
 /// Etapa 8A: una extracción del CRM de Alboom. status PENDIENTE|CORRIENDO|LISTA|ERROR|CANCELADA (CHECK); a lo sumo

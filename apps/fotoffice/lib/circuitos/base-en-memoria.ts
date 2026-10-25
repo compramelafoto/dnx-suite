@@ -71,6 +71,8 @@ const TABLAS = [
   "fotofficeTamanoImpresion", "fotofficeSalidaImpresion", "fotofficeSalidaTamano", "fotofficeProductoProduccion",
   "fotofficePreparacionImpresion", "fotofficeOriginalImpresion", "fotofficePiezaImpresion", "fotofficeHojaImpresion",
   "fotofficeRegistroImpresion", "saleItem",
+  // Migración de Alboom (8B-2): el mapa de ids (lo histórico que no avisa), su libro de finanzas y la ficha.
+  "fotofficeAlboomMapa", "fotofficeAlboomFinanza", "fotofficeNote", "fotofficeNoteCategory", "fotofficePersonEvent",
   // Bandeja de WhatsApp.
   "fotofficeWaConexion", "fotofficeWaChat", "fotofficeWaMensaje",
   // Stock (la seña de un pedido aparta unidades con `applyStockMovement`).

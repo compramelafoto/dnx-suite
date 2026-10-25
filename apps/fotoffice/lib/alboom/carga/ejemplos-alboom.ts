@@ -73,3 +73,118 @@ export const EMBUDO = { id: "1611", name: "Embudo de Ventas DNX 2022" };
 export const ETAPA_1 = { id: "9001", type_id: "1611", stage: "1", name: "Recepción de la oportunidnad", offset_days: "2", tasks: "" };
 export const ORIGEN = { name: "Recomendado por un amigo/a", posicion: 1 };
 export const ETIQUETA = { tag: "VIP", type: "contacts" };
+
+// ── 8B-2 (formas de los docs 01 §13, 02 §17, 03 y 04 §21; las marcadas "supuesta" no están confirmadas) ──
+
+/** Oportunidad (doc 01 §13.1): abierta, en la etapa 1 del embudo 1611, evento a futuro. */
+export const OPORTUNIDAD = {
+  id: "3001",
+  name: "Boda Lucía y Martín",
+  customer_id: "7001",
+  referrer_id: "",
+  category_id: "12",
+  lead_origin: "Instagram",
+  description: "Nos casamos en marzo",
+  amount: "350000.00",
+  status_id: "421",
+  priority_name: "Alta",
+  pipeline_id: "1611",
+  stage_id: "1",
+  stage_name: "Recepción de la oportunidnad",
+  due_date: "2026-10-30",
+  completed_date: "",
+  event_date: "2027-03-14 18:30:00",
+  guests: "150",
+  bride_name: "Lucía",
+  groom_name: "Martín",
+  place_event: "Estancia La Paz",
+  place_reception: "",
+  city_event: "Funes",
+  user_id: "1",
+  tags: "Web",
+  created: "2026-09-01 10:15:00",
+  modified: "2026-09-20 12:00:00",
+};
+
+/** Historial de etapas (doc 01 §13.2). */
+export const HISTORIAL = { created: "2026-09-01 10:15:00", user_id: "1", user_name: "Ana", stage_id: "1", stage_name: "Recepción", due_date: "2026-09-03", note: "Entró por Instagram" };
+/** Nota (doc 01 §13.5, supuesta la paginación). */
+export const NOTA = { id: "501", user_id: "1", type: "leads", target_id: "3001", customer_id: "7001", action: "Presupuesto", text: "<p>Le mandé el presupuesto</p>", created: "2026-09-02 09:00:00" };
+/** Actividad (doc 01 §13.5). */
+export const ACTIVIDAD = { user_id: "1", customer_id: "7001", target_id: "3001", type: "leads", text: "Ana cambió la etapa", link: "", created: "2026-09-02 09:05:00" };
+/** Correo (doc 01 §13.5, supuesta). */
+export const CORREO = { id: "801", message_type: "mail", to_mail: "lucia@correo.test", subject: "Presupuesto", body: "<p>Hola Lucía</p>", customer_id: "7001", created: "2026-09-02 09:10:00" };
+
+/** Presupuesto (doc 02 §17.1) y su detalle con ítems (§17.2). */
+export const PRESUPUESTO = { id: "900", lead_id: "3001", customer_id: "7001", user_id: "1", created: "2026-09-02 08:00:00", sent_date: "2026-09-02 09:00:00", viewed: "", valid_thru_days: "15", total: "300000.00", discount: "0", other_expenses: "0", general_conditions: "Seña del 30%", payment_conditions: "3 cuotas" };
+export const PRESUPUESTO_DETALLE = { ...PRESUPUESTO, quote_items: [{ product_id: "55", code: "EV-01", name: "Cobertura fotográfica de evento", price: "150000.00", qty: "2", discount: "0", total: "300000.00" }] };
+
+/** Pedido (doc 02 §17.3). */
+export const PEDIDO = {
+  id: "2025093",
+  name: "Boda Lucía y Martín",
+  customer_id: "7001",
+  lead_id: "3001",
+  quote_id: "900",
+  status_id: "475",
+  add_date: "2026-09-10 11:00:00",
+  event_date: "2025-03-14",
+  total: "300000.00",
+  grand_total: "300000.00",
+  discount: "0",
+  other_expenses: "0",
+  user_id: "1",
+  contractor1_id: "7001",
+  memo: "Pidió álbum aparte",
+};
+export const ITEM_PEDIDO = { order_id: "2025093", product_id: "55", code: "EV-01", name: "Cobertura fotográfica de evento", price: "150000.00", qty: "2", discount: "0", total: "300000.00" };
+/** Cuotas del plan (doc 02 §17.4). */
+/** Forma real de `pedidos_detalle.order_payments` (DNX, 25/10/2026). */
+export const CUOTA_1 = { id: "41", order_id: "2025093", due_date: "2026-09-08", category_name: "Efectivo", value: "100000.00", cleared: "1", cleared_date: "2026-09-10", document: "1", receipt_id: "135", deleted: "0", account_trans_id: null };
+export const CUOTA_2 = { id: "42", order_id: "2025093", due_date: "2026-11-10", category_name: "Transferencia Bancaria", value: "200000.00", cleared: "0", cleared_date: null, document: "2", receipt_id: null, deleted: "0", account_trans_id: null };
+/** Costo del pedido (doc 02 §17.5). */
+export const COSTO_PEDIDO = { id: "71", type: "orders", target_id: "2025093", vendor_id: "7004", name: "Segundo fotógrafo", cost: "40000.00", total: "40000.00", due_date: "2025-03-20", cleared: "1", account_cogs_name: "Fotógrafos Freelancers" };
+
+/**
+ * Asientos (`account_trans`) con la forma real de DNX (25/10/2026): importe como texto SIN signo en
+ * ar/ap/ar_paid/ap_paid y CON signo en los movimientos de bancos; no hay `order_payment_id`.
+ */
+export const COBRO = { id: "6001", account_id: "1.1.3", add_date: "2026-09-10", due_date: "2026-09-08", amount: "100000.00", category_id: "83", category_name: "Cobro", class_id: "0", cleared: "1", customer_id: "7001", document_number: "1", document_type_id: "1736", document_type_name: "Efectivo", internal_account_id: "1.2.1", memo: "Seña", order_id: "2025093", order_status_id: "475" };
+export const COBRO_SIN_PEDIDO = { ...COBRO, id: "6002", add_date: "2026-08-01", due_date: "2026-08-01", amount: "5000.00", order_id: null, order_status_id: null, memo: "Copias sueltas" };
+export const CUENTA_COBRAR = { ...COBRO, id: "6101", add_date: "2026-09-10", due_date: "2026-11-10", amount: "200000.00", category_id: "73", cleared: "0", account_id: "1.2" };
+export const PAGO = { ...COBRO, id: "6201", add_date: "2025-03-21", due_date: "2025-03-20", amount: "40000.00", document_type_name: "Transferencia Bancaria (Plataforma 360°)", customer_id: "7004", category_id: "84", memo: "" };
+export const PAGO_SUELTO = { ...PAGO, id: "6202", add_date: "2026-07-01", amount: "15000.00", document_type_name: "Efectivo", order_id: null, memo: "Alquiler de luces" };
+export const MOVIMIENTO_BANCO = { ...COBRO, id: "6301", add_date: "2026-07-05", amount: "-80000.00", document_type_name: "Transferencia Bancaria", category_id: "72", order_id: null, memo: "Depósito" };
+export const BANCO = { id: "3", name: "Caja del estudio", category_id: "1001" };
+
+/** Contrato (doc 03 §3.12) y su detalle con texto y firma (supuesta la forma de `signature`). */
+export const CONTRATO = { id: "357", order_id: "2025093", customer_id: "7001", user_id: "1", name: "Contrato de boda", created: "2026-09-11 10:00:00", sent_date: "2026-09-11 10:05:00", viewed: "2026-09-11 18:00:00" };
+/** Forma real de `contratos_detalle` (DNX, 25/10/2026): firmado = `signed` no nulo. */
+export const CONTRATO_DETALLE = {
+  ...CONTRATO,
+  contractor1_fullname: "Lucía Fernández",
+  contractor1_name: "Lucía",
+  contractor1_lastname: "Fernández",
+  contractor2_fullname: null,
+  modified: "2026-09-12 20:15:01",
+  orders_event_date: "2025-03-14",
+  orders_total: "300000.00",
+  short_url: "https://alb.test/x",
+  unique_id: "abc123",
+  legacy: "1",
+  sig_hash: "f00ba4",
+  signator: "Lucía Fernández",
+  ip: "190.0.0.1",
+  signature: "data:image/png;base64,AAAA",
+  signed: "2026-09-12 20:15:00",
+  text: "<p>Entre <b>DNX</b> y la parte contratante…</p><p>Cláusula 1</p>",
+};
+
+/** Proyecto (doc 03 §5.14), su historial y un participante. */
+export const PROYECTO = { id: "1010", name: "Boda Lucía y Martín - Fotos", customer_id: "7001", order_id: "2025093", pipeline_id: "77", stage_id: "2", status_id: "201", event_date: "2025-03-14", due_date: "2025-04-01", final_due_date: "2025-05-01", user_id: "1", description: "Edición y álbum", created: "2026-09-10 11:05:00" };
+export const HISTORIAL_PROYECTO = { created: "2026-09-15 10:00:00", user_id: "1", stage_id: "2", stage_name: "Edición", due_date: "2025-04-01", note: "" };
+export const PARTICIPANTE = { id: "5", contact_id: "7004", category_id: "8", category_name: "Fotógrafo Secundario", memo: "Llega 17 h" };
+
+/** Cita (doc 03 §6.10) y tarea (doc 03 §5.14). */
+export const CITA = { id: "453", title: "Reunión con los novios", start: "2026-11-05 18:00:00", end: "2026-11-05 19:00:00", all_day: "0", status: "Scheduled", event_type_id: "4", location: "Estudio", details: "Traer muestras", user_id: "1", customer_id: "7001", type: "orders", target_id: "2025093", participants: [{ id: "1", name: "Ana", lastname: "Gómez", avatar: null }], event_type_name: "Reunión", created: "2026-10-01 10:00:00" };
+export const TAREA = { id: "832", user_id: "1", type: "projects", target_id: "1010", title: "Elegir fotos del álbum", due_date: "2026-11-01", completed: "0", created: "2026-10-01 10:00:00" };

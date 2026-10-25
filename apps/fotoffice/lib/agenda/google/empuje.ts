@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@repo/db";
+import { idsDeAlboom, sinLosDeAlboom } from "@/lib/alboom/historico";
 import { cuerpoDeCita, decideEntrega, decideLocal, idEventoCita, type CuerpoEventoGoogle } from "../sync-decisiones";
 import { codigoDeError, esConflicto, esInexistente, type ClienteAgenda, type EventoEscrito } from "./cliente";
 import { contextoGoogle, type ContextoGoogle } from "./contexto-google";
@@ -160,8 +161,10 @@ const DIA_MS = 86_400_000;
 
 /** Citas que nunca llegaron a Google (alta con Google caído, o hechas antes de crear el calendario). */
 export async function empujarCitasPendientes(workspaceId: string, g: ContextoGoogle, ahora: Date, tope = TOPE_POR_CORRIDA): Promise<{ empujadas: number; errores: string[] }> {
+  // Lo histórico de Alboom (8B-2) no se manda al calendario.
+  const historicas = await idsDeAlboom(workspaceId, "CITA");
   const pendientes = await prisma.fotofficeCita.findMany({
-    where: { workspaceId, googleEventId: null, status: { not: "ANULADA" }, startAt: { gte: new Date(ahora.getTime() - 30 * DIA_MS) } },
+    where: { workspaceId, googleEventId: null, status: { not: "ANULADA" }, startAt: { gte: new Date(ahora.getTime() - 30 * DIA_MS) }, ...sinLosDeAlboom(historicas) },
     select: { id: true },
     orderBy: [{ startAt: "asc" }, { id: "asc" }],
     take: tope,
@@ -186,8 +189,10 @@ export async function empujarCitasPendientes(workspaceId: string, g: ContextoGoo
  */
 export async function reconciliarEntregas(workspaceId: string, g: ContextoGoogle, tope = TOPE_POR_CORRIDA): Promise<{ escritas: number; borradas: number; errores: string[] }> {
   const errores: string[] = [];
+  // Los proyectos históricos de Alboom (8B-2) no son entregas a anotar en el calendario.
+  const historicos = await idsDeAlboom(workspaceId, "PROYECTO");
   const proyectos = await prisma.fotofficeProyecto.findMany({
-    where: { workspaceId, suspendedAt: null, finalDueDate: { not: null } },
+    where: { workspaceId, suspendedAt: null, finalDueDate: { not: null }, ...sinLosDeAlboom(historicos) },
     select: { id: true, name: true, finalDueDate: true, suspendedAt: true },
     orderBy: [{ finalDueDate: "asc" }, { id: "asc" }],
     take: 1000,

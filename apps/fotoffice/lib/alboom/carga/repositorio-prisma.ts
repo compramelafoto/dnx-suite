@@ -7,6 +7,7 @@ import type { ActorCarga, FilaCarga, FuenteCruda, RepoCarga } from "./repositori
 import { huellaCampo } from "./campos";
 import type { Campos, EntradaMapa, EstadoCarga, FilaMapa, ModoCarga, Valor } from "./tipos";
 import { CAMPOS_CLIENTE, CAMPOS_PERFIL } from "./traductores/contactos";
+import { CLAVES_8B2, catalogosHistoricosPrisma, escribirHistorico, idsExistentesPrisma } from "./repositorio-prisma-8b2";
 
 /**
  * `RepoCarga` con Prisma. Todas las consultas llevan `workspaceId`. Cada escritura de un registro va en una
@@ -275,6 +276,9 @@ export const repoPrisma: RepoCarga = {
     }));
   },
 
+  idsExistentes: idsExistentesPrisma,
+  catalogosHistoricos: catalogosHistoricosPrisma,
+
   async escribir(ws, clave, d, mapa, actor) {
     const v = d.datos ?? {};
     const crear = d.accion === "CREAR";
@@ -329,9 +333,28 @@ export const repoPrisma: RepoCarga = {
       return clientId;
     }
 
+    if (CLAVES_8B2.has(clave)) {
+      return prisma.$transaction(async (tx) => {
+        const id = await escribirHistorico(tx, ws, clave, d, mapa, actor);
+        await upsertMapa(tx, ws, mapa, id);
+        return id;
+      });
+    }
+
     return prisma.$transaction(async (tx) => {
       let id = d.targetId ?? "";
       switch (clave) {
+        case "circuitos": {
+          // Embudo o flujo sin equivalente: se crea INACTIVO (no aparece para elegir) y nunca predeterminado.
+          id = (await tx.fotofficeCircuit.create({ data: { workspaceId: ws, name: String(v.name), kind: String(v.kind), isActive: false, isDefault: false }, select: { id: true } })).id;
+          break;
+        }
+        case "etapas": {
+          const circuito = await tx.fotofficeCircuit.findFirst({ where: { id: String(v.circuitId), workspaceId: ws }, select: { id: true } });
+          if (!circuito) unoSolo({ count: 0 });
+          id = (await tx.fotofficeStage.create({ data: { circuitId: circuito!.id, name: String(v.name), order: Number(v.order), days: Number(v.days) }, select: { id: true } })).id;
+          break;
+        }
         case "origenes": {
           id = (await tx.fotofficeOrigen.create({ data: { workspaceId: ws, name: String(v.name), order: Number(v.order) }, select: { id: true } })).id;
           break;
