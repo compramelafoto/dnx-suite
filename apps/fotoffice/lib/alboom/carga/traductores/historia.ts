@@ -28,6 +28,7 @@ export const MOTIVOS_8B2 = {
   sinPedido: "Sin pedido: no tiene lugar en FOTOFFICE (queda en el crudo de Alboom)",
   importeCero: "Importe en cero",
   cuotaDelPedido: "Ya está en el plan de cuotas del pedido",
+  cuotaCobrada: "Ya está como cuota cobrada del pedido (no se cobra dos veces)",
   cubiertoPorCosto: "Ya se cargó como costo del pedido",
   sinTexto: "Sin texto",
   sinTitulo: "Sin título",
@@ -52,6 +53,8 @@ export const DUDAS_8B2 = {
   enviadoSinFirmar: "Enviado en Alboom y sin firmar: quedó en borrador (sin enlace)",
   pagoSinFecha: "Pagado en Alboom sin fecha de pago (se usó el vencimiento)",
   itemsDelListado: "El detalle no traía ítems: se usó lo del listado",
+  cobroSinFecha: "Cuota cobrada en Alboom sin fecha de cobro (se usó el vencimiento)",
+  cobroSinCuota: "Cobro de Alboom de un pedido que no coincide con ninguna cuota cobrada: quedó en el libro Histórico Alboom (no suma al pedido)",
 } as const;
 
 /** Lo que vale para todo registro histórico ya cargado. `null` = no está en el mapa (seguir traduciendo). */

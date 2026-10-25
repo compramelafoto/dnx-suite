@@ -31,20 +31,19 @@ describe("contratos", () => {
     ...over,
   });
 
-  it("firmado: FIRMADO fuera de FOTOFFICE, con el texto plano y la evidencia en huellas (sin nombres, IP ni imagen)", () => {
+  it("firmado (`signed` no nulo): FIRMADO fuera de FOTOFFICE, texto plano y evidencia en huellas (sin nombres, IP ni imagen)", () => {
     const d = traducirContrato(crudo("contratos", "357", CONTRATO), ctx());
     expect(d).toMatchObject({ accion: "CREAR", datos: { pedidoId: "ped1", clientId: "cli1", number: "357", status: "FIRMADO", signedAt: "2026-09-12T23:15:00.000Z", manualSignedAt: "2026-09-12T23:15:00.000Z", bodyText: "Entre DNX y la parte contratante…\nCláusula 1" } });
     const ev = d.extra!.evento as Record<string, unknown>;
-    expect(ev).toMatchObject({ enviado: "2026-09-11T13:05:00.000Z", visto: "2026-09-11T21:00:00.000Z", acepto: true, firmante1Fecha: "2026-09-12T23:15:00.000Z" });
-    expect(String(ev.firmante1Ip)).toMatch(/^[0-9a-f]{32}$/);
-    expect(JSON.stringify(ev)).not.toMatch(/Lucía|190\.0|base64/);
+    expect(ev).toMatchObject({ enviado: "2026-09-11T13:05:00.000Z", visto: "2026-09-11T21:00:00.000Z", firmado: "2026-09-12T23:15:00.000Z", legacy: true });
+    for (const k of ["firmaIp", "firmaImagen", "firmaHash", "enlace"]) expect(String(ev[k])).toMatch(/^[0-9a-f]{32}$/);
+    expect(JSON.stringify(ev)).not.toMatch(/Lucía|Fernández|190\.0|base64|abc123/);
   });
 
-  it("enviado sin firmar → BORRADOR (sin enlace) con duda; firma como texto JSON; sin pedido → OMITIR", () => {
-    const sinFirma = traducirContrato(crudo("contratos", "358", { ...CONTRATO, id: "358" }), ctx({ detalle: new Map() }));
-    expect(sinFirma).toMatchObject({ datos: { status: "BORRADOR", signedAt: null, manualSignedAt: null, bodyText: "(Contrato de Alboom sin texto)" }, dudas: [DUDAS_8B2.enviadoSinFirmar] });
-    const json = traducirContrato(crudo("contratos", "359", { ...CONTRATO, signature: JSON.stringify({ signed2: "2026-09-13 10:00:00" }) }), ctx({ detalle: new Map() }));
-    expect(json.datos).toMatchObject({ status: "FIRMADO", signedAt: "2026-09-13T13:00:00.000Z" });
+  it("`signed` null: no firmado → BORRADOR (sin enlace) con duda; sin pedido → OMITIR", () => {
+    const sinFirma = traducirContrato(crudo("contratos", "357", CONTRATO), ctx({ detalle: new Map([["357", { ...CONTRATO_DETALLE, signed: null }]]) }));
+    expect(sinFirma).toMatchObject({ datos: { status: "BORRADOR", signedAt: null, manualSignedAt: null }, dudas: [DUDAS_8B2.enviadoSinFirmar] });
+    expect(traducirContrato(crudo("contratos", "358", { ...CONTRATO, id: "358" }), ctx({ detalle: new Map() })).datos).toMatchObject({ status: "BORRADOR", bodyText: "(Contrato de Alboom sin texto)" });
     expect(traducirContrato(crudo("contratos", "360", { ...CONTRATO, order_id: "" }), ctx({ detalle: new Map() }))).toEqual({ accion: "OMITIR", motivo: MOTIVOS_8B2.sinPedido });
   });
 });
@@ -103,6 +102,8 @@ describe("citas y tareas", () => {
       datos: { title: "Reunión con los novios", typeId: "tc1", status: "AGENDADA", startAt: "2026-11-05T21:00:00.000Z", endAt: "2026-11-05T22:00:00.000Z", pedidoId: "ped1", clientId: "cli1", ownerUserId: 7 },
       extra: { participantes: [7] },
     });
+    // Sin start/end: fecha y hora por separado (también vienen en la forma real).
+    expect(traducirCita(crudo("citas", "456", { ...CITA, start: undefined, end: undefined, start_date: "2026-11-06", start_time: "10:00", end_date: "2026-11-06", end_time: "11:30" }), citas).datos).toMatchObject({ startAt: "2026-11-06T13:00:00.000Z", endAt: "2026-11-06T14:30:00.000Z" });
     expect(traducirCita(crudo("citas", "454", { ...CITA, status: "Cancelled", end: "2026-11-05 17:00:00" }), citas)).toMatchObject({ datos: { status: "ANULADA", endAt: "2026-11-05T22:00:00.000Z" }, dudas: [DUDAS_8B2.fechaFin] });
     expect(traducirCita(crudo("citas", "455", { ...CITA, title: "" }), citas)).toEqual({ accion: "OMITIR", motivo: MOTIVOS_8B2.sinTitulo });
   });

@@ -325,11 +325,78 @@ export function traducirCuota(c: Crudo, ctx: CtxCuotas): Decision {
   const dueDate = fecha(p.due_date);
   if (!dueDate) return { accion: "OMITIR", motivo: MOTIVOS_8B2.sinFecha };
   const m = metodoDeCuota(p, ctx.metodoDe);
+  // Fuente de verdad de lo cobrado de cada pedido: la cuota marcada `cleared` en `order_payments` (el escritor le
+  // crea su cobro, sin Caja, por el importe exacto de la cuota). Los cobros sueltos de Alboom (ar_paid) de un
+  // pedido NO se cargan como cobro: así el pedido nunca queda cobrado dos veces.
+  const cobrada = siNo(p.cleared) === true;
+  const dudas: string[] = [];
+  let paidAt: string | null = null;
+  if (cobrada) {
+    paidAt = instanteAr(p.cleared_date);
+    if (!paidAt) {
+      paidAt = instanteAr(p.due_date);
+      dudas.push(DUDAS_8B2.cobroSinFecha);
+    }
+    if (!m.conocido) dudas.push(DUDAS_8B2.medioDesconocido);
+  }
+  const recibo = idAlboom(p.receipt_id);
+  const idCuota = c.alboomId.split("/").pop() ?? c.alboomId;
   return {
     accion: "CREAR",
-    datos: { pedidoId, position: ctx.posicion.get(c.alboomId) ?? 1, dueDate, amountArs: monto, suggestedMethod: m.conocido ? m.medio : null },
+    datos: {
+      pedidoId,
+      position: ctx.posicion.get(c.alboomId) ?? 1,
+      dueDate,
+      amountArs: monto,
+      suggestedMethod: m.conocido ? m.medio : null,
+      cobrada,
+      paidAt,
+      method: cobrada ? m.medio : null,
+      receiptNumber: cobrada ? (recibo ? `ALB-R${recibo}` : `ALB-Q${idCuota}`) : null,
+      idempotencyKey: cobrada ? `alboom:cuota:${c.alboomId}` : null,
+    },
     huellas: {},
+    ...(dudas.length ? { dudas } : {}),
   };
+}
+
+/** Una cuota cobrada de Alboom (`order_payments` con `cleared` "1" y sin borrar), para emparejar los cobros sueltos. */
+export type CuotaCobrada = { alboomId: string; monto: string; dia: string | null };
+
+export function cuotasCobradasPorPedido(plan: { alboomId: string; payload: unknown }[]): Map<string, CuotaCobrada[]> {
+  const m = new Map<string, CuotaCobrada[]>();
+  for (const c of plan) {
+    const p = campos(c.payload);
+    const pedido = padreDe(c.alboomId) ?? idAlboom(p.order_id);
+    const monto = importe(p.value ?? p.amount);
+    if (!pedido || !monto || Number(monto) <= 0 || siNo(p.deleted) === true || siNo(p.cleared) !== true) continue;
+    m.set(pedido, [...(m.get(pedido) ?? []), { alboomId: c.alboomId, monto, dia: fecha(p.cleared_date) ?? fecha(p.due_date) }]);
+  }
+  return m;
+}
+
+const dias = (a: string | null, b: string | null) => (a && b ? Math.abs(new Date(`${a}T00:00:00Z`).getTime() - new Date(`${b}T00:00:00Z`).getTime()) / 86_400_000 : 99_999);
+
+/**
+ * Qué cobro suelto de Alboom (ar_paid) corresponde a cada cuota cobrada: mismo pedido y mismo importe, el de fecha
+ * más cercana, cada cuota una sola vez (en orden de ids, determinístico). Devuelve id del cobro → id de la cuota.
+ */
+export function emparejarCobros(cobros: { alboomId: string; payload: unknown }[], cobradas: Map<string, CuotaCobrada[]>): Map<string, string> {
+  const usadas = new Set<string>();
+  const out = new Map<string, string>();
+  for (const c of [...cobros].sort((a, b) => (a.alboomId < b.alboomId ? -1 : 1))) {
+    const p = campos(c.payload);
+    const pedido = idAlboom(p.order_id);
+    const monto = importeConSigno(p.amount)?.valor;
+    if (!pedido || !monto) continue;
+    const dia = fecha(p.add_date) ?? fecha(p.due_date);
+    const candidatas = (cobradas.get(pedido) ?? []).filter((q) => q.monto === monto && !usadas.has(q.alboomId)).sort((a, b) => dias(a.dia, dia) - dias(b.dia, dia));
+    const q = candidatas[0];
+    if (!q) continue;
+    usadas.add(q.alboomId);
+    out.set(c.alboomId, q.alboomId);
+  }
+  return out;
 }
 
 // ── Costos del pedido → cuentas a pagar ─────────────────────────────────────────

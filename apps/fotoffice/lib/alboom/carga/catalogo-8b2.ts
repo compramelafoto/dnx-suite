@@ -1,6 +1,6 @@
 import type { ParteCarga, Progreso } from "./catalogo";
 import { idsDe, porAlboomId, todosLosCrudos } from "./contexto";
-import { campos, clave, idAlboom, importe, texto } from "./normalizar";
+import { campos, clave, idAlboom, texto } from "./normalizar";
 import type { RepoCarga } from "./repositorio";
 import type { Crudo, Decision } from "./tipos";
 import {
@@ -18,9 +18,7 @@ import {
   type CtxHijosConsulta,
 } from "./traductores/consultas";
 import {
-  TIPO_COBRO,
   TIPO_FINANZA,
-  registrarCobro,
   traducirCobro,
   traducirCuentaCobrar,
   traducirCuentaPagarSuelta,
@@ -29,7 +27,6 @@ import {
   type CtxCobros,
   type CtxFinanzas,
   type CtxPagar,
-  type CuotaParaImputar,
 } from "./traductores/finanzas";
 import { padreDe, porId, porPadre } from "./traductores/historia";
 import {
@@ -58,6 +55,8 @@ import {
   TIPO_PRESUPUESTO,
   asientosPorPedido,
   consumidosPorCostos,
+  cuotasCobradasPorPedido,
+  emparejarCobros,
   emparejarCostos,
   posicionesDeCuotas,
   registrarPedido,
@@ -125,26 +124,6 @@ async function ctxHijosConsulta(repo: Repo, ws: string, pr: Progreso, entity: st
     categoriasNota: porNombre(cat.categoriasNota),
     ...(await mapaYExistentes(repo, ws, entity, targetType)),
   };
-}
-
-/** Cuotas de cada pedido de Alboom con su saldo (centavos), para imputar los cobros. */
-async function cuotasDePedido(repo: Repo, ws: string, pr: Progreso): Promise<Map<string, CuotaParaImputar[]>> {
-  const cuotaDe = await idsDe(repo, ws, pr, "pedidos_plan_pagos");
-  const plan = await todosLosCrudos(repo, ws, "pedidos_plan_pagos");
-  const pos = posicionesDeCuotas(plan);
-  const imputado = (await repo.catalogosHistoricos(ws)).imputado;
-  const m = new Map<string, (CuotaParaImputar & { pos: number })[]>();
-  for (const c of plan) {
-    const pedido = padreDe(c.alboomId);
-    const cuotaId = cuotaDe.get(c.alboomId);
-    const p = campos(c.payload);
-    const valor = Number(importe(p.value ?? p.amount) ?? NaN);
-    if (!pedido || !cuotaId || !Number.isFinite(valor) || valor <= 0) continue;
-    const saldo = Math.round(valor * 100) - (imputado[cuotaId] ?? 0);
-    m.set(pedido, [...(m.get(pedido) ?? []), { alboomId: c.alboomId, cuotaId, saldo, pos: pos.get(c.alboomId) ?? 1 }]);
-  }
-  for (const v of m.values()) v.sort((a, b) => a.pos - b.pos);
-  return m as Map<string, CuotaParaImputar[]>;
 }
 
 async function nombresDe(repo: Repo, ws: string, entity: string, campo = "name"): Promise<Map<string, string>> {
@@ -350,22 +329,19 @@ export const PARTES_8B2: readonly ParteCarga[] = [
   }),
   parte({
     clave: "cobros",
-    nombre: "Cobros de los pedidos (sin movimiento de Caja)",
+    nombre: "Cobros recibidos (los de pedidos ya están en sus cuotas)",
     fuentes: [{ entity: "cobros" }],
     depende: ["cuotas"],
-    targetType: TIPO_COBRO,
+    targetType: TIPO_FINANZA,
     exporta: false,
     async contexto(repo, ws, pr): Promise<CtxCobros> {
-      const f = await ctxFinanzas(repo, ws, pr, "cobros", TIPO_COBRO);
-      return {
-        ...f,
-        clienteDePedido: clientesDe(await todosLosCrudos(repo, ws, "pedidos"), f.contactoDe),
-        cuotasDePedido: await cuotasDePedido(repo, ws, pr),
-        existentesFinanza: await repo.idsExistentes(ws, TIPO_FINANZA),
-      };
+      const f = await ctxFinanzas(repo, ws, pr, "cobros", TIPO_FINANZA);
+      const cobradas = cuotasCobradasPorPedido(await todosLosCrudos(repo, ws, "pedidos_plan_pagos"));
+      // Sólo cuentan las cuotas de pedidos que se cargan: un cobro de un pedido sin cargar va al libro histórico.
+      for (const k of [...cobradas.keys()]) if (!f.pedidoDe.has(k)) cobradas.delete(k);
+      return { ...f, emparejados: emparejarCobros(await todosLosCrudos(repo, ws, "cobros"), cobradas) };
     },
     traducir: (c, ctx: CtxCobros) => traducirCobro(c, ctx),
-    registrar: (ctx, _c, d) => registrarCobro(ctx as CtxCobros, d),
   }),
   parte({
     clave: "cuentas_cobrar",

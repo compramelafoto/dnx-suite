@@ -7,15 +7,18 @@ import { DUDAS_8B2, MOTIVOS_8B2, importeConSigno, instanteAr, medioDePago, padre
  *
  * DNX opera la Caja en FOTOFFICE desde el 19/10/2026: lo de Alboom es historia y no puede sumar en los saldos de las
  * cuentas, en los informes de Caja ni en los puntos del Club. Por eso NINGUNA parte crea `CashMovement`:
- * - cobro con pedido → `FotofficeCobro` del pedido sin movimiento (recibo "ALB-<id>"), imputado a sus cuotas;
+ * - lo cobrado de un pedido sale de sus cuotas `cleared` (`order_payments`): la parte de cuotas crea su
+ *   `FotofficeCobro` sin movimiento; el cobro suelto (ar_paid) que coincide con una cuota se omite y el que no, va al
+ *   libro histórico (nunca suma al pedido);
  * - pago o cuenta a pagar que no es un costo del pedido → `FotofficeCuentaPagar` (pagada sin movimiento);
  * - cuenta a cobrar con pedido → ya es una cuota del plan (se omite);
  * - lo demás (cobros y cuentas a cobrar sin pedido, todos los movimientos de bancos) → `FotofficeAlboomFinanza`,
  *   el libro "Histórico Alboom", de sólo lectura y fuera de la Caja.
  *
- * Forma supuesta de cada fila (`paginate_apr` / `paginate`): `{ id, add_date, due_date, amount (con signo),
- * document_type_id, document_type_name, document_number, order_id, order_payment_id, customer_id, memo,
- * category_id, account_id, cleared }`.
+ * Forma real (crudos de DNX, 25/10/2026): `{ id, account_id, add_date, due_date, amount (texto; SIN signo en
+ * ar/ap/ar_paid/ap_paid, CON signo en movimientos de bancos), category_id, category_name, class_id, cleared "0"/"1",
+ * customer_id, document_number, document_type_id, document_type_name, internal_account_id, memo, order_id,
+ * order_status_id }`. No trae `order_payment_id`.
  */
 
 export const TIPO_COBRO = "COBRO";
@@ -26,26 +29,6 @@ const BANCO = /^1\.1\.(\w+)$/;
 
 export const KINDS_FINANZA = ["INGRESO", "EGRESO", "TRANSFERENCIA", "A_COBRAR", "A_PAGAR"] as const;
 
-// ── Cobros (ar_paid) ────────────────────────────────────────────────────────────
-
-export type CuotaParaImputar = { alboomId: string; cuotaId: string; saldo: number };
-
-export type CtxCobros = {
-  pedidoDe: Map<string, string>;
-  /** Id de Alboom del pedido → contacto de FOTOFFICE. */
-  clienteDePedido: Map<string, string>;
-  contactoDe: Map<string, string>;
-  metodoDe: Map<string, string>;
-  /** Id de Alboom del pedido → sus cuotas cargadas (o simuladas) con el saldo en centavos, por posición. */
-  cuotasDePedido: Map<string, CuotaParaImputar[]>;
-  bancoDe: Map<string, string>;
-  existentes: Set<string>;
-  existentesFinanza: Set<string>;
-  mapa: Map<string, EntradaMapa>;
-};
-
-const centavos = (pesos: string) => Math.round(Number(pesos) * 100);
-const pesos = (c: number) => (c / 100).toFixed(2);
 
 function medio(p: Record<string, unknown>, metodoDe: Map<string, string>) {
   const idMetodo = idAlboom(p.document_type_id);
@@ -85,59 +68,33 @@ function finanza(c: Crudo, source: string, kind: string, ctx: { contactoDe: Map<
   return { accion: "CREAR", datos, huellas: {} };
 }
 
-export function traducirCobro(c: Crudo, ctx: CtxCobros): Decision {
-  const ya = yaCargado(c, ctx.mapa.get(c.alboomId), (x) => ctx.existentes.has(x) || ctx.existentesFinanza.has(x));
-  if (ya) return ya;
-  const p = campos(c.payload);
-  const idPedido = idAlboom(p.order_id);
-  const pedidoId = idPedido ? ctx.pedidoDe.get(idPedido) : undefined;
-  if (!idPedido || !pedidoId) return finanza(c, "COBRO", "INGRESO", ctx);
-  const monto = importeConSigno(p.amount ?? p.total);
-  if (!monto || Number(monto.valor) <= 0) return { accion: "OMITIR", motivo: MOTIVOS_8B2.importeCero };
-  const pagado = instanteAr(p.add_date) ?? instanteAr(p.cleared_date) ?? instanteAr(p.due_date);
-  if (!pagado) return { accion: "OMITIR", motivo: MOTIVOS_8B2.sinFecha };
-  const idCliente = idAlboom(p.customer_id);
-  const clientId = ctx.clienteDePedido.get(idPedido) ?? (idCliente ? ctx.contactoDe.get(idCliente) : undefined);
-  if (!clientId) return { accion: "OMITIR", motivo: MOTIVOS_8B2.contactoSinCargar };
-  const dudas: string[] = [];
-  const m = medio(p, ctx.metodoDe);
-  if (!m.conocido) dudas.push(DUDAS_8B2.medioDesconocido);
-  // Imputación: primero la cuota que dice Alboom (`order_payment_id`), después las de más saldo viejo.
-  const cuotas = ctx.cuotasDePedido.get(idPedido) ?? [];
-  const pago = idAlboom(p.order_payment_id);
-  const orden = [...cuotas.filter((q) => pago && q.alboomId.endsWith(`/${pago}`)), ...cuotas.filter((q) => !(pago && q.alboomId.endsWith(`/${pago}`)))];
-  let resto = centavos(monto.valor);
-  const imputaciones: { cuotaId: string; amountArs: string; centavos: number; alboomId: string }[] = [];
-  for (const q of orden) {
-    if (resto <= 0) break;
-    const parte = Math.min(resto, q.saldo);
-    if (parte <= 0) continue;
-    imputaciones.push({ cuotaId: q.cuotaId, amountArs: pesos(parte), centavos: parte, alboomId: q.alboomId });
-    resto -= parte;
-  }
-  if (imputaciones.length === 0) dudas.push(DUDAS_8B2.sinCuotas);
-  return {
-    accion: "CREAR",
-    datos: {
-      pedidoId,
-      clientId,
-      paidAt: pagado,
-      method: m.medio,
-      amountArs: monto.valor,
-      receiptNumber: `ALB-${c.alboomId}`,
-      idempotencyKey: `alboom:${c.alboomId}`,
-    },
-    extra: { imputaciones: imputaciones.map(({ cuotaId, amountArs }) => ({ cuotaId, amountArs })), _imputar: imputaciones },
-    huellas: {},
-    ...(dudas.length ? { dudas } : {}),
-  };
-}
+// ── Cobros (ar_paid) ────────────────────────────────────────────────────────────
 
-/** Descuenta del saldo de las cuotas lo imputado (para el próximo cobro del mismo pedido en esta corrida). */
-export function registrarCobro(ctx: CtxCobros, d: Decision): void {
-  const imp = (d.extra?._imputar ?? []) as { centavos: number; alboomId: string }[];
-  if (d.accion !== "CREAR") return;
-  for (const lista of ctx.cuotasDePedido.values()) for (const q of lista) for (const i of imp) if (i.alboomId === q.alboomId) q.saldo -= i.centavos;
+export type CtxCobros = {
+  pedidoDe: Map<string, string>;
+  contactoDe: Map<string, string>;
+  metodoDe: Map<string, string>;
+  bancoDe: Map<string, string>;
+  /** Cobro de Alboom → cuota cobrada con la que se emparejó (`emparejarCobros`). */
+  emparejados: Map<string, string>;
+  existentes: Set<string>;
+  mapa: Map<string, EntradaMapa>;
+};
+
+/**
+ * Cobro recibido de Alboom (`paginate_apr` ar_paid, importe sin signo). Lo cobrado de cada pedido sale SÓLO de sus
+ * cuotas `cleared` (parte `cuotas`): si el cobro coincide con una (mismo pedido, importe y fecha cercana) se omite;
+ * si no, va al libro Histórico Alboom (con el pedido anotado si se cargó, pero sin sumarle nada). Así un pedido nunca
+ * queda cobrado dos veces ni por encima de lo que dicen sus cuotas.
+ */
+export function traducirCobro(c: Crudo, ctx: CtxCobros): Decision {
+  if (ctx.emparejados.has(c.alboomId)) return { accion: "OMITIR", motivo: MOTIVOS_8B2.cuotaCobrada };
+  const ya = yaCargado(c, ctx.mapa.get(c.alboomId), (x) => ctx.existentes.has(x));
+  if (ya) return ya;
+  const d = finanza(c, "COBRO", "INGRESO", ctx);
+  const idPedido = idAlboom(campos(c.payload).order_id);
+  if (d.accion === "CREAR" && idPedido && ctx.pedidoDe.has(idPedido)) return { ...d, dudas: [DUDAS_8B2.cobroSinCuota] };
+  return d;
 }
 
 // ── Cuentas a cobrar pendientes (ar) ────────────────────────────────────────────

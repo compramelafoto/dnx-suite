@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { COBRO, COBRO_SIN_PEDIDO, CUENTA_COBRAR, MOVIMIENTO_BANCO, PAGO, PAGO_SUELTO, crudo } from "../ejemplos-alboom";
-import { traducirCobro, registrarCobro, traducirCuentaCobrar, traducirCuentaPagarSuelta, traducirMovimientoBanco, traducirPagoSuelto, type CtxCobros, type CtxFinanzas, type CtxPagar } from "./finanzas";
+import { traducirCobro, traducirCuentaCobrar, traducirCuentaPagarSuelta, traducirMovimientoBanco, traducirPagoSuelto, type CtxCobros, type CtxFinanzas, type CtxPagar } from "./finanzas";
 import { DUDAS_8B2, MOTIVOS_8B2, htmlATexto, importeConSigno, instanteAr, medioDePago } from "./historia";
 
 describe("piezas comunes", () => {
@@ -22,38 +22,29 @@ describe("piezas comunes", () => {
   });
 });
 
-describe("cobros", () => {
+describe("cobros (ar_paid): lo cobrado de un pedido sale sólo de sus cuotas cobradas", () => {
   const ctx = (over: Partial<CtxCobros> = {}): CtxCobros => ({
     pedidoDe: new Map([["2025093", "ped1"]]),
-    clienteDePedido: new Map([["2025093", "cli1"]]),
     contactoDe: new Map([["7001", "cli1"]]),
     metodoDe: new Map(),
-    cuotasDePedido: new Map([["2025093", [{ alboomId: "2025093/41", cuotaId: "q1", saldo: 10_000_000 }, { alboomId: "2025093/42", cuotaId: "q2", saldo: 20_000_000 }]]]),
     bancoDe: new Map([["3", "Caja del estudio"]]),
+    emparejados: new Map(),
     existentes: new Set(),
-    existentesFinanza: new Set(),
     mapa: new Map(),
     ...over,
   });
 
-  it("con pedido → cobro del pedido SIN Caja, imputado a la cuota que dice Alboom", () => {
+  it("el que coincide con una cuota cobrada se omite (no se cobra dos veces)", () => {
+    expect(traducirCobro(crudo("cobros", "6001", COBRO), ctx({ emparejados: new Map([["6001", "2025093/41"]]) }))).toEqual({ accion: "OMITIR", motivo: MOTIVOS_8B2.cuotaCobrada });
+  });
+
+  it("el de un pedido que no coincide con ninguna cuota → libro histórico con duda (nunca suma al pedido)", () => {
     const d = traducirCobro(crudo("cobros", "6001", COBRO), ctx());
-    expect(d).toMatchObject({ accion: "CREAR", datos: { pedidoId: "ped1", clientId: "cli1", paidAt: "2026-09-10T15:00:00.000Z", method: "EFECTIVO", amountArs: "100000.00", receiptNumber: "ALB-6001", idempotencyKey: "alboom:6001" } });
-    expect(d.extra!.imputaciones).toEqual([{ cuotaId: "q1", amountArs: "100000.00" }]);
-    expect(d.datos).not.toHaveProperty("cashMovementId");
+    expect(d).toMatchObject({ accion: "CREAR", datos: { source: "COBRO", kind: "INGRESO", amountArs: "100000.00", pedidoId: "ped1", alboomOrderId: "2025093", methodName: "Efectivo" }, dudas: [DUDAS_8B2.cobroSinCuota] });
+    expect(d.datos).not.toHaveProperty("receiptNumber");
   });
 
-  it("sin cuota indicada imputa de la más vieja a la más nueva, y el saldo se descuenta en la corrida", () => {
-    const c = ctx();
-    const d = traducirCobro(crudo("cobros", "6003", { ...COBRO, order_payment_id: "", amount: "-150000" }), c);
-    expect(d.extra!.imputaciones).toEqual([{ cuotaId: "q1", amountArs: "100000.00" }, { cuotaId: "q2", amountArs: "50000.00" }]);
-    registrarCobro(c, d);
-    expect(traducirCobro(crudo("cobros", "6004", { ...COBRO, order_payment_id: "", amount: "-150000" }), c).extra!.imputaciones).toEqual([{ cuotaId: "q2", amountArs: "150000.00" }]);
-    // Sin cuotas con saldo: queda sin imputar, con duda.
-    expect(traducirCobro(crudo("cobros", "6005", COBRO), ctx({ cuotasDePedido: new Map() })).dudas).toEqual([DUDAS_8B2.sinCuotas]);
-  });
-
-  it("sin pedido → al libro Histórico Alboom (fuera de la Caja)", () => {
+  it("sin pedido → libro histórico (fuera de la Caja)", () => {
     expect(traducirCobro(crudo("cobros", "6002", COBRO_SIN_PEDIDO), ctx())).toMatchObject({
       accion: "CREAR",
       datos: { source: "COBRO", kind: "INGRESO", amountArs: "5000.00", occurredOn: "2026-08-01", accountName: "Caja del estudio", clientId: "cli1", pedidoId: null },
@@ -65,7 +56,7 @@ describe("cuentas y movimientos", () => {
   const ctx: CtxFinanzas = { pedidoDe: new Map([["2025093", "ped1"]]), contactoDe: new Map([["7001", "cli1"]]), bancoDe: new Map(), metodoDe: new Map(), existentes: new Set(), mapa: new Map() };
   it("cuenta a cobrar con pedido ya es una cuota; sin pedido, al libro histórico", () => {
     expect(traducirCuentaCobrar(crudo("cuentas_cobrar", "6101", CUENTA_COBRAR), ctx)).toEqual({ accion: "OMITIR", motivo: MOTIVOS_8B2.cuotaDelPedido });
-    expect(traducirCuentaCobrar(crudo("cuentas_cobrar", "6102", { ...CUENTA_COBRAR, order_id: "" }), ctx)).toMatchObject({ datos: { source: "A_COBRAR", kind: "A_COBRAR", dueOn: "2026-11-10" } });
+    expect(traducirCuentaCobrar(crudo("cuentas_cobrar", "6102", { ...CUENTA_COBRAR, order_id: null }), ctx)).toMatchObject({ datos: { source: "A_COBRAR", kind: "A_COBRAR", dueOn: "2026-11-10", amountArs: "200000.00" } });
   });
   it("movimientos de bancos: depósito → ingreso, débito → egreso, 74 → transferencia (sin contacto)", () => {
     expect(traducirMovimientoBanco(crudo("movimientos_bancos", "6301", MOVIMIENTO_BANCO), ctx).datos).toMatchObject({ source: "BANCO", kind: "INGRESO", amountArs: "80000.00", accountCode: "1.1.3", accountName: "Banco 3 de Alboom" });
@@ -76,7 +67,7 @@ describe("cuentas y movimientos", () => {
   it("pagos y cuentas a pagar: los que ya son costos del pedido se omiten; los sueltos se cargan sin Caja", () => {
     const pagar: CtxPagar = { pedidoDe: ctx.pedidoDe, contactoDe: new Map([["7004", "cli4"]]), metodoDe: new Map(), consumidos: new Set(["6201"]), existentes: new Set(), mapa: new Map() };
     expect(traducirPagoSuelto(crudo("pagos", "6201", PAGO), pagar)).toEqual({ accion: "OMITIR", motivo: MOTIVOS_8B2.cubiertoPorCosto });
-    expect(traducirPagoSuelto(crudo("pagos", "6202", PAGO_SUELTO), pagar)).toMatchObject({ datos: { pedidoId: null, supplierClientId: "cli4", concept: "Alquiler de luces", amountArs: "15000.00", paidAt: "2026-07-01T13:00:00.000Z", paidMethod: "EFECTIVO" } });
+    expect(traducirPagoSuelto(crudo("pagos", "6202", PAGO_SUELTO), pagar)).toMatchObject({ datos: { pedidoId: null, supplierClientId: "cli4", concept: "Alquiler de luces", amountArs: "15000.00", paidAt: "2026-07-01T15:00:00.000Z", paidMethod: "EFECTIVO" } });
     expect(traducirCuentaPagarSuelta(crudo("cuentas_pagar", "6401", { ...PAGO_SUELTO, id: "6401" }), pagar)).toMatchObject({ datos: { paidAt: null, paidMethod: null } });
   });
 });

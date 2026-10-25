@@ -379,6 +379,26 @@ export async function escribirHistorico(tx: Tx, ws: string, clave: string, d: De
       });
       // "Ya avisada": el recordatorio de cuotas (`pedidos/recordatorios.ts`) saltea (cuota, vencimiento) avisados.
       await tx.fotofficeCuotaRecordatorio.create({ data: { workspaceId: ws, cuotaId: c.id, dueDate } });
+      // Cuota cobrada en Alboom: su cobro (la única fuente de lo cobrado del pedido), por el importe exacto de la
+      // cuota, imputado entero a ella, SIN movimiento de Caja y con un token que nadie tiene (sin enlace).
+      if (v.cobrada === true) {
+        const ped = (await delWs(tx.fotofficePedido.findFirst({ where: { id: String(v.pedidoId), workspaceId: ws }, select: { clientId: true } })))!;
+        const cobro = await tx.fotofficeCobro.create({
+          data: {
+            workspaceId: ws,
+            pedidoId: String(v.pedidoId),
+            clientId: ped.clientId,
+            paidAt: instante(v.paidAt) ?? dueDate,
+            method: S(v.method) ?? "OTRO",
+            amountArs: String(v.amountArs),
+            receiptNumber: String(v.receiptNumber),
+            receiptTokenHash: createHash("sha256").update(randomBytes(32)).digest("hex"),
+            idempotencyKey: String(v.idempotencyKey),
+          },
+          select: { id: true },
+        });
+        await tx.fotofficeCobroImputacion.create({ data: { workspaceId: ws, cobroId: cobro.id, cuotaId: c.id, amountArs: String(v.amountArs) } });
+      }
       return c.id;
     }
 
@@ -391,31 +411,9 @@ export async function escribirHistorico(tx: Tx, ws: string, clave: string, d: De
     case "movimientos_bancos":
       return finanza(tx, ws, v, filas[0]);
 
-    case "cobros": {
-      if (S(v.source)) return finanza(tx, ws, v, filas[0]);
-      await delWs(tx.fotofficePedido.findFirst({ where: { id: String(v.pedidoId), workspaceId: ws }, select: { id: true } }));
-      await delWs(tx.client.findFirst({ where: { id: String(v.clientId), workspaceId: ws }, select: { id: true } }));
-      // Cobro histórico: SIN movimiento de Caja (`cashMovementId` nulo) y con un token que nadie tiene (sin enlace).
-      const cobro = await tx.fotofficeCobro.create({
-        data: {
-          workspaceId: ws,
-          pedidoId: String(v.pedidoId),
-          clientId: String(v.clientId),
-          paidAt: instante(v.paidAt)!,
-          method: String(v.method),
-          amountArs: String(v.amountArs),
-          receiptNumber: String(v.receiptNumber),
-          receiptTokenHash: createHash("sha256").update(randomBytes(32)).digest("hex"),
-          idempotencyKey: String(v.idempotencyKey),
-        },
-        select: { id: true },
-      });
-      for (const i of (x.imputaciones as { cuotaId: string; amountArs: string }[] | undefined) ?? []) {
-        const cuota = await tx.fotofficePedidoCuota.findFirst({ where: { id: i.cuotaId, workspaceId: ws, pedidoId: String(v.pedidoId) }, select: { id: true } });
-        if (cuota) await tx.fotofficeCobroImputacion.create({ data: { workspaceId: ws, cobroId: cobro.id, cuotaId: cuota.id, amountArs: i.amountArs } });
-      }
-      return cobro.id;
-    }
+    // Los cobros sueltos (ar_paid) que no son una cuota cobrada: al libro histórico, nunca al pedido.
+    case "cobros":
+      return finanza(tx, ws, v, filas[0]);
 
     case "contratos": {
       await delWs(tx.fotofficePedido.findFirst({ where: { id: String(v.pedidoId), workspaceId: ws }, select: { id: true } }));
@@ -606,8 +604,6 @@ export async function idsExistentesPrisma(ws: string, targetType: string): Promi
     }
     for (const f of filas) out.add(f.id);
   }
-  // Los cobros sin pedido van al libro histórico aunque el mapa diga COBRO.
-  if (targetType === "COBRO" && atados.length > 0) for (const f of await prisma.fotofficeAlboomFinanza.findMany({ where: { workspaceId: ws, id: { in: atados } }, select: { id: true } })) out.add(f.id);
   return out;
 }
 

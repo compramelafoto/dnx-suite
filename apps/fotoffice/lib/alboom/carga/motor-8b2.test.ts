@@ -39,7 +39,7 @@ import { ejecutarMotor } from "./motor";
 import { crearRepoMemoria, type RepoMemoria } from "./repositorio-memoria";
 import type { ModoCarga } from "./tipos";
 import { DUDA_EVENTO_PASADO, MOTIVO_EVENTO_PASADO } from "./traductores/consultas";
-import { MOTIVOS_8B2 } from "./traductores/historia";
+import { DUDAS_8B2, MOTIVOS_8B2 } from "./traductores/historia";
 
 const WS = "ws-1";
 const OTRO = "ws-2";
@@ -82,7 +82,8 @@ function sembrarCrudos(ws: string) {
   M.crudo(ws, "presupuestos", "900", PRESUPUESTO);
   M.crudo(ws, "presupuestos_detalle", "900", PRESUPUESTO_DETALLE);
   M.crudo(ws, "pedidos", "2025093", PEDIDO);
-  M.crudo(ws, "pedidos_detalle", "2025093", { order: PEDIDO });
+  // Forma real: `order_items` y `order_payments` al nivel raíz del detalle.
+  M.crudo(ws, "pedidos_detalle", "2025093", { ...PEDIDO, order_items: [ITEM_PEDIDO], order_payments: [CUOTA_1, CUOTA_2] });
   M.crudo(ws, "pedidos_items", "2025093/1", ITEM_PEDIDO);
   M.crudo(ws, "pedidos_plan_pagos", "2025093/41", CUOTA_1);
   M.crudo(ws, "pedidos_plan_pagos", "2025093/42", CUOTA_2);
@@ -91,6 +92,8 @@ function sembrarCrudos(ws: string) {
   M.crudo(ws, "bancos", "3", BANCO);
   M.crudo(ws, "cobros", "6001", COBRO);
   M.crudo(ws, "cobros", "6002", COBRO_SIN_PEDIDO);
+  // Otro cobro del mismo pedido que no coincide con ninguna cuota cobrada: nunca suma al pedido.
+  M.crudo(ws, "cobros", "6003", { ...COBRO, id: "6003", amount: "50000.00", add_date: "2026-10-01" });
   M.crudo(ws, "cuentas_cobrar", "6101", CUENTA_COBRAR);
   M.crudo(ws, "pagos", "6201", PAGO);
   M.crudo(ws, "pagos", "6202", PAGO_SUELTO);
@@ -160,7 +163,10 @@ describe("simulación de la 8B-2", () => {
       expect(e[k], k).toMatchObject({ crear: 1, omitidos: 0, errores: 0 });
     }
     expect(e.cuotas).toMatchObject({ crear: 2 });
-    expect(e.cobros).toMatchObject({ crear: 2 });
+    // 6001 es la cuota 41 (ya cobrada): se omite; 6002 (sin pedido) y 6003 (no coincide) van al libro histórico.
+    expect(e.cobros).toMatchObject({ crear: 2, omitidos: 1 });
+    expect(e.cobros!.motivos.omitidos[MOTIVOS_8B2.cuotaCobrada]).toBe(1);
+    expect(e.cobros!.motivos.dudas[DUDAS_8B2.cobroSinCuota]).toBe(1);
     expect(e.cuentas_cobrar).toMatchObject({ omitidos: 1 });
     expect(e.cuentas_cobrar!.motivos.omitidos[MOTIVOS_8B2.cuotaDelPedido]).toBe(1);
     expect(e.pagos).toMatchObject({ crear: 1, omitidos: 1 });
@@ -191,11 +197,15 @@ describe("carga de la 8B-2", () => {
     expect((pedido.extra.items as unknown[]).length).toBe(1);
     expect(historicos("presupuestos")[0]!.datos).toMatchObject({ status: "ACEPTADO" });
 
-    // Cobro imputado a la cuota que dice Alboom; el cobro sin pedido, al libro histórico.
-    const cobro = historicos("cobros").find((h) => h.tipo === "COBRO")!;
-    expect(cobro.datos).toMatchObject({ receiptNumber: "ALB-6001", amountArs: "100000.00", method: "EFECTIVO", pedidoId: pedido.id });
-    expect(cobro.extra.imputaciones).toEqual([{ cuotaId: destinoDe("pedidos_plan_pagos", "2025093/41"), amountArs: "100000.00" }]);
-    expect(historicos("cobros").find((h) => h.tipo === "FINANZA_HISTORICA")!.datos).toMatchObject({ source: "COBRO", kind: "INGRESO", amountArs: "5000.00", accountName: "Caja del estudio" });
+    // El cobro sale de la cuota cobrada (recibo de Alboom), imputado entero a ella; los cobros sueltos, al libro histórico.
+    const cobros = M.datos.historicos.filter((h) => h.workspaceId === WS && h.tipo === "COBRO");
+    expect(cobros).toHaveLength(1);
+    expect(cobros[0]!.datos).toMatchObject({ receiptNumber: "ALB-R135", amountArs: "100000.00", method: "EFECTIVO", pedidoId: pedido.id, paidAt: "2026-09-10T15:00:00.000Z" });
+    expect(cobros[0]!.extra.imputaciones).toEqual([{ cuotaId: destinoDe("pedidos_plan_pagos", "2025093/41"), amountArs: "100000.00" }]);
+    expect(historicos("cobros").map((h) => [h.tipo, h.datos.amountArs, h.datos.pedidoId])).toEqual([
+      ["FINANZA_HISTORICA", "5000.00", null],
+      ["FINANZA_HISTORICA", "50000.00", pedido.id],
+    ]);
 
     // El costo pagado toma fecha y medio del pago de Alboom; ese pago no se carga otra vez.
     expect(historicos("costos_pedido")[0]!.datos).toMatchObject({ amountArs: "40000.00", paidMethod: "TRANSFERENCIA", supplierClientId: destinoDe("contactos", "7004") });
@@ -211,8 +221,36 @@ describe("carga de la 8B-2", () => {
 
     // Proyecto en su etapa (posición 2 del flujo 77) y la cita y la tarea atadas.
     expect(historicos("proyectos")[0]!.datos).toMatchObject({ number: "1010", circuitId: `${WS}-t1`, stageId: `${WS}-t1e2`, pedidoId: pedido.id, externalId: "alboom:1010" });
-    expect(historicos("citas")[0]!.datos).toMatchObject({ pedidoId: pedido.id, typeId: null, status: "AGENDADA", startAt: "2026-11-05T21:00:00.000Z" });
+    expect(historicos("citas")[0]!.datos).toMatchObject({ pedidoId: pedido.id, typeId: `${WS}-tc1`, status: "AGENDADA", startAt: "2026-11-05T21:00:00.000Z" });
     expect(historicos("tareas")[0]!.datos).toMatchObject({ destino: "TAREA", subjectType: "PROYECTO", subjectId: destinoDe("proyectos", "1010") });
+  });
+
+  it("lo cobrado de cada pedido nunca supera lo que dicen sus cuotas cobradas (cleared y sin borrar)", async () => {
+    // Más cobros sueltos del mismo pedido, uno repetido con el mismo importe, y una cuota borrada que decía cobrada.
+    M.crudo(WS, "cobros", "6004", { ...COBRO, id: "6004" });
+    M.crudo(WS, "cobros", "6005", { ...COBRO, id: "6005", amount: "200000.00" });
+    M.crudo(WS, "pedidos_plan_pagos", "2025093/43", { ...CUOTA_1, id: "43", deleted: "1" });
+    await correr("CARGA");
+    for (const ped of historicos("pedidos")) {
+      const centavos = (v: unknown) => Math.round(Number(v) * 100);
+      const cuotasDelPedido = historicos("cuotas").filter((h) => h.tipo === "PEDIDO_CUOTA" && h.datos.pedidoId === ped.id);
+      const cobradas = cuotasDelPedido.filter((q) => q.datos.cobrada === true).reduce((t, q) => t + centavos(q.datos.amountArs), 0);
+      const cobrado = M.datos.historicos.filter((h) => h.workspaceId === WS && h.tipo === "COBRO" && h.datos.pedidoId === ped.id).reduce((t, h) => t + centavos(h.datos.amountArs), 0);
+      expect(cobrado).toBe(cobradas);
+      expect(cobrado).toBe(10_000_000);
+      // Ninguna cuota recibe más de lo que vale.
+      for (const q of cuotasDelPedido) {
+        const imputado = M.datos.historicos
+          .filter((h) => h.tipo === "COBRO")
+          .flatMap((h) => (h.extra.imputaciones as { cuotaId: string; amountArs: string }[]) ?? [])
+          .filter((i) => i.cuotaId === q.id)
+          .reduce((t, i) => t + centavos(i.amountArs), 0);
+        expect(imputado).toBeLessThanOrEqual(centavos(q.datos.amountArs));
+      }
+    }
+    // La cuota borrada no se cargó; los cobros sueltos que no son esa cuota quedaron en el libro histórico.
+    expect(historicos("cuotas").filter((h) => h.tipo === "PEDIDO_CUOTA")).toHaveLength(2);
+    expect(historicos("cobros").every((h) => h.tipo === "FINANZA_HISTORICA")).toBe(true);
   });
 
   it("no toca la Caja operativa y deja cuotas y citas como ya avisadas", async () => {
@@ -222,7 +260,7 @@ describe("carga de la 8B-2", () => {
       expect(h.datos).not.toHaveProperty("cashMovementId");
       expect(h.datos).not.toHaveProperty("paidCashMovementId");
     }
-    const cuotas = historicos("cuotas").map((h) => h.id).sort();
+    const cuotas = historicos("cuotas").filter((h) => h.tipo === "PEDIDO_CUOTA").map((h) => h.id).sort();
     expect(M.datos.recordatoriosCuota.map((r) => r.cuotaId).sort()).toEqual(cuotas);
     expect(M.datos.recordatoriosCita.map((r) => r.citaId)).toEqual(historicos("citas").map((h) => h.id));
   });

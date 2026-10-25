@@ -139,26 +139,45 @@ export const PEDIDO = {
 };
 export const ITEM_PEDIDO = { order_id: "2025093", product_id: "55", code: "EV-01", name: "Cobertura fotográfica de evento", price: "150000.00", qty: "2", discount: "0", total: "300000.00" };
 /** Cuotas del plan (doc 02 §17.4). */
-export const CUOTA_1 = { id: "41", order_id: "2025093", due_date: "2026-09-10", category_id: "1", category_name: "Efectivo", value: "100000.00", cleared: "1", cleared_date: "2026-09-10" };
-export const CUOTA_2 = { id: "42", order_id: "2025093", due_date: "2026-11-10", category_id: "2", category_name: "Transferencia Bancaria", value: "200000.00", cleared: "0" };
+/** Forma real de `pedidos_detalle.order_payments` (DNX, 25/10/2026). */
+export const CUOTA_1 = { id: "41", order_id: "2025093", due_date: "2026-09-08", category_name: "Efectivo", value: "100000.00", cleared: "1", cleared_date: "2026-09-10", document: "1", receipt_id: "135", deleted: "0", account_trans_id: null };
+export const CUOTA_2 = { id: "42", order_id: "2025093", due_date: "2026-11-10", category_name: "Transferencia Bancaria", value: "200000.00", cleared: "0", cleared_date: null, document: "2", receipt_id: null, deleted: "0", account_trans_id: null };
 /** Costo del pedido (doc 02 §17.5). */
 export const COSTO_PEDIDO = { id: "71", type: "orders", target_id: "2025093", vendor_id: "7004", name: "Segundo fotógrafo", cost: "40000.00", total: "40000.00", due_date: "2025-03-20", cleared: "1", account_cogs_name: "Fotógrafos Freelancers" };
 
-/** Asientos (`account_trans`, doc 04 §21; supuestos los campos de las respuestas de paginate_apr/paginate). */
-export const COBRO = { id: "6001", add_date: "2026-09-10 12:00:00", amount: "-100000.00", document_type_id: "1", document_type_name: "Efectivo", order_id: "2025093", order_payment_id: "41", customer_id: "7001", category_id: "83", account_id: "1.1.3", cleared: "1", memo: "Seña" };
-export const COBRO_SIN_PEDIDO = { id: "6002", add_date: "2026-08-01 10:00:00", amount: "-5000.00", document_type_name: "Efectivo", order_id: "", customer_id: "7001", category_id: "83", account_id: "1.1.3", memo: "Copias sueltas" };
-export const CUENTA_COBRAR = { id: "6101", add_date: "2026-09-10", due_date: "2026-11-10", amount: "-200000.00", order_id: "2025093", customer_id: "7001", category_id: "73", account_id: "1.2", cleared: "0" };
-export const PAGO = { id: "6201", add_date: "2025-03-21 10:00:00", amount: "40000.00", document_type_name: "Transferencia Bancaria", order_id: "2025093", customer_id: "7004", category_id: "84", account_id: "1.1.3", cleared: "1" };
-export const PAGO_SUELTO = { id: "6202", add_date: "2026-07-01 10:00:00", amount: "15000.00", document_type_name: "Efectivo", order_id: "", customer_id: "7004", memo: "Alquiler de luces", category_id: "84" };
-export const MOVIMIENTO_BANCO = { id: "6301", add_date: "2026-07-05", amount: "-80000.00", document_type_name: "Transferencia Bancaria", customer_id: "7001", category_id: "72", account_id: "1.1.3", memo: "Depósito", cleared: "1" };
+/**
+ * Asientos (`account_trans`) con la forma real de DNX (25/10/2026): importe como texto SIN signo en
+ * ar/ap/ar_paid/ap_paid y CON signo en los movimientos de bancos; no hay `order_payment_id`.
+ */
+export const COBRO = { id: "6001", account_id: "1.1.3", add_date: "2026-09-10", due_date: "2026-09-08", amount: "100000.00", category_id: "83", category_name: "Cobro", class_id: "0", cleared: "1", customer_id: "7001", document_number: "1", document_type_id: "1736", document_type_name: "Efectivo", internal_account_id: "1.2.1", memo: "Seña", order_id: "2025093", order_status_id: "475" };
+export const COBRO_SIN_PEDIDO = { ...COBRO, id: "6002", add_date: "2026-08-01", due_date: "2026-08-01", amount: "5000.00", order_id: null, order_status_id: null, memo: "Copias sueltas" };
+export const CUENTA_COBRAR = { ...COBRO, id: "6101", add_date: "2026-09-10", due_date: "2026-11-10", amount: "200000.00", category_id: "73", cleared: "0", account_id: "1.2" };
+export const PAGO = { ...COBRO, id: "6201", add_date: "2025-03-21", due_date: "2025-03-20", amount: "40000.00", document_type_name: "Transferencia Bancaria (Plataforma 360°)", customer_id: "7004", category_id: "84", memo: "" };
+export const PAGO_SUELTO = { ...PAGO, id: "6202", add_date: "2026-07-01", amount: "15000.00", document_type_name: "Efectivo", order_id: null, memo: "Alquiler de luces" };
+export const MOVIMIENTO_BANCO = { ...COBRO, id: "6301", add_date: "2026-07-05", amount: "-80000.00", document_type_name: "Transferencia Bancaria", category_id: "72", order_id: null, memo: "Depósito" };
 export const BANCO = { id: "3", name: "Caja del estudio", category_id: "1001" };
 
 /** Contrato (doc 03 §3.12) y su detalle con texto y firma (supuesta la forma de `signature`). */
 export const CONTRATO = { id: "357", order_id: "2025093", customer_id: "7001", user_id: "1", name: "Contrato de boda", created: "2026-09-11 10:00:00", sent_date: "2026-09-11 10:05:00", viewed: "2026-09-11 18:00:00" };
+/** Forma real de `contratos_detalle` (DNX, 25/10/2026): firmado = `signed` no nulo. */
 export const CONTRATO_DETALLE = {
   ...CONTRATO,
+  contractor1_fullname: "Lucía Fernández",
+  contractor1_name: "Lucía",
+  contractor1_lastname: "Fernández",
+  contractor2_fullname: null,
+  modified: "2026-09-12 20:15:01",
+  orders_event_date: "2025-03-14",
+  orders_total: "300000.00",
+  short_url: "https://alb.test/x",
+  unique_id: "abc123",
+  legacy: "1",
+  sig_hash: "f00ba4",
+  signator: "Lucía Fernández",
+  ip: "190.0.0.1",
+  signature: "data:image/png;base64,AAAA",
+  signed: "2026-09-12 20:15:00",
   text: "<p>Entre <b>DNX</b> y la parte contratante…</p><p>Cláusula 1</p>",
-  signature: { agree: "1", contractor1: "Lucía Fernández", signature1: "data:image/png;base64,AAAA", signed1: "2026-09-12 20:15:00", ip1: "190.0.0.1" },
 };
 
 /** Proyecto (doc 03 §5.14), su historial y un participante. */
@@ -167,5 +186,5 @@ export const HISTORIAL_PROYECTO = { created: "2026-09-15 10:00:00", user_id: "1"
 export const PARTICIPANTE = { id: "5", contact_id: "7004", category_id: "8", category_name: "Fotógrafo Secundario", memo: "Llega 17 h" };
 
 /** Cita (doc 03 §6.10) y tarea (doc 03 §5.14). */
-export const CITA = { id: "453", title: "Reunión con los novios", start: "2026-11-05 18:00:00", end: "2026-11-05 19:00:00", all_day: "0", status: "Scheduled", event_type_id: "4", location: "Estudio", details: "Traer muestras", user_id: "1", customer_id: "7001", type: "orders", target_id: "2025093", participants_list: ["1"], created: "2026-10-01 10:00:00" };
+export const CITA = { id: "453", title: "Reunión con los novios", start: "2026-11-05 18:00:00", end: "2026-11-05 19:00:00", all_day: "0", status: "Scheduled", event_type_id: "4", location: "Estudio", details: "Traer muestras", user_id: "1", customer_id: "7001", type: "orders", target_id: "2025093", participants: [{ id: "1", name: "Ana", lastname: "Gómez", avatar: null }], event_type_name: "Reunión", created: "2026-10-01 10:00:00" };
 export const TAREA = { id: "832", user_id: "1", type: "projects", target_id: "1010", title: "Elegir fotos del álbum", due_date: "2026-11-01", completed: "0", created: "2026-10-01 10:00:00" };

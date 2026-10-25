@@ -63,15 +63,19 @@ describe("escritores de la 8B-2 (Prisma)", () => {
     expect(tabla("fotofficePedido")[0]).toMatchObject({ number: "2025093" });
     expect(tabla("fotofficePedido")[0]!.accessTokenHash ?? null).toBeNull();
     expect(tabla("fotofficePedidoContratante")).toHaveLength(1);
-    const cuotaId = await escribir("cuotas", crear({ pedidoId, position: 1, dueDate: "2026-11-10", amountArs: "100000.00", suggestedMethod: null }));
+    const cuotaId = await escribir("cuotas", crear({ pedidoId, position: 1, dueDate: "2026-11-10", amountArs: "200000.00", suggestedMethod: null, cobrada: false }));
     expect(tabla("fotofficeCuotaRecordatorio")[0]).toMatchObject({ cuotaId, dueDate: new Date("2026-11-10T00:00:00Z") });
-    const cobroId = await escribir(
-      "cobros",
-      crear({ pedidoId, clientId: "cli1", paidAt: "2026-09-10T15:00:00.000Z", method: "EFECTIVO", amountArs: "100000.00", receiptNumber: "ALB-6001", idempotencyKey: "alboom:6001" }, { imputaciones: [{ cuotaId, amountArs: "100000.00" }] }),
+    expect(tabla("fotofficeCobro")).toHaveLength(0);
+    // Cuota cobrada en Alboom: su cobro (sin Caja) por el importe exacto, imputado entero a ella.
+    const cobrada = await escribir(
+      "cuotas",
+      crear({ pedidoId, position: 2, dueDate: "2026-09-08", amountArs: "100000.00", cobrada: true, paidAt: "2026-09-10T15:00:00.000Z", method: "EFECTIVO", receiptNumber: "ALB-R135", idempotencyKey: "alboom:cuota:2025093/41" }),
+      "pedidos_plan_pagos",
+      "2025093/41",
     );
-    expect(tabla("fotofficeCobro")[0]).toMatchObject({ id: cobroId, receiptNumber: "ALB-6001" });
+    expect(tabla("fotofficeCobro")[0]).toMatchObject({ receiptNumber: "ALB-R135", amountArs: "100000.00", clientId: "cli1", pedidoId });
     expect(tabla("fotofficeCobro")[0]!.cashMovementId ?? null).toBeNull();
-    expect(tabla("fotofficeCobroImputacion")[0]).toMatchObject({ cobroId, cuotaId, amountArs: "100000.00" });
+    expect(tabla("fotofficeCobroImputacion")[0]).toMatchObject({ cobroId: tabla("fotofficeCobro")[0]!.id, cuotaId: cobrada, amountArs: "100000.00" });
     await escribir("costos_pedido", crear({ pedidoId, concept: "Segundo fotógrafo", amountArs: "40000.00", dueDate: "2025-03-20", paidAt: "2025-03-21T13:00:00.000Z", paidMethod: "TRANSFERENCIA" }));
     expect(tabla("fotofficeCuentaPagar")[0]).toMatchObject({ paidMethod: "TRANSFERENCIA" });
     expect(tabla("fotofficeCuentaPagar")[0]!.paidCashMovementId ?? null).toBeNull();

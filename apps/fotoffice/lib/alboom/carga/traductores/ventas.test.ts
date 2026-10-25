@@ -4,6 +4,8 @@ import { DUDAS_8B2, MOTIVOS_8B2 } from "./historia";
 import {
   asientosPorPedido,
   consumidosPorCostos,
+  cuotasCobradasPorPedido,
+  emparejarCobros,
   emparejarCostos,
   estadoDePedido,
   itemsDeAlboom,
@@ -105,10 +107,28 @@ describe("cuotas y costos", () => {
     const pos = posicionesDeCuotas(plan);
     expect(Object.fromEntries(pos)).toEqual({ "2025093/41": 1, "2025093/42": 2 });
     const ctx = { pedidoDe: new Map([["2025093", "ped1"]]), metodoDe: new Map(), posicion: pos, existentes: new Set<string>(), mapa: new Map() };
-    expect(traducirCuota(plan[0]!, ctx)).toMatchObject({ accion: "CREAR", datos: { pedidoId: "ped1", position: 2, dueDate: "2026-11-10", amountArs: "200000.00", suggestedMethod: "TRANSFERENCIA" } });
+    expect(traducirCuota(plan[0]!, ctx)).toMatchObject({ accion: "CREAR", datos: { pedidoId: "ped1", position: 2, dueDate: "2026-11-10", amountArs: "200000.00", suggestedMethod: "TRANSFERENCIA", cobrada: false, paidAt: null, receiptNumber: null } });
+    // Cobrada (`cleared` "1"): lleva su cobro, con la fecha de cobro, el medio y el recibo de Alboom.
+    expect(traducirCuota(plan[1]!, ctx)).toMatchObject({ datos: { position: 1, cobrada: true, paidAt: "2026-09-10T15:00:00.000Z", method: "EFECTIVO", receiptNumber: "ALB-R135", idempotencyKey: "alboom:cuota:2025093/41" } });
+    expect(traducirCuota(crudo("pedidos_plan_pagos", "2025093/45", { ...CUOTA_1, cleared_date: null, receipt_id: null }), ctx)).toMatchObject({ datos: { paidAt: "2026-09-08T15:00:00.000Z", receiptNumber: "ALB-Q45" }, dudas: [DUDAS_8B2.cobroSinFecha] });
     expect(traducirCuota(crudo("pedidos_plan_pagos", "2025093/43", { ...CUOTA_1, deleted: "1" }), ctx).accion).toBe("OMITIR");
     expect(traducirCuota(crudo("pedidos_plan_pagos", "2025093/44", { ...CUOTA_1, value: "0" }), ctx)).toEqual({ accion: "OMITIR", motivo: MOTIVOS_8B2.importeCero });
     expect(traducirCuota(crudo("pedidos_plan_pagos", "1/41", CUOTA_1), ctx)).toEqual({ accion: "OMITIR", motivo: MOTIVOS_8B2.pedidoSinCargar });
+  });
+
+  it("cobros sueltos: se emparejan con las cuotas cobradas por pedido, importe y fecha más cercana, una vez cada cuota", () => {
+    const cobradas = cuotasCobradasPorPedido([...plan, crudo("pedidos_plan_pagos", "2025093/46", { ...CUOTA_1, id: "46", deleted: "1" }), crudo("pedidos_plan_pagos", "2025093/47", { ...CUOTA_1, id: "47", cleared_date: "2026-10-01" })]);
+    expect(cobradas.get("2025093")!.map((q) => q.alboomId)).toEqual(["2025093/41", "2025093/47"]);
+    const e = emparejarCobros(
+      [
+        crudo("cobros", "a", { order_id: "2025093", amount: "100000.00", add_date: "2026-10-02" }),
+        crudo("cobros", "b", { order_id: "2025093", amount: "100000.00", add_date: "2026-09-11" }),
+        crudo("cobros", "c", { order_id: "2025093", amount: "100000.00", add_date: "2026-09-11" }),
+        crudo("cobros", "d", { order_id: "2025093", amount: "999.00", add_date: "2026-09-11" }),
+      ],
+      cobradas,
+    );
+    expect(Object.fromEntries(e)).toEqual({ a: "2025093/47", b: "2025093/41" });
   });
 
   it("costo pagado: toma fecha y medio del pago de Alboom del mismo pedido e importe, que queda consumido", () => {
@@ -119,7 +139,7 @@ describe("cuotas y costos", () => {
     const ctx: CtxCostosPedido = { pedidoDe: new Map([["2025093", "ped1"]]), contactoDe: new Map([["7004", "cli4"]]), rubroPorNombre: new Map([["fotografos freelancers", "rub1"]]), emparejado: emp, existentes: new Set(), mapa: new Map() };
     expect(traducirCostoPedido(costos[0]!, ctx)).toMatchObject({
       accion: "CREAR",
-      datos: { pedidoId: "ped1", supplierClientId: "cli4", concept: "Segundo fotógrafo", amountArs: "40000.00", dueDate: "2025-03-20", costCategoryId: "rub1", paidAt: "2025-03-21T13:00:00.000Z", paidMethod: "TRANSFERENCIA" },
+      datos: { pedidoId: "ped1", supplierClientId: "cli4", concept: "Segundo fotógrafo", amountArs: "40000.00", dueDate: "2025-03-20", costCategoryId: "rub1", paidAt: "2025-03-21T15:00:00.000Z", paidMethod: "TRANSFERENCIA" },
     });
     // Sin pago que empareje: pagado al vencimiento, con duda. Sin pedido cargado: no consume nada.
     const sin = traducirCostoPedido(costos[0]!, { ...ctx, emparejado: new Map() });

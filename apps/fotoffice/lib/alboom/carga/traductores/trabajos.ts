@@ -64,34 +64,33 @@ export function traducirContrato(c: Crudo, ctx: CtxContratos): Decision {
     number = `ALB-${c.alboomId}`;
     dudas.push(DUDAS_8B2.numeroOcupado);
   }
+  // Forma real del detalle (DNX, 25/10/2026): `signed` (fecha o null), `signator`, `ip`, `signature` (imagen),
+  // `sig_hash`, `unique_id`, `legacy`, `sent_date`, `viewed`. Firmado = `signed` no nulo. Si un contrato nuevo trae
+  // `signature` como JSON con `signed1/2`, también vale.
   const s = firma(p.signature);
+  const firmadoReal = instanteAr(p.signed);
   const firmado1 = instanteAr(s.signed1);
   const firmado2 = instanteAr(s.signed2);
-  const firmadoLegacy = typeof p.signed === "string" ? instanteAr(p.signed) : null;
-  const firmado = firmado1 || firmado2 || firmadoLegacy || siNo(p.signed) === true;
-  let signedAt = [firmado1, firmado2, firmadoLegacy].filter((x): x is string => !!x).sort().pop() ?? null;
-  if (firmado && !signedAt) {
-    signedAt = instanteAr(p.modified) ?? instanteAr(p.created);
-    dudas.push(DUDAS_8B2.firmaSinFecha);
-  }
+  const signedAt = [firmadoReal, firmado1, firmado2].filter((x): x is string => !!x).sort().pop() ?? null;
+  const firmado = signedAt !== null;
+  if (!firmado && siNo(p.signed) === true) dudas.push(DUDAS_8B2.firmaSinFecha);
   const enviado = instanteAr(p.sent_date);
   if (!firmado && enviado) dudas.push(DUDAS_8B2.enviadoSinFirmar);
-  // Evidencia de la firma: fechas y huellas de la IP y de la imagen (nunca nombres ni la imagen: siguen en el crudo).
+  // Evidencia de la firma: fechas y huellas (IP, imagen, sig_hash, enlace), nunca nombres ni la imagen (siguen en el crudo).
   const huellaDe = (v: unknown) => (typeof v === "string" && v.trim() ? huellaDato(v.trim()) : null);
+  const imagen = typeof p.signature === "string" && !p.signature.trim().startsWith("{") ? p.signature : s.signature1;
   const evento: Record<string, string | boolean | null> = {
     alboomId: c.alboomId,
     enviado,
     visto: instanteAr(p.viewed),
     firmado: signedAt,
-    acepto: s.agree === undefined ? null : siNo(s.agree) === true,
-    firmante1Fecha: firmado1,
-    firmante1Ip: huellaDe(s.ip1),
-    firmante1Firma: huellaDe(s.signature1),
+    firmaIp: huellaDe(p.ip ?? s.ip1),
+    firmaImagen: huellaDe(imagen),
+    firmaHash: huellaDe(p.sig_hash),
+    enlace: huellaDe(p.unique_id),
     firmante2Fecha: firmado2,
     firmante2Ip: huellaDe(s.ip2),
-    firmante2Firma: huellaDe(s.signature2),
     legacy: siNo(p.legacy) === true,
-    legacyIp: huellaDe(p.ip),
   };
   return {
     accion: "CREAR",
@@ -308,11 +307,12 @@ export function traducirCita(c: Crudo, ctx: CtxCitas): Decision {
   const p = campos(c.payload);
   const titulo = texto(p.title, 200);
   if (!titulo) return { accion: "OMITIR", motivo: MOTIVOS_8B2.sinTitulo };
-  const inicio = instanteAr(p.start ?? p.start_date);
+  const conHora = (dia: unknown, hora: unknown) => (typeof dia === "string" && typeof hora === "string" && hora.trim() ? `${dia.trim().slice(0, 10)} ${hora.trim()}` : dia);
+  const inicio = instanteAr(p.start ?? conHora(p.start_date, p.start_time));
   if (!inicio) return { accion: "OMITIR", motivo: MOTIVOS_8B2.sinFecha };
   const dudas: string[] = [];
   const todoElDia = siNo(p.all_day) === true;
-  let fin = instanteAr(p.end ?? p.end_date);
+  let fin = instanteAr(p.end ?? conHora(p.end_date, p.end_time));
   if (todoElDia && fin && fin <= inicio) fin = new Date(new Date(inicio).getTime() + 24 * 3600_000).toISOString();
   if (!fin || fin <= inicio) {
     if (fin) dudas.push(DUDAS_8B2.fechaFin);
@@ -325,7 +325,8 @@ export function traducirCita(c: Crudo, ctx: CtxCitas): Decision {
   const tipo = clave(String(p.type ?? ""));
   const target = idAlboom(p.target_id);
   const idCliente = idAlboom(p.customer_id);
-  const participantes = idsDeLista(p.participants_list).map((u) => usuario(ctx.usuarioDe, u)).filter((u): u is number => u !== null);
+  // Forma real: `participants` = [{ id, name, lastname, avatar }] (usuarios del equipo).
+  const participantes = idsDeLista(p.participants ?? p.participants_list).map((u) => usuario(ctx.usuarioDe, u)).filter((u): u is number => u !== null);
   const notas = [htmlATexto(p.details, 8000), nombreTipo && !typeId ? `Tipo en Alboom: ${nombreTipo}` : null].filter(Boolean).join("\n");
   return {
     accion: "CREAR",

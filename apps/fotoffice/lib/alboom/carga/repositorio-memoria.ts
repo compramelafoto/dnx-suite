@@ -96,7 +96,7 @@ export function crearRepoMemoria() {
     costos_pedido: "CUENTA_PAGAR",
     cuentas_pagar: "CUENTA_PAGAR",
     pagos: "CUENTA_PAGAR",
-    cobros: "COBRO",
+    cobros: "FINANZA_HISTORICA",
     cuentas_cobrar: "FINANZA_HISTORICA",
     movimientos_bancos: "FINANZA_HISTORICA",
     contratos: "CONTRATO",
@@ -294,10 +294,24 @@ export function crearRepoMemoria() {
           const tipoBase = TIPO_DE[clave];
           if (!tipoBase || !crear) throw new Error(`Parte sin escritor: ${clave}`);
           // Como el de Prisma: los cobros sin pedido van al libro Histórico Alboom, no a Caja.
-          const tipo = clave === "cobros" && typeof v.source === "string" ? "FINANZA_HISTORICA" : tipoBase;
+          const tipo = tipoBase;
           id = nuevoId(tipo.toLowerCase());
           d.historicos.push({ workspaceId: ws, clave, tipo, id, datos: { ...v }, extra: structuredClone((dec.extra ?? {}) as Record<string, unknown>) });
-          if (clave === "cuotas") d.recordatoriosCuota.push({ workspaceId: ws, cuotaId: id, dueDate: String(v.dueDate) });
+          if (clave === "cuotas") {
+            d.recordatoriosCuota.push({ workspaceId: ws, cuotaId: id, dueDate: String(v.dueDate) });
+            // Como el de Prisma: la cuota cobrada trae su cobro (sin Caja), imputado entero a ella.
+            if (v.cobrada === true) {
+              const pedido = d.historicos.find((h) => h.workspaceId === ws && h.id === v.pedidoId);
+              d.historicos.push({
+                workspaceId: ws,
+                clave,
+                tipo: "COBRO",
+                id: nuevoId("cobro"),
+                datos: { pedidoId: v.pedidoId ?? null, clientId: pedido?.datos.clientId ?? null, paidAt: v.paidAt ?? null, method: v.method ?? null, amountArs: v.amountArs ?? null, receiptNumber: v.receiptNumber ?? null },
+                extra: { imputaciones: [{ cuotaId: id, amountArs: String(v.amountArs) }] },
+              });
+            }
+          }
           if (clave === "citas") d.recordatoriosCita.push({ workspaceId: ws, citaId: id, startAt: String(v.startAt) });
         }
       }
