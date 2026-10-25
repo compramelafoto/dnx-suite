@@ -384,7 +384,8 @@ export const ENTIDADES: readonly Entidad[] = [
       tipo: "porPadre",
       padre: "proyectos",
       // El panel pide de a `count` desde `offset` (`ParticipantsController.getData`); sin esos campos, 500.
-      pedido: (id) => ({ method: "POST", ruta: "/participants/paginate", body: { type: "projects", id, offset: 0, count: 500, searchTerm: "" } }),
+      pedido: (id, offset) => ({ method: "POST", ruta: "/participants/paginate", body: { type: "projects", id, offset, count: 100, searchTerm: "" } }),
+      paginaDe: 100,
       filas: filasDeLista,
     },
   },

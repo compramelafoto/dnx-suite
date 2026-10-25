@@ -31,6 +31,7 @@ describe("cuerpos de los listados de Alboom", () => {
   it("participantes de proyectos: con offset y count", () => {
     const f = entidadPorClave("proyectos_participantes")!.fuente;
     if (f.tipo !== "porPadre") throw new Error("no es porPadre");
-    expect(f.pedido("2025556")).toMatchObject({ method: "POST", body: { type: "projects", id: "2025556", offset: 0, count: 500 } });
+    expect(f.pedido("2025556", 100)).toMatchObject({ method: "POST", body: { type: "projects", id: "2025556", offset: 100, count: 100 } });
+    expect(f.paginaDe).toBe(100);
   });
 });
