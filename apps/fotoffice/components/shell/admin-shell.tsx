@@ -20,6 +20,8 @@ import { accountMenu, listUserProfiles, roleSelector } from "@/lib/portal/profil
 import { botEnPanel } from "@/lib/dnx-bot/panel";
 import { BurbujaDnxBot } from "@/components/dnx-bot/burbuja";
 import { cssDelTema, normalizarColor } from "@/lib/panel-tema/tema";
+import { programaDelAvisoDeSalida } from "@/lib/equipo/mensajes-servidor";
+import { AvisoSalida } from "@/components/equipo/aviso-salida";
 
 type PanelUser = {
   id: number;
@@ -73,7 +75,7 @@ export async function AdminShell({ user, children }: { user: PanelUser; children
 
   // Se lee acá, en el servidor, para que el menú ya salga oculto en el primer pintado:
   // decidirlo en el navegador lo mostraría y lo escondería en cada carga de página.
-  const [branding, perfil, perfiles, bot] = await Promise.all([
+  const [branding, perfil, perfiles, bot, avisoSalida] = await Promise.all([
     workspace !== null
       ? prisma.fotofficeWorkspaceBranding.findUnique({
           where: { workspaceId: workspace.id },
@@ -87,6 +89,9 @@ export async function AdminShell({ user, children }: { user: PanelUser; children
     listUserProfiles(user.id),
     // DNX Bot: sólo si pasan todas sus puertas (apagado por omisión; ver lib/dnx-bot/acceso.ts).
     botEnPanel(),
+    // Equipo: el aviso amable 5 minutos antes de la salida. Null si no corresponde o si algo
+    // falla (nunca rompe el panel ni muestra un error).
+    workspace !== null ? programaDelAvisoDeSalida({ workspaceId: workspace.id, userId: user.id }) : null,
   ]);
   const institucion = branding?.commercialName?.trim() || workspace?.name || null;
   // Si quien administra también es socio de ESTA institución, el selector de rol del menú
@@ -137,6 +142,7 @@ export async function AdminShell({ user, children }: { user: PanelUser; children
           />
         }
       >
+        {avisoSalida ? <AvisoSalida fecha={avisoSalida.fecha} finMin={avisoSalida.finMin} /> : null}
         {children}
         {bot && <BurbujaDnxBot rutas={bot.rutas} />}
       </ShellFrame>

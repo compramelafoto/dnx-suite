@@ -46,6 +46,7 @@ export const RESERVED_SLUGS: ReadonlySet<string> = new Set([
   "dashboard",
   "digitalizacion",
   "elegir-perfil",
+  "equipo",
   "evaluaciones",
   // La ruta interna del formulario de consulta para insertar en otra web (lib/service-leads/insertar.ts).
   "formulario-insertado",

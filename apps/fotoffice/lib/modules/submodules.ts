@@ -11,6 +11,7 @@ import { STORE_MODULE_KEY } from "@/lib/store/constants";
 import { MEMBERSHIP_DUES_MODULE_KEY } from "@/lib/membership/constants";
 import { COMMUNICATIONS_MODULE_KEY } from "@/lib/communications/constants";
 import { GOVERNANCE_MODULE_KEY } from "@/lib/governance/constants";
+import { EQUIPO_MODULE_KEY } from "@/lib/equipo/constantes";
 import {
   BOOKINGS_CONFIGURE_ACTION,
   CASH_CONFIGURE_ACTION,
@@ -627,6 +628,38 @@ const COMUNICACION: SubmoduleItem[] = [
   },
 ];
 
+// Equipo (etapas 1 y 2): jornadas, fichas y mensajes. Sólo dueño o administrador: acá se ven los
+// horarios y las jornadas de cada persona, y eso no se delega con roles.
+const EQUIPO: SubmoduleItem[] = [
+  {
+    href: "/equipo",
+    label: "Jornadas",
+    icon: "CalendarClock",
+    description: "Quién trabajó cada día y de qué hora a qué hora, según la apertura y el cierre de caja.",
+    requiresManage: true,
+    requiresFullAccess: true,
+    activeMatch: "rest",
+  },
+  {
+    href: "/equipo/mensajes",
+    label: "Mensajes",
+    icon: "Mail",
+    description: "Los saludos que recibe el equipo al abrir, antes de salir y al cerrar la caja.",
+    requiresManage: true,
+    requiresFullAccess: true,
+    activeMatch: "under",
+  },
+  {
+    href: "/equipo/configuracion",
+    label: "Configuración",
+    icon: "Settings",
+    description: "La tolerancia para llegar tarde o irse antes.",
+    requiresManage: true,
+    requiresFullAccess: true,
+    activeMatch: "under",
+  },
+];
+
 const POR_MODULO: Record<string, SubmoduleItem[]> = {
   [MEMBERS_MODULE_KEY]: SOCIOS,
   [COURSES_SALES_MODULE_KEY]: CURSOS,
@@ -639,6 +672,7 @@ const POR_MODULO: Record<string, SubmoduleItem[]> = {
   [COVERAGES_MODULE_KEY]: COBERTURAS,
   [SALES_MODULE_KEY]: VENTAS,
   [COMMUNICATIONS_MODULE_KEY]: COMUNICACION,
+  [EQUIPO_MODULE_KEY]: EQUIPO,
 };
 
 /**

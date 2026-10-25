@@ -82,7 +82,8 @@ export async function openShiftAction(formData: FormData): Promise<void> {
   }
 
   revalidatePath("/caja");
-  redirect("/caja?ok=1");
+  // `saludo=apertura`: si el módulo Equipo está encendido, el panorama muestra el saludo del día.
+  redirect("/caja?ok=1&saludo=apertura");
 }
 
 /**
@@ -97,6 +98,10 @@ export async function closeShiftAction(formData: FormData): Promise<void> {
   const shiftId = String(formData.get("shiftId") ?? "").trim();
   const countedMinor = parseArsToMinor(String(formData.get("countedAmountArs") ?? ""));
   const note = String(formData.get("differenceNote") ?? "").trim() || null;
+  // Pase de turno (Equipo): quien llega cierra el turno que dejó abierto la compañera. El cierre
+  // queda en el turno de ella, con `closedByUserId` = quien contó, y después se le ofrece abrir
+  // el propio con lo que contó.
+  const esPase = formData.get("pase") === "1";
 
   if (countedMinor === null) {
     redirect(`/caja?error=${encodeURIComponent("Escribí cuánto contaste.")}`);
@@ -104,7 +109,7 @@ export async function closeShiftAction(formData: FormData): Promise<void> {
 
   const turno = await prisma.cashShift.findFirst({
     where: { id: shiftId, workspaceId: workspace.id },
-    select: { status: true, openingAmountArs: true },
+    select: { status: true, openingAmountArs: true, accountId: true },
   });
   if (!turno) redirect(`/caja?error=${encodeURIComponent("Ese turno no existe.")}`);
 
@@ -139,11 +144,15 @@ export async function closeShiftAction(formData: FormData): Promise<void> {
   });
 
   revalidatePath("/caja");
+  if (esPase) {
+    redirect(`/caja?pase=abrir&cuenta=${encodeURIComponent(turno.accountId)}&monto=${countedMinor}`);
+  }
   // El `shiftId` viaja en la URL a propósito: la propuesta de pase en `/caja/turnos` tiene
   // que atarse a ESTE turno, no adivinarlo por "el arqueo cerrado más reciente" — con dos
   // cajas cerrando casi al mismo tiempo, lo más reciente por fecha podría ser el de otra
   // cuenta, y se ofrecería pasar el importe equivocado.
-  redirect(`/caja/turnos?ok=1&shiftId=${encodeURIComponent(shiftId)}`);
+  // `saludo=cierre`: si el módulo Equipo está encendido, Arqueos muestra el saludo de cierre.
+  redirect(`/caja/turnos?ok=1&shiftId=${encodeURIComponent(shiftId)}&saludo=cierre`);
 }
 
 /**

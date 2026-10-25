@@ -47,7 +47,7 @@ export const PUNTOS_INSTITUCIONALES: PuntoInstitucional[] = [
     titulo: "Cada módulo, a medida de la institución",
     texto:
       "Nada viene encendido: se prende lo que la institución usa y el resto no aparece ni en el menú ni en el portal. Cada módulo tiene su configuración —valores de cuota, categorías, diseño del carnet, reglas de los sorteos, espacios y tarifas— y se puede apagar sin perder lo cargado.",
-    claves: ["equipo"],
+    claves: ["permisos"],
   },
   {
     id: "sorteos",
@@ -68,7 +68,7 @@ export const PUNTOS_INSTITUCIONALES: PuntoInstitucional[] = [
     titulo: "Gestión ordenada y con registro",
     texto:
       "Cada integrante de la comisión entra con su rol —Presidencia, Secretaría, Tesorería, Revisor de cuentas y otros— y ve o gestiona sólo lo que le toca. Los cambios en el padrón y los pagos quedan firmados con quién y cuándo. Las reuniones se arman con su temario, cada tema queda con lo resuelto y el acta se aprueba y se cierra.",
-    claves: ["equipo", "governance"],
+    claves: ["permisos", "governance"],
     pendiente:
       "publicar el balance y la rendición de cuentas para los socios. Hoy el balance de la Caja y las actas los ve sólo la comisión.",
   },

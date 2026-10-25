@@ -52,7 +52,7 @@ export const TIPOS: TipoDeOrganizacion[] = [
           "Cobrás la seña con Mercado Pago en el momento de cerrar. El dinero entra a tu cuenta, no a una intermedia.",
       },
     ],
-    ademas: ["clients", "cash", "correos", "equipo", "courses-sales"],
+    ademas: ["clients", "cash", "correos", "permisos", "courses-sales"],
     proximo: "21",
   },
   {
@@ -77,7 +77,7 @@ export const TIPOS: TipoDeOrganizacion[] = [
           "Quién te compró qué, con su ficha, su contacto y sus datos fiscales. El que vuelve no se carga dos veces.",
       },
     ],
-    ademas: ["cobros", "consultas", "website", "courses-sales", "correos", "equipo"],
+    ademas: ["cobros", "consultas", "website", "courses-sales", "correos", "permisos"],
     proximo: "21",
   },
   {
@@ -97,7 +97,7 @@ export const TIPOS: TipoDeOrganizacion[] = [
           "La caja del mostrador con turnos y arqueo: quien atiende cobra, anota y cierra, y a fin de mes sabés qué entró por cada lado sin juntar papelitos.",
       },
       {
-        key: "equipo",
+        key: "permisos",
         porque:
           "Sumás a quien atiende con el permiso justo, módulo por módulo: puede trabajar en consultas y caja sin tocar la configuración ni lo que no le corresponde.",
       },
@@ -127,7 +127,7 @@ export const TIPOS: TipoDeOrganizacion[] = [
           "El padrón de alumnos con su ficha y todo lo que cursó cada uno, aunque no sea socio de nada.",
       },
     ],
-    ademas: ["cobros", "cash", "website", "bookings", "correos", "equipo", "consultas"],
+    ademas: ["cobros", "cash", "website", "bookings", "correos", "permisos", "consultas"],
     proximo: "16",
   },
   {
@@ -167,7 +167,7 @@ export const TIPOS: TipoDeOrganizacion[] = [
       "cash",
       "cobros",
       "correos",
-      "equipo",
+      "permisos",
       "clients",
       "evaluaciones",
     ],
@@ -195,7 +195,7 @@ export const TIPOS: TipoDeOrganizacion[] = [
           "Sorteos entre los miembros con premios de marcas aliadas, y un resultado que cualquiera puede rehacer y comprobar.",
       },
     ],
-    ademas: ["portal", "carnets", "courses-sales", "bookings", "correos", "equipo", "consultas"],
+    ademas: ["portal", "carnets", "courses-sales", "bookings", "correos", "permisos", "consultas"],
     proximo: "16",
   },
   {
@@ -226,7 +226,7 @@ export const TIPOS: TipoDeOrganizacion[] = [
       "carnets",
       "courses-sales",
       "correos",
-      "equipo",
+      "permisos",
       "cobros",
       "bookings",
       "clients",
@@ -255,7 +255,7 @@ export const TIPOS: TipoDeOrganizacion[] = [
           "El movimiento del día con el arqueo del turno, para cerrar sabiendo cuánto entró de verdad.",
       },
     ],
-    ademas: ["clients", "website", "consultas", "correos", "equipo", "members", "membership-dues"],
+    ademas: ["clients", "website", "consultas", "correos", "permisos", "members", "membership-dues"],
     proximo: "16",
   },
 ];

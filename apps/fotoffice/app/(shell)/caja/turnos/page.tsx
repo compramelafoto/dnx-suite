@@ -6,6 +6,7 @@ import { listShifts, userDisplayNames } from "@/lib/cash/repository";
 import { decimalArsToMinor, formatMinorArs } from "@/lib/membership/money";
 import { suggestedDropMinor } from "@/lib/cash/transfer";
 import { transferAction } from "../actions";
+import { SaludoEquipo } from "@/components/equipo/saludo-equipo";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +17,7 @@ function fecha(d: Date) {
 export default async function TurnosPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; ok?: string; shiftId?: string }>;
+  searchParams: Promise<{ error?: string; ok?: string; shiftId?: string; saludo?: string }>;
 }) {
   const { workspace, canOperate } = await requireCashViewer();
   const params = await searchParams;
@@ -75,6 +76,8 @@ export default async function TurnosPage({
   return (
     <div className="space-y-8">
       <PageHeader title="Arqueos" description="Cada apertura y cierre de turno, con su diferencia y su explicación." />
+
+      {params.saludo === "cierre" ? <SaludoEquipo momento="CIERRE" /> : null}
 
       {params.error ? (
         <p className="fo-card p-4 text-sm text-[var(--fo-danger)]" role="alert">
