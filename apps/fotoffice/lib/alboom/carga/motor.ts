@@ -101,7 +101,11 @@ export async function ejecutarMotor(o: OpcionesMotor): Promise<ResultadoMotor> {
           else if (d.accion === "CREAR") targetId = `${PREFIJO_SIMULADO}${c.entity}/${c.alboomId}`;
           if (targetId) {
             p.registrar?.(ctx, c, d, targetId);
-            if (o.modo === "SIMULACION" && p.exporta && d.accion !== "OMITIR") (progreso.simulados[c.entity] ??= {})[c.alboomId] = targetId;
+            if (o.modo === "SIMULACION" && p.exporta && d.accion !== "OMITIR") {
+              (progreso.simulados[c.entity] ??= {})[c.alboomId] = targetId;
+              // Las filas extra del mapa (p. ej. la posición de una etapa) también, para las partes que dependen.
+              for (const x of d.otrasClaves ?? []) (progreso.simulados[x.entity] ??= {})[x.alboomId] = targetId;
+            }
           }
           sumarDecision(informe, p.clave, c.alboomId, d);
         } catch (e) {

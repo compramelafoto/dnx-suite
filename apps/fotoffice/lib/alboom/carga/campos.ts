@@ -105,6 +105,7 @@ export const MOTIVOS = {
   formaDesconocida: "Forma desconocida",
   productoInactivoRepetido: "Producto inactivo con el mismo nombre que otro de Alboom: no se cargó",
   itemRepetido: "Ítem repetido en el mismo combo",
+  etapaSinEmbudo: "La etapa no dice de qué embudo o flujo es y no se pudo deducir: volvé a extraer las etapas",
 } as const;
 
 /** Conflictos que no son un campo conservado. Textos fijos. */
@@ -130,4 +131,7 @@ export const DUDAS = {
   costoSinImporte: "Costo sin importe (quedó en 0)",
   documentoRaro: "Documento con formato raro (no se guardó)",
   correoDeRelleno: "Correo de relleno o del propio estudio (no se guardó ni se usó para emparejar)",
+  circuitoCreado: "Embudo o flujo sin equivalente en FOTOFFICE: se creó inactivo, con sus etapas",
+  embudoDeducido: "La etapa no traía su embudo o flujo: se dedujo por el orden de los ids (conviene volver a extraer)",
+  productoHistorico: "Producto nuevo: se creó inactivo en la categoría Histórico Alboom (no aparece en el mostrador ni en la tienda)",
 } as const;

@@ -95,9 +95,16 @@ export const filaUnica: Filas = (json) => (esObjeto(json) ? [json] : null);
 
 /** `GET /stages/list` → `{ stage_list: [embudos], stages: { <id>: [etapas] } }`. */
 const embudosDe: Filas = (json) => (esObjeto(json) && Array.isArray(json.stage_list) ? json.stage_list : null);
+/**
+ * Las etapas de cada embudo o flujo. La etapa real de Alboom (`{id, name, stage, tasks, offset_days}`, extracción de
+ * DNX del 25/10/2026) NO trae su embudo: está sólo en la clave de `stages`. Se le agrega como `type_id` (si la etapa
+ * ya lo trae, se respeta) para que la carga sepa a qué circuito va.
+ */
 const etapasDe: Filas = (json) => {
   if (!esObjeto(json) || !esObjeto(json.stages)) return null;
-  return Object.values(json.stages).flatMap((v) => (Array.isArray(v) ? v : []));
+  return Object.entries(json.stages).flatMap(([idEmbudo, v]) =>
+    Array.isArray(v) ? v.map((e) => (esObjeto(e) && (e.type_id === undefined || e.type_id === null || e.type_id === "") ? { ...e, type_id: idEmbudo } : e)) : [],
+  );
 };
 
 /** Orígenes de oportunidad: `lead_origin` es texto, una opción por línea (doc 05 §3.24). */
@@ -202,9 +209,9 @@ export const ENTIDADES: readonly Entidad[] = [
   },
   { clave: "usuarios", nombre: "Usuarios", claves: ["email"], fuente: { tipo: "paginada", ruta: "/users/paginate", body: listado({ type: "all" }) } },
   { clave: "embudos", nombre: "Embudos de venta", fuente: { tipo: "simple", pedido: get("/stages/list?type=lead_stage"), filas: embudosDe } },
-  { clave: "etapas_embudo", nombre: "Etapas de los embudos", fuente: { tipo: "simple", pedido: get("/stages/list?type=lead_stage"), filas: etapasDe } },
+  { clave: "etapas_embudo", nombre: "Etapas de los embudos", version: 2, fuente: { tipo: "simple", pedido: get("/stages/list?type=lead_stage"), filas: etapasDe } },
   { clave: "flujos_proyecto", nombre: "Flujos de proyecto", fuente: { tipo: "simple", pedido: get("/stages/list?type=stage"), filas: embudosDe } },
-  { clave: "etapas_flujo", nombre: "Etapas de los flujos", fuente: { tipo: "simple", pedido: get("/stages/list?type=stage"), filas: etapasDe } },
+  { clave: "etapas_flujo", nombre: "Etapas de los flujos", version: 2, fuente: { tipo: "simple", pedido: get("/stages/list?type=stage"), filas: etapasDe } },
   {
     clave: "tareas_pedido",
     nombre: "Plantillas de tareas de pedido",

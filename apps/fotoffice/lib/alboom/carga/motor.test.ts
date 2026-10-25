@@ -107,7 +107,8 @@ describe("carga", () => {
   it("crea, vincula y guarda el mapa; el informe coincide con la simulación", async () => {
     const sim = await correr("SIMULACION");
     const { informe } = await correr("CARGA");
-    for (const k of CLAVES_CARGA) {
+    expect(Object.keys(informe.entidades).sort()).toEqual(Object.keys(sim.informe.entidades).sort());
+    for (const k of CLAVES_CARGA.filter((x) => x in sim.informe.entidades)) {
       const { crear, actualizar, iguales, omitidos } = informe.entidades[k]!;
       expect({ k, crear, actualizar, iguales, omitidos }).toEqual({ k, ...pick(sim.informe.entidades[k]!) });
     }
@@ -210,7 +211,8 @@ describe("no fusionar personas ni productos distintos (carga real)", () => {
     const { informe } = await correr("CARGA");
     const albums = M.datos.productos.filter((p) => p.workspaceId === WS && p.name.toLowerCase().includes("30x30"));
     expect(albums).toHaveLength(2);
-    expect(albums.every((a) => a.isActive)).toBe(true);
+    // Catálogo viejo de Alboom: nacen inactivos, en la categoría Histórico Alboom.
+    expect(albums.every((a) => !a.isActive && a.categoria === "Histórico Alboom")).toBe(true);
     expect(informe.entidades.productos).toMatchObject({ crear: 4, omitidos: 1, conflictos: 2 });
     const ids = new Set(M.datos.mapa.filter((m) => m.entity === "productos").map((m) => m.targetId));
     expect(ids.size).toBe(M.datos.mapa.filter((m) => m.entity === "productos").length);

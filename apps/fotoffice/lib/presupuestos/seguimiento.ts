@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma, type Prisma } from "@repo/db";
+import { idsDeAlboom, sinLosDeAlboom } from "@/lib/alboom/historico";
 import { OPCIONES_TRANSACCION } from "@/lib/circuitos/recorridos";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import { numeroDe } from "@/lib/numeracion/asignar";
@@ -172,6 +173,8 @@ async function seguimientosDe(
   // tapan a los nuevos. Cada página saca los vencidos, los que no están enviados o vistos y los
   // que ya tienen su seguimiento.
   const desde = new Date(ahora.getTime() - (dias + VENTANA_DIAS + 1) * DIA_MS);
+  // Los presupuestos históricos de Alboom (8B-2) nunca reciben seguimiento.
+  const historicos = await idsDeAlboom(workspaceId, "PRESUPUESTO");
   const hasta = new Date(ahora.getTime() - (dias - 1) * DIA_MS);
   let cursor: { sentAt: Date; id: string } | null = null;
   for (let pagina = 0; pagina < MAX_PAGINAS; pagina++) {
@@ -182,6 +185,7 @@ async function seguimientosDe(
           sentAt: { gte: desde, lte: hasta },
           acceptedAt: null,
           revokedAt: null,
+          ...sinLosDeAlboom(historicos, "presupuestoId"),
           ...(cursor ? { OR: [{ sentAt: { gt: cursor.sentAt } }, { sentAt: cursor.sentAt, id: { gt: cursor.id } }] } : {}),
         },
         orderBy: [{ sentAt: "asc" }, { id: "asc" }],
