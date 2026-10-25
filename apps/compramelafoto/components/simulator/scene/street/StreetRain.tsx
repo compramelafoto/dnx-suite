@@ -4,9 +4,12 @@ import { WEATHER_LOOKS, weatherStore } from "@/lib/simulator/weather";
 import { useFrame, useThree } from "@react-three/fiber";
 import { useMemo } from "react";
 import * as THREE from "three";
+import { isTouchGameDevice } from "@/lib/simulator/touch-input";
 
 /** Gotas alrededor del fotógrafo (las de más lejos ya no se distinguen). */
 const DROPS = 4500;
+/** Celular: la mitad de gotas (igual se ve llover y pesa menos). */
+const MOBILE_DROPS = 2200;
 const BOX = { x: 36, y: 18, z: 36 };
 /** Velocidad de caída de una gota de lluvia (m/s) y largo del trazo que deja en un cuadro. */
 const FALL = 9;
@@ -21,21 +24,22 @@ const WIND = new THREE.Vector3(0.9, 0, 0.4);
  */
 export default function StreetRain() {
   const camera = useThree((s) => s.camera);
-  const { lines, drops, positions } = useMemo(() => {
-    const drops = new Float32Array(DROPS * 3);
-    for (let i = 0; i < DROPS; i += 1) {
+  const { lines, drops, positions, count } = useMemo(() => {
+    const count = isTouchGameDevice() ? MOBILE_DROPS : DROPS;
+    const drops = new Float32Array(count * 3);
+    for (let i = 0; i < count; i += 1) {
       drops[i * 3] = (Math.random() - 0.5) * BOX.x;
       drops[i * 3 + 1] = Math.random() * BOX.y;
       drops[i * 3 + 2] = (Math.random() - 0.5) * BOX.z;
     }
-    const positions = new Float32Array(DROPS * 6);
+    const positions = new Float32Array(count * 6);
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3).setUsage(THREE.DynamicDrawUsage));
     const material = new THREE.LineBasicMaterial({ color: "#c8d4e0", transparent: true, opacity: 0.45, depthWrite: false });
     const lines = new THREE.LineSegments(geometry, material);
     lines.frustumCulled = false;
     lines.renderOrder = 2;
-    return { lines, drops, positions };
+    return { lines, drops, positions, count };
   }, []);
 
   useFrame((_, delta) => {
@@ -48,7 +52,7 @@ export default function StreetRain() {
     const tail = dir.clone().normalize().multiplyScalar(-STREAK);
     const cx = camera.position.x;
     const cz = camera.position.z;
-    for (let i = 0; i < DROPS; i += 1) {
+    for (let i = 0; i < count; i += 1) {
       let x = drops[i * 3] + step.x;
       let y = drops[i * 3 + 1] + step.y;
       let z = drops[i * 3 + 2] + step.z;

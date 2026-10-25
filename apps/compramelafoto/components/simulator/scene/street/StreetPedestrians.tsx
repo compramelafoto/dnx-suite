@@ -55,6 +55,8 @@ const FREE_HEAD = new Set(["idle_look_around_01", "cell_phone_textmessage"]);
 
 /** Más allá de esto la gente no se dibuja ni se anima (queda en la bruma). */
 const PEOPLE_DRAW_DISTANCE = 85;
+/** Celular: cada persona son 8 a 14 llamadas de dibujo; de lejos no aportan y frenan mucho. */
+const MOBILE_PEOPLE_DRAW_DISTANCE = 45;
 
 /** Clips que se piden recién cuando un modelo los necesita. */
 const clipCache = new Map<string, Promise<THREE.AnimationClip>>();
@@ -537,7 +539,7 @@ export default function StreetPedestrians({ layout }: { layout: StreetLayout }) 
       }
 
       // Lejos no se dibuja ni se anima (sigue caminando su recorrido igual).
-      const far = !isModel && p.root.position.distanceTo(camera.position) > PEOPLE_DRAW_DISTANCE;
+      const far = !isModel && p.root.position.distanceTo(camera.position) > (simulatorRuntime.quality.mobile ? MOBILE_PEOPLE_DRAW_DISTANCE : PEOPLE_DRAW_DISTANCE);
       p.root.visible = !far;
       if (!far) {
         // Velocidad pedida ("saludá rápido"); al caminar o al soltarlo, la natural.

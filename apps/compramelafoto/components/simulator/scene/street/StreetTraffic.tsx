@@ -21,6 +21,7 @@ const LAMP = new THREE.SphereGeometry(0.07, 10, 8);
 const DRAW_DISTANCE = 140;
 /** Bicis y motos (con su persona arriba): más cerca, como los peatones. */
 const RIDE_DRAW_DISTANCE = 85;
+const MOBILE_DRAW_SCALE = 0.65;
 /** Más cerca que esto se ve pedalear. */
 const PEDAL_DISTANCE = 45;
 // En el celular, las mismas cuatro personas que caminan (menos para bajar).
@@ -49,7 +50,11 @@ export default function StreetTraffic() {
   const rideProtos = useStreetRides();
   // Los mismos avatares que los peatones (el cargador los comparte).
   const riderSources = useLoader(FBXLoader, RIDER_SPECS.map(avatarUrl), prepareAvatarLoader) as THREE.Group[];
-  const cars = useMemo(() => createTraffic(), []);
+  // En el celular, dos de cada tres vehículos en movimiento (los estacionados quedan todos).
+  const cars = useMemo(() => {
+    const all = createTraffic();
+    return isTouchGameDevice() ? all.filter((car, i) => car.parked || i % 3 !== 2) : all;
+  }, []);
   const head = useMemo(() => new THREE.MeshStandardMaterial({ color: "#222", emissive: "#fff3dc", emissiveIntensity: 0 }), []);
   const tail = useMemo(() => new THREE.MeshStandardMaterial({ color: "#300", emissive: "#ff2a12", emissiveIntensity: 0 }), []);
   const { objects, riders } = useMemo(() => {
@@ -118,7 +123,9 @@ export default function StreetTraffic() {
       const dist = Math.hypot(pose.x - camera.position.x, pose.z - camera.position.z);
       const rider = riders[i];
       // Lejos (en la bruma) no se dibuja: la ciudad tiene muchos autos.
-      o.visible = !c.parked && dist < (rider ? RIDE_DRAW_DISTANCE : DRAW_DISTANCE);
+      // En el celular se cortan antes (cada auto son varias llamadas de dibujo).
+      const k = simulatorRuntime.quality.mobile ? MOBILE_DRAW_SCALE : 1;
+      o.visible = !c.parked && dist < (rider ? RIDE_DRAW_DISTANCE : DRAW_DISTANCE) * k;
       o.position.set(pose.x, 0, pose.z);
       o.rotation.y = pose.heading;
       if (rider && o.visible && dist < PEDAL_DISTANCE) pedal(rider, c.v * dt, crankRadiansPerMeter(rider.ride));

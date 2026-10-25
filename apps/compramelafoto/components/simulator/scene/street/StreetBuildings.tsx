@@ -44,12 +44,16 @@ const _color = new THREE.Color();
 
 /** Hasta dónde se dibuja la fachada con el kit (m); más allá, el volumen con ventanas pintadas. */
 const DETAIL_DISTANCE = 60;
+/** Celular: cada fachada con kit son 5 llamadas de dibujo; desde 40 m va la versión pintada. */
+const MOBILE_DETAIL_DISTANCE = 40;
 /**
  * Más cerca que esto, el kit con todo su detalle; entre esto y DETAIL_DISTANCE,
  * el kit simplificado (29 % de los triángulos): de lejos no se distingue y
  * eran millones de triángulos por cuadro.
  */
 const FULL_DETAIL_DISTANCE = 22;
+/** Celular: el kit completo sólo bien de cerca (es lo más pesado de toda la escena). */
+const MOBILE_FULL_DETAIL_DISTANCE = 14;
 /** Más allá de esto la manzana no se dibuja (queda en la bruma). */
 const DRAW_DISTANCE = 200;
 /** Fondo de los edificios (m). */
@@ -391,14 +395,14 @@ export default function StreetBuildings({ layout }: { layout: StreetLayout }) {
     const { x, z } = camera.position;
     for (const g of groups) {
       const d = distanceToBlock(g.block, x, z);
-      g.near.visible = d < DETAIL_DISTANCE;
+      g.near.visible = d < (simulatorRuntime.quality.mobile ? MOBILE_DETAIL_DISTANCE : DETAIL_DISTANCE);
       g.far.visible = !g.near.visible && d < DRAW_DISTANCE;
       if (!g.near.visible) continue;
       // Sólo se apagan las que dan la espalda: una de frente sin kit mostraría el
       // frente oscuro del volumen (el que va detrás de las piezas).
       for (const side of g.sides) {
         const facing = facesCamera(side, x, z);
-        const close = distanceToSide(side, x, z) < FULL_DETAIL_DISTANCE;
+        const close = distanceToSide(side, x, z) < (simulatorRuntime.quality.mobile ? MOBILE_FULL_DETAIL_DISTANCE : FULL_DETAIL_DISTANCE);
         side.group.visible = facing && close;
         side.lod.visible = facing && !close;
       }

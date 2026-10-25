@@ -181,12 +181,16 @@ test("después de posar, la persona retoma el circuito desde el punto más cerca
   assert.ok(Math.abs(back - 37) < 0.01, `${back}`);
 });
 
-test("calle en el celular: sólo cuatro personas distintas y cada una del mismo género", () => {
+test("calle en el celular: cuatro personas distintas, del mismo género y menos gente caminando", () => {
   const layout = buildStreetLayout();
   const { walkers, standers } = planStreetPeople(layout, true);
   const all = [...walkers, ...standers];
   assert.ok(new Set(all.map((p) => p.figure)).size <= 4);
   const desktop = planStreetPeople(layout);
-  [...desktop.walkers, ...desktop.standers].forEach((p, i) => assert.equal(isWoman(all[i].figure), isWoman(p.figure)));
+  const byId = new Map([...desktop.walkers, ...desktop.standers].map((p) => [p.id, p.figure]));
+  for (const p of all) assert.equal(isWoman(p.figure), isWoman(byId.get(p.id)!));
+  // Menos gente que en la computadora, pero todos los corredores.
+  assert.ok(walkers.length < desktop.walkers.length);
+  assert.equal(walkers.filter((w) => w.id.startsWith("run")).length, desktop.walkers.filter((w) => w.id.startsWith("run")).length);
   assert.equal(figureForDevice("valentina", false), "valentina");
 });

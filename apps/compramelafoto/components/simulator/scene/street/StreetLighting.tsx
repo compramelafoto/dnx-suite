@@ -25,6 +25,7 @@ const OVERCAST_COLOR = new THREE.Color("#b9c0c8");
  * la sombra sigue en su lugar; la de quien camina llega un cuadro tarde.
  */
 const SHADOW_EVERY_FRAMES = 2;
+const MOBILE_SHADOW_EVERY_FRAMES = 3;
 /** Área de sombras alrededor del fotógrafo (m). */
 const SHADOW_HALF = 38;
 const SHADOW_MAP = 4096;
@@ -110,7 +111,9 @@ export default function StreetLighting() {
 
   useFrame(() => {
     // Durante la toma se rehace siempre: la foto tiene que salir exacta.
-    shadowFrame.current = (shadowFrame.current + 1) % SHADOW_EVERY_FRAMES;
+    // En el celular, cada tres cuadros: el sol se mueve despacio y no se nota.
+    const every = simulatorRuntime.quality.mobile ? MOBILE_SHADOW_EVERY_FRAMES : SHADOW_EVERY_FRAMES;
+    shadowFrame.current = (shadowFrame.current + 1) % every;
     if (shadowFrame.current === 0 || simulatorRuntime.captureActive) gl.shadowMap.needsUpdate = true;
     const sunState = simulatorRuntime.sunState;
     const [px, py, pz] = sunPositionFromState(sunState);

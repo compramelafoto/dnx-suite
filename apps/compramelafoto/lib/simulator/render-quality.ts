@@ -6,7 +6,7 @@
  */
 
 export interface QualityTier {
-  id: "baja" | "media" | "alta";
+  id: "baja" | "media" | "alta" | "celular" | "celular-plus";
   /** Densidad de píxeles del lienzo (1 = un píxel CSS). */
   dpr: number;
   /** Lado del mapa de sombras del sol. */
@@ -17,12 +17,24 @@ export interface QualityTier {
   dofSteps: number;
   /** Faroles que iluminan de verdad a la vez (el resto sólo brilla). */
   lampLights: number;
+  /** Celular: sin sombras de contacto ni con cielo nublado, sombras más espaciadas. */
+  mobile?: boolean;
 }
 
 export const QUALITY_TIERS: readonly QualityTier[] = [
   { id: "baja", dpr: 0.85, shadowMapSize: 1024, ao: false, dofSteps: 48, lampLights: 4 },
   { id: "media", dpr: 1, shadowMapSize: 2048, ao: true, dofSteps: 80, lampLights: 8 },
   { id: "alta", dpr: 1.5, shadowMapSize: 4096, ao: true, dofSteps: 128, lampLights: 12 },
+];
+
+/**
+ * Celulares: resolución algo menor (en una pantalla chica casi no se nota), sin
+ * SSAO y con menos muestras de desenfoque. El segundo escalón se gana si el
+ * teléfono anda sobrado.
+ */
+export const MOBILE_QUALITY_TIERS: readonly QualityTier[] = [
+  { id: "celular", dpr: 0.8, shadowMapSize: 1024, ao: false, dofSteps: 24, lampLights: 3, mobile: true },
+  { id: "celular-plus", dpr: 1.1, shadowMapSize: 1024, ao: false, dofSteps: 40, lampLights: 3, mobile: true },
 ];
 
 /** Por debajo de esto se baja un escalón; por encima de lo otro, se sube. */
