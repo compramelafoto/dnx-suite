@@ -12,6 +12,7 @@ import * as THREE from "three";
 import { makeImpostor, type Impostor } from "./impostor";
 import { useStreetCars } from "./street-car-models";
 import { isTouchGameDevice } from "@/lib/simulator/touch-input";
+import { mergeGroupsByMaterial } from "@/lib/simulator/merge-groups";
 
 /** Los autos estacionados se dibujan con los modelos de autos (ver street-car-models). */
 type ModelKind = Exclude<PropKind, "car">;
@@ -96,6 +97,19 @@ const DESKTOP_LAMP_LIGHTS = 12;
  * no aceptan tantos (los edificios y el piso no se dibujaban): sólo 3 iluminan.
  */
 const MOBILE_LAMP_LIGHTS = 3;
+const MOBILE_DRAW_SCALE = 0.75;
+/** Celular: sólo los objetos grandes hacen sombra (los chicos casi no se notan y duplican el trabajo). */
+const MOBILE_SHADOW_KINDS = new Set<PropKind>(["tree", "lamp", "plaza-lamp", "statue"]);
+
+/**
+ * Ajustes del celular: lo que no tiene impostor se deja de dibujar un cuarto
+ * antes; árboles y faroles pasan a la foto más cerca y con la mitad completos.
+ */
+function mobileSpec(kind: PropKind, base: KindSpec): KindSpec {
+  const shadow = base.shadow && MOBILE_SHADOW_KINDS.has(kind);
+  if (!base.impostor) return { ...base, near: base.near * MOBILE_DRAW_SCALE, draw: base.draw * MOBILE_DRAW_SCALE, shadow };
+  return { ...base, near: base.near * 0.65, pool: Math.max(1, Math.round((base.pool ?? 1) / 2)), shadow };
+}
 /** Altura de la luminaria del farol de calle (m) y largo de su brazo. */
 const LAMP_HEAD_HEIGHT = 5.6;
 const LAMP_ARM = 1.1;
@@ -118,9 +132,19 @@ export function flattenParts(root: THREE.Object3D): Part[] {
     if (!mesh.isMesh) return;
     const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
     if (materials.length > 1) {
-      // Mallas con varios materiales: una parte por grupo.
-      for (const g of mesh.geometry.groups) {
-        const geo = mesh.geometry.clone();
+      // Mallas con varios materiales: una parte por material (antes, una por grupo: los
+      // modelos traen muchos grupos repetidos y cada uno era una llamada de dibujo más).
+      let source = mesh.geometry;
+      const order = source.index ? source.index.array : Array.from({ length: source.attributes.position.count }, (_, i) => i);
+      const merged = mergeGroupsByMaterial(order, source.groups);
+      if (merged) {
+        source = source.clone();
+        source.setIndex(merged.index);
+        source.clearGroups();
+        for (const g of merged.groups) source.addGroup(g.start, g.count, g.materialIndex);
+      }
+      for (const g of source.groups) {
+        const geo = source.clone();
         geo.clearGroups();
         geo.setDrawRange(g.start, g.count);
         parts.push({ geometry: geo, material: materials[g.materialIndex ?? 0], matrix: inv.clone().multiply(mesh.matrixWorld) });
@@ -341,6 +365,7 @@ export default function StreetProps({ layout }: { layout: StreetLayout }) {
   const cars = useStreetCars();
 
   const chunks = useMemo(() => {
+    const mobile = isTouchGameDevice();
     const out: Chunk[] = [];
     const pools: NearPool[] = [];
     const impostors: Impostor[] = [];
@@ -349,7 +374,8 @@ export default function StreetProps({ layout }: { layout: StreetLayout }) {
     KINDS.forEach((kind, i) => {
       const items = byKind.get(kind);
       if (!items?.length) return;
-      const spec = SPEC[kind] ?? SMALL;
+      const base = SPEC[kind] ?? SMALL;
+      const spec = mobile ? mobileSpec(kind, base) : base;
       const scene = gltfs[i].scene;
       const impostor = spec.impostor ? makeImpostor(gl, scene) : null;
       if (impostor) impostors.push(impostor);

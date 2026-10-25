@@ -27,6 +27,7 @@ import { resolveThreeToneMapping } from "@/lib/simulator/render/render-profile";
 import { focalLengthToFov } from "@/lib/simulator/camera-math";
 import { EYE_HEIGHT } from "./simulator-camera-constants";
 import { diagnosticsRequested, installRenderDiagnostics } from "@/lib/simulator/render-diagnostics";
+import { isTouchGameDevice } from "@/lib/simulator/touch-input";
 
 export interface SimulatorCanvasProps {
   onLockChange?: (locked: boolean) => void;
@@ -70,7 +71,9 @@ export default function SimulatorCanvas({ onLockChange, onLoaded }: SimulatorCan
       }}
       gl={{
         alpha: false,
-        antialias: true,
+        // La escena se dibuja en un búfer propio y se pasa con un cuadro: el suavizado del
+        // lienzo no la alcanza, en el celular sólo gastaría memoria.
+        antialias: !isTouchGameDevice(),
         powerPreference: "high-performance",
         preserveDrawingBuffer: true,
       }}

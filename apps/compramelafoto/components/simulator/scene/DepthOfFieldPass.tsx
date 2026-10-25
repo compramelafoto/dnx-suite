@@ -179,7 +179,8 @@ export default function DepthOfFieldPass() {
       const quality = simulatorRuntime.quality;
       // Con cielo cubierto no hay sol directo: las sombras suaves de contacto las da
       // la oclusión ambiental, así que se prende aunque la calidad sea baja.
-      const aoOn = quality.ao || WEATHER_LOOKS[weatherStore.get()].overcast > 0;
+      // Con cielo cubierto las sombras de contacto son las únicas que hay (menos en el celular: cuestan mucho).
+      const aoOn = quality.ao || (!quality.mobile && WEATHER_LOOKS[weatherStore.get()].overcast > 0);
       if (aoOn) {
         const w = Math.max(1, Math.floor(fbo.width / 2));
         const hgt = Math.max(1, Math.floor(fbo.height / 2));

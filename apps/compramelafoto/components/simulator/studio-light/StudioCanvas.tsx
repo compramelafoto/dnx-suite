@@ -17,6 +17,7 @@ import StudioSubject from "./StudioSubject";
 import { LoadingHold, SceneLoadingGate } from "../scene/SceneLoadingGate";
 import { StudioCameraDirector, StudioWalkController, type QuickView } from "./StudioWalk";
 import { figureById, isBust } from "@/lib/simulator/studio-light/figures";
+import { isTouchGameDevice } from "@/lib/simulator/touch-input";
 
 // Debe correr antes de compilar cualquier material, si no las luces de área no iluminan.
 // El módulo sólo se carga en el navegador (dynamic sin SSR).
@@ -525,7 +526,7 @@ export default function StudioCanvas({ mode, captureRef, onHistogram, showPip, o
       shadows="percentage"
       dpr={[1, 1.75]}
       camera={{ position: [4.2, 3.1, 5.2], fov: 42, near: 0.05, far: 60 }}
-      gl={{ antialias: true, preserveDrawingBuffer: true, powerPreference: "high-performance" }}
+      gl={{ antialias: !isTouchGameDevice(), preserveDrawingBuffer: true, powerPreference: "high-performance" }}
       onCreated={({ gl, raycaster }) => {
         // Las manijas viven en la capa de ayudas: el mouse también tiene que tocarlas.
         raycaster.layers.enableAll();

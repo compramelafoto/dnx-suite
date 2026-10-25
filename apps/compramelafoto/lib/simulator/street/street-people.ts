@@ -125,8 +125,10 @@ export function planStreetPeople(layout: StreetLayout, mobile = false): { walker
     { id: "s6", figure: "tomas", action: "idle_look_around_01", position: [STREET.roadHalf + 0.9, -(BUILDING_LINE + 2.5)], heading: Math.PI / 2 },
   ];
   if (!mobile) return { walkers, standers };
+  // Celular: la mitad de los que caminan (los corredores quedan todos, por la larga exposición).
+  const lighter = walkers.filter((w, i) => w.id.startsWith("run") || i % 2 === 0);
   return {
-    walkers: walkers.map((w) => ({ ...w, figure: figureForDevice(w.figure, true) })),
+    walkers: lighter.map((w) => ({ ...w, figure: figureForDevice(w.figure, true) })),
     standers: standers.map((st) => ({ ...st, figure: figureForDevice(st.figure, true) })),
   };
 }

@@ -5,6 +5,7 @@ import { figureUrl, type FigureSpec } from "@/lib/simulator/studio-light/figures
 import * as THREE from "three";
 import type { FBXLoader } from "three/examples/jsm/loaders/FBXLoader.js";
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
+import { mergeGroupsByMaterial } from "@/lib/simulator/merge-groups";
 
 /**
  * Personas de la calle (avatares Rocketbox): lo que comparten los peatones y
@@ -70,6 +71,7 @@ function dressAvatar(model: THREE.Object3D, figure: FigureSpec, cache: Map<strin
       mesh.userData.neverDrawn = true;
       return;
     }
+    mergeAvatarGroups(mesh.geometry);
     const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
     const rebuilt = mats.map((m) => materialFor(m.name));
     mesh.material = Array.isArray(mesh.material) ? rebuilt : rebuilt[0];
@@ -77,6 +79,19 @@ function dressAvatar(model: THREE.Object3D, figure: FigureSpec, cache: Map<strin
     mesh.receiveShadow = true;
     mesh.frustumCulled = false;
   });
+}
+
+/** Une los grupos del mismo material (la geometría es compartida: se hace una sola vez). */
+function mergeAvatarGroups(geometry: THREE.BufferGeometry) {
+  if (geometry.userData.groupsMerged) return;
+  geometry.userData.groupsMerged = true;
+  // Los FBX vienen sin índice (vértices en orden): el índice nuevo los lista agrupados por material.
+  const source = geometry.index ? geometry.index.array : Array.from({ length: geometry.attributes.position.count }, (_, i) => i);
+  const merged = mergeGroupsByMaterial(source, geometry.groups);
+  if (!merged) return;
+  geometry.setIndex(merged.index);
+  geometry.clearGroups();
+  for (const g of merged.groups) geometry.addGroup(g.start, g.count, g.materialIndex);
 }
 
 /**
