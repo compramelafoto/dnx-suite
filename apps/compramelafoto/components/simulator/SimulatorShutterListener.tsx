@@ -6,6 +6,7 @@ import { playShutterSound, preloadShutterSamples, COD_OBTURAR_EVENT, type CodObt
 import { shutterSpeedToSeconds } from "@/lib/simulator/camera-math";
 import { unlockSimulatorAudioFromGesture } from "@/lib/simulator/sound-engine";
 import { useCallback, useEffect } from "react";
+import { simulatorRuntime } from "@/lib/simulator/simulator-runtime";
 
 /**
  * Espacio → obturar, sonido y captura con acumulación en exposiciones largas.
@@ -14,6 +15,8 @@ export default function SimulatorShutterListener() {
   const { settings, derived, focus, capturePhoto } = useCameraStore();
 
   const obturate = useCallback(() => {
+    // Desde afuera no se saca la foto: hay que volver a la cámara.
+    if (simulatorRuntime.thirdPerson) return;
     const effectiveShutter = derived.effectiveSettings.shutterSpeed;
     const durationMs = Math.max(shutterSpeedToSeconds(effectiveShutter) * 1000, 32);
     unlockSimulatorAudioFromGesture();

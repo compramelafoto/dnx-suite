@@ -1755,3 +1755,16 @@
 .cod-studio-segment--wrap .cod-studio-segment__btn {
   flex: 1 1 30%;
 }
+
+/* Celular: caminar usa teclado y mouse; con el teléfono acostado, sin la barra de arriba. */
+@media (pointer: coarse) {
+  .cod-studio-walk-btn {
+    display: none !important;
+  }
+}
+
+@media (pointer: coarse) and (max-height: 520px) {
+  .cod-shell--simulator:has(.cod-studio) .cod-header {
+    display: none;
+  }
+}

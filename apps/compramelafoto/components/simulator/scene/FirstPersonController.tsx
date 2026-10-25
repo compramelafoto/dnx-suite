@@ -153,6 +153,8 @@ export default function FirstPersonController({ onLockChange }: FirstPersonContr
       if (event.button !== 0) return;
       const nav = getSimulatorNavSurface();
       if (!nav || event.target !== nav) return;
+      // En tercera persona arrastrar gira la vista de afuera: no se traba el mouse.
+      if (simulatorRuntime.thirdPerson) return;
       mouseDownRef.current = true;
       void engageSimulatorNavigation().then(() => syncEngagedState());
     };
@@ -191,7 +193,7 @@ export default function FirstPersonController({ onLockChange }: FirstPersonContr
     const onMouseMove = (event: MouseEvent) => {
       const canLook =
         isSimulatorPointerLocked() || (engagedRef.current && mouseDownRef.current);
-      if (!canLook) return;
+      if (!canLook || simulatorRuntime.thirdPerson) return;
 
       const cam = cameraRef.current;
       _euler.setFromQuaternion(cam.quaternion, "YXZ");
@@ -264,6 +266,8 @@ export default function FirstPersonController({ onLockChange }: FirstPersonContr
     // Un cuadro largo (tirón o celular lento) no debe hacer saltar la cámara: el
     // freno se vuelve inestable con pasos de más de un par de décimas.
     const delta = Math.min(frameDelta, 0.05);
+    // En tercera persona la cámara la maneja la vista de afuera (el fotógrafo queda quieto).
+    if (simulatorRuntime.thirdPerson) return;
     if (process.env.NODE_ENV === "development") {
       const now = performance.now();
       if (now - lastCameraLogMsRef.current > 5000) {
