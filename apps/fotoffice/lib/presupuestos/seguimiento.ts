@@ -26,7 +26,7 @@ import { ddmmaaaa, origenDe, textosFinales } from "./envio";
 import { diaEnBuenosAires, estadoEfectivo, hoyEnBuenosAires } from "./estados";
 import { asegurarPlantillaSeguimiento } from "./plantillas";
 import { sitioDelWorkspace } from "./sitio";
-import type { TotalesGuardados } from "./versiones";
+import { totalParaMensaje } from "./alternativas";
 
 /**
  * Seguimiento automático de presupuestos (etapa 2, Entrega B, spec §2 B.14). Lo corre una tarea
@@ -269,7 +269,8 @@ async function seguimientoDe(
   const textos = textosFinales(contexto, "EMAIL", { asunto: auto.subject ?? "", cuerpo: auto.body, templateId: auto.id }, {
     numero,
     enlace,
-    total: pesos((v.totals as TotalesGuardados | null)?.total ?? 0),
+    // Con opciones: «desde» la más barata.
+    total: totalParaMensaje(v.totals, pesos),
     vence: ddmmaaaa(p.validUntil),
   });
   if (!textos.ok) {

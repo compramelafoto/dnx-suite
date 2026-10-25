@@ -1,8 +1,9 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { aceptarPresupuestoAction, pedirPresupuestoNuevoAction } from "@/app/w/[workspaceSlug]/presupuesto/[token]/actions";
+import { pesos } from "@/lib/presupuestos/editor";
 import { importeDeOpcion, type OpcionPublica } from "@/lib/presupuestos/opciones-pago";
 import type { EstadoDeLaVista } from "@/lib/presupuestos/vista-publica";
 
@@ -10,7 +11,13 @@ import type { EstadoDeLaVista } from "@/lib/presupuestos/vista-publica";
  * Botones del enlace público: "Acepto" (nombre + tilde + forma de pago, por omisión la primera),
  * "Tengo dudas" (WhatsApp de la organización), "Descargar PDF" (vista para imprimir) y, si venció, "Pedir uno nuevo". Las
  * reglas (una sola aceptación, versión vigente, vencimiento) las vuelve a mirar el servidor.
+ *
+ * Con opciones (Básico, Premium…): «Elegir esta» en cada tarjeta lleva a `#elegir-<id>`, que elige
+ * esa opción acá y baja hasta el formulario. Las formas de pago son las de la opción elegida.
  */
+
+/** Una opción del presupuesto, lo justo para elegirla al aceptar. */
+export type AlternativaParaAceptar = { id: string; nombre: string; total: number; opciones: OpcionPublica[] };
 export function AccionesPublicas({
   slug,
   token,
@@ -19,6 +26,7 @@ export function AccionesPublicas({
   email,
   hrefImprimir,
   opciones = [],
+  alternativas = [],
 }: {
   slug: string;
   token: string;
@@ -28,12 +36,44 @@ export function AccionesPublicas({
   hrefImprimir: string;
   /** Opciones de pago congeladas en la versión (sin costos). */
   opciones?: OpcionPublica[];
+  /** Opciones del presupuesto para elegir ([] si no tiene). */
+  alternativas?: AlternativaParaAceptar[];
 }) {
   const router = useRouter();
   const [pendiente, iniciar] = useTransition();
   const [nombre, setNombre] = useState("");
   const [acepta, setAcepta] = useState(false);
-  const [opcion, setOpcion] = useState<string | null>(opciones[0]?.id ?? null);
+  // Con una sola opción del presupuesto, ya está elegida; con varias, la elige el cliente.
+  const [alternativa, setAlternativa] = useState<string | null>(alternativas.length === 1 ? alternativas[0]!.id : null);
+  const elegida = alternativas.find((a) => a.id === alternativa) ?? null;
+  const formasDePago = alternativas.length > 0 ? (elegida?.opciones ?? []) : opciones;
+  const [opcion, setOpcion] = useState<string | null>(formasDePago[0]?.id ?? null);
+  const formulario = useRef<HTMLFormElement>(null);
+
+  function elegirAlternativa(id: string) {
+    const a = alternativas.find((x) => x.id === id);
+    if (!a) return;
+    setAlternativa(id);
+    setOpcion(a.opciones[0]?.id ?? null);
+  }
+
+  // «Elegir esta» en una tarjeta: `#elegir-<id>`.
+  useEffect(() => {
+    if (alternativas.length === 0) return;
+    const leer = () => {
+      const m = /^#elegir-(.+)$/.exec(window.location.hash);
+      if (!m) return;
+      const id = decodeURIComponent(m[1]!);
+      const a = alternativas.find((x) => x.id === id);
+      if (!a) return;
+      setAlternativa(a.id);
+      setOpcion(a.opciones[0]?.id ?? null);
+      formulario.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    };
+    leer();
+    window.addEventListener("hashchange", leer);
+    return () => window.removeEventListener("hashchange", leer);
+  }, [alternativas]);
   const [error, setError] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
 
@@ -41,7 +81,7 @@ export function AccionesPublicas({
     e.preventDefault();
     setError(null);
     iniciar(async () => {
-      const r = await aceptarPresupuestoAction(slug, token, nombre, acepta, opcion).catch(() => ({ ok: false as const, error: "No pudimos registrar tu aceptación. Probá de nuevo." }));
+      const r = await aceptarPresupuestoAction(slug, token, nombre, acepta, opcion, alternativa).catch(() => ({ ok: false as const, error: "No pudimos registrar tu aceptación. Probá de nuevo." }));
       // Etapa B: si se creó el pedido, el cliente pasa a su enlace para pagar la seña.
       if (r.ok && r.pedidoUrl) window.location.assign(r.pedidoUrl);
       else if (r.ok) router.refresh();
@@ -71,8 +111,22 @@ export function AccionesPublicas({
   return (
     <div className="no-imprimir space-y-4">
       {estado === "ACTIVO" ? (
-        <form onSubmit={aceptar} className="fo-card space-y-3 p-4">
+        <form ref={formulario} onSubmit={aceptar} className="fo-card scroll-mt-4 space-y-3 p-4">
           <h2 className="text-base font-semibold">¿Te sirve? Aceptalo acá</h2>
+          {alternativas.length > 1 ? (
+            <fieldset className="space-y-2 text-sm">
+              <legend className="mb-1">¿Qué opción elegís?</legend>
+              {alternativas.map((a) => (
+                <label key={a.id} className="flex items-start gap-2">
+                  <input type="radio" name="alternativa" value={a.id} checked={alternativa === a.id} onChange={() => elegirAlternativa(a.id)} className="mt-1" />
+                  <span>
+                    <span className="font-medium">{a.nombre}</span>
+                    <span className="block tabular-nums opacity-75">{pesos(a.total)}</span>
+                  </span>
+                </label>
+              ))}
+            </fieldset>
+          ) : null}
           <label className="block space-y-1 text-sm">
             <span>Tu nombre y apellido</span>
             <input
@@ -85,10 +139,10 @@ export function AccionesPublicas({
               className="fo-input w-full"
             />
           </label>
-          {opciones.length > 0 ? (
+          {formasDePago.length > 0 ? (
             <fieldset className="space-y-2 text-sm">
-              <legend className="mb-1">¿Cómo vas a pagar?</legend>
-              {opciones.map((o) => (
+              <legend className="mb-1">¿Cómo vas a pagar?{elegida && alternativas.length > 1 ? ` (${elegida.nombre})` : ""}</legend>
+              {formasDePago.map((o) => (
                 <label key={o.id} className="flex items-start gap-2">
                   <input type="radio" name="opcion-pago" value={o.id} checked={opcion === o.id} onChange={() => setOpcion(o.id)} className="mt-1" />
                   <span>
@@ -104,8 +158,8 @@ export function AccionesPublicas({
             <input type="checkbox" checked={acepta} onChange={(e) => setAcepta(e.target.checked)} className="mt-1" />
             <span>Leí el presupuesto y acepto sus condiciones.</span>
           </label>
-          <button type="submit" className="fo-btn fo-btn-primary text-sm" disabled={pendiente || !acepta || nombre.trim().length < 2}>
-            {pendiente ? "Registrando…" : "Acepto"}
+          <button type="submit" className="fo-btn fo-btn-primary text-sm" disabled={pendiente || !acepta || nombre.trim().length < 2 || (alternativas.length > 0 && !elegida)}>
+            {pendiente ? "Registrando…" : alternativas.length > 0 && !elegida ? "Elegí una opción" : "Acepto"}
           </button>
         </form>
       ) : null}

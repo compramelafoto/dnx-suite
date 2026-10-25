@@ -7,7 +7,8 @@ import { EditorPresupuesto } from "@/components/presupuestos/editor-presupuesto"
 import { leerCatalogoFotolibro } from "@/lib/fotolibro/catalogo-precios";
 import { botEnPanel } from "@/lib/dnx-bot/panel";
 import { EnviarPresupuesto } from "@/components/presupuestos/enviar-presupuesto";
-import { VistaPresupuesto } from "@/components/presupuestos/vista-presupuesto";
+import { VistaPresupuesto, type AlternativaVista } from "@/components/presupuestos/vista-presupuesto";
+import { alternativaElegidaId, alternativasGuardadas, type CostosConAlternativas } from "@/lib/presupuestos/alternativas";
 import { claseDeEstado } from "@/lib/presupuestos/listado";
 import { puedeGestionarPresupuestos } from "@/lib/presupuestos/acceso";
 import { ETIQUETA_ESTADO } from "@/lib/presupuestos/constantes";
@@ -37,6 +38,20 @@ const fecha = (ymd: string | null) => (ymd ? ymd.split("-").reverse().join("/") 
  * `veCostos`, y `armarDatosEditor` sólo arma `internos` con ese permiso. Al navegador de quien no
  * lo tiene no le llega ningún costo.
  */
+/** Las opciones de la versión para la vista de sólo lectura (con su costo, si se ve). */
+function alternativasParaVista(totals: unknown, costos: CostosConAlternativas | null): AlternativaVista[] {
+  const elegida = alternativaElegidaId(totals);
+  return alternativasGuardadas(totals).map((a) => ({
+    id: a.id,
+    nombre: a.nombre,
+    descripcion: a.descripcion,
+    masElegida: a.masElegida,
+    elegida: a.id === elegida,
+    totales: a.totales,
+    costos: costos?.alternativas?.[a.id] ?? null,
+  }));
+}
+
 export default async function PresupuestoPage({ params }: { params: Promise<{ id: string }> }) {
   const { workspace, ctx } = await requirePresupuestos("ver");
   const { id } = await params;
@@ -95,6 +110,7 @@ export default async function PresupuestoPage({ params }: { params: Promise<{ id
   const titulo = detalle.numero ? `Presupuesto N° ${detalle.numero}` : "Presupuesto sin enviar";
   const ultima = detalle.versiones.at(-1)?.number ?? 1;
   // Las opciones de pago congeladas en la vigente enviada, y la que eligió el cliente.
+  // Con opciones y sin aceptar, las de la principal (cada opción tiene las suyas, sobre su total).
   const opcionesVigente = vigente?.sentAt ? opcionesPublicas(vigente.paymentOptions) : [];
   // Aceptado: "Confirmar pedido" (con "Gestionar" en Pedidos) o, si ya se confirmó, el enlace al
   // pedido (con "Ver" en Pedidos). Los niveles ya incluyen que el módulo `orders` esté encendido.
@@ -163,6 +179,7 @@ export default async function PresupuestoPage({ params }: { params: Promise<{ id
             condiciones={vigente.terms}
             propuestaPago={vigente.paymentProposal}
             costos={detalle.veCostos ? vigente.costos : null}
+            alternativas={alternativasParaVista(vigente.totals, detalle.veCostos ? vigente.costos : null)}
           />
         ) : (
           <p className="fo-card text-sm text-[var(--fo-muted)]">Este presupuesto todavía no tiene una versión para mostrar.</p>

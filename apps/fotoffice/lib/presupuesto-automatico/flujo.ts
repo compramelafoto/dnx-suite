@@ -11,6 +11,8 @@ import { asegurarPlantillasPresupuesto } from "@/lib/presupuestos/plantillas";
 import { armarBorradorParaAprobar, type DepsPropuestaAutomatica } from "@/lib/presupuestos/propuesta-automatica";
 import { leerPropuestaModelo, plantillaDePropuesta } from "@/lib/presupuestos/propuestas-modelo";
 import { itemsGuardados, type TotalesGuardados } from "@/lib/presupuestos/versiones";
+import type { ItemPresupuesto } from "@/lib/presupuestos/constantes";
+import { alternativaPrincipal, alternativasGuardadas, itemsDeAlternativa, type CostosConAlternativas } from "@/lib/presupuestos/alternativas";
 import { TIPO_CONSULTA } from "@/lib/service-leads/numero";
 import { editarMensaje, type TecladoTelegram } from "@/lib/telegram/api";
 import { avisarPorTelegram, type ResultadoAvisoTelegram } from "@/lib/telegram/conexion";
@@ -25,7 +27,7 @@ import {
   type ResultadoCorreo,
   type ResultadoWhatsapp,
 } from "./canales";
-import { armarResumen, type DatosResumen, type EstadoDelAviso, type PresupuestoDelResumen } from "./resumen";
+import { armarResumen, lineasDePrecio, type DatosResumen, type EstadoDelAviso, type PresupuestoDelResumen } from "./resumen";
 
 /**
  * El presupuesto automático con aprobación por Telegram (spec 2026-10-25 §2).
@@ -196,11 +198,29 @@ async function presupuestoDelResumen(workspaceId: string, presupuestoId: string)
   return resumenDeVersion(v);
 }
 
-/** PURO. De una versión guardada a lo que muestra el aviso. */
+/**
+ * PURO. De una versión guardada a lo que muestra el aviso. Con opciones (Básico, Premium…), además
+ * cada opción con su precio, su costo y su margen (`alternativas`); lo de arriba es la principal.
+ */
 export function resumenDeVersion(v: { items: unknown; totals: unknown; costSnapshot: unknown }): PresupuestoDelResumen {
   const items = itemsGuardados(v.items);
-  const totales = (v.totals as TotalesGuardados | null) ?? null;
-  const costos = (v.costSnapshot as CostosVersion | null) ?? null;
+  const alternativas = alternativasGuardadas(v.totals);
+  if (alternativas.length === 0) return resumenDeItems(items, v.totals, v.costSnapshot);
+  const costos = (v.costSnapshot as CostosConAlternativas | null) ?? null;
+  const renglones = (v.totals as TotalesGuardados | null)?.renglones ?? {};
+  const principal = alternativaPrincipal(alternativas)!;
+  const porOpcion = alternativas.map((a) => ({
+    nombre: a.nombre,
+    masElegida: a.masElegida,
+    ...resumenDeItems(itemsDeAlternativa(items, a.id), { ...a.totales, renglones }, costos?.alternativas?.[a.id] ?? null),
+  }));
+  const dePrincipal = porOpcion[alternativas.indexOf(principal)]!;
+  return { ...dePrincipal, alternativas: porOpcion };
+}
+
+function resumenDeItems(items: ItemPresupuesto[], totals: unknown, costSnapshot: unknown): PresupuestoDelResumen {
+  const totales = (totals as TotalesGuardados | null) ?? null;
+  const costos = (costSnapshot as CostosVersion | null) ?? null;
   const suman = items.filter((i) => !i.opcional).length;
   let horas = 0;
   let hayHoras = false;
@@ -412,6 +432,11 @@ export type PendienteDeAprobar = {
   status: string;
   errorCode: string | null;
   creada: Date;
+  /**
+   * Precio, costo y margen del presupuesto a aprobar: una línea por opción (o una sola). Sólo para
+   * los que esperan aprobación; la pantalla es de `configurar` (ve costos). [] si no hay.
+   */
+  precios: string[];
 };
 
 /** Las que esperan aprobación (o no se pudieron avisar). Vacío si falta la tabla. */
@@ -433,6 +458,16 @@ export async function pendientesDeAprobar(workspaceId: string): Promise<Pendient
     ]);
     const nombre = new Map(leads.map((l) => [l.id, l.name]));
     const cat = new Map(categorias.map((c) => [c.id, c.name]));
+    const aprobables = new Set<string>(ESTADOS_APROBABLES);
+    const precios = new Map<string, string[]>();
+    await Promise.all(
+      filas
+        .filter((f) => f.presupuestoId && aprobables.has(f.status))
+        .map(async (f) => {
+          const r = await presupuestoDelResumen(workspaceId, f.presupuestoId!).catch(() => null);
+          if (r) precios.set(f.id, lineasDePrecio(r));
+        }),
+    );
     return filas.map((f) => ({
       id: f.id,
       leadId: f.leadId,
@@ -443,6 +478,7 @@ export async function pendientesDeAprobar(workspaceId: string): Promise<Pendient
       status: f.status,
       errorCode: f.errorCode,
       creada: f.createdAt,
+      precios: precios.get(f.id) ?? [],
     }));
   } catch (e) {
     registrar("pendientesDeAprobar", e);

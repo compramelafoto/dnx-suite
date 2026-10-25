@@ -204,7 +204,12 @@ async function armarBorradorBase(
   const ajustes = await leerAjustes(workspaceId);
   const borrador = await normalizarBorrador(
     workspaceId,
-    { items: instanciada.items, condiciones: propuesta.condiciones ?? ajustes.condiciones, propuestaPago: ajustes.propuestaPago },
+    {
+      items: instanciada.items,
+      alternativas: propuesta.alternativas,
+      condiciones: propuesta.condiciones ?? ajustes.condiciones,
+      propuestaPago: ajustes.propuestaPago,
+    },
     new Map(),
     ahora,
   );

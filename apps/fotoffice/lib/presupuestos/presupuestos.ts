@@ -19,6 +19,7 @@ import { entradaGuardada, validarOpcionesPago } from "./opciones-pago";
 import { ENTIDAD_NUMERACION, esEstadoPresupuesto, type EstadoPresupuesto } from "./constantes";
 import { itemsDeLaPropuesta } from "./items-de-la-propuesta";
 import { firmaDelBorrador } from "./editor";
+import { alternativasGuardadas, definicionDe } from "./alternativas";
 import { leerPropuestaModelo } from "./propuestas-modelo";
 import { estadoEfectivo, ESTADOS_QUE_VENCEN, hoyEnBuenosAires, puedePasar, textoDeFecha, vencimientoDesde, vencio } from "./estados";
 import {
@@ -131,7 +132,12 @@ async function precargarConPropuesta(
     }
     const borrador = await normalizarBorrador(
       workspaceId,
-      { items: instanciada.items, condiciones: propuesta.condiciones ?? ajustes.condiciones, propuestaPago: ajustes.propuestaPago },
+      {
+        items: instanciada.items,
+        alternativas: propuesta.alternativas,
+        condiciones: propuesta.condiciones ?? ajustes.condiciones,
+        propuestaPago: ajustes.propuestaPago,
+      },
       new Map(),
       ahora,
     );
@@ -275,7 +281,7 @@ export async function guardarBorrador(
   if (p.status === "ACEPTADO") return { ok: false, error: MENSAJES_PRESUPUESTO.aceptado };
   const borrador = await prisma.fotofficePresupuestoVersion.findFirst({
     where: { workspaceId, presupuestoId, sentAt: null },
-    select: { id: true, items: true, paymentOptions: true },
+    select: { id: true, items: true, totals: true, paymentOptions: true },
   });
   if (!borrador) return { ok: false, error: MENSAJES_PRESUPUESTO.yaEnviado };
 
@@ -290,7 +296,13 @@ export async function guardarBorrador(
   // R4 (Task 4): sin `configurar`, el cálculo no se carga ni se cambia. Las entradas que lleguen
   // del navegador se ignoran y cada ítem de ¿Cuánto Cobro? se recalcula con la que ya estaba
   // guardada para ese renglón; uno nuevo, sin entrada guardada, no pasa.
-  const n = await normalizarBorrador(workspaceId, veCostos(ctx) ? entrada : sinEntradasDeCalculo(entrada), entradasGuardadas(borrador.items), ahora);
+  const n = await normalizarBorrador(
+    workspaceId,
+    veCostos(ctx) ? entrada : sinEntradasDeCalculo(entrada),
+    entradasGuardadas(borrador.items),
+    ahora,
+    alternativasGuardadas(borrador.totals).map(definicionDe),
+  );
   if (!n.ok) return n;
 
   try {
@@ -307,7 +319,13 @@ export async function guardarBorrador(
           select: { items: true, terms: true, paymentProposal: true, totals: true },
         });
         const firmaHoy = hoy
-          ? firmaDelBorrador(itemsGuardados(hoy.items), hoy.terms, hoy.paymentProposal, (hoy.totals as TotalesGuardados | null)?.descuento ?? null)
+          ? firmaDelBorrador(
+              itemsGuardados(hoy.items),
+              hoy.terms,
+              hoy.paymentProposal,
+              (hoy.totals as TotalesGuardados | null)?.descuento ?? null,
+              alternativasGuardadas(hoy.totals),
+            )
           : null;
         if (firmaHoy !== control.firma) return { ok: false, error: MENSAJES_PRESUPUESTO.cambioConEditorAbierto };
       }

@@ -32,6 +32,7 @@ import { condicionesDeCobro } from "./cobro";
 import { extrasDelWorkspace } from "./perfil-cobro";
 import { entradaGuardada } from "./opciones-pago";
 import { bloquearPresupuesto, congelarVersion, itemsGuardados, revocarAnteriores, type TotalesGuardados } from "./versiones";
+import { alternativasGuardadas, itemsDeAlternativa, MENSAJES_ALTERNATIVAS, totalParaMensaje } from "./alternativas";
 
 /**
  * Enviar un presupuesto (spec etapa 2 §2 A.4, A.8; Task 5).
@@ -310,25 +311,32 @@ async function enviarComo(
         select: { id: true, items: true, totals: true, paymentOptions: true },
       });
       if (borrador) {
-        if (itemsGuardados(borrador.items).length === 0) throw new Corte(MENSAJES_ENVIO_PRESUPUESTO.sinItems);
+        const itemsDelBorrador = itemsGuardados(borrador.items);
+        if (itemsDelBorrador.length === 0) throw new Corte(MENSAJES_ENVIO_PRESUPUESTO.sinItems);
+        // Con opciones, cada una tiene que tener algo que ofrecer.
+        const alternativas = alternativasGuardadas(borrador.totals);
+        const vacia = alternativas.find((a) => itemsDeAlternativa(itemsDelBorrador, a.id).length === 0);
+        if (vacia) throw new Corte(MENSAJES_ALTERNATIVAS.sinItems(vacia.nombre));
         const envio = datosDeEnvio(ahora, ajustes);
         const token = tokenDeVersion(borrador.id, clave);
         // Opciones de pago congeladas sobre el total de la versión: las del presupuesto o, si nunca
         // se tocaron, las de la organización; sin ninguna, la de omisión (con la fecha del evento).
         // Etapa B: condiciones de cobro del perfil (IVA, seña, descuento por transferencia, política de
         // cancelación), congeladas junto a las opciones; las opciones van sobre el total con IVA.
+        const entradaPago = entradaGuardada(borrador.paymentOptions) ?? ajustes.opcionesPago;
+        const congelarSobre = (totalSinIva: number) => {
+          const cobro = condicionesDeCobro(extras, totalSinIva);
+          return conCondicionesCobro(
+            opcionesParaPresupuesto({ paymentOptions: entradaPago }, cobro?.total ?? totalSinIva, fechaEvento, diaEnBuenosAires(ahora), ahora.toISOString()),
+            cobro,
+          );
+        };
         const totalSinIva = (borrador.totals as TotalesGuardados | null)?.total ?? 0;
-        const cobro = condicionesDeCobro(extras, totalSinIva);
-        const opciones = conCondicionesCobro(
-          opcionesParaPresupuesto(
-            { paymentOptions: entradaGuardada(borrador.paymentOptions) ?? ajustes.opcionesPago },
-            cobro?.total ?? totalSinIva,
-            fechaEvento,
-            diaEnBuenosAires(ahora),
-            ahora.toISOString(),
-          ),
-          cobro,
-        );
+        // Con opciones: además, las de cada una sobre SU total (al aceptar se fija la elegida).
+        const opciones =
+          alternativas.length > 0
+            ? { ...congelarSobre(totalSinIva), porAlternativa: Object.fromEntries(alternativas.map((a) => [a.id, congelarSobre(a.totales.total)])) }
+            : congelarSobre(totalSinIva);
         const congelada = await congelarVersion(tx, {
           workspaceId, versionId: borrador.id, ahora, tokenHash: hashDeToken(token), tokenExpiresAt: vencimientoDelToken(envio.validUntil),
           paymentOptions: opciones as unknown as Prisma.InputJsonValue,
@@ -378,7 +386,8 @@ async function enviarComo(
   const textos = textosFinales(contexto, canal, fuente, {
     numero,
     enlace,
-    total: pesos(hecho.totals?.total ?? 0),
+    // Con opciones: «desde» la más barata.
+    total: totalParaMensaje(hecho.totals, pesos),
     vence: ddmmaaaa(hecho.validUntil),
   });
 

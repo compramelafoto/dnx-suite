@@ -191,6 +191,13 @@ export default async function ConfiguracionTelegramPage() {
                     {fecha.format(p.creada)} · {p.origen === "WHATSAPP" ? "WhatsApp" : "Web"} · {ESTADOS[p.status] ?? p.status}
                     {p.errorCode === "SIN_CANAL" ? " · no dejó correo y no se le puede escribir por WhatsApp" : ""}
                   </p>
+                  {p.precios.length > 0 ? (
+                    <ul className="mt-1 space-y-0.5 text-xs tabular-nums text-[var(--fo-text)]">
+                      {p.precios.map((linea) => (
+                        <li key={linea}>{linea}</li>
+                      ))}
+                    </ul>
+                  ) : null}
                   <p className="mt-1 flex flex-wrap gap-3 text-xs">
                     {p.presupuestoId ? (
                       <Link href={`/presupuestos/${encodeURIComponent(p.presupuestoId)}`} className="text-[var(--fo-accent)] hover:underline">Ver o corregir el presupuesto</Link>

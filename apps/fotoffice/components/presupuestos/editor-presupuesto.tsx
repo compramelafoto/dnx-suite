@@ -18,7 +18,22 @@ import {
   pesos,
   type DatosEditor,
 } from "@/lib/presupuestos/editor";
-import { calcularTotales } from "@/lib/presupuestos/totales";
+import {
+  agregarAlternativa,
+  alternativaPrincipal,
+  copiarItemA,
+  costosConAlternativas,
+  marcarMasElegida,
+  MAX_ALTERNATIVAS,
+  MAX_DESCRIPCION_ALTERNATIVA,
+  MAX_NOMBRE_ALTERNATIVA,
+  moverAlternativa,
+  moverItemA,
+  quitarAlternativa,
+  totalesConAlternativas,
+  type Alternativa,
+} from "@/lib/presupuestos/alternativas";
+import { costosDeVersion } from "@/lib/presupuestos/costos";
 import { PreguntaleAlBot } from "@/components/dnx-bot/preguntale-al-bot";
 import { AsistenteCuantoCobro } from "./asistente-cuanto-cobro";
 import { BuscadorCatalogo } from "./buscador-catalogo";
@@ -36,6 +51,9 @@ import { opcionesVacias } from "@/lib/presupuestos/opciones-pago";
  *   ofrece y un ítem ya calculado se puede pasar a Lista pero no recalcular.
  * - Totales en vivo con la misma cuenta pura que usa el servidor (`calcularTotales`); costo y
  *   margen, sólo con `internos`.
+ * - Opciones (Básico, Intermedio, Premium…; `lib/presupuestos/alternativas.ts`): de 1 a 4, cada una
+ *   con sus ítems y su total. Se agregan, renombran, ordenan y borran; los ítems se mueven o copian
+ *   de una a otra. Se edita de a una (la pestaña activa).
  */
 
 const TEXTO_SIN_SECCION = "Sin sección";
@@ -117,6 +135,150 @@ function DescuentoCampos({ valor, onCambio, etiqueta }: { valor: Descuento | nul
   );
 }
 
+/** Pestañas de las opciones y los datos de la activa (nombre, descripción, «la más elegida»). */
+export function PanelAlternativas({
+  alternativas,
+  activa,
+  totales,
+  costos,
+  deshabilitado,
+  onActivar,
+  onCambiar,
+  onAgregar,
+  onQuitar,
+}: {
+  alternativas: Alternativa[];
+  activa: string | null;
+  /** Total de cada opción (clave = id). */
+  totales: Record<string, number>;
+  /** Costo y margen de cada opción, sólo con permiso de costos. */
+  costos?: Record<string, { costo?: number; costoTotal?: number; margen: number; margenProporcion: number | null }> | null;
+  deshabilitado: boolean;
+  onActivar: (id: string) => void;
+  onCambiar: (alternativas: Alternativa[]) => void;
+  onAgregar: () => void;
+  onQuitar: (id: string) => void;
+}) {
+  const id = useId();
+  const a = alternativas.find((x) => x.id === activa) ?? null;
+  if (alternativas.length === 0) {
+    return (
+      <section aria-label="Opciones del presupuesto" className="fo-card flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-[var(--fo-muted)]">
+          ¿Querés ofrecer varias opciones para que el cliente elija una (por ejemplo Básico, Intermedio y Premium)?
+        </p>
+        {deshabilitado ? null : (
+          <button type="button" className="fo-btn fo-btn-secondary text-sm" onClick={onAgregar}>
+            Ofrecer varias opciones
+          </button>
+        )}
+      </section>
+    );
+  }
+  const editar = (parche: Partial<Alternativa>) => {
+    if (a) onCambiar(alternativas.map((x) => (x.id === a.id ? { ...x, ...parche } : x)));
+  };
+  return (
+    <section aria-label="Opciones del presupuesto" className="fo-card space-y-3">
+      <div role="tablist" aria-label="Opciones" className="flex flex-wrap gap-2">
+        {alternativas.map((x) => {
+          const c = costos?.[x.id];
+          return (
+            <button
+              key={x.id}
+              type="button"
+              role="tab"
+              aria-selected={x.id === activa}
+              className={`rounded-[var(--fo-radius-sm)] border px-3 py-2 text-left text-sm ${x.id === activa ? "border-[var(--fo-accent)] font-semibold" : "border-[var(--fo-border)]"}`}
+              onClick={() => onActivar(x.id)}
+            >
+              <span className="block">
+                {x.nombre || "Sin nombre"}
+                {x.masElegida ? <span className="ml-1 text-xs font-normal text-[var(--fo-muted)]">· la más elegida</span> : null}
+              </span>
+              <span className="block text-xs font-normal tabular-nums text-[var(--fo-muted)]">
+                {pesos(totales[x.id] ?? 0)}
+                {c ? ` · margen ${pesos(c.margen)}${c.margenProporcion !== null ? ` (${Math.round(c.margenProporcion * 100)} %)` : ""}` : ""}
+              </span>
+            </button>
+          );
+        })}
+        {!deshabilitado && alternativas.length < MAX_ALTERNATIVAS ? (
+          <button type="button" className="fo-btn fo-btn-secondary text-sm" onClick={onAgregar}>
+            + Agregar opción
+          </button>
+        ) : null}
+      </div>
+      {a ? (
+        <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+          <div className="fo-field-stack">
+            <label htmlFor={`${id}-nombre`} className="fo-label">
+              Nombre de la opción
+            </label>
+            <input
+              id={`${id}-nombre`}
+              className="fo-input"
+              maxLength={MAX_NOMBRE_ALTERNATIVA}
+              value={a.nombre}
+              disabled={deshabilitado}
+              onChange={(e) => editar({ nombre: e.target.value })}
+              placeholder="Ej.: Básico"
+            />
+          </div>
+          <div className="fo-field-stack">
+            <label htmlFor={`${id}-desc`} className="fo-label">
+              Descripción corta (la ve el cliente)
+            </label>
+            <input
+              id={`${id}-desc`}
+              className="fo-input"
+              maxLength={MAX_DESCRIPCION_ALTERNATIVA}
+              value={a.descripcion ?? ""}
+              disabled={deshabilitado}
+              onChange={(e) => editar({ descripcion: e.target.value || null })}
+              placeholder="Ej.: Lo esencial para la fiesta"
+            />
+          </div>
+          {deshabilitado ? null : (
+            <div className="flex flex-wrap items-center gap-3 md:col-span-2">
+              <label className="flex items-center gap-1 text-sm">
+                <input type="checkbox" checked={a.masElegida} onChange={(e) => onCambiar(marcarMasElegida(alternativas, a.id, e.target.checked))} />
+                La más elegida
+              </label>
+              <button
+                type="button"
+                className="fo-btn fo-btn-ghost text-sm"
+                disabled={alternativas[0]?.id === a.id}
+                onClick={() => onCambiar(moverAlternativa(alternativas, a.id, -1))}
+              >
+                ← Antes
+              </button>
+              <button
+                type="button"
+                className="fo-btn fo-btn-ghost text-sm"
+                disabled={alternativas.at(-1)?.id === a.id}
+                onClick={() => onCambiar(moverAlternativa(alternativas, a.id, 1))}
+              >
+                Después →
+              </button>
+              <button
+                type="button"
+                className="fo-btn fo-btn-ghost text-sm text-[var(--fo-danger)]"
+                onClick={() => {
+                  const aviso = alternativas.length === 2 ? " Queda un presupuesto común con la otra." : "";
+                  if (window.confirm(`¿Borrar la opción «${a.nombre}» con sus ítems?${aviso}`)) onQuitar(a.id);
+                }}
+              >
+                Borrar esta opción
+              </button>
+            </div>
+          )}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 /**
  * Presupuestos guardados hace un momento. Después de guardar, la página se refresca y el editor se
  * vuelve a montar con lo que guardó el servidor (la clave es el `updatedAt`); esto sólo sirve para
@@ -141,6 +303,8 @@ export function EditorPresupuesto({
   const router = useRouter();
   const [pendiente, iniciar] = useTransition();
   const [items, setItems] = useState<ItemPresupuesto[]>(datos.items);
+  const [alternativas, setAlternativas] = useState<Alternativa[]>(datos.alternativas ?? []);
+  const [activa, setActiva] = useState<string | null>(() => alternativaPrincipal(datos.alternativas ?? [])?.id ?? null);
   const [descuento, setDescuento] = useState<Descuento | null>(datos.descuento);
   const [condiciones, setCondiciones] = useState(datos.condiciones ?? "");
   const [propuestaPago, setPropuestaPago] = useState(datos.propuestaPago ?? "");
@@ -167,10 +331,23 @@ export function EditorPresupuesto({
   const internos = datos.internos;
   const idBusqueda = useId();
 
-  const totales = calcularTotales(items, descuento);
-  const costos = internos ? costosEnVivo(items, totales, internos) : null;
+  // Con opciones, se ve y se edita la activa; los totales y el margen son los de esa opción.
+  const idActiva = alternativas.some((a) => a.id === activa) ? activa : (alternativas[0]?.id ?? null);
+  const nombreActiva = alternativas.find((a) => a.id === idActiva)?.nombre ?? "";
+  const visibles = idActiva ? items.filter((i) => i.alternativaId === idActiva) : items;
+  const conAlternativas = totalesConAlternativas(items, alternativas, descuento);
+  const deActiva = idActiva ? conAlternativas.alternativas.find((a) => a.id === idActiva) : undefined;
+  const totales = deActiva ? { ...deActiva.totales, renglones: conAlternativas.totales.renglones } : conAlternativas.totales;
+  const catalogoCostos = internos ? new Map(Object.entries(internos.costosCatalogo)) : null;
+  const costos = internos && catalogoCostos ? (idActiva ? costosDeVersion(visibles, totales, catalogoCostos) : costosEnVivo(items, totales, internos)) : null;
+  const costosPorAlternativa =
+    catalogoCostos && alternativas.length > 0
+      ? (costosConAlternativas(items, conAlternativas.totales, conAlternativas.alternativas, catalogoCostos).alternativas ?? null)
+      : null;
   const seccionActual = seccionNueva.trim() || null;
-  const opcionesSeccion = [...new Set<string | null>([null, ...secciones(items), seccionActual])];
+  const opcionesSeccion = [...new Set<string | null>([null, ...secciones(visibles), seccionActual])];
+  /** Lo nuevo va a la opción activa. */
+  const enActiva = (it: ItemPresupuesto): ItemPresupuesto => (idActiva ? { ...it, alternativaId: idActiva } : it);
 
   function cambiar(nuevos: ItemPresupuesto[]) {
     setItems(nuevos);
@@ -179,9 +356,12 @@ export function EditorPresupuesto({
   }
   const actualizar = (id: string, parche: Partial<ItemPresupuesto>) => cambiar(items.map((i) => (i.id === id ? { ...i, ...parche } : i)));
   function mover(id: string, paso: -1 | 1) {
+    // Con el vecino que se ve (con opciones, el de la misma opción).
+    const k = visibles.findIndex((x) => x.id === id);
+    const vecino = visibles[k + paso];
+    if (k < 0 || !vecino) return;
     const i = items.findIndex((x) => x.id === id);
-    const j = i + paso;
-    if (i < 0 || j < 0 || j >= items.length) return;
+    const j = items.findIndex((x) => x.id === vecino.id);
     const copia = [...items];
     [copia[i], copia[j]] = [copia[j]!, copia[i]!];
     cambiar(copia);
@@ -209,6 +389,7 @@ export function EditorPresupuesto({
         descuento,
         condiciones,
         propuestaPago,
+        alternativas,
         ...(datos.opcionesPago ? { opcionesPago } : {}),
         // No pisar un borrador que cambió mientras el editor estaba abierto (por ejemplo, DNX Bot).
         ...(datos.control ? { control: datos.control } : {}),
@@ -231,7 +412,7 @@ export function EditorPresupuesto({
       {puedeGuardar ? (
         <section aria-label="Agregar ítems" className="fo-card space-y-3">
           <div className="grid gap-3 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-            <BuscadorCatalogo id={idBusqueda} catalogo={datos.catalogo} onElegir={(p) => cambiar([...items, itemDesdeProducto(p, nuevaClave(), seccionActual)])} />
+            <BuscadorCatalogo id={idBusqueda} catalogo={datos.catalogo} onElegir={(p) => cambiar([...items, enActiva(itemDesdeProducto(p, nuevaClave(), seccionActual))])} />
             <div className="fo-field-stack">
               <label htmlFor={`${idBusqueda}-sec`} className="fo-label">
                 Sección para lo que agregues
@@ -240,7 +421,7 @@ export function EditorPresupuesto({
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            <button type="button" className="fo-btn fo-btn-secondary text-sm" onClick={() => cambiar([...items, itemLibre(nuevaClave(), seccionActual)])}>
+            <button type="button" className="fo-btn fo-btn-secondary text-sm" onClick={() => cambiar([...items, enActiva(itemLibre(nuevaClave(), seccionActual))])}>
               Ítem de texto libre
             </button>
             {fotolibro ? (
@@ -254,7 +435,7 @@ export function EditorPresupuesto({
                   type="button"
                   className="fo-btn fo-btn-secondary text-sm"
                   onClick={() => {
-                    const nuevo = { ...itemLibre(nuevaClave(), seccionActual), nombre: "" };
+                    const nuevo = enActiva({ ...itemLibre(nuevaClave(), seccionActual), nombre: "" });
                     setItems((xs) => [...xs, nuevo]);
                     setNuevoCalculado(nuevo.id);
                     setCalculando(nuevo.id);
@@ -285,8 +466,8 @@ export function EditorPresupuesto({
                 // Ítem de lista con nombre, detalle y precio de la calculadora: el servidor lo guarda tal cual.
                 cambiar([
                   ...items,
-                  { ...itemLibre(nuevaClave(), seccionActual), nombre: "Fotolibro", descripcion: f.libro.descripcion, precioUnitario: f.libro.precioMinor / 100 },
-                  ...(f.caja ? [{ ...itemLibre(nuevaClave(), seccionActual), nombre: "Caja para fotolibro", descripcion: f.caja.descripcion, precioUnitario: f.caja.precioMinor / 100 }] : []),
+                  enActiva({ ...itemLibre(nuevaClave(), seccionActual), nombre: "Fotolibro", descripcion: f.libro.descripcion, precioUnitario: f.libro.precioMinor / 100 }),
+                  ...(f.caja ? [enActiva({ ...itemLibre(nuevaClave(), seccionActual), nombre: "Caja para fotolibro", descripcion: f.caja.descripcion, precioUnitario: f.caja.precioMinor / 100 })] : []),
                 ]);
                 setCalculadoraFotolibro(false);
               }}
@@ -297,7 +478,7 @@ export function EditorPresupuesto({
               perfilDelWorkspace={datos.internos?.perfil ?? null}
               onCerrar={() => setAsistente(false)}
               onAgregar={(nuevos) => {
-                cambiar([...items, ...nuevos]);
+                cambiar([...items, ...nuevos.map(enActiva)]);
                 setAsistente(false);
               }}
             />
@@ -326,11 +507,41 @@ export function EditorPresupuesto({
         />
       ) : null}
 
+      <PanelAlternativas
+        alternativas={alternativas}
+        activa={idActiva}
+        totales={Object.fromEntries(conAlternativas.alternativas.map((a) => [a.id, a.totales.total]))}
+        costos={costosPorAlternativa}
+        deshabilitado={!puedeGuardar}
+        onActivar={setActiva}
+        onCambiar={(xs) => {
+          setAlternativas(xs);
+          setCambios(true);
+          setMensaje(null);
+        }}
+        onAgregar={() => {
+          const r = agregarAlternativa({ alternativas, items });
+          setAlternativas(r.alternativas);
+          cambiar(r.items);
+          if (r.nueva) setActiva(r.nueva);
+        }}
+        onQuitar={(id) => {
+          const r = quitarAlternativa({ alternativas, items }, id);
+          setAlternativas(r.alternativas);
+          cambiar(r.items);
+          setActiva(alternativaPrincipal(r.alternativas)?.id ?? null);
+        }}
+      />
+
       <section aria-label="Ítems" className="fo-card space-y-4 overflow-x-auto">
-        {items.length === 0 ? <p className="text-sm text-[var(--fo-muted)]">Todavía no hay ítems. Buscá en el catálogo o agregá uno de texto libre.</p> : null}
-        {items.length > 0
-          ? secciones(items).map((sec) => {
-              const deLaSeccion = items.filter((i) => i.seccion === sec);
+        {idActiva ? <h2 className="text-base font-semibold">Ítems de la opción {nombreActiva}</h2> : null}
+        {idActiva && visibles.length === 0 ? (
+          <p className="text-sm text-[var(--fo-muted)]">Esta opción todavía no tiene ítems. Buscá en el catálogo, agregá uno de texto libre o copiá uno de otra opción.</p>
+        ) : null}
+        {items.length === 0 && !idActiva ? <p className="text-sm text-[var(--fo-muted)]">Todavía no hay ítems. Buscá en el catálogo o agregá uno de texto libre.</p> : null}
+        {visibles.length > 0
+          ? secciones(visibles).map((sec) => {
+              const deLaSeccion = visibles.filter((i) => i.seccion === sec);
               const subtotal = totales.secciones.find((s) => s.seccion === sec);
               return (
                 <div key={sec ?? "__sin__"} className="space-y-2">
@@ -406,6 +617,50 @@ export function EditorPresupuesto({
                                     </option>
                                   ))}
                                 </select>
+                              ) : null}
+                              {puedeGuardar && alternativas.length > 1 ? (
+                                <div className="mt-1 flex flex-wrap gap-1">
+                                  <select
+                                    aria-label={`Mover ${etiquetaFila} a otra opción`}
+                                    className="fo-input text-xs"
+                                    value=""
+                                    onChange={(e) => {
+                                      if (e.target.value) cambiar(moverItemA(items, it.id, e.target.value));
+                                    }}
+                                  >
+                                    <option value="">Mover a…</option>
+                                    {alternativas
+                                      .filter((a) => a.id !== idActiva)
+                                      .map((a) => (
+                                        <option key={a.id} value={a.id}>
+                                          {a.nombre || "Sin nombre"}
+                                        </option>
+                                      ))}
+                                  </select>
+                                  {/* Uno calculado, sólo con costos: sin eso su cálculo no llega al navegador y la copia no se podría guardar. */}
+                                  {!calculado || internos ? (
+                                    <select
+                                      aria-label={`Copiar ${etiquetaFila} a otra opción`}
+                                      className="fo-input text-xs"
+                                      value=""
+                                      onChange={(e) => {
+                                        if (!e.target.value) return;
+                                        const clave = nuevaClave();
+                                        cambiar(copiarItemA(items, it.id, e.target.value, clave));
+                                        if (ajustados.has(it.id)) marcarAjuste(clave, true);
+                                      }}
+                                    >
+                                      <option value="">Copiar a…</option>
+                                      {alternativas
+                                        .filter((a) => a.id !== idActiva)
+                                        .map((a) => (
+                                          <option key={a.id} value={a.id}>
+                                            {a.nombre || "Sin nombre"}
+                                          </option>
+                                        ))}
+                                    </select>
+                                  ) : null}
+                                </div>
                               ) : null}
                             </td>
                             <td className="py-2 pr-2">
@@ -522,7 +777,10 @@ export function EditorPresupuesto({
               <span className="tabular-nums">−{pesos(totales.descuentoGlobal)}</span>
             )}
           </div>
-          <div className="flex justify-between gap-2 border-t border-[var(--fo-border)] pt-2 text-base font-semibold"><span>Total</span><span className="tabular-nums">{pesos(totales.total)}</span></div>
+          <div className="flex justify-between gap-2 border-t border-[var(--fo-border)] pt-2 text-base font-semibold">
+            <span>{idActiva ? `Total de ${nombreActiva || "la opción"}` : "Total"}</span>
+            <span className="tabular-nums">{pesos(totales.total)}</span>
+          </div>
           {totales.opcionales.cantidad > 0 ? (
             <div className="flex justify-between gap-2 text-[var(--fo-muted)]">
               <span>Opcionales ({totales.opcionales.cantidad}, aparte)</span>

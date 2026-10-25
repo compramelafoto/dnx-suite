@@ -1,5 +1,5 @@
 import "server-only";
-import { prisma } from "@repo/db";
+import { prisma, type Prisma } from "@repo/db";
 import { ganarConsultaPorSistema, notificarEvento, reabrirComoGanadaPorSistema } from "@/lib/circuitos/eventos";
 import { OPCIONES_TRANSACCION } from "@/lib/circuitos/recorridos";
 import { numeroDe } from "@/lib/numeracion/asignar";
@@ -12,6 +12,7 @@ import { opcionElegida } from "./opciones-pago";
 import { pasarEstado } from "./presupuestos";
 import { buscarEnlace } from "./publico";
 import { bloquearPresupuesto, type TotalesGuardados } from "./versiones";
+import { alternativaAceptada, fijarAlternativa, pagoDeAlternativa } from "./alternativas";
 import { leerAjustesCobro } from "@/lib/cobro-ajustes/ajustes";
 import { puedeCobrarConMercadoPago } from "@/lib/payments/connect/collector";
 import { confirmarPedidoPorSistema } from "@/lib/pedidos/confirmar";
@@ -28,6 +29,10 @@ import { enlaceDelPedidoDelSistema } from "@/lib/pedidos/enlace";
  * - Evidencia en la versión: fecha, nombre, IP con hash y navegador.
  * - La forma de pago elegida (etapa 3) se guarda en la MISMA escritura condicional, validada contra
  *   la instantánea congelada de esa versión: sin elección, la primera; un id que no está, error.
+ * - Presupuesto con opciones (spec 2026-10-25): el cliente elige UNA (`datos.alternativa`). La forma
+ *   de pago se valida contra las de ESA opción y, en la misma escritura, totales, opciones de pago y
+ *   costos de la versión pasan a ser los de la elegida (`fijarAlternativa`): la seña y el pedido salen
+ *   de ahí. Sin opciones, todo como antes.
  * - El presupuesto pasa a ACEPTADO con la versión aceptada y "Pedido por confirmar".
  * - Después (fuera de la transacción, sin poder romper la aceptación): el motor recibe
  *   `PRESUPUESTO_ACEPTADO` (la consulta avanza según las reglas de su circuito); después la
@@ -86,7 +91,7 @@ async function autoPedidoEncendido(workspaceId: string): Promise<boolean> {
 export async function aceptarPresupuesto(
   workspaceId: string,
   token: unknown,
-  datos: { nombre: unknown; acepta: unknown; opcion?: unknown },
+  datos: { nombre: unknown; acepta: unknown; opcion?: unknown; alternativa?: unknown },
   evidencia: { ipHash: string | null; userAgent: string | null },
   deps: DepsAceptacion = {},
 ): Promise<ResultadoAceptacion> {
@@ -109,7 +114,7 @@ export async function aceptarPresupuesto(
       await bloquearPresupuesto(tx, v0.presupuestoId);
       const v = await tx.fotofficePresupuestoVersion.findFirst({
         where: { id: v0.id, workspaceId },
-        select: { sentAt: true, revokedAt: true, tokenExpiresAt: true, acceptedAt: true, totals: true, paymentOptions: true },
+        select: { sentAt: true, revokedAt: true, tokenExpiresAt: true, acceptedAt: true, totals: true, paymentOptions: true, costSnapshot: true },
       });
       const p = await tx.fotofficePresupuesto.findFirst({
         where: { id: v0.presupuestoId, workspaceId },
@@ -123,8 +128,13 @@ export async function aceptarPresupuesto(
       if (efectivo === "ACEPTADO") throw new Corte(MENSAJES_ACEPTACION.yaAceptado);
       if (efectivo === "VENCIDO") throw new Corte(MENSAJES_ACEPTACION.vencido);
       if (efectivo === "RECHAZADO" || efectivo === "BORRADOR") throw new Corte(MENSAJES_ACEPTACION.rechazado);
-      const opcion = opcionElegida(v.paymentOptions, datos.opcion, { mercadoPago });
+      const alternativa = alternativaAceptada(v.totals, datos.alternativa);
+      if (!alternativa.ok) throw new Corte(alternativa.error);
+      const pago = alternativa.valor ? pagoDeAlternativa(v.paymentOptions, alternativa.valor) : v.paymentOptions;
+      const opcion = opcionElegida(pago, datos.opcion, { mercadoPago });
       if (!opcion.ok) throw new Corte(opcion.error);
+      const fijada = alternativa.valor ? fijarAlternativa(v, alternativa.valor) : null;
+      if (alternativa.valor && !fijada) throw new Corte(MENSAJES_ACEPTACION.fallo);
 
       // Una sola vez por versión: si otra aceptación ganó la carrera, esta no escribe nada.
       const r = await tx.fotofficePresupuestoVersion.updateMany({
@@ -132,6 +142,13 @@ export async function aceptarPresupuesto(
         data: {
           acceptedAt: ahora, acceptedName: nombre, acceptedIpHash: evidencia.ipHash, acceptedUserAgent: evidencia.userAgent,
           chosenPaymentOptionId: opcion.valor,
+          ...(fijada
+            ? {
+                totals: fijada.totals as Prisma.InputJsonValue,
+                ...(fijada.paymentOptions != null ? { paymentOptions: fijada.paymentOptions as Prisma.InputJsonValue } : {}),
+                ...(fijada.costSnapshot != null ? { costSnapshot: fijada.costSnapshot as Prisma.InputJsonValue } : {}),
+              }
+            : {}),
         },
       });
       if (r.count !== 1) throw new Corte(MENSAJES_ACEPTACION.yaAceptado);
@@ -140,7 +157,8 @@ export async function aceptarPresupuesto(
         datos: { acceptedVersionId: v0.id, pedidoPorConfirmar: true, updatedAt: ahora },
       });
       if (!estado.ok) throw new Corte(MENSAJES_ACEPTACION.yaAceptado);
-      return { leadId: p.consultaLeadId, ownerUserId: p.ownerUserId, total: (v.totals as TotalesGuardados | null)?.total ?? 0 };
+      const totales = (fijada ? fijada.totals : v.totals) as TotalesGuardados | null;
+      return { leadId: p.consultaLeadId, ownerUserId: p.ownerUserId, total: totales?.total ?? 0 };
     }, OPCIONES_TRANSACCION);
   } catch (e) {
     if (e instanceof Corte) return { ok: false, error: e.mensaje };

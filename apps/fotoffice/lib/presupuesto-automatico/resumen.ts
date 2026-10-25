@@ -20,6 +20,11 @@ export type PresupuestoDelResumen = {
   /** Horas de trabajo de los conceptos calculados con ¿Cuánto Cobro? (null si no hay). */
   horas: number | null;
   itemsSinCosto: number;
+  /**
+   * Presupuesto con opciones (Básico, Premium…): cada una con su precio, costo y margen. Lo de
+   * arriba es la principal. Sin opciones, no está.
+   */
+  alternativas?: (Omit<PresupuestoDelResumen, "alternativas"> & { nombre: string; masElegida: boolean })[];
 };
 
 export type DatosResumen = {
@@ -84,6 +89,39 @@ function urlValida(u: string | null): u is string {
   return typeof u === "string" && /^https?:\/\/[^\s]+$/.test(u) && !/\/\/(localhost|127\.0\.0\.1)/.test(u);
 }
 
+/** Ítems, precio, costo, horas y margen (de un presupuesto común o de una de sus opciones). */
+function lineasDelPresupuesto(l: string[], p: Omit<PresupuestoDelResumen, "alternativas">, maxItems: number, separar = false): void {
+  const suman = p.items.filter((i) => !i.opcional);
+  for (const i of suman.slice(0, maxItems)) {
+    l.push(`• ${i.cantidad !== 1 ? `${i.cantidad} × ` : ""}${e(i.nombre)} — ${pesos(i.neto)}`);
+  }
+  if (suman.length > maxItems) l.push(`• … y ${suman.length - maxItems} más`);
+  const opcionales = p.items.filter((i) => i.opcional);
+  if (opcionales.length > 0) l.push(`<i>Opcionales: ${opcionales.map((i) => `${e(i.nombre)} (${pesos(i.neto)})`).join(", ")}</i>`);
+  if (separar) l.push("");
+  l.push(`💰 <b>Precio: ${pesos(p.total)}</b>`);
+  const como: string[] = [];
+  if (p.costo !== null) como.push(`costo ${pesos(p.costo)}`);
+  if (p.horas !== null && p.horas > 0) como.push(horasDe(p.horas));
+  if (p.margen !== null) como.push(`margen ${pesos(p.margen)}${p.margenProporcion !== null ? ` (${porcentaje(p.margenProporcion)})` : ""}`);
+  if (como.length > 0) l.push(`📊 Cómo se calculó: ${como.join(" · ")}`);
+  if (p.itemsSinCosto > 0) l.push(`<i>${p.itemsSinCosto === 1 ? "Un renglón no tiene" : `${p.itemsSinCosto} renglones no tienen`} costo cargado: el margen real puede ser menor.</i>`);
+}
+
+/** Una línea por opción (o una sola): precio, costo y margen. Para la vista «Esperando aprobación». */
+export function lineasDePrecio(p: PresupuestoDelResumen): string[] {
+  const linea = (nombre: string | null, x: Omit<PresupuestoDelResumen, "alternativas">) =>
+    [
+      `${nombre ? `${nombre}: ` : ""}${pesos(x.total)}`,
+      x.costo !== null ? `costo ${pesos(x.costo)}` : null,
+      x.margen !== null ? `margen ${pesos(x.margen)}${x.margenProporcion !== null ? ` (${porcentaje(x.margenProporcion)})` : ""}` : null,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+  if (p.alternativas && p.alternativas.length > 0) return p.alternativas.map((a) => linea(a.nombre, a));
+  return [linea(null, p)];
+}
+
 export function armarResumen(d: DatosResumen, estado: EstadoDelAviso = { tipo: "PENDIENTE" }): { html: string; teclado: TecladoTelegram | null } {
   const l: string[] = [];
   const titulo = d.origen === "WHATSAPP" ? "Consulta nueva por WhatsApp" : "Consulta nueva desde la web";
@@ -109,23 +147,17 @@ export function armarResumen(d: DatosResumen, estado: EstadoDelAviso = { tipo: "
         ? "⚠️ <b>No se pudo armar el presupuesto solo</b> (revisá la propuesta modelo de esta categoría: algún producto inactivo o un concepto sin precio)."
         : "⚠️ <b>Esta categoría no tiene propuesta modelo</b>, así que no armé presupuesto. Abrí la consulta y respondé a mano, o cargá la propuesta en Configuración → Presupuestos → Propuestas.",
     );
+  } else if (p.alternativas && p.alternativas.length > 0) {
+    // Con opciones: cada una con lo que incluye, su precio, su costo y su margen.
+    l.push(`<b>${p.alternativas.length} opciones para que elija</b>`);
+    for (const a of p.alternativas) {
+      l.push("");
+      l.push(`🔹 <b>${e(a.nombre)}</b>${a.masElegida ? " ⭐ la más elegida" : ""}`);
+      lineasDelPresupuesto(l, a, Math.ceil(MAX_ITEMS / 2));
+    }
   } else {
     l.push("<b>Qué incluye</b>");
-    const suman = p.items.filter((i) => !i.opcional);
-    for (const i of suman.slice(0, MAX_ITEMS)) {
-      l.push(`• ${i.cantidad !== 1 ? `${i.cantidad} × ` : ""}${e(i.nombre)} — ${pesos(i.neto)}`);
-    }
-    if (suman.length > MAX_ITEMS) l.push(`• … y ${suman.length - MAX_ITEMS} más`);
-    const opcionales = p.items.filter((i) => i.opcional);
-    if (opcionales.length > 0) l.push(`<i>Opcionales: ${opcionales.map((i) => `${e(i.nombre)} (${pesos(i.neto)})`).join(", ")}</i>`);
-    l.push("");
-    l.push(`💰 <b>Precio: ${pesos(p.total)}</b>`);
-    const como: string[] = [];
-    if (p.costo !== null) como.push(`costo ${pesos(p.costo)}`);
-    if (p.horas !== null && p.horas > 0) como.push(horasDe(p.horas));
-    if (p.margen !== null) como.push(`margen ${pesos(p.margen)}${p.margenProporcion !== null ? ` (${porcentaje(p.margenProporcion)})` : ""}`);
-    if (como.length > 0) l.push(`📊 Cómo se calculó: ${como.join(" · ")}`);
-    if (p.itemsSinCosto > 0) l.push(`<i>${p.itemsSinCosto === 1 ? "Un renglón no tiene" : `${p.itemsSinCosto} renglones no tienen`} costo cargado: el margen real puede ser menor.</i>`);
+    lineasDelPresupuesto(l, p, MAX_ITEMS, true);
   }
 
   if (estado.tipo === "ENVIADO") {
