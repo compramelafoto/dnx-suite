@@ -19,6 +19,8 @@ import { DIGITALIZACION_MODULE_KEY } from "@/lib/digitalizacion/constants";
 import { SALES_MODULE_KEY } from "@/lib/sales/constants";
 import { STORE_MODULE_KEY } from "@/lib/store/constants";
 import { GOVERNANCE_MODULE_KEY } from "@/lib/governance/constants";
+import { CUANTO_COBRO_SOCIO_MODULE_KEY } from "@/lib/cuanto-cobro-socio/constants";
+import { FOTOLIBROS_SOCIO_MODULE_KEY } from "@/lib/fotolibro/constantes";
 import {
   FAMILY_LABELS,
   MODULE_REGISTRY,
@@ -43,7 +45,7 @@ describe("MODULE_REGISTRY", () => {
     }
   });
 
-  it("los módulos AVAILABLE hoy son exactamente courses-sales, evaluaciones, website, reservas, coberturas, members, membership-dues, sorteos, sponsors, portfolios, caja, clientes, captación, ventas, comunicación, tienda online, proyectos de la comisión, presupuestos, pedidos, proyectos, agenda, contratos, informes, digitalización, galería y pedidos de impresión", () => {
+  it("los módulos AVAILABLE hoy son exactamente courses-sales, evaluaciones, website, reservas, coberturas, members, membership-dues, sorteos, sponsors, portfolios, caja, clientes, captación, ventas, comunicación, tienda online, proyectos de la comisión, ¿Cuánto Cobro? para socios, fotolibros para socios, presupuestos, pedidos, proyectos, agenda, contratos, informes, digitalización, galería y pedidos de impresión", () => {
     expect(listAvailableModuleKeys().sort()).toEqual(
       [
         COURSES_SALES_MODULE_KEY,
@@ -64,6 +66,8 @@ describe("MODULE_REGISTRY", () => {
         DIGITALIZACION_MODULE_KEY,
         STORE_MODULE_KEY,
         GOVERNANCE_MODULE_KEY,
+        CUANTO_COBRO_SOCIO_MODULE_KEY,
+        FOTOLIBROS_SOCIO_MODULE_KEY,
         "quotes",
         "orders",
         "projects",

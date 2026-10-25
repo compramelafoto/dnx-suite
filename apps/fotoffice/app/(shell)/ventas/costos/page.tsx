@@ -7,6 +7,8 @@ import { leerTramosWorkspace, listarFilasCosto, sugerenciasUnionProveedores } fr
 import { TablaCostos } from "./tabla-costos";
 import { RedondeoForm } from "./redondeo-form";
 import { UnionProveedores } from "./union-proveedores";
+import { AjustesFotolibro } from "./ajustes-fotolibro";
+import { leerAjustesFotolibro, leerCatalogoFotolibro } from "@/lib/fotolibro/catalogo-precios";
 
 export const dynamic = "force-dynamic";
 
@@ -26,13 +28,18 @@ export default async function CostosPage({
   const proveedorId = sp.proveedorId?.trim() || undefined;
   const soloSinCosto = sp.sinCosto === "1";
 
-  const [filas, categorias, proveedores, tramos, sugerencias] = await Promise.all([
+  const [filas, categorias, proveedores, tramos, sugerencias, ajustesFotolibro, catalogoFotolibro] = await Promise.all([
     listarFilasCosto(workspace.id, { categoryId, proveedorId, soloSinCosto }),
     listProductCategories(workspace.id),
     listarProveedores(workspace.id, { soloActivos: true }),
     leerTramosWorkspace(workspace.id),
     sugerenciasUnionProveedores(workspace.id),
+    leerAjustesFotolibro(workspace.id),
+    leerCatalogoFotolibro(workspace.id, { conCostos: true }),
   ]);
+  const medidasFotolibro = [...new Set((catalogoFotolibro?.ofertas ?? []).flatMap((o) => o.hojas.map((h) => h.medida)))].sort(
+    (a, b) => a.localeCompare(b, "es", { numeric: true }),
+  );
   const opcionesProveedor = proveedores.map((p) => ({ id: p.id, name: p.name }));
 
   return (
@@ -98,6 +105,8 @@ export default async function CostosPage({
       </form>
 
       <TablaCostos filasIniciales={filas} proveedores={opcionesProveedor} />
+
+      <AjustesFotolibro marginPct={ajustesFotolibro.marginPct} configurado={ajustesFotolibro.fotosPorHoja} medidas={medidasFotolibro} />
 
       <RedondeoForm tramos={tramos} />
     </div>

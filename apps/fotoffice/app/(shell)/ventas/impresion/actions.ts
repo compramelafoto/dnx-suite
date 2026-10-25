@@ -25,6 +25,7 @@ import {
   type CtxImpresion,
 } from "@/lib/impresion/preparaciones";
 import type { RegistroDeHoja } from "@/lib/impresion/impresion-multiple";
+import { enviarFotoCarnetPorMail, marcarArchivoEntregado } from "@/lib/impresion/archivo-carnet";
 
 export async function guardarEscalaAction(formData: FormData): Promise<void> {
   const { workspace } = await requireSalesAdmin();
@@ -41,8 +42,9 @@ export async function guardarProduccionAction(formData: FormData): Promise<void>
   const datos: ProduccionVista | null = activo
     ? {
         tipoPieza: String(formData.get("tipoPieza")) as ProduccionVista["tipoPieza"],
-        salidaId: String(formData.get("salidaId")),
-        tamanoHojaId: String(formData.get("tamanoHojaId")),
+        // El archivo digital no manda impresora ni hoja (el formulario las oculta).
+        salidaId: formData.get("salidaId") ? String(formData.get("salidaId")) : null,
+        tamanoHojaId: formData.get("tamanoHojaId") ? String(formData.get("tamanoHojaId")) : null,
         unidad: String(formData.get("unidad")) as ProduccionVista["unidad"],
       }
     : null;
@@ -81,6 +83,21 @@ export async function confirmarOriginalAction(originalId: string) {
 export async function guardarPiezaCarnetAction(preparacionId: string, d: { originalId: string; anchoMm: number; altoMm: number; receta: unknown }) {
   const ctx = await ctxImpresion();
   return guardarPiezaCarnet(ctx, preparacionId, d);
+}
+
+/** Producto "Archivo digital": guarda la foto encuadrada y la da por entregada (no pasa por la impresora). */
+export async function prepararArchivoCarnetAction(preparacionId: string, d: { originalId: string; anchoMm: number; altoMm: number; receta: unknown }) {
+  const ctx = await ctxImpresion();
+  const r = await guardarPiezaCarnet(ctx, preparacionId, d);
+  if (r.ok) await marcarArchivoEntregado(ctx, preparacionId);
+  revalidatePath("/ventas/impresiones");
+  return r;
+}
+
+/** Le manda al cliente la foto carnet ya armada (sola, sin plancha) como adjunto. */
+export async function enviarFotoCarnetPorMailAction(preparacionId: string, email: string) {
+  const ctx = await ctxImpresion();
+  return enviarFotoCarnetPorMail(ctx, preparacionId, email);
 }
 
 export async function generarHojaCarnetAction(

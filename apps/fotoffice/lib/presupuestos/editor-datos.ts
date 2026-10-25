@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@repo/db";
+import { NO_ES_INSUMO } from "@/lib/sales/vendible";
 import type { CuantoCobroProfileInput } from "@repo/cuanto-cobro-core";
 import { leerPerfilPrecios } from "@/lib/precios/perfil";
 import { resumenCombo } from "@/lib/catalogo/reglas";
@@ -21,7 +22,7 @@ const aPesos = (minor: number): number => minor / 100;
 /** Productos activos del workspace para el buscador: precio, si está en lista y, si es combo, el ahorro. */
 export async function catalogoParaEditor(workspaceId: string): Promise<ProductoParaEditor[]> {
   const productos = await prisma.product.findMany({
-    where: { workspaceId, isActive: true },
+    where: { workspaceId, isActive: true, ...NO_ES_INSUMO },
     orderBy: [{ name: "asc" }, { id: "asc" }],
     select: { id: true, name: true, description: true, priceArs: true },
     take: TOPE_CATALOGO,

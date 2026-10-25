@@ -1,7 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { FOTORANK_MP_FEE_ESTIMATE, computeClf, computeFotoffice, computeFotorank, computeSubilafoto, monthKeysSince } from "./compute";
+import {
+  FOTORANK_MP_FEE_ESTIMATE,
+  computeClf,
+  computeFotoffice,
+  computeFotorank,
+  computeSubilafoto,
+  digitalizacionWithheldArs,
+  monthKeysSince,
+  pendingFeeDebtByWorkspace,
+} from "./compute";
 
 const D = (s: string) => new Date(`${s}T15:00:00Z`);
 
@@ -68,4 +77,43 @@ test("FotoRank: comisión de DNX menos la comisión estimada de Mercado Pago sob
     netArs: Math.round((1500 - mp) * 100) / 100,
     operationsCount: 1,
   });
+});
+
+test("FOTOFFICE: el saldo pendiente se suma por negocio, con piso 0 en cada uno", () => {
+  const r = pendingFeeDebtByWorkspace([
+    { workspaceId: "a", amountArs: 1000 },
+    { workspaceId: "a", amountArs: -200 },
+    // b quedó a favor: no tapa la deuda de a.
+    { workspaceId: "b", amountArs: 300 },
+    { workspaceId: "b", amountArs: -900 },
+    { workspaceId: "c", amountArs: 50.5 },
+  ]);
+  assert.equal(r, 850.5);
+  assert.equal(pendingFeeDebtByWorkspace([]), 0);
+  assert.equal(pendingFeeDebtByWorkspace([{ workspaceId: "a", amountArs: -10 }]), 0);
+});
+
+const nota = (retenido: string, propio: string, deuda: string) =>
+  `Comisión 5 % retenida por Mercado Pago · pedido 2026-0012 · recibo R-0003 · ${retenido} pesos (${propio} pesos de este cobro y ${deuda} pesos de deuda)`;
+
+test("Digitalización: cuenta todo lo retenido cuando la nota cierra con el libro", () => {
+  assert.equal(digitalizacionWithheldArs({ amountArs: -1500, note: nota("2.500", "1.000", "1.500") }), 2500);
+  // Retenido 0 de deuda: sólo la comisión propia.
+  assert.equal(digitalizacionWithheldArs({ amountArs: 0, note: nota("1.234,56", "1.234,56", "0") }), 1234.56);
+  // La deuda alcanzaba menos de lo previsto: lo retenido igual entró entero.
+  assert.equal(digitalizacionWithheldArs({ amountArs: -200, note: nota("1.000", "500", "200") }), 1000);
+  // Sin tasa en la nota.
+  const sinTasa = "Comisión retenida por Mercado Pago · pedido 7 · recibo R-1 · 1.050 pesos (1.000 pesos de este cobro y 50 pesos de deuda)";
+  assert.equal(digitalizacionWithheldArs({ amountArs: -50, note: sinTasa }), 1050);
+});
+
+test("Digitalización: si la nota no se lee o no cierra, cuenta sólo la deuda cobrada", () => {
+  assert.equal(digitalizacionWithheldArs({ amountArs: -1500, note: null }), 1500);
+  assert.equal(digitalizacionWithheldArs({ amountArs: -1500, note: "otra cosa" }), 1500);
+  // La deuda de la nota no coincide con el asiento.
+  assert.equal(digitalizacionWithheldArs({ amountArs: -1400, note: nota("2.500", "1.000", "1.500") }), 1400);
+  // Propio + deuda pasa lo retenido.
+  assert.equal(digitalizacionWithheldArs({ amountArs: -1500, note: nota("2.000", "1.000", "1.500") }), 1500);
+  // Número mal formado.
+  assert.equal(digitalizacionWithheldArs({ amountArs: 0, note: nota("1,2,3", "1", "0") }), 0);
 });

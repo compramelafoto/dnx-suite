@@ -12,6 +12,9 @@ import { toggleProductActiveAction } from "../../actions";
 import { StoreSections } from "./store-sections";
 import { ProduccionSection } from "./produccion-section";
 import { asegurarConfiguracion, leerProduccion, listarSalidas } from "@/lib/impresion/configuracion";
+import { RecetaSection } from "./receta-section";
+import { leerReceta, listarInsumosParaReceta } from "@/lib/stock/receta-servidor";
+import { piezasPorHojaSugeridas } from "@/lib/stock/receta";
 import { PresupuestoSections } from "./presupuesto-sections";
 import { leerPerfil, rubrosDeIngreso } from "@/lib/catalogo/perfil";
 import { sugerirRubro } from "@/lib/rubros/rubros";
@@ -46,6 +49,18 @@ export default async function ProductoPage({
 
   await asegurarConfiguracion(workspace.id);
   const [produccion, salidasImpresion] = await Promise.all([leerProduccion(workspace.id, producto.id), listarSalidas(workspace.id)]);
+
+  // Receta de consumo: un insumo no lleva receta. La sugerencia sólo aparece si el producto se produce en el local.
+  const receta =
+    producto.kind !== "INSUMO"
+      ? await Promise.all([leerReceta(workspace.id, producto.id), listarInsumosParaReceta(workspace.id)])
+      : null;
+  const tamanoHoja = produccion
+    ? salidasImpresion.flatMap((s) => s.tamanos).find((t) => t.id === produccion.tamanoHojaId)?.nombre ?? ""
+    : "";
+  const piezasSugeridas = produccion
+    ? piezasPorHojaSugeridas({ tipoPieza: produccion.tipoPieza, unidad: produccion.unidad, tamanoHoja })
+    : 1;
 
   // Etapa 2: combo, costos-plantilla y datos para presupuestos, SÓLO con el módulo Presupuestos
   // encendido (si no, la ficha queda como antes y ni se leen). Esta ficha ya exige
@@ -107,6 +122,15 @@ export default async function ProductoPage({
 
       <ProduccionSection productId={producto.id} produccion={produccion} salidas={salidasImpresion} />
 
+      {receta ? (
+        <RecetaSection
+          productId={producto.id}
+          receta={receta[0].map(({ insumoId, quantity, porCada }) => ({ insumoId, quantity, porCada }))}
+          insumos={receta[1]}
+          sugerencia={produccion ? { pideCuantasPorHoja: produccion.unidad === "PIEZA", piezasPorHoja: piezasSugeridas } : null}
+        />
+      ) : null}
+
       {etapa2 ? (
         <PresupuestoSections
           productId={producto.id}
@@ -123,7 +147,10 @@ export default async function ProductoPage({
         />
       ) : null}
 
-      <StoreSections product={producto} publicSlug={publicSlug} storeEnabled={storeEnabled} />
+      {/* Un insumo no se vende: no se ofrece publicarlo en la tienda. */}
+      {producto.kind !== "INSUMO" ? (
+        <StoreSections product={producto} publicSlug={publicSlug} storeEnabled={storeEnabled} />
+      ) : null}
     </div>
   );
 }

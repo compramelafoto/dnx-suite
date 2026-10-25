@@ -1,5 +1,6 @@
 import type { TemplateVariableDefinition } from "../../variables/types";
-import { CLASS_LIST_SAMPLE, CLASS_LIST_VARIABLE_KEY, serializeClassList } from "./class-list";
+import { CLASS_LIST_SAMPLE_GROUPS, CLASS_LIST_VARIABLE_KEY, serializeClassListGroups } from "./class-list";
+import { COURSE_MOSAIC_SAMPLE, COURSE_MOSAIC_VARIABLE_KEY, serializeCourseMosaic } from "./course-mosaic";
 
 /** Cuántos huecos de "foto del cliente" ofrece el catálogo: `photo_1` … `photo_12`. */
 export const SCHOOL_CLIENT_PHOTO_SLOT_COUNT = 12;
@@ -232,9 +233,23 @@ export const SCHOOL_TEMPLATE_VARIABLE_DEFINITIONS: TemplateVariableDefinition[] 
     description: "Todos los alumnos del curso, para el bloque «Listado del curso».",
     valueType: "text",
     required: false,
-    example: serializeClassList(CLASS_LIST_SAMPLE),
+    example: serializeClassListGroups(CLASS_LIST_SAMPLE_GROUPS),
     formatters: ["none"],
     // No es un texto para insertar: es una lista que sólo sabe dibujar su propio bloque.
+    usableIn: ["LIST"],
+    defaultFallback: null,
+    group: "course",
+    groupLabel: "Curso",
+  },
+  {
+    path: COURSE_MOSAIC_VARIABLE_KEY,
+    label: "Curso - Mosaico de compañeros",
+    description: "Los compañeros del alumno con su retrato, para el bloque «Mosaico del curso».",
+    valueType: "text",
+    required: false,
+    example: serializeCourseMosaic(COURSE_MOSAIC_SAMPLE),
+    formatters: ["none"],
+    // Como el listado: es una lista que sólo sabe dibujar su propio bloque.
     usableIn: ["LIST"],
     defaultFallback: null,
     group: "course",

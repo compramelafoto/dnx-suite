@@ -105,3 +105,26 @@ describe("editorADocumento — tipografía de Clickatón", () => {
     assert.deepEqual(avisos, []);
   });
 });
+
+/**
+ * El reencuadre de una foto en su marco tiene que llegar al papel: si se pierde en el puente,
+ * la pantalla muestra la cara y el PDF la corta.
+ */
+describe("editorADocumento — encuadre de la foto en el marco", () => {
+  function imagen(configJson: Record<string, unknown>): EditorBlock {
+    return { ...photoBlock(configJson), id: "b-img", type: "IMAGE" };
+  }
+
+  it("pasa el encuadre y la proporción de la foto original", () => {
+    const img = primeraImagen([
+      imagen({ src: "https://x/foto.jpg", fit: "cover", crop: { zoom: 2, x: -0.5, y: 0 }, srcWidth: 4000, srcHeight: 2000 }),
+    ]);
+    assert.deepEqual(img?.crop, { zoom: 2, x: -0.5, y: 0 });
+    assert.equal(img?.sourceAspect, 2);
+  });
+
+  it("no inventa encuadre cuando la foto está centrada o entra entera", () => {
+    assert.equal(primeraImagen([imagen({ src: "https://x/a.jpg", fit: "cover", crop: { zoom: 1, x: 0, y: 0 } })])?.crop, undefined);
+    assert.equal(primeraImagen([imagen({ src: "https://x/a.jpg", fit: "contain", crop: { zoom: 2, x: 0, y: 0 } })])?.crop, undefined);
+  });
+});

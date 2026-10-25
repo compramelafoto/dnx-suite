@@ -1,15 +1,20 @@
 import "server-only";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+import QRCode from "qrcode";
 import { prisma } from "@/lib/prisma";
+import { ensureFulfillmentQrTokenForPreCompraOrderItem } from "@/lib/school-fulfillment/ensure-fulfillment-qr-token";
+import { baseAppUrl, urlDeEntregaEscolar } from "@/lib/school-fulfillment/entrega-url";
 import { readFromR2 } from "@/lib/r2-client";
 import { urlToR2Key } from "@/lib/r2-public-url";
 import { parseDesignV2Data } from "./design-data";
 import type { DesignActor } from "./projects";
 import {
   datosDelLibrito,
+  geometriaDeEtiqueta,
   nombreDeArchivo,
   nombreDelProximoLote,
   ordenDeImpresion,
+  type LibritoConJpg,
   type LibritoEnProduccion,
 } from "./produccion-reglas";
 
@@ -22,10 +27,17 @@ import {
 
 export type LibritoParaProducir = LibritoEnProduccion & {
   pdfKey: string | null;
+  /** Un JPG por cara, generados al aprobar con el mismo dibujo que el PDF. */
+  jpgKeys: string[];
+  templateVersionId: string | null;
   printBatchName: string | null;
   sentToPrintAt: Date | null;
   printedAt: Date | null;
   deliveredAt: Date | null;
+  /** Ítem de la preventa al que corresponde; null si el pack se pagó por fuera (solo `albumOrderId`). */
+  preCompraItemId: number | null;
+  /** Código del QR de entrega (`/escolar/entrega/[token]`); null si todavía no tiene o no hay ítem. */
+  qrToken: string | null;
 };
 
 export class ProduccionError extends Error {
@@ -61,6 +73,8 @@ export async function cargarLibritos(
       sentToPrintAt: true,
       printedAt: true,
       deliveredAt: true,
+      orderItemId: true,
+      orderItem: { select: { fulfillmentQrToken: true } },
       currentRevision: { select: { dataJson: true } },
     },
     take: 2000,
@@ -71,13 +85,34 @@ export async function cargarLibritos(
     return {
       ...datosDelLibrito(r.id, data?.values),
       pdfKey: pdfUrl ? urlToR2Key(pdfUrl) : null,
+      jpgKeys: (data?.export?.jpgUrls ?? []).map((u) => urlToR2Key(u)),
+      templateVersionId: data?.templateV2VersionId || null,
       printBatchName: r.printBatchName,
       sentToPrintAt: r.sentToPrintAt,
       printedAt: r.printedAt,
       deliveredAt: r.deliveredAt,
+      preCompraItemId: r.orderItemId,
+      qrToken: r.orderItem?.fulfillmentQrToken || null,
     };
   });
   return ordenDeImpresion(libros);
+}
+
+/**
+ * Les da su código de entrega a los librititos de la preventa que todavía no lo tienen (se guarda en
+ * el ítem, así el QR es siempre el mismo). Los que no vienen de la preventa quedan sin QR.
+ */
+export async function conCodigoDeEntrega(libros: LibritoParaProducir[]): Promise<LibritoParaProducir[]> {
+  const salida: LibritoParaProducir[] = [];
+  for (const l of libros) {
+    if (l.qrToken || l.preCompraItemId == null) {
+      salida.push(l);
+      continue;
+    }
+    const { token } = await ensureFulfillmentQrTokenForPreCompraOrderItem(prisma, l.preCompraItemId);
+    salida.push({ ...l, qrToken: token });
+  }
+  return salida;
 }
 
 /** Manda a imprimir: los agrupa en un lote nuevo con nombre «Lote N · fecha». */
@@ -161,11 +196,30 @@ export async function listarLotes(actor: DesignActor): Promise<ResumenDeLote[]> 
   return [...porLote.values()].sort((a, b) => (b.enviadoAt?.getTime() ?? 0) - (a.enviadoAt?.getTime() ?? 0));
 }
 
-/** Los archivos del ZIP, en orden de impresión. */
+/**
+ * Los archivos del ZIP, en orden de impresión. El número es el lugar en la lista completa, igual
+ * que en el resumen y las etiquetas: si falta uno, los demás no se corren.
+ */
 export function archivosDelLote(libros: LibritoParaProducir[]) {
-  return libros
-    .filter((l) => l.pdfKey)
-    .map((l, i, todos) => ({ libro: l, nombre: nombreDeArchivo(i + 1, l, todos.length), r2Key: l.pdfKey! }));
+  return libros.flatMap((l, i) =>
+    l.pdfKey ? [{ libro: l, nombre: nombreDeArchivo(i + 1, l, libros.length), r2Key: l.pdfKey }] : [],
+  );
+}
+
+/** Los librititos con las etiquetas de sus caras («Exterior (contratapa + tapa)», «Interior»). */
+export async function conEtiquetasDeCaras(libros: LibritoParaProducir[]): Promise<LibritoConJpg[]> {
+  const ids = [...new Set(libros.map((l) => l.templateVersionId).filter((v): v is string => !!v))];
+  const versiones = ids.length
+    ? await prisma.templateV2Version.findMany({ where: { id: { in: ids } }, select: { id: true, metaJson: true } })
+    : [];
+  const porVersion = new Map(versiones.map((v) => [v.id, etiquetasDeCaras(v.metaJson)]));
+  return libros.map((l) => ({ ...l, etiquetas: (l.templateVersionId && porVersion.get(l.templateVersionId)) || null }));
+}
+
+/** `metaJson.pageLabels` de una versión de plantilla, o null si no tiene. */
+export function etiquetasDeCaras(metaJson: unknown): string[] | null {
+  const meta = metaJson && typeof metaJson === "object" ? (metaJson as { pageLabels?: unknown }) : {};
+  return Array.isArray(meta.pageLabels) ? meta.pageLabels.map((x) => (typeof x === "string" ? x : "")) : null;
 }
 
 /** Todos los librititos en un único PDF, uno detrás del otro, para mandar a la imprenta. */
@@ -201,18 +255,24 @@ export async function resumenDelLote(nombre: string, libros: LibritoParaProducir
   y -= 22;
   page.drawText(`${libros.length} libritos`, { x: 40, y, size: 10, font, color: rgb(0.35, 0.35, 0.35) });
   y -= 24;
+  const ancho = Math.max(3, String(libros.length).length);
   libros.forEach((l, i) => {
     if (y < 50) {
       page = doc.addPage([595, 842]);
       y = 800;
     }
-    page.drawText(`${String(i + 1).padStart(3, "0")}   ${limpio(l.curso)}   ${limpio(l.alumno)}`, { x: 40, y, size: 10, font });
+    // Mismo número y mismo id que en los nombres de los archivos del ZIP.
+    const linea = `${String(i + 1).padStart(ancho, "0")}   ${limpio(l.curso)}   ${limpio(l.alumno)}   (diseno ${l.id})`;
+    page.drawText(linea, { x: 40, y, size: 10, font });
     y -= 15;
   });
   return doc.save();
 }
 
-/** Etiquetas para los sobres: A4, 3 columnas × 8 filas, alumno grande y curso/colegio abajo. */
+/**
+ * Etiquetas para los sobres: A4, 3 columnas × 8 filas, alumno grande y curso/colegio abajo. Si el
+ * librito tiene código de entrega, lleva el QR (~2 cm) a la derecha, que abre la ficha de entrega.
+ */
 export async function etiquetas(libros: LibritoParaProducir[]): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
   const font = await doc.embedFont(StandardFonts.Helvetica);
@@ -223,12 +283,19 @@ export async function etiquetas(libros: LibritoParaProducir[]): Promise<Uint8Arr
   const margen = 20;
   const ancho = (595 - margen * 2) / cols;
   const alto = (842 - margen * 2) / filas;
+  const baseUrl = baseAppUrl();
+  /** Achica la letra hasta que entre; si ni en 6 pt entra, lo corta con «...» para no pisar el QR. */
   const ajustar = (texto: string, f: typeof font, tam: number, max: number) => {
     let size = tam;
     while (size > 6 && f.widthOfTextAtSize(texto, size) > max) size -= 0.5;
-    return size;
+    let t = texto;
+    if (f.widthOfTextAtSize(t, size) > max) {
+      while (t.length > 0 && f.widthOfTextAtSize(`${t}...`, size) > max) t = t.slice(0, -1);
+      t = `${t.trimEnd()}...`;
+    }
+    return { t, size };
   };
-  libros.forEach((l, i) => {
+  for (const [i, l] of libros.entries()) {
     const enHoja = i % (cols * filas);
     if (enHoja === 0) doc.addPage([595, 842]);
     const page = doc.getPages()[doc.getPageCount() - 1]!;
@@ -236,18 +303,25 @@ export async function etiquetas(libros: LibritoParaProducir[]): Promise<Uint8Arr
     const f = Math.floor(enHoja / cols);
     const x = margen + c * ancho;
     const yTop = 842 - margen - f * alto;
-    page.drawRectangle({ x: x + 3, y: yTop - alto + 3, width: ancho - 6, height: alto - 6, borderColor: rgb(0.8, 0.8, 0.8), borderWidth: 0.5 });
-    const alumno = limpio(l.alumno) || `Diseno ${l.id}`;
-    const s1 = ajustar(alumno, bold, 13, ancho - 20);
-    page.drawText(alumno, { x: x + 10, y: yTop - 30, size: s1, font: bold });
+    const yBase = yTop - alto;
+    const g = geometriaDeEtiqueta(ancho, alto, Boolean(l.qrToken));
+    page.drawRectangle({ x: x + 3, y: yBase + 3, width: ancho - 6, height: alto - 6, borderColor: rgb(0.8, 0.8, 0.8), borderWidth: 0.5 });
+    const linea = (texto: string, f: typeof font, tam: number, y: number, color?: ReturnType<typeof rgb>) => {
+      const a = ajustar(texto, f, tam, g.textoMax);
+      page.drawText(a.t, { x: x + g.textoX, y, size: a.size, font: f, color });
+    };
+    linea(limpio(l.alumno) || `Diseno ${l.id}`, bold, 13, yTop - 30);
     const curso = limpio(l.curso);
-    if (curso) page.drawText(curso, { x: x + 10, y: yTop - 48, size: ajustar(curso, font, 11, ancho - 20), font });
+    if (curso) linea(curso, font, 11, yTop - 48);
     const colegio = limpio(l.colegio);
-    if (colegio) {
-      page.drawText(colegio, { x: x + 10, y: yTop - 64, size: ajustar(colegio, font, 9, ancho - 20), font, color: rgb(0.35, 0.35, 0.35) });
+    if (colegio) linea(colegio, font, 9, yTop - 64, rgb(0.35, 0.35, 0.35));
+    page.drawText(`#${l.id}`, { x: x + g.id.x, y: yBase + g.id.y, size: 7, font, color: rgb(0.55, 0.55, 0.55) });
+    if (g.qr && l.qrToken) {
+      const png = await QRCode.toBuffer(urlDeEntregaEscolar(baseUrl, l.qrToken), { type: "png", width: 240, margin: 1 });
+      const qr = await doc.embedPng(png);
+      page.drawImage(qr, { x: x + g.qr.x, y: yBase + g.qr.y, width: g.qr.lado, height: g.qr.lado });
     }
-    page.drawText(`#${l.id}`, { x: x + ancho - 40, y: yTop - alto + 12, size: 7, font, color: rgb(0.55, 0.55, 0.55) });
-  });
+  }
   if (doc.getPageCount() === 0) doc.addPage([595, 842]);
   return doc.save();
 }

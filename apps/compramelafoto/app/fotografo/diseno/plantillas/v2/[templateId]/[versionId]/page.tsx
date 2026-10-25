@@ -1,14 +1,14 @@
-import { TemplateEditorShell, TEMPLATE_V2_BASE_PATHS } from "@repo/template-editor-ui";
+import EditorDePlantilla from "./EditorDePlantilla";
 
 type Props = {
   params: Promise<{ templateId: string; versionId: string }>;
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 };
 
-export default async function TemplateV2EditorPage({ params }: Props) {
+export default async function TemplateV2EditorPage({ params, searchParams }: Props) {
   const { templateId, versionId } = await params;
-  return <TemplateEditorShell
-      templateId={templateId}
-      versionId={versionId}
-      basePath={TEMPLATE_V2_BASE_PATHS.compramelafoto}
-    />;
+  const { diseno } = await searchParams;
+  // `?diseno=<id>`: se abrió desde la revisión para retocar el armado de un solo diseño.
+  const disenoId = typeof diseno === "string" && /^\d+$/.test(diseno) ? Number(diseno) : null;
+  return <EditorDePlantilla templateId={templateId} versionId={versionId} disenoId={disenoId} />;
 }

@@ -1,7 +1,10 @@
 import "server-only";
 import type { Prisma } from "@repo/db";
+import { decimalArsToMinor } from "@/lib/membership/money";
 import { mensajeCandado, saldoPedidoMinor } from "./candado-saldo-puro";
-import { bloquearPedido } from "./plan";
+import { saldoSinCargosMinor } from "./cargos-puro";
+import { imputadoPorCuota } from "./estado";
+import { bloquearPedido, planesDe } from "./plan";
 
 type Tx = Prisma.TransactionClient;
 
@@ -32,7 +35,9 @@ export async function exigirPedidoPagado(
   if (pedidoId === null) return null;
 
   await bloquearPedido(tx, pedidoId);
-  const pedido = await saldoDelPedido(tx, workspaceId, pedidoId);
+  // Los extras opcionales sin pagar (descargas, extensión o envío de Digitalización) no frenan la
+  // entrega del trabajo: el cliente ya pagó lo que contrató.
+  const pedido = await saldoSinExtrasOpcionales(tx, workspaceId, pedidoId);
   return pedido && pedido.saldoMinor > 0 ? mensajeCandado(pedido.numero, pedido.saldoMinor) : null;
 }
 
@@ -58,5 +63,30 @@ export async function saldoDelPedido(db: Tx, workspaceId: string, pedidoId: stri
       cobradoArs: Number(cobros._sum.amountArs ?? 0),
       status: pedido.status,
     }),
+  };
+}
+
+/**
+ * El saldo del pedido sin los cargos extra OPCIONALES de Digitalización (descarga extra, extensión,
+ * envío de cassettes), en cualquier estado del cargo: un extra pedido y no pagado (o cuyo cobro se
+ * anuló) no traba ni los videos ya pagados ni la entrega del trabajo. A cada cuota de cargo se le
+ * resta lo que le falta, con tope en el monto del cargo (`saldoSinCargosMinor`): lo que la cuota haya
+ * absorbido de más (un plan editado a mano) sigue contando. Lo usan la página de videos, la descarga
+ * contada, el correo «Tus videos están listos» y el candado de los trabajos (motor y ficha).
+ */
+export async function saldoSinExtrasOpcionales(db: Tx, workspaceId: string, pedidoId: string): Promise<{ numero: string; saldoMinor: number } | null> {
+  const saldo = await saldoDelPedido(db, workspaceId, pedidoId);
+  if (!saldo || saldo.saldoMinor === 0) return saldo;
+  const cargos = await db.digitalizacionCargo.findMany({ where: { workspaceId, pedidoId }, select: { cuotaId: true, montoArs: true } });
+  if (cargos.length === 0) return saldo;
+  const plan = (await planesDe(workspaceId, [pedidoId], db)).get(pedidoId) ?? { cuotas: [], imputaciones: [] };
+  const imputado = imputadoPorCuota(plan.imputaciones);
+  const cuotas = new Map(plan.cuotas.map((c) => [c.id, Math.round(c.amountArs * 100)]));
+  return {
+    numero: saldo.numero,
+    saldoMinor: saldoSinCargosMinor(
+      saldo.saldoMinor,
+      cargos.map((c) => ({ montoMinor: decimalArsToMinor(c.montoArs), cuotaMinor: cuotas.get(c.cuotaId) ?? null, imputadoMinor: imputado.get(c.cuotaId) ?? 0 })),
+    ),
   };
 }

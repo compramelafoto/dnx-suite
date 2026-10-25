@@ -28,3 +28,11 @@ test("sólo el nombre completo: los formatos partidos usan su respaldo", () => {
   assert.equal(v["student.firstName"], undefined);
   assert.equal(v["student.lastNameFirst"], undefined);
 });
+
+test("los compañeros del mosaico se guardan en course.mosaic", () => {
+  const a = { firstName: "Ana", lastName: "Gómez", photoId: 7 };
+  const b = { firstName: "Bruno", lastName: "Díaz", photoUrl: "https://r2.example/b.jpg" };
+  assert.equal(buildDesignValues({ courseMosaic: [a, b] })["course.mosaic"], JSON.stringify([a, b]));
+  assert.equal("course.mosaic" in buildDesignValues({ courseMosaic: [] }), false);
+  assert.equal("course.mosaic" in buildDesignValues({ courseMosaic: null }), false);
+});

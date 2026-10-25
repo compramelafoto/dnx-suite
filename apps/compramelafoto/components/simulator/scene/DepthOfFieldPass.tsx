@@ -1,8 +1,11 @@
 "use client";
 
+import { WEATHER_LOOKS, weatherStore } from "@/lib/simulator/weather";
+import { AsyncPixelReader } from "./async-readback";
 import {
   DOF_FRAGMENT_SHADER,
   DOF_VERTEX_SHADER,
+  dofRadiusScale,
 } from "@/lib/simulator/dof-shaders";
 import {
   clampRendererExposure,
@@ -10,16 +13,20 @@ import {
   SCENE_RENDER_CALIBRATION,
   shouldApplyWhiteBalanceToRender,
 } from "@/lib/simulator/camera-exposure";
-import { applyToneMappingToRenderer, usesPhotographicPipeline } from "@/lib/simulator/render";
-import {
-  DOF_BACK_FALLOFF,
-  DOF_BLUR_STRENGTH,
-  DOF_FRONT_FALLOFF,
-  DOF_SKIP_APERTURE,
-  DOF_TRANSITION_SOFTNESS,
-  calculateDepthOfFieldLimits,
-} from "@/lib/simulator/depth-of-field";
+import { applyToneMappingToRenderer } from "@/lib/simulator/render";
+import { calculateSceneMaxBlurPx } from "@/lib/simulator/depth-of-field";
 import { getActiveSensor } from "@/lib/simulator/sensor";
+import { isoNoiseFactor } from "@/lib/simulator/sensor-noise";
+import { canvasSensorHeightMm, computeViewfinderInsets } from "@/lib/simulator/viewfinder-frame";
+import { readAllModes, smoothReadings, type MeterReadings } from "@/lib/simulator/metering";
+import { AO_FRAGMENT_SHADER, AO_RADIUS_M, AO_STRENGTH } from "@/lib/simulator/ao-shader";
+import {
+  METER_DOWNSAMPLE_FRAGMENT_SHADER,
+  METER_GRID_HEIGHT,
+  METER_GRID_WIDTH,
+  METER_INTERVAL_MS,
+  decodeMeterByte,
+} from "@/lib/simulator/meter-shader";
 import { simulatorRuntime } from "@/lib/simulator/simulator-runtime";
 import {
   registerSimulatorFrameRenderer,
@@ -30,11 +37,9 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 
-const MAX_BLUR_PX = 16;
-
 /**
  * Renderiza la escena con DOF por distancia (plano de enfoque).
- * CoC fotográfico + mezcla gradual nítido/desenfocado.
+ * Disco de desenfoque físico en px: f/1.4 desenfoca el doble que f/2.8.
  */
 export default function DepthOfFieldPass() {
   const { gl, scene, camera, size } = useThree();
@@ -53,21 +58,17 @@ export default function DepthOfFieldPass() {
         focusDistance: { value: 6.5 },
         aperture: { value: 2.8 },
         focalLength: { value: 50 },
-        cameraNear: { value: 0.15 },
-        cameraFar: { value: 90 },
+        sensorHeightMm: { value: getActiveSensor().heightMm },
         cameraInverseProjection: { value: new THREE.Matrix4() },
         resolution: { value: new THREE.Vector2(1, 1) },
-        maxBlurPx: { value: MAX_BLUR_PX },
-        nearLimit: { value: 4 },
-        farLimit: { value: 12 },
-        farLimitFinite: { value: 1 },
-        cocMm: { value: getActiveSensor().circleOfConfusionMm },
-        blurStrength: { value: DOF_BLUR_STRENGTH },
-        transitionSoftness: { value: DOF_TRANSITION_SOFTNESS },
-        frontFalloff: { value: DOF_FRONT_FALLOFF },
-        backFalloff: { value: DOF_BACK_FALLOFF },
+        maxBlurPx: { value: 0 },
+        radScale: { value: 0.5 },
         exposureGain: { value: 1 },
         wbTint: { value: new THREE.Vector3(1, 1, 1) },
+        isoNoise: { value: 0 },
+        noiseSeed: { value: 0 },
+        tAO: { value: null as THREE.Texture | null },
+        aoStrength: { value: 0 },
       },
     });
   }, []);
@@ -78,18 +79,68 @@ export default function DepthOfFieldPass() {
     return mesh;
   }, [dofMaterial]);
 
+  // Sombras de contacto (SSAO) a media resolución.
+  const ao = useMemo(() => {
+    const target = new THREE.WebGLRenderTarget(1, 1, { depthBuffer: false });
+    const material = new THREE.ShaderMaterial({
+      vertexShader: DOF_VERTEX_SHADER,
+      fragmentShader: AO_FRAGMENT_SHADER,
+      uniforms: {
+        tDepth: { value: null as THREE.Texture | null },
+        cameraProjection: { value: new THREE.Matrix4() },
+        cameraInverseProjection: { value: new THREE.Matrix4() },
+        resolution: { value: new THREE.Vector2(1, 1) },
+        radius: { value: AO_RADIUS_M },
+      },
+    });
+    const aoScene = new THREE.Scene();
+    aoScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), material));
+    return { target, material, scene: aoScene };
+  }, []);
+
+  // Fotómetro: el recuadro reducido a una grilla de luminancia que se lee de la GPU.
+  const meter = useMemo(() => {
+    const target = new THREE.WebGLRenderTarget(METER_GRID_WIDTH, METER_GRID_HEIGHT, {
+      type: THREE.FloatType,
+      minFilter: THREE.NearestFilter,
+      magFilter: THREE.NearestFilter,
+      depthBuffer: false,
+    });
+    const material = new THREE.ShaderMaterial({
+      vertexShader: DOF_VERTEX_SHADER,
+      fragmentShader: METER_DOWNSAMPLE_FRAGMENT_SHADER,
+      uniforms: {
+        tColor: { value: null as THREE.Texture | null },
+        cropMin: { value: new THREE.Vector2(0, 0) },
+        cropSize: { value: new THREE.Vector2(1, 1) },
+        gridSize: { value: new THREE.Vector2(METER_GRID_WIDTH, METER_GRID_HEIGHT) },
+        logEncode: { value: 0 },
+      },
+    });
+    const meterScene = new THREE.Scene();
+    meterScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), material));
+    return {
+      target,
+      material,
+      scene: meterScene,
+      pixels: new Float32Array(METER_GRID_WIDTH * METER_GRID_HEIGHT * 4),
+      /** Modo de un byte por celda (celulares sin render en punto flotante). */
+      bytes: null as Uint8Array | null,
+      luminance: new Float32Array(METER_GRID_WIDTH * METER_GRID_HEIGHT),
+      lastMs: 0,
+      /** Última lectura recibida (para el suavizado). */
+      lastReadMs: 0,
+      reader: null as AsyncPixelReader | null,
+      readings: null as MeterReadings | null,
+      failed: false,
+    };
+  }, []);
+
   const renderFrame: SimulatorFrameRenderer = useMemo(
     () => (renderer, sceneRef, cameraRef) => {
       const exposureGain = resolveActiveExposureGain();
       const toneExposure = clampRendererExposure(exposureGain * SCENE_RENDER_CALIBRATION);
-      const sceneId = simulatorRuntime.sceneId;
-
-      if (usesPhotographicPipeline(sceneId)) {
-        applyToneMappingToRenderer(renderer, sceneId, toneExposure);
-      } else {
-        renderer.toneMapping = THREE.LinearToneMapping;
-        renderer.toneMappingExposure = toneExposure;
-      }
+      applyToneMappingToRenderer(renderer, toneExposure);
       if (!simulatorRuntime.captureActive) {
         simulatorRuntime.appliedToneMappingExposure = toneExposure;
       }
@@ -110,6 +161,14 @@ export default function DepthOfFieldPass() {
         applyWb ? wb.b : 1,
       );
 
+      // El visor óptico no tiene sensor: sólo LIVE VIEW y la foto muestran ruido.
+      const iso = derived?.effectiveSettings.iso ?? 100;
+      dofMaterial.uniforms.isoNoise.value = applyWb ? isoNoiseFactor(iso) : 0;
+      // Durante la toma el patrón queda fijo: promediar cuadros no debe limpiar el ruido.
+      if (!simulatorRuntime.captureActive) {
+        dofMaterial.uniforms.noiseSeed.value = (dofMaterial.uniforms.noiseSeed.value + 1) % 997;
+      }
+
       const persp = cameraRef as THREE.PerspectiveCamera;
       renderer.setRenderTarget(fbo);
       renderer.clear();
@@ -117,45 +176,115 @@ export default function DepthOfFieldPass() {
 
       invProj.current.copy(persp.projectionMatrix).invert();
 
-      const skipDof = aperture >= DOF_SKIP_APERTURE;
-      const limits = skipDof
-        ? { nearLimitM: 0, farLimitM: focusDistance * 8 }
-        : calculateDepthOfFieldLimits({
-            focusDistanceM: focusDistance,
-            focalLengthMm: focalLength,
-            aperture,
-          });
+      const quality = simulatorRuntime.quality;
+      // Con cielo cubierto no hay sol directo: las sombras suaves de contacto las da
+      // la oclusión ambiental, así que se prende aunque la calidad sea baja.
+      const aoOn = quality.ao || WEATHER_LOOKS[weatherStore.get()].overcast > 0;
+      if (aoOn) {
+        const w = Math.max(1, Math.floor(fbo.width / 2));
+        const hgt = Math.max(1, Math.floor(fbo.height / 2));
+        if (ao.target.width !== w || ao.target.height !== hgt) ao.target.setSize(w, hgt);
+        ao.material.uniforms.tDepth.value = fbo.depthTexture;
+        ao.material.uniforms.cameraProjection.value.copy(persp.projectionMatrix);
+        ao.material.uniforms.cameraInverseProjection.value.copy(invProj.current);
+        ao.material.uniforms.resolution.value.set(w, hgt);
+        renderer.setRenderTarget(ao.target);
+        renderer.render(ao.scene, orthoCam.current);
+      }
+      dofMaterial.uniforms.tAO.value = ao.target.texture;
+      dofMaterial.uniforms.aoStrength.value = aoOn ? AO_STRENGTH : 0;
 
-      const farFinite = Number.isFinite(limits.farLimitM);
+      const now = performance.now();
+      // Lectura asincrónica: lo pedido en un cuadro llega uno o dos cuadros después,
+      // sin que el procesador espere a la placa de video.
+      if (!meter.failed && !meter.reader) {
+        const ctx = renderer.getContext();
+        if (typeof WebGL2RenderingContext !== "undefined" && ctx instanceof WebGL2RenderingContext) {
+          if (renderer.extensions.has("EXT_color_buffer_float")) {
+            meter.reader = new AsyncPixelReader(ctx, METER_GRID_WIDTH, METER_GRID_HEIGHT);
+          } else {
+            // Muchos celulares no dibujan en punto flotante: la grilla en punto flotante
+            // salía en cero, el visor creía que era de noche y aclaraba todo hasta el blanco.
+            meter.target.dispose();
+            meter.target = new THREE.WebGLRenderTarget(METER_GRID_WIDTH, METER_GRID_HEIGHT, {
+              type: THREE.UnsignedByteType,
+              minFilter: THREE.NearestFilter,
+              magFilter: THREE.NearestFilter,
+              depthBuffer: false,
+            });
+            meter.material.uniforms.logEncode.value = 1;
+            meter.bytes = new Uint8Array(METER_GRID_WIDTH * METER_GRID_HEIGHT * 4);
+            meter.reader = new AsyncPixelReader(ctx, METER_GRID_WIDTH, METER_GRID_HEIGHT, "byte");
+          }
+        } else {
+          meter.failed = true;
+        }
+      }
+      if (meter.reader?.poll(meter.bytes ?? meter.pixels)) {
+        const dt = meter.lastReadMs ? (now - meter.lastReadMs) / 1000 : 0;
+        meter.lastReadMs = now;
+        // readPixels arranca abajo; la grilla del fotómetro va de arriba hacia abajo.
+        for (let y = 0; y < METER_GRID_HEIGHT; y += 1) {
+          const srcRow = (METER_GRID_HEIGHT - 1 - y) * METER_GRID_WIDTH;
+          for (let x = 0; x < METER_GRID_WIDTH; x += 1) {
+            const i = (srcRow + x) * 4;
+            meter.luminance[y * METER_GRID_WIDTH + x] = meter.bytes ? decodeMeterByte(meter.bytes[i]) : meter.pixels[i];
+          }
+        }
+        meter.readings = smoothReadings(
+          meter.readings,
+          readAllModes({
+            width: METER_GRID_WIDTH,
+            height: METER_GRID_HEIGHT,
+            luminance: meter.luminance,
+          }),
+          dt,
+        );
+        simulatorRuntime.meterReadings = meter.readings;
+        simulatorRuntime.meterGrid = { width: METER_GRID_WIDTH, height: METER_GRID_HEIGHT, luminance: meter.luminance };
+      }
+      if (
+        meter.reader &&
+        !meter.reader.pending &&
+        !simulatorRuntime.captureActive &&
+        now - meter.lastMs >= METER_INTERVAL_MS
+      ) {
+        meter.lastMs = now;
+        const insets = computeViewfinderInsets(size.width, size.height);
+        meter.material.uniforms.tColor.value = fbo.texture;
+        meter.material.uniforms.cropMin.value.set(insets.x, insets.bottom);
+        meter.material.uniforms.cropSize.value.set(1 - 2 * insets.x, 1 - insets.top - insets.bottom);
+        renderer.setRenderTarget(meter.target);
+        renderer.render(meter.scene, orthoCam.current);
+        meter.reader.request();
+      }
+
+      const imageHeightPx = size.height * renderer.getPixelRatio();
+      const sensorHeightMm = canvasSensorHeightMm(size.width, size.height);
+      const maxBlurPx = calculateSceneMaxBlurPx({
+        focusDistanceM: focusDistance,
+        focalLengthMm: focalLength,
+        aperture,
+        imageHeightPx,
+        sensorHeightMm,
+      });
 
       dofMaterial.uniforms.tColor.value = fbo.texture;
       dofMaterial.uniforms.tDepth.value = fbo.depthTexture;
       dofMaterial.uniforms.focusDistance.value = focusDistance;
-      dofMaterial.uniforms.aperture.value = skipDof ? DOF_SKIP_APERTURE : aperture;
+      dofMaterial.uniforms.aperture.value = aperture;
       dofMaterial.uniforms.focalLength.value = focalLength;
-      dofMaterial.uniforms.cameraNear.value = persp.near;
-      dofMaterial.uniforms.cameraFar.value = persp.far;
+      dofMaterial.uniforms.sensorHeightMm.value = sensorHeightMm;
       dofMaterial.uniforms.cameraInverseProjection.value = invProj.current;
-      dofMaterial.uniforms.resolution.value.set(
-        size.width * renderer.getPixelRatio(),
-        size.height * renderer.getPixelRatio(),
-      );
-      dofMaterial.uniforms.maxBlurPx.value = MAX_BLUR_PX;
-      dofMaterial.uniforms.nearLimit.value = limits.nearLimitM;
-      dofMaterial.uniforms.farLimit.value = farFinite ? limits.farLimitM : focusDistance * 8;
-      dofMaterial.uniforms.farLimitFinite.value = farFinite ? 1 : 0;
-      dofMaterial.uniforms.cocMm.value = getActiveSensor().circleOfConfusionMm;
-      dofMaterial.uniforms.blurStrength.value = DOF_BLUR_STRENGTH;
-      dofMaterial.uniforms.transitionSoftness.value = DOF_TRANSITION_SOFTNESS;
-      dofMaterial.uniforms.frontFalloff.value = DOF_FRONT_FALLOFF;
-      dofMaterial.uniforms.backFalloff.value = DOF_BACK_FALLOFF;
+      dofMaterial.uniforms.resolution.value.set(size.width * renderer.getPixelRatio(), imageHeightPx);
+      dofMaterial.uniforms.maxBlurPx.value = maxBlurPx;
+      dofMaterial.uniforms.radScale.value = dofRadiusScale(maxBlurPx, simulatorRuntime.quality.dofSteps);
       dofMaterial.uniforms.exposureGain.value = exposureGain;
-
       renderer.setRenderTarget(null);
       renderer.clear();
       renderer.render(quadScene.current, orthoCam.current);
     },
-    [dofMaterial, fbo, size.width, size.height],
+    [dofMaterial, fbo, meter, ao, size.width, size.height],
   );
 
   useEffect(() => {
@@ -171,8 +300,13 @@ export default function DepthOfFieldPass() {
     return () => {
       quadMesh.geometry.dispose();
       dofMaterial.dispose();
+      meter.target.dispose();
+      meter.material.dispose();
+      meter.reader?.dispose();
+      ao.target.dispose();
+      ao.material.dispose();
     };
-  }, [quadMesh, dofMaterial]);
+  }, [quadMesh, dofMaterial, meter, ao]);
 
   return null;
 }

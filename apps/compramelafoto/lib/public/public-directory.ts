@@ -4,6 +4,7 @@
  * se mantienen porque las páginas ya los consumen. No se expone User.email.
  */
 
+import { DEMO_TAG } from "@/lib/demos/identidad";
 import type { PrismaClient } from "@prisma/client";
 import {
   CommunityProfileType,
@@ -34,6 +35,8 @@ export function buildDirectoryPhotographersWhere() {
     role: { in: [Role.PHOTOGRAPHER, Role.LAB_PHOTOGRAPHER] as Role[] },
     isPublicPageEnabled: true,
     isBlocked: false,
+    // Los fotógrafos de las demos grabables tienen landing pero no figuran en el directorio.
+    NOT: { tags: { has: DEMO_TAG } },
   };
 }
 

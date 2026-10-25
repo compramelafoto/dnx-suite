@@ -655,6 +655,9 @@ importers:
       bcryptjs:
         specifier: ^3.0.3
         version: 3.0.3
+      hls.js:
+        specifier: 1.6.16
+        version: 1.6.16
       leaflet:
         specifier: ^1.9.4
         version: 1.9.4

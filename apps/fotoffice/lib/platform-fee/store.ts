@@ -46,3 +46,18 @@ export async function getPlatformFeeBpsByModule(
   }
   return result;
 }
+
+/**
+ * Igual que `getPlatformFeeBps`, pero si la base falla LANZA en vez de devolver el 5 %.
+ *
+ * Para los caminos que escriben en el libro de comisiones (Digitalización, F1): con la base caída
+ * es mejor no hacer nada en esa corrida y dejar que la conciliación lo haga después, que asentar
+ * una comisión con una tasa supuesta (o retenérsela a DNX, que tiene 0).
+ */
+export async function getPlatformFeeBpsStrict(workspaceId: string, moduleKey: string): Promise<number> {
+  const row = await prisma.workspaceModuleFee.findUnique({
+    where: { workspaceId_moduleKey: { workspaceId, moduleKey } },
+    select: { feeBps: true },
+  });
+  return resolvePlatformFeeBps(row?.feeBps);
+}

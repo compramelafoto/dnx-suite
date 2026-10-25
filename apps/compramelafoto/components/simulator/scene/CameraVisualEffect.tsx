@@ -4,9 +4,8 @@ import {
   clampRendererExposure,
   resolvePreviewExposureGain,
   SCENE_RENDER_CALIBRATION,
-  shouldApplyWhiteBalanceToRender,
 } from "@/lib/simulator/camera-exposure";
-import { applyToneMappingToRenderer, usesPhotographicPipeline } from "@/lib/simulator/render";
+import { applyToneMappingToRenderer } from "@/lib/simulator/render";
 import { simulatorRuntime } from "@/lib/simulator/simulator-runtime";
 import { useFrame, useThree } from "@react-three/fiber";
 import { useRef } from "react";
@@ -28,26 +27,14 @@ export default function CameraVisualEffect() {
 
     const exposureGain = resolvePreviewExposureGain();
     const exposure = clampRendererExposure(exposureGain * SCENE_RENDER_CALIBRATION);
-    const sceneId = simulatorRuntime.sceneId;
-
-    if (usesPhotographicPipeline(sceneId)) {
-      applyToneMappingToRenderer(gl, sceneId, exposure);
-    } else {
-      gl.toneMapping = THREE.LinearToneMapping;
-      gl.toneMappingExposure = exposure;
-    }
+    applyToneMappingToRenderer(gl, exposure);
     simulatorRuntime.appliedToneMappingExposure = exposure;
 
-    const derived = simulatorRuntime.derived;
-    const applyWb = shouldApplyWhiteBalanceToRender(simulatorRuntime.viewfinderMode, false);
-    const wbTint = applyWb ? (derived?.wbTint ?? { r: 1, g: 1, b: 1 }) : { r: 1, g: 1, b: 1 };
+    // El balance de blancos lo aplica DepthOfFieldPass a toda la imagen;
+    // teñir también la niebla la corregía dos veces.
     const fog = scene.fog;
     if (fog instanceof THREE.Fog) {
-      const base = new THREE.Color(FOG_COLOR);
-      base.r *= wbTint.r;
-      base.g *= wbTint.g;
-      base.b *= wbTint.b;
-      fog.color.copy(base);
+      fog.color.set(FOG_COLOR);
     }
 
     if (process.env.NODE_ENV === "development") {
@@ -58,9 +45,8 @@ export default function CameraVisualEffect() {
           viewfinder: simulatorRuntime.viewfinderMode,
           exposureGain,
           toneMappingExposure: exposure,
-          photoMultiplier: derived?.photoExposureMultiplier,
-          sceneLuminanceEv: simulatorRuntime.sceneLuminanceEv,
-          whiteBalance: applyWb,
+          photoMultiplier: simulatorRuntime.derived?.photoExposureMultiplier,
+          sceneLight: simulatorRuntime.sceneLight,
         });
       }
     }

@@ -19,6 +19,7 @@ import {
   createDraft,
   deleteDraft,
   getMessage,
+  linkedPostWarningFor,
   saveDraft,
   submitMessage,
 } from "@/lib/mailing/messages";
@@ -132,5 +133,8 @@ export async function testMessageAction(formData: FormData): Promise<void> {
     workspaceId: workspace.id,
   });
   if (salida.status !== "SENT") volver(editor(id), { error: "No se pudo enviar la prueba. Quedó registrado para revisarlo." });
-  volver(editor(id), { ok: `Te mandamos la prueba a ${to} con lo último que guardaste.` });
+  // La prueba sale igual, pero avisando si el botón lleva a un artículo que todavía no se ve.
+  const aviso = await linkedPostWarningFor(workspace.id, m, new Date(), { test: true }).catch(() => null);
+  const listo = `Te mandamos la prueba a ${to} con lo último que guardaste.`;
+  volver(editor(id), aviso ? { ok: listo, aviso } : { ok: listo });
 }

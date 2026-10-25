@@ -32,6 +32,7 @@ test("sin metadatos se deduce de los bloques: listado, logo, fotos y vertical", 
     orientacion: "vertical",
     cantidadFotos: 3,
     conListado: true,
+    conMosaico: false,
     conLogo: true,
     evento: null,
     etiquetas: [],
@@ -61,6 +62,7 @@ test("los metadatos mandan sobre lo deducido", () => {
       orientacion: "horizontal",
       cantidadFotos: 4,
       conListado: false,
+      conMosaico: false,
       conLogo: false,
       evento: "Primera Comunión",
       etiquetas: ["cruz", " dorado ", 3],
@@ -81,6 +83,7 @@ const base: RasgosDePlantilla = {
   orientacion: "vertical",
   cantidadFotos: 2,
   conListado: true,
+  conMosaico: false,
   conLogo: false,
   evento: null,
   etiquetas: [],
@@ -134,4 +137,20 @@ test("las opciones salen de lo que hay, con los niveles en orden escolar", () =>
   assert.deepEqual(op.cantidades, [1, 2]);
   assert.equal(hayFiltros(FILTROS_VACIOS), false);
   assert.equal(hayFiltros({ ...FILTROS_VACIOS, logo: "no" }), true);
+});
+
+test("una plantilla con mosaico del curso tiene el rasgo y se filtra", () => {
+  const conMosaico = rasgosDePlantilla({
+    meta: {},
+    blocks: [{ type: "VARIABLE_TEXT", configJson: { variableKey: "course.mosaic" } }],
+  });
+  const sinMosaico = rasgosDePlantilla({ meta: {}, blocks: [] });
+  assert.equal(conMosaico.conMosaico, true);
+  assert.equal(sinMosaico.conMosaico, false);
+  const items = [
+    { name: "con", rasgos: conMosaico },
+    { name: "sin", rasgos: sinMosaico },
+  ];
+  assert.deepEqual(filtrarPlantillas(items, { ...FILTROS_VACIOS, mosaico: "si" }).map((i) => i.name), ["con"]);
+  assert.deepEqual(filtrarPlantillas(items, { ...FILTROS_VACIOS, mosaico: "no" }).map((i) => i.name), ["sin"]);
 });

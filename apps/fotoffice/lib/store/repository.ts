@@ -4,6 +4,7 @@ import { Prisma, prisma } from "@repo/db";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import { SALES_MODULE_KEY } from "@/lib/sales/constants";
 import { STORE_MODULE_KEY } from "./constants";
+import { NO_ES_INSUMO } from "@/lib/sales/vendible";
 import { lineKey } from "./cart/line-key";
 import { checkArtworkCartLines, loadArtworkCartCatalog } from "./artworks/storefront";
 import {
@@ -146,7 +147,8 @@ export async function reservedQtyByKey(
   return sumReserved(items);
 }
 
-const productoPublico = (workspaceId: string) => ({ workspaceId, isActive: true });
+// Un insumo nunca se publica, aunque alguien le haya cargado una ficha antes de cambiarle el tipo.
+const productoPublico = (workspaceId: string) => ({ workspaceId, isActive: true, ...NO_ES_INSUMO });
 
 const SELECT_FILA = {
   slug: true,

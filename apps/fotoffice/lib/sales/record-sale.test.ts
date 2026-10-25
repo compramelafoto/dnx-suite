@@ -60,6 +60,10 @@ function saleTx(over: Record<string, unknown> = {}) {
     product: { findMany: vi.fn(async () => []), update: vi.fn(async () => ({})) },
     stockMovement: { create: vi.fn(async () => ({})) },
     productVariant: { updateMany: vi.fn(async () => ({ count: 1 })) },
+    // Recetas y combos de insumos (`planificarConsumo`): por omisión ningún producto tiene
+    // receta, así que la venta no consume insumos.
+    fotofficeComboItem: { findMany: vi.fn(async () => []) },
+    fotofficeRecetaInsumo: { findMany: vi.fn(async () => []) },
     client: { count: tablaAusente("Client") },
     cashAccount: { findMany: tablaAusente("cash_account") },
     cashCategory: { findMany: tablaAusente("cash_category") },
@@ -454,5 +458,137 @@ describe("recordSale — ids de los renglones (impresión)", () => {
   it("devuelve el cliente resuelto de la venta (null sin cliente)", async () => {
     moduleState({ cash: false, clients: false });
     expect((await recordSale(saleTx() as never, inputBase)).clientId).toBeNull();
+  });
+});
+
+describe("recordSale — insumos (recetas)", () => {
+  // La 15x20 lleva 2 copias del kit Kodak por hoja. `product.findMany` atiende dos lecturas:
+  // la de `planificarConsumo` (filtra `kind: "INSUMO"`) y la de `descontarStock` (`tracksStock`).
+  function txConReceta(tracksStock: boolean) {
+    return saleTx({
+      fotofficeRecetaInsumo: {
+        findMany: vi.fn(async () => [{ productId: "p1", insumoId: "kit", quantity: 2, porCada: 1 }]),
+      },
+      product: {
+        findMany: vi.fn(async ({ where }: { where: { kind?: string } }) =>
+          where.kind === "INSUMO" ? [{ id: "kit" }] : [{ id: "p1", tracksStock }],
+        ),
+        update: vi.fn(async () => ({})),
+      },
+    });
+  }
+  const input15x20: RecordSaleInput = {
+    ...inputBase,
+    lines: [{ ...inputBase.lines[0]!, description: "Copia 15x20", qty: 3 }],
+  };
+
+  it("descuenta 2 copias del kit por cada 15x20 vendida", async () => {
+    moduleState({ cash: false, clients: false });
+    const tx = txConReceta(true);
+
+    const r = await recordSale(tx as never, input15x20);
+
+    const consumos = tx.stockMovement.create.mock.calls
+      .map((c) => (c as unknown as [{ data: { reason: string } }])[0].data)
+      .filter((d) => d.reason === "CONSUMO");
+    expect(consumos).toEqual([
+      expect.objectContaining({
+        productId: "kit",
+        variantId: null,
+        qty: -6,
+        reason: "CONSUMO",
+        sourceModule: "sales",
+        sourceRef: "sale1",
+        note: `consumo:item:${r.itemIds[0]}`,
+        createdByUserId: 7,
+      }),
+    ]);
+    // La venta del producto sigue igual que siempre.
+    expect(tx.stockMovement.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ productId: "p1", qty: -3, reason: "VENTA" }),
+    });
+    expect(tx.product.update).toHaveBeenCalledWith({ where: { id: "kit" }, data: { stockQty: { decrement: 6 } } });
+  });
+
+  it("bloquea productos e insumos en una sola llamada y antes de escribir", async () => {
+    moduleState({ cash: false, clients: false });
+    const tx = txConReceta(true);
+
+    await recordSale(tx as never, input15x20);
+
+    const consultas = tx.$queryRaw.mock.calls.map((c) => (c as unknown as [{ sql: string; values: unknown[] }])[0]);
+    expect(consultas).toHaveLength(1);
+    expect(consultas[0].sql).toMatch(/FROM "Product"[\s\S]*FOR UPDATE/);
+    expect(consultas[0].values).toEqual([["kit", "p1"], "ws1"]);
+
+    const bloqueo = tx.$queryRaw.mock.invocationCallOrder[0]!;
+    const escrituras = [
+      ...tx.sale.createMany.mock.invocationCallOrder,
+      ...tx.saleItem.createMany.mock.invocationCallOrder,
+      ...tx.stockMovement.create.mock.invocationCallOrder,
+      ...tx.product.update.mock.invocationCallOrder,
+    ];
+    expect(escrituras.length).toBeGreaterThan(0);
+    expect(Math.min(...escrituras)).toBeGreaterThan(bloqueo);
+  });
+
+  it("un servicio sin stock con receta consume igual", async () => {
+    moduleState({ cash: false, clients: false });
+    const tx = txConReceta(false);
+
+    const r = await recordSale(tx as never, input15x20);
+
+    const movimientos = tx.stockMovement.create.mock.calls.map(
+      (c) => (c as unknown as [{ data: Record<string, unknown> }])[0].data,
+    );
+    expect(movimientos).toEqual([
+      expect.objectContaining({ productId: "kit", qty: -6, reason: "CONSUMO", note: `consumo:item:${r.itemIds[0]}` }),
+    ]);
+    expect(tx.product.update).not.toHaveBeenCalledWith(expect.objectContaining({ where: { id: "p1" } }));
+  });
+
+  it("sin recetas no escribe consumos", async () => {
+    moduleState({ cash: false, clients: false });
+    const tx = saleTx({
+      product: {
+        findMany: vi.fn(async () => [{ id: "p1", tracksStock: true }]),
+        update: vi.fn(async () => ({})),
+      },
+    });
+
+    await recordSale(tx as never, inputBase);
+
+    const razones = tx.stockMovement.create.mock.calls.map(
+      (c) => (c as unknown as [{ data: { reason: string } }])[0].data.reason,
+    );
+    expect(razones).toEqual(["VENTA"]);
+    expect(tx.fotofficeRecetaInsumo.findMany).toHaveBeenCalled();
+  });
+
+  it("cada renglón consume con el id de SU renglón, aunque haya renglones sueltos en el medio", async () => {
+    moduleState({ cash: false, clients: false });
+    const tx = txConReceta(true);
+    const input: RecordSaleInput = {
+      ...inputBase,
+      lines: [
+        { ...inputBase.lines[0]!, qty: 1 },
+        { ...inputBase.lines[0]!, productId: null, description: "Retoque" },
+        { ...inputBase.lines[0]!, qty: 2 },
+      ],
+    };
+
+    const r = await recordSale(tx as never, input);
+
+    const consumos = tx.stockMovement.create.mock.calls
+      .map((c) => (c as unknown as [{ data: { reason: string; qty: number; note: string } }])[0].data)
+      .filter((d) => d.reason === "CONSUMO")
+      .map((d) => ({ qty: d.qty, note: d.note }));
+    expect(consumos).toEqual(
+      expect.arrayContaining([
+        { qty: -2, note: `consumo:item:${r.itemIds[0]}` },
+        { qty: -4, note: `consumo:item:${r.itemIds[2]}` },
+      ]),
+    );
+    expect(consumos).toHaveLength(2);
   });
 });

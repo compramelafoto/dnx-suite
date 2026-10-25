@@ -48,8 +48,6 @@ export interface SunState {
   skyColor: string;
   /** Color de niebla / horizonte. */
   fogColor: string;
-  /** Offset EV para fotómetro. */
-  luminanceEvOffset: number;
   /** WB sugerido (K) según hora. */
   suggestedWbKelvin: number;
   /** Etiqueta pedagógica. */
@@ -134,7 +132,6 @@ export function computeSunState(minutes: number): SunState {
   let fogColor = "#12182a";
   let sunIntensity = 0;
   let ambientIntensity = 0.22;
-  let luminanceEvOffset = -2.4;
   let suggestedWbKelvin = 4200;
 
   if (sunVisible) {
@@ -146,7 +143,6 @@ export function computeSunState(minutes: number): SunState {
       fogColor = lerpColor("#c87850", "#a8c8e8", heightNorm / 0.22);
       sunIntensity = lerp(0.6, 2.2, heightNorm / 0.22);
       ambientIntensity = lerp(0.35, 0.65, heightNorm / 0.22);
-      luminanceEvOffset = lerp(-0.5, 1.2, heightNorm / 0.22);
       suggestedWbKelvin = Math.round(lerp(3200, 5200, heightNorm / 0.22));
     } else if (heightNorm > 0.78) {
       phaseLabel = "Mediodía";
@@ -155,7 +151,6 @@ export function computeSunState(minutes: number): SunState {
       fogColor = "#9ec8f0";
       sunIntensity = 3.2;
       ambientIntensity = 0.85;
-      luminanceEvOffset = 2.1;
       suggestedWbKelvin = 5800;
     } else {
       phaseLabel = heightNorm < 0.5 ? "Mañana" : "Tarde";
@@ -164,7 +159,6 @@ export function computeSunState(minutes: number): SunState {
       fogColor = "#a8c8e8";
       sunIntensity = lerp(2.0, 3.0, (heightNorm - 0.22) / 0.56);
       ambientIntensity = lerp(0.55, 0.8, (heightNorm - 0.22) / 0.56);
-      luminanceEvOffset = lerp(0.8, 1.8, (heightNorm - 0.22) / 0.56);
       suggestedWbKelvin = Math.round(lerp(5200, 6000, (heightNorm - 0.22) / 0.56));
     }
   } else if (hour >= 19 && hour < 21) {
@@ -174,7 +168,6 @@ export function computeSunState(minutes: number): SunState {
     fogColor = "#243058";
     sunIntensity = 0.08;
     ambientIntensity = 0.28;
-    luminanceEvOffset = -1.2;
     suggestedWbKelvin = 7500;
   } else {
     phaseLabel = "Noche";
@@ -183,7 +176,6 @@ export function computeSunState(minutes: number): SunState {
     fogColor = "#101828";
     sunIntensity = 0;
     ambientIntensity = 0.18;
-    luminanceEvOffset = -2.8;
     suggestedWbKelvin = 4000;
   }
 
@@ -196,7 +188,6 @@ export function computeSunState(minutes: number): SunState {
     ambientIntensity,
     skyColor,
     fogColor,
-    luminanceEvOffset,
     suggestedWbKelvin,
     phaseLabel,
     sunVisible,

@@ -4,11 +4,9 @@
 
 import type { FocusAreaMode } from "./focus-types";
 import {
-  MOVING_SUBJECT_ID,
-  PEDESTRIAN_SUBJECT_IDS,
   PHOTOGRAPHIC_VEHICLE_SUBJECT_ID,
-  VEHICLE_SUBJECT_ID,
   isPhotographicPedestrianId,
+  isStreetCarId,
 } from "./moving-subject-types";
 
 /**
@@ -185,23 +183,9 @@ export function scoreRaycastHit(
   distance: number,
 ): { confidence: number; objectId: string | null; label: string } {
   const subjectId = object.userData?.codSubjectId;
-  if (
-    subjectId === MOVING_SUBJECT_ID ||
-    subjectId === VEHICLE_SUBJECT_ID ||
-    subjectId === PHOTOGRAPHIC_VEHICLE_SUBJECT_ID ||
-    isPhotographicPedestrianId(subjectId) ||
-    (typeof subjectId === "string" && PEDESTRIAN_SUBJECT_IDS.includes(subjectId as (typeof PEDESTRIAN_SUBJECT_IDS)[number]))
-  ) {
-    const label = isPhotographicPedestrianId(subjectId)
-      ? "Peatón"
-      : typeof subjectId === "string" &&
-          PEDESTRIAN_SUBJECT_IDS.includes(subjectId as (typeof PEDESTRIAN_SUBJECT_IDS)[number])
-        ? "Persona"
-        : subjectId === VEHICLE_SUBJECT_ID || subjectId === PHOTOGRAPHIC_VEHICLE_SUBJECT_ID
-          ? "Vehículo"
-          : subjectId === MOVING_SUBJECT_ID
-            ? "Sujeto"
-            : "Persona";
+  const isVehicle = subjectId === PHOTOGRAPHIC_VEHICLE_SUBJECT_ID || isStreetCarId(subjectId);
+  if (isVehicle || isPhotographicPedestrianId(subjectId)) {
+    const label = isVehicle ? "Vehículo" : "Peatón";
     return {
       confidence: 0.86 + Math.random() * 0.1,
       objectId: subjectId ?? null,

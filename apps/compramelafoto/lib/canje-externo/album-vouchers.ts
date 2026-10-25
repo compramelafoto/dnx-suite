@@ -9,7 +9,7 @@
 import { prisma } from "@/lib/prisma";
 import { createPackAccessTokenForOrder } from "@/lib/preventa-canjeable/pack-access-tokens";
 import { EXTERNAL_VOUCHER_KIND, parseExternalVoucherRefs } from "./external-voucher";
-import { EXTERNAL_PREVENTA_KIND, parseExternalPreventaRefs } from "./external-preventa";
+import { EXTERNAL_PREVENTA_KIND, nombreNaturalDesdeExcel, parseExternalPreventaRefs } from "./external-preventa";
 import {
   buildCanjeWhatsAppMessage,
   buildPreventaCanjeWhatsAppMessage,
@@ -123,8 +123,9 @@ export async function createVoucherShareLink(params: {
   if (pack) {
     const link = `${base}/canje/preventa/${token.token}`;
     const message = buildPreventaCanjeWhatsAppMessage({
-      parentName: pack.parentName,
-      studentName: pack.studentName,
+      // El Excel trae "Apellido Nombre": "¡Hola Sabrina Valenza!", no "¡Hola Valenza Sabrina!".
+      parentName: nombreNaturalDesdeExcel(pack.parentName),
+      studentName: nombreNaturalDesdeExcel(pack.studentName),
       albumTitle: combo.album.title,
       packLabel: pack.label ?? "tu pack",
       link,

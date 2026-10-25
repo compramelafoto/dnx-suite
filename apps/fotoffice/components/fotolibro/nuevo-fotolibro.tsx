@@ -11,6 +11,7 @@ import {
   type LineaFotolibro,
 } from "@/lib/fotolibro/medidas-pliego";
 import { HOJAS_MAX, HOJAS_MIN } from "@/lib/fotolibro/limites";
+import { VidrieraLaboratorios } from "./vidriera-laboratorios";
 
 type Proveedor = { id: string; name: string };
 
@@ -20,10 +21,17 @@ const initial: NuevoFotolibroState = { error: null };
  * Arranca un fotolibro con la medida real del pliego. Elegido el laboratorio, sólo se ofrecen
  * las medidas de su lista.
  */
-export function NuevoFotolibro({ proveedores }: { proveedores: Proveedor[] }) {
+export function NuevoFotolibro({
+  proveedores,
+  accion = crearFotolibroAction,
+}: {
+  proveedores: Proveedor[];
+  /** Quién crea el fotolibro: el estudio (por defecto) o el socio desde su portal. */
+  accion?: (prev: NuevoFotolibroState, formData: FormData) => Promise<NuevoFotolibroState>;
+}) {
   const [abierto, setAbierto] = useState(false);
   const [proveedorId, setProveedorId] = useState("");
-  const [state, action, pending] = useActionState(crearFotolibroAction, initial);
+  const [state, action, pending] = useActionState(accion, initial);
 
   const medidas = useMemo(() => {
     const p = proveedores.find((x) => x.id === proveedorId);
@@ -43,25 +51,14 @@ export function NuevoFotolibro({ proveedores }: { proveedores: Proveedor[] }) {
   }
 
   return (
-    <form action={action} className="fo-card grid w-full gap-3 p-5 sm:max-w-xl sm:grid-cols-2">
+    <form action={action} className="fo-card grid w-full gap-3 p-5 sm:max-w-2xl sm:grid-cols-2">
       <h2 className="text-base font-semibold sm:col-span-2">Nuevo fotolibro</h2>
 
-      <label className="space-y-1 text-sm">
-        <span className="text-[var(--fo-muted)]">Laboratorio</span>
-        <select
-          name="proveedorId"
-          value={proveedorId}
-          onChange={(e) => setProveedorId(e.target.value)}
-          className="fo-input w-full"
-        >
-          <option value="">Sin elegir (todas las medidas)</option>
-          {proveedores.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-        </select>
-      </label>
+      <div className="space-y-2 sm:col-span-2">
+        <span className="text-sm text-[var(--fo-muted)]">Laboratorio {proveedorId ? "" : "(sin elegir: todas las medidas)"}</span>
+        <input type="hidden" name="proveedorId" value={proveedorId} />
+        <VidrieraLaboratorios proveedores={proveedores} elegido={proveedorId} onElegir={setProveedorId} />
+      </div>
 
       <label className="space-y-1 text-sm">
         <span className="text-[var(--fo-muted)]">Medida del pliego</span>

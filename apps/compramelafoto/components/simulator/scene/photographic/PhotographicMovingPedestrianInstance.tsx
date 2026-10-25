@@ -25,6 +25,7 @@ import { syncMovingSubjectsRegistry, simulatorRuntime } from "@/lib/simulator/si
 import { useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
+import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { GlTFAssetSlotDevMarker } from "./GlTFAssetSlotDevMarker";
 
 const DEV_FOCUS_HEAD_Y = 1.62;
@@ -124,7 +125,8 @@ export function PhotographicMovingPedestrianInstance({ slot }: { slot: Photograp
       .then((gltf) => {
         if (cancelled || !groupRef.current) return;
 
-        const model = gltf.scene.clone(true);
+        // SkeletonUtils re-enlaza el esqueleto; Object3D.clone deja el personaje en pose T.
+        const model = cloneSkinned(gltf.scene);
         const stats = prepareGltfScene(model, slot);
         tagPedestrianSubjectId(model, subjectId);
 

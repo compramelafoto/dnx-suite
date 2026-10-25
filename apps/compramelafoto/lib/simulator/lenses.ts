@@ -2,6 +2,9 @@
  * Catálogo pedagógico de objetivos — Cam Of Duty.
  */
 
+import { APERTURE_PRESETS } from "./camera-types";
+import { apertureStops } from "./exposure-scales";
+
 export type LensType = "PRIME" | "ZOOM";
 
 export type LensUseCase =
@@ -26,6 +29,8 @@ export interface SimulatorLensDefinition {
   maxApertureWide: number;
   maxApertureTele: number;
   minAperture: number;
+  /** Distancia mínima de enfoque (m), medida desde el sensor como en las fichas técnicas. */
+  minFocusDistanceM: number;
   description: string;
   recommendedUses: LensUseCase[];
 }
@@ -43,6 +48,7 @@ export interface ActiveLensState {
   /** Apertura máxima (más abierta) a la focal actual. */
   maxAperture: number;
   minAperture: number;
+  minFocusDistanceM: number;
   isZoomLens: boolean;
 }
 
@@ -59,6 +65,7 @@ export const SIMULATOR_LENSES: SimulatorLensDefinition[] = [
     maxApertureWide: 2.8,
     maxApertureTele: 2.8,
     minAperture: 22,
+    minFocusDistanceM: 0.2,
     description: "Gran angular extremo para paisajes amplios y arquitectura interior.",
     recommendedUses: ["paisaje", "arquitectura", "documental"],
   },
@@ -72,6 +79,7 @@ export const SIMULATOR_LENSES: SimulatorLensDefinition[] = [
     maxApertureWide: 1.8,
     maxApertureTele: 1.8,
     minAperture: 22,
+    minFocusDistanceM: 0.2,
     description: "Angular luminoso para escenas amplias con poca luz.",
     recommendedUses: ["paisaje", "arquitectura", "social"],
   },
@@ -85,6 +93,7 @@ export const SIMULATOR_LENSES: SimulatorLensDefinition[] = [
     maxApertureWide: 1.8,
     maxApertureTele: 1.8,
     minAperture: 22,
+    minFocusDistanceM: 0.25,
     description: "Gran angular versátil para reportaje y paisaje urbano.",
     recommendedUses: ["paisaje", "documental", "arquitectura"],
   },
@@ -98,6 +107,7 @@ export const SIMULATOR_LENSES: SimulatorLensDefinition[] = [
     maxApertureWide: 2,
     maxApertureTele: 2,
     minAperture: 22,
+    minFocusDistanceM: 0.25,
     description: "Angular clásico con buen equilibrio de encuadre y profundidad.",
     recommendedUses: ["documental", "social", "paisaje"],
   },
@@ -111,6 +121,7 @@ export const SIMULATOR_LENSES: SimulatorLensDefinition[] = [
     maxApertureWide: 1.8,
     maxApertureTele: 1.8,
     minAperture: 22,
+    minFocusDistanceM: 0.25,
     description: "Encuadre natural para calle, eventos y retrato ambiental.",
     recommendedUses: ["documental", "social", "retrato"],
   },
@@ -124,6 +135,7 @@ export const SIMULATOR_LENSES: SimulatorLensDefinition[] = [
     maxApertureWide: 1.8,
     maxApertureTele: 1.8,
     minAperture: 22,
+    minFocusDistanceM: 0.45,
     description: "Normal clásico; ideal para aprender exposición y profundidad de campo.",
     recommendedUses: ["retrato", "social", "documental"],
   },
@@ -137,6 +149,7 @@ export const SIMULATOR_LENSES: SimulatorLensDefinition[] = [
     maxApertureWide: 1.8,
     maxApertureTele: 1.8,
     minAperture: 22,
+    minFocusDistanceM: 0.8,
     description: "Tele corto de retrato con desenfoque de fondo marcado.",
     recommendedUses: ["retrato", "eventos", "producto"],
   },
@@ -150,6 +163,7 @@ export const SIMULATOR_LENSES: SimulatorLensDefinition[] = [
     maxApertureWide: 2.8,
     maxApertureTele: 2.8,
     minAperture: 32,
+    minFocusDistanceM: 0.3,
     description: "Macro/retrato detalle con plano de enfoque muy reducido.",
     recommendedUses: ["macro", "producto", "retrato"],
   },
@@ -163,6 +177,7 @@ export const SIMULATOR_LENSES: SimulatorLensDefinition[] = [
     maxApertureWide: 1.8,
     maxApertureTele: 1.8,
     minAperture: 22,
+    minFocusDistanceM: 0.7,
     description: "Tele medio para retrato y compresión de perspectiva.",
     recommendedUses: ["retrato", "deporte", "eventos"],
   },
@@ -176,6 +191,7 @@ export const SIMULATOR_LENSES: SimulatorLensDefinition[] = [
     maxApertureWide: 2.8,
     maxApertureTele: 2.8,
     minAperture: 32,
+    minFocusDistanceM: 1.5,
     description: "Tele largo para deporte, fauna y sujetos lejanos.",
     recommendedUses: ["deporte", "fauna", "eventos"],
   },
@@ -189,6 +205,7 @@ export const SIMULATOR_LENSES: SimulatorLensDefinition[] = [
     maxApertureWide: 2.8,
     maxApertureTele: 2.8,
     minAperture: 22,
+    minFocusDistanceM: 0.28,
     description: "Zoom angular profesional para paisaje y arquitectura.",
     recommendedUses: ["paisaje", "arquitectura", "eventos"],
   },
@@ -202,6 +219,7 @@ export const SIMULATOR_LENSES: SimulatorLensDefinition[] = [
     maxApertureWide: 2.8,
     maxApertureTele: 2.8,
     minAperture: 22,
+    minFocusDistanceM: 0.38,
     description: "Zoom estándar todo-en-uno para eventos y documental.",
     recommendedUses: ["eventos", "social", "documental"],
   },
@@ -215,6 +233,7 @@ export const SIMULATOR_LENSES: SimulatorLensDefinition[] = [
     maxApertureWide: 4,
     maxApertureTele: 4,
     minAperture: 22,
+    minFocusDistanceM: 0.45,
     description: "Zoom versátil con apertura constante f/4.",
     recommendedUses: ["eventos", "documental", "retrato"],
   },
@@ -228,6 +247,7 @@ export const SIMULATOR_LENSES: SimulatorLensDefinition[] = [
     maxApertureWide: 2.8,
     maxApertureTele: 2.8,
     minAperture: 32,
+    minFocusDistanceM: 1.2,
     description: "Tele zoom clásico de deporte y retrato.",
     recommendedUses: ["deporte", "retrato", "eventos"],
   },
@@ -241,6 +261,7 @@ export const SIMULATOR_LENSES: SimulatorLensDefinition[] = [
     maxApertureWide: 4.5,
     maxApertureTele: 5.6,
     minAperture: 32,
+    minFocusDistanceM: 1.2,
     description: "Tele económico con apertura variable al hacer zoom.",
     recommendedUses: ["deporte", "fauna", "eventos"],
   },
@@ -254,6 +275,7 @@ export const SIMULATOR_LENSES: SimulatorLensDefinition[] = [
     maxApertureWide: 4.5,
     maxApertureTele: 5.6,
     minAperture: 32,
+    minFocusDistanceM: 0.98,
     description: "Supertele zoom para fauna y deporte a distancia.",
     recommendedUses: ["fauna", "deporte", "eventos"],
   },
@@ -267,6 +289,7 @@ export const SIMULATOR_LENSES: SimulatorLensDefinition[] = [
     maxApertureWide: 3.5,
     maxApertureTele: 5.6,
     minAperture: 22,
+    minFocusDistanceM: 0.25,
     description: "Kit zoom de entrada; aprende encuadre y zoom.",
     recommendedUses: ["social", "documental", "paisaje"],
   },
@@ -280,6 +303,7 @@ export const SIMULATOR_LENSES: SimulatorLensDefinition[] = [
     maxApertureWide: 4,
     maxApertureTele: 4,
     minAperture: 22,
+    minFocusDistanceM: 0.45,
     description: "Zoom de viaje con rango amplio y f/4 constante.",
     recommendedUses: ["documental", "eventos", "social"],
   },
@@ -293,6 +317,7 @@ export const SIMULATOR_LENSES: SimulatorLensDefinition[] = [
     maxApertureWide: 3.5,
     maxApertureTele: 6.3,
     minAperture: 32,
+    minFocusDistanceM: 0.45,
     description: "Superzoom todo-en-uno; práctico pero con compromisos ópticos.",
     recommendedUses: ["documental", "eventos", "paisaje"],
   },
@@ -308,7 +333,11 @@ export function getDefaultLens(): SimulatorLensDefinition {
   return LENS_BY_ID.get(DEFAULT_LENS_ID) ?? SIMULATOR_LENSES[5];
 }
 
-/** Apertura máxima (más abierta) según focal en zooms con diafragma variable. */
+/**
+ * Apertura máxima (más abierta) según focal en zooms con diafragma variable.
+ * Como en los objetivos reales, cambia de a tercios de paso: se interpola en
+ * pasos de luz y se redondea al tercio más cerrado (f/4.5 → f/5 → f/5.6).
+ */
 export function getMaxApertureAtFocal(
   lens: Pick<
     SimulatorLensDefinition,
@@ -316,14 +345,22 @@ export function getMaxApertureAtFocal(
   >,
   focalLengthMm: number,
 ): number {
-  if (lens.minFocalLengthMm === lens.maxFocalLengthMm) {
+  if (lens.minFocalLengthMm === lens.maxFocalLengthMm || lens.maxApertureWide === lens.maxApertureTele) {
     return lens.maxApertureWide;
   }
   const t =
     (focalLengthMm - lens.minFocalLengthMm) /
     Math.max(1, lens.maxFocalLengthMm - lens.minFocalLengthMm);
   const clamped = Math.min(1, Math.max(0, t));
-  return lens.maxApertureWide + (lens.maxApertureTele - lens.maxApertureWide) * clamped;
+  const wideStops = apertureStops(lens.maxApertureWide);
+  const teleStops = apertureStops(lens.maxApertureTele);
+  const stops = wideStops + (teleStops - wideStops) * clamped;
+  const thirds = Math.ceil(stops * 3 - 1e-6) / 3;
+  if (thirds >= teleStops - 1e-6) return lens.maxApertureTele;
+  if (thirds <= wideStops + 1e-6) return lens.maxApertureWide;
+  return (
+    APERTURE_PRESETS.find((f) => Math.abs(apertureStops(f) - thirds) < 1e-6) ?? lens.maxApertureTele
+  );
 }
 
 export function definitionToActiveState(
@@ -342,6 +379,7 @@ export function definitionToActiveState(
     maxApertureTele: def.maxApertureTele,
     maxAperture: getMaxApertureAtFocal(def, focal),
     minAperture: def.minAperture,
+    minFocusDistanceM: def.minFocusDistanceM,
     isZoomLens: def.type === "ZOOM",
   };
 }

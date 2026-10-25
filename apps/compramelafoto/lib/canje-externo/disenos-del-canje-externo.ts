@@ -8,6 +8,8 @@ import {
 } from "@/lib/preventa-canjeable/preventa-pack-snapshot-v1";
 import { parseExternalPreventaRefs, type ExternalPreventaRefs } from "./external-preventa";
 import { valoresDelPackExternoDesdePacks } from "./valores-del-pack-externo";
+import { prepararRevisionDelCanje } from "@/lib/revision-de-impresion/en-el-canje";
+import type { RevisionPedida } from "@/lib/revision-de-impresion/revision-del-canje";
 
 /**
  * Los textos del librito de un pack cobrado por fuera: alumno, curso, colegio, logo del colegio y
@@ -54,6 +56,13 @@ export async function armarDisenosDelCanjeExterno(input: {
   preventaOrderId: number;
   redemptionOrderId: number;
   selections: RedeemUnitSelectionInput[];
+  /** Lo que la familia revisó y autorizó al confirmar. */
+  revision?: {
+    pedida: RevisionPedida;
+    by: { name: string | null; email: string | null };
+    userAgent: string | null;
+  } | null;
+  now?: Date;
 }): Promise<number> {
   const yaHay = await prisma.designProject.count({ where: { albumOrderId: input.redemptionOrderId } });
   if (yaHay > 0) return 0;
@@ -79,7 +88,7 @@ export async function armarDisenosDelCanjeExterno(input: {
   const conDiseno = snapshot.benefits.filter((b) => b.templateV2Id && b.templatePolicy === "REQUIRED");
   if (conDiseno.length === 0) return 0;
 
-  const values = await valoresDelPackExterno({
+  const base = await valoresDelPackExterno({
     albumId: pack.albumId,
     externo,
     schoolName: pack.album.school?.name,
@@ -87,6 +96,19 @@ export async function armarDisenosDelCanjeExterno(input: {
     buyerName: pack.buyerName,
     photographerName: pack.album.user?.name,
   });
+  const revisada = input.revision
+    ? await (
+        await prepararRevisionDelCanje(prisma, {
+          albumId: pack.albumId,
+          snapshot,
+          revision: input.revision.pedida,
+          by: input.revision.by,
+          userAgent: input.revision.userAgent,
+          now: input.now ?? new Date(),
+        })
+      ).aplicar(base)
+    : null;
+  const values = revisada?.values ?? base;
 
   let creados = 0;
   for (const beneficio of conDiseno) {
@@ -109,6 +131,7 @@ export async function armarDisenosDelCanjeExterno(input: {
         albumId: pack.albumId,
         albumOrderId: input.redemptionOrderId,
         cropsByPhotoId,
+        clientReview: revisada?.clientReview ?? null,
       });
       if (r.created) creados++;
     }

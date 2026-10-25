@@ -5,7 +5,9 @@ import {
   ArrowLeftRight,
   ClipboardList,
   ArrowUpRight,
+  BadgePercent,
   Banknote,
+  BookOpen,
   CheckCircle2,
   ChevronDown,
   CreditCard,
@@ -47,6 +49,12 @@ import type { ClienteBuscado } from "./mostrador-actions";
 import { checkoutAction, findProductByCodeAction, searchProductsAction, type CheckoutInput } from "./actions";
 import { crearPreparacionAction, produccionDeProductosAction } from "./impresion/actions";
 import { DialogoPreparar, copiasTerminadas } from "./dialogo-preparar";
+import { CalculadoraFotolibro, type FotolibroAgregado, type LineaFotolibro } from "@/components/fotolibro/calculadora-fotolibro";
+import type { CatalogoFotolibro, TipoTapa } from "@/lib/fotolibro/cotizar";
+import { esSkuCajaFotolibro, tipoTapaDeSku, type FotolibroVendido } from "@/lib/fotolibro/venta";
+import { crearFotolibroDesdeCobradorAction } from "@/app/actions/fotolibro";
+import { miComisionAction } from "./comisiones/actions";
+import type { MiComision } from "@/lib/comisiones/calculo";
 
 const ETIQUETA_PAGO: Record<SalePaymentMethod, string> = {
   EFECTIVO: "Efectivo",
@@ -133,6 +141,8 @@ export function Pos({
   senaHabilitada = false,
   qrActivo = false,
   permisosCarnet = { puedeBuscarClientes: false, puedeAltaCliente: false },
+  fotolibro = null,
+  comision = null,
 }: {
   products: ProductRow[];
   categories: ProductCategoryRow[];
@@ -156,6 +166,13 @@ export function Pos({
   qrActivo?: boolean;
   /** Qué puede hacer con Clientes dentro del editor de foto carnet (como en Ventas → Foto carnet). */
   permisosCarnet?: { puedeBuscarClientes: boolean; puedeAltaCliente: boolean };
+  /** Calculadora de fotolibros: null si no hay ninguna lista de proveedor con tapas y hojas. */
+  fotolibro?: { catalogo: CatalogoFotolibro; verCostos: boolean } | null;
+  /**
+   * Comisión de venta (fotolibros): los productos que la dan, el porcentaje para el cartel verde y,
+   * si quien vende cobra comisión, lo suyo acumulado. null si nadie del equipo cobra comisión.
+   */
+  comision?: { porcentaje: number; productIds: string[]; mia: MiComision | null } | null;
 }) {
   // El mostrador necesita el ancho: el menú lateral se oculta mientras está abierto.
   useOcultarMenuEnEstaPantalla();
@@ -185,13 +202,18 @@ export function Pos({
   const [eligiendoTalle, setEligiendoTalle] = useState<ProductRow | null>(null);
 
   const [mostrarSuelto, setMostrarSuelto] = useState(false);
+  // La calculadora abierta: la del botón «+ Fotolibro» (sin producto) o la de un producto de fotolibro.
+  const [calculadora, setCalculadora] = useState<{ productId: string | null; tipo: TipoTapa | null; titulo: string; proveedorInicial: string | null } | null>(null);
+  // Lo elegido para cada renglón de libro (por key, aparte de `rows` como las preparaciones) y su fotolibro.
+  const [fotolibros, setFotolibros] = useState<Record<string, FotolibroVendido & { url?: string }>>({});
+  const [creandoFotolibro, setCreandoFotolibro] = useState<string | null>(null);
   const [sueltoDescripcion, setSueltoDescripcion] = useState("");
   const [sueltoPrecio, setSueltoPrecio] = useState("");
 
   const [error, setError] = useState<string | null>(null);
   // Impresión (foto carnet y copias): qué productos se preparan, la preparación de cada renglón (por key,
   // aparte de `rows` para que deshacer no la pierda) y el renglón que se está preparando.
-  const [produccion, setProduccion] = useState<Record<string, { tipoPieza: string; salida: string; hoja: string }>>({});
+  const [produccion, setProduccion] = useState<Record<string, { tipoPieza: string; salida: string; hoja: string; digital: boolean }>>({});
   const [preparaciones, setPreparaciones] = useState<Record<string, string>>({});
   // Renglones sin proceso que el cajero marcó «Seña» (por key, como las preparaciones, para que
   // deshacer no pierda la marca): quedan en el pedido para retirar.
@@ -208,10 +230,24 @@ export function Pos({
       .then(setProduccion)
       .catch(() => undefined);
   }, []);
+  const conComision = useMemo(() => new Set(comision?.productIds ?? []), [comision]);
+  const [miComision, setMiComision] = useState<MiComision | null>(comision?.mia ?? null);
+  /** Lo que gana quien vende con un renglón (null si no da comisión o no cobra comisión). */
+  const comisionDelRenglon = (r: { productId: string | null; qty: number; unitPriceMinor: number }) =>
+    miComision && r.productId !== null && conComision.has(r.productId) ? Math.round((r.qty * r.unitPriceMinor * miComision.porcentaje) / 100) : null;
+  /** Después de cada cobro: lo acumulado al día (un saldo cobrado completa comisiones). */
+  function refrescarComision() {
+    if (!miComision) return;
+    miComisionAction()
+      .then((m) => m && setMiComision(m))
+      .catch(() => undefined);
+  }
   const [ultimaVenta, setUltimaVenta] = useState<{
     saleNumber: number | null;
     deposited: boolean;
     vueltoMinor: number | null;
+    /** Lo que ganó quien vendió con este cobro; `ganada` = ya cobrado entero. */
+    comision?: { minor: number; ganada: boolean } | null;
     pedido?: { numero: string; cobradoMinor: number; saldoMinor: number; aviso: string | null };
   } | null>(null);
   // Pedido para retirar (cuando el ticket tiene trabajos con proceso).
@@ -250,6 +286,7 @@ export function Pos({
       setAvisoSaldo(r.ok ? { ok: true, texto: r.mensaje } : { ok: false, texto: r.error });
       if (r.ok) setPagoVerificado(null);
       if (r.ok && cliente) setPedidosCliente(await pedidosParaRetirarAction(cliente.id));
+      if (r.ok) refrescarComision();
     });
   }
 
@@ -338,6 +375,12 @@ export function Pos({
    */
   function agregarProducto(p: ProductRow, talle: ProductVariantRow | null = null, fijarCantidad: number | null = null) {
     limpiarAviso();
+    // Fotolibro tapa flexible / rígida: el precio sale de la calculadora (fotos → hojas → precio).
+    const tipo = tipoTapaDeSku(p.sku);
+    if (tipo && fotolibro) {
+      setCalculadora({ productId: p.id, tipo, titulo: p.name, proveedorInicial: p.preferredProveedorId ?? null });
+      return;
+    }
     if (talle === null && p.variants.length > 0) {
       setEligiendoTalle(p);
       return;
@@ -518,6 +561,60 @@ export function Pos({
     cambiarRenglones((prev) => prev.filter((r) => r.key !== key));
   }
 
+  /**
+   * El libro entra con el producto que abrió la calculadora (o suelto, desde «+ Fotolibro») y la caja
+   * en su propio renglón: el producto "Caja para fotolibro" si está en el catálogo. La caja queda
+   * marcada «Seña» para que viaje en el pedido junto con el libro.
+   */
+  function agregarFotolibro(f: FotolibroAgregado) {
+    limpiarAviso();
+    const productId = calculadora?.productId ?? null;
+    const renglon = (l: LineaFotolibro, pid: string | null): TicketRow => ({
+      key: nuevaKey(),
+      productId: pid,
+      variantId: null,
+      description: l.descripcion,
+      qty: 1,
+      unitPriceMinor: l.precioMinor,
+      unitCostMinor: l.costoMinor,
+      priceWasOverridden: false,
+      catalogPriceMinor: null,
+      tracksStock: false,
+      stockQty: null,
+    });
+    const libro = renglon(f.libro, productId);
+    const caja = f.caja ? renglon(f.caja, products.find((p) => esSkuCajaFotolibro(p.sku))?.id ?? null) : null;
+    setActivo(libro.key);
+    cambiarRenglones((prev) => [...prev, libro, ...(caja ? [caja] : [])]);
+    if (productId) setFotolibros((m) => ({ ...m, [libro.key]: { ...f.eleccion, templateId: null } }));
+    if (caja && senaHabilitada) setParaRetirar((m) => ({ ...m, [caja.key]: true }));
+    setCalculadora(null);
+  }
+
+  /** «Crear fotolibro»: el fotolibro vacío con lo elegido, abierto en otra pestaña. Si no, se crea al cobrar. */
+  async function crearFotolibroDelRenglon(key: string) {
+    const f = fotolibros[key];
+    if (!f || creandoFotolibro) return;
+    // La pestaña se abre ya, con el clic: después de esperar al servidor el navegador la bloquea.
+    const pestana = window.open("", "_blank");
+    setCreandoFotolibro(key);
+    try {
+      const r = await crearFotolibroDesdeCobradorAction({ eleccion: f, cliente: cliente?.nombre ?? null });
+      if (!r.ok) {
+        pestana?.close();
+        return setError(r.error);
+      }
+      setFotolibros((m) => (m[key] ? { ...m, [key]: { ...m[key], templateId: r.templateId, url: r.url } } : m));
+      if (pestana) pestana.location.href = r.url;
+      else window.open(r.url, "_blank");
+    } catch {
+      pestana?.close();
+      setError("No se pudo crear el fotolibro. Probá de nuevo: si no, se crea solo al cobrar.");
+    } finally {
+      setCreandoFotolibro(null);
+    }
+  }
+
   function agregarSuelto() {
     const descripcion = sueltoDescripcion.trim();
     const precio = parseArsToMinor(sueltoPrecio);
@@ -596,6 +693,7 @@ export function Pos({
   function reiniciarTicket() {
     setRows([]);
     setPreparaciones({});
+    setFotolibros({});
     setParaRetirar({});
     setPreparando(null);
     setCopiasSinTerminar(new Set());
@@ -681,6 +779,7 @@ export function Pos({
         ? `Pagó con ${formatMinorArs(recibidoMinor)} · vuelto ${formatMinorArs(vueltoAlCobrar.vueltoMinor)}`
         : "";
     const notaFinal = [note.trim(), notaDePago].filter((t) => t !== "").join(" — ");
+    const comisionDelTicket = rows.reduce((s, r) => s + (comisionDelRenglon(r) ?? 0), 0);
 
     const input: CheckoutInput = {
       // `priceWasOverridden` no viaja: lo recalcula el servidor comparando contra el precio
@@ -715,6 +814,7 @@ export function Pos({
             qty: r.qty,
             unitPriceMinor: r.unitPriceMinor,
             paraRetirar: !tieneProceso(r) && paraRetirar[r.key] === true,
+            fotolibro: fotolibros[r.key] ? { ...fotolibros[r.key], url: undefined } : undefined,
           })),
           discountMinor,
           paymentMethod,
@@ -736,7 +836,9 @@ export function Pos({
             deposited: true,
             vueltoMinor: vueltoAlCobrar.estado === "ok" ? vueltoAlCobrar.vueltoMinor : null,
             pedido: { numero: r.pedidoNumero, cobradoMinor: r.cobradoMinor, saldoMinor: r.saldoMinor, aviso: r.aviso },
+            comision: comisionDelTicket > 0 ? { minor: comisionDelTicket, ganada: r.saldoMinor <= 0 } : null,
           });
+          refrescarComision();
           reiniciarTicket();
           historialRef.current = [];
           setActivo(null);
@@ -755,7 +857,9 @@ export function Pos({
           saleNumber: resultado.saleNumber,
           deposited: resultado.deposited,
           vueltoMinor: vueltoAlCobrar.estado === "ok" ? vueltoAlCobrar.vueltoMinor : null,
+          comision: comisionDelTicket > 0 ? { minor: comisionDelTicket, ganada: true } : null,
         });
+        refrescarComision();
         reiniciarTicket();
         // Lo cobrado no se deshace con Ctrl/⌘+Z: para eso está anular la venta.
         historialRef.current = [];
@@ -1049,6 +1153,12 @@ export function Pos({
                         {sinStock ? <span className="font-semibold text-[var(--fo-danger)]"> Sin existencia</span> : null}
                       </span>
                     ) : null}
+                    {comision && conComision.has(p.id) ? (
+                      <span className="mt-0.5 inline-flex items-center gap-1 rounded-full border border-[var(--fo-success-border)] bg-[var(--fo-success-soft)] px-1.5 text-[11px] font-semibold text-[var(--fo-success)]">
+                        <BadgePercent className="size-3" aria-hidden />
+                        Comisión de venta {String(comision.porcentaje).replace(".", ",")} %
+                      </span>
+                    ) : null}
                   </span>
                   <span className="flex shrink-0 flex-col items-end gap-0.5">
                     <span className="text-[13px] font-semibold tabular-nums">{formatMinorArs(p.priceMinor).replace(",00", "")}</span>
@@ -1067,6 +1177,22 @@ export function Pos({
 
       {/* Centro: el carrito, siempre a la vista. */}
       <section className="fo-card h-fit min-w-0 overflow-hidden p-0" aria-label="Lo que lleva">
+        {miComision ? (
+          <a
+            href="/ventas/comisiones"
+            className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--fo-success-border)] bg-[var(--fo-success-soft)] px-4 py-2 text-sm"
+          >
+            <span className="flex items-center gap-1.5 font-semibold text-[var(--fo-success)]">
+              <BadgePercent className="size-4" aria-hidden />
+              Tus comisiones este mes: {formatMinorArs(miComision.resumen.mesMinor).replace(/,00$/, "")}
+            </span>
+            {miComision.resumen.aCobrarMinor > 0 ? (
+              <span className="text-xs text-[var(--fo-muted)]">
+                + {formatMinorArs(miComision.resumen.aCobrarMinor).replace(/,00$/, "")} cuando se cobren los saldos
+              </span>
+            ) : null}
+          </a>
+        ) : null}
         <div className="flex items-center justify-between gap-2 border-b border-[var(--fo-border)] px-4 py-3">
           <h2 className="flex items-baseline gap-2 whitespace-nowrap text-base font-semibold">
             Ticket
@@ -1095,6 +1221,15 @@ export function Pos({
             >
               + Otro
             </button>
+            {fotolibro ? (
+              <button
+                type="button"
+                onClick={() => setCalculadora((c) => (c ? null : { productId: null, tipo: null, titulo: "Fotolibro", proveedorInicial: null }))}
+                className="fo-btn fo-btn-ghost whitespace-nowrap px-2 text-xs"
+              >
+                + Fotolibro
+              </button>
+            ) : null}
             {rows.length > 0 ? (
               <button
                 type="button"
@@ -1110,6 +1245,21 @@ export function Pos({
         </div>
 
         <div className="px-4">
+          {calculadora && fotolibro ? (
+            <div className="my-3">
+              <CalculadoraFotolibro
+                key={calculadora.productId ?? "libre"}
+                catalogo={fotolibro.catalogo}
+                verCostos={fotolibro.verCostos}
+                onAgregar={agregarFotolibro}
+                onCerrar={() => setCalculadora(null)}
+                textoAgregar="Agregar al ticket"
+                tipo={calculadora.tipo}
+                titulo={calculadora.titulo}
+                proveedorInicial={calculadora.proveedorInicial}
+              />
+            </div>
+          ) : null}
           {mostrarSuelto ? (
             <div className="my-3 space-y-2 rounded-[var(--fo-radius-sm)] border border-dashed border-[var(--fo-border)] p-3">
               <p className="fo-helper">Algo que no está en el catálogo. No mueve stock.</p>
@@ -1164,8 +1314,16 @@ export function Pos({
                           ) : null}
                           {r.description}
                         </p>
-                      {/* Un producto sin proceso también puede quedar señado para retirar. */}
-                      {senaHabilitada && !tieneProceso(r) ? (
+                      {/* Un producto con proceso ya es un pedido: muestra «Seña» prendido y fijo, para
+                          que todos los renglones se vean igual. Uno sin proceso puede quedar señado. */}
+                      {tieneProceso(r) ? (
+                        <span
+                          title="Este producto se produce después: siempre va como pedido. Seña o pago total se eligen abajo."
+                          className="mt-1 inline-flex h-6 cursor-default items-center rounded-full border border-[var(--fo-accent)] bg-[var(--fo-accent-muted)] px-2 text-[11px] font-medium text-[var(--fo-text)]"
+                        >
+                          Seña
+                        </span>
+                      ) : senaHabilitada ? (
                         <button
                           type="button"
                           aria-pressed={paraRetirar[r.key] === true}
@@ -1198,6 +1356,23 @@ export function Pos({
                           {abriendoPreparacion === r.key ? "Abriendo…" : preparaciones[r.key] ? "Editar fotos" : "Preparar"}
                         </button>
                       ) : null}
+                      {fotolibros[r.key] ? (
+                        <button
+                          type="button"
+                          className="fo-btn fo-btn-secondary mt-1 h-7 px-2 text-xs"
+                          disabled={creandoFotolibro !== null || procesando}
+                          title={fotolibros[r.key]!.templateId ? "El fotolibro ya está creado: se ata al trabajo al cobrar." : "Crea el fotolibro con esta medida y estas hojas. Si no, se crea solo al cobrar."}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const url = fotolibros[r.key]!.url;
+                            if (url) window.open(url, "_blank");
+                            else void crearFotolibroDelRenglon(r.key);
+                          }}
+                        >
+                          <BookOpen className="size-3.5" aria-hidden />
+                          {creandoFotolibro === r.key ? "Creando…" : fotolibros[r.key]!.templateId ? "Abrir fotolibro" : "Crear fotolibro"}
+                        </button>
+                      ) : null}
                       {copiasSinTerminar.has(r.key) ? <span className="ml-2 text-xs font-medium text-[var(--fo-warning)]">Copias sin terminar</span> : null}
                       {editandoPrecio === r.key ? (
                         <InputMoneda
@@ -1227,6 +1402,11 @@ export function Pos({
                       )}
                       {r.tracksStock && r.stockQty !== null && r.stockQty <= 0 ? (
                         <p className="text-xs font-semibold text-[var(--fo-danger)]">Sin existencia cargada</p>
+                      ) : null}
+                      {comisionDelRenglon(r) ? (
+                        <p className="text-xs font-semibold text-[var(--fo-success)]">
+                          Ganás {formatMinorArs(comisionDelRenglon(r)!).replace(/,00$/, "")} cuando se cobre el total
+                        </p>
                       ) : null}
                     </div>
                     <div className="flex shrink-0 items-center rounded-full border border-[var(--fo-border)] bg-[var(--fo-bg-elevated)]">
@@ -1569,6 +1749,13 @@ export function Pos({
                 ) : (
                   <p className="font-semibold text-[var(--fo-success)]">Venta #{ultimaVenta.saleNumber} cobrada</p>
                 )}
+                {ultimaVenta.comision ? (
+                  <p className="font-semibold text-[var(--fo-success)]">
+                    {ultimaVenta.comision.ganada
+                      ? `Ganaste ${formatMinorArs(ultimaVenta.comision.minor).replace(/,00$/, "")} de comisión.`
+                      : `Tu comisión: ${formatMinorArs(ultimaVenta.comision.minor).replace(/,00$/, "")}. Se suma cuando se cobre el saldo.`}
+                  </p>
+                ) : null}
                 {ultimaVenta.vueltoMinor !== null && ultimaVenta.vueltoMinor > 0 ? (
                   <p className="text-[var(--fo-text)]">Dar de vuelto {formatMinorArs(ultimaVenta.vueltoMinor)}</p>
                 ) : null}
@@ -1621,7 +1808,7 @@ export function Pos({
                 preparacionId={preparando.preparacionId}
                 tipoPieza={p.tipoPieza === "COPIA" ? "COPIA" : "CARNET"}
                 cliente={cliente}
-                produccion={{ salida: p.salida, hoja: p.hoja }}
+                produccion={{ salida: p.salida, hoja: p.hoja, digital: p.digital }}
                 permisos={permisosCarnet}
                 onListo={({ cantidad }) => {
                   // La cantidad del renglón: planchas (carnet) o el total de copias (se puede deshacer como cualquier cambio).

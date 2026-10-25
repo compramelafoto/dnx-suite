@@ -4,13 +4,18 @@ import os from "node:os";
 import path from "node:path";
 import type { Readable, Writable } from "node:stream";
 import { armarMarca, type BrandingMarca } from "./marca";
-import { argumentosFfmpeg, armarPlan } from "./plan";
+import { argumentosFfmpeg, armarPlan, conAudio } from "./plan";
 import type { Repo } from "./repo";
 
 
 export type DepsConvertir = {
   repo: Repo;
   leerParte(clave: string): Promise<Buffer>;
+  /**
+   * ¿La parte trae pista de audio? (ver audio.ts; ante la duda devuelve true). Sin esta función se
+   * asume que todos los tramos tienen audio, como antes.
+   */
+  detectarAudio?: (clave: string) => Promise<boolean>;
   subirStream(clave: string, stream: Readable, señal?: AbortSignal): Promise<number>;
   borrarPrefijo(prefijo: string): Promise<void>;
   preset: string;
@@ -146,8 +151,8 @@ export async function convertirGrabacion(deps: DepsConvertir, id: string, lockAt
     const datos = await repo.cargar(id);
     if (!datos) throw new CausaError("La grabación no existe.");
 
-    const plan = armarPlan(datos.grabacion, datos.partes);
-    if (plan.tipo === "SIN_IMAGEN") {
+    const planBase = armarPlan(datos.grabacion, datos.partes);
+    if (planBase.tipo === "SIN_IMAGEN") {
       const n = await conReintentos(deps, "marcarSinImagen", () => repo.marcarSinImagen(id, lock));
       if (n === 0) {
         log(`${id}: ya no somos dueños, no se marca SIN_IMAGEN`);
@@ -162,9 +167,20 @@ export async function convertirGrabacion(deps: DepsConvertir, id: string, lockAt
       }
       return;
     }
-    if (plan.tipo === "SIN_PARTES") {
+    if (planBase.tipo === "SIN_PARTES") {
       await conReintentos(deps, "marcarError", () => repo.marcarError(id, lock, mensajeError("No hay partes subidas.")));
       return;
+    }
+
+    // Antes de armar el filtro: qué tramos traen audio (sólo se mira el comienzo de su 1.ª parte).
+    let plan = planBase;
+    if (deps.detectarAudio) {
+      const detectar = deps.detectarAudio;
+      const audios = await Promise.all(planBase.entradas.map((e) => detectar(e.claves[0])));
+      planBase.entradas.forEach((e, i) => {
+        if (!audios[i]) log(`${id}: el tramo ${e.tramo} no tiene pista de audio; va con silencio`);
+      });
+      plan = conAudio(planBase, audios);
     }
 
     const prefijo = `digitalizacion/${datos.workspaceId}/${id}/`;

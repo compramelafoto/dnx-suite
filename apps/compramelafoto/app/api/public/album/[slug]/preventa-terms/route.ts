@@ -132,7 +132,11 @@ export async function GET(
           templatePolicy: b.templatePolicy,
           templateName: b.template?.name ?? null,
           photographerProductLabel,
-          extraUnitPriceOverrideArs: b.extraUnitPriceOverrideArs,
+          // Se carga como base del fotógrafo; el cliente paga con el fee encima (igual que el pack).
+          extraUnitPriceOverrideArs:
+            b.extraUnitPriceOverrideArs != null
+              ? clientTotalFromPhotographerBaseArs(b.extraUnitPriceOverrideArs, platformPercent)
+              : null,
           regularUnitPriceAfterPreventaArs: b.regularUnitPriceAfterPreventaArs ?? null,
         };
       }),

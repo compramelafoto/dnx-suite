@@ -8,6 +8,7 @@ import type { Receta } from "@/lib/impresion/receta";
 import { generarHojaCarnetAction, guardarPiezaCarnetAction } from "@/app/(shell)/ventas/impresion/actions";
 import type { ModoEditorFotoCarnet } from "./editor-foto-carnet";
 import { VistaHoja } from "./vistas";
+import { EnviarPorMail } from "./enviar-por-mail";
 
 const HOJAS_MAX = 50;
 
@@ -41,11 +42,14 @@ export function PasoPlancha({
   modo,
   preparacionId,
   pieza,
+  emailInicial = null,
   inicial = null,
 }: {
   modo: ModoEditorFotoCarnet;
   preparacionId: string;
   pieza: Pieza;
+  /** El mail de la ficha del cliente, para mandarle la foto (sola, sin plancha). */
+  emailInicial?: string | null;
   inicial?: { id: string; fotosPorHoja: number; copias: number; version: string; ppp: number; aviso: Armada["aviso"] } | null;
 }) {
   const salidas = modo.tipo === "suelto" ? modo.salidas : [];
@@ -214,6 +218,7 @@ export function PasoPlancha({
                 Descargar JPG
               </a>
             </div>
+            <EnviarPorMail preparacionId={preparacionId} emailInicial={emailInicial} />
             {modo.tipo === "mostrador" ? (
               <button
                 type="button"

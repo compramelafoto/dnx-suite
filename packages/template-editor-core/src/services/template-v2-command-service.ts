@@ -24,6 +24,13 @@ import { createTemplateV2VersionFromEditorPayload } from "./create-version-from-
 import { validateLegacyTemplatePayload } from "./template-v2-validation-service";
 import { getTemplateV2Runtime } from "./template-v2-runtime";
 import { TEMPLATE_V2_LIMITS } from "./template-v2-limits";
+import type { TemplateV2VersionSaveDecision } from "./template-v2-runtime";
+import {
+  mergeServerOwnedMeta,
+  readPrivateCopy,
+  readVersionOrigin,
+  remapBlockId,
+} from "../template-v2-version-lineage";
 
 
 const DEFAULT_CANVAS = {
@@ -187,12 +194,52 @@ export async function createTemplateV2(args: {
   return { ok: true as const, ...result };
 }
 
+/**
+ * Respuesta de guardar. Si la versión estaba en uso, los cambios quedaron en una versión nueva
+ * (`versionId` distinto del pedido) y el editor tiene que pasar a usarla: sus bloques cambiaron de
+ * id según `blockIdMap`.
+ */
+export type SaveTemplateV2VersionResult = {
+  ok: true;
+  revision: number;
+  updatedAt: string;
+  versionId: string;
+  versionNumber: number;
+  /** La versión que quedó congelada, cuando se creó una nueva. */
+  forkedFromVersionId: string | null;
+  /** id que mandó el editor → id con el que quedó guardado. Vacío si no cambió ninguno. */
+  blockIdMap: Record<string, string>;
+};
+
+async function decideVersionSave(input: {
+  user: TemplateV2AuthUser;
+  templateId: string;
+  version: { id: string; versionNumber: number; metaJson: unknown; isLocked: boolean };
+  isCurrent: boolean;
+}): Promise<TemplateV2VersionSaveDecision> {
+  const hook = getTemplateV2Runtime().resolveVersionSave;
+  const decided: TemplateV2VersionSaveDecision = hook
+    ? await hook({
+        user: input.user,
+        templateId: input.templateId,
+        versionId: input.version.id,
+        versionNumber: input.version.versionNumber,
+        metaJson: input.version.metaJson,
+        isCurrent: input.isCurrent,
+      })
+    : { mode: "in-place" };
+  if (decided.mode === "read-only") return decided;
+  // Una versión congelada no se pisa nunca, diga lo que diga la app.
+  if (input.version.isLocked) return { mode: "fork" };
+  return decided;
+}
+
 export async function saveTemplateV2Version(args: {
   user: TemplateV2AuthUser;
   templateId: string;
   versionId: string;
   body: unknown;
-}) {
+}): Promise<SaveTemplateV2VersionResult> {
   const parsed = parseTemplateV2EditorPayload(
     typeof args.body === "object" && args.body && !Array.isArray(args.body)
       ? {
@@ -217,7 +264,14 @@ export async function saveTemplateV2Version(args: {
   const db = templateV2Db() as any;
   const template = await db.templateV2.findUnique({
     where: { id: args.templateId },
-    select: { id: true, ownerUserId: true, workspaceId: true, status: true, name: true },
+    select: {
+      id: true,
+      ownerUserId: true,
+      workspaceId: true,
+      status: true,
+      name: true,
+      currentVersionId: true,
+    },
   });
   requireTemplateV2WriteAccess({ user: args.user, template, policy: resolveTemplateV2Policy() });
 
@@ -229,16 +283,10 @@ export async function saveTemplateV2Version(args: {
 
   const version = await db.templateV2Version.findFirst({
     where: { id: args.versionId, templateId: args.templateId },
+    select: { id: true, versionNumber: true, revision: true, isLocked: true, metaJson: true },
   });
   if (!version) {
     throw new TemplateV2DomainError("TEMPLATE_NOT_FOUND", "Versión no encontrada", 404);
-  }
-  if (version.isLocked) {
-    throw new TemplateV2DomainError(
-      "TEMPLATE_PUBLISHED_LOCKED",
-      "template_publicado_bloqueado",
-      403
-    );
   }
 
   if (expectedRevision != null && version.revision !== expectedRevision) {
@@ -250,8 +298,123 @@ export async function saveTemplateV2Version(args: {
     );
   }
 
-  const nextRevision = version.revision + 1;
+  const isCurrent = template!.currentVersionId === version.id;
+  const decision = await decideVersionSave({
+    user: args.user,
+    templateId: args.templateId,
+    version,
+    isCurrent,
+  });
+  if (decision.mode === "read-only") {
+    throw new TemplateV2DomainError("TEMPLATE_PUBLISHED_LOCKED", decision.message, 403);
+  }
+
   const payload = parsed.data;
+
+  if (decision.mode === "fork") {
+    if (readPrivateCopy(version.metaJson)) {
+      throw new TemplateV2DomainError(
+        "TEMPLATE_PUBLISHED_LOCKED",
+        "Esta copia ya no se puede cambiar.",
+        403
+      );
+    }
+    // Una versión ya congelada que no es la vigente: alguien ya guardó encima desde otra pestaña
+    // (o es una versión vieja). Guardar acá crearía una rama paralela que pisa la vigente.
+    if (version.isLocked && !isCurrent) {
+      throw new TemplateV2DomainError(
+        "TEMPLATE_EDIT_CONFLICT",
+        "revision_conflict",
+        409,
+        { currentRevision: version.revision }
+      );
+    }
+
+    const created = await (templateV2Db() as any).$transaction(async (tx: any) => {
+      // Se congela antes de crear la nueva: si dos guardados compiten, el segundo ve el candado.
+      const locked = await tx.templateV2Version.updateMany({
+        where: { id: version.id, revision: version.revision },
+        data: { isLocked: true },
+      });
+      if (locked.count !== 1) {
+        throw new TemplateV2DomainError(
+          "TEMPLATE_EDIT_CONFLICT",
+          "revision_conflict",
+          409,
+          { currentRevision: version.revision }
+        );
+      }
+      return createTemplateV2VersionFromEditorPayload(tx, {
+        templateId: args.templateId,
+        branchFromVersionId: version.id,
+        userId: args.user.id,
+        payload,
+        reason: "en-uso",
+        setAsCurrent: true,
+      });
+    });
+
+    const newMeta = await db.templateV2Version.findUnique({
+      where: { id: created.newVersionId },
+      select: { metaJson: true },
+    });
+    await getTemplateV2Runtime().onVersionSaved?.({
+      user: args.user,
+      templateId: args.templateId,
+      versionId: created.newVersionId,
+      forkedFromVersionId: version.id,
+      metaJson: newMeta?.metaJson ?? null,
+    });
+
+    return {
+      ok: true as const,
+      revision: created.revision,
+      updatedAt: created.updatedAt.toISOString(),
+      versionId: created.newVersionId,
+      versionNumber: created.versionNumber,
+      forkedFromVersionId: version.id,
+      blockIdMap: created.blockIdMap,
+    };
+  }
+
+  const nextRevision = version.revision + 1;
+
+  /*
+   * Ids que ya usa otra versión. Pasa si el editor sigue con ids de la versión de la que salió
+   * esta (por ejemplo, deshizo hasta antes de que se creara): en la base el id de un bloque es
+   * único entre todas las versiones. Se traducen con el mapa de origen o se les da uno nuevo, y
+   * el editor se entera por `blockIdMap`.
+   */
+  const remapped: Record<string, string> = {};
+  const payloadBlockIds = payload.blocks.map((b) => b.id);
+  if (payloadBlockIds.length > 0) {
+    const taken: { id: string }[] = await db.templateV2Block.findMany({
+      where: { id: { in: payloadBlockIds }, templateVersionId: { not: args.versionId } },
+      select: { id: true },
+    });
+    if (taken.length > 0) {
+      const originMap = readVersionOrigin(version.metaJson)?.blockIdMap ?? {};
+      const inPayload = new Set(payloadBlockIds);
+      for (const { id } of taken) {
+        const candidate = originMap[id];
+        remapped[id] = candidate && !inPayload.has(candidate) ? candidate : randomUUID();
+      }
+    }
+  }
+  const bindingIds = payload.variableBindings
+    .map((vb) => vb.id)
+    .filter((id): id is string => typeof id === "string" && id.length > 0);
+  const takenBindingIds = new Set<string>(
+    bindingIds.length > 0
+      ? (
+          await db.templateV2VariableBinding.findMany({
+            where: { id: { in: bindingIds }, templateVersionId: { not: args.versionId } },
+            select: { id: true },
+          })
+        ).map((r: { id: string }) => r.id)
+      : []
+  );
+  const metaJson = mergeServerOwnedMeta(payload.meta, version.metaJson);
 
   await (templateV2Db() as any).$transaction(async (tx: any) => {
     const t = tx as any;
@@ -265,7 +428,7 @@ export async function saveTemplateV2Version(args: {
     if (payload.blocks.length > 0) {
       await t.templateV2Block.createMany({
         data: payload.blocks.map((b) => ({
-          id: b.id,
+          id: remapBlockId(b.id, remapped),
           templateVersionId: args.versionId,
           pageIndex: b.pageIndex ?? 0,
           type: b.type,
@@ -287,9 +450,10 @@ export async function saveTemplateV2Version(args: {
     if (payload.variableBindings.length > 0) {
       await t.templateV2VariableBinding.createMany({
         data: payload.variableBindings.map((vb, index) => ({
-          id: vb.id ?? `vb-${args.versionId}-${index + 1}`,
+          id:
+            vb.id && !takenBindingIds.has(vb.id) ? vb.id : `vb-${args.versionId}-${index + 1}`,
           templateVersionId: args.versionId,
-          blockId: vb.blockId,
+          blockId: remapBlockId(vb.blockId, remapped),
           targetPath: vb.targetPath,
           variableKey: vb.variableKey,
           formatter: vb.formatter ?? null,
@@ -302,7 +466,7 @@ export async function saveTemplateV2Version(args: {
       where: { id: args.versionId },
       data: {
         canvasJson: payload.canvas,
-        metaJson: payload.meta,
+        metaJson,
         revision: nextRevision,
       },
     });
@@ -318,10 +482,22 @@ export async function saveTemplateV2Version(args: {
     select: { revision: true, updatedAt: true },
   });
 
+  await getTemplateV2Runtime().onVersionSaved?.({
+    user: args.user,
+    templateId: args.templateId,
+    versionId: args.versionId,
+    forkedFromVersionId: null,
+    metaJson,
+  });
+
   return {
     ok: true as const,
     revision: refreshed?.revision ?? nextRevision,
     updatedAt: (refreshed?.updatedAt ?? new Date()).toISOString(),
+    versionId: args.versionId,
+    versionNumber: version.versionNumber,
+    forkedFromVersionId: null,
+    blockIdMap: remapped,
   };
 }
 
@@ -549,12 +725,26 @@ export async function saveAsNewVersion(args: {
   });
   assertNotPublishedLocked(publication);
 
+  const branch = await db.templateV2Version.findFirst({
+    where: { id: branchFromVersionId, templateId: args.templateId },
+    select: { metaJson: true },
+  });
+  if (branch && readPrivateCopy(branch.metaJson)) {
+    // La copia de un solo diseño no puede volverse la versión vigente de la plantilla.
+    throw new TemplateV2DomainError(
+      "TEMPLATE_PUBLISHED_LOCKED",
+      "Esta es la copia de un solo diseño: no se puede convertir en una versión de la plantilla.",
+      403
+    );
+  }
+
   const created = await (templateV2Db() as any).$transaction(async (tx: any) =>
     createTemplateV2VersionFromEditorPayload(tx as any, {
       templateId: args.templateId,
       branchFromVersionId,
       userId: args.user.id,
       payload: parsed.data,
+      reason: "nueva-version",
     })
   );
 

@@ -3,6 +3,9 @@
 /**
  * Grilla para elegir fotos. Tocar la foto la elige o la saca; la lupa la abre grande.
  * `badge` marca fotos con otro estado (p. ej. "En tu combo" en el paso de extras).
+ *
+ * Cada foto se ve entera en un cuadro: las horizontales a lo ancho y las verticales a lo alto.
+ * Antes el cuadro era vertical y recortaba las horizontales (la grupal perdía medio curso).
  */
 
 type Props = {
@@ -15,6 +18,8 @@ type Props = {
   full?: boolean;
   badge?: (photoId: number) => string | null;
   accent?: "combo" | "extra";
+  /** Avisa cuando carga cada miniatura, para medir la foto. */
+  onImgLoad?: (photoId: number, img: HTMLImageElement | null) => void;
 };
 
 export default function PhotoPickGrid({
@@ -26,6 +31,7 @@ export default function PhotoPickGrid({
   full = false,
   badge,
   accent = "combo",
+  onImgLoad,
 }: Props) {
   const ring = accent === "combo" ? "ring-[#2f7d5b]" : "ring-[#c27b3d]";
   const chip = accent === "combo" ? "bg-[#2f7d5b]" : "bg-[#c27b3d]";
@@ -48,7 +54,14 @@ export default function PhotoPickGrid({
               } ${dim ? "opacity-45" : ""}`}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={thumbUrl(id)} alt="" loading="lazy" className="aspect-[3/4] w-full object-cover" />
+              <img
+                src={thumbUrl(id)}
+                alt=""
+                loading="lazy"
+                ref={onImgLoad ? (el) => onImgLoad(id, el) : undefined}
+                onLoad={onImgLoad ? (e) => onImgLoad(id, e.currentTarget) : undefined}
+                className="aspect-square w-full object-contain"
+              />
             </button>
             {isSel ? (
               <span

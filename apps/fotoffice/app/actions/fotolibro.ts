@@ -2,10 +2,13 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { TEMPLATE_V2_BASE_PATHS, templateV2EditorPath } from "@repo/template-editor-ui";
+import { templateV2EditorPath } from "@repo/template-editor-ui";
 import { requireActiveWorkspace } from "@/lib/workspace";
-import { canDesignTemplates } from "@/lib/template-v2/access";
+import { canDesignFotolibros } from "@/lib/fotolibro/acceso";
+import { FOTOLIBROS_BASE_PATH } from "@/lib/fotolibro/constantes";
 import { crearFotolibro } from "@/lib/fotolibro/crear";
+import { leerFotolibroVendido } from "@/lib/fotolibro/venta";
+import { crearFotolibroDeVenta } from "@/lib/fotolibro/venta-servidor";
 
 export type NuevoFotolibroState = { error: string | null };
 
@@ -16,8 +19,8 @@ export async function crearFotolibroAction(
 ): Promise<NuevoFotolibroState> {
   const { user, workspace } = await requireActiveWorkspace();
   if (!workspace) return { error: "No hay una institución activa." };
-  if (!(await canDesignTemplates(user.id, workspace.id))) {
-    return { error: "No tenés permiso para crear plantillas: hace falta gestionar Socios." };
+  if (!(await canDesignFotolibros(user.id, workspace.id))) {
+    return { error: "No tenés permiso para crear fotolibros: hace falta gestionar Ventas." };
   }
 
   const r = await crearFotolibro({
@@ -30,6 +33,27 @@ export async function crearFotolibroAction(
   });
   if (!r.ok) return { error: r.error };
 
-  revalidatePath("/members/disenador");
-  redirect(templateV2EditorPath(TEMPLATE_V2_BASE_PATHS.fotoffice, r.templateId, r.versionId));
+  revalidatePath(FOTOLIBROS_BASE_PATH);
+  redirect(templateV2EditorPath(FOTOLIBROS_BASE_PATH, r.templateId, r.versionId));
+}
+
+/**
+ * «Crear fotolibro» en un renglón del Cobrador: el fotolibro vacío con lo elegido en la
+ * calculadora. Al cobrar se ata al trabajo del pedido (`atarFotolibrosAlPedido`).
+ */
+export async function crearFotolibroDesdeCobradorAction(input: {
+  eleccion: unknown;
+  cliente: string | null;
+}): Promise<{ ok: true; templateId: string; url: string } | { ok: false; error: string }> {
+  const { user, workspace } = await requireActiveWorkspace();
+  if (!workspace) return { ok: false, error: "No hay una institución activa." };
+  if (!(await canDesignFotolibros(user.id, workspace.id))) {
+    return { ok: false, error: "No tenés permiso para crear fotolibros: hace falta gestionar Ventas. Se crea solo al cobrar." };
+  }
+  const e = leerFotolibroVendido({ ...(input.eleccion as object), costoMinor: null, cajaCostoMinor: null, templateId: null });
+  if (!e) return { ok: false, error: "Volvé a elegir el fotolibro en la calculadora." };
+  const cliente = typeof input.cliente === "string" ? input.cliente.trim().slice(0, 120) || null : null;
+  const r = await crearFotolibroDeVenta({ workspaceId: workspace.id, userId: user.id, eleccion: e, cliente });
+  if (r.ok) revalidatePath(FOTOLIBROS_BASE_PATH);
+  return r;
 }

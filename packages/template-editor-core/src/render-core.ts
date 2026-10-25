@@ -104,6 +104,7 @@ function normalizeBlockConfigByType(type: TemplateV2BlockType, input: unknown): 
           : typeof cfg.align === "string"
             ? cfg.align
             : "CENTER",
+      ...verticalAlignEntry(cfg),
       color: typeof cfg.color === "string" ? cfg.color : "#111111",
       fontItalic: cfg.fontItalic === true,
       underline: cfg.underline === true,
@@ -121,6 +122,8 @@ function normalizeBlockConfigByType(type: TemplateV2BlockType, input: unknown): 
       variableKey: typeof cfg.variableKey === "string" ? cfg.variableKey : "",
       // Opciones del «Listado del curso»; se leen con `readClassListOptions`.
       ...(cfg.classList && typeof cfg.classList === "object" ? { classList: cfg.classList } : {}),
+      // Opciones del «Mosaico del curso»; se leen con `readCourseMosaicOptions`.
+      ...(cfg.courseMosaic && typeof cfg.courseMosaic === "object" ? { courseMosaic: cfg.courseMosaic } : {}),
       fallback:
         typeof cfg.fallback === "string"
           ? cfg.fallback
@@ -133,6 +136,7 @@ function normalizeBlockConfigByType(type: TemplateV2BlockType, input: unknown): 
       lineHeight: typeof cfg.lineHeight === "number" ? cfg.lineHeight : 1.2,
       letterSpacing: typeof cfg.letterSpacing === "number" ? cfg.letterSpacing : 0,
       textAlign: typeof cfg.textAlign === "string" ? cfg.textAlign : "CENTER",
+      ...verticalAlignEntry(cfg),
       color: typeof cfg.color === "string" ? cfg.color : "#111111",
       fontItalic: cfg.fontItalic === true,
       underline: cfg.underline === true,
@@ -169,6 +173,8 @@ function normalizeBlockConfigByType(type: TemplateV2BlockType, input: unknown): 
       photoMode,
       maskShape,
       source,
+      // «Quitar el fondo» del hueco de foto (ver `huecos-sin-fondo.ts`).
+      ...(cfg.removeBackground === true ? { removeBackground: true } : {}),
     };
   }
 
@@ -247,6 +253,27 @@ export function formatFontFamilyCss(nameOrStack: string): string {
   return `"${safe}", sans-serif`;
 }
 
+/** Alineación vertical del texto en su caja, tal como la guarda el editor. */
+export type TextVerticalAlign = "TOP" | "MIDDLE" | "BOTTOM";
+
+/**
+ * Lee la alineación vertical guardada. Sin valor —todos los diseños anteriores a la opción— o con
+ * uno desconocido, es arriba: así se dibujaba siempre.
+ */
+export function readTextVerticalAlign(cfg: Record<string, unknown>): TextVerticalAlign {
+  const v = typeof cfg.verticalAlign === "string" ? cfg.verticalAlign.toUpperCase() : "";
+  return v === "MIDDLE" || v === "BOTTOM" ? v : "TOP";
+}
+
+/**
+ * Sólo se guarda si no es arriba: un diseño que nunca tocó la opción queda idéntico al guardarlo,
+ * sin una propiedad nueva que lo haga parecer cambiado.
+ */
+function verticalAlignEntry(cfg: Record<string, unknown>): { verticalAlign?: TextVerticalAlign } {
+  const v = readTextVerticalAlign(cfg);
+  return v === "TOP" ? {} : { verticalAlign: v };
+}
+
 export function getTextVisualConfig(cfg: Record<string, unknown>) {
   const textAlignRaw = String(cfg.textAlign ?? "CENTER").toLowerCase();
   const textAlign = textAlignRaw === "left" || textAlignRaw === "right" ? textAlignRaw : "center";
@@ -264,6 +291,8 @@ export function getTextVisualConfig(cfg: Record<string, unknown>) {
     lineHeight: Number(cfg.lineHeight ?? 1.2),
     letterSpacing: Number(cfg.letterSpacing ?? 0),
     textAlign: textAlign as "left" | "center" | "right",
+    /** Dónde va el texto en el alto de la caja. En minúsculas, como lo pide el módulo de impresión. */
+    verticalAlign: readTextVerticalAlign(cfg).toLowerCase() as "top" | "middle" | "bottom",
     /*
      * El navegador convierte con `text-transform`, y el módulo de impresión convierte el texto
      * ya resuelto. Los dos llegan al mismo resultado, así que el lienzo muestra lo que se va a

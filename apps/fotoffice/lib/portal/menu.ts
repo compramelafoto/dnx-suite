@@ -6,6 +6,8 @@ import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
 import { PORTFOLIO_MODULE_KEY } from "@/lib/portfolio/constants";
 import { GOVERNANCE_MODULE_KEY } from "@/lib/governance/constants";
 import { SPONSORS_MODULE_KEY } from "@/lib/sponsors/constants";
+import { CUANTO_COBRO_SOCIO_MODULE_KEY, RUTA_CUANTO_COBRO_SOCIO } from "@/lib/cuanto-cobro-socio/constants";
+import { FOTOLIBROS_SOCIO_MODULE_KEY, RUTA_FOTOLIBROS_SOCIO } from "@/lib/fotolibro/constantes";
 
 /**
  * El menú del socio, en un solo lugar.
@@ -71,7 +73,9 @@ export type PortalIconName =
   | "share"
   | "camera"
   | "tasks"
-  | "trophy";
+  | "trophy"
+  | "calculator"
+  | "book";
 
 /**
  * El mapa del §5 del documento de navegación, con su orden.
@@ -125,6 +129,24 @@ export const PORTAL_MENU: PortalMenuItem[] = [
     description: "Tus fotos, publicadas en el sitio de la institución.",
     icon: "camera",
     requiresModule: PORTFOLIO_MODULE_KEY,
+    built: true,
+  },
+  {
+    order: 47,
+    label: "¿Cuánto Cobro?",
+    href: RUTA_CUANTO_COBRO_SOCIO,
+    description: "Calculá el valor de tu hora y cuánto cobrar un trabajo sin regalarlo.",
+    icon: "calculator",
+    requiresModule: CUANTO_COBRO_SOCIO_MODULE_KEY,
+    built: true,
+  },
+  {
+    order: 48,
+    label: "Mis fotolibros",
+    href: RUTA_FOTOLIBROS_SOCIO,
+    description: "Diseñá tus fotolibros con la medida real del pliego, listos para el laboratorio.",
+    icon: "book",
+    requiresModule: FOTOLIBROS_SOCIO_MODULE_KEY,
     built: true,
   },
   {

@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@repo/db";
+import { NO_ES_INSUMO } from "@/lib/sales/vendible";
 import { decimalArsToMinor } from "@/lib/membership/money";
 
 /**
@@ -54,7 +55,7 @@ export async function listaDePrecios(workspaceId: string): Promise<string | null
   });
   if (perfiles.length === 0) return null;
   const productos = await prisma.product.findMany({
-    where: { workspaceId, id: { in: perfiles.map((p) => p.productId) }, isActive: true },
+    where: { workspaceId, id: { in: perfiles.map((p) => p.productId) }, isActive: true, ...NO_ES_INSUMO },
     orderBy: [{ name: "asc" }, { id: "asc" }],
     select: { name: true, priceArs: true, categoryId: true },
     take: 1000,

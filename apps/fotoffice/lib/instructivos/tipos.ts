@@ -34,6 +34,7 @@ export type Instructivo = {
     | "Caja"
     | "Mostrador"
     | "Trabajos y entregas"
+    | "Stock"
     | "Socios"
     | "Comunicación"
     | "Comisión"

@@ -1,3 +1,4 @@
+import { esEscuelaDemo } from "@/lib/demos/visibilidad";
 import { NextRequest, NextResponse } from "next/server";
 import { OrganizerCommissionStatus } from "@/lib/prisma";
 import { prisma } from "@/lib/prisma";
@@ -28,6 +29,14 @@ export async function POST(_req: NextRequest, { params }: RouteContext) {
     const access = await requireSchoolOrganizerAccess({ schoolId });
     if (!access.ok) {
       return NextResponse.json({ error: access.error }, { status: access.status });
+    }
+
+    // Demo grabable: el cobro no se pide de verdad (aparecería en las liquidaciones de admin).
+    if (await esEscuelaDemo(schoolId)) {
+      return NextResponse.json(
+        { error: "Esto es una demo: en una escuela real, acá el colegio pide el cobro de su comisión." },
+        { status: 400 },
+      );
     }
 
     // Comisiones PENDING de esta escuela a nombre del usuario, sin organizador asignado, o

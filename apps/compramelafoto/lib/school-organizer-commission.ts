@@ -1,3 +1,4 @@
+import { esUsuarioDemo } from "@/lib/demos/identidad";
 import {
   OrganizerCommissionAppliesTo,
   OrderOrigin,
@@ -113,6 +114,7 @@ export async function createOrganizerCommissionForPaidOrder(input: {
       organizerSchoolId: true,
       redeemsOrderId: true,
       pricingSnapshot: true,
+      isTest: true,
     },
   });
   if (!order) return;
@@ -125,9 +127,12 @@ export async function createOrganizerCommissionForPaidOrder(input: {
       organizerCommissionEnabled: true,
       organizerCommissionPercentage: true,
       organizerCommissionAppliesTo: true,
+      user: { select: { tags: true } },
     },
   });
   if (!album) return;
+  // Un pedido de prueba no le genera plata a ningún colegio; solo las demos grabables la muestran.
+  if (order.isTest && !esUsuarioDemo(album.user)) return;
   if (!album.organizerCommissionEnabled) return;
   if (album.schoolId == null) return;
 

@@ -1,5 +1,7 @@
 "use client";
 
+// Primero: en el celular achica las texturas antes de que empiecen a bajar los modelos.
+import "@/lib/simulator/mobile-textures-install";
 import { Canvas } from "@react-three/fiber";
 import { Suspense } from "react";
 import * as THREE from "three";
@@ -9,6 +11,8 @@ import CameraVisualEffect from "./CameraVisualEffect";
 import CanvasPhotoCapture from "./CanvasPhotoCapture";
 import DevDebugScene from "./DevDebugScene";
 import DepthOfFieldPass from "./DepthOfFieldPass";
+import QualityGovernor from "./QualityGovernor";
+import { SceneLoadingGate } from "./SceneLoadingGate";
 import FocusContinuousDrive from "./FocusContinuousDrive";
 import FocusMotorDrive from "./FocusMotorDrive";
 import FocusRaycaster from "./FocusRaycaster";
@@ -22,6 +26,7 @@ import { resolveRenderProfile } from "@/lib/simulator/render";
 import { resolveThreeToneMapping } from "@/lib/simulator/render/render-profile";
 import { focalLengthToFov } from "@/lib/simulator/camera-math";
 import { EYE_HEIGHT } from "./simulator-camera-constants";
+import { diagnosticsRequested, installRenderDiagnostics } from "@/lib/simulator/render-diagnostics";
 
 export interface SimulatorCanvasProps {
   onLockChange?: (locked: boolean) => void;
@@ -35,24 +40,25 @@ export default function SimulatorCanvas({ onLockChange, onLoaded }: SimulatorCan
     <Canvas
       className="cod-sim__canvas"
       shadows
-      dpr={[1, 1.5]}
+      dpr={1}
       frameloop="always"
       resize={{ scroll: false, debounce: { scroll: 0, resize: 0 } }}
       camera={{
         fov: focalLengthToFov(50),
         near: 0.15,
-        far: 120,
+        far: 220,
         position: [0, EYE_HEIGHT, 7],
       }}
       onCreated={({ gl, scene, camera }) => {
         gl.shadowMap.enabled = true;
         gl.shadowMap.type = THREE.PCFSoftShadowMap;
         gl.outputColorSpace = THREE.SRGBColorSpace;
-        const defaultProfile = resolveRenderProfile("studio");
+        const defaultProfile = resolveRenderProfile();
         gl.toneMapping = resolveThreeToneMapping(defaultProfile.toneMapping);
         gl.toneMappingExposure = SCENE_RENDER_CALIBRATION;
         gl.setClearColor("#1a1a22", 1);
         gl.setClearAlpha(1);
+        if (diagnosticsRequested()) installRenderDiagnostics(gl);
 
         if (process.env.NODE_ENV === "development") {
           console.info("[Cam Of Duty] Canvas mounted", {
@@ -72,6 +78,7 @@ export default function SimulatorCanvas({ onLockChange, onLoaded }: SimulatorCan
       {devDebugScene ? <color attach="background" args={["#b8bcc8"]} /> : null}
 
       <ViewportSizeSync />
+      <QualityGovernor />
       <CameraFovSync />
       <SceneSpawnController />
       {devDebugScene ? <DevDebugScene /> : <SimulatorSceneRoot />}
@@ -80,6 +87,7 @@ export default function SimulatorCanvas({ onLockChange, onLoaded }: SimulatorCan
       <CanvasPhotoCapture />
       <DepthOfFieldPass />
       <SimulatorSceneHealthCheck onReady={onLoaded} />
+      <SceneLoadingGate />
       <FocusRaycaster />
       <FocusMotorDrive />
       <FocusContinuousDrive />

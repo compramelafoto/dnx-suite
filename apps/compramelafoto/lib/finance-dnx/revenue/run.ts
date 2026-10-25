@@ -29,7 +29,7 @@ const SOURCES: Source[] = [
       const debt = rows.pendingFeeDebtArs.toLocaleString("es-AR", { maximumFractionDigits: 2 });
       return {
         months: computeFotoffice(rows),
-        note: `Comisión cobrada por Mercado Pago y saldada a mano. Comisión adeudada por cobros en efectivo: $${debt}.`,
+        note: `Comisión cobrada por Mercado Pago (incluye pedidos de Digitalización) y saldada a mano. Comisión adeudada por cobros en efectivo: ${debt} pesos.`,
       };
     },
   },
