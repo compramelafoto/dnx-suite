@@ -4,7 +4,7 @@ import { NO_ES_INSUMO } from "@/lib/sales/vendible";
 import { MENSAJES_PRESUPUESTO, puedeConfigurarPresupuestos, type CtxPresupuestos } from "./acceso";
 import { validarItems, type ItemPresupuesto, type ResultadoValidacion } from "./constantes";
 import { itemsDeLaPropuesta } from "./items-de-la-propuesta";
-import { TIPOS_TRABAJO } from "./panel-cuanto-cobro";
+import { CAMPO_DE_ACTIVIDAD, TIPOS_TRABAJO } from "./panel-cuanto-cobro";
 import { asegurarPlantillasPresupuesto } from "./plantillas";
 import { MAX_TEXTO_VERSION } from "./versiones";
 import { asignarItems, validarAlternativas, type Alternativa } from "./alternativas";
@@ -96,16 +96,31 @@ export type ConceptoDePropuesta = { entrada: { presupuesto: unknown } };
 const CAMPOS_DEL_CONCEPTO = [
   "name", "itemType", "quantity", "coverageHours", "editingHours", "deliveryHours", "travelHours", "directCost",
   "supplierCost", "productionHours", "shippingCost", "outsourcedLaborCost", "managementHours", "expenseCost",
-  "desiredMarginPercent",
+  "desiredMarginPercent", "estimatedShots", "packagingCost", "cameraId",
 ] as const;
 
 const objetoPlano = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
 const comoTexto = (v: unknown): string | undefined => (typeof v === "string" ? v : typeof v === "number" && Number.isFinite(v) ? String(v) : undefined);
 
 /**
+ * Quién hace cada parte (Mi estudio), también con lista blanca: persona, actividad conocida y
+ * horas. Sin esto el trabajo se cobraba entero al valor hora del estudio.
+ */
+function asignacionesDelConcepto(raw: unknown): { personId: string; activity: string; hours: string }[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.flatMap((a) => {
+    if (!objetoPlano(a) || typeof a.personId !== "string" || !a.personId.trim()) return [];
+    if (typeof a.activity !== "string" || !Object.hasOwn(CAMPO_DE_ACTIVIDAD, a.activity)) return [];
+    const hours = comoTexto(a.hours);
+    return hours === undefined ? [] : [{ personId: a.personId, activity: a.activity, hours }];
+  });
+}
+
+/**
  * El trabajo del concepto, armado con una lista blanca: sólo lo que lee `trabajoDesdeMotor`
- * (primer concepto, tipo de trabajo, horas con el cliente, precio manual). Nada de `perfil` ni
- * de otros campos. null si no hay un primer concepto que sea un objeto.
+ * (primer concepto, tipo de trabajo, horas con el cliente, precio manual, quién hace cada parte,
+ * línea del estudio). Nada de `perfil` ni de otros campos. null si no hay un primer concepto que
+ * sea un objeto.
  */
 function trabajoDelConcepto(calculo: unknown): unknown | null {
   if (!objetoPlano(calculo) || !objetoPlano(calculo.entrada)) return null;
@@ -116,18 +131,23 @@ function trabajoDelConcepto(calculo: unknown): unknown | null {
   const nombre = comoTexto(c.name);
   if (nombre === undefined || nombre.trim() === "") return null;
   if (!TIPOS_TRABAJO.some((t) => t.valor === c.itemType)) return null;
-  const concepto: Record<string, string> = {};
+  const concepto: Record<string, unknown> = {};
   for (const k of CAMPOS_DEL_CONCEPTO) {
     const t = comoTexto(c[k]);
     if (t !== undefined) concepto[k] = t;
   }
+  if (c.shotsPer === "job") concepto.shotsPer = "job";
+  const asignaciones = asignacionesDelConcepto(c.assignments);
+  if (asignaciones.length > 0) concepto.assignments = asignaciones;
   const client = objetoPlano(presupuesto.client) ? presupuesto.client : {};
   const horas = objetoPlano(client.hours) ? comoTexto(client.hours.salesHours) : undefined;
   const jobType = comoTexto(client.jobType);
   const chosenPrice = comoTexto(presupuesto.chosenPrice);
+  const linea = typeof presupuesto.businessLineId === "string" && presupuesto.businessLineId.trim() ? presupuesto.businessLineId : undefined;
   return {
     client: { ...(jobType !== undefined ? { jobType } : {}), ...(horas !== undefined ? { hours: { salesHours: horas } } : {}) },
     ...(chosenPrice !== undefined ? { chosenPrice } : {}),
+    ...(linea !== undefined ? { businessLineId: linea } : {}),
     concepts: [concepto],
   };
 }
