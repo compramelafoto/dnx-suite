@@ -330,6 +330,101 @@ describe("cancelar devuelve lo apartado y no entregado", () => {
   });
 });
 
+describe("cancelar cierra los trabajos abiertos del pedido", () => {
+  const ITEMS_DOS = [item("m1", { productId: "prod-taza", cantidad: 2 }), item("m2", { productId: "prod-taza", cantidad: 3 })];
+  const APARTAR_DOS = [
+    { itemId: "m1", productId: "prod-taza", variantId: "var-m", cantidad: 2 },
+    { itemId: "m2", productId: "prod-taza", variantId: null, cantidad: 3 },
+  ];
+  async function pedidoConDosLineas(): Promise<string> {
+    const r = await P.crearPedidoManual(DUENO, base({ items: ITEMS_DOS, paraRetirar: ["m1", "m2"], apartar: APARTAR_DOS }), deps);
+    if (!r.ok) throw new Error(r.error);
+    return r.pedidoId;
+  }
+  const trabajoDe = (pedidoId: string, posicion: number) =>
+    B.datos.fotofficeProyecto.find((p) => p.pedidoId === pedidoId && p.pedidoItemIndex === posicion)!;
+  const recorridoDe = (proyectoId: unknown) => B.datos.fotofficeJourney.find((j) => j.subjectId === proyectoId)!;
+  const pasosDe = (journeyId: unknown) => B.datos.fotofficeJourneyStep.filter((s) => s.journeyId === journeyId);
+  const etapa = (nombre: string) => B.datos.fotofficeStage.find((e) => e.name === nombre)!;
+  const motivos = () => B.datos.fotofficeLossReason.filter((m) => m.workspaceId === "ws-1");
+  let avisos: ReturnType<typeof vi.spyOn>;
+  beforeEach(() => {
+    avisos = vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+  afterEach(() => avisos.mockRestore());
+
+  /** Deja sólo los motivos dados, activos, en ese orden (y desactiva los sembrados). */
+  function soloMotivos(...nombres: string[]) {
+    for (const m of motivos()) m.isActive = false;
+    nombres.forEach((name, order) => B.agregar("fotofficeLossReason", { id: `mot-${name}`, workspaceId: "ws-1", name, order, isActive: true }));
+  }
+
+  it("cierra los dos trabajos como CANCELADO, con «Otro», el paso del Sistema y la nota del motivo", async () => {
+    const id = await pedidoConDosLineas();
+    soloMotivos("Precio", "Otro");
+    expect(await P.cambiarEstadoPedido(DUENO, id, "CANCELADO", "Se arrepintió")).toEqual({ ok: true });
+    for (const posicion of [0, 1]) {
+      const j = recorridoDe(trabajoDe(id, posicion).id);
+      expect(j).toMatchObject({ outcome: "CANCELADO", stageId: null, lossReasonId: "mot-Otro" });
+      expect(j.closedAt).toBeInstanceOf(Date);
+      const ultimo = pasosDe(j.id).at(-1)!;
+      expect(ultimo).toMatchObject({ outcome: "CANCELADO", toStageId: null, actorUserId: null, actorLabel: "Sistema", auto: true, note: "Se canceló el pedido: Se arrepintió" });
+    }
+    expect(avisos).not.toHaveBeenCalled();
+  });
+
+  it("sin «Otro» usa el primer motivo activo", async () => {
+    const id = await pedidoConDosLineas();
+    soloMotivos("Precio", "Fecha no disponible");
+    await P.cambiarEstadoPedido(DUENO, id, "CANCELADO", "x");
+    expect(recorridoDe(trabajoDe(id, 0).id)).toMatchObject({ outcome: "CANCELADO", lossReasonId: "mot-Precio" });
+  });
+
+  it("un trabajo ya cerrado no se toca; el abierto se cierra", async () => {
+    const id = await pedidoConDosLineas();
+    soloMotivos("Otro");
+    const cerrado = recorridoDe(trabajoDe(id, 0).id);
+    const cuando = new Date("2026-10-01T12:00:00.000Z");
+    Object.assign(cerrado, { stageId: null, outcome: "TERMINADO", closedAt: cuando, lossReasonId: null });
+    const pasosAntes = pasosDe(cerrado.id).length;
+    await P.cambiarEstadoPedido(DUENO, id, "CANCELADO", "x");
+    expect(cerrado).toMatchObject({ outcome: "TERMINADO", closedAt: cuando, lossReasonId: null });
+    expect(pasosDe(cerrado.id)).toHaveLength(pasosAntes);
+    expect(recorridoDe(trabajoDe(id, 1).id)).toMatchObject({ outcome: "CANCELADO" });
+  });
+
+  it("la devolución de stock sigue viendo lo entregado: en «Entregado» no vuelve, y los dos quedan cerrados", async () => {
+    const id = await pedidoConDosLineas();
+    soloMotivos("Otro");
+    recorridoDe(trabajoDe(id, 0).id).stageId = etapa("Entregado").id;
+    recorridoDe(trabajoDe(id, 1).id).stageId = etapa("Listo para retirar").id;
+    await P.cambiarEstadoPedido(DUENO, id, "CANCELADO", "x");
+    expect(B.datos.stockMovement.filter((m) => m.reason === "DEVOLUCION").map((m) => m.note)).toEqual(["item:m2"]);
+    expect(producto("prod-taza").stockQty).toBe(8);
+    expect(recorridoDe(trabajoDe(id, 0).id)).toMatchObject({ outcome: "CANCELADO" });
+    expect(recorridoDe(trabajoDe(id, 1).id)).toMatchObject({ outcome: "CANCELADO" });
+  });
+
+  it("sin ningún motivo activo, el pedido se cancela igual y los trabajos quedan abiertos, con aviso", async () => {
+    const id = await pedidoConDosLineas();
+    soloMotivos("Otro");
+    for (const m of motivos()) m.isActive = false;
+    expect(await P.cambiarEstadoPedido(DUENO, id, "CANCELADO", "x")).toEqual({ ok: true });
+    expect(B.datos.fotofficePedido.find((p) => p.id === id)).toMatchObject({ status: "CANCELADO" });
+    expect(B.datos.stockMovement.filter((m) => m.reason === "DEVOLUCION")).toHaveLength(2);
+    expect(recorridoDe(trabajoDe(id, 0).id)).toMatchObject({ outcome: null, closedAt: null });
+    expect(avisos).toHaveBeenCalledWith(expect.stringContaining("sin motivo"), expect.objectContaining({ pedidoId: id, trabajos: 2 }));
+  });
+
+  it("no toca trabajos de otro pedido", async () => {
+    const id = await pedidoConDosLineas();
+    const otro = await pedidoConDosLineas();
+    soloMotivos("Otro");
+    await P.cambiarEstadoPedido(DUENO, id, "CANCELADO", "x");
+    expect(recorridoDe(trabajoDe(otro, 0).id)).toMatchObject({ outcome: null, closedAt: null });
+  });
+});
+
 describe("insumos de la seña", () => {
   // El kit de la Kodak 305 se cuenta en copias 10x15: una 15x20 gasta 2. Arranca en 0, como en la
   // carga real; queda negativo y está bien (tomar un pedido nunca se frena por falta de insumo).

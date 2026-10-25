@@ -6,7 +6,7 @@ import { parseArsToMinor } from "@/lib/membership/money";
 import { guardarPerfil } from "@/lib/catalogo/perfil";
 import { guardarComponentes } from "@/lib/catalogo/combos";
 import { guardarCostos } from "@/lib/catalogo/costos";
-import { guardarReglas } from "@/lib/proyectos/reglas-catalogo";
+import { guardarProveedorPorDefecto, guardarReglas } from "@/lib/proyectos/reglas-catalogo";
 import { guardarReglas as guardarReglasCita } from "@/lib/agenda/reglas-catalogo";
 
 /**
@@ -154,6 +154,14 @@ export async function guardarReglasCitaAction(productId: string, reglas: ReglaCi
     });
   }
   const res = await guardarReglasCita(workspace.id, String(productId), filas);
+  if (res.ok) refrescar(productId);
+  return res;
+}
+
+/** «Proveedor por defecto» del producto. Exige `sales.catalog`, como el resto de la ficha. */
+export async function guardarProveedorPorDefectoAction(productId: string, proveedorId: string): Promise<CatalogoActionResult> {
+  const { workspace } = await requireSalesAdmin();
+  const res = await guardarProveedorPorDefecto(workspace.id, String(productId), String(proveedorId ?? "").trim() || null);
   if (res.ok) refrescar(productId);
   return res;
 }

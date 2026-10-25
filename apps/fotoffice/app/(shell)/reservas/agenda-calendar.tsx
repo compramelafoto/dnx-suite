@@ -19,7 +19,7 @@ import { minuteOfDayToLabel } from "@/lib/bookings/time";
 import {
   approveBookingAction,
   cancelBookingAction,
-  confirmTransferAction,
+  registerBookingPaymentAction,
   rejectBookingAction,
 } from "./actions";
 
@@ -33,6 +33,7 @@ export type AgendaEvent = {
   contactName: string;
   isMember: boolean;
   paymentMethod: string;
+  paymentStatus: string;
   totalLabel: string;
   holdExpiresLabel: string | null;
   extraLines: { id: string; name: string; amountLabel: string; pending: boolean }[];
@@ -567,12 +568,24 @@ function FichaReserva({
 
         {canOperate && !terminada ? (
           <div className="mt-5 space-y-3 border-t border-[var(--fo-border)] pt-4">
-            {reserva.status === "HOLD" && reserva.paymentMethod === "TRANSFERENCIA" ? (
-              <form action={confirmTransferAction}>
+            {reserva.paymentStatus === "PENDING" &&
+            reserva.status !== "PENDING_APPROVAL" &&
+            reserva.paymentMethod !== "SIN_CARGO" ? (
+              <form action={registerBookingPaymentAction} className="flex gap-2">
                 <input type="hidden" name="bookingId" value={reserva.id} />
                 <input type="hidden" name="volver" value={volver} />
-                <button type="submit" className="fo-btn fo-btn-primary w-full text-sm">
-                  Confirmar transferencia
+                <select
+                  name="paymentMethod"
+                  aria-label="Cómo se cobró"
+                  defaultValue={reserva.paymentMethod === "TRANSFERENCIA" ? "TRANSFERENCIA" : "EFECTIVO"}
+                  className="fo-input min-w-0 flex-1 text-sm"
+                >
+                  <option value="EFECTIVO">Efectivo</option>
+                  <option value="TRANSFERENCIA">Transferencia</option>
+                  <option value="TARJETA">Tarjeta</option>
+                </select>
+                <button type="submit" className="fo-btn fo-btn-primary text-sm">
+                  Registrar pago
                 </button>
               </form>
             ) : null}
