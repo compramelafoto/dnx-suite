@@ -1,0 +1,10 @@
+ALTER TABLE "DigitalizacionGrabacion" ADD COLUMN IF NOT EXISTS "conversionEstado" TEXT;
+ALTER TABLE "DigitalizacionGrabacion" ADD COLUMN IF NOT EXISTS "conversionIntentos" INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE "DigitalizacionGrabacion" ADD COLUMN IF NOT EXISTS "conversionError" TEXT;
+ALTER TABLE "DigitalizacionGrabacion" ADD COLUMN IF NOT EXISTS "conversionLockAt" TIMESTAMP(3);
+ALTER TABLE "DigitalizacionGrabacion" ADD COLUMN IF NOT EXISTS "videoKey" TEXT;
+ALTER TABLE "DigitalizacionGrabacion" ADD COLUMN IF NOT EXISTS "videoBytes" BIGINT;
+ALTER TABLE "DigitalizacionGrabacion" ADD COLUMN IF NOT EXISTS "videoDuracionSeg" INTEGER;
+ALTER TABLE "DigitalizacionGrabacion" ADD COLUMN IF NOT EXISTS "convertidaAt" TIMESTAMP(3);
+ALTER TABLE "DigitalizacionGrabacion" ADD COLUMN IF NOT EXISTS "partesBorradasAt" TIMESTAMP(3);
+CREATE INDEX IF NOT EXISTS "DigitalizacionGrabacion_conversionEstado_terminadaAt_idx" ON "DigitalizacionGrabacion"("conversionEstado", "terminadaAt");

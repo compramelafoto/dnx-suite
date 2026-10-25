@@ -19,6 +19,8 @@ import type { LegacyTemplateV2Payload } from "@repo/template-engine";
 export type DesignTemplateVersion = {
   templateId: string;
   versionId: string;
+  /** Cuántas veces se guardó la versión: cambia con cada edición en el lugar. */
+  revision?: number;
   name: string;
   ownerUserId: number;
   legacy: LegacyTemplateV2Payload;
@@ -48,7 +50,7 @@ export async function loadDesignTemplateVersion(input: {
 
   const version = await prisma.templateV2Version.findFirst({
     where: { id: versionId, templateId: template.id },
-    select: { id: true, canvasJson: true, metaJson: true },
+    select: { id: true, canvasJson: true, metaJson: true, revision: true },
   });
   if (!version) return null;
 
@@ -67,6 +69,7 @@ export async function loadDesignTemplateVersion(input: {
   return {
     templateId: template.id,
     versionId: version.id,
+    revision: version.revision,
     name: template.name,
     ownerUserId: template.ownerUserId,
     legacy,

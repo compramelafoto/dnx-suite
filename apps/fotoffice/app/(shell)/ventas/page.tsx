@@ -1,4 +1,5 @@
 import { PageHeader } from "@/components/page-header";
+import { leerCatalogoFotolibro } from "@/lib/fotolibro/catalogo-precios";
 import { requireSalesStaff } from "@/lib/sales/access";
 import { listProductCategories, listProducts } from "@/lib/sales/repository";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
@@ -13,6 +14,7 @@ import { contextoDePedidos } from "@/lib/pedidos/contexto";
 import { proyectosEncendidos } from "@/lib/proyectos/crear";
 import { Pos } from "./pos";
 import { leerQrMostrador } from "@/lib/sales/qr-mp-servidor";
+import { esDuenoOAdmin, leerReglas, miComision, productosConComision } from "@/lib/comisiones/servidor";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +25,7 @@ export const dynamic = "force-dynamic";
  * cobrar no pueden depender de ida y vuelta al servidor por cada clic.
  */
 export default async function VentasPage() {
-  const { workspace, user } = await requireSalesStaff();
+  const { workspace, user, canEditCatalog } = await requireSalesStaff();
 
   const clientsEnabled = await isModuleEnabledForWorkspace(workspace.id, CLIENTS_MODULE_KEY);
   // Sólo para el cartel fijo de "esto no se va a depositar": `recordSale` vuelve a preguntar
@@ -34,10 +36,18 @@ export default async function VentasPage() {
   // Egresos desde el mostrador: sólo para quien puede operar la caja (como Caja → Anotar).
   const puedeEgresos = cashEnabled && hasLevel(await getModuleLevel(user.id, workspace.id, CASH_MODULE_KEY), "MANAGE");
 
+  // Foto carnet desde el ticket: buscar y dar de alta clientes, igual que en Ventas → Foto carnet.
+  const nivelClientes = clientsEnabled ? await getModuleLevel(user.id, workspace.id, CLIENTS_MODULE_KEY) : "NONE";
+
   // Trabajos con proceso (copias a laboratorio, fotolibros, rollos, digitalizaciones): los productos
   // con un flujo en "Proyecto que genera". Sólo si se pueden crear pedidos y proyectos; si no, el
   // Mostrador vende todo como hasta ahora.
-  const pedidosHabilitados = (await contextoDePedidos("operar")) !== null && (await proyectosEncendidos(workspace.id));
+  const puedeCrearPedidos = (await contextoDePedidos("operar")) !== null;
+  const pedidosHabilitados = puedeCrearPedidos && (await proyectosEncendidos(workspace.id));
+  // «Seña» en un renglón sin proceso: alcanza con poder crear pedidos (el pedido necesita un
+  // cliente, por eso Clientes). No pide Proyectos: con ese módulo apagado el pedido y la seña se
+  // registran igual, sólo que sin trabajo ni tablero (lo dice la guía de diseño).
+  const senaHabilitada = puedeCrearPedidos && clientsEnabled;
   const reglas = pedidosHabilitados
     ? await prisma.fotofficeProductoProyecto.findMany({
         where: { workspaceId: workspace.id },
@@ -63,6 +73,14 @@ export default async function VentasPage() {
     leerQrMostrador(workspace.id),
   ]);
 
+  // Comisión de venta: el cartel verde lo ven quien cobra comisión y el dueño; el acumulado, sólo quien cobra.
+  const reglasActivas = (await leerReglas(workspace.id)).filter((r) => r.activa);
+  const mia = reglasActivas.some((r) => r.userId === user.id) ? await miComision(workspace.id, user.id) : null;
+  const comision =
+    reglasActivas.length > 0 && (mia || (await esDuenoOAdmin(user.id, workspace.id)))
+      ? { porcentaje: mia?.porcentaje ?? Math.max(...reglasActivas.map((r) => r.porcentaje)), productIds: await productosConComision(workspace.id), mia }
+      : null;
+
   return (
     <div className="space-y-6">
       <PageHeader title="Mostrador" description="Tocá los productos, elegí cómo paga y cobrá." />
@@ -72,7 +90,11 @@ export default async function VentasPage() {
         clientsEnabled={clientsEnabled}
         cashEnabled={cashEnabled}
         procesos={procesos}
+        senaHabilitada={senaHabilitada}
         qrActivo={qr.activo}
+        comision={comision}
+        fotolibro={await leerCatalogoFotolibro(workspace.id, { conCostos: canEditCatalog }).then((catalogo) => (catalogo ? { catalogo, verCostos: canEditCatalog } : null))}
+        permisosCarnet={{ puedeBuscarClientes: hasLevel(nivelClientes, "VIEW"), puedeAltaCliente: hasLevel(nivelClientes, "MANAGE") }}
         egresos={
           puedeEgresos
             ? {

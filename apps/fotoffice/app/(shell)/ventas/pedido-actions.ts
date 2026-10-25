@@ -10,23 +10,29 @@ import { SALE_PAYMENT_METHODS, type SalePaymentMethod } from "@/lib/sales/consta
 import { contextoDePedidos } from "@/lib/pedidos/contexto";
 import { crearPedidoManual, leerPedido } from "@/lib/pedidos/pedidos";
 import { registrarCobro } from "@/lib/pedidos/cobros";
+import { faseDeEtapa } from "@/lib/proyectos/en-curso-puro";
 import { diaEnBuenosAires } from "@/lib/presupuestos/estados";
 import { formatMinorArs } from "@/lib/membership/money";
-import { diasEntre, repartirDescuento } from "@/lib/sales/pedido-mostrador";
+import { avisoCobroRepetido, diasEntre, reintentarSenaRepetida, repartirDescuento, separarTicket, type SenaRepetida } from "@/lib/sales/pedido-mostrador";
 import { checkoutAction, type CheckoutInput } from "./actions";
 import { buscarPagosParaCobrar, confirmarUsoPagoMp, liberarPagoMp, reservarCobroMp, type ResultadoBusquedaPago } from "@/lib/sales/verificar-pago-servidor";
 import { notaDePagoVerificado } from "@/lib/sales/verificar-pago";
 import { cancelarOrdenQr, consultarOrdenQr, crearOrdenQr } from "@/lib/sales/qr-mp-servidor";
 import type { OrdenQr } from "@/lib/sales/qr-mp";
+import { leerFotolibroVendido } from "@/lib/fotolibro/venta";
+import { atarFotolibrosAlPedido } from "@/lib/fotolibro/venta-servidor";
+import { clientDisplayName } from "@/lib/clients/display";
 
 /**
- * El Mostrador con trabajos "con proceso". La parte con proceso se vuelve un pedido (con su seña
+ * El Mostrador con trabajos "con proceso" o renglones marcados «Seña». Esa parte se vuelve un pedido (con su seña
  * como primer cobro, que entra a Caja una sola vez) y genera sus trabajos; lo que se lleva en el
  * momento sigue siendo una venta común (`checkoutAction`), pagada entera.
  *
  * No es una sola transacción: pedido, cobro y venta tienen cada uno la suya. Se hacen en ese
  * orden (el pedido es lo que más puede fallar por validación) y, si algo falla después de crear
- * el pedido, la respuesta lo dice con su número para terminarlo desde la ficha.
+ * el pedido, la respuesta lo dice con su número para terminarlo desde la ficha. La clave del cobro
+ * es también la del alta del pedido: si el mismo cobro vuelve (doble clic, reintento después de un
+ * corte), se devuelve el pedido que ya existe sin cobrar ni vender otra vez.
  */
 
 export type LineaMostrador = {
@@ -35,6 +41,14 @@ export type LineaMostrador = {
   description: string;
   qty: number;
   unitPriceMinor: number;
+  /**
+   * El cajero lo marcó «Seña»: un producto sin proceso (o un renglón a mano) que el cliente deja
+   * señado y retira después. Va al pedido y abre su trabajo en «Para retirar». En un producto con
+   * proceso no cambia nada: ése va al pedido siempre.
+   */
+  paraRetirar?: boolean;
+  /** El libro de un producto de fotolibro: lo elegido en la calculadora (ver `lib/fotolibro/venta.ts`). */
+  fotolibro?: unknown;
 };
 
 export type CobroConPedidoInput = {
@@ -91,9 +105,13 @@ export async function cobrarConPedidoAction(input: CobroConPedidoInput): Promise
   if (!Number.isInteger(input.discountMinor) || input.discountMinor < 0) return { ok: false, error: "El descuento no se entiende." };
 
   const procesos = await conProceso(workspace.id, input.lines.map((l) => l.productId).filter((x): x is string => x !== null));
-  const delPedido = input.lines.filter((l) => l.productId !== null && procesos.has(l.productId));
-  const enElMomento = input.lines.filter((l) => !(l.productId !== null && procesos.has(l.productId)));
-  if (delPedido.length === 0) return { ok: false, error: "Nada de este ticket lleva proceso: cobralo como venta común." };
+  const { delPedido, enElMomento } = separarTicket(input.lines, procesos);
+  if (delPedido.length === 0) return { ok: false, error: "Nada de este ticket queda para retirar: cobralo como venta común." };
+  // Los ítems del pedido se llaman m1, m2… en el orden del ticket. Los que no tienen regla (van por
+  // estar marcados «Seña») abren su trabajo en «Para retirar» y apartan su stock; los que tienen
+  // regla siguen su propio flujo, como siempre.
+  const idItem = (i: number) => `m${i + 1}`;
+  const sinRegla = delPedido.flatMap((l, i) => (l.productId !== null && procesos.has(l.productId) ? [] : [{ l, itemId: idItem(i) }]));
 
   const subPedido = delPedido.reduce((a, l) => a + l.qty * l.unitPriceMinor, 0);
   const subVenta = enElMomento.reduce((a, l) => a + l.qty * l.unitPriceMinor, 0);
@@ -117,7 +135,7 @@ export async function cobrarConPedidoAction(input: CobroConPedidoInput): Promise
   const alta = await crearPedidoManual(ctx, {
     clientId: input.clientId,
     items: delPedido.map((l, i) => ({
-      id: `m${i + 1}`,
+      id: idItem(i),
       productId: l.productId,
       nombre: l.description.slice(0, 200),
       descripcion: null,
@@ -134,10 +152,51 @@ export async function cobrarConPedidoAction(input: CobroConPedidoInput): Promise
     fechaEvento: input.entrega,
     eventLabel: "Entrega",
     checklist: null,
+    clave: input.clave,
+    paraRetirar: sinRegla.map((x) => x.itemId),
+    // `crearPedidoManual` sólo mueve los que controlan stock.
+    apartar: sinRegla.flatMap(({ l, itemId }) =>
+      l.productId !== null ? [{ itemId, productId: l.productId, variantId: l.variantId, cantidad: l.qty }] : [],
+    ),
   });
   if (!alta.ok) {
     if (reservaId) await liberarPagoMp(reservaId);
     return { ok: false, error: alta.error };
+  }
+  if (alta.repetido) {
+    // El mismo cobro que vuelve: el pedido ya existe y no se re-escribe. El pago verificado que se
+    // reservó para esta vuelta se suelta, porque el de la primera ya quedó usado. Si la primera
+    // vuelta se cortó antes de registrar la seña, se registra ahora con la misma clave (idempotente);
+    // lo que se llevaba en el momento no se vuelve a vender (ver `avisoCobroRepetido`).
+    if (reservaId) await liberarPagoMp(reservaId);
+    const antes = await leerPedido(ctx, alta.pedidoId);
+    let senaRepetida: SenaRepetida = { tipo: "sin-cambios" };
+    if (reintentarSenaRepetida(sena, antes ? Math.round(antes.plan.cobrado * 100) : 0)) {
+      const c = await registrarCobro(ctx, {
+        pedidoId: alta.pedidoId,
+        importe: pesos(sena),
+        fecha: diaEnBuenosAires(new Date()),
+        medio: metodo,
+        idempotencyKey: `${input.clave}-p`.slice(0, 100),
+      });
+      senaRepetida = !c.ok ? { tipo: "fallo", error: c.error } : c.creado ? { tipo: "registrada" } : { tipo: "sin-cambios" };
+      if (c.ok && c.creado) {
+        revalidatePath("/pedidos");
+        revalidatePath("/caja");
+      }
+    }
+    // Lo cobrado y el saldo, del pedido tal como quedó; el saldo es total menos cobrado, la misma
+    // cuenta que devuelve la primera vuelta.
+    const despues = senaRepetida.tipo === "registrada" ? await leerPedido(ctx, alta.pedidoId) : antes;
+    return {
+      ok: true,
+      pedidoId: alta.pedidoId,
+      pedidoNumero: alta.numero,
+      cobradoMinor: despues ? Math.round(despues.plan.cobrado * 100) : 0,
+      saldoMinor: despues ? Math.round(despues.plan.saldo * 100) : 0,
+      saleNumber: null,
+      aviso: avisoCobroRepetido({ numero: alta.numero, sena: senaRepetida, habiaVentaEnElMomento: enElMomento.length > 0 }),
+    };
   }
   if (reservaId) await confirmarUsoPagoMp(reservaId, `Pedido ${alta.numero}`);
 
@@ -149,11 +208,38 @@ export async function cobrarConPedidoAction(input: CobroConPedidoInput): Promise
     data: { entregaPrometida: new Date(`${input.entrega}T12:00:00Z`) },
   });
   await prisma.fotofficeProductoProyecto.updateMany({
-    where: { workspaceId: workspace.id, productId: { in: [...new Set(delPedido.map((l) => l.productId as string))] } },
+    // Sólo los productos con regla: los marcados «Seña» no tienen fila que recordar.
+    where: { workspaceId: workspace.id, productId: { in: [...new Set(delPedido.flatMap((l) => (l.productId !== null && procesos.has(l.productId) ? [l.productId] : [])))] } },
     data: { ultimoPlazoDias: plazo },
   });
 
   const avisos: string[] = [];
+  // Los fotolibros: cada uno queda atado a su trabajo (y se crea si no se creó antes de cobrar).
+  const libros = delPedido.flatMap((l, itemIndex) => {
+    const fotolibro = l.fotolibro === undefined ? null : leerFotolibroVendido(l.fotolibro);
+    return fotolibro ? [{ itemIndex, fotolibro }] : [];
+  });
+  if (libros.length > 0) {
+    try {
+      const c = await prisma.client.findFirst({
+        where: { id: input.clientId, workspaceId: workspace.id },
+        select: { kind: true, firstName: true, lastName: true, businessName: true },
+      });
+      avisos.push(
+        ...(await atarFotolibrosAlPedido({
+          workspaceId: workspace.id,
+          userId: user.id,
+          pedidoId: alta.pedidoId,
+          pedidoNumero: alta.numero,
+          cliente: c ? clientDisplayName(c) : null,
+          libros,
+        })),
+      );
+    } catch (e) {
+      console.error("[cobrador] fotolibros del pedido", e);
+      avisos.push(`El pedido ${alta.numero} quedó bien, pero no se pudo preparar su fotolibro: crealo desde el trabajo.`);
+    }
+  }
   // 2. La seña (o el total) del pedido: entra a Caja como cobro del pedido.
   let cobrado = 0;
   if (sena > 0) {
@@ -172,7 +258,13 @@ export async function cobrarConPedidoAction(input: CobroConPedidoInput): Promise
   let saleNumber: number | null = null;
   if (enElMomento.length > 0) {
     const venta: CheckoutInput = {
-      lines: enElMomento.map((l) => ({ ...l })),
+      lines: enElMomento.map((l) => ({
+        productId: l.productId,
+        variantId: l.variantId,
+        description: l.description,
+        qty: l.qty,
+        unitPriceMinor: l.unitPriceMinor,
+      })),
       discountMinor: desc.venta,
       paymentMethod: metodo,
       note: [input.note.trim(), `Junto con el pedido ${alta.numero}`, notaVerificado].filter(Boolean).join(" — "),
@@ -208,7 +300,8 @@ export type PedidoParaRetirar = {
   totalMinor: number;
   saldoMinor: number;
   entrega: string | null;
-  trabajos: { nombre: string; etapa: string | null }[];
+  /** `listo`: el trabajo está en «Listo para retirar» (fase LISTO); con saldo queda retenido. */
+  trabajos: { nombre: string; etapa: string | null; listo: boolean }[];
 };
 
 /** Los pedidos abiertos del cliente, para cobrar el saldo cuando viene a retirar. */
@@ -233,17 +326,20 @@ export async function pedidosParaRetirarAction(clientId: string): Promise<Pedido
     const journeys = trabajos.length
       ? await prisma.fotofficeJourney.findMany({
           where: { workspaceId: ctx.workspaceId, subjectType: "PROYECTO", subjectId: { in: trabajos.map((t) => t.id) } },
-          select: { subjectId: true, stage: { select: { name: true } } },
+          select: { subjectId: true, stage: { select: { name: true, color: true, order: true } } },
         })
       : [];
-    const etapaDe = new Map(journeys.map((j) => [j.subjectId, j.stage?.name ?? null]));
+    const etapaDe = new Map(journeys.map((j) => [j.subjectId, j.stage ?? null]));
     out.push({
       id,
       numero: d.numero,
       totalMinor: Math.round(d.plan.total * 100),
       saldoMinor: Math.round(d.plan.aCobrar * 100),
       entrega: d.eventDate,
-      trabajos: trabajos.map((t) => ({ nombre: t.name, etapa: etapaDe.get(t.id) ?? null })),
+      trabajos: trabajos.map((t) => {
+        const etapa = etapaDe.get(t.id) ?? null;
+        return { nombre: t.name, etapa: etapa?.name ?? null, listo: etapa ? faseDeEtapa({ ...etapa, esUltima: false }) === "LISTO" : false };
+      }),
     });
   }
   return out;

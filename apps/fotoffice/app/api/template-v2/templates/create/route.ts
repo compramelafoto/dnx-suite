@@ -10,6 +10,7 @@ import { createTemplateV2 } from "@/lib/template-v2/server";
 import { getTemplatePreset } from "@/lib/template-v2/server";
 import { instantiatePresetPayload } from "@/lib/template-v2/server";
 import { TemplateV2DomainError } from "@/lib/template-v2/server";
+import { ROL_SOCIO_FOTOLIBROS } from "@/lib/template-v2/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,6 +23,10 @@ export const dynamic = "force-dynamic";
 export async function POST(req: Request) {
   try {
     const user = await requireTemplateV2ApiUser();
+    // El socio del portal no crea plantillas sueltas: sus fotolibros nacen en "Mis fotolibros".
+    if (user.role === ROL_SOCIO_FOTOLIBROS) {
+      throw new TemplateV2DomainError("TEMPLATE_FORBIDDEN", "Sin permisos para crear plantillas", 403);
+    }
     let body: Record<string, unknown> = {};
     try {
       body = (await readJsonWithLimit(req)) as Record<string, unknown>;

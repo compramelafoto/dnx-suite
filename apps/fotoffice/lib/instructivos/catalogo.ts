@@ -16,13 +16,58 @@ import { guia as ventasMostrador } from "./guias/ventas-mostrador";
 import { guia as reservasCargarYConfirmar } from "./guias/reservas-cargar-y-confirmar";
 import { guia as sorteosConducir } from "./guias/sorteos-conducir";
 import { guia as cursosEInscripciones } from "./guias/cursos-e-inscripciones";
+import { guia as primerosPasosMostrador } from "./guias/primeros-pasos-mostrador";
+import { guia as cajaAbrirTurno } from "./guias/caja-abrir-turno";
+import { guia as cajaCerrarTurno } from "./guias/caja-cerrar-turno";
+import { guia as cajaGastosYRetiros } from "./guias/caja-gastos-y-retiros";
+import { guia as mostradorTransferenciaYQr } from "./guias/mostrador-transferencia-y-qr";
+import { guia as mostradorAnularVenta } from "./guias/mostrador-anular-venta";
+import { guia as trabajosTomarConSena } from "./guias/trabajos-tomar-con-sena";
+import { guia as trabajosRetiroYSaldo } from "./guias/trabajos-retiro-y-saldo";
+import { guia as trabajosTableroEnCurso } from "./guias/trabajos-tablero-en-curso";
+import { guia as trabajosFichaYEtapas } from "./guias/trabajos-ficha-y-etapas";
+import { guia as stockCargarPasoAPaso } from "./guias/stock-cargar-paso-a-paso";
+import { guia as stockInsumosAlta } from "./guias/stock-insumos-alta";
+import { guia as stockRecetaConsumo } from "./guias/stock-receta-consumo";
+import { guia as stockContarYAjustar } from "./guias/stock-contar-y-ajustar";
+import { guia as stockRecibirPedido } from "./guias/stock-recibir-pedido";
+import { guia as stockImportarFactura } from "./guias/stock-importar-factura";
+import { guia as stockImportarConChatgpt } from "./guias/stock-importar-con-chatgpt";
+import { guia as stockAvisosYCompras } from "./guias/stock-avisos-y-compras";
 
 /** Todas las guías, en el orden en que aparecen dentro de cada sección del índice. */
 export const INSTRUCTIVOS: readonly Instructivo[] = [
+  // Primeros pasos
+  primerosPasosMostrador,
   primerosPasos,
+  // Caja, en el orden del día: abrir, gastos, cerrar, corregir
+  cajaAbrirTurno,
+  cajaGastosYRetiros,
+  cajaCerrarTurno,
+  cajaMovimientosYArqueo,
+  // Mostrador
+  ventasMostrador,
+  mostradorTransferenciaYQr,
+  mostradorAnularVenta,
+  // Trabajos y entregas, en el orden en que pasa un trabajo
+  trabajosTomarConSena,
+  trabajosTableroEnCurso,
+  trabajosFichaYEtapas,
+  trabajosRetiroYSaldo,
+  // Stock de insumos
+  stockCargarPasoAPaso,
+  stockInsumosAlta,
+  stockRecetaConsumo,
+  stockContarYAjustar,
+  stockRecibirPedido,
+  stockImportarFactura,
+  stockImportarConChatgpt,
+  stockAvisosYCompras,
+  // Institución
   carnetsPdfImprimir,
   sociosBuscarYFicha,
   sociosSolicitudes,
+  cuotasRegistrarPago,
   placasBienvenidaYSocioDeLaSemana,
   campanasDeCorreo,
   blogPublicarArticulo,
@@ -30,9 +75,6 @@ export const INSTRUCTIVOS: readonly Instructivo[] = [
   reunionesYActas,
   votaciones,
   comisionRolesYCargos,
-  cuotasRegistrarPago,
-  cajaMovimientosYArqueo,
-  ventasMostrador,
   reservasCargarYConfirmar,
   sorteosConducir,
   cursosEInscripciones,

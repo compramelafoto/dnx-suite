@@ -4,12 +4,17 @@
  * Un cobro se reparte entre una o varias cuotas. Una cuota puede quedar con saldo, pero nunca se
  * imputa más que su saldo ni se crea una deuda nueva: si el cobro supera el saldo total, se rechaza
  * (para devolver plata se anula el cobro). Las cuentas van en centavos enteros.
+ *
+ * Las cuotas de un cargo extra (`esCargo`: su renglón `cargo-<cuotaId>` está en los ítems, ver
+ * `cargos-puro.ts`) son opcionales y vencen el día que se piden: el reparto automático las deja
+ * para el final, así un cobro del plan no "paga" un extra que el cliente no eligió pagar. Reciben
+ * plata sólo si son la cuota preferida o si todas las demás ya quedaron pagas.
  */
 
 import { aCentavos, desdeCentavos, tieneHastaDosDecimales } from "./plan-cuotas";
 
 /** Cuota con su saldo vigente (importe menos lo imputado por cobros sin anular). */
-export type CuotaConSaldo = { id: string; position: number; dueDate: string; saldo: number };
+export type CuotaConSaldo = { id: string; position: number; dueDate: string; saldo: number; esCargo?: boolean };
 
 export type Imputacion = { cuotaId: string; amountArs: number };
 
@@ -19,9 +24,15 @@ function importeValido(importe: number): boolean {
   return typeof importe === "number" && tieneHastaDosDecimales(importe) && aCentavos(importe) > 0;
 }
 
-/** De la más vieja a la más nueva: por vencimiento y, a igual vencimiento, por posición. */
+/**
+ * Primero las cuotas del plan y al final las de cargos extra; dentro de cada grupo, de la más vieja
+ * a la más nueva: por vencimiento y, a igual vencimiento, por posición.
+ */
 function ordenar(cuotas: readonly CuotaConSaldo[]): CuotaConSaldo[] {
-  return [...cuotas].sort((a, b) => (a.dueDate === b.dueDate ? a.position - b.position : a.dueDate < b.dueDate ? -1 : 1));
+  return [...cuotas].sort((a, b) => {
+    if (Boolean(a.esCargo) !== Boolean(b.esCargo)) return a.esCargo ? 1 : -1;
+    return a.dueDate === b.dueDate ? a.position - b.position : a.dueDate < b.dueDate ? -1 : 1;
+  });
 }
 
 function saldoTotal(cuotas: readonly CuotaConSaldo[]): number {

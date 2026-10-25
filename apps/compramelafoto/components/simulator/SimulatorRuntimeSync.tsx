@@ -6,18 +6,26 @@ import { useLayoutEffect, useEffect } from "react";
 
 /** Sincroniza el store de cámara con el runtime compartido del canvas 3D. */
 export default function SimulatorRuntimeSync() {
+  const store = useCameraStore();
   const {
     derived,
-    setSceneLuminanceEv,
+    setSceneLight,
+    meteringMode,
     focus,
     settings,
     lens,
     viewfinderMode,
-    sceneLuminanceEv,
+    sceneLight,
     sceneId,
     timeOfDayMinutes,
     sunState,
-  } = useCameraStore();
+  } = store;
+
+  // Sólo en desarrollo: acceso desde la consola o Playwright para probar escenas y ejercicios.
+  useEffect(() => {
+    if (process.env.NODE_ENV !== "development") return;
+    (globalThis as Record<string, unknown>).__cod = { store, runtime: simulatorRuntime };
+  }, [store]);
 
   useLayoutEffect(() => {
     simulatorRuntime.derived = derived;
@@ -25,8 +33,9 @@ export default function SimulatorRuntimeSync() {
     simulatorRuntime.sceneId = sceneId;
     simulatorRuntime.timeOfDayMinutes = timeOfDayMinutes;
     simulatorRuntime.sunState = sunState;
-    simulatorRuntime.sceneLuminanceEv = sceneLuminanceEv;
-    simulatorRuntime.setSceneLuminanceEv = setSceneLuminanceEv;
+    simulatorRuntime.sceneLight = sceneLight;
+    simulatorRuntime.setSceneLight = setSceneLight;
+    simulatorRuntime.meteringMode = meteringMode;
     simulatorRuntime.focusDistanceM = focus.distanceM;
     simulatorRuntime.focusMode = focus.focusMode;
     simulatorRuntime.focusAreaMode = focus.focusAreaMode;
@@ -36,14 +45,16 @@ export default function SimulatorRuntimeSync() {
     simulatorRuntime.focalLengthMm = settings.focalLengthMm;
     simulatorRuntime.lensName = lens.lensName;
     simulatorRuntime.isZoomLens = lens.isZoomLens;
+    simulatorRuntime.minFocusDistanceM = lens.minFocusDistanceM;
   }, [
     derived,
     viewfinderMode,
-    sceneLuminanceEv,
+    sceneLight,
+    meteringMode,
     sceneId,
     timeOfDayMinutes,
     sunState,
-    setSceneLuminanceEv,
+    setSceneLight,
     focus.distanceM,
     focus.focusMode,
     focus.focusAreaMode,
@@ -53,12 +64,13 @@ export default function SimulatorRuntimeSync() {
     settings.focalLengthMm,
     lens.lensName,
     lens.isZoomLens,
+    lens.minFocusDistanceM,
   ]);
 
   useEffect(() => {
     return () => {
       simulatorRuntime.derived = null;
-      simulatorRuntime.setSceneLuminanceEv = () => {};
+      simulatorRuntime.setSceneLight = () => {};
     };
   }, []);
 

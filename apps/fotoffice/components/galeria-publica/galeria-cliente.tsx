@@ -26,6 +26,7 @@ import {
 } from "@/lib/galerias/publico-tipos";
 import { BarraFija } from "./barra-fija";
 import { CarritoExtras } from "./carrito";
+import { EnlacePedirCopias } from "@/components/impresiones/enlace-pedir-copias";
 import { DescargarTodas } from "./descargar-todas";
 import { Grilla } from "./grilla";
 import { Repaso } from "./repaso";
@@ -46,7 +47,20 @@ function conCambio(s: ReadonlySet<string>, id: string, marcar: boolean): Set<str
  * comentar, enviar) pasa por acciones que revalidan el token; acá el estado se actualiza al instante y se
  * deshace si el servidor dice que no.
  */
-export function GaleriaCliente({ slug, token, vista, avisoPago = null }: { slug: string; token: string; vista: VistaGaleria; avisoPago?: AvisoDePagoGaleria | null }) {
+export function GaleriaCliente({
+  slug,
+  token,
+  vista,
+  avisoPago = null,
+  enlaceImprimir,
+}: {
+  slug: string;
+  token: string;
+  vista: VistaGaleria;
+  avisoPago?: AvisoDePagoGaleria | null;
+  /** Sólo si el estudio ofrece copias y el cliente tiene alguna foto imprimible. */
+  enlaceImprimir?: string;
+}) {
   const [estado, setEstado] = useState(vista.cliente.estado);
   const [enviadaEn, setEnviadaEn] = useState(vista.cliente.enviadaEn);
   const [elegidas, setElegidas] = useState<Set<string>>(() => new Set(vista.seleccionadas));
@@ -328,6 +342,7 @@ export function GaleriaCliente({ slug, token, vista, avisoPago = null }: { slug:
               {avisoPago.texto}
             </p>
           ) : null}
+          {enlaceImprimir ? <EnlacePedirCopias href={enlaceImprimir} /> : null}
         </header>
 
         {!editable ? (

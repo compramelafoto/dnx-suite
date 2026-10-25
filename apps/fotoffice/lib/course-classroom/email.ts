@@ -147,3 +147,64 @@ export async function sendBienvenidaAlumnoEmail(
   });
   return outcome.status === "SENT" ? { sent: true } : { sent: false, reason: outcome.detail };
 }
+
+type InvitacionSinCargoInput = {
+  studentName: string;
+  courseTitle: string;
+  /** El texto del dueño, tal cual lo escribió. Se escapa y cada renglón es un párrafo. */
+  mensaje: string;
+  /** Para quien todavía no puede entrar: el enlace para elegir su contraseña. */
+  crearContrasenaUrl: string | null;
+  loginUrl: string;
+  portalUrl: string;
+  expiresAt: Date | null;
+};
+
+/**
+ * La invitación sin cargo a un curso grabado.
+ *
+ * Quien ya tiene cómo entrar recibe el enlace a sus cursos; quien no, el de elegir su
+ * contraseña (su usuario es este correo) y la opción de entrar con Google.
+ */
+export function buildInvitacionSinCargoEmailBody(
+  input: InvitacionSinCargoInput,
+  signature: RenderedEmailSignature | null,
+): { html: string; text: string } {
+  const saludo = input.studentName.trim() ? `Hola ${input.studentName.trim()}:` : "Hola:";
+  const parrafos = input.mensaje
+    .split(/\r?\n\s*\r?\n|\r?\n/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+  const vence = lineaVencimiento(input.expiresAt);
+
+  const acceso = input.crearContrasenaUrl
+    ? {
+        html: `\n  <p>Tu usuario es este correo. Para entrar, elegí tu contraseña:</p>\n  <p><a href="${escaparHtml(input.crearContrasenaUrl)}"><strong>Crear mi contraseña y entrar</strong></a></p>\n  <p>Si usás Gmail, también podés <a href="${escaparHtml(input.loginUrl)}">entrar con Google</a> usando este mismo correo.</p>`,
+        text: [
+          "Tu usuario es este correo. Para entrar, elegí tu contraseña:",
+          `Crear mi contraseña y entrar: ${input.crearContrasenaUrl}`,
+          `O entrar con Google usando este mismo correo: ${input.loginUrl}`,
+        ],
+      }
+    : {
+        html: `\n  <p>Ya tenés cuenta: <a href="${escaparHtml(input.portalUrl)}"><strong>entrá a tus cursos</strong></a> con este correo.</p>`,
+        text: [`Ya tenés cuenta: entrá a tus cursos con este correo: ${input.portalUrl}`],
+      };
+
+  const html = `
+<div>
+  <p>${escaparHtml(saludo)}</p>${parrafos.map((p) => `\n  <p>${escaparHtml(p)}</p>`).join("")}${acceso.html}${vence ? `\n  <p>${vence}</p>` : ""}${firmaHtml(signature)}
+</div>
+`.trim();
+
+  const text = [
+    saludo,
+    "",
+    ...parrafos.flatMap((p) => [p, ""]),
+    ...acceso.text,
+    ...(vence ? ["", vence] : []),
+    ...(signature ? ["", signature.text] : []),
+  ].join("\n");
+
+  return { html, text };
+}

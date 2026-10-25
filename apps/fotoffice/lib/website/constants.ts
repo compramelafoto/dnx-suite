@@ -8,3 +8,6 @@ export const WEBSITE_MODULE_KEY = "website";
  * guarda en `WorkspaceFeatureModule`, por eso no se parece a ninguna llave de módulo real.
  */
 export const BLOG_PUBLIC_PAGE_KEY = "website:blog";
+
+/** Segmento de la página Institucional (la comisión directiva) bajo `/w/[slug]/`. */
+export const INSTITUTIONAL_PUBLIC_SEGMENT = "institucional";

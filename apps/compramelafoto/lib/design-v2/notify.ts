@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { queueEmail } from "@/lib/email-queue";
 import { getOrderDownloadTokens } from "@/lib/download-tokens";
 import { buildDownloadCenterUrl } from "@/lib/digital-download/download-center-url";
+import { parseDesignV2Data } from "./design-data";
 
 /**
  * Avisos por correo del circuito de diseño. Ninguno frena la operación: si el correo no se
@@ -107,6 +108,14 @@ function photographerLabel(ctx: DesignContext): string {
 }
 
 /** Al fotógrafo: hay un diseño nuevo para revisar. */
+async function avisosDeLaFamilia(projectId: number): Promise<string[]> {
+  const project = await prisma.designProject.findUnique({
+    where: { id: projectId },
+    select: { currentRevision: { select: { dataJson: true } } },
+  });
+  return parseDesignV2Data(project?.currentRevision?.dataJson)?.clientReview?.reports.map((r) => r.text) ?? [];
+}
+
 export async function notifyPhotographerDesignToReview(projectId: number): Promise<void> {
   try {
     const ctx = await loadDesignContext(projectId);
@@ -114,11 +123,19 @@ export async function notifyPhotographerDesignToReview(projectId: number): Promi
     if (!ctx?.photographer?.email) return;
     const url = `${APP_URL}/fotografo/disenos/${projectId}`;
     const album = ctx.albumTitle ? ` del álbum "${ctx.albumTitle}"` : "";
+    // Lo que la familia avisó que está mal en el listado (al revisar antes de confirmar).
+    const avisos = await avisosDeLaFamilia(projectId);
+    const avisosTexto = avisos.length
+      ? `\nLa familia avisó un error en el listado:\n${avisos.map((a) => `- ${a}`).join("\n")}\n`
+      : "";
+    const avisosHtml = avisos.length
+      ? `<p><strong>La familia avisó un error en el listado:</strong></p><ul>${avisos.map((a) => `<li>${escapeHtml(a)}</li>`).join("")}</ul>`
+      : "";
     await queueEmail({
       to: ctx.photographer.email,
       subject: `Tenés un diseño para revisar${album}`,
-      body: `Un cliente${album} eligió sus fotos y el diseño ya está armado.\n\nRevisalo, corregilo si hace falta y aprobalo:\n${url}\n`,
-      htmlBody: `<p>Un cliente${escapeHtml(album)} eligió sus fotos y el diseño ya está armado.</p><p>Revisalo, corregilo si hace falta y aprobalo.</p>${button(url, "Revisar el diseño")}`,
+      body: `Un cliente${album} eligió sus fotos y el diseño ya está armado.\n${avisosTexto}\nRevisalo, corregilo si hace falta y aprobalo:\n${url}\n`,
+      htmlBody: `<p>Un cliente${escapeHtml(album)} eligió sus fotos y el diseño ya está armado.</p>${avisosHtml}<p>Revisalo, corregilo si hace falta y aprobalo.</p>${button(url, "Revisar el diseño")}`,
       idempotencyKey: `design_v2_to_review_${projectId}`,
     });
   } catch (err) {

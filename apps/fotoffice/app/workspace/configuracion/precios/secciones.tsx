@@ -23,7 +23,7 @@ import {
 import { CC_COMMERCIAL_POSITIONING_INTRO, CC_COMMERCIAL_POSITIONING_QUESTION } from "@repo/cuanto-cobro-core/commercial-positioning";
 import { InputMoneda } from "@/components/campos/input-moneda";
 import { CampoTexto } from "@/components/presupuestos/panel-cuanto-cobro";
-import { pesos } from "@/lib/presupuestos/editor";
+import { useFormatearPesos } from "@/components/campos/formato-pesos";
 
 /** Cada sección recibe el perfil y un `cambiar` que mezcla un parcial. */
 export type PropsSeccion = {
@@ -86,6 +86,7 @@ export function SeccionIngresos({ perfil, cambiar }: PropsSeccion) {
 const GRUPOS_DE_FABRICA = new Set(createDefaultPersonalExpenseGroups().map((g) => g.id));
 
 export function SeccionGastosPersonales({ perfil, cambiar }: PropsSeccion) {
+  const pesos = useFormatearPesos();
   const grupos = perfil.personalExpenseGroups;
   const [abierto, setAbierto] = useState<string | null>(grupos[0]?.id ?? null);
   const poner = (g: MonthlyExpenseGroup[]) => cambiar({ personalExpenseGroups: g });

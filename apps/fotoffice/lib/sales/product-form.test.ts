@@ -173,4 +173,28 @@ describe("parseProductForm", () => {
       error: "El mínimo de stock no puede ser negativo.",
     });
   });
+
+  it("un insumo fuerza controlar existencia y acepta precio vacío como cero", () => {
+    const r = parseProductForm(
+      form({ name: "Kit Kodak 305", kind: "INSUMO", priceArs: "", tracksStock: "off" }),
+    );
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.values.kind).toBe("INSUMO");
+    expect(r.values.priceMinor).toBe(0);
+    expect(r.values.tracksStock).toBe(true);
+  });
+
+  it("un producto con precio vacío sigue siendo error", () => {
+    expect(parseProductForm(form({ name: "Marco", kind: "PRODUCTO", priceArs: "" })).ok).toBe(false);
+  });
+});
+
+describe("parseProductForm: proveedor preferido", () => {
+  it("vacío queda null y con valor se conserva", () => {
+    const sin = parseProductForm(form({ name: "Ampliación 20x40", priceArs: "7200", preferredProveedorId: "" }));
+    expect(sin.ok && sin.values.preferredProveedorId).toBeNull();
+    const con = parseProductForm(form({ name: "Ampliación 20x40", priceArs: "7200", preferredProveedorId: "prov1" }));
+    expect(con.ok && con.values.preferredProveedorId).toBe("prov1");
+  });
 });

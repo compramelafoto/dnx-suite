@@ -5,11 +5,15 @@ import {
   ArrowLeftRight,
   ClipboardList,
   ArrowUpRight,
+  BadgePercent,
   Banknote,
+  BookOpen,
   CheckCircle2,
   ChevronDown,
   CreditCard,
   Ellipsis,
+  Images,
+  IdCard,
   Minus,
   Package,
   Plus,
@@ -21,6 +25,7 @@ import {
 } from "lucide-react";
 import { InputMoneda } from "@/components/campos/input-moneda";
 import { formatMinorArs, parseArsToMinor } from "@/lib/membership/money";
+import { importeSinCentavos } from "@/lib/pedidos/candado-saldo-puro";
 import { ticketTotals, validateTicket, type TicketLine } from "@/lib/sales/ticket";
 import { normalizeBarcode } from "@/lib/sales/barcode";
 import { SALE_PAYMENT_METHODS, type SalePaymentMethod } from "@/lib/sales/constants";
@@ -34,7 +39,7 @@ import {
   pedidosParaRetirarAction,
   type PedidoParaRetirar,
 } from "./pedido-actions";
-import { aCobrarAhora, repartirDescuento, senaSugerida, sugerirEntrega } from "@/lib/sales/pedido-mostrador";
+import { aCobrarAhora, PLAZO_SIN_REGLA_DIAS, repartirDescuento, senaSugerida, separarTicket, sugerirEntrega } from "@/lib/sales/pedido-mostrador";
 import { useOcultarMenuEnEstaPantalla } from "@/components/shell/shell-frame";
 import { EgresoDialogo, type DatosEgreso } from "./egreso-dialogo";
 import { VerificarPago } from "./verificar-pago";
@@ -42,6 +47,14 @@ import { CobroQr } from "./cobro-qr";
 import type { PagoCandidato } from "@/lib/sales/verificar-pago";
 import type { ClienteBuscado } from "./mostrador-actions";
 import { checkoutAction, findProductByCodeAction, searchProductsAction, type CheckoutInput } from "./actions";
+import { crearPreparacionAction, produccionDeProductosAction } from "./impresion/actions";
+import { DialogoPreparar, copiasTerminadas } from "./dialogo-preparar";
+import { CalculadoraFotolibro, type FotolibroAgregado, type LineaFotolibro } from "@/components/fotolibro/calculadora-fotolibro";
+import type { CatalogoFotolibro, TipoTapa } from "@/lib/fotolibro/cotizar";
+import { esSkuCajaFotolibro, tipoTapaDeSku, type FotolibroVendido } from "@/lib/fotolibro/venta";
+import { crearFotolibroDesdeCobradorAction } from "@/app/actions/fotolibro";
+import { miComisionAction } from "./comisiones/actions";
+import type { MiComision } from "@/lib/comisiones/calculo";
 
 const ETIQUETA_PAGO: Record<SalePaymentMethod, string> = {
   EFECTIVO: "Efectivo",
@@ -125,7 +138,11 @@ export function Pos({
   egresos,
   datosTransferencia,
   procesos,
+  senaHabilitada = false,
   qrActivo = false,
+  permisosCarnet = { puedeBuscarClientes: false, puedeAltaCliente: false },
+  fotolibro = null,
+  comision = null,
 }: {
   products: ProductRow[];
   categories: ProductCategoryRow[];
@@ -140,8 +157,22 @@ export function Pos({
    * plazo cargado). Si el ticket tiene alguno, esa parte se cobra como pedido con seña.
    */
   procesos: Record<string, number | null>;
+  /**
+   * Puede dejar un renglón sin proceso señado para retirar (interruptor «Seña»): hace falta poder
+   * crear pedidos y tener Clientes, porque el pedido va a nombre de alguien. Si no, no se ofrece.
+   */
+  senaHabilitada?: boolean;
   /** El QR fijo de Mercado Pago está activado (Configuración → Cobros). */
   qrActivo?: boolean;
+  /** Qué puede hacer con Clientes dentro del editor de foto carnet (como en Ventas → Foto carnet). */
+  permisosCarnet?: { puedeBuscarClientes: boolean; puedeAltaCliente: boolean };
+  /** Calculadora de fotolibros: null si no hay ninguna lista de proveedor con tapas y hojas. */
+  fotolibro?: { catalogo: CatalogoFotolibro; verCostos: boolean } | null;
+  /**
+   * Comisión de venta (fotolibros): los productos que la dan, el porcentaje para el cartel verde y,
+   * si quien vende cobra comisión, lo suyo acumulado. null si nadie del equipo cobra comisión.
+   */
+  comision?: { porcentaje: number; productIds: string[]; mia: MiComision | null } | null;
 }) {
   // El mostrador necesita el ancho: el menú lateral se oculta mientras está abierto.
   useOcultarMenuEnEstaPantalla();
@@ -171,14 +202,52 @@ export function Pos({
   const [eligiendoTalle, setEligiendoTalle] = useState<ProductRow | null>(null);
 
   const [mostrarSuelto, setMostrarSuelto] = useState(false);
+  // La calculadora abierta: la del botón «+ Fotolibro» (sin producto) o la de un producto de fotolibro.
+  const [calculadora, setCalculadora] = useState<{ productId: string | null; tipo: TipoTapa | null; titulo: string; proveedorInicial: string | null } | null>(null);
+  // Lo elegido para cada renglón de libro (por key, aparte de `rows` como las preparaciones) y su fotolibro.
+  const [fotolibros, setFotolibros] = useState<Record<string, FotolibroVendido & { url?: string }>>({});
+  const [creandoFotolibro, setCreandoFotolibro] = useState<string | null>(null);
   const [sueltoDescripcion, setSueltoDescripcion] = useState("");
   const [sueltoPrecio, setSueltoPrecio] = useState("");
 
   const [error, setError] = useState<string | null>(null);
+  // Impresión (foto carnet y copias): qué productos se preparan, la preparación de cada renglón (por key,
+  // aparte de `rows` para que deshacer no la pierda) y el renglón que se está preparando.
+  const [produccion, setProduccion] = useState<Record<string, { tipoPieza: string; salida: string; hoja: string; digital: boolean }>>({});
+  const [preparaciones, setPreparaciones] = useState<Record<string, string>>({});
+  // Renglones sin proceso que el cajero marcó «Seña» (por key, como las preparaciones, para que
+  // deshacer no pierda la marca): quedan en el pedido para retirar.
+  const [paraRetirar, setParaRetirar] = useState<Record<string, boolean>>({});
+  const conProceso = useMemo(() => new Set(Object.keys(procesos)), [procesos]);
+  const tieneProceso = (r: TicketRow) => r.productId !== null && conProceso.has(r.productId);
+  const [preparando, setPreparando] = useState<{ key: string; preparacionId: string } | null>(null);
+  // Renglones de copias cuyo editor se cerró sin terminar: el ticket lo avisa (cobrarlas exige terminarlas).
+  const [copiasSinTerminar, setCopiasSinTerminar] = useState<ReadonlySet<string>>(new Set());
+  const [abriendoPreparacion, setAbriendoPreparacion] = useState<string | null>(null);
+  useEffect(() => {
+    // Si falla (p. ej. Impresión sin configurar), el Mostrador sigue igual, sin "Preparar".
+    produccionDeProductosAction()
+      .then(setProduccion)
+      .catch(() => undefined);
+  }, []);
+  const conComision = useMemo(() => new Set(comision?.productIds ?? []), [comision]);
+  const [miComision, setMiComision] = useState<MiComision | null>(comision?.mia ?? null);
+  /** Lo que gana quien vende con un renglón (null si no da comisión o no cobra comisión). */
+  const comisionDelRenglon = (r: { productId: string | null; qty: number; unitPriceMinor: number }) =>
+    miComision && r.productId !== null && conComision.has(r.productId) ? Math.round((r.qty * r.unitPriceMinor * miComision.porcentaje) / 100) : null;
+  /** Después de cada cobro: lo acumulado al día (un saldo cobrado completa comisiones). */
+  function refrescarComision() {
+    if (!miComision) return;
+    miComisionAction()
+      .then((m) => m && setMiComision(m))
+      .catch(() => undefined);
+  }
   const [ultimaVenta, setUltimaVenta] = useState<{
     saleNumber: number | null;
     deposited: boolean;
     vueltoMinor: number | null;
+    /** Lo que ganó quien vendió con este cobro; `ganada` = ya cobrado entero. */
+    comision?: { minor: number; ganada: boolean } | null;
     pedido?: { numero: string; cobradoMinor: number; saldoMinor: number; aviso: string | null };
   } | null>(null);
   // Pedido para retirar (cuando el ticket tiene trabajos con proceso).
@@ -217,6 +286,7 @@ export function Pos({
       setAvisoSaldo(r.ok ? { ok: true, texto: r.mensaje } : { ok: false, texto: r.error });
       if (r.ok) setPagoVerificado(null);
       if (r.ok && cliente) setPedidosCliente(await pedidosParaRetirarAction(cliente.id));
+      if (r.ok) refrescarComision();
     });
   }
 
@@ -305,6 +375,12 @@ export function Pos({
    */
   function agregarProducto(p: ProductRow, talle: ProductVariantRow | null = null, fijarCantidad: number | null = null) {
     limpiarAviso();
+    // Fotolibro tapa flexible / rígida: el precio sale de la calculadora (fotos → hojas → precio).
+    const tipo = tipoTapaDeSku(p.sku);
+    if (tipo && fotolibro) {
+      setCalculadora({ productId: p.id, tipo, titulo: p.name, proveedorInicial: p.preferredProveedorId ?? null });
+      return;
+    }
     if (talle === null && p.variants.length > 0) {
       setEligiendoTalle(p);
       return;
@@ -485,6 +561,60 @@ export function Pos({
     cambiarRenglones((prev) => prev.filter((r) => r.key !== key));
   }
 
+  /**
+   * El libro entra con el producto que abrió la calculadora (o suelto, desde «+ Fotolibro») y la caja
+   * en su propio renglón: el producto "Caja para fotolibro" si está en el catálogo. La caja queda
+   * marcada «Seña» para que viaje en el pedido junto con el libro.
+   */
+  function agregarFotolibro(f: FotolibroAgregado) {
+    limpiarAviso();
+    const productId = calculadora?.productId ?? null;
+    const renglon = (l: LineaFotolibro, pid: string | null): TicketRow => ({
+      key: nuevaKey(),
+      productId: pid,
+      variantId: null,
+      description: l.descripcion,
+      qty: 1,
+      unitPriceMinor: l.precioMinor,
+      unitCostMinor: l.costoMinor,
+      priceWasOverridden: false,
+      catalogPriceMinor: null,
+      tracksStock: false,
+      stockQty: null,
+    });
+    const libro = renglon(f.libro, productId);
+    const caja = f.caja ? renglon(f.caja, products.find((p) => esSkuCajaFotolibro(p.sku))?.id ?? null) : null;
+    setActivo(libro.key);
+    cambiarRenglones((prev) => [...prev, libro, ...(caja ? [caja] : [])]);
+    if (productId) setFotolibros((m) => ({ ...m, [libro.key]: { ...f.eleccion, templateId: null } }));
+    if (caja && senaHabilitada) setParaRetirar((m) => ({ ...m, [caja.key]: true }));
+    setCalculadora(null);
+  }
+
+  /** «Crear fotolibro»: el fotolibro vacío con lo elegido, abierto en otra pestaña. Si no, se crea al cobrar. */
+  async function crearFotolibroDelRenglon(key: string) {
+    const f = fotolibros[key];
+    if (!f || creandoFotolibro) return;
+    // La pestaña se abre ya, con el clic: después de esperar al servidor el navegador la bloquea.
+    const pestana = window.open("", "_blank");
+    setCreandoFotolibro(key);
+    try {
+      const r = await crearFotolibroDesdeCobradorAction({ eleccion: f, cliente: cliente?.nombre ?? null });
+      if (!r.ok) {
+        pestana?.close();
+        return setError(r.error);
+      }
+      setFotolibros((m) => (m[key] ? { ...m, [key]: { ...m[key], templateId: r.templateId, url: r.url } } : m));
+      if (pestana) pestana.location.href = r.url;
+      else window.open(r.url, "_blank");
+    } catch {
+      pestana?.close();
+      setError("No se pudo crear el fotolibro. Probá de nuevo: si no, se crea solo al cobrar.");
+    } finally {
+      setCreandoFotolibro(null);
+    }
+  }
+
   function agregarSuelto() {
     const descripcion = sueltoDescripcion.trim();
     const precio = parseArsToMinor(sueltoPrecio);
@@ -513,8 +643,60 @@ export function Pos({
     setMostrarSuelto(false);
   }
 
+  /** Abre el editor (foto carnet o copias) de un renglón; la preparación se crea la primera vez. */
+  async function abrirPreparacion(r: TicketRow) {
+    // Mientras se cobra no se abre: el ticket está por reiniciarse.
+    if (!r.productId || abriendoPreparacion || procesando) return;
+    let id = preparaciones[r.key] ?? null;
+    if (!id) {
+      setAbriendoPreparacion(r.key);
+      try {
+        const c = await crearPreparacionAction({ productId: r.productId, clientId: cliente?.id ?? null });
+        if (!c.ok) return setError(c.error);
+        id = c.id;
+        const nuevo = id;
+        setPreparaciones((ps) => ({ ...ps, [r.key]: nuevo }));
+      } catch {
+        return setError("No se pudo abrir la preparación. Probá de nuevo.");
+      } finally {
+        setAbriendoPreparacion(null);
+      }
+    }
+    // Si el renglón se borró (o se cobró el ticket) mientras se creaba la preparación, no se abre.
+    if (!rowsRef.current.some((x) => x.key === r.key)) return;
+    setPreparando({ key: r.key, preparacionId: id });
+  }
+
+  function marcarCopiasSinTerminar(key: string, sinTerminar: boolean) {
+    setCopiasSinTerminar((s) => {
+      if (s.has(key) === sinTerminar) return s;
+      const n = new Set(s);
+      if (sinTerminar) n.add(key);
+      else n.delete(key);
+      return n;
+    });
+  }
+
+  /**
+   * Copias cerradas sin "Listo": se vuelve a leer lo guardado. Si quedó completa, el renglón toma el
+   * total de copias; si no, conserva su cantidad y avisa "Copias sin terminar".
+   */
+  async function alCerrarCopias(key: string, preparacionId: string) {
+    const total = await copiasTerminadas(preparacionId);
+    // Si el renglón se borró (o se cobró el ticket) mientras se leía, no se toca nada.
+    const renglon = rowsRef.current.find((x) => x.key === key);
+    if (!renglon) return;
+    marcarCopiasSinTerminar(key, total === null);
+    if (total !== null && renglon.qty !== total) actualizarCantidad(key, total);
+  }
+
   function reiniciarTicket() {
     setRows([]);
+    setPreparaciones({});
+    setFotolibros({});
+    setParaRetirar({});
+    setPreparando(null);
+    setCopiasSinTerminar(new Set());
     setDiscountText("");
     setNote("");
     setPaymentMethod("EFECTIVO");
@@ -529,17 +711,25 @@ export function Pos({
   }
 
   /**
-   * La parte del ticket que queda como pedido: los renglones de productos con proceso. Lo demás se
-   * lleva en el momento y se paga entero. El descuento se reparte en proporción.
+   * La parte del ticket que queda como pedido: los renglones de productos con proceso y los
+   * marcados «Seña» (misma separación que hace el servidor). Lo demás se lleva en el momento y se
+   * paga entero. El descuento se reparte en proporción.
    */
   function calcularPedido() {
-    const filas = rows.filter((r) => r.productId !== null && procesos[r.productId] !== undefined);
+    const filas = separarTicket(
+      rows.map((r) => ({ ...r, paraRetirar: paraRetirar[r.key] === true })),
+      conProceso,
+    ).delPedido;
     const subPedido = filas.reduce((a, r) => a + r.qty * r.unitPriceMinor, 0);
     const subVenta = totals.subtotalMinor - subPedido;
     const desc = repartirDescuento(subPedido, subVenta, discountMinor);
     const totalPedido = subPedido - desc.pedido;
     const totalVenta = subVenta - desc.venta;
-    const plazo = filas.reduce((max, r) => Math.max(max, procesos[r.productId as string] ?? 7), 0);
+    // Con regla, su plazo (7 si no tiene cargado); marcado «Seña» sin regla, el plazo estándar.
+    const plazo = filas.reduce(
+      (max, r) => Math.max(max, tieneProceso(r) ? (procesos[r.productId as string] ?? 7) : PLAZO_SIN_REGLA_DIAS),
+      0,
+    );
     const entrega = entregaElegida ?? sugerirEntrega(hoyEnArgentina(), plazo);
     const senaTipeada = parseArsToMinor(senaText);
     const sena = conSena ? Math.min(senaTipeada ?? senaSugerida(totalPedido), totalPedido) : null;
@@ -567,6 +757,11 @@ export function Pos({
       setError("Elegí el cliente: hay trabajos que quedan como pedido para retirar.");
       return;
     }
+    // Etapa 1: el cobro con pedido no ata preparaciones; se cobran en un ticket aparte.
+    if (pedido.hay && rows.some((r) => preparaciones[r.key])) {
+      setError("Las fotos preparadas se cobran solas: sacá los trabajos de pedido a otro ticket.");
+      return;
+    }
     // Pagado con el QR del mostrador: la order viaja y el servidor la vuelve a leer en Mercado Pago.
     const qrDelTicket = qr ?? pagoQr;
     const mpOrderId =
@@ -584,6 +779,7 @@ export function Pos({
         ? `Pagó con ${formatMinorArs(recibidoMinor)} · vuelto ${formatMinorArs(vueltoAlCobrar.vueltoMinor)}`
         : "";
     const notaFinal = [note.trim(), notaDePago].filter((t) => t !== "").join(" — ");
+    const comisionDelTicket = rows.reduce((s, r) => s + (comisionDelRenglon(r) ?? 0), 0);
 
     const input: CheckoutInput = {
       // `priceWasOverridden` no viaja: lo recalcula el servidor comparando contra el precio
@@ -596,6 +792,7 @@ export function Pos({
         description: r.description,
         qty: r.qty,
         unitPriceMinor: r.unitPriceMinor,
+        preparacionId: preparaciones[r.key] ?? null,
       })),
       discountMinor,
       paymentMethod,
@@ -610,7 +807,15 @@ export function Pos({
       const clave = claveCobroRef.current;
       startTransition(async () => {
         const r = await cobrarConPedidoAction({
-          lines: input.lines.map((l) => ({ ...l, variantId: l.variantId ?? null })),
+          lines: rows.map((r) => ({
+            productId: r.productId,
+            variantId: r.variantId ?? null,
+            description: r.description,
+            qty: r.qty,
+            unitPriceMinor: r.unitPriceMinor,
+            paraRetirar: !tieneProceso(r) && paraRetirar[r.key] === true,
+            fotolibro: fotolibros[r.key] ? { ...fotolibros[r.key], url: undefined } : undefined,
+          })),
           discountMinor,
           paymentMethod,
           note: notaFinal,
@@ -621,6 +826,9 @@ export function Pos({
           mpPaymentId: mpOrderId ? null : verificadoPara(pedido.aCobrar),
           mpOrderId,
         });
+        // Una respuesta que llega tarde, de un cobro que ya se cerró (la clave cambió o se limpió),
+        // no toca el ticket que se está armando ahora: ese cobro ya mostró su resultado.
+        if (claveCobroRef.current !== clave) return;
         if (r.ok) {
           claveCobroRef.current = null;
           setUltimaVenta({
@@ -628,7 +836,9 @@ export function Pos({
             deposited: true,
             vueltoMinor: vueltoAlCobrar.estado === "ok" ? vueltoAlCobrar.vueltoMinor : null,
             pedido: { numero: r.pedidoNumero, cobradoMinor: r.cobradoMinor, saldoMinor: r.saldoMinor, aviso: r.aviso },
+            comision: comisionDelTicket > 0 ? { minor: comisionDelTicket, ganada: r.saldoMinor <= 0 } : null,
           });
+          refrescarComision();
           reiniciarTicket();
           historialRef.current = [];
           setActivo(null);
@@ -647,7 +857,9 @@ export function Pos({
           saleNumber: resultado.saleNumber,
           deposited: resultado.deposited,
           vueltoMinor: vueltoAlCobrar.estado === "ok" ? vueltoAlCobrar.vueltoMinor : null,
+          comision: comisionDelTicket > 0 ? { minor: comisionDelTicket, ganada: true } : null,
         });
+        refrescarComision();
         reiniciarTicket();
         // Lo cobrado no se deshace con Ctrl/⌘+Z: para eso está anular la venta.
         historialRef.current = [];
@@ -941,6 +1153,12 @@ export function Pos({
                         {sinStock ? <span className="font-semibold text-[var(--fo-danger)]"> Sin existencia</span> : null}
                       </span>
                     ) : null}
+                    {comision && conComision.has(p.id) ? (
+                      <span className="mt-0.5 inline-flex items-center gap-1 rounded-full border border-[var(--fo-success-border)] bg-[var(--fo-success-soft)] px-1.5 text-[11px] font-semibold text-[var(--fo-success)]">
+                        <BadgePercent className="size-3" aria-hidden />
+                        Comisión de venta {String(comision.porcentaje).replace(".", ",")} %
+                      </span>
+                    ) : null}
                   </span>
                   <span className="flex shrink-0 flex-col items-end gap-0.5">
                     <span className="text-[13px] font-semibold tabular-nums">{formatMinorArs(p.priceMinor).replace(",00", "")}</span>
@@ -959,6 +1177,22 @@ export function Pos({
 
       {/* Centro: el carrito, siempre a la vista. */}
       <section className="fo-card h-fit min-w-0 overflow-hidden p-0" aria-label="Lo que lleva">
+        {miComision ? (
+          <a
+            href="/ventas/comisiones"
+            className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--fo-success-border)] bg-[var(--fo-success-soft)] px-4 py-2 text-sm"
+          >
+            <span className="flex items-center gap-1.5 font-semibold text-[var(--fo-success)]">
+              <BadgePercent className="size-4" aria-hidden />
+              Tus comisiones este mes: {formatMinorArs(miComision.resumen.mesMinor).replace(/,00$/, "")}
+            </span>
+            {miComision.resumen.aCobrarMinor > 0 ? (
+              <span className="text-xs text-[var(--fo-muted)]">
+                + {formatMinorArs(miComision.resumen.aCobrarMinor).replace(/,00$/, "")} cuando se cobren los saldos
+              </span>
+            ) : null}
+          </a>
+        ) : null}
         <div className="flex items-center justify-between gap-2 border-b border-[var(--fo-border)] px-4 py-3">
           <h2 className="flex items-baseline gap-2 whitespace-nowrap text-base font-semibold">
             Ticket
@@ -987,6 +1221,15 @@ export function Pos({
             >
               + Otro
             </button>
+            {fotolibro ? (
+              <button
+                type="button"
+                onClick={() => setCalculadora((c) => (c ? null : { productId: null, tipo: null, titulo: "Fotolibro", proveedorInicial: null }))}
+                className="fo-btn fo-btn-ghost whitespace-nowrap px-2 text-xs"
+              >
+                + Fotolibro
+              </button>
+            ) : null}
             {rows.length > 0 ? (
               <button
                 type="button"
@@ -1002,6 +1245,21 @@ export function Pos({
         </div>
 
         <div className="px-4">
+          {calculadora && fotolibro ? (
+            <div className="my-3">
+              <CalculadoraFotolibro
+                key={calculadora.productId ?? "libre"}
+                catalogo={fotolibro.catalogo}
+                verCostos={fotolibro.verCostos}
+                onAgregar={agregarFotolibro}
+                onCerrar={() => setCalculadora(null)}
+                textoAgregar="Agregar al ticket"
+                tipo={calculadora.tipo}
+                titulo={calculadora.titulo}
+                proveedorInicial={calculadora.proveedorInicial}
+              />
+            </div>
+          ) : null}
           {mostrarSuelto ? (
             <div className="my-3 space-y-2 rounded-[var(--fo-radius-sm)] border border-dashed border-[var(--fo-border)] p-3">
               <p className="fo-helper">Algo que no está en el catálogo. No mueve stock.</p>
@@ -1049,13 +1307,73 @@ export function Pos({
                   >
                     <div className="min-w-0 flex-1">
                       <p className="line-clamp-2 text-sm font-medium leading-snug text-[var(--fo-text)]">
-                          {r.productId !== null && procesos[r.productId] !== undefined ? (
+                          {tieneProceso(r) || paraRetirar[r.key] ? (
                             <span className="mr-1.5 inline-flex rounded-full bg-[var(--fo-accent-muted)] px-1.5 py-px align-middle text-[10px] font-semibold uppercase tracking-wide text-[var(--fo-text-secondary)]">
                               Pedido
                             </span>
                           ) : null}
                           {r.description}
                         </p>
+                      {/* Un producto con proceso ya es un pedido: muestra «Seña» prendido y fijo, para
+                          que todos los renglones se vean igual. Uno sin proceso puede quedar señado. */}
+                      {tieneProceso(r) ? (
+                        <span
+                          title="Este producto se produce después: siempre va como pedido. Seña o pago total se eligen abajo."
+                          className="mt-1 inline-flex h-6 cursor-default items-center rounded-full border border-[var(--fo-accent)] bg-[var(--fo-accent-muted)] px-2 text-[11px] font-medium text-[var(--fo-text)]"
+                        >
+                          Seña
+                        </span>
+                      ) : senaHabilitada ? (
+                        <button
+                          type="button"
+                          aria-pressed={paraRetirar[r.key] === true}
+                          title="Deja seña y lo retira después"
+                          disabled={procesando}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setParaRetirar((m) => ({ ...m, [r.key]: !m[r.key] }));
+                          }}
+                          className={`mt-1 inline-flex h-6 items-center rounded-full border px-2 text-[11px] font-medium transition-colors ${
+                            paraRetirar[r.key]
+                              ? "border-[var(--fo-accent)] bg-[var(--fo-accent-muted)] text-[var(--fo-text)]"
+                              : "border-[var(--fo-border)] text-[var(--fo-muted)] hover:text-[var(--fo-text)]"
+                          }`}
+                        >
+                          Seña
+                        </button>
+                      ) : null}
+                      {r.productId !== null && (produccion[r.productId]?.tipoPieza === "CARNET" || produccion[r.productId]?.tipoPieza === "COPIA") ? (
+                        <button
+                          type="button"
+                          className="fo-btn fo-btn-secondary mt-1 h-7 px-2 text-xs"
+                          disabled={abriendoPreparacion !== null || procesando}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void abrirPreparacion(r);
+                          }}
+                        >
+                          {produccion[r.productId]?.tipoPieza === "COPIA" ? <Images className="size-3.5" aria-hidden /> : <IdCard className="size-3.5" aria-hidden />}
+                          {abriendoPreparacion === r.key ? "Abriendo…" : preparaciones[r.key] ? "Editar fotos" : "Preparar"}
+                        </button>
+                      ) : null}
+                      {fotolibros[r.key] ? (
+                        <button
+                          type="button"
+                          className="fo-btn fo-btn-secondary mt-1 h-7 px-2 text-xs"
+                          disabled={creandoFotolibro !== null || procesando}
+                          title={fotolibros[r.key]!.templateId ? "El fotolibro ya está creado: se ata al trabajo al cobrar." : "Crea el fotolibro con esta medida y estas hojas. Si no, se crea solo al cobrar."}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const url = fotolibros[r.key]!.url;
+                            if (url) window.open(url, "_blank");
+                            else void crearFotolibroDelRenglon(r.key);
+                          }}
+                        >
+                          <BookOpen className="size-3.5" aria-hidden />
+                          {creandoFotolibro === r.key ? "Creando…" : fotolibros[r.key]!.templateId ? "Abrir fotolibro" : "Crear fotolibro"}
+                        </button>
+                      ) : null}
+                      {copiasSinTerminar.has(r.key) ? <span className="ml-2 text-xs font-medium text-[var(--fo-warning)]">Copias sin terminar</span> : null}
                       {editandoPrecio === r.key ? (
                         <InputMoneda
                           autoFocus
@@ -1084,6 +1402,11 @@ export function Pos({
                       )}
                       {r.tracksStock && r.stockQty !== null && r.stockQty <= 0 ? (
                         <p className="text-xs font-semibold text-[var(--fo-danger)]">Sin existencia cargada</p>
+                      ) : null}
+                      {comisionDelRenglon(r) ? (
+                        <p className="text-xs font-semibold text-[var(--fo-success)]">
+                          Ganás {formatMinorArs(comisionDelRenglon(r)!).replace(/,00$/, "")} cuando se cobre el total
+                        </p>
                       ) : null}
                     </div>
                     <div className="flex shrink-0 items-center rounded-full border border-[var(--fo-border)] bg-[var(--fo-bg-elevated)]">
@@ -1174,6 +1497,9 @@ export function Pos({
                       {t.etapa ? ` · ${t.etapa}` : ""}
                     </p>
                   ))}
+                  {p.saldoMinor > 0 && p.trabajos.some((t) => t.listo) ? (
+                    <p className="text-xs font-semibold text-[var(--fo-danger)]">Debe {importeSinCentavos(p.saldoMinor)} · retenido hasta pagar</p>
+                  ) : null}
                   {p.saldoMinor > 0 ? (
                     <button
                       type="button"
@@ -1423,6 +1749,13 @@ export function Pos({
                 ) : (
                   <p className="font-semibold text-[var(--fo-success)]">Venta #{ultimaVenta.saleNumber} cobrada</p>
                 )}
+                {ultimaVenta.comision ? (
+                  <p className="font-semibold text-[var(--fo-success)]">
+                    {ultimaVenta.comision.ganada
+                      ? `Ganaste ${formatMinorArs(ultimaVenta.comision.minor).replace(/,00$/, "")} de comisión.`
+                      : `Tu comisión: ${formatMinorArs(ultimaVenta.comision.minor).replace(/,00$/, "")}. Se suma cuando se cobre el saldo.`}
+                  </p>
+                ) : null}
                 {ultimaVenta.vueltoMinor !== null && ultimaVenta.vueltoMinor > 0 ? (
                   <p className="text-[var(--fo-text)]">Dar de vuelto {formatMinorArs(ultimaVenta.vueltoMinor)}</p>
                 ) : null}
@@ -1463,6 +1796,34 @@ export function Pos({
           style={{ left: fotoGrande.x, top: Math.min(Math.max(fotoGrande.y, 124), window.innerHeight - 124) }}
         />
       ) : null}
+
+      {preparando
+        ? (() => {
+            const pid = rows.find((x) => x.key === preparando.key)?.productId;
+            const p = pid ? produccion[pid] : undefined;
+            // Sin renglón (o sin producto de impresión) no se abre: el editor equivocado no puede tocar la preparación.
+            if (!p) return null;
+            return (
+              <DialogoPreparar
+                preparacionId={preparando.preparacionId}
+                tipoPieza={p.tipoPieza === "COPIA" ? "COPIA" : "CARNET"}
+                cliente={cliente}
+                produccion={{ salida: p.salida, hoja: p.hoja, digital: p.digital }}
+                permisos={permisosCarnet}
+                onListo={({ cantidad }) => {
+                  // La cantidad del renglón: planchas (carnet) o el total de copias (se puede deshacer como cualquier cambio).
+                  actualizarCantidad(preparando.key, cantidad);
+                  marcarCopiasSinTerminar(preparando.key, false);
+                  setPreparando(null);
+                }}
+                onCerrar={() => {
+                  setPreparando(null);
+                  if (p.tipoPieza === "COPIA") void alCerrarCopias(preparando.key, preparando.preparacionId);
+                }}
+              />
+            );
+          })()
+        : null}
 
       {egresos && egresoAbierto ? (
         <EgresoDialogo

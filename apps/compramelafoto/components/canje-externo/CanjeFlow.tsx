@@ -13,6 +13,13 @@ import {
 } from "@/lib/canje-externo/build-canje-order-items";
 import type { ComboPrintProduct } from "@/lib/canje-externo/combo-print-product";
 import ComboFrames from "./ComboFrames";
+import { useMedidasDeFotos } from "./useMedidasDeFotos";
+import {
+  avisoDeBordes,
+  orientacionDeLaFoto,
+  TEXTO_DIGITAL,
+  textoFormatoCopia,
+} from "@/lib/canje-externo/formato-de-la-foto";
 import CanjeSteps, { type CanjeStepKey } from "./CanjeSteps";
 import PhotoPickGrid from "./PhotoPickGrid";
 
@@ -82,6 +89,15 @@ export default function CanjeFlow({ token, album, combo, product, photos }: Prop
   const [resultado, setResultado] = useState<{ pedido: number; downloadUrl: string | null } | null>(null);
   const idempotencyRef = useRef<string | null>(null);
   const selfieInputRef = useRef<HTMLInputElement>(null);
+  const { medidas, registrar } = useMedidasDeFotos();
+  /** "Copia 15x21 · se imprime horizontal", según la foto. */
+  const formatoCopia = (id: number) => {
+    const m = medidas.get(id);
+    return textoFormatoCopia(combo.size, orientacionDeLaFoto(m?.ancho, m?.alto));
+  };
+  const avisoBordes = comboIds
+    .map((id) => avisoDeBordes(combo.size, medidas.get(id)?.ancho, medidas.get(id)?.alto))
+    .find((x) => x != null);
 
   const alumno = combo.studentName;
   const alumnoCorto = primerNombre(alumno);
@@ -431,7 +447,14 @@ export default function CanjeFlow({ token, album, combo, product, photos }: Prop
                       : `${comboIds.length} de ${n} elegidas · te ${n - comboIds.length === 1 ? "falta" : "faltan"} ${n - comboIds.length}`}
                   </p>
                 </div>
-                <ComboFrames slots={n} photoIds={comboIds} thumbUrl={thumbUrl} onRemove={toggleCombo} size="sm" />
+                <ComboFrames
+                  slots={n}
+                  photoIds={comboIds}
+                  thumbUrl={thumbUrl}
+                  onRemove={toggleCombo}
+                  size="sm"
+                  onImgLoad={registrar}
+                />
               </div>
             </div>
             {selfieBox}
@@ -444,13 +467,22 @@ export default function CanjeFlow({ token, album, combo, product, photos }: Prop
               full={comboCompleto}
               badge={(id) => (byId.get(id)?.sellPrint ? null : "Sólo digital")}
               accent="combo"
+              onImgLoad={registrar}
             />
           </section>
         ) : null}
 
         {paso === "pregunta" ? (
           <section className="mx-auto max-w-xl rounded-2xl bg-white px-5 py-8 text-center shadow-[0_1px_2px_rgba(60,40,20,0.08)] sm:px-10">
-            <ComboFrames slots={n} photoIds={comboIds} thumbUrl={thumbUrl} size="lg" />
+            <ComboFrames
+              slots={n}
+              photoIds={comboIds}
+              thumbUrl={thumbUrl}
+              size="lg"
+              onImgLoad={registrar}
+              caption={formatoCopia}
+            />
+            {avisoBordes ? <p className="m-0 mt-4 text-xs text-[#6b6f76]">{avisoBordes}</p> : null}
             <h1 className="m-0 mt-6 text-2xl font-semibold text-[#1f2328]">Las fotos de tu combo están elegidas</h1>
             <p className="m-0 mt-2 text-[#4b4f56]">¿Querés sumar más fotos? Las que sumes se pagan aparte.</p>
             {precios.impresa != null ? (
@@ -513,6 +545,7 @@ export default function CanjeFlow({ token, album, combo, product, photos }: Prop
               thumbUrl={thumbUrl}
               badge={(id) => (comboIds.includes(id) ? "En tu combo" : null)}
               accent="extra"
+              onImgLoad={registrar}
             />
             {extras.length > 0 ? (
               <div className="mt-6 rounded-xl border border-[#e7e1da] bg-white p-4">
@@ -525,8 +558,13 @@ export default function CanjeFlow({ token, album, combo, product, photos }: Prop
                     return (
                       <li key={e.photoId} className="flex items-center gap-3">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={thumbUrl(e.photoId)} alt="" className="h-14 w-11 shrink-0 rounded object-cover" />
-                        <div className="flex flex-1 flex-wrap gap-2" role="group" aria-label="Formato de la foto">
+                        <img
+                          src={thumbUrl(e.photoId)}
+                          alt=""
+                          className="h-14 w-14 shrink-0 rounded bg-[#efe9e2] object-contain"
+                        />
+                        <div className="flex flex-1 flex-col gap-1">
+                        <div className="flex flex-wrap gap-2" role="group" aria-label="Formato de la foto">
                           {(["impresa", "digital"] as const).map((f) => {
                             const habilitado = f === "impresa" ? puedeImpresa : puedeDigital;
                             if (!habilitado) return null;
@@ -551,6 +589,15 @@ export default function CanjeFlow({ token, album, combo, product, photos }: Prop
                               </button>
                             );
                           })}
+                        </div>
+                        <p className="m-0 text-xs font-medium text-[#2f7d5b]">
+                          {e.format === "impresa"
+                            ? textoFormatoCopia(
+                                product.size,
+                                orientacionDeLaFoto(medidas.get(e.photoId)?.ancho, medidas.get(e.photoId)?.alto)
+                              ) + (album.includeDigitalWithPrint ? " + su digital" : "")
+                            : TEXTO_DIGITAL}
+                        </p>
                         </div>
                         <button
                           type="button"
@@ -665,7 +712,14 @@ export default function CanjeFlow({ token, album, combo, product, photos }: Prop
 
         {paso === "listo" && resultado ? (
           <section className="mx-auto max-w-xl rounded-2xl bg-white px-5 py-8 text-center shadow-[0_1px_2px_rgba(60,40,20,0.08)] sm:px-10">
-            <ComboFrames slots={n} photoIds={comboIds} thumbUrl={thumbUrl} size="lg" />
+            <ComboFrames
+              slots={n}
+              photoIds={comboIds}
+              thumbUrl={thumbUrl}
+              size="lg"
+              onImgLoad={registrar}
+              caption={formatoCopia}
+            />
             <h1 className="m-0 mt-6 text-2xl font-semibold text-[#1f2328]">¡Listo! Tu combo quedó canjeado</h1>
             <p className="m-0 mt-1 text-sm text-[#6b6f76]">Pedido #{resultado.pedido}</p>
             {resultado.downloadUrl ? (

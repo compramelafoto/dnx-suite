@@ -36,6 +36,8 @@ const TABLAS = [
   "fotofficeListActivity",
   // Catálogo de Ventas y su ampliación para presupuestos (etapa 2).
   "product", "productCategory", "fotofficeProductoCatalogo", "fotofficeComboItem", "fotofficeCostoPlantilla", "fotofficeProveedor",
+  // Recetas de insumos (stock de insumos, etapa 1): lo que gasta cada producto al tomarse un pedido.
+  "fotofficeRecetaInsumo",
   // Presupuestos (etapa 2).
   "fotofficePresupuesto", "fotofficePresupuestoVersion", "fotofficePresupuestoVista", "fotofficePresupuestoAjustes",
   // Propuesta modelo por categoría (etapa 2, Entrega B).
@@ -61,10 +63,22 @@ const TABLAS = [
   "fotofficeGaleriaRonda", "fotofficeGaleriaDecision",
   // Caja (los cobros de pedidos depositan y se anulan con contramovimiento), módulos encendidos y adjuntos.
   "cashAccount", "cashShift", "cashMovement", "workspaceFeatureModule", "fotofficeAttachment",
-  // Perfil de precios del workspace.
-  "fotofficePerfilPrecios",
+  // Perfil de precios del workspace y el personal del socio (portal).
+  "fotofficePerfilPrecios", "fotofficePerfilPreciosSocio",
   // Etapa B: ajustes de cobro y transferencias esperadas.
   "fotofficeCobroAjustes", "fotofficeEsperaPago",
+  // Impresión (etapa 1).
+  "fotofficeTamanoImpresion", "fotofficeSalidaImpresion", "fotofficeSalidaTamano", "fotofficeProductoProduccion",
+  "fotofficePreparacionImpresion", "fotofficeOriginalImpresion", "fotofficePiezaImpresion", "fotofficeHojaImpresion",
+  "fotofficeRegistroImpresion", "saleItem",
+  // Bandeja de WhatsApp.
+  "fotofficeWaConexion", "fotofficeWaChat", "fotofficeWaMensaje",
+  // Stock (la seña de un pedido aparta unidades con `applyStockMovement`).
+  "productVariant", "stockMovement",
+  // Digitalización: entregas de videos y cargos extra (spec 2026-10-22, E6).
+  "digitalizacionEntrega", "digitalizacionGrabacion", "digitalizacionCargo", "digitalizacionAjustes",
+  // Comisión de plataforma (F1): el libro, la tasa por módulo y la marca de los cobros de digitalización.
+  "workspaceFeeLedgerEntry", "workspaceModuleFee", "digitalizacionComision",
 ] as const;
 export type Tabla = (typeof TABLAS)[number];
 
@@ -74,10 +88,13 @@ const RELACIONES: Record<string, { columna: string; tabla: Tabla }> = {
   stage: { columna: "stageId", tabla: "fotofficeStage" },
   journey: { columna: "journeyId", tabla: "fotofficeJourney" },
   field: { columna: "fieldId", tabla: "fotofficeCustomField" },
+  // Digitalización: la grabación es de un trabajo y el cargo, de una entrega.
+  proyecto: { columna: "proyectoId", tabla: "fotofficeProyecto" },
+  entrega: { columna: "entregaId", tabla: "digitalizacionEntrega" },
 };
 
 const DEFECTOS: Partial<Record<Tabla, () => Fila>> = {
-  fotofficeCircuit: () => ({ isActive: true, isDefault: false, createdAt: new Date() }),
+  fotofficeCircuit: () => ({ isActive: true, isDefault: false, systemKey: null, createdAt: new Date() }),
   fotofficeStage: () => ({ color: "gris", days: 0, requireTasks: false, leadStatus: null, archivedAt: null }),
   fotofficeStageTaskTemplate: () => ({ days: 0, required: false }),
   fotofficeLossReason: () => ({ order: 0, isActive: true }),
@@ -133,6 +150,7 @@ const DEFECTOS: Partial<Record<Tabla, () => Fila>> = {
     inPriceList: false, incomeLabel: null, incomeCategoryId: null, isCombo: false, createdAt: new Date(), updatedAt: new Date(),
   }),
   fotofficeComboItem: () => ({ quantity: 1, order: 0, createdAt: new Date() }),
+  fotofficeRecetaInsumo: () => ({ porCada: 1, order: 0, createdAt: new Date(), updatedAt: new Date() }),
   fotofficeCostoPlantilla: () => ({ supplierClientId: null, perUnit: false, daysFromEvent: 0, order: 0, createdAt: new Date(), updatedAt: new Date() }),
   fotofficePresupuesto: () => ({
     status: "BORRADOR", currentVersionId: null, acceptedVersionId: null, ownerUserId: null, validUntil: null,
@@ -151,12 +169,24 @@ const DEFECTOS: Partial<Record<Tabla, () => Fila>> = {
   }),
   fotofficePropuestaModelo: () => ({ terms: null, autoSendOnWeb: false, templateId: null, updatedAt: new Date(), updatedByUserId: null }),
   fotofficePropuestaBorradorAuto: () => ({ createdAt: new Date(), createdByUserId: null }),
+  fotofficeWaConexion: () => ({
+    phoneNumberId: null, wabaId: null, displayPhone: null, modo: "SIMULADO", pausaBotHoras: 4,
+    createdAt: new Date(), updatedAt: new Date(),
+  }),
+  fotofficeWaChat: () => ({
+    nombre: null, clientId: null, estado: "BOT", asignadoUserId: null, botPausadoHasta: null, ultimoEntranteEn: null,
+    ultimoMensajeTexto: null, ultimoMensajeTipo: null, noLeidos: 0, createdAt: new Date(), updatedAt: new Date(),
+  }),
+  fotofficeWaMensaje: () => ({
+    autorUserId: null, autorLabel: null, tipo: "TEXTO", texto: null, media: null, waMessageId: null,
+    estadoEnvio: "RECIBIDO", errorCodigo: null, clientToken: null, createdAt: new Date(),
+  }),
   cashCategory: () => ({ isActive: true, order: 0, createdAt: new Date(), updatedAt: new Date() }),
   fotofficeRubro: () => ({ parentCategoryId: null, code: null, createdAt: new Date(), updatedAt: new Date() }),
   fotofficePedido: () => ({
     presupuestoId: null, acceptedVersionId: null, consultaLeadId: null, status: "CONFIRMADO", cancelReason: null,
     paymentOption: null, eventDate: null, eventLabel: null, incomeCategoryId: null, ownerUserId: null, accessTokenHash: null,
-    createdByUserId: null, createdAt: new Date(), updatedAt: new Date(),
+    createdByUserId: null, altaKey: null, createdAt: new Date(), updatedAt: new Date(),
   }),
   fotofficePedidoCuota: () => ({ suggestedMethod: null, createdAt: new Date(), updatedAt: new Date() }),
   fotofficeCobro: () => ({
@@ -262,13 +292,27 @@ const DEFECTOS: Partial<Record<Tabla, () => Fila>> = {
     sourceRef: null, reversesMovementId: null, reverseReason: null, transferId: null, createdByUserId: null, createdAt: new Date(),
   }),
   workspaceFeatureModule: () => ({ enabled: false, createdAt: new Date(), updatedAt: new Date() }),
-  fotofficeAttachment: () => ({ clientId: null, memberId: null, status: "LISTO", deletedAt: null, createdAt: new Date() }),
+  fotofficeAttachment: () => ({ clientId: null, memberId: null, status: "LISTO", deletedAt: null, origen: null, createdAt: new Date() }),
+  fotofficeTamanoImpresion: () => ({ orden: 0, activo: true, createdAt: new Date(), updatedAt: new Date() }),
+  fotofficeSalidaImpresion: () => ({
+    proveedorId: null, ppp: 300, nitidez: "NORMAL", escalaXMil: 1000, escalaYMil: 1000, margenSinBordesMm: "0.0",
+    admiteCopias: true, activo: true, createdAt: new Date(), updatedAt: new Date(),
+  }),
+  fotofficeProductoProduccion: () => ({ unidad: "HOJA", createdAt: new Date(), updatedAt: new Date() }),
+  fotofficePreparacionImpresion: () => ({ productId: null, clientId: null, saleItemId: null, proyectoId: null, estado: "PREPARANDO", createdAt: new Date(), updatedAt: new Date() }),
+  fotofficeOriginalImpresion: () => ({ previewKey: null, bytes: 0, anchoPx: 0, altoPx: 0, perfilColor: null, estado: "PENDIENTE", archivoTrabajoId: null, adjuntoId: null, adjuntoPropio: false, createdAt: new Date() }),
+  fotofficePiezaImpresion: () => ({ tamanoId: null, anchoMm: null, altoMm: null, cantidad: 1, revisadaAt: null, createdAt: new Date(), updatedAt: new Date() }),
+  fotofficeHojaImpresion: () => ({ finalKey: null, finalHuella: null, finalAnchoPx: 0, finalAltoPx: 0, copias: 1, createdAt: new Date(), updatedAt: new Date() }),
+  fotofficeRegistroImpresion: () => ({ hojaId: null, productId: null, saleItemId: null, proyectoId: null, userId: null, createdAt: new Date() }),
   fotofficePerfilPrecios: () => ({ schemaVersion: 1, source: null, updatedAt: new Date(), updatedByUserId: null }),
+  fotofficePerfilPreciosSocio: () => ({ schemaVersion: 1, createdAt: new Date(), updatedAt: new Date() }),
   fotofficeCobroAjustes: () => ({
     autoConfirmarPedido: false, alias: null, cbuCvu: null, titular: null, cuit: null, banco: null, montoUnico: false,
     updatedAt: new Date(), updatedByUserId: null,
   }),
   fotofficeEsperaPago: () => ({ importeUnicoArs: null, estado: "ESPERANDO", creadaEn: new Date(), conciliadaEn: null, cobroId: null, updatedAt: new Date() }),
+  workspaceFeeLedgerEntry: () => ({ membershipPaymentId: null, bookingId: null, note: null, actorUserId: null, createdAt: new Date() }),
+  digitalizacionComision: () => ({ createdAt: new Date() }),
 };
 
 function igual(a: unknown, b: unknown): boolean {
@@ -317,6 +361,7 @@ export function crearBaseEnMemoria() {
             if (c.mode !== "insensitive") return igual(v, x);
             return String(v).toLowerCase() === String(x).toLowerCase();
           }
+          if (op === "startsWith") return String(v).startsWith(String(x));
           if (op === "contains") {
             const a = String(v), b = String(x);
             return c.mode === "insensitive" ? a.toLowerCase().includes(b.toLowerCase()) : a.includes(b);
@@ -357,6 +402,11 @@ export function crearBaseEnMemoria() {
   const UNICOS: Partial<Record<Tabla, Unico[]>> = {
     fotofficeJourney: [{ columnas: ["workspaceId", "subjectType", "subjectId", "kind"], aplica: (f) => f.closedAt === null }],
     fotofficeProcessedEvent: [{ columnas: ["journeyId", "event", "sourceRef"] }],
+    // Como en el schema (@@unique workspaceId+name) y la migración (único parcial donde systemKey no es null).
+    fotofficeCircuit: [
+      { columnas: ["workspaceId", "name"] },
+      { columnas: ["workspaceId", "systemKey"], aplica: (f) => f.systemKey !== null && f.systemKey !== undefined },
+    ],
     fotofficeCustomField: [{ columnas: ["workspaceId", "entityType", "key"] }],
     fotofficeCustomValue: [{ columnas: ["fieldId", "entityId"] }],
     fotofficeSequence: [{ columnas: ["workspaceId", "key"] }],
@@ -384,6 +434,7 @@ export function crearBaseEnMemoria() {
     productCategory: [{ columnas: ["workspaceId", "name"] }],
     fotofficeProductoCatalogo: [{ columnas: ["productId"] }],
     fotofficeComboItem: [{ columnas: ["comboProductId", "componentProductId"] }],
+    fotofficeRecetaInsumo: [{ columnas: ["productId", "insumoId"] }],
     fotofficePresupuesto: [
       { columnas: ["currentVersionId"], aplica: (f) => f.currentVersionId !== null && f.currentVersionId !== undefined },
       { columnas: ["acceptedVersionId"], aplica: (f) => f.acceptedVersionId !== null && f.acceptedVersionId !== undefined },
@@ -403,6 +454,8 @@ export function crearBaseEnMemoria() {
       { columnas: ["workspaceId", "number"] },
       { columnas: ["presupuestoId"], aplica: (f) => f.presupuestoId !== null && f.presupuestoId !== undefined },
       { columnas: ["accessTokenHash"], aplica: (f) => f.accessTokenHash !== null && f.accessTokenHash !== undefined },
+      // Como en la migración: único parcial (workspaceId, altaKey) donde altaKey no es null.
+      { columnas: ["workspaceId", "altaKey"], aplica: (f) => f.altaKey !== null && f.altaKey !== undefined },
     ],
     fotofficeCobro: [
       { columnas: ["workspaceId", "receiptNumber"] },
@@ -478,12 +531,25 @@ export function crearBaseEnMemoria() {
       { columnas: ["reversesMovementId"], aplica: (f) => f.reversesMovementId !== null && f.reversesMovementId !== undefined },
     ],
     workspaceFeatureModule: [{ columnas: ["workspaceId", "moduleKey"] }],
+    workspaceModuleFee: [{ columnas: ["workspaceId", "moduleKey"] }],
+    digitalizacionComision: [{ columnas: ["cobroId"] }, { columnas: ["ledgerEntryId"] }],
     fotofficePerfilPrecios: [{ columnas: ["workspaceId"] }],
+    fotofficePerfilPreciosSocio: [{ columnas: ["userId"] }],
     fotofficeCobroAjustes: [{ columnas: ["workspaceId"] }],
     // Como en la migración: una abierta por cuota y un monto único que no se repite entre las abiertas.
     fotofficeEsperaPago: [
       { columnas: ["cuotaId"], aplica: (f) => f.estado === "ESPERANDO" },
       { columnas: ["workspaceId", "importeUnicoArs"], aplica: (f) => f.estado === "ESPERANDO" && f.importeUnicoArs !== null && f.importeUnicoArs !== undefined },
+    ],
+    // Bandeja de WhatsApp: los de la migración (el de mensajes, sólo con waMessageId, como en Postgres).
+    fotofficeWaConexion: [
+      { columnas: ["workspaceId"] },
+      { columnas: ["phoneNumberId"], aplica: (f) => f.phoneNumberId !== null && f.phoneNumberId !== undefined },
+    ],
+    fotofficeWaChat: [{ columnas: ["workspaceId", "waId"] }],
+    fotofficeWaMensaje: [
+      { columnas: ["workspaceId", "waMessageId"], aplica: (f) => f.waMessageId !== null && f.waMessageId !== undefined },
+      { columnas: ["chatId", "clientToken"], aplica: (f) => f.clientToken !== null && f.clientToken !== undefined },
     ],
   };
 
@@ -515,6 +581,16 @@ export function crearBaseEnMemoria() {
     return f;
   }
 
+  /** Como Prisma: `{ increment: n }` / `{ decrement: n }` cambian el valor actual en vez de reemplazarlo. */
+  function aplicarDatos(fila: Fila, data: Fila) {
+    for (const [k, v] of Object.entries(clonar(data) as Fila)) {
+      const op = v && typeof v === "object" && !(v instanceof Date) ? (v as { increment?: unknown; decrement?: unknown }) : null;
+      if (typeof op?.increment === "number") fila[k] = ((fila[k] as number | null) ?? 0) + op.increment;
+      else if (typeof op?.decrement === "number") fila[k] = ((fila[k] as number | null) ?? 0) - op.decrement;
+      else fila[k] = v;
+    }
+  }
+
   function delegado(tabla: Tabla) {
     return {
       findFirst: async (a: { where?: Where; select?: Record<string, boolean>; orderBy?: Orden | Orden[] } = {}) => {
@@ -537,14 +613,22 @@ export function crearBaseEnMemoria() {
       update: async (a: { where: Where; data: Fila; select?: Record<string, boolean> }) => {
         const f = datos[tabla].find((x) => cumple(x, aplanarUnico(a.where)));
         if (!f) throw Object.assign(new Error("Record to update not found"), { code: "P2025" });
-        Object.assign(f, clonar(a.data));
-        verificarUnicidad(tabla, f);
+        // Como Postgres: si el cambio choca con un único, la fila queda como estaba.
+        const antes = { ...f };
+        aplicarDatos(f, a.data);
+        try {
+          verificarUnicidad(tabla, f);
+        } catch (e) {
+          for (const k of Object.keys(f)) delete f[k];
+          Object.assign(f, antes);
+          throw e;
+        }
         return elegir(f, a.select);
       },
       upsert: async (a: { where: Where; create: Fila; update: Fila; select?: Record<string, boolean> }) => {
         const f = datos[tabla].find((x) => cumple(x, aplanarUnico(a.where)));
         if (!f) return elegir(insertar(tabla, a.create), a.select);
-        Object.assign(f, clonar(a.update));
+        aplicarDatos(f, a.update);
         verificarUnicidad(tabla, f);
         return elegir(f, a.select);
       },
@@ -566,13 +650,18 @@ export function crearBaseEnMemoria() {
         return [...grupos.values()].map((g) => (typeof a._count === "object" ? { ...g, _count: { _all: g._count } } : g));
       },
       /** Mínimo: sólo `_max` de columnas numéricas (null si no hay filas). */
-      aggregate: async (a: { where?: Where; _max?: Record<string, true> }) => {
+      /** Mínimo: `_max` y `_sum` de columnas numéricas (null si no hay filas, como Prisma). */
+      aggregate: async (a: { where?: Where; _max?: Record<string, true>; _sum?: Record<string, boolean> } = {}) => {
         const filas = datos[tabla].filter((x) => cumple(x, a.where));
         const _max = Object.fromEntries(Object.keys(a._max ?? {}).map((c) => {
           const v = filas.map((x) => x[c]).filter((x): x is number => typeof x === "number");
           return [c, v.length ? Math.max(...v) : null];
         }));
-        return { _max };
+        const _sum = Object.fromEntries(
+          // Los Decimal llegan como texto ("-200.00"): se suman en centavos para no arrastrar la coma flotante.
+          Object.keys(a._sum ?? {}).map((c) => [c, filas.length === 0 ? null : filas.reduce((s, f) => s + Math.round(Number(f[c] ?? 0) * 100), 0) / 100]),
+        );
+        return { _max, _sum };
       },
       create: async (a: { data: Fila; select?: Record<string, boolean> }) => elegir(insertar(tabla, a.data), a.select),
       /** Con `skipDuplicates` (ON CONFLICT DO NOTHING) saltea las filas que chocan con un único. */
@@ -591,7 +680,7 @@ export function crearBaseEnMemoria() {
       updateMany: async (a: { where?: Where; data: Fila }) => {
         const hits = datos[tabla].filter((x) => cumple(x, a.where));
         for (const h of hits) {
-          Object.assign(h, clonar(a.data));
+          aplicarDatos(h, a.data);
           verificarUnicidad(tabla, h);
         }
         return { count: hits.length };
@@ -636,9 +725,11 @@ export function crearBaseEnMemoria() {
       ganchos.alEjecutarSql?.(texto, valores);
       return 1;
     };
-    c.$queryRaw = async (partes: TemplateStringsArray, ...valores: unknown[]) => {
+    c.$queryRaw = async (crudo: TemplateStringsArray | { strings: readonly string[]; values: unknown[] }, ...resto: unknown[]) => {
       const error = permitido();
       if (error) throw new Error(error);
+      // Como Prisma: acepta la plantilla etiquetada o un `Prisma.sql` ya armado (`{ strings, values }`).
+      const [partes, valores] = Array.isArray(crudo) ? [crudo as readonly string[], resto] : [(crudo as { strings: readonly string[] }).strings, (crudo as { values: unknown[] }).values];
       const texto = partes.join("$");
       sql.push({ texto, valores });
       ganchos.alEjecutarSql?.(texto, valores);
@@ -653,6 +744,16 @@ export function crearBaseEnMemoria() {
    * "consultas-sin-numero" y "consultas-pendientes": las de la numeración de Captación (0.5).
    */
   function emularConsulta(texto: string, valores: unknown[]): unknown[] {
+    if (texto.includes("clientes-por-telefono")) {
+      const [workspaceId, fin] = valores;
+      return datos.client
+        .filter((c) => c.workspaceId === workspaceId && typeof c.phone === "string" && c.phone.replace(/\D/g, "").slice(-6) === fin)
+        .map((c) => ({ id: c.id, phone: c.phone }));
+    }
+    // `lockStockRows`: el `FOR UPDATE` de productos y talles acá no bloquea nada.
+    if (texto.includes("FOR UPDATE") && /FROM "(Product|ProductVariant)"/.test(texto)) return [];
+    // El candado de la entrega de videos (acá no hay concurrencia: sólo lee).
+    if (texto.includes("FOR UPDATE") && texto.includes('FROM "DigitalizacionEntrega"')) return [];
     if (texto.includes("numeracion-asignar")) return emularAsignacion(valores);
     if (texto.includes("numeracion-candado")) return emularCandado(valores);
     if (texto.includes("numeracion-anio-anterior")) return emularAnioAnterior(valores);

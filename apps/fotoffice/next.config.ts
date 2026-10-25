@@ -159,6 +159,9 @@ const nextConfig: NextConfig = {
       { source: "/pedido/:path*", headers: [...noReferrer, ...sinMarco] },
       { source: "/w/:slug/recibo/:path*", headers: [...noReferrer, ...sinMarco] },
       { source: "/recibo/:path*", headers: [...noReferrer, ...sinMarco] },
+      // La página de videos digitalizados: token en la dirección, igual que la del pedido.
+      { source: "/w/:slug/videos/:path*", headers: [...noReferrer, ...sinMarco] },
+      { source: "/videos/:path*", headers: [...noReferrer, ...sinMarco] },
       // El enlace de firma de un contrato (etapa 5): token personal en la dirección, botones de firmar
       // (clickjacking) y datos de la persona: ni se enmarca ni manda la dirección a otro sitio. Sin
       // `frame-ancestors *`.

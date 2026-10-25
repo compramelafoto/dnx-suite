@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { normalizeEmail } from "@/lib/order-claims";
 import { createPackAccessTokenForOrder } from "@/lib/preventa-canjeable/pack-access-tokens";
 import { queuePreventaPackRecoveryEmail } from "@/lib/order-confirmation-email";
+import { isPlaceholderEmail } from "@/lib/canje-externo/external-preventa";
 
 const APP_URL =
   process.env.APP_URL ||
@@ -21,6 +22,11 @@ export async function recuperarLinksDePack(
 ): Promise<{ enviados: number }> {
   const email = normalizeEmail(rawEmail);
   if (!email || !email.includes("@")) return { enviados: 0 };
+  // El email de relleno de los packs cobrados por fuera ("sin-email@canje-externo.invalid") lo
+  // comparten cientos de familias: buscar por él revocaba los links que la fotógrafa ya les había
+  // mandado por WhatsApp (a todas de una, si alguien lo escribía en "Recuperar mi pack") y
+  // encolaba un correo a una dirección que no existe.
+  if (isPlaceholderEmail(email)) return { enviados: 0 };
 
   const orders = await prisma.order.findMany({
     where: {

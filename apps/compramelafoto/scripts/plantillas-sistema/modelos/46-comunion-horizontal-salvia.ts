@@ -97,9 +97,6 @@ export const comunionHorizontalSalvia: Modelo = {
       familia: "Allura", tam: 130, color: ORO_TXT,
     });
     contratapa.listado({ x: 260, y: 480, w: 1842, h: 1010 }, { familia: "Lora", tam: 46, color: TEXTO, interlineado: 1.4 }, 3);
-    contratapa.variable("curso", "Curso", enCara(CONTRATAPA, { x: 400, y: 1520, w: 1562, h: 80 }), "course.displayName", "Curso", {
-      familia: "Lora", tam: 46, color: ORO_TXT, italica: true,
-    });
 
     // Tapa (-90)
     tapa.texto("titulo", "Título de tapa", enCara(TAPA, { x: 980, y: 260, w: 1260, h: 460 }), "Mi Primera Comunión", {

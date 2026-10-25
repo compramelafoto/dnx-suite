@@ -80,7 +80,8 @@ export function ImageBlockUploadSection({
     setUploading(true);
     try {
       const url = await requestTemplateVersionImageUpload(templateId, versionId, file);
-      updateConfig({ src: url, source: { ...sourceObj, variableKey: "" } });
+      // Foto nueva, encuadre nuevo: el anterior era para otra foto.
+      updateConfig({ src: url, source: { ...sourceObj, variableKey: "" }, crop: null, srcWidth: null, srcHeight: null });
       dispatch(setVariableBindings(stripSrcBindingsForBlock(variableBindings, blockId)));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al subir");

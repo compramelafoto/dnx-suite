@@ -36,7 +36,7 @@ const csp = [
   `worker-src 'self' 'unsafe-inline' 'unsafe-eval' blob:`,
   "style-src 'self' 'unsafe-inline' https:",
   "img-src 'self' data: blob: https:",
-  "connect-src 'self' https: https://api.mercadopago.com https://api.mercadolibre.com https://events.mercadopago.com https://auth.mercadopago.com https://sdk.mercadopago.com https://http2.mlstatic.com https://secure-fields.mercadopago.com https://www.mercadolibre.com https://vercel.live wss://vercel.live",
+  "connect-src 'self' blob: https: https://api.mercadopago.com https://api.mercadolibre.com https://events.mercadopago.com https://auth.mercadopago.com https://sdk.mercadopago.com https://http2.mlstatic.com https://secure-fields.mercadopago.com https://www.mercadolibre.com https://vercel.live wss://vercel.live",
   `frame-src ${frameSrcValue}`,
   "child-src 'self' blob: https://secure-fields.mercadopago.com https://www.mercadolibre.com https://sdk.mercadopago.com https://http2.mlstatic.com",
   "object-src 'none'",
@@ -192,6 +192,17 @@ const nextConfig: NextConfig = {
   },
   async redirects() {
     return [
+      // La página de Ceci Donnelly se llamaba «donelly» (mal escrito): los links viejos siguen andando.
+      {
+        source: "/donelly",
+        destination: "/donnelly",
+        permanent: true,
+      },
+      {
+        source: "/donelly/:path*",
+        destination: "/donnelly/:path*",
+        permanent: true,
+      },
       {
         source: "/organizadores",
         destination: "/organizador",
@@ -201,6 +212,26 @@ const nextConfig: NextConfig = {
         source: "/Organizadores",
         destination: "/organizador",
         permanent: true,
+      },
+      // camofduty.com cuelga de este proyecto y lleva a Cam Of Duty.
+      // Temporal (307) para poder darle su propia app más adelante.
+      {
+        source: "/",
+        has: [{ type: "host", value: "camofduty.com" }],
+        destination: "https://www.compramelafoto.com/camofduty",
+        permanent: false,
+      },
+      {
+        source: "/camofduty/:path*",
+        has: [{ type: "host", value: "camofduty.com" }],
+        destination: "https://www.compramelafoto.com/camofduty/:path*",
+        permanent: false,
+      },
+      {
+        source: "/:path*",
+        has: [{ type: "host", value: "camofduty.com" }],
+        destination: "https://www.compramelafoto.com/camofduty/:path*",
+        permanent: false,
       },
     ];
   },

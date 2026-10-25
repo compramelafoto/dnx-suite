@@ -4,7 +4,6 @@ import { postprocessCapture, worldToCaptureRect } from "@/lib/simulator/capture-
 import { shutterSpeedToSeconds } from "@/lib/simulator/camera-math";
 import {
   clampRendererExposure,
-  computeShutterExposureGain,
   SCENE_RENDER_CALIBRATION,
 } from "@/lib/simulator/camera-exposure";
 import {
@@ -50,7 +49,6 @@ interface ActiveCapture {
   scratchCanvas: HTMLCanvasElement;
   scratchCtx: CanvasRenderingContext2D;
   frameExposureMultiplier: number;
-  shutterExposureGain: number;
   aperture: number;
   shutterSeconds: number;
   focusDistanceM: number;
@@ -100,7 +98,7 @@ export default function CanvasPhotoCapture() {
           waitForGpuRender(gl);
           rawUrl = cropCanvasToViewfinderFrame(gl.domElement);
         } else {
-          rawUrl = accumulatorToDataUrl(accumulator, capture?.shutterExposureGain ?? 1);
+          rawUrl = accumulatorToDataUrl(accumulator);
         }
 
         if (!rawUrl) return;
@@ -319,11 +317,11 @@ export default function CanvasPhotoCapture() {
       const shutterSeconds = shutterSpeedToSeconds(shutterSpeed);
       const { durationMs, intervalMs, useMotionBlur } = getAccumulationPlan(shutterSeconds);
 
-      const photoExposureMultiplier = derived?.photoExposureMultiplier ?? SCENE_RENDER_CALIBRATION;
-      const frameExposureMultiplier = useMotionBlur
-        ? (derived?.instantPhotoExposureMultiplier ?? photoExposureMultiplier)
-        : photoExposureMultiplier;
-      const shutterExposureGain = useMotionBlur ? computeShutterExposureGain(shutterSeconds) : 1;
+      // Cada cuadro se dibuja con la exposición final de la foto (ISO, tiempo y
+      // diafragma) y después se promedian: así la toma larga sale igual de clara
+      // que el LIVE VIEW y sólo cambia lo que se mueve. Aplicar la ganancia del
+      // tiempo sobre píxeles ya en sRGB sumaba ~3,5 EV por paso en vez de 1.
+      const frameExposureMultiplier = derived?.photoExposureMultiplier ?? SCENE_RENDER_CALIBRATION;
 
       const scratchCtx = document.createElement("canvas").getContext("2d", {
         willReadFrequently: true,
@@ -351,7 +349,6 @@ export default function CanvasPhotoCapture() {
         scratchCanvas,
         scratchCtx,
         frameExposureMultiplier,
-        shutterExposureGain,
         aperture,
         shutterSeconds,
         focusDistanceM,

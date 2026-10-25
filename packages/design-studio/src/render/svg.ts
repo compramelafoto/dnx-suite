@@ -5,6 +5,7 @@ import type { ResolvedVariables } from "../variables/contract";
 import { buildLayoutPlan, type LayoutPage } from "../layout/plan";
 import { fontDefinition, isFontId, slotFor, type FontId, type FontSlot } from "../fonts/catalog";
 import { createPdfFontSet } from "./fonts-pdf";
+import { ubicarFotoEncuadrada } from "../layout/encuadre";
 
 export function escapeXml(texto: string): string {
   return texto
@@ -24,7 +25,7 @@ function clipDeImagen(item: {
   heightPt: number;
   mask: "rect" | "circle" | "ellipse";
   cornerRadiusPt?: number;
-}): { def: string; attr: string } {
+}, opciones: { siempre?: boolean } = {}): { def: string; attr: string } {
   const cx = item.xPt + item.widthPt / 2;
   const cy = item.yPt + item.heightPt / 2;
 
@@ -37,6 +38,9 @@ function clipDeImagen(item: {
     forma = `<ellipse cx="${cx}" cy="${cy}" rx="${item.widthPt / 2}" ry="${item.heightPt / 2}"/>`;
   } else if (item.cornerRadiusPt) {
     forma = `<rect x="${item.xPt}" y="${item.yPt}" width="${item.widthPt}" height="${item.heightPt}" rx="${item.cornerRadiusPt}"/>`;
+  } else if (opciones.siempre) {
+    // Una foto encuadrada es más grande que su recuadro: sin este recorte se saldría.
+    forma = `<rect x="${item.xPt}" y="${item.yPt}" width="${item.widthPt}" height="${item.heightPt}"/>`;
   }
   if (!forma) return { def: "", attr: "" };
 
@@ -94,7 +98,7 @@ function svgDePagina(pagina: LayoutPage, qrPorItem: Map<string, string>): string
       partes.push(`<g${alfa}${giro}>`);
       item.lines.forEach((linea, i) => {
         // Sin descendente, la primera línea de base queda a un cuerpo del borde superior.
-        const y = item.yPt + item.sizePt + i * item.lineHeightPt;
+        const y = item.yPt + item.offsetYPt + item.sizePt + i * item.lineHeightPt;
         partes.push(
           `<text x="${x}" y="${y}" text-anchor="${anclaje}" fill="${item.color}"` +
             ` font-family="${escapeXml(def.fallbackStack)}" font-size="${item.sizePt}"` +
@@ -121,6 +125,23 @@ function svgDePagina(pagina: LayoutPage, qrPorItem: Map<string, string>): string
      * dentro de un carnet tiene que dejar ver el fondo alrededor, no taparlo con un cuadrado
      * del color que se haya adivinado.
      */
+    if (item.fit === "cover" && item.crop && item.sourceAspect) {
+      // Encuadrada: la foto entera se ubica corrida y agrandada, y el recuadro la recorta.
+      const u = ubicarFotoEncuadrada({
+        anchoRecuadro: item.widthPt,
+        altoRecuadro: item.heightPt,
+        aspectoFoto: item.sourceAspect,
+        crop: item.crop,
+      });
+      const marco = clipDeImagen(item, { siempre: true });
+      partes.push(
+        marco.def +
+          `<g${marco.attr}${giro}><image x="${item.xPt + u.x}" y="${item.yPt + u.y}" width="${u.width}" height="${u.height}"` +
+          ` data-resource-ref="${escapeXml(item.ref)}" preserveAspectRatio="none"${alfa}/></g>`,
+      );
+      continue;
+    }
+
     const recorte = clipDeImagen(item);
     partes.push(
       recorte.def +

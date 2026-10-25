@@ -21,6 +21,15 @@ export function calcularVencimiento(desde: Date, meses: number): Date {
   return resultado;
 }
 
+/**
+ * Hasta cuándo dura un acceso nuevo. `0` meses es «sin vencimiento»: el curso queda disponible
+ * para siempre y el acceso nace sin fecha (`null`), que `estadoDeAccesoAlCurso` ya trata como
+ * vigente.
+ */
+export function vencimientoDeAcceso(desde: Date, meses: number): Date | null {
+  return meses === 0 ? null : calcularVencimiento(desde, meses);
+}
+
 /** Corto para que entre en la marca de agua, y suficiente para encontrar la inscripción. */
 export function numeroDeInscripcion(enrollmentId: string): string {
   return enrollmentId.slice(-6).toUpperCase();
@@ -35,7 +44,7 @@ export function fechaLegibleArgentina(fecha: Date): string {
   return FECHA_ARGENTINA.format(fecha);
 }
 
-export type OrigenAcceso = "PURCHASE" | "MEMBER_BENEFIT";
+export type OrigenAcceso = "PURCHASE" | "MEMBER_BENEFIT" | "INVITATION";
 export type EstadoAccesoAlCurso = "VIGENTE" | "VENCIDO" | "REVOCADO" | "SIN_SOCIO";
 
 /**
@@ -52,7 +61,7 @@ export function estadoDeAccesoAlCurso(
 ): EstadoAccesoAlCurso {
   if (acceso.revokedAt) return "REVOCADO";
   if (acceso.origin === "MEMBER_BENEFIT") return contexto.esSocioActivo ? "VIGENTE" : "SIN_SOCIO";
-  // Una compra siempre nace con vencimiento. Si faltara, no se le quita el curso a quien pagó.
+  // Una compra o una invitación nace con vencimiento. Si faltara, no se le quita el curso.
   if (!acceso.expiresAt) return "VIGENTE";
   return ahora.getTime() < acceso.expiresAt.getTime() ? "VIGENTE" : "VENCIDO";
 }

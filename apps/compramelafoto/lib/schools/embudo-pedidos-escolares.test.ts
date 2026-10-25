@@ -11,6 +11,7 @@ import {
   pasoDeEstadoDiseno,
   pasoDeItemTienda,
   pasoMasAtrasado,
+  packsPendientesPorAlbum,
   textoCurso,
   ubicarPedido,
 } from "./embudo-pedidos-escolares";
@@ -204,5 +205,38 @@ describe("contar y recorrer", () => {
     assert.equal(textoCurso({ name: "Sala de 5", division: null }), "Sala de 5");
     assert.equal(textoCurso(null), null);
     assert.equal(textoCurso({ name: "  ", division: "B" }), null);
+  });
+});
+
+describe("packsPendientesPorAlbum (aviso a un curso)", () => {
+  const pack = (id: number, albumId: number, extra: Record<string, unknown> = {}) => ({
+    id,
+    kind: "PACK_EXTERNO",
+    isDemo: false,
+    redemptionOrderId: null as number | null,
+    album: { id: albumId } as { id: number } | null,
+    ...extra,
+  });
+  it("agrupa por álbum sólo los packs de la lista que faltan canjear", () => {
+    const r = packsPendientesPorAlbum([
+      pack(4339, 1106),
+      pack(4340, 1106),
+      pack(4341, 1106, { redemptionOrderId: 9000 }),
+      pack(5023, 1106, { isDemo: true }),
+      pack(77, 2),
+      { id: 12, kind: "TIENDA_ESCOLAR", album: { id: 1106 } },
+      pack(4339, 1106),
+      pack(1, 3, { album: null }),
+    ]);
+    assert.deepEqual(
+      [...r.entries()],
+      [
+        [1106, [4339, 4340]],
+        [2, [77]],
+      ],
+    );
+  });
+  it("lista vacía → nada que avisar", () => {
+    assert.equal(packsPendientesPorAlbum([]).size, 0);
   });
 });

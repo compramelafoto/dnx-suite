@@ -47,7 +47,10 @@ export default function FocusMotorDrive() {
     const onFocusTarget = (event: Event) => {
       const detail = (event as CustomEvent<CodFocusTargetDetail>).detail;
       const fromM = simulatorRuntime.focusDistanceM;
-      const toM = detail.distanceM;
+      // Más cerca que la distancia mínima del objetivo, el anillo hace tope y
+      // el AF no confirma (el sujeto queda desenfocado).
+      const tooClose = detail.distanceM < simulatorRuntime.minFocusDistanceM;
+      const toM = tooClose ? simulatorRuntime.minFocusDistanceM : detail.distanceM;
       const durationMs = focusMotorDurationMs(fromM, toM);
 
       driveRef.current = {
@@ -55,9 +58,9 @@ export default function FocusMotorDrive() {
         toM,
         durationMs,
         elapsedMs: 0,
-        targetLabel: detail.targetLabel,
+        targetLabel: tooClose ? "Demasiado cerca" : detail.targetLabel,
         worldPoint: detail.worldPoint,
-        focusConfidence: detail.focusConfidence,
+        focusConfidence: tooClose ? 0 : detail.focusConfidence,
         focusedObjectId: detail.focusedObjectId,
       };
 

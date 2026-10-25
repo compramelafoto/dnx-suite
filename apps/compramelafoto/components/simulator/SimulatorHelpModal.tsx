@@ -7,7 +7,7 @@ const HELP_ITEMS = [
     keys: ["W", "A", "S", "D"],
     title: "Moverse por la escena",
     description:
-      "Desplazá la cámara en primera persona por el estudio. W y S avanzan y retroceden; A y D strafean a los lados. Primero hacé click en la escena para activar el puntero.",
+      "Desplazá la cámara en primera persona por la calle. W y S avanzan y retroceden; A y D strafean a los lados. Primero hacé click en la escena para activar el puntero.",
   },
   {
     keys: ["Mouse"],
@@ -149,6 +149,10 @@ export default function SimulatorHelpModal({ open, onClose }: SimulatorHelpModal
             </li>
           ))}
         </ul>
+
+        <p className="cod-help-modal__intro cod-help-modal__credits">
+          Contenidos pedagógicos basados en los apuntes de la profesora Débora Priasco.
+        </p>
       </div>
     </div>
   );

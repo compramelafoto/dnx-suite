@@ -13,6 +13,7 @@ import {
 import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { generateR2Key, getR2PublicUrl, uploadToR2 } from "@/lib/r2-client";
+import { alGuardarVersion, decidirGuardadoDeVersion } from "@/lib/design-v2/version-en-uso";
 
 const DESIGNER_ROLES = [Role.PHOTOGRAPHER, Role.LAB_PHOTOGRAPHER, Role.ADMIN];
 
@@ -38,6 +39,9 @@ setTemplateV2Runtime({
   policy: {
     canDesign: (user) => isTemplateV2DesignerRole(user.role),
   },
+  // Una versión que ya usa un diseño armado no se pisa: los cambios van a una versión nueva.
+  resolveVersionSave: decidirGuardadoDeVersion,
+  onVersionSaved: alGuardarVersion,
 });
 
 export * from "@repo/template-editor-core";

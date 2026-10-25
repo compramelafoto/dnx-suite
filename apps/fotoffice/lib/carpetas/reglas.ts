@@ -34,6 +34,15 @@ export function nuevoVencimiento(actual: Date | null, ahora: Date): Date {
   return actual && actual > propuesto ? actual : propuesto;
 }
 
+/**
+ * Al confirmar un archivo: si la carpeta todavía no vence (nunca se compartió), vence a los
+ * `DIAS_CARPETA` de hoy. Si ya tiene fecha, la deja: compartir la extiende con `nuevoVencimiento`.
+ * Sin esto, una carpeta que nunca se compartía quedaba en R2 para siempre.
+ */
+export function vencimientoAlSubir(actual: Date | null, ahora: Date): Date {
+  return actual ?? new Date(ahora.getTime() + DIAS_CARPETA * 86_400_000);
+}
+
 export function esVideo(tipo: string): boolean {
   return tipo === "video/mp4" || tipo === "video/webm" || tipo === "video/quicktime";
 }

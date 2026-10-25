@@ -30,6 +30,10 @@ export function prepareGltfScene(
   const materials = new Set<THREE.Material>();
   let meshCount = 0;
 
+  // Sin esto las matrices de mundo de los nodos internos (ruedas, ramas) siguen
+  // en identidad y el bounding box —y por lo tanto el apoyo al piso— sale corrido.
+  root.updateMatrixWorld(true);
+
   root.traverse((obj) => {
     if (!(obj instanceof THREE.Mesh)) return;
     meshCount++;
@@ -46,7 +50,8 @@ export function prepareGltfScene(
       }
     }
 
-    boundingBox.expandByObject(obj);
+    // precise: las cajas aproximadas de piezas rotadas (ruedas) inflan el apoyo al piso.
+    boundingBox.expandByObject(obj, true);
   });
 
   if (slot.groundAlign && !boundingBox.isEmpty()) {

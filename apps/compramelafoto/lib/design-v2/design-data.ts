@@ -1,10 +1,12 @@
 import {
+  CLASS_LIST_VARIABLE_KEY,
   autoAssignClientPhotos,
   normalizePhotoCrop,
   type ClientPhotoSlot,
   type PhotoCrop,
   type SlotAssignment,
 } from "@repo/template-editor-core";
+import { parseRevisionDelCliente, type RevisionDelCliente } from "@/lib/revision-de-impresion/autorizacion";
 
 /**
  * Lo que guarda un diseño armado con el diseñador nuevo (`DesignRevision.dataJson`).
@@ -32,6 +34,12 @@ export type DesignV2Data = {
   values: Record<string, string>;
   export: DesignV2Export | null;
   exportError: string | null;
+  /**
+   * Lo que hizo la familia al revisar antes de confirmar: la autorización de impresión (con los
+   * textos que vio), los avisos de error en el listado y los cursos que sumó. Se guarda una vez,
+   * al armar el diseño, y las correcciones del fotógrafo no la tocan: es la prueba.
+   */
+  clientReview?: RevisionDelCliente | null;
 };
 
 export function buildInitialDesignData(input: {
@@ -42,6 +50,7 @@ export function buildInitialDesignData(input: {
   values?: Record<string, string>;
   /** Cómo acomodó la familia cada foto en el canje (zoom y encuadre), por foto. */
   cropsByPhotoId?: ReadonlyMap<number, PhotoCrop> | null;
+  clientReview?: RevisionDelCliente | null;
 }): DesignV2Data {
   const slots = autoAssignClientPhotos(input.slots, input.photoIds);
   if (input.cropsByPhotoId?.size) {
@@ -60,6 +69,7 @@ export function buildInitialDesignData(input: {
     values: { ...(input.values ?? {}) },
     export: null,
     exportError: null,
+    ...(input.clientReview ? { clientReview: input.clientReview } : {}),
   };
 }
 
@@ -92,6 +102,7 @@ export function parseDesignV2Data(raw: unknown): DesignV2Data | null {
     if (typeof v === "string") values[k] = v;
   }
   const exp = asRecord(r.export);
+  const clientReview = parseRevisionDelCliente(r.clientReview);
   return {
     schemaVersion: DESIGN_V2_SCHEMA_VERSION,
     engine: "TEMPLATE_V2",
@@ -111,6 +122,7 @@ export function parseDesignV2Data(raw: unknown): DesignV2Data | null {
           }
         : null,
     exportError: typeof r.exportError === "string" ? r.exportError : null,
+    ...(clientReview ? { clientReview } : {}),
   };
 }
 
@@ -123,6 +135,11 @@ export type DesignV2Edit =
   | { kind: "swap"; blockIdA: string; blockIdB: string }
   | { kind: "set-crop"; blockId: string; crop: PhotoCrop }
   | { kind: "set-value"; key: string; value: string | null }
+  /**
+   * El listado del curso armado en el servidor (al sumar o sacar cursos). No lo manda el
+   * navegador: la ruta lo arma con el padrón del álbum.
+   */
+  | { kind: "set-class-list"; value: string }
   | { kind: "reset"; slots: ClientPhotoSlot[] };
 
 export type ApplyEditResult = { ok: true; data: DesignV2Data } | { ok: false; error: string };
@@ -165,6 +182,11 @@ export function applyDesignV2Edit(data: DesignV2Data, edit: DesignV2Edit): Apply
       if (!key) return { ok: false, error: "Falta el nombre del dato." };
       if (edit.value == null || edit.value.trim() === "") delete next.values[key];
       else next.values[key] = edit.value.slice(0, 500);
+      return { ok: true, data: next };
+    }
+    case "set-class-list": {
+      if (edit.value.length > 50_000) return { ok: false, error: "El listado es demasiado largo." };
+      next.values[CLASS_LIST_VARIABLE_KEY] = edit.value;
       return { ok: true, data: next };
     }
     case "reset": {
