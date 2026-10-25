@@ -17,6 +17,9 @@ import {
   totalesConAlternativas,
   type Alternativa,
 } from "@/lib/presupuestos/alternativas";
+import type { CatalogoFotolibro } from "@/lib/fotolibro/cotizar";
+import { cotizarFotolibroDeModelo, type FotolibroDeModelo } from "@/lib/presupuestos/fotolibro-de-modelo";
+import { CalculadoraFotolibro, type FotolibroAgregado } from "@/components/fotolibro/calculadora-fotolibro";
 import { PanelAlternativas } from "./editor-presupuesto";
 import { AvisoSinPerfil, CampoTexto, CamposTrabajo } from "./panel-cuanto-cobro";
 import { BuscadorCatalogo } from "./buscador-catalogo";
@@ -40,6 +43,14 @@ function aNumero(v: string): number {
 }
 
 const esConcepto = (i: ItemPresupuesto) => i.modoPrecio === "CALCULO";
+/** Lo que no tiene precio guardado: se calcula hoy (conceptos) o se cotiza con la lista (fotolibros). */
+const conPrecioDeHoy = (i: ItemPresupuesto) => esConcepto(i) || !!i.fotolibro;
+
+/** El fotolibro, en corto: "Román · Gold 30x60 · 20 hojas + caja". */
+function resumenFotolibro(f: FotolibroDeModelo, catalogo: CatalogoFotolibro | null | undefined): string {
+  const proveedor = catalogo?.ofertas.find((o) => o.proveedorId === f.proveedorId)?.proveedor ?? "Proveedor sin lista";
+  return `${proveedor} · ${f.modelo} ${f.medida} · ${f.hojas} ${f.hojas === 1 ? "hoja" : "hojas"}${f.conCaja ? " + caja" : ""}`;
+}
 
 /** El trabajo guardado de un concepto calculado (sólo `entrada.presupuesto`). */
 const presupuestoDe = (i: ItemPresupuesto): unknown => (i.calculo?.entrada as { presupuesto?: unknown } | null | undefined)?.presupuesto;
@@ -63,6 +74,8 @@ export function EditorPropuestaModelo(props: {
   plantillas: { id: string; nombre: string }[];
   /** El perfil de Configuración → Precios, o null si todavía no lo cargaron. */
   perfilDelWorkspace: CuantoCobroProfileInput | null;
+  /** Las listas de fotolibros de hoy (sin costos); null si no hay ninguna aplicada. */
+  fotolibro?: CatalogoFotolibro | null;
 }) {
   const router = useRouter();
   const [pendiente, iniciar] = useTransition();
@@ -90,17 +103,25 @@ export function EditorPropuestaModelo(props: {
   const [mensaje, setMensaje] = useState<{ ok: boolean; texto: string } | null>(null);
 
   const [edicion, setEdicion] = useState<Edicion | null>(null);
+  const [calculadoraFotolibro, setCalculadoraFotolibro] = useState(false);
 
-  /** El precio de hoy de un concepto calculado (sólo vista); null si falta el perfil o datos. */
+  /**
+   * El precio de hoy de un concepto calculado o de un fotolibro del proveedor (libro + caja; sólo
+   * vista); null si falta el perfil, la lista o datos.
+   */
   function precioDeHoy(i: ItemPresupuesto): number | null {
+    if (i.fotolibro) {
+      const cot = cotizarFotolibroDeModelo(props.fotolibro ?? null, i.fotolibro);
+      return cot.ok ? cot.libro.precio + (cot.caja?.precio ?? 0) : null;
+    }
     const guardado = trabajoDesdeMotor(presupuestoDe(i));
     if (!props.perfilDelWorkspace || !guardado) return null;
     const r = calcularItemDelPanel(props.perfilDelWorkspace, guardado.trabajo, guardado.tipoDeTrabajo, { id: i.id, nombre: i.nombre });
     return r.ok ? r.item.precioUnitario : null;
   }
-  const preciosDeHoy = new Map(items.filter(esConcepto).map((i) => [i.id, precioDeHoy(i)]));
+  const preciosDeHoy = new Map(items.filter(conPrecioDeHoy).map((i) => [i.id, precioDeHoy(i)]));
   const conAlternativas = totalesConAlternativas(
-    items.map((i) => (esConcepto(i) ? { ...i, precioUnitario: preciosDeHoy.get(i.id) ?? 0 } : i)),
+    items.map((i) => (conPrecioDeHoy(i) ? { ...i, precioUnitario: preciosDeHoy.get(i.id) ?? 0 } : i)),
     alternativas,
     null,
   );
@@ -133,7 +154,29 @@ export function EditorPropuestaModelo(props: {
     setEdicion({ id: i.id, trabajo: guardado?.trabajo ?? trabajoVacio(i.nombre), tipoDeTrabajo: guardado?.tipoDeTrabajo ?? "" });
   }
 
-  const fueraDelCatalogo = items.filter((i) => !esConcepto(i) && (!i.productId || !delCatalogo.has(i.productId)));
+  const fueraDelCatalogo = items.filter((i) => !conPrecioDeHoy(i) && (!i.productId || !delCatalogo.has(i.productId)));
+
+  function agregarFotolibro(f: FotolibroAgregado) {
+    const { proveedorId, modelo, medida, hojas } = f.eleccion;
+    cambiar([
+      ...items,
+      enActiva({
+        id: nuevaClave(),
+        productId: null,
+        nombre: `Fotolibro ${modelo} ${medida}, ${hojas} ${hojas === 1 ? "hoja" : "hojas"}`,
+        descripcion: null,
+        cantidad: 1,
+        precioUnitario: 0,
+        descuento: null,
+        modoPrecio: "LISTA",
+        calculo: null,
+        seccion: seccionNueva.trim() || null,
+        opcional: false,
+        fotolibro: { proveedorId, modelo, medida, hojas, conCaja: f.caja !== null },
+      }),
+    ]);
+    setCalculadoraFotolibro(false);
+  }
 
   function cambiar(nuevos: ItemPresupuesto[]) {
     setItems(nuevos);
@@ -259,6 +302,27 @@ export function EditorPropuestaModelo(props: {
           </div>
         )}
         <p className="text-xs text-[var(--fo-muted)]">El perfil de precios no se guarda en la propuesta: sólo el trabajo. Al enviarla se calcula con tu perfil de ese día.</p>
+        {props.fotolibro ? (
+          calculadoraFotolibro ? (
+            <CalculadoraFotolibro
+              catalogo={props.fotolibro}
+              verCostos={false}
+              titulo="Fotolibro del proveedor"
+              textoAgregar="Agregar a la propuesta"
+              onCerrar={() => setCalculadoraFotolibro(false)}
+              onAgregar={agregarFotolibro}
+            />
+          ) : (
+            <div className="space-y-1">
+              <button type="button" className="fo-btn fo-btn-secondary" onClick={() => setCalculadoraFotolibro(true)}>
+                Agregar fotolibro del proveedor
+              </button>
+              <p className="text-xs text-[var(--fo-muted)]">
+                Se guarda el modelo, la medida y las hojas, no el precio: al enviarla se cotiza con la lista de ese día del proveedor.
+              </p>
+            </div>
+          )
+        ) : null}
       </section>
 
       <PanelAlternativas
@@ -315,6 +379,12 @@ export function EditorPropuestaModelo(props: {
                     <td className="py-2 pr-2">
                       <p className="font-medium text-[var(--fo-text)]">{it.nombre}</p>
                       {esConcepto(it) ? <p className="text-xs text-[var(--fo-muted)]">Calculado con ¿Cuánto Cobro?</p> : null}
+                      {it.fotolibro ? (
+                        <p className="text-xs text-[var(--fo-muted)]">
+                          {resumenFotolibro(it.fotolibro, props.fotolibro)} · precio de la lista de hoy
+                          {preciosDeHoy.get(it.id) == null ? " (ya no está en la lista: elegilo de nuevo)" : ""}
+                        </p>
+                      ) : null}
                       <input
                         aria-label={`Sección de ${etiquetaFila}`}
                         className="fo-input mt-1 text-xs"
@@ -385,7 +455,7 @@ export function EditorPropuestaModelo(props: {
                       )}
                     </td>
                     <td className="py-2 pr-2 text-right tabular-nums">
-                      {esConcepto(it) ? (preciosDeHoy.get(it.id) != null ? pesos(preciosDeHoy.get(it.id)!) : "—") : pesos(it.precioUnitario)}
+                      {conPrecioDeHoy(it) ? (preciosDeHoy.get(it.id) != null ? pesos(preciosDeHoy.get(it.id)!) : "—") : pesos(it.precioUnitario)}
                     </td>
                     <td className="py-2 pr-2 text-right tabular-nums">{pesos(totales.renglones[it.id]?.neto ?? 0)}</td>
                     <td className="py-2">
