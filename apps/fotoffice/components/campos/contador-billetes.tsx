@@ -20,13 +20,16 @@ export function ImporteConContador({
   name,
   placeholder,
   required,
+  defaultValue = "",
 }: {
   id: string;
   name: string;
   placeholder?: string;
   required?: boolean;
+  /** Importe con que arranca el campo (por ejemplo, lo que se contó al cerrar el turno anterior). */
+  defaultValue?: string;
 }) {
-  const [texto, setTexto] = useState("");
+  const [texto, setTexto] = useState(defaultValue);
   const [abierto, setAbierto] = useState(false);
   const [conteo, setConteo] = useState<ConteoBilletes>({});
   const [suelto, setSuelto] = useState("");

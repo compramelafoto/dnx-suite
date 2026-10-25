@@ -79,6 +79,7 @@ describe("MODULE_REGISTRY", () => {
         PRINT_ORDERS_MODULE_KEY,
         BANDEJA_MODULE_KEY,
         INVOICING_MODULE_KEY,
+        "equipo",
       ].sort(),
     );
   });

@@ -64,6 +64,7 @@ import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 import { EVALUACIONES_MODULE_KEY } from "@/lib/evaluaciones/constants";
 import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
 import { WEBSITE_MODULE_KEY } from "@/lib/website/constants";
+import { EQUIPO_MODULE_KEY } from "@/lib/equipo/constantes";
 import { hasLevel, type ModuleLevels } from "@/lib/permissions/levels";
 import { ordenarSecciones } from "@/lib/modules/nav-order";
 import { itemsMenuInformes } from "@/lib/informes/menu";
@@ -325,6 +326,8 @@ export function ShellNav({
   const ventas: Item[] = itemsDeModulo(SALES_MODULE_KEY, access, vocabulary);
   const caja: Item[] = itemsDeModulo(CASH_MODULE_KEY, access, vocabulary);
   const clientes: Item[] = itemsDeModulo(CLIENTS_MODULE_KEY, access, vocabulary);
+  // Equipo: jornadas, fichas y mensajes. Cada pantalla exige dueño o administrador.
+  const equipo: Item[] = itemsDeModulo(EQUIPO_MODULE_KEY, access, vocabulary);
 
   // Evaluaciones evalúa actividades de los cursos: es del mismo dominio, no un módulo suelto.
   // Tiene su propia llave, así que puede estar encendido sin cursos — en ese caso la sección
@@ -713,6 +716,7 @@ export function ShellNav({
     { title: vocabulary.Plural, items: socios, moduleKey: MEMBERS_MODULE_KEY },
     { title: "Ventas", items: ventas, moduleKey: SALES_MODULE_KEY },
     { title: "Caja", items: caja, moduleKey: CASH_MODULE_KEY },
+    { title: "Equipo", items: equipo, moduleKey: EQUIPO_MODULE_KEY },
     { title: "Clientes", items: clientes, moduleKey: CLIENTS_MODULE_KEY },
     { title: "Sorteos", items: sorteos, moduleKey: RAFFLES_MODULE_KEY },
     { title: "Sponsors", items: sponsors, moduleKey: SPONSORS_MODULE_KEY },

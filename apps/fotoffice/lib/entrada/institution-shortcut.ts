@@ -46,6 +46,7 @@ export const RESERVED_SLUGS: ReadonlySet<string> = new Set([
   "dashboard",
   "digitalizacion",
   "elegir-perfil",
+  "equipo",
   "evaluaciones",
   // Facturación electrónica con ARCA (lib/invoicing).
   "facturacion",
