@@ -5,7 +5,7 @@
 -- Sólo crea tablas nuevas: no toca ninguna existente, no borra ni actualiza filas. NO toca `CashMovement`: el
 -- histórico no cambia saldos, turnos ni arqueos.
 -- NO SE APLICA A NINGUNA BASE desde el código: se corre a mano en producción y se registra con
--- `prisma migrate resolve --applied 20261214120000_fotoffice_historico_caja`.
+-- `prisma migrate resolve --applied 20261215120000_fotoffice_historico_caja`.
 -- Lo que el SQL no puede chequear lo valida el código (`apps/fotoffice/lib/historico-caja`): la forma de `resumen`,
 -- que la clase coincida con el primer dígito del código de rubro y que los motivos de revisión sean conocidos.
 

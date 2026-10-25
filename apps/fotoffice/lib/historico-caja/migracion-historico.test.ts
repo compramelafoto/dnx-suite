@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { CLASES_HISTORICO, ESTADOS_LOTE, ORIGENES_HISTORICO } from "./tipos";
 
 const RAIZ = join(__dirname, "..", "..", "..", "..");
-const sql = readFileSync(join(RAIZ, "packages/db/prisma/migrations/20261214120000_fotoffice_historico_caja/migration.sql"), "utf8");
+const sql = readFileSync(join(RAIZ, "packages/db/prisma/migrations/20261215120000_fotoffice_historico_caja/migration.sql"), "utf8");
 const schema = readFileSync(join(RAIZ, "packages/db/prisma/schema.prisma"), "utf8");
 
 describe("migración del histórico de Caja (etapa E)", () => {
