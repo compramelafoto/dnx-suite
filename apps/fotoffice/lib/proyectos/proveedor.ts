@@ -1,4 +1,5 @@
 import "server-only";
+import { esSkuCajaFotolibro, tipoTapaDeSku } from "@/lib/fotolibro/venta";
 import { prisma } from "@repo/db";
 import { sendTransactionalEmail } from "@/lib/communications/send-email";
 import { loadWorkspaceSender } from "@/lib/communications/load-workspace-sender";
@@ -190,18 +191,25 @@ export async function enviarAlProveedor(
  * se le manda por correo en el momento, con el enlace a su carpeta, y pasa solo a «En el
  * proveedor». Corre después de responder (`after`): si un correo falla, queda la nota en el
  * trabajo y el botón «Enviar» del tablero sigue disponible. No vuelve a mandar uno ya enviado.
+ * Los fotolibros no: al venderlos el libro todavía no está diseñado; se mandan con «Enviar» cuando
+ * el diseño está listo.
  */
 export async function enviarTrabajosDelPedidoAlProveedor(ctx: CtxProyectos, pedidoId: string): Promise<void> {
   try {
     const trabajos = await prisma.fotofficeProyecto.findMany({
       where: { workspaceId: ctx.workspaceId, pedidoId, proveedorId: { not: null }, proveedorEnviadoAt: null },
-      select: { id: true, proveedorId: true },
+      select: { id: true, proveedorId: true, product: { select: { sku: true } } },
     });
     for (const t of trabajos) {
+      if (esProductoDeFotolibro(t.product?.sku)) continue;
       const r = await enviarAlProveedor(ctx, t.id, t.proveedorId, null, { siempreConCarpeta: true });
       if (!r.ok) console.error("[proyectos][proveedor] envío automático falló", { error: r.error });
     }
   } catch (e) {
     console.error("[proyectos][proveedor] envío automático falló", { error: e instanceof Error ? e.message : "desconocido" });
   }
+}
+
+function esProductoDeFotolibro(sku: string | null | undefined): boolean {
+  return tipoTapaDeSku(sku) !== null || esSkuCajaFotolibro(sku);
 }
