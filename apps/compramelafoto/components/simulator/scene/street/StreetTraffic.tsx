@@ -5,7 +5,7 @@ import { STREET_CAR_ID_PREFIX as CAR_ID_PREFIX, type MovingSubjectState } from "
 import { streetRuntime } from "@/lib/simulator/street/street-runtime";
 import { LANES, carPose, createTraffic, stepTraffic } from "@/lib/simulator/street/street-traffic";
 import { STREET_RIDES, crankRadiansPerMeter } from "@/lib/simulator/street/street-rides";
-import { STREET_FIGURES } from "@/lib/simulator/street/street-people";
+import { STREET_FIGURES, figureForDevice } from "@/lib/simulator/street/street-people";
 import { figureById } from "@/lib/simulator/studio-light/figures";
 import { useFrame, useLoader } from "@react-three/fiber";
 import { useEffect, useMemo } from "react";
@@ -14,6 +14,7 @@ import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader.js";
 import { cloneCar, useStreetCars, useStreetRides, type StreetCarPrototype } from "./street-car-models";
 import { avatarUrl, instantiateAvatar, prepareAvatarLoader } from "./street-avatar";
 import { mountRider, pedal, type Rider } from "./rider-pose";
+import { isTouchGameDevice } from "@/lib/simulator/touch-input";
 
 const LAMP = new THREE.SphereGeometry(0.07, 10, 8);
 /** Más allá de esto los autos que circulan no se dibujan. */
@@ -22,7 +23,8 @@ const DRAW_DISTANCE = 140;
 const RIDE_DRAW_DISTANCE = 85;
 /** Más cerca que esto se ve pedalear. */
 const PEDAL_DISTANCE = 45;
-const RIDER_SPECS = STREET_FIGURES.map((id) => figureById(id)!);
+// En el celular, las mismas cuatro personas que caminan (menos para bajar).
+const RIDER_SPECS = STREET_FIGURES.map((id) => figureById(figureForDevice(id, isTouchGameDevice()))!);
 
 /** Faros y luces traseras (brillan de noche), en las puntas de cada modelo. */
 function addLights(car: THREE.Object3D, proto: StreetCarPrototype, head: THREE.Material, tail: THREE.Material) {

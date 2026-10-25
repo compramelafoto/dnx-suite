@@ -17,6 +17,7 @@ import ExposureDebugOverlay from "@/components/simulator/viewfinder/ExposureDebu
 import SimulatorCameraHUD from "./SimulatorCameraHUD";
 import StreetModelPanel from "./StreetModelPanel";
 import CamOfDutyLoadingScreen from "./CamOfDutyLoadingScreen";
+import RenderDiagnosticsPanel from "./RenderDiagnosticsPanel";
 
 const SimulatorCanvas = dynamic(() => import("./scene/SimulatorCanvas"), {
   ssr: false,
@@ -135,6 +136,8 @@ const SimulatorViewport = forwardRef<HTMLDivElement, SimulatorViewportProps>(
         <ExposureDebugOverlay />
 
         {touchOverlay}
+
+        <RenderDiagnosticsPanel />
 
         {onOpenHelp && onOpenGallery ? (
           <SimulatorViewportToolbar

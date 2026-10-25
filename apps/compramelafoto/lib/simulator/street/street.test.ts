@@ -11,7 +11,7 @@ import {
   resolveStreetCollision,
   streetGroundHeight,
 } from "./street-layout";
-import { closestDistanceOnPath, isRunning, pathLength, planStreetPeople, samplePath } from "./street-people";
+import { closestDistanceOnPath, figureForDevice, isRunning, isWoman, pathLength, planStreetPeople, samplePath } from "./street-people";
 
 const layout = buildStreetLayout();
 
@@ -179,4 +179,14 @@ test("después de posar, la persona retoma el circuito desde el punto más cerca
   // Se corrió 40 cm hacia un costado del camino.
   const back = closestDistanceOnPath(path, at.x + Math.cos(at.heading) * 0.4, at.z - Math.sin(at.heading) * 0.4);
   assert.ok(Math.abs(back - 37) < 0.01, `${back}`);
+});
+
+test("calle en el celular: sólo cuatro personas distintas y cada una del mismo género", () => {
+  const layout = buildStreetLayout();
+  const { walkers, standers } = planStreetPeople(layout, true);
+  const all = [...walkers, ...standers];
+  assert.ok(new Set(all.map((p) => p.figure)).size <= 4);
+  const desktop = planStreetPeople(layout);
+  [...desktop.walkers, ...desktop.standers].forEach((p, i) => assert.equal(isWoman(all[i].figure), isWoman(p.figure)));
+  assert.equal(figureForDevice("valentina", false), "valentina");
 });

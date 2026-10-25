@@ -48,10 +48,28 @@ export function isWoman(figure: string): boolean {
   return WOMEN.includes(figure);
 }
 
+/**
+ * Celular: sólo cuatro personas distintas (dos mujeres y dos hombres, entre
+ * ellos los corredores con ropa deportiva). Cada una baja ~3,5 MB; con todas
+ * eran ~45 MB y mucha memoria. Las demás se repiten con el mismo aspecto.
+ */
+const MOBILE_WOMEN = ["paula", "sofia"];
+const MOBILE_MEN = ["diego", "tomas"];
+
+/** La persona que se usa en lugar de `figure` en un celular (la misma en la computadora). */
+export function figureForDevice(figure: string, mobile: boolean): string {
+  if (!mobile) return figure;
+  const pool = isWoman(figure) ? MOBILE_WOMEN : MOBILE_MEN;
+  if (pool.includes(figure)) return figure;
+  let h = 0;
+  for (const ch of figure) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return pool[h % pool.length];
+}
+
 /** Las personas que andan por la calle (caminando, en bici o en moto). */
 export const STREET_FIGURES: readonly string[] = [...WOMEN.slice(0, 4), ...MEN.slice(0, 5)];
 
-export function planStreetPeople(layout: StreetLayout): { walkers: StreetWalker[]; standers: StreetStander[] } {
+export function planStreetPeople(layout: StreetLayout, mobile = false): { walkers: StreetWalker[]; standers: StreetStander[] } {
   const figures = STREET_FIGURES;
   const gaits: Gait[] = ["walk_neutral_01", "walk_stroll_01", "walk_fast_01", "walk_neutral_01"];
   const walkers: StreetWalker[] = [];
@@ -106,7 +124,11 @@ export function planStreetPeople(layout: StreetLayout): { walkers: StreetWalker[
     { id: "s5", figure: "sofia", action: "cell_phone_textmessage", position: [cx - 15, cz - 9], heading: Math.PI / 4 },
     { id: "s6", figure: "tomas", action: "idle_look_around_01", position: [STREET.roadHalf + 0.9, -(BUILDING_LINE + 2.5)], heading: Math.PI / 2 },
   ];
-  return { walkers, standers };
+  if (!mobile) return { walkers, standers };
+  return {
+    walkers: walkers.map((w) => ({ ...w, figure: figureForDevice(w.figure, true) })),
+    standers: standers.map((st) => ({ ...st, figure: figureForDevice(st.figure, true) })),
+  };
 }
 
 /** Largo total de un recorrido cerrado (m), incluido el tramo que vuelve al inicio. */

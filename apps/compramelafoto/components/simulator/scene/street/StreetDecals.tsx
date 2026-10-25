@@ -6,6 +6,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { PuddleReflector, addPuddleReflection, type PuddleUniforms } from "./puddle-reflection";
 import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
+import { isTouchGameDevice } from "@/lib/simulator/touch-input";
 
 /**
  * Detalles del piso y de las paredes: charcos que reflejan el cielo, hojas
@@ -307,6 +308,7 @@ const REFLECT_FADE = 8;
 export default function StreetDecals({ layout }: { layout: StreetLayout }) {
   const camera = useThree((s) => s.camera);
   const reflector = useMemo(() => new PuddleReflector(), []);
+  const mobile = useMemo(() => isTouchGameDevice(), []);
   const meshes = useMemo(() => [...groundMeshes(layout.groundDecals, reflector.uniforms), ...wallMeshes(layout.wallDecals)], [layout, reflector]);
   const puddles = useMemo(() => layout.groundDecals.filter((d) => d.kind === "puddle"), [layout]);
   useEffect(() => {
@@ -364,7 +366,8 @@ export default function StreetDecals({ layout }: { layout: StreetLayout }) {
       u.reflectStrength.value = fade;
     } else {
       let drawn = false;
-      if (best && camera instanceof THREE.PerspectiveCamera && camera.position.y > best.position[1]) {
+      // En el celular no hay reflejo real: dibujar la ciudad otra vez cuesta la mitad de los cuadros.
+      if (!mobile && best && camera instanceof THREE.PerspectiveCamera && camera.position.y > best.position[1]) {
         // Todos los charcos a la vista que están a la misma altura comparten el espejo.
         let n = 0;
         for (const d of view.seen) {
