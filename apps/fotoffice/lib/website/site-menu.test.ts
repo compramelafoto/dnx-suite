@@ -223,6 +223,21 @@ describe("páginas propias en el menú", () => {
     expect(nav[3].href).toBe("/w/sfpr/quien-soy");
   });
 
+  it("sin navJson, materializar y luego reordenar conserva las páginas propias", () => {
+    const m = materializeSiteMenu(null, new Set([BOOKINGS_MODULE_KEY]), ["p_1", "p_2"]);
+    expect(m.items.map((i) => i.id)).toEqual(["page:home", "page:bookings", "custom:p_1", "custom:p_2"]);
+    // El dueño sube la última: ya es un menú guardado y lo que ordenó no se toca.
+    const reordenado = { ...m, items: [m.items[3], ...m.items.slice(0, 3)] };
+    const nav = resolveSiteNav({ ...base, sections, menu: reordenado });
+    expect(nav.map((i) => i.label)).toEqual(["Contacto", "Inicio", "Reservas", "Quién soy"]);
+  });
+
+  it("un menú guardado no recupera una página propia que el dueño sacó", () => {
+    const guardado = menu(page("home"));
+    const m = materializeSiteMenu(guardado, new Set(), ["p_1"]);
+    expect(m.items.map((i) => i.id)).toEqual(["page:home"]);
+  });
+
   it("sin páginas propias el menú automático sigue idéntico a buildSiteNav", () => {
     const input = { ...base, homeBlocks: [heroConTitulo("Nosotros")] };
     expect(resolveSiteNav({ ...input, sections: { pages: { home: [] }, pageMeta: {} }, menu: null })).toEqual(buildSiteNav(input));

@@ -57,7 +57,7 @@ export function MenuPanel({
   onMenuChange: (menu: SiteMenu | null) => void;
   onPresetsChange: (presets: WebsiteDesignPresets) => void;
 }) {
-  const items = useMemo(() => materializeSiteMenu(menu, enabledModuleKeys).items, [menu, enabledModuleKeys]);
+  const items = useMemo(() => materializeSiteMenu(menu, enabledModuleKeys, customPages.map((p) => p.key)).items, [menu, enabledModuleKeys, customPages]);
   const paginas = useMemo(
     () => new Map(availableMenuPages(enabledModuleKeys, personVocabulary).map((p) => [p.page, p])),
     [enabledModuleKeys, personVocabulary],

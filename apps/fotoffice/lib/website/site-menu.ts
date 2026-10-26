@@ -200,11 +200,24 @@ function pageEntry(page: string): SiteMenuEntry {
  * No saca las páginas de módulos apagados: siguen guardadas para volver a su lugar si el módulo
  * se enciende de nuevo. Quien las esconde es `resolveSiteNav`.
  */
-export function materializeSiteMenu(menu: SiteMenu | null, enabledModuleKeys: ReadonlySet<string>): SiteMenu {
+export function materializeSiteMenu(
+  menu: SiteMenu | null,
+  enabledModuleKeys: ReadonlySet<string>,
+  /** Claves de las páginas propias, en orden de creación. Sólo cuentan sin menú guardado. */
+  customPageKeys: readonly string[] = [],
+): SiteMenu {
   const items = menu ? [...menu.items] : [];
   const presentes = new Set(items.flatMap((i) => (i.kind === "page" ? [i.page] : [])));
   for (const opcion of availableMenuPages(enabledModuleKeys)) {
     if (opcion.automatic && !presentes.has(opcion.page)) items.push(pageEntry(opcion.page));
+  }
+  // Sin menú guardado, el automático ya muestra las páginas propias (`buildSiteNav`): la lista
+  // editable tiene que traerlas, o el primer cambio las haría desaparecer. Con menú guardado
+  // NO se re-agregan: si el dueño sacó una, queda afuera.
+  if (!menu) {
+    for (const pageKey of customPageKeys) {
+      items.push({ id: `custom:${pageKey}`, kind: "custom", pageKey, label: null, hidden: false });
+    }
   }
   return { version: SITE_MENU_VERSION, items: items.slice(0, SITE_MENU_MAX_ITEMS) };
 }

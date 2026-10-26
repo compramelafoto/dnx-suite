@@ -95,6 +95,8 @@ export function WebsiteBuilder({
   const [pages, setPages] = useState<Record<string, WebsiteBlock[]>>(initialPages.pages);
   const [pageMeta, setPageMeta] = useState<Record<string, WebsitePageMeta>>(initialPages.pageMeta);
   const [activeKey, setActiveKey] = useState<string>(HOME_PAGE_KEY);
+  // Guardando lo pendiente antes de cambiar de página o crear una.
+  const [switching, setSwitching] = useState(false);
   // Lo último que el servidor confirmó, por página: el guardado sólo manda lo que cambió.
   const savedPagesRef = useRef<Record<string, string>>(
     Object.fromEntries(Object.entries(initialPages.pages).map(([k, v]) => [k, JSON.stringify(v)])),
@@ -180,17 +182,32 @@ export function WebsiteBuilder({
   const activeTitle = activeKey === HOME_PAGE_KEY ? "Portada" : (pageMeta[activeKey]?.title ?? "Página");
 
   // Cambiar de página: primero se guarda lo pendiente de la actual. Si el guardado falla, igual
-  // se cambia — nada se pierde porque todo sigue en memoria y el autosave reintenta.
+  // se cambia — nada se pierde porque todo sigue en memoria; el error queda a la vista en la
+  // barra y el próximo cambio vuelve a intentar el guardado.
   async function handleSelectPage(key: string) {
-    if (key === activeKey) return;
-    await draftAutosave.flush();
+    if (key === activeKey || switching) return;
+    setSwitching(true);
+    try {
+      await draftAutosave.flush();
+    } finally {
+      setSwitching(false);
+    }
     setActiveKey(key);
     setSelectedId(null);
   }
 
   async function handleCreatePage(title: string, slug: string) {
-    if (customPages.length >= MAX_CUSTOM_PAGES) return;
-    await draftAutosave.flush();
+    if (customPages.length >= MAX_CUSTOM_PAGES || switching) return;
+    setSwitching(true);
+    let guardado = false;
+    try {
+      guardado = await draftAutosave.flush();
+    } finally {
+      setSwitching(false);
+    }
+    // Sin lo anterior guardado no se crea: el servidor todavía podría tener una página borrada
+    // con la misma clave `p_N` y la nueva heredaría sus bloques. El error ya se ve en la barra.
+    if (!guardado) return;
     const key = nextPageKey([...Object.keys(pageMeta), ...Object.keys(pages)]);
     setPageMeta((prev) => ({ ...prev, [key]: { title, slug } }));
     setPages((prev) => ({ ...prev, [key]: [] }));
@@ -298,6 +315,7 @@ export function WebsiteBuilder({
         autosaveStatus={autosaveStatus}
         autosaveError={draftAutosave.error ?? brandingAutosave.error}
         onDraftUpdatedAtChange={draftAutosave.syncUpdatedAt}
+        previewHref={activeKey === HOME_PAGE_KEY ? "/website/preview" : `/website/preview?pagina=${encodeURIComponent(activeKey)}`}
       />
       <div className="flex flex-1 overflow-hidden">
         <div className="flex w-72 shrink-0 flex-col border-r border-[var(--fo-border)]">
@@ -305,32 +323,33 @@ export function WebsiteBuilder({
           <div className="flex-1 overflow-hidden">
             {mode === "SECCIONES" ? (
               <div className="flex h-full min-h-0 flex-col">
-              <PageSwitcher
-                pages={customPages.map((p) => ({ key: p.key, title: p.title, slug: p.slug }))}
-                activeKey={activeKey}
-                canEdit={canEdit}
-                limitReached={customPages.length >= MAX_CUSTOM_PAGES}
-                onSelect={(k) => void handleSelectPage(k)}
-                onCreate={(t, s) => void handleCreatePage(t, s)}
-                onRename={handleRenamePage}
-                onChangeSlug={handleChangeSlug}
-                onDelete={handleDeletePage}
-              />
-              <div className="min-h-0 flex-1">
-              <SectionList
-                title={activeTitle}
-                blocks={blocks}
-                selectedId={selectedId}
-                canEdit={canEdit}
-                onSelect={setSelectedId}
-                onToggleVisible={handleToggleVisible}
-                onDuplicate={handleDuplicate}
-                onDelete={handleDelete}
-                onMove={handleMove}
-                onReorder={handleReorder}
-                onAddClick={() => setPickerOpen(true)}
-              />
-              </div>
+                <PageSwitcher
+                  pages={customPages.map((p) => ({ key: p.key, title: p.title, slug: p.slug }))}
+                  activeKey={activeKey}
+                  canEdit={canEdit}
+                  busy={switching}
+                  limitReached={customPages.length >= MAX_CUSTOM_PAGES}
+                  onSelect={(k) => void handleSelectPage(k)}
+                  onCreate={(t, s) => void handleCreatePage(t, s)}
+                  onRename={handleRenamePage}
+                  onChangeSlug={handleChangeSlug}
+                  onDelete={handleDeletePage}
+                />
+                <div className="min-h-0 flex-1">
+                  <SectionList
+                    title={activeTitle}
+                    blocks={blocks}
+                    selectedId={selectedId}
+                    canEdit={canEdit}
+                    onSelect={setSelectedId}
+                    onToggleVisible={handleToggleVisible}
+                    onDuplicate={handleDuplicate}
+                    onDelete={handleDelete}
+                    onMove={handleMove}
+                    onReorder={handleReorder}
+                    onAddClick={() => setPickerOpen(true)}
+                  />
+                </div>
               </div>
             ) : null}
             {mode === "PLANTILLAS" ? (

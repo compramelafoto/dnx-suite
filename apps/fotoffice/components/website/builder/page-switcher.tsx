@@ -19,6 +19,7 @@ export function PageSwitcher({
   pages,
   activeKey,
   canEdit,
+  busy,
   limitReached,
   onSelect,
   onCreate,
@@ -29,6 +30,8 @@ export function PageSwitcher({
   pages: SwitcherPage[];
   activeKey: string;
   canEdit: boolean;
+  /** Se está guardando antes de cambiar de página: el selector espera. */
+  busy: boolean;
   limitReached: boolean;
   onSelect: (key: string) => void;
   onCreate: (title: string, slug: string) => void;
@@ -47,6 +50,7 @@ export function PageSwitcher({
         <select
           aria-label="Página que estás editando"
           className="fo-input min-w-0 flex-1 text-sm"
+          disabled={busy}
           value={activeKey}
           onChange={(e) => {
             setForm(null);
