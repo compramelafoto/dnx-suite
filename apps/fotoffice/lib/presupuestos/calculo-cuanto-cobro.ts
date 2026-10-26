@@ -241,5 +241,6 @@ export function recalcularItemCalculo(
     parametros: entrada,
     calculadoEn,
   });
-  return r;
+  // La opción del presupuesto (Básico, Premium…): sin esto, el renglón recalculado caía en la principal.
+  return r.ok && item.alternativaId ? { ...r, item: { ...r.item, alternativaId: item.alternativaId } } : r;
 }
