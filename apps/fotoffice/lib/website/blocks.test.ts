@@ -238,3 +238,41 @@ describe("RICH_TEXT — texto con formato", () => {
     expect(parseWebsiteSections({ pages: { home: [block] } }).pages.home).toHaveLength(0);
   });
 });
+
+describe("GALLERY, VIDEO y EMBED", () => {
+  const wrap = (type: string, config: unknown) => ({ id: "b", type, visible: true, order: 0, config });
+
+  it("los bloques nuevos arrancan vacíos y son válidos para el guardado", () => {
+    for (const type of ["GALLERY", "VIDEO", "EMBED"] as const) {
+      expect(websiteBlockSchema.safeParse(createEmptyBlock(type, 0)).success).toBe(true);
+    }
+    expect(createEmptyBlock("GALLERY", 0).config).toMatchObject({ photos: [], layout: "grid", columns: 3, lightbox: true });
+    expect(createEmptyBlock("EMBED", 0).config).toMatchObject({ url: "", heightPx: 600 });
+  });
+
+  it("GALLERY admite hasta 200 fotos; con 201 el bloque se descarta", () => {
+    const photos = (n: number) => Array.from({ length: n }, (_, i) => ({ id: `p${i}`, url: `https://x.test/${i}.jpg` }));
+    const base = { layout: "grid", columns: 3, lightbox: true };
+    expect(websiteBlockSchema.safeParse(wrap("GALLERY", { ...base, photos: photos(200) })).success).toBe(true);
+    expect(websiteBlockSchema.safeParse(wrap("GALLERY", { ...base, photos: photos(201) })).success).toBe(false);
+  });
+
+  it("GALLERY: columnas o layout inválidos caen al valor por omisión", () => {
+    const parsed = websiteBlockSchema.parse(wrap("GALLERY", { photos: [], layout: "zig", columns: 9, lightbox: "si" }));
+    expect(parsed.config).toMatchObject({ layout: "grid", columns: 3, lightbox: true });
+  });
+
+  it("EMBED: heightPx fuera de 400..2000 cae a 600", () => {
+    expect(websiteBlockSchema.parse(wrap("EMBED", { url: "https://www.compramelafoto.com/x", heightPx: 100 })).config).toMatchObject({ heightPx: 600 });
+    expect(websiteBlockSchema.parse(wrap("EMBED", { url: "https://www.compramelafoto.com/x", heightPx: 900 })).config).toMatchObject({ heightPx: 900 });
+  });
+
+  it("una URL inválida queda guardada (no tira el bloque): la vista es la que no dibuja nada", () => {
+    expect(websiteBlockSchema.safeParse(wrap("VIDEO", { url: "javascript:alert(1)" })).success).toBe(true);
+  });
+
+  it("los previewLabel (que alimentan el menú) no llevan texto de administración", () => {
+    expect(getBlockPreviewLabel(createEmptyBlock("GALLERY", 0))).toBe("Galería");
+    expect(getBlockPreviewLabel(createEmptyBlock("VIDEO", 0))).toBe("Video");
+  });
+});

@@ -1,5 +1,6 @@
 import type { ComponentType } from "react";
 import { ImageUploadField } from "@/components/image-upload-field";
+import { GalleryPhotosEditor } from "@/components/website/inspector/gallery-photos-editor";
 import { RichTextField } from "@/components/website/inspector/rich-text-field";
 import { SelectField, TextAreaField, TextField, ToggleField } from "@/components/website/inspector/inspector-fields";
 import { HeroBlockView } from "@/components/website/render/blocks/hero-block-view";
@@ -7,15 +8,25 @@ import { HeroSlideEditor } from "@/components/website/builder/hero-slide-editor"
 import { TextBlockView } from "@/components/website/render/blocks/text-block-view";
 import { ImageBlockView } from "@/components/website/render/blocks/image-block-view";
 import { CtaBlockView } from "@/components/website/render/blocks/cta-block-view";
+import { GalleryBlockView } from "@/components/website/render/blocks/gallery-block-view";
+import { VideoBlockView } from "@/components/website/render/blocks/video-block-view";
+import { EmbedBlockView } from "@/components/website/render/blocks/embed-block-view";
 import { RichTextBlockView } from "@/components/website/render/blocks/rich-text-block-view";
 import { SpacerBlockView } from "@/components/website/render/blocks/spacer-block-view";
 import { BlogLatestBlockView } from "@/components/website/render/blocks/blog-latest-block-view";
 import { MemberOfWeekBlockView } from "@/components/website/render/blocks/member-of-week-block-view";
+import { isAllowedEmbedUrl, toVideoEmbedUrl } from "./embed-hosts";
 import type { WebsiteDynamicData } from "./dynamic-data";
 import {
   WEBSITE_BLOCK_DEFINITIONS,
   type BlogLatestBlockConfig,
   type CtaBlockConfig,
+  type EmbedBlockConfig,
+  type GalleryBlockConfig,
+  type VideoBlockConfig,
+  EMBED_MAX_HEIGHT_PX,
+  EMBED_MIN_HEIGHT_PX,
+  EMBED_DEFAULT_HEIGHT_PX,
   type MemberOfWeekBlockConfig,
   type RichTextBlockConfig,
   type ImageBlockConfig,
@@ -153,6 +164,79 @@ export const WEBSITE_BLOCK_REGISTRY: { [K in WebsiteBlockType]: BlockRegistryEnt
             { value: "wide", label: "Ancho" },
           ]}
         />
+      </div>
+    ),
+  },
+  GALLERY: {
+    View: GalleryBlockView,
+    Inspector: ({ config, onChange }: { config: GalleryBlockConfig; onChange: (c: GalleryBlockConfig) => void }) => (
+      <div className="space-y-4">
+        <TextField label="Título (opcional)" value={config.title ?? ""} onChange={(v) => onChange({ ...config, title: v })} />
+        <GalleryPhotosEditor photos={config.photos} onChange={(photos) => onChange({ ...config, photos })} />
+        <SelectField
+          label="Disposición"
+          value={config.layout}
+          onChange={(v) => onChange({ ...config, layout: v as GalleryBlockConfig["layout"] })}
+          options={[
+            { value: "grid", label: "Grilla (todas del mismo tamaño)" },
+            { value: "masonry", label: "Mosaico (respeta la forma de cada foto)" },
+          ]}
+        />
+        <SelectField
+          label="Columnas"
+          value={String(config.columns)}
+          onChange={(v) => onChange({ ...config, columns: v === "2" ? 2 : v === "4" ? 4 : 3 })}
+          options={[
+            { value: "2", label: "2 columnas" },
+            { value: "3", label: "3 columnas" },
+            { value: "4", label: "4 columnas" },
+          ]}
+        />
+        <ToggleField label="Ampliar la foto al tocarla" checked={config.lightbox} onChange={(v) => onChange({ ...config, lightbox: v })} />
+      </div>
+    ),
+  },
+  VIDEO: {
+    View: VideoBlockView,
+    Inspector: ({ config, onChange }: { config: VideoBlockConfig; onChange: (c: VideoBlockConfig) => void }) => (
+      <div className="space-y-4">
+        <TextField label="Título (opcional)" value={config.title ?? ""} onChange={(v) => onChange({ ...config, title: v })} />
+        <TextField label="Enlace del video" value={config.url} onChange={(v) => onChange({ ...config, url: v })} helper="Pegá el enlace de YouTube o de Vimeo." />
+        {config.url.trim() && !toVideoEmbedUrl(config.url) ? (
+          <p className="text-xs text-red-600">Ese enlace no es de YouTube ni de Vimeo: el video no se va a mostrar en el sitio.</p>
+        ) : null}
+      </div>
+    ),
+  },
+  EMBED: {
+    View: EmbedBlockView,
+    Inspector: ({ config, onChange }: { config: EmbedBlockConfig; onChange: (c: EmbedBlockConfig) => void }) => (
+      <div className="space-y-4">
+        <TextField label="Título (opcional)" value={config.title ?? ""} onChange={(v) => onChange({ ...config, title: v })} />
+        <TextField
+          label="Enlace a insertar"
+          value={config.url}
+          onChange={(v) => onChange({ ...config, url: v })}
+          helper="Sólo se admiten páginas de CompraMeLaFoto, YouTube, Vimeo y mapas de Google (Compartir → Insertar un mapa)."
+        />
+        {config.url.trim() && !isAllowedEmbedUrl(config.url) ? (
+          <p className="text-xs text-red-600">Ese enlace no se puede insertar: la sección no se va a mostrar en el sitio.</p>
+        ) : null}
+        <label className="block space-y-1.5">
+          <span className="fo-label">Alto (en píxeles)</span>
+          <input
+            type="number"
+            className="fo-input"
+            min={EMBED_MIN_HEIGHT_PX}
+            max={EMBED_MAX_HEIGHT_PX}
+            step={50}
+            value={config.heightPx}
+            onChange={(e) => {
+              const n = Number(e.target.value);
+              onChange({ ...config, heightPx: Number.isFinite(n) ? Math.min(EMBED_MAX_HEIGHT_PX, Math.max(EMBED_MIN_HEIGHT_PX, Math.round(n))) : EMBED_DEFAULT_HEIGHT_PX });
+            }}
+          />
+        </label>
       </div>
     ),
   },

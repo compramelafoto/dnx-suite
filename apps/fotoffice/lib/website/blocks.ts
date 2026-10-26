@@ -267,6 +267,43 @@ export function sanitizeRichTextConfig<T extends { html: string }>(config: T): T
   return { ...config, html };
 }
 
+/**
+ * Galería, video y contenido insertado. Las URLs de video y de iframe se guardan como vengan
+ * (un bloque recién armado, vacío o a medio escribir, tiene que poder autoguardarse): quien
+ * decide si se dibujan es la vista, con `toVideoEmbedUrl` / `isAllowedEmbedUrl`.
+ */
+export const GALLERY_MAX_PHOTOS = 200;
+export const GALLERY_LAYOUTS = ["grid", "masonry"] as const;
+export const EMBED_MIN_HEIGHT_PX = 400;
+export const EMBED_MAX_HEIGHT_PX = 2000;
+export const EMBED_DEFAULT_HEIGHT_PX = 600;
+
+export const galleryPhotoSchema = z.object({
+  id: z.string().min(1),
+  url: z.string().max(2000),
+  alt: z.string().max(300).optional(),
+});
+export type GalleryPhoto = z.infer<typeof galleryPhotoSchema>;
+
+export const galleryConfigSchema = z.object({
+  title: z.string().max(200).optional(),
+  photos: z.array(galleryPhotoSchema).max(GALLERY_MAX_PHOTOS),
+  layout: z.enum(GALLERY_LAYOUTS).catch("grid"),
+  columns: z.union([z.literal(2), z.literal(3), z.literal(4)]).catch(3),
+  lightbox: z.boolean().catch(true),
+});
+
+export const videoConfigSchema = z.object({
+  title: z.string().max(200).optional(),
+  url: z.string().max(2000),
+});
+
+export const embedConfigSchema = z.object({
+  title: z.string().max(200).optional(),
+  url: z.string().max(2000),
+  heightPx: z.number().int().min(EMBED_MIN_HEIGHT_PX).max(EMBED_MAX_HEIGHT_PX).catch(EMBED_DEFAULT_HEIGHT_PX),
+});
+
 const blockEnvelope = {
   id: z.string().min(1),
   visible: z.boolean(),
@@ -279,6 +316,9 @@ export const imageBlockSchema = z.object({ ...blockEnvelope, type: z.literal("IM
 export const ctaBlockSchema = z.object({ ...blockEnvelope, type: z.literal("CTA"), config: ctaConfigSchema });
 export const spacerBlockSchema = z.object({ ...blockEnvelope, type: z.literal("SPACER"), config: spacerConfigSchema });
 export const richTextBlockSchema = z.object({ ...blockEnvelope, type: z.literal("RICH_TEXT"), config: richTextConfigSchema });
+export const galleryBlockSchema = z.object({ ...blockEnvelope, type: z.literal("GALLERY"), config: galleryConfigSchema });
+export const videoBlockSchema = z.object({ ...blockEnvelope, type: z.literal("VIDEO"), config: videoConfigSchema });
+export const embedBlockSchema = z.object({ ...blockEnvelope, type: z.literal("EMBED"), config: embedConfigSchema });
 export const blogLatestBlockSchema = z.object({ ...blockEnvelope, type: z.literal("BLOG_LATEST"), config: blogLatestConfigSchema });
 export const memberOfWeekBlockSchema = z.object({ ...blockEnvelope, type: z.literal("MEMBER_OF_WEEK"), config: memberOfWeekConfigSchema });
 
@@ -289,6 +329,9 @@ export const websiteBlockSchema = z.discriminatedUnion("type", [
   ctaBlockSchema,
   spacerBlockSchema,
   richTextBlockSchema,
+  galleryBlockSchema,
+  videoBlockSchema,
+  embedBlockSchema,
   blogLatestBlockSchema,
   memberOfWeekBlockSchema,
 ]);
@@ -323,6 +366,9 @@ export type ImageBlockConfig = z.infer<typeof imageConfigSchema>;
 export type CtaBlockConfig = z.infer<typeof ctaConfigSchema>;
 export type SpacerBlockConfig = z.infer<typeof spacerConfigSchema>;
 export type RichTextBlockConfig = z.infer<typeof richTextConfigSchema>;
+export type GalleryBlockConfig = z.infer<typeof galleryConfigSchema>;
+export type VideoBlockConfig = z.infer<typeof videoConfigSchema>;
+export type EmbedBlockConfig = z.infer<typeof embedConfigSchema>;
 export type BlogLatestBlockConfig = z.infer<typeof blogLatestConfigSchema>;
 export type MemberOfWeekBlockConfig = z.infer<typeof memberOfWeekConfigSchema>;
 
@@ -332,6 +378,9 @@ export type ImageBlock = z.infer<typeof imageBlockSchema>;
 export type CtaBlock = z.infer<typeof ctaBlockSchema>;
 export type SpacerBlock = z.infer<typeof spacerBlockSchema>;
 export type RichTextBlock = z.infer<typeof richTextBlockSchema>;
+export type GalleryBlock = z.infer<typeof galleryBlockSchema>;
+export type VideoBlock = z.infer<typeof videoBlockSchema>;
+export type EmbedBlock = z.infer<typeof embedBlockSchema>;
 export type BlogLatestBlock = z.infer<typeof blogLatestBlockSchema>;
 export type MemberOfWeekBlock = z.infer<typeof memberOfWeekBlockSchema>;
 
@@ -491,6 +540,34 @@ export const WEBSITE_BLOCK_DEFINITIONS: {
     defaultConfig: () => ({ title: "", html: "", align: "left", width: "normal" }),
     // Alimenta también el menú (ver HERO): sólo el título que puso el dueño, nunca el HTML.
     previewLabel: (c) => c.title?.trim() || "Texto",
+  },
+  GALLERY: {
+    type: "GALLERY",
+    label: "Galería de fotos",
+    description: "Una grilla de fotos que se pueden ampliar a pantalla completa.",
+    category: "BASICAS",
+    source: "static",
+    defaultConfig: () => ({ title: "", photos: [], layout: "grid", columns: 3, lightbox: true }),
+    // Alimenta también el menú (ver HERO): sin título, "Galería" es lo que el visitante entiende.
+    previewLabel: (c) => c.title?.trim() || "Galería",
+  },
+  VIDEO: {
+    type: "VIDEO",
+    label: "Video",
+    description: "Un video de YouTube o Vimeo.",
+    category: "BASICAS",
+    source: "static",
+    defaultConfig: () => ({ title: "", url: "" }),
+    previewLabel: (c) => c.title?.trim() || "Video",
+  },
+  EMBED: {
+    type: "EMBED",
+    label: "Contenido insertado",
+    description: "Una página de CompraMeLaFoto, un video o un mapa de Google dentro del sitio.",
+    category: "BASICAS",
+    source: "static",
+    defaultConfig: () => ({ title: "", url: "", heightPx: EMBED_DEFAULT_HEIGHT_PX }),
+    previewLabel: (c) => c.title?.trim() || "Contenido",
   },
   BLOG_LATEST: {
     type: "BLOG_LATEST",
