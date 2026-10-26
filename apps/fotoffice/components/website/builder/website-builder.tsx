@@ -211,6 +211,8 @@ export function WebsiteBuilder({
     setPageMeta((prev) => Object.fromEntries(Object.entries(prev).filter(([k]) => k !== key)));
     setPages((prev) => Object.fromEntries(Object.entries(prev).filter(([k]) => k !== key)));
     delete savedPagesRef.current[key];
+    // Su ítem del menú (si lo tenía) se va con ella: no queda un acceso a una página que no existe.
+    setMenu((prev) => (prev ? { ...prev, items: prev.items.filter((i) => !(i.kind === "custom" && i.pageKey === key)) } : prev));
     if (activeKey === key) {
       setActiveKey(HOME_PAGE_KEY);
       setSelectedId(null);
@@ -339,6 +341,7 @@ export function WebsiteBuilder({
                 menu={menu}
                 presets={presets}
                 blocks={homeBlocks}
+                customPages={customPages.map((p) => ({ key: p.key, title: p.title }))}
                 enabledModuleKeys={enabledModuleKeys}
                 personVocabulary={personVocabulary}
                 canEdit={canEdit}
@@ -367,6 +370,7 @@ export function WebsiteBuilder({
           <LivePreview
             blocks={blocks}
             homeBlocks={homeBlocks}
+            sections={{ pages, pageMeta }}
             colors={colors}
             designPresets={presets}
             menu={menu}

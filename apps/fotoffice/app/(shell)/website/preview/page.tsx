@@ -39,7 +39,7 @@ export default async function WebsitePreviewPage({ searchParams }: { searchParam
   const paginaKey = typeof pagina === "string" ? pagina : "";
   const blocks = paginaKey !== HOME_PAGE_KEY && Object.hasOwn(sections.pageMeta, paginaKey) ? (sections.pages[paginaKey] ?? []) : homeBlocks;
   const navItems = toPreviewNav(
-    resolveSiteNav({ workspaceSlug: "vista-previa", homeBlocks, enabledModuleKeys, hasPublishedSite: true, menu, personVocabulary, hasPublishedBlog }),
+    resolveSiteNav({ workspaceSlug: "vista-previa", homeBlocks, enabledModuleKeys, hasPublishedSite: true, menu, personVocabulary, hasPublishedBlog, sections }),
   );
   const themeVars = {
     "--wsite-primary": colors.primaryColor,

@@ -3,7 +3,7 @@ import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 import { PORTFOLIO_MODULE_KEY } from "@/lib/portfolio/constants";
 import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
-import { createEmptyBlock, updateHeroSlide, type HeroBlock, type WebsiteBlock } from "./blocks";
+import { createEmptyBlock, updateHeroSlide, type HeroBlock, type WebsiteBlock, type WebsiteSections } from "./blocks";
 import { buildSiteNav } from "./site-nav";
 import {
   availableMenuPages,
@@ -174,5 +174,57 @@ describe("resolveSiteNav", () => {
   it("Inicio se marca por igualdad exacta", () => {
     const nav = resolveSiteNav({ ...base, menu: menu(page("home")) });
     expect(nav[0]).toMatchObject({ href: "/w/sfpr", exact: true });
+  });
+});
+
+describe("páginas propias en el menú", () => {
+  const sections: WebsiteSections = {
+    pages: { home: [], p_1: [], p_2: [] },
+    pageMeta: {
+      p_1: { slug: "quien-soy", title: "Quién soy" },
+      p_2: { slug: "contacto", title: "Contacto" },
+    },
+  };
+  const custom = (pageKey: string, extra: Partial<SiteMenuEntry> = {}): SiteMenuEntry =>
+    ({ id: `custom:${pageKey}`, kind: "custom", pageKey, label: null, hidden: false, ...extra }) as SiteMenuEntry;
+
+  it("un ítem custom con página existente lleva a /w/<slug>/<página> y se llama como el título", () => {
+    const nav = resolveSiteNav({ ...base, sections, menu: menu(page("home"), custom("p_1")) });
+    expect(nav.find((i) => i.id === "custom:p_1")).toEqual({
+      id: "custom:p_1",
+      label: "Quién soy",
+      href: "/w/sfpr/quien-soy",
+      children: [],
+    });
+  });
+
+  it("la etiqueta del dueño pisa al título", () => {
+    const nav = resolveSiteNav({ ...base, sections, menu: menu(custom("p_1", { label: "Mi historia" })) });
+    expect(nav[0].label).toBe("Mi historia");
+  });
+
+  it("con una página que ya no existe no aparece; oculta tampoco", () => {
+    const nav = resolveSiteNav({ ...base, sections, menu: menu(custom("p_9"), custom("p_2", { hidden: true })) });
+    expect(nav.filter((i) => i.id.startsWith("custom:"))).toEqual([]);
+  });
+
+  it("sin `sections` (llamadores viejos) un ítem custom no aparece", () => {
+    expect(resolveSiteNav({ ...base, menu: menu(custom("p_1")) }).filter((i) => i.id.startsWith("custom:"))).toEqual([]);
+  });
+
+  it("el esquema acepta el ítem custom y rechaza claves de formato raro", () => {
+    expect(siteMenuSchema.safeParse(menu(custom("p_1"))).success).toBe(true);
+    expect(siteMenuSchema.safeParse(menu(custom("../x"))).success).toBe(false);
+  });
+
+  it("el menú automático agrega las páginas propias después de los módulos, en orden de creación", () => {
+    const nav = resolveSiteNav({ ...base, sections, menu: null, hasPublishedBlog: true });
+    expect(nav.map((i) => i.label)).toEqual(["Inicio", "Reservas", "Blog", "Quién soy", "Contacto"]);
+    expect(nav[3].href).toBe("/w/sfpr/quien-soy");
+  });
+
+  it("sin páginas propias el menú automático sigue idéntico a buildSiteNav", () => {
+    const input = { ...base, homeBlocks: [heroConTitulo("Nosotros")] };
+    expect(resolveSiteNav({ ...input, sections: { pages: { home: [] }, pageMeta: {} }, menu: null })).toEqual(buildSiteNav(input));
   });
 });

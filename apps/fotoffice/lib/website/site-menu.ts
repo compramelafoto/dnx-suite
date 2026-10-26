@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { WebsiteBlock } from "./blocks";
+import { websitePageKeySchema, type WebsiteBlock, type WebsiteSections } from "./blocks";
 import { deriveHomeNavItems } from "./navigation";
 import { personVocabulary, type PersonVocabulary } from "@/lib/vocabulario/personas";
 import {
@@ -84,7 +84,16 @@ const linkEntrySchema = z.object({
   newTab: z.boolean(),
 });
 
-const siteMenuEntrySchema = z.discriminatedUnion("kind", [pageEntrySchema, sectionEntrySchema, linkEntrySchema]);
+/** Una página propia del sitio (ver `sectionsJson.pageMeta`). */
+const customEntrySchema = z.object({
+  ...base,
+  kind: z.literal("custom"),
+  pageKey: websitePageKeySchema,
+  /** `null` = el título de la página. */
+  label: etiqueta.nullable(),
+});
+
+const siteMenuEntrySchema = z.discriminatedUnion("kind", [pageEntrySchema, sectionEntrySchema, linkEntrySchema, customEntrySchema]);
 
 /** Esquema estricto, para lo que llega del constructor al guardar. */
 export const siteMenuSchema = z.object({
@@ -214,6 +223,8 @@ export function resolveSiteNav(input: {
   personVocabulary?: PersonVocabulary;
   /** Ver `buildSiteNav`: el blog cuenta como página habilitada sólo con artículos publicados. */
   hasPublishedBlog?: boolean;
+  /** Las páginas propias. Sin esto, los ítems `custom` no aparecen. */
+  sections?: WebsiteSections;
 }): SiteNavItem[] {
   if (!input.menu) return buildSiteNav(input);
 
@@ -241,6 +252,11 @@ export function resolveSiteNav(input: {
       const seccion = secciones.get(entry.blockId);
       if (!seccion) continue;
       nav.push({ id: entry.id, label: entry.label || seccion.label, href: `${base}#${seccion.anchor}`, children: [] });
+    } else if (entry.kind === "custom") {
+      // Una página borrada (o que nunca existió) no deja un link roto.
+      const meta = input.sections && Object.hasOwn(input.sections.pageMeta, entry.pageKey) ? input.sections.pageMeta[entry.pageKey] : null;
+      if (!meta) continue;
+      nav.push({ id: entry.id, label: entry.label || meta.title, href: `${base}/${meta.slug}`, children: [] });
     } else {
       nav.push({ id: entry.id, label: entry.label, href: entry.url, newTab: entry.newTab, children: [] });
     }

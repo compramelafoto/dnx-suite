@@ -38,6 +38,7 @@ export function MenuPanel({
   menu,
   presets,
   blocks,
+  customPages,
   enabledModuleKeys,
   personVocabulary,
   canEdit,
@@ -46,7 +47,10 @@ export function MenuPanel({
 }: {
   menu: SiteMenu | null;
   presets: WebsiteDesignPresets;
+  /** Las secciones de la portada (de ahí salen los accesos a secciones). */
   blocks: WebsiteBlock[];
+  /** Las páginas propias del sitio, para ofrecerlas como acceso del menú. */
+  customPages: { key: string; title: string }[];
   enabledModuleKeys: ReadonlySet<string>;
   personVocabulary: PersonVocabulary;
   canEdit: boolean;
@@ -76,6 +80,8 @@ export function MenuPanel({
 
   const lleno = items.length >= SITE_MENU_MAX_ITEMS;
   const paginasParaAgregar = [...paginas.values()].filter((p) => !items.some((i) => i.kind === "page" && i.page === p.page));
+  const titulosPropias = useMemo(() => new Map(customPages.map((p) => [p.key, p.title])), [customPages]);
+  const propiasParaAgregar = customPages.filter((p) => !items.some((i) => i.kind === "custom" && i.pageKey === p.key));
   const seccionesParaAgregar = secciones.filter((s) => !items.some((i) => i.kind === "section" && i.blockId === s.blockId));
 
   return (
@@ -182,14 +188,18 @@ export function MenuPanel({
                     ? (menuPageDefaultLabel(item.page, personVocabulary) ?? item.page)
                     : item.kind === "section"
                       ? (seccionesPorId.get(item.blockId)?.label ?? "Sección")
-                      : item.label
+                      : item.kind === "custom"
+                        ? (titulosPropias.get(item.pageKey) ?? "Página propia")
+                        : item.label
                 }
                 problema={
                   item.kind === "page" && !paginas.has(item.page)
                     ? "Módulo apagado: no se muestra"
                     : item.kind === "section" && !seccionesPorId.has(item.blockId)
                       ? "Esa sección ya no existe o está oculta"
-                      : null
+                      : item.kind === "custom" && !titulosPropias.has(item.pageKey)
+                        ? "Esa página ya no existe: no se muestra"
+                        : null
                 }
                 // Las páginas automáticas no se borran (volverían solas): se ocultan.
                 removable={item.kind !== "page" || !paginas.get(item.page)?.automatic}
@@ -207,6 +217,7 @@ export function MenuPanel({
             <AddMenuItem
               disabled={lleno}
               paginas={paginasParaAgregar.map((p) => ({ value: p.page, label: p.label }))}
+              propias={propiasParaAgregar.map((p) => ({ value: p.key, label: p.title }))}
               secciones={seccionesParaAgregar.map((s) => ({ value: s.blockId, label: s.label }))}
               onAdd={agregar}
             />
@@ -242,7 +253,7 @@ function MenuItemRow({
   onRemove: () => void;
 }) {
   const [editando, setEditando] = useState(false);
-  const tipo = item.kind === "page" ? "Página" : item.kind === "section" ? "Sección" : "Link";
+  const tipo = item.kind === "page" ? "Página" : item.kind === "custom" ? "Página propia" : item.kind === "section" ? "Sección" : "Link";
 
   return (
     <li
@@ -321,11 +332,13 @@ type Opcion = { value: string; label: string };
 function AddMenuItem({
   disabled,
   paginas,
+  propias,
   secciones,
   onAdd,
 }: {
   disabled: boolean;
   paginas: Opcion[];
+  propias: Opcion[];
   secciones: Opcion[];
   onAdd: (entry: SiteMenuEntry) => void;
 }) {
@@ -356,6 +369,16 @@ function AddMenuItem({
             opciones={paginas}
             onPick={(page) => {
               onAdd({ id: `page:${page}`, kind: "page", page, label: null, hidden: false });
+              setModo("cerrado");
+            }}
+          />
+        ) : null}
+        {propias.length > 0 ? (
+          <PickList
+            titulo="Una página propia"
+            opciones={propias}
+            onPick={(pageKey) => {
+              onAdd({ id: `custom:${pageKey}`, kind: "custom", pageKey, label: null, hidden: false });
               setModo("cerrado");
             }}
           />
