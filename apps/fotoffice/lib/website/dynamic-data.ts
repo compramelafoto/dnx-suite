@@ -51,7 +51,23 @@ export type WebsiteDynamicData = {
   /** Contacto de la institución (el mismo del pie del sitio), para completar los campos vacíos
    * del bloque CONTACT. Ya es público; sólo viaja si la página tiene el bloque. */
   contact?: PublicSiteContact;
+  /** Categorías y orígenes activos para el formulario de presupuesto (INQUIRY_FORM). Sólo viaja
+   * si la página tiene el bloque y Consultas está encendido; sin esto el bloque no se dibuja. */
+  inquiry?: InquiryFormData;
 };
+
+export type InquiryFormData = {
+  /** A qué workspace va la consulta (el formulario lo manda a `createSiteInquiry`). */
+  workspaceSlug: string;
+  categorias: Array<{ id: string; nombre: string }>;
+  origenes: Array<{ id: string; nombre: string }>;
+  /** Categoría preelegida (`/presupuesto?categoria=<id>`); se ignora si no está en la lista. */
+  categoriaPreelegida?: string;
+};
+
+export function hasVisibleInquiryForm(blocks: readonly WebsiteBlock[]): boolean {
+  return blocks.some((b) => b.type === "INQUIRY_FORM" && b.visible);
+}
 
 export function hasVisibleContact(blocks: readonly WebsiteBlock[]): boolean {
   return blocks.some((b) => b.type === "CONTACT" && b.visible);

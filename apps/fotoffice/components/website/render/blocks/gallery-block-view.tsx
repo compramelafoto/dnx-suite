@@ -12,7 +12,7 @@ const COLUMNS_CLASS: Record<GalleryBlockConfig["columns"], { grid: string; mason
 
 /** Sólo se dibujan fotos con enlace https (o ruta propia): nada de `javascript:` ni `data:`. */
 function isShowablePhoto(photo: GalleryPhoto): boolean {
-  return /^https:\/\//i.test(photo.url) || /^\/(?!\/)/.test(photo.url);
+  return /^https:\/\//i.test(photo.url) || /^\/(?![\/\\])/.test(photo.url);
 }
 
 /** Pixeles que hay que arrastrar a lo ancho para que cuente como deslizar (no como un toque). */

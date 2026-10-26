@@ -4,6 +4,7 @@ import { loadPublicSite } from "@/lib/website/public-site";
 import { loadWebsiteDynamicData } from "@/lib/website/dynamic-data.server";
 import { WebsitePageRenderer } from "@/components/website/render/website-page-renderer";
 import { PresupuestoLanding } from "./presupuesto-landing";
+import { origenesPublicosSinFallar } from "@/lib/consultas/formulario-publico";
 import { loadActivePlacement } from "@/lib/sponsors/placements";
 import { SponsorLogoMarquee } from "@/components/sponsors/logo-marquee";
 
@@ -39,10 +40,13 @@ export default async function PublicWorkspaceHomePage({ params }: Props) {
     );
   }
 
-  const form = await prisma.serviceLeadForm.findFirst({
-    where: { workspaceId: site.workspaceId, slug: "general", isActive: true },
-    select: { id: true, slug: true, title: true, description: true, configJson: true },
-  });
+  const [form, origenes] = await Promise.all([
+    prisma.serviceLeadForm.findFirst({
+      where: { workspaceId: site.workspaceId, slug: "general", isActive: true },
+      select: { id: true, slug: true, title: true, description: true, configJson: true },
+    }),
+    origenesPublicosSinFallar(site.workspaceId),
+  ]);
 
-  return <PresupuestoLanding workspaceSlug={workspaceSlug} commercialName={site.commercialName} form={form} />;
+  return <PresupuestoLanding workspaceSlug={workspaceSlug} commercialName={site.commercialName} form={form} origenes={origenes} />;
 }

@@ -3,7 +3,9 @@ import { prisma } from "@repo/db";
 import { blogPath, listBlogPosts, listBlogPostsByIds, postPath } from "@/lib/blog/public";
 import { toBlogCard } from "@/lib/blog/public-format";
 import type { PublicSite } from "./public-site";
-import { blogLatestLimitFor, hasVisibleContact, hasVisibleMemberOfWeek, type WebsiteDynamicData } from "./dynamic-data";
+import { blogLatestLimitFor, hasVisibleContact, hasVisibleInquiryForm, hasVisibleMemberOfWeek, type WebsiteDynamicData } from "./dynamic-data";
+import { opcionesDelFormulario } from "./inquiry";
+import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
 import { loadPublicMemberOfWeek } from "@/lib/spotlight/public";
 import { mainHeroBlockId, type HeroBlogSlide } from "./blog-banner";
 
@@ -43,6 +45,16 @@ export async function loadWebsiteDynamicData(site: PublicSite, blocks: PublicSit
 
   // El contacto ya viene en `site` (lo lee el layout para el pie): no hay otra consulta.
   if (hasVisibleContact(blocks)) data.contact = site.contact;
+
+  // El formulario de presupuesto da de alta en Consultas: con el módulo apagado no se dibuja.
+  // Si la lectura falla, tampoco (mejor sin formulario que uno sin categorías).
+  if (hasVisibleInquiryForm(blocks) && site.enabledModuleKeys.has(SERVICE_LEADS_MODULE_KEY)) {
+    const opciones = await opcionesDelFormulario(site.workspaceId).catch((err: unknown) => {
+      console.error("[fotoffice][website] no se pudieron leer las categorías del formulario:", err);
+      return null;
+    });
+    if (opciones) data.inquiry = { workspaceSlug: site.workspaceSlug, ...opciones };
+  }
 
   const heroBlockId = mainHeroBlockId(blocks);
   if (heroBlockId) {

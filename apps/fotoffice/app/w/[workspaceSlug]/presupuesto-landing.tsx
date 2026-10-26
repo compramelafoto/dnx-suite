@@ -1,3 +1,4 @@
+import type { OrigenDelFormulario } from "@/components/consultas/campo-origen";
 import { PublicDynamicServiceLeadForm } from "./public-dynamic-service-lead-form";
 
 type ServiceLeadFormData = {
@@ -17,6 +18,8 @@ type Props = {
   workspaceSlug: string;
   commercialName: string;
   form: ServiceLeadFormData | null;
+  /** Para «¿Cómo nos conociste?». */
+  origenes?: readonly OrigenDelFormulario[];
 };
 
 /**
@@ -27,7 +30,7 @@ type Props = {
  * Es el `<main>` que antes vivía en `page.tsx`, movido tal cual: el encabezado y los botones de
  * navegación ya no van acá, porque ahora los pone el armazón (`app/w/[workspaceSlug]/layout.tsx`).
  */
-export function PresupuestoLanding({ workspaceSlug, commercialName, form }: Props) {
+export function PresupuestoLanding({ workspaceSlug, commercialName, form, origenes = [] }: Props) {
   return (
     <main className="max-w-3xl mx-auto px-4 md:px-8 py-12 md:py-16">
       <section className="fo-card border-[var(--fo-accent)]/30 bg-[var(--fo-bg-elevated)] space-y-6">
@@ -47,7 +50,7 @@ export function PresupuestoLanding({ workspaceSlug, commercialName, form }: Prop
         {!form ? (
           <p className="text-sm text-[var(--fo-muted)] leading-relaxed">No hay formulario disponible.</p>
         ) : (
-          <PublicDynamicServiceLeadForm workspaceSlug={workspaceSlug} form={form} />
+          <PublicDynamicServiceLeadForm workspaceSlug={workspaceSlug} form={form} origenes={origenes} />
         )}
       </section>
     </main>

@@ -20,6 +20,9 @@ import { HOME_PAGE_KEY } from "@/lib/website/pages";
 import { mergePageSave } from "@/lib/website/save-pages";
 import { websiteDesignPresetsSchema } from "@/lib/website/design-presets";
 import { siteMenuSchema } from "@/lib/website/site-menu";
+import { getEnabledModuleKeysForWorkspace } from "@/lib/modules/gating";
+import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
+import { categoriasActivasPublicas } from "@/lib/website/inquiry";
 
 const websitePageMetaMapSchema = z.record(websitePageKeySchema, websitePageMetaSchema);
 
@@ -356,4 +359,23 @@ export async function saveWebsiteBrandingColorsAction(
   revalidatePath("/website");
   revalidatePath("/website/preview");
   return notice ? { error: null, ok: true, notice } : { error: null, ok: true };
+}
+
+/**
+ * Las categorías activas de Consultas, para que el inspector del formulario de presupuesto
+ * (INQUIRY_FORM) deje elegir cuáles ofrecer. Sólo lectura, con el permiso de ver el sitio; no
+ * escribe nada. Si Consultas está apagado, avisa: el bloque no se va a dibujar en el sitio.
+ */
+export type WebsiteInquiryCategoriesState = {
+  categorias: Array<{ id: string; nombre: string }>;
+  consultasEncendido: boolean;
+};
+
+export async function websiteInquiryCategoriesAction(): Promise<WebsiteInquiryCategoriesState> {
+  const { workspace } = await requireWebsiteContext();
+  const [modulos, categorias] = await Promise.all([
+    getEnabledModuleKeysForWorkspace(workspace.id),
+    categoriasActivasPublicas(workspace.id),
+  ]);
+  return { categorias, consultasEncendido: modulos.has(SERVICE_LEADS_MODULE_KEY) };
 }

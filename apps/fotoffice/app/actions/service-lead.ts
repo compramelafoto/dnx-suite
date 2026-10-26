@@ -1,62 +1,27 @@
 "use server";
 
 import { type Prisma, prisma } from "@repo/db";
-import { headers } from "next/headers";
 import { z } from "zod";
 import {
   altaDeConsulta, altaDelSistema, MAX_MENSAJE_CONSULTA, MAX_TEXTO_CONSULTA, MENSAJES_ALTA,
 } from "@/lib/consultas/alta";
+import {
+  camposPublicos, fechaOpcional, frenadoPorIp, MAX_CORTO, MENSAJE_FRENO, origenDelFormulario, recortar, vacioANull,
+} from "@/lib/consultas/formulario-publico";
 import { CAMPO_TRAMPA, cayoEnLaTrampa } from "@/lib/consultas/trampa";
-import { checkRateLimit, clientIp } from "@/lib/geocode/rate-limit";
 
 /**
- * Topes de largo del formulario público (es abierto: nadie tiene que iniciar sesión). Los mismos
- * números valen para la respuesta automática, que repite algunos de estos datos.
+ * Los topes de largo, el freno por IP y los recortes son los mismos que en el formulario del
+ * sitio (`createSiteInquiry`): viven en `lib/consultas/formulario-publico.ts`.
  */
-const MAX_NOMBRE = 120;
-const MAX_EMAIL = 254;
-const MAX_TELEFONO = 40;
-const MAX_MENSAJE = 4000;
-const MAX_CORTO = 200;
-
 const serviceLeadSchema = z.object({
-  workspaceSlug: z.string().min(1).max(MAX_CORTO),
+  ...camposPublicos,
   formId: z.string().max(MAX_CORTO).optional().or(z.literal("")),
   formSlug: z.string().max(MAX_CORTO).optional().or(z.literal("")),
-  name: z.string().min(1).max(MAX_NOMBRE, `El nombre puede tener hasta ${MAX_NOMBRE} caracteres.`),
-  email: z
-    .string()
-    .max(MAX_EMAIL, "Email inválido.")
-    .email("Email inválido.")
-    .optional()
-    .or(z.literal("")),
-  phone: z.string().max(MAX_TELEFONO, `El teléfono puede tener hasta ${MAX_TELEFONO} caracteres.`).optional().or(z.literal("")),
   eventType: z.string().min(1).max(MAX_CORTO),
   eventSubtype: z.string().max(MAX_CORTO).optional().or(z.literal("")),
-  eventDate: z.string().max(MAX_CORTO).optional().or(z.literal("")),
-  eventLocation: z.string().max(MAX_CORTO, `El lugar puede tener hasta ${MAX_CORTO} caracteres.`).optional().or(z.literal("")),
-  message: z.string().max(MAX_MENSAJE, `El mensaje puede tener hasta ${MAX_MENSAJE} caracteres.`).optional().or(z.literal("")),
   meta: z.record(z.string(), z.unknown()).nullable().optional(),
 });
-
-/**
- * Freno por IP del formulario público: el de memoria del proxy de geocodificación (cada instancia
- * de Vercel lleva su conteo, así que es "N por instancia"; no es un control de seguridad, sólo
- * evita un bucle o un raspador). Sin IP conocida no se frena: agruparía a todos juntos.
- */
-const FRENO_CONSULTAS = { limit: 10, windowMs: 10 * 60 * 1000 };
-const MENSAJE_FRENO = "Recibimos muchas consultas seguidas desde tu conexión. Probá de nuevo en unos minutos.";
-
-async function frenadoPorIp(): Promise<boolean> {
-  let ip: string;
-  try {
-    ip = clientIp(await headers());
-  } catch {
-    return false; // Fuera de un pedido (pruebas, scripts): no hay IP que contar.
-  }
-  if (ip === "desconocido") return false;
-  return !checkRateLimit({ key: `service-lead:${ip}`, ...FRENO_CONSULTAS }).allowed;
-}
 
 type CreateServiceLeadInput = {
   workspaceSlug: string;
@@ -70,29 +35,14 @@ type CreateServiceLeadInput = {
   eventDate?: string;
   eventLocation?: string;
   message?: string;
+  /** «¿Cómo nos conociste?»: un origen activo del workspace; cualquier otro valor se ignora. */
+  origenId?: string;
   meta?: Record<string, unknown> | null;
   /** El campo trampa (`lib/consultas/trampa.ts`): una persona lo deja vacío. */
   [CAMPO_TRAMPA]?: string;
 };
 
 type CreateServiceLeadResult = { success: true } | { success: false; error: string };
-
-function emptyToNull(value?: string): string | null {
-  const trimmed = value?.trim();
-  return trimmed ? trimmed : null;
-}
-
-/** Vacío = null; si no, recortado al tope (nunca rechaza: es lo que escribió quien consulta). */
-function recortar(value: string | undefined, max: number): string | null {
-  return emptyToNull(value)?.slice(0, max).trim() || null;
-}
-
-function parseOptionalDate(value?: string): Date | null {
-  const trimmed = value?.trim();
-  if (!trimmed) return null;
-  const date = new Date(trimmed);
-  return Number.isNaN(date.getTime()) ? null : date;
-}
 
 export async function createServiceLead(
   input: CreateServiceLeadInput,
@@ -115,6 +65,7 @@ export async function createServiceLead(
       eventDate: input.eventDate?.trim() ?? "",
       eventLocation: input.eventLocation?.trim() ?? "",
       message: input.message?.trim() ?? "",
+      origenId: input.origenId?.trim() ?? "",
       meta: input.meta ?? null,
     });
 
@@ -140,6 +91,8 @@ export async function createServiceLead(
         ? data.meta.budgetType.trim()
         : "";
     const resolvedEventSubtype = data.eventSubtype?.trim() || budgetTypeFromMeta || "";
+    // Sólo se consulta si la persona eligió algo: el origen es opcional.
+    const origenId = data.origenId ? await origenDelFormulario(prisma, branding.workspaceId, data.origenId) : null;
 
     // El alta única de la etapa 1, como formulario web: en una transacción el contacto (buscado
     // sólo por correo), la consulta y su ficha nueva con la categoría equivalente al tipo del
@@ -148,17 +101,18 @@ export async function createServiceLead(
     const alta = await altaDeConsulta(
       altaDelSistema(branding.workspaceId),
       {
-        contacto: { nombre: data.name, email: emptyToNull(data.email), telefono: emptyToNull(data.phone) },
+        contacto: { nombre: data.name, email: vacioANull(data.email), telefono: vacioANull(data.phone) },
         eventType: recortar(data.eventType, MAX_TEXTO_CONSULTA),
         // El subtipo puede venir de `meta.budgetType`, que zod no limita: se recorta al tope del
         // alta en lugar de rechazar la consulta (lo mismo con los demás textos, por las dudas).
         eventSubtype: recortar(resolvedEventSubtype, MAX_TEXTO_CONSULTA),
-        eventDate: parseOptionalDate(data.eventDate),
+        eventDate: fechaOpcional(data.eventDate),
         eventLocation: recortar(data.eventLocation, MAX_TEXTO_CONSULTA),
         message: recortar(data.message, MAX_MENSAJE_CONSULTA),
         metaJson: data.meta ? (data.meta as Prisma.InputJsonValue) : null,
-        formId: emptyToNull(data.formId),
+        formId: vacioANull(data.formId),
         formSlug: recortar(data.formSlug, MAX_TEXTO_CONSULTA),
+        ...(origenId ? { origenId } : {}),
       },
       { origenDelAlta: "WEB" },
     );

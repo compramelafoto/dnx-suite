@@ -4,6 +4,7 @@ import { isPrismaDbUnavailableError } from "@/lib/prisma-errors";
 import { getAuthUser } from "@/lib/auth";
 import { fotofficeLogoutAction } from "@/app/actions/auth";
 import { PublicServiceLeadForm } from "./public-service-lead-form";
+import { origenesPublicosSinFallar } from "@/lib/consultas/formulario-publico";
 
 type Props = { params: Promise<{ workspaceSlug: string }> };
 
@@ -56,14 +57,17 @@ export default async function PublicXvLandingPage({ params }: Props) {
   }
 
   if (!branding?.workspaceId) notFound();
-  const serviceLeadForm = await prisma.serviceLeadForm.findFirst({
-    where: {
-      workspaceId: branding.workspaceId,
-      slug: "xv",
-      isActive: true,
-    },
-    select: { id: true, configJson: true },
-  });
+  const [serviceLeadForm, origenes] = await Promise.all([
+    prisma.serviceLeadForm.findFirst({
+      where: {
+        workspaceId: branding.workspaceId,
+        slug: "xv",
+        isActive: true,
+      },
+      select: { id: true, configJson: true },
+    }),
+    origenesPublicosSinFallar(branding.workspaceId),
+  ]);
 
   return (
     <div className="bg-[var(--fo-bg)] text-[var(--fo-text)]">
@@ -121,6 +125,7 @@ export default async function PublicXvLandingPage({ params }: Props) {
             formId={serviceLeadForm?.id}
             formSlug="xv"
             configJson={serviceLeadForm?.configJson}
+            origenes={origenes}
           />
         </section>
 

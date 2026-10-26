@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { createServiceLead } from "@/app/actions/service-lead";
+import { CampoOrigen, type OrigenDelFormulario } from "@/components/consultas/campo-origen";
 import { CampoTrampa } from "@/components/consultas/campo-trampa";
 import { CAMPO_TRAMPA } from "@/lib/consultas/trampa";
 
@@ -98,10 +99,13 @@ function renderFieldInput(field: FieldDefinition) {
 export function PublicDynamicServiceLeadForm({
   workspaceSlug,
   form,
+  origenes = [],
   insertado = false,
 }: {
   workspaceSlug: string;
   form: FormPayload;
+  /** Para «¿Cómo nos conociste?» (orígenes activos del workspace). Vacío = no se pregunta. */
+  origenes?: readonly OrigenDelFormulario[];
   /** Dibujado dentro de otra web (`/w/<slug>/insertar`): no salta de página al terminar. */
   insertado?: boolean;
 }) {
@@ -184,6 +188,7 @@ export function PublicDynamicServiceLeadForm({
           name: formData.get("name")?.toString() ?? "",
           email: formData.get("email")?.toString() ?? "",
           phone: formData.get("phone")?.toString() ?? "",
+          origenId: formData.get("origenId")?.toString() ?? "",
           meta,
           [CAMPO_TRAMPA]: formData.get(CAMPO_TRAMPA)?.toString() ?? "",
         };
@@ -252,6 +257,8 @@ export function PublicDynamicServiceLeadForm({
           ))}
         </div>
       ) : null}
+
+      <CampoOrigen id="general-origen" origenes={origenes} />
 
       {error ? (
         <p className="text-sm text-[var(--fo-danger)]" role="alert">

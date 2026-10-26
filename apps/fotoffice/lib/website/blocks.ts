@@ -335,6 +335,26 @@ export const contactConfigSchema = z.object({
   socials: z.array(contactSocialSchema).max(20),
 });
 
+/**
+ * Formulario de presupuesto: da de alta una consulta en Consultas (el embudo de ventas) desde el
+ * sitio. `categoryIds` vacío = todas las categorías activas; las de la lista que se archiven
+ * después no rompen nada (ver `categoriasDelBloque` y `resolverCategoriaDelSitio`). Las
+ * categorías y los orígenes se leen al dibujar, nunca se copian acá.
+ */
+export const INQUIRY_DEFAULT_BUTTON_LABEL = "Pedir presupuesto";
+export const INQUIRY_DEFAULT_THANKS = "¡Gracias! Te escribimos dentro de las 24 horas.";
+
+export const inquiryFormConfigSchema = z.object({
+  title: z.string().max(200).optional().catch(undefined),
+  intro: z.string().max(600).optional().catch(undefined),
+  categoryIds: z.array(z.string().min(1).max(100)).max(200).catch([]),
+  askOrigin: z.boolean().catch(true),
+  askEventDate: z.boolean().catch(true),
+  askEventLocation: z.boolean().catch(true),
+  buttonLabel: z.string().trim().min(1).max(60).catch(INQUIRY_DEFAULT_BUTTON_LABEL),
+  thanksMessage: z.string().trim().min(1).max(400).catch(INQUIRY_DEFAULT_THANKS),
+});
+
 const blockEnvelope = {
   id: z.string().min(1),
   visible: z.boolean(),
@@ -351,6 +371,7 @@ export const galleryBlockSchema = z.object({ ...blockEnvelope, type: z.literal("
 export const videoBlockSchema = z.object({ ...blockEnvelope, type: z.literal("VIDEO"), config: videoConfigSchema });
 export const embedBlockSchema = z.object({ ...blockEnvelope, type: z.literal("EMBED"), config: embedConfigSchema });
 export const contactBlockSchema = z.object({ ...blockEnvelope, type: z.literal("CONTACT"), config: contactConfigSchema });
+export const inquiryFormBlockSchema = z.object({ ...blockEnvelope, type: z.literal("INQUIRY_FORM"), config: inquiryFormConfigSchema });
 export const blogLatestBlockSchema = z.object({ ...blockEnvelope, type: z.literal("BLOG_LATEST"), config: blogLatestConfigSchema });
 export const memberOfWeekBlockSchema = z.object({ ...blockEnvelope, type: z.literal("MEMBER_OF_WEEK"), config: memberOfWeekConfigSchema });
 
@@ -365,6 +386,7 @@ export const websiteBlockSchema = z.discriminatedUnion("type", [
   videoBlockSchema,
   embedBlockSchema,
   contactBlockSchema,
+  inquiryFormBlockSchema,
   blogLatestBlockSchema,
   memberOfWeekBlockSchema,
 ]);
@@ -403,6 +425,7 @@ export type GalleryBlockConfig = z.infer<typeof galleryConfigSchema>;
 export type VideoBlockConfig = z.infer<typeof videoConfigSchema>;
 export type EmbedBlockConfig = z.infer<typeof embedConfigSchema>;
 export type ContactBlockConfig = z.infer<typeof contactConfigSchema>;
+export type InquiryFormBlockConfig = z.infer<typeof inquiryFormConfigSchema>;
 export type BlogLatestBlockConfig = z.infer<typeof blogLatestConfigSchema>;
 export type MemberOfWeekBlockConfig = z.infer<typeof memberOfWeekConfigSchema>;
 
@@ -416,6 +439,7 @@ export type GalleryBlock = z.infer<typeof galleryBlockSchema>;
 export type VideoBlock = z.infer<typeof videoBlockSchema>;
 export type EmbedBlock = z.infer<typeof embedBlockSchema>;
 export type ContactBlock = z.infer<typeof contactBlockSchema>;
+export type InquiryFormBlock = z.infer<typeof inquiryFormBlockSchema>;
 export type BlogLatestBlock = z.infer<typeof blogLatestBlockSchema>;
 export type MemberOfWeekBlock = z.infer<typeof memberOfWeekBlockSchema>;
 
@@ -613,6 +637,25 @@ export const WEBSITE_BLOCK_DEFINITIONS: {
     defaultConfig: () => ({ title: "Contacto", useWorkspaceData: true, socials: [] }),
     // Alimenta también el menú (ver HERO).
     previewLabel: (c) => c.title?.trim() || "Contacto",
+  },
+  INQUIRY_FORM: {
+    type: "INQUIRY_FORM",
+    label: "Formulario de presupuesto",
+    description: "Quien visita el sitio pide presupuesto y la consulta entra sola a Consultas, con su categoría y cómo te conoció.",
+    category: "COMERCIAL",
+    source: "dynamic",
+    defaultConfig: () => ({
+      title: "",
+      intro: "",
+      categoryIds: [],
+      askOrigin: true,
+      askEventDate: true,
+      askEventLocation: true,
+      buttonLabel: INQUIRY_DEFAULT_BUTTON_LABEL,
+      thanksMessage: INQUIRY_DEFAULT_THANKS,
+    }),
+    // Alimenta también el menú (ver HERO).
+    previewLabel: (c) => c.title?.trim() || "Pedí tu presupuesto",
   },
   BLOG_LATEST: {
     type: "BLOG_LATEST",

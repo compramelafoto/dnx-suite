@@ -1,6 +1,7 @@
 import { useEffect, useRef, type ComponentType } from "react";
 import { ImageUploadField } from "@/components/image-upload-field";
 import { GalleryPhotosEditor } from "@/components/website/inspector/gallery-photos-editor";
+import { InquiryFormInspector } from "@/components/website/inspector/inquiry-form-inspector";
 import { RichTextField } from "@/components/website/inspector/rich-text-field";
 import { SelectField, TextAreaField, TextField, ToggleField } from "@/components/website/inspector/inspector-fields";
 import { HeroBlockView } from "@/components/website/render/blocks/hero-block-view";
@@ -9,6 +10,7 @@ import { TextBlockView } from "@/components/website/render/blocks/text-block-vie
 import { ImageBlockView } from "@/components/website/render/blocks/image-block-view";
 import { CtaBlockView } from "@/components/website/render/blocks/cta-block-view";
 import { ContactBlockView } from "@/components/website/render/blocks/contact-block-view";
+import { InquiryFormBlockView } from "@/components/website/render/blocks/inquiry-form-block-view";
 import { GalleryBlockView } from "@/components/website/render/blocks/gallery-block-view";
 import { VideoBlockView } from "@/components/website/render/blocks/video-block-view";
 import { EmbedBlockView } from "@/components/website/render/blocks/embed-block-view";
@@ -66,32 +68,32 @@ function RichTextInspector({ config, onChange }: { config: RichTextBlockConfig; 
     latest.current = config;
   }, [config]);
   return (
-      <div className="space-y-4">
-        <TextField label="Título (opcional)" value={config.title ?? ""} onChange={(v) => onChange({ ...config, title: v })} />
-        <div className="space-y-1.5">
-          <span className="fo-label">Texto</span>
-          <RichTextField html={config.html} onChange={(html) => onChange({ ...latest.current, html })} />
-        </div>
-        <SelectField
-          label="Alineación"
-          value={config.align}
-          onChange={(v) => onChange({ ...config, align: v as RichTextBlockConfig["align"] })}
-          options={[
-            { value: "left", label: "Izquierda" },
-            { value: "center", label: "Centro" },
-          ]}
-        />
-        <SelectField
-          label="Ancho"
-          value={config.width}
-          onChange={(v) => onChange({ ...config, width: v as RichTextBlockConfig["width"] })}
-          options={[
-            { value: "narrow", label: "Angosto" },
-            { value: "normal", label: "Normal" },
-            { value: "wide", label: "Ancho" },
-          ]}
-        />
+    <div className="space-y-4">
+      <TextField label="Título (opcional)" value={config.title ?? ""} onChange={(v) => onChange({ ...config, title: v })} />
+      <div className="space-y-1.5">
+        <span className="fo-label">Texto</span>
+        <RichTextField html={config.html} onChange={(html) => onChange({ ...latest.current, html })} />
       </div>
+      <SelectField
+        label="Alineación"
+        value={config.align}
+        onChange={(v) => onChange({ ...config, align: v as RichTextBlockConfig["align"] })}
+        options={[
+          { value: "left", label: "Izquierda" },
+          { value: "center", label: "Centro" },
+        ]}
+      />
+      <SelectField
+        label="Ancho"
+        value={config.width}
+        onChange={(v) => onChange({ ...config, width: v as RichTextBlockConfig["width"] })}
+        options={[
+          { value: "narrow", label: "Angosto" },
+          { value: "normal", label: "Normal" },
+          { value: "wide", label: "Ancho" },
+        ]}
+      />
+    </div>
   );
 }
 
@@ -322,6 +324,10 @@ export const WEBSITE_BLOCK_REGISTRY: { [K in WebsiteBlockType]: BlockRegistryEnt
         </div>
       </div>
     ),
+  },
+  INQUIRY_FORM: {
+    View: InquiryFormBlockView,
+    Inspector: InquiryFormInspector,
   },
   BLOG_LATEST: {
     View: BlogLatestBlockView,
