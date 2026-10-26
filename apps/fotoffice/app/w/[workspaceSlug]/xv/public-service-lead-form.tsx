@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { createServiceLead } from "@/app/actions/service-lead";
 import { CampoTrampa } from "@/components/consultas/campo-trampa";
 import { CAMPO_TRAMPA } from "@/lib/consultas/trampa";
+import { useHidratado } from "@/lib/ui/use-hidratado";
 
 type XvFormConfig = {
   postSubmitAction?: {
@@ -61,6 +62,7 @@ export function PublicServiceLeadForm({
   insertado?: boolean;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
+  const hidratado = useHidratado();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState(false);
@@ -104,8 +106,10 @@ export function PublicServiceLeadForm({
   }
 
   return (
+    // POST: si se envía antes de que cargue la página, los datos no quedan en la dirección.
     <form
       ref={formRef}
+      method="post"
       className="space-y-4"
       onSubmit={(e) => {
         e.preventDefault();
@@ -192,8 +196,8 @@ export function PublicServiceLeadForm({
         </p>
       ) : null}
 
-      <button type="submit" className="fo-btn fo-btn-primary w-full" disabled={pending}>
-        {pending ? "Enviando..." : "Enviar consulta"}
+      <button type="submit" className="fo-btn fo-btn-primary w-full" disabled={pending || !hidratado}>
+        {pending ? "Enviando..." : hidratado ? "Enviar consulta" : "Cargando..."}
       </button>
     </form>
   );
