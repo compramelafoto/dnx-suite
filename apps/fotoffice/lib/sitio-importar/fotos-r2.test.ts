@@ -1,7 +1,8 @@
 import sharp from "sharp";
 import { describe, expect, it, vi } from "vitest";
 import { isFotofficeOwnedR2Key } from "@/lib/images/r2-key-policy";
-import { crearCopiadorDeFotos, keyDeFoto, prefijoImagenesBlog, prefijoImagenesPagina, type DepsCopia } from "./fotos-r2";
+import { existsSync, readFileSync } from "node:fs";
+import { crearCopiadorDeFotos, depsConWrangler, keyDeFoto, prefijoImagenesBlog, prefijoImagenesPagina, WRANGLER_TIMEOUT_MS, type DepsCopia, type Ejecutar } from "./fotos-r2";
 
 const WS = "cmv5z6qxwwmmhf0q5gp8qja1j";
 const PREFIJO = prefijoImagenesPagina(WS);
@@ -143,5 +144,77 @@ describe("copiarFoto", () => {
     const r = await crearCopiadorDeFotos(deps(fetchFn).deps).copiarFoto(ORIGEN, "otra-app/fotos/");
     expect(r).toEqual({ error: "destino fuera del espacio de FOTOFFICE" });
     expect(fetchFn).not.toHaveBeenCalled();
+  });
+});
+
+describe("subida con wrangler", () => {
+  const BASE = "https://pub-x.r2.dev";
+
+  function wrangler(resultados: Array<{ code: number; stderr?: string }> = [{ code: 0 }]) {
+    const archivos: Array<{ existia: boolean; bytes: Buffer | null; ruta: string }> = [];
+    const ejecutar = vi.fn<Ejecutar>(async (_cmd, args) => {
+      const ruta = args[args.indexOf("--file") + 1];
+      archivos.push({ ruta, existia: existsSync(ruta), bytes: existsSync(ruta) ? readFileSync(ruta) : null });
+      const r = resultados.shift() ?? { code: 0 };
+      return { code: r.code, stdout: "", stderr: r.stderr ?? "" };
+    });
+    return { ejecutar, archivos };
+  }
+
+  it("sube con `npx wrangler r2 object put` al bucket, con el tipo y --remote, y borra el temporal", async () => {
+    const w = wrangler();
+    const head = vi.fn(async () => respuesta("", 404));
+    const r2 = depsConWrangler({ bucket: "fotoffice-media", basePublica: `${BASE}/`, ejecutar: w.ejecutar, fetch: head, esperar: async () => {} });
+    const bytes = await jpeg(1200, 800);
+    const { copiarFoto } = crearCopiadorDeFotos({ fetch: vi.fn(async () => respuesta(bytes)), ...r2, esperar: async () => {} });
+    const r = await copiarFoto(ORIGEN, PREFIJO);
+    const key = keyDeFoto(ORIGEN, PREFIJO);
+    expect(r).toMatchObject({ url: `${BASE}/${key}`, key, ancho: 1200, alto: 800 });
+    // Antes de subir pregunta si ya está, por la dirección pública.
+    expect(head).toHaveBeenCalledWith(`${BASE}/${key}`, expect.objectContaining({ method: "HEAD" }));
+    const [cmd, args, opciones] = w.ejecutar.mock.calls[0];
+    expect(cmd).toBe("npx");
+    expect(args).toEqual(["wrangler", "r2", "object", "put", `fotoffice-media/${key}`, "--file", w.archivos[0].ruta, "--content-type", "image/jpeg", "--remote"]);
+    expect(opciones).toEqual({ timeoutMs: WRANGLER_TIMEOUT_MS });
+    expect(w.archivos[0].existia).toBe(true);
+    expect(w.archivos[0].bytes?.equals(bytes)).toBe(true);
+    expect(existsSync(w.archivos[0].ruta)).toBe(false);
+  });
+
+  it("si ya está en R2 (HEAD 200) no la baja ni la sube", async () => {
+    const w = wrangler();
+    const r2 = depsConWrangler({
+      bucket: "fotoffice-media",
+      basePublica: BASE,
+      ejecutar: w.ejecutar,
+      fetch: vi.fn(async () => respuesta("", 200, { "content-type": "image/jpeg", "content-length": "1234" })),
+    });
+    const bajar = vi.fn(async () => respuesta("x"));
+    const r = await crearCopiadorDeFotos({ fetch: bajar, ...r2 }).copiarFoto(ORIGEN, PREFIJO);
+    expect(r).toMatchObject({ ancho: null, alto: null, tipo: "image/jpeg", peso: 1234 });
+    expect(bajar).not.toHaveBeenCalled();
+    expect(w.ejecutar).not.toHaveBeenCalled();
+  });
+
+  it("reintenta 2 veces y después informa el error", async () => {
+    const w = wrangler([{ code: 1, stderr: "uno" }, { code: 1, stderr: "dos" }, { code: 1, stderr: "Authentication error" }]);
+    const r2 = depsConWrangler({ bucket: "fotoffice-media", basePublica: BASE, ejecutar: w.ejecutar, fetch: vi.fn(async () => respuesta("", 404)), esperar: async () => {} });
+    const bytes = await jpeg(10, 10);
+    const r = await crearCopiadorDeFotos({ fetch: vi.fn(async () => respuesta(bytes)), ...r2, esperar: async () => {} }).copiarFoto(ORIGEN, PREFIJO);
+    expect(r).toEqual({ error: expect.stringContaining("Authentication error") });
+    expect(w.ejecutar).toHaveBeenCalledTimes(3);
+  });
+
+  it("una key fuera del espacio de FOTOFFICE nunca llega a wrangler", async () => {
+    const w = wrangler();
+    const r2 = depsConWrangler({ bucket: "fotoffice-media", basePublica: BASE, ejecutar: w.ejecutar });
+    await expect(r2.subir(Buffer.from("x"), "otra-app/x.jpg", "image/jpeg")).rejects.toThrow("fuera del espacio de FOTOFFICE");
+    await expect(r2.subir(Buffer.from("x"), "fotoffice/site-paginas/../../x.jpg", "image/jpeg")).rejects.toThrow();
+    expect(w.ejecutar).not.toHaveBeenCalled();
+  });
+
+  it("pide una dirección pública https y un bucket válido", () => {
+    expect(() => depsConWrangler({ bucket: "fotoffice-media", basePublica: "" })).toThrow();
+    expect(() => depsConWrangler({ bucket: "a b", basePublica: BASE })).toThrow();
   });
 });

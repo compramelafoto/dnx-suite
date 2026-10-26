@@ -149,3 +149,19 @@ describe("paginaABloques", () => {
     expect(galeria.type === "GALLERY" && galeria.config.photos.map((f) => f.url)).toEqual(["https://a.com/1.jpg", "https://a.com/2.jpg", "https://a.com/3.jpg"]);
   });
 });
+
+describe("paginaABloques con muchos espacios duros", () => {
+  it("un párrafo con 40 espacios duros se procesa enseguida (sin retroceso exponencial)", () => {
+    const duros = " &nbsp;".repeat(40);
+    const html = `<p>${duros}x</p><p>${duros}</p><p><span>${duros}</span>${duros}`;
+    const inicio = Date.now();
+    const bloques = paginaABloques({
+      titulo: "Prueba",
+      portadaUrl: null,
+      iframes: [],
+      secciones: [{ titulo: "Texto", html, imagenes: [], botones: [], iframes: [], formulario: false }],
+    });
+    expect(Date.now() - inicio).toBeLessThan(500);
+    expect(bloques[0]?.type).toBe("RICH_TEXT");
+  });
+});

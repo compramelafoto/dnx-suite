@@ -37,7 +37,7 @@ export type FotoDeTrabajoNueva = {
   origenUrl: string;
 };
 
-export type TrabajoExistente = { id: string; slug: string; categoriaId: string | null; portadaUrl: string | null; origenesFotos: string[] };
+export type TrabajoExistente = { id: string; slug: string; categoriaId: string | null; portadaUrl: string | null; estado: string; origenesFotos: string[] };
 
 export type TestimonioNuevo = {
   datos: DatosTestimonio;
@@ -159,7 +159,7 @@ export function crearDestinoEnMemoria(estado: EstadoEnMemoria = estadoVacio()): 
     },
     async trabajoPorOrigen(origenExternoId) {
       const t = estado.trabajos.find((x) => x.origenExternoId === origenExternoId);
-      return t ? { id: t.id, slug: t.slug, categoriaId: t.categoriaId, portadaUrl: t.portadaUrl, origenesFotos: t.fotos.map((f) => f.origenUrl) } : null;
+      return t ? { id: t.id, slug: t.slug, categoriaId: t.categoriaId, portadaUrl: t.portadaUrl, estado: t.estado, origenesFotos: t.fotos.map((f) => f.origenUrl) } : null;
     },
     async slugsDeTrabajos() {
       return estado.trabajos.map((t) => t.slug);

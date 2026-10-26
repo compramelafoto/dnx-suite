@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { HeadObjectCommand } from "@aws-sdk/client-s3";
 import { getFotofficeR2Bucket, getFotofficeR2Client, getFotofficeR2PublicUrl, uploadToFotofficeR2 } from "@/lib/images/r2-client";
-import { FOTOFFICE_R2_PREFIXES, isFotofficeOwnedR2Key } from "@/lib/images/r2-key-policy";
+import { FOTOFFICE_R2_PREFIXES, assertSafeFotofficeR2Key, isFotofficeOwnedR2Key } from "@/lib/images/r2-key-policy";
 import { sniffImageFormat, type SniffedImageFormat } from "@/lib/images/validation";
 
 /**
@@ -183,3 +183,94 @@ function depsReales(): DepsCopia {
     esperar: (ms) => new Promise((r) => setTimeout(r, ms)),
   };
 }
+
+// ── Subida con wrangler ───────────────────────────────────────────────────────────────────────
+
+/**
+ * Corre un comando y devuelve su salida. Nunca usa un shell: los argumentos van separados, así una
+ * key no puede inyectar nada.
+ */
+export type Ejecutar = (comando: string, args: string[], opciones: { timeoutMs: number }) => Promise<{ code: number; stdout: string; stderr: string }>;
+
+export type OpcionesWrangler = {
+  /** Bucket de FOTOFFICE (`fotoffice-media`). */
+  bucket: string;
+  /** Dirección pública de las keys (la misma que `R2_PUBLIC_URL` en producción), sin barra final. */
+  basePublica: string;
+  ejecutar?: Ejecutar;
+  fetch?: (url: string, init?: RequestInit) => Promise<Response>;
+  esperar?: (ms: number) => Promise<void>;
+};
+
+export const WRANGLER_TIMEOUT_MS = 120_000;
+const WRANGLER_REINTENTOS = 2;
+
+/**
+ * Para correr el importador sin las credenciales `R2_*` (que en Vercel son sensibles y no se pueden
+ * volver a leer): sube cada foto con `wrangler r2 object put … --remote`, que usa la sesión de
+ * Cloudflare de esta máquina, y pregunta si ya existe con un HEAD a la dirección pública.
+ *
+ * La política de keys se vuelve a mirar antes de cada subida: una key fuera del espacio de FOTOFFICE
+ * no llega nunca a wrangler. wrangler no guarda metadatos propios, así que en otra corrida una foto
+ * que ya estaba vuelve sin medidas (`ancho`/`alto` null); la fila del trabajo ya las tiene.
+ */
+export function depsConWrangler(o: OpcionesWrangler): Pick<DepsCopia, "subir" | "cabecera" | "urlPublica"> {
+  const base = o.basePublica.replace(/\/+$/, "");
+  if (!/^https:\/\/[^/\s]+/i.test(base)) throw new Error(`La dirección pública de R2 no es válida: ${o.basePublica}`);
+  if (!/^[a-z0-9][a-z0-9-]{1,62}$/.test(o.bucket)) throw new Error(`El bucket no es válido: ${o.bucket}`);
+  const ejecutar = o.ejecutar ?? ejecutarDeVerdad;
+  const pedir = o.fetch ?? ((url: string, init?: RequestInit) => fetch(url, init));
+  const esperar = o.esperar ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+  const urlPublica = (key: string) => `${base}/${key}`;
+
+  return {
+    urlPublica,
+    async cabecera(key) {
+      const res = await pedir(urlPublica(key), { method: "HEAD", signal: AbortSignal.timeout(20_000) });
+      if (res.status === 404) return null;
+      if (!res.ok) throw new Error(`R2 respondió ${res.status} al preguntar por ${key}`);
+      const largo = Number(res.headers.get("content-length"));
+      return { metadata: {}, tipo: res.headers.get("content-type"), peso: Number.isFinite(largo) && largo > 0 ? largo : null };
+    },
+    async subir(bytes, key, tipo) {
+      const segura = assertSafeFotofficeR2Key(key);
+      if (!isFotofficeOwnedR2Key(segura)) throw new Error("destino fuera del espacio de FOTOFFICE");
+      const { mkdtemp, writeFile, rm } = await import("node:fs/promises");
+      const { tmpdir } = await import("node:os");
+      const { join } = await import("node:path");
+      const carpeta = await mkdtemp(join(tmpdir(), "fotoffice-importador-"));
+      const archivo = join(carpeta, "foto");
+      try {
+        await writeFile(archivo, bytes);
+        let error = "";
+        for (let intento = 0; intento <= WRANGLER_REINTENTOS; intento++) {
+          if (intento > 0) await esperar(2000 * intento);
+          try {
+            const r = await ejecutar(
+              "npx",
+              ["wrangler", "r2", "object", "put", `${o.bucket}/${segura}`, "--file", archivo, "--content-type", tipo, "--remote"],
+              { timeoutMs: WRANGLER_TIMEOUT_MS },
+            );
+            if (r.code === 0) return { key: segura, url: urlPublica(segura) };
+            error = (r.stderr || r.stdout).trim().split("\n").slice(-3).join(" ").slice(0, 300) || `wrangler terminó con código ${r.code}`;
+          } catch (err) {
+            error = err instanceof Error ? err.message : String(err);
+          }
+        }
+        throw new Error(`no se pudo subir con wrangler: ${error}`);
+      } finally {
+        await rm(carpeta, { recursive: true, force: true });
+      }
+    },
+  };
+}
+
+const ejecutarDeVerdad: Ejecutar = async (comando, args, opciones) => {
+  const { execFile } = await import("node:child_process");
+  return new Promise((resolver) => {
+    execFile(comando, args, { timeout: opciones.timeoutMs, maxBuffer: 10 * 1024 * 1024 }, (err, stdout, stderr) => {
+      const code = err ? (typeof (err as { code?: unknown }).code === "number" ? ((err as { code: number }).code) : 1) : 0;
+      resolver({ code, stdout: String(stdout), stderr: String(stderr) || (err ? err.message : "") });
+    });
+  });
+};

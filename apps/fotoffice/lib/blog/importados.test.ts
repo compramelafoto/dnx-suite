@@ -13,12 +13,13 @@ const { contarBorradoresImportados, publicarBorradoresImportados } = await impor
 beforeEach(() => vi.clearAllMocks());
 
 describe("contenido importado del blog", () => {
-  it("reconoce los artículos importados por sus redirecciones y sólo mira los borradores", async () => {
-    m.redireccion.findMany.mockResolvedValueOnce([{ hacia: "/blog/a" }, { hacia: "/blog/a" }, { hacia: "/blog/b" }]);
-    m.blogPost.findMany.mockResolvedValueOnce([{ id: 1 }]);
+  it("sólo cuenta los artículos que creó el importador (por id), y sólo si siguen en borrador", async () => {
+    m.redireccion.findMany.mockResolvedValueOnce([{ origen: "alboom-prosite:post=7" }, { origen: "alboom-prosite:post=7" }, { origen: "alboom-prosite:post=9" }]);
+    m.blogPost.findMany.mockResolvedValueOnce([{ id: 7 }]);
     expect(await contarBorradoresImportados("ws")).toBe(1);
-    expect(m.redireccion.findMany.mock.calls[0][0].where).toEqual({ workspaceId: "ws", origen: "alboom-prosite", hacia: { startsWith: "/blog/" } });
-    expect(m.blogPost.findMany.mock.calls[0][0].where).toEqual({ platform: "fotoffice", workspaceKey: "ws", status: "DRAFT", slug: { in: ["a", "b"] } });
+    expect(m.redireccion.findMany.mock.calls[0][0].where).toEqual({ workspaceId: "ws", origen: { startsWith: "alboom-prosite:post=" } });
+    // Por id: un borrador que ya existía con el mismo slug no entra.
+    expect(m.blogPost.findMany.mock.calls[0][0].where).toEqual({ platform: "fotoffice", workspaceKey: "ws", status: "DRAFT", id: { in: [7, 9] } });
   });
 
   it("sin la tabla de redirecciones no hay nada importado", async () => {
@@ -28,7 +29,7 @@ describe("contenido importado del blog", () => {
   });
 
   it("publica cada borrador importado sin tocar su fecha", async () => {
-    m.redireccion.findMany.mockResolvedValueOnce([{ hacia: "/blog/a" }]);
+    m.redireccion.findMany.mockResolvedValueOnce([{ origen: "alboom-prosite:post=1" }, { origen: "alboom-prosite:post=2" }]);
     m.blogPost.findMany.mockResolvedValueOnce([{ id: 1 }, { id: 2 }]);
     m.updateBlogPost.mockResolvedValue({ id: 1 });
     expect(await publicarBorradoresImportados("ws")).toBe(2);

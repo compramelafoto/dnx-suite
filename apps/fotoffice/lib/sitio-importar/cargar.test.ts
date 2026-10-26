@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { parseWebsiteSections } from "@/lib/website/blocks";
 import { parseSiteMenu } from "@/lib/website/site-menu";
 import { compilarRedirecciones, resolverRedireccion } from "@/lib/website/redirecciones-reglas";
+import { leerArticulo } from "./alboom/articulo";
 import { leerTrabajo } from "./alboom/trabajo";
 import { fechaArgentinaAUtc, importarSitioAlboom, recortarSlug, slugDeArticulo, type CopiarFoto } from "./cargar";
 import { crearDestinoEnMemoria, estadoVacio } from "./destino";
@@ -177,8 +178,9 @@ describe("importarSitioAlboom", () => {
     expect(resolverRedireccion(tabla, "/cursoxv")?.hacia).toBe("/curso-xv");
     expect(resolverRedireccion(tabla, "/los15depia")?.hacia).toBe("/trabajos");
     expect(resolverRedireccion(tabla, "/proof/XyZ")).toEqual({ hacia: "https://dnxfotografia.alboompro.com/proof/XyZ", codigo: 302 });
+    expect(informe.redirecciones.creadas).toBe(estado.redirecciones.length);
     expect(informe.landingsNoMigradas).toEqual([{ ruta: "/los15depia", url: `${BASE}/los15depia` }]);
-    expect(estado.redirecciones.every((r) => r.origen === "alboom-prosite")).toBe(true);
+    expect(estado.redirecciones.every((r) => r.origen === "alboom-prosite" || r.origen.startsWith("alboom-prosite:post="))).toBe(true);
     expect(informe.logo).toBe("copiado");
   });
 
@@ -215,6 +217,36 @@ describe("importarSitioAlboom", () => {
     const segunda = await correr(primera.estado);
     expect(segunda.informe.trabajos.completados).toBe(1);
     expect(emma.fotos).toHaveLength(total);
+  });
+
+  it("marca los artículos que creó para publicarlos después, nunca un borrador que ya existía", async () => {
+    const estado = estadoVacio();
+    const slugMudanza = slugDeArticulo(leerArticulo(fx("articulo-89987.html"), `${BASE}/post.php?id=89987`));
+    estado.articulos.push({ id: 999, createdAt: new Date(), data: { slug: slugMudanza, title: "Mío", status: "DRAFT" } as never });
+    const { informe, estado: final } = await correr(estado);
+    expect(informe.articulos).toMatchObject({ creados: 1, existentes: 1 });
+    const marcas = final.redirecciones.filter((r) => r.origen.startsWith("alboom-prosite:post="));
+    const creado = final.articulos.find((a) => a.id !== 999)!;
+    expect(marcas).toEqual([{ desde: "/post.php?id=476452", hacia: `/blog/${creado.data.slug}`, codigo: 301, origen: `alboom-prosite:post=${creado.id}` }]);
+    // La regla del artículo que ya estaba existe igual, pero sin marca.
+    expect(final.redirecciones.find((r) => r.desde === "/post.php?id=89987")?.origen).toBe("alboom-prosite");
+  });
+
+  it("un trabajo importado que quedó en borrador se completa y se publica en la corrida siguiente", async () => {
+    const primera = await correr();
+    const emma = primera.estado.trabajos.find((t) => t.origenExternoId === "1465286")!;
+    emma.estado = "BORRADOR";
+    const segunda = await correr(primera.estado);
+    expect(emma.estado).toBe("PUBLICADO");
+    expect(segunda.informe.trabajos.completados).toBe(1);
+    expect(segunda.informe.trabajos.detalle.find((d) => d.alboomId === "1465286")?.estado).toBe("completado");
+  });
+
+  it("avisa que el menú del borrador se reemplaza entero", async () => {
+    const estado = estadoVacio();
+    estado.borrador.navJson = { version: 2, items: [{ id: "page:home", kind: "page", page: "home", label: "Casa", hidden: false }] };
+    const { informe } = await correr(estado);
+    expect(informe.avisos.some((a) => a.includes("menú del borrador") && a.includes("reemplazó entero"))).toBe(true);
   });
 
   it("el informe en español lista contadores, fotos fallidas y landings", async () => {

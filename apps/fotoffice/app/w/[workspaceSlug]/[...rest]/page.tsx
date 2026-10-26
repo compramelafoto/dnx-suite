@@ -46,11 +46,14 @@ export default async function CatchAllRoute({ params, searchParams }: Props) {
   );
 }
 
-/** La ruta del sitio que se pidió, con el `?id=` que usan las direcciones viejas (`post.php?id=`). */
+/** La ruta del sitio que se pidió, con su consulta (la usan `post.php?id=` y se pasa al destino). */
 function rutaPedida(rest: string[], query: Record<string, string | string[] | undefined>): string {
-  const id = query.id;
-  const valor = Array.isArray(id) ? id[0] : id;
-  return `/${rest.join("/")}${valor ? `?id=${encodeURIComponent(valor)}` : ""}`;
+  const params = new URLSearchParams();
+  for (const [k, v] of Object.entries(query)) {
+    for (const valor of Array.isArray(v) ? v : v === undefined ? [] : [v]) params.append(k, valor);
+  }
+  const consulta = params.toString();
+  return `/${rest.join("/")}${consulta ? `?${consulta}` : ""}`;
 }
 
 /** Título (el SEO de la página, o su nombre) con el nombre comercial, y su descripción propia. */

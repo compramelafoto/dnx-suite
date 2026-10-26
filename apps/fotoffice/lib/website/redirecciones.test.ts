@@ -59,9 +59,29 @@ describe("resolverRedireccion", () => {
     expect(resolverRedireccion(tabla(["/a", "/A/"]), "/a")).toBeNull();
   });
 
-  it("corta a los 3 saltos", () => {
-    const t = tabla(["/a", "/b"], ["/b", "/c"], ["/c", "/d"], ["/d", "/e"]);
-    expect(resolverRedireccion(t, "/a")).toEqual({ hacia: "/d", codigo: 301 });
+  it("sigue hasta 3 saltos; si después todavía hay otra regla, no redirige", () => {
+    expect(resolverRedireccion(tabla(["/a", "/b"], ["/b", "/c"], ["/c", "/d"]), "/a")).toEqual({ hacia: "/d", codigo: 301 });
+    expect(resolverRedireccion(tabla(["/a", "/b"], ["/b", "/c"], ["/c", "/d"], ["/d", "/e"]), "/a")).toBeNull();
+    // Un bucle más largo que los saltos permitidos: A → B → C → D → A.
+    expect(resolverRedireccion(tabla(["/a", "/b"], ["/b", "/c"], ["/c", "/d"], ["/d", "/a"]), "/a")).toBeNull();
+  });
+
+  it("el comodín no deja armar una redirección a otro sitio", () => {
+    const t = tabla(["/x/*", "/*"]);
+    expect(resolverRedireccion(t, "/x/%5Cevil.com")).toEqual({ hacia: "/%5Cevil.com", codigo: 301 });
+    expect(resolverRedireccion(t, "/x/\\evil.com")?.hacia.startsWith("/%5C")).toBe(true);
+    expect(resolverRedireccion(t, "/x/a b")).toEqual({ hacia: "/a%20b", codigo: 301 });
+    // Un destino guardado así (por ejemplo, a mano en la base) tampoco se sigue.
+    expect(resolverRedireccion(tabla(["/a", "//evil.com"]), "/a")).toBeNull();
+    expect(resolverRedireccion(tabla(["/a", "/\\evil.com"]), "/a")).toBeNull();
+  });
+
+  it("la consulta pasa al destino, salvo la que usa la regla", () => {
+    const t = tabla(["/sobre", "/quien-soy"], ["/post.php?id=1", "/blog/x"], ["/proof/*", "https://otro.com/proof/*", 302], ["/a", "/b?ref=1"]);
+    expect(resolverRedireccion(t, "/sobre?utm_source=ig")).toEqual({ hacia: "/quien-soy?utm_source=ig", codigo: 301 });
+    expect(resolverRedireccion(t, "/post.php?id=1&fbclid=z")).toEqual({ hacia: "/blog/x", codigo: 301 });
+    expect(resolverRedireccion(t, "/proof/Ab?pw=2")).toEqual({ hacia: "https://otro.com/proof/Ab?pw=2", codigo: 302 });
+    expect(resolverRedireccion(t, "/a?x=1")).toEqual({ hacia: "/b?ref=1&x=1", codigo: 301 });
   });
 
   it("un salto temporal hace temporal toda la cadena", () => {
@@ -112,6 +132,10 @@ describe("validarRegla", () => {
     expect(validarRegla({ desde: "/a*b", hacia: "/x" }).ok).toBe(false);
     expect(validarRegla({ desde: "/a", hacia: "/b/*" }).ok).toBe(false);
     expect(validarRegla({ desde: "/a", hacia: "/A/" }).ok).toBe(false);
+    expect(validarRegla({ desde: "/x/*", hacia: "https://*.evil.com/" }).ok).toBe(false);
+    expect(validarRegla({ desde: "/x/*", hacia: "https://*" }).ok).toBe(false);
+    expect(validarRegla({ desde: "/x/*", hacia: "/\\evil.com" }).ok).toBe(false);
+    expect(validarRegla({ desde: "/x/*", hacia: "//evil.com/*" }).ok).toBe(false);
   });
 });
 

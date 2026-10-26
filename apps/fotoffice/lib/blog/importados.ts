@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "@repo/db";
-import { ORIGEN_ALBOOM } from "@/lib/website/redirecciones";
+import { PREFIJO_ARTICULO_IMPORTADO } from "@/lib/website/redirecciones-reglas";
 import { updateBlogPost } from "./admin-queries";
 import { blogWhere } from "./scope";
 
@@ -9,19 +9,21 @@ import { blogWhere } from "./scope";
  * debían aparecer antes que el resto del sitio). Este es el paso «Publicar contenido importado».
  *
  * El blog no tiene una columna de origen (agregarla a `BlogPost` rompería las otras bases que
- * comparten el esquema), así que un artículo importado se reconoce por la redirección que dejó el
- * importador: `/post/<id>-*` → `/blog/<slug>` con origen `alboom-prosite`.
+ * comparten el esquema). Cuando el importador CREA un artículo, deja la redirección
+ * `/post.php?id=<n>` con origen `alboom-prosite:post=<id del artículo>`: se publican sólo esos ids.
+ * Un borrador que ya existía con el mismo slug (el importador no lo creó) nunca se toca.
  */
 
 const esTablaFaltante = (err: unknown) => typeof err === "object" && err !== null && (err as { code?: unknown }).code === "P2021";
 
-async function slugsImportados(workspaceId: string): Promise<string[]> {
+async function idsImportados(workspaceId: string): Promise<number[]> {
   try {
     const filas = await prisma.fotofficeSitioRedireccion.findMany({
-      where: { workspaceId, origen: ORIGEN_ALBOOM, hacia: { startsWith: "/blog/" } },
-      select: { hacia: true },
+      where: { workspaceId, origen: { startsWith: PREFIJO_ARTICULO_IMPORTADO } },
+      select: { origen: true },
     });
-    return [...new Set(filas.map((f) => f.hacia.slice("/blog/".length)).filter(Boolean))];
+    const ids = filas.map((f) => Number(f.origen?.slice(PREFIJO_ARTICULO_IMPORTADO.length))).filter((n) => Number.isInteger(n) && n > 0);
+    return [...new Set(ids)];
   } catch (err) {
     if (esTablaFaltante(err)) return [];
     throw err;
@@ -29,10 +31,10 @@ async function slugsImportados(workspaceId: string): Promise<string[]> {
 }
 
 async function borradoresImportados(workspaceId: string) {
-  const slugs = await slugsImportados(workspaceId);
-  if (slugs.length === 0) return [];
+  const ids = await idsImportados(workspaceId);
+  if (ids.length === 0) return [];
   return prisma.blogPost.findMany({
-    where: { ...blogWhere(workspaceId), status: "DRAFT", slug: { in: slugs } },
+    where: { ...blogWhere(workspaceId), status: "DRAFT", id: { in: ids } },
     select: { id: true },
   });
 }

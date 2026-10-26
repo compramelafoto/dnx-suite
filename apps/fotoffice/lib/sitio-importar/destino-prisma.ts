@@ -68,7 +68,7 @@ export function crearDestinoPrisma(workspaceId: string): DestinoImportacion {
     async trabajoPorOrigen(origenExternoId) {
       const t = await prisma.fotofficeTrabajo.findFirst({
         where: { workspaceId, origenExterno: ORIGEN_IMPORTACION, origenExternoId },
-        select: { id: true, slug: true, categoriaId: true, portadaUrl: true },
+        select: { id: true, slug: true, categoriaId: true, portadaUrl: true, estado: true },
       });
       if (!t) return null;
       const fotos = await prisma.fotofficeTrabajoFoto.findMany({ where: { trabajoId: t.id, workspaceId }, select: { origenUrl: true, url: true } });

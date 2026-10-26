@@ -15,6 +15,10 @@
  *                      el informe liste las que ya no existen. Sigue sin escribir nada.
  *   --aplicar          escribe de verdad en la base de FOTOFFICE y copia las fotos a R2. Idempotente:
  *                      se puede repetir; lo que ya está no se duplica.
+ *   --subir-con-wrangler  (con --aplicar) sube las fotos con `npx wrangler r2 object put … --remote`
+ *                      (la sesión de Cloudflare de esta máquina) en vez de las credenciales R2_*, que
+ *                      no están en .env.local. Pide la dirección pública del bucket: R2_PUBLIC_URL o
+ *                      `--r2-public-base=<url>`. Bucket: `fotoffice-media` (`--r2-bucket=<nombre>`).
  *
  * Otros: `--workspace <id>` (por omisión el de DNX), `--base <url>` (por omisión el sitio de
  * Alboom de DNX), `--slug <slug>` (sólo simulación: el slug público para armar los enlaces;
@@ -29,6 +33,10 @@
  *     set -a && . ./.env.local && set +a
  *     DATABASE_URL_FOTOFFICE="$DATABASE_URL" pnpm sitio:importar-alboom --aplicar
  *
+ *   De verdad, sin las R2_* (fotos con wrangler):
+ *     DATABASE_URL_FOTOFFICE="$DATABASE_URL" pnpm sitio:importar-alboom --aplicar --subir-con-wrangler \
+ *       --r2-public-base=https://<la misma dirección que R2_PUBLIC_URL de producción>
+ *
  * Variable para --aplicar: DATABASE_URL_FOTOFFICE (no se usa DATABASE_URL a propósito: el cliente
  * de @repo/db puede cargar packages/db/.env, que apunta a otra base). R2: las R2_* de FOTOFFICE.
  *
@@ -39,6 +47,9 @@ import { join, resolve } from "node:path";
 
 type Opciones = {
   aplicar: boolean;
+  conWrangler: boolean;
+  r2PublicBase: string | null;
+  r2Bucket: string;
   verificarFotos: boolean;
   workspaceId: string;
   base: string;
@@ -57,6 +68,9 @@ function salir(mensaje: string): never {
 function leerOpciones(argv: string[]): Opciones {
   const o: Opciones = {
     aplicar: false,
+    conWrangler: false,
+    r2PublicBase: null,
+    r2Bucket: "fotoffice-media",
     verificarFotos: false,
     workspaceId: WORKSPACE_DNX,
     base: BASE_DNX,
@@ -64,10 +78,14 @@ function leerOpciones(argv: string[]): Opciones {
     salida: resolve(process.cwd(), "docs/alboom"),
   };
   for (let i = 0; i < argv.length; i++) {
-    const a = argv[i];
-    const valor = () => argv[++i] ?? salir(`Falta el valor de ${a}`);
+    // `--opcion=valor` es lo mismo que `--opcion valor`.
+    const [a, pegado] = argv[i].includes("=") ? [argv[i].slice(0, argv[i].indexOf("=")), argv[i].slice(argv[i].indexOf("=") + 1)] : [argv[i], undefined];
+    const valor = () => pegado ?? argv[++i] ?? salir(`Falta el valor de ${a}`);
     if (a === "--aplicar") o.aplicar = true;
     else if (a === "--verificar-fotos") o.verificarFotos = true;
+    else if (a === "--subir-con-wrangler") o.conWrangler = true;
+    else if (a === "--r2-public-base") o.r2PublicBase = valor();
+    else if (a === "--r2-bucket") o.r2Bucket = valor();
     else if (a === "--workspace") o.workspaceId = valor();
     else if (a === "--base") o.base = valor();
     else if (a === "--slug") o.slug = valor();
@@ -75,6 +93,7 @@ function leerOpciones(argv: string[]): Opciones {
     else salir(`No conozco la opción ${a}. Ver el encabezado del script.`);
   }
   if (o.aplicar && o.verificarFotos) salir("--verificar-fotos es sólo para la simulación (con --aplicar las fotos se copian de verdad).");
+  if (o.conWrangler && !o.aplicar) salir("--subir-con-wrangler es sólo para --aplicar (la simulación no sube nada).");
   if (!/^[a-z0-9]{8,40}$/i.test(o.workspaceId)) salir("--workspace no parece un id de workspace.");
   return o;
 }
@@ -120,7 +139,17 @@ async function main() {
   if (o.aplicar) {
     const { prisma } = await import("@repo/db");
     const { isFotofficeR2Configured } = await import("../../../../apps/fotoffice/lib/images/r2-client");
-    if (!isFotofficeR2Configured()) salir("Faltan las variables R2_* de FOTOFFICE: sin ellas no se pueden copiar las fotos.");
+    const basePublica = (o.r2PublicBase ?? process.env.R2_PUBLIC_URL ?? process.env.R2_PUBLIC_BASE_URL ?? "").trim();
+    if (o.conWrangler) {
+      if (!basePublica) {
+        salir(
+          "Con --subir-con-wrangler hace falta la dirección pública del bucket (la misma que R2_PUBLIC_URL de producción): " +
+            "pasala con --r2-public-base=https://…  Las fotos se guardan con esa dirección; si no es la de producción, el sitio no las muestra.",
+        );
+      }
+    } else if (!isFotofficeR2Configured()) {
+      salir("Faltan las variables R2_* de FOTOFFICE. Sin ellas, usá --subir-con-wrangler --r2-public-base=https://…");
+    }
     const branding = await prisma.fotofficeWorkspaceBranding.findUnique({
       where: { workspaceId: o.workspaceId },
       select: { publicSlug: true, commercialName: true },
@@ -135,7 +164,14 @@ async function main() {
     const { crearDestinoPrisma } = await import("../../../../apps/fotoffice/lib/sitio-importar/destino-prisma");
     const { crearCopiadorDeFotos } = await import("../../../../apps/fotoffice/lib/sitio-importar/fotos-r2");
     destino = crearDestinoPrisma(o.workspaceId);
-    copiarFoto = crearCopiadorDeFotos().copiarFoto;
+    if (o.conWrangler) {
+      const { depsConWrangler } = await import("../../../../apps/fotoffice/lib/sitio-importar/fotos-r2");
+      const basePublica = (o.r2PublicBase ?? process.env.R2_PUBLIC_URL ?? process.env.R2_PUBLIC_BASE_URL ?? "").trim();
+      console.log(`Fotos: con wrangler al bucket ${o.r2Bucket}, dirección pública ${basePublica}`);
+      copiarFoto = crearCopiadorDeFotos(depsConWrangler({ bucket: o.r2Bucket, basePublica })).copiarFoto;
+    } else {
+      copiarFoto = crearCopiadorDeFotos().copiarFoto;
+    }
   } else {
     destino = crearDestinoEnMemoria(estadoVacio(o.slug));
     const { createHash } = await import("node:crypto");

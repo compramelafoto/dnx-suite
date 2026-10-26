@@ -139,7 +139,9 @@ const corta = (v: string | undefined, max: number) => (v ? v.slice(0, max) : und
 
 /** Saca los párrafos que quedaron vacíos después de sanear (Alboom los usa como espacio). */
 function sinParrafosVacios(html: string): string {
-  const vacio = /<p>(?:\s|&nbsp;| |<br\s*\/?>|<span>(?:\s|&nbsp;| |<br\s*\/?>)*<\/span>)*<\/p>/gi;
+  // Lineal a propósito: `\s` ya incluye el espacio duro (U+00A0); sumarlo como alternativa aparte
+  // hacía que un párrafo con muchos espacios duros probara combinaciones sin fin.
+  const vacio = /<p>(?:\s|&nbsp;|<br\s*\/?>|<span>(?:\s|&nbsp;|<br\s*\/?>)*<\/span>)*<\/p>/gi;
   return html.replace(vacio, "").trim();
 }
 

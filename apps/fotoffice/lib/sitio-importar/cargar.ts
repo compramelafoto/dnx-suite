@@ -17,7 +17,7 @@ import {
 import { BLOG_PUBLIC_PAGE_KEY, TESTIMONIOS_PUBLIC_PAGE_KEY, TRABAJOS_PUBLIC_PAGE_KEY } from "@/lib/website/constants";
 import { findPageBySlug, validatePageSlug } from "@/lib/website/pages";
 import { PUBLIC_MODULE_PAGES } from "@/lib/website/public-modules";
-import { destinoBajoPrefijo, normalizarRuta, type ReglaRedireccion } from "@/lib/website/redirecciones-reglas";
+import { destinoBajoPrefijo, normalizarRuta, origenDeArticuloImportado, type ReglaRedireccion } from "@/lib/website/redirecciones-reglas";
 import { sanitizeBlocksForSave } from "@/lib/website/rich-text-sanitize";
 import { parseSiteMenu, SITE_MENU_VERSION, type SiteMenu, type SiteMenuEntry } from "@/lib/website/site-menu";
 import { leerArticulo, type ArticuloAlboom } from "./alboom/articulo";
@@ -88,7 +88,23 @@ export type DepsImportacion = {
   ahora?: () => Date;
   /** Avance en la consola (una línea por paso). */
   avisar?: (mensaje: string) => void;
+  /** Cuántas fotos de un trabajo se copian a la vez (por omisión 6). */
+  concurrenciaFotos?: number;
 };
+
+/** `fn` sobre cada elemento, de a `n` a la vez, con los resultados en el orden de entrada. */
+async function enTandas<T, R>(items: readonly T[], n: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const out = new Array<R>(items.length);
+  let siguiente = 0;
+  const trabajador = async () => {
+    while (siguiente < items.length) {
+      const i = siguiente++;
+      out[i] = await fn(items[i]);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.max(1, Math.min(n, items.length)) }, trabajador));
+  return out;
+}
 
 export type EstadoItem = "creado" | "existente" | "fallido" | "completado";
 
@@ -163,7 +179,7 @@ type ItemTrabajo = {
   // Lo que se decide al planificar.
   slug: string;
   categoria: string;
-  existente: { id: string; origenesFotos: string[]; portadaUrl: string | null } | null;
+  existente: { id: string; origenesFotos: string[]; portadaUrl: string | null; publicado: boolean } | null;
 };
 
 function informeVacio(o: OpcionesImportacion, slugPublico: string, ahora: Date): Informe {
@@ -383,7 +399,7 @@ export async function importarSitioAlboom(opciones: OpcionesImportacion, deps: D
     if (existente) {
       it.slug = existente.slug;
       it.categoria = (existente.categoriaId && slugDeCategoriaPorId.get(existente.categoriaId)) || it.categoria;
-      it.existente = { id: existente.id, origenesFotos: existente.origenesFotos, portadaUrl: existente.portadaUrl };
+      it.existente = { id: existente.id, origenesFotos: existente.origenesFotos, portadaUrl: existente.portadaUrl, publicado: existente.estado === "PUBLICADO" };
       continue;
     }
     let slug = it.esGaleria ? slugDeTitulo(`galeria ${it.titulo}`) : it.slugAlboom && it.slugAlboom !== "sin-titulo" ? it.slugAlboom : slugDeTitulo(it.titulo);
@@ -406,6 +422,7 @@ export async function importarSitioAlboom(opciones: OpcionesImportacion, deps: D
 
   // ── 3. Blog ────────────────────────────────────────────────────────────────────────────────────
   avisar("Cargando el blog…");
+  let redireccionesMarcadas = 0;
   const autor = await destino.autorBlog(AUTOR_BLOG.nombre, AUTOR_BLOG.slug);
   informe.autorBlog = autor.creado ? "creado" : "existente";
   for (const a of articulos) {
@@ -458,7 +475,10 @@ export async function importarSitioAlboom(opciones: OpcionesImportacion, deps: D
         categoryId,
       });
       if (!parsed.success) throw new Error(formatContentValidationError(parsed.error));
-      await destino.crearArticulo({ data: parsed.data, createdAt: publicado });
+      const creado = await destino.crearArticulo({ data: parsed.data, createdAt: publicado });
+      // Marca de «lo creó el importador»: «Publicar contenido importado» publica sólo estos ids, nunca
+      // un borrador que ya existía con el mismo slug. Va enseguida, por si la corrida se corta.
+      redireccionesMarcadas += await destino.crearRedirecciones([{ desde: `/post.php?id=${a.alboomId}`, hacia: `/blog/${slug}`, codigo: 301 }], origenDeArticuloImportado(creado.id));
       informe.articulos.creados++;
       informe.articulos.detalle.push({ ...fila, estado: "creado" });
     } catch (err) {
@@ -514,25 +534,30 @@ export async function importarSitioAlboom(opciones: OpcionesImportacion, deps: D
         informe.avisos.push(`${donde}: tiene más de ${MAX_FOTOS_POR_TRABAJO} fotos; se cargan las primeras.`);
       }
       const nuevas: FotoDeTrabajoNueva[] = [];
-      for (const url of fotosQueFaltan.slice(0, Math.max(lugarLibre - videosQueFaltan.length, 0))) {
-        const copia = await copiar(url, prefijoFotosTrabajo(ws, trabajoId), donde);
+      const copias = await enTandas(fotosQueFaltan.slice(0, Math.max(lugarLibre - videosQueFaltan.length, 0)), deps.concurrenciaFotos ?? 6, async (url) => ({
+        url,
+        copia: await copiar(url, prefijoFotosTrabajo(ws, trabajoId), donde),
+      }));
+      for (const { url, copia } of copias) {
         if (copia) nuevas.push({ tipo: "FOTO", url: copia.url, r2Key: copia.key, ancho: copia.ancho, alto: copia.alto, origenUrl: url });
       }
       for (const url of videosQueFaltan.slice(0, lugarLibre)) {
         nuevas.push({ tipo: "VIDEO_URL", url, r2Key: null, ancho: null, alto: null, origenUrl: url });
       }
       const agregadas = nuevas.length ? await destino.agregarFotosTrabajo(trabajoId, nuevas) : 0;
-      if (creado) {
-        await destino.publicarTrabajo(trabajoId);
-        informe.trabajos.creados++;
-      } else if (agregadas > 0) informe.trabajos.completados++;
+      // Uno importado que quedó en borrador (la corrida anterior se cortó entre las fotos y la
+      // publicación) se publica ahora.
+      const retomado = !creado && it.existente !== null && !it.existente.publicado;
+      if (creado || retomado) await destino.publicarTrabajo(trabajoId);
+      if (creado) informe.trabajos.creados++;
+      else if (agregadas > 0 || retomado) informe.trabajos.completados++;
       else informe.trabajos.existentes++;
       trabajoPorAlboom.set(it.alboomId, { id: trabajoId, portadaUrl: it.existente?.portadaUrl ?? nuevas.find((f) => f.tipo === "FOTO")?.url ?? null });
       informe.trabajos.detalle.push({
         ...fila,
         fotos: it.fotos.length,
         videos: it.videos.length,
-        estado: creado ? "creado" : agregadas > 0 ? "completado" : "existente",
+        estado: creado ? "creado" : agregadas > 0 || retomado ? "completado" : "existente",
       });
     } catch (err) {
       informe.trabajos.fallidos++;
@@ -627,6 +652,11 @@ export async function importarSitioAlboom(opciones: OpcionesImportacion, deps: D
   } else {
     nuevoMenu = menuDnx(sections);
     informe.menu = "creado";
+    informe.avisos.push(
+      menuActual
+        ? `El menú del borrador tenía ${menuActual.items.length} ítems editados a mano: se reemplazó entero por el importado (la versión publicada no cambia).`
+        : "El menú del borrador era el automático: se reemplazó entero por el importado (la versión publicada no cambia).",
+    );
   }
 
   if (cambioSecciones || nuevoMenu) {
@@ -647,7 +677,8 @@ export async function importarSitioAlboom(opciones: OpcionesImportacion, deps: D
 
   // ── 8. Redirecciones ───────────────────────────────────────────────────────────────────────────
   avisar(`Guardando ${reglas.length} redirecciones…`);
-  informe.redirecciones = { total: reglas.length, creadas: await destino.crearRedirecciones(reglas, ORIGEN_IMPORTACION) };
+  // Las de `post.php?id=` de los artículos creados ya se guardaron (con su marca) al crearlos.
+  informe.redirecciones = { total: reglas.length, creadas: redireccionesMarcadas + (await destino.crearRedirecciones(reglas, ORIGEN_IMPORTACION)) };
 
   return informe;
 }
