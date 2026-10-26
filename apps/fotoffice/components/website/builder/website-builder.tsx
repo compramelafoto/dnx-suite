@@ -11,9 +11,10 @@ import {
 } from "@/lib/website/blocks";
 import { HOME_PAGE_KEY, listCustomPages, nextPageKey } from "@/lib/website/pages";
 import { MAX_CUSTOM_PAGES } from "@/lib/website/save-pages";
-import type { WebsiteColors } from "@/lib/website/branding-defaults";
+import { sonLosColoresPorDefecto, type WebsiteColors } from "@/lib/website/branding-defaults";
 import type { WebsiteDesignPresets } from "@/lib/website/design-presets";
-import type { WebsiteTemplate } from "@/lib/website/templates";
+import type { SiteTemplate } from "@/lib/website/templates";
+import { aplicarPlantilla, type ModoAplicarPlantilla } from "@/lib/website/apply-template";
 import type { SiteMenu } from "@/lib/website/site-menu";
 import type { PersonVocabulary } from "@/lib/vocabulario/personas";
 import { useDraftAutosave, type AutosaveStatus } from "@/lib/website/use-draft-autosave";
@@ -295,16 +296,36 @@ export function WebsiteBuilder({
     setMode("SECCIONES");
   }
 
-  function handleApplyTemplate(template: WebsiteTemplate, applyMode: "full" | "designOnly") {
-    if (applyMode === "full") {
-      // Las plantillas arman la portada: se vuelve a ella para que el cambio se vea.
-      setPages((prev) => ({ ...prev, [HOME_PAGE_KEY]: reorder(template.seedSections()) }));
+  // La plantilla nunca pisa ni borra contenido: `aplicarPlantilla` sólo cambia el diseño y suma
+  // lo que falta. Antes de sumar páginas se guarda lo pendiente (mismo motivo que al crear una
+  // página: el servidor podría tener todavía una borrada con la misma clave). Los colores
+  // sugeridos se aplican sólo si el selector lo confirmó con el usuario.
+  async function handleApplyTemplate(template: SiteTemplate, modo: ModoAplicarPlantilla, aplicarColoresSugeridos = false): Promise<boolean> {
+    if (switching) return false;
+    if (modo !== "solo-diseno") {
+      setSwitching(true);
+      let guardado = false;
+      try {
+        guardado = await draftAutosave.flush();
+      } finally {
+        setSwitching(false);
+      }
+      // Sin lo anterior guardado no se aplica; el error ya se ve en la barra.
+      if (!guardado) return false;
+    }
+    const r = aplicarPlantilla({ sections: { pages, pageMeta }, design: presets, menu }, template, modo, { aplicarColoresSugeridos });
+    setPages(r.sections.pages);
+    setPageMeta(r.sections.pageMeta);
+    setPresets(r.design);
+    setMenu(r.menu);
+    if (r.colores) setColors(r.colores);
+    if (r.portadaSembrada || r.paginasAgregadas.length > 0) {
+      // Se vuelve a la portada para que el cambio se vea.
       setActiveKey(HOME_PAGE_KEY);
       setSelectedId(null);
       setMode("SECCIONES");
     }
-    // La disposición del menú se elige en su propia pestaña: una plantilla no la pisa.
-    setPresets((prev) => ({ ...template.designPreset, menuLayout: prev.menuLayout, menuSide: prev.menuSide }));
+    return true;
   }
 
   return (
@@ -357,7 +378,7 @@ export function WebsiteBuilder({
               </div>
             ) : null}
             {mode === "PLANTILLAS" ? (
-              <TemplatePickerPanel hasContent={hasContent} canEdit={canEdit} organizationType={organizationType} onApply={handleApplyTemplate} />
+              <TemplatePickerPanel hasContent={hasContent} coloresPorDefecto={sonLosColoresPorDefecto(colors)} canEdit={canEdit} organizationType={organizationType} onApply={handleApplyTemplate} />
             ) : null}
             {mode === "MENU" ? (
               <MenuPanel

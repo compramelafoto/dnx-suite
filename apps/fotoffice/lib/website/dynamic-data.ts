@@ -4,6 +4,7 @@ import type { TestimonioPublico } from "@/lib/testimonios/publico";
 import type { SpotlightCardView } from "@/lib/spotlight/view";
 import type { HeroBlogSlide } from "./blog-banner";
 import type { PublicSiteContact } from "./public-site";
+import type { PaginasDelSitio } from "./button-href";
 
 /**
  * Datos que los bloques `dynamic` necesitan y que NO viven en `sectionsJson`: se leen en el
@@ -47,6 +48,15 @@ export type HeroBlogData = {
 };
 
 export type WebsiteDynamicData = {
+  /**
+   * Datos de MUESTRA (la vista previa de las plantillas): los bloques que no tienen su parte acá
+   * se dibujan como en el constructor, con ejemplos y sin poder enviar nada (el formulario de
+   * presupuesto queda deshabilitado). Nunca lo pone el sitio público.
+   */
+  muestra?: boolean;
+  /** Las páginas propias por dirección, para los botones que dicen `/quien-soy` (ver
+   * `enlaceDeBoton`). Lo usan el Hero y el llamado a la acción. */
+  paginasDelSitio?: PaginasDelSitio;
   blogLatest?: BlogLatestData;
   memberOfWeek?: MemberOfWeekData;
   heroBlog?: HeroBlogData;
@@ -130,4 +140,66 @@ export function testimonialsLimitFor(blocks: readonly WebsiteBlock[]): number | 
 /** Los bloques "Trabajos" visibles de la página. Sin ninguno, Trabajos ni se consulta. */
 export function portfolioBlocksFor(blocks: readonly WebsiteBlock[]): PortfolioBlock[] {
   return blocks.filter((b): b is PortfolioBlock => b.type === "PORTFOLIO" && b.visible);
+}
+
+/** Dirección de cada página propia bajo `base` (`/w/<slug>` en el sitio público). */
+export function paginasDelSitio(base: string, pageMeta: Readonly<Record<string, { slug: string }>>): Record<string, string> {
+  const paginas: Record<string, string> = {};
+  for (const meta of Object.values(pageMeta)) paginas[meta.slug] = `${base}/${meta.slug}`;
+  return paginas;
+}
+
+const TRABAJOS_DE_MUESTRA = [
+  { titulo: "XV de Martina", categoria: "XV años", lugar: "Rosario" },
+  { titulo: "Casamiento de Lucía y Tomás", categoria: "Casamientos", lugar: "Funes" },
+  { titulo: "Book en el estudio", categoria: "Retratos", lugar: "Estudio" },
+  { titulo: "Retratos en la ciudad", categoria: "Retratos", lugar: "Centro" },
+  { titulo: "XV de Valentina", categoria: "XV años", lugar: "Roldán" },
+  { titulo: "Casamiento de Sofía y Martín", categoria: "Casamientos", lugar: "Rosario" },
+] as const;
+
+const TESTIMONIOS_DE_MUESTRA = [
+  { autor: "Carolina (mamá de Martina)", detalle: "XV de Martina", texto: "Ejemplo de testimonio: así se ve lo que cuenta una familia después de la fiesta. Acá van a aparecer los testimonios que publiques." },
+  { autor: "Lucía y Tomás", detalle: "Casamiento", texto: "Ejemplo de testimonio: una pareja contando cómo fue trabajar con vos el día del casamiento." },
+  { autor: "Julieta", detalle: "Book en el estudio", texto: "Ejemplo de testimonio corto, con su calificación." },
+] as const;
+
+/**
+ * Datos de MUESTRA para la vista previa de una plantilla: 6 trabajos y 3 testimonios ficticios
+ * con las fotos de muestra de la plantilla (nunca datos de un cliente real), una entrada de
+ * trabajos por cada bloque PORTFOLIO, y las páginas de la plantilla para los botones. Puro.
+ */
+export function datosDeMuestra(input: { bloques: readonly WebsiteBlock[]; fotos: readonly string[]; paginas: PaginasDelSitio }): WebsiteDynamicData {
+  const foto = (i: number) => (input.fotos.length > 0 ? input.fotos[i % input.fotos.length]! : null);
+  const tarjetas: TrabajoTarjeta[] = TRABAJOS_DE_MUESTRA.map((t, i) => ({
+    titulo: t.titulo,
+    slug: `muestra-${i + 1}`,
+    categoriaSlug: "muestra",
+    categoriaNombre: t.categoria,
+    lugar: t.lugar,
+    fechaTexto: null,
+    portadaUrl: foto(i),
+    href: "#",
+  }));
+  const portfolio: Record<string, PortfolioData> = {};
+  for (const bloque of portfolioBlocksFor(input.bloques)) portfolio[bloque.id] = { tarjetas, verTodosHref: "#" };
+  return {
+    muestra: true,
+    paginasDelSitio: input.paginas,
+    portfolio,
+    testimonios: {
+      items: TESTIMONIOS_DE_MUESTRA.map((t, i) => ({
+        id: `muestra-${i + 1}`,
+        texto: t.texto,
+        extracto: null,
+        autorNombre: t.autor,
+        autorDetalle: t.detalle,
+        autorFotoUrl: null,
+        autorEnlace: null,
+        calificacion: 5,
+      })),
+      verTodosHref: "#",
+      formularioHref: "#",
+    },
+  };
 }

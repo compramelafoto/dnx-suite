@@ -191,9 +191,9 @@ export function HeroBlockView({ config, blockId, data }: { config: HeroBlockConf
                   {slide.subtitle}
                 </p>
               ) : null}
-              {slide.showButton && slide.buttonLabel && enlaceDeBoton(slide.buttonUrl) ? (
+              {slide.showButton && slide.buttonLabel && enlaceDeBoton(slide.buttonUrl, data?.paginasDelSitio) ? (
                 <a
-                  href={enlaceDeBoton(slide.buttonUrl) ?? undefined}
+                  href={enlaceDeBoton(slide.buttonUrl, data?.paginasDelSitio) ?? undefined}
                   className="inline-flex mt-2 transition-transform hover:scale-[1.02]"
                   style={{
                     ...levelStyle("button", { color: false }),

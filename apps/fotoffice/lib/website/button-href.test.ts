@@ -34,3 +34,32 @@ describe("enlaceDeBoton", () => {
     expect(enlaceDeBoton(undefined)).toBe(null);
   });
 });
+
+describe("enlaceDeBoton con las páginas propias del sitio", () => {
+  const paginas = { "quien-soy": "/w/dnx/quien-soy", "pedi-tu-presupuesto": "/w/dnx/pedi-tu-presupuesto" };
+
+  it("una dirección de página propia apunta a esa página de este sitio", () => {
+    expect(enlaceDeBoton("/pedi-tu-presupuesto", paginas)).toBe("/w/dnx/pedi-tu-presupuesto");
+    expect(enlaceDeBoton("quien-soy", paginas)).toBe("/w/dnx/quien-soy");
+    expect(enlaceDeBoton("/quien-soy#galeria", paginas)).toBe("/w/dnx/quien-soy#galeria");
+    expect(enlaceDeBoton("/quien-soy?x=1", paginas)).toBe("/w/dnx/quien-soy?x=1");
+  });
+
+  it("no toca lo que no es una página propia", () => {
+    expect(enlaceDeBoton("/w/dnx/presupuesto", paginas)).toBe("/w/dnx/presupuesto");
+    expect(enlaceDeBoton("/login", paginas)).toBe("/login");
+    expect(enlaceDeBoton("/", paginas)).toBe("/");
+    expect(enlaceDeBoton("#contacto", paginas)).toBe("#contacto");
+    expect(enlaceDeBoton("https://otro.com/quien-soy", paginas)).toBe("https://otro.com/quien-soy");
+    expect(enlaceDeBoton("//quien-soy", paginas)).toBe("//quien-soy");
+  });
+
+  it("sin páginas (el constructor) queda como siempre", () => {
+    expect(enlaceDeBoton("/quien-soy")).toBe("/quien-soy");
+    expect(enlaceDeBoton("/constructor", {})).toBe("/constructor");
+  });
+
+  it("una clave heredada del prototipo no cuenta como página", () => {
+    expect(enlaceDeBoton("/constructor", paginas)).toBe("/constructor");
+  });
+});
