@@ -34,7 +34,7 @@ export default async function WebsiteDomainPage() {
   const dns = row && row.status !== "CONNECTED" ? await inspectDomainDns(row.domain) : null;
 
   return (
-    <WebsiteShell status={status} canEdit={canEdit} draftUpdatedAt={draftUpdatedAtIso}>
+    <WebsiteShell workspaceId={workspace.id} status={status} canEdit={canEdit} draftUpdatedAt={draftUpdatedAtIso}>
       <WebsiteDomainPanel
         canEdit={canEdit}
         currentUrl={currentUrl}

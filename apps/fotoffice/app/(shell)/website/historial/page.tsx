@@ -5,7 +5,7 @@ import { WebsiteShell } from "@/components/website/website-shell";
 /** Solo lectura por esta etapa — "Restaurar versión" queda para una etapa posterior (ver
  * pedido). Nunca se muestran IDs técnicos, solo número de versión, fecha y quién publicó. */
 export default async function WebsiteHistoryPage() {
-  const { draft, canEdit, status, draftUpdatedAtIso } = await loadWebsiteCmsContext();
+  const { workspace, draft, canEdit, status, draftUpdatedAtIso } = await loadWebsiteCmsContext();
 
   const versions = await prisma.fotofficeWorkspaceWebsiteVersion.findMany({
     where: { websiteId: draft.id },
@@ -18,7 +18,7 @@ export default async function WebsiteHistoryPage() {
   });
 
   return (
-    <WebsiteShell status={status} canEdit={canEdit} draftUpdatedAt={draftUpdatedAtIso}>
+    <WebsiteShell workspaceId={workspace.id} status={status} canEdit={canEdit} draftUpdatedAt={draftUpdatedAtIso}>
       {versions.length === 0 ? (
         <div className="fo-card text-center py-12">
           <p className="text-sm text-[var(--fo-muted)]">Todavía no publicaste ninguna versión de tu sitio.</p>

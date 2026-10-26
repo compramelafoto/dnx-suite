@@ -21,6 +21,7 @@ import { leerProveedorDelTrabajo } from "@/lib/proyectos/proveedor";
 import { ReasignarTareas } from "@/components/proyectos/reasignar-tareas";
 import { TarjetaCitas } from "@/components/agenda/tarjeta-citas";
 import { TarjetaGaleriasProyecto } from "@/components/galerias/tarjeta-galerias-proyecto";
+import { PedirTestimonioFicha } from "@/components/website/testimonios/pedir-testimonio-ficha";
 import { puede, puedeEnContexto } from "@/lib/access/policy";
 import { citasDeOrigen } from "@/lib/agenda/de-origen";
 import { claveDeRecorrido } from "@/lib/circuitos/ficha-vista";
@@ -176,6 +177,8 @@ export default async function FichaProyectoPage({ params }: { params: Promise<{ 
             <CarpetaProyecto proyectoId={ficha.id} archivos={archivos} vence={proveedor?.carpetaVence ?? null} puedeEditar={puedeEditar} />
           ) : null}
           {galerias ? <TarjetaGaleriasProyecto proyectoId={ficha.id} galerias={galerias} puedeCrear={puedeGestionarGalerias(ctx)} /> : null}
+          {/* «Pedir testimonio» al cliente del proyecto (sitio web, PR 3): se dibuja sólo con permiso de mandarle mensajes. */}
+          <PedirTestimonioFicha clientId={ficha.contacto.id} proyectoId={ficha.id} conTarjeta />
           <ParticipantesProyecto
             proyectoId={ficha.id}
             participantes={ficha.participantes}

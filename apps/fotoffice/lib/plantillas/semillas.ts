@@ -290,3 +290,27 @@ export async function asegurarAvisoEquipo(workspaceId: string): Promise<void> {
     if ((e as { code?: unknown })?.code !== "P2002") throw e;
   }
 }
+
+const CLAVE_TESTIMONIO = "TESTIMONIO_INVITACION" as const;
+
+/**
+ * Crea, una sola vez, la plantilla de correo del pedido de testimonio (`TESTIMONIO_INVITACION`).
+ * Nace apagada: el pedido automático se enciende en Sitio web → Testimonios → Ajustes; «Pedir
+ * testimonio» desde la ficha la usa igual (es un envío a mano). Idempotente y sin lanzar por carreras.
+ */
+export async function asegurarPlantillaTestimonio(workspaceId: string): Promise<void> {
+  if ((await prisma.fotofficeMessageTemplate.count({ where: { workspaceId, systemKey: CLAVE_TESTIMONIO } })) > 0) return;
+  const def = AUTOMATICOS[CLAVE_TESTIMONIO];
+  try {
+    await prisma.fotofficeMessageTemplate.create({
+      data: {
+        workspaceId, systemKey: CLAVE_TESTIMONIO, channel: def.canal, entityType: def.tipo, name: def.nombre,
+        subject: TESTIMONIO_INVITACION_INICIAL.EMAIL.asunto, body: TESTIMONIO_INVITACION_INICIAL.EMAIL.cuerpo, enabled: false, order: 40,
+      },
+      select: { id: true },
+    });
+  } catch (e) {
+    // Otra pestaña la creó en el mismo instante: el índice único nos frena; da igual.
+    if ((e as { code?: unknown })?.code !== "P2002") throw e;
+  }
+}

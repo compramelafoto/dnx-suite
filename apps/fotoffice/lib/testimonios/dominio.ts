@@ -215,3 +215,48 @@ export function fotoAutorMostrable(url: string | null | undefined, baseR2: strin
   if (base && /^https:\/\//i.test(base) && url.startsWith(`${base}/`) && !url.includes("..")) return url;
   return null;
 }
+
+/** Cuando el SQL de Testimonios todavía no se aplicó a la base (se crea a mano). */
+export const AVISO_TABLAS_TESTIMONIOS = "Falta crear las tablas de Testimonios en la base. Avisale al administrador.";
+
+/** Etiquetas del panel. */
+export const ETIQUETA_ESTADO_TESTIMONIO: Record<EstadoTestimonio, string> = {
+  PENDIENTE: "Pendientes",
+  PUBLICADO: "Publicados",
+  RECHAZADO: "Rechazados",
+};
+export const ETIQUETA_ORIGEN_TESTIMONIO: Record<OrigenTestimonio, string> = {
+  IMPORTADO: "Importado",
+  FORMULARIO: "Formulario del sitio",
+  INVITACION: "Pedido personal",
+  CARGA_MANUAL: "Cargado a mano",
+};
+
+export function esEstadoTestimonio(v: unknown): v is EstadoTestimonio {
+  return typeof v === "string" && (ESTADOS_TESTIMONIO as readonly string[]).includes(v);
+}
+
+/**
+ * El permiso que deja asentado el panel cuando quien carga (o edita) un testimonio marca «Tengo permiso
+ * del autor»: no lo aceptó el autor en el formulario, lo afirma alguien del estudio, y queda dicho quién.
+ */
+export function textoConsentimientoManual(quien: string, ahora: Date): string {
+  const fecha = new Intl.DateTimeFormat("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "numeric", month: "long", year: "numeric" }).format(ahora);
+  return `Carga manual: ${quien.trim() || "alguien del estudio"} marcó «Tengo permiso del autor» el ${fecha}.`;
+}
+
+export type EdicionPanel = { extracto: string | null; autorDetalle: string | null };
+
+/** Lo que el panel deja editar de un testimonio ya recibido: la frase destacada y el detalle del autor. */
+export function validarEdicionPanel(input: { extracto?: unknown; autorDetalle?: unknown }): { ok: true; datos: EdicionPanel } | { ok: false; error: string } {
+  const extracto = parrafos(input.extracto);
+  if (extracto.length > MAX_EXTRACTO) return { ok: false, error: MENSAJES_TESTIMONIO.extractoLargo };
+  const detalle = linea(input.autorDetalle);
+  if (detalle.length > MAX_DETALLE) return { ok: false, error: MENSAJES_TESTIMONIO.detalleLargo };
+  return { ok: true, datos: { extracto: extracto || null, autorDetalle: detalle || null } };
+}
+
+/** Pedido automático: cuántos días después de finalizar el proyecto se pide el testimonio. */
+export const DIAS_DESPUES_MIN = 1;
+export const DIAS_DESPUES_MAX = 60;
+export const DIAS_DESPUES_POR_OMISION = 7;

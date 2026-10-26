@@ -4,6 +4,7 @@ import { escapeHtml } from "@/lib/communications/html";
 import { sendTransactionalEmail, type OutboundEmail, type SendOutcome } from "@/lib/communications/send-email";
 import { inicioDelDiaAR } from "@/lib/plantillas/envio";
 import { esTablaFaltante } from "./dominio";
+import { RUTA_PANEL_TESTIMONIOS } from "./rutas";
 
 /**
  * Aviso al equipo cuando entra un testimonio por el formulario o por una invitación: un correo
@@ -17,7 +18,7 @@ import { esTablaFaltante } from "./dominio";
  */
 
 export const TOPE_AVISOS_TESTIMONIO_DIA = 20;
-export const RUTA_PANEL_TESTIMONIOS = "/website/testimonios";
+export { RUTA_PANEL_TESTIMONIOS };
 
 export type ResultadoAvisoTestimonio = "ENVIADO" | "APAGADO" | "TOPE" | "SIN_DESTINATARIO" | "NO_ENVIADO" | "ERROR";
 

@@ -221,6 +221,15 @@ async function validarPlantilla(
     });
     return f ? { ok: true, id: f.id } : no(MENSAJES_ENVIO.plantillaNoEncontrada);
   }
+  // Sitio, PR 3: el pedido de testimonio sale con su plantilla de sistema (`TESTIMONIO_INVITACION`). A mano
+  // («Pedir testimonio») vale aunque el automático esté apagado; sólo el servidor pide este tipo.
+  if (tipo === "TESTIMONIO") {
+    const f = await prisma.fotofficeMessageTemplate.findFirst({
+      where: { id: templateId, workspaceId, channel: canal, entityType: "TESTIMONIO", systemKey: CLAVE_TESTIMONIO, archivedAt: null },
+      select: { id: true },
+    });
+    return f ? { ok: true, id: f.id } : no(MENSAJES_ENVIO.plantillaNoEncontrada);
+  }
   if (automatico) {
     const f = await prisma.fotofficeMessageTemplate.findFirst({
       where: {
@@ -247,6 +256,8 @@ const CLAVE_RECIBO: ClaveAutomatico = "RECIBO_DE_PAGO";
 const CLAVE_RECORDATORIO: ClaveAutomatico = "RECORDATORIO_CUOTA";
 /** El recordatorio de una cita (Agenda): va a los contactos con correo que participan. */
 const CLAVE_RECORDATORIO_CITA: ClaveAutomatico = "RECORDATORIO_CITA";
+/** El pedido de testimonio (sitio, PR 3): va al cliente, con su enlace personal. */
+const CLAVE_TESTIMONIO: ClaveAutomatico = "TESTIMONIO_INVITACION";
 
 /**
  * Asunto, HTML y texto listos para el transporte a partir de textos ya completados
@@ -326,7 +337,15 @@ export async function correosEnviadosHoy(workspaceId: string, ahora: Date, autom
  * - `modulo`: el módulo cuyo "Gestionar" se exige en vez del de la ficha;
  * - `tipoPlantilla`: el tipo de plantilla válido (PRESUPUESTO) en vez del de la ficha.
  */
-export type OpcionesDeEnvio = { modulo?: string; tipoPlantilla?: TipoPlantilla };
+export type OpcionesDeEnvio = {
+  modulo?: string;
+  tipoPlantilla?: TipoPlantilla;
+  /**
+   * Lo que queda en el historial en vez del texto enviado tal cual: el pedido de testimonio tapa el
+   * enlace personal (sirve para dejar un testimonio en nombre del cliente), como hace la galería.
+   */
+  taparEnRegistro?: (texto: string) => string;
+};
 
 export type DepsEnvio = {
   /** Inyectable en las pruebas: nunca se manda un correo real desde un test. */
@@ -489,7 +508,7 @@ export async function enviarCorreo(ctx: CtxEnvio, datos: DatosCorreo, deps: Deps
       templateId: plantilla.id,
       toAddress: para,
       subject: fa.texto,
-      body: vc.cuerpo.split(CARACTER_MARCADOR).join(""),
+      body: (opciones.taparEnRegistro ?? ((t: string) => t))(vc.cuerpo.split(CARACTER_MARCADOR).join("")),
       status: fallo ? "FAILED" : "SENT",
       automatic: automatico,
       providerId: resultado.status === "SENT" ? resultado.providerId : null,
@@ -566,7 +585,7 @@ export async function abrirWhatsapp(ctx: CtxEnvio, datos: DatosWhatsapp, opcione
         templateId: plantilla.id,
         toAddress: numero,
         subject: null,
-        body: texto,
+        body: opciones.taparEnRegistro ? opciones.taparEnRegistro(texto) : texto,
         status: "OPENED_WHATSAPP",
         automatic: false,
         actorUserId: ctx.userId,

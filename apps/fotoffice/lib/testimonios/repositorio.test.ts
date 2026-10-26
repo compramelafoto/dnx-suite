@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { testimonio } = vi.hoisted(() => ({
-  testimonio: { create: vi.fn(), findMany: vi.fn(), findFirst: vi.fn(), updateMany: vi.fn() },
+const { testimonio, transaccion } = vi.hoisted(() => ({
+  testimonio: { create: vi.fn(), findMany: vi.fn(), findFirst: vi.fn(), updateMany: vi.fn(), deleteMany: vi.fn() },
+  transaccion: vi.fn(),
 }));
 
 vi.mock("server-only", () => ({}));
-vi.mock("@repo/db", () => ({ prisma: { fotofficeTestimonio: testimonio } }));
+vi.mock("@repo/db", () => ({ prisma: { fotofficeTestimonio: testimonio, $transaction: transaccion } }));
 
 const R = await import("./repositorio");
 
@@ -21,6 +22,7 @@ const datos = {
 
 beforeEach(() => {
   for (const f of Object.values(testimonio)) f.mockReset();
+  transaccion.mockReset();
 });
 
 describe("crearTestimonio", () => {
@@ -90,5 +92,32 @@ describe("marcarDestacado", () => {
     testimonio.updateMany.mockResolvedValueOnce({ count: 1 });
     expect(await R.marcarDestacado("ws-1", "t1", true)).toBe(true);
     expect(testimonio.updateMany.mock.calls[0][0]).toEqual({ where: { id: "t1", workspaceId: "ws-1" }, data: { destacado: true } });
+  });
+});
+
+describe("panel: ordenar, editar y borrar", () => {
+  it("ordenar ignora los ids de otro workspace y numera el resto en el orden recibido", async () => {
+    testimonio.findMany.mockResolvedValueOnce([{ id: "b" }, { id: "a" }]);
+    testimonio.updateMany.mockImplementation((args: unknown) => args);
+    await R.reordenarTestimonios("ws-1", ["a", "ajeno", "b"]);
+    expect(testimonio.findMany.mock.calls[0][0].where).toEqual({ workspaceId: "ws-1", id: { in: ["a", "ajeno", "b"] } });
+    expect(transaccion.mock.calls[0][0]).toEqual([
+      { where: { id: "a", workspaceId: "ws-1" }, data: { orden: 0 } },
+      { where: { id: "b", workspaceId: "ws-1" }, data: { orden: 1 } },
+    ]);
+  });
+
+  it("editar valida los largos y nunca quita el permiso", async () => {
+    expect(await R.editarTestimonio("ws-1", "t1", { extracto: "x".repeat(241) })).toEqual({ ok: false, error: expect.stringMatching(/240/) });
+    testimonio.findFirst.mockResolvedValueOnce({ consentimiento: true });
+    testimonio.updateMany.mockResolvedValueOnce({ count: 1 });
+    await R.editarTestimonio("ws-1", "t1", { extracto: "", autorDetalle: "Boda" }, "Daniel");
+    expect(testimonio.updateMany.mock.calls[0][0].data).toEqual({ extracto: null, autorDetalle: "Boda" });
+  });
+
+  it("borrar sólo dentro del workspace y devuelve la foto para limpiarla", async () => {
+    testimonio.findFirst.mockResolvedValueOnce(null);
+    expect((await R.borrarTestimonio("ws-1", "ajeno")).ok).toBe(false);
+    expect(testimonio.deleteMany).not.toHaveBeenCalled();
   });
 });

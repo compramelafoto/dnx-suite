@@ -4,6 +4,8 @@ import {
   ESTADOS_TESTIMONIO,
   esTablaFaltante,
   puedePublicar,
+  textoConsentimientoManual,
+  validarEdicionPanel,
   type DatosTestimonio,
   type EstadoTestimonio,
   type OrigenTestimonio,
@@ -71,6 +73,7 @@ export type TestimonioDelPanel = {
   calificacion: number | null;
   estado: string;
   consentimiento: boolean;
+  consentimientoTexto: string | null;
   origen: string;
   destacado: boolean;
   orden: number;
@@ -97,6 +100,7 @@ export async function listarTestimonios(workspaceId: string, filtro: { estado?: 
         calificacion: true,
         estado: true,
         consentimiento: true,
+        consentimientoTexto: true,
         origen: true,
         destacado: true,
         orden: true,
@@ -145,4 +149,65 @@ export async function moderarTestimonio(
 export async function marcarDestacado(workspaceId: string, id: string, destacado: boolean): Promise<boolean> {
   const r = await prisma.fotofficeTestimonio.updateMany({ where: { id, workspaceId }, data: { destacado } });
   return r.count > 0;
+}
+
+/** Cuántos esperan moderación (el número de la sub-navegación). Sin tablas, 0. */
+export async function contarPendientes(workspaceId: string): Promise<number> {
+  try {
+    return await prisma.fotofficeTestimonio.count({ where: { workspaceId, estado: "PENDIENTE" } });
+  } catch (err) {
+    if (esTablaFaltante(err)) return 0;
+    throw err;
+  }
+}
+
+/** Cuántos hay en cada estado (las pestañas del panel). */
+export async function contarPorEstado(workspaceId: string): Promise<Record<EstadoTestimonio, number>> {
+  const cuenta: Record<EstadoTestimonio, number> = { PENDIENTE: 0, PUBLICADO: 0, RECHAZADO: 0 };
+  const grupos = await prisma.fotofficeTestimonio.groupBy({ by: ["estado"], where: { workspaceId }, _count: { _all: true } });
+  for (const g of grupos) {
+    if ((ESTADOS_TESTIMONIO as readonly string[]).includes(g.estado)) cuenta[g.estado as EstadoTestimonio] = g._count._all;
+  }
+  return cuenta;
+}
+
+/**
+ * Edita la frase destacada y el detalle del autor. Con `permisoDe` (quien marcó «Tengo permiso del
+ * autor» en el panel) deja asentado el permiso a un testimonio que no lo tenía; nunca lo quita.
+ */
+export async function editarTestimonio(
+  workspaceId: string,
+  id: string,
+  cambios: { extracto?: unknown; autorDetalle?: unknown },
+  permisoDe: string | null = null,
+  ahora: Date = new Date(),
+): Promise<ResultadoModeracion> {
+  const v = validarEdicionPanel(cambios);
+  if (!v.ok) return v;
+  const t = await prisma.fotofficeTestimonio.findFirst({ where: { id, workspaceId }, select: { consentimiento: true } });
+  if (!t) return { ok: false, error: NO_ENCONTRADO };
+  const permiso =
+    permisoDe && !t.consentimiento
+      ? { consentimiento: true, consentimientoAt: ahora, consentimientoTexto: textoConsentimientoManual(permisoDe, ahora) }
+      : {};
+  const r = await prisma.fotofficeTestimonio.updateMany({ where: { id, workspaceId }, data: { ...v.datos, ...permiso } });
+  return r.count > 0 ? { ok: true } : { ok: false, error: NO_ENCONTRADO };
+}
+
+/** Guarda el orden recibido (0, 1, 2…). Los ids que no son del workspace se ignoran. */
+export async function reordenarTestimonios(workspaceId: string, ids: readonly string[]): Promise<void> {
+  const unicos = [...new Set(ids.filter((id) => typeof id === "string" && id.length > 0 && id.length <= 64))].slice(0, 500);
+  if (unicos.length === 0) return;
+  const propios = await prisma.fotofficeTestimonio.findMany({ where: { workspaceId, id: { in: unicos } }, select: { id: true } });
+  const validos = new Set(propios.map((p) => p.id));
+  const orden = unicos.filter((id) => validos.has(id));
+  await prisma.$transaction(orden.map((id, i) => prisma.fotofficeTestimonio.updateMany({ where: { id, workspaceId }, data: { orden: i } })));
+}
+
+/** Borra el testimonio. Devuelve la key de su foto (si tenía) para borrarla de R2 después. */
+export async function borrarTestimonio(workspaceId: string, id: string): Promise<{ ok: true; fotoKey: string | null } | { ok: false; error: string }> {
+  const t = await prisma.fotofficeTestimonio.findFirst({ where: { id, workspaceId }, select: { autorFotoKey: true } });
+  if (!t) return { ok: false, error: NO_ENCONTRADO };
+  const r = await prisma.fotofficeTestimonio.deleteMany({ where: { id, workspaceId } });
+  return r.count > 0 ? { ok: true, fotoKey: t.autorFotoKey } : { ok: false, error: NO_ENCONTRADO };
 }
