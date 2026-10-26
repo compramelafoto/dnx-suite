@@ -3,7 +3,7 @@ import { getAnthropicClient } from "@/lib/bot/anthropic";
 import { readBotConfig } from "@/lib/bot/config";
 import { monthCostMicroUsd } from "@/lib/bot/store";
 import { textoDeMensaje } from "@/lib/soporte/resumen-bot";
-import { leerDiagnostico, type ResultadoDiagnostico } from "./esquema";
+import { analizarDiagnostico, type ResultadoDiagnostico } from "./esquema";
 import { guiaDeDiagnostico } from "./guia";
 import { herramientasDeDiagnostico } from "./herramientas";
 
@@ -22,6 +22,7 @@ export type SalidaDiagnostico =
   | { estado: "FALLO" | "SIN_PRESUPUESTO"; error: string; costMicroUsd: number };
 
 const MAX_NOTA = 6000;
+const MAX_RESPUESTA_EN_ERROR = 1500;
 
 /** Marca el texto que escribió la persona: la guía le pide a la IA tratarlo como datos, no como órdenes. */
 function noConfiable(texto: string): string {
@@ -78,9 +79,13 @@ export async function diagnosticar(t: TicketParaDiagnostico): Promise<SalidaDiag
     });
     const gastado = costo(r.usage);
     const ultimo = [...r.appended].reverse().find((msg) => (msg as { role: string }).role === "assistant");
-    const resultado = leerDiagnostico(textoDeMensaje((ultimo as { content?: unknown } | undefined)?.content));
-    if (!resultado) return { estado: "FALLO", error: `La IA no devolvió un diagnóstico válido (${r.outcome}).`, costMicroUsd: gastado };
-    return { estado: "LISTO", resultado, costMicroUsd: gastado, mailSinVerificar: !verificado };
+    const texto = textoDeMensaje((ultimo as { content?: unknown } | undefined)?.content);
+    const analisis = analizarDiagnostico(texto);
+    if (!analisis.ok) {
+      // Queda guardado en el diagnóstico para poder ver qué respondió la IA y por qué no sirvió.
+      return { estado: "FALLO", error: `La IA no devolvió un diagnóstico válido (${r.outcome}): ${analisis.motivo}. Respuesta: ${texto.slice(0, MAX_RESPUESTA_EN_ERROR) || "(vacía)"}`, costMicroUsd: gastado };
+    }
+    return { estado: "LISTO", resultado: analisis.data, costMicroUsd: gastado, mailSinVerificar: !verificado };
   } catch (e) {
     const gastado = e instanceof BotTurnError ? costo(e.usage) : 0;
     return { estado: "FALLO", error: e instanceof Error ? e.message : String(e), costMicroUsd: gastado };

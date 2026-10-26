@@ -103,6 +103,21 @@ describe("diagnosticar", () => {
     expect(r.costMicroUsd).toBeGreaterThan(0);
   });
 
+  it("una falla guarda el motivo exacto y el comienzo de lo que respondió la IA, para poder corregirlo", async () => {
+    m.turn.mockResolvedValue(respuesta(JSON.stringify({ ...valido, confianza: "alta" })));
+    const r = await diagnosticar(comprador);
+    expect(r.estado).toBe("FALLO");
+    const error = r.estado === "FALLO" ? r.error : "";
+    expect(error).toContain("confianza");
+    expect(error).toContain('"confianza":"alta"');
+  });
+
+  it("sin JSON en la respuesta, el error lo dice y muestra el texto", async () => {
+    m.turn.mockResolvedValue(respuesta("No encontré nada raro."));
+    const r = await diagnosticar(comprador);
+    expect(r.estado === "FALLO" && r.error).toContain("No encontré nada raro.");
+  });
+
   it("acción fuera del catálogo → FALLO", async () => {
     m.turn.mockResolvedValue(respuesta(JSON.stringify({ ...valido, acciones: [{ herramienta: "devolver_dinero", input: {}, motivo: "x", tildada: true }] })));
     expect((await diagnosticar(comprador)).estado).toBe("FALLO");
