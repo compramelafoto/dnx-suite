@@ -34,7 +34,7 @@ export const MENSAJES_PEDIDO = {
 export const ENLACE_TAPADO = "(enlace personal para dejar el testimonio)";
 
 /** Lo que ocupa el lugar de `[link_testimonio]` mientras se arman los textos (sin corchetes ni espacios). */
-const MARCA_ENLACE = "__ENLACE_TESTIMONIO_PERSONAL__";
+export const MARCA_ENLACE = "__ENLACE_TESTIMONIO_PERSONAL__";
 
 const ENLACE_PERSONAL = new RegExp(`\\S*/${TESTIMONIO_FORM_SEGMENT}\\?t=[A-Za-z0-9_-]{43}`, "g");
 
@@ -51,6 +51,32 @@ export function canalesDelPedido(destino: ContextoMensaje["destino"]): CanalesDe
     correo: correoValido(destino.email) ? destino.email : null,
     whatsapp: destino.telefono && normalizeWhatsappNumber(destino.telefono) ? destino.telefono : null,
   };
+}
+
+/**
+ * Asunto y cuerpo del correo del pedido, con la plantilla `TESTIMONIO_INVITACION` del workspace (se
+ * crea apagada si falta) y `[link_testimonio]` ya reemplazado en `contexto` (con la marca o con el
+ * enlace real). Si la plantilla quedó con variables que no sirven, sale el texto inicial y
+ * `templateId` queda en null. Null si ni así se pueden armar. Lo usan el pedido a mano y el automático.
+ */
+export async function textosDelCorreo(
+  workspaceId: string,
+  contexto: ContextoMensaje,
+): Promise<{ templateId: string | null; asunto: string; cuerpo: string } | null> {
+  await asegurarPlantillaTestimonio(workspaceId);
+  const plantilla = await prisma.fotofficeMessageTemplate.findFirst({
+    where: { workspaceId, systemKey: "TESTIMONIO_INVITACION", channel: "EMAIL", archivedAt: null },
+    select: { id: true, subject: true, body: true },
+  });
+  const base = plantilla ?? { id: null, subject: TESTIMONIO_INVITACION_INICIAL.EMAIL.asunto, body: TESTIMONIO_INVITACION_INICIAL.EMAIL.cuerpo };
+  let textos = completarTextos(contexto, "TESTIMONIO", base.subject, base.body);
+  let templateId = base.id;
+  // Si alguien dejó la plantilla con variables que no sirven, sale el texto inicial (sin plantilla).
+  if (!textos.ok) {
+    textos = completarTextos(contexto, "TESTIMONIO", TESTIMONIO_INVITACION_INICIAL.EMAIL.asunto, TESTIMONIO_INVITACION_INICIAL.EMAIL.cuerpo);
+    templateId = null;
+  }
+  return textos.ok ? { templateId, asunto: textos.asunto, cuerpo: textos.cuerpo } : null;
 }
 
 export type PedidoPreparado = {
@@ -92,20 +118,8 @@ export async function prepararPedidoTestimonio(
 
   let correo: PedidoPreparado["correo"] = null;
   if (canales.correo) {
-    await asegurarPlantillaTestimonio(ctx.workspaceId);
-    const plantilla = await prisma.fotofficeMessageTemplate.findFirst({
-      where: { workspaceId: ctx.workspaceId, systemKey: "TESTIMONIO_INVITACION", channel: "EMAIL", archivedAt: null },
-      select: { id: true, subject: true, body: true },
-    });
-    const base = plantilla ?? { id: null, subject: TESTIMONIO_INVITACION_INICIAL.EMAIL.asunto, body: TESTIMONIO_INVITACION_INICIAL.EMAIL.cuerpo };
-    let textos = completarTextos(conMarca, "TESTIMONIO", base.subject, base.body);
-    let templateId = base.id;
-    // Si alguien dejó la plantilla con variables que no sirven, sale el texto inicial (sin plantilla).
-    if (!textos.ok) {
-      textos = completarTextos(conMarca, "TESTIMONIO", TESTIMONIO_INVITACION_INICIAL.EMAIL.asunto, TESTIMONIO_INVITACION_INICIAL.EMAIL.cuerpo);
-      templateId = null;
-    }
-    if (textos.ok) correo = { destino: canales.correo, templateId, asunto: textos.asunto, cuerpo: textos.cuerpo };
+    const t = await textosDelCorreo(ctx.workspaceId, conMarca);
+    if (t) correo = { destino: canales.correo, ...t };
   }
 
   let whatsapp: PedidoPreparado["whatsapp"] = null;
