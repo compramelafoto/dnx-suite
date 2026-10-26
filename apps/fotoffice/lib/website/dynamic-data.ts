@@ -1,6 +1,7 @@
 import type { WebsiteBlock } from "./blocks";
 import type { SpotlightCardView } from "@/lib/spotlight/view";
 import type { HeroBlogSlide } from "./blog-banner";
+import type { PublicSiteContact } from "./public-site";
 
 /**
  * Datos que los bloques `dynamic` necesitan y que NO viven en `sectionsJson`: se leen en el
@@ -47,7 +48,14 @@ export type WebsiteDynamicData = {
   blogLatest?: BlogLatestData;
   memberOfWeek?: MemberOfWeekData;
   heroBlog?: HeroBlogData;
+  /** Contacto de la institución (el mismo del pie del sitio), para completar los campos vacíos
+   * del bloque CONTACT. Ya es público; sólo viaja si la página tiene el bloque. */
+  contact?: PublicSiteContact;
 };
+
+export function hasVisibleContact(blocks: readonly WebsiteBlock[]): boolean {
+  return blocks.some((b) => b.type === "CONTACT" && b.visible);
+}
 
 export function hasVisibleMemberOfWeek(blocks: readonly WebsiteBlock[]): boolean {
   return blocks.some((b) => b.type === "MEMBER_OF_WEEK" && b.visible);

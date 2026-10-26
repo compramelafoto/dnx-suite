@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { sanitizeContentHtml } from "@repo/content";
+import { isAllowedMapsUrl } from "./contact";
 
 /**
  * Contrato de bloques estáticos de la Home del sitio web — primera etapa del editor visual.
@@ -304,6 +305,36 @@ export const embedConfigSchema = z.object({
   heightPx: z.number().int().min(EMBED_MIN_HEIGHT_PX).max(EMBED_MAX_HEIGHT_PX).catch(EMBED_DEFAULT_HEIGHT_PX),
 });
 
+/**
+ * Contacto: con `useWorkspaceData` los campos vacíos se completan con los datos de la
+ * institución al dibujar (ver `resolveContactConfig`); lo escrito acá manda. `mapsUrl` sólo
+ * admite enlaces de Google Maps: otro valor se descarta al parsear (no tira el bloque).
+ */
+export const CONTACT_SOCIAL_NETWORKS = ["instagram", "facebook", "youtube", "vimeo", "tiktok", "linkedin", "pinterest", "x"] as const;
+export type ContactSocialNetwork = (typeof CONTACT_SOCIAL_NETWORKS)[number];
+
+export const contactSocialSchema = z.object({
+  network: z.enum(CONTACT_SOCIAL_NETWORKS),
+  url: z.string().max(2000),
+});
+export type ContactSocial = z.infer<typeof contactSocialSchema>;
+
+export const contactConfigSchema = z.object({
+  title: z.string().max(200).optional(),
+  useWorkspaceData: z.boolean().catch(true),
+  email: z.string().max(200).optional(),
+  phone: z.string().max(60).optional(),
+  whatsapp: z.string().max(60).optional(),
+  whatsappText: z.string().max(300).optional(),
+  address: z.string().max(300).optional(),
+  mapsUrl: z
+    .string()
+    .max(2000)
+    .optional()
+    .transform((v) => (v && isAllowedMapsUrl(v) ? v.trim() : undefined)),
+  socials: z.array(contactSocialSchema).max(20),
+});
+
 const blockEnvelope = {
   id: z.string().min(1),
   visible: z.boolean(),
@@ -319,6 +350,7 @@ export const richTextBlockSchema = z.object({ ...blockEnvelope, type: z.literal(
 export const galleryBlockSchema = z.object({ ...blockEnvelope, type: z.literal("GALLERY"), config: galleryConfigSchema });
 export const videoBlockSchema = z.object({ ...blockEnvelope, type: z.literal("VIDEO"), config: videoConfigSchema });
 export const embedBlockSchema = z.object({ ...blockEnvelope, type: z.literal("EMBED"), config: embedConfigSchema });
+export const contactBlockSchema = z.object({ ...blockEnvelope, type: z.literal("CONTACT"), config: contactConfigSchema });
 export const blogLatestBlockSchema = z.object({ ...blockEnvelope, type: z.literal("BLOG_LATEST"), config: blogLatestConfigSchema });
 export const memberOfWeekBlockSchema = z.object({ ...blockEnvelope, type: z.literal("MEMBER_OF_WEEK"), config: memberOfWeekConfigSchema });
 
@@ -332,6 +364,7 @@ export const websiteBlockSchema = z.discriminatedUnion("type", [
   galleryBlockSchema,
   videoBlockSchema,
   embedBlockSchema,
+  contactBlockSchema,
   blogLatestBlockSchema,
   memberOfWeekBlockSchema,
 ]);
@@ -369,6 +402,7 @@ export type RichTextBlockConfig = z.infer<typeof richTextConfigSchema>;
 export type GalleryBlockConfig = z.infer<typeof galleryConfigSchema>;
 export type VideoBlockConfig = z.infer<typeof videoConfigSchema>;
 export type EmbedBlockConfig = z.infer<typeof embedConfigSchema>;
+export type ContactBlockConfig = z.infer<typeof contactConfigSchema>;
 export type BlogLatestBlockConfig = z.infer<typeof blogLatestConfigSchema>;
 export type MemberOfWeekBlockConfig = z.infer<typeof memberOfWeekConfigSchema>;
 
@@ -381,6 +415,7 @@ export type RichTextBlock = z.infer<typeof richTextBlockSchema>;
 export type GalleryBlock = z.infer<typeof galleryBlockSchema>;
 export type VideoBlock = z.infer<typeof videoBlockSchema>;
 export type EmbedBlock = z.infer<typeof embedBlockSchema>;
+export type ContactBlock = z.infer<typeof contactBlockSchema>;
 export type BlogLatestBlock = z.infer<typeof blogLatestBlockSchema>;
 export type MemberOfWeekBlock = z.infer<typeof memberOfWeekBlockSchema>;
 
@@ -568,6 +603,16 @@ export const WEBSITE_BLOCK_DEFINITIONS: {
     source: "static",
     defaultConfig: () => ({ title: "", url: "", heightPx: EMBED_DEFAULT_HEIGHT_PX }),
     previewLabel: (c) => c.title?.trim() || "Contenido",
+  },
+  CONTACT: {
+    type: "CONTACT",
+    label: "Contacto",
+    description: "Correo, teléfono, WhatsApp, dirección con mapa y redes. Puede tomar los datos de tu institución.",
+    category: "BASICAS",
+    source: "dynamic",
+    defaultConfig: () => ({ title: "Contacto", useWorkspaceData: true, socials: [] }),
+    // Alimenta también el menú (ver HERO).
+    previewLabel: (c) => c.title?.trim() || "Contacto",
   },
   BLOG_LATEST: {
     type: "BLOG_LATEST",

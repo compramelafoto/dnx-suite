@@ -3,7 +3,7 @@ import { prisma } from "@repo/db";
 import { blogPath, listBlogPosts, listBlogPostsByIds, postPath } from "@/lib/blog/public";
 import { toBlogCard } from "@/lib/blog/public-format";
 import type { PublicSite } from "./public-site";
-import { blogLatestLimitFor, hasVisibleMemberOfWeek, type WebsiteDynamicData } from "./dynamic-data";
+import { blogLatestLimitFor, hasVisibleContact, hasVisibleMemberOfWeek, type WebsiteDynamicData } from "./dynamic-data";
 import { loadPublicMemberOfWeek } from "@/lib/spotlight/public";
 import { mainHeroBlockId, type HeroBlogSlide } from "./blog-banner";
 
@@ -40,6 +40,9 @@ export async function loadWebsiteDynamicData(site: PublicSite, blocks: PublicSit
       return { card: null, weekLabel: "" };
     });
   }
+
+  // El contacto ya viene en `site` (lo lee el layout para el pie): no hay otra consulta.
+  if (hasVisibleContact(blocks)) data.contact = site.contact;
 
   const heroBlockId = mainHeroBlockId(blocks);
   if (heroBlockId) {

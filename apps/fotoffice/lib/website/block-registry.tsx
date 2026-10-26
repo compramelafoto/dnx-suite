@@ -8,6 +8,7 @@ import { HeroSlideEditor } from "@/components/website/builder/hero-slide-editor"
 import { TextBlockView } from "@/components/website/render/blocks/text-block-view";
 import { ImageBlockView } from "@/components/website/render/blocks/image-block-view";
 import { CtaBlockView } from "@/components/website/render/blocks/cta-block-view";
+import { ContactBlockView } from "@/components/website/render/blocks/contact-block-view";
 import { GalleryBlockView } from "@/components/website/render/blocks/gallery-block-view";
 import { VideoBlockView } from "@/components/website/render/blocks/video-block-view";
 import { EmbedBlockView } from "@/components/website/render/blocks/embed-block-view";
@@ -15,11 +16,15 @@ import { RichTextBlockView } from "@/components/website/render/blocks/rich-text-
 import { SpacerBlockView } from "@/components/website/render/blocks/spacer-block-view";
 import { BlogLatestBlockView } from "@/components/website/render/blocks/blog-latest-block-view";
 import { MemberOfWeekBlockView } from "@/components/website/render/blocks/member-of-week-block-view";
+import { isAllowedMapsUrl } from "./contact";
 import { isAllowedEmbedUrl, toVideoEmbedUrl } from "./embed-hosts";
 import type { WebsiteDynamicData } from "./dynamic-data";
 import {
   WEBSITE_BLOCK_DEFINITIONS,
   type BlogLatestBlockConfig,
+  type ContactBlockConfig,
+  type ContactSocial,
+  CONTACT_SOCIAL_NETWORKS,
   type CtaBlockConfig,
   type EmbedBlockConfig,
   type GalleryBlockConfig,
@@ -237,6 +242,71 @@ export const WEBSITE_BLOCK_REGISTRY: { [K in WebsiteBlockType]: BlockRegistryEnt
             }}
           />
         </label>
+      </div>
+    ),
+  },
+  CONTACT: {
+    View: ContactBlockView,
+    Inspector: ({ config, onChange }: { config: ContactBlockConfig; onChange: (c: ContactBlockConfig) => void }) => (
+      <div className="space-y-4">
+        <TextField label="Título (opcional)" value={config.title ?? ""} onChange={(v) => onChange({ ...config, title: v })} />
+        <ToggleField
+          label="Completar con los datos de mi institución"
+          checked={config.useWorkspaceData}
+          onChange={(v) => onChange({ ...config, useWorkspaceData: v })}
+        />
+        <p className="text-xs text-[var(--fo-muted)]">
+          Lo que dejes vacío acá se completa con el correo, teléfono, WhatsApp, dirección e Instagram de tu institución. Lo que escribas acá tiene prioridad.
+        </p>
+        <TextField label="Correo" value={config.email ?? ""} onChange={(v) => onChange({ ...config, email: v })} />
+        <TextField label="Teléfono" value={config.phone ?? ""} onChange={(v) => onChange({ ...config, phone: v })} />
+        <TextField label="WhatsApp" value={config.whatsapp ?? ""} onChange={(v) => onChange({ ...config, whatsapp: v })} helper="Con o sin código de país: «341 341-9869»." />
+        <TextField label="Mensaje inicial de WhatsApp (opcional)" value={config.whatsappText ?? ""} onChange={(v) => onChange({ ...config, whatsappText: v })} />
+        <TextField label="Dirección" value={config.address ?? ""} onChange={(v) => onChange({ ...config, address: v })} />
+        <TextField label="Enlace de Google Maps" value={config.mapsUrl ?? ""} onChange={(v) => onChange({ ...config, mapsUrl: v })} helper="Pegá el enlace de «Compartir» de Google Maps." />
+        {config.mapsUrl?.trim() && !isAllowedMapsUrl(config.mapsUrl) ? (
+          <p className="text-xs text-red-600">Ese enlace no es de Google Maps: no se va a guardar.</p>
+        ) : null}
+        <div className="space-y-2">
+          <span className="fo-label">Redes sociales</span>
+          {config.socials.map((social, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <select
+                className="fo-input w-32 shrink-0"
+                aria-label="Red social"
+                value={social.network}
+                onChange={(e) =>
+                  onChange({ ...config, socials: config.socials.map((s, j) => (j === i ? { ...s, network: e.target.value as ContactSocial["network"] } : s)) })
+                }
+              >
+                {CONTACT_SOCIAL_NETWORKS.map((n) => (
+                  <option key={n} value={n}>
+                    {n === "x" ? "X" : n.charAt(0).toUpperCase() + n.slice(1)}
+                  </option>
+                ))}
+              </select>
+              <input
+                className="fo-input min-w-0 flex-1"
+                aria-label="Enlace de la red social"
+                placeholder="https://"
+                value={social.url}
+                onChange={(e) => onChange({ ...config, socials: config.socials.map((s, j) => (j === i ? { ...s, url: e.target.value } : s)) })}
+              />
+              <button type="button" className="px-1 text-red-600" aria-label="Quitar red social" onClick={() => onChange({ ...config, socials: config.socials.filter((_, j) => j !== i) })}>
+                ×
+              </button>
+            </div>
+          ))}
+          {config.socials.length < 20 ? (
+            <button
+              type="button"
+              className="text-sm underline"
+              onClick={() => onChange({ ...config, socials: [...config.socials, { network: "instagram", url: "" }] })}
+            >
+              Agregar red social
+            </button>
+          ) : null}
+        </div>
       </div>
     ),
   },
