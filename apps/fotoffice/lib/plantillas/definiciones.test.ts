@@ -56,6 +56,15 @@ describe("tipo CONTRATO", () => {
   });
 });
 
+describe("tipo TESTIMONIO", () => {
+  it("es reservado: las acciones generales no crean ni convierten plantillas en TESTIMONIO", async () => {
+    expect(await D.crearPlantilla(ADMIN, { canal: "WHATSAPP", tipo: "TESTIMONIO", nombre: "X", cuerpo: "[link_testimonio]" })).toEqual({ ok: false, error: M.tipoInvalido });
+    const id = await crear();
+    expect(await D.editarPlantilla(ADMIN, id, { tipo: "TESTIMONIO" })).toEqual({ ok: false, error: M.tipoInvalido });
+    expect(D.AUTOMATICOS.TESTIMONIO_INVITACION).toEqual({ canal: "EMAIL", tipo: "TESTIMONIO", nombre: "Pedido de testimonio" });
+  });
+});
+
 describe("permiso", () => {
   it("sin `configurar` ninguna escritura toca la base", async () => {
     const id = await crear();

@@ -5,7 +5,8 @@ import { getEnabledModuleKeysForWorkspace } from "@/lib/modules/gating";
 import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { listBlogPosts } from "@/lib/blog/public";
 import { hayTrabajosPublicados } from "@/lib/trabajos/publico";
-import { withTrabajosPage } from "@/lib/website/public-modules";
+import { hayTestimoniosPublicados } from "@/lib/testimonios/publico";
+import { withTestimoniosPage, withTrabajosPage } from "@/lib/website/public-modules";
 import { withBlogPage } from "@/lib/website/site-menu";
 import { normalizeFotofficeOrganizationType } from "@/lib/onboarding-constants";
 import { PageHeader } from "@/components/page-header";
@@ -20,7 +21,7 @@ export default async function WebsiteBuilderPage({ searchParams }: { searchParam
   // El logo y el favicon son la identidad de la institución: sólo dueño/admin (ver la acción).
   const canEditIdentity = canEdit && (await canEditWebsiteIdentity(user.id, workspace.id));
 
-  const [branding, modulosEncendidos, personVocabulary, hasPublishedBlog, hasPublishedTrabajos] = await Promise.all([
+  const [branding, modulosEncendidos, personVocabulary, hasPublishedBlog, hasPublishedTrabajos, hasPublishedTestimonios] = await Promise.all([
     prisma.fotofficeWorkspaceBranding.findUnique({
       where: { workspaceId: workspace.id },
       select: {
@@ -44,8 +45,13 @@ export default async function WebsiteBuilderPage({ searchParams }: { searchParam
       console.error("[fotoffice][website] no se pudo saber si hay trabajos publicados:", err);
       return false;
     }),
+    // Y Testimonios, con al menos un testimonio publicado.
+    hayTestimoniosPublicados(workspace.id).catch((err: unknown) => {
+      console.error("[fotoffice][website] no se pudo saber si hay testimonios publicados:", err);
+      return false;
+    }),
   ]);
-  const enabledModuleKeys = withTrabajosPage(modulosEncendidos, hasPublishedTrabajos);
+  const enabledModuleKeys = withTestimoniosPage(withTrabajosPage(modulosEncendidos, hasPublishedTrabajos), hasPublishedTestimonios);
 
   return (
     <div className="space-y-4">

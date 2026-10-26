@@ -18,6 +18,18 @@ export const TRABAJOS_PUBLIC_PAGE_KEY = "website:trabajos";
 /** Segmento de Trabajos bajo `/w/[slug]/`. */
 export const TRABAJOS_PUBLIC_SEGMENT = "trabajos";
 
+/**
+ * Testimonios tampoco es un módulo: es una sección del Sitio web que entra al menú sólo con al menos
+ * un testimonio publicado. Misma idea de llave propia que el blog y Trabajos.
+ */
+export const TESTIMONIOS_PUBLIC_PAGE_KEY = "website:testimonios";
+
+/** Segmento de la lista de testimonios bajo `/w/[slug]/`. */
+export const TESTIMONIOS_PUBLIC_SEGMENT = "testimonios";
+
+/** Segmento del formulario abierto para dejar un testimonio bajo `/w/[slug]/`. */
+export const TESTIMONIO_FORM_SEGMENT = "testimonio";
+
 /** Segmento de la página Institucional (la comisión directiva) bajo `/w/[slug]/`. */
 export const INSTITUTIONAL_PUBLIC_SEGMENT = "institucional";
 

@@ -12,8 +12,9 @@ import { getEnabledModuleKeysForWorkspace } from "@/lib/modules/gating";
 import { listBlogPosts } from "@/lib/blog/public";
 import { STORE_MODULE_KEY } from "@/lib/store/constants";
 import { SALES_MODULE_KEY } from "@/lib/sales/constants";
-import { withStoreOpenState, withTrabajosPage } from "./public-modules";
+import { withStoreOpenState, withTestimoniosPage, withTrabajosPage } from "./public-modules";
 import { hayTrabajosPublicados } from "@/lib/trabajos/publico";
+import { hayTestimoniosPublicados } from "@/lib/testimonios/publico";
 
 /**
  * Qué ve el visitante en la portada, según la tabla de la sección 4 del spec. Es la única
@@ -80,8 +81,9 @@ export type PublicSite = {
   hasPublishedBlog: boolean;
   /** Sitio web habilitado y al menos un trabajo publicado: Trabajos va al menú. */
   hasPublishedTrabajos: boolean;
-  /** Los módulos encendidos con página pública visible: la tienda cuenta sólo si está abierta, y
-   * Trabajos (`TRABAJOS_PUBLIC_PAGE_KEY`) sólo con trabajos publicados. */
+  /** Los módulos encendidos con página pública visible: la tienda cuenta sólo si está abierta,
+   * Trabajos (`TRABAJOS_PUBLIC_PAGE_KEY`) sólo con trabajos publicados y Testimonios
+   * (`TESTIMONIOS_PUBLIC_PAGE_KEY`) sólo con testimonios publicados. */
   enabledModuleKeys: Set<string>;
   /** Cómo llama esta institución a la gente de su padrón. Lo usa el menú del sitio. */
   personVocabulary: PersonVocabulary;
@@ -160,8 +162,9 @@ export const loadPublicSite = cache(async function loadPublicSite(workspaceSlug:
 
   // Un artículo alcanza para saber si el blog va al menú. Sólo se pregunta con el Sitio web
   // habilitado: sin él, el blog no existe (`loadPublicBlog` lo trata igual).
-  // Lo mismo para Trabajos. Si la lectura falla, Trabajos queda fuera del menú y el sitio sigue.
-  const [hasPublishedBlog, hasPublishedTrabajos] = websiteModuleEnabled
+  // Lo mismo para Trabajos y Testimonios. Si la lectura falla, esa sección queda fuera del menú y el
+  // sitio sigue.
+  const [hasPublishedBlog, hasPublishedTrabajos, hasPublishedTestimonios] = websiteModuleEnabled
     ? await Promise.all([
         listBlogPosts(
           { workspaceId: branding.workspaceId, slug: workspaceSlug, nombre: branding.commercialName, logoUrl: branding.logoUrl },
@@ -171,9 +174,13 @@ export const loadPublicSite = cache(async function loadPublicSite(workspaceSlug:
           console.error("[fotoffice][website] no se pudo saber si hay trabajos publicados:", err);
           return false;
         }),
+        hayTestimoniosPublicados(branding.workspaceId).catch((err: unknown) => {
+          console.error("[fotoffice][website] no se pudo saber si hay testimonios publicados:", err);
+          return false;
+        }),
       ])
-    : [false, false];
-  const enabledModuleKeys = withTrabajosPage(conTienda, hasPublishedTrabajos);
+    : [false, false, false];
+  const enabledModuleKeys = withTestimoniosPage(withTrabajosPage(conTienda, hasPublishedTrabajos), hasPublishedTestimonios);
 
   return {
     workspaceId: branding.workspaceId,

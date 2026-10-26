@@ -17,6 +17,7 @@ import {
   isSiteSegmentReserved,
   publicModulePagesFor,
   withStoreOpenState,
+  withTestimoniosPage,
   withTrabajosPage,
 } from "./public-modules";
 import { resolveSiteNav, SITE_MENU_VERSION, type SiteMenu } from "./site-menu";
@@ -213,5 +214,31 @@ describe("la página pública de Trabajos", () => {
 
   it("su segmento queda reservado", () => {
     expect(isSiteSegmentReserved("trabajos")).toBe(true);
+  });
+});
+
+describe("la página pública de Testimonios", () => {
+  const menu = (hay: boolean) =>
+    buildSiteNav({
+      workspaceSlug: "dnx-estudio",
+      homeBlocks: [],
+      enabledModuleKeys: withTestimoniosPage(new Set([BOOKINGS_MODULE_KEY]), hay),
+      hasPublishedSite: true,
+    });
+
+  it("con al menos un testimonio publicado entra sola al menú automático, como «Testimonios»", () => {
+    const item = menu(true).find((i) => i.href === "/w/dnx-estudio/testimonios");
+    expect(item?.label).toBe("Testimonios");
+  });
+
+  it("sin testimonios publicados no entra al menú", () => {
+    expect(menu(false).some((i) => i.href.endsWith("/testimonios"))).toBe(false);
+  });
+
+  it("no toca el conjunto que recibe y su segmento queda reservado", () => {
+    const claves = new Set([BOOKINGS_MODULE_KEY]);
+    withTestimoniosPage(claves, true);
+    expect([...claves]).toEqual([BOOKINGS_MODULE_KEY]);
+    expect(isSiteSegmentReserved("testimonios")).toBe(true);
   });
 });

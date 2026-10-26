@@ -39,6 +39,17 @@ describe("bloque BLOG_LATEST", () => {
   });
 });
 
+describe("testimonialsLimitFor", () => {
+  it("0 sin bloques visibles (no se consulta); el mayor count; null (todos) si alguno pide 0", async () => {
+    const { testimonialsLimitFor } = await import("./dynamic-data");
+    const con = (count: number, visible = true) => ({ ...createEmptyBlock("TESTIMONIALS", 0), visible, config: { ...createEmptyBlock("TESTIMONIALS", 0).config, count } }) as WebsiteBlock;
+    expect(testimonialsLimitFor([createEmptyBlock("TEXT", 0)])).toBe(0);
+    expect(testimonialsLimitFor([con(12, false)])).toBe(0);
+    expect(testimonialsLimitFor([con(3), con(9)])).toBe(9);
+    expect(testimonialsLimitFor([con(3), con(0)])).toBeNull();
+  });
+});
+
 describe("portfolioBlocksFor", () => {
   it("devuelve sólo los bloques PORTFOLIO visibles: sin ellos no se consulta Trabajos", async () => {
     const { portfolioBlocksFor } = await import("./dynamic-data");

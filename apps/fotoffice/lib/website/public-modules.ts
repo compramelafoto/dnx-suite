@@ -7,6 +7,8 @@ import {
   BLOG_PUBLIC_PAGE_KEY,
   INSTITUTIONAL_PUBLIC_SEGMENT,
   PRESUPUESTO_PAGE_LABEL,
+  TESTIMONIOS_PUBLIC_PAGE_KEY,
+  TESTIMONIOS_PUBLIC_SEGMENT,
   TRABAJOS_PUBLIC_PAGE_KEY,
   TRABAJOS_PUBLIC_SEGMENT,
 } from "./constants";
@@ -28,8 +30,9 @@ import type { PersonVocabulary } from "@/lib/vocabulario/personas";
  * `app/w/[workspaceSlug]/<segment>/`.
  */
 export type PublicModulePage = {
-  /** Mismo valor que `WorkspaceFeatureModule.moduleKey` — salvo el blog y Trabajos, que no son
-   * módulos y usan una llave propia (`BLOG_PUBLIC_PAGE_KEY`, `TRABAJOS_PUBLIC_PAGE_KEY`). */
+  /** Mismo valor que `WorkspaceFeatureModule.moduleKey` — salvo el blog, Trabajos y Testimonios, que
+   * no son módulos y usan una llave propia (`BLOG_PUBLIC_PAGE_KEY`, `TRABAJOS_PUBLIC_PAGE_KEY`,
+   * `TESTIMONIOS_PUBLIC_PAGE_KEY`). */
   moduleKey: string;
   /** Segmento bajo `/w/[slug]/`. Es también su entrada en el menú. */
   segment: string;
@@ -63,6 +66,8 @@ export const PUBLIC_MODULE_PAGES: readonly PublicModulePage[] = [
   { moduleKey: STORE_MODULE_KEY, segment: STORE_PUBLIC_SEGMENT, label: "Tienda", order: 35 },
   // Entra al menú sólo con al menos un trabajo publicado: ver `withTrabajosPage`.
   { moduleKey: TRABAJOS_PUBLIC_PAGE_KEY, segment: TRABAJOS_PUBLIC_SEGMENT, label: "Trabajos", order: 38 },
+  // Entra al menú sólo con al menos un testimonio publicado: ver `withTestimoniosPage`.
+  { moduleKey: TESTIMONIOS_PUBLIC_PAGE_KEY, segment: TESTIMONIOS_PUBLIC_SEGMENT, label: "Testimonios", order: 39 },
   { moduleKey: BLOG_PUBLIC_PAGE_KEY, segment: "blog", label: "Blog", order: 40 },
 ] as const;
 
@@ -108,6 +113,13 @@ export function withStoreOpenState(enabledModuleKeys: ReadonlySet<string>, store
 export function withTrabajosPage(enabledModuleKeys: ReadonlySet<string>, hasPublishedTrabajos: boolean): Set<string> {
   const claves = new Set(enabledModuleKeys);
   if (hasPublishedTrabajos) claves.add(TRABAJOS_PUBLIC_PAGE_KEY);
+  return claves;
+}
+
+/** Testimonios, igual que Trabajos: al menú sólo con al menos un testimonio publicado. */
+export function withTestimoniosPage(enabledModuleKeys: ReadonlySet<string>, hasPublishedTestimonios: boolean): Set<string> {
+  const claves = new Set(enabledModuleKeys);
+  if (hasPublishedTestimonios) claves.add(TESTIMONIOS_PUBLIC_PAGE_KEY);
   return claves;
 }
 

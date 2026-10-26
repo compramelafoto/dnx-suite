@@ -84,6 +84,8 @@ const TABLAS = [
   // Presupuesto automático con aprobación por Telegram (2026-10-25).
   "fotofficeTelegramConexion", "fotofficePresupuestoAutoCategoria", "fotofficePresupuestoAutoAjustes", "fotofficePresupuestoAprobacion",
   "workspaceIntegration",
+  // Testimonios del sitio (PR 3): el formulario público y la invitación personal.
+  "fotofficeTestimonio", "fotofficeTestimonioInvitacion", "fotofficeTestimonioAjustes",
 ] as const;
 export type Tabla = (typeof TABLAS)[number];
 
@@ -328,6 +330,17 @@ const DEFECTOS: Partial<Record<Tabla, () => Fila>> = {
   fotofficeEsperaPago: () => ({ importeUnicoArs: null, estado: "ESPERANDO", creadaEn: new Date(), conciliadaEn: null, cobroId: null, updatedAt: new Date() }),
   workspaceFeeLedgerEntry: () => ({ membershipPaymentId: null, bookingId: null, note: null, actorUserId: null, createdAt: new Date() }),
   digitalizacionComision: () => ({ createdAt: new Date() }),
+  fotofficeTestimonio: () => ({
+    extracto: null, autorDetalle: null, autorFotoUrl: null, autorFotoKey: null, autorEnlace: null, autorEmail: null, calificacion: null,
+    estado: "PENDIENTE", consentimiento: false, consentimientoAt: null, consentimientoTexto: null, clientId: null, proyectoId: null,
+    trabajoId: null, invitacionId: null, destacado: false, orden: 0, moderadoPorUserId: null, moderadoAt: null, origenExternoId: null,
+    createdAt: new Date(), updatedAt: new Date(),
+  }),
+  fotofficeTestimonioInvitacion: () => ({
+    clientId: null, proyectoId: null, correo: null, nombreSugerido: null, detalleSugerido: null, estado: "ENVIADA", canal: null,
+    enviadaAt: new Date(), respondidaAt: null, claveIdempotencia: null, createdByUserId: null,
+  }),
+  fotofficeTestimonioAjustes: () => ({ automaticoEncendido: false, diasDespues: 7, encendidoAt: null, avisarAlEquipo: true, updatedAt: new Date() }),
 };
 
 function igual(a: unknown, b: unknown): boolean {
@@ -566,6 +579,12 @@ export function crearBaseEnMemoria() {
       { columnas: ["phoneNumberId"], aplica: (f) => f.phoneNumberId !== null && f.phoneNumberId !== undefined },
     ],
     fotofficeWaChat: [{ columnas: ["workspaceId", "waId"] }],
+    // Testimonios: el hash del token y la clave del pedido automático son únicos (la clave, sólo si hay).
+    fotofficeTestimonioInvitacion: [
+      { columnas: ["tokenHash"] },
+      { columnas: ["claveIdempotencia"], aplica: (f) => f.claveIdempotencia !== null && f.claveIdempotencia !== undefined },
+    ],
+    fotofficeTestimonioAjustes: [{ columnas: ["workspaceId"] }],
     fotofficeWaMensaje: [
       { columnas: ["workspaceId", "waMessageId"], aplica: (f) => f.waMessageId !== null && f.waMessageId !== undefined },
       { columnas: ["chatId", "clientToken"], aplica: (f) => f.clientToken !== null && f.clientToken !== undefined },

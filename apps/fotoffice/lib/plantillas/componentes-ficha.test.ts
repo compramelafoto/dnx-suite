@@ -82,13 +82,21 @@ describe("botón «Mensaje»", () => {
   it("WhatsApp: la pestaña se abre en el clic, antes de esperar la acción; si se bloquea, queda el enlace", () => {
     const p = componente("panel-mensaje.tsx");
     const wa = p.slice(p.indexOf("function abrirWhatsapp()"), p.indexOf("return (", p.indexOf("function abrirWhatsapp()")));
-    const abre = wa.indexOf('window.open("", "_blank")');
+    // El panel llama al ayudante en el clic (antes de la transición) con la acción adentro.
+    const abre = wa.indexOf("abrirWhatsappEnPestana(");
     expect(abre).toBeGreaterThan(0);
-    expect(wa.indexOf("await abrirWhatsappAction(")).toBeGreaterThan(abre);
-    expect(wa).toContain("pestana.opener = null");
-    expect(wa).toContain("pestana.location.href = r.url");
+    expect(wa.indexOf("abrirWhatsappAction(")).toBeGreaterThan(abre);
+    expect(wa.indexOf("iniciarEnvio(")).toBeGreaterThan(abre);
     expect(wa).toContain("setEnlace(r.url)");
-    expect(p).toContain('<a href={enlace} target="_blank" rel="noopener noreferrer"');
+    // El ayudante: abre antes del primer await, corta el vínculo, cierra si falla y dirige la pestaña.
+    const h = componente("abrir-whatsapp-en-pestana.ts");
+    const vacia = h.indexOf('window.open("", "_blank")');
+    expect(vacia).toBeGreaterThan(0);
+    expect(h.indexOf("await enviar()")).toBeGreaterThan(vacia);
+    expect(h).toContain("pestana.opener = null");
+    expect(h).toContain("pestana?.close()");
+    expect(h).toContain("pestana.location.href = r.url");
+    expect(componente("cuerpo-compositor.tsx")).toContain('<a href={enlace} target="_blank" rel="noopener noreferrer"');
   });
 
   it("los canales sin destino van deshabilitados con el motivo", () => {

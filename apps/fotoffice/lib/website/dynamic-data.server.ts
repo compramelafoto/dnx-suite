@@ -9,11 +9,13 @@ import {
   hasVisibleInquiryForm,
   hasVisibleMemberOfWeek,
   portfolioBlocksFor,
+  testimonialsLimitFor,
   type PortfolioData,
   type WebsiteDynamicData,
 } from "./dynamic-data";
 import { listarTrabajosPublicos } from "@/lib/trabajos/publico";
-import { TRABAJOS_PUBLIC_SEGMENT } from "./constants";
+import { listarTestimoniosPublicos } from "@/lib/testimonios/publico";
+import { TESTIMONIO_FORM_SEGMENT, TESTIMONIOS_PUBLIC_SEGMENT, TRABAJOS_PUBLIC_SEGMENT } from "./constants";
 import { opcionesDelFormulario } from "./inquiry";
 import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
 import { loadPublicMemberOfWeek } from "@/lib/spotlight/public";
@@ -88,6 +90,24 @@ export async function loadWebsiteDynamicData(site: PublicSite, blocks: PublicSit
       }),
     );
     data.portfolio = Object.fromEntries(entradas);
+  }
+
+  // Una sola lectura para todos los bloques de Testimonios; se mezclan los no destacados para que la
+  // portada no muestre siempre los mismos. Si falla, el bloque no se dibuja.
+  const testimonialsLimit = testimonialsLimitFor(blocks);
+  if (testimonialsLimit !== 0) {
+    const base = `/w/${site.workspaceSlug}`;
+    // Uno más que el mayor pedido: así cada bloque sabe si hay más para «Ver todos».
+    const limite = testimonialsLimit === null ? 0 : testimonialsLimit + 1;
+    const items = await listarTestimoniosPublicos(site.workspaceId, { limite, barajar: true }).catch((err: unknown) => {
+      console.error("[fotoffice][website] no se pudieron leer los testimonios:", err);
+      return [];
+    });
+    data.testimonios = {
+      items,
+      verTodosHref: `${base}/${TESTIMONIOS_PUBLIC_SEGMENT}`,
+      formularioHref: `${base}/${TESTIMONIO_FORM_SEGMENT}`,
+    };
   }
 
   const heroBlockId = mainHeroBlockId(blocks);

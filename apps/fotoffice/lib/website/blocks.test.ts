@@ -295,3 +295,40 @@ describe("vista del bloque PORTFOLIO", () => {
     expect(PortfolioBlockView({ config, blockId: "b1" })).not.toBeNull();
   });
 });
+
+describe("bloque TESTIMONIALS (Testimonios)", () => {
+  it("nace con «Lo que dicen de nosotros», 6 en carrusel y «Dejá tu testimonio»", () => {
+    const block = createEmptyBlock("TESTIMONIALS", 0);
+    expect(block.config).toEqual({ title: "Lo que dicen de nosotros", count: 6, layout: "carousel", showCta: true, ctaLabel: "Dejá tu testimonio" });
+    expect(getBlockPreviewLabel(block)).toBe("Lo que dicen de nosotros");
+  });
+
+  it("acepta 0 (todos) y valores fuera de lo permitido caen al default", () => {
+    const parse = (config: Record<string, unknown>) =>
+      websiteBlockSchema.parse({ id: "b1", type: "TESTIMONIALS", visible: true, order: 0, config }).config;
+    expect(parse({ count: 0, layout: "grid", showCta: false, ctaLabel: "Contanos" })).toEqual({ count: 0, layout: "grid", showCta: false, ctaLabel: "Contanos" });
+    expect(parse({ count: 7, layout: "mosaico", showCta: "sí", ctaLabel: "" })).toEqual({ count: 6, layout: "carousel", showCta: true, ctaLabel: "Dejá tu testimonio" });
+  });
+
+  it("es un bloque dinámico de Comunicación que se llama «Testimonios»", async () => {
+    const { WEBSITE_BLOCK_DEFINITIONS } = await import("./blocks");
+    expect(WEBSITE_BLOCK_DEFINITIONS.TESTIMONIALS).toMatchObject({ label: "Testimonios", category: "COMUNICACION", source: "dynamic" });
+  });
+});
+
+describe("vista del bloque TESTIMONIALS", () => {
+  const config = { title: "Lo que dicen de nosotros", count: 6 as const, layout: "grid" as const, showCta: true, ctaLabel: "Dejá tu testimonio" };
+  const uno = { id: "t1", texto: "Hermoso", extracto: null, autorNombre: "Sofi", autorDetalle: null, autorFotoUrl: null, autorEnlace: null, calificacion: 5 };
+
+  it("en el sitio, sin testimonios publicados, no se dibuja", async () => {
+    const { TestimonialsBlockView } = await import("@/components/website/render/blocks/testimonials-block-view");
+    expect(TestimonialsBlockView({ config, blockId: "b1", data: {} })).toBeNull();
+    expect(TestimonialsBlockView({ config, blockId: "b1", data: { testimonios: { items: [], verTodosHref: "/w/x/testimonios", formularioHref: "/w/x/testimonio" } } })).toBeNull();
+  });
+
+  it("con al menos uno, se dibuja; en la vista previa (sin datos) muestra ejemplos", async () => {
+    const { TestimonialsBlockView } = await import("@/components/website/render/blocks/testimonials-block-view");
+    expect(TestimonialsBlockView({ config, blockId: "b1", data: { testimonios: { items: [uno], verTodosHref: "/w/x/testimonios", formularioHref: "/w/x/testimonio" } } })).not.toBeNull();
+    expect(TestimonialsBlockView({ config, blockId: "b1" })).not.toBeNull();
+  });
+});

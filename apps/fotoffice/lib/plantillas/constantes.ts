@@ -17,8 +17,10 @@ export type Canal = (typeof CANALES)[number];
  * GALERIA (etapa 7) tampoco es una ficha: reserva el tipo de los correos automáticos de una galería (el
  * enlace al cliente y la copia de la selección enviada), con las variables comunes más las de la galería
  * (`[galeria_enlace]`, etc.).
+ * TESTIMONIO (sitio, PR 3) tampoco es una ficha: reserva el tipo del pedido de testimonio a un cliente, con las
+ * variables comunes más `[link_testimonio]` (su enlace personal para dejarlo).
  */
-export const TIPOS_PLANTILLA = ["GENERAL", "CLIENTE", "SOCIO", "CONSULTA", "PRESUPUESTO", "PEDIDO", "CITA", "CONTRATO", "GALERIA"] as const;
+export const TIPOS_PLANTILLA = ["GENERAL", "CLIENTE", "SOCIO", "CONSULTA", "PRESUPUESTO", "PEDIDO", "CITA", "CONTRATO", "GALERIA", "TESTIMONIO"] as const;
 export type TipoPlantilla = (typeof TIPOS_PLANTILLA)[number];
 
 /** Estado de un mensaje en el registro (`FotofficeMessage.status`). */
@@ -54,12 +56,16 @@ export type EstadoMensaje = (typeof ESTADOS_MENSAJE)[number];
  *   y videos listos para ver y bajar) y el aviso de que la descarga completa en ZIP ya está lista (con su vencimiento).
  * - `GALERIA_ALBUM_RONDA` (etapa 7, Entrega C): el aviso a cada cliente de un álbum de que hay una ronda nueva de láminas para
  *   revisar (con la nota del estudio y su enlace).
+ * - `TESTIMONIO_INVITACION` (sitio, PR 3, Testimonios): el pedido a un cliente de que deje su testimonio, con su
+ *   enlace personal (`[link_testimonio]`). Sale a mano desde la ficha o, si la organización lo encendió, solo
+ *   unos días después de finalizar un proyecto.
  */
 export const CLAVES_AUTOMATICO = [
   "CONSULTA_AUTORESPUESTA", "CONSULTA_AVISO_EQUIPO", "PRESUPUESTO_SEGUIMIENTO", "RECIBO_DE_PAGO", "RECORDATORIO_CUOTA", "RECORDATORIO_CITA",
   "CONTRATO_ENVIO", "CONTRATO_CODIGO", "CONTRATO_RECORDATORIO", "CONTRATO_FIRMADO",
   "GALERIA_ENVIO", "GALERIA_SELECCION_ENVIADA", "GALERIA_COMPRA_PAGADA", "GALERIA_ENTREGA_ENVIO", "GALERIA_DESCARGA_LISTA",
   "GALERIA_ALBUM_RONDA",
+  "TESTIMONIO_INVITACION",
 ] as const;
 export type ClaveAutomatico = (typeof CLAVES_AUTOMATICO)[number];
 
@@ -74,6 +80,7 @@ export const ETIQUETA_TIPO_PLANTILLA: Record<TipoPlantilla, string> = {
   CITA: "Cita",
   CONTRATO: "Contrato",
   GALERIA: "Galería",
+  TESTIMONIO: "Testimonio",
 };
 export const ETIQUETA_ESTADO_MENSAJE: Record<EstadoMensaje, string> = {
   SENT: "Enviado",

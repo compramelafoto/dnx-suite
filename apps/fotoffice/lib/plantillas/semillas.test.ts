@@ -26,6 +26,8 @@ describe("textos iniciales", () => {
     { nombre: "Autorespuesta DNX", canal: "EMAIL" as const, tipo: "CONSULTA" as const, ...S.AUTORESPUESTA_DNX },
     { nombre: "Autorespuesta genérica", canal: "EMAIL" as const, tipo: "CONSULTA" as const, ...S.AUTORESPUESTA_GENERICA },
     { nombre: "Aviso al equipo", canal: "EMAIL" as const, tipo: "CONSULTA" as const, ...S.AVISO_EQUIPO },
+    { nombre: "Pedido de testimonio (correo)", canal: "EMAIL" as const, tipo: "TESTIMONIO" as const, ...S.TESTIMONIO_INVITACION_INICIAL.EMAIL },
+    { nombre: "Pedido de testimonio (WhatsApp)", canal: "WHATSAPP" as const, tipo: "TESTIMONIO" as const, ...S.TESTIMONIO_INVITACION_INICIAL.WHATSAPP },
   ];
 
   it.each(todos)("$nombre valida con las variables de su ficha (sin campos) y respeta los límites", (t) => {
@@ -47,6 +49,16 @@ describe("textos iniciales", () => {
     expect(p.cuerpo).toContain("[PEGÁ ACÁ EL ENLACE A TU AGENDA]");
     expect(tieneMarcadorSinCompletar(p.cuerpo)).toBe(true);
     expect(p.cuerpo).toContain("[si:organizacion_email] o escribiéndonos a [organizacion_email][/si]");
+  });
+
+  it("la semilla de TESTIMONIO_INVITACION usa [link_testimonio] en correo y WhatsApp, sin textos para completar", () => {
+    const { EMAIL, WHATSAPP } = S.TESTIMONIO_INVITACION_INICIAL;
+    expect(EMAIL.cuerpo).toContain("[link_testimonio]");
+    expect(WHATSAPP.cuerpo).toContain("[link_testimonio]");
+    expect(WHATSAPP.asunto).toBeNull();
+    expect(tieneMarcadorSinCompletar(`${EMAIL.asunto}${EMAIL.cuerpo}${WHATSAPP.cuerpo}`)).toBe(false);
+    expect(clavesPermitidas("TESTIMONIO", []).has("link_testimonio")).toBe(true);
+    expect(clavesPermitidas("CLIENTE", []).has("link_testimonio")).toBe(false);
   });
 
   it("las autorespuestas iniciales no tienen textos para completar (se pueden encender)", () => {

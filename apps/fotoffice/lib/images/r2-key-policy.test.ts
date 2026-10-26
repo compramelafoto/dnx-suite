@@ -31,6 +31,11 @@ describe("r2-key-policy — namespace de FotoOffice dentro del bucket compartido
     expect(IMAGE_PRESETS).toHaveProperty("sizeChart");
   });
 
+  it("las fotos de autores de testimonios tienen su propio prefijo, borrable", () => {
+    expect(FOTOFFICE_R2_PREFIXES.siteTestimonioPhoto).toBe("fotoffice/site-testimonios");
+    expect(isFotofficeOwnedR2Key("fotoffice/site-testimonios/ws_1/a.jpg")).toBe(true);
+  });
+
   it("una key propia de FotoOffice es borrable", () => {
     const key = "fotoffice/workspace-logos/ws_123/abc.png";
     expect(isFotofficeOwnedR2Key(key)).toBe(true);

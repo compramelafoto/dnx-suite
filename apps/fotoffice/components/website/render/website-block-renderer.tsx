@@ -15,6 +15,7 @@ const DATA_KEY_BY_TYPE: Partial<Record<WebsiteBlockType, keyof WebsiteDynamicDat
   CONTACT: "contact",
   INQUIRY_FORM: "inquiry",
   PORTFOLIO: "portfolio",
+  TESTIMONIALS: "testimonios",
 };
 
 /** `undefined` se conserva: las vistas lo usan para saber que están en la vista previa del builder. */

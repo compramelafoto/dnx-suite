@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
+import { InsigniaPendientes } from "@/components/website/testimonios/insignia-pendientes";
 
 /** Menú SECUNDARIO — Historial/SEO no compiten en protagonismo con el constructor
  * (Plantillas/Secciones/Menú/Diseño, dentro de `/website`). Se accede desde acá o desde el link
@@ -17,9 +18,11 @@ const SECONDARY_TABS = [
   { href: "/website/blog", label: "Blog" },
   // Los trabajos del estudio (portfolio): también con su propio marco (`TrabajosShell`).
   { href: "/website/trabajos", label: "Trabajos" },
+  // Testimonios (PR 3): el número es de los que esperan moderación.
+  { href: "/website/testimonios", label: "Testimonios" },
 ] as const;
 
-export function WebsiteSubNav() {
+export function WebsiteSubNav({ pendientesTestimonios = 0 }: { pendientesTestimonios?: number }) {
   const pathname = usePathname();
   const inBuilder = pathname === "/website";
 
@@ -39,11 +42,12 @@ export function WebsiteSubNav() {
               href={tab.href}
               aria-current={active ? "page" : undefined}
               className={[
-                "px-3 py-2.5 text-xs font-medium whitespace-nowrap border-b-2 -mb-px transition-colors",
+                "flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium whitespace-nowrap border-b-2 -mb-px transition-colors",
                 active ? "border-[var(--fo-accent)] text-[var(--fo-text)]" : "border-transparent text-[var(--fo-muted)] hover:text-[var(--fo-text)]",
               ].join(" ")}
             >
               {tab.label}
+              {tab.href === "/website/testimonios" ? <InsigniaPendientes cantidad={pendientesTestimonios} /> : null}
             </Link>
           );
         })}

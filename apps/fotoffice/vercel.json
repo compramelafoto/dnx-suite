@@ -103,6 +103,10 @@
     {
       "path": "/api/cron/mp-sync",
       "schedule": "40 9 * * *"
+    },
+    {
+      "path": "/api/cron/testimonios-invitaciones",
+      "schedule": "0 14 * * *"
     }
   ]
 }
