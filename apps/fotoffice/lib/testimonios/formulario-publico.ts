@@ -6,15 +6,15 @@ import { getEnabledModuleKeysForWorkspace } from "@/lib/modules/gating";
 import { WEBSITE_MODULE_KEY } from "@/lib/website/constants";
 
 /**
- * Lo que comparten la acción del formulario de testimonio y la ruta que firma la subida de la foto.
- * Vive fuera del archivo `"use server"` a propósito: todo lo que ese archivo exporta se vuelve una
- * acción que el navegador puede llamar.
+ * Lo que usa la acción del formulario de testimonio. Vive fuera del archivo `"use server"` a
+ * propósito: todo lo que ese archivo exporta se vuelve una acción que el navegador puede llamar.
  */
 
-/** Envíos del formulario: 5 por IP cada 10 minutos (abierto o con invitación). */
+/**
+ * Envíos del formulario: 5 por IP cada 10 minutos (abierto o con invitación). Cuentan sólo los que
+ * pasan la validación: corregir un error no gasta un envío.
+ */
 export const FRENO_TESTIMONIOS = { limit: 5, windowMs: 10 * 60 * 1000 };
-/** Fotos firmadas: un poco más, porque la persona puede cambiar de foto antes de enviar. */
-export const FRENO_FOTOS_TESTIMONIO = { limit: 10, windowMs: 10 * 60 * 1000 };
 export const MENSAJE_FRENO_TESTIMONIO = "Recibimos muchos envíos seguidos desde tu conexión. Probá de nuevo en unos minutos.";
 
 /**

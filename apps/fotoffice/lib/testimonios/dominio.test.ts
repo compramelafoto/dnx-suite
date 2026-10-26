@@ -138,14 +138,9 @@ describe("foto del autor", () => {
     expect(fotoAutorMostrable(null, BASE)).toBeNull();
   });
 
-  it("la key tiene que ser de este workspace y sin trucos", async () => {
-    const { esKeyFotoAutor, prefijoFotoAutor } = await import("./dominio");
+  it("el prefijo de las fotos es por workspace", async () => {
+    const { prefijoFotoAutor } = await import("./dominio");
     expect(prefijoFotoAutor("ws-1")).toBe("fotoffice/site-testimonios/ws-1/");
-    expect(esKeyFotoAutor("ws-1", "fotoffice/site-testimonios/ws-1/1730000000-abc.jpg")).toBe(true);
-    expect(esKeyFotoAutor("ws-1", "fotoffice/site-testimonios/ws-2/a.jpg")).toBe(false);
-    expect(esKeyFotoAutor("ws-1", "fotoffice/site-testimonios/ws-1/../ws-2/a.jpg")).toBe(false);
-    expect(esKeyFotoAutor("ws-1", "fotoffice/site-trabajos/ws-1/a.jpg")).toBe(false);
-    expect(esKeyFotoAutor("ws-1", 42)).toBe(false);
   });
 
   it("el permiso nombra al estudio", async () => {

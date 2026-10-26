@@ -54,8 +54,12 @@ describe("avisarTestimonioNuevo", () => {
     expect(enviar).not.toHaveBeenCalled();
   });
 
-  it("pasado el tope del día no avisa más", async () => {
-    P.contar.mockResolvedValue(TOPE_AVISOS_TESTIMONIO_DIA + 1);
+  it("como mucho 20 avisos por día: el 20.º sale, el 21.º no (la cuenta incluye el recién creado)", async () => {
+    expect(TOPE_AVISOS_TESTIMONIO_DIA).toBe(20);
+    P.contar.mockResolvedValue(20);
+    expect(await avisarTestimonioNuevo("ws-1", testimonio, deps)).toBe("ENVIADO");
+    enviar.mockClear();
+    P.contar.mockResolvedValue(21);
     expect(await avisarTestimonioNuevo("ws-1", testimonio, deps)).toBe("TOPE");
     expect(enviar).not.toHaveBeenCalled();
   });

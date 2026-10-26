@@ -10,8 +10,8 @@ import { esTablaFaltante } from "./dominio";
  * interno al dueño (como el aviso de consulta nueva, `CONSULTA_AVISO_EQUIPO`, sale con el remitente
  * de FOTOFFICE). Se apaga en los ajustes de Testimonios (`avisarAlEquipo`, encendido por omisión).
  *
- * Tope: pasados `TOPE_AVISOS_TESTIMONIO_DIA` testimonios en el día (de Buenos Aires) ya no se avisa
- * más: si un robot pasa el freno, el dueño no recibe cien correos.
+ * Tope: como mucho `TOPE_AVISOS_TESTIMONIO_DIA` avisos por día (de Buenos Aires); del siguiente en
+ * adelante ya no: si un robot pasa el freno, el dueño no recibe cien correos.
  *
  * Nunca lanza: el testimonio ya quedó guardado. Los errores van al registro sólo con su código.
  */
@@ -70,10 +70,12 @@ export async function avisarTestimonioNuevo(
   try {
     if (!(await avisarAlEquipoEncendido(workspaceId))) return "APAGADO";
     const ahora = (deps.ahora ?? (() => new Date()))();
+    // La cuenta incluye el testimonio que acaba de entrar: los anteriores del día son uno menos.
     const hoy = await prisma.fotofficeTestimonio.count({
       where: { workspaceId, origen: { in: ["FORMULARIO", "INVITACION"] }, createdAt: { gte: inicioDelDiaAR(ahora) } },
     });
-    if (hoy > TOPE_AVISOS_TESTIMONIO_DIA) return "TOPE";
+    const anteriores = Math.max(0, hoy - 1);
+    if (anteriores >= TOPE_AVISOS_TESTIMONIO_DIA) return "TOPE";
 
     const [dueno, workspace] = await Promise.all([
       prisma.workspaceMembership.findFirst({

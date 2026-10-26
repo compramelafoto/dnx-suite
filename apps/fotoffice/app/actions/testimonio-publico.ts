@@ -1,22 +1,22 @@
 "use server";
 
 import { CAMPO_TRAMPA, cayoEnLaTrampa } from "@/lib/consultas/trampa";
-import { deleteFotofficeR2Object } from "@/lib/images/r2-client";
 import { avisarTestimonioNuevo } from "@/lib/testimonios/aviso";
 import { textoConsentimiento, validarTestimonio, type CampoTestimonio } from "@/lib/testimonios/dominio";
-import { confirmarFotoAutor } from "@/lib/testimonios/foto";
+import { archivoDeFoto, borrarFotoAutor, revisarFotoAutor, subirFotoAutor } from "@/lib/testimonios/foto";
 import {
   FRENO_TESTIMONIOS,
   frenadoPorIp,
   MENSAJE_FRENO_TESTIMONIO,
   sitioDelFormulario,
 } from "@/lib/testimonios/formulario-publico";
-import { responderInvitacion } from "@/lib/testimonios/invitaciones";
+import { leerInvitacion, responderInvitacion } from "@/lib/testimonios/invitaciones";
 import { crearTestimonio } from "@/lib/testimonios/repositorio";
 
 /**
  * El formulario público de testimonio (`/w/<slug>/testimonio`), abierto o con invitación (`t`).
- * Sin sesión: trampa, freno por IP y las reglas de `validarTestimonio`. Siempre entra PENDIENTE
+ * Sin sesión: trampa, freno por IP y las reglas de `validarTestimonio`. La foto (opcional, ya
+ * achicada por el navegador) viaja en el mismo envío y la sube el servidor después de validar todo. Siempre entra PENDIENTE
  * (lo publica el estudio). Exige el permiso de publicación, y el texto que se guarda como permiso
  * lo arma el servidor con el nombre del estudio: no se acepta el que mande el navegador.
  *
@@ -39,13 +39,6 @@ const texto = (fd: FormData, campo: string) => {
   return typeof v === "string" ? v : "";
 };
 
-/** La foto ya verificada que al final no se usó (enlace usado, error): no queda huérfana en R2. */
-async function descartarFoto(key: string | null) {
-  if (!key) return;
-  const r = await deleteFotofficeR2Object(key);
-  if (!r.ok) console.error("[testimonios] no se pudo borrar una foto sin testimonio", { codigo: r.code });
-}
-
 export async function enviarTestimonio(_prev: EstadoTestimonioPublico, formData: FormData): Promise<EstadoTestimonioPublico> {
   // Un robot llenó el campo trampa: la misma respuesta que con éxito, sin crear nada.
   if (cayoEnLaTrampa(formData.get(CAMPO_TRAMPA))) {
@@ -54,7 +47,6 @@ export async function enviarTestimonio(_prev: EstadoTestimonioPublico, formData:
   }
   let fotoKey: string | null = null;
   try {
-    if (await frenadoPorIp("testimonio", FRENO_TESTIMONIOS)) return { status: "error", error: MENSAJE_FRENO_TESTIMONIO };
     const sitio = await sitioDelFormulario(texto(formData, "workspaceSlug").trim());
     if (!sitio) return { status: "error", error: MENSAJE_NO_DISPONIBLE };
 
@@ -68,18 +60,28 @@ export async function enviarTestimonio(_prev: EstadoTestimonioPublico, formData:
     });
     if (!validado.ok) return { status: "error", error: MENSAJE_REVISAR, errores: validado.errores };
     if (formData.get("consentimiento") !== "si") return { status: "error", error: MENSAJE_PERMISO };
+    // Un enlace que ya no sirve se dice antes de subir nada (la transacción lo vuelve a mirar).
+    const token = texto(formData, "t").trim();
+    if (token) {
+      const leida = await leerInvitacion(sitio.workspaceId, token);
+      if (leida.estado !== "VALIDA") return { status: "enlace", estado: leida.estado };
+    }
+    const archivo = archivoDeFoto(formData.get("foto"));
+    const revisada = archivo ? await revisarFotoAutor(archivo) : null;
+    if (revisada && !revisada.ok) return { status: "error", error: revisada.error };
+
+    // El freno cuenta sólo envíos válidos, justo antes de escribir (en R2 o en la base).
+    if (await frenadoPorIp("testimonio", FRENO_TESTIMONIOS)) return { status: "error", error: MENSAJE_FRENO_TESTIMONIO };
 
     let foto: { key: string; url: string } | null = null;
-    const keyFoto = texto(formData, "autorFotoKey").trim();
-    if (keyFoto) {
-      const r = await confirmarFotoAutor(sitio.workspaceId, keyFoto);
+    if (revisada) {
+      const r = await subirFotoAutor(sitio.workspaceId, revisada);
       if (!r.ok) return { status: "error", error: r.error };
       foto = r.valor;
       fotoKey = r.valor.key;
     }
 
     const consentimientoTexto = textoConsentimiento(sitio.estudio);
-    const token = texto(formData, "t").trim();
     if (token) {
       const r = await responderInvitacion(sitio.workspaceId, token, validado.datos, {
         consentimiento: true,
@@ -88,7 +90,8 @@ export async function enviarTestimonio(_prev: EstadoTestimonioPublico, formData:
         autorFotoKey: foto?.key ?? null,
       });
       if (!r.ok) {
-        await descartarFoto(fotoKey);
+        // El enlace ya no servía: la foto de ESTE envío (su propia key) no queda en R2.
+        await borrarFotoAutor(fotoKey);
         return { status: "enlace", estado: r.estado };
       }
     } else {
@@ -105,7 +108,7 @@ export async function enviarTestimonio(_prev: EstadoTestimonioPublico, formData:
     await avisarTestimonioNuevo(sitio.workspaceId, { autorNombre: validado.datos.autorNombre, texto: validado.datos.texto });
     return { status: "ok" };
   } catch (error) {
-    await descartarFoto(fotoKey).catch(() => undefined);
+    await borrarFotoAutor(fotoKey);
     // Sólo el tipo y el código: el mensaje de Prisma puede repetir los datos de la persona.
     const e = error as { name?: string; code?: string } | null;
     console.error("[testimonios] formulario público falló", { error: e?.name ?? "desconocido", codigo: e?.code ?? null });

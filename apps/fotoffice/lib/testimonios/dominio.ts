@@ -188,21 +188,19 @@ export function textoConsentimiento(estudio: string): string {
   return `Acepto que ${estudio.trim() || "el estudio"} publique mi testimonio con mi nombre y foto en su sitio web.`;
 }
 
-/** Foto del autor: JPG, PNG o WebP de hasta 5 MB; el navegador la achica antes a 800 px de lado. */
+/**
+ * Foto del autor: JPG, PNG o WebP. El navegador la achica a 800 px de lado (queda en unos cientos de
+ * KB) y viaja dentro del envío del formulario, que en total no puede pasar de 4 MB (`bodySizeLimit`
+ * de las acciones, debajo del corte de 4,5 MB de Vercel): por eso la foto tiene tope de 3,5 MB.
+ */
 export const FORMATOS_FOTO_AUTOR = ["image/jpeg", "image/png", "image/webp"] as const;
-export const MAX_BYTES_FOTO_AUTOR = 5 * 1024 * 1024;
+export const MAX_BYTES_FOTO_AUTOR = 3.5 * 1024 * 1024;
+export const MENSAJE_FOTO_PESADA = "La foto es muy pesada; probá con otra o enviá sin foto.";
 export const LADO_MAX_FOTO_AUTOR = 800;
 
 /** Prefijo de R2 de las fotos de autores de un workspace. Lo arma el servidor, nunca el navegador. */
 export function prefijoFotoAutor(workspaceId: string): string {
   return `${FOTOFFICE_R2_PREFIXES.siteTestimonioPhoto}/${workspaceId}/`;
-}
-
-/** ¿La key es una foto de autor de ESTE workspace? (sin `..` ni barras raras). */
-export function esKeyFotoAutor(workspaceId: string, key: unknown): key is string {
-  if (typeof key !== "string" || key.length > 300) return false;
-  const prefijo = prefijoFotoAutor(workspaceId);
-  return key.startsWith(prefijo) && /^[A-Za-z0-9._-]+$/.test(key.slice(prefijo.length));
 }
 
 /**

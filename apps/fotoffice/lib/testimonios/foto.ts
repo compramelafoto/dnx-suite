@@ -1,62 +1,66 @@
 import "server-only";
-import { deleteFotofficeR2Object, getFotofficeR2PublicUrl, isFotofficeR2Configured } from "@/lib/images/r2-client";
-import { createFotofficeUploadUrl, verifyUploadedImage } from "@/lib/images/r2-presign";
+import { randomUUID } from "node:crypto";
+import { deleteFotofficeR2Object, isFotofficeR2Configured, uploadToFotofficeR2 } from "@/lib/images/r2-client";
+import { sniffImageFormat } from "@/lib/images/validation";
 import { nombreParaKey } from "@/lib/trabajos/reglas";
-import { esKeyFotoAutor, FORMATOS_FOTO_AUTOR, MAX_BYTES_FOTO_AUTOR, prefijoFotoAutor } from "./dominio";
+import { FORMATOS_FOTO_AUTOR, MAX_BYTES_FOTO_AUTOR, MENSAJE_FOTO_PESADA, prefijoFotoAutor } from "./dominio";
 
 /**
- * Foto del autor de un testimonio, subida directo del navegador a R2 (mismo camino que las fotos de
- * Trabajos, pero de a una y sin sesión: la pide el formulario público).
+ * Foto del autor de un testimonio: llega DENTRO del envío del formulario (el navegador ya la achicó
+ * a 800 px) y el servidor la sube a R2. No hay subida directa del navegador: el formulario vive
+ * también en los dominios propios de cada estudio y el CORS del bucket sólo admite FOTOFFICE.
  *
- * 1. `prepararFotoAutor`: revisa tipo y peso DECLARADOS y firma una URL bajo el prefijo del
- *    workspace (`fotoffice/site-testimonios/<workspaceId>/`), que arma el servidor.
- * 2. El navegador sube con PUT.
- * 3. `confirmarFotoAutor` (al enviar el formulario): mira el objeto ya subido (peso real y firma
- *    binaria). Si no pasa, se borra de R2. La dirección pública se arma SIEMPRE de la key: nunca se
- *    guarda una URL que mandó el navegador.
+ * Orden: tipo y peso, firma binaria (lo que dice el navegador no alcanza) y recién entonces se sube,
+ * con una key que arma el servidor (`fotoffice/site-testimonios/<workspaceId>/<uuid>.<ext>`). Cada
+ * envío tiene su propia key: si después el testimonio no se crea, se borra sólo esa.
  */
 
-const MB = 1024 * 1024;
+const MENSAJE_FOTO_TIPO = "La foto tiene que ser JPG, PNG o WebP.";
+const MENSAJE_FOTO_INVALIDA = "El archivo no es una imagen JPG, PNG o WebP válida.";
+const MENSAJE_SIN_R2 = "Ahora no se pueden subir fotos. Podés enviar el testimonio sin foto.";
+const MENSAJE_NO_SUBIDA = "No pudimos guardar la foto. Probá de nuevo o enviá el testimonio sin foto.";
 
-export type ResultadoFoto<T> = { ok: true; valor: T } | { ok: false; error: string; sinR2?: boolean };
+export type FotoRevisada = { bytes: Buffer; tipo: string };
+export type ResultadoFoto = { ok: true; valor: { key: string; url: string } } | { ok: false; error: string };
 
-export async function prepararFotoAutor(
-  workspaceId: string,
-  archivo: { tipo: string; bytes: number },
-): Promise<ResultadoFoto<{ uploadUrl: string; key: string }>> {
-  if (!(FORMATOS_FOTO_AUTOR as readonly string[]).includes(archivo.tipo)) {
-    return { ok: false, error: "La foto tiene que ser JPG, PNG o WebP." };
-  }
-  if (!Number.isFinite(archivo.bytes) || archivo.bytes <= 0) return { ok: false, error: "La foto está vacía." };
-  if (archivo.bytes > MAX_BYTES_FOTO_AUTOR) return { ok: false, error: `La foto pesa más de ${MAX_BYTES_FOTO_AUTOR / MB} MB.` };
-  if (!isFotofficeR2Configured()) return { ok: false, error: "Ahora no se pueden subir fotos. Podés enviar el testimonio sin foto.", sinR2: true };
-  // La extensión de la key sale del tipo, no del nombre que manda el navegador.
-  const { uploadUrl, key } = await createFotofficeUploadUrl({
-    prefix: prefijoFotoAutor(workspaceId),
-    originalFilename: nombreParaKey(archivo.tipo),
-    contentType: archivo.tipo,
-  });
-  return { ok: true, valor: { uploadUrl, key } };
+/** Lo que vino en el campo `foto`: un archivo con algo adentro, o null (sin foto). */
+export function archivoDeFoto(v: FormDataEntryValue | null): File | null {
+  if (typeof v !== "object" || v === null) return null;
+  const f = v as File;
+  return typeof f.arrayBuffer === "function" && f.size > 0 ? f : null;
 }
 
-const NO_VERIFICADA = "No pudimos usar la foto. Probá con otra o enviá el testimonio sin foto.";
+/** Revisa la foto sin subirla: tipo declarado, peso y firma binaria. Devuelve los bytes y el tipo real. */
+export async function revisarFotoAutor(archivo: File): Promise<({ ok: true } & FotoRevisada) | { ok: false; error: string }> {
+  if (!(FORMATOS_FOTO_AUTOR as readonly string[]).includes(archivo.type)) return { ok: false, error: MENSAJE_FOTO_TIPO };
+  if (archivo.size > MAX_BYTES_FOTO_AUTOR) return { ok: false, error: MENSAJE_FOTO_PESADA };
+  const bytes = Buffer.from(await archivo.arrayBuffer());
+  if (bytes.length > MAX_BYTES_FOTO_AUTOR) return { ok: false, error: MENSAJE_FOTO_PESADA };
+  const tipo = sniffImageFormat(bytes.subarray(0, 16));
+  if (!tipo || !(FORMATOS_FOTO_AUTOR as readonly string[]).includes(tipo)) return { ok: false, error: MENSAJE_FOTO_INVALIDA };
+  return { ok: true, bytes, tipo };
+}
 
-/** La foto ya subida, verificada; devuelve la key y su dirección pública (armada de la key). */
-export async function confirmarFotoAutor(workspaceId: string, key: unknown): Promise<ResultadoFoto<{ key: string; url: string }>> {
-  // Una key de otro workspace u otro prefijo no se verifica ni se borra: no es de este formulario.
-  if (!esKeyFotoAutor(workspaceId, key)) return { ok: false, error: NO_VERIFICADA };
-  let verificacion: Awaited<ReturnType<typeof verifyUploadedImage>>;
+/** Sube una foto ya revisada. La extensión y el Content-Type salen de la firma, no del navegador. */
+export async function subirFotoAutor(workspaceId: string, revisada: FotoRevisada): Promise<ResultadoFoto> {
+  if (!isFotofficeR2Configured()) return { ok: false, error: MENSAJE_SIN_R2 };
+  const key = `${prefijoFotoAutor(workspaceId)}${randomUUID()}${nombreParaKey(revisada.tipo).replace(/^foto/, "")}`;
   try {
-    verificacion = await verifyUploadedImage({ key, maxFileSizeBytes: MAX_BYTES_FOTO_AUTOR, acceptedFormats: FORMATOS_FOTO_AUTOR });
+    const r = await uploadToFotofficeR2(revisada.bytes, key, revisada.tipo);
+    return { ok: true, valor: { key: r.key, url: r.url } };
   } catch (err) {
-    // Típicamente: el objeto no está (la subida no terminó).
-    console.error("[fotoffice][testimonios] no se pudo verificar la foto del autor", { error: (err as { name?: string })?.name ?? "desconocido" });
-    return { ok: false, error: NO_VERIFICADA };
+    console.error("[testimonios] no se pudo subir la foto del autor", { error: (err as { name?: string })?.name ?? "desconocido" });
+    return { ok: false, error: MENSAJE_NO_SUBIDA };
   }
-  if (!verificacion.ok) {
+}
+
+/** Borra la foto de un envío que al final no creó testimonio. Nunca lanza. */
+export async function borrarFotoAutor(key: string | null): Promise<void> {
+  if (!key) return;
+  try {
     const r = await deleteFotofficeR2Object(key);
-    if (!r.ok) console.error("[fotoffice][testimonios] no se pudo borrar una foto inválida", key);
-    return { ok: false, error: verificacion.error };
+    if (!r.ok) console.error("[testimonios] no se pudo borrar una foto sin testimonio", { codigo: r.code });
+  } catch (err) {
+    console.error("[testimonios] no se pudo borrar una foto sin testimonio", { error: (err as { name?: string })?.name ?? "desconocido" });
   }
-  return { ok: true, valor: { key, url: getFotofficeR2PublicUrl(key) } };
 }

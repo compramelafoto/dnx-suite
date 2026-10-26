@@ -9,7 +9,7 @@ const H = vi.hoisted(() => ({
   cabeceras: vi.fn(async () => new Headers()),
   modulos: vi.fn(async () => new Set(["website"])),
   aviso: vi.fn(async () => "ENVIADO"),
-  confirmarFoto: vi.fn(),
+  subir: vi.fn(async (_b: Buffer, key: string, _t: string) => ({ key, url: `https://media.fotoffice.com/${key}` })),
   borrar: vi.fn(async (key: string) => ({ ok: true, key, existedBefore: true, deleted: true })),
 }));
 
@@ -17,10 +17,13 @@ vi.mock("server-only", () => ({}));
 vi.mock("@repo/db", () => ({ prisma: B.prisma, Prisma: { JsonNull: null } }));
 vi.mock("next/headers", () => ({ headers: H.cabeceras }));
 vi.mock("@/lib/modules/gating", () => ({ getEnabledModuleKeysForWorkspace: H.modulos }));
-// El aviso y la verificación de la foto en R2 se prueban aparte; acá, lo propio del formulario.
+// El aviso se prueba aparte; R2 se reemplaza por sus tres llamadas (la revisión de la foto es real).
 vi.mock("@/lib/testimonios/aviso", () => ({ avisarTestimonioNuevo: H.aviso }));
-vi.mock("@/lib/testimonios/foto", () => ({ confirmarFotoAutor: H.confirmarFoto }));
-vi.mock("@/lib/images/r2-client", () => ({ deleteFotofficeR2Object: H.borrar }));
+vi.mock("@/lib/images/r2-client", () => ({
+  isFotofficeR2Configured: () => true,
+  uploadToFotofficeR2: H.subir,
+  deleteFotofficeR2Object: H.borrar,
+}));
 vi.mock("@/lib/presupuestos/sitio", () => ({ sitioDelWorkspace: async () => ({ slug: "dnx-estudio", customDomain: null }) }));
 
 const { enviarTestimonio } = await import("./testimonio-publico");
@@ -28,15 +31,17 @@ const { crearInvitacion } = await import("@/lib/testimonios/invitaciones");
 const { resetRateLimit } = await import("@/lib/geocode/rate-limit");
 
 const PERMISO = "Acepto que DNX Estudio publique mi testimonio con mi nombre y foto en su sitio web.";
-const KEY = "fotoffice/site-testimonios/ws-1/0b6f-uuid.jpg";
+const JPG = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 0x10, 0x4a, 0x46, 0x49, 0x46, 0, 1, 1, 0, 0, 1]);
+const fotoJpg = () => new File([JPG], "yo.jpg", { type: "image/jpeg" });
+const KEY_DE_ESTE_WS = /^fotoffice\/site-testimonios\/ws-1\/[0-9a-f-]{36}\.jpg$/;
 
-function form(campos: Record<string, string>): FormData {
+function form(campos: Record<string, string | File>): FormData {
   const fd = new FormData();
   const base = { workspaceSlug: "dnx-estudio", autorNombre: "Sofi Pérez", texto: "¡Las fotos quedaron hermosas!", consentimiento: "si" };
   for (const [k, v] of Object.entries({ ...base, ...campos })) fd.set(k, v);
   return fd;
 }
-const enviar = (campos: Record<string, string> = {}) => enviarTestimonio({ status: "idle" }, form(campos));
+const enviar = (campos: Record<string, string | File> = {}) => enviarTestimonio({ status: "idle" }, form(campos));
 const tokenDe = (enlace: string) => new URL(enlace, "https://x.test").searchParams.get("t")!;
 
 beforeEach(() => {
@@ -45,7 +50,6 @@ beforeEach(() => {
   resetRateLimit();
   H.cabeceras.mockImplementation(async () => new Headers());
   H.modulos.mockResolvedValue(new Set(["website"]));
-  H.confirmarFoto.mockResolvedValue({ ok: true, valor: { key: KEY, url: `https://media.fotoffice.com/${KEY}` } });
   B.agregar("fotofficeWorkspaceBranding", { workspaceId: "ws-1", publicSlug: "dnx-estudio", commercialName: "DNX Estudio" });
   B.agregar("client", { id: "cli-1", workspaceId: "ws-1" });
 });
@@ -88,8 +92,9 @@ describe("enviarTestimonio — enlace abierto", () => {
     expect(H.aviso).not.toHaveBeenCalled();
   });
 
-  it("freno por IP: el sexto envío en 10 minutos se rechaza", async () => {
+  it("freno por IP: el sexto envío válido en 10 minutos se rechaza; los inválidos no cuentan", async () => {
     H.cabeceras.mockImplementation(async () => new Headers({ "x-forwarded-for": "200.1.2.3" }));
+    for (let i = 0; i < 4; i++) expect(await enviar({ texto: "" })).toMatchObject({ status: "error", errores: { texto: expect.any(String) } });
     for (let i = 0; i < 5; i++) expect(await enviar()).toEqual({ status: "ok" });
     expect(await enviar()).toMatchObject({ status: "error", error: expect.stringContaining("muchos envíos") });
     expect(B.datos.fotofficeTestimonio).toHaveLength(5);
@@ -105,16 +110,50 @@ describe("enviarTestimonio — enlace abierto", () => {
 });
 
 describe("enviarTestimonio — foto del autor", () => {
-  it("la dirección sale de la key verificada, nunca de lo que mande el navegador", async () => {
-    await enviar({ autorFotoKey: KEY, autorFotoUrl: "https://rastreador.com/x.gif" });
-    expect(H.confirmarFoto).toHaveBeenCalledWith("ws-1", KEY);
-    expect(B.datos.fotofficeTestimonio[0]).toMatchObject({ autorFotoKey: KEY, autorFotoUrl: `https://media.fotoffice.com/${KEY}` });
+  it("se sube con el envío, con una key que arma el servidor; la dirección sale de la key", async () => {
+    expect(await enviar({ foto: fotoJpg(), autorFotoKey: "fotoffice/site-testimonios/ws-2/ajena.jpg", autorFotoUrl: "https://rastreador.com/x.gif" })).toEqual({ status: "ok" });
+    expect(H.subir).toHaveBeenCalledTimes(1);
+    const [bytes, key, tipo] = H.subir.mock.calls[0]!;
+    expect(key).toMatch(KEY_DE_ESTE_WS);
+    expect(tipo).toBe("image/jpeg");
+    expect(bytes.length).toBe(JPG.length);
+    expect(B.datos.fotofficeTestimonio[0]).toMatchObject({ autorFotoKey: key, autorFotoUrl: `https://media.fotoffice.com/${key}` });
   });
 
-  it("si la foto no pasa la verificación, no se crea el testimonio", async () => {
-    H.confirmarFoto.mockResolvedValue({ ok: false, error: "El archivo no es una imagen JPG, PNG o WebP válida." });
-    expect(await enviar({ autorFotoKey: KEY })).toEqual({ status: "error", error: "El archivo no es una imagen JPG, PNG o WebP válida." });
+  it("tipo no admitido: no sube ni crea", async () => {
+    const r = await enviar({ foto: new File(["GIF89a"], "x.gif", { type: "image/gif" }) });
+    expect(r).toEqual({ status: "error", error: "La foto tiene que ser JPG, PNG o WebP." });
+    expect(H.subir).not.toHaveBeenCalled();
     expect(B.datos.fotofficeTestimonio).toHaveLength(0);
+  });
+
+  it("muy pesada (más de 3,5 MB): no sube ni crea", async () => {
+    const grande = new Uint8Array(3.5 * 1024 * 1024 + 1);
+    grande.set(JPG);
+    const r = await enviar({ foto: new File([grande], "x.jpg", { type: "image/jpeg" }) });
+    expect(r).toEqual({ status: "error", error: "La foto es muy pesada; probá con otra o enviá sin foto." });
+    expect(H.subir).not.toHaveBeenCalled();
+    expect(B.datos.fotofficeTestimonio).toHaveLength(0);
+  });
+
+  it("un archivo que dice ser JPG y no lo es: no sube ni crea", async () => {
+    const r = await enviar({ foto: new File(["<script>alert(1)</script>"], "x.jpg", { type: "image/jpeg" }) });
+    expect(r).toEqual({ status: "error", error: "El archivo no es una imagen JPG, PNG o WebP válida." });
+    expect(H.subir).not.toHaveBeenCalled();
+    expect(B.datos.fotofficeTestimonio).toHaveLength(0);
+  });
+
+  it("si el guardado falla después de subir, la foto se borra", async () => {
+    const crear = B.tablas.fotofficeTestimonio.create;
+    B.tablas.fotofficeTestimonio.create = async () => {
+      throw Object.assign(new Error("caída"), { code: "P1001" });
+    };
+    try {
+      expect(await enviar({ foto: fotoJpg() })).toMatchObject({ status: "error" });
+    } finally {
+      B.tablas.fotofficeTestimonio.create = crear;
+    }
+    expect(H.borrar).toHaveBeenCalledWith(H.subir.mock.calls[0]![1]);
   });
 });
 
@@ -124,10 +163,26 @@ describe("enviarTestimonio — invitación personal", () => {
     const t = tokenDe(enlace);
     expect(await enviar({ t })).toEqual({ status: "ok" });
     expect(B.datos.fotofficeTestimonio[0]).toMatchObject({ origen: "INVITACION", clientId: "cli-1", invitacionId, estado: "PENDIENTE" });
-    expect(await enviar({ t, autorFotoKey: KEY })).toEqual({ status: "enlace", estado: "USADA" });
+    // Enlace ya usado: se avisa antes de subir nada.
+    expect(await enviar({ t, foto: fotoJpg() })).toEqual({ status: "enlace", estado: "USADA" });
+    expect(H.subir).not.toHaveBeenCalled();
     expect(B.datos.fotofficeTestimonio).toHaveLength(1);
-    // La foto de un envío que no creó nada no queda en R2.
-    expect(H.borrar).toHaveBeenCalledWith(KEY);
+  });
+
+  it("si otro envío gana el enlace mientras se sube la foto: USADA, sin segundo testimonio, y la foto de este envío se borra", async () => {
+    const { enlace } = await crearInvitacion("ws-1", {});
+    const t = tokenDe(enlace);
+    H.subir.mockImplementationOnce(async (_b: Buffer, key: string) => {
+      // El ganador usa el enlace justo ahora (entre la mirada previa y la transacción).
+      expect(await enviar({ t })).toEqual({ status: "ok" });
+      return { key, url: `https://media.fotoffice.com/${key}` };
+    });
+    expect(await enviar({ t, foto: fotoJpg() })).toEqual({ status: "enlace", estado: "USADA" });
+    expect(B.datos.fotofficeTestimonio).toHaveLength(1);
+    expect(B.datos.fotofficeTestimonio[0]).toMatchObject({ autorFotoKey: null });
+    const keySubida = H.subir.mock.calls[0]![1];
+    expect(keySubida).toMatch(KEY_DE_ESTE_WS);
+    expect(H.borrar).toHaveBeenCalledWith(keySubida);
   });
 
   it("token vencido o de otro estudio: no crea nada", async () => {
