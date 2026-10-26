@@ -269,7 +269,6 @@ export const websiteBlockSchema = z.discriminatedUnion("type", [
 
 export const websitePageContentSchema = z.array(websiteBlockSchema);
 
-/** Forma completa de `sectionsJson`. Ya envuelto en `pages` aunque hoy solo exista `"home"`. */
 export const websitePageMetaSchema = z.object({
   slug: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(60),
   title: z.string().min(1).max(120),
@@ -279,8 +278,9 @@ export const websitePageMetaSchema = z.object({
 
 export type WebsitePageMeta = z.infer<typeof websitePageMetaSchema>;
 
-/** `pageMeta` es hermano de `pages` (no va adentro) para que los lectores viejos, que sólo miran
- * `pages`, lo ignoren sin romperse. Describe las páginas propias; `home` nunca tiene meta. */
+/** Forma completa de `sectionsJson`. `pageMeta` es hermano de `pages` (no va adentro) para que los
+ * lectores viejos, que sólo miran `pages`, lo ignoren sin romperse. Describe las páginas propias;
+ * `home` nunca tiene meta. */
 export const websiteSectionsSchema = z.object({
   pages: z.record(z.string(), websitePageContentSchema),
   pageMeta: z.record(z.string(), websitePageMetaSchema),
@@ -346,13 +346,13 @@ export function parseWebsiteSections(raw: unknown): WebsiteSections {
   const pageMeta: Record<string, WebsitePageMeta> = {};
   if (metaRaw !== null && typeof metaRaw === "object") {
     for (const [key, value] of Object.entries(metaRaw as Record<string, unknown>)) {
-      if (key === "home" || !(key in pages)) continue;
+      if (key === "home" || !Object.hasOwn(pages, key)) continue;
       const parsed = websitePageMetaSchema.safeParse(value);
       if (parsed.success) pageMeta[key] = parsed.data;
     }
   }
   for (const key of Object.keys(pages)) {
-    if (key !== "home" && !(key in pageMeta)) delete pages[key];
+    if (key !== "home" && !Object.hasOwn(pageMeta, key)) delete pages[key];
   }
   return { pages, pageMeta };
 }
