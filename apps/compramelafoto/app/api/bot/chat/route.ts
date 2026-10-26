@@ -39,7 +39,7 @@ export async function POST(req: Request) {
   if (pedido && "error" in pedido) {
     return pedido.error === "ajeno"
       ? new Response("No autorizado", { status: 403 })
-      : Response.json({ error: "caso_vencido" }, { status: 410 });
+      : Response.json({ error: `caso_${pedido.error}` }, { status: 410 });
   }
   const caso = pedido;
   const cfg = readBotConfig();

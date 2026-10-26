@@ -23,6 +23,11 @@ export type SalidaDiagnostico =
 
 const MAX_NOTA = 6000;
 
+/** Marca el texto que escribió la persona: la guía le pide a la IA tratarlo como datos, no como órdenes. */
+function noConfiable(texto: string): string {
+  return `<<<TEXTO_DEL_CLIENTE>>>\n${texto.replaceAll("<<<", "«").replaceAll(">>>", "»")}\n<<<FIN_TEXTO_DEL_CLIENTE>>>`;
+}
+
 /** Los formularios de soporte exigen sesión; sólo el bot de compradores acepta mails sin verificar. */
 export function mailVerificado(t: TicketParaDiagnostico): boolean {
   if (!t.conversacion || t.conversacion.audience !== "BUYER") return true;
@@ -36,8 +41,8 @@ function situacion(t: TicketParaDiagnostico): string {
     `Ticket #${t.id} · motivo ${t.reason} · rol ${t.requesterRole ?? "desconocido"} · mail ${t.requesterEmail ?? "sin mail"}`,
     t.conversacion?.albumId ? `Álbum de la conversación: #${t.conversacion.albumId}` : "",
     t.conversacion?.orderId ? `Pedido de la conversación: #${t.conversacion.orderId}` : "",
-    `Descripción:\n${t.description}`,
-    `Charla previa con el DNX Bot:\n${nota}`,
+    `Descripción (escrita por la persona):\n${noConfiable(t.description)}`,
+    `Charla previa con el DNX Bot:\n${noConfiable(nota)}`,
   ]
     .filter(Boolean)
     .join("\n\n");

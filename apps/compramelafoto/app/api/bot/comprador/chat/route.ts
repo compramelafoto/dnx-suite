@@ -50,8 +50,9 @@ export async function POST(req: Request) {
   const bcfg = readBuyerBotConfig();
   const sesion = await sesionVerificada();
   // Modo caso: la persona vuelve desde el link del mail de soporte y sigue su reclamo acá.
-  const caso = hab.pagina.tipo === "caso" ? await casoParaComprador(hab.pagina.token, { guestKey: inv.guestKey, ipHash: inv.ipHash }) : null;
-  if (hab.pagina.tipo === "caso" && !caso) return Response.json({ error: "caso_vencido" }, { status: 410 });
+  const pedidoCaso = hab.pagina.tipo === "caso" ? await casoParaComprador(hab.pagina.token, { guestKey: inv.guestKey, ipHash: inv.ipHash }) : null;
+  if (pedidoCaso && "error" in pedidoCaso) return Response.json({ error: `caso_${pedidoCaso.error}` }, { status: 410 });
+  const caso = pedidoCaso;
   // El mensaje y el gasto estimado se reservan antes del turno; al registrar el uso se ajusta al real.
   // Si el turno termina sin registrar uso, `alTerminar` devuelve el gasto reservado.
   let reserva: ReservaComprador | null = null;

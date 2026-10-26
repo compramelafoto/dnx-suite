@@ -9,6 +9,13 @@ const TOKEN = /^[A-Za-z0-9_-]{1,200}$/;
 
 export const TEXTO_CASO_VENCIDO =
   "El link de este reclamo venció. Escribime y te mando un código a tu mail para seguir con tu consulta.";
+export const TEXTO_CASO_CERRADO =
+  "Este reclamo está cerrado. Si necesitás algo más, escribime desde la página de tu álbum y te ayudo.";
+
+/** Texto para cuando el caso ya no se puede seguir (respuesta 404/410 del servidor). */
+export function textoDeCasoNoDisponible(cuerpo: unknown): string {
+  return (cuerpo as { error?: unknown } | null)?.error === "caso_cerrado" ? TEXTO_CASO_CERRADO : TEXTO_CASO_VENCIDO;
+}
 
 /** Token del caso: de la URL (y se guarda, porque el inicio de sesión pierde el parámetro) o el guardado. */
 export function casoInicial(search: string, almacen: AlmacenSimple | null): string | null {

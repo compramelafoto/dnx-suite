@@ -4,10 +4,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { FichaCompleta } from "@/lib/soporte/ficha";
 import { getStatusLabel } from "@/lib/admin/helpers";
 import { tituloDe, rolDe } from "@/lib/soporte/tablero-textos";
-import { ACCIONES, CATEGORIAS, fechaCorta, textoReloj } from "./textos";
+import { ACCIONES, CATEGORIAS, describirInput, fechaCorta, textoReloj } from "./textos";
 
 type AccionSugerida = { herramienta: string; input: Record<string, unknown>; motivo: string; tildada: boolean };
-type Envio = { estado: "listo" } | { estado: "enviando" } | { estado: "fallas"; fallas: { herramienta: string; mensaje: string }[] } | { estado: "error"; texto: string } | { estado: "enviado" };
+type Envio = { estado: "listo" } | { estado: "enviando" } | { estado: "fallas"; fallas: { herramienta: string; mensaje: string }[] } | { estado: "error"; texto: string } | { estado: "enviado"; mailEnviado: boolean };
 
 const ROL_ITEM: Record<string, string> = { usuario: "self-end bg-gray-900 text-white", bot: "self-start bg-gray-100 text-gray-900", equipo: "self-start border border-orange-200 bg-orange-50 text-gray-900" };
 
@@ -21,6 +21,8 @@ export default function FichaTicket({ ticketId, onCambio }: { ticketId: number; 
   const [rediagnosticando, setRediagnosticando] = useState(false);
   // Una clave por respuesta: los reintentos y el doble clic la reusan; se renueva después de enviar.
   const clave = useRef<string>(crypto.randomUUID());
+  // La respuesta sugerida se usa una sola vez: después de enviar, el campo queda vacío (un segundo envío sería otro mail).
+  const prellenada = useRef(false);
 
   const cargar = useCallback(async () => {
     try {
@@ -30,7 +32,11 @@ export default function FichaTicket({ ticketId, onCambio }: { ticketId: number; 
       setF(d);
       const acciones = (d.diagnostico?.acciones ?? []) as AccionSugerida[];
       setTildadas(acciones.map((a) => a.tildada));
-      setMensaje((m) => m || d.diagnostico?.respuestaSugerida || "");
+      // Con el mail sin verificar no se prellena: la sugerencia podría mencionar pedidos de otra persona.
+      if (!prellenada.current && d.diagnostico?.estado === "LISTO") {
+        prellenada.current = true;
+        if (!d.diagnostico.mailSinVerificar) setMensaje((m) => m || d.diagnostico?.respuestaSugerida || "");
+      }
       setError(null);
     } catch {
       setError("No se pudo cargar el reclamo.");
@@ -42,6 +48,7 @@ export default function FichaTicket({ ticketId, onCambio }: { ticketId: number; 
     setMensaje("");
     setEnvio({ estado: "listo" });
     clave.current = crypto.randomUUID();
+    prellenada.current = false;
     void cargar();
   }, [cargar]);
 
@@ -60,7 +67,7 @@ export default function FichaTicket({ ticketId, onCambio }: { ticketId: number; 
       });
       const d = await res.json().catch(() => ({}));
       if (res.ok) {
-        setEnvio({ estado: "enviado" });
+        setEnvio({ estado: "enviado", mailEnviado: d.mailEnviado !== false });
         clave.current = crypto.randomUUID();
         setMensaje("");
         await cargar();
@@ -80,6 +87,7 @@ export default function FichaTicket({ ticketId, onCambio }: { ticketId: number; 
     try {
       await fetch(`/api/admin/support/tickets/${ticketId}/diagnosticar`, { method: "POST", credentials: "include" });
       setMensaje("");
+      prellenada.current = false;
       await cargar();
       onCambio?.();
     } finally {
@@ -120,6 +128,12 @@ export default function FichaTicket({ ticketId, onCambio }: { ticketId: number; 
             )}
             <p className="font-medium text-gray-900">{d.categoria ? CATEGORIAS[d.categoria] ?? d.categoria : ""} · confianza {d.confianza?.toLowerCase()}</p>
             <p className="whitespace-pre-wrap text-gray-700">{d.hallazgos}</p>
+            {d.mailSinVerificar && d.respuestaSugerida && (
+              <details>
+                <summary className="cursor-pointer text-gray-600">Ver la respuesta sugerida (revisala antes de usarla)</summary>
+                <p className="mt-1 whitespace-pre-wrap rounded bg-gray-50 p-2 text-gray-700">{d.respuestaSugerida}</p>
+              </details>
+            )}
           </div>
         )}
       </section>
@@ -161,12 +175,19 @@ export default function FichaTicket({ ticketId, onCambio }: { ticketId: number; 
               {acciones.map((a, i) => (
                 <label key={i} className="flex items-start gap-2 py-1 text-sm text-gray-800">
                   <input type="checkbox" className="mt-1" checked={tildadas[i] ?? false} onChange={(e) => setTildadas((xs) => xs.map((x, j) => (j === i ? e.target.checked : x)))} />
-                  <span>{ACCIONES[a.herramienta] ?? a.herramienta}<span className="block text-xs text-gray-500">{a.motivo}</span></span>
+                  <span>
+                    {ACCIONES[a.herramienta] ?? a.herramienta}
+                    {describirInput(a.input) && <span className="block text-xs font-medium text-gray-700">{describirInput(a.input)}</span>}
+                    <span className="block text-xs text-gray-500">{a.motivo}</span>
+                  </span>
                 </label>
               ))}
             </div>
           )}
           <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-500">✉️ Respuesta (le llega por mail)</h3>
+          {d?.estado === "LISTO" && d.mailSinVerificar && (
+            <p className="mb-2 text-xs text-amber-800">No se prellenó la respuesta sugerida porque el mail no está verificado. Revisala en el diagnóstico antes de usarla.</p>
+          )}
           <textarea value={mensaje} onChange={(e) => setMensaje(e.target.value)} rows={6} className="w-full rounded-lg border border-gray-300 p-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Escribí la respuesta…" />
           <div className="mt-2 flex flex-wrap gap-2">
             {acciones.length > 0 && (
@@ -179,7 +200,10 @@ export default function FichaTicket({ ticketId, onCambio }: { ticketId: number; 
             </button>
           </div>
           {envio.estado === "enviando" && <p className="mt-2 text-sm text-gray-500">Enviando…</p>}
-          {envio.estado === "enviado" && <p className="mt-2 text-sm text-green-700">Respuesta enviada. La ficha pasó a «Esperando al cliente».</p>}
+          {envio.estado === "enviado" && envio.mailEnviado && <p className="mt-2 text-sm text-green-700">Respuesta enviada. La ficha pasó a «Esperando al cliente».</p>}
+          {envio.estado === "enviado" && !envio.mailEnviado && (
+            <p className="mt-2 rounded-lg bg-red-50 p-2 text-sm text-red-700">La respuesta quedó guardada en el reclamo, pero el mail no salió. La persona no la recibió: revisá su mail o contactala por otro medio.</p>
+          )}
           {envio.estado === "error" && <p className="mt-2 text-sm text-red-600">{envio.texto}</p>}
           {envio.estado === "fallas" && (
             <div className="mt-2 rounded-lg bg-red-50 p-2 text-sm text-red-800">

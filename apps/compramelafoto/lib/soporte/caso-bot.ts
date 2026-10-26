@@ -147,11 +147,13 @@ export async function casoParaComprador(
   token: string,
   inv: { guestKey: string; ipHash: string },
   now: Date = new Date(),
-): Promise<{ ticketId: number; conversationId: string } | null> {
+): Promise<{ ticketId: number; conversationId: string } | { error: "vencido" | "cerrado" }> {
   const t = await leerTokenCaso(token, now);
-  if (!t) return null;
-  const ticket = await prisma.supportTicket.findUnique({ where: { id: t.ticketId }, select: { id: true, requesterEmail: true } });
-  if (!ticket?.requesterEmail) return null;
+  if (!t) return { error: "vencido" };
+  const ticket = await prisma.supportTicket.findUnique({ where: { id: t.ticketId }, select: { id: true, requesterEmail: true, status: true } });
+  if (!ticket?.requesterEmail) return { error: "vencido" };
+  // Un cierre definitivo no se reabre desde el link (sí un Resuelto).
+  if (ticket.status === "CLOSED") return { error: "cerrado" };
   const conv = await conversacionDeCaso(ticket.id, "BUYER", null);
   await prisma.botConversation.update({ where: { id: conv.id }, data: { guestKey: inv.guestKey, ipHash: inv.ipHash } });
   await marcarVerificada(conv.id, ticket.requesterEmail, new Date(now.getTime() + VERIFICACION_CASO_MS));
@@ -163,12 +165,13 @@ export async function casoParaFotografo(
   token: string,
   user: { id: number; email: string },
   now: Date = new Date(),
-): Promise<{ ticketId: number; conversationId: string } | { error: "vencido" | "ajeno" }> {
+): Promise<{ ticketId: number; conversationId: string } | { error: "vencido" | "ajeno" | "cerrado" }> {
   const t = await leerTokenCaso(token, now);
   if (!t) return { error: "vencido" };
-  const ticket = await prisma.supportTicket.findUnique({ where: { id: t.ticketId }, select: { id: true, requesterEmail: true } });
+  const ticket = await prisma.supportTicket.findUnique({ where: { id: t.ticketId }, select: { id: true, requesterEmail: true, status: true } });
   if (!ticket) return { error: "vencido" };
   if (ticket.requesterEmail?.toLowerCase() !== user.email.toLowerCase()) return { error: "ajeno" };
+  if (ticket.status === "CLOSED") return { error: "cerrado" };
   const conv = await conversacionDeCaso(ticket.id, "PHOTOGRAPHER", user.id);
   return { ticketId: ticket.id, conversationId: conv.id };
 }

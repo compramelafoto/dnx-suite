@@ -57,6 +57,11 @@ describe("responderTicket", () => {
     expect(m.evento).not.toHaveBeenCalled();
   });
 
+  it("cada acción va con su propia clave (clave de la respuesta + posición) para no repetirla al reintentar", async () => {
+    await responderTicket({ ...base, acciones: [base.acciones[0]!, { herramienta: "reenviar_link_pack" as const, input: {} }] });
+    expect(m.accion.mock.calls.map((c) => c[3])).toEqual(["k1:0", "k1:1"]);
+  });
+
   it("enviar igual: manda la respuesta sin volver a correr las acciones", async () => {
     const r = await responderTicket({ ...base, enviarIgual: true });
     expect(r).toMatchObject({ ok: true });
@@ -79,6 +84,14 @@ describe("responderTicket", () => {
     m.msgCreate.mockResolvedValue({ id: 901 });
     await responderTicket({ ...base, idempotencyKey: "k2" });
     expect(m.mail.mock.calls[1]![0].html).toContain("https://www.compramelafoto.com/caso/tok");
+  });
+
+  it("si el mail no sale, la respuesta lo dice (no se da por enviada en silencio)", async () => {
+    m.mail.mockResolvedValue({ success: false, error: "rebote" });
+    expect(await responderTicket(base)).toMatchObject({ ok: true, mailEnviado: false });
+    m.mail.mockResolvedValue({ success: true });
+    m.msgCreate.mockResolvedValue({ id: 902 });
+    expect(await responderTicket({ ...base, idempotencyKey: "k3" })).toMatchObject({ ok: true, mailEnviado: true });
   });
 
   it("ticket inexistente → no encontrado", async () => {

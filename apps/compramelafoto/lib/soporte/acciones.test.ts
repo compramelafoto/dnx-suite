@@ -1,18 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "@repo/dnx-bot";
 
-const m = vi.hoisted(() => ({ user: vi.fn(), conv: vi.fn(), create: vi.fn(), finish: vi.fn(), fotografo: vi.fn(), comprador: vi.fn(), run: vi.fn() }));
+const m = vi.hoisted(() => ({ user: vi.fn(), conv: vi.fn(), create: vi.fn(), finish: vi.fn(), fotografo: vi.fn(), comprador: vi.fn(), run: vi.fn(), previa: vi.fn(), casoConv: vi.fn() }));
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     user: { findFirst: (...a: unknown[]) => m.user(...a) },
     botConversation: { findFirst: (...a: unknown[]) => m.conv(...a) },
-    botAction: { create: (...a: unknown[]) => m.create(...a) },
+    botAction: { create: (...a: unknown[]) => m.create(...a), findFirst: (...a: unknown[]) => m.previa(...a) },
   },
 }));
 vi.mock("@/lib/bot/store", () => ({ finishAction: (...a: unknown[]) => m.finish(...a) }));
 vi.mock("@/lib/bot/config", () => ({ BOT_PLATFORM: "CLF" }));
 vi.mock("@/lib/bot/herramientas", () => ({ toolsForActor: (...a: unknown[]) => m.fotografo(...a) }));
 vi.mock("@/lib/bot/comprador/herramientas", () => ({ herramientasComprador: (...a: unknown[]) => m.comprador(...a) }));
+vi.mock("./caso-bot", () => ({ conversacionDeCaso: (...a: unknown[]) => m.casoConv(...a) }));
 import { ejecutarAccionDeTicket } from "./acciones";
 
 const admin = { id: 1, name: "Daniel" };
@@ -23,7 +24,8 @@ const herramienta = (name: string, kind: "read" | "write", input: z.ZodType) => 
 beforeEach(() => {
   Object.values(m).forEach((f) => f.mockReset());
   m.create.mockResolvedValue({ id: "a1" });
-  m.conv.mockResolvedValue({ id: "c1" });
+  m.casoConv.mockResolvedValue({ id: "c1" });
+  m.previa.mockResolvedValue(null);
   m.user.mockResolvedValue({ id: 7, role: "PHOTOGRAPHER", email: "foto@x.com", name: "Fede" });
   m.run.mockResolvedValue({ ok: true, message: "Listo", before: { x: 1 }, after: { x: 2 } });
   m.comprador.mockReturnValue([
@@ -70,6 +72,28 @@ describe("ejecutarAccionDeTicket", () => {
     expect(m.create.mock.calls[0]![0].data).toMatchObject({ platform: "CLF", userId: 1, conversationId: "c1", toolName: "extender_vencimiento" });
     expect(m.create.mock.calls[0]![0].data.summary).toContain("Aplicada por Daniel desde el ticket #55");
     expect(m.finish).toHaveBeenCalledWith("a1", { status: "EXECUTED", before: { x: 1 }, after: { x: 2 }, resultMessage: "Listo" });
+  });
+
+  it("ticket sin charla con el bot: ata una conversación real (el registro del bot exige una)", async () => {
+    m.casoConv.mockResolvedValue({ id: "c-nueva" });
+    await ejecutarAccionDeTicket(compradorT, { herramienta: "reenviar_descarga", input: {} }, admin);
+    expect(m.casoConv).toHaveBeenCalledWith(60, "BUYER", null);
+    expect(m.comprador.mock.calls[0]![0]).toMatchObject({ conversationId: "c-nueva", deSoporte: true });
+    expect(m.create.mock.calls[0]![0].data.conversationId).toBe("c-nueva");
+  });
+
+  it("con la misma clave, una acción que ya se aplicó no se vuelve a correr", async () => {
+    m.previa.mockResolvedValue({ id: "a0", resultMessage: "Listo" });
+    const r = await ejecutarAccionDeTicket(fotografoT, { herramienta: "extender_vencimiento", input: { albumId: 3 } }, admin, "k1:0");
+    expect(r).toMatchObject({ ok: true });
+    expect(m.run).not.toHaveBeenCalled();
+    expect(m.create).not.toHaveBeenCalled();
+    expect(JSON.stringify(m.previa.mock.calls[0]![0].where)).toContain("k1:0");
+  });
+
+  it("la clave queda guardada con la acción para poder reconocerla", async () => {
+    await ejecutarAccionDeTicket(fotografoT, { herramienta: "extender_vencimiento", input: { albumId: 3 } }, admin, "k1:0");
+    expect(m.create.mock.calls[0]![0].data.input).toMatchObject({ albumId: 3, _clave: "k1:0" });
   });
 
   it("si la herramienta falla o lanza, queda FAILED y devuelve el error", async () => {

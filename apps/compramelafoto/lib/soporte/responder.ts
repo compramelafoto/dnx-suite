@@ -11,7 +11,7 @@ export function linksDeCasoEncendidos(): boolean {
 }
 
 export type ResultadoRespuesta =
-  | { ok: true; mensajeId: number; acciones: { herramienta: string; ok: boolean; mensaje: string }[] }
+  | { ok: true; mensajeId: number; acciones: { herramienta: string; ok: boolean; mensaje: string }[]; mailEnviado: boolean }
   | { ok: false; fallas: { herramienta: string; mensaje: string }[] }
   | { ok: false; enCurso: true }
   | { ok: false; noEncontrado: true };
@@ -46,14 +46,15 @@ export async function responderTicket(p: {
   } catch (e) {
     if (!esDuplicado(e)) throw e;
     const previo = await prisma.supportMessage.findUnique({ where: { idempotencyKey: p.idempotencyKey }, select: { id: true, isInternal: true, origen: true } });
-    if (previo && previo.origen === "ADMIN") return { ok: true, mensajeId: previo.id, acciones: [] };
+    if (previo && previo.origen === "ADMIN") return { ok: true, mensajeId: previo.id, acciones: [], mailEnviado: true };
     return { ok: false, enCurso: true };
   }
 
   const resultados: { herramienta: string; ok: boolean; mensaje: string }[] = [];
   if (!p.enviarIgual) {
-    for (const accion of p.acciones) {
-      const r = await ejecutarAccionDeTicket(ticket, accion, p.admin);
+    for (const [i, accion] of p.acciones.entries()) {
+      // Cada acción con su clave: si se reintenta después de una falla, las que ya salieron no se repiten.
+      const r = await ejecutarAccionDeTicket(ticket, accion, p.admin, `${p.idempotencyKey}:${i}`);
       resultados.push({ herramienta: accion.herramienta, ok: r.ok, mensaje: r.message });
     }
     const fallas = resultados.filter((r) => !r.ok).map(({ herramienta, mensaje }) => ({ herramienta, mensaje }));
@@ -69,6 +70,7 @@ export async function responderTicket(p: {
   });
 
   const supportUrl = getSupportUrlForRole(ticket.requesterRole, ticket.id);
+  let mailEnviado = false;
   if (ticket.requesterEmail) {
     try {
       const responderUrl = linksDeCasoEncendidos()
@@ -84,6 +86,7 @@ export async function responderTicket(p: {
       });
       const enviado = await sendEmail({ to: ticket.requesterEmail, subject, html, templateKey: "SUPPORT_REPLY" });
       if (enviado.success) {
+        mailEnviado = true;
         await prisma.supportTicket.update({ where: { id: ticket.id }, data: { lastReplyEmailSentAt: new Date() } });
       } else {
         console.warn(`[soporte] mail de respuesta no salió ticket=${ticket.id}: ${enviado.error ?? "desconocido"}`);
@@ -111,5 +114,5 @@ export async function responderTicket(p: {
   }
 
   await aplicarEvento(ticket.id, { tipo: "ADMIN_RESPONDIO" });
-  return { ok: true, mensajeId: reserva.id, acciones: resultados };
+  return { ok: true, mensajeId: reserva.id, acciones: resultados, mailEnviado };
 }

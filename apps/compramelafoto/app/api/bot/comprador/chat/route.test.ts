@@ -110,10 +110,17 @@ beforeEach(() => {
 const CASO = "AbC_def-1234567890xyzAbC_def-1234567890xyz";
 describe("POST /api/bot/comprador/chat · modo caso", () => {
   it("link del caso vencido o inventado → 410 sin llamar al modelo", async () => {
-    m.caso.mockResolvedValue(null);
+    m.caso.mockResolvedValue({ error: "vencido" });
     const res = await POST(req({ text: "hola", pagePath: `/caso/${CASO}` }, `dnxbot_guest=${KEY}`));
     expect(res.status).toBe(410);
     expect(await res.json()).toEqual({ error: "caso_vencido" });
+    expect(m.turn).not.toHaveBeenCalled();
+  });
+  it("caso cerrado → 410 caso_cerrado sin llamar al modelo", async () => {
+    m.caso.mockResolvedValue({ error: "cerrado" });
+    const res = await POST(req({ text: "hola", pagePath: `/caso/${CASO}` }, `dnxbot_guest=${KEY}`));
+    expect(res.status).toBe(410);
+    expect(await res.json()).toEqual({ error: "caso_cerrado" });
     expect(m.turn).not.toHaveBeenCalled();
   });
   it("link válido: sigue la conversación del caso con su contexto, marca que escribió y copia el turno al ticket", async () => {

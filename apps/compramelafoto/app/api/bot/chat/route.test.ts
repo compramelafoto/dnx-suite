@@ -61,11 +61,12 @@ beforeEach(() => {
 const reqCaso = (text: string, casoToken: string) => new Request("http://x/api/bot/chat", { method: "POST", body: JSON.stringify({ text, casoToken }) });
 describe("POST /api/bot/chat · modo caso", () => {
   it("link de un caso de otra cuenta → 403; vencido → 410; sin llamar al modelo", async () => {
-    m.caso.mockResolvedValueOnce({ error: "ajeno" }).mockResolvedValueOnce({ error: "vencido" });
+    m.caso.mockResolvedValueOnce({ error: "ajeno" }).mockResolvedValueOnce({ error: "vencido" }).mockResolvedValueOnce({ error: "cerrado" });
     expect((await POST(reqCaso("hola", "tok"))).status).toBe(403);
     const vencido = await POST(reqCaso("hola", "tok"));
     expect(vencido.status).toBe(410);
     expect(await vencido.json()).toEqual({ error: "caso_vencido" });
+    expect(await (await POST(reqCaso("hola", "tok"))).json()).toEqual({ error: "caso_cerrado" });
     expect(m.turn).not.toHaveBeenCalled();
     expect(m.caso).toHaveBeenCalledWith("tok", { id: 7, email: "f@x.com" });
   });

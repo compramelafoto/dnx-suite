@@ -111,9 +111,16 @@ describe("casoParaComprador", () => {
     expect(m.convUpdate.mock.calls[0]![0]).toMatchObject({ where: { id: "c1" }, data: { guestKey: "g".repeat(32), ipHash: "ip" } });
     expect(m.verificar).toHaveBeenCalledWith("c1", "ana@x.com", new Date(now.getTime() + 86_400_000));
   });
-  it("link vencido o inventado → null, sin tocar nada", async () => {
+  it("caso cerrado → no se puede seguir y no se verifica el mail", async () => {
+    m.token.mockResolvedValue({ ticketId: 60 });
+    m.ticket.mockResolvedValue({ ...ticket, status: "CLOSED" });
+    expect(await casoParaComprador("tok", { guestKey: "g", ipHash: "ip" }, now)).toEqual({ error: "cerrado" });
+    expect(m.convUpdate).not.toHaveBeenCalled();
+    expect(m.verificar).not.toHaveBeenCalled();
+  });
+  it("link vencido o inventado → vencido, sin tocar nada", async () => {
     m.token.mockResolvedValue(null);
-    expect(await casoParaComprador("x", { guestKey: "g", ipHash: "ip" }, now)).toBeNull();
+    expect(await casoParaComprador("x", { guestKey: "g", ipHash: "ip" }, now)).toEqual({ error: "vencido" });
     expect(m.convUpdate).not.toHaveBeenCalled();
     expect(m.verificar).not.toHaveBeenCalled();
   });
@@ -126,6 +133,8 @@ describe("casoParaFotografo", () => {
     m.convFind.mockResolvedValue({ id: "c5" });
     expect(await casoParaFotografo("tok", { id: 7, email: "foto@x.com" }, now)).toEqual({ ticketId: 55, conversationId: "c5" });
     expect(await casoParaFotografo("tok", { id: 8, email: "otro@x.com" }, now)).toEqual({ error: "ajeno" });
+    m.ticket.mockResolvedValueOnce({ ...ticket, id: 55, requesterEmail: "foto@x.com", status: "CLOSED" });
+    expect(await casoParaFotografo("tok", { id: 7, email: "foto@x.com" }, now)).toEqual({ error: "cerrado" });
     m.token.mockResolvedValue(null);
     expect(await casoParaFotografo("tok", { id: 7, email: "foto@x.com" }, now)).toEqual({ error: "vencido" });
   });

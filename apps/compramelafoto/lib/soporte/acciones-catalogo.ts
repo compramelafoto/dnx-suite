@@ -12,3 +12,6 @@ export const ACCIONES_PERMITIDAS = [
 ] as const;
 
 export type AccionPermitida = (typeof ACCIONES_PERMITIDAS)[number];
+
+/** Cambian datos del álbum o de los packs: el diagnóstico nunca las deja tildadas, las elige el admin. */
+export const ACCIONES_QUE_MODIFICAN: readonly AccionPermitida[] = ["extender_vencimiento", "cambiar_venta_de_foto", "editar_pack"];

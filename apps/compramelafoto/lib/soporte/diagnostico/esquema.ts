@@ -1,5 +1,5 @@
 import { z } from "@repo/dnx-bot";
-import { ACCIONES_PERMITIDAS } from "@/lib/soporte/acciones-catalogo";
+import { ACCIONES_PERMITIDAS, ACCIONES_QUE_MODIFICAN } from "@/lib/soporte/acciones-catalogo";
 
 export const CATEGORIAS = ["FALTA_INFO_BOT", "SE_ACLARA_CON_DATOS", "PROBABLE_ERROR_CODIGO", "OPERATIVO", "OTRO"] as const;
 
@@ -31,7 +31,9 @@ export function leerDiagnostico(texto: string): ResultadoDiagnostico | null {
   if (i < 0 || j <= i) return null;
   try {
     const r = DiagnosticoIA.safeParse(JSON.parse(texto.slice(i, j + 1)));
-    return r.success ? r.data : null;
+    if (!r.success) return null;
+    // Lo que cambia datos lo decide el admin: el texto del cliente podría haber inducido a la IA.
+    return { ...r.data, acciones: r.data.acciones.map((a) => (ACCIONES_QUE_MODIFICAN.includes(a.herramienta) ? { ...a, tildada: false } : a)) };
   } catch {
     return null;
   }

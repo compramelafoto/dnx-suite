@@ -38,7 +38,7 @@ import { CalculoCard } from "./CalculoCard";
 import { MensajeCard } from "./MensajeCard";
 import { AvisoCard } from "./AvisoCard";
 import { debeVolverAlInput, esOtroCampoDeTexto } from "./foco";
-import { casoInicial, itemsDeCaso, olvidarCaso, stripCasoParam, TEXTO_CASO_VENCIDO } from "./caso";
+import { casoInicial, itemsDeCaso, olvidarCaso, stripCasoParam, textoDeCasoNoDisponible, TEXTO_CASO_CERRADO, TEXTO_CASO_VENCIDO } from "./caso";
 
 export type DnxBotBubbleProps = {
   basePath: string;
@@ -169,9 +169,10 @@ export function DnxBotBubble({ basePath, mascotSrc, mascotSpriteSrc, bottomOffse
           setOpen(true);
           return;
         }
-        const d = (await r.json()) as { items?: unknown };
-        casoRef.current = token;
-        setItems(itemsDeCaso(d.items));
+        const d = (await r.json()) as { items?: unknown; ticket?: { estado?: unknown } };
+        const cerrado = d.ticket?.estado === "CLOSED";
+        if (!cerrado) casoRef.current = token;
+        setItems([...itemsDeCaso(d.items), ...(cerrado ? [{ kind: "notice" as const, text: TEXTO_CASO_CERRADO }] : [])]);
         setOpen(true);
       })
       .catch(() => {});
@@ -256,7 +257,8 @@ export function DnxBotBubble({ basePath, mascotSrc, mascotSpriteSrc, bottomOffse
       const res = await fetch(`${basePath}/chat`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text, pagePath: audiencia === "comprador" ? paginaActual(location.pathname, location.search) : location.pathname, ...(contexto ? { contexto } : {}), ...(caso ? { casoToken: caso } : {}) }) });
       if (res.status === 410) {
         casoRef.current = null;
-        setItems((x) => [...dropEmptyBot(x), { kind: "notice", text: TEXTO_CASO_VENCIDO }]);
+        const texto = textoDeCasoNoDisponible(await res.json().catch(() => null));
+        setItems((x) => [...dropEmptyBot(x), { kind: "notice", text: texto }]);
         return;
       }
       if (!res.ok || !res.body) throw new Error(String(res.status));

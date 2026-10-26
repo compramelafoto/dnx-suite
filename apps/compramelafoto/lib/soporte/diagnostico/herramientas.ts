@@ -35,6 +35,7 @@ export function compradorDeSoporte(p: { conversationId: string; email: string; a
     enlace: null,
     emailVerificado: p.email || null,
     userId: null,
+    deSoporte: true,
   };
 }
 

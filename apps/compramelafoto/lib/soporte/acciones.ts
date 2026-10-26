@@ -7,6 +7,7 @@ import { toolsForActor } from "@/lib/bot/herramientas";
 import { herramientasComprador } from "@/lib/bot/comprador/herramientas";
 import { ACTOR_MOTOR_COMPRADOR } from "@/lib/bot/comprador/identidad";
 import { ACCIONES_PERMITIDAS, type AccionPermitida } from "./acciones-catalogo";
+import { conversacionDeCaso } from "./caso-bot";
 import { actorFotografo, compradorDeSoporte, esFotografo } from "./diagnostico/herramientas";
 
 export type AccionPedida = { herramienta: AccionPermitida; input: Record<string, unknown> };
@@ -23,25 +24,37 @@ export async function ejecutarAccionDeTicket(
   ticket: TicketDeAccion,
   accion: AccionPedida,
   admin: { id: number; name: string | null },
+  /** Clave de esta acción dentro de una respuesta: si ya se aplicó con esa clave, no se repite. */
+  clave?: string,
 ): Promise<ToolOutcome> {
   if (!(ACCIONES_PERMITIDAS as readonly string[]).includes(accion.herramienta)) {
     return { ok: false, message: "Esa acción no se puede aplicar desde soporte." };
   }
   const email = ticket.requesterEmail?.toLowerCase() ?? "";
-  const conv = await prisma.botConversation.findFirst({ where: { supportTicketId: ticket.id }, orderBy: { createdAt: "asc" }, select: { id: true } });
-  const conversationId = conv?.id ?? `soporte-${ticket.id}`;
+  const resumen = `Aplicada por ${admin.name ?? "el admin"} desde el ticket #${ticket.id}`;
+  if (clave) {
+    const previa = await prisma.botAction.findFirst({
+      where: { toolName: accion.herramienta, status: "EXECUTED", summary: { endsWith: `desde el ticket #${ticket.id}` }, input: { path: ["_clave"], equals: clave } },
+      select: { id: true, resultMessage: true },
+    });
+    if (previa) return { ok: true, message: previa.resultMessage ?? "Ya se había aplicado." };
+  }
 
   let actor: BotActor;
   let tools: BotTool[];
+  let conversationId: string;
   let input: Record<string, unknown> = accion.input;
   if (esFotografo(ticket.requesterRole)) {
     const fotografo = await actorFotografo(email);
     if (!fotografo) return { ok: false, message: "No encontré la cuenta del fotógrafo con ese mail." };
     actor = fotografo;
+    // Una conversación real del ticket: las herramientas del bot registran sus acciones contra ella.
+    conversationId = (await conversacionDeCaso(ticket.id, "PHOTOGRAPHER", fotografo.userId)).id;
     tools = toolsForActor(actor, { conversationId });
   } else {
     if (!email) return { ok: false, message: "El ticket no tiene mail." };
     actor = { ...ACTOR_MOTOR_COMPRADOR };
+    conversationId = (await conversacionDeCaso(ticket.id, "BUYER", null)).id;
     tools = herramientasComprador(compradorDeSoporte({ conversationId, email, albumId: null }), {});
     // Siempre sobre los pedidos del mail del ticket: el envío va al mail de esos pedidos.
     input = { ...accion.input, email };
@@ -54,11 +67,11 @@ export async function ejecutarAccionDeTicket(
   const registro = await prisma.botAction.create({
     data: {
       platform: BOT_PLATFORM,
-      conversationId: conv?.id ?? null,
+      conversationId,
       userId: admin.id,
       toolName: tool.name,
-      input: parsed.data as Prisma.InputJsonValue,
-      summary: `Aplicada por ${admin.name ?? "el admin"} desde el ticket #${ticket.id}`,
+      input: { ...(parsed.data as Record<string, unknown>), ...(clave ? { _clave: clave } : {}) } as Prisma.InputJsonValue,
+      summary: resumen,
       expiresAt: new Date(Date.now() + ACCION_TTL_MS),
     },
     select: { id: true },

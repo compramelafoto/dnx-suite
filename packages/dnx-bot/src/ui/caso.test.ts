@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { casoInicial, itemsDeCaso, olvidarCaso, stripCasoParam, DNXBOT_CASO_KEY } from "./caso";
+import { casoInicial, itemsDeCaso, olvidarCaso, stripCasoParam, textoDeCasoNoDisponible, DNXBOT_CASO_KEY, TEXTO_CASO_CERRADO, TEXTO_CASO_VENCIDO } from "./caso";
 
 function almacen() {
   const m = new Map<string, string>();
@@ -43,5 +43,14 @@ describe("itemsDeCaso", () => {
       { kind: "bot", text: "Paso el caso." },
       { kind: "equipo", text: "Revisamos tus pagos.", autor: "Daniel · equipo CompraMeLaFoto" },
     ]);
+  });
+});
+
+describe("textoDeCasoNoDisponible", () => {
+  it("distingue un reclamo cerrado de un link vencido", () => {
+    expect(textoDeCasoNoDisponible({ error: "caso_cerrado" })).toBe(TEXTO_CASO_CERRADO);
+    expect(textoDeCasoNoDisponible({ error: "caso_vencido" })).toBe(TEXTO_CASO_VENCIDO);
+    expect(textoDeCasoNoDisponible(null)).toBe(TEXTO_CASO_VENCIDO);
+    expect(TEXTO_CASO_CERRADO).toContain("cerrado");
   });
 });
