@@ -234,6 +234,7 @@ model User {
   simulatorCaptures                     SimulatorCapture[]
   camOfDutyMember                       CamOfDutyMember?
   camOfDutyLessonProgress               CamOfDutyLessonProgress[]
+  camOfDutyAvatar                       CamOfDutyAvatar?
   userUpsellConfigs                     UserUpsellConfig[]
   eventFoldersCreated                   EventFolder[]                          @relation("EventFolderCreator")
   eventFoldersOwnedPhotographer         EventFolder[]                          @relation("EventFolderOwnerPhotographer")
@@ -5625,10 +5626,21 @@ model CamOfDutyMember {
   jobAlertsOptInIp String?
   /// Completó los datos pedidos (nombre, WhatsApp, empresa, ciudad en el mapa).
   profileCompletedAt DateTime?
+  /// La cuenta de CLF se creó para entrar a Cam Of Duty (no era fotógrafo de CLF de antes).
+  accountFromCamOfDuty Boolean @default(false)
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([firstVisitAt])
   @@index([jobAlertsOptIn])
+}
+
+/// Avatar del fotógrafo en Cam Of Duty (se ve en la vista en tercera persona de la calle).
+model CamOfDutyAvatar {
+  userId    Int      @id
+  /// Id de la figura elegida (lib/simulator/street/third-person.ts).
+  figureId  String
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 /// Curso de fotografía de Cam Of Duty: la mejor nota de cada lección por fotógrafo.

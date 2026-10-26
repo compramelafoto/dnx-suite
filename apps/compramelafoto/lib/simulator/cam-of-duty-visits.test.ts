@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { VISIT_GAP_MS, camOfDutyAccessUrl, camOfDutyGate, camOfDutySignupUrl, isNewVisit } from "./cam-of-duty-visits";
+import { VISIT_GAP_MS, accountBornInCamOfDuty, camOfDutyAccessUrl, camOfDutyGate, camOfDutySignupUrl, isNewVisit } from "./cam-of-duty-visits";
 
 test("recargar la página no suma otra entrada; volver después de media hora, sí", () => {
   const last = new Date("2026-10-23T18:00:00-03:00");
@@ -22,4 +22,10 @@ test("sólo entran fotógrafos con el email validado y los datos completos", () 
   assert.equal(camOfDutyGate({ role: "PHOTOGRAPHER", emailVerifiedAt: verified, profileComplete: true }), "ok");
   // El administrador entra aunque no tenga datos de fotógrafo.
   assert.equal(camOfDutyGate({ role: "CUSTOMER", globalRole: "SUPER_ADMIN", emailVerifiedAt: verified, profileComplete: false }), "ok");
+});
+
+test("origen: la cuenta creada poco antes de la primera entrada nació en Cam Of Duty", () => {
+  const first = new Date("2026-10-25T12:00:00Z");
+  assert.equal(accountBornInCamOfDuty(new Date("2026-10-25T11:55:00Z"), first), true);
+  assert.equal(accountBornInCamOfDuty(new Date("2026-03-01T10:00:00Z"), first), false);
 });

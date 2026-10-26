@@ -50,8 +50,18 @@ export default function ShotGeometryProbe() {
         subjectFrameY,
       };
     };
+    simulatorRuntime.cameraPose = () => {
+      _euler.setFromQuaternion(camera.quaternion, "YXZ");
+      return {
+        position: [camera.position.x, camera.position.y, camera.position.z],
+        // Rumbo como el de los flashes: 0 = hacia +Z.
+        yawDeg: THREE.MathUtils.radToDeg(_euler.y) + 180,
+        pitchDeg: THREE.MathUtils.radToDeg(_euler.x),
+      };
+    };
     return () => {
       simulatorRuntime.shotGeometry = null;
+      simulatorRuntime.cameraPose = null;
     };
   }, [camera, size.width, size.height]);
 

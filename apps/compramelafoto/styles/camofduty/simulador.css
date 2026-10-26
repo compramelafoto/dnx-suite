@@ -47,7 +47,7 @@
 
 .cod-sim .cod-side-tabs {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 4px;
   padding: 4px;
   border-radius: var(--st-r);
@@ -955,4 +955,58 @@
 
 .cod-diag__bad {
   color: #ff8a80;
+}
+
+/* Pestaña Flash. */
+.cod-flash {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.cod-flash__card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--st-line-2, rgba(255, 255, 255, 0.11));
+  border-radius: 10px;
+  background: var(--st-surface-2, #1a1d23);
+}
+
+.cod-flash__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.cod-flash__toggle {
+  display: inline-flex;
+  gap: 0.4rem;
+  align-items: center;
+  font-size: 0.85rem;
+}
+
+.cod-flash__stepper {
+  display: inline-flex;
+  gap: 0.4rem;
+  align-items: center;
+  font-family: var(--cod-font-mono, monospace);
+}
+
+.cod-flash__stepper span {
+  min-width: 3.4rem;
+  text-align: center;
+}
+
+.cod-flash__aim {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.35rem;
+}
+
+.cod-flash__add {
+  width: 100%;
 }

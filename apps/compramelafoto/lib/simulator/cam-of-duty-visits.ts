@@ -3,6 +3,14 @@
 /** Volver antes de esto no cuenta como otra entrada (recargar la página, por ejemplo). */
 export const VISIT_GAP_MS = 30 * 60 * 1000;
 
+/** Margen para decir que la cuenta nació en Cam Of Duty (registro, validación y primer ingreso). */
+export const SIGNUP_WINDOW_MS = 2 * 60 * 60 * 1000;
+
+/** ¿La cuenta de CLF se creó para entrar a Cam Of Duty? (se creó poco antes de la primera entrada). */
+export function accountBornInCamOfDuty(accountCreatedAt: Date, firstVisitAt: Date): boolean {
+  return accountCreatedAt.getTime() >= firstVisitAt.getTime() - SIGNUP_WINDOW_MS;
+}
+
 export function isNewVisit(lastVisitAt: Date, now: Date): boolean {
   return now.getTime() - lastVisitAt.getTime() >= VISIT_GAP_MS;
 }

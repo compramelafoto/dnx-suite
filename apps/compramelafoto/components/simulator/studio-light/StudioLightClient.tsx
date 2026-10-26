@@ -445,7 +445,7 @@ function StudioWorkspace() {
                 <StudioIcon name="camera" />
                 Cámara
               </button>
-              <button type="button" aria-pressed={mode === "walk"} className={mode === "walk" ? "is-on" : ""} onClick={() => setMode("walk")}>
+              <button type="button" aria-pressed={mode === "walk"} className={`cod-studio-walk-btn${mode === "walk" ? " is-on" : ""}`} onClick={() => setMode("walk")}>
                 <StudioIcon name="walk" />
                 Caminar
               </button>

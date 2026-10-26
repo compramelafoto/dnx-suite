@@ -18,6 +18,7 @@ import StreetLessonShots from "@/components/camofduty/course/StreetLessonShots";
 import { lessonById } from "@/lib/camofduty/course/lessons";
 import type { Lesson } from "@/lib/camofduty/course/types";
 import { weatherStore } from "@/lib/simulator/weather";
+import { thirdPersonStore } from "@/lib/simulator/street/third-person";
 import TouchGameStart from "@/components/simulator/TouchGameStart";
 import { isTouchGameDevice } from "@/lib/simulator/touch-input";
 import { setViewfinderCompact } from "@/lib/simulator/viewfinder-frame";
@@ -54,6 +55,11 @@ function SimulatorSimContent() {
       setMode("A");
       setIso(100);
     }
+    // El avatar del fotógrafo guardado en el perfil (para la vista en tercera persona).
+    void fetch("/api/camofduty/avatar")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { figureId?: string } | null) => d?.figureId && thirdPersonStore.setFigure(d.figureId))
+      .catch(() => null);
     const id = new URLSearchParams(window.location.search).get("leccion");
     const task = id ? lessonById(id) : null;
     if (task?.simulator === "calle") {

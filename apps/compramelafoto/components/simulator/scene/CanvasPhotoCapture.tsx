@@ -38,6 +38,8 @@ import { simulatorRuntime } from "@/lib/simulator/simulator-runtime";
 import { useFrame, useThree } from "@react-three/fiber";
 import { useCallback, useEffect, useRef } from "react";
 import * as THREE from "three";
+import { flashStore } from "@/lib/simulator/street/flash";
+import { flashFiring, updateFlashLights } from "./street/StreetFlashes";
 
 interface ActiveCapture {
   startMs: number;
@@ -54,6 +56,10 @@ interface ActiveCapture {
   focusDistanceM: number;
   panningSamples: PanningSample[];
   zoomSamples: ZoomSample[];
+  /** Hay flash: dispara en la primera muestra y su luz se suma una sola vez al final. */
+  flash: boolean;
+  /** Luz que agregó el flash (cuadro con flash menos cuadro sin flash). */
+  flashDelta: Float32Array | null;
 }
 
 const _proj = new THREE.Vector3();
@@ -98,6 +104,11 @@ export default function CanvasPhotoCapture() {
           waitForGpuRender(gl);
           rawUrl = cropCanvasToViewfinderFrame(gl.domElement);
         } else {
+          // El destello dura una fracción de milisegundo: su luz entra una vez, sin promediarse.
+          if (capture?.flashDelta && capture.flashDelta.length === accumulator.data.length) {
+            // El acumulador guarda el promedio: el flash se suma una vez encima.
+            for (let i = 0; i < accumulator.data.length; i += 1) accumulator.data[i] += capture.flashDelta[i];
+          }
           rawUrl = accumulatorToDataUrl(accumulator);
         }
 
@@ -183,6 +194,9 @@ export default function CanvasPhotoCapture() {
         gl.toneMappingExposure = clampRendererExposure(previewExposureMultiplier);
         renderSimulatorFrame(gl, scene, camera);
         captureRef.current = null;
+        // Vuelve el visor: el flash sólo se ve si está la vista previa del flash.
+        flashFiring.override = null;
+        updateFlashLights();
         busyRef.current = false;
         simulatorRuntime.captureActive = false;
         simulatorRuntime.captureExposureGain = null;
@@ -248,8 +262,30 @@ export default function CanvasPhotoCapture() {
       gl.toneMappingExposure = clampRendererExposure(capture.frameExposureMultiplier);
       simulatorRuntime.captureExposureGain =
         clampRendererExposure(capture.frameExposureMultiplier) / SCENE_RENDER_CALIBRATION;
-      renderSimulatorFrame(gl, scene, camera);
-      waitForGpuRender(gl);
+      // Flash: en la toma corta dispara en el único cuadro; en la larga, en el primero
+      // (se mide su aporte y después se dibuja sin flash).
+      const firstFlash = capture.flash && !capture.flashDelta && capture.useMotionBlur;
+      let flashFrame: ImageData | null = null;
+      if (firstFlash || (capture.flash && !capture.useMotionBlur)) {
+        flashFiring.override = true;
+        updateFlashLights();
+        renderSimulatorFrame(gl, scene, camera);
+        waitForGpuRender(gl);
+        if (firstFlash) {
+          const { width: fw, height: fh } = getCapturePixelSize(gl.domElement.width, gl.domElement.height);
+          const c = getViewfinderCropRect(gl.domElement.width, gl.domElement.height);
+          capture.scratchCanvas.width = fw;
+          capture.scratchCanvas.height = fh;
+          capture.scratchCtx.drawImage(gl.domElement, c.x, c.y, c.width, c.height, 0, 0, fw, fh);
+          flashFrame = capture.scratchCtx.getImageData(0, 0, fw, fh);
+        }
+      }
+      if (!capture.flash || capture.useMotionBlur) {
+        flashFiring.override = capture.flash ? false : null;
+        updateFlashLights();
+        renderSimulatorFrame(gl, scene, camera);
+        waitForGpuRender(gl);
+      }
 
       recordPanningSample(capture, width, height);
       recordZoomSample(capture);
@@ -277,6 +313,11 @@ export default function CanvasPhotoCapture() {
         height,
       );
       const imageData = capture.scratchCtx.getImageData(0, 0, width, height);
+      if (flashFrame && flashFrame.data.length === imageData.data.length) {
+        const delta = new Float32Array(imageData.data.length);
+        for (let i = 0; i < delta.length; i += 1) delta[i] = Math.max(0, flashFrame.data[i] - imageData.data[i]);
+        capture.flashDelta = delta;
+      }
 
       const screen = getSubjectScreenOnCapture(width, height);
       const alignOffset =
@@ -354,6 +395,8 @@ export default function CanvasPhotoCapture() {
         focusDistanceM,
         panningSamples: [],
         zoomSamples: [],
+        flash: flashStore.active(),
+        flashDelta: null,
       };
 
       recordZoomSample(captureRef.current);

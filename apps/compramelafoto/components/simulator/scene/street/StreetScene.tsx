@@ -19,6 +19,8 @@ import StreetPlaza from "./StreetPlaza";
 import StreetProps from "./StreetProps";
 import StreetTraffic from "./StreetTraffic";
 import StreetRain from "./StreetRain";
+import StreetFlashes from "./StreetFlashes";
+import ThirdPersonView from "./ThirdPersonView";
 import { LoadingHold } from "../SceneLoadingGate";
 
 /**
@@ -55,6 +57,8 @@ export default function StreetScene() {
     <group>
       <StreetLighting />
       <StreetRain />
+      <StreetFlashes />
+      <ThirdPersonView />
       <Suspense fallback={<LoadingHold />}>
         <StreetGround layout={layout} />
       </Suspense>

@@ -21,6 +21,8 @@ export type CamOfDutyMemberAdminRow = {
   emailVerified: boolean;
   jobAlerts: boolean;
   jobAlertsAt: string | null;
+  /** La cuenta se creó para entrar a Cam Of Duty (no era fotógrafo de CLF de antes). */
+  fromCamOfDuty: boolean;
   profileCompletedAt: string | null;
   firstVisitAt: string;
   lastVisitAt: string;
@@ -71,6 +73,7 @@ export async function GET() {
     emailVerified: !!m.user.emailVerifiedAt,
     jobAlerts: m.jobAlertsOptIn,
     jobAlertsAt: m.jobAlertsOptInAt?.toISOString() ?? null,
+    fromCamOfDuty: m.accountFromCamOfDuty,
     profileCompletedAt: m.profileCompletedAt?.toISOString() ?? null,
     firstVisitAt: m.firstVisitAt.toISOString(),
     lastVisitAt: m.lastVisitAt.toISOString(),

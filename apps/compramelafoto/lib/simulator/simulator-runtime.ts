@@ -54,6 +54,10 @@ export interface SimulatorRuntime {
   nearestPuddleM: number | null;
   /** Geometría de la toma (altura, inclinación, dónde quedó el sujeto en el cuadro), para el curso. */
   shotGeometry: (() => ShotGeometry) | null;
+  /** Posición y hacia dónde mira la cámara (para poner flashes donde está el fotógrafo). */
+  cameraPose: (() => { position: [number, number, number]; yawDeg: number; pitchDeg: number }) | null;
+  /** Vista en tercera persona: no se camina ni se mira en primera persona, ni se obtura. */
+  thirdPerson: boolean;
 }
 
 export interface ShotGeometry {
@@ -100,6 +104,8 @@ export const simulatorRuntime: SimulatorRuntime = {
   getCameraYaw: () => cameraYawGetter(),
   nearestPuddleM: null,
   shotGeometry: null,
+  cameraPose: null,
+  thirdPerson: false,
 };
 
 export function registerSimulatorCameraYaw(getter: () => number) {

@@ -1,6 +1,7 @@
 "use client";
 
 import CameraTab from "@/components/simulator/panel/CameraTab";
+import FlashTab from "@/components/simulator/panel/FlashTab";
 import LensesTab from "@/components/simulator/panel/LensesTab";
 import NaturalLightTab from "@/components/simulator/panel/NaturalLightTab";
 import SceneTab from "@/components/simulator/panel/SceneTab";
@@ -27,6 +28,7 @@ export default function SimulatorParamPanel({
       {sideTab === "lenses" ? <LensesTab /> : null}
       {sideTab === "scene" ? <SceneTab /> : null}
       {sideTab === "sun" ? <NaturalLightTab /> : null}
+      {sideTab === "flash" ? <FlashTab /> : null}
     </div>
   );
 }

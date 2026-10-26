@@ -5,6 +5,7 @@
 
 import { sendEmail } from "@/emails/send";
 import { prisma } from "@/lib/prisma";
+import { accountBornInCamOfDuty } from "@/lib/simulator/cam-of-duty-visits";
 import {
   EMAIL_CODE_MAX_ATTEMPTS,
   EMAIL_CODE_RESEND_MS,
@@ -100,10 +101,17 @@ export async function saveCamOfDutyProfile(userId: number, profile: CleanProfile
     }),
     prisma.camOfDutyMember.upsert({
       where: { userId },
-      create: { userId, firstVisitAt: now, lastVisitAt: now, visits: 0, profileCompletedAt: now, ...alerts },
+      // Primera vez en Cam Of Duty: si la cuenta es recién creada, nació acá.
+      create: { userId, firstVisitAt: now, lastVisitAt: now, visits: 0, profileCompletedAt: now, accountFromCamOfDuty: await bornHere(userId, now), ...alerts },
       update: { profileCompletedAt: now, ...alerts },
     }),
   ]);
+}
+
+/** ¿La cuenta se creó para entrar a Cam Of Duty? */
+async function bornHere(userId: number, now: Date): Promise<boolean> {
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { createdAt: true } });
+  return user ? accountBornInCamOfDuty(user.createdAt, now) : false;
 }
 
 export function clientIp(req: Request): string {

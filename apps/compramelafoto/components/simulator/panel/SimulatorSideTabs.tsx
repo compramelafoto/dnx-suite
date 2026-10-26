@@ -1,12 +1,13 @@
 "use client";
 
-export type SimulatorSideTabId = "camera" | "lenses" | "scene" | "sun";
+export type SimulatorSideTabId = "camera" | "lenses" | "scene" | "sun" | "flash";
 
 const TABS: { id: SimulatorSideTabId; label: string }[] = [
   { id: "camera", label: "Cámara" },
   { id: "lenses", label: "Objetivos" },
   { id: "scene", label: "Escena" },
   { id: "sun", label: "Luz natural" },
+  { id: "flash", label: "Flash" },
 ];
 
 export interface SimulatorSideTabsProps {
