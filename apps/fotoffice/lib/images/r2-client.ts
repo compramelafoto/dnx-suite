@@ -18,6 +18,7 @@ import {
   PutObjectCommand,
   DeleteObjectCommand,
   HeadObjectCommand,
+  ListObjectsV2Command,
 } from "@aws-sdk/client-s3";
 import { assertFotofficeDeletableR2Key } from "./r2-key-policy";
 
@@ -121,6 +122,27 @@ export async function fotofficeR2ObjectExists(key: string): Promise<boolean> {
     if (isNotFoundError(err)) return false;
     throw err;
   }
+}
+
+/**
+ * Todas las keys bajo un prefijo (paginando). Sólo prefijos del namespace borrable de FotoOffice
+ * que terminen en `/`: sirve para limpiar lo que cuelga de algo que se borra, y un prefijo a medias
+ * (`…/abc` en vez de `…/abc/`) agarraría también lo de `…/abcd/`.
+ */
+export async function listFotofficeR2Keys(prefix: string): Promise<string[]> {
+  if (!isFotofficeR2Configured()) throw new Error("R2 no configurado");
+  if (!prefix.endsWith("/")) throw new Error("El prefijo tiene que terminar en /");
+  const safePrefix = assertFotofficeDeletableR2Key(prefix.slice(0, -1)) + "/";
+  const keys: string[] = [];
+  let token: string | undefined;
+  do {
+    const lista = await getS3Client().send(
+      new ListObjectsV2Command({ Bucket: getBucketName(), Prefix: safePrefix, ContinuationToken: token }),
+    );
+    for (const o of lista.Contents ?? []) if (typeof o.Key === "string") keys.push(o.Key);
+    token = lista.IsTruncated ? lista.NextContinuationToken : undefined;
+  } while (token);
+  return keys;
 }
 
 export type DeleteFotofficeR2Result =

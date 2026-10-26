@@ -28,6 +28,8 @@ export const FOTOFFICE_R2_PREFIXES = {
   /** Imagen de la tabla de talles de un producto (tienda). */
   sizeChart: "fotoffice/size-charts",
   memberPortfolioPhoto: "fotoffice/member-portfolio",
+  /** Fotos de los Trabajos del estudio que se muestran en el sitio público. */
+  siteTrabajoPhoto: "fotoffice/site-trabajos",
   /** Fotos de un fotolibro (original, vista y miniatura), por plantilla. */
   fotolibroPhoto: "fotoffice/fotolibros",
   /** Fotos que el socio sube sólo para su placa de Socio de la semana («Más sobre mí»). */

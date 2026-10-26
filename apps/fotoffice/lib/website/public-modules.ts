@@ -3,7 +3,13 @@ import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
-import { BLOG_PUBLIC_PAGE_KEY, INSTITUTIONAL_PUBLIC_SEGMENT, PRESUPUESTO_PAGE_LABEL } from "./constants";
+import {
+  BLOG_PUBLIC_PAGE_KEY,
+  INSTITUTIONAL_PUBLIC_SEGMENT,
+  PRESUPUESTO_PAGE_LABEL,
+  TRABAJOS_PUBLIC_PAGE_KEY,
+  TRABAJOS_PUBLIC_SEGMENT,
+} from "./constants";
 import { PORTFOLIO_MODULE_KEY, PORTFOLIO_PUBLIC_SEGMENT } from "@/lib/portfolio/constants";
 import { STORE_MODULE_KEY, STORE_PUBLIC_SEGMENT } from "@/lib/store/constants";
 import { SALES_MODULE_KEY } from "@/lib/sales/constants";
@@ -22,8 +28,8 @@ import type { PersonVocabulary } from "@/lib/vocabulario/personas";
  * `app/w/[workspaceSlug]/<segment>/`.
  */
 export type PublicModulePage = {
-  /** Mismo valor que `WorkspaceFeatureModule.moduleKey` — salvo el blog, que no es un módulo y
-   * usa una llave propia (`BLOG_PUBLIC_PAGE_KEY`, ver `buildSiteNav`). */
+  /** Mismo valor que `WorkspaceFeatureModule.moduleKey` — salvo el blog y Trabajos, que no son
+   * módulos y usan una llave propia (`BLOG_PUBLIC_PAGE_KEY`, `TRABAJOS_PUBLIC_PAGE_KEY`). */
   moduleKey: string;
   /** Segmento bajo `/w/[slug]/`. Es también su entrada en el menú. */
   segment: string;
@@ -55,6 +61,8 @@ export const PUBLIC_MODULE_PAGES: readonly PublicModulePage[] = [
   // Entra al menú sólo con la tienda ABIERTA, no alcanza con el módulo encendido: ver
   // `withStoreOpenState`, que aplica `loadPublicSite`.
   { moduleKey: STORE_MODULE_KEY, segment: STORE_PUBLIC_SEGMENT, label: "Tienda", order: 35 },
+  // Entra al menú sólo con al menos un trabajo publicado: ver `withTrabajosPage`.
+  { moduleKey: TRABAJOS_PUBLIC_PAGE_KEY, segment: TRABAJOS_PUBLIC_SEGMENT, label: "Trabajos", order: 38 },
   { moduleKey: BLOG_PUBLIC_PAGE_KEY, segment: "blog", label: "Blog", order: 40 },
 ] as const;
 
@@ -89,6 +97,17 @@ export function withStoreOpenState(enabledModuleKeys: ReadonlySet<string>, store
   const claves = new Set(enabledModuleKeys);
   // La tienda vende el catálogo de Ventas: sin Ventas encendido no hay tienda (igual que `loadOpenStore`).
   if (!storeOpen || !enabledModuleKeys.has(SALES_MODULE_KEY)) claves.delete(STORE_MODULE_KEY);
+  return claves;
+}
+
+/**
+ * Trabajos va al menú como el blog: sólo con al menos un trabajo publicado (un portfolio vacío
+ * sería un ítem que lleva a «todavía no hay trabajos»). Suma su llave propia a los módulos
+ * habilitados cuando corresponde; nunca modifica el conjunto que recibe.
+ */
+export function withTrabajosPage(enabledModuleKeys: ReadonlySet<string>, hasPublishedTrabajos: boolean): Set<string> {
+  const claves = new Set(enabledModuleKeys);
+  if (hasPublishedTrabajos) claves.add(TRABAJOS_PUBLIC_PAGE_KEY);
   return claves;
 }
 

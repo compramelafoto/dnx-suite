@@ -23,6 +23,7 @@ import { siteMenuSchema } from "@/lib/website/site-menu";
 import { getEnabledModuleKeysForWorkspace } from "@/lib/modules/gating";
 import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
 import { categoriasActivasPublicas } from "@/lib/website/inquiry";
+import { categoriasParaBloque } from "@/lib/trabajos/publico";
 
 const websitePageMetaMapSchema = z.record(websitePageKeySchema, websitePageMetaSchema);
 
@@ -378,4 +379,13 @@ export async function websiteInquiryCategoriesAction(): Promise<WebsiteInquiryCa
     categoriasActivasPublicas(workspace.id),
   ]);
   return { categorias, consultasEncendido: modulos.has(SERVICE_LEADS_MODULE_KEY) };
+}
+
+/**
+ * Las categorías visibles de Trabajos, para que el inspector del bloque PORTFOLIO deje elegir
+ * una. Sólo lectura, con el permiso de ver el sitio.
+ */
+export async function websiteTrabajoCategoriasAction(): Promise<Array<{ id: string; nombre: string }>> {
+  const { workspace } = await requireWebsiteContext();
+  return categoriasParaBloque(workspace.id);
 }

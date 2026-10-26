@@ -38,3 +38,13 @@ describe("bloque BLOG_LATEST", () => {
     expect(sections.pages.home[0].type).toBe("BLOG_LATEST");
   });
 });
+
+describe("portfolioBlocksFor", () => {
+  it("devuelve sólo los bloques PORTFOLIO visibles: sin ellos no se consulta Trabajos", async () => {
+    const { portfolioBlocksFor } = await import("./dynamic-data");
+    const visible = createEmptyBlock("PORTFOLIO", 0);
+    const oculto = { ...createEmptyBlock("PORTFOLIO", 1), visible: false } as WebsiteBlock;
+    expect(portfolioBlocksFor([createEmptyBlock("TEXT", 0)])).toEqual([]);
+    expect(portfolioBlocksFor([visible, oculto]).map((b) => b.id)).toEqual([visible.id]);
+  });
+});

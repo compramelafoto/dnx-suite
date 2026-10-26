@@ -38,7 +38,7 @@ describe("enviarTexto", () => {
     expect(init.method).toBe("POST");
     expect((init.headers as Record<string, string>).Authorization).toBe("Bearer EAAG-token");
     expect(JSON.parse(init.body as string)).toEqual({
-      messaging_product: "whatsapp", recipient_type: "individual", to: "5493413419869", type: "text",
+      messaging_product: "whatsapp", recipient_type: "individual", to: "543413419869", type: "text",
       text: { preview_url: false, body: "hola Lucía" },
     });
   });
@@ -70,5 +70,14 @@ describe("enviarTexto", () => {
   it("respuesta 200 sin id: SIN_ID", async () => {
     const f = vi.fn(async () => json(200, {}));
     expect(await enviarTexto(REAL, "549", "hola", { fetch: f as never, leerToken: conToken })).toEqual({ ok: false, codigo: "SIN_ID" });
+  });
+
+  it("a los celulares de Argentina (549…) y México (521…) se les manda sin el 9 / 1, como pide Meta", async () => {
+    const { destinoParaMeta } = await import("./envio");
+    expect(destinoParaMeta("5493413748324")).toBe("543413748324");
+    expect(destinoParaMeta("5215512345678")).toBe("525512345678");
+    expect(destinoParaMeta("543413748324")).toBe("543413748324");
+    expect(destinoParaMeta("15551984447")).toBe("15551984447");
+    expect(destinoParaMeta("5511987654321")).toBe("5511987654321");
   });
 });
