@@ -3,7 +3,17 @@ import { prisma } from "@repo/db";
 import { blogPath, listBlogPosts, listBlogPostsByIds, postPath } from "@/lib/blog/public";
 import { toBlogCard } from "@/lib/blog/public-format";
 import type { PublicSite } from "./public-site";
-import { blogLatestLimitFor, hasVisibleContact, hasVisibleInquiryForm, hasVisibleMemberOfWeek, type WebsiteDynamicData } from "./dynamic-data";
+import {
+  blogLatestLimitFor,
+  hasVisibleContact,
+  hasVisibleInquiryForm,
+  hasVisibleMemberOfWeek,
+  portfolioBlocksFor,
+  type PortfolioData,
+  type WebsiteDynamicData,
+} from "./dynamic-data";
+import { listarTrabajosPublicos } from "@/lib/trabajos/publico";
+import { TRABAJOS_PUBLIC_SEGMENT } from "./constants";
 import { opcionesDelFormulario } from "./inquiry";
 import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
 import { loadPublicMemberOfWeek } from "@/lib/spotlight/public";
@@ -54,6 +64,30 @@ export async function loadWebsiteDynamicData(site: PublicSite, blocks: PublicSit
       return null;
     });
     if (opciones) data.inquiry = { workspaceSlug: site.workspaceSlug, ...opciones };
+  }
+
+  const portfolios = portfolioBlocksFor(blocks);
+  if (portfolios.length > 0) {
+    const base = `/w/${site.workspaceSlug}`;
+    const entradas = await Promise.all(
+      portfolios.map(async (block): Promise<[string, PortfolioData]> => {
+        const { trabajos } = await listarTrabajosPublicos(site.workspaceId, {
+          categoriaId: block.config.categoriaId,
+          limite: block.config.count,
+          base,
+          sinTotal: true,
+        }).catch((err: unknown) => {
+          console.error("[fotoffice][website] no se pudieron leer los trabajos:", err);
+          return { trabajos: [], total: 0 };
+        });
+        // Con categoría, «Ver todos» lleva a esa categoría (la saca de las tarjetas: si no hay
+        // ninguna, el bloque no se dibuja y el enlace no importa).
+        const categoriaSlug = block.config.categoriaId ? trabajos[0]?.categoriaSlug : undefined;
+        const verTodosHref = `${base}/${TRABAJOS_PUBLIC_SEGMENT}${categoriaSlug ? `/${categoriaSlug}` : ""}`;
+        return [block.id, { tarjetas: trabajos, verTodosHref }];
+      }),
+    );
+    data.portfolio = Object.fromEntries(entradas);
   }
 
   const heroBlockId = mainHeroBlockId(blocks);

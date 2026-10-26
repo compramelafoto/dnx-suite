@@ -12,7 +12,8 @@ import { getEnabledModuleKeysForWorkspace } from "@/lib/modules/gating";
 import { listBlogPosts } from "@/lib/blog/public";
 import { STORE_MODULE_KEY } from "@/lib/store/constants";
 import { SALES_MODULE_KEY } from "@/lib/sales/constants";
-import { withStoreOpenState } from "./public-modules";
+import { withStoreOpenState, withTrabajosPage } from "./public-modules";
+import { hayTrabajosPublicados } from "@/lib/trabajos/publico";
 
 /**
  * Qué ve el visitante en la portada, según la tabla de la sección 4 del spec. Es la única
@@ -77,7 +78,10 @@ export type PublicSite = {
   menu: SiteMenu | null;
   /** Sitio web habilitado y al menos un artículo publicado: el blog va al menú. */
   hasPublishedBlog: boolean;
-  /** Los módulos encendidos con página pública visible: la tienda cuenta sólo si está abierta. */
+  /** Sitio web habilitado y al menos un trabajo publicado: Trabajos va al menú. */
+  hasPublishedTrabajos: boolean;
+  /** Los módulos encendidos con página pública visible: la tienda cuenta sólo si está abierta, y
+   * Trabajos (`TRABAJOS_PUBLIC_PAGE_KEY`) sólo con trabajos publicados. */
   enabledModuleKeys: Set<string>;
   /** Cómo llama esta institución a la gente de su padrón. Lo usa el menú del sitio. */
   personVocabulary: PersonVocabulary;
@@ -146,9 +150,9 @@ export const loadPublicSite = cache(async function loadPublicSite(workspaceSlug:
         )?.isOpen,
       )
     : false;
-  const enabledModuleKeys = withStoreOpenState(modulosEncendidos, storeOpen);
+  const conTienda = withStoreOpenState(modulosEncendidos, storeOpen);
 
-  const websiteModuleEnabled = enabledModuleKeys.has(WEBSITE_MODULE_KEY);
+  const websiteModuleEnabled = conTienda.has(WEBSITE_MODULE_KEY);
   const { homeBlocks, sections, hasPublishedSite } = pickPublishedHomeBlocks({
     websiteModuleEnabled,
     publishedSectionsJson: website?.publishedVersion?.sectionsJson ?? null,
@@ -156,14 +160,20 @@ export const loadPublicSite = cache(async function loadPublicSite(workspaceSlug:
 
   // Un artículo alcanza para saber si el blog va al menú. Sólo se pregunta con el Sitio web
   // habilitado: sin él, el blog no existe (`loadPublicBlog` lo trata igual).
-  const hasPublishedBlog = websiteModuleEnabled
-    ? (
-        await listBlogPosts(
+  // Lo mismo para Trabajos. Si la lectura falla, Trabajos queda fuera del menú y el sitio sigue.
+  const [hasPublishedBlog, hasPublishedTrabajos] = websiteModuleEnabled
+    ? await Promise.all([
+        listBlogPosts(
           { workspaceId: branding.workspaceId, slug: workspaceSlug, nombre: branding.commercialName, logoUrl: branding.logoUrl },
           { limit: 1 },
-        )
-      ).length > 0
-    : false;
+        ).then((p) => p.length > 0),
+        hayTrabajosPublicados(branding.workspaceId).catch((err: unknown) => {
+          console.error("[fotoffice][website] no se pudo saber si hay trabajos publicados:", err);
+          return false;
+        }),
+      ])
+    : [false, false];
+  const enabledModuleKeys = withTrabajosPage(conTienda, hasPublishedTrabajos);
 
   return {
     workspaceId: branding.workspaceId,
@@ -181,6 +191,7 @@ export const loadPublicSite = cache(async function loadPublicSite(workspaceSlug:
     // automático, nunca uno editado que quedó de antes.
     menu: hasPublishedSite ? parseSiteMenu(website?.publishedVersion?.navJson ?? null) : null,
     hasPublishedBlog,
+    hasPublishedTrabajos,
     enabledModuleKeys,
     personVocabulary: vocabulario,
     contact: {

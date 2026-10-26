@@ -8,6 +8,8 @@ import { resolveSiteNav, toPreviewNav } from "@/lib/website/site-menu";
 import { getEnabledModuleKeysForWorkspace } from "@/lib/modules/gating";
 import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { listBlogPosts } from "@/lib/blog/public";
+import { hayTrabajosPublicados } from "@/lib/trabajos/publico";
+import { withTrabajosPage } from "@/lib/website/public-modules";
 import { HOME_PAGE_KEY } from "@/lib/website/pages";
 import { WebsitePageRenderer } from "@/components/website/render/website-page-renderer";
 import { WebsiteHeaderView } from "@/components/website/render/website-header-view";
@@ -23,7 +25,7 @@ export default async function WebsitePreviewPage({ searchParams }: { searchParam
   const { pagina } = await searchParams;
   const { workspace, sections, designPresets, menu } = await loadWebsiteCmsContext();
 
-  const [branding, enabledModuleKeys, personVocabulary, hasPublishedBlog] = await Promise.all([
+  const [branding, modulosEncendidos, personVocabulary, hasPublishedBlog, hasPublishedTrabajos] = await Promise.all([
     prisma.fotofficeWorkspaceBranding.findUnique({
       where: { workspaceId: workspace.id },
       select: { primaryColor: true, secondaryColor: true, backgroundColor: true, textColor: true, accentColor: true, logoUrl: true, commercialName: true },
@@ -31,7 +33,13 @@ export default async function WebsitePreviewPage({ searchParams }: { searchParam
     getEnabledModuleKeysForWorkspace(workspace.id),
     loadPersonVocabulary(workspace.id),
     listBlogPosts({ workspaceId: workspace.id, slug: "", nombre: workspace.name, logoUrl: null }, { limit: 1 }).then((p) => p.length > 0),
+    // Y Trabajos, con al menos un trabajo publicado.
+    hayTrabajosPublicados(workspace.id).catch((err: unknown) => {
+      console.error("[fotoffice][website] no se pudo saber si hay trabajos publicados:", err);
+      return false;
+    }),
   ]);
+  const enabledModuleKeys = withTrabajosPage(modulosEncendidos, hasPublishedTrabajos);
   const colors = resolveWebsiteColors(branding);
   // `?pagina=<clave>` dibuja esa página propia del borrador; sin ella (o con una clave que no
   // existe), el inicio. El menú se arma siempre con el inicio, como en el sitio.

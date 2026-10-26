@@ -14,6 +14,7 @@ const DATA_KEY_BY_TYPE: Partial<Record<WebsiteBlockType, keyof WebsiteDynamicDat
   MEMBER_OF_WEEK: "memberOfWeek",
   CONTACT: "contact",
   INQUIRY_FORM: "inquiry",
+  PORTFOLIO: "portfolio",
 };
 
 /** `undefined` se conserva: las vistas lo usan para saber que están en la vista previa del builder. */

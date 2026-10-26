@@ -15,6 +15,8 @@ const SECONDARY_TABS = [
   // El blog tiene su propio marco (`BlogShell`) y su ítem en el menú lateral; acá queda a mano
   // para quien llega desde la configuración del sitio.
   { href: "/website/blog", label: "Blog" },
+  // Los trabajos del estudio (portfolio): también con su propio marco (`TrabajosShell`).
+  { href: "/website/trabajos", label: "Trabajos" },
 ] as const;
 
 export function WebsiteSubNav() {

@@ -348,6 +348,25 @@ export const inquiryFormConfigSchema = z.object({
   thanksMessage: z.string().trim().min(1).max(400).catch(INQUIRY_DEFAULT_THANKS),
 });
 
+/**
+ * Trabajos (el portfolio del estudio): las tarjetas de los últimos trabajos publicados, de todas
+ * las categorías o de una. Como "Últimos artículos", los trabajos se leen al dibujar y nunca se
+ * copian acá: un trabajo nuevo aparece solo. `categoriaId` que después se borre u oculte deja el
+ * bloque vacío (no se dibuja), nunca roto.
+ */
+export const PORTFOLIO_COUNT_OPTIONS = [3, 6, 9, 12] as const;
+export type PortfolioCount = (typeof PORTFOLIO_COUNT_OPTIONS)[number];
+export const PORTFOLIO_LAYOUTS = ["grid", "masonry"] as const;
+export const PORTFOLIO_DEFAULT_TITLE = "Trabajos recientes";
+
+export const portfolioConfigSchema = z.object({
+  title: z.string().max(200).optional().catch(undefined),
+  categoriaId: z.string().min(1).max(100).optional().catch(undefined),
+  count: z.union([z.literal(3), z.literal(6), z.literal(9), z.literal(12)]).catch(6),
+  layout: z.enum(PORTFOLIO_LAYOUTS).catch("grid"),
+  showViewAll: z.boolean().catch(true),
+});
+
 const blockEnvelope = {
   id: z.string().min(1),
   visible: z.boolean(),
@@ -367,6 +386,7 @@ export const contactBlockSchema = z.object({ ...blockEnvelope, type: z.literal("
 export const inquiryFormBlockSchema = z.object({ ...blockEnvelope, type: z.literal("INQUIRY_FORM"), config: inquiryFormConfigSchema });
 export const blogLatestBlockSchema = z.object({ ...blockEnvelope, type: z.literal("BLOG_LATEST"), config: blogLatestConfigSchema });
 export const memberOfWeekBlockSchema = z.object({ ...blockEnvelope, type: z.literal("MEMBER_OF_WEEK"), config: memberOfWeekConfigSchema });
+export const portfolioBlockSchema = z.object({ ...blockEnvelope, type: z.literal("PORTFOLIO"), config: portfolioConfigSchema });
 
 export const websiteBlockSchema = z.discriminatedUnion("type", [
   heroBlockSchema,
@@ -382,6 +402,7 @@ export const websiteBlockSchema = z.discriminatedUnion("type", [
   inquiryFormBlockSchema,
   blogLatestBlockSchema,
   memberOfWeekBlockSchema,
+  portfolioBlockSchema,
 ]);
 
 export const websitePageContentSchema = z.array(websiteBlockSchema);
@@ -421,6 +442,7 @@ export type ContactBlockConfig = z.infer<typeof contactConfigSchema>;
 export type InquiryFormBlockConfig = z.infer<typeof inquiryFormConfigSchema>;
 export type BlogLatestBlockConfig = z.infer<typeof blogLatestConfigSchema>;
 export type MemberOfWeekBlockConfig = z.infer<typeof memberOfWeekConfigSchema>;
+export type PortfolioBlockConfig = z.infer<typeof portfolioConfigSchema>;
 
 export type HeroBlock = z.infer<typeof heroBlockSchema>;
 export type TextBlock = z.infer<typeof textBlockSchema>;
@@ -435,6 +457,7 @@ export type ContactBlock = z.infer<typeof contactBlockSchema>;
 export type InquiryFormBlock = z.infer<typeof inquiryFormBlockSchema>;
 export type BlogLatestBlock = z.infer<typeof blogLatestBlockSchema>;
 export type MemberOfWeekBlock = z.infer<typeof memberOfWeekBlockSchema>;
+export type PortfolioBlock = z.infer<typeof portfolioBlockSchema>;
 
 /** Unión cerrada de los bloques implementados. Bloques con `type` desconocido no matchean acá
  * — el renderer y el editor deben tratarlos como inválidos y omitirlos, nunca romper la página. */
@@ -665,6 +688,16 @@ export const WEBSITE_BLOCK_DEFINITIONS: {
     defaultConfig: () => ({ title: "Socio de la semana", intro: "" }),
     // Alimenta también el menú (ver HERO).
     previewLabel: (c) => c.title?.trim() || "Socio de la semana",
+  },
+  PORTFOLIO: {
+    type: "PORTFOLIO",
+    label: "Trabajos",
+    description: "Las tarjetas de tus últimos trabajos publicados, de todas las categorías o de una, con enlace a cada uno.",
+    category: "COMERCIAL",
+    source: "dynamic",
+    defaultConfig: () => ({ title: PORTFOLIO_DEFAULT_TITLE, count: 6, layout: "grid", showViewAll: true }),
+    // Alimenta también el menú (ver HERO).
+    previewLabel: (c) => c.title?.trim() || "Trabajos",
   },
 };
 
