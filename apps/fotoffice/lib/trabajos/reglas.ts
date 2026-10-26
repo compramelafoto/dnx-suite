@@ -1,3 +1,4 @@
+import { FOTOFFICE_R2_PREFIXES } from "@/lib/images/r2-key-policy";
 import { slugifyPageTitle } from "@/lib/website/pages";
 
 /** Tope de fotos (y videos por enlace) en un mismo trabajo. */
@@ -48,4 +49,25 @@ export function fechaLarga(fecha: Date): string {
 /** Prisma avisa `P2021` cuando la tabla no existe: el SQL de Trabajos se aplica a mano. */
 export function esTablaFaltante(err: unknown): boolean {
   return typeof err === "object" && err !== null && (err as { code?: unknown }).code === "P2021";
+}
+
+/** Prefijo de R2 de las fotos de un trabajo: `fotoffice/site-trabajos/<workspaceId>/<trabajoId>/`.
+ * Lo arma el servidor (nunca el navegador) y es lo único que `agregarFotos` acepta como key. */
+export function prefijoFotosTrabajo(workspaceId: string, trabajoId: string): string {
+  return `${FOTOFFICE_R2_PREFIXES.siteTrabajoPhoto}/${workspaceId}/${trabajoId}/`;
+}
+
+/** Prefijo de todo lo que una institución tiene en R2 bajo Trabajos. */
+export function prefijoWorkspaceTrabajos(workspaceId: string): string {
+  return `${FOTOFFICE_R2_PREFIXES.siteTrabajoPhoto}/${workspaceId}/`;
+}
+
+/** Medianoche UTC del día calendario de `d` (lo que espera la columna `date`). Las fechas que
+ * llegan ya son de ese día; si traen hora, se descarta. */
+export function diaUtc(d: Date): Date {
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+}
+
+export function esCodigoUnico(err: unknown): boolean {
+  return typeof err === "object" && err !== null && (err as { code?: unknown }).code === "P2002";
 }

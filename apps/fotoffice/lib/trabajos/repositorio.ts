@@ -1,8 +1,17 @@
 import "server-only";
 import { prisma } from "@repo/db";
+import type { Prisma } from "@repo/db";
 import { sanitizeContentHtml } from "@repo/content";
 import { deleteFotofficeR2Object } from "@/lib/images/r2-client";
-import { MAX_FOTOS_POR_TRABAJO, slugDeTitulo, validarSlugTrabajo } from "./reglas";
+import {
+  MAX_FOTOS_POR_TRABAJO,
+  diaUtc,
+  esCodigoUnico,
+  prefijoFotosTrabajo,
+  prefijoWorkspaceTrabajos,
+  slugDeTitulo,
+  validarSlugTrabajo,
+} from "./reglas";
 
 /**
  * Lado del panel: crear, editar y ordenar Trabajos y sus categorías. Todo se filtra por
@@ -20,6 +29,7 @@ export type DatosTrabajo = {
   slug?: string;
   categoriaId?: string | null;
   lugar?: string | null;
+  /** Día calendario: medianoche UTC (columna `date`). Cualquier Date que llegue se lleva a ese día. */
   fecha?: Date | null;
   descripcionHtml?: string | null;
   destacado?: boolean;
@@ -97,27 +107,33 @@ export async function crearTrabajo(workspaceId: string, datos: DatosTrabajo) {
   const slug = datos.slug?.trim() ? datos.slug.trim() : slugLibre(slugDeTitulo(titulo) || "trabajo", ocupados);
   const errorSlug = validarSlugTrabajo(slug, ocupados);
   if (errorSlug) return fallo(errorSlug);
-  const trabajo = await prisma.fotofficeTrabajo.create({
+  let trabajo;
+  try {
+    trabajo = await prisma.fotofficeTrabajo.create({
     data: {
       workspaceId,
       titulo,
       slug,
-      categoriaId: datos.categoriaId ?? null,
+      categoriaId: datos.categoriaId || null,
       lugar: datos.lugar?.trim() || null,
-      fecha: datos.fecha ?? null,
+      fecha: datos.fecha ? diaUtc(datos.fecha) : null,
       descripcionHtml: datos.descripcionHtml ? sanitizeContentHtml(datos.descripcionHtml) : null,
       destacado: datos.destacado ?? false,
       seoTitle: datos.seoTitle?.trim() || null,
       seoDescription: datos.seoDescription?.trim() || null,
     },
-  });
+    });
+  } catch (err) {
+    if (esCodigoUnico(err)) return fallo("Ya hay otro trabajo con esa dirección");
+    throw err;
+  }
   return ok(trabajo);
 }
 
 export async function editarTrabajo(workspaceId: string, id: string, datos: Partial<DatosTrabajo>) {
   const actual = await prisma.fotofficeTrabajo.findFirst({ where: { id, workspaceId }, select: { id: true } });
   if (!actual) return fallo("El trabajo no existe");
-  const data: Record<string, unknown> = {};
+  const data: Prisma.FotofficeTrabajoUpdateInput = {};
   if (datos.titulo !== undefined) {
     const titulo = datos.titulo.trim();
     if (!titulo) return fallo("Poné un título");
@@ -130,18 +146,24 @@ export async function editarTrabajo(workspaceId: string, id: string, datos: Part
     data.slug = slug;
   }
   if (datos.categoriaId !== undefined) {
-    if (!(await categoriaEsDelWorkspace(workspaceId, datos.categoriaId))) return fallo("Esa categoría no existe");
-    data.categoriaId = datos.categoriaId;
+    const categoriaId = datos.categoriaId || null;
+    if (!(await categoriaEsDelWorkspace(workspaceId, categoriaId))) return fallo("Esa categoría no existe");
+    data.categoriaId = categoriaId;
   }
   if (datos.lugar !== undefined) data.lugar = datos.lugar?.trim() || null;
-  if (datos.fecha !== undefined) data.fecha = datos.fecha;
+  if (datos.fecha !== undefined) data.fecha = datos.fecha ? diaUtc(datos.fecha) : null;
   if (datos.descripcionHtml !== undefined) {
     data.descripcionHtml = datos.descripcionHtml ? sanitizeContentHtml(datos.descripcionHtml) : null;
   }
   if (datos.destacado !== undefined) data.destacado = datos.destacado;
   if (datos.seoTitle !== undefined) data.seoTitle = datos.seoTitle?.trim() || null;
   if (datos.seoDescription !== undefined) data.seoDescription = datos.seoDescription?.trim() || null;
-  return ok(await prisma.fotofficeTrabajo.update({ where: { id }, data }));
+  try {
+    return ok(await prisma.fotofficeTrabajo.update({ where: { id }, data }));
+  } catch (err) {
+    if (esCodigoUnico(err)) return fallo("Ya hay otro trabajo con esa dirección");
+    throw err;
+  }
 }
 
 export async function publicarTrabajo(workspaceId: string, id: string) {
@@ -175,9 +197,14 @@ export async function borrarTrabajo(workspaceId: string, id: string): Promise<Re
     prisma.fotofficeTrabajo.delete({ where: { id } }),
   ]);
   const huerfanas: string[] = [];
+  const propio = prefijoWorkspaceTrabajos(workspaceId);
   for (const f of fotos) {
     if (!f.r2Key) continue;
-    // `deleteFotofficeR2Object` pasa por `assertFotofficeDeletableR2Key`: fuera del namespace no borra.
+    // Sólo se borra lo que cuelga del prefijo de esta institución; el resto queda como huérfana.
+    if (!f.r2Key.startsWith(propio)) {
+      huerfanas.push(f.r2Key);
+      continue;
+    }
     const r = await deleteFotofficeR2Object(f.r2Key);
     if (!r.ok) huerfanas.push(f.r2Key);
   }
@@ -189,6 +216,12 @@ export async function borrarTrabajo(workspaceId: string, id: string): Promise<Re
 export async function agregarFotos(workspaceId: string, trabajoId: string, fotos: FotoNueva[]) {
   const t = await prisma.fotofficeTrabajo.findFirst({ where: { id: trabajoId, workspaceId }, select: { portadaUrl: true } });
   if (!t) return fallo("El trabajo no existe");
+  const prefijo = prefijoFotosTrabajo(workspaceId, trabajoId);
+  for (const f of fotos) {
+    if (!/^https:\/\//i.test(f.url)) return fallo("La dirección de la foto debe empezar con https://");
+    // La key la arma el servidor al subir: una que no cuelgue de este trabajo no se acepta.
+    if (f.r2Key && (!f.r2Key.startsWith(prefijo) || f.r2Key.includes(".."))) return fallo("La foto no es de este trabajo");
+  }
   const existentes = await prisma.fotofficeTrabajoFoto.count({ where: { trabajoId, workspaceId } });
   if (existentes + fotos.length > MAX_FOTOS_POR_TRABAJO) {
     return fallo(`Un trabajo admite hasta ${MAX_FOTOS_POR_TRABAJO} fotos`);
@@ -221,15 +254,33 @@ export async function agregarFotos(workspaceId: string, trabajoId: string, fotos
   return ok({ agregadas: fotos.length });
 }
 
-export async function borrarFoto(workspaceId: string, trabajoId: string, fotoId: string) {
+export async function borrarFoto(
+  workspaceId: string,
+  trabajoId: string,
+  fotoId: string,
+): Promise<Resultado<{ huerfanas: string[] }>> {
   const f = await prisma.fotofficeTrabajoFoto.findFirst({
     where: { id: fotoId, trabajoId, workspaceId },
-    select: { r2Key: true },
+    select: { r2Key: true, url: true },
   });
   if (!f) return fallo("La foto no existe");
   await prisma.fotofficeTrabajoFoto.delete({ where: { id: fotoId } });
-  if (f.r2Key) await deleteFotofficeR2Object(f.r2Key);
-  return ok(true);
+  // Si era la portada, pasa a la siguiente foto por orden (o queda sin portada).
+  const trabajo = await prisma.fotofficeTrabajo.findFirst({ where: { id: trabajoId, workspaceId }, select: { portadaUrl: true } });
+  if (trabajo?.portadaUrl === f.url) {
+    const siguiente = await prisma.fotofficeTrabajoFoto.findFirst({
+      where: { trabajoId, workspaceId, tipo: "FOTO" },
+      orderBy: [{ orden: "asc" }, { createdAt: "asc" }],
+      select: { url: true },
+    });
+    await prisma.fotofficeTrabajo.update({ where: { id: trabajoId }, data: { portadaUrl: siguiente?.url ?? null } });
+  }
+  const huerfanas: string[] = [];
+  if (f.r2Key) {
+    if (!f.r2Key.startsWith(prefijoWorkspaceTrabajos(workspaceId))) huerfanas.push(f.r2Key);
+    else if (!(await deleteFotofficeR2Object(f.r2Key)).ok) huerfanas.push(f.r2Key);
+  }
+  return ok({ huerfanas });
 }
 
 /** `ids` en el orden nuevo. Los que no son de este trabajo se ignoran. */
@@ -287,11 +338,16 @@ export async function crearCategoria(workspaceId: string, datos: { nombre: strin
     orderBy: { orden: "desc" },
     select: { orden: true },
   });
-  return ok(
-    await prisma.fotofficeTrabajoCategoria.create({
-      data: { workspaceId, nombre, slug, portadaUrl: datos.portadaUrl ?? null, orden: ultima ? ultima.orden + 1 : 0 },
-    }),
-  );
+  try {
+    return ok(
+      await prisma.fotofficeTrabajoCategoria.create({
+        data: { workspaceId, nombre, slug, portadaUrl: datos.portadaUrl ?? null, orden: ultima ? ultima.orden + 1 : 0 },
+      }),
+    );
+  } catch (err) {
+    if (esCodigoUnico(err)) return fallo("Ya hay otra categoría con esa dirección");
+    throw err;
+  }
 }
 
 export async function editarCategoria(
@@ -301,7 +357,7 @@ export async function editarCategoria(
 ) {
   const c = await prisma.fotofficeTrabajoCategoria.findFirst({ where: { id, workspaceId }, select: { id: true } });
   if (!c) return fallo("La categoría no existe");
-  const data: Record<string, unknown> = {};
+  const data: Prisma.FotofficeTrabajoCategoriaUpdateInput = {};
   if (datos.nombre !== undefined) {
     const nombre = datos.nombre.trim();
     if (!nombre) return fallo("Poné un nombre");
@@ -315,7 +371,12 @@ export async function editarCategoria(
   }
   if (datos.visible !== undefined) data.visible = datos.visible;
   if (datos.portadaUrl !== undefined) data.portadaUrl = datos.portadaUrl;
-  return ok(await prisma.fotofficeTrabajoCategoria.update({ where: { id }, data }));
+  try {
+    return ok(await prisma.fotofficeTrabajoCategoria.update({ where: { id }, data }));
+  } catch (err) {
+    if (esCodigoUnico(err)) return fallo("Ya hay otra categoría con esa dirección");
+    throw err;
+  }
 }
 
 /** Los trabajos de una categoría borrada quedan sin categoría (y por eso fuera del sitio). */
