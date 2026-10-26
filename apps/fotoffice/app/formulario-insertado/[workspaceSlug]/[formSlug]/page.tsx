@@ -9,6 +9,7 @@ import { esFormularioInsertable, eventoDelFormulario } from "@/lib/service-leads
 import { AltoInsertado } from "@/components/consultas/alto-insertado";
 import { PublicDynamicServiceLeadForm } from "@/app/w/[workspaceSlug]/public-dynamic-service-lead-form";
 import { PublicServiceLeadForm } from "@/app/w/[workspaceSlug]/xv/public-service-lead-form";
+import { origenesPublicosSinFallar } from "@/lib/consultas/formulario-publico";
 
 type Props = { params: Promise<{ workspaceSlug: string; formSlug: string }> };
 
@@ -38,10 +39,13 @@ export default async function FormularioInsertadoPage({ params }: Props) {
   const site = await loadPublicSite(workspaceSlug);
   if (!site) notFound();
 
-  const form = await prisma.serviceLeadForm.findFirst({
-    where: { workspaceId: site.workspaceId, slug: formSlug, isActive: true },
-    select: { id: true, slug: true, title: true, configJson: true },
-  });
+  const [form, origenes] = await Promise.all([
+    prisma.serviceLeadForm.findFirst({
+      where: { workspaceId: site.workspaceId, slug: formSlug, isActive: true },
+      select: { id: true, slug: true, title: true, configJson: true },
+    }),
+    origenesPublicosSinFallar(site.workspaceId),
+  ]);
 
   // La marca de la institución sobre los tokens del formulario (igual que la solicitud de
   // cobertura): el botón y el borde de los campos toman su color, y la letra la de su sitio.
@@ -76,10 +80,11 @@ export default async function FormularioInsertadoPage({ params }: Props) {
               formSlug={formSlug}
               eventType={evento}
               configJson={form?.configJson}
+              origenes={origenes}
               insertado
             />
           ) : form ? (
-            <PublicDynamicServiceLeadForm workspaceSlug={workspaceSlug} form={form} insertado />
+            <PublicDynamicServiceLeadForm workspaceSlug={workspaceSlug} form={form} origenes={origenes} insertado />
           ) : (
             <p className="text-sm text-[var(--fo-muted)]">Este formulario no está disponible.</p>
           )}

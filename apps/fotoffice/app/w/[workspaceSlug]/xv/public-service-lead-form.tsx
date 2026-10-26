@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { createServiceLead } from "@/app/actions/service-lead";
+import { CampoOrigen, type OrigenDelFormulario } from "@/components/consultas/campo-origen";
 import { CampoTrampa } from "@/components/consultas/campo-trampa";
 import { CAMPO_TRAMPA } from "@/lib/consultas/trampa";
 import { useHidratado } from "@/lib/ui/use-hidratado";
@@ -50,6 +51,7 @@ export function PublicServiceLeadForm({
   formSlug,
   eventType = "XV",
   configJson,
+  origenes = [],
   insertado = false,
 }: {
   workspaceSlug: string;
@@ -58,6 +60,8 @@ export function PublicServiceLeadForm({
   /** El tipo de la consulta: define la categoría (y con ella la propuesta modelo). */
   eventType?: keyof typeof TEXTOS;
   configJson?: unknown;
+  /** Para «¿Cómo nos conociste?» (orígenes activos del workspace). Vacío = no se pregunta. */
+  origenes?: readonly OrigenDelFormulario[];
   /** Dibujado dentro de otra web (`/w/<slug>/insertar/xv`): no salta de página al terminar. */
   insertado?: boolean;
 }) {
@@ -127,6 +131,7 @@ export function PublicServiceLeadForm({
           eventDate: formData.get("eventDate")?.toString() ?? "",
           eventLocation: formData.get("eventLocation")?.toString() ?? "",
           message: formData.get("message")?.toString() ?? "",
+          origenId: formData.get("origenId")?.toString() ?? "",
           [CAMPO_TRAMPA]: formData.get(CAMPO_TRAMPA)?.toString() ?? "",
         };
 
@@ -189,6 +194,8 @@ export function PublicServiceLeadForm({
           placeholder={TEXTOS[eventType].mensaje}
         />
       </div>
+
+      <CampoOrigen id="xv-origen" origenes={origenes} />
 
       {error ? (
         <p className="text-sm text-[var(--fo-danger)]" role="alert">

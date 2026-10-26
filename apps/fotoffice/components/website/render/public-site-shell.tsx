@@ -39,6 +39,7 @@ export function PublicSiteShell({
     menu: site.menu,
     hasPublishedBlog: site.hasPublishedBlog,
     personVocabulary: site.personVocabulary,
+    sections: site.sections,
   });
 
   const themeVars = {

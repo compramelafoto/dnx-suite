@@ -4,20 +4,21 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const H = vi.hoisted(() => ({
   branding: vi.fn(),
+  origen: vi.fn(),
   alta: vi.fn(),
   cabeceras: vi.fn(async () => new Headers()),
 }));
 
 vi.mock("@repo/db", () => ({
   Prisma: { JsonNull: null },
-  prisma: { fotofficeWorkspaceBranding: { findUnique: H.branding } },
+  prisma: { fotofficeWorkspaceBranding: { findUnique: H.branding }, fotofficeOrigen: { findFirst: H.origen } },
 }));
 // El alta única (contacto, consulta, número, circuito, aviso y respuesta automática) se prueba
 // en lib/consultas/alta.test.ts; acá, lo propio del formulario público.
 vi.mock("@/lib/consultas/alta", () => ({
   altaDeConsulta: H.alta,
   altaDelSistema: (workspaceId: string) => ({ workspaceId, userId: null, userLabel: "Sistema", role: null }),
-  MENSAJES_ALTA: { fallo: "No se pudo registrar la consulta." },
+  MENSAJES_ALTA: { fallo: "No se pudo registrar la consulta.", origen: "Elegí un origen válido." },
   MAX_TEXTO_CONSULTA: 200,
   MAX_MENSAJE_CONSULTA: 4000,
 }));
@@ -67,6 +68,29 @@ describe("createServiceLead", () => {
       contacto: { nombre: "Laura Pérez", email: "laura@example.com", telefono: null },
       eventSubtype: null, eventDate: null, eventLocation: null, message: null, metaJson: null, formId: null, formSlug: null,
     });
+  });
+
+  it("«¿Cómo nos conociste?»: un origen activo del workspace llega al alta; otro se ignora y la consulta entra igual", async () => {
+    H.origen.mockImplementation(async (a: { where: { id: string; workspaceId: string; archivedAt: null } }) =>
+      a.where.id === "o-ig" && a.where.workspaceId === "ws-1" && a.where.archivedAt === null ? { id: "o-ig" } : null,
+    );
+    expect(await createServiceLead({ ...ENTRADA, origenId: "o-ig" })).toEqual({ success: true });
+    expect(H.alta.mock.calls[0]![1]).toMatchObject({ origenId: "o-ig" });
+    expect(await createServiceLead({ ...ENTRADA, origenId: "o-de-otro-workspace" })).toEqual({ success: true });
+    expect(H.alta.mock.calls[1]![1]).not.toHaveProperty("origenId");
+    // Sin elegir nada no se consulta la base.
+    H.origen.mockClear();
+    await createServiceLead(ENTRADA);
+    expect(H.origen).not.toHaveBeenCalled();
+  });
+
+  it("si el origen se archiva justo entre la elección y el alta, reintenta sin origen", async () => {
+    H.origen.mockResolvedValue({ id: "o-ig" });
+    H.alta.mockResolvedValueOnce({ ok: false, error: "Elegí un origen válido." });
+    expect(await createServiceLead({ ...ENTRADA, origenId: "o-ig" })).toEqual({ success: true });
+    expect(H.alta).toHaveBeenCalledTimes(2);
+    expect(H.alta.mock.calls[0]![1]).toMatchObject({ origenId: "o-ig" });
+    expect(H.alta.mock.calls[1]![1]).toMatchObject({ origenId: null, eventType: "BODA" });
   });
 
   it("sin workspace no da de alta", async () => {

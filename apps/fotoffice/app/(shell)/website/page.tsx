@@ -43,7 +43,7 @@ export default async function WebsiteBuilderPage({ searchParams }: { searchParam
     <div className="space-y-4">
       <PageHeader title="Sitio web" description="Construí tu sitio público eligiendo una plantilla, armando secciones y ajustando el diseño — todo con vista previa en vivo." />
       <WebsiteBuilder
-        initialBlocks={sections.pages.home ?? []}
+        initialPages={{ pages: sections.pages, pageMeta: sections.pageMeta }}
         initialColors={resolveWebsiteColors(branding)}
         initialLogoUrl={branding?.logoUrl ?? null}
         initialFaviconUrl={branding?.faviconUrl ?? null}

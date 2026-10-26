@@ -18,10 +18,10 @@ import {
 } from "./blocks";
 
 describe("parseWebsiteSections — parseo tolerante de sectionsJson", () => {
-  it("null o forma inesperada devuelve { pages: { home: [] } }, nunca crashea", () => {
-    expect(parseWebsiteSections(null)).toEqual({ pages: { home: [] } });
-    expect(parseWebsiteSections("no es un objeto")).toEqual({ pages: { home: [] } });
-    expect(parseWebsiteSections({})).toEqual({ pages: { home: [] } });
+  it("null o forma inesperada devuelve { pages: { home: [] }, pageMeta: {} }, nunca crashea", () => {
+    expect(parseWebsiteSections(null)).toEqual({ pages: { home: [] }, pageMeta: {} });
+    expect(parseWebsiteSections("no es un objeto")).toEqual({ pages: { home: [] }, pageMeta: {} });
+    expect(parseWebsiteSections({})).toEqual({ pages: { home: [] }, pageMeta: {} });
   });
 
   it("un bloque inválido dentro del array se descarta, los válidos se conservan (fail-safe)", () => {
@@ -47,7 +47,7 @@ describe("parseWebsiteSections — parseo tolerante de sectionsJson", () => {
 
 describe("websiteBlockSchema — unión cerrada de bloques", () => {
   it("rechaza un type desconocido", () => {
-    expect(websiteBlockSchema.safeParse({ id: "1", type: "GALLERY", visible: true, order: 0, config: {} }).success).toBe(false);
+    expect(websiteBlockSchema.safeParse({ id: "1", type: "NOPE", visible: true, order: 0, config: {} }).success).toBe(false);
   });
 
   it("los campos de texto (title/content/alt/imageUrl) son opcionales a nivel de guardado — un bloque recién agregado y todavía vacío debe poder autoguardarse sin fallar", () => {
@@ -203,5 +203,56 @@ describe("Hero / Banner — carrusel de placas", () => {
     const updated = updateHeroSlide(withB, withB.slides[1].id, { title: "Segunda" });
     expect(updated.slides[0].title).toBeUndefined();
     expect(updated.slides[1].title).toBe("Segunda");
+  });
+});
+
+describe("RICH_TEXT — texto con formato", () => {
+  it("el bloque nuevo arranca vacío y es válido para el guardado", () => {
+    const block = createEmptyBlock("RICH_TEXT", 0);
+    expect(websiteBlockSchema.safeParse(block).success).toBe(true);
+    expect(block.config).toMatchObject({ html: "", align: "left", width: "normal" });
+  });
+
+  it("html pasa de 100000 caracteres → el bloque se descarta al parsear", () => {
+    const block = { id: "r", type: "RICH_TEXT", visible: true, order: 0, config: { html: "a".repeat(100001), align: "left", width: "normal" } };
+    expect(parseWebsiteSections({ pages: { home: [block] } }).pages.home).toHaveLength(0);
+  });
+});
+
+describe("GALLERY, VIDEO y EMBED", () => {
+  const wrap = (type: string, config: unknown) => ({ id: "b", type, visible: true, order: 0, config });
+
+  it("los bloques nuevos arrancan vacíos y son válidos para el guardado", () => {
+    for (const type of ["GALLERY", "VIDEO", "EMBED"] as const) {
+      expect(websiteBlockSchema.safeParse(createEmptyBlock(type, 0)).success).toBe(true);
+    }
+    expect(createEmptyBlock("GALLERY", 0).config).toMatchObject({ photos: [], layout: "grid", columns: 3, lightbox: true });
+    expect(createEmptyBlock("EMBED", 0).config).toMatchObject({ url: "", heightPx: 600 });
+  });
+
+  it("GALLERY admite hasta 200 fotos; con 201 el bloque se descarta", () => {
+    const photos = (n: number) => Array.from({ length: n }, (_, i) => ({ id: `p${i}`, url: `https://x.test/${i}.jpg` }));
+    const base = { layout: "grid", columns: 3, lightbox: true };
+    expect(websiteBlockSchema.safeParse(wrap("GALLERY", { ...base, photos: photos(200) })).success).toBe(true);
+    expect(websiteBlockSchema.safeParse(wrap("GALLERY", { ...base, photos: photos(201) })).success).toBe(false);
+  });
+
+  it("GALLERY: columnas o layout inválidos caen al valor por omisión", () => {
+    const parsed = websiteBlockSchema.parse(wrap("GALLERY", { photos: [], layout: "zig", columns: 9, lightbox: "si" }));
+    expect(parsed.config).toMatchObject({ layout: "grid", columns: 3, lightbox: true });
+  });
+
+  it("EMBED: heightPx fuera de 400..2000 cae a 600", () => {
+    expect(websiteBlockSchema.parse(wrap("EMBED", { url: "https://www.compramelafoto.com/x", heightPx: 100 })).config).toMatchObject({ heightPx: 600 });
+    expect(websiteBlockSchema.parse(wrap("EMBED", { url: "https://www.compramelafoto.com/x", heightPx: 900 })).config).toMatchObject({ heightPx: 900 });
+  });
+
+  it("una URL inválida queda guardada (no tira el bloque): la vista es la que no dibuja nada", () => {
+    expect(websiteBlockSchema.safeParse(wrap("VIDEO", { url: "javascript:alert(1)" })).success).toBe(true);
+  });
+
+  it("los previewLabel (que alimentan el menú) no llevan texto de administración", () => {
+    expect(getBlockPreviewLabel(createEmptyBlock("GALLERY", 0))).toBe("Galería");
+    expect(getBlockPreviewLabel(createEmptyBlock("VIDEO", 0))).toBe("Video");
   });
 });

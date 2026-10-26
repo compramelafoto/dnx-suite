@@ -11,3 +11,6 @@ export const BLOG_PUBLIC_PAGE_KEY = "website:blog";
 
 /** Segmento de la página Institucional (la comisión directiva) bajo `/w/[slug]/`. */
 export const INSTITUTIONAL_PUBLIC_SEGMENT = "institucional";
+
+/** Nombre de la página `/presupuesto` (formulario de presupuesto) en el menú y título del formulario. */
+export const PRESUPUESTO_PAGE_LABEL = "Pedí tu presupuesto";

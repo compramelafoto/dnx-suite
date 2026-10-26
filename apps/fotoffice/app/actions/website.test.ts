@@ -304,6 +304,8 @@ describe("saveWebsiteBlocksAction", () => {
   it("OWNER guarda bloques válidos: escribe sectionsJson.pages.home con updateMany guardado por updatedAt, devuelve el updatedAt fresco", async () => {
     hasModuleLevelMock.mockResolvedValueOnce(true);
     websiteUpdateManyMock.mockResolvedValueOnce({ count: 1 });
+    // 1ª lectura: el borrador actual (se mezcla con lo que llega); 2ª: el updatedAt fresco.
+    websiteFindUniqueMock.mockResolvedValueOnce({ sectionsJson: null });
     websiteFindUniqueMock.mockResolvedValueOnce({ updatedAt: new Date("2026-08-19T10:00:05.000Z") });
     const result = await saveWebsiteBlocksAction(
       undefined,
@@ -313,7 +315,7 @@ describe("saveWebsiteBlocksAction", () => {
     expect(result.updatedAt).toBe("2026-08-19T10:00:05.000Z");
     expect(websiteUpdateManyMock).toHaveBeenCalledWith({
       where: { workspaceId: "ws-a", updatedAt: new Date("2026-08-19T10:00:00.000Z") },
-      data: { sectionsJson: { pages: { home: [VALID_BLOCK] } } },
+      data: { sectionsJson: { pages: { home: [VALID_BLOCK] }, pageMeta: {} } },
     });
   });
 
@@ -365,6 +367,7 @@ describe("saveWebsiteBlocksAction", () => {
   it("guarda bloques Y presets juntos en una sola escritura atómica (misma fila, mismo updatedAt)", async () => {
     hasModuleLevelMock.mockResolvedValueOnce(true);
     websiteUpdateManyMock.mockResolvedValueOnce({ count: 1 });
+    websiteFindUniqueMock.mockResolvedValueOnce({ sectionsJson: null });
     websiteFindUniqueMock.mockResolvedValueOnce({ updatedAt: new Date("2026-08-19T10:00:05.000Z") });
     const presets = { headerPreset: "minimal", showLoginButton: false, loginButtonLabel: "Iniciar sesión", logoSizePx: 40, typographyPreset: "modern", buttonPreset: "rounded", animationPreset: "none", footerPreset: "simple", menuLayout: "fullscreen", menuSide: "right", typographyLevels: {} };
     await saveWebsiteBlocksAction(
@@ -373,7 +376,7 @@ describe("saveWebsiteBlocksAction", () => {
     );
     expect(websiteUpdateManyMock).toHaveBeenCalledWith({
       where: { workspaceId: "ws-a", updatedAt: new Date("2026-08-19T10:00:00.000Z") },
-      data: { sectionsJson: { pages: { home: [VALID_BLOCK] } }, designPresetsJson: presets },
+      data: { sectionsJson: { pages: { home: [VALID_BLOCK] }, pageMeta: {} }, designPresetsJson: presets },
     });
   });
 

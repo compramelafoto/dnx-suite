@@ -1,7 +1,7 @@
 "use client";
 
 import type { CSSProperties } from "react";
-import type { WebsiteBlock } from "@/lib/website/blocks";
+import type { WebsiteBlock, WebsiteSections } from "@/lib/website/blocks";
 import type { WebsiteColors } from "@/lib/website/branding-defaults";
 import type { PersonVocabulary } from "@/lib/vocabulario/personas";
 import { websiteDesignCssVars, type WebsiteDesignPresets } from "@/lib/website/design-presets";
@@ -22,6 +22,8 @@ import { DEVICE_WIDTHS, type DeviceWidth } from "./device-toggle";
  */
 export function LivePreview({
   blocks,
+  homeBlocks,
+  sections,
   colors,
   designPresets,
   menu,
@@ -31,7 +33,12 @@ export function LivePreview({
   workspaceName,
   device,
 }: {
+  /** Las secciones de la página que se está editando. */
   blocks: WebsiteBlock[];
+  /** Las de la portada: de ahí salen las secciones del menú, estés en la página que estés. */
+  homeBlocks: WebsiteBlock[];
+  /** Las páginas propias, para que el menú las muestre igual que el sitio. */
+  sections: WebsiteSections;
   colors: WebsiteColors;
   designPresets: WebsiteDesignPresets;
   menu: SiteMenu | null;
@@ -42,7 +49,7 @@ export function LivePreview({
   device: DeviceWidth;
 }) {
   const navItems = toPreviewNav(
-    resolveSiteNav({ workspaceSlug: "vista-previa", homeBlocks: blocks, enabledModuleKeys, hasPublishedSite: true, menu, personVocabulary }),
+    resolveSiteNav({ workspaceSlug: "vista-previa", homeBlocks, enabledModuleKeys, hasPublishedSite: true, menu, personVocabulary, sections }),
   );
   const themeVars = {
     "--wsite-primary": colors.primaryColor,

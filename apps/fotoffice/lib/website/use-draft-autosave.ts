@@ -53,6 +53,64 @@ export function useDraftAutosave<T>({
     };
   }, []);
 
+  // Siempre lo último que se renderizó: el guardado (con debounce o forzado) lee de acá y no de
+  // la foto vieja de cuando se programó.
+  const valueRef = useRef(value);
+  const saveRef = useRef(save);
+  const queueRef = useRef<Promise<void>>(Promise.resolve());
+  useEffect(() => {
+    valueRef.current = value;
+    saveRef.current = save;
+  });
+
+  /** Guarda lo que haya sin guardar. Nunca lanza; si no hay nada pendiente, no hace nada. */
+  async function persist(): Promise<void> {
+    if (blockedRef.current) return;
+    const current = valueRef.current;
+    const snapshot = JSON.stringify(current);
+    if (snapshot === savedSnapshotRef.current) return;
+
+    setStatus("saving");
+    let res: SaveResult;
+    try {
+      res = await saveRef.current(current, updatedAtRef.current);
+    } catch (err) {
+      if (!mountedRef.current) return;
+      setStatus("error");
+      setError(err instanceof Error ? err.message : "No se pudo guardar. Reintentá en unos segundos.");
+      return;
+    }
+    if (!mountedRef.current) return;
+    // Un guardado en varios pasos que falla a mitad ya movió `updatedAt`: se adopta igual, o el
+    // reintento chocaría contra sí mismo con un falso conflicto.
+    if (res.error && res.updatedAt) {
+      updatedAtRef.current = res.updatedAt;
+      setLastKnownUpdatedAt(res.updatedAt);
+    }
+    if (res.error) {
+      if (res.error.includes(CONFLICT_MARKER)) {
+        blockedRef.current = true;
+        setStatus("conflict");
+      } else {
+        setStatus("error");
+      }
+      setError(res.error);
+      return;
+    }
+    savedSnapshotRef.current = snapshot;
+    if (res.updatedAt) {
+      updatedAtRef.current = res.updatedAt;
+      setLastKnownUpdatedAt(res.updatedAt);
+    }
+    setStatus("saved");
+  }
+
+  /** Los guardados van de a uno: dos en paralelo chocarían entre sí por `updatedAt`. */
+  function enqueue(): Promise<void> {
+    queueRef.current = queueRef.current.then(persist, persist);
+    return queueRef.current;
+  }
+
   useEffect(() => {
     if (!enabled || blockedRef.current) return;
     const snapshot = JSON.stringify(value);
@@ -61,38 +119,22 @@ export function useDraftAutosave<T>({
     setStatus("dirty");
     setError(null);
     if (timerRef.current) clearTimeout(timerRef.current);
-
-    timerRef.current = setTimeout(async () => {
-      setStatus("saving");
-      let res: SaveResult;
-      try {
-        res = await save(value, updatedAtRef.current);
-      } catch (err) {
-        if (!mountedRef.current) return;
-        setStatus("error");
-        setError(err instanceof Error ? err.message : "No se pudo guardar. Reintentá en unos segundos.");
-        return;
-      }
-      if (!mountedRef.current) return;
-      if (res.error) {
-        if (res.error.includes(CONFLICT_MARKER)) {
-          blockedRef.current = true;
-          setStatus("conflict");
-        } else {
-          setStatus("error");
-        }
-        setError(res.error);
-        return;
-      }
-      savedSnapshotRef.current = snapshot;
-      if (res.updatedAt) {
-        updatedAtRef.current = res.updatedAt;
-        setLastKnownUpdatedAt(res.updatedAt);
-      }
-      setStatus("saved");
-    }, debounceMs);
+    timerRef.current = setTimeout(() => void enqueue(), debounceMs);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(value), enabled]);
+
+  /**
+   * Guarda YA lo pendiente, sin esperar el debounce, y devuelve cuando terminó. Lo usa el
+   * constructor antes de cambiar de página, para no dejar una edición a medias en el aire.
+   * Devuelve `true` si no queda nada sin guardar (o no había nada), `false` si el guardado falló
+   * o hay conflicto — quien llama decide si igual sigue.
+   */
+  async function flush(): Promise<boolean> {
+    if (!enabled) return true;
+    if (timerRef.current) clearTimeout(timerRef.current);
+    await enqueue();
+    return JSON.stringify(valueRef.current) === savedSnapshotRef.current;
+  }
 
   /**
    * Sincroniza la referencia de concurrencia desde afuera del ciclo save() de este hook — para
@@ -107,5 +149,5 @@ export function useDraftAutosave<T>({
     setLastKnownUpdatedAt(updatedAt);
   }
 
-  return { status, error, draftUpdatedAt: lastKnownUpdatedAt, syncUpdatedAt };
+  return { status, error, draftUpdatedAt: lastKnownUpdatedAt, syncUpdatedAt, flush };
 }

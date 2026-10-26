@@ -22,8 +22,11 @@ export type CustomDomainDecision =
  * `sorteos`, `cursos` y `coberturas` NO están: en el panel son pantallas de gestión, pero en el
  * dominio propio son secciones del sitio. `reservas` tampoco está acá, pero sí en
  * `SITE_SEGMENTS_ON_FOTOFFICE`: es del sitio, y se abre en el dominio de FOTOFFICE.
+ *
+ * Se exporta porque una página propia del sitio tampoco puede usar estas direcciones (en el
+ * dominio propio la mandarían a FOTOFFICE): ver `RESERVED_SITE_SEGMENTS` en `reserved-slugs.ts`.
  */
-const FOTOFFICE_ONLY_SEGMENTS = new Set([
+export const FOTOFFICE_ONLY_SEGMENTS: ReadonlySet<string> = new Set([
   "admin",
   "bienvenida",
   "c",

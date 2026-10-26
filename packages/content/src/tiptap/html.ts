@@ -102,3 +102,16 @@ export async function generateContentHtml(contentJson: JSONContent): Promise<str
 
 /** Alias CLF. */
 export const generateBlogHtml = generateContentHtml;
+
+/**
+ * Camino inverso a `generateContentHtml`: arma el JSON de TipTap a partir de HTML (el que ya se
+ * guardó). Lo usan los editores que persisten HTML y no el JSON, como el bloque de texto con
+ * formato del sitio. El HTML se sanea ANTES de parsearlo.
+ */
+export async function parseContentHtmlToJson(html: string): Promise<JSONContent> {
+  const [{ generateJSON }, { getContentTiptapExtensions }] = await Promise.all([
+    import("@tiptap/html"),
+    import("./extensions"),
+  ]);
+  return generateJSON(sanitizeContentHtml(html), getContentTiptapExtensions());
+}

@@ -5,9 +5,13 @@ import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 import { PORTFOLIO_MODULE_KEY } from "@/lib/portfolio/constants";
 import { STORE_MODULE_KEY } from "@/lib/store/constants";
+import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
+import { buildSiteNav } from "./site-nav";
 import { personVocabulary } from "@/lib/vocabulario/personas";
 import {
+  OPTIONAL_PUBLIC_PAGES,
   PUBLIC_MODULE_PAGES,
+  optionalPublicPagesFor,
   resolvePublicModuleLabel,
   SITE_RESERVED_SEGMENTS,
   isSiteSegmentReserved,
@@ -140,5 +144,29 @@ describe("la página pública de la tienda", () => {
   it("abierta y encendida pero con Ventas apagado → tampoco (la tienda vende el catálogo de Ventas)", () => {
     const claves = withStoreOpenState(new Set([STORE_MODULE_KEY, BOOKINGS_MODULE_KEY]), true);
     expect(publicModulePagesFor(claves).map((p) => p.segment)).toEqual(["reservas"]);
+  });
+});
+
+describe("la página «Pedí tu presupuesto»", () => {
+  it("es opcional (no automática), ocupa /presupuesto, ligada a Consultas, y su segmento queda reservado", () => {
+    expect(PUBLIC_MODULE_PAGES.some((p) => p.segment === "presupuesto")).toBe(false);
+    expect(OPTIONAL_PUBLIC_PAGES.find((p) => p.key === "presupuesto")).toMatchObject({
+      moduleKey: SERVICE_LEADS_MODULE_KEY,
+      path: "presupuesto",
+      label: "Pedí tu presupuesto",
+    });
+    expect(isSiteSegmentReserved("presupuesto")).toBe(true);
+  });
+
+  it("no entra sola al menú automático, ni con Consultas encendido", () => {
+    const menu = (claves: string[]) =>
+      buildSiteNav({ workspaceSlug: "dnx-estudio", homeBlocks: [], enabledModuleKeys: new Set(claves), hasPublishedSite: true });
+    expect(menu([SERVICE_LEADS_MODULE_KEY]).some((i) => i.href.endsWith("/presupuesto"))).toBe(false);
+  });
+
+  it("con Consultas encendido se ofrece para sumar al menú a mano; apagado, no", () => {
+    const opciones = (claves: string[]) => optionalPublicPagesFor(new Set(claves)).map((p) => p.key);
+    expect(opciones([SERVICE_LEADS_MODULE_KEY])).toContain("presupuesto");
+    expect(opciones([])).not.toContain("presupuesto");
   });
 });

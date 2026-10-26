@@ -29,6 +29,7 @@ import { WEBSITE_BLOCK_DEFINITIONS, getBlockPreviewLabel, type WebsiteBlock } fr
  * mover, Espacio para soltar). ↑/↓ quedan como fallback explícito, no como decoración.
  */
 export function SectionList({
+  title,
   blocks,
   selectedId,
   canEdit,
@@ -40,6 +41,8 @@ export function SectionList({
   onReorder,
   onAddClick,
 }: {
+  /** Nombre de la página que se está editando. */
+  title: string;
   blocks: WebsiteBlock[];
   selectedId: string | null;
   canEdit: boolean;
@@ -68,7 +71,7 @@ export function SectionList({
   return (
     <div className="flex h-full flex-col">
       <div className="px-4 py-3 border-b border-[var(--fo-border)]">
-        <p className="text-xs font-semibold uppercase tracking-wide text-[var(--fo-muted)]">Página de inicio</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-[var(--fo-muted)]">Secciones de «{title}»</p>
       </div>
       <div className="flex-1 overflow-y-auto p-2 space-y-1">
         {blocks.length === 0 ? (

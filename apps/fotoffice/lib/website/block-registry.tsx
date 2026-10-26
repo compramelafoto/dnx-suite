@@ -1,19 +1,39 @@
 import type { ComponentType } from "react";
 import { ImageUploadField } from "@/components/image-upload-field";
+import { GalleryPhotosEditor } from "@/components/website/inspector/gallery-photos-editor";
+import { InquiryFormInspector } from "@/components/website/inspector/inquiry-form-inspector";
+import { RichTextInspector } from "@/components/website/inspector/rich-text-inspector";
 import { SelectField, TextAreaField, TextField, ToggleField } from "@/components/website/inspector/inspector-fields";
 import { HeroBlockView } from "@/components/website/render/blocks/hero-block-view";
 import { HeroSlideEditor } from "@/components/website/builder/hero-slide-editor";
 import { TextBlockView } from "@/components/website/render/blocks/text-block-view";
 import { ImageBlockView } from "@/components/website/render/blocks/image-block-view";
 import { CtaBlockView } from "@/components/website/render/blocks/cta-block-view";
+import { ContactBlockView } from "@/components/website/render/blocks/contact-block-view";
+import { InquiryFormBlockView } from "@/components/website/render/blocks/inquiry-form-block-view";
+import { GalleryBlockView } from "@/components/website/render/blocks/gallery-block-view";
+import { VideoBlockView } from "@/components/website/render/blocks/video-block-view";
+import { EmbedBlockView } from "@/components/website/render/blocks/embed-block-view";
+import { RichTextBlockView } from "@/components/website/render/blocks/rich-text-block-view";
 import { SpacerBlockView } from "@/components/website/render/blocks/spacer-block-view";
 import { BlogLatestBlockView } from "@/components/website/render/blocks/blog-latest-block-view";
 import { MemberOfWeekBlockView } from "@/components/website/render/blocks/member-of-week-block-view";
+import { isAllowedMapsUrl } from "./contact";
+import { isAllowedEmbedUrl, toVideoEmbedUrl } from "./embed-hosts";
 import type { WebsiteDynamicData } from "./dynamic-data";
 import {
   WEBSITE_BLOCK_DEFINITIONS,
   type BlogLatestBlockConfig,
+  type ContactBlockConfig,
+  type ContactSocial,
+  CONTACT_SOCIAL_NETWORKS,
   type CtaBlockConfig,
+  type EmbedBlockConfig,
+  type GalleryBlockConfig,
+  type VideoBlockConfig,
+  EMBED_MAX_HEIGHT_PX,
+  EMBED_MIN_HEIGHT_PX,
+  EMBED_DEFAULT_HEIGHT_PX,
   type MemberOfWeekBlockConfig,
   type ImageBlockConfig,
   type SpacerBlockConfig,
@@ -121,6 +141,152 @@ export const WEBSITE_BLOCK_REGISTRY: { [K in WebsiteBlockType]: BlockRegistryEnt
         ]}
       />
     ),
+  },
+  RICH_TEXT: {
+    View: RichTextBlockView,
+    Inspector: RichTextInspector,
+  },
+  GALLERY: {
+    View: GalleryBlockView,
+    Inspector: ({ config, onChange }: { config: GalleryBlockConfig; onChange: (c: GalleryBlockConfig) => void }) => (
+      <div className="space-y-4">
+        <TextField label="Título (opcional)" value={config.title ?? ""} onChange={(v) => onChange({ ...config, title: v })} />
+        <GalleryPhotosEditor photos={config.photos} onChange={(photos) => onChange({ ...config, photos })} />
+        <SelectField
+          label="Disposición"
+          value={config.layout}
+          onChange={(v) => onChange({ ...config, layout: v as GalleryBlockConfig["layout"] })}
+          options={[
+            { value: "grid", label: "Grilla (todas del mismo tamaño)" },
+            { value: "masonry", label: "Mosaico (respeta la forma de cada foto)" },
+          ]}
+        />
+        <SelectField
+          label="Columnas"
+          value={String(config.columns)}
+          onChange={(v) => onChange({ ...config, columns: v === "2" ? 2 : v === "4" ? 4 : 3 })}
+          options={[
+            { value: "2", label: "2 columnas" },
+            { value: "3", label: "3 columnas" },
+            { value: "4", label: "4 columnas" },
+          ]}
+        />
+        <ToggleField label="Ampliar la foto al tocarla" checked={config.lightbox} onChange={(v) => onChange({ ...config, lightbox: v })} />
+      </div>
+    ),
+  },
+  VIDEO: {
+    View: VideoBlockView,
+    Inspector: ({ config, onChange }: { config: VideoBlockConfig; onChange: (c: VideoBlockConfig) => void }) => (
+      <div className="space-y-4">
+        <TextField label="Título (opcional)" value={config.title ?? ""} onChange={(v) => onChange({ ...config, title: v })} />
+        <TextField label="Enlace del video" value={config.url} onChange={(v) => onChange({ ...config, url: v })} helper="Pegá el enlace de YouTube o de Vimeo." />
+        {config.url.trim() && !toVideoEmbedUrl(config.url) ? (
+          <p className="text-xs text-red-600">Ese enlace no es de YouTube ni de Vimeo: el video no se va a mostrar en el sitio.</p>
+        ) : null}
+      </div>
+    ),
+  },
+  EMBED: {
+    View: EmbedBlockView,
+    Inspector: ({ config, onChange }: { config: EmbedBlockConfig; onChange: (c: EmbedBlockConfig) => void }) => (
+      <div className="space-y-4">
+        <TextField label="Título (opcional)" value={config.title ?? ""} onChange={(v) => onChange({ ...config, title: v })} />
+        <TextField
+          label="Enlace a insertar"
+          value={config.url}
+          onChange={(v) => onChange({ ...config, url: v })}
+          helper="Sólo se admiten páginas de CompraMeLaFoto, YouTube, Vimeo y mapas de Google (Compartir → Insertar un mapa)."
+        />
+        {config.url.trim() && !isAllowedEmbedUrl(config.url) ? (
+          <p className="text-xs text-red-600">Ese enlace no se puede insertar: la sección no se va a mostrar en el sitio.</p>
+        ) : null}
+        <label className="block space-y-1.5">
+          <span className="fo-label">Alto (en píxeles)</span>
+          <input
+            type="number"
+            className="fo-input"
+            min={EMBED_MIN_HEIGHT_PX}
+            max={EMBED_MAX_HEIGHT_PX}
+            step={50}
+            value={config.heightPx}
+            onChange={(e) => {
+              const n = Number(e.target.value);
+              onChange({ ...config, heightPx: Number.isFinite(n) ? Math.min(EMBED_MAX_HEIGHT_PX, Math.max(EMBED_MIN_HEIGHT_PX, Math.round(n))) : EMBED_DEFAULT_HEIGHT_PX });
+            }}
+          />
+        </label>
+      </div>
+    ),
+  },
+  CONTACT: {
+    View: ContactBlockView,
+    Inspector: ({ config, onChange }: { config: ContactBlockConfig; onChange: (c: ContactBlockConfig) => void }) => (
+      <div className="space-y-4">
+        <TextField label="Título (opcional)" value={config.title ?? ""} onChange={(v) => onChange({ ...config, title: v })} />
+        <ToggleField
+          label="Completar con los datos de mi institución"
+          checked={config.useWorkspaceData}
+          onChange={(v) => onChange({ ...config, useWorkspaceData: v })}
+        />
+        <p className="text-xs text-[var(--fo-muted)]">
+          Lo que dejes vacío acá se completa con el correo, teléfono, WhatsApp, dirección e Instagram de tu institución. Lo que escribas acá tiene prioridad.
+        </p>
+        <TextField label="Correo" value={config.email ?? ""} onChange={(v) => onChange({ ...config, email: v })} />
+        <TextField label="Teléfono" value={config.phone ?? ""} onChange={(v) => onChange({ ...config, phone: v })} />
+        <TextField label="WhatsApp" value={config.whatsapp ?? ""} onChange={(v) => onChange({ ...config, whatsapp: v })} helper="Con o sin código de país: «341 341-9869»." />
+        <TextField label="Mensaje inicial de WhatsApp (opcional)" value={config.whatsappText ?? ""} onChange={(v) => onChange({ ...config, whatsappText: v })} />
+        <TextField label="Dirección" value={config.address ?? ""} onChange={(v) => onChange({ ...config, address: v })} />
+        <TextField label="Enlace de Google Maps" value={config.mapsUrl ?? ""} onChange={(v) => onChange({ ...config, mapsUrl: v })} helper="Pegá el enlace de «Compartir» de Google Maps." />
+        {config.mapsUrl?.trim() && !isAllowedMapsUrl(config.mapsUrl) ? (
+          <p className="text-xs text-red-600">Ese enlace no es de Google Maps: no se va a guardar.</p>
+        ) : null}
+        <div className="space-y-2">
+          <span className="fo-label">Redes sociales</span>
+          {config.socials.map((social, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <select
+                className="fo-input w-32 shrink-0"
+                aria-label="Red social"
+                value={social.network}
+                onChange={(e) =>
+                  onChange({ ...config, socials: config.socials.map((s, j) => (j === i ? { ...s, network: e.target.value as ContactSocial["network"] } : s)) })
+                }
+              >
+                {CONTACT_SOCIAL_NETWORKS.map((n) => (
+                  <option key={n} value={n}>
+                    {n === "x" ? "X" : n.charAt(0).toUpperCase() + n.slice(1)}
+                  </option>
+                ))}
+              </select>
+              <input
+                className="fo-input min-w-0 flex-1"
+                aria-label="Enlace de la red social"
+                placeholder="https://"
+                value={social.url}
+                onChange={(e) => onChange({ ...config, socials: config.socials.map((s, j) => (j === i ? { ...s, url: e.target.value } : s)) })}
+              />
+              <button type="button" className="px-1 text-red-600" aria-label="Quitar red social" onClick={() => onChange({ ...config, socials: config.socials.filter((_, j) => j !== i) })}>
+                ×
+              </button>
+            </div>
+          ))}
+          {config.socials.length < 20 ? (
+            <button
+              type="button"
+              className="text-sm underline"
+              onClick={() => onChange({ ...config, socials: [...config.socials, { network: "instagram", url: "" }] })}
+            >
+              Agregar red social
+            </button>
+          ) : null}
+        </div>
+      </div>
+    ),
+  },
+  INQUIRY_FORM: {
+    View: InquiryFormBlockView,
+    Inspector: InquiryFormInspector,
   },
   BLOG_LATEST: {
     View: BlogLatestBlockView,

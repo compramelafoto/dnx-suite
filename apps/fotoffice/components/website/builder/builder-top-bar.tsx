@@ -18,6 +18,7 @@ export function BuilderTopBar({
   autosaveStatus,
   autosaveError,
   onDraftUpdatedAtChange,
+  previewHref,
 }: {
   status: WebsiteChangeStatus;
   canEdit: boolean;
@@ -30,6 +31,8 @@ export function BuilderTopBar({
    * secciones/diseño necesita enterarse para no reportar un conflicto falso en la próxima
    * edición (ver comentario en `WebsitePublishState`). */
   onDraftUpdatedAtChange: (updatedAt: string) => void;
+  /** Vista externa del borrador: sigue a la página que se está editando. */
+  previewHref: string;
 }) {
   const [publishState, publishAction, publishPending] = useActionState(publishWebsiteAction, initial);
   const [unpublishState, unpublishAction, unpublishPending] = useActionState(unpublishWebsiteAction, initial);
@@ -71,7 +74,7 @@ export function BuilderTopBar({
             </span>
           ) : null}
 
-          <Link href="/website/preview" target="_blank" className="fo-btn fo-btn-secondary text-sm">
+          <Link href={previewHref} target="_blank" className="fo-btn fo-btn-secondary text-sm">
             Vista externa
           </Link>
 

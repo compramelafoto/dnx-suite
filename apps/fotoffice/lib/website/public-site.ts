@@ -2,7 +2,8 @@ import { cache } from "react";
 import { prisma } from "@repo/db";
 import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import type { PersonVocabulary } from "@/lib/vocabulario/personas";
-import { parseWebsiteSections, type WebsiteBlock } from "./blocks";
+import { emptyWebsiteSections, parseWebsiteSections, type WebsiteBlock, type WebsitePageMeta, type WebsiteSections } from "./blocks";
+import { findPageBySlug } from "./pages";
 import { resolveWebsiteColors, type WebsiteColors } from "./branding-defaults";
 import { parseWebsiteDesignPresets, type WebsiteDesignPresets } from "./design-presets";
 import { parseSiteMenu, type SiteMenu } from "./site-menu";
@@ -24,15 +25,29 @@ import { withStoreOpenState } from "./public-modules";
 export function pickPublishedHomeBlocks(args: {
   websiteModuleEnabled: boolean;
   publishedSectionsJson: unknown;
-}): { homeBlocks: WebsiteBlock[]; hasPublishedSite: boolean } {
+}): { homeBlocks: WebsiteBlock[]; sections: WebsiteSections; hasPublishedSite: boolean } {
   if (!args.websiteModuleEnabled || args.publishedSectionsJson == null) {
-    return { homeBlocks: [], hasPublishedSite: false };
+    return { homeBlocks: [], sections: emptyWebsiteSections(), hasPublishedSite: false };
   }
   // parseWebsiteSections es tolerante: un JSON corrupto devuelve `{ pages: { home: [] } }` y una
   // sección inválida se descarta sola. Un sitio publicado con contenido roto se ve vacío, nunca
   // tira la página.
   const sections = parseWebsiteSections(args.publishedSectionsJson);
-  return { homeBlocks: sections.pages.home ?? [], hasPublishedSite: true };
+  return { homeBlocks: sections.pages.home ?? [], sections, hasPublishedSite: true };
+}
+
+/**
+ * La página propia que corresponde a lo que vino después de `/w/<slug>/`, o `null` si no hay
+ * ninguna. Sólo mira las secciones PUBLICADAS (las del borrador nunca llegan acá) y sólo un
+ * segmento: las páginas propias no se anidan.
+ */
+export function resolvePublicCustomPage(
+  site: Pick<PublicSite, "hasPublishedSite" | "sections">,
+  rest: string[],
+): { meta: WebsitePageMeta; blocks: WebsiteBlock[] } | null {
+  if (!site.hasPublishedSite || rest.length !== 1) return null;
+  const page = findPageBySlug(site.sections, rest[0]);
+  return page ? { meta: page.meta, blocks: page.blocks } : null;
 }
 
 export type PublicSiteContact = {
@@ -55,6 +70,8 @@ export type PublicSite = {
   colors: WebsiteColors;
   designPresets: WebsiteDesignPresets;
   homeBlocks: WebsiteBlock[];
+  /** Todas las páginas de la versión publicada (vacías si no hay sitio publicado). */
+  sections: WebsiteSections;
   hasPublishedSite: boolean;
   /** El menú editado de la versión publicada; `null` = el automático. */
   menu: SiteMenu | null;
@@ -132,7 +149,7 @@ export const loadPublicSite = cache(async function loadPublicSite(workspaceSlug:
   const enabledModuleKeys = withStoreOpenState(modulosEncendidos, storeOpen);
 
   const websiteModuleEnabled = enabledModuleKeys.has(WEBSITE_MODULE_KEY);
-  const { homeBlocks, hasPublishedSite } = pickPublishedHomeBlocks({
+  const { homeBlocks, sections, hasPublishedSite } = pickPublishedHomeBlocks({
     websiteModuleEnabled,
     publishedSectionsJson: website?.publishedVersion?.sectionsJson ?? null,
   });
@@ -158,6 +175,7 @@ export const loadPublicSite = cache(async function loadPublicSite(workspaceSlug:
     // El diseño se congela por versión: se lee el de la versión publicada, no el del borrador.
     designPresets: parseWebsiteDesignPresets(website?.publishedVersion?.designPresetsJson ?? null),
     homeBlocks,
+    sections,
     hasPublishedSite,
     // Igual que las secciones: sin sitio publicado (o con el módulo apagado) el menú es el
     // automático, nunca uno editado que quedó de antes.

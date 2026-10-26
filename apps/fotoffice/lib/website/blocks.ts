@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isAllowedMapsUrl } from "./contact";
 
 /**
  * Contrato de bloques estáticos de la Home del sitio web — primera etapa del editor visual.
@@ -243,6 +244,110 @@ export const memberOfWeekConfigSchema = z.object({
   intro: z.string().max(400).optional(),
 });
 
+/**
+ * Texto con formato: HTML del editor TipTap del blog, guardado tal cual en `config.html`. Es el
+ * único bloque que acepta HTML, así que SIEMPRE pasa por `sanitizeRichTextConfig` — al guardar
+ * (`sanitizeBlocksForSave`) y al dibujar (la vista) — y nunca se inserta sin sanear. Ambas viven
+ * en `rich-text-sanitize.ts`: este archivo llega al bundle del navegador y no debe cargar el
+ * sanitizador de `@repo/content`.
+ */
+export const WEBSITE_RICH_TEXT_WIDTH = ["narrow", "normal", "wide"] as const;
+export type WebsiteRichTextWidth = (typeof WEBSITE_RICH_TEXT_WIDTH)[number];
+
+export const richTextConfigSchema = z.object({
+  title: z.string().max(200).optional(),
+  html: z.string().max(100000),
+  align: z.enum(WEBSITE_BLOCK_ALIGN).catch("left"),
+  width: z.enum(WEBSITE_RICH_TEXT_WIDTH).catch("normal"),
+});
+
+/**
+ * Galería, video y contenido insertado. Las URLs de video y de iframe se guardan como vengan
+ * (un bloque recién armado, vacío o a medio escribir, tiene que poder autoguardarse): quien
+ * decide si se dibujan es la vista, con `toVideoEmbedUrl` / `isAllowedEmbedUrl`.
+ */
+export const GALLERY_MAX_PHOTOS = 200;
+export const GALLERY_LAYOUTS = ["grid", "masonry"] as const;
+export const EMBED_MIN_HEIGHT_PX = 400;
+export const EMBED_MAX_HEIGHT_PX = 2000;
+export const EMBED_DEFAULT_HEIGHT_PX = 600;
+
+export const galleryPhotoSchema = z.object({
+  id: z.string().min(1),
+  url: z.string().max(2000),
+  alt: z.string().max(300).optional(),
+});
+export type GalleryPhoto = z.infer<typeof galleryPhotoSchema>;
+
+export const galleryConfigSchema = z.object({
+  title: z.string().max(200).optional(),
+  photos: z.array(galleryPhotoSchema).max(GALLERY_MAX_PHOTOS),
+  layout: z.enum(GALLERY_LAYOUTS).catch("grid"),
+  columns: z.union([z.literal(2), z.literal(3), z.literal(4)]).catch(3),
+  lightbox: z.boolean().catch(true),
+});
+
+export const videoConfigSchema = z.object({
+  title: z.string().max(200).optional(),
+  url: z.string().max(2000),
+});
+
+export const embedConfigSchema = z.object({
+  title: z.string().max(200).optional(),
+  url: z.string().max(2000),
+  heightPx: z.number().int().min(EMBED_MIN_HEIGHT_PX).max(EMBED_MAX_HEIGHT_PX).catch(EMBED_DEFAULT_HEIGHT_PX),
+});
+
+/**
+ * Contacto: con `useWorkspaceData` los campos vacíos se completan con los datos de la
+ * institución al dibujar (ver `resolveContactConfig`); lo escrito acá manda. `mapsUrl` sólo
+ * admite enlaces de Google Maps: otro valor se descarta al parsear (no tira el bloque).
+ */
+export const CONTACT_SOCIAL_NETWORKS = ["instagram", "facebook", "youtube", "vimeo", "tiktok", "linkedin", "pinterest", "x"] as const;
+export type ContactSocialNetwork = (typeof CONTACT_SOCIAL_NETWORKS)[number];
+
+export const contactSocialSchema = z.object({
+  network: z.enum(CONTACT_SOCIAL_NETWORKS),
+  url: z.string().max(2000),
+});
+export type ContactSocial = z.infer<typeof contactSocialSchema>;
+
+export const contactConfigSchema = z.object({
+  title: z.string().max(200).optional(),
+  useWorkspaceData: z.boolean().catch(true),
+  email: z.string().max(200).optional(),
+  phone: z.string().max(60).optional(),
+  whatsapp: z.string().max(60).optional(),
+  whatsappText: z.string().max(300).optional(),
+  address: z.string().max(300).optional(),
+  mapsUrl: z
+    .string()
+    .max(2000)
+    .optional()
+    .transform((v) => (v && isAllowedMapsUrl(v) ? v.trim() : undefined)),
+  socials: z.array(contactSocialSchema).max(20),
+});
+
+/**
+ * Formulario de presupuesto: da de alta una consulta en Consultas (el embudo de ventas) desde el
+ * sitio. `categoryIds` vacío = todas las categorías activas; las de la lista que se archiven
+ * después no rompen nada (ver `categoriasDelBloque` y `resolverCategoriaDelSitio`). Las
+ * categorías y los orígenes se leen al dibujar, nunca se copian acá.
+ */
+export const INQUIRY_DEFAULT_BUTTON_LABEL = "Pedir presupuesto";
+export const INQUIRY_DEFAULT_THANKS = "¡Gracias! Te escribimos dentro de las 24 horas.";
+
+export const inquiryFormConfigSchema = z.object({
+  title: z.string().max(200).optional().catch(undefined),
+  intro: z.string().max(600).optional().catch(undefined),
+  categoryIds: z.array(z.string().min(1).max(100)).max(200).catch([]),
+  askOrigin: z.boolean().catch(true),
+  askEventDate: z.boolean().catch(true),
+  askEventLocation: z.boolean().catch(true),
+  buttonLabel: z.string().trim().min(1).max(60).catch(INQUIRY_DEFAULT_BUTTON_LABEL),
+  thanksMessage: z.string().trim().min(1).max(400).catch(INQUIRY_DEFAULT_THANKS),
+});
+
 const blockEnvelope = {
   id: z.string().min(1),
   visible: z.boolean(),
@@ -254,6 +359,12 @@ export const textBlockSchema = z.object({ ...blockEnvelope, type: z.literal("TEX
 export const imageBlockSchema = z.object({ ...blockEnvelope, type: z.literal("IMAGE"), config: imageConfigSchema });
 export const ctaBlockSchema = z.object({ ...blockEnvelope, type: z.literal("CTA"), config: ctaConfigSchema });
 export const spacerBlockSchema = z.object({ ...blockEnvelope, type: z.literal("SPACER"), config: spacerConfigSchema });
+export const richTextBlockSchema = z.object({ ...blockEnvelope, type: z.literal("RICH_TEXT"), config: richTextConfigSchema });
+export const galleryBlockSchema = z.object({ ...blockEnvelope, type: z.literal("GALLERY"), config: galleryConfigSchema });
+export const videoBlockSchema = z.object({ ...blockEnvelope, type: z.literal("VIDEO"), config: videoConfigSchema });
+export const embedBlockSchema = z.object({ ...blockEnvelope, type: z.literal("EMBED"), config: embedConfigSchema });
+export const contactBlockSchema = z.object({ ...blockEnvelope, type: z.literal("CONTACT"), config: contactConfigSchema });
+export const inquiryFormBlockSchema = z.object({ ...blockEnvelope, type: z.literal("INQUIRY_FORM"), config: inquiryFormConfigSchema });
 export const blogLatestBlockSchema = z.object({ ...blockEnvelope, type: z.literal("BLOG_LATEST"), config: blogLatestConfigSchema });
 export const memberOfWeekBlockSchema = z.object({ ...blockEnvelope, type: z.literal("MEMBER_OF_WEEK"), config: memberOfWeekConfigSchema });
 
@@ -263,15 +374,38 @@ export const websiteBlockSchema = z.discriminatedUnion("type", [
   imageBlockSchema,
   ctaBlockSchema,
   spacerBlockSchema,
+  richTextBlockSchema,
+  galleryBlockSchema,
+  videoBlockSchema,
+  embedBlockSchema,
+  contactBlockSchema,
+  inquiryFormBlockSchema,
   blogLatestBlockSchema,
   memberOfWeekBlockSchema,
 ]);
 
 export const websitePageContentSchema = z.array(websiteBlockSchema);
 
-/** Forma completa de `sectionsJson`. Ya envuelto en `pages` aunque hoy solo exista `"home"`. */
+/** Claves de página admitidas (`home`, `p_1`…): empiezan con letra/número, sin `__proto__` ni rutas. */
+export const PAGE_KEY_FORMAT = /^[a-z0-9][a-z0-9_]{0,39}$/;
+
+export const websitePageKeySchema = z.string().regex(PAGE_KEY_FORMAT);
+
+export const websitePageMetaSchema = z.object({
+  slug: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(60),
+  title: z.string().min(1).max(120),
+  seoTitle: z.string().max(120).optional(),
+  seoDescription: z.string().max(300).optional(),
+});
+
+export type WebsitePageMeta = z.infer<typeof websitePageMetaSchema>;
+
+/** Forma completa de `sectionsJson`. `pageMeta` es hermano de `pages` (no va adentro) para que los
+ * lectores viejos, que sólo miran `pages`, lo ignoren sin romperse. Describe las páginas propias;
+ * `home` nunca tiene meta. */
 export const websiteSectionsSchema = z.object({
-  pages: z.record(z.string(), websitePageContentSchema),
+  pages: z.record(websitePageKeySchema, websitePageContentSchema),
+  pageMeta: z.record(websitePageKeySchema, websitePageMetaSchema),
 });
 
 export type HeroBlockConfig = z.infer<typeof heroConfigSchema>;
@@ -279,6 +413,12 @@ export type TextBlockConfig = z.infer<typeof textConfigSchema>;
 export type ImageBlockConfig = z.infer<typeof imageConfigSchema>;
 export type CtaBlockConfig = z.infer<typeof ctaConfigSchema>;
 export type SpacerBlockConfig = z.infer<typeof spacerConfigSchema>;
+export type RichTextBlockConfig = z.infer<typeof richTextConfigSchema>;
+export type GalleryBlockConfig = z.infer<typeof galleryConfigSchema>;
+export type VideoBlockConfig = z.infer<typeof videoConfigSchema>;
+export type EmbedBlockConfig = z.infer<typeof embedConfigSchema>;
+export type ContactBlockConfig = z.infer<typeof contactConfigSchema>;
+export type InquiryFormBlockConfig = z.infer<typeof inquiryFormConfigSchema>;
 export type BlogLatestBlockConfig = z.infer<typeof blogLatestConfigSchema>;
 export type MemberOfWeekBlockConfig = z.infer<typeof memberOfWeekConfigSchema>;
 
@@ -287,6 +427,12 @@ export type TextBlock = z.infer<typeof textBlockSchema>;
 export type ImageBlock = z.infer<typeof imageBlockSchema>;
 export type CtaBlock = z.infer<typeof ctaBlockSchema>;
 export type SpacerBlock = z.infer<typeof spacerBlockSchema>;
+export type RichTextBlock = z.infer<typeof richTextBlockSchema>;
+export type GalleryBlock = z.infer<typeof galleryBlockSchema>;
+export type VideoBlock = z.infer<typeof videoBlockSchema>;
+export type EmbedBlock = z.infer<typeof embedBlockSchema>;
+export type ContactBlock = z.infer<typeof contactBlockSchema>;
+export type InquiryFormBlock = z.infer<typeof inquiryFormBlockSchema>;
 export type BlogLatestBlock = z.infer<typeof blogLatestBlockSchema>;
 export type MemberOfWeekBlock = z.infer<typeof memberOfWeekBlockSchema>;
 
@@ -301,8 +447,9 @@ export type WebsitePageContent = WebsiteBlock[];
 
 export type WebsiteSections = z.infer<typeof websiteSectionsSchema>;
 
+
 export function emptyWebsiteSections(): WebsiteSections {
-  return { pages: { home: [] } };
+  return { pages: { home: [] }, pageMeta: {} };
 }
 
 /**
@@ -318,7 +465,7 @@ export function parseWebsiteSections(raw: unknown): WebsiteSections {
 
   const pages: Record<string, WebsiteBlock[]> = {};
   for (const [pageKey, blocksRaw] of Object.entries(pagesRaw as Record<string, unknown>)) {
-    if (!Array.isArray(blocksRaw)) continue;
+    if (!Array.isArray(blocksRaw) || !PAGE_KEY_FORMAT.test(pageKey)) continue;
     const validBlocks: WebsiteBlock[] = [];
     for (const blockRaw of blocksRaw) {
       const parsed = websiteBlockSchema.safeParse(blockRaw);
@@ -327,7 +474,22 @@ export function parseWebsiteSections(raw: unknown): WebsiteSections {
     pages[pageKey] = validBlocks;
   }
   if (!pages.home) pages.home = [];
-  return { pages };
+
+  // Meta de páginas propias: se descarta la inválida, la de `home` y la que no tiene `pages[clave]`.
+  // A su vez, toda página que no sea `home` y no tenga meta válida se descarta (sería inalcanzable).
+  const metaRaw = (raw as { pageMeta?: unknown }).pageMeta;
+  const pageMeta: Record<string, WebsitePageMeta> = {};
+  if (metaRaw !== null && typeof metaRaw === "object") {
+    for (const [key, value] of Object.entries(metaRaw as Record<string, unknown>)) {
+      if (key === "home" || !Object.hasOwn(pages, key)) continue;
+      const parsed = websitePageMetaSchema.safeParse(value);
+      if (parsed.success) pageMeta[key] = parsed.data;
+    }
+  }
+  for (const key of Object.keys(pages)) {
+    if (key !== "home" && !Object.hasOwn(pageMeta, key)) delete pages[key];
+  }
+  return { pages, pageMeta };
 }
 
 /**
@@ -415,6 +577,73 @@ export const WEBSITE_BLOCK_DEFINITIONS: {
     source: "static",
     defaultConfig: () => ({ sizePreset: "md" }),
     previewLabel: (c) => `Tamaño: ${c.sizePreset === "sm" ? "chico" : c.sizePreset === "lg" ? "grande" : "medio"}`,
+  },
+  RICH_TEXT: {
+    type: "RICH_TEXT",
+    label: "Texto con formato",
+    description: "Texto con títulos, negritas, listas, enlaces e imágenes.",
+    category: "BASICAS",
+    source: "static",
+    defaultConfig: () => ({ title: "", html: "", align: "left", width: "normal" }),
+    // Alimenta también el menú (ver HERO): sólo el título que puso el dueño, nunca el HTML.
+    previewLabel: (c) => c.title?.trim() || "Texto",
+  },
+  GALLERY: {
+    type: "GALLERY",
+    label: "Galería de fotos",
+    description: "Una grilla de fotos que se pueden ampliar a pantalla completa.",
+    category: "BASICAS",
+    source: "static",
+    defaultConfig: () => ({ title: "", photos: [], layout: "grid", columns: 3, lightbox: true }),
+    // Alimenta también el menú (ver HERO): sin título, "Galería" es lo que el visitante entiende.
+    previewLabel: (c) => c.title?.trim() || "Galería",
+  },
+  VIDEO: {
+    type: "VIDEO",
+    label: "Video",
+    description: "Un video de YouTube o Vimeo.",
+    category: "BASICAS",
+    source: "static",
+    defaultConfig: () => ({ title: "", url: "" }),
+    previewLabel: (c) => c.title?.trim() || "Video",
+  },
+  EMBED: {
+    type: "EMBED",
+    label: "Contenido insertado",
+    description: "Una página de CompraMeLaFoto, un video o un mapa de Google dentro del sitio.",
+    category: "BASICAS",
+    source: "static",
+    defaultConfig: () => ({ title: "", url: "", heightPx: EMBED_DEFAULT_HEIGHT_PX }),
+    previewLabel: (c) => c.title?.trim() || "Contenido",
+  },
+  CONTACT: {
+    type: "CONTACT",
+    label: "Contacto",
+    description: "Correo, teléfono, WhatsApp, dirección con mapa y redes. Puede tomar los datos de tu institución.",
+    category: "BASICAS",
+    source: "dynamic",
+    defaultConfig: () => ({ title: "Contacto", useWorkspaceData: true, socials: [] }),
+    // Alimenta también el menú (ver HERO).
+    previewLabel: (c) => c.title?.trim() || "Contacto",
+  },
+  INQUIRY_FORM: {
+    type: "INQUIRY_FORM",
+    label: "Formulario de presupuesto",
+    description: "Quien visita el sitio pide presupuesto y la consulta entra sola a Consultas, con su categoría y cómo te conoció.",
+    category: "COMERCIAL",
+    source: "dynamic",
+    defaultConfig: () => ({
+      title: "",
+      intro: "",
+      categoryIds: [],
+      askOrigin: true,
+      askEventDate: true,
+      askEventLocation: true,
+      buttonLabel: INQUIRY_DEFAULT_BUTTON_LABEL,
+      thanksMessage: INQUIRY_DEFAULT_THANKS,
+    }),
+    // Alimenta también el menú (ver HERO).
+    previewLabel: (c) => c.title?.trim() || "Pedí tu presupuesto",
   },
   BLOG_LATEST: {
     type: "BLOG_LATEST",

@@ -1,14 +1,30 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
 import { Prisma, prisma } from "@repo/db";
 import { requireWebsiteContext } from "@/lib/workspace";
 import { hasModuleLevel } from "@/lib/permissions/module-access";
 import { WEBSITE_MODULE_KEY } from "@/lib/website/constants";
 import { canEditWebsiteIdentity } from "@/lib/website/identity-access";
-import { websitePageContentSchema, type WebsitePageContent } from "@/lib/website/blocks";
+import {
+  parseWebsiteSections,
+  websitePageContentSchema,
+  websitePageKeySchema,
+  websitePageMetaSchema,
+  type WebsitePageContent,
+  type WebsitePageMeta,
+} from "@/lib/website/blocks";
+import { sanitizeBlocksForSave } from "@/lib/website/rich-text-sanitize";
+import { HOME_PAGE_KEY } from "@/lib/website/pages";
+import { mergePageSave } from "@/lib/website/save-pages";
 import { websiteDesignPresetsSchema } from "@/lib/website/design-presets";
 import { siteMenuSchema } from "@/lib/website/site-menu";
+import { getEnabledModuleKeysForWorkspace } from "@/lib/modules/gating";
+import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
+import { categoriasActivasPublicas } from "@/lib/website/inquiry";
+
+const websitePageMetaMapSchema = z.record(websitePageKeySchema, websitePageMetaSchema);
 
 /** `updatedAt` (ISO) del borrador tras publicar/despublicar — Publicar/Despublicar también
  * escriben la fila `FotofficeWorkspaceWebsite`, así que el autosave de secciones/diseño (que
@@ -178,14 +194,36 @@ export async function saveWebsiteBlocksAction(
 
   const data: Parameters<typeof prisma.fotofficeWorkspaceWebsite.updateMany>[0]["data"] = {};
 
-  if (formData.has("blocksJson")) {
-    let blocks: WebsitePageContent;
-    try {
-      blocks = websitePageContentSchema.parse(JSON.parse(formData.get("blocksJson")!.toString()));
-    } catch {
-      return { error: "Los bloques enviados no tienen un formato válido." };
+  // Bloques de UNA página (`pageKey`, por omisión el inicio) y/o la lista de páginas propias
+  // (`pagesMetaJson`, reemplaza el mapa entero). Se parte del borrador actual para no pisar lo
+  // que este guardado no toca; la concurrencia la cubre `draftUpdatedAt` en `saveDraftFields`.
+  if (formData.has("blocksJson") || formData.has("pagesMetaJson")) {
+    let blocks: WebsitePageContent | undefined;
+    if (formData.has("blocksJson")) {
+      try {
+        blocks = sanitizeBlocksForSave(websitePageContentSchema.parse(JSON.parse(formData.get("blocksJson")!.toString())));
+      } catch {
+        return { error: "Los bloques enviados no tienen un formato válido." };
+      }
     }
-    data.sectionsJson = { pages: { home: blocks } };
+
+    let pageMeta: Record<string, WebsitePageMeta> | undefined;
+    if (formData.has("pagesMetaJson")) {
+      try {
+        pageMeta = websitePageMetaMapSchema.parse(JSON.parse(formData.get("pagesMetaJson")!.toString()));
+      } catch {
+        return { error: "Las páginas enviadas no tienen un formato válido." };
+      }
+    }
+
+    const pageKey = formData.get("pageKey")?.toString() || HOME_PAGE_KEY;
+    const draft = await prisma.fotofficeWorkspaceWebsite.findUnique({
+      where: { workspaceId: workspace.id },
+      select: { sectionsJson: true },
+    });
+    const merged = mergePageSave(parseWebsiteSections(draft?.sectionsJson ?? null), { pageKey, blocks, pageMeta });
+    if ("error" in merged) return { error: merged.error };
+    data.sectionsJson = merged.sections;
   }
 
   if (formData.has("designPresetsJson")) {
@@ -321,4 +359,23 @@ export async function saveWebsiteBrandingColorsAction(
   revalidatePath("/website");
   revalidatePath("/website/preview");
   return notice ? { error: null, ok: true, notice } : { error: null, ok: true };
+}
+
+/**
+ * Las categorías activas de Consultas, para que el inspector del formulario de presupuesto
+ * (INQUIRY_FORM) deje elegir cuáles ofrecer. Sólo lectura, con el permiso de ver el sitio; no
+ * escribe nada. Si Consultas está apagado, avisa: el bloque no se va a dibujar en el sitio.
+ */
+export type WebsiteInquiryCategoriesState = {
+  categorias: Array<{ id: string; nombre: string }>;
+  consultasEncendido: boolean;
+};
+
+export async function websiteInquiryCategoriesAction(): Promise<WebsiteInquiryCategoriesState> {
+  const { workspace } = await requireWebsiteContext();
+  const [modulos, categorias] = await Promise.all([
+    getEnabledModuleKeysForWorkspace(workspace.id),
+    categoriasActivasPublicas(workspace.id),
+  ]);
+  return { categorias, consultasEncendido: modulos.has(SERVICE_LEADS_MODULE_KEY) };
 }

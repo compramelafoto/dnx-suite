@@ -1,4 +1,5 @@
-import type { WebsiteBlock } from "./blocks";
+import type { WebsiteBlock, WebsiteSections } from "./blocks";
+import { listCustomPages } from "./pages";
 import { deriveHomeNavItems } from "./navigation";
 import { BLOG_PUBLIC_PAGE_KEY } from "./constants";
 import { publicModulePagesFor, resolvePublicModuleLabel } from "./public-modules";
@@ -67,6 +68,8 @@ export function buildSiteNav(input: {
    * así ningún caller viejo cambia de comportamiento.
    */
   personVocabulary?: PersonVocabulary;
+  /** Las páginas propias del sitio: el menú automático las suma después de los módulos. */
+  sections?: WebsiteSections;
 }): SiteNavItem[] {
   const base = `/w/${input.workspaceSlug}`;
 
@@ -108,5 +111,10 @@ export function buildSiteNav(input: {
     };
   });
 
-  return [inicio, ...paginasDeModulo];
+  // Las páginas propias, al final y en el orden en que se crearon.
+  const paginasPropias: SiteNavItem[] = input.sections
+    ? listCustomPages(input.sections).map((p) => ({ id: `custom:${p.key}`, label: p.title, href: `${base}/${p.slug}`, children: [] }))
+    : [];
+
+  return [inicio, ...paginasDeModulo, ...paginasPropias];
 }
