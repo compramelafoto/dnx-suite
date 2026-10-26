@@ -4,6 +4,7 @@ import type { Prisma } from "@repo/db";
 import { sanitizeContentHtml } from "@repo/content";
 import { deleteFotofficeR2Object } from "@/lib/images/r2-client";
 import {
+  ALT_MAX,
   MAX_FOTOS_POR_TRABAJO,
   diaUtc,
   esCodigoUnico,
@@ -224,7 +225,7 @@ export async function agregarFotos(workspaceId: string, trabajoId: string, fotos
   }
   const existentes = await prisma.fotofficeTrabajoFoto.count({ where: { trabajoId, workspaceId } });
   if (existentes + fotos.length > MAX_FOTOS_POR_TRABAJO) {
-    return fallo(`Un trabajo admite hasta ${MAX_FOTOS_POR_TRABAJO} fotos`);
+    return fallo(`Cada trabajo admite hasta ${MAX_FOTOS_POR_TRABAJO} fotos`);
   }
   const ultima = await prisma.fotofficeTrabajoFoto.findFirst({
     where: { trabajoId, workspaceId },
@@ -281,6 +282,15 @@ export async function borrarFoto(
     else if (!(await deleteFotofficeR2Object(f.r2Key)).ok) huerfanas.push(f.r2Key);
   }
   return ok({ huerfanas });
+}
+
+/** Texto alternativo de una foto: lo que lee Google y quien no puede verla. Vacío = sin texto. */
+export async function editarAltFoto(workspaceId: string, trabajoId: string, fotoId: string, alt: string | null) {
+  const f = await prisma.fotofficeTrabajoFoto.findFirst({ where: { id: fotoId, trabajoId, workspaceId }, select: { id: true } });
+  if (!f) return fallo("La foto no existe");
+  const limpio = alt?.trim().slice(0, ALT_MAX) || null;
+  await prisma.fotofficeTrabajoFoto.update({ where: { id: fotoId }, data: { alt: limpio } });
+  return ok(true);
 }
 
 /** `ids` en el orden nuevo. Los que no son de este trabajo se ignoran. */
