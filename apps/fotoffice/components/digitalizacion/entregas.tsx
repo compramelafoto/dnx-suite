@@ -15,6 +15,11 @@ type PropsAcciones = {
   estado: EstadoVisibleEntrega;
   tieneEmail: boolean;
   envioAutomatico: boolean;
+  /**
+   * La pregunta antes del primer envío si faltan cassettes vendidos («Falta grabar 1 de 2
+   * cassettes: ¿enviar igual?», ver `confirmacionEnvioIncompleto`); null si están todos.
+   */
+  avisoFaltantes?: string | null;
   /** Lo que va al lado de «Copiar enlace» (el enlace «Ver como el cliente»). */
   children?: ReactNode;
 };
@@ -29,26 +34,31 @@ async function copiar(texto: string): Promise<boolean> {
 }
 
 /** Botones de la entrega de un pedido en la lista de Digitalización (sólo con permiso de gestión). */
-export function AccionesEntrega({ pedidoId, entregaId, estado, tieneEmail, envioAutomatico, children }: PropsAcciones) {
+export function AccionesEntrega({ pedidoId, entregaId, estado, tieneEmail, envioAutomatico, avisoFaltantes = null, children }: PropsAcciones) {
   const [pendiente, empezar] = useTransition();
   const [aviso, setAviso] = useState<string | null>(null);
   const [enlace, setEnlace] = useState<string | null>(null);
   const router = useRouter();
   const destino = entregaId ? { entregaId } : { pedidoId };
 
-  const enviar = () =>
+  // Sólo el primer envío pregunta: un reenvío ya no cambia qué cassettes se entregaron.
+  const faltanAntesDeEnviar = estado === "LISTA_PARA_ENVIAR" ? avisoFaltantes : null;
+
+  const enviar = () => {
+    if (faltanAntesDeEnviar && !window.confirm(faltanAntesDeEnviar)) return;
     empezar(async () => {
       const r = await enviarEntregaAction(destino, "CORREO");
       setAviso(r.ok ? (estado === "ENVIADA" ? "Listo: se reenvió el correo con un enlace nuevo." : "Listo: se envió el correo al cliente.") : r.error);
       router.refresh();
     });
+  };
 
   const copiarEnlace = () => {
     const advertencia =
       estado === "ENVIADA"
         ? "Se va a generar un enlace nuevo: el que tiene el cliente (por correo o WhatsApp) deja de funcionar. ¿Seguimos?"
         : "Se va a dar la entrega por enviada (empiezan a correr los 30 días) y se copia el enlace para mandarlo por WhatsApp. ¿Seguimos?";
-    if (!window.confirm(advertencia)) return;
+    if (!window.confirm(faltanAntesDeEnviar ? `${faltanAntesDeEnviar}\n\n${advertencia}` : advertencia)) return;
     empezar(async () => {
       const r = await enviarEntregaAction(destino, "ENLACE");
       if (!r.ok) { setAviso(r.error); return; }

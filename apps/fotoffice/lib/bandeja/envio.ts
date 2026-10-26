@@ -21,6 +21,18 @@ export type DepsEnvio = {
 
 const TIEMPO_MAXIMO_MS = 15_000;
 
+/**
+ * El número al que se le manda a Meta. Los avisos de Meta traen los celulares de Argentina con el 9
+ * (549 + 10 dígitos) y los de México con el 1 (521 + 10), pero para ENVIAR Meta los espera sin
+ * ese dígito (54 + 10 / 52 + 10): con el 9 rechaza el envío (p. ej. 131030 con números de prueba).
+ * El chat se sigue guardando con el `waId` tal como llega.
+ */
+export function destinoParaMeta(waId: string): string {
+  if (/^549\d{10}$/.test(waId)) return `54${waId.slice(3)}`;
+  if (/^521\d{10}$/.test(waId)) return `52${waId.slice(3)}`;
+  return waId;
+}
+
 export async function enviarTexto(
   conexion: Pick<Conexion, "workspaceId" | "modo" | "phoneNumberId">,
   waId: string,
@@ -43,7 +55,7 @@ export async function enviarTexto(
       body: JSON.stringify({
         messaging_product: "whatsapp",
         recipient_type: "individual",
-        to: waId,
+        to: destinoParaMeta(waId),
         type: "text",
         text: { preview_url: false, body: texto },
       }),

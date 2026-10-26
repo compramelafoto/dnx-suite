@@ -12,14 +12,17 @@ import { correoValido } from "@/lib/plantillas/contexto";
 import { ID_VALIDO, claveDeVideoFinal, prefijoDeGrabacion } from "../claves";
 import { DIGITALIZACION_MODULE_KEY } from "../constants";
 import { correoRecordatorioVideos, correoVideoAgregado, correoVideosListos, type Correo } from "../correos-entrega";
+import type { CuentaPedido } from "../cassettes";
 import {
-  HORAS_ESPERA_AUTOMATICO, diasQueFaltan, envioAutomaticoDesde, estadoDeEntrega, extensionPorVideosNuevos, recordatorioQueCorresponde, tituloDeVideo,
+  MINUTOS_ESPERA_CON_CANTIDAD, diasQueFaltan, envioAutomaticoDesde, estadoDeEntrega, extensionPorVideosNuevos, recordatorioQueCorresponde, tituloDeVideo,
   urlDeVideos, vencimientosDesde, videosVencidos, type PreparacionEntrega,
 } from "../entrega";
 import { registroDeEnvio, type EnvioRegistrado } from "../trabajo";
 import { MAX_GENERACIONES_ENTREGA, generacionDeEntrega, tokenDeEntrega } from "../token-entrega";
 import { borrarVideoFinal } from "./almacen";
 import { conciliarComisiones, devengarComisionesDelPedido } from "./comision";
+import { cassettesDePedidos } from "./cassettes";
+import { avanzarTrabajos, conciliarEtapas } from "./etapas";
 import { aplicarCargosPagados, anularCargosSinSentido, cargosARevisar, cargosPendientes, type CargoARevisar, type CargoPendiente } from "./cargos";
 
 /**
@@ -32,8 +35,10 @@ import { aplicarCargosPagados, anularCargosSinSentido, cargosARevisar, cargosPen
  *   manda el mismo correo. Si el correo no sale, se vuelve atrás lo escrito.
  * - **Sin correo del cliente:** el cron no la manda; la lista lo muestra y "Copiar enlace" la da
  *   por enviada para mandarla por WhatsApp.
- * - **Varios cassettes:** el envío automático espera 12 h desde la última actividad del pedido. Un
- *   video que se convierte después del envío corre el vencimiento y avisa con el mismo enlace.
+ * - **Varios cassettes:** el envío automático espera a que estén hechos todos los cassettes vendidos
+ *   (la `cantidad` del ítem de cada trabajo, ver `../cassettes.ts`) y después 30 min de margen. Si
+ *   no se sabe cuántos se vendieron, espera 12 h desde la última actividad del pedido. Un video que
+ *   se convierte después del envío corre el vencimiento y avisa con el mismo enlace.
  * - **Pedidos cancelados:** no se envían, no se ven y no se descargan.
  * - Los correos van con clave de idempotencia (entrega + generación + tipo): un reintento dentro de
  *   las 24 h no le llega dos veces al cliente.
@@ -109,7 +114,7 @@ export async function grabacionesDelPedido(workspaceId: string, pedidoId: string
 export async function asegurarEntrega(
   workspaceId: string,
   pedidoId: string,
-): Promise<{ entrega: EntregaLeida; preparacion: PreparacionEntrega; enviaSoloDesde: Date | null } | null> {
+): Promise<{ entrega: EntregaLeida; preparacion: PreparacionEntrega; enviaSoloDesde: Date | null; cassettes: CuentaPedido } | null> {
   if (!ID_VALIDO.test(pedidoId)) return null;
   let entrega = await prisma.digitalizacionEntrega.findUnique({ where: { pedidoId }, select: SELECT_ENTREGA });
   if (entrega && entrega.workspaceId !== workspaceId) return null;
@@ -132,8 +137,14 @@ export async function asegurarEntrega(
       if (!entrega || entrega.workspaceId !== workspaceId) return null;
     }
   }
-  const grabaciones = await grabacionesDelPedido(workspaceId, pedidoId);
-  return { entrega, preparacion: estadoDeEntrega(grabaciones), enviaSoloDesde: envioAutomaticoDesde(grabaciones) };
+  const [grabaciones, cuentas] = await Promise.all([grabacionesDelPedido(workspaceId, pedidoId), cassettesDePedidos(workspaceId, [pedidoId])]);
+  const cassettes = cuentas.get(pedidoId)!;
+  return {
+    entrega,
+    preparacion: estadoDeEntrega(grabaciones),
+    enviaSoloDesde: envioAutomaticoDesde(grabaciones, { cantidadConocida: cassettes.esperados !== null }),
+    cassettes,
+  };
 }
 
 /** El interruptor "Enviar automáticamente" de un pedido (crea la entrega si todavía no existe). */
@@ -231,6 +242,18 @@ async function anotar(workspaceId: string, proyectoIds: string[], body: string):
   }
 }
 
+/**
+ * Primer envío ya guardado: los trabajos del pedido con videos pasan a «Listo para retirar»
+ * (sólo hacia adelante; ver `../etapas-automaticas.ts`). Nunca hace fallar el envío.
+ */
+async function avanzarAListo(workspaceId: string, proyectoIds: string[]): Promise<void> {
+  try {
+    await avanzarTrabajos(workspaceId, proyectoIds, "LISTO");
+  } catch (e) {
+    console.error("[digitalizacion][entrega] no se pudo avanzar la etapa de los trabajos", { codigo: codigo(e) });
+  }
+}
+
 export type ModoEnvio = "CORREO" | "ENLACE";
 export type ResultadoEnvio = ResultadoEntrega<{ url: string; correo: "ENVIADO" | "SIN_EMAIL" | "NO_PEDIDO" }>;
 
@@ -281,7 +304,10 @@ export async function enviarEntrega(workspaceId: string, entregaId: string, modo
   if (escrito.count !== 1) return { ok: false, error: primera ? MENSAJES_ENTREGA.yaEnviada : MENSAJES_ENTREGA.enParalelo };
 
   if (modo === "ENLACE") {
-    if (primera) await anotar(workspaceId, datos.proyectoIds, "Videos digitalizados: se copió el enlace para mandarlo al cliente (no se envió correo).");
+    if (primera) {
+      await anotar(workspaceId, datos.proyectoIds, "Videos digitalizados: se copió el enlace para mandarlo al cliente (no se envió correo).");
+      await avanzarAListo(workspaceId, datos.proyectoIds);
+    }
     return { ok: true, url, correo: "NO_PEDIDO" };
   }
 
@@ -315,6 +341,7 @@ export async function enviarEntrega(workspaceId: string, entregaId: string, modo
     return { ok: false, error: MENSAJES_ENTREGA.correoNoSalio };
   }
   await anotar(workspaceId, datos.proyectoIds, `Correo «Tus videos están listos» ${primera ? "enviado" : "reenviado"} a ${datos.email}.`);
+  if (primera) await avanzarAListo(workspaceId, datos.proyectoIds);
   return { ok: true, url, correo: "ENVIADO" };
 }
 
@@ -330,8 +357,10 @@ export type ResumenEntrega = {
   cancelado: boolean;
   preparacion: PreparacionEntrega;
   videos: number;
-  /** Desde cuándo la manda sola el cron (12 h después de la última actividad); null = sin fechas. */
+  /** Desde cuándo la manda sola el cron (30 min o 12 h después de la última actividad); null = sin fechas. */
   enviaSoloDesde: Date | null;
+  /** Cassettes vendidos, grabados y hechos de los trabajos de digitalización del pedido. */
+  cassettes: CuentaPedido;
   entrega: Pick<EntregaLeida, "id" | "envioAutomatico" | "enviadoAt" | "videosVencenAt" | "cassettesVencenAt" | "videosBorradosAt"> | null;
   /** Envío de los cassettes (E9); null = no se pidió. */
   envio: { estado: string; direccion: string | null; km: number | null; precioMinor: number | null } | null;
@@ -382,9 +411,10 @@ export async function resumenDeEntregas(workspaceId: string, opciones: { pedidoI
       select: { body: true, createdAt: true, proyecto: { select: { pedidoId: true } } },
     }),
   ]);
-  const [pendientes, aRevisar] = await Promise.all([
+  const [pendientes, aRevisar, cuentas] = await Promise.all([
     cargosPendientes(workspaceId, entregas.map((e) => e.id)),
     cargosARevisar(workspaceId, entregas.map((e) => ({ id: e.id, pedidoId: e.pedidoId }))),
+    cassettesDePedidos(workspaceId, ids),
   ]);
   const porPedido = new Map<string, typeof grabaciones>();
   for (const g of grabaciones) {
@@ -401,6 +431,7 @@ export async function resumenDeEntregas(workspaceId: string, opciones: { pedidoI
     const gs = porPedido.get(p.id) ?? [];
     const e = entregaDe.get(p.id) ?? null;
     const c = p.client;
+    const cassettes = cuentas.get(p.id)!;
     const cliente = c?.businessName?.trim() || [c?.firstName, c?.lastName].map((x) => x?.trim() ?? "").filter(Boolean).join(" ") || null;
     return {
       pedidoId: p.id,
@@ -411,7 +442,8 @@ export async function resumenDeEntregas(workspaceId: string, opciones: { pedidoI
       cancelado: p.status === "CANCELADO",
       preparacion: estadoDeEntrega(gs),
       videos: gs.filter((g) => g.estado !== "DESCARTADA" && g.conversionEstado === "LISTA").length,
-      enviaSoloDesde: envioAutomaticoDesde(gs),
+      enviaSoloDesde: envioAutomaticoDesde(gs, { cantidadConocida: cassettes.esperados !== null }),
+      cassettes,
       entrega: e
         ? { id: e.id, envioAutomatico: e.envioAutomatico, enviadoAt: e.enviadoAt, videosVencenAt: e.videosVencenAt, cassettesVencenAt: e.cassettesVencenAt, videosBorradosAt: e.videosBorradosAt }
         : null,
@@ -439,6 +471,8 @@ const HORA_MS = 60 * 60 * 1000;
 export type ReporteEnvios = {
   revisadas: number;
   enviadas: number;
+  /** Listas, pero con cassettes vendidos sin grabar: no salen solas. */
+  faltanCassettes: number;
   /** Sin correo del cliente: no es una falla (se manda por WhatsApp con "Copiar enlace"). */
   sinEmail: number;
   noListas: number;
@@ -453,6 +487,8 @@ export type ReporteEnvios = {
   /** Comisión de plataforma (F1) que el cobro no llegó a devengar o revertir. */
   comisionesDevengadas: number;
   comisionesRevertidas: number;
+  /** Trabajos llevados a «Grabado» o «Listo para retirar» por la conciliación de etapas. */
+  etapasAvanzadas: number;
 };
 
 /** Grabaciones que todavía impiden mandar la entrega (en curso, en cola, con error o muy recientes). */
@@ -472,11 +508,13 @@ function trabas(desde: Date): Prisma.DigitalizacionGrabacionWhereInput {
  * Los pedidos a mirar, de más nuevo a más viejo:
  * - los que tienen un video LISTA y todavía no tienen entrega (al crearla salen de este grupo);
  * - las entregas sin enviar con `envioAutomatico`, cliente con correo y sin trabas: las que no
- *   pueden salir no se piden, así nunca llenan el cupo de la consulta.
- * Nunca los cancelados.
+ *   pueden salir no se piden, así no llenan el cupo de la consulta.
+ * Nunca los cancelados. La consulta usa el margen corto (30 min): el de 12 h de los pedidos sin
+ * cantidad conocida y los cassettes que faltan (la cantidad vive en el JSON de ítems) se miran
+ * después, pedido por pedido.
  */
 async function pedidosParaEnviar(ahora: Date): Promise<{ pedidoId: string; workspaceId: string }[]> {
-  const desde = new Date(ahora.getTime() - HORAS_ESPERA_AUTOMATICO * HORA_MS);
+  const desde = new Date(ahora.getTime() - MINUTOS_ESPERA_CON_CANTIDAD * 60 * 1000);
   const [sinEntrega, sinEnviar] = await Promise.all([
     prisma.fotofficePedido.findMany({
       where: {
@@ -510,15 +548,16 @@ async function pedidosParaEnviar(ahora: Date): Promise<{ pedidoId: string; works
 }
 
 /**
- * Manda las entregas listas con `envioAutomatico`, pasadas 12 h de la última actividad del pedido.
+ * Manda las entregas listas con `envioAutomatico` que tienen hechos todos los cassettes vendidos,
+ * pasado el margen desde la última actividad del pedido (30 min con la cantidad conocida, 12 h si no).
  * Los clientes sin correo no gastan el tope de envíos. Sólo negocios con Digitalización encendida.
  * Después mira las entregas ya enviadas con videos nuevos (`extenderPorVideosNuevos`).
  */
 export async function enviarEntregasAutomaticas(deps: DepsEntrega & { tope?: number } = {}): Promise<ReporteEnvios> {
   const ahora = (deps.ahora ?? (() => new Date()))();
   const reporte: ReporteEnvios = {
-    revisadas: 0, enviadas: 0, sinEmail: 0, noListas: 0, esperando: 0, manuales: 0, fallidas: 0, extendidas: 0, avisosAgregado: 0, cargosAplicados: 0,
-    comisionesDevengadas: 0, comisionesRevertidas: 0,
+    revisadas: 0, enviadas: 0, faltanCassettes: 0, sinEmail: 0, noListas: 0, esperando: 0, manuales: 0, fallidas: 0, extendidas: 0, avisosAgregado: 0, cargosAplicados: 0,
+    comisionesDevengadas: 0, comisionesRevertidas: 0, etapasAvanzadas: 0,
   };
   // Primero los cargos pagos que quedaron sin aplicar (el cobro los aplica después del commit, sin reintento).
   reporte.cargosAplicados = (await aplicarCargosPagados(null, { ahora: () => ahora })).aplicados;
@@ -541,6 +580,8 @@ export async function enviarEntregasAutomaticas(deps: DepsEntrega & { tope?: num
       reporte.revisadas++;
       if (!r.entrega.envioAutomatico) { reporte.manuales++; continue; }
       if (r.preparacion !== "LISTA") { reporte.noListas++; continue; }
+      // Pedido 2026-0006: se vendieron 2 cassettes y había 1 grabado. Sólo sale a mano.
+      if (r.cassettes.faltan > 0) { reporte.faltanCassettes++; continue; }
       if (r.enviaSoloDesde && r.enviaSoloDesde.getTime() > ahora.getTime()) { reporte.esperando++; continue; }
       const env = await enviarEntrega(workspaceId, r.entrega.id, "CORREO", { ...deps, ahora: () => ahora });
       if (!env.ok && env.error === MENSAJES_ENTREGA.sinEmail) { reporte.sinEmail++; continue; }
@@ -553,6 +594,8 @@ export async function enviarEntregasAutomaticas(deps: DepsEntrega & { tope?: num
     }
   }
   await extenderPorVideosNuevos(ahora, reporte, estaEncendido, deps);
+  // Al final: así también alcanza a las entregas que esta misma corrida acaba de mandar. No lanza.
+  reporte.etapasAvanzadas = (await conciliarEtapas(estaEncendido)).movidos;
   return reporte;
 }
 

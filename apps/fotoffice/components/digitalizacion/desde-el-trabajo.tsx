@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { AccionesGrabacion } from "@/components/digitalizacion/acciones-grabacion";
 import { AccionesEntrega, EnvioYCargos, VerComoCliente } from "@/components/digitalizacion/entregas";
+import { confirmacionEnvioIncompleto, textoDeCassettes } from "@/lib/digitalizacion/cassettes";
 import { extensionDeMime } from "@/lib/digitalizacion/claves";
 import { duracionLegible, estadoVisibleDeEntrega, fechaArgentina, fechaHoraArgentina } from "@/lib/digitalizacion/entrega";
 import { nombreArchivoVideo, nombreCliente } from "@/lib/digitalizacion/nombre-archivo";
@@ -64,7 +65,14 @@ export function EstadoDeEntrega({ entrega, puedeGrabar, envioAutomatico, ahora, 
       ) : null}
       <EnvioYCargos entregaId={r.entrega?.id ?? null} envio={r.envio} cargos={r.cargosPendientes} aRevisar={r.cargosARevisar} puedeGestionar={puedeGrabar} />
       {puedeGrabar && !r.cancelado ? (
-        <AccionesEntrega pedidoId={r.pedidoId} entregaId={r.entrega?.id ?? null} estado={estado} tieneEmail={r.tieneEmail} envioAutomatico={r.entrega?.envioAutomatico ?? envioAutomatico}>
+        <AccionesEntrega
+          pedidoId={r.pedidoId}
+          entregaId={r.entrega?.id ?? null}
+          estado={estado}
+          tieneEmail={r.tieneEmail}
+          envioAutomatico={r.entrega?.envioAutomatico ?? envioAutomatico}
+          avisoFaltantes={confirmacionEnvioIncompleto(r.cassettes)}
+        >
           <VerComoCliente pedidoId={r.pedidoId} />
         </AccionesEntrega>
       ) : (
@@ -103,6 +111,9 @@ export function DigitalizacionDelTrabajo({ datos, puedeGrabar, envioAutomatico, 
         </h2>
         {puedeGrabar ? <a href={urlGrabar(trabajo.id)} className="fo-btn fo-btn-primary text-sm">● Grabar cassette</a> : null}
       </div>
+      {trabajo.cassettes.esperados !== null || trabajo.cassettes.grabados > 0 ? (
+        <p className="text-sm font-medium">{textoDeCassettes(trabajo.cassettes)}</p>
+      ) : null}
       {grabaciones.length === 0 ? (
         <p className="text-sm text-[var(--fo-muted)]">Todavía no hay grabaciones de este trabajo.</p>
       ) : (
@@ -179,7 +190,7 @@ export function DigitalizacionDelPedido({ trabajos, entrega, puedeGrabar, envioA
               {t.numero} · {t.nombre}
             </Link>
             <span className="text-xs text-[var(--fo-muted)]">
-              {t.grabaciones === 0 ? "sin grabaciones" : t.grabaciones === 1 ? "1 grabación" : `${t.grabaciones} grabaciones`}
+              {t.cassettes.esperados === null && t.cassettes.grabados === 0 ? "sin grabaciones" : textoDeCassettes(t.cassettes)}
             </span>
             {puedeGrabar ? <a href={urlGrabar(t.id)} className="fo-btn fo-btn-secondary text-xs">● Grabar</a> : null}
           </li>
