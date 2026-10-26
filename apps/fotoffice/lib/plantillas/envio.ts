@@ -498,6 +498,8 @@ export async function enviarCorreo(ctx: CtxEnvio, datos: DatosCorreo, deps: Deps
   });
 
   const fallo = resultado.status === "SENT" ? null : resultado;
+  // El asunto también puede llevar el enlace personal: se tapa igual que el cuerpo.
+  const tapar = opciones.taparEnRegistro ?? ((t: string) => t);
   let mensajeId: string | null = null;
   try {
     const registro = {
@@ -507,8 +509,8 @@ export async function enviarCorreo(ctx: CtxEnvio, datos: DatosCorreo, deps: Deps
       entityId: datos.registrarEn?.entityId ?? datos.entityId,
       templateId: plantilla.id,
       toAddress: para,
-      subject: fa.texto,
-      body: (opciones.taparEnRegistro ?? ((t: string) => t))(vc.cuerpo.split(CARACTER_MARCADOR).join("")),
+      subject: tapar(fa.texto),
+      body: tapar(vc.cuerpo.split(CARACTER_MARCADOR).join("")),
       status: fallo ? "FAILED" : "SENT",
       automatic: automatico,
       providerId: resultado.status === "SENT" ? resultado.providerId : null,

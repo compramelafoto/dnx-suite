@@ -21,7 +21,11 @@ export async function WebsiteShell({
   draftUpdatedAt: string;
   children: ReactNode;
 }) {
-  const pendientesTestimonios = await contarPendientes(workspaceId);
+  // Es sólo un número de la sub-navegación: si falla, no rompe el panel del sitio.
+  const pendientesTestimonios = await contarPendientes(workspaceId).catch((e: unknown) => {
+    console.error("[sitio] no se pudo contar los testimonios pendientes", { codigo: (e as { code?: unknown } | null)?.code ?? "desconocido" });
+    return 0;
+  });
   return (
     <div className="space-y-6">
       <PageHeader

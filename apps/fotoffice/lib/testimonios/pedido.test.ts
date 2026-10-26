@@ -36,6 +36,8 @@ vi.mock("./invitaciones", async (original) => ({ ...(await original<typeof impor
 
 const P = await import("./pedido");
 const { TESTIMONIO_INVITACION_INICIAL } = await import("@/lib/plantillas/semillas");
+const { AVISO_TABLAS_TESTIMONIOS } = await import("./dominio");
+const { hashDeTokenDeInvitacion } = await import("./invitaciones");
 
 const TOKEN = "A".repeat(43);
 const ENLACE = `https://dnx.fotoffice.com/w/dnx/testimonio?t=${TOKEN}`;
@@ -115,6 +117,18 @@ describe("prepararPedidoTestimonio", () => {
     expect(crearInvitacion).not.toHaveBeenCalled();
   });
 
+  it("SQL sin aplicar: el CHECK viejo rechaza la plantilla TESTIMONIO y se avisa con el mensaje de las tablas", async () => {
+    contextoDe.mockResolvedValueOnce(contexto({ email: "cami@mail.com", telefono: null }));
+    asegurar.mockRejectedValueOnce(
+      Object.assign(new Error('new row for relation "FotofficeMessageTemplate" violates check constraint (code: "23514")'), { code: undefined }),
+    );
+    expect(await P.prepararPedidoTestimonio(ctx, { clientId: "c1" })).toEqual({ ok: false, error: AVISO_TABLAS_TESTIMONIOS });
+    asegurar.mockRejectedValueOnce(Object.assign(new Error("x"), { code: "P2004" }));
+    contextoDe.mockResolvedValueOnce(contexto({ email: "cami@mail.com", telefono: null }));
+    expect(await P.prepararPedidoTestimonio(ctx, { clientId: "c1" })).toEqual({ ok: false, error: AVISO_TABLAS_TESTIMONIOS });
+    expect(crearInvitacion).not.toHaveBeenCalled();
+  });
+
   it("el sitio sin dirección pública se avisa (crearInvitacion lanza)", async () => {
     contextoDe.mockResolvedValueOnce(contexto({ email: "cami@mail.com", telefono: null }));
     const { MENSAJE_SIN_SITIO } = await import("./invitaciones");
@@ -138,7 +152,7 @@ describe("enviarPedidoTestimonio", () => {
   });
 
   it("manda por el envío común, con la plantilla de testimonio y el enlace tapado en el historial", async () => {
-    db.fotofficeTestimonioInvitacion.findFirst.mockResolvedValueOnce({ id: "inv-1" });
+    db.fotofficeTestimonioInvitacion.findFirst.mockResolvedValueOnce({ id: "inv-1", tokenHash: hashDeTokenDeInvitacion(TOKEN) });
     enviarCorreo.mockResolvedValueOnce({ ok: true, mensajeId: "m1" });
     await P.enviarPedidoTestimonio(ctx, { clientId: "c1", invitacionId: "inv-1", canal: "EMAIL", templateId: "tpl-1", asunto: "Hola", cuerpo: `Dejalo acá: ${ENLACE}` });
     const [, datos, , opciones] = enviarCorreo.mock.calls[0];
@@ -146,6 +160,41 @@ describe("enviarPedidoTestimonio", () => {
     expect(opciones.tipoPlantilla).toBe("TESTIMONIO");
     expect(opciones.taparEnRegistro(`Dejalo acá: ${ENLACE}`)).toBe(`Dejalo acá: ${P.ENLACE_TAPADO}`);
     expect(db.fotofficeTestimonioInvitacion.updateMany).toHaveBeenCalledWith({ where: { id: "inv-1", workspaceId: "ws-1" }, data: { canal: "EMAIL" } });
+  });
+});
+
+describe("enviarPedidoTestimonio: el enlace tiene que ser el vigente", () => {
+  const OTRO = "B".repeat(43);
+  const enlace = (t: string) => `https://dnx.fotoffice.com/w/dnx/testimonio?t=${t}`;
+
+  it("otra pestaña rotó el token: el enlace viejo no se manda", async () => {
+    db.fotofficeTestimonioInvitacion.findFirst.mockResolvedValueOnce({ id: "inv-1", tokenHash: hashDeTokenDeInvitacion(OTRO) });
+    const r = await P.enviarPedidoTestimonio(ctx, { clientId: "c1", invitacionId: "inv-1", canal: "EMAIL", asunto: "Hola", cuerpo: `Acá: ${ENLACE}` });
+    expect(r).toEqual({ ok: false, error: P.MENSAJES_PEDIDO.invitacionVencida });
+    expect(enviarCorreo).not.toHaveBeenCalled();
+    expect(db.fotofficeTestimonioInvitacion.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("sin el enlace en el texto (lo borraron) no se manda", async () => {
+    db.fotofficeTestimonioInvitacion.findFirst.mockResolvedValueOnce({ id: "inv-1", tokenHash: hashDeTokenDeInvitacion(TOKEN) });
+    const r = await P.enviarPedidoTestimonio(ctx, { clientId: "c1", invitacionId: "inv-1", canal: "WHATSAPP", cuerpo: "Hola, contanos cómo te fue" });
+    expect(r).toEqual({ ok: false, error: P.MENSAJES_PEDIDO.invitacionVencida });
+    expect(abrirWhatsapp).not.toHaveBeenCalled();
+  });
+
+  it("el vigente más uno viejo pegado en el asunto: tampoco", async () => {
+    db.fotofficeTestimonioInvitacion.findFirst.mockResolvedValueOnce({ id: "inv-1", tokenHash: hashDeTokenDeInvitacion(TOKEN) });
+    const r = await P.enviarPedidoTestimonio(ctx, { clientId: "c1", invitacionId: "inv-1", canal: "EMAIL", asunto: enlace(OTRO), cuerpo: `Acá: ${ENLACE}` });
+    expect(r).toEqual({ ok: false, error: P.MENSAJES_PEDIDO.invitacionVencida });
+    expect(enviarCorreo).not.toHaveBeenCalled();
+  });
+
+  it("con el enlace vigente sale por WhatsApp y anota el canal", async () => {
+    db.fotofficeTestimonioInvitacion.findFirst.mockResolvedValueOnce({ id: "inv-1", tokenHash: hashDeTokenDeInvitacion(TOKEN) });
+    abrirWhatsapp.mockResolvedValueOnce({ ok: true, url: "https://wa.me/x" });
+    const r = await P.enviarPedidoTestimonio(ctx, { clientId: "c1", invitacionId: "inv-1", canal: "WHATSAPP", cuerpo: `Acá: ${ENLACE}` });
+    expect(r.ok).toBe(true);
+    expect(db.fotofficeTestimonioInvitacion.updateMany).toHaveBeenCalledWith({ where: { id: "inv-1", workspaceId: "ws-1" }, data: { canal: "WHATSAPP" } });
   });
 });
 

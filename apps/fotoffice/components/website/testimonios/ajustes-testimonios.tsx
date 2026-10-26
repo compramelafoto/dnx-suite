@@ -14,7 +14,16 @@ const FECHA = new Intl.DateTimeFormat("es-AR", { timeZone: "America/Argentina/Bu
  * Ajustes de Testimonios. Encender el pedido automático equivale a mandar correos a clientes: por
  * eso se pide confirmarlo, y sólo se invita por proyectos que se finalicen desde ese momento.
  */
-export function AjustesTestimonios({ inicial, enlaceAbierto }: { inicial: Inicial; enlaceAbierto: string | null }) {
+export function AjustesTestimonios({
+  inicial,
+  enlaceAbierto,
+  faltaParaElAutomatico,
+}: {
+  inicial: Inicial;
+  enlaceAbierto: string | null;
+  /** Por qué el pedido automático no saldría aunque esté encendido (null si está todo en orden). */
+  faltaParaElAutomatico: string | null;
+}) {
   const [automatico, setAutomatico] = useState(inicial.automaticoEncendido);
   const [dias, setDias] = useState(String(inicial.diasDespues));
   const [avisar, setAvisar] = useState(inicial.avisarAlEquipo);
@@ -114,7 +123,7 @@ export function AjustesTestimonios({ inicial, enlaceAbierto }: { inicial: Inicia
             <span>
               Pedir testimonio solo, por correo, después de finalizar cada proyecto.
               <span className="block text-xs text-[var(--fo-muted)]">
-                Una sola vez por cliente y proyecto, a los clientes con correo, hasta 30 por día. Sale con el mismo texto que
+                Una sola vez por cliente y proyecto (y no más de un pedido por cliente cada 30 días), a los clientes con correo, hasta 20 por día. Sale con el mismo texto que
                 «Pedir testimonio» desde la ficha del cliente (ahí se ve y se puede retocar antes de mandarlo a mano).
               </span>
             </span>
@@ -137,6 +146,12 @@ export function AjustesTestimonios({ inicial, enlaceAbierto }: { inicial: Inicia
           {inicial.automaticoEncendido && inicial.encendidoAt ? (
             <p className="text-xs text-[var(--fo-muted)]">
               Encendido desde el {FECHA.format(new Date(inicial.encendidoAt))}: sólo se pide por proyectos finalizados desde ese día.
+            </p>
+          ) : null}
+
+          {automatico && faltaParaElAutomatico ? (
+            <p className="fo-alert-warning text-sm" role="status">
+              Los pedidos automáticos no van a salir: {faltaParaElAutomatico}.
             </p>
           ) : null}
 

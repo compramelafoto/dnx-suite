@@ -5,8 +5,8 @@ import { contextoDe, correoValido, type ContextoMensaje } from "@/lib/plantillas
 import { abrirWhatsapp, completarTextos, enviarCorreo, MENSAJES_ENVIO, type CtxEnvio, type ResultadoEnvio, type ResultadoWhatsapp } from "@/lib/plantillas/envio";
 import { asegurarPlantillaTestimonio, TESTIMONIO_INVITACION_INICIAL } from "@/lib/plantillas/semillas";
 import { TESTIMONIO_FORM_SEGMENT } from "@/lib/website/constants";
-import { AVISO_TABLAS_TESTIMONIOS, esTablaFaltante } from "./dominio";
-import { crearInvitacion, MENSAJE_FICHA_AJENA, MENSAJE_SIN_SITIO } from "./invitaciones";
+import { AVISO_TABLAS_TESTIMONIOS, esCheckViolado, esTablaFaltante } from "./dominio";
+import { crearInvitacion, hashDeTokenDeInvitacion, MENSAJE_FICHA_AJENA, MENSAJE_SIN_SITIO } from "./invitaciones";
 
 /**
  * «Pedir testimonio» desde la ficha del cliente o del proyecto (sitio, PR 3).
@@ -37,6 +37,11 @@ export const ENLACE_TAPADO = "(enlace personal para dejar el testimonio)";
 export const MARCA_ENLACE = "__ENLACE_TESTIMONIO_PERSONAL__";
 
 const ENLACE_PERSONAL = new RegExp(`\\S*/${TESTIMONIO_FORM_SEGMENT}\\?t=[A-Za-z0-9_-]{43}`, "g");
+
+/** Los tokens de los enlaces personales que hay en un texto. */
+export function tokensDeEnlacesPersonales(texto: string): string[] {
+  return [...texto.matchAll(ENLACE_PERSONAL)].map((m) => m[0].slice(-43));
+}
 
 /** El texto para el historial: el mismo, con cada enlace personal de testimonio tapado. */
 export function taparEnlacePersonal(texto: string): string {
@@ -118,7 +123,14 @@ export async function prepararPedidoTestimonio(
 
   let correo: PedidoPreparado["correo"] = null;
   if (canales.correo) {
-    const t = await textosDelCorreo(ctx.workspaceId, conMarca);
+    let t: Awaited<ReturnType<typeof textosDelCorreo>>;
+    try {
+      t = await textosDelCorreo(ctx.workspaceId, conMarca);
+    } catch (err) {
+      // Sin el SQL de Testimonios aplicado, el CHECK viejo de plantillas rechaza el tipo TESTIMONIO.
+      if (esTablaFaltante(err) || esCheckViolado(err)) return { ok: false, error: AVISO_TABLAS_TESTIMONIOS };
+      throw err;
+    }
     if (t) correo = { destino: canales.correo, ...t };
   }
 
@@ -176,14 +188,21 @@ export type DatosEnvioPedido = {
 
 /**
  * Manda el pedido ya revisado. La invitación tiene que ser del workspace, de ese cliente y seguir
- * ENVIADA (sin responder ni vencida); si no, se pide de nuevo.
+ * ENVIADA (sin responder ni vencida); si no, se pide de nuevo. Además el texto tiene que llevar el
+ * enlace personal VIGENTE de esa invitación: si en otra pestaña se volvió a tocar «Pedir testimonio»,
+ * el token rotó y el enlace de esta ya no sirve (mandarlo sería mandar un enlace muerto).
  */
 export async function enviarPedidoTestimonio(ctx: CtxEnvio, datos: DatosEnvioPedido): Promise<ResultadoEnvio | ResultadoWhatsapp> {
   const inv = await prisma.fotofficeTestimonioInvitacion.findFirst({
     where: { id: datos.invitacionId, workspaceId: ctx.workspaceId, clientId: datos.clientId, estado: "ENVIADA", venceAt: { gt: new Date() } },
-    select: { id: true },
+    select: { id: true, tokenHash: true },
   });
   if (!inv) return { ok: false, error: MENSAJES_PEDIDO.invitacionVencida };
+  const enCuerpo = tokensDeEnlacesPersonales(datos.cuerpo);
+  const todos = [...enCuerpo, ...(datos.canal === "EMAIL" ? tokensDeEnlacesPersonales(datos.asunto ?? "") : [])];
+  if (enCuerpo.length === 0 || todos.some((t) => hashDeTokenDeInvitacion(t) !== inv.tokenHash)) {
+    return { ok: false, error: MENSAJES_PEDIDO.invitacionVencida };
+  }
 
   const opciones = { tipoPlantilla: "TESTIMONIO" as const, taparEnRegistro: taparEnlacePersonal };
   const r =

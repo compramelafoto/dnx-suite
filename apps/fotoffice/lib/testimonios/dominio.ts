@@ -183,6 +183,18 @@ export function esTablaFaltante(err: unknown): boolean {
   return typeof err === "object" && err !== null && (err as { code?: unknown }).code === "P2021";
 }
 
+/**
+ * ¿La base rechazó la fila por un CHECK (Postgres 23514)? Pasa con el SQL de Testimonios sin aplicar:
+ * el CHECK viejo de plantillas no acepta el tipo TESTIMONIO. Prisma lo informa como P2004 o como
+ * error desconocido con el código de Postgres en el texto.
+ */
+export function esCheckViolado(err: unknown): boolean {
+  if (typeof err !== "object" || err === null) return false;
+  const e = err as { code?: unknown; meta?: { code?: unknown }; message?: unknown };
+  if (e.code === "P2004" || e.code === "23514" || e.meta?.code === "23514") return true;
+  return typeof e.message === "string" && (e.message.includes("23514") || /violates check constraint/i.test(e.message));
+}
+
 /** El permiso que acepta el autor en el formulario: se guarda tal cual, con el nombre del estudio. */
 export function textoConsentimiento(estudio: string): string {
   return `Acepto que ${estudio.trim() || "el estudio"} publique mi testimonio con mi nombre y foto en su sitio web.`;

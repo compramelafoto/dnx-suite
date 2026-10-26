@@ -410,6 +410,20 @@ describe("pedido de testimonio (sitio, PR 3)", () => {
     expect(mensajes()[0]).toMatchObject({ templateId: id, entityType: "CLIENTE", entityId: "c1", body: "Dejalo acá: (enlace)" });
   });
 
+  it("si el enlace viene en el asunto, también queda tapado en el historial", async () => {
+    const id = plantilla({ entityType: "TESTIMONIO", systemKey: "TESTIMONIO_INVITACION", enabled: false, subject: "x", body: "x" });
+    const enviar = enviador();
+    const r = await E.enviarCorreo(
+      CTX,
+      { ...BASE, templateId: id, asunto: `Tu enlace: ${ENLACE}`, cuerpo: `Dejalo acá: ${ENLACE}` },
+      { enviar, ahora: () => AHORA },
+      { tipoPlantilla: "TESTIMONIO", taparEnRegistro: tapar },
+    );
+    expect(r.ok).toBe(true);
+    expect(enviar.mock.calls[0]![0].subject).toContain(ENLACE);
+    expect(mensajes()[0]).toMatchObject({ subject: "Tu enlace: (enlace)", body: "Dejalo acá: (enlace)" });
+  });
+
   it("esa plantilla no sirve para un mensaje común de la ficha, ni otra plantilla para el pedido", async () => {
     const sistema = plantilla({ entityType: "TESTIMONIO", systemKey: "TESTIMONIO_INVITACION", subject: "x", body: "x" });
     const comun = plantilla();
