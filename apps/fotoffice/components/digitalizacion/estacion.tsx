@@ -22,6 +22,15 @@ export type EquipoGuardado = { id: string; etiqueta: string; huellaSinSenal: num
 export type Continuacion = { grabacionId: string; tramo: number; tipo: "VHS" | "DVD"; proyectoId: string | null; cassetteNumero: number | null; calidad: string | null; corregirProporcion: boolean; dvdArchivos: { nombre: string; bytes: number }[] | null };
 
 /** Lo emite "Digitalizar DVD" (detail: true mientras sube) para que acá no se pueda grabar un VHS a la vez. */
+/** El trabajo que llega elegido (`?proyecto=`), ya validado en el servidor. */
+export type Preseleccion = { id: string; numero: string; nombre: string; pedidoNumero: string | null; siguienteCassette: number };
+
+/** La lista de trabajos con el elegido primero (la búsqueda inicial trae los últimos y puede no estar). */
+export function conPreseleccion(trabajos: { id: string; numero: string; nombre: string }[], p: Preseleccion | null) {
+  if (!p) return trabajos;
+  return [{ id: p.id, numero: p.numero, nombre: p.nombre }, ...trabajos.filter((t) => t.id !== p.id)];
+}
+
 export const EVENTO_DVD_SUBIENDO = "fo-digitalizacion-dvd-subiendo";
 const LATIDO_CADA_MS = 30_000;
 const RESPALDO_CADA_MS = 60_000;
@@ -55,7 +64,7 @@ function latidoDe(resumen: ResumenCorte, tramo: number) {
   };
 }
 
-export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutosSinSenal: number; equipos: EquipoGuardado[]; continuar: Continuacion | null; dvd: ReactNode }) {
+export function Estacion({ minutosSinSenal, equipos, continuar, preseleccion = null, dvd }: { minutosSinSenal: number; equipos: EquipoGuardado[]; continuar: Continuacion | null; preseleccion?: Preseleccion | null; dvd: ReactNode }) {
   const [compatible, setCompatible] = useState<boolean | null>(null);
   const [videos, setVideos] = useState<MediaDeviceInfo[]>([]);
   const [audios, setAudios] = useState<MediaDeviceInfo[]>([]);
@@ -68,11 +77,11 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
   const [equipo, setEquipo] = useState<EquipoGuardado | null>(null);
   const [calibrando, setCalibrando] = useState(false);
   const [busqueda, setBusqueda] = useState("");
-  const [trabajos, setTrabajos] = useState<{ id: string; numero: string; nombre: string }[]>([]);
-  const [proyectoId, setProyectoId] = useState<string | null>(continuar?.proyectoId ?? null);
+  const [trabajos, setTrabajos] = useState<{ id: string; numero: string; nombre: string }[]>(conPreseleccion([], preseleccion));
+  const [proyectoId, setProyectoId] = useState<string | null>(continuar?.proyectoId ?? preseleccion?.id ?? null);
   const [sinPedido, setSinPedido] = useState(continuar ? continuar.proyectoId === null : false);
   const [titulo, setTitulo] = useState("");
-  const [cassette, setCassette] = useState(continuar?.cassetteNumero ?? 1);
+  const [cassette, setCassette] = useState(continuar?.cassetteNumero ?? preseleccion?.siguienteCassette ?? 1);
   const [listaOk, setListaOk] = useState(false);
   const [fase, setFase] = useState<"preparando" | "iniciando" | "grabando" | "terminando" | "terminada">("preparando");
   const [cierreFallido, setCierreFallido] = useState<string | null>(null);
@@ -235,8 +244,8 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
   // La lista de pedidos arranca con los últimos trabajos: vacía parecía que no había nada para elegir.
   useEffect(() => {
     if (continuar) return;
-    void buscarTrabajosAction("").then((r) => { if (r.ok) setTrabajos(r.trabajos); });
-  }, [continuar]);
+    void buscarTrabajosAction("").then((r) => { if (r.ok) setTrabajos(conPreseleccion(r.trabajos, preseleccion)); });
+  }, [continuar, preseleccion]);
 
   const pintarVentanita = useCallback(() => {
     const s = sesion.current;
@@ -571,6 +580,12 @@ export function Estacion({ minutosSinSenal, equipos, continuar, dvd }: { minutos
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" checked={sinPedido} onChange={(e) => setSinPedido(e.target.checked)} /> Sin pedido (prueba)
             </label>
+            {!sinPedido && preseleccion && proyectoId === preseleccion.id ? (
+              <p className="text-sm">
+                Trabajo <span className="font-semibold">{preseleccion.numero} · {preseleccion.nombre}</span>
+                {preseleccion.pedidoNumero ? ` (pedido ${preseleccion.pedidoNumero})` : ""}. Si no es éste, elegí otro de la lista.
+              </p>
+            ) : null}
             {!sinPedido ? (
               <div className="space-y-2">
                 <input className="w-full max-w-md rounded border p-2 text-sm" placeholder="Buscá por número de trabajo o cliente" value={busqueda} onChange={(e) => void buscar(e.target.value)} />

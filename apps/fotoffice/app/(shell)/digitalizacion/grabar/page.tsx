@@ -1,12 +1,13 @@
 import { PageHeader } from "@/components/page-header";
 import { DigitalizarDvd } from "@/components/digitalizacion/dvd";
-import { Estacion, type Continuacion } from "@/components/digitalizacion/estacion";
+import { Estacion, type Continuacion, type Preseleccion } from "@/components/digitalizacion/estacion";
 import { requireDigitalizacion } from "@/lib/digitalizacion/contexto";
 import { leerAjustes, leerGrabacionParaContinuar, listarEquipos } from "@/lib/digitalizacion/servidor/grabaciones";
+import { trabajoParaGrabar } from "@/lib/digitalizacion/servidor/trabajo";
 
 export const dynamic = "force-dynamic";
 
-export default async function GrabarPage({ searchParams }: { searchParams: Promise<{ continuar?: string }> }) {
+export default async function GrabarPage({ searchParams }: { searchParams: Promise<{ continuar?: string; proyecto?: string }> }) {
   const { workspace } = await requireDigitalizacion("MANAGE");
   const sp = await searchParams;
   const [ajustes, equipos] = await Promise.all([leerAjustes(workspace.id), listarEquipos(workspace.id)]);
@@ -24,14 +25,26 @@ export default async function GrabarPage({ searchParams }: { searchParams: Promi
       };
     }
   }
+  // «● Grabar cassette» desde el trabajo, el pedido o el Cobrador: el trabajo llega elegido. Se
+  // valida acá que sea del negocio (si no, la estación arranca como siempre, con un aviso); el
+  // servidor lo vuelve a validar al crear la grabación.
+  let preseleccion: Preseleccion | null = null;
+  let avisoTrabajo: string | null = null;
+  if (!continuar && typeof sp.proyecto === "string") {
+    const t = await trabajoParaGrabar(workspace.id, sp.proyecto);
+    if (t) preseleccion = { id: t.id, numero: t.numero, nombre: t.nombre, pedidoNumero: t.pedidoNumero, siguienteCassette: t.siguienteCassette };
+    else avisoTrabajo = "No encontramos ese trabajo: elegilo de la lista.";
+  }
   return (
     <div className="space-y-6">
       <PageHeader title="Grabar" description="Elegí la capturadora, revisá la vista previa y grabá. Podés seguir usando la computadora mientras graba." />
+      {avisoTrabajo ? <p className="fo-alert-warning p-3 text-sm">{avisoTrabajo}</p> : null}
       <Estacion
         minutosSinSenal={ajustes.minutosSinSenal}
         equipos={equipos}
         continuar={continuar}
-        dvd={<DigitalizarDvd continuar={continuar?.tipo === "DVD" ? continuar : null} />}
+        preseleccion={preseleccion}
+        dvd={<DigitalizarDvd continuar={continuar?.tipo === "DVD" ? continuar : null} preseleccion={preseleccion} />}
       />
     </div>
   );

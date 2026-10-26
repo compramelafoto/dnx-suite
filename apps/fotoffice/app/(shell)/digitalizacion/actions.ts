@@ -10,6 +10,16 @@ import { validarCierre, validarLatido, validarNuevaGrabacion, validarPedidoParte
 const SIN_PERMISO = { ok: false as const, error: "No tenés permiso para hacer esto.", definitivo: true };
 const INVALIDO = { ok: false as const, error: "Los datos no son válidos.", definitivo: true };
 
+/**
+ * Lo de Digitalización también se ve en la ficha del trabajo y en la del pedido: se refrescan las
+ * tres, así el botón que se tocó en cualquiera de ellas muestra el estado nuevo.
+ */
+function refrescar() {
+  revalidatePath("/digitalizacion");
+  revalidatePath("/proyectos/[id]", "page");
+  revalidatePath("/pedidos/[id]", "page");
+}
+
 export async function crearGrabacionAction(input: unknown) {
   const ctx = await contextoDigitalizacion("MANAGE");
   if (!ctx) return SIN_PERMISO;
@@ -44,7 +54,7 @@ export async function cerrarGrabacionAction(grabacionId: string, cierre: unknown
   const c = validarCierre(cierre);
   if (!c) return INVALIDO;
   const r = await G.cerrarGrabacion(ctx, grabacionId, c);
-  revalidatePath("/digitalizacion");
+  refrescar();
   return r;
 }
 
@@ -57,7 +67,7 @@ export async function terminarConLoGrabadoAction(grabacionId: string) {
   const ctx = await contextoDigitalizacion("MANAGE");
   if (!ctx) return SIN_PERMISO;
   const r = await G.terminarConLoGrabado(ctx, grabacionId);
-  revalidatePath("/digitalizacion");
+  refrescar();
   return r;
 }
 
@@ -65,7 +75,7 @@ export async function descartarGrabacionAction(grabacionId: string) {
   const ctx = await contextoDigitalizacion("MANAGE");
   if (!ctx) return SIN_PERMISO;
   const r = await G.descartarGrabacion(ctx, grabacionId);
-  revalidatePath("/digitalizacion");
+  refrescar();
   return r;
 }
 
@@ -73,7 +83,7 @@ export async function editarTituloAction(grabacionId: string, titulo: unknown) {
   const ctx = await contextoDigitalizacion("MANAGE");
   if (!ctx) return SIN_PERMISO;
   const r = await G.editarTitulo(ctx, grabacionId, titulo);
-  revalidatePath("/digitalizacion");
+  refrescar();
   return r;
 }
 
@@ -97,7 +107,7 @@ export async function guardarAjustesAction(minutos: number) {
   const ctx = await contextoDigitalizacion("MANAGE");
   if (!ctx) return SIN_PERMISO;
   const r = await G.guardarAjustes(ctx, minutos);
-  revalidatePath("/digitalizacion");
+  refrescar();
   return r;
 }
 
@@ -112,7 +122,7 @@ export async function reintentarConversionAction(grabacionId: string) {
   const ctx = await contextoDigitalizacion("MANAGE");
   if (!ctx) return SIN_PERMISO;
   const r = await G.reintentarConversion(ctx, grabacionId);
-  revalidatePath("/digitalizacion");
+  refrescar();
   return r;
 }
 
@@ -122,7 +132,7 @@ export async function guardarAjustesEntregaAction(envioAutomatico: unknown, fran
   const ctx = await contextoDigitalizacion("MANAGE");
   if (!ctx) return SIN_PERMISO;
   const r = await G.guardarAjustesEntrega(ctx, envioAutomatico, franjas);
-  revalidatePath("/digitalizacion");
+  refrescar();
   return r;
 }
 
@@ -140,7 +150,7 @@ export async function enviarEntregaAction(entregaIdOPedido: { entregaId?: unknow
   }
   if (!entregaId) return INVALIDO;
   const r = await E.enviarEntrega(ctx.workspaceId, entregaId, modo);
-  revalidatePath("/digitalizacion");
+  refrescar();
   return r;
 }
 
@@ -149,7 +159,7 @@ export async function cambiarEnvioAutomaticoAction(pedidoId: unknown, valor: unk
   if (!ctx) return SIN_PERMISO;
   if (typeof pedidoId !== "string" || typeof valor !== "boolean") return INVALIDO;
   const r = await E.cambiarEnvioAutomatico(ctx.workspaceId, pedidoId, valor);
-  revalidatePath("/digitalizacion");
+  refrescar();
   return r;
 }
 
@@ -160,7 +170,7 @@ export async function marcarEnvioEntregadoAction(entregaId: unknown) {
   const ctx = await contextoDigitalizacion("MANAGE");
   if (!ctx) return SIN_PERMISO;
   const r = await K.marcarEnvioEntregado(ctx.workspaceId, entregaId);
-  revalidatePath("/digitalizacion");
+  refrescar();
   return r;
 }
 
@@ -169,7 +179,7 @@ export async function anularCargoAction(cargoId: unknown) {
   const ctx = await contextoDigitalizacion("MANAGE");
   if (!ctx) return SIN_PERMISO;
   const r = await K.anularCargo(ctx.workspaceId, cargoId);
-  revalidatePath("/digitalizacion");
+  refrescar();
   return r;
 }
 
@@ -178,6 +188,6 @@ export async function quitarCargoAManoAction(cargoId: unknown) {
   const ctx = await contextoDigitalizacion("MANAGE");
   if (!ctx) return SIN_PERMISO;
   const r = await K.quitarCargoAMano(ctx.workspaceId, cargoId, ctx.userId ?? null);
-  revalidatePath("/digitalizacion");
+  refrescar();
   return r;
 }

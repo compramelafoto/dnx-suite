@@ -145,3 +145,42 @@ describe("guardarConexion", () => {
     });
   });
 });
+
+describe("suscripción de la cuenta de WhatsApp a la app (sin esto Meta no manda los mensajes)", () => {
+  /** Responde la verificación del número (GET) y la suscripción (POST) por separado. */
+  const metaCon = (suscripcion: number) =>
+    vi.fn(async (url: string, init?: RequestInit) =>
+      init?.method === "POST"
+        ? new Response(JSON.stringify({ success: suscripcion === 200 }), { status: suscripcion })
+        : new Response(JSON.stringify({ id: "123456", display_phone_number: "+1 555-198-4447" }), { status: 200 }),
+    ) as unknown as typeof fetch;
+  const posts = (f: typeof fetch) => (f as unknown as { mock: { calls: [string, RequestInit?][] } }).mock.calls.filter(([, i]) => i?.method === "POST");
+
+  it("al guardar en real con la cuenta, la suscribe a la app con el token", async () => {
+    const f = metaCon(200);
+    expect(await guardarConexion(ADMIN, { modo: "REAL", phoneNumberId: "123456", wabaId: "987654", token: "EAAG" }, { fetch: f })).toEqual({ ok: true });
+    const [[url, init]] = posts(f);
+    expect(url).toMatch(/\/987654\/subscribed_apps$/);
+    expect((init?.headers as Record<string, string>).Authorization).toBe("Bearer EAAG");
+  });
+
+  it("si Meta no acepta la suscripción, no queda en real y lo dice", async () => {
+    const r = await guardarConexion(ADMIN, { modo: "REAL", phoneNumberId: "123456", wabaId: "987654", token: "EAAG" }, { fetch: metaCon(400) });
+    expect(r).toMatchObject({ ok: false, error: expect.stringMatching(/WhatsApp Business Account ID/) });
+    expect((await leerConexion("w1")).modo).toBe("SIMULADO");
+  });
+
+  it("volver a guardar estando en real también suscribe (así se arregla una conexión ya hecha)", async () => {
+    H.hayToken.mockResolvedValue(true);
+    await guardarConexion(ADMIN, { modo: "REAL", phoneNumberId: "123456", token: "EAAG" }, { fetch: metaCon(200) });
+    const f = metaCon(200);
+    expect(await guardarConexion(ADMIN, { wabaId: "987654" }, { fetch: f, leerToken: async () => "EAAG-baul" })).toEqual({ ok: true });
+    expect(posts(f)).toHaveLength(1);
+  });
+
+  it("sin cuenta de WhatsApp cargada, no intenta suscribir", async () => {
+    const f = metaCon(200);
+    await guardarConexion(ADMIN, { modo: "REAL", phoneNumberId: "123456", token: "EAAG" }, { fetch: f });
+    expect(posts(f)).toHaveLength(0);
+  });
+});
