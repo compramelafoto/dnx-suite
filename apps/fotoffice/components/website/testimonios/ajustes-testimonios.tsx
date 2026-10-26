@@ -114,8 +114,8 @@ export function AjustesTestimonios({ inicial, enlaceAbierto }: { inicial: Inicia
             <span>
               Pedir testimonio solo, por correo, después de finalizar cada proyecto.
               <span className="block text-xs text-[var(--fo-muted)]">
-                Una sola vez por cliente y proyecto, a los clientes con correo, hasta 30 por día. Usa la plantilla «Pedido de
-                testimonio» (Configuración → Plantillas).
+                Una sola vez por cliente y proyecto, a los clientes con correo, hasta 30 por día. Sale con el mismo texto que
+                «Pedir testimonio» desde la ficha del cliente (ahí se ve y se puede retocar antes de mandarlo a mano).
               </span>
             </span>
           </label>

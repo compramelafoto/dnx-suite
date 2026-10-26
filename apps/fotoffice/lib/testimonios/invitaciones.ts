@@ -75,6 +75,12 @@ export type OpcionesInvitacion = {
   canal?: "EMAIL" | "WHATSAPP" | "ENLACE" | null;
   /** Freno de duplicados del pedido automático (una por cliente y proyecto). */
   claveIdempotencia?: string | null;
+  /**
+   * «Pedir testimonio» a mano: si ya hay una invitación del mismo cliente y proyecto que nunca salió
+   * (ENVIADA, vigente, sin `canal`: se abrió el compositor y se canceló), se reusa esa fila con un
+   * token nuevo en vez de sumar otra. El enlace anterior deja de servir.
+   */
+  reusarSinEnviar?: boolean;
   ahora?: Date;
 };
 
@@ -103,6 +109,13 @@ export async function crearInvitacion(workspaceId: string, opciones: OpcionesInv
   if (!sitio?.slug && !sitio?.customDomain) throw new Error(MENSAJE_SIN_SITIO);
 
   const token = nuevoTokenDeInvitacion();
+  const enlace = enlaceDeTestimonio(sitio.slug ?? "", token, { customDomain: sitio.customDomain });
+
+  if (opciones.reusarSinEnviar) {
+    const reusada = await reusarInvitacionSinEnviar(workspaceId, clientId, proyectoId, token, opciones, ahora);
+    if (reusada) return { invitacionId: reusada, enlace };
+  }
+
   const inv = await prisma.fotofficeTestimonioInvitacion.create({
     data: {
       workspaceId,
@@ -121,7 +134,50 @@ export async function crearInvitacion(workspaceId: string, opciones: OpcionesInv
     },
     select: { id: true },
   });
-  return { invitacionId: inv.id, enlace: enlaceDeTestimonio(sitio.slug ?? "", token, { customDomain: sitio.customDomain }) };
+  return { invitacionId: inv.id, enlace };
+}
+
+/**
+ * Rota el token de una invitación del mismo cliente y proyecto que nunca salió. El UPDATE vuelve a
+ * pedir las mismas condiciones: si entre la lectura y la escritura salió o se respondió, no se toca
+ * y se crea una nueva. Devuelve el id reusado o null.
+ */
+async function reusarInvitacionSinEnviar(
+  workspaceId: string,
+  clientId: string | null,
+  proyectoId: string | null,
+  token: string,
+  opciones: OpcionesInvitacion,
+  ahora: Date,
+): Promise<string | null> {
+  const sinEnviar = {
+    workspaceId,
+    clientId,
+    proyectoId,
+    estado: "ENVIADA",
+    canal: null,
+    claveIdempotencia: null,
+    venceAt: { gt: ahora },
+  };
+  const previa = await prisma.fotofficeTestimonioInvitacion.findFirst({
+    where: sinEnviar,
+    orderBy: { enviadaAt: "desc" },
+    select: { id: true },
+  });
+  if (!previa) return null;
+  const r = await prisma.fotofficeTestimonioInvitacion.updateMany({
+    where: { id: previa.id, ...sinEnviar },
+    data: {
+      tokenHash: hashDeTokenDeInvitacion(token),
+      correo: recorte(opciones.correo, 254)?.toLowerCase() ?? null,
+      nombreSugerido: recorte(opciones.nombreSugerido, 120),
+      detalleSugerido: recorte(opciones.detalleSugerido, 160),
+      enviadaAt: ahora,
+      venceAt: vencimientoDeInvitacion(ahora),
+      createdByUserId: typeof opciones.userId === "number" ? String(opciones.userId) : null,
+    },
+  });
+  return r.count > 0 ? previa.id : null;
 }
 
 export type InvitacionValida = {

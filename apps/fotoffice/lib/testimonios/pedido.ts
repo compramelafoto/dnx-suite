@@ -33,6 +33,9 @@ export const MENSAJES_PEDIDO = {
 /** Marca con la que queda el enlace personal en el historial de mensajes. */
 export const ENLACE_TAPADO = "(enlace personal para dejar el testimonio)";
 
+/** Lo que ocupa el lugar de `[link_testimonio]` mientras se arman los textos (sin corchetes ni espacios). */
+const MARCA_ENLACE = "__ENLACE_TESTIMONIO_PERSONAL__";
+
 const ENLACE_PERSONAL = new RegExp(`\\S*/${TESTIMONIO_FORM_SEGMENT}\\?t=[A-Za-z0-9_-]{43}`, "g");
 
 /** El texto para el historial: el mismo, con cada enlace personal de testimonio tapado. */
@@ -83,25 +86,9 @@ export async function prepararPedidoTestimonio(
   const canales = canalesDelPedido(contexto.destino);
   if (!canales.correo && !canales.whatsapp) return { ok: false, error: MENSAJES_PEDIDO.sinCanal };
 
-  let invitacion: { invitacionId: string; enlace: string };
-  try {
-    invitacion = await crearInvitacion(ctx.workspaceId, {
-      clientId: datos.clientId,
-      proyectoId: datos.proyectoId ?? null,
-      correo: canales.correo,
-      nombreSugerido: contexto.variables.persona.nombreCompleto,
-      detalleSugerido: proyecto?.nombre ?? null,
-      userId: ctx.userId,
-    });
-  } catch (err) {
-    if (esTablaFaltante(err)) return { ok: false, error: AVISO_TABLAS_TESTIMONIOS };
-    const m = (err as { message?: unknown })?.message;
-    if (m === MENSAJE_SIN_SITIO || m === MENSAJE_FICHA_AJENA) return { ok: false, error: m };
-    console.error("[testimonios] no se pudo crear la invitación", { codigo: (err as { code?: unknown })?.code ?? "desconocido" });
-    return { ok: false, error: MENSAJES_PEDIDO.falla };
-  }
-
-  const conEnlace: ContextoMensaje = { ...contexto, variables: { ...contexto.variables, testimonio: { enlace: invitacion.enlace } } };
+  // Primero los textos (con una marca en lugar del enlace) y recién después la invitación: si los
+  // textos no se pueden armar, no queda una invitación creada de más.
+  const conMarca: ContextoMensaje = { ...contexto, variables: { ...contexto.variables, testimonio: { enlace: MARCA_ENLACE } } };
 
   let correo: PedidoPreparado["correo"] = null;
   if (canales.correo) {
@@ -111,11 +98,11 @@ export async function prepararPedidoTestimonio(
       select: { id: true, subject: true, body: true },
     });
     const base = plantilla ?? { id: null, subject: TESTIMONIO_INVITACION_INICIAL.EMAIL.asunto, body: TESTIMONIO_INVITACION_INICIAL.EMAIL.cuerpo };
-    let textos = completarTextos(conEnlace, "TESTIMONIO", base.subject, base.body);
+    let textos = completarTextos(conMarca, "TESTIMONIO", base.subject, base.body);
     let templateId = base.id;
     // Si alguien dejó la plantilla con variables que no sirven, sale el texto inicial (sin plantilla).
     if (!textos.ok) {
-      textos = completarTextos(conEnlace, "TESTIMONIO", TESTIMONIO_INVITACION_INICIAL.EMAIL.asunto, TESTIMONIO_INVITACION_INICIAL.EMAIL.cuerpo);
+      textos = completarTextos(conMarca, "TESTIMONIO", TESTIMONIO_INVITACION_INICIAL.EMAIL.asunto, TESTIMONIO_INVITACION_INICIAL.EMAIL.cuerpo);
       templateId = null;
     }
     if (textos.ok) correo = { destino: canales.correo, templateId, asunto: textos.asunto, cuerpo: textos.cuerpo };
@@ -123,11 +110,35 @@ export async function prepararPedidoTestimonio(
 
   let whatsapp: PedidoPreparado["whatsapp"] = null;
   if (canales.whatsapp) {
-    const textos = completarTextos(conEnlace, "TESTIMONIO", null, TESTIMONIO_INVITACION_INICIAL.WHATSAPP.cuerpo);
+    const textos = completarTextos(conMarca, "TESTIMONIO", null, TESTIMONIO_INVITACION_INICIAL.WHATSAPP.cuerpo);
     if (textos.ok) whatsapp = { destino: canales.whatsapp, cuerpo: textos.cuerpo };
   }
 
   if (!correo && !whatsapp) return { ok: false, error: MENSAJES_PEDIDO.falla };
+
+  let invitacion: { invitacionId: string; enlace: string };
+  try {
+    invitacion = await crearInvitacion(ctx.workspaceId, {
+      clientId: datos.clientId,
+      proyectoId: datos.proyectoId ?? null,
+      correo: canales.correo,
+      nombreSugerido: contexto.variables.persona.nombreCompleto,
+      detalleSugerido: proyecto?.nombre ?? null,
+      userId: ctx.userId,
+      // Un pedido que se abrió y se canceló no deja una invitación por clic: se reusa con token nuevo.
+      reusarSinEnviar: true,
+    });
+  } catch (err) {
+    if (esTablaFaltante(err)) return { ok: false, error: AVISO_TABLAS_TESTIMONIOS };
+    const m = (err as { message?: unknown })?.message;
+    if (m === MENSAJE_SIN_SITIO || m === MENSAJE_FICHA_AJENA) return { ok: false, error: m };
+    console.error("[testimonios] no se pudo crear la invitación", { codigo: (err as { code?: unknown })?.code ?? "desconocido" });
+    return { ok: false, error: MENSAJES_PEDIDO.falla };
+  }
+  const conEnlace = (t: string) => t.split(MARCA_ENLACE).join(invitacion.enlace);
+  if (correo) correo = { ...correo, asunto: conEnlace(correo.asunto), cuerpo: conEnlace(correo.cuerpo) };
+  if (whatsapp) whatsapp = { ...whatsapp, cuerpo: conEnlace(whatsapp.cuerpo) };
+
   return {
     ok: true,
     invitacionId: invitacion.invitacionId,

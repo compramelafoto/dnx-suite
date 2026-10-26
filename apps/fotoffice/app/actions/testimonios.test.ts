@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { db, contextoWeb, nivel, redirigir, revalidar, ctxPlantillas, moduloEncendido, registro, pedido, foto } = vi.hoisted(() => ({
+const { db, contextoWeb, nivel, redirigir, revalidar, guardaMensaje, moduloEncendido, pedido, foto } = vi.hoisted(() => ({
   db: {
     fotofficeTestimonio: { create: vi.fn(), findFirst: vi.fn(), updateMany: vi.fn(), findMany: vi.fn(), deleteMany: vi.fn() },
     $transaction: vi.fn(),
@@ -11,9 +11,8 @@ const { db, contextoWeb, nivel, redirigir, revalidar, ctxPlantillas, moduloEncen
     throw new Error(`NEXT_REDIRECT ${ruta}`);
   }),
   revalidar: vi.fn(),
-  ctxPlantillas: vi.fn(),
+  guardaMensaje: vi.fn(),
   moduloEncendido: vi.fn(),
-  registro: vi.fn(),
   pedido: { prepararPedidoTestimonio: vi.fn(), enviarPedidoTestimonio: vi.fn() },
   foto: { archivoDeFoto: vi.fn(() => null), revisarFotoAutor: vi.fn(), subirFotoAutor: vi.fn(), borrarFotoAutor: vi.fn() },
 }));
@@ -27,8 +26,7 @@ vi.mock("@/lib/auth", () => ({ getAuthUser: vi.fn() }));
 vi.mock("@/lib/workspace", () => ({ requireWebsiteContext: contextoWeb, resolveActiveWorkspace: vi.fn() }));
 vi.mock("@/lib/permissions/module-access", () => ({ hasModuleLevel: nivel }));
 vi.mock("@/lib/modules/gating", () => ({ isModuleEnabledForWorkspace: moduloEncendido }));
-vi.mock("@/lib/plantillas/acceso", () => ({ contextoDePlantillas: ctxPlantillas }));
-vi.mock("@/lib/campos/valores", () => ({ registroDelWorkspace: registro }));
+vi.mock("@/lib/plantillas/ficha", () => ({ contextoDelPanelMensaje: guardaMensaje }));
 vi.mock("@/lib/plantillas/envio", () => ({
   MENSAJES_ENVIO: { sinPermiso: "No tenés permiso para enviar mensajes.", datosInvalidos: "Los datos no son válidos.", noEncontrado: "No encontramos ese registro." },
 }));
@@ -39,22 +37,15 @@ const A = await import("./testimonios");
 
 const usuario = { id: 7, name: "Daniel", email: "d@x.com" };
 
-/** Contexto de plantillas con un nivel en Clientes (operar = «Gestionar»). */
-const ctxCon = (nivelClientes: string) => ({
-  workspaceId: "ws-1",
-  userId: 7,
-  userLabel: "Daniel",
-  role: "WORKSPACE_MEMBER",
-  acceso: { role: "WORKSPACE_MEMBER", levels: { clients: nivelClientes } },
-});
+/** Lo que devuelve la guarda de «Mensaje» cuando deja pasar. */
+const CTX_MENSAJE = { workspaceId: "ws-1", userId: 7, userLabel: "Daniel", role: "WORKSPACE_MEMBER" };
 
 beforeEach(() => {
   vi.clearAllMocks();
   contextoWeb.mockResolvedValue({ user: usuario, workspace: { id: "ws-1" } });
   nivel.mockResolvedValue(true);
   moduloEncendido.mockResolvedValue(true);
-  registro.mockResolvedValue(true);
-  ctxPlantillas.mockResolvedValue(ctxCon("MANAGE"));
+  guardaMensaje.mockResolvedValue(CTX_MENSAJE);
 });
 
 describe("moderación de testimonios", () => {
@@ -155,9 +146,10 @@ describe("carga manual", () => {
 });
 
 describe("«Pedir testimonio»", () => {
-  it("sin permiso de mandar mensajes al cliente no crea la invitación", async () => {
-    ctxPlantillas.mockResolvedValue(ctxCon("VIEW"));
+  it("sin permiso de mandar mensajes al cliente (la guarda de «Mensaje» no deja) no crea la invitación", async () => {
+    guardaMensaje.mockResolvedValue(null);
     const r = await A.pedirTestimonioAction({ clientId: "c1" });
+    expect(guardaMensaje).toHaveBeenCalledWith("CLIENTE", "c1");
     expect(r).toEqual({ ok: false, error: "No tenés permiso para enviar mensajes." });
     expect(pedido.prepararPedidoTestimonio).not.toHaveBeenCalled();
     const e = await A.enviarPedidoTestimonioAction({ clientId: "c1", invitacionId: "i1", canal: "WHATSAPP", cuerpo: "Hola" });
@@ -172,9 +164,11 @@ describe("«Pedir testimonio»", () => {
     expect(pedido.prepararPedidoTestimonio).toHaveBeenCalledWith(expect.objectContaining({ workspaceId: "ws-1" }), { clientId: "c1", proyectoId: "p1" });
   });
 
-  it("un cliente de otra cuenta no se encuentra", async () => {
-    registro.mockResolvedValue(false);
-    expect(await A.pedirTestimonioAction({ clientId: "ajeno" })).toEqual({ ok: false, error: "No encontramos ese registro." });
+  it("con el sitio web apagado no se pide", async () => {
+    moduloEncendido.mockResolvedValue(false);
+    const r = await A.pedirTestimonioAction({ clientId: "c1" });
+    expect(r.ok).toBe(false);
+    expect(moduloEncendido).toHaveBeenCalledWith("ws-1", "website");
     expect(pedido.prepararPedidoTestimonio).not.toHaveBeenCalled();
   });
 

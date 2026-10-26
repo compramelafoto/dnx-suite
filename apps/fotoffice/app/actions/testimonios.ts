@@ -1,15 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { puedeEnContexto } from "@/lib/access/policy";
 import { requireBlogEditor } from "@/lib/blog/access";
-import { registroDelWorkspace } from "@/lib/campos/valores";
-import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
 import { etiquetaDeUsuario } from "@/lib/listado/acceso";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
-import { contextoDePlantillas } from "@/lib/plantillas/acceso";
 import { MAX_ASUNTO, MAX_CUERPO } from "@/lib/plantillas/constantes";
 import { MENSAJES_ENVIO } from "@/lib/plantillas/envio";
+import { contextoDelPanelMensaje } from "@/lib/plantillas/ficha";
 import { guardarAjustesTestimonios, validarAjustes } from "@/lib/testimonios/ajustes";
 import {
   AVISO_TABLAS_TESTIMONIOS,
@@ -39,8 +36,7 @@ import { WEBSITE_MODULE_KEY } from "@/lib/website/constants";
  *   (`requireBlogEditor`: «Gestionar» en Sitio web). Corre antes de todo y, sin permiso, redirige.
  *   La institución sale de la sesión y el repositorio filtra todo por `workspaceId`.
  * - **«Pedir testimonio»** (ficha del cliente y del proyecto): la misma guarda que el botón «Mensaje»
- *   (sesión, módulo Clientes encendido, `operar` en Clientes y el cliente del workspace), más el
- *   sitio web encendido. No hace falta poder editar el sitio para pedir un testimonio.
+ *   (`contextoDelPanelMensaje`), más el sitio web encendido. No hace falta poder editar el sitio para pedir un testimonio.
  */
 
 export type AccionTestimonios<T = true> = { ok: true; valor: T } | { ok: false; error: string };
@@ -199,17 +195,16 @@ type Falla = { ok: false; error: string };
 const SIN_ACCESO: Falla = { ok: false, error: MENSAJES_ENVIO.sinPermiso };
 const DATOS_INVALIDOS: Falla = { ok: false, error: MENSAJES_ENVIO.datosInvalidos };
 
-/** La guarda del botón «Mensaje» del cliente, más el sitio web encendido. */
+/**
+ * La guarda del botón «Mensaje» del cliente (`contextoDelPanelMensaje`: sesión, `operar` en Clientes,
+ * módulo encendido y cliente del workspace; null ante cualquier falta, sin distinguir el motivo), más
+ * el sitio web encendido.
+ */
 async function accesoPedido(clientId: string) {
-  const ctx = await contextoDePlantillas();
+  const ctx = await contextoDelPanelMensaje("CLIENTE", clientId);
   if (!ctx) return { ok: false as const, falla: SIN_ACCESO };
-  if (!(await isModuleEnabledForWorkspace(ctx.workspaceId, CLIENTS_MODULE_KEY))) return { ok: false as const, falla: SIN_ACCESO };
   if (!(await isModuleEnabledForWorkspace(ctx.workspaceId, WEBSITE_MODULE_KEY))) {
     return { ok: false as const, falla: { ok: false as const, error: "El sitio web no está activo: los testimonios se dejan ahí." } };
-  }
-  if (!puedeEnContexto(ctx, "operar", CLIENTS_MODULE_KEY)) return { ok: false as const, falla: SIN_ACCESO };
-  if (!(await registroDelWorkspace(ctx.workspaceId, "CLIENTE", clientId))) {
-    return { ok: false as const, falla: { ok: false as const, error: MENSAJES_ENVIO.noEncontrado } };
   }
   return { ok: true as const, ctx };
 }

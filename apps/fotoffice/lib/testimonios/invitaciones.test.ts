@@ -83,6 +83,45 @@ describe("crearInvitacion", () => {
   });
 });
 
+describe("crearInvitacion con reusarSinEnviar («Pedir testimonio» cancelado)", () => {
+  const pedido = { clientId: "cli-1", proyectoId: "pro-1", reusarSinEnviar: true };
+
+  it("reusa la que nunca salió del mismo cliente y proyecto: token nuevo y vencimiento nuevo, el viejo ya no sirve", async () => {
+    const a = await I.crearInvitacion("ws-1", { ...pedido, ahora: AHORA });
+    const despues = new Date(AHORA.getTime() + 2 * DIA);
+    const b = await I.crearInvitacion("ws-1", { ...pedido, ahora: despues });
+    expect(b.invitacionId).toBe(a.invitacionId);
+    expect(B.datos.fotofficeTestimonioInvitacion).toHaveLength(1);
+    expect(tokenDe(b.enlace)).not.toBe(tokenDe(a.enlace));
+    const fila = B.datos.fotofficeTestimonioInvitacion[0]!;
+    expect(fila.tokenHash).toBe(I.hashDeTokenDeInvitacion(tokenDe(b.enlace)));
+    expect((fila.venceAt as Date).getTime()).toBe(despues.getTime() + 90 * DIA);
+    expect(await I.leerInvitacion("ws-1", tokenDe(a.enlace), despues)).toEqual({ estado: "INEXISTENTE" });
+    expect((await I.leerInvitacion("ws-1", tokenDe(b.enlace), despues)).estado).toBe("VALIDA");
+  });
+
+  it("no reusa una que ya salió (con canal), ni de otro proyecto, ni vencida", async () => {
+    const salio = await I.crearInvitacion("ws-1", { ...pedido, ahora: AHORA });
+    B.datos.fotofficeTestimonioInvitacion[0]!.canal = "EMAIL";
+    const otra = await I.crearInvitacion("ws-1", { ...pedido, ahora: AHORA });
+    expect(otra.invitacionId).not.toBe(salio.invitacionId);
+
+    const sinProyecto = await I.crearInvitacion("ws-1", { clientId: "cli-1", reusarSinEnviar: true, ahora: AHORA });
+    expect(sinProyecto.invitacionId).not.toBe(otra.invitacionId);
+
+    const lejos = new Date(AHORA.getTime() + 91 * DIA);
+    const nueva = await I.crearInvitacion("ws-1", { ...pedido, ahora: lejos });
+    expect(nueva.invitacionId).not.toBe(otra.invitacionId);
+    expect(B.datos.fotofficeTestimonioInvitacion).toHaveLength(4);
+  });
+
+  it("sin la opción (pedido automático) siempre crea una nueva", async () => {
+    await I.crearInvitacion("ws-1", { clientId: "cli-1", proyectoId: "pro-1", ahora: AHORA });
+    await I.crearInvitacion("ws-1", { clientId: "cli-1", proyectoId: "pro-1", ahora: AHORA });
+    expect(B.datos.fotofficeTestimonioInvitacion).toHaveLength(2);
+  });
+});
+
 describe("leerInvitacion", () => {
   it("válida: trae lo sugerido y la ficha", async () => {
     const r = await I.crearInvitacion("ws-1", { clientId: "cli-1", nombreSugerido: "Sofi", detalleSugerido: "XV de Sofi", ahora: AHORA });

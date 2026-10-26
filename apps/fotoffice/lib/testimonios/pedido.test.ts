@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { db, contextoDe, crearInvitacion, asegurar, enviarCorreo, abrirWhatsapp } = vi.hoisted(() => ({
+const { db, contextoDe, crearInvitacion, asegurar, enviarCorreo, abrirWhatsapp, completar } = vi.hoisted(() => ({
+  completar: { falla: false },
   db: {
     fotofficeProyecto: { findFirst: vi.fn() },
     fotofficeMessageTemplate: { findFirst: vi.fn() },
@@ -16,11 +17,17 @@ const { db, contextoDe, crearInvitacion, asegurar, enviarCorreo, abrirWhatsapp }
 vi.mock("server-only", () => ({}));
 vi.mock("@repo/db", () => ({ prisma: db }));
 vi.mock("@/lib/plantillas/contexto", async (original) => ({ ...(await original<typeof import("@/lib/plantillas/contexto")>()), contextoDe }));
-vi.mock("@/lib/plantillas/envio", async (original) => ({
-  ...(await original<typeof import("@/lib/plantillas/envio")>()),
-  enviarCorreo,
-  abrirWhatsapp,
-}));
+vi.mock("@/lib/plantillas/envio", async (original) => {
+  const real = await original<typeof import("@/lib/plantillas/envio")>();
+  return {
+    ...real,
+    enviarCorreo,
+    abrirWhatsapp,
+    // Con `completar.falla`, los textos no se pueden armar (como una plantilla rota sin arreglo).
+    completarTextos: (...a: Parameters<typeof real.completarTextos>) =>
+      completar.falla ? { ok: false as const, error: "rota" } : real.completarTextos(...a),
+  };
+});
 vi.mock("@/lib/plantillas/semillas", async (original) => ({
   ...(await original<typeof import("@/lib/plantillas/semillas")>()),
   asegurarPlantillaTestimonio: asegurar,
@@ -52,6 +59,7 @@ function contexto(destino: { email: string | null; telefono: string | null }) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  completar.falla = false;
   crearInvitacion.mockResolvedValue({ invitacionId: "inv-1", enlace: ENLACE });
   db.fotofficeMessageTemplate.findFirst.mockResolvedValue({
     id: "tpl-1",
@@ -72,7 +80,7 @@ describe("prepararPedidoTestimonio", () => {
     expect(r.whatsapp?.cuerpo).toContain("Cami");
     // Sin correo no se toca la plantilla de correo.
     expect(asegurar).not.toHaveBeenCalled();
-    expect(crearInvitacion).toHaveBeenCalledWith("ws-1", expect.objectContaining({ clientId: "c1", correo: null, nombreSugerido: "Cami Pérez" }));
+    expect(crearInvitacion).toHaveBeenCalledWith("ws-1", expect.objectContaining({ clientId: "c1", correo: null, nombreSugerido: "Cami Pérez", reusarSinEnviar: true }));
   });
 
   it("con correo arma el correo con la plantilla «Pedido de testimonio»", async () => {
@@ -83,6 +91,13 @@ describe("prepararPedidoTestimonio", () => {
     expect(r.correo).toMatchObject({ destino: "cami@mail.com", templateId: "tpl-1", asunto: "¿Nos contás cómo te fue con DNX Estudio?" });
     expect(r.correo?.cuerpo).toContain(ENLACE);
     expect(r.whatsapp).toBeNull();
+  });
+
+  it("si los textos no se pueden armar, no crea (ni reusa) ninguna invitación", async () => {
+    contextoDe.mockResolvedValueOnce(contexto({ email: "cami@mail.com", telefono: "+54 9 341 555-1234" }));
+    completar.falla = true;
+    expect(await P.prepararPedidoTestimonio(ctx, { clientId: "c1" })).toEqual({ ok: false, error: P.MENSAJES_PEDIDO.falla });
+    expect(crearInvitacion).not.toHaveBeenCalled();
   });
 
   it("sin correo ni WhatsApp no crea la invitación", async () => {
