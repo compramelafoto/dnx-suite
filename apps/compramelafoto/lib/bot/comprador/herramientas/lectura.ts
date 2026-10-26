@@ -1,6 +1,7 @@
 import { defineTool, type BotTool, type ToolOutcome } from "@repo/dnx-bot";
 import { z } from "zod";
 import { computeAlbumHideAt, computeAlbumPurgeAt } from "@/lib/album-cleanup/eligibility";
+import { fechaAvisoFotosListas } from "@/lib/preventa-canjeable/aviso-fotos-listas";
 import { publicAlbumFilter } from "@/lib/album-helpers";
 import { albumPhotoFileKey } from "@/lib/album-photo-ref";
 import { formatPurchaseArs } from "@/lib/album-purchase/format-purchase-ars";
@@ -363,17 +364,25 @@ function verMiPack(a: CompradorActor): BotTool {
       if (orderId == null) return PEDIDO_NO_ENCONTRADO;
       const o = await prisma.order.findUnique({
         where: { id: orderId },
-        select: { id: true, status: true, origin: true, albumId: true, redemptionOrderId: true, preventaPackSnapshotJson: true },
+        select: {
+          id: true, status: true, origin: true, albumId: true, redemptionOrderId: true, preventaPackSnapshotJson: true,
+          redemptionPaymentRefsJson: true,
+        },
       });
       if (!o || o.origin !== "PREVENTA_PACK") return PEDIDO_NO_ENCONTRADO;
       const fotos = await prisma.photo.count({ where: { albumId: o.albumId, isRemoved: false } });
       const canjeado = o.redemptionOrderId != null;
       const hayFotos = fotos > 0;
+      // Las fotos se suben curso por curso: que el álbum tenga fotos no quiere decir que estén
+      // las de este alumno. Lo dice el aviso del fotógrafo, que se manda por curso.
+      const avisoRecibido = fechaAvisoFotosListas(o.redemptionPaymentRefsJson) != null;
       const siguientePaso = canjeado
         ? "Ya elegiste tus fotos."
-        : hayFotos
-          ? "Ya podés elegir tus fotos desde este enlace."
-          : "Todavía no hay fotos. Cuando el fotógrafo las suba y mande el aviso, vas a poder elegir desde este mismo enlace.";
+        : !hayFotos
+          ? "Todavía no hay fotos. Cuando el fotógrafo las suba y mande el aviso, vas a poder elegir desde este mismo enlace."
+          : avisoRecibido
+            ? "Ya podés elegir tus fotos desde este enlace."
+            : "El fotógrafo está subiendo las fotos y todavía no avisó que están las de este curso. Si no encontrás al alumno, lo más probable es que su curso todavía no esté cargado: cuando esté, llega un mail y elegís desde este mismo enlace.";
       return {
         ok: true,
         message: `Pack del pedido #${o.id}`,
@@ -383,6 +392,7 @@ function verMiPack(a: CompradorActor): BotTool {
           ...datosDelSnapshot(o.preventaPackSnapshotJson),
           canjeado,
           hayFotos,
+          avisoRecibido,
           siguientePaso,
         },
       };

@@ -1,12 +1,76 @@
-import { prisma } from "@/lib/prisma";
+import { OrderOrigin, OrderStatus, Prisma, prisma } from "@/lib/prisma";
 import { queueEmail } from "@/lib/email-queue";
 import { getAlbumsReadiness } from "@/lib/analysis/album-analysis-readiness";
+import { computeAlbumHideAt } from "@/lib/album-cleanup/eligibility";
+import { getAlbumCleanupConfig } from "@/lib/album-cleanup/config";
+import { AVISO_FOTOS_LISTAS_KEY } from "@/lib/preventa-canjeable/aviso-fotos-listas";
 
 type RunOptions = {
   dryRun?: boolean;
   /** Máximo de álbumes/notificaciones a evaluar por sección en cada ejecución. */
   batchLimit?: number;
 };
+
+/**
+ * Álbumes con preventa paga en los que el fotógrafo todavía no mandó «Avisar a las familias».
+ * Ahí las fotos se suben curso por curso: avisar con la primera tanda hace entrar a familias
+ * cuyo curso no está (álbum 1075, octubre de 2026). El aviso a los anotados espera al del fotógrafo.
+ */
+export async function albumesQueEsperanElAvisoDelFotografo(albumIds: number[]): Promise<Set<number>> {
+  if (albumIds.length === 0) return new Set();
+  const packsPagos = {
+    albumId: { in: albumIds },
+    origin: OrderOrigin.PREVENTA_PACK,
+    status: OrderStatus.PAID,
+    isTest: false,
+  } satisfies Prisma.OrderWhereInput;
+  const [conPacks, avisados] = await Promise.all([
+    prisma.order.groupBy({ by: ["albumId"], where: packsPagos }),
+    prisma.order.groupBy({
+      by: ["albumId"],
+      where: { ...packsPagos, redemptionPaymentRefsJson: { path: [AVISO_FOTOS_LISTAS_KEY], not: Prisma.AnyNull } },
+    }),
+  ]);
+  const yaAvisaron = new Set(avisados.map((o) => o.albumId));
+  return new Set(conPacks.map((o) => o.albumId).filter((id) => !yaAvisaron.has(id)));
+}
+
+type Recordatorio = {
+  dias: 21 | 14 | 7;
+  /** Campo de AlbumNotification que marca este recordatorio como enviado. */
+  campo: "notifiedAt3Weeks" | "notifiedAt2Weeks" | "notifiedAt1Week";
+  /** Recordatorios más cercanos al cierre: si ya salió uno de ésos, éste ya no tiene sentido. */
+  posteriores: Array<"notifiedAt2Weeks" | "notifiedAt1Week">;
+  clave: "3w" | "2w" | "1w";
+};
+
+const RECORDATORIOS: Recordatorio[] = [
+  { dias: 21, campo: "notifiedAt3Weeks", posteriores: ["notifiedAt2Weeks", "notifiedAt1Week"], clave: "3w" },
+  { dias: 14, campo: "notifiedAt2Weeks", posteriores: ["notifiedAt1Week"], clave: "2w" },
+  { dias: 7, campo: "notifiedAt1Week", posteriores: [], clave: "1w" },
+];
+
+/** "01/11" en hora argentina (UTC−3, sin horario de verano). Sin `Intl`: con `day: "2-digit"`
+ * el ICU de Node escribe "1/11" para es-AR. */
+export function fechaCorta(d: Date): string {
+  const ar = new Date(d.getTime() - 3 * 3_600_000);
+  return `${String(ar.getUTCDate()).padStart(2, "0")}/${String(ar.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+function textoRecordatorio(r: Recordatorio, titulo: string, cierre: Date, albumUrl: string) {
+  const fecha = fechaCorta(cierre);
+  if (r.dias === 7) {
+    return {
+      subject: `¡Última semana! El álbum "${titulo}" se eliminará en 7 días`,
+      body: `Hola,\n\n¡Última semana! El álbum "${titulo}" se eliminará en 7 días, el ${fecha}.\n\nNo te pierdas la oportunidad de ver y comprar tus fotos:\n${albumUrl}\n\nSaludos,\nComprameLaFoto`,
+    };
+  }
+  const semanas = r.dias === 21 ? "3 semanas" : "2 semanas";
+  return {
+    subject: `Recordatorio: El álbum "${titulo}" se eliminará en ${r.dias} días`,
+    body: `Hola,\n\nTe recordamos que el álbum "${titulo}" se eliminará en ${r.dias} días (${semanas}), el ${fecha}.\n\nNo te pierdas la oportunidad de ver y comprar tus fotos:\n${albumUrl}\n\nSaludos,\nComprameLaFoto`,
+  };
+}
 
 type RunResult = {
   ok: boolean;
@@ -73,7 +137,17 @@ export async function runSendAlbumNotifications(options: RunOptions = {}): Promi
     albumsWithNewPhotos.map((album) => album.id)
   );
 
+  const esperanAviso = await albumesQueEsperanElAvisoDelFotografo(
+    albumsWithNewPhotos.map((album) => album.id)
+  );
+
   for (const album of albumsWithNewPhotos) {
+    if (esperanAviso.has(album.id)) {
+      // Tampoco se marca: sale en la primera corrida después de que el fotógrafo avise.
+      skipped += album.notifications.length;
+      continue;
+    }
+
     const firstPhotoDate = album.firstPhotoDate
       ? new Date(album.firstPhotoDate).getTime()
       : album.photos[0]
@@ -126,170 +200,89 @@ export async function runSendAlbumNotifications(options: RunOptions = {}): Promi
     }
   }
 
-  // 2. RECORDATORIOS ANTES DE ELIMINACIÓN
-  const day9Cutoff = new Date(now - 9 * dayMs);
-  const day9Start = new Date(day9Cutoff.getTime() - dayMs);
+  // 2. RECORDATORIOS ANTES DE QUE SE OCULTE EL ÁLBUM
+  // La cuenta sale de la primera foto, igual que la galería y la limpieza (`computeAlbumHideAt`).
+  // Antes salía de `createdAt`: un álbum creado semanas antes de subir fotos avisaba
+  // "última semana" con un mes por delante (álbum 1075: aviso el 24/10, se ocultaba el 22/11).
+  const { hideAfterDays } = getAlbumCleanupConfig();
+  const contadores: Record<Recordatorio["clave"], number> = { "3w": 0, "2w": 0, "1w": 0 };
 
-  const albumsAt3Weeks = await prisma.album.findMany({
-    where: {
-      createdAt: { gte: day9Start, lt: day9Cutoff },
-      isHidden: false,
-      notifications: {
-        some: {
-          notifiedAt3Weeks: false,
-        },
+  for (const r of RECORDATORIOS) {
+    const desde = now + r.dias * dayMs;
+    const hasta = desde + dayMs;
+    const pendientes = {
+      [r.campo]: false,
+      ...Object.fromEntries(r.posteriores.map((campo) => [campo, false])),
+    } as Prisma.AlbumNotificationWhereInput;
+
+    const candidatos = await prisma.album.findMany({
+      where: {
+        isHidden: false,
+        deletedAt: null,
+        notifications: { some: pendientes },
+        OR: [
+          // Sin extensión: la primera foto cae en una ventana fija.
+          {
+            expirationExtensionDays: 0,
+            firstPhotoDate: {
+              gte: new Date(desde - hideAfterDays * dayMs),
+              lt: new Date(hasta - hideAfterDays * dayMs),
+            },
+          },
+          // Con extensión: pocos; se filtran abajo con la fecha exacta.
+          { expirationExtensionDays: { gt: 0 }, firstPhotoDate: { not: null } },
+        ],
       },
-    },
-    include: {
-      notifications: {
-        where: { notifiedAt3Weeks: false },
-        select: { id: true, email: true },
+      select: {
+        id: true,
+        title: true,
+        firstPhotoDate: true,
+        expirationExtensionDays: true,
+        isHidden: true,
+        deletedAt: true,
+        cleanupStatus: true,
+        notifications: { where: pendientes, select: { id: true, email: true } },
       },
-    },
-    take: batchLimit,
-  });
+      take: batchLimit,
+    });
 
-  for (const album of albumsAt3Weeks) {
-    for (const notif of album.notifications) {
-      if (dryRun) {
-        console.log(`[cron:album-notifications] DRY enviar 3w ${notif.email} (album ${album.id})`);
-        skipped++;
-        continue;
-      }
+    for (const album of candidatos) {
+      const cierre = computeAlbumHideAt(album);
+      if (!cierre || cierre.getTime() < desde || cierre.getTime() >= hasta) continue;
 
-      try {
-        const albumUrl = `${appUrl}/a/${album.id}`;
-        const subject = `Recordatorio: El álbum "${album.title}" se eliminará en 21 días`;
-        const body = `Hola,\n\nTe recordamos que el álbum "${album.title}" se eliminará en 21 días (3 semanas).\n\nNo te pierdas la oportunidad de ver y comprar tus fotos:\n${albumUrl}\n\nSaludos,\nComprameLaFoto`;
+      for (const notif of album.notifications) {
+        if (dryRun) {
+          console.log(`[cron:album-notifications] DRY enviar ${r.clave} ${notif.email} (album ${album.id})`);
+          skipped++;
+          continue;
+        }
 
-        await queueEmail({
-          to: notif.email,
-          subject,
-          body,
-          idempotencyKey: `album_reminder_3w_${album.id}_${notif.id}`,
-        });
+        try {
+          const albumUrl = `${appUrl}/a/${album.id}`;
+          const { subject, body } = textoRecordatorio(r, album.title, cierre, albumUrl);
 
-        await prisma.albumNotification.update({
-          where: { id: notif.id },
-          data: { notifiedAt3Weeks: true },
-        });
-        notifiedAt3Weeks++;
-      } catch (error) {
-        console.error(`[cron:album-notifications] Error 3w ${notif.email}`, error);
-        failed++;
-      }
-    }
-  }
+          await queueEmail({
+            to: notif.email,
+            subject,
+            body,
+            idempotencyKey: `album_reminder_${r.clave}_${album.id}_${notif.id}`,
+          });
 
-  // Día 16 (2 semanas antes)
-  const day16Cutoff = new Date(now - 16 * dayMs);
-  const day16Start = new Date(day16Cutoff.getTime() - dayMs);
-
-  const albumsAt2Weeks = await prisma.album.findMany({
-    where: {
-      createdAt: { gte: day16Start, lt: day16Cutoff },
-      isHidden: false,
-      notifications: {
-        some: {
-          notifiedAt2Weeks: false,
-        },
-      },
-    },
-    include: {
-      notifications: {
-        where: { notifiedAt2Weeks: false },
-        select: { id: true, email: true },
-      },
-    },
-    take: batchLimit,
-  });
-
-  for (const album of albumsAt2Weeks) {
-    for (const notif of album.notifications) {
-      if (dryRun) {
-        console.log(`[cron:album-notifications] DRY enviar 2w ${notif.email} (album ${album.id})`);
-        skipped++;
-        continue;
-      }
-
-      try {
-        const albumUrl = `${appUrl}/a/${album.id}`;
-        const subject = `Recordatorio: El álbum "${album.title}" se eliminará en 14 días`;
-        const body = `Hola,\n\nTe recordamos que el álbum "${album.title}" se eliminará en 14 días (2 semanas).\n\nNo te pierdas la oportunidad de ver y comprar tus fotos:\n${albumUrl}\n\nSaludos,\nComprameLaFoto`;
-
-        await queueEmail({
-          to: notif.email,
-          subject,
-          body,
-          idempotencyKey: `album_reminder_2w_${album.id}_${notif.id}`,
-        });
-
-        await prisma.albumNotification.update({
-          where: { id: notif.id },
-          data: { notifiedAt2Weeks: true },
-        });
-        notifiedAt2Weeks++;
-      } catch (error) {
-        console.error(`[cron:album-notifications] Error 2w ${notif.email}`, error);
-        failed++;
+          await prisma.albumNotification.update({
+            where: { id: notif.id },
+            data: { [r.campo]: true },
+          });
+          contadores[r.clave]++;
+        } catch (error) {
+          console.error(`[cron:album-notifications] Error ${r.clave} ${notif.email}`, error);
+          failed++;
+        }
       }
     }
   }
-
-  // Día 23 (1 semana antes)
-  const day23Cutoff = new Date(now - 23 * dayMs);
-  const day23Start = new Date(day23Cutoff.getTime() - dayMs);
-
-  const albumsAt1Week = await prisma.album.findMany({
-    where: {
-      createdAt: { gte: day23Start, lt: day23Cutoff },
-      isHidden: false,
-      notifications: {
-        some: {
-          notifiedAt1Week: false,
-        },
-      },
-    },
-    include: {
-      notifications: {
-        where: { notifiedAt1Week: false },
-        select: { id: true, email: true },
-      },
-    },
-    take: batchLimit,
-  });
-
-  for (const album of albumsAt1Week) {
-    for (const notif of album.notifications) {
-      if (dryRun) {
-        console.log(`[cron:album-notifications] DRY enviar 1w ${notif.email} (album ${album.id})`);
-        skipped++;
-        continue;
-      }
-
-      try {
-        const albumUrl = `${appUrl}/a/${album.id}`;
-        const subject = `¡Última semana! El álbum "${album.title}" se eliminará en 7 días`;
-        const body = `Hola,\n\n¡Última semana! El álbum "${album.title}" se eliminará en 7 días.\n\nNo te pierdas la oportunidad de ver y comprar tus fotos:\n${albumUrl}\n\nSaludos,\nComprameLaFoto`;
-
-        await queueEmail({
-          to: notif.email,
-          subject,
-          body,
-          idempotencyKey: `album_reminder_1w_${album.id}_${notif.id}`,
-        });
-
-        await prisma.albumNotification.update({
-          where: { id: notif.id },
-          data: { notifiedAt1Week: true },
-        });
-        notifiedAt1Week++;
-      } catch (error) {
-        console.error(`[cron:album-notifications] Error 1w ${notif.email}`, error);
-        failed++;
-      }
-    }
-  }
+  notifiedAt3Weeks = contadores["3w"];
+  notifiedAt2Weeks = contadores["2w"];
+  notifiedAt1Week = contadores["1w"];
 
   // 3. RECORDATORIOS POST-EXTENSIÓN (15 y 29 días desde la extensión)
   const day15Cutoff = new Date(now - 15 * dayMs);

@@ -37,8 +37,12 @@ const actor = (o: Partial<CompradorActor> = {}): CompradorActor => ({
 });
 const ALBUM = {
   id: 3, title: "Maratón Rosario", isPublic: true, isHidden: false, deletedAt: null, cleanupStatus: "NONE",
-  expiresAt: new Date(Date.now() + 10 * DIA), hiddenPhotosEnabled: false,
+  // Creado hace 40 días (`expiresAt` ya vencido) pero con la primera foto hace 20: se ve 10 días más.
+  expiresAt: new Date(Date.now() - 10 * DIA), firstPhotoDate: new Date(Date.now() - 20 * DIA), expirationExtensionDays: 0,
+  hiddenPhotosEnabled: false,
 };
+/** Mismo plazo que la galería: primera foto + 30 días (ALBUM_CLEANUP_HIDE_DAYS por defecto). */
+const VISIBLE_HASTA = new Date(ALBUM.firstPhotoDate.getTime() + 30 * DIA);
 
 beforeEach(() => {
   for (const grupo of [m.album, m.photo, m.packDefinition, m.order, m.token]) {
@@ -65,7 +69,7 @@ describe("buildBuyerSituation", () => {
       "# Situación",
       "Página: álbum «Maratón Rosario»",
       "Nivel: visitante",
-      `Álbum #3 «Maratón Rosario» · disponible hasta el ${diaMesAR(ALBUM.expiresAt)} · 120 fotos · fotos ocultas: no · preventa: no`,
+      `Álbum #3 «Maratón Rosario» · disponible hasta el ${diaMesAR(VISIBLE_HASTA)} · 120 fotos · fotos ocultas: no · preventa: no`,
       "Los enlaces de descarga duran 15 días.",
     ]);
     // La consulta del álbum no trae precios: salen de cotizar_fotos.

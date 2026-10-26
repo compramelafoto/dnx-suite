@@ -16,8 +16,7 @@ import { createPackAccessTokenForOrder } from "./pack-access-tokens";
 import { parsePreCompraOrderIdFromPaymentRef } from "./preventa-redeem-url";
 import { studentNameForGreeting } from "./preventa-canje-slots";
 import { isPlaceholderEmail } from "@/lib/canje-externo/external-preventa";
-
-const AVISO_REF_KEY = "fotosListasAvisoAt";
+import { AVISO_FOTOS_LISTAS_KEY as AVISO_REF_KEY } from "./aviso-fotos-listas";
 
 function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) =>

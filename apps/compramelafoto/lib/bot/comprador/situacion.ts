@@ -1,3 +1,4 @@
+import { computeAlbumHideAt } from "@/lib/album-cleanup/eligibility";
 import { resolveDownloadLinkDays } from "@/lib/digital-download/download-link-policy";
 import { albumConOriginales } from "@/lib/digital-download/reenviar-descarga";
 import { prisma } from "@/lib/prisma";
@@ -42,7 +43,7 @@ async function datosDelAlbum(a: CompradorActor, albumId: number): Promise<AlbumS
     where: { id: albumId },
     select: {
       id: true, title: true, isPublic: true, isHidden: true, deletedAt: true, cleanupStatus: true,
-      expiresAt: true, hiddenPhotosEnabled: true,
+      firstPhotoDate: true, expirationExtensionDays: true, hiddenPhotosEnabled: true,
     },
   });
   if (!album) return null;
@@ -54,11 +55,15 @@ async function datosDelAlbum(a: CompradorActor, albumId: number): Promise<AlbumS
     prisma.photo.count({ where: { albumId: album.id, isRemoved: false } }),
     prisma.packDefinition.count({ where: { albumId: album.id, isActive: true } }),
   ]);
+  // Desde la primera foto, como ver_album y la galería: `expiresAt` nace con el álbum y miente.
+  const visibleHasta = computeAlbumHideAt(album);
   const estado = !albumConOriginales(album)
     ? "ya no está disponible"
-    : album.expiresAt.getTime() < Date.now()
-      ? `venció el ${diaMes(album.expiresAt)}`
-      : `disponible hasta el ${diaMes(album.expiresAt)}`;
+    : !visibleHasta
+      ? "disponible"
+      : visibleHasta.getTime() < Date.now()
+        ? `venció el ${diaMes(visibleHasta)}`
+        : `disponible hasta el ${diaMes(visibleHasta)}`;
   return {
     titulo: album.title,
     linea: [
