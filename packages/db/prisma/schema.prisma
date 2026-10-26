@@ -27594,3 +27594,28 @@ model FotofficeTestimonioAjustes {
   avisarAlEquipo      Boolean   @default(true)
   updatedAt           DateTime  @updatedAt
 }
+
+// ---------------------------------------------------------------------------
+// FOTOFFICE · Redirecciones del sitio (PR 4 del sitio público: importador de Alboom)
+// Sin relaciones Prisma a tablas existentes: el SQL se aplica a mano y el código tolera que falte.
+// ---------------------------------------------------------------------------
+
+/// Una dirección vieja del sitio que lleva a otra (por ejemplo `/sobre` → `/quien-soy` al migrar de
+/// Alboom). General: sirve para cualquier migración. Se consulta antes del 404 del sitio y, en el
+/// dominio propio, antes de las rutas reales. Ver `apps/fotoffice/lib/website/redirecciones.ts`.
+model FotofficeSitioRedireccion {
+  id          String   @id @default(cuid())
+  workspaceId String
+  /// Ruta vieja normalizada (`normalizarRuta`): minúsculas, sin barra final. Un `*` final es comodín.
+  desde       String
+  /// Ruta nueva del sitio (`/quien-soy`) o dirección completa (`https://…`). Un `*` se reemplaza
+  /// por lo que cubrió el comodín de `desde`.
+  hacia       String
+  /// 301 (permanente) o 302 (temporal).
+  codigo      Int      @default(301)
+  /// Quién la creó: «alboom-prosite» (el importador) o nulo si se cargó a mano.
+  origen      String?
+  createdAt   DateTime @default(now())
+
+  @@unique([workspaceId, desde])
+}

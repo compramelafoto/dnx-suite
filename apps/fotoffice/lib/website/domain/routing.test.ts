@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { compilarRedirecciones } from "@/lib/website/redirecciones-reglas";
 import { decideCustomDomainRoute, isFotofficeHost } from "./routing";
 
 const ORIGIN = "https://fotoffice.com.ar";
@@ -82,5 +83,34 @@ describe("enlaces personales de módulos (galería, contrato, presupuesto)", () 
   });
   it("el enlace con /w/<slug> se limpia con un salto,", () => {
     expect(decide("/w/sfpr/galeria/abc123")).toEqual({ kind: "redirect", url: "/galeria/abc123" });
+  });
+});
+
+describe("redirecciones del sitio en el dominio propio", () => {
+  const redirecciones = compilarRedirecciones([
+    { desde: "/cursos", hacia: "/capacitate", codigo: 301 },
+    { desde: "/sobre", hacia: "/quien-soy", codigo: 301 },
+    { desde: "/post.php?id=89987", hacia: "/blog/nos-mudamos-a-funes", codigo: 301 },
+    { desde: "/proof/*", hacia: "https://dnxfotografia.alboompro.com/proof/*", codigo: 302 },
+    { desde: "/login", hacia: "/quien-soy", codigo: 301 },
+  ]);
+  const conReglas = (pathname: string, search = "") =>
+    decideCustomDomainRoute({ pathname, search, slug: "dnx", fotofficeOrigin: ORIGIN, redirecciones });
+
+  it("van antes que las rutas reales (el módulo de cursos ocupa /cursos)", () => {
+    expect(conReglas("/cursos")).toEqual({ kind: "redirect", url: "/capacitate", status: 301 });
+    expect(conReglas("/Sobre/")).toEqual({ kind: "redirect", url: "/quien-soy", status: 301 });
+    expect(conReglas("/post.php", "?id=89987")).toEqual({ kind: "redirect", url: "/blog/nos-mudamos-a-funes", status: 301 });
+    expect(conReglas("/proof/AbC")).toEqual({ kind: "redirect", url: "https://dnxfotografia.alboompro.com/proof/AbC", status: 302 });
+  });
+
+  it("sin coincidencia, la visita se reescribe como siempre", () => {
+    expect(conReglas("/capacitate")).toEqual({ kind: "rewrite", pathname: "/w/dnx/capacitate" });
+    expect(conReglas("/cursos/xv")).toEqual({ kind: "rewrite", pathname: "/w/dnx/cursos/xv" });
+  });
+
+  it("no tapan el panel, la API ni los archivos", () => {
+    expect(conReglas("/login")).toEqual({ kind: "redirect", url: `${ORIGIN}/login` });
+    expect(conReglas("/api/dominio-propio")).toEqual({ kind: "pass" });
   });
 });

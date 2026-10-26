@@ -61,6 +61,43 @@ export async function crearTestimonio(
   });
 }
 
+/**
+ * Crea un testimonio YA PUBLICADO que trajo un importador (por ejemplo, los de la web anterior en
+ * Alboom, que el propio autor había publicado ahí). Es la única entrada que no pasa por la
+ * moderación: el permiso queda asentado con `consentimientoTexto` y `puedePublicar` se exige igual.
+ * Idempotente por `origenExternoId`: si ya existe, devuelve el que está.
+ */
+export async function crearTestimonioImportado(
+  workspaceId: string,
+  datos: DatosTestimonio,
+  extras: { consentimientoTexto: string; origenExternoId: string; trabajoId?: string | null; autorFotoUrl?: string | null; autorFotoKey?: string | null; orden?: number },
+  ahora: Date = new Date(),
+): Promise<{ id: string; creado: boolean }> {
+  const ya = await prisma.fotofficeTestimonio.findFirst({ where: { workspaceId, origenExternoId: extras.origenExternoId }, select: { id: true } });
+  if (ya) return { id: ya.id, creado: false };
+  const motivo = puedePublicar({ consentimiento: true, texto: datos.texto, autorNombre: datos.autorNombre });
+  if (motivo) throw new Error(motivo);
+  const t = await prisma.fotofficeTestimonio.create({
+    data: {
+      workspaceId,
+      ...datos,
+      estado: "PUBLICADO",
+      origen: "IMPORTADO",
+      consentimiento: true,
+      consentimientoAt: ahora,
+      consentimientoTexto: extras.consentimientoTexto,
+      trabajoId: extras.trabajoId ?? null,
+      autorFotoUrl: extras.autorFotoUrl ?? null,
+      autorFotoKey: extras.autorFotoKey ?? null,
+      origenExternoId: extras.origenExternoId,
+      orden: extras.orden ?? 0,
+      moderadoAt: ahora,
+    },
+    select: { id: true },
+  });
+  return { id: t.id, creado: true };
+}
+
 export type TestimonioDelPanel = {
   id: string;
   texto: string;

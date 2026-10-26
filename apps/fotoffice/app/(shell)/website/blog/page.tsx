@@ -8,6 +8,8 @@ import { BLOG_ADMIN_BASE } from "@/lib/blog/admin-nav";
 import { postPath } from "@/lib/blog/public";
 import { countExternalBlogImages } from "@/lib/blog/localize-images";
 import { LocalizeImagesButton } from "@/components/website/blog/localize-images-button";
+import { contarBorradoresImportados } from "@/lib/blog/importados";
+import { PublicarImportadosButton } from "@/components/website/blog/publicar-importados-button";
 
 export const dynamic = "force-dynamic";
 
@@ -27,10 +29,12 @@ export default async function BlogPostsPage({ searchParams }: Props) {
   const status = parseContentPostStatusFilter(params.status ?? null);
   const q = params.q?.trim() || "";
 
-  const [posts, publicSlug, externas] = await Promise.all([
+  const [posts, publicSlug, externas, importados] = await Promise.all([
     listBlogAdminPosts(workspace.id, { status, q: q || null }),
     loadPublicSlug(workspace.id),
     countExternalBlogImages(workspace.id),
+    // Si no se puede saber, el botón simplemente no aparece: la lista del blog sigue.
+    contarBorradoresImportados(workspace.id).catch(() => 0),
   ]);
   const filtrando = Boolean(status || q);
 
@@ -43,6 +47,7 @@ export default async function BlogPostsPage({ searchParams }: Props) {
       }
     >
       <div className="space-y-4">
+        {importados > 0 ? <PublicarImportadosButton pendientes={importados} /> : null}
         {externas > 0 ? <LocalizeImagesButton pendientes={externas} /> : null}
         <form className="fo-card grid gap-4 sm:grid-cols-[1fr_auto_auto] sm:items-end" role="search">
           <label className="block">

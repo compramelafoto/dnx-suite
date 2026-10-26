@@ -32,6 +32,8 @@ export const FOTOFFICE_R2_PREFIXES = {
   siteTrabajoPhoto: "fotoffice/site-trabajos",
   /** Foto del autor de un testimonio del sitio (la sube el autor desde el formulario público). */
   siteTestimonioPhoto: "fotoffice/site-testimonios",
+  /** Imágenes de las páginas propias del sitio que trajo el importador de Alboom. */
+  sitePaginaImage: "fotoffice/site-paginas",
   /** Fotos de un fotolibro (original, vista y miniatura), por plantilla. */
   fotolibroPhoto: "fotoffice/fotolibros",
   /** Fotos que el socio sube sólo para su placa de Socio de la semana («Más sobre mí»). */

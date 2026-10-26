@@ -5,14 +5,15 @@
  */
 
 import { rutaInternaInsertada } from "@/lib/service-leads/insertar";
+import { resolverRedireccion, type TablaRedirecciones } from "@/lib/website/redirecciones-reglas";
 
 export type CustomDomainDecision =
   /** Seguir sin tocar: recursos de Next, API, archivos estáticos. */
   | { kind: "pass" }
   /** Servir internamente `/w/<slug>/...` sin cambiar la dirección que ve el visitante. */
   | { kind: "rewrite"; pathname: string }
-  /** Mandar al visitante a otra dirección (mismo dominio o el de FOTOFFICE). */
-  | { kind: "redirect"; url: string };
+  /** Mandar al visitante a otra dirección (mismo dominio o el de FOTOFFICE). Sin `status`, 308. */
+  | { kind: "redirect"; url: string; status?: 301 | 302 };
 
 /**
  * Primeros segmentos que NO son del sitio público: el panel, la sesión y las páginas propias de
@@ -72,6 +73,8 @@ export function decideCustomDomainRoute(args: {
   slug: string;
   /** Dirección de FOTOFFICE sin barra final (`https://fotoffice...`). Vacía = no configurada. */
   fotofficeOrigin: string;
+  /** Las redirecciones del sitio (`FotofficeSitioRedireccion`), ya compiladas. */
+  redirecciones?: TablaRedirecciones;
 }): CustomDomainDecision {
   const { pathname, search, slug, fotofficeOrigin } = args;
 
@@ -96,6 +99,15 @@ export function decideCustomDomainRoute(args: {
   const first = pathname.split("/")[1] ?? "";
   if (FOTOFFICE_ONLY_SEGMENTS.has(first)) return toFotoffice(pathname);
   if (SITE_SEGMENTS_ON_FOTOFFICE.has(first)) return toFotoffice(`${ownPrefix}${pathname}`);
+
+  // Las redirecciones del sitio van ANTES que las rutas reales: `/cursos` de la web vieja tiene que
+  // llevar a `/capacitate` aunque el módulo de cursos ocupe `/cursos` (spec del sitio de DNX, 7 bis).
+  // Bajo `/w/<slug>/…` no pasa esto: ahí manda la ruta real y el catch-all mira las redirecciones
+  // sólo antes del 404.
+  if (args.redirecciones) {
+    const destino = resolverRedireccion(args.redirecciones, `${pathname}${search}`);
+    if (destino) return { kind: "redirect", url: destino.hacia, status: destino.codigo };
+  }
 
   const sitio = pathname === "/" ? ownPrefix : `${ownPrefix}${pathname}`;
   // `/insertar[/<formulario>]`: el formulario solo, para insertar en otra web (sin el armazón).

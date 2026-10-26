@@ -13,6 +13,8 @@ const SECONDARY_TABS = [
   { href: "/website/seo", label: "SEO" },
   { href: "/website/historial", label: "Historial" },
   { href: "/website/dominio", label: "Dominio" },
+  // Las direcciones viejas (por ejemplo las de la web anterior) que llevan a las nuevas.
+  { href: "/website/redirecciones", label: "Redirecciones" },
   // El blog tiene su propio marco (`BlogShell`) y su ítem en el menú lateral; acá queda a mano
   // para quien llega desde la configuración del sitio.
   { href: "/website/blog", label: "Blog" },
