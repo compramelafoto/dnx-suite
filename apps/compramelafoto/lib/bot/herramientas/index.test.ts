@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/prisma", () => ({ prisma: {}, Prisma: {} }));
+// Algunas herramientas importan enums de @/lib/prisma al cargar el módulo (p. ej. ReferralProgram).
+vi.mock("@/lib/prisma", async (orig) => ({ ...(await orig<object>()), prisma: {}, Prisma: {} }));
 
 import { toolsForActor } from "./index";
 
