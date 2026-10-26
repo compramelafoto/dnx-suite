@@ -7,6 +7,10 @@
       "schedule": "*/15 * * * *"
     },
     {
+      "path": "/api/cron/soporte",
+      "schedule": "*/15 * * * *"
+    },
+    {
       "path": "/api/cron/hourly",
       "schedule": "0 * * * *"
     },

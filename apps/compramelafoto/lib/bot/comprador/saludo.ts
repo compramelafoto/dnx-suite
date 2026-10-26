@@ -72,6 +72,7 @@ export function saludoComprador(p: PaginaComprador): SaludoComprador {
       );
     case "mis_pedidos":
     case "soporte":
+    case "caso":
       return sinGlobito("Hola, soy DNX Bot. ¿En qué te ayudo con tus compras?", [
         "¿En qué quedó mi pedido?",
         "Reenviame el enlace de descarga",

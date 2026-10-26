@@ -38,6 +38,7 @@ import { CalculoCard } from "./CalculoCard";
 import { MensajeCard } from "./MensajeCard";
 import { AvisoCard } from "./AvisoCard";
 import { debeVolverAlInput, esOtroCampoDeTexto } from "./foco";
+import { casoInicial, itemsDeCaso, olvidarCaso, stripCasoParam, textoDeCasoNoDisponible, TEXTO_CASO_CERRADO, TEXTO_CASO_VENCIDO } from "./caso";
 
 export type DnxBotBubbleProps = {
   basePath: string;
@@ -50,9 +51,11 @@ export type DnxBotBubbleProps = {
   audiencia?: Audiencia;
   /** false: la app no tiene tickets del bot (FOTOFFICE): no se ofrece «Hablar con una persona». */
   conTickets?: boolean;
+  /** Modo caso: token del link del mail de soporte. Fotógrafos: si no viene, se lee de `?dnxbot_caso=`. */
+  casoToken?: string;
 };
 
-export function DnxBotBubble({ basePath, mascotSrc, mascotSpriteSrc, bottomOffsetPx = 24, rutasPermitidas, audiencia = "fotografo", conTickets = true }: DnxBotBubbleProps) {
+export function DnxBotBubble({ basePath, mascotSrc, mascotSpriteSrc, bottomOffsetPx = 24, rutasPermitidas, audiencia = "fotografo", conTickets = true, casoToken }: DnxBotBubbleProps) {
   const [estado, setEstado] = useState<{ enabled: boolean; alerta?: boolean; saludo?: string; sugerencias?: string[]; globito?: unknown; globitoDemoraMs?: unknown; progresoEscolar?: unknown } | null>(null);
   const [open, setOpen] = useState(false);
   // El temporizador del globito diferido lee si la ventana está abierta en el momento de dispararse.
@@ -142,6 +145,40 @@ export function DnxBotBubble({ basePath, mascotSrc, mascotSpriteSrc, bottomOffse
   }, [basePath, audiencia]);
   useEffect(() => { listRef.current?.scrollTo({ top: listRef.current.scrollHeight }); }, [items]);
 
+  // Modo caso: con el link del mail la ventana se abre sola con la historia del reclamo.
+  const casoRef = useRef<string | null>(null);
+  useEffect(() => {
+    let almacen: AlmacenSimple | null = null;
+    try {
+      almacen = window.sessionStorage;
+    } catch {
+      almacen = null;
+    }
+    const token = casoToken ?? (audiencia === "comprador" ? null : casoInicial(location.search, almacen));
+    if (!token) return;
+    if (!casoToken && new URLSearchParams(location.search).has("dnxbot_caso")) history.replaceState(history.state, "", stripCasoParam(location.href));
+    let vivo = true;
+    fetch(`${basePath}/caso?token=${encodeURIComponent(token)}`)
+      .then(async (r) => {
+        if (!vivo) return;
+        // Sin sesión (fotógrafos) el token queda guardado para después del inicio de sesión.
+        if (r.status === 401) return;
+        olvidarCaso(almacen);
+        if (!r.ok) {
+          setItems([{ kind: "notice", text: TEXTO_CASO_VENCIDO }]);
+          setOpen(true);
+          return;
+        }
+        const d = (await r.json()) as { items?: unknown; ticket?: { estado?: unknown } };
+        const cerrado = d.ticket?.estado === "CLOSED";
+        if (!cerrado) casoRef.current = token;
+        setItems([...itemsDeCaso(d.items), ...(cerrado ? [{ kind: "notice" as const, text: TEXTO_CASO_CERRADO }] : [])]);
+        setOpen(true);
+      })
+      .catch(() => {});
+    return () => { vivo = false; };
+  }, [basePath, audiencia, casoToken]);
+
   const habilitado = estado?.enabled === true;
   useEffect(() => {
     if (!habilitado) return;
@@ -216,7 +253,14 @@ export function DnxBotBubble({ basePath, mascotSrc, mascotSpriteSrc, bottomOffse
     const intro = introRef.current;
     setItems((x) => [...seedIntro(x, intro), { kind: "user", text }, { kind: "bot", text: "" }]);
     try {
-      const res = await fetch(`${basePath}/chat`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text, pagePath: audiencia === "comprador" ? paginaActual(location.pathname, location.search) : location.pathname, ...(contexto ? { contexto } : {}) }) });
+      const caso = audiencia === "comprador" ? null : casoRef.current;
+      const res = await fetch(`${basePath}/chat`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text, pagePath: audiencia === "comprador" ? paginaActual(location.pathname, location.search) : location.pathname, ...(contexto ? { contexto } : {}), ...(caso ? { casoToken: caso } : {}) }) });
+      if (res.status === 410) {
+        casoRef.current = null;
+        const texto = textoDeCasoNoDisponible(await res.json().catch(() => null));
+        setItems((x) => [...dropEmptyBot(x), { kind: "notice", text: texto }]);
+        return;
+      }
       if (!res.ok || !res.body) throw new Error(String(res.status));
       const reader = res.body.getReader();
       const dec = new TextDecoder();
@@ -349,6 +393,12 @@ export function DnxBotBubble({ basePath, mascotSrc, mascotSpriteSrc, bottomOffse
             {items.map((it, i) => {
               if (it.kind === "user") return <div key={i} style={bubble("user")}>{it.text}</div>;
               if (it.kind === "bot") return it.text ? <div key={i} style={bubble("bot")}><BotText text={it.text} rutas={rutasPermitidas} /></div> : null;
+              if (it.kind === "equipo") return (
+                <div key={i} style={{ ...bubble("bot"), background: "#fdf3e7", border: "1px solid #f0d9bd" }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "#9a5b1f", marginBottom: 4 }}>{it.autor}</div>
+                  {it.text}
+                </div>
+              );
               if (it.kind === "progreso") return <ProgresoCard key={i} progreso={it.progreso} busy={busy} onHacelo={send} />;
               if (it.kind === "calculo") return <CalculoCard key={i} tarjeta={it.tarjeta} />;
               if (it.kind === "mensaje") return <MensajeCard key={i} tarjeta={it.tarjeta} />;

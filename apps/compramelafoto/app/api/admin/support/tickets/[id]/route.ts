@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
 import { Role } from "@prisma/client";
 import { SupportTicketStatus } from "@prisma/client";
+import { aplicarEvento } from "@/lib/soporte/aplicar-evento";
+import { cargarFicha } from "@/lib/soporte/ficha";
+import type { EstadoTicket } from "@/lib/soporte/estados";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const VALID_STATUSES: SupportTicketStatus[] = ["OPEN", "IN_PROGRESS", "RESOLVED", "CLOSED"];
+const VALID_STATUSES: SupportTicketStatus[] = ["OPEN", "IN_PROGRESS", "WAITING_CUSTOMER", "RESOLVED", "CLOSED"];
 
 export async function PATCH(
   req: NextRequest,
@@ -33,20 +35,14 @@ export async function PATCH(
 
     if (!VALID_STATUSES.includes(status as SupportTicketStatus)) {
       return NextResponse.json(
-        { error: "Estado inválido. Usar: OPEN, IN_PROGRESS, RESOLVED, CLOSED" },
+        { error: "Estado inválido. Usar: OPEN, IN_PROGRESS, WAITING_CUSTOMER, RESOLVED, CLOSED" },
         { status: 400 }
       );
     }
 
-    const ticket = await prisma.supportTicket.update({
-      where: { id: ticketId },
-      data: {
-        status: status as SupportTicketStatus,
-        ...(status === "RESOLVED" || status === "CLOSED"
-          ? { resolvedAt: new Date(), resolutionNote: body.resolutionNote ?? null }
-          : {}),
-      },
-    });
+    // Mover la ficha en el tablero: el cambio de estado deja coherentes el reloj y las marcas.
+    const ticket = await aplicarEvento(ticketId, { tipo: "ADMIN_MOVIO", a: status as EstadoTicket });
+    if ("rechazado" in ticket) return NextResponse.json({ error: ticket.rechazado }, { status: 409 });
 
     return NextResponse.json({ ticket });
   } catch (err: any) {
@@ -77,27 +73,12 @@ export async function GET(
       return NextResponse.json({ error: "ID inválido" }, { status: 400 });
     }
 
-    const ticket = await prisma.supportTicket.findUnique({
-      where: { id: ticketId },
-      include: {
-        printOrder: {
-          select: {
-            id: true,
-            customerName: true,
-            customerEmail: true,
-          },
-        },
-        messages: {
-          orderBy: { createdAt: "asc" },
-        },
-      },
-    });
-
-    if (!ticket) {
+    const ficha = await cargarFicha(ticketId, new Date());
+    if (!ficha) {
       return NextResponse.json({ error: "Ticket no encontrado" }, { status: 404 });
     }
 
-    return NextResponse.json({ ticket });
+    return NextResponse.json(ficha);
   } catch (err: any) {
     console.error("GET /api/admin/support/tickets/[id] ERROR >>>", err);
     return NextResponse.json(
