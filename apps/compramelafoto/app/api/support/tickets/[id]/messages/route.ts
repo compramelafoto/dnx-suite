@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma, Role } from "@/lib/prisma";
 import { getAuthUser } from "@/lib/auth";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { aplicarEvento } from "@/lib/soporte/aplicar-evento";
 import {
   isTicketClosedForUserReply,
   userCanAccessTicket,
@@ -139,6 +140,7 @@ export async function POST(
         ticketId,
         message: parsed.message,
         isInternal: false,
+        origen: user.role === Role.ADMIN || user.role === Role.SUPER_ADMIN ? "ADMIN" : "CLIENTE_PANEL",
         authorId: user.id,
         authorName: user.name || null,
         authorEmail: user.email || null,
@@ -181,6 +183,12 @@ export async function POST(
         });
       } catch (notifyErr) {
         console.error("[support-user-reply] aviso admin no creado:", notifyErr);
+      }
+      // Vuelve a En curso (también si estaba Resuelto), reinicia el reloj y avisa por Telegram.
+      try {
+        await aplicarEvento(ticketId, { tipo: "CLIENTE_ESCRIBIO_PANEL" });
+      } catch (estadoErr) {
+        console.error("[support-user-reply] estado del reclamo no actualizado:", estadoErr);
       }
     }
 
