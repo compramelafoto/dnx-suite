@@ -7,6 +7,8 @@ import { parseAviso, type Aviso } from "./aviso";
 export type Item =
   | { kind: "user"; text: string }
   | { kind: "bot"; text: string }
+  /** Respuesta de una persona del equipo en un reclamo (modo caso). */
+  | { kind: "equipo"; text: string; autor: string }
   | { kind: "proposal"; actionId: string; summary: string; state: "pending" | "done" | "rejected" | "failed"; result?: string; canUndo?: boolean }
   | { kind: "notice"; text: string; offerTicket?: boolean }
   | { kind: "progreso"; progreso: ProgresoEscolar }

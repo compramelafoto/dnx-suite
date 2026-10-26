@@ -50,12 +50,14 @@ function useMargenSobreBotones(): number {
  */
 export function CompradorBotBubble() {
   const pathname = usePathname() ?? "";
-  if (!contextoDePagina(pathname)) return null;
-  return <BurbujaSobreBotones key={pathname} />;
+  const pagina = contextoDePagina(pathname);
+  if (!pagina) return null;
+  // Link del mail de soporte: la ventana se abre sola con la historia del reclamo.
+  return <BurbujaSobreBotones key={pathname} casoToken={pagina.tipo === "caso" ? pagina.token : undefined} />;
 }
 
 /** La burbuja con el margen medido en vivo (componente aparte para que los hooks no dependan de la ruta). */
-export function BurbujaSobreBotones() {
+export function BurbujaSobreBotones({ casoToken }: { casoToken?: string } = {}) {
   const margen = useMargenSobreBotones();
   return (
     <DnxBotBubble
@@ -64,6 +66,7 @@ export function BurbujaSobreBotones() {
       bottomOffsetPx={margen}
       audiencia="comprador"
       rutasPermitidas={RUTAS_PERMITIDAS_COMPRADOR}
+      casoToken={casoToken}
     />
   );
 }
