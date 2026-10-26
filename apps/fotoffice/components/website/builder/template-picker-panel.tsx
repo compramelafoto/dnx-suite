@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { WEBSITE_TEMPLATES, type LayoutPreviewBand, type WebsiteTemplate } from "@/lib/website/templates";
+import { WEBSITE_TEMPLATES, type LayoutPreviewBand, type SiteTemplate } from "@/lib/website/templates";
 import type { FotofficeOrganizationTypeId } from "@/lib/onboarding-constants";
 
 /**
@@ -19,19 +19,19 @@ export function TemplatePickerPanel({
   hasContent: boolean;
   canEdit: boolean;
   organizationType: FotofficeOrganizationTypeId | null;
-  onApply: (template: WebsiteTemplate, mode: "full" | "designOnly") => void;
+  onApply: (template: SiteTemplate, mode: "full" | "designOnly") => void;
 }) {
   const [appliedFlash, setAppliedFlash] = useState<string | null>(null);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
 
-  function apply(template: WebsiteTemplate) {
+  function apply(template: SiteTemplate) {
     onApply(template, hasContent ? "designOnly" : "full");
     setConfirmingId(null);
     setAppliedFlash(template.id);
     setTimeout(() => setAppliedFlash(null), 2500);
   }
 
-  function handleClick(template: WebsiteTemplate) {
+  function handleClick(template: SiteTemplate) {
     if (hasContent) {
       setConfirmingId(template.id);
       return;
@@ -56,14 +56,14 @@ export function TemplatePickerPanel({
             <div key={template.id} className="fo-card space-y-2.5">
               <LayoutThumbnail bands={template.layoutPreview} />
               <div className="flex items-start justify-between gap-2">
-                <p className="text-sm font-semibold text-[var(--fo-text)]">{template.name}</p>
+                <p className="text-sm font-semibold text-[var(--fo-text)]">{template.nombre}</p>
                 {recommended ? (
                   <span className="shrink-0 rounded-full bg-[var(--fo-accent-soft)] px-2 py-0.5 text-[10px] font-medium text-[var(--fo-accent)]">
                     Recomendada
                   </span>
                 ) : null}
               </div>
-              <p className="text-xs text-[var(--fo-muted)] leading-relaxed">{template.description}</p>
+              <p className="text-xs text-[var(--fo-muted)] leading-relaxed">{template.descripcion}</p>
 
               {canEdit ? (
                 confirmingId === template.id ? (

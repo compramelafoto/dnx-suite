@@ -13,7 +13,7 @@ import { HOME_PAGE_KEY, listCustomPages, nextPageKey } from "@/lib/website/pages
 import { MAX_CUSTOM_PAGES } from "@/lib/website/save-pages";
 import type { WebsiteColors } from "@/lib/website/branding-defaults";
 import type { WebsiteDesignPresets } from "@/lib/website/design-presets";
-import type { WebsiteTemplate } from "@/lib/website/templates";
+import type { SiteTemplate } from "@/lib/website/templates";
 import type { SiteMenu } from "@/lib/website/site-menu";
 import type { PersonVocabulary } from "@/lib/vocabulario/personas";
 import { useDraftAutosave, type AutosaveStatus } from "@/lib/website/use-draft-autosave";
@@ -295,16 +295,16 @@ export function WebsiteBuilder({
     setMode("SECCIONES");
   }
 
-  function handleApplyTemplate(template: WebsiteTemplate, applyMode: "full" | "designOnly") {
+  function handleApplyTemplate(template: SiteTemplate, applyMode: "full" | "designOnly") {
     if (applyMode === "full") {
       // Las plantillas arman la portada: se vuelve a ella para que el cambio se vea.
-      setPages((prev) => ({ ...prev, [HOME_PAGE_KEY]: reorder(template.seedSections()) }));
+      setPages((prev) => ({ ...prev, [HOME_PAGE_KEY]: reorder(structuredClone(template.paginas[0].bloques)) }));
       setActiveKey(HOME_PAGE_KEY);
       setSelectedId(null);
       setMode("SECCIONES");
     }
     // La disposición del menú se elige en su propia pestaña: una plantilla no la pisa.
-    setPresets((prev) => ({ ...template.designPreset, menuLayout: prev.menuLayout, menuSide: prev.menuSide }));
+    setPresets((prev) => ({ ...template.design, menuLayout: prev.menuLayout, menuSide: prev.menuSide }));
   }
 
   return (
