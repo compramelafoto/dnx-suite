@@ -7,6 +7,8 @@ describe("isExternalBlogImage", () => {
   it("sólo las de sitios conocidos y por https", () => {
     expect(isExternalBlogImage(ALBOOM)).toBe(true);
     expect(isExternalBlogImage("https://fotorank.dnxsuite.com/contest-assets/a.jpg")).toBe(true);
+    expect(isExternalBlogImage("https://storage.alboom.ninja/sites/8403/albuns/1/a.jpg")).toBe(true);
+    expect(isExternalBlogImage("https://alfred.alboompro.com/resize/width/1200/url/storage.alboom.ninja/sites/8403/a.jpg")).toBe(true);
     expect(isExternalBlogImage("https://pub-123.r2.dev/fotoffice/blog-media/a.jpg")).toBe(false);
     expect(isExternalBlogImage("https://evil.example.com/a.jpg")).toBe(false);
     expect(isExternalBlogImage("http://cdn.alboompro.com/a.jpg")).toBe(false);

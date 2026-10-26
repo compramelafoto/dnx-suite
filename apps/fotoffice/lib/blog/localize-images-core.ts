@@ -12,11 +12,19 @@ export type JSONContent = {
  */
 
 /**
- * Sólo se copian imágenes de sitios conocidos: el CDN de Alboom (de donde vienen los blogs que
- * se migran) y FotoRank. Bajar cualquier dirección que aparezca en un artículo convertiría al
- * servidor en un descargador de lo que alguien escriba.
+ * Sólo se copian imágenes de sitios conocidos: Alboom (su CDN, donde guarda las fotos de los
+ * sitios y su redimensionador, de donde vienen los blogs que se migran) y FotoRank. Bajar
+ * cualquier dirección que aparezca en un artículo convertiría al servidor en un descargador de lo
+ * que alguien escriba.
  */
-export const externalImageHosts = ["cdn.alboompro.com", "fotorank.dnxsuite.com", "fotorank.com", "www.fotorank.com"];
+export const externalImageHosts = [
+  "cdn.alboompro.com",
+  "storage.alboom.ninja",
+  "alfred.alboompro.com",
+  "fotorank.dnxsuite.com",
+  "fotorank.com",
+  "www.fotorank.com",
+];
 
 export function isExternalBlogImage(url: string | null | undefined): url is string {
   if (!url) return false;
