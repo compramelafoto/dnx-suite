@@ -69,23 +69,27 @@ describe("decidirAvance: sólo hacia adelante", () => {
 
 describe("decidirConciliacion (trabajos viejos)", () => {
   it("Liliana: entrega enviada y en «Recibido» → «Listo para retirar»", () => {
-    expect(decidirConciliacion(DNX, abierto("s1"), { grabacionTerminadaConImagen: true, entregaEnviada: true })).toMatchObject({ tipo: "MOVER", etapa: { id: "s4" } });
+    expect(decidirConciliacion(DNX, abierto("s1"), { grabado: true, listo: true })).toMatchObject({ tipo: "MOVER", etapa: { id: "s4" } });
   });
   it("Cintia: ya en «Material original retirado» → no se toca", () => {
-    expect(decidirConciliacion(DNX, abierto("s5"), { grabacionTerminadaConImagen: true, entregaEnviada: true })).toEqual({ tipo: "NADA", motivo: "YA_ESTA" });
+    expect(decidirConciliacion(DNX, abierto("s5"), { grabado: true, listo: true })).toEqual({ tipo: "NADA", motivo: "YA_ESTA" });
   });
   it("sólo grabado (sin entrega) → «Grabado»", () => {
-    expect(decidirConciliacion(DNX, abierto("s1"), { grabacionTerminadaConImagen: true, entregaEnviada: false })).toMatchObject({ tipo: "MOVER", etapa: { id: "s2" } });
+    expect(decidirConciliacion(DNX, abierto("s1"), { grabado: true, listo: false })).toMatchObject({ tipo: "MOVER", etapa: { id: "s2" } });
   });
   it("en «Listo para retirar» con entrega: no vuelve a «Grabado»", () => {
-    expect(decidirConciliacion(DNX, abierto("s4"), { grabacionTerminadaConImagen: true, entregaEnviada: true })).toEqual({ tipo: "NADA", motivo: "YA_ESTA" });
+    expect(decidirConciliacion(DNX, abierto("s4"), { grabado: true, listo: true })).toEqual({ tipo: "NADA", motivo: "YA_ESTA" });
   });
   it("con entrega pero sin etapa «Listo…» en el flujo → «Grabado»", () => {
     const sinListo = DNX.filter((e) => e.id !== "s4");
-    expect(decidirConciliacion(sinListo, abierto("s1"), { grabacionTerminadaConImagen: true, entregaEnviada: true })).toMatchObject({ tipo: "MOVER", etapa: { id: "s2" } });
+    expect(decidirConciliacion(sinListo, abierto("s1"), { grabado: true, listo: true })).toMatchObject({ tipo: "MOVER", etapa: { id: "s2" } });
+  });
+  it("entrega enviada pero con cassettes sin grabar: sólo «Grabado» si se cumple", () => {
+    expect(decidirConciliacion(DNX, abierto("s1"), { grabado: false, listo: false })).toBeNull();
+    expect(decidirConciliacion(DNX, abierto("s1"), { grabado: true, listo: false })).toMatchObject({ tipo: "MOVER", etapa: { id: "s2" } });
   });
   it("sin hechos: null; suspendido: no se toca", () => {
-    expect(decidirConciliacion(DNX, abierto("s1"), { grabacionTerminadaConImagen: false, entregaEnviada: false })).toBeNull();
-    expect(decidirConciliacion(DNX, { etapaActualId: "s1", suspendido: true }, { grabacionTerminadaConImagen: true, entregaEnviada: true })).toEqual({ tipo: "NADA", motivo: "SUSPENDIDO" });
+    expect(decidirConciliacion(DNX, abierto("s1"), { grabado: false, listo: false })).toBeNull();
+    expect(decidirConciliacion(DNX, { etapaActualId: "s1", suspendido: true }, { grabado: true, listo: true })).toEqual({ tipo: "NADA", motivo: "SUSPENDIDO" });
   });
 });

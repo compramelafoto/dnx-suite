@@ -2,6 +2,7 @@ import "server-only";
 import { prisma } from "@repo/db";
 import type { CtxCircuitos } from "@/lib/circuitos/acceso";
 import { mover } from "@/lib/circuitos/recorridos";
+import { contarTrabajo, cumpleGrabado, trabajoCompleto, type CuentaTrabajo, type GrabacionParaContar } from "../cassettes";
 import { decidirAvance, decidirConciliacion, type DecisionAvance, type EtapaParaAvance, type ObjetivoEtapa } from "../etapas-automaticas";
 
 /**
@@ -17,6 +18,37 @@ import { decidirAvance, decidirConciliacion, type DecisionAvance, type EtapaPara
 export type ResultadoEtapa = "MOVIDO" | "SIN_CAMBIO" | "FALLO";
 
 type Recorrido = { id: string; circuitId: string; stageId: string | null; enteredStageAt: Date };
+
+/** Lo que se lee de cada trabajo para contar sus cassettes (ver `../cassettes.ts`). */
+function selectCassettes(workspaceId: string) {
+  return {
+    pedidoItemIndex: true,
+    product: { select: { name: true, category: { select: { name: true } } } },
+    pedido: { select: { items: true } },
+    grabaciones: { where: { workspaceId, estado: { not: "DESCARTADA" } }, select: { estado: true, conversionEstado: true, sinImagen: true } },
+  } as const;
+}
+
+type TrabajoConCassettes = {
+  pedidoItemIndex?: number | null;
+  product?: { name: string | null; category?: { name: string | null } | null } | null;
+  pedido?: { items?: unknown } | null;
+  grabaciones?: readonly GrabacionParaContar[];
+};
+
+function cuentaDe(p: TrabajoConCassettes): CuentaTrabajo {
+  return contarTrabajo({
+    items: p.pedido?.items ?? null,
+    pedidoItemIndex: p.pedidoItemIndex ?? null,
+    textos: [p.product?.name, p.product?.category?.name],
+    grabaciones: p.grabaciones ?? [],
+  });
+}
+
+/** ¿El trabajo ya puede ir al objetivo según sus cassettes? GRABADO: todos grabados; LISTO: todos hechos. */
+export function cassettesPermiten(c: CuentaTrabajo, objetivo: ObjetivoEtapa): boolean {
+  return objetivo === "GRABADO" ? cumpleGrabado(c) : trabajoCompleto(c);
+}
 
 function codigo(e: unknown): string {
   const c = e as { code?: unknown; name?: unknown } | null;
@@ -63,14 +95,18 @@ async function aplicar(
   return "MOVIDO";
 }
 
-/** Avanza cada trabajo al objetivo, sólo hacia adelante. Nunca lanza. */
+/**
+ * Avanza cada trabajo al objetivo, sólo hacia adelante y sólo si sus cassettes lo permiten
+ * (`cassettesPermiten`): a GRABADO con todos los vendidos grabados, a LISTO con todos hechos. Con
+ * la cantidad desconocida, la regla de antes. Nunca lanza.
+ */
 export async function avanzarTrabajos(workspaceId: string, proyectoIds: readonly string[], objetivo: ObjetivoEtapa): Promise<Record<ResultadoEtapa, number>> {
   const cuenta: Record<ResultadoEtapa, number> = { MOVIDO: 0, SIN_CAMBIO: 0, FALLO: 0 };
   const ids = [...new Set(proyectoIds)];
   if (ids.length === 0) return cuenta;
   try {
     const [proyectos, recorridos] = await Promise.all([
-      prisma.fotofficeProyecto.findMany({ where: { id: { in: ids }, workspaceId }, select: { id: true, suspendedAt: true } }),
+      prisma.fotofficeProyecto.findMany({ where: { id: { in: ids }, workspaceId }, select: { id: true, suspendedAt: true, ...selectCassettes(workspaceId) } }),
       prisma.fotofficeJourney.findMany({
         where: { workspaceId, subjectType: "PROYECTO", subjectId: { in: ids }, closedAt: null, stageId: { not: null } },
         select: { id: true, circuitId: true, stageId: true, enteredStageAt: true, subjectId: true },
@@ -81,6 +117,7 @@ export async function avanzarTrabajos(workspaceId: string, proyectoIds: readonly
       try {
         const j = recorridos.find((r) => r.subjectId === p.id);
         if (!j) { cuenta.SIN_CAMBIO++; continue; } // terminado, cancelado o sin recorrido
+        if (!cassettesPermiten(cuentaDe(p), objetivo)) { cuenta.SIN_CAMBIO++; continue; } // faltan cassettes
         const decision = decidirAvance(etapas.get(j.circuitId) ?? [], { etapaActualId: j.stageId, suspendido: p.suspendedAt !== null }, objetivo);
         cuenta[await aplicar(workspaceId, p.id, j, decision, objetivo)]++;
       } catch (e) {
@@ -98,10 +135,13 @@ export async function avanzarTrabajos(workspaceId: string, proyectoIds: readonly
 export const TOPE_CONCILIACION = 500;
 
 /**
- * Conciliación del cron (trabajos viejos y avances que fallaron): los trabajos de pedidos con una
- * grabación terminada con imagen, o con la entrega ya enviada, se llevan a su etapa con la misma
- * regla, sólo hacia adelante. Idempotente: un trabajo que ya llegó no se mueve. Sólo recorridos
- * abiertos y trabajos sin suspender; de los más nuevos a los más viejos. Nunca lanza.
+ * Conciliación del cron (trabajos viejos, avances que fallaron y cassettes que se completan después
+ * del envío): los trabajos de pedidos con una grabación terminada con imagen, o con la entrega ya
+ * enviada, se llevan a su etapa con la misma regla de cassettes (`cassettesPermiten`), sólo hacia
+ * adelante. Así, un trabajo al que le faltaba un cassette al enviar pasa a «Listo para retirar»
+ * cuando ese cassette termina de convertirse (la misma corrida que manda «Agregamos un video»).
+ * Idempotente: un trabajo que ya llegó no se mueve. Sólo recorridos abiertos y trabajos sin
+ * suspender; de los más nuevos a los más viejos. Nunca lanza.
  */
 export async function conciliarEtapas(
   estaEncendido: (workspaceId: string) => Promise<boolean>,
@@ -124,8 +164,10 @@ export async function conciliarEtapas(
       select: {
         id: true,
         workspaceId: true,
-        pedido: { select: { digitalizacionEntrega: { select: { enviadoAt: true } } } },
-        grabaciones: { where: { estado: "COMPLETA", sinImagen: false }, select: { id: true }, take: 1 },
+        pedidoItemIndex: true,
+        product: { select: { name: true, category: { select: { name: true } } } },
+        pedido: { select: { items: true, digitalizacionEntrega: { select: { enviadoAt: true } } } },
+        grabaciones: { where: { estado: { not: "DESCARTADA" } }, select: { estado: true, conversionEstado: true, sinImagen: true } },
       },
     });
     if (proyectos.length === 0) return reporte;
@@ -143,7 +185,10 @@ export async function conciliarEtapas(
         const decision = decidirConciliacion(
           etapas.get(j.circuitId) ?? [],
           { etapaActualId: j.stageId, suspendido: false },
-          { grabacionTerminadaConImagen: p.grabaciones.length > 0, entregaEnviada: !!p.pedido?.digitalizacionEntrega?.enviadoAt },
+          {
+            grabado: cassettesPermiten(cuentaDe(p), "GRABADO"),
+            listo: !!p.pedido?.digitalizacionEntrega?.enviadoAt && cassettesPermiten(cuentaDe(p), "LISTO"),
+          },
         );
         if (!decision) continue;
         const r = await aplicar(p.workspaceId, p.id, j, decision, "CONCILIACION");

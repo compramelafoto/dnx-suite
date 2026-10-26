@@ -3,6 +3,7 @@ import { vistaPreviaAgotada } from "@/lib/digitalizacion/hls";
 import { PageHeader } from "@/components/page-header";
 import { AccionesGrabacion, AjusteMinutos } from "@/components/digitalizacion/acciones-grabacion";
 import { AccionesEntrega, AjustesEntrega, EnvioYCargos, VerComoCliente } from "@/components/digitalizacion/entregas";
+import { confirmacionEnvioIncompleto, textoDeCassettes } from "@/lib/digitalizacion/cassettes";
 import { estadoVisibleDeEntrega, pesos } from "@/lib/digitalizacion/entrega";
 import { datosTextoEntrega, textoDeEntrega } from "@/lib/digitalizacion/trabajo";
 import { resumenDeComision } from "@/lib/digitalizacion/servidor/comision";
@@ -77,7 +78,9 @@ export default async function DigitalizacionPage() {
                 <li key={r.pedidoId} className="space-y-2 p-4">
                   <div className="flex flex-wrap items-baseline justify-between gap-2">
                     <p className="font-semibold">Pedido {r.pedidoNumero}{r.cliente ? ` · ${r.cliente}` : ""}</p>
-                    <span className="text-xs text-gray-600">{r.videos === 1 ? "1 video listo" : `${r.videos} videos listos`}</span>
+                    <span className="text-xs text-gray-600">
+                      {textoDeCassettes(r.cassettes)} · {r.videos === 1 ? "1 video listo" : `${r.videos} videos listos`}
+                    </span>
                   </div>
                   <p className={estado === "CON_ERROR" ? "fo-alert-warning px-2 text-sm" : "text-sm"}>{textoDeEntrega(estado, datosTextoEntrega(r, ajustes.envioAutomatico), ahora)}</p>
                   <EnvioYCargos entregaId={r.entrega?.id ?? null} envio={r.envio} cargos={r.cargosPendientes} aRevisar={r.cargosARevisar} puedeGestionar={puedeGrabar} />
@@ -88,6 +91,7 @@ export default async function DigitalizacionPage() {
                       estado={estado}
                       tieneEmail={r.tieneEmail}
                       envioAutomatico={r.entrega?.envioAutomatico ?? ajustes.envioAutomatico}
+                      avisoFaltantes={confirmacionEnvioIncompleto(r.cassettes)}
                     >
                       <VerComoCliente pedidoId={r.pedidoId} />
                     </AccionesEntrega>

@@ -166,11 +166,14 @@ function estadoInicialDeConversion(tipo: string, sinImagen: boolean): "PENDIENTE
 }
 
 /**
- * La grabación ya quedó COMPLETA: si tiene imagen y es de un trabajo, el trabajo pasa a «Grabado»
- * (sólo hacia adelante; ver `../etapas-automaticas.ts`). Nunca hace fallar el cierre.
+ * La grabación ya quedó COMPLETA: si es de un trabajo, el trabajo pasa a «Grabado» cuando tiene
+ * grabados todos los cassettes vendidos (o, sin la cantidad, con la primera grabación con imagen).
+ * Lo decide `avanzarTrabajos` (ver `../cassettes.ts`); también se llama con una grabación sin
+ * imagen, porque puede ser la que completa la cantidad. Sólo hacia adelante. Nunca hace fallar el
+ * cierre.
  */
-async function avanzarAGrabado(workspaceId: string, proyectoId: string | null, sinImagen: boolean): Promise<void> {
-  if (!proyectoId || sinImagen) return;
+async function avanzarAGrabado(workspaceId: string, proyectoId: string | null): Promise<void> {
+  if (!proyectoId) return;
   try {
     await avanzarTrabajos(workspaceId, [proyectoId], "GRABADO");
   } catch (e) {
@@ -190,7 +193,7 @@ export async function cerrarGrabacion(ctx: CtxDigitalizacion, id: string, c: Cie
     where: { id: g.id },
     data: { ...datos, estado: "COMPLETA", motivoFin: c.motivoFin, terminadaAt: new Date(), conversionEstado: estadoInicialDeConversion(g.tipo, sinImagenFinal) },
   });
-  await avanzarAGrabado(ctx.workspaceId, g.proyectoId, sinImagenFinal);
+  await avanzarAGrabado(ctx.workspaceId, g.proyectoId);
   return { ok: true };
 }
 
@@ -222,7 +225,7 @@ export async function terminarConLoGrabado(ctx: CtxDigitalizacion, id: string): 
     data: { estado: "COMPLETA", motivoFin: "TERMINADA_CON_LO_GRABADO", terminadaAt: new Date(), conversionEstado: estadoInicialDeConversion(g.tipo, g.sinImagen) },
   });
   if (r.count !== 1) return NO_EXISTE;
-  await avanzarAGrabado(ctx.workspaceId, g.proyectoId, g.sinImagen);
+  await avanzarAGrabado(ctx.workspaceId, g.proyectoId);
   return { ok: true };
 }
 

@@ -2,8 +2,9 @@ import "server-only";
 import { prisma, type Prisma } from "@repo/db";
 import { ID_VALIDO } from "../claves";
 import { tituloDeVideo } from "../entrega";
-import { esTrabajoDeDigitalizacion } from "../trabajo";
+import { cuentasDeTrabajos } from "../cassettes";
 import { saldoDeVideosMinor } from "./cargos";
+import { selectCuentaTrabajo } from "./cassettes";
 import { grabacionesDelPedido, resumenDeEntregas, type ResumenEntrega } from "./entregas";
 
 /**
@@ -15,7 +16,15 @@ import { grabacionesDelPedido, resumenDeEntregas, type ResumenEntrega } from "./
 
 type Tx = Prisma.TransactionClient;
 
-export type TrabajoDeDigitalizacion = { id: string; numero: string; nombre: string; pedidoId: string | null; grabaciones: number };
+export type TrabajoDeDigitalizacion = {
+  id: string;
+  numero: string;
+  nombre: string;
+  pedidoId: string | null;
+  grabaciones: number;
+  /** Cassettes vendidos (null = no se sabe) y grabados (completos, sin descartar). */
+  cassettes: { esperados: number | null; grabados: number };
+};
 
 /** Los trabajos del negocio que cumplen `esTrabajoDeDigitalizacion` (grabaciones o nombre de video). */
 async function trabajosDeDigitalizacion(workspaceId: string, where: Prisma.FotofficeProyectoWhereInput): Promise<TrabajoDeDigitalizacion[]> {
@@ -23,15 +32,16 @@ async function trabajosDeDigitalizacion(workspaceId: string, where: Prisma.Fotof
     where: { ...where, workspaceId },
     orderBy: [{ createdAt: "asc" }],
     take: 50,
-    select: {
-      id: true, number: true, name: true, pedidoId: true,
-      product: { select: { name: true, category: { select: { name: true } } } },
-      _count: { select: { grabaciones: true } },
-    },
+    select: { number: true, ...selectCuentaTrabajo(workspaceId) },
   });
-  return trabajos
-    .filter((t) => esTrabajoDeDigitalizacion({ grabaciones: t._count.grabaciones, textos: [t.name, t.product?.name, t.product?.category?.name] }))
-    .map((t) => ({ id: t.id, numero: t.number, nombre: t.name, pedidoId: t.pedidoId, grabaciones: t._count.grabaciones }));
+  return cuentasDeTrabajos(trabajos).map(({ trabajo: t, cuenta }) => ({
+    id: t.id,
+    numero: t.number,
+    nombre: t.name,
+    pedidoId: t.pedidoId,
+    grabaciones: t.grabaciones.length,
+    cassettes: { esperados: cuenta.esperados, grabados: cuenta.grabados },
+  }));
 }
 
 /** Los trabajos de digitalización de un pedido (para el pedido y para «Ir a grabar» del Cobrador). */

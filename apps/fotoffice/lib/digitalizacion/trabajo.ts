@@ -127,6 +127,8 @@ export type DatosTextoEntrega = {
   videosVencenAt: Date | null;
   videosBorradosAt: Date | null;
   registro: EnvioRegistrado;
+  /** Cassettes vendidos (null = no se sabe) y los que faltan terminar. */
+  cassettes: { esperados: number | null; faltan: number };
 };
 
 /** Arma los datos del texto a partir del resumen de la entrega (`resumenDeEntregas`). */
@@ -138,6 +140,7 @@ export function datosTextoEntrega(
     enviaSoloDesde: Date | null;
     entrega: { envioAutomatico: boolean; enviadoAt: Date | null; videosVencenAt: Date | null; videosBorradosAt: Date | null } | null;
     envioRegistrado: EnvioRegistrado;
+    cassettes?: { esperados: number | null; faltan: number };
   },
   envioAutomaticoPorDefecto: boolean,
 ): DatosTextoEntrega {
@@ -151,6 +154,7 @@ export function datosTextoEntrega(
     videosVencenAt: r.entrega?.videosVencenAt ?? null,
     videosBorradosAt: r.entrega?.videosBorradosAt ?? null,
     registro: r.envioRegistrado,
+    cassettes: { esperados: r.cassettes?.esperados ?? null, faltan: r.cassettes?.faltan ?? 0 },
   };
 }
 
@@ -167,8 +171,11 @@ function comoSeEnvio(d: DatosTextoEntrega): string {
 /** Lo que se dice de la entrega de un pedido (la lista de Digitalización, el trabajo y el pedido). */
 export function textoDeEntrega(estado: EstadoVisibleEntrega, d: DatosTextoEntrega, ahora: Date): string {
   if (d.cancelado && estado !== "ENVIADA" && estado !== "BORRADA") return "Pedido cancelado: no se envían los videos.";
+  // Pedido 2026-0006: con cassettes vendidos sin grabar no sale solo; «Enviar al cliente» pregunta.
+  if (estado === "LISTA_PARA_ENVIAR" && d.cassettes.faltan > 0) return textoFaltanCassettes(d.cassettes.faltan);
   if (estado === "LISTA_PARA_ENVIAR" && d.automatico && d.tieneEmail && d.enviaSoloDesde && d.enviaSoloDesde.getTime() > ahora.getTime()) {
-    return `Listo · se envía solo el ${fechaHoraArgentina(d.enviaSoloDesde)} si no grabás otro cassette`;
+    const resto = d.cassettes.esperados === null ? " si no grabás otro cassette" : "";
+    return `Listo · se envía solo el ${fechaHoraArgentina(d.enviaSoloDesde)}${resto}`;
   }
   switch (estado) {
     case "CONVIRTIENDO": return "Convirtiendo…";
@@ -183,6 +190,11 @@ export function textoDeEntrega(estado: EstadoVisibleEntrega, d: DatosTextoEntreg
     case "BORRADA": return `Videos borrados el ${fechaArgentina(d.videosBorradosAt ?? d.videosVencenAt!, "corta")}`;
     default: return "";
   }
+}
+
+/** «Falta grabar 1 cassette» / «Falta grabar 2 cassettes». */
+export function textoFaltanCassettes(faltan: number): string {
+  return `Falta grabar ${faltan} ${faltan === 1 ? "cassette" : "cassettes"}`;
 }
 
 /** El saldo que traba los videos (sin los extras opcionales); null si está pagado. */

@@ -401,9 +401,12 @@ describe("avance a «Grabado» al terminar la grabación", () => {
     expect(etapas.avanzarTrabajos).toHaveBeenCalledWith("ws1", ["p1"], "GRABADO");
     expect(db.digitalizacionGrabacion.update.mock.invocationCallOrder[0]).toBeLessThan(etapas.avanzarTrabajos.mock.invocationCallOrder[0]!);
   });
-  it("sin imagen o sin trabajo: no avanza", async () => {
+  it("sin imagen también pide el avance (puede completar la cantidad; decide `avanzarTrabajos`)", async () => {
     db.digitalizacionGrabacion.findFirst.mockResolvedValueOnce(abierta).mockResolvedValueOnce({ tramosSinSenal: [], sinImagen: true });
     await cerrarGrabacion(ctx, "g1", { ...cierre, sinImagen: true });
+    expect(etapas.avanzarTrabajos).toHaveBeenCalledWith("ws1", ["p1"], "GRABADO");
+  });
+  it("sin trabajo: no avanza", async () => {
     db.digitalizacionGrabacion.findFirst.mockResolvedValueOnce({ ...abierta, proyectoId: null }).mockResolvedValueOnce({ tramosSinSenal: [], sinImagen: false });
     await cerrarGrabacion(ctx, "g1", cierre);
     expect(etapas.avanzarTrabajos).not.toHaveBeenCalled();
@@ -415,7 +418,7 @@ describe("avance a «Grabado» al terminar la grabación", () => {
     expect(await cerrarGrabacion(ctx, "g1", cierre)).toEqual({ ok: true });
     expect(db.digitalizacionGrabacion.update.mock.calls[0][0].data.estado).toBe("COMPLETA");
   });
-  it("terminarConLoGrabado: avanza si tiene imagen, no si no tiene, y un error no la rompe", async () => {
+  it("terminarConLoGrabado: pide el avance con o sin imagen, y un error no la rompe", async () => {
     db.digitalizacionGrabacion.updateMany.mockResolvedValue({ count: 1 });
     db.digitalizacionGrabacion.findFirst.mockResolvedValue({ ...abierta, ...viejo, sinImagen: false });
     expect(await terminarConLoGrabado(ctx, "g1")).toEqual({ ok: true });
@@ -423,7 +426,7 @@ describe("avance a «Grabado» al terminar la grabación", () => {
     etapas.avanzarTrabajos.mockClear();
     db.digitalizacionGrabacion.findFirst.mockResolvedValue({ ...abierta, ...viejo, sinImagen: true });
     await terminarConLoGrabado(ctx, "g1");
-    expect(etapas.avanzarTrabajos).not.toHaveBeenCalled();
+    expect(etapas.avanzarTrabajos).toHaveBeenCalledWith("ws1", ["p1"], "GRABADO");
     vi.spyOn(console, "error").mockImplementation(() => {});
     etapas.avanzarTrabajos.mockRejectedValueOnce(new Error("motor caído"));
     db.digitalizacionGrabacion.findFirst.mockResolvedValue({ ...abierta, ...viejo, sinImagen: false });

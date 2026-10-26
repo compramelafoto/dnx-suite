@@ -15,8 +15,10 @@ vi.mock("./cargos", () => cargos);
 import { entregaDelPedido, trabajoParaGrabar, trabajosDeDigitalizacionDelPedido } from "./trabajo";
 
 const trabajo = (extra: Record<string, unknown> = {}) => ({
-  id: "t1", number: "2026-0001", name: "Trabajo", pedidoId: "p1", product: null, _count: { grabaciones: 0 }, ...extra,
+  id: "t1", number: "2026-0001", name: "Trabajo", pedidoId: "p1", pedidoItemIndex: null, product: null, pedido: null, grabaciones: [], ...extra,
 });
+
+const completa = { estado: "COMPLETA", conversionEstado: "LISTA", sinImagen: false };
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -25,14 +27,23 @@ beforeEach(() => {
 describe("trabajosDeDigitalizacionDelPedido", () => {
   it("se queda con los que tienen grabaciones o hablan de video, siempre dentro del negocio", async () => {
     db.fotofficeProyecto.findMany.mockResolvedValue([
-      trabajo({ id: "t1", _count: { grabaciones: 2 } }),
+      trabajo({ id: "t1", grabaciones: [completa, { ...completa, estado: "DESCARTADA" }] }),
       trabajo({ id: "t2", product: { name: "Digitalización de VHS", category: null } }),
       trabajo({ id: "t3", product: { name: "Copia 15x21", category: { name: "Impresiones" } } }),
       trabajo({ id: "t4", product: { name: "Servicio", category: { name: "Digitalización de video" } } }),
     ]);
     const r = await trabajosDeDigitalizacionDelPedido("ws1", "p1");
     expect(r.map((t) => t.id)).toEqual(["t1", "t2", "t4"]);
+    expect(r[0]).toMatchObject({ grabaciones: 2, cassettes: { esperados: null, grabados: 1 } });
     expect(db.fotofficeProyecto.findMany.mock.calls[0][0].where).toEqual({ pedidoId: "p1", workspaceId: "ws1" });
+  });
+
+  it("pedido 2026-0006: cuenta los cassettes vendidos del ítem del trabajo", async () => {
+    db.fotofficeProyecto.findMany.mockResolvedValue([
+      trabajo({ pedidoItemIndex: 0, pedido: { items: [{ id: "i0", nombre: "Digitalización de VHS", cantidad: 2 }] }, grabaciones: [completa] }),
+    ]);
+    const [t] = await trabajosDeDigitalizacionDelPedido("ws1", "p1");
+    expect(t?.cassettes).toEqual({ esperados: 2, grabados: 1 });
   });
 
   it("un id con forma rara no consulta", async () => {

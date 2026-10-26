@@ -2,9 +2,13 @@
  * Avance automático de las etapas de un trabajo de digitalización. Módulo PURO (sin base).
  *
  * Dos hechos mueven el trabajo solo, siempre hacia adelante:
- * - **GRABADO:** una grabación del trabajo quedó COMPLETA, sin descartar y con imagen.
- * - **LISTO:** la entrega del pedido se envió al cliente por primera vez (correo o «Copiar
- *   enlace»). Se saltean las intermedias («Subido a la nube…»): los videos ya están en la nube.
+ * - **GRABADO:** el trabajo tiene grabados todos los cassettes vendidos (la `cantidad` de su ítem
+ *   del pedido) y al menos uno con imagen. Si no se sabe cuántos se vendieron, con la primera
+ *   grabación COMPLETA, sin descartar y con imagen. Ver `cumpleGrabado` en `./cassettes.ts`.
+ * - **LISTO:** la entrega del pedido se envió al cliente y el trabajo tiene hechos (convertidos)
+ *   todos sus cassettes, o no se sabe cuántos son. Se saltean las intermedias («Subido a la
+ *   nube…»): los videos ya están en la nube. Un trabajo al que le faltaban cassettes al enviar
+ *   llega después, por la conciliación del cron, cuando se convierte el que faltaba.
  *
  * **Cómo se encuentra la etapa.** Las etapas son configurables, así que se buscan por nombre:
  * sin tildes, en minúsculas y por inclusión, entre las etapas activas del flujo y en su orden.
@@ -70,18 +74,19 @@ export function notaAutomatica(etapa: string, objetivo: ObjetivoEtapa): string {
 }
 
 /**
- * Conciliación de trabajos viejos: con la entrega enviada apunta a LISTO; si el flujo no tiene esa
- * etapa, a GRABADO (la entrega implica videos grabados). Sin entrega, con una grabación terminada
- * con imagen, a GRABADO. null si no hay ningún hecho.
+ * Conciliación (trabajos viejos, avances que fallaron y cassettes que se completan después del
+ * envío): con `listo` (entrega enviada y cassettes hechos) apunta a LISTO; si el flujo no tiene esa
+ * etapa, a GRABADO. Con `grabado` (cassettes grabados, ver `cumpleGrabado`), a GRABADO. null si no
+ * hay ningún hecho.
  */
 export function decidirConciliacion<E extends EtapaParaAvance>(
   etapas: readonly E[],
   estado: EstadoTrabajo,
-  hechos: { grabacionTerminadaConImagen: boolean; entregaEnviada: boolean },
+  hechos: { grabado: boolean; listo: boolean },
 ): DecisionAvance<E> | null {
   const objetivos: ObjetivoEtapa[] = [];
-  if (hechos.entregaEnviada) objetivos.push("LISTO");
-  if (hechos.grabacionTerminadaConImagen || hechos.entregaEnviada) objetivos.push("GRABADO");
+  if (hechos.listo) objetivos.push("LISTO");
+  if (hechos.grabado || hechos.listo) objetivos.push("GRABADO");
   if (objetivos.length === 0) return null;
   let ultima: DecisionAvance<E> | null = null;
   for (const o of objetivos) {
