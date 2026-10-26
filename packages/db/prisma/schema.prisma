@@ -27527,7 +27527,7 @@ model FotofficeTestimonio {
   /// Por ejemplo «Novia, casamiento en Rosario».
   autorDetalle        String?
   autorFotoUrl        String?
-  /// Key en el bucket de FOTOFFICE (`fotoffice/<workspaceId>/sitio/testimonios/…`).
+  /// Key en el bucket de FOTOFFICE (`fotoffice/site-testimonios/<workspaceId>/…`); `autorFotoUrl` se arma siempre de acá.
   autorFotoKey        String?
   autorEnlace         String?
   /// Nunca sale en ninguna lectura pública.

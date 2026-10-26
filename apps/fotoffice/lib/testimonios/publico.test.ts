@@ -7,7 +7,7 @@ const { testimonio } = vi.hoisted(() => ({
 vi.mock("server-only", () => ({}));
 vi.mock("@repo/db", () => ({ prisma: { fotofficeTestimonio: testimonio } }));
 
-const { listarTestimoniosPublicos, hayTestimoniosPublicados } = await import("./publico");
+const { listarTestimoniosPublicos, hayTestimoniosPublicados, fotoPublicaDelAutor } = await import("./publico");
 
 const fila = (over: Record<string, unknown> = {}) => ({
   id: "t1",
@@ -16,6 +16,7 @@ const fila = (over: Record<string, unknown> = {}) => ({
   autorNombre: "Sofi",
   autorDetalle: "Novia",
   autorFotoUrl: null,
+  autorFotoKey: null,
   autorEnlace: null,
   calificacion: 5,
   destacado: false,
@@ -107,5 +108,30 @@ describe("hayTestimoniosPublicados", () => {
     expect(await hayTestimoniosPublicados("ws-1")).toBe(false);
     testimonio.findFirst.mockRejectedValueOnce(p2021());
     expect(await hayTestimoniosPublicados("ws-1")).toBe(false);
+  });
+});
+
+describe("fotoPublicaDelAutor", () => {
+  const BASE = "https://media.fotoffice.com/";
+  const KEY = "fotoffice/site-testimonios/ws-1/a.jpg";
+
+  it("con key propia, la dirección se arma de la key (no de la URL guardada)", () => {
+    process.env.R2_PUBLIC_URL = "https://media.fotoffice.com";
+    try {
+      expect(fotoPublicaDelAutor({ autorFotoKey: KEY, autorFotoUrl: "https://rastreador.com/x.gif" }, BASE)).toBe(`https://media.fotoffice.com/${KEY}`);
+    } finally {
+      delete process.env.R2_PUBLIC_URL;
+    }
+  });
+
+  it("sin key, sólo una URL del bucket de FOTOFFICE o una ruta propia", () => {
+    expect(fotoPublicaDelAutor({ autorFotoKey: null, autorFotoUrl: `https://media.fotoffice.com/${KEY}` }, BASE)).toBe(`https://media.fotoffice.com/${KEY}`);
+    expect(fotoPublicaDelAutor({ autorFotoKey: null, autorFotoUrl: "/foto.jpg" }, BASE)).toBe("/foto.jpg");
+    expect(fotoPublicaDelAutor({ autorFotoKey: null, autorFotoUrl: "https://storage.alboom.ninja/x.jpg" }, BASE)).toBeNull();
+    expect(fotoPublicaDelAutor({ autorFotoKey: null, autorFotoUrl: "//otro.com/x.jpg" }, BASE)).toBeNull();
+  });
+
+  it("una key fuera del namespace de FOTOFFICE no arma nada", () => {
+    expect(fotoPublicaDelAutor({ autorFotoKey: "otra-app/x.jpg", autorFotoUrl: "https://rastreador.com/x.gif" }, BASE)).toBeNull();
   });
 });

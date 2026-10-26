@@ -23,6 +23,12 @@ function enlaceSeguro(url: string | null): string | null {
   return url && /^https?:\/\//i.test(url) ? url : null;
 }
 
+/**
+ * La foto ya llega filtrada por `listarTestimoniosPublicos` (`fotoPublicaDelAutor`): sólo del bucket
+ * público de FOTOFFICE, armada de la key, o una ruta propia; lo demás llega en null. La tarjeta
+ * también se dibuja en el navegador, donde no se conoce el bucket: acá se vuelve a mirar la forma
+ * (https o ruta propia, nunca `//otro-sitio`) y, si no sirve, van las iniciales.
+ */
 function Avatar({ t }: { t: TestimonioPublico }) {
   if (urlMostrable(t.autorFotoUrl)) {
     return (

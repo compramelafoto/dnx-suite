@@ -122,3 +122,34 @@ describe("esTablaFaltante", () => {
     expect(esTablaFaltante(new Error("x"))).toBe(false);
   });
 });
+
+describe("foto del autor", () => {
+  const BASE = "https://media.fotoffice.com";
+
+  it("sólo se muestra si es del bucket público de FOTOFFICE o una ruta propia", async () => {
+    const { fotoAutorMostrable } = await import("./dominio");
+    expect(fotoAutorMostrable(`${BASE}/fotoffice/site-testimonios/ws-1/a.jpg`, BASE)).toBe(`${BASE}/fotoffice/site-testimonios/ws-1/a.jpg`);
+    expect(fotoAutorMostrable(`${BASE}/x.jpg`, `${BASE}/`)).toBe(`${BASE}/x.jpg`);
+    expect(fotoAutorMostrable("/logo.png", BASE)).toBe("/logo.png");
+    expect(fotoAutorMostrable("//rastreador.com/pixel.gif", BASE)).toBeNull();
+    expect(fotoAutorMostrable("https://rastreador.com/pixel.gif", BASE)).toBeNull();
+    expect(fotoAutorMostrable(`${BASE}.rastreador.com/x.jpg`, BASE)).toBeNull();
+    expect(fotoAutorMostrable("https://otro.com/x.jpg", null)).toBeNull();
+    expect(fotoAutorMostrable(null, BASE)).toBeNull();
+  });
+
+  it("la key tiene que ser de este workspace y sin trucos", async () => {
+    const { esKeyFotoAutor, prefijoFotoAutor } = await import("./dominio");
+    expect(prefijoFotoAutor("ws-1")).toBe("fotoffice/site-testimonios/ws-1/");
+    expect(esKeyFotoAutor("ws-1", "fotoffice/site-testimonios/ws-1/1730000000-abc.jpg")).toBe(true);
+    expect(esKeyFotoAutor("ws-1", "fotoffice/site-testimonios/ws-2/a.jpg")).toBe(false);
+    expect(esKeyFotoAutor("ws-1", "fotoffice/site-testimonios/ws-1/../ws-2/a.jpg")).toBe(false);
+    expect(esKeyFotoAutor("ws-1", "fotoffice/site-trabajos/ws-1/a.jpg")).toBe(false);
+    expect(esKeyFotoAutor("ws-1", 42)).toBe(false);
+  });
+
+  it("el permiso nombra al estudio", async () => {
+    const { textoConsentimiento } = await import("./dominio");
+    expect(textoConsentimiento("DNX Estudio")).toBe("Acepto que DNX Estudio publique mi testimonio con mi nombre y foto en su sitio web.");
+  });
+});

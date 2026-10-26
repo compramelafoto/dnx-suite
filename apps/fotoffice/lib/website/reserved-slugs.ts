@@ -69,9 +69,9 @@ const SITE_FOLDER_SEGMENTS = [
   // Carpetas bajo app/w/[workspaceSlug]/
   "archivos", "asociarse", "blog", "coberturas", "contrato", "cursos", "entrar", "galeria",
   "impresion", "institucional", "obras", "pedido", "presupuesto", "proyecto", "recibo",
-  "reservas", "reunion", "socios", "sorteos", "tienda", "videos", "xv",
+  "reservas", "reunion", "socios", "sorteos", "testimonio", "testimonios", "tienda", "trabajos", "videos", "xv",
   // Rutas fijas del sitio que no son carpetas de esa ruta
-  "trabajos", "testimonio", "testimonios", "insertar", "api", "w", "sitemap.xml", "robots.txt",
+  "insertar", "api", "w", "sitemap.xml", "robots.txt",
 ] as const;
 
 export const RESERVED_SITE_SEGMENTS: readonly string[] = [

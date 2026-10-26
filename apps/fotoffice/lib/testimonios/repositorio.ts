@@ -1,5 +1,5 @@
 import "server-only";
-import { prisma } from "@repo/db";
+import { prisma, type Prisma } from "@repo/db";
 import {
   ESTADOS_TESTIMONIO,
   esTablaFaltante,
@@ -27,14 +27,18 @@ export type ExtrasTestimonio = {
   origenExternoId?: string | null;
 };
 
-/** Crea un testimonio PENDIENTE: siempre pasa por la moderación del estudio antes de salir. */
+/**
+ * Crea un testimonio PENDIENTE: siempre pasa por la moderación del estudio antes de salir. `db` es
+ * la transacción cuando nace de una invitación (se marca usada en la misma).
+ */
 export async function crearTestimonio(
   workspaceId: string,
   datos: DatosTestimonio,
   extras: ExtrasTestimonio,
   ahora: Date = new Date(),
+  db: Prisma.TransactionClient | typeof prisma = prisma,
 ): Promise<{ id: string }> {
-  return prisma.fotofficeTestimonio.create({
+  return db.fotofficeTestimonio.create({
     data: {
       workspaceId,
       ...datos,

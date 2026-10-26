@@ -5,6 +5,11 @@
 -- (y después `prisma migrate resolve --applied`). El código tolera que falten: el sitio muestra vacío.
 -- Diseño: apps/fotoffice/docs/superpowers/specs/2026-10-26-sitio-dnx-desde-alboom-design.md (PR 3)
 
+-- Todo en una sola transacción: si algo falla a mitad (por ejemplo, el CHECK de plantillas), no queda
+-- ningún CHECK borrado sin volver a crear. `psql -f` corre cada sentencia por separado: sin este
+-- BEGIN/COMMIT, un corte entre un DROP y su ADD dejaba la tabla sin la regla.
+BEGIN;
+
 -- CreateTable
 CREATE TABLE IF NOT EXISTS "FotofficeTestimonio" (
     "id" TEXT NOT NULL,
@@ -109,3 +114,5 @@ ALTER TABLE "FotofficeTestimonioAjustes" ADD CONSTRAINT "FotofficeTestimonioAjus
 -- no lo tiene (se conserva por si hay filas viejas). Idempotente.
 ALTER TABLE "FotofficeMessageTemplate" DROP CONSTRAINT IF EXISTS "FotofficeMessageTemplate_entityType";
 ALTER TABLE "FotofficeMessageTemplate" ADD CONSTRAINT "FotofficeMessageTemplate_entityType" CHECK ("entityType" IN ('GENERAL', 'CLIENTE', 'SOCIO', 'CONSULTA', 'PRESUPUESTO', 'PEDIDO', 'PROYECTO', 'CITA', 'CONTRATO', 'GALERIA', 'TESTIMONIO'));
+
+COMMIT;

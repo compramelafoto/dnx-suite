@@ -4,6 +4,8 @@
  * guardarse, y nada se publica sin su permiso (`puedePublicar`).
  */
 
+import { FOTOFFICE_R2_PREFIXES } from "@/lib/images/r2-key-policy";
+
 export const ESTADOS_TESTIMONIO = ["PENDIENTE", "PUBLICADO", "RECHAZADO"] as const;
 export type EstadoTestimonio = (typeof ESTADOS_TESTIMONIO)[number];
 
@@ -179,4 +181,39 @@ export function ordenarParaPublico<T extends { destacado: boolean }>(filas: read
 /** Las tablas de Testimonios se crean a mano: mientras no existan, Prisma tira P2021 y el sitio muestra vacío. */
 export function esTablaFaltante(err: unknown): boolean {
   return typeof err === "object" && err !== null && (err as { code?: unknown }).code === "P2021";
+}
+
+/** El permiso que acepta el autor en el formulario: se guarda tal cual, con el nombre del estudio. */
+export function textoConsentimiento(estudio: string): string {
+  return `Acepto que ${estudio.trim() || "el estudio"} publique mi testimonio con mi nombre y foto en su sitio web.`;
+}
+
+/** Foto del autor: JPG, PNG o WebP de hasta 5 MB; el navegador la achica antes a 800 px de lado. */
+export const FORMATOS_FOTO_AUTOR = ["image/jpeg", "image/png", "image/webp"] as const;
+export const MAX_BYTES_FOTO_AUTOR = 5 * 1024 * 1024;
+export const LADO_MAX_FOTO_AUTOR = 800;
+
+/** Prefijo de R2 de las fotos de autores de un workspace. Lo arma el servidor, nunca el navegador. */
+export function prefijoFotoAutor(workspaceId: string): string {
+  return `${FOTOFFICE_R2_PREFIXES.siteTestimonioPhoto}/${workspaceId}/`;
+}
+
+/** ¿La key es una foto de autor de ESTE workspace? (sin `..` ni barras raras). */
+export function esKeyFotoAutor(workspaceId: string, key: unknown): key is string {
+  if (typeof key !== "string" || key.length > 300) return false;
+  const prefijo = prefijoFotoAutor(workspaceId);
+  return key.startsWith(prefijo) && /^[A-Za-z0-9._-]+$/.test(key.slice(prefijo.length));
+}
+
+/**
+ * La foto del autor que se puede mostrar en el sitio: una dirección del bucket público de FOTOFFICE
+ * (`baseR2`, con o sin barra final) o una ruta propia (`/algo`, nunca `//otro-sitio`). Cualquier otra
+ * (un sitio ajeno que podría rastrear a quien mira) se descarta y la tarjeta muestra las iniciales.
+ */
+export function fotoAutorMostrable(url: string | null | undefined, baseR2: string | null): string | null {
+  if (typeof url !== "string" || !url) return null;
+  if (/^\/(?![\/\\])/.test(url)) return url;
+  const base = baseR2?.replace(/\/+$/, "");
+  if (base && /^https:\/\//i.test(base) && url.startsWith(`${base}/`) && !url.includes("..")) return url;
+  return null;
 }

@@ -1,6 +1,8 @@
 import "server-only";
 import { prisma } from "@repo/db";
-import { esTablaFaltante, ordenarParaPublico } from "./dominio";
+import { getFotofficeR2PublicUrl } from "@/lib/images/r2-client";
+import { isFotofficeOwnedR2Key } from "@/lib/images/r2-key-policy";
+import { esTablaFaltante, fotoAutorMostrable, ordenarParaPublico } from "./dominio";
 
 /**
  * Lecturas públicas de Testimonios (bloque TESTIMONIALS y página `/testimonios`). Todo lo que sale
@@ -18,6 +20,32 @@ export type TestimonioPublico = {
   autorEnlace: string | null;
   calificacion: number | null;
 };
+
+/** La dirección pública del bucket de FOTOFFICE (`https://…/`), o null si R2 no está configurado. */
+function baseR2(): string | null {
+  try {
+    return getFotofficeR2PublicUrl("");
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * La foto del autor que sale al sitio: si hay key propia, la dirección se arma de ella (nunca de lo
+ * guardado como URL); si no, la URL guardada sólo si es del bucket de FOTOFFICE o una ruta propia.
+ * Lo demás queda en null y la tarjeta muestra las iniciales.
+ */
+export function fotoPublicaDelAutor(f: { autorFotoUrl: string | null; autorFotoKey: string | null }, base: string | null = baseR2()): string | null {
+  let url = f.autorFotoUrl;
+  if (f.autorFotoKey && isFotofficeOwnedR2Key(f.autorFotoKey)) {
+    try {
+      url = getFotofficeR2PublicUrl(f.autorFotoKey);
+    } catch {
+      return null;
+    }
+  }
+  return fotoAutorMostrable(url, base);
+}
 
 /** Tope de seguridad para «todos»: una página pública no dibuja más que esto. */
 const TOPE_PUBLICO = 200;
@@ -47,11 +75,13 @@ export async function listarTestimoniosPublicos(
         autorNombre: true,
         autorDetalle: true,
         autorFotoUrl: true,
+        autorFotoKey: true,
         autorEnlace: true,
         calificacion: true,
         destacado: true,
       },
     });
+    const base = baseR2();
     return ordenarParaPublico(filas, barajar)
       .slice(0, limite)
       .map((f) => ({
@@ -60,7 +90,7 @@ export async function listarTestimoniosPublicos(
         extracto: f.extracto,
         autorNombre: f.autorNombre,
         autorDetalle: f.autorDetalle,
-        autorFotoUrl: f.autorFotoUrl,
+        autorFotoUrl: fotoPublicaDelAutor(f, base),
         autorEnlace: f.autorEnlace,
         calificacion: f.calificacion,
       }));

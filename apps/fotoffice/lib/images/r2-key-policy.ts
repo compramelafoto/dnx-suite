@@ -30,6 +30,8 @@ export const FOTOFFICE_R2_PREFIXES = {
   memberPortfolioPhoto: "fotoffice/member-portfolio",
   /** Fotos de los Trabajos del estudio que se muestran en el sitio público. */
   siteTrabajoPhoto: "fotoffice/site-trabajos",
+  /** Foto del autor de un testimonio del sitio (la sube el autor desde el formulario público). */
+  siteTestimonioPhoto: "fotoffice/site-testimonios",
   /** Fotos de un fotolibro (original, vista y miniatura), por plantilla. */
   fotolibroPhoto: "fotoffice/fotolibros",
   /** Fotos que el socio sube sólo para su placa de Socio de la semana («Más sobre mí»). */
