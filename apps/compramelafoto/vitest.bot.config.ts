@@ -11,6 +11,7 @@ export default defineConfig({
   test: {
     environment: "node",
     include: [
+      "lib/cron/send-album-notifications.test.ts",
       "lib/agencies/**/*.test.ts",
       "lib/albums/finalize-album-photo-from-raw.agency.test.ts",
       "lib/albums/enqueue-album-photo-ingest.test.ts",

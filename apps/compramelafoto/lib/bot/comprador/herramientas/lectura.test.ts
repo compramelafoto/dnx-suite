@@ -377,11 +377,26 @@ describe("ver_mi_pack", () => {
       data: { pedido: 9, estado: "pagado", pack: "Pack egresados", fechaLimiteCanje: "20/12/2026", canjeado: false, hayFotos: false, siguientePaso: "Todavía no hay fotos. Cuando el fotógrafo las suba y mande el aviso, vas a poder elegir desde este mismo enlace." },
     });
   });
-  it("con fotos y sin canjear; snapshot roto → pack null", async () => {
-    m.order.findUnique.mockResolvedValue({ id: 9, status: "PAID", origin: "PREVENTA_PACK", albumId: 3, redemptionOrderId: null, preventaPackSnapshotJson: { roto: true } });
+  it("con fotos, con aviso y sin canjear; snapshot roto → pack null", async () => {
+    m.order.findUnique.mockResolvedValue({
+      id: 9, status: "PAID", origin: "PREVENTA_PACK", albumId: 3, redemptionOrderId: null, preventaPackSnapshotJson: { roto: true },
+      redemptionPaymentRefsJson: { fotosListasAvisoAt: "2026-10-25T12:00:00.000Z" },
+    });
     m.photo.count.mockResolvedValue(12);
     const r = await tool(a(), "ver_mi_pack").run({}, ACTOR_MOTOR_COMPRADOR);
-    expect(r).toMatchObject({ ok: true, data: { pack: null, fechaLimiteCanje: null, hayFotos: true, siguientePaso: "Ya podés elegir tus fotos desde este enlace." } });
+    expect(r).toMatchObject({ ok: true, data: { pack: null, fechaLimiteCanje: null, hayFotos: true, avisoRecibido: true, siguientePaso: "Ya podés elegir tus fotos desde este enlace." } });
+  });
+  it("con fotos pero sin aviso del fotógrafo: no le dice que ya puede elegir (álbum 1075)", async () => {
+    m.order.findUnique.mockResolvedValue({
+      id: 9, status: "PAID", origin: "PREVENTA_PACK", albumId: 3, redemptionOrderId: null, preventaPackSnapshotJson: snapshot(null),
+      redemptionPaymentRefsJson: null,
+    });
+    m.photo.count.mockResolvedValue(257);
+    const r = await tool(a(), "ver_mi_pack").run({}, ACTOR_MOTOR_COMPRADOR);
+    expect(r).toMatchObject({ ok: true, data: { hayFotos: true, avisoRecibido: false } });
+    const paso = (r as { data: { siguientePaso: string } }).data.siguientePaso;
+    expect(paso).not.toMatch(/Ya podés elegir/);
+    expect(paso).toMatch(/curso todavía no esté cargado/);
   });
   it("canjeado", async () => {
     m.order.findUnique.mockResolvedValue({ id: 9, status: "PAID", origin: "PREVENTA_PACK", albumId: 3, redemptionOrderId: 50, preventaPackSnapshotJson: snapshot(null) });

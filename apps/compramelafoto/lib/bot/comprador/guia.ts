@@ -98,6 +98,8 @@ const DESCARGAS = `## Descargas
 const PREVENTA = `## Preventa escolar
 - Cómo funciona: la familia paga el pack por Mercado Pago; cuando el fotógrafo sube las fotos y manda el aviso, llega un mail; con el enlace del pack elige las fotos que le tocan (eso es el canje). Si el pack trae productos impresos, los entrega el fotógrafo; no prometas fechas de entrega.
 - En la página del pack, ver_mi_pack dice si ya hay fotos, si ya eligió, el siguientePaso y la fechaLimiteCanje si la hay.
+- El fotógrafo sube las fotos curso por curso. Que el álbum tenga fotos no quiere decir que estén las del alumno: eso lo marca avisoRecibido de ver_mi_pack. Sin aviso, no digas que ya puede elegir; decí que su curso puede no estar cargado todavía y que le llega un mail cuando esté.
+- Si no encuentra al alumno en las fotos: no le digas que mire todas una por una ni que pruebe la selfie como solución. Lo más probable es que falte subir su curso; abrí un caso con abrir_caso para que se le consulte al fotógrafo.
 - Si perdió el enlace del pack, se recupera en /cliente/recuperar-pack o con reenviar_link_pack: llega un enlace nuevo al mail de la compra y el anterior deja de funcionar. Avisale eso antes de mandarlo.
 - Alumno mal cargado, alumno que no está en la lista o curso equivocado: caso con abrir_caso.`;
 
