@@ -10,6 +10,7 @@ import { ID_VALIDO, esPrefijoHlsDe, prefijoDeGrabacion } from "../claves";
 import { descargasRestantes, segundosDeFirma, tituloDeVideo, vencimientosDesde, videosVencidos } from "../entrega";
 import { vistaPreviaAgotada } from "../hls";
 import { nombreArchivoVideo, nombreCliente } from "../nombre-archivo";
+import { MOTIVO_FIN_NO_DIGITALIZABLE, esNoDigitalizable, textoClienteNoDigitalizable } from "../no-digitalizable";
 import { SEGUNDOS_HLS, urlDeVideo } from "./almacen";
 import { cargosPendientes, saldoDeVideosMinor, urlsParaPagar } from "./cargos";
 import { esEstadoEnvio, puedeComprarDescarga, puedeExtender, puedePedirEnvio, type EstadoEnvio } from "../cargos";
@@ -65,6 +66,11 @@ export type VistaVideosPublica = {
   cassettesVencenAt: Date | null;
   habilitados: boolean;
   videos: VideoPublico[];
+  /**
+   * Los cassettes que no se pudieron digitalizar: «Cassette 7: no se pudo digitalizar (Cinta
+   * cortada)». Sin botones. Las grabaciones sin imagen comunes (cortes de prueba) no se muestran.
+   */
+  noDigitalizables: { id: string; texto: string }[];
   puedeExtender: boolean;
   extensionPendiente: { montoMinor: number; urlPagar: string | null } | null;
   envio: {
@@ -89,20 +95,33 @@ export async function resolverTokenEntrega(workspaceId: string, token: unknown) 
 }
 
 /**
- * Las grabaciones listas del pedido, con las descargas ya usadas en ESA entrega. Sin entrega
- * todavía (vista previa de un pedido sin fila): se filtra por un id que no existe, así no cuenta
- * las de nadie.
+ * Las grabaciones listas del pedido, con las descargas ya usadas en ESA entrega, y aparte los
+ * cassettes que no se pudieron digitalizar (en la misma consulta). Sin entrega todavía (vista previa
+ * de un pedido sin fila): se filtra por un id que no existe, así no cuenta las de nadie.
  */
 async function videosListos(workspaceId: string, pedidoId: string, entregaId: string | null) {
   const grabaciones = await prisma.digitalizacionGrabacion.findMany({
-    where: { workspaceId, estado: "COMPLETA", conversionEstado: "LISTA", proyecto: { pedidoId, workspaceId } },
+    where: {
+      workspaceId,
+      estado: "COMPLETA",
+      OR: [{ conversionEstado: "LISTA" }, { motivoFin: MOTIVO_FIN_NO_DIGITALIZABLE }],
+      proyecto: { pedidoId, workspaceId },
+    },
     orderBy: [{ iniciadaAt: "asc" }],
     select: {
       id: true, titulo: true, tipo: true, cassetteNumero: true, videoDuracionSeg: true, videoKey: true, hlsKey: true, conversionError: true, videoBorradoAt: true, descargasExtra: true,
+      conversionEstado: true, motivoFin: true,
       _count: { select: { descargas: { where: { entregaId: entregaId ?? "" } } } },
     },
   });
-  return grabaciones;
+  return {
+    // La consulta trae LISTA o NO_DIGITALIZABLE (que nunca es LISTA): lo que no es lo segundo es video.
+    listas: grabaciones.filter((g) => !esNoDigitalizable(g)),
+    noDigitalizables: grabaciones
+      .filter((g) => esNoDigitalizable(g))
+      .sort((a, b) => (a.cassetteNumero ?? 0) - (b.cassetteNumero ?? 0))
+      .map((g) => ({ id: g.id, texto: textoClienteNoDigitalizable(g) })),
+  };
 }
 
 function borradoDe(e: { videosBorradosAt: Date | null; videosVencenAt: Date | null }, ahora: Date): Date | null {
@@ -140,7 +159,7 @@ type VideoArmado = VideoPublico & { hlsOk: boolean };
  * ve el cliente como si se enviara hoy (30 días), sin escribir nada.
  */
 async function armarVista(workspaceId: string, e: EntregaParaVista, ahora: Date, previa: boolean): Promise<(Omit<VistaVideosPublica, "videos"> & { videos: VideoArmado[] }) | null> {
-  const [h, sitio, grabaciones] = await Promise.all([
+  const [h, sitio, { listas: grabaciones, noDigitalizables }] = await Promise.all([
     habilitacion(workspaceId, e, ahora),
     sitioDelWorkspace(workspaceId),
     videosListos(workspaceId, e.pedidoId, e.id),
@@ -190,6 +209,7 @@ async function armarVista(workspaceId: string, e: EntregaParaVista, ahora: Date,
     cassettesVencenAt: e.cassettesVencenAt,
     habilitados,
     videos,
+    noDigitalizables: cancelado ? [] : noDigitalizables,
     puedeExtender: puedeExtender(paraPedir, ahora),
     extensionPendiente: pendiente(pendientes.find((c) => c.tipo === "EXTENSION")),
     envio: {

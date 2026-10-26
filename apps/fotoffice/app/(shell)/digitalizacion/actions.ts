@@ -5,6 +5,7 @@ import { contextoDigitalizacion } from "@/lib/digitalizacion/contexto";
 import * as G from "@/lib/digitalizacion/servidor/grabaciones";
 import * as E from "@/lib/digitalizacion/servidor/entregas";
 import * as K from "@/lib/digitalizacion/servidor/cargos";
+import { validarNoDigitalizable } from "@/lib/digitalizacion/no-digitalizable";
 import { validarCierre, validarLatido, validarNuevaGrabacion, validarPedidoParte } from "@/lib/digitalizacion/validar";
 
 const SIN_PERMISO = { ok: false as const, error: "No tenés permiso para hacer esto.", definitivo: true };
@@ -75,6 +76,27 @@ export async function descartarGrabacionAction(grabacionId: string) {
   const ctx = await contextoDigitalizacion("MANAGE");
   if (!ctx) return SIN_PERMISO;
   const r = await G.descartarGrabacion(ctx, grabacionId);
+  refrescar();
+  return r;
+}
+
+/** «Registrar cassette que no se pudo digitalizar» (cinta cortada, vacía, mojada…). */
+export async function registrarNoDigitalizableAction(input: unknown) {
+  const ctx = await contextoDigitalizacion("MANAGE");
+  if (!ctx) return SIN_PERMISO;
+  const n = validarNoDigitalizable(input);
+  if (!n) return INVALIDO;
+  const r = await G.registrarNoDigitalizable(ctx, n);
+  refrescar();
+  return r;
+}
+
+/** «Quitar» un cassette que no se pudo digitalizar (queda descartado y deja de contar). */
+export async function quitarNoDigitalizableAction(grabacionId: string) {
+  const ctx = await contextoDigitalizacion("MANAGE");
+  if (!ctx) return SIN_PERMISO;
+  if (typeof grabacionId !== "string") return INVALIDO;
+  const r = await G.quitarNoDigitalizable(ctx, grabacionId);
   refrescar();
   return r;
 }

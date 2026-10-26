@@ -20,6 +20,8 @@ export type DatosVideosListos = {
   videosVencenAt: Date;
   cassettesVencenAt: Date;
   contacto: string | null;
+  /** Cassettes que no se pudieron digitalizar, ya armados: «Cassette 7 (Cinta cortada)». Ver `lineaCorreoNoDigitalizables`. */
+  noDigitalizables?: string | null;
 };
 
 export type Correo = { subject: string; text: string; html: string };
@@ -62,7 +64,10 @@ export function correoVideosListos(d: DatosVideosListos): Correo {
     { titulo: null, lineas: [`${saludo(d.nombre)} Ya digitalizamos ${n === 1 ? "tu video" : `tus ${n} videos`} del pedido N° ${d.pedidoNumero}.`] },
     {
       titulo: n === 1 ? "Tu video" : "Tus videos",
-      lineas: d.videos.map((v) => `• ${v.titulo}${v.duracionSeg != null ? ` (${duracionLegible(v.duracionSeg)})` : ""}`),
+      lineas: [
+        ...d.videos.map((v) => `• ${v.titulo}${v.duracionSeg != null ? ` (${duracionLegible(v.duracionSeg)})` : ""}`),
+        ...(d.noDigitalizables ? [d.noDigitalizables] : []),
+      ],
     },
   ];
   if (d.saldoMinor > 0) {
@@ -123,19 +128,25 @@ export type DatosVideoAgregado = {
   estudio: string;
   nombre: string;
   pedidoNumero: string;
+  /** Los videos nuevos desde el último aviso (uno o varios: un solo correo para todos). */
   videos: VideoDelCorreo[];
   urlVideos: string;
   videosVencenAt: Date;
   contacto: string | null;
 };
 
-/** Un video que se convirtió después del envío: el mismo enlace y el vencimiento nuevo. */
+/**
+ * Videos que se convirtieron después del envío: un solo correo con todos los nuevos («Agregamos 3
+ * videos a tu pedido»), el mismo enlace y el vencimiento vigente.
+ */
 export function correoVideoAgregado(d: DatosVideoAgregado): Correo {
+  const n = d.videos.length;
+  const cuantos = n === 1 ? "un video" : `${n} videos`;
   const bloques: Bloque[] = [
     {
       titulo: null,
       lineas: [
-        `${saludo(d.nombre)} Agregamos un video a tu pedido N° ${d.pedidoNumero}. Ahora tenés:`,
+        `${saludo(d.nombre)} Agregamos ${cuantos} a tu pedido N° ${d.pedidoNumero}:`,
         ...d.videos.map((v) => `• ${v.titulo}${v.duracionSeg != null ? ` (${duracionLegible(v.duracionSeg)})` : ""}`),
         `Están disponibles hasta el ${fechaArgentina(d.videosVencenAt)}. El enlace es el mismo de antes.`,
       ],
@@ -143,5 +154,5 @@ export function correoVideoAgregado(d: DatosVideoAgregado): Correo {
     },
   ];
   if (d.contacto) bloques.push({ titulo: null, lineas: [`Cualquier duda, escribinos: ${d.contacto}.`] });
-  return armar(`Agregamos un video a tu pedido · ${d.estudio}`, bloques, d.estudio);
+  return armar(`Agregamos ${cuantos} a tu pedido · ${d.estudio}`, bloques, d.estudio);
 }

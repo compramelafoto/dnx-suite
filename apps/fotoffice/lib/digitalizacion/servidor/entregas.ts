@@ -14,9 +14,10 @@ import { DIGITALIZACION_MODULE_KEY } from "../constants";
 import { correoRecordatorioVideos, correoVideoAgregado, correoVideosListos, type Correo } from "../correos-entrega";
 import type { CuentaPedido } from "../cassettes";
 import {
-  MINUTOS_ESPERA_CON_CANTIDAD, diasQueFaltan, envioAutomaticoDesde, estadoDeEntrega, extensionPorVideosNuevos, recordatorioQueCorresponde, tituloDeVideo,
+  MINUTOS_ESPERA_CON_CANTIDAD, avisoDeVideosNuevos, diasQueFaltan, envioAutomaticoDesde, estadoDeEntrega, extensionPorVideosNuevos, recordatorioQueCorresponde, tituloDeVideo,
   urlDeVideos, vencimientosDesde, videosVencidos, type PreparacionEntrega,
 } from "../entrega";
+import { esNoDigitalizable, lineaCorreoNoDigitalizables } from "../no-digitalizable";
 import { registroDeEnvio, type EnvioRegistrado } from "../trabajo";
 import { MAX_GENERACIONES_ENTREGA, generacionDeEntrega, tokenDeEntrega } from "../token-entrega";
 import { borrarVideoFinal } from "./almacen";
@@ -38,7 +39,10 @@ import { aplicarCargosPagados, anularCargosSinSentido, cargosARevisar, cargosPen
  * - **Varios cassettes:** el envío automático espera a que estén hechos todos los cassettes vendidos
  *   (la `cantidad` del ítem de cada trabajo, ver `../cassettes.ts`) y después 30 min de margen. Si
  *   no se sabe cuántos se vendieron, espera 12 h desde la última actividad del pedido. Un video que
- *   se convierte después del envío corre el vencimiento y avisa con el mismo enlace.
+ *   se convierte después del envío corre el vencimiento y avisa con el mismo enlace, agrupado: un
+ *   solo correo «Agregamos … a tu pedido» por pasada y nunca dos en menos de 6 h.
+ * - **Cassettes que no se pudieron digitalizar** (`../no-digitalizable.ts`) cuentan como hechos y
+ *   el correo «Tus videos están listos» los nombra en una línea.
  * - **Pedidos cancelados:** no se envían, no se ven y no se descargan.
  * - Los correos van con clave de idempotencia (entrega + generación + tipo): un reintento dentro de
  *   las 24 h no le llega dos veces al cliente.
@@ -99,7 +103,7 @@ export async function grabacionesDelPedido(workspaceId: string, pedidoId: string
     select: {
       id: true, proyectoId: true, estado: true, conversionEstado: true, titulo: true, tipo: true, cassetteNumero: true,
       videoDuracionSeg: true, videoKey: true, hlsKey: true, videoBorradoAt: true, descargasExtra: true,
-      sinImagen: true, terminadaAt: true, convertidaAt: true,
+      sinImagen: true, terminadaAt: true, convertidaAt: true, motivoFin: true,
     },
   });
 }
@@ -187,6 +191,8 @@ type DatosDelPedido = {
   nombre: string;
   videos: { proyectoId: string | null; titulo: string; duracionSeg: number | null }[];
   proyectoIds: string[];
+  /** Los cassettes que no se pudieron digitalizar (ver `../no-digitalizable.ts`). */
+  noDigitalizables: { tipo: string; cassetteNumero: number | null; titulo: string | null }[];
 };
 
 async function datosDelPedido(workspaceId: string, pedidoId: string): Promise<DatosDelPedido | null> {
@@ -207,6 +213,9 @@ async function datosDelPedido(workspaceId: string, pedidoId: string): Promise<Da
     nombre: pedido.client?.firstName?.trim() || pedido.client?.businessName?.trim() || "",
     videos: listas.map((g) => ({ proyectoId: g.proyectoId, titulo: tituloDeVideo(g), duracionSeg: g.videoDuracionSeg })),
     proyectoIds: [...new Set(listas.map((g) => g.proyectoId).filter((p): p is string => p !== null))],
+    noDigitalizables: grabaciones
+      .filter((g) => g.estado === "COMPLETA" && esNoDigitalizable(g))
+      .sort((a, b) => (a.cassetteNumero ?? 0) - (b.cassetteNumero ?? 0)),
   };
 }
 
@@ -328,6 +337,7 @@ export async function enviarEntrega(workspaceId: string, entregaId: string, modo
     videosVencenAt: venc.videosVencenAt,
     cassettesVencenAt: venc.cassettesVencenAt,
     contacto,
+    noDigitalizables: lineaCorreoNoDigitalizables(datos.noDigitalizables),
   });
   const salio = await mandar(workspaceId, datos.email!, correo, claveDeCorreo(e.id, `g${generacion}`, "listos"), deps);
   if (!salio) {
@@ -481,7 +491,10 @@ export type ReporteEnvios = {
   fallidas: number;
   /** Entregas ya enviadas a las que se les sumó un video (vencimiento corrido). */
   extendidas: number;
+  /** Correos «Agregamos … a tu pedido» que salieron (uno por entrega, con todos los videos nuevos). */
   avisosAgregado: number;
+  /** Entregas con videos nuevos que esperan: hubo un aviso hace menos de 6 h y se juntan. */
+  avisosEsperando: number;
   /** Cargos extra con la cuota paga que el cobro no llegó a aplicar (E6). */
   cargosAplicados: number;
   /** Comisión de plataforma (F1) que el cobro no llegó a devengar o revertir. */
@@ -556,7 +569,7 @@ async function pedidosParaEnviar(ahora: Date): Promise<{ pedidoId: string; works
 export async function enviarEntregasAutomaticas(deps: DepsEntrega & { tope?: number } = {}): Promise<ReporteEnvios> {
   const ahora = (deps.ahora ?? (() => new Date()))();
   const reporte: ReporteEnvios = {
-    revisadas: 0, enviadas: 0, faltanCassettes: 0, sinEmail: 0, noListas: 0, esperando: 0, manuales: 0, fallidas: 0, extendidas: 0, avisosAgregado: 0, cargosAplicados: 0,
+    revisadas: 0, enviadas: 0, faltanCassettes: 0, sinEmail: 0, noListas: 0, esperando: 0, manuales: 0, fallidas: 0, extendidas: 0, avisosAgregado: 0, avisosEsperando: 0, cargosAplicados: 0,
     comisionesDevengadas: 0, comisionesRevertidas: 0, etapasAvanzadas: 0,
   };
   // Primero los cargos pagos que quedaron sin aplicar (el cobro los aplica después del commit, sin reintento).
@@ -600,10 +613,19 @@ export async function enviarEntregasAutomaticas(deps: DepsEntrega & { tope?: num
 }
 
 /**
- * Un video que quedó LISTA después del envío tiene sus 30 días: se corre `videosVencenAt` (y
- * `cassettesVencenAt` si queda antes), se vacían los recordatorios y se avisa con el enlace
- * vigente (sin rotarlo). La escritura es condicional sobre el vencimiento leído y, una vez
- * extendida, la condición deja de cumplirse: no hace falta otra columna. Sin correo, sólo extiende.
+ * Videos que quedan LISTA después del envío. Dos cosas separadas:
+ *
+ * 1. **El vencimiento.** Cada video tiene sus 30 días: se corre `videosVencenAt` (y
+ *    `cassettesVencenAt` si queda antes) y se vacían los recordatorios. La escritura es condicional
+ *    sobre el vencimiento leído y, una vez extendida, la condición deja de cumplirse.
+ * 2. **El aviso «Agregamos … a tu pedido»**, agrupado (`avisoDeVideosNuevos`): un solo correo con
+ *    todos los videos nuevos desde el último aviso, y nunca dos en menos de 6 h. La marca del último
+ *    aviso ya existe, sin columna nueva: el envío (`enviadoAt`) y las notas que dejan los correos en
+ *    los trabajos del pedido («Correo «Tus videos están listos» enviado/reenviado…» y «Correo
+ *    «Agregamos…»»), que se escriben cuando el correo sale. La clave de idempotencia (marca + último
+ *    video) evita que un reintento le llegue dos veces si la nota no se pudo guardar.
+ *
+ * Sin correo del cliente, sólo extiende.
  */
 async function extenderPorVideosNuevos(
   ahora: Date,
@@ -631,31 +653,73 @@ async function extenderPorVideosNuevos(
     try {
       if (!(await estaEncendido(e.workspaceId))) continue;
       const grabaciones = await grabacionesDelPedido(e.workspaceId, e.pedidoId);
+      let vence = e.videosVencenAt!;
       const nuevo = extensionPorVideosNuevos(e.videosVencenAt, grabaciones);
-      if (!nuevo) continue;
-      const cassettes = e.cassettesVencenAt && e.cassettesVencenAt.getTime() >= nuevo.getTime() ? e.cassettesVencenAt : nuevo;
-      const r = await prisma.digitalizacionEntrega.updateMany({
-        where: { id: e.id, workspaceId: e.workspaceId, videosVencenAt: e.videosVencenAt, videosBorradosAt: null },
-        data: { videosVencenAt: nuevo, cassettesVencenAt: cassettes, recordatorios: [] },
-      });
-      if (r.count !== 1) continue;
-      reporte.extendidas++;
-      const datos = await datosDelPedido(e.workspaceId, e.pedidoId);
-      if (!datos?.email) continue;
-      const url = await enlaceVigente(e, deps);
-      if (!url) continue;
-      const [sitio, contacto] = await Promise.all([sitioDelWorkspace(e.workspaceId), contactoDelNegocio(e.workspaceId)]);
-      const correo = correoVideoAgregado({
-        estudio: sitio?.nombre || "el estudio", nombre: datos.nombre, pedidoNumero: datos.numero, videos: datos.videos, urlVideos: url, videosVencenAt: nuevo, contacto,
-      });
-      if (await mandar(e.workspaceId, datos.email, correo, claveDeCorreo(e.id, `v${nuevo.getTime()}`, "agregado"), deps)) {
-        reporte.avisosAgregado++;
-        await anotar(e.workspaceId, datos.proyectoIds, `Correo «Agregamos un video a tu pedido» enviado a ${datos.email}.`);
+      if (nuevo) {
+        const cassettes = e.cassettesVencenAt && e.cassettesVencenAt.getTime() >= nuevo.getTime() ? e.cassettesVencenAt : nuevo;
+        const r = await prisma.digitalizacionEntrega.updateMany({
+          where: { id: e.id, workspaceId: e.workspaceId, videosVencenAt: e.videosVencenAt, videosBorradosAt: null },
+          data: { videosVencenAt: nuevo, cassettesVencenAt: cassettes, recordatorios: [] },
+        });
+        // Alguien la tocó en el medio: la corrida siguiente la vuelve a mirar.
+        if (r.count !== 1) continue;
+        reporte.extendidas++;
+        vence = nuevo;
       }
+      const r = await avisarVideosNuevos({ ...e, videosVencenAt: vence }, grabaciones, ahora, deps);
+      if (r === "ENVIADO") reporte.avisosAgregado++;
+      if (r === "ESPERANDO") reporte.avisosEsperando++;
     } catch (err) {
       console.error("[digitalizacion][entrega] falló la extensión por un video nuevo", { codigo: codigo(err) });
     }
   }
+}
+
+/** El principio de las notas que deja un correo con la lista de videos (la marca del último aviso). */
+const NOTA_AGREGADO = "Correo «Agregamos";
+const NOTAS_DE_AVISO = [NOTA_AGREGADO, "Correo «Tus videos están listos»"];
+
+/** El último correo con la lista de videos que recibió el cliente: el envío o la última nota de aviso. */
+async function ultimoAvisoDe(e: EntregaLeida): Promise<Date> {
+  const nota = await prisma.fotofficeProyectoNota.findFirst({
+    where: { workspaceId: e.workspaceId, proyecto: { workspaceId: e.workspaceId, pedidoId: e.pedidoId }, OR: NOTAS_DE_AVISO.map((n) => ({ body: { startsWith: n } })) },
+    orderBy: { createdAt: "desc" },
+    select: { createdAt: true },
+  });
+  const enviado = e.enviadoAt!;
+  return nota && nota.createdAt.getTime() > enviado.getTime() ? nota.createdAt : enviado;
+}
+
+/** Un solo correo «Agregamos … a tu pedido» con los videos nuevos, si ya pasaron 6 h del último aviso. */
+async function avisarVideosNuevos(
+  e: EntregaLeida,
+  grabaciones: Awaited<ReturnType<typeof grabacionesDelPedido>>,
+  ahora: Date,
+  deps: DepsEntrega,
+): Promise<"NADA" | "ESPERANDO" | "ENVIADO" | "FALLO"> {
+  const enviado = e.enviadoAt;
+  if (!enviado || !e.videosVencenAt) return "NADA";
+  // Sin videos convertidos después del envío no hay nada que avisar: ni siquiera se leen las notas.
+  if (!grabaciones.some((g) => g.estado === "COMPLETA" && g.conversionEstado === "LISTA" && g.convertidaAt && g.convertidaAt.getTime() > enviado.getTime())) return "NADA";
+  const marca = await ultimoAvisoDe(e);
+  const aviso = avisoDeVideosNuevos(marca, grabaciones, ahora);
+  if (aviso.tipo === "NADA") return "NADA";
+  if (aviso.tipo === "ESPERAR") return "ESPERANDO";
+  const datos = await datosDelPedido(e.workspaceId, e.pedidoId);
+  if (!datos?.email || datos.cancelado) return "NADA";
+  const url = await enlaceVigente(e, deps);
+  if (!url) return "FALLO";
+  const [sitio, contacto] = await Promise.all([sitioDelWorkspace(e.workspaceId), contactoDelNegocio(e.workspaceId)]);
+  const nuevos = aviso.nuevos.map((g) => ({ titulo: tituloDeVideo(g), duracionSeg: g.videoDuracionSeg }));
+  const correo = correoVideoAgregado({
+    estudio: sitio?.nombre || "el estudio", nombre: datos.nombre, pedidoNumero: datos.numero, videos: nuevos, urlVideos: url, videosVencenAt: e.videosVencenAt, contacto,
+  });
+  const ultimo = aviso.nuevos[aviso.nuevos.length - 1]!.convertidaAt!;
+  if (!(await mandar(e.workspaceId, datos.email, correo, claveDeCorreo(e.id, `a${marca.getTime()}-${ultimo.getTime()}`, "agregado"), deps))) return "FALLO";
+  // La nota es la marca del aviso: va a todos los trabajos con videos del pedido.
+  const n = nuevos.length;
+  await anotar(e.workspaceId, datos.proyectoIds, `${NOTA_AGREGADO} ${n === 1 ? "un video" : `${n} videos`} a tu pedido» enviado a ${datos.email}.`);
+  return "ENVIADO";
 }
 
 // --- Cron diario: recordatorios y vencimiento (E8) --------------------------------------------

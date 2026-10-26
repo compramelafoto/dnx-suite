@@ -3,6 +3,8 @@ import { vistaPreviaAgotada } from "@/lib/digitalizacion/hls";
 import { PageHeader } from "@/components/page-header";
 import { AccionesGrabacion, AjusteMinutos } from "@/components/digitalizacion/acciones-grabacion";
 import { AccionesEntrega, AjustesEntrega, EnvioYCargos, VerComoCliente } from "@/components/digitalizacion/entregas";
+import { QuitarNoDigitalizable } from "@/components/digitalizacion/no-digitalizable";
+import { esNoDigitalizable, textoNoDigitalizable } from "@/lib/digitalizacion/no-digitalizable";
 import { confirmacionEnvioIncompleto, textoDeCassettes } from "@/lib/digitalizacion/cassettes";
 import { estadoVisibleDeEntrega, pesos } from "@/lib/digitalizacion/entrega";
 import { datosTextoEntrega, textoDeEntrega } from "@/lib/digitalizacion/trabajo";
@@ -23,6 +25,7 @@ const MOTIVOS: Record<string, string> = {
   TOPE: "Llegó al tope de 8 h 30 min",
   DVD_COMPLETO: "DVD completo",
   TERMINADA_CON_LO_GRABADO: "Terminada con lo grabado",
+  NO_DIGITALIZABLE: "No se pudo digitalizar",
 };
 const CONVERSION: Record<string, string> = {
   PENDIENTE: "En cola para convertir",
@@ -107,6 +110,17 @@ export default async function DigitalizacionPage() {
       {grabaciones.length === 0 ? <p className="text-sm text-gray-600">Todavía no hay grabaciones.</p> : (
         <ul className="divide-y rounded border">
           {grabaciones.map((g) => {
+            if (esNoDigitalizable(g)) {
+              return (
+                <li key={g.id} className="flex flex-wrap items-baseline justify-between gap-2 p-4">
+                  <p className="font-semibold">
+                    {textoNoDigitalizable(g)}
+                    {g.proyecto ? ` · ${g.proyecto.number} · ${g.proyecto.name}` : ""}
+                  </p>
+                  {puedeGrabar ? <QuitarNoDigitalizable id={g.id} /> : null}
+                </li>
+              );
+            }
             const estado = estadoVisible(g, ahora);
             return (
               <li key={g.id} className="space-y-2 p-4">

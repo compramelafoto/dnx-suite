@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { hashDeToken } from "@/lib/presupuestos/enlace";
 import {
-  DESCARGAS_INCLUIDAS, descargasRestantes, estadoDeEntrega, estadoVisibleDeEntrega, fechaArgentina, fechaHoraArgentina, pesos, tituloDeVideo,
+  DESCARGAS_INCLUIDAS, HORAS_ENTRE_AVISOS, avisoDeVideosNuevos, descargasRestantes, estadoDeEntrega, estadoVisibleDeEntrega, fechaArgentina, fechaHoraArgentina, pesos, tituloDeVideo,
   recordatorioQueCorresponde, urlDeVideos, diasQueFaltan, envioAutomaticoDesde, extensionPorVideosNuevos, finDelDiaArgentino, segundosDeFirma, validarFranjas, leerFranjas, leerNumero, vencimientosDesde, videosVencidos,
 } from "./entrega";
 import { generacionDeEntrega, tokenDeEntrega } from "./token-entrega";
@@ -252,5 +252,24 @@ describe("token y dirección", () => {
     expect(urlDeVideos({ customDomain: "estudio.com.ar", appOrigin: "https://fotoffice.com", slug: "x", token: "t" })).toBe("https://estudio.com.ar/videos/t");
     expect(urlDeVideos({ customDomain: null, appOrigin: "https://fotoffice.com", slug: "mi-estudio", token: "t" })).toBe("https://fotoffice.com/w/mi-estudio/videos/t");
     expect(urlDeVideos({ customDomain: null, appOrigin: "", slug: "mi-estudio", token: "t" })).toBeNull();
+  });
+});
+
+describe("avisoDeVideosNuevos (correo «Agregamos …» agrupado)", () => {
+  const aviso = new Date("2026-10-22T10:00:00Z");
+  const g = (convertidaAt: string, extra: Record<string, unknown> = {}) => ({ estado: "COMPLETA", conversionEstado: "LISTA", convertidaAt: new Date(convertidaAt), ...extra });
+  it("sin videos después del último aviso: nada", () => {
+    expect(avisoDeVideosNuevos(aviso, [g("2026-10-22T09:00:00Z")], new Date("2026-10-23T10:00:00Z"))).toEqual({ tipo: "NADA" });
+    // Descartados, sin imagen o «no se pudo» no son videos nuevos.
+    expect(avisoDeVideosNuevos(aviso, [g("2026-10-22T11:00:00Z", { estado: "DESCARTADA" }), g("2026-10-22T11:00:00Z", { conversionEstado: "SIN_IMAGEN" })], new Date("2026-10-23T10:00:00Z"))).toEqual({ tipo: "NADA" });
+  });
+  it("3 nuevos pasadas las 6 h: un solo aviso con los 3, en orden", () => {
+    const r = avisoDeVideosNuevos(aviso, [g("2026-10-22T13:00:00Z"), g("2026-10-22T11:00:00Z"), g("2026-10-22T12:00:00Z")], new Date("2026-10-22T16:00:00Z"));
+    expect(r.tipo).toBe("AVISAR");
+    expect(r.tipo === "AVISAR" && r.nuevos.map((x) => x.convertidaAt!.toISOString())).toEqual(["2026-10-22T11:00:00.000Z", "2026-10-22T12:00:00.000Z", "2026-10-22T13:00:00.000Z"]);
+  });
+  it("un nuevo 2 h después del aviso: espera hasta completar las 6 h", () => {
+    expect(avisoDeVideosNuevos(aviso, [g("2026-10-22T12:00:00Z")], new Date("2026-10-22T12:05:00Z"))).toEqual({ tipo: "ESPERAR", hasta: new Date("2026-10-22T16:00:00Z") });
+    expect(HORAS_ENTRE_AVISOS).toBe(6);
   });
 });
