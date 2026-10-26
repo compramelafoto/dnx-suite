@@ -15,9 +15,15 @@ export const UMBRALES_RECORDATORIO = [10, 5, 1] as const;
 export const MAX_FRANJAS = 20;
 const MAX_KM = 10_000;
 const MAX_PRECIO = 100_000_000;
-/** El envío automático espera esto desde la última actividad del pedido: puede venir otro cassette. */
+/**
+ * El envío automático espera esto desde la última actividad del pedido cuando no se sabe cuántos
+ * cassettes se vendieron: puede venir otro.
+ */
 export const HORAS_ESPERA_AUTOMATICO = 12;
+/** Con la cantidad conocida y todos los cassettes hechos, sólo un margen corto de protección. */
+export const MINUTOS_ESPERA_CON_CANTIDAD = 30;
 const HORA_MS = 60 * 60 * 1000;
+const MINUTO_MS = 60 * 1000;
 const ZONA = "America/Argentina/Buenos_Aires";
 
 // --- Cuándo está lista ------------------------------------------------------------------------
@@ -74,18 +80,28 @@ export function vencimientosDesde(enviadoAt: Date): { videosVencenAt: Date; cass
   return { videosVencenAt: vence, cassettesVencenAt: new Date(vence) };
 }
 
+/** El margen del envío automático: corto con la cantidad de cassettes conocida, 12 h si no. */
+export function margenEnvioAutomaticoMs(cantidadConocida: boolean): number {
+  return cantidadConocida ? MINUTOS_ESPERA_CON_CANTIDAD * MINUTO_MS : HORAS_ESPERA_AUTOMATICO * HORA_MS;
+}
+
 /**
- * Desde cuándo sale sola la entrega: 12 h después de la última actividad del pedido (el máximo
- * entre `terminadaAt` y `convertidaAt` de las grabaciones no descartadas), por si falta grabar otro
- * cassette. null = sin fechas (sale ya). El botón "Enviar al cliente" no espera.
+ * Desde cuándo sale sola la entrega: un margen después de la última actividad del pedido (el máximo
+ * entre `terminadaAt` y `convertidaAt` de las grabaciones no descartadas). Sin la cantidad de
+ * cassettes vendidos, 12 h (por si falta grabar otro); con la cantidad conocida, 30 min (que estén
+ * todos hechos lo decide `../cassettes.ts`). null = sin fechas (sale ya). El botón "Enviar al
+ * cliente" no espera.
  */
-export function envioAutomaticoDesde(grabaciones: readonly { estado: string; terminadaAt: Date | null; convertidaAt: Date | null }[]): Date | null {
+export function envioAutomaticoDesde(
+  grabaciones: readonly { estado: string; terminadaAt: Date | null; convertidaAt: Date | null }[],
+  opciones: { cantidadConocida?: boolean } = {},
+): Date | null {
   let ultima: number | null = null;
   for (const g of grabaciones) {
     if (g.estado === "DESCARTADA") continue;
     for (const f of [g.terminadaAt, g.convertidaAt]) if (f && (ultima === null || f.getTime() > ultima)) ultima = f.getTime();
   }
-  return ultima === null ? null : new Date(ultima + HORAS_ESPERA_AUTOMATICO * HORA_MS);
+  return ultima === null ? null : new Date(ultima + margenEnvioAutomaticoMs(opciones.cantidadConocida === true));
 }
 
 /**

@@ -85,7 +85,20 @@ describe("textoDeEntrega", () => {
   const datos = (extra: Partial<DatosTextoEntrega> = {}): DatosTextoEntrega => ({
     cancelado: false, tieneEmail: true, email: "ana@x.com", enviaSoloDesde: null, automatico: false,
     enviadoAt: new Date("2026-10-22T13:00:00Z"), videosVencenAt: new Date("2026-11-21T02:59:59.999Z"), videosBorradosAt: null,
-    registro: { primero: null, ultimoReenvio: null }, ...extra,
+    registro: { primero: null, ultimoReenvio: null }, cassettes: { esperados: null, faltan: 0 }, ...extra,
+  });
+
+  it("pedido 2026-0006: lista con cassettes vendidos sin grabar dice cuántos faltan", () => {
+    const d = datos({ enviadoAt: null, automatico: true, cassettes: { esperados: 2, faltan: 1 } });
+    expect(textoDeEntrega("LISTA_PARA_ENVIAR", d, AHORA)).toBe("Falta grabar 1 cassette");
+    expect(textoDeEntrega("LISTA_PARA_ENVIAR", datos({ enviadoAt: null, cassettes: { esperados: 3, faltan: 2 } }), AHORA)).toBe("Falta grabar 2 cassettes");
+  });
+  it("con la cantidad conocida y completa no dice «si no grabás otro cassette»", () => {
+    const desde = new Date(AHORA.getTime() + 20 * 60 * 1000);
+    const conocida = datos({ enviadoAt: null, automatico: true, enviaSoloDesde: desde, cassettes: { esperados: 2, faltan: 0 } });
+    expect(textoDeEntrega("LISTA_PARA_ENVIAR", conocida, AHORA)).not.toContain("otro cassette");
+    const desconocida = datos({ enviadoAt: null, automatico: true, enviaSoloDesde: desde });
+    expect(textoDeEntrega("LISTA_PARA_ENVIAR", desconocida, AHORA)).toContain("si no grabás otro cassette");
   });
 
   it("enviado por correo: a quién y cuándo vence", () => {

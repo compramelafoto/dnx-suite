@@ -6,6 +6,7 @@ const db = vi.hoisted(() => {
     digitalizacionAjustes: { findUnique: vi.fn() },
     digitalizacionGrabacion: { findMany: vi.fn(), updateMany: vi.fn() },
     fotofficePedido: { findFirst: vi.fn(), findMany: vi.fn() },
+    fotofficeProyecto: { findMany: vi.fn(async (): Promise<unknown[]> => []) },
     fotofficeWorkspaceBranding: { findUnique: vi.fn() },
     fotofficeProyectoNota: { createMany: vi.fn(), findMany: vi.fn(async (): Promise<unknown[]> => []) },
     $executeRaw: vi.fn(async () => 0),
@@ -72,7 +73,8 @@ const lista = { id: "g1", proyectoId: "t1", estado: "COMPLETA", conversionEstado
 beforeEach(() => {
   vi.clearAllMocks();
   db.$transaction.mockImplementation(async (fn: (tx: unknown) => unknown) => fn(db));
-  for (const m of [db.digitalizacionGrabacion.findMany, db.digitalizacionEntrega.findMany, db.digitalizacionEntrega.findUnique, db.fotofficePedido.findMany]) m.mockReset();
+  for (const m of [db.digitalizacionGrabacion.findMany, db.digitalizacionEntrega.findMany, db.digitalizacionEntrega.findUnique, db.fotofficePedido.findMany, db.fotofficeProyecto.findMany]) m.mockReset();
+  db.fotofficeProyecto.findMany.mockResolvedValue([]);
   db.digitalizacionEntrega.findMany.mockResolvedValue([]);
   db.fotofficePedido.findMany.mockResolvedValue([]);
   db.fotofficePedido.findFirst.mockResolvedValue({ id: "p1", number: "P-12", status: "CONFIRMADO", client: { firstName: "Ana", businessName: null, email: "ana@x.com" } });
@@ -223,6 +225,80 @@ describe("enviarEntregasAutomaticas", () => {
     const r = await enviarEntregasAutomaticas(d);
     expect(r).toMatchObject({ revisadas: 3, enviadas: 1, esperando: 1, manuales: 1 });
     expect(d.enviar).toHaveBeenCalledTimes(1);
+  });
+  describe("cantidad de cassettes vendidos (regresión del pedido 2026-0006 de Liliana)", () => {
+    const sinImagen = { ...lista, id: "g3", conversionEstado: "SIN_IMAGEN", sinImagen: true, convertidaAt: null, terminadaAt: new Date("2026-10-20T11:00:00Z") };
+    /** Un trabajo del pedido: `items[0]` vendió `cantidad` VHS. */
+    const trabajo = (id: string, indice: number, items: unknown[], grabaciones: unknown[]) => ({
+      id, name: "Digitalización de VHS", pedidoId: "p1", pedidoItemIndex: indice, product: null, pedido: { items }, grabaciones,
+    });
+    const vhs = (cantidad: number) => ({ id: "i0", nombre: "Digitalización de VHS", cantidad });
+    /** Un pedido p1 sin enviar con estas grabaciones (las mismas para la entrega y para contar cassettes). */
+    const pedido = (grabaciones: Record<string, unknown>[], trabajos?: unknown[]) => {
+      db.fotofficePedido.findMany.mockResolvedValue([p("p1")]);
+      db.digitalizacionEntrega.findUnique.mockResolvedValue(entrega());
+      db.digitalizacionEntrega.findFirst.mockResolvedValue(entrega());
+      db.digitalizacionGrabacion.findMany.mockResolvedValue(grabaciones);
+      db.fotofficeProyecto.findMany.mockResolvedValue(trabajos ?? [trabajo("t1", 0, [vhs(2)], grabaciones)]);
+    };
+
+    it("cantidad 2 y 1 hecho: no sale solo (ni pasa a «Listo para retirar»)", async () => {
+      pedido([lista]);
+      const d = deps();
+      expect(await enviarEntregasAutomaticas(d)).toMatchObject({ revisadas: 1, enviadas: 0, faltanCassettes: 1 });
+      expect(d.enviar).not.toHaveBeenCalled();
+      expect(etapas.avanzarTrabajos).not.toHaveBeenCalled();
+    });
+    it("con el 2.º convertido sale con el margen corto (30 min), sin esperar 12 h", async () => {
+      const segundo = { ...lista, id: "g2", cassetteNumero: 2, terminadaAt: new Date("2026-10-22T13:00:00Z"), convertidaAt: new Date("2026-10-22T14:00:00Z") };
+      pedido([lista, segundo]);
+      const d = deps();
+      expect(await enviarEntregasAutomaticas(d)).toMatchObject({ enviadas: 1, faltanCassettes: 0 });
+      expect(etapas.avanzarTrabajos).toHaveBeenCalledWith("ws1", ["t1"], "LISTO");
+      // Convertido hace 15 min: todavía dentro del margen.
+      vi.clearAllMocks();
+      pedido([lista, { ...segundo, convertidaAt: new Date("2026-10-22T14:45:00Z") }]);
+      expect(await enviarEntregasAutomaticas(deps())).toMatchObject({ enviadas: 0, esperando: 1 });
+    });
+    it("cantidad desconocida (sin ítem): la regla de las 12 h", async () => {
+      const hoy = { ...lista, convertidaAt: new Date("2026-10-22T14:00:00Z") };
+      pedido([hoy], [trabajo("t1", 0, [], [hoy])]);
+      expect(await enviarEntregasAutomaticas(deps())).toMatchObject({ enviadas: 0, esperando: 1, faltanCassettes: 0 });
+      pedido([lista], [{ ...trabajo("t1", 0, [], [lista]), pedidoItemIndex: null }]);
+      expect(await enviarEntregasAutomaticas(deps())).toMatchObject({ enviadas: 1 });
+    });
+    it("dos trabajos, cada uno con su cantidad: espera a que estén los dos", async () => {
+      const items = [vhs(1), { id: "i1", nombre: "Digitalización de VHS-C", cantidad: 2 }];
+      const g2 = { ...lista, id: "g2", proyectoId: "t2" };
+      pedido([lista, g2], [trabajo("t1", 0, items, [lista]), trabajo("t2", 1, items, [g2])]);
+      expect(await enviarEntregasAutomaticas(deps())).toMatchObject({ enviadas: 0, faltanCassettes: 1 });
+      const g3 = { ...lista, id: "g3", proyectoId: "t2" };
+      pedido([lista, g2, g3], [trabajo("t1", 0, items, [lista]), trabajo("t2", 1, items, [g2, g3])]);
+      expect(await enviarEntregasAutomaticas(deps())).toMatchObject({ enviadas: 1 });
+    });
+    it("una descartada no cuenta como cassette hecho", async () => {
+      const descartada = { ...lista, id: "g2", estado: "DESCARTADA" };
+      pedido([lista, descartada]);
+      expect(await enviarEntregasAutomaticas(deps())).toMatchObject({ enviadas: 0, faltanCassettes: 1 });
+    });
+    it("una SIN_IMAGEN cuenta como hecha para el envío", async () => {
+      pedido([lista, sinImagen]);
+      expect(await enviarEntregasAutomaticas(deps())).toMatchObject({ enviadas: 1 });
+    });
+    it("el botón manual manda igual aunque falten cassettes", async () => {
+      pedido([lista]);
+      const d = deps();
+      expect(await enviarEntrega("ws1", "e1", "CORREO", d)).toMatchObject({ ok: true, correo: "ENVIADO" });
+      expect(d.enviar).toHaveBeenCalledTimes(1);
+    });
+    it("resumen y asegurarEntrega traen la cuenta del pedido", async () => {
+      pedido([lista]);
+      expect((await asegurarEntrega("ws1", "p1"))?.cassettes).toEqual({ esperados: 2, grabados: 1, hechos: 1, faltan: 1 });
+      db.fotofficePedido.findMany.mockResolvedValue([{ id: "p1", number: "2026-0006", status: "CONFIRMADO", client: { firstName: "Liliana", lastName: null, businessName: null, email: "l@x.com" } }]);
+      db.digitalizacionGrabacion.findMany.mockResolvedValue([{ ...lista, proyecto: { pedidoId: "p1" } }]);
+      const [r] = await resumenDeEntregas("ws1");
+      expect(r?.cassettes).toEqual({ esperados: 2, grabados: 1, hechos: 1, faltan: 1 });
+    });
   });
   it("los clientes sin correo no gastan el tope", async () => {
     db.fotofficePedido.findMany.mockResolvedValue([p("p1"), p("p2")]);
