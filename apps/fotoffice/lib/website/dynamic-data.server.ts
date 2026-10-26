@@ -75,6 +75,7 @@ export async function loadWebsiteDynamicData(site: PublicSite, blocks: PublicSit
           categoriaId: block.config.categoriaId,
           limite: block.config.count,
           base,
+          sinTotal: true,
         }).catch((err: unknown) => {
           console.error("[fotoffice][website] no se pudieron leer los trabajos:", err);
           return { trabajos: [], total: 0 };

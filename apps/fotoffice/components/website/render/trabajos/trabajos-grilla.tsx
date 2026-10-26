@@ -46,8 +46,9 @@ function Portada({ src, alt, masonry }: { src: string | null; alt: string; mason
 
 export function TrabajoCard({ trabajo, masonry = false }: { trabajo: TrabajoTarjeta; masonry?: boolean }) {
   const detalle = [trabajo.lugar, trabajo.fechaTexto].filter(Boolean).join(" · ");
+  // Sin precarga: la ficha suma una vista al abrirse, y una precarga la contaría sin que nadie entre.
   return (
-    <Link href={trabajo.href} className={`group block ${masonry ? "mb-6 break-inside-avoid" : ""}`}>
+    <Link href={trabajo.href} prefetch={false} className={`group block ${masonry ? "mb-6 break-inside-avoid" : ""}`}>
       <div className="overflow-hidden rounded-2xl" style={{ backgroundColor: BLOG_SOFT_BG }}>
         <Portada src={trabajo.portadaUrl} alt={trabajo.titulo} masonry={masonry} />
       </div>

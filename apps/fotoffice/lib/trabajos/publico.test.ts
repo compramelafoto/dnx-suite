@@ -86,6 +86,14 @@ describe("listarTrabajosPublicos", () => {
     expect(arg.skip).toBe(6);
   });
 
+  it("con sinTotal no cuenta (el bloque PORTFOLIO no pagina)", async () => {
+    categoria.findMany.mockResolvedValueOnce([cat]);
+    trabajo.findMany.mockResolvedValueOnce([fila()]);
+    const r = await listarTrabajosPublicos("ws-1", { sinTotal: true });
+    expect(trabajo.count).not.toHaveBeenCalled();
+    expect(r).toMatchObject({ total: 0, trabajos: [{ slug: "boda-de-sofi" }] });
+  });
+
   it("sin categorías visibles no consulta trabajos", async () => {
     categoria.findMany.mockResolvedValueOnce([]);
     expect(await listarTrabajosPublicos("ws-1")).toEqual({ trabajos: [], total: 0 });

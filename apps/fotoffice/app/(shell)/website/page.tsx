@@ -40,7 +40,10 @@ export default async function WebsiteBuilderPage({ searchParams }: { searchParam
     // Misma regla que el sitio público: el blog va al menú si tiene al menos un artículo.
     listBlogPosts({ workspaceId: workspace.id, slug: "", nombre: workspace.name, logoUrl: null }, { limit: 1 }).then((p) => p.length > 0),
     // Y Trabajos, con al menos un trabajo publicado.
-    hayTrabajosPublicados(workspace.id).catch(() => false),
+    hayTrabajosPublicados(workspace.id).catch((err: unknown) => {
+      console.error("[fotoffice][website] no se pudo saber si hay trabajos publicados:", err);
+      return false;
+    }),
   ]);
   const enabledModuleKeys = withTrabajosPage(modulosEncendidos, hasPublishedTrabajos);
 

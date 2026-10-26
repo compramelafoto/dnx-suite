@@ -91,6 +91,9 @@ export async function listarCategoriasPublicas(workspaceId: string): Promise<Cat
  */
 export async function hayTrabajosPublicados(workspaceId: string): Promise<boolean> {
   try {
+    // Dos consultas y no una: las tablas de Trabajos no tienen relación declarada en Prisma (no
+    // hay FK, el SQL se aplica a mano), así que no se puede filtrar el trabajo por su categoría en
+    // un solo `findFirst`. Las dos van por índice (`workspaceId`) y la segunda corta en la primera fila.
     const categorias = await prisma.fotofficeTrabajoCategoria.findMany({
       where: { workspaceId, visible: true },
       select: { id: true },
@@ -130,6 +133,8 @@ export async function listarTrabajosPublicos(
     limite?: number;
     pagina?: number;
     soloDestacados?: boolean;
+    /** Sin paginado (bloque PORTFOLIO) el total no se usa: se ahorra la cuenta y vuelve 0. */
+    sinTotal?: boolean;
   } = {},
 ): Promise<{ trabajos: TrabajoTarjeta[]; total: number }> {
   const base = opciones.base ?? "";
@@ -162,7 +167,7 @@ export async function listarTrabajosPublicos(
         skip: (pagina - 1) * limite,
         select: { titulo: true, slug: true, lugar: true, fecha: true, portadaUrl: true, categoriaId: true },
       }),
-      prisma.fotofficeTrabajo.count({ where }),
+      opciones.sinTotal ? Promise.resolve(0) : prisma.fotofficeTrabajo.count({ where }),
     ]);
     const trabajos: TrabajoTarjeta[] = [];
     for (const f of filas) {
