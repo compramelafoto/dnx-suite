@@ -9,6 +9,7 @@ import {
   moveHeroSlide,
   parseWebsiteSections,
   removeHeroSlide,
+  sanitizeRichTextConfig,
   updateHeroSlide,
   websiteBlockSchema,
   HERO_MAX_SLIDES,
@@ -47,7 +48,7 @@ describe("parseWebsiteSections — parseo tolerante de sectionsJson", () => {
 
 describe("websiteBlockSchema — unión cerrada de bloques", () => {
   it("rechaza un type desconocido", () => {
-    expect(websiteBlockSchema.safeParse({ id: "1", type: "GALLERY", visible: true, order: 0, config: {} }).success).toBe(false);
+    expect(websiteBlockSchema.safeParse({ id: "1", type: "NOPE", visible: true, order: 0, config: {} }).success).toBe(false);
   });
 
   it("los campos de texto (title/content/alt/imageUrl) son opcionales a nivel de guardado — un bloque recién agregado y todavía vacío debe poder autoguardarse sin fallar", () => {
@@ -203,5 +204,37 @@ describe("Hero / Banner — carrusel de placas", () => {
     const updated = updateHeroSlide(withB, withB.slides[1].id, { title: "Segunda" });
     expect(updated.slides[0].title).toBeUndefined();
     expect(updated.slides[1].title).toBe("Segunda");
+  });
+});
+
+describe("RICH_TEXT — texto con formato", () => {
+  it("el bloque nuevo arranca vacío y es válido para el guardado", () => {
+    const block = createEmptyBlock("RICH_TEXT", 0);
+    expect(websiteBlockSchema.safeParse(block).success).toBe(true);
+    expect(block.config).toMatchObject({ html: "", align: "left", width: "normal" });
+  });
+
+  it("sanitizeRichTextConfig saca el <script> y los atributos de evento, conserva el formato", () => {
+    const config = {
+      html: '<p onclick="x()">Hola <strong>mundo</strong></p><script>alert(1)</script><img src="x" onerror="y()">',
+      align: "left" as const,
+      width: "normal" as const,
+    };
+    const clean = sanitizeRichTextConfig(config);
+    expect(clean.html).not.toContain("script");
+    expect(clean.html).not.toContain("onclick");
+    expect(clean.html).not.toContain("onerror");
+    expect(clean.html).toContain("<strong>mundo</strong>");
+  });
+
+  it("un iframe fuera de la lista (YouTube/Vimeo) se descarta al sanear", () => {
+    const clean = sanitizeRichTextConfig({ html: '<iframe src="https://evil.com/x"></iframe><p>ok</p>', align: "left", width: "normal" });
+    expect(clean.html).not.toContain("iframe");
+    expect(clean.html).toContain("<p>ok</p>");
+  });
+
+  it("html pasa de 100000 caracteres → el bloque se descarta al parsear", () => {
+    const block = { id: "r", type: "RICH_TEXT", visible: true, order: 0, config: { html: "a".repeat(100001), align: "left", width: "normal" } };
+    expect(parseWebsiteSections({ pages: { home: [block] } }).pages.home).toHaveLength(0);
   });
 });

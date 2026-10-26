@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { sanitizeContentHtml } from "@repo/content";
 
 /**
  * Contrato de bloques estáticos de la Home del sitio web — primera etapa del editor visual.
@@ -243,6 +244,29 @@ export const memberOfWeekConfigSchema = z.object({
   intro: z.string().max(400).optional(),
 });
 
+/**
+ * Texto con formato: HTML del editor TipTap del blog, guardado tal cual en `config.html`. Es el
+ * único bloque que acepta HTML, así que SIEMPRE pasa por `sanitizeRichTextConfig` — al guardar
+ * (`sanitizeBlocksForSave`) y al dibujar (la vista) — y nunca se inserta sin sanear.
+ */
+export const WEBSITE_RICH_TEXT_WIDTH = ["narrow", "normal", "wide"] as const;
+export type WebsiteRichTextWidth = (typeof WEBSITE_RICH_TEXT_WIDTH)[number];
+
+export const richTextConfigSchema = z.object({
+  title: z.string().max(200).optional(),
+  html: z.string().max(100000),
+  align: z.enum(WEBSITE_BLOCK_ALIGN).catch("left"),
+  width: z.enum(WEBSITE_RICH_TEXT_WIDTH).catch("normal"),
+});
+
+/** Devuelve la config con el HTML limpio de scripts, atributos de evento e iframes ajenos.
+ * El sanitizador deja un `<iframe></iframe>` vacío cuando descarta el `src` de uno no permitido;
+ * se quita también para que no quede un marco en blanco en la página. */
+export function sanitizeRichTextConfig<T extends { html: string }>(config: T): T {
+  const html = sanitizeContentHtml(config.html).replace(/<iframe(?![^>]*\ssrc=)[^>]*><\/iframe>/gi, "");
+  return { ...config, html };
+}
+
 const blockEnvelope = {
   id: z.string().min(1),
   visible: z.boolean(),
@@ -254,6 +278,7 @@ export const textBlockSchema = z.object({ ...blockEnvelope, type: z.literal("TEX
 export const imageBlockSchema = z.object({ ...blockEnvelope, type: z.literal("IMAGE"), config: imageConfigSchema });
 export const ctaBlockSchema = z.object({ ...blockEnvelope, type: z.literal("CTA"), config: ctaConfigSchema });
 export const spacerBlockSchema = z.object({ ...blockEnvelope, type: z.literal("SPACER"), config: spacerConfigSchema });
+export const richTextBlockSchema = z.object({ ...blockEnvelope, type: z.literal("RICH_TEXT"), config: richTextConfigSchema });
 export const blogLatestBlockSchema = z.object({ ...blockEnvelope, type: z.literal("BLOG_LATEST"), config: blogLatestConfigSchema });
 export const memberOfWeekBlockSchema = z.object({ ...blockEnvelope, type: z.literal("MEMBER_OF_WEEK"), config: memberOfWeekConfigSchema });
 
@@ -263,6 +288,7 @@ export const websiteBlockSchema = z.discriminatedUnion("type", [
   imageBlockSchema,
   ctaBlockSchema,
   spacerBlockSchema,
+  richTextBlockSchema,
   blogLatestBlockSchema,
   memberOfWeekBlockSchema,
 ]);
@@ -296,6 +322,7 @@ export type TextBlockConfig = z.infer<typeof textConfigSchema>;
 export type ImageBlockConfig = z.infer<typeof imageConfigSchema>;
 export type CtaBlockConfig = z.infer<typeof ctaConfigSchema>;
 export type SpacerBlockConfig = z.infer<typeof spacerConfigSchema>;
+export type RichTextBlockConfig = z.infer<typeof richTextConfigSchema>;
 export type BlogLatestBlockConfig = z.infer<typeof blogLatestConfigSchema>;
 export type MemberOfWeekBlockConfig = z.infer<typeof memberOfWeekConfigSchema>;
 
@@ -304,6 +331,7 @@ export type TextBlock = z.infer<typeof textBlockSchema>;
 export type ImageBlock = z.infer<typeof imageBlockSchema>;
 export type CtaBlock = z.infer<typeof ctaBlockSchema>;
 export type SpacerBlock = z.infer<typeof spacerBlockSchema>;
+export type RichTextBlock = z.infer<typeof richTextBlockSchema>;
 export type BlogLatestBlock = z.infer<typeof blogLatestBlockSchema>;
 export type MemberOfWeekBlock = z.infer<typeof memberOfWeekBlockSchema>;
 
@@ -317,6 +345,12 @@ export type WebsiteBlockType = WebsiteBlock["type"];
 export type WebsitePageContent = WebsiteBlock[];
 
 export type WebsiteSections = z.infer<typeof websiteSectionsSchema>;
+
+/** Sanea lo que haga falta de los bloques antes de persistirlos (hoy, el HTML de RICH_TEXT).
+ * No muta la entrada. Lo usa la acción de guardar, así un cliente tramposo no puede colar HTML. */
+export function sanitizeBlocksForSave(blocks: WebsiteBlock[]): WebsiteBlock[] {
+  return blocks.map((b) => (b.type === "RICH_TEXT" ? { ...b, config: sanitizeRichTextConfig(b.config) } : b));
+}
 
 export function emptyWebsiteSections(): WebsiteSections {
   return { pages: { home: [] }, pageMeta: {} };
@@ -447,6 +481,16 @@ export const WEBSITE_BLOCK_DEFINITIONS: {
     source: "static",
     defaultConfig: () => ({ sizePreset: "md" }),
     previewLabel: (c) => `Tamaño: ${c.sizePreset === "sm" ? "chico" : c.sizePreset === "lg" ? "grande" : "medio"}`,
+  },
+  RICH_TEXT: {
+    type: "RICH_TEXT",
+    label: "Texto con formato",
+    description: "Texto con títulos, negritas, listas, enlaces e imágenes.",
+    category: "BASICAS",
+    source: "static",
+    defaultConfig: () => ({ title: "", html: "", align: "left", width: "normal" }),
+    // Alimenta también el menú (ver HERO): sólo el título que puso el dueño, nunca el HTML.
+    previewLabel: (c) => c.title?.trim() || "Texto",
   },
   BLOG_LATEST: {
     type: "BLOG_LATEST",

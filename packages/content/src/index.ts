@@ -75,6 +75,7 @@ export {
   sanitizeContentHtml,
   sanitizeBlogHtml,
   generateContentHtml,
+  parseContentHtmlToJson,
   generateBlogHtml,
 } from "./tiptap/html";
 

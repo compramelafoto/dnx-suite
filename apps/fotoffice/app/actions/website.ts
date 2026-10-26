@@ -9,6 +9,7 @@ import { WEBSITE_MODULE_KEY } from "@/lib/website/constants";
 import { canEditWebsiteIdentity } from "@/lib/website/identity-access";
 import {
   parseWebsiteSections,
+  sanitizeBlocksForSave,
   websitePageContentSchema,
   websitePageKeySchema,
   websitePageMetaSchema,
@@ -197,7 +198,7 @@ export async function saveWebsiteBlocksAction(
     let blocks: WebsitePageContent | undefined;
     if (formData.has("blocksJson")) {
       try {
-        blocks = websitePageContentSchema.parse(JSON.parse(formData.get("blocksJson")!.toString()));
+        blocks = sanitizeBlocksForSave(websitePageContentSchema.parse(JSON.parse(formData.get("blocksJson")!.toString())));
       } catch {
         return { error: "Los bloques enviados no tienen un formato válido." };
       }
