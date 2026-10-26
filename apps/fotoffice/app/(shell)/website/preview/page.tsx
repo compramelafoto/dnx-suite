@@ -8,6 +8,7 @@ import { resolveSiteNav, toPreviewNav } from "@/lib/website/site-menu";
 import { getEnabledModuleKeysForWorkspace } from "@/lib/modules/gating";
 import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { listBlogPosts } from "@/lib/blog/public";
+import { HOME_PAGE_KEY } from "@/lib/website/pages";
 import { WebsitePageRenderer } from "@/components/website/render/website-page-renderer";
 import { WebsiteHeaderView } from "@/components/website/render/website-header-view";
 import { SiteFrame } from "@/components/website/render/site-frame";
@@ -18,7 +19,8 @@ import { SiteFrame } from "@/components/website/render/site-frame";
  * `loadWebsiteCmsContext` exige el workspace activo con el módulo Website habilitado. No usa
  * `WebsiteShell` a propósito: debe parecerse al sitio, no al panel de administración.
  */
-export default async function WebsitePreviewPage() {
+export default async function WebsitePreviewPage({ searchParams }: { searchParams: Promise<{ pagina?: string | string[] }> }) {
+  const { pagina } = await searchParams;
   const { workspace, sections, designPresets, menu } = await loadWebsiteCmsContext();
 
   const [branding, enabledModuleKeys, personVocabulary, hasPublishedBlog] = await Promise.all([
@@ -31,9 +33,13 @@ export default async function WebsitePreviewPage() {
     listBlogPosts({ workspaceId: workspace.id, slug: "", nombre: workspace.name, logoUrl: null }, { limit: 1 }).then((p) => p.length > 0),
   ]);
   const colors = resolveWebsiteColors(branding);
-  const blocks = sections.pages.home ?? [];
+  // `?pagina=<clave>` dibuja esa página propia del borrador; sin ella (o con una clave que no
+  // existe), el inicio. El menú se arma siempre con el inicio, como en el sitio.
+  const homeBlocks = sections.pages.home ?? [];
+  const paginaKey = typeof pagina === "string" ? pagina : "";
+  const blocks = paginaKey !== HOME_PAGE_KEY && Object.hasOwn(sections.pageMeta, paginaKey) ? (sections.pages[paginaKey] ?? []) : homeBlocks;
   const navItems = toPreviewNav(
-    resolveSiteNav({ workspaceSlug: "vista-previa", homeBlocks: blocks, enabledModuleKeys, hasPublishedSite: true, menu, personVocabulary, hasPublishedBlog }),
+    resolveSiteNav({ workspaceSlug: "vista-previa", homeBlocks, enabledModuleKeys, hasPublishedSite: true, menu, personVocabulary, hasPublishedBlog }),
   );
   const themeVars = {
     "--wsite-primary": colors.primaryColor,
