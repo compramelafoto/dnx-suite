@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { CompradorBot } from "@/components/bot/CompradorBot";
 import { leerTokenCaso } from "@/lib/soporte/token-caso";
 
@@ -29,7 +30,7 @@ export default async function CasoPage({ params }: { params: Promise<{ token: st
             <h1 style={{ fontSize: 24, margin: "16px 0 8px" }}>Este link venció</h1>
             <p style={{ margin: 0, color: "#4b5563" }}>
               Por seguridad, los links de soporte duran 30 días. Podés seguir tu consulta desde{" "}
-              <a href="/cliente/soporte" style={{ color: "#c27b3d" }}>soporte</a>.
+              <Link href="/cliente/soporte" style={{ color: "#c27b3d" }}>soporte</Link>.
             </p>
           </>
         )}
