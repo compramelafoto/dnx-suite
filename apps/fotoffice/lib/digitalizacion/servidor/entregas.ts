@@ -20,6 +20,7 @@ import { registroDeEnvio, type EnvioRegistrado } from "../trabajo";
 import { MAX_GENERACIONES_ENTREGA, generacionDeEntrega, tokenDeEntrega } from "../token-entrega";
 import { borrarVideoFinal } from "./almacen";
 import { conciliarComisiones, devengarComisionesDelPedido } from "./comision";
+import { avanzarTrabajos, conciliarEtapas } from "./etapas";
 import { aplicarCargosPagados, anularCargosSinSentido, cargosARevisar, cargosPendientes, type CargoARevisar, type CargoPendiente } from "./cargos";
 
 /**
@@ -231,6 +232,18 @@ async function anotar(workspaceId: string, proyectoIds: string[], body: string):
   }
 }
 
+/**
+ * Primer envío ya guardado: los trabajos del pedido con videos pasan a «Listo para retirar»
+ * (sólo hacia adelante; ver `../etapas-automaticas.ts`). Nunca hace fallar el envío.
+ */
+async function avanzarAListo(workspaceId: string, proyectoIds: string[]): Promise<void> {
+  try {
+    await avanzarTrabajos(workspaceId, proyectoIds, "LISTO");
+  } catch (e) {
+    console.error("[digitalizacion][entrega] no se pudo avanzar la etapa de los trabajos", { codigo: codigo(e) });
+  }
+}
+
 export type ModoEnvio = "CORREO" | "ENLACE";
 export type ResultadoEnvio = ResultadoEntrega<{ url: string; correo: "ENVIADO" | "SIN_EMAIL" | "NO_PEDIDO" }>;
 
@@ -281,7 +294,10 @@ export async function enviarEntrega(workspaceId: string, entregaId: string, modo
   if (escrito.count !== 1) return { ok: false, error: primera ? MENSAJES_ENTREGA.yaEnviada : MENSAJES_ENTREGA.enParalelo };
 
   if (modo === "ENLACE") {
-    if (primera) await anotar(workspaceId, datos.proyectoIds, "Videos digitalizados: se copió el enlace para mandarlo al cliente (no se envió correo).");
+    if (primera) {
+      await anotar(workspaceId, datos.proyectoIds, "Videos digitalizados: se copió el enlace para mandarlo al cliente (no se envió correo).");
+      await avanzarAListo(workspaceId, datos.proyectoIds);
+    }
     return { ok: true, url, correo: "NO_PEDIDO" };
   }
 
@@ -315,6 +331,7 @@ export async function enviarEntrega(workspaceId: string, entregaId: string, modo
     return { ok: false, error: MENSAJES_ENTREGA.correoNoSalio };
   }
   await anotar(workspaceId, datos.proyectoIds, `Correo «Tus videos están listos» ${primera ? "enviado" : "reenviado"} a ${datos.email}.`);
+  if (primera) await avanzarAListo(workspaceId, datos.proyectoIds);
   return { ok: true, url, correo: "ENVIADO" };
 }
 
@@ -453,6 +470,8 @@ export type ReporteEnvios = {
   /** Comisión de plataforma (F1) que el cobro no llegó a devengar o revertir. */
   comisionesDevengadas: number;
   comisionesRevertidas: number;
+  /** Trabajos llevados a «Grabado» o «Listo para retirar» por la conciliación de etapas. */
+  etapasAvanzadas: number;
 };
 
 /** Grabaciones que todavía impiden mandar la entrega (en curso, en cola, con error o muy recientes). */
@@ -518,7 +537,7 @@ export async function enviarEntregasAutomaticas(deps: DepsEntrega & { tope?: num
   const ahora = (deps.ahora ?? (() => new Date()))();
   const reporte: ReporteEnvios = {
     revisadas: 0, enviadas: 0, sinEmail: 0, noListas: 0, esperando: 0, manuales: 0, fallidas: 0, extendidas: 0, avisosAgregado: 0, cargosAplicados: 0,
-    comisionesDevengadas: 0, comisionesRevertidas: 0,
+    comisionesDevengadas: 0, comisionesRevertidas: 0, etapasAvanzadas: 0,
   };
   // Primero los cargos pagos que quedaron sin aplicar (el cobro los aplica después del commit, sin reintento).
   reporte.cargosAplicados = (await aplicarCargosPagados(null, { ahora: () => ahora })).aplicados;
@@ -553,6 +572,8 @@ export async function enviarEntregasAutomaticas(deps: DepsEntrega & { tope?: num
     }
   }
   await extenderPorVideosNuevos(ahora, reporte, estaEncendido, deps);
+  // Al final: así también alcanza a las entregas que esta misma corrida acaba de mandar. No lanza.
+  reporte.etapasAvanzadas = (await conciliarEtapas(estaEncendido)).movidos;
   return reporte;
 }
 

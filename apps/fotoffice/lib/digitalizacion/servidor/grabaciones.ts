@@ -7,6 +7,7 @@ import { leerFranjas, validarFranjas, type FranjaEnvio } from "../entrega";
 import { nombreArchivoVideo, nombreCliente } from "../nombre-archivo";
 import { estadoVisible, validarTitulo, type Cierre, type Latido, type NuevaGrabacion, type PedidoParte } from "../validar";
 import { borrarPrefijo, tamanoDeParte, urlDeLecturaParte, urlDeSubidaParte, urlDeVideo as firmarVideo } from "./almacen";
+import { avanzarTrabajos } from "./etapas";
 
 export type Nada = Record<never, never>;
 export type Resultado<T> = ({ ok: true } & T) | { ok: false; error: string; definitivo?: boolean };
@@ -164,6 +165,19 @@ function estadoInicialDeConversion(tipo: string, sinImagen: boolean): "PENDIENTE
   return tipo === "VHS" && sinImagen ? "SIN_IMAGEN" : "PENDIENTE";
 }
 
+/**
+ * La grabación ya quedó COMPLETA: si tiene imagen y es de un trabajo, el trabajo pasa a «Grabado»
+ * (sólo hacia adelante; ver `../etapas-automaticas.ts`). Nunca hace fallar el cierre.
+ */
+async function avanzarAGrabado(workspaceId: string, proyectoId: string | null, sinImagen: boolean): Promise<void> {
+  if (!proyectoId || sinImagen) return;
+  try {
+    await avanzarTrabajos(workspaceId, [proyectoId], "GRABADO");
+  } catch (e) {
+    console.error("[digitalizacion] no se pudo avanzar la etapa del trabajo", e instanceof Error ? e.name : "error");
+  }
+}
+
 export async function cerrarGrabacion(ctx: CtxDigitalizacion, id: string, c: Cierre): Promise<Resultado<Nada>> {
   const g = await grabacionDelNegocio(ctx, id);
   if (!g) return NO_EXISTE;
@@ -176,6 +190,7 @@ export async function cerrarGrabacion(ctx: CtxDigitalizacion, id: string, c: Cie
     where: { id: g.id },
     data: { ...datos, estado: "COMPLETA", motivoFin: c.motivoFin, terminadaAt: new Date(), conversionEstado: estadoInicialDeConversion(g.tipo, sinImagenFinal) },
   });
+  await avanzarAGrabado(ctx.workspaceId, g.proyectoId, sinImagenFinal);
   return { ok: true };
 }
 
@@ -206,7 +221,9 @@ export async function terminarConLoGrabado(ctx: CtxDigitalizacion, id: string): 
     where: { id: g.id, workspaceId: ctx.workspaceId, estado: "GRABANDO" },
     data: { estado: "COMPLETA", motivoFin: "TERMINADA_CON_LO_GRABADO", terminadaAt: new Date(), conversionEstado: estadoInicialDeConversion(g.tipo, g.sinImagen) },
   });
-  return r.count === 1 ? { ok: true } : NO_EXISTE;
+  if (r.count !== 1) return NO_EXISTE;
+  await avanzarAGrabado(ctx.workspaceId, g.proyectoId, g.sinImagen);
+  return { ok: true };
 }
 
 export async function descartarGrabacion(ctx: CtxDigitalizacion, id: string): Promise<Resultado<Nada>> {
