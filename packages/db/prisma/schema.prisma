@@ -27386,3 +27386,78 @@ model FotofficePresupuestoAprobacion {
   @@index([workspaceId, status, createdAt])
   @@index([workspaceId, waId])
 }
+
+// ---------------------------------------------------------------------------
+// FOTOFFICE · Trabajos del sitio (portfolio del estudio, PR 2 del sitio público)
+// Sin relaciones Prisma a tablas existentes: el SQL se aplica a mano y el código tolera que falte.
+// ---------------------------------------------------------------------------
+
+/// Categoría de trabajos del estudio (por ejemplo «Casamientos», «15 años»). Una por dirección.
+model FotofficeTrabajoCategoria {
+  id          String   @id @default(cuid())
+  workspaceId String
+  nombre      String
+  /// Dirección dentro de `/w/{slug}/trabajos/`. Única por institución.
+  slug        String
+  orden       Int      @default(0)
+  /// Oculta: sus trabajos no se listan en el sitio aunque estén publicados.
+  visible     Boolean  @default(true)
+  portadaUrl  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([workspaceId, slug])
+  @@index([workspaceId, orden])
+}
+
+/// Un trabajo del estudio: una cobertura o sesión con su galería.
+model FotofficeTrabajo {
+  id              String    @id @default(cuid())
+  workspaceId     String
+  categoriaId     String?
+  titulo          String
+  slug            String
+  lugar           String?
+  /// Día calendario (columna `date`), sin hora.
+  fecha           DateTime? @db.Date
+  /// HTML saneado con `sanitizeContentHtml`.
+  descripcionHtml String?
+  portadaUrl      String?
+  /// BORRADOR | PUBLICADO
+  estado          String    @default("BORRADOR")
+  destacado       Boolean   @default(false)
+  orden           Int       @default(0)
+  vistas          Int       @default(0)
+  seoTitle        String?
+  seoDescription  String?
+  /// De dónde se importó (por ejemplo «alboom») y su id allá; nulos si se creó a mano.
+  origenExterno   String?
+  origenExternoId String?
+  publicadoAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([workspaceId, slug])
+  @@unique([workspaceId, origenExterno, origenExternoId])
+  @@index([workspaceId, estado, fecha])
+}
+
+/// Una foto (o video por enlace) de un trabajo.
+model FotofficeTrabajoFoto {
+  id          String   @id @default(cuid())
+  trabajoId   String
+  workspaceId String
+  /// FOTO | VIDEO_URL
+  tipo        String   @default("FOTO")
+  url         String
+  /// Key en el bucket de FOTOFFICE; nula si la imagen vive en otra dirección.
+  r2Key       String?
+  ancho       Int?
+  alto        Int?
+  alt         String?
+  orden       Int      @default(0)
+  origenUrl   String?
+  createdAt   DateTime @default(now())
+
+  @@index([trabajoId, orden])
+}
