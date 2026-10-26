@@ -119,6 +119,8 @@ function lineaPagina(a: CompradorActor, p: PaginaComprador | null, album: AlbumS
       return "Página: mis pedidos";
     case "soporte":
       return "Página: soporte";
+    case "caso":
+      return "Página: seguimiento de un reclamo (link del mail de respuesta)";
   }
 }
 

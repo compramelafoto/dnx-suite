@@ -24,6 +24,19 @@ function base(over: Partial<TurnoSseParams> = {}): TurnoSseParams {
 beforeEach(() => { m.turn.mockReset(); m.append.mockReset(); m.inc.mockReset().mockResolvedValue(undefined); m.after.splice(0); });
 
 describe("respuestaDeTurnoSse", () => {
+  it("alGuardar recibe lo agregado después de guardarlo; si falla, el turno igual termina bien", async () => {
+    const appended = [{ role: "user", content: "hola" }, { role: "assistant", content: [{ type: "text", text: "¡Hola!" }] }];
+    m.turn.mockResolvedValue({ appended, usage, outcome: "ok" });
+    const guardar = vi.fn(async () => {});
+    await respuestaDeTurnoSse(base({ alGuardar: guardar })).text();
+    expect(guardar).toHaveBeenCalledWith("c1", appended);
+    expect(m.append.mock.invocationCallOrder[0]).toBeLessThan(guardar.mock.invocationCallOrder[0]!);
+
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const body = await respuestaDeTurnoSse(base({ alGuardar: async () => { throw new Error("db"); } })).text();
+    expect(body).toContain("event: done");
+    log.mockRestore();
+  });
   it("con corte de límites manda error y no llama a la API", async () => {
     const body = await respuestaDeTurnoSse(base({ verificarLimites: async () => "Cortado" })).text();
     expect(body).toContain("event: error");

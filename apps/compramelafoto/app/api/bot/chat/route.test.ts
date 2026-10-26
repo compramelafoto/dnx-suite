@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const m = vi.hoisted(() => ({
   user: vi.fn(), enabled: vi.fn(), snap: vi.fn(), turn: vi.fn(), conv: vi.fn(), hist: vi.fn(), append: vi.fn(),
   usage: vi.fn(), inc: vi.fn(), sit: vi.fn(), tools: vi.fn(), cap: vi.fn(), after: [] as (() => Promise<void>)[],
+  caso: vi.fn(), evento: vi.fn(), espejar: vi.fn(),
 }));
 // Aparte de `m`: el beforeEach resetea las funciones de `m`. Tope 1 en los casos de siempre.
 const cfg = vi.hoisted(() => ({ cap: 1 }));
@@ -25,6 +26,13 @@ vi.mock("@/lib/bot/anthropic", () => ({ getAnthropicClient: () => ({}) }));
 vi.mock("@/lib/bot/herramientas", () => ({ toolsForActor: (...a: unknown[]) => { m.tools(...a); return []; } }));
 vi.mock("@/lib/bot/guia", () => ({ buildSystemGuide: () => "GUIA" }));
 vi.mock("@repo/dnx-bot", async (orig) => ({ ...(await orig<object>()), runBotTurn: (...a: unknown[]) => m.turn(...a) }));
+vi.mock("@/lib/soporte/caso-bot", () => ({
+  casoParaFotografo: (...a: unknown[]) => m.caso(...a),
+  situacionDeCaso: async () => "SIT_CASO",
+  herramientasDeCaso: () => [{ name: "cerrar_caso_resuelto", kind: "read" }],
+  espejarTurnoEnTicket: (...a: unknown[]) => m.espejar(...a),
+}));
+vi.mock("@/lib/soporte/aplicar-evento", () => ({ aplicarEvento: (...a: unknown[]) => m.evento(...a) }));
 import { POST } from "./route";
 
 const req = (text: string) => new Request("http://x/api/bot/chat", { method: "POST", body: JSON.stringify({ text }) });
@@ -48,6 +56,34 @@ beforeEach(() => {
   m.sit.mockResolvedValue({ text: "SIT", alerts: [] });
   m.inc.mockResolvedValue(undefined);
   m.cap.mockResolvedValue(undefined);
+});
+
+const reqCaso = (text: string, casoToken: string) => new Request("http://x/api/bot/chat", { method: "POST", body: JSON.stringify({ text, casoToken }) });
+describe("POST /api/bot/chat · modo caso", () => {
+  it("link de un caso de otra cuenta → 403; vencido → 410; sin llamar al modelo", async () => {
+    m.caso.mockResolvedValueOnce({ error: "ajeno" }).mockResolvedValueOnce({ error: "vencido" });
+    expect((await POST(reqCaso("hola", "tok"))).status).toBe(403);
+    const vencido = await POST(reqCaso("hola", "tok"));
+    expect(vencido.status).toBe(410);
+    expect(await vencido.json()).toEqual({ error: "caso_vencido" });
+    expect(m.turn).not.toHaveBeenCalled();
+    expect(m.caso).toHaveBeenCalledWith("tok", { id: 7, email: "f@x.com" });
+  });
+  it("caso propio: sigue la conversación del caso con su contexto y lo copia al ticket", async () => {
+    m.snap.mockResolvedValue({ userMessagesToday: 0, monthMicroUsd: 0 });
+    cfg.cap = 30_000_000;
+    m.caso.mockResolvedValue({ ticketId: 55, conversationId: "cs5" });
+    m.turn.mockImplementation(okTurn);
+    const body = await read(await POST(reqCaso("sigue igual", "tok")));
+    expect(body).toContain("event: done");
+    expect(m.conv).not.toHaveBeenCalled();
+    const input = m.turn.mock.calls[0]![0] as BotTurnInput;
+    expect(input.situation).toContain("SIT_CASO");
+    expect(input.tools.map((t) => t.name)).toContain("cerrar_caso_resuelto");
+    expect(m.evento).toHaveBeenCalledWith(55, { tipo: "CLIENTE_ESCRIBIO_BOT" });
+    expect(m.append.mock.calls[0]![0]).toBe("cs5");
+    expect(m.espejar.mock.calls[0]![1]).toMatchObject({ textoUsuario: "sigue igual", textoBot: "Hola" });
+  });
 });
 
 describe("POST /api/bot/chat", () => {

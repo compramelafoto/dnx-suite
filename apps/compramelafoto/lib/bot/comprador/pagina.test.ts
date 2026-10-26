@@ -22,6 +22,7 @@ describe("contextoDePagina", () => {
     ["/cliente/pedidos", { tipo: "mis_pedidos" }],
     ["/cliente/soporte", { tipo: "soporte" }],
     ["/cliente/recuperar-pack", { tipo: "recuperar_pack" }],
+    ["/caso/AbC_def-1234567890xyzAbC_def-1234567890x", { tipo: "caso", token: "AbC_def-1234567890xyzAbC_def-1234567890x" }],
   ])("%s", (path, esperado) => expect(contextoDePagina(path)).toEqual(esperado));
   it.each(["/a/12/comprar", "/album/x/comprar", "/a/12/canje/abc", "/fotografo/dashboard", "/descargas/zzz", "/", "/cliente/dashboard"])(
     "%s no tiene bot", (path) => expect(contextoDePagina(path)).toBeNull(),
@@ -33,7 +34,13 @@ describe("contextoDePagina", () => {
     "/a/12/remover/abc",
     "/cliente/pack/corto",
     "/pago/otro",
+    "/caso",
+    "/caso/corto",
+    "/caso/abc/otra",
   ])("%s tampoco", (path) => expect(contextoDePagina(path)).toBeNull());
+  it("la página del caso nunca guarda el token", () => {
+    expect(pagePathSeguro({ tipo: "caso", token: "secreto-secreto-secreto" })).toBe("/caso/[token]");
+  });
   it("orderId inválido en la consulta queda en null", () => {
     expect(contextoDePagina("/pago/success?orderId=-3")).toEqual({ tipo: "pago", resultado: "success", orderId: null });
     expect(contextoDePagina("/pago/success?orderId=1.5")).toEqual({ tipo: "pago", resultado: "success", orderId: null });

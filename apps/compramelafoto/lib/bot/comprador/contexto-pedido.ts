@@ -30,7 +30,8 @@ export async function habilitacionComprador(pagePathCrudo: unknown): Promise<Hab
   const pagina = contextoDePagina(pagePathCrudo);
   if (!pagina) return NO;
   const datos = await resolverPagina(pagina);
-  if (!compradorHabilitado(await leerPilotoCompradores(), datos.albumId)) return NO;
+  // El link del caso viene de un mail de soporte: no depende del piloto por álbum.
+  if (pagina.tipo !== "caso" && !compradorHabilitado(await leerPilotoCompradores(), datos.albumId)) return NO;
   // Nunca la ruta cruda: la de descarga y la de pack llevan el token.
   return { habilitado: true, pagina, datos, pagePath: pagePathSeguro(pagina) };
 }
