@@ -16,7 +16,7 @@ vi.mock("@repo/db", () => ({ prisma: B.prisma, Prisma: { JsonNull: null } }));
 vi.mock("@/lib/consultas/alta", () => ({
   altaDeConsulta: H.alta,
   altaDelSistema: (workspaceId: string) => ({ workspaceId, userId: null, userLabel: "Sistema", role: null }),
-  MENSAJES_ALTA: { fallo: "No se pudo registrar la consulta.", categoria: "Elegí una categoría." },
+  MENSAJES_ALTA: { fallo: "No se pudo registrar la consulta.", categoria: "Elegí una categoría.", origen: "Elegí un origen válido." },
   MAX_TEXTO_CONSULTA: 200,
   MAX_MENSAJE_CONSULTA: 4000,
 }));
@@ -98,6 +98,14 @@ describe("createSiteInquiry", () => {
     expect(await enviar({ categoriaId: "c-boda" })).toEqual({ status: "ok" });
     expect(H.alta).toHaveBeenCalledTimes(2);
     expect(H.alta.mock.calls[1]![1]).toMatchObject({ categoriaId: null, eventType: "BODA" });
+  });
+
+  it("si el origen se archiva justo entre la elección y el alta, reintenta sin origen y conserva la categoría", async () => {
+    H.alta.mockResolvedValueOnce({ ok: false, error: "Elegí un origen válido." });
+    expect(await enviar({ categoriaId: "c-boda", origenId: "o-ig" })).toEqual({ status: "ok" });
+    expect(H.alta).toHaveBeenCalledTimes(2);
+    expect(H.alta.mock.calls[0]![1]).toMatchObject({ origenId: "o-ig" });
+    expect(H.alta.mock.calls[1]![1]).toMatchObject({ origenId: null, categoriaId: "c-boda" });
   });
 
   it("si el alta explota, mensaje común y no registra datos de la persona", async () => {

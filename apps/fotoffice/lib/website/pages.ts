@@ -20,7 +20,7 @@ export function nextPageKey(existing: string[]): string {
 
 /** Páginas propias (todas menos el inicio), en el orden en que se crearon. */
 export function listCustomPages(
-  s: WebsiteSections,
+  s: Pick<WebsiteSections, "pageMeta">,
 ): Array<{ key: string; slug: string; title: string; seoTitle?: string; seoDescription?: string }> {
   return Object.entries(s.pageMeta).map(([key, meta]) => ({ key, ...meta }));
 }

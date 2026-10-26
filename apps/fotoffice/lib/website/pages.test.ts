@@ -11,6 +11,8 @@ import {
   validatePageSlug,
 } from "./pages";
 import { RESERVED_SITE_SEGMENTS } from "./reserved-slugs";
+import { FOTOFFICE_ONLY_SEGMENTS } from "./domain/routing";
+import { SITE_RESERVED_SEGMENTS } from "./public-modules";
 import sfprSections from "./__fixtures__/sfpr-sections.json";
 
 const textBlock = (id: string) => ({ id, type: "TEXT", visible: true, order: 0, config: { content: "hola", align: "left" } });
@@ -112,6 +114,16 @@ describe("RESERVED_SITE_SEGMENTS", () => {
     for (const x of ["trabajos", "testimonio", "testimonios", "presupuesto", "insertar", "api", "w"]) {
       expect(RESERVED_SITE_SEGMENTS).toContain(x);
     }
+  });
+  it("rechaza todo segmento que en el dominio propio se manda a FOTOFFICE", () => {
+    for (const s of FOTOFFICE_ONLY_SEGMENTS) {
+      expect(RESERVED_SITE_SEGMENTS).toContain(s);
+      expect(validatePageSlug(s, [])).not.toBeNull();
+    }
+    expect(validatePageSlug("privacidad", [])).toBe("Esa dirección ya la usa el sitio");
+  });
+  it("incluye las páginas de módulos y opcionales del sitio (SITE_RESERVED_SEGMENTS)", () => {
+    for (const s of SITE_RESERVED_SEGMENTS) expect(RESERVED_SITE_SEGMENTS).toContain(s);
   });
 });
 

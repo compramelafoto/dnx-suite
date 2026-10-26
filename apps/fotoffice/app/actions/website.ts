@@ -9,13 +9,13 @@ import { WEBSITE_MODULE_KEY } from "@/lib/website/constants";
 import { canEditWebsiteIdentity } from "@/lib/website/identity-access";
 import {
   parseWebsiteSections,
-  sanitizeBlocksForSave,
   websitePageContentSchema,
   websitePageKeySchema,
   websitePageMetaSchema,
   type WebsitePageContent,
   type WebsitePageMeta,
 } from "@/lib/website/blocks";
+import { sanitizeBlocksForSave } from "@/lib/website/rich-text-sanitize";
 import { HOME_PAGE_KEY } from "@/lib/website/pages";
 import { mergePageSave } from "@/lib/website/save-pages";
 import { websiteDesignPresetsSchema } from "@/lib/website/design-presets";

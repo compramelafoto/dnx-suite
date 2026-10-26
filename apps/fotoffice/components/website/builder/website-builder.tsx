@@ -178,7 +178,11 @@ export function WebsiteBuilder({
   const autosaveStatus = combineAutosaveStatus(draftAutosave.status, brandingAutosave.status);
   const selectedBlock = blocks.find((b) => b.id === selectedId) ?? null;
   const hasContent = homeBlocks.length > 0;
-  const customPages = listCustomPages({ pages, pageMeta });
+  // Memorizados sobre `pageMeta`, no sobre `pages` (que cambia con cada tecla): la lista de
+  // páginas propias sólo cambia al crear, renombrar o borrar una.
+  const customPages = useMemo(() => listCustomPages({ pageMeta }), [pageMeta]);
+  const switcherPages = useMemo(() => customPages.map((p) => ({ key: p.key, title: p.title, slug: p.slug })), [customPages]);
+  const menuCustomPages = useMemo(() => customPages.map((p) => ({ key: p.key, title: p.title })), [customPages]);
   const activeTitle = activeKey === HOME_PAGE_KEY ? "Portada" : (pageMeta[activeKey]?.title ?? "Página");
 
   // Cambiar de página: primero se guarda lo pendiente de la actual. Si el guardado falla, igual
@@ -324,7 +328,7 @@ export function WebsiteBuilder({
             {mode === "SECCIONES" ? (
               <div className="flex h-full min-h-0 flex-col">
                 <PageSwitcher
-                  pages={customPages.map((p) => ({ key: p.key, title: p.title, slug: p.slug }))}
+                  pages={switcherPages}
                   activeKey={activeKey}
                   canEdit={canEdit}
                   busy={switching}
@@ -360,7 +364,7 @@ export function WebsiteBuilder({
                 menu={menu}
                 presets={presets}
                 blocks={homeBlocks}
-                customPages={customPages.map((p) => ({ key: p.key, title: p.title }))}
+                customPages={menuCustomPages}
                 enabledModuleKeys={enabledModuleKeys}
                 personVocabulary={personVocabulary}
                 canEdit={canEdit}

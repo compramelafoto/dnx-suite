@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { sanitizeContentHtml } from "@repo/content";
 import { isAllowedMapsUrl } from "./contact";
 
 /**
@@ -248,7 +247,9 @@ export const memberOfWeekConfigSchema = z.object({
 /**
  * Texto con formato: HTML del editor TipTap del blog, guardado tal cual en `config.html`. Es el
  * único bloque que acepta HTML, así que SIEMPRE pasa por `sanitizeRichTextConfig` — al guardar
- * (`sanitizeBlocksForSave`) y al dibujar (la vista) — y nunca se inserta sin sanear.
+ * (`sanitizeBlocksForSave`) y al dibujar (la vista) — y nunca se inserta sin sanear. Ambas viven
+ * en `rich-text-sanitize.ts`: este archivo llega al bundle del navegador y no debe cargar el
+ * sanitizador de `@repo/content`.
  */
 export const WEBSITE_RICH_TEXT_WIDTH = ["narrow", "normal", "wide"] as const;
 export type WebsiteRichTextWidth = (typeof WEBSITE_RICH_TEXT_WIDTH)[number];
@@ -259,14 +260,6 @@ export const richTextConfigSchema = z.object({
   align: z.enum(WEBSITE_BLOCK_ALIGN).catch("left"),
   width: z.enum(WEBSITE_RICH_TEXT_WIDTH).catch("normal"),
 });
-
-/** Devuelve la config con el HTML limpio de scripts, atributos de evento e iframes ajenos.
- * El sanitizador deja un `<iframe></iframe>` vacío cuando descarta el `src` de uno no permitido;
- * se quita también para que no quede un marco en blanco en la página. */
-export function sanitizeRichTextConfig<T extends { html: string }>(config: T): T {
-  const html = sanitizeContentHtml(config.html).replace(/<iframe(?![^>]*\ssrc=)[^>]*><\/iframe>/gi, "");
-  return { ...config, html };
-}
 
 /**
  * Galería, video y contenido insertado. Las URLs de video y de iframe se guardan como vengan
@@ -454,11 +447,6 @@ export type WebsitePageContent = WebsiteBlock[];
 
 export type WebsiteSections = z.infer<typeof websiteSectionsSchema>;
 
-/** Sanea lo que haga falta de los bloques antes de persistirlos (hoy, el HTML de RICH_TEXT).
- * No muta la entrada. Lo usa la acción de guardar, así un cliente tramposo no puede colar HTML. */
-export function sanitizeBlocksForSave(blocks: WebsiteBlock[]): WebsiteBlock[] {
-  return blocks.map((b) => (b.type === "RICH_TEXT" ? { ...b, config: sanitizeRichTextConfig(b.config) } : b));
-}
 
 export function emptyWebsiteSections(): WebsiteSections {
   return { pages: { home: [] }, pageMeta: {} };

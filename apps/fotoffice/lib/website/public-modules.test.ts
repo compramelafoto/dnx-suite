@@ -9,7 +9,9 @@ import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
 import { buildSiteNav } from "./site-nav";
 import { personVocabulary } from "@/lib/vocabulario/personas";
 import {
+  OPTIONAL_PUBLIC_PAGES,
   PUBLIC_MODULE_PAGES,
+  optionalPublicPagesFor,
   resolvePublicModuleLabel,
   SITE_RESERVED_SEGMENTS,
   isSiteSegmentReserved,
@@ -146,18 +148,25 @@ describe("la página pública de la tienda", () => {
 });
 
 describe("la página «Pedí tu presupuesto»", () => {
-  it("ocupa /presupuesto, ligada a Consultas, y su segmento queda reservado", () => {
-    expect(PUBLIC_MODULE_PAGES.find((p) => p.moduleKey === SERVICE_LEADS_MODULE_KEY)).toMatchObject({
-      segment: "presupuesto",
+  it("es opcional (no automática), ocupa /presupuesto, ligada a Consultas, y su segmento queda reservado", () => {
+    expect(PUBLIC_MODULE_PAGES.some((p) => p.segment === "presupuesto")).toBe(false);
+    expect(OPTIONAL_PUBLIC_PAGES.find((p) => p.key === "presupuesto")).toMatchObject({
+      moduleKey: SERVICE_LEADS_MODULE_KEY,
+      path: "presupuesto",
       label: "Pedí tu presupuesto",
     });
     expect(isSiteSegmentReserved("presupuesto")).toBe(true);
   });
 
-  it("con Consultas encendido aparece en el menú automático; apagado, no", () => {
+  it("no entra sola al menú automático, ni con Consultas encendido", () => {
     const menu = (claves: string[]) =>
       buildSiteNav({ workspaceSlug: "dnx-estudio", homeBlocks: [], enabledModuleKeys: new Set(claves), hasPublishedSite: true });
-    expect(menu([SERVICE_LEADS_MODULE_KEY]).map((i) => [i.label, i.href])).toContainEqual(["Pedí tu presupuesto", "/w/dnx-estudio/presupuesto"]);
-    expect(menu([BOOKINGS_MODULE_KEY]).some((i) => i.href.endsWith("/presupuesto"))).toBe(false);
+    expect(menu([SERVICE_LEADS_MODULE_KEY]).some((i) => i.href.endsWith("/presupuesto"))).toBe(false);
+  });
+
+  it("con Consultas encendido se ofrece para sumar al menú a mano; apagado, no", () => {
+    const opciones = (claves: string[]) => optionalPublicPagesFor(new Set(claves)).map((p) => p.key);
+    expect(opciones([SERVICE_LEADS_MODULE_KEY])).toContain("presupuesto");
+    expect(opciones([])).not.toContain("presupuesto");
   });
 });

@@ -86,10 +86,17 @@ export async function createSiteInquiry(_prev: SiteInquiryState, formData: FormD
       formSlug: "sitio",
       origenId,
     };
-    let alta = await altaDeConsulta(altaDelSistema(workspaceId), datos, { origenDelAlta: "WEB" });
+    let intento = datos;
+    let alta = await altaDeConsulta(altaDelSistema(workspaceId), intento, { origenDelAlta: "WEB" });
     // La categoría se archivó entre la elección y el alta: otra vez sin ella, por su tipo viejo.
-    if (!alta.ok && alta.error === MENSAJES_ALTA.categoria && datos.categoriaId) {
-      alta = await altaDeConsulta(altaDelSistema(workspaceId), { ...datos, categoriaId: null }, { origenDelAlta: "WEB" });
+    if (!alta.ok && alta.error === MENSAJES_ALTA.categoria && intento.categoriaId) {
+      intento = { ...intento, categoriaId: null };
+      alta = await altaDeConsulta(altaDelSistema(workspaceId), intento, { origenDelAlta: "WEB" });
+    }
+    // Lo mismo con el origen: si se archivó en el medio, la consulta entra igual, sin origen.
+    if (!alta.ok && alta.error === MENSAJES_ALTA.origen && intento.origenId) {
+      intento = { ...intento, origenId: null };
+      alta = await altaDeConsulta(altaDelSistema(workspaceId), intento, { origenDelAlta: "WEB" });
     }
     if (!alta.ok) return { status: "error", error: alta.error === MENSAJES_ALTA.fallo ? MENSAJE_COMUN : alta.error };
     return { status: "ok" };

@@ -56,9 +56,6 @@ export const PUBLIC_MODULE_PAGES: readonly PublicModulePage[] = [
   // `withStoreOpenState`, que aplica `loadPublicSite`.
   { moduleKey: STORE_MODULE_KEY, segment: STORE_PUBLIC_SEGMENT, label: "Tienda", order: 35 },
   { moduleKey: BLOG_PUBLIC_PAGE_KEY, segment: "blog", label: "Blog", order: 40 },
-  // El formulario de presupuesto a página completa: la consulta entra a Consultas. Convive con
-  // `presupuesto/[token]` (el enlace del presupuesto que se le manda a cada cliente).
-  { moduleKey: SERVICE_LEADS_MODULE_KEY, segment: "presupuesto", label: PRESUPUESTO_PAGE_LABEL, order: 45 },
 ] as const;
 
 /**
@@ -117,6 +114,11 @@ export const OPTIONAL_PUBLIC_PAGES: readonly OptionalPublicPage[] = [
   { key: "entrar", moduleKey: null, path: "entrar", label: "Ingresar" },
   // La comisión directiva que se carga en Configuración → Comisión, a la vista de todos.
   { key: "institucional", moduleKey: null, path: INSTITUTIONAL_PUBLIC_SEGMENT, label: "Institucional" },
+  // El formulario de presupuesto a página completa: la consulta entra a Consultas. Es opcional
+  // para que no aparezca de golpe en el menú de los sitios ya publicados; la ruta igual existe
+  // con el módulo encendido (404 si está apagado). Convive con `presupuesto/[token]` (el enlace
+  // del presupuesto que se le manda a cada cliente).
+  { key: "presupuesto", moduleKey: SERVICE_LEADS_MODULE_KEY, path: "presupuesto", label: PRESUPUESTO_PAGE_LABEL },
 ] as const;
 
 /** Las páginas opcionales disponibles con los módulos habilitados. */
@@ -129,8 +131,8 @@ export function optionalPublicPagesFor(enabledModuleKeys: ReadonlySet<string>): 
  * módulos se derivan de `PUBLIC_MODULE_PAGES`; los fijos son rutas propias del sitio que no
  * pertenecen a ningún módulo.
  *
- * No se usa todavía: lo consume la validación al crear una página, en la etapa 2. Se define
- * acá, junto a su fuente, para que nazca derivado y no escrito a mano.
+ * Lo consume `RESERVED_SITE_SEGMENTS` (`reserved-slugs.ts`), la lista única que valida la
+ * dirección de una página propia. Se define acá, junto a su fuente, para que nazca derivado.
  */
 const SEGMENTOS_FIJOS = ["xv", "sitemap.xml", "robots.txt"] as const;
 

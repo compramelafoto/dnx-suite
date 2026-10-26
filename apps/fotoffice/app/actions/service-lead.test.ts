@@ -18,7 +18,7 @@ vi.mock("@repo/db", () => ({
 vi.mock("@/lib/consultas/alta", () => ({
   altaDeConsulta: H.alta,
   altaDelSistema: (workspaceId: string) => ({ workspaceId, userId: null, userLabel: "Sistema", role: null }),
-  MENSAJES_ALTA: { fallo: "No se pudo registrar la consulta." },
+  MENSAJES_ALTA: { fallo: "No se pudo registrar la consulta.", origen: "Elegí un origen válido." },
   MAX_TEXTO_CONSULTA: 200,
   MAX_MENSAJE_CONSULTA: 4000,
 }));
@@ -82,6 +82,15 @@ describe("createServiceLead", () => {
     H.origen.mockClear();
     await createServiceLead(ENTRADA);
     expect(H.origen).not.toHaveBeenCalled();
+  });
+
+  it("si el origen se archiva justo entre la elección y el alta, reintenta sin origen", async () => {
+    H.origen.mockResolvedValue({ id: "o-ig" });
+    H.alta.mockResolvedValueOnce({ ok: false, error: "Elegí un origen válido." });
+    expect(await createServiceLead({ ...ENTRADA, origenId: "o-ig" })).toEqual({ success: true });
+    expect(H.alta).toHaveBeenCalledTimes(2);
+    expect(H.alta.mock.calls[0]![1]).toMatchObject({ origenId: "o-ig" });
+    expect(H.alta.mock.calls[1]![1]).toMatchObject({ origenId: null, eventType: "BODA" });
   });
 
   it("sin workspace no da de alta", async () => {

@@ -1,5 +1,6 @@
 import { BlogArticleBody } from "@/components/website/blog/blog-article-body";
-import { sanitizeRichTextConfig, type RichTextBlockConfig } from "@/lib/website/blocks";
+import type { RichTextBlockConfig } from "@/lib/website/blocks";
+import { sanitizeRichTextConfig } from "@/lib/website/rich-text-sanitize";
 import { levelStyle } from "@/lib/website/typography";
 
 const WIDTH_CLASS: Record<RichTextBlockConfig["width"], string> = {

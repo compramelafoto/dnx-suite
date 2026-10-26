@@ -3,7 +3,7 @@
 import { type Prisma, prisma } from "@repo/db";
 import { z } from "zod";
 import {
-  altaDeConsulta, altaDelSistema, MAX_MENSAJE_CONSULTA, MAX_TEXTO_CONSULTA, MENSAJES_ALTA,
+  altaDeConsulta, altaDelSistema, MAX_MENSAJE_CONSULTA, MAX_TEXTO_CONSULTA, MENSAJES_ALTA, type DatosAlta,
 } from "@/lib/consultas/alta";
 import {
   camposPublicos, fechaOpcional, frenadoPorIp, MAX_CORTO, MENSAJE_FRENO, origenDelFormulario, recortar, vacioANull,
@@ -98,24 +98,25 @@ export async function createServiceLead(
     // sólo por correo), la consulta y su ficha nueva con la categoría equivalente al tipo del
     // formulario; después, cada paso aislado y en orden: número, circuito, aviso al equipo y tarea,
     // y la respuesta automática (sólo en este camino). Una falla de esos pasos nunca deshace el alta.
-    const alta = await altaDeConsulta(
-      altaDelSistema(branding.workspaceId),
-      {
-        contacto: { nombre: data.name, email: vacioANull(data.email), telefono: vacioANull(data.phone) },
-        eventType: recortar(data.eventType, MAX_TEXTO_CONSULTA),
-        // El subtipo puede venir de `meta.budgetType`, que zod no limita: se recorta al tope del
-        // alta en lugar de rechazar la consulta (lo mismo con los demás textos, por las dudas).
-        eventSubtype: recortar(resolvedEventSubtype, MAX_TEXTO_CONSULTA),
-        eventDate: fechaOpcional(data.eventDate),
-        eventLocation: recortar(data.eventLocation, MAX_TEXTO_CONSULTA),
-        message: recortar(data.message, MAX_MENSAJE_CONSULTA),
-        metaJson: data.meta ? (data.meta as Prisma.InputJsonValue) : null,
-        formId: vacioANull(data.formId),
-        formSlug: recortar(data.formSlug, MAX_TEXTO_CONSULTA),
+    const datos: DatosAlta = {
+      contacto: { nombre: data.name, email: vacioANull(data.email), telefono: vacioANull(data.phone) },
+      eventType: recortar(data.eventType, MAX_TEXTO_CONSULTA),
+      // El subtipo puede venir de `meta.budgetType`, que zod no limita: se recorta al tope del
+      // alta en lugar de rechazar la consulta (lo mismo con los demás textos, por las dudas).
+      eventSubtype: recortar(resolvedEventSubtype, MAX_TEXTO_CONSULTA),
+      eventDate: fechaOpcional(data.eventDate),
+      eventLocation: recortar(data.eventLocation, MAX_TEXTO_CONSULTA),
+      message: recortar(data.message, MAX_MENSAJE_CONSULTA),
+      metaJson: data.meta ? (data.meta as Prisma.InputJsonValue) : null,
+      formId: vacioANull(data.formId),
+      formSlug: recortar(data.formSlug, MAX_TEXTO_CONSULTA),
         ...(origenId ? { origenId } : {}),
-      },
-      { origenDelAlta: "WEB" },
-    );
+    };
+    let alta = await altaDeConsulta(altaDelSistema(branding.workspaceId), datos, { origenDelAlta: "WEB" });
+    // El origen se archivó entre la elección y el alta: la consulta entra igual, sin origen.
+    if (!alta.ok && alta.error === MENSAJES_ALTA.origen && datos.origenId) {
+      alta = await altaDeConsulta(altaDelSistema(branding.workspaceId), { ...datos, origenId: null }, { origenDelAlta: "WEB" });
+    }
     if (!alta.ok) {
       return { success: false, error: alta.error === MENSAJES_ALTA.fallo ? "No se pudo registrar el lead." : alta.error };
     }

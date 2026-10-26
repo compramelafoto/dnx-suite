@@ -15,7 +15,8 @@ type Props = {
 /**
  * «Pedí tu presupuesto»: el formulario de presupuesto (INQUIRY_FORM, config por omisión) a página
  * completa, dentro del armazón del sitio. Es la página del módulo Consultas: con el módulo apagado
- * no existe (404) y no entra al menú (`PUBLIC_MODULE_PAGES`).
+ * no existe (404). No entra sola al menú: el dueño la suma desde la pestaña Menú
+ * (`OPTIONAL_PUBLIC_PAGES`).
  *
  * Convive con `presupuesto/[token]` (el presupuesto que se le manda a cada cliente): en Next una
  * `page.tsx` y un segmento dinámico hijo son rutas distintas, `/presupuesto` y `/presupuesto/<token>`.
