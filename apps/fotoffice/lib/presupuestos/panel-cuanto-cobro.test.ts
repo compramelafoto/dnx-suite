@@ -41,6 +41,16 @@ describe("panel de ¿Cuánto Cobro? (motor real)", () => {
     expect(servidor.ok && servidor.item.precioUnitario).toBe(r.item.precioUnitario);
   });
 
+  it("al recalcular en el servidor, el renglón sigue en su opción (Básico no queda vacío)", () => {
+    const r = calcularItemDelPanel(PERFIL, BODA, "Boda", { id: "i1", nombre: "Boda" }, CUANDO);
+    if (!r.ok) throw new Error(r.error);
+    const enBasico = { ...r.item, alternativaId: "basico" };
+    const servidor = recalcularItemCalculo(enBasico, entradaDelMotor(r.item.calculo!.entrada)!, CUANDO);
+    expect(servidor.ok && servidor.item.alternativaId).toBe("basico");
+    const sinOpcion = recalcularItemCalculo(r.item, entradaDelMotor(r.item.calculo!.entrada)!, CUANDO);
+    expect(sinOpcion.ok && "alternativaId" in sinOpcion.item).toBe(false);
+  });
+
   it("el precio manual del motor y el ajuste del editor mandan", () => {
     const manual = calcularItemDelPanel(PERFIL, { ...BODA, precioManual: "777000" }, "Boda", { id: "i1", nombre: "Boda" }, CUANDO);
     expect(manual.ok && manual.item.precioUnitario).toBe(777000);
