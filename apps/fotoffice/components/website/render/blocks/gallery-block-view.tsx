@@ -12,7 +12,7 @@ const COLUMNS_CLASS: Record<GalleryBlockConfig["columns"], { grid: string; mason
 
 /** Sólo se dibujan fotos con enlace https (o ruta propia): nada de `javascript:` ni `data:`. */
 function isShowablePhoto(photo: GalleryPhoto): boolean {
-  return /^https:\/\//i.test(photo.url) || photo.url.startsWith("/");
+  return /^https:\/\//i.test(photo.url) || /^\/(?!\/)/.test(photo.url);
 }
 
 /** Pixeles que hay que arrastrar a lo ancho para que cuente como deslizar (no como un toque). */
@@ -22,8 +22,11 @@ function Lightbox({ photos, startIndex, onClose }: { photos: GalleryPhoto[]; sta
   const [index, setIndex] = useState(startIndex);
   const touchStartX = useRef<number | null>(null);
   const total = photos.length;
+  useEffect(() => {
+    if (total === 0) onClose();
+  }, [total, onClose]);
 
-  const go = useCallback((delta: number) => setIndex((i) => (i + delta + total) % total), [total]);
+  const go = useCallback((delta: number) => setIndex((i) => (Math.min(i, total - 1) + delta + total) % total), [total]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -41,7 +44,10 @@ function Lightbox({ photos, startIndex, onClose }: { photos: GalleryPhoto[]; sta
     };
   }, [go, onClose]);
 
-  const photo = photos[index];
+  // Si la lista de fotos cambia con el visor abierto (edición en vivo), el índice no se sale.
+  const safeIndex = Math.min(index, total - 1);
+  const photo = photos[safeIndex];
+  if (!photo) return null;
   const buttonClass =
     "absolute flex h-11 w-11 items-center justify-center rounded-full bg-white/15 text-2xl text-white hover:bg-white/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-white";
 
@@ -99,7 +105,7 @@ function Lightbox({ photos, startIndex, onClose }: { photos: GalleryPhoto[]; sta
             ›
           </button>
           <p className="absolute bottom-4 left-1/2 -translate-x-1/2 text-sm text-white/80">
-            {index + 1} / {total}
+            {safeIndex + 1} / {total}
           </p>
         </>
       ) : null}

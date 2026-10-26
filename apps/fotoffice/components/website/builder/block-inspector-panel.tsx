@@ -42,7 +42,7 @@ export function BlockInspectorPanel({
         </button>
       </div>
       <fieldset disabled={!canEdit} className="flex-1 overflow-y-auto p-4 space-y-5 border-0">
-        <Registry.Inspector config={block.config as never} onChange={(config) => onChange({ ...block, config } as WebsiteBlock)} blockId={block.id} />
+        <Registry.Inspector key={block.id} config={block.config as never} onChange={(config) => onChange({ ...block, config } as WebsiteBlock)} blockId={block.id} />
         <ToggleField label="Mostrar esta sección en el sitio" checked={block.visible} onChange={(v) => onChange({ ...block, visible: v })} />
       </fieldset>
     </div>

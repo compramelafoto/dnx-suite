@@ -25,6 +25,11 @@ export function RichTextField({ html, onChange }: { html: string; onChange: (htm
   const [json, setJson] = useState<JSONContent | null>(null);
   const initialHtml = useRef(html);
   const lastEmitted = useRef(0);
+  // El HTML llega tarde (async): se entrega con el `onChange` VIGENTE, no el de cuando se tipeó.
+  const onChangeRef = useRef(onChange);
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  }, [onChange]);
 
   useEffect(() => {
     let cancelled = false;
@@ -50,7 +55,7 @@ export function RichTextField({ html, onChange }: { html: string; onChange: (htm
         // Las respuestas async pueden llegar desordenadas: sólo vale la última pedida.
         const ticket = ++lastEmitted.current;
         void generateContentHtml(next).then((out) => {
-          if (ticket === lastEmitted.current) onChange(out);
+          if (ticket === lastEmitted.current) onChangeRef.current(out);
         });
       }}
       placeholder="Escribí el texto de la sección…"
