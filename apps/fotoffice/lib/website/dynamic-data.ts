@@ -1,5 +1,6 @@
 import type { PortfolioBlock, WebsiteBlock } from "./blocks";
 import type { TrabajoTarjeta } from "@/lib/trabajos/publico";
+import type { TestimonioPublico } from "@/lib/testimonios/publico";
 import type { SpotlightCardView } from "@/lib/spotlight/view";
 import type { HeroBlogSlide } from "./blog-banner";
 import type { PublicSiteContact } from "./public-site";
@@ -58,6 +59,17 @@ export type WebsiteDynamicData = {
   /** Las tarjetas de cada bloque PORTFOLIO, por id de bloque: dos bloques pueden pedir
    * categorías o cantidades distintas. Un bloque sin entrada (o sin tarjetas) no se dibuja. */
   portfolio?: Record<string, PortfolioData>;
+  /** Los testimonios PUBLICADOS (sin el correo del autor), una sola lectura para todos los bloques
+   * TESTIMONIALS de la página: cada uno corta los primeros N. Sin ninguno, el bloque no se dibuja. */
+  testimonios?: TestimoniosData;
+};
+
+export type TestimoniosData = {
+  items: TestimonioPublico[];
+  /** `/w/<slug>/testimonios`. */
+  verTodosHref: string;
+  /** `/w/<slug>/testimonio`: el formulario abierto para dejar uno. */
+  formularioHref: string;
 };
 
 /** Lo que dibuja un bloque PORTFOLIO: sólo trabajos PUBLICADOS de categorías visibles. */
@@ -97,6 +109,20 @@ export function blogLatestLimitFor(blocks: readonly WebsiteBlock[]): number {
   let limit = 0;
   for (const block of blocks) {
     if (block.type === "BLOG_LATEST" && block.visible) limit = Math.max(limit, block.config.count);
+  }
+  return limit;
+}
+
+/**
+ * Cuántos testimonios leer para los bloques TESTIMONIALS visibles: 0 si no hay ninguno (no se
+ * consulta), el mayor `count`, o `null` (todos) si alguno pide todos (`count: 0`).
+ */
+export function testimonialsLimitFor(blocks: readonly WebsiteBlock[]): number | null {
+  let limit = 0;
+  for (const block of blocks) {
+    if (block.type !== "TESTIMONIALS" || !block.visible) continue;
+    if (block.config.count === 0) return null;
+    limit = Math.max(limit, block.config.count);
   }
   return limit;
 }

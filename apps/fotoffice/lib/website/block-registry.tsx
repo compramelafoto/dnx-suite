@@ -20,6 +20,7 @@ import { SpacerBlockView } from "@/components/website/render/blocks/spacer-block
 import { BlogLatestBlockView } from "@/components/website/render/blocks/blog-latest-block-view";
 import { MemberOfWeekBlockView } from "@/components/website/render/blocks/member-of-week-block-view";
 import { PortfolioBlockView } from "@/components/website/render/blocks/portfolio-block-view";
+import { TestimonialsBlockView } from "@/components/website/render/blocks/testimonials-block-view";
 import { isAllowedMapsUrl } from "./contact";
 import { isAllowedEmbedUrl, toVideoEmbedUrl } from "./embed-hosts";
 import type { WebsiteDynamicData } from "./dynamic-data";
@@ -39,6 +40,7 @@ import {
   type MemberOfWeekBlockConfig,
   type ImageBlockConfig,
   type SpacerBlockConfig,
+  type TestimonialsBlockConfig,
   type TextBlockConfig,
   type WebsiteBlock,
   type WebsiteBlockType,
@@ -326,6 +328,42 @@ export const WEBSITE_BLOCK_REGISTRY: { [K in WebsiteBlockType]: BlockRegistryEnt
   PORTFOLIO: {
     View: PortfolioBlockView,
     Inspector: PortfolioInspector,
+  },
+  TESTIMONIALS: {
+    View: TestimonialsBlockView,
+    Inspector: ({ config, onChange }: { config: TestimonialsBlockConfig; onChange: (c: TestimonialsBlockConfig) => void }) => (
+      <div className="space-y-4">
+        <TextField label="Título" value={config.title ?? ""} onChange={(v) => onChange({ ...config, title: v })} />
+        <SelectField
+          label="Cuántos testimonios"
+          value={String(config.count)}
+          onChange={(v) => onChange({ ...config, count: v === "3" ? 3 : v === "9" ? 9 : v === "12" ? 12 : v === "0" ? 0 : 6 })}
+          options={[
+            { value: "3", label: "3 testimonios" },
+            { value: "6", label: "6 testimonios" },
+            { value: "9", label: "9 testimonios" },
+            { value: "12", label: "12 testimonios" },
+            { value: "0", label: "Todos" },
+          ]}
+        />
+        <SelectField
+          label="Disposición"
+          value={config.layout}
+          onChange={(v) => onChange({ ...config, layout: v === "grid" ? "grid" : "carousel" })}
+          options={[
+            { value: "carousel", label: "Carrusel" },
+            { value: "grid", label: "Grilla" },
+          ]}
+        />
+        <ToggleField label="Mostrar el botón para dejar un testimonio" checked={config.showCta} onChange={(v) => onChange({ ...config, showCta: v })} />
+        {config.showCta ? (
+          <TextField label="Texto del botón" value={config.ctaLabel} onChange={(v) => onChange({ ...config, ctaLabel: v })} />
+        ) : null}
+        <p className="text-xs text-[var(--fo-muted)]">
+          Se muestran solos los testimonios que publicaste, con los destacados primero. Si todavía no hay ninguno, la sección no aparece en el sitio.
+        </p>
+      </div>
+    ),
   },
 };
 

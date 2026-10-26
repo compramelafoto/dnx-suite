@@ -9,7 +9,8 @@ import { getEnabledModuleKeysForWorkspace } from "@/lib/modules/gating";
 import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { listBlogPosts } from "@/lib/blog/public";
 import { hayTrabajosPublicados } from "@/lib/trabajos/publico";
-import { withTrabajosPage } from "@/lib/website/public-modules";
+import { hayTestimoniosPublicados } from "@/lib/testimonios/publico";
+import { withTestimoniosPage, withTrabajosPage } from "@/lib/website/public-modules";
 import { HOME_PAGE_KEY } from "@/lib/website/pages";
 import { WebsitePageRenderer } from "@/components/website/render/website-page-renderer";
 import { WebsiteHeaderView } from "@/components/website/render/website-header-view";
@@ -25,7 +26,7 @@ export default async function WebsitePreviewPage({ searchParams }: { searchParam
   const { pagina } = await searchParams;
   const { workspace, sections, designPresets, menu } = await loadWebsiteCmsContext();
 
-  const [branding, modulosEncendidos, personVocabulary, hasPublishedBlog, hasPublishedTrabajos] = await Promise.all([
+  const [branding, modulosEncendidos, personVocabulary, hasPublishedBlog, hasPublishedTrabajos, hasPublishedTestimonios] = await Promise.all([
     prisma.fotofficeWorkspaceBranding.findUnique({
       where: { workspaceId: workspace.id },
       select: { primaryColor: true, secondaryColor: true, backgroundColor: true, textColor: true, accentColor: true, logoUrl: true, commercialName: true },
@@ -38,8 +39,13 @@ export default async function WebsitePreviewPage({ searchParams }: { searchParam
       console.error("[fotoffice][website] no se pudo saber si hay trabajos publicados:", err);
       return false;
     }),
+    // Y Testimonios, con al menos un testimonio publicado.
+    hayTestimoniosPublicados(workspace.id).catch((err: unknown) => {
+      console.error("[fotoffice][website] no se pudo saber si hay testimonios publicados:", err);
+      return false;
+    }),
   ]);
-  const enabledModuleKeys = withTrabajosPage(modulosEncendidos, hasPublishedTrabajos);
+  const enabledModuleKeys = withTestimoniosPage(withTrabajosPage(modulosEncendidos, hasPublishedTrabajos), hasPublishedTestimonios);
   const colors = resolveWebsiteColors(branding);
   // `?pagina=<clave>` dibuja esa página propia del borrador; sin ella (o con una clave que no
   // existe), el inicio. El menú se arma siempre con el inicio, como en el sitio.

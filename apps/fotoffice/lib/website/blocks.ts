@@ -367,6 +367,25 @@ export const portfolioConfigSchema = z.object({
   showViewAll: z.boolean().catch(true),
 });
 
+/**
+ * Testimonios: los testimonios PUBLICADOS del estudio (con permiso del autor), en carrusel o en
+ * grilla. Como "Trabajos", se leen al dibujar y nunca se copian acá. `count: 0` = todos. Sin ninguno
+ * publicado el bloque no se dibuja. `showCta` suma el botón al formulario para dejar uno.
+ */
+export const TESTIMONIALS_COUNT_OPTIONS = [3, 6, 9, 12, 0] as const;
+export type TestimonialsCount = (typeof TESTIMONIALS_COUNT_OPTIONS)[number];
+export const TESTIMONIALS_LAYOUTS = ["carousel", "grid"] as const;
+export const TESTIMONIALS_DEFAULT_TITLE = "Lo que dicen de nosotros";
+export const TESTIMONIALS_DEFAULT_CTA = "Dejá tu testimonio";
+
+export const testimonialsConfigSchema = z.object({
+  title: z.string().max(200).optional().catch(undefined),
+  count: z.union([z.literal(3), z.literal(6), z.literal(9), z.literal(12), z.literal(0)]).catch(6),
+  layout: z.enum(TESTIMONIALS_LAYOUTS).catch("carousel"),
+  showCta: z.boolean().catch(true),
+  ctaLabel: z.string().trim().min(1).max(60).catch(TESTIMONIALS_DEFAULT_CTA),
+});
+
 const blockEnvelope = {
   id: z.string().min(1),
   visible: z.boolean(),
@@ -387,6 +406,7 @@ export const inquiryFormBlockSchema = z.object({ ...blockEnvelope, type: z.liter
 export const blogLatestBlockSchema = z.object({ ...blockEnvelope, type: z.literal("BLOG_LATEST"), config: blogLatestConfigSchema });
 export const memberOfWeekBlockSchema = z.object({ ...blockEnvelope, type: z.literal("MEMBER_OF_WEEK"), config: memberOfWeekConfigSchema });
 export const portfolioBlockSchema = z.object({ ...blockEnvelope, type: z.literal("PORTFOLIO"), config: portfolioConfigSchema });
+export const testimonialsBlockSchema = z.object({ ...blockEnvelope, type: z.literal("TESTIMONIALS"), config: testimonialsConfigSchema });
 
 export const websiteBlockSchema = z.discriminatedUnion("type", [
   heroBlockSchema,
@@ -403,6 +423,7 @@ export const websiteBlockSchema = z.discriminatedUnion("type", [
   blogLatestBlockSchema,
   memberOfWeekBlockSchema,
   portfolioBlockSchema,
+  testimonialsBlockSchema,
 ]);
 
 export const websitePageContentSchema = z.array(websiteBlockSchema);
@@ -443,6 +464,7 @@ export type InquiryFormBlockConfig = z.infer<typeof inquiryFormConfigSchema>;
 export type BlogLatestBlockConfig = z.infer<typeof blogLatestConfigSchema>;
 export type MemberOfWeekBlockConfig = z.infer<typeof memberOfWeekConfigSchema>;
 export type PortfolioBlockConfig = z.infer<typeof portfolioConfigSchema>;
+export type TestimonialsBlockConfig = z.infer<typeof testimonialsConfigSchema>;
 
 export type HeroBlock = z.infer<typeof heroBlockSchema>;
 export type TextBlock = z.infer<typeof textBlockSchema>;
@@ -458,6 +480,7 @@ export type InquiryFormBlock = z.infer<typeof inquiryFormBlockSchema>;
 export type BlogLatestBlock = z.infer<typeof blogLatestBlockSchema>;
 export type MemberOfWeekBlock = z.infer<typeof memberOfWeekBlockSchema>;
 export type PortfolioBlock = z.infer<typeof portfolioBlockSchema>;
+export type TestimonialsBlock = z.infer<typeof testimonialsBlockSchema>;
 
 /** Unión cerrada de los bloques implementados. Bloques con `type` desconocido no matchean acá
  * — el renderer y el editor deben tratarlos como inválidos y omitirlos, nunca romper la página. */
@@ -698,6 +721,16 @@ export const WEBSITE_BLOCK_DEFINITIONS: {
     defaultConfig: () => ({ title: PORTFOLIO_DEFAULT_TITLE, count: 6, layout: "grid", showViewAll: true }),
     // Alimenta también el menú (ver HERO).
     previewLabel: (c) => c.title?.trim() || "Trabajos",
+  },
+  TESTIMONIALS: {
+    type: "TESTIMONIALS",
+    label: "Testimonios",
+    description: "Lo que tus clientes dicen de vos: los testimonios que publicaste, en carrusel o en grilla, con el botón para dejar uno.",
+    category: "COMUNICACION",
+    source: "dynamic",
+    defaultConfig: () => ({ title: TESTIMONIALS_DEFAULT_TITLE, count: 6, layout: "carousel", showCta: true, ctaLabel: TESTIMONIALS_DEFAULT_CTA }),
+    // Alimenta también el menú (ver HERO).
+    previewLabel: (c) => c.title?.trim() || "Testimonios",
   },
 };
 
