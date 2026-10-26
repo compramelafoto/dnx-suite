@@ -177,6 +177,36 @@ Gracias por comunicarte[si:organizacion] con [organizacion][/si]. Recibimos tu c
 [firma]`,
 };
 
+/**
+ * Textos iniciales del pedido de testimonio (`TESTIMONIO_INVITACION`, sitio PR 3). El de correo es el de la
+ * plantilla automática; el de WhatsApp es el que se abre con «Pedir testimonio» cuando el cliente no tiene
+ * correo (o se elige WhatsApp). Los dos llevan el enlace personal `[link_testimonio]`.
+ */
+export const TESTIMONIO_INVITACION_INICIAL: { EMAIL: AutorespuestaInicial; WHATSAPP: { asunto: null; cuerpo: string } } = {
+  EMAIL: {
+    asunto: "¿Nos contás cómo te fue con [organizacion]?",
+    cuerpo: `Hola[si:nombre], [nombre][/si]:
+
+Fue un gusto acompañarte. Si tenés un minuto, nos encantaría que nos cuentes cómo viviste la experiencia: tu opinión nos ayuda muchísimo y le sirve a quien está por elegir a su fotógrafo.
+
+Podés dejar tu testimonio en este enlace: [link_testimonio]
+
+Son unas pocas líneas y, si querés, una foto tuya. Antes de publicarlo te pedimos permiso y lo revisamos nosotros. El enlace es personal y vence en 90 días.
+
+¡Muchas gracias!
+
+[firma]`,
+  },
+  WHATSAPP: {
+    asunto: null,
+    cuerpo: `¡Hola[si:nombre] [nombre][/si]! Te escribimos de [organizacion]. Fue un gusto acompañarte 📸
+
+Si tenés un minuto, nos encantaría que nos cuentes cómo te fue: [link_testimonio]
+
+Son unas pocas líneas y nos ayuda un montón. ¡Gracias!`,
+  },
+};
+
 const CLAVE = "CONSULTA_AUTORESPUESTA" as const;
 
 /**

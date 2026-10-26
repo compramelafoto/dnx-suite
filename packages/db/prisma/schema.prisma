@@ -27509,3 +27509,88 @@ model FotofficeTrabajoFoto {
   @@unique([trabajoId, r2Key])
   @@index([trabajoId, orden])
 }
+
+// ---------------------------------------------------------------------------
+// FOTOFFICE · Testimonios del sitio (PR 3 del sitio público)
+// Sin relaciones Prisma a tablas existentes: el SQL se aplica a mano y el código tolera que falte.
+// ---------------------------------------------------------------------------
+
+/// Un testimonio de un cliente sobre el estudio. Sólo sale en el sitio PUBLICADO y con consentimiento.
+model FotofficeTestimonio {
+  id                  String    @id @default(cuid())
+  workspaceId         String
+  /// Hasta 1200 caracteres.
+  texto               String    @db.Text
+  /// Versión corta opcional (hasta 240) para las tarjetas.
+  extracto            String?
+  autorNombre         String
+  /// Por ejemplo «Novia, casamiento en Rosario».
+  autorDetalle        String?
+  autorFotoUrl        String?
+  /// Key en el bucket de FOTOFFICE (`fotoffice/<workspaceId>/sitio/testimonios/…`).
+  autorFotoKey        String?
+  autorEnlace         String?
+  /// Nunca sale en ninguna lectura pública.
+  autorEmail          String?
+  /// 1 a 5, opcional.
+  calificacion        Int?
+  /// PENDIENTE | PUBLICADO | RECHAZADO
+  estado              String    @default("PENDIENTE")
+  consentimiento      Boolean   @default(false)
+  consentimientoAt    DateTime?
+  /// El texto exacto que aceptó el autor (o «tengo permiso del autor» en la carga manual).
+  consentimientoTexto String?
+  /// IMPORTADO | FORMULARIO | INVITACION | CARGA_MANUAL
+  origen              String
+  clientId            String?
+  proyectoId          String?
+  trabajoId           String?
+  invitacionId        String?
+  destacado           Boolean   @default(false)
+  orden               Int       @default(0)
+  moderadoPorUserId   String?
+  moderadoAt          DateTime?
+  /// Id en el sistema de origen (por ejemplo Alboom) para no importarlo dos veces.
+  origenExternoId     String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@unique([workspaceId, origenExternoId])
+  @@index([workspaceId, estado, orden])
+}
+
+/// Invitación personal a dejar un testimonio. Sólo se guarda el hash SHA-256 del token; un uso, vence a los 90 días.
+model FotofficeTestimonioInvitacion {
+  id                String    @id @default(cuid())
+  workspaceId       String
+  tokenHash         String    @unique
+  clientId          String?
+  proyectoId        String?
+  correo            String?
+  nombreSugerido    String?
+  detalleSugerido   String?
+  /// ENVIADA | RESPONDIDA | VENCIDA
+  estado            String    @default("ENVIADA")
+  /// EMAIL | WHATSAPP | ENLACE
+  canal             String?
+  enviadaAt         DateTime  @default(now())
+  respondidaAt      DateTime?
+  venceAt           DateTime
+  /// Freno de duplicados del pedido automático (una por cliente y proyecto).
+  claveIdempotencia String?   @unique
+  createdByUserId   String?
+
+  @@index([workspaceId, estado])
+}
+
+/// Ajustes de testimonios del workspace (pedido automático, apagado por omisión).
+model FotofficeTestimonioAjustes {
+  workspaceId         String    @id
+  automaticoEncendido Boolean   @default(false)
+  /// Días después de finalizar el proyecto (1 a 60).
+  diasDespues         Int       @default(7)
+  /// Sólo se invita a proyectos finalizados después de este momento.
+  encendidoAt         DateTime?
+  avisarAlEquipo      Boolean   @default(true)
+  updatedAt           DateTime  @updatedAt
+}

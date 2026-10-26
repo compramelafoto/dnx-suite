@@ -40,6 +40,8 @@ export type ContextoVariables = {
   contrato?: { numero: string | null; enlace: string | null; codigo: string | null; firmante: string | null };
   /** Sólo en los correos de la galería (etapa 7): ya formateados. */
   galeria?: { numero: string | null; nombre: string | null; enlace: string | null; cantidad: string | null; total?: string | null; vence?: string | null; nota?: string | null; ronda?: string | null };
+  /** Sólo en el pedido de testimonio (sitio, PR 3): el enlace personal para dejarlo. */
+  testimonio?: { enlace: string | null };
   /** Etapa 2, Entrega B: los productos "en lista de precios", ya en texto (`lib/presupuestos/lista-precios.ts`). */
   listaPrecios?: string | null;
   /** Valores legibles de los campos personalizados, por clave del campo (sin el prefijo `campo:`). */
@@ -47,7 +49,7 @@ export type ContextoVariables = {
 };
 
 export type GrupoVariable =
-  | "Persona" | "Organización" | "Usuario que envía" | "Fecha" | "Consulta" | "Presupuesto" | "Pedido" | "Cita" | "Contrato" | "Galería" | "Socio" | "Campos";
+  | "Persona" | "Organización" | "Usuario que envía" | "Fecha" | "Consulta" | "Presupuesto" | "Pedido" | "Cita" | "Contrato" | "Galería" | "Testimonio" | "Socio" | "Campos";
 
 export type DefinicionVariable = {
   clave: string;
@@ -69,6 +71,7 @@ const PEDIDO: readonly TipoPlantilla[] = ["PEDIDO"];
 const CITA: readonly TipoPlantilla[] = ["CITA"];
 const CONTRATO: readonly TipoPlantilla[] = ["CONTRATO"];
 const GALERIA: readonly TipoPlantilla[] = ["GALERIA"];
+const TESTIMONIO: readonly TipoPlantilla[] = ["TESTIMONIO"];
 const CON_CAMPOS: readonly TipoPlantilla[] = ["CLIENTE", "SOCIO", "CONSULTA"];
 
 function limpio(v: string | null | undefined): string | null {
@@ -177,6 +180,8 @@ export const VARIABLES: readonly DefinicionVariable[] = [
   { clave: "galeria_vence", etiqueta: "Vencimiento de la descarga", descripcion: "El día hasta el que se puede bajar la descarga completa (sólo en el aviso de descarga lista).", grupo: "Galería", tipos: GALERIA, obtener: (c) => limpio(c.galeria?.vence) },
   { clave: "galeria_ronda", etiqueta: "Número de ronda", descripcion: "El número de la ronda del álbum que hay para revisar (sólo en el aviso de ronda nueva).", grupo: "Galería", tipos: GALERIA, obtener: (c) => limpio(c.galeria?.ronda) },
   { clave: "galeria_nota", etiqueta: "Nota del estudio", descripcion: "El mensaje que el estudio dejó al abrir la ronda nueva del álbum (sólo en el aviso de ronda nueva).", grupo: "Galería", tipos: GALERIA, obtener: (c) => limpio(c.galeria?.nota) },
+  // Testimonio (sitio, PR 3)
+  { clave: "link_testimonio", etiqueta: "Enlace para dejar el testimonio", descripcion: "La dirección personal del cliente para escribir su testimonio (vence a los 90 días y se usa una vez).", grupo: "Testimonio", tipos: TESTIMONIO, obtener: (c) => limpio(c.testimonio?.enlace) },
   // Socio
   { clave: "socio_numero", etiqueta: "Número de socio", descripcion: "El número de socio, si la organización los numera.", grupo: "Socio", tipos: SOCIO, obtener: (c) => limpio(c.socio?.numero) },
 ];
