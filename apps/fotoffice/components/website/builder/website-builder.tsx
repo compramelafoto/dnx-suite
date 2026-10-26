@@ -376,7 +376,7 @@ export function WebsiteBuilder({
               </div>
             ) : null}
             {mode === "PLANTILLAS" ? (
-              <TemplatePickerPanel hasContent={hasContent} canEdit={canEdit} organizationType={organizationType} onApply={(t, m) => void handleApplyTemplate(t, m)} />
+              <TemplatePickerPanel hasContent={hasContent} canEdit={canEdit} organizationType={organizationType} onApply={(t, m, colores) => void handleApplyTemplate(t, m, colores)} />
             ) : null}
             {mode === "MENU" ? (
               <MenuPanel

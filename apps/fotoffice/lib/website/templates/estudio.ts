@@ -41,7 +41,6 @@ export const PLANTILLA_ESTUDIO: SiteTemplate = {
   paraQuien: "Estudios con local: retratos, fotos carnet, impresiones y turnos.",
   recommendedFor: ["PHOTO_STUDIO", "PHOTOGRAPHY_COMPANY"],
   tier: "free",
-  layoutPreview: ["hero", "text", "image", "cta"],
   design: diseno({ headerPreset: "logo-left", buttonPreset: "rounded", typographyPreset: "contemporary", animationPreset: "soft", footerPreset: "columns" }),
   coloresSugeridos: {
     primaryColor: "#2f5d62",

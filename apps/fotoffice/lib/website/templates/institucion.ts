@@ -13,7 +13,6 @@ export const PLANTILLA_INSTITUCION: SiteTemplate = {
   paraQuien: "Asociaciones, clubes, escuelas y organizaciones culturales.",
   recommendedFor: ["PHOTOGRAPHERS_ASSOCIATION", "CULTURAL_ORGANIZATION", "NONPROFIT", "EDUCATIONAL_INSTITUTION"],
   tier: "free",
-  layoutPreview: ["hero", "text", "cta", "text"],
   design: diseno({ headerPreset: "logo-left", buttonPreset: "square", typographyPreset: "institutional", animationPreset: "none", footerPreset: "columns" }),
   coloresSugeridos: null,
   paginas: [

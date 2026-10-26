@@ -4,7 +4,8 @@ import { websiteDesignPresetsSchema } from "./design-presets";
 import { HOME_PAGE_KEY, validatePageSlug } from "./pages";
 import { siteMenuSchema } from "./site-menu";
 import { MAX_CUSTOM_PAGES } from "./save-pages";
-import { SITE_TEMPLATE_IDS, WEBSITE_TEMPLATES, getWebsiteTemplate, resolveTemplateId } from "./templates";
+import { SITE_TEMPLATE_IDS, WEBSITE_TEMPLATES, fotosDeLaPlantilla, getWebsiteTemplate, resolveTemplateId } from "./templates";
+import { enlaceDeBoton } from "./button-href";
 import { FOTOS_DE_MUESTRA } from "./templates/fotos";
 
 const tipos = (id: string, clave: string): WebsiteBlockType[] =>
@@ -85,6 +86,26 @@ describe("WEBSITE_TEMPLATES", () => {
       // Ninguna foto de un bucket de clientes (R2 de FOTOFFICE / CompraMeLaFoto).
       expect(json).not.toMatch(/r2\.dev|r2\.cloudflarestorage/);
     }
+  });
+
+  it("los botones van a una sección de la misma página, a otra página de la plantilla o a ningún lado", () => {
+    for (const template of WEBSITE_TEMPLATES) {
+      const slugs = template.paginas.flatMap((p) => (p.meta ? [p.meta.slug] : []));
+      const paginas = Object.fromEntries(slugs.map((s) => [s, `/w/x/${s}`]));
+      for (const pagina of template.paginas) {
+        const urls = pagina.bloques.flatMap((b) =>
+          b.type === "CTA" ? [b.config.buttonUrl ?? ""] : b.type === "HERO" ? b.config.slides.map((s) => (s.showButton ? (s.buttonUrl ?? "") : "")) : [],
+        );
+        for (const url of urls.filter(Boolean)) {
+          const href = enlaceDeBoton(url, paginas);
+          expect(href === "#" || href?.startsWith("#") || href?.startsWith("/w/x/"), `${template.id}: ${url}`).toBe(true);
+        }
+      }
+    }
+  });
+
+  it("cada plantilla tiene fotos de muestra para la vista previa", () => {
+    for (const template of WEBSITE_TEMPLATES) expect(fotosDeLaPlantilla(template).length).toBeGreaterThanOrEqual(1);
   });
 
   it("los textos de muestra dicen «dinero», nunca «plata»", () => {

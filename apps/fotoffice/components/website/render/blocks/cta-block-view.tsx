@@ -1,9 +1,10 @@
 import type { CtaBlockConfig } from "@/lib/website/blocks";
+import type { WebsiteDynamicData } from "@/lib/website/dynamic-data";
 import { enlaceDeBoton } from "@/lib/website/button-href";
 import { levelStyle } from "@/lib/website/typography";
 
 /** Sobre la franja de color principal el texto va siempre en blanco: no toma el color del nivel. */
-export function CtaBlockView({ config }: { config: CtaBlockConfig }) {
+export function CtaBlockView({ config, data }: { config: CtaBlockConfig; blockId?: string; data?: WebsiteDynamicData }) {
   const solid = config.stylePreset === "solid";
   return (
     <section className="px-6 py-16" style={{ backgroundColor: "var(--wsite-primary)" }}>
@@ -17,7 +18,7 @@ export function CtaBlockView({ config }: { config: CtaBlockConfig }) {
           </p>
         ) : null}
         <a
-          href={enlaceDeBoton(config.buttonUrl) ?? "#"}
+          href={enlaceDeBoton(config.buttonUrl, data?.paginasDelSitio) ?? "#"}
           className="inline-flex mt-2"
           style={{
             ...levelStyle("button", { color: false }),

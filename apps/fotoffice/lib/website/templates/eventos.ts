@@ -25,7 +25,6 @@ export const PLANTILLA_EVENTOS: SiteTemplate = {
   paraQuien: "Fotógrafos de XV, bodas y eventos sociales.",
   recommendedFor: ["FREELANCE_PHOTOGRAPHER", "PHOTO_STUDIO", "PHOTOGRAPHY_COMPANY", "AGENCY_PRODUCTION"],
   tier: "free",
-  layoutPreview: ["hero", "image", "text", "cta"],
   design: diseno({
     headerPreset: "transparent-hero",
     buttonPreset: "pill",
@@ -110,6 +109,14 @@ export const PLANTILLA_EVENTOS: SiteTemplate = {
           layout: "grid",
           columns: 3,
           lightbox: true,
+        }),
+        // `/pedi-tu-presupuesto` se resuelve al dibujar contra la página de ESTE sitio (ver `enlaceDeBoton`).
+        bloque("quien-soy-cta", "CTA", {
+          title: "¿Hablamos?",
+          text: "Contame la fecha y el lugar de tu evento.",
+          buttonLabel: "Pedí tu presupuesto",
+          buttonUrl: "/pedi-tu-presupuesto",
+          stylePreset: "solid",
         }),
       ]),
     },

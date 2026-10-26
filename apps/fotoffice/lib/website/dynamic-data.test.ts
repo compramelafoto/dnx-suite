@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { blogLatestConfigSchema, createEmptyBlock, parseWebsiteSections, type WebsiteBlock } from "./blocks";
-import { blogLatestLimitFor } from "./dynamic-data";
+import { blogLatestLimitFor, datosDeMuestra, paginasDelSitio } from "./dynamic-data";
 
 function blogLatest(count: 3 | 6, visible = true): WebsiteBlock {
   const block = createEmptyBlock("BLOG_LATEST", 0);
@@ -57,5 +57,33 @@ describe("portfolioBlocksFor", () => {
     const oculto = { ...createEmptyBlock("PORTFOLIO", 1), visible: false } as WebsiteBlock;
     expect(portfolioBlocksFor([createEmptyBlock("TEXT", 0)])).toEqual([]);
     expect(portfolioBlocksFor([visible, oculto]).map((b) => b.id)).toEqual([visible.id]);
+  });
+});
+
+describe("datos de muestra de las plantillas", () => {
+  it("6 trabajos por cada bloque Trabajos y 3 testimonios, con las fotos dadas y marcados como muestra", () => {
+    const bloques = [createEmptyBlock("PORTFOLIO", 0), createEmptyBlock("PORTFOLIO", 1), createEmptyBlock("TESTIMONIALS", 2)];
+    const datos = datosDeMuestra({ bloques, fotos: ["https://images.unsplash.com/a", "https://images.unsplash.com/b"], paginas: {} });
+    expect(datos.muestra).toBe(true);
+    expect(Object.keys(datos.portfolio!)).toEqual([bloques[0].id, bloques[1].id]);
+    expect(datos.portfolio![bloques[0].id].tarjetas).toHaveLength(6);
+    expect(datos.portfolio![bloques[0].id].tarjetas.map((t) => t.portadaUrl)).toEqual([
+      "https://images.unsplash.com/a",
+      "https://images.unsplash.com/b",
+      "https://images.unsplash.com/a",
+      "https://images.unsplash.com/b",
+      "https://images.unsplash.com/a",
+      "https://images.unsplash.com/b",
+    ]);
+    expect(datos.testimonios!.items).toHaveLength(3);
+    // Nada de la muestra lleva a ningún lado ni trae el correo de nadie.
+    expect(JSON.stringify(datos)).not.toMatch(/@/);
+  });
+
+  it("las páginas del sitio quedan por dirección bajo la base", () => {
+    expect(paginasDelSitio("/w/dnx", { quien_soy: { slug: "quien-soy" }, p_1: { slug: "agenda" } })).toEqual({
+      "quien-soy": "/w/dnx/quien-soy",
+      agenda: "/w/dnx/agenda",
+    });
   });
 });

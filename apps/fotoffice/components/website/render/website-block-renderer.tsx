@@ -18,11 +18,22 @@ const DATA_KEY_BY_TYPE: Partial<Record<WebsiteBlockType, keyof WebsiteDynamicDat
   TESTIMONIALS: "testimonios",
 };
 
-/** `undefined` se conserva: las vistas lo usan para saber que están en la vista previa del builder. */
+/** Los que tienen botones: reciben las páginas propias para resolver `/quien-soy` (ver `enlaceDeBoton`). */
+const USA_PAGINAS_DEL_SITIO = new Set<WebsiteBlockType>(["HERO", "CTA"]);
+
+/**
+ * `undefined` se conserva: las vistas lo usan para saber que están en la vista previa del builder.
+ * Con datos de muestra (vista previa de plantillas), un bloque sin su parte se dibuja igual que en
+ * el constructor (`undefined`): con ejemplos y sin enviar nada.
+ */
 function dataForBlock(type: WebsiteBlockType, data: WebsiteDynamicData | undefined): WebsiteDynamicData | undefined {
   if (data === undefined) return undefined;
   const key = DATA_KEY_BY_TYPE[type];
-  return key ? { [key]: data[key] } : {};
+  const paginas = USA_PAGINAS_DEL_SITIO.has(type) && data.paginasDelSitio ? { paginasDelSitio: data.paginasDelSitio } : {};
+  if (data.muestra && (key === undefined || data[key] === undefined)) {
+    return Object.keys(paginas).length > 0 ? { ...paginas, muestra: true } : undefined;
+  }
+  return key ? { [key]: data[key], ...paginas } : { ...paginas };
 }
 
 /**

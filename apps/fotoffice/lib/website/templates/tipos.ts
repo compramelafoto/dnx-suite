@@ -15,8 +15,6 @@ import type { FotofficeOrganizationTypeId } from "../../onboarding-constants";
 export const SITE_TEMPLATE_IDS = ["eventos", "estudio", "retrato-editorial", "oscura", "institucion"] as const;
 export type SiteTemplateId = (typeof SITE_TEMPLATE_IDS)[number];
 
-export type LayoutPreviewBand = "hero" | "text" | "image" | "cta";
-
 export type SiteTemplatePage = {
   /** `home` para la portada; las demás, la clave de `sectionsJson.pages` que se usa si está libre. */
   clave: string;
@@ -35,8 +33,6 @@ export type SiteTemplate = {
   recommendedFor: FotofficeOrganizationTypeId[];
   /** Reservado para una futura distinción gratis/premium. */
   tier: "free";
-  /** Miniatura abstracta del selector actual (la reemplaza la vista previa real). */
-  layoutPreview: LayoutPreviewBand[];
   design: WebsiteDesignPresets;
   /** Colores de marca sugeridos. Sólo se aplican si el usuario lo confirma (no pisan su marca). */
   coloresSugeridos: WebsiteColors | null;

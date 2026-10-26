@@ -12,7 +12,6 @@ export const PLANTILLA_RETRATO_EDITORIAL: SiteTemplate = {
   paraQuien: "Retratistas, fotografía de autor y editorial.",
   recommendedFor: ["FREELANCE_PHOTOGRAPHER", "PHOTOGRAPHY_COMMUNITY", "OTHER"],
   tier: "free",
-  layoutPreview: ["hero", "text", "image"],
   design: diseno({ headerPreset: "centered", buttonPreset: "square", typographyPreset: "editorial", animationPreset: "soft" }),
   coloresSugeridos: {
     primaryColor: "#111111",

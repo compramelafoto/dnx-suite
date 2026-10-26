@@ -10,7 +10,33 @@
  * Nunca deja pasar `javascript:`, `data:` ni `vbscript:`: el sitio es público y lo que diga el
  * botón se ejecutaría en el navegador de cualquiera que lo toque.
  */
-export function enlaceDeBoton(valor: string | null | undefined): string | null {
+export function enlaceDeBoton(valor: string | null | undefined, paginas?: PaginasDelSitio): string | null {
+  const href = enlaceSinResolver(valor);
+  return href && paginas ? resolverPaginaPropia(href, paginas) : href;
+}
+
+/**
+ * Las páginas propias del sitio por dirección: `quien-soy` → `/w/<slug>/quien-soy` en el sitio
+ * público (en el dominio propio esa dirección redirige sola a `/quien-soy`), o a la vista previa
+ * que corresponda. Las arma quien dibuja la página (`paginasDelSitio` en `dynamic-data.ts`).
+ */
+export type PaginasDelSitio = Readonly<Record<string, string>>;
+
+const RUTA_DE_PAGINA = /^\/([a-z0-9]+(?:-[a-z0-9]+)*)(\/[^?#]*)?([?#].*)?$/;
+
+/**
+ * Un botón con `/quien-soy` (lo que escriben las plantillas, que no conocen el slug del
+ * workspace) apunta a la página propia de ESTE sitio. Sólo se tocan las direcciones cuyo primer
+ * tramo es la dirección de una página propia: bajo `/w/<slug>` esas daban 404, así que ningún
+ * enlace que hoy funcione cambia de destino.
+ */
+function resolverPaginaPropia(href: string, paginas: PaginasDelSitio): string {
+  const m = RUTA_DE_PAGINA.exec(href);
+  if (!m || !Object.hasOwn(paginas, m[1])) return href;
+  return `${paginas[m[1]]}${m[2] ?? ""}${m[3] ?? ""}`;
+}
+
+function enlaceSinResolver(valor: string | null | undefined): string | null {
   const texto = valor?.trim();
   if (!texto) return null;
 

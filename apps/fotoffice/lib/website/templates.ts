@@ -15,7 +15,7 @@ import { SITE_TEMPLATE_IDS, type SiteTemplate, type SiteTemplateId } from "./tem
  * recomendación, nunca una restricción — toda plantilla queda disponible para cualquiera.
  */
 export { SITE_TEMPLATE_IDS };
-export type { LayoutPreviewBand, SiteTemplate, SiteTemplateId, SiteTemplatePage } from "./templates/tipos";
+export type { SiteTemplate, SiteTemplateId, SiteTemplatePage } from "./templates/tipos";
 
 export const WEBSITE_TEMPLATES: SiteTemplate[] = [
   PLANTILLA_EVENTOS,
@@ -41,4 +41,18 @@ export function resolveTemplateId(id: string): SiteTemplateId | null {
 export function getWebsiteTemplate(id: string): SiteTemplate | undefined {
   const vigente = resolveTemplateId(id);
   return vigente ? WEBSITE_TEMPLATES.find((t) => t.id === vigente) : undefined;
+}
+
+/** Las fotos de muestra que usa la plantilla (sin repetir, en orden de aparición): las toman los
+ * trabajos de muestra de la vista previa. */
+export function fotosDeLaPlantilla(plantilla: SiteTemplate): string[] {
+  const fotos = new Set<string>();
+  for (const pagina of plantilla.paginas) {
+    for (const b of pagina.bloques) {
+      if (b.type === "HERO") b.config.slides.forEach((s) => s.imageUrl && fotos.add(s.imageUrl));
+      else if (b.type === "IMAGE" && b.config.imageUrl) fotos.add(b.config.imageUrl);
+      else if (b.type === "GALLERY") b.config.photos.forEach((p) => fotos.add(p.url));
+    }
+  }
+  return [...fotos];
 }

@@ -14,7 +14,6 @@ export const PLANTILLA_OSCURA: SiteTemplate = {
   paraQuien: "Fotografía urbana, de autor, nocturna o de conciertos.",
   recommendedFor: ["FREELANCE_PHOTOGRAPHER", "AGENCY_PRODUCTION"],
   tier: "free",
-  layoutPreview: ["hero", "image", "image"],
   design: diseno({ headerPreset: "transparent-hero", buttonPreset: "square", typographyPreset: "photographic", animationPreset: "dynamic" }),
   coloresSugeridos: {
     primaryColor: "#f5f5f4",

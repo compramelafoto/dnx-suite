@@ -8,6 +8,7 @@ import {
   hasVisibleContact,
   hasVisibleInquiryForm,
   hasVisibleMemberOfWeek,
+  paginasDelSitio,
   portfolioBlocksFor,
   testimonialsLimitFor,
   type PortfolioData,
@@ -31,6 +32,12 @@ import { mainHeroBlockId, type HeroBlogSlide } from "./blog-banner";
  */
 export async function loadWebsiteDynamicData(site: PublicSite, blocks: PublicSite["homeBlocks"]): Promise<WebsiteDynamicData> {
   const data: WebsiteDynamicData = {};
+
+  // Los botones que dicen `/quien-soy` (las plantillas no conocen el slug) van a la página propia
+  // de este sitio. En el dominio propio, `/w/<slug>/…` redirige sola a la dirección limpia.
+  if (blocks.some((b) => (b.type === "HERO" || b.type === "CTA") && b.visible) && Object.keys(site.sections.pageMeta).length > 0) {
+    data.paginasDelSitio = paginasDelSitio(`/w/${site.workspaceSlug}`, site.sections.pageMeta);
+  }
 
   const blogLimit = blogLatestLimitFor(blocks);
   if (blogLimit > 0) {
