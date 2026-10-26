@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@repo/db";
 import {
+  ORIGEN_ALBOOM,
   compilarRedirecciones,
   normalizarRuta,
   resolverRedireccion,
@@ -20,12 +21,11 @@ import {
  * Las reglas puras (normalizar, comodines, cadenas) viven en `redirecciones-reglas.ts`, que es lo
  * que puede importar el `proxy.ts`.
  */
-export { normalizarRuta };
+export { normalizarRuta, ORIGEN_ALBOOM };
 
 const TTL_MS = 60_000;
 /** Tope de reglas por institución que se cargan en memoria (DNX tiene unas 250). */
 export const MAX_REDIRECCIONES = 2000;
-export const ORIGEN_ALBOOM = "alboom-prosite";
 
 const memoria = new Map<string, { tabla: TablaRedirecciones; at: number }>();
 

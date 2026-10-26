@@ -12,6 +12,9 @@
 
 export type CodigoRedireccion = 301 | 302;
 
+/** `origen` de las redirecciones (y de los trabajos) que dejó el importador de Alboom Prosite. */
+export const ORIGEN_ALBOOM = "alboom-prosite";
+
 export type ReglaRedireccion = { desde: string; hacia: string; codigo: number };
 
 export type DestinoRedireccion = { hacia: string; codigo: CodigoRedireccion };

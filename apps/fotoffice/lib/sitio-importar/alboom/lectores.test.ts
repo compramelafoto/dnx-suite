@@ -98,6 +98,20 @@ describe("leerTrabajo", () => {
     expect(t.descripcionHtml.endsWith("#FotosXV</p>")).toBe(true);
   });
 
+  it("trabajo viejo en grilla (Mile): las 34 originales de su álbum, sin las de otros trabajos", () => {
+    const t = leerTrabajo(fixture("trabajo-338458-grilla.html"), `${SITIO}/portfolio/books/338458-mile`);
+    expect(t.fotos).toHaveLength(34);
+    expect(t.fotos[0]).toBe("https://storage.alboom.ninja/sites/8403/albuns/338458/img_8676_239772b9a05c.JPG");
+    expect(t.fotos.every((f) => f.startsWith("https://storage.alboom.ninja/sites/8403/albuns/338458/") && !f.includes("?"))).toBe(true);
+  });
+
+  it("trabajo viejo en carrusel (Eli): las 23 fotos del carrusel", () => {
+    const t = leerTrabajo(fixture("trabajo-294891-carrusel.html"), `${SITIO}/portfolio/bodas/294891-eli`);
+    expect(t.fotos).toHaveLength(23);
+    expect(t.fotos[0]).toBe("https://storage.alboom.ninja/sites/8403/albuns/294891/img_0151.JPG");
+    expect(t.fotos.every((f) => f.includes("/albuns/294891/"))).toBe(true);
+  });
+
   it("con /album.php?id= toma la categoría de la canónica", () => {
     const t = leerTrabajo(fixture("trabajo-1465286.html"), `${SITIO}/album.php?id=1465286`);
     expect(t.alboomId).toBe("1465286");

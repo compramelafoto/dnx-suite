@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { ORIGEN_ALBOOM } from "@/lib/website/redirecciones-reglas";
 import { borrarRedireccionAction, crearRedireccionAction, type RedireccionState } from "@/app/actions/website-redirecciones";
 
 const inicial: RedireccionState = { error: null };
@@ -102,7 +103,7 @@ function Fila({ canEdit, r }: { canEdit: boolean; r: RedireccionDeLista }) {
         </p>
         <p className="fo-helper">
           {r.codigo === 302 ? "Temporal" : "Permanente"}
-          {r.origen === "alboom-prosite" ? " · de la web anterior (Alboom)" : ""}
+          {r.origen === ORIGEN_ALBOOM ? " · de la web anterior (Alboom)" : ""}
         </p>
         {state.error ? <p className="text-[var(--fo-danger)]" role="alert">{state.error}</p> : null}
       </div>

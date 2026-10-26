@@ -39,6 +39,9 @@ export type DatosTrabajo = {
   destacado?: boolean;
   seoTitle?: string | null;
   seoDescription?: string | null;
+  /** Sólo al crear: de dónde se importó (por ejemplo «alboom-prosite») y su id allá. */
+  origenExterno?: string | null;
+  origenExternoId?: string | null;
 };
 
 export type FotoNueva = {
@@ -125,6 +128,8 @@ export async function crearTrabajo(workspaceId: string, datos: DatosTrabajo) {
       destacado: datos.destacado ?? false,
       seoTitle: datos.seoTitle?.trim() || null,
       seoDescription: datos.seoDescription?.trim() || null,
+      origenExterno: datos.origenExterno ?? null,
+      origenExternoId: datos.origenExternoId ?? null,
     },
     });
   } catch (err) {

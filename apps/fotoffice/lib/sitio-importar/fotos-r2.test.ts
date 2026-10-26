@@ -72,7 +72,7 @@ describe("copiarFoto", () => {
     const { copiarFoto } = crearCopiadorDeFotos(d);
     const [a, b] = await Promise.all([copiarFoto(ORIGEN, PREFIJO), copiarFoto(ORIGEN, PREFIJO)]);
     const c = await copiarFoto(ORIGEN, PREFIJO);
-    expect(a).toEqual({ url: `https://media.test/${keyDeFoto(ORIGEN, PREFIJO)}`, key: keyDeFoto(ORIGEN, PREFIJO), ancho: 1200, alto: 800 });
+    expect(a).toEqual({ url: `https://media.test/${keyDeFoto(ORIGEN, PREFIJO)}`, key: keyDeFoto(ORIGEN, PREFIJO), ancho: 1200, alto: 800, tipo: "image/jpeg", peso: bytes.byteLength });
     expect(b).toEqual(a);
     expect(c).toEqual(a);
     expect(fetchFn).toHaveBeenCalledTimes(1);
@@ -90,7 +90,7 @@ describe("copiarFoto", () => {
     const fetchFn = vi.fn(async () => respuesta(bytes));
     const segunda = deps(fetchFn, r2);
     const r = await crearCopiadorDeFotos(segunda.deps).copiarFoto(ORIGEN, PREFIJO);
-    expect(r).toEqual({ url: `https://media.test/${keyDeFoto(ORIGEN, PREFIJO)}`, key: keyDeFoto(ORIGEN, PREFIJO), ancho: 1000, alto: 1500 });
+    expect(r).toEqual({ url: `https://media.test/${keyDeFoto(ORIGEN, PREFIJO)}`, key: keyDeFoto(ORIGEN, PREFIJO), ancho: 1000, alto: 1500, tipo: null, peso: null });
     expect(fetchFn).not.toHaveBeenCalled();
     expect(r2.subir).toHaveBeenCalledTimes(1);
   });

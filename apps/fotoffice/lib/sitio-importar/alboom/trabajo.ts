@@ -1,6 +1,6 @@
 import { urlCanonica } from "./articulo";
-import { atributo, buscar, buscarTodos, htmlInterno, parsearHtml, quitarParrafoEnvolvente, textoDe } from "./dom";
-import { esUrlDeFoto, mejorUrlDeImagen, unicas } from "./fotos";
+import { atributo, buscar, buscarTodos, htmlInterno, parsearHtml, quitarParrafoEnvolvente, textoDe, type Elemento } from "./dom";
+import { esUrlDeFoto, mejorUrlDeImagen, unicas, urlOriginal } from "./fotos";
 
 /**
  * Un trabajo del portfolio de Alboom (`/portfolio/<categoría>/<id>-<slug>`, también conocido como
@@ -37,6 +37,7 @@ export function leerTrabajo(html: string, url: string): TrabajoAlboom {
   if (!titulo) throw new Error(`El trabajo ${alboomId} no tiene título`);
   const fechaAttr = atributo(buscar(cabecera, "time.ai--date"), "datetime");
   const contenido = buscar(raiz, "#albumPageContent");
+  const { fotos, videos } = contenido ? fotosDelContenido(contenido) : fotosDeLosAlbumesViejos(buscar(raiz, "#albumPage") ?? raiz, alboomId);
 
   return {
     alboomId,
@@ -47,6 +48,14 @@ export function leerTrabajo(html: string, url: string): TrabajoAlboom {
     lugar: textoDe(buscar(cabecera, ".ai--local")) || null,
     fecha: fechaAttr && /^\d{4}-\d{2}-\d{2}$/.test(fechaAttr) ? fechaAttr : null,
     descripcionHtml: quitarParrafoEnvolvente(htmlInterno(buscar(raiz, "#albumPageDescription"), html)),
+    fotos,
+    videos,
+  };
+}
+
+/** Los trabajos de hoy: las fotos y los videos dentro de `#albumPageContent`. */
+function fotosDelContenido(contenido: Elemento): { fotos: string[]; videos: string[] } {
+  return {
     fotos: unicas(
       buscarTodos(contenido, "img")
         .map((img) => mejorUrlDeImagen(img))
@@ -54,6 +63,28 @@ export function leerTrabajo(html: string, url: string): TrabajoAlboom {
     ),
     videos: unicas(
       buscarTodos(contenido, "iframe")
+        .map((f) => atributo(f, "src"))
+        .filter(esUrlDeFoto),
+    ),
+  };
+}
+
+/**
+ * Los trabajos viejos (2018–2023) no tienen `#albumPageContent`: unos son una grilla de enlaces a
+ * la original (`a.acgi__link`) y otros un carrusel (`#fotosVideoCarousel`). Al pie de la página hay
+ * tarjetas de otros trabajos: por eso sólo cuentan las fotos de la carpeta de ESTE álbum
+ * (`/albuns/<id>/`) — el error de la migración de SFPR fue llevarse fotos ajenas.
+ */
+function fotosDeLosAlbumesViejos(pagina: Elemento, alboomId: string): { fotos: string[]; videos: string[] } {
+  const delAlbum = (u: string) => u.includes(`/albuns/${alboomId}/`);
+  const candidatas = [
+    ...buscarTodos(pagina, "a.acgi__link").map((a) => atributo(a, "href")),
+    ...buscarTodos(pagina, "#fotosVideoCarousel img").map((img) => mejorUrlDeImagen(img)),
+  ];
+  return {
+    fotos: unicas(candidatas.filter(esUrlDeFoto).map(urlOriginal).filter(delAlbum)),
+    videos: unicas(
+      buscarTodos(pagina, "#fotosVideoCarousel iframe")
         .map((f) => atributo(f, "src"))
         .filter(esUrlDeFoto),
     ),

@@ -21,13 +21,15 @@ import { sniffImageFormat, type SniffedImageFormat } from "@/lib/images/validati
  * Red, R2 y sharp entran como dependencias para poder probarlo sin nada de eso.
  */
 
-export type ResultadoCopia = { url: string; key: string; ancho: number | null; alto: number | null } | { error: string };
+/** `tipo` y `peso` (bytes) de la copia: los pide la biblioteca del blog (`BlogMedia`). Null si R2 no los dijo. */
+export type CopiaHecha = { url: string; key: string; ancho: number | null; alto: number | null; tipo: string | null; peso: number | null };
+export type ResultadoCopia = CopiaHecha | { error: string };
 
 export type DepsCopia = {
   fetch: (url: string, init?: RequestInit) => Promise<Response>;
   subir: (bytes: Buffer, key: string, tipo: string, metadata?: Record<string, string>) => Promise<{ key: string; url: string }>;
-  /** Metadatos del objeto si existe; null si no está. */
-  cabecera: (key: string) => Promise<{ metadata: Record<string, string> } | null>;
+  /** Metadatos del objeto si existe (y su tipo y peso, si R2 los informa); null si no está. */
+  cabecera: (key: string) => Promise<{ metadata: Record<string, string>; tipo?: string | null; peso?: number | null } | null>;
   urlPublica: (key: string) => string;
   /** Medidas y, si pasa el tope, la versión achicada. */
   procesar: (bytes: Buffer, tipo: NonNullable<SniffedImageFormat>, ladoMaximo: number) => Promise<{ bytes: Buffer; ancho: number; alto: number }>;
@@ -112,14 +114,21 @@ export function crearCopiadorDeFotos(parciales: Partial<DepsCopia> = {}) {
     try {
       const existente = await deps.cabecera(key);
       if (existente) {
-        return { url: deps.urlPublica(key), key, ancho: medida(existente.metadata.ancho), alto: medida(existente.metadata.alto) };
+        return {
+          url: deps.urlPublica(key),
+          key,
+          ancho: medida(existente.metadata.ancho),
+          alto: medida(existente.metadata.alto),
+          tipo: existente.tipo ?? null,
+          peso: existente.peso ?? null,
+        };
       }
       const original = await bajar(urlOrigen);
       const tipo = sniffImageFormat(original.subarray(0, 16));
       if (!tipo) return { error: "no es una imagen JPG, PNG o WebP" };
       const final = await deps.procesar(original, tipo, ladoMaximo);
       const subida = await deps.subir(final.bytes, key, tipo, { ancho: String(final.ancho), alto: String(final.alto), origen: urlOrigen.slice(0, 1000) });
-      return { url: subida.url, key: subida.key, ancho: final.ancho, alto: final.alto };
+      return { url: subida.url, key: subida.key, ancho: final.ancho, alto: final.alto, tipo, peso: final.bytes.byteLength };
     } catch (err) {
       return { error: err instanceof Error ? err.message : String(err) };
     }
@@ -162,7 +171,7 @@ function depsReales(): DepsCopia {
     cabecera: async (key) => {
       try {
         const r = await getFotofficeR2Client().send(new HeadObjectCommand({ Bucket: getFotofficeR2Bucket(), Key: key }));
-        return { metadata: r.Metadata ?? {} };
+        return { metadata: r.Metadata ?? {}, tipo: r.ContentType ?? null, peso: typeof r.ContentLength === "number" ? r.ContentLength : null };
       } catch (err) {
         const e = err as { name?: string; $metadata?: { httpStatusCode?: number } };
         if (e?.name === "NotFound" || e?.name === "NoSuchKey" || e?.$metadata?.httpStatusCode === 404) return null;
