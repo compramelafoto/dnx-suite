@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { institutionShortcutRedirect } from "@/lib/entrada/institution-shortcut";
 import { hostWithoutPort } from "@/lib/website/domain/normalize";
 import { decideCustomDomainRoute, isFotofficeHost } from "@/lib/website/domain/routing";
-import { lookupCustomDomainSlug } from "@/lib/website/domain/proxy-lookup";
+import { lookupCustomDomain, lookupCustomDomainSlug } from "@/lib/website/domain/proxy-lookup";
 import { rutaInternaInsertada } from "@/lib/service-leads/insertar";
 
 // Next 16 renombró `middleware.ts` a `proxy.ts`. No carga Prisma: para resolver un dominio
@@ -63,17 +63,23 @@ async function handleCustomDomain(req: NextRequest, host: string): Promise<NextR
     return null;
   }
 
-  const slug = await lookupCustomDomainSlug(host, apiOrigin);
-  if (!slug) return null;
+  const site = await lookupCustomDomain(host, apiOrigin);
+  if (!site) return null;
 
-  const decision = decideCustomDomainRoute({ pathname, search, slug, fotofficeOrigin: FOTOFFICE_ORIGIN });
+  const decision = decideCustomDomainRoute({
+    pathname,
+    search,
+    slug: site.slug,
+    fotofficeOrigin: FOTOFFICE_ORIGIN,
+    redirecciones: site.redirecciones,
+  });
   switch (decision.kind) {
     case "pass":
       return NextResponse.next();
     case "rewrite":
       return NextResponse.rewrite(new URL(`${decision.pathname}${search}`, req.url));
     case "redirect":
-      return NextResponse.redirect(new URL(decision.url, req.url), 308);
+      return NextResponse.redirect(new URL(decision.url, req.url), decision.status ?? 308);
   }
 }
 

@@ -1,6 +1,7 @@
 import { parseContentHtmlToJson } from "@repo/content";
 import { createEmptyBlock, EMBED_MAX_HEIGHT_PX, websiteBlockSchema, type WebsiteBlock } from "@/lib/website/blocks";
 import { isAllowedEmbedUrl, toVideoEmbedUrl } from "@/lib/website/embed-hosts";
+import { normalizarRuta } from "@/lib/website/redirecciones-reglas";
 import { sanitizeRichTextConfig } from "@/lib/website/rich-text-sanitize";
 import { atributo, buscarTodos, parsearHtml } from "./alboom/dom";
 import type { PaginaAlboom, SeccionAlboom } from "./alboom/pagina";
@@ -22,9 +23,9 @@ export type JSONContent = Awaited<ReturnType<typeof parseContentHtmlToJson>>;
 const HOST_VIEJO = /^(?:www\.)?dnxfotografia\.com\.ar$/i;
 
 /**
- * Ruta de una dirección del sitio viejo en la forma que usan las claves de `mapaEnlaces`:
- * minúsculas, sin barra final (salvo `/`), y la consulta sólo para `post.php` / `album.php`
- * (`/post.php?id=89987`). Null si la dirección no es del sitio viejo.
+ * Ruta de una dirección del sitio viejo en la forma que usan las claves de `mapaEnlaces`: la misma
+ * normalización que las redirecciones del sitio (`normalizarRuta`: minúsculas, sin barra final, y
+ * la consulta sólo para `post.php` / `album.php`). Null si la dirección no es del sitio viejo.
  */
 export function normalizarRutaVieja(url: string): string | null {
   let u: URL;
@@ -34,18 +35,7 @@ export function normalizarRutaVieja(url: string): string | null {
     return null;
   }
   if (!/^https?:$/.test(u.protocol) || !HOST_VIEJO.test(u.hostname)) return null;
-  let ruta: string;
-  try {
-    ruta = decodeURIComponent(u.pathname);
-  } catch {
-    ruta = u.pathname;
-  }
-  ruta = ruta.toLowerCase().replace(/\/+$/, "") || "/";
-  if (ruta === "/post.php" || ruta === "/album.php") {
-    const id = u.searchParams.get("id");
-    return id && /^\d+$/.test(id) ? `${ruta}?id=${id}` : ruta;
-  }
-  return ruta;
+  return normalizarRuta(`${u.pathname}${u.search}`);
 }
 
 /**
