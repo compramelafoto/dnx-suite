@@ -66,6 +66,12 @@ export function esTablaFaltante(err: unknown): boolean {
   return typeof err === "object" && err !== null && (err as { code?: unknown }).code === "P2021";
 }
 
+/** Id de trabajo con forma de cuid: letras y números, sin `/` ni puntos. Se mira antes de armar
+ * cualquier prefijo de R2 con él (y antes de cualquier limpieza). */
+export function esIdTrabajoValido(id: unknown): id is string {
+  return typeof id === "string" && /^[a-z0-9]{8,40}$/i.test(id);
+}
+
 /** Prefijo de R2 de las fotos de un trabajo: `fotoffice/site-trabajos/<workspaceId>/<trabajoId>/`.
  * Lo arma el servidor (nunca el navegador) y es lo único que `agregarFotos` acepta como key. */
 export function prefijoFotosTrabajo(workspaceId: string, trabajoId: string): string {

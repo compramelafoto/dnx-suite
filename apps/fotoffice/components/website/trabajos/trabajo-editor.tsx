@@ -72,7 +72,8 @@ export function TrabajoEditor({
         setError(r.error);
         return;
       }
-      router.push(TRABAJOS_ADMIN_BASE);
+      // El trabajo ya no existe (esta pantalla daría 404): el aviso de archivos sueltos va en la lista.
+      router.push(r.valor.huerfanas > 0 ? `${TRABAJOS_ADMIN_BASE}?huerfanas=${r.valor.huerfanas}` : TRABAJOS_ADMIN_BASE);
     });
   }
 

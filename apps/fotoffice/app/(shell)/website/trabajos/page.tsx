@@ -7,7 +7,7 @@ import { NuevoTrabajo } from "@/components/website/trabajos/nuevo-trabajo";
 
 export const dynamic = "force-dynamic";
 
-type Props = { searchParams: Promise<{ categoria?: string; estado?: string }> };
+type Props = { searchParams: Promise<{ categoria?: string; estado?: string; huerfanas?: string }> };
 
 const ESTADOS: Record<string, { label: string; clase: string }> = {
   PUBLICADO: {
@@ -39,6 +39,8 @@ export default async function TrabajosPage({ searchParams }: Props) {
   const { trabajos, categorias, faltanTablas } = await cargar(workspace.id, { categoriaId, estado });
   const nombreCategoria = new Map(categorias.map((c) => [c.id, c]));
   const filtrando = Boolean(estado || categoriaId);
+  // Lo pone la ficha después de borrar un trabajo cuyos archivos no se pudieron borrar todos.
+  const huerfanas = Math.max(0, Math.min(999, Number.parseInt(params.huerfanas ?? "", 10) || 0));
 
   if (faltanTablas) {
     return (
@@ -51,6 +53,12 @@ export default async function TrabajosPage({ searchParams }: Props) {
   return (
     <TrabajosShell>
       <div className="space-y-4">
+        {huerfanas > 0 ? (
+          <p className="fo-alert-warning text-sm">
+            El trabajo se borró, pero {huerfanas === 1 ? "quedó 1 archivo" : `quedaron ${huerfanas} archivos`} sin borrar en el
+            almacenamiento de fotos. No se ven en el sitio; quedaron anotados para limpiarlos.
+          </p>
+        ) : null}
         <NuevoTrabajo categorias={categorias.map((c) => ({ id: c.id, nombre: c.nombre }))} />
 
         <form className="fo-card grid gap-4 sm:grid-cols-[1fr_1fr_auto] sm:items-end" role="search">

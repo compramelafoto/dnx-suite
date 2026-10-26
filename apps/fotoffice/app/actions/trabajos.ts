@@ -114,11 +114,12 @@ export async function borrarTrabajoAction(id: string) {
   return ejecutar("borrar el trabajo", async (ws) => {
     const r = await borrarTrabajo(ws, texto(id));
     if (!r.ok) return r;
-    // El trabajo ya no está; lo que no se pudo borrar de R2 queda registrado para limpiarlo a mano.
+    // El trabajo ya no está; lo que no se pudo borrar de R2 queda registrado para limpiarlo a mano,
+    // y el panel avisa cuántos quedaron.
     if (r.valor.huerfanas.length > 0) {
       console.error("[fotoffice][trabajos] archivos de R2 sin borrar al borrar el trabajo:", id, r.valor.huerfanas);
     }
-    return { ok: true as const, valor: true as const };
+    return { ok: true as const, valor: { huerfanas: r.valor.huerfanas.length } };
   });
 }
 

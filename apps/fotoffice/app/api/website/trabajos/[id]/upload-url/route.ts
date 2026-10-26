@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireBlogEditorApi } from "@/lib/blog/access";
-import { AVISO_TABLAS_FALTANTES, esTablaFaltante } from "@/lib/trabajos/reglas";
-import { prepararSubida, type ArchivoAPreparar } from "@/lib/trabajos/subida";
+import { AVISO_TABLAS_FALTANTES, esIdTrabajoValido, esTablaFaltante } from "@/lib/trabajos/reglas";
+import { prepararSubida, type ArchivoAPreparar, type CodigoSubida } from "@/lib/trabajos/subida";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -10,6 +10,15 @@ type RouteParams = { params: Promise<{ id: string }> };
 
 /** Tanda máxima por pedido: las URLs vencen al minuto si la subida no empezó. */
 const MAX_POR_PEDIDO = 20;
+
+const ESTADO: Record<CodigoSubida, number> = {
+  ID_INVALIDO: 404,
+  NO_EXISTE: 404,
+  SIN_R2: 503,
+  TOPE: 400,
+  ARCHIVO_INVALIDO: 400,
+  NO_REGISTRADA: 400,
+};
 
 /**
  * Dónde subir fotos a un trabajo. **Los archivos no pasan por acá**: devuelve una URL firmada por
@@ -23,6 +32,7 @@ export async function POST(request: Request, { params }: RouteParams) {
   const { ctx, response } = await requireBlogEditorApi();
   if (!ctx) return response;
   const trabajoId = (await params).id;
+  if (!esIdTrabajoValido(trabajoId)) return NextResponse.json({ error: "El trabajo no existe." }, { status: 404 });
 
   const body = (await request.json().catch(() => null)) as { archivos?: unknown } | null;
   const crudos = Array.isArray(body?.archivos) ? body.archivos : [];
@@ -41,7 +51,7 @@ export async function POST(request: Request, { params }: RouteParams) {
 
   try {
     const r = await prepararSubida(ctx.workspace.id, trabajoId, archivos);
-    if (!r.ok) return NextResponse.json({ error: r.error }, { status: r.error === "El trabajo no existe" ? 404 : 400 });
+    if (!r.ok) return NextResponse.json({ error: r.error }, { status: ESTADO[r.codigo] });
     return NextResponse.json({ subidas: r.valor });
   } catch (err) {
     if (esTablaFaltante(err)) {

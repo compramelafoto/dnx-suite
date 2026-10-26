@@ -2,7 +2,7 @@ import "server-only";
 import { prisma } from "@repo/db";
 import type { Prisma } from "@repo/db";
 import { sanitizeContentHtml } from "@repo/content";
-import { deleteFotofficeR2Object } from "@/lib/images/r2-client";
+import { deleteFotofficeR2Object, listFotofficeR2Keys } from "@/lib/images/r2-client";
 import {
   ALT_MAX,
   MAX_FOTOS_POR_TRABAJO,
@@ -185,7 +185,11 @@ export async function despublicarTrabajo(workspaceId: string, id: string) {
 }
 
 /** Borra el trabajo, sus fotos y los archivos de R2. Primero la base: si R2 falla, el trabajo ya
- * no está y las keys que no se pudieron borrar vuelven en `huerfanas` para que quede registro. */
+ * no está y lo que no se pudo borrar vuelve en `huerfanas` para que quede registro.
+ *
+ * Además de las keys con fila se barre todo el prefijo del trabajo: una subida que llegó a R2 pero
+ * nunca se confirmó (pestaña cerrada a mitad) no tiene fila y, si no, quedaría para siempre. Si el
+ * listado falla, el prefijo entero vuelve como huérfano. */
 export async function borrarTrabajo(workspaceId: string, id: string): Promise<Resultado<{ huerfanas: string[] }>> {
   const t = await prisma.fotofficeTrabajo.findFirst({ where: { id, workspaceId }, select: { id: true } });
   if (!t) return fallo("El trabajo no existe");
@@ -199,15 +203,23 @@ export async function borrarTrabajo(workspaceId: string, id: string): Promise<Re
   ]);
   const huerfanas: string[] = [];
   const propio = prefijoWorkspaceTrabajos(workspaceId);
+  const aBorrar = new Set<string>();
   for (const f of fotos) {
     if (!f.r2Key) continue;
     // Sólo se borra lo que cuelga del prefijo de esta institución; el resto queda como huérfana.
-    if (!f.r2Key.startsWith(propio)) {
-      huerfanas.push(f.r2Key);
-      continue;
-    }
-    const r = await deleteFotofficeR2Object(f.r2Key);
-    if (!r.ok) huerfanas.push(f.r2Key);
+    if (f.r2Key.startsWith(propio)) aBorrar.add(f.r2Key);
+    else huerfanas.push(f.r2Key);
+  }
+  const prefijo = prefijoFotosTrabajo(workspaceId, id);
+  try {
+    for (const k of await listFotofficeR2Keys(prefijo)) aBorrar.add(k);
+  } catch (err) {
+    console.error("[fotoffice][trabajos] no se pudo listar el prefijo del trabajo borrado:", prefijo, err);
+    huerfanas.push(prefijo);
+  }
+  for (const k of aBorrar) {
+    const r = await deleteFotofficeR2Object(k);
+    if (!r.ok) huerfanas.push(k);
   }
   return ok({ huerfanas });
 }

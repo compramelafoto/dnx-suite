@@ -111,9 +111,15 @@ export function TrabajoFotos({ trabajoId, fotos, portadaUrl }: { trabajoId: stri
     setArchivos((prev) => prev.map((a) => (a.id === id ? { ...a, ...cambio } : a)));
   }
 
-  async function subirTanda(tanda: { id: number; file: File }[], avance: Map<number, number>, total: number) {
+  /** `cuenta.total` baja cuando un archivo falla: la barra mide sólo lo que de verdad se sube. */
+  async function subirTanda(tanda: { id: number; file: File }[], avance: Map<number, number>, cuenta: { total: number }) {
     const refrescar = () =>
-      setProgreso((p) => (p ? { ...p, subidos: [...avance.values()].reduce((a, b) => a + b, 0), total } : p));
+      setProgreso((p) => (p ? { ...p, subidos: [...avance.values()].reduce((a, b) => a + b, 0), total: cuenta.total } : p));
+    const descontar = (id: number, file: File) => {
+      avance.delete(id);
+      cuenta.total -= file.size;
+      refrescar();
+    };
     const permiso = await fetch(`/api/website/trabajos/${trabajoId}/upload-url`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -125,7 +131,10 @@ export function TrabajoFotos({ trabajoId, fotos, portadaUrl }: { trabajoId: stri
     } | null;
     if (!permiso?.ok || !datos?.subidas || datos.subidas.length !== tanda.length) {
       const mensaje = datos?.error ?? "No pudimos preparar la subida.";
-      for (const t of tanda) marcar(t.id, { estado: "error", error: mensaje });
+      for (const t of tanda) {
+        marcar(t.id, { estado: "error", error: mensaje });
+        descontar(t.id, t.file);
+      }
       return;
     }
     const subidas = datos.subidas;
@@ -145,10 +154,14 @@ export function TrabajoFotos({ trabajoId, fotos, portadaUrl }: { trabajoId: stri
           avance.set(id, b);
           refrescar();
         });
-        avance.set(id, file.size);
-        refrescar();
-        if (ok) listas.push({ id, key });
-        else marcar(id, { estado: "error", error: "La subida se cortó. Revisá tu conexión y probá de nuevo." });
+        if (ok) {
+          avance.set(id, file.size);
+          refrescar();
+          listas.push({ id, key });
+        } else {
+          descontar(id, file);
+          marcar(id, { estado: "error", error: "La subida se cortó. Revisá tu conexión y probá de nuevo." });
+        }
       }
     }
     await Promise.all(Array.from({ length: Math.min(EN_PARALELO, tanda.length) }, trabajador));
@@ -199,7 +212,8 @@ export function TrabajoFotos({ trabajoId, fotos, portadaUrl }: { trabajoId: stri
     const avance = new Map<number, number>();
     setProgreso({ subidos: 0, total, cantidad: aSubir.length });
     try {
-      for (let i = 0; i < aSubir.length; i += TANDA) await subirTanda(aSubir.slice(i, i + TANDA), avance, total);
+      const cuenta = { total };
+      for (let i = 0; i < aSubir.length; i += TANDA) await subirTanda(aSubir.slice(i, i + TANDA), avance, cuenta);
     } finally {
       setProgreso(null);
       if (input.current) input.current.value = "";

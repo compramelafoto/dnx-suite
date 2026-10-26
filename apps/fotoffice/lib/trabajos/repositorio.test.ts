@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { trabajo, foto, categoria, borrarR2, tx } = vi.hoisted(() => ({
+const { trabajo, foto, categoria, borrarR2, listarR2, tx } = vi.hoisted(() => ({
   trabajo: { findMany: vi.fn(), findFirst: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn(), updateMany: vi.fn() },
   foto: { findMany: vi.fn(), findFirst: vi.fn(), count: vi.fn(), createMany: vi.fn(), deleteMany: vi.fn(), delete: vi.fn() },
   categoria: { findFirst: vi.fn() },
   borrarR2: vi.fn(),
+  listarR2: vi.fn(),
   tx: vi.fn(),
 }));
 
@@ -17,7 +18,7 @@ vi.mock("@repo/db", () => ({
   },
 }));
 vi.mock("@repo/content", () => ({ sanitizeContentHtml: (h: string) => h.replace(/<script.*?<\/script>/g, "") }));
-vi.mock("@/lib/images/r2-client", () => ({ deleteFotofficeR2Object: borrarR2 }));
+vi.mock("@/lib/images/r2-client", () => ({ deleteFotofficeR2Object: borrarR2, listFotofficeR2Keys: listarR2 }));
 
 const { crearTrabajo, editarTrabajo, agregarFotos, borrarTrabajo, borrarFoto } = await import("./repositorio");
 const P = "fotoffice/site-trabajos/ws-1/t1/";
@@ -25,6 +26,8 @@ const P = "fotoffice/site-trabajos/ws-1/t1/";
 beforeEach(() => {
   for (const m of [trabajo, foto, categoria]) for (const f of Object.values(m)) f.mockReset();
   borrarR2.mockReset();
+  listarR2.mockReset();
+  listarR2.mockResolvedValue([]);
   tx.mockReset();
 });
 
@@ -72,6 +75,27 @@ describe("borrarTrabajo", () => {
     const r = await borrarTrabajo("ws-1", "t1");
     expect(borrarR2).toHaveBeenCalledTimes(2);
     expect(r).toEqual({ ok: true, valor: { huerfanas: [P + "b.jpg"] } });
+  });
+
+  it("barre también lo subido sin confirmar bajo el prefijo del trabajo", async () => {
+    trabajo.findFirst.mockResolvedValueOnce({ id: "t1" });
+    foto.findMany.mockResolvedValueOnce([{ r2Key: P + "a.jpg" }]);
+    tx.mockResolvedValueOnce([]);
+    listarR2.mockResolvedValueOnce([P + "a.jpg", P + "sin-confirmar.jpg"]);
+    borrarR2.mockResolvedValue({ ok: true });
+    const r = await borrarTrabajo("ws-1", "t1");
+    expect(listarR2).toHaveBeenCalledWith(P);
+    expect(borrarR2.mock.calls.map((c) => c[0])).toEqual([P + "a.jpg", P + "sin-confirmar.jpg"]);
+    expect(r).toEqual({ ok: true, valor: { huerfanas: [] } });
+  });
+
+  it("si no se puede listar el prefijo, queda registrado como huérfano", async () => {
+    trabajo.findFirst.mockResolvedValueOnce({ id: "t1" });
+    foto.findMany.mockResolvedValueOnce([]);
+    tx.mockResolvedValueOnce([]);
+    listarR2.mockRejectedValueOnce(new Error("R2 caído"));
+    const r = await borrarTrabajo("ws-1", "t1");
+    expect(r).toEqual({ ok: true, valor: { huerfanas: [P] } });
   });
 
   it("no toca un trabajo de otro workspace", async () => {
