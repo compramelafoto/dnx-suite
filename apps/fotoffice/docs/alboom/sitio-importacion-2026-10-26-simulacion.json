@@ -1,0 +1,1180 @@
+{
+  "modo": "simulacion",
+  "fecha": "2026-10-26T18:32:40.636Z",
+  "base": "https://www.dnxfotografia.com.ar",
+  "workspaceId": "cmv5z6qxwwmmhf0q5gp8qja1j",
+  "slugPublico": "dnx-estudio",
+  "articulos": {
+    "creados": 31,
+    "existentes": 0,
+    "fallidos": 0,
+    "detalle": [
+      {
+        "alboomId": "476452",
+        "titulo": "📸 Fotografía escolar sin caos: cómo ordenar todo el proceso con ComprameLaFoto",
+        "slug": "fotografia-escolar-sin-caos-como-ordenar-todo-el-proceso-con",
+        "estado": "creado"
+      },
+      {
+        "alboomId": "446766",
+        "titulo": "¿Qué es ComprameLaFoto?",
+        "slug": "que-es-comprame-la-foto",
+        "estado": "creado"
+      },
+      {
+        "alboomId": "394647",
+        "titulo": "¿Qué es FTP, exactamente?",
+        "slug": "ftp-en-fotografia-profesional-velocidad-seguridad-y",
+        "estado": "creado"
+      },
+      {
+        "alboomId": "367249",
+        "titulo": "📸 Iluminación en Eventos: El Balance Perfecto entre Flash y Ambiente en Pistas de Baile",
+        "slug": "iluminacion-en-eventos-el-balance-perfecto-entre-flash-y",
+        "estado": "creado"
+      },
+      {
+        "alboomId": "367247",
+        "titulo": "🎨 Automatizá tu Fotografía: La Magia de los Scripts de Photoshop y Cómo Pueden Transformar tu Flujo de Trabajo",
+        "slug": "automatiza-tu-fotografia-la-magia-de-los-scripts-de",
+        "estado": "creado"
+      },
+      {
+        "alboomId": "320993",
+        "titulo": "📸 Potenciá tus eventos y generá nuevos ingresos con Selpix",
+        "slug": "servicioqr",
+        "estado": "creado"
+      },
+      {
+        "alboomId": "305804",
+        "titulo": "📲 Hacé que tu evento sea único con nuestro servicio interactivo de fotos, mensajes y audios en vivo!",
+        "slug": "hace-que-tu-evento-sea-unico-con-nuestro-servicio",
+        "estado": "creado"
+      },
+      {
+        "alboomId": "195938",
+        "titulo": "¿Por qué los fotógrafos de eventos sociales deberíamos cuidar nuestros oídos? Conocé los EAR CLOGS",
+        "slug": "cuidar-nuestros-oidos-ear-clogs",
+        "estado": "creado"
+      },
+      {
+        "alboomId": "146935",
+        "titulo": "¡Descubrí el canal de YouTube de DNX Estudio!",
+        "slug": "descubri-el-canal-de-youtube-de-dnx-estudio",
+        "estado": "creado"
+      },
+      {
+        "alboomId": "122043",
+        "titulo": "\"Tu Aliado en la Post producción: Servicio de Revelado Digital y Diseño de Fotolibros para Fotógrafos\"",
+        "slug": "tu-aliado-en-la-post-produccion-servicio-de-revelado-digital",
+        "estado": "creado"
+      },
+      {
+        "alboomId": "116089",
+        "titulo": "Apps Indispensables para el Desarrollo de una Empresa de Fotografía",
+        "slug": "apps-indispensables-para-el-desarrollo-de-una-empresa-de",
+        "estado": "creado"
+      },
+      {
+        "alboomId": "111321",
+        "titulo": "¡Celebra a lo Grande con Nuestras Invitaciones Virtuales y Packs Exclusivos!",
+        "slug": "celebra-a-lo-grande-con-invitaciones-virtuales-y-packs",
+        "estado": "creado"
+      },
+      {
+        "alboomId": "100049",
+        "titulo": "Conocé Nuestra Tienda Online",
+        "slug": "conoce-nuestra-tienda-online",
+        "estado": "creado"
+      },
+      {
+        "alboomId": "92784",
+        "titulo": "Stand de Glitter para eventos en Rosario y Alrededores.",
+        "slug": "stand-de-glitter-para-eventos-en-rosario-y-alrededores",
+        "estado": "creado"
+      },
+      {
+        "alboomId": "92781",
+        "titulo": "Sumate a mi canal de Whatsapp exclusivo de \"Asesoramiento para Fotógrafos profesionales\"",
+        "slug": "sumate-a-mi-canal-de-whatsapp-asesoramiento-para-fotografos",
+        "estado": "creado"
+      },
+      {
+        "alboomId": "89987",
+        "titulo": "Nos mudamos a Funes!",
+        "slug": "tenemos-nuestro-estudio-en-funes-santa-fe",
+        "estado": "creado"
+      },
+      {
+        "alboomId": "89977",
+        "titulo": "¿Cómo elegir las empresas que trabajarán para tu cumpleaños de 15?",
+        "slug": "consejos-para-elegir-tus-zapatos-para-tu-fiesta-de-15",
+        "estado": "creado"
+      },
+      {
+        "alboomId": "89679",
+        "titulo": "Explorá Espacios con Nuestras Visitas Virtuales en 3D.",
+        "slug": "presentando-dnx-estudio-explora-espacios-con-nuestras",
+        "estado": "creado"
+      },
+      {
+        "alboomId": "89675",
+        "titulo": "Agenda 2024 Capturando la Esencia de Rosario: Mi Experiencia con \"Doble T Impresos\" y \"Grupo Bort\"",
+        "slug": "agenda-2024",
+        "estado": "creado"
+      },
+      {
+        "alboomId": "89594",
+        "titulo": "Eleva tu Fotografía a Nuevos Horizontes Empresariales con AlboomCRM",
+        "slug": "eleva-tu-fotografia-con-alboomcrm",
+        "estado": "creado"
+      },
+      {
+        "alboomId": "89593",
+        "titulo": "Desata el Potencial de tu Fotografía: ¿Por qué Necesitas tu Propia Página Web?",
+        "slug": "por-que-necesitas-tu-propia-pagina-web",
+        "estado": "creado"
+      },
+      {
+        "alboomId": "75450",
+        "titulo": "Asociado N° 556",
+        "slug": "asociado-n-556-sociedad-de-fotografos-de-rosario",
+        "estado": "creado"
+      },
+      {
+        "alboomId": "71826",
+        "titulo": "Plataforma 360° Rosario",
+        "slug": "plataforma-360-rosario",
+        "estado": "creado"
+      },
+      {
+        "alboomId": "65558",
+        "titulo": "Alboom Proof ,la mejor forma de entregar mis fotografías, hacé tu trabajo más fácil con la ayuda de ésta herramien",
+        "slug": "crm-organizacion-y-gestion",
+        "estado": "creado"
+      },
+      {
+        "alboomId": "65554",
+        "titulo": "¿Sos Fotógrafo profesional y sos de la ZONA de Rosario y Funes? Esto te va a interesar.",
+        "slug": "la-isla",
+        "estado": "creado"
+      },
+      {
+        "alboomId": "45061",
+        "titulo": "Entrevista en Enfoque Creativo Podcast",
+        "slug": "entrevista-enfoque-creativo-a-dnxfotografia-alboom-flujo-de",
+        "estado": "creado"
+      },
+      {
+        "alboomId": "37919",
+        "titulo": "Me sumé a FotoPositiva!",
+        "slug": "fotopositiva",
+        "estado": "creado"
+      },
+      {
+        "alboomId": "37204",
+        "titulo": "CRUSH MATINEE 2022",
+        "slug": "crushmatinee",
+        "estado": "creado"
+      },
+      {
+        "alboomId": "35176",
+        "titulo": "¿Cómo llegué a ser Embajador de Alboom en Argentina?",
+        "slug": "embajadoralboom",
+        "estado": "creado"
+      },
+      {
+        "alboomId": "25164",
+        "titulo": "¿Qué tengo en cuenta al momento de presupuestar mis trabajos?",
+        "slug": "que-tengo-en-cuenta-al-momento-de-presupeustar-mis-trabajos",
+        "estado": "creado"
+      },
+      {
+        "alboomId": "25161",
+        "titulo": "Cursos/Workshops",
+        "slug": "cursos-workshops",
+        "estado": "creado"
+      }
+    ]
+  },
+  "autorBlog": "creado",
+  "categoriasBlog": {
+    "creados": 8,
+    "existentes": 3,
+    "fallidos": 0
+  },
+  "categoriasTrabajos": {
+    "creados": 6,
+    "existentes": 0,
+    "fallidos": 0
+  },
+  "trabajos": {
+    "creados": 45,
+    "existentes": 0,
+    "fallidos": 0,
+    "completados": 0,
+    "detalle": [
+      {
+        "alboomId": "1465286",
+        "titulo": "Book Emma Pre XV",
+        "ruta": "/portfolio/books/1465286-book-emma-pre-xv",
+        "categoria": "books",
+        "slug": "book-emma-pre-xv",
+        "fotos": 27,
+        "videos": 0,
+        "estado": "creado"
+      },
+      {
+        "alboomId": "1465285",
+        "titulo": "Sesión Anto Pre XV",
+        "ruta": "/portfolio/books/1465285-sesion-anto-pre-xv",
+        "categoria": "books",
+        "slug": "sesion-anto-pre-xv",
+        "fotos": 28,
+        "videos": 0,
+        "estado": "creado"
+      },
+      {
+        "alboomId": "1456039",
+        "titulo": "Sesión Pre XV de Sofi Bracco: Un Viaje en el Tiempo con Estilo Pin-Up y Autos Clásicos",
+        "ruta": "/portfolio/books/1456039-sesion-pre-xv-de-sofi-bracco-un-viaje-en-el-tiempo-con-estilo-pin-up-y-autos-clasicos",
+        "categoria": "books",
+        "slug": "sesion-pre-xv-de-sofi-bracco-un-viaje-en-el-tiempo-con-estilo-pin-up-y-autos",
+        "fotos": 26,
+        "videos": 0,
+        "estado": "creado"
+      },
+      {
+        "alboomId": "1449940",
+        "titulo": "FIESTA DE XV DE CAMI",
+        "ruta": "/portfolio/fiestas/1449940-fiesta-de-xv-de-cami",
+        "categoria": "fiestas-de-xv",
+        "slug": "fiesta-de-xv-de-cami",
+        "fotos": 23,
+        "videos": 0,
+        "estado": "creado"
+      },
+      {
+        "alboomId": "1449939",
+        "titulo": "Fiesta de XV de LUPE",
+        "ruta": "/portfolio/fiestas/1449939-fiesta-de-xv-de-lupe",
+        "categoria": "fiestas-de-xv",
+        "slug": "fiesta-de-xv-de-lupe",
+        "fotos": 22,
+        "videos": 0,
+        "estado": "creado"
+      },
+      {
+        "alboomId": "1324810",
+        "titulo": "XV de Cande",
+        "ruta": "/portfolio/fiestas/1324810-sin-titulo",
+        "categoria": "fiestas-de-xv",
+        "slug": "xv-de-cande",
+        "fotos": 75,
+        "videos": 0,
+        "estado": "creado"
+      },
+      {
+        "alboomId": "1291770",
+        "titulo": "Agenda 2024",
+        "ruta": "/portfolio/arquitectura/1291770-sin-titulo",
+        "categoria": "arquitectura",
+        "slug": "agenda-2024",
+        "fotos": 64,
+        "videos": 0,
+        "estado": "creado"
+      },
+      {
+        "alboomId": "1190754",
+        "titulo": "Sesión PreXV de Valen!",
+        "ruta": "/portfolio/books/1190754-sesion-prexv-de-valen",
+        "categoria": "books",
+        "slug": "sesion-prexv-de-valen",
+        "fotos": 50,
+        "videos": 0,
+        "estado": "creado"
+      },
+      {
+        "alboomId": "1084371",
+        "titulo": "Sesión pre cumple Sara XV",
+        "ruta": "/portfolio/books/1084371-sesion-pre-cumple-sara-xv",
+        "categoria": "books",
+        "slug": "sesion-pre-cumple-sara-xv",
+        "fotos": 15,
+        "videos": 0,
+        "estado": "creado"
+      },
+      {
+        "alboomId": "1084370",
+        "titulo": "Sesión de MAGUI previa a sus XV!",
+        "ruta": "/portfolio/books/1084370-sin-titulo",
+        "categoria": "books",
+        "slug": "sesion-de-magui-previa-a-sus-xv",
+        "fotos": 19,
+        "videos": 0,
+        "estado": "creado"
+      },
+      {
+        "alboomId": "1084365",
+        "titulo": "Cumple XV Años Ivonne!",
+        "ruta": "/portfolio/fiestas/1084365-cumple-xv-anos-ivonne",
+        "categoria": "fiestas-de-xv",
+        "slug": "cumple-xv-anos-ivonne",
+        "fotos": 30,
+        "videos": 0,
+        "estado": "creado"
+      },
+      {
+        "alboomId": "1083639",
+        "titulo": "Sesión pre 15 de Mía!",
+        "ruta": "/portfolio/books/1083639-sesion-pre-15-de-mia",
+        "categoria": "books",
+        "slug": "sesion-pre-15-de-mia",
+        "fotos": 34,
+        "videos": 0,
+        "estado": "creado"
+      },
+      {
+        "alboomId": "1031887",
+        "titulo": "Yanet y Lucas",
+        "ruta": "/portfolio/bodas/1031887-yanet-y-lucas",
+        "categoria": "bodas",
+        "slug": "yanet-y-lucas",
+        "fotos": 7,
+        "videos": 0,
+        "estado": "creado"
+      },
+      {
+        "alboomId": "1031870",
+        "titulo": "Sofi y Misa",
+        "ruta": "/portfolio/bodas/1031870-sin-titulo",
+        "categoria": "bodas",
+        "slug": "sofi-y-misa",
+        "fotos": 8,
+        "videos": 0,
+        "estado": "creado"
+      },
+      {
+        "alboomId": "1031856",
+        "titulo": "Lara y Gonza",
+        "ruta": "/portfolio/bodas/1031856-sin-titulo",
+        "categoria": "bodas",
+        "slug": "lara-y-gonza",
+        "fotos": 31,
+        "videos": 0,
+        "estado": "creado"
+      },
+      {
+        "alboomId": "1031829",
+        "titulo": "Boda de Fernanda y Eric",
+        "ruta": "/portfolio/books/1031829-boda-fernanda-y-eric",
+        "categoria": "books",
+        "slug": "boda-fernanda-y-eric",
+        "fotos": 34,
+        "videos": 0,
+        "estado": "creado"
+      },
+      {
+        "alboomId": "1014103",
+        "titulo": "Sin título",
+        "ruta": "/portfolio/books/1014103-sin-titulo",
+        "categoria": "books",
+        "slug": "trabajo-1014103",
+        "fotos": 43,
+        "videos": 0,
+        "estado": "creado"
+      },
+      {
+        "alboomId": "1014090",
+        "titulo": "Sesión de XV Ludmi",
+        "ruta": "/portfolio/books/1014090-sin-titulo",
+        "categoria": "books",
+        "slug": "sesion-de-xv-ludmi",
+        "fotos": 35,
+        "videos": 0,
+        "estado": "creado"
+      },
+      {
+        "alboomId": "969009",
+        "titulo": "Sesión de XV Lalu!",
+        "ruta": "/portfolio/books/969009-sesion-de-xv-lalu",
+        "categoria": "books",
+        "slug": "sesion-de-xv-lalu",
+        "fotos": 39,
+        "videos": 0,
+        "estado": "creado"
+      },
+      {
+        "alboomId": "969006",
+        "titulo": "Boda de Renata & Ema!",
+        "ruta": "/portfolio/bodas/969006-boda-derenata-ema",
+        "categoria": "bodas",
+        "slug": "boda-derenata-ema",
+        "fotos": 111,
+        "videos": 0,
+        "estado": "creado"
+      },
+      {
+        "alboomId": "969004",
+        "titulo": "Sesión Post XV de Angie!",
+        "ruta": "/portfolio/books/969004-sesion-post-xv-de-angie",
+        "categoria": "books",
+        "slug": "sesion-post-xv-de-angie",
+        "fotos": 43,
+        "videos": 0,
+        "estado": "creado"
+      },
+      {
+        "alboomId": "903181",
+        "titulo": "Emilia..",
+        "ruta": "/portfolio/books/903181-emilia",
+        "categoria": "books",
+        "slug": "emilia",
+        "fotos": 19,
+        "videos": 0,
+        "estado": "creado"
+      },
+      {
+        "alboomId": "903180",
+        "titulo": "Sesión de XV Lucía....",
+        "ruta": "/portfolio/books/903180-sesion-de-xv-lucia",
+        "categoria": "books",
+        "slug": "sesion-de-xv-lucia",
+        "fotos": 33,
+        "videos": 0,
+        "estado": "creado"
+      },
+      {
+        "alboomId": "903177",
+        "titulo": "Sesión de NO Xv Años de Chiara! :)",
+        "ruta": "/portfolio/books/903177-sesion-de-no-xv-anos-de-chiara",
+        "categoria": "books",
+        "slug": "sesion-de-no-xv-anos-de-chiara",
+        "fotos": 40,
+        "videos": 0,
+        "estado": "creado"
+      },
+      {
+        "alboomId": "749423",
+        "titulo": "Sesión Pre xV Agos!",
+        "ruta": "/portfolio/books/749423-sesion-pre-xv-agos",
+        "categoria": "books",
+        "slug": "sesion-pre-xv-agos",
+        "fotos": 24,
+        "videos": 1,
+        "estado": "creado"
+      },
+      {
+        "alboomId": "471059",
+        "titulo": "Sesión Pre xv Años MALE!",
+        "ruta": "/portfolio/books/471059-sesion-de-15-anos-dnxfotografia",
+        "categoria": "books",
+        "slug": "sesion-de-15-anos-dnxfotografia",
+        "fotos": 22,
+        "videos": 0,
+        "estado": "creado"
+      },
+      {
+        "alboomId": "470198",
+        "titulo": "Book Pre xv Cele!",
+        "ruta": "/portfolio/books/470198-book-celefarias03",
+        "categoria": "books",
+        "slug": "book-celefarias03",
+        "fotos": 18,
+        "videos": 0,
+        "estado": "creado"
+      },
+      {
+        "alboomId": "456974",
+        "titulo": "Cumple de 15 Ianara",
+        "ruta": "/portfolio/fiestas/456974-cumple-15-anos-sabri-chira-rosario-santa-fe-argetina",
+        "categoria": "fiestas-de-xv",
+        "slug": "cumple-15-anos-sabri-chira-rosario-santa-fe-argetina",
+        "fotos": 51,
+        "videos": 0,
+        "estado": "creado"
+      },
+      {
+        "alboomId": "456963",
+        "titulo": "Cumple 15 Años Martina",
+        "ruta": "/portfolio/fiestas/456963-cumple-15-anos-martina-rosario-santa-fe-argentina-ross-tower-dnxfotografia-daniel-cuartx",
+        "categoria": "fiestas-de-xv",
+        "slug": "cumple-15-anos-martina-rosario-santa-fe-argentina-ross-tower-dnxfotografia",
+        "fotos": 25,
+        "videos": 0,
+        "estado": "creado"
+      },
+      {
+        "alboomId": "378559",
+        "titulo": "Chiara Xv Años",
+        "ruta": "/portfolio/fiestas/378559-chiara",
+        "categoria": "fiestas-de-xv",
+        "slug": "chiara",
+        "fotos": 53,
+        "videos": 0,
+        "estado": "creado"
+      },
+      {
+        "alboomId": "375817",
+        "titulo": "Gise y Fatu - 10° Aniversario!",
+        "ruta": "/portfolio/fiestas/375817-giseyfatu",
+        "categoria": "fiestas-de-xv",
+        "slug": "giseyfatu",
+        "fotos": 18,
+        "videos": 0,
+        "estado": "creado"
+      },
+      {
+        "alboomId": "338484",
+        "titulo": "Book ZOE!",
+        "ruta": "/portfolio/books/338484-zoe",
+        "categoria": "books",
+        "slug": "zoe",
+        "fotos": 53,
+        "videos": 0,
+        "estado": "creado"
+      },
+      {
+        "alboomId": "338478",
+        "titulo": "Fiesta Orne 15 Años",
+        "ruta": "/portfolio/fiestas/338478-orne15",
+        "categoria": "fiestas-de-xv",
+        "slug": "orne15",
+        "fotos": 31,
+        "videos": 0,
+        "estado": "creado"
+      },
+      {
+        "alboomId": "338458",
+        "titulo": "Book Pre 15 Mile!",
+        "ruta": "/portfolio/books/338458-mile",
+        "categoria": "books",
+        "slug": "mile",
+        "fotos": 34,
+        "videos": 0,
+        "estado": "creado"
+      },
+      {
+        "alboomId": "303540",
+        "titulo": "Sesión Brichu & Nachu!",
+        "ruta": "/portfolio/books/303540-sesion-cumple-de-15-briana-y-nachu-en-rosario",
+        "categoria": "books",
+        "slug": "sesion-cumple-de-15-briana-y-nachu-en-rosario",
+        "fotos": 20,
+        "videos": 0,
+        "estado": "creado"
+      },
+      {
+        "alboomId": "303401",
+        "titulo": "Luzka",
+        "ruta": "/portfolio/books/303401-sesion-fotos-moda-luzka-colombiana-2018",
+        "categoria": "books",
+        "slug": "sesion-fotos-moda-luzka-colombiana-2018",
+        "fotos": 9,
+        "videos": 0,
+        "estado": "creado"
+      },
+      {
+        "alboomId": "296936",
+        "titulo": "Book Andy!",
+        "ruta": "/portfolio/books/296936-bookandy",
+        "categoria": "books",
+        "slug": "bookandy",
+        "fotos": 15,
+        "videos": 0,
+        "estado": "creado"
+      },
+      {
+        "alboomId": "294891",
+        "titulo": "Boda Eliana & Marcelo",
+        "ruta": "/portfolio/bodas/294891-eli",
+        "categoria": "bodas",
+        "slug": "eli",
+        "fotos": 23,
+        "videos": 0,
+        "estado": "creado"
+      },
+      {
+        "alboomId": "294876",
+        "titulo": "Sesión 15 Martu",
+        "ruta": "/portfolio/books/294876-martu15",
+        "categoria": "books",
+        "slug": "martu15",
+        "fotos": 7,
+        "videos": 0,
+        "estado": "creado"
+      },
+      {
+        "alboomId": "293824",
+        "titulo": "Sesión Jime 15 Años",
+        "ruta": "/portfolio/books/293824-jime15",
+        "categoria": "books",
+        "slug": "jime15",
+        "fotos": 16,
+        "videos": 0,
+        "estado": "creado"
+      },
+      {
+        "alboomId": "12070",
+        "titulo": "Books",
+        "ruta": "/gallery/12070-books",
+        "categoria": "books",
+        "slug": "galeria-books",
+        "fotos": 204,
+        "videos": 0,
+        "estado": "creado"
+      },
+      {
+        "alboomId": "12073",
+        "titulo": "Bodas",
+        "ruta": "/gallery/12073-bodas",
+        "categoria": "bodas",
+        "slug": "galeria-bodas",
+        "fotos": 77,
+        "videos": 0,
+        "estado": "creado"
+      },
+      {
+        "alboomId": "19953",
+        "titulo": "Graduaciones",
+        "ruta": "/gallery/19953-cumple-de-15-en-rosario-santa-fe-argentina-dnxfotografia-daniel-cuart",
+        "categoria": "graduaciones",
+        "slug": "galeria-graduaciones",
+        "fotos": 24,
+        "videos": 0,
+        "estado": "creado"
+      },
+      {
+        "alboomId": "21382",
+        "titulo": "VIDEOS!",
+        "ruta": "/gallery/21382-videos",
+        "categoria": "videos",
+        "slug": "galeria-videos",
+        "fotos": 0,
+        "videos": 13,
+        "estado": "creado"
+      },
+      {
+        "alboomId": "87092",
+        "titulo": "Fiestas de XV Años!",
+        "ruta": "/gallery/87092-fiestas-de-15-en-rosario-fotografo-de-rosario",
+        "categoria": "fiestas-de-xv",
+        "slug": "galeria-fiestas-de-xv-anos",
+        "fotos": 80,
+        "videos": 0,
+        "estado": "creado"
+      }
+    ]
+  },
+  "testimonios": {
+    "creados": 32,
+    "existentes": 0,
+    "fallidos": 0,
+    "detalle": [
+      {
+        "nombre": "Gise y Fatu Broun",
+        "estado": "creado",
+        "trabajo": "375817"
+      },
+      {
+        "nombre": "Andrés Preumayr",
+        "estado": "creado"
+      },
+      {
+        "nombre": "Romina",
+        "estado": "creado"
+      },
+      {
+        "nombre": "Sergio Sotello",
+        "estado": "creado",
+        "trabajo": "378559"
+      },
+      {
+        "nombre": "Jime Brunazzo",
+        "estado": "creado",
+        "trabajo": "293824"
+      },
+      {
+        "nombre": "Gustavo Kuz",
+        "estado": "creado"
+      },
+      {
+        "nombre": "Georgina & Fito",
+        "estado": "creado"
+      },
+      {
+        "nombre": "Jonatan Gomez",
+        "estado": "creado"
+      },
+      {
+        "nombre": "Romina",
+        "estado": "creado"
+      },
+      {
+        "nombre": "Facundo Garcia",
+        "estado": "creado"
+      },
+      {
+        "nombre": "Gonzalo Caporella",
+        "estado": "creado"
+      },
+      {
+        "nombre": "Carina",
+        "estado": "creado"
+      },
+      {
+        "nombre": "Nicole sampaoli",
+        "estado": "creado"
+      },
+      {
+        "nombre": "Mariano Constantino",
+        "estado": "creado"
+      },
+      {
+        "nombre": "Matilde Fages",
+        "estado": "creado"
+      },
+      {
+        "nombre": "Daniela Gentili",
+        "estado": "creado"
+      },
+      {
+        "nombre": "Celeste Farias",
+        "estado": "creado"
+      },
+      {
+        "nombre": "Sabrina Binello",
+        "estado": "creado"
+      },
+      {
+        "nombre": "Natalia y Ezequiel",
+        "estado": "creado"
+      },
+      {
+        "nombre": "Cinthya Lascirignola (Fotógrafa Profesional)",
+        "estado": "creado"
+      },
+      {
+        "nombre": "Nora Dalmasso",
+        "estado": "creado"
+      },
+      {
+        "nombre": "Lucas",
+        "estado": "creado"
+      },
+      {
+        "nombre": "Victoria Yani",
+        "estado": "creado"
+      },
+      {
+        "nombre": "Elizabeth Palacios",
+        "estado": "creado"
+      },
+      {
+        "nombre": "Serena Holeywell",
+        "estado": "creado"
+      },
+      {
+        "nombre": "Milena Dimangano.",
+        "estado": "creado",
+        "trabajo": "338458"
+      },
+      {
+        "nombre": "Javier Mottola (Toma UNO)",
+        "estado": "creado"
+      },
+      {
+        "nombre": "Paola Giacomini",
+        "estado": "creado"
+      },
+      {
+        "nombre": "Agustina Peñaloza",
+        "estado": "creado"
+      },
+      {
+        "nombre": "Eliana Correa",
+        "estado": "creado"
+      },
+      {
+        "nombre": "Rubén Darío Clivio",
+        "estado": "creado"
+      },
+      {
+        "nombre": "Mónica",
+        "estado": "creado"
+      }
+    ]
+  },
+  "paginas": {
+    "creados": 17,
+    "existentes": 0,
+    "fallidos": 0,
+    "detalle": [
+      {
+        "slug": "quien-soy",
+        "alboom": "/sobre",
+        "bloques": 3,
+        "estado": "creado"
+      },
+      {
+        "slug": "agenda",
+        "alboom": "/agenda",
+        "bloques": 16,
+        "estado": "creado"
+      },
+      {
+        "slug": "capacitate",
+        "alboom": "/cursos",
+        "bloques": 29,
+        "estado": "creado"
+      },
+      {
+        "slug": "imprimi-tus-fotos",
+        "alboom": "/imprimir",
+        "bloques": 1,
+        "estado": "creado"
+      },
+      {
+        "slug": "curso-xv",
+        "alboom": "/cursoxv",
+        "bloques": 14,
+        "estado": "creado"
+      },
+      {
+        "slug": "curso-celular",
+        "alboom": "/celular",
+        "bloques": 14,
+        "estado": "creado"
+      },
+      {
+        "slug": "curso-lightroom",
+        "alboom": "/cursolightroom",
+        "bloques": 13,
+        "estado": "creado"
+      },
+      {
+        "slug": "fotografia-inicial",
+        "alboom": "/fotografia-inicial",
+        "bloques": 13,
+        "estado": "creado"
+      },
+      {
+        "slug": "workshop-xv",
+        "alboom": "/workshopxv",
+        "bloques": 14,
+        "estado": "creado"
+      },
+      {
+        "slug": "consultorias",
+        "alboom": "/consultorias",
+        "bloques": 15,
+        "estado": "creado"
+      },
+      {
+        "slug": "taller-presupuestos",
+        "alboom": "/tallerpresupuestos",
+        "bloques": 3,
+        "estado": "creado"
+      },
+      {
+        "slug": "curso-eventos",
+        "alboom": "/curso_eventos",
+        "bloques": 14,
+        "estado": "creado"
+      },
+      {
+        "slug": "mentoria-1a1",
+        "alboom": "/1a1",
+        "bloques": 17,
+        "estado": "creado"
+      },
+      {
+        "slug": "planilla-presupuesto",
+        "alboom": "/xlspresupuesto",
+        "bloques": 3,
+        "estado": "creado"
+      },
+      {
+        "slug": "visita-virtual",
+        "alboom": "/visitavirtual",
+        "bloques": 17,
+        "estado": "creado"
+      },
+      {
+        "slug": "calendario-360",
+        "alboom": "/calendario360",
+        "bloques": 1,
+        "estado": "creado"
+      },
+      {
+        "slug": "la-isla",
+        "alboom": "/laisla",
+        "bloques": 3,
+        "estado": "creado"
+      }
+    ]
+  },
+  "portada": {
+    "estado": "creada",
+    "bloquesAnteriores": 0
+  },
+  "menu": "creado",
+  "logo": "copiado",
+  "redirecciones": {
+    "total": 273,
+    "creadas": 273
+  },
+  "fotos": {
+    "copiadas": 1788,
+    "fallidas": []
+  },
+  "landingsNoMigradas": [
+    {
+      "ruta": "/los15depia",
+      "url": "https://www.dnxfotografia.com.ar/los15depia"
+    },
+    {
+      "ruta": "/plataforma360",
+      "url": "https://www.dnxfotografia.com.ar/plataforma360"
+    },
+    {
+      "ruta": "/presupuesto360",
+      "url": "https://www.dnxfotografia.com.ar/presupuesto360"
+    },
+    {
+      "ruta": "/colaboraciones",
+      "url": "https://www.dnxfotografia.com.ar/colaboraciones"
+    },
+    {
+      "ruta": "/navidad",
+      "url": "https://www.dnxfotografia.com.ar/navidad"
+    },
+    {
+      "ruta": "/reloj",
+      "url": "https://www.dnxfotografia.com.ar/reloj"
+    },
+    {
+      "ruta": "/farmall",
+      "url": "https://www.dnxfotografia.com.ar/farmall"
+    },
+    {
+      "ruta": "/correa",
+      "url": "https://www.dnxfotografia.com.ar/correa"
+    },
+    {
+      "ruta": "/cpce",
+      "url": "https://www.dnxfotografia.com.ar/cpce"
+    },
+    {
+      "ruta": "/promo2023",
+      "url": "https://www.dnxfotografia.com.ar/promo2023"
+    },
+    {
+      "ruta": "/lazos",
+      "url": "https://www.dnxfotografia.com.ar/lazos"
+    },
+    {
+      "ruta": "/vdr",
+      "url": "https://www.dnxfotografia.com.ar/vdr"
+    },
+    {
+      "ruta": "/almaxv",
+      "url": "https://www.dnxfotografia.com.ar/almaxv"
+    },
+    {
+      "ruta": "/escuela798",
+      "url": "https://www.dnxfotografia.com.ar/escuela798"
+    },
+    {
+      "ruta": "/guadalupe",
+      "url": "https://www.dnxfotografia.com.ar/guadalupe"
+    },
+    {
+      "ruta": "/valen15",
+      "url": "https://www.dnxfotografia.com.ar/valen15"
+    },
+    {
+      "ruta": "/sys",
+      "url": "https://www.dnxfotografia.com.ar/sys"
+    },
+    {
+      "ruta": "/valenmis15",
+      "url": "https://www.dnxfotografia.com.ar/valenmis15"
+    },
+    {
+      "ruta": "/carnavalmr",
+      "url": "https://www.dnxfotografia.com.ar/carnavalmr"
+    },
+    {
+      "ruta": "/deboraymartin",
+      "url": "https://www.dnxfotografia.com.ar/deboraymartin"
+    },
+    {
+      "ruta": "/nicolxv",
+      "url": "https://www.dnxfotografia.com.ar/nicolxv"
+    },
+    {
+      "ruta": "/aldana30",
+      "url": "https://www.dnxfotografia.com.ar/aldana30"
+    },
+    {
+      "ruta": "/yye",
+      "url": "https://www.dnxfotografia.com.ar/yye"
+    },
+    {
+      "ruta": "/selene",
+      "url": "https://www.dnxfotografia.com.ar/selene"
+    },
+    {
+      "ruta": "/isaxv",
+      "url": "https://www.dnxfotografia.com.ar/isaxv"
+    },
+    {
+      "ruta": "/cyg",
+      "url": "https://www.dnxfotografia.com.ar/cyg"
+    },
+    {
+      "ruta": "/sol30",
+      "url": "https://www.dnxfotografia.com.ar/sol30"
+    },
+    {
+      "ruta": "/anayluana",
+      "url": "https://www.dnxfotografia.com.ar/anayluana"
+    },
+    {
+      "ruta": "/myu",
+      "url": "https://www.dnxfotografia.com.ar/myu"
+    },
+    {
+      "ruta": "/franxv",
+      "url": "https://www.dnxfotografia.com.ar/franxv"
+    },
+    {
+      "ruta": "/xiomixv",
+      "url": "https://www.dnxfotografia.com.ar/xiomixv"
+    },
+    {
+      "ruta": "/cataxv",
+      "url": "https://www.dnxfotografia.com.ar/cataxv"
+    },
+    {
+      "ruta": "/constanzaxv",
+      "url": "https://www.dnxfotografia.com.ar/constanzaxv"
+    },
+    {
+      "ruta": "/vickyxv",
+      "url": "https://www.dnxfotografia.com.ar/vickyxv"
+    },
+    {
+      "ruta": "/fotosglitter",
+      "url": "https://www.dnxfotografia.com.ar/fotosglitter"
+    },
+    {
+      "ruta": "/paulamis15",
+      "url": "https://www.dnxfotografia.com.ar/paulamis15"
+    },
+    {
+      "ruta": "/emmaxv",
+      "url": "https://www.dnxfotografia.com.ar/emmaxv"
+    },
+    {
+      "ruta": "/claudiaylucia",
+      "url": "https://www.dnxfotografia.com.ar/claudiaylucia"
+    },
+    {
+      "ruta": "/sorteopinocchiodnx",
+      "url": "https://www.dnxfotografia.com.ar/sorteopinocchiodnx"
+    },
+    {
+      "ruta": "/luli15",
+      "url": "https://www.dnxfotografia.com.ar/luli15"
+    },
+    {
+      "ruta": "/prixv",
+      "url": "https://www.dnxfotografia.com.ar/prixv"
+    },
+    {
+      "ruta": "/emma12",
+      "url": "https://www.dnxfotografia.com.ar/emma12"
+    },
+    {
+      "ruta": "/celeste40",
+      "url": "https://www.dnxfotografia.com.ar/celeste40"
+    },
+    {
+      "ruta": "/sorteo-fdf",
+      "url": "https://www.dnxfotografia.com.ar/sorteo-fdf"
+    },
+    {
+      "ruta": "/marylu",
+      "url": "https://www.dnxfotografia.com.ar/marylu"
+    },
+    {
+      "ruta": "/issaxv",
+      "url": "https://www.dnxfotografia.com.ar/issaxv"
+    },
+    {
+      "ruta": "/martinamisquince",
+      "url": "https://www.dnxfotografia.com.ar/martinamisquince"
+    },
+    {
+      "ruta": "/primaveramr",
+      "url": "https://www.dnxfotografia.com.ar/primaveramr"
+    },
+    {
+      "ruta": "/sol_30",
+      "url": "https://www.dnxfotografia.com.ar/sol_30"
+    },
+    {
+      "ruta": "/laramisxv",
+      "url": "https://www.dnxfotografia.com.ar/laramisxv"
+    },
+    {
+      "ruta": "/maguimis15v",
+      "url": "https://www.dnxfotografia.com.ar/maguimis15v"
+    },
+    {
+      "ruta": "/martu22",
+      "url": "https://www.dnxfotografia.com.ar/martu22"
+    },
+    {
+      "ruta": "/claramisquince",
+      "url": "https://www.dnxfotografia.com.ar/claramisquince"
+    },
+    {
+      "ruta": "/camimisxv",
+      "url": "https://www.dnxfotografia.com.ar/camimisxv"
+    },
+    {
+      "ruta": "/brendaymati",
+      "url": "https://www.dnxfotografia.com.ar/brendaymati"
+    },
+    {
+      "ruta": "/fdf2025",
+      "url": "https://www.dnxfotografia.com.ar/fdf2025"
+    },
+    {
+      "ruta": "/broggi",
+      "url": "https://www.dnxfotografia.com.ar/broggi"
+    },
+    {
+      "ruta": "/lupexv",
+      "url": "https://www.dnxfotografia.com.ar/lupexv"
+    },
+    {
+      "ruta": "/maiu30",
+      "url": "https://www.dnxfotografia.com.ar/maiu30"
+    },
+    {
+      "ruta": "/martumisxv",
+      "url": "https://www.dnxfotografia.com.ar/martumisxv"
+    },
+    {
+      "ruta": "/cecilia40",
+      "url": "https://www.dnxfotografia.com.ar/cecilia40"
+    }
+  ],
+  "avisos": [
+    "El menú del borrador era el automático: se reemplazó entero por el importado (la versión publicada no cambia)."
+  ]
+}
