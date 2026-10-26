@@ -22,6 +22,7 @@ import {
   Plug,
   Inbox,
   MessageCircle,
+  Send,
   LayoutDashboard,
   LayoutGrid,
   ListPlus,
@@ -541,6 +542,20 @@ export function ShellNav({
           description: "Conexiones con Google, WhatsApp y otros servicios.",
           icon: Plug,
           isActive: under("/workspace/configuracion/integraciones"),
+        },
+        {
+          href: "/workspace/configuracion/whatsapp",
+          label: "WhatsApp",
+          description: "Conexión con Meta, respuestas automáticas del bot y simulador de mensajes.",
+          icon: MessageCircle,
+          isActive: under("/workspace/configuracion/whatsapp"),
+        },
+        {
+          href: "/workspace/configuracion/telegram",
+          label: "Telegram",
+          description: "Avisos y aprobaciones por Telegram.",
+          icon: Send,
+          isActive: under("/workspace/configuracion/telegram"),
         },
         {
           href: "/workspace/configuracion/cobros",
