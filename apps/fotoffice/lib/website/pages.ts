@@ -10,6 +10,14 @@ const SLUG_MAX_LENGTH = 60;
 /** Letras minúsculas/números separados por guiones simples, sin guiones al borde. */
 const SLUG_FORMAT = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
+/** Clave para una página nueva: `p_1`, `p_2`… la primera que no esté usada. */
+export function nextPageKey(existing: string[]): string {
+  const usadas = new Set(existing);
+  let n = 1;
+  while (usadas.has(`p_${n}`)) n++;
+  return `p_${n}`;
+}
+
 /** Páginas propias (todas menos el inicio), en el orden en que se crearon. */
 export function listCustomPages(
   s: WebsiteSections,

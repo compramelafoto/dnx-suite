@@ -6,6 +6,7 @@ import {
   HOME_PAGE_KEY,
   findPageBySlug,
   listCustomPages,
+  nextPageKey,
   slugifyPageTitle,
   validatePageSlug,
 } from "./pages";
@@ -111,5 +112,32 @@ describe("RESERVED_SITE_SEGMENTS", () => {
     for (const x of ["trabajos", "testimonio", "testimonios", "presupuesto", "insertar", "api", "w"]) {
       expect(RESERVED_SITE_SEGMENTS).toContain(x);
     }
+  });
+});
+
+describe("nextPageKey", () => {
+  it("empieza en p_1 y elige la primera libre", () => {
+    expect(nextPageKey([])).toBe("p_1");
+    expect(nextPageKey(["p_1", "p_2"])).toBe("p_3");
+    expect(nextPageKey(["p_2"])).toBe("p_1");
+    expect(nextPageKey(["home", "p_1", "p_3"])).toBe("p_2");
+  });
+});
+
+describe("claves de página con formato seguro", () => {
+  it("parseWebsiteSections descarta claves con formato raro o de prototipo", () => {
+    const raw = JSON.parse(
+      JSON.stringify({
+        pages: { home: [], "Mala Clave": [], "../x": [], ok: [] },
+        pageMeta: {
+          "Mala Clave": { slug: "a", title: "A" },
+          "../x": { slug: "b", title: "B" },
+          ok: { slug: "c", title: "C" },
+        },
+      }).replace('"ok"', '"__proto__"').replace('"ok"', '"__proto__"'),
+    );
+    const s = parseWebsiteSections(raw);
+    expect(Object.keys(s.pages)).toEqual(["home"]);
+    expect(s.pageMeta).toEqual({});
   });
 });

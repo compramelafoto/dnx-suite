@@ -22,6 +22,7 @@ import { DEVICE_WIDTHS, type DeviceWidth } from "./device-toggle";
  */
 export function LivePreview({
   blocks,
+  homeBlocks,
   colors,
   designPresets,
   menu,
@@ -31,7 +32,10 @@ export function LivePreview({
   workspaceName,
   device,
 }: {
+  /** Las secciones de la página que se está editando. */
   blocks: WebsiteBlock[];
+  /** Las de la portada: de ahí salen las secciones del menú, estés en la página que estés. */
+  homeBlocks: WebsiteBlock[];
   colors: WebsiteColors;
   designPresets: WebsiteDesignPresets;
   menu: SiteMenu | null;
@@ -42,7 +46,7 @@ export function LivePreview({
   device: DeviceWidth;
 }) {
   const navItems = toPreviewNav(
-    resolveSiteNav({ workspaceSlug: "vista-previa", homeBlocks: blocks, enabledModuleKeys, hasPublishedSite: true, menu, personVocabulary }),
+    resolveSiteNav({ workspaceSlug: "vista-previa", homeBlocks, enabledModuleKeys, hasPublishedSite: true, menu, personVocabulary }),
   );
   const themeVars = {
     "--wsite-primary": colors.primaryColor,

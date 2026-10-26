@@ -269,6 +269,11 @@ export const websiteBlockSchema = z.discriminatedUnion("type", [
 
 export const websitePageContentSchema = z.array(websiteBlockSchema);
 
+/** Claves de página admitidas (`home`, `p_1`…): empiezan con letra/número, sin `__proto__` ni rutas. */
+export const PAGE_KEY_FORMAT = /^[a-z0-9][a-z0-9_]{0,39}$/;
+
+export const websitePageKeySchema = z.string().regex(PAGE_KEY_FORMAT);
+
 export const websitePageMetaSchema = z.object({
   slug: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(60),
   title: z.string().min(1).max(120),
@@ -282,8 +287,8 @@ export type WebsitePageMeta = z.infer<typeof websitePageMetaSchema>;
  * lectores viejos, que sólo miran `pages`, lo ignoren sin romperse. Describe las páginas propias;
  * `home` nunca tiene meta. */
 export const websiteSectionsSchema = z.object({
-  pages: z.record(z.string(), websitePageContentSchema),
-  pageMeta: z.record(z.string(), websitePageMetaSchema),
+  pages: z.record(websitePageKeySchema, websitePageContentSchema),
+  pageMeta: z.record(websitePageKeySchema, websitePageMetaSchema),
 });
 
 export type HeroBlockConfig = z.infer<typeof heroConfigSchema>;
@@ -330,7 +335,7 @@ export function parseWebsiteSections(raw: unknown): WebsiteSections {
 
   const pages: Record<string, WebsiteBlock[]> = {};
   for (const [pageKey, blocksRaw] of Object.entries(pagesRaw as Record<string, unknown>)) {
-    if (!Array.isArray(blocksRaw)) continue;
+    if (!Array.isArray(blocksRaw) || !PAGE_KEY_FORMAT.test(pageKey)) continue;
     const validBlocks: WebsiteBlock[] = [];
     for (const blockRaw of blocksRaw) {
       const parsed = websiteBlockSchema.safeParse(blockRaw);

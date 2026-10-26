@@ -1,4 +1,5 @@
 import {
+  PAGE_KEY_FORMAT,
   websitePageMetaSchema,
   type WebsitePageContent,
   type WebsitePageMeta,
@@ -40,6 +41,7 @@ export function mergePageSave(
   }
 
   for (const key of keys) {
+    if (!PAGE_KEY_FORMAT.test(key)) return { error: "Una de las páginas tiene una clave inválida." };
     const meta = pageMeta[key];
     if (!websitePageMetaSchema.safeParse(meta).success) {
       return { error: "Una de las páginas tiene un título o una dirección inválidos." };
@@ -50,8 +52,10 @@ export function mergePageSave(
   }
 
   // Sólo sobreviven el inicio y las páginas con meta; una página nueva arranca vacía.
-  const pages: Record<string, WebsitePageContent> = { [HOME_PAGE_KEY]: current.pages[HOME_PAGE_KEY] ?? [] };
-  for (const key of keys) pages[key] = current.pages[key] ?? [];
+  // `hasOwn`: una clave como `constructor` no debe heredar nada del prototipo.
+  const actual = (key: string) => (Object.hasOwn(current.pages, key) ? current.pages[key] : []);
+  const pages: Record<string, WebsitePageContent> = { [HOME_PAGE_KEY]: actual(HOME_PAGE_KEY) };
+  for (const key of keys) pages[key] = actual(key);
 
   if (input.blocks !== undefined) {
     if (!Object.hasOwn(pages, input.pageKey)) {

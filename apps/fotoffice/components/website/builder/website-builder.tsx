@@ -1,9 +1,16 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { LayoutTemplate, Menu, Palette, Rows3 } from "lucide-react";
 import { saveWebsiteBlocksAction, saveWebsiteBrandingColorsAction } from "@/app/actions/website";
-import { createEmptyBlock, type WebsiteBlock, type WebsiteBlockType } from "@/lib/website/blocks";
+import {
+  createEmptyBlock,
+  type WebsiteBlock,
+  type WebsiteBlockType,
+  type WebsitePageMeta,
+} from "@/lib/website/blocks";
+import { HOME_PAGE_KEY, listCustomPages, nextPageKey } from "@/lib/website/pages";
+import { MAX_CUSTOM_PAGES } from "@/lib/website/save-pages";
 import type { WebsiteColors } from "@/lib/website/branding-defaults";
 import type { WebsiteDesignPresets } from "@/lib/website/design-presets";
 import type { WebsiteTemplate } from "@/lib/website/templates";
@@ -20,6 +27,7 @@ import { DesignPanel } from "./design-panel";
 import { MenuPanel } from "./menu-panel";
 import { BlockInspectorPanel } from "./block-inspector-panel";
 import { LivePreview } from "./live-preview";
+import { PageSwitcher } from "./page-switcher";
 import type { DeviceWidth } from "./device-toggle";
 import { AddBlockPicker } from "../editor/add-block-picker";
 
@@ -38,8 +46,15 @@ function combineAutosaveStatus(a: AutosaveStatus, b: AutosaveStatus): AutosaveSt
   return order.find((s) => a === s || b === s) ?? "idle";
 }
 
+/** Las páginas propias del borrador tal como las guardó el servidor. */
+export type BuilderInitialPages = {
+  /** Bloques de cada página, `home` incluida. */
+  pages: Record<string, WebsiteBlock[]>;
+  pageMeta: Record<string, WebsitePageMeta>;
+};
+
 export function WebsiteBuilder({
-  initialBlocks,
+  initialPages,
   initialColors,
   initialLogoUrl,
   initialFaviconUrl,
@@ -55,7 +70,7 @@ export function WebsiteBuilder({
   draftUpdatedAt,
   status,
 }: {
-  initialBlocks: WebsiteBlock[];
+  initialPages: BuilderInitialPages;
   initialColors: WebsiteColors;
   initialLogoUrl: string | null;
   initialFaviconUrl: string | null;
@@ -72,8 +87,25 @@ export function WebsiteBuilder({
   draftUpdatedAt: string;
   status: WebsiteChangeStatus;
 }) {
-  const [mode, setMode] = useState<BuilderMode>(initialPanel ?? (initialBlocks.length === 0 ? "PLANTILLAS" : "SECCIONES"));
-  const [blocks, setBlocks] = useState<WebsiteBlock[]>(initialBlocks);
+  const [mode, setMode] = useState<BuilderMode>(
+    initialPanel ?? ((initialPages.pages[HOME_PAGE_KEY] ?? []).length === 0 ? "PLANTILLAS" : "SECCIONES"),
+  );
+  // Todas las páginas viven en memoria; `activeKey` dice cuál se está editando. Así cambiar de
+  // página no pierde nada aunque el guardado vaya un paso atrás.
+  const [pages, setPages] = useState<Record<string, WebsiteBlock[]>>(initialPages.pages);
+  const [pageMeta, setPageMeta] = useState<Record<string, WebsitePageMeta>>(initialPages.pageMeta);
+  const [activeKey, setActiveKey] = useState<string>(HOME_PAGE_KEY);
+  // Lo último que el servidor confirmó, por página: el guardado sólo manda lo que cambió.
+  const savedPagesRef = useRef<Record<string, string>>(
+    Object.fromEntries(Object.entries(initialPages.pages).map(([k, v]) => [k, JSON.stringify(v)])),
+  );
+  const blocks = useMemo(() => pages[activeKey] ?? [], [pages, activeKey]);
+  const homeBlocks = pages[HOME_PAGE_KEY] ?? [];
+  const setBlocks = (next: WebsiteBlock[] | ((prev: WebsiteBlock[]) => WebsiteBlock[])) =>
+    setPages((prev) => {
+      const actual = prev[activeKey] ?? [];
+      return { ...prev, [activeKey]: typeof next === "function" ? next(actual) : next };
+    });
   const [presets, setPresets] = useState<WebsiteDesignPresets>(initialDesignPresets);
   const [menu, setMenu] = useState<SiteMenu | null>(initialMenu);
   const enabledModuleKeys = useMemo(() => new Set(enabledModuleKeyList), [enabledModuleKeyList]);
@@ -84,20 +116,42 @@ export function WebsiteBuilder({
   const [faviconUrl, setFaviconUrl] = useState<string | null>(initialFaviconUrl);
   const [pickerOpen, setPickerOpen] = useState(false);
 
-  // Secciones + diseño global + menú viven en la MISMA fila (FotofficeWorkspaceWebsite) y
-  // comparten updatedAt — por eso es UN SOLO autosave combinado, no varios compitiendo por la
+  // Secciones + páginas + diseño global + menú viven en la MISMA fila (FotofficeWorkspaceWebsite)
+  // y comparten updatedAt — por eso es UN SOLO autosave combinado, no varios compitiendo por la
   // misma referencia de concurrencia (ver comentario en saveWebsiteBlocksAction).
+  //
+  // El servidor guarda los bloques de UNA página por llamada. Acá se arma el guardado en pasos:
+  // el primero lleva la lista de páginas, el diseño y el menú (y los bloques de la primera
+  // página que cambió — la lista va antes, así una página recién creada ya existe); si cambiaron
+  // más páginas, van una llamada cada una, encadenando el `updatedAt` que devuelve la anterior.
   const draftAutosave = useDraftAutosave({
-    value: { blocks, presets, menu },
+    value: { pages, pageMeta, presets, menu },
     initialUpdatedAt: draftUpdatedAt,
     enabled: canEdit,
     save: async (value, expectedUpdatedAt) => {
-      const fd = new FormData();
-      fd.set("blocksJson", JSON.stringify(value.blocks));
-      fd.set("designPresetsJson", JSON.stringify(value.presets));
-      fd.set("navJson", JSON.stringify(value.menu));
-      fd.set("draftUpdatedAt", expectedUpdatedAt);
-      return saveWebsiteBlocksAction(undefined, fd);
+      const cambiadas = Object.keys(value.pages).filter(
+        (k) => (k === HOME_PAGE_KEY || Object.hasOwn(value.pageMeta, k)) && JSON.stringify(value.pages[k]) !== savedPagesRef.current[k],
+      );
+      let updatedAt = expectedUpdatedAt;
+      for (let paso = 0; paso === 0 || paso < cambiadas.length; paso++) {
+        const fd = new FormData();
+        const key = cambiadas[paso];
+        if (key !== undefined) {
+          fd.set("pageKey", key);
+          fd.set("blocksJson", JSON.stringify(value.pages[key]));
+        }
+        if (paso === 0) {
+          fd.set("pagesMetaJson", JSON.stringify(value.pageMeta));
+          fd.set("designPresetsJson", JSON.stringify(value.presets));
+          fd.set("navJson", JSON.stringify(value.menu));
+        }
+        fd.set("draftUpdatedAt", updatedAt);
+        const res = await saveWebsiteBlocksAction(undefined, fd);
+        if (res.updatedAt) updatedAt = res.updatedAt;
+        if (res.error) return { error: res.error, updatedAt: updatedAt === expectedUpdatedAt ? undefined : updatedAt };
+        if (key !== undefined) savedPagesRef.current[key] = JSON.stringify(value.pages[key]);
+      }
+      return { error: null, updatedAt };
     },
   });
 
@@ -121,7 +175,47 @@ export function WebsiteBuilder({
 
   const autosaveStatus = combineAutosaveStatus(draftAutosave.status, brandingAutosave.status);
   const selectedBlock = blocks.find((b) => b.id === selectedId) ?? null;
-  const hasContent = blocks.length > 0;
+  const hasContent = homeBlocks.length > 0;
+  const customPages = listCustomPages({ pages, pageMeta });
+  const activeTitle = activeKey === HOME_PAGE_KEY ? "Portada" : (pageMeta[activeKey]?.title ?? "Página");
+
+  // Cambiar de página: primero se guarda lo pendiente de la actual. Si el guardado falla, igual
+  // se cambia — nada se pierde porque todo sigue en memoria y el autosave reintenta.
+  async function handleSelectPage(key: string) {
+    if (key === activeKey) return;
+    await draftAutosave.flush();
+    setActiveKey(key);
+    setSelectedId(null);
+  }
+
+  async function handleCreatePage(title: string, slug: string) {
+    if (customPages.length >= MAX_CUSTOM_PAGES) return;
+    await draftAutosave.flush();
+    const key = nextPageKey([...Object.keys(pageMeta), ...Object.keys(pages)]);
+    setPageMeta((prev) => ({ ...prev, [key]: { title, slug } }));
+    setPages((prev) => ({ ...prev, [key]: [] }));
+    setActiveKey(key);
+    setSelectedId(null);
+    setMode("SECCIONES");
+  }
+
+  function handleRenamePage(key: string, title: string) {
+    setPageMeta((prev) => (prev[key] ? { ...prev, [key]: { ...prev[key], title } } : prev));
+  }
+
+  function handleChangeSlug(key: string, slug: string) {
+    setPageMeta((prev) => (prev[key] ? { ...prev, [key]: { ...prev[key], slug } } : prev));
+  }
+
+  function handleDeletePage(key: string) {
+    setPageMeta((prev) => Object.fromEntries(Object.entries(prev).filter(([k]) => k !== key)));
+    setPages((prev) => Object.fromEntries(Object.entries(prev).filter(([k]) => k !== key)));
+    delete savedPagesRef.current[key];
+    if (activeKey === key) {
+      setActiveKey(HOME_PAGE_KEY);
+      setSelectedId(null);
+    }
+  }
 
   function handleBlockChange(updated: WebsiteBlock) {
     setBlocks((prev) => prev.map((b) => (b.id === updated.id ? updated : b)));
@@ -180,7 +274,10 @@ export function WebsiteBuilder({
 
   function handleApplyTemplate(template: WebsiteTemplate, applyMode: "full" | "designOnly") {
     if (applyMode === "full") {
-      setBlocks(reorder(template.seedSections()));
+      // Las plantillas arman la portada: se vuelve a ella para que el cambio se vea.
+      setPages((prev) => ({ ...prev, [HOME_PAGE_KEY]: reorder(template.seedSections()) }));
+      setActiveKey(HOME_PAGE_KEY);
+      setSelectedId(null);
       setMode("SECCIONES");
     }
     // La disposición del menú se elige en su propia pestaña: una plantilla no la pisa.
@@ -205,7 +302,21 @@ export function WebsiteBuilder({
           <ModeSwitcher mode={mode} onChange={setMode} />
           <div className="flex-1 overflow-hidden">
             {mode === "SECCIONES" ? (
+              <div className="flex h-full min-h-0 flex-col">
+              <PageSwitcher
+                pages={customPages.map((p) => ({ key: p.key, title: p.title, slug: p.slug }))}
+                activeKey={activeKey}
+                canEdit={canEdit}
+                limitReached={customPages.length >= MAX_CUSTOM_PAGES}
+                onSelect={(k) => void handleSelectPage(k)}
+                onCreate={(t, s) => void handleCreatePage(t, s)}
+                onRename={handleRenamePage}
+                onChangeSlug={handleChangeSlug}
+                onDelete={handleDeletePage}
+              />
+              <div className="min-h-0 flex-1">
               <SectionList
+                title={activeTitle}
                 blocks={blocks}
                 selectedId={selectedId}
                 canEdit={canEdit}
@@ -217,6 +328,8 @@ export function WebsiteBuilder({
                 onReorder={handleReorder}
                 onAddClick={() => setPickerOpen(true)}
               />
+              </div>
+              </div>
             ) : null}
             {mode === "PLANTILLAS" ? (
               <TemplatePickerPanel hasContent={hasContent} canEdit={canEdit} organizationType={organizationType} onApply={handleApplyTemplate} />
@@ -225,7 +338,7 @@ export function WebsiteBuilder({
               <MenuPanel
                 menu={menu}
                 presets={presets}
-                blocks={blocks}
+                blocks={homeBlocks}
                 enabledModuleKeys={enabledModuleKeys}
                 personVocabulary={personVocabulary}
                 canEdit={canEdit}
@@ -253,6 +366,7 @@ export function WebsiteBuilder({
         <div className="min-w-0 flex-1">
           <LivePreview
             blocks={blocks}
+            homeBlocks={homeBlocks}
             colors={colors}
             designPresets={presets}
             menu={menu}

@@ -10,6 +10,7 @@ import { canEditWebsiteIdentity } from "@/lib/website/identity-access";
 import {
   parseWebsiteSections,
   websitePageContentSchema,
+  websitePageKeySchema,
   websitePageMetaSchema,
   type WebsitePageContent,
   type WebsitePageMeta,
@@ -19,7 +20,7 @@ import { mergePageSave } from "@/lib/website/save-pages";
 import { websiteDesignPresetsSchema } from "@/lib/website/design-presets";
 import { siteMenuSchema } from "@/lib/website/site-menu";
 
-const websitePageMetaMapSchema = z.record(z.string(), websitePageMetaSchema);
+const websitePageMetaMapSchema = z.record(websitePageKeySchema, websitePageMetaSchema);
 
 /** `updatedAt` (ISO) del borrador tras publicar/despublicar — Publicar/Despublicar también
  * escriben la fila `FotofficeWorkspaceWebsite`, así que el autosave de secciones/diseño (que

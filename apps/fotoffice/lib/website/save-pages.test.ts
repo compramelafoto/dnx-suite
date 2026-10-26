@@ -88,3 +88,21 @@ describe("mergePageSave", () => {
     expect("error" in mergePageSave(emptyWebsiteSections(), { pageKey: "home", pageMeta: meta })).toBe(false);
   });
 });
+
+describe("mergePageSave: claves seguras", () => {
+  it("rechaza claves con formato raro o de prototipo en la meta", () => {
+    for (const key of ["Mala Clave", "../x", "__proto__", "_a"]) {
+      const pageMeta = JSON.parse(`{"${key}":{"slug":"algo","title":"Algo"}}`);
+      expect("error" in mergePageSave(emptyWebsiteSections(), { pageKey: "home", pageMeta })).toBe(true);
+    }
+  });
+
+  it("una clave como 'constructor' arranca vacía: no hereda nada del prototipo", () => {
+    const r = mergePageSave(emptyWebsiteSections(), {
+      pageKey: "home",
+      pageMeta: { constructor: { slug: "algo", title: "Algo" } },
+    });
+    if ("error" in r) throw new Error(r.error);
+    expect(r.sections.pages.constructor).toEqual([]);
+  });
+});
