@@ -233,8 +233,16 @@ jobs:
       # Cada diseño de prueba se dibuja como en la pantalla (Chromium) y como en el PDF, y las
       # dos imágenes se comparan. Si algo se corre, cambia de letra o desaparece, falla, y deja
       # las imágenes y el informe en el artefacto "pantalla-vs-pdf".
+      # Normalmente tarda ~20 s, pero a veces la descarga se cuelga y se comía los 25 min del job.
+      # Cada intento corta a los 3 min y se reintenta hasta 3 veces.
       - name: Instalar Chromium para comparar pantalla y PDF
-        run: pnpm --filter compramelafoto exec playwright install --with-deps chromium
+        timeout-minutes: 10
+        run: |
+          for intento in 1 2 3; do
+            timeout 180 pnpm --filter compramelafoto exec playwright install --with-deps chromium && exit 0
+            echo "Intento $intento de instalar Chromium falló o se colgó; reintento."
+          done
+          exit 1
 
       - name: Pruebas de producción escolar y marca de agua
         run: pnpm --filter compramelafoto test:produccion-escolar && pnpm --filter compramelafoto test:marca-de-agua
