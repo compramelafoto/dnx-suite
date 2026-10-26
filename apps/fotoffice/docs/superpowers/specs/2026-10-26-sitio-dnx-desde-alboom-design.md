@@ -62,7 +62,7 @@ Las fotos están en `storage.alboom.ninja/sites/8403/...` y `cdn.alboompro.com`;
    ni los enlaces compartidos.
 3. El formulario de presupuesto del sitio crea la consulta en FOTOFFICE con la **categoría** y el
    **origen** elegidos, y de ahí sigue el circuito existente (propuesta modelo, aviso, presupuesto).
-4. Testimonios: los ~20 actuales publicados + forma de pedir y recibir nuevos, con moderación.
+4. Testimonios: los 32 actuales publicados + forma de pedir y recibir nuevos, con moderación.
 5. El sitio pasa a tener **páginas propias** (Quién soy, Agenda, Cursos, Imprimí…) y bloques
    suficientes para armarlas sin código.
 6. Plantillas reales: elegir una arma un sitio completo y creíble de fotógrafo, no tres franjas.
@@ -209,7 +209,7 @@ Importador como script de operaciones `packages/db/prisma/scripts/ops-sitio-impo
 - **Testimonios**: los 32 de la portada (texto completo + foto) → PUBLICADO, origen IMPORTADO,
   consentimiento = «publicado por el autor en el sitio anterior».
 - **Páginas**: Quién soy (RICH_TEXT + CTA), Agenda (RICH_TEXT con los 4 tipos de cita + botones a
-  presupuesto y WhatsApp), Cursos (RICH_TEXT por curso + TESTIMONIALS), Imprimí tus fotos (EMBED
+  presupuesto y WhatsApp), Capacitate `/capacitate` (RICH_TEXT por curso + TESTIMONIALS), Imprimí tus fotos (EMBED
   ComprameLaFoto), y las páginas propias de cursos/servicios que están en línea (cursoxv, celular,
   cursolightroom, fotografia-inicial, workshopxv, consultorias) con el mismo slug. Las de prueba
   (`prueba`, `prueba-sfpr`, `datos`, `contacto-2`, `agenda2024`) no se migran: redirigen a la
@@ -272,6 +272,25 @@ de muestra que no existan» — nunca pisa páginas ni bloques del usuario.
   automáticas nacen apagadas).
 - El sitio de SFPR y Gus Barbers tiene que verse igual después del PR 1 (prueba con sus
   `sectionsJson` reales).
+
+## 7 bis. Decisiones tomadas después de la revisión (26/10, decisiones mías)
+
+1. **Capacitate ≠ módulo de cursos.** DNX tiene encendido `courses-sales`, que ocupa `/cursos`. La
+   página de Alboom se migra como página propia con slug `capacitate` (texto de cada curso y
+   asesoramiento + testimonios de alumnos). Dar de alta esos cursos como cursos reales del módulo
+   queda para después. Para que `/cursos` viejo lleve a `/capacitate`, **las redirecciones se
+   consultan antes que las rutas reales** cuando hay coincidencia exacta de ruta (en el proxy de
+   dominio propio y en `/w/<slug>/…`), no sólo antes del 404.
+2. **Los 32 testimonios se publican todos**: estaban publicados por Daniel en su sitio, con nombre y
+   foto, y él pidió copiarlos. (El «~20» del objetivo 4 era un conteo viejo.)
+3. **Fotos de las plantillas**: de un banco con licencia de uso comercial libre (Unsplash/Pexels),
+   guardadas en R2 con un archivo de créditos. **Nunca** fotos de clientes de DNX (hay menores en
+   las sesiones de XV). Discutible: si Daniel prefiere fotos propias, se cambian sin tocar código.
+4. **Módulos de DNX**: ya están encendidos `website`, `service-leads`, `quotes`, `store`,
+   `courses-sales`, `portfolio`, `agenda`. El importador no enciende ni apaga módulos; Trabajos y
+   Testimonios son páginas del módulo `website` (no requieren módulo propio).
+5. **Tienda Online** queda como enlace externo a `dnxshop.com.ar` (como en Alboom), aunque DNX
+   tenga `store` encendido; cambiarlo a la tienda de FOTOFFICE es una decisión de Daniel.
 
 ## 8. Lo que decide quien construye
 
