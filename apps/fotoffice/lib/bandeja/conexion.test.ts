@@ -184,3 +184,19 @@ describe("suscripción de la cuenta de WhatsApp a la app (sin esto Meta no manda
     expect(posts(f)).toHaveLength(0);
   });
 });
+
+describe("si Meta rechaza la suscripción, se ve su motivo", () => {
+  it("el error incluye el mensaje y el código de Meta (nunca el token)", async () => {
+    const f = vi.fn(async (_url: string, init?: RequestInit) =>
+      init?.method === "POST"
+        ? new Response(JSON.stringify({ error: { message: "Unsupported post request. Object with ID '987654' does not exist", code: 100, error_subcode: 33 } }), { status: 400 })
+        : new Response(JSON.stringify({ id: "123456", display_phone_number: "+1 555" }), { status: 200 }),
+    ) as unknown as typeof fetch;
+    const r = await guardarConexion(ADMIN, { modo: "REAL", phoneNumberId: "123456", wabaId: "987654", token: "EAAG-secreto" }, { fetch: f });
+    expect(r).toMatchObject({ ok: false });
+    const error = (r as { error: string }).error;
+    expect(error).toContain("does not exist");
+    expect(error).toContain("100");
+    expect(error).not.toContain("EAAG-secreto");
+  });
+});

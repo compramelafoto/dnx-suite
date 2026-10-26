@@ -85,7 +85,7 @@ const TIEMPO_VERIFICACION_MS = 10_000;
  * esto, aunque el webhook esté configurado en la app, Meta NO manda los mensajes de esa cuenta.
  * Es idempotente: se hace en cada guardado en modo real. Nunca loguea el token.
  */
-async function suscribirCuentaALaApp(wabaId: string, token: string, f: typeof fetch): Promise<boolean> {
+async function suscribirCuentaALaApp(wabaId: string, token: string, f: typeof fetch): Promise<{ ok: true } | { ok: false; motivo: string | null }> {
   const version = process.env.WHATSAPP_API_VERSION || "v21.0";
   try {
     const res = await f(`https://graph.facebook.com/${version}/${wabaId}/subscribed_apps`, {
@@ -93,11 +93,16 @@ async function suscribirCuentaALaApp(wabaId: string, token: string, f: typeof fe
       headers: { Authorization: `Bearer ${token}` },
       signal: AbortSignal.timeout(TIEMPO_VERIFICACION_MS),
     });
-    if (res.status !== 200) return false;
-    const json = (await res.json().catch(() => null)) as { success?: unknown } | null;
-    return json?.success === true;
+    const json = (await res.json().catch(() => null)) as { success?: unknown; error?: { message?: unknown; code?: unknown } } | null;
+    if (res.status === 200 && json?.success === true) return { ok: true };
+    // Sólo el mensaje y el código de Meta (no traen el token): para saber qué corregir.
+    const mensaje = typeof json?.error?.message === "string" ? json.error.message.replaceAll(token, "…").slice(0, 200) : null;
+    const codigo = typeof json?.error?.code === "number" || typeof json?.error?.code === "string" ? String(json.error.code) : null;
+    const motivo = mensaje ? `${mensaje}${codigo ? ` (código ${codigo})` : ""}` : `respuesta ${res.status}`;
+    console.error("[fotoffice][whatsapp] Meta rechazó suscribir la cuenta", { status: res.status, codigo, mensaje });
+    return { ok: false, motivo };
   } catch {
-    return false;
+    return { ok: false, motivo: null };
   }
 }
 
@@ -158,8 +163,10 @@ export async function guardarConexion(ctx: CtxConsultas, datos: DatosConexion, d
     }
     if (wabaId) {
       const token = tokenNuevo || (await (deps.leerToken ?? leerTokenWhatsapp)(ctx.workspaceId).catch(() => null));
-      const suscripta = token ? await suscribirCuentaALaApp(wabaId, token, deps.fetch ?? fetch) : false;
-      if (!suscripta) return { ok: false, error: MENSAJES_CONEXION.sinSuscripcion };
+      const suscripcion = token ? await suscribirCuentaALaApp(wabaId, token, deps.fetch ?? fetch) : { ok: false as const, motivo: null };
+      if (!suscripcion.ok) {
+        return { ok: false, error: suscripcion.motivo ? `${MENSAJES_CONEXION.sinSuscripcion} Meta dijo: ${suscripcion.motivo}` : MENSAJES_CONEXION.sinSuscripcion };
+      }
     }
   }
 

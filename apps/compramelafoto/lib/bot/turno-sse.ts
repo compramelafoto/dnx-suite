@@ -46,6 +46,8 @@ export type TurnoSseParams = {
   idsDeIncidente: (conversationId: string) => Record<string, string | number>;
   /** Corre con `after()` cuando el turno terminó y sólo si se registró uso (aviso de tope). */
   despuesDelTurno: () => Promise<void>;
+  /** Corre después de guardar el turno, con lo que se agregó (modo caso: copiarlo al ticket). Si falla, se ignora. */
+  alGuardar?: (conversationId: string, appended: unknown[]) => Promise<void>;
   /** Corre siempre al terminar el turno (haya pasado o no los límites): para liberar reservas. */
   alTerminar?: () => Promise<void>;
   headers?: Record<string, string>;
@@ -131,6 +133,13 @@ export function respuestaDeTurnoSse(p: TurnoSseParams): Response {
         }
 
         await appendMessages(prep.conversationId, result.appended);
+        if (p.alGuardar) {
+          try {
+            await p.alGuardar(prep.conversationId, result.appended);
+          } catch (err) {
+            console.error("[dnx-bot] después de guardar el turno", err);
+          }
+        }
         await p.registrarUso(prep.conversationId, result.usage, costMicroUsd(p.model, result.usage));
         usageRecorded = true;
         if (result.outcome !== "ok") {

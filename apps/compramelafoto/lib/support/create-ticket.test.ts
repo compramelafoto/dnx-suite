@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const m = vi.hoisted(() => ({ ticket: vi.fn(), msg: vi.fn(), admin: vi.fn() }));
+const m = vi.hoisted(() => ({ ticket: vi.fn(), msg: vi.fn(), admin: vi.fn(), programar: vi.fn() }));
+vi.mock("@/lib/soporte/diagnostico/lanzar", () => ({ programarDiagnostico: (...a: unknown[]) => m.programar(...a) }));
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     supportTicket: { create: (...a: unknown[]) => m.ticket(...a) },
@@ -12,9 +13,17 @@ import { createSupportTicket } from "./create-ticket";
 
 const data = { reason: "TECHNICAL_ISSUE", description: "No puedo subir", printOrderId: null, requesterName: "Ana", requesterEmail: "a@x.com", requesterPhone: null, requesterRole: "PHOTOGRAPHER" };
 
-beforeEach(() => { m.ticket.mockReset().mockResolvedValue({ id: 9, createdAt: new Date(0) }); m.msg.mockReset(); m.admin.mockReset(); });
+beforeEach(() => { m.ticket.mockReset().mockResolvedValue({ id: 9, createdAt: new Date(0) }); m.msg.mockReset(); m.admin.mockReset(); m.programar.mockReset(); });
 
 describe("createSupportTicket", () => {
+  it("programa el diagnóstico automático del ticket nuevo", async () => {
+    await createSupportTicket({ data, requesterLabel: "x" });
+    expect(m.programar).toHaveBeenCalledWith(9);
+  });
+  it("si programar el diagnóstico falla, el ticket se crea igual", async () => {
+    m.programar.mockImplementation(() => { throw new Error("sin contexto"); });
+    await expect(createSupportTicket({ data, requesterLabel: "x" })).resolves.toEqual({ id: 9, createdAt: new Date(0) });
+  });
   it("crea ticket y aviso al admin con el formato actual", async () => {
     await createSupportTicket({ data, requesterLabel: "Ana · a@x.com" });
     expect(m.ticket.mock.calls[0]![0].data).toMatchObject({ reason: "TECHNICAL_ISSUE", status: "OPEN" });

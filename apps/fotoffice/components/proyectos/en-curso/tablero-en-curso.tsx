@@ -27,14 +27,14 @@ import {
   etapaAnterior,
   etapaSiguiente,
   faseDeEtapaEn,
-  retenido,
   urgenciaDeEntrega,
   type DestinoDeFase,
   type Fase,
-  type Urgencia,
 } from "@/lib/proyectos/en-curso-puro";
 import { importeSinCentavos, mensajeCandado } from "@/lib/pedidos/candado-saldo-puro";
 import type { TarjetaTrabajo } from "@/lib/proyectos/en-curso";
+import { ESTILO_URGENCIA, estadoDeTarjeta, textoEntrega } from "./estado-tarjeta";
+import { FichaFlotante } from "./ficha-flotante";
 
 /** Color de cada columna: el mismo criterio que los colores de las etapas de DNX. */
 const COLOR_FASE: Record<Fase, { barra: string; punto: string; suave: string }> = {
@@ -44,37 +44,6 @@ const COLOR_FASE: Record<Fase, { barra: string; punto: string; suave: string }> 
   LISTO: { barra: "bg-amber-400", punto: "bg-amber-400", suave: "bg-amber-400/15" },
   ENTREGADO: { barra: "bg-emerald-500", punto: "bg-emerald-500", suave: "bg-emerald-500/10" },
 };
-
-const ESTILO_URGENCIA: Record<Urgencia, string> = {
-  VENCIDO: "bg-[var(--fo-danger-soft)] text-[var(--fo-danger)] font-semibold",
-  HOY: "bg-amber-400/20 text-amber-800 font-semibold",
-  PRONTO: "bg-amber-400/10 text-amber-800",
-  OK: "bg-[var(--fo-surface-hover)] text-[var(--fo-text-secondary)]",
-  SIN_FECHA: "bg-[var(--fo-surface-hover)] text-[var(--fo-muted)]",
-};
-
-function fechaCorta(ymd: string): string {
-  const [, m, d] = ymd.split("-");
-  return `${d}/${m}`;
-}
-
-function textoEntrega(entrega: string | null, u: Urgencia): string {
-  if (!entrega) return "Sin fecha";
-  if (u === "VENCIDO") return `Vencido ${fechaCorta(entrega)}`;
-  if (u === "HOY") return "Hoy";
-  return `Entrega ${fechaCorta(entrega)}`;
-}
-
-/** wa.me con el número argentino normalizado (10 dígitos → 549…). null si no se entiende. */
-function enlaceWhatsApp(telefono: string | null, texto: string): string | null {
-  if (!telefono) return null;
-  let d = telefono.replace(/\D/g, "");
-  if (d.startsWith("0")) d = d.slice(1);
-  if (d.length === 10) d = `549${d}`;
-  else if (d.length === 12 && d.startsWith("54") && !d.startsWith("549")) d = `549${d.slice(2)}`;
-  if (d.length < 11) return null;
-  return `https://wa.me/${d}?text=${encodeURIComponent(texto)}`;
-}
 
 export function TableroEnCurso({
   tarjetas,
@@ -102,6 +71,9 @@ export function TableroEnCurso({
   const movidas = optimista.base === tarjetas ? optimista.fases : null;
   const faseDe = (t: TarjetaTrabajo): Fase => movidas?.get(t.journeyId) ?? t.fase;
   const [arrastrada, setArrastrada] = useState<TarjetaTrabajo | null>(null);
+  // La ficha flotante abierta (por journeyId, así muestra la tarjeta fresca después de cada cambio).
+  const [abierta, setAbierta] = useState<string | null>(null);
+  const tarjetaAbierta = abierta ? (tarjetas.find((x) => x.journeyId === abierta) ?? null) : null;
   // Mouse: arrastra al moverse 6 px (un clic sigue siendo clic). Táctil: mantener apretado, para no
   // pelear con el desplazamiento del tablero.
   const sensores = useSensors(
@@ -394,6 +366,7 @@ export function TableroEnCurso({
                           onCorreo={() => avisarPorCorreo(t)}
                           onEnviar={() => enviarAlProveedor(t)}
                           onLlego={() => llego(t)}
+                          onAbrir={() => setAbierta(t.journeyId)}
                         />
                       </Arrastrable>
                     ))
@@ -412,6 +385,26 @@ export function TableroEnCurso({
         </DragOverlay>
         </DndContext>
       )}
+
+      {tarjetaAbierta ? (
+        <FichaFlotante
+          key={tarjetaAbierta.journeyId}
+          t={tarjetaAbierta}
+          hoy={hoy}
+          estudio={estudio}
+          puedeOperar={puedeOperar}
+          ocupada={ocupada === tarjetaAbierta.journeyId}
+          aviso={aviso}
+          acciones={{
+            onAvanzar: () => avanzar(tarjetaAbierta),
+            onVolver: () => volver(tarjetaAbierta),
+            onCorreo: () => avisarPorCorreo(tarjetaAbierta),
+            onEnviar: () => enviarAlProveedor(tarjetaAbierta),
+            onLlego: () => llego(tarjetaAbierta),
+          }}
+          onCerrar={() => setAbierta(null)}
+        />
+      ) : null}
     </div>
   );
 }
@@ -503,6 +496,7 @@ function BotonIcono({ titulo, onClick, href, disabled, children }: { titulo: str
  * - En el proveedor: «Llegó» (pasa directo a Listo para retirar y le avisa al cliente por correo).
  * - Listo para retirar: WhatsApp, correo y «Entregado».
  * - El resto: la etapa siguiente.
+ * Tocarla fuera de sus botones abre la ficha flotante, con todo el detalle y qué hace cada acción.
  */
 function Tarjeta({
   t,
@@ -516,6 +510,7 @@ function Tarjeta({
   onCorreo = () => {},
   onEnviar = () => {},
   onLlego = () => {},
+  onAbrir,
 }: {
   t: TarjetaTrabajo;
   hoy: string;
@@ -529,25 +524,10 @@ function Tarjeta({
   onCorreo?: () => void;
   onEnviar?: () => void;
   onLlego?: () => void;
+  /** Sin esto (la copia que viaja al arrastrar) la tarjeta no abre la ficha. */
+  onAbrir?: () => void;
 }) {
-  const orden = [...t.etapas].sort((a, b) => a.order - b.order);
-  const indice = t.cerrado ? orden.length : Math.max(0, orden.findIndex((e) => e.id === t.etapaActualId));
-  const actual = t.cerrado ? null : (orden[indice] ?? null);
-  const siguiente = actual ? etapaSiguiente(orden, actual.id) : null;
-  const anterior = etapaAnterior(orden, t.etapaActualId);
-  const u = t.cerrado ? "OK" : urgenciaDeEntrega(t.entrega, hoy);
-  const debe = t.pedido && t.pedido.saldoMinor > 0 ? t.pedido.saldoMinor : 0;
-  const retiene = retenido(t);
-  const whatsapp =
-    t.fase === "LISTO"
-      ? enlaceWhatsApp(
-          t.telefono,
-          `Hola ${t.cliente.split(" ")[0]}! Tu pedido de ${estudio} (${t.producto ?? t.nombre}) ya está listo para retirar.${
-            debe > 0 ? ` Queda un saldo de ${formatMinorArs(debe)}.` : ""
-          } ¡Te esperamos!`,
-        )
-      : null;
-  const porEnviar = (t.fase === "RECIBIDO" || t.fase === "EN_PROCESO") && t.proveedorId !== null && t.enviadoAt === null;
+  const { orden, indice, actual, siguiente, anterior, urgencia: u, debe, retiene, whatsapp, porEnviar } = estadoDeTarjeta(t, hoy, estudio);
   const detalle = [t.producto ?? t.nombre, t.proveedor].filter(Boolean).join(" · ");
   const ayuda = `${t.recorrido.nombre} · ${t.cerrado ? "Terminado" : `paso ${indice + 1} de ${orden.length}: ${actual?.name ?? ""}`}`;
 
@@ -561,10 +541,31 @@ function Tarjeta({
 
   return (
     <article
-      title={ayuda}
+      title={onAbrir ? `${ayuda} · Tocá para ver la ficha` : ayuda}
+      // Un clic en la tarjeta (no en sus botones ni enlaces) abre la ficha flotante. Arrastrar no
+      // dispara el clic: el arrastre recién empieza a los 6 px.
+      onClick={
+        onAbrir
+          ? (ev) => {
+              if (!(ev.target as HTMLElement).closest("button, a")) onAbrir();
+            }
+          : undefined
+      }
+      onKeyDown={
+        onAbrir
+          ? (ev) => {
+              if (ev.target === ev.currentTarget && (ev.key === "Enter" || ev.key === " ")) {
+                ev.preventDefault();
+                onAbrir();
+              }
+            }
+          : undefined
+      }
+      tabIndex={onAbrir ? 0 : undefined}
+      aria-label={onAbrir ? `${t.cliente}: ${t.nombre}. Abrir la ficha` : undefined}
       className={`group relative space-y-1.5 overflow-hidden rounded-[var(--fo-radius-sm)] border bg-[var(--fo-bg-elevated)] px-2.5 pb-2 pt-2.5 shadow-[var(--fo-shadow-xs)] transition hover:shadow-[var(--fo-shadow-sm)] ${
-        u === "VENCIDO" ? "border-[var(--fo-danger-border)]" : "border-[var(--fo-border)]"
-      } ${ocupada ? "opacity-60" : ""}`}
+        onAbrir ? "cursor-pointer hover:border-[var(--fo-accent)] focus-visible:outline-2 focus-visible:outline-[var(--fo-accent)]" : ""
+      } ${u === "VENCIDO" ? "border-[var(--fo-danger-border)]" : "border-[var(--fo-border)]"} ${ocupada ? "opacity-60" : ""}`}
     >
       {/* Avance: una línea fina arriba, llena hasta la etapa actual. */}
       {orden.length > 0 ? (
@@ -576,9 +577,7 @@ function Tarjeta({
       ) : null}
 
       <div className="flex items-baseline justify-between gap-2">
-        <Link href={`/proyectos/${t.proyectoId}`} draggable={false} className="min-w-0 truncate text-[13px] font-semibold text-[var(--fo-text)] hover:underline">
-          {t.cliente}
-        </Link>
+        <span className="min-w-0 truncate text-[13px] font-semibold text-[var(--fo-text)]">{t.cliente}</span>
         {t.pedido ? (
           debe > 0 ? (
             <span className="shrink-0 text-[11px] font-semibold tabular-nums text-[var(--fo-danger)]">

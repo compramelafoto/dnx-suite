@@ -10,12 +10,15 @@ export type PaginaComprador =
   | { tipo: "recuperar_pack" }
   | { tipo: "pago"; resultado: "failure" | "pending" | "success"; orderId: number | null }
   | { tipo: "mis_pedidos" }
-  | { tipo: "soporte" };
+  | { tipo: "soporte" }
+  /** Link del mail de respuesta de soporte: el reclamo se sigue en el bot. */
+  | { tipo: "caso"; token: string };
 
 const MAX_LARGO = 300;
 const SLUG = /^[a-z0-9-]{1,120}$/i;
 const TOKEN_DESCARGA = /^[0-9a-f]{32,128}$/;
 const TOKEN_PACK = /^[A-Za-z0-9_-]{20,200}$/;
+const TOKEN_CASO = /^[A-Za-z0-9_-]{40,200}$/;
 const NUMERO = /^\d+$/;
 
 function enteroPositivo(s: string | null | undefined): number | null {
@@ -68,6 +71,8 @@ export function contextoDePagina(pagePath: string): PaginaComprador | null {
       if (s.length !== 2 || (r !== "failure" && r !== "pending" && r !== "success")) return null;
       return { tipo: "pago", resultado: r, orderId: enteroPositivo(new URLSearchParams(search).get("orderId")) };
     }
+    case "caso":
+      return s.length === 2 && TOKEN_CASO.test(s[1]) ? { tipo: "caso", token: s[1] } : null;
     default:
       return null;
   }
@@ -84,6 +89,7 @@ export function pagePathSeguro(p: PaginaComprador): string {
     case "recuperar_pack": return "/cliente/recuperar-pack";
     case "mis_pedidos": return "/cliente/pedidos";
     case "soporte": return "/cliente/soporte";
+    case "caso": return "/caso/[token]";
   }
 }
 

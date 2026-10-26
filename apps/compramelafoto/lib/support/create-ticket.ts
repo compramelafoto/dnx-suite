@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { SUPPORT_MESSAGE_MAX_LENGTH, type CreateTicketInput } from "@/lib/support/sanitize";
+import { programarDiagnostico } from "@/lib/soporte/diagnostico/lanzar";
 
 /**
  * Crea una incidencia de soporte (y el aviso al admin). Compartido por la ruta
@@ -50,6 +51,12 @@ export async function createSupportTicket(p: {
     });
   } catch (notifyErr) {
     console.error("[support-create] aviso admin no creado:", notifyErr);
+  }
+
+  try {
+    programarDiagnostico(ticket.id);
+  } catch (diagErr) {
+    console.error("[support-create] diagnóstico no programado:", diagErr);
   }
 
   return ticket;

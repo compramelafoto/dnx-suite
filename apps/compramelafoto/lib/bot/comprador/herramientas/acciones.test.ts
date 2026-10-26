@@ -239,6 +239,13 @@ describe("reenviar_descarga", () => {
     expect(Date.now() - llamada.desde.getTime()).toBeGreaterThanOrEqual(60 * 60 * 1000 - 1000);
   });
 
+  it("desde soporte (el admin aplica la acción) los topes por hora no frenan el reenvío", async () => {
+    m.contar.mockResolvedValue(99);
+    m.order.findMany.mockResolvedValue([pedido(9)]);
+    await correr(actor({ deSoporte: true, emailVerificado: "juana@gmail.com" }), "reenviar_descarga", { email: "juana@gmail.com" });
+    expect(m.reenviar).toHaveBeenCalled();
+  });
+
   it("3 reenvíos del mail en la hora → no reenvía", async () => {
     m.contar.mockImplementation(async (p: { email?: string }) => (p.email ? 3 : 0));
     const r = await correr(actor(), "reenviar_descarga", { email: "juana@gmail.com" });
@@ -282,6 +289,12 @@ describe("reenviar_link_pack", () => {
     expect(r).toEqual({ ok: true, message: MENSAJE });
     expect(log).toHaveBeenCalledTimes(1);
     log.mockRestore();
+  });
+
+  it("desde soporte los topes no frenan el link nuevo del pack", async () => {
+    m.contar.mockResolvedValue(99);
+    await correr(actor({ deSoporte: true, emailVerificado: "juana@gmail.com" }), "reenviar_link_pack", { email: "juana@gmail.com" });
+    expect(m.recuperarPack).toHaveBeenCalled();
   });
 
   it("con el tope de la IP no recupera", async () => {

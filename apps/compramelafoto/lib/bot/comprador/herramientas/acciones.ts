@@ -61,6 +61,7 @@ async function superoTope(
   mail: string | null,
   tope: { porIp: number; porMail: number },
 ): Promise<boolean> {
+  if (a.deSoporte) return false;
   const desde = haceUnaHora();
   const [porIp, porMail] = await Promise.all([
     contarAccionesComprador({ toolName, desde, ipHash: a.ipHash }),

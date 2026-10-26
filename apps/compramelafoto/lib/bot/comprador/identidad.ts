@@ -52,6 +52,8 @@ export type CompradorActor = {
   /** Mail verificado (código vigente o sesión), normalizado. Se actualiza en el mismo turno al verificar. */
   emailVerificado: string | null;
   userId: number | null;
+  /** true cuando la acción la aplica el admin desde un reclamo: no cuentan los topes por hora de la persona. */
+  deSoporte?: boolean;
 };
 
 export function nivelDe(a: Pick<CompradorActor, "enlace" | "emailVerificado">): NivelComprador {

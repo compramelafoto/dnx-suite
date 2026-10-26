@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const m = vi.hoisted(() => ({
   enabled: { v: true }, cap: { v: 30_000_000 },
   piloto: vi.fn(), resolver: vi.fn(), user: vi.fn(), buscar: vi.fn(), obtener: vi.fn(), proponer: vi.fn(),
+  caso: vi.fn(), leerConv: vi.fn(), evento: vi.fn(), espejar: vi.fn(),
   reservar: vi.fn(), liberar: vi.fn(), registrar: vi.fn(), hist: vi.fn(), append: vi.fn(), sit: vi.fn(), turn: vi.fn(), tope: vi.fn(), inc: vi.fn(),
   after: [] as (() => Promise<void>)[],
 }));
@@ -37,7 +38,15 @@ vi.mock("@/lib/bot/comprador/store", async (orig) => ({
   buscarConversacionComprador: (...a: unknown[]) => m.buscar(...a),
   obtenerConversacionComprador: (...a: unknown[]) => m.obtener(...a),
   crearAccionPendienteComprador: (...a: unknown[]) => m.proponer(...a),
+  leerConversacionComprador: (...a: unknown[]) => m.leerConv(...a),
 }));
+vi.mock("@/lib/soporte/caso-bot", () => ({
+  casoParaComprador: (...a: unknown[]) => m.caso(...a),
+  situacionDeCaso: async () => "SIT_CASO",
+  herramientasDeCaso: () => [{ name: "cerrar_caso_resuelto", kind: "read" }, { name: "pasar_caso_al_equipo", kind: "read" }],
+  espejarTurnoEnTicket: (...a: unknown[]) => m.espejar(...a),
+}));
+vi.mock("@/lib/soporte/aplicar-evento", () => ({ aplicarEvento: (...a: unknown[]) => m.evento(...a) }));
 vi.mock("@/lib/bot/comprador/limites", async (orig) => ({
   ...(await orig<object>()),
   reservarTurnoComprador: (...a: unknown[]) => m.reservar(...a),
@@ -82,6 +91,7 @@ beforeEach(() => {
   m.enabled.v = true;
   m.cap.v = 30_000_000;
   m.after.splice(0);
+  for (const f of [m.caso, m.leerConv, m.evento, m.espejar]) f.mockReset();
   for (const f of [m.piloto, m.resolver, m.user, m.buscar, m.obtener, m.proponer, m.reservar, m.liberar, m.registrar, m.hist, m.append, m.sit, m.turn, m.tope, m.inc]) f.mockReset();
   m.piloto.mockResolvedValue({ todos: false, albumIds: [5] });
   m.resolver.mockResolvedValue({ albumId: 5, orderId: null, enlace: null });
@@ -95,6 +105,40 @@ beforeEach(() => {
   m.inc.mockResolvedValue(undefined);
   m.tope.mockResolvedValue(undefined);
   m.proponer.mockResolvedValue({ actionId: "a1" });
+});
+
+const CASO = "AbC_def-1234567890xyzAbC_def-1234567890xyz";
+describe("POST /api/bot/comprador/chat · modo caso", () => {
+  it("link del caso vencido o inventado → 410 sin llamar al modelo", async () => {
+    m.caso.mockResolvedValue({ error: "vencido" });
+    const res = await POST(req({ text: "hola", pagePath: `/caso/${CASO}` }, `dnxbot_guest=${KEY}`));
+    expect(res.status).toBe(410);
+    expect(await res.json()).toEqual({ error: "caso_vencido" });
+    expect(m.turn).not.toHaveBeenCalled();
+  });
+  it("caso cerrado → 410 caso_cerrado sin llamar al modelo", async () => {
+    m.caso.mockResolvedValue({ error: "cerrado" });
+    const res = await POST(req({ text: "hola", pagePath: `/caso/${CASO}` }, `dnxbot_guest=${KEY}`));
+    expect(res.status).toBe(410);
+    expect(await res.json()).toEqual({ error: "caso_cerrado" });
+    expect(m.turn).not.toHaveBeenCalled();
+  });
+  it("link válido: sigue la conversación del caso con su contexto, marca que escribió y copia el turno al ticket", async () => {
+    m.caso.mockResolvedValue({ ticketId: 60, conversationId: "cs1" });
+    m.leerConv.mockResolvedValue({ ...conv, id: "cs1", status: "ESCALATED", supportTicketId: 60, buyerEmail: "ana@x.com", verifiedUntil: new Date(Date.now() + 3_600_000), albumId: null });
+    m.turn.mockImplementation(okTurn);
+    const body = await (await POST(req({ text: "sigue igual", pagePath: `/caso/${CASO}` }, `dnxbot_guest=${KEY}`))).text();
+    expect(body).toContain("event: done");
+    expect(m.caso).toHaveBeenCalledWith(CASO, { guestKey: KEY, ipHash: "hash(9.9.9.9)" });
+    expect(m.obtener).not.toHaveBeenCalled();
+    expect(m.leerConv).toHaveBeenCalledWith("cs1", KEY);
+    const input = m.turn.mock.calls[0]![0] as BotTurnInput;
+    expect(input.situation).toContain("SIT_CASO");
+    expect(input.tools.map((t: BotTool) => t.name)).toEqual(expect.arrayContaining(["cerrar_caso_resuelto", "pasar_caso_al_equipo"]));
+    expect(m.evento).toHaveBeenCalledWith(60, { tipo: "CLIENTE_ESCRIBIO_BOT" });
+    expect(m.espejar.mock.calls[0]![0]).toBe(60);
+    expect(m.espejar.mock.calls[0]![1]).toMatchObject({ textoUsuario: "sigue igual", textoBot: "Hola" });
+  });
 });
 
 describe("POST /api/bot/comprador/chat", () => {
