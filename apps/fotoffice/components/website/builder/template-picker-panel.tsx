@@ -12,34 +12,46 @@ import type { ModoAplicarPlantilla } from "@/lib/website/apply-template";
  * dirección no exista — nunca pisa ni borra nada. Confirmación in-line (no `window.confirm`)
  * sólo cuando ya hay contenido.
  *
- * Los colores sugeridos de la plantilla son la marca del dueño: se usan sólo si tilda la casilla,
- * que arranca tildada únicamente en un sitio vacío.
+ * Los colores sugeridos de la plantilla pisarían la marca del dueño: se usan sólo si tilda la
+ * casilla, que arranca tildada únicamente si su marca sigue con los colores por defecto.
  *
  * Cada tarjeta muestra la plantilla de verdad: su vista previa (`/website/plantillas/<id>/preview`)
  * en un iframe achicado con `transform: scale`, que se carga recién cuando la tarjeta aparece.
  */
 export function TemplatePickerPanel({
   hasContent,
+  coloresPorDefecto,
   canEdit,
   organizationType,
   onApply,
 }: {
   hasContent: boolean;
+  /** La marca todavía tiene los colores por defecto: ahí la casilla de colores arranca tildada. */
+  coloresPorDefecto: boolean;
   canEdit: boolean;
   organizationType: FotofficeOrganizationTypeId | null;
-  onApply: (template: SiteTemplate, modo: ModoAplicarPlantilla, aplicarColoresSugeridos: boolean) => void;
+  onApply: (template: SiteTemplate, modo: ModoAplicarPlantilla, aplicarColoresSugeridos: boolean) => Promise<boolean>;
 }) {
-  const [appliedFlash, setAppliedFlash] = useState<string | null>(null);
+  const [appliedFlash, setAppliedFlash] = useState<{ id: string; ok: boolean } | null>(null);
+  const [applying, setApplying] = useState(false);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
-  // Por plantilla: si el dueño quiere también sus colores. Sin tocar, vale lo de `!hasContent`.
+  // Por plantilla: si el dueño quiere también sus colores. Sin tocar, sólo si nunca eligió los suyos.
   const [usarColores, setUsarColores] = useState<Record<string, boolean>>({});
-  const coloresDe = (template: SiteTemplate) => Boolean(template.coloresSugeridos) && (usarColores[template.id] ?? !hasContent);
+  const coloresDe = (template: SiteTemplate) => Boolean(template.coloresSugeridos) && (usarColores[template.id] ?? coloresPorDefecto);
 
-  function apply(template: SiteTemplate, modo: ModoAplicarPlantilla) {
-    onApply(template, modo, coloresDe(template));
+  // «Aplicada ✓» sólo si de verdad se aplicó: sin lo pendiente guardado, el constructor no la aplica.
+  async function apply(template: SiteTemplate, modo: ModoAplicarPlantilla) {
+    if (applying) return;
+    setApplying(true);
+    let ok = false;
+    try {
+      ok = await onApply(template, modo, coloresDe(template));
+    } finally {
+      setApplying(false);
+    }
     setConfirmingId(null);
-    setAppliedFlash(template.id);
-    setTimeout(() => setAppliedFlash(null), 2500);
+    setAppliedFlash({ id: template.id, ok });
+    setTimeout(() => setAppliedFlash(null), ok ? 2500 : 5000);
   }
 
   function handleClick(template: SiteTemplate) {
@@ -47,7 +59,7 @@ export function TemplatePickerPanel({
       setConfirmingId(template.id);
       return;
     }
-    apply(template, "todo");
+    void apply(template, "todo");
   }
 
   return (
@@ -108,10 +120,10 @@ export function TemplatePickerPanel({
                         {coloresDe(template) ? " También cambia los colores de tu sitio." : ""}
                       </p>
                       <div className="flex flex-col gap-2">
-                        <button type="button" className="fo-btn fo-btn-primary text-xs justify-center" onClick={() => apply(template, "solo-diseno")}>
+                        <button type="button" className="fo-btn fo-btn-primary text-xs justify-center" disabled={applying} onClick={() => void apply(template, "solo-diseno")}>
                           Sólo el diseño
                         </button>
-                        <button type="button" className="fo-btn fo-btn-secondary text-xs justify-center" onClick={() => apply(template, "diseno-y-paginas")}>
+                        <button type="button" className="fo-btn fo-btn-secondary text-xs justify-center" disabled={applying} onClick={() => void apply(template, "diseno-y-paginas")}>
                           Diseño y páginas de muestra que falten
                         </button>
                         <button type="button" className="fo-btn fo-btn-ghost text-xs justify-center" onClick={() => setConfirmingId(null)}>
@@ -120,9 +132,21 @@ export function TemplatePickerPanel({
                       </div>
                     </div>
                   ) : (
-                    <button type="button" className="fo-btn fo-btn-secondary text-xs w-full justify-center" onClick={() => handleClick(template)}>
-                      {appliedFlash === template.id ? "Aplicada ✓" : hasContent ? "Usar esta plantilla…" : "Usar esta plantilla"}
-                    </button>
+                    <div className="space-y-1.5">
+                      <button
+                        type="button"
+                        className="fo-btn fo-btn-secondary text-xs w-full justify-center"
+                        disabled={applying}
+                        onClick={() => handleClick(template)}
+                      >
+                        {appliedFlash?.id === template.id && appliedFlash.ok ? "Aplicada ✓" : hasContent ? "Usar esta plantilla…" : "Usar esta plantilla"}
+                      </button>
+                      {appliedFlash?.id === template.id && !appliedFlash.ok ? (
+                        <p role="alert" className="text-xs text-[var(--fo-danger,#b91c1c)] leading-relaxed">
+                          No se pudo aplicar: primero tiene que guardarse lo que cambiaste. Probá de nuevo en un momento.
+                        </p>
+                      ) : null}
+                    </div>
                   )}
                 </>
               ) : null}

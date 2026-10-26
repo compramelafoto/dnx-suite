@@ -12,6 +12,7 @@ import { hayTrabajosPublicados } from "@/lib/trabajos/publico";
 import { hayTestimoniosPublicados } from "@/lib/testimonios/publico";
 import { withTestimoniosPage, withTrabajosPage } from "@/lib/website/public-modules";
 import { HOME_PAGE_KEY } from "@/lib/website/pages";
+import type { WebsiteDynamicData } from "@/lib/website/dynamic-data";
 import { WebsitePageRenderer } from "@/components/website/render/website-page-renderer";
 import { WebsiteHeaderView } from "@/components/website/render/website-header-view";
 import { SiteFrame } from "@/components/website/render/site-frame";
@@ -55,6 +56,14 @@ export default async function WebsitePreviewPage({ searchParams }: { searchParam
   const navItems = toPreviewNav(
     resolveSiteNav({ workspaceSlug: "vista-previa", homeBlocks, enabledModuleKeys, hasPublishedSite: true, menu, personVocabulary, hasPublishedBlog, sections }),
   );
+  // Los botones `/quien-soy` llevan a esa página del borrador. `muestra`: los bloques dinámicos
+  // siguen mostrando sus ejemplos, como hasta ahora (no se leen datos reales acá).
+  const dynamicData: WebsiteDynamicData = {
+    muestra: true,
+    paginasDelSitio: Object.fromEntries(
+      Object.entries(sections.pageMeta).map(([key, meta]) => [meta.slug, `/website/preview?pagina=${encodeURIComponent(key)}`]),
+    ),
+  };
   const themeVars = {
     "--wsite-primary": colors.primaryColor,
     "--wsite-secondary": colors.secondaryColor,
@@ -87,7 +96,7 @@ export default async function WebsitePreviewPage({ searchParams }: { searchParam
             />
           }
         >
-          <WebsitePageRenderer blocks={blocks} colors={colors} designPresets={designPresets} />
+          <WebsitePageRenderer blocks={blocks} colors={colors} designPresets={designPresets} dynamicData={dynamicData} />
         </SiteFrame>
       </div>
     </div>

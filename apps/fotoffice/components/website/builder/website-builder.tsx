@@ -11,7 +11,7 @@ import {
 } from "@/lib/website/blocks";
 import { HOME_PAGE_KEY, listCustomPages, nextPageKey } from "@/lib/website/pages";
 import { MAX_CUSTOM_PAGES } from "@/lib/website/save-pages";
-import type { WebsiteColors } from "@/lib/website/branding-defaults";
+import { sonLosColoresPorDefecto, type WebsiteColors } from "@/lib/website/branding-defaults";
 import type { WebsiteDesignPresets } from "@/lib/website/design-presets";
 import type { SiteTemplate } from "@/lib/website/templates";
 import { aplicarPlantilla, type ModoAplicarPlantilla } from "@/lib/website/apply-template";
@@ -300,8 +300,8 @@ export function WebsiteBuilder({
   // lo que falta. Antes de sumar páginas se guarda lo pendiente (mismo motivo que al crear una
   // página: el servidor podría tener todavía una borrada con la misma clave). Los colores
   // sugeridos se aplican sólo si el selector lo confirmó con el usuario.
-  async function handleApplyTemplate(template: SiteTemplate, modo: ModoAplicarPlantilla, aplicarColoresSugeridos = false) {
-    if (switching) return;
+  async function handleApplyTemplate(template: SiteTemplate, modo: ModoAplicarPlantilla, aplicarColoresSugeridos = false): Promise<boolean> {
+    if (switching) return false;
     if (modo !== "solo-diseno") {
       setSwitching(true);
       let guardado = false;
@@ -310,7 +310,8 @@ export function WebsiteBuilder({
       } finally {
         setSwitching(false);
       }
-      if (!guardado) return;
+      // Sin lo anterior guardado no se aplica; el error ya se ve en la barra.
+      if (!guardado) return false;
     }
     const r = aplicarPlantilla({ sections: { pages, pageMeta }, design: presets, menu }, template, modo, { aplicarColoresSugeridos });
     setPages(r.sections.pages);
@@ -324,6 +325,7 @@ export function WebsiteBuilder({
       setSelectedId(null);
       setMode("SECCIONES");
     }
+    return true;
   }
 
   return (
@@ -376,7 +378,7 @@ export function WebsiteBuilder({
               </div>
             ) : null}
             {mode === "PLANTILLAS" ? (
-              <TemplatePickerPanel hasContent={hasContent} canEdit={canEdit} organizationType={organizationType} onApply={(t, m, colores) => void handleApplyTemplate(t, m, colores)} />
+              <TemplatePickerPanel hasContent={hasContent} coloresPorDefecto={sonLosColoresPorDefecto(colors)} canEdit={canEdit} organizationType={organizationType} onApply={handleApplyTemplate} />
             ) : null}
             {mode === "MENU" ? (
               <MenuPanel

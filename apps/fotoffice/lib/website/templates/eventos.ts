@@ -33,7 +33,7 @@ export const PLANTILLA_EVENTOS: SiteTemplate = {
     typographyLevels: { title: { weight: 500, uppercase: false } },
   }),
   coloresSugeridos: {
-    primaryColor: "#b08d57",
+    primaryColor: "#8a6a3a",
     secondaryColor: "#1f1b16",
     backgroundColor: "#ffffff",
     textColor: "#1f1b16",

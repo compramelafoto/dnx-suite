@@ -16,7 +16,7 @@ export const PLANTILLA_OSCURA: SiteTemplate = {
   tier: "free",
   design: diseno({ headerPreset: "transparent-hero", buttonPreset: "square", typographyPreset: "photographic", animationPreset: "dynamic" }),
   coloresSugeridos: {
-    primaryColor: "#f5f5f4",
+    primaryColor: "#9a6b1f",
     secondaryColor: "#0c0c0d",
     backgroundColor: "#0c0c0d",
     textColor: "#ececec",

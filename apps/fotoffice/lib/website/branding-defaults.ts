@@ -26,3 +26,11 @@ export function resolveWebsiteColors(branding: {
     accentColor: branding?.accentColor || WEBSITE_DEFAULT_COLORS.accentColor,
   };
 }
+
+/** ¿Son exactamente los colores por defecto? (= el dueño nunca eligió los suyos). Sin importar
+ * mayúsculas: el selector de color guarda `#0EA5E9` o `#0ea5e9` según el navegador. */
+export function sonLosColoresPorDefecto(colors: WebsiteColors): boolean {
+  return (Object.keys(WEBSITE_DEFAULT_COLORS) as Array<keyof WebsiteColors>).every(
+    (k) => colors[k].trim().toLowerCase() === WEBSITE_DEFAULT_COLORS[k].toLowerCase(),
+  );
+}

@@ -6,7 +6,10 @@ import { siteMenuSchema } from "./site-menu";
 import { MAX_CUSTOM_PAGES } from "./save-pages";
 import { SITE_TEMPLATE_IDS, WEBSITE_TEMPLATES, fotosDeLaPlantilla, getWebsiteTemplate, resolveTemplateId } from "./templates";
 import { enlaceDeBoton } from "./button-href";
+import { anchorMapForBlocks } from "./navigation";
+import type { WebsiteBlock } from "./blocks";
 import { FOTOS_DE_MUESTRA } from "./templates/fotos";
+import { isFotofficeOwnedR2Key } from "@/lib/images/r2-key-policy";
 
 const tipos = (id: string, clave: string): WebsiteBlockType[] =>
   getWebsiteTemplate(id)!.paginas.find((p) => p.clave === clave)!.bloques.map((b) => b.type);
@@ -104,8 +107,42 @@ describe("WEBSITE_TEMPLATES", () => {
     }
   });
 
+  it("cada botón `#ancla` apunta a una sección que existe en su misma página", () => {
+    const urlsDe = (bloques: WebsiteBlock[]) =>
+      bloques.flatMap((b) =>
+        b.type === "CTA" ? [b.config.buttonUrl ?? ""] : b.type === "HERO" ? b.config.slides.map((s) => (s.showButton ? (s.buttonUrl ?? "") : "")) : [],
+      );
+    for (const template of WEBSITE_TEMPLATES) {
+      for (const pagina of template.paginas) {
+        const anclas = new Set(anchorMapForBlocks(pagina.bloques).values());
+        for (const url of urlsDe(pagina.bloques).filter((u) => u.startsWith("#") && u.length > 1)) {
+          expect(anclas.has(url.slice(1)), `${template.id}/${pagina.clave}: ${url}`).toBe(true);
+        }
+      }
+    }
+  });
+
+  it("el color principal sugerido se lee con texto blanco encima (contraste WCAG ≥ 4,5:1)", () => {
+    // Los botones del formulario, de testimonios y la franja del llamado a la acción llevan texto
+    // blanco sobre el color principal: un principal claro los deja ilegibles.
+    for (const template of WEBSITE_TEMPLATES) {
+      if (!template.coloresSugeridos) continue; // Sin sugeridos (institución) se quedan los del dueño.
+      expect(contraste(template.coloresSugeridos.primaryColor, "#ffffff"), template.id).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
   it("cada plantilla tiene fotos de muestra para la vista previa", () => {
     for (const template of WEBSITE_TEMPLATES) expect(fotosDeLaPlantilla(template).length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("cada foto de muestra tiene su clave R2 propia, bajo fotoffice/plantillas/ y fuera de lo borrable", () => {
+    const claves = Object.values(FOTOS_DE_MUESTRA).map((f) => f.claveR2);
+    expect(new Set(claves).size).toBe(claves.length);
+    for (const clave of claves) {
+      expect(clave).toMatch(/^fotoffice\/plantillas\/(eventos|estudio|retrato-editorial|oscura|institucion)\/\d+\.jpg$/);
+      // Las comparten todos los sitios que aplicaron la plantilla: nada del sitio puede borrarlas.
+      expect(isFotofficeOwnedR2Key(clave)).toBe(false);
+    }
   });
 
   it("los textos de muestra dicen «dinero», nunca «plata»", () => {
@@ -154,5 +191,24 @@ describe("getWebsiteTemplate", () => {
     expect(getWebsiteTemplate("minimal")?.id).toBe("retrato-editorial");
     expect(resolveTemplateId("fotografica")).toBe("eventos");
     expect(resolveTemplateId("oscura")).toBe("oscura");
+  });
+});
+
+/** Contraste WCAG 2 entre dos colores `#rrggbb`. */
+function contraste(a: string, b: string): number {
+  const luminancia = (hex: string) => {
+    const [r, g, bl] = [1, 3, 5]
+      .map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
+      .map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+    return 0.2126 * r + 0.7152 * g + 0.0722 * bl;
+  };
+  const [claro, oscuro] = [luminancia(a), luminancia(b)].sort((x, y) => y - x);
+  return (claro + 0.05) / (oscuro + 0.05);
+}
+
+describe("contraste", () => {
+  it("calcula como WCAG", () => {
+    expect(contraste("#000000", "#ffffff")).toBeCloseTo(21, 5);
+    expect(contraste("#777777", "#ffffff")).toBeCloseTo(4.48, 1);
   });
 });
