@@ -34,6 +34,7 @@ export const MENSAJES_CONEXION = {
   realSinDatos: "Para pasar a real hace falta el identificador del número y el token.",
   numeroEnUso: "Ese número de teléfono ya está conectado a otra institución.",
   noVerificado: "No pudimos verificar ese número con Meta: revisá el Phone number ID y el token.",
+  sinSuscripcion: "Meta no aceptó mandar los mensajes de esa cuenta a FOTOFFICE: revisá el WhatsApp Business Account ID y que el token tenga permiso sobre esa cuenta.",
   sinClave: "No se pudo guardar el token: falta configurar la clave de cifrado del servidor.",
   fallo: "No se pudo guardar la configuración.",
 } as const;
@@ -78,6 +79,27 @@ export type DepsConexion = {
 };
 
 const TIEMPO_VERIFICACION_MS = 10_000;
+
+/**
+ * Suscribe la cuenta de WhatsApp Business a la app de Meta (`POST /{waba}/subscribed_apps`). Sin
+ * esto, aunque el webhook esté configurado en la app, Meta NO manda los mensajes de esa cuenta.
+ * Es idempotente: se hace en cada guardado en modo real. Nunca loguea el token.
+ */
+async function suscribirCuentaALaApp(wabaId: string, token: string, f: typeof fetch): Promise<boolean> {
+  const version = process.env.WHATSAPP_API_VERSION || "v21.0";
+  try {
+    const res = await f(`https://graph.facebook.com/${version}/${wabaId}/subscribed_apps`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(TIEMPO_VERIFICACION_MS),
+    });
+    if (res.status !== 200) return false;
+    const json = (await res.json().catch(() => null)) as { success?: unknown } | null;
+    return json?.success === true;
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Pregunta a Meta, con el token de ESTA institución, si el número existe y le pertenece. Evita que
@@ -133,6 +155,11 @@ export async function guardarConexion(ctx: CtxConsultas, datos: DatosConexion, d
       const verificado = token ? await verificarNumeroConMeta(phoneNumberId, token, deps.fetch ?? fetch) : null;
       if (!verificado) return { ok: false, error: MENSAJES_CONEXION.noVerificado };
       if (verificado.displayPhone) displayPhone = verificado.displayPhone;
+    }
+    if (wabaId) {
+      const token = tokenNuevo || (await (deps.leerToken ?? leerTokenWhatsapp)(ctx.workspaceId).catch(() => null));
+      const suscripta = token ? await suscribirCuentaALaApp(wabaId, token, deps.fetch ?? fetch) : false;
+      if (!suscripta) return { ok: false, error: MENSAJES_CONEXION.sinSuscripcion };
     }
   }
 
