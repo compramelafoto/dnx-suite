@@ -14,5 +14,6 @@ export const metadata: Metadata = {
 };
 
 export default function DnxBodasLandingPage() {
-  return <BodasLanding mostrarPrecios />;
+  // Sin importes: el precio sale del presupuesto que arma FOTOFFICE con la consulta del formulario.
+  return <BodasLanding mostrarPrecios={false} pagina="bodas" />;
 }

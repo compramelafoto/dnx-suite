@@ -26,6 +26,8 @@ const frameSrcValue = [
   "https://vercel.live",
   "https://www.google.com",
   "https://maps.google.com",
+  // Formulario de consulta de DNX Estudio en las landings /dnx (components/dnx/DnxPresupuesto.tsx).
+  "https://fotoffice.com",
 ].join(" ");
 
 const csp = [

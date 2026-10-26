@@ -24,14 +24,20 @@ export const MENSAJE_ALTO = "fotoffice-form-height";
 export const RUTA_SCRIPT_INSERTAR = "/insertar.js";
 
 /**
- * Los formularios que hoy tienen página pública en el sitio: el general (portada) y el de XV.
- * Insertar uno distinto dibujaría algo que el sitio no muestra; se responde 404.
+ * Los formularios que se pueden insertar: el general (portada), el de XV y el de boda (estos dos
+ * son el mismo formulario por evento: fecha, lugar y mensaje, con el tipo fijo, así la consulta
+ * entra con su categoría y dispara la propuesta de esa categoría). Otro responde 404.
  */
-export const FORMULARIOS_INSERTABLES = ["general", "xv"] as const;
+export const FORMULARIOS_INSERTABLES = ["general", "xv", "boda"] as const;
 export type FormularioInsertable = (typeof FORMULARIOS_INSERTABLES)[number];
 
 export function esFormularioInsertable(formSlug: string | null | undefined): formSlug is FormularioInsertable {
   return (FORMULARIOS_INSERTABLES as readonly string[]).includes(formSlug ?? "");
+}
+
+/** El formulario por evento y su tipo de consulta; null si es el general (o no es insertable). */
+export function eventoDelFormulario(formSlug: string | null | undefined): "XV" | "BODA" | null {
+  return formSlug === "xv" ? "XV" : formSlug === "boda" ? "BODA" : null;
 }
 
 const SLUG = "[a-z0-9][a-z0-9-]{0,62}";

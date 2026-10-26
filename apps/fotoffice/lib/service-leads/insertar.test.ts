@@ -8,6 +8,7 @@ import {
   codigoMarcoConAltoAutomatico,
   codigoMarcoSimple,
   esFormularioInsertable,
+  eventoDelFormulario,
   rutaInternaInsertada,
   urlInsertada,
   urlPublicaFormulario,
@@ -32,11 +33,19 @@ describe("rutaInternaInsertada", () => {
     expect(rutaInternaInsertada("/insertar")).toBeNull();
   });
 
-  it("sólo el general y el de XV tienen versión para insertar", () => {
+  it("sólo el general, el de XV y el de boda tienen versión para insertar", () => {
     expect(esFormularioInsertable("general")).toBe(true);
     expect(esFormularioInsertable("xv")).toBe(true);
+    expect(esFormularioInsertable("boda")).toBe(true);
     expect(esFormularioInsertable("bodas")).toBe(false);
     expect(esFormularioInsertable(null)).toBe(false);
+  });
+
+  it("el de XV y el de boda son el formulario por evento, cada uno con su tipo", () => {
+    expect(eventoDelFormulario("xv")).toBe("XV");
+    expect(eventoDelFormulario("boda")).toBe("BODA");
+    expect(eventoDelFormulario("general")).toBeNull();
+    expect(rutaInternaInsertada("/w/dnx-estudio/insertar/boda")).toBe("/formulario-insertado/dnx-estudio/boda");
   });
 });
 
