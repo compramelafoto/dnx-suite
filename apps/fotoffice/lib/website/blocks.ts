@@ -270,8 +270,20 @@ export const websiteBlockSchema = z.discriminatedUnion("type", [
 export const websitePageContentSchema = z.array(websiteBlockSchema);
 
 /** Forma completa de `sectionsJson`. Ya envuelto en `pages` aunque hoy solo exista `"home"`. */
+export const websitePageMetaSchema = z.object({
+  slug: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(60),
+  title: z.string().min(1).max(120),
+  seoTitle: z.string().max(120).optional(),
+  seoDescription: z.string().max(300).optional(),
+});
+
+export type WebsitePageMeta = z.infer<typeof websitePageMetaSchema>;
+
+/** `pageMeta` es hermano de `pages` (no va adentro) para que los lectores viejos, que sólo miran
+ * `pages`, lo ignoren sin romperse. Describe las páginas propias; `home` nunca tiene meta. */
 export const websiteSectionsSchema = z.object({
   pages: z.record(z.string(), websitePageContentSchema),
+  pageMeta: z.record(z.string(), websitePageMetaSchema),
 });
 
 export type HeroBlockConfig = z.infer<typeof heroConfigSchema>;
@@ -302,7 +314,7 @@ export type WebsitePageContent = WebsiteBlock[];
 export type WebsiteSections = z.infer<typeof websiteSectionsSchema>;
 
 export function emptyWebsiteSections(): WebsiteSections {
-  return { pages: { home: [] } };
+  return { pages: { home: [] }, pageMeta: {} };
 }
 
 /**
@@ -327,7 +339,22 @@ export function parseWebsiteSections(raw: unknown): WebsiteSections {
     pages[pageKey] = validBlocks;
   }
   if (!pages.home) pages.home = [];
-  return { pages };
+
+  // Meta de páginas propias: se descarta la inválida, la de `home` y la que no tiene `pages[clave]`.
+  // A su vez, toda página que no sea `home` y no tenga meta válida se descarta (sería inalcanzable).
+  const metaRaw = (raw as { pageMeta?: unknown }).pageMeta;
+  const pageMeta: Record<string, WebsitePageMeta> = {};
+  if (metaRaw !== null && typeof metaRaw === "object") {
+    for (const [key, value] of Object.entries(metaRaw as Record<string, unknown>)) {
+      if (key === "home" || !(key in pages)) continue;
+      const parsed = websitePageMetaSchema.safeParse(value);
+      if (parsed.success) pageMeta[key] = parsed.data;
+    }
+  }
+  for (const key of Object.keys(pages)) {
+    if (key !== "home" && !(key in pageMeta)) delete pages[key];
+  }
+  return { pages, pageMeta };
 }
 
 /**

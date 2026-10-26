@@ -47,3 +47,21 @@ export const FOTOFFICE_TOP_LEVEL_APP_ROUTES = [
   "admin", "api", "courses", "cursos", "dashboard", "evaluaciones", "login", "members",
   "onboarding", "portfolios", "recuperar", "w", "website", "workspace",
 ] as const;
+
+/**
+ * Segmentos que una página propia del sitio de un workspace NO puede usar como dirección, porque
+ * ya los ocupa una ruta real bajo `app/w/[workspaceSlug]/` (o una ruta fija del sitio). A
+ * diferencia de las listas de arriba (documentación para el slug del workspace), ésta SÍ se
+ * aplica: `validatePageSlug` (ver `pages.ts`) la consulta al crear o renombrar una página.
+ *
+ * Un test recorre las carpetas reales de `app/w/[workspaceSlug]/` y falla si aparece una que no
+ * esté acá, así que al crear una ruta nueva hay que sumarla a esta lista.
+ */
+export const RESERVED_SITE_SEGMENTS: readonly string[] = [
+  // Carpetas bajo app/w/[workspaceSlug]/
+  "archivos", "asociarse", "blog", "coberturas", "contrato", "cursos", "entrar", "galeria",
+  "impresion", "institucional", "obras", "pedido", "presupuesto", "proyecto", "recibo",
+  "reservas", "reunion", "socios", "sorteos", "tienda", "videos", "xv",
+  // Rutas fijas del sitio que no son carpetas de esa ruta
+  "trabajos", "testimonio", "testimonios", "insertar", "api", "w", "sitemap.xml", "robots.txt",
+];

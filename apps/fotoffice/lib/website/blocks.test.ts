@@ -18,10 +18,10 @@ import {
 } from "./blocks";
 
 describe("parseWebsiteSections — parseo tolerante de sectionsJson", () => {
-  it("null o forma inesperada devuelve { pages: { home: [] } }, nunca crashea", () => {
-    expect(parseWebsiteSections(null)).toEqual({ pages: { home: [] } });
-    expect(parseWebsiteSections("no es un objeto")).toEqual({ pages: { home: [] } });
-    expect(parseWebsiteSections({})).toEqual({ pages: { home: [] } });
+  it("null o forma inesperada devuelve { pages: { home: [] }, pageMeta: {} }, nunca crashea", () => {
+    expect(parseWebsiteSections(null)).toEqual({ pages: { home: [] }, pageMeta: {} });
+    expect(parseWebsiteSections("no es un objeto")).toEqual({ pages: { home: [] }, pageMeta: {} });
+    expect(parseWebsiteSections({})).toEqual({ pages: { home: [] }, pageMeta: {} });
   });
 
   it("un bloque inválido dentro del array se descarta, los válidos se conservan (fail-safe)", () => {
