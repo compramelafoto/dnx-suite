@@ -5,6 +5,8 @@ import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 import { PORTFOLIO_MODULE_KEY } from "@/lib/portfolio/constants";
 import { STORE_MODULE_KEY } from "@/lib/store/constants";
+import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
+import { buildSiteNav } from "./site-nav";
 import { personVocabulary } from "@/lib/vocabulario/personas";
 import {
   PUBLIC_MODULE_PAGES,
@@ -140,5 +142,22 @@ describe("la página pública de la tienda", () => {
   it("abierta y encendida pero con Ventas apagado → tampoco (la tienda vende el catálogo de Ventas)", () => {
     const claves = withStoreOpenState(new Set([STORE_MODULE_KEY, BOOKINGS_MODULE_KEY]), true);
     expect(publicModulePagesFor(claves).map((p) => p.segment)).toEqual(["reservas"]);
+  });
+});
+
+describe("la página «Pedí tu presupuesto»", () => {
+  it("ocupa /presupuesto, ligada a Consultas, y su segmento queda reservado", () => {
+    expect(PUBLIC_MODULE_PAGES.find((p) => p.moduleKey === SERVICE_LEADS_MODULE_KEY)).toMatchObject({
+      segment: "presupuesto",
+      label: "Pedí tu presupuesto",
+    });
+    expect(isSiteSegmentReserved("presupuesto")).toBe(true);
+  });
+
+  it("con Consultas encendido aparece en el menú automático; apagado, no", () => {
+    const menu = (claves: string[]) =>
+      buildSiteNav({ workspaceSlug: "dnx-estudio", homeBlocks: [], enabledModuleKeys: new Set(claves), hasPublishedSite: true });
+    expect(menu([SERVICE_LEADS_MODULE_KEY]).map((i) => [i.label, i.href])).toContainEqual(["Pedí tu presupuesto", "/w/dnx-estudio/presupuesto"]);
+    expect(menu([BOOKINGS_MODULE_KEY]).some((i) => i.href.endsWith("/presupuesto"))).toBe(false);
   });
 });

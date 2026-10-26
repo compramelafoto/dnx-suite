@@ -3,10 +3,11 @@ import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
-import { BLOG_PUBLIC_PAGE_KEY, INSTITUTIONAL_PUBLIC_SEGMENT } from "./constants";
+import { BLOG_PUBLIC_PAGE_KEY, INSTITUTIONAL_PUBLIC_SEGMENT, PRESUPUESTO_PAGE_LABEL } from "./constants";
 import { PORTFOLIO_MODULE_KEY, PORTFOLIO_PUBLIC_SEGMENT } from "@/lib/portfolio/constants";
 import { STORE_MODULE_KEY, STORE_PUBLIC_SEGMENT } from "@/lib/store/constants";
 import { SALES_MODULE_KEY } from "@/lib/sales/constants";
+import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
 import type { PersonVocabulary } from "@/lib/vocabulario/personas";
 
 /**
@@ -55,6 +56,9 @@ export const PUBLIC_MODULE_PAGES: readonly PublicModulePage[] = [
   // `withStoreOpenState`, que aplica `loadPublicSite`.
   { moduleKey: STORE_MODULE_KEY, segment: STORE_PUBLIC_SEGMENT, label: "Tienda", order: 35 },
   { moduleKey: BLOG_PUBLIC_PAGE_KEY, segment: "blog", label: "Blog", order: 40 },
+  // El formulario de presupuesto a página completa: la consulta entra a Consultas. Convive con
+  // `presupuesto/[token]` (el enlace del presupuesto que se le manda a cada cliente).
+  { moduleKey: SERVICE_LEADS_MODULE_KEY, segment: "presupuesto", label: PRESUPUESTO_PAGE_LABEL, order: 45 },
 ] as const;
 
 /**
