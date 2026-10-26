@@ -6,7 +6,7 @@ import { buscarTrabajosAction, cerrarGrabacionAction, continuarGrabacionAction, 
 import { elegirCarpeta } from "@/lib/digitalizacion/cliente/apis-navegador";
 import { ColaDeSubida, almacenEnMemoria, idParte, type ResumenCola } from "@/lib/digitalizacion/cliente/cola";
 import { cortesDeArchivo, vobsEnOrden } from "@/lib/digitalizacion/dvd";
-import { EVENTO_DVD_SUBIENDO, crearSubidor, type Continuacion } from "./estacion";
+import { EVENTO_DVD_SUBIENDO, conPreseleccion, crearSubidor, type Continuacion, type Preseleccion } from "./estacion";
 import { Ventanita, type EstadoVentanita } from "./ventanita";
 
 async function carpetaVideoTs(raiz: FileSystemDirectoryHandle): Promise<FileSystemDirectoryHandle> {
@@ -30,14 +30,15 @@ function esElMismoDvd(archivos: File[], guardados: { nombre: string; bytes: numb
   return archivos.every((f, i) => f.name.toLowerCase() === guardados[i].nombre.toLowerCase() && f.size === guardados[i].bytes);
 }
 
-export function DigitalizarDvd({ continuar }: { continuar: Continuacion | null }) {
+export function DigitalizarDvd({ continuar, preseleccion = null }: { continuar: Continuacion | null; preseleccion?: Preseleccion | null }) {
   const [fase, setFase] = useState<"listo" | "subiendo" | "terminada">("listo");
   const [aviso, setAviso] = useState<string | null>(null);
   const [avance, setAvance] = useState({ hechos: 0, total: 0 });
-  const [sinPedido, setSinPedido] = useState(true);
+  // Con el trabajo elegido desde su ficha (`?proyecto=`), el DVD también arranca con ese trabajo.
+  const [sinPedido, setSinPedido] = useState(preseleccion === null);
   const [titulo, setTitulo] = useState("");
-  const [proyectoId, setProyectoId] = useState<string | null>(null);
-  const [trabajos, setTrabajos] = useState<{ id: string; numero: string; nombre: string }[]>([]);
+  const [proyectoId, setProyectoId] = useState<string | null>(preseleccion?.id ?? null);
+  const [trabajos, setTrabajos] = useState<{ id: string; numero: string; nombre: string }[]>(conPreseleccion([], preseleccion));
 
   const [fallo, setFallo] = useState(false);
   const ocupado = useRef(false);

@@ -16,6 +16,7 @@ import {
   HORAS_ESPERA_AUTOMATICO, diasQueFaltan, envioAutomaticoDesde, estadoDeEntrega, extensionPorVideosNuevos, recordatorioQueCorresponde, tituloDeVideo,
   urlDeVideos, vencimientosDesde, videosVencidos, type PreparacionEntrega,
 } from "../entrega";
+import { registroDeEnvio, type EnvioRegistrado } from "../trabajo";
 import { MAX_GENERACIONES_ENTREGA, generacionDeEntrega, tokenDeEntrega } from "../token-entrega";
 import { borrarVideoFinal } from "./almacen";
 import { conciliarComisiones, devengarComisionesDelPedido } from "./comision";
@@ -324,6 +325,8 @@ export type ResumenEntrega = {
   pedidoNumero: string;
   cliente: string | null;
   tieneEmail: boolean;
+  /** El correo que tiene HOY el cliente (null si no tiene uno válido). */
+  email: string | null;
   cancelado: boolean;
   preparacion: PreparacionEntrega;
   videos: number;
@@ -336,25 +339,36 @@ export type ResumenEntrega = {
   cargosPendientes: CargoPendiente[];
   /** Cargos "a revisar": el plan se editó a mano y ya no cuadran. */
   cargosARevisar: CargoARevisar[];
+  /** Lo anotado del envío en los trabajos del pedido: por correo (a quién) o por enlace. */
+  envioRegistrado: EnvioRegistrado;
 };
 
 export const PEDIDOS_EN_LA_LISTA = 60;
 
+/** El principio de las notas que deja `enviarEntrega` (ver `registroDeEnvio`). */
+const NOTAS_DE_ENVIO = ["Correo «Tus videos están listos»", "Videos digitalizados: se copió el enlace"];
+
 /**
  * Las entregas de los pedidos con grabaciones (los más nuevos primero). Primero elige los pedidos y
  * después trae TODAS sus grabaciones, así el estado no depende de cuántas haya en el negocio. No
- * crea filas: un pedido sin entrega se muestra con su preparación y el valor por defecto.
+ * crea filas: un pedido sin entrega se muestra con su preparación y el valor por defecto. Con
+ * `pedidoIds`, sólo esos (la ficha del trabajo y la del pedido).
  */
-export async function resumenDeEntregas(workspaceId: string): Promise<ResumenEntrega[]> {
+export async function resumenDeEntregas(workspaceId: string, opciones: { pedidoIds?: string[] } = {}): Promise<ResumenEntrega[]> {
+  if (opciones.pedidoIds && opciones.pedidoIds.length === 0) return [];
   const pedidos = await prisma.fotofficePedido.findMany({
-    where: { workspaceId, proyectos: { some: { workspaceId, grabaciones: { some: { estado: { not: "DESCARTADA" } } } } } },
+    where: {
+      workspaceId,
+      ...(opciones.pedidoIds ? { id: { in: opciones.pedidoIds } } : {}),
+      proyectos: { some: { workspaceId, grabaciones: { some: { estado: { not: "DESCARTADA" } } } } },
+    },
     orderBy: [{ createdAt: "desc" }],
     take: PEDIDOS_EN_LA_LISTA,
     select: { id: true, number: true, status: true, client: { select: { firstName: true, lastName: true, businessName: true, email: true } } },
   });
   if (pedidos.length === 0) return [];
   const ids = pedidos.map((p) => p.id);
-  const [grabaciones, entregas] = await Promise.all([
+  const [grabaciones, entregas, notas] = await Promise.all([
     prisma.digitalizacionGrabacion.findMany({
       where: { workspaceId, proyecto: { workspaceId, pedidoId: { in: ids } } },
       select: { estado: true, conversionEstado: true, sinImagen: true, terminadaAt: true, convertidaAt: true, proyecto: { select: { pedidoId: true } } },
@@ -362,6 +376,10 @@ export async function resumenDeEntregas(workspaceId: string): Promise<ResumenEnt
     prisma.digitalizacionEntrega.findMany({
       where: { workspaceId, pedidoId: { in: ids } },
       select: { ...SELECT_ENTREGA, envioEstado: true, envioDireccion: true, envioKm: true, envioPrecioArs: true },
+    }),
+    prisma.fotofficeProyectoNota.findMany({
+      where: { workspaceId, proyecto: { workspaceId, pedidoId: { in: ids } }, OR: NOTAS_DE_ENVIO.map((n) => ({ body: { startsWith: n } })) },
+      select: { body: true, createdAt: true, proyecto: { select: { pedidoId: true } } },
     }),
   ]);
   const [pendientes, aRevisar] = await Promise.all([
@@ -374,6 +392,11 @@ export async function resumenDeEntregas(workspaceId: string): Promise<ResumenEnt
     if (id) porPedido.set(id, [...(porPedido.get(id) ?? []), g]);
   }
   const entregaDe = new Map(entregas.map((e) => [e.pedidoId, e]));
+  const notasDe = new Map<string, { body: string; createdAt: Date }[]>();
+  for (const n of notas ?? []) {
+    const id = n.proyecto?.pedidoId;
+    if (id) notasDe.set(id, [...(notasDe.get(id) ?? []), { body: n.body, createdAt: n.createdAt }]);
+  }
   return pedidos.map((p): ResumenEntrega => {
     const gs = porPedido.get(p.id) ?? [];
     const e = entregaDe.get(p.id) ?? null;
@@ -384,6 +407,7 @@ export async function resumenDeEntregas(workspaceId: string): Promise<ResumenEnt
       pedidoNumero: p.number,
       cliente,
       tieneEmail: correoValido(c?.email?.trim() ?? ""),
+      email: correoValido(c?.email?.trim() ?? "") ? c!.email!.trim() : null,
       cancelado: p.status === "CANCELADO",
       preparacion: estadoDeEntrega(gs),
       videos: gs.filter((g) => g.estado !== "DESCARTADA" && g.conversionEstado === "LISTA").length,
@@ -401,6 +425,7 @@ export async function resumenDeEntregas(workspaceId: string): Promise<ResumenEnt
         : null,
       cargosPendientes: e ? (pendientes.get(e.id) ?? []).filter((c) => !(aRevisar.get(e.id) ?? []).some((r) => r.id === c.id)) : [],
       cargosARevisar: e ? aRevisar.get(e.id) ?? [] : [],
+      envioRegistrado: registroDeEnvio(notasDe.get(p.id) ?? []),
     };
   });
 }

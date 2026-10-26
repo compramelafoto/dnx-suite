@@ -47,6 +47,12 @@ import { contextoFacturacion } from "@/lib/invoicing/access";
 import { facturasDe } from "@/lib/invoicing/servicio";
 import { numeroComprobante } from "@/lib/invoicing/pdf";
 import { decimalArsToMinor } from "@/lib/membership/money";
+import { DigitalizacionDelPedido } from "@/components/digitalizacion/desde-el-trabajo";
+import { DIGITALIZACION_MODULE_KEY } from "@/lib/digitalizacion/constants";
+import { leerAjustes } from "@/lib/digitalizacion/servidor/grabaciones";
+import { entregaDelPedido, trabajosDeDigitalizacionDelPedido } from "@/lib/digitalizacion/servidor/trabajo";
+import { getModuleLevel } from "@/lib/permissions/module-access";
+import { hasLevel } from "@/lib/permissions/levels";
 
 export const dynamic = "force-dynamic";
 
@@ -74,7 +80,7 @@ type Hito = { clave: string; fecha: string; texto: string };
  * previsto y margen real, Entrega B1): sólo se lee y se monta con `detalle.veCostos`.
  */
 export default async function PedidoPage({ params }: { params: Promise<{ id: string }> }) {
-  const { workspace, ctx } = await requirePedidos("ver");
+  const { user, workspace, ctx } = await requirePedidos("ver");
   const { id } = await params;
   if (!ID_VALIDO.test(id)) notFound();
   const detalle = await leerPedido(ctx, id);
@@ -133,6 +139,13 @@ export default async function PedidoPage({ params }: { params: Promise<{ id: str
     gestiona ? opcionesDeEnvioPedido(ctx, detalle.id) : Promise.resolve(null),
     gestiona ? rubrosDeIngreso(workspace.id, detalle.incomeCategoryId) : Promise.resolve([]),
   ]);
+
+  // Bloque "Digitalización": con el módulo encendido y "Ver" en Digitalización, si el pedido tiene
+  // trabajos de digitalización (ver `esTrabajoDeDigitalizacion`). Grabar y enviar piden "Gestionar".
+  const nivelDigitalizacion = await getModuleLevel(user.id, workspace.id, DIGITALIZACION_MODULE_KEY);
+  const trabajosDigitalizacion = hasLevel(nivelDigitalizacion, "VIEW") ? await trabajosDeDigitalizacionDelPedido(workspace.id, detalle.id) : [];
+  const [entregaDigitalizacion, ajustesDigitalizacion] =
+    trabajosDigitalizacion.length > 0 ? await Promise.all([entregaDelPedido(workspace.id, detalle.id), leerAjustes(workspace.id)]) : [null, null];
 
   const plan = detalle.plan;
   // Descuento del contado o interés del plan, para que Total de los ítems + ajuste = Total.
@@ -419,6 +432,16 @@ export default async function PedidoPage({ params }: { params: Promise<{ id: str
             </h2>
             <ChecklistDelPedido pedidoId={detalle.id} tareas={tareasVista} plantillas={checklist?.plantillas ?? []} puedeEditar={gestiona && !cancelado} />
           </section>
+
+          {trabajosDigitalizacion.length > 0 ? (
+            <DigitalizacionDelPedido
+              trabajos={trabajosDigitalizacion}
+              entrega={entregaDigitalizacion}
+              puedeGrabar={hasLevel(nivelDigitalizacion, "MANAGE") && !cancelado}
+              envioAutomatico={ajustesDigitalizacion?.envioAutomatico ?? true}
+              ahora={new Date()}
+            />
+          ) : null}
 
           {verProyectos ? (
             <section id="proyectos" aria-labelledby="proyectos-titulo" className="fo-card space-y-3">

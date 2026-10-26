@@ -248,7 +248,8 @@ export function Pos({
     vueltoMinor: number | null;
     /** Lo que ganó quien vendió con este cobro; `ganada` = ya cobrado entero. */
     comision?: { minor: number; ganada: boolean } | null;
-    pedido?: { numero: string; cobradoMinor: number; saldoMinor: number; aviso: string | null };
+    /** `grabar`: los trabajos de digitalización del pedido, con su «Ir a grabar». */
+    pedido?: { numero: string; cobradoMinor: number; saldoMinor: number; aviso: string | null; grabar: { proyectoId: string; numero: string; nombre: string }[] };
   } | null>(null);
   // Pedido para retirar (cuando el ticket tiene trabajos con proceso).
   const [entregaElegida, setEntregaElegida] = useState<string | null>(null);
@@ -835,7 +836,7 @@ export function Pos({
             saleNumber: r.saleNumber,
             deposited: true,
             vueltoMinor: vueltoAlCobrar.estado === "ok" ? vueltoAlCobrar.vueltoMinor : null,
-            pedido: { numero: r.pedidoNumero, cobradoMinor: r.cobradoMinor, saldoMinor: r.saldoMinor, aviso: r.aviso },
+            pedido: { numero: r.pedidoNumero, cobradoMinor: r.cobradoMinor, saldoMinor: r.saldoMinor, aviso: r.aviso, grabar: r.grabar ?? [] },
             comision: comisionDelTicket > 0 ? { minor: comisionDelTicket, ganada: r.saldoMinor <= 0 } : null,
           });
           refrescarComision();
@@ -1745,6 +1746,20 @@ export function Pos({
                     </p>
                     {ultimaVenta.saleNumber !== null ? <p className="text-[var(--fo-text)]">Y la venta #{ultimaVenta.saleNumber}.</p> : null}
                     {ultimaVenta.pedido.aviso ? <p className="text-[var(--fo-warning)]">{ultimaVenta.pedido.aviso}</p> : null}
+                    {ultimaVenta.pedido.grabar.length > 0 ? (
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {ultimaVenta.pedido.grabar.map((t) => (
+                          <a
+                            key={t.proyectoId}
+                            href={`/digitalizacion/grabar?proyecto=${encodeURIComponent(t.proyectoId)}`}
+                            className="fo-btn fo-btn-primary text-xs"
+                            title={`${t.numero} · ${t.nombre}`}
+                          >
+                            ● Ir a grabar{ultimaVenta.pedido!.grabar.length > 1 ? ` ${t.numero} · ${t.nombre}` : ""}
+                          </a>
+                        ))}
+                      </div>
+                    ) : null}
                   </>
                 ) : (
                   <p className="font-semibold text-[var(--fo-success)]">Venta #{ultimaVenta.saleNumber} cobrada</p>

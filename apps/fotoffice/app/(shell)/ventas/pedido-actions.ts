@@ -22,6 +22,10 @@ import type { OrdenQr } from "@/lib/sales/qr-mp";
 import { leerFotolibroVendido } from "@/lib/fotolibro/venta";
 import { atarFotolibrosAlPedido } from "@/lib/fotolibro/venta-servidor";
 import { clientDisplayName } from "@/lib/clients/display";
+import { DIGITALIZACION_MODULE_KEY } from "@/lib/digitalizacion/constants";
+import { trabajosDeDigitalizacionDelPedido } from "@/lib/digitalizacion/servidor/trabajo";
+import { getModuleLevel } from "@/lib/permissions/module-access";
+import { hasLevel } from "@/lib/permissions/levels";
 
 /**
  * El Mostrador con trabajos "con proceso" o renglones marcados «Seña». Esa parte se vuelve un pedido (con su seña
@@ -69,8 +73,21 @@ export type CobroConPedidoInput = {
   mpOrderId?: string | null;
 };
 
+/** Un trabajo de digitalización que creó el cobro: la pantalla ofrece «Ir a grabar» (`/digitalizacion/grabar?proyecto=`). */
+export type TrabajoParaGrabar = { proyectoId: string; numero: string; nombre: string };
+
 export type CobroConPedidoResult =
-  | { ok: true; pedidoId: string; pedidoNumero: string; cobradoMinor: number; saldoMinor: number; saleNumber: number | null; aviso: string | null }
+  | {
+      ok: true;
+      pedidoId: string;
+      pedidoNumero: string;
+      cobradoMinor: number;
+      saldoMinor: number;
+      saleNumber: number | null;
+      aviso: string | null;
+      /** Vacío si no hay trabajos de digitalización o quien cobra no puede grabar. */
+      grabar: TrabajoParaGrabar[];
+    }
   | { ok: false; error: string };
 
 const CLAVE = /^[A-Za-z0-9_-]{8,90}$/;
@@ -84,6 +101,22 @@ async function conProceso(workspaceId: string, productIds: string[]): Promise<Se
     select: { productId: true },
   });
   return new Set(filas.map((f) => f.productId));
+}
+
+/**
+ * Los trabajos de digitalización del pedido recién creado, para el «Ir a grabar» de la pantalla
+ * del cobro: sólo con el módulo encendido y permiso de gestión en Digitalización (la estación lo
+ * vuelve a exigir). Nunca corta el cobro: si falla, no se ofrece el acceso.
+ */
+async function trabajosParaGrabar(workspaceId: string, userId: number, pedidoId: string): Promise<TrabajoParaGrabar[]> {
+  try {
+    if (!hasLevel(await getModuleLevel(userId, workspaceId, DIGITALIZACION_MODULE_KEY), "MANAGE")) return [];
+    const trabajos = await trabajosDeDigitalizacionDelPedido(workspaceId, pedidoId);
+    return trabajos.map((t) => ({ proyectoId: t.id, numero: t.numero, nombre: t.nombre }));
+  } catch (e) {
+    console.error("[cobrador] trabajos para grabar", e);
+    return [];
+  }
 }
 
 export async function cobrarConPedidoAction(input: CobroConPedidoInput): Promise<CobroConPedidoResult> {
@@ -196,6 +229,7 @@ export async function cobrarConPedidoAction(input: CobroConPedidoInput): Promise
       saldoMinor: despues ? Math.round(despues.plan.saldo * 100) : 0,
       saleNumber: null,
       aviso: avisoCobroRepetido({ numero: alta.numero, sena: senaRepetida, habiaVentaEnElMomento: enElMomento.length > 0 }),
+      grabar: await trabajosParaGrabar(workspace.id, user.id, alta.pedidoId),
     };
   }
   if (reservaId) await confirmarUsoPagoMp(reservaId, `Pedido ${alta.numero}`);
@@ -291,6 +325,7 @@ export async function cobrarConPedidoAction(input: CobroConPedidoInput): Promise
     saldoMinor: totalPedido - cobrado,
     saleNumber,
     aviso: avisos.length ? avisos.join(" ") : null,
+    grabar: await trabajosParaGrabar(workspace.id, user.id, alta.pedidoId),
   };
 }
 
