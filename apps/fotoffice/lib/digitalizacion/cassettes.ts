@@ -23,6 +23,13 @@
  * una grabación con imagen. Un cassette vacío también es un cassette que se pasó; si no contara, el
  * trabajo no avanzaría nunca. Lo que no se hace es mover a «Grabado» un trabajo que sólo tiene
  * grabaciones sin imagen (como hasta ahora).
+ *
+ * **Cassettes que no se pudieron digitalizar** (`./no-digitalizable.ts`): se guardan como una
+ * grabación COMPLETA y SIN_IMAGEN, así que cuentan como grabados y hechos sin código aparte. Una
+ * «quitada» queda DESCARTADA y deja de contar.
+ *
+ * **Subido a la nube** (`cumpleSubido`): todos los cassettes vendidos hechos, ninguna grabación viva
+ * sin terminar (grabando, en cola, convirtiéndose o con error) y al menos un video LISTA.
  */
 import { PREFIJO_ITEM_CARGO } from "@/lib/pedidos/cargos-puro";
 import { esNombreDeDigitalizacion, esTrabajoDeDigitalizacion, textoFaltanCassettes } from "./trabajo";
@@ -72,6 +79,10 @@ export type CuentaTrabajo = {
   grabadosConImagen: number;
   /** Completas con la conversión terminada (LISTA o SIN_IMAGEN). */
   hechos: number;
+  /** Completas convertidas a video (LISTA). */
+  listas: number;
+  /** Vivas que no están hechas: grabando, en cola, convirtiéndose o con error. */
+  sinTerminar: number;
 };
 
 export function contarTrabajo(t: {
@@ -86,6 +97,8 @@ export function contarTrabajo(t: {
     grabados: vivas.filter(estaGrabada).length,
     grabadosConImagen: vivas.filter((g) => estaGrabada(g) && !g.sinImagen).length,
     hechos: vivas.filter(estaHecha).length,
+    listas: vivas.filter((g) => g.estado === "COMPLETA" && g.conversionEstado === "LISTA").length,
+    sinTerminar: vivas.filter((g) => !estaHecha(g)).length,
   };
 }
 
@@ -107,6 +120,15 @@ export function trabajoCompleto(c: CuentaTrabajo): boolean {
 export function cumpleGrabado(c: CuentaTrabajo): boolean {
   if (c.grabadosConImagen < 1) return false;
   return c.esperados === null || c.grabados >= c.esperados;
+}
+
+/**
+ * ¿El trabajo pasa a «Subido a la nube»? Todos los cassettes vendidos hechos (convertidos, sin
+ * imagen o que no se pudieron), nada vivo sin terminar y al menos un video LISTA. Con la cantidad
+ * desconocida, lo mismo sin la cuenta: todo lo vivo terminado y al menos un LISTA.
+ */
+export function cumpleSubido(c: CuentaTrabajo): boolean {
+  return c.listas >= 1 && c.sinTerminar === 0 && trabajoCompleto(c);
 }
 
 export type CuentaPedido = {

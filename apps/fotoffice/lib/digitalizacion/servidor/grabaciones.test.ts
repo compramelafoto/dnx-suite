@@ -15,7 +15,7 @@ const etapas = vi.hoisted(() => ({ avanzarTrabajos: vi.fn(async () => ({ MOVIDO:
 vi.mock("./etapas", () => etapas);
 
 import type { NuevaGrabacion } from "../validar";
-import { guardarAjustesEntrega, leerAjustes, cerrarGrabacion, confirmarParte, crearGrabacion, descartarGrabacion, pedirParte, registrarLatido, reintentarConversion, terminarConLoGrabado, urlDeVideo, urlsDeLectura, editarTitulo, listarGrabaciones, hlsDeGrabacion } from "./grabaciones";
+import { guardarAjustesEntrega, leerAjustes, quitarNoDigitalizable, registrarNoDigitalizable, cerrarGrabacion, confirmarParte, crearGrabacion, descartarGrabacion, pedirParte, registrarLatido, reintentarConversion, terminarConLoGrabado, urlDeVideo, urlsDeLectura, editarTitulo, listarGrabaciones, hlsDeGrabacion } from "./grabaciones";
 
 const ctx = { workspaceId: "ws1", userId: 7 };
 const vhs: NuevaGrabacion = { titulo: null, tipo: "VHS", proyectoId: "p1", cassetteNumero: 1, calidad: "MEDIA", mimeType: "video/webm;codecs=vp9,opus", corregirProporcion: false, equipoId: null, dvdArchivos: null };
@@ -437,5 +437,52 @@ describe("avance a «Grabado» al terminar la grabación", () => {
     db.digitalizacionGrabacion.updateMany.mockResolvedValue({ count: 0 });
     expect(await terminarConLoGrabado(ctx, "g1")).toMatchObject({ ok: false });
     expect(etapas.avanzarTrabajos).not.toHaveBeenCalled();
+  });
+});
+
+describe("cassette que no se pudo digitalizar", () => {
+  const nuevo = { proyectoId: "p1", tipo: "VHS" as const, cassetteNumero: 7, motivo: "Cinta cortada" };
+  it("queda como grabación COMPLETA y SIN_IMAGEN, sin partes: el worker no la toma y cuenta como hecha", async () => {
+    db.fotofficeProyecto.findFirst.mockResolvedValue({ id: "p1" });
+    db.digitalizacionGrabacion.findFirst.mockResolvedValue(null);
+    db.digitalizacionGrabacion.create.mockResolvedValue({ id: "n1" });
+    expect(await registrarNoDigitalizable(ctx, nuevo)).toEqual({ ok: true, id: "n1" });
+    const data = db.digitalizacionGrabacion.create.mock.calls[0][0].data;
+    expect(data).toMatchObject({
+      workspaceId: "ws1", proyectoId: "p1", titulo: "Cinta cortada", cassetteNumero: 7, tipo: "VHS", mimeType: "video/webm",
+      estado: "COMPLETA", motivoFin: "NO_DIGITALIZABLE", sinImagen: true, conversionEstado: "SIN_IMAGEN", duracionSeg: 0, createdByUserId: 7,
+    });
+    // No es PENDIENTE (lo único que toma el worker) ni LISTA (lo único que rellena el HLS); y no hay partes crudas.
+    expect(data.conversionEstado).not.toBe("PENDIENTE");
+    expect(data.partesBorradasAt).toBeInstanceOf(Date);
+    expect(db.digitalizacionParte.upsert).not.toHaveBeenCalled();
+    // Puede ser la que completa los cassettes: primero «Subido…», si no «Grabado».
+    expect(etapas.avanzarTrabajos.mock.calls.map((c) => (c as unknown[])[2])).toEqual(["SUBIDO", "GRABADO"]);
+  });
+  it("DVD: su mime; trabajo de otro negocio o número repetido: no se crea", async () => {
+    db.fotofficeProyecto.findFirst.mockResolvedValue({ id: "p1" });
+    db.digitalizacionGrabacion.findFirst.mockResolvedValue(null);
+    db.digitalizacionGrabacion.create.mockResolvedValue({ id: "n2" });
+    await registrarNoDigitalizable(ctx, { ...nuevo, tipo: "DVD", cassetteNumero: null });
+    expect(db.digitalizacionGrabacion.create.mock.calls[0][0].data).toMatchObject({ tipo: "DVD", mimeType: "video/dvd", cassetteNumero: null });
+    db.digitalizacionGrabacion.create.mockClear();
+    db.digitalizacionGrabacion.findFirst.mockResolvedValue({ id: "g7" });
+    expect(await registrarNoDigitalizable(ctx, nuevo)).toMatchObject({ ok: false, error: "El cassette 7 ya está registrado en este trabajo." });
+    expect(db.digitalizacionGrabacion.findFirst.mock.calls.at(-1)![0].where).toMatchObject({ workspaceId: "ws1", proyectoId: "p1", tipo: "VHS", cassetteNumero: 7, estado: { not: "DESCARTADA" } });
+    db.fotofficeProyecto.findFirst.mockResolvedValue(null);
+    expect(await registrarNoDigitalizable(ctx, nuevo)).toMatchObject({ ok: false });
+    expect(db.digitalizacionGrabacion.create).not.toHaveBeenCalled();
+  });
+  it("«Quitar»: la deja DESCARTADA, sólo si es «no se pudo» y del negocio, sin tocar R2", async () => {
+    db.digitalizacionGrabacion.updateMany.mockResolvedValue({ count: 1 });
+    expect(await quitarNoDigitalizable(ctx, "n1")).toEqual({ ok: true });
+    expect(db.digitalizacionGrabacion.updateMany).toHaveBeenCalledWith({
+      where: { id: "n1", workspaceId: "ws1", motivoFin: "NO_DIGITALIZABLE", estado: "COMPLETA" },
+      data: { estado: "DESCARTADA", conversionEstado: null },
+    });
+    expect(almacen.borrarPrefijo).not.toHaveBeenCalled();
+    db.digitalizacionGrabacion.updateMany.mockResolvedValue({ count: 0 });
+    expect(await quitarNoDigitalizable(ctx, "g1")).toMatchObject({ ok: false });
+    expect(await quitarNoDigitalizable(ctx, "../x")).toMatchObject({ ok: false });
   });
 });

@@ -2,7 +2,7 @@ import "server-only";
 import { prisma } from "@repo/db";
 import type { CtxCircuitos } from "@/lib/circuitos/acceso";
 import { mover } from "@/lib/circuitos/recorridos";
-import { contarTrabajo, cumpleGrabado, trabajoCompleto, type CuentaTrabajo, type GrabacionParaContar } from "../cassettes";
+import { contarTrabajo, cumpleGrabado, cumpleSubido, trabajoCompleto, type CuentaTrabajo, type GrabacionParaContar } from "../cassettes";
 import { decidirAvance, decidirConciliacion, type DecisionAvance, type EtapaParaAvance, type ObjetivoEtapa } from "../etapas-automaticas";
 
 /**
@@ -45,9 +45,14 @@ function cuentaDe(p: TrabajoConCassettes): CuentaTrabajo {
   });
 }
 
-/** ¿El trabajo ya puede ir al objetivo según sus cassettes? GRABADO: todos grabados; LISTO: todos hechos. */
+/**
+ * ¿El trabajo ya puede ir al objetivo según sus cassettes? GRABADO: todos grabados; SUBIDO: todos
+ * hechos, nada convirtiéndose y al menos un video; LISTO: todos hechos (el envío lo mira quien llama).
+ */
 export function cassettesPermiten(c: CuentaTrabajo, objetivo: ObjetivoEtapa): boolean {
-  return objetivo === "GRABADO" ? cumpleGrabado(c) : trabajoCompleto(c);
+  if (objetivo === "GRABADO") return cumpleGrabado(c);
+  if (objetivo === "SUBIDO") return cumpleSubido(c);
+  return trabajoCompleto(c);
 }
 
 function codigo(e: unknown): string {
@@ -135,11 +140,13 @@ export async function avanzarTrabajos(workspaceId: string, proyectoIds: readonly
 export const TOPE_CONCILIACION = 500;
 
 /**
- * Conciliación del cron (trabajos viejos, avances que fallaron y cassettes que se completan después
- * del envío): los trabajos de pedidos con una grabación terminada con imagen, o con la entrega ya
- * enviada, se llevan a su etapa con la misma regla de cassettes (`cassettesPermiten`), sólo hacia
- * adelante. Así, un trabajo al que le faltaba un cassette al enviar pasa a «Listo para retirar»
- * cuando ese cassette termina de convertirse (la misma corrida que manda «Agregamos un video»).
+ * Conciliación del cron (trabajos viejos, avances que fallaron, conversiones que terminó el worker y
+ * cassettes que se completan después del envío): los trabajos de pedidos con una grabación
+ * terminada con imagen, o con la entrega ya enviada, se llevan a su etapa con la misma regla de
+ * cassettes (`cassettesPermiten`), sólo hacia adelante y de un salto (ver `decidirConciliacion`).
+ * Es la que pasa un trabajo a «Subido a la nube…» cuando el worker termina el último cassette (el
+ * worker no mueve etapas). Un trabajo al que le faltaba un cassette al enviar pasa a «Listo para
+ * retirar» cuando ese cassette termina de convertirse (la misma corrida que avisa «Agregamos…»).
  * Idempotente: un trabajo que ya llegó no se mueve. Sólo recorridos abiertos y trabajos sin
  * suspender; de los más nuevos a los más viejos. Nunca lanza.
  */
@@ -182,12 +189,14 @@ export async function conciliarEtapas(
       try {
         if (!(await estaEncendido(p.workspaceId))) continue;
         reporte.revisados++;
+        const cuenta = cuentaDe(p);
         const decision = decidirConciliacion(
           etapas.get(j.circuitId) ?? [],
           { etapaActualId: j.stageId, suspendido: false },
           {
-            grabado: cassettesPermiten(cuentaDe(p), "GRABADO"),
-            listo: !!p.pedido?.digitalizacionEntrega?.enviadoAt && cassettesPermiten(cuentaDe(p), "LISTO"),
+            grabado: cassettesPermiten(cuenta, "GRABADO"),
+            subido: cassettesPermiten(cuenta, "SUBIDO"),
+            listo: !!p.pedido?.digitalizacionEntrega?.enviadoAt && cassettesPermiten(cuenta, "LISTO"),
           },
         );
         if (!decision) continue;

@@ -3,6 +3,7 @@ import { prisma, type Prisma } from "@repo/db";
 import { ID_VALIDO } from "../claves";
 import { tituloDeVideo } from "../entrega";
 import { cuentasDeTrabajos } from "../cassettes";
+import { esNoDigitalizable, textoNoDigitalizable } from "../no-digitalizable";
 import { saldoDeVideosMinor } from "./cargos";
 import { selectCuentaTrabajo } from "./cassettes";
 import { grabacionesDelPedido, resumenDeEntregas, type ResumenEntrega } from "./entregas";
@@ -84,6 +85,8 @@ export type EntregaDelPedido = {
   videos: { id: string; titulo: string; descargasExtra: number }[];
   /** La casilla del cliente figura dada de baja (rebote, queja o baja) en los correos del negocio. */
   casillaConProblema: boolean;
+  /** Los cassettes que no se pudieron digitalizar: «Cassette 7 · No se pudo digitalizar: Cinta cortada». */
+  noDigitalizables: { id: string; texto: string }[];
 };
 
 /**
@@ -116,6 +119,9 @@ export async function entregaDelPedido(workspaceId: string, pedidoId: string): P
     saldoMinor: saldo?.saldoMinor ?? 0,
     descargas: new Map(porGrabacion.map((d) => [d.grabacionId, d._count._all])),
     casillaConProblema: baja !== null,
+    noDigitalizables: grabaciones
+      .filter((g) => g.estado === "COMPLETA" && esNoDigitalizable(g))
+      .map((g) => ({ id: g.id, texto: textoNoDigitalizable(g) })),
   };
 }
 
@@ -129,7 +135,7 @@ export async function grabacionesDelTrabajo(workspaceId: string, proyectoId: str
     select: {
       id: true, titulo: true, tipo: true, estado: true, cassetteNumero: true, duracionSeg: true, iniciadaAt: true, ultimoLatidoAt: true,
       sinImagen: true, mimeType: true, conversionEstado: true, conversionError: true, videoDuracionSeg: true, partesBorradasAt: true,
-      hlsKey: true, videoBorradoAt: true, descargasExtra: true,
+      hlsKey: true, videoBorradoAt: true, descargasExtra: true, motivoFin: true,
     },
   });
 }

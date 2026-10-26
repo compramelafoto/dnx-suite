@@ -93,3 +93,35 @@ describe("decidirConciliacion (trabajos viejos)", () => {
     expect(decidirConciliacion(DNX, { etapaActualId: "s1", suspendido: true }, { grabado: true, listo: true })).toEqual({ tipo: "NADA", motivo: "SUSPENDIDO" });
   });
 });
+
+describe("«Subido a la nube» y el orden de las etapas", () => {
+  it("SUBIDO: «subido» o «nube» por inclusión", () => {
+    expect(coincideConObjetivo("Subido a la nube y a YouTube", "SUBIDO")).toBe(true);
+    expect(coincideConObjetivo("En la NUBE", "SUBIDO")).toBe(true);
+    expect(coincideConObjetivo("Listo para retirar", "SUBIDO")).toBe(false);
+    expect(coincideConObjetivo("Grabado", "SUBIDO")).toBe(false);
+    expect(etapaDelObjetivo(DNX, "SUBIDO")?.id).toBe("s3");
+  });
+  it("Grabado → Subido → Listo, siempre hacia adelante", () => {
+    expect(decidirAvance(DNX, abierto("s2"), "SUBIDO")).toMatchObject({ tipo: "MOVER", etapa: { id: "s3" }, nota: "Entró en Subido a la nube y a YouTube (automático: videos convertidos y subidos)" });
+    expect(decidirAvance(DNX, abierto("s3"), "LISTO")).toMatchObject({ tipo: "MOVER", etapa: { id: "s4" } });
+    expect(decidirAvance(DNX, abierto("s4"), "SUBIDO")).toEqual({ tipo: "NADA", motivo: "YA_ESTA" });
+    expect(decidirAvance(DNX, abierto("s3"), "GRABADO")).toEqual({ tipo: "NADA", motivo: "YA_ESTA" });
+  });
+  it("conciliación: todo convertido sin enviar → «Subido»; enviado → «Listo» de un salto", () => {
+    expect(decidirConciliacion(DNX, abierto("s2"), { grabado: true, subido: true, listo: false })).toMatchObject({ tipo: "MOVER", etapa: { id: "s3" } });
+    expect(decidirConciliacion(DNX, abierto("s1"), { grabado: true, subido: true, listo: false })).toMatchObject({ tipo: "MOVER", etapa: { id: "s3" } });
+    expect(decidirConciliacion(DNX, abierto("s2"), { grabado: true, subido: true, listo: true })).toMatchObject({ tipo: "MOVER", etapa: { id: "s4" } });
+    // Grabado pero todavía convirtiendo: sólo «Grabado».
+    expect(decidirConciliacion(DNX, abierto("s1"), { grabado: true, subido: false, listo: false })).toMatchObject({ tipo: "MOVER", etapa: { id: "s2" } });
+    expect(decidirConciliacion(DNX, abierto("s2"), { grabado: true, subido: false, listo: false })).toEqual({ tipo: "NADA", motivo: "YA_ESTA" });
+    // Ya en «Listo para retirar»: «Subido» no lo hace volver.
+    expect(decidirConciliacion(DNX, abierto("s4"), { grabado: true, subido: true, listo: false })).toEqual({ tipo: "NADA", motivo: "YA_ESTA" });
+  });
+  it("el flujo sin «Subido…»: se saltea (queda en «Grabado» hasta el envío)", () => {
+    const sinSubido = DNX.filter((e) => e.id !== "s3");
+    expect(decidirConciliacion(sinSubido, abierto("s1"), { grabado: true, subido: true, listo: false })).toMatchObject({ tipo: "MOVER", etapa: { id: "s2" } });
+    expect(decidirConciliacion(sinSubido, abierto("s2"), { grabado: true, subido: true, listo: false })).toEqual({ tipo: "NADA", motivo: "YA_ESTA" });
+    expect(decidirConciliacion(sinSubido, abierto("s2"), { grabado: true, subido: true, listo: true })).toMatchObject({ tipo: "MOVER", etapa: { id: "s4" } });
+  });
+});

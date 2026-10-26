@@ -60,7 +60,7 @@ describe("contarTrabajo y las reglas (pedido 2026-0006)", () => {
 
   it("cantidad 2 y 1 hecho: ni completo ni «Grabado»", () => {
     const c = liliana([lista]);
-    expect(c).toEqual({ esperados: 2, grabados: 1, grabadosConImagen: 1, hechos: 1 });
+    expect(c).toEqual({ esperados: 2, grabados: 1, grabadosConImagen: 1, hechos: 1, listas: 1, sinTerminar: 0 });
     expect(trabajoCompleto(c)).toBe(false);
     expect(cumpleGrabado(c)).toBe(false);
   });
@@ -83,7 +83,7 @@ describe("contarTrabajo y las reglas (pedido 2026-0006)", () => {
   });
   it("SIN_IMAGEN: cuenta como hecha y como grabada, pero «Grabado» pide al menos una con imagen", () => {
     const c = liliana([lista, sinImagen]);
-    expect(c).toEqual({ esperados: 2, grabados: 2, grabadosConImagen: 1, hechos: 2 });
+    expect(c).toEqual({ esperados: 2, grabados: 2, grabadosConImagen: 1, hechos: 2, listas: 1, sinTerminar: 0 });
     expect(trabajoCompleto(c)).toBe(true);
     expect(cumpleGrabado(c)).toBe(true);
     const vacios = liliana([sinImagen, sinImagen]);
@@ -104,7 +104,7 @@ describe("contarTrabajo y las reglas (pedido 2026-0006)", () => {
 });
 
 describe("contarPedido", () => {
-  const t = (esperados: number | null, grabados: number, hechos = grabados) => ({ esperados, grabados, grabadosConImagen: grabados, hechos });
+  const t = (esperados: number | null, grabados: number, hechos = grabados) => ({ esperados, grabados, grabadosConImagen: grabados, hechos, listas: hechos, sinTerminar: 0 });
   it("suma los trabajos con cantidad conocida", () => {
     expect(contarPedido([t(1, 1), t(2, 1)])).toEqual({ esperados: 3, grabados: 2, hechos: 2, faltan: 1 });
     expect(contarPedido([t(1, 1), t(2, 2)])).toEqual({ esperados: 3, grabados: 3, hechos: 3, faltan: 0 });

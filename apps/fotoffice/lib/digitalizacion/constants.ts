@@ -24,7 +24,8 @@ export const TIPOS_GRABACION = ["VHS", "DVD"] as const;
 export type TipoGrabacion = (typeof TIPOS_GRABACION)[number];
 
 export const MOTIVOS_FIN_DE_LA_ESTACION = ["MANUAL", "SIN_SENAL", "TOPE", "DVD_COMPLETO"] as const;
-export type MotivoFin = (typeof MOTIVOS_FIN_DE_LA_ESTACION)[number] | "TERMINADA_CON_LO_GRABADO";
+/** `NO_DIGITALIZABLE`: el cassette no se pudo pasar (ver `./no-digitalizable.ts`); no lo manda la estación. */
+export type MotivoFin = (typeof MOTIVOS_FIN_DE_LA_ESTACION)[number] | "TERMINADA_CON_LO_GRABADO" | "NO_DIGITALIZABLE";
 
 export const ESTADOS_CONVERSION = ["PENDIENTE", "PROCESANDO", "LISTA", "ERROR", "SIN_IMAGEN"] as const;
 export type EstadoConversion = (typeof ESTADOS_CONVERSION)[number];

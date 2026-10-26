@@ -66,6 +66,17 @@ describe("abrirEntregaPublica", () => {
     expect(v).toMatchObject({ puedeExtender: true, extensionPendiente: null, envio: { puedePedir: true, estado: null, urlPagar: null } });
     expect(almacen.urlDeVideo).not.toHaveBeenCalled();
   });
+  it("los cassettes que no se pudieron digitalizar se muestran aparte, sin botones; los sin imagen comunes, no", async () => {
+    const noSePudo = { ...video, id: "n7", titulo: "Cinta cortada", cassetteNumero: 7, conversionEstado: "SIN_IMAGEN", motivoFin: "NO_DIGITALIZABLE", videoKey: null, hlsKey: null, videoDuracionSeg: null };
+    db.digitalizacionGrabacion.findMany.mockResolvedValue([{ ...video, conversionEstado: "LISTA", motivoFin: "MANUAL" }, noSePudo]);
+    const v = await abrirEntregaPublica("ws1", TOKEN, AHORA);
+    expect(v!.videos.map((x) => x.id)).toEqual(["g1"]);
+    expect(v!.noDigitalizables).toEqual([{ id: "n7", texto: "Cassette 7: no se pudo digitalizar (Cinta cortada)" }]);
+    // La consulta trae los LISTA y los «no se pudo»: un corte SIN_IMAGEN de prueba no entra.
+    expect(db.digitalizacionGrabacion.findMany.mock.calls[0][0].where).toMatchObject({
+      workspaceId: "ws1", estado: "COMPLETA", OR: [{ conversionEstado: "LISTA" }, { motivoFin: "NO_DIGITALIZABLE" }], proyecto: { pedidoId: "p1", workspaceId: "ws1" },
+    });
+  });
   it("sin versión HLS (o con una clave ajena): sin vista previa, y tampoco firma el MP4", async () => {
     db.digitalizacionGrabacion.findMany.mockResolvedValue([{ ...video, hlsKey: null }, { ...video, id: "g2", hlsKey: "digitalizacion/ws1/g1/hls" }]);
     const v = await abrirEntregaPublica("ws1", TOKEN, AHORA);

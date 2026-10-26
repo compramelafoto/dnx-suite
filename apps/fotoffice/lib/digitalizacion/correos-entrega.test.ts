@@ -69,11 +69,31 @@ describe("días que faltan de verdad", () => {
 });
 
 describe("correoVideoAgregado", () => {
-  it("lista los videos, el vencimiento nuevo y el mismo enlace", () => {
-    const c = correoVideoAgregado({ estudio: "FP", nombre: "Ana", pedidoNumero: "P-1", videos: base.videos, urlVideos: "https://x/videos/t", videosVencenAt: base.videosVencenAt, contacto: null });
+  const d = { estudio: "FP", nombre: "Ana", pedidoNumero: "P-1", urlVideos: "https://x/videos/t", videosVencenAt: base.videosVencenAt, contacto: null };
+  it("un video nuevo: el vencimiento nuevo y el mismo enlace", () => {
+    const c = correoVideoAgregado({ ...d, videos: [base.videos[1]!] });
     expect(c.subject).toBe("Agregamos un video a tu pedido · FP");
+    expect(c.text).toContain("Agregamos un video a tu pedido N° P-1:");
     expect(c.text).toContain("• Cassette 2 (30 min)");
     expect(c.text).toContain("hasta el 21/11/2026");
     expect(c.text).toContain("Ver mis videos: https://x/videos/t");
+  });
+  it("varios nuevos: un solo correo con todos («Agregamos 3 videos»)", () => {
+    const c = correoVideoAgregado({ ...d, videos: [...base.videos, { titulo: "Cassette 3", duracionSeg: 60 }] });
+    expect(c.subject).toBe("Agregamos 3 videos a tu pedido · FP");
+    expect(c.text).toContain("Agregamos 3 videos a tu pedido N° P-1:");
+    expect(c.text).toContain("• Casamiento 1998 (2 h 05 min)");
+    expect(c.text).toContain("• Cassette 3 (1 min)");
+  });
+});
+
+describe("cassettes que no se pudieron digitalizar en «Tus videos están listos»", () => {
+  it("agrega la línea cuando hay; sin ellos, no", () => {
+    const linea = "2 cassettes no se pudieron digitalizar: Cassette 7 (Cinta cortada), Cassette 9 (Cinta mojada u hongos).";
+    const c = correoVideosListos({ ...base, noDigitalizables: linea });
+    expect(c.text).toContain(linea);
+    expect(c.html).toContain("2 cassettes no se pudieron digitalizar");
+    expect(correoVideosListos(base).text).not.toContain("no se pudo");
+    expect(correoVideosListos(base).text).not.toContain("no se pudieron");
   });
 });
