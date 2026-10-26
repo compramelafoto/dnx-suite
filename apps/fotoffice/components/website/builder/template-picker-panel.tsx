@@ -3,12 +3,14 @@
 import { useState } from "react";
 import { WEBSITE_TEMPLATES, type LayoutPreviewBand, type SiteTemplate } from "@/lib/website/templates";
 import type { FotofficeOrganizationTypeId } from "@/lib/onboarding-constants";
+import type { ModoAplicarPlantilla } from "@/lib/website/apply-template";
 
 /**
- * Panel "Plantillas". La plantilla NUNCA es dueña del contenido (ver `templates.ts`): en un
- * sitio vacío siembra secciones + estilo de una vez; en un sitio con contenido, aplicarla solo
- * cambia el preset de diseño — el contenido existente queda intacto, siempre. Confirmación
- * in-line (no `window.confirm`) solo cuando ya hay contenido que podría preocupar perder.
+ * Panel "Plantillas". La plantilla NUNCA es dueña del contenido (ver `apply-template.ts`): en un
+ * sitio vacío arma el sitio completo (`todo`); en un sitio con contenido se elige entre «Sólo el
+ * diseño» (lo de siempre) y «Diseño y páginas que falten», que suma las páginas de muestra cuya
+ * dirección no exista — nunca pisa ni borra nada. Confirmación in-line (no `window.confirm`)
+ * sólo cuando ya hay contenido.
  */
 export function TemplatePickerPanel({
   hasContent,
@@ -19,13 +21,13 @@ export function TemplatePickerPanel({
   hasContent: boolean;
   canEdit: boolean;
   organizationType: FotofficeOrganizationTypeId | null;
-  onApply: (template: SiteTemplate, mode: "full" | "designOnly") => void;
+  onApply: (template: SiteTemplate, modo: ModoAplicarPlantilla) => void;
 }) {
   const [appliedFlash, setAppliedFlash] = useState<string | null>(null);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
 
-  function apply(template: SiteTemplate) {
-    onApply(template, hasContent ? "designOnly" : "full");
+  function apply(template: SiteTemplate, modo: ModoAplicarPlantilla) {
+    onApply(template, modo);
     setConfirmingId(null);
     setAppliedFlash(template.id);
     setTimeout(() => setAppliedFlash(null), 2500);
@@ -36,7 +38,7 @@ export function TemplatePickerPanel({
       setConfirmingId(template.id);
       return;
     }
-    apply(template);
+    apply(template, "todo");
   }
 
   return (
@@ -45,7 +47,7 @@ export function TemplatePickerPanel({
         <p className="text-xs font-semibold uppercase tracking-wide text-[var(--fo-muted)]">Plantillas</p>
         <p className="text-xs text-[var(--fo-muted)] leading-relaxed">
           {hasContent
-            ? "Tu sitio ya tiene contenido — elegir una plantilla solo cambia el estilo, nunca borra secciones."
+            ? "Tu sitio ya tiene contenido — una plantilla cambia el estilo y, si querés, suma las páginas que falten. Nunca borra ni pisa nada."
             : "Elegí un punto de partida. Vas a poder cambiar todo después."}
         </p>
       </div>
@@ -69,14 +71,17 @@ export function TemplatePickerPanel({
                 confirmingId === template.id ? (
                   <div className="space-y-2 rounded-lg border border-[var(--fo-warning-border)] bg-[var(--fo-warning-soft)] p-2.5">
                     <p className="text-xs text-[var(--fo-warning)] leading-relaxed">
-                      Aplicar esta plantilla cambiará el diseño general pero conservará tus secciones.
+                      Cambia el diseño general y conserva tus secciones y páginas.
                     </p>
-                    <div className="flex gap-2">
-                      <button type="button" className="fo-btn fo-btn-ghost text-xs flex-1 justify-center" onClick={() => setConfirmingId(null)}>
-                        Cancelar
+                    <div className="flex flex-col gap-2">
+                      <button type="button" className="fo-btn fo-btn-primary text-xs justify-center" onClick={() => apply(template, "solo-diseno")}>
+                        Sólo el diseño
                       </button>
-                      <button type="button" className="fo-btn fo-btn-primary text-xs flex-1 justify-center" onClick={() => apply(template)}>
-                        Aplicar diseño
+                      <button type="button" className="fo-btn fo-btn-secondary text-xs justify-center" onClick={() => apply(template, "diseno-y-paginas")}>
+                        Diseño y páginas de muestra que falten
+                      </button>
+                      <button type="button" className="fo-btn fo-btn-ghost text-xs justify-center" onClick={() => setConfirmingId(null)}>
+                        Cancelar
                       </button>
                     </div>
                   </div>
