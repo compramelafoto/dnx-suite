@@ -10,7 +10,7 @@ import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
 import { toVideoEmbedUrl } from "@/lib/website/embed-hosts";
 import { categoriaConsultaParaTrabajo, obtenerTrabajoPublico, sumarVistaTrabajo } from "@/lib/trabajos/publico";
 import { cargarSitioDeTrabajos, metadataDeTrabajos, trabajosPath } from "@/lib/trabajos/paginas.server";
-import { enlacePresupuesto, serializarGaleriaJsonLd } from "@/lib/trabajos/sitio-publico";
+import { descripcionCorta, enlacePresupuesto, serializarGaleriaJsonLd } from "@/lib/trabajos/sitio-publico";
 import { BlogArticleBody } from "@/components/website/blog/blog-article-body";
 import { BlogButtonLink, BlogFrame } from "@/components/website/blog/blog-frame";
 import { BLOG_HEADING_STYLE, BLOG_SOFT_BORDER } from "@/components/website/blog/blog-post-card";
@@ -30,19 +30,6 @@ const cargar = cache(async (workspaceSlug: string, categoriaSlug: string, slug: 
   const trabajo = await obtenerTrabajoPublico(site.workspaceId, categoriaSlug, slug, { base: `/w/${site.workspaceSlug}` });
   return trabajo ? { site, trabajo } : null;
 });
-
-/** Texto plano para la descripción de buscadores: la elegida, o el comienzo de la descripción. */
-function descripcionCorta(seo: string | null, html: string | null, porOmision: string): string {
-  const elegida = seo?.trim();
-  if (elegida) return elegida;
-  const texto = (html ?? "")
-    .replace(/<[^>]*>/g, " ")
-    .replace(/&nbsp;/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-  if (!texto) return porOmision;
-  return texto.length > 160 ? `${texto.slice(0, 157).trimEnd()}…` : texto;
-}
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { workspaceSlug, categoria, trabajo: slug } = await params;

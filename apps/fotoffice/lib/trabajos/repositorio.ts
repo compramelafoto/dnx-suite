@@ -22,6 +22,9 @@ import {
 
 export type Resultado<T> = { ok: true; valor: T } | { ok: false; error: string };
 
+/** Borrados de R2 a la vez al borrar un trabajo. */
+const BORRADOS_EN_PARALELO = 10;
+
 const ok = <T>(valor: T): Resultado<T> => ({ ok: true, valor });
 const fallo = (error: string): Resultado<never> => ({ ok: false, error });
 
@@ -217,9 +220,14 @@ export async function borrarTrabajo(workspaceId: string, id: string): Promise<Re
     console.error("[fotoffice][trabajos] no se pudo listar el prefijo del trabajo borrado:", prefijo, err);
     huerfanas.push(prefijo);
   }
-  for (const k of aBorrar) {
-    const r = await deleteFotofficeR2Object(k);
-    if (!r.ok) huerfanas.push(k);
+  // De a varias a la vez: un trabajo de 300 fotos, una por una, tarda minutos.
+  const pendientes = [...aBorrar];
+  for (let i = 0; i < pendientes.length; i += BORRADOS_EN_PARALELO) {
+    const tanda = pendientes.slice(i, i + BORRADOS_EN_PARALELO);
+    const resultados = await Promise.all(tanda.map((k) => deleteFotofficeR2Object(k).catch(() => ({ ok: false as const }))));
+    resultados.forEach((r, j) => {
+      if (!r.ok) huerfanas.push(tanda[j]);
+    });
   }
   return ok({ huerfanas });
 }
@@ -245,26 +253,36 @@ export async function agregarFotos(workspaceId: string, trabajoId: string, fotos
     select: { orden: true },
   });
   const desde = ultima ? ultima.orden + 1 : 0;
-  await prisma.fotofficeTrabajoFoto.createMany({
-    data: fotos.map((f, i) => ({
-      trabajoId,
-      workspaceId,
-      tipo: f.tipo ?? "FOTO",
-      url: f.url,
-      r2Key: f.r2Key ?? null,
-      ancho: f.ancho ?? null,
-      alto: f.alto ?? null,
-      alt: f.alt ?? null,
-      origenUrl: f.origenUrl ?? null,
-      orden: desde + i,
-    })),
-  });
+  // Una key que ya tiene fila en el trabajo (un reintento que se cruzó con otro) ya está: no es un
+  // error ni se borra nada. `skipDuplicates` la saltea; el P2002 queda por si igual llega.
+  let agregadas = fotos.length;
+  try {
+    const r = await prisma.fotofficeTrabajoFoto.createMany({
+      skipDuplicates: true,
+      data: fotos.map((f, i) => ({
+        trabajoId,
+        workspaceId,
+        tipo: f.tipo ?? "FOTO",
+        url: f.url,
+        r2Key: f.r2Key ?? null,
+        ancho: f.ancho ?? null,
+        alto: f.alto ?? null,
+        alt: f.alt ?? null,
+        origenUrl: f.origenUrl ?? null,
+        orden: desde + i,
+      })),
+    });
+    if (typeof r?.count === "number") agregadas = r.count;
+  } catch (err) {
+    if (!esCodigoUnico(err)) throw err;
+    agregadas = 0;
+  }
   // La primera foto de un trabajo sin portada pasa a ser la portada.
   const primera = fotos.find((f) => (f.tipo ?? "FOTO") === "FOTO");
   if (!t.portadaUrl && primera) {
     await prisma.fotofficeTrabajo.update({ where: { id: trabajoId }, data: { portadaUrl: primera.url } });
   }
-  return ok({ agregadas: fotos.length });
+  return ok({ agregadas });
 }
 
 export async function borrarFoto(

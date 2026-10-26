@@ -58,11 +58,18 @@ describe("prepararSubida", () => {
     expect(r).toEqual({
       ok: true,
       valor: [
-        { nombre: "a.jpg", key: `${P}a.jpg`, uploadUrl: `https://r2.example/put/${P}a.jpg` },
-        { nombre: "b.png", key: `${P}b.png`, uploadUrl: `https://r2.example/put/${P}b.png` },
+        { nombre: "a.jpg", key: `${P}foto.jpg`, uploadUrl: `https://r2.example/put/${P}foto.jpg` },
+        { nombre: "b.png", key: `${P}foto.png`, uploadUrl: `https://r2.example/put/${P}foto.png` },
       ],
     });
     expect(trabajo.findFirst.mock.calls[0][0].where).toEqual({ id: "trabajo1", workspaceId: "ws-1" });
+  });
+
+  it("la extensión de la key sale del tipo, no del nombre que manda el navegador", async () => {
+    trabajo.findFirst.mockResolvedValueOnce({ id: "trabajo1" });
+    foto.count.mockResolvedValueOnce(0);
+    const r = await prepararSubida("ws-1", "trabajo1", [{ nombre: "x.html", tipo: "image/webp", bytes: 10 }]);
+    expect(r.ok && r.valor[0].key).toBe(`${P}foto.webp`);
   });
 
   it("pasar el tope de 300 fotos da error y no firma nada", async () => {
@@ -109,6 +116,18 @@ describe("confirmarSubida", () => {
       alto: 2000,
       workspaceId: "ws-1",
     });
+    expect(borrarR2).not.toHaveBeenCalled();
+  });
+
+  it("si otro pedido la registró en el medio, ya estaba: no es error y no se borra", async () => {
+    objetos.set(`${P}a.jpg`, JPG);
+    trabajo.findFirst.mockResolvedValueOnce({ id: "trabajo1" }).mockResolvedValueOnce({ portadaUrl: "https://x" });
+    foto.count.mockResolvedValueOnce(0);
+    foto.findFirst.mockResolvedValueOnce(null);
+    foto.createMany.mockResolvedValueOnce({ count: 0 });
+    const r = await confirmarSubida("ws-1", "trabajo1", [`${P}a.jpg`]);
+    expect(r).toEqual({ ok: true, valor: { agregadas: 0, yaEstaban: 1, rechazadas: [] } });
+    expect(foto.createMany.mock.calls[0][0].skipDuplicates).toBe(true);
     expect(borrarR2).not.toHaveBeenCalled();
   });
 

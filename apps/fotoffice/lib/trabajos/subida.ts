@@ -8,6 +8,7 @@ import {
   MAX_BYTES_FOTO_TRABAJO,
   MAX_FOTOS_POR_TRABAJO,
   esIdTrabajoValido,
+  nombreParaKey,
   prefijoFotosTrabajo,
 } from "./reglas";
 
@@ -73,7 +74,12 @@ export async function prepararSubida(
   const prefix = prefijoFotosTrabajo(workspaceId, trabajoId);
   const preparadas: SubidaPreparada[] = [];
   for (const a of archivos) {
-    const { uploadUrl, key } = await createFotofficeUploadUrl({ prefix, originalFilename: a.nombre, contentType: a.tipo });
+    // La extensión de la key sale del tipo, no del nombre que manda el navegador.
+    const { uploadUrl, key } = await createFotofficeUploadUrl({
+      prefix,
+      originalFilename: nombreParaKey(a.tipo),
+      contentType: a.tipo,
+    });
     preparadas.push({ nombre: a.nombre, uploadUrl, key });
   }
   return { ok: true, valor: preparadas };
@@ -186,6 +192,9 @@ export async function confirmarSubida(
       await borrarSinFila(workspaceId, trabajoId, validas, "no se pudo registrar");
       return fallo("NO_REGISTRADA", r.error);
     }
+    // Las que otro pedido registró en el medio ya estaban: no se borran ni son error.
+    const agregadas = r.valor.agregadas;
+    return { ok: true, valor: { agregadas, yaEstaban: yaEstaban.size + validas.length - agregadas, rechazadas } };
   }
-  return { ok: true, valor: { agregadas: validas.length, yaEstaban: yaEstaban.size, rechazadas } };
+  return { ok: true, valor: { agregadas: 0, yaEstaban: yaEstaban.size, rechazadas } };
 }

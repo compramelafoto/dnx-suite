@@ -13,6 +13,30 @@ export const MAX_BYTES_FOTO_TRABAJO = 25 * 1024 * 1024;
 /** Formatos que se aceptan (y que el servidor sabe verificar por firma después de la subida). */
 export const FORMATOS_FOTO_TRABAJO = ["image/jpeg", "image/png", "image/webp"] as const;
 
+/** Extensión de la key de R2 según el tipo de la foto. */
+const EXTENSION_POR_TIPO: Record<string, string> = { "image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp" };
+
+/** Nombre que se usa para armar la key de R2: la extensión sale del tipo, nunca del nombre que
+ * eligió el navegador (que puede traer cualquier cosa). Un tipo desconocido queda sin extensión. */
+export function nombreParaKey(tipo: string): string {
+  return `foto${EXTENSION_POR_TIPO[tipo] ?? ""}`;
+}
+
+/** Lado más largo con que se guarda una foto: alcanza para pantallas grandes y el sitio no sirve
+ * originales de 25 MB. */
+export const LADO_MAX_FOTO_TRABAJO = 2560;
+
+/** Medidas de la foto reducida para que su lado más largo no pase de `max`. Nunca agranda. */
+export function medidasReducidas(ancho: number, alto: number, max = LADO_MAX_FOTO_TRABAJO): { ancho: number; alto: number } {
+  const lado = Math.max(ancho, alto);
+  if (!(ancho > 0) || !(alto > 0) || lado <= max) return { ancho, alto };
+  const escala = max / lado;
+  return {
+    ancho: Math.max(1, Math.round(ancho * escala)),
+    alto: Math.max(1, Math.round(alto * escala)),
+  };
+}
+
 /** Largo máximo del texto alternativo de una foto. */
 export const ALT_MAX = 180;
 

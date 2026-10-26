@@ -66,7 +66,62 @@ describe("agregarFotos", () => {
   });
 });
 
+describe("agregarFotos con keys repetidas", () => {
+  it("un P2002 (la key ya tiene fila) cuenta como que ya estaba, no como error", async () => {
+    trabajo.findFirst.mockResolvedValueOnce({ portadaUrl: "https://x" });
+    foto.count.mockResolvedValueOnce(0);
+    foto.findFirst.mockResolvedValueOnce(null);
+    foto.createMany.mockRejectedValueOnce(Object.assign(new Error("unique"), { code: "P2002" }));
+    const r = await agregarFotos("ws-1", "t1", [{ url: "https://cdn/a.jpg", r2Key: P + "a.jpg" }]);
+    expect(r).toEqual({ ok: true, valor: { agregadas: 0 } });
+  });
+
+  it("saltea las repetidas y cuenta sólo las nuevas", async () => {
+    trabajo.findFirst.mockResolvedValueOnce({ portadaUrl: "https://x" });
+    foto.count.mockResolvedValueOnce(0);
+    foto.findFirst.mockResolvedValueOnce(null);
+    foto.createMany.mockResolvedValueOnce({ count: 1 });
+    const r = await agregarFotos("ws-1", "t1", [
+      { url: "https://cdn/a.jpg", r2Key: P + "a.jpg" },
+      { url: "https://cdn/b.jpg", r2Key: P + "b.jpg" },
+    ]);
+    expect(foto.createMany.mock.calls[0][0].skipDuplicates).toBe(true);
+    expect(r).toEqual({ ok: true, valor: { agregadas: 1 } });
+  });
+
+  it("otro error de la base no se traga", async () => {
+    trabajo.findFirst.mockResolvedValueOnce({ portadaUrl: "https://x" });
+    foto.count.mockResolvedValueOnce(0);
+    foto.findFirst.mockResolvedValueOnce(null);
+    foto.createMany.mockRejectedValueOnce(new Error("caída"));
+    await expect(agregarFotos("ws-1", "t1", [{ url: "https://cdn/a.jpg" }])).rejects.toThrow("caída");
+  });
+});
+
 describe("borrarTrabajo", () => {
+  it("borra de R2 de a varias a la vez (nunca más de 10) y anota las que fallan", async () => {
+    trabajo.findFirst.mockResolvedValueOnce({ id: "t1" });
+    foto.findMany.mockResolvedValueOnce([]);
+    tx.mockResolvedValueOnce([]);
+    const keys = Array.from({ length: 25 }, (_, i) => `${P}${i}.jpg`);
+    listarR2.mockResolvedValueOnce(keys);
+    let enCurso = 0;
+    let maximo = 0;
+    borrarR2.mockImplementation(async (k: string) => {
+      enCurso++;
+      maximo = Math.max(maximo, enCurso);
+      await new Promise((r) => setTimeout(r, 1));
+      enCurso--;
+      if (k === `${P}7.jpg`) throw new Error("R2 caído");
+      return { ok: k !== `${P}3.jpg` };
+    });
+    const r = await borrarTrabajo("ws-1", "t1");
+    expect(borrarR2).toHaveBeenCalledTimes(25);
+    expect(maximo).toBeGreaterThan(1);
+    expect(maximo).toBeLessThanOrEqual(10);
+    expect(r).toEqual({ ok: true, valor: { huerfanas: [`${P}3.jpg`, `${P}7.jpg`] } });
+  });
+
   it("borra en la base y en R2, e informa las keys que R2 no pudo borrar", async () => {
     trabajo.findFirst.mockResolvedValueOnce({ id: "t1" });
     foto.findMany.mockResolvedValueOnce([{ r2Key: P + "a.jpg" }, { r2Key: null }, { r2Key: P + "b.jpg" }]);

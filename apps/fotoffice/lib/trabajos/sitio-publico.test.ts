@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { enlacePresupuesto, numeroDePagina, serializarGaleriaJsonLd, totalDePaginas } from "./sitio-publico";
+import {
+  decodificarEntidades,
+  descripcionCorta,
+  enlacePresupuesto,
+  numeroDePagina,
+  serializarGaleriaJsonLd,
+  totalDePaginas,
+} from "./sitio-publico";
 
 describe("numeroDePagina", () => {
   it("acepta enteros desde 1 y cae a 1 con cualquier otra cosa", () => {
@@ -57,5 +64,34 @@ describe("serializarGaleriaJsonLd", () => {
     expect(parsed.thumbnailUrl).toBe("https://app.test/p.jpg");
     expect(parsed.image).toEqual([{ "@type": "ImageObject", contentUrl: "https://cdn/1.jpg", width: 1200, height: 800, caption: "Entrada" }]);
     expect(parsed.contentLocation).toEqual({ "@type": "Place", name: "Rosario" });
+  });
+});
+
+describe("descripcionCorta", () => {
+  it("usa la descripción elegida si hay", () => {
+    expect(descripcionCorta("  Elegida  ", "<p>otra</p>", "x")).toBe("Elegida");
+  });
+
+  it("saca etiquetas y decodifica las entidades comunes", () => {
+    expect(descripcionCorta(null, "<p>Sofi &amp; Juan&nbsp;en &quot;La Casona&quot; &lt;3 &#39;25 &#8212; &#x41;</p>", "x")).toBe(
+      "Sofi & Juan en \"La Casona\" <3 '25 — A",
+    );
+  });
+
+  it("sin texto cae al valor por omisión y corta en 160", () => {
+    expect(descripcionCorta(null, "<p> </p>", "Por omisión")).toBe("Por omisión");
+    const larga = descripcionCorta(null, `<p>${"a".repeat(300)}</p>`, "x");
+    expect(larga).toHaveLength(158);
+    expect(larga.endsWith("…")).toBe(true);
+  });
+});
+
+describe("decodificarEntidades", () => {
+  it("deja como están las desconocidas y las numéricas inválidas", () => {
+    expect(decodificarEntidades("&foo; &#0; &#xD800; &#99999999;")).toBe("&foo; &#0; &#xD800; &#99999999;");
+  });
+
+  it("no decodifica dos veces", () => {
+    expect(decodificarEntidades("&amp;lt;")).toBe("&lt;");
   });
 });

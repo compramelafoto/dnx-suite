@@ -81,3 +81,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS "FotofficeTrabajo_workspaceId_origenExterno_or
 
 -- CreateIndex
 CREATE INDEX IF NOT EXISTS "FotofficeTrabajoFoto_trabajoId_orden_idx" ON "FotofficeTrabajoFoto"("trabajoId", "orden");
+
+-- CreateIndex
+-- Una misma key de R2 no se registra dos veces en un trabajo. Los videos (r2Key nula) sí se repiten:
+-- Postgres trata cada NULL como distinto.
+CREATE UNIQUE INDEX IF NOT EXISTS "FotofficeTrabajoFoto_trabajoId_r2Key_key" ON "FotofficeTrabajoFoto"("trabajoId", "r2Key");

@@ -22,7 +22,13 @@ import {
   elegirPortadaAction,
   reordenarFotosAction,
 } from "@/app/actions/trabajos";
-import { ALT_MAX, FORMATOS_FOTO_TRABAJO, MAX_BYTES_FOTO_TRABAJO, MAX_FOTOS_POR_TRABAJO } from "@/lib/trabajos/reglas";
+import {
+  ALT_MAX,
+  FORMATOS_FOTO_TRABAJO,
+  MAX_BYTES_FOTO_TRABAJO,
+  MAX_FOTOS_POR_TRABAJO,
+  medidasReducidas,
+} from "@/lib/trabajos/reglas";
 
 export type FotoDelPanel = {
   id: string;
@@ -35,44 +41,93 @@ export type FotoDelPanel = {
 
 type EstadoArchivo = { id: number; nombre: string; estado: "esperando" | "subiendo" | "listo" | "error"; error?: string };
 
-/** Archivos por pedido de URLs firmadas: vencen al minuto si la subida no empezó, así que se
- * piden de a poco, justo antes de subir cada tanda. */
+/** Archivos que se confirman juntos (una llamada al servidor por tanda). */
 const TANDA = 6;
-/** Subidas a la vez dentro de una tanda. */
+/** Fotos que se procesan y suben a la vez. */
 const EN_PARALELO = 3;
 const MB = 1024 * 1024;
+/** Calidad con que se guarda la foto reducida (JPEG o WebP). */
+const CALIDAD = 0.85;
 
 /** PUT a la URL firmada con progreso (fetch no informa el avance de la subida). */
-function subirConProgreso(url: string, file: File, alAvanzar: (bytes: number) => void): Promise<boolean> {
+function subirConProgreso(url: string, archivo: Blob, alAvanzar: (bytes: number) => void): Promise<boolean> {
   return new Promise((resolve) => {
     const xhr = new XMLHttpRequest();
     xhr.open("PUT", url);
-    xhr.setRequestHeader("Content-Type", file.type);
+    xhr.setRequestHeader("Content-Type", archivo.type);
     xhr.upload.onprogress = (e) => alAvanzar(e.loaded);
     xhr.onload = () => resolve(xhr.status >= 200 && xhr.status < 300);
     xhr.onerror = () => resolve(false);
     xhr.onabort = () => resolve(false);
-    xhr.send(file);
+    xhr.send(archivo);
   });
 }
 
-async function leerMedidas(file: File): Promise<{ ancho: number; alto: number } | null> {
-  try {
-    const bitmap = await createImageBitmap(file);
-    try {
-      return { ancho: bitmap.width, alto: bitmap.height };
-    } finally {
-      bitmap.close();
+type FotoLista = { archivo: Blob; ancho: number | null; alto: number | null };
+
+async function codificar(bitmap: ImageBitmap, ancho: number, alto: number, tipo: string): Promise<Blob | null> {
+  // Si termina en JPEG, lo transparente queda blanco (si no, saldría negro).
+  const pintar = (ctx: OffscreenCanvasRenderingContext2D | CanvasRenderingContext2D) => {
+    if (tipo === "image/jpeg") {
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(0, 0, ancho, alto);
     }
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(bitmap, 0, 0, ancho, alto);
+  };
+  if (typeof OffscreenCanvas !== "undefined") {
+    const lienzo = new OffscreenCanvas(ancho, alto);
+    const ctx = lienzo.getContext("2d");
+    if (ctx) {
+      pintar(ctx);
+      return lienzo.convertToBlob({ type: tipo, quality: CALIDAD }).catch(() => null);
+    }
+  }
+  const lienzo = document.createElement("canvas");
+  lienzo.width = ancho;
+  lienzo.height = alto;
+  const ctx = lienzo.getContext("2d");
+  if (!ctx) return null;
+  pintar(ctx);
+  return new Promise((resolve) => lienzo.toBlob((b) => resolve(b), tipo, CALIDAD));
+}
+
+/**
+ * La foto como se guarda en el sitio: con el lado más largo en 2560 px como mucho (nunca se
+ * agranda), en JPEG; las PNG y WebP pasan a WebP para no perder la transparencia. Un original de
+ * 25 MB queda en 1 o 2 MB y el sitio carga rápido. Las medidas salen de este mismo paso.
+ *
+ * Si el navegador no puede (formato que no sabe leer, sin canvas), sube el original tal cual y el
+ * servidor decide al verificarlo.
+ */
+async function prepararFoto(file: File): Promise<FotoLista> {
+  let bitmap: ImageBitmap;
+  try {
+    bitmap = await createImageBitmap(file);
   } catch {
-    return null;
+    return { archivo: file, ancho: null, alto: null };
+  }
+  try {
+    const { ancho, alto } = medidasReducidas(bitmap.width, bitmap.height);
+    const reducida = ancho !== bitmap.width || alto !== bitmap.height;
+    const destino = file.type === "image/jpeg" ? "image/jpeg" : "image/webp";
+    let blob = await codificar(bitmap, ancho, alto, destino).catch(() => null);
+    // Safari no sabe codificar WebP y devuelve PNG: sirve igual (conserva la transparencia).
+    if (blob && !(FORMATOS_FOTO_TRABAJO as readonly string[]).includes(blob.type)) blob = null;
+    if (!blob) return { archivo: file, ancho: reducida ? null : bitmap.width, alto: reducida ? null : bitmap.height };
+    // Una foto chica que al recodificarla pesa más se sube como vino.
+    if (!reducida && blob.size >= file.size) return { archivo: file, ancho: bitmap.width, alto: bitmap.height };
+    return { archivo: blob, ancho, alto };
+  } finally {
+    bitmap.close();
   }
 }
 
 /**
  * Las fotos (y videos por enlace) de un trabajo.
  *
- * Subida: directo del navegador a R2, por tandas (URL firmada → PUT → confirmar). El servidor
+ * Subida: directo del navegador a R2. Cada foto se achica en el navegador, pide su URL firmada y
+ * se sube; cada tanda se confirma junta. El servidor
  * verifica cada archivo ya subido y descarta lo que no es foto; acá se muestra el resultado por
  * archivo, porque cuando fallan tres de cuarenta hay que saber cuáles.
  *
@@ -111,55 +166,62 @@ export function TrabajoFotos({ trabajoId, fotos, portadaUrl }: { trabajoId: stri
     setArchivos((prev) => prev.map((a) => (a.id === id ? { ...a, ...cambio } : a)));
   }
 
-  /** `cuenta.total` baja cuando un archivo falla: la barra mide sólo lo que de verdad se sube. */
-  async function subirTanda(tanda: { id: number; file: File }[], avance: Map<number, number>, cuenta: { total: number }) {
-    const refrescar = () =>
-      setProgreso((p) => (p ? { ...p, subidos: [...avance.values()].reduce((a, b) => a + b, 0), total: cuenta.total } : p));
-    const descontar = (id: number, file: File) => {
-      avance.delete(id);
-      cuenta.total -= file.size;
-      refrescar();
-    };
+  /** Pide la URL firmada de UNA foto ya preparada. Se pide justo antes del PUT: vence al minuto si
+   * la subida no empezó, así que entre una cosa y la otra no se hace nada pesado. */
+  async function pedirUrl(nombre: string, archivo: Blob): Promise<{ uploadUrl: string; key: string } | { error: string }> {
     const permiso = await fetch(`/api/website/trabajos/${trabajoId}/upload-url`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ archivos: tanda.map(({ file }) => ({ nombre: file.name, tipo: file.type, bytes: file.size })) }),
+      body: JSON.stringify({ archivos: [{ nombre, tipo: archivo.type, bytes: archivo.size }] }),
     }).catch(() => null);
     const datos = (await permiso?.json().catch(() => null)) as {
       subidas?: { uploadUrl: string; key: string }[];
       error?: string;
     } | null;
-    if (!permiso?.ok || !datos?.subidas || datos.subidas.length !== tanda.length) {
-      const mensaje = datos?.error ?? "No pudimos preparar la subida.";
-      for (const t of tanda) {
-        marcar(t.id, { estado: "error", error: mensaje });
-        descontar(t.id, t.file);
-      }
-      return;
-    }
-    const subidas = datos.subidas;
+    const subida = datos?.subidas?.[0];
+    if (!permiso?.ok || !subida) return { error: datos?.error ?? "No pudimos preparar la subida." };
+    return subida;
+  }
+
+  /** `cuenta.total` se ajusta cuando una foto se reduce o falla: la barra mide sólo lo que de verdad
+   * se sube. */
+  async function subirTanda(tanda: { id: number; file: File }[], avance: Map<number, number>, cuenta: { total: number }) {
+    const refrescar = () =>
+      setProgreso((p) => (p ? { ...p, subidos: [...avance.values()].reduce((a, b) => a + b, 0), total: cuenta.total } : p));
+    const descontar = (id: number, bytes: number) => {
+      avance.delete(id);
+      cuenta.total -= bytes;
+      refrescar();
+    };
 
     const listas: { id: number; key: string }[] = [];
     const medidas: Record<string, { ancho: number; alto: number }> = {};
     let siguiente = 0;
     async function trabajador() {
       while (siguiente < tanda.length) {
-        const i = siguiente++;
-        const { id, file } = tanda[i];
-        const { uploadUrl, key } = subidas[i];
+        const { id, file } = tanda[siguiente++];
         marcar(id, { estado: "subiendo" });
-        const m = await leerMedidas(file);
-        if (m) medidas[key] = m;
-        const ok = await subirConProgreso(uploadUrl, file, (b) => {
+        // Primero se achica (lo pesado); recién después se pide la URL, y enseguida se sube.
+        const foto = await prepararFoto(file);
+        cuenta.total -= file.size - foto.archivo.size;
+        refrescar();
+        const permiso = await pedirUrl(file.name, foto.archivo);
+        if ("error" in permiso) {
+          descontar(id, foto.archivo.size);
+          marcar(id, { estado: "error", error: permiso.error });
+          continue;
+        }
+        const ok = await subirConProgreso(permiso.uploadUrl, foto.archivo, (b) => {
           avance.set(id, b);
           refrescar();
         });
         if (ok) {
-          avance.set(id, file.size);
+          avance.set(id, foto.archivo.size);
           refrescar();
-          listas.push({ id, key });
+          listas.push({ id, key: permiso.key });
+          if (foto.ancho && foto.alto) medidas[permiso.key] = { ancho: foto.ancho, alto: foto.alto };
         } else {
-          descontar(id, file);
+          descontar(id, foto.archivo.size);
           marcar(id, { estado: "error", error: "La subida se cortó. Revisá tu conexión y probá de nuevo." });
         }
       }
@@ -169,7 +231,13 @@ export function TrabajoFotos({ trabajoId, fotos, portadaUrl }: { trabajoId: stri
 
     // En el orden en que se eligieron, no en el que terminaron de subir.
     const enOrden = tanda.flatMap((t) => listas.filter((l) => l.id === t.id));
-    const r = await confirmarSubidaAction(trabajoId, enOrden.map((l) => l.key), medidas);
+    let r: Awaited<ReturnType<typeof confirmarSubidaAction>>;
+    try {
+      r = await confirmarSubidaAction(trabajoId, enOrden.map((l) => l.key), medidas);
+    } catch {
+      // Se cortó la conexión con el servidor: esta tanda queda con error y se sigue con la próxima.
+      r = { ok: false, error: "No pudimos registrar las fotos. Revisá tu conexión y probá de nuevo." };
+    }
     if (!r.ok) {
       for (const l of enOrden) marcar(l.id, { estado: "error", error: r.error });
       return;
@@ -213,7 +281,21 @@ export function TrabajoFotos({ trabajoId, fotos, portadaUrl }: { trabajoId: stri
     setProgreso({ subidos: 0, total, cantidad: aSubir.length });
     try {
       const cuenta = { total };
-      for (let i = 0; i < aSubir.length; i += TANDA) await subirTanda(aSubir.slice(i, i + TANDA), avance, cuenta);
+      for (let i = 0; i < aSubir.length; i += TANDA) {
+        const tanda = aSubir.slice(i, i + TANDA);
+        try {
+          await subirTanda(tanda, avance, cuenta);
+        } catch {
+          // Algo inesperado en esta tanda: lo que no terminó queda con error y se sigue.
+          setArchivos((prev) =>
+            prev.map((a) =>
+              tanda.some((t) => t.id === a.id) && a.estado !== "listo" && a.estado !== "error"
+                ? { ...a, estado: "error", error: "No pudimos subir esta foto. Probá de nuevo." }
+                : a,
+            ),
+          );
+        }
+      }
     } finally {
       setProgreso(null);
       if (input.current) input.current.value = "";

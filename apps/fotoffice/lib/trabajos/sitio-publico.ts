@@ -80,3 +80,30 @@ export function serializarGaleriaJsonLd(input: {
   };
   return JSON.stringify(jsonLd).replace(/</g, "\\u003c");
 }
+
+const ENTIDADES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " };
+
+/** Pasa las entidades HTML más comunes (y las numéricas) a su carácter. Las que no conoce quedan. */
+export function decodificarEntidades(texto: string): string {
+  return texto.replace(/&(#x[0-9a-f]+|#[0-9]+|[a-z]+);/gi, (entera, cuerpo: string) => {
+    if (cuerpo[0] === "#") {
+      const n = cuerpo[1] === "x" || cuerpo[1] === "X" ? parseInt(cuerpo.slice(2), 16) : parseInt(cuerpo.slice(1), 10);
+      if (!Number.isFinite(n) || n <= 0 || n > 0x10ffff || (n >= 0xd800 && n <= 0xdfff)) return entera;
+      // Un espacio duro numérico (&#160;) también es un espacio para buscadores.
+      return n === 160 ? " " : String.fromCodePoint(n);
+    }
+    return ENTIDADES[cuerpo.toLowerCase()] ?? entera;
+  });
+}
+
+/** Texto plano para la descripción de buscadores: la elegida, o el comienzo de la descripción
+ * (sin etiquetas y con las entidades ya decodificadas: `&amp;` se ve como «&»). */
+export function descripcionCorta(seo: string | null, html: string | null, porOmision: string): string {
+  const elegida = seo?.trim();
+  if (elegida) return elegida;
+  const texto = decodificarEntidades((html ?? "").replace(/<[^>]*>/g, " "))
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!texto) return porOmision;
+  return texto.length > 160 ? `${texto.slice(0, 157).trimEnd()}…` : texto;
+}

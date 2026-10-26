@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MAX_FOTOS_POR_TRABAJO, fechaLarga, slugDeTitulo, validarSlugTrabajo } from "./reglas";
+import { MAX_FOTOS_POR_TRABAJO, fechaLarga, medidasReducidas, nombreParaKey, slugDeTitulo, validarSlugTrabajo } from "./reglas";
 
 describe("validarSlugTrabajo", () => {
   it("acepta letras minúsculas, números y guiones", () => {
@@ -48,4 +48,30 @@ describe("fechaLarga", () => {
 
 it("tope de fotos por trabajo", () => {
   expect(MAX_FOTOS_POR_TRABAJO).toBe(300);
+});
+
+describe("medidasReducidas", () => {
+  it("lleva el lado más largo a 2560 y conserva la proporción", () => {
+    expect(medidasReducidas(6000, 4000)).toEqual({ ancho: 2560, alto: 1707 });
+    expect(medidasReducidas(4000, 6000)).toEqual({ ancho: 1707, alto: 2560 });
+  });
+
+  it("nunca agranda", () => {
+    expect(medidasReducidas(1200, 800)).toEqual({ ancho: 1200, alto: 800 });
+    expect(medidasReducidas(2560, 2560)).toEqual({ ancho: 2560, alto: 2560 });
+  });
+
+  it("respeta otro máximo y no da cero en una tira finísima", () => {
+    expect(medidasReducidas(1000, 500, 100)).toEqual({ ancho: 100, alto: 50 });
+    expect(medidasReducidas(100000, 2)).toEqual({ ancho: 2560, alto: 1 });
+  });
+});
+
+describe("nombreParaKey", () => {
+  it("la extensión sale del tipo, no del nombre del archivo", () => {
+    expect(nombreParaKey("image/jpeg")).toBe("foto.jpg");
+    expect(nombreParaKey("image/png")).toBe("foto.png");
+    expect(nombreParaKey("image/webp")).toBe("foto.webp");
+    expect(nombreParaKey("text/html")).toBe("foto");
+  });
 });
