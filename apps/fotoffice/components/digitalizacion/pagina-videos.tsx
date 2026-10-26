@@ -158,6 +158,12 @@ export function PaginaVideos(props: Props) {
         })}
       </ul>
 
+      {vista.noDigitalizables.length > 0 ? (
+        <ul className="space-y-1 rounded border p-4 text-sm">
+          {vista.noDigitalizables.map((n) => <li key={n.id}>{n.texto}</li>)}
+        </ul>
+      ) : null}
+
       {vista.extensionPendiente ? (
         <div className="space-y-2 rounded border p-4">
           <p>Extensión de 30 días pedida: {pesos(vista.extensionPendiente.montoMinor)}, pendiente de pago.</p>

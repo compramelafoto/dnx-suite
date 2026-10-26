@@ -2,6 +2,8 @@
 import Link from "next/link";
 import { AccionesGrabacion } from "@/components/digitalizacion/acciones-grabacion";
 import { AccionesEntrega, EnvioYCargos, VerComoCliente } from "@/components/digitalizacion/entregas";
+import { QuitarNoDigitalizable, RegistrarNoDigitalizable } from "@/components/digitalizacion/no-digitalizable";
+import { esNoDigitalizable, siguienteCassette, textoNoDigitalizable, tipoPorDefecto } from "@/lib/digitalizacion/no-digitalizable";
 import { confirmacionEnvioIncompleto, textoDeCassettes } from "@/lib/digitalizacion/cassettes";
 import { extensionDeMime } from "@/lib/digitalizacion/claves";
 import { duracionLegible, estadoVisibleDeEntrega, fechaArgentina, fechaHoraArgentina } from "@/lib/digitalizacion/entrega";
@@ -63,6 +65,11 @@ export function EstadoDeEntrega({ entrega, puedeGrabar, envioAutomatico, ahora, 
           ))}
         </ul>
       ) : null}
+      {conDescargas && entrega.noDigitalizables.length > 0 ? (
+        <ul className="space-y-0.5 text-[var(--fo-muted)]">
+          {entrega.noDigitalizables.map((n) => <li key={n.id}>{n.texto}</li>)}
+        </ul>
+      ) : null}
       <EnvioYCargos entregaId={r.entrega?.id ?? null} envio={r.envio} cargos={r.cargosPendientes} aRevisar={r.cargosARevisar} puedeGestionar={puedeGrabar} />
       {puedeGrabar && !r.cancelado ? (
         <AccionesEntrega
@@ -86,6 +93,7 @@ type GrabacionDelTrabajo = {
   id: string; titulo: string | null; tipo: string; estado: string; cassetteNumero: number | null; duracionSeg: number; iniciadaAt: Date;
   ultimoLatidoAt: Date | null; sinImagen: boolean; mimeType: string; conversionEstado: string | null; conversionError: string | null;
   videoDuracionSeg: number | null; partesBorradasAt: Date | null; hlsKey: string | null; videoBorradoAt: Date | null; descargasExtra: number;
+  motivoFin: string | null;
 };
 
 /** La sección «Digitalización» de la ficha del trabajo. */
@@ -114,11 +122,27 @@ export function DigitalizacionDelTrabajo({ datos, puedeGrabar, envioAutomatico, 
       {trabajo.cassettes.esperados !== null || trabajo.cassettes.grabados > 0 ? (
         <p className="text-sm font-medium">{textoDeCassettes(trabajo.cassettes)}</p>
       ) : null}
+      {puedeGrabar ? (
+        <RegistrarNoDigitalizable
+          proyectoId={trabajo.id}
+          siguiente={siguienteCassette(grabaciones.filter((g) => g.estado !== "DESCARTADA").map((g) => g.cassetteNumero))}
+          tipo={tipoPorDefecto([trabajo.nombre], grabaciones.filter((g) => g.estado !== "DESCARTADA").map((g) => g.tipo))}
+        />
+      ) : null}
       {grabaciones.length === 0 ? (
         <p className="text-sm text-[var(--fo-muted)]">Todavía no hay grabaciones de este trabajo.</p>
       ) : (
         <ul className="divide-y divide-[var(--fo-border)] text-sm">
           {grabaciones.map((g) => {
+            if (esNoDigitalizable(g)) {
+              const quitado = g.estado === "DESCARTADA";
+              return (
+                <li key={g.id} className="flex flex-wrap items-baseline justify-between gap-2 py-2">
+                  <p className={quitado ? "text-[var(--fo-muted)] line-through" : "font-medium"}>{textoNoDigitalizable(g)}</p>
+                  {quitado ? <span className="text-xs text-[var(--fo-muted)]">Quitado</span> : puedeGrabar ? <QuitarNoDigitalizable id={g.id} /> : null}
+                </li>
+              );
+            }
             const estado = estadoDeGrabacion(g, ahora);
             const duracion = g.videoDuracionSeg ?? (g.tipo === "VHS" ? g.duracionSeg : null);
             const usadas = entrega?.descargas.get(g.id) ?? 0;

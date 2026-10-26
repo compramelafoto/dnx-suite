@@ -123,6 +123,32 @@ export function extensionPorVideosNuevos(
   return nuevo;
 }
 
+/** Entre un aviso al cliente y el siguiente «Agregamos…» pasan al menos estas horas: se juntan los videos. */
+export const HORAS_ENTRE_AVISOS = 6;
+
+export type AvisoVideosNuevos<G> = { tipo: "NADA" } | { tipo: "ESPERAR"; hasta: Date } | { tipo: "AVISAR"; nuevos: G[] };
+
+/**
+ * ¿Sale el correo «Agregamos … a tu pedido»? `ultimoAviso` es el último correo que vio el cliente
+ * con la lista de videos: el envío (`enviadoAt`), un reenvío o el último «Agregamos…» (las notas que
+ * deja `servidor/entregas.ts`). Los nuevos son los LISTA convertidos después. Si el último aviso fue
+ * hace menos de 6 h, espera y los junta; si no, avisa todos juntos en un solo correo. Idempotente:
+ * después de avisar, el aviso nuevo es la marca y esos videos dejan de ser nuevos.
+ */
+export function avisoDeVideosNuevos<G extends { estado: string; conversionEstado: string | null; convertidaAt: Date | null }>(
+  ultimoAviso: Date,
+  grabaciones: readonly G[],
+  ahora: Date,
+): AvisoVideosNuevos<G> {
+  const nuevos = grabaciones
+    .filter((g) => g.estado === "COMPLETA" && g.conversionEstado === "LISTA" && g.convertidaAt && g.convertidaAt.getTime() > ultimoAviso.getTime())
+    .sort((a, b) => a.convertidaAt!.getTime() - b.convertidaAt!.getTime());
+  if (nuevos.length === 0) return { tipo: "NADA" };
+  const hasta = new Date(ultimoAviso.getTime() + HORAS_ENTRE_AVISOS * HORA_MS);
+  if (hasta.getTime() > ahora.getTime()) return { tipo: "ESPERAR", hasta };
+  return { tipo: "AVISAR", nuevos };
+}
+
 /** Duración de una firma: la normal, o lo que falte para el vencimiento si es menos; nunca menos de 60 s. */
 export function segundosDeFirma(normal: number, videosVencenAt: Date | null, ahora: Date): number {
   if (!videosVencenAt) return normal;

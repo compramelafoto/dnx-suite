@@ -8,7 +8,7 @@ const db = vi.hoisted(() => {
     fotofficePedido: { findFirst: vi.fn(), findMany: vi.fn() },
     fotofficeProyecto: { findMany: vi.fn(async (): Promise<unknown[]> => []) },
     fotofficeWorkspaceBranding: { findUnique: vi.fn() },
-    fotofficeProyectoNota: { createMany: vi.fn(), findMany: vi.fn(async (): Promise<unknown[]> => []) },
+    fotofficeProyectoNota: { createMany: vi.fn(), findMany: vi.fn(async (): Promise<unknown[]> => []), findFirst: vi.fn(async (): Promise<unknown> => null) },
     $executeRaw: vi.fn(async () => 0),
     $queryRaw: vi.fn(async () => []),
     $transaction: vi.fn(),
@@ -81,6 +81,8 @@ beforeEach(() => {
   db.digitalizacionGrabacion.findMany.mockResolvedValue([lista]);
   db.digitalizacionEntrega.updateMany.mockResolvedValue({ count: 1 });
   db.fotofficeWorkspaceBranding.findUnique.mockResolvedValue({ whatsapp: null, phone: null });
+  db.fotofficeProyectoNota.findFirst.mockReset();
+  db.fotofficeProyectoNota.findFirst.mockResolvedValue(null);
   saldo.saldoDelPedido.mockResolvedValue({ numero: "P-12", saldoMinor: 0 });
 });
 
@@ -291,6 +293,29 @@ describe("enviarEntregasAutomaticas", () => {
       expect(await enviarEntrega("ws1", "e1", "CORREO", d)).toMatchObject({ ok: true, correo: "ENVIADO" });
       expect(d.enviar).toHaveBeenCalledTimes(1);
     });
+    it("20 vendidos: 18 listos + 2 que no se pudieron → sale solo, con la línea de los que no se pudieron", async () => {
+      const viejo = { terminadaAt: new Date("2026-10-20T10:00:00Z"), convertidaAt: new Date("2026-10-20T12:00:00Z") };
+      const listos = Array.from({ length: 18 }, (_, i) => ({ ...lista, ...viejo, id: `g${i + 1}`, titulo: null, cassetteNumero: i + 1 }));
+      const noSePudo = (n: number, motivo: string) => ({
+        ...lista, id: `n${n}`, cassetteNumero: n, titulo: motivo, conversionEstado: "SIN_IMAGEN", sinImagen: true, motivoFin: "NO_DIGITALIZABLE",
+        videoKey: null, videoDuracionSeg: null, terminadaAt: new Date("2026-10-20T13:00:00Z"), convertidaAt: null,
+      });
+      const gs = [...listos, noSePudo(20, "Cinta vacía (sin grabación)"), noSePudo(19, "Cinta cortada")];
+      pedido(gs, [trabajo("t1", 0, [vhs(20)], gs)]);
+      const d = deps();
+      expect(await enviarEntregasAutomaticas(d)).toMatchObject({ enviadas: 1, faltanCassettes: 0 });
+      const correo = d.enviar.mock.calls[0]![0];
+      expect(correo.text).toContain("tus 18 videos");
+      expect(correo.text).toContain("2 cassettes no se pudieron digitalizar: Cassette 19 (Cinta cortada), Cassette 20 (Cinta vacía (sin grabación)).");
+      expect(etapas.avanzarTrabajos).toHaveBeenCalledWith("ws1", ["t1"], "LISTO");
+      // Con uno «quitado» (DESCARTADA) falta un cassette: no sale solo.
+      vi.clearAllMocks();
+      const conQuitado = [...listos, noSePudo(19, "Cinta cortada"), { ...noSePudo(20, "Cinta vacía (sin grabación)"), estado: "DESCARTADA", conversionEstado: null }];
+      pedido(conQuitado, [trabajo("t1", 0, [vhs(20)], conQuitado)]);
+      const d2 = deps();
+      expect(await enviarEntregasAutomaticas(d2)).toMatchObject({ enviadas: 0, faltanCassettes: 1 });
+      expect(d2.enviar).not.toHaveBeenCalled();
+    });
     it("resumen y asegurarEntrega traen la cuenta del pedido", async () => {
       pedido([lista]);
       expect((await asegurarEntrega("ws1", "p1"))?.cassettes).toEqual({ esperados: 2, grabados: 1, hechos: 1, faltan: 1 });
@@ -318,7 +343,9 @@ describe("enviarEntregasAutomaticas", () => {
     db.digitalizacionEntrega.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([
       entrega({ accessTokenHash: hash, enviadoAt: new Date("2026-10-10T12:00:00Z"), videosVencenAt: vence, cassettesVencenAt: vence, recordatorios: [10] }),
     ]);
-    db.digitalizacionGrabacion.findMany.mockResolvedValue([lista, { ...lista, id: "g2", titulo: "Cumple", convertidaAt: new Date("2026-10-21T12:00:00Z") }]);
+    // «Boda» ya estaba en el envío (10/10); «Cumple» se convirtió después.
+    const boda = { ...lista, convertidaAt: new Date("2026-10-09T12:00:00Z") };
+    db.digitalizacionGrabacion.findMany.mockResolvedValue([boda, { ...lista, id: "g2", titulo: "Cumple", convertidaAt: new Date("2026-10-21T12:00:00Z") }]);
     const d = deps();
     const r = await enviarEntregasAutomaticas(d);
     const nuevo = new Date("2026-11-21T02:59:59.999Z");
@@ -329,13 +356,79 @@ describe("enviarEntregasAutomaticas", () => {
     const correo = d.enviar.mock.calls[0]![0];
     expect(correo.subject).toContain("Agregamos un video");
     expect(correo.text).toContain(tokenDeEntrega("e1", "clave", 1));
-    expect(correo.idempotencyKey).toBe(`fotoffice-videos:e1:v${nuevo.getTime()}:agregado`);
+    expect(correo.idempotencyKey).toBe(`fotoffice-videos:e1:a${new Date("2026-10-10T12:00:00Z").getTime()}-${new Date("2026-10-21T12:00:00Z").getTime()}:agregado`);
+    // Sólo el video nuevo, y queda la nota que sirve de marca para el próximo aviso.
+    expect(correo.text).toContain("• Cumple");
+    expect(correo.text).not.toContain("• Boda");
+    expect(db.fotofficeProyectoNota.createMany.mock.calls[0][0].data[0].body).toBe("Correo «Agregamos un video a tu pedido» enviado a ana@x.com.");
     expect(r).toMatchObject({ extendidas: 1, avisosAgregado: 1 });
   });
-  it("ya extendida: no hace nada", async () => {
+  describe("aviso «Agregamos …» agrupado", () => {
+    const enviadoAt = new Date("2026-10-10T12:00:00Z");
+    const vence = new Date("2026-11-30T02:59:59.999Z"); // ya cubre los videos nuevos: no hay extensión
+    const enviada = () => entrega({ accessTokenHash: hashDeToken(tokenDeEntrega("e1", "clave", 1)), enviadoAt, videosVencenAt: vence, cassettesVencenAt: vence });
+    const boda = { ...lista, convertidaAt: new Date("2026-10-09T12:00:00Z") };
+    const nuevo = (id: string, titulo: string, convertidaAt: string) => ({ ...lista, id, titulo, convertidaAt: new Date(convertidaAt) });
+
+    it("3 videos nuevos en la misma pasada: un solo correo con los 3", async () => {
+      db.digitalizacionEntrega.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([enviada()]);
+      db.digitalizacionGrabacion.findMany.mockResolvedValue([
+        boda, nuevo("g2", "Cumple", "2026-10-22T10:00:00Z"), nuevo("g3", "Viaje", "2026-10-22T11:00:00Z"), nuevo("g4", "Bautismo", "2026-10-22T12:00:00Z"),
+      ]);
+      const d = deps();
+      const r = await enviarEntregasAutomaticas(d);
+      expect(d.enviar).toHaveBeenCalledTimes(1);
+      const correo = d.enviar.mock.calls[0]![0];
+      expect(correo.subject).toBe("Agregamos 3 videos a tu pedido · Foto Positiva");
+      for (const t of ["• Cumple", "• Viaje", "• Bautismo"]) expect(correo.text).toContain(t);
+      expect(correo.text).not.toContain("• Boda");
+      expect(r).toMatchObject({ extendidas: 0, avisosAgregado: 1, avisosEsperando: 0 });
+      expect(db.fotofficeProyectoNota.createMany.mock.calls[0][0].data[0].body).toBe("Correo «Agregamos 3 videos a tu pedido» enviado a ana@x.com.");
+    });
+    it("un video más 2 h después del aviso: espera; pasadas las 6 h, avisa sólo ese", async () => {
+      const aviso = new Date("2026-10-22T13:00:00Z"); // AHORA es 15:00
+      const gs = [boda, nuevo("g2", "Cumple", "2026-10-22T12:00:00Z"), nuevo("g3", "Viaje", "2026-10-22T14:30:00Z")];
+      db.digitalizacionEntrega.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([enviada()]);
+      db.digitalizacionGrabacion.findMany.mockResolvedValue(gs);
+      db.fotofficeProyectoNota.findFirst.mockResolvedValue({ createdAt: aviso });
+      const d = deps();
+      expect(await enviarEntregasAutomaticas(d)).toMatchObject({ avisosAgregado: 0, avisosEsperando: 1 });
+      expect(d.enviar).not.toHaveBeenCalled();
+      // La marca son las notas de los correos con la lista de videos (y el envío).
+      expect((db.fotofficeProyectoNota.findFirst.mock.calls[0] as unknown[])[0]).toMatchObject({
+        where: { workspaceId: "ws1", proyecto: { workspaceId: "ws1", pedidoId: "p1" }, OR: [{ body: { startsWith: "Correo «Agregamos" } }, { body: { startsWith: "Correo «Tus videos están listos»" } }] },
+        orderBy: { createdAt: "desc" },
+      });
+      // 19:01: ya pasaron 6 h del aviso.
+      db.digitalizacionEntrega.findMany.mockReset();
+      db.digitalizacionEntrega.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([enviada()]);
+      const tarde = { ...deps(), ahora: () => new Date("2026-10-22T19:01:00Z") };
+      expect(await enviarEntregasAutomaticas(tarde)).toMatchObject({ avisosAgregado: 1, avisosEsperando: 0 });
+      const correo = tarde.enviar.mock.calls[0]![0];
+      expect(correo.subject).toBe("Agregamos un video a tu pedido · Foto Positiva");
+      expect(correo.text).toContain("• Viaje");
+      expect(correo.text).not.toContain("• Cumple");
+    });
+    it("recién enviada (hace menos de 6 h): el primer «Agregamos» también espera", async () => {
+      db.digitalizacionEntrega.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([entrega({ ...enviada(), enviadoAt: new Date("2026-10-22T12:00:00Z") })]);
+      db.digitalizacionGrabacion.findMany.mockResolvedValue([boda, nuevo("g2", "Cumple", "2026-10-22T14:00:00Z")]);
+      const d = deps();
+      expect(await enviarEntregasAutomaticas(d)).toMatchObject({ avisosAgregado: 0, avisosEsperando: 1 });
+      expect(d.enviar).not.toHaveBeenCalled();
+    });
+    it("si el correo no sale no queda la nota: la pasada siguiente lo reintenta con la misma clave", async () => {
+      db.digitalizacionEntrega.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([enviada()]);
+      db.digitalizacionGrabacion.findMany.mockResolvedValue([boda, nuevo("g2", "Cumple", "2026-10-22T10:00:00Z")]);
+      const d = deps(enviador({ status: "PROVIDER_REJECTED", detail: "x" }));
+      expect(await enviarEntregasAutomaticas(d)).toMatchObject({ avisosAgregado: 0 });
+      expect(db.fotofficeProyectoNota.createMany).not.toHaveBeenCalled();
+    });
+  });
+  it("ya extendida y avisada: no hace nada", async () => {
     db.digitalizacionEntrega.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([
       entrega({ enviadoAt: new Date("2026-10-10T12:00:00Z"), videosVencenAt: new Date("2026-11-21T02:59:59.999Z") }),
     ]);
+    db.fotofficeProyectoNota.findFirst.mockResolvedValueOnce({ createdAt: new Date("2026-10-21T12:15:00Z") });
     db.digitalizacionGrabacion.findMany.mockResolvedValue([{ ...lista, convertidaAt: new Date("2026-10-21T12:00:00Z") }]);
     const d = deps();
     await enviarEntregasAutomaticas(d);

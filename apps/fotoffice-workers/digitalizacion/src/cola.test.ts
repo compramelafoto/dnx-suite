@@ -56,6 +56,14 @@ describe("tomarSiguiente", () => {
   it("devuelve null si no hay nada", async () => {
     expect(await tomarSiguiente(falso([]).prisma, ahora)).toBeNull();
   });
+  it("nunca toma un cassette que no se pudo digitalizar: se guarda SIN_IMAGEN y sólo se toman las PENDIENTE", async () => {
+    const { prisma, queries } = falso([]);
+    await tomarSiguiente(prisma, ahora);
+    const sql = queries[0]!.sql;
+    expect(sql).toContain(`g."conversionEstado"='PENDIENTE'`);
+    expect(sql).not.toContain("SIN_IMAGEN");
+    expect(sql).not.toContain("motivoFin");
+  });
 });
 
 describe("recuperarTrabadas", () => {
@@ -156,6 +164,7 @@ describe("relleno de la versión para mirar", () => {
     expect(queries[1]!.sql).toContain(`"conversionError" ~ '^HLS:[0-9]+:$'`);
     expect(queries[1]!.params).toEqual([new Date(ahora.getTime() - 30 * min)]);
     const { sql, params } = queries[2]!;
+    // Sólo LISTA con MP4: un «no se pudo digitalizar» (SIN_IMAGEN, sin videoKey) nunca se rellena.
     expect(sql).toContain(`g."conversionEstado"='LISTA'`);
     expect(sql).toContain(`g.estado='COMPLETA'`);
     expect(sql).toContain(`g."videoKey" IS NOT NULL`);

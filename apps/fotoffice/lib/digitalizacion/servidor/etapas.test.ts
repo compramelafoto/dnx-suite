@@ -120,11 +120,12 @@ describe("conciliarEtapas", () => {
     db.fotofficeJourney.findMany.mockResolvedValue([recorrido("cintia", "s5"), recorrido("liliana", "s1"), recorrido("otro", "s1")]);
     expect(await conciliarEtapas(encendido)).toEqual({ revisados: 3, movidos: 2, fallidos: 0 });
     expect(motor.mover).toHaveBeenCalledTimes(2);
-    expect(motor.mover.mock.calls.map((c) => [c[1], c[2]])).toEqual([["j-liliana", "s4"], ["j-otro", "s2"]]);
+    // «otro» ya tiene todo convertido (sin cantidad conocida): pasa a «Subido a la nube…».
+    expect(motor.mover.mock.calls.map((c) => [c[1], c[2]])).toEqual([["j-liliana", "s4"], ["j-otro", "s3"]]);
     expect(motor.mover.mock.calls[0][3].nota).toBe("Entró en Listo para retirar (automático: videos enviados al cliente)");
     // Idempotente: en la vuelta siguiente ya están en su etapa.
     motor.mover.mockClear();
-    db.fotofficeJourney.findMany.mockResolvedValue([recorrido("cintia", "s5"), recorrido("liliana", "s4"), recorrido("otro", "s2")]);
+    db.fotofficeJourney.findMany.mockResolvedValue([recorrido("cintia", "s5"), recorrido("liliana", "s4"), recorrido("otro", "s3")]);
     expect(await conciliarEtapas(encendido)).toMatchObject({ movidos: 0 });
     expect(motor.mover).not.toHaveBeenCalled();
   });
@@ -142,6 +143,34 @@ describe("conciliarEtapas", () => {
     db.fotofficeProyecto.findMany.mockResolvedValue([liliana([conImagen, conImagen])]);
     expect(await conciliarEtapas(encendido)).toMatchObject({ movidos: 1 });
     expect(motor.mover.mock.calls[0][2]).toBe("s4");
+  });
+  it("20 vendidos, 18 convertidos + 2 que no se pudieron: pasa a «Subido…»; enviado, a «Listo para retirar»", async () => {
+    const noSePudo = { estado: "COMPLETA", conversionEstado: "SIN_IMAGEN", sinImagen: true };
+    const gs = [...Array.from({ length: 18 }, () => conImagen), noSePudo, noSePudo];
+    const trabajo = (entrega: unknown) => ({ id: "t20", workspaceId: "ws1", pedidoItemIndex: 0, product: null, pedido: { ...vhs(20), digitalizacionEntrega: entrega }, grabaciones: gs });
+    db.fotofficeProyecto.findMany.mockResolvedValue([trabajo(null)]);
+    db.fotofficeJourney.findMany.mockResolvedValue([recorrido("t20", "s2")]);
+    expect(await conciliarEtapas(encendido)).toMatchObject({ movidos: 1 });
+    expect(motor.mover.mock.calls[0][2]).toBe("s3");
+    expect(motor.mover.mock.calls[0][3].nota).toBe("Entró en Subido a la nube y a YouTube (automático: videos convertidos y subidos)");
+    // Enviado al cliente: de «Subido…» a «Listo para retirar».
+    motor.mover.mockClear();
+    db.fotofficeProyecto.findMany.mockResolvedValue([trabajo({ enviadoAt: new Date() })]);
+    db.fotofficeJourney.findMany.mockResolvedValue([recorrido("t20", "s3")]);
+    expect(await conciliarEtapas(encendido)).toMatchObject({ movidos: 1 });
+    expect(motor.mover.mock.calls[0][2]).toBe("s4");
+    // Con uno «quitado» (no llega la lectura: sólo se leen las vivas) faltan cassettes: no se mueve.
+    motor.mover.mockClear();
+    db.fotofficeProyecto.findMany.mockResolvedValue([{ ...trabajo(null), grabaciones: gs.slice(0, 19) }]);
+    db.fotofficeJourney.findMany.mockResolvedValue([recorrido("t20", "s1")]);
+    expect(await conciliarEtapas(encendido)).toMatchObject({ movidos: 0 });
+    expect(motor.mover).not.toHaveBeenCalled();
+  });
+  it("todavía convirtiendo el último: queda en «Grabado»", async () => {
+    const gs = [...Array.from({ length: 19 }, () => conImagen), convirtiendo];
+    db.fotofficeProyecto.findMany.mockResolvedValue([{ id: "t20", workspaceId: "ws1", pedidoItemIndex: 0, product: null, pedido: { ...vhs(20), digitalizacionEntrega: null }, grabaciones: gs }]);
+    db.fotofficeJourney.findMany.mockResolvedValue([recorrido("t20", "s2")]);
+    expect(await conciliarEtapas(encendido)).toMatchObject({ movidos: 0 });
   });
   it("busca sólo trabajos de pedidos, sin suspender, con grabación completa", async () => {
     db.fotofficeProyecto.findMany.mockResolvedValue([]);

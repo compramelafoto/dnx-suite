@@ -5,6 +5,7 @@ import { MINUTOS_SIN_SENAL_MAX, MINUTOS_SIN_SENAL_MIN, MINUTOS_SIN_SENAL_POR_DEF
 import type { CtxDigitalizacion } from "../contexto";
 import { leerFranjas, validarFranjas, type FranjaEnvio } from "../entrega";
 import { nombreArchivoVideo, nombreCliente } from "../nombre-archivo";
+import { MIME_NO_DIGITALIZABLE, MOTIVO_FIN_NO_DIGITALIZABLE, type NoDigitalizableNuevo } from "../no-digitalizable";
 import { estadoVisible, validarTitulo, type Cierre, type Latido, type NuevaGrabacion, type PedidoParte } from "../validar";
 import { borrarPrefijo, tamanoDeParte, urlDeLecturaParte, urlDeSubidaParte, urlDeVideo as firmarVideo } from "./almacen";
 import { avanzarTrabajos } from "./etapas";
@@ -242,6 +243,65 @@ export async function descartarGrabacion(ctx: CtxDigitalizacion, id: string): Pr
   }
   await prisma.digitalizacionGrabacion.update({ where: { id: g.id }, data: { estado: "DESCARTADA", terminadaAt: new Date(), conversionEstado: null } });
   return { ok: true };
+}
+
+/**
+ * «Registrar cassette que no se pudo digitalizar» (ver `../no-digitalizable.ts`): una grabación del
+ * trabajo ya cerrada, sin partes y con la conversión en SIN_IMAGEN, así el worker nunca la toma y
+ * cuenta como grabada y hecha para los cassettes vendidos. Después mira si el trabajo puede avanzar:
+ * puede ser la que completa la cantidad (primero «Subido…», si no «Grabado»).
+ */
+export async function registrarNoDigitalizable(ctx: CtxDigitalizacion, n: NoDigitalizableNuevo): Promise<Resultado<{ id: string }>> {
+  const p = await prisma.fotofficeProyecto.findFirst({ where: { id: n.proyectoId, workspaceId: ctx.workspaceId }, select: { id: true } });
+  if (!p) return { ok: false, error: "No encontramos ese trabajo.", definitivo: true };
+  if (n.cassetteNumero !== null) {
+    // Un doble clic, o un cassette que ya se grabó: primero hay que descartar esa grabación.
+    const repetida = await prisma.digitalizacionGrabacion.findFirst({
+      where: { workspaceId: ctx.workspaceId, proyectoId: p.id, tipo: n.tipo, cassetteNumero: n.cassetteNumero, estado: { not: "DESCARTADA" } },
+      select: { id: true },
+    });
+    if (repetida) return { ok: false, error: `El ${n.tipo === "DVD" ? "DVD" : "cassette"} ${n.cassetteNumero} ya está registrado en este trabajo.`, definitivo: true };
+  }
+  const ahora = new Date();
+  const creada = await prisma.digitalizacionGrabacion.create({
+    data: {
+      workspaceId: ctx.workspaceId,
+      proyectoId: p.id,
+      titulo: n.motivo,
+      cassetteNumero: n.cassetteNumero,
+      tipo: n.tipo,
+      mimeType: MIME_NO_DIGITALIZABLE[n.tipo],
+      estado: "COMPLETA",
+      motivoFin: MOTIVO_FIN_NO_DIGITALIZABLE,
+      sinImagen: true,
+      conversionEstado: "SIN_IMAGEN",
+      duracionSeg: 0,
+      iniciadaAt: ahora,
+      terminadaAt: ahora,
+      ultimoLatidoAt: ahora,
+      // No hay partes: nada que bajar en crudo ni que borrar.
+      partesBorradasAt: ahora,
+      createdByUserId: ctx.userId,
+    },
+    select: { id: true },
+  });
+  try {
+    await avanzarTrabajos(ctx.workspaceId, [p.id], "SUBIDO");
+    await avanzarTrabajos(ctx.workspaceId, [p.id], "GRABADO");
+  } catch (e) {
+    console.error("[digitalizacion] no se pudo avanzar la etapa del trabajo", e instanceof Error ? e.name : "error");
+  }
+  return { ok: true, id: creada.id };
+}
+
+/** «Quitar» un cassette que no se pudo digitalizar: queda DESCARTADO y deja de contar. No toca R2 (no hay archivos). */
+export async function quitarNoDigitalizable(ctx: CtxDigitalizacion, id: string): Promise<Resultado<Nada>> {
+  if (!ID_VALIDO.test(id)) return NO_EXISTE;
+  const r = await prisma.digitalizacionGrabacion.updateMany({
+    where: { id, workspaceId: ctx.workspaceId, motivoFin: MOTIVO_FIN_NO_DIGITALIZABLE, estado: "COMPLETA" },
+    data: { estado: "DESCARTADA", conversionEstado: null },
+  });
+  return r.count === 1 ? { ok: true } : NO_EXISTE;
 }
 
 export async function urlsDeLectura(ctx: CtxDigitalizacion, id: string): Promise<Resultado<{ urls: string[]; nombre: string }>> {
