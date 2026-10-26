@@ -1,4 +1,5 @@
-import type { WebsiteBlock } from "./blocks";
+import type { PortfolioBlock, WebsiteBlock } from "./blocks";
+import type { TrabajoTarjeta } from "@/lib/trabajos/publico";
 import type { SpotlightCardView } from "@/lib/spotlight/view";
 import type { HeroBlogSlide } from "./blog-banner";
 import type { PublicSiteContact } from "./public-site";
@@ -54,6 +55,16 @@ export type WebsiteDynamicData = {
   /** Categorías y orígenes activos para el formulario de presupuesto (INQUIRY_FORM). Sólo viaja
    * si la página tiene el bloque y Consultas está encendido; sin esto el bloque no se dibuja. */
   inquiry?: InquiryFormData;
+  /** Las tarjetas de cada bloque PORTFOLIO, por id de bloque: dos bloques pueden pedir
+   * categorías o cantidades distintas. Un bloque sin entrada (o sin tarjetas) no se dibuja. */
+  portfolio?: Record<string, PortfolioData>;
+};
+
+/** Lo que dibuja un bloque PORTFOLIO: sólo trabajos PUBLICADOS de categorías visibles. */
+export type PortfolioData = {
+  tarjetas: TrabajoTarjeta[];
+  /** `/w/<slug>/trabajos`, o la página de la categoría si el bloque pide una. */
+  verTodosHref: string;
 };
 
 export type InquiryFormData = {
@@ -88,4 +99,9 @@ export function blogLatestLimitFor(blocks: readonly WebsiteBlock[]): number {
     if (block.type === "BLOG_LATEST" && block.visible) limit = Math.max(limit, block.config.count);
   }
   return limit;
+}
+
+/** Los bloques "Trabajos" visibles de la página. Sin ninguno, Trabajos ni se consulta. */
+export function portfolioBlocksFor(blocks: readonly WebsiteBlock[]): PortfolioBlock[] {
+  return blocks.filter((b): b is PortfolioBlock => b.type === "PORTFOLIO" && b.visible);
 }

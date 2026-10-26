@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@repo/db";
+import { categoriasActivasPublicas } from "@/lib/website/inquiry";
 import { esTablaFaltante, fechaLarga } from "./reglas";
 
 /**
@@ -30,6 +31,8 @@ export type FotoPublica = {
 };
 
 export type TrabajoPublico = TrabajoTarjeta & {
+  /** Sólo para contar la vista (`sumarVistaTrabajo`): no se muestra. */
+  id: string;
   descripcionHtml: string | null;
   seoTitle: string | null;
   seoDescription: string | null;
@@ -82,10 +85,48 @@ export async function listarCategoriasPublicas(workspaceId: string): Promise<Cat
   }
 }
 
+/**
+ * Si el sitio tiene al menos un trabajo a la vista (publicado, de categoría visible): decide si
+ * «Trabajos» entra al menú. Corre en cada página del sitio, por eso es lo más barato posible.
+ */
+export async function hayTrabajosPublicados(workspaceId: string): Promise<boolean> {
+  try {
+    const categorias = await prisma.fotofficeTrabajoCategoria.findMany({
+      where: { workspaceId, visible: true },
+      select: { id: true },
+    });
+    if (categorias.length === 0) return false;
+    const uno = await prisma.fotofficeTrabajo.findFirst({
+      where: { workspaceId, estado: "PUBLICADO", categoriaId: { in: categorias.map((c) => c.id) } },
+      select: { id: true },
+    });
+    return uno !== null;
+  } catch (err) {
+    if (esTablaFaltante(err)) return false;
+    throw err;
+  }
+}
+
+/** Las categorías visibles con su id, para elegir una en el bloque PORTFOLIO del constructor. */
+export async function categoriasParaBloque(workspaceId: string): Promise<Array<{ id: string; nombre: string }>> {
+  try {
+    return await prisma.fotofficeTrabajoCategoria.findMany({
+      where: { workspaceId, visible: true },
+      orderBy: [{ orden: "asc" }, { nombre: "asc" }],
+      select: { id: true, nombre: true },
+    });
+  } catch (err) {
+    if (esTablaFaltante(err)) return [];
+    throw err;
+  }
+}
+
 export async function listarTrabajosPublicos(
   workspaceId: string,
   opciones: OpcionesBase & {
     categoriaSlug?: string;
+    /** Lo usa el bloque PORTFOLIO, que guarda la categoría por id. */
+    categoriaId?: string;
     limite?: number;
     pagina?: number;
     soloDestacados?: boolean;
@@ -101,6 +142,7 @@ export async function listarTrabajosPublicos(
         workspaceId,
         visible: true,
         ...(opciones.categoriaSlug ? { slug: opciones.categoriaSlug } : {}),
+        ...(opciones.categoriaId ? { id: opciones.categoriaId } : {}),
       },
       select: { id: true, slug: true, nombre: true },
     });
@@ -177,6 +219,7 @@ export async function obtenerTrabajoPublico(
     ]);
     return {
       ...tarjeta(t, cat, base),
+      id: t.id,
       descripcionHtml: t.descripcionHtml,
       seoTitle: t.seoTitle,
       seoDescription: t.seoDescription,
@@ -187,4 +230,43 @@ export async function obtenerTrabajoPublico(
     if (esTablaFaltante(err)) return null;
     throw err;
   }
+}
+
+/** Minúsculas, sin tildes y con un solo espacio entre palabras: «Sesión  de Fotos» = «sesion de fotos». */
+function nombreNormalizado(nombre: string): string {
+  return nombre
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * La categoría ACTIVA de Consultas que se llama igual que la categoría del trabajo (sin mirar
+ * tildes, mayúsculas ni espacios), para que «Pedir presupuesto» desde un casamiento llegue con
+ * «Casamientos» ya elegida. `null` si no hay ninguna o si la lectura falla: el botón igual lleva
+ * al formulario, sin categoría preelegida.
+ */
+export async function categoriaConsultaParaTrabajo(workspaceId: string, nombreCategoriaTrabajo: string): Promise<string | null> {
+  const buscado = nombreNormalizado(nombreCategoriaTrabajo);
+  if (!buscado) return null;
+  try {
+    const categorias = await categoriasActivasPublicas(workspaceId);
+    return categorias.find((c) => nombreNormalizado(c.nombre) === buscado)?.id ?? null;
+  } catch (err) {
+    console.error("[fotoffice][trabajos] no se pudieron leer las categorías de Consultas:", err);
+    return null;
+  }
+}
+
+/**
+ * Suma una vista. Se llama después de responder (`after`), así que nunca demora la página; el
+ * filtro repite las reglas públicas para que nadie infle un borrador ni un trabajo de otro lado.
+ */
+export async function sumarVistaTrabajo(workspaceId: string, trabajoId: string): Promise<void> {
+  await prisma.fotofficeTrabajo.updateMany({
+    where: { id: trabajoId, workspaceId, estado: "PUBLICADO" },
+    data: { vistas: { increment: 1 } },
+  });
 }

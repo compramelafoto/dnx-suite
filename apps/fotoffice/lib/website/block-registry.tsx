@@ -2,6 +2,7 @@ import type { ComponentType } from "react";
 import { ImageUploadField } from "@/components/image-upload-field";
 import { GalleryPhotosEditor } from "@/components/website/inspector/gallery-photos-editor";
 import { InquiryFormInspector } from "@/components/website/inspector/inquiry-form-inspector";
+import { PortfolioInspector } from "@/components/website/inspector/portfolio-inspector";
 import { RichTextInspector } from "@/components/website/inspector/rich-text-inspector";
 import { SelectField, TextAreaField, TextField, ToggleField } from "@/components/website/inspector/inspector-fields";
 import { HeroBlockView } from "@/components/website/render/blocks/hero-block-view";
@@ -18,6 +19,7 @@ import { RichTextBlockView } from "@/components/website/render/blocks/rich-text-
 import { SpacerBlockView } from "@/components/website/render/blocks/spacer-block-view";
 import { BlogLatestBlockView } from "@/components/website/render/blocks/blog-latest-block-view";
 import { MemberOfWeekBlockView } from "@/components/website/render/blocks/member-of-week-block-view";
+import { PortfolioBlockView } from "@/components/website/render/blocks/portfolio-block-view";
 import { isAllowedMapsUrl } from "./contact";
 import { isAllowedEmbedUrl, toVideoEmbedUrl } from "./embed-hosts";
 import type { WebsiteDynamicData } from "./dynamic-data";
@@ -320,6 +322,10 @@ export const WEBSITE_BLOCK_REGISTRY: { [K in WebsiteBlockType]: BlockRegistryEnt
         </p>
       </div>
     ),
+  },
+  PORTFOLIO: {
+    View: PortfolioBlockView,
+    Inspector: PortfolioInspector,
   },
 };
 

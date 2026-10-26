@@ -9,6 +9,15 @@ export const WEBSITE_MODULE_KEY = "website";
  */
 export const BLOG_PUBLIC_PAGE_KEY = "website:blog";
 
+/**
+ * Trabajos (el portfolio del estudio) tampoco es un módulo: como el blog, es una sección del
+ * Sitio web que entra al menú sólo con al menos un trabajo publicado. Misma idea de llave propia.
+ */
+export const TRABAJOS_PUBLIC_PAGE_KEY = "website:trabajos";
+
+/** Segmento de Trabajos bajo `/w/[slug]/`. */
+export const TRABAJOS_PUBLIC_SEGMENT = "trabajos";
+
 /** Segmento de la página Institucional (la comisión directiva) bajo `/w/[slug]/`. */
 export const INSTITUTIONAL_PUBLIC_SEGMENT = "institucional";
 

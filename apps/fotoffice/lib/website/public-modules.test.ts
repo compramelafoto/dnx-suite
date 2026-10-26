@@ -17,7 +17,9 @@ import {
   isSiteSegmentReserved,
   publicModulePagesFor,
   withStoreOpenState,
+  withTrabajosPage,
 } from "./public-modules";
+import { resolveSiteNav, SITE_MENU_VERSION, type SiteMenu } from "./site-menu";
 
 describe("publicModulePagesFor", () => {
   it("sin ningún módulo habilitado no devuelve ninguna página", () => {
@@ -168,5 +170,48 @@ describe("la página «Pedí tu presupuesto»", () => {
     const opciones = (claves: string[]) => optionalPublicPagesFor(new Set(claves)).map((p) => p.key);
     expect(opciones([SERVICE_LEADS_MODULE_KEY])).toContain("presupuesto");
     expect(opciones([])).not.toContain("presupuesto");
+  });
+});
+
+describe("la página pública de Trabajos", () => {
+  const menu = (hayTrabajos: boolean) =>
+    buildSiteNav({
+      workspaceSlug: "dnx-estudio",
+      homeBlocks: [],
+      enabledModuleKeys: withTrabajosPage(new Set([BOOKINGS_MODULE_KEY]), hayTrabajos),
+      hasPublishedSite: true,
+    });
+
+  it("con al menos un trabajo publicado entra sola al menú automático, como «Trabajos»", () => {
+    const item = menu(true).find((i) => i.href === "/w/dnx-estudio/trabajos");
+    expect(item?.label).toBe("Trabajos");
+  });
+
+  it("sin trabajos publicados no entra al menú (sería un ítem que lleva a una página vacía)", () => {
+    expect(menu(false).some((i) => i.href.endsWith("/trabajos"))).toBe(false);
+  });
+
+  it("con un menú editado a mano, aparece al final sólo si hay trabajos", () => {
+    const editado: SiteMenu = { version: SITE_MENU_VERSION, items: [{ id: "page:home", kind: "page" as const, page: "home", label: null, hidden: false }] };
+    const nav = (hay: boolean) =>
+      resolveSiteNav({
+        workspaceSlug: "dnx-estudio",
+        homeBlocks: [],
+        enabledModuleKeys: withTrabajosPage(new Set(), hay),
+        hasPublishedSite: true,
+        menu: editado,
+      });
+    expect(nav(true).map((i) => i.href)).toContain("/w/dnx-estudio/trabajos");
+    expect(nav(false).map((i) => i.href)).not.toContain("/w/dnx-estudio/trabajos");
+  });
+
+  it("no toca el resto de los módulos ni el conjunto que recibe", () => {
+    const claves = new Set([BOOKINGS_MODULE_KEY]);
+    withTrabajosPage(claves, true);
+    expect([...claves]).toEqual([BOOKINGS_MODULE_KEY]);
+  });
+
+  it("su segmento queda reservado", () => {
+    expect(isSiteSegmentReserved("trabajos")).toBe(true);
   });
 });

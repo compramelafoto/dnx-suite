@@ -4,6 +4,8 @@ import { resolveWebsiteColors } from "@/lib/website/branding-defaults";
 import { getEnabledModuleKeysForWorkspace } from "@/lib/modules/gating";
 import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { listBlogPosts } from "@/lib/blog/public";
+import { hayTrabajosPublicados } from "@/lib/trabajos/publico";
+import { withTrabajosPage } from "@/lib/website/public-modules";
 import { withBlogPage } from "@/lib/website/site-menu";
 import { normalizeFotofficeOrganizationType } from "@/lib/onboarding-constants";
 import { PageHeader } from "@/components/page-header";
@@ -18,7 +20,7 @@ export default async function WebsiteBuilderPage({ searchParams }: { searchParam
   // El logo y el favicon son la identidad de la institución: sólo dueño/admin (ver la acción).
   const canEditIdentity = canEdit && (await canEditWebsiteIdentity(user.id, workspace.id));
 
-  const [branding, enabledModuleKeys, personVocabulary, hasPublishedBlog] = await Promise.all([
+  const [branding, modulosEncendidos, personVocabulary, hasPublishedBlog, hasPublishedTrabajos] = await Promise.all([
     prisma.fotofficeWorkspaceBranding.findUnique({
       where: { workspaceId: workspace.id },
       select: {
@@ -37,7 +39,10 @@ export default async function WebsiteBuilderPage({ searchParams }: { searchParam
     loadPersonVocabulary(workspace.id),
     // Misma regla que el sitio público: el blog va al menú si tiene al menos un artículo.
     listBlogPosts({ workspaceId: workspace.id, slug: "", nombre: workspace.name, logoUrl: null }, { limit: 1 }).then((p) => p.length > 0),
+    // Y Trabajos, con al menos un trabajo publicado.
+    hayTrabajosPublicados(workspace.id).catch(() => false),
   ]);
+  const enabledModuleKeys = withTrabajosPage(modulosEncendidos, hasPublishedTrabajos);
 
   return (
     <div className="space-y-4">

@@ -1,10 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { trabajo, categoria, foto } = vi.hoisted(() => ({
-  trabajo: { findMany: vi.fn(), findFirst: vi.fn(), count: vi.fn() },
+const { trabajo, categoria, foto, categoriasActivas } = vi.hoisted(() => ({
+  trabajo: { findMany: vi.fn(), findFirst: vi.fn(), count: vi.fn(), updateMany: vi.fn() },
   categoria: { findMany: vi.fn(), findFirst: vi.fn() },
   foto: { findMany: vi.fn() },
+  categoriasActivas: vi.fn(),
 }));
+
+vi.mock("@/lib/website/inquiry", () => ({ categoriasActivasPublicas: categoriasActivas }));
 
 vi.mock("@repo/db", () => ({
   prisma: {
@@ -14,7 +17,8 @@ vi.mock("@repo/db", () => ({
   },
 }));
 
-const { listarTrabajosPublicos, obtenerTrabajoPublico, listarCategoriasPublicas } = await import("./publico");
+const { listarTrabajosPublicos, obtenerTrabajoPublico, listarCategoriasPublicas, categoriaConsultaParaTrabajo, sumarVistaTrabajo, hayTrabajosPublicados } =
+  await import("./publico");
 
 const cat = { id: "c1", nombre: "Casamientos", slug: "casamientos", orden: 0, visible: true, portadaUrl: null };
 const fila = (over: Record<string, unknown> = {}) => ({
@@ -34,6 +38,7 @@ function p2021() {
 
 beforeEach(() => {
   for (const m of [trabajo, categoria, foto]) for (const f of Object.values(m)) f.mockReset();
+  categoriasActivas.mockReset();
 });
 
 describe("listarTrabajosPublicos", () => {
@@ -157,5 +162,68 @@ describe("listarCategoriasPublicas", () => {
   it("P2021 devuelve vacío", async () => {
     categoria.findMany.mockRejectedValueOnce(p2021());
     expect(await listarCategoriasPublicas("ws-1")).toEqual([]);
+  });
+});
+
+describe("categoriaConsultaParaTrabajo", () => {
+  it("encuentra la categoría activa de Consultas con el mismo nombre, sin tildes ni mayúsculas", async () => {
+    categoriasActivas.mockResolvedValueOnce([
+      { id: "k1", nombre: "Bautismos" },
+      { id: "k2", nombre: "  QUINCEAÑOS " },
+    ]);
+    expect(await categoriaConsultaParaTrabajo("ws-1", "Quinceaños")).toBe("k2");
+    expect(categoriasActivas).toHaveBeenCalledWith("ws-1");
+  });
+
+  it("ignora tildes y espacios repetidos", async () => {
+    categoriasActivas.mockResolvedValueOnce([{ id: "k1", nombre: "Sesión  de fotos" }]);
+    expect(await categoriaConsultaParaTrabajo("ws-1", "sesion de Fotos")).toBe("k1");
+  });
+
+  it("sin coincidencia, o con nombre vacío, devuelve null", async () => {
+    categoriasActivas.mockResolvedValueOnce([{ id: "k1", nombre: "Bautismos" }]);
+    expect(await categoriaConsultaParaTrabajo("ws-1", "Casamientos")).toBeNull();
+    expect(await categoriaConsultaParaTrabajo("ws-1", "  ")).toBeNull();
+    expect(categoriasActivas).toHaveBeenCalledTimes(1);
+  });
+
+  it("si la lectura falla, devuelve null (el botón cae a /presupuesto sin categoría)", async () => {
+    categoriasActivas.mockRejectedValueOnce(new Error("boom"));
+    expect(await categoriaConsultaParaTrabajo("ws-1", "Casamientos")).toBeNull();
+  });
+});
+
+describe("sumarVistaTrabajo", () => {
+  it("incrementa sólo un trabajo PUBLICADO de ese workspace", async () => {
+    trabajo.updateMany.mockResolvedValueOnce({ count: 1 });
+    await sumarVistaTrabajo("ws-1", "t1");
+    expect(trabajo.updateMany).toHaveBeenCalledWith({
+      where: { id: "t1", workspaceId: "ws-1", estado: "PUBLICADO" },
+      data: { vistas: { increment: 1 } },
+    });
+  });
+});
+
+describe("hayTrabajosPublicados", () => {
+  it("true con un trabajo PUBLICADO en una categoría visible", async () => {
+    categoria.findMany.mockResolvedValueOnce([{ id: "c1" }]);
+    trabajo.findFirst.mockResolvedValueOnce({ id: "t1" });
+    expect(await hayTrabajosPublicados("ws-1")).toBe(true);
+    expect(categoria.findMany.mock.calls[0][0].where).toEqual({ workspaceId: "ws-1", visible: true });
+    expect(trabajo.findFirst.mock.calls[0][0].where).toEqual({ workspaceId: "ws-1", estado: "PUBLICADO", categoriaId: { in: ["c1"] } });
+  });
+
+  it("sin categorías visibles no consulta trabajos", async () => {
+    categoria.findMany.mockResolvedValueOnce([]);
+    expect(await hayTrabajosPublicados("ws-1")).toBe(false);
+    expect(trabajo.findFirst).not.toHaveBeenCalled();
+  });
+
+  it("false sin ninguno, y false si la tabla no existe", async () => {
+    categoria.findMany.mockResolvedValueOnce([{ id: "c1" }]);
+    trabajo.findFirst.mockResolvedValueOnce(null);
+    expect(await hayTrabajosPublicados("ws-1")).toBe(false);
+    categoria.findMany.mockRejectedValueOnce(p2021());
+    expect(await hayTrabajosPublicados("ws-1")).toBe(false);
   });
 });

@@ -256,3 +256,42 @@ describe("GALLERY, VIDEO y EMBED", () => {
     expect(getBlockPreviewLabel(createEmptyBlock("VIDEO", 0))).toBe("Video");
   });
 });
+
+describe("bloque PORTFOLIO (Trabajos)", () => {
+  it("nace con «Trabajos recientes», 6 trabajos en grilla y «Ver todos»", () => {
+    const block = createEmptyBlock("PORTFOLIO", 0);
+    expect(block.config).toEqual({ title: "Trabajos recientes", count: 6, layout: "grid", showViewAll: true });
+    expect(getBlockPreviewLabel(block)).toBe("Trabajos recientes");
+  });
+
+  it("valores fuera de lo permitido caen al default en vez de descartar el bloque", () => {
+    const parsed = websiteBlockSchema.parse({
+      id: "b1",
+      type: "PORTFOLIO",
+      visible: true,
+      order: 0,
+      config: { count: 7, layout: "carrusel", showViewAll: "sí", categoriaId: "" },
+    });
+    expect(parsed.config).toEqual({ count: 6, layout: "grid", showViewAll: true });
+  });
+
+  it("es un bloque comercial que se llama «Trabajos»", async () => {
+    const { WEBSITE_BLOCK_DEFINITIONS } = await import("./blocks");
+    expect(WEBSITE_BLOCK_DEFINITIONS.PORTFOLIO).toMatchObject({ label: "Trabajos", category: "COMERCIAL", source: "dynamic" });
+  });
+});
+
+describe("vista del bloque PORTFOLIO", () => {
+  const config = { title: "Trabajos recientes", count: 6 as const, layout: "grid" as const, showViewAll: true };
+
+  it("en el sitio, sin datos para el bloque, no se dibuja", async () => {
+    const { PortfolioBlockView } = await import("@/components/website/render/blocks/portfolio-block-view");
+    expect(PortfolioBlockView({ config, blockId: "b1", data: {} })).toBeNull();
+    expect(PortfolioBlockView({ config, blockId: "b1", data: { portfolio: { b1: { tarjetas: [], verTodosHref: "/w/x/trabajos" } } } })).toBeNull();
+  });
+
+  it("en la vista previa del constructor (sin datos) muestra ejemplos", async () => {
+    const { PortfolioBlockView } = await import("@/components/website/render/blocks/portfolio-block-view");
+    expect(PortfolioBlockView({ config, blockId: "b1" })).not.toBeNull();
+  });
+});
