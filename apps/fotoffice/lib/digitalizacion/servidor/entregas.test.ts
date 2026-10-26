@@ -30,6 +30,11 @@ const comision = vi.hoisted(() => ({
   conciliarComisiones: vi.fn(async () => ({ devengadas: 0, revertidas: 0 })),
 }));
 vi.mock("./comision", () => comision);
+const etapas = vi.hoisted(() => ({
+  avanzarTrabajos: vi.fn(async () => ({ MOVIDO: 1, SIN_CAMBIO: 0, FALLO: 0 })),
+  conciliarEtapas: vi.fn(async () => ({ revisados: 0, movidos: 0, fallidos: 0 })),
+}));
+vi.mock("./etapas", () => etapas);
 const saldo = vi.hoisted(() => {
   const saldoDelPedido = vi.fn();
   // El correo usa el saldo sin extras opcionales: acá, el mismo mock.
@@ -418,5 +423,45 @@ describe("conciliación de cargos en los crons", () => {
   it("la corrida de cada 15 minutos concilia la comisión de plataforma (F1)", async () => {
     comision.conciliarComisiones.mockResolvedValueOnce({ devengadas: 2, revertidas: 1 });
     expect(await enviarEntregasAutomaticas(deps())).toMatchObject({ comisionesDevengadas: 2, comisionesRevertidas: 1 });
+  });
+});
+
+describe("avance a «Listo para retirar» al enviar", () => {
+  it("primer envío por correo: avanza los trabajos con videos, después de guardar y mandar", async () => {
+    db.digitalizacionEntrega.findFirst.mockResolvedValue(entrega());
+    const d = deps();
+    expect(await enviarEntrega("ws1", "e1", "CORREO", d)).toMatchObject({ ok: true });
+    expect(etapas.avanzarTrabajos).toHaveBeenCalledWith("ws1", ["t1"], "LISTO");
+    expect(d.enviar.mock.invocationCallOrder[0]).toBeLessThan(etapas.avanzarTrabajos.mock.invocationCallOrder[0]!);
+  });
+  it("primer envío con «Copiar enlace»: también avanza", async () => {
+    db.digitalizacionEntrega.findFirst.mockResolvedValue(entrega());
+    expect(await enviarEntrega("ws1", "e1", "ENLACE", deps())).toMatchObject({ ok: true, correo: "NO_PEDIDO" });
+    expect(etapas.avanzarTrabajos).toHaveBeenCalledWith("ws1", ["t1"], "LISTO");
+  });
+  it("reenvío (correo o enlace): no toca las etapas", async () => {
+    const previo = hashDeToken(tokenDeEntrega("e1", "clave", 0));
+    const enviada = entrega({ accessTokenHash: previo, enviadoAt: new Date("2026-10-10T00:00:00Z"), videosVencenAt: new Date("2026-11-09T00:00:00Z"), cassettesVencenAt: new Date("2026-11-09T00:00:00Z") });
+    db.digitalizacionEntrega.findFirst.mockResolvedValue(enviada);
+    expect(await enviarEntrega("ws1", "e1", "CORREO", deps())).toMatchObject({ ok: true });
+    expect(await enviarEntrega("ws1", "e1", "ENLACE", deps())).toMatchObject({ ok: true });
+    expect(etapas.avanzarTrabajos).not.toHaveBeenCalled();
+  });
+  it("si el correo no sale (se vuelve atrás), no avanza", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    db.digitalizacionEntrega.findFirst.mockResolvedValue(entrega());
+    await enviarEntrega("ws1", "e1", "CORREO", deps(enviador({ status: "PROVIDER_REJECTED", detail: "x" })));
+    expect(etapas.avanzarTrabajos).not.toHaveBeenCalled();
+  });
+  it("un error en el avance no rompe el envío", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    etapas.avanzarTrabajos.mockRejectedValueOnce(new Error("motor caído"));
+    db.digitalizacionEntrega.findFirst.mockResolvedValue(entrega());
+    expect(await enviarEntrega("ws1", "e1", "CORREO", deps())).toMatchObject({ ok: true, correo: "ENVIADO" });
+  });
+  it("el cron concilia las etapas y reporta cuántos trabajos avanzó", async () => {
+    etapas.conciliarEtapas.mockResolvedValueOnce({ revisados: 4, movidos: 2, fallidos: 0 });
+    expect(await enviarEntregasAutomaticas(deps())).toMatchObject({ etapasAvanzadas: 2 });
+    expect(etapas.conciliarEtapas).toHaveBeenCalledTimes(1);
   });
 });

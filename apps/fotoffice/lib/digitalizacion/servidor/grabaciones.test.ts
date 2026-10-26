@@ -11,6 +11,8 @@ const db = vi.hoisted(() => ({
 vi.mock("@repo/db", () => ({ prisma: db, Prisma: { DbNull: "DB_NULL" } }));
 const almacen = vi.hoisted(() => ({ urlDeSubidaParte: vi.fn(async () => "https://r2/firmada"), tamanoDeParte: vi.fn(), urlDeLecturaParte: vi.fn(), borrarPrefijo: vi.fn(), urlDeVideo: vi.fn(async () => "https://r2/video") }));
 vi.mock("./almacen", () => almacen);
+const etapas = vi.hoisted(() => ({ avanzarTrabajos: vi.fn(async () => ({ MOVIDO: 1, SIN_CAMBIO: 0, FALLO: 0 })) }));
+vi.mock("./etapas", () => etapas);
 
 import type { NuevaGrabacion } from "../validar";
 import { guardarAjustesEntrega, leerAjustes, cerrarGrabacion, confirmarParte, crearGrabacion, descartarGrabacion, pedirParte, registrarLatido, reintentarConversion, terminarConLoGrabado, urlDeVideo, urlsDeLectura, editarTitulo, listarGrabaciones, hlsDeGrabacion } from "./grabaciones";
@@ -386,5 +388,51 @@ describe("hlsDeGrabacion", () => {
     }
     db.digitalizacionGrabacion.findFirst.mockResolvedValue(null);
     expect(await hlsDeGrabacion(ctx, "g1")).toMatchObject({ ok: false });
+  });
+});
+
+describe("avance a «Grabado» al terminar la grabación", () => {
+  const abierta = { id: "g1", workspaceId: "ws1", estado: "GRABANDO", mimeType: "video/webm", tramos: 1, tipo: "VHS", proyectoId: "p1", ...fresco };
+  const cierre = { tramo: 1, duracionSeg: 100, primeraImagenSeg: 3, ultimaImagenSeg: 90, sinImagen: false, tramosSinSenal: [], motivoFin: "MANUAL" as const };
+
+  it("cerrarGrabacion con imagen: guarda COMPLETA y después avanza el trabajo", async () => {
+    db.digitalizacionGrabacion.findFirst.mockResolvedValueOnce(abierta).mockResolvedValueOnce({ tramosSinSenal: [], sinImagen: false });
+    expect(await cerrarGrabacion(ctx, "g1", cierre)).toEqual({ ok: true });
+    expect(etapas.avanzarTrabajos).toHaveBeenCalledWith("ws1", ["p1"], "GRABADO");
+    expect(db.digitalizacionGrabacion.update.mock.invocationCallOrder[0]).toBeLessThan(etapas.avanzarTrabajos.mock.invocationCallOrder[0]!);
+  });
+  it("sin imagen o sin trabajo: no avanza", async () => {
+    db.digitalizacionGrabacion.findFirst.mockResolvedValueOnce(abierta).mockResolvedValueOnce({ tramosSinSenal: [], sinImagen: true });
+    await cerrarGrabacion(ctx, "g1", { ...cierre, sinImagen: true });
+    db.digitalizacionGrabacion.findFirst.mockResolvedValueOnce({ ...abierta, proyectoId: null }).mockResolvedValueOnce({ tramosSinSenal: [], sinImagen: false });
+    await cerrarGrabacion(ctx, "g1", cierre);
+    expect(etapas.avanzarTrabajos).not.toHaveBeenCalled();
+  });
+  it("un error en el avance no rompe el cierre", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    etapas.avanzarTrabajos.mockRejectedValueOnce(new Error("motor caído"));
+    db.digitalizacionGrabacion.findFirst.mockResolvedValueOnce(abierta).mockResolvedValueOnce({ tramosSinSenal: [], sinImagen: false });
+    expect(await cerrarGrabacion(ctx, "g1", cierre)).toEqual({ ok: true });
+    expect(db.digitalizacionGrabacion.update.mock.calls[0][0].data.estado).toBe("COMPLETA");
+  });
+  it("terminarConLoGrabado: avanza si tiene imagen, no si no tiene, y un error no la rompe", async () => {
+    db.digitalizacionGrabacion.updateMany.mockResolvedValue({ count: 1 });
+    db.digitalizacionGrabacion.findFirst.mockResolvedValue({ ...abierta, ...viejo, sinImagen: false });
+    expect(await terminarConLoGrabado(ctx, "g1")).toEqual({ ok: true });
+    expect(etapas.avanzarTrabajos).toHaveBeenCalledWith("ws1", ["p1"], "GRABADO");
+    etapas.avanzarTrabajos.mockClear();
+    db.digitalizacionGrabacion.findFirst.mockResolvedValue({ ...abierta, ...viejo, sinImagen: true });
+    await terminarConLoGrabado(ctx, "g1");
+    expect(etapas.avanzarTrabajos).not.toHaveBeenCalled();
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    etapas.avanzarTrabajos.mockRejectedValueOnce(new Error("motor caído"));
+    db.digitalizacionGrabacion.findFirst.mockResolvedValue({ ...abierta, ...viejo, sinImagen: false });
+    expect(await terminarConLoGrabado(ctx, "g1")).toEqual({ ok: true });
+  });
+  it("terminarConLoGrabado que no cerró nada no avanza", async () => {
+    db.digitalizacionGrabacion.findFirst.mockResolvedValue({ ...abierta, ...viejo, sinImagen: false });
+    db.digitalizacionGrabacion.updateMany.mockResolvedValue({ count: 0 });
+    expect(await terminarConLoGrabado(ctx, "g1")).toMatchObject({ ok: false });
+    expect(etapas.avanzarTrabajos).not.toHaveBeenCalled();
   });
 });
