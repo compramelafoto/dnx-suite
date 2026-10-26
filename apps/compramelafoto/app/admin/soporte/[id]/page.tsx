@@ -25,6 +25,7 @@ export default function AdminSoporteDetallePage() {
   const STATUS_OPTIONS = [
     { value: "OPEN", label: "Abierto" },
     { value: "IN_PROGRESS", label: "En progreso" },
+    { value: "WAITING_CUSTOMER", label: "Esperando al cliente" },
     { value: "RESOLVED", label: "Resuelto" },
     { value: "CLOSED", label: "Finalizado" },
   ];

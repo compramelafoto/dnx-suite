@@ -5133,6 +5133,16 @@ model SupportTicket {
   lastReplyEmailSentAt DateTime?
   /// Pedido de álbum (Order) relacionado; sin FK a propósito (como BotConversation.supportTicketId)
   orderId              Int?
+  /// Centro de reclamos: el reloj de 24 h corre desde acá (null = createdAt).
+  slaDesde             DateTime?
+  esperandoDesde       DateTime?
+  clienteRespondioAt   DateTime?
+  clienteEscribioAt    DateTime?
+  vencimientoAvisadoAt DateTime?
+  /// ADMIN | CLIENTE_BOT | AUTOMATICO
+  cerradoPor           String?
+  diagnostico          SupportDiagnosis?
+  casoTokens           SupportCaseToken[]
   messages             SupportMessage[]    @relation("SupportTicketMessages")
   assignedTo           User?               @relation("SupportTicketAssignedTo", fields: [assignedToId], references: [id])
   printOrder           PrintOrder?         @relation(fields: [printOrderId], references: [id])
@@ -5213,12 +5223,48 @@ model SupportMessage {
   message     String
   isInternal  Boolean       @default(false)
   attachments String[]      @default([])
+  /// ADMIN | CLIENTE_PANEL | CLIENTE_BOT | BOT | SISTEMA
+  origen         String?
+  idempotencyKey String?    @unique
   author      User?         @relation("SupportMessageAuthor", fields: [authorId], references: [id])
   ticket      SupportTicket @relation("SupportTicketMessages", fields: [ticketId], references: [id], onDelete: Cascade)
 
   @@index([ticketId])
   @@index([createdAt])
   @@index([authorId])
+}
+
+/// Diagnóstico automático (IA) de un reclamo. Uno por ticket.
+model SupportDiagnosis {
+  id                String        @id @default(cuid())
+  ticketId          Int           @unique
+  ticket            SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  /// PENDIENTE | LISTO | FALLO | SIN_PRESUPUESTO
+  estado            String
+  categoria         String?
+  resumen           String?
+  hallazgos         String?
+  respuestaSugerida String?
+  acciones          Json          @default("[]")
+  confianza         String?
+  mailSinVerificar  Boolean       @default(false)
+  costMicroUsd      Int           @default(0)
+  error             String?
+  intentos          Int           @default(0)
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+}
+
+/// Link personal del mail de respuesta para seguir el caso en el DNX Bot. Se guarda sólo el hash.
+model SupportCaseToken {
+  id        String        @id @default(cuid())
+  ticketId  Int
+  ticket    SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  tokenHash String        @unique
+  expiresAt DateTime
+  createdAt DateTime      @default(now())
+
+  @@index([ticketId])
 }
 
 /// *
@@ -7144,6 +7190,7 @@ enum RemovalRequestStatus {
 enum SupportTicketStatus {
   OPEN
   IN_PROGRESS
+  WAITING_CUSTOMER
   RESOLVED
   CLOSED
 }

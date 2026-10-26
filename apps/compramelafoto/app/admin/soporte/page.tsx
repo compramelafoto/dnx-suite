@@ -94,6 +94,7 @@ export default function AdminSoportePage() {
               <option value="">Todos</option>
               <option value="OPEN">Abierto</option>
               <option value="IN_PROGRESS">En Proceso</option>
+              <option value="WAITING_CUSTOMER">Esperando al cliente</option>
               <option value="RESOLVED">Resuelto</option>
               <option value="CLOSED">Cerrado</option>
             </select>

@@ -7,7 +7,7 @@ import { SupportTicketStatus } from "@prisma/client";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const VALID_STATUSES: SupportTicketStatus[] = ["OPEN", "IN_PROGRESS", "RESOLVED", "CLOSED"];
+const VALID_STATUSES: SupportTicketStatus[] = ["OPEN", "IN_PROGRESS", "WAITING_CUSTOMER", "RESOLVED", "CLOSED"];
 
 export async function PATCH(
   req: NextRequest,
@@ -33,7 +33,7 @@ export async function PATCH(
 
     if (!VALID_STATUSES.includes(status as SupportTicketStatus)) {
       return NextResponse.json(
-        { error: "Estado inválido. Usar: OPEN, IN_PROGRESS, RESOLVED, CLOSED" },
+        { error: "Estado inválido. Usar: OPEN, IN_PROGRESS, WAITING_CUSTOMER, RESOLVED, CLOSED" },
         { status: 400 }
       );
     }

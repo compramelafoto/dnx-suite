@@ -1,6 +1,7 @@
 const SUPPORT_STATUS_LABELS: Record<string, string> = {
   OPEN: "Abierto",
   IN_PROGRESS: "En Proceso",
+  WAITING_CUSTOMER: "Esperando tu respuesta",
   RESOLVED: "Resuelto",
   CLOSED: "Cerrado",
 };

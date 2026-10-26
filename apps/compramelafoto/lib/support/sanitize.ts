@@ -3,7 +3,8 @@
  */
 
 export function isTicketClosedForUserReply(status: string): boolean {
-  return status === "CLOSED" || status === "RESOLVED";
+  // Un caso resuelto se reabre si la persona vuelve a escribir; sólo el cierre definitivo bloquea.
+  return status === "CLOSED";
 }
 
 export const SUPPORT_MESSAGE_MAX_LENGTH = 5000;

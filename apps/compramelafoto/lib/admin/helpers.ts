@@ -69,6 +69,7 @@ export function getStatusBadgeColor(status: string): string {
     // SupportTicketStatus
     OPEN: "bg-blue-100 text-blue-800",
     IN_PROGRESS: "bg-yellow-100 text-yellow-800",
+    WAITING_CUSTOMER: "bg-purple-100 text-purple-800",
     RESOLVED: "bg-green-100 text-green-800",
     CLOSED: "bg-gray-100 text-gray-800",
   };
@@ -99,6 +100,7 @@ export function getStatusLabel(status: string): string {
     // SupportTicketStatus
     OPEN: "Abierto",
     IN_PROGRESS: "En Proceso",
+    WAITING_CUSTOMER: "Esperando al cliente",
     RESOLVED: "Resuelto",
     CLOSED: "Cerrado",
   };

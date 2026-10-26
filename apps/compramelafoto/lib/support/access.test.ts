@@ -17,7 +17,7 @@ import {
   assert.equal(isTicketClosedForUserReply("OPEN"), false);
   assert.equal(isTicketClosedForUserReply("IN_PROGRESS"), false);
   assert.equal(isTicketClosedForUserReply("CLOSED"), true);
-  assert.equal(isTicketClosedForUserReply("RESOLVED"), true);
+  assert.equal(isTicketClosedForUserReply("RESOLVED"), false);
 }
 
 {
