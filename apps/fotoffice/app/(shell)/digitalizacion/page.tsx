@@ -3,9 +3,10 @@ import { vistaPreviaAgotada } from "@/lib/digitalizacion/hls";
 import { PageHeader } from "@/components/page-header";
 import { AccionesGrabacion, AjusteMinutos } from "@/components/digitalizacion/acciones-grabacion";
 import { AccionesEntrega, AjustesEntrega, EnvioYCargos, VerComoCliente } from "@/components/digitalizacion/entregas";
-import { estadoVisibleDeEntrega, fechaArgentina, fechaHoraArgentina, pesos, type EstadoVisibleEntrega } from "@/lib/digitalizacion/entrega";
+import { estadoVisibleDeEntrega, pesos } from "@/lib/digitalizacion/entrega";
+import { datosTextoEntrega, textoDeEntrega } from "@/lib/digitalizacion/trabajo";
 import { resumenDeComision } from "@/lib/digitalizacion/servidor/comision";
-import { resumenDeEntregas, type ResumenEntrega } from "@/lib/digitalizacion/servidor/entregas";
+import { resumenDeEntregas } from "@/lib/digitalizacion/servidor/entregas";
 import { extensionDeMime } from "@/lib/digitalizacion/claves";
 import { nombreArchivoVideo, nombreCliente } from "@/lib/digitalizacion/nombre-archivo";
 import { requireDigitalizacion } from "@/lib/digitalizacion/contexto";
@@ -27,24 +28,6 @@ const CONVERSION: Record<string, string> = {
   PROCESANDO: "Convirtiendo…",
   SIN_IMAGEN: "Sin imagen: no se convierte",
 };
-/** Lo que dice la lista sobre la entrega de un pedido. */
-function textoDeEntrega(estado: EstadoVisibleEntrega, r: ResumenEntrega, automatico: boolean, ahora: Date): string {
-  const e = r.entrega;
-  if (r.cancelado && estado !== "ENVIADA" && estado !== "BORRADA") return "Pedido cancelado: no se envían los videos.";
-  if (estado === "LISTA_PARA_ENVIAR" && automatico && r.tieneEmail && r.enviaSoloDesde && r.enviaSoloDesde.getTime() > ahora.getTime()) {
-    return `Listo · se envía solo el ${fechaHoraArgentina(r.enviaSoloDesde)} si no grabás otro cassette`;
-  }
-  switch (estado) {
-    case "CONVIRTIENDO": return "Convirtiendo…";
-    case "CON_ERROR": return "Hay un video con error: reintentá la conversión o descartalo para poder enviar.";
-    case "SIN_VIDEOS": return "Sin videos para entregar.";
-    case "LISTA_PARA_ENVIAR": return r.tieneEmail ? "Listo para enviar" : "Listo para enviar · el cliente no tiene correo: copiá el enlace y mandáselo por WhatsApp";
-    case "ENVIADA": return `Enviado el ${fechaArgentina(e!.enviadoAt!, "corta")}, vence ${fechaArgentina(e!.videosVencenAt!, "corta")}${r.tieneEmail ? "" : " · sin correo (por enlace)"}`;
-    case "BORRADA": return `Videos borrados el ${fechaArgentina(e?.videosBorradosAt ?? e!.videosVencenAt!, "corta")}`;
-    default: return "";
-  }
-}
-
 const mb = (b: bigint) => `${(Number(b) / 1024 ** 2).toFixed(0)} MB`;
 const duracion = (s: number) => `${Math.floor(s / 3600)} h ${String(Math.floor((s % 3600) / 60)).padStart(2, "0")} min`;
 const gb = (b: bigint) => `${(Number(b) / 1024 ** 3).toFixed(2)} GB`;
@@ -96,7 +79,7 @@ export default async function DigitalizacionPage() {
                     <p className="font-semibold">Pedido {r.pedidoNumero}{r.cliente ? ` · ${r.cliente}` : ""}</p>
                     <span className="text-xs text-gray-600">{r.videos === 1 ? "1 video listo" : `${r.videos} videos listos`}</span>
                   </div>
-                  <p className={estado === "CON_ERROR" ? "fo-alert-warning px-2 text-sm" : "text-sm"}>{textoDeEntrega(estado, r, r.entrega?.envioAutomatico ?? ajustes.envioAutomatico, ahora)}</p>
+                  <p className={estado === "CON_ERROR" ? "fo-alert-warning px-2 text-sm" : "text-sm"}>{textoDeEntrega(estado, datosTextoEntrega(r, ajustes.envioAutomatico), ahora)}</p>
                   <EnvioYCargos entregaId={r.entrega?.id ?? null} envio={r.envio} cargos={r.cargosPendientes} aRevisar={r.cargosARevisar} puedeGestionar={puedeGrabar} />
                   {puedeGrabar && !r.cancelado ? (
                     <AccionesEntrega

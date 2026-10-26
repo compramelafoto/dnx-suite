@@ -35,6 +35,12 @@ import { cargarFichaProyecto } from "@/lib/proyectos/ficha";
 import { leerCandadoDeLaFicha } from "@/lib/proyectos/candado-ficha";
 import { prepararProyectos, requireProyectos } from "@/lib/proyectos/pagina";
 import { resolveWorkspaceRole } from "@/lib/workspace-role";
+import { DigitalizacionDelTrabajo } from "@/components/digitalizacion/desde-el-trabajo";
+import { DIGITALIZACION_MODULE_KEY } from "@/lib/digitalizacion/constants";
+import { leerAjustes } from "@/lib/digitalizacion/servidor/grabaciones";
+import { digitalizacionDelTrabajo } from "@/lib/digitalizacion/servidor/trabajo";
+import { getModuleLevel } from "@/lib/permissions/module-access";
+import { hasLevel } from "@/lib/permissions/levels";
 
 export const dynamic = "force-dynamic";
 
@@ -68,6 +74,13 @@ export default async function FichaProyectoPage({ params }: { params: Promise<{ 
 
   // Tarjeta "Galerías": sólo con el módulo Galería encendido y "Ver" en Galería (si no, null y no se lee nada).
   const galerias = (await galeriasEncendidas(workspace.id)) ? await galeriasDeProyecto(ctx, ficha.id) : null;
+
+  // Sección "Digitalización": con el módulo encendido y "Ver" en Digitalización, y sólo si el trabajo
+  // es de digitalización (tiene grabaciones o su nombre, producto o categoría hablan de video; ver
+  // `esTrabajoDeDigitalizacion`). Grabar y enviar piden "Gestionar".
+  const nivelDigitalizacion = await getModuleLevel(user.id, workspace.id, DIGITALIZACION_MODULE_KEY);
+  const digitalizacion = hasLevel(nivelDigitalizacion, "VIEW") ? await digitalizacionDelTrabajo(workspace.id, ficha.id) : null;
+  const ajustesDigitalizacion = digitalizacion ? await leerAjustes(workspace.id) : null;
 
   const puedeEditar = puedeEnContexto(ctx, "operar", PROJECTS_MODULE_KEY);
   const configura = puedeEnContexto(ctx, "configurar");
@@ -177,6 +190,14 @@ export default async function FichaProyectoPage({ params }: { params: Promise<{ 
         </div>
 
         <div className="min-w-0 space-y-6">
+          {digitalizacion ? (
+            <DigitalizacionDelTrabajo
+              datos={digitalizacion}
+              puedeGrabar={hasLevel(nivelDigitalizacion, "MANAGE")}
+              envioAutomatico={ajustesDigitalizacion?.envioAutomatico ?? true}
+              ahora={new Date()}
+            />
+          ) : null}
           {recorrido ? (
             <>
               <Recorrido

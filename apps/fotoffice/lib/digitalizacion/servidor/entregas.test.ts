@@ -7,7 +7,7 @@ const db = vi.hoisted(() => {
     digitalizacionGrabacion: { findMany: vi.fn(), updateMany: vi.fn() },
     fotofficePedido: { findFirst: vi.fn(), findMany: vi.fn() },
     fotofficeWorkspaceBranding: { findUnique: vi.fn() },
-    fotofficeProyectoNota: { createMany: vi.fn() },
+    fotofficeProyectoNota: { createMany: vi.fn(), findMany: vi.fn(async (): Promise<unknown[]> => []) },
     $executeRaw: vi.fn(async () => 0),
     $queryRaw: vi.fn(async () => []),
     $transaction: vi.fn(),
@@ -370,6 +370,25 @@ describe("resumenDeEntregas", () => {
     expect(consulta.where).toEqual({ workspaceId: "ws1", proyecto: { workspaceId: "ws1", pedidoId: { in: ["p1"] } } });
     expect(consulta.take).toBeUndefined();
     expect(r).toEqual([expect.objectContaining({ pedidoId: "p1", preparacion: "LISTA", videos: 1, tieneEmail: true, cancelado: false, enviaSoloDesde: new Date("2026-10-21T00:00:00Z") })]);
+  });
+});
+
+describe("resumenDeEntregas: filtro y registro del envío", () => {
+  it("con pedidoIds busca sólo esos y lee de las notas a quién salió el correo", async () => {
+    db.fotofficePedido.findMany.mockResolvedValue([{ id: "p1", number: "P-12", status: "CONFIRMADO", client: { firstName: "Ana", lastName: null, businessName: null, email: " ana@x.com " } }]);
+    db.digitalizacionGrabacion.findMany.mockResolvedValue([{ ...lista, proyecto: { pedidoId: "p1" } }]);
+    db.fotofficeProyectoNota.findMany.mockResolvedValueOnce([
+      { body: "Correo «Tus videos están listos» enviado a ana@x.com.", createdAt: new Date("2026-10-22T13:00:00Z"), proyecto: { pedidoId: "p1" } },
+    ]);
+    const [r] = await resumenDeEntregas("ws1", { pedidoIds: ["p1"] });
+    expect(db.fotofficePedido.findMany.mock.calls[0][0].where.id).toEqual({ in: ["p1"] });
+    expect(r!.email).toBe("ana@x.com");
+    expect(r!.envioRegistrado.primero).toEqual({ modo: "CORREO", email: "ana@x.com", at: new Date("2026-10-22T13:00:00Z") });
+  });
+
+  it("con una lista vacía no consulta nada", async () => {
+    expect(await resumenDeEntregas("ws1", { pedidoIds: [] })).toEqual([]);
+    expect(db.fotofficePedido.findMany).not.toHaveBeenCalled();
   });
 });
 
