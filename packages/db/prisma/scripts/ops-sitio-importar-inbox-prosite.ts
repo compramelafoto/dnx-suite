@@ -1,0 +1,194 @@
+/**
+ * Importa los envíos del Inbox de Alboom Prosite («Inbox» → «Exportar» → XLS) a la bandeja de
+ * formularios del sitio de FOTOFFICE (Sitio web → Formularios), agrupados por formulario.
+ *
+ * La interpretación del archivo vive en `apps/fotoffice/lib/sitio-formularios/importar-prosite.ts`
+ * (probada con archivos de ejemplo); acá sólo se lee el archivo, se arma el informe y se escribe.
+ *
+ * ── Archivo de entrada ──
+ *
+ *   Acepta .csv, .xls y .xlsx. Mira el contenido, no la extensión:
+ *     - CSV (coma, punto y coma o tabulación; UTF-8 o Windows-1252);
+ *     - «XLS» que en realidad es una tabla HTML o XML de Excel 2003 (lo más común en paneles web);
+ *     - .xlsx o .xls binario de verdad: se lee con SheetJS (`xlsx`), que FOTOFFICE no tiene como
+ *       dependencia; el script lo toma de otra app del monorepo (CompraMeLaFoto o FotoRank). Si no
+ *       lo encuentra, abrí el archivo en Excel y guardalo como «CSV UTF-8 (delimitado por comas)».
+ *   Columnas esperadas: una de fecha («Fecha», «Data»…), una con el nombre del formulario
+ *   («Formulario»…) y los campos (Nombre, Correo, Teléfono, Instagram, Mensaje…). Si no hay
+ *   columna de formulario, todo va a `--formulario "<nombre>"` (por omisión «Inbox de Prosite»).
+ *   Fechas sin zona = hora argentina.
+ *
+ * ── Modos ──
+ *
+ *   (nada)      SIMULACIÓN: lee e interpreta el archivo y muestra el informe. NO abre la base.
+ *   --aplicar   escribe en la base de FOTOFFICE. Idempotente (huella de fecha + formulario +
+ *               datos): repetirlo no duplica. Los envíos quedan como LEÍDOS.
+ *
+ * Otros: `--slug <slug>` (workspace por su dirección pública; por omisión `dnx-estudio`),
+ * `--formulario <nombre>` (ver arriba).
+ *
+ * ── Cómo correrlo (desde apps/fotoffice) ──
+ *
+ *   Simulación:
+ *     pnpm sitio:importar-inbox-prosite ~/Downloads/inbox-prosite.xls
+ *
+ *   De verdad (con las tablas de 20261230120000_fotoffice_sitio_formularios ya aplicadas):
+ *     set -a && . ./.env.local && set +a
+ *     DATABASE_URL_FOTOFFICE="$DATABASE_URL" pnpm sitio:importar-inbox-prosite ~/Downloads/inbox-prosite.xls --aplicar
+ *
+ * Variable para --aplicar: DATABASE_URL_FOTOFFICE (no DATABASE_URL: el cliente de @repo/db puede
+ * cargar packages/db/.env, que apunta a otra base). El informe no muestra datos de las personas:
+ * sólo cantidades, columnas y fechas.
+ */
+import { existsSync, readFileSync } from "node:fs";
+import { createRequire } from "node:module";
+import { resolve } from "node:path";
+
+type Opciones = { archivo: string; aplicar: boolean; slug: string; formulario: string };
+
+function salir(mensaje: string): never {
+  console.error(mensaje);
+  process.exit(1);
+}
+
+function leerOpciones(argv: string[]): Opciones {
+  const o: Opciones = { archivo: "", aplicar: false, slug: "dnx-estudio", formulario: "Inbox de Prosite" };
+  for (let i = 0; i < argv.length; i++) {
+    const [a, pegado] = argv[i].includes("=") && argv[i].startsWith("--") ? [argv[i].slice(0, argv[i].indexOf("=")), argv[i].slice(argv[i].indexOf("=") + 1)] : [argv[i], undefined];
+    const valor = () => pegado ?? argv[++i] ?? salir(`Falta el valor de ${a}`);
+    if (a === "--aplicar") o.aplicar = true;
+    else if (a === "--slug") o.slug = valor();
+    else if (a === "--formulario") o.formulario = valor();
+    else if (a.startsWith("--")) salir(`No conozco la opción ${a}. Ver el encabezado del script.`);
+    else if (!o.archivo) o.archivo = resolve(process.cwd(), a);
+    else salir("Pasá un solo archivo.");
+  }
+  if (!o.archivo) salir("Falta el archivo exportado del Inbox de Prosite. Ver el encabezado del script.");
+  if (!existsSync(o.archivo)) salir(`No encuentro ${o.archivo}`);
+  if (!/^[a-z0-9-]{2,80}$/.test(o.slug)) salir("--slug no parece una dirección pública de workspace.");
+  return o;
+}
+
+/** SheetJS de otra app del monorepo (no se agrega como dependencia de FOTOFFICE). */
+function cargarSheetJs(): unknown {
+  for (const app of ["compramelafoto", "fotorank"]) {
+    try {
+      const req = createRequire(new URL(`../../../../apps/${app}/package.json`, import.meta.url));
+      return req("xlsx");
+    } catch {
+      // probar la siguiente
+    }
+  }
+  return null;
+}
+
+function hostDe(url: string): string {
+  try {
+    return new URL(url).host;
+  } catch {
+    return "(dirección ilegible)";
+  }
+}
+
+const fecha = (d: Date) => new Intl.DateTimeFormat("es-AR", { timeZone: "America/Argentina/Buenos_Aires", dateStyle: "short" }).format(d);
+
+async function main() {
+  const o = leerOpciones(process.argv.slice(2));
+
+  if (o.aplicar) {
+    const url = process.env.DATABASE_URL_FOTOFFICE?.trim();
+    if (!url) salir("Falta DATABASE_URL_FOTOFFICE (la base de FOTOFFICE). Ver el encabezado del script.");
+    process.env.DATABASE_URL = url;
+    console.log(`Base: ${hostDe(url)}`);
+  } else {
+    // La simulación no abre la base: si algo la pidiera por error, falla en vez de leer otra.
+    process.env.DATABASE_URL = "postgresql://simulacion-sin-base@127.0.0.1:1/simulacion";
+    process.env.DATABASE_URL_FOTOFFICE = "";
+  }
+
+  const lib = await import("../../../../apps/fotoffice/lib/sitio-formularios/importar-prosite");
+  const bytes = new Uint8Array(readFileSync(o.archivo));
+  let { formato, filas } = lib.filasDeArchivoDeTexto(bytes) as { formato: string; filas: import("../../../../apps/fotoffice/lib/sitio-formularios/importar-prosite").Celda[][] };
+  if (formato === "xlsx" || formato === "xls-binario") {
+    const xlsx = cargarSheetJs();
+    if (!xlsx) salir("Es un Excel de verdad y no encontré SheetJS (xlsx) en el monorepo. Abrilo en Excel y guardalo como «CSV UTF-8», y pasá ese archivo.");
+    filas = lib.filasConSheetJs(xlsx as import("../../../../apps/fotoffice/lib/sitio-formularios/importar-prosite").LectorSheetJs, bytes);
+  }
+  console.log(`Archivo: ${o.archivo} (${formato}, ${filas.length} filas)`);
+
+  const r = lib.interpretarTabla(filas, o.formulario);
+  const grupos = lib.agruparPorFormulario(r.envios);
+
+  console.log("");
+  console.log(`Columna de fecha: ${r.columnas.fecha ?? "(no hay)"} · de formulario: ${r.columnas.formulario ?? `(no hay: todo va a «${o.formulario}»)`}`);
+  console.log(`Campos: ${r.columnas.campos.join(", ") || "(ninguno)"}`);
+  if (r.columnas.ignoradas.length) console.log(`Columnas que no se importan: ${r.columnas.ignoradas.join(", ")}`);
+  console.log(`Envíos válidos: ${r.envios.length} · repetidos en el archivo: ${r.repetidas} · descartados: ${r.descartadas.length}`);
+  const conCorreo = r.envios.filter((e) => e.contacto.email).length;
+  const conTelefono = r.envios.filter((e) => e.contacto.telefono).length;
+  console.log(`Con correo: ${conCorreo} · con teléfono: ${conTelefono}`);
+  console.log("");
+  console.log("Formularios:");
+  for (const g of grupos) console.log(`  · ${g.nombre}: ${g.envios.length} envíos (${fecha(g.desde)} a ${fecha(g.hasta)})`);
+  if (r.descartadas.length) {
+    console.log("");
+    console.log("Descartados (primeros 30):");
+    for (const d of r.descartadas.slice(0, 30)) console.log(`  · fila ${d.fila}: ${d.motivo}`);
+  }
+
+  if (!o.aplicar) {
+    console.log("");
+    console.log("Simulación: no se escribió nada. Para importar, repetí con --aplicar (ver el encabezado del script).");
+    return;
+  }
+
+  const { prisma } = await import("@repo/db");
+  const { asegurarFormulario, ORIGEN_IMPORTADO_PROSITE } = await import("../../../../apps/fotoffice/lib/website/formularios.server");
+  try {
+    const branding = await prisma.fotofficeWorkspaceBranding.findUnique({ where: { publicSlug: o.slug }, select: { workspaceId: true, commercialName: true } });
+    if (!branding) salir(`No hay ningún workspace con la dirección /w/${o.slug} en esa base.`);
+    try {
+      await prisma.fotofficeSitioFormularioEnvio.count({ where: { workspaceId: branding.workspaceId } });
+    } catch {
+      salir("Faltan las tablas de formularios: aplicá antes el SQL 20261230120000_fotoffice_sitio_formularios.");
+    }
+    console.log("");
+    console.log(`Workspace: ${branding.commercialName} (/w/${o.slug})`);
+
+    let nuevos = 0;
+    for (const g of grupos) {
+      const formularioId = await asegurarFormulario(prisma, branding.workspaceId, g.clave, g.nombre, ORIGEN_IMPORTADO_PROSITE);
+      let delGrupo = 0;
+      for (let i = 0; i < g.envios.length; i += 500) {
+        const tanda = g.envios.slice(i, i + 500);
+        const res = await prisma.fotofficeSitioFormularioEnvio.createMany({
+          data: tanda.map((e) => ({
+            workspaceId: branding.workspaceId,
+            formularioId,
+            datosJson: e.pares,
+            nombre: e.contacto.nombre,
+            email: e.contacto.email,
+            telefono: e.contacto.telefono,
+            estado: "LEIDO",
+            claveImportacion: e.clave,
+            createdAt: e.fecha,
+          })),
+          // La huella es única por workspace: lo ya importado se saltea.
+          skipDuplicates: true,
+        });
+        delGrupo += res.count;
+      }
+      nuevos += delGrupo;
+      console.log(`  · ${g.nombre}: ${delGrupo} nuevos, ${g.envios.length - delGrupo} ya estaban`);
+    }
+    console.log("");
+    console.log(`Listo: ${nuevos} envíos nuevos, ${r.envios.length - nuevos} ya estaban.`);
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

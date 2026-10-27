@@ -17,6 +17,8 @@ const SECONDARY_TABS = [
   { href: "/website/dominio", label: "Dominio" },
   // Las direcciones viejas (por ejemplo las de la web anterior) que llevan a las nuevas.
   { href: "/website/redirecciones", label: "Redirecciones" },
+  // Los envíos de los formularios propios del sitio (y lo importado de Prosite) y el boletín.
+  { href: "/website/formularios", label: "Formularios" },
   // El blog tiene su propio marco (`BlogShell`) y su ítem en el menú lateral; acá queda a mano
   // para quien llega desde la configuración del sitio.
   { href: "/website/blog", label: "Blog" },

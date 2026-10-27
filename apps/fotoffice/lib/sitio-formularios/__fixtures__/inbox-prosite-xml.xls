@@ -1,0 +1,7 @@
+<?xml version="1.0"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+<Worksheet ss:Name="Inbox"><Table>
+<Row><Cell><Data ss:Type="String">Fecha</Data></Cell><Cell><Data ss:Type="String">Formulario</Data></Cell><Cell><Data ss:Type="String">Nombre</Data></Cell><Cell><Data ss:Type="String">Correo</Data></Cell></Row>
+<Row><Cell><Data ss:Type="String">05/05/2024 10:15</Data></Cell><Cell><Data ss:Type="String">Landing XV</Data></Cell><Cell><Data ss:Type="String">Sofía</Data></Cell><Cell><Data ss:Type="String">sofi@ejemplo.com</Data></Cell></Row>
+<Row><Cell><Data ss:Type="String">06/05/2024 10:15</Data></Cell><Cell><Data ss:Type="String">Landing XV</Data></Cell><Cell ss:Index="4"><Data ss:Type="String">solo@ejemplo.com</Data></Cell></Row>
+</Table></Worksheet></Workbook>

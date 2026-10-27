@@ -30,6 +30,9 @@ import { FeaturesBlockView } from "@/components/website/render/blocks/features-b
 import { MapBlockView } from "@/components/website/render/blocks/map-block-view";
 import { WhatsappButtonBlockView } from "@/components/website/render/blocks/whatsapp-button-block-view";
 import { PaymentButtonBlockView } from "@/components/website/render/blocks/payment-button-block-view";
+import { FormBlockView } from "@/components/website/render/blocks/form-block-view";
+import { NewsletterBlockView } from "@/components/website/render/blocks/newsletter-block-view";
+import { FormInspector, NewsletterInspector } from "@/components/website/inspector/form-inspectors";
 import {
   BeforeAfterInspector,
   CountdownInspector,
@@ -394,6 +397,8 @@ export const WEBSITE_BLOCK_REGISTRY: { [K in WebsiteBlockType]: BlockRegistryEnt
   MAP: { View: MapBlockView, Inspector: MapInspector },
   WHATSAPP_BUTTON: { View: WhatsappButtonBlockView, Inspector: WhatsappButtonInspector },
   PAYMENT_BUTTON: { View: PaymentButtonBlockView, Inspector: PaymentButtonInspector },
+  FORM: { View: FormBlockView, Inspector: FormInspector },
+  NEWSLETTER: { View: NewsletterBlockView, Inspector: NewsletterInspector },
 };
 
 export { WEBSITE_BLOCK_DEFINITIONS };

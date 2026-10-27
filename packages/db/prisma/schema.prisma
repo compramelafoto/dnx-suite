@@ -27623,3 +27623,76 @@ model FotofficeSitioRedireccion {
 
   @@unique([workspaceId, desde])
 }
+
+// ---------------------------------------------------------------------------
+// FOTOFFICE · Formularios propios del sitio, boletín y bandeja (PR C de las secciones de Prosite)
+// Tablas nuevas, sin relaciones a tablas existentes: el SQL se aplica a mano y el código tolera que
+// falten. Ver apps/fotoffice/docs/superpowers/specs/2026-10-27-sitio-herramientas-prosite-design.md
+// ---------------------------------------------------------------------------
+
+/// Un formulario que recibe envíos: un bloque FORM del sitio (clave = id del bloque) o un formulario
+/// importado del Inbox de Prosite (clave = `prosite:<nombre normalizado>`). Agrupa los envíos en la
+/// bandeja (Sitio web → Formularios).
+model FotofficeSitioFormulario {
+  id          String                           @id @default(cuid())
+  workspaceId String
+  /// Estable: el id del bloque FORM, o `prosite:<nombre>` para los importados.
+  clave       String
+  /// El nombre visible (el título del bloque al último envío, o el nombre en Prosite).
+  nombre      String
+  /// `SITIO` o `IMPORTADO_PROSITE`.
+  origen      String                           @default("SITIO")
+  createdAt   DateTime                         @default(now())
+  updatedAt   DateTime                         @updatedAt
+  envios      FotofficeSitioFormularioEnvio[]
+
+  @@unique([workspaceId, clave])
+}
+
+/// Lo que mandó una persona por un formulario del sitio (o un envío importado de Prosite).
+model FotofficeSitioFormularioEnvio {
+  id                String                   @id @default(cuid())
+  workspaceId       String
+  formularioId      String
+  formulario        FotofficeSitioFormulario @relation(fields: [formularioId], references: [id], onDelete: Cascade)
+  /// Pares `[{ etiqueta, valor }]` en el orden del formulario.
+  datosJson         Json
+  /// Extraídos de los pares para listar y buscar.
+  nombre            String?
+  email             String?
+  telefono          String?
+  /// Página del sitio donde estaba el formulario (`/w/<slug>/<página>`).
+  paginaUrl         String?
+  /// `NUEVO`, `LEIDO` o `ARCHIVADO`.
+  estado            String                   @default("NUEVO")
+  /// La consulta creada en Consultas a partir del envío (si el bloque lo pedía).
+  consultaId        String?
+  /// Huella de la IP (HMAC, nunca la IP cruda), para frenar abusos.
+  ipHash            String?
+  /// Huella de un envío importado (fecha + formulario + datos): la importación es idempotente.
+  claveImportacion  String?
+  createdAt         DateTime                 @default(now())
+
+  @@unique([workspaceId, claveImportacion])
+  @@index([workspaceId, formularioId, createdAt])
+  @@index([workspaceId, estado, createdAt])
+  @@index([workspaceId, createdAt])
+}
+
+/// Una persona suscripta al boletín del sitio (bloque NEWSLETTER).
+model FotofficeSitioSuscriptor {
+  id          String   @id @default(cuid())
+  workspaceId String
+  /// En minúsculas, sin espacios.
+  email       String
+  nombre      String?
+  /// De dónde vino: `SITIO` (el bloque) o `IMPORTADO`.
+  origen      String   @default("SITIO")
+  /// `ACTIVO` o `BAJA`.
+  estado      String   @default("ACTIVO")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([workspaceId, email])
+  @@index([workspaceId, estado, createdAt])
+}

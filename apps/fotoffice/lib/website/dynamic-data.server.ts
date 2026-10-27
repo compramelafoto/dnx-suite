@@ -8,6 +8,7 @@ import {
   hasVisibleContact,
   hasVisibleInquiryForm,
   hasVisibleMemberOfWeek,
+  hasVisibleSiteForm,
   paginasDelSitio,
   portfolioBlocksFor,
   testimonialsLimitFor,
@@ -35,7 +36,7 @@ export async function loadWebsiteDynamicData(site: PublicSite, blocks: PublicSit
 
   // Los botones que dicen `/quien-soy` (las plantillas no conocen el slug) van a la página propia
   // de este sitio. En el dominio propio, `/w/<slug>/…` redirige sola a la dirección limpia.
-  if (blocks.some((b) => (b.type === "HERO" || b.type === "CTA") && b.visible) && Object.keys(site.sections.pageMeta).length > 0) {
+  if (blocks.some((b) => (b.type === "HERO" || b.type === "CTA" || b.type === "FORM") && b.visible) && Object.keys(site.sections.pageMeta).length > 0) {
     data.paginasDelSitio = paginasDelSitio(`/w/${site.workspaceSlug}`, site.sections.pageMeta);
   }
 
@@ -74,6 +75,9 @@ export async function loadWebsiteDynamicData(site: PublicSite, blocks: PublicSit
     });
     if (opciones) data.inquiry = { workspaceSlug: site.workspaceSlug, ...opciones };
   }
+
+  // Formularios propios y boletín: el envío vuelve a buscar el bloque publicado, no hace falta más.
+  if (hasVisibleSiteForm(blocks)) data.formularios = { workspaceSlug: site.workspaceSlug };
 
   const portfolios = portfolioBlocksFor(blocks);
   if (portfolios.length > 0) {

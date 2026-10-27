@@ -18,7 +18,7 @@ export type WebsiteNavItem = {
 };
 
 /** Bloques que nunca son un ítem del menú: separan o son un botón suelto, no una sección. */
-const NOT_IN_MENU = new Set<WebsiteBlock["type"]>(["SPACER", "DIVIDER", "WHATSAPP_BUTTON", "PAYMENT_BUTTON"]);
+const NOT_IN_MENU = new Set<WebsiteBlock["type"]>(["SPACER", "DIVIDER", "WHATSAPP_BUTTON", "PAYMENT_BUTTON", "NEWSLETTER"]);
 
 const RESERVED_ANCHORS = new Set(["top", "home", "inicio", "menu", "header", "footer"]);
 
