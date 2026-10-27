@@ -4,7 +4,9 @@ import { cifrasPermitidas, textosDelTurno } from "@/lib/dnx-bot/cifras";
  * Cifras que puede decir el bot de WhatsApp. Además de lo que respalda cualquier turno de DNX Bot
  * (lo que escribió el cliente y los resultados de las herramientas) vale:
  * - lo que el bot o el equipo ya dijeron antes en el chat (ya se controló cuando se envió), y
- * - una cantidad que dijo el cliente × un precio respaldado ("2 videos" × $12.000 = $24.000).
+ * - una cantidad que dijo el cliente × un precio respaldado ("2 videos" × $12.000 = $24.000), y
+ * - una cantidad que nombra la propia respuesta × un precio respaldado ("si hacés 11 a $2.000, son $22.000"):
+ *   la cuenta es correcta aunque la cantidad la proponga el bot.
  * Un precio inventado sigue sin pasar. Módulo PURO.
  */
 
@@ -23,14 +25,14 @@ function textoDe(m: Msg): string {
     .join("\n");
 }
 
-export function cifrasRespaldadasEnAtencion(history: readonly unknown[], appended: readonly unknown[]): Set<string> {
+export function cifrasRespaldadasEnAtencion(history: readonly unknown[], appended: readonly unknown[], respuesta = ""): Set<string> {
   const todos = [...history, ...appended] as Msg[];
   const dichoAntes = (history as Msg[]).filter((m) => m?.role === "assistant").map(textoDe);
   const ok = cifrasPermitidas([...textosDelTurno(todos), ...dichoAntes]);
 
-  const delCliente = todos.filter((m) => m?.role === "user").map(textoDe).join("\n");
+  const conCantidades = [...todos.filter((m) => m?.role === "user").map(textoDe), respuesta.replace(/\$\s?[\d.,]+/g, " ")].join("\n");
   const cantidades = new Set<number>();
-  for (const m of delCliente.matchAll(/\b(\d{1,4})\b/g)) {
+  for (const m of conCantidades.matchAll(/\b(\d{1,4})\b/g)) {
     const n = Number(m[1]);
     if (n >= 2 && n <= MAX_CANTIDAD) cantidades.add(n);
   }

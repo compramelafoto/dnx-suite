@@ -9,6 +9,19 @@ describe("guía del bot de atención", () => {
     expect(g).toMatch(/markdown/);
   });
 
+  it("habla desde el estudio: traer y venir, nunca llevar", () => {
+    const g = guiaDeAtencion();
+    expect(g).toMatch(/desde adentro del estudio/);
+    expect(g).toContain("Podés traerlos hoy");
+    expect(g).toMatch(/nunca "llevar"/);
+  });
+
+  it("castellano rioplatense semiformal, sin frases de otros países", () => {
+    const g = guiaDeAtencion();
+    expect(g).toMatch(/rioplatense de Argentina, semiformal/);
+    expect(g).toContain('decí "si no tenés apuro"');
+  });
+
   it("la situación dice el día y la hora en Argentina y el nombre si lo hay", () => {
     const s = situacionDeAtencion({ estudio: "DNX Estudio", cliente: "Lucía", ahora: new Date("2026-10-20T23:30:00.000Z") });
     expect(s).toContain("DNX Estudio");
