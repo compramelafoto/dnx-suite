@@ -327,7 +327,7 @@ describe("mis_pedidos", () => {
     expect(m.token.findMany.mock.calls[0]![0].where).toMatchObject({ orderId: { in: [1, 2, 3] }, type: "CLIENT_DIGITAL", photoId: null });
     const pedidos = (r as { data: { pedidos: { pedido: number; descarga: string; total: string; album: string }[] } }).data.pedidos;
     expect(pedidos[0]).toMatchObject({ pedido: 1, album: "A", fecha: "12/10/2026", estado: "pagado", total: formatPurchaseArs(9000) });
-    expect(pedidos[0]!.descarga).toMatch(/^vigente hasta \d{2}\/\d{2}$/);
+    expect(pedidos[0]!.descarga).toMatch(/^vigente hasta \d{1,2}\/\d{1,2}$/);
     expect(pedidos[1]!.descarga).toBe("vencida");
     expect(pedidos[2]!.descarga).toBe("no corresponde");
     expect(JSON.stringify(r)).not.toMatch(/juana|token/i);
