@@ -148,6 +148,14 @@ export function parsearFechaArgentina(valor: Celda): Date | null {
   if (!t) return null;
   if (/^\d+([.,]\d+)?$/.test(t)) return parsearFechaArgentina(Number(t.replace(",", ".")));
 
+  // «2019-07-26 01:16:06 UTC» (exportaciones viejas de Prosite): es UTC, no hora argentina.
+  const utc = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?\s*(?:UTC|GMT|Z)$/i.exec(t);
+  if (utc) {
+    const ms = Date.UTC(+utc[1], +utc[2] - 1, +utc[3], +utc[4], +utc[5], +(utc[6] ?? 0));
+    const d = new Date(ms);
+    return d.getUTCMonth() === +utc[2] - 1 && d.getUTCDate() === +utc[3] && +utc[4] < 24 && +utc[5] < 60 ? d : null;
+  }
+
   // ISO con zona explícita: tal cual.
   if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})$/i.test(t)) {
     const d = new Date(t);
@@ -171,7 +179,8 @@ const COLUMNA_FORMULARIO = /^(formulario|nombre del formulario|formul[aá]rio|fo
 const COLUMNA_IGNORADA = /^(id|#|status|estado|lido|le[ií]do|read|visto)$/i;
 
 export type EnvioImportado = {
-  fecha: Date;
+  /** `null` = la fila vino sin fecha: se importa igual, marcada «sin fecha». */
+  fecha: Date | null;
   formulario: string;
   pares: ParEnvio[];
   contacto: ContactoEnvio;
@@ -217,11 +226,11 @@ function etiquetaNormalizada(etiqueta: string): string {
  * los pares ORDENADOS por etiqueta normalizada. Así el mismo envío en dos exportaciones con las
  * columnas en otro orden, o con el nombre del formulario escrito distinto, no se duplica.
  */
-export function claveDeImportacion(fecha: Date, formulario: string, pares: readonly ParEnvio[]): string {
+export function claveDeImportacion(fecha: Date | null, formulario: string, pares: readonly ParEnvio[]): string {
   const ordenados = pares
     .map((p) => [etiquetaNormalizada(p.etiqueta), p.valor.trim()] as const)
     .sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : 0));
-  const base = JSON.stringify([fecha.toISOString(), claveDeFormularioProsite(formulario), ordenados]);
+  const base = JSON.stringify([fecha ? fecha.toISOString() : "sin-fecha", claveDeFormularioProsite(formulario), ordenados]);
   return createHash("sha256").update(base).digest("hex").slice(0, 40);
 }
 
@@ -243,7 +252,15 @@ export function interpretarTabla(
   const vacio: ResultadoInterpretacion = { columnas: { fecha: null, formulario: null, campos: [], ignoradas: [] }, envios: [], descartadas: [], repetidas: 0 };
   if (inicio < 0) return vacio;
 
-  const encabezados = filas[inicio].map((c) => normalizarEncabezado(celdaComoTexto(c)));
+  const encabezados = filas[inicio].map((c) => normalizarEncabezado(celdaComoTexto(c)).replace(/^['"]+$/, ""));
+  // Columnas sin nombre. Prosite a veces las pone en el encabezado pero no en las filas (cada fila
+  // trae una celda menos y todo queda corrido): esas filas se realinean salteando las sin nombre.
+  const sinNombre = new Set(encabezados.flatMap((h, i) => (h === "" ? [i] : [])));
+  const alinear = (fila: readonly Celda[]): readonly Celda[] => {
+    if (sinNombre.size === 0 || fila.length !== encabezados.length - sinNombre.size) return fila;
+    let k = 0;
+    return encabezados.map((_, i) => (sinNombre.has(i) ? "" : fila[k++]));
+  };
   const iFecha = encabezados.findIndex((h) => COLUMNA_FECHA.test(h));
   const iFormulario = opciones.columnaFormulario === false ? -1 : encabezados.findIndex((h, i) => i !== iFecha && COLUMNA_FORMULARIO.test(h));
   const campos: Array<{ i: number; etiqueta: string }> = [];
@@ -251,7 +268,7 @@ export function interpretarTabla(
   encabezados.forEach((h, i) => {
     if (i === iFecha || i === iFormulario) return;
     if (COLUMNA_IGNORADA.test(h)) ignoradas.push(h);
-    else campos.push({ i, etiqueta: h || `Columna ${i + 1}` });
+    else campos.push({ i, etiqueta: h || "Campo sin nombre" });
   });
 
   const resultado: ResultadoInterpretacion = {
@@ -267,11 +284,13 @@ export function interpretarTabla(
 
   const vistas = new Set<string>();
   for (let n = inicio + 1; n < filas.length; n++) {
-    const fila = filas[n];
+    const fila = alinear(filas[n]);
     const numero = n + 1;
     if (fila.every((c) => celdaComoTexto(c) === "")) continue;
-    const fecha = parsearFechaArgentina(fila[iFecha]);
-    if (!fecha) {
+    // Fecha vacía: se importa igual, «sin fecha». Una fecha escrita pero ilegible se descarta.
+    const sinFecha = celdaComoTexto(fila[iFecha]) === "";
+    const fecha = sinFecha ? null : parsearFechaArgentina(fila[iFecha]);
+    if (!fecha && !sinFecha) {
       resultado.descartadas.push({ fila: numero, motivo: `Fecha ilegible: «${celdaComoTexto(fila[iFecha]).slice(0, 40)}»` });
       continue;
     }
@@ -308,19 +327,23 @@ export function claveDeFormularioProsite(nombre: string): string {
   return `prosite:${slug || "sin-nombre"}`;
 }
 
-export type GrupoDeFormulario = { clave: string; nombre: string; envios: EnvioImportado[]; desde: Date; hasta: Date };
+export type GrupoDeFormulario = { clave: string; nombre: string; envios: EnvioImportado[]; desde: Date | null; hasta: Date | null; sinFecha: number };
 
 /** Los envíos agrupados por formulario (los nombres que difieren sólo en mayúsculas/tildes van juntos). */
 export function agruparPorFormulario(envios: readonly EnvioImportado[]): GrupoDeFormulario[] {
   const grupos = new Map<string, GrupoDeFormulario>();
   for (const e of envios) {
     const clave = claveDeFormularioProsite(e.formulario);
-    const g = grupos.get(clave);
-    if (!g) grupos.set(clave, { clave, nombre: e.formulario, envios: [e], desde: e.fecha, hasta: e.fecha });
+    let g = grupos.get(clave);
+    if (!g) {
+      g = { clave, nombre: e.formulario, envios: [], desde: null, hasta: null, sinFecha: 0 };
+      grupos.set(clave, g);
+    }
+    g.envios.push(e);
+    if (!e.fecha) g.sinFecha++;
     else {
-      g.envios.push(e);
-      if (e.fecha < g.desde) g.desde = e.fecha;
-      if (e.fecha > g.hasta) g.hasta = e.fecha;
+      if (!g.desde || e.fecha < g.desde) g.desde = e.fecha;
+      if (!g.hasta || e.fecha > g.hasta) g.hasta = e.fecha;
     }
   }
   return [...grupos.values()].sort((a, b) => b.envios.length - a.envios.length || a.nombre.localeCompare(b.nombre, "es"));

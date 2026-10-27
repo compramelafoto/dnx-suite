@@ -243,8 +243,22 @@ export function esEstadoEnvio(v: unknown): v is EstadoEnvio {
   return typeof v === "string" && (ESTADOS_ENVIO as readonly string[]).includes(v);
 }
 
-/** Los pares guardados en `datosJson`, tolerando cualquier cosa rara. */
-export function paresDeJson(raw: unknown): ParEnvio[] {
+/**
+ * Lo que se guarda en `datosJson`: la lista de pares, o `{ pares, fechaDesconocida: true }` para un
+ * envío importado que vino sin fecha (su `createdAt` es el día de la importación, no el real).
+ */
+export function datosDeEnvioJson(pares: ParEnvio[], fechaDesconocida: boolean): ParEnvio[] | { pares: ParEnvio[]; fechaDesconocida: true } {
+  return fechaDesconocida ? { pares, fechaDesconocida: true } : pares;
+}
+
+/** ¿El envío vino sin fecha? (ver `datosDeEnvioJson`). */
+export function fechaDesconocidaDeJson(raw: unknown): boolean {
+  return !!raw && typeof raw === "object" && !Array.isArray(raw) && (raw as { fechaDesconocida?: unknown }).fechaDesconocida === true;
+}
+
+/** Los pares guardados en `datosJson` (lista u objeto con `pares`), tolerando cualquier cosa rara. */
+export function paresDeJson(datos: unknown): ParEnvio[] {
+  const raw = datos && typeof datos === "object" && !Array.isArray(datos) ? (datos as { pares?: unknown }).pares : datos;
   if (!Array.isArray(raw)) return [];
   const out: ParEnvio[] = [];
   for (const item of raw) {

@@ -162,7 +162,10 @@ async function main() {
   console.log(`Entran como: ${o.estado === "LEIDO" ? "leídos" : "archivados"}`);
   console.log("");
   console.log("Formularios:");
-  for (const g of grupos) console.log(`  · ${g.nombre}: ${g.envios.length} envíos (${fecha(g.desde)} a ${fecha(g.hasta)})`);
+  for (const g of grupos) {
+    const rango = g.desde && g.hasta ? `${fecha(g.desde)} a ${fecha(g.hasta)}` : "sin fechas";
+    console.log(`  · ${g.nombre}: ${g.envios.length} envíos (${rango}${g.sinFecha ? `; ${g.sinFecha} sin fecha` : ""})`);
+  }
 
   if (!o.aplicar) {
     console.log("");
@@ -172,6 +175,10 @@ async function main() {
 
   const { prisma } = await import("@repo/db");
   const { asegurarFormulario, ORIGEN_IMPORTADO_PROSITE } = await import("../../../../apps/fotoffice/lib/website/formularios.server");
+  const { datosDeEnvioJson } = await import("../../../../apps/fotoffice/lib/website/formularios");
+  // Los envíos sin fecha entran con la de hoy (la columna es obligatoria) y marcados «sin fecha»;
+  // su huella no incluye esta fecha, así que repetir la importación no los duplica.
+  const ahora = new Date();
   try {
     const branding = await prisma.fotofficeWorkspaceBranding.findUnique({ where: { publicSlug: o.slug }, select: { workspaceId: true, commercialName: true } });
     if (!branding) salir(`No hay ningún workspace con la dirección /w/${o.slug} en esa base.`);
@@ -193,13 +200,13 @@ async function main() {
           data: tanda.map((e) => ({
             workspaceId: branding.workspaceId,
             formularioId,
-            datosJson: e.pares,
+            datosJson: datosDeEnvioJson(e.pares, e.fecha === null),
             nombre: e.contacto.nombre,
             email: e.contacto.email,
             telefono: e.contacto.telefono,
             estado: o.estado,
             claveImportacion: e.clave,
-            createdAt: e.fecha,
+            createdAt: e.fecha ?? ahora,
           })),
           // La huella es única por workspace: lo ya importado se saltea.
           skipDuplicates: true,

@@ -46,6 +46,8 @@ export function fechaHoraArgentina(d: Date): string {
 
 export type EnvioParaExportar = {
   createdAt: Date;
+  /** Importado sin fecha: la columna Fecha dice «sin fecha». */
+  fechaDesconocida?: boolean;
   formulario: string;
   estado: string;
   paginaUrl: string | null;
@@ -80,7 +82,7 @@ export function csvDeEnvios(envios: readonly EnvioParaExportar[]): string {
   });
   const encabezados = ["Fecha", "Formulario", "Estado", "Página", ...columnas];
   const filas = envios.map((e, i) => [
-    fechaHoraArgentina(e.createdAt),
+    e.fechaDesconocida ? "sin fecha" : fechaHoraArgentina(e.createdAt),
     e.formulario,
     ESTADO_LEGIBLE[e.estado] ?? e.estado,
     e.paginaUrl ?? "",

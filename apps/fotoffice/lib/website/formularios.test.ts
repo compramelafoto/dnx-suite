@@ -14,7 +14,9 @@ import {
   configPublicaDelFormulario,
   contactoPorEtiquetas,
   contenidoRevelado,
+  datosDeEnvioJson,
   emailValido,
+  fechaDesconocidaDeJson,
   enlaceSeguroDelFormulario,
   filtrosDeLaBandeja,
   hrefDeLaBandeja,
@@ -307,6 +309,13 @@ describe("filtros de la bandeja", () => {
       { etiqueta: "B", valor: "2" },
     ]);
     expect(paresDeJson({})).toEqual([]);
+    // Importado sin fecha: objeto con los pares y la marca.
+    const sinFecha = datosDeEnvioJson([{ etiqueta: "A", valor: "1" }], true);
+    expect(sinFecha).toEqual({ pares: [{ etiqueta: "A", valor: "1" }], fechaDesconocida: true });
+    expect(paresDeJson(sinFecha)).toEqual([{ etiqueta: "A", valor: "1" }]);
+    expect(fechaDesconocidaDeJson(sinFecha)).toBe(true);
+    expect(fechaDesconocidaDeJson([{ etiqueta: "A", valor: "1" }])).toBe(false);
+    expect(datosDeEnvioJson([], false)).toEqual([]);
   });
 });
 
@@ -360,6 +369,11 @@ describe("CSV de la bandeja", () => {
         // «@…» se neutraliza (Excel lo tomaría como fórmula), aunque sea un usuario de Instagram.
         "26/10/2026 09:00,Videos,Archivado,,Luis,,'@luis,'@otro\r\n",
     );
+  });
+
+  it("un envío importado sin fecha dice «sin fecha»", () => {
+    const csv = csvDeEnvios([{ createdAt: new Date(), fechaDesconocida: true, formulario: "X", estado: "LEIDO", paginaUrl: null, pares: [{ etiqueta: "A", valor: "1" }] }]);
+    expect(csv).toBe("\uFEFFFecha,Formulario,Estado,Página,A\r\nsin fecha,X,Leído,,1\r\n");
   });
 
   it("exporta los suscriptores", () => {

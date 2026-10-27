@@ -2,7 +2,7 @@ import "server-only";
 import { createHmac } from "node:crypto";
 import { prisma, type Prisma } from "@repo/db";
 import type { SuscriptorParaExportar, EnvioParaExportar } from "./formularios-csv";
-import { paresDeJson, type ContactoEnvio, type EstadoEnvio, type ParEnvio } from "./formularios";
+import { fechaDesconocidaDeJson, paresDeJson, type ContactoEnvio, type EstadoEnvio, type ParEnvio } from "./formularios";
 
 /**
  * Formularios propios del sitio, del lado del servidor: guardar envíos y suscriptores y leer la
@@ -174,6 +174,8 @@ export type EnvioDeLista = {
   telefono: string | null;
   estado: string;
   createdAt: Date;
+  /** Importado sin fecha: `createdAt` es el día de la importación. */
+  fechaDesconocida: boolean;
   resumen: string;
 };
 
@@ -215,6 +217,7 @@ export async function listarEnvios(
         telefono: f.telefono,
         estado: f.estado,
         createdAt: f.createdAt,
+        fechaDesconocida: fechaDesconocidaDeJson(f.datosJson),
         resumen: resumenDePares(paresDeJson(f.datosJson), f),
       })),
     };
@@ -265,6 +268,7 @@ export async function detalleEnvio(workspaceId: string, id: string): Promise<Env
       telefono: f.telefono,
       estado: f.estado,
       createdAt: f.createdAt,
+      fechaDesconocida: fechaDesconocidaDeJson(f.datosJson),
       resumen: "",
       pares,
       paginaUrl: f.paginaUrl,
@@ -337,7 +341,7 @@ export async function enviosParaExportar(workspaceId: string, formularioId: stri
     });
     if (tanda.length === 0) break;
     for (const e of tanda) {
-      out.push({ createdAt: e.createdAt, formulario: e.formulario.nombre, estado: e.estado, paginaUrl: e.paginaUrl, pares: paresDeJson(e.datosJson) });
+      out.push({ createdAt: e.createdAt, fechaDesconocida: fechaDesconocidaDeJson(e.datosJson), formulario: e.formulario.nombre, estado: e.estado, paginaUrl: e.paginaUrl, pares: paresDeJson(e.datosJson) });
     }
     cursor = tanda[tanda.length - 1].id;
     if (tanda.length < 2000) break;

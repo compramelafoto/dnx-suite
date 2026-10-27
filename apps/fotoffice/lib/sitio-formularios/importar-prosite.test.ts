@@ -77,7 +77,7 @@ describe("interpretarTabla con el CSV de ejemplo", () => {
   it("arma los pares en orden, sin vacíos, y saca el contacto", () => {
     const ana = r.envios[0];
     expect(ana.formulario).toBe("Contacto");
-    expect(ana.fecha.toISOString()).toBe("2026-10-27T17:05:00.000Z");
+    expect(ana.fecha?.toISOString()).toBe("2026-10-27T17:05:00.000Z");
     expect(ana.pares).toEqual([
       { etiqueta: "Nombre", valor: "Ana Pérez" },
       { etiqueta: "Correo", valor: "ANA@Ejemplo.com" },
@@ -105,8 +105,8 @@ describe("interpretarTabla con el CSV de ejemplo", () => {
       ["prosite:inbox-de-prosite", "Inbox de Prosite", 1],
     ]);
     const contacto = grupos[0];
-    expect(contacto.desde.toISOString()).toBe("2025-03-02T14:00:00.000Z");
-    expect(contacto.hasta.toISOString()).toBe("2026-10-27T17:05:00.000Z");
+    expect(contacto.desde?.toISOString()).toBe("2025-03-02T14:00:00.000Z");
+    expect(contacto.hasta?.toISOString()).toBe("2026-10-27T17:05:00.000Z");
   });
 
   it("usa el formulario por omisión que se le pase", () => {
@@ -165,7 +165,7 @@ describe("interpretarTabla con «XLS» que son HTML o XML", () => {
       },
     };
     const r = interpretarTabla(filasConSheetJs(falso, new Uint8Array()));
-    expect(r.envios[0].fecha.toISOString()).toBe("2026-10-27T15:00:00.000Z");
+    expect(r.envios[0].fecha?.toISOString()).toBe("2026-10-27T15:00:00.000Z");
     expect(r.envios[0].contacto).toEqual({ nombre: "Ana", email: null, telefono: "3415551234" });
   });
 });
@@ -208,8 +208,8 @@ describe("exportación real de Prosite: un CSV por formulario en una carpeta", (
     const [ana, luis] = r.envios;
     expect(r.porArchivo[0].resultado.columnas).toEqual({ fecha: "Enviado em", formulario: null, campos: ["E-mail", "Instagram", "Nombre"], ignoradas: [] });
     expect(ana).toMatchObject({ formulario: "Contacto de proveedores & más", contacto: { nombre: "Ana Pérez", email: "ana@ejemplo.com", telefono: null } });
-    expect(ana.fecha.toISOString()).toBe("2025-04-26T17:41:32.944Z");
-    expect(luis.fecha.toISOString()).toBe("2025-04-27T03:00:00.000Z");
+    expect(ana.fecha?.toISOString()).toBe("2025-04-26T17:41:32.944Z");
+    expect(luis.fecha?.toISOString()).toBe("2025-04-27T03:00:00.000Z");
     const beto = r.envios.find((e) => e.formulario.startsWith("Curso"));
     expect(beto?.contacto).toEqual({ nombre: "Beto", email: null, telefono: "+54 9 341 555-0000" });
     // Sin columna de formulario: «Página» queda como un campo más.
@@ -231,3 +231,44 @@ describe("exportación real de Prosite: un CSV por formulario en una carpeta", (
     ]);
   });
 });
+
+describe("casos reales de la exportación de Prosite", () => {
+  it("«2019-07-26 01:16:06 UTC» es UTC", () => {
+    expect(parsearFechaArgentina("2019-07-26 01:16:06 UTC")?.toISOString()).toBe("2019-07-26T01:16:06.000Z");
+    expect(parsearFechaArgentina("2019-02-30 01:16:06 UTC")).toBeNull();
+  });
+
+  it("realinea las filas que no traen la columna sin nombre del encabezado (RAMIREZ FESTEJA)", () => {
+    const r = interpretarTabla(
+      filasDeCsvDePrueba(
+        "Correo,Instagram,Imstagram,Imstagra,,Nombre,Enviado em\nnay@ejemplo.com,,,,Nayla,2023-06-29T17:22:18.754Z\nnay@ejemplo.com,,,,Nayla castro ,2023-05-25T11:32:50.784Z\n",
+      ),
+      "RAMIREZ FESTEJA",
+      { columnaFormulario: false },
+    );
+    expect(r.descartadas).toEqual([]);
+    expect(r.columnas.campos).toEqual(["Correo", "Instagram", "Imstagram", "Imstagra", "Campo sin nombre", "Nombre"]);
+    expect(r.envios[0].fecha?.toISOString()).toBe("2023-06-29T17:22:18.754Z");
+    expect(r.envios[0].pares).toEqual([
+      { etiqueta: "Correo", valor: "nay@ejemplo.com" },
+      { etiqueta: "Nombre", valor: "Nayla" },
+    ]);
+    expect(r.envios[1].contacto).toEqual({ nombre: "Nayla castro", email: "nay@ejemplo.com", telefono: null });
+  });
+
+  it("una fila con la fecha vacía se importa «sin fecha», con huella estable; una fecha ilegible se descarta", () => {
+    const csv = "Nombre,Correo,Enviado em\nAna,ana@ejemplo.com,\nBeto,beto@ejemplo.com,ayer\n,,\n";
+    const a = interpretarTabla(filasDeCsvDePrueba(csv), "X", { columnaFormulario: false });
+    const b = interpretarTabla(filasDeCsvDePrueba(csv), "X", { columnaFormulario: false });
+    expect(a.envios).toHaveLength(1);
+    expect(a.envios[0].fecha).toBeNull();
+    expect(a.envios[0].clave).toBe(b.envios[0].clave);
+    expect(a.descartadas).toEqual([{ fila: 3, motivo: "Fecha ilegible: «ayer»" }]);
+    const [g] = agruparPorFormulario(a.envios);
+    expect([g.desde, g.hasta, g.sinFecha]).toEqual([null, null, 1]);
+  });
+});
+
+function filasDeCsvDePrueba(texto: string) {
+  return filasDeArchivoDeTexto(new TextEncoder().encode(texto)).filas;
+}

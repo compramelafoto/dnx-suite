@@ -199,7 +199,7 @@ async function Envios({ workspaceId, filtros }: { workspaceId: string; filtros: 
                 email: f.email,
                 telefono: f.telefono,
                 estado: f.estado,
-                fecha: fechaHoraArgentina(f.createdAt),
+                fecha: f.fechaDesconocida ? "sin fecha" : fechaHoraArgentina(f.createdAt),
                 resumen: f.resumen,
                 href: hrefDeLaBandeja({ ...filtros, envioId: f.id }),
               }))}
@@ -223,7 +223,7 @@ function Detalle({ detalle, filtros }: { detalle: NonNullable<Awaited<ReturnType
         <div>
           <h3 className="text-base font-semibold text-[var(--fo-text)]">{detalle.nombre || detalle.email || detalle.telefono || "Envío sin nombre"}</h3>
           <p className="fo-helper">
-            {detalle.formulario} · {fechaHoraArgentina(detalle.createdAt)}
+            {detalle.formulario} · {detalle.fechaDesconocida ? "sin fecha" : fechaHoraArgentina(detalle.createdAt)}
             {detalle.paginaUrl ? ` · desde ${detalle.paginaUrl}` : ""}
           </p>
         </div>
