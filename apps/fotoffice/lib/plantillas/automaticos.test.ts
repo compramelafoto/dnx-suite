@@ -361,10 +361,12 @@ describe("sólo el formulario público responde", () => {
     );
     const formulario = readFileSync(path.resolve(__dirname, "../../app/actions/service-lead.ts"), "utf8");
     expect(formulario).toContain('{ origenDelAlta: "WEB" }');
-    // Y nadie más pide el origen WEB: ni las altas manuales ni la importación. Sólo los dos
-    // formularios públicos: el general/XV y el del sitio (bloque y página «Pedí tu presupuesto»).
+    // Y nadie más pide el origen WEB: ni las altas manuales ni la importación. Sólo los
+    // formularios públicos: el general/XV, el del sitio (bloque y página «Pedí tu presupuesto») y
+    // el formulario propio del sitio cuando tiene «crear también una consulta».
     expect(quienesContienen(/origenDelAlta\s*:\s*["'`]WEB["'`]|["'`]WEB["'`]\s+as\s+const/)).toEqual([
       "app/actions/service-lead.ts",
+      "app/actions/site-form.ts",
       "app/actions/site-inquiry.ts",
     ]);
     const presencial = readFileSync(path.resolve(__dirname, "../presential-courses/enrollment-workflow.ts"), "utf8");
