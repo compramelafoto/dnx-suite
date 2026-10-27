@@ -130,6 +130,23 @@ async function borrarObjeto(key: string): Promise<void> {
   if (!r.ok) console.error("[fotoffice][sitio-documentos] no se pudo borrar de R2:", key, r.error);
 }
 
+/** ¿Esta key ya es el archivo de algún documento? Entonces no se toca: borrarla rompe ese enlace. */
+async function keyRegistrada(key: string): Promise<boolean> {
+  return (await prisma.fotofficeSitioDocumento.count({ where: { r2Key: key }, take: 1 })) > 0;
+}
+
+/** Borra el objeto sólo si ningún documento lo usa (un reintento o una key repetida no rompen nada). */
+async function borrarSiHuerfano(key: string): Promise<void> {
+  try {
+    if (await keyRegistrada(key)) return;
+  } catch (err) {
+    // Sin poder confirmar que está libre, no se borra.
+    console.error("[fotoffice][sitio-documentos] no se pudo revisar la key antes de borrar:", key, err);
+    return;
+  }
+  await borrarObjeto(key);
+}
+
 export async function confirmarDocumento(args: {
   workspaceId: string;
   key: string;
@@ -139,11 +156,21 @@ export async function confirmarDocumento(args: {
   const { workspaceId, key } = args;
   // Una key que no firmamos para este sitio no se registra ni se borra: no es nuestra.
   if (!esKeyDeDocumento(key, workspaceId)) return fallo("El archivo no es de este sitio.");
+
+  // Una key ya registrada (un reintento, o el navegador mandando la de otro documento) no se
+  // vuelve a registrar ni se borra.
+  try {
+    if (await keyRegistrada(key)) return fallo("Ese archivo ya está en otro documento.");
+  } catch (err) {
+    if (esTablaFaltante(err)) return fallo(AVISO_TABLA_DOCUMENTOS_FALTANTE);
+    throw err;
+  }
+
   const titulo = args.titulo.trim();
   const errorTitulo = validarTituloDocumento(titulo);
   const errorSlug = validarSlugDocumento(args.slug);
   if (errorTitulo || errorSlug) {
-    await borrarObjeto(key);
+    await borrarSiHuerfano(key);
     return fallo((errorTitulo ?? errorSlug) as string);
   }
 
@@ -157,9 +184,9 @@ export async function confirmarDocumento(args: {
     });
     return { ok: true, valor: fila };
   } catch (err) {
-    await borrarObjeto(key);
-    if ((err as { code?: unknown })?.code === "P2002") return fallo("Ya hay otro documento con esa dirección. Elegí otra.");
     if (esTablaFaltante(err)) return fallo(AVISO_TABLA_DOCUMENTOS_FALTANTE);
+    await borrarSiHuerfano(key);
+    if ((err as { code?: unknown })?.code === "P2002") return fallo("Ya hay otro documento con esa dirección. Elegí otra.");
     throw err;
   }
 }

@@ -16,11 +16,17 @@ import { SITE_RESERVED_SEGMENTS } from "./public-modules";
 export const MAX_LARGO_RUTA = 300;
 /** Largo máximo de la ruta que se guarda. */
 const MAX_LARGO_RUTA_GUARDADA = 200;
-/** Segmentos máximos: el sitio no tiene direcciones más hondas que `/trabajos/<categoria>/<trabajo>`. */
-const MAX_SEGMENTOS = 4;
+/**
+ * Segmentos máximos: la sección y hasta dos tramos debajo (`/trabajos/<categoria>/<trabajo>`).
+ * Cada uno con forma de slug y de hasta 80 letras: así nadie inventa direcciones infinitas.
+ */
+const MAX_SEGMENTOS = 3;
+const SEGMENTO_VALIDO = /^[a-z0-9-]{1,80}$/;
 
-/** Caracteres de un segmento de ruta del sitio (slugs, ids y algún punto). */
-const SEGMENTO_VALIDO = /^[a-z0-9][a-z0-9._-]*$/;
+/** Rutas distintas por sitio y por día: pasado el tope sólo suman las que ya tienen fila. */
+export const MAX_RUTAS_POR_DIA = 300;
+/** Pedidos por minuto de una misma conexión a un mismo sitio (en memoria, sin guardar la IP). */
+export const FRENO_VISITAS = { limit: 60, windowMs: 60_000 } as const;
 
 /**
  * Primeros segmentos del sitio que NO se cuentan: no son páginas que la gente lee (la puerta de
@@ -100,12 +106,26 @@ export function esPrefetch(cabeceras: { get(nombre: string): string | null }): b
 }
 
 /**
- * El beacon sale del mismo sitio: un pedido que el navegador marca como de otro sitio no se
- * cuenta (alguien inflando números desde otra página). Sin la cabecera (navegadores viejos), pasa.
+ * ¿El pedido viene de una página de este mismo sitio? El beacon siempre sale del mismo origen.
+ * Con `sec-fetch-site` (navegadores actuales) tiene que decir `same-origin`. Sin esa cabecera,
+ * se acepta sólo si el `origin` o el `referer` es el mismo host que recibe el pedido (el de
+ * FOTOFFICE o el dominio propio del sitio). Así no se infla un sitio desde otra página.
  */
-export function esDeOtroSitio(cabeceras: { get(nombre: string): string | null }): boolean {
+export function esDelMismoSitio(cabeceras: { get(nombre: string): string | null }): boolean {
   const site = (cabeceras.get("sec-fetch-site") ?? "").toLowerCase();
-  return site === "cross-site";
+  if (site) return site === "same-origin";
+  const host = (cabeceras.get("x-forwarded-host") ?? cabeceras.get("host") ?? "").split(",")[0].trim().toLowerCase();
+  if (!host) return false;
+  for (const cabecera of ["origin", "referer"]) {
+    const valor = cabeceras.get(cabecera);
+    if (!valor) continue;
+    try {
+      return new URL(valor).host.toLowerCase() === host;
+    } catch {
+      return false;
+    }
+  }
+  return false;
 }
 
 const FORMATO_DIA = new Intl.DateTimeFormat("en-CA", {

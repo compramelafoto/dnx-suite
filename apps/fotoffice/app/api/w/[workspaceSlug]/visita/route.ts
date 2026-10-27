@@ -1,5 +1,7 @@
+import { createHash } from "node:crypto";
 import { after, type NextRequest } from "next/server";
-import { esBot, esDeOtroSitio, esPrefetch, MAX_LARGO_RUTA, normalizarRutaVisita } from "@/lib/website/visitas";
+import { checkRateLimit, clientIp } from "@/lib/geocode/rate-limit";
+import { esBot, esDelMismoSitio, esPrefetch, FRENO_VISITAS, MAX_LARGO_RUTA, normalizarRutaVisita } from "@/lib/website/visitas";
 import { sitioParaContar, sumarVisita } from "@/lib/website/visitas.server";
 
 /**
@@ -8,8 +10,9 @@ import { sitioParaContar, sumarVisita } from "@/lib/website/visitas.server";
  * frena el render ni cuenta lo que arma el servidor de antemano o sirve la CDN.
  *
  * Siempre responde 204 (sin cuerpo, sin cookies): que una visita no se cuente nunca es un error
- * para quien navega. No se cuentan bots, precargas, pedidos de otro sitio, rutas con token ni
- * rutas que no son del sitio (ver `normalizarRutaVisita`). No se guarda IP ni nada personal.
+ * para quien navega. No se cuentan bots, precargas, pedidos que no salen del mismo sitio, rutas
+ * con token ni rutas que no son del sitio (ver `normalizarRutaVisita`). No se guarda IP ni nada
+ * personal: el freno por conexión vive en memoria un minuto, con una huella de la IP.
  * Sirve igual en el dominio propio: ahí `/api/*` pasa sin tocar por el proxy.
  */
 export const runtime = "nodejs";
@@ -23,7 +26,7 @@ function nada(): Response {
 }
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ workspaceSlug: string }> }) {
-  if (esBot(req.headers.get("user-agent")) || esPrefetch(req.headers) || esDeOtroSitio(req.headers)) return nada();
+  if (esBot(req.headers.get("user-agent")) || esPrefetch(req.headers) || !esDelMismoSitio(req.headers)) return nada();
   const largo = Number(req.headers.get("content-length") ?? "0");
   if (largo > MAX_BYTES_CUERPO) return nada();
 
@@ -39,6 +42,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ wor
 
   const { workspaceSlug } = await params;
   if (!/^[a-z0-9-]{1,80}$/i.test(workspaceSlug)) return nada();
+
+  // Freno simple: hasta 60 avisos por minuto por conexión y sitio (por instancia, en memoria).
+  const ip = clientIp(req.headers);
+  if (ip !== "desconocido") {
+    const huella = createHash("sha256").update(ip).digest("hex").slice(0, 24);
+    if (!checkRateLimit({ key: `sitio-visita:${workspaceSlug}:${huella}`, ...FRENO_VISITAS }).allowed) return nada();
+  }
 
   // Contar después de responder: el navegador no espera la escritura.
   after(async () => {

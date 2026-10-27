@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   diaArgentino,
   esBot,
-  esDeOtroSitio,
+  esDelMismoSitio,
   esPrefetch,
   normalizarRutaVisita,
   periodoDeVisitas,
@@ -26,8 +26,10 @@ describe("normalizarRutaVisita", () => {
     expect(n("//Quien-Soy//")).toBe("/quien-soy");
     expect(n("/blog/mi-articulo?ref=x")).toBe("/blog/mi-articulo");
   });
-  it("cuenta las secciones del sitio y las páginas propias publicadas", () => {
+  it("cuenta las secciones del sitio (con hasta dos tramos debajo) y las páginas propias publicadas", () => {
     expect(n("/trabajos/casamientos")).toBe("/trabajos/casamientos");
+    expect(n("/trabajos/casamientos/ana-y-juan")).toBe("/trabajos/casamientos/ana-y-juan");
+    expect(n(`/blog/${"a".repeat(80)}`)).toBe(`/blog/${"a".repeat(80)}`);
     expect(n("/w/dnx/cursos")).toBe("/cursos");
     expect(n("/precios")).toBe("/precios");
   });
@@ -56,6 +58,10 @@ describe("normalizarRutaVisita", () => {
     expect(n("sin-barra")).toBeNull();
     expect(n(`/${"a".repeat(400)}`)).toBeNull();
     expect(n("/blog/a/b/c/d")).toBeNull();
+    expect(n("/trabajos/a/b/c")).toBeNull();
+    expect(n(`/blog/${"a".repeat(81)}`)).toBeNull();
+    expect(n("/blog/mi_articulo")).toBeNull();
+    expect(n("/blog/a.b")).toBeNull();
     expect(n("/blog/<script>")).toBeNull();
     expect(n("/blog/%E0%A4%A")).toBeNull();
     expect(n("/blog/..")).toBeNull();
@@ -89,7 +95,7 @@ describe("esBot", () => {
   });
 });
 
-describe("esPrefetch y esDeOtroSitio", () => {
+describe("esPrefetch y esDelMismoSitio", () => {
   it("detecta precargas", () => {
     expect(esPrefetch(cabeceras({ purpose: "prefetch" }))).toBe(true);
     expect(esPrefetch(cabeceras({ "sec-purpose": "prefetch;prerender" }))).toBe(true);
@@ -97,10 +103,17 @@ describe("esPrefetch y esDeOtroSitio", () => {
     expect(esPrefetch(cabeceras({ "x-moz": "prefetch" }))).toBe(true);
     expect(esPrefetch(cabeceras({}))).toBe(false);
   });
-  it("un pedido de otro sitio no cuenta; sin la cabecera, sí", () => {
-    expect(esDeOtroSitio(cabeceras({ "sec-fetch-site": "cross-site" }))).toBe(true);
-    expect(esDeOtroSitio(cabeceras({ "sec-fetch-site": "same-origin" }))).toBe(false);
-    expect(esDeOtroSitio(cabeceras({}))).toBe(false);
+  it("con sec-fetch-site, sólo same-origin", () => {
+    expect(esDelMismoSitio(cabeceras({ "sec-fetch-site": "same-origin" }))).toBe(true);
+    expect(esDelMismoSitio(cabeceras({ "sec-fetch-site": "cross-site", origin: "https://fotoffice.com", host: "fotoffice.com" }))).toBe(false);
+    expect(esDelMismoSitio(cabeceras({ "sec-fetch-site": "same-site" }))).toBe(false);
+  });
+  it("sin sec-fetch-site, el origin o el referer tiene que ser el mismo host (FOTOFFICE o dominio propio)", () => {
+    expect(esDelMismoSitio(cabeceras({ host: "fotoffice.com", origin: "https://fotoffice.com" }))).toBe(true);
+    expect(esDelMismoSitio(cabeceras({ host: "x", "x-forwarded-host": "dnx.com.ar", referer: "https://dnx.com.ar/precios" }))).toBe(true);
+    expect(esDelMismoSitio(cabeceras({ host: "fotoffice.com", origin: "https://malo.com" }))).toBe(false);
+    expect(esDelMismoSitio(cabeceras({ host: "fotoffice.com", referer: "no es url" }))).toBe(false);
+    expect(esDelMismoSitio(cabeceras({ host: "fotoffice.com" }))).toBe(false);
   });
 });
 
