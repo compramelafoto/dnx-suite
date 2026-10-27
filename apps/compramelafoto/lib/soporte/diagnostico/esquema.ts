@@ -6,8 +6,13 @@ export const CATEGORIAS = ["FALTA_INFO_BOT", "SE_ACLARA_CON_DATOS", "PROBABLE_ER
 /** Lo que la IA tiene que devolver: un único objeto JSON con esta forma. */
 export const DiagnosticoIA = z.strictObject({
   categoria: z.enum(CATEGORIAS),
-  resumen: z.string().min(1).max(140),
-  hallazgos: z.string(),
+  // La IA se pasa de largo seguido: recortar es mejor que perder el diagnóstico entero.
+  resumen: z
+    .string()
+    .min(1)
+    .transform((s) => (s.length > 140 ? `${s.slice(0, 139)}…` : s)),
+  // En la práctica la IA devuelve los hallazgos como lista (tickets #46–#63 fallaron por eso).
+  hallazgos: z.union([z.string(), z.array(z.string()).transform((l) => l.map((h) => `- ${h}`).join("\n"))]),
   respuestaSugerida: z.string(),
   acciones: z
     .array(

@@ -112,6 +112,20 @@ describe("diagnosticar", () => {
     expect(error).toContain('"confianza":"alta"');
   });
 
+  it("hallazgos en lista (como los devuelve la IA en la práctica) → LISTO, con un punto por renglón", async () => {
+    m.turn.mockResolvedValue(respuesta("```json\n" + JSON.stringify({ ...valido, hallazgos: ["Pedido pagado.", "Faltan fotos del curso."] }) + "\n```"));
+    const r = await diagnosticar(comprador);
+    expect(r.estado).toBe("LISTO");
+    expect(r.estado === "LISTO" && r.resultado.hallazgos).toBe("- Pedido pagado.\n- Faltan fotos del curso.");
+  });
+
+  it("un resumen largo se recorta en vez de tirar el diagnóstico", async () => {
+    m.turn.mockResolvedValue(respuesta(JSON.stringify({ ...valido, resumen: "a".repeat(200) })));
+    const r = await diagnosticar(comprador);
+    expect(r.estado).toBe("LISTO");
+    expect(r.estado === "LISTO" && r.resultado.resumen.length).toBe(140);
+  });
+
   it("sin JSON en la respuesta, el error lo dice y muestra el texto", async () => {
     m.turn.mockResolvedValue(respuesta("No encontré nada raro."));
     const r = await diagnosticar(comprador);
