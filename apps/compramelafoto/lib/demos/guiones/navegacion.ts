@@ -16,6 +16,15 @@ export function indiceValido(guardado: unknown, total: number): number {
 }
 
 /**
+ * La guía abierta en otra ventana (para leerla en una segunda pantalla) avisa que sigue viva cada
+ * poco; si deja de avisar (la cerraron), el cuadro vuelve a la ventana principal.
+ */
+export const LATIDO_VENTANA_APARTE_MS = 1500;
+export function ventanaAparteViva(ultimoLatido: number | null, ahora: number): boolean {
+  return ultimoLatido != null && ahora - ultimoLatido < LATIDO_VENTANA_APARTE_MS * 3;
+}
+
+/**
  * La tarjeta para el público aparece al llegar a un paso avanzando, una sola vez: al volver atrás
  * o al repetir el paso no interrumpe al presentador.
  */
