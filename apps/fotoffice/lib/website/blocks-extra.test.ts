@@ -56,8 +56,8 @@ describe("bloques nuevos del armador: alta, defaults y selector", () => {
     }
   });
 
-  it("el divisor no entra al menú; los demás con título sí", () => {
-    const blocks = [createEmptyBlock("DIVIDER", 0), createEmptyBlock("FAQ", 1)];
+  it("el divisor y los botones de WhatsApp y de pago no entran al menú; los demás con título sí", () => {
+    const blocks = [createEmptyBlock("DIVIDER", 0), createEmptyBlock("FAQ", 1), createEmptyBlock("WHATSAPP_BUTTON", 2), createEmptyBlock("PAYMENT_BUTTON", 3)];
     expect(deriveHomeNavItems(blocks).map((i) => i.label)).toEqual(["Inicio", "Preguntas frecuentes"]);
   });
 
