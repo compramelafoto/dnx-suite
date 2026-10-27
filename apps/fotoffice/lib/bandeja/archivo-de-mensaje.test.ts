@@ -32,6 +32,17 @@ describe("archivo de un mensaje de WhatsApp", () => {
     expect(archivoDeMensaje("IMAGEN", { mimeType: "image/jpeg" })).toBeNull();
   });
 
+  it("sin descarga: un eco o un mensaje viejo no figuran 'bajando'", () => {
+    const ahora = new Date("2026-10-27T12:00:00.000Z");
+    const hace = (min: number) => new Date(ahora.getTime() - min * 60_000);
+    const media = { id: "m1", mimeType: "image/jpeg" };
+    expect(archivoDeMensaje("IMAGEN", media, { direccion: "SALIENTE", createdAt: hace(1), ahora })).toBeNull();
+    expect(archivoDeMensaje("IMAGEN", media, { direccion: "ENTRANTE", createdAt: hace(11), ahora })?.estado).toBe("FALLO");
+    expect(archivoDeMensaje("IMAGEN", media, { direccion: "ENTRANTE", createdAt: hace(2), ahora })?.estado).toBe("PENDIENTE");
+    const listo = { ...media, descarga: "LISTO", clave: "k" };
+    expect(archivoDeMensaje("IMAGEN", listo, { direccion: "ENTRANTE", createdAt: hace(60), ahora })?.estado).toBe("LISTO");
+  });
+
   it("media basura no rompe", () => {
     expect(archivoDeMensaje("IMAGEN", "x")).toBeNull();
     expect(archivoDeMensaje("IMAGEN", null)).toBeNull();

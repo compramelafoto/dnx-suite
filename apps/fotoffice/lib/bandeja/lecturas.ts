@@ -223,7 +223,7 @@ export async function detalleChat(ctx: CtxBandeja, chatId: string, ahora: Date =
     nombresDeUsuarios(c.asignadoUserId !== null ? [c.asignadoUserId] : []),
     clientesPorId(ctx.workspaceId, c.clientId ? [c.clientId] : []),
   ]);
-  const mensajes = recientes.reverse().map(({ media, ...m }) => ({ ...m, estadoEnvio: estadoVisible(m, ahora), archivo: archivoDeMensaje(m.tipo, media) }));
+  const mensajes = recientes.reverse().map(({ media, ...m }) => ({ ...m, estadoEnvio: estadoVisible(m, ahora), archivo: archivoDeMensaje(m.tipo, media, { direccion: m.direccion, createdAt: m.createdAt, ahora }) }));
 
   const veClientes = puedeEnContexto(ctx, "ver", CLIENTS_MODULE_KEY);
   const fila = c.clientId ? clientes.get(c.clientId) : undefined;

@@ -118,6 +118,34 @@ describe("responderConBot", () => {
     expect(t.vistos).toHaveLength(0);
   });
 
+  it("espera a que se baje la foto antes de contestar, para ver su resolución", async () => {
+    const chatId = await chatCon([]);
+    const foto = await P.fotofficeWaMensaje.create({
+      data: { workspaceId: "w1", chatId, direccion: "ENTRANTE", autor: "CLIENTE", tipo: "IMAGEN", texto: null, estadoEnvio: "RECIBIDO", media: { id: "meta" }, createdAt: new Date(AHORA.getTime() - 2000) },
+    });
+    await P.fotofficeWaMensaje.create({
+      data: { workspaceId: "w1", chatId, direccion: "ENTRANTE", autor: "CLIENTE", tipo: "TEXTO", texto: "la quiero en 20x30", estadoEnvio: "RECIBIDO", createdAt: new Date(AHORA.getTime() - 1000) },
+    });
+    let vueltas = 0;
+    const esperar = async () => {
+      if (++vueltas === 3) await P.fotofficeWaMensaje.update({ where: { id: foto.id }, data: { media: { id: "meta", descarga: "LISTO", ancho: 1600, alto: 1200 } } });
+    };
+    const t = turnoQue("WhatsApp achica las fotos: mandala como Documento.");
+    expect(await responderConBot(chatId, deps(t.fn, { esperar }))).toBe("respondio");
+    expect(t.vistos[0].userText).toContain("1600×1200");
+  });
+
+  it("si la foto no termina de bajar, contesta igual", async () => {
+    const chatId = await chatCon([]);
+    await P.fotofficeWaMensaje.create({
+      data: { workspaceId: "w1", chatId, direccion: "ENTRANTE", autor: "CLIENTE", tipo: "IMAGEN", texto: null, estadoEnvio: "RECIBIDO", media: { id: "meta" }, createdAt: new Date(AHORA.getTime() - 1000) },
+    });
+    let vueltas = 0;
+    const t = turnoQue("¡Gracias por la foto!");
+    expect(await responderConBot(chatId, deps(t.fn, { esperar: async () => void vueltas++ }))).toBe("respondio");
+    expect(vueltas).toBeLessThanOrEqual(25);
+  });
+
   it("no hace nada si el chat lo atiende una persona, si está apagado o si lo último no es del cliente", async () => {
     const t = turnoQue("¡Hola!");
     const humano = await chatCon(["hola"], { estado: "HUMANO", asignadoUserId: 3 });

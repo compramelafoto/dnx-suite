@@ -50,6 +50,13 @@ describe("bajar archivos de WhatsApp", () => {
     expect(guardado[0]).toMatchObject({ id: "meta-1", caption: "esta", descarga: "LISTO", clave: "bandeja/w1/c1/m1.jpg", bytes: 3, ancho: 1600, alto: 1200 });
   });
 
+  it("cada pedido a Meta tiene tiempo máximo", async () => {
+    const { db } = base(imagen());
+    const fetch = metaFalsa();
+    await descargarMedio("m1", { db: db as never, fetch, leerToken: async () => "tok", subir: async () => undefined, medidas: async () => null });
+    for (const llamada of fetch.mock.calls as unknown as [string, RequestInit][]) expect(llamada[1]?.signal).toBeInstanceOf(AbortSignal);
+  });
+
   it("si ya se intentó, no vuelve a bajar", async () => {
     const fila = { ...imagen(), media: { id: "meta-1", descarga: "LISTO" } };
     const { db } = base(fila);

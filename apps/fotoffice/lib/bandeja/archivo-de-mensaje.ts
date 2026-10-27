@@ -34,14 +34,23 @@ const esObjeto = (v: unknown): v is Record<string, unknown> => typeof v === "obj
 const cadena = (v: unknown): string | null => (typeof v === "string" && v.length > 0 ? v : null);
 const positivo = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) && v > 0 ? v : null);
 
-function estadoDe(v: unknown): EstadoDescarga {
-  return v === "LISTO" || v === "FALLO" || v === "GRANDE" ? v : "PENDIENTE";
-}
+/** Una descarga que no terminó en este tiempo ya no va a terminar (la función se cortó). */
+export const PENDIENTE_MAXIMO_MS = 10 * 60_000;
 
-export function archivoDeMensaje(tipo: string, media: unknown): ArchivoDeMensaje | null {
+/** Dónde y cuándo está el mensaje: sólo un archivo del cliente reciente puede estar "bajándose". */
+export type ContextoDeMensaje = { direccion: string; createdAt: Date; ahora: Date };
+
+export function archivoDeMensaje(tipo: string, media: unknown, contexto?: ContextoDeMensaje): ArchivoDeMensaje | null {
   if (!CON_ARCHIVO.has(tipo) || !esObjeto(media) || !cadena(media.id)) return null;
+  const d = media.descarga;
+  let estado: EstadoDescarga = d === "LISTO" || d === "FALLO" || d === "GRANDE" ? d : "PENDIENTE";
+  if (estado === "PENDIENTE" && contexto) {
+    // Los ecos (lo que manda el estudio desde el celular) no se bajan; lo viejo sin bajar ya falló.
+    if (contexto.direccion !== "ENTRANTE") return null;
+    if (contexto.ahora.getTime() - contexto.createdAt.getTime() > PENDIENTE_MAXIMO_MS) estado = "FALLO";
+  }
   return {
-    estado: estadoDe(media.descarga),
+    estado,
     mime: cadena(media.mimeType),
     nombre: cadena(media.filename) ?? NOMBRE_POR_TIPO[tipo] ?? "archivo",
     bytes: positivo(media.bytes),

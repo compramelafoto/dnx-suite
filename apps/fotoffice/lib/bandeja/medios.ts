@@ -12,6 +12,9 @@ import { detalleDeError } from "./registro";
  */
 
 export const MAX_BYTES_MEDIO = 100 * 1024 * 1024;
+/** Tiempos máximos: el webhook tiene 120 s y después todavía tiene que contestar el bot. */
+const TIEMPO_GRAPH_MS = 15_000;
+const TIEMPO_ARCHIVO_MS = 40_000;
 
 export type DepsMedios = {
   fetch?: (url: string, init?: RequestInit) => Promise<Response>;
@@ -64,13 +67,13 @@ export async function descargarMedio(mensajeId: string, deps: DepsMedios = {}): 
     const auth = { Authorization: `Bearer ${token}` };
     const version = process.env.WHATSAPP_API_VERSION || "v21.0";
 
-    const info = await pedir(`https://graph.facebook.com/${version}/${encodeURIComponent(media.id)}`, { headers: auth });
+    const info = await pedir(`https://graph.facebook.com/${version}/${encodeURIComponent(media.id)}`, { headers: auth, signal: AbortSignal.timeout(TIEMPO_GRAPH_MS) });
     if (!info.ok) throw new Error(`Graph ${info.status}`);
     const datos = (await info.json()) as { url?: unknown; mime_type?: unknown; file_size?: unknown };
     if (typeof datos.url !== "string") throw new Error("Graph sin url");
     if (typeof datos.file_size === "number" && datos.file_size > MAX_BYTES_MEDIO) throw new Grande();
 
-    const archivo = await pedir(datos.url, { headers: auth });
+    const archivo = await pedir(datos.url, { headers: auth, signal: AbortSignal.timeout(TIEMPO_ARCHIVO_MS) });
     if (!archivo.ok) throw new Error(`Descarga ${archivo.status}`);
     const cuerpo = Buffer.from(await archivo.arrayBuffer());
     if (cuerpo.length > MAX_BYTES_MEDIO) throw new Grande();

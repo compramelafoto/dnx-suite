@@ -47,7 +47,7 @@ describe("historialParaElBot", () => {
 
   it("una foto mandada como documento también dice su resolución", () => {
     const doc = { direccion: "ENTRANTE", autor: "CLIENTE", tipo: "DOCUMENTO", texto: null, media: { id: "1", mimeType: "image/jpeg", descarga: "LISTO", ancho: 4000, alto: 3000 } };
-    expect(historialParaElBot([doc])?.userText).toMatch(/^\[el cliente mandó una foto como documento de 4000×3000 px; alcanza para imprimir hasta: .*30x45\]$/);
+    expect(historialParaElBot([doc])?.userText).toMatch(/^\[el cliente mandó la foto original \(como documento\) de 4000×3000 px; alcanza para imprimir hasta: .*30x45\]$/);
   });
 
   it("si no se pudo bajar o es muy grande, lo dice", () => {

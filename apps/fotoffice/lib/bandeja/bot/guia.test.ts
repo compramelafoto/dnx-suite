@@ -11,6 +11,7 @@ describe("guía del bot de atención", () => {
 
   it("sabe pedir la foto como Documento cuando no alcanza la calidad", () => {
     expect(guiaDeAtencion()).toContain("como Documento");
+    expect(guiaDeAtencion()).toMatch(/Si ya la mandó como documento/);
   });
 
   it("la situación dice el día y la hora en Argentina y el nombre si lo hay", () => {
