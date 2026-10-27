@@ -17,6 +17,9 @@ export type WebsiteNavItem = {
   anchor: string | null; // null = Home (tope de página)
 };
 
+/** Bloques que nunca son un ítem del menú: separan o son un botón suelto, no una sección. */
+const NOT_IN_MENU = new Set<WebsiteBlock["type"]>(["SPACER", "DIVIDER", "WHATSAPP_BUTTON", "PAYMENT_BUTTON"]);
+
 const RESERVED_ANCHORS = new Set(["top", "home", "inicio", "menu", "header", "footer"]);
 
 function slugify(text: string): string {
@@ -48,7 +51,7 @@ export function deriveHomeNavItems(blocks: WebsiteBlock[]): WebsiteNavItem[] {
 
   visible.forEach((block, i) => {
     const label = getBlockPreviewLabel(block);
-    if (!label || block.type === "SPACER") return;
+    if (!label || NOT_IN_MENU.has(block.type)) return;
     let slug = anchorSlugForBlock(block, i);
     const count = seen.get(slug) ?? 0;
     seen.set(slug, count + 1);
