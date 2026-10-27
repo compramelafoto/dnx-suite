@@ -70,6 +70,7 @@ export function WebsiteBuilder({
   canEditIdentity,
   draftUpdatedAt,
   status,
+  visitasPorPagina = null,
 }: {
   initialPages: BuilderInitialPages;
   initialColors: WebsiteColors;
@@ -87,6 +88,8 @@ export function WebsiteBuilder({
   canEditIdentity: boolean;
   draftUpdatedAt: string;
   status: WebsiteChangeStatus;
+  /** Visitas de los últimos 30 días por slug de página (`""` = portada). `null` = sin contador. */
+  visitasPorPagina?: Record<string, number> | null;
 }) {
   const [mode, setMode] = useState<BuilderMode>(
     initialPanel ?? ((initialPages.pages[HOME_PAGE_KEY] ?? []).length === 0 ? "PLANTILLAS" : "SECCIONES"),
@@ -354,6 +357,7 @@ export function WebsiteBuilder({
                   canEdit={canEdit}
                   busy={switching}
                   limitReached={customPages.length >= MAX_CUSTOM_PAGES}
+                  visitas={visitasPorPagina}
                   onSelect={(k) => void handleSelectPage(k)}
                   onCreate={(t, s) => void handleCreatePage(t, s)}
                   onRename={handleRenamePage}

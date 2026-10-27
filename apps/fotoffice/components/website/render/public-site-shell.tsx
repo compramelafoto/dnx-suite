@@ -84,7 +84,7 @@ export function PublicSiteShell({
           />
           {/* Ajustes del sitio: medición, WhatsApp flotante y protección de fotos. Este armazón es
               sólo del sitio público (las vistas previas del panel usan `SiteFrame` directo). */}
-          <PublicSiteExtras settings={site.settings} />
+          <PublicSiteExtras settings={site.settings} workspaceSlug={site.workspaceSlug} />
         </>
       }
     >

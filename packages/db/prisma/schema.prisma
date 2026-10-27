@@ -27696,3 +27696,40 @@ model FotofficeSitioSuscriptor {
   @@unique([workspaceId, email])
   @@index([workspaceId, estado, createdAt])
 }
+
+/// Visitas por día a cada página del sitio público de FOTOFFICE (PR D de las secciones de Prosite).
+/// Sin cookies, sin IP y sin datos personales: sólo cuántas veces se abrió cada ruta en el día
+/// (hora argentina). La cuenta un beacon del navegador (`/api/w/<slug>/visita`), que ignora bots,
+/// prefetch, rutas con token, el panel y la vista previa.
+/// Tabla nueva con SQL a mano (migración 20261231120000_fotoffice_sitio_visitas_documentos).
+model FotofficeSitioVisita {
+  id          String   @id @default(cuid())
+  workspaceId String
+  /// Ruta normalizada del sitio, sin `/w/<slug>`, sin consulta y sin barra final (`/` = portada).
+  ruta        String
+  /// Día en hora argentina.
+  fecha       DateTime @db.Date
+  visitas     Int      @default(0)
+
+  @@unique([workspaceId, ruta, fecha])
+  @@index([workspaceId, fecha])
+}
+
+/// Documentos (PDF) que el sitio comparte con un enlace `/w/<slug>/d/<slug del documento>`
+/// (reemplaza «Propuestas» de Prosite). El archivo vive en R2 bajo
+/// `fotoffice/website-documents/<workspaceId>/` y se sirve con un enlace firmado de minutos.
+model FotofficeSitioDocumento {
+  id          String   @id @default(cuid())
+  workspaceId String
+  slug        String
+  titulo      String
+  r2Key       String
+  tamanoBytes Int
+  publicado   Boolean  @default(true)
+  descargas   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([workspaceId, slug])
+  @@index([workspaceId, createdAt])
+}

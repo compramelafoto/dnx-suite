@@ -65,9 +65,9 @@ export const FOTOFFICE_TOP_LEVEL_APP_ROUTES = [
  * Un test recorre las carpetas reales de `app/w/[workspaceSlug]/` y falla si aparece una que no
  * esté acá, así que al crear una ruta nueva hay que sumarla a `SITE_FOLDER_SEGMENTS`.
  */
-const SITE_FOLDER_SEGMENTS = [
-  // Carpetas bajo app/w/[workspaceSlug]/
-  "archivos", "asociarse", "blog", "coberturas", "contrato", "cursos", "entrar", "galeria",
+export const SITE_FOLDER_SEGMENTS = [
+  // Carpetas bajo app/w/[workspaceSlug]/ (`d` = documentos compartidos, PR D)
+  "archivos", "asociarse", "blog", "coberturas", "contrato", "cursos", "d", "entrar", "galeria",
   "impresion", "institucional", "obras", "pedido", "presupuesto", "proyecto", "recibo",
   "reservas", "reunion", "socios", "sorteos", "testimonio", "testimonios", "tienda", "trabajos", "videos", "xv",
   // Rutas fijas del sitio que no son carpetas de esa ruta

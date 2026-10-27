@@ -19,6 +19,9 @@ const SECONDARY_TABS = [
   { href: "/website/redirecciones", label: "Redirecciones" },
   // Los envíos de los formularios propios del sitio (y lo importado de Prosite) y el boletín.
   { href: "/website/formularios", label: "Formularios" },
+  // Cuántas veces se abrió cada página (sin cookies ni datos personales) y los PDF compartidos.
+  { href: "/website/visitas", label: "Visitas" },
+  { href: "/website/documentos", label: "Documentos" },
   // El blog tiene su propio marco (`BlogShell`) y su ítem en el menú lateral; acá queda a mano
   // para quien llega desde la configuración del sitio.
   { href: "/website/blog", label: "Blog" },
