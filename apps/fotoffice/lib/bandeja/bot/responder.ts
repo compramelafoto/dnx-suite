@@ -2,12 +2,13 @@ import "server-only";
 import { BotTurnError, costMicroUsd, runBotTurn, type BotTurnInput, type BotTurnResult, type BotUsage } from "@repo/dnx-bot";
 import { prisma } from "@repo/db";
 import { clienteAnthropic } from "@/lib/dnx-bot/anthropic";
-import { cifrasNoRespaldadas, cifrasPermitidas, textosDelTurno } from "@/lib/dnx-bot/cifras";
+import { cifrasNoRespaldadas } from "@/lib/dnx-bot/cifras";
 import { leerConfigBot, plataformaDe, type BotConfigFotoffice } from "@/lib/dnx-bot/config";
 import { reportarIncidente } from "@/lib/dnx-bot/incidentes";
 import { decidirLimites } from "@/lib/dnx-bot/limites";
 import type { enviarTexto } from "../envio";
 import { atiendeElBot, puedeResponderLibre } from "../reglas";
+import { cifrasRespaldadasEnAtencion } from "./cifras-atencion";
 import { enviarComoBot, pasarAPersona } from "./envio-bot";
 import { guiaDeAtencion, situacionDeAtencion } from "./guia";
 import { herramientasDeAtencion, type DepsAtencion } from "./herramientas";
@@ -161,7 +162,7 @@ async function turno(chatId: string, deps: DepsResponder): Promise<SalidaBot> {
   const texto = textoFinal(result.appended);
   if (result.outcome !== "ok" || !texto) return fallar(`turno_${result.outcome}`, result.outcome);
 
-  const sueltas = cifrasNoRespaldadas(texto, cifrasPermitidas(textosDelTurno([...h.history, ...result.appended])));
+  const sueltas = cifrasNoRespaldadas(texto, cifrasRespaldadasEnAtencion(h.history, result.appended));
   if (sueltas.length > 0) return fallar("cifra_no_respaldada", sueltas.join(", "));
 
   const salida = await enviarComoBot(workspaceId, chatId, texto, { ultimoMensajeId }, { ahora: ahora(), enviar: deps.enviar });
