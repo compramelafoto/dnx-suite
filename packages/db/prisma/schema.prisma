@@ -3542,6 +3542,10 @@ model PhotoAnalysisJob {
   /// porque se nos cayó la credencial no es vieja: es una que debemos. Se borra al
   /// analizarla. Ver `lib/analysis/analysis-failure-kind.ts`.
   infraFailureAt DateTime?
+  /// Releer sólo el texto: la foto ya está analizada y sus caras indexadas. Se encola así
+  /// al encender la búsqueda por número con las fotos ya subidas. Ver
+  /// `lib/analysis/encolar-lectura-de-texto.ts`.
+  soloTexto Boolean @default(false)
   createdAt DateTime            @default(now())
   updatedAt DateTime            @updatedAt
   photo     Photo               @relation(fields: [photoId], references: [id], onDelete: Cascade)

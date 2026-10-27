@@ -94,6 +94,8 @@ async function claimJobsAtomic(
                 OR: [
                   { photo: { createdAt: { gte: ageCutoff } } },
                   { infraFailureAt: { not: null } },
+                  // Una relectura la pidió el fotógrafo hoy, aunque las fotos sean viejas.
+                  { soloTexto: true },
                 ],
               },
             ],
@@ -135,7 +137,7 @@ async function claimJobsAtomic(
               WHERE j.status = 'PENDING'
                 AND (j."runAfter" IS NULL OR j."runAfter" <= ${now})
                 AND p."isRemoved" = false
-                AND (p."createdAt" >= ${ageCutoff} OR j."infraFailureAt" IS NOT NULL)
+                AND (p."createdAt" >= ${ageCutoff} OR j."infraFailureAt" IS NOT NULL OR j."soloTexto")
               ORDER BY j."createdAt" ASC
               LIMIT ${remaining}
               FOR UPDATE OF j SKIP LOCKED
@@ -299,6 +301,8 @@ async function processJob(
     id: number;
     photoId: number;
     attempts: number | null;
+    /** Releer sólo el texto de una foto ya analizada. Ver `encolar-lectura-de-texto`. */
+    soloTexto: boolean;
     photo: AnalysisPhotoContext | null;
   },
   ocrRequested: boolean | null,
@@ -306,6 +310,8 @@ async function processJob(
 ) {
   const photo = job.photo;
   const photoId = job.photoId;
+  // La foto ya está analizada: su estado no cambia y las caras no se tocan.
+  const soloTexto = job.soloTexto;
   /*
     La lectura de texto se decide por álbum, no por corrida. Antes el cron la forzaba
     para todas las fotos de la plataforma y era la mitad de la factura de Amazon.
@@ -338,10 +344,12 @@ async function processJob(
       return { ok: false, photoId, error: "Foto sin originalKey" };
     }
 
-    await prisma.photo.update({
-      where: { id: photo.id },
-      data: { analysisStatus: "PROCESSING", analysisError: null },
-    });
+    if (!soloTexto) {
+      await prisma.photo.update({
+        where: { id: photo.id },
+        data: { analysisStatus: "PROCESSING", analysisError: null },
+      });
+    }
 
     const tR2 = Date.now();
     const r2Metadata = await getR2ObjectMetadata(photo.originalKey).catch(() => null);
@@ -476,7 +484,9 @@ async function processJob(
     timing.sharp_ms = Date.now() - tSharp;
 
     const tDb = Date.now();
-    await prisma.faceDetection.deleteMany({ where: { photoId: photo.id } });
+    if (!soloTexto) {
+      await prisma.faceDetection.deleteMany({ where: { photoId: photo.id } });
+    }
     if (includeOcr) {
       await prisma.ocrToken.deleteMany({ where: { photoId: photo.id } });
     }
@@ -513,6 +523,22 @@ async function processJob(
         });
         timing.db_write_ms += Date.now() - tOcrDb;
       }
+    }
+
+    if (soloTexto) {
+      await prisma.photoAnalysisJob.update({
+        where: { id: job.id },
+        data: { status: "DONE", soloTexto: false, lastError: null, lockedAt: null, infraFailureAt: null },
+      });
+      jobCompleted = true;
+      console.log("[analysis_v2] text_only_done", {
+        photoId: photo.id,
+        jobId: job.id,
+        ocr_tokens: ocrTokens.length,
+        ocr_skipped: !includeOcr,
+        total_ms: Date.now() - tStart,
+      });
+      return { ok: true, photoId, debugChecks };
     }
 
     let faces: Awaited<ReturnType<typeof indexFaces>> = [];
@@ -653,7 +679,7 @@ async function processJob(
         lockedAt: null,
       },
     });
-    if (shouldFail) {
+    if (shouldFail && !soloTexto) {
       await prisma.photo.update({
         where: { id: photoId },
         data: {
@@ -687,7 +713,7 @@ async function processJob(
             runAfter: new Date(Date.now() + 5 * 60 * 1000),
           },
         });
-        await prisma.photo.update({
+        if (!soloTexto) await prisma.photo.update({
           where: { id: photoId },
           data: {
             analysisStatus: "PENDING",
@@ -837,6 +863,7 @@ export async function runAnalysisPipeline(options: RunOptions) {
             id: job.id,
             photoId: job.photoId,
             attempts: job.attempts ?? null,
+            soloTexto: job.soloTexto,
             photo: job.photo,
           },
           options.ocrRequested,
