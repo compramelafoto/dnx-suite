@@ -83,11 +83,13 @@ describe("WEBSITE_TEMPLATES", () => {
     const permitidas = new Set(Object.values(FOTOS_DE_MUESTRA).map((f) => f.url));
     for (const template of WEBSITE_TEMPLATES) {
       const json = JSON.stringify(template.paginas);
-      const urls = json.match(/https:\/\/images\.unsplash\.com\/[^"]+/g) ?? [];
+      const urls = json.match(/https:\/\/[^"]+\.(?:jpg|jpeg|png|webp)\b[^"]*/gi) ?? [];
       expect(urls.length).toBeGreaterThan(0);
       for (const url of urls) expect(permitidas.has(url)).toBe(true);
-      // Ninguna foto de un bucket de clientes (R2 de FOTOFFICE / CompraMeLaFoto).
-      expect(json).not.toMatch(/r2\.dev|r2\.cloudflarestorage/);
+      // Del bucket, sólo la carpeta de plantillas: nunca fotos de clientes (FOTOFFICE / CompraMeLaFoto).
+      for (const url of json.match(/https:\/\/[^"]*r2\.(?:dev|cloudflarestorage\.com)\/[^"]+/g) ?? []) {
+        expect(url).toMatch(/\.r2\.dev\/fotoffice\/plantillas\//);
+      }
     }
   });
 
