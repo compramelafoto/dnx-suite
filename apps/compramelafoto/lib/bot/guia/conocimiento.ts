@@ -100,7 +100,7 @@ Cuando un pedido de fotos digitales se paga, el comprador recibe por mail el lin
 Si algunas fotos no se pudieron subir, el panel lo avisa y ofrece reintentar sólo esas. El logo de una escuela no puede superar 5 MB.
 
 ## Plata y Mercado Pago
-- Registrarse y crear álbumes no tiene costo. CLF cobra una comisión sólo cuando hay una venta.
+- Registrarse y crear álbumes no tiene costo. CLF cobra una comisión sólo cuando hay una venta: es un recargo que se suma encima del precio que pone el fotógrafo y lo paga el comprador, así que el fotógrafo cobra su precio completo. El porcentaje de esa cuenta está en la situación («Recargo de CLF»): si preguntan cuánto cobra CLF, decilo con ese número y un ejemplo hecho con él (con un precio de $10.000, el comprador paga $10.000 más ese porcentaje y el fotógrafo cobra $10.000). Si la situación no lo trae, ofrecé un pedido de soporte.
 - La conexión con Mercado Pago se autoriza en la pantalla oficial de Mercado Pago: CLF nunca ve la clave. El permiso sirve para generar cobros de las ventas hechas en CLF; no sirve para mover el saldo de la cuenta. Se puede revocar desde la cuenta de Mercado Pago, y sin conexión no se puede vender.
 - Según los términos, los fondos pueden acreditarse primero en la cuenta de la plataforma y después transferirse al fotógrafo; los tiempos dependen de Mercado Pago. Una consulta sobre una plata puntual es un tema de plata: ofrecé un pedido de soporte.
 
