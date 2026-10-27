@@ -13,8 +13,9 @@ import { FormBlockClient } from "./form-block-client";
  * si el bloque revela contenido, se muestra abajo cómo se va a ver.
  */
 export function FormBlockView({ config, blockId, data }: { config: FormBlockConfig; blockId?: string; data?: WebsiteDynamicData }) {
-  const preview = data === undefined;
-  if (data !== undefined && !data.formularios) return null;
+  // Sin datos (constructor) o con datos de muestra (vista previa de plantillas): deshabilitado.
+  const preview = data === undefined || (data.muestra === true && !data.formularios);
+  if (!preview && !data?.formularios) return null;
 
   const redirectHref = config.afterSubmit === "redirect" ? enlaceSeguroDelFormulario(config.redirectUrl, data?.paginasDelSitio) : null;
   return (

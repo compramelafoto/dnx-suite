@@ -5,7 +5,14 @@
  * La interpretación del archivo vive en `apps/fotoffice/lib/sitio-formularios/importar-prosite.ts`
  * (probada con archivos de ejemplo); acá sólo se lee el archivo, se arma el informe y se escribe.
  *
- * ── Archivo de entrada ──
+ * ── Archivos de entrada ──
+ *
+ *   La exportación real de Prosite es UN CSV POR FORMULARIO, sin columna de formulario, con
+ *   nombre `NNN__<nombre del formulario>__<cantidad>.csv` (encabezado tipo
+ *   `E-mail,Instagram,Nombre,Enviado em`, fecha ISO en UTC `2025-04-26T17:41:32.944Z`).
+ *   Se le puede pasar la CARPETA con todos (o varios archivos sueltos): el nombre del formulario
+ *   sale del nombre de cada archivo y el informe compara la cantidad esperada con la leída.
+ *   Un archivo que no sigue ese patrón usa su columna de formulario, si tiene, o `--formulario`.
  *
  *   Acepta .csv, .xls y .xlsx. Mira el contenido, no la extensión:
  *     - CSV (coma, punto y coma o tabulación; UTF-8 o Windows-1252);
@@ -25,26 +32,27 @@
  *               datos): repetirlo no duplica. Los envíos quedan como LEÍDOS.
  *
  * Otros: `--slug <slug>` (workspace por su dirección pública; por omisión `dnx-estudio`),
- * `--formulario <nombre>` (ver arriba).
+ * `--formulario <nombre>` (ver arriba), `--estado LEIDO|ARCHIVADO` (cómo entran los envíos; por
+ * omisión LEIDO).
  *
  * ── Cómo correrlo (desde apps/fotoffice) ──
  *
  *   Simulación:
- *     pnpm sitio:importar-inbox-prosite ~/Downloads/inbox-prosite.xls
+ *     pnpm sitio:importar-inbox-prosite ~/Downloads/inbox-prosite/
  *
  *   De verdad (con las tablas de 20261230120000_fotoffice_sitio_formularios ya aplicadas):
  *     set -a && . ./.env.local && set +a
- *     DATABASE_URL_FOTOFFICE="$DATABASE_URL" pnpm sitio:importar-inbox-prosite ~/Downloads/inbox-prosite.xls --aplicar
+ *     DATABASE_URL_FOTOFFICE="$DATABASE_URL" pnpm sitio:importar-inbox-prosite ~/Downloads/inbox-prosite/ --aplicar
  *
  * Variable para --aplicar: DATABASE_URL_FOTOFFICE (no DATABASE_URL: el cliente de @repo/db puede
  * cargar packages/db/.env, que apunta a otra base). El informe no muestra datos de las personas:
  * sólo cantidades, columnas y fechas.
  */
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { createRequire } from "node:module";
-import { resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
 
-type Opciones = { archivo: string; aplicar: boolean; slug: string; formulario: string };
+type Opciones = { archivos: string[]; aplicar: boolean; slug: string; formulario: string; estado: "LEIDO" | "ARCHIVADO" };
 
 function salir(mensaje: string): never {
   console.error(mensaje);
@@ -52,19 +60,33 @@ function salir(mensaje: string): never {
 }
 
 function leerOpciones(argv: string[]): Opciones {
-  const o: Opciones = { archivo: "", aplicar: false, slug: "dnx-estudio", formulario: "Inbox de Prosite" };
+  const o: Opciones = { archivos: [], aplicar: false, slug: "dnx-estudio", formulario: "Inbox de Prosite", estado: "LEIDO" };
+  const entradas: string[] = [];
   for (let i = 0; i < argv.length; i++) {
     const [a, pegado] = argv[i].includes("=") && argv[i].startsWith("--") ? [argv[i].slice(0, argv[i].indexOf("=")), argv[i].slice(argv[i].indexOf("=") + 1)] : [argv[i], undefined];
     const valor = () => pegado ?? argv[++i] ?? salir(`Falta el valor de ${a}`);
     if (a === "--aplicar") o.aplicar = true;
     else if (a === "--slug") o.slug = valor();
     else if (a === "--formulario") o.formulario = valor();
-    else if (a.startsWith("--")) salir(`No conozco la opción ${a}. Ver el encabezado del script.`);
-    else if (!o.archivo) o.archivo = resolve(process.cwd(), a);
-    else salir("Pasá un solo archivo.");
+    else if (a === "--estado") {
+      const e = valor().toUpperCase();
+      if (e !== "LEIDO" && e !== "ARCHIVADO") salir("--estado tiene que ser LEIDO o ARCHIVADO.");
+      o.estado = e;
+    } else if (a.startsWith("--")) salir(`No conozco la opción ${a}. Ver el encabezado del script.`);
+    else entradas.push(resolve(process.cwd(), a));
   }
-  if (!o.archivo) salir("Falta el archivo exportado del Inbox de Prosite. Ver el encabezado del script.");
-  if (!existsSync(o.archivo)) salir(`No encuentro ${o.archivo}`);
+  if (entradas.length === 0) salir("Falta la carpeta o los archivos exportados del Inbox de Prosite. Ver el encabezado del script.");
+  for (const e of entradas) {
+    if (!existsSync(e)) salir(`No encuentro ${e}`);
+    if (statSync(e).isDirectory()) {
+      const dentro = readdirSync(e)
+        .filter((n) => /\.(csv|xlsx?|txt)$/i.test(n) && !n.startsWith("."))
+        .sort((x, y) => x.localeCompare(y, "es", { numeric: true }))
+        .map((n) => join(e, n));
+      if (dentro.length === 0) salir(`La carpeta ${e} no tiene archivos .csv, .xls ni .xlsx.`);
+      o.archivos.push(...dentro);
+    } else o.archivos.push(e);
+  }
   if (!/^[a-z0-9-]{2,80}$/.test(o.slug)) salir("--slug no parece una dirección pública de workspace.");
   return o;
 }
@@ -107,34 +129,40 @@ async function main() {
   }
 
   const lib = await import("../../../../apps/fotoffice/lib/sitio-formularios/importar-prosite");
-  const bytes = new Uint8Array(readFileSync(o.archivo));
-  let { formato, filas } = lib.filasDeArchivoDeTexto(bytes) as { formato: string; filas: import("../../../../apps/fotoffice/lib/sitio-formularios/importar-prosite").Celda[][] };
-  if (formato === "xlsx" || formato === "xls-binario") {
-    const xlsx = cargarSheetJs();
-    if (!xlsx) salir("Es un Excel de verdad y no encontré SheetJS (xlsx) en el monorepo. Abrilo en Excel y guardalo como «CSV UTF-8», y pasá ese archivo.");
-    filas = lib.filasConSheetJs(xlsx as import("../../../../apps/fotoffice/lib/sitio-formularios/importar-prosite").LectorSheetJs, bytes);
-  }
-  console.log(`Archivo: ${o.archivo} (${formato}, ${filas.length} filas)`);
+  type Celda = import("../../../../apps/fotoffice/lib/sitio-formularios/importar-prosite").Celda;
 
-  const r = lib.interpretarTabla(filas, o.formulario);
-  const grupos = lib.agruparPorFormulario(r.envios);
+  const leidos: Array<{ archivo: string; filas: Celda[][]; formato: string }> = [];
+  for (const archivo of o.archivos) {
+    const bytes = new Uint8Array(readFileSync(archivo));
+    let { formato, filas } = lib.filasDeArchivoDeTexto(bytes) as { formato: string; filas: Celda[][] };
+    if (formato === "xlsx" || formato === "xls-binario") {
+      const xlsx = cargarSheetJs();
+      if (!xlsx) salir(`${basename(archivo)} es un Excel de verdad y no encontré SheetJS (xlsx) en el monorepo. Guardalo como «CSV UTF-8» y pasá ese archivo.`);
+      filas = lib.filasConSheetJs(xlsx as import("../../../../apps/fotoffice/lib/sitio-formularios/importar-prosite").LectorSheetJs, bytes);
+    }
+    leidos.push({ archivo, filas, formato });
+  }
+  console.log(`Archivos: ${leidos.length}`);
+  const { envios, repetidas, descartadas, porArchivo } = lib.combinarArchivos(leidos, o.formulario);
+  porArchivo.forEach((a, i) => {
+    const r = a.resultado;
+    const leidas = r.envios.length + r.repetidas + r.descartadas.length;
+    const aviso = a.esperados !== null && a.esperados !== leidas ? ` · ¡el nombre dice ${a.esperados} y hay ${leidas} filas!` : "";
+    console.log("");
+    console.log(`· ${basename(a.archivo)} (${leidos[i].formato}) → «${a.formulario}»`);
+    console.log(`  fecha: ${r.columnas.fecha ?? "(no hay)"} · campos: ${r.columnas.campos.join(", ") || "(ninguno)"}${r.columnas.ignoradas.length ? ` · no se importan: ${r.columnas.ignoradas.join(", ")}` : ""}`);
+    console.log(`  válidos: ${a.nuevos} · repetidos: ${r.repetidas + r.envios.length - a.nuevos} · descartados: ${r.descartadas.length}${aviso}`);
+    for (const d of r.descartadas.slice(0, 10)) console.log(`    fila ${d.fila}: ${d.motivo}`);
+  });
+  const grupos = lib.agruparPorFormulario(envios);
 
   console.log("");
-  console.log(`Columna de fecha: ${r.columnas.fecha ?? "(no hay)"} · de formulario: ${r.columnas.formulario ?? `(no hay: todo va a «${o.formulario}»)`}`);
-  console.log(`Campos: ${r.columnas.campos.join(", ") || "(ninguno)"}`);
-  if (r.columnas.ignoradas.length) console.log(`Columnas que no se importan: ${r.columnas.ignoradas.join(", ")}`);
-  console.log(`Envíos válidos: ${r.envios.length} · repetidos en el archivo: ${r.repetidas} · descartados: ${r.descartadas.length}`);
-  const conCorreo = r.envios.filter((e) => e.contacto.email).length;
-  const conTelefono = r.envios.filter((e) => e.contacto.telefono).length;
-  console.log(`Con correo: ${conCorreo} · con teléfono: ${conTelefono}`);
+  console.log(`Total: ${envios.length} envíos válidos · repetidos: ${repetidas} · descartados: ${descartadas}`);
+  console.log(`Con correo: ${envios.filter((e) => e.contacto.email).length} · con teléfono: ${envios.filter((e) => e.contacto.telefono).length} · con nombre: ${envios.filter((e) => e.contacto.nombre).length}`);
+  console.log(`Entran como: ${o.estado === "LEIDO" ? "leídos" : "archivados"}`);
   console.log("");
   console.log("Formularios:");
   for (const g of grupos) console.log(`  · ${g.nombre}: ${g.envios.length} envíos (${fecha(g.desde)} a ${fecha(g.hasta)})`);
-  if (r.descartadas.length) {
-    console.log("");
-    console.log("Descartados (primeros 30):");
-    for (const d of r.descartadas.slice(0, 30)) console.log(`  · fila ${d.fila}: ${d.motivo}`);
-  }
 
   if (!o.aplicar) {
     console.log("");
@@ -169,7 +197,7 @@ async function main() {
             nombre: e.contacto.nombre,
             email: e.contacto.email,
             telefono: e.contacto.telefono,
-            estado: "LEIDO",
+            estado: o.estado,
             claveImportacion: e.clave,
             createdAt: e.fecha,
           })),
@@ -182,7 +210,7 @@ async function main() {
       console.log(`  · ${g.nombre}: ${delGrupo} nuevos, ${g.envios.length - delGrupo} ya estaban`);
     }
     console.log("");
-    console.log(`Listo: ${nuevos} envíos nuevos, ${r.envios.length - nuevos} ya estaban.`);
+    console.log(`Listo: ${nuevos} envíos nuevos, ${envios.length - nuevos} ya estaban.`);
   } finally {
     await prisma.$disconnect();
   }

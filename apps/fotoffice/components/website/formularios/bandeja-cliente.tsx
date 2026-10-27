@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { startTransition, useActionState, useEffect, useRef, useState } from "react";
-import { cambiarEstadoEnviosAction, cambiarEstadoSuscriptorAction, type BandejaState } from "@/app/actions/website-formularios";
+import { cambiarEstadoEnviosAction, cambiarEstadoSuscriptorAction, marcarLeidoAlAbrirAction, type BandejaState } from "@/app/actions/website-formularios";
 
 /** Las partes con estado de Sitio web → Formularios (la página es de servidor). */
 
@@ -114,11 +114,10 @@ export function DetalleAcciones({ id, estado }: { id: string; estado: string }) 
   useEffect(() => {
     if (estado !== "NUEVO" || marcado.current) return;
     marcado.current = true;
-    const fd = new FormData();
-    fd.set("id", id);
-    fd.set("estado", "LEIDO");
-    startTransition(() => action(fd));
-  }, [id, estado, action]);
+    startTransition(() => {
+      void marcarLeidoAlAbrirAction(id);
+    });
+  }, [id, estado]);
 
   return (
     <form action={action} className="flex flex-wrap items-center gap-2">

@@ -17,9 +17,9 @@ const MARCA = { "--fo-accent": "var(--wsite-primary)", "--fo-accent-hover": "var
  * deshabilitado; en el sitio, sin `data.formularios`, no se dibuja.
  */
 export function NewsletterBlockView({ config, blockId, data }: { config: NewsletterBlockConfig; blockId?: string; data?: WebsiteDynamicData }) {
-  const preview = data === undefined;
+  const preview = data === undefined || (data.muestra === true && !data.formularios);
   const [state, dispatch, pending] = useActionState(subscribeNewsletter, ESTADO_INICIAL);
-  if (data !== undefined && !data.formularios) return null;
+  if (!preview && !data?.formularios) return null;
 
   const id = (campo: string) => `nl-${blockId ?? "x"}-${campo}`;
   const labelStyle = levelStyle("body", { color: true });

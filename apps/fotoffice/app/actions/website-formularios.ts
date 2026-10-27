@@ -7,7 +7,7 @@ import { getEnabledModuleKeysForWorkspace } from "@/lib/modules/gating";
 import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
 import { WEBSITE_MODULE_KEY } from "@/lib/website/constants";
 import { esEstadoEnvio } from "@/lib/website/formularios";
-import { cambiarEstadoEnvios, cambiarEstadoSuscriptor } from "@/lib/website/formularios.server";
+import { cambiarEstadoEnvios, cambiarEstadoSuscriptor, marcarLeidoSiNuevo } from "@/lib/website/formularios.server";
 import { opcionesDelFormulario } from "@/lib/website/inquiry";
 
 /**
@@ -43,6 +43,14 @@ export async function cambiarEstadoEnviosAction(_prev: BandejaState | undefined,
   await cambiarEstadoEnvios(ctx.workspaceId, ids, estado);
   revalidatePath(PAGE);
   return { error: null, ok: true };
+}
+
+/** Abrir un envío lo marca leído, sólo si seguía NUEVO (no pisa un archivado de otra pestaña). */
+export async function marcarLeidoAlAbrirAction(id: string): Promise<void> {
+  const ctx = await requireEditor();
+  if ("error" in ctx || typeof id !== "string" || !ID_VALIDO.test(id)) return;
+  await marcarLeidoSiNuevo(ctx.workspaceId, id);
+  revalidatePath(PAGE);
 }
 
 export async function cambiarEstadoSuscriptorAction(_prev: BandejaState | undefined, formData: FormData): Promise<BandejaState> {

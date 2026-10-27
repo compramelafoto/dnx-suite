@@ -165,7 +165,7 @@ export function parsearFechaArgentina(valor: Celda): Date | null {
 
 // ── Tabla → envíos ──────────────────────────────────────────────────────────────────────────
 
-const COLUMNA_FECHA = /^(fecha|fecha de env[ií]o|fecha y hora|enviado|enviado el|recibido|creado|data|data de envio|data de envío|date|sent|created)$/i;
+const COLUMNA_FECHA = /^(fecha|fecha de env[ií]o|fecha y hora|enviado|enviado el|enviado em|enviado en|recibido|creado|data|data de envio|data de envío|date|sent|sent at|created|created at)$/i;
 const COLUMNA_FORMULARIO = /^(formulario|nombre del formulario|formul[aá]rio|form|form name|origen|origem|p[aá]gina|landing|landing page)$/i;
 /** Columnas que no son datos de la persona (estado del inbox de Prosite, ids). */
 const COLUMNA_IGNORADA = /^(id|#|status|estado|lido|le[ií]do|read|visto)$/i;
@@ -202,25 +202,50 @@ function celdaComoTexto(c: Celda): string {
   return String(c).replace(/\r\n?/g, "\n").trim();
 }
 
+/** Etiqueta para comparar: sin tildes, minúsculas, espacios simples. */
+function etiquetaNormalizada(etiqueta: string): string {
+  return etiqueta
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Huella de un envío importado: fecha + formulario (normalizado con `claveDeFormularioProsite`) +
+ * los pares ORDENADOS por etiqueta normalizada. Así el mismo envío en dos exportaciones con las
+ * columnas en otro orden, o con el nombre del formulario escrito distinto, no se duplica.
+ */
 export function claveDeImportacion(fecha: Date, formulario: string, pares: readonly ParEnvio[]): string {
-  const base = JSON.stringify([fecha.toISOString(), formulario.trim().toLowerCase(), pares.map((p) => [p.etiqueta, p.valor])]);
+  const ordenados = pares
+    .map((p) => [etiquetaNormalizada(p.etiqueta), p.valor.trim()] as const)
+    .sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : 0));
+  const base = JSON.stringify([fecha.toISOString(), claveDeFormularioProsite(formulario), ordenados]);
   return createHash("sha256").update(base).digest("hex").slice(0, 40);
 }
 
 /**
  * Interpreta la tabla: la primera fila con al menos dos celdas escritas es el encabezado. Las
  * filas sin fecha válida se descartan (con su motivo); las que no traen ningún dato, también.
+ * `opciones.columnaFormulario: false` (la exportación real de Prosite: un CSV por formulario,
+ * con el nombre en el nombre del archivo) no busca columna de formulario: todo va a
+ * `formularioPorOmision`, y una columna «Página» u «Origen» queda como campo.
  * `formularioPorOmision` se usa cuando el archivo no tiene columna de formulario (o la celda
  * viene vacía).
  */
-export function interpretarTabla(filas: readonly (readonly Celda[])[], formularioPorOmision = "Inbox de Prosite"): ResultadoInterpretacion {
+export function interpretarTabla(
+  filas: readonly (readonly Celda[])[],
+  formularioPorOmision = "Inbox de Prosite",
+  opciones: { columnaFormulario?: boolean } = {},
+): ResultadoInterpretacion {
   const inicio = filas.findIndex((f) => f.filter((c) => celdaComoTexto(c) !== "").length >= 2);
   const vacio: ResultadoInterpretacion = { columnas: { fecha: null, formulario: null, campos: [], ignoradas: [] }, envios: [], descartadas: [], repetidas: 0 };
   if (inicio < 0) return vacio;
 
   const encabezados = filas[inicio].map((c) => normalizarEncabezado(celdaComoTexto(c)));
   const iFecha = encabezados.findIndex((h) => COLUMNA_FECHA.test(h));
-  const iFormulario = encabezados.findIndex((h, i) => i !== iFecha && COLUMNA_FORMULARIO.test(h));
+  const iFormulario = opciones.columnaFormulario === false ? -1 : encabezados.findIndex((h, i) => i !== iFecha && COLUMNA_FORMULARIO.test(h));
   const campos: Array<{ i: number; etiqueta: string }> = [];
   const ignoradas: string[] = [];
   encabezados.forEach((h, i) => {
@@ -299,6 +324,70 @@ export function agruparPorFormulario(envios: readonly EnvioImportado[]): GrupoDe
     }
   }
   return [...grupos.values()].sort((a, b) => b.envios.length - a.envios.length || a.nombre.localeCompare(b.nombre, "es"));
+}
+
+/**
+ * El nombre del formulario y la cantidad esperada a partir del nombre de archivo de la exportación
+ * de Prosite: `NNN__<nombre del formulario>__<cantidad>.csv` (el nombre puede tener espacios,
+ * tildes, `&`, `+`, `°`…; incluso `__`). `null` si el archivo no sigue el patrón.
+ */
+export function formularioDeNombreDeArchivo(archivo: string): { nombre: string; cantidad: number } | null {
+  const base = (archivo.split(/[\\/]/).pop() ?? "").normalize("NFC").replace(/\.(csv|xlsx?|txt)$/i, "");
+  const partes = base.split("__");
+  if (partes.length < 3 || !/^\d+$/.test(partes[0]) || !/^\d+$/.test(partes[partes.length - 1])) return null;
+  const nombre = partes.slice(1, -1).join("__").replace(/\s+/g, " ").trim();
+  return nombre ? { nombre: nombre.slice(0, 200), cantidad: Number(partes[partes.length - 1]) } : null;
+}
+
+export type ResultadoDeArchivo = {
+  archivo: string;
+  /** El formulario al que van sus envíos (del nombre del archivo, de su columna o el por omisión). */
+  formulario: string;
+  /** La cantidad que dice el nombre del archivo (`…__<cantidad>.csv`), si la dice. */
+  esperados: number | null;
+  resultado: ResultadoInterpretacion;
+  /** Envíos que no estaban ya en un archivo anterior. */
+  nuevos: number;
+};
+
+/**
+ * Varios archivos de una vez (la carpeta de la exportación de Prosite): cada uno con el formulario
+ * de su nombre (`NNN__<formulario>__<cantidad>.csv`) o, si no sigue el patrón, con su columna de
+ * formulario o `formularioPorOmision`. Un envío que aparece en dos archivos se cuenta una vez.
+ */
+export function combinarArchivos(
+  entradas: ReadonlyArray<{ archivo: string; filas: readonly (readonly Celda[])[] }>,
+  formularioPorOmision = "Inbox de Prosite",
+): { envios: EnvioImportado[]; repetidas: number; descartadas: number; porArchivo: ResultadoDeArchivo[] } {
+  const envios: EnvioImportado[] = [];
+  const vistas = new Set<string>();
+  const porArchivo: ResultadoDeArchivo[] = [];
+  let repetidas = 0;
+  let descartadas = 0;
+  for (const { archivo, filas } of entradas) {
+    const delNombre = formularioDeNombreDeArchivo(archivo);
+    const resultado = delNombre ? interpretarTabla(filas, delNombre.nombre, { columnaFormulario: false }) : interpretarTabla(filas, formularioPorOmision);
+    let nuevos = 0;
+    for (const e of resultado.envios) {
+      if (vistas.has(e.clave)) {
+        repetidas++;
+        continue;
+      }
+      vistas.add(e.clave);
+      envios.push(e);
+      nuevos++;
+    }
+    repetidas += resultado.repetidas;
+    descartadas += resultado.descartadas.length;
+    porArchivo.push({
+      archivo,
+      formulario: delNombre?.nombre ?? (resultado.columnas.formulario ? `(columna «${resultado.columnas.formulario}»)` : formularioPorOmision),
+      esperados: delNombre?.cantidad ?? null,
+      resultado,
+      nuevos,
+    });
+  }
+  return { envios, repetidas, descartadas, porArchivo };
 }
 
 /**

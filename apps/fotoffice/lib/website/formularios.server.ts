@@ -17,11 +17,14 @@ export function esTablaFaltante(err: unknown): boolean {
 
 /**
  * Huella de la IP: HMAC-SHA256 con un secreto del servidor y el workspace. Nunca se guarda la IP
- * cruda; la huella sirve para ver si muchos envíos vienen del mismo lado.
+ * cruda; la huella sirve para ver si muchos envíos vienen del mismo lado. Sin secreto configurado
+ * (`FOTOFFICE_SITIO_IP_SECRET` o `CRON_SECRET`) no se guarda huella: con una clave fija se podría
+ * revertir probando todas las IP.
  */
 export function huellaIp(ip: string | null, workspaceId: string): string | null {
   if (!ip || ip === "desconocido") return null;
-  const secreto = process.env.FOTOFFICE_SITIO_IP_SECRET || process.env.CRON_SECRET || "fotoffice-sitio-formularios";
+  const secreto = process.env.FOTOFFICE_SITIO_IP_SECRET || process.env.CRON_SECRET;
+  if (!secreto) return null;
   return createHmac("sha256", secreto).update(`${workspaceId}:${ip}`).digest("hex").slice(0, 32);
 }
 

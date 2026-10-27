@@ -1,10 +1,13 @@
 import { readFileSync } from "node:fs";
+import { readdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   agruparPorFormulario,
   claveDeFormularioProsite,
   claveDeImportacion,
+  combinarArchivos,
+  formularioDeNombreDeArchivo,
   decodificarTexto,
   detectarFormato,
   filasConSheetJs,
@@ -174,7 +177,8 @@ describe("huellas", () => {
     const a = claveDeImportacion(f, "Contacto", pares);
     expect(a).toHaveLength(40);
     expect(claveDeImportacion(f, " contacto ", pares)).toBe(a);
-    expect(claveDeImportacion(f, "Contacto", [{ etiqueta: "Nombre", valor: "Ana " }])).not.toBe(a);
+    expect(claveDeImportacion(f, "CONTACTO", [{ etiqueta: " nombre ", valor: "Ana" }])).toBe(a);
+    expect(claveDeImportacion(f, "Contacto", [{ etiqueta: "Nombre", valor: "Ana B" }])).not.toBe(a);
     expect(claveDeImportacion(new Date("2026-10-27T17:06:00Z"), "Contacto", pares)).not.toBe(a);
   });
 
@@ -182,5 +186,48 @@ describe("huellas", () => {
     expect(claveDeFormularioProsite("Contacto de proveedores")).toBe("prosite:contacto-de-proveedores");
     expect(claveDeFormularioProsite("Fórmula  XV!")).toBe("prosite:formula-xv");
     expect(claveDeFormularioProsite("¿?")).toBe("prosite:sin-nombre");
+  });
+});
+
+describe("exportación real de Prosite: un CSV por formulario en una carpeta", () => {
+  const carpeta = join(__dirname, "__fixtures__", "prosite-carpeta");
+  const entradas = readdirSync(carpeta)
+    .sort()
+    .map((archivo) => ({ archivo: join(carpeta, archivo), filas: filasDeArchivoDeTexto(new Uint8Array(readFileSync(join(carpeta, archivo)))).filas }));
+
+  it("saca el formulario y la cantidad del nombre del archivo (con espacios, &, + y °)", () => {
+    expect(formularioDeNombreDeArchivo("/x/001__Contacto de proveedores & más__3.csv")).toEqual({ nombre: "Contacto de proveedores & más", cantidad: 3 });
+    expect(formularioDeNombreDeArchivo("002__Curso Lightroom + Photoshop 2°__1.csv")).toEqual({ nombre: "Curso Lightroom + Photoshop 2°", cantidad: 1 });
+    expect(formularioDeNombreDeArchivo("010__XV__Landing__25.csv")).toEqual({ nombre: "XV__Landing", cantidad: 25 });
+    expect(formularioDeNombreDeArchivo("inbox.csv")).toBeNull();
+    expect(formularioDeNombreDeArchivo("001__Contacto.csv")).toBeNull();
+  });
+
+  it("«Enviado em» es la fecha, en UTC tal cual, y deduce el contacto de las etiquetas", () => {
+    const r = combinarArchivos(entradas);
+    const [ana, luis] = r.envios;
+    expect(r.porArchivo[0].resultado.columnas).toEqual({ fecha: "Enviado em", formulario: null, campos: ["E-mail", "Instagram", "Nombre"], ignoradas: [] });
+    expect(ana).toMatchObject({ formulario: "Contacto de proveedores & más", contacto: { nombre: "Ana Pérez", email: "ana@ejemplo.com", telefono: null } });
+    expect(ana.fecha.toISOString()).toBe("2025-04-26T17:41:32.944Z");
+    expect(luis.fecha.toISOString()).toBe("2025-04-27T03:00:00.000Z");
+    const beto = r.envios.find((e) => e.formulario.startsWith("Curso"));
+    expect(beto?.contacto).toEqual({ nombre: "Beto", email: null, telefono: "+54 9 341 555-0000" });
+    // Sin columna de formulario: «Página» queda como un campo más.
+    expect(beto?.pares.map((p) => p.etiqueta)).toEqual(["Nombre", "Celular", "Mensaje", "Página"]);
+  });
+
+  it("no duplica el mismo envío repetido en un archivo ni en otro archivo con las columnas en otro orden", () => {
+    const r = combinarArchivos(entradas);
+    expect(r.envios).toHaveLength(3);
+    expect(r.repetidas).toBe(2);
+    expect(r.porArchivo.map((a) => [a.formulario, a.esperados, a.nuevos])).toEqual([
+      ["Contacto de proveedores & más", 3, 2],
+      ["Curso Lightroom + Photoshop 2°", 1, 1],
+      ["Contacto de proveedores & más", 1, 0],
+    ]);
+    expect(agruparPorFormulario(r.envios).map((g) => [g.clave, g.envios.length])).toEqual([
+      ["prosite:contacto-de-proveedores-mas", 2],
+      ["prosite:curso-lightroom-photoshop-2", 1],
+    ]);
   });
 });
