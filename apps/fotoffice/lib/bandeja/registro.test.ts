@@ -40,7 +40,7 @@ beforeEach(async () => {
 describe("aplicarEventos: entrantes", () => {
   it("crea el chat con nombre, no leído, hora y el mensaje", async () => {
     const r = await aplicarEventos([entrante()], AHORA);
-    expect(r).toEqual({ aplicados: 1, duplicados: 0, ignorados: 0, fallidos: 0, paraElBot: [chats()[0].id] });
+    expect(r).toEqual({ aplicados: 1, duplicados: 0, ignorados: 0, fallidos: 0, paraElBot: [chats()[0].id], medios: [] });
     expect(chats()).toHaveLength(1);
     expect(chats()[0]).toMatchObject({
       workspaceId: WS, waId: WA, nombre: "Lucía", estado: "BOT", noLeidos: 1, clientId: null,
@@ -64,10 +64,19 @@ describe("aplicarEventos: entrantes", () => {
     expect(mensajes()[0]).toMatchObject({ tipo: "IMAGEN", texto: "fondo", media: { id: "9", mimeType: "image/jpeg" } });
   });
 
+  it("una imagen del cliente entra en medios (para bajarla); repetida, eco o texto no", async () => {
+    const foto = entrante({ mensajeTipo: "IMAGEN", texto: null, media: { id: "9", mimeType: "image/jpeg" } });
+    const r = await aplicarEventos([foto, entrante({ waMessageId: "wamid.2" })], AHORA);
+    expect(r.medios).toEqual([mensajes()[0].id]);
+    expect((await aplicarEventos([foto], AHORA)).medios).toEqual([]);
+    const r2 = await aplicarEventos([eco({ mensajeTipo: "IMAGEN", texto: null, media: { id: "10", mimeType: "image/jpeg" } })], AHORA);
+    expect(r2.medios).toEqual([]);
+  });
+
   it("idempotente: el mismo waMessageId no duplica ni vuelve a sumar", async () => {
     await aplicarEventos([entrante()], AHORA);
     const r = await aplicarEventos([entrante()], AHORA);
-    expect(r).toEqual({ aplicados: 0, duplicados: 1, ignorados: 0, fallidos: 0, paraElBot: [] });
+    expect(r).toEqual({ aplicados: 0, duplicados: 1, ignorados: 0, fallidos: 0, paraElBot: [], medios: [] });
     expect(mensajes()).toHaveLength(1);
     expect(chats()[0].noLeidos).toBe(1);
   });
@@ -93,14 +102,14 @@ describe("aplicarEventos: entrantes", () => {
 
   it("phoneNumberId sin conexión: se ignora sin tocar nada", async () => {
     const r = await aplicarEventos([entrante({ phoneNumberId: "999" })], AHORA);
-    expect(r).toEqual({ aplicados: 0, duplicados: 0, ignorados: 1, fallidos: 0, paraElBot: [] });
+    expect(r).toEqual({ aplicados: 0, duplicados: 0, ignorados: 1, fallidos: 0, paraElBot: [], medios: [] });
     expect(chats()).toHaveLength(0);
   });
 
   it("una conexión SIMULADA no recibe eventos por phoneNumberId (no puede apropiarse de un número)", async () => {
     B.datos.fotofficeWaConexion[0].modo = "SIMULADO";
     const r = await aplicarEventos([entrante()], AHORA);
-    expect(r).toEqual({ aplicados: 0, duplicados: 0, ignorados: 1, fallidos: 0, paraElBot: [] });
+    expect(r).toEqual({ aplicados: 0, duplicados: 0, ignorados: 1, fallidos: 0, paraElBot: [], medios: [] });
     expect(chats()).toHaveLength(0);
     // El simulador de Configuración sí entra, por workspaceId.
     expect(await aplicarEventos([entrante()], AHORA, { workspaceId: WS })).toMatchObject({ aplicados: 1 });
@@ -202,7 +211,7 @@ describe("aplicarEventos: estados de envío", () => {
   });
 
   it("estado de un mensaje desconocido y reciente (< 5 min): fallido, para que Meta reintente", async () => {
-    expect(await aplicarEventos([estado({ en: min(-1) })], AHORA)).toEqual({ aplicados: 0, duplicados: 0, ignorados: 0, fallidos: 1, paraElBot: [] });
+    expect(await aplicarEventos([estado({ en: min(-1) })], AHORA)).toEqual({ aplicados: 0, duplicados: 0, ignorados: 0, fallidos: 1, paraElBot: [], medios: [] });
   });
 
   it("estado desconocido con hora ilegible o muy en el futuro: se ignora, no se reintenta", async () => {
@@ -211,7 +220,7 @@ describe("aplicarEventos: estados de envío", () => {
   });
 
   it("estado de un mensaje desconocido y viejo (>= 5 min): se ignora", async () => {
-    expect(await aplicarEventos([estado({ en: min(-6) })], AHORA)).toEqual({ aplicados: 0, duplicados: 0, ignorados: 1, fallidos: 0, paraElBot: [] });
+    expect(await aplicarEventos([estado({ en: min(-6) })], AHORA)).toEqual({ aplicados: 0, duplicados: 0, ignorados: 1, fallidos: 0, paraElBot: [], medios: [] });
   });
 
   it("mensaje entrante con ese id: el estado se ignora", async () => {

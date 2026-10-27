@@ -13,7 +13,8 @@ import type { EventoEco, EventoEntrante, EventoEstado, EventoWa } from "./webhoo
 
 /** `fallidos`: eventos que fallaron por un error inesperado (el resto del lote se aplicó igual). */
 /** `paraElBot`: chats donde entró un mensaje del cliente y los atiende el bot (los contesta `responderConBot`). */
-export type ResultadoRegistro = { aplicados: number; duplicados: number; ignorados: number; fallidos: number; paraElBot: string[] };
+/** `medios`: mensajes nuevos del cliente con un archivo de Meta para bajar (`descargarMedios`). */
+export type ResultadoRegistro = { aplicados: number; duplicados: number; ignorados: number; fallidos: number; paraElBot: string[]; medios: string[] };
 
 type Db = Prisma.TransactionClient;
 
@@ -55,7 +56,7 @@ export async function aplicarEventos(
   /** `workspaceId`: sólo para el simulador de Configuración. Resuelve la conexión por institución en vez de por `phoneNumberId`. */
   opciones: { workspaceId?: string } = {},
 ): Promise<ResultadoRegistro> {
-  const r: ResultadoRegistro = { aplicados: 0, duplicados: 0, ignorados: 0, fallidos: 0, paraElBot: [] };
+  const r: ResultadoRegistro = { aplicados: 0, duplicados: 0, ignorados: 0, fallidos: 0, paraElBot: [], medios: [] };
   const conexiones = new Map<string, { workspaceId: string; pausaBotHoras: number } | null>();
   /** Un aviso de estado sin mensaje conocido más nuevo que esto se cuenta como fallido, para que Meta reintente. */
   const REINTENTO_ESTADO_MS = 5 * 60_000;
@@ -90,6 +91,7 @@ export async function aplicarEventos(
       else {
         r.aplicados++;
         if (salida.paraElBot && !r.paraElBot.includes(salida.paraElBot)) r.paraElBot.push(salida.paraElBot);
+        if (salida.mensajeConMedio) r.medios.push(salida.mensajeConMedio);
       }
     } catch (error) {
       r.fallidos++;
@@ -119,7 +121,7 @@ async function registrarMensaje(
   pausaBotHoras: number,
   ev: EventoEntrante | EventoEco,
   ahora: Date,
-): Promise<{ paraElBot: string | null } | "duplicado"> {
+): Promise<Escrito | "duplicado"> {
   const existe = () =>
     prisma.fotofficeWaMensaje.findUnique({ where: { workspaceId_waMessageId: { workspaceId, waMessageId: ev.waMessageId } }, select: { id: true } });
   if (await existe()) return "duplicado";
@@ -128,8 +130,7 @@ async function registrarMensaje(
   // no se reaplica nada) o la creación simultánea del chat (la segunda vuelta ya lo encuentra).
   for (let intento = 0; ; intento++) {
     try {
-      const paraElBot = await prisma.$transaction((tx) => escribir(tx, workspaceId, pausaBotHoras, ev, ahora));
-      return { paraElBot };
+      return await prisma.$transaction((tx) => escribir(tx, workspaceId, pausaBotHoras, ev, ahora));
     } catch (e) {
       if (!esChoqueDeUnico(e)) throw e;
       if (await existe()) return "duplicado";
@@ -138,8 +139,10 @@ async function registrarMensaje(
   }
 }
 
-/** Devuelve el id del chat si entró un mensaje del cliente y, con el estado resultante, lo atiende el bot. */
-async function escribir(tx: Db, workspaceId: string, pausaBotHoras: number, ev: EventoEntrante | EventoEco, ahora: Date): Promise<string | null> {
+/** `paraElBot`: el chat, si entró un mensaje del cliente y lo atiende el bot. `mensajeConMedio`: el mensaje, si el cliente mandó un archivo. */
+type Escrito = { paraElBot: string | null; mensajeConMedio: string | null };
+
+async function escribir(tx: Db, workspaceId: string, pausaBotHoras: number, ev: EventoEntrante | EventoEco, ahora: Date): Promise<Escrito> {
   // La hora del hecho, sin pasar de la de recepción (un reloj adelantado no debe fijar una pausa eterna).
   const cuando = ev.en && ev.en.getTime() < ahora.getTime() ? ev.en : ahora;
   const entrante = ev.tipo === "ENTRANTE";
@@ -163,7 +166,7 @@ async function escribir(tx: Db, workspaceId: string, pausaBotHoras: number, ev: 
     });
   }
 
-  await tx.fotofficeWaMensaje.create({
+  const creado = await tx.fotofficeWaMensaje.create({
     data: {
       workspaceId, chatId: chat.id, waMessageId: ev.waMessageId, createdAt: cuando,
       direccion: entrante ? "ENTRANTE" : "SALIENTE",
@@ -210,7 +213,10 @@ async function escribir(tx: Db, workspaceId: string, pausaBotHoras: number, ev: 
       },
     });
   }
-  return entrante && atiendeElBot({ ...estado, ...regla.parche }, ahora) ? chat.id : null;
+  return {
+    paraElBot: entrante && atiendeElBot({ ...estado, ...regla.parche }, ahora) ? chat.id : null,
+    mensajeConMedio: entrante && ev.media?.id ? creado.id : null,
+  };
 }
 
 /**

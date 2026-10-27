@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { firmaValida, leerWebhook, mismoTextoSeguro } from "@/lib/bandeja/webhook";
-import { programarBot } from "@/lib/bandeja/bot/programar";
+import { programarTrasRegistro } from "@/lib/bandeja/bot/programar";
 import { aplicarEventos, detalleDeError } from "@/lib/bandeja/registro";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-/** El bot contesta después de responderle a Meta (`after`): el turno puede tardar hasta un minuto. */
+/** Los archivos se bajan y el bot contesta después de responderle a Meta (`after`): puede tardar hasta un minuto. */
 export const maxDuration = 120;
 
 /**
@@ -54,7 +54,7 @@ export async function POST(request: Request) {
 
   try {
     const r = await aplicarEventos(eventos);
-    programarBot(r.paraElBot);
+    programarTrasRegistro(r);
     // Si algún evento falló, 500: Meta reintenta el lote y lo ya aplicado es idempotente.
     if (r.fallidos > 0) return NextResponse.json({ error: "no se pudo registrar" }, { status: 500 });
     return NextResponse.json({ ok: true, ...r });
