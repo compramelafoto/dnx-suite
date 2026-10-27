@@ -2,6 +2,7 @@ import "server-only";
 import { cache } from "react";
 import { prisma } from "@repo/db";
 import type { SiteMetadataInput } from "./site-metadata";
+import { parseWebsiteSiteSettings } from "./site-settings";
 
 /**
  * Los datos de `buildSiteMetadata` para una institución. Select acotado: todo esto termina en el
@@ -25,8 +26,12 @@ export const loadSiteMetadataInput = cache(async function loadSiteMetadataInput(
 
   const website = await prisma.fotofficeWorkspaceWebsite.findUnique({
     where: { workspaceId: branding.workspaceId },
-    select: { publishedVersion: { select: { seoTitle: true, seoDescription: true } } },
+    select: { publishedVersion: { select: { seoTitle: true, seoDescription: true, designPresetsJson: true } } },
   });
+
+  // Palabras clave, imagen al compartir y verificación de Google (Sitio web → Ajustes), también
+  // de la versión publicada.
+  const ajustes = parseWebsiteSiteSettings(website?.publishedVersion?.designPresetsJson ?? null);
 
   return {
     commercialName: branding.commercialName,
@@ -36,5 +41,8 @@ export const loadSiteMetadataInput = cache(async function loadSiteMetadataInput(
     logoUrl: branding.logoUrl,
     coverImageUrl: branding.coverImageUrl,
     faviconUrl: branding.faviconUrl,
+    keywords: ajustes.seo.keywords,
+    shareImageUrl: ajustes.seo.shareImageUrl,
+    googleVerification: ajustes.seo.googleVerification,
   };
 });

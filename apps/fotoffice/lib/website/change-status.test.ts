@@ -80,3 +80,23 @@ describe("computeWebsiteChangeStatus", () => {
     ).toBe("PUBLISHED_WITH_CHANGES");
   });
 });
+
+describe("computeWebsiteChangeStatus — Ajustes del sitio", () => {
+  const diseño = { headerPreset: "centered" };
+
+  it("cambiar sólo los Ajustes cuenta como cambio sin publicar", () => {
+    const draft = { ...base, designPresetsJson: { ...diseño, siteSettings: { photoProtection: { enabled: true } } } };
+    const publicado = { ...base, designPresetsJson: diseño };
+    expect(computeWebsiteChangeStatus({ draft, publishedVersion: publicado, hasAnyVersionHistory: true })).toBe(
+      "PUBLISHED_WITH_CHANGES",
+    );
+  });
+
+  it("ajustes por omisión escritos explícitos equivalen a no tenerlos", () => {
+    const draft = { ...base, designPresetsJson: { ...diseño, siteSettings: {} } };
+    const publicado = { ...base, designPresetsJson: diseño };
+    expect(computeWebsiteChangeStatus({ draft, publishedVersion: publicado, hasAnyVersionHistory: true })).toBe(
+      "PUBLISHED_NO_CHANGES",
+    );
+  });
+});

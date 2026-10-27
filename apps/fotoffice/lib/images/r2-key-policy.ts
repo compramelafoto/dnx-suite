@@ -20,6 +20,8 @@ export const FOTOFFICE_R2_PREFIXES = {
   courseCover: "fotoffice/course-covers",
   websiteHeroImage: "fotoffice/website-hero-images",
   websiteBlockImage: "fotoffice/website-block-images",
+  /** Imagen al compartir el sitio o una de sus páginas (Sitio web → Ajustes). */
+  websiteShareImage: "fotoffice/website-share-images",
   favicon: "fotoffice/favicons",
   templateImage: "fotoffice/template-images",
   productPhoto: "fotoffice/product-photos",

@@ -162,6 +162,21 @@ export const IMAGE_PRESETS = {
     acceptedFormats: ["image/jpeg", "image/webp", "image/png"],
     objectFit: "cover",
   },
+  /** La vista previa al compartir el sitio (WhatsApp, Facebook, X): 1200 × 630 es la medida que
+   * piden todas las redes. Sitio web → Ajustes. */
+  websiteShareImage: {
+    key: "websiteShareImage",
+    label: "Imagen al compartir el sitio web",
+    widthRecommended: 1200,
+    heightRecommended: 630,
+    aspectRatio: { width: 1200, height: 630 },
+    aspectRatioTolerance: 0.2,
+    minWidth: 600,
+    minHeight: 315,
+    maxFileSizeBytes: 5 * MB,
+    acceptedFormats: ["image/jpeg", "image/webp", "image/png"],
+    objectFit: "cover",
+  },
   websiteBlockImage: {
     key: "websiteBlockImage",
     label: "Imagen de bloque del sitio web",

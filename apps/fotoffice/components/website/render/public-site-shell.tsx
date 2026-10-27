@@ -7,6 +7,7 @@ import type { PublicSite } from "@/lib/website/public-site";
 import { WebsiteHeaderView } from "./website-header-view";
 import { WebsiteFooterView } from "./website-footer-view";
 import { SiteFrame } from "./site-frame";
+import { PublicSiteExtras } from "./public-site-extras";
 
 /**
  * El armazón que envuelve TODAS las páginas de `/w/[slug]` — la portada del sitio y las
@@ -72,13 +73,19 @@ export function PublicSiteShell({
         />
       }
       footer={
-        <WebsiteFooterView
-          commercialName={site.commercialName}
-          logoUrl={site.logoUrl}
-          contact={site.contact}
-          navItems={navItems}
-          designPresets={site.designPresets}
-        />
+        <>
+          <WebsiteFooterView
+            commercialName={site.commercialName}
+            logoUrl={site.logoUrl}
+            contact={site.contact}
+            navItems={navItems}
+            designPresets={site.designPresets}
+            socialLinks={site.settings.socialLinks}
+          />
+          {/* Ajustes del sitio: medición, WhatsApp flotante y protección de fotos. Este armazón es
+              sólo del sitio público (las vistas previas del panel usan `SiteFrame` directo). */}
+          <PublicSiteExtras settings={site.settings} />
+        </>
       }
     >
       {children}

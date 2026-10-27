@@ -11,6 +11,8 @@ import { InsigniaPendientes } from "@/components/website/testimonios/insignia-pe
 const SECONDARY_TABS = [
   { href: "/website?panel=menu", label: "Menú" },
   { href: "/website/seo", label: "SEO" },
+  // Palabras clave, imagen al compartir, medición, WhatsApp flotante, redes y protección de fotos.
+  { href: "/website/ajustes", label: "Ajustes" },
   { href: "/website/historial", label: "Historial" },
   { href: "/website/dominio", label: "Dominio" },
   // Las direcciones viejas (por ejemplo las de la web anterior) que llevan a las nuevas.
