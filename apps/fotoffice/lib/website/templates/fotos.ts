@@ -3,20 +3,17 @@
  * permitido); autor y página de cada una en `CREDITOS.md`, al lado de este archivo. Nunca fotos
  * de clientes de FOTOFFICE ni de CompraMeLaFoto.
  *
- * Hoy se enlazan al CDN de Unsplash (`images.unsplash.com`): los bloques aceptan cualquier host
- * (el schema sólo limita el largo, el sitio no tiene `img-src` en su CSP) y se dibujan con el
- * mismo `<img>`/`background-image` que una foto subida. PENDIENTE: subir las copias a R2 en
- * `claveR2` (`fotoffice-media/fotoffice/plantillas/<plantilla>/<n>.jpg`) y cambiar `url` a la
- * dirección pública del bucket — la subida necesita un permiso que esta tanda no tuvo (ver
- * `CREDITOS.md`). Ojo: al aplicar una plantilla la dirección queda copiada en el sitio del
- * usuario, que la reemplaza por sus fotos.
+ * Se sirven desde nuestra copia en R2 (`fotoffice-media`, clave `claveR2`, subidas el 26/10/2026),
+ * no desde el CDN de Unsplash. Ojo: al aplicar una plantilla la dirección queda copiada en el
+ * sitio del usuario, que la reemplaza por sus fotos.
  */
 
-const cdn = (photoId: string) => `https://images.unsplash.com/${photoId}?w=1920&q=80&auto=format&fit=crop`;
+/** Dirección pública de `fotoffice-media` (la misma que `R2_PUBLIC_URL` en producción). */
+const R2_PUBLICO = "https://pub-2086bd02202c406a9b952f2dbfa945c9.r2.dev";
 
 export type FotoDeMuestra = {
   url: string;
-  /** Dónde va (o está) la copia en `fotoffice-media`. Fuera de los prefijos borrables a propósito
+  /** Dónde está la copia en `fotoffice-media`. Fuera de los prefijos borrables a propósito
    * (`r2-key-policy.ts`): la comparten todos los sitios que aplicaron la plantilla. */
   claveR2: string;
   alt: string;
@@ -25,8 +22,9 @@ export type FotoDeMuestra = {
   pagina: string;
 };
 
-function foto(photoId: string, unsplashId: string, autor: string, alt: string, claveR2: string): FotoDeMuestra {
-  return { url: cdn(photoId), claveR2, alt, autor, pagina: `https://unsplash.com/photos/${unsplashId}` };
+/** `archivoUnsplash`: el archivo en el CDN de Unsplash, por si hay que volver a bajarla. */
+function foto(_archivoUnsplash: string, unsplashId: string, autor: string, alt: string, claveR2: string): FotoDeMuestra {
+  return { url: `${R2_PUBLICO}/${claveR2}`, claveR2, alt, autor, pagina: `https://unsplash.com/photos/${unsplashId}` };
 }
 
 export const FOTOS_DE_MUESTRA = {

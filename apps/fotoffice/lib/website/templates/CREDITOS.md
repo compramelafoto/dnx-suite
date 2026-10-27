@@ -9,12 +9,12 @@ Ninguna es foto de un cliente de FOTOFFICE ni de CompraMeLaFoto. Cada dirección
 con `curl -sI` (respuesta 200) el 26/10/2026; el autor sale del nombre de archivo que entrega la
 descarga oficial de Unsplash. Nunca fotos de Unsplash+ (licencia paga).
 
-**Copia en R2 (pendiente de subir):** la columna «Clave R2» es dónde va cada copia en el bucket
+**Copia en R2 (subidas el 26/10/2026, es la que usa `fotos.ts`):** la columna «Clave R2» es dónde está cada copia en el bucket
 `fotoffice-media` (dirección pública `https://pub-2086bd02202c406a9b952f2dbfa945c9.r2.dev/<clave>`).
 Para subirlas: bajar cada una con `curl "https://images.unsplash.com/<archivo>?w=1920&q=60&fm=jpg"`
 (menos ancho si pasa de ~500 KB) y
 `npx wrangler r2 object put fotoffice-media/<clave> --file <archivo> --content-type image/jpeg --remote`;
-después cambiar `url` en `fotos.ts` por la dirección pública. El prefijo `fotoffice/plantillas/` NO
+`fotos.ts` arma la dirección pública a partir de la clave. El prefijo `fotoffice/plantillas/` NO
 está entre los borrables de `lib/images/r2-key-policy.ts` a propósito: las comparten todos los sitios.
 
 Para sumar una foto: agregala a `fotos.ts` y a esta tabla.
