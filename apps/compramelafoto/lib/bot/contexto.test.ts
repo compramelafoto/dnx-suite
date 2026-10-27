@@ -3,7 +3,13 @@ import { TERMS_VERSIONS_VALIDAS_PARA_VENTA } from "@/lib/terms/photographerTerms
 
 const m = vi.hoisted(() => ({
   albums: vi.fn(), products: vi.fn(), jobs: vi.fn(), orders: vi.fn(), health: vi.fn(), eventPricing: vi.fn(),
-  progreso: vi.fn(), schoolAlbum: vi.fn(),
+  progreso: vi.fn(), schoolAlbum: vi.fn(), feeDigital: vi.fn(), feePrint: vi.fn(),
+}));
+vi.mock("@/lib/pricing/album-order-digital-fee", () => ({
+  resolveAlbumOrderDigitalMarketplaceFeePercent: (...a: unknown[]) => m.feeDigital(...a),
+}));
+vi.mock("@/lib/pricing/print-pricing", () => ({
+  getPrintAlbumPlatformFeePercent: (...a: unknown[]) => m.feePrint(...a),
 }));
 vi.mock("@/lib/prisma", () => ({
   prisma: {
@@ -51,6 +57,8 @@ beforeEach(() => {
   m.health.mockResolvedValue({ status: "CONNECTED", selfHealed: false });
   m.eventPricing.mockResolvedValue(null);
   m.schoolAlbum.mockResolvedValue(null);
+  m.feeDigital.mockResolvedValue(15);
+  m.feePrint.mockResolvedValue(12);
   m.progreso.mockResolvedValue({
     albumId: 3, albumTitulo: "Egresados", schoolId: 5, pasos: [], hechos: 5, total: 11,
     siguiente: { n: 6, id: "preventa", titulo: "Armar los packs de preventa", estado: "pendiente", opcional: false, enlace: null },
@@ -70,6 +78,24 @@ describe("buildPhotographerSituation", () => {
     m.health.mockResolvedValue({ status: "NOT_CONNECTED", selfHealed: false });
     const s = await buildPhotographerSituation(1);
     expect(s.alerts[0]).toMatchObject({ level: "bloquea_ventas" });
+  });
+
+  it("dice el recargo de CLF de esta cuenta, para que el bot conteste cuánto cobra la plataforma", async () => {
+    const s = await buildPhotographerSituation(7);
+    expect(m.feeDigital).toHaveBeenCalledWith({ photographerId: 7 });
+    expect(s.text).toContain("Recargo de CLF: 15 % en fotos digitales y 12 % en impresas");
+  });
+
+  it("con el mismo recargo en digital e impresas lo dice una sola vez", async () => {
+    m.feePrint.mockResolvedValue(15);
+    const s = await buildPhotographerSituation(7);
+    expect(s.text).toContain("Recargo de CLF: 15 % en fotos digitales e impresas");
+  });
+
+  it("si no se puede leer el recargo, la situación sale igual y no inventa un número", async () => {
+    m.feeDigital.mockRejectedValue(new Error("caído"));
+    const s = await buildPhotographerSituation(7);
+    expect(s.text).not.toContain("Recargo de CLF");
   });
 
   it("si Mercado Pago no responde no inventa una alerta", async () => {

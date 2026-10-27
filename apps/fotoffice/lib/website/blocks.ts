@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { isAllowedMapsUrl } from "./contact";
+import { isAllowedMapsUrl, isHttpsUrl } from "./contact";
 import { externalHttpUrl, externalHttpsUrl } from "./blocks-extra";
 
 /**
@@ -642,6 +642,17 @@ export const websitePageMetaSchema = z.object({
   title: z.string().min(1).max(120),
   seoTitle: z.string().max(120).optional(),
   seoDescription: z.string().max(300).optional(),
+  // Sitio web → Ajustes (por página). Tolerantes: un valor roto se descarta sin tirar la página
+  // (si la meta no parsea, la página entera desaparece del sitio).
+  /** Imagen al compartir esta página; sin ella, la del sitio. Sólo https. */
+  shareImageUrl: z
+    .string()
+    .max(2000)
+    .optional()
+    .catch(undefined)
+    .transform((v) => (v && isHttpsUrl(v) ? v.trim() : undefined)),
+  /** `noindex`: la página no aparece en Google (y queda fuera del sitemap, si lo hubiera). */
+  hideFromSearch: z.boolean().optional().catch(undefined),
 });
 
 export type WebsitePageMeta = z.infer<typeof websitePageMetaSchema>;

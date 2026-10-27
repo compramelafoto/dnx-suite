@@ -1,5 +1,6 @@
 import { parseWebsiteDesignPresets } from "./design-presets";
 import { parseSiteMenu } from "./site-menu";
+import { parseWebsiteSiteSettings } from "./site-settings";
 
 /**
  * Determina si el borrador tiene cambios respecto de la versión publicada. Deliberadamente NO
@@ -56,7 +57,10 @@ function contentEquals(a: ComparableContent, b: ComparableContent): boolean {
     // Normalizado: la forma vieja que sembraba el borrador y `null` son el mismo "menú sin editar".
     deepEqualJson(parseSiteMenu(a.navJson), parseSiteMenu(b.navJson)) &&
     deepEqualJson(a.sectionsJson, b.sectionsJson) &&
-    deepEqualJson(parseWebsiteDesignPresets(a.designPresetsJson ?? null), parseWebsiteDesignPresets(b.designPresetsJson ?? null))
+    deepEqualJson(parseWebsiteDesignPresets(a.designPresetsJson ?? null), parseWebsiteDesignPresets(b.designPresetsJson ?? null)) &&
+    // Los Ajustes del sitio viven en el mismo JSON pero `parseWebsiteDesignPresets` los descarta:
+    // sin esto, cambiar sólo los Ajustes dejaba "sin cambios" y Publicar deshabilitado.
+    deepEqualJson(parseWebsiteSiteSettings(a.designPresetsJson ?? null), parseWebsiteSiteSettings(b.designPresetsJson ?? null))
   );
 }
 

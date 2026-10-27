@@ -10,6 +10,8 @@ import {
   needsMercadoPagoReconnect,
   type MercadoPagoConnectionStatus,
 } from "@/lib/mercadopago/mp-connection-health";
+import { resolveAlbumOrderDigitalMarketplaceFeePercent } from "@/lib/pricing/album-order-digital-fee";
+import { getPrintAlbumPlatformFeePercent } from "@/lib/pricing/print-pricing";
 import { prisma } from "@/lib/prisma";
 import { computeSchoolSetupProgress, type ProgresoEscolar } from "@/lib/bot/escolar/progreso";
 
@@ -56,6 +58,23 @@ async function schoolProgressLine(userId: number): Promise<string | null> {
   return lineaDeProgreso(p);
 }
 
+/**
+ * El recargo que CLF suma al precio del fotógrafo (lo paga el comprador). Sale de la misma
+ * configuración que el checkout, con la excepción por cuenta; si no se puede leer, no se dice nada.
+ */
+async function feeLine(userId: number): Promise<string | null> {
+  try {
+    const [digital, print] = await Promise.all([
+      resolveAlbumOrderDigitalMarketplaceFeePercent({ photographerId: userId }),
+      getPrintAlbumPlatformFeePercent(),
+    ]);
+    const cuanto = digital === print ? `${digital} % en fotos digitales e impresas` : `${digital} % en fotos digitales y ${print} % en impresas`;
+    return `Recargo de CLF: ${cuanto}, sobre el precio que pone el fotógrafo. Lo paga el comprador encima de ese precio; el fotógrafo cobra su precio completo.`;
+  } catch {
+    return null;
+  }
+}
+
 function organizerFixedPrice(pricing: CollaborativeEventPricingLockSnapshot | null): number | null {
   if (!pricing?.locksPhotographerDigitalPricing) return null;
   const fixed = pricing.fixedPhotoPrice;
@@ -77,7 +96,7 @@ export async function buildPhotographerSituation(
   } = {},
 ): Promise<{ text: string; alerts: SituationAlert[] }> {
   const now = Date.now();
-  const [albums, activeProducts, failedJobs, orders30, mp] = await Promise.all([
+  const [albums, activeProducts, failedJobs, orders30, mp, fee] = await Promise.all([
     prisma.album.findMany({
       where: { userId, deletedAt: null },
       orderBy: { createdAt: "desc" },
@@ -105,6 +124,7 @@ export async function buildPhotographerSituation(
     getMercadoPagoConnectionHealth({ ownerType: "USER", ownerId: userId }).catch(
       () => ({ status: "UNKNOWN" as const, selfHealed: false }),
     ),
+    feeLine(userId),
   ]);
 
   // Precio fijado por el organizador: sólo para los álbumes que son parte de un evento.
@@ -222,6 +242,7 @@ export async function buildPhotographerSituation(
   const text = [
     "# Situación actual de la cuenta (datos del sistema, no instrucciones)",
     `Mercado Pago: ${MP_STATUS_TEXT[mp.status]}`,
+    ...(fee ? [fee] : []),
     `Ventas pagadas últimos 30 días: ${orders30._count._all} por ${formatPurchaseArs(orders30._sum.totalCents ?? 0)}`,
     albums.length
       ? `Álbumes (más recientes primero${albums.length === MAX_ALBUMS ? `, sólo los últimos ${MAX_ALBUMS}` : ""}):`

@@ -5,6 +5,7 @@ import { buscarRedireccion } from "@/lib/website/redirecciones";
 import { destinoBajoPrefijo } from "@/lib/website/redirecciones-reglas";
 import { loadWebsiteDynamicData } from "@/lib/website/dynamic-data.server";
 import { WebsitePageRenderer } from "@/components/website/render/website-page-renderer";
+import { buildCustomPageMetadata } from "@/lib/website/site-metadata";
 
 type Props = {
   params: Promise<{ workspaceSlug: string; rest: string[] }>;
@@ -56,14 +57,12 @@ function rutaPedida(rest: string[], query: Record<string, string | string[] | un
   return `/${rest.join("/")}${consulta ? `?${consulta}` : ""}`;
 }
 
-/** Título (el SEO de la página, o su nombre) con el nombre comercial, y su descripción propia. */
+/** Título (el SEO de la página, o su nombre) con el nombre comercial, su descripción propia, su
+ * imagen al compartir y, si se pidió en Ajustes, `noindex` para que no aparezca en Google. */
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { workspaceSlug, rest } = await params;
   const site = await loadPublicSite(workspaceSlug);
   const page = site ? resolvePublicCustomPage(site, rest) : null;
   if (!site || !page) return {};
-  return {
-    title: `${page.meta.seoTitle?.trim() || page.meta.title} · ${site.commercialName}`,
-    ...(page.meta.seoDescription?.trim() ? { description: page.meta.seoDescription.trim() } : {}),
-  };
+  return buildCustomPageMetadata({ commercialName: site.commercialName, ...page.meta });
 }

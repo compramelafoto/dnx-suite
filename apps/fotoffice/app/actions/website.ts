@@ -20,6 +20,8 @@ import { HOME_PAGE_KEY } from "@/lib/website/pages";
 import { mergePageSave } from "@/lib/website/save-pages";
 import { websiteDesignPresetsSchema } from "@/lib/website/design-presets";
 import { siteMenuSchema } from "@/lib/website/site-menu";
+import { keepSiteSettings, validateSiteSettingsInput, withSiteSettings } from "@/lib/website/site-settings";
+import { applyPageSettings, pageSettingsInputSchema } from "@/lib/website/page-settings";
 import { getEnabledModuleKeysForWorkspace } from "@/lib/modules/gating";
 import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
 import { categoriasActivasPublicas } from "@/lib/website/inquiry";
@@ -236,7 +238,13 @@ export async function saveWebsiteBlocksAction(
     }
     const parsed = websiteDesignPresetsSchema.safeParse(presets);
     if (!parsed.success) return { error: "Los presets de diseño enviados no tienen un formato válido." };
-    data.designPresetsJson = parsed.data;
+    // Los Ajustes del sitio viven en el mismo JSON y el constructor no los conoce: se conservan
+    // los que ya están en la base (la concurrencia la cubre `draftUpdatedAt`).
+    const actual = await prisma.fotofficeWorkspaceWebsite.findUnique({
+      where: { workspaceId: workspace.id },
+      select: { designPresetsJson: true },
+    });
+    data.designPresetsJson = keepSiteSettings(parsed.data, actual?.designPresetsJson ?? null) as Prisma.InputJsonValue;
   }
 
   // El menú editado a mano (pestaña Menú). `null` = volver al menú automático.
@@ -284,6 +292,55 @@ export async function saveWebsiteSeoAction(
     seoTitle,
     seoDescription,
   });
+  if (result.error) return result;
+
+  revalidatePath("/website");
+  return result;
+}
+
+/**
+ * Sitio web → Ajustes: SEO extra, medición, botón de WhatsApp, redes del pie, protección de fotos
+ * (en `designPresetsJson.siteSettings`) y, por página propia, imagen al compartir y "ocultar de
+ * buscadores" (en `sectionsJson.pageMeta`). Todo en el BORRADOR y en una sola escritura: se ve en
+ * el sitio al publicar, como el resto.
+ */
+export async function saveWebsiteSettingsAction(
+  _prev: WebsiteDraftSaveState | undefined,
+  formData: FormData,
+): Promise<WebsiteDraftSaveState> {
+  const { workspace, user } = await requireWebsiteContext();
+  const permError = await assertCanManageWebsite(workspace.id, user.id, "editar");
+  if (permError) return { error: permError };
+
+  let raw: unknown;
+  let pagesRaw: unknown;
+  try {
+    raw = JSON.parse(formData.get("settingsJson")?.toString() ?? "null");
+    pagesRaw = JSON.parse(formData.get("pageSettingsJson")?.toString() ?? "{}");
+  } catch {
+    return { error: "Los ajustes enviados no tienen un formato válido." };
+  }
+  const validated = validateSiteSettingsInput(raw);
+  if ("error" in validated) return { error: validated.error };
+  const pageSettings = pageSettingsInputSchema.safeParse(pagesRaw);
+  if (!pageSettings.success) return { error: "Las imágenes de las páginas tienen que ser enlaces https." };
+
+  const draft = await prisma.fotofficeWorkspaceWebsite.findUnique({
+    where: { workspaceId: workspace.id },
+    select: { designPresetsJson: true, sectionsJson: true },
+  });
+
+  const data: Parameters<typeof prisma.fotofficeWorkspaceWebsite.updateMany>[0]["data"] = {
+    designPresetsJson: withSiteSettings(draft?.designPresetsJson ?? null, validated.settings) as Prisma.InputJsonValue,
+  };
+  if (Object.keys(pageSettings.data).length > 0) {
+    const sections = applyPageSettings(parseWebsiteSections(draft?.sectionsJson ?? null), pageSettings.data);
+    const merged = mergePageSave(sections, { pageKey: HOME_PAGE_KEY });
+    if ("error" in merged) return { error: merged.error };
+    data.sectionsJson = merged.sections;
+  }
+
+  const result = await saveDraftFields(workspace.id, formData.get("draftUpdatedAt")?.toString(), data);
   if (result.error) return result;
 
   revalidatePath("/website");
