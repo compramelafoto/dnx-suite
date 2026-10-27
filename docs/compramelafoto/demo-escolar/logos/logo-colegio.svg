@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="800" viewBox="0 0 800 800">
+  <path d="M400 40 L700 120 L700 400 C700 590 560 700 400 760 C240 700 100 590 100 400 L100 120 Z" fill="#1d3557" stroke="#e9b10a" stroke-width="22"/>
+  <path d="M400 92 L652 158 L652 400 C652 556 540 650 400 704 C260 650 148 556 148 400 L148 158 Z" fill="none" stroke="#e9b10a" stroke-width="4" opacity="0.7"/>
+  <text x="400" y="205" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="46" letter-spacing="10" fill="#f6e7b4">ESCUELA</text>
+  <g stroke="#7fa35a" stroke-width="9" stroke-linecap="round" fill="none">
+    <path d="M300 470 C340 400 380 330 470 270"/>
+    <path d="M360 380 C330 350 300 345 270 350"/>
+    <path d="M420 315 C440 290 470 280 500 285"/>
+  </g>
+  <g fill="#8db86a">
+    <ellipse cx="282" cy="440" rx="34" ry="11" transform="rotate(-35 282 440)"/>
+    <ellipse cx="335" cy="430" rx="34" ry="11" transform="rotate(35 335 430)"/>
+    <ellipse cx="330" cy="395" rx="30" ry="10" transform="rotate(-50 330 395)"/>
+    <ellipse cx="385" cy="370" rx="30" ry="10" transform="rotate(20 385 370)"/>
+  </g>
+  <g fill="#f6c90e" stroke="#e0a800" stroke-width="3">
+    <circle cx="470" cy="262" r="30"/><circle cx="512" cy="292" r="24"/><circle cx="455" cy="312" r="22"/>
+    <circle cx="270" cy="345" r="24"/><circle cx="240" cy="372" r="18"/><circle cx="505" cy="248" r="16"/>
+    <circle cx="410" cy="300" r="18"/><circle cx="296" cy="318" r="15"/>
+  </g>
+  <text x="400" y="560" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="62" font-weight="700" fill="#ffffff">LOS AROMOS</text>
+  <text x="400" y="625" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="28" letter-spacing="6" fill="#f6e7b4">ROSARIO · DEMO</text>
+</svg>

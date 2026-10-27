@@ -25,6 +25,18 @@ export function ventanaAparteViva(ultimoLatido: number | null, ahora: number): b
 }
 
 /**
+ * Qué hace una tecla en la guía. El presentador inalámbrico manda Avance/Retroceso de página, y
+ * eso vale aunque el cursor esté en un campo (si no, después de escribir en un formulario la
+ * charla se traba). Alt+flechas solo fuera de los campos: adentro mueven el cursor por palabras.
+ */
+export function accionDeTecla(e: { key: string; altKey: boolean }, enCampo: boolean): "adelante" | "atras" | "cerrar" | null {
+  if (e.key === "PageDown" || (!enCampo && e.altKey && e.key === "ArrowRight")) return "adelante";
+  if (e.key === "PageUp" || (!enCampo && e.altKey && e.key === "ArrowLeft")) return "atras";
+  if (!enCampo && (e.key === "Escape" || e.key === "Enter")) return "cerrar";
+  return null;
+}
+
+/**
  * La tarjeta para el público aparece al llegar a un paso avanzando, una sola vez: al volver atrás
  * o al repetir el paso no interrumpe al presentador.
  */

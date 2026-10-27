@@ -25,7 +25,7 @@ import { archivoDeAlumno, DEMO_ESCOLAR } from "@/lib/demos/escolar/datos";
 import { generarFotoProvisoria } from "@/lib/demos/escolar/fotos-provisorias";
 import { normalizeFullName } from "@/lib/school-roster/student-normalize";
 import { assertBenefitBusinessRules, parseBenefitBodyCreate } from "@/lib/preventa-canjeable/preventa-pack-benefit-validation";
-import { uploadToR2 } from "@/lib/r2-client";
+import { getR2PublicUrl, uploadToR2 } from "@/lib/r2-client";
 import { finalizeAlbumPhotoFromRaw } from "@/lib/albums/finalize-album-photo-from-raw";
 import { getAlbumPhotoMaxBytes, getAlbumPhotoMaxMb } from "@/lib/albums/album-photo-upload-limits";
 import { TERMS_VERSION } from "@/lib/terms/photographerTerms";
@@ -344,6 +344,8 @@ export async function prepararDemoEscolar(opts: { origen: string; presupuestoFot
   if (school.ownerId !== fotografoId) {
     throw new Error("La escuela demo pertenece a otro usuario: no se toca.");
   }
+  await prisma.school.update({ where: { id: school.id }, data: { logoUrl: getR2PublicUrl(d.logos.colegio) } });
+  await prisma.user.update({ where: { id: fotografoId }, data: { logoUrl: getR2PublicUrl(d.logos.estudio) } });
 
   await prisma.schoolOrganizer.upsert({
     where: { schoolId_userId: { schoolId: school.id, userId: colegioUserId } },
