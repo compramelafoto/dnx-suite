@@ -3,6 +3,12 @@ import { mmAPx } from "./medidas";
 
 /** Módulo PURO: dónde va cada foto carnet en la hoja y por dónde se corta. */
 
+/**
+ * Tope de fotos por hoja: entran las que caben según la medida, pero nunca más de 6. Con medidas
+ * chicas en una 10x15 cabían 15 o más, y una plancha así no se le entrega a nadie.
+ */
+export const FOTOS_CARNET_MAX = 6;
+
 export type DisposicionCarnet = {
   pieza: { ancho: number; alto: number };
   posiciones: { left: number; top: number }[];
@@ -15,6 +21,7 @@ export function disposicionCarnet(
   ppp: number,
   maxTotal?: number,
 ): DisposicionCarnet {
+  const tope = Math.min(maxTotal && maxTotal > 0 ? maxTotal : FOTOS_CARNET_MAX, FOTOS_CARNET_MAX);
   const pieza = { ancho: mmAPx(medida.anchoMm, ppp), alto: mmAPx(medida.altoMm, ppp) };
   const gap = mmAPx(SEPARACION_CM * 10, ppp);
   const g = calcularGrilla({
@@ -24,14 +31,14 @@ export function disposicionCarnet(
     photoHeightPx: pieza.alto,
     marginPx: mmAPx(MARGEN_CM * 10, ppp),
     gapPx: gap,
-    maxTotal,
+    maxTotal: tope,
   });
   const posiciones: { left: number; top: number }[] = [];
   const xs = new Set<number>();
   const ys = new Set<number>();
   for (let fila = 0; fila < g.rows; fila++) {
     for (let col = 0; col < g.cols; col++) {
-      if (maxTotal && posiciones.length >= maxTotal) break;
+      if (posiciones.length >= tope) break;
       const left = g.startX + col * (pieza.ancho + gap);
       const top = g.startY + fila * (pieza.alto + gap);
       posiciones.push({ left, top });

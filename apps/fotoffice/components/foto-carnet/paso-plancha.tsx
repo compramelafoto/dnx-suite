@@ -57,7 +57,6 @@ export function PasoPlancha({
   const salida = salidas.find((s) => s.id === salidaId) ?? null;
   const [tamanoElegido, setTamanoElegido] = useState(salidas[0]?.tamanos[0]?.id ?? "");
   const tamano = salida?.tamanos.find((t) => t.id === tamanoElegido) ?? salida?.tamanos[0] ?? null;
-  const [cantidad, setCantidad] = useState<number | null>(null);
   const [copias, setCopias] = useState(inicial?.copias ?? 1);
   const [armando, setArmando] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -72,9 +71,8 @@ export function PasoPlancha({
     salida && tamano
       ? disposicionCarnet({ anchoMm: pieza.anchoMm, altoMm: pieza.altoMm }, tamano, salida.ppp).posiciones.length
       : 0;
-  // Si cambia la hoja y la cantidad pedida ya no entra, vuelve a "todas las que entran".
-  const fotos = cantidad !== null && cantidad <= entran ? cantidad : null;
-  const firma = firmaDe({ pieza, salida: salida?.id, tamano: tamano?.id, fotos, copias });
+  // La cantidad por hoja no se elige: son las que entran según la medida, con tope de 6.
+  const firma = firmaDe({ pieza, salida: salida?.id, tamano: tamano?.id, fotos: null, copias });
   const vigente = armada?.firma === firma ? armada : null;
   const puedeArmar = modo.tipo === "mostrador" || (salida !== null && tamano !== null && entran > 0);
 
@@ -87,7 +85,7 @@ export function PasoPlancha({
       const h = await generarHojaCarnetAction(preparacionId, {
         salidaId: modo.tipo === "suelto" ? (salida?.id ?? null) : null,
         tamanoId: modo.tipo === "suelto" ? (tamano?.id ?? null) : null,
-        fotos: modo.tipo === "suelto" ? fotos : null,
+        fotos: null,
         copias,
         conLineas: true,
       });
@@ -141,21 +139,6 @@ export function PasoPlancha({
                   {(salida?.tamanos ?? []).map((t) => (
                     <option key={t.id} value={t.id}>
                       {t.nombre}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="block sm:col-span-2">
-                <span className="fo-label">Fotos en la hoja</span>
-                <select
-                  className="fo-input"
-                  value={fotos ?? "todas"}
-                  onChange={(e) => setCantidad(e.target.value === "todas" ? null : Number(e.target.value))}
-                >
-                  <option value="todas">Todas las que entran ({entran})</option>
-                  {Array.from({ length: Math.max(0, entran - 1) }, (_, i) => i + 1).map((n) => (
-                    <option key={n} value={n}>
-                      {n}
                     </option>
                   ))}
                 </select>
