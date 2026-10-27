@@ -12,6 +12,7 @@ import { cifrasRespaldadasEnAtencion } from "./cifras-atencion";
 import { enviarComoBot, pasarAPersona } from "./envio-bot";
 import { guiaDeAtencion, situacionDeAtencion } from "./guia";
 import { herramientasDeAtencion, type DepsAtencion } from "./herramientas";
+import { archivoDeMensaje, PENDIENTE_MAXIMO_MS } from "../archivo-de-mensaje";
 import { historialParaElBot } from "./historial";
 import { botEncendido } from "./interruptor";
 import { registrarUsoWa, usoWa } from "./uso";
@@ -28,6 +29,9 @@ export const ESPERA_MS = 4_000;
 export const MAX_RESPUESTAS_POR_DIA = 30;
 const MAX_VUELTAS = 6;
 const TIEMPO_MAXIMO_MS = 60_000;
+/** Cuánto espera el bot a que se bajen las fotos del cliente (para ver su resolución). */
+const ESPERA_ARCHIVOS_VUELTAS = 20;
+const ESPERA_ARCHIVOS_PASO_MS = 1_000;
 
 export type DepsResponder = {
   ahora?: () => Date;
@@ -48,6 +52,15 @@ async function ultimoMensaje(chatId: string) {
     orderBy: { createdAt: "desc" },
     select: { id: true, direccion: true },
   });
+}
+
+/** ¿Hay archivos del cliente de los últimos minutos que todavía se están bajando (otra ejecución)? */
+async function hayArchivosBajando(chatId: string, ahora: Date): Promise<boolean> {
+  const recientes = (await prisma.fotofficeWaMensaje.findMany({
+    where: { chatId, direccion: "ENTRANTE", createdAt: { gte: new Date(ahora.getTime() - PENDIENTE_MAXIMO_MS) } },
+    select: { direccion: true, tipo: true, media: true, createdAt: true },
+  })) as { direccion: string; tipo: string; media: unknown; createdAt: Date }[];
+  return recientes.some((m) => archivoDeMensaje(m.tipo, m.media, { direccion: m.direccion, createdAt: m.createdAt, ahora })?.estado === "PENDIENTE");
 }
 
 /** El texto final del modelo: el último mensaje del asistente (sin lo que dijo entre herramientas). */
@@ -92,14 +105,19 @@ async function turno(chatId: string, deps: DepsResponder): Promise<SalidaBot> {
   await (deps.esperar ?? dormir)(ESPERA_MS);
   const despues = await ultimoMensaje(chatId);
   if (despues?.id !== antes.id) return "nada";
+  // La foto la baja la ejecución del mensaje que la trajo; si el cliente escribió después, ésta la espera.
+  for (let i = 0; i < ESPERA_ARCHIVOS_VUELTAS && (await hayArchivosBajando(chatId, ahora())); i++) {
+    await (deps.esperar ?? dormir)(ESPERA_ARCHIVOS_PASO_MS);
+  }
+  if ((await ultimoMensaje(chatId))?.id !== antes.id) return "nada";
 
   const leidos = await prisma.fotofficeWaMensaje.findMany({
     where: { chatId, workspaceId },
     orderBy: { createdAt: "desc" },
     take: 60,
-    select: { direccion: true, autor: true, tipo: true, texto: true },
+    select: { direccion: true, autor: true, tipo: true, texto: true, media: true, createdAt: true },
   });
-  const h = historialParaElBot(leidos.reverse());
+  const h = historialParaElBot(leidos.reverse(), undefined, ahora());
   if (!h) return "nada";
 
   const plataforma = plataformaDe(workspaceId);

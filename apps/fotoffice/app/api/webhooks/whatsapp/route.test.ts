@@ -12,7 +12,7 @@ vi.mock("@repo/db", () => ({ prisma: B.prisma }));
 const P = B.prisma as Record<string, any>;
 
 const programados: string[][] = [];
-vi.mock("@/lib/bandeja/bot/programar", () => ({ programarBot: (ids: string[]) => void programados.push([...ids]) }));
+vi.mock("@/lib/bandeja/bot/programar", () => ({ programarTrasRegistro: (r: { paraElBot: string[] }) => void programados.push([...r.paraElBot]) }));
 
 const { GET, POST } = await import("./route");
 

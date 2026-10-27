@@ -9,6 +9,11 @@ describe("guía del bot de atención", () => {
     expect(g).toMatch(/markdown/);
   });
 
+  it("sabe pedir la foto como Documento cuando no alcanza la calidad", () => {
+    expect(guiaDeAtencion()).toContain("como Documento");
+    expect(guiaDeAtencion()).toMatch(/Si ya la mandó como documento/);
+  });
+
   it("habla desde el estudio: traer y venir, nunca llevar", () => {
     const g = guiaDeAtencion();
     expect(g).toMatch(/desde adentro del estudio/);

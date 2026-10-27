@@ -27,3 +27,10 @@ export function soloHora(fecha: Date): string {
 export function soloDia(fecha: Date): string {
   return dia.format(fecha);
 }
+
+/** "234 KB", "3,3 MB". */
+export function pesoLegible(bytes: number): string {
+  const kb = bytes / 1024;
+  if (kb < 1024) return `${Math.max(1, Math.round(kb))} KB`;
+  return `${(kb / 1024).toLocaleString("es-AR", { maximumFractionDigits: 1 })} MB`;
+}

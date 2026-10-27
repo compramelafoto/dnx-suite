@@ -157,3 +157,13 @@ describe("menú", () => {
     expect(f).toMatch(/hasLevel\(levels\[BANDEJA_MODULE_KEY\] \?\? "NONE", "VIEW"\) \? await noLeidosDelWorkspace/);
   });
 });
+
+describe("archivos de la Bandeja", () => {
+  it("la ruta pide la guarda antes de leer y busca el mensaje dentro de la institución", () => {
+    const f = leer("app/api/bandeja/archivos/[mensajeId]/route.ts");
+    expect(f.indexOf("await requireBandeja()")).toBeGreaterThan(-1);
+    expect(f.indexOf("await requireBandeja()")).toBeLessThan(f.indexOf("fotofficeWaMensaje.findFirst"));
+    expect(f).toContain("workspaceId: ctx.workspaceId");
+    expect(f).toContain("no-store");
+  });
+});
