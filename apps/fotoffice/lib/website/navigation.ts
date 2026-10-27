@@ -48,7 +48,7 @@ export function deriveHomeNavItems(blocks: WebsiteBlock[]): WebsiteNavItem[] {
 
   visible.forEach((block, i) => {
     const label = getBlockPreviewLabel(block);
-    if (!label || block.type === "SPACER") return;
+    if (!label || block.type === "SPACER" || block.type === "DIVIDER") return;
     let slug = anchorSlugForBlock(block, i);
     const count = seen.get(slug) ?? 0;
     seen.set(slug, count + 1);

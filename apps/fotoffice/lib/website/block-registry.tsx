@@ -21,6 +21,26 @@ import { BlogLatestBlockView } from "@/components/website/render/blocks/blog-lat
 import { MemberOfWeekBlockView } from "@/components/website/render/blocks/member-of-week-block-view";
 import { PortfolioBlockView } from "@/components/website/render/blocks/portfolio-block-view";
 import { TestimonialsBlockView } from "@/components/website/render/blocks/testimonials-block-view";
+import { DividerBlockView } from "@/components/website/render/blocks/divider-block-view";
+import { FaqBlockView } from "@/components/website/render/blocks/faq-block-view";
+import { CountdownBlockView } from "@/components/website/render/blocks/countdown-block-view";
+import { BeforeAfterBlockView } from "@/components/website/render/blocks/before-after-block-view";
+import { PartnersBlockView } from "@/components/website/render/blocks/partners-block-view";
+import { FeaturesBlockView } from "@/components/website/render/blocks/features-block-view";
+import { MapBlockView } from "@/components/website/render/blocks/map-block-view";
+import { WhatsappButtonBlockView } from "@/components/website/render/blocks/whatsapp-button-block-view";
+import { PaymentButtonBlockView } from "@/components/website/render/blocks/payment-button-block-view";
+import {
+  BeforeAfterInspector,
+  CountdownInspector,
+  DividerInspector,
+  FaqInspector,
+  FeaturesInspector,
+  MapInspector,
+  PartnersInspector,
+  PaymentButtonInspector,
+  WhatsappButtonInspector,
+} from "@/components/website/inspector/extra-blocks-inspectors";
 import { isAllowedMapsUrl } from "./contact";
 import { isAllowedEmbedUrl, toVideoEmbedUrl } from "./embed-hosts";
 import type { WebsiteDynamicData } from "./dynamic-data";
@@ -365,6 +385,15 @@ export const WEBSITE_BLOCK_REGISTRY: { [K in WebsiteBlockType]: BlockRegistryEnt
       </div>
     ),
   },
+  DIVIDER: { View: DividerBlockView, Inspector: DividerInspector },
+  FAQ: { View: FaqBlockView, Inspector: FaqInspector },
+  COUNTDOWN: { View: CountdownBlockView, Inspector: CountdownInspector },
+  BEFORE_AFTER: { View: BeforeAfterBlockView, Inspector: BeforeAfterInspector },
+  PARTNERS: { View: PartnersBlockView, Inspector: PartnersInspector },
+  FEATURES: { View: FeaturesBlockView, Inspector: FeaturesInspector },
+  MAP: { View: MapBlockView, Inspector: MapInspector },
+  WHATSAPP_BUTTON: { View: WhatsappButtonBlockView, Inspector: WhatsappButtonInspector },
+  PAYMENT_BUTTON: { View: PaymentButtonBlockView, Inspector: PaymentButtonInspector },
 };
 
 export { WEBSITE_BLOCK_DEFINITIONS };

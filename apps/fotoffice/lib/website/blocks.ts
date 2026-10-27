@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { isAllowedMapsUrl } from "./contact";
+import { externalHttpUrl, externalHttpsUrl } from "./blocks-extra";
 
 /**
  * Contrato de bloques estáticos de la Home del sitio web — primera etapa del editor visual.
@@ -386,6 +387,191 @@ export const testimonialsConfigSchema = z.object({
   ctaLabel: z.string().trim().min(1).max(60).catch(TESTIMONIALS_DEFAULT_CTA),
 });
 
+/**
+ * Bloques del armador sumados para cubrir los elementos de Prosite (divisor, preguntas
+ * frecuentes, cuenta regresiva, antes/después, colaboradores, íconos con texto, mapa, botón de
+ * WhatsApp y botón de pago). Todos son tolerantes: un valor fuera de lo permitido cae a su
+ * default, un texto largo se recorta y un ítem roto de una lista se descarta sin tirar el
+ * bloque. Los enlaces externos se validan al parsear (como el `mapsUrl` de Contacto): lo que no
+ * es http/https (o https, en el de cobro) se descarta.
+ */
+
+/** Texto recortado a `max` caracteres; si no es texto, `fallback`. */
+function tolerantText(max: number, fallback = "") {
+  return z
+    .string()
+    .catch(fallback)
+    .transform((s) => s.slice(0, max));
+}
+
+/** Lista que conserva los ítems válidos (hasta `max`) y descarta los rotos. */
+function tolerantList<T extends z.ZodTypeAny>(item: T, max: number) {
+  return z
+    .unknown()
+    .transform((raw) => (Array.isArray(raw) ? raw : []))
+    .transform((raw) => {
+      const out: z.output<T>[] = [];
+      for (const r of raw) {
+        if (out.length >= max) break;
+        const parsed = item.safeParse(r);
+        if (parsed.success) out.push(parsed.data);
+      }
+      return out;
+    });
+}
+
+const itemIdSchema = z.string().max(100).catch("");
+const imageUrlSchema = tolerantText(2000);
+
+export const DIVIDER_STYLES = ["solid", "dotted", "ornament"] as const;
+export const DIVIDER_WIDTHS = ["short", "medium", "full"] as const;
+
+export const dividerConfigSchema = z.object({
+  style: z.enum(DIVIDER_STYLES).catch("solid"),
+  width: z.enum(DIVIDER_WIDTHS).catch("medium"),
+  spacing: z.enum(WEBSITE_SPACER_SIZE_PRESET).catch("md"),
+});
+
+export const FAQ_MAX_ITEMS = 40;
+export const FAQ_DEFAULT_TITLE = "Preguntas frecuentes";
+
+export const faqItemSchema = z.object({
+  id: itemIdSchema,
+  question: tolerantText(300),
+  answer: tolerantText(3000),
+});
+export type FaqItem = z.infer<typeof faqItemSchema>;
+
+export const faqConfigSchema = z.object({
+  title: tolerantText(200),
+  items: tolerantList(faqItemSchema, FAQ_MAX_ITEMS),
+});
+
+export const COUNTDOWN_DEFAULT_DONE = "¡Llegó el día!";
+
+export const countdownConfigSchema = z.object({
+  title: tolerantText(200),
+  /** `YYYY-MM-DD`, hora argentina. Vacío = todavía no se eligió (la vista no dibuja el reloj). */
+  date: z
+    .string()
+    .catch("")
+    .transform((s) => (/^\d{4}-\d{2}-\d{2}$/.test(s) ? s : "")),
+  /** `HH:MM` (24 h), hora argentina. */
+  time: z
+    .string()
+    .catch("00:00")
+    .transform((s) => (/^([01]\d|2[0-3]):[0-5]\d$/.test(s) ? s : "00:00")),
+  doneText: tolerantText(300, COUNTDOWN_DEFAULT_DONE),
+});
+
+export const beforeAfterConfigSchema = z.object({
+  title: tolerantText(200),
+  beforeUrl: imageUrlSchema,
+  afterUrl: imageUrlSchema,
+  beforeLabel: tolerantText(40, "Antes"),
+  afterLabel: tolerantText(40, "Después"),
+  alt: tolerantText(300),
+});
+
+export const PARTNERS_MAX_ITEMS = 40;
+export const PARTNERS_DEFAULT_TITLE = "Colaboradores";
+
+export const partnerItemSchema = z.object({
+  id: itemIdSchema,
+  imageUrl: imageUrlSchema,
+  name: tolerantText(120),
+  /** Sólo http/https: cualquier otra cosa se descarta al parsear. */
+  url: z
+    .string()
+    .optional()
+    .catch(undefined)
+    .transform((v) => externalHttpUrl(v)),
+});
+export type PartnerItem = z.infer<typeof partnerItemSchema>;
+
+export const partnersConfigSchema = z.object({
+  title: tolerantText(200, PARTNERS_DEFAULT_TITLE),
+  items: tolerantList(partnerItemSchema, PARTNERS_MAX_ITEMS),
+  grayscale: z.boolean().catch(true),
+});
+
+/** Set cerrado de íconos (se dibujan con lucide-react en la vista). */
+export const FEATURE_ICONS = [
+  "camera",
+  "image",
+  "video",
+  "heart",
+  "star",
+  "award",
+  "clock",
+  "calendar",
+  "map-pin",
+  "phone",
+  "mail",
+  "gift",
+  "users",
+  "check",
+  "sparkles",
+  "printer",
+  "shield",
+  "truck",
+] as const;
+export type FeatureIcon = (typeof FEATURE_ICONS)[number];
+export const FEATURES_MIN_ITEMS = 2;
+export const FEATURES_MAX_ITEMS = 6;
+
+export const featureItemSchema = z.object({
+  id: itemIdSchema,
+  icon: z.enum(FEATURE_ICONS).catch("star"),
+  title: tolerantText(120),
+  text: tolerantText(500),
+});
+export type FeatureItem = z.infer<typeof featureItemSchema>;
+
+export const featuresConfigSchema = z.object({
+  title: tolerantText(200),
+  items: tolerantList(featureItemSchema, FEATURES_MAX_ITEMS),
+});
+
+export const MAP_MIN_HEIGHT_PX = 250;
+export const MAP_MAX_HEIGHT_PX = 800;
+export const MAP_DEFAULT_HEIGHT_PX = 400;
+
+export const mapConfigSchema = z.object({
+  title: tolerantText(200),
+  /** Dirección («Córdoba 1234, Rosario») o coordenadas («-32.95, -60.64»). */
+  query: tolerantText(300),
+  heightPx: z.number().int().min(MAP_MIN_HEIGHT_PX).max(MAP_MAX_HEIGHT_PX).catch(MAP_DEFAULT_HEIGHT_PX),
+  showDirections: z.boolean().catch(true),
+});
+
+export const WHATSAPP_BUTTON_DEFAULT_LABEL = "Escribinos por WhatsApp";
+
+export const whatsappButtonConfigSchema = z.object({
+  title: tolerantText(200),
+  text: tolerantText(400),
+  phone: tolerantText(60),
+  buttonLabel: tolerantText(60, WHATSAPP_BUTTON_DEFAULT_LABEL),
+  message: tolerantText(300),
+  style: z.enum(WEBSITE_CTA_STYLE_PRESET).catch("solid"),
+});
+
+export const PAYMENT_BUTTON_DEFAULT_LABEL = "Pagar";
+export const PAYMENT_MAX_AMOUNT = 1_000_000_000;
+
+export const paymentButtonConfigSchema = z.object({
+  title: tolerantText(200),
+  /** Monto en pesos, sólo para mostrar (el cobro lo hace la página del enlace). */
+  amount: z.number().int().min(0).max(PAYMENT_MAX_AMOUNT).nullable().catch(null),
+  description: tolerantText(600),
+  buttonLabel: tolerantText(60, PAYMENT_BUTTON_DEFAULT_LABEL),
+  /** Enlace de cobro (Mercado Pago, Cobrador…). Sólo https: otro valor se descarta al parsear. */
+  url: z
+    .string()
+    .catch("")
+    .transform((v) => externalHttpsUrl(v) ?? ""),
+});
+
 const blockEnvelope = {
   id: z.string().min(1),
   visible: z.boolean(),
@@ -407,6 +593,15 @@ export const blogLatestBlockSchema = z.object({ ...blockEnvelope, type: z.litera
 export const memberOfWeekBlockSchema = z.object({ ...blockEnvelope, type: z.literal("MEMBER_OF_WEEK"), config: memberOfWeekConfigSchema });
 export const portfolioBlockSchema = z.object({ ...blockEnvelope, type: z.literal("PORTFOLIO"), config: portfolioConfigSchema });
 export const testimonialsBlockSchema = z.object({ ...blockEnvelope, type: z.literal("TESTIMONIALS"), config: testimonialsConfigSchema });
+export const dividerBlockSchema = z.object({ ...blockEnvelope, type: z.literal("DIVIDER"), config: dividerConfigSchema });
+export const faqBlockSchema = z.object({ ...blockEnvelope, type: z.literal("FAQ"), config: faqConfigSchema });
+export const countdownBlockSchema = z.object({ ...blockEnvelope, type: z.literal("COUNTDOWN"), config: countdownConfigSchema });
+export const beforeAfterBlockSchema = z.object({ ...blockEnvelope, type: z.literal("BEFORE_AFTER"), config: beforeAfterConfigSchema });
+export const partnersBlockSchema = z.object({ ...blockEnvelope, type: z.literal("PARTNERS"), config: partnersConfigSchema });
+export const featuresBlockSchema = z.object({ ...blockEnvelope, type: z.literal("FEATURES"), config: featuresConfigSchema });
+export const mapBlockSchema = z.object({ ...blockEnvelope, type: z.literal("MAP"), config: mapConfigSchema });
+export const whatsappButtonBlockSchema = z.object({ ...blockEnvelope, type: z.literal("WHATSAPP_BUTTON"), config: whatsappButtonConfigSchema });
+export const paymentButtonBlockSchema = z.object({ ...blockEnvelope, type: z.literal("PAYMENT_BUTTON"), config: paymentButtonConfigSchema });
 
 export const websiteBlockSchema = z.discriminatedUnion("type", [
   heroBlockSchema,
@@ -424,6 +619,15 @@ export const websiteBlockSchema = z.discriminatedUnion("type", [
   memberOfWeekBlockSchema,
   portfolioBlockSchema,
   testimonialsBlockSchema,
+  dividerBlockSchema,
+  faqBlockSchema,
+  countdownBlockSchema,
+  beforeAfterBlockSchema,
+  partnersBlockSchema,
+  featuresBlockSchema,
+  mapBlockSchema,
+  whatsappButtonBlockSchema,
+  paymentButtonBlockSchema,
 ]);
 
 export const websitePageContentSchema = z.array(websiteBlockSchema);
@@ -465,6 +669,15 @@ export type BlogLatestBlockConfig = z.infer<typeof blogLatestConfigSchema>;
 export type MemberOfWeekBlockConfig = z.infer<typeof memberOfWeekConfigSchema>;
 export type PortfolioBlockConfig = z.infer<typeof portfolioConfigSchema>;
 export type TestimonialsBlockConfig = z.infer<typeof testimonialsConfigSchema>;
+export type DividerBlockConfig = z.infer<typeof dividerConfigSchema>;
+export type FaqBlockConfig = z.infer<typeof faqConfigSchema>;
+export type CountdownBlockConfig = z.infer<typeof countdownConfigSchema>;
+export type BeforeAfterBlockConfig = z.infer<typeof beforeAfterConfigSchema>;
+export type PartnersBlockConfig = z.infer<typeof partnersConfigSchema>;
+export type FeaturesBlockConfig = z.infer<typeof featuresConfigSchema>;
+export type MapBlockConfig = z.infer<typeof mapConfigSchema>;
+export type WhatsappButtonBlockConfig = z.infer<typeof whatsappButtonConfigSchema>;
+export type PaymentButtonBlockConfig = z.infer<typeof paymentButtonConfigSchema>;
 
 export type HeroBlock = z.infer<typeof heroBlockSchema>;
 export type TextBlock = z.infer<typeof textBlockSchema>;
@@ -481,6 +694,15 @@ export type BlogLatestBlock = z.infer<typeof blogLatestBlockSchema>;
 export type MemberOfWeekBlock = z.infer<typeof memberOfWeekBlockSchema>;
 export type PortfolioBlock = z.infer<typeof portfolioBlockSchema>;
 export type TestimonialsBlock = z.infer<typeof testimonialsBlockSchema>;
+export type DividerBlock = z.infer<typeof dividerBlockSchema>;
+export type FaqBlock = z.infer<typeof faqBlockSchema>;
+export type CountdownBlock = z.infer<typeof countdownBlockSchema>;
+export type BeforeAfterBlock = z.infer<typeof beforeAfterBlockSchema>;
+export type PartnersBlock = z.infer<typeof partnersBlockSchema>;
+export type FeaturesBlock = z.infer<typeof featuresBlockSchema>;
+export type MapBlock = z.infer<typeof mapBlockSchema>;
+export type WhatsappButtonBlock = z.infer<typeof whatsappButtonBlockSchema>;
+export type PaymentButtonBlock = z.infer<typeof paymentButtonBlockSchema>;
 
 /** Unión cerrada de los bloques implementados. Bloques con `type` desconocido no matchean acá
  * — el renderer y el editor deben tratarlos como inválidos y omitirlos, nunca romper la página. */
@@ -731,6 +953,92 @@ export const WEBSITE_BLOCK_DEFINITIONS: {
     defaultConfig: () => ({ title: TESTIMONIALS_DEFAULT_TITLE, count: 6, layout: "carousel", showCta: true, ctaLabel: TESTIMONIALS_DEFAULT_CTA }),
     // Alimenta también el menú (ver HERO).
     previewLabel: (c) => c.title?.trim() || "Testimonios",
+  },
+  DIVIDER: {
+    type: "DIVIDER",
+    label: "Divisor",
+    description: "Una línea para separar secciones: lisa, punteada o con un adorno al medio.",
+    category: "BASICAS",
+    source: "static",
+    defaultConfig: () => ({ style: "solid", width: "medium", spacing: "md" }),
+    // No entra al menú (ver `deriveHomeNavItems`), como el Separador.
+    previewLabel: () => "Divisor",
+  },
+  FAQ: {
+    type: "FAQ",
+    label: "Preguntas frecuentes",
+    description: "Preguntas con su respuesta, que se abren al tocarlas.",
+    category: "BASICAS",
+    source: "static",
+    defaultConfig: () => ({ title: FAQ_DEFAULT_TITLE, items: [{ id: generateLocalId(), question: "", answer: "" }] }),
+    // Alimenta también el menú (ver HERO).
+    previewLabel: (c) => c.title.trim() || FAQ_DEFAULT_TITLE,
+  },
+  COUNTDOWN: {
+    type: "COUNTDOWN",
+    label: "Cuenta regresiva",
+    description: "Los días, horas y minutos que faltan para una fecha (hora argentina), con un texto para cuando llegue.",
+    category: "COMUNICACION",
+    source: "static",
+    defaultConfig: () => ({ title: "", date: "", time: "00:00", doneText: COUNTDOWN_DEFAULT_DONE }),
+    previewLabel: (c) => c.title.trim() || "Cuenta regresiva",
+  },
+  BEFORE_AFTER: {
+    type: "BEFORE_AFTER",
+    label: "Antes y después",
+    description: "Dos fotos superpuestas con una barra para deslizar y comparar (ideal para retoque o restauración).",
+    category: "BASICAS",
+    source: "static",
+    defaultConfig: () => ({ title: "", beforeUrl: "", afterUrl: "", beforeLabel: "Antes", afterLabel: "Después", alt: "" }),
+    previewLabel: (c) => c.title.trim() || "Antes y después",
+  },
+  PARTNERS: {
+    type: "PARTNERS",
+    label: "Logos de colaboradores",
+    description: "Los logos de marcas, sponsors o instituciones con las que trabajás, con enlace a su sitio.",
+    category: "COMERCIAL",
+    source: "static",
+    defaultConfig: () => ({ title: PARTNERS_DEFAULT_TITLE, items: [], grayscale: true }),
+    previewLabel: (c) => c.title.trim() || PARTNERS_DEFAULT_TITLE,
+  },
+  FEATURES: {
+    type: "FEATURES",
+    label: "Íconos con texto",
+    description: "De 2 a 6 ítems, cada uno con un ícono, un título y un texto corto (servicios, ventajas, pasos).",
+    category: "BASICAS",
+    source: "static",
+    defaultConfig: () => ({
+      title: "",
+      items: (["camera", "heart", "clock"] as const).map((icon) => ({ id: generateLocalId(), icon, title: "", text: "" })),
+    }),
+    previewLabel: (c) => c.title.trim() || "Lo que ofrecemos",
+  },
+  MAP: {
+    type: "MAP",
+    label: "Mapa",
+    description: "Un mapa de Google con tu dirección y el botón «Cómo llegar».",
+    category: "BASICAS",
+    source: "static",
+    defaultConfig: () => ({ title: "", query: "", heightPx: MAP_DEFAULT_HEIGHT_PX, showDirections: true }),
+    previewLabel: (c) => c.title.trim() || "Ubicación",
+  },
+  WHATSAPP_BUTTON: {
+    type: "WHATSAPP_BUTTON",
+    label: "Botón de WhatsApp",
+    description: "Un botón que abre un chat de WhatsApp con tu número y un mensaje ya escrito.",
+    category: "COMERCIAL",
+    source: "static",
+    defaultConfig: () => ({ title: "", text: "", phone: "", buttonLabel: WHATSAPP_BUTTON_DEFAULT_LABEL, message: "", style: "solid" }),
+    previewLabel: (c) => c.title.trim() || "WhatsApp",
+  },
+  PAYMENT_BUTTON: {
+    type: "PAYMENT_BUTTON",
+    label: "Botón de pago",
+    description: "Muestra un monto y un botón que lleva a tu enlace de cobro (Mercado Pago, Cobrador u otro).",
+    category: "COMERCIAL",
+    source: "static",
+    defaultConfig: () => ({ title: "", amount: null, description: "", buttonLabel: PAYMENT_BUTTON_DEFAULT_LABEL, url: "" }),
+    previewLabel: (c) => c.title.trim() || "Pagar",
   },
 };
 
