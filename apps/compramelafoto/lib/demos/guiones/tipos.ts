@@ -19,8 +19,17 @@ export type PasoGuion = {
   /** Pantalla del paso. `null` en las tarjetas que no llevan a ninguna pantalla. */
   ruta: ((ctx: CtxGuion) => string) | null;
   titulo: string;
-  /** Lo que el presentador muestra y cuenta en este paso. */
+  /** Etapa del recorrido a la que pertenece («2 · Acordar con el colegio»); agrupa la lista de pasos. */
+  etapa: string;
+  /** Lo que se ve en pantalla en este paso, en una o dos oraciones. */
   texto: string;
+  /**
+   * Hilo de la charla para el presentador, en el orden en que aparece en pantalla. Solo se ve en
+   * la guía abierta en otra ventana (la del público no lo muestra).
+   */
+  puntos?: string[];
+  /** Cómo enlazar con el paso siguiente, para que la charla no salte de tema. */
+  puente?: string;
   /** Tarjeta grande para el público, antes de mostrar el paso. */
   aclaracion?: { titulo: string; texto: string };
   /** Qué se le puede pedir al bot en este paso. */

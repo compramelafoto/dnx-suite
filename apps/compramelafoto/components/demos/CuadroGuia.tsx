@@ -515,6 +515,9 @@ function ListaDePasos({
     <ol className={`overflow-auto ${className ?? ""}`}>
       {pasos.map((p, i) => (
         <li key={p.id}>
+          {p.etapa !== pasos[i - 1]?.etapa ? (
+            <p className="mt-3 px-2 text-[11px] font-semibold uppercase tracking-wide text-gray-400 first:mt-0">{p.etapa}</p>
+          ) : null}
           <button
             type="button"
             onClick={() => onElegir(i)}
@@ -618,10 +621,28 @@ function VentanaAparte(props: {
                 </div>
               ) : null}
 
-              <h1 className="text-3xl font-bold leading-tight">{paso.titulo}</h1>
-              <p className="mt-3 text-xl leading-relaxed text-gray-800">{paso.texto}</p>
+              <p className="text-sm font-semibold uppercase tracking-widest text-[#c27b3d]">{paso.etapa}</p>
+              <h1 className="mt-1 text-3xl font-bold leading-tight">{paso.titulo}</h1>
+              <p className="mt-3 rounded-lg bg-gray-50 px-4 py-3 text-lg leading-relaxed text-gray-700">
+                <strong className="text-gray-900">En pantalla:</strong> {paso.texto}
+              </p>
+              {paso.puntos?.length ? (
+                <>
+                  <h2 className="mt-5 text-sm font-semibold uppercase tracking-widest text-gray-500">Para contar</h2>
+                  <ol className="mt-2 space-y-2">
+                    {paso.puntos.map((punto, i) => (
+                      <li key={i} className="flex gap-3 text-xl leading-snug text-gray-900">
+                        <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#c27b3d] text-sm font-bold text-white">
+                          {i + 1}
+                        </span>
+                        <span>{punto}</span>
+                      </li>
+                    ))}
+                  </ol>
+                </>
+              ) : null}
               {paso.bot ? (
-                <p className="mt-4 rounded-lg bg-amber-50 px-3 py-2 text-base text-amber-900">
+                <p className="mt-5 rounded-lg bg-amber-50 px-3 py-2 text-base text-amber-900">
                   <strong>Con el bot:</strong> {paso.bot}
                 </p>
               ) : null}
@@ -651,9 +672,17 @@ function VentanaAparte(props: {
                 </button>
               ) : null}
               {pasos[indice + 1] ? (
-                <p className="mt-8 border-t border-gray-100 pt-4 text-sm text-gray-500">
-                  <strong>Después:</strong> {pasos[indice + 1].titulo}
-                </p>
+                <div className="mt-8 border-t border-gray-200 pt-4 text-base text-gray-600">
+                  {paso.puente ? (
+                    <p>
+                      <strong className="text-gray-900">Para pasar al siguiente:</strong> {paso.puente}
+                    </p>
+                  ) : null}
+                  <p className="mt-1 text-sm text-gray-500">
+                    <strong>Después:</strong> {pasos[indice + 1].etapa !== paso.etapa ? `${pasos[indice + 1].etapa} — ` : ""}
+                    {pasos[indice + 1].titulo}
+                  </p>
+                </div>
               ) : null}
             </main>
 
