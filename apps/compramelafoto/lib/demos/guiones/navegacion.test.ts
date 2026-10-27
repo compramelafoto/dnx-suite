@@ -59,9 +59,23 @@ describe("demos — navegación del guion", () => {
     }
   });
 
-  it("ningún texto usa el signo $ (en las charlas se dice pesos)", () => {
+  it("ningún texto usa el signo $ ni «plata» (en las charlas se dice pesos y dinero)", () => {
     for (const p of GUION_ESCOLAR.pasos) {
-      assert.ok(!`${p.texto} ${p.aclaracion?.texto ?? ""}`.includes("$"), p.id);
+      const todo = [p.texto, p.aclaracion?.texto, p.puente, ...(p.puntos ?? [])].join(" ");
+      assert.ok(!todo.includes("$"), p.id);
+      assert.ok(!/\bplata\b/i.test(todo), p.id);
+    }
+  });
+
+  it("cada paso tiene su etapa y su hilo para el presentador, y las etapas no se intercalan", () => {
+    const vistas: string[] = [];
+    for (const p of GUION_ESCOLAR.pasos) {
+      assert.ok(p.etapa, p.id);
+      assert.ok((p.puntos?.length ?? 0) >= 3, p.id);
+      if (vistas.at(-1) !== p.etapa) {
+        assert.ok(!vistas.includes(p.etapa), `la etapa «${p.etapa}» vuelve a aparecer en ${p.id}`);
+        vistas.push(p.etapa);
+      }
     }
   });
 });
