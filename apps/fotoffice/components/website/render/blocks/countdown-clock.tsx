@@ -4,7 +4,7 @@ import { useSyncExternalStore } from "react";
 import { countdownParts } from "@/lib/website/blocks-extra";
 import { levelStyle } from "@/lib/website/typography";
 
-/** Un tic por segundo, compartido por todos los relojes de la página. */
+/** Un tic por segundo: cada reloj de la página arma su propio intervalo y lo limpia al desmontarse. */
 function subscribe(onTick: () => void): () => void {
   const id = window.setInterval(onTick, 1000);
   return () => window.clearInterval(id);

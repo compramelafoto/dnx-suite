@@ -177,7 +177,7 @@ export function CountdownInspector({ config, onChange }: { config: CountdownBloc
         </label>
         <label className="block space-y-1.5">
           <span className="fo-label">Hora</span>
-          <input type="time" className="fo-input" value={config.time} onChange={(e) => onChange({ ...config, time: e.target.value || "00:00" })} />
+          <input type="time" className="fo-input" value={config.time} onChange={(e) => onChange({ ...config, time: e.target.value })} />
         </label>
       </div>
       <Helper>Fecha y hora de Argentina: el reloj es el mismo para todos los visitantes, estén donde estén.</Helper>
@@ -353,6 +353,15 @@ export function FeaturesInspector({ config, onChange }: { config: FeaturesBlockC
 }
 
 export function MapInspector({ config, onChange }: { config: MapBlockConfig; onChange: (c: MapBlockConfig) => void }) {
+  // Lo que se está tipeando en el alto: se ajusta a 250–800 recién al salir del campo, así se
+  // puede borrar y escribir «600» sin que «6» salte a 250 en la primera tecla.
+  const [heightDraft, setHeightDraft] = useState<string | null>(null);
+  const commitHeight = () => {
+    if (heightDraft === null) return;
+    const n = Number(heightDraft);
+    onChange({ ...config, heightPx: heightDraft.trim() && Number.isFinite(n) ? Math.min(MAP_MAX_HEIGHT_PX, Math.max(MAP_MIN_HEIGHT_PX, Math.round(n))) : MAP_DEFAULT_HEIGHT_PX });
+    setHeightDraft(null);
+  };
   return (
     <div className="space-y-4">
       <TextField label="Título (opcional)" value={config.title} onChange={(v) => onChange({ ...config, title: v })} />
@@ -370,10 +379,11 @@ export function MapInspector({ config, onChange }: { config: MapBlockConfig; onC
           min={MAP_MIN_HEIGHT_PX}
           max={MAP_MAX_HEIGHT_PX}
           step={50}
-          value={config.heightPx}
-          onChange={(e) => {
-            const n = Number(e.target.value);
-            onChange({ ...config, heightPx: Number.isFinite(n) ? Math.min(MAP_MAX_HEIGHT_PX, Math.max(MAP_MIN_HEIGHT_PX, Math.round(n))) : MAP_DEFAULT_HEIGHT_PX });
+          value={heightDraft ?? String(config.heightPx)}
+          onChange={(e) => setHeightDraft(e.target.value)}
+          onBlur={commitHeight}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") commitHeight();
           }}
         />
       </label>

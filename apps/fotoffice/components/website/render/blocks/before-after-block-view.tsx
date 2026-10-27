@@ -36,7 +36,7 @@ export function BeforeAfterBlockView({ config, data }: { config: BeforeAfterBloc
         {config.title.trim() ? (
           <h2 style={{ ...levelStyle("heading", { color: true }), letterSpacing: "var(--wsite-letter-spacing)" }}>{config.title}</h2>
         ) : null}
-        <div className="relative select-none overflow-hidden rounded-2xl">
+        <div className="relative select-none overflow-hidden rounded-2xl outline-offset-4 has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-[var(--wsite-primary)]">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={config.afterUrl} alt={alt ? `${alt} (${after})` : after} className="block h-auto w-full" draggable={false} />
           <div className="absolute inset-0" style={{ clipPath: `inset(0 ${100 - position}% 0 0)` }}>
