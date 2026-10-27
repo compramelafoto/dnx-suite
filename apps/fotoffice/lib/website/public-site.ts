@@ -7,6 +7,7 @@ import { findPageBySlug } from "./pages";
 import { resolveWebsiteColors, type WebsiteColors } from "./branding-defaults";
 import { parseWebsiteDesignPresets, type WebsiteDesignPresets } from "./design-presets";
 import { parseSiteMenu, type SiteMenu } from "./site-menu";
+import { DEFAULT_SITE_SETTINGS, parseWebsiteSiteSettings, type WebsiteSiteSettings } from "./site-settings";
 import { WEBSITE_MODULE_KEY } from "./constants";
 import { getEnabledModuleKeysForWorkspace } from "@/lib/modules/gating";
 import { listBlogPosts } from "@/lib/blog/public";
@@ -88,6 +89,9 @@ export type PublicSite = {
   /** Cómo llama esta institución a la gente de su padrón. Lo usa el menú del sitio. */
   personVocabulary: PersonVocabulary;
   contact: PublicSiteContact;
+  /** Sitio web → Ajustes de la versión publicada (WhatsApp flotante, redes, medición, protección).
+   * Sin sitio publicado, los defaults: nada se agrega. */
+  settings: WebsiteSiteSettings;
 };
 
 /**
@@ -201,6 +205,7 @@ export const loadPublicSite = cache(async function loadPublicSite(workspaceSlug:
     hasPublishedTrabajos,
     enabledModuleKeys,
     personVocabulary: vocabulario,
+    settings: hasPublishedSite ? parseWebsiteSiteSettings(website?.publishedVersion?.designPresetsJson ?? null) : DEFAULT_SITE_SETTINGS,
     contact: {
       email: branding.contactEmail,
       phone: branding.phone,

@@ -1,6 +1,9 @@
 import type { PublicSiteContact } from "@/lib/website/public-site";
 import type { WebsiteDesignPresets } from "@/lib/website/design-presets";
 import type { SiteNavItem } from "@/lib/website/site-nav";
+import { SITE_SOCIAL_LABELS, type SiteSocialLink } from "@/lib/website/site-settings";
+import { isHttpsUrl } from "@/lib/website/contact";
+import { SocialIcon } from "./social-icons";
 
 /**
  * El pie del sitio. Como el encabezado, NO es una sección: vive en el diseño global, no en
@@ -9,6 +12,9 @@ import type { SiteNavItem } from "@/lib/website/site-nav";
  *
  * `legalNote` es TEXTO PLANO por contrato del modelo: se renderiza como texto, nunca con
  * dangerouslySetInnerHTML.
+ *
+ * `socialLinks` (Sitio web → Ajustes) se dibuja como una fila de íconos en cualquier estilo de
+ * pie. Sin redes cargadas, el pie queda exactamente como antes.
  */
 export function WebsiteFooterView({
   commercialName,
@@ -16,12 +22,14 @@ export function WebsiteFooterView({
   contact,
   navItems,
   designPresets,
+  socialLinks = [],
 }: {
   commercialName: string;
   logoUrl: string | null;
   contact: PublicSiteContact;
   navItems: SiteNavItem[];
   designPresets: WebsiteDesignPresets;
+  socialLinks?: SiteSocialLink[];
 }) {
   const preset = designPresets.footerPreset;
   const conColumnas = preset === "columns" || preset === "full";
@@ -33,7 +41,10 @@ export function WebsiteFooterView({
   // columna, así que incluirlo dibujaría una columna vacía; omitir `instagram` escondería un
   // dato que la institución sí cargó.
   const whatsappDigitos = (contact.whatsapp ?? "").replace(/[^0-9]/g, "");
-  const tieneContacto = Boolean(contact.email || contact.phone || whatsappDigitos || contact.instagram);
+  const redes = socialLinks.filter((r) => isHttpsUrl(r.url));
+  // Con Instagram entre los íconos, no se repite como texto en la columna de contacto.
+  const instagramTexto = redes.some((r) => r.network === "instagram") ? null : contact.instagram;
+  const tieneContacto = Boolean(contact.email || contact.phone || whatsappDigitos || instagramTexto);
 
   return (
     <footer
@@ -96,9 +107,9 @@ export function WebsiteFooterView({
                     WhatsApp
                   </a>
                 ) : null}
-                {contact.instagram ? (
+                {instagramTexto ? (
                   <a
-                    href={`https://instagram.com/${contact.instagram.replace(/^@/, "")}`}
+                    href={`https://instagram.com/${instagramTexto.replace(/^@/, "")}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="block opacity-80 hover:opacity-100"
@@ -109,6 +120,26 @@ export function WebsiteFooterView({
               </div>
             ) : null}
           </div>
+        ) : null}
+
+        {redes.length > 0 ? (
+          <ul className={`flex flex-wrap items-center gap-3 ${conColumnas ? "mt-8" : "mb-4"}`} aria-label="Redes sociales">
+            {redes.map((r, i) => (
+              <li key={`${r.network}-${i}`}>
+                <a
+                  href={r.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={SITE_SOCIAL_LABELS[r.network]}
+                  title={SITE_SOCIAL_LABELS[r.network]}
+                  className="flex h-10 w-10 items-center justify-center rounded-full opacity-75 transition-opacity hover:opacity-100"
+                  style={{ border: "1px solid rgba(127,127,127,0.35)" }}
+                >
+                  <SocialIcon network={r.network} className="h-5 w-5" />
+                </a>
+              </li>
+            ))}
+          </ul>
         ) : null}
 
         {completo && contact.legalNote ? (
