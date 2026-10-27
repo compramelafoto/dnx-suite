@@ -1,6 +1,7 @@
 import { parseHiddenSelfieRetentionDays } from "@/lib/albums/hidden-selfie-retention";
 import { NextRequest, NextResponse } from "next/server";
 import { ensureAlbumPhotosQueuedForHiddenMode } from "@/lib/hidden-album/prepare-hidden-album-photos";
+import { encolarLecturaDeTexto, lecturaSeEncendio } from "@/lib/analysis/encolar-lectura-de-texto";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
 import {
@@ -480,6 +481,8 @@ export async function PATCH(
         endsAt: true,
         termsAcceptedAt: true,
         termsVersion: true,
+        textSearchEnabled: true,
+        type: true,
       },
     });
 
@@ -728,6 +731,20 @@ export async function PATCH(
         }
       } catch (queueErr) {
         console.warn("No se pudo encolar análisis facial para fotos ocultas:", queueErr);
+      }
+    }
+    if (
+      lecturaSeEncendio(
+        { textSearchEnabled: existingAlbum.textSearchEnabled ?? null, type: existingAlbum.type ?? null },
+        { textSearchEnabled: album.textSearchEnabled ?? null, type: album.type ?? null }
+      )
+    ) {
+      // Las fotos que ya se analizaron con la lectura apagada no tienen números para buscar.
+      try {
+        const encoladas = await encolarLecturaDeTexto(albumId);
+        if (encoladas > 0) payload._textoEncolado = encoladas;
+      } catch (queueErr) {
+        console.warn("No se pudo encolar la lectura de texto del álbum:", queueErr);
       }
     }
     return NextResponse.json(payload);

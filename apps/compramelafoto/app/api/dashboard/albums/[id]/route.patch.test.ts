@@ -10,6 +10,7 @@ const albumUpdate = vi.fn();
 const appConfigFindUnique = vi.fn();
 const loadSnapshot = vi.fn();
 const ensureQueued = vi.fn();
+const encolarTexto = vi.fn();
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
@@ -38,6 +39,10 @@ vi.mock("@/lib/events/collaborative-event-pricing-lock", () => ({
 }));
 vi.mock("@/lib/hidden-album/prepare-hidden-album-photos", () => ({
   ensureAlbumPhotosQueuedForHiddenMode: (...a: unknown[]) => ensureQueued(...a),
+}));
+vi.mock("@/lib/analysis/encolar-lectura-de-texto", async (orig) => ({
+  ...(await orig<object>()),
+  encolarLecturaDeTexto: (...a: unknown[]) => encolarTexto(...a),
 }));
 vi.mock("@/lib/events/event-organizer-access", () => ({ isEventOrganizerUser: vi.fn() }));
 vi.mock("@/lib/albums/album-photo-stats", () => ({
@@ -74,6 +79,7 @@ describe("PATCH /api/dashboard/albums/[id] (ajustes movidos a la función compar
     appConfigFindUnique.mockReset().mockResolvedValue({ minDigitalPhotoPrice: 5000 });
     loadSnapshot.mockReset().mockResolvedValue({ locksPhotographerDigitalPricing: false });
     ensureQueued.mockReset().mockResolvedValue(0);
+    encolarTexto.mockReset().mockResolvedValue(0);
   });
 
   it("precio debajo del mínimo → 400 con el mismo texto y sin guardar", async () => {
@@ -127,5 +133,20 @@ describe("PATCH /api/dashboard/albums/[id] (ajustes movidos a la función compar
     expect(status).toBe(200);
     expect(ensureQueued).toHaveBeenCalledWith(7);
     expect(body._hiddenAnalysisQueued).toBe(4);
+  });
+
+  it("encender la búsqueda por número con las fotos ya subidas → las vuelve a leer", async () => {
+    albumFindUnique.mockResolvedValue({ ...existingAlbum, textSearchEnabled: null, type: null });
+    encolarTexto.mockResolvedValue(362);
+    const { status, body } = await callPatch({ textSearchEnabled: true });
+    expect(status).toBe(200);
+    expect(encolarTexto).toHaveBeenCalledWith(7);
+    expect(body._textoEncolado).toBe(362);
+  });
+
+  it("si ya se leía el texto, guardar otra vez no lo vuelve a leer", async () => {
+    albumFindUnique.mockResolvedValue({ ...existingAlbum, textSearchEnabled: null, type: "SPORTS" });
+    await callPatch({ textSearchEnabled: true });
+    expect(encolarTexto).not.toHaveBeenCalled();
   });
 });
