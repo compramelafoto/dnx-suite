@@ -43,6 +43,14 @@ export const DEMO_ESCOLAR = {
     email: `direccion@${DEMO_EMAIL_DOMAIN}`,
     telefono: "+54 9 341 000-0001",
   },
+  /**
+   * Logos inventados (en R2). Los dibujos están en docs/compramelafoto/demo-escolar/logos/ y se
+   * suben con `scripts/demos/escolar/subir-logos.ts`.
+   */
+  logos: {
+    colegio: "demos/escolar/logo-colegio.png",
+    estudio: "demos/escolar/logo-estudio.png",
+  },
   album: {
     titulo: "Escuela Demo Los Aromos · Fotos 2026",
     slug: "demo-escolar-los-aromos",
