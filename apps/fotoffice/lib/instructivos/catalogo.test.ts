@@ -54,6 +54,17 @@ describe("catálogo de instructivos", () => {
     for (const g of INSTRUCTIVOS.filter((x) => x.seccion === "Stock")) expect(g.moduleKey).toBe("sales");
   });
 
+  it("las guías de Digitalización se ven sólo con el módulo digitalizacion", () => {
+    const slugs = INSTRUCTIVOS.filter((g) => g.seccion === "Digitalización").map((g) => g.slug);
+    expect(slugs).toEqual(["digitalizacion-grabar-cassette", "digitalizacion-entregar-videos", "digitalizacion-configuracion-y-problemas"]);
+    for (const g of INSTRUCTIVOS.filter((x) => x.seccion === "Digitalización")) expect(g.moduleKey).toBe("digitalizacion");
+    const sin = instructivosVisibles(INSTRUCTIVOS, { sales: "MANAGE", projects: "MANAGE" });
+    expect(sin.some((g) => g.seccion === "Digitalización")).toBe(false);
+    const con = instructivosVisibles(INSTRUCTIVOS, { sales: "MANAGE", projects: "MANAGE", digitalizacion: "VIEW" });
+    const temas = agruparPorSeccion(con).map((g) => g.seccion);
+    expect(temas.indexOf("Digitalización")).toBe(temas.indexOf("Trabajos y entregas") + 1);
+  });
+
   it("ningún paso tiene un recuadro del sistema vacío", () => {
     for (const g of INSTRUCTIVOS) {
       for (const p of g.pasos) {
