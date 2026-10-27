@@ -16,10 +16,12 @@ const DATA_KEY_BY_TYPE: Partial<Record<WebsiteBlockType, keyof WebsiteDynamicDat
   INQUIRY_FORM: "inquiry",
   PORTFOLIO: "portfolio",
   TESTIMONIALS: "testimonios",
+  FORM: "formularios",
+  NEWSLETTER: "formularios",
 };
 
 /** Los que tienen botones: reciben las páginas propias para resolver `/quien-soy` (ver `enlaceDeBoton`). */
-const USA_PAGINAS_DEL_SITIO = new Set<WebsiteBlockType>(["HERO", "CTA"]);
+const USA_PAGINAS_DEL_SITIO = new Set<WebsiteBlockType>(["HERO", "CTA", "FORM"]);
 
 /**
  * `undefined` se conserva: las vistas lo usan para saber que están en la vista previa del builder.

@@ -572,6 +572,73 @@ export const paymentButtonConfigSchema = z.object({
     .transform((v) => externalHttpsUrl(v) ?? ""),
 });
 
+/**
+ * Formulario propio (PR C de las secciones de Prosite): campos que arma el dueño, qué pasa al
+ * enviar y si además crea una consulta. Cada bloque agrupa sus envíos por su id (la «clave del
+ * formulario»); el nombre visible en la bandeja es el título. El contenido oculto
+ * (`revealText`/`revealLink*`) NUNCA viaja al navegador con la página: el servidor lo devuelve
+ * sólo después de un envío válido (ver `lib/website/formularios.ts`).
+ */
+export const FORM_FIELD_TYPES = ["text", "email", "phone", "number", "date", "select", "checkbox", "textarea"] as const;
+export type FormFieldType = (typeof FORM_FIELD_TYPES)[number];
+export const FORM_MAX_FIELDS = 20;
+export const FORM_MAX_OPTIONS = 30;
+export const FORM_AFTER_SUBMIT = ["message", "redirect", "reveal"] as const;
+export type FormAfterSubmit = (typeof FORM_AFTER_SUBMIT)[number];
+export const FORM_DEFAULT_TITLE = "Escribinos";
+export const FORM_DEFAULT_BUTTON_LABEL = "Enviar";
+export const FORM_DEFAULT_THANKS = "¡Gracias! Recibimos tus datos.";
+
+export const formFieldSchema = z.object({
+  id: itemIdSchema,
+  type: z.enum(FORM_FIELD_TYPES).catch("text"),
+  label: tolerantText(120),
+  required: z.boolean().catch(false),
+  /** Texto de ayuda debajo del campo. */
+  help: tolerantText(200),
+  /** Sólo para `select`. */
+  options: tolerantList(
+    z
+      .string()
+      .transform((o) => o.trim().slice(0, 100))
+      .refine((o) => o.length > 0),
+    FORM_MAX_OPTIONS,
+  ),
+});
+export type FormField = z.infer<typeof formFieldSchema>;
+
+export const formConfigSchema = z.object({
+  title: tolerantText(200),
+  intro: tolerantText(600),
+  fields: tolerantList(formFieldSchema, FORM_MAX_FIELDS),
+  buttonLabel: tolerantText(60, FORM_DEFAULT_BUTTON_LABEL),
+  afterSubmit: z.enum(FORM_AFTER_SUBMIT).catch("message"),
+  thanksMessage: tolerantText(400, FORM_DEFAULT_THANKS),
+  /** `afterSubmit: "redirect"`: una página del sitio (`/videos`) o un enlace https. */
+  redirectUrl: tolerantText(2000),
+  /** `afterSubmit: "reveal"`: lo que se muestra recién después de enviar. */
+  revealText: tolerantText(2000),
+  revealLinkLabel: tolerantText(80),
+  revealLinkUrl: tolerantText(2000),
+  /** Además del envío, una consulta en Consultas (si vinieron nombre y correo o teléfono). */
+  createInquiry: z.boolean().catch(false),
+  categoryId: z.string().max(100).catch(""),
+  origenId: z.string().max(100).catch(""),
+});
+
+/** Boletín: correo (y nombre, si se pide) → suscriptores del sitio. */
+export const NEWSLETTER_DEFAULT_TITLE = "Suscribite a las novedades";
+export const NEWSLETTER_DEFAULT_BUTTON_LABEL = "Suscribirme";
+export const NEWSLETTER_DEFAULT_THANKS = "¡Listo! Ya estás en la lista.";
+
+export const newsletterConfigSchema = z.object({
+  title: tolerantText(200, NEWSLETTER_DEFAULT_TITLE),
+  intro: tolerantText(600),
+  askName: z.boolean().catch(false),
+  buttonLabel: tolerantText(60, NEWSLETTER_DEFAULT_BUTTON_LABEL),
+  thanksMessage: tolerantText(400, NEWSLETTER_DEFAULT_THANKS),
+});
+
 const blockEnvelope = {
   id: z.string().min(1),
   visible: z.boolean(),
@@ -602,6 +669,8 @@ export const featuresBlockSchema = z.object({ ...blockEnvelope, type: z.literal(
 export const mapBlockSchema = z.object({ ...blockEnvelope, type: z.literal("MAP"), config: mapConfigSchema });
 export const whatsappButtonBlockSchema = z.object({ ...blockEnvelope, type: z.literal("WHATSAPP_BUTTON"), config: whatsappButtonConfigSchema });
 export const paymentButtonBlockSchema = z.object({ ...blockEnvelope, type: z.literal("PAYMENT_BUTTON"), config: paymentButtonConfigSchema });
+export const formBlockSchema = z.object({ ...blockEnvelope, type: z.literal("FORM"), config: formConfigSchema });
+export const newsletterBlockSchema = z.object({ ...blockEnvelope, type: z.literal("NEWSLETTER"), config: newsletterConfigSchema });
 
 export const websiteBlockSchema = z.discriminatedUnion("type", [
   heroBlockSchema,
@@ -628,6 +697,8 @@ export const websiteBlockSchema = z.discriminatedUnion("type", [
   mapBlockSchema,
   whatsappButtonBlockSchema,
   paymentButtonBlockSchema,
+  formBlockSchema,
+  newsletterBlockSchema,
 ]);
 
 export const websitePageContentSchema = z.array(websiteBlockSchema);
@@ -689,6 +760,8 @@ export type FeaturesBlockConfig = z.infer<typeof featuresConfigSchema>;
 export type MapBlockConfig = z.infer<typeof mapConfigSchema>;
 export type WhatsappButtonBlockConfig = z.infer<typeof whatsappButtonConfigSchema>;
 export type PaymentButtonBlockConfig = z.infer<typeof paymentButtonConfigSchema>;
+export type FormBlockConfig = z.infer<typeof formConfigSchema>;
+export type NewsletterBlockConfig = z.infer<typeof newsletterConfigSchema>;
 
 export type HeroBlock = z.infer<typeof heroBlockSchema>;
 export type TextBlock = z.infer<typeof textBlockSchema>;
@@ -714,6 +787,8 @@ export type FeaturesBlock = z.infer<typeof featuresBlockSchema>;
 export type MapBlock = z.infer<typeof mapBlockSchema>;
 export type WhatsappButtonBlock = z.infer<typeof whatsappButtonBlockSchema>;
 export type PaymentButtonBlock = z.infer<typeof paymentButtonBlockSchema>;
+export type FormBlock = z.infer<typeof formBlockSchema>;
+export type NewsletterBlock = z.infer<typeof newsletterBlockSchema>;
 
 /** Unión cerrada de los bloques implementados. Bloques con `type` desconocido no matchean acá
  * — el renderer y el editor deben tratarlos como inválidos y omitirlos, nunca romper la página. */
@@ -1050,6 +1125,51 @@ export const WEBSITE_BLOCK_DEFINITIONS: {
     source: "static",
     defaultConfig: () => ({ title: "", amount: null, description: "", buttonLabel: PAYMENT_BUTTON_DEFAULT_LABEL, url: "" }),
     previewLabel: (c) => c.title.trim() || "Pagar",
+  },
+  FORM: {
+    type: "FORM",
+    label: "Formulario",
+    description:
+      "Un formulario con los campos que quieras. Los envíos llegan a Sitio web → Formularios; al enviar puede mostrar un mensaje, llevar a otra página o mostrar contenido oculto.",
+    category: "COMERCIAL",
+    source: "dynamic",
+    defaultConfig: () => ({
+      title: FORM_DEFAULT_TITLE,
+      intro: "",
+      fields: [
+        { id: generateLocalId(), type: "text", label: "Nombre", required: true, help: "", options: [] },
+        { id: generateLocalId(), type: "email", label: "Correo", required: true, help: "", options: [] },
+        { id: generateLocalId(), type: "phone", label: "WhatsApp", required: false, help: "", options: [] },
+        { id: generateLocalId(), type: "textarea", label: "Mensaje", required: false, help: "", options: [] },
+      ],
+      buttonLabel: FORM_DEFAULT_BUTTON_LABEL,
+      afterSubmit: "message",
+      thanksMessage: FORM_DEFAULT_THANKS,
+      redirectUrl: "",
+      revealText: "",
+      revealLinkLabel: "",
+      revealLinkUrl: "",
+      createInquiry: false,
+      categoryId: "",
+      origenId: "",
+    }),
+    // Alimenta también el menú (ver HERO).
+    previewLabel: (c) => c.title.trim() || "Formulario",
+  },
+  NEWSLETTER: {
+    type: "NEWSLETTER",
+    label: "Boletín",
+    description: "Quien visita el sitio deja su correo (y su nombre, si querés) para recibir novedades. Los suscriptores se ven en Sitio web → Formularios.",
+    category: "COMUNICACION",
+    source: "dynamic",
+    defaultConfig: () => ({
+      title: NEWSLETTER_DEFAULT_TITLE,
+      intro: "",
+      askName: false,
+      buttonLabel: NEWSLETTER_DEFAULT_BUTTON_LABEL,
+      thanksMessage: NEWSLETTER_DEFAULT_THANKS,
+    }),
+    previewLabel: (c) => c.title.trim() || "Boletín",
   },
 };
 

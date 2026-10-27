@@ -1,0 +1,10 @@
+Fecha;Formulario;Nombre;Correo;Teléfono;Instagram;Mensaje;Status
+27/10/2026 14:05;Contacto;Ana Pérez;ANA@Ejemplo.com ;341 555-1234;@anaperez;"Hola, quiero info
+sobre bodas";Lido
+27/10/2026 14:05;Contacto;Ana Pérez;ANA@Ejemplo.com ;341 555-1234;@anaperez;"Hola, quiero info
+sobre bodas";Lido
+01/02/2025 09:30;CursoLightroom;Juan Gómez;juan@ejemplo.com;;;;
+31/02/2025 10:00;Contacto;Fecha Rota;rota@ejemplo.com;;;;
+02/03/2025 11:00;contacto;Luis Díaz;luis@ejemplo.com;;;=HYPERLINK("x");
+03/03/2025 12:00;;Sin Formulario;sinform@ejemplo.com;;;;
+04/03/2025 12:00;Celular;;;;;;

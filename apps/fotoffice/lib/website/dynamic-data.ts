@@ -72,7 +72,16 @@ export type WebsiteDynamicData = {
   /** Los testimonios PUBLICADOS (sin el correo del autor), una sola lectura para todos los bloques
    * TESTIMONIALS de la página: cada uno corta los primeros N. Sin ninguno, el bloque no se dibuja. */
   testimonios?: TestimoniosData;
+  /** Formularios propios y boletín (FORM, NEWSLETTER): sólo a qué sitio va el envío. La definición
+   * de los campos la vuelve a leer el servidor de la versión publicada al recibirlo. */
+  formularios?: SitioFormulariosData;
 };
+
+export type SitioFormulariosData = { workspaceSlug: string };
+
+export function hasVisibleSiteForm(blocks: readonly WebsiteBlock[]): boolean {
+  return blocks.some((b) => (b.type === "FORM" || b.type === "NEWSLETTER") && b.visible);
+}
 
 export type TestimoniosData = {
   items: TestimonioPublico[];
