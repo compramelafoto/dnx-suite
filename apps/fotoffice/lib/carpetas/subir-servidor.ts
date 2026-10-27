@@ -9,7 +9,7 @@ import {
 import { bucketR2Privado, clienteR2Privado } from "@/lib/ficha/adjuntos-r2";
 import { enBloques } from "@/lib/galerias/zip";
 
-const PERMITIDAS = ["trabajos/", "impresiones-mini/"];
+const PERMITIDAS = ["trabajos/", "impresiones-mini/", "bandeja/"];
 function exigirClave(clave: string) {
   if (!PERMITIDAS.some((p) => clave.startsWith(p)) || clave.includes("..")) throw new Error(`Clave no permitida: ${clave}`);
 }
