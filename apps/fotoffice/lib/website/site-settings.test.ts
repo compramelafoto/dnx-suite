@@ -128,7 +128,8 @@ describe("buildTrackingScripts", () => {
   it("GA4: carga gtag del host de Google y configura el ID", () => {
     const s = buildTrackingScripts({ ga4Id: "G-ABC123XYZ", metaPixelId: null });
     expect(s[0].src).toBe("https://www.googletagmanager.com/gtag/js?id=G-ABC123XYZ");
-    expect(s[1].inline).toContain(`gtag('config',"G-ABC123XYZ")`);
+    expect(s[1].inline).toContain(`gtag('config',"G-ABC123XYZ",{send_page_view:false})`);
+    expect(s[1].inline).toContain("gtag('event','page_view')");
   });
 
   it("píxel: el número va como texto JSON y dispara PageView", () => {
@@ -153,8 +154,26 @@ describe("isTrackingExcludedPath", () => {
     ["/w/dnx/blog/un-articulo", false],
     ["/presupuesto", false],
     ["/tienda/una-remera", false],
+    ["/w/dnx/testimonio", true],
+    ["/testimonio", true],
+    ["/w/dnx/cursos/lightroom/inscripcion/success", true],
+    ["/cursos/lightroom", false],
+    ["/w/dnx/cursos/lightroom/muestra/3", false],
+    ["/w/dnx/blog/un-articulo?utm_source=ig", false],
+    ["/w/dnx/blog/un-articulo?payment_id=123", true],
   ])("%s → %s", (path, excluida) => {
     expect(isTrackingExcludedPath(path)).toBe(excluida);
+  });
+
+  it.each([
+    ["?t=abc", true],
+    ["?token=abc", true],
+    ["?enrollmentId=9", true],
+    ["?collection_id=1&status=approved", true],
+    ["?utm_campaign=x", false],
+    ["", false],
+  ])("consulta %s en una página común → %s", (search, excluida) => {
+    expect(isTrackingExcludedPath("/w/dnx", search)).toBe(excluida);
   });
 });
 

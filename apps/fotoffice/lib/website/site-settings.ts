@@ -290,7 +290,11 @@ export function buildTrackingScripts(analytics: WebsiteSiteSettings["analytics"]
     out.push({ id: "fo-ga4-src", src: `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(ga4)}` });
     out.push({
       id: "fo-ga4-init",
-      inline: `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config',${JSON.stringify(ga4)});`,
+      // Sin la vista automática: `SiteTracking` la manda a mano sólo en direcciones permitidas.
+      // Esta primera va acá porque el script se monta recién en una dirección permitida.
+      inline:
+        "window.dataLayer=window.dataLayer||[];window.gtag=function(){dataLayer.push(arguments);};gtag('js',new Date());" +
+        `gtag('config',${JSON.stringify(ga4)},{send_page_view:false});gtag('event','page_view');`,
     });
   }
   if (pixel) {
@@ -307,17 +311,44 @@ export function buildTrackingScripts(analytics: WebsiteSiteSettings["analytics"]
 }
 
 /**
- * Páginas públicas que llevan un token personal en la dirección (pedido, recibo, contrato,
- * galería, videos, presupuesto, archivos, permiso del autor, seguimiento de impresión, pedido de la
- * tienda). Ahí NO se carga la medición: Google o Meta recibirían la dirección con el token. Es la
- * misma lista que en `next.config.ts` lleva `Referrer-Policy: no-referrer`, más archivos e impresión.
+ * Páginas públicas con un token personal en la dirección: pedido, recibo, contrato, galería,
+ * videos, presupuesto, archivos, permiso del autor, seguimiento de impresión, pedido de la tienda,
+ * el testimonio personal (`/testimonio?t=…`) y la vuelta del pago de un curso
+ * (`/cursos/<curso>/inscripcion/…`). Ahí NO se mide nada: Google o Meta recibirían el enlace con
+ * el token. Además, cualquier dirección con un parámetro sensible en la consulta queda afuera.
  * Sirve con y sin el prefijo `/w/<slug>` (dominio propio).
  */
 const TOKEN_SEGMENTS = new Set(["pedido", "recibo", "contrato", "galeria", "videos", "presupuesto", "archivos", "impresion"]);
 
-export function isTrackingExcludedPath(pathname: string): boolean {
-  let segs = pathname.split("?")[0].split("/").filter(Boolean);
+/** Parámetros de consulta que identifican a una persona, un pago o un enlace personal. */
+export const SENSITIVE_QUERY_PARAMS = new Set([
+  "t",
+  "token",
+  "enrollmentid",
+  "payment_id",
+  "collection_id",
+  "preference_id",
+  "merchant_order_id",
+  "external_reference",
+  "publicid",
+  "code",
+  "key",
+  "sig",
+  "signature",
+  "email",
+]);
+
+export function isTrackingExcludedPath(pathname: string, search = ""): boolean {
+  const [ruta, consultaEnRuta = ""] = pathname.split("?");
+  const consulta = new URLSearchParams(search || consultaEnRuta);
+  for (const clave of consulta.keys()) {
+    if (SENSITIVE_QUERY_PARAMS.has(clave.toLowerCase())) return true;
+  }
+
+  let segs = ruta.split("/").filter(Boolean);
   if (segs[0] === "w" && segs.length >= 2) segs = segs.slice(2);
+  if (segs[0] === "testimonio") return true;
+  if (segs[0] === "cursos" && segs[2] === "inscripcion") return true;
   if (segs.length < 2) return false;
   if (TOKEN_SEGMENTS.has(segs[0])) return true;
   if (segs[0] === "obras" && segs[1] === "permiso") return true;
