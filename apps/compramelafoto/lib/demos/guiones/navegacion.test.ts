@@ -5,6 +5,7 @@ import {
   indiceValido,
   pasoAnterior,
   siguientePaso,
+  ventanaAparteViva,
 } from "@/lib/demos/guiones/navegacion";
 import { GUION_ESCOLAR } from "@/lib/demos/guiones/escolar";
 
@@ -29,6 +30,12 @@ describe("demos — navegación del guion", () => {
     assert.equal(debeMostrarAclaracion(paso, new Set(["a"]), "adelante"), false);
     assert.equal(debeMostrarAclaracion(paso, new Set(), "atras"), false);
     assert.equal(debeMostrarAclaracion({ id: "b" }, new Set(), "adelante"), false);
+  });
+
+  it("la ventana aparte se da por cerrada si deja de latir", () => {
+    assert.equal(ventanaAparteViva(null, 10_000), false);
+    assert.equal(ventanaAparteViva(9_000, 10_000), true);
+    assert.equal(ventanaAparteViva(5_000, 10_000), false);
   });
 
   it("el guion escolar tiene ids únicos y rutas armables", () => {
