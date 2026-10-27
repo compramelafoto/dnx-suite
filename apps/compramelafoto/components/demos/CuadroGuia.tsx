@@ -27,6 +27,7 @@ import { GUION_ESCOLAR } from "@/lib/demos/guiones/escolar";
 import type { CtxGuion, PasoGuion } from "@/lib/demos/guiones/tipos";
 import {
   LATIDO_VENTANA_APARTE_MS,
+  accionDeTecla,
   debeMostrarAclaracion,
   indiceValido,
   pasoAnterior,
@@ -282,27 +283,27 @@ export default function CuadroGuia() {
   useEffect(() => {
     if (!activa) return;
     // Con la ventana aparte abierta, la pantalla compartida igual atiende las teclas del
-    // presentador inalámbrico (suele tener el foco).
+    // presentador inalámbrico (suele tener el foco). La extensión de atajos globales manda estas
+    // mismas teclas. Se escucha en captura para que ninguna pantalla (el diseñador) se las coma.
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
-      if (t && (t.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName))) return;
-      const adelante = e.key === "PageDown" || (e.altKey && e.key === "ArrowRight");
-      const atras = e.key === "PageUp" || (e.altKey && e.key === "ArrowLeft");
-      if (aclaracion && (adelante || e.key === "Escape" || e.key === "Enter")) {
+      const enCampo = Boolean(t && (t.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName)));
+      const accion = accionDeTecla(e, enCampo);
+      if (!accion) return;
+      if (aclaracion && accion !== "atras") {
         e.preventDefault();
+        e.stopPropagation();
         cerrarAclaracion();
         return;
       }
-      if (adelante) {
-        e.preventDefault();
-        moverA(siguientePaso(indice, pasos.length), "adelante");
-      } else if (atras) {
-        e.preventDefault();
-        moverA(pasoAnterior(indice), "atras");
-      }
+      if (accion === "cerrar") return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (accion === "adelante") moverA(siguientePaso(indice, pasos.length), "adelante");
+      else moverA(pasoAnterior(indice), "atras");
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
   }, [activa, aclaracion, cerrarAclaracion, indice, moverA, pasos.length]);
 
   const ejecutarAccion = useCallback(

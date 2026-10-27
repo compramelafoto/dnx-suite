@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="800" viewBox="0 0 800 800">
+  <rect width="800" height="800" rx="120" fill="#fff8f1"/>
+  <g transform="translate(400 300)">
+    <rect x="-230" y="-120" width="460" height="290" rx="48" fill="#ef6f51"/>
+    <path d="M-90 -120 L-60 -175 L60 -175 L90 -120 Z" fill="#ef6f51"/>
+    <rect x="-200" y="-95" width="70" height="34" rx="10" fill="#fff8f1" opacity="0.9"/>
+    <circle cx="0" cy="25" r="118" fill="#fff8f1"/>
+    <circle cx="0" cy="25" r="88" fill="#2a3d45"/>
+    <circle cx="0" cy="25" r="46" fill="#3f5a66"/>
+    <circle cx="28" cy="-5" r="16" fill="#fff8f1" opacity="0.85"/>
+  </g>
+  <text x="400" y="590" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="92" font-weight="700" fill="#2a3d45">Estudio Demo</text>
+  <text x="400" y="655" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="34" letter-spacing="9" fill="#ef6f51">FOTOGRAFÍA ESCOLAR</text>
+</svg>

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  accionDeTecla,
   debeMostrarAclaracion,
   indiceValido,
   pasoAnterior,
@@ -30,6 +31,16 @@ describe("demos — navegación del guion", () => {
     assert.equal(debeMostrarAclaracion(paso, new Set(["a"]), "adelante"), false);
     assert.equal(debeMostrarAclaracion(paso, new Set(), "atras"), false);
     assert.equal(debeMostrarAclaracion({ id: "b" }, new Set(), "adelante"), false);
+  });
+
+  it("el presentador inalámbrico avanza aunque el cursor esté en un campo", () => {
+    assert.equal(accionDeTecla({ key: "PageDown", altKey: false }, true), "adelante");
+    assert.equal(accionDeTecla({ key: "PageUp", altKey: false }, true), "atras");
+    assert.equal(accionDeTecla({ key: "ArrowRight", altKey: true }, false), "adelante");
+    assert.equal(accionDeTecla({ key: "ArrowRight", altKey: true }, true), null);
+    assert.equal(accionDeTecla({ key: "Enter", altKey: false }, true), null);
+    assert.equal(accionDeTecla({ key: "Escape", altKey: false }, false), "cerrar");
+    assert.equal(accionDeTecla({ key: "a", altKey: false }, false), null);
   });
 
   it("la ventana aparte se da por cerrada si deja de latir", () => {

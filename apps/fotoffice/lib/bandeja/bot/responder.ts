@@ -180,7 +180,7 @@ async function turno(chatId: string, deps: DepsResponder): Promise<SalidaBot> {
   const texto = textoFinal(result.appended);
   if (result.outcome !== "ok" || !texto) return fallar(`turno_${result.outcome}`, result.outcome);
 
-  const sueltas = cifrasNoRespaldadas(texto, cifrasRespaldadasEnAtencion(h.history, result.appended));
+  const sueltas = cifrasNoRespaldadas(texto, cifrasRespaldadasEnAtencion(h.history, result.appended, texto));
   if (sueltas.length > 0) return fallar("cifra_no_respaldada", sueltas.join(", "));
 
   const salida = await enviarComoBot(workspaceId, chatId, texto, { ultimoMensajeId }, { ahora: ahora(), enviar: deps.enviar });

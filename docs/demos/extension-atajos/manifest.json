@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "DNX · Atajos de la demo",
+  "version": "1.0",
+  "description": "Avanza y retrocede la guía de las demos de ComprameLaFoto desde cualquier ventana o aplicación.",
+  "permissions": ["scripting", "tabs"],
+  "host_permissions": [
+    "https://compramelafoto.com/*",
+    "https://www.compramelafoto.com/*",
+    "http://localhost/*"
+  ],
+  "background": { "service_worker": "background.js" },
+  "commands": {
+    "avanzar": {
+      "suggested_key": { "default": "Ctrl+Shift+9" },
+      "description": "Demo: paso siguiente",
+      "global": true
+    },
+    "retroceder": {
+      "suggested_key": { "default": "Ctrl+Shift+8" },
+      "description": "Demo: paso anterior",
+      "global": true
+    }
+  }
+}
