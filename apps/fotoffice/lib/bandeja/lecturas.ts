@@ -7,6 +7,7 @@ import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
 import { etiquetaDeUsuario } from "@/lib/listado/acceso";
 import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
 import { puedeOperarBandeja, puedeVerBandeja, type CtxBandeja } from "./acceso";
+import { archivoDeMensaje, type ArchivoDeMensaje } from "./archivo-de-mensaje";
 import type { Autor, Direccion, EstadoDelChat, TipoMensaje } from "./constantes";
 import { atiendeElBot, estadoVisible, puedeResponderLibre } from "./reglas";
 import { textoDeVistaPrevia, truncarSeguro } from "./vista-previa";
@@ -169,6 +170,8 @@ export type MensajeDeChat = {
   estadoEnvio: string;
   errorCodigo: string | null;
   createdAt: Date;
+  /** Foto, documento, video o audio que mandó el cliente (sin la clave de R2). */
+  archivo: ArchivoDeMensaje | null;
 };
 
 export type ClienteDelChat = {
@@ -215,12 +218,12 @@ export async function detalleChat(ctx: CtxBandeja, chatId: string, ahora: Date =
       where: { chatId: c.id, workspaceId: ctx.workspaceId },
       orderBy: { createdAt: "desc" },
       take: MAXIMO_MENSAJES,
-      select: { id: true, direccion: true, autor: true, autorLabel: true, tipo: true, texto: true, estadoEnvio: true, errorCodigo: true, createdAt: true },
-    }) as Promise<(Omit<MensajeDeChat, "estadoEnvio"> & { estadoEnvio: string })[]>,
+      select: { id: true, direccion: true, autor: true, autorLabel: true, tipo: true, texto: true, estadoEnvio: true, errorCodigo: true, createdAt: true, media: true },
+    }) as Promise<(Omit<MensajeDeChat, "estadoEnvio" | "archivo"> & { estadoEnvio: string; media: unknown })[]>,
     nombresDeUsuarios(c.asignadoUserId !== null ? [c.asignadoUserId] : []),
     clientesPorId(ctx.workspaceId, c.clientId ? [c.clientId] : []),
   ]);
-  const mensajes = recientes.reverse().map((m) => ({ ...m, estadoEnvio: estadoVisible(m, ahora) }));
+  const mensajes = recientes.reverse().map(({ media, ...m }) => ({ ...m, estadoEnvio: estadoVisible(m, ahora), archivo: archivoDeMensaje(m.tipo, media) }));
 
   const veClientes = puedeEnContexto(ctx, "ver", CLIENTS_MODULE_KEY);
   const fila = c.clientId ? clientes.get(c.clientId) : undefined;

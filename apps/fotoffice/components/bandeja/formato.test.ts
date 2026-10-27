@@ -22,3 +22,12 @@ describe("formato de la Bandeja (hora argentina)", () => {
     expect(fechaYHora(new Date("2026-10-10T01:00:00.000Z"))).toBe("09/10/2026 22:00");
   });
 });
+
+describe("peso de un archivo", () => {
+  it("en KB o MB, con coma decimal", async () => {
+    const { pesoLegible } = await import("./formato");
+    expect(pesoLegible(240_000)).toBe("234 KB");
+    expect(pesoLegible(3_500_000)).toBe("3,3 MB");
+    expect(pesoLegible(500)).toBe("1 KB");
+  });
+});

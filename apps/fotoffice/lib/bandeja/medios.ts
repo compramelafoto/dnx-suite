@@ -14,7 +14,7 @@ import { detalleDeError } from "./registro";
 export const MAX_BYTES_MEDIO = 100 * 1024 * 1024;
 
 export type DepsMedios = {
-  fetch?: typeof fetch;
+  fetch?: (url: string, init?: RequestInit) => Promise<Response>;
   leerToken?: (workspaceId: string) => Promise<string | null>;
   subir?: (clave: string, cuerpo: Buffer, tipo: string) => Promise<void>;
   medidas?: (cuerpo: Buffer) => Promise<{ ancho: number; alto: number } | null>;

@@ -159,6 +159,18 @@ describe("detalleChat", () => {
     expect(d.dentroDeVentana).toBe(true);
   });
 
+  it("una foto bajada viene como archivo seguro, sin clave ni media", async () => {
+    const c = await chat("5491111111111", { ultimoEntranteEn: hace(2) });
+    await msg(c.id, {
+      tipo: "IMAGEN", texto: null, createdAt: hace(1),
+      media: { id: "meta", mimeType: "image/jpeg", descarga: "LISTO", clave: "bandeja/w1/c/m.jpg", bytes: 240000, ancho: 1600, alto: 1200 },
+    });
+    const m = (await L.detalleChat(ANA, c.id, AHORA))!.mensajes[0];
+    expect(m.archivo).toEqual({ estado: "LISTO", mime: "image/jpeg", nombre: "foto.jpg", bytes: 240000, ancho: 1600, alto: 1200 });
+    expect(JSON.stringify(m)).not.toContain("bandeja/w1");
+    expect(Object.keys(m)).not.toContain("media");
+  });
+
   it("fuera de las 24 h no se puede responder libre", async () => {
     const c = await chat("5491111111111", { ultimoEntranteEn: hace(30) });
     expect((await L.detalleChat(ANA, c.id, AHORA))!.dentroDeVentana).toBe(false);
