@@ -47,6 +47,11 @@ export const FOTOFFICE_R2_PREFIXES = {
    * por la dirección pública: se descargan por una ruta que verifica permiso y firma la URL.
    */
   governanceFile: "fotoffice/governance",
+  /**
+   * Documentos (PDF) que el sitio comparte con un enlace `/w/<slug>/d/<documento>`. Se sirven por
+   * esa ruta con un enlace firmado de minutos; la dirección pública del bucket no se muestra.
+   */
+  websiteDocument: "fotoffice/website-documents",
 } as const;
 
 export const FOTOFFICE_R2_DELETABLE_PREFIXES = Object.values(FOTOFFICE_R2_PREFIXES).map(

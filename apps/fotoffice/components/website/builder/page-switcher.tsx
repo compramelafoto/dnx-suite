@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { MoreHorizontal, Plus } from "lucide-react";
 import { HOME_PAGE_KEY, slugifyPageTitle, validatePageSlug } from "@/lib/website/pages";
 
@@ -21,6 +22,7 @@ export function PageSwitcher({
   canEdit,
   busy,
   limitReached,
+  visitas = null,
   onSelect,
   onCreate,
   onRename,
@@ -33,6 +35,8 @@ export function PageSwitcher({
   /** Se está guardando antes de cambiar de página: el selector espera. */
   busy: boolean;
   limitReached: boolean;
+  /** Visitas de los últimos 30 días por slug (`""` = portada); `null` = no hay contador. */
+  visitas?: Record<string, number> | null;
   onSelect: (key: string) => void;
   onCreate: (title: string, slug: string) => void;
   onRename: (key: string, title: string) => void;
@@ -58,10 +62,11 @@ export function PageSwitcher({
             onSelect(e.target.value);
           }}
         >
-          <option value={HOME_PAGE_KEY}>Portada</option>
+          <option value={HOME_PAGE_KEY}>Portada{visitas ? ` · ${textoVisitas(visitas[""] ?? 0)}` : ""}</option>
           {pages.map((p) => (
             <option key={p.key} value={p.key}>
               {p.title}
+              {visitas ? ` · ${textoVisitas(visitas[p.slug] ?? 0)}` : ""}
             </option>
           ))}
         </select>
@@ -112,6 +117,11 @@ export function PageSwitcher({
       </div>
 
       {activa ? <p className="truncate text-xs text-[var(--fo-muted)]">Dirección: /{activa.slug}</p> : <p className="text-xs text-[var(--fo-muted)]">La portada es la página de inicio.</p>}
+      {visitas ? (
+        <Link href="/website/visitas" className="block text-xs text-[var(--fo-muted)] hover:text-[var(--fo-text)] hover:underline">
+          {textoVisitas(visitas[activa ? activa.slug : ""] ?? 0)} en los últimos 30 días
+        </Link>
+      ) : null}
 
       {canEdit && form === null ? (
         <button
@@ -172,6 +182,10 @@ export function PageSwitcher({
       ) : null}
     </div>
   );
+}
+
+function textoVisitas(n: number): string {
+  return n === 1 ? "1 visita" : `${n.toLocaleString("es-AR")} visitas`;
 }
 
 function MenuItem({ children, danger, onClick }: { children: React.ReactNode; danger?: boolean; onClick: () => void }) {

@@ -12,6 +12,8 @@ import { normalizeFotofficeOrganizationType } from "@/lib/onboarding-constants";
 import { PageHeader } from "@/components/page-header";
 import { WebsiteBuilder } from "@/components/website/builder/website-builder";
 import { canEditWebsiteIdentity } from "@/lib/website/identity-access";
+import { resumenDeVisitas } from "@/lib/website/visitas.server";
+import { visitasPorSlug } from "@/lib/website/visitas";
 
 export default async function WebsiteBuilderPage({ searchParams }: { searchParams: Promise<{ panel?: string }> }) {
   const [{ workspace, user, canEdit, status, sections, designPresets, menu, draftUpdatedAtIso }, { panel }] = await Promise.all([
@@ -21,7 +23,7 @@ export default async function WebsiteBuilderPage({ searchParams }: { searchParam
   // El logo y el favicon son la identidad de la institución: sólo dueño/admin (ver la acción).
   const canEditIdentity = canEdit && (await canEditWebsiteIdentity(user.id, workspace.id));
 
-  const [branding, modulosEncendidos, personVocabulary, hasPublishedBlog, hasPublishedTrabajos, hasPublishedTestimonios] = await Promise.all([
+  const [branding, modulosEncendidos, personVocabulary, hasPublishedBlog, hasPublishedTrabajos, hasPublishedTestimonios, visitas] = await Promise.all([
     prisma.fotofficeWorkspaceBranding.findUnique({
       where: { workspaceId: workspace.id },
       select: {
@@ -50,6 +52,11 @@ export default async function WebsiteBuilderPage({ searchParams }: { searchParam
       console.error("[fotoffice][website] no se pudo saber si hay testimonios publicados:", err);
       return false;
     }),
+    // Visitas de los últimos 30 días, para mostrarlas junto a cada página (null = falta la tabla).
+    resumenDeVisitas(workspace.id, 30).catch((err: unknown) => {
+      console.error("[fotoffice][website] no se pudieron leer las visitas:", err);
+      return null;
+    }),
   ]);
   const enabledModuleKeys = withTestimoniosPage(withTrabajosPage(modulosEncendidos, hasPublishedTrabajos), hasPublishedTestimonios);
 
@@ -72,6 +79,7 @@ export default async function WebsiteBuilderPage({ searchParams }: { searchParam
         canEditIdentity={canEditIdentity}
         draftUpdatedAt={draftUpdatedAtIso}
         status={status}
+        visitasPorPagina={visitas ? visitasPorSlug(visitas.porPagina) : null}
       />
     </div>
   );
