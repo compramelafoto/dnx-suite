@@ -33,6 +33,9 @@ import { guia as trabajosTomarConSena } from "./guias/trabajos-tomar-con-sena";
 import { guia as trabajosRetiroYSaldo } from "./guias/trabajos-retiro-y-saldo";
 import { guia as trabajosTableroEnCurso } from "./guias/trabajos-tablero-en-curso";
 import { guia as trabajosFichaYEtapas } from "./guias/trabajos-ficha-y-etapas";
+import { guia as digitalizacionGrabarCassette } from "./guias/digitalizacion-grabar-cassette";
+import { guia as digitalizacionEntregarVideos } from "./guias/digitalizacion-entregar-videos";
+import { guia as digitalizacionConfiguracionYProblemas } from "./guias/digitalizacion-configuracion-y-problemas";
 import { guia as stockCargarPasoAPaso } from "./guias/stock-cargar-paso-a-paso";
 import { guia as stockInsumosAlta } from "./guias/stock-insumos-alta";
 import { guia as stockRecetaConsumo } from "./guias/stock-receta-consumo";
@@ -62,6 +65,10 @@ export const INSTRUCTIVOS: readonly Instructivo[] = [
   trabajosTableroEnCurso,
   trabajosFichaYEtapas,
   trabajosRetiroYSaldo,
+  // Digitalización de VHS y DVD, en el orden del circuito: grabar, entregar, resolver
+  digitalizacionGrabarCassette,
+  digitalizacionEntregarVideos,
+  digitalizacionConfiguracionYProblemas,
   // Stock de insumos
   stockCargarPasoAPaso,
   stockInsumosAlta,
