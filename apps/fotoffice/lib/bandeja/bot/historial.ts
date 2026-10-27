@@ -6,7 +6,10 @@
  * se le dijo. Los mensajes del sistema (tomas, devoluciones) no son parte de la charla.
  */
 
-export type MensajeChat = { direccion: string; autor: string; tipo: string; texto: string | null };
+import { archivoDeMensaje } from "../archivo-de-mensaje";
+import { medidasQueAlcanzan } from "../calidad";
+
+export type MensajeChat = { direccion: string; autor: string; tipo: string; texto: string | null; media?: unknown };
 export type MensajeModelo = { role: "user" | "assistant"; content: string };
 
 const SIN_TEXTO: Record<string, string> = {
@@ -17,10 +20,24 @@ const SIN_TEXTO: Record<string, string> = {
   UBICACION: "[el cliente mandó una ubicación]",
 };
 
+/** Lo que ya se sabe del archivo bajado (etapa 2): resolución de las fotos, o que no se pudo guardar. */
+function etiquetaDeArchivo(m: MensajeChat): string | null {
+  const a = archivoDeMensaje(m.tipo, m.media);
+  if (!a) return null;
+  if (a.estado === "GRANDE") return "[el cliente mandó un archivo de más de 100 MB que no se pudo guardar]";
+  const esFoto = m.tipo === "IMAGEN" || (a.mime?.startsWith("image/") ?? false);
+  if (a.estado === "FALLO") return esFoto ? "[el cliente mandó una foto pero no se pudo bajar: pedile que la reenvíe]" : "[el cliente mandó un archivo pero no se pudo bajar: pedile que lo reenvíe]";
+  if (a.estado !== "LISTO" || !esFoto || !a.ancho || !a.alto) return null;
+  const que = m.tipo === "IMAGEN" ? "una foto" : "una foto como documento";
+  const medidas = medidasQueAlcanzan(a.ancho, a.alto);
+  const alcance = medidas.length > 0 ? `alcanza para imprimir hasta: ${medidas.join(", ")}` : "no alcanza para imprimir";
+  return `[el cliente mandó ${que} de ${a.ancho}×${a.alto} px; ${alcance}]`;
+}
+
 function textoDe(m: MensajeChat): string {
   const t = m.texto?.trim() ?? "";
   if (m.tipo === "TEXTO") return t;
-  const adjunto = SIN_TEXTO[m.tipo] ?? "[el cliente mandó algo que no es texto]";
+  const adjunto = etiquetaDeArchivo(m) ?? SIN_TEXTO[m.tipo] ?? "[el cliente mandó algo que no es texto]";
   return t ? `${adjunto} ${t}` : adjunto;
 }
 

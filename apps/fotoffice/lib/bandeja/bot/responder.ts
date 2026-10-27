@@ -97,7 +97,7 @@ async function turno(chatId: string, deps: DepsResponder): Promise<SalidaBot> {
     where: { chatId, workspaceId },
     orderBy: { createdAt: "desc" },
     take: 60,
-    select: { direccion: true, autor: true, tipo: true, texto: true },
+    select: { direccion: true, autor: true, tipo: true, texto: true, media: true },
   });
   const h = historialParaElBot(leidos.reverse());
   if (!h) return "nada";

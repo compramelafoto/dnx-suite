@@ -9,6 +9,10 @@ describe("guía del bot de atención", () => {
     expect(g).toMatch(/markdown/);
   });
 
+  it("sabe pedir la foto como Documento cuando no alcanza la calidad", () => {
+    expect(guiaDeAtencion()).toContain("como Documento");
+  });
+
   it("la situación dice el día y la hora en Argentina y el nombre si lo hay", () => {
     const s = situacionDeAtencion({ estudio: "DNX Estudio", cliente: "Lucía", ahora: new Date("2026-10-20T23:30:00.000Z") });
     expect(s).toContain("DNX Estudio");
