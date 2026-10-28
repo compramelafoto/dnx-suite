@@ -114,6 +114,29 @@ describe("herramientasDeAtencion", () => {
     expect(vacio.message).toMatch(/no hay cursos/i);
   });
 
+  it("armar_pedido vende del catálogo con seña y devuelve el enlace; un nombre dudoso vuelve al bot", async () => {
+    const recibidos: unknown[] = [];
+    const armarPedidoCatalogo = async (_w: string, _c: unknown, d: { lineas: { producto: string }[] }) => {
+      recibidos.push(d);
+      if (d.lineas[0].producto === "pendrive") return { ok: false as const, motivo: "PRODUCTO" as const, detalle: '"pendrive" puede ser: Pendrive 64 GB, Pendrive 128 GB.' };
+      return {
+        ok: true as const, numero: "2026-0042", lineas: [{ nombre: "Digitalización de VHS", cantidad: 5, precio: 12000 }],
+        total: 60000, aPagarAhora: 30000, saldo: 30000, url: "https://fotoffice.com/p/tok",
+      };
+    };
+    const h = herramientasDeAtencion("w1", { ...deps, armarPedidoCatalogo }, { id: "c1", waId: "549", clientId: null, nombre: "Ana" });
+    const t = h.tools.find((x) => x.name === "armar_pedido")!;
+    const entrada = { lineas: [{ producto: "Digitalización de VHS", cantidad: 5 }], pago: "seña", nombre: "Ana Pérez" };
+    expect(t.input.safeParse(entrada).success).toBe(true);
+    const r = await t.run(entrada, { userId: 0, role: "CLIENTE", email: "", name: null });
+    expect(recibidos[0]).toEqual({ lineas: [{ producto: "Digitalización de VHS", cantidad: 5 }], pago: "SENA", nombre: "Ana Pérez", email: null });
+    expect(r.message).toContain("https://fotoffice.com/p/tok");
+    expect(r.message).toContain("30.000");
+    expect(h.pedidoDePersona()).toBeNull();
+    const dudoso = await t.run({ lineas: [{ producto: "pendrive", cantidad: 1 }], pago: "total", nombre: "Ana Pérez" }, { userId: 0, role: "CLIENTE", email: "", name: null });
+    expect(dudoso.message).toContain("Pendrive 128 GB");
+  });
+
   it("armar_pedido_impresion traduce los números de foto y devuelve el resumen con los dos links", async () => {
     const recibidos: unknown[] = [];
     const armarPedido = async (_w: string, _c: unknown, d: unknown) => {

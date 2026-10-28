@@ -3,6 +3,7 @@ import { prisma } from "@repo/db";
 import { precioDeLista } from "@/lib/presupuestos/lista-precios";
 import { listProducts } from "@/lib/sales/repository";
 import type { DatosPedidoBot, ResultadoPedidoBot } from "@/lib/impresiones/whatsapp-servidor";
+import type { DatosPedidoCatalogo, ResultadoPedidoCatalogo } from "@/lib/pedidos/whatsapp-servidor";
 import type { FotoNumerada } from "./historial";
 
 /**
@@ -54,6 +55,8 @@ export type DepsAtencion = {
   /** Pedido de copias e impresiones con las fotos del chat (spec 2026-10-28). */
   armarPedido: (workspaceId: string, chat: ChatAtencion, datos: DatosPedidoBot) => Promise<ResultadoPedidoBot>;
   estadoPedido: (workspaceId: string, chat: ChatAtencion) => Promise<string>;
+  /** Pedido común de productos del catálogo (VHS, pendrives, cuadros…) con su enlace de pago. */
+  armarPedidoCatalogo: (workspaceId: string, chat: ChatAtencion, datos: DatosPedidoCatalogo) => Promise<ResultadoPedidoCatalogo>;
   /** Cuándo se armó el último pedido de copias del chat ("todas" las fotos = las posteriores). */
   ultimoPedidoEn: (workspaceId: string, chat: ChatAtencion) => Promise<Date | null>;
 };
@@ -104,6 +107,10 @@ const DEPS: DepsAtencion = {
   armarPedido: async (workspaceId, chat, datos) => {
     const { crearPedidoDesdeWhatsapp } = await import("@/lib/impresiones/whatsapp-servidor");
     return crearPedidoDesdeWhatsapp(workspaceId, chat, datos);
+  },
+  armarPedidoCatalogo: async (workspaceId, chat, datos) => {
+    const { crearPedidoDeCatalogoDesdeWhatsapp } = await import("@/lib/pedidos/whatsapp-servidor");
+    return crearPedidoDeCatalogoDesdeWhatsapp(workspaceId, chat, datos);
   },
   estadoPedido: async (workspaceId, chat) => {
     const p = await prisma.fotofficePrintOrder.findFirst({
@@ -331,6 +338,41 @@ export function herramientasDeAtencion(
       },
     }),
     defineTool({
+      name: "armar_pedido",
+      description:
+        "Vende cualquier producto o servicio del catálogo que no sean copias con fotos del chat (digitalización de VHS/DVD/CD/casetes, pendrives, revelado, cuadros, portarretratos…): crea el pedido a nombre del cliente y devuelve el total, lo que paga ahora (seña del 50 % o el total) y el enlace para pagar con Mercado Pago. Usala cuando sepas el producto (nombre como lo da buscar_productos y, si tiene, la medida o talle), la cantidad, el nombre y apellido del cliente y si paga seña o total; el correo es opcional. Si el cliente cambia algo, volvé a usarla: el pedido anterior sin pagar se cancela.",
+      input: z.object({
+        lineas: z
+          .array(z.object({ producto: z.string().min(2).max(120), variante: z.string().max(60).optional(), cantidad: z.number().int().min(1).max(500) }))
+          .min(1)
+          .max(20),
+        pago: z.enum(["seña", "total"]),
+        nombre: z.string().min(2).max(120),
+        email: z.string().email().max(254).optional(),
+      }),
+      kind: "read",
+      run: async ({ lineas, pago, nombre, email }) => {
+        if (!chat) return { ok: true, message: "Ahora no puedo armar el pedido. Usá pasar_a_persona con un resumen de lo que pide." };
+        const res = await deps.armarPedidoCatalogo(workspaceId, chat, { lineas, pago: pago === "total" ? "TOTAL" : "SENA", nombre, email: email ?? null });
+        if (!res.ok) {
+          if (res.motivo === "PRODUCTO") return { ok: true, message: `${res.detalle ?? "No encontré ese producto."} Revisá con buscar_productos o preguntale al cliente cuál quiere, y volvé a usar armar_pedido.` };
+          return { ok: true, message: "No pude armar el pedido. Usá pasar_a_persona con un resumen de lo que pide (productos, cantidades y cómo quiere pagar)." };
+        }
+        return {
+          ok: true,
+          message: [
+            `Pedido ${res.numero} armado.`,
+            ...res.lineas.map((l) => `- ${l.cantidad} × ${l.nombre}: ${precioDeLista(l.precio)} c/u`),
+            `Total: ${precioDeLista(res.total)}.`,
+            res.saldo > 0 ? `Paga ahora la seña: ${precioDeLista(res.aPagarAhora)}. Saldo: ${precioDeLista(res.saldo)} (al retirar o desde el mismo enlace).` : `Paga ahora el total: ${precioDeLista(res.aPagarAhora)}.`,
+            `Enlace del pedido para pagar: ${res.url}`,
+            ...(email ? [`El detalle del pedido también le llega por correo a ${email}.`] : []),
+            "Pasale al cliente el resumen corto, el total, lo que paga ahora y el enlace. Si es material para digitalizar, recordale que lo trae al estudio.",
+          ].join("\n"),
+        };
+      },
+    }),
+    defineTool({
       name: "estado_de_mi_pedido",
       description: "El estado del último pedido de copias de este cliente (pago, preparación, fecha, saldo). Usala cuando pregunte por su pedido.",
       input: z.object({}),
@@ -340,7 +382,7 @@ export function herramientasDeAtencion(
     defineTool({
       name: "pasar_a_persona",
       description:
-        "Deja el chat para que lo atienda una persona del estudio. Usala para presupuestos de eventos cuando preparar_presupuesto no los arma; reclamos; pedidos de descuento; cuando el cliente pide hablar con alguien; cuando quiere encargar algo que no son copias ni ampliaciones (cuadros, portarretratos, VHS, fotolibros: eso todavía lo arma una persona); o cuando no sabés la respuesta. Después de usarla, avisale al cliente que en breve le escribe alguien del estudio.",
+        "Deja el chat para que lo atienda una persona del estudio. Usala para presupuestos de eventos cuando preparar_presupuesto no los arma; reclamos; pedidos de descuento; cuando el cliente pide hablar con alguien; o cuando no sabés la respuesta. Después de usarla, avisale al cliente que en breve le escribe alguien del estudio.",
       input: z.object({ motivo: z.string().min(3).max(200) }),
       kind: "read",
       run: async ({ motivo }) => {
