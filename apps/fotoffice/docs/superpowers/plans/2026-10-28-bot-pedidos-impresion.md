@@ -4,7 +4,7 @@
 
 **Goal:** Que el bot de WhatsApp arme un pedido de copias/ampliaciones con las fotos del chat, cobre la seña del 50 % o el total por Mercado Pago y que, al acreditarse, el pedido salga solo al laboratorio con las fotos originales.
 
-**Architecture:** Se reusa el módulo de impresiones (`lib/impresiones`): el pedido es un `FotofficePrintOrder` con `source = "WHATSAPP"` cuyos ítems apuntan (`sourceKey`) a los archivos de la Bandeja. Precios del catálogo (`Product`, por nombre), plazo y papel por ítem, seña y pagos sumados en el pedido, trabajos por laboratorio y plazo, ZIP sin recorte, y un paso nuevo del cron que programa el retiro del cadete por ganancia acumulada.
+**Architecture:** Se reusa el módulo de impresiones (`lib/impresiones`): el pedido es un `FotofficePrintOrder` con `source = "WHATSAPP"` cuyos ítems apuntan (`sourceKey`) a los archivos de la Bandeja. Precios del catálogo (`Product`, por nombre), plazo y papel por ítem, seña y pagos sumados en el pedido, trabajos por laboratorio y plazo, ZIP sin recorte y fecha prometida por plazo (martes/viernes para "próxima semana").
 
 **Tech Stack:** Next.js, Prisma 6, Mercado Pago Checkout Pro (`createMercadoPagoCheckoutProLiveAdapter`), sharp (sólo para lo que no es WhatsApp), `@repo/dnx-bot`, vitest.
 
@@ -17,7 +17,7 @@
 - Papel por ítem: `BRILLO` (omisión) o `MATE`.
 - Plazos: `INSTANTANEA` (mostrador, sin laboratorio), `MANANA` (siguiente día hábil, `sumarDiasHabiles(hoy,1)`), `SEMANA` (máximo 7 días corridos; incluye La Isla).
 - Escalón: "más de N" vale si **cantidad ≥ N**; menos de 10 → precio de "Copia instantánea {medida}" con plazo `MANANA` y laboratorio de la medida.
-- Retiro programado: por laboratorio, cuando la ganancia (precio − costo) de los ítems `SEMANA` esperando retiro **supera $12.000** (`retiroUmbralArs`) → retiro el siguiente día hábil; si un ítem cumple 7 días corridos, se programa ese día.
+- `SEMANA`: retiros **martes y viernes 16 h** (hora argentina); se promete el **día siguiente** (miércoles / sábado) al primer retiro que quede **≥ 48 h después del pago**; retiro en feriado → el siguiente. Se calcula al pagar (sin cron aparte).
 - Envío: opcional, `cotizarEnvio` desde el estudio (`pricingExtras.studioLatitude/Longitude`) con `porKmCents = 300000` ($3.000/km), `baseCents = 0`; más de 30 km → pasa a persona.
 - Sin correo del cliente: avisos por WhatsApp (`enviarAvisoPorWhatsapp`, ventana de 24 h).
 - Montos en pesos (Decimal 12,2); textos al cliente en castellano rioplatense; nunca loguear datos personales.
@@ -46,15 +46,14 @@
 |---|---|
 | `packages/db/prisma/migrations/20270102120000_fotoffice_impresion_whatsapp/migration.sql` + schema | Columnas nuevas (Task 1) |
 | `lib/impresiones/catalogo-copias.ts` (PURO) | Leer productos de copia por nombre y cotizar |
-| `lib/impresiones/plazos.ts` (PURO) | Fechas por plazo y regla del retiro programado |
+| `lib/impresiones/plazos.ts` (PURO) | Fecha prometida por plazo |
 | `lib/impresiones/whatsapp-servidor.ts` | Alta del pedido desde el bot + preferencias MP |
 | `lib/impresiones/acreditar-servidor.ts` | Seña, segundo pago, reemplazado, trabajos por lab y plazo |
 | `lib/impresiones/preparar-servidor.ts`, `carpeta-lab.ts`, `correo-lab.ts` | Sin recorte, papel y plazo por ítem, asunto por plazo, instantáneas sin correo |
-| `lib/impresiones/retiro-servidor.ts` | Retiro programado + aviso al cliente |
 | `lib/pedidos/candado-saldo.ts`, `lib/impresiones/trabajo-servidor.ts`, `components/impresiones/pedido-del-trabajo.tsx` | Saldo del pedido de impresión |
 | `lib/bandeja/aviso-sistema.ts` | `autorLabel` parametrizable |
 | `lib/bandeja/bot/historial.ts`, `responder.ts`, `herramientas.ts`, `guia.ts` | Fotos numeradas, `armar_pedido_impresion`, `estado_de_mi_pedido` |
-| `lib/impresiones/configuracion-servidor.ts`, `app/workspace/configuracion/impresiones/*` | Seña % y umbral del retiro |
+| `lib/impresiones/configuracion-servidor.ts`, `app/workspace/configuracion/impresiones/*` | Seña % |
 
 ---
 
@@ -64,8 +63,8 @@
 
 Columnas (todas `IF NOT EXISTS`, ninguna obligatoria sin omisión):
 - `FotofficePrintOrder`: `email` pasa a NULL (`ALTER COLUMN "email" DROP NOT NULL`); `depositArs DECIMAL(12,2)`; `paidArs DECIMAL(12,2) NOT NULL DEFAULT 0`; `pagosExtra JSONB`; `waChatId TEXT`; `waId TEXT`; índice `(workspaceId, waChatId, status)`.
-- `FotofficePrintOrderItem`: `paper TEXT`, `plazo TEXT`, `sinRecorte BOOLEAN NOT NULL DEFAULT false`, `calidadBaja BOOLEAN NOT NULL DEFAULT false`, `retiroProgramadoPara DATE`.
-- `FotofficePrintSettings`: `depositPct INTEGER NOT NULL DEFAULT 50`, `retiroUmbralArs DECIMAL(12,2) NOT NULL DEFAULT 12000`.
+- `FotofficePrintOrderItem`: `paper TEXT`, `plazo TEXT`, `sinRecorte BOOLEAN NOT NULL DEFAULT false`, `calidadBaja BOOLEAN NOT NULL DEFAULT false`.
+- `FotofficePrintSettings`: `depositPct INTEGER NOT NULL DEFAULT 50`.
 
 - [ ] Test: es la última carpeta; contiene esas sentencias; no tiene `DROP TABLE`, `DELETE`, `UPDATE "`.
 - [ ] FAIL → escribir SQL + schema → `prisma generate` → PASS → commit "Impresiones por WhatsApp: migración".
@@ -92,17 +91,15 @@ Formatos (regex sobre el nombre normalizado, medida `\d+x\d+`): "Copia instantá
 
 ---
 
-### Task 3: Plazos y retiro (PURO)
+### Task 3: Fecha prometida (PURO)
 
 **Files:** Create `lib/impresiones/plazos.ts`; Test `plazos.test.ts`.
 
 **Produces:**
 ```ts
-export function fechaPorPlazo(plazo: Plazo, hoyYmd: string): { exacta: string | null; maxima: string }; // MANANA/INSTANTANEA: exacta = maxima = sumarDiasHabiles(hoy,1) (INSTANTANEA: hoy); SEMANA: exacta null, maxima = hoy + 7 corridos
-export type ItemEsperando = { proveedorId: string; ganancia: number; pagadoYmd: string };
-export function retirosAProgramar(items: ItemEsperando[], hoyYmd: string, umbral: number): Map<string /*proveedorId*/, string /*fecha*/>; // por proveedor: si Σganancia > umbral → sumarDiasHabiles(hoy,1); si algún pagadoYmd + 7 ≤ hoy+1 → esa fecha máxima; si no, nada
+export function fechaPorPlazo(plazo: Plazo, pagado: Date): string /* "aaaa-mm-dd" */; // INSTANTANEA: hoy (AR); MANANA: sumarDiasHabiles(hoy,1); SEMANA: día siguiente al primer martes/viernes 16:00 AR no feriado que esté ≥ 48 h después de `pagado`
 ```
-- [ ] Tests: viernes 30/10/2026 MANANA → lunes 02/11; SEMANA desde 28/10 → máxima 04/11; ganancia 12.000 exacta no alcanza, 12.001 sí; ítem pagado hace 6 días sin umbral → se programa para su día 7.
+- [ ] Tests: viernes 30/10/2026 MANANA → lunes 02/11; SEMANA pagado lunes 02/11 10:00 → martes 03/11 16:00 está a 30 h → viernes 06/11 → sábado 07/11; pagado martes 03/11 15:00 → viernes 06/11 16:00 (73 h) → sábado 07/11; pagado jueves 05/11 10:00 → martes 10/11 → miércoles 11/11; pagado miércoles 04/11 16:00 → viernes 06/11 16:00 (48 h justas) → sábado 07/11.
 - [ ] FAIL → implementar (usar `sumarDiasHabiles`) → PASS → commit.
 
 ---
@@ -163,13 +160,9 @@ Pasos: módulo `print-orders` encendido y collector MP; mensajes del chat con `c
 
 ---
 
-### Task 8: Retiro programado
+### Task 8: (eliminada)
 
-**Files:** Create `lib/impresiones/retiro-servidor.ts`; Modify `app/api/cron/impresiones/route.ts` (llamar después de `procesarPedidosDeImpresion`), `lib/bandeja/aviso-sistema.ts` (`opciones.autor`, omisión "Presupuesto automático"); Test `retiro-servidor.test.ts`.
-
-**Produces:** `programarRetiros(deps?: { ahora?: () => Date; avisar?: typeof enviarAvisoPorWhatsapp }): Promise<{ programados: number }>` — ítems `plazo = "SEMANA"`, pedido `ENVIADO`, `retiroProgramadoPara = null`; ganancia = (unit − cost) × cantidad; `retirosAProgramar` por workspace con su `retiroUmbralArs`; al programar: `retiroProgramadoPara` en los ítems, `entregaPrometida` en sus trabajos, aviso por WhatsApp a cada pedido WHATSAPP: "Tus copias del pedido N van a estar el {día dd/mm}. Te esperamos en el estudio."
-- [ ] Tests: umbral superado → programa y avisa una vez; segunda corrida no repite; sin umbral pero día 7 → programa.
-- [ ] FAIL → implementar → PASS → commit.
+Daniel definió el 28/10 retiros fijos martes y viernes: la fecha se calcula al pagar (Task 3 + Task 5). No hay cron de retiro programado. `enviarAvisoPorWhatsapp` con `autor` se hace en Task 5.
 
 ---
 
@@ -186,8 +179,8 @@ Guía: pedir medida, cantidad, plazo (explicar instantánea / para mañana / pr�
 
 ### Task 10: Configuración → Impresiones
 
-**Files:** `lib/impresiones/configuracion-servidor.ts` (`AjustesImpresion.depositPct`, `retiroUmbralArs`), `app/workspace/configuracion/impresiones/{actions.ts,page.tsx}`; Test de `configuracion-servidor`.
-- [ ] Test: guardar 50 y 12000 los persiste; fuera de rango (0–100) → error. FAIL → implementar → PASS → commit.
+**Files:** `lib/impresiones/configuracion-servidor.ts` (`AjustesImpresion.depositPct`), `app/workspace/configuracion/impresiones/{actions.ts,page.tsx}`; Test de `configuracion-servidor`.
+- [ ] Test: guardar 50 lo persiste; fuera de rango (0–100) → error. FAIL → implementar → PASS → commit.
 
 ---
 
@@ -195,5 +188,5 @@ Guía: pedir medida, cantidad, plazo (explicar instantánea / para mañana / pr�
 
 - [ ] `tsc` y suite completa en verde; revisión final independiente.
 - [ ] SQL en `development` + registro; PR; CI; fusionar; deploy Ready.
-- [ ] DNX: `shippingPerKmArs = 3000`, `depositPct = 50`, `retiroUmbralArs = 12000`; verificar `studioLatitude/Longitude` de San José 1672 en el perfil; correos de Fotolag y La Isla (ya cargados); dejar `testMode = true` para la primera prueba.
+- [ ] DNX: `shippingPerKmArs = 3000`, `depositPct = 50`; verificar `studioLatitude/Longitude` de San José 1672 en el perfil; correos de Fotolag y La Isla (ya cargados); dejar `testMode = true` para la primera prueba.
 - [ ] Prueba real con Daniel: 2 copias 13x18 para mañana, pagar la seña → correo [PRUEBA] al estudio, trabajo con saldo, aviso por WhatsApp. Después apagar el modo prueba.

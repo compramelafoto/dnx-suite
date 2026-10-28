@@ -27,8 +27,8 @@ persona); la etapa 6 (botón "Avisar que está listo").
 | Recorte | **Lo define el laboratorio**: FOTOFFICE manda la foto **original**, sin recortar ni recomprimir |
 | Papel | El cliente elige **brillante o mate** por foto (se pueden mezclar en el mismo pedido); si no dice nada, **brillante** |
 | Pocas copias | **Menos de 10 copias** de una medida y plazo: se cobra el **precio de la instantánea** de esa medida y se entrega al **siguiente día hábil** (va al laboratorio como "para mañana") |
-| "Para mañana" | Listo el **siguiente día hábil** (si pagan viernes o sábado, el lunes; feriados no cuentan) |
-| "Próxima semana" (y La Isla) | **Máximo 7 días corridos.** El pedido **sale al laboratorio apenas se paga**. Al cliente se le promete "como máximo en 7 días" (sin fecha exacta). El cadete (~$12.000 el viaje) se manda cuando conviene: cuando la **ganancia acumulada** (precio − costo) de los trabajos de ese laboratorio que esperan retiro **supera $12.000** (configurable), se programa el retiro para el **siguiente día hábil** *(decisión de quien diseña)* y recién ahí se le avisa a cada cliente la fecha exacta. Si se llega al día 7 sin juntar la ganancia, el retiro se programa igual ese día |
+| "Para mañana" | **Retiro especial**: listo el **siguiente día hábil** (si pagan viernes o sábado, el lunes; feriados no cuentan) |
+| "Próxima semana" (y La Isla) | **Máximo 7 días corridos.** El pedido **sale al laboratorio apenas se paga**. El estudio retira del laboratorio los **martes y viernes por la tarde** y entrega al día siguiente (**miércoles o sábado a la mañana**). Se promete la entrega del día siguiente al **primer retiro (martes o viernes, 16 h) que quede al menos 48 h después del pago**; si ese día es feriado, el siguiente retiro. La fecha exacta se le dice al cliente al confirmar el pago. (Reemplaza la regla de la ganancia acumulada de $12.000, 28/10.) |
 | Plazos mezclados | Si el cliente pide unas "para mañana" y otras "para la próxima semana", **paga todo junto** (un solo link) pero se generan **trabajos separados** (uno por plazo y laboratorio), cada uno con su fecha |
 | Retiro | **Siempre en el estudio** |
 | Envío a domicilio | Opcional. **$3.000 por km** desde el estudio (**San José 1672, Funes**) hasta la dirección del cliente (la misma regla que el traslado de eventos: incluye la vuelta). Se cobra en el mismo link |
@@ -105,11 +105,8 @@ persona); la etapa 6 (botón "Avisar que está listo").
   cliente del módulo se omiten si no hay correo y el bot avisa por WhatsApp.
 - **Plazo y papel por ítem:** cada renglón guarda su plazo y su papel; el ZIP y el correo agrupan
   por plazo, medida y papel. Asunto: "PARA MAÑANA" o "PARA LA PRÓXIMA SEMANA".
-- **Retiro programado de "próxima semana":** los trabajos de próxima semana (y La Isla) salen al
-  laboratorio al pagarse y quedan en una fase "Esperando retiro". El cron suma, por laboratorio, la
-  ganancia de los que esperan; si supera el umbral ($12.000), fija el retiro para el siguiente día
-  hábil, pone esa fecha como entrega prometida en cada trabajo y avisa a cada cliente por WhatsApp
-  si su ventana sigue abierta (si no, el aviso queda para el mostrador). Al día 7 se fija igual.
+- **Fecha de "próxima semana":** se calcula al pagar (regla de martes y viernes) y queda como entrega
+  prometida del trabajo; no hace falta un proceso aparte.
 - **Herramienta del bot** `armar_pedido_impresion` (kind "write" o "read" con efecto controlado,
   como `preparar_presupuesto`): crea el pedido PENDIENTE_PAGO y las dos preferencias de MP. Un
   pedido pendiente por chat a la vez; si el cliente cambia algo, se reemplaza el pendiente.
