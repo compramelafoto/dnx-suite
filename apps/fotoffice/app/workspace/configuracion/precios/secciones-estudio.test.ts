@@ -3,6 +3,7 @@ import { createElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { createStudioOwner, createStudioPerson, INITIAL_STUDIO_STRUCTURE } from "@repo/cuanto-cobro-core";
 import { createBaseCompleteProfile } from "@repo/cuanto-cobro-core/__fixtures__/characterization-fixtures";
+import { perfilDanielSeparado } from "@repo/cuanto-cobro-core/__fixtures__/studio-fixtures";
 
 vi.mock("./actions", () => ({ guardarPerfilPreciosAction: async () => ({ ok: true, actualizado: "" }) }));
 vi.mock("@/components/dnx-bot/oferta-perfil", () => ({ OfertaArmarConversando: () => null }));
@@ -11,6 +12,7 @@ const { SeccionEquipoEstudio, SeccionEquipoYCamaras, SeccionGastosFijos, Seccion
   "./secciones-estudio"
 );
 const { PerfilForm } = await import("./perfil-form");
+const { SeccionLocalYCoberturas } = await import("./secciones-local");
 
 /** Los números de Daniel (16/10): Sabi y Cami sin registrar, con aguinaldo y vacaciones, 5 días + sábados alternados; 8 h por día (supuesto). */
 const PERFIL = createBaseCompleteProfile({
@@ -96,5 +98,76 @@ describe("formulario con Mi estudio", () => {
     const h = renderToStaticMarkup(createElement(PerfilForm, { inicial: createBaseCompleteProfile(), version: null, estudio: { ofrece: false, miembros: [] } }));
     expect(h).not.toContain("Mi estudio");
     expect(h).toContain("Perfil del fotógrafo");
+  });
+});
+
+describe("Local y coberturas", () => {
+  const SEPARADO = perfilDanielSeparado();
+  const props = (extra: Record<string, unknown> = {}) => ({ perfil: SEPARADO, cambiar: () => {}, miembros: [], ...extra });
+  const ventas = (months: { month: string; sales: number }[]) => ({ months });
+
+  it("resumen separado sin datos del local: dos recuadros y el aviso de «sin datos»", () => {
+    const h = renderToStaticMarkup(createElement(SeccionResumenEstudio, props()));
+    expect(h).toContain("Tus coberturas");
+    expect(h).toContain("El local");
+    expect(h).toContain("Todavía no hay datos: elegí las categorías de Caja de tus ventas o cargá un estimado");
+    expect(h).toContain("Tu hora");
+    expect(h).not.toContain("Tu retiro");
+  });
+
+  it("resumen separado medido: el último mes en verde o en rojo, con la lista de meses", () => {
+    // Gastos del local: 450.000 + 230.000 + 30.000 + 80.000 + 45.000 + 20 % de 130.000 + equipo + 1.000.000. Con 40 % de mercadería.
+    const perfil = { ...SEPARADO, studioStructure: { ...SEPARADO.studioStructure!, localGoodsCostPercent: "40" } };
+    const rojo = renderToStaticMarkup(createElement(SeccionResumenEstudio, props({ perfil, ventasLocal: ventas([{ month: "2026-09", sales: 1_000_000 }, { month: "2026-08", sales: 1_000_000 }]) })));
+    expect(rojo).toContain("Le faltaron");
+    expect(rojo).toMatch(/septiembre/i);
+    expect(rojo).toMatch(/agosto/i);
+    const verde = renderToStaticMarkup(createElement(SeccionResumenEstudio, props({ perfil, ventasLocal: ventas([{ month: "2026-09", sales: 20_000_000 }, { month: "2026-08", sales: 1_000_000 }]) })));
+    expect(verde).toContain("Se pagó solo y sobraron");
+  });
+
+  it("resumen separado con un monto a mano: el semáforo dice «estimado»", () => {
+    const perfil = { ...SEPARADO, studioStructure: { ...SEPARADO.studioStructure!, localMonthlyContributionManual: "10000000" } };
+    const h = renderToStaticMarkup(createElement(SeccionResumenEstudio, props({ perfil })));
+    expect(h).toContain("Se pagó solo y sobraron");
+    expect(h).toContain("estimado");
+  });
+
+  it("el paso: interruptor, gastos personales, sueldo del local, clasificación y categorías de Caja", () => {
+    const h = renderToStaticMarkup(createElement(SeccionLocalYCoberturas, props({ categoriasIngreso: [{ id: "cat-ventas", nombre: "Ventas" }] })));
+    for (const t of [
+      "Separar el local de las coberturas",
+      "Lo que pase en el local nunca cambia el precio de tus eventos.",
+      "Lo que te paga el local por mes",
+      "Tu tiempo en el local (%)",
+      "Gastos compartidos que van a coberturas (%)",
+      "Costo de la mercadería (% de lo que vendés)",
+      "Lo que deja el local por mes (estimado)",
+      "Alquiler",
+      "Camila",
+      "Productos e impresiones",
+      "Ventas",
+      "Compartido",
+    ]) {
+      expect(h).toContain(t);
+    }
+    // El valor por defecto de los compartidos: 100 − 20 % en el local.
+    expect(h).toContain("80 %");
+  });
+
+  it("vos en el estudio y otras líneas: sin «Tu retiro» ni «Lo que dejan» en modo separado", () => {
+    expect(renderToStaticMarkup(createElement(SeccionVosEnElEstudio, props()))).not.toContain("Tu retiro por mes");
+    expect(renderToStaticMarkup(createElement(SeccionOtrasLineas, props()))).not.toContain("Lo que dejan por mes las líneas que no venden horas");
+  });
+
+  it("formulario: el paso «Local y coberturas» aparece sólo con el modo separado", () => {
+    const con = renderToStaticMarkup(createElement(PerfilForm, { inicial: SEPARADO, version: null, estudio: { ofrece: true, miembros: [] } }));
+    expect(con).toContain("Local y coberturas");
+    const sin = renderToStaticMarkup(createElement(PerfilForm, { inicial: PERFIL, version: null, estudio: { ofrece: true, miembros: [] } }));
+    expect(sin).not.toContain("Local y coberturas");
+  });
+
+  it("sin el modo, «Vos en el estudio» ofrece separar el local", () => {
+    expect(html(SeccionVosEnElEstudio)).toContain("Separar el local de las coberturas");
   });
 });

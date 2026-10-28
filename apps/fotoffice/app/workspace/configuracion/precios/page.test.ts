@@ -1,13 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { isValidElement, type ReactElement, type ReactNode } from "react";
 
-const H = vi.hoisted(() => ({ bot: null as { rutas: string[] } | null, role: "WORKSPACE_OWNER", source: "manual" as string | null, copiable: false }));
+const H = vi.hoisted(() => ({
+  bot: null as { rutas: string[] } | null,
+  role: "WORKSPACE_OWNER",
+  source: "manual" as string | null,
+  copiable: false,
+  perfil: {} as Record<string, unknown>,
+  estudio: vi.fn(async (_ws: string, _estructura?: unknown) => ({ ofrece: true, miembros: [{ userId: 7, etiqueta: "Daniel" }], categoriasIngreso: [], ventasLocal: null })),
+}));
 vi.mock("@/lib/access/active-context", () => ({
   requireActiveWorkspaceRole: async () => ({ user: { id: 7, name: "Daniel", email: "d@x.test" }, workspace: { id: "ws1" }, role: H.role }),
 }));
-vi.mock("@/lib/precios/perfil", () => ({ leerPerfilPrecios: async () => (H.source ? { perfil: {}, source: H.source, actualizado: new Date("2026-10-12T14:00:00.456Z") } : null) }));
+vi.mock("@/lib/precios/perfil", () => ({ leerPerfilPrecios: async () => (H.source ? { perfil: H.perfil, source: H.source, actualizado: new Date("2026-10-12T14:00:00.456Z") } : null) }));
 vi.mock("@/lib/dnx-bot/panel", () => ({ botEnPanel: async () => H.bot }));
-vi.mock("@/lib/precios/estudio-servidor", () => ({ datosDeMiEstudio: async () => ({ ofrece: true, miembros: [{ userId: 7, etiqueta: "Daniel" }] }) }));
+vi.mock("@/lib/precios/estudio-servidor", () => ({ datosDeMiEstudio: H.estudio }));
 vi.mock("./perfil-form", () => ({ PerfilForm: () => null }));
 vi.mock("@/lib/cuanto-cobro-socio/perfil", () => ({ hayPerfilDelPortalParaCopiar: async () => H.copiable }));
 vi.mock("./copiar-perfil-del-portal", () => ({ CopiarPerfilDelPortal: () => null }));
@@ -36,6 +43,8 @@ beforeEach(() => {
   H.role = "WORKSPACE_OWNER";
   H.source = "manual";
   H.copiable = false;
+  H.perfil = {};
+  H.estudio.mockClear();
 });
 
 describe("Configuración → Precios y DNX Bot", () => {
@@ -54,6 +63,13 @@ describe("Configuración → Precios y DNX Bot", () => {
   });
   it("Mi estudio: el formulario recibe si se ofrece y los miembros para vincular", async () => {
     expect(buscar(await Page(), PerfilForm)[0]!.props).toMatchObject({ estudio: { ofrece: true, miembros: [{ userId: 7, etiqueta: "Daniel" }] } });
+  });
+  it("Local y coberturas: con el local separado, las ventas se buscan con las categorías guardadas; sin el modo, no", async () => {
+    await Page();
+    expect(H.estudio).toHaveBeenLastCalledWith("ws1", null);
+    H.perfil = { studioStructure: { enabled: true, separateLocal: true, businessLines: [{ id: "products", name: "Productos", sellsHours: false, cashCategoryIds: ["c1"] }] } };
+    await Page();
+    expect(H.estudio.mock.lastCall![1]).toMatchObject({ separateLocal: true, businessLines: [{ cashCategoryIds: ["c1"] }] });
   });
   it("perfil guardado por el bot: lo dice", async () => {
     H.source = "dnx-bot";

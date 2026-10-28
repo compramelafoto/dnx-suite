@@ -1,4 +1,4 @@
-import { INITIAL_CUANTO_COBRO_PROFILE } from "@repo/cuanto-cobro-core";
+import { INITIAL_CUANTO_COBRO_PROFILE, normalizeStudioStructure } from "@repo/cuanto-cobro-core";
 import { PageHeader } from "@/components/page-header";
 import { requireActiveWorkspaceRole } from "@/lib/access/active-context";
 import { puede } from "@/lib/access/policy";
@@ -29,13 +29,16 @@ export default async function ConfiguracionPreciosPage() {
   }
 
   const ctx = { workspaceId: workspace.id, userId: user.id, userLabel: etiquetaDeUsuario(user), role };
-  const [guardado, bot, estudio, copiable] = await Promise.all([
-    leerPerfilPrecios(ctx),
+  const [[guardado, estudio], bot, copiable] = await Promise.all([
+    // Mi estudio: sólo se ofrece a workspaces de tipo estudio; los miembros, para vincular a cada persona.
+    // Va después del perfil: con el local separado, las ventas del local salen de las categorías guardadas.
+    leerPerfilPrecios(ctx).then(async (g) => {
+      const estructura = normalizeStudioStructure(g?.perfil.studioStructure);
+      return [g, await datosDeMiEstudio(workspace.id, estructura?.enabled && estructura.separateLocal ? estructura : null)] as const;
+    }),
     // DNX Bot: el formulario es el camino principal; armarlo conversando se ofrece sólo si la persona
     // parece trabada (`OfertaArmarConversando`, dentro del formulario) y el bot está encendido.
     botEnPanel(),
-    // Mi estudio: sólo se ofrece a workspaces de tipo estudio; los miembros, para vincular a cada persona.
-    datosDeMiEstudio(workspace.id),
     // Quien creó su negocio desde el portal de socio y ya había armado su ¿Cuánto Cobro? ahí.
     hayPerfilDelPortalParaCopiar(ctx),
   ]);

@@ -9,6 +9,7 @@ import {
   createBaseCompleteProfile,
   createBaseCompleteQuote,
 } from "@repo/cuanto-cobro-core/__fixtures__/characterization-fixtures";
+import { perfilDanielSeparado } from "@repo/cuanto-cobro-core/__fixtures__/studio-fixtures";
 import { itemDesdeCalculo } from "./calculo-cuanto-cobro";
 import { itemSinDatosInternos, validarItem } from "./constantes";
 import { calcularTotales } from "./totales";
@@ -156,5 +157,17 @@ describe("itemDesdeCalculo con el precio completo (etapa A)", () => {
     const res = itemDesdeCalculo(calculoCompleto(), { id: "i1", nombre: "Cobertura", calculadoEn: CUANDO });
     if (!res.ok) throw new Error(res.error);
     expect("desglose" in res.item.calculo!).toBe(false);
+  });
+});
+
+describe("itemDesdeCalculo con el local separado de las coberturas", () => {
+  it("la instantánea guarda modo «separado»; sin el modo, no trae la clave", () => {
+    const separado = calculateCuantoCobro(perfilDanielSeparado(), createBaseCompleteQuote());
+    if (separado.status !== "complete") throw new Error(`fixture incompleta: ${separado.missingFields.join(", ")}`);
+    const res = itemDesdeCalculo(separado, { id: "i1", nombre: "Cobertura", calculadoEn: CUANDO });
+    expect(res.ok && res.item.calculo?.modo).toBe("separado");
+
+    const comun = itemDesdeCalculo(calculoCompleto(), { id: "i2", nombre: "Cobertura", calculadoEn: CUANDO });
+    expect(comun.ok && "modo" in comun.item.calculo!).toBe(false);
   });
 });

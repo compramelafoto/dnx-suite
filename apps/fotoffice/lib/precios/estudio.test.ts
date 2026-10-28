@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { createStudioPerson, getProfileCostHour, INITIAL_STUDIO_STRUCTURE } from "@repo/cuanto-cobro-core";
 import { createBaseCompleteProfile } from "@repo/cuanto-cobro-core/__fixtures__/characterization-fixtures";
-import { diasConSabadosAlternados, encenderMiEstudio, errorDeCamaras, errorDeEstudio, ofreceMiEstudio, retiroSugerido } from "./estudio";
+import { perfilDanielSeparado } from "@repo/cuanto-cobro-core/__fixtures__/studio-fixtures";
+import { diasConSabadosAlternados, encenderMiEstudio, errorDeCamaras, errorDeEstudio, ofreceMiEstudio, retiroSugerido, separarLocal } from "./estudio";
 import { normalizarPerfil, validarPerfil } from "./perfil-datos";
 import { resumirPerfil } from "./resumen";
 
@@ -97,5 +98,58 @@ describe("validación del perfil con Mi estudio", () => {
     expect(r.estudio).not.toBeNull();
     expect(r.valorHora).toBeCloseTo(getProfileCostHour(perfil)!, 6);
     expect(r.gastosPersonales).toBe(1_000_000);
+  });
+});
+
+describe("Local y coberturas", () => {
+  /** El bloque de Daniel tal como estaba antes de separar: sin modo, sin `scope` y sin tiempo en el local. */
+  const bloqueDeDaniel = () => {
+    const { separateLocal: _s, ownerLocalTimePercent: _t, ...resto } = perfilDanielSeparado().studioStructure!;
+    return { ...resto, people: resto.people.map(({ scope: _scope, ...p }) => p) };
+  };
+  const separado = (parcial: Partial<typeof INITIAL_STUDIO_STRUCTURE> = {}) => ({ ...perfilDanielSeparado().studioStructure!, ...parcial });
+
+  it("separarLocal propone la clasificación: el local al local, software y publicidad compartidos, el equipo al local", () => {
+    const e = separarLocal(bloqueDeDaniel());
+    expect(e.separateLocal).toBe(true);
+    const scope = (id: string) => e.fixedCostGroups.flatMap((g) => g.items).find((i) => i.id === id)!.scope;
+    expect([scope("rent"), scope("software"), scope("ads")]).toEqual(["local", "shared", "shared"]);
+    const equipo = e.people.filter((p) => p.role !== "owner");
+    expect(equipo.map((p) => [p.name, p.scope])).toEqual([
+      ["Camila", "local"],
+      ["Sabina", "local"],
+    ]);
+    expect(e.people.find((p) => p.role === "owner")!.scope).toBeUndefined();
+    expect(e.ownerLocalTimePercent).toBe("20");
+  });
+
+  it("separarLocal respeta lo que la persona ya eligió", () => {
+    const antes = bloqueDeDaniel();
+    const conEleccion = {
+      ...antes,
+      ownerLocalTimePercent: "30",
+      fixedCostGroups: antes.fixedCostGroups.map((g) => ({ ...g, items: g.items.map((i) => (i.id === "rent" ? { ...i, scope: "shared" as const } : i)) })),
+      people: antes.people.map((p) => (p.name === "Camila" ? { ...p, scope: "coverage" as const } : p)),
+    };
+    const e = separarLocal(conEleccion);
+    expect(e.fixedCostGroups.flatMap((g) => g.items).find((i) => i.id === "rent")!.scope).toBe("shared");
+    expect(e.people.find((p) => p.name === "Camila")!.scope).toBe("coverage");
+    expect(e.ownerLocalTimePercent).toBe("30");
+    expect(e.businessLines).toEqual(antes.businessLines);
+  });
+
+  it("errorDeEstudio revisa el sueldo del local, el tiempo en el local y la parte cobrable", () => {
+    expect(errorDeEstudio(separado())).toBeNull();
+    expect(errorDeEstudio(separado({ ownerLocalSalaryMonthly: "abc" }))).toBe("Revisá lo que te paga el local.");
+    expect(errorDeEstudio(separado({ ownerLocalTimePercent: "120" }))).toBe("Revisá tu tiempo en el local.");
+    const cobrable90 = separado().people.map((p) => (p.role === "owner" ? { ...p, billablePercent: "90" } : p));
+    expect(errorDeEstudio(separado({ people: cobrable90, ownerLocalTimePercent: "20" }))).toBe(
+      "Tu parte cobrable no puede ser mayor que el tiempo que no le das al local.",
+    );
+  });
+
+  it("sin el modo separado, esos campos no se revisan", () => {
+    const cobrable90 = separado().people.map((p) => (p.role === "owner" ? { ...p, billablePercent: "90" } : p));
+    expect(errorDeEstudio(separado({ separateLocal: false, ownerLocalSalaryMonthly: "abc", people: cobrable90 }))).toBeNull();
   });
 });

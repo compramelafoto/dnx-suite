@@ -18,6 +18,7 @@ import {
   type StudioEmploymentType,
   type StudioFixedCostGroup,
   type StudioPerson,
+  type StudioLocalSales,
   type StudioSkill,
 } from "@repo/cuanto-cobro-core";
 import { InputMoneda } from "@/components/campos/input-moneda";
@@ -26,8 +27,15 @@ import { diasConSabadosAlternados, retiroSugerido } from "@/lib/precios/estudio"
 import type { MiembroParaVincular } from "@/lib/precios/estudio-servidor";
 import { pesos } from "@/lib/presupuestos/editor";
 import { Aviso, SeccionEquipo, type PropsSeccion } from "./secciones";
+import { InterruptorSepararLocal, ResumenSeparado } from "./secciones-local";
 
-export type PropsSeccionEstudio = PropsSeccion & { miembros?: MiembroParaVincular[] };
+export type PropsSeccionEstudio = PropsSeccion & {
+  miembros?: MiembroParaVincular[];
+  /** Local y coberturas: las categorías de ingreso de Caja, para asociarlas a las líneas que no venden horas. */
+  categoriasIngreso?: { id: string; nombre: string }[];
+  /** Local y coberturas: lo que vendió el local por mes según Caja (con lo guardado). */
+  ventasLocal?: StudioLocalSales | null;
+};
 
 export const ETIQUETA_CONTRATACION: Record<Exclude<StudioEmploymentType, "">, string> = {
   employee: "Relación de dependencia (registrada)",
@@ -388,14 +396,24 @@ export function SeccionVosEnElEstudio(props: PropsSeccionEstudio) {
   if (!owner) return null;
   const cambiar = (parcial: Partial<StudioPerson>) => editarPersona(owner.id, parcial);
   const ocupados = new Set(s.people.flatMap((p) => (p.link ? [p.link.userId] : [])));
+  // Con el local separado, el retiro no se usa (lo reemplazan tus gastos personales y lo que te paga el local): se oculta, no se borra.
+  const separado = s.separateLocal === true;
   return (
     <div className="space-y-5">
-      <CampoTexto tipo="moneda" etiqueta="Tu retiro por mes" ayuda="Lo que te llevás vos, aparte de los gastos del estudio." valor={s.ownerDrawMonthly} onCambio={(v) => poner({ ownerDrawMonthly: v })} />
-      {sugerido > 0 && monto(s.ownerDrawMonthly) !== sugerido ? (
-        <button type="button" className="fo-btn fo-btn-secondary" onClick={() => poner({ ownerDrawMonthly: String(Math.round(sugerido)) })}>
-          Usar mis gastos personales ({pesos(sugerido)})
-        </button>
-      ) : null}
+      {separado ? (
+        <Aviso>
+          Tenés el local separado de las coberturas: tus gastos personales y lo que te paga el local se cargan en el paso <strong>Local y coberturas</strong>.
+        </Aviso>
+      ) : (
+        <>
+          <CampoTexto tipo="moneda" etiqueta="Tu retiro por mes" ayuda="Lo que te llevás vos, aparte de los gastos del estudio." valor={s.ownerDrawMonthly} onCambio={(v) => poner({ ownerDrawMonthly: v })} />
+          {sugerido > 0 && monto(s.ownerDrawMonthly) !== sugerido ? (
+            <button type="button" className="fo-btn fo-btn-secondary" onClick={() => poner({ ownerDrawMonthly: String(Math.round(sugerido)) })}>
+              Usar mis gastos personales ({pesos(sugerido)})
+            </button>
+          ) : null}
+        </>
+      )}
       <div className="grid gap-3 sm:grid-cols-2">
         <CampoDias valor={owner.workdaysPerWeek} onCambio={(v) => cambiar({ workdaysPerWeek: v })} etiqueta="Tus días por semana" />
         <CampoTexto tipo="text" etiqueta="Tus horas por día" valor={owner.hoursPerWorkday} onCambio={(v) => cambiar({ hoursPerWorkday: v })} />
@@ -410,6 +428,7 @@ export function SeccionVosEnElEstudio(props: PropsSeccionEstudio) {
       </div>
       <SelectorMiembro persona={owner} miembros={props.miembros ?? []} ocupados={ocupados} onCambio={(userId) => cambiar({ link: userId ? { kind: "member", userId } : undefined })} />
       <LineaPersona fila={desglose?.people.find((p) => p.id === owner.id)} />
+      {separado ? null : <InterruptorSepararLocal perfil={props.perfil} cambiar={props.cambiar} />}
     </div>
   );
 }
@@ -494,13 +513,16 @@ export function SeccionOtrasLineas(props: PropsSeccionEstudio) {
           Agregar línea
         </button>
       </div>
-      <CampoTexto
-        tipo="moneda"
-        etiqueta="Lo que dejan por mes las líneas que no venden horas"
-        ayuda="Lo que te queda de impresiones, productos o cursos después de pagar sus costos. Ya paga una parte del local: se descuenta de lo que tienen que cubrir las horas. Si no sabés, dejalo en cero."
-        valor={s.otherLinesMonthlyContribution}
-        onCambio={(v) => poner({ otherLinesMonthlyContribution: v })}
-      />
+      {/* Con el local separado, lo reemplaza la cuenta del local («Local y coberturas»): se oculta, no se borra. */}
+      {s.separateLocal ? null : (
+        <CampoTexto
+          tipo="moneda"
+          etiqueta="Lo que dejan por mes las líneas que no venden horas"
+          ayuda="Lo que te queda de impresiones, productos o cursos después de pagar sus costos. Ya paga una parte del local: se descuenta de lo que tienen que cubrir las horas. Si no sabés, dejalo en cero."
+          valor={s.otherLinesMonthlyContribution}
+          onCambio={(v) => poner({ otherLinesMonthlyContribution: v })}
+        />
+      )}
       <div className="space-y-3">
         <h3 className="text-[0.9375rem] font-semibold">Ganancia del estudio</h3>
         <p className="text-sm text-[var(--fo-muted)]">
@@ -541,6 +563,10 @@ export function SeccionResumenEstudio(props: PropsSeccionEstudio) {
   const enEstructura = d.people.filter((p) => p.inStructure);
   return (
     <div className="space-y-5">
+      {d.separated ? (
+        <ResumenSeparado props={props} d={d} />
+      ) : (
+        <>
       <table className="w-full text-sm">
         <tbody>
           {filas.map(([t, v]) => (
@@ -560,6 +586,8 @@ export function SeccionResumenEstudio(props: PropsSeccionEstudio) {
         </tbody>
       </table>
       <Total etiqueta="Valor hora del estudio" valor={d.studioHourRate === null ? "—" : pesos(d.studioHourRate)} />
+        </>
+      )}
       <div>
         <h3 className="text-[0.9375rem] font-semibold">¿Cuánto vale una hora de cada uno?</h3>
         <ul className="mt-2 divide-y divide-[var(--fo-border)] text-sm">

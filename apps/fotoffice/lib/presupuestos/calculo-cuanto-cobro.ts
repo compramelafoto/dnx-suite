@@ -110,6 +110,7 @@ export function itemDesdeCalculo(resultado: CuantoCobroCalculationResult, entrad
           })),
         }
       : {}),
+    ...(resultado.studio?.separated ? { modo: "separado" as const } : {}),
   };
 
   return {
