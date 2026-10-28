@@ -30,6 +30,8 @@ a Telegram un presupuesto con un precio razonable para aprobar, y el cliente lo 
 | Extras | Impresiones, fotolibro y otros se contratan **después**: el bot los menciona como opcionales y no los cotiza |
 | Traslado | Como un Uber: **$15.000 de ida y $15.000 de vuelta cada 10 km** = **$3.000 por km de distancia** (ida + vuelta). **Lo paga el cliente tal cual, sin margen, y no se ve detallado**: va sumado dentro del precio de la cobertura |
 | Punto de partida del traslado | La casa de Daniel: **García del Cossio 2050** (se supone Funes; confirmar al configurar) |
+| Segundo fotógrafo | Cuesta **el 30 % de lo que vale la hora de Daniel** (la hora que calcula ¿Cuánto cobro?) **por cada hora de cobertura** |
+| Cuándo se ofrece | **Bodas: siempre** como segunda opción del presupuesto. **Cualquier evento con más de 200 invitados**: se recomienda y va como segunda opción |
 | Aprobación | Por Telegram, como el presupuesto automático actual (PR 795): los presupuestos de eventos se aprueban ahí |
 
 ## 3. Cómo funciona
@@ -63,6 +65,24 @@ infantil" → "Cumpleaños Infantil"). Si no encuentra una sola, usa una categor
 "Evento" (se crea una vez si no existe, sin propuesta modelo). Nunca le pasa el chat a una persona
 sólo porque el tipo no coincide.
 
+## 3 bis. Segundo fotógrafo (pedido de Daniel)
+
+- El presupuesto sale con **dos opciones** para que el cliente elija una (los presupuestos de
+  FOTOFFICE ya admiten opciones: `lib/presupuestos/alternativas.ts`):
+  - **Opción 1 — Un fotógrafo:** lo de §3.
+  - **Opción 2 — Dos fotógrafos:** lo mismo + un renglón "Segundo fotógrafo (*N* horas)" con
+    precio = 0,30 × valor de la hora de Daniel × horas de cobertura.
+- **Bodas:** las dos opciones siempre. Si la boda tiene propuesta modelo, la opción 2 es la propuesta
+  modelo + el renglón del segundo fotógrafo, con las horas de cobertura de esa propuesta.
+- **Otros eventos:** la opción 2 se agrega sólo si el cliente dice **más de 200 invitados**.
+- **El bot pregunta la cantidad de invitados** en eventos (no en sesiones de fotos). Si son más de
+  200, le comenta al cliente que para esa cantidad recomendamos un segundo fotógrafo y que el
+  presupuesto va a traer las dos opciones. Nunca dice el precio.
+- El aviso de Telegram muestra las dos opciones con su total.
+- *Decisiones mías:* el segundo fotógrafo no suma horas de edición (edita Daniel con la misma
+  regla) ni traslado aparte (viajan juntos); el 30 % se aplica sobre el valor de la hora sin
+  traslado. El 30 % y el umbral de 200 invitados son configurables.
+
 ## 4. Distancia
 
 - Se usa el geocodificador que ya tiene FOTOFFICE (`lib/geocode/nominatim.ts`, el mismo de los
@@ -82,6 +102,7 @@ modelo)" con:
 - horas de edición por hora de cobertura (2);
 - fotos por hora para el cálculo interno (575);
 - fotos mínimas prometidas: eventos (400) y sesiones de fotos (70);
+- segundo fotógrafo: porcentaje de la hora (30 %), invitados a partir de los que se recomienda (más de 200) y "siempre en Bodas";
 - qué categorías son "sesión de fotos" (en DNX Estudio: "Sesión de Fotos"); el resto son eventos;
 - costo del traslado por km de distancia, ida y vuelta (3.000);
 - dirección de partida (García del Cossio 2050, Funes), con "ubicada en el mapa: sí/no";
@@ -103,7 +124,7 @@ Se guarda por workspace. Valores de Daniel cargados para DNX Estudio.
 
 ## 7. Fuera de este diseño
 
-- Que la cantidad de invitados cambie el precio.
+- Que la cantidad de invitados cambie el precio, salvo el segundo fotógrafo de §3 bis.
 - Cotizar impresiones o fotolibro dentro del presupuesto inicial.
 - Video (si el cliente pide video, se anota en el detalle; la receta es de fotografía).
 - Distancia por rutas reales (Google Maps u otro servicio pago).
