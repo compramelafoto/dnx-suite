@@ -158,8 +158,13 @@ describe("responderConBot", () => {
     expect(t.vistos).toHaveLength(0);
   });
 
+  it("el tope diario por chat es de 60 respuestas (un pedido con varias tandas de fotos usa muchas)", async () => {
+    const { MAX_RESPUESTAS_POR_DIA } = await import("./responder");
+    expect(MAX_RESPUESTAS_POR_DIA).toBe(60);
+  });
+
   it("al llegar al tope diario del chat avisa una vez y pasa a persona, sin llamar al modelo", async () => {
-    USO.actual = { mensajesHoyPersona: 30, gastoMesGlobal: 0, gastoMesWorkspace: 0 };
+    USO.actual = { mensajesHoyPersona: 60, gastoMesGlobal: 0, gastoMesWorkspace: 0 };
     const chatId = await chatCon(["hola"]);
     const t = turnoQue("¡Hola!");
     expect(await responderConBot(chatId, deps(t.fn))).toBe("derivo");

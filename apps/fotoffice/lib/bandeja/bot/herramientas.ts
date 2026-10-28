@@ -256,7 +256,7 @@ export function herramientasDeAtencion(
     defineTool({
       name: "armar_pedido_impresion",
       description:
-        "Arma un pedido de copias o ampliaciones con las fotos que mandó el cliente por este chat (las ves numeradas: [foto 1], [foto 2]…; \"todas\" son las que mandó después de su último pedido) y devuelve el total, la seña y dos links de Mercado Pago (seña o total). Usala cuando ya sepas, para cada grupo de fotos, la medida, la cantidad de copias de cada foto y el plazo; el papel es brillante salvo que pida mate. Si quiere envío a domicilio, pasá la dirección con la localidad. Si el cliente cambia algo, volvé a usarla: el pedido anterior se reemplaza.",
+        "Arma un pedido de copias o ampliaciones con las fotos que mandó el cliente por este chat (las ves numeradas: [foto 1], [foto 2]…; \"todas\" son las que mandó después de su último pedido) y devuelve el total, la seña y dos links de Mercado Pago (seña o total). Usala cuando ya sepas, para cada grupo de fotos, la medida, la cantidad de copias de cada foto y el plazo; el papel es brillante salvo que pida mate. Si quiere envío a domicilio, pasá la dirección con la localidad. Si pide el resumen por correo, pasá su email. Si el cliente cambia algo, volvé a usarla: el pedido anterior se reemplaza.",
       input: z.object({
         renglones: z
           .array(
@@ -271,9 +271,10 @@ export function herramientasDeAtencion(
           .min(1)
           .max(20),
         envio: z.object({ direccion: z.string().min(5).max(200) }).optional(),
+        email: z.string().email().max(254).optional(),
       }),
       kind: "read",
-      run: async ({ renglones, envio }) => {
+      run: async ({ renglones, envio, email }) => {
         if (!chat) return { ok: true, message: "Ahora no puedo armar el pedido. Usá pasar_a_persona con un resumen de lo que pide." };
         // "Todas" = las fotos que llegaron después del último pedido armado en este chat.
         const desde = await deps.ultimoPedidoEn(workspaceId, chat).catch(() => null);
@@ -282,7 +283,7 @@ export function herramientasDeAtencion(
           .map(([n]) => n)
           .sort((a, b) => a - b);
         const plazo = { instantanea: "INSTANTANEA", "para mañana": "MANANA", "proxima semana": "SEMANA" } as const;
-        const datos: DatosPedidoBot = { renglones: [], envio: envio ? { direccion: envio.direccion } : null, nombre: chat.nombre ?? "" };
+        const datos: DatosPedidoBot = { renglones: [], envio: envio ? { direccion: envio.direccion } : null, nombre: chat.nombre ?? "", email: email ?? null };
         for (const r of renglones) {
           const numeros = r.fotos === "todas" ? todas : r.fotos;
           const falta = numeros.find((n) => !fotos.has(n));
@@ -323,6 +324,7 @@ export function herramientasDeAtencion(
             `Fechas (si paga hoy): ${fechas.join("; ")}.`,
             `Link para pagar la seña: ${res.linkSena}`,
             `Link para pagar el total: ${res.linkTotal}`,
+            ...(email ? [`El resumen también salió por correo a ${email}.`] : []),
             "Pasale al cliente el resumen corto, el total, la seña y los dos links (puede pagar cualquiera de los dos). Cuando pague, le llega la confirmación por acá.",
           ].join("\n"),
         };

@@ -18,7 +18,9 @@ import { referenciaPedido } from "./pago-servidor";
 
 export type FotoDelPedido = { mensajeId: string };
 export type RenglonBot = { fotos: FotoDelPedido[]; medida: string; cantidad: number; plazo: Plazo; papel: "BRILLO" | "MATE" };
-export type DatosPedidoBot = { renglones: RenglonBot[]; envio: { direccion: string } | null; nombre: string };
+export type DatosPedidoBot = { renglones: RenglonBot[]; envio: { direccion: string } | null; nombre: string; email?: string | null };
+
+export type ResumenPorCorreo = { email: string; nombre: string; numero: number; lineas: LineaCotizada[]; envio: number; total: number; sena: number; depositPct: number; linkSena: string; linkTotal: string; fechas: { plazo: Plazo; fecha: string }[] };
 export type ChatDelPedido = { id: string; waId: string; clientId: string | null; nombre: string | null };
 
 export type ResultadoPedidoBot =
@@ -38,6 +40,8 @@ export type DepsPedidoBot = {
   estudio?: (workspaceId: string) => Promise<Punto | null>;
   geocodificar?: (direccion: string) => Promise<Punto | null>;
   abrir?: AbrirCobro;
+  /** Si el cliente dio su correo: el resumen del pedido con los dos links. */
+  enviarResumen?: (workspaceId: string, d: ResumenPorCorreo) => Promise<void>;
   origen?: string;
   slug?: string;
 };
@@ -72,7 +76,7 @@ const abrirConMercadoPago: AbrirCobro = async (d) => {
   return pref.checkoutUrl;
 };
 
-async function porOmision(workspaceId: string): Promise<Required<Omit<DepsPedidoBot, "db" | "ahora" | "abrir">>> {
+async function porOmision(workspaceId: string): Promise<Required<Omit<DepsPedidoBot, "db" | "ahora" | "abrir" | "enviarResumen">>> {
   const [{ isModuleEnabledForWorkspace }, { PRINT_ORDERS_MODULE_KEY }, { resolveWorkspaceCollector }, { extrasDelWorkspace }, { coordenadasDelEstudio }, { geocodificarLugar }] =
     await Promise.all([
       import("@/lib/modules/gating"),
@@ -205,6 +209,7 @@ export async function crearPedidoDesdeWhatsapp(workspaceId: string, chat: ChatDe
     });
 
     const nombre = (datos.nombre || chat.nombre || "Cliente de WhatsApp").trim().slice(0, 120);
+    const email = typeof datos.email === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(datos.email.trim()) ? datos.email.trim().slice(0, 254) : null;
     const pedido = await db.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`fotoffice-impresion-numero:${workspaceId}`}))`;
       // Un pedido pendiente por chat: el nuevo reemplaza al anterior (si después lo pagan, no sale).
@@ -220,7 +225,7 @@ export async function crearPedidoDesdeWhatsapp(workspaceId: string, chat: ChatDe
           source: "WHATSAPP",
           clientId: chat.clientId,
           nombre,
-          email: null,
+          email,
           telefono: `+${chat.waId}`,
           paper: datos.renglones[0].papel,
           delivery: envio ? "ENVIO" : "RETIRO",
@@ -246,6 +251,12 @@ export async function crearPedidoDesdeWhatsapp(workspaceId: string, chat: ChatDe
       abrir({ ...comun, montoCents: Math.round(total * 100), tipo: "TOTAL" }),
     ]);
     const plazos = [...new Set(cot.lineas.map((l) => l.plazo))];
+    const fechas = plazos.map((plazo) => ({ plazo, fecha: fechaPorPlazo(plazo, ahora) }));
+    if (email) {
+      await (deps.enviarResumen ?? enviarResumenPorCorreo)(workspaceId, {
+        email, nombre, numero: pedido.number, lineas: cot.lineas, envio: envio?.pesos ?? 0, total, sena, depositPct, linkSena, linkTotal, fechas,
+      }).catch(() => console.warn("[impresiones] no salió el resumen por correo", { numero: pedido.number }));
+    }
     return {
       ok: true,
       numero: pedido.number,
@@ -257,10 +268,49 @@ export async function crearPedidoDesdeWhatsapp(workspaceId: string, chat: ChatDe
       linkSena,
       linkTotal,
       lineas: cot.lineas,
-      fechas: plazos.map((plazo) => ({ plazo, fecha: fechaPorPlazo(plazo, ahora) })),
+      fechas,
     };
   } catch (e) {
     console.error("[impresiones] el bot no pudo armar el pedido", { codigo: (e as { code?: unknown } | null)?.code ?? (e instanceof Error ? e.name : "desconocido") });
     return no("ERROR");
   }
+}
+
+const precio = (n: number) => `$${Math.round(n).toLocaleString("es-AR")}`;
+const ddmm = (ymd: string) => `${ymd.slice(8, 10)}/${ymd.slice(5, 7)}`;
+
+/** El resumen del pedido por correo (si el cliente lo pidió): lo mismo que le pasa el bot, con los dos links. */
+async function enviarResumenPorCorreo(workspaceId: string, d: ResumenPorCorreo): Promise<void> {
+  const [{ sendTransactionalEmail }, { loadWorkspaceSender }, { esc }] = await Promise.all([
+    import("@/lib/communications/send-email"),
+    import("@/lib/communications/load-workspace-sender"),
+    import("./correo-lab"),
+  ]);
+  const plazo = { INSTANTANEA: "instantánea", MANANA: "para mañana", SEMANA: "para la próxima semana" } as const;
+  const lineas = d.lineas.map((l) => `${l.cantidad} × ${l.medida} ${plazo[l.plazo]}: ${precio(l.precioUnitario)} c/u`);
+  const texto = [
+    `¡Hola, ${d.nombre}!`,
+    "",
+    `Este es el resumen de tu pedido de copias N° ${d.numero}:`,
+    ...lineas.map((l) => `- ${l}`),
+    ...(d.envio > 0 ? [`- Envío: ${precio(d.envio)}`] : []),
+    `Total: ${precio(d.total)}`,
+    `Seña (${d.depositPct} %): ${precio(d.sena)}`,
+    `Fechas si pagás hoy: ${d.fechas.map((f) => `${plazo[f.plazo]}, ${ddmm(f.fecha)}`).join("; ")}`,
+    "",
+    `Pagar la seña: ${d.linkSena}`,
+    `Pagar el total: ${d.linkTotal}`,
+    "",
+    "Cuando pagues, el pedido sale a imprimir. Te esperamos en el estudio.",
+  ].join("\n");
+  await sendTransactionalEmail({
+    to: d.email,
+    sender: await loadWorkspaceSender(workspaceId),
+    subject: `Tu pedido de copias N° ${d.numero}`,
+    text: texto,
+    html: texto
+      .split("\n")
+      .map((l) => (l.startsWith("Pagar la seña: ") ? `<p><a href="${esc(d.linkSena)}">Pagar la seña (${precio(d.sena)})</a></p>` : l.startsWith("Pagar el total: ") ? `<p><a href="${esc(d.linkTotal)}">Pagar el total (${precio(d.total)})</a></p>` : `<p>${esc(l)}</p>`))
+      .join(""),
+  });
 }
