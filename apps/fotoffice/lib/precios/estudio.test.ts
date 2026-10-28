@@ -148,6 +148,12 @@ describe("Local y coberturas", () => {
     );
   });
 
+  it("los porcentajes que usa el motor tienen la misma regla que la pantalla: «20,125» no se acepta", () => {
+    expect(errorDeEstudio(separado({ ownerLocalTimePercent: "20,125" }))).toBe("Revisá tu tiempo en el local.");
+    expect(errorDeEstudio(separado({ coverageSharePercent: "20,125" }))).toBe("Revisá el porcentaje de gastos compartidos que van a coberturas.");
+    expect(errorDeEstudio(separado({ ownerLocalTimePercent: "20,5", coverageSharePercent: "70,25" }))).toBeNull();
+  });
+
   it("sin el modo separado, esos campos no se revisan", () => {
     const cobrable90 = separado().people.map((p) => (p.role === "owner" ? { ...p, billablePercent: "90" } : p));
     expect(errorDeEstudio(separado({ separateLocal: false, ownerLocalSalaryMonthly: "abc", people: cobrable90 }))).toBeNull();

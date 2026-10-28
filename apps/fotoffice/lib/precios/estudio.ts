@@ -115,9 +115,12 @@ function errorDelLocal(e: CuantoCobroStudioStructure): string | null {
   if (e.separateLocal !== true) return null;
   const montoMal = (v: string | undefined) => (v ?? "").trim() !== "" && parseCuantoCobroAmount(v ?? "") === null;
   const pctMal = (v: string | undefined) => parsePercent(v ?? "") === null;
+  // El motor lee el tiempo en el local y la parte compartida con `parseStudioDecimal` (hasta dos decimales):
+  // lo que el motor no puede leer tampoco se acepta acá, así la pantalla y el precio usan el mismo número.
+  const pctDelMotorMal = (v: string | undefined) => pctMal(v) || ((v ?? "").trim() !== "" && parseStudioDecimal(v) === null);
   if (montoMal(e.ownerLocalSalaryMonthly)) return "Revisá lo que te paga el local.";
-  if (pctMal(e.ownerLocalTimePercent)) return "Revisá tu tiempo en el local.";
-  if (pctMal(e.coverageSharePercent)) return "Revisá el porcentaje de gastos compartidos que van a coberturas.";
+  if (pctDelMotorMal(e.ownerLocalTimePercent)) return "Revisá tu tiempo en el local.";
+  if (pctDelMotorMal(e.coverageSharePercent)) return "Revisá el porcentaje de gastos compartidos que van a coberturas.";
   if (pctMal(e.localGoodsCostPercent)) return "Revisá el costo de la mercadería.";
   if (montoMal(e.localMonthlyContributionManual)) return "Revisá lo que deja el local por mes.";
   const owner = e.people.find((p) => p.role === "owner");
