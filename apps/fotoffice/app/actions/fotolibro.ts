@@ -20,7 +20,7 @@ export async function crearFotolibroAction(
   const { user, workspace } = await requireActiveWorkspace();
   if (!workspace) return { error: "No hay una institución activa." };
   if (!(await canDesignFotolibros(user.id, workspace.id))) {
-    return { error: "No tenés permiso para crear fotolibros: hace falta gestionar Ventas." };
+    return { error: "No tenés permiso para crear fotolibros: hace falta gestionar Fotolibros o Ventas." };
   }
 
   const r = await crearFotolibro({
@@ -48,7 +48,7 @@ export async function crearFotolibroDesdeCobradorAction(input: {
   const { user, workspace } = await requireActiveWorkspace();
   if (!workspace) return { ok: false, error: "No hay una institución activa." };
   if (!(await canDesignFotolibros(user.id, workspace.id))) {
-    return { ok: false, error: "No tenés permiso para crear fotolibros: hace falta gestionar Ventas. Se crea solo al cobrar." };
+    return { ok: false, error: "No tenés permiso para crear fotolibros: hace falta gestionar Fotolibros o Ventas. Se crea solo al cobrar." };
   }
   const e = leerFotolibroVendido({ ...(input.eleccion as object), costoMinor: null, cajaCostoMinor: null, templateId: null });
   if (!e) return { ok: false, error: "Volvé a elegir el fotolibro en la calculadora." };

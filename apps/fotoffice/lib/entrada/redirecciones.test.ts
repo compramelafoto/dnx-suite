@@ -60,3 +60,20 @@ describe("Captación pasó a Consultas: las direcciones viejas siguen andando", 
     expect(RESERVED_SLUGS.has("consultas")).toBe(true);
   });
 });
+
+describe("Fotolibros y Foto carnet salieron de Ventas: las direcciones viejas siguen andando", () => {
+  it("la lista de fotolibros y la de foto carnet", () => {
+    expect(redirigir("/ventas/fotolibros")).toBe("/fotolibros");
+    expect(redirigir("/ventas/foto-carnet")).toBe("/foto-carnet");
+  });
+
+  it("el editor de un fotolibro conserva el camino", () => {
+    expect(redirigir("/ventas/fotolibros/t1/v1")).toBe("/fotolibros/t1/v1");
+    expect(redirigir("/ventas/fotolibros/t1/v1/libre")).toBe("/fotolibros/t1/v1/libre");
+  });
+
+  it("el resto de Ventas no se toca", () => {
+    expect(redirigir("/ventas")).toBeNull();
+    expect(redirigir("/ventas/impresiones")).toBeNull();
+  });
+});

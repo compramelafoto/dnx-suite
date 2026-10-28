@@ -20,4 +20,8 @@ export type RedireccionPermanente = {
 export const REDIRECCIONES_PERMANENTES: RedireccionPermanente[] = [
   { source: "/captacion", destination: "/consultas", permanent: true },
   { source: "/captacion/:camino*", destination: "/consultas/:camino*", permanent: true },
+  // Fotolibros y Foto carnet salieron de Ventas el 28/10/2026 (plan Base): son módulos propios.
+  { source: "/ventas/fotolibros", destination: "/fotolibros", permanent: true },
+  { source: "/ventas/fotolibros/:camino*", destination: "/fotolibros/:camino*", permanent: true },
+  { source: "/ventas/foto-carnet", destination: "/foto-carnet", permanent: true },
 ];

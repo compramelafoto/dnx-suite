@@ -2,11 +2,14 @@
 export const FOTOLIBRO_TEMPLATE_KEY = "fotolibro";
 
 /**
- * Dónde viven los fotolibros del estudio: en Ventas, al lado de Impresiones y Costos, porque
- * diseñarlos es trabajo de estudio. El Diseñador de Socios queda para el carnet y las piezas
- * de la institución.
+ * Fotolibros del estudio: módulo propio, para que un fotógrafo pueda tenerlos sin abrir todo el
+ * mostrador. Antes colgaban de Ventas (`/ventas/fotolibros`); esa dirección redirige acá
+ * (`lib/entrada/redirecciones.ts`). El Diseñador de Socios queda para el carnet y las piezas de
+ * la institución.
  */
-export const FOTOLIBROS_BASE_PATH = "/ventas/fotolibros";
+export const FOTOLIBROS_MODULE_KEY = "fotolibros";
+
+export const FOTOLIBROS_BASE_PATH = "/fotolibros";
 
 /**
  * Fotolibros en el portal del socio.
