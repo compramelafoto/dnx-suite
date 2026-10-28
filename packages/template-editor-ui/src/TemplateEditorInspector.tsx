@@ -12,6 +12,11 @@ import { SegmentedControl } from "./inspector/SegmentedControl";
 import { ToggleSwitch } from "./inspector/ToggleSwitch";
 import type { CanvasQuickAlignment } from "@repo/template-editor-core";
 import {
+  canvasDpi,
+  classListHeadingScale,
+  ptFromPx,
+  pxFromPt,
+  roundPt,
   CLASS_LIST_MAX_COLUMNS,
   CLASS_LIST_VARIABLE_KEY,
   DEFAULT_CLASS_LIST_OPTIONS,
@@ -308,7 +313,10 @@ export function TemplateEditorInspector({
         <ClassListOptionsPanel
           options={readClassListOptions(cfg)}
           namesStyle={classListNamesStyle(cfg)}
+          namesFontSize={getTextVisualConfig(cfg).fontSize}
+          dpi={canvasDpi(canvas)}
           onChange={(patch) => updateConfig({ classList: { ...readClassListOptions(cfg), ...patch } })}
+          onNamesChange={updateConfig}
           onUseOtherVariable={() => {
             const next: Record<string, unknown> = { ...cfg, variableKey: "student.fullName" };
             delete next.classList;
@@ -674,6 +682,98 @@ const CONVERSION_LABEL = {
   capitalize: "Iniciales En Mayúscula",
 } as const;
 
+/** Topes del cuerpo en píxeles del lienzo, los mismos de la barra de texto. */
+const FONT_SIZE_MIN_PX = 8;
+const FONT_SIZE_MAX_PX = 400;
+
+/**
+ * Un cuerpo tipográfico en puntos, el tamaño real impreso. Se guarda en píxeles del lienzo
+ * (`px`); la cuenta sale de la resolución del lienzo, así 10 pt acá son 10 pt en el papel.
+ */
+function PointSizeField({
+  label,
+  px,
+  dpi,
+  onChange,
+}: {
+  label: string;
+  px: number;
+  dpi: number;
+  onChange: (px: number) => void;
+}) {
+  const pt = roundPt(ptFromPx(px, dpi));
+  const setPt = (v: number) =>
+    onChange(Math.max(FONT_SIZE_MIN_PX, Math.min(FONT_SIZE_MAX_PX, pxFromPt(v, dpi))));
+  return (
+    <div>
+      <FieldLabel>{label}</FieldLabel>
+      <div className="flex items-center gap-1">
+        <button
+          type="button"
+          className="h-7 w-7 rounded border border-[color:var(--te-line)] text-[13px] text-[color:var(--te-ink)]"
+          aria-label={`Reducir ${label.toLowerCase()}`}
+          onClick={() => setPt(Math.ceil(pt) - 1)}
+        >
+          −
+        </button>
+        <input
+          type="number"
+          className="h-7 w-16 rounded border border-[color:var(--te-line)] bg-[color:var(--te-surface)] px-1 text-center text-[12px] text-[color:var(--te-ink)]"
+          value={pt}
+          step={0.5}
+          min={roundPt(ptFromPx(FONT_SIZE_MIN_PX, dpi))}
+          onChange={(e) => {
+            const v = Number(e.target.value.replace(",", "."));
+            if (Number.isFinite(v) && v > 0) setPt(v);
+          }}
+          aria-label={`${label} en puntos`}
+        />
+        <button
+          type="button"
+          className="h-7 w-7 rounded border border-[color:var(--te-line)] text-[13px] text-[color:var(--te-ink)]"
+          aria-label={`Aumentar ${label.toLowerCase()}`}
+          onClick={() => setPt(Math.floor(pt) + 1)}
+        >
+          +
+        </button>
+        <span className="text-[11px] text-[color:var(--te-ink-muted)]">pt</span>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Tamaño, negrita y cursiva de los nombres del listado. Son los mismos datos que la barra de
+ * texto del bloque; están acá también para manejar nombres y título uno al lado del otro.
+ */
+function ClassListNamesStylePanel({
+  namesStyle,
+  fontSize,
+  dpi,
+  onChange,
+}: {
+  namesStyle: ClassListTextStyle;
+  fontSize: number;
+  dpi: number;
+  onChange: (patch: Record<string, unknown>) => void;
+}) {
+  return (
+    <div className="space-y-2 rounded-[var(--te-radius)] border border-[color:var(--te-line)] p-2">
+      <p className="text-[11px] font-semibold text-[color:var(--te-ink)]">Estilo de los nombres</p>
+      <PointSizeField label="Tamaño" px={fontSize} dpi={dpi} onChange={(px) => onChange({ fontSize: px })} />
+      <ToggleSwitch
+        checked={namesStyle.bold}
+        onChange={(bold) => onChange({ fontWeight: bold ? 700 : 400 })}
+        label="Negrita"
+      />
+      <ToggleSwitch checked={namesStyle.italic} onChange={(fontItalic) => onChange({ fontItalic })} label="Cursiva" />
+      <p className="text-[10px] leading-snug text-[color:var(--te-ink-faint)]">
+        La tipografía, el color y las mayúsculas de los nombres se eligen en la barra de texto.
+      </p>
+    </div>
+  );
+}
+
 /**
  * El estilo del título del listado (curso y colegio), aparte del de los nombres. Lo que no se
  * cambia acá sale igual que los nombres; «Igual que los nombres» vuelve a heredar.
@@ -681,10 +781,15 @@ const CONVERSION_LABEL = {
 function ClassListHeadingStylePanel({
   style,
   namesStyle,
+  headingFontSize,
+  dpi,
   onChange,
 }: {
   style: ClassListHeadingStyle;
   namesStyle: ClassListTextStyle;
+  /** El cuerpo con que sale el título: el propio o el proporcional a los nombres. */
+  headingFontSize: number;
+  dpi: number;
   onChange: (next: ClassListHeadingStyle) => void;
 }) {
   const efectivo = resolveClassListHeadingStyle(style, namesStyle);
@@ -698,8 +803,24 @@ function ClassListHeadingStylePanel({
     <div className="space-y-2 rounded-[var(--te-radius)] border border-[color:var(--te-line)] p-2">
       <p className="text-[11px] font-semibold text-[color:var(--te-ink)]">Estilo del título</p>
       <p className="text-[10px] leading-snug text-[color:var(--te-ink-faint)]">
-        Aparte de los nombres. Lo que no cambies acá sale igual que los nombres, que se eligen en la barra de texto.
+        Aparte de los nombres. Lo que no cambies acá sale igual que los nombres.
       </p>
+      <div>
+        <PointSizeField label="Tamaño" px={headingFontSize} dpi={dpi} onChange={(px) => set("fontSize", px)} />
+        {style.fontSize !== undefined ? (
+          <button
+            type="button"
+            className="mt-0.5 text-[10px] text-[color:var(--te-ink-muted)] underline hover:text-[color:var(--te-ink)]"
+            onClick={() => set("fontSize", undefined)}
+          >
+            Proporcional a los nombres
+          </button>
+        ) : (
+          <p className="mt-0.5 text-[10px] leading-snug text-[color:var(--te-ink-faint)]">
+            Ahora sigue a los nombres: si les cambiás el tamaño, el título cambia con ellos.
+          </p>
+        )}
+      </div>
       <div>
         <FieldLabel>Tipografía</FieldLabel>
         <select
@@ -775,12 +896,20 @@ function ClassListHeadingStylePanel({
 function ClassListOptionsPanel({
   options,
   namesStyle,
+  namesFontSize,
+  dpi,
   onChange,
+  onNamesChange,
   onUseOtherVariable,
 }: {
   options: ClassListOptions;
   namesStyle: ClassListTextStyle;
+  /** El cuerpo de los nombres, en píxeles del lienzo (el `fontSize` del bloque). */
+  namesFontSize: number;
+  dpi: number;
   onChange: (patch: Partial<ClassListOptions>) => void;
+  /** Cambia la tipografía de los nombres, que vive en la configuración del bloque. */
+  onNamesChange: (patch: Record<string, unknown>) => void;
   onUseOtherVariable: () => void;
 }) {
   return (
@@ -852,19 +981,9 @@ function ClassListOptionsPanel({
       />
       {options.showHeading ? (
         <div>
-          <FieldLabel>Tamaño del título</FieldLabel>
-          <SegmentedControl
-            className="w-full"
-            value={String(options.headingScale)}
-            onChange={(v) => onChange({ headingScale: Number(v) })}
-            options={[
-              { value: "1", label: "Igual" },
-              { value: "1.2", label: "Un poco más" },
-              { value: "1.5", label: "Más grande" },
-            ]}
-          />
-          <p className="mt-1 text-[10px] leading-snug text-[color:var(--te-ink-faint)]">
-            El título va arriba de cada curso. Con el título no hace falta un texto aparte con el curso.
+          <p className="text-[10px] leading-snug text-[color:var(--te-ink-faint)]">
+            El título va arriba de cada curso. Con el título no hace falta un texto aparte con el curso. Su tamaño se
+            elige en «Estilo del título».
           </p>
           <div className="mt-2">
             <ToggleSwitch
@@ -887,10 +1006,13 @@ function ClassListOptionsPanel({
       <p className="text-[10px] leading-snug text-[color:var(--te-ink-faint)]">
         Va una sola vez, arriba de todo y dentro del mismo recuadro del listado.
       </p>
+      <ClassListNamesStylePanel namesStyle={namesStyle} fontSize={namesFontSize} dpi={dpi} onChange={onNamesChange} />
       {options.showHeading || options.showSchoolName ? (
         <ClassListHeadingStylePanel
           style={options.headingStyle}
           namesStyle={namesStyle}
+          headingFontSize={namesFontSize * classListHeadingScale(options, namesFontSize)}
+          dpi={dpi}
           onChange={(headingStyle) => onChange({ headingStyle })}
         />
       ) : null}
@@ -904,8 +1026,8 @@ function ClassListOptionsPanel({
         familia al confirmar pueden sumar otros cursos del mismo colegio; cada curso sale con su título.
       </p>
       <p className="text-[10px] leading-snug text-[color:var(--te-ink-faint)]">
-        Si la lista no entra en el recuadro, la letra se achica para todos por igual. La tipografía, el tamaño, el
-        color y las mayúsculas de los nombres se eligen en la barra de texto; los del título, en «Estilo del título».
+        Los tamaños están en puntos, el tamaño real impreso. Si la lista no entra en el recuadro, la letra se achica
+        para todos por igual: agrandá el recuadro para que salga al tamaño elegido.
       </p>
       <button
         type="button"

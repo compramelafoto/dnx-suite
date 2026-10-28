@@ -12,7 +12,11 @@ import {
 import { TemplateBlockSafeAreaAlignmentStrip } from "./TemplateBlockSafeAreaAlignmentStrip";
 import {
   asObject,
+  canvasDpi,
   formatFontFamilyCss,
+  ptFromPx,
+  pxFromPt,
+  roundPt,
   normalizeBlockConfig,
   readTextVerticalAlign,
   type TemplateV2Block,
@@ -33,6 +37,10 @@ function mergeConfigJson(block: TemplateV2Block, patch: Record<string, unknown>)
   const base = asObject(normalizeBlockConfig(block.type, block.configJson));
   return { ...base, ...patch };
 }
+
+/** Topes del cuerpo en píxeles del lienzo (lo que se guarda); la barra los muestra en puntos. */
+const FONT_SIZE_MIN_PX = 8;
+const FONT_SIZE_MAX_PX = 400;
 
 const toolSep = <span className="mx-0.5 hidden h-6 w-px shrink-0 bg-[color:var(--te-line)] sm:inline" aria-hidden />;
 
@@ -186,6 +194,16 @@ export function TemplateTextFormatToolbar({ state, dispatch, shellClassName }: P
   const fontEntry = findEditorFontEntry(fontFamily);
   const fontLabel = fontEntry?.label ?? fontFamily;
   const fontSize = typeof cfg.fontSize === "number" ? cfg.fontSize : 20;
+  /*
+   * El cuerpo se guarda en píxeles del lienzo, pero se muestra y se elige en puntos, lo que mide
+   * el texto impreso según la resolución del lienzo: 10 pt acá son 10 pt en el papel.
+   */
+  const dpi = canvasDpi(state.canvas);
+  const fontSizePt = roundPt(ptFromPx(fontSize, dpi));
+  const minPt = roundPt(ptFromPx(FONT_SIZE_MIN_PX, dpi));
+  const maxPt = roundPt(ptFromPx(FONT_SIZE_MAX_PX, dpi));
+  const setFontSizePt = (pt: number) =>
+    patchConfig({ fontSize: Math.max(FONT_SIZE_MIN_PX, Math.min(FONT_SIZE_MAX_PX, pxFromPt(pt, dpi))) });
   const fontWeight = typeof cfg.fontWeight === "number" ? cfg.fontWeight : 400;
   const lineHeight = typeof cfg.lineHeight === "number" ? cfg.lineHeight : 1.2;
   const letterSpacing = typeof cfg.letterSpacing === "number" ? cfg.letterSpacing : 0;
@@ -292,34 +310,39 @@ export function TemplateTextFormatToolbar({ state, dispatch, shellClassName }: P
         <button
           type="button"
           className={fmtMiniBtn}
-          disabled={locked || fontSize <= 8}
+          disabled={locked || fontSize <= FONT_SIZE_MIN_PX}
           title="Reducir tamaño"
           aria-label="Reducir tamaño"
-          onClick={() => patchConfig({ fontSize: Math.max(8, fontSize - 1) })}
+          onClick={() => setFontSizePt(Math.ceil(fontSizePt) - 1)}
         >
           −
         </button>
         <input
           type="number"
           disabled={locked}
-          className="h-7 w-11 rounded border border-[color:var(--te-line)] bg-[color:var(--te-surface)] px-1 text-center text-[12px] text-[color:var(--te-ink)] shadow-sm"
-          value={Math.round(fontSize)}
-          min={8}
-          max={400}
+          className="h-7 w-12 rounded border border-[color:var(--te-line)] bg-[color:var(--te-surface)] px-1 text-center text-[12px] text-[color:var(--te-ink)] shadow-sm"
+          value={fontSizePt}
+          min={minPt}
+          max={maxPt}
+          step={0.5}
           onChange={(e) => {
-            const v = Number(e.target.value);
-            if (!Number.isFinite(v)) return;
-            patchConfig({ fontSize: Math.max(8, Math.min(400, Math.round(v))) });
+            const v = Number(e.target.value.replace(",", "."));
+            if (!Number.isFinite(v) || v <= 0) return;
+            setFontSizePt(v);
           }}
-          aria-label="Tamaño de fuente"
+          title="Tamaño de fuente en puntos, el tamaño real impreso"
+          aria-label="Tamaño de fuente en puntos"
         />
+        <span className="text-[11px] text-[color:var(--te-ink-muted)]" aria-hidden>
+          pt
+        </span>
         <button
           type="button"
           className={fmtMiniBtn}
-          disabled={locked || fontSize >= 400}
+          disabled={locked || fontSize >= FONT_SIZE_MAX_PX}
           title="Aumentar tamaño"
           aria-label="Aumentar tamaño"
-          onClick={() => patchConfig({ fontSize: Math.min(400, fontSize + 1) })}
+          onClick={() => setFontSizePt(Math.floor(fontSizePt) + 1)}
         >
           +
         </button>

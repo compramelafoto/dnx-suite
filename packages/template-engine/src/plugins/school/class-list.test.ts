@@ -356,3 +356,22 @@ test("estilo del título: guarda sólo lo que entiende y lo demás sale como los
     align: "left",
   });
 });
+
+test("el título puede tener un cuerpo propio, aparte del de los nombres", () => {
+  const opciones = readClassListOptions({ classList: { headingStyle: { fontSize: 30, bold: false, italic: true } } });
+  assert.equal(opciones.headingStyle.fontSize, 30);
+  const base = { groups: [{ title: "7.° A", students: curso }], width: 1000, lineHeight: 1.25 };
+  // Entra: el título sale a su cuerpo, más chico que los nombres si así se eligió.
+  const holgado = layoutClassListBlock({ ...base, options: opciones, height: 10_000, fontSize: 40 });
+  assert.equal(holgado.fontSize, 40);
+  assert.equal(holgado.cells[0]!.fontSize, 30);
+  // Cambiar los nombres no mueve un título con cuerpo propio.
+  const otrosNombres = layoutClassListBlock({ ...base, options: opciones, height: 10_000, fontSize: 20 });
+  assert.equal(otrosNombres.cells[0]!.fontSize, 30);
+  // No entra: se achica todo en la misma medida y el título conserva su proporción.
+  const justo = layoutClassListBlock({ ...base, options: opciones, height: 100, fontSize: 40 });
+  assert.ok(justo.fontSize < 40);
+  assert.ok(Math.abs(justo.cells[0]!.fontSize / justo.fontSize - 30 / 40) < 1e-9);
+  // Sin cuerpo propio sigue siendo proporcional, y un cuerpo inválido se ignora.
+  assert.equal(readClassListOptions({ classList: { headingStyle: { fontSize: -3 } } }).headingStyle.fontSize, undefined);
+});

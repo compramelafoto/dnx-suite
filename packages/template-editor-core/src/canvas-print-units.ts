@@ -21,6 +21,20 @@ export function pxFromCm(cm: number, dpi: number): number {
   return pxFromMm(cm * 10, dpi);
 }
 
+/** Píxeles del lienzo a puntos tipográficos (1 pt = 1/72 de pulgada), el cuerpo impreso. */
+export function ptFromPx(px: number, dpi: number): number {
+  return (px * 72) / dpi;
+}
+
+export function pxFromPt(pt: number, dpi: number): number {
+  return (pt * dpi) / 72;
+}
+
+/** Un cuerpo en puntos para mostrar: medio punto de precisión, como en cualquier diseñador. */
+export function roundPt(pt: number): number {
+  return Math.round(pt * 2) / 2;
+}
+
 export function pxFromUnit(value: number, unit: CanvasDimUnit, dpi: number): number {
   if (unit === "px") return value;
   if (unit === "cm") return pxFromCm(value, dpi);
