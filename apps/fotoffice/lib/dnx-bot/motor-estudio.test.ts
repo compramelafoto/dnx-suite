@@ -205,4 +205,13 @@ describe("local y coberturas en Mi estudio (bot)", () => {
   it("lo anotado nombra lo del local", () => {
     expect(loAnotado({ estudio: { separarLocal: true, sueldoDelLocal: "1", tiempoEnElLocal: "20" } }, base()).join(" ")).toMatch(/local y coberturas/i);
   });
+
+  it("rubrosSinDatos: con Mi estudio no pide gastos personales; con el local separado sí", () => {
+    expect(rubrosSinDatos({}, base())).toEqual([]);
+    expect(rubrosSinDatos({ estudio: { retiro: "1" } }, createBaseCompleteProfile())).toEqual([]);
+    const separado = aplicarParche(base(), { estudio: { separarLocal: true } }).perfil;
+    const sinMonto = { ...separado, personalExpenseGroups: separado.personalExpenseGroups.map((g) => ({ ...g, items: g.items.map((i) => ({ ...i, amount: "" })) })) };
+    expect(rubrosSinDatos({}, sinMonto).length).toBeGreaterThan(0);
+    expect(rubrosSinDatos({ estudio: { separarLocal: true } }, { ...sinMonto, studioStructure: { ...sinMonto.studioStructure!, separateLocal: false } }).length).toBeGreaterThan(0);
+  });
 });
