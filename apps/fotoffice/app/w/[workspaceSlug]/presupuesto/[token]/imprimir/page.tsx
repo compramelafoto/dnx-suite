@@ -35,7 +35,7 @@ export default async function ImprimirPresupuestoPage({ params }: Props) {
   if (!r || !("vista" in r)) notFound();
 
   return (
-    <main className="mx-auto max-w-3xl space-y-6 bg-white px-4 py-8 text-black md:px-8">
+    <main className="mx-auto max-w-3xl space-y-6 bg-white px-4 pb-8 pt-32 text-black md:px-8 print:pt-0">
       <style>{ESTILO_IMPRESION}</style>
       <div className="no-imprimir flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-[var(--fo-muted)]">En el diálogo de impresión elegí «Guardar como PDF».</p>

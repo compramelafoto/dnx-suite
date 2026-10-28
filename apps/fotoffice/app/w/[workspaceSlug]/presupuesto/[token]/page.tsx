@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { AccionesPublicas } from "@/components/presupuestos/acciones-publicas";
+import { PortadaPresupuesto } from "@/components/presupuestos/portada-presupuesto";
 import { PortfolioPublico } from "@/components/presupuestos/portfolio-publico";
+import { leerAjustesCobro } from "@/lib/cobro-ajustes/ajustes";
 import { portfolioDelEnlace } from "@/lib/presupuesto-automatico/portfolio";
 import { ESTILO_IMPRESION, PresupuestoPublico } from "@/components/presupuestos/presupuesto-publico";
 import { abrirPresupuestoPublico } from "@/lib/presupuestos/publico";
@@ -67,28 +69,48 @@ export default async function PresupuestoPublicoPage({ params }: Props) {
   // El portfolio del tipo de evento de la consulta (spec 2026-10-25): sólo mientras se puede aceptar.
   const portfolio = vista.estado === "ACTIVO" ? await portfolioDelEnlace(workspaceId, token) : null;
 
+  const activo = vista.estado === "ACTIVO";
+  const pedidoAutomatico = activo ? (await leerAjustesCobro(workspaceId)).autoConfirmarPedido : false;
+
   return (
-    <main className={`mx-auto ${vista.alternativas.length >= 3 ? "max-w-6xl" : "max-w-3xl"} space-y-6 px-4 py-8 md:px-8 md:py-12`}>
+    <>
       <style>{ESTILO_IMPRESION}</style>
-      <Aviso vista={vista} />
-      {portfolio ? <PortfolioPublico portfolio={portfolio} /> : null}
-      <PresupuestoPublico vista={vista} />
-      <AccionesPublicas
-        slug={workspaceSlug}
-        token={token}
-        estado={vista.estado}
-        whatsappUrl={vista.organizacion.whatsappUrl}
-        email={vista.organizacion.email}
-        // Relativo: sirve igual en `/w/<slug>/presupuesto/<token>` y en el dominio propio.
-        hrefImprimir={`${encodeURIComponent(token)}/imprimir`}
-        opciones={vista.opcionesPago}
-        alternativas={vista.alternativas.map((a) => ({
-          id: a.id,
-          nombre: a.nombre,
-          total: a.cobro && a.cobro.iva > 0 ? a.cobro.totalConIva : a.totales.total,
-          opciones: a.opcionesPago,
-        }))}
-      />
-    </main>
+      <PortadaPresupuesto vista={vista} />
+      <main className={`mx-auto ${activo || vista.alternativas.length >= 3 ? "max-w-6xl" : "max-w-3xl"} space-y-12 px-4 pb-32 pt-10 md:px-8 md:pt-14`}>
+        <Aviso vista={vista} />
+        {portfolio ? <PortfolioPublico portfolio={portfolio} /> : null}
+        {/* Activo: la elección (opciones, formas de pago y confirmar) la dibuja `AccionesPublicas`;
+            acá va el detalle (sin opciones); las condiciones se le pasan para que queden antes de confirmar. */}
+        {activo ? (
+          vista.alternativas.length === 0 ? (
+            <section className="rounded-2xl border border-[var(--fo-border)] bg-[var(--fo-surface)] p-6 shadow-sm md:p-8">
+              <PresupuestoPublico vista={vista} encabezado={false} partes="detalle" />
+            </section>
+          ) : null
+        ) : (
+          <PresupuestoPublico vista={vista} encabezado={false} />
+        )}
+        <AccionesPublicas
+          slug={workspaceSlug}
+          token={token}
+          estado={vista.estado}
+          whatsappUrl={vista.organizacion.whatsappUrl}
+          email={vista.organizacion.email}
+          // Relativo: sirve igual en `/w/<slug>/presupuesto/<token>` y en el dominio propio.
+          hrefImprimir={`${encodeURIComponent(token)}/imprimir`}
+          opciones={vista.opcionesPago}
+          total={vista.cobro && vista.cobro.iva > 0 ? vista.cobro.totalConIva : vista.totales.total}
+          alternativas={vista.alternativas}
+          pedidoAutomatico={pedidoAutomatico}
+          condiciones={
+            vista.condiciones || vista.propuestaPago || vista.cobro?.politicaCancelacion || (vista.cobro?.descuentoTransferencia ?? 0) > 0 ? (
+              <section className="rounded-2xl border border-[var(--fo-border)] bg-[var(--fo-surface-hover)] p-6 md:p-8">
+                <PresupuestoPublico vista={vista} encabezado={false} partes="condiciones" />
+              </section>
+            ) : null
+          }
+        />
+      </main>
+    </>
   );
 }

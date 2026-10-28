@@ -324,6 +324,33 @@ export function tieneOpcionesConfiguradas(opciones: CuantoCobroPaymentOptionsInp
 }
 
 /**
+ * Todo tiene que quedar pagado antes del evento: un plan no puede tener más cuotas que meses
+ * completos de hoy al evento (evento en 4 meses → hasta 4 cuotas). El que se pasa baja al tope; si
+ * dos quedan con las mismas cuotas, queda el primero; y si el tope es 1, los planes se caen (sólo
+ * queda el contado, o la opción por omisión de una cuota). Sin fecha de evento, no hay tope.
+ */
+export function planesHastaElEvento(
+  opciones: CuantoCobroPaymentOptionsInput,
+  hoy: string,
+  fechaEvento: string | null | undefined,
+): CuantoCobroPaymentOptionsInput {
+  if (!fechaEvento) return opciones;
+  const tope = Math.max(1, mesesCompletos(hoy, fechaEvento));
+  const usadas = new Set<number>();
+  const planes: CuantoCobroInstallmentPlanInput[] = [];
+  for (const p of opciones.installmentPlans) {
+    const pedidas = parsePositiveInt(p.numberOfInstallments);
+    if (pedidas <= 0) continue;
+    const cuotas = Math.min(pedidas, tope);
+    if (cuotas < 2 && pedidas >= 2) continue;
+    if (usadas.has(cuotas)) continue;
+    usadas.add(cuotas);
+    planes.push(cuotas === pedidas ? p : { ...p, numberOfInstallments: String(cuotas) });
+  }
+  return { ...opciones, installmentPlans: planes };
+}
+
+/**
  * Instantánea de opciones para congelar en una versión de presupuesto: las de la organización
  * (`FotofficePresupuestoAjustes.paymentOptions`, o las editadas en el presupuesto) calculadas sobre
  * `total`; si no hay ninguna, la de omisión.
@@ -336,10 +363,11 @@ export function opcionesParaPresupuesto(
   calculadoEn?: string,
 ): CuantoCobroPaymentOptionsSnapshot {
   const crudas = ajustes?.paymentOptions;
-  const configuradas =
+  const normalizadas =
     crudas && typeof crudas === "object" && !Array.isArray(crudas)
       ? normalizePaymentOptions(crudas as Partial<CuantoCobroPaymentOptionsInput>)
       : null;
+  const configuradas = normalizadas ? planesHastaElEvento(normalizadas, hoy, fechaEvento) : null;
 
   if (configuradas && tieneOpcionesConfiguradas(configuradas)) {
     const snapshot = buildPaymentOptionsSnapshot({ basePrice: total, paymentOptions: configuradas, calculatedAt: calculadoEn });

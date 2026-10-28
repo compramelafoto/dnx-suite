@@ -441,10 +441,12 @@ describe("enlace público", () => {
       "app/w/[workspaceSlug]/presupuesto/[token]/imprimir/page.tsx",
       "components/presupuestos/presupuesto-publico.tsx",
       "components/presupuestos/acciones-publicas.tsx",
+      "components/presupuestos/tarjeta-alternativa.tsx",
+      "components/presupuestos/portada-presupuesto.tsx",
     ]) {
       const crudo = leer(r);
       // La vista del presupuesto se arma en el servidor: no es un componente del navegador.
-      if (r.endsWith("presupuesto-publico.tsx") || r.endsWith("page.tsx")) expect(crudo).not.toMatch(/^\s*["']use client["']/m);
+      if (!r.endsWith("acciones-publicas.tsx")) expect(crudo).not.toMatch(/^\s*["']use client["']/m);
       const src = sinComentarios(crudo);
       expect(src).not.toMatch(/costSnapshot|veCostos|costo|margen|calculo|leerPresupuesto|versionParaVista/i);
     }
