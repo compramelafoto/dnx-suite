@@ -3,7 +3,7 @@ import { prisma } from "@repo/db";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import { loadPortalContext, type PortalContext } from "@/lib/portal/access";
 import { templateKeyOf } from "@/lib/template-v2/keyed-template";
-import { FOTOLIBRO_TEMPLATE_KEY, FOTOLIBROS_SOCIO_MODULE_KEY } from "./constantes";
+import { FOTOLIBRO_TEMPLATE_KEY, FOTOLIBROS_SOCIO_MODULE_KEY, TOPE_FOTOLIBROS_SOCIO } from "./constantes";
 
 /**
  * Los fotolibros del socio, en su portal.
@@ -48,6 +48,11 @@ export async function listarFotolibrosSocio(userId: number): Promise<FotolibroSo
     versiones.filter((v) => templateKeyOf(v.metaJson) === FOTOLIBRO_TEMPLATE_KEY).map((v) => v.id),
   );
   return plantillas.filter((p) => esFotolibro.has(p.currentVersionId as string));
+}
+
+/** ¿Llegó al tope de fotolibros personales? Ver `TOPE_FOTOLIBROS_SOCIO`. */
+export async function llegoAlTopeDeFotolibros(userId: number): Promise<boolean> {
+  return (await listarFotolibrosSocio(userId)).length >= TOPE_FOTOLIBROS_SOCIO;
 }
 
 /** ¿Es un fotolibro personal de esta persona? Lo que decide si el editor del portal lo abre. */

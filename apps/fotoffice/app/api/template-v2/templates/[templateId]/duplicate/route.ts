@@ -8,7 +8,8 @@ import {
 } from "@/lib/template-v2/server";
 import { duplicateTemplateV2 } from "@/lib/template-v2/server";
 import { templateKeyOf } from "@/lib/template-v2/keyed-template";
-import { FOTOLIBRO_TEMPLATE_KEY } from "@/lib/fotolibro/constantes";
+import { FOTOLIBRO_TEMPLATE_KEY, MENSAJE_TOPE_FOTOLIBROS_SOCIO } from "@/lib/fotolibro/constantes";
+import { llegoAlTopeDeFotolibros } from "@/lib/fotolibro/socio";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,6 +22,10 @@ export async function POST(req: Request, context: Ctx) {
     const user = await requireTemplateV2ApiUser();
     const { templateId } = await context.params;
     const body = (await readJsonWithLimit(req)) as Record<string, unknown>;
+    // Copiar un fotolibro personal también cuenta para el tope del socio.
+    if (await esPersonal(templateId, user.id) && (await llegoAlTopeDeFotolibros(user.id))) {
+      return Response.json({ ok: false, error: MENSAJE_TOPE_FOTOLIBROS_SOCIO, code: "FOTOLIBROS_TOPE" }, { status: 409 });
+    }
     const result = await duplicateTemplateV2({
       user,
       templateId,
@@ -31,6 +36,12 @@ export async function POST(req: Request, context: Ctx) {
   } catch (err) {
     return jsonError(err);
   }
+}
+
+/** Plantilla personal (sin institución) de esta persona: un fotolibro de su portal. */
+async function esPersonal(templateId: string, userId: number): Promise<boolean> {
+  const t = await prisma.templateV2.findUnique({ where: { id: templateId }, select: { workspaceId: true, ownerUserId: true } });
+  return t != null && t.workspaceId === null && t.ownerUserId === userId;
 }
 
 /**
