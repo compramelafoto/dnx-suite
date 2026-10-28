@@ -4,7 +4,7 @@ import { guiaDeAtencion, situacionDeAtencion } from "./guia";
 describe("guía del bot de atención", () => {
   it("nombra las tres herramientas y las reglas que no se negocian", () => {
     const g = guiaDeAtencion();
-    for (const t of ["buscar_productos", "datos_del_estudio", "preparar_presupuesto", "pasar_a_persona"]) expect(g).toContain(t);
+    for (const t of ["buscar_productos", "datos_del_estudio", "preparar_presupuesto", "armar_pedido", "pasar_a_persona"]) expect(g).toContain(t);
     expect(g).toMatch(/Nunca inventes precios/);
     expect(g).toMatch(/markdown/);
   });
@@ -65,5 +65,11 @@ describe("guía del bot de atención", () => {
     expect(s).toContain("20:30");
     expect(s).toContain("Lucía");
     expect(situacionDeAtencion({ estudio: "X", cliente: null, ahora: new Date() })).toContain("No sabemos el nombre");
+  });
+
+  it("siempre se puede cobrar: el bot no pasa a una persona para cobrar VHS ni otros productos", () => {
+    const g = guiaDeAtencion();
+    expect(g).toContain("Nunca pases el chat a una persona para cobrar");
+    expect(g).not.toContain("todavía los arma una persona");
   });
 });
