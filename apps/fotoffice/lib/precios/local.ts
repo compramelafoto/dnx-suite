@@ -24,13 +24,24 @@ export function mesesCompletos(hoyAR: string, cantidad = 3): MesCompleto[] {
 /**
  * Suma por mes. `occurredAt` guarda instantes UTC (Informes lee con límites -03:00): cada movimiento va al
  * mes argentino que le toca, con `mesDeInstante`.
+ *
+ * `primerMovimientoCaja`: el primer movimiento de Caja del workspace (de cualquier tipo). Un mes completo sin
+ * ventas cuenta como 0 sólo si es posterior al mes en que empezó Caja; ese mes es incompleto y se saltea,
+ * igual que los anteriores. Sin movimientos en Caja (`null`) no hay meses.
  */
-export function sumarVentasPorMes(filas: { occurredAt: Date; amountArs: number }[], meses: MesCompleto[]): StudioLocalSales {
-  const totales = new Map<string, number>();
+export function sumarVentasPorMes(
+  filas: { occurredAt: Date; amountArs: number }[],
+  meses: MesCompleto[],
+  primerMovimientoCaja: Date | null,
+): StudioLocalSales {
+  if (!primerMovimientoCaja) return { months: [] };
+  const mesInicio = mesDeInstante(primerMovimientoCaja);
+  const validos = meses.filter((m) => m.month > mesInicio);
+  const totales = new Map<string, number>(validos.map((m) => [m.month, 0]));
   for (const f of filas) {
     const mes = mesDeInstante(f.occurredAt);
-    if (!meses.some((m) => m.month === mes)) continue;
-    totales.set(mes, (totales.get(mes) ?? 0) + f.amountArs);
+    if (!totales.has(mes)) continue;
+    totales.set(mes, (totales.get(mes) as number) + f.amountArs);
   }
-  return { months: meses.filter((m) => totales.has(m.month)).map((m) => ({ month: m.month, sales: totales.get(m.month) as number })) };
+  return { months: validos.map((m) => ({ month: m.month, sales: totales.get(m.month) as number })) };
 }

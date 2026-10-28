@@ -20,20 +20,25 @@ export async function ventasDelLocal(
   const meses = mesesCompletos(hoyAR);
   const desde = inicioDeMes(meses[meses.length - 1].month);
   const hasta = inicioDelMesSiguiente(meses[0].month);
-  const filas = await prisma.cashMovement.findMany({
-    where: {
-      workspaceId,
-      kind: "INGRESO",
-      categoryId: { in: categoryIds },
-      transferId: null,
-      reversesMovementId: null,
-      reversedBy: { is: null },
-      occurredAt: { gte: desde, lt: hasta },
-    },
-    select: { occurredAt: true, amountArs: true },
-  });
+  const [filas, primero] = await Promise.all([
+    prisma.cashMovement.findMany({
+      where: {
+        workspaceId,
+        kind: "INGRESO",
+        categoryId: { in: categoryIds },
+        transferId: null,
+        reversesMovementId: null,
+        reversedBy: { is: null },
+        occurredAt: { gte: desde, lt: hasta },
+      },
+      select: { occurredAt: true, amountArs: true },
+    }),
+    // El primer movimiento de Caja (de cualquier tipo): antes de ese mes no hay datos, no ventas en cero.
+    prisma.cashMovement.aggregate({ where: { workspaceId }, _min: { occurredAt: true } }),
+  ]);
   return sumarVentasPorMes(
     filas.map((f) => ({ occurredAt: f.occurredAt, amountArs: Number(f.amountArs) })),
     meses,
+    primero._min.occurredAt,
   );
 }
