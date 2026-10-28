@@ -5,6 +5,7 @@ import {
   kmDeDistancia,
   llevaSegundoFotografo,
   normalizarAjustesPorHoras,
+  porHorasAplica,
   precioSegundoFotografo,
   recetaPorHoras,
 } from "./por-horas-puro";
@@ -59,6 +60,16 @@ describe("segundo fotógrafo", () => {
     expect(llevaSegundoFotografo({ ...b, grupo: "EVENTO", esSesion: false, invitados: 250 })).toBe(true);
     expect(llevaSegundoFotografo({ ...b, grupo: "EVENTO", esSesion: false, invitados: 200 })).toBe(false);
     expect(llevaSegundoFotografo({ ...b, grupo: "TRABAJO_SIN_FECHA", esSesion: true, invitados: 500 })).toBe(false);
+  });
+});
+
+describe("categorías excluidas", () => {
+  it("se normalizan como lista de ids y porHorasAplica las deja afuera", () => {
+    const a = normalizarAjustesPorHoras({ encendido: true, categoriasExcluidas: ["cat-glitter", 5, ""] });
+    expect(a.categoriasExcluidas).toEqual(["cat-glitter"]);
+    expect(porHorasAplica(a, "cat-glitter")).toBe(false);
+    expect(porHorasAplica(a, "cat-infantil")).toBe(true);
+    expect(porHorasAplica({ ...a, encendido: false }, "cat-infantil")).toBe(false);
   });
 });
 

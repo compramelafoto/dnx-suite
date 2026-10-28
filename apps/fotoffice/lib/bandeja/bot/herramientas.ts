@@ -18,6 +18,16 @@ export type ProductoAtencion = {
   variants: { name: string; priceMinor: number }[];
 };
 export type EstudioAtencion = { nombre: string; direccion: string | null; horario: string | null; ciudad: string | null };
+/** Un curso publicado del estudio (módulo Cursos), con el enlace público para inscribirse o comprarlo. */
+export type CursoAtencion = {
+  titulo: string;
+  modalidad: "GRABADO" | "PRESENCIAL";
+  resumen: string | null;
+  /** Precio del grabado. En los presenciales el precio va en cada edición. */
+  precio: number | null;
+  url: string | null;
+  proximas: { fecha: string; lugar: string; precio: number }[];
+};
 
 /** El chat que atiende el bot (para `preparar_presupuesto`). */
 export type ChatAtencion = { id: string; waId: string; clientId: string | null; nombre: string | null };
@@ -38,7 +48,12 @@ export type DepsAtencion = {
   estudio: (workspaceId: string) => Promise<EstudioAtencion | null>;
   /** Da de alta la consulta y arma el presupuesto para aprobar (spec 2026-10-25). */
   prepararPresupuesto: (workspaceId: string, chat: ChatAtencion, datos: DatosPresupuestoBot) => Promise<{ ok: boolean; message: string }>;
+  cursos: (workspaceId: string) => Promise<CursoAtencion[]>;
 };
+
+const FECHA_CURSO = new Intl.DateTimeFormat("es-AR", {
+  timeZone: "America/Argentina/Buenos_Aires", weekday: "long", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+});
 
 const DEPS: DepsAtencion = {
   productos: (workspaceId) => listProducts(workspaceId, { onlyActive: true, onlyVendible: true }),
@@ -48,6 +63,31 @@ const DEPS: DepsAtencion = {
       select: { commercialName: true, atencionDireccion: true, atencionHorario: true, city: true },
     });
     return b ? { nombre: b.commercialName, direccion: b.atencionDireccion, horario: b.atencionHorario, ciudad: b.city } : null;
+  },
+  cursos: async (workspaceId) => {
+    const ahora = new Date();
+    const [branding, cursos] = await Promise.all([
+      prisma.fotofficeWorkspaceBranding.findUnique({ where: { workspaceId }, select: { publicSlug: true } }),
+      prisma.course.findMany({
+        where: { workspaceId, status: "PUBLISHED" },
+        orderBy: { createdAt: "desc" },
+        take: 10,
+        select: {
+          title: true, slug: true, shortDescription: true, deliveryMode: true, priceArs: true,
+          instances: { where: { status: "ACTIVE", startDateTime: { gte: ahora } }, orderBy: { startDateTime: "asc" }, take: 3, select: { startDateTime: true, locationName: true, priceArs: true } },
+        },
+      }),
+    ]);
+    const { appUrl } = await import("@/lib/app-url");
+    const base = appUrl();
+    return cursos.map((c) => ({
+      titulo: c.title,
+      modalidad: c.deliveryMode === "RECORDED" ? ("GRABADO" as const) : ("PRESENCIAL" as const),
+      resumen: c.shortDescription,
+      precio: c.priceArs !== null ? Number(c.priceArs) : null,
+      url: base && branding?.publicSlug ? `${base}/w/${branding.publicSlug}/cursos/${c.slug}` : null,
+      proximas: c.instances.map((i) => ({ fecha: FECHA_CURSO.format(i.startDateTime), lugar: i.locationName, precio: Number(i.priceArs) })),
+    }));
   },
   prepararPresupuesto: async (workspaceId, chat, datos) => {
     // Se carga recién acá: el alta de consultas y Presupuestos no hacen falta para contestar precios.
@@ -110,6 +150,27 @@ export function herramientasDeAtencion(
           return { ok: true, message: `No encontré nada en el catálogo para "${texto}". No inventes un precio: probá con otra palabra o pasá el chat a una persona.` };
         }
         return { ok: true, message: `Precios del catálogo (en pesos):\n${encontrados.map(lineaDe).join("\n")}` };
+      },
+    }),
+    defineTool({
+      name: "cursos_del_estudio",
+      description:
+        "Los cursos y talleres que ofrece el estudio (grabados o presenciales), con precio y el enlace para inscribirse o comprarlos. Usala cuando pregunten por cursos, talleres o clases de fotografía. No armes presupuesto para un curso: pasale el enlace.",
+      input: z.object({}),
+      kind: "read",
+      run: async () => {
+        const cursos = await deps.cursos(workspaceId);
+        if (cursos.length === 0) return { ok: true, message: "Ahora no hay cursos publicados. Si el cliente quiere saber de próximos cursos, usá pasar_a_persona." };
+        const lineas = cursos.map((c) => {
+          const partes = [`- ${c.titulo} (${c.modalidad === "GRABADO" ? "grabado, para ver a su ritmo" : "presencial"})`];
+          if (c.precio !== null && c.precio > 0) partes.push(`precio ${precioDeLista(c.precio)}`);
+          for (const e of c.proximas) partes.push(`próxima fecha: ${e.fecha} en ${e.lugar}, ${precioDeLista(e.precio)}`);
+          if (c.modalidad === "PRESENCIAL" && c.proximas.length === 0) partes.push("sin fechas abiertas por ahora");
+          if (c.url) partes.push(`enlace: ${c.url}`);
+          if (c.resumen) partes.push(`de qué trata: ${c.resumen}`);
+          return partes.join(" · ");
+        });
+        return { ok: true, message: `Cursos del estudio:\n${lineas.join("\n")}` };
       },
     }),
     defineTool({

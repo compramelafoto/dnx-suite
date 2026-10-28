@@ -94,6 +94,14 @@ describe("prepararDesdeWhatsapp con presupuesto por horas", () => {
     expect(B.datos.fotofficeConsultaCategoria.find((c) => c.id === "cat-ev")!.archivedAt).toBeNull();
   });
 
+  it("una categoría excluida no se arma: pasa a una persona sin registrar nada", async () => {
+    B.agregar("fotofficePresupuestoAutoAjustes", { workspaceId: WS, porHoras: { encendido: true, categoriasExcluidas: ["cat-inf"] } });
+    const r = await W.prepararDesdeWhatsapp(WS, chat, { tipo: "cumpleaños infantil", nombre: "Ana Pérez", horas: 3 });
+    expect(r.ok).toBe(false);
+    expect(r.message).toMatch(/pasar_a_persona/);
+    expect(H.altas).toHaveLength(0);
+  });
+
   it("apagado: como antes, sólo las categorías con el interruptor", async () => {
     const r = await W.prepararDesdeWhatsapp(WS, chat, { tipo: "cumpleaños infantil", nombre: "Ana Pérez", horas: 3 });
     expect(r.ok).toBe(false);

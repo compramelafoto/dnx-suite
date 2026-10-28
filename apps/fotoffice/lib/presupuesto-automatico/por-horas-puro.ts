@@ -23,6 +23,8 @@ export type AjustesPorHoras = {
   invitadosSegundoFotografo: number;
   /** Categorías que son sesiones de fotos (el resto son eventos). */
   categoriasSesion: string[];
+  /** Categorías que no se arman solas (no son coberturas): el bot se las pasa a una persona. */
+  categoriasExcluidas: string[];
   incluye: string;
   opcionalesTexto: string;
 };
@@ -39,6 +41,7 @@ export const AJUSTES_POR_HORAS_POR_OMISION: AjustesPorHoras = {
   segundoFotografoPct: 30,
   invitadosSegundoFotografo: 200,
   categoriasSesion: [],
+  categoriasExcluidas: [],
   incluye: "Galería online",
   opcionalesTexto: "Opcionales para después: impresiones y fotolibro.",
 };
@@ -50,11 +53,13 @@ function numero(v: unknown, omision: number, min: number, max: number): number {
   return Number.isFinite(n) && n >= min && n <= max ? n : omision;
 }
 const coordenada = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
+const ids = (v: unknown): string[] =>
+  Array.isArray(v) ? v.filter((c): c is string => typeof c === "string" && c.length > 0 && c.length <= 64).slice(0, 100) : [];
 const texto = (v: unknown, omision: string, max = 500): string => (typeof v === "string" && v.trim() ? v.trim().slice(0, max) : omision);
 
 export function normalizarAjustesPorHoras(json: unknown): AjustesPorHoras {
   const o = AJUSTES_POR_HORAS_POR_OMISION;
-  if (!esObjeto(json)) return { ...o, partida: { ...o.partida }, categoriasSesion: [] };
+  if (!esObjeto(json)) return { ...o, partida: { ...o.partida }, categoriasSesion: [], categoriasExcluidas: [] };
   const p = esObjeto(json.partida) ? json.partida : {};
   return {
     encendido: json.encendido === true,
@@ -67,12 +72,16 @@ export function normalizarAjustesPorHoras(json: unknown): AjustesPorHoras {
     partida: { direccion: texto(p.direccion, o.partida.direccion, 300), lat: coordenada(p.lat), lon: coordenada(p.lon) },
     segundoFotografoPct: numero(json.segundoFotografoPct, o.segundoFotografoPct, 0, 300),
     invitadosSegundoFotografo: numero(json.invitadosSegundoFotografo, o.invitadosSegundoFotografo, 0, 100000),
-    categoriasSesion: Array.isArray(json.categoriasSesion)
-      ? json.categoriasSesion.filter((c): c is string => typeof c === "string" && c.length > 0 && c.length <= 64).slice(0, 50)
-      : [],
+    categoriasSesion: ids(json.categoriasSesion),
+    categoriasExcluidas: ids(json.categoriasExcluidas),
     incluye: texto(json.incluye, o.incluye),
     opcionalesTexto: texto(json.opcionalesTexto, o.opcionalesTexto),
   };
+}
+
+/** ¿Esta categoría se arma por horas? (encendido y no excluida). */
+export function porHorasAplica(a: AjustesPorHoras, categoriaId: string | null | undefined): boolean {
+  return a.encendido && !!categoriaId && !a.categoriasExcluidas.includes(categoriaId);
 }
 
 /** Horas de cobertura: de 0,5 a 24, redondeadas a media hora. Acepta "3,5". */

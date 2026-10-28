@@ -149,6 +149,7 @@ export async function guardarPorHorasAction(_prev: EstadoTelegramConfig | undefi
     segundoFotografoPct: texto(fd, "segundoFotografoPct"),
     invitadosSegundoFotografo: texto(fd, "invitadosSegundoFotografo"),
     categoriasSesion: fd.getAll("categoriasSesion").filter((v): v is string => typeof v === "string"),
+    categoriasExcluidas: fd.getAll("categoriasExcluidas").filter((v): v is string => typeof v === "string"),
     incluye: texto(fd, "incluye"),
     opcionalesTexto: texto(fd, "opcionalesTexto"),
   });
