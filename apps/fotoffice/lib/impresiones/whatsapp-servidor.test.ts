@@ -127,6 +127,20 @@ describe("crear un pedido de impresión desde WhatsApp", () => {
     for (const c of B.deps.abrir.mock.calls) expect(Number.isInteger((c[0] as { montoCents: number }).montoCents)).toBe(true);
   });
 
+  it("con correo: lo guarda en el pedido y le manda el resumen con los dos links; un correo inválido se ignora", async () => {
+    const enviarResumen = vi.fn(async (..._a: unknown[]) => undefined);
+    const r = await crearPedidoDesdeWhatsapp("w1", chat, { renglones: [renglon(["m1"])], envio: null, nombre: "Ana", email: "ana@test.com" }, { ...B.deps, enviarResumen });
+    expect(r.ok).toBe(true);
+    expect(B.pedidos[0]).toMatchObject({ email: "ana@test.com" });
+    expect(enviarResumen).toHaveBeenCalledTimes(1);
+    const [ws, datos] = enviarResumen.mock.calls[0] as [string, { email: string; numero: number; linkSena: string; linkTotal: string; total: number; sena: number }];
+    expect(ws).toBe("w1");
+    expect(datos).toMatchObject({ email: "ana@test.com", numero: 1, total: 14000, sena: 7000, linkSena: "https://mp.test/pagar/700000", linkTotal: "https://mp.test/pagar/1400000" });
+    await crearPedidoDesdeWhatsapp("w1", chat, { renglones: [renglon(["m1"])], envio: null, nombre: "Ana", email: "no-es-correo" }, { ...B.deps, enviarResumen });
+    expect(B.pedidos[1]).toMatchObject({ email: null });
+    expect(enviarResumen).toHaveBeenCalledTimes(1);
+  });
+
   it("módulo apagado o sin Mercado Pago: no arma", async () => {
     expect(await crearPedidoDesdeWhatsapp("w1", chat, { renglones: [renglon(["m1"])], envio: null, nombre: "Ana" }, { ...B.deps, moduloEncendido: async () => false })).toMatchObject({ ok: false, motivo: "MODULO" });
     expect(await crearPedidoDesdeWhatsapp("w1", chat, { renglones: [renglon(["m1"])], envio: null, nombre: "Ana" }, { ...B.deps, collector: async () => null })).toMatchObject({ ok: false, motivo: "SIN_MP" });

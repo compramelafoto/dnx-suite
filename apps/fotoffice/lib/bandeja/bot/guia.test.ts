@@ -55,6 +55,7 @@ describe("guía del bot de atención", () => {
     expect(g).toContain("armar_pedido_impresion");
     expect(g).toContain("la seña");
     expect(g).not.toContain("No armás pedidos ni cobrás todavía");
+    expect(g).toContain("resumen por correo");
   });
 
   it("la situación dice el día y la hora en Argentina y el nombre si lo hay", () => {

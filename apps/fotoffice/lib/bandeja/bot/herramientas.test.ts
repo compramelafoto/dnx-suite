@@ -127,7 +127,7 @@ describe("herramientasDeAtencion", () => {
     const fotos = new Map([[1, { id: "m1", en: new Date("2026-10-28T10:00:00Z") }], [2, { id: "m2", en: new Date("2026-10-28T10:01:00Z") }]]);
     const h = herramientasDeAtencion("w1", { ...deps, armarPedido, ultimoPedidoEn: async () => null }, { id: "c1", waId: "549", clientId: null, nombre: "Ana" }, fotos);
     const t = h.tools.find((x) => x.name === "armar_pedido_impresion")!;
-    const entrada = { renglones: [{ fotos: "todas", medida: "13x18", cantidad: 1, plazo: "para mañana" }, { fotos: [2], medida: "10x15", cantidad: 3, plazo: "proxima semana", papel: "mate" }] };
+    const entrada = { renglones: [{ fotos: "todas", medida: "13x18", cantidad: 1, plazo: "para mañana" }, { fotos: [2], medida: "10x15", cantidad: 3, plazo: "proxima semana", papel: "mate" }], email: "ana@test.com" };
     expect(t.input.safeParse(entrada).success).toBe(true);
     const r = await t.run(entrada, { userId: 0, role: "CLIENTE", email: "", name: null });
     expect(recibidos[0]).toMatchObject({
@@ -136,8 +136,10 @@ describe("herramientasDeAtencion", () => {
         { fotos: [{ mensajeId: "m2" }], medida: "10x15", cantidad: 3, plazo: "SEMANA", papel: "MATE" },
       ],
       envio: null,
+      email: "ana@test.com",
     });
     expect(r.message).toContain("https://mp/sena");
+    expect(r.message).toContain("ana@test.com");
     expect(r.message).toContain("https://mp/total");
     expect(r.message).toMatch(/\$\s?14\.000/);
     expect(r.message).toContain("Seña del 50 %");
