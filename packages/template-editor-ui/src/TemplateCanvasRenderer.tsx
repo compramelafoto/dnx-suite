@@ -30,6 +30,8 @@ import {
   parseClassListGroups,
   readClassListOptions,
   resolveBracePlaceholdersInText,
+  resolveClassListHeadingStyle,
+  formatFontFamilyCss,
 } from "@repo/template-editor-core";
 
 type TemplateCanvasRendererProps = {
@@ -439,6 +441,15 @@ function ClassListBlockRenderer({
       </div>
     );
   }
+  // Los títulos (curso y colegio) llevan su propio estilo; lo que no tienen lo toman de los nombres.
+  const titulo = resolveClassListHeadingStyle(options.headingStyle, {
+    fontFamily: t.fontFamily,
+    textTransform: t.textTransform,
+    color: t.color,
+    bold: t.fontWeight >= 600,
+    italic: t.fontStyle === "italic",
+    align: t.textAlign,
+  });
   return (
     <div style={{ position: "relative", width: "100%", height: "100%", overflow: "hidden" }}>
       {cells.map((cell, i) => (
@@ -450,16 +461,16 @@ function ClassListBlockRenderer({
             top: cell.y,
             width: cell.width,
             height: cell.height,
-            color: t.color,
-            fontFamily: t.fontFamilyCss,
+            color: cell.heading ? titulo.color : t.color,
+            fontFamily: cell.heading ? formatFontFamilyCss(titulo.fontFamily) : t.fontFamilyCss,
             fontSize: cell.fontSize,
-            fontWeight: cell.bold ? 700 : t.fontWeight,
-            fontStyle: t.fontStyle,
+            fontWeight: cell.heading ? (titulo.bold ? 700 : 400) : cell.bold ? 700 : t.fontWeight,
+            fontStyle: cell.heading ? (titulo.italic ? "italic" : "normal") : t.fontStyle,
             textDecoration: t.textDecoration,
-            textTransform: t.textTransform,
+            textTransform: cell.heading ? titulo.textTransform : t.textTransform,
             lineHeight: String(t.lineHeight),
             letterSpacing: `${t.letterSpacing}px`,
-            textAlign: t.textAlign,
+            textAlign: cell.heading ? titulo.align : t.textAlign,
             whiteSpace: "nowrap",
             overflow: "hidden",
           }}

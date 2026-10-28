@@ -52,6 +52,24 @@ export type ClassListOptions = {
   showShift: boolean;
   /** El nombre del colegio una sola vez, arriba de todo, dentro de la misma caja del listado. */
   showSchoolName: boolean;
+  /**
+   * Cómo se escriben los títulos (el del curso y el del colegio), aparte de los nombres. Lo que
+   * falta sale igual que los nombres, que usan la tipografía de la barra de texto del bloque.
+   */
+  headingStyle: ClassListHeadingStyle;
+};
+
+export type ClassListTextTransform = "none" | "uppercase" | "lowercase" | "capitalize";
+
+/** El estilo propio del título. Cada dato ausente = igual que los nombres (salvo `bold`). */
+export type ClassListHeadingStyle = {
+  fontFamily?: string;
+  textTransform?: ClassListTextTransform;
+  color?: string;
+  /** En negrita. Ausente = sí: el título siempre fue en negrita. */
+  bold?: boolean;
+  italic?: boolean;
+  align?: "left" | "center" | "right";
 };
 
 export const CLASS_LIST_MAX_COLUMNS = 4;
@@ -67,7 +85,52 @@ export const DEFAULT_CLASS_LIST_OPTIONS: ClassListOptions = {
   allowExtraCourses: false,
   showShift: true,
   showSchoolName: false,
+  headingStyle: {},
 };
+
+/** El estilo del título desde lo guardado: sólo lo que se entiende, el resto queda heredado. */
+export function readClassListHeadingStyle(raw: unknown): ClassListHeadingStyle {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const r = raw as Record<string, unknown>;
+  const out: ClassListHeadingStyle = {};
+  if (typeof r.fontFamily === "string" && r.fontFamily.trim()) out.fontFamily = r.fontFamily.trim();
+  if (r.textTransform === "none" || r.textTransform === "uppercase" || r.textTransform === "lowercase" || r.textTransform === "capitalize") {
+    out.textTransform = r.textTransform;
+  }
+  if (typeof r.color === "string" && /^#[0-9a-f]{3,8}$/i.test(r.color.trim())) out.color = r.color.trim();
+  if (typeof r.bold === "boolean") out.bold = r.bold;
+  if (typeof r.italic === "boolean") out.italic = r.italic;
+  if (r.align === "left" || r.align === "center" || r.align === "right") out.align = r.align;
+  return out;
+}
+
+/** Lo que usan los nombres; el título lo toma donde no tiene lo suyo. */
+export type ClassListTextStyle = {
+  fontFamily: string;
+  textTransform: ClassListTextTransform;
+  color: string;
+  bold: boolean;
+  italic: boolean;
+  align: "left" | "center" | "right";
+};
+
+/**
+ * El estilo con que se dibuja un título del listado: el propio del título y, donde no tiene, el
+ * de los nombres. El título va en negrita salvo que se lo pida sin ella.
+ */
+export function resolveClassListHeadingStyle(
+  heading: ClassListHeadingStyle,
+  names: ClassListTextStyle,
+): ClassListTextStyle {
+  return {
+    fontFamily: heading.fontFamily ?? names.fontFamily,
+    textTransform: heading.textTransform ?? names.textTransform,
+    color: heading.color ?? names.color,
+    bold: heading.bold ?? true,
+    italic: heading.italic ?? names.italic,
+    align: heading.align ?? names.align,
+  };
+}
 
 export const CLASS_LIST_HEADING_SCALE_MIN = 0.8;
 export const CLASS_LIST_HEADING_SCALE_MAX = 2;
@@ -101,6 +164,7 @@ export function readClassListOptions(config: unknown): ClassListOptions {
     allowExtraCourses: typeof raw.allowExtraCourses === "boolean" ? raw.allowExtraCourses : d.allowExtraCourses,
     showShift: typeof raw.showShift === "boolean" ? raw.showShift : d.showShift,
     showSchoolName: typeof raw.showSchoolName === "boolean" ? raw.showSchoolName : d.showSchoolName,
+    headingStyle: readClassListHeadingStyle(raw.headingStyle),
   };
 }
 

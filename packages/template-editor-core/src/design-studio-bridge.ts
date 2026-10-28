@@ -14,6 +14,7 @@ import {
   type CourseMosaicStudent,
   layoutClassListBlock,
   readClassListOptions,
+  resolveClassListHeadingStyle,
   type ClassListGroup,
   type ClassListStudent,
 } from "@repo/template-engine";
@@ -391,6 +392,26 @@ export function editorADocumento(input: {
                 textTransform: conversionDeLetras(cfg.textTransform),
                 lineHeight: num(cfg.lineHeight, 1.2),
               };
+              // Los títulos (curso y colegio) con su propio estilo, como en el lienzo.
+              const titulo = resolveClassListHeadingStyle(opciones.headingStyle, {
+                fontFamily: texto(cfg.fontFamily, "Helvetica"),
+                textTransform: comun.textTransform,
+                color: comun.color,
+                bold: pesoBase === "bold",
+                italic: comun.fontStyle === "italic",
+                align: comun.align,
+              });
+              const estiloTitulo = {
+                fontId:
+                  titulo.fontFamily === texto(cfg.fontFamily, "Helvetica")
+                    ? comun.fontId
+                    : fuenteDesde(titulo.fontFamily, avisos),
+                fontStyle: titulo.italic ? "italic" : "normal",
+                fontWeight: titulo.bold ? "bold" : "normal",
+                color: titulo.color,
+                align: titulo.align,
+                textTransform: titulo.textTransform,
+              };
               /*
                * Un listado girado (la carpeta de San Patricio lo lleva a 90°) se arma derecho y
                * después cada alumno se lleva a su lugar girando alrededor del centro del bloque,
@@ -420,6 +441,7 @@ export function editorADocumento(input: {
                   content: celda.text,
                   fontSize: pt(celda.fontSize),
                   fontWeight: celda.bold ? "bold" : pesoBase,
+                  ...(celda.heading ? estiloTitulo : {}),
                 });
               });
               break;

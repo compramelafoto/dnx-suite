@@ -111,6 +111,37 @@ describe("editorADocumento — listado del curso girado", () => {
     assert.ok(sides[0]!.blocks.every((b) => b.rotation === 90));
   });
 
+  it("el título sale con su propio estilo y los nombres con el de la barra de texto", () => {
+    const bloque = listado(0);
+    const cfg = bloque.configJson as Record<string, unknown>;
+    const conEstilo = {
+      ...bloque,
+      configJson: {
+        ...cfg,
+        textTransform: "lowercase",
+        color: "#222222",
+        classList: {
+          headingStyle: { fontFamily: "Montserrat", textTransform: "uppercase", color: "#aa0000", align: "left", bold: false },
+        },
+      },
+    };
+    const { document } = editorADocumento({
+      canvas: { width: 3602, height: 2421, dpi: 300 },
+      blocks: [conEstilo],
+      cursosDelListado: [{ title: "3 B", students: [{ firstName: "Ana", lastName: "Paz" }] }],
+    });
+    const sides = (document as { sides: { blocks: Record<string, number | string | undefined>[] }[] }).sides;
+    const titulo = sides[0]!.blocks.find((b) => b.content === "3.° B")!;
+    const alumno = sides[0]!.blocks.find((b) => b.content === "Ana Paz")!;
+    assert.equal(titulo.textTransform, "uppercase");
+    assert.equal(titulo.color, "#aa0000");
+    assert.equal(titulo.align, "left");
+    assert.equal(titulo.fontWeight, "normal");
+    assert.notEqual(titulo.fontId, alumno.fontId);
+    assert.equal(alumno.textTransform, "lowercase");
+    assert.equal(alumno.color, "#222222");
+  });
+
   it("sin cursos ni lista, el editor muestra el curso de muestra con su título", () => {
     const { document } = editorADocumento({ canvas: { width: 3602, height: 2421, dpi: 300 }, blocks: [listado(0)] });
     const sides = (document as { sides: { blocks: Record<string, number | string | undefined>[] }[] }).sides;
