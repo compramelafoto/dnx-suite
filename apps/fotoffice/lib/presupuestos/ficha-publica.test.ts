@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { armarFicha, textoFaltan, type DatosFicha } from "./ficha-publica";
-import { formasDePagoEnCorto } from "@/components/presupuestos/portada-presupuesto";
+import { coloresDelEstudio, formasDePagoEnCorto } from "@/components/presupuestos/portada-presupuesto";
 
 const AHORA = new Date("2026-10-28T15:00:00Z");
 
@@ -93,5 +93,22 @@ describe("formasDePagoEnCorto", () => {
       "3 cuotas sin interés",
       "4 cuotas sin interés",
     ]);
+  });
+});
+
+describe("coloresDelEstudio", () => {
+  it("toma el acento del sitio y su color oscuro para la portada (DNX Estudio)", () => {
+    const c = coloresDelEstudio({ accentColor: "#f5a429", secondaryColor: "#0f172a", backgroundColor: "#ffffff", textColor: "#0f172a" }) as Record<string, string>;
+    expect(c["--fo-accent"]).toBe("#f5a429");
+    expect(c["--fo-on-accent"]).toBe("#0a0c0b");
+    expect(c["--presupuesto-portada"]).toBe("#0f172a");
+  });
+
+  it("si el secundario es claro usa el texto; si los dos son claros, el oscuro de siempre", () => {
+    const a = coloresDelEstudio({ accentColor: "#1d4ed8", secondaryColor: "#eeeeee", backgroundColor: "#ffffff", textColor: "#222222" }) as Record<string, string>;
+    expect(a["--presupuesto-portada"]).toBe("#222222");
+    expect(a["--fo-on-accent"]).toBe("#ffffff");
+    const b = coloresDelEstudio({ accentColor: "#1d4ed8", secondaryColor: "#eeeeee", backgroundColor: "#111111", textColor: "#fafafa" }) as Record<string, string>;
+    expect(b["--presupuesto-portada"]).toBe("#0b1220");
   });
 });

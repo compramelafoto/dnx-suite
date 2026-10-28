@@ -1,4 +1,5 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
+import { isDarkColor, readableTextOn } from "@/lib/website/site-theme";
 import type { OpcionPublica } from "@/lib/presupuestos/opciones-pago";
 import type { VistaPublica } from "@/lib/presupuestos/vista-publica";
 import { totalDeAlternativa } from "./tarjeta-alternativa";
@@ -13,6 +14,30 @@ import { totalDeAlternativa } from "./tarjeta-alternativa";
 
 /** En el presupuesto el cliente tiene que decidir: del encabezado del sitio queda sólo el logo. */
 export const ESTILO_SIN_MENU = "[data-sitio-menu]{display:none!important}";
+
+const mezcla = (color: string, pct: number, base: string) => `color-mix(in srgb, ${color} ${pct}%, ${base})`;
+
+/**
+ * Los colores del estudio en el presupuesto. Las piezas están escritas con los tokens del panel
+ * (`--fo-accent`…), que en un sitio claro quedan en el celeste de FOTOFFICE: acá se pisan con el
+ * color de acento del sitio (el de sus botones) y la portada toma su color oscuro (el secundario,
+ * o el del texto), así el presupuesto se ve de la misma marca que el resto del sitio.
+ */
+export function coloresDelEstudio(c: { accentColor: string; secondaryColor: string; backgroundColor: string; textColor: string }): CSSProperties {
+  const acento = c.accentColor;
+  const fondo = c.backgroundColor;
+  const oscuro = isDarkColor(fondo);
+  const portada = isDarkColor(c.secondaryColor) ? c.secondaryColor : isDarkColor(c.textColor) ? c.textColor : "#0b1220";
+  return {
+    "--fo-accent": acento,
+    // Como texto sobre el fondo: más oscuro en los sitios claros, para que se lea.
+    "--fo-accent-hover": oscuro ? mezcla(acento, 85, c.textColor) : mezcla(acento, 65, c.textColor),
+    "--fo-accent-soft": mezcla(acento, 14, fondo),
+    "--fo-accent-muted": mezcla(acento, 20, fondo),
+    "--fo-on-accent": readableTextOn(acento),
+    "--presupuesto-portada": portada,
+  } as CSSProperties;
+}
 
 /** «1 pago · ahorrás 10 %», «3 cuotas sin interés», «6 cuotas»: cómo se puede pagar, sin repetir. */
 export function formasDePagoEnCorto(opciones: readonly OpcionPublica[], total: number): string[] {
@@ -73,11 +98,11 @@ export function PortadaPresupuesto({ vista }: { vista: VistaPublica }) {
   ].filter(Boolean);
 
   return (
-    <section className="no-imprimir relative overflow-hidden bg-[#0b1220] text-white">
+    <section className="no-imprimir relative overflow-hidden bg-[var(--presupuesto-portada,#0b1220)] text-white">
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 opacity-60"
-        style={{ background: "radial-gradient(60% 80% at 85% 0%, var(--fo-accent) 0%, transparent 60%), radial-gradient(50% 60% at 0% 100%, #1e293b 0%, transparent 70%)" }}
+        className="pointer-events-none absolute inset-0 opacity-40"
+        style={{ background: "radial-gradient(60% 80% at 85% 0%, var(--fo-accent) 0%, transparent 60%), radial-gradient(50% 60% at 0% 100%, rgba(255,255,255,0.08) 0%, transparent 70%)" }}
       />
       <div className="relative mx-auto max-w-6xl px-4 pb-12 pt-28 md:px-8 md:pb-16 md:pt-36">
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/70">
