@@ -27401,6 +27401,8 @@ model FotofficePresupuestoAutoAjustes {
   workspaceId     String   @unique
   acuseEnabled    Boolean  @default(true)
   acuseText       String?
+  /// Presupuesto por horas (spec 2026-10-28): reglas del estudio. Ver lib/presupuesto-automatico/por-horas-puro.ts.
+  porHoras        Json?
   updatedByUserId Int?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
