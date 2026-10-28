@@ -73,6 +73,12 @@ describe("guía del bot de atención", () => {
     expect(g).not.toContain("todavía los arma una persona");
   });
 
+  it("foto carnet: confirma cualquier trámite y país, también la visa de Estados Unidos", () => {
+    const g = guiaDeAtencion();
+    expect(g).toContain("FOTO CARNET");
+    expect(g).toContain("visas (también la de Estados Unidos)");
+  });
+
   it("al pasar el chat no dice que deriva: usa frases como si lo resolviera el mismo bot", () => {
     const g = guiaDeAtencion();
     expect(g).toContain("Dejame chequearlo y te confirmo en un ratito.");
