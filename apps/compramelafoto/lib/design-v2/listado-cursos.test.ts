@@ -87,7 +87,7 @@ test("el turno viaja con el curso sumado y las casillas lo muestran", () => {
   const conTurno: CursoDelAlbum = { ...C, title: "6.° A", shift: "Tarde" };
   const out = armarListadoConCursos([propio], [A, B, conTurno], [conTurno.key]);
   assert.equal(out[1]!.shift, "Tarde");
-  assert.equal(cursoParaElegir(conTurno).title, "6.° A · Turno tarde");
+  assert.equal(cursoParaElegir(conTurno).title, "6.° A Turno tarde");
   assert.equal(cursoParaElegir(A).title, "7.° A");
 });
 

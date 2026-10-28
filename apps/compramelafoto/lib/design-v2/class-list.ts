@@ -188,7 +188,7 @@ export async function loadAlbumRosterCourses(db: Prisma.TransactionClient, album
     const nivel = repetido ? c.fields.level?.trim() : "";
     return {
       key: c.key,
-      title: nivel ? `${c.title} · ${nivel}` : c.title,
+      title: nivel ? `${c.title} ${nivel}` : c.title,
       ...(c.shift ? { shift: c.shift } : {}),
       students: c.students,
     };

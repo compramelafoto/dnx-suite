@@ -140,7 +140,7 @@ type Persona = { firstName: string; lastName: string };
 
 type DatosDeNivel = {
   curso: string;
-  /** El turno del curso, para el título del listado («3.º B · Turno mañana»). */
+  /** El turno del curso, para el título del listado («3.º B Turno mañana»). */
   turno: string | null;
   colegio: string;
   /** [nena, nene] */

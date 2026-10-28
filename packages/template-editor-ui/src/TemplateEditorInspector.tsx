@@ -989,7 +989,7 @@ function ClassListOptionsPanel({
             <ToggleSwitch
               checked={options.showShift}
               onChange={(showShift) => onChange({ showShift })}
-              label="Mostrar turno (por ejemplo «3.° B · Turno mañana»)"
+              label="Mostrar turno (por ejemplo «3.° B Turno mañana»)"
             />
           </div>
           <p className="mt-1 text-[10px] leading-snug text-[color:var(--te-ink-faint)]">
