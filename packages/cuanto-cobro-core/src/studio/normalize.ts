@@ -19,6 +19,7 @@ import {
   type StudioFixedCostGroup,
   type StudioFixedCostItem,
   type StudioPerson,
+  type StudioScope,
   type StudioSkill,
 } from "./types";
 
@@ -58,6 +59,7 @@ function normalizeFixedItem(raw: unknown): StudioFixedCostItem | null {
   const c = ids(raw.cashCategoryIds);
   if (c) item.cashCategoryIds = c;
   if (raw.amountSource === "manual" || raw.amountSource === "cash-average") item.amountSource = raw.amountSource;
+  if (raw.scope === "local" || raw.scope === "coverage" || raw.scope === "shared") item.scope = raw.scope as StudioScope;
   return item;
 }
 
@@ -116,6 +118,7 @@ function normalizePerson(raw: unknown): StudioPerson | null {
   }
   const c = ids(raw.cashCategoryIds);
   if (c) person.cashCategoryIds = c;
+  if (raw.scope === "local" || raw.scope === "coverage") person.scope = raw.scope;
   return person;
 }
 
@@ -160,7 +163,7 @@ function normalizeLines(raw: unknown): StudioBusinessLine[] {
 export function normalizeStudioStructure(raw: unknown): CuantoCobroStudioStructure | null {
   if (!isObject(raw)) return null;
   const sync = raw.cashSync;
-  return {
+  const out: CuantoCobroStudioStructure = {
     enabled: raw.enabled === true,
     fixedCostGroups: normalizeFixedGroups(raw.fixedCostGroups),
     ownerDrawMonthly: str(raw.ownerDrawMonthly, 20),
@@ -175,6 +178,18 @@ export function normalizeStudioStructure(raw: unknown): CuantoCobroStudioStructu
         ? { from: sync.from.slice(0, 10), to: sync.to.slice(0, 10), computedAt: sync.computedAt.slice(0, 40) }
         : null,
   };
+  // Modo separado: sólo se copia lo que viene (un bloque de antes queda idéntico).
+  if (raw.separateLocal === true) out.separateLocal = true;
+  for (const key of [
+    "coverageSharePercent",
+    "ownerLocalTimePercent",
+    "ownerLocalSalaryMonthly",
+    "localGoodsCostPercent",
+    "localMonthlyContributionManual",
+  ] as const) {
+    if (typeof raw[key] === "string" || typeof raw[key] === "number") out[key] = str(raw[key], 20);
+  }
+  return out;
 }
 
 /** ¿El perfil está en modo estudio? */
@@ -188,4 +203,19 @@ export function activeStudioStructure(
 ): CuantoCobroStudioStructure | null {
   if (!isStudioModeActive(profile)) return null;
   return normalizeStudioStructure(profile?.studioStructure);
+}
+
+/** ¿Modo estudio activo y con el local separado de las coberturas? */
+export function isSeparateLocalActive(profile: Pick<CuantoCobroProfileInput, "studioStructure">): boolean {
+  return isStudioModeActive(profile) && profile.studioStructure?.separateLocal === true;
+}
+
+/**
+ * % de la capacidad y de los gastos compartidos que llevan las coberturas.
+ * `coverageSharePercent` si es válido; si no, 100 − el tiempo del dueño en el local (vacío = 0).
+ */
+export function effectiveCoverageSharePercent(s: CuantoCobroStudioStructure): number {
+  const explicit = parseStudioDecimal(s.coverageSharePercent);
+  if (explicit !== null) return explicit;
+  return 100 - (parseStudioDecimal(s.ownerLocalTimePercent) ?? 0);
 }
