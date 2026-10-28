@@ -24,7 +24,7 @@ import {
 export type CursoDelAlbum = {
   /** Con qué se reconoce: lo que se guarda como `courseKey` en el listado. */
   key: string;
-  /** Lo que se imprime arriba de sus alumnos («7.° A»). */
+  /** Lo que se imprime arriba de sus alumnos («7° A»). */
   title: string;
   /** El turno («Mañana»), si el padrón lo trae. */
   shift?: string;
@@ -68,7 +68,7 @@ function normalizar(t: string): string {
   return t
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")
-    // «3 B», «3.° B» y «3.º B» son el mismo curso (los títulos viejos no llevaban el ordinal).
+    // «3 B», «3° B» y «3º B» son el mismo curso (los títulos viejos no llevaban el ordinal).
     .replace(/[.°º]/g, "")
     .toLowerCase()
     .replace(/\s+/g, " ")

@@ -977,7 +977,7 @@ function ClassListOptionsPanel({
       <ToggleSwitch
         checked={options.showHeading}
         onChange={(showHeading) => onChange({ showHeading })}
-        label="Título con el nombre del curso (por ejemplo «7.° A»)"
+        label="Título con el nombre del curso (por ejemplo «7° A»)"
       />
       {options.showHeading ? (
         <div>
@@ -989,7 +989,7 @@ function ClassListOptionsPanel({
             <ToggleSwitch
               checked={options.showShift}
               onChange={(showShift) => onChange({ showShift })}
-              label="Mostrar turno (por ejemplo «3.° B Turno mañana»)"
+              label="Mostrar turno (por ejemplo «3° B Turno mañana»)"
             />
           </div>
           <p className="mt-1 text-[10px] leading-snug text-[color:var(--te-ink-faint)]">
@@ -1022,7 +1022,7 @@ function ClassListOptionsPanel({
         label="Permitir sumar otros cursos"
       />
       <p className="text-[10px] leading-snug text-[color:var(--te-ink-faint)]">
-        Para las fotos grupales con más de un curso (7.° A y 7.° B juntos). Encendido, el fotógrafo al revisar y la
+        Para las fotos grupales con más de un curso (7° A y 7° B juntos). Encendido, el fotógrafo al revisar y la
         familia al confirmar pueden sumar otros cursos del mismo colegio; cada curso sale con su título.
       </p>
       <p className="text-[10px] leading-snug text-[color:var(--te-ink-faint)]">

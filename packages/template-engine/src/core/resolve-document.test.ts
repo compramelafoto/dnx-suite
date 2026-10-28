@@ -27,7 +27,7 @@ describe("resolveTemplateDocument", () => {
     assert.equal(varText?.config.content, "María Gómez");
 
     const braced = result.document.blocks.find((b) => b.id === "blk-text-01");
-    assert.equal(braced?.config.content, "3.º B Mañana · Escuela Ejemplo");
+    assert.equal(braced?.config.content, "3º B Mañana · Escuela Ejemplo");
 
     const logo = result.document.blocks.find((b) => b.id === "blk-logo-01");
     assert.equal(logo?.config.src, "https://cdn.example.com/school-logo.png");

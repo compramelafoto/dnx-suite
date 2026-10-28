@@ -35,7 +35,7 @@ export const SCHOOL_TEMPLATE_EXAMPLE_DATA: Record<string, unknown> = {
   "student.fullName": "María Gómez",
   "buyer.fullName": "Ana Rodríguez",
   "school.name": "Escuela Ejemplo",
-  "course.displayName": "3.º B Mañana",
+  "course.displayName": "3º B Mañana",
   [CLASS_LIST_VARIABLE_KEY]: serializeClassListGroups(CLASS_LIST_SAMPLE_GROUPS),
   // Los compañeros de muestra se ven sólo en el editor y en las vistas de ejemplo: una carpeta
   // real sin compañeros no dibuja ninguno.

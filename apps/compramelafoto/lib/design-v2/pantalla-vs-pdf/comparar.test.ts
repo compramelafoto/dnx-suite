@@ -22,7 +22,7 @@ async function pagina(textos: Array<{ x: number; y: number; texto: string; color
 
 const BASE = [
   { x: 60, y: 100, texto: "Benjamín Pérez" },
-  { x: 60, y: 300, texto: "5.º A - Colegio San Patricio" },
+  { x: 60, y: 300, texto: "5º A - Colegio San Patricio" },
   { x: 900, y: 800, texto: "Sala 3A" },
 ];
 

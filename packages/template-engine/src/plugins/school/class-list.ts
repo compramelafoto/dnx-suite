@@ -33,7 +33,7 @@ export type ClassListOptions = {
   /** En cuántas columnas se reparte; se llena de arriba hacia abajo. */
   columns: number;
   /**
-   * El título de cada curso («7.° A») arriba de sus alumnos. Va siempre, aunque el listado
+   * El título de cada curso («7° A») arriba de sus alumnos. Va siempre, aunque el listado
    * tenga un solo curso: así la plantilla no necesita un texto aparte con el curso.
    */
   showHeading: boolean;
@@ -44,11 +44,11 @@ export type ClassListOptions = {
   headingScale: number;
   /**
    * Si el fotógrafo (y la familia, al revisar) pueden sumar otros cursos del mismo colegio al
-   * listado: una foto grupal con 7.° A y 7.° B. Apagado, el listado lleva sólo el curso propio.
+   * listado: una foto grupal con 7° A y 7° B. Apagado, el listado lleva sólo el curso propio.
    */
   allowExtraCourses: boolean;
   /**
-   * El turno al lado del título del curso («3.° B Turno mañana»). Prendido por defecto: si el
+   * El turno al lado del título del curso («3° B Turno mañana»). Prendido por defecto: si el
    * curso no trae turno, no se imprime nada. Apagado, igual se muestra cuando dos cursos del
    * listado se llaman igual y sólo el turno los distingue.
    */
@@ -181,7 +181,7 @@ export function readClassListOptions(config: unknown): ClassListOptions {
   };
 }
 
-/** Un curso del listado: su título («7.° A») y sus alumnos. */
+/** Un curso del listado: su título («7° A») y sus alumnos. */
 export type ClassListGroup = {
   /** Lo que se imprime arriba de los alumnos. Vacío: el curso va sin título. */
   title: string;
@@ -199,12 +199,13 @@ export type ClassListGroup = {
  * El nombre del curso escrito con naturalidad, para el título del listado y el «Curso» del
  * diseño. Arregla sólo lo que salía mal, sin tocar lo que el fotógrafo escribió a propósito:
  *
- * - un número suelto al principio es un ordinal: «3 B» → «3.° B», «3» → «3.°»;
+ * - un número suelto al principio es un ordinal: «3 B» → «3° B», «3» → «3°»;
+ * - el ordinal va sin punto: «3° B» → «3° B», «3º B» → «3º B»;
  * - la coma pegada al ordinal sobra: «3°, B» → «3° B»;
  * - el agregado entre paréntesis de los listados viejos («1 B (Tarde, Primario)») pasa a ir
- *   separado con espacios: «1.° B Tarde Primario».
+ *   separado con espacios: «1° B Tarde Primario».
  *
- * «7° Grado A», «3.º B» o «Sala de 5» quedan como están.
+ * «7° Grado A», «3º B» o «Sala de 5» quedan como están.
  */
 export function formatCourseName(raw: string | null | undefined): string {
   let t = (raw ?? "").replace(/\s+/g, " ").trim();
@@ -215,8 +216,9 @@ export function formatCourseName(raw: string | null | undefined): string {
     extra = paren[1]!.split(",").map((x) => x.trim()).filter(Boolean);
     t = t.slice(0, paren.index).trim();
   }
-  t = t.replace(/^(\d+\s*\.?\s*[°º]?)\s*,\s*/, "$1 ");
-  t = t.replace(/^(\d+)(?=\s|$)(?!\s*[°º.])/, "$1.°");
+  t = t.replace(/^(\d+)\s*\.?\s*([°º])/, "$1$2");
+  t = t.replace(/^(\d+[°º]?)\s*,\s*/, "$1 ");
+  t = t.replace(/^(\d+)(?=\s|$)(?!\s*[°º.])/, "$1°");
   return [t, ...extra].filter(Boolean).join(" ");
 }
 
@@ -229,7 +231,7 @@ export function formatShiftLabel(raw: string | null | undefined): string {
   return conTurno.charAt(0).toLocaleUpperCase("es") + conTurno.slice(1);
 }
 
-/** El título impreso de un curso: «3.° B» o, con el turno, «3.° B Turno mañana». */
+/** El título impreso de un curso: «3° B» o, con el turno, «3° B Turno mañana». */
 export function formatClassListHeading(group: Pick<ClassListGroup, "title" | "shift">, showShift: boolean): string {
   const curso = formatCourseName(group.title);
   const turno = showShift ? formatShiftLabel(group.shift) : "";
@@ -237,7 +239,7 @@ export function formatClassListHeading(group: Pick<ClassListGroup, "title" | "sh
 }
 
 /**
- * Separa un título en curso y turno: «3.° B Turno mañana» → «3.° B» + «Turno mañana». El turno
+ * Separa un título en curso y turno: «3° B Turno mañana» → «3° B» + «Turno mañana». El turno
  * siempre empieza con «Turno» (`formatShiftLabel`), así que se corta ahí; sin turno, todo es curso.
  */
 function splitClassListHeading(h: string): { curso: string; turno: string } {
@@ -255,7 +257,7 @@ export function serializeClassList(students: readonly ClassListStudent[]): strin
 
 /**
  * Uno o más cursos, cada uno con su título, como texto de la variable:
- * `{"g":[{"t":"7.° A","k":"…","s":[{"f":"Ana","l":"Pérez"}]}]}`.
+ * `{"g":[{"t":"7° A","k":"…","s":[{"f":"Ana","l":"Pérez"}]}]}`.
  *
  * Los listados guardados antes (un arreglo plano de alumnos) se siguen leyendo: valen como un
  * solo curso, con el título que se le pase a `parseClassListGroups`.
@@ -421,8 +423,8 @@ function joinSpanish(parts: readonly string[]): string {
 }
 
 /**
- * Un solo título para varios cursos: «7.° A y 7.° B Turno mañana». Si los turnos no
- * coinciden, cada curso lleva el suyo: «7.° A Turno mañana y 7.° B Turno tarde».
+ * Un solo título para varios cursos: «7° A y 7° B Turno mañana». Si los turnos no
+ * coinciden, cada curso lleva el suyo: «7° A Turno mañana y 7° B Turno tarde».
  */
 export function combineClassListHeadings(headings: readonly string[]): string {
   const partes = headings.filter((h) => h.trim() !== "");
@@ -441,7 +443,7 @@ export function combineClassListHeadings(headings: readonly string[]): string {
  * El turno va según «Mostrar turno», salvo que dos cursos del listado se llamen igual: ahí el
  * turno es lo único que los distingue y va siempre.
  *
- * Con varios cursos (una foto grupal de 7.° A y 7.° B juntos) sale un solo título con todos los
+ * Con varios cursos (una foto grupal de 7° A y 7° B juntos) sale un solo título con todos los
  * cursos y los alumnos de todos mezclados, en el orden de las opciones.
  */
 export function formatClassListGroups(
@@ -679,7 +681,7 @@ export function layoutClassListSections(input: {
     if (s.heading) {
       /*
        * Un título que no entra en su columna ni al cuerpo de los nombres se parte en dos
-       * renglones: el curso arriba y el turno abajo («3.° B» / «Turno mañana»). Achicarlo más
+       * renglones: el curso arriba y el turno abajo («3° B» / «Turno mañana»). Achicarlo más
        * que los nombres lo dejaba ilegible.
        */
       const corte = splitClassListHeading(s.heading);
@@ -799,7 +801,7 @@ export function countClassListStudents(groups: readonly ClassListGroup[]): numbe
 
 /**
  * ¿La foto grupal muestra bastante más gente que el listado? Con un 30 % más de caras que
- * alumnos, lo más probable es que en la foto haya más de un curso (7.° A y 7.° B juntos).
+ * alumnos, lo más probable es que en la foto haya más de un curso (7° A y 7° B juntos).
  * Sin caras contadas (la foto no se analizó) o sin alumnos no se avisa.
  */
 export const CLASS_LIST_CROWD_RATIO = 1.3;
@@ -814,7 +816,7 @@ export function classListCrowdMessage(faces: number, students: number): string {
 }
 
 /** El título del curso de muestra (coincide con el curso de muestra del catálogo). */
-export const CLASS_LIST_SAMPLE_TITLE = "3.° B";
+export const CLASS_LIST_SAMPLE_TITLE = "3° B";
 
 /** El turno del curso de muestra. */
 export const CLASS_LIST_SAMPLE_SHIFT = "Mañana";

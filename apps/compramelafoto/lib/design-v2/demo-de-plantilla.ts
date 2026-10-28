@@ -140,7 +140,7 @@ type Persona = { firstName: string; lastName: string };
 
 type DatosDeNivel = {
   curso: string;
-  /** El turno del curso, para el título del listado («3.º B Turno mañana»). */
+  /** El turno del curso, para el título del listado («3º B Turno mañana»). */
   turno: string | null;
   colegio: string;
   /** [nena, nene] */
@@ -181,7 +181,7 @@ const NIVELES: Record<NivelDemo, DatosDeNivel> = {
     companeros: COMPANEROS.slice(0, 14),
   },
   primaria: {
-    curso: "3.º B",
+    curso: "3º B",
     turno: "Mañana",
     colegio: "Escuela Manuel Belgrano",
     alumnos: [
@@ -191,7 +191,7 @@ const NIVELES: Record<NivelDemo, DatosDeNivel> = {
     companeros: COMPANEROS.slice(0, 18),
   },
   secundaria: {
-    curso: "4.º año A",
+    curso: "4º año A",
     turno: "Mañana",
     colegio: "Colegio San Martín",
     alumnos: [
@@ -201,7 +201,7 @@ const NIVELES: Record<NivelDemo, DatosDeNivel> = {
     companeros: COMPANEROS.slice(2, 18),
   },
   egresados: {
-    curso: "6.º año Promo 2026",
+    curso: "6º año Promo 2026",
     turno: null,
     colegio: "Instituto Nuestra Señora del Valle",
     alumnos: [

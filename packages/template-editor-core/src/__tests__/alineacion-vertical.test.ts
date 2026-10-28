@@ -7,7 +7,7 @@ import { buildPasteStyleUpdate, extractBlockStyle } from "../block-style-clipboa
 /**
  * Alineación vertical del texto: arriba, centro o abajo dentro de la caja.
  *
- * El caso que la pidió: el listado de 7.º A de la carpeta de San Patricio va girado 90° y quedaba
+ * El caso que la pidió: el listado de 7º A de la carpeta de San Patricio va girado 90° y quedaba
  * pegado al pliegue, con un hueco vacío del otro lado del recuadro.
  */
 
@@ -90,7 +90,7 @@ describe("alineación vertical — editorADocumento", () => {
   });
 
   /*
-   * El bloque real de 7.º A en la carpeta de San Patricio: girado 90,68°, dos columnas, Helvetica
+   * El bloque real de 7º A en la carpeta de San Patricio: girado 90,68°, dos columnas, Helvetica
    * 67 con interlineado 1,3. Centrado, los alumnos se reparten alrededor del centro del recuadro
    * (que es también el centro de giro), así que el promedio de sus centros cae en él.
    */

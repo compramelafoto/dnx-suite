@@ -11,7 +11,7 @@ export function createTemplatePreviewExampleData(
     student: { fullName: "Nombre Apellido" },
     buyer: { fullName: "Cliente Ejemplo" },
     school: { name: "Escuela de ejemplo" },
-    course: { displayName: "3.º B Mañana" },
+    course: { displayName: "3º B Mañana" },
     order: {
       referenceShort: "P-0001",
       fulfillmentQrUrl: "",
