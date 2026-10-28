@@ -148,8 +148,13 @@ cambiarlo.
   3). Se guarda **cada mes por separado** y el promedio. El semáforo muestra el último mes completo
   y los anteriores; el promedio es el que se usa si algún día el local afecta precios (§4.5).
 - **Asociar categorías a líneas entra en este trabajo**: en el paso «Local y coberturas», cada línea
-  que no vende horas tiene un selector múltiple de categorías de INGRESO de Caja. Propuesta inicial:
-  «Ventas» → «Productos e impresiones». Sin esto el estado «medido» nunca se activaría.
+  que no vende horas tiene un selector múltiple de categorías de INGRESO de Caja. No se asocia nada
+  solo: los nombres de las categorías cambian en cada espacio, así que la persona elige en el paso
+  qué categorías son ventas de cada línea (en DNX Estudio, «Ventas» para «Productos e impresiones»).
+  Sin esto el estado «medido» nunca se activaría.
+- **Qué mes cuenta**: un mes completo sin ventas cuenta como $0 sólo si es posterior al mes del
+  primer movimiento de Caja del espacio (de cualquier tipo). Los meses anteriores y el mes en que
+  empezó Caja (incompleto) se saltean.
 - **Costo de mercadería**: `localGoodsCostPercent` (lo carga Daniel una vez, p. ej. 40 %). Más
   adelante se puede reemplazar por el costo del catálogo; no en este diseño.
 - **Mientras no haya 2 meses completos en Caja**: se usa un monto a mano
