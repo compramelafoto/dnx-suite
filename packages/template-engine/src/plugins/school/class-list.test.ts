@@ -12,6 +12,7 @@ import {
   layoutClassList,
   parseClassListValue,
   readClassListOptions,
+  resolveClassListHeadingStyle,
   serializeClassList,
   formatClassListGroups,
   formatClassListHeading,
@@ -324,4 +325,34 @@ test("aviso de foto con más gente que el listado: 30 % más de caras", () => {
     classListCrowdMessage(52, 25),
     "En esta foto se ven unas 52 personas y el listado tiene 25. ¿Hay más de un curso?",
   );
+});
+
+test("estilo del título: guarda sólo lo que entiende y lo demás sale como los nombres", () => {
+  const o = readClassListOptions({
+    classList: {
+      headingStyle: { fontFamily: " Lobster ", textTransform: "uppercase", color: "#c00", bold: false, align: "x", italic: "si" },
+    },
+  });
+  assert.deepEqual(o.headingStyle, { fontFamily: "Lobster", textTransform: "uppercase", color: "#c00", bold: false });
+  assert.deepEqual(readClassListOptions({}).headingStyle, {});
+
+  const nombres = {
+    fontFamily: "Helvetica",
+    textTransform: "lowercase" as const,
+    color: "#111111",
+    bold: false,
+    italic: true,
+    align: "left" as const,
+  };
+  // Sin estilo propio: como los nombres, pero en negrita (como siempre fue).
+  assert.deepEqual(resolveClassListHeadingStyle({}, nombres), { ...nombres, bold: true });
+  // Con estilo propio: los nombres en minúsculas y el título en mayúsculas, con otra fuente.
+  assert.deepEqual(resolveClassListHeadingStyle(o.headingStyle, nombres), {
+    fontFamily: "Lobster",
+    textTransform: "uppercase",
+    color: "#c00",
+    bold: false,
+    italic: true,
+    align: "left",
+  });
 });

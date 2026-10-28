@@ -17,7 +17,14 @@ import {
   DEFAULT_CLASS_LIST_OPTIONS,
   isClassListConfig,
   readClassListOptions,
+  resolveClassListHeadingStyle,
+  getTextVisualConfig,
+  EDITOR_FONT_CATALOG,
+  EDITOR_FONT_CATEGORY_LABELS,
+  type ClassListHeadingStyle,
   type ClassListOptions,
+  type ClassListTextStyle,
+  type EditorFontCategory,
   COURSE_MOSAIC_PHOTO_ASPECT_MAX,
   COURSE_MOSAIC_PHOTO_ASPECT_MIN,
   COURSE_MOSAIC_TILT_MAX,
@@ -300,6 +307,7 @@ export function TemplateEditorInspector({
       {selectedBlock.type === "VARIABLE_TEXT" && isClassListConfig(cfg) && (
         <ClassListOptionsPanel
           options={readClassListOptions(cfg)}
+          namesStyle={classListNamesStyle(cfg)}
           onChange={(patch) => updateConfig({ classList: { ...readClassListOptions(cfg), ...patch } })}
           onUseOtherVariable={() => {
             const next: Record<string, unknown> = { ...cfg, variableKey: "student.fullName" };
@@ -644,13 +652,134 @@ export function TemplateEditorInspector({
   );
 }
 
+/** Cómo salen los nombres del listado: lo que se eligió en la barra de texto del bloque. */
+function classListNamesStyle(cfg: Record<string, unknown>): ClassListTextStyle {
+  const t = getTextVisualConfig(cfg);
+  return {
+    fontFamily: t.fontFamily,
+    textTransform: t.textTransform,
+    color: t.color,
+    bold: t.fontWeight >= 600,
+    italic: t.fontStyle === "italic",
+    align: t.textAlign,
+  };
+}
+
+const FONT_CATEGORY_ORDER: EditorFontCategory[] = ["Sans", "Serif", "Display", "Script", "Handwriting", "Mono"];
+
+const CONVERSION_LABEL = {
+  none: "Tal cual se cargó",
+  uppercase: "MAYÚSCULAS",
+  lowercase: "minúsculas",
+  capitalize: "Iniciales En Mayúscula",
+} as const;
+
+/**
+ * El estilo del título del listado (curso y colegio), aparte del de los nombres. Lo que no se
+ * cambia acá sale igual que los nombres; «Igual que los nombres» vuelve a heredar.
+ */
+function ClassListHeadingStylePanel({
+  style,
+  namesStyle,
+  onChange,
+}: {
+  style: ClassListHeadingStyle;
+  namesStyle: ClassListTextStyle;
+  onChange: (next: ClassListHeadingStyle) => void;
+}) {
+  const efectivo = resolveClassListHeadingStyle(style, namesStyle);
+  const set = <K extends keyof ClassListHeadingStyle>(key: K, value: ClassListHeadingStyle[K] | undefined) => {
+    const next = { ...style };
+    if (value === undefined) delete next[key];
+    else next[key] = value;
+    onChange(next);
+  };
+  return (
+    <div className="space-y-2 rounded-[var(--te-radius)] border border-[color:var(--te-line)] p-2">
+      <p className="text-[11px] font-semibold text-[color:var(--te-ink)]">Estilo del título</p>
+      <p className="text-[10px] leading-snug text-[color:var(--te-ink-faint)]">
+        Aparte de los nombres. Lo que no cambies acá sale igual que los nombres, que se eligen en la barra de texto.
+      </p>
+      <div>
+        <FieldLabel>Tipografía</FieldLabel>
+        <select
+          className={selectBase}
+          value={style.fontFamily ?? ""}
+          onChange={(e) => set("fontFamily", e.target.value || undefined)}
+        >
+          <option value="">Igual que los nombres</option>
+          {FONT_CATEGORY_ORDER.map((cat) => {
+            const fuentes = EDITOR_FONT_CATALOG.filter((f) => f.category === cat);
+            if (fuentes.length === 0) return null;
+            return (
+              <optgroup key={cat} label={EDITOR_FONT_CATEGORY_LABELS[cat]}>
+                {fuentes.map((f) => (
+                  <option key={f.id} value={f.family}>
+                    {f.label}
+                  </option>
+                ))}
+              </optgroup>
+            );
+          })}
+        </select>
+      </div>
+      <div>
+        <FieldLabel>Mayúsculas y minúsculas</FieldLabel>
+        <select
+          className={selectBase}
+          value={style.textTransform ?? ""}
+          onChange={(e) =>
+            set("textTransform", (e.target.value || undefined) as ClassListHeadingStyle["textTransform"])
+          }
+        >
+          <option value="">Igual que los nombres ({CONVERSION_LABEL[namesStyle.textTransform]})</option>
+          {(Object.keys(CONVERSION_LABEL) as Array<keyof typeof CONVERSION_LABEL>).map((k) => (
+            <option key={k} value={k}>
+              {CONVERSION_LABEL[k]}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div>
+        <ColorField label="Color" value={efectivo.color} onChange={(color) => set("color", color)} />
+        {style.color !== undefined ? (
+          <button
+            type="button"
+            className="mt-0.5 text-[10px] text-[color:var(--te-ink-muted)] underline hover:text-[color:var(--te-ink)]"
+            onClick={() => set("color", undefined)}
+          >
+            Igual que los nombres
+          </button>
+        ) : null}
+      </div>
+      <div>
+        <FieldLabel>Alineación</FieldLabel>
+        <SegmentedControl
+          className="w-full"
+          value={efectivo.align}
+          onChange={(align) => set("align", align)}
+          options={[
+            { value: "left", label: "Izquierda" },
+            { value: "center", label: "Centro" },
+            { value: "right", label: "Derecha" },
+          ]}
+        />
+      </div>
+      <ToggleSwitch checked={efectivo.bold} onChange={(bold) => set("bold", bold)} label="Negrita" />
+      <ToggleSwitch checked={efectivo.italic} onChange={(italic) => set("italic", italic)} label="Cursiva" />
+    </div>
+  );
+}
+
 /** Opciones del «Listado del curso»: orden, cómo se escribe cada nombre y el destacado. */
 function ClassListOptionsPanel({
   options,
+  namesStyle,
   onChange,
   onUseOtherVariable,
 }: {
   options: ClassListOptions;
+  namesStyle: ClassListTextStyle;
   onChange: (patch: Partial<ClassListOptions>) => void;
   onUseOtherVariable: () => void;
 }) {
@@ -735,7 +864,7 @@ function ClassListOptionsPanel({
             ]}
           />
           <p className="mt-1 text-[10px] leading-snug text-[color:var(--te-ink-faint)]">
-            El título va en negrita, arriba de cada curso. Con el título no hace falta un texto aparte con el curso.
+            El título va arriba de cada curso. Con el título no hace falta un texto aparte con el curso.
           </p>
           <div className="mt-2">
             <ToggleSwitch
@@ -758,6 +887,13 @@ function ClassListOptionsPanel({
       <p className="text-[10px] leading-snug text-[color:var(--te-ink-faint)]">
         Va una sola vez, arriba de todo y dentro del mismo recuadro del listado.
       </p>
+      {options.showHeading || options.showSchoolName ? (
+        <ClassListHeadingStylePanel
+          style={options.headingStyle}
+          namesStyle={namesStyle}
+          onChange={(headingStyle) => onChange({ headingStyle })}
+        />
+      ) : null}
       <ToggleSwitch
         checked={options.allowExtraCourses}
         onChange={(allowExtraCourses) => onChange({ allowExtraCourses })}
@@ -768,8 +904,8 @@ function ClassListOptionsPanel({
         familia al confirmar pueden sumar otros cursos del mismo colegio; cada curso sale con su título.
       </p>
       <p className="text-[10px] leading-snug text-[color:var(--te-ink-faint)]">
-        Si la lista no entra en el recuadro, la letra se achica para todos por igual. La tipografía, el tamaño y el
-        color se eligen en la barra de texto.
+        Si la lista no entra en el recuadro, la letra se achica para todos por igual. La tipografía, el tamaño, el
+        color y las mayúsculas de los nombres se eligen en la barra de texto; los del título, en «Estilo del título».
       </p>
       <button
         type="button"
