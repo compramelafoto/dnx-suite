@@ -1008,6 +1008,8 @@ export default function ConfiguracionClient({
                 setIsPublicPageEnabled={setIsPublicPageEnabled}
                 publicPageHandler={publicPageHandler}
                 setPublicPageHandler={setPublicPageHandler}
+                savedPublicPageHandler={photographer?.publicPageHandler ?? ""}
+                savedIsPublicPageEnabled={photographer?.isPublicPageEnabled ?? false}
                 enableAlbumsPage={enableAlbumsPage}
                 setEnableAlbumsPage={setEnableAlbumsPage}
                 enablePrintPage={enablePrintPage}

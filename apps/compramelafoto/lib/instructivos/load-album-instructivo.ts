@@ -58,7 +58,7 @@ const SELECCION_ALBUM = {
   cleanupStatus: true,
   selectedLabId: true,
   user: {
-    select: { name: true, logoUrl: true, primaryColor: true, handler: true },
+    select: { name: true, logoUrl: true, primaryColor: true, publicPageHandler: true },
   },
 } as const;
 
@@ -143,7 +143,7 @@ export async function loadAlbumInstructivo(
       nombre: album.user?.name ?? null,
       logoUrl: normalizarLogo(album.user?.logoUrl),
       primaryColor: album.user?.primaryColor ?? null,
-      handler: album.user?.handler ?? null,
+      handler: album.user?.publicPageHandler ?? null,
     },
     senales: {
       fotosCargadas,
