@@ -78,7 +78,7 @@ persona); la etapa 6 (botón "Avisar que está listo").
   **N < cantidad total de esa medida y plazo**; si ninguno se cumple, el precio de la instantánea
   (regla "Pocas copias"). Costo: `Product.costArs`.
 - Las ampliaciones de La Isla ya están en el catálogo con costo y precio (factor ≈ ×2,7). Plazo de
-  La Isla: **a confirmar por Daniel** (por ahora, "próxima semana").
+  La Isla: **como máximo 7 días** (puede llegar antes): se trata como "próxima semana".
 - Laboratorio de cada renglón: `Product.preferredProveedorId`; si falta, el de la medida en
   Configuración → Impresiones. Sin laboratorio (instantáneas, proveedor "DNX") → mostrador.
 - Si una medida o plazo no está en el catálogo, el bot no inventa: lo dice y pasa a una persona.
