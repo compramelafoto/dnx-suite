@@ -26,7 +26,7 @@ persona); la etapa 6 (botón "Avisar que está listo").
 | Cuándo sale al laboratorio | Apenas se acredita el pago (seña o total), sin intervención del mostrador |
 | Recorte | **Lo define el laboratorio**: FOTOFFICE manda la foto **original**, sin recortar ni recomprimir |
 | Papel | El cliente elige **brillante o mate** por foto (se pueden mezclar en el mismo pedido); si no dice nada, **brillante** |
-| Pocas copias | Si no llega al primer escalón del catálogo ("más de 10"), se cobra el **precio de la instantánea** de esa medida y se entrega al **siguiente día hábil** (va al laboratorio como "para mañana") |
+| Pocas copias | **Menos de 10 copias** de una medida y plazo: se cobra el **precio de la instantánea** de esa medida y se entrega al **siguiente día hábil** (va al laboratorio como "para mañana") |
 | "Para mañana" | Listo el **siguiente día hábil** (si pagan viernes o sábado, el lunes; feriados no cuentan) |
 | "Próxima semana" (y La Isla) | **Máximo 7 días corridos.** El pedido **sale al laboratorio apenas se paga**. Al cliente se le promete "como máximo en 7 días" (sin fecha exacta). El cadete (~$12.000 el viaje) se manda cuando conviene: cuando la **ganancia acumulada** (precio − costo) de los trabajos de ese laboratorio que esperan retiro **supera $12.000** (configurable), se programa el retiro para el **siguiente día hábil** *(decisión de quien diseña)* y recién ahí se le avisa a cada cliente la fecha exacta. Si se llega al día 7 sin juntar la ganancia, el retiro se programa igual ese día |
 | Plazos mezclados | Si el cliente pide unas "para mañana" y otras "para la próxima semana", **paga todo junto** (un solo link) pero se generan **trabajos separados** (uno por plazo y laboratorio), cada uno con su fecha |
@@ -75,7 +75,8 @@ persona); la etapa 6 (botón "Avisar que está listo").
   plazo en el nombre: se tratan como "próxima semana", máximo 7 días). Se leen con un formato
   estricto; lo que no encaje no se vende por el bot.
 - Para cada medida y plazo se toma el producto con el escalón "más de N" más alto que cumpla
-  **N < cantidad total de esa medida y plazo**; si ninguno se cumple, el precio de la instantánea
+  **N ≤ cantidad total de esa medida y plazo** (Daniel: desde 10 copias vale "más de 10"); si
+  ninguno se cumple (menos de 10), el precio de la instantánea
   (regla "Pocas copias"). Costo: `Product.costArs`.
 - Las ampliaciones de La Isla ya están en el catálogo con costo y precio (factor ≈ ×2,7). Plazo de
   La Isla: **como máximo 7 días** (puede llegar antes): se trata como "próxima semana".
@@ -142,8 +143,8 @@ persona); la etapa 6 (botón "Avisar que está listo").
 
 ## 9. Pruebas
 
-- Precio por escalón: 10 copias 10x15 para mañana → "más de 10" no aplica (10 no es más de 10);
-  11 → sí.
+- Precio por escalón: 9 copias 10x15 para mañana → precio de la instantánea; 10 → "más de 10";
+  50 → "más de 50".
 - Seña 50 % y total; acreditar con la seña dispara el laboratorio y deja saldo.
 - Original sin recorte: el archivo del ZIP es byte a byte el de la Bandeja.
 - Asunto con el plazo correcto; instantáneas no van al laboratorio.
