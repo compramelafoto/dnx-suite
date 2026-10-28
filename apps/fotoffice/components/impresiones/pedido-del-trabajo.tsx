@@ -25,7 +25,7 @@ export function PedidoDelTrabajo({
     pedidoId: string; numero: number; estado: string; lastError: string | null;
     copias: { tamano: string; papel: string; cantidad: number }[]; totalCents: number; costoCents: number; gananciaCents: number;
     entrega: { direccion: string; km: number | null; envioCents: number; mapa: string | null } | null;
-    pagadoCents?: number | null; saldoCents?: number | null;
+    pagadoCents?: number | null; saldoCents?: number | null; deMasCents?: number | null;
   };
   puedeEditar: boolean;
 }) {
@@ -107,13 +107,19 @@ export function PedidoDelTrabajo({
         {pedido.pagadoCents !== null && pedido.pagadoCents !== undefined ? (
           <>
             <div className="flex justify-between gap-2">
-              <dt className="text-[var(--fo-muted)]">Pagado (seña por WhatsApp)</dt>
+              <dt className="text-[var(--fo-muted)]">Pagado por WhatsApp</dt>
               <dd className="tabular-nums">{pesos(pedido.pagadoCents)}</dd>
             </div>
             <div className={`flex justify-between gap-2 ${pedido.saldoCents ? "font-medium text-[var(--fo-warning)]" : ""}`}>
               <dt>Saldo</dt>
               <dd className="tabular-nums">{pesos(pedido.saldoCents ?? 0)}</dd>
             </div>
+            {pedido.deMasCents ? (
+              <div className="flex justify-between gap-2 font-medium text-[var(--fo-warning)]">
+                <dt>Pagó de más (a devolver)</dt>
+                <dd className="tabular-nums">{pesos(pedido.deMasCents)}</dd>
+              </div>
+            ) : null}
           </>
         ) : null}
         <div className="flex justify-between gap-2">

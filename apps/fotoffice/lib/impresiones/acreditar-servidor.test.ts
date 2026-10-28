@@ -65,7 +65,7 @@ vi.mock("./pago-servidor", () => ({
 }));
 vi.mock("./avisos-servidor", () => ({ avisarPedidoConfirmado: H.aviso }));
 vi.mock("@/lib/bandeja/aviso-sistema", () => ({ enviarAvisoPorWhatsapp: H.whatsapp }));
-vi.mock("./preparar-servidor", () => ({ avisarFallaAlEstudio: H.falla }));
+vi.mock("./preparar-servidor", () => ({ avisarFallaAlEstudio: H.falla, avisarPagoARevisar: H.falla }));
 vi.mock("@/lib/communications/send-email", () => ({ sendTransactionalEmail: vi.fn() }));
 const A = await import("./acreditar-servidor");
 
@@ -323,8 +323,9 @@ describe("acreditarPagoImpresion: pedidos del bot de WhatsApp", () => {
     orden.updateMany.mockResolvedValueOnce({ count: 0 });
     orden.findUnique.mockResolvedValueOnce({ status: "ENVIADO", providerPaymentRef: "mp-1", paidArs: "1000", totalArs: "1000", pagosExtra: null, lastError: null });
     await A.acreditarPagoImpresion("ws", { ...pago({ amountMinor: 100000 }), providerPaymentId: "mp-3" });
-    expect(orden.update).toHaveBeenCalledWith({ where: { id: "ord1" }, data: { paidArs: "2000.00", pagosExtra: ["mp-3"], lastError: "PAGO_DE_MAS" } });
-    await vi.waitFor(() => expect(H.falla).toHaveBeenCalled());
+    // No pisa lastError (lo usa la preparación): el pago de más se ve porque lo pagado supera el total.
+    expect(orden.update).toHaveBeenCalledWith({ where: { id: "ord1" }, data: { paidArs: "2000.00", pagosExtra: ["mp-3"] } });
+    await vi.waitFor(() => expect(H.falla).toHaveBeenCalledWith("ws", 8, "PAGO_DE_MAS", 100000, expect.anything()));
   });
 
   it("el pago de un pedido reemplazado no sale al laboratorio: queda anotado y avisa al estudio", async () => {

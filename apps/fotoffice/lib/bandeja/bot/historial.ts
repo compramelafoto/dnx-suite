@@ -11,6 +11,8 @@ import { medidasQueAlcanzan } from "../calidad";
 
 export type MensajeChat = { id?: string; direccion: string; autor: string; tipo: string; texto: string | null; media?: unknown; createdAt?: Date };
 export type MensajeModelo = { role: "user" | "assistant"; content: string };
+/** Una foto numerada del chat: su mensaje y cuándo llegó. */
+export type FotoNumerada = { id: string; en: Date | null };
 
 const SIN_TEXTO: Record<string, string> = {
   IMAGEN: "[el cliente mandó una foto]",
@@ -49,19 +51,23 @@ export function historialParaElBot(
   mensajes: readonly MensajeChat[],
   max = 40,
   ahora?: Date,
-): { history: MensajeModelo[]; userText: string; fotos: Map<number, string> } | null {
+): { history: MensajeModelo[]; userText: string; fotos: Map<number, FotoNumerada>; fotosBajando: number } | null {
   const bloques: MensajeModelo[] = [];
   // Las fotos que se pueden imprimir se numeran ("foto 1", "foto 2"…) para que el bot arme el pedido.
-  const fotos = new Map<number, string>();
+  const fotos = new Map<number, FotoNumerada>();
+  let fotosBajando = 0;
   for (const m of mensajes) {
     if (m.direccion === "SISTEMA" || m.autor === "SISTEMA") continue;
     const role = m.direccion === "ENTRANTE" ? "user" : "assistant";
     let contenido = role === "user" ? textoDe(m, ahora) : m.texto?.trim();
     const a = role === "user" && m.id ? archivoDeMensaje(m.tipo, m.media) : null;
-    if (a && a.estado === "LISTO" && (m.tipo === "IMAGEN" || (a.mime?.startsWith("image/") ?? false))) {
+    const esFoto = a !== null && (m.tipo === "IMAGEN" || (a.mime?.startsWith("image/") ?? false));
+    if (esFoto && a!.estado === "LISTO") {
       const n = fotos.size + 1;
-      fotos.set(n, m.id!);
+      fotos.set(n, { id: m.id!, en: m.createdAt ?? null });
       contenido = `[foto ${n}] ${contenido}`;
+    } else if (esFoto && a!.estado === "PENDIENTE") {
+      fotosBajando++;
     }
     if (!contenido) continue;
     const ultimo = bloques.at(-1);
@@ -73,5 +79,5 @@ export function historialParaElBot(
 
   let history = bloques.slice(-max);
   while (history.length > 0 && history[0].role !== "user") history = history.slice(1);
-  return { history, userText: final.content, fotos };
+  return { history, userText: final.content, fotos, fotosBajando };
 }

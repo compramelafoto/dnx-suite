@@ -145,7 +145,7 @@ async function turno(chatId: string, deps: DepsResponder): Promise<SalidaBot> {
     .catch(() => "el estudio");
   const { tools, pedidoDePersona } = herramientasDeAtencion(workspaceId, deps.herramientas, {
     id: chat.id, waId: chat.waId, clientId: chat.clientId, nombre: chat.nombre,
-  }, h.fotos);
+  }, h.fotos, h.fotosBajando);
   const enPreparacion = await import("@/lib/presupuesto-automatico/flujo")
     .then((m) => m.enPreparacionParaWhatsapp(workspaceId, chat.waId))
     .catch(() => false);

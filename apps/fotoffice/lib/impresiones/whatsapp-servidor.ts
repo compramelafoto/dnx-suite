@@ -3,7 +3,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { prisma, type Prisma } from "@repo/db";
 import { archivoDeMensaje, claveDeMedia } from "@/lib/bandeja/archivo-de-mensaje";
 import { calidadParaMedida } from "@/lib/bandeja/calidad";
-import { cotizarCopias, leerProductosDeCopia, type LineaCotizada, type Plazo, type ProductoDelCatalogo } from "./catalogo-copias";
+import { cotizarCopias, leerProductosDeCopia, nombreDelPlazo, type LineaCotizada, type Plazo, type ProductoDelCatalogo } from "./catalogo-copias";
 import { cotizarEnvio, type Punto } from "./envio";
 import { fechaPorPlazo } from "./plazos";
 import { referenciaPedido } from "./pago-servidor";
@@ -22,8 +22,8 @@ export type DatosPedidoBot = { renglones: RenglonBot[]; envio: { direccion: stri
 export type ChatDelPedido = { id: string; waId: string; clientId: string | null; nombre: string | null };
 
 export type ResultadoPedidoBot =
-  | { ok: true; numero: number; subtotal: number; envio: number; total: number; sena: number; linkSena: string; linkTotal: string; lineas: LineaCotizada[]; fechas: { plazo: Plazo; fecha: string }[] }
-  | { ok: false; motivo: "MODULO" | "SIN_MP" | "SIN_FOTOS" | "FOTO_NO_LISTA" | "PRECIO" | "ENVIO_LEJOS" | "SIN_DIRECCION" | "ERROR"; detalle?: string };
+  | { ok: true; numero: number; subtotal: number; envio: number; total: number; sena: number; depositPct: number; linkSena: string; linkTotal: string; lineas: LineaCotizada[]; fechas: { plazo: Plazo; fecha: string }[] }
+  | { ok: false; motivo: "MODULO" | "SIN_MP" | "SIN_FOTOS" | "FOTO_NO_LISTA" | "PRECIO" | "SIN_LABORATORIO" | "ENVIO_LEJOS" | "SIN_DIRECCION" | "ERROR"; detalle?: string };
 
 export type AbrirCobro = (d: { workspaceId: string; pedidoId: string; numero: number; montoCents: number; tipo: "SENA" | "TOTAL"; token: string; origen: string; slug: string; tracking: string }) => Promise<string>;
 
@@ -136,6 +136,9 @@ export async function crearPedidoDesdeWhatsapp(workspaceId: string, chat: ChatDe
     const lineasPedido = datos.renglones.flatMap((r) => r.fotos.map((f) => ({ r, f })));
     const cot = cotizarCopias(lineasPedido.map(({ r }) => ({ medida: r.medida, plazo: r.plazo, cantidad: r.cantidad })), catalogo);
     if (!cot.ok) return no("PRECIO", cot.falta);
+    // Una copia de laboratorio sin laboratorio se cobraría y no saldría nunca: no se vende por el bot.
+    const sinLab = cot.lineas.find((l) => l.plazo !== "INSTANTANEA" && !l.proveedorId);
+    if (sinLab) return no("SIN_LABORATORIO", `${sinLab.medida} ${nombreDelPlazo(sinLab.plazo)}`);
 
     let envio: { km: number; pesos: number; direccion: string; punto: Punto } | null = null;
     if (datos.envio) {
@@ -217,8 +220,8 @@ export async function crearPedidoDesdeWhatsapp(workspaceId: string, chat: ChatDe
 
     const comun = { workspaceId, pedidoId: pedido.id, numero: pedido.number, token, origen: d.origen, slug: d.slug, tracking: pedido.trackingToken };
     const [linkSena, linkTotal] = await Promise.all([
-      abrir({ ...comun, montoCents: sena * 100, tipo: "SENA" }),
-      abrir({ ...comun, montoCents: total * 100, tipo: "TOTAL" }),
+      abrir({ ...comun, montoCents: Math.round(sena * 100), tipo: "SENA" }),
+      abrir({ ...comun, montoCents: Math.round(total * 100), tipo: "TOTAL" }),
     ]);
     const plazos = [...new Set(cot.lineas.map((l) => l.plazo))];
     return {
@@ -228,6 +231,7 @@ export async function crearPedidoDesdeWhatsapp(workspaceId: string, chat: ChatDe
       envio: envio?.pesos ?? 0,
       total,
       sena,
+      depositPct,
       linkSena,
       linkTotal,
       lineas: cot.lineas,

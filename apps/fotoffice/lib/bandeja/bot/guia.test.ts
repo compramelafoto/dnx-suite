@@ -47,7 +47,7 @@ describe("guía del bot de atención", () => {
   it("arma pedidos de copias con armar_pedido_impresion y ofrece seña o total", () => {
     const g = guiaDeAtencion();
     expect(g).toContain("armar_pedido_impresion");
-    expect(g).toContain("seña del 50 %");
+    expect(g).toContain("la seña");
     expect(g).not.toContain("No armás pedidos ni cobrás todavía");
   });
 

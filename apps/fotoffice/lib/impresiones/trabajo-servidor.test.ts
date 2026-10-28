@@ -64,7 +64,7 @@ describe("pedidoDelTrabajo", () => {
     expect(r).toEqual({
       pedidoId: "ord1", numero: 8, estado: "PAGADO_SIN_ENVIAR", lastError: "Fotolag no tiene correo cargado.",
       copias: [{ tamano: "10x15", papel: "Brillo", cantidad: 3 }, { tamano: "13x18", papel: "Brillo", cantidad: 3 }],
-      totalCents: 1000000, costoCents: 400050, gananciaCents: 599950, entrega: null, pagadoCents: null, saldoCents: null,
+      totalCents: 1000000, costoCents: 400050, gananciaCents: 599950, entrega: null, pagadoCents: null, saldoCents: null, deMasCents: null,
     });
   });
   it("con envío a domicilio muestra la dirección, los km, el costo y el enlace al mapa", async () => {
@@ -109,6 +109,14 @@ describe("pedidos de impresión del bot: saldo", () => {
     const p = await T.pedidoDelTrabajo("ws", "p1");
     expect(p).toMatchObject({ pagadoCents: 1400000, saldoCents: 1400000 });
     expect(p!.copias).toEqual([{ tamano: "13x18", papel: "Brillo", cantidad: 2 }, { tamano: "13x18", papel: "Mate", cantidad: 2 }]);
+  });
+
+  it("si pagó de más, la ficha lo muestra para devolverlo", async () => {
+    orden.findFirst.mockResolvedValue({
+      id: "ord1", number: 8, status: "ENVIADO", lastError: null, paper: "BRILLO", totalArs: "28000", costTotalArs: "2400", depositArs: "14000", paidArs: "42000",
+      delivery: "RETIRO", shippingArs: "0", shippingAddress: null, shippingLat: null, shippingLon: null, shippingKm: null, items: [],
+    });
+    expect(await T.pedidoDelTrabajo("ws", "p1")).toMatchObject({ saldoCents: 0, deMasCents: 1400000 });
   });
 
   it("cobrar el saldo lo deja en cero y lo registra en Caja con el medio elegido", async () => {

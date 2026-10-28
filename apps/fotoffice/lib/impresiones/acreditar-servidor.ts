@@ -252,10 +252,10 @@ export async function acreditarPagoImpresion(workspaceId: string, pago: PagoMp):
       const deMas = pagado > cents(String(actual.totalArs));
       await tx.fotofficePrintOrder.update({
         where: { id },
-        data: { paidArs: pesos(pagado), pagosExtra: [...extras, hechos.providerPaymentId], ...(deMas ? { lastError: "PAGO_DE_MAS" } : {}) },
+        data: { paidArs: pesos(pagado), pagosExtra: [...extras, hechos.providerPaymentId] },
       });
       await ingreso(pago.amountMinor, `${id}:${extras.length + 2}`, pedido.clientId);
-      return { yaEstaba: false, extra: true, deMas };
+      return { yaEstaba: false, extra: true, deMas, deMasCents: pagado - cents(String(actual.totalArs)) };
     }
     if (cambio.count === 0) {
       // Otro pago aprobado para un pedido que ya tiene el suyo: la plata entró dos veces. Sólo códigos.
@@ -286,11 +286,11 @@ export async function acreditarPagoImpresion(workspaceId: string, pago: PagoMp):
   }, OPCIONES_TRANSACCION);
 
   if (resultado.yaEstaba) return { ok: true, yaEstaba: true };
-  const r = resultado as { reemplazado?: boolean; extra?: boolean; deMas?: boolean };
+  const r = resultado as { reemplazado?: boolean; extra?: boolean; deMas?: boolean; deMasCents?: number };
   if (r.reemplazado) {
-    programar(() => avisarAlEstudio(workspaceId, pedido.number, "PAGADO_REEMPLAZADO"));
+    programar(() => avisarAlEstudio(workspaceId, pedido.number, "PAGADO_REEMPLAZADO", pago.amountMinor));
   } else if (r.extra) {
-    if (r.deMas) programar(() => avisarAlEstudio(workspaceId, pedido.number, "PAGO_DE_MAS"));
+    if (r.deMas) programar(() => avisarAlEstudio(workspaceId, pedido.number, "PAGO_DE_MAS", r.deMasCents ?? pago.amountMinor));
   } else if (delBot) {
     const saldoCents = totalCents - pago.amountMinor;
     if (p.waId) programar(() => avisarPorWhatsapp(workspaceId, p.waId!, textoDePagoRecibido(pedido.number, plazos, paidAt, saldoCents)));
@@ -321,11 +321,11 @@ async function avisarPorWhatsapp(workspaceId: string, waId: string, texto: strin
   await enviarAvisoPorWhatsapp(workspaceId, waId, texto, { autor: "Pedidos de impresión" });
 }
 
-async function avisarAlEstudio(workspaceId: string, numero: number, codigo: string): Promise<void> {
+async function avisarAlEstudio(workspaceId: string, numero: number, codigo: "PAGO_DE_MAS" | "PAGADO_REEMPLAZADO", montoCents: number): Promise<void> {
   console.warn("[impresiones] pago a revisar", { numero, codigo });
-  const { avisarFallaAlEstudio } = await import("./preparar-servidor");
+  const { avisarPagoARevisar } = await import("./preparar-servidor");
   const { sendTransactionalEmail } = await import("@/lib/communications/send-email");
-  await avisarFallaAlEstudio(workspaceId, numero, codigo, sendTransactionalEmail);
+  await avisarPagoARevisar(workspaceId, numero, codigo, montoCents, sendTransactionalEmail);
 }
 
 // --- Vuelta del comprador -----------------------------------------------------------------------------------

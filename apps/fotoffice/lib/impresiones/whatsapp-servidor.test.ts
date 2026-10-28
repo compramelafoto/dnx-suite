@@ -44,7 +44,7 @@ function base() {
     moduloEncendido: async () => true,
     collector: async () => "token-mp",
     ajustes: async () => ({ depositPct: 50, porKmArs: 3000, maxKm: 30 }),
-    productos: async () => CATALOGO,
+    productos: async (): Promise<{ id: string; name: string; priceArs: number; costArs: number | null; preferredProveedorId: string | null }[]> => CATALOGO,
     estudio: async () => ({ lat: -32.917, lon: -60.81 }),
     geocodificar: vi.fn(async () => ({ lat: -32.917, lon: -60.7275 })),
     abrir: vi.fn(async (d: { montoCents: number }) => `https://mp.test/pagar/${d.montoCents}`),
@@ -65,7 +65,7 @@ beforeEach(() => {
 describe("crear un pedido de impresión desde WhatsApp", () => {
   it("2 fotos × 2 copias 13x18 para mañana: precio de la instantánea, seña del 50 % y dos links", async () => {
     const r = await crearPedidoDesdeWhatsapp("w1", chat, { renglones: [renglon(["m1", "m2"])], envio: null, nombre: "Ana Pérez" }, B.deps);
-    expect(r).toMatchObject({ ok: true, numero: 1, subtotal: 28000, envio: 0, total: 28000, sena: 14000 });
+    expect(r).toMatchObject({ ok: true, numero: 1, subtotal: 28000, envio: 0, total: 28000, sena: 14000, depositPct: 50 });
     if (!r.ok) return;
     expect(r.linkSena).toBe("https://mp.test/pagar/1400000");
     expect(r.linkTotal).toBe("https://mp.test/pagar/2800000");
@@ -106,6 +106,25 @@ describe("crear un pedido de impresión desde WhatsApp", () => {
   it("una medida que no está en el catálogo no se inventa", async () => {
     const r = await crearPedidoDesdeWhatsapp("w1", chat, { renglones: [renglon(["m1"], { medida: "13x13" })], envio: null, nombre: "Ana" }, B.deps);
     expect(r).toEqual({ ok: false, motivo: "PRECIO", detalle: "13x13 para mañana" });
+  });
+
+  it("una copia de laboratorio cuyo producto no tiene laboratorio no se cobra: pasa a persona", async () => {
+    B.deps.productos = async () => [
+      { id: "p1", name: "Copia instantánea 13x18", priceArs: 7000, costArs: null, preferredProveedorId: null },
+      { id: "p2", name: "Copia para mañana 13x18 · más de 10", priceArs: 4500, costArs: 600, preferredProveedorId: null },
+    ];
+    const r = await crearPedidoDesdeWhatsapp("w1", chat, { renglones: [renglon(["m1"])], envio: null, nombre: "Ana" }, B.deps);
+    expect(r).toEqual({ ok: false, motivo: "SIN_LABORATORIO", detalle: "13x18 para mañana" });
+    expect(B.pedidos).toHaveLength(0);
+  });
+
+  it("precios con centavos: los cobros van en centavos enteros", async () => {
+    B.deps.productos = async () => [
+      { id: "p1", name: "Copia instantánea 13x18", priceArs: 7000.55, costArs: null, preferredProveedorId: null },
+      { id: "p2", name: "Copia para mañana 13x18 · más de 10", priceArs: 4500, costArs: 600, preferredProveedorId: FOTOLAG },
+    ];
+    await crearPedidoDesdeWhatsapp("w1", chat, { renglones: [renglon(["m1"], { cantidad: 3 })], envio: null, nombre: "Ana" }, B.deps);
+    for (const c of B.deps.abrir.mock.calls) expect(Number.isInteger((c[0] as { montoCents: number }).montoCents)).toBe(true);
   });
 
   it("módulo apagado o sin Mercado Pago: no arma", async () => {

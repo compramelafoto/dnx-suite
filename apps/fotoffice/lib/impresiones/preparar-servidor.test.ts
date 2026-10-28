@@ -600,3 +600,18 @@ describe("prepararPedido: pedidos del bot de WhatsApp", () => {
     expect(d.enviar).not.toHaveBeenCalled();
   });
 });
+
+describe("avisarPagoARevisar", () => {
+  it("el correo dice que hay que devolver dinero, no que reintente el envío", async () => {
+    H.db.fotofficeWorkspaceBranding.findFirst = vi.fn(async () => ({ contactEmail: "estudio@x.test" })) as never;
+    const enviar = vi.fn(async (..._a: unknown[]) => ({ status: "SENT" }));
+    await P.avisarPagoARevisar("ws", 8, "PAGO_DE_MAS", 100000, enviar as never);
+    const c = enviar.mock.calls[0][0] as { subject: string; text: string };
+    expect(c.subject).toBe("Pedido de impresión 8: el cliente pagó de más");
+    expect(c.text).toContain("$1.000");
+    expect(c.text).toContain("devolver");
+    expect(c.text).not.toContain("Reintentar envío");
+    await P.avisarPagoARevisar("ws", 9, "PAGADO_REEMPLAZADO", 50000, enviar as never);
+    expect((enviar.mock.calls[1][0] as { subject: string }).subject).toBe("Pedido de impresión 9: pagaron un pedido que ya se había reemplazado");
+  });
+});

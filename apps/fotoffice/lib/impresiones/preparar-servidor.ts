@@ -447,3 +447,28 @@ export async function procesarPedidosDeImpresion(
   }
   return { procesados, enviados, fallidos };
 }
+
+/**
+ * Pagos de pedidos del bot que no son una falla de envío: el cliente pagó de más, o pagó el link de un
+ * pedido que el bot ya había reemplazado. Hay que revisar y devolver el dinero.
+ */
+export async function avisarPagoARevisar(
+  workspaceId: string,
+  numero: number,
+  motivo: "PAGO_DE_MAS" | "PAGADO_REEMPLAZADO",
+  montoCents: number,
+  enviar: typeof sendTransactionalEmail,
+) {
+  const b = await prisma.fotofficeWorkspaceBranding.findFirst({ where: { workspaceId }, select: { contactEmail: true } });
+  if (!b?.contactEmail) return;
+  const monto = `$${Math.round(montoCents / 100).toLocaleString("es-AR")}`;
+  const subject =
+    motivo === "PAGO_DE_MAS"
+      ? `Pedido de impresión ${numero}: el cliente pagó de más`
+      : `Pedido de impresión ${numero}: pagaron un pedido que ya se había reemplazado`;
+  const texto =
+    motivo === "PAGO_DE_MAS"
+      ? `En el pedido ${numero} el cliente pagó ${monto} de más (pagó la seña y también el total, o pagó dos veces). Hay que devolver ese dinero desde Mercado Pago o descontarlo al retirar.`
+      : `El cliente pagó ${monto} por el pedido ${numero}, que el bot ya había reemplazado por uno nuevo. Ese pedido no sale al laboratorio: revisá con el cliente si quiere el pedido nuevo y devolvé o imputá ese dinero.`;
+  await enviar({ to: b.contactEmail, sender: await loadWorkspaceSender(workspaceId), subject, text: texto, html: `<p>${esc(texto)}</p>` });
+}

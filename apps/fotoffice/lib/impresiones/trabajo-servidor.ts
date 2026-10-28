@@ -24,6 +24,8 @@ export type PedidoDelTrabajo = {
   /** Pedidos del bot (con seña): lo pagado y el saldo. null en los pedidos que se pagan enteros. */
   pagadoCents: number | null;
   saldoCents: number | null;
+  /** Lo que el cliente pagó de más (hay que devolverlo). 0 o null si no. */
+  deMasCents?: number | null;
   /** null = retiro en el local. Con envío: adónde, cuántos km (ida), cuánto se cobró y el punto en el mapa. */
   entrega: { direccion: string; km: number | null; envioCents: number; mapa: string | null } | null;
 };
@@ -70,6 +72,7 @@ export async function pedidoDelTrabajo(workspaceId: string, proyectoId: string):
       : null;
   return { pedidoId: p.id, numero: p.number, estado: p.status, lastError: p.lastError, copias, totalCents, costoCents,
     pagadoCents, saldoCents: pagadoCents === null ? null : Math.max(0, totalCents - pagadoCents),
+    deMasCents: pagadoCents === null ? null : Math.max(0, pagadoCents - totalCents),
     // El envío se cobra para pagar el traslado: no es ganancia de las copias.
     gananciaCents: totalCents - (entrega?.envioCents ?? 0) - costoCents, entrega };
 }

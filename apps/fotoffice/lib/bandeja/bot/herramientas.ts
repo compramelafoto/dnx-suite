@@ -3,6 +3,7 @@ import { prisma } from "@repo/db";
 import { precioDeLista } from "@/lib/presupuestos/lista-precios";
 import { listProducts } from "@/lib/sales/repository";
 import type { DatosPedidoBot, ResultadoPedidoBot } from "@/lib/impresiones/whatsapp-servidor";
+import type { FotoNumerada } from "./historial";
 
 /**
  * Herramientas del bot que atiende a los clientes por WhatsApp. Son de LECTURA salvo
@@ -53,7 +54,14 @@ export type DepsAtencion = {
   /** Pedido de copias e impresiones con las fotos del chat (spec 2026-10-28). */
   armarPedido: (workspaceId: string, chat: ChatAtencion, datos: DatosPedidoBot) => Promise<ResultadoPedidoBot>;
   estadoPedido: (workspaceId: string, chat: ChatAtencion) => Promise<string>;
+  /** Cuándo se armó el último pedido de copias del chat ("todas" las fotos = las posteriores). */
+  ultimoPedidoEn: (workspaceId: string, chat: ChatAtencion) => Promise<Date | null>;
 };
+
+/** Pedidos de impresión del chat, sin los reemplazados (con `lastError` nulo incluido: `NOT` dejaría afuera los NULL). */
+export function filtroPedidosDelChat(workspaceId: string, chatId: string) {
+  return { workspaceId, waChatId: chatId, OR: [{ lastError: null }, { lastError: { not: "REEMPLAZADO" } }] };
+}
 
 const FECHA_CURSO = new Intl.DateTimeFormat("es-AR", {
   timeZone: "America/Argentina/Buenos_Aires", weekday: "long", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23",
@@ -99,7 +107,7 @@ const DEPS: DepsAtencion = {
   },
   estadoPedido: async (workspaceId, chat) => {
     const p = await prisma.fotofficePrintOrder.findFirst({
-      where: { workspaceId, waChatId: chat.id, NOT: { lastError: "REEMPLAZADO" } },
+      where: filtroPedidosDelChat(workspaceId, chat.id),
       orderBy: { createdAt: "desc" },
       select: { number: true, status: true, totalArs: true, paidArs: true, promisedAt: true },
     });
@@ -114,6 +122,10 @@ const DEPS: DepsAtencion = {
       `Total ${precioDeLista(Number(p.totalArs))}; pagado ${precioDeLista(Number(p.paidArs))}${saldo > 0 && p.status !== "PENDIENTE_PAGO" ? `; saldo ${precioDeLista(saldo)} al retirar` : ""}.`,
       p.promisedAt ? `Fecha prometida: ${p.promisedAt.toISOString().slice(8, 10)}/${p.promisedAt.toISOString().slice(5, 7)}.` : "",
     ].filter(Boolean).join(" ");
+  },
+  ultimoPedidoEn: async (workspaceId, chat) => {
+    const p = await prisma.fotofficePrintOrder.findFirst({ where: { workspaceId, waChatId: chat.id }, orderBy: { createdAt: "desc" }, select: { createdAt: true } });
+    return p?.createdAt ?? null;
   },
   prepararPresupuesto: async (workspaceId, chat, datos) => {
     // Se carga recién acá: el alta de consultas y Presupuestos no hacen falta para contestar precios.
@@ -159,8 +171,10 @@ export function herramientasDeAtencion(
   workspaceId: string,
   parciales: Partial<DepsAtencion> = {},
   chat: ChatAtencion | null = null,
-  /** Número de foto (como la ve el bot) → mensaje del chat. */
-  fotos: Map<number, string> = new Map(),
+  /** Número de foto (como la ve el bot) → mensaje del chat y cuándo llegó. */
+  fotos: Map<number, FotoNumerada> = new Map(),
+  /** Fotos del cliente que todavía se están bajando (no entran al pedido). */
+  fotosBajando = 0,
 ): { tools: BotTool[]; pedidoDePersona: () => string | null } {
   const deps: DepsAtencion = { ...DEPS, ...parciales };
   let motivoPersona: string | null = null;
@@ -242,7 +256,7 @@ export function herramientasDeAtencion(
     defineTool({
       name: "armar_pedido_impresion",
       description:
-        "Arma un pedido de copias o ampliaciones con las fotos que mandó el cliente por este chat (las ves numeradas: [foto 1], [foto 2]…) y devuelve el total, la seña del 50 % y dos links de Mercado Pago (seña o total). Usala cuando ya sepas, para cada grupo de fotos, la medida, la cantidad de copias de cada foto y el plazo; el papel es brillante salvo que pida mate. Si quiere envío a domicilio, pasá la dirección con la localidad. Si el cliente cambia algo, volvé a usarla: el pedido anterior se reemplaza.",
+        "Arma un pedido de copias o ampliaciones con las fotos que mandó el cliente por este chat (las ves numeradas: [foto 1], [foto 2]…; \"todas\" son las que mandó después de su último pedido) y devuelve el total, la seña y dos links de Mercado Pago (seña o total). Usala cuando ya sepas, para cada grupo de fotos, la medida, la cantidad de copias de cada foto y el plazo; el papel es brillante salvo que pida mate. Si quiere envío a domicilio, pasá la dirección con la localidad. Si el cliente cambia algo, volvé a usarla: el pedido anterior se reemplaza.",
       input: z.object({
         renglones: z
           .array(
@@ -261,7 +275,12 @@ export function herramientasDeAtencion(
       kind: "read",
       run: async ({ renglones, envio }) => {
         if (!chat) return { ok: true, message: "Ahora no puedo armar el pedido. Usá pasar_a_persona con un resumen de lo que pide." };
-        const todas = [...fotos.keys()].sort((a, b) => a - b);
+        // "Todas" = las fotos que llegaron después del último pedido armado en este chat.
+        const desde = await deps.ultimoPedidoEn(workspaceId, chat).catch(() => null);
+        const todas = [...fotos.entries()]
+          .filter(([, f]) => !desde || !f.en || f.en.getTime() > desde.getTime())
+          .map(([n]) => n)
+          .sort((a, b) => a - b);
         const plazo = { instantanea: "INSTANTANEA", "para mañana": "MANANA", "proxima semana": "SEMANA" } as const;
         const datos: DatosPedidoBot = { renglones: [], envio: envio ? { direccion: envio.direccion } : null, nombre: chat.nombre ?? "" };
         for (const r of renglones) {
@@ -271,7 +290,7 @@ export function herramientasDeAtencion(
             return { ok: true, message: falta !== undefined ? `No hay una foto ${falta} lista en el chat. Pedile al cliente que la mande (o la reenvíe).` : "Todavía no hay fotos listas en el chat: pedile que las mande." };
           }
           datos.renglones.push({
-            fotos: numeros.map((n) => ({ mensajeId: fotos.get(n)! })),
+            fotos: numeros.map((n) => ({ mensajeId: fotos.get(n)!.id })),
             medida: r.medida.replace(/\s/g, ""),
             cantidad: r.cantidad,
             plazo: plazo[r.plazo],
@@ -286,6 +305,7 @@ export function herramientasDeAtencion(
             SIN_FOTOS: "Faltan las fotos: pedile que las mande.",
             ENVIO_LEJOS: "Esa dirección está fuera de la zona de envío: ofrecele retirar en el estudio.",
             SIN_DIRECCION: "No pude ubicar la dirección: pedile calle, número y localidad.",
+            SIN_LABORATORIO: `${res.detalle ?? "Esa copia"} no tiene laboratorio asignado en el catálogo. Usá pasar_a_persona con un resumen.`,
           };
           return { ok: true, message: motivos[res.motivo] ?? "No pude armar el pedido. Usá pasar_a_persona con un resumen de lo que pide." };
         }
@@ -298,7 +318,8 @@ export function herramientasDeAtencion(
             `Pedido ${res.numero} armado.`,
             ...lineas,
             ...(res.envio > 0 ? [`- Envío: ${precioDeLista(res.envio)}`] : []),
-            `Total: ${precioDeLista(res.total)}. Seña del 50 %: ${precioDeLista(res.sena)}.`,
+            `Total: ${precioDeLista(res.total)}. Seña del ${res.depositPct} %: ${precioDeLista(res.sena)}.`,
+            ...(fotosBajando > 0 ? [`Ojo: ${fotosBajando} ${fotosBajando === 1 ? "foto todavía se está bajando y no entró" : "fotos todavía se están bajando y no entraron"} en el pedido; si las quiere, volvé a armarlo en un momento.`] : []),
             `Fechas (si paga hoy): ${fechas.join("; ")}.`,
             `Link para pagar la seña: ${res.linkSena}`,
             `Link para pagar el total: ${res.linkTotal}`,
