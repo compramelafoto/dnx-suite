@@ -145,6 +145,11 @@ export {
   sumStudioFixedCosts,
 } from "./studio/capacity";
 export {
+  computeStudioLocalAccount,
+  type StudioLocalAccount,
+  type StudioLocalSales,
+} from "./studio/local-account";
+export {
   createDefaultStudioBusinessLines,
   createDefaultStudioFixedCostGroups,
   createStudioOwner,
