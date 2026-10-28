@@ -26,7 +26,7 @@ import { registrarUsoWa, usoWa } from "./uso";
 
 export const TEXTO_SI_FALLA = "Gracias por escribir. En un rato te responde alguien del estudio.";
 export const ESPERA_MS = 4_000;
-export const MAX_RESPUESTAS_POR_DIA = 30;
+export const MAX_RESPUESTAS_POR_DIA = 60;
 const MAX_VUELTAS = 6;
 const TIEMPO_MAXIMO_MS = 60_000;
 /** Cuánto espera el bot a que se bajen las fotos del cliente (para ver su resolución). */
