@@ -22,6 +22,7 @@ import { BANDEJA_MODULE_KEY } from "@/lib/bandeja/constantes";
 import { CUANTO_COBRO_SOCIO_MODULE_KEY } from "@/lib/cuanto-cobro-socio/constants";
 import { FOTOLIBROS_MODULE_KEY, FOTOLIBROS_SOCIO_MODULE_KEY } from "@/lib/fotolibro/constantes";
 import { FOTO_CARNET_MODULE_KEY } from "@/lib/foto-carnet/constantes";
+import { POLAROID_MODULE_KEY } from "@/lib/polaroid/constantes";
 import { INVOICING_MODULE_KEY } from "@/lib/invoicing/constants";
 import { EQUIPO_MODULE_KEY } from "@/lib/equipo/constantes";
 
@@ -208,6 +209,18 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
     category: "GENERAL",
     order: 40,
     route: "/foto-carnet",
+    status: "AVAILABLE",
+    family: "negocio",
+  },
+  {
+    // El diseñador de polaroids de CompraMeLaFoto (28/10/2026). Plan Estudio: con candado en el gratuito.
+    key: POLAROID_MODULE_KEY,
+    label: "Polaroid",
+    description:
+      "Polaroids de 7,5×10, 9×13 y 10×15 con encuadre, textura del marco y texto, en planchas listas para imprimir.",
+    category: "GENERAL",
+    order: 41,
+    route: "/polaroid",
     status: "AVAILABLE",
     family: "negocio",
   },

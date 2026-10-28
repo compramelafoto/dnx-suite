@@ -14,6 +14,7 @@ import { GOVERNANCE_MODULE_KEY } from "@/lib/governance/constants";
 import { EQUIPO_MODULE_KEY } from "@/lib/equipo/constantes";
 import { FOTOLIBROS_MODULE_KEY } from "@/lib/fotolibro/constantes";
 import { FOTO_CARNET_MODULE_KEY } from "@/lib/foto-carnet/constantes";
+import { POLAROID_MODULE_KEY } from "@/lib/polaroid/constantes";
 import {
   BOOKINGS_CONFIGURE_ACTION,
   CASH_CONFIGURE_ACTION,
@@ -679,6 +680,18 @@ const FOTO_CARNET: SubmoduleItem[] = [
   },
 ];
 
+const POLAROID: SubmoduleItem[] = [
+  {
+    // La página pide el módulo encendido y poder diseñar (`requirePolaroid`).
+    href: "/polaroid",
+    label: "Polaroid",
+    icon: "Frame",
+    description: "Diseñar polaroids con textura y texto, y bajar las planchas para imprimir.",
+    requiresManage: true,
+    activeMatch: "under",
+  },
+];
+
 const POR_MODULO: Record<string, SubmoduleItem[]> = {
   [MEMBERS_MODULE_KEY]: SOCIOS,
   [COURSES_SALES_MODULE_KEY]: CURSOS,
@@ -694,6 +707,7 @@ const POR_MODULO: Record<string, SubmoduleItem[]> = {
   [EQUIPO_MODULE_KEY]: EQUIPO,
   [FOTOLIBROS_MODULE_KEY]: FOTOLIBROS,
   [FOTO_CARNET_MODULE_KEY]: FOTO_CARNET,
+  [POLAROID_MODULE_KEY]: POLAROID,
 };
 
 /**

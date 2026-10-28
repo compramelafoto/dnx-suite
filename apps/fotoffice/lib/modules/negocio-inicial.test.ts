@@ -12,7 +12,7 @@ describe("módulos con los que nace Tu negocio (plan Base)", () => {
   });
 
   it("no trae lo que el plan Base deja con candado", () => {
-    for (const k of ["foto-carnet", "sales", "equipo", "whatsapp-inbox", "store", "print-orders", "invoicing", "reports", "digitalizacion"]) {
+    for (const k of ["foto-carnet", "polaroid", "sales", "equipo", "whatsapp-inbox", "store", "print-orders", "invoicing", "reports", "digitalizacion"]) {
       expect(keys).not.toContain(k);
     }
   });

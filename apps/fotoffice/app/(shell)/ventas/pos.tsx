@@ -55,6 +55,7 @@ import { esSkuCajaFotolibro, tipoTapaDeSku, type FotolibroVendido } from "@/lib/
 import { crearFotolibroDesdeCobradorAction } from "@/app/actions/fotolibro";
 import { miComisionAction } from "./comisiones/actions";
 import type { MiComision } from "@/lib/comisiones/calculo";
+import type { AgregarAlAbrir } from "@/lib/sales/agregar-al-abrir";
 
 const ETIQUETA_PAGO: Record<SalePaymentMethod, string> = {
   EFECTIVO: "Efectivo",
@@ -143,6 +144,7 @@ export function Pos({
   permisosCarnet = { puedeBuscarClientes: false, puedeAltaCliente: false },
   fotolibro = null,
   comision = null,
+  agregarAlAbrir = [],
 }: {
   products: ProductRow[];
   categories: ProductCategoryRow[];
@@ -173,6 +175,8 @@ export function Pos({
    * si quien vende cobra comisión, lo suyo acumulado. null si nadie del equipo cobra comisión.
    */
   comision?: { porcentaje: number; productIds: string[]; mia: MiComision | null } | null;
+  /** Productos que otra pantalla manda a cobrar (`?agregar=`): se suman al ticket al abrir. */
+  agregarAlAbrir?: AgregarAlAbrir[];
 }) {
   // El mostrador necesita el ancho: el menú lateral se oculta mientras está abierto.
   useOcultarMenuEnEstaPantalla();
@@ -224,6 +228,22 @@ export function Pos({
   // Renglones de copias cuyo editor se cerró sin terminar: el ticket lo avisa (cobrarlas exige terminarlas).
   const [copiasSinTerminar, setCopiasSinTerminar] = useState<ReadonlySet<string>>(new Set());
   const [abriendoPreparacion, setAbriendoPreparacion] = useState<string | null>(null);
+  // Lo que manda a cobrar otra pantalla (el diseñador de polaroids): se suma una sola vez y la
+  // dirección se limpia, para que recargar no lo vuelva a agregar. El precio es el del catálogo.
+  const agregadoAlAbrirRef = useRef(false);
+  useEffect(() => {
+    if (agregadoAlAbrirRef.current || agregarAlAbrir.length === 0) return;
+    agregadoAlAbrirRef.current = true;
+    const faltan: string[] = [];
+    for (const { sku, cantidad } of agregarAlAbrir) {
+      const p = products.find((x) => x.sku === sku);
+      if (p) agregarProducto(p, null, cantidad);
+      else faltan.push(sku);
+    }
+    if (faltan.length > 0) setError(`No están en el catálogo: ${faltan.join(", ")}. Cargalos en Ventas → Catálogo.`);
+    window.history.replaceState(null, "", "/ventas");
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- una sola vez, al abrir.
+  }, []);
   useEffect(() => {
     // Si falla (p. ej. Impresión sin configurar), el Mostrador sigue igual, sin "Preparar".
     produccionDeProductosAction()
