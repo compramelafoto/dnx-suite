@@ -1,5 +1,6 @@
 import { pesos } from "@/lib/presupuestos/editor";
 import { importeDeOpcion, type OpcionPublica } from "@/lib/presupuestos/opciones-pago";
+import type { FichaDeLaVista } from "@/lib/presupuestos/ficha-publica";
 import type { AlternativaDeLaVista, ItemDeLaVista, VistaPublica } from "@/lib/presupuestos/vista-publica";
 import { TarjetaAlternativa } from "./tarjeta-alternativa";
 
@@ -74,6 +75,39 @@ function Alternativas({ alternativas }: { alternativas: AlternativaDeLaVista[] }
   );
 }
 
+/** Para quién y de qué evento, en el PDF (en la página lo muestra la portada). */
+function FichaImpresa({ ficha, visible }: { ficha: FichaDeLaVista; visible: boolean }) {
+  const datos = [
+    ficha.evento ? ["Evento", ficha.evento] : null,
+    ficha.fecha ? ["Fecha", `${ficha.fecha}${ficha.hora ? ` · ${ficha.hora} h` : ""}`] : null,
+    ficha.pareja ? ["Novios", ficha.pareja] : null,
+    ...ficha.lugares.map((l) => [l.etiqueta, l.valor]),
+    ficha.ciudad ? ["Ciudad", ficha.ciudad] : null,
+    ficha.invitados ? ["Invitados", ficha.invitados.toLocaleString("es-AR")] : null,
+  ].filter((d): d is string[] => d !== null);
+  if (!ficha.cliente && datos.length === 0) return null;
+  return (
+    <section aria-label="Cliente y evento" className={`${visible ? "block" : "hidden print:block"} text-sm`}>
+      {ficha.cliente ? (
+        <p>
+          <span className="opacity-70">Preparado para </span>
+          <span className="font-semibold">{ficha.cliente}</span>
+        </p>
+      ) : null}
+      {datos.length > 0 ? (
+        <dl className="mt-2 grid grid-cols-2 gap-x-6 gap-y-1">
+          {datos.map(([e, v]) => (
+            <div key={e} className="flex gap-2">
+              <dt className="opacity-70">{e}:</dt>
+              <dd className="font-medium first-letter:uppercase">{v}</dd>
+            </div>
+          ))}
+        </dl>
+      ) : null}
+    </section>
+  );
+}
+
 /**
  * `encabezado={false}`: la página del enlace ya muestra número y validez en su portada (y el sitio,
  * el logo); al imprimir el encabezado sale igual. `partes`: la página con el presupuesto activo
@@ -111,6 +145,7 @@ export function PresupuestoPublico({
         </div>
       </header>
       ) : null}
+      {detalle && vista.ficha ? <FichaImpresa ficha={vista.ficha} visible={encabezado} /> : null}
 
       {detalle && conAlternativas && partes === "todo" ? <Alternativas alternativas={vista.alternativas} /> : null}
       {detalle && vista.alternativaElegida ? <p className="text-sm font-semibold">Opción elegida: {vista.alternativaElegida}</p> : null}
