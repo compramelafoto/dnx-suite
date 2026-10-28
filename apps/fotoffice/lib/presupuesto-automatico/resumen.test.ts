@@ -86,3 +86,35 @@ describe("armarResumen (aviso de Telegram)", () => {
     expect(escaparHtml("<b>&</b>")).toBe("&lt;b&gt;&amp;&lt;/b&gt;");
   });
 });
+
+describe("armarResumen: presupuesto por horas", () => {
+  const porHoras = { horas: 3, km: 10, traslado: 30000, ubicado: true, segundoFotografo: false, armado: true };
+
+  it("dice que se armó por horas y cuánto suma el traslado", () => {
+    const { html } = armarResumen({ ...BASE, porHoras });
+    expect(html).toContain("Armado por horas: 3 h de cobertura");
+    expect(html).toMatch(/Incluye traslado: 10 km, \$\s?30\.000/);
+  });
+
+  it("si no ubicó el lugar, avisa que el traslado no está sumado", () => {
+    const { html } = armarResumen({ ...BASE, porHoras: { ...porHoras, km: null, traslado: null, ubicado: false } });
+    expect(html).toContain("No se pudo ubicar el lugar: el traslado no está sumado");
+  });
+
+  it("con segundo fotógrafo lo menciona", () => {
+    expect(armarResumen({ ...BASE, porHoras: { ...porHoras, segundoFotografo: true } }).html).toContain("segundo fotógrafo");
+  });
+
+  it("sin horas: pide completarlas", () => {
+    const { html } = armarResumen({ ...BASE, presupuesto: null, motivoSinPresupuesto: "SIN_HORAS", porHoras: null });
+    expect(html).toContain("Falta la cantidad de horas");
+    expect(html).not.toContain("no tiene propuesta modelo");
+  });
+
+  it("sin datos por horas, o con horas pero armado con la propuesta modelo, no agrega nada", () => {
+    expect(armarResumen(BASE).html).not.toContain("Armado por horas");
+    const conPropuesta = armarResumen({ ...BASE, porHoras: { horas: 5, km: null, traslado: null, ubicado: false, segundoFotografo: false, armado: false } }).html;
+    expect(conPropuesta).not.toContain("Armado por horas");
+    expect(conPropuesta).not.toContain("No se pudo ubicar");
+  });
+});

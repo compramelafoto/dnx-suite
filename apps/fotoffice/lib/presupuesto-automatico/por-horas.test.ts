@@ -61,7 +61,7 @@ describe("horas de la consulta", () => {
     await H.guardarPorHorasDeConsulta("w1", "l1", { horas: 3 });
     await H.guardarPorHorasDeConsulta("w1", "l1", { km: 10, traslado: 30000, ubicado: true });
     expect(B.datos.serviceSalesLead[0].metaJson).toEqual({ origen: "web", porHoras: { horas: 3, km: 10, traslado: 30000, ubicado: true } });
-    expect(await H.leerPorHorasDeConsulta("w1", "l1")).toEqual({ horas: 3, km: 10, traslado: 30000, ubicado: true, segundoFotografo: false });
+    expect(await H.leerPorHorasDeConsulta("w1", "l1")).toEqual({ horas: 3, km: 10, traslado: 30000, ubicado: true, segundoFotografo: false, armado: false });
     expect(await H.leerPorHorasDeConsulta("w1", "otra")).toBeNull();
   });
 });

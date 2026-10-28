@@ -44,6 +44,8 @@ export type DatosResumen = {
   presupuesto: PresupuestoDelResumen | null;
   /** Por qué no hay presupuesto, para decirlo claro. */
   motivoSinPresupuesto?: "SIN_PROPUESTA" | "NO_SE_PUDO_ARMAR" | "SIN_HORAS" | null;
+  /** Presupuesto por horas (spec 2026-10-28): lo que se usó para armarlo. */
+  porHoras?: { horas: number | null; km: number | null; traslado: number | null; ubicado: boolean; segundoFotografo: boolean; armado: boolean } | null;
   urlPresupuesto: string | null;
   urlConsulta: string | null;
 };
@@ -140,10 +142,27 @@ export function armarResumen(d: DatosResumen, estado: EstadoDelAviso = { tipo: "
   }
   l.push("");
 
+  const h = d.porHoras;
+  if (h?.armado && d.presupuesto) {
+    const horas = h.horas !== null ? `${String(h.horas).replace(".", ",")} h de cobertura` : "por horas";
+    l.push(`⏱ Armado por horas: ${horas}`);
+    l.push(
+      h.traslado !== null && h.traslado > 0 && h.km !== null
+        ? `🚗 Incluye traslado: ${String(h.km).replace(".", ",")} km, ${pesos(h.traslado)} (no se ve aparte)`
+        : h.ubicado
+          ? "🚗 Sin traslado (en el estudio)"
+          : "⚠️ No se pudo ubicar el lugar: el traslado no está sumado. Corregilo antes de aprobar.",
+    );
+    if (h.segundoFotografo) l.push("📸 Con la opción de segundo fotógrafo");
+    l.push("");
+  }
+
   const p = d.presupuesto;
   if (!p) {
     l.push(
-      d.motivoSinPresupuesto === "NO_SE_PUDO_ARMAR"
+      d.motivoSinPresupuesto === "SIN_HORAS"
+        ? "⚠️ <b>Falta la cantidad de horas</b> del evento, así que no armé el presupuesto. Completala en la consulta o preguntale al cliente."
+        : d.motivoSinPresupuesto === "NO_SE_PUDO_ARMAR"
         ? "⚠️ <b>No se pudo armar el presupuesto solo</b> (revisá la propuesta modelo de esta categoría: algún producto inactivo o un concepto sin precio)."
         : "⚠️ <b>Esta categoría no tiene propuesta modelo</b>, así que no armé presupuesto. Abrí la consulta y respondé a mano, o cargá la propuesta en Configuración → Presupuestos → Propuestas.",
     );

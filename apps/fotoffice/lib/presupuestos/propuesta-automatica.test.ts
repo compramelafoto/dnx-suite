@@ -568,7 +568,7 @@ describe("presupuesto por horas (sin propuesta modelo)", () => {
     expect(items).toHaveLength(1);
     expect(items[0]).toMatchObject({ nombre: "Cobertura fotográfica de 3 horas" });
     expect(items[0]!.descripcion).toContain("mínimo de 400 fotos");
-    expect(meta(lead)).toMatchObject({ horas: 3, ubicado: true, segundoFotografo: false });
+    expect(meta(lead)).toMatchObject({ horas: 3, ubicado: true, segundoFotografo: false, armado: true });
     expect(meta(lead).traslado).toBe(Math.round((meta(lead).km as number) * 3000));
     expect(items[0]!.precioUnitario).toBeGreaterThan(meta(lead).traslado as number);
   });

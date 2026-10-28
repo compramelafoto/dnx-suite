@@ -27,6 +27,7 @@ import {
   type ResultadoCorreo,
   type ResultadoWhatsapp,
 } from "./canales";
+import { leerPorHorasDeConsulta } from "./por-horas";
 import { armarResumen, lineasDePrecio, type DatosResumen, type EstadoDelAviso, type PresupuestoDelResumen } from "./resumen";
 
 /**
@@ -181,6 +182,7 @@ export async function datosDelResumen(workspaceId: string, aprobacionId: string,
     mensaje: lead?.message ?? null,
     presupuesto: a.presupuestoId ? await presupuestoDelResumen(workspaceId, a.presupuestoId) : null,
     motivoSinPresupuesto: a.presupuestoId ? null : motivoDe(a.errorCode),
+    porHoras: await leerPorHorasDeConsulta(workspaceId, a.leadId).catch(() => null),
     urlPresupuesto: origenApp && a.presupuestoId ? `${origenApp}/presupuestos/${encodeURIComponent(a.presupuestoId)}` : null,
     urlConsulta: origenApp ? `${origenApp}/consultas/${encodeURIComponent(a.leadId)}` : null,
   };

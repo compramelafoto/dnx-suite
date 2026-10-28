@@ -363,7 +363,7 @@ async function armarBorrador(
         return sin("FALLO");
       }
       armado = await normalizarYResponsable(workspaceId, { items: items.valor.items, alternativas: items.valor.alternativas, condiciones: null }, ahora, deps);
-      anotar = { km, traslado: receta.trasladoPesos, ubicado: receta.trasladoPesos !== null, segundoFotografo: items.valor.segundoFotografo !== null };
+      anotar = { armado: true, km, traslado: receta.trasladoPesos, ubicado: receta.trasladoPesos !== null, segundoFotografo: items.valor.segundoFotografo !== null };
     } else {
       const valorHora = segundo ? await valorHoraDelSistema(workspaceId) : null;
       const agregar = segundo ? (items: ItemPresupuesto[]) => segundoFotografoOpcional(items, propuesta!.alternativas, valorHora, porHoras!.segundoFotografoPct) : undefined;

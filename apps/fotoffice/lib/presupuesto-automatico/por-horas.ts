@@ -73,7 +73,8 @@ export async function guardarAjustesPorHoras(
   }
 }
 
-export type DatosPorHorasDeConsulta = { horas: number | null; km: number | null; traslado: number | null; ubicado: boolean; segundoFotografo: boolean };
+/** `armado`: el presupuesto se armó por horas (no con la propuesta modelo). */
+export type DatosPorHorasDeConsulta = { horas: number | null; km: number | null; traslado: number | null; ubicado: boolean; segundoFotografo: boolean; armado: boolean };
 
 const numeroONull = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
 
@@ -82,7 +83,7 @@ export async function leerPorHorasDeConsulta(workspaceId: string, leadId: string
   const lead = (await prisma.serviceSalesLead.findFirst({ where: { id: leadId, workspaceId }, select: { metaJson: true } })) as { metaJson: unknown } | null;
   const d = esObjeto(lead?.metaJson) && esObjeto(lead.metaJson.porHoras) ? lead.metaJson.porHoras : null;
   if (!d) return null;
-  return { horas: numeroONull(d.horas), km: numeroONull(d.km), traslado: numeroONull(d.traslado), ubicado: d.ubicado === true, segundoFotografo: d.segundoFotografo === true };
+  return { horas: numeroONull(d.horas), km: numeroONull(d.km), traslado: numeroONull(d.traslado), ubicado: d.ubicado === true, segundoFotografo: d.segundoFotografo === true, armado: d.armado === true };
 }
 
 /** Suma datos a `metaJson.porHoras` sin pisar el resto de `metaJson`. */
