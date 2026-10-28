@@ -1,7 +1,10 @@
 import "server-only";
 import { prisma } from "@repo/db";
 import { etiquetaDeUsuario } from "@/lib/listado/acceso";
+import type { CuantoCobroStudioStructure, StudioLocalSales } from "@repo/cuanto-cobro-core";
+import { diaArgentino } from "@/lib/dnx-bot/dia-argentino";
 import { ofreceMiEstudio } from "./estudio";
+import { ventasDelLocal } from "./local-servidor";
 
 export type MiembroParaVincular = { userId: number; etiqueta: string };
 
@@ -10,11 +13,20 @@ export type MiembroParaVincular = { userId: number; etiqueta: string };
  * miembros del workspace (para vincular cada persona del equipo con su usuario). Sólo lee; nunca
  * invita a nadie. Se recorren las dos tablas de membresía (conviven durante la unificación).
  */
-export async function datosDeMiEstudio(workspaceId: string): Promise<{ ofrece: boolean; miembros: MiembroParaVincular[] }> {
-  const [branding, unificadas, legado] = await Promise.all([
+export type DatosDeMiEstudio = {
+  ofrece: boolean;
+  miembros: MiembroParaVincular[];
+  categoriasIngreso: { id: string; nombre: string }[];
+  ventasLocal: StudioLocalSales | null;
+};
+
+export async function datosDeMiEstudio(workspaceId: string, estructura?: CuantoCobroStudioStructure | null): Promise<DatosDeMiEstudio> {
+  const [branding, unificadas, legado, categorias, ventasLocal] = await Promise.all([
     prisma.fotofficeWorkspaceBranding.findUnique({ where: { workspaceId }, select: { organizationType: true, activityType: true } }),
     prisma.workspaceMembership.findMany({ where: { workspaceId }, select: { userId: true, user: { select: { name: true, email: true } } } }),
     prisma.membership.findMany({ where: { workspaceId }, select: { userId: true, user: { select: { name: true, email: true } } } }),
+    prisma.cashCategory.findMany({ where: { workspaceId, kind: "INGRESO", isActive: true }, orderBy: { order: "asc" }, select: { id: true, name: true } }),
+    estructura ? ventasDelLocal(workspaceId, estructura, diaArgentino()) : Promise.resolve(null),
   ]);
   const porUsuario = new Map<number, MiembroParaVincular>();
   for (const fila of [...unificadas, ...legado]) {
@@ -25,5 +37,7 @@ export async function datosDeMiEstudio(workspaceId: string): Promise<{ ofrece: b
   return {
     ofrece: ofreceMiEstudio(branding),
     miembros: [...porUsuario.values()].sort((a, b) => a.etiqueta.localeCompare(b.etiqueta, "es")),
+    categoriasIngreso: categorias.map((c) => ({ id: c.id, nombre: c.name })),
+    ventasLocal,
   };
 }
