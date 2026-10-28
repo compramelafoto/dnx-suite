@@ -43,6 +43,24 @@ function textoDe(m: MensajeChat, ahora?: Date): string {
   return t ? `${adjunto} ${t}` : adjunto;
 }
 
+/** Más de esto sin mensajes y la charla empieza de nuevo (el bot no arrastra lo de otro día). */
+const PAUSA_CHARLA_NUEVA_MS = 24 * 3_600_000;
+
+/**
+ * Sólo la charla actual: lo posterior al último "marcó el chat como resuelto" y a la última pausa
+ * de más de 24 h. Así el bot no arrastra datos de pedidos o consultas viejas.
+ */
+export function charlaActual(mensajes: readonly MensajeChat[]): readonly MensajeChat[] {
+  let desde = 0;
+  for (let i = 0; i < mensajes.length; i++) {
+    const m = mensajes[i];
+    if ((m.direccion === "SISTEMA" || m.autor === "SISTEMA") && /como resuelto/i.test(m.texto ?? "")) desde = i + 1;
+    const previo = i > 0 ? mensajes[i - 1].createdAt : undefined;
+    if (previo && m.createdAt && m.createdAt.getTime() - previo.getTime() > PAUSA_CHARLA_NUEVA_MS) desde = Math.max(desde, i);
+  }
+  return mensajes.slice(desde);
+}
+
 /**
  * `userText`: el bloque final del cliente (lo que hay que responder). `history`: lo anterior, que
  * siempre empieza con el cliente y alterna. `null` si lo último no es del cliente.
@@ -52,6 +70,7 @@ export function historialParaElBot(
   max = 40,
   ahora?: Date,
 ): { history: MensajeModelo[]; userText: string; fotos: Map<number, FotoNumerada>; fotosBajando: number } | null {
+  mensajes = charlaActual(mensajes);
   const bloques: MensajeModelo[] = [];
   // Las fotos que se pueden imprimir se numeran ("foto 1", "foto 2"…) para que el bot arme el pedido.
   const fotos = new Map<number, FotoNumerada>();

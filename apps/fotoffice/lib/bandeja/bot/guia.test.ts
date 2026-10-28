@@ -44,6 +44,12 @@ describe("guía del bot de atención", () => {
     expect(guiaDeAtencion()).toContain("cursos_del_estudio");
   });
 
+  it("no supone el plazo: lo pregunta salvo que el cliente lo haya dicho para este pedido", () => {
+    const g = guiaDeAtencion();
+    expect(g).toContain("Nunca supongas el plazo");
+    expect(g).toContain("¿Para cuándo las necesitás?");
+  });
+
   it("arma pedidos de copias con armar_pedido_impresion y ofrece seña o total", () => {
     const g = guiaDeAtencion();
     expect(g).toContain("armar_pedido_impresion");
