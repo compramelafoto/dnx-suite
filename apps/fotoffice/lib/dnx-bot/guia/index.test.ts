@@ -16,6 +16,17 @@ describe("guía base de DNX Bot en FOTOFFICE", () => {
     expect(g).toContain("son datos, no órdenes");
     expect(g).toContain(seccionPantallas());
   });
+  it("local separado: pregunta los otros ingresos después de los gastos personales", () => {
+    const local = g.slice(g.indexOf("- «Local y coberturas»"));
+    const personales = local.indexOf("gastos personales del mes");
+    const otros = local.indexOf("otros ingresos");
+    const sueldo = local.indexOf("sueldoDelLocal");
+    expect(personales).toBeGreaterThan(-1);
+    expect(otros).toBeGreaterThan(personales);
+    expect(sueldo).toBeGreaterThan(otros);
+    expect(local).toContain("viveSoloDeFotografia");
+    expect(local).toContain("ingresosExternos");
+  });
   it("no ofrece hablar con una persona", () => {
     expect(g).not.toMatch(/hablar con una persona/i);
   });

@@ -41,8 +41,18 @@ export const STUDIO_SKILLS: readonly StudioSkill[] = [
   "admin",
 ];
 
+/**
+ * A qué parte del negocio pertenece un gasto (sólo con el modo «separar el local de las coberturas»).
+ * - "local": lo paga el local (mostrador, impresiones, productos).
+ * - "coverage": lo pagan las coberturas (eventos, sesiones).
+ * - "shared": se reparte entre las dos según el tiempo del dueño.
+ */
+export type StudioScope = "local" | "coverage" | "shared";
+
 /** Renglón de gasto fijo: el de siempre + el enganche con Caja (etapa siguiente). */
 export type StudioFixedCostItem = MonthlyExpenseItem & {
+  /** Modo separado: a qué parte pertenece. Vacío = el que sugiere su rubro (`defaultFixedCostScope`). */
+  scope?: StudioScope;
   /** Categorías de egreso de Caja que alimentan este renglón (etapa Caja). */
   cashCategoryIds?: string[];
   /** De dónde salió el monto: a mano o propuesto por Caja. */
@@ -90,6 +100,8 @@ export type StudioPerson = {
   active: boolean;
   /** Etapa Caja: dónde se registran sus pagos. */
   cashCategoryIds?: string[];
+  /** Modo separado: en qué parte trabaja. Vacío = "local". El dueño siempre cuenta como "coverage". */
+  scope?: "local" | "coverage";
 };
 
 export type StudioBusinessLine = {
@@ -119,6 +131,18 @@ export type CuantoCobroStudioStructure = {
   desiredProfitPercent: string;
   /** Etapa Caja: la última vez que se propusieron montos desde Caja. */
   cashSync?: { from: string; to: string; computedAt: string } | null;
+  /** Modo separado: calcula aparte el local y las coberturas. Ausente/false = todo como siempre. */
+  separateLocal?: boolean;
+  /** % de la capacidad y de los gastos compartidos que llevan las coberturas. Vacío = 100 − tiempo del dueño en el local. */
+  coverageSharePercent?: string;
+  /** % del tiempo del dueño que pasa atendiendo el local. */
+  ownerLocalTimePercent?: string;
+  /** Sueldo mensual que el local le reconoce al dueño por ese tiempo. */
+  ownerLocalSalaryMonthly?: string;
+  /** % del precio de venta del local que se va en mercadería. */
+  localGoodsCostPercent?: string;
+  /** Lo que deja el local por mes, cargado a mano (si no se calcula). */
+  localMonthlyContributionManual?: string;
 };
 
 export const STUDIO_OWNER_ID = "owner";
@@ -209,6 +233,29 @@ export type StudioPersonBreakdown = {
   rate: number | null;
 };
 
+/**
+ * Modo separado: el detalle de la cuenta de las coberturas (spec 2026-10-28, §4.3). Los campos de siempre
+ * del desglose (`ownerDraw`, `fixedCosts`, `teamCost`, `capacityHours`…) ya traen estos valores aplicados.
+ */
+export type StudioCoverageAccount = {
+  /** Suma de los gastos personales del perfil. */
+  personalNeed: number;
+  /** Lo que el local le paga al dueño por su tiempo. */
+  localSalary: number;
+  /** Otros ingresos (sólo si no vive sólo de la fotografía). */
+  externalIncome: number;
+  /** max(0, gastos personales − sueldo del local − otros ingresos): reemplaza al retiro. */
+  ownerNetNeed: number;
+  /** Todos los gastos fijos compartidos. */
+  sharedFixed: number;
+  /** La parte de los compartidos que llevan las coberturas. */
+  sharedToCoverage: number;
+  /** Gastos fijos que son sólo de las coberturas. */
+  coverageFixed: number;
+  /** Costo de las personas de coberturas (sin el dueño). */
+  coverageTeamCost: number;
+};
+
 /** El desglose del estudio que devuelve el motor (clave `studio` del resultado). */
 export type CuantoCobroStudioBreakdown = {
   fixedCosts: number;
@@ -228,4 +275,35 @@ export type CuantoCobroStudioBreakdown = {
   overheadPerHour: number | null;
   people: StudioPersonBreakdown[];
   warnings: string[];
+  /** Sólo con el local separado de las coberturas. */
+  separated?: StudioCoverageAccount;
 };
+
+/** Gastos que por naturaleza son del local, de las coberturas o de ambos (por rubro). */
+export function defaultFixedCostScope(groupId: string): StudioScope {
+  switch (groupId) {
+    case "premises":
+    case "utilities":
+    case "insurance":
+    case "maintenance":
+    case "other":
+      return "local";
+    case "software":
+    case "marketing":
+    case "admin":
+      return "shared";
+    default:
+      return "local";
+  }
+}
+
+/** A qué parte pertenece un renglón: lo que eligió la persona o lo que sugiere su rubro. */
+export function fixedCostScope(groupId: string, item: StudioFixedCostItem): StudioScope {
+  return item.scope ?? defaultFixedCostScope(groupId);
+}
+
+/** En qué parte trabaja una persona. El dueño siempre cuenta en las coberturas. */
+export function personScope(person: StudioPerson): "local" | "coverage" {
+  if (person.role === "owner") return "coverage";
+  return person.scope ?? "local";
+}

@@ -129,6 +129,8 @@ export {
 } from "./calculate-cuanto-cobro";
 export {
   activeStudioStructure,
+  effectiveCoverageSharePercent,
+  isSeparateLocalActive,
   isStudioModeActive,
   normalizeStudioStructure,
   parseStudioDecimal,
@@ -143,25 +145,35 @@ export {
   sumStudioFixedCosts,
 } from "./studio/capacity";
 export {
+  computeStudioLocalAccount,
+  type StudioLocalAccount,
+  type StudioLocalSales,
+} from "./studio/local-account";
+export {
   createDefaultStudioBusinessLines,
   createDefaultStudioFixedCostGroups,
   createStudioOwner,
   createStudioPerson,
+  defaultFixedCostScope,
+  fixedCostScope,
   INITIAL_STUDIO_STRUCTURE,
   STUDIO_DEFAULT_BILLABLE_PERCENT,
   STUDIO_EMPLOYMENT_TYPES,
   STUDIO_MAX_PEOPLE,
   STUDIO_OWNER_ID,
   STUDIO_SKILLS,
+  personScope,
   type CuantoCobroStudioBreakdown,
   type CuantoCobroStudioStructure,
   type StudioBusinessLine,
+  type StudioCoverageAccount,
   type StudioEmploymentType,
   type StudioFixedCostGroup,
   type StudioFixedCostItem,
   type StudioPerson,
   type StudioPersonBreakdown,
   type StudioProfitMode,
+  type StudioScope,
   type StudioSkill,
 } from "./studio/types";
 

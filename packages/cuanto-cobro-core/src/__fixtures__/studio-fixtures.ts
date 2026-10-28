@@ -3,6 +3,7 @@
  * Números de la spec y los que dio Daniel el 16/10 (con 8 h por día supuestas).
  */
 import { createBaseCompleteProfile } from "./characterization-fixtures";
+import { createDefaultPersonalExpenseGroups } from "../default-expense-groups";
 import type { CuantoCobroProfileInput } from "../types";
 import {
   createDefaultStudioFixedCostGroups,
@@ -103,3 +104,67 @@ export const DANIEL = estudio({
   ],
 });
 
+
+/**
+ * Daniel con el local separado de las coberturas (spec 2026-10-28-cuanto-cobro-local-y-coberturas-design.md, §2).
+ * Gastos fijos $965.000 (expensas y agua en renglones propios de «Servicios»), Sabina y Camila en el local,
+ * el dueño 5 días × 9,6 h con 50 % cobrable y 20 % de su tiempo en el local. El retiro está cargado pero
+ * en modo separado no se usa.
+ */
+export function perfilDanielSeparado(): CuantoCobroProfileInput {
+  const montos: Record<string, string> = {
+    rent: "450000",
+    "power-gas-water": "230000",
+    "internet-phone": "30000",
+    software: "30000",
+    ads: "100000",
+  };
+  const fixedCostGroups: StudioFixedCostGroup[] = createDefaultStudioFixedCostGroups().map((g) => ({
+    ...g,
+    items: [
+      ...g.items.map((i) => ({ ...i, amount: montos[i.id] ?? "" })),
+      ...(g.id === "utilities"
+        ? [
+            { id: "expensas", label: "Expensas", amount: "80000", isCustom: true },
+            { id: "agua", label: "Agua", amount: "45000", isCustom: true },
+          ]
+        : []),
+    ],
+  }));
+  const personalExpenseGroups = createDefaultPersonalExpenseGroups().map((g) => ({
+    ...g,
+    items: g.items.map((i) => ({ ...i, amount: g.id === "housing" && i.id === "rent-mortgage" ? "3168000" : "" })),
+  }));
+  return createBaseCompleteProfile({
+    personalExpenseGroups,
+    livesOnlyFromPhotography: "no",
+    externalMonthlyIncome: "200000",
+    equipmentRenewalMonthly: "41667",
+    emergencyFundMonthly: "50000",
+    savingsGoalsMonthly: "120000",
+    commercialPositioningId: "growing",
+    studioStructure: estudio({
+      fixedCostGroups,
+      ownerDrawMonthly: "1000000",
+      separateLocal: true,
+      ownerLocalTimePercent: "20",
+      ownerLocalSalaryMonthly: "1000000",
+      people: [
+        createStudioOwner({ name: "Daniel", workdaysPerWeek: "5", hoursPerWorkday: "9,6", billablePercent: "50" }),
+        ...["Camila", "Sabina"].map((name) =>
+          createStudioPerson({
+            id: `sp-${name.toLowerCase()}`,
+            name,
+            employmentType: "informal",
+            monthlySalary: "900000",
+            includeSac: true,
+            paidVacations: true,
+            workdaysPerWeek: "5",
+            hoursPerWorkday: "5",
+            scope: "local",
+          }),
+        ),
+      ],
+    }),
+  });
+}
