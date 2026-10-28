@@ -7,9 +7,10 @@ import { etiquetaDeUsuario } from "@/lib/listado/acceso";
 import { ajustesPorCategoria, leerAcuse } from "@/lib/presupuesto-automatico/ajustes";
 import { ACUSE_POR_OMISION } from "@/lib/presupuesto-automatico/canales";
 import { pendientesDeAprobar } from "@/lib/presupuesto-automatico/flujo";
+import { leerAjustesPorHoras } from "@/lib/presupuesto-automatico/por-horas";
 import { listarPropuestasModelo } from "@/lib/presupuestos/propuestas-modelo";
 import { estadoTelegram } from "@/lib/telegram/conexion";
-import { AcuseForm, AprobarForm, CategoriaForm, ConectarForm, DesconectarForm, VincularForm } from "./telegram-form";
+import { AcuseForm, AprobarForm, CategoriaForm, ConectarForm, DesconectarForm, PorHorasForm, VincularForm } from "./telegram-form";
 
 export const dynamic = "force-dynamic";
 /** "Aprobar y enviar" desde acá manda el correo y el WhatsApp en la misma acción. */
@@ -49,12 +50,13 @@ export default async function ConfiguracionTelegramPage() {
     );
   }
   const ctx = { workspaceId: workspace.id, userId: user.id, userLabel: etiquetaDeUsuario(user), role };
-  const [estado, categorias, ajustes, acuse, pendientes] = await Promise.all([
+  const [estado, categorias, ajustes, acuse, pendientes, porHoras] = await Promise.all([
     estadoTelegram(workspace.id),
     listarPropuestasModelo(ctx).then((c) => c ?? []),
     ajustesPorCategoria(workspace.id),
     leerAcuse(workspace.id),
     pendientesDeAprobar(workspace.id),
+    leerAjustesPorHoras(workspace.id),
   ]);
   const sinTablas = ajustes === null;
   const sinDireccion = !appUrl();
@@ -162,6 +164,16 @@ export default async function ConfiguracionTelegramPage() {
             })}
           </ul>
         )}
+      </section>
+
+      <section className="fo-card space-y-3 p-5 text-sm" aria-labelledby="tg-horas-titulo">
+        <h2 id="tg-horas-titulo" className="text-base font-semibold">Presupuesto por horas (eventos sin propuesta modelo)</h2>
+        <p className="text-[var(--fo-muted)]">
+          Para los eventos y sesiones que no tienen propuesta modelo (cumpleaños, bautismos, eventos de empresa…), el presupuesto se arma solo con las horas
+          que dura: cobertura + edición, con el precio de ¿Cuánto cobro? y el traslado sumado. Te llega acá para aprobar, como los demás. En bodas y con
+          muchos invitados suma la opción de un segundo fotógrafo. Las horas las pregunta el bot por WhatsApp y el formulario de presupuesto del sitio.
+        </p>
+        <PorHorasForm ajustes={porHoras} categorias={categorias.map((c) => ({ categoriaId: c.categoriaId, nombre: c.nombre }))} />
       </section>
 
       <section className="fo-card space-y-3 p-5 text-sm" aria-labelledby="tg-acuse-titulo">

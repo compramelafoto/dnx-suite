@@ -38,3 +38,26 @@ describe("Configuración → Telegram", () => {
     for (const t of ["@BotFather", "/newbot", "Iniciar", "Aprobar y enviar", "Corregir"]) expect(p).toContain(t);
   });
 });
+
+describe("Configuración → Telegram: presupuesto por horas", () => {
+  it("la página lee los ajustes por horas junto con lo demás y muestra la sección", () => {
+    const p = aqui("page.tsx");
+    expect(p).toContain("leerAjustesPorHoras(");
+    expect(p.indexOf("leerAjustesPorHoras(")).toBeGreaterThan(p.indexOf('puede(role, "configurar")'));
+    expect(p).toContain("Presupuesto por horas");
+    expect(p).toContain("<PorHorasForm");
+  });
+
+  it("la acción pide `configurar` y guarda con guardarAjustesPorHoras", () => {
+    const a = aqui("actions.ts");
+    expect(a).toContain("export async function guardarPorHorasAction(");
+    expect(a).toContain("guardarAjustesPorHoras(");
+  });
+
+  it("el formulario usa InputMoneda para el $ por km y pide la dirección de partida", () => {
+    const f = aqui("telegram-form.tsx");
+    expect(f).toContain("export function PorHorasForm(");
+    expect(f).toContain("InputMoneda");
+    expect(f).toContain('name="partida"');
+  });
+});

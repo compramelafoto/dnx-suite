@@ -20,7 +20,7 @@ export function valorHoraDeDaniel(perfil: CuantoCobroProfileInput): number | nul
   try {
     const costo = getProfileHourlyRate(perfil);
     if (costo === null || !Number.isFinite(costo) || costo <= 0) return null;
-    return costo * getCommercialPositioningFactor((perfil as { commercialPositioningId?: never }).commercialPositioningId);
+    return costo * getCommercialPositioningFactor(perfil.commercialPositioningId);
   } catch {
     return null;
   }
