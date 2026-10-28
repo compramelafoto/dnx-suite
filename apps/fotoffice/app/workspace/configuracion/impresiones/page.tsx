@@ -69,6 +69,11 @@ export default async function ImpresionesPage({ searchParams }: { searchParams: 
           <input type="checkbox" name="testMode" defaultChecked={ajustes.testMode} /> Modo prueba (los correos al laboratorio te llegan a vos)
         </label>
         <label className="grid gap-1 text-sm">
+          Seña de los pedidos por WhatsApp (%)
+          <input name="depositPct" type="number" min={1} max={100} step={1} defaultValue={ajustes.depositPct} className="fo-input w-32" />
+          <span className="text-xs text-[var(--fo-muted)]">El bot le manda al cliente dos links: la seña y el total. Con la seña paga, el pedido sale al laboratorio.</span>
+        </label>
+        <label className="grid gap-1 text-sm">
           Circuito de los trabajos
           <select name="circuitId" defaultValue={circuitoActual} className="fo-input">
             <option value="">Por omisión ({CIRCUITO_POR_OMISION})</option>

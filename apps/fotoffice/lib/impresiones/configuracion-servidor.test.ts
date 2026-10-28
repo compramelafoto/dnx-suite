@@ -221,3 +221,20 @@ describe("leerAjustes", () => {
     expect(a.envio).toEqual({ encendido: true, baseArs: "1000", porKmArs: "250", maxKm: "20", estudioUbicado: false });
   });
 });
+
+describe("guardarAjustes · seña de los pedidos por WhatsApp", () => {
+  const base = { paperGlossy: true, paperMatte: true, shippingEnabled: false };
+  it("guarda el porcentaje; vacío vale 50", async () => {
+    db.fotofficePrintSettings.upsert.mockClear();
+    await C.guardarAjustes("ws", { ...base, depositPct: "40" });
+    expect(db.fotofficePrintSettings.upsert.mock.calls[0][0].update).toMatchObject({ depositPct: 40 });
+    await C.guardarAjustes("ws", { ...base, depositPct: "" });
+    expect(db.fotofficePrintSettings.upsert.mock.calls[1][0].update).toMatchObject({ depositPct: 50 });
+  });
+  it("fuera de 1 a 100 no guarda", async () => {
+    db.fotofficePrintSettings.upsert.mockClear();
+    expect(await C.guardarAjustes("ws", { ...base, depositPct: "0" })).toEqual({ ok: false, error: "La seña tiene que ser un porcentaje entre 1 y 100." });
+    expect(await C.guardarAjustes("ws", { ...base, depositPct: "150" })).toMatchObject({ ok: false });
+    expect(db.fotofficePrintSettings.upsert).not.toHaveBeenCalled();
+  });
+});

@@ -161,6 +161,8 @@ export type AjustesImpresion = {
   testMode: boolean;
   papeles: Papel[];
   circuitId: string | null;
+  /** Seña (%) de los pedidos que arma el bot de WhatsApp. */
+  depositPct: number;
   /** Montos en formato es-AR para los campos. `porKmArs` propone el precio por km del perfil si está vacío. */
   envio: { encendido: boolean; baseArs: string; porKmArs: string; maxKm: string; estudioUbicado: boolean };
   tamanos: {
@@ -190,6 +192,7 @@ export async function leerAjustes(workspaceId: string): Promise<AjustesImpresion
     testMode: s?.testMode ?? true,
     papeles: papelesDe(s),
     circuitId: s?.circuitId ?? null,
+    depositPct: (s as { depositPct?: number } | null)?.depositPct ?? 50,
     envio: {
       encendido: s?.shippingEnabled ?? false,
       baseArs: formatearMontoAr((s?.shippingBaseArs ?? null) as never),
@@ -228,7 +231,10 @@ export async function guardarAjustes(workspaceId: string, raw: unknown): Promise
   if (shippingEnabled && !coordenadasDelEstudio(await extrasDelWorkspace(workspaceId))) {
     return { ok: false, error: "Cargá la ubicación de tu estudio en Configuración → Precios para ofrecer envíos." };
   }
-  const data = { testMode: r.testMode === true, paperGlossy, paperMatte, circuitId, shippingEnabled, shippingBaseArs, shippingPerKmArs, shippingMaxKm };
+  const senaTexto = r.depositPct === null || r.depositPct === undefined ? "" : String(r.depositPct).trim();
+  const depositPct = senaTexto === "" ? 50 : Number(senaTexto);
+  if (!Number.isInteger(depositPct) || depositPct < 1 || depositPct > 100) return { ok: false, error: "La seña tiene que ser un porcentaje entre 1 y 100." };
+  const data = { testMode: r.testMode === true, paperGlossy, paperMatte, circuitId, shippingEnabled, shippingBaseArs, shippingPerKmArs, shippingMaxKm, depositPct };
   await prisma.fotofficePrintSettings.upsert({ where: { workspaceId }, create: { workspaceId, ...data }, update: data });
   return { ok: true };
 }
