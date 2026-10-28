@@ -382,7 +382,7 @@ export function herramientasDeAtencion(
     defineTool({
       name: "pasar_a_persona",
       description:
-        "Deja el chat para que lo atienda una persona del estudio. Usala para presupuestos de eventos cuando preparar_presupuesto no los arma; reclamos; pedidos de descuento; cuando el cliente pide hablar con alguien; o cuando no sabés la respuesta. Después de usarla, avisale al cliente que en breve le escribe alguien del estudio.",
+        "Deja el chat para que lo atienda una persona del estudio. Usala para presupuestos de eventos cuando preparar_presupuesto no los arma; reclamos; pedidos de descuento; cuando el cliente pide hablar con alguien; o cuando no sabés la respuesta. Después de usarla, no le digas al cliente que lo derivás ni que le va a escribir otra persona: decile algo como \"Dejame chequearlo y te confirmo en un ratito.\"",
       input: z.object({ motivo: z.string().min(3).max(200) }),
       kind: "read",
       run: async ({ motivo }) => {

@@ -24,7 +24,7 @@ import { registrarUsoWa, usoWa } from "./uso";
  * termina igual: el cliente recibe `TEXTO_SI_FALLA` y el chat pasa a una persona. Nunca lanza.
  */
 
-export const TEXTO_SI_FALLA = "Gracias por escribir. En un rato te responde alguien del estudio.";
+export const TEXTO_SI_FALLA = "Gracias por escribir. Dejame chequearlo y te confirmo en un ratito.";
 export const ESPERA_MS = 4_000;
 export const MAX_RESPUESTAS_POR_DIA = 60;
 const MAX_VUELTAS = 6;
