@@ -319,6 +319,27 @@ describe("opcionesParaPresupuesto", () => {
     expect(s.installmentPlans.map((p) => [p.id, p.numberOfInstallments])).toEqual([["omision", 2]]);
   });
 
+  it("todo pagado antes del evento: ningún plan pasa de los meses que faltan", () => {
+    // Evento en 4 meses: el de 3 queda, el de 6 baja a 4.
+    const s = opcionesParaPresupuesto(configuradas, 1_000_000, "2027-02-10", "2026-10-08", EN);
+    expect(s.installmentPlans.map((p) => [p.id, p.numberOfInstallments])).toEqual([
+      ["p3", 3],
+      ["p6", 4],
+    ]);
+    // Evento en 3 meses: el de 6 bajaría a 3, que ya está; queda uno solo.
+    const t = opcionesParaPresupuesto(configuradas, 1_000_000, "2027-01-20", "2026-10-08", EN);
+    expect(t.installmentPlans.map((p) => [p.id, p.numberOfInstallments])).toEqual([["p3", 3]]);
+  });
+
+  it("evento en menos de dos meses: sin planes, sólo el contado (o la de omisión de una cuota)", () => {
+    const s = opcionesParaPresupuesto(configuradas, 1_000_000, "2026-11-20", "2026-10-08", EN);
+    expect(s.cash).toMatchObject({ cashPrice: 900_000 });
+    expect(s.installmentPlans).toEqual([]);
+    const sinContado = { paymentOptions: { ...configuradas.paymentOptions, cashEnabled: false } };
+    const t = opcionesParaPresupuesto(sinContado, 1_000_000, "2026-11-20", "2026-10-08", EN);
+    expect(t.installmentPlans.map((p) => [p.id, p.numberOfInstallments])).toEqual([["omision", 1]]);
+  });
+
   it("la instantánea se guarda y se vuelve a leer igual", () => {
     const s = opcionesParaPresupuesto(configuradas, 1_000_000, null, "2026-10-08", EN);
     expect(parsePaymentOptionsSnapshot(JSON.parse(JSON.stringify(s)))).toEqual(s);
