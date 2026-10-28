@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { AccionesPublicas } from "@/components/presupuestos/acciones-publicas";
-import { PortadaPresupuesto } from "@/components/presupuestos/portada-presupuesto";
+import { ESTILO_SIN_MENU, PortadaPresupuesto } from "@/components/presupuestos/portada-presupuesto";
 import { PortfolioPublico } from "@/components/presupuestos/portfolio-publico";
 import { leerAjustesCobro } from "@/lib/cobro-ajustes/ajustes";
 import { portfolioDelEnlace } from "@/lib/presupuesto-automatico/portfolio";
@@ -74,7 +74,7 @@ export default async function PresupuestoPublicoPage({ params }: Props) {
 
   return (
     <>
-      <style>{ESTILO_IMPRESION}</style>
+      <style>{ESTILO_IMPRESION + ESTILO_SIN_MENU}</style>
       <PortadaPresupuesto vista={vista} />
       <main className={`mx-auto ${activo || vista.alternativas.length >= 3 ? "max-w-6xl" : "max-w-3xl"} space-y-12 px-4 pb-32 pt-10 md:px-8 md:pt-14`}>
         <Aviso vista={vista} />

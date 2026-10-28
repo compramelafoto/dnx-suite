@@ -22,7 +22,10 @@ import { WebsiteMenuOverlay } from "./website-menu-overlay";
  * El botón para entrar ("Ingresar") está siempre, a la derecha de todo: es la puerta de los
  * socios a su panel. Lleva a `loginHref`, que arma quien llama (en el sitio, la puerta de la
  * institución, `/w/<slug>/entrar`) — nunca a una URL que el usuario escriba: evita convertirlo
- * sin querer en un vector de phishing. Es un enlace fijo, sin leer la sesión, para que la página
+ * sin querer en un vector de phishing.
+ *
+ * Todo lo que no es el logo lleva `data-sitio-menu`: una página que necesita al visitante enfocado
+ * (el presupuesto) lo esconde con CSS y conserva el logo y los colores del sitio. Es un enlace fijo, sin leer la sesión, para que la página
  * siga siendo pública y cacheable.
  */
 export function WebsiteHeaderView({
@@ -99,11 +102,13 @@ export function WebsiteHeaderView({
       >
         <div className="flex items-center justify-between gap-4 px-6 py-4 @3xl:sticky @3xl:top-0 @3xl:flex-col @3xl:items-start @3xl:gap-8 @3xl:py-10">
           {logo}
-          <WebsiteHeaderNavClient navItems={navItems} colorTexto={colorTexto} vertical />
-          {botonLogin ? <div className="hidden @3xl:block">{botonLogin}</div> : null}
-          <WebsiteMenuOverlay navItems={navItems} variant="drawer" side={side} colorTexto={colorTexto} triggerClassName="@3xl:hidden">
-            {botonLogin}
-          </WebsiteMenuOverlay>
+          <div data-sitio-menu className="contents">
+            <WebsiteHeaderNavClient navItems={navItems} colorTexto={colorTexto} vertical />
+            {botonLogin ? <div className="hidden @3xl:block">{botonLogin}</div> : null}
+            <WebsiteMenuOverlay navItems={navItems} variant="drawer" side={side} colorTexto={colorTexto} triggerClassName="@3xl:hidden">
+              {botonLogin}
+            </WebsiteMenuOverlay>
+          </div>
         </div>
       </header>
     );
@@ -120,9 +125,9 @@ export function WebsiteHeaderView({
     return (
       <header className="relative" style={{ backgroundColor: "var(--wsite-bg)", borderBottom: borde }}>
         <div className="mx-auto flex max-w-6xl items-center gap-4 px-6 py-4">
-          {botonALaIzquierda ? boton : null}
+          {botonALaIzquierda ? <div data-sitio-menu className="contents">{boton}</div> : null}
           {logo}
-          <div className="ml-auto flex items-center gap-4">
+          <div data-sitio-menu className="ml-auto flex items-center gap-4">
             {botonLogin ? <div className="hidden @3xl:block">{botonLogin}</div> : null}
             {botonALaIzquierda ? null : boton}
           </div>
@@ -138,7 +143,7 @@ export function WebsiteHeaderView({
     <header className={wrapperClass} style={wrapperStyle}>
       <div className={`mx-auto flex max-w-6xl items-center gap-4 px-6 py-4 ${centered ? "flex-col text-center" : "justify-between"}`}>
         {logo}
-        <div className={`flex items-center gap-4 ${centered ? "flex-col" : ""}`}>
+        <div data-sitio-menu className={`flex items-center gap-4 ${centered ? "flex-col" : ""}`}>
           <WebsiteHeaderNavClient navItems={navItems} colorTexto={colorTexto} minimal={minimal} centered={centered} />
           {botonLogin}
           <WebsiteMenuOverlay navItems={navItems} variant="drawer" side={side} colorTexto={colorTexto} triggerClassName="@3xl:hidden" />

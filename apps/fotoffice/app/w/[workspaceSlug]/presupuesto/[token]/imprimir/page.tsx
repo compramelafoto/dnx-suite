@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { PrintButton } from "@/components/governance/print-button";
+import { ESTILO_SIN_MENU } from "@/components/presupuestos/portada-presupuesto";
 import { ESTILO_IMPRESION, PresupuestoPublico } from "@/components/presupuestos/presupuesto-publico";
 import { abrirPresupuestoPublico } from "@/lib/presupuestos/publico";
 import { workspaceDelSlug } from "@/lib/presupuestos/sitio";
@@ -36,7 +37,7 @@ export default async function ImprimirPresupuestoPage({ params }: Props) {
 
   return (
     <main className="mx-auto max-w-3xl space-y-6 bg-white px-4 pb-8 pt-32 text-black md:px-8 print:pt-0">
-      <style>{ESTILO_IMPRESION}</style>
+      <style>{ESTILO_IMPRESION + ESTILO_SIN_MENU}</style>
       <div className="no-imprimir flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-[var(--fo-muted)]">En el diálogo de impresión elegí «Guardar como PDF».</p>
         <PrintButton />
