@@ -37,6 +37,7 @@ export {
   classListCrowdMessage,
   classListCrowdWarning,
   countClassListStudents,
+  classListHeadingScale,
   formatClassListGroups,
   layoutClassListBlock,
   layoutClassListSections,
