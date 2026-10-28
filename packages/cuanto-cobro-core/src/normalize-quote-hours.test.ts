@@ -40,11 +40,11 @@ describe("normalizeQuoteHoursForCalculation: entrega con horas comerciales", () 
     expect(aviso).toMatch(/asignación de la entrega/);
   });
 
-  it("si lo asignado a la entrega es más que la entrega de la línea, mueve lo asignado: no se pierden horas", () => {
-    const r = normalizeQuoteHoursForCalculation(cotizacion("1", "3"));
-    expect(r.quote.client.hours.administrativeDeliveryHours).toBe("3");
-    expect(r.quote.concepts[0]!.assignments?.some((a) => a.activity === "delivery")).toBe(false);
-    expect(r.warnings.some((w) => w.includes("3 h de entrega"))).toBe(true);
+  it("sin horas de entrega en la línea no mueve nada y deja intacta la asignación de entrega", () => {
+    const r = normalizeQuoteHoursForCalculation(cotizacion("", "2"));
+    expect(r.quote.client.hours.administrativeDeliveryHours).toBe("0");
+    expect(r.quote.concepts[0]!.assignments?.some((a) => a.activity === "delivery" && a.hours === "2")).toBe(true);
+    expect(r.warnings.some((w) => w.includes("de entrega"))).toBe(false);
   });
 
   it("sin asignación de entrega el aviso no habla de asignaciones", () => {
