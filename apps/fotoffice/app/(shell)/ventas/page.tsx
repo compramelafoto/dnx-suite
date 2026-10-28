@@ -13,6 +13,7 @@ import { prisma } from "@repo/db";
 import { contextoDePedidos } from "@/lib/pedidos/contexto";
 import { proyectosEncendidos } from "@/lib/proyectos/crear";
 import { Pos } from "./pos";
+import { leerAgregarAlAbrir } from "@/lib/sales/agregar-al-abrir";
 import { leerQrMostrador } from "@/lib/sales/qr-mp-servidor";
 import { esDuenoOAdmin, leerReglas, miComision, productosConComision } from "@/lib/comisiones/servidor";
 
@@ -24,8 +25,14 @@ export const dynamic = "force-dynamic";
  * sólo si ese módulo está prendido— y el resto es trabajo del cliente (`pos.tsx`): agregar y
  * cobrar no pueden depender de ida y vuelta al servidor por cada clic.
  */
-export default async function VentasPage() {
+export default async function VentasPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const { workspace, user, canEditCatalog } = await requireSalesStaff();
+  // Lo que manda a cobrar otra pantalla (el diseñador de polaroids): `?agregar=SKU*cantidad,…`.
+  const agregarAlAbrir = leerAgregarAlAbrir((await searchParams).agregar);
 
   const clientsEnabled = await isModuleEnabledForWorkspace(workspace.id, CLIENTS_MODULE_KEY);
   // Sólo para el cartel fijo de "esto no se va a depositar": `recordSale` vuelve a preguntar
@@ -93,6 +100,7 @@ export default async function VentasPage() {
         senaHabilitada={senaHabilitada}
         qrActivo={qr.activo}
         comision={comision}
+        agregarAlAbrir={agregarAlAbrir}
         fotolibro={await leerCatalogoFotolibro(workspace.id, { conCostos: canEditCatalog }).then((catalogo) => (catalogo ? { catalogo, verCostos: canEditCatalog } : null))}
         permisosCarnet={{ puedeBuscarClientes: hasLevel(nivelClientes, "VIEW"), puedeAltaCliente: hasLevel(nivelClientes, "MANAGE") }}
         egresos={

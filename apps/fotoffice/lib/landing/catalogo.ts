@@ -11,6 +11,7 @@ import { DIGITALIZACION_MODULE_KEY } from "@/lib/digitalizacion/constants";
 import { INVOICING_MODULE_KEY } from "@/lib/invoicing/constants";
 import { FOTOLIBROS_MODULE_KEY } from "@/lib/fotolibro/constantes";
 import { FOTO_CARNET_MODULE_KEY } from "@/lib/foto-carnet/constantes";
+import { POLAROID_MODULE_KEY } from "@/lib/polaroid/constantes";
 import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
 import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
 import { EVALUACIONES_MODULE_KEY } from "@/lib/evaluaciones/constants";
@@ -438,6 +439,14 @@ export const MODULOS_DISPONIBLES: FichaModulo[] = [
     resuelve:
       "Encuadrás la foto a la medida del trámite, la retocás y armás la plancha para imprimir en tu impresora, sin programas aparte.",
     pantallas: ["Foto carnet"],
+  },
+  {
+    key: POLAROID_MODULE_KEY,
+    cuadro: "34",
+    nombre: "Polaroid",
+    resuelve:
+      "Armás polaroids con la foto encuadrada, una textura en el marco y un texto con la letra que quieras, y bajás las planchas listas para imprimir. Cada una se cobra con su producto del catálogo.",
+    pantallas: ["Polaroid"],
   },
 ];
 /** Lo que está siempre, se encienda lo que se encienda. No son módulos con interruptor. */
