@@ -1,6 +1,6 @@
 import { PageHeader } from "@/components/page-header";
 import { EditorFotoCarnet } from "@/components/foto-carnet/editor-foto-carnet";
-import { requireSalesStaff } from "@/lib/sales/access";
+import { requireFotoCarnet } from "@/lib/foto-carnet/acceso";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
 import { getModuleLevel } from "@/lib/permissions/module-access";
@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
  * en la impresora y la hoja que se elijan acá.
  */
 export default async function FotoCarnetPage() {
-  const { user, workspace } = await requireSalesStaff();
+  const { user, workspace } = await requireFotoCarnet();
   const clientes = await isModuleEnabledForWorkspace(workspace.id, CLIENTS_MODULE_KEY);
   const nivel = clientes ? await getModuleLevel(user.id, workspace.id, CLIENTS_MODULE_KEY) : "NONE";
   await asegurarConfiguracion(workspace.id);

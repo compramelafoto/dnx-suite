@@ -435,6 +435,8 @@ describe("enlace público", () => {
     const publico = leer("lib/presupuestos/publico.ts");
     expect(publico).not.toMatch(/costSnapshot:\s*true/);
     expect(publico).not.toMatch(/SELECT_VERSION\b/);
+    // La ficha del cliente: sólo nombre y evento, nunca cómo contactarlo ni su documento.
+    expect(publico).not.toMatch(/(email|phone|mobile|docNumber|address|notes):\s*true/);
     const sinComentarios = (t: string) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
     for (const r of [
       "app/w/[workspaceSlug]/presupuesto/[token]/page.tsx",
@@ -443,6 +445,7 @@ describe("enlace público", () => {
       "components/presupuestos/acciones-publicas.tsx",
       "components/presupuestos/tarjeta-alternativa.tsx",
       "components/presupuestos/portada-presupuesto.tsx",
+      "lib/presupuestos/ficha-publica.ts",
     ]) {
       const crudo = leer(r);
       // La vista del presupuesto se arma en el servidor: no es un componente del navegador.

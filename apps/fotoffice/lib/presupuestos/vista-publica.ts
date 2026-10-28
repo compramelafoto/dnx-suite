@@ -11,6 +11,7 @@ import type { Descuento, ItemPresupuesto } from "./constantes";
 import { condicionesDeInstantanea } from "@/lib/pedidos/opciones-pago";
 import { opcionesPublicas, type OpcionPublica } from "./opciones-pago";
 import type { TotalesGuardados } from "./versiones";
+import type { FichaDeLaVista } from "./ficha-publica";
 import { alternativaElegidaId, alternativasGuardadas, alternativaPrincipal, itemsDeAlternativa, pagoDeAlternativa } from "./alternativas";
 
 /** El estado del enlace. REEMPLAZADO nunca llega a la vista: la página redirige a la vigente. */
@@ -81,6 +82,8 @@ export type VistaPublica = {
   alternativas: AlternativaDeLaVista[];
   /** Aceptado con opciones: el nombre de la que eligió el cliente. */
   alternativaElegida: string | null;
+  /** Para quién es y de qué evento (ver `armarFicha`); null si no se pudo leer. */
+  ficha: FichaDeLaVista | null;
 };
 
 const numero = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);
@@ -143,6 +146,7 @@ export function armarVistaPublica(args: {
   /** Por omisión, sí (como antes de la etapa B). */
   mercadoPago?: boolean;
   pedidoUrl?: string | null;
+  ficha?: FichaDeLaVista | null;
 }): VistaPublica {
   const t = args.version.totals;
   const renglones = t?.renglones ?? {};
@@ -209,6 +213,7 @@ export function armarVistaPublica(args: {
     pedidoUrl: args.estado === "ACEPTADO" ? (args.pedidoUrl ?? null) : null,
     alternativas: aElegir,
     alternativaElegida: idElegida ? (alternativas.find((a) => a.id === idElegida)?.nombre ?? null) : null,
+    ficha: args.ficha ?? null,
   };
 }
 

@@ -20,7 +20,8 @@ import { GOVERNANCE_MODULE_KEY } from "@/lib/governance/constants";
 import { PRINT_ORDERS_MODULE_KEY } from "@/lib/impresiones/constantes";
 import { BANDEJA_MODULE_KEY } from "@/lib/bandeja/constantes";
 import { CUANTO_COBRO_SOCIO_MODULE_KEY } from "@/lib/cuanto-cobro-socio/constants";
-import { FOTOLIBROS_SOCIO_MODULE_KEY } from "@/lib/fotolibro/constantes";
+import { FOTOLIBROS_MODULE_KEY, FOTOLIBROS_SOCIO_MODULE_KEY } from "@/lib/fotolibro/constantes";
+import { FOTO_CARNET_MODULE_KEY } from "@/lib/foto-carnet/constantes";
 import { INVOICING_MODULE_KEY } from "@/lib/invoicing/constants";
 import { EQUIPO_MODULE_KEY } from "@/lib/equipo/constantes";
 
@@ -184,6 +185,29 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
     category: "GENERAL",
     order: 35,
     route: "/ventas",
+    status: "AVAILABLE",
+    family: "negocio",
+  },
+  {
+    // Separado de Ventas (plan Base, 28/10/2026): el fotógrafo sin local también arma fotolibros.
+    // El fotolibro que se cobra en el mostrador sigue en Ventas.
+    key: FOTOLIBROS_MODULE_KEY,
+    label: "Fotolibros",
+    description:
+      "Fotolibros con la medida real del pliego de cada laboratorio, diseñados hoja por hoja y listos para imprimir.",
+    category: "GENERAL",
+    order: 39,
+    route: "/fotolibros",
+    status: "AVAILABLE",
+    family: "negocio",
+  },
+  {
+    key: FOTO_CARNET_MODULE_KEY,
+    label: "Foto carnet",
+    description: "Encuadrar una foto a la medida del trámite, retocarla y armar la plancha para imprimir.",
+    category: "GENERAL",
+    order: 40,
+    route: "/foto-carnet",
     status: "AVAILABLE",
     family: "negocio",
   },

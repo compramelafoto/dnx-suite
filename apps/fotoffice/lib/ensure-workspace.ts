@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { prisma } from "@repo/db";
 import { isSlugTaken } from "./entrada/institution-shortcut";
+import { modulosInicialesDeNegocio } from "./modules/negocio-inicial";
 
 export type EnsuredWorkspace = {
   workspaceId: string;
@@ -237,6 +238,11 @@ export async function createFotofficeWorkspaceForUser(params: {
           commercialName,
           contactEmail: params.email,
         },
+      },
+      // Nace con todo lo del negocio encendido (plan Base): el fotógrafo no tiene que pedirle
+      // a nadie que le prenda Presupuestos o Galerías para empezar a trabajar.
+      featureModules: {
+        create: modulosInicialesDeNegocio().map((moduleKey) => ({ moduleKey, enabled: true })),
       },
     },
     select: { id: true },

@@ -11,6 +11,7 @@ import { puedeCobrarConMercadoPago } from "@/lib/payments/connect/collector";
 import { enlaceDelPedidoDelSistema } from "@/lib/pedidos/enlace";
 import { armarVistaPublica, esRobot, type EstadoDeLaVista, type EstadoDelEnlace, type VistaPublica } from "./vista-publica";
 import { registrarVista } from "./vistas";
+import { armarFicha, type FichaDeLaVista } from "./ficha-publica";
 
 /**
  * El enlace público `/<slug>/presupuesto/<token>` (spec etapa 2 §3.3, §5), sin sesión: el token
@@ -30,6 +31,7 @@ export type EnlaceEncontrado = {
   presupuestoId: string;
   versionId: string;
   leadId: string;
+  clientId: string;
   ownerUserId: number | null;
   estadoGuardado: EstadoPresupuesto;
   estado: EstadoDelEnlace;
@@ -46,6 +48,7 @@ export type EnlaceEncontrado = {
     chosenPaymentOptionId: string | null;
     acceptedAt: Date | null;
     acceptedName: string | null;
+    sentAt: Date | null;
   };
 };
 
@@ -95,7 +98,7 @@ export async function buscarEnlace(workspaceId: string, token: unknown, ahora: D
   if (v.tokenExpiresAt && v.tokenExpiresAt.getTime() < ahora.getTime()) return null;
   const p = await prisma.fotofficePresupuesto.findFirst({
     where: { id: v.presupuestoId, workspaceId },
-    select: { status: true, validUntil: true, currentVersionId: true, consultaLeadId: true, ownerUserId: true },
+    select: { status: true, validUntil: true, currentVersionId: true, consultaLeadId: true, clientId: true, ownerUserId: true },
   });
   if (!p || !esEstadoPresupuesto(p.status)) return null;
   const estado = estadoDelEnlace({
@@ -108,6 +111,7 @@ export async function buscarEnlace(workspaceId: string, token: unknown, ahora: D
     presupuestoId: v.presupuestoId,
     versionId: v.id,
     leadId: p.consultaLeadId,
+    clientId: p.clientId,
     ownerUserId: p.ownerUserId,
     estadoGuardado: p.status,
     estado,
@@ -116,7 +120,7 @@ export async function buscarEnlace(workspaceId: string, token: unknown, ahora: D
     version: {
       number: v.number, items: v.items, totals: v.totals, terms: v.terms, paymentProposal: v.paymentProposal,
       paymentOptions: v.paymentOptions, chosenPaymentOptionId: v.chosenPaymentOptionId,
-      acceptedAt: v.acceptedAt, acceptedName: v.acceptedName,
+      acceptedAt: v.acceptedAt, acceptedName: v.acceptedName, sentAt: v.sentAt,
     },
   };
 }
@@ -129,6 +133,8 @@ export type DepsPublico = {
   mercadoPago?: (workspaceId: string) => Promise<boolean>;
   /** El enlace del pedido de un presupuesto aceptado. Inyectable en las pruebas. */
   enlaceDelPedido?: (workspaceId: string, presupuestoId: string) => Promise<string | null>;
+  /** Para quién es y de qué evento. Inyectable en las pruebas. */
+  ficha?: (enlace: EnlaceEncontrado, ahora: Date) => Promise<FichaDeLaVista | null>;
 };
 
 /** El enlace del pedido del presupuesto, si ya tiene uno (etapa B). Nunca lanza. */
@@ -138,6 +144,43 @@ async function enlacePedidoDe(workspaceId: string, presupuestoId: string): Promi
     if (!p) return null;
     const r = await enlaceDelPedidoDelSistema(workspaceId, p.id);
     return r.ok ? r.url : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * La ficha de arriba (cliente y evento). Sólo nombre y datos del evento: nunca teléfono, correo ni
+ * documento. Si algo falla, la página sale igual, sin ficha. Nunca lanza.
+ */
+async function fichaDe(enlace: EnlaceEncontrado, ahora: Date): Promise<FichaDeLaVista | null> {
+  try {
+    const { workspaceId } = enlace;
+    const [cliente, consulta, lead, autor] = await Promise.all([
+      prisma.client.findFirst({
+        where: { id: enlace.clientId, workspaceId },
+        select: { kind: true, firstName: true, lastName: true, businessName: true },
+      }),
+      prisma.fotofficeConsulta.findFirst({
+        where: { leadId: enlace.leadId, workspaceId },
+        select: {
+          eventStartsAt: true, eventTimeKnown: true, venue: true, ceremonyVenue: true, receptionVenue: true,
+          city: true, guests: true, partnerOneName: true, partnerTwoName: true, category: { select: { name: true } },
+        },
+      }),
+      prisma.serviceSalesLead.findFirst({ where: { id: enlace.leadId, workspaceId }, select: { eventDate: true, eventLocation: true } }),
+      enlace.ownerUserId ? prisma.user.findUnique({ where: { id: enlace.ownerUserId }, select: { name: true } }) : null,
+    ]);
+    return armarFicha(
+      {
+        cliente,
+        consulta: consulta ? { ...consulta, categoria: consulta.category?.name ?? null } : null,
+        lead,
+        enviado: enlace.version.sentAt,
+        preparadoPor: autor?.name ?? null,
+      },
+      ahora,
+    );
   } catch {
     return null;
   }
@@ -201,6 +244,7 @@ export async function abrirPresupuestoPublico(
     validUntil: enlace.validUntil,
     mercadoPago: await (deps.mercadoPago ?? puedeCobrarConMercadoPago)(workspaceId),
     pedidoUrl: enlace.estado === "ACEPTADO" ? await (deps.enlaceDelPedido ?? enlacePedidoDe)(workspaceId, enlace.presupuestoId) : null,
+    ficha: await (deps.ficha ?? fichaDe)(enlace, ahora),
   });
 
   if (visita.registrar && !esRobot(visita.userAgent)) {

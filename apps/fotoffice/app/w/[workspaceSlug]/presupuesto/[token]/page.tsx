@@ -1,13 +1,14 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { AccionesPublicas } from "@/components/presupuestos/acciones-publicas";
-import { PortadaPresupuesto } from "@/components/presupuestos/portada-presupuesto";
+import { coloresDelEstudio, ESTILO_SIN_MENU, PortadaPresupuesto } from "@/components/presupuestos/portada-presupuesto";
 import { PortfolioPublico } from "@/components/presupuestos/portfolio-publico";
 import { leerAjustesCobro } from "@/lib/cobro-ajustes/ajustes";
 import { portfolioDelEnlace } from "@/lib/presupuesto-automatico/portfolio";
 import { ESTILO_IMPRESION, PresupuestoPublico } from "@/components/presupuestos/presupuesto-publico";
 import { abrirPresupuestoPublico } from "@/lib/presupuestos/publico";
 import { workspaceDelSlug } from "@/lib/presupuestos/sitio";
+import { loadPublicSite } from "@/lib/website/public-site";
 import type { VistaPublica } from "@/lib/presupuestos/vista-publica";
 import { abreAlguienDelEquipo, visitanteDelEnlace } from "./visitante";
 
@@ -72,9 +73,12 @@ export default async function PresupuestoPublicoPage({ params }: Props) {
   const activo = vista.estado === "ACTIVO";
   const pedidoAutomatico = activo ? (await leerAjustesCobro(workspaceId)).autoConfirmarPedido : false;
 
+  // Los colores del estudio (el layout ya cargó el sitio: `loadPublicSite` está en `cache()`).
+  const sitio = await loadPublicSite(workspaceSlug);
+
   return (
-    <>
-      <style>{ESTILO_IMPRESION}</style>
+    <div style={sitio ? coloresDelEstudio(sitio.colors) : undefined}>
+      <style>{ESTILO_IMPRESION + ESTILO_SIN_MENU}</style>
       <PortadaPresupuesto vista={vista} />
       <main className={`mx-auto ${activo || vista.alternativas.length >= 3 ? "max-w-6xl" : "max-w-3xl"} space-y-12 px-4 pb-32 pt-10 md:px-8 md:pt-14`}>
         <Aviso vista={vista} />
@@ -111,6 +115,6 @@ export default async function PresupuestoPublicoPage({ params }: Props) {
           }
         />
       </main>
-    </>
+    </div>
   );
 }

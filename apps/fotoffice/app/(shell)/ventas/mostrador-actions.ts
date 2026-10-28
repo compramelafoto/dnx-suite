@@ -1,8 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { prisma } from "@repo/db";
 import { requireSalesStaff } from "@/lib/sales/access";
+import { requireActiveWorkspace } from "@/lib/workspace";
+import { canPrepareFotoCarnet } from "@/lib/foto-carnet/acceso";
 import { getModuleLevel } from "@/lib/permissions/module-access";
 import { hasLevel } from "@/lib/permissions/levels";
 import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
@@ -33,9 +36,20 @@ export type ClienteBuscado = {
 
 const MAX_RESULTADOS = 8;
 
+/**
+ * Buscar y dar de alta clientes también lo hace la pantalla de Foto carnet, que es un módulo
+ * aparte: alcanza con gestionar Ventas o Foto carnet. Lo que se puede hacer con los clientes lo
+ * sigue decidiendo el nivel en Clientes, adentro de cada acción.
+ */
+async function requireBuscadorDeClientes() {
+  const { user, workspace } = await requireActiveWorkspace();
+  if (!workspace || !(await canPrepareFotoCarnet(user.id, workspace.id))) redirect("/dashboard");
+  return { user, workspace };
+}
+
 /** Cualquier dato sirve: nombre, apellido, razón social, DNI, correo o teléfono (`listClients`). */
 export async function buscarClientesAction(q: string): Promise<ClienteBuscado[]> {
-  const { user, workspace } = await requireSalesStaff();
+  const { user, workspace } = await requireBuscadorDeClientes();
   const texto = q.trim();
   if (texto.length < 2) return [];
   if (!hasLevel(await getModuleLevel(user.id, workspace.id, CLIENTS_MODULE_KEY), "VIEW")) return [];
@@ -60,7 +74,7 @@ export type AltaRapidaResultado =
  * cliente en vez de crear una ficha duplicada: el historial tiene que quedar en una sola.
  */
 export async function altaRapidaClienteAction(formData: FormData): Promise<AltaRapidaResultado> {
-  const { user, workspace } = await requireSalesStaff();
+  const { user, workspace } = await requireBuscadorDeClientes();
   if (!hasLevel(await getModuleLevel(user.id, workspace.id, CLIENTS_MODULE_KEY), "MANAGE")) {
     return { ok: false, error: "No tenés permiso para dar de alta clientes." };
   }

@@ -52,6 +52,9 @@ export const RESERVED_SLUGS: ReadonlySet<string> = new Set([
   "facturacion",
   // La ruta interna del formulario de consulta para insertar en otra web (lib/service-leads/insertar.ts).
   "formulario-insertado",
+  // Fotolibros y Foto carnet, módulos propios desde el plan Base (lib/fotolibro, lib/foto-carnet).
+  "foto-carnet",
+  "fotolibros",
   "galerias",
   "gobierno",
   "imprimir",
