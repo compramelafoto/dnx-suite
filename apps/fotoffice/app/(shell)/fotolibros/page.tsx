@@ -2,7 +2,7 @@ import { prisma } from "@repo/db";
 import { TemplateV2RowActions, templateV2EditorPath } from "@repo/template-editor-ui";
 import { PageHeader } from "@/components/page-header";
 import { NuevoFotolibro } from "@/components/fotolibro/nuevo-fotolibro";
-import { requireSalesStaff } from "@/lib/sales/access";
+import { requireFotolibros } from "@/lib/fotolibro/acceso";
 import { listarProveedores } from "@/lib/proveedores/repositorio";
 import { listKeyedTemplatesTodas } from "@/lib/template-v2/keyed-template";
 import { FOTOLIBRO_TEMPLATE_KEY, FOTOLIBROS_BASE_PATH } from "@/lib/fotolibro/constantes";
@@ -20,11 +20,10 @@ const fecha = (v: Date) =>
 
 /**
  * Los fotolibros del estudio: se arman acá con la medida real del pliego del laboratorio y se
- * diseñan en el editor. Es trabajo de quien vende y manda al laboratorio, por eso vive en
- * Ventas y pide gestionarlas.
+ * diseñan en el editor. Módulo propio: pide Fotolibros encendido y poder diseñarlos.
  */
 export default async function FotolibrosPage() {
-  const { workspace } = await requireSalesStaff();
+  const { workspace } = await requireFotolibros();
 
   const [proveedores, conMarca] = await Promise.all([
     listarProveedores(workspace.id, { soloActivos: true }),

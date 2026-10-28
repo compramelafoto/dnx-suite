@@ -9,6 +9,8 @@ import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 import { PRINT_ORDERS_MODULE_KEY } from "@/lib/impresiones/constantes";
 import { DIGITALIZACION_MODULE_KEY } from "@/lib/digitalizacion/constants";
 import { INVOICING_MODULE_KEY } from "@/lib/invoicing/constants";
+import { FOTOLIBROS_MODULE_KEY } from "@/lib/fotolibro/constantes";
+import { FOTO_CARNET_MODULE_KEY } from "@/lib/foto-carnet/constantes";
 import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
 import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
 import { EVALUACIONES_MODULE_KEY } from "@/lib/evaluaciones/constants";
@@ -420,6 +422,22 @@ export const MODULOS_DISPONIBLES: FichaModulo[] = [
     resuelve:
       "Facturás tus ventas y pedidos con ARCA sin salir de FOTOFFICE: Factura C con su CAE y el código QR, y la nota de crédito para anular. Sin cargar dos veces lo mismo.",
     pantallas: ["Facturación", "Configuración de facturación"],
+  },
+  {
+    key: FOTOLIBROS_MODULE_KEY,
+    cuadro: "32",
+    nombre: "Fotolibros",
+    resuelve:
+      "Armás el fotolibro con la medida real del pliego de cada laboratorio, acomodás las fotos solas o a mano, hoja por hoja, y lo dejás listo para mandar a imprimir.",
+    pantallas: ["Fotolibros", "Diseño hoja por hoja"],
+  },
+  {
+    key: FOTO_CARNET_MODULE_KEY,
+    cuadro: "33",
+    nombre: "Foto carnet",
+    resuelve:
+      "Encuadrás la foto a la medida del trámite, la retocás y armás la plancha para imprimir en tu impresora, sin programas aparte.",
+    pantallas: ["Foto carnet"],
   },
 ];
 /** Lo que está siempre, se encienda lo que se encienda. No son módulos con interruptor. */

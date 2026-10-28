@@ -12,6 +12,8 @@ import { MEMBERSHIP_DUES_MODULE_KEY } from "@/lib/membership/constants";
 import { COMMUNICATIONS_MODULE_KEY } from "@/lib/communications/constants";
 import { GOVERNANCE_MODULE_KEY } from "@/lib/governance/constants";
 import { EQUIPO_MODULE_KEY } from "@/lib/equipo/constantes";
+import { FOTOLIBROS_MODULE_KEY } from "@/lib/fotolibro/constantes";
+import { FOTO_CARNET_MODULE_KEY } from "@/lib/foto-carnet/constantes";
 import {
   BOOKINGS_CONFIGURE_ACTION,
   CASH_CONFIGURE_ACTION,
@@ -466,28 +468,11 @@ const VENTAS: SubmoduleItem[] = [
     activeMatch: "under",
   },
   {
-    href: "/ventas/foto-carnet",
-    label: "Foto carnet",
-    icon: "Crop",
-    description: "Encuadrar una foto a la medida del trámite y armar la plancha para imprimir.",
-    requiresManage: false,
-    activeMatch: "under",
-  },
-  {
     // La página pide gestionar Ventas (`requireSalesStaff`).
     href: "/ventas/impresiones",
     label: "Impresiones",
     icon: "Printer",
     description: "Lo que hay que imprimir, lo preparado sin cobrar y lo que salió hoy.",
-    requiresManage: true,
-    activeMatch: "under",
-  },
-  {
-    // La página pide gestionar Ventas (`requireSalesStaff`).
-    href: "/ventas/fotolibros",
-    label: "Fotolibros",
-    icon: "LayoutTemplate",
-    description: "Armar el fotolibro con la medida real del pliego y diseñarlo hoja por hoja.",
     requiresManage: true,
     activeMatch: "under",
   },
@@ -669,6 +654,31 @@ const EQUIPO: SubmoduleItem[] = [
   },
 ];
 
+// Fotolibros y Foto carnet eran pantallas de Ventas; desde el plan Base son módulos propios.
+const FOTOLIBROS: SubmoduleItem[] = [
+  {
+    // La página pide el módulo encendido y poder diseñar (`requireFotolibros`).
+    href: "/fotolibros",
+    label: "Fotolibros",
+    icon: "LayoutTemplate",
+    description: "Armar el fotolibro con la medida real del pliego y diseñarlo hoja por hoja.",
+    requiresManage: true,
+    activeMatch: "under",
+  },
+];
+
+const FOTO_CARNET: SubmoduleItem[] = [
+  {
+    // La página pide el módulo encendido y poder preparar (`requireFotoCarnet`).
+    href: "/foto-carnet",
+    label: "Foto carnet",
+    icon: "Crop",
+    description: "Encuadrar una foto a la medida del trámite y armar la plancha para imprimir.",
+    requiresManage: true,
+    activeMatch: "under",
+  },
+];
+
 const POR_MODULO: Record<string, SubmoduleItem[]> = {
   [MEMBERS_MODULE_KEY]: SOCIOS,
   [COURSES_SALES_MODULE_KEY]: CURSOS,
@@ -682,6 +692,8 @@ const POR_MODULO: Record<string, SubmoduleItem[]> = {
   [SALES_MODULE_KEY]: VENTAS,
   [COMMUNICATIONS_MODULE_KEY]: COMUNICACION,
   [EQUIPO_MODULE_KEY]: EQUIPO,
+  [FOTOLIBROS_MODULE_KEY]: FOTOLIBROS,
+  [FOTO_CARNET_MODULE_KEY]: FOTO_CARNET,
 };
 
 /**

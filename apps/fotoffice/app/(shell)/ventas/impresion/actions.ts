@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireSalesAdmin, requireSalesStaff } from "@/lib/sales/access";
+import { requireActiveWorkspace } from "@/lib/workspace";
+import { canPrepareFotoCarnet } from "@/lib/foto-carnet/acceso";
 import { etiquetaDeUsuario } from "@/lib/listado/acceso";
 import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
@@ -53,9 +55,19 @@ export async function guardarProduccionAction(formData: FormData): Promise<void>
   redirect(`/ventas/catalogo/${productId}?${r.ok ? "ok=1" : `error=${encodeURIComponent(r.error)}`}`);
 }
 
+/**
+ * Quien prepara: gestiona Ventas (el Cobrador) o Foto carnet (la pantalla suelta). Las dos
+ * usan estas mismas acciones.
+ */
+async function requirePreparador() {
+  const { user, workspace } = await requireActiveWorkspace();
+  if (!workspace || !(await canPrepareFotoCarnet(user.id, workspace.id))) redirect("/dashboard");
+  return { user, workspace };
+}
+
 /** Privada: en un archivo "use server" todo lo exportado es una acción. */
 async function ctxImpresion(): Promise<CtxImpresion> {
-  const { user, workspace } = await requireSalesStaff();
+  const { user, workspace } = await requirePreparador();
   return { workspaceId: workspace.id, userId: user.id, userLabel: etiquetaDeUsuario(user) };
 }
 
@@ -142,7 +154,7 @@ async function puedeVerClientes(userId: number, workspaceId: string): Promise<bo
 }
 
 export async function fotosCarnetDelClienteAction(clientId: string) {
-  const { user, workspace } = await requireSalesStaff();
+  const { user, workspace } = await requirePreparador();
   if (!(await puedeVerClientes(user.id, workspace.id))) return [];
   return fotosCarnetDelCliente(workspace.id, clientId);
 }
