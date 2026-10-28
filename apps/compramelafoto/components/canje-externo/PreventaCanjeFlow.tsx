@@ -12,6 +12,7 @@ import {
   buildRedeemSelections,
   emptyCanjeFill,
   isCanjeComplete,
+  removeCanjePhotoFromBenefit,
   toggleCanjePhoto,
 } from "@/lib/preventa-canjeable/preventa-canje-slots";
 import ComboFrames from "./ComboFrames";
@@ -234,6 +235,7 @@ export default function PreventaCanjeFlow({
       setFilled(r.filled);
       setDestino(null);
       setVerTodasParaGrupal(false);
+      if (r.repetida) setAviso("Sumaste esta foto también en otro formato. Para sacarla de un lugar, tocá la cruz.");
       return;
     }
     setAviso(
@@ -241,6 +243,12 @@ export default function PreventaCanjeFlow({
         ? `Ya elegiste las ${total} fotos de tu pack. Para cambiar una, sacala tocándola.`
         : "Esta foto no se puede usar en los lugares que te quedan (no se vende en ese formato). Elegí otra."
     );
+  }
+
+  /** La cruz de un lugar: la foto sale de ese beneficio, aunque siga en el otro formato. */
+  function quitar(benefitKey: string, id: number) {
+    setAviso(null);
+    setFilled(removeCanjePhotoFromBenefit(plan, filled, benefitKey, id));
   }
 
   async function buscarConSelfie(file: File) {
@@ -378,7 +386,7 @@ export default function PreventaCanjeFlow({
                     }
                   : undefined
               }
-              onRemove={editable ? tocar : undefined}
+              onRemove={editable ? (id) => quitar(g.benefitKey, id) : undefined}
               alto={size === "sm" ? 130 : size === "md" ? 200 : 260}
               values={valoresDelLibrito}
             />
@@ -397,7 +405,7 @@ export default function PreventaCanjeFlow({
                 : undefined
             }
             thumbUrl={thumbUrl}
-            onRemove={editable ? tocar : undefined}
+            onRemove={editable ? (id) => quitar(g.benefitKey, id) : undefined}
             size={size}
             onImgLoad={registrar}
             caption={size === "lg" ? (id) => formatoDe(g.benefitKey, g.kind, id) : undefined}

@@ -4,8 +4,9 @@
  * combinaciones (packs mixtos, varias fotos por unidad) sin pantalla ni base.
  *
  * Reglas que salen del canje del servidor (`validateRedeemSelectionsAgainstSnapshot` y
- * `executePreventaPackRedeemV1`): una foto no puede usarse en dos lugares, los beneficios
- * impresos piden fotos que se vendan impresas y los digitales, fotos que se vendan digitales.
+ * `executePreventaPackRedeemV1`): una foto no puede repetirse dentro de un mismo beneficio
+ * (pero sí ir a la impresa y a la digital), los beneficios impresos piden fotos que se vendan
+ * impresas y los digitales, fotos que se vendan digitales.
  */
 
 import type {
@@ -142,12 +143,24 @@ function fits(kind: CanjeSlotKind, photo: CanjePhotoSales | undefined): boolean 
 }
 
 export type ToggleResult =
-  | { ok: true; filled: Array<number | null> }
+  | {
+      ok: true;
+      filled: Array<number | null>;
+      /** La foto ya estaba elegida y además entró en otro beneficio (la impresa, también en digital). */
+      repetida?: boolean;
+    }
   | { ok: false; reason: "lleno" | "no_corresponde"; filled: Array<number | null> };
 
+/** Dónde está la foto dentro de un beneficio, o -1. Ahí no se puede repetir: el servidor lo rechaza. */
+function indexInBenefit(plan: CanjeSlotPlan, filled: Array<number | null>, benefitKey: string, photoId: number): number {
+  return filled.findIndex((x, i) => x === photoId && plan.slots[i].benefitKey === benefitKey);
+}
+
 /**
- * Tocar una foto: si ya está, sale de su lugar; si no, entra en el primer lugar libre que
- * acepte su formato. `filled[i]` es la foto del lugar `i` o `null`.
+ * Tocar una foto: entra en el primer lugar libre que acepte su formato y de un beneficio donde
+ * todavía no esté. Así la misma foto puede ir a la impresa y a la digital, que es lo que espera
+ * la familia («quiero impresa y en digital la que sonríe»). Si ya no entra en ningún lado, tocarla
+ * la saca del último lugar donde está. `filled[i]` es la foto del lugar `i` o `null`.
  */
 export function toggleCanjePhoto(
   plan: CanjeSlotPlan,
@@ -157,26 +170,46 @@ export function toggleCanjePhoto(
   /** El lugar que la familia tocó antes de elegir la foto ("ahora la grupal"). */
   targetIndex?: number | null
 ): ToggleResult {
-  const at = filled.indexOf(photoId);
+  const yaElegida = filled.includes(photoId);
+  if (targetIndex != null && targetIndex >= 0 && targetIndex < plan.slots.length && filled[targetIndex] == null) {
+    if (!fits(plan.slots[targetIndex].kind, photo)) return { ok: false, reason: "no_corresponde", filled };
+    const next = [...filled];
+    // Si ya estaba en otro lugar del mismo beneficio, se muda al lugar que tocó la familia.
+    const mismo = indexInBenefit(plan, filled, plan.slots[targetIndex].benefitKey, photoId);
+    if (mismo >= 0) next[mismo] = null;
+    next[targetIndex] = photoId;
+    return { ok: true, filled: next, repetida: mismo < 0 && yaElegida };
+  }
+  const free = plan.slots.findIndex(
+    (s, i) => filled[i] == null && fits(s.kind, photo) && indexInBenefit(plan, filled, s.benefitKey, photoId) < 0
+  );
+  if (free >= 0) {
+    const next = [...filled];
+    next[free] = photoId;
+    return { ok: true, filled: next, repetida: yaElegida };
+  }
+  const at = filled.lastIndexOf(photoId);
   if (at >= 0) {
     const next = [...filled];
     next[at] = null;
     return { ok: true, filled: next };
   }
-  if (targetIndex != null && targetIndex >= 0 && targetIndex < plan.slots.length && filled[targetIndex] == null) {
-    if (!fits(plan.slots[targetIndex].kind, photo)) return { ok: false, reason: "no_corresponde", filled };
-    const next = [...filled];
-    next[targetIndex] = photoId;
-    return { ok: true, filled: next };
-  }
-  const free = plan.slots.findIndex((s, i) => filled[i] == null && fits(s.kind, photo));
-  if (free < 0) {
-    const anyFree = filled.some((x) => x == null);
-    return { ok: false, reason: anyFree ? "no_corresponde" : "lleno", filled };
-  }
+  const anyFree = filled.some((x) => x == null);
+  return { ok: false, reason: anyFree ? "no_corresponde" : "lleno", filled };
+}
+
+/** Sacar una foto de un beneficio puntual (la cruz de su lugar), sin tocar la misma foto en otro. */
+export function removeCanjePhotoFromBenefit(
+  plan: CanjeSlotPlan,
+  filled: Array<number | null>,
+  benefitKey: string,
+  photoId: number
+): Array<number | null> {
+  const at = indexInBenefit(plan, filled, benefitKey, photoId);
+  if (at < 0) return filled;
   const next = [...filled];
-  next[free] = photoId;
-  return { ok: true, filled: next };
+  next[at] = null;
+  return next;
 }
 
 /** El lugar que se está llenando: el que tocó la familia o, si no, el primero libre. */

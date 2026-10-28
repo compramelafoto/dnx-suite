@@ -10,6 +10,7 @@ import {
   photosForCanjeRole,
   placesForUnit,
   isCanjeComplete,
+  removeCanjePhotoFromBenefit,
   studentNameForGreeting,
   toggleCanjePhoto,
 } from "./preventa-canje-slots";
@@ -97,10 +98,51 @@ describe("toggleCanjePhoto", () => {
     assert.deepEqual(r.filled, [null, 10]);
   });
 
-  it("tocar de nuevo la saca", () => {
+  it("tocar de nuevo la suma también en digital; una vez más, la saca", () => {
     const uno = toggleCanjePhoto(plan, emptyCanjeFill(plan), 10, IMPRESA_Y_DIGITAL);
     const dos = toggleCanjePhoto(plan, uno.filled, 10, IMPRESA_Y_DIGITAL);
+    assert.deepEqual(dos.filled, [10, 10]);
+    assert.ok(dos.ok && dos.repetida);
+    const tres = toggleCanjePhoto(plan, dos.filled, 10, IMPRESA_Y_DIGITAL);
+    assert.deepEqual(tres.filled, [10, null]);
+    const cuatro = toggleCanjePhoto(plan, tres.filled, 10, IMPRESA_Y_DIGITAL);
+    assert.deepEqual(cuatro.filled, [10, 10]);
+  });
+
+  it("si no entra en otro beneficio, tocarla la saca", () => {
+    const soloImpresa = buildCanjeSlotPlan([ben({ stableKey: "p", includedQuantity: 2, name: "Impresa" })]);
+    const uno = toggleCanjePhoto(soloImpresa, emptyCanjeFill(soloImpresa), 10, IMPRESA_Y_DIGITAL);
+    const dos = toggleCanjePhoto(soloImpresa, uno.filled, 10, IMPRESA_Y_DIGITAL);
     assert.deepEqual(dos.filled, [null, null]);
+  });
+
+  it("la cruz de un lugar saca la foto sólo de ese beneficio", () => {
+    assert.deepEqual(removeCanjePhotoFromBenefit(plan, [10, 10], "d", 10), [10, null]);
+    assert.deepEqual(removeCanjePhotoFromBenefit(plan, [10, 10], "p", 10), [null, 10]);
+  });
+
+  it("Claudia Valenti: las 4 fotos del chico van a la carpeta y las mismas 4 a digital", () => {
+    const carpeta = buildCanjeSlotPlan([
+      ben({ stableKey: "c", selectionMode: "MULTI_PHOTO_FIXED", includedQuantity: 2, requiredPhotoCount: 2, name: "2× Foto grupal · 2 fotos c/u" }),
+      ben({ stableKey: "d", kind: "DIGITAL", selectionMode: "MULTI_PHOTO_FIXED", includedQuantity: 2, requiredPhotoCount: 2, sortOrder: 1, name: "2 descargas · 2 fotos por descarga" }),
+    ]);
+    let f = emptyCanjeFill(carpeta);
+    for (const id of [1, 2, 3, 4, 1, 2, 3, 4]) {
+      const r = toggleCanjePhoto(carpeta, f, id, IMPRESA_Y_DIGITAL);
+      assert.ok(r.ok);
+      f = r.filled;
+    }
+    assert.ok(isCanjeComplete(f));
+    assert.deepEqual(buildRedeemSelections(carpeta, f), [
+      { benefitStableKey: "c", units: [[1, 2], [3, 4]] },
+      { benefitStableKey: "d", units: [[1, 2], [3, 4]] },
+    ]);
+  });
+
+  it("al elegir un lugar con una foto que ya está en ese beneficio, la muda", () => {
+    const dos = buildCanjeSlotPlan([ben({ stableKey: "p", includedQuantity: 2, name: "Impresa" })]);
+    const r = toggleCanjePhoto(dos, [10, null], 10, IMPRESA_Y_DIGITAL, 1);
+    assert.deepEqual(r.filled, [null, 10]);
   });
 
   it("con todo lleno avisa en vez de pisar", () => {
