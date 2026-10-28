@@ -202,6 +202,38 @@ describe("local y coberturas en Mi estudio (bot)", () => {
     expect(eti).not.toContain("Tu retiro");
   });
 
+  it("otros ingresos en modo separado: el parche los carga y bajan lo que necesitás llevarte de las coberturas", () => {
+    const on = aplicarParche(base(), { estudio: { separarLocal: true, sueldoDelLocal: "0" } }).perfil;
+    const sin = simularPerfil(on, {});
+    const con = simularPerfil(on, { viveSoloDeFotografia: "no", ingresosExternos: "50000" });
+    expect(con.errores).toEqual([]);
+    expect(con.perfil.livesOnlyFromPhotography).toBe("no");
+    expect(con.perfil.externalMonthlyIncome).toBe("50000");
+    expect(con.vista.estudio!.localSeparado!.otrosIngresos).toMatch(/50\.000/);
+    const neto = (v: string | null | undefined) => Number((v ?? "").replace(/\D/g, ""));
+    expect(neto(sin.vista.estudio!.localSeparado!.loQueNecesitasLlevarte) - neto(con.vista.estudio!.localSeparado!.loQueNecesitasLlevarte)).toBe(50_000);
+  });
+
+  it("modo separado: cada cifra dice qué es (no hay dos «gastosPersonales» distintos)", () => {
+    const on = aplicarParche(base(), { estudio: { separarLocal: true, sueldoDelLocal: "500000" } }).perfil;
+    const s = simularPerfil(on, {});
+    expect(s.vista.resumen.gastosPersonales).toBeUndefined();
+    expect(s.vista.resumen.gastosNegocio).toBeUndefined();
+    expect(s.vista.resumen.loQueNecesitasLlevarteDeLasCoberturas).toBe(s.vista.estudio!.localSeparado!.loQueNecesitasLlevarte);
+    expect(s.vista.resumen.gastosQuePaganLasCoberturas).toBeTruthy();
+    expect(s.vista.estudio!.gastosFijos).toBeUndefined();
+    expect(s.vista.estudio!.gastosFijosQuePaganLasCoberturas).toBeTruthy();
+    expect(s.vista.estudio!.localSeparado!.gastosPersonalesTotales).toBeTruthy();
+    const filas = tarjetaDelPerfil(s).filas.map((f) => f.etiqueta);
+    expect(filas).toContain("Gastos fijos que pagan las coberturas");
+    expect(filas).toContain("Equipo que pagan las coberturas");
+    expect(filas).not.toContain("Gastos fijos del estudio");
+    // Sin el modo separado, todo como antes.
+    const normal = simularPerfil(base(), {});
+    expect(normal.vista.estudio!.gastosFijos).toBeTruthy();
+    expect(tarjetaDelPerfil(normal).filas.map((f) => f.etiqueta)).toContain("Gastos fijos del estudio");
+  });
+
   it("lo anotado nombra lo del local", () => {
     expect(loAnotado({ estudio: { separarLocal: true, sueldoDelLocal: "1", tiempoEnElLocal: "20" } }, base()).join(" ")).toMatch(/local y coberturas/i);
   });

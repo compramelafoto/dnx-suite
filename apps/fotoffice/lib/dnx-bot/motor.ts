@@ -666,6 +666,9 @@ export function vistaDelPerfil(perfil: CuantoCobroProfileInput, source: string |
   const distribucionHoras = distribucionVacia();
   for (const k of CLAVES_DISTRIBUCION) distribucionHoras[NOMBRE_TAREA[k]] = horas[k];
   const origen: Origen = source === "manual" || source === "clf-import" || source === "dnx-bot" ? source : null;
+  // Con el local separado, «personales» y «negocio» del resumen son lo neto que pagan las coberturas:
+  // van con otro nombre para no confundirlos con los gastos personales del mes (estudio.localSeparado).
+  const separado = Boolean(r.estudio?.separated);
   return {
     origen,
     completo: r.completo,
@@ -676,8 +679,10 @@ export function vistaDelPerfil(perfil: CuantoCobroProfileInput, source: string |
       costoHora: r.completo ? plata(r.costoHora, m) : null,
       necesidadMensual: plata(r.necesidadMensual, m),
       horasFacturablesMes: `${Math.round(r.horasFacturablesMes)} h`,
-      gastosPersonales: plata(r.gastosPersonales, m),
-      gastosNegocio: plata(r.gastosNegocio, m),
+      gastosPersonales: separado ? undefined : plata(r.gastosPersonales, m),
+      gastosNegocio: separado ? undefined : plata(r.gastosNegocio, m),
+      loQueNecesitasLlevarteDeLasCoberturas: separado ? plata(r.gastosPersonales, m) : undefined,
+      gastosQuePaganLasCoberturas: separado ? plata(r.gastosNegocio, m) : undefined,
       reservas: plata(r.reservas, m),
     },
     datos: {
@@ -732,15 +737,20 @@ export function vistaDelEstudio(perfil: CuantoCobroProfileInput) {
   const e = perfil.studioStructure;
   if (!d || !e) return null;
   const m = perfil.currency || "ARS";
+  // Con el local separado, los gastos fijos y el equipo son sólo la parte de las coberturas; el retiro y
+  // otras líneas no se usan (lo que necesitás llevarte está en localSeparado).
+  const sep = Boolean(d.separated);
   return {
     valorHoraDelEstudio: plata(d.studioHourRate, m),
     necesidadMensual: plata(d.monthlyNeed, m),
     horasQueSeCobranPorMes: `${Math.round(d.capacityHours)} h`,
-    gastosFijos: plata(d.fixedCosts, m),
-    equipo: plata(d.teamCost, m),
+    gastosFijos: sep ? undefined : plata(d.fixedCosts, m),
+    equipo: sep ? undefined : plata(d.teamCost, m),
+    gastosFijosQuePaganLasCoberturas: sep ? plata(d.fixedCosts, m) : undefined,
+    equipoQuePaganLasCoberturas: sep ? plata(d.teamCost, m) : undefined,
     reservas: plata(d.reserves, m),
-    retiro: plata(d.ownerDraw, m),
-    otrasLineas: plata(d.otherLinesContribution, m),
+    retiro: sep ? undefined : plata(d.ownerDraw, m),
+    otrasLineas: sep ? undefined : plata(d.otherLinesContribution, m),
     ganancia: plata(d.profit, m),
     gananciaComo: e.desiredProfitMode === "percent" ? "porcentaje" : "monto fijo",
     personas: d.people.map((x) => {
@@ -764,8 +774,9 @@ export function vistaDelEstudio(perfil: CuantoCobroProfileInput) {
     ...(d.separated
       ? {
           localSeparado: {
-            gastosPersonales: plata(d.separated.personalNeed, m),
+            gastosPersonalesTotales: plata(d.separated.personalNeed, m),
             loQueTePagaElLocal: plata(d.separated.localSalary, m),
+            otrosIngresos: plata(d.separated.externalIncome, m),
             loQueNecesitasLlevarte: plata(d.separated.ownerNetNeed, m),
             gastosCompartidosQueLlevanLasCoberturas: plata(d.separated.sharedToCoverage, m),
             gastosSoloDeCoberturas: plata(d.separated.coverageFixed, m),
@@ -810,8 +821,12 @@ export function tarjetaDelPerfil(s: Simulacion): TarjetaCalculo {
         { etiqueta: "Valor hora del estudio", valor: s.vista.completo ? (est.valorHoraDelEstudio ?? falta) : falta },
         { etiqueta: "Lo que tienen que cubrir las horas", valor: est.necesidadMensual ?? falta },
         { etiqueta: "Horas que se cobran por mes", valor: est.horasQueSeCobranPorMes },
-        { etiqueta: "Gastos fijos del estudio", valor: est.gastosFijos ?? "$ 0" },
-        { etiqueta: "Equipo", valor: est.equipo ?? "$ 0" },
+        est.localSeparado
+          ? { etiqueta: "Gastos fijos que pagan las coberturas", valor: est.gastosFijosQuePaganLasCoberturas ?? "$ 0" }
+          : { etiqueta: "Gastos fijos del estudio", valor: est.gastosFijos ?? "$ 0" },
+        est.localSeparado
+          ? { etiqueta: "Equipo que pagan las coberturas", valor: est.equipoQuePaganLasCoberturas ?? "$ 0" }
+          : { etiqueta: "Equipo", valor: est.equipo ?? "$ 0" },
         { etiqueta: est.localSeparado ? "Lo que necesitás llevarte de las coberturas" : "Tu retiro", valor: (est.localSeparado?.loQueNecesitasLlevarte ?? est.retiro) ?? "$ 0" },
         { etiqueta: "Ganancia del estudio", valor: est.ganancia ?? "$ 0" },
         ...est.personas
