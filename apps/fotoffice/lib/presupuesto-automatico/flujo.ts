@@ -86,6 +86,13 @@ export async function consultaVaPorTelegram(workspaceId: string, leadId: string)
   }
 }
 
+/** Por qué no hay presupuesto, según el resultado del armado (o el código guardado en la fila). */
+function motivoDe(codigo: string | null | undefined): NonNullable<DatosResumen["motivoSinPresupuesto"]> {
+  if (!codigo || codigo === "SIN_PROPUESTA" || codigo === "NO_APLICA") return "SIN_PROPUESTA";
+  if (codigo === "SIN_HORAS") return "SIN_HORAS";
+  return "NO_SE_PUDO_ARMAR";
+}
+
 export async function alLlegarConsulta(
   workspaceId: string,
   leadId: string,
@@ -117,7 +124,7 @@ export async function alLlegarConsulta(
     }
     const datos = await datosDelResumen(workspaceId, filaId, deps);
     if (!datos) return "ERROR";
-    if (!presupuestoId) datos.motivoSinPresupuesto = armado.resultado === "SIN_PROPUESTA" || armado.resultado === "NO_APLICA" ? "SIN_PROPUESTA" : "NO_SE_PUDO_ARMAR";
+    if (!presupuestoId) datos.motivoSinPresupuesto = motivoDe(armado.resultado);
 
     const { html, teclado } = armarResumen(datos);
     const aviso = await (deps.avisar ?? avisarPorTelegram)(workspaceId, html, teclado);
@@ -173,7 +180,7 @@ export async function datosDelResumen(workspaceId: string, aprobacionId: string,
     invitados: consulta?.guests ?? null,
     mensaje: lead?.message ?? null,
     presupuesto: a.presupuestoId ? await presupuestoDelResumen(workspaceId, a.presupuestoId) : null,
-    motivoSinPresupuesto: a.presupuestoId ? null : a.errorCode && a.errorCode !== "SIN_PROPUESTA" && a.errorCode !== "NO_APLICA" ? "NO_SE_PUDO_ARMAR" : "SIN_PROPUESTA",
+    motivoSinPresupuesto: a.presupuestoId ? null : motivoDe(a.errorCode),
     urlPresupuesto: origenApp && a.presupuestoId ? `${origenApp}/presupuestos/${encodeURIComponent(a.presupuestoId)}` : null,
     urlConsulta: origenApp ? `${origenApp}/consultas/${encodeURIComponent(a.leadId)}` : null,
   };

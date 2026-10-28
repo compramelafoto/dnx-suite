@@ -18,6 +18,7 @@ const H = vi.hoisted(() => ({
   notificar: vi.fn(async (..._a: unknown[]): Promise<unknown> => ({ movido: true })),
   modulo: vi.fn(async (_ws: string, _m: string) => true),
   nivel: vi.fn(async (..._a: unknown[]) => true),
+  lugar: vi.fn(async (_q: string): Promise<{ latitude: number; longitude: number }[]> => [{ latitude: -32.917, longitude: -60.7275 }]),
 }));
 
 vi.mock("server-only", () => ({}));
@@ -36,6 +37,7 @@ vi.mock("@/lib/communications/send-email", () => ({ sendTransactionalEmail: H.en
 vi.mock("@/lib/circuitos/eventos", () => ({ notificarEvento: H.notificar }));
 vi.mock("@/lib/modules/gating", () => ({ isModuleEnabledForWorkspace: H.modulo }));
 vi.mock("@/lib/permissions/module-access", () => ({ hasModuleLevel: H.nivel }));
+vi.mock("@/lib/geocode/nominatim", () => ({ geocodingProvider: () => ({ search: (q: string) => H.lugar(q) }) }));
 vi.mock("./sitio", () => ({
   sitioDelWorkspace: async (ws: string) =>
     ws === "ws-1"
@@ -533,5 +535,110 @@ describe("armarBorradorDePropuesta (borrador automático)", () => {
     H.modulo.mockRejectedValue(Object.assign(new Error("Laura caída"), { code: "P1001" }));
     expect(await PA.armarBorradorDePropuesta("ws-1", id)).toBe("ERROR");
     expect(JSON.stringify(errores.mock.calls)).toContain("P1001");
+  });
+});
+
+describe("presupuesto por horas (sin propuesta modelo)", () => {
+  const PARTIDA = { direccion: "García del Cossio 2050, Funes", lat: -32.917, lon: -60.81 };
+  const encender = (extra: Record<string, unknown> = {}) =>
+    B.agregar("fotofficePresupuestoAutoAjustes", { workspaceId: "ws-1", porHoras: { encendido: true, partida: PARTIDA, ...extra } });
+  const categoria = (nombre: string) => B.datos.fotofficeConsultaCategoria.find((c) => c.workspaceId === "ws-1" && c.name === nombre)!.id as string;
+  function consulta(nombre: string, datos: { horas?: number; guests?: number | null; venue?: string | null } = {}) {
+    const lead = B.agregar("serviceSalesLead", { workspaceId: "ws-1", metaJson: datos.horas ? { porHoras: { horas: datos.horas } } : null }).id as string;
+    B.agregar("fotofficeConsulta", { workspaceId: "ws-1", leadId: lead, clientId: "cli-1", categoryId: categoria(nombre), venue: datos.venue ?? "Salón Los Aromos, Funes", guests: datos.guests ?? null });
+    return lead;
+  }
+  const version = () => {
+    const p = presupuestos().at(-1)!;
+    return B.datos.fotofficePresupuestoVersion.find((x) => x.id === p.currentVersionId)!;
+  };
+  const meta = (lead: string) => (B.datos.serviceSalesLead.find((l) => l.id === lead)!.metaJson as { porHoras: Record<string, unknown> }).porHoras;
+
+  beforeEach(() => {
+    B.agregar("fotofficePerfilPrecios", { workspaceId: "ws-1", profileData: createBaseCompleteProfile() });
+    H.lugar.mockReset();
+    H.lugar.mockResolvedValue([{ latitude: -32.917, longitude: -60.7275 }]);
+  });
+
+  it("3 horas a ~10 km: arma un borrador con un renglón de cobertura que incluye el traslado", async () => {
+    encender();
+    const lead = consulta("Cumpleaños Infantil", { horas: 3 });
+    expect(await PA.armarBorradorParaAprobar("ws-1", lead)).toMatchObject({ resultado: "ARMADO" });
+    const items = version().items as { nombre: string; precioUnitario: number; descripcion: string }[];
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({ nombre: "Cobertura fotográfica de 3 horas" });
+    expect(items[0]!.descripcion).toContain("mínimo de 400 fotos");
+    expect(meta(lead)).toMatchObject({ horas: 3, ubicado: true, segundoFotografo: false });
+    expect(meta(lead).traslado).toBe(Math.round((meta(lead).km as number) * 3000));
+    expect(items[0]!.precioUnitario).toBeGreaterThan(meta(lead).traslado as number);
+  });
+
+  it("sin horas no arma y lo dice", async () => {
+    encender();
+    const lead = consulta("Cumpleaños Infantil");
+    expect(await PA.armarBorradorParaAprobar("ws-1", lead)).toEqual({ resultado: "SIN_HORAS", presupuestoId: null });
+    expect(presupuestos()).toHaveLength(0);
+  });
+
+  it("apagado: como antes, sin propuesta", async () => {
+    const lead = consulta("Cumpleaños Infantil", { horas: 3 });
+    expect(await PA.armarBorradorParaAprobar("ws-1", lead)).toEqual({ resultado: "SIN_PROPUESTA", presupuestoId: null });
+  });
+
+  it("si no se ubica el lugar, arma sin traslado y lo anota", async () => {
+    encender();
+    H.lugar.mockResolvedValue([]);
+    const lead = consulta("Cumpleaños Infantil", { horas: 3 });
+    expect(await PA.armarBorradorParaAprobar("ws-1", lead)).toMatchObject({ resultado: "ARMADO" });
+    expect(meta(lead)).toMatchObject({ ubicado: false, traslado: null });
+  });
+
+  it("más de 200 invitados: dos opciones; la misma consulta dos veces no arma dos presupuestos", async () => {
+    encender();
+    const lead = consulta("Evento Corporativo", { horas: 4, guests: 250 });
+    const primero = await PA.armarBorradorParaAprobar("ws-1", lead);
+    expect(primero.resultado).toBe("ARMADO");
+    expect((version().totals as { alternativas?: unknown[] }).alternativas).toHaveLength(2);
+    expect(meta(lead).segundoFotografo).toBe(true);
+    expect(await PA.armarBorradorParaAprobar("ws-1", lead)).toEqual({ resultado: "YA_TIENE_PRESUPUESTO", presupuestoId: primero.presupuestoId });
+    expect(presupuestos()).toHaveLength(1);
+  });
+
+  it("sesión de fotos en el estudio: mínimo 70 fotos y sin traslado", async () => {
+    encender();
+    const lead = consulta("Sesión de Fotos", { horas: 1, venue: "En el estudio" });
+    expect(await PA.armarBorradorParaAprobar("ws-1", lead)).toMatchObject({ resultado: "ARMADO" });
+    const items = version().items as { nombre: string; descripcion: string }[];
+    expect(items[0]!.nombre).toBe("Sesión de fotos de 1 hora");
+    expect(items[0]!.descripcion).toContain("mínimo de 70 fotos");
+    expect(meta(lead)).toMatchObject({ traslado: 0, ubicado: true });
+    expect(H.lugar).not.toHaveBeenCalled();
+  });
+
+  it("boda con propuesta de paquetes: suma el segundo fotógrafo opcional en cada paquete", async () => {
+    encender();
+    const calc = (id: string, alternativaId: string, horas: string) => ({
+      id, productId: null, nombre: `Cobertura ${alternativaId}`, descripcion: null, cantidad: 1, precioUnitario: 0, descuento: null,
+      modoPrecio: "CALCULO", seccion: null, opcional: false, alternativaId,
+      calculo: { entrada: { presupuesto: { client: { jobType: "Boda" }, concepts: [{ name: "Cobertura", itemType: "own-service", quantity: "1", coverageHours: horas, editingHours: "4" }] } } },
+    });
+    propuesta({
+      autoSendOnWeb: false,
+      items: {
+        alternativas: [
+          { id: "basico", nombre: "Básico", descripcion: null, masElegida: false },
+          { id: "premium", nombre: "Premium", descripcion: null, masElegida: true },
+        ],
+        items: [calc("a", "basico", "4"), calc("b", "premium", "8")],
+      },
+    });
+    const lead = B.agregar("serviceSalesLead", { workspaceId: "ws-1" }).id as string;
+    B.agregar("fotofficeConsulta", { workspaceId: "ws-1", leadId: lead, clientId: "cli-1", categoryId: categoriaBoda });
+    expect(await PA.armarBorradorParaAprobar("ws-1", lead)).toMatchObject({ resultado: "ARMADO" });
+    const opcionales = (version().items as { nombre: string; opcional: boolean; alternativaId: string }[]).filter((i) => i.opcional);
+    expect(opcionales.map((i) => [i.alternativaId, i.nombre])).toEqual([
+      ["basico", "Segundo fotógrafo (4 horas)"],
+      ["premium", "Segundo fotógrafo (8 horas)"],
+    ]);
   });
 });

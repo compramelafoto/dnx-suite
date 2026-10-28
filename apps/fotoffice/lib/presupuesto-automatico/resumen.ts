@@ -43,7 +43,7 @@ export type DatosResumen = {
   /** null: la categoría no tiene propuesta modelo (o no se pudo armar). */
   presupuesto: PresupuestoDelResumen | null;
   /** Por qué no hay presupuesto, para decirlo claro. */
-  motivoSinPresupuesto?: "SIN_PROPUESTA" | "NO_SE_PUDO_ARMAR" | null;
+  motivoSinPresupuesto?: "SIN_PROPUESTA" | "NO_SE_PUDO_ARMAR" | "SIN_HORAS" | null;
   urlPresupuesto: string | null;
   urlConsulta: string | null;
 };
