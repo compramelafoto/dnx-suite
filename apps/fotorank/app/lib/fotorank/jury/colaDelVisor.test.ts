@@ -6,6 +6,7 @@ import {
   estadoDeLaObra,
   laSiguiente,
   obrasVisibles,
+  pestanasPorCategoria,
   resumenDeLaCola,
   type ObraEnElVisor,
 } from "./colaDelVisor";
@@ -218,4 +219,22 @@ test("con la lista vacía no hay siguiente", () => {
 test("si la actual ya no está en la lista, arranca por la primera", () => {
   const lista = [obra("7", 3), obra("8", 3)];
   assert.equal(laSiguiente(lista, "no-existe", 1)?.entryId, "7");
+});
+
+test("pestanasPorCategoria numera las categorías en el orden del concurso", () => {
+  const pestanas = pestanasPorCategoria([
+    { id: "mono", name: "Monocromo", sortOrder: 2 },
+    { id: "color", name: "Color", sortOrder: 1 },
+  ]);
+  assert.deepEqual(pestanas.get("color"), { numero: 1, titulo: "Color" });
+  assert.deepEqual(pestanas.get("mono"), { numero: 2, titulo: "Monocromo" });
+});
+
+test("pestanasPorCategoria desempata por nombre cuando el orden se repite", () => {
+  const pestanas = pestanasPorCategoria([
+    { id: "b", name: "Paisaje", sortOrder: 0 },
+    { id: "a", name: "Color", sortOrder: 0 },
+  ]);
+  assert.equal(pestanas.get("a")?.numero, 1);
+  assert.equal(pestanas.get("b")?.numero, 2);
 });

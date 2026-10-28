@@ -160,6 +160,9 @@ export function VisorDeCalificacion({
     () => criterios.map((c) => c.key),
     [criterios],
   );
+  // Cómo se llaman las pestañas: consignas en una maratón, categorías en un concurso.
+  const grupo = cola.agrupadoPor === "CATEGORIA" ? "categoría" : "consigna";
+  const Grupo = cola.agrupadoPor === "CATEGORIA" ? "Categoría" : "Consigna";
 
   const [obras, setObras] = useState<ObraEnElVisor[]>(cola.obras);
   const [consigna, setConsigna] = useState<number | null>(
@@ -668,7 +671,7 @@ export function VisorDeCalificacion({
         ).length;
         if (elegidas >= cupo) {
           setAviso(
-            `Ya elegiste ${cupo} fotos en esta consigna, que es el máximo. Para elegir esta, desmarcá otra.`,
+            `Ya elegiste ${cupo} fotos en esta ${grupo}, que es el máximo. Para elegir esta, desmarcá otra.`,
           );
           return;
         }
@@ -703,7 +706,7 @@ export function VisorDeCalificacion({
         pasar();
       }, DEMORA_PARA_VER_LA_NOTA);
     },
-    [actual, criterios, sePuedeTocar, cambiarNotas, cola.rubrica, obras],
+    [actual, criterios, sePuedeTocar, cambiarNotas, cola.rubrica, obras, grupo],
   );
 
   /**
@@ -1156,12 +1159,12 @@ export function VisorDeCalificacion({
 
         {acostado && cola.consignas.length > 0 ? (
           <MenuFlotante
-            titulo="Consigna"
+            titulo={Grupo}
             etiqueta={
               <span className="max-w-[9rem] truncate">
                 {consigna !== null
                   ? `${consigna} · ${cola.consignas.find((c) => c.numero === consigna)?.titulo ?? ""}`
-                  : "Consigna"}
+                  : Grupo}
               </span>
             }
             opciones={cola.consignas.map((c) => {
@@ -1675,7 +1678,7 @@ export function VisorDeCalificacion({
                     o.notas[criterios[0]?.key ?? ""] === 1,
                 ).length
               }{" "}
-              de {cola.rubrica.cupo} en esta consigna
+              de {cola.rubrica.cupo} en esta {grupo}
             </span>
           ) : null}
           <span>F pantalla completa</span>
@@ -1708,6 +1711,7 @@ export function VisorDeCalificacion({
           cantidadDeCriterios={criterios.length}
           notaMaxima={criterios[0]?.max ?? 10}
           notaMinima={criterios[0]?.min ?? 1}
+          grupo={grupo}
           onCerrar={() => setAyuda(false)}
         />
       ) : null}
