@@ -19,6 +19,8 @@ import { agruparPorLaboratorio } from "./carpeta-lab";
 import { CIRCUITO_POR_OMISION, DIAS_HABILES_PROMETIDOS } from "./constantes";
 import { sumarDiasHabiles } from "./dias-habiles";
 import { pedidoDeReferencia, referenciaPedido } from "./pago-servidor";
+import { nombreDelPlazo, type Plazo } from "./catalogo-copias";
+import { fechaPorPlazo } from "./plazos";
 
 /**
  * Acreditar el pago de un pedido de copias impresas: lo comparten el aviso de Mercado Pago y la vuelta del
@@ -87,7 +89,32 @@ function partirNombre(nombre: string): { firstName: string | null; lastName: str
   return { firstName: partes[0], lastName: partes.length > 1 ? partes.slice(1).join(" ") : null };
 }
 
-type ItemSinTrabajo = { id: string; proveedorId: string | null; quantity: number; unitCostArs: { toString(): string } | string };
+type ItemSinTrabajo = { id: string; proveedorId: string | null; quantity: number; unitCostArs: { toString(): string } | string; plazo?: string | null };
+
+const PLAZOS = new Set(["INSTANTANEA", "MANANA", "SEMANA"]);
+const plazoDe = (v: string | null | undefined): Plazo | null => (v && PLAZOS.has(v) ? (v as Plazo) : null);
+
+/** Nombre del trabajo: los del bot de WhatsApp dicen el plazo (spec 2026-10-28). */
+function nombreDelTrabajo(numero: number, plazo: Plazo | null): string {
+  if (plazo === "INSTANTANEA") return `Copias instantáneas · pedido ${numero}`;
+  if (plazo) return `Copias impresas · pedido ${numero} · ${nombreDelPlazo(plazo)}`;
+  return `Copias impresas · pedido ${numero}`;
+}
+
+/** Por laboratorio y, en los pedidos del bot, también por plazo (cada plazo es otro retiro). */
+function agruparPorLaboratorioYPlazo<T extends ItemSinTrabajo>(items: T[]): { proveedorId: string | null; plazo: Plazo | null; items: T[] }[] {
+  const grupos = new Map<string, { proveedorId: string | null; plazo: Plazo | null; items: T[] }>();
+  for (const [proveedorId, delLab] of agruparPorLaboratorio(items)) {
+    for (const i of delLab) {
+      const plazo = plazoDe(i.plazo);
+      const clave = `${proveedorId ?? ""}|${plazo ?? ""}`;
+      const g = grupos.get(clave) ?? { proveedorId, plazo, items: [] };
+      g.items.push(i);
+      grupos.set(clave, g);
+    }
+  }
+  return [...grupos.values()];
+}
 
 /**
  * Un trabajo por laboratorio para las copias que todavía no tienen uno, en el circuito de Impresiones (con el
@@ -97,22 +124,23 @@ type ItemSinTrabajo = { id: string; proveedorId: string | null; quantity: number
 async function crearTrabajosEnTransaccion(
   tx: Tx,
   workspaceId: string,
-  d: { id: string; number: number; clientId: string; hoy: string; prometido: Date | null; items: ItemSinTrabajo[] },
+  d: { id: string; number: number; clientId: string; hoy: string; prometido: Date | null; items: ItemSinTrabajo[]; pagado?: Date },
 ): Promise<boolean> {
   const ajustes = await tx.fotofficePrintSettings.findUnique({ where: { workspaceId }, select: { circuitId: true } });
   const circuitId = await circuitoDeTrabajo(tx, workspaceId, ajustes?.circuitId ?? null);
   if (!circuitId) return false;
-  for (const [proveedorId, items] of agruparPorLaboratorio(d.items)) {
+  for (const { proveedorId, plazo, items } of agruparPorLaboratorioYPlazo(d.items)) {
     const costo = items.reduce((s, i) => s + cents(i.unitCostArs) * i.quantity, 0);
     const proyecto = await crearProyectoDeSistema(tx, workspaceId, {
       clientId: d.clientId,
       circuitId,
-      nombre: `Copias impresas · pedido ${d.number}`,
+      nombre: nombreDelTrabajo(d.number, plazo),
       baseDate: d.hoy,
       proveedorId,
       ahora: new Date(),
     });
-    await tx.fotofficeProyecto.update({ where: { id: proyecto.id }, data: { entregaPrometida: d.prometido, proveedorCostoArs: pesos(costo) } });
+    const entrega = plazo ? dia(fechaPorPlazo(plazo, d.pagado ?? new Date())) : d.prometido;
+    await tx.fotofficeProyecto.update({ where: { id: proyecto.id }, data: { entregaPrometida: entrega, proveedorCostoArs: pesos(costo) } });
     await tx.fotofficePrintOrderItem.updateMany({ where: { orderId: d.id, id: { in: items.map((i) => i.id) } }, data: { proyectoId: proyecto.id } });
   }
   return true;
@@ -147,16 +175,59 @@ export async function acreditarPagoImpresion(workspaceId: string, pago: PagoMp):
   const pedido = await prisma.fotofficePrintOrder.findUnique({ where: { id }, include: { items: true } });
   if (!pedido || pedido.workspaceId !== workspaceId) return { ok: false, error: "NO_EXISTE" };
   const totalCents = cents(pedido.totalArs);
-  if (pago.amountMinor < totalCents) return { ok: false, error: "IMPORTE_MENOR" };
+  const p = pedido as typeof pedido & { source?: string; depositArs?: unknown; waId?: string | null; lastError?: string | null };
+  const delBot = p.source === "WHATSAPP";
+  // Pedidos del bot: alcanza con la seña (spec 2026-10-28). El resto, el total.
+  const minimoCents = delBot && p.depositArs !== null && p.depositArs !== undefined ? cents(String(p.depositArs)) : totalCents;
+  if (pago.amountMinor < minimoCents) return { ok: false, error: "IMPORTE_MENOR" };
 
   const hechos = hechosDelPago(pago);
   const paidAt = hechos.paidAt ?? new Date();
   const hoy = diaEnBuenosAires(paidAt);
-  const prometido = dia(sumarDiasHabiles(hoy, DIAS_HABILES_PROMETIDOS));
+  const plazos = delBot ? [...new Set(pedido.items.map((i) => plazoDe((i as ItemSinTrabajo).plazo)).filter((x): x is Plazo => x !== null))] : [];
+  const prometido = plazos.length > 0
+    ? dia(plazos.map((pl) => fechaPorPlazo(pl, paidAt)).sort().at(-1)!)
+    : dia(sumarDiasHabiles(hoy, DIAS_HABILES_PROMETIDOS));
   // Se lee afuera de la transacción, como en galerías.
   const cajaEncendida = await isModuleEnabledForWorkspace(workspaceId, CASH_MODULE_KEY);
+  const reemplazado = delBot && pedido.status === "CANCELADO" && p.lastError === "REEMPLAZADO";
 
   const resultado = await prisma.$transaction(async (tx) => {
+    const ingreso = async (montoCents: number, sourceRef: string, clientId: string | null) => {
+      if (!cajaEncendida) return null;
+      const cuentas = await tx.cashAccount.findMany({
+        where: { workspaceId, isActive: true },
+        select: { id: true, name: true, kind: true, isDefault: true, isVault: true },
+        orderBy: { order: "asc" },
+      });
+      const destino = resolveDepositTarget({ cashEnabled: true, paymentMethod: "MERCADO_PAGO", accounts: cuentas, categories: [], categoryName: "" });
+      if (!destino.ok) return null;
+      return recordCashMovement(tx, {
+        workspaceId,
+        accountId: destino.accountId,
+        kind: "INGRESO",
+        amountMinor: montoCents,
+        occurredAt: paidAt,
+        description: `Copias impresas · pedido ${pedido.number} · ${pedido.nombre}`,
+        sourceModule: "impresiones",
+        sourceRef,
+        clientId,
+        paymentMethod: "MERCADO_PAGO",
+        createdByUserId: null,
+      });
+    };
+
+    if (reemplazado) {
+      // Pagaron el link de un pedido que el bot ya reemplazó: el dinero entró, pero no sale al laboratorio.
+      const c = await tx.fotofficePrintOrder.updateMany({
+        where: { id, workspaceId, status: "CANCELADO", providerPaymentRef: null },
+        data: { paidAt, providerPaymentRef: hechos.providerPaymentId, paidArs: pesos(pago.amountMinor), lastError: "PAGADO_REEMPLAZADO" },
+      });
+      if (c.count === 0) return { yaEstaba: true, reemplazado: true };
+      await ingreso(pago.amountMinor, id, pedido.clientId);
+      return { yaEstaba: false, reemplazado: true };
+    }
+
     const cambio = await tx.fotofficePrintOrder.updateMany({
       where: { id, workspaceId, status: { in: ["PENDIENTE_PAGO", "CANCELADO"] }, providerPaymentRef: null },
       data: {
@@ -166,8 +237,26 @@ export async function acreditarPagoImpresion(workspaceId: string, pago: PagoMp):
         promisedAt: prometido,
         feeArs: hechos.feeMinor === null ? null : pesos(hechos.feeMinor),
         netArs: hechos.feeMinor === null ? null : pesos(hechos.amountMinor - hechos.feeMinor),
+        ...(delBot ? { paidArs: pesos(pago.amountMinor) } : {}),
       },
     });
+    if (cambio.count === 0 && delBot) {
+      // Pedido del bot ya pagado: otro pago (el total después de la seña, o el saldo) suma a lo pagado.
+      const actual = (await tx.fotofficePrintOrder.findUnique({
+        where: { id },
+        select: { status: true, providerPaymentRef: true, paidArs: true, totalArs: true, pagosExtra: true, lastError: true },
+      })) as { status: string; providerPaymentRef: string | null; paidArs: unknown; totalArs: unknown; pagosExtra: unknown; lastError: string | null } | null;
+      const extras = Array.isArray(actual?.pagosExtra) ? (actual!.pagosExtra as string[]) : [];
+      if (!actual || actual.providerPaymentRef === hechos.providerPaymentId || extras.includes(hechos.providerPaymentId)) return { yaEstaba: true };
+      const pagado = cents(String(actual.paidArs ?? 0)) + pago.amountMinor;
+      const deMas = pagado > cents(String(actual.totalArs));
+      await tx.fotofficePrintOrder.update({
+        where: { id },
+        data: { paidArs: pesos(pagado), pagosExtra: [...extras, hechos.providerPaymentId], ...(deMas ? { lastError: "PAGO_DE_MAS" } : {}) },
+      });
+      await ingreso(pago.amountMinor, `${id}:${extras.length + 2}`, pedido.clientId);
+      return { yaEstaba: false, extra: true, deMas };
+    }
     if (cambio.count === 0) {
       // Otro pago aprobado para un pedido que ya tiene el suyo: la plata entró dos veces. Sólo códigos.
       const actual = await tx.fotofficePrintOrder.findUnique({ where: { id }, select: { providerPaymentRef: true } });
@@ -186,39 +275,57 @@ export async function acreditarPagoImpresion(workspaceId: string, pago: PagoMp):
       await tx.fotofficePrintOrder.update({ where: { id }, data: { clientId } });
     }
 
-    const trabajos = await crearTrabajosEnTransaccion(tx, workspaceId, { id, number: pedido.number, clientId, hoy, prometido, items: pedido.items });
+    const trabajos = await crearTrabajosEnTransaccion(tx, workspaceId, { id, number: pedido.number, clientId, hoy, prometido, items: pedido.items, pagado: paidAt });
     if (!trabajos) await tx.fotofficePrintOrder.update({ where: { id }, data: { lastError: SIN_CIRCUITO } });
 
     // Caja. Nunca inventa una cuenta: sin cuenta no hay movimiento, pero el pago no se pierde.
-    if (cajaEncendida) {
-      const cuentas = await tx.cashAccount.findMany({
-        where: { workspaceId, isActive: true },
-        select: { id: true, name: true, kind: true, isDefault: true, isVault: true },
-        orderBy: { order: "asc" },
-      });
-      const destino = resolveDepositTarget({ cashEnabled: true, paymentMethod: "MERCADO_PAGO", accounts: cuentas, categories: [], categoryName: "" });
-      if (destino.ok) {
-        const mov = await recordCashMovement(tx, {
-          workspaceId,
-          accountId: destino.accountId,
-          kind: "INGRESO",
-          amountMinor: totalCents,
-          occurredAt: paidAt,
-          description: `Copias impresas · pedido ${pedido.number} · ${pedido.nombre}`,
-          sourceModule: "impresiones",
-          sourceRef: id,
-          clientId,
-          paymentMethod: "MERCADO_PAGO",
-          createdByUserId: null,
-        });
-        await tx.fotofficePrintOrder.update({ where: { id }, data: { cashMovementId: mov.id } });
-      }
-    }
+    // Pedidos del bot: lo que se pagó (la seña o el total); el resto, el total.
+    const mov = await ingreso(delBot ? pago.amountMinor : totalCents, id, clientId);
+    if (mov) await tx.fotofficePrintOrder.update({ where: { id }, data: { cashMovementId: mov.id } });
     return { yaEstaba: false };
   }, OPCIONES_TRANSACCION);
 
-  if (!resultado.yaEstaba) programar(() => avisarPedidoConfirmado(workspaceId, id));
-  return { ok: true, yaEstaba: resultado.yaEstaba };
+  if (resultado.yaEstaba) return { ok: true, yaEstaba: true };
+  const r = resultado as { reemplazado?: boolean; extra?: boolean; deMas?: boolean };
+  if (r.reemplazado) {
+    programar(() => avisarAlEstudio(workspaceId, pedido.number, "PAGADO_REEMPLAZADO"));
+  } else if (r.extra) {
+    if (r.deMas) programar(() => avisarAlEstudio(workspaceId, pedido.number, "PAGO_DE_MAS"));
+  } else if (delBot) {
+    const saldoCents = totalCents - pago.amountMinor;
+    if (p.waId) programar(() => avisarPorWhatsapp(workspaceId, p.waId!, textoDePagoRecibido(pedido.number, plazos, paidAt, saldoCents)));
+    if (pedido.email) programar(() => avisarPedidoConfirmado(workspaceId, id));
+  } else {
+    programar(() => avisarPedidoConfirmado(workspaceId, id));
+  }
+  return { ok: true, yaEstaba: false };
+}
+
+const fechaCorta = (ymd: string) => new Intl.DateTimeFormat("es-AR", { timeZone: "UTC", weekday: "long", day: "2-digit", month: "2-digit" }).format(dia(ymd));
+const pesosTexto = (c: number) => `$${Math.round(c / 100).toLocaleString("es-AR")}`;
+
+/** Lo que el bot le escribe al cliente cuando entra el pago (sin correo: por WhatsApp). PURO. */
+export function textoDePagoRecibido(numero: number, plazos: Plazo[], pagado: Date, saldoCents: number): string {
+  const l = [`¡Recibimos tu pago! Tu pedido ${numero} ya está en preparación.`];
+  for (const pl of plazos) {
+    const fecha = fechaCorta(fechaPorPlazo(pl, pagado));
+    l.push(pl === "INSTANTANEA" ? `Las instantáneas te las tenemos hoy.` : `Las copias ${nombreDelPlazo(pl)} van a estar el ${fecha} a la tarde.`);
+  }
+  if (saldoCents > 0) l.push(`Te queda un saldo de ${pesosTexto(saldoCents)} para pagar al retirar.`);
+  l.push("Te esperamos en el estudio.");
+  return l.join(" ");
+}
+
+async function avisarPorWhatsapp(workspaceId: string, waId: string, texto: string): Promise<void> {
+  const { enviarAvisoPorWhatsapp } = await import("@/lib/bandeja/aviso-sistema");
+  await enviarAvisoPorWhatsapp(workspaceId, waId, texto, { autor: "Pedidos de impresión" });
+}
+
+async function avisarAlEstudio(workspaceId: string, numero: number, codigo: string): Promise<void> {
+  console.warn("[impresiones] pago a revisar", { numero, codigo });
+  const { avisarFallaAlEstudio } = await import("./preparar-servidor");
+  const { sendTransactionalEmail } = await import("@/lib/communications/send-email");
+  await avisarFallaAlEstudio(workspaceId, numero, codigo, sendTransactionalEmail);
 }
 
 // --- Vuelta del comprador -----------------------------------------------------------------------------------

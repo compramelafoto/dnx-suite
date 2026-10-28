@@ -42,6 +42,8 @@ const H = vi.hoisted(() => {
     getPayment: vi.fn(),
     buscar: vi.fn(),
     collector: vi.fn(async (..._a: unknown[]) => ({ ok: true, collector: { accessToken: "tok" } }) as unknown),
+    whatsapp: vi.fn(async (..._a: unknown[]) => "ENVIADO"),
+    falla: vi.fn(async (..._a: unknown[]) => undefined),
   };
 });
 vi.mock("server-only", () => ({}));
@@ -62,6 +64,9 @@ vi.mock("./pago-servidor", () => ({
   pedidoDeReferencia: (raw: unknown) => (typeof raw === "string" && raw.startsWith("fo-impresion:") && raw.length > 13 ? raw.slice(13) : null),
 }));
 vi.mock("./avisos-servidor", () => ({ avisarPedidoConfirmado: H.aviso }));
+vi.mock("@/lib/bandeja/aviso-sistema", () => ({ enviarAvisoPorWhatsapp: H.whatsapp }));
+vi.mock("./preparar-servidor", () => ({ avisarFallaAlEstudio: H.falla }));
+vi.mock("@/lib/communications/send-email", () => ({ sendTransactionalEmail: vi.fn() }));
 const A = await import("./acreditar-servidor");
 
 const pago = (o: Partial<{ status: string; amountMinor: number; currency: string; externalReference: string }> = {}) => ({
@@ -250,5 +255,85 @@ describe("verificarVueltaImpresion", () => {
   it("si Mercado Pago no responde queda PENDIENTE (lo confirma el aviso)", async () => {
     H.getPayment.mockRejectedValue(new Error("caído"));
     expect(await A.verificarVueltaImpresion("ws", "ord1", "123")).toEqual({ estado: "PENDIENTE", seguimiento: "trk" });
+  });
+});
+
+describe("acreditarPagoImpresion: pedidos del bot de WhatsApp", () => {
+  const pedidoWa = (extra: Record<string, unknown> = {}) => ({
+    ...H.pedido, email: null, source: "WHATSAPP", waId: "5493410000000", depositArs: "500", paidArs: "0", pagosExtra: null, lastError: null,
+    providerPaymentRef: null,
+    items: [
+      { id: "i1", proveedorId: "f", quantity: 2, unitCostArs: "200", plazo: "MANANA" },
+      { id: "i2", proveedorId: "f", quantity: 1, unitCostArs: "200", plazo: "SEMANA" },
+      { id: "i3", proveedorId: null, quantity: 1, unitCostArs: "0", plazo: "INSTANTANEA" },
+    ],
+    ...extra,
+  });
+
+  it("con la seña pasa a PAGADO, guarda lo pagado y avisa por WhatsApp (sin correo)", async () => {
+    orden.findUnique.mockResolvedValueOnce(pedidoWa());
+    const r = await A.acreditarPagoImpresion("ws", pago({ amountMinor: 50000 }));
+    expect(r).toEqual({ ok: true, yaEstaba: false });
+    expect((orden.updateMany.mock.calls[0][0] as { data: Record<string, unknown> }).data).toMatchObject({ status: "PAGADO", paidArs: "500.00" });
+    expect(H.caja).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ amountMinor: 50000 }));
+    expect(H.aviso).not.toHaveBeenCalled();
+    await vi.waitFor(() => expect(H.whatsapp).toHaveBeenCalledTimes(1));
+    const [ws, waId, texto, opciones] = H.whatsapp.mock.calls[0] as [string, string, string, { autor: string }];
+    expect([ws, waId, opciones.autor]).toEqual(["ws", "5493410000000", "Pedidos de impresión"]);
+    expect(texto).toContain("Recibimos tu pago");
+    expect(texto).toContain("saldo de $");
+  });
+
+  it("menos que la seña no acredita", async () => {
+    orden.findUnique.mockResolvedValueOnce(pedidoWa());
+    expect(await A.acreditarPagoImpresion("ws", pago({ amountMinor: 49999 }))).toEqual({ ok: false, error: "IMPORTE_MENOR" });
+  });
+
+  it("un trabajo por laboratorio y plazo, con su nombre y su fecha", async () => {
+    orden.findUnique.mockResolvedValueOnce(pedidoWa());
+    await A.acreditarPagoImpresion("ws", pago({ amountMinor: 50000 }));
+    expect(H.crear.mock.calls.map((c) => (c[2] as { nombre: string }).nombre).sort()).toEqual([
+      "Copias impresas · pedido 8 · para la próxima semana",
+      "Copias impresas · pedido 8 · para mañana",
+      "Copias instantáneas · pedido 8",
+    ]);
+  });
+
+  it("un segundo pago (el total después de la seña) suma al saldo y no crea trabajos de nuevo", async () => {
+    orden.findUnique.mockResolvedValueOnce(pedidoWa());
+    orden.updateMany.mockResolvedValueOnce({ count: 0 });
+    orden.findUnique.mockResolvedValueOnce({ status: "PAGADO", providerPaymentRef: "mp-1", paidArs: "500", totalArs: "1000", pagosExtra: null, lastError: null });
+    const r = await A.acreditarPagoImpresion("ws", { ...pago({ amountMinor: 50000 }), providerPaymentId: "mp-2" });
+    expect(r).toEqual({ ok: true, yaEstaba: false });
+    expect(orden.update).toHaveBeenCalledWith({ where: { id: "ord1" }, data: { paidArs: "1000.00", pagosExtra: ["mp-2"] } });
+    expect(H.caja).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ sourceRef: "ord1:2", amountMinor: 50000 }));
+    expect(H.crear).not.toHaveBeenCalled();
+  });
+
+  it("el mismo segundo pago repetido no suma otra vez", async () => {
+    orden.findUnique.mockResolvedValueOnce(pedidoWa());
+    orden.updateMany.mockResolvedValueOnce({ count: 0 });
+    orden.findUnique.mockResolvedValueOnce({ status: "PAGADO", providerPaymentRef: "mp-1", paidArs: "1000", totalArs: "1000", pagosExtra: ["mp-2"], lastError: null });
+    expect(await A.acreditarPagoImpresion("ws", { ...pago({ amountMinor: 50000 }), providerPaymentId: "mp-2" })).toEqual({ ok: true, yaEstaba: true });
+    expect(H.caja).not.toHaveBeenCalled();
+  });
+
+  it("pagar de más queda anotado y avisa al estudio", async () => {
+    orden.findUnique.mockResolvedValueOnce(pedidoWa());
+    orden.updateMany.mockResolvedValueOnce({ count: 0 });
+    orden.findUnique.mockResolvedValueOnce({ status: "ENVIADO", providerPaymentRef: "mp-1", paidArs: "1000", totalArs: "1000", pagosExtra: null, lastError: null });
+    await A.acreditarPagoImpresion("ws", { ...pago({ amountMinor: 100000 }), providerPaymentId: "mp-3" });
+    expect(orden.update).toHaveBeenCalledWith({ where: { id: "ord1" }, data: { paidArs: "2000.00", pagosExtra: ["mp-3"], lastError: "PAGO_DE_MAS" } });
+    await vi.waitFor(() => expect(H.falla).toHaveBeenCalled());
+  });
+
+  it("el pago de un pedido reemplazado no sale al laboratorio: queda anotado y avisa al estudio", async () => {
+    orden.findUnique.mockResolvedValueOnce(pedidoWa({ status: "CANCELADO", lastError: "REEMPLAZADO" }));
+    const r = await A.acreditarPagoImpresion("ws", pago({ amountMinor: 50000 }));
+    expect(r).toEqual({ ok: true, yaEstaba: false });
+    expect(H.crear).not.toHaveBeenCalled();
+    expect(orden.updateMany).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ lastError: "PAGADO_REEMPLAZADO", paidArs: "500.00" }) }));
+    await vi.waitFor(() => expect(H.falla).toHaveBeenCalled());
+    expect(H.whatsapp).not.toHaveBeenCalled();
   });
 });

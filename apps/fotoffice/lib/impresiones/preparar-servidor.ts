@@ -335,7 +335,7 @@ export async function prepararPedido(pedidoId: string, deps: DepsPreparar = {}):
 
 const QUE_HACER = "Entrá a FOTOFFICE → Configuración → Impresiones (o al trabajo, si existe) y tocá «Reintentar envío».";
 
-async function avisarFallaAlEstudio(workspaceId: string, numero: number, error: string, enviar: typeof sendTransactionalEmail) {
+export async function avisarFallaAlEstudio(workspaceId: string, numero: number, error: string, enviar: typeof sendTransactionalEmail) {
   const b = await prisma.fotofficeWorkspaceBranding.findFirst({ where: { workspaceId }, select: { contactEmail: true } });
   if (!b?.contactEmail) return;
   await enviar({

@@ -37,7 +37,7 @@ export async function enviarAvisoPorWhatsapp(
   workspaceId: string,
   waId: string,
   textoCrudo: string,
-  deps: { ahora?: Date; enviar?: typeof enviarTexto } = {},
+  deps: { ahora?: Date; enviar?: typeof enviarTexto; autor?: string } = {},
 ): Promise<SalidaAvisoWhatsapp> {
   const ahora = deps.ahora ?? new Date();
   const texto = truncarSeguro(textoCrudo.trim(), TEXTO_MAXIMO);
@@ -51,7 +51,7 @@ export async function enviarAvisoPorWhatsapp(
       if (!chat || !puedeResponderLibre(aEstado(chat), ahora)) return null;
       const m = await tx.fotofficeWaMensaje.create({
         data: {
-          workspaceId, chatId: chat.id, direccion: "SALIENTE", autor: "BOT", autorLabel: "Presupuesto automático",
+          workspaceId, chatId: chat.id, direccion: "SALIENTE", autor: "BOT", autorLabel: deps.autor ?? "Presupuesto automático",
           tipo: "TEXTO", texto, estadoEnvio: "PENDIENTE", createdAt: ahora,
         },
         select: { id: true },
