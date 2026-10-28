@@ -67,6 +67,26 @@ describe("historialParaElBot", () => {
     expect([...r!.fotos.entries()].map(([n, f]) => [n, f.id])).toEqual([[1, "m1"], [2, "m2"]]);
   });
 
+  it("olvida lo anterior a 'resuelto' y lo anterior a 24 h sin mensajes (charla nueva)", () => {
+    const en = (iso: string, m: MensajeChat): MensajeChat => ({ ...m, createdAt: new Date(iso) });
+    const sistema = (texto: string): MensajeChat => ({ direccion: "SISTEMA", autor: "SISTEMA", tipo: "TEXTO", texto });
+    const resuelto = historialParaElBot([
+      en("2026-10-27T10:00:00Z", cli("no tengo apuro")),
+      en("2026-10-27T10:01:00Z", bot("dale")),
+      en("2026-10-27T10:02:00Z", sistema("DNX Owner marcó el chat como resuelto")),
+      en("2026-10-27T10:05:00Z", cli("quiero copias")),
+    ]);
+    expect(resuelto?.history).toEqual([]);
+    expect(resuelto?.userText).toBe("quiero copias");
+    const pausa = historialParaElBot([
+      en("2026-10-26T10:00:00Z", cli("no tengo apuro")),
+      en("2026-10-26T10:01:00Z", bot("dale")),
+      en("2026-10-28T10:00:00Z", cli("hola, quiero copias")),
+    ]);
+    expect(pausa?.history).toEqual([]);
+    expect(pausa?.userText).toBe("hola, quiero copias");
+  });
+
   it("el historial empieza con el cliente y respeta el máximo", () => {
     const r = historialParaElBot([bot("Hola"), cli("a"), bot("b"), cli("c"), bot("d"), cli("e")], 3);
     expect(r?.history[0].role).toBe("user");
