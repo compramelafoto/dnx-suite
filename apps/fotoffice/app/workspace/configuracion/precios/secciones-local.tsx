@@ -16,9 +16,9 @@ import {
   type StudioScope,
 } from "@repo/cuanto-cobro-core";
 import { CampoTexto } from "@/components/presupuestos/panel-cuanto-cobro";
-import { separarLocal } from "@/lib/precios/estudio";
+import { filasDeCoberturas, separarLocal } from "@/lib/precios/estudio";
 import { pesos } from "@/lib/presupuestos/editor";
-import { Aviso, SeccionGastosPersonales, type PropsSeccion } from "./secciones";
+import { Aviso, SeccionGastosPersonales, SeccionIngresos, type PropsSeccion } from "./secciones";
 import type { PropsSeccionEstudio } from "./secciones-estudio";
 
 /**
@@ -116,6 +116,12 @@ export function SeccionLocalYCoberturas(props: PropsSeccionEstudio) {
             <h3 className="text-[0.9375rem] font-semibold">Tus gastos personales</h3>
             <p className="text-sm text-[var(--fo-muted)]">Lo que necesitás para vivir. Lo pagan las coberturas, descontando lo que te paga el local.</p>
             <SeccionGastosPersonales perfil={perfil} cambiar={cambiar} />
+          </div>
+
+          <div className="space-y-3">
+            <h3 className="text-[0.9375rem] font-semibold">Otros ingresos</h3>
+            <p className="text-sm text-[var(--fo-muted)]">Si vivís también de otra cosa, lo que te deja se descuenta de lo que tienen que pagar las coberturas.</p>
+            <SeccionIngresos perfil={perfil} cambiar={cambiar} />
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
@@ -332,18 +338,19 @@ function RecuadroCoberturas({ d }: { d: CuantoCobroStudioBreakdown }) {
       <h3 className="text-[0.9375rem] font-semibold">Tus coberturas</h3>
       <table className="w-full text-sm">
         <tbody>
-          <Fila t="Tus gastos personales" v={pesos(sep.personalNeed)} />
-          {sep.localSalary > 0 ? <Fila t="− Lo que te paga el local" v={pesos(-sep.localSalary)} /> : null}
-          {sep.externalIncome > 0 ? <Fila t="− Otros ingresos" v={pesos(-sep.externalIncome)} /> : null}
-          <Fila t="Gastos fijos de coberturas y compartidos" v={pesos(d.fixedCosts)} />
-          {sep.coverageTeamCost > 0 ? <Fila t="Equipo de coberturas" v={pesos(sep.coverageTeamCost)} /> : null}
-          <Fila t="Reservas (equipamiento y fondo de emergencia)" v={pesos(d.reserves)} />
-          {d.fixedFromExtras > 0 ? <Fila t="Monotributo y seguro del equipo" v={pesos(d.fixedFromExtras)} /> : null}
-          {d.profit > 0 ? <Fila t="+ Ganancia" v={pesos(d.profit)} /> : null}
+          {filasDeCoberturas(d).map((f) => (
+            <Fila key={f.etiqueta} t={f.etiqueta} v={pesos(f.monto)} />
+          ))}
           <Fila t="Lo que tienen que cubrir las horas" v={pesos(d.monthlyNeed)} fuerte />
           <Fila t="Horas que podés vender por mes" v={horas(d.capacityHours)} />
         </tbody>
       </table>
+      <p className="text-xs text-[var(--fo-muted)]">
+        Lo que necesitás llevarte: tus gastos personales ({pesos(sep.personalNeed)})
+        {sep.localSalary > 0 ? `, menos lo que te paga el local (${pesos(sep.localSalary)})` : ""}
+        {sep.externalIncome > 0 ? `, menos tus otros ingresos (${pesos(sep.externalIncome)})` : ""}
+        {sep.ownerNetNeed === 0 && sep.personalNeed > 0 ? ". Ya están cubiertos: no se suma nada." : "."}
+      </p>
       <div role="status" className="flex items-center justify-between gap-4 rounded-xl border border-[var(--fo-border-strong)] bg-[var(--fo-surface-muted)] p-3">
         <span className="font-semibold">Tu hora</span>
         <span className="whitespace-nowrap text-lg font-bold tabular-nums text-[var(--fo-accent)]">{owner?.rate == null ? "—" : pesos(owner.rate)}</span>

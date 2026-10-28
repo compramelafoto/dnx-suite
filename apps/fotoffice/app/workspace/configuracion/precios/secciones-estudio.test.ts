@@ -115,6 +115,23 @@ describe("Local y coberturas", () => {
     expect(h).not.toContain("Tu retiro");
   });
 
+  it("«Tus coberturas»: lo que necesitás llevarte (con otros ingresos) y tus insumos, en vez de la resta a mano", () => {
+    const perfil = {
+      ...SEPARADO,
+      livesOnlyFromPhotography: "no" as const,
+      externalMonthlyIncome: "200000",
+      studioStructure: {
+        ...SEPARADO.studioStructure!,
+        people: SEPARADO.studioStructure!.people.map((p) => (p.role === "owner" ? { ...p, monthlySupplies: "50000" } : p)),
+      },
+    };
+    const h = renderToStaticMarkup(createElement(SeccionResumenEstudio, props({ perfil })));
+    expect(h).toContain("Lo que necesitás llevarte de las coberturas");
+    expect(h).toContain("Tus insumos");
+    expect(h).toContain("menos tus otros ingresos");
+    expect(h).not.toContain("− Lo que te paga el local");
+  });
+
   it("resumen separado medido: el último mes en verde o en rojo, con la lista de meses", () => {
     // Gastos del local: 450.000 + 230.000 + 30.000 + 80.000 + 45.000 + 20 % de 130.000 + equipo + 1.000.000. Con 40 % de mercadería.
     const perfil = { ...SEPARADO, studioStructure: { ...SEPARADO.studioStructure!, localGoodsCostPercent: "40" } };
@@ -139,6 +156,8 @@ describe("Local y coberturas", () => {
       "Separar el local de las coberturas",
       "Lo que pase en el local nunca cambia el precio de tus eventos.",
       "Lo que te paga el local por mes",
+      "Otros ingresos",
+      "¿Vivís sólo de la fotografía?",
       "Tu tiempo en el local (%)",
       "Gastos compartidos que van a coberturas (%)",
       "Costo de la mercadería (% de lo que vendés)",

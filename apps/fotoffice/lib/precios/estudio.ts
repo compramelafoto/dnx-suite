@@ -15,6 +15,7 @@ import {
   STUDIO_DEFAULT_BILLABLE_PERCENT,
   type CuantoCobroCamera,
   type CuantoCobroProfileInput,
+  type CuantoCobroStudioBreakdown,
   type CuantoCobroStudioStructure,
 } from "@repo/cuanto-cobro-core";
 import { sumPersonalExpenseGroups } from "@repo/cuanto-cobro-core/personal-expenses";
@@ -158,6 +159,29 @@ export function errorDeEstudio(e: CuantoCobroStudioStructure): string | null {
     if ((parseStudioDecimal(p.vacationWeeksPerYear) ?? 0) > 52) return `${quien}: las vacaciones no pueden pasar de 52 semanas.`;
   }
   return errorDelLocal(e);
+}
+
+export type FilaCoberturas = { etiqueta: string; monto: number };
+
+/**
+ * Renglones de «Tus coberturas» (modo separado) que suman lo que tienen que cubrir las horas.
+ * Lo que necesitás llevarte ya viene del motor con el piso en cero; tus insumos son la parte del equipo
+ * que no es de otras personas (el motor los suma al costo del dueño).
+ */
+export function filasDeCoberturas(d: CuantoCobroStudioBreakdown): FilaCoberturas[] {
+  const sep = d.separated;
+  if (!sep) return [];
+  const tusInsumos = Math.max(0, d.teamCost - sep.coverageTeamCost);
+  const filas: (FilaCoberturas | null)[] = [
+    { etiqueta: "Lo que necesitás llevarte de las coberturas", monto: sep.ownerNetNeed },
+    { etiqueta: "Gastos fijos de coberturas y compartidos", monto: d.fixedCosts },
+    sep.coverageTeamCost > 0 ? { etiqueta: "Equipo de coberturas", monto: sep.coverageTeamCost } : null,
+    tusInsumos > 0 ? { etiqueta: "Tus insumos", monto: tusInsumos } : null,
+    { etiqueta: "Reservas (equipamiento y fondo de emergencia)", monto: d.reserves },
+    d.fixedFromExtras > 0 ? { etiqueta: "Monotributo y seguro del equipo", monto: d.fixedFromExtras } : null,
+    d.profit > 0 ? { etiqueta: "Ganancia", monto: d.profit } : null,
+  ];
+  return filas.filter((f): f is FilaCoberturas => f !== null);
 }
 
 /** Error de validación de las cámaras adicionales (null si está bien). */

@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { createStudioPerson, getProfileCostHour, INITIAL_STUDIO_STRUCTURE } from "@repo/cuanto-cobro-core";
 import { createBaseCompleteProfile } from "@repo/cuanto-cobro-core/__fixtures__/characterization-fixtures";
 import { perfilDanielSeparado } from "@repo/cuanto-cobro-core/__fixtures__/studio-fixtures";
-import { diasConSabadosAlternados, encenderMiEstudio, errorDeCamaras, errorDeEstudio, ofreceMiEstudio, retiroSugerido, separarLocal } from "./estudio";
+import { computeStudioBreakdown } from "@repo/cuanto-cobro-core";
+import { diasConSabadosAlternados, encenderMiEstudio, errorDeCamaras, errorDeEstudio, filasDeCoberturas, ofreceMiEstudio, retiroSugerido, separarLocal } from "./estudio";
 import { normalizarPerfil, validarPerfil } from "./perfil-datos";
 import { resumirPerfil } from "./resumen";
 
@@ -157,5 +158,32 @@ describe("Local y coberturas", () => {
   it("sin el modo separado, esos campos no se revisan", () => {
     const cobrable90 = separado().people.map((p) => (p.role === "owner" ? { ...p, billablePercent: "90" } : p));
     expect(errorDeEstudio(separado({ separateLocal: false, ownerLocalSalaryMonthly: "abc", people: cobrable90 }))).toBeNull();
+  });
+});
+
+describe("filasDeCoberturas", () => {
+  const suma = (filas: { monto: number }[]) => filas.reduce((t, f) => t + f.monto, 0);
+  const conDueno = (perfil: ReturnType<typeof perfilDanielSeparado>, cambio: Record<string, string>) => ({
+    ...perfil,
+    studioStructure: { ...perfil.studioStructure!, people: perfil.studioStructure!.people.map((p) => (p.role === "owner" ? { ...p, ...cambio } : p)) },
+  });
+
+  it("los renglones suman lo que tienen que cubrir las horas, con los insumos del dueño", () => {
+    const d = computeStudioBreakdown(conDueno(perfilDanielSeparado(), { monthlySupplies: "50000" }))!;
+    const filas = filasDeCoberturas(d);
+    expect(filas.find((f) => f.etiqueta === "Tus insumos")?.monto).toBe(50_000);
+    expect(filas[0]).toEqual({ etiqueta: "Lo que necesitás llevarte de las coberturas", monto: d.separated!.ownerNetNeed });
+    expect(suma(filas)).toBeCloseTo(d.monthlyNeed, 6);
+  });
+
+  it("si el local paga más que tus gastos personales, lo que necesitás llevarte es 0 y la suma sigue cerrando", () => {
+    const p = perfilDanielSeparado();
+    const d = computeStudioBreakdown({ ...p, studioStructure: { ...p.studioStructure!, ownerLocalSalaryMonthly: "99000000" } })!;
+    expect(d.separated!.ownerNetNeed).toBe(0);
+    expect(suma(filasDeCoberturas(d))).toBeCloseTo(d.monthlyNeed, 6);
+  });
+
+  it("sin el modo separado no hay renglones", () => {
+    expect(filasDeCoberturas({ ...computeStudioBreakdown(perfilDanielSeparado())!, separated: undefined })).toEqual([]);
   });
 });
