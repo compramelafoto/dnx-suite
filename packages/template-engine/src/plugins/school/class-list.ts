@@ -37,7 +37,10 @@ export type ClassListOptions = {
    * tenga un solo curso: así la plantilla no necesita un texto aparte con el curso.
    */
   showHeading: boolean;
-  /** Cuánto más grande que los nombres sale el título del curso (1 = igual). */
+  /**
+   * Cuánto más grande que los nombres sale el título del curso (1 = igual). Sólo cuenta si el
+   * título no tiene un cuerpo propio (`headingStyle.fontSize`).
+   */
   headingScale: number;
   /**
    * Si el fotógrafo (y la familia, al revisar) pueden sumar otros cursos del mismo colegio al
@@ -64,6 +67,11 @@ export type ClassListTextTransform = "none" | "uppercase" | "lowercase" | "capit
 /** El estilo propio del título. Cada dato ausente = igual que los nombres (salvo `bold`). */
 export type ClassListHeadingStyle = {
   fontFamily?: string;
+  /**
+   * El cuerpo del título, en píxeles del lienzo como el `fontSize` del bloque (el inspector lo
+   * muestra en puntos). Ausente: sale proporcional a los nombres, según `headingScale`.
+   */
+  fontSize?: number;
   textTransform?: ClassListTextTransform;
   color?: string;
   /** En negrita. Ausente = sí: el título siempre fue en negrita. */
@@ -94,6 +102,9 @@ export function readClassListHeadingStyle(raw: unknown): ClassListHeadingStyle {
   const r = raw as Record<string, unknown>;
   const out: ClassListHeadingStyle = {};
   if (typeof r.fontFamily === "string" && r.fontFamily.trim()) out.fontFamily = r.fontFamily.trim();
+  if (typeof r.fontSize === "number" && Number.isFinite(r.fontSize) && r.fontSize > 0) {
+    out.fontSize = Math.min(CLASS_LIST_HEADING_FONT_SIZE_MAX, r.fontSize);
+  }
   if (r.textTransform === "none" || r.textTransform === "uppercase" || r.textTransform === "lowercase" || r.textTransform === "capitalize") {
     out.textTransform = r.textTransform;
   }
@@ -133,6 +144,8 @@ export function resolveClassListHeadingStyle(
 }
 
 export const CLASS_LIST_HEADING_SCALE_MIN = 0.8;
+/** Tope del cuerpo propio del título, en píxeles del lienzo (el mismo que la barra de texto). */
+export const CLASS_LIST_HEADING_FONT_SIZE_MAX = 400;
 export const CLASS_LIST_HEADING_SCALE_MAX = 2;
 
 export function isClassListConfig(config: unknown): boolean {
@@ -757,9 +770,20 @@ export function layoutClassListBlock(input: {
         ? CLASS_LIST_MULTI_COURSE_COLUMNS
         : input.options.columns,
     verticalAlign: input.verticalAlign,
-    headingScale: input.options.headingScale,
+    headingScale: classListHeadingScale(input.options, input.fontSize),
     schoolName: input.options.showSchoolName ? input.schoolName : null,
   });
+}
+
+/**
+ * Cuánto más grande que los nombres va el título. Con un cuerpo propio es la proporción entre los
+ * dos cuerpos, así el título sale al tamaño elegido y, si la lista no entra y se achica todo, se
+ * achica en la misma medida que los nombres.
+ */
+export function classListHeadingScale(options: ClassListOptions, namesFontSize: number): number {
+  const propio = options.headingStyle.fontSize;
+  if (propio && namesFontSize > 0) return propio / namesFontSize;
+  return options.headingScale;
 }
 
 /** Total de alumnos de todos los cursos del listado. */

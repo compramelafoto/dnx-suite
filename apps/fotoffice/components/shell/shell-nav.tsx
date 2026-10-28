@@ -53,6 +53,7 @@ import {
 import { BANDEJA_MODULE_KEY } from "@/lib/bandeja/constantes";
 import { FOTOLIBROS_MODULE_KEY } from "@/lib/fotolibro/constantes";
 import { FOTO_CARNET_MODULE_KEY } from "@/lib/foto-carnet/constantes";
+import { POLAROID_MODULE_KEY } from "@/lib/polaroid/constantes";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
 import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
@@ -334,6 +335,7 @@ export function ShellNav({
   // Fotolibros y Foto carnet: módulos propios desde el plan Base (antes, pantallas de Ventas).
   const fotolibros: Item[] = itemsDeModulo(FOTOLIBROS_MODULE_KEY, access, vocabulary);
   const fotoCarnet: Item[] = itemsDeModulo(FOTO_CARNET_MODULE_KEY, access, vocabulary);
+  const polaroid: Item[] = itemsDeModulo(POLAROID_MODULE_KEY, access, vocabulary);
 
   // Evaluaciones evalúa actividades de los cursos: es del mismo dominio, no un módulo suelto.
   // Tiene su propia llave, así que puede estar encendido sin cursos — en ese caso la sección
@@ -737,6 +739,7 @@ export function ShellNav({
     { title: "Ventas", items: ventas, moduleKey: SALES_MODULE_KEY },
     { title: "Fotolibros", items: fotolibros, moduleKey: FOTOLIBROS_MODULE_KEY },
     { title: "Foto carnet", items: fotoCarnet, moduleKey: FOTO_CARNET_MODULE_KEY },
+    { title: "Polaroid", items: polaroid, moduleKey: POLAROID_MODULE_KEY },
     { title: "Caja", items: caja, moduleKey: CASH_MODULE_KEY },
     { title: "Equipo", items: equipo, moduleKey: EQUIPO_MODULE_KEY },
     { title: "Clientes", items: clientes, moduleKey: CLIENTS_MODULE_KEY },

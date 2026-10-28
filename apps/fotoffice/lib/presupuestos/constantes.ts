@@ -116,6 +116,11 @@ export type InstantaneaCalculo = {
   desglose?: CuantoCobroPriceBuildUp;
   /** Mi estudio: horas y costo de cada persona asignada en este concepto (sólo si hay asignaciones). Interno. */
   porPersona?: { persona: string; nombre: string; horas: number; costo: number; alValorDelEstudio: boolean }[];
+  /**
+   * Mi estudio con el local separado de las coberturas: con qué criterio se cotizó (spec
+   * 2026-10-28-cuanto-cobro-local-y-coberturas-design.md, §5). Sin el modo, no está. Interno.
+   */
+  modo?: "separado";
 };
 
 // --- Ítem ---------------------------------------------------------------------------------------

@@ -142,3 +142,108 @@ describe("cotizar con quién hace qué", () => {
     expect(r).toMatchObject({ estado: "INVALIDO" });
   });
 });
+
+describe("local y coberturas en Mi estudio (bot)", () => {
+  const base = () => perfilConEstudio(DANIEL);
+  const camposDe = (p: ReturnType<typeof base>) => cambiosEntre(createBaseCompleteProfile(), p).map((c) => c.etiqueta);
+
+  it("separarLocal enciende el modo con scopes por defecto, sueldo y tiempo cargados", () => {
+    const { perfil, errores } = aplicarParche(base(), { estudio: { separarLocal: true, sueldoDelLocal: "1000000", tiempoEnElLocal: "20" } });
+    expect(errores).toEqual([]);
+    const e = perfil.studioStructure!;
+    expect(e.separateLocal).toBe(true);
+    expect([e.ownerLocalSalaryMonthly, e.ownerLocalTimePercent]).toEqual(["1000000", "20"]);
+    expect(e.fixedCostGroups.every((g) => g.items.every((i) => i.scope))).toBe(true);
+    expect(e.people.filter((p) => p.role !== "owner").every((p) => p.scope === "local")).toBe(true);
+  });
+
+  it("de: compartido / coberturas / local en gastos fijos y personas", () => {
+    const { perfil, errores } = aplicarParche(base(), {
+      estudio: {
+        separarLocal: true,
+        gastosFijos: [{ rubroId: "premises", etiqueta: "Alquiler del local", monto: "300000", de: "compartido" }],
+        personas: [{ nombre: "Sabi", de: "coberturas" }],
+      },
+    });
+    expect(errores).toEqual([]);
+    const e = perfil.studioStructure!;
+    expect(e.fixedCostGroups.find((g) => g.id === "premises")!.items.find((i) => i.label === "Alquiler del local")!.scope).toBe("shared");
+    expect(e.people.find((p) => p.name === "Sabi")!.scope).toBe("coverage");
+  });
+
+  it("porcentajes y montos nuevos: compartido, mercadería y estimado del local", () => {
+    const { perfil, errores } = aplicarParche(base(), { estudio: { separarLocal: true, compartidoCoberturas: "50", costoMercaderia: "40", localEstimado: "800000" } });
+    expect(errores).toEqual([]);
+    const e = perfil.studioStructure!;
+    expect([e.coverageSharePercent, e.localGoodsCostPercent, e.localMonthlyContributionManual]).toEqual(["50", "40", "800000"]);
+  });
+
+  it("tiempoEnElLocal fuera de 0 a 100: error claro y no se guarda", () => {
+    const r = aplicarParche(base(), { estudio: { separarLocal: true, tiempoEnElLocal: "120" } });
+    expect(r.errores).toContain("Tu tiempo en el local: tiene que ser un porcentaje entre 0 y 100.");
+    expect(r.perfil.studioStructure!.ownerLocalTimePercent).toBe("20");
+  });
+
+  it("separarLocal: false apaga el modo sin borrar nada", () => {
+    const on = aplicarParche(base(), { estudio: { separarLocal: true, sueldoDelLocal: "1000000" } }).perfil;
+    const off = aplicarParche(on, { estudio: { separarLocal: false } }).perfil;
+    expect(off.studioStructure!.separateLocal).toBe(false);
+    expect(off.studioStructure!.ownerLocalSalaryMonthly).toBe("1000000");
+  });
+
+  it("la tarjeta ¿Lo hago? muestra «Lo que te paga el local» y deja de mostrar «Tu retiro» en modo separado", () => {
+    const sin = camposDe(base());
+    expect(sin).toContain("Tu retiro");
+    const on = aplicarParche(base(), { estudio: { separarLocal: true, sueldoDelLocal: "1000000" } }).perfil;
+    const cambios = cambiosEntre(base(), on).map((c) => c.etiqueta);
+    expect(cambios).toContain("Lo que te paga el local");
+    expect(cambios).not.toContain("Tu retiro");
+    const eti = cambiosEntre(on, aplicarParche(on, { estudio: { retiro: "5" } }).perfil).map((c) => c.etiqueta);
+    expect(eti).not.toContain("Tu retiro");
+  });
+
+  it("otros ingresos en modo separado: el parche los carga y bajan lo que necesitás llevarte de las coberturas", () => {
+    const on = aplicarParche(base(), { estudio: { separarLocal: true, sueldoDelLocal: "0" } }).perfil;
+    const sin = simularPerfil(on, {});
+    const con = simularPerfil(on, { viveSoloDeFotografia: "no", ingresosExternos: "50000" });
+    expect(con.errores).toEqual([]);
+    expect(con.perfil.livesOnlyFromPhotography).toBe("no");
+    expect(con.perfil.externalMonthlyIncome).toBe("50000");
+    expect(con.vista.estudio!.localSeparado!.otrosIngresos).toMatch(/50\.000/);
+    const neto = (v: string | null | undefined) => Number((v ?? "").replace(/\D/g, ""));
+    expect(neto(sin.vista.estudio!.localSeparado!.loQueNecesitasLlevarte) - neto(con.vista.estudio!.localSeparado!.loQueNecesitasLlevarte)).toBe(50_000);
+  });
+
+  it("modo separado: cada cifra dice qué es (no hay dos «gastosPersonales» distintos)", () => {
+    const on = aplicarParche(base(), { estudio: { separarLocal: true, sueldoDelLocal: "500000" } }).perfil;
+    const s = simularPerfil(on, {});
+    expect(s.vista.resumen.gastosPersonales).toBeUndefined();
+    expect(s.vista.resumen.gastosNegocio).toBeUndefined();
+    expect(s.vista.resumen.loQueNecesitasLlevarteDeLasCoberturas).toBe(s.vista.estudio!.localSeparado!.loQueNecesitasLlevarte);
+    expect(s.vista.resumen.gastosQuePaganLasCoberturas).toBeTruthy();
+    expect(s.vista.estudio!.gastosFijos).toBeUndefined();
+    expect(s.vista.estudio!.gastosFijosQuePaganLasCoberturas).toBeTruthy();
+    expect(s.vista.estudio!.localSeparado!.gastosPersonalesTotales).toBeTruthy();
+    const filas = tarjetaDelPerfil(s).filas.map((f) => f.etiqueta);
+    expect(filas).toContain("Gastos fijos que pagan las coberturas");
+    expect(filas).toContain("Equipo que pagan las coberturas");
+    expect(filas).not.toContain("Gastos fijos del estudio");
+    // Sin el modo separado, todo como antes.
+    const normal = simularPerfil(base(), {});
+    expect(normal.vista.estudio!.gastosFijos).toBeTruthy();
+    expect(tarjetaDelPerfil(normal).filas.map((f) => f.etiqueta)).toContain("Gastos fijos del estudio");
+  });
+
+  it("lo anotado nombra lo del local", () => {
+    expect(loAnotado({ estudio: { separarLocal: true, sueldoDelLocal: "1", tiempoEnElLocal: "20" } }, base()).join(" ")).toMatch(/local y coberturas/i);
+  });
+
+  it("rubrosSinDatos: con Mi estudio no pide gastos personales; con el local separado sí", () => {
+    expect(rubrosSinDatos({}, base())).toEqual([]);
+    expect(rubrosSinDatos({ estudio: { retiro: "1" } }, createBaseCompleteProfile())).toEqual([]);
+    const separado = aplicarParche(base(), { estudio: { separarLocal: true } }).perfil;
+    const sinMonto = { ...separado, personalExpenseGroups: separado.personalExpenseGroups.map((g) => ({ ...g, items: g.items.map((i) => ({ ...i, amount: "" })) })) };
+    expect(rubrosSinDatos({}, sinMonto).length).toBeGreaterThan(0);
+    expect(rubrosSinDatos({ estudio: { separarLocal: true } }, { ...sinMonto, studioStructure: { ...sinMonto.studioStructure!, separateLocal: false } }).length).toBeGreaterThan(0);
+  });
+});

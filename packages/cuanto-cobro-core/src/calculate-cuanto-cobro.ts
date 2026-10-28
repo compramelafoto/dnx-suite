@@ -22,7 +22,7 @@ import { sumPersonalExpenseGroups } from "./personal-expenses";
 import { buildPriceBuildUp, isPricingExtrasActive, normalizePricingExtras } from "./pricing-extras/price-build-up";
 import { INITIAL_CUANTO_COBRO_PRICING_EXTRAS } from "./pricing-extras/types";
 import { computeStudioBreakdown, getStudioMissingFields } from "./studio/capacity";
-import { isStudioModeActive } from "./studio/normalize";
+import { isSeparateLocalActive, isStudioModeActive } from "./studio/normalize";
 import {
   computeMinimumSustainablePrice,
   computeRecommendedBusinessPrice,
@@ -107,7 +107,7 @@ const PROFILE_RESULT_STEPS: CuantoCobroStepId[] = [
 ];
 
 /** Pasos del perfil en modo estudio (FOTOFFICE). No están en `CC_WIZARD_STEPS`, que comparte CompraMeLaFoto. */
-export type CuantoCobroStudioStepId = "studio-costs" | "studio-team" | "studio-owner";
+export type CuantoCobroStudioStepId = "studio-costs" | "studio-team" | "studio-owner" | "studio-local";
 
 const STUDIO_PROFILE_RESULT_STEPS: (CuantoCobroStepId | CuantoCobroStudioStepId)[] = [
   "currency",
@@ -119,10 +119,16 @@ const STUDIO_PROFILE_RESULT_STEPS: (CuantoCobroStepId | CuantoCobroStudioStepId)
   "commercial-positioning",
 ];
 
-/** Los pasos que tiene que completar el perfil para calcular, según el modo (solo o estudio). */
+/** Con el local separado de las coberturas: el paso «Local y coberturas» va después de «Vos en el estudio». */
+const STUDIO_SEPARATED_PROFILE_RESULT_STEPS: (CuantoCobroStepId | CuantoCobroStudioStepId)[] = STUDIO_PROFILE_RESULT_STEPS.flatMap(
+  (step) => (step === "studio-owner" ? [step, "studio-local" as const] : [step]),
+);
+
+/** Los pasos que tiene que completar el perfil para calcular, según el modo (solo, estudio o estudio separado). */
 export function getProfileResultSteps(
   profile: Pick<CuantoCobroProfileInput, "studioStructure">,
 ): readonly (CuantoCobroStepId | CuantoCobroStudioStepId)[] {
+  if (isSeparateLocalActive(profile)) return STUDIO_SEPARATED_PROFILE_RESULT_STEPS;
   return isStudioModeActive(profile) ? STUDIO_PROFILE_RESULT_STEPS : PROFILE_RESULT_STEPS;
 }
 
@@ -192,6 +198,7 @@ export function getCuantoCobroMissingFields(
     case "studio-costs":
     case "studio-team":
     case "studio-owner":
+    case "studio-local":
       return getStudioMissingFields(stepId, profile);
     case "currency":
       return profile.currency ? [] : ["Moneda principal"];

@@ -47,14 +47,15 @@ function pasos(
   criterios: number,
   maxima: number,
   minima: number,
+  grupo: "consigna" | "categoría",
 ): Array<{ titulo: string; texto: string; enElTelefono?: string }> {
   const varios = criterios !== 1;
   const forma = formaDeLaNota({ min: minima, max: maxima });
   return [
     {
-      titulo: "Calificás una consigna por vez",
+      titulo: `Calificás una ${grupo} por vez`,
       texto:
-        "Arriba están las consignas que te tocaron. Terminás una y pasás a la siguiente. " +
+        `Arriba están las ${grupo === "categoría" ? "categorías" : "consignas"} que te tocaron. Terminás una y pasás a la siguiente. ` +
         "Las fotos vienen mezcladas y sin el nombre de quien las tomó.",
     },
     {
@@ -83,10 +84,10 @@ function pasos(
       titulo: "Podés mirar antes de puntuar",
       texto:
         "Con las flechas ← y → recorrés las fotos sin calificar ninguna. Sirve para ver cómo " +
-        "viene la consigna antes de decidir la primera calificación.",
+        `viene la ${grupo} antes de decidir la primera calificación.`,
       enElTelefono:
         "Deslizando sobre la fotografía pasás de obra sin calificar ninguna. Sirve para ver " +
-        "cómo viene la consigna antes de decidir la primera calificación.",
+        `cómo viene la ${grupo} antes de decidir la primera calificación.`,
     },
     {
       titulo: "Equivocarse no cuesta nada",
@@ -127,7 +128,7 @@ function pasos(
       titulo: "El fondo cambia lo que ves",
       texto:
         "Sobre negro una foto oscura parece más contrastada de lo que es; sobre blanco una " +
-        "foto clara se apaga. Por eso viene el gris. Si lo cambiás, cambialo entre consignas " +
+        `foto clara se apaga. Por eso viene el gris. Si lo cambiás, cambialo entre ${grupo === "categoría" ? "categorías" : "consignas"} ` +
         "y no en el medio de una.",
     },
   ];
@@ -177,8 +178,8 @@ function teclas(
   ];
 }
 
-const FILTROS: Array<{ nombre: string; texto: string }> = [
-  { nombre: "Todas", texto: "Las que te tocaron en esta consigna." },
+const filtros = (grupo: string): Array<{ nombre: string; texto: string }> => [
+  { nombre: "Todas", texto: `Las que te tocaron en esta ${grupo}.` },
   {
     nombre: "Me faltan",
     texto: "Las que todavía no tienen todas las calificaciones.",
@@ -198,15 +199,19 @@ export function AyudaDelVisor({
   cantidadDeCriterios,
   notaMaxima,
   notaMinima = 1,
+  grupo = "consigna",
   onCerrar,
 }: {
   colores: Colores;
   cantidadDeCriterios: number;
   notaMaxima: number;
   notaMinima?: number;
+  /** Cómo se llaman las pestañas: consigna en una maratón, categoría en un concurso. */
+  grupo?: "consigna" | "categoría";
   onCerrar: () => void;
 }) {
-  const PASOS = pasos(cantidadDeCriterios, notaMaxima, notaMinima);
+  const PASOS = pasos(cantidadDeCriterios, notaMaxima, notaMinima, grupo);
+  const FILTROS = filtros(grupo);
   const TECLAS = teclas(notaMaxima, notaMinima);
 
   // Escape cierra la ayuda antes que cualquier otra cosa: es lo último que se
@@ -374,8 +379,8 @@ export function AyudaDelVisor({
           style={{ color: colores.suave }}
         >
           Mientras calificás, la lista no se mueve: ninguna foto desaparece de
-          abajo de tus manos. Se rearma cuando vos cambiás de filtro o de
-          consigna.
+          abajo de tus manos. Se rearma cuando vos cambiás de filtro o de{" "}
+          {grupo}.
         </p>
       </div>
     </div>

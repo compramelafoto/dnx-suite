@@ -23,15 +23,28 @@
  *   tarifa_p          = costoMes_p / horasVendibles_p + estructuraPorHora
  *
  * Propiedad: Σ tarifa_p × horasVendibles_p = necesidad.
+ *
+ * Modo «separar el local de las coberturas» (spec 2026-10-28-cuanto-cobro-local-y-coberturas-design.md, §4.3):
+ * los mismos campos del desglose traen la cuenta de las coberturas, sin nada del local.
+ *   necesidadNeta = max(0, gastosPersonales − sueldoDelLocal − otrosIngresos)   (reemplaza al retiro)
+ *   fijos         = fijos de coberturas + compartidos × coverageSharePercent
+ *   equipo        = personas de coberturas + insumos del dueño
+ *   otrasLíneas   = 0 (lo reemplaza la cuenta del local)
+ *   capacidad     = horas vendibles del dueño + las de personas de coberturas
+ *   personas del local: sus horas propias y tarifa = su costo por hora (sin estructura); no suman capacidad.
  */
 import { parseCuantoCobroAmount } from "../amount-format";
 import { WEEKS_PER_MONTH } from "../availability";
 import { getEffectiveExpansionMonthly, getEffectiveRenewalMonthly } from "../equipment/calculations";
 import { normalizePricingExtras, parsePercent, pricingExtrasFixedMonthly } from "../pricing-extras/price-build-up";
+import { sumPersonalExpenseGroups } from "../personal-expenses";
 import type { CameraWearModel, CuantoCobroProfileInput } from "../types";
-import { activeStudioStructure, parseStudioDecimal } from "./normalize";
+import { activeStudioStructure, effectiveCoverageSharePercent, parseStudioDecimal } from "./normalize";
 import {
+  fixedCostScope,
+  personScope,
   STUDIO_DEFAULT_BILLABLE_PERCENT,
+  type StudioCoverageAccount,
   type CuantoCobroStudioBreakdown,
   type CuantoCobroStudioStructure,
   type StudioPerson,
@@ -96,21 +109,28 @@ export function computeStudioBreakdownFor(
   model: CameraWearModel = "per-job",
 ): CuantoCobroStudioBreakdown {
   const warnings: string[] = [];
-  const ownerDraw = amount(structure.ownerDrawMonthly);
-  const fixedCosts = sumStudioFixedCosts(structure);
+  const separated = structure.separateLocal === true ? coverageAccountBase(structure, profile) : undefined;
+  const ownerDraw = separated ? separated.ownerNetNeed : amount(structure.ownerDrawMonthly);
+  const fixedCosts = separated ? separated.coverageFixed + separated.sharedToCoverage : sumStudioFixedCosts(structure);
   const reserves =
     getEffectiveRenewalMonthly(profile, model) + getEffectiveExpansionMonthly(profile) + amount(profile.emergencyFundMonthly);
   const fixedFromExtras = pricingExtrasFixedMonthly(normalizePricingExtras(profile.pricingExtras));
-  const otherLinesContribution = amount(structure.otherLinesMonthlyContribution);
+  const otherLinesContribution = separated ? 0 : amount(structure.otherLinesMonthlyContribution);
 
   const rows = structure.people.map((person) => {
     const { monthlyHours, billableHours } = computeStudioPersonHours(person);
     const monthlyCost = computeStudioPersonMonthlyCost(person, ownerDraw);
-    return { person, monthlyHours, billableHours, monthlyCost };
+    // Modo separado: las personas del local no entran en la cuenta de las coberturas.
+    const inAccount = !separated || personScope(person) === "coverage";
+    return { person, monthlyHours, billableHours, monthlyCost, inAccount };
   });
+  const accountRows = rows.filter((r) => r.inAccount);
+  if (separated) {
+    separated.coverageTeamCost = accountRows.reduce((t, r) => t + (r.person.role === "owner" ? 0 : r.monthlyCost), 0);
+  }
 
   // Equipo: todo lo que no es el retiro (sueldos e insumos, también los del dueño).
-  const teamCost = rows.reduce((t, r) => t + r.monthlyCost, 0) - ownerDraw;
+  const teamCost = accountRows.reduce((t, r) => t + r.monthlyCost, 0) - ownerDraw;
   const base = fixedCosts + teamCost + reserves + fixedFromExtras + ownerDraw - otherLinesContribution;
   const profit =
     structure.desiredProfitMode === "percent"
@@ -118,14 +138,16 @@ export function computeStudioBreakdownFor(
       : amount(structure.desiredProfitMonthly);
   const monthlyNeed = Math.max(0, base + profit);
 
-  const capacityHours = rows.reduce((t, r) => t + r.billableHours, 0);
-  const totalMonthlyHours = rows.reduce((t, r) => t + r.monthlyHours, 0);
+  const capacityHours = accountRows.reduce((t, r) => t + r.billableHours, 0);
+  const totalMonthlyHours = accountRows.reduce((t, r) => t + r.monthlyHours, 0);
   const studioHourRate = capacityHours > 0 ? monthlyNeed / capacityHours : null;
-  const directCostWithHours = rows.reduce((t, r) => t + (r.billableHours > 0 ? r.monthlyCost : 0), 0);
+  const directCostWithHours = accountRows.reduce((t, r) => t + (r.billableHours > 0 ? r.monthlyCost : 0), 0);
   const overheadPerHour = capacityHours > 0 ? (monthlyNeed - directCostWithHours) / capacityHours : null;
 
-  const people: StudioPersonBreakdown[] = rows.map(({ person, monthlyHours, billableHours, monthlyCost }) => {
+  const people: StudioPersonBreakdown[] = rows.map(({ person, monthlyHours, billableHours, monthlyCost, inAccount }) => {
     const costPerHour = billableHours > 0 ? monthlyCost / billableHours : null;
+    // Persona del local: si se la asigna a un trabajo, se cobra a su costo, sin recargo de estructura.
+    const rate = !inAccount ? costPerHour : costPerHour !== null && overheadPerHour !== null ? costPerHour + overheadPerHour : null;
     return {
       id: person.id,
       name: person.name,
@@ -136,7 +158,7 @@ export function computeStudioBreakdownFor(
       billableHours,
       monthlyCost,
       costPerHour,
-      rate: costPerHour !== null && overheadPerHour !== null ? costPerHour + overheadPerHour : null,
+      rate,
     };
   });
 
@@ -151,6 +173,16 @@ export function computeStudioBreakdownFor(
   }
   if (otherLinesContribution > 0 && base <= 0) {
     warnings.push("Lo que dejan otras líneas cubre toda la estructura: revisá ese monto.");
+  }
+  if (separated) {
+    if (separated.personalNeed > 0 && separated.ownerNetNeed === 0) {
+      warnings.push("Lo que te paga el local cubre todos tus gastos personales: revisá esos montos.");
+    }
+    const owner = structure.people.find((p) => p.role === "owner");
+    const localTime = Math.min(100, decimal(structure.ownerLocalTimePercent));
+    if (owner && billableShare(owner) * 100 > 100 - localTime + 1e-9) {
+      warnings.push("Tu parte cobrable no puede ser mayor que el tiempo que no le das al local.");
+    }
   }
 
   return {
@@ -168,6 +200,33 @@ export function computeStudioBreakdownFor(
     overheadPerHour,
     people,
     warnings,
+    ...(separated ? { separated } : {}),
+  };
+}
+
+/** Modo separado: la parte de la cuenta de las coberturas que no depende de las personas. */
+function coverageAccountBase(structure: CuantoCobroStudioStructure, profile: CuantoCobroProfileInput): StudioCoverageAccount {
+  let sharedFixed = 0;
+  let coverageFixed = 0;
+  for (const g of structure.fixedCostGroups) {
+    for (const i of g.items) {
+      const scope = fixedCostScope(g.id, i);
+      if (scope === "shared") sharedFixed += amount(i.amount);
+      else if (scope === "coverage") coverageFixed += amount(i.amount);
+    }
+  }
+  const personalNeed = sumPersonalExpenseGroups(profile.personalExpenseGroups);
+  const localSalary = amount(structure.ownerLocalSalaryMonthly);
+  const externalIncome = profile.livesOnlyFromPhotography === "no" ? amount(profile.externalMonthlyIncome) : 0;
+  return {
+    personalNeed,
+    localSalary,
+    externalIncome,
+    ownerNetNeed: Math.max(0, personalNeed - localSalary - externalIncome),
+    sharedFixed,
+    sharedToCoverage: (sharedFixed * effectiveCoverageSharePercent(structure)) / 100,
+    coverageFixed,
+    coverageTeamCost: 0,
   };
 }
 
@@ -182,7 +241,7 @@ export function computeStudioBreakdown(
 
 /** Faltantes de cada paso del modo estudio (bloquean el cálculo). */
 export function getStudioMissingFields(
-  step: "studio-costs" | "studio-team" | "studio-owner",
+  step: "studio-costs" | "studio-team" | "studio-owner" | "studio-local",
   profile: CuantoCobroProfileInput,
 ): string[] {
   const structure = activeStudioStructure(profile);
@@ -217,9 +276,18 @@ export function getStudioMissingFields(
       return missing;
     case "studio-owner": {
       const owner = structure.people.find((p) => p.role === "owner");
-      if (!structure.ownerDrawMonthly.trim() || parseCuantoCobroAmount(structure.ownerDrawMonthly) === null) missing.push("Tu retiro por mes");
+      // Modo separado: el retiro no se usa (lo reemplazan los gastos personales y el sueldo del local).
+      const drawInvalid = !structure.ownerDrawMonthly.trim() || parseCuantoCobroAmount(structure.ownerDrawMonthly) === null;
+      if (structure.separateLocal !== true && drawInvalid) missing.push("Tu retiro por mes");
       if (!owner || decimal(owner.workdaysPerWeek) <= 0) missing.push("Tus días de trabajo por semana");
       if (!owner || decimal(owner.hoursPerWorkday) <= 0) missing.push("Tus horas por día");
+      return missing;
+    }
+    case "studio-local": {
+      if (structure.separateLocal !== true) return [];
+      if (sumPersonalExpenseGroups(profile.personalExpenseGroups) <= 0) missing.push("Tus gastos personales");
+      const salary = structure.ownerLocalSalaryMonthly ?? "";
+      if (!salary.trim() || parseCuantoCobroAmount(salary) === null) missing.push("Lo que te paga el local");
       return missing;
     }
   }

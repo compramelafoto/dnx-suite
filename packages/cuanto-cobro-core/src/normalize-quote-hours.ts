@@ -56,15 +56,25 @@ function normalizeConceptCommercialHours(
   }
 
   const delivery = parseQuoteItemHours(concept.deliveryHours);
+  const deliveryAssignments = Array.isArray(concept.assignments) ? concept.assignments.filter((a) => a?.activity === "delivery") : [];
   const hadCommercialBundle = sales > 0 || administration > 0;
   if (delivery > 0 && hadCommercialBundle) {
     nextClientHours = {
       ...nextClientHours,
       administrativeDeliveryHours: mergeHoursField(nextClientHours.administrativeDeliveryHours, delivery),
     };
-    nextConcept = { ...nextConcept, deliveryHours: "" };
+    // Las horas de entrega asignadas a una persona son esas mismas horas: si quedaran, se contarían dos veces.
+    nextConcept = {
+      ...nextConcept,
+      deliveryHours: "",
+      ...(Array.isArray(nextConcept.assignments)
+        ? { assignments: nextConcept.assignments.filter((a) => a?.activity !== "delivery") }
+        : {}),
+    };
+    const sinAsignacion =
+      deliveryAssignments.length > 0 ? " También se quitó la asignación de la entrega a una persona, para no contar esas horas dos veces." : "";
     warnings.push(
-      `Se movieron ${delivery} h de entrega del producto o servicio «${label}» al bloque Cliente (entrega administrativa). Si era entrega de material, cargala de nuevo en la línea.`,
+      `Se movieron ${delivery} h de entrega del producto o servicio «${label}» al bloque Cliente (entrega administrativa).${sinAsignacion} Si era entrega de material, cargala de nuevo en la línea.`,
     );
   }
 

@@ -13,7 +13,7 @@ import { signedPreviewUrl } from "./entry-for-juror";
 import { assertJudgeContestAccess } from "./jury-access";
 import { sortEntriesForJuror } from "./jury-order";
 import { leTocaLaConsigna } from "./repartoPorConsigna";
-import type { ObraEnElVisor } from "./colaDelVisor";
+import { pestanasPorCategoria, type ObraEnElVisor } from "./colaDelVisor";
 
 /** Diez minutos: lo que dura una tanda sin que se venzan los enlaces. */
 const PREVIEW_TTL_SEC = 600;
@@ -50,6 +50,11 @@ export type ColaDelVisor = {
     /** Elegir con cupo: cuántas fotos puede elegir cada jurado por consigna. */
     cupo: number | null;
   } | null;
+  /**
+   * Qué son las pestañas: las consignas de una maratón o, en un concurso sin
+   * consignas, sus categorías. Las dos viajan en `consignas`.
+   */
+  agrupadoPor: "CONSIGNA" | "CATEGORIA";
   consignas: ConsignaDelVisor[];
   obras: ObraEnElVisor[];
   /** Sin sesión abierta se puede mirar, no calificar. */
@@ -108,6 +113,7 @@ export async function colaParaElVisor(input: {
       contestTitle: access.contest.title,
       judgingEndsAt: access.contest.judgingEndAt?.toISOString() ?? null,
       rubrica,
+      agrupadoPor: "CONSIGNA",
       consignas: [],
       obras: [],
       sePuedeCalificar: false,
@@ -166,6 +172,19 @@ export async function colaParaElVisor(input: {
     : [];
   const promptPorId = new Map(prompts.map((p) => [p.id, p]));
 
+  // Sin consignas, una pestaña por categoría (ver `pestanasPorCategoria`).
+  const agrupadoPor: ColaDelVisor["agrupadoPor"] =
+    promptIds.length > 0 ? "CONSIGNA" : "CATEGORIA";
+  const pestanaPorCategoria =
+    agrupadoPor === "CATEGORIA"
+      ? pestanasPorCategoria(
+          await db.fotorankContestCategory.findMany({
+            where: { id: { in: access.categoryIds } },
+            select: { id: true, name: true, sortOrder: true },
+          }),
+        )
+      : new Map<string, { numero: number; titulo: string }>();
+
   const evaluaciones = await db.fotorankJuryEvaluation.findMany({
     where: {
       jurorId: input.judgeAccountId,
@@ -223,6 +242,7 @@ export async function colaParaElVisor(input: {
     const textoDeLaConsigna =
       prompt?.instructions?.trim() || prompt?.shortDescription?.trim() || "";
     const evaluacion = evaluacionPorSnapshot.get(snap.id);
+    const pestana = pestanaPorCategoria.get(snap.categoryId);
 
     const notas: Record<string, number> = {};
     for (const linea of evaluacion?.criterionScores ?? []) {
@@ -234,8 +254,8 @@ export async function colaParaElVisor(input: {
       entryId: snap.entryId,
       snapshotId: snap.id,
       codigo: snap.anonymousCode,
-      consignaNumero: prompt?.sequence ?? null,
-      consignaTitulo: prompt?.title ?? null,
+      consignaNumero: prompt?.sequence ?? pestana?.numero ?? null,
+      consignaTitulo: prompt?.title ?? pestana?.titulo ?? null,
       consignaTexto: textoDeLaConsigna,
       previewUrl,
       notas,
@@ -274,6 +294,7 @@ export async function colaParaElVisor(input: {
     contestTitle: access.contest.title,
     judgingEndsAt: access.contest.judgingEndAt?.toISOString() ?? null,
     rubrica,
+    agrupadoPor,
     consignas,
     // El `sortKey` con el que se barajó no viaja al cliente: sirvió para ordenar
     // y afuera sólo sería una pista más sobre el orden.

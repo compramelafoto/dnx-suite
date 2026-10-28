@@ -46,7 +46,7 @@ describe("MODULE_REGISTRY", () => {
     }
   });
 
-  it("los módulos AVAILABLE hoy son exactamente courses-sales, evaluaciones, website, reservas, coberturas, members, membership-dues, sorteos, sponsors, portfolios, caja, clientes, captación, ventas, comunicación, tienda online, proyectos de la comisión, ¿Cuánto Cobro? para socios, fotolibros para socios, presupuestos, pedidos, proyectos, agenda, contratos, informes, digitalización, galería, pedidos de impresión, facturación electrónica, fotolibros y foto carnet", () => {
+  it("los módulos AVAILABLE hoy son exactamente courses-sales, evaluaciones, website, reservas, coberturas, members, membership-dues, sorteos, sponsors, portfolios, caja, clientes, captación, ventas, comunicación, tienda online, proyectos de la comisión, ¿Cuánto Cobro? para socios, fotolibros para socios, presupuestos, pedidos, proyectos, agenda, contratos, informes, digitalización, galería, pedidos de impresión, facturación electrónica, fotolibros, foto carnet y polaroid", () => {
     expect(listAvailableModuleKeys().sort()).toEqual(
       [
         COURSES_SALES_MODULE_KEY,
@@ -82,6 +82,7 @@ describe("MODULE_REGISTRY", () => {
         "equipo",
         "fotolibros",
         "foto-carnet",
+        "polaroid",
       ].sort(),
     );
   });

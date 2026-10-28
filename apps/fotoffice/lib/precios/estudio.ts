@@ -6,13 +6,16 @@ import {
   createDefaultStudioFixedCostGroups,
   createStudioOwner,
   createStudioPerson,
+  defaultFixedCostScope,
   INITIAL_STUDIO_STRUCTURE,
   normalizeStudioStructure,
   parseCuantoCobroAmount,
   parsePercent,
   parseStudioDecimal,
+  STUDIO_DEFAULT_BILLABLE_PERCENT,
   type CuantoCobroCamera,
   type CuantoCobroProfileInput,
+  type CuantoCobroStudioBreakdown,
   type CuantoCobroStudioStructure,
 } from "@repo/cuanto-cobro-core";
 import { sumPersonalExpenseGroups } from "@repo/cuanto-cobro-core/personal-expenses";
@@ -88,6 +91,50 @@ export function encenderMiEstudio(perfil: CuantoCobroProfileInput): CuantoCobroS
   return { ...INITIAL_STUDIO_STRUCTURE, enabled: true, fixedCostGroups: fijos, people: [owner, ...equipo] };
 }
 
+/** Tiempo del dueño en el local que se propone al separar (Daniel: 20 %). */
+const TIEMPO_EN_EL_LOCAL_SUGERIDO = "20";
+
+/**
+ * Enciende «Separar el local de las coberturas» con una propuesta que la persona corrige
+ * (spec 2026-10-28-cuanto-cobro-local-y-coberturas-design.md, §4.2): cada renglón de gasto fijo sin
+ * elegir toma lo que sugiere su rubro, cada persona del equipo sin elegir va al local y, si no cargó
+ * su tiempo en el local, 20 %. Lo ya elegido no se toca, ni las categorías de Caja de las líneas
+ * (las elige la persona).
+ */
+export function separarLocal(e: CuantoCobroStudioStructure): CuantoCobroStudioStructure {
+  return {
+    ...e,
+    separateLocal: true,
+    fixedCostGroups: e.fixedCostGroups.map((g) => ({ ...g, items: g.items.map((i) => (i.scope ? i : { ...i, scope: defaultFixedCostScope(g.id) })) })),
+    people: e.people.map((p) => (p.role === "owner" || p.scope ? p : { ...p, scope: "local" as const })),
+    ownerLocalTimePercent: e.ownerLocalTimePercent?.trim() ? e.ownerLocalTimePercent : TIEMPO_EN_EL_LOCAL_SUGERIDO,
+  };
+}
+
+/** Error de validación de los campos de «Local y coberturas» (sólo con el modo encendido). */
+function errorDelLocal(e: CuantoCobroStudioStructure): string | null {
+  if (e.separateLocal !== true) return null;
+  const montoMal = (v: string | undefined) => (v ?? "").trim() !== "" && parseCuantoCobroAmount(v ?? "") === null;
+  const pctMal = (v: string | undefined) => parsePercent(v ?? "") === null;
+  // El motor lee el tiempo en el local y la parte compartida con `parseStudioDecimal` (hasta dos decimales):
+  // lo que el motor no puede leer tampoco se acepta acá, así la pantalla y el precio usan el mismo número.
+  const pctDelMotorMal = (v: string | undefined) => pctMal(v) || ((v ?? "").trim() !== "" && parseStudioDecimal(v) === null);
+  if (montoMal(e.ownerLocalSalaryMonthly)) return "Revisá lo que te paga el local.";
+  if (pctDelMotorMal(e.ownerLocalTimePercent)) return "Revisá tu tiempo en el local.";
+  if (pctDelMotorMal(e.coverageSharePercent)) return "Revisá el porcentaje de gastos compartidos que van a coberturas.";
+  if (pctMal(e.localGoodsCostPercent)) return "Revisá el costo de la mercadería.";
+  if (montoMal(e.localMonthlyContributionManual)) return "Revisá lo que deja el local por mes.";
+  const owner = e.people.find((p) => p.role === "owner");
+  if (owner) {
+    // Igual que el motor: cobrable vacío = 70 %.
+    const cobrable = owner.billablePercent.trim() ? (parsePercent(owner.billablePercent) ?? 0) : STUDIO_DEFAULT_BILLABLE_PERCENT;
+    if (cobrable > 100 - (parsePercent(e.ownerLocalTimePercent ?? "") ?? 0) + 1e-9) {
+      return "Tu parte cobrable no puede ser mayor que el tiempo que no le das al local.";
+    }
+  }
+  return null;
+}
+
 /** Error de validación del bloque «Mi estudio» (null si está bien). */
 export function errorDeEstudio(e: CuantoCobroStudioStructure): string | null {
   const montoMal = (v: string) => v.trim() !== "" && parseCuantoCobroAmount(v) === null;
@@ -111,7 +158,30 @@ export function errorDeEstudio(e: CuantoCobroStudioStructure): string | null {
     if ((parseStudioDecimal(p.hoursPerWorkday) ?? 0) > 24) return `${quien}: no puede trabajar más de 24 horas por día.`;
     if ((parseStudioDecimal(p.vacationWeeksPerYear) ?? 0) > 52) return `${quien}: las vacaciones no pueden pasar de 52 semanas.`;
   }
-  return null;
+  return errorDelLocal(e);
+}
+
+export type FilaCoberturas = { etiqueta: string; monto: number };
+
+/**
+ * Renglones de «Tus coberturas» (modo separado) que suman lo que tienen que cubrir las horas.
+ * Lo que necesitás llevarte ya viene del motor con el piso en cero; tus insumos son la parte del equipo
+ * que no es de otras personas (el motor los suma al costo del dueño).
+ */
+export function filasDeCoberturas(d: CuantoCobroStudioBreakdown): FilaCoberturas[] {
+  const sep = d.separated;
+  if (!sep) return [];
+  const tusInsumos = Math.max(0, d.teamCost - sep.coverageTeamCost);
+  const filas: (FilaCoberturas | null)[] = [
+    { etiqueta: "Lo que necesitás llevarte de las coberturas", monto: sep.ownerNetNeed },
+    { etiqueta: "Gastos fijos de coberturas y compartidos", monto: d.fixedCosts },
+    sep.coverageTeamCost > 0 ? { etiqueta: "Equipo de coberturas", monto: sep.coverageTeamCost } : null,
+    tusInsumos > 0 ? { etiqueta: "Tus insumos", monto: tusInsumos } : null,
+    { etiqueta: "Reservas (equipamiento y fondo de emergencia)", monto: d.reserves },
+    d.fixedFromExtras > 0 ? { etiqueta: "Monotributo y seguro del equipo", monto: d.fixedFromExtras } : null,
+    d.profit > 0 ? { etiqueta: "Ganancia", monto: d.profit } : null,
+  ];
+  return filas.filter((f): f is FilaCoberturas => f !== null);
 }
 
 /** Error de validación de las cámaras adicionales (null si está bien). */
@@ -134,6 +204,7 @@ export {
   computeStudioBreakdown as desgloseDelEstudio,
   createCamera as nuevaCamara,
   createStudioPerson as nuevaPersonaDelEstudio,
+  isSeparateLocalActive as localSeparadoActivo,
   isStudioModeActive as estudioEncendido,
   MAX_EXTRA_CAMERAS as MAX_CAMARAS_ADICIONALES,
   normalizeCameras as normalizarCamaras,

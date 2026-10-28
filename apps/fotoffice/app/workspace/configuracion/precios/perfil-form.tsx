@@ -6,6 +6,7 @@ import {
   CC_WIZARD_STEPS,
   getCuantoCobroMissingFields,
   INITIAL_CUANTO_COBRO_QUOTE,
+  isSeparateLocalActive,
   isStudioModeActive,
   type CuantoCobroProfileInput,
   type CuantoCobroStudioStepId,
@@ -32,7 +33,7 @@ import {
 } from "./secciones";
 import { SeccionCobros } from "./secciones-cobros";
 import { encenderMiEstudio } from "@/lib/precios/estudio";
-import type { MiembroParaVincular } from "@/lib/precios/estudio-servidor";
+import type { DatosDeMiEstudio } from "@/lib/precios/estudio-servidor";
 import {
   SeccionEquipoEstudio,
   SeccionEquipoYCamaras,
@@ -42,6 +43,7 @@ import {
   SeccionVosEnElEstudio,
   type PropsSeccionEstudio,
 } from "./secciones-estudio";
+import { SeccionLocalYCoberturas } from "./secciones-local";
 
 /** Los pasos del perfil del ¿Cuánto Cobro? original (la moneda no: FOTOFFICE cotiza en pesos). */
 const CONTENIDO: Partial<Record<string, (p: PropsSeccionEstudio) => React.ReactNode>> = {
@@ -63,6 +65,7 @@ const CONTENIDO_ESTUDIO: Partial<Record<string, (p: PropsSeccionEstudio) => Reac
   "studio-costs": SeccionGastosFijos,
   "studio-team": SeccionEquipoEstudio,
   "studio-owner": SeccionVosEnElEstudio,
+  "studio-local": SeccionLocalYCoberturas,
   investment: SeccionEquipoYCamaras,
   "studio-lines": SeccionOtrasLineas,
   "studio-summary": SeccionResumenEstudio,
@@ -106,6 +109,12 @@ const PASOS_ESTUDIO: Paso[] = [
   { id: "studio-costs", title: "Gastos fijos del estudio", description: "Lo que pagás todos los meses haya trabajo o no: local, servicios, software, publicidad, contador…", motor: true },
   { id: "studio-team", title: "Equipo", description: "Cada persona con su contratación, su sueldo y su jornada (días por semana × horas por día).", motor: true },
   { id: "studio-owner", title: "Vos en el estudio", description: "Tu retiro por mes y tu jornada.", motor: true },
+  {
+    id: "studio-local",
+    title: "Local y coberturas",
+    description: "Tus gastos personales, lo que te paga el local, qué gasto y qué persona es de cada parte, y lo que deja el local.",
+    motor: true,
+  },
   { ...pasoDelMotor("investment"), description: "La inversión mensual en equipo, tu cámara principal y las otras cámaras del estudio." },
   { ...pasoDelMotor("emergency-fund"), description: "Reserva mensual del estudio para imprevistos." },
   { id: "studio-lines", title: "Otras líneas y ganancia", description: "Lo que dejan los productos o los cursos y la ganancia del estudio para reinvertir.", motor: false },
@@ -113,6 +122,12 @@ const PASOS_ESTUDIO: Paso[] = [
   PASO_COBROS,
   { id: "studio-summary", title: "Resumen del estudio", description: "Lo que cuesta el estudio por mes, las horas que puede cobrar y cuánto vale la hora de cada uno.", motor: false },
 ];
+
+/** Con el local separado: «Local y coberturas» después de «Vos en el estudio» y sin el retiro (no se usa). */
+const PASOS_ESTUDIO_SEPARADO: Paso[] = PASOS_ESTUDIO.map((p) =>
+  p.id === "studio-owner" ? { ...p, description: "Tu jornada y la parte de tu tiempo que se puede cobrar." } : p,
+);
+const PASOS_ESTUDIO_JUNTO: Paso[] = PASOS_ESTUDIO.filter((p) => p.id !== "studio-local");
 
 const SIN_TEXTOS: Partial<Record<string, TextoDePaso>> = {};
 const SIN_PASOS: PasoAgregado[] = [];
@@ -134,8 +149,11 @@ export function PerfilForm({
   version: string | null;
   /** DNX Bot encendido para este workspace: se ofrece armarlo conversando sólo si la persona parece trabada. */
   bot?: { workspaceId: string } | null;
-  /** Mi estudio: si se ofrece (workspace de tipo estudio) y los miembros para vincular a cada persona. */
-  estudio?: { ofrece: boolean; miembros: MiembroParaVincular[] } | null;
+  /**
+   * Mi estudio: si se ofrece (workspace de tipo estudio), los miembros para vincular a cada persona y,
+   * para «Local y coberturas», las categorías de ingreso de Caja y lo que vendió el local.
+   */
+  estudio?: (Pick<DatosDeMiEstudio, "ofrece" | "miembros"> & Partial<Pick<DatosDeMiEstudio, "categoriasIngreso" | "ventasLocal">>) | null;
   /** Dónde se guarda. Por omisión, el perfil del workspace (Configuración → Precios). */
   accion?: (perfil: unknown, versionCargada?: string | null) => Promise<ResultadoPerfilPrecios>;
   /** Títulos y explicaciones propios para algunos pasos, por id. */
@@ -146,12 +164,13 @@ export function PerfilForm({
   const pesos = useFormatearPesos();
   const [perfil, setPerfil] = useState(inicial);
   const modoEstudio = isStudioModeActive(perfil);
+  const separado = isSeparateLocalActive(perfil);
   const PASOS = useMemo(
     () => [
-      ...(modoEstudio ? PASOS_ESTUDIO : PASOS_SOLO).map((p) => ({ ...p, ...textos[p.id] })),
+      ...(modoEstudio ? (separado ? PASOS_ESTUDIO_SEPARADO : PASOS_ESTUDIO_JUNTO) : PASOS_SOLO).map((p) => ({ ...p, ...textos[p.id] })),
       ...pasosAgregados.map((p) => ({ id: p.id, title: p.title, description: p.description, motor: false })),
     ],
-    [modoEstudio, textos, pasosAgregados],
+    [modoEstudio, separado, textos, pasosAgregados],
   );
   const contenidos = useMemo(
     () => ({ ...(modoEstudio ? CONTENIDO_ESTUDIO : CONTENIDO), ...Object.fromEntries(pasosAgregados.map((p) => [p.id, p.Contenido])) }),
@@ -393,7 +412,13 @@ export function PerfilForm({
           </header>
 
           <div className="space-y-5 p-5 sm:p-6">
-            <Contenido perfil={perfil} cambiar={cambiar} miembros={estudio?.miembros ?? []} />
+            <Contenido
+              perfil={perfil}
+              cambiar={cambiar}
+              miembros={estudio?.miembros ?? []}
+              categoriasIngreso={estudio?.categoriasIngreso ?? []}
+              ventasLocal={estudio?.ventasLocal ?? null}
+            />
             {mostrarFaltan && faltan.length > 0 ? (
               <div role="alert">
                 <Aviso tono="alerta">

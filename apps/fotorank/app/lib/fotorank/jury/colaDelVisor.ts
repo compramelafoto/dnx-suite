@@ -161,3 +161,20 @@ export function laSiguiente(
   const siguiente = (pos + paso + lista.length) % lista.length;
   return lista[siguiente] ?? null;
 }
+
+/**
+ * Las pestañas de un concurso sin consignas: una por categoría.
+ *
+ * Un concurso de FotoRank no tiene consignas, y el visor mezclaba Color y
+ * Monocromo en una sola lista. Cada categoría tiene su propio ranking, así que
+ * el jurado tiene que compararlas entre sí y no con las de la otra. Se numeran
+ * en el orden del concurso, igual que las consignas.
+ */
+export function pestanasPorCategoria(
+  categorias: Array<{ id: string; name: string; sortOrder: number }>,
+): Map<string, { numero: number; titulo: string }> {
+  const ordenadas = [...categorias].sort(
+    (a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, "es"),
+  );
+  return new Map(ordenadas.map((c, i) => [c.id, { numero: i + 1, titulo: c.name }]));
+}
