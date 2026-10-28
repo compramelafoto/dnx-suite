@@ -105,6 +105,46 @@ describe("herramientasDeAtencion", () => {
     expect(vacio.message).toMatch(/no hay cursos/i);
   });
 
+  it("armar_pedido_impresion traduce los números de foto y devuelve el resumen con los dos links", async () => {
+    const recibidos: unknown[] = [];
+    const armarPedido = async (_w: string, _c: unknown, d: unknown) => {
+      recibidos.push(d);
+      return {
+        ok: true as const, numero: 12, subtotal: 28000, envio: 0, total: 28000, sena: 14000, linkSena: "https://mp/sena", linkTotal: "https://mp/total",
+        lineas: [{ medida: "13x18", plazo: "MANANA" as const, cantidad: 2, precioUnitario: 7000, costoUnitario: 600, proveedorId: "f", productoId: "p" }],
+        fechas: [{ plazo: "MANANA" as const, fecha: "2026-10-29" }],
+      };
+    };
+    const fotos = new Map([[1, "m1"], [2, "m2"]]);
+    const h = herramientasDeAtencion("w1", { ...deps, armarPedido }, { id: "c1", waId: "549", clientId: null, nombre: "Ana" }, fotos);
+    const t = h.tools.find((x) => x.name === "armar_pedido_impresion")!;
+    const entrada = { renglones: [{ fotos: "todas", medida: "13x18", cantidad: 1, plazo: "para mañana" }, { fotos: [2], medida: "10x15", cantidad: 3, plazo: "proxima semana", papel: "mate" }] };
+    expect(t.input.safeParse(entrada).success).toBe(true);
+    const r = await t.run(entrada, { userId: 0, role: "CLIENTE", email: "", name: null });
+    expect(recibidos[0]).toMatchObject({
+      renglones: [
+        { fotos: [{ mensajeId: "m1" }, { mensajeId: "m2" }], medida: "13x18", cantidad: 1, plazo: "MANANA", papel: "BRILLO" },
+        { fotos: [{ mensajeId: "m2" }], medida: "10x15", cantidad: 3, plazo: "SEMANA", papel: "MATE" },
+      ],
+      envio: null,
+    });
+    expect(r.message).toContain("https://mp/sena");
+    expect(r.message).toContain("https://mp/total");
+    expect(r.message).toMatch(/\$\s?14\.000/);
+    expect(r.message).toMatch(/\$\s?28\.000/);
+  });
+
+  it("armar_pedido_impresion: una foto que no existe o un precio que falta se lo explica al bot", async () => {
+    const armarPedido = async () => ({ ok: false as const, motivo: "PRECIO" as const, detalle: "13x13 para mañana" });
+    const h = herramientasDeAtencion("w1", { ...deps, armarPedido }, { id: "c1", waId: "549", clientId: null, nombre: null }, new Map([[1, "m1"]]));
+    const t = h.tools.find((x) => x.name === "armar_pedido_impresion")!;
+    const sinFoto = await t.run({ renglones: [{ fotos: [5], medida: "13x18", cantidad: 1, plazo: "para mañana" }] }, { userId: 0, role: "CLIENTE", email: "", name: null });
+    expect(sinFoto.message).toMatch(/foto 5/);
+    const sinPrecio = await t.run({ renglones: [{ fotos: [1], medida: "13x13", cantidad: 1, plazo: "para mañana" }] }, { userId: 0, role: "CLIENTE", email: "", name: null });
+    expect(sinPrecio.message).toContain("13x13 para mañana");
+    expect(sinPrecio.message).toContain("pasar_a_persona");
+  });
+
   it("todas son de lectura (no hay acciones que confirmar)", () => {
     expect(herramientasDeAtencion("w1", deps).tools.every((t) => t.kind === "read")).toBe(true);
   });

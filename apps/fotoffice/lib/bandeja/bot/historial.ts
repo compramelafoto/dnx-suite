@@ -9,7 +9,7 @@
 import { archivoDeMensaje } from "../archivo-de-mensaje";
 import { medidasQueAlcanzan } from "../calidad";
 
-export type MensajeChat = { direccion: string; autor: string; tipo: string; texto: string | null; media?: unknown; createdAt?: Date };
+export type MensajeChat = { id?: string; direccion: string; autor: string; tipo: string; texto: string | null; media?: unknown; createdAt?: Date };
 export type MensajeModelo = { role: "user" | "assistant"; content: string };
 
 const SIN_TEXTO: Record<string, string> = {
@@ -45,12 +45,24 @@ function textoDe(m: MensajeChat, ahora?: Date): string {
  * `userText`: el bloque final del cliente (lo que hay que responder). `history`: lo anterior, que
  * siempre empieza con el cliente y alterna. `null` si lo último no es del cliente.
  */
-export function historialParaElBot(mensajes: readonly MensajeChat[], max = 40, ahora?: Date): { history: MensajeModelo[]; userText: string } | null {
+export function historialParaElBot(
+  mensajes: readonly MensajeChat[],
+  max = 40,
+  ahora?: Date,
+): { history: MensajeModelo[]; userText: string; fotos: Map<number, string> } | null {
   const bloques: MensajeModelo[] = [];
+  // Las fotos que se pueden imprimir se numeran ("foto 1", "foto 2"…) para que el bot arme el pedido.
+  const fotos = new Map<number, string>();
   for (const m of mensajes) {
     if (m.direccion === "SISTEMA" || m.autor === "SISTEMA") continue;
     const role = m.direccion === "ENTRANTE" ? "user" : "assistant";
-    const contenido = role === "user" ? textoDe(m, ahora) : m.texto?.trim();
+    let contenido = role === "user" ? textoDe(m, ahora) : m.texto?.trim();
+    const a = role === "user" && m.id ? archivoDeMensaje(m.tipo, m.media) : null;
+    if (a && a.estado === "LISTO" && (m.tipo === "IMAGEN" || (a.mime?.startsWith("image/") ?? false))) {
+      const n = fotos.size + 1;
+      fotos.set(n, m.id!);
+      contenido = `[foto ${n}] ${contenido}`;
+    }
     if (!contenido) continue;
     const ultimo = bloques.at(-1);
     if (ultimo && ultimo.role === role) ultimo.content += `\n${contenido}`;
@@ -61,5 +73,5 @@ export function historialParaElBot(mensajes: readonly MensajeChat[], max = 40, a
 
   let history = bloques.slice(-max);
   while (history.length > 0 && history[0].role !== "user") history = history.slice(1);
-  return { history, userText: final.content };
+  return { history, userText: final.content, fotos };
 }

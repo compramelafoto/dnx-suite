@@ -2,6 +2,7 @@ import { defineTool, z, type BotTool } from "@repo/dnx-bot";
 import { prisma } from "@repo/db";
 import { precioDeLista } from "@/lib/presupuestos/lista-precios";
 import { listProducts } from "@/lib/sales/repository";
+import type { DatosPedidoBot, ResultadoPedidoBot } from "@/lib/impresiones/whatsapp-servidor";
 
 /**
  * Herramientas del bot que atiende a los clientes por WhatsApp. Son de LECTURA salvo
@@ -49,6 +50,9 @@ export type DepsAtencion = {
   /** Da de alta la consulta y arma el presupuesto para aprobar (spec 2026-10-25). */
   prepararPresupuesto: (workspaceId: string, chat: ChatAtencion, datos: DatosPresupuestoBot) => Promise<{ ok: boolean; message: string }>;
   cursos: (workspaceId: string) => Promise<CursoAtencion[]>;
+  /** Pedido de copias e impresiones con las fotos del chat (spec 2026-10-28). */
+  armarPedido: (workspaceId: string, chat: ChatAtencion, datos: DatosPedidoBot) => Promise<ResultadoPedidoBot>;
+  estadoPedido: (workspaceId: string, chat: ChatAtencion) => Promise<string>;
 };
 
 const FECHA_CURSO = new Intl.DateTimeFormat("es-AR", {
@@ -88,6 +92,28 @@ const DEPS: DepsAtencion = {
       url: base && branding?.publicSlug ? `${base}/w/${branding.publicSlug}/cursos/${c.slug}` : null,
       proximas: c.instances.map((i) => ({ fecha: FECHA_CURSO.format(i.startDateTime), lugar: i.locationName, precio: Number(i.priceArs) })),
     }));
+  },
+  armarPedido: async (workspaceId, chat, datos) => {
+    const { crearPedidoDesdeWhatsapp } = await import("@/lib/impresiones/whatsapp-servidor");
+    return crearPedidoDesdeWhatsapp(workspaceId, chat, datos);
+  },
+  estadoPedido: async (workspaceId, chat) => {
+    const p = await prisma.fotofficePrintOrder.findFirst({
+      where: { workspaceId, waChatId: chat.id, NOT: { lastError: "REEMPLAZADO" } },
+      orderBy: { createdAt: "desc" },
+      select: { number: true, status: true, totalArs: true, paidArs: true, promisedAt: true },
+    });
+    if (!p) return "Este cliente no tiene pedidos de copias por WhatsApp.";
+    const estado: Record<string, string> = {
+      PENDIENTE_PAGO: "esperando el pago", PAGADO: "pagado, en preparación", PREPARANDO: "en preparación", ENVIADO: "en el laboratorio",
+      PAGADO_SIN_ENVIAR: "pagado; el estudio lo está revisando", CANCELADO: "cancelado",
+    };
+    const saldo = Number(p.totalArs) - Number(p.paidArs);
+    return [
+      `Pedido ${p.number}: ${estado[p.status] ?? p.status}.`,
+      `Total ${precioDeLista(Number(p.totalArs))}; pagado ${precioDeLista(Number(p.paidArs))}${saldo > 0 && p.status !== "PENDIENTE_PAGO" ? `; saldo ${precioDeLista(saldo)} al retirar` : ""}.`,
+      p.promisedAt ? `Fecha prometida: ${p.promisedAt.toISOString().slice(8, 10)}/${p.promisedAt.toISOString().slice(5, 7)}.` : "",
+    ].filter(Boolean).join(" ");
   },
   prepararPresupuesto: async (workspaceId, chat, datos) => {
     // Se carga recién acá: el alta de consultas y Presupuestos no hacen falta para contestar precios.
@@ -133,6 +159,8 @@ export function herramientasDeAtencion(
   workspaceId: string,
   parciales: Partial<DepsAtencion> = {},
   chat: ChatAtencion | null = null,
+  /** Número de foto (como la ve el bot) → mensaje del chat. */
+  fotos: Map<number, string> = new Map(),
 ): { tools: BotTool[]; pedidoDePersona: () => string | null } {
   const deps: DepsAtencion = { ...DEPS, ...parciales };
   let motivoPersona: string | null = null;
@@ -212,9 +240,84 @@ export function herramientasDeAtencion(
       },
     }),
     defineTool({
+      name: "armar_pedido_impresion",
+      description:
+        "Arma un pedido de copias o ampliaciones con las fotos que mandó el cliente por este chat (las ves numeradas: [foto 1], [foto 2]…) y devuelve el total, la seña del 50 % y dos links de Mercado Pago (seña o total). Usala cuando ya sepas, para cada grupo de fotos, la medida, la cantidad de copias de cada foto y el plazo; el papel es brillante salvo que pida mate. Si quiere envío a domicilio, pasá la dirección con la localidad. Si el cliente cambia algo, volvé a usarla: el pedido anterior se reemplaza.",
+      input: z.object({
+        renglones: z
+          .array(
+            z.object({
+              fotos: z.union([z.literal("todas"), z.array(z.number().int().min(1)).min(1).max(200)]),
+              medida: z.string().regex(/^\d{1,3} ?x ?\d{1,3}$/),
+              cantidad: z.number().int().min(1).max(500),
+              plazo: z.enum(["instantanea", "para mañana", "proxima semana"]),
+              papel: z.enum(["brillante", "mate"]).optional(),
+            }),
+          )
+          .min(1)
+          .max(20),
+        envio: z.object({ direccion: z.string().min(5).max(200) }).optional(),
+      }),
+      kind: "read",
+      run: async ({ renglones, envio }) => {
+        if (!chat) return { ok: true, message: "Ahora no puedo armar el pedido. Usá pasar_a_persona con un resumen de lo que pide." };
+        const todas = [...fotos.keys()].sort((a, b) => a - b);
+        const plazo = { instantanea: "INSTANTANEA", "para mañana": "MANANA", "proxima semana": "SEMANA" } as const;
+        const datos: DatosPedidoBot = { renglones: [], envio: envio ? { direccion: envio.direccion } : null, nombre: chat.nombre ?? "" };
+        for (const r of renglones) {
+          const numeros = r.fotos === "todas" ? todas : r.fotos;
+          const falta = numeros.find((n) => !fotos.has(n));
+          if (falta !== undefined || numeros.length === 0) {
+            return { ok: true, message: falta !== undefined ? `No hay una foto ${falta} lista en el chat. Pedile al cliente que la mande (o la reenvíe).` : "Todavía no hay fotos listas en el chat: pedile que las mande." };
+          }
+          datos.renglones.push({
+            fotos: numeros.map((n) => ({ mensajeId: fotos.get(n)! })),
+            medida: r.medida.replace(/\s/g, ""),
+            cantidad: r.cantidad,
+            plazo: plazo[r.plazo],
+            papel: r.papel === "mate" ? "MATE" : "BRILLO",
+          });
+        }
+        const res = await deps.armarPedido(workspaceId, chat, datos);
+        if (!res.ok) {
+          const motivos: Record<string, string> = {
+            PRECIO: `${res.detalle ?? "Esa medida"} no está en el catálogo del estudio. Usá pasar_a_persona con un resumen.`,
+            FOTO_NO_LISTA: "Una de las fotos no se pudo bajar: pedile al cliente que la reenvíe.",
+            SIN_FOTOS: "Faltan las fotos: pedile que las mande.",
+            ENVIO_LEJOS: "Esa dirección está fuera de la zona de envío: ofrecele retirar en el estudio.",
+            SIN_DIRECCION: "No pude ubicar la dirección: pedile calle, número y localidad.",
+          };
+          return { ok: true, message: motivos[res.motivo] ?? "No pude armar el pedido. Usá pasar_a_persona con un resumen de lo que pide." };
+        }
+        const nombrePlazo = { INSTANTANEA: "instantánea", MANANA: "para mañana", SEMANA: "para la próxima semana" } as const;
+        const lineas = res.lineas.map((l) => `- ${l.cantidad} × ${l.medida} ${nombrePlazo[l.plazo]}: ${precioDeLista(l.precioUnitario)} c/u`);
+        const fechas = res.fechas.map((f) => `${nombrePlazo[f.plazo]}: ${f.fecha.slice(8, 10)}/${f.fecha.slice(5, 7)}`);
+        return {
+          ok: true,
+          message: [
+            `Pedido ${res.numero} armado.`,
+            ...lineas,
+            ...(res.envio > 0 ? [`- Envío: ${precioDeLista(res.envio)}`] : []),
+            `Total: ${precioDeLista(res.total)}. Seña del 50 %: ${precioDeLista(res.sena)}.`,
+            `Fechas (si paga hoy): ${fechas.join("; ")}.`,
+            `Link para pagar la seña: ${res.linkSena}`,
+            `Link para pagar el total: ${res.linkTotal}`,
+            "Pasale al cliente el resumen corto, el total, la seña y los dos links (puede pagar cualquiera de los dos). Cuando pague, le llega la confirmación por acá.",
+          ].join("\n"),
+        };
+      },
+    }),
+    defineTool({
+      name: "estado_de_mi_pedido",
+      description: "El estado del último pedido de copias de este cliente (pago, preparación, fecha, saldo). Usala cuando pregunte por su pedido.",
+      input: z.object({}),
+      kind: "read",
+      run: async () => ({ ok: true, message: chat ? await deps.estadoPedido(workspaceId, chat) : "No tengo el chat del cliente." }),
+    }),
+    defineTool({
       name: "pasar_a_persona",
       description:
-        "Deja el chat para que lo atienda una persona del estudio. Usala para presupuestos de eventos cuando preparar_presupuesto no los arma; reclamos; pedidos de descuento; cuando el cliente pide hablar con alguien; cuando quiere encargar algo (todavía no podés armar pedidos ni cobrar); o cuando no sabés la respuesta. Después de usarla, avisale al cliente que en breve le escribe alguien del estudio.",
+        "Deja el chat para que lo atienda una persona del estudio. Usala para presupuestos de eventos cuando preparar_presupuesto no los arma; reclamos; pedidos de descuento; cuando el cliente pide hablar con alguien; cuando quiere encargar algo que no son copias ni ampliaciones (cuadros, portarretratos, VHS, fotolibros: eso todavía lo arma una persona); o cuando no sabés la respuesta. Después de usarla, avisale al cliente que en breve le escribe alguien del estudio.",
       input: z.object({ motivo: z.string().min(3).max(200) }),
       kind: "read",
       run: async ({ motivo }) => {

@@ -44,6 +44,13 @@ describe("guía del bot de atención", () => {
     expect(guiaDeAtencion()).toContain("cursos_del_estudio");
   });
 
+  it("arma pedidos de copias con armar_pedido_impresion y ofrece seña o total", () => {
+    const g = guiaDeAtencion();
+    expect(g).toContain("armar_pedido_impresion");
+    expect(g).toContain("seña del 50 %");
+    expect(g).not.toContain("No armás pedidos ni cobrás todavía");
+  });
+
   it("la situación dice el día y la hora en Argentina y el nombre si lo hay", () => {
     const s = situacionDeAtencion({ estudio: "DNX Estudio", cliente: "Lucía", ahora: new Date("2026-10-20T23:30:00.000Z") });
     expect(s).toContain("DNX Estudio");
