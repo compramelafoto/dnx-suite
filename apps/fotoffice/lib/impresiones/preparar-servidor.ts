@@ -57,6 +57,8 @@ type Item = {
   id: string; sourceKey: string; sourceName: string; widthCm: unknown; heightCm: unknown; quantity: number;
   cropX: number; cropY: number; cropW: number; cropH: number; proveedorId: string | null; proyectoId: string | null;
   sizeId?: string | null; unitCostArs?: unknown;
+  /** Pedidos del bot (spec 2026-10-28). */
+  sinRecorte?: boolean; plazo?: string | null; paper?: string | null; calidadBaja?: boolean;
 };
 
 export async function recortarParaImprimir(original: Buffer, item: Pick<Item, "cropX" | "cropY" | "cropW" | "cropH">): Promise<Buffer> {
@@ -261,7 +263,11 @@ export async function prepararPedido(pedidoId: string, deps: DepsPreparar = {}):
     // La unidad de envío es el trabajo: un ZIP, un correo y una marca de enviado por trabajo. En un reintento,
     // el trabajo que ya salió no se vuelve a mandar.
     const porTrabajo = new Map<string, Item[]>();
-    for (const i of p.items as Item[]) porTrabajo.set(i.proyectoId!, [...(porTrabajo.get(i.proyectoId!) ?? []), i]);
+    // Las instantáneas se imprimen en el estudio: su trabajo no va al laboratorio.
+    for (const i of p.items as Item[]) {
+      if (i.plazo === "INSTANTANEA") continue;
+      porTrabajo.set(i.proyectoId!, [...(porTrabajo.get(i.proyectoId!) ?? []), i]);
+    }
     const yaEnviados = new Set(trabajos.filter((t) => t.proveedorEnviadoAt).map((t) => t.id));
     const { laboratorio, errores } = await laboratoriosPorTrabajo(ws, porTrabajo, trabajos, yaEnviados);
 
@@ -274,7 +280,10 @@ export async function prepararPedido(pedidoId: string, deps: DepsPreparar = {}):
       if (!destino) throw new Error(prueba ? "El estudio no tiene correo de contacto para el modo prueba." : `${prov.name} no tiene correo cargado.`);
 
       const ordenados = ordenarParaZip(items.map((i) => ({ ...i, widthCm: Number(i.widthCm), heightCm: Number(i.heightCm) })));
-      const paraLab = ordenados.map((i) => ({ itemId: i.id, proveedorId, widthCm: i.widthCm, heightCm: i.heightCm, quantity: i.quantity, sourceName: i.sourceName }));
+      const paraLab = ordenados.map((i) => ({
+        itemId: i.id, proveedorId, widthCm: i.widthCm, heightCm: i.heightCm, quantity: i.quantity, sourceName: i.sourceName,
+        paper: i.paper === "MATE" || i.paper === "BRILLO" ? (i.paper as Papel) : null, original: i.sinRecorte === true,
+      }));
       const rutas = new Map(rutasDelZip(p.number, p.nombre, p.paper as Papel, paraLab).map((r) => [r.itemId, r.ruta]));
       const archivos = ordenados.map((i) => ({
         nombre: rutas.get(i.id)!,
@@ -282,7 +291,8 @@ export async function prepararPedido(pedidoId: string, deps: DepsPreparar = {}):
         abrir: async () => {
           // Si una copia falla, el pedido no sale incompleto: se corta todo el ZIP.
           try {
-            const jpg = await recortar(await leer(i.sourceKey), i);
+            // Los originales del bot van tal cual: el encuadre lo decide el laboratorio.
+            const jpg = i.sinRecorte ? await leer(i.sourceKey) : await recortar(await leer(i.sourceKey), i);
             return (async function* () {
               yield new Uint8Array(jpg);
             })();
@@ -312,6 +322,9 @@ export async function prepararPedido(pedidoId: string, deps: DepsPreparar = {}):
         vence: enlace.vence.slice(0, 10),
         resumen: resumenParaLab(paraLab, p.paper as Papel),
         prueba,
+        plazo: items[0]?.plazo === "SEMANA" ? "SEMANA" : items[0]?.plazo === "MANANA" ? "MANANA" : null,
+        calidadBaja: items.filter((i) => i.calidadBaja).map((i) => i.sourceName),
+        sinRecorte: items.some((i) => i.sinRecorte),
       });
       const r = await enviar({ to: destino, ...correo, sender: await loadWorkspaceSender(ws) });
       if (r.status !== "SENT") throw new Error(`El correo a ${prov.name} no salió (${r.status}).`);
