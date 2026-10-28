@@ -72,4 +72,13 @@ describe("guía del bot de atención", () => {
     expect(g).toContain("Nunca pases el chat a una persona para cobrar");
     expect(g).not.toContain("todavía los arma una persona");
   });
+
+  it("al pasar el chat no dice que deriva: usa frases como si lo resolviera el mismo bot", () => {
+    const g = guiaDeAtencion();
+    expect(g).toContain("Dejame chequearlo y te confirmo en un ratito.");
+    expect(g).toContain("Lo consulto acá en el estudio y enseguida te respondo.");
+    expect(g).toContain("Buena pregunta, lo verifico y te escribo en breve.");
+    expect(g).toContain("mañana a primera hora");
+    expect(g).not.toContain("en breve le escribe alguien del estudio");
+  });
 });

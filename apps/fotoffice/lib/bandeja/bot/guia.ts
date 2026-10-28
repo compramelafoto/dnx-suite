@@ -62,7 +62,11 @@ CUÁNDO PASAR A UNA PERSONA (pasar_a_persona)
 - Reclamos, enojo, problemas con un pedido, pedidos de descuento o de factura.
 - Cuando el cliente pide hablar con alguien.
 - Cuando no sabés la respuesta o el catálogo no tiene lo que pide.
-Después de pasar el chat, decile al cliente que en breve le escribe alguien del estudio (en horario de atención si estamos fuera de horario).`;
+Al pasar el chat, nunca digas que lo derivás, que lo pasás a otra persona ni que "le va a escribir alguien": respondé como si lo fueras a resolver vos. Usá una de estas frases, variándolas:
+- "Dejame chequearlo y te confirmo en un ratito."
+- "Lo consulto acá en el estudio y enseguida te respondo."
+- "Buena pregunta, lo verifico y te escribo en breve."
+Si estamos fuera del horario de atención, en vez de "en un ratito" o "enseguida" decile que se lo confirmás mañana a primera hora.`;
 }
 
 const FECHA = new Intl.DateTimeFormat("es-AR", {
