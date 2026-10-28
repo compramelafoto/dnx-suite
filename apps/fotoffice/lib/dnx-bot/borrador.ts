@@ -180,6 +180,12 @@ export function loAnotado(parche: ParchePerfil, base: CuantoCobroProfileInput): 
     if (e.retiro !== undefined) l.push("tu retiro");
     if (e.tuJornada) l.push("tu jornada");
     for (const x of e.personas ?? []) l.push(x.quitar ? `quitar a ${x.nombre} del equipo` : `${x.nombre} (${Object.keys(x).filter((k) => k !== "nombre").join(", ") || "nombre"})`);
+    if (e.separarLocal !== undefined) l.push(e.separarLocal ? "local y coberturas por separado" : "local y coberturas juntos");
+    if (e.sueldoDelLocal !== undefined) l.push("lo que te paga el local");
+    if (e.tiempoEnElLocal !== undefined) l.push("tu tiempo en el local");
+    if (e.compartidoCoberturas !== undefined) l.push("gastos compartidos que llevan las coberturas");
+    if (e.costoMercaderia !== undefined) l.push("costo de la mercadería");
+    if (e.localEstimado !== undefined) l.push("lo que deja el local");
     if (e.otrasLineas !== undefined) l.push("lo que dejan otras líneas");
     if (e.ganancia) l.push("ganancia del estudio");
   }
@@ -190,7 +196,9 @@ export function loAnotado(parche: ParchePerfil, base: CuantoCobroProfileInput): 
 /** Rubros de gastos personales sin ningún monto, ni en el perfil guardado ni en el borrador. */
 export function rubrosSinDatos(parche: ParchePerfil, base: CuantoCobroProfileInput): string[] {
   // Con «Mi estudio» no hacen falta gastos personales: el retiro los reemplaza.
-  if ((base.studioStructure?.enabled === true && parche.estudio?.activar !== false) || (parche.estudio && parche.estudio.activar !== false)) return [];
+  // (con el local separado sí hacen falta: de ahí sale lo que necesita llevarse de las coberturas)
+  const separado = parche.estudio?.separarLocal === true || (base.studioStructure?.separateLocal === true && parche.estudio?.separarLocal !== false);
+  if (!separado && ((base.studioStructure?.enabled === true && parche.estudio?.activar !== false) || (parche.estudio && parche.estudio.activar !== false))) return [];
   const anotados = new Set((parche.gastosPersonales ?? []).map((g) => g.grupoId));
   return base.personalExpenseGroups
     .filter((g) => !anotados.has(g.id) && !g.items.some((i) => (parseCuantoCobroAmount(i.amount ?? "") ?? 0) > 0))

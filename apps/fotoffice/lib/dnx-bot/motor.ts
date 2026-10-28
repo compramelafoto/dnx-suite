@@ -13,6 +13,8 @@ import {
   desgloseDelEstudio,
   encenderMiEstudio,
   estudioEncendido,
+  localSeparadoActivo,
+  separarLocal,
   MAX_CAMARAS_ADICIONALES,
   MAX_PERSONAS_DEL_ESTUDIO,
   normalizarCamaras,
@@ -141,6 +143,8 @@ const esquemaCobros = z
   })
   .describe("Impuestos, cobros y recargos: sólo lo que dijo la persona.");
 
+const ALCANCE_DEL_GASTO = { local: "local", coberturas: "coverage", compartido: "shared" } as const;
+
 const diasOHoras = z.string().regex(/^\d{1,2}([.,]\d{1,2})?$/).describe("Número, con coma si hace falta (\"5,5\").");
 
 /** Mi estudio (16/10/2026): sólo para workspaces de tipo estudio. Todo opcional; sólo lo que dijo la persona. */
@@ -154,6 +158,7 @@ const esquemaEstudio = z
           renglonId: z.string().max(80).optional().describe("id del renglón; si no existe, omitilo y mandá `etiqueta`."),
           etiqueta: z.string().min(1).max(60).optional(),
           monto: montoMes,
+          de: z.enum(["local", "coberturas", "compartido"]).optional().describe("Sólo con «Local y coberturas» encendido: de quién es el gasto. local = del local; coberturas = sólo de las coberturas; compartido = se reparte entre los dos."),
         }),
       )
       .max(40)
@@ -185,11 +190,18 @@ const esquemaEstudio = z
           vendible: porcentaje.optional().describe("% de su tiempo que termina en un presupuesto."),
           insumos: montoMes.optional().describe("Insumos y gastos de la persona por mes (viáticos, celular, uniforme)."),
           activa: z.boolean().optional(),
+          de: z.enum(["local", "coberturas"]).optional().describe("Sólo con «Local y coberturas» encendido: si trabaja en el local o en las coberturas."),
           quitar: z.boolean().optional().describe("true: sacarla del equipo."),
         }),
       )
       .max(MAX_PERSONAS_DEL_ESTUDIO)
       .optional(),
+    separarLocal: z.boolean().optional().describe("true: separar el local de las coberturas (cada gasto y cada persona va al local, a las coberturas o se comparte). false: volver a un solo estudio (no se borra nada)."),
+    sueldoDelLocal: montoMes.optional().describe("Sólo separando el local: lo que el local le paga al dueño por mes."),
+    tiempoEnElLocal: porcentaje.optional().describe("Sólo separando el local: qué % de su tiempo le da el dueño al local."),
+    compartidoCoberturas: porcentaje.optional().describe("Sólo separando el local: qué % de los gastos compartidos lleva la cuenta de coberturas."),
+    costoMercaderia: porcentaje.optional().describe("Sólo separando el local: % de lo que vende el local que se va en mercadería."),
+    localEstimado: montoMes.optional().describe("Sólo separando el local: lo que deja el local por mes, cargado a mano (si no usa las ventas de Caja)."),
     otrasLineas: montoMes.optional().describe("Lo que dejan por mes productos, impresiones o cursos después de sus costos (se descuenta)."),
     ganancia: z
       .object({ monto: montoMes.optional().describe("Ganancia del estudio por mes, monto fijo."), porcentaje: porcentaje.optional().describe("O un % de la estructura.") })
@@ -525,8 +537,11 @@ export function aplicarParche(
         }
         const m = mes(g.monto, item?.label ?? g.etiqueta!);
         if (m === undefined) continue;
-        if (item) item.amount = m;
-        else grupo.items.push({ id: idPropio(g.etiqueta!), label: g.etiqueta!.trim(), amount: m, isCustom: true });
+        const scope = g.de ? ALCANCE_DEL_GASTO[g.de] : undefined;
+        if (item) {
+          item.amount = m;
+          if (scope) item.scope = scope;
+        } else grupo.items.push({ id: idPropio(g.etiqueta!), label: g.etiqueta!.trim(), amount: m, isCustom: true, ...(scope ? { scope } : {}) });
       }
       poner(est.retiro, "Tu retiro", (v) => (e.ownerDrawMonthly = v));
       poner(est.otrasLineas, "Lo que dejan otras líneas", (v) => (e.otherLinesMonthlyContribution = v));
@@ -585,7 +600,24 @@ export function aplicarParche(
         if (q.vacaciones !== undefined) x.vacationWeeksPerYear = q.vacaciones;
         if (q.vendible !== undefined) x.billablePercent = q.vendible;
         if (q.activa !== undefined) x.active = q.activa;
+        if (q.de) x.scope = q.de === "coberturas" ? "coverage" : "local";
         poner(q.insumos, `Insumos de ${x.name}`, (v) => (x.monthlySupplies = v));
+      }
+      if (est.separarLocal === false) e.separateLocal = false;
+      else if (est.separarLocal === true || e.separateLocal === true) Object.assign(e, separarLocal(e));
+      if (e.separateLocal === true) {
+        poner(est.sueldoDelLocal, "Lo que te paga el local", (v) => (e.ownerLocalSalaryMonthly = v));
+        poner(est.localEstimado, "Lo que deja el local", (v) => (e.localMonthlyContributionManual = v));
+        const pct = (v: string | undefined, etiqueta: string, set: (s: string) => void) => {
+          if (v === undefined) return;
+          if (!porcentajeValido(v)) errores.push(`${etiqueta}: tiene que ser un porcentaje entre 0 y 100.`);
+          else set(v);
+        };
+        pct(est.tiempoEnElLocal, "Tu tiempo en el local", (v) => (e.ownerLocalTimePercent = v));
+        pct(est.compartidoCoberturas, "Lo compartido que llevan las coberturas", (v) => (e.coverageSharePercent = v));
+        pct(est.costoMercaderia, "El costo de la mercadería", (v) => (e.localGoodsCostPercent = v));
+      } else if (est.sueldoDelLocal !== undefined || est.tiempoEnElLocal !== undefined || est.compartidoCoberturas !== undefined || est.costoMercaderia !== undefined || est.localEstimado !== undefined) {
+        errores.push("Para cargar lo del local primero hay que separar el local de las coberturas (separarLocal: true).");
       }
       p.studioStructure = e;
     }
@@ -729,6 +761,18 @@ export function vistaDelEstudio(perfil: CuantoCobroProfileInput) {
       titulo: g.title,
       renglones: g.items.map((i) => ({ renglonId: i.id, etiqueta: i.label, monto: plataDe(i.amount, m) })),
     })),
+    ...(d.separated
+      ? {
+          localSeparado: {
+            gastosPersonales: plata(d.separated.personalNeed, m),
+            loQueTePagaElLocal: plata(d.separated.localSalary, m),
+            loQueNecesitasLlevarte: plata(d.separated.ownerNetNeed, m),
+            gastosCompartidosQueLlevanLasCoberturas: plata(d.separated.sharedToCoverage, m),
+            gastosSoloDeCoberturas: plata(d.separated.coverageFixed, m),
+            equipoDeCoberturas: plata(d.separated.coverageTeamCost, m),
+          },
+        }
+      : {}),
     avisos: d.warnings,
   };
 }
@@ -768,7 +812,7 @@ export function tarjetaDelPerfil(s: Simulacion): TarjetaCalculo {
         { etiqueta: "Horas que se cobran por mes", valor: est.horasQueSeCobranPorMes },
         { etiqueta: "Gastos fijos del estudio", valor: est.gastosFijos ?? "$ 0" },
         { etiqueta: "Equipo", valor: est.equipo ?? "$ 0" },
-        { etiqueta: "Tu retiro", valor: est.retiro ?? "$ 0" },
+        { etiqueta: est.localSeparado ? "Lo que necesitás llevarte de las coberturas" : "Tu retiro", valor: (est.localSeparado?.loQueNecesitasLlevarte ?? est.retiro) ?? "$ 0" },
         { etiqueta: "Ganancia del estudio", valor: est.ganancia ?? "$ 0" },
         ...est.personas
           .filter((x) => x.valorDeSuHora)
@@ -842,16 +886,34 @@ function camposDelEstudio(p: CuantoCobroProfileInput, $: (t: string) => string):
   const e = p.studioStructure;
   if (!e) return [];
   const texto = (t: string) => (t?.trim() ? t.trim() : "sin dato");
+  const separado = localSeparadoActivo(p);
   return [
     { clave: "e:modo", etiqueta: "Mi estudio", valor: e.enabled ? "encendido" : "apagado" },
-    { clave: "e:retiro", etiqueta: "Tu retiro", valor: $(e.ownerDrawMonthly) },
-    { clave: "e:otras", etiqueta: "Lo que dejan otras líneas", valor: $(e.otherLinesMonthlyContribution) },
+    ...(separado
+      ? [
+          { clave: "e:sueldoLocal", etiqueta: "Lo que te paga el local", valor: $(e.ownerLocalSalaryMonthly ?? "") },
+          { clave: "e:tiempoLocal", etiqueta: "Tu tiempo en el local", valor: e.ownerLocalTimePercent?.trim() ? `${e.ownerLocalTimePercent} %` : "sin dato" },
+          { clave: "e:compartido", etiqueta: "Gastos compartidos que llevan las coberturas", valor: e.coverageSharePercent?.trim() ? `${e.coverageSharePercent} %` : "sin dato" },
+          { clave: "e:mercaderia", etiqueta: "Costo de la mercadería del local", valor: e.localGoodsCostPercent?.trim() ? `${e.localGoodsCostPercent} %` : "sin dato" },
+          { clave: "e:localEstimado", etiqueta: "Lo que deja el local (a mano)", valor: $(e.localMonthlyContributionManual ?? "") },
+        ]
+      : [
+          { clave: "e:retiro", etiqueta: "Tu retiro", valor: $(e.ownerDrawMonthly) },
+          { clave: "e:otras", etiqueta: "Lo que dejan otras líneas", valor: $(e.otherLinesMonthlyContribution) },
+        ]),
+    { clave: "e:separado", etiqueta: "Local y coberturas por separado", valor: separado ? "sí" : "no" },
     {
       clave: "e:ganancia",
       etiqueta: "Ganancia del estudio",
       valor: e.desiredProfitMode === "percent" ? (e.desiredProfitPercent.trim() ? `${e.desiredProfitPercent} %` : "sin dato") : $(e.desiredProfitMonthly),
     },
-    ...e.fixedCostGroups.flatMap((g) => g.items.map((i) => ({ clave: `e:fijo:${g.id}:${i.id}`, etiqueta: `${g.title} · ${i.label}`, valor: $(i.amount) }))),
+    ...e.fixedCostGroups.flatMap((g) =>
+      g.items.map((i) => ({
+        clave: `e:fijo:${g.id}:${i.id}`,
+        etiqueta: `${g.title} · ${i.label}`,
+        valor: separado && i.scope ? `${$(i.amount)} (${TEXTO_ALCANCE[i.scope]})` : $(i.amount),
+      })),
+    ),
     ...e.people.map((x) => ({
       clave: `e:persona:${x.id}`,
       etiqueta: x.role === "owner" ? "Tu jornada" : `Equipo · ${x.name || "sin nombre"}`,
@@ -861,6 +923,7 @@ function camposDelEstudio(p: CuantoCobroProfileInput, $: (t: string) => string):
         x.employmentType === "employee" && x.socialChargesPercent.trim() ? `cargas ${x.socialChargesPercent} %` : null,
         `${texto(x.workdaysPerWeek)} días × ${texto(x.hoursPerWorkday)} h`,
         x.billablePercent.trim() ? `${x.billablePercent} % vendible` : null,
+        separado && x.role !== "owner" && x.scope ? TEXTO_ALCANCE[x.scope] : null,
         x.active ? null : "inactiva",
       ]
         .filter(Boolean)
@@ -868,6 +931,8 @@ function camposDelEstudio(p: CuantoCobroProfileInput, $: (t: string) => string):
     })),
   ];
 }
+
+const TEXTO_ALCANCE = { local: "del local", coverage: "de coberturas", shared: "compartido" } as const;
 
 const IVA_TEXTO: Record<string, string> = { monotributo: "monotributo", responsable_inscripto: "responsable inscripto", exento: "exento" };
 

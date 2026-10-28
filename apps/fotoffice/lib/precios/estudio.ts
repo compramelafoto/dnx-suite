@@ -177,6 +177,7 @@ export {
   computeStudioBreakdown as desgloseDelEstudio,
   createCamera as nuevaCamara,
   createStudioPerson as nuevaPersonaDelEstudio,
+  isSeparateLocalActive as localSeparadoActivo,
   isStudioModeActive as estudioEncendido,
   MAX_EXTRA_CAMERAS as MAX_CAMARAS_ADICIONALES,
   normalizeCameras as normalizarCamaras,
