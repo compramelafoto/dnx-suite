@@ -233,6 +233,29 @@ export type StudioPersonBreakdown = {
   rate: number | null;
 };
 
+/**
+ * Modo separado: el detalle de la cuenta de las coberturas (spec 2026-10-28, §4.3). Los campos de siempre
+ * del desglose (`ownerDraw`, `fixedCosts`, `teamCost`, `capacityHours`…) ya traen estos valores aplicados.
+ */
+export type StudioCoverageAccount = {
+  /** Suma de los gastos personales del perfil. */
+  personalNeed: number;
+  /** Lo que el local le paga al dueño por su tiempo. */
+  localSalary: number;
+  /** Otros ingresos (sólo si no vive sólo de la fotografía). */
+  externalIncome: number;
+  /** max(0, gastos personales − sueldo del local − otros ingresos): reemplaza al retiro. */
+  ownerNetNeed: number;
+  /** Todos los gastos fijos compartidos. */
+  sharedFixed: number;
+  /** La parte de los compartidos que llevan las coberturas. */
+  sharedToCoverage: number;
+  /** Gastos fijos que son sólo de las coberturas. */
+  coverageFixed: number;
+  /** Costo de las personas de coberturas (sin el dueño). */
+  coverageTeamCost: number;
+};
+
 /** El desglose del estudio que devuelve el motor (clave `studio` del resultado). */
 export type CuantoCobroStudioBreakdown = {
   fixedCosts: number;
@@ -252,6 +275,8 @@ export type CuantoCobroStudioBreakdown = {
   overheadPerHour: number | null;
   people: StudioPersonBreakdown[];
   warnings: string[];
+  /** Sólo con el local separado de las coberturas. */
+  separated?: StudioCoverageAccount;
 };
 
 /** Gastos que por naturaleza son del local, de las coberturas o de ambos (por rubro). */

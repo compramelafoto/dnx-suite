@@ -161,6 +161,7 @@ export {
   type CuantoCobroStudioBreakdown,
   type CuantoCobroStudioStructure,
   type StudioBusinessLine,
+  type StudioCoverageAccount,
   type StudioEmploymentType,
   type StudioFixedCostGroup,
   type StudioFixedCostItem,

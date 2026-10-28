@@ -213,9 +213,10 @@ export function isSeparateLocalActive(profile: Pick<CuantoCobroProfileInput, "st
 /**
  * % de la capacidad y de los gastos compartidos que llevan las coberturas.
  * `coverageSharePercent` si es válido; si no, 100 − el tiempo del dueño en el local (vacío = 0).
+ * Siempre entre 0 y 100.
  */
 export function effectiveCoverageSharePercent(s: CuantoCobroStudioStructure): number {
   const explicit = parseStudioDecimal(s.coverageSharePercent);
-  if (explicit !== null) return explicit;
-  return 100 - (parseStudioDecimal(s.ownerLocalTimePercent) ?? 0);
+  const share = explicit !== null ? explicit : 100 - (parseStudioDecimal(s.ownerLocalTimePercent) ?? 0);
+  return Math.min(100, Math.max(0, share));
 }
