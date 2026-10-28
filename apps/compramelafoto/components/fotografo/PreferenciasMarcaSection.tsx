@@ -36,6 +36,10 @@ export type PreferenciasMarcaSectionProps = {
   setIsPublicPageEnabled: (v: boolean) => void;
   publicPageHandler: string;
   setPublicPageHandler: (v: string) => void;
+  /** Dirección pública tal como quedó guardada; el QR se arma con esta. */
+  savedPublicPageHandler: string;
+  /** Encendido de la página pública tal como quedó guardado. */
+  savedIsPublicPageEnabled: boolean;
   enableAlbumsPage: boolean;
   setEnableAlbumsPage: (v: boolean) => void;
   enablePrintPage: boolean;
@@ -116,6 +120,8 @@ export default function PreferenciasMarcaSection({
   setIsPublicPageEnabled,
   publicPageHandler,
   setPublicPageHandler,
+  savedPublicPageHandler,
+  savedIsPublicPageEnabled,
   enableAlbumsPage,
   setEnableAlbumsPage,
   enablePrintPage,
@@ -138,6 +144,10 @@ export default function PreferenciasMarcaSection({
       ? `${window.location.host}/`
       : "compramelafoto.com/";
   const handlerSlug = publicPageHandler.trim();
+  const savedHandlerSlug = savedPublicPageHandler.trim();
+  const qrConCambiosSinGuardar =
+    handlerSlug.toLowerCase() !== savedHandlerSlug.toLowerCase() ||
+    isPublicPageEnabled !== savedIsPublicPageEnabled;
   const publicUrl = handlerSlug ? `${origin}/${handlerSlug}` : null;
   const embedHtml = handlerSlug
     ? `<iframe src="${origin || "https://compramelafoto.com"}/${handlerSlug}?embed=1" width="100%" height="800" frameborder="0" style="border: none; min-height: 800px;"></iframe>`
@@ -451,7 +461,11 @@ export default function PreferenciasMarcaSection({
       </Card>
 
       {/* El QR de la página pública: sirve para tarjetas, vidriera y redes. */}
-      <PerfilQrCard handler={handlerSlug} isPublicPageEnabled={isPublicPageEnabled} />
+      <PerfilQrCard
+        handler={savedHandlerSlug}
+        isPublicPageEnabled={savedIsPublicPageEnabled}
+        hayCambiosSinGuardar={qrConCambiosSinGuardar}
+      />
 
       {/* Bloque 3 — Preferencias generales de la página pública */}
       {isPublicPageEnabled && (

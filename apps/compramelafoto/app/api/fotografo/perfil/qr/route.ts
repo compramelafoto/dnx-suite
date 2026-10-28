@@ -2,6 +2,10 @@
 //
 // Es el QR de `/<handler>`, la página que lista todos sus álbumes: no depende de ningún
 // álbum en particular y por eso vive en el perfil y no en la pestaña de un álbum.
+//
+// La dirección sale de `publicPageHandler`, la columna que guarda Configuración y con la
+// que `app/[handler]` encuentra al fotógrafo. `User.handler` es otra cosa y está vacía en
+// los fotógrafos: leerla dejaba el QR siempre en 409.
 import { NextResponse } from "next/server";
 
 import { prisma, Role } from "@/lib/prisma";
@@ -41,14 +45,15 @@ export async function GET(request: Request) {
     where: { id: user.id },
     select: {
       name: true,
-      handler: true,
+      publicPageHandler: true,
       logoUrl: true,
       primaryColor: true,
       isPublicPageEnabled: true,
     },
   });
 
-  if (!perfil?.handler) {
+  const handler = perfil?.publicPageHandler?.trim();
+  if (!perfil || !handler) {
     return NextResponse.json(
       { error: "Todavía no elegiste tu dirección pública" },
       { status: 409 }
@@ -58,7 +63,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Tu página pública está apagada" }, { status: 409 });
   }
 
-  const url = `${baseUrl()}/${perfil.handler}`;
+  const url = `${baseUrl()}/${handler}`;
   const formato = new URL(request.url).searchParams.get("formato");
 
   if (formato === "cartel") {
@@ -83,12 +88,12 @@ export async function GET(request: Request) {
         nombre: perfil.name?.trim() || "Tu fotógrafo",
         logoUrl: perfil.logoUrl,
         color: perfil.primaryColor,
-        handler: perfil.handler,
+        handler,
       },
       album: {
         id: 0,
         titulo: "Todas mis galerías",
-        slug: perfil.handler,
+        slug: handler,
         url,
       },
     };
@@ -97,7 +102,7 @@ export async function GET(request: Request) {
     return new NextResponse(Buffer.from(pdf), {
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `inline; filename="cartel-${perfil.handler}.pdf"`,
+        "Content-Disposition": `inline; filename="cartel-${handler}.pdf"`,
         "Cache-Control": "no-store",
       },
     });
@@ -107,7 +112,7 @@ export async function GET(request: Request) {
   return new NextResponse(Buffer.from(png), {
     headers: {
       "Content-Type": "image/png",
-      "Content-Disposition": `inline; filename="qr-${perfil.handler}.png"`,
+      "Content-Disposition": `inline; filename="qr-${handler}.png"`,
       "Cache-Control": "no-store",
     },
   });
