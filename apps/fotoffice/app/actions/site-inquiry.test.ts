@@ -74,6 +74,17 @@ describe("createSiteInquiry", () => {
     });
   });
 
+  it("las horas que dura el evento viajan en metaJson.porHoras (acepta '4,5'; vacío o inválido: sin horas)", async () => {
+    await enviar({ categoriaId: "c-otro", horas: "4" });
+    expect(H.alta.mock.calls[0]![1]).toMatchObject({ metaJson: { porHoras: { horas: 4 } } });
+    await enviar({ categoriaId: "c-otro", horas: "4,5" });
+    expect(H.alta.mock.calls[1]![1]).toMatchObject({ metaJson: { porHoras: { horas: 4.5 } } });
+    await enviar({ categoriaId: "c-otro", horas: "" });
+    await enviar({ categoriaId: "c-otro", horas: "muchas" });
+    expect(H.alta.mock.calls[2]![1].metaJson ?? null).toBeNull();
+    expect(H.alta.mock.calls[3]![1].metaJson ?? null).toBeNull();
+  });
+
   it("un origen de OTRO workspace se ignora: la consulta entra igual, sin origen", async () => {
     expect(await enviar({ categoriaId: "c-boda", origenId: "o-ajeno" })).toEqual({ status: "ok" });
     expect(H.alta.mock.calls[0]![1]).toMatchObject({ origenId: null });

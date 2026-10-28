@@ -2,6 +2,7 @@
 
 import { prisma } from "@repo/db";
 import { z } from "zod";
+import { horasValidas } from "@/lib/presupuesto-automatico/por-horas-puro";
 import { altaDeConsulta, altaDelSistema, MAX_MENSAJE_CONSULTA, MAX_TEXTO_CONSULTA, MENSAJES_ALTA, type DatosAlta } from "@/lib/consultas/alta";
 import {
   camposPublicos, fechaOpcional, frenadoPorIp, MAX_CORTO, MENSAJE_FRENO, origenDelFormulario, recortar, vacioANull,
@@ -34,6 +35,11 @@ const texto = (fd: FormData, campo: string) => {
   const v = fd.get(campo);
   return typeof v === "string" ? v.trim() : "";
 };
+
+function horasDelFormulario(v: string): Pick<DatosAlta, "metaJson"> {
+  const horas = horasValidas(v);
+  return horas === null ? {} : { metaJson: { porHoras: { horas } } };
+}
 
 export async function createSiteInquiry(_prev: SiteInquiryState, formData: FormData): Promise<SiteInquiryState> {
   // Un robot llenó el campo trampa: la misma respuesta que con éxito, sin crear nada.
@@ -85,6 +91,8 @@ export async function createSiteInquiry(_prev: SiteInquiryState, formData: FormD
       message: recortar(data.message, MAX_MENSAJE_CONSULTA),
       formSlug: "sitio",
       origenId,
+      // Presupuesto por horas (spec 2026-10-28): cuántas horas dura el evento, si lo dijo.
+      ...horasDelFormulario(texto(formData, "horas")),
     };
     let intento = datos;
     let alta = await altaDeConsulta(altaDelSistema(workspaceId), intento, { origenDelAlta: "WEB" });

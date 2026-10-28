@@ -62,6 +62,16 @@ describe("createServiceLead", () => {
     });
   });
 
+  it("un campo 'horas' del formulario se guarda también como metaJson.porHoras", async () => {
+    await createServiceLead({ ...ENTRADA, meta: { horas: "3,5", budgetType: "FULL" } });
+    expect(H.alta.mock.calls[0]![1]).toMatchObject({ metaJson: { horas: "3,5", budgetType: "FULL", porHoras: { horas: 3.5 } } });
+  });
+
+  it("un porHoras mandado por el navegador se descarta (sólo vale el campo 'horas' validado)", async () => {
+    await createServiceLead({ ...ENTRADA, meta: { porHoras: { horas: 500 } } });
+    expect(H.alta.mock.calls[0]![1].metaJson).toEqual({});
+  });
+
   it("los vacíos llegan como null", async () => {
     await createServiceLead(ENTRADA);
     expect(H.alta.mock.calls[0]![1]).toMatchObject({

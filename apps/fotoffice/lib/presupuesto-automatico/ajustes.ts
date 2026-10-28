@@ -2,6 +2,7 @@ import "server-only";
 import { prisma, type Prisma } from "@repo/db";
 import { MENSAJES_PRESUPUESTO, puedeConfigurarPresupuestos, type CtxPresupuestos } from "@/lib/presupuestos/acceso";
 import { MAX_ACUSE, textoDeAcuse } from "./canales";
+import { leerAjustesPorHoras } from "./por-horas";
 import { aplicarCambio, validarPortfolio, type CambioPortfolio, type ItemPortfolio } from "./portfolio-items";
 
 /**
@@ -33,7 +34,11 @@ const idValido = (v: unknown): v is string => typeof v === "string" && v.length 
 
 export type AjustesDeCategoria = { telegram: boolean; portfolio: ItemPortfolio[] };
 
-/** (Sistema) ¿La categoría espera la aprobación por Telegram? Ante cualquier error, false. */
+/**
+ * (Sistema) ¿La categoría espera la aprobación por Telegram? Sí si tiene el interruptor encendido o,
+ * con el presupuesto por horas encendido (spec 2026-10-28), si no tiene propuesta modelo (se arma
+ * por horas). Ante cualquier error, false.
+ */
 export async function apruebaPorTelegram(workspaceId: string, categoriaId: string | null): Promise<boolean> {
   if (!categoriaId) return false;
   try {
@@ -41,7 +46,10 @@ export async function apruebaPorTelegram(workspaceId: string, categoriaId: strin
       where: { workspaceId, categoryId: categoriaId, telegramEnabled: true },
       select: { id: true },
     });
-    return f !== null;
+    if (f !== null) return true;
+    if (!(await leerAjustesPorHoras(workspaceId)).encendido) return false;
+    const propuesta = await prisma.fotofficePropuestaModelo.findFirst({ where: { workspaceId, categoryId: categoriaId }, select: { id: true } });
+    return propuesta === null;
   } catch (e) {
     falla("apruebaPorTelegram", e);
     return false;

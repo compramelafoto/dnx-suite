@@ -7,15 +7,27 @@ const normalizar = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toL
  * mayúsculas) o, si no, la única que lo contiene o está contenida. "XV" y "quince" se leen "15".
  */
 export function categoriaDelTipo<T extends { id: string; name: string }>(categorias: readonly T[], tipo: string): T | null {
-  const t = normalizar(tipo).replace(/\bquince\b/g, "15").replace(/\bxv\b/g, "15");
-  if (!t) return null;
+  const c = coincidenciasDelTipo(categorias, tipo);
+  return c.length === 1 ? c[0] : null;
+}
+
+/**
+ * Todas las categorías que corresponden al tipo (la exacta sola, si la hay). "Casamiento" se lee
+ * "boda" y "15 años" / "XV" / "quince", "15".
+ */
+export function coincidenciasDelTipo<T extends { id: string; name: string }>(categorias: readonly T[], tipo: string): T[] {
+  const t = normalizar(tipo)
+    .replace(/\b(casamiento|casorio|matrimonio)\b/g, "boda")
+    .replace(/\bquince\b/g, "15")
+    .replace(/\bxv\b/g, "15")
+    .replace(/\b15 anos\b/g, "15");
+  if (!t) return [];
   const exacta = categorias.find((c) => normalizar(c.name) === t);
-  if (exacta) return exacta;
-  const parecidas = categorias.filter((c) => {
+  if (exacta) return [exacta];
+  return categorias.filter((c) => {
     const n = normalizar(c.name);
     return n.includes(t) || t.includes(n);
   });
-  return parecidas.length === 1 ? parecidas[0] : null;
 }
 
 /** "aaaa-mm-dd" real → medianoche UTC (fecha de calendario, como guarda el formulario). Si no, null. */

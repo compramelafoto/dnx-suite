@@ -30,6 +30,11 @@ import { enviarPresupuestoDelSistema, type DepsEnvioPresupuesto } from "./envio"
 import { vencimientoDesde } from "./estados";
 import { leerPropuestaModelo, plantillaDePropuesta } from "./propuestas-modelo";
 import { normalizarBorrador } from "./versiones";
+import { leerPerfilPreciosDelSistema } from "@/lib/precios/perfil";
+import { geocodificarLugar, guardarPorHorasDeConsulta, leerAjustesPorHoras, leerPorHorasDeConsulta } from "@/lib/presupuesto-automatico/por-horas";
+import { kmDeDistancia, llevaSegundoFotografo, recetaPorHoras, type AjustesPorHoras } from "@/lib/presupuesto-automatico/por-horas-puro";
+import { itemsPorHoras, segundoFotografoOpcional, valorHoraDeDaniel } from "./borrador-por-horas";
+import type { ItemPresupuesto } from "./constantes";
 
 /**
  * La consulta web recibe su propuesta modelo sola (etapa 2, Entrega B, spec §2 B.13): el "tercer
@@ -194,6 +199,8 @@ async function armarBorradorBase(
   propuesta: Propuesta,
   ahora: Date,
   deps: DepsPropuestaAutomatica,
+  /** Presupuesto por horas: suma el segundo fotógrafo opcional a los ítems ya instanciados. */
+  agregar?: (items: ItemPresupuesto[]) => ItemPresupuesto[],
 ): Promise<{ ok: true; borrador: { valor: BorradorNormalizado }; ajustes: Ajustes; owner: number | null } | { ok: false }> {
   const instanciada = await itemsDeLaPropuesta(workspaceId, propuesta.items, ahora);
   if (!instanciada.ok) {
@@ -201,13 +208,27 @@ async function armarBorradorBase(
     aviso(instanciada.motivo === "PRODUCTO_INACTIVO" ? "PRODUCTO_FUERA_DEL_CATALOGO" : instanciada.motivo);
     return { ok: false };
   }
+  return normalizarYResponsable(workspaceId, {
+    items: agregar ? agregar(instanciada.items) : instanciada.items,
+    alternativas: propuesta.alternativas,
+    condiciones: propuesta.condiciones,
+  }, ahora, deps);
+}
+
+/** Normaliza ítems ya armados (con las condiciones y la propuesta de pago) y busca al responsable. */
+async function normalizarYResponsable(
+  workspaceId: string,
+  d: { items: ItemPresupuesto[]; alternativas: Propuesta["alternativas"]; condiciones: string | null },
+  ahora: Date,
+  deps: DepsPropuestaAutomatica,
+): Promise<{ ok: true; borrador: { valor: BorradorNormalizado }; ajustes: Ajustes; owner: number | null } | { ok: false }> {
   const ajustes = await leerAjustes(workspaceId);
   const borrador = await normalizarBorrador(
     workspaceId,
     {
-      items: instanciada.items,
-      alternativas: propuesta.alternativas,
-      condiciones: propuesta.condiciones ?? ajustes.condiciones,
+      items: d.items,
+      alternativas: d.alternativas,
+      condiciones: d.condiciones ?? ajustes.condiciones,
       propuestaPago: ajustes.propuestaPago,
     },
     new Map(),
@@ -271,11 +292,12 @@ export async function armarBorradorDePropuesta(
   deps: DepsPropuestaAutomatica = {},
 ): Promise<ResultadoBorradorDePropuesta> {
   const { resultado } = await armarBorrador(workspaceId, leadId, deps, false);
-  return resultado === "SIN_PROPUESTA" ? "NO_APLICA" : resultado;
+  return resultado === "SIN_PROPUESTA" || resultado === "SIN_HORAS" || resultado === "SIN_PERFIL" ? "NO_APLICA" : resultado;
 }
 
 export type ResultadoBorradorParaAprobar = {
-  resultado: ResultadoBorradorDePropuesta | "SIN_PROPUESTA";
+  /** `SIN_HORAS`: presupuesto por horas sin la cantidad de horas (no se inventa). */
+  resultado: ResultadoBorradorDePropuesta | "SIN_PROPUESTA" | "SIN_HORAS" | "SIN_PERFIL";
   /** El presupuesto armado o, si la consulta ya tenía uno, ese. */
   presupuestoId: string | null;
 };
@@ -303,15 +325,53 @@ async function armarBorrador(
   try {
     const ahora = (deps.ahora ?? (() => new Date()))();
     if (!(await isModuleEnabledForWorkspace(workspaceId, QUOTES_MODULE_KEY))) return sin("NO_APLICA");
-    const ficha = await prisma.fotofficeConsulta.findFirst({ where: { workspaceId, leadId }, select: { categoryId: true, clientId: true } });
+    const ficha = await prisma.fotofficeConsulta.findFirst({
+      where: { workspaceId, leadId },
+      select: { categoryId: true, clientId: true, venue: true, city: true, guests: true },
+    });
     if (!ficha || !ficha.categoryId) return sin("NO_APLICA");
     if (!paraAprobar && !(await armaBorradorAuto(workspaceId, ficha.categoryId))) return sin("NO_APLICA");
     const propuesta = await leerPropuestaModelo(workspaceId, ficha.categoryId);
-    if (!propuesta || propuesta.items.length === 0) return sin(paraAprobar ? "SIN_PROPUESTA" : "NO_APLICA");
+    const sinPropuesta = !propuesta || propuesta.items.length === 0;
+    // Presupuesto por horas (spec 2026-10-28): sólo en el camino con aprobación por Telegram.
+    const porHoras = paraAprobar ? await leerAjustesPorHoras(workspaceId) : null;
+    if (sinPropuesta && !porHoras?.encendido) return sin(paraAprobar ? "SIN_PROPUESTA" : "NO_APLICA");
     const previo = await presupuestoDeLaConsulta(workspaceId, leadId);
     if (previo) return { resultado: "YA_TIENE_PRESUPUESTO", presupuestoId: paraAprobar ? previo : null };
 
-    const armado = await armarBorradorBase(workspaceId, propuesta, ahora, deps);
+    const categoria = await prisma.fotofficeConsultaCategoria.findFirst({ where: { id: ficha.categoryId, workspaceId }, select: { name: true, group: true } });
+    const esSesion = porHoras ? esCategoriaSesion(porHoras, ficha.categoryId, categoria) : false;
+    const segundo =
+      porHoras?.encendido === true &&
+      llevaSegundoFotografo({ grupo: categoria?.group ?? "", esSesion, invitados: ficha.guests ?? null, umbral: porHoras.invitadosSegundoFotografo });
+
+    let armado: Awaited<ReturnType<typeof armarBorradorBase>>;
+    let anotar: Parameters<typeof guardarPorHorasDeConsulta>[2] | null = null;
+    if (sinPropuesta) {
+      const horas = (await leerPorHorasDeConsulta(workspaceId, leadId))?.horas ?? null;
+      if (horas === null) return sin("SIN_HORAS");
+      const perfil = await leerPerfilPreciosDelSistema(workspaceId);
+      if (!perfil) {
+        aviso("PERFIL_INCOMPLETO");
+        return sin("SIN_PERFIL");
+      }
+      const enElEstudio = /estudio/i.test(ficha.venue ?? "");
+      const p = porHoras!.partida;
+      const destino = enElEstudio ? null : await geocodificarLugar([ficha.venue, ficha.city].filter(Boolean).join(", "));
+      const km = enElEstudio ? null : kmDeDistancia(p.lat !== null && p.lon !== null ? { lat: p.lat, lon: p.lon } : null, destino, porHoras!.maxKm);
+      const receta = recetaPorHoras({ horas, esSesion, km, enElEstudio, ajustes: porHoras! });
+      const items = itemsPorHoras({ perfil, receta, conSegundoFotografo: segundo, segundoFotografoPct: porHoras!.segundoFotografoPct, tipoDeTrabajo: categoria?.name ?? "Evento", ahora });
+      if (!items.ok) {
+        aviso("PERFIL_INCOMPLETO");
+        return sin("SIN_PERFIL");
+      }
+      armado = await normalizarYResponsable(workspaceId, { items: items.valor.items, alternativas: items.valor.alternativas, condiciones: null }, ahora, deps);
+      anotar = { armado: true, km, traslado: receta.trasladoPesos, ubicado: receta.trasladoPesos !== null, segundoFotografo: items.valor.segundoFotografo !== null };
+    } else {
+      const valorHora = segundo ? await valorHoraDelSistema(workspaceId) : null;
+      const agregar = segundo ? (items: ItemPresupuesto[]) => segundoFotografoOpcional(items, propuesta!.alternativas, valorHora, porHoras!.segundoFotografoPct) : undefined;
+      armado = await armarBorradorBase(workspaceId, propuesta!, ahora, deps, agregar);
+    }
     if (!armado.ok) return sin("FALLO");
     const { borrador, ajustes, owner } = armado;
 
@@ -326,6 +386,7 @@ async function armarBorrador(
     }, OPCIONES_TRANSACCION);
     if (!creado.nuevo) return { resultado: "YA_TIENE_PRESUPUESTO", presupuestoId: paraAprobar ? creado.id : null };
 
+    if (anotar) await guardarPorHorasDeConsulta(workspaceId, leadId, anotar).catch(() => undefined);
     const numeroConsulta = await numeroDeConsulta(workspaceId, leadId);
     await tareaDeRevision(workspaceId, leadId, creado.id, owner, ahora, () => tituloDeBorrador(numeroConsulta));
     return { resultado: "ARMADO", presupuestoId: creado.id };
@@ -333,6 +394,17 @@ async function armarBorrador(
     console.error("[presupuestos] falló el borrador automático", { codigo: (e as { code?: unknown })?.code ?? "desconocido" });
     return sin("ERROR");
   }
+}
+
+/** Sesión de fotos: la categoría está marcada en los ajustes o, si no hay ninguna marcada, es "sin fecha" y se llama "sesión…". */
+function esCategoriaSesion(a: AjustesPorHoras, categoriaId: string, c: { name: string; group: string } | null): boolean {
+  if (a.categoriasSesion.length > 0) return a.categoriasSesion.includes(categoriaId);
+  return c !== null && c.group === "TRABAJO_SIN_FECHA" && /sesi[oó]n/i.test(c.name);
+}
+
+async function valorHoraDelSistema(workspaceId: string): Promise<number | null> {
+  const perfil = await leerPerfilPreciosDelSistema(workspaceId).catch(() => null);
+  return perfil ? valorHoraDeDaniel(perfil) : null;
 }
 
 /** Número visible de la consulta (los presupuestos se numeran recién al enviarse). Nunca lanza. */

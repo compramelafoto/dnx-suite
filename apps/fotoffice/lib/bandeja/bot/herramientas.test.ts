@@ -72,6 +72,22 @@ describe("herramientasDeAtencion", () => {
     expect(h.pedidoDePersona()).toBe("presupuesto de boda");
   });
 
+  it("preparar_presupuesto acepta las horas (con media hora) y los invitados y se los pasa al estudio", async () => {
+    const recibidos: unknown[] = [];
+    const prepararPresupuesto = async (_w: string, _c: unknown, d: unknown) => {
+      recibidos.push(d);
+      return { ok: true, message: "listo" };
+    };
+    const h = herramientasDeAtencion("w1", { ...deps, prepararPresupuesto }, { id: "c1", waId: "5493410000000", clientId: null, nombre: null });
+    const t = h.tools.find((x) => x.name === "preparar_presupuesto")!;
+    const datos = { tipo: "cumpleaños infantil", nombre: "Ana Pérez", horas: 3.5, invitados: 250 };
+    expect(t.input.safeParse(datos).success).toBe(true);
+    expect(t.input.safeParse({ ...datos, horas: 40 }).success).toBe(false);
+    await t.run(datos, { userId: 0, role: "CLIENTE", email: "", name: null });
+    expect(recibidos[0]).toMatchObject({ horas: 3.5, invitados: 250 });
+    expect(t.description).toMatch(/horas/);
+  });
+
   it("todas son de lectura (no hay acciones que confirmar)", () => {
     expect(herramientasDeAtencion("w1", deps).tools.every((t) => t.kind === "read")).toBe(true);
   });

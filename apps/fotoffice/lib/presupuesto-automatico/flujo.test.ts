@@ -104,6 +104,51 @@ describe("alLlegarConsulta", () => {
     expect(envios).toHaveLength(0);
   });
 
+  it("presupuesto por horas encendido: una categoría sin interruptor ni propuesta también avisa", async () => {
+    await B.tablas.fotofficeConsulta.updateMany({ where: { leadId: "lead-1" }, data: { categoryId: "cat-boda" } });
+    B.agregar("fotofficePresupuestoAutoAjustes", { workspaceId: WS, porHoras: { encendido: true } });
+    const { d, avisos } = deps();
+    expect(await F.alLlegarConsulta(WS, "lead-1", "WEB", {}, d)).toBe("AVISADO");
+    expect(avisos).toHaveLength(1);
+  });
+
+  it("presupuesto por horas: con propuesta modelo pero interruptor apagado sigue apagado", async () => {
+    await B.tablas.fotofficeConsulta.updateMany({ where: { leadId: "lead-1" }, data: { categoryId: "cat-boda" } });
+    B.agregar("fotofficePresupuestoAutoAjustes", { workspaceId: WS, porHoras: { encendido: true } });
+    B.agregar("fotofficePropuestaModelo", { workspaceId: WS, categoryId: "cat-boda", items: [] });
+    const { d } = deps();
+    expect(await F.alLlegarConsulta(WS, "lead-1", "WEB", {}, d)).toBe("APAGADO");
+  });
+
+  it("presupuesto por horas: por WhatsApp, una categoría con propuesta y sin interruptor igual va a Telegram", async () => {
+    await B.tablas.fotofficeConsulta.updateMany({ where: { leadId: "lead-1" }, data: { categoryId: "cat-boda" } });
+    B.agregar("fotofficePresupuestoAutoAjustes", { workspaceId: WS, porHoras: { encendido: true } });
+    B.agregar("fotofficePropuestaModelo", { workspaceId: WS, categoryId: "cat-boda", items: [] });
+    const { d } = deps();
+    expect(await F.alLlegarConsulta(WS, "lead-1", "WHATSAPP", { waId: "5493410000000" }, d)).toBe("AVISADO");
+  });
+
+  it("una consulta sin horas no frena una nueva del mismo número (no cuenta como 'en preparación')", async () => {
+    const { d } = deps({ armar: async () => ({ resultado: "SIN_HORAS", presupuestoId: null }) });
+    await F.alLlegarConsulta(WS, "lead-1", "WHATSAPP", { waId: "5493410000000" }, d);
+    expect(await F.enPreparacionParaWhatsapp(WS, "5493410000000")).toBe(false);
+  });
+
+  it("sin perfil de precios: lo dice con su propio motivo", async () => {
+    const { d, avisos } = deps({ armar: async () => ({ resultado: "SIN_PERFIL", presupuestoId: null }) });
+    await F.alLlegarConsulta(WS, "lead-1", "WEB", {}, d);
+    expect(avisos[0]).toContain("¿Cuánto cobro?");
+    expect(avisos[0]).not.toContain("propuesta modelo");
+  });
+
+  it("sin horas: avisa que falta la cantidad de horas", async () => {
+    const { d } = deps({ armar: async () => ({ resultado: "SIN_HORAS", presupuestoId: null }) });
+    expect(await F.alLlegarConsulta(WS, "lead-1", "WEB", {}, d)).toBe("SIN_PROPUESTA");
+    expect(await fila()).toMatchObject({ status: "SIN_PROPUESTA", errorCode: "SIN_HORAS" });
+    const datos = await F.datosDelResumen(WS, (await fila())!.id as string, d);
+    expect(datos?.motivoSinPresupuesto).toBe("SIN_HORAS");
+  });
+
   it("si Telegram falla queda AVISO_FALLIDO (se aprueba desde FOTOFFICE)", async () => {
     const { d } = deps({ avisar: async () => ({ ok: false, codigo: "SIN_CHAT" }) });
     expect(await F.alLlegarConsulta(WS, "lead-1", "WEB", {}, d)).toBe("AVISO_FALLIDO");

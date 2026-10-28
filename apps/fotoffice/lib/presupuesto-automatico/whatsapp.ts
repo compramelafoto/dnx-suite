@@ -2,8 +2,11 @@ import "server-only";
 import { prisma } from "@repo/db";
 import { altaDelSistema, altaDeConsulta } from "@/lib/consultas/alta";
 import { leerAcuse } from "./ajustes";
+import { asegurarCategoriaEvento } from "./categoria-evento";
+import { guardarPorHorasDeConsulta, leerAjustesPorHoras } from "./por-horas";
+import { horasValidas } from "./por-horas-puro";
 import { alLlegarConsulta, enPreparacionParaWhatsapp, type DepsFlujo } from "./flujo";
-import { categoriaDelTipo, fechaDelBot } from "./whatsapp-puro";
+import { coincidenciasDelTipo, fechaDelBot } from "./whatsapp-puro";
 
 /**
  * La consulta que entra por el bot de WhatsApp (herramienta `preparar_presupuesto`, spec
@@ -22,6 +25,8 @@ export type DatosDelBot = {
   fecha?: string | null;
   lugar?: string | null;
   invitados?: number | null;
+  /** Horas de cobertura (presupuesto por horas). */
+  horas?: number | null;
   email?: string | null;
   detalle?: string | null;
 };
@@ -38,17 +43,31 @@ export async function prepararDesdeWhatsapp(
     if (await enPreparacionParaWhatsapp(workspaceId, chat.waId)) {
       return { ok: true, message: "Ya hay un presupuesto en preparación para este cliente. Decile que en un rato se lo mandamos; no le des precios." };
     }
-    const encendidas = await prisma.fotofficePresupuestoAutoCategoria.findMany({ where: { workspaceId, telegramEnabled: true }, select: { categoryId: true }, take: 100 });
-    const categorias = encendidas.length
-      ? await prisma.fotofficeConsultaCategoria.findMany({
-          where: { workspaceId, archivedAt: null, id: { in: encendidas.map((e) => e.categoryId) } },
-          select: { id: true, name: true },
-        })
-      : [];
-    if (categorias.length === 0) {
+    // Presupuesto por horas (spec 2026-10-28): cualquier categoría activa; si ninguna coincide, "Evento".
+    const porHoras = (await leerAjustesPorHoras(workspaceId)).encendido;
+    const encendidas = porHoras
+      ? null
+      : await prisma.fotofficePresupuestoAutoCategoria.findMany({ where: { workspaceId, telegramEnabled: true }, select: { categoryId: true }, take: 100 });
+    const categorias =
+      encendidas === null || encendidas.length
+        ? await prisma.fotofficeConsultaCategoria.findMany({
+            where: { workspaceId, archivedAt: null, ...(encendidas ? { id: { in: encendidas.map((e) => e.categoryId) } } : {}) },
+            select: { id: true, name: true },
+            take: 200,
+          })
+        : [];
+    if (categorias.length === 0 && !porHoras) {
       return { ok: false, message: "El estudio todavía no arma presupuestos automáticos. Usá pasar_a_persona con un resumen de lo que pide." };
     }
-    const categoria = categoriaDelTipo(categorias, datos.tipo);
+    const coincidencias = coincidenciasDelTipo(categorias, datos.tipo);
+    if (porHoras && coincidencias.length > 1) {
+      return {
+        ok: false,
+        message: `"${datos.tipo}" puede ser: ${coincidencias.map((c) => c.name).join(", ")}. Preguntale al cliente cuál es y volvé a usar la herramienta con ese nombre.`,
+      };
+    }
+    const categoria =
+      (coincidencias.length === 1 ? coincidencias[0] : null) ?? (porHoras ? { id: await asegurarCategoriaEvento(workspaceId), name: "Evento" } : null);
     if (!categoria) {
       return {
         ok: false,
@@ -76,7 +95,13 @@ export async function prepararDesdeWhatsapp(
     if (!chat.clientId && alta.clientId) {
       await prisma.fotofficeWaChat.updateMany({ where: { id: chat.id, workspaceId, clientId: null }, data: { clientId: alta.clientId } }).catch(() => undefined);
     }
-    await alLlegarConsulta(workspaceId, alta.leadId, "WHATSAPP", { waId: chat.waId }, deps);
+    const horas = horasValidas(datos.horas);
+    if (horas !== null) await guardarPorHorasDeConsulta(workspaceId, alta.leadId, { horas });
+    const llegada = await alLlegarConsulta(workspaceId, alta.leadId, "WHATSAPP", { waId: chat.waId }, deps);
+    // Ningún recorrido toma la consulta: no se le promete un presupuesto que nadie va a armar.
+    if (llegada === "APAGADO" || llegada === "ERROR") {
+      return { ok: false, message: "La consulta quedó registrada, pero el presupuesto lo arma una persona. Usá pasar_a_persona con un resumen de lo que pide." };
+    }
     const acuse = await leerAcuse(workspaceId);
     return {
       ok: true,

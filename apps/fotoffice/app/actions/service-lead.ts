@@ -2,6 +2,7 @@
 
 import { type Prisma, prisma } from "@repo/db";
 import { z } from "zod";
+import { horasValidas } from "@/lib/presupuesto-automatico/por-horas-puro";
 import {
   altaDeConsulta, altaDelSistema, MAX_MENSAJE_CONSULTA, MAX_TEXTO_CONSULTA, MENSAJES_ALTA, type DatosAlta,
 } from "@/lib/consultas/alta";
@@ -43,6 +44,14 @@ type CreateServiceLeadInput = {
 };
 
 type CreateServiceLeadResult = { success: true } | { success: false; error: string };
+
+/** Presupuesto por horas (spec 2026-10-28): un campo "horas" del formulario se copia a `porHoras.horas`. */
+function conHoras(meta: Record<string, unknown>): Record<string, unknown> {
+  // `porHoras` lo escribe sólo el servidor: si vino del navegador, se descarta.
+  const { porHoras: _descartado, ...resto } = meta;
+  const horas = horasValidas(meta.horas);
+  return horas === null ? resto : { ...resto, porHoras: { horas } };
+}
 
 export async function createServiceLead(
   input: CreateServiceLeadInput,
@@ -107,7 +116,7 @@ export async function createServiceLead(
       eventDate: fechaOpcional(data.eventDate),
       eventLocation: recortar(data.eventLocation, MAX_TEXTO_CONSULTA),
       message: recortar(data.message, MAX_MENSAJE_CONSULTA),
-      metaJson: data.meta ? (data.meta as Prisma.InputJsonValue) : null,
+      metaJson: data.meta ? (conHoras(data.meta) as Prisma.InputJsonValue) : null,
       formId: vacioANull(data.formId),
       formSlug: recortar(data.formSlug, MAX_TEXTO_CONSULTA),
         ...(origenId ? { origenId } : {}),

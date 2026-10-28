@@ -9,6 +9,7 @@ import { etiquetaDeUsuario } from "@/lib/listado/acceso";
 import { editarPortfolio, guardarAcuse, guardarAprobacionTelegram, MENSAJES_AJUSTES_AUTO } from "@/lib/presupuesto-automatico/ajustes";
 import type { CambioPortfolio } from "@/lib/presupuesto-automatico/portfolio-items";
 import { aprobarYEnviar } from "@/lib/presupuesto-automatico/flujo";
+import { guardarAjustesPorHoras } from "@/lib/presupuesto-automatico/por-horas";
 import { subirFotoAlPortfolio } from "@/lib/presupuesto-automatico/portfolio";
 import { avisarPorTelegram, conectarTelegram, desconectarTelegram, MENSAJES_TELEGRAM, nuevoCodigoTelegram } from "@/lib/telegram/conexion";
 
@@ -131,4 +132,27 @@ export async function subirFotoPortfolioAction(_prev: EstadoTelegramConfig | und
   if (!r.ok) return { error: r.error };
   revalidatePath(rutaPortfolio(categoriaId));
   return { error: null, ok: "Foto subida y agregada al portfolio." };
+}
+
+/** Presupuesto por horas (spec 2026-10-28): las reglas del estudio para armar eventos sin propuesta modelo. */
+export async function guardarPorHorasAction(_prev: EstadoTelegramConfig | undefined, fd: FormData): Promise<EstadoTelegramConfig> {
+  const ctx = await contexto();
+  if (!ctx) return { error: MENSAJES_AJUSTES_AUTO.sinPermiso };
+  const r = await guardarAjustesPorHoras(ctx, {
+    encendido: texto(fd, "porHorasEncendido") === "1",
+    edicionPorHora: texto(fd, "edicionPorHora"),
+    disparosPorHora: texto(fd, "disparosPorHora"),
+    minimoFotosEvento: texto(fd, "minimoFotosEvento"),
+    minimoFotosSesion: texto(fd, "minimoFotosSesion"),
+    pesosPorKm: texto(fd, "pesosPorKm"),
+    partida: { direccion: texto(fd, "partida") },
+    segundoFotografoPct: texto(fd, "segundoFotografoPct"),
+    invitadosSegundoFotografo: texto(fd, "invitadosSegundoFotografo"),
+    categoriasSesion: fd.getAll("categoriasSesion").filter((v): v is string => typeof v === "string"),
+    incluye: texto(fd, "incluye"),
+    opcionalesTexto: texto(fd, "opcionalesTexto"),
+  });
+  if (!r.ok) return { error: r.error };
+  revalidatePath(RUTA);
+  return { error: null, ok: "Guardado." };
 }

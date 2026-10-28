@@ -27,6 +27,13 @@ describe("guía del bot de atención", () => {
     expect(g).toContain('decí "si no tenés apuro"');
   });
 
+  it("para eventos y sesiones pregunta las horas y, si hay muchos invitados, recomienda un segundo fotógrafo", () => {
+    const g = guiaDeAtencion();
+    expect(g).toContain("cuántas horas dura");
+    expect(g).toContain("más de 200 invitados");
+    expect(g).toContain("galería online");
+  });
+
   it("la situación dice el día y la hora en Argentina y el nombre si lo hay", () => {
     const s = situacionDeAtencion({ estudio: "DNX Estudio", cliente: "Lucía", ahora: new Date("2026-10-20T23:30:00.000Z") });
     expect(s).toContain("DNX Estudio");

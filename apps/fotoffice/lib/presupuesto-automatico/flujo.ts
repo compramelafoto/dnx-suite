@@ -27,6 +27,7 @@ import {
   type ResultadoCorreo,
   type ResultadoWhatsapp,
 } from "./canales";
+import { leerAjustesPorHoras, leerPorHorasDeConsulta } from "./por-horas";
 import { armarResumen, lineasDePrecio, type DatosResumen, type EstadoDelAviso, type PresupuestoDelResumen } from "./resumen";
 
 /**
@@ -86,6 +87,14 @@ export async function consultaVaPorTelegram(workspaceId: string, leadId: string)
   }
 }
 
+/** Por qué no hay presupuesto, según el resultado del armado (o el código guardado en la fila). */
+function motivoDe(codigo: string | null | undefined): NonNullable<DatosResumen["motivoSinPresupuesto"]> {
+  if (!codigo || codigo === "SIN_PROPUESTA" || codigo === "NO_APLICA") return "SIN_PROPUESTA";
+  if (codigo === "SIN_HORAS") return "SIN_HORAS";
+  if (codigo === "SIN_PERFIL") return "SIN_PERFIL";
+  return "NO_SE_PUDO_ARMAR";
+}
+
 export async function alLlegarConsulta(
   workspaceId: string,
   leadId: string,
@@ -95,7 +104,10 @@ export async function alLlegarConsulta(
 ): Promise<ResultadoAlLlegar> {
   try {
     const ficha = await prisma.fotofficeConsulta.findFirst({ where: { workspaceId, leadId }, select: { categoryId: true } });
-    if (!ficha || !(await apruebaPorTelegram(workspaceId, ficha.categoryId))) return "APAGADO";
+    // Por WhatsApp con el presupuesto por horas encendido, toda consulta pasa por la aprobación
+    // (la que tiene propuesta modelo la usa aunque su interruptor esté apagado). Spec 2026-10-28 §9.
+    const porWhatsapp = origen === "WHATSAPP" && ficha?.categoryId ? (await leerAjustesPorHoras(workspaceId)).encendido : false;
+    if (!ficha || !(porWhatsapp || (await apruebaPorTelegram(workspaceId, ficha.categoryId)))) return "APAGADO";
 
     // La fila primero: el único (workspace + consulta) frena un segundo aviso de la misma consulta.
     let filaId: string;
@@ -117,7 +129,7 @@ export async function alLlegarConsulta(
     }
     const datos = await datosDelResumen(workspaceId, filaId, deps);
     if (!datos) return "ERROR";
-    if (!presupuestoId) datos.motivoSinPresupuesto = armado.resultado === "SIN_PROPUESTA" || armado.resultado === "NO_APLICA" ? "SIN_PROPUESTA" : "NO_SE_PUDO_ARMAR";
+    if (!presupuestoId) datos.motivoSinPresupuesto = motivoDe(armado.resultado);
 
     const { html, teclado } = armarResumen(datos);
     const aviso = await (deps.avisar ?? avisarPorTelegram)(workspaceId, html, teclado);
@@ -173,7 +185,8 @@ export async function datosDelResumen(workspaceId: string, aprobacionId: string,
     invitados: consulta?.guests ?? null,
     mensaje: lead?.message ?? null,
     presupuesto: a.presupuestoId ? await presupuestoDelResumen(workspaceId, a.presupuestoId) : null,
-    motivoSinPresupuesto: a.presupuestoId ? null : a.errorCode && a.errorCode !== "SIN_PROPUESTA" && a.errorCode !== "NO_APLICA" ? "NO_SE_PUDO_ARMAR" : "SIN_PROPUESTA",
+    motivoSinPresupuesto: a.presupuestoId ? null : motivoDe(a.errorCode),
+    porHoras: await leerPorHorasDeConsulta(workspaceId, a.leadId).catch(() => null),
     urlPresupuesto: origenApp && a.presupuestoId ? `${origenApp}/presupuestos/${encodeURIComponent(a.presupuestoId)}` : null,
     urlConsulta: origenApp ? `${origenApp}/consultas/${encodeURIComponent(a.leadId)}` : null,
   };
@@ -490,7 +503,8 @@ export async function pendientesDeAprobar(workspaceId: string): Promise<Pendient
 export async function enPreparacionParaWhatsapp(workspaceId: string, waId: string): Promise<boolean> {
   try {
     const f = await prisma.fotofficePresupuestoAprobacion.findFirst({
-      where: { workspaceId, waId, status: { in: [...ESTADOS_APROBABLES, "SIN_PROPUESTA", "ENVIANDO"] } },
+      // Una consulta sin horas no frena otra del mismo número: el cliente puede decirlas después.
+      where: { workspaceId, waId, status: { in: [...ESTADOS_APROBABLES, "SIN_PROPUESTA", "ENVIANDO"] }, NOT: { errorCode: "SIN_HORAS" } },
       select: { id: true },
     });
     return f !== null;

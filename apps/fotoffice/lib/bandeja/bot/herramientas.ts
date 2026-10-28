@@ -27,6 +27,8 @@ export type DatosPresupuestoBot = {
   fecha?: string | null;
   lugar?: string | null;
   invitados?: number | null;
+  /** Horas de cobertura (presupuesto por horas). */
+  horas?: number | null;
   email?: string | null;
   detalle?: string | null;
 };
@@ -131,13 +133,14 @@ export function herramientasDeAtencion(
     defineTool({
       name: "preparar_presupuesto",
       description:
-        "Para XV / 15 años, casamientos, bautismos, sesiones, books o eventos: registra la consulta y el estudio arma el presupuesto (te lo aprueba una persona y le llega al cliente por WhatsApp y correo). Usala cuando ya sepas el tipo de evento y el nombre del cliente; si podés, también la fecha (aaaa-mm-dd), el lugar, los invitados y el correo. No digas precios: el presupuesto lo manda el estudio. Si la herramienta te dice que no hay presupuesto automático para ese tipo, usá pasar_a_persona.",
+        "Para cualquier evento o sesión de fotos (XV / 15 años, casamientos, cumpleaños, bautismos, comuniones, eventos corporativos, sesiones, books…): registra la consulta y el estudio arma el presupuesto (te lo aprueba una persona y le llega al cliente por WhatsApp y correo). Usala cuando ya sepas el tipo, el nombre del cliente y cuántas horas dura (horas, de a media hora); si podés, también la fecha (aaaa-mm-dd), el lugar (salón o dirección y localidad), los invitados y el correo. No digas precios: el presupuesto lo manda el estudio. Si la herramienta te dice que no hay presupuesto automático para ese tipo, usá pasar_a_persona.",
       input: z.object({
         tipo: z.string().min(2).max(80),
         nombre: z.string().min(2).max(80),
         fecha: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
         lugar: z.string().max(200).optional(),
         invitados: z.number().int().min(1).max(100000).optional(),
+        horas: z.number().min(0.5).max(24).optional(),
         email: z.string().email().max(200).optional(),
         detalle: z.string().max(500).optional(),
       }),
