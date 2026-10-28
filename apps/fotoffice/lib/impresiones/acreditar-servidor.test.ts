@@ -292,7 +292,7 @@ describe("acreditarPagoImpresion: pedidos del bot de WhatsApp", () => {
   it("un trabajo por laboratorio y plazo, con su nombre y su fecha", async () => {
     orden.findUnique.mockResolvedValueOnce(pedidoWa());
     await A.acreditarPagoImpresion("ws", pago({ amountMinor: 50000 }));
-    expect(H.crear.mock.calls.map((c) => (c[2] as { nombre: string }).nombre).sort()).toEqual([
+    expect(H.crear.mock.calls.map((c) => (c[2] as unknown as { nombre: string }).nombre).sort()).toEqual([
       "Copias impresas · pedido 8 · para la próxima semana",
       "Copias impresas · pedido 8 · para mañana",
       "Copias instantáneas · pedido 8",

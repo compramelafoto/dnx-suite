@@ -7,9 +7,17 @@ const H = vi.hoisted(() => ({
       updateMany: vi.fn(async (..._a: unknown[]) => ({ count: 1 })),
       findFirst: vi.fn(async (..._a: unknown[]) => null as unknown),
       findMany: vi.fn(async (..._a: unknown[]) => [] as unknown[]),
+      findUnique: vi.fn(async (..._a: unknown[]) => null as unknown),
     },
+    cashAccount: { findMany: vi.fn(async () => [{ id: "acc", name: "Caja", kind: "EFECTIVO", isDefault: true, isVault: false }]) },
+    $transaction: vi.fn(async (f: (tx: unknown) => unknown) => f(H.db)),
   },
+  caja: vi.fn(async (..._a: unknown[]) => ({ id: "mov" })),
+  cajaEncendida: vi.fn(async () => true),
 }));
+vi.mock("@/lib/cash/record-movement", () => ({ recordCashMovement: H.caja }));
+vi.mock("@/lib/cash/auto-deposit", () => ({ resolveDepositTarget: () => ({ ok: true, accountId: "acc" }) }));
+vi.mock("@/lib/modules/gating", () => ({ isModuleEnabledForWorkspace: H.cajaEncendida }));
 vi.mock("server-only", () => ({}));
 vi.mock("@repo/db", () => ({ prisma: H.db }));
 const T = await import("./trabajo-servidor");
@@ -56,7 +64,7 @@ describe("pedidoDelTrabajo", () => {
     expect(r).toEqual({
       pedidoId: "ord1", numero: 8, estado: "PAGADO_SIN_ENVIAR", lastError: "Fotolag no tiene correo cargado.",
       copias: [{ tamano: "10x15", papel: "Brillo", cantidad: 3 }, { tamano: "13x18", papel: "Brillo", cantidad: 3 }],
-      totalCents: 1000000, costoCents: 400050, gananciaCents: 599950, entrega: null,
+      totalCents: 1000000, costoCents: 400050, gananciaCents: 599950, entrega: null, pagadoCents: null, saldoCents: null,
     });
   });
   it("con envío a domicilio muestra la dirección, los km, el costo y el enlace al mapa", async () => {
@@ -88,5 +96,31 @@ describe("pedidosPagadosSinEnviar", () => {
       select: { id: true, number: true, nombre: true, paidAt: true, totalArs: true, lastError: true },
     });
     expect(r).toEqual([{ pedidoId: "ord1", numero: 8, cliente: "Juan", pagadoEl: pagado, totalCents: 150050, lastError: "Fotolag no tiene correo cargado." }]);
+  });
+});
+
+describe("pedidos de impresión del bot: saldo", () => {
+  it("la ficha muestra lo pagado, el saldo y el papel de cada renglón", async () => {
+    orden.findFirst.mockResolvedValue({
+      id: "ord1", number: 8, status: "ENVIADO", lastError: null, paper: "BRILLO", totalArs: "28000", costTotalArs: "2400", depositArs: "14000", paidArs: "14000",
+      delivery: "RETIRO", shippingArs: "0", shippingAddress: null, shippingLat: null, shippingLon: null, shippingKm: null,
+      items: [{ widthCm: "13", heightCm: "18", quantity: 2, paper: "MATE" }, { widthCm: "13", heightCm: "18", quantity: 2, paper: null }],
+    });
+    const p = await T.pedidoDelTrabajo("ws", "p1");
+    expect(p).toMatchObject({ pagadoCents: 1400000, saldoCents: 1400000 });
+    expect(p!.copias).toEqual([{ tamano: "13x18", papel: "Brillo", cantidad: 2 }, { tamano: "13x18", papel: "Mate", cantidad: 2 }]);
+  });
+
+  it("cobrar el saldo lo deja en cero y lo registra en Caja con el medio elegido", async () => {
+    orden.findUnique.mockResolvedValue({ id: "ord1", workspaceId: "ws", number: 8, nombre: "Ana", clientId: "c1", totalArs: "28000", paidArs: "14000", depositArs: "14000" });
+    expect(await T.cobrarSaldoImpresion(ctx, "ord1", "EFECTIVO")).toEqual({ ok: true });
+    expect(orden.updateMany).toHaveBeenCalledWith({ where: { id: "ord1", workspaceId: "ws", paidArs: "14000" }, data: { paidArs: "28000.00" } });
+    expect(H.caja).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ amountMinor: 1400000, paymentMethod: "EFECTIVO", sourceRef: "ord1:saldo", createdByUserId: 1 }));
+  });
+
+  it("sin saldo, o medio inválido, no cobra", async () => {
+    orden.findUnique.mockResolvedValue({ id: "ord1", workspaceId: "ws", number: 8, nombre: "Ana", clientId: "c1", totalArs: "28000", paidArs: "28000", depositArs: "14000" });
+    expect(await T.cobrarSaldoImpresion(ctx, "ord1", "EFECTIVO")).toEqual({ ok: false, error: "Este pedido no tiene saldo." });
+    expect(await T.cobrarSaldoImpresion(ctx, "ord1", "BITCOIN")).toEqual({ ok: false, error: "Elegí cómo pagó." });
   });
 });

@@ -14,7 +14,8 @@ const fechaAr = (d: Date) => d.toISOString().slice(0, 10).split("-").reverse().j
 export async function avisarPedidoConfirmado(workspaceId: string, pedidoId: string): Promise<void> {
   try {
     const p = await prisma.fotofficePrintOrder.findFirst({ where: { id: pedidoId, workspaceId }, include: { items: { select: { quantity: true } } } });
-    if (!p) return;
+    // Los pedidos del bot de WhatsApp no tienen correo: el aviso va por WhatsApp.
+    if (!p || !p.email) return;
     const ws = await prisma.fotofficeWorkspaceBranding.findUnique({ where: { workspaceId }, select: { publicSlug: true, commercialName: true } });
     const base = (process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || "").replace(/\/+$/, "");
     const enlace = base && ws?.publicSlug ? `${base}/w/${encodeURIComponent(ws.publicSlug)}/impresion/${p.trackingToken}` : null;

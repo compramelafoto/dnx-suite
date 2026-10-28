@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { MapPin, Printer, RotateCcw, Store } from "lucide-react";
-import { reintentarEnvioAction } from "@/app/actions/impresiones";
+import { cobrarSaldoImpresionAction, reintentarEnvioAction } from "@/app/actions/impresiones";
 
 const ESTADOS: Record<string, string> = {
   PAGADO: "Pagado, por preparar",
@@ -25,6 +25,7 @@ export function PedidoDelTrabajo({
     pedidoId: string; numero: number; estado: string; lastError: string | null;
     copias: { tamano: string; papel: string; cantidad: number }[]; totalCents: number; costoCents: number; gananciaCents: number;
     entrega: { direccion: string; km: number | null; envioCents: number; mapa: string | null } | null;
+    pagadoCents?: number | null; saldoCents?: number | null;
   };
   puedeEditar: boolean;
 }) {
@@ -32,6 +33,15 @@ export function PedidoDelTrabajo({
   const [mensaje, setMensaje] = useState<{ ok: boolean; texto: string } | null>(null);
   const [ocupado, start] = useTransition();
   const sinEnviar = pedido.estado === "PAGADO_SIN_ENVIAR";
+
+  const [medio, setMedio] = useState("EFECTIVO");
+  function cobrarSaldo() {
+    start(async () => {
+      const r = await cobrarSaldoImpresionAction(pedido.pedidoId, medio);
+      setMensaje(r.ok ? { ok: true, texto: "Saldo cobrado: ya se puede entregar." } : { ok: false, texto: r.error });
+      if (r.ok) router.refresh();
+    });
+  }
 
   function reintentar() {
     start(async () => {
@@ -94,6 +104,18 @@ export function PedidoDelTrabajo({
             <dd className="tabular-nums">{pesos(pedido.entrega.envioCents)}</dd>
           </div>
         ) : null}
+        {pedido.pagadoCents !== null && pedido.pagadoCents !== undefined ? (
+          <>
+            <div className="flex justify-between gap-2">
+              <dt className="text-[var(--fo-muted)]">Pagado (seña por WhatsApp)</dt>
+              <dd className="tabular-nums">{pesos(pedido.pagadoCents)}</dd>
+            </div>
+            <div className={`flex justify-between gap-2 ${pedido.saldoCents ? "font-medium text-[var(--fo-warning)]" : ""}`}>
+              <dt>Saldo</dt>
+              <dd className="tabular-nums">{pesos(pedido.saldoCents ?? 0)}</dd>
+            </div>
+          </>
+        ) : null}
         <div className="flex justify-between gap-2">
           <dt className="text-[var(--fo-muted)]">Costo del laboratorio</dt>
           <dd className="tabular-nums">{pesos(pedido.costoCents)}</dd>
@@ -104,6 +126,20 @@ export function PedidoDelTrabajo({
         </div>
       </dl>
 
+      {pedido.saldoCents && puedeEditar ? (
+        <div className="flex flex-wrap items-center gap-2 rounded-[var(--fo-radius-sm)] border border-[var(--fo-border)] p-3">
+          <label className="text-sm" htmlFor={`medio-${pedido.pedidoId}`}>Cobrar el saldo con</label>
+          <select id={`medio-${pedido.pedidoId}`} className="fo-input w-auto text-sm" value={medio} onChange={(e) => setMedio(e.target.value)}>
+            <option value="EFECTIVO">Efectivo</option>
+            <option value="TRANSFERENCIA">Transferencia</option>
+            <option value="MERCADO_PAGO">Mercado Pago</option>
+            <option value="TARJETA">Tarjeta</option>
+          </select>
+          <button type="button" className="fo-btn fo-btn-primary text-sm" disabled={ocupado} onClick={cobrarSaldo}>
+            Cobrar {pesos(pedido.saldoCents)}
+          </button>
+        </div>
+      ) : null}
       {sinEnviar ? (
         <div className="space-y-2 rounded-[var(--fo-radius-sm)] border border-[var(--fo-border)] p-3">
           <p className="text-sm text-[var(--fo-warning)]" role="alert">
