@@ -1,21 +1,33 @@
-import { COMMUNICATIONS_MODULE_KEY } from "@/lib/communications/constants";
-import { listModules } from "./registry";
+import { CASH_MODULE_KEY } from "@/lib/cash/constants";
+import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
+import { FOTOLIBROS_MODULE_KEY } from "@/lib/fotolibro/constantes";
+import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
+import { WEBSITE_MODULE_KEY } from "@/lib/website/constants";
 
 /**
- * Los módulos con los que nace "Tu negocio" (plan Base, diseño del 28/10/2026): todo lo de las
- * familias Base y Negocio fotográfico, para que el fotógrafo use el circuito completo desde el
- * primer día. Los topes por plan son la etapa 2.
+ * Los módulos con los que nace "Tu negocio": los del plan Base, el gratuito (diseño del
+ * 28/10/2026, `docs/superpowers/specs/2026-10-28-plan-base-fotografos-design.md`). Es el
+ * circuito completo de un freelancer: lo consultan, presupuesta, cobra y entrega.
  *
- * Quedan afuera:
- * - Comunicación: sus placas son la bienvenida y el socio de la semana, que necesitan un padrón.
- * - Los que cobran comisión (Digitalización): no se encienden solos, se pide la activación,
- *   igual que en la pantalla de Módulos (`paqueteSugerido`).
- * - Los institucionales: en un negocio confunden.
+ * Lo que el plan Base deja con candado no nace encendido: mientras no existan los topes, encender
+ * es regalar. Quedan afuera Foto carnet, Ventas, Equipo, WhatsApp, Tienda, Pedidos de impresión,
+ * Facturación e Informes (planes pagos), Comunicación (sus placas necesitan un padrón de socios),
+ * los que cobran comisión (se pide la activación) y los institucionales.
  */
-const EXCLUIDOS: ReadonlySet<string> = new Set([COMMUNICATIONS_MODULE_KEY]);
+const PLAN_BASE: readonly string[] = [
+  CLIENTS_MODULE_KEY,
+  "agenda",
+  CASH_MODULE_KEY,
+  WEBSITE_MODULE_KEY,
+  SERVICE_LEADS_MODULE_KEY,
+  "quotes",
+  "orders",
+  "projects",
+  "gallery",
+  "contracts",
+  FOTOLIBROS_MODULE_KEY,
+];
 
 export function modulosInicialesDeNegocio(): string[] {
-  return listModules({ status: "AVAILABLE" })
-    .filter((m) => (m.family === "base" || m.family === "negocio") && !m.platformFee && !EXCLUIDOS.has(m.key))
-    .map((m) => m.key);
+  return [...PLAN_BASE];
 }
