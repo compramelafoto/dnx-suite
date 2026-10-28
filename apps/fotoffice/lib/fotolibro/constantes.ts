@@ -21,3 +21,11 @@ export const FOTOLIBROS_BASE_PATH = "/fotolibros";
 export const FOTOLIBROS_SOCIO_MODULE_KEY = "fotolibros-socios";
 
 export const RUTA_FOTOLIBROS_SOCIO = "/portal/fotolibros";
+
+/**
+ * Cuántos fotolibros puede tener a la vez cada socio en su portal. Los que elimina (archivados)
+ * no cuentan: borrando uno, se libera el lugar.
+ */
+export const TOPE_FOTOLIBROS_SOCIO = 3;
+
+export const MENSAJE_TOPE_FOTOLIBROS_SOCIO = `Podés tener hasta ${TOPE_FOTOLIBROS_SOCIO} fotolibros. Eliminá uno para armar otro.`;

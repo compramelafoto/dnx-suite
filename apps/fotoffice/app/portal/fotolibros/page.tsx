@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { TemplateV2RowActions, templateV2EditorPath } from "@repo/template-editor-ui";
 import { requireAuth } from "@/lib/auth";
 import { NuevoFotolibro } from "@/components/fotolibro/nuevo-fotolibro";
-import { RUTA_FOTOLIBROS_SOCIO } from "@/lib/fotolibro/constantes";
+import { MENSAJE_TOPE_FOTOLIBROS_SOCIO, RUTA_FOTOLIBROS_SOCIO, TOPE_FOTOLIBROS_SOCIO } from "@/lib/fotolibro/constantes";
 import { accesoFotolibrosSocio, listarFotolibrosSocio } from "@/lib/fotolibro/socio";
 import { LABORATORIOS_CONOCIDOS } from "@/lib/fotolibro/medidas-pliego";
 import { crearFotolibroSocioAction } from "./actions";
@@ -25,6 +25,7 @@ export default async function PortalFotolibrosPage() {
   if (!context) redirect("/portal");
 
   const fotolibros = await listarFotolibrosSocio(user.id);
+  const lleno = fotolibros.length >= TOPE_FOTOLIBROS_SOCIO;
 
   return (
     <div className="space-y-6">
@@ -35,11 +36,15 @@ export default async function PortalFotolibrosPage() {
           foto para encuadrarla dentro de su marco.
         </p>
         <p className="max-w-3xl text-xs text-[var(--fo-muted)]">
-          {`Lo que diseñás acá es tuyo: ${context.workspace.name} no lo ve.`}
+          {`Lo que diseñás acá es tuyo: ${context.workspace.name} no lo ve. Usás ${fotolibros.length} de ${TOPE_FOTOLIBROS_SOCIO} fotolibros.`}
         </p>
       </header>
 
-      <NuevoFotolibro proveedores={[...LABORATORIOS_CONOCIDOS]} accion={crearFotolibroSocioAction} />
+      {lleno ? (
+        <p className="fo-card p-4 text-sm text-[var(--fo-muted)]">{MENSAJE_TOPE_FOTOLIBROS_SOCIO}</p>
+      ) : (
+        <NuevoFotolibro proveedores={[...LABORATORIOS_CONOCIDOS]} accion={crearFotolibroSocioAction} />
+      )}
 
       {fotolibros.length === 0 ? (
         <p className="fo-card p-6 text-sm text-[var(--fo-muted)]">Todavía no armaste ningún fotolibro.</p>

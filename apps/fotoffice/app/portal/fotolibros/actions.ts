@@ -5,8 +5,8 @@ import { revalidatePath } from "next/cache";
 import { templateV2EditorPath } from "@repo/template-editor-ui";
 import { requireAuth } from "@/lib/auth";
 import { crearFotolibro } from "@/lib/fotolibro/crear";
-import { RUTA_FOTOLIBROS_SOCIO } from "@/lib/fotolibro/constantes";
-import { accesoFotolibrosSocio } from "@/lib/fotolibro/socio";
+import { MENSAJE_TOPE_FOTOLIBROS_SOCIO, RUTA_FOTOLIBROS_SOCIO } from "@/lib/fotolibro/constantes";
+import { accesoFotolibrosSocio, llegoAlTopeDeFotolibros } from "@/lib/fotolibro/socio";
 import type { NuevoFotolibroState } from "@/app/actions/fotolibro";
 
 /** Crea un fotolibro personal del socio (sin institución) y abre el editor. */
@@ -18,6 +18,7 @@ export async function crearFotolibroSocioAction(
   if (!(await accesoFotolibrosSocio(user.id))) {
     return { error: "Tu institución no tiene los fotolibros encendidos para socios." };
   }
+  if (await llegoAlTopeDeFotolibros(user.id)) return { error: MENSAJE_TOPE_FOTOLIBROS_SOCIO };
   const r = await crearFotolibro({
     workspaceId: null,
     userId: user.id,
