@@ -31,7 +31,7 @@ export type FilaDelPadron = {
 /** Un curso del padrón de la escuela con sus alumnos, sin repetir, ordenados por apellido. */
 export type CursoDelPadron = {
   key: string;
-  /** «7.° A» (con el nivel si hay dos cursos que se llaman igual en el mismo turno). */
+  /** «7° A» (con el nivel si hay dos cursos que se llaman igual en el mismo turno). */
   title: string;
   shift?: string;
   students: ClassListStudent[];
@@ -122,7 +122,7 @@ export const CLAVES_DEL_LISTADO = [
 export function valoresDeEjemplo(): Record<string, string> {
   return {
     "student.fullName": "Nombre del Alumno",
-    "course.displayName": "5.º A",
+    "course.displayName": "5º A",
     "school.name": "Escuela de prueba",
     [CLASS_LIST_VARIABLE_KEY]: serializeClassList(CLASS_LIST_SAMPLE),
     // Compañeros de muestra en el mosaico (sin fotos: siluetas).

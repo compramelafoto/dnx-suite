@@ -39,7 +39,7 @@ test("agrupa el padrón de la escuela por curso, sin repetir alumnos de distinto
   ]);
   assert.deepEqual(
     cursos.map((c) => c.title),
-    ["6.° B", "7.° A"],
+    ["6° B", "7° A"],
   );
   assert.deepEqual(
     cursos[1]!.students.map((s) => `${s.firstName} ${s.lastName}`),
@@ -50,7 +50,7 @@ test("agrupa el padrón de la escuela por curso, sin repetir alumnos de distinto
 
 test("dos cursos con el mismo nombre y turno llevan el nivel en el título", () => {
   const cursos = cursosDelPadronDeLaEscuela([fila("A", "Uno"), fila("B", "Dos", { level: "Secundario" })]);
-  assert.deepEqual(cursos.map((c) => c.title).sort(), ["7.° A Primario", "7.° A Secundario"]);
+  assert.deepEqual(cursos.map((c) => c.title).sort(), ["7° A Primario", "7° A Secundario"]);
 });
 
 test("los textos del alumno elegido: su nombre en todos los formatos, curso, escuela, listado y mosaico", () => {
@@ -60,12 +60,12 @@ test("los textos del alumno elegido: su nombre en todos los formatos, curso, esc
   assert.equal(v["student.firstName"], "Bruno");
   assert.equal(v["student.lastName"], "López");
   assert.equal(v["student.lastNameFirst"], "López, Bruno");
-  assert.equal(v["course.displayName"], "7.° A");
+  assert.equal(v["course.displayName"], "7° A");
   assert.equal(v["school.name"], "Escuela N.° 5");
-  assert.equal(v["course.withSchool"], "7.° A - Escuela N.° 5");
+  assert.equal(v["course.withSchool"], "7° A - Escuela N.° 5");
 
   const [grupo] = parseClassListGroups(v[CLASS_LIST_VARIABLE_KEY]);
-  assert.equal(grupo!.title, "7.° A");
+  assert.equal(grupo!.title, "7° A");
   assert.equal(grupo!.students.length, 3);
   assert.deepEqual(
     grupo!.students.filter((s) => s.isOwner).map((s) => s.firstName),
@@ -101,5 +101,5 @@ test("pasa de un alumno al otro dando la vuelta, y la etiqueta cuenta desde 1", 
 });
 
 test("un curso sin alumnos no llena nada", () => {
-  assert.deepEqual(valoresDelAlumno({ curso: { key: "k", title: "7.° A", students: [] }, indice: 0 }), {});
+  assert.deepEqual(valoresDelAlumno({ curso: { key: "k", title: "7° A", students: [] }, indice: 0 }), {});
 });

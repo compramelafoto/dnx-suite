@@ -104,7 +104,7 @@ export function buildDesignValues(src: DesignValueSources): Record<string, strin
 }
 
 /**
- * El curso para imprimir: "3" + "B" → "3.° B"; "3.º" + "B" → "3.º B". Es la misma escritura que
+ * El curso para imprimir: "3" + "B" → "3° B"; "3º" + "B" → "3º B". Es la misma escritura que
  * el título del curso en el «Listado del curso» (`formatCourseName`), así el «Curso» del diseño
  * y el título del listado dicen lo mismo.
  */

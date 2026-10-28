@@ -45,7 +45,7 @@ const result = resolveTemplateDocument({
       fullName: "Nombre de ejemplo",
     },
     school: { name: "Escuela Ejemplo" },
-    course: { displayName: "3.º B" },
+    course: { displayName: "3º B" },
   },
   registry,
 });

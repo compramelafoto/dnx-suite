@@ -99,15 +99,15 @@ test("la plantilla del canje sale de los beneficios obligatorios", () => {
 test("los textos se arman con lo que se sabe y omiten lo vacío", () => {
   const v = buildDesignValues({
     studentName: " Juana Pérez ",
-    courseName: courseDisplayName("5.º", "A"),
+    courseName: courseDisplayName("5º", "A"),
     schoolName: "",
     eventDate: new Date("2026-10-08T15:00:00Z"),
   });
   assert.deepEqual(v, {
     "student.fullName": "Juana Pérez",
-    "course.displayName": "5.º A",
-    "course.withSchool": "5.º A",
-    "school.withCourse": "5.º A",
+    "course.displayName": "5º A",
+    "course.withSchool": "5º A",
+    "school.withCourse": "5º A",
     "event.dateFormatted": "08/10/2026",
   });
 });

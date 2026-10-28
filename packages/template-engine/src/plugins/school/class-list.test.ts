@@ -105,12 +105,12 @@ test("opciones guardadas inválidas vuelven a los valores por defecto", () => {
 
 test("varios cursos: ida y vuelta y los listados viejos se leen como un curso", () => {
   const grupos = [
-    { title: "7.° A", courseKey: "k-a", students: curso },
-    { title: "7.° B", students: [{ firstName: "Lía", lastName: "Ruiz" }] },
+    { title: "7° A", courseKey: "k-a", students: curso },
+    { title: "7° B", students: [{ firstName: "Lía", lastName: "Ruiz" }] },
   ];
   assert.deepEqual(parseClassListGroups(serializeClassListGroups(grupos)), grupos);
   // Viejo: arreglo plano → un curso con el título que se le pase.
-  assert.deepEqual(parseClassListGroups(serializeClassList(curso), " 7.° A "), [{ title: "7.° A", students: curso }]);
+  assert.deepEqual(parseClassListGroups(serializeClassList(curso), " 7° A "), [{ title: "7° A", students: curso }]);
   assert.deepEqual(parseClassListGroups(serializeClassList(curso)), [{ title: "", students: curso }]);
   // Todos los alumnos juntos, para quien sólo quiere la lista.
   assert.equal(parseClassListValue(serializeClassListGroups(grupos)).length, 4);
@@ -123,7 +123,7 @@ test("el título del curso va siempre, arriba y a todo el ancho, más grande y e
   assert.equal(opciones.showHeading, true);
   assert.equal(opciones.allowExtraCourses, false);
   const { cells, fontSize } = layoutClassListBlock({
-    groups: [{ title: "7.° A", students: curso }],
+    groups: [{ title: "7° A", students: curso }],
     options: opciones,
     width: 1000,
     height: 10_000,
@@ -132,7 +132,7 @@ test("el título del curso va siempre, arriba y a todo el ancho, más grande y e
   });
   assert.equal(fontSize, 40);
   const titulo = cells[0]!;
-  assert.equal(titulo.text, "7.° A");
+  assert.equal(titulo.text, "7° A");
   assert.equal(titulo.heading, true);
   assert.equal(titulo.bold, true);
   assert.equal(titulo.width, 1000);
@@ -142,7 +142,7 @@ test("el título del curso va siempre, arriba y a todo el ancho, más grande y e
   assert.equal(cells[1]!.y, titulo.y + titulo.height + 30);
   // Sin título si se apaga.
   const sin = layoutClassListBlock({
-    groups: [{ title: "7.° A", students: curso }],
+    groups: [{ title: "7° A", students: curso }],
     options: { ...opciones, showHeading: false },
     width: 1000,
     height: 10_000,
@@ -154,8 +154,8 @@ test("el título del curso va siempre, arriba y a todo el ancho, más grande y e
 
 test("dos cursos: un solo título con los dos, 4 columnas siempre y todo se achica junto si no entra", () => {
   const groups = [
-    { title: "7.° A", students: Array.from({ length: 4 }, (_, i) => ({ firstName: `A${i}`, lastName: "X" })) },
-    { title: "7.° B", students: Array.from({ length: 4 }, (_, i) => ({ firstName: `B${i}`, lastName: "Y" })) },
+    { title: "7° A", students: Array.from({ length: 4 }, (_, i) => ({ firstName: `A${i}`, lastName: "X" })) },
+    { title: "7° B", students: Array.from({ length: 4 }, (_, i) => ({ firstName: `B${i}`, lastName: "Y" })) },
   ];
   // Aunque el bloque diga 1 columna, con dos cursos van 4.
   const options = { ...DEFAULT_CLASS_LIST_OPTIONS, columns: 1, headingScale: 1 };
@@ -163,7 +163,7 @@ test("dos cursos: un solo título con los dos, 4 columnas siempre y todo se achi
   assert.equal(amplio.columns, 4);
   assert.deepEqual(
     amplio.cells.filter((c) => c.heading).map((c) => c.text),
-    ["7.° A y 7.° B"],
+    ["7° A y 7° B"],
   );
   // El título va a todo el ancho, arriba de las columnas.
   assert.equal(amplio.cells.find((c) => c.heading)!.width, 1000);
@@ -190,18 +190,18 @@ test("varios cursos: los alumnos de todos van mezclados, en orden, debajo del ú
   ];
   const [unico, ...resto] = formatClassListGroups(groups, { ...DEFAULT_CLASS_LIST_OPTIONS, highlightOwner: true });
   assert.equal(resto.length, 0);
-  assert.equal(unico!.heading, "7.° A y 7.° B");
+  assert.equal(unico!.heading, "7° A y 7° B");
   assert.deepEqual(unico!.lines.map((l) => l.text), ["Zoe Arce", "Leo Báez", "Ana Paz"]);
   assert.equal(unico!.lines.find((l) => l.text === "Ana Paz")!.bold, true);
-  assert.equal(combineClassListHeadings(["3.° A Turno mañana", "3.° B Turno mañana", "3.° C Turno mañana"]), "3.° A, 3.° B y 3.° C Turno mañana");
-  assert.equal(combineClassListHeadings(["3.° A Turno mañana", "3.° B Turno tarde"]), "3.° A Turno mañana y 3.° B Turno tarde");
-  assert.equal(combineClassListHeadings(["3.° A"]), "3.° A");
+  assert.equal(combineClassListHeadings(["3° A Turno mañana", "3° B Turno mañana", "3° C Turno mañana"]), "3° A, 3° B y 3° C Turno mañana");
+  assert.equal(combineClassListHeadings(["3° A Turno mañana", "3° B Turno tarde"]), "3° A Turno mañana y 3° B Turno tarde");
+  assert.equal(combineClassListHeadings(["3° A"]), "3° A");
 });
 
 test("un solo curso respeta las columnas del bloque", () => {
   const students = Array.from({ length: 12 }, (_, i) => ({ firstName: `N${i}`, lastName: "" }));
   const { columns } = layoutClassListBlock({
-    groups: [{ title: "3.° B", students }],
+    groups: [{ title: "3° B", students }],
     options: { ...DEFAULT_CLASS_LIST_OPTIONS, columns: 2 },
     width: 1000,
     height: 1000,
@@ -212,41 +212,44 @@ test("un solo curso respeta las columnas del bloque", () => {
 });
 
 test("el curso se escribe con naturalidad: sin comas y con el ordinal", () => {
-  assert.equal(formatCourseName("3 B"), "3.° B");
-  assert.equal(formatCourseName("3"), "3.°");
+  assert.equal(formatCourseName("3 B"), "3° B");
+  assert.equal(formatCourseName("3"), "3°");
   assert.equal(formatCourseName("3°, B"), "3° B");
-  assert.equal(formatCourseName("3.º, B"), "3.º B");
-  assert.equal(formatCourseName("1 B (Tarde, Primario)"), "1.° B Tarde Primario");
+  assert.equal(formatCourseName("3º, B"), "3º B");
+  assert.equal(formatCourseName("3.° B"), "3° B");
+  assert.equal(formatCourseName("3.º, B"), "3º B");
+  assert.equal(formatCourseName("10 . ° A"), "10° A");
+  assert.equal(formatCourseName("1 B (Tarde, Primario)"), "1° B Tarde Primario");
   // Lo que ya se escribió bien no se toca.
   assert.equal(formatCourseName("7° Grado A"), "7° Grado A");
-  assert.equal(formatCourseName("3.º B"), "3.º B");
+  assert.equal(formatCourseName("3º B"), "3º B");
   assert.equal(formatCourseName("Sala de 5 Celeste"), "Sala de 5 Celeste");
   assert.equal(formatCourseName("  "), "");
   assert.equal(formatShiftLabel("Mañana"), "Turno mañana");
   assert.equal(formatShiftLabel("TURNO TARDE"), "Turno tarde");
   assert.equal(formatShiftLabel(""), "");
-  assert.equal(formatClassListHeading({ title: "3 B", shift: "Mañana" }, true), "3.° B Turno mañana");
-  assert.equal(formatClassListHeading({ title: "3 B", shift: "Mañana" }, false), "3.° B");
-  assert.equal(formatClassListHeading({ title: "3 B" }, true), "3.° B");
+  assert.equal(formatClassListHeading({ title: "3 B", shift: "Mañana" }, true), "3° B Turno mañana");
+  assert.equal(formatClassListHeading({ title: "3 B", shift: "Mañana" }, false), "3° B");
+  assert.equal(formatClassListHeading({ title: "3 B" }, true), "3° B");
 });
 
 test("el turno va según la opción, y siempre si dos cursos se llaman igual", () => {
   const alumnos = [{ firstName: "Ana", lastName: "Paz" }];
   const prendido = formatClassListGroups([{ title: "3 B", shift: "Mañana", students: alumnos }], DEFAULT_CLASS_LIST_OPTIONS);
-  assert.equal(prendido[0]!.heading, "3.° B Turno mañana");
+  assert.equal(prendido[0]!.heading, "3° B Turno mañana");
   const apagado = { ...DEFAULT_CLASS_LIST_OPTIONS, showShift: false };
-  assert.equal(formatClassListGroups([{ title: "3 B", shift: "Mañana", students: alumnos }], apagado)[0]!.heading, "3.° B");
+  assert.equal(formatClassListGroups([{ title: "3 B", shift: "Mañana", students: alumnos }], apagado)[0]!.heading, "3° B");
   const mismos = formatClassListGroups(
     [
       { title: "1 B", shift: "Mañana", students: alumnos },
-      { title: "1.° B", shift: "Tarde", students: alumnos },
+      { title: "1° B", shift: "Tarde", students: alumnos },
       { title: "2 A", shift: "Tarde", students: alumnos },
     ],
     apagado,
   );
   assert.deepEqual(
     mismos.map((s) => s.heading),
-    ["1.° B Turno mañana, 1.° B Turno tarde y 2.° A"],
+    ["1° B Turno mañana, 1° B Turno tarde y 2° A"],
   );
   // El turno viaja en el texto guardado y los listados viejos (sin turno) se siguen leyendo.
   const ida = parseClassListGroups(serializeClassListGroups([{ title: "3 B", shift: "Mañana", students: alumnos }]));
@@ -271,7 +274,7 @@ test("el colegio va una sola vez arriba de todo, dentro de la caja, sólo si se 
   assert.equal(colegio[0]!.width, 1000);
   // El título de los cursos va debajo del colegio.
   const titulos = con.cells.filter((c) => c.heading && !c.school);
-  assert.deepEqual(titulos.map((c) => c.text), ["7.° A Turno mañana y 7.° B Turno tarde"]);
+  assert.deepEqual(titulos.map((c) => c.text), ["7° A Turno mañana y 7° B Turno tarde"]);
   assert.ok(titulos.every((t) => t.y >= colegio[0]!.height));
   // Sin colegio en los datos no se imprime nada, aunque la opción esté prendida.
   const vacio = layoutClassListBlock({ ...base, schoolName: "", options: { ...DEFAULT_CLASS_LIST_OPTIONS, showSchoolName: true } });
@@ -288,7 +291,7 @@ test("un título largo se achica para entrar en el ancho de la caja", () => {
   ];
   const { cells } = layoutClassListBlock({ groups, options: DEFAULT_CLASS_LIST_OPTIONS, width: 400, height: 1000, fontSize: 40, lineHeight: 1.2 });
   const titulo = cells.find((c) => c.heading)!;
-  assert.equal(titulo.text, "3.° B Turno intermedio vespertino y 3.° C");
+  assert.equal(titulo.text, "3° B Turno intermedio vespertino y 3° C");
   assert.ok([...titulo.text].length * titulo.fontSize * 0.6 <= titulo.width + 1e-9);
 });
 
@@ -360,7 +363,7 @@ test("estilo del título: guarda sólo lo que entiende y lo demás sale como los
 test("el título puede tener un cuerpo propio, aparte del de los nombres", () => {
   const opciones = readClassListOptions({ classList: { headingStyle: { fontSize: 30, bold: false, italic: true } } });
   assert.equal(opciones.headingStyle.fontSize, 30);
-  const base = { groups: [{ title: "7.° A", students: curso }], width: 1000, lineHeight: 1.25 };
+  const base = { groups: [{ title: "7° A", students: curso }], width: 1000, lineHeight: 1.25 };
   // Entra: el título sale a su cuerpo, más chico que los nombres si así se eligió.
   const holgado = layoutClassListBlock({ ...base, options: opciones, height: 10_000, fontSize: 40 });
   assert.equal(holgado.fontSize, 40);

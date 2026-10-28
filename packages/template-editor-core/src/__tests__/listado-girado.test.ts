@@ -73,14 +73,14 @@ describe("editorADocumento — listado del curso girado", () => {
       canvas: { width: 3602, height: 2421, dpi: 300 },
       blocks: [listado(90.68)],
       cursosDelListado: [
-        { title: "7.° A", students: nombres.slice(0, 4).map((firstName) => ({ firstName, lastName: "Pérez" })) },
-        { title: "7.° B", students: nombres.slice(4).map((firstName) => ({ firstName, lastName: "Gómez" })) },
+        { title: "7° A", students: nombres.slice(0, 4).map((firstName) => ({ firstName, lastName: "Pérez" })) },
+        { title: "7° B", students: nombres.slice(4).map((firstName) => ({ firstName, lastName: "Gómez" })) },
       ],
     });
     const sides = (document as { sides: { blocks: Record<string, number | string | undefined>[] }[] }).sides;
     const todas = sides[0]!.blocks.filter((b) => String(b.id).startsWith("lista__"));
     assert.equal(todas.length, nombres.length + 1);
-    const titulos = todas.filter((c) => c.content === "7.° A y 7.° B");
+    const titulos = todas.filter((c) => c.content === "7° A y 7° B");
     assert.equal(titulos.length, 1);
     const alumno = todas.find((c) => c.content === "Sofía Pérez")!;
     for (const t of titulos) {
@@ -107,7 +107,7 @@ describe("editorADocumento — listado del curso girado", () => {
     const textos = sides[0]!.blocks.map((b) => b.content);
     assert.equal(textos.filter((t) => t === "Escuela Belgrano").length, 1);
     // Un solo título con los dos cursos, cada uno con su turno porque no coinciden.
-    assert.ok(textos.includes("7.° A Turno mañana y 7.° B Turno tarde"));
+    assert.ok(textos.includes("7° A Turno mañana y 7° B Turno tarde"));
     assert.ok(sides[0]!.blocks.every((b) => b.rotation === 90));
   });
 
@@ -131,7 +131,7 @@ describe("editorADocumento — listado del curso girado", () => {
       cursosDelListado: [{ title: "3 B", students: [{ firstName: "Ana", lastName: "Paz" }] }],
     });
     const sides = (document as { sides: { blocks: Record<string, number | string | undefined>[] }[] }).sides;
-    const titulo = sides[0]!.blocks.find((b) => b.content === "3.° B")!;
+    const titulo = sides[0]!.blocks.find((b) => b.content === "3° B")!;
     const alumno = sides[0]!.blocks.find((b) => b.content === "Ana Paz")!;
     assert.equal(titulo.textTransform, "uppercase");
     assert.equal(titulo.color, "#aa0000");
@@ -145,6 +145,6 @@ describe("editorADocumento — listado del curso girado", () => {
   it("sin cursos ni lista, el editor muestra el curso de muestra con su título", () => {
     const { document } = editorADocumento({ canvas: { width: 3602, height: 2421, dpi: 300 }, blocks: [listado(0)] });
     const sides = (document as { sides: { blocks: Record<string, number | string | undefined>[] }[] }).sides;
-    assert.ok(sides[0]!.blocks.some((b) => b.content === "3.° B Turno mañana"));
+    assert.ok(sides[0]!.blocks.some((b) => b.content === "3° B Turno mañana"));
   });
 });

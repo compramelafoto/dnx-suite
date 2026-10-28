@@ -105,7 +105,7 @@ function listaDelCurso(): string {
   );
 }
 
-/** Dos cursos de la misma foto grupal (7.° A y 7.° B), cada uno con su título. */
+/** Dos cursos de la misma foto grupal (7° A y 7° B), cada uno con su título. */
 function dosCursos(): string {
   const curso = (nombres: string[], dueña: number | null) =>
     nombres.map((n, i) => {
@@ -114,13 +114,13 @@ function dosCursos(): string {
     });
   return JSON.stringify({
     g: [
-      { t: "7.° A", k: "padron|||7.°|A", s: curso(ALUMNOS.slice(0, 9), 3) },
-      { t: "7.° B", k: "padron|||7.°|B", s: curso(ALUMNOS.slice(9), null) },
+      { t: "7° A", k: "padron|||7°|A", s: curso(ALUMNOS.slice(0, 9), 3) },
+      { t: "7° B", k: "padron|||7°|B", s: curso(ALUMNOS.slice(9), null) },
     ],
   });
 }
 
-/** Dos cursos del padrón tal como vienen («3» + «B»), con turno: el título sale «3.° B Turno mañana». */
+/** Dos cursos del padrón tal como vienen («3» + «B»), con turno: el título sale «3° B Turno mañana». */
 function dosCursosConTurno(): string {
   const curso = (nombres: string[], dueña: number | null) =>
     nombres.map((n, i) => {
@@ -155,7 +155,7 @@ function septimoA(): string {
 }
 
 /**
- * El bloque «Listado del curso» de 7.º A, copiado tal cual de la plantilla de San Patricio
+ * El bloque «Listado del curso» de 7º A, copiado tal cual de la plantilla de San Patricio
  * (TemplateV2 cmv36vjbc0000l8066hx8tjex): posición, tamaño, giro, columnas y tipografía.
  */
 function listadoSanPatricio(pageIndex: number, verticalAlign?: string): TemplateV2Block {
@@ -194,7 +194,7 @@ export function casosDeComparacion(imagenDePrueba: string): CasoDeComparacion[] 
       blocks: [
         texto(0, { x: 50, y: 60, width: 600, height: 70 }, "Sin giro"),
         texto(0, { x: 750, y: 60, width: 600, height: 70, rotation: 30 }, "Treinta grados"),
-        texto(0, { x: 100, y: 450, width: 700, height: 70, rotation: 90 }, "5.º A - Colegio San Patricio"),
+        texto(0, { x: 100, y: 450, width: 700, height: 70, rotation: 90 }, "5º A - Colegio San Patricio"),
         texto(0, { x: 500, y: 450, width: 700, height: 70, rotation: -90 }, "Hacia arriba, menos noventa"),
         texto(0, { x: 850, y: 600, width: 560, height: 70, rotation: 180 }, "Cabeza abajo"),
         texto(0, { x: 850, y: 800, width: 560, height: 70, rotation: -7 }, "Un poco inclinado", { fontWeight: 700 }),
@@ -212,7 +212,7 @@ export function casosDeComparacion(imagenDePrueba: string): CasoDeComparacion[] 
         texto(
           0,
           { x: 40 + (i % 2) * 720, y: 30 + Math.floor(i / 2) * 160, width: 700, height: 80 },
-          `${familia}: Benjamín 5.º A`,
+          `${familia}: Benjamín 5º A`,
           { fontFamily: familia, textAlign: "left", fontWeight: i % 3 === 0 ? 700 : 400, fontSize: 44 },
         ),
       ),
@@ -310,11 +310,11 @@ export function casosDeComparacion(imagenDePrueba: string): CasoDeComparacion[] 
     },
     {
       /*
-       * El listado de 7.º A de San Patricio, girado 90,68°, centrado en el alto de su recuadro (lo
+       * El listado de 7º A de San Patricio, girado 90,68°, centrado en el alto de su recuadro (lo
        * que pidió Daniel). En la segunda página, un listado derecho alineado abajo.
        */
       id: "listado-centrado-vertical",
-      titulo: "Listado de 7.º A de San Patricio centrado en su recuadro girado",
+      titulo: "Listado de 7º A de San Patricio centrado en su recuadro girado",
       canvas: { width: 3602, height: 2421, dpi: 300, background: "#ffffff" } as TemplateV2Canvas,
       paginas: 2,
       valores: { "course.studentList": septimoA() },
@@ -365,7 +365,7 @@ export function casosDeComparacion(imagenDePrueba: string): CasoDeComparacion[] 
       paginas: 2,
       valores: { "course.studentList": dosCursosConTurno(), "school.name": "Escuela Manuel Belgrano" },
       /*
-       * El título de dos cursos («3.° B Turno mañana y 3.° C Turno tarde») es una línea larga en
+       * El título de dos cursos («3° B Turno mañana y 3° C Turno tarde») es una línea larga en
        * negrita: el navegador y el PDF espacian las letras apenas distinto y al final de la línea
        * suman unos 8 px. Se ve igual (mismo texto, mismo lugar); por eso la peor zona tolera más.
        */
@@ -388,14 +388,14 @@ export function casosDeComparacion(imagenDePrueba: string): CasoDeComparacion[] 
       paginas: 2,
       valores: { "course.studentList": listaDelCurso() },
       blocks: [
-        texto(0, { x: 1500, y: 1150, width: 900, height: 120, rotation: 90.49 }, "5.º A", { fontFamily: "Helvetica", fontSize: 90 }),
+        texto(0, { x: 1500, y: 1150, width: 900, height: 120, rotation: 90.49 }, "5º A", { fontFamily: "Helvetica", fontSize: 90 }),
         bloque("VARIABLE_TEXT", 0, { x: -153, y: 591, width: 1970, height: 1239, rotation: 90.68 }, {
           variableKey: "course.studentList", fontFamily: "Helvetica", fontSize: 67, color: "#1d3a6b", columns: 2, textAlign: "LEFT",
         }),
         texto(1, { x: 2300, y: 250, width: 1000, height: 150 }, "Benjamín", { fontFamily: "Great Vibes", fontSize: 110 }),
         imagen(1, { x: 2450, y: 500, width: 700, height: 900 }, imagenDePrueba),
         imagen(1, { x: 300, y: 500, width: 1400, height: 1000, rotation: -89.67 }, imagenDePrueba),
-        texto(1, { x: 2418, y: 1165, width: 2082, height: 91, rotation: -89.65 }, "5.º A - Colegio San Patricio", { fontFamily: "Helvetica", fontSize: 70 }),
+        texto(1, { x: 2418, y: 1165, width: 2082, height: 91, rotation: -89.65 }, "5º A - Colegio San Patricio", { fontFamily: "Helvetica", fontSize: 70 }),
       ],
     },
     {
