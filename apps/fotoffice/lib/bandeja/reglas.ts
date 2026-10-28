@@ -99,9 +99,13 @@ export function alDevolver(_userId: number, nombre: string): ResultadoRegla {
   };
 }
 
-/** §3 "Resolver": `RESUELTO`. */
+/**
+ * §3 "Resolver": `RESUELTO`, sin asignado ni pausa. Resolver es terminar la atención: el próximo
+ * mensaje del cliente reabre el chat en `BOT` (si no, el bot quedaba callado para siempre con
+ * quien alguna vez se tomó el chat).
+ */
 export function alResolver(_userId: number, nombre: string): ResultadoRegla {
-  return { parche: { estado: "RESUELTO" }, sistema: { texto: `${nombre} marcó el chat como resuelto` } };
+  return { parche: { estado: "RESUELTO", asignadoUserId: null, botPausadoHasta: null }, sistema: { texto: `${nombre} marcó el chat como resuelto` } };
 }
 
 /**

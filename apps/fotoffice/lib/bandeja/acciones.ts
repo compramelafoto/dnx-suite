@@ -106,7 +106,7 @@ export async function devolverAlBot(ctx: CtxBandeja, chatId: string, deps: Deps 
 export async function resolver(ctx: CtxBandeja, chatId: string, deps: Deps = {}): Promise<Resultado> {
   const userId = ctx.userId;
   if (userId === null) return no(MENSAJES_BANDEJA.sinPermiso);
-  return transicion(ctx, chatId, (chat) => (chat.estado === "RESUELTO" ? null : alResolver(userId, ctx.userLabel)), deps.ahora ?? new Date());
+  return transicion(ctx, chatId, (chat) => (chat.estado === "RESUELTO" && chat.asignadoUserId === null ? null : alResolver(userId, ctx.userLabel)), deps.ahora ?? new Date());
 }
 
 /** Marca el chat como leído (VIEW alcanza: no cambia quién lo atiende). Bajo el mismo candado de fila. */
