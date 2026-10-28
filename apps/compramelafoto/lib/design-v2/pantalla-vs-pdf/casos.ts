@@ -120,7 +120,7 @@ function dosCursos(): string {
   });
 }
 
-/** Dos cursos del padrón tal como vienen («3» + «B»), con turno: el título sale «3.° B · Turno mañana». */
+/** Dos cursos del padrón tal como vienen («3» + «B»), con turno: el título sale «3.° B Turno mañana». */
 function dosCursosConTurno(): string {
   const curso = (nombres: string[], dueña: number | null) =>
     nombres.map((n, i) => {
@@ -365,7 +365,7 @@ export function casosDeComparacion(imagenDePrueba: string): CasoDeComparacion[] 
       paginas: 2,
       valores: { "course.studentList": dosCursosConTurno(), "school.name": "Escuela Manuel Belgrano" },
       /*
-       * El título de dos cursos («3.° B · Turno mañana y 3.° C · Turno tarde») es una línea larga en
+       * El título de dos cursos («3.° B Turno mañana y 3.° C Turno tarde») es una línea larga en
        * negrita: el navegador y el PDF espacian las letras apenas distinto y al final de la línea
        * suman unos 8 px. Se ve igual (mismo texto, mismo lugar); por eso la peor zona tolera más.
        */

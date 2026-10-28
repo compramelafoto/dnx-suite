@@ -50,7 +50,7 @@ test("agrupa el padrón de la escuela por curso, sin repetir alumnos de distinto
 
 test("dos cursos con el mismo nombre y turno llevan el nivel en el título", () => {
   const cursos = cursosDelPadronDeLaEscuela([fila("A", "Uno"), fila("B", "Dos", { level: "Secundario" })]);
-  assert.deepEqual(cursos.map((c) => c.title).sort(), ["7.° A · Primario", "7.° A · Secundario"]);
+  assert.deepEqual(cursos.map((c) => c.title).sort(), ["7.° A Primario", "7.° A Secundario"]);
 });
 
 test("los textos del alumno elegido: su nombre en todos los formatos, curso, escuela, listado y mosaico", () => {

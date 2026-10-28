@@ -48,7 +48,7 @@ export type ClassListOptions = {
    */
   allowExtraCourses: boolean;
   /**
-   * El turno al lado del título del curso («3.° B · Turno mañana»). Prendido por defecto: si el
+   * El turno al lado del título del curso («3.° B Turno mañana»). Prendido por defecto: si el
    * curso no trae turno, no se imprime nada. Apagado, igual se muestra cuando dos cursos del
    * listado se llaman igual y sólo el turno los distingue.
    */
@@ -202,7 +202,7 @@ export type ClassListGroup = {
  * - un número suelto al principio es un ordinal: «3 B» → «3.° B», «3» → «3.°»;
  * - la coma pegada al ordinal sobra: «3°, B» → «3° B»;
  * - el agregado entre paréntesis de los listados viejos («1 B (Tarde, Primario)») pasa a ir
- *   con puntos medios: «1.° B · Tarde · Primario».
+ *   separado con espacios: «1.° B Tarde Primario».
  *
  * «7° Grado A», «3.º B» o «Sala de 5» quedan como están.
  */
@@ -217,7 +217,7 @@ export function formatCourseName(raw: string | null | undefined): string {
   }
   t = t.replace(/^(\d+\s*\.?\s*[°º]?)\s*,\s*/, "$1 ");
   t = t.replace(/^(\d+)(?=\s|$)(?!\s*[°º.])/, "$1.°");
-  return [t, ...extra].filter(Boolean).join(" · ");
+  return [t, ...extra].filter(Boolean).join(" ");
 }
 
 /** «Mañana» → «Turno mañana». Si ya dice «turno», sólo se ordenan las mayúsculas. */
@@ -229,11 +229,20 @@ export function formatShiftLabel(raw: string | null | undefined): string {
   return conTurno.charAt(0).toLocaleUpperCase("es") + conTurno.slice(1);
 }
 
-/** El título impreso de un curso: «3.° B» o, con el turno, «3.° B · Turno mañana». */
+/** El título impreso de un curso: «3.° B» o, con el turno, «3.° B Turno mañana». */
 export function formatClassListHeading(group: Pick<ClassListGroup, "title" | "shift">, showShift: boolean): string {
   const curso = formatCourseName(group.title);
   const turno = showShift ? formatShiftLabel(group.shift) : "";
-  return [curso, turno].filter(Boolean).join(" · ");
+  return [curso, turno].filter(Boolean).join(" ");
+}
+
+/**
+ * Separa un título en curso y turno: «3.° B Turno mañana» → «3.° B» + «Turno mañana». El turno
+ * siempre empieza con «Turno» (`formatShiftLabel`), así que se corta ahí; sin turno, todo es curso.
+ */
+function splitClassListHeading(h: string): { curso: string; turno: string } {
+  const i = h.indexOf(" Turno ");
+  return i > 0 ? { curso: h.slice(0, i), turno: h.slice(i + 1) } : { curso: h, turno: "" };
 }
 
 function studentToWire(s: ClassListStudent) {
@@ -412,20 +421,17 @@ function joinSpanish(parts: readonly string[]): string {
 }
 
 /**
- * Un solo título para varios cursos: «7.° A y 7.° B · Turno mañana». Si los turnos no
- * coinciden, cada curso lleva el suyo: «7.° A · Turno mañana y 7.° B · Turno tarde».
+ * Un solo título para varios cursos: «7.° A y 7.° B Turno mañana». Si los turnos no
+ * coinciden, cada curso lleva el suyo: «7.° A Turno mañana y 7.° B Turno tarde».
  */
 export function combineClassListHeadings(headings: readonly string[]): string {
   const partes = headings.filter((h) => h.trim() !== "");
   if (partes.length <= 1) return partes[0] ?? "";
-  const cortes = partes.map((h) => {
-    const i = h.indexOf(" · ");
-    return i > 0 ? { curso: h.slice(0, i), resto: h.slice(i + 3) } : { curso: h, resto: "" };
-  });
-  const resto = cortes[0]!.resto;
-  if (cortes.every((c) => c.resto === resto)) {
+  const cortes = partes.map(splitClassListHeading);
+  const turno = cortes[0]!.turno;
+  if (cortes.every((c) => c.turno === turno)) {
     const cursos = joinSpanish(cortes.map((c) => c.curso));
-    return resto ? `${cursos} · ${resto}` : cursos;
+    return turno ? `${cursos} ${turno}` : cursos;
   }
   return joinSpanish(partes);
 }
@@ -676,13 +682,13 @@ export function layoutClassListSections(input: {
        * renglones: el curso arriba y el turno abajo («3.° B» / «Turno mañana»). Achicarlo más
        * que los nombres lo dejaba ilegible.
        */
-      const corte = s.heading.indexOf(" · ");
+      const corte = splitClassListHeading(s.heading);
       const noEntra = [...s.heading].length * AVG_CHAR_EM * planFont * headingScale > planCell;
-      const partir = noEntra && corte > 0;
-      const sub = partir ? s.heading.slice(corte + 3) : null;
+      const partir = noEntra && corte.turno !== "";
+      const sub = partir ? corte.turno : null;
       items.push({
         kind: "heading",
-        text: partir ? s.heading.slice(0, corte) : s.heading,
+        text: partir ? corte.curso : s.heading,
         sub,
         units: headingScale + (sub ? 1 : 0) + 2 * HEADING_GAP,
         gapBefore,

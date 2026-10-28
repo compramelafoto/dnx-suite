@@ -96,7 +96,7 @@ export function cursosDelPadronDeLaEscuela(filas: readonly FilaDelPadron[]): Cur
     const nivel = repetido ? c.fila.level?.trim() : "";
     return {
       key: c.key,
-      title: nivel ? `${c.title} · ${nivel}` : c.title,
+      title: nivel ? `${c.title} ${nivel}` : c.title,
       ...(c.shift ? { shift: c.shift } : {}),
       students: c.students,
     };

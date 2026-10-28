@@ -193,8 +193,8 @@ test("varios cursos: los alumnos de todos van mezclados, en orden, debajo del ú
   assert.equal(unico!.heading, "7.° A y 7.° B");
   assert.deepEqual(unico!.lines.map((l) => l.text), ["Zoe Arce", "Leo Báez", "Ana Paz"]);
   assert.equal(unico!.lines.find((l) => l.text === "Ana Paz")!.bold, true);
-  assert.equal(combineClassListHeadings(["3.° A · Turno mañana", "3.° B · Turno mañana", "3.° C · Turno mañana"]), "3.° A, 3.° B y 3.° C · Turno mañana");
-  assert.equal(combineClassListHeadings(["3.° A · Turno mañana", "3.° B · Turno tarde"]), "3.° A · Turno mañana y 3.° B · Turno tarde");
+  assert.equal(combineClassListHeadings(["3.° A Turno mañana", "3.° B Turno mañana", "3.° C Turno mañana"]), "3.° A, 3.° B y 3.° C Turno mañana");
+  assert.equal(combineClassListHeadings(["3.° A Turno mañana", "3.° B Turno tarde"]), "3.° A Turno mañana y 3.° B Turno tarde");
   assert.equal(combineClassListHeadings(["3.° A"]), "3.° A");
 });
 
@@ -216,7 +216,7 @@ test("el curso se escribe con naturalidad: sin comas y con el ordinal", () => {
   assert.equal(formatCourseName("3"), "3.°");
   assert.equal(formatCourseName("3°, B"), "3° B");
   assert.equal(formatCourseName("3.º, B"), "3.º B");
-  assert.equal(formatCourseName("1 B (Tarde, Primario)"), "1.° B · Tarde · Primario");
+  assert.equal(formatCourseName("1 B (Tarde, Primario)"), "1.° B Tarde Primario");
   // Lo que ya se escribió bien no se toca.
   assert.equal(formatCourseName("7° Grado A"), "7° Grado A");
   assert.equal(formatCourseName("3.º B"), "3.º B");
@@ -225,7 +225,7 @@ test("el curso se escribe con naturalidad: sin comas y con el ordinal", () => {
   assert.equal(formatShiftLabel("Mañana"), "Turno mañana");
   assert.equal(formatShiftLabel("TURNO TARDE"), "Turno tarde");
   assert.equal(formatShiftLabel(""), "");
-  assert.equal(formatClassListHeading({ title: "3 B", shift: "Mañana" }, true), "3.° B · Turno mañana");
+  assert.equal(formatClassListHeading({ title: "3 B", shift: "Mañana" }, true), "3.° B Turno mañana");
   assert.equal(formatClassListHeading({ title: "3 B", shift: "Mañana" }, false), "3.° B");
   assert.equal(formatClassListHeading({ title: "3 B" }, true), "3.° B");
 });
@@ -233,7 +233,7 @@ test("el curso se escribe con naturalidad: sin comas y con el ordinal", () => {
 test("el turno va según la opción, y siempre si dos cursos se llaman igual", () => {
   const alumnos = [{ firstName: "Ana", lastName: "Paz" }];
   const prendido = formatClassListGroups([{ title: "3 B", shift: "Mañana", students: alumnos }], DEFAULT_CLASS_LIST_OPTIONS);
-  assert.equal(prendido[0]!.heading, "3.° B · Turno mañana");
+  assert.equal(prendido[0]!.heading, "3.° B Turno mañana");
   const apagado = { ...DEFAULT_CLASS_LIST_OPTIONS, showShift: false };
   assert.equal(formatClassListGroups([{ title: "3 B", shift: "Mañana", students: alumnos }], apagado)[0]!.heading, "3.° B");
   const mismos = formatClassListGroups(
@@ -246,7 +246,7 @@ test("el turno va según la opción, y siempre si dos cursos se llaman igual", (
   );
   assert.deepEqual(
     mismos.map((s) => s.heading),
-    ["1.° B · Turno mañana, 1.° B · Turno tarde y 2.° A"],
+    ["1.° B Turno mañana, 1.° B Turno tarde y 2.° A"],
   );
   // El turno viaja en el texto guardado y los listados viejos (sin turno) se siguen leyendo.
   const ida = parseClassListGroups(serializeClassListGroups([{ title: "3 B", shift: "Mañana", students: alumnos }]));
@@ -271,7 +271,7 @@ test("el colegio va una sola vez arriba de todo, dentro de la caja, sólo si se 
   assert.equal(colegio[0]!.width, 1000);
   // El título de los cursos va debajo del colegio.
   const titulos = con.cells.filter((c) => c.heading && !c.school);
-  assert.deepEqual(titulos.map((c) => c.text), ["7.° A · Turno mañana y 7.° B · Turno tarde"]);
+  assert.deepEqual(titulos.map((c) => c.text), ["7.° A Turno mañana y 7.° B Turno tarde"]);
   assert.ok(titulos.every((t) => t.y >= colegio[0]!.height));
   // Sin colegio en los datos no se imprime nada, aunque la opción esté prendida.
   const vacio = layoutClassListBlock({ ...base, schoolName: "", options: { ...DEFAULT_CLASS_LIST_OPTIONS, showSchoolName: true } });
@@ -288,7 +288,7 @@ test("un título largo se achica para entrar en el ancho de la caja", () => {
   ];
   const { cells } = layoutClassListBlock({ groups, options: DEFAULT_CLASS_LIST_OPTIONS, width: 400, height: 1000, fontSize: 40, lineHeight: 1.2 });
   const titulo = cells.find((c) => c.heading)!;
-  assert.equal(titulo.text, "3.° B · Turno intermedio vespertino y 3.° C");
+  assert.equal(titulo.text, "3.° B Turno intermedio vespertino y 3.° C");
   assert.ok([...titulo.text].length * titulo.fontSize * 0.6 <= titulo.width + 1e-9);
 });
 
