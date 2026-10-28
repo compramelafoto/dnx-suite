@@ -62,7 +62,14 @@ function normalizeConceptCommercialHours(
       ...nextClientHours,
       administrativeDeliveryHours: mergeHoursField(nextClientHours.administrativeDeliveryHours, delivery),
     };
-    nextConcept = { ...nextConcept, deliveryHours: "" };
+    // Las horas de entrega asignadas a una persona son esas mismas horas: si quedaran, se contarían dos veces.
+    nextConcept = {
+      ...nextConcept,
+      deliveryHours: "",
+      ...(Array.isArray(nextConcept.assignments)
+        ? { assignments: nextConcept.assignments.filter((a) => a?.activity !== "delivery") }
+        : {}),
+    };
     warnings.push(
       `Se movieron ${delivery} h de entrega del producto o servicio «${label}» al bloque Cliente (entrega administrativa). Si era entrega de material, cargala de nuevo en la línea.`,
     );

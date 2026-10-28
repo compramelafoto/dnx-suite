@@ -258,3 +258,51 @@ describe("Local y coberturas: los números de Daniel", () => {
     expect(labor.cost).toBeCloseTo(3 * camila.costPerHour!, 4);
   });
 });
+
+describe("Mi estudio: precio de punta a punta con local separado", () => {
+  const as = (activity: "coverage" | "editing" | "travel" | "delivery", hours: string) => ({ personId: "owner", activity, hours });
+  /** Sin horas de cliente (reuniones, cobranza…): el total sale sólo del concepto. */
+  const SIN_CLIENTE = { salesHours: "0", meetingsHours: "0", generalPrepHours: "0", coordinationHours: "0", billingHours: "0", followUpHours: "0", administrativeDeliveryHours: "0" };
+  function sesionPreXv(conTravelYDelivery = true) {
+    return createBaseCompleteQuote({
+      client: { ...createBaseCompleteQuote().client, hours: SIN_CLIENTE },
+      concepts: [
+        createOwnServiceConcept({
+          name: "Sesión PRE XV con maquillaje y fiesta completa",
+          coverageHours: "11",
+          editingHours: "11",
+          salesHours: "2",
+          travelHours: "1",
+          deliveryHours: "1",
+          directCost: "50000",
+          desiredMarginPercent: "",
+          assignments: [as("coverage", "11"), as("editing", "11"), ...(conTravelYDelivery ? [as("travel", "1"), as("delivery", "1")] : [])],
+        }),
+      ],
+    });
+  }
+  function calcular(perfil: CuantoCobroProfileInput, quote = sesionPreXv()) {
+    const r = calculateCuantoCobro(perfil, quote);
+    if (r.status !== "complete") throw new Error(r.missingFields.join(", "));
+    return r;
+  }
+  const precio = (r: ReturnType<typeof calcular>) => r.priceBuildUp?.priceWithoutVat ?? r.chosenPriceEffective;
+
+  it("26 h, valor hora del dueño ≈ 20821 y precio ≈ 650466", () => {
+    const r = calcular(perfilDanielSeparado());
+    expect(r.totalJobHours).toBe(26);
+    expect(r.hourlyRate).toBeCloseTo(20_821, -1);
+    expect(Math.abs(precio(r) - 650_466)).toBeLessThanOrEqual(2);
+  });
+
+  it("con posicionamiento «established» ≈ 887000", () => {
+    const r = calcular({ ...perfilDanielSeparado(), commercialPositioningId: "established" });
+    expect(r.totalJobHours).toBe(26);
+    expect(Math.abs(precio(r) - 887_000)).toBeLessThanOrEqual(2);
+  });
+
+  it("no cuenta doble: sin asignar viaje y entrega también son 26 h", () => {
+    expect(calcular(perfilDanielSeparado(), sesionPreXv(false)).totalJobHours).toBe(26);
+    expect(calcular({ ...perfilDanielSeparado(), commercialPositioningId: "established" }, sesionPreXv(false)).totalJobHours).toBe(26);
+  });
+});
