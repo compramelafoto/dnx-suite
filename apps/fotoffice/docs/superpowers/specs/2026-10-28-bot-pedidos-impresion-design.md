@@ -28,7 +28,7 @@ persona); la etapa 6 (botón "Avisar que está listo").
 | Papel | El cliente elige **brillante o mate** por foto (se pueden mezclar en el mismo pedido); si no dice nada, **brillante** |
 | Pocas copias | Si no llega al primer escalón del catálogo ("más de 10"), se cobra el **precio de la instantánea** de esa medida y se entrega al **siguiente día hábil** (va al laboratorio como "para mañana") |
 | "Para mañana" | Listo el **siguiente día hábil** (si pagan viernes o sábado, el lunes; feriados no cuentan) |
-| "Próxima semana" | **7 días corridos**. Estos pedidos se **acumulan** y salen juntos al laboratorio: el viaje del cadete cuesta ~$12.000, así que sólo conviene mandar cuando la **ganancia acumulada** (precio − costo) de los pedidos esperando supera **$22.000** (cadete + $10.000; configurable). Mientras no llegue, al cliente no se le promete fecha: "te avisamos el día". Cuando se junta lo suficiente, sale el correo con todos y la fecha es +7 días corridos |
+| "Próxima semana" (y La Isla) | **Máximo 7 días corridos.** El pedido **sale al laboratorio apenas se paga**. Al cliente se le promete "como máximo en 7 días" (sin fecha exacta). El cadete (~$12.000 el viaje) se manda cuando conviene: cuando la **ganancia acumulada** (precio − costo) de los trabajos de ese laboratorio que esperan retiro **supera $12.000** (configurable), se programa el retiro para el **siguiente día hábil** *(decisión de quien diseña)* y recién ahí se le avisa a cada cliente la fecha exacta. Si se llega al día 7 sin juntar la ganancia, el retiro se programa igual ese día |
 | Plazos mezclados | Si el cliente pide unas "para mañana" y otras "para la próxima semana", **paga todo junto** (un solo link) pero se generan **trabajos separados** (uno por plazo y laboratorio), cada uno con su fecha |
 | Retiro | **Siempre en el estudio** |
 | Envío a domicilio | Opcional. **$3.000 por km** desde el estudio (**San José 1672, Funes**) hasta la dirección del cliente (la misma regla que el traslado de eventos: incluye la vuelta). Se cobra en el mismo link |
@@ -72,7 +72,8 @@ persona); la etapa 6 (botón "Avisar que está listo").
 - Formatos de nombre del catálogo de DNX (verificado el 28/10): "Copia instantánea {medida}",
   "Copia {para mañana | próxima semana} {medida} · más de N", "Ampliación {medida} {para mañana |
   próxima semana}" (Fotolag, 20x30 y 25x38) y "Ampliación {medida}" (La Isla, 20x40 a 30x90, sin
-  plazo en el nombre). Se leen con un formato estricto; lo que no encaje no se vende por el bot.
+  plazo en el nombre: se tratan como "próxima semana", máximo 7 días). Se leen con un formato
+  estricto; lo que no encaje no se vende por el bot.
 - Para cada medida y plazo se toma el producto con el escalón "más de N" más alto que cumpla
   **N < cantidad total de esa medida y plazo**; si ninguno se cumple, el precio de la instantánea
   (regla "Pocas copias"). Costo: `Product.costArs`.
@@ -103,10 +104,11 @@ persona); la etapa 6 (botón "Avisar que está listo").
   cliente del módulo se omiten si no hay correo y el bot avisa por WhatsApp.
 - **Plazo y papel por ítem:** cada renglón guarda su plazo y su papel; el ZIP y el correo agrupan
   por plazo, medida y papel. Asunto: "PARA MAÑANA" o "PARA LA PRÓXIMA SEMANA".
-- **Lote de "próxima semana":** los trabajos de próxima semana pagados esperan en una fase "En
-  espera de lote"; el cron, cuando la ganancia acumulada supera el umbral, manda un correo por
-  laboratorio con todos, fija la fecha (+7 días corridos) y avisa a cada cliente por WhatsApp si su
-  ventana sigue abierta (si no, el aviso queda para el mostrador).
+- **Retiro programado de "próxima semana":** los trabajos de próxima semana (y La Isla) salen al
+  laboratorio al pagarse y quedan en una fase "Esperando retiro". El cron suma, por laboratorio, la
+  ganancia de los que esperan; si supera el umbral ($12.000), fija el retiro para el siguiente día
+  hábil, pone esa fecha como entrega prometida en cada trabajo y avisa a cada cliente por WhatsApp
+  si su ventana sigue abierta (si no, el aviso queda para el mostrador). Al día 7 se fija igual.
 - **Herramienta del bot** `armar_pedido_impresion` (kind "write" o "read" con efecto controlado,
   como `preparar_presupuesto`): crea el pedido PENDIENTE_PAGO y las dos preferencias de MP. Un
   pedido pendiente por chat a la vez; si el cliente cambia algo, se reemplaza el pendiente.
