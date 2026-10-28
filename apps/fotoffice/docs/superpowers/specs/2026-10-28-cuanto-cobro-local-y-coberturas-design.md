@@ -112,10 +112,9 @@ compartidos         = Σ fijos shared × coverageSharePercent
 fijosCobertura      = Σ fijos coverage
 equipoCobertura     = Σ costoMes de personas coverage
 reservas            = renovación + expansión + fondo de emergencia (como hoy)
-excedenteLocal      = ver §4.5 (sólo si Daniel elige usarlo)
 base                = max(0, necesidadPersonal − sueldoDelLocal − otrosIngresos)
                       + compartidos + fijosCobertura + equipoCobertura + reservas
-                      + fijosDeImpuestos (pricingExtras, como hoy) − excedenteLocal
+                      + fijosDeImpuestos (pricingExtras, como hoy)
 ganancia            = como hoy (monto fijo | % sobre base)
 necesidad           = max(0, base + ganancia)
 capacidad           = horas vendibles del dueño en coberturas + las de personas coverage
@@ -138,9 +137,10 @@ resultado   = dejaLocal − gastosLocal                       (+ sobra / − fal
 ```
 
 ### 4.5 Cuando el local no se paga solo o le sobra
-**Pendiente de Daniel** (ver §8): si falta, ¿sólo avisa o suma la diferencia al precio de los
-eventos? Si sobra, ¿baja el precio de los eventos o queda como ganancia/sueldo extra?
-Hasta que lo decida, el diseño asume **sólo avisar** en ambos casos (`excedenteLocal = 0`).
+**Decidido por Daniel (28/10): sólo avisar, en los dos sentidos.** Lo que pase en el local nunca
+cambia el precio de los eventos: si le falta, el semáforo lo muestra en rojo con el monto; si le
+sobra, lo muestra en verde con el monto. La cuenta de las coberturas no tiene ningún término del local y no hay opción para
+cambiarlo.
 
 ### 4.6 Lo que deja el local
 - **Con Caja**: ingresos de las categorías de Caja asociadas a las líneas que «no venden horas»
@@ -202,13 +202,12 @@ idénticos.
 - **Modo apagado**: todos los fixtures actuales de «Mi estudio» dan exactamente lo mismo.
 - **Propiedad**: Σ tarifa × horas vendibles de coberturas = necesidad de coberturas.
 - **Nada del local en el precio**: cambiar el alquiler o un sueldo `local` no cambia la hora del
-  dueño (con `excedenteLocal = 0`).
+  dueño.
 - **Semáforo**: «sin datos», «estimado» (manual o < 2 meses) y «medido» (≥ 2 meses de Caja).
 
 ## 8. Pendiente de Daniel
 
-1. **Si el local no se paga solo**: ¿sólo avisar, o sumar la diferencia al precio de los eventos?
-   **Si le sobra**: ¿baja los eventos o queda como ganancia?
+Nada. (Resuelto el 28/10: el local sólo avisa, ver §4.5.)
 
 ## 9. Decisiones que tomé yo (Claude), corregibles
 
