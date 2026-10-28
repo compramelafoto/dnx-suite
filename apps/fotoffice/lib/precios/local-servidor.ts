@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@repo/db";
 import type { CuantoCobroStudioStructure, StudioLocalSales } from "@repo/cuanto-cobro-core";
+import { inicioDeMes, inicioDelMesSiguiente } from "@/lib/informes/periodos";
 import { mesesCompletos, sumarVentasPorMes } from "./local";
 
 /**
@@ -17,8 +18,8 @@ export async function ventasDelLocal(
   ];
   if (categoryIds.length === 0) return null;
   const meses = mesesCompletos(hoyAR);
-  const desde = new Date(`${meses[meses.length - 1].desde}T00:00:00.000Z`);
-  const hasta = new Date(`${meses[0].hasta}T00:00:00.000Z`);
+  const desde = inicioDeMes(meses[meses.length - 1].month);
+  const hasta = inicioDelMesSiguiente(meses[0].month);
   const filas = await prisma.cashMovement.findMany({
     where: {
       workspaceId,

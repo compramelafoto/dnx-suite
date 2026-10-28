@@ -21,13 +21,24 @@ describe("mesesCompletos", () => {
 
 describe("sumarVentasPorMes", () => {
   const meses = mesesCompletos("2026-10-28");
-  it("cuenta por la hora de pared sin zona y omite meses sin movimientos", () => {
+  it("agrupa por mes argentino (instantes UTC): 01:00Z del 1/10 es septiembre, 03:00Z es octubre", () => {
+    const r = sumarVentasPorMes(
+      [
+        { occurredAt: new Date("2026-10-01T01:00:00Z"), amountArs: 7 },
+        { occurredAt: new Date("2026-10-01T03:00:00Z"), amountArs: 1000 },
+        { occurredAt: new Date("2026-09-01T02:59:00Z"), amountArs: 3 },
+      ],
+      meses,
+    );
+    expect(r).toEqual({ months: [{ month: "2026-09", sales: 7 }, { month: "2026-08", sales: 3 }] });
+  });
+  it("omite meses sin movimientos", () => {
     const r = sumarVentasPorMes(
       [
         { occurredAt: new Date("2026-09-30T23:30:00Z"), amountArs: 100 },
-        { occurredAt: new Date("2026-09-01T00:00:00Z"), amountArs: 50 },
+        { occurredAt: new Date("2026-09-01T03:00:00Z"), amountArs: 50 },
         { occurredAt: new Date("2026-07-15T12:00:00Z"), amountArs: 10 },
-        { occurredAt: new Date("2026-10-01T00:00:00Z"), amountArs: 999 },
+        { occurredAt: new Date("2026-10-01T03:00:00Z"), amountArs: 999 },
       ],
       meses,
     );

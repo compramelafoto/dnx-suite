@@ -1,5 +1,6 @@
 import type { StudioLocalSales } from "@repo/cuanto-cobro-core";
 import { mesSiguiente } from "@/lib/dnx-bot/dia-argentino";
+import { mesDeInstante } from "@/lib/informes/periodos";
 
 export type MesCompleto = { month: string; desde: string; hasta: string };
 
@@ -14,7 +15,6 @@ export function mesesCompletos(hoyAR: string, cantidad = 3): MesCompleto[] {
   const salida: MesCompleto[] = [];
   let mes = hoyAR.slice(0, 7);
   for (let i = 0; i < cantidad; i++) {
-    const siguiente = mes;
     mes = mesAnterior(mes);
     salida.push({ month: mes, desde: `${mes}-01`, hasta: `${mesSiguiente(mes)}-01` });
   }
@@ -22,13 +22,13 @@ export function mesesCompletos(hoyAR: string, cantidad = 3): MesCompleto[] {
 }
 
 /**
- * Suma por mes. `occurredAt` se guarda sin zona (hora de pared argentina) y Prisma la devuelve con los
- * campos UTC iguales a esa hora: se agrupa por `toISOString`, nunca por getters locales.
+ * Suma por mes. `occurredAt` guarda instantes UTC (Informes lee con límites -03:00): cada movimiento va al
+ * mes argentino que le toca, con `mesDeInstante`.
  */
 export function sumarVentasPorMes(filas: { occurredAt: Date; amountArs: number }[], meses: MesCompleto[]): StudioLocalSales {
   const totales = new Map<string, number>();
   for (const f of filas) {
-    const mes = f.occurredAt.toISOString().slice(0, 7);
+    const mes = mesDeInstante(f.occurredAt);
     if (!meses.some((m) => m.month === mes)) continue;
     totales.set(mes, (totales.get(mes) ?? 0) + f.amountArs);
   }
