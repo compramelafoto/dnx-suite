@@ -17,7 +17,7 @@
 - Papel por ítem: `BRILLO` (omisión) o `MATE`.
 - Plazos: `INSTANTANEA` (mostrador, sin laboratorio), `MANANA` (siguiente día hábil, `sumarDiasHabiles(hoy,1)`), `SEMANA` (máximo 7 días corridos; incluye La Isla).
 - Escalón: "más de N" vale si **cantidad ≥ N**; menos de 10 → precio de "Copia instantánea {medida}" con plazo `MANANA` y laboratorio de la medida.
-- `SEMANA`: retiros **martes y viernes 16 h** (hora argentina); se promete el **día siguiente** (miércoles / sábado) al primer retiro que quede **≥ 48 h después del pago**; retiro en feriado → el siguiente. Se calcula al pagar (sin cron aparte).
+- `SEMANA`: retiros **martes y viernes 12 h** (hora argentina), entrega esa tarde; se promete ese **martes o viernes**: el primero cuyo mediodía quede **≥ 48 h después del pago**; retiro en feriado → el siguiente. Se calcula al pagar (sin cron aparte).
 - Envío: opcional, `cotizarEnvio` desde el estudio (`pricingExtras.studioLatitude/Longitude`) con `porKmCents = 300000` ($3.000/km), `baseCents = 0`; más de 30 km → pasa a persona.
 - Sin correo del cliente: avisos por WhatsApp (`enviarAvisoPorWhatsapp`, ventana de 24 h).
 - Montos en pesos (Decimal 12,2); textos al cliente en castellano rioplatense; nunca loguear datos personales.
@@ -97,9 +97,9 @@ Formatos (regex sobre el nombre normalizado, medida `\d+x\d+`): "Copia instantá
 
 **Produces:**
 ```ts
-export function fechaPorPlazo(plazo: Plazo, pagado: Date): string /* "aaaa-mm-dd" */; // INSTANTANEA: hoy (AR); MANANA: sumarDiasHabiles(hoy,1); SEMANA: día siguiente al primer martes/viernes 16:00 AR no feriado que esté ≥ 48 h después de `pagado`
+export function fechaPorPlazo(plazo: Plazo, pagado: Date): string /* "aaaa-mm-dd" */; // INSTANTANEA: hoy (AR); MANANA: sumarDiasHabiles(hoy,1); SEMANA: el primer martes/viernes no feriado cuyo 12:00 AR esté ≥ 48 h después de `pagado`
 ```
-- [ ] Tests: viernes 30/10/2026 MANANA → lunes 02/11; SEMANA pagado lunes 02/11 10:00 → martes 03/11 16:00 está a 30 h → viernes 06/11 → sábado 07/11; pagado martes 03/11 15:00 → viernes 06/11 16:00 (73 h) → sábado 07/11; pagado jueves 05/11 10:00 → martes 10/11 → miércoles 11/11; pagado miércoles 04/11 16:00 → viernes 06/11 16:00 (48 h justas) → sábado 07/11.
+- [ ] Tests: viernes 30/10/2026 MANANA → lunes 02/11; SEMANA pagado lunes 02/11 10:00 (AR) → martes 03/11 12:00 está a 26 h → viernes 06/11; pagado martes 03/11 15:00 → viernes 06/11 12:00 (69 h) → viernes 06/11; pagado miércoles 04/11 12:00 → viernes 06/11 12:00 (48 h justas) → viernes 06/11; pagado miércoles 04/11 12:01 → martes 10/11; pagado sábado 07/11 → martes 10/11 (51 h si es antes de las 9:00; si no, viernes 13/11).
 - [ ] FAIL → implementar (usar `sumarDiasHabiles`) → PASS → commit.
 
 ---
