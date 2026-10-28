@@ -132,3 +132,17 @@ describe("crear un pedido de impresión desde WhatsApp", () => {
     expect(await crearPedidoDesdeWhatsapp("w1", chat, { renglones: [renglon(["m1"])], envio: null, nombre: "Ana" }, { ...B.deps, collector: async () => null })).toMatchObject({ ok: false, motivo: "SIN_MP" });
   });
 });
+
+describe("ubicación del estudio para el envío", () => {
+  it("usa la del perfil si está; si no, ubica la dirección de atención del estudio", async () => {
+    const { ubicarEstudio } = await import("./whatsapp-servidor");
+    const geo = vi.fn(async () => ({ lat: -32.92, lon: -60.81 }));
+    expect(await ubicarEstudio({ lat: -1, lon: -2 }, { atencionDireccion: "San José 1672", city: "Funes" }, geo)).toEqual({ lat: -1, lon: -2 });
+    expect(geo).not.toHaveBeenCalled();
+    expect(await ubicarEstudio(null, { atencionDireccion: "San José 1672, Paseo Victoria", city: "Funes" }, geo)).toEqual({ lat: -32.92, lon: -60.81 });
+    expect(geo).toHaveBeenCalledWith("San José 1672, Paseo Victoria, Funes");
+    expect(await ubicarEstudio(null, { atencionDireccion: "San José 1672, Funes", city: "Funes" }, geo)).toEqual({ lat: -32.92, lon: -60.81 });
+    expect(geo).toHaveBeenLastCalledWith("San José 1672, Funes");
+    expect(await ubicarEstudio(null, { atencionDireccion: null, city: null }, geo)).toBeNull();
+  });
+});

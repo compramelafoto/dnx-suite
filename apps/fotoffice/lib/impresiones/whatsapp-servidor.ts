@@ -103,11 +103,33 @@ async function porOmision(workspaceId: string): Promise<Required<Omit<DepsPedido
       });
       return filas.map((p) => ({ id: p.id, name: p.name, priceArs: Number(p.priceArs), costArs: p.costArs === null ? null : Number(p.costArs), preferredProveedorId: p.preferredProveedorId }));
     },
-    estudio: async (ws) => coordenadasDelEstudio((await extrasDelWorkspace(ws)) as never),
+    estudio: async (ws) => {
+      const [extras, b] = await Promise.all([
+        extrasDelWorkspace(ws),
+        prisma.fotofficeWorkspaceBranding.findUnique({ where: { workspaceId: ws }, select: { atencionDireccion: true, city: true } }),
+      ]);
+      return ubicarEstudio(coordenadasDelEstudio(extras as never), { atencionDireccion: b?.atencionDireccion ?? null, city: b?.city ?? null }, geocodificarLugar);
+    },
     geocodificar: geocodificarLugar,
     origen: (process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || "").replace(/\/+$/, ""),
     slug: branding?.publicSlug ?? "",
   };
+}
+
+/**
+ * Desde dónde se calcula el envío: la ubicación del perfil de precios (Configuración → Precios) o, si
+ * no está cargada, la dirección de atención del estudio ubicada en el mapa.
+ */
+export async function ubicarEstudio(
+  delPerfil: Punto | null,
+  branding: { atencionDireccion: string | null; city: string | null },
+  geocodificar: (direccion: string) => Promise<Punto | null>,
+): Promise<Punto | null> {
+  if (delPerfil) return delPerfil;
+  const dir = branding.atencionDireccion?.trim();
+  if (!dir) return null;
+  const ciudad = branding.city?.trim();
+  return geocodificar(ciudad && !dir.toLowerCase().includes(ciudad.toLowerCase()) ? `${dir}, ${ciudad}` : dir).catch(() => null);
 }
 
 export async function crearPedidoDesdeWhatsapp(workspaceId: string, chat: ChatDelPedido, datos: DatosPedidoBot, deps: DepsPedidoBot = {}): Promise<ResultadoPedidoBot> {
