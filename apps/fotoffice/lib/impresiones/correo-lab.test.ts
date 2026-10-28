@@ -23,3 +23,19 @@ describe("correoPedidoLab", () => {
     expect(correoPedidoLab({ ...base, cliente: "<b>x</b>" }).html).not.toContain("<b>x</b>");
   });
 });
+
+describe("correoPedidoLab: pedidos del bot", () => {
+  it("el asunto y el cuerpo dicen el plazo", () => {
+    const c = correoPedidoLab({ ...base, plazo: "SEMANA" });
+    expect(c.subject).toBe("Pedido 12 – PARA LA PRÓXIMA SEMANA – Juan Pérez");
+    expect(c.text).toContain("para la PRÓXIMA SEMANA");
+    expect(correoPedidoLab({ ...base, plazo: "MANANA" }).subject).toBe("Pedido 12 – PARA MAÑANA – Juan Pérez");
+  });
+
+  it("avisa las fotos de resolución baja y que el encuadre lo decide el laboratorio", () => {
+    const c = correoPedidoLab({ ...base, calidadBaja: ["foto-2.jpg"], sinRecorte: true });
+    expect(c.text).toContain("resolución baja: foto-2.jpg");
+    expect(c.text).toContain("originales, sin recortar");
+    expect(c.html).toContain("foto-2.jpg");
+  });
+});

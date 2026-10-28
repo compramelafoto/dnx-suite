@@ -14,6 +14,8 @@ describe("historialParaElBot", () => {
         { role: "assistant", content: "¡Hola! ¿En qué te ayudo?" },
       ],
       userText: "quiero digitalizar VHS\nson 3",
+      fotos: new Map(),
+      fotosBajando: 0,
     });
   });
 
@@ -55,6 +57,14 @@ describe("historialParaElBot", () => {
     expect(historialParaElBot([fallo])?.userText).toBe("[el cliente mandó una foto pero no se pudo bajar: pedile que la reenvíe]");
     const grande = { ...fallo, tipo: "VIDEO", media: { id: "1", descarga: "GRANDE" } };
     expect(historialParaElBot([grande])?.userText).toBe("[el cliente mandó un archivo de más de 100 MB que no se pudo guardar]");
+  });
+
+  it("numera las fotos del cliente y devuelve qué mensaje es cada una", () => {
+    const foto = (id: string) => ({ id, direccion: "ENTRANTE", autor: "CLIENTE", tipo: "IMAGEN", texto: null, media: { id: "x", descarga: "LISTO", ancho: 4000, alto: 3000 } });
+    const r = historialParaElBot([foto("m1"), { direccion: "SALIENTE", autor: "BOT", tipo: "TEXTO", texto: "¡Gracias!" }, foto("m2"), cli("las dos en 13x18")]);
+    expect(r?.history[0].content).toMatch(/^\[foto 1\] /);
+    expect(r?.userText).toMatch(/^\[foto 2\] /);
+    expect([...r!.fotos.entries()].map(([n, f]) => [n, f.id])).toEqual([[1, "m1"], [2, "m2"]]);
   });
 
   it("el historial empieza con el cliente y respeta el máximo", () => {

@@ -26761,6 +26761,8 @@ model FotofficePrintSettings {
   shippingPerKmArs Decimal? @db.Decimal(14, 2)
   shippingMaxKm    Int?
   circuitId        String?
+  /// Seña de los pedidos por WhatsApp (%).
+  depositPct       Int      @default(50)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
@@ -26796,7 +26798,7 @@ model FotofficePrintOrder {
   proyectoOrigenId   String?
   clientId           String?
   nombre             String
-  email              String
+  email              String?
   telefono           String?
   paper              String
   delivery           String    @default("RETIRO")
@@ -26833,12 +26835,19 @@ model FotofficePrintOrder {
   client         Client?                   @relation(fields: [clientId], references: [id], onDelete: SetNull)
   cashMovement   CashMovement?             @relation("FotofficePrintOrderMovimiento", fields: [cashMovementId], references: [id], onDelete: SetNull)
   items          FotofficePrintOrderItem[]
+  /// Pedidos por el bot de WhatsApp (spec 2026-10-28): seña, lo pagado y los pagos extra (ids de MP).
+  depositArs     Decimal?  @db.Decimal(12, 2)
+  paidArs        Decimal   @default(0) @db.Decimal(12, 2)
+  pagosExtra     Json?
+  waChatId       String?
+  waId           String?
 
   @@unique([workspaceId, number])
   @@index([workspaceId, status])
   @@index([proyectoOrigenId])
   @@index([clientId])
   @@index([galeriaId])
+  @@index([workspaceId, waChatId, status])
 }
 
 model FotofficePrintOrderItem {
@@ -26861,6 +26870,12 @@ model FotofficePrintOrderItem {
   cropH         Float
   proveedorId   String?
   proyectoId    String?
+  /// Por WhatsApp: papel (BRILLO/MATE) y plazo (INSTANTANEA/MANANA/SEMANA) de cada ítem.
+  paper         String?
+  plazo         String?
+  /// El original va tal cual al laboratorio (sin recorte ni recompresión).
+  sinRecorte    Boolean   @default(false)
+  calidadBaja   Boolean   @default(false)
   createdAt     DateTime @default(now())
 
   order    FotofficePrintOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)

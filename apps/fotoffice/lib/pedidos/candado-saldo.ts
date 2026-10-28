@@ -32,7 +32,7 @@ export async function exigirPedidoPagado(
     select: { pedidoId: true },
   });
   const pedidoId = proyecto?.pedidoId ?? null;
-  if (pedidoId === null) return null;
+  if (pedidoId === null) return saldoDeImpresion(tx, workspaceId, journey.subjectId);
 
   await bloquearPedido(tx, pedidoId);
   // Los extras opcionales sin pagar (descargas, extensión o envío de Digitalización) no frenan la
@@ -89,4 +89,21 @@ export async function saldoSinExtrasOpcionales(db: Tx, workspaceId: string, pedi
       cargos.map((c) => ({ montoMinor: decimalArsToMinor(c.montoArs), cuotaMinor: cuotas.get(c.cuotaId) ?? null, imputadoMinor: imputado.get(c.cuotaId) ?? 0 })),
     ),
   };
+}
+
+/**
+ * Trabajos de un pedido de impresión del bot de WhatsApp (spec 2026-10-28): se pagan con seña y el
+ * saldo se cobra en el mostrador. Los pedidos de impresión comunes (sin seña) se pagan enteros.
+ */
+async function saldoDeImpresion(tx: Tx, workspaceId: string, proyectoId: string): Promise<string | null> {
+  // Por el ítem (no por `items.some`): la base en memoria de las pruebas del motor no tiene relaciones.
+  const item = (await tx.fotofficePrintOrderItem.findFirst({ where: { proyectoId }, select: { orderId: true } })) as { orderId: string } | null;
+  if (!item) return null;
+  const p = (await tx.fotofficePrintOrder.findFirst({
+    where: { id: item.orderId, workspaceId },
+    select: { number: true, totalArs: true, paidArs: true, depositArs: true },
+  })) as { number: number; totalArs: unknown; paidArs: unknown; depositArs: unknown } | null;
+  if (!p || p.depositArs === null || p.depositArs === undefined) return null;
+  const saldo = Math.round(Number(String(p.totalArs)) * 100) - Math.round(Number(String(p.paidArs ?? 0)) * 100);
+  return saldo > 0 ? mensajeCandado(`de impresión ${p.number}`, saldo) : null;
 }

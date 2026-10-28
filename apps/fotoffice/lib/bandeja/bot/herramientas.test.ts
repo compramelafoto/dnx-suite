@@ -36,6 +36,15 @@ describe("buscarEnCatalogo", () => {
   });
 });
 
+describe("filtro del último pedido del chat", () => {
+  it("incluye los pedidos sin error (lastError nulo) y excluye sólo los reemplazados", async () => {
+    const { filtroPedidosDelChat } = await import("./herramientas");
+    expect(filtroPedidosDelChat("w1", "c1")).toEqual({
+      workspaceId: "w1", waChatId: "c1", OR: [{ lastError: null }, { lastError: { not: "REEMPLAZADO" } }],
+    });
+  });
+});
+
 describe("herramientasDeAtencion", () => {
   const deps = {
     productos: async () => CATALOGO,
@@ -103,6 +112,65 @@ describe("herramientasDeAtencion", () => {
     expect(r.message).toMatch(/\$\s?80\.000/);
     const vacio = await herramientasDeAtencion("w1", { ...deps, cursos: async () => [] }).tools.find((x) => x.name === "cursos_del_estudio")!.run({}, { userId: 0, role: "CLIENTE", email: "", name: null });
     expect(vacio.message).toMatch(/no hay cursos/i);
+  });
+
+  it("armar_pedido_impresion traduce los números de foto y devuelve el resumen con los dos links", async () => {
+    const recibidos: unknown[] = [];
+    const armarPedido = async (_w: string, _c: unknown, d: unknown) => {
+      recibidos.push(d);
+      return {
+        ok: true as const, numero: 12, subtotal: 28000, envio: 0, total: 28000, sena: 14000, depositPct: 50, linkSena: "https://mp/sena", linkTotal: "https://mp/total",
+        lineas: [{ medida: "13x18", plazo: "MANANA" as const, cantidad: 2, precioUnitario: 7000, costoUnitario: 600, proveedorId: "f", productoId: "p" }],
+        fechas: [{ plazo: "MANANA" as const, fecha: "2026-10-29" }],
+      };
+    };
+    const fotos = new Map([[1, { id: "m1", en: new Date("2026-10-28T10:00:00Z") }], [2, { id: "m2", en: new Date("2026-10-28T10:01:00Z") }]]);
+    const h = herramientasDeAtencion("w1", { ...deps, armarPedido, ultimoPedidoEn: async () => null }, { id: "c1", waId: "549", clientId: null, nombre: "Ana" }, fotos);
+    const t = h.tools.find((x) => x.name === "armar_pedido_impresion")!;
+    const entrada = { renglones: [{ fotos: "todas", medida: "13x18", cantidad: 1, plazo: "para mañana" }, { fotos: [2], medida: "10x15", cantidad: 3, plazo: "proxima semana", papel: "mate" }] };
+    expect(t.input.safeParse(entrada).success).toBe(true);
+    const r = await t.run(entrada, { userId: 0, role: "CLIENTE", email: "", name: null });
+    expect(recibidos[0]).toMatchObject({
+      renglones: [
+        { fotos: [{ mensajeId: "m1" }, { mensajeId: "m2" }], medida: "13x18", cantidad: 1, plazo: "MANANA", papel: "BRILLO" },
+        { fotos: [{ mensajeId: "m2" }], medida: "10x15", cantidad: 3, plazo: "SEMANA", papel: "MATE" },
+      ],
+      envio: null,
+    });
+    expect(r.message).toContain("https://mp/sena");
+    expect(r.message).toContain("https://mp/total");
+    expect(r.message).toMatch(/\$\s?14\.000/);
+    expect(r.message).toContain("Seña del 50 %");
+    expect(r.message).toMatch(/\$\s?28\.000/);
+  });
+
+  it("'todas' son las fotos posteriores al último pedido; avisa las que se están bajando; la seña dice el % configurado", async () => {
+    const recibidos: { renglones: { fotos: { mensajeId: string }[] }[] }[] = [];
+    const armarPedido = async (_w: string, _c: unknown, d: unknown) => {
+      recibidos.push(d as never);
+      return {
+        ok: true as const, numero: 13, subtotal: 10000, envio: 0, total: 10000, sena: 3000, depositPct: 30, linkSena: "s", linkTotal: "t",
+        lineas: [], fechas: [{ plazo: "MANANA" as const, fecha: "2026-10-29" }],
+      };
+    };
+    const fotos = new Map([[1, { id: "vieja", en: new Date("2026-10-20T10:00:00Z") }], [2, { id: "nueva", en: new Date("2026-10-28T10:00:00Z") }]]);
+    const h = herramientasDeAtencion("w1", { ...deps, armarPedido, ultimoPedidoEn: async () => new Date("2026-10-21T00:00:00Z") }, { id: "c1", waId: "549", clientId: null, nombre: "Ana" }, fotos, 1);
+    const r = await h.tools.find((x) => x.name === "armar_pedido_impresion")!.run({ renglones: [{ fotos: "todas", medida: "10x15", cantidad: 1, plazo: "para mañana" }] }, { userId: 0, role: "CLIENTE", email: "", name: null });
+    expect(recibidos[0].renglones[0].fotos).toEqual([{ mensajeId: "nueva" }]);
+    expect(r.message).toContain("Seña del 30 %");
+    expect(r.message).not.toContain("50 %");
+    expect(r.message).toMatch(/1 foto.*todavía se está bajando/);
+  });
+
+  it("armar_pedido_impresion: una foto que no existe o un precio que falta se lo explica al bot", async () => {
+    const armarPedido = async () => ({ ok: false as const, motivo: "PRECIO" as const, detalle: "13x13 para mañana" });
+    const h = herramientasDeAtencion("w1", { ...deps, armarPedido, ultimoPedidoEn: async () => null }, { id: "c1", waId: "549", clientId: null, nombre: null }, new Map([[1, { id: "m1", en: null }]]));
+    const t = h.tools.find((x) => x.name === "armar_pedido_impresion")!;
+    const sinFoto = await t.run({ renglones: [{ fotos: [5], medida: "13x18", cantidad: 1, plazo: "para mañana" }] }, { userId: 0, role: "CLIENTE", email: "", name: null });
+    expect(sinFoto.message).toMatch(/foto 5/);
+    const sinPrecio = await t.run({ renglones: [{ fotos: [1], medida: "13x13", cantidad: 1, plazo: "para mañana" }] }, { userId: 0, role: "CLIENTE", email: "", name: null });
+    expect(sinPrecio.message).toContain("13x13 para mañana");
+    expect(sinPrecio.message).toContain("pasar_a_persona");
   });
 
   it("todas son de lectura (no hay acciones que confirmar)", () => {
