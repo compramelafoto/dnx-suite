@@ -2,6 +2,9 @@ import "server-only";
 import { prisma } from "@repo/db";
 import { altaDelSistema, altaDeConsulta } from "@/lib/consultas/alta";
 import { leerAcuse } from "./ajustes";
+import { asegurarCategoriaEvento } from "./categoria-evento";
+import { guardarPorHorasDeConsulta, leerAjustesPorHoras } from "./por-horas";
+import { horasValidas } from "./por-horas-puro";
 import { alLlegarConsulta, enPreparacionParaWhatsapp, type DepsFlujo } from "./flujo";
 import { categoriaDelTipo, fechaDelBot } from "./whatsapp-puro";
 
@@ -22,6 +25,8 @@ export type DatosDelBot = {
   fecha?: string | null;
   lugar?: string | null;
   invitados?: number | null;
+  /** Horas de cobertura (presupuesto por horas). */
+  horas?: number | null;
   email?: string | null;
   detalle?: string | null;
 };
@@ -38,17 +43,23 @@ export async function prepararDesdeWhatsapp(
     if (await enPreparacionParaWhatsapp(workspaceId, chat.waId)) {
       return { ok: true, message: "Ya hay un presupuesto en preparación para este cliente. Decile que en un rato se lo mandamos; no le des precios." };
     }
-    const encendidas = await prisma.fotofficePresupuestoAutoCategoria.findMany({ where: { workspaceId, telegramEnabled: true }, select: { categoryId: true }, take: 100 });
-    const categorias = encendidas.length
-      ? await prisma.fotofficeConsultaCategoria.findMany({
-          where: { workspaceId, archivedAt: null, id: { in: encendidas.map((e) => e.categoryId) } },
-          select: { id: true, name: true },
-        })
-      : [];
-    if (categorias.length === 0) {
+    // Presupuesto por horas (spec 2026-10-28): cualquier categoría activa; si ninguna coincide, "Evento".
+    const porHoras = (await leerAjustesPorHoras(workspaceId)).encendido;
+    const encendidas = porHoras
+      ? null
+      : await prisma.fotofficePresupuestoAutoCategoria.findMany({ where: { workspaceId, telegramEnabled: true }, select: { categoryId: true }, take: 100 });
+    const categorias =
+      encendidas === null || encendidas.length
+        ? await prisma.fotofficeConsultaCategoria.findMany({
+            where: { workspaceId, archivedAt: null, ...(encendidas ? { id: { in: encendidas.map((e) => e.categoryId) } } : {}) },
+            select: { id: true, name: true },
+            take: 200,
+          })
+        : [];
+    if (categorias.length === 0 && !porHoras) {
       return { ok: false, message: "El estudio todavía no arma presupuestos automáticos. Usá pasar_a_persona con un resumen de lo que pide." };
     }
-    const categoria = categoriaDelTipo(categorias, datos.tipo);
+    const categoria = categoriaDelTipo(categorias, datos.tipo) ?? (porHoras ? { id: await asegurarCategoriaEvento(workspaceId), name: "Evento" } : null);
     if (!categoria) {
       return {
         ok: false,
@@ -76,6 +87,8 @@ export async function prepararDesdeWhatsapp(
     if (!chat.clientId && alta.clientId) {
       await prisma.fotofficeWaChat.updateMany({ where: { id: chat.id, workspaceId, clientId: null }, data: { clientId: alta.clientId } }).catch(() => undefined);
     }
+    const horas = horasValidas(datos.horas);
+    if (horas !== null) await guardarPorHorasDeConsulta(workspaceId, alta.leadId, { horas });
     await alLlegarConsulta(workspaceId, alta.leadId, "WHATSAPP", { waId: chat.waId }, deps);
     const acuse = await leerAcuse(workspaceId);
     return {
