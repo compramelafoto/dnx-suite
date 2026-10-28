@@ -46,7 +46,7 @@ export const AJUSTES_POR_HORAS_POR_OMISION: AjustesPorHoras = {
 const esObjeto = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 
 function numero(v: unknown, omision: number, min: number, max: number): number {
-  const n = typeof v === "number" ? v : typeof v === "string" ? Number(v.replace(",", ".")) : Number.NaN;
+  const n = typeof v === "number" ? v : typeof v === "string" && v.trim() !== "" ? Number(v.replace(",", ".")) : Number.NaN;
   return Number.isFinite(n) && n >= min && n <= max ? n : omision;
 }
 const coordenada = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
@@ -123,7 +123,8 @@ export function recetaPorHoras(p: { horas: number; esSesion: boolean; km: number
 /** Precio del segundo fotógrafo, redondeado a $100. Sin valor de la hora → null. */
 export function precioSegundoFotografo(valorHora: number | null, horas: number, pct: number): number | null {
   if (valorHora === null || !Number.isFinite(valorHora) || valorHora <= 0 || horas <= 0) return null;
-  return Math.round((valorHora * horas * pct) / 100 / 100) * 100;
+  const precio = Math.round((valorHora * horas * pct) / 100 / 100) * 100;
+  return precio > 0 ? precio : null;
 }
 
 export function llevaSegundoFotografo(p: { grupo: string; esSesion: boolean; invitados: number | null; umbral: number }): boolean {

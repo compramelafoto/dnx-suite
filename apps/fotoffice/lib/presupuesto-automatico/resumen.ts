@@ -43,7 +43,7 @@ export type DatosResumen = {
   /** null: la categoría no tiene propuesta modelo (o no se pudo armar). */
   presupuesto: PresupuestoDelResumen | null;
   /** Por qué no hay presupuesto, para decirlo claro. */
-  motivoSinPresupuesto?: "SIN_PROPUESTA" | "NO_SE_PUDO_ARMAR" | "SIN_HORAS" | null;
+  motivoSinPresupuesto?: "SIN_PROPUESTA" | "NO_SE_PUDO_ARMAR" | "SIN_HORAS" | "SIN_PERFIL" | null;
   /** Presupuesto por horas (spec 2026-10-28): lo que se usó para armarlo. */
   porHoras?: { horas: number | null; km: number | null; traslado: number | null; ubicado: boolean; segundoFotografo: boolean; armado: boolean } | null;
   urlPresupuesto: string | null;
@@ -161,7 +161,9 @@ export function armarResumen(d: DatosResumen, estado: EstadoDelAviso = { tipo: "
   if (!p) {
     l.push(
       d.motivoSinPresupuesto === "SIN_HORAS"
-        ? "⚠️ <b>Falta la cantidad de horas</b> del evento, así que no armé el presupuesto. Completala en la consulta o preguntale al cliente."
+        ? "⚠️ <b>Falta la cantidad de horas</b> del evento, así que no armé el presupuesto: respondé a mano desde la consulta. Si el cliente escribe por WhatsApp y dice las horas, el bot lo vuelve a armar."
+        : d.motivoSinPresupuesto === "SIN_PERFIL"
+          ? "⚠️ <b>No pude calcular el precio</b>: completá tu perfil en ¿Cuánto cobro? (Configuración → Precios) y respondé esta consulta a mano."
         : d.motivoSinPresupuesto === "NO_SE_PUDO_ARMAR"
         ? "⚠️ <b>No se pudo armar el presupuesto solo</b> (revisá la propuesta modelo de esta categoría: algún producto inactivo o un concepto sin precio)."
         : "⚠️ <b>Esta categoría no tiene propuesta modelo</b>, así que no armé presupuesto. Abrí la consulta y respondé a mano, o cargá la propuesta en Configuración → Presupuestos → Propuestas.",

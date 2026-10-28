@@ -2,7 +2,7 @@ import "server-only";
 import { prisma, type Prisma } from "@repo/db";
 import { geocodingProvider } from "@/lib/geocode/nominatim";
 import { MENSAJES_PRESUPUESTO, puedeConfigurarPresupuestos, type CtxPresupuestos } from "@/lib/presupuestos/acceso";
-import { normalizarAjustesPorHoras, type AjustesPorHoras, type Punto } from "./por-horas-puro";
+import { horasValidas, normalizarAjustesPorHoras, type AjustesPorHoras, type Punto } from "./por-horas-puro";
 
 /**
  * Presupuesto por horas (spec 2026-10-28), servidor: ajustes del workspace
@@ -83,7 +83,7 @@ export async function leerPorHorasDeConsulta(workspaceId: string, leadId: string
   const lead = (await prisma.serviceSalesLead.findFirst({ where: { id: leadId, workspaceId }, select: { metaJson: true } })) as { metaJson: unknown } | null;
   const d = esObjeto(lead?.metaJson) && esObjeto(lead.metaJson.porHoras) ? lead.metaJson.porHoras : null;
   if (!d) return null;
-  return { horas: numeroONull(d.horas), km: numeroONull(d.km), traslado: numeroONull(d.traslado), ubicado: d.ubicado === true, segundoFotografo: d.segundoFotografo === true, armado: d.armado === true };
+  return { horas: horasValidas(d.horas), km: numeroONull(d.km), traslado: numeroONull(d.traslado), ubicado: d.ubicado === true, segundoFotografo: d.segundoFotografo === true, armado: d.armado === true };
 }
 
 /** Suma datos a `metaJson.porHoras` sin pisar el resto de `metaJson`. */

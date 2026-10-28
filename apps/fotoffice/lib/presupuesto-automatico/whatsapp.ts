@@ -6,7 +6,7 @@ import { asegurarCategoriaEvento } from "./categoria-evento";
 import { guardarPorHorasDeConsulta, leerAjustesPorHoras } from "./por-horas";
 import { horasValidas } from "./por-horas-puro";
 import { alLlegarConsulta, enPreparacionParaWhatsapp, type DepsFlujo } from "./flujo";
-import { categoriaDelTipo, fechaDelBot } from "./whatsapp-puro";
+import { coincidenciasDelTipo, fechaDelBot } from "./whatsapp-puro";
 
 /**
  * La consulta que entra por el bot de WhatsApp (herramienta `preparar_presupuesto`, spec
@@ -59,7 +59,15 @@ export async function prepararDesdeWhatsapp(
     if (categorias.length === 0 && !porHoras) {
       return { ok: false, message: "El estudio todavía no arma presupuestos automáticos. Usá pasar_a_persona con un resumen de lo que pide." };
     }
-    const categoria = categoriaDelTipo(categorias, datos.tipo) ?? (porHoras ? { id: await asegurarCategoriaEvento(workspaceId), name: "Evento" } : null);
+    const coincidencias = coincidenciasDelTipo(categorias, datos.tipo);
+    if (porHoras && coincidencias.length > 1) {
+      return {
+        ok: false,
+        message: `"${datos.tipo}" puede ser: ${coincidencias.map((c) => c.name).join(", ")}. Preguntale al cliente cuál es y volvé a usar la herramienta con ese nombre.`,
+      };
+    }
+    const categoria =
+      (coincidencias.length === 1 ? coincidencias[0] : null) ?? (porHoras ? { id: await asegurarCategoriaEvento(workspaceId), name: "Evento" } : null);
     if (!categoria) {
       return {
         ok: false,
@@ -89,7 +97,11 @@ export async function prepararDesdeWhatsapp(
     }
     const horas = horasValidas(datos.horas);
     if (horas !== null) await guardarPorHorasDeConsulta(workspaceId, alta.leadId, { horas });
-    await alLlegarConsulta(workspaceId, alta.leadId, "WHATSAPP", { waId: chat.waId }, deps);
+    const llegada = await alLlegarConsulta(workspaceId, alta.leadId, "WHATSAPP", { waId: chat.waId }, deps);
+    // Ningún recorrido toma la consulta: no se le promete un presupuesto que nadie va a armar.
+    if (llegada === "APAGADO" || llegada === "ERROR") {
+      return { ok: false, message: "La consulta quedó registrada, pero el presupuesto lo arma una persona. Usá pasar_a_persona con un resumen de lo que pide." };
+    }
     const acuse = await leerAcuse(workspaceId);
     return {
       ok: true,

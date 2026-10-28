@@ -292,12 +292,12 @@ export async function armarBorradorDePropuesta(
   deps: DepsPropuestaAutomatica = {},
 ): Promise<ResultadoBorradorDePropuesta> {
   const { resultado } = await armarBorrador(workspaceId, leadId, deps, false);
-  return resultado === "SIN_PROPUESTA" || resultado === "SIN_HORAS" ? "NO_APLICA" : resultado;
+  return resultado === "SIN_PROPUESTA" || resultado === "SIN_HORAS" || resultado === "SIN_PERFIL" ? "NO_APLICA" : resultado;
 }
 
 export type ResultadoBorradorParaAprobar = {
   /** `SIN_HORAS`: presupuesto por horas sin la cantidad de horas (no se inventa). */
-  resultado: ResultadoBorradorDePropuesta | "SIN_PROPUESTA" | "SIN_HORAS";
+  resultado: ResultadoBorradorDePropuesta | "SIN_PROPUESTA" | "SIN_HORAS" | "SIN_PERFIL";
   /** El presupuesto armado o, si la consulta ya tenía uno, ese. */
   presupuestoId: string | null;
 };
@@ -351,7 +351,10 @@ async function armarBorrador(
       const horas = (await leerPorHorasDeConsulta(workspaceId, leadId))?.horas ?? null;
       if (horas === null) return sin("SIN_HORAS");
       const perfil = await leerPerfilPreciosDelSistema(workspaceId);
-      if (!perfil) return sin("FALLO");
+      if (!perfil) {
+        aviso("PERFIL_INCOMPLETO");
+        return sin("SIN_PERFIL");
+      }
       const enElEstudio = /estudio/i.test(ficha.venue ?? "");
       const p = porHoras!.partida;
       const destino = enElEstudio ? null : await geocodificarLugar([ficha.venue, ficha.city].filter(Boolean).join(", "));
@@ -360,7 +363,7 @@ async function armarBorrador(
       const items = itemsPorHoras({ perfil, receta, conSegundoFotografo: segundo, segundoFotografoPct: porHoras!.segundoFotografoPct, tipoDeTrabajo: categoria?.name ?? "Evento", ahora });
       if (!items.ok) {
         aviso("PERFIL_INCOMPLETO");
-        return sin("FALLO");
+        return sin("SIN_PERFIL");
       }
       armado = await normalizarYResponsable(workspaceId, { items: items.valor.items, alternativas: items.valor.alternativas, condiciones: null }, ahora, deps);
       anotar = { armado: true, km, traslado: receta.trasladoPesos, ubicado: receta.trasladoPesos !== null, segundoFotografo: items.valor.segundoFotografo !== null };

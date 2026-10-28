@@ -47,8 +47,10 @@ type CreateServiceLeadResult = { success: true } | { success: false; error: stri
 
 /** Presupuesto por horas (spec 2026-10-28): un campo "horas" del formulario se copia a `porHoras.horas`. */
 function conHoras(meta: Record<string, unknown>): Record<string, unknown> {
+  // `porHoras` lo escribe sólo el servidor: si vino del navegador, se descarta.
+  const { porHoras: _descartado, ...resto } = meta;
   const horas = horasValidas(meta.horas);
-  return horas === null ? meta : { ...meta, porHoras: { horas } };
+  return horas === null ? resto : { ...resto, porHoras: { horas } };
 }
 
 export async function createServiceLead(

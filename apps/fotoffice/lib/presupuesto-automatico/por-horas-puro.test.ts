@@ -62,6 +62,15 @@ describe("segundo fotógrafo", () => {
   });
 });
 
+describe("ajustes vacíos", () => {
+  it("un campo vacío vale la omisión, no 0; y un precio de segundo fotógrafo en 0 es null", () => {
+    expect(normalizarAjustesPorHoras({ segundoFotografoPct: "", edicionPorHora: "", invitadosSegundoFotografo: "" })).toMatchObject({
+      segundoFotografoPct: 30, edicionPorHora: 2, invitadosSegundoFotografo: 200,
+    });
+    expect(precioSegundoFotografo(50000, 3, 0)).toBeNull();
+  });
+});
+
 describe("ajustes", () => {
   it("completa con la omisión y descarta valores inválidos", () => {
     expect(normalizarAjustesPorHoras(null)).toEqual(OMISION);

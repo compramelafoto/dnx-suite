@@ -67,6 +67,11 @@ describe("createServiceLead", () => {
     expect(H.alta.mock.calls[0]![1]).toMatchObject({ metaJson: { horas: "3,5", budgetType: "FULL", porHoras: { horas: 3.5 } } });
   });
 
+  it("un porHoras mandado por el navegador se descarta (sólo vale el campo 'horas' validado)", async () => {
+    await createServiceLead({ ...ENTRADA, meta: { porHoras: { horas: 500 } } });
+    expect(H.alta.mock.calls[0]![1].metaJson).toEqual({});
+  });
+
   it("los vacíos llegan como null", async () => {
     await createServiceLead(ENTRADA);
     expect(H.alta.mock.calls[0]![1]).toMatchObject({

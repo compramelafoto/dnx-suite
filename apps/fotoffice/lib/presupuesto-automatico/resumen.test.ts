@@ -111,6 +111,12 @@ describe("armarResumen: presupuesto por horas", () => {
     expect(html).not.toContain("no tiene propuesta modelo");
   });
 
+  it("sin horas no manda a 'completarla en la consulta' (no hay dónde)", () => {
+    const { html } = armarResumen({ ...BASE, presupuesto: null, motivoSinPresupuesto: "SIN_HORAS", porHoras: null });
+    expect(html).not.toContain("Completala en la consulta");
+    expect(html).toContain("respondé a mano");
+  });
+
   it("sin datos por horas, o con horas pero armado con la propuesta modelo, no agrega nada", () => {
     expect(armarResumen(BASE).html).not.toContain("Armado por horas");
     const conPropuesta = armarResumen({ ...BASE, porHoras: { horas: 5, km: null, traslado: null, ubicado: false, segundoFotografo: false, armado: false } }).html;

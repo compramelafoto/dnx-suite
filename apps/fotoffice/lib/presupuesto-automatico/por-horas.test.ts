@@ -55,6 +55,13 @@ describe("ajustes del presupuesto por horas", () => {
   });
 });
 
+describe("horas guardadas inválidas", () => {
+  it("se leen como sin horas", async () => {
+    B.agregar("serviceSalesLead", { id: "l9", workspaceId: "w1", metaJson: { porHoras: { horas: 500 } } });
+    expect((await H.leerPorHorasDeConsulta("w1", "l9"))?.horas).toBeNull();
+  });
+});
+
 describe("horas de la consulta", () => {
   it("se guardan en metaJson.porHoras sin pisar otras claves", async () => {
     B.agregar("serviceSalesLead", { id: "l1", workspaceId: "w1", metaJson: { origen: "web" } });
