@@ -122,9 +122,10 @@ describe("alTomar / alDevolver / alResolver", () => {
     expect(r.parche).toEqual({ estado: "BOT", asignadoUserId: null, botPausadoHasta: null });
     expect(r.sistema?.texto).toBe("Camila devolvió el chat al bot");
   });
-  it("resolver: RESUELTO", () => {
+  it("resolver: RESUELTO y suelta el chat, para que el próximo mensaje lo atienda el bot", () => {
     const r = alResolver(9, "Sabina");
-    expect(r.parche).toEqual({ estado: "RESUELTO" });
+    expect(r.parche).toEqual({ estado: "RESUELTO", asignadoUserId: null, botPausadoHasta: null });
+    expect(alEntrante(chat({ ...r.parche }), AHORA).parche.estado).toBe("BOT");
     expect(r.sistema?.texto).toBe("Sabina marcó el chat como resuelto");
   });
 });
