@@ -136,6 +136,12 @@ export function InquiryFormBlockView({ config, blockId, data }: { config: Inquir
                 </div>
               ) : null}
               <div className="fo-field-stack">
+                <label htmlFor={id("horas")} style={labelStyle}>
+                  ¿Cuántas horas dura el evento o la sesión?
+                </label>
+                <input id={id("horas")} name="horas" type="number" inputMode="decimal" min={0.5} max={24} step={0.5} className="fo-input" placeholder="Por ejemplo, 4" />
+              </div>
+              <div className="fo-field-stack">
                 <label htmlFor={id("message")} style={labelStyle}>
                   Contanos qué estás buscando
                 </label>
