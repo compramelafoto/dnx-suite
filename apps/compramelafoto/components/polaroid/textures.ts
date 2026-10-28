@@ -49,8 +49,15 @@ export function getTextureById(id: string) {
   return TEXTURES.find((texture) => texture.id === id) ?? TEXTURES[0];
 }
 
+// Los archivos viven en public/polaroid/texturas con nombre sin acentos ni
+// espacios y en JPEG: "Otoño 1.png" → "otono-1.jpg".
 export function getTextureUrl(texture: TextureAsset) {
   if (!texture.filename) return "";
-  const normalized = texture.filename.normalize("NFC");
-  return `/texturas/${encodeURIComponent(normalized)}?v=${encodeURIComponent(texture.id)}`;
+  const archivo = texture.filename
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/\.png$/, ".jpg")
+    .replace(/\s+/g, "-");
+  return `/polaroid/texturas/${archivo}`;
 }
