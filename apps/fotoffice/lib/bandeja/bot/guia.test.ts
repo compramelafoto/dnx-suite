@@ -34,6 +34,16 @@ describe("guía del bot de atención", () => {
     expect(g).toContain("galería online");
   });
 
+  it("no repite lo que el cliente ya dijo, salvo que algo no cierre; salón y localidad alcanzan", () => {
+    const g = guiaDeAtencion();
+    expect(g).toContain("No repitas los datos que el cliente ya te dio");
+    expect(g).toContain("el nombre del salón y la localidad alcanzan");
+  });
+
+  it("para cursos usa cursos_del_estudio y no arma presupuesto", () => {
+    expect(guiaDeAtencion()).toContain("cursos_del_estudio");
+  });
+
   it("la situación dice el día y la hora en Argentina y el nombre si lo hay", () => {
     const s = situacionDeAtencion({ estudio: "DNX Estudio", cliente: "Lucía", ahora: new Date("2026-10-20T23:30:00.000Z") });
     expect(s).toContain("DNX Estudio");

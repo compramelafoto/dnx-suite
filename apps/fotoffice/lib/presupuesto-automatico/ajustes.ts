@@ -3,6 +3,7 @@ import { prisma, type Prisma } from "@repo/db";
 import { MENSAJES_PRESUPUESTO, puedeConfigurarPresupuestos, type CtxPresupuestos } from "@/lib/presupuestos/acceso";
 import { MAX_ACUSE, textoDeAcuse } from "./canales";
 import { leerAjustesPorHoras } from "./por-horas";
+import { porHorasAplica } from "./por-horas-puro";
 import { aplicarCambio, validarPortfolio, type CambioPortfolio, type ItemPortfolio } from "./portfolio-items";
 
 /**
@@ -47,7 +48,7 @@ export async function apruebaPorTelegram(workspaceId: string, categoriaId: strin
       select: { id: true },
     });
     if (f !== null) return true;
-    if (!(await leerAjustesPorHoras(workspaceId)).encendido) return false;
+    if (!porHorasAplica(await leerAjustesPorHoras(workspaceId), categoriaId)) return false;
     const propuesta = await prisma.fotofficePropuestaModelo.findFirst({ where: { workspaceId, categoryId: categoriaId }, select: { id: true } });
     return propuesta === null;
   } catch (e) {

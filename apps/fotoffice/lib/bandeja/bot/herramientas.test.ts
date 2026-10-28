@@ -88,6 +88,23 @@ describe("herramientasDeAtencion", () => {
     expect(t.description).toMatch(/horas/);
   });
 
+  it("cursos_del_estudio devuelve los cursos publicados con precio y enlace", async () => {
+    const cursos = async () => [
+      { titulo: "Taller de fotografía de XV", modalidad: "GRABADO" as const, resumen: "Clases grabadas para ver a tu ritmo.", precio: 50000, url: "https://fotoffice.com/w/dnx-estudio/cursos/taller-de-xv", proximas: [] },
+      { titulo: "Iluminación en estudio", modalidad: "PRESENCIAL" as const, resumen: null, precio: null, url: "https://fotoffice.com/w/dnx-estudio/cursos/luz", proximas: [{ fecha: "sábado 14/11 10:00", lugar: "DNX Estudio", precio: 80000 }] },
+    ];
+    const t = herramientasDeAtencion("w1", { ...deps, cursos }).tools.find((x) => x.name === "cursos_del_estudio")!;
+    const r = await t.run({}, { userId: 0, role: "CLIENTE", email: "", name: null });
+    expect(r.message).toContain("Taller de fotografía de XV");
+    expect(r.message).toMatch(/\$\s?50\.000/);
+    expect(r.message).toContain("https://fotoffice.com/w/dnx-estudio/cursos/taller-de-xv");
+    expect(r.message).toContain("grabado");
+    expect(r.message).toContain("sábado 14/11 10:00");
+    expect(r.message).toMatch(/\$\s?80\.000/);
+    const vacio = await herramientasDeAtencion("w1", { ...deps, cursos: async () => [] }).tools.find((x) => x.name === "cursos_del_estudio")!.run({}, { userId: 0, role: "CLIENTE", email: "", name: null });
+    expect(vacio.message).toMatch(/no hay cursos/i);
+  });
+
   it("todas son de lectura (no hay acciones que confirmar)", () => {
     expect(herramientasDeAtencion("w1", deps).tools.every((t) => t.kind === "read")).toBe(true);
   });

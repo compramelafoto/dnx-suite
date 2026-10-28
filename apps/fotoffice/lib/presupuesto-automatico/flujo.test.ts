@@ -141,6 +141,14 @@ describe("alLlegarConsulta", () => {
     expect(avisos[0]).not.toContain("propuesta modelo");
   });
 
+  it("presupuesto por horas: una categoría excluida queda apagada (web y WhatsApp)", async () => {
+    await B.tablas.fotofficeConsulta.updateMany({ where: { leadId: "lead-1" }, data: { categoryId: "cat-boda" } });
+    B.agregar("fotofficePresupuestoAutoAjustes", { workspaceId: WS, porHoras: { encendido: true, categoriasExcluidas: ["cat-boda"] } });
+    const { d } = deps();
+    expect(await F.alLlegarConsulta(WS, "lead-1", "WEB", {}, d)).toBe("APAGADO");
+    expect(await F.alLlegarConsulta(WS, "lead-1", "WHATSAPP", { waId: "5493410000000" }, d)).toBe("APAGADO");
+  });
+
   it("sin horas: avisa que falta la cantidad de horas", async () => {
     const { d } = deps({ armar: async () => ({ resultado: "SIN_HORAS", presupuestoId: null }) });
     expect(await F.alLlegarConsulta(WS, "lead-1", "WEB", {}, d)).toBe("SIN_PROPUESTA");

@@ -59,5 +59,7 @@ describe("Configuración → Telegram: presupuesto por horas", () => {
     expect(f).toContain("export function PorHorasForm(");
     expect(f).toContain("InputMoneda");
     expect(f).toContain('name="partida"');
+    expect(f).toContain('name="categoriasExcluidas"');
+    expect(aqui("actions.ts")).toContain('fd.getAll("categoriasExcluidas")');
   });
 });

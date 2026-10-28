@@ -206,6 +206,18 @@ export function PorHorasForm({ ajustes: a, categorias }: { ajustes: AjustesPorHo
           <p className="text-xs text-[var(--fo-muted)]">Si no marcás ninguna, se toman como sesión las que se llaman “Sesión…”.</p>
         </fieldset>
       ) : null}
+      {categorias.length > 0 ? (
+        <fieldset className="space-y-1">
+          <legend className="fo-label">Categorías que NO se arman solas (te las pasa el bot a vos)</legend>
+          {categorias.map((c) => (
+            <label key={c.categoriaId} className="flex items-center gap-2 text-sm">
+              <input type="checkbox" name="categoriasExcluidas" value={c.categoriaId} defaultChecked={a.categoriasExcluidas.includes(c.categoriaId)} />
+              {c.nombre}
+            </label>
+          ))}
+          <p className="text-xs text-[var(--fo-muted)]">Para lo que no es una cobertura de fotos: alquileres, glitter, video clip, publicidad…</p>
+        </fieldset>
+      ) : null}
       <div className="fo-field-stack">
         <label className="fo-label" htmlFor="ph-incluye">Qué va incluido siempre</label>
         <input id="ph-incluye" name="incluye" maxLength={500} defaultValue={a.incluye} className="fo-input" />

@@ -28,6 +28,7 @@ import {
   type ResultadoWhatsapp,
 } from "./canales";
 import { leerAjustesPorHoras, leerPorHorasDeConsulta } from "./por-horas";
+import { porHorasAplica } from "./por-horas-puro";
 import { armarResumen, lineasDePrecio, type DatosResumen, type EstadoDelAviso, type PresupuestoDelResumen } from "./resumen";
 
 /**
@@ -106,7 +107,7 @@ export async function alLlegarConsulta(
     const ficha = await prisma.fotofficeConsulta.findFirst({ where: { workspaceId, leadId }, select: { categoryId: true } });
     // Por WhatsApp con el presupuesto por horas encendido, toda consulta pasa por la aprobación
     // (la que tiene propuesta modelo la usa aunque su interruptor esté apagado). Spec 2026-10-28 §9.
-    const porWhatsapp = origen === "WHATSAPP" && ficha?.categoryId ? (await leerAjustesPorHoras(workspaceId)).encendido : false;
+    const porWhatsapp = origen === "WHATSAPP" && ficha?.categoryId ? porHorasAplica(await leerAjustesPorHoras(workspaceId), ficha.categoryId) : false;
     if (!ficha || !(porWhatsapp || (await apruebaPorTelegram(workspaceId, ficha.categoryId)))) return "APAGADO";
 
     // La fila primero: el único (workspace + consulta) frena un segundo aviso de la misma consulta.

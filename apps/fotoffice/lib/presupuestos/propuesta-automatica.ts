@@ -32,7 +32,7 @@ import { leerPropuestaModelo, plantillaDePropuesta } from "./propuestas-modelo";
 import { normalizarBorrador } from "./versiones";
 import { leerPerfilPreciosDelSistema } from "@/lib/precios/perfil";
 import { geocodificarLugar, guardarPorHorasDeConsulta, leerAjustesPorHoras, leerPorHorasDeConsulta } from "@/lib/presupuesto-automatico/por-horas";
-import { kmDeDistancia, llevaSegundoFotografo, recetaPorHoras, type AjustesPorHoras } from "@/lib/presupuesto-automatico/por-horas-puro";
+import { kmDeDistancia, llevaSegundoFotografo, porHorasAplica, recetaPorHoras, type AjustesPorHoras } from "@/lib/presupuesto-automatico/por-horas-puro";
 import { itemsPorHoras, segundoFotografoOpcional, valorHoraDeDaniel } from "./borrador-por-horas";
 import type { ItemPresupuesto } from "./constantes";
 
@@ -335,14 +335,14 @@ async function armarBorrador(
     const sinPropuesta = !propuesta || propuesta.items.length === 0;
     // Presupuesto por horas (spec 2026-10-28): sólo en el camino con aprobación por Telegram.
     const porHoras = paraAprobar ? await leerAjustesPorHoras(workspaceId) : null;
-    if (sinPropuesta && !porHoras?.encendido) return sin(paraAprobar ? "SIN_PROPUESTA" : "NO_APLICA");
+    if (sinPropuesta && !(porHoras && porHorasAplica(porHoras, ficha.categoryId))) return sin(paraAprobar ? "SIN_PROPUESTA" : "NO_APLICA");
     const previo = await presupuestoDeLaConsulta(workspaceId, leadId);
     if (previo) return { resultado: "YA_TIENE_PRESUPUESTO", presupuestoId: paraAprobar ? previo : null };
 
     const categoria = await prisma.fotofficeConsultaCategoria.findFirst({ where: { id: ficha.categoryId, workspaceId }, select: { name: true, group: true } });
     const esSesion = porHoras ? esCategoriaSesion(porHoras, ficha.categoryId, categoria) : false;
     const segundo =
-      porHoras?.encendido === true &&
+      porHoras !== null && porHorasAplica(porHoras, ficha.categoryId) &&
       llevaSegundoFotografo({ grupo: categoria?.group ?? "", esSesion, invitados: ficha.guests ?? null, umbral: porHoras.invitadosSegundoFotografo });
 
     let armado: Awaited<ReturnType<typeof armarBorradorBase>>;

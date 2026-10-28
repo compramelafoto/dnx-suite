@@ -4,7 +4,7 @@ import { altaDelSistema, altaDeConsulta } from "@/lib/consultas/alta";
 import { leerAcuse } from "./ajustes";
 import { asegurarCategoriaEvento } from "./categoria-evento";
 import { guardarPorHorasDeConsulta, leerAjustesPorHoras } from "./por-horas";
-import { horasValidas } from "./por-horas-puro";
+import { horasValidas, porHorasAplica } from "./por-horas-puro";
 import { alLlegarConsulta, enPreparacionParaWhatsapp, type DepsFlujo } from "./flujo";
 import { coincidenciasDelTipo, fechaDelBot } from "./whatsapp-puro";
 
@@ -44,7 +44,8 @@ export async function prepararDesdeWhatsapp(
       return { ok: true, message: "Ya hay un presupuesto en preparación para este cliente. Decile que en un rato se lo mandamos; no le des precios." };
     }
     // Presupuesto por horas (spec 2026-10-28): cualquier categoría activa; si ninguna coincide, "Evento".
-    const porHoras = (await leerAjustesPorHoras(workspaceId)).encendido;
+    const ajustesPorHoras = await leerAjustesPorHoras(workspaceId);
+    const porHoras = ajustesPorHoras.encendido;
     const encendidas = porHoras
       ? null
       : await prisma.fotofficePresupuestoAutoCategoria.findMany({ where: { workspaceId, telegramEnabled: true }, select: { categoryId: true }, take: 100 });
@@ -68,6 +69,13 @@ export async function prepararDesdeWhatsapp(
     }
     const categoria =
       (coincidencias.length === 1 ? coincidencias[0] : null) ?? (porHoras ? { id: await asegurarCategoriaEvento(workspaceId), name: "Evento" } : null);
+    // Categorías que no son coberturas (glitter, 360°, video clip…): las atiende una persona.
+    if (categoria && porHoras && !porHorasAplica(ajustesPorHoras, categoria.id)) {
+      const conInterruptor = await prisma.fotofficePresupuestoAutoCategoria.findFirst({ where: { workspaceId, categoryId: categoria.id, telegramEnabled: true }, select: { id: true } });
+      if (!conInterruptor) {
+        return { ok: false, message: `"${categoria.name}" no se presupuesta sola: lo arma una persona del estudio. Usá pasar_a_persona con un resumen de lo que pide.` };
+      }
+    }
     if (!categoria) {
       return {
         ok: false,
