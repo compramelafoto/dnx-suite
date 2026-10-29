@@ -174,6 +174,21 @@ describe("la página «Pedí tu presupuesto»", () => {
   });
 });
 
+describe("el probador de cuadros", () => {
+  it("se ofrece para sumar al menú en cualquier sitio, sin depender de un módulo", () => {
+    expect(optionalPublicPagesFor(new Set()).map((p) => p.key)).toContain("probador");
+  });
+
+  it("no entra solo al menú de los sitios ya publicados", () => {
+    const menu = buildSiteNav({ workspaceSlug: "dnx-estudio", homeBlocks: [], enabledModuleKeys: new Set(), hasPublishedSite: true });
+    expect(menu.some((i) => i.href.endsWith("/probador-de-cuadros"))).toBe(false);
+  });
+
+  it("su dirección queda reservada para que ninguna página propia la pise", () => {
+    expect(isSiteSegmentReserved("probador-de-cuadros")).toBe(true);
+  });
+});
+
 describe("la página pública de Trabajos", () => {
   const menu = (hayTrabajos: boolean) =>
     buildSiteNav({

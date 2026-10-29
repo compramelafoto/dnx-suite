@@ -150,6 +150,9 @@ export const OPTIONAL_PUBLIC_PAGES: readonly OptionalPublicPage[] = [
   // con el módulo encendido (404 si está apagado). Convive con `presupuesto/[token]` (el enlace
   // del presupuesto que se le manda a cada cliente).
   { key: "presupuesto", moduleKey: SERVICE_LEADS_MODULE_KEY, path: "presupuesto", label: PRESUPUESTO_PAGE_LABEL },
+  // El cliente prueba cuadros sobre una foto de su pared. No usa ningún módulo: todo pasa en el
+  // navegador, así que está disponible para cualquier sitio.
+  { key: "probador", moduleKey: null, path: "probador-de-cuadros", label: "Probador de cuadros" },
 ] as const;
 
 /** Las páginas opcionales disponibles con los módulos habilitados. */
