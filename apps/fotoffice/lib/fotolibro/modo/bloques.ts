@@ -265,3 +265,19 @@ function textosDelEstilo(estado: EstadoFotolibro, estilo: EstiloFotolibro, lienz
   });
   return out;
 }
+
+/**
+ * Reordena las hojas del diseño cuando se mueven pliegos: `orden[nuevo] = viejo`. Mueve todo, lo
+ * agregado a mano y los bloques automáticos (a los que también les cambia el id, que lleva el
+ * número de pliego), así el encuadre de cada foto viaja con su pliego.
+ */
+export function permutarHojas(bloques: readonly TemplateV2Block[], orden: number[]): TemplateV2Block[] {
+  const nuevoDe = new Map(orden.map((viejo, nuevo) => [viejo, nuevo]));
+  return bloques.map((b) => {
+    const viejo = b.pageIndex ?? 0;
+    const nuevo = nuevoDe.get(viejo);
+    if (nuevo === undefined || nuevo === viejo) return b;
+    const id = esBloqueAutomatico(b) ? b.id.replace(/^fl-(\d+)-/, `fl-${nuevo}-`) : b.id;
+    return { ...b, id, pageIndex: nuevo };
+  });
+}

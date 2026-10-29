@@ -177,3 +177,34 @@ export function confirmarOriginales(e: EstadoFotolibro, resultado: Record<string
   });
   return cambio ? { ...e, fotos } : e;
 }
+
+/**
+ * Lleva el pliego `desde` al lugar `hasta` (los demás se corren). Para mover también lo hecho a
+ * mano y los encuadres, ver `permutarHojas` en `bloques.ts`, que usa el mismo `ordenNuevo`.
+ */
+export function moverPliego(e: EstadoFotolibro, desde: number, hasta: number): EstadoFotolibro {
+  const n = e.pliegos.length;
+  if (desde === hasta || desde < 0 || hasta < 0 || desde >= n || hasta >= n) return e;
+  const pliegos = [...e.pliegos];
+  const [p] = pliegos.splice(desde, 1);
+  pliegos.splice(hasta, 0, p!);
+  return { ...e, pliegos };
+}
+
+/** Cuál era antes cada pliego después de `moverPliego`: `orden[nuevo] = viejo`. */
+export function ordenTrasMover(cantidad: number, desde: number, hasta: number): number[] {
+  const orden = Array.from({ length: cantidad }, (_, i) => i);
+  const [x] = orden.splice(desde, 1);
+  orden.splice(hasta, 0, x!);
+  return orden;
+}
+
+/** Copia el pliego (mismas fotos, misma distribución) justo después. */
+export function duplicarPliego(e: EstadoFotolibro, pliego: number): EstadoFotolibro {
+  const p = e.pliegos[pliego];
+  if (!p) return e;
+  const copia = { modo: p.modo, todo: { ...p.todo, fotos: [...p.todo.fotos] }, izq: { ...p.izq, fotos: [...p.izq.fotos] }, der: { ...p.der, fotos: [...p.der.fotos] } };
+  const pliegos = [...e.pliegos];
+  pliegos.splice(pliego + 1, 0, copia);
+  return { ...e, pliegos };
+}

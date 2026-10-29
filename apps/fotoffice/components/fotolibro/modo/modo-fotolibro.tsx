@@ -18,7 +18,7 @@ import { modelosParaLibro } from "@/lib/fotolibro/tapa/catalogo";
 import { DISENOS_TAPA, bloquesDeTapa, disenoDeTapa, tapaDelLibro } from "@/lib/fotolibro/tapa/bloques";
 import { TapaVista, type CaraTapa } from "./tapa-vista";
 import { PanelTapa } from "./panel-tapa";
-import { cantidadDeDistribuciones, generarBloques, idDeBloque, reindexarHojas } from "@/lib/fotolibro/modo/bloques";
+import { cantidadDeDistribuciones, generarBloques, idDeBloque, permutarHojas, reindexarHojas } from "@/lib/fotolibro/modo/bloques";
 import {
   agregarAPagina,
   agregarPliego,
@@ -26,6 +26,9 @@ import {
   cambiarModo,
   cambiarVariante,
   confirmarOriginales,
+  duplicarPliego,
+  moverPliego,
+  ordenTrasMover,
   intercambiar,
   moverAPagina,
   quitarDePagina,
@@ -43,6 +46,7 @@ import { claveDeMedida, medidasDelLienzo } from "@/lib/fotolibro/modo/bloques";
 import { dibujarYSubirFondos } from "./aplicar-estilo";
 import { SelectorEstilo } from "./selector-estilo";
 import { ArmadoAutomatico } from "./armado-automatico";
+import { VistaLibro } from "./vista-libro";
 import { ordenarFotos } from "@/lib/fotolibro/modo/armado";
 import { PanelLateral } from "./panel-lateral";
 import { PliegoVista } from "./pliego-vista";
@@ -99,6 +103,7 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
   const [originales, setOriginales] = useState(0);
   const [eligiendoEstilo, setEligiendoEstilo] = useState(false);
   const [armando, setArmando] = useState(false);
+  const [vistaLibro, setVistaLibro] = useState(false);
   const [aplicandoEstilo, setAplicandoEstilo] = useState<string | null>(null);
   // La tapa es la "hoja -1": va antes del primer pliego.
   const [caraTapa, setCaraTapa] = useState<CaraTapa | null>(null);
@@ -366,6 +371,13 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
         return;
       }
       if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
+      // G: todo el libro de un vistazo (y de vuelta al pliego).
+      if (tecla === "g") {
+        ev.preventDefault();
+        setVistaLibro((v) => !v);
+        return;
+      }
+      if (vistaLibro) return;
       if (ev.key === "ArrowLeft") return void (ev.preventDefault(), irA(pliego - 1));
       if (ev.key === "ArrowRight") return void (ev.preventDefault(), irA(pliego + 1));
       if (pliego < 0) {
@@ -415,7 +427,7 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [recortando, recortandoTapa, caraTapa, eligiendoEstilo, armando, pliego, seleccionTira, seleccionada, aplicar, deshacer, irA]);
+  }, [recortando, recortandoTapa, caraTapa, eligiendoEstilo, armando, vistaLibro, pliego, seleccionTira, seleccionada, aplicar, deshacer, irA]);
 
   const fotosPorId = useMemo(() => new Map((estado?.fotos ?? []).map((f) => [f.id, f])), [estado]);
   const usos = useMemo(() => (estado ? usosPorFoto(estado) : new Map<string, number>()), [estado]);
@@ -508,6 +520,14 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
         <span className={`ml-auto text-xs ${guardado === "error" ? "text-red-300" : "text-white/50"}`}>{estadoGuardado}</span>
         <button
           type="button"
+          onClick={() => setVistaLibro((v) => !v)}
+          title="Todos los pliegos de un vistazo, para ordenarlos (G)"
+          className={`rounded border px-2.5 py-1 text-xs ${vistaLibro ? "border-[var(--fo-accent)] bg-white/10" : "border-white/15 hover:bg-white/10"}`}
+        >
+          {vistaLibro ? "Volver al pliego" : "Ver libro"}
+        </button>
+        <button
+          type="button"
           onClick={() => setArmando(true)}
           disabled={!estado.fotos.length}
           title="Reparte las fotos en todo el libro, en orden y por momentos"
@@ -552,7 +572,30 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
       <div className="flex min-h-0 flex-1">
         <main className="flex min-h-0 min-w-0 flex-1 flex-col">
           <div className="min-h-0 flex-1 py-4">
-            {pliego < 0 ? (
+            {vistaLibro ? (
+              <VistaLibro
+                canvas={cargado.canvas}
+                bloques={bloques}
+                estado={estado}
+                minis={minis}
+                actual={pliego}
+                tapa={armadoTapa ? { canvas: armadoTapa.lienzo, bloques: bloquesTapa } : null}
+                onAbrir={(i) => {
+                  irA(i);
+                  setVistaLibro(false);
+                }}
+                onMover={(desde, hasta) => {
+                  aplicar((e) => moverPliego(e, desde, hasta), (b) => permutarHojas(b, ordenTrasMover(cantidad, desde, hasta)));
+                  if (pliego === desde) setPliego(hasta);
+                }}
+                onDuplicar={(i) => aplicar((e) => duplicarPliego(e, i), (b) => reindexarHojas(b, { tipo: "insertar", indice: i + 1 }))}
+                onAgregar={(i) => aplicar((e) => agregarPliego(e, i), (b) => reindexarHojas(b, { tipo: "insertar", indice: i + 1 }))}
+                onQuitar={(i) => {
+                  aplicar((e) => quitarPliego(e, i), (b) => reindexarHojas(b, { tipo: "quitar", indice: i }));
+                  setPliego((p) => Math.max(0, Math.min(p, cantidad - 2)));
+                }}
+              />
+            ) : pliego < 0 ? (
               <TapaVista
                 armado={armadoTapa}
                 bloques={bloquesTapa}
