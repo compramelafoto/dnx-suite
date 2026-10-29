@@ -48,6 +48,13 @@ describe("editorADocumento — calendario", () => {
     assert.ok(t.every((b) => b.type === "text" && Number(b.width) > 0));
   });
 
+  it("un calendario diminuto no baja de 4 puntos (la impresión no lo acepta)", () => {
+    const chico = { ...calendario(2027), width: 300, height: 260 };
+    const t = textos([chico]);
+    assert.equal(t.length, 12 + 12 * 7 + 365);
+    assert.ok(t.every((b) => Number(b.fontSize) >= 4));
+  });
+
   it("los domingos salen en su color", () => {
     const t = textos([calendario(2027, { month: 2 })]);
     const rojos = t.filter((b) => b.color === "#cc0000" && /^\d+$/.test(String(b.content))).map((b) => b.content);

@@ -399,7 +399,8 @@ export function editorADocumento(input: {
                   rotation: giro || undefined,
                   content: celda.text,
                   fontId: fuente,
-                  fontSize: pt(celda.fontSize),
+                  // La impresión no acepta menos de 4 pt: un calendario muy chico sale apenas encimado, no roto.
+                  fontSize: Math.max(4, pt(celda.fontSize)),
                   fontWeight: celda.bold ? "bold" : pesoBase,
                   fontStyle: cfg.fontItalic === true ? "italic" : "normal",
                   color: celda.color ?? colorBase,
