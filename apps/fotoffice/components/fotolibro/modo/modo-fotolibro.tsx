@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PhotoCrop, TemplateV2Block, TemplateV2Canvas } from "@repo/template-editor-core";
 import {
   escribirEstadoFotolibro,
+  fotosSinOriginal,
   leerEstadoFotolibro,
   usosPorFoto,
   type EstadoFotolibro,
@@ -24,6 +25,7 @@ import {
   armarPliego,
   cambiarModo,
   cambiarVariante,
+  confirmarOriginales,
   intercambiar,
   moverAPagina,
   quitarDePagina,
@@ -43,7 +45,7 @@ import { SelectorEstilo } from "./selector-estilo";
 import { PanelLateral } from "./panel-lateral";
 import { PliegoVista } from "./pliego-vista";
 import { TiraFotos } from "./tira-fotos";
-import { subirFoto } from "./subir-fotos";
+import { confirmarOriginalesEnServidor, subirFoto } from "./subir-fotos";
 
 type Props = {
   templateId: string;
@@ -91,6 +93,8 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
   const [guardado, setGuardado] = useState<Guardado>("al-dia");
   const [errorGuardado, setErrorGuardado] = useState<string | null>(null);
   const [subiendo, setSubiendo] = useState<{ hechas: number; total: number; errores: string[] } | null>(null);
+  // Originales que siguen subiendo de fondo (la foto ya se puede usar).
+  const [originales, setOriginales] = useState(0);
   const [eligiendoEstilo, setEligiendoEstilo] = useState(false);
   const [aplicandoEstilo, setAplicandoEstilo] = useState<string | null>(null);
   // La tapa es la "hoja -1": va antes del primer pliego.
@@ -189,11 +193,11 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
 
   useEffect(() => {
     const avisar = (e: BeforeUnloadEvent) => {
-      if (guardado === "pendiente" || guardado === "guardando") e.preventDefault();
+      if (guardado === "pendiente" || guardado === "guardando" || originales > 0) e.preventDefault();
     };
     window.addEventListener("beforeunload", avisar);
     return () => window.removeEventListener("beforeunload", avisar);
-  }, [guardado]);
+  }, [guardado, originales]);
 
   // ── Cambios ──
   const aplicar = useCallback(
@@ -256,6 +260,33 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
   );
 
   // ── Subida ──
+  // Cola de originales: dos a la vez, para no quitarle ancho de banda a las vistas que se ven ya.
+  const colaOriginales = useRef<{ clave: string; subir: () => Promise<void> }[]>([]);
+  const subiendoOriginales = useRef(0);
+  const marcarOriginal = useCallback(
+    (resultado: Record<string, boolean>) => aplicarSinHistoria((e) => confirmarOriginales(e, resultado)),
+    [aplicarSinHistoria],
+  );
+  const seguirConOriginales = useCallback(() => {
+    while (subiendoOriginales.current < 2 && colaOriginales.current.length) {
+      const tarea = colaOriginales.current.shift()!;
+      subiendoOriginales.current += 1;
+      void (async () => {
+        let llego = false;
+        try {
+          await tarea.subir();
+          llego = (await confirmarOriginalesEnServidor(templateId, [tarea.clave]))[tarea.clave] === true;
+        } catch {
+          llego = false;
+        }
+        marcarOriginal({ [tarea.clave]: llego });
+        subiendoOriginales.current -= 1;
+        setOriginales((n) => Math.max(0, n - 1));
+        seguirConOriginales();
+      })();
+    }
+  }, [templateId, marcarOriginal]);
+
   const subir = useCallback(
     async (archivos: File[]) => {
       let hechas = 0;
@@ -266,8 +297,14 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
         while (cola.length) {
           const archivo = cola.shift()!;
           try {
-            const foto = await subirFoto(templateId, archivo);
+            // Primer paso (vista y miniatura): la foto ya se puede usar. El original va a la cola.
+            const { foto, subirOriginal } = await subirFoto(templateId, archivo);
             aplicar((e) => sumarFotos(e, [foto]));
+            if (foto.claveOriginal) {
+              colaOriginales.current.push({ clave: foto.claveOriginal, subir: subirOriginal });
+              setOriginales((n) => n + 1);
+              seguirConOriginales();
+            }
           } catch (err) {
             errores.push(err instanceof Error ? err.message : `${archivo.name}: falló la subida.`);
           }
@@ -279,8 +316,17 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
       setTimeout(() => setSubiendo((s) => (s && s.errores.length ? s : null)), errores.length ? 8000 : 1500);
       if (errores.length) setErrorGuardado(errores.slice(0, 3).join(" · "));
     },
-    [templateId, aplicar],
+    [templateId, aplicar, seguirConOriginales],
   );
+
+  // Al abrir: originales que quedaron a mitad de camino (se cerró la pestaña). Se revisan una vez.
+  const revisados = useRef(false);
+  useEffect(() => {
+    if (!estado || revisados.current) return;
+    revisados.current = true;
+    const claves = estado.fotos.map((f) => f.claveOriginal).filter((c): c is string => Boolean(c));
+    if (claves.length) void confirmarOriginalesEnServidor(templateId, claves).then(marcarOriginal).catch(() => {});
+  }, [estado, templateId, marcarOriginal]);
 
   // ── Estilo ──
   const elegirEstilo = useCallback(
@@ -358,6 +404,7 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
 
   const fotosPorId = useMemo(() => new Map((estado?.fotos ?? []).map((f) => [f.id, f])), [estado]);
   const usos = useMemo(() => (estado ? usosPorFoto(estado) : new Map<string, number>()), [estado]);
+  const minis = useMemo(() => new Map((estado?.fotos ?? []).map((f) => [f.id, f.mini])), [estado?.fotos]);
   const metaLibro = (cargado?.meta.fotolibro ?? {}) as { medidaId?: string; proveedorNombre?: string | null };
   const modelosTapa = useMemo(() => modelosParaLibro(metaLibro.medidaId ?? "", metaLibro.proveedorNombre), [metaLibro.medidaId, metaLibro.proveedorNombre]);
   const armadoTapa = useMemo(() => (estado ? tapaDelLibro(estado, estado.pliegos.length) : null), [estado]);
@@ -443,6 +490,14 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
           nombre={cargado.nombre}
           cantidadPliegos={cantidad}
           conTapa={armadoTapa !== null}
+          bloqueo={(() => {
+            const faltan = fotosSinOriginal(estado);
+            if (!faltan.length) return null;
+            const perdidas = faltan.filter((f) => f.faltaOriginal).length;
+            return perdidas
+              ? `A ${perdidas} ${perdidas === 1 ? "foto le falta" : "fotos les falta"} el original (marcadas en la tira): volvé a subirlas.`
+              : `Todavía se están subiendo ${faltan.length} ${faltan.length === 1 ? "original" : "originales"}. Esperá un momento.`;
+          })()}
           guardarAntes={async () => (ref.current.estado && guardado !== "al-dia" ? guardar() : true)}
         />
       </header>
@@ -485,6 +540,7 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
               pliego={pliego}
               cantidad={cantidad}
               modo={estado.pliegos[pliego]?.modo ?? "pliego"}
+              minis={minis}
               seleccionada={seleccionada}
               recortando={recortando}
               onIrA={irA}
@@ -595,6 +651,7 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
           onSeleccion={setSeleccionTira}
           onSubir={(a) => void subir(a)}
           subiendo={subiendo}
+          originales={originales}
         />
       </div>
     </div>

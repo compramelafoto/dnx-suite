@@ -9,6 +9,8 @@ type Props = {
   cantidadPliegos: number;
   /** Si el libro tiene tapa elegida: va primera en el ZIP, como `tapa.jpg`. */
   conTapa: boolean;
+  /** Por qué no se puede exportar todavía (originales sin subir), o null. */
+  bloqueo: string | null;
   /** Guarda lo pendiente antes de exportar: el servidor arma los pliegos desde lo guardado. */
   guardarAntes: () => Promise<boolean>;
 };
@@ -17,12 +19,17 @@ type Props = {
  * "Exportar para el laboratorio": arma cada pliego en JPG a 300 ppp en el servidor (de a uno,
  * porque cada uno baja sus fotos originales) y los junta en un ZIP listo para mandar.
  */
-export function ExportarBoton({ templateId, nombre, cantidadPliegos, conTapa, guardarAntes }: Props) {
+export function ExportarBoton({ templateId, nombre, cantidadPliegos, conTapa, bloqueo, guardarAntes }: Props) {
   const [avance, setAvance] = useState<{ hechos: number; total: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function exportar() {
     setError(null);
+    // Se imprime con los originales: sin ellos, las láminas saldrían sin esas fotos.
+    if (bloqueo) {
+      setError(bloqueo);
+      return;
+    }
     if (!(await guardarAntes())) {
       setError("No se pudo guardar antes de exportar.");
       return;

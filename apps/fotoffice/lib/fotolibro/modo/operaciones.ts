@@ -162,3 +162,18 @@ export function reemplazar(e: EstadoFotolibro, u: Ubicacion, nuevaId: string): E
   p.fotos[i] = nuevaId;
   return n;
 }
+
+/**
+ * Resultado de confirmar originales subidos de fondo: los que llegaron dejan de estar pendientes;
+ * los que no, quedan marcados para volver a subirlos.
+ */
+export function confirmarOriginales(e: EstadoFotolibro, resultado: Record<string, boolean>): EstadoFotolibro {
+  let cambio = false;
+  const fotos = e.fotos.map((f) => {
+    if (!f.claveOriginal || !(f.claveOriginal in resultado)) return f;
+    cambio = true;
+    const { claveOriginal: _c, faltaOriginal: _f, ...resto } = f;
+    return resultado[f.claveOriginal] ? resto : { ...resto, claveOriginal: f.claveOriginal, faltaOriginal: true };
+  });
+  return cambio ? { ...e, fotos } : e;
+}

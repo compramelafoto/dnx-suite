@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ImageCropOverlay, TemplateCanvasRenderer } from "@repo/template-editor-ui";
 import type { PhotoCrop, TemplateV2Block, TemplateV2Canvas } from "@repo/template-editor-core";
 import type { Lado, ModoPliego } from "@/lib/fotolibro/modo/estado";
@@ -17,6 +17,8 @@ type Props = {
   pliego: number;
   cantidad: number;
   modo: ModoPliego;
+  /** Miniatura (400 px) de cada foto, por id: los pliegos chicos de los costados no necesitan más. */
+  minis: Map<string, string>;
   seleccionada: Ubicacion | null;
   recortando: string | null;
   onIrA: (pliego: number) => void;
@@ -64,13 +66,24 @@ const ANIMACION = `
 }`;
 
 /** Un pliego chico (el anterior o el siguiente), para ver dónde se está y saltar con un clic. */
-function Miniatura({ canvas, bloques, pliego, alto, onClick, etiqueta }: { canvas: TemplateV2Canvas; bloques: TemplateV2Block[]; pliego: number; alto: number; onClick: () => void; etiqueta: string }) {
+function Miniatura({ canvas, bloques, minis, pliego, alto, onClick, etiqueta }: { canvas: TemplateV2Canvas; bloques: TemplateV2Block[]; minis: Map<string, string>; pliego: number; alto: number; onClick: () => void; etiqueta: string }) {
   const s = alto / canvas.height;
+  // Mismas fotos, en su versión más chica: a este tamaño no se nota y baja mucho menos.
+  const livianos = useMemo(
+    () =>
+      bloques
+        .filter((b) => (b.pageIndex ?? 0) === pliego)
+        .map((b) => {
+          const mini = typeof b.configJson.fotoId === "string" ? minis.get(b.configJson.fotoId) : undefined;
+          return mini ? { ...b, configJson: { ...b.configJson, previewSrc: mini } } : b;
+        }),
+    [bloques, minis, pliego],
+  );
   return (
     <button type="button" onClick={onClick} title={etiqueta} className="group flex-none opacity-50 transition-opacity hover:opacity-90">
       <div className="relative overflow-hidden bg-white shadow" style={{ width: canvas.width * s, height: alto }}>
         <div style={{ transform: `scale(${s})`, transformOrigin: "0 0", width: canvas.width, height: canvas.height, pointerEvents: "none" }}>
-          <TemplateCanvasRenderer canvas={canvas} blocks={bloques} readOnly pageIndex={pliego} />
+          <TemplateCanvasRenderer canvas={canvas} blocks={livianos} readOnly pageIndex={pliego} />
         </div>
       </div>
       <p className="mt-1 text-center text-[11px] text-white/60">{etiqueta}</p>
@@ -131,7 +144,7 @@ export function PliegoVista(props: Props) {
     <div ref={contenedorRef} className="flex h-full min-h-0 w-full items-center justify-center gap-6 px-4">
       <style>{ANIMACION}</style>
       {pliego > 0 ? (
-        <Miniatura canvas={canvas} bloques={bloques} pliego={pliego - 1} alto={altoMini} etiqueta={`Pliego ${pliego}`} onClick={() => props.onIrA(pliego - 1)} />
+        <Miniatura canvas={canvas} bloques={bloques} minis={props.minis} pliego={pliego - 1} alto={altoMini} etiqueta={`Pliego ${pliego}`} onClick={() => props.onIrA(pliego - 1)} />
       ) : (
         <div style={{ width: anchoMini }} />
       )}
@@ -243,7 +256,7 @@ export function PliegoVista(props: Props) {
       </div>
 
       {pliego < cantidad - 1 ? (
-        <Miniatura canvas={canvas} bloques={bloques} pliego={pliego + 1} alto={altoMini} etiqueta={`Pliego ${pliego + 2}`} onClick={() => props.onIrA(pliego + 1)} />
+        <Miniatura canvas={canvas} bloques={bloques} minis={props.minis} pliego={pliego + 1} alto={altoMini} etiqueta={`Pliego ${pliego + 2}`} onClick={() => props.onIrA(pliego + 1)} />
       ) : (
         <div style={{ width: anchoMini }} />
       )}

@@ -7,14 +7,18 @@ import type { FotoDelLibro } from "@/lib/fotolibro/modo/estado";
  *
  * Por cada foto se suben tres archivos directo al almacenamiento (ver `/api/fotolibro/[id]/subida`):
  * - el **original**, que es lo que se imprime;
- * - una **vista** de 2000 px, para dibujar el pliego en pantalla sin bajar originales de 20 MB;
- * - una **miniatura** de 400 px, para la tira de fotos.
+ * - una **vista** de 1600 px, para dibujar el pliego en pantalla sin bajar originales de 20 MB
+ *   (a pantalla completa alcanza y sobra; pesa un tercio menos que una de 2000);
+ * - una **miniatura** de 400 px, para la tira de fotos y los pliegos chicos.
  *
  * Las copias livianas se arman acá, con un `<canvas>`: así el servidor nunca tiene que procesar
  * fotos pesadas.
+ *
+ * Se sube en dos pasos: primero la vista y la miniatura (unos cientos de KB), y la foto ya aparece
+ * en la tira para armar; el original (varios MB) sigue de fondo y se confirma al terminar.
  */
 
-const LADO_VISTA = 2000;
+const LADO_VISTA = 1600;
 const LADO_MINI = 400;
 
 async function aJpeg(bitmap: ImageBitmap, ladoMax: number, calidad: number): Promise<Blob> {
@@ -61,8 +65,18 @@ async function leerError(r: Response, porDefecto: string): Promise<string> {
   return data.error || porDefecto;
 }
 
-/** Sube una foto y la devuelve registrada, lista para la tira. */
-export async function subirFoto(templateId: string, archivo: File): Promise<FotoDelLibro> {
+export type FotoSubida = {
+  /** La foto ya registrada, con el original todavía subiendo (`claveOriginal`). */
+  foto: FotoDelLibro;
+  /** Sube el original. Termina sin error cuando quedó en el almacenamiento. */
+  subirOriginal: () => Promise<void>;
+};
+
+/**
+ * Primer paso de la subida: vista y miniatura. Devuelve la foto lista para usar y la tarea que
+ * sube el original, para que quien llama la corra de fondo.
+ */
+export async function subirFoto(templateId: string, archivo: File): Promise<FotoSubida> {
   if (!TIPOS.includes(archivo.type)) throw new Error(`${archivo.name}: sólo JPG, PNG o WebP.`);
   const v = await prepararVersiones(archivo);
   const tipoOriginal = v.original === archivo ? archivo.type : "image/jpeg";
@@ -82,28 +96,46 @@ export async function subirFoto(templateId: string, archivo: File): Promise<Foto
   });
   if (!pedido.ok) throw new Error(await leerError(pedido, "No se pudo preparar la subida."));
   const { permisos } = (await pedido.json()) as { permisos: { tipo: string; uploadUrl: string; key: string }[] };
+  const permiso = (tipo: string) => {
+    const p = permisos.find((x) => x.tipo === tipo);
+    if (!p) throw new Error("No se pudo preparar la subida.");
+    return p;
+  };
+  const subir = async (tipo: string, blob: Blob, contentType: string) => {
+    const r = await fetch(permiso(tipo).uploadUrl, { method: "PUT", headers: { "Content-Type": contentType }, body: blob });
+    if (!r.ok) throw new Error(`${archivo.name}: no se pudo subir (${r.status}).`);
+  };
 
-  const cuerpo: Record<string, Blob> = { original: v.original, vista: v.vista, mini: v.mini };
-  const claves: Record<string, string> = {};
-  await Promise.all(
-    permisos.map(async (p) => {
-      const blob = cuerpo[p.tipo]!;
-      const r = await fetch(p.uploadUrl, {
-        method: "PUT",
-        headers: { "Content-Type": p.tipo === "original" ? tipoOriginal : "image/jpeg" },
-        body: blob,
-      });
-      if (!r.ok) throw new Error(`${archivo.name}: no se pudo subir (${r.status}).`);
-      claves[p.tipo] = p.key;
-    }),
-  );
+  await Promise.all([subir("vista", v.vista, "image/jpeg"), subir("mini", v.mini, "image/jpeg")]);
 
   const registro = await fetch(`${base}/fotos`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
-    body: JSON.stringify({ ...claves, w: v.w, h: v.h, nombre: archivo.name.replace(/\.[^.]+$/, "") }),
+    body: JSON.stringify({
+      original: permiso("original").key,
+      vista: permiso("vista").key,
+      mini: permiso("mini").key,
+      originalPendiente: true,
+      w: v.w,
+      h: v.h,
+      nombre: archivo.name.replace(/\.[^.]+$/, ""),
+    }),
   });
   if (!registro.ok) throw new Error(await leerError(registro, `${archivo.name}: no se pudo registrar.`));
-  return ((await registro.json()) as { foto: FotoDelLibro }).foto;
+  const foto = ((await registro.json()) as { foto: FotoDelLibro }).foto;
+  return { foto, subirOriginal: () => subir("original", v.original, tipoOriginal) };
+}
+
+/** Pregunta al servidor si llegaron estos originales (por su clave). */
+export async function confirmarOriginalesEnServidor(templateId: string, claves: string[]): Promise<Record<string, boolean>> {
+  if (claves.length === 0) return {};
+  const r = await fetch(`/api/fotolibro/${encodeURIComponent(templateId)}/fotos/confirmar`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ claves }),
+  });
+  if (!r.ok) throw new Error(await leerError(r, "No se pudo confirmar la subida de los originales."));
+  return ((await r.json()) as { resultado: Record<string, boolean> }).resultado;
 }
