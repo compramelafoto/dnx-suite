@@ -333,14 +333,41 @@ export const GUION_ESCOLAR: Guion = {
 
     // ── 6 · La familia elige ──────────────────────────────────────────────────────────────
     {
+      id: "galeria-fotografo",
+      etapa: "6 · La familia elige",
+      vista: "fotografo",
+      ruta: (c) => `/album/${c.albumSlug}`,
+      titulo: "La galería, vista por el fotógrafo",
+      texto: "El álbum publicado, abierto por su dueño: el aviso amarillo «Vista de fotógrafo» y todas las fotos.",
+      puntos: [
+        "Seguimos como fotógrafo. Así se ve la galería por dentro: arriba el logo de tu estudio y el nombre del álbum.",
+        "Leé el aviso amarillo: como dueño ves todas las fotos; las familias tienen que pasar por reconocimiento facial.",
+        "Bajá y mostrá que están las fotos de todos los chicos, las grupales y las del colegio.",
+        "Ese modo se llama «oculto hasta la selfie» y se prende en la configuración del álbum.",
+        "Ahora veamos exactamente la misma galería, pero con los ojos de una familia.",
+      ],
+      aclaracion: {
+        titulo: "Misma galería, dos miradas",
+        texto: "El fotógrafo ve todo. Cada familia ve solo lo suyo.",
+        numerados: true,
+        puntos: [
+          { titulo: "El fotógrafo", texto: "Ve todas las fotos de la jornada." },
+          { titulo: "La familia", texto: "Ve una galería cerrada hasta la selfie." },
+          { titulo: "Después de la selfie", texto: "Ve solo las fotos de su hijo y las grupales." },
+        ],
+      },
+      puente: "Pasemos a la vista de la familia: misma dirección, otra persona.",
+    },
+    {
       id: "selfie",
       etapa: "6 · La familia elige",
       vista: "familia",
-      ruta: (c) => `/album/${c.albumSlug}`,
-      titulo: "Se encuentra con una selfie",
-      texto: "«Galería con fotos ocultas»: nadie ve todas las fotos; cada uno se busca con una selfie.",
+      // La vista cliente del álbum: con la sesión del dueño, muestra lo mismo que ve una familia.
+      ruta: (c) => `/album/${c.albumSlug}?vista=cliente`,
+      titulo: "La familia se encuentra con una selfie",
+      texto: "La misma galería vista por una familia: cerrada, con «Galería con fotos ocultas» y la búsqueda por selfie.",
       puntos: [
-        "Somos la familia de nuevo. La galería no muestra nada hasta que te identificás.",
+        "Ahora somos la familia. Misma galería que recién, pero no se ve ninguna foto: hay que identificarse.",
         "Aceptá el consentimiento y sacate una selfie (en la computadora aparece un QR para hacerlo con el celular).",
         "Hacelo en vivo con tu cara: sos el profesor de 6º A y vas a aparecer en tus fotos.",
         "Mostrá que solo aparecen las fotos donde estás vos, más las grupales.",

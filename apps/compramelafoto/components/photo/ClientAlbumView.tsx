@@ -2294,7 +2294,8 @@ export default function ClientAlbumView({
         </div>
       ) : null}
       {album.hiddenPhotosEnabled && simulateClientView ? (
-        <div className="mb-4 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-950">
+        // En las demos se oculta: la pantalla tiene que verse igual que la de una familia.
+        <div data-demo-ocultar className="mb-4 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-950">
           <p className="m-0">
             Vista cliente simulada.{" "}
             <a href="?" className="font-semibold underline underline-offset-2">

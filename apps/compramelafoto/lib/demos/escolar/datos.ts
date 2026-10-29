@@ -50,7 +50,7 @@ export const DEMO_ESCOLAR = {
    */
   logos: {
     colegio: "demos/escolar/logo-colegio.png",
-    estudio: "demos/escolar/logo-dnx-estudio.png",
+    estudio: "demos/escolar/logo-dnx-estudio-redondo.png",
   },
   /**
    * Otros álbumes del colegio, para que su panel muestre una historia. Usan fotos de la demo (por
