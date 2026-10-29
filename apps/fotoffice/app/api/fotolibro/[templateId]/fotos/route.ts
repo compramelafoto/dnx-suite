@@ -15,9 +15,12 @@ const MAXIMO = { original: 80 * MB, vista: 10 * MB, mini: 2 * MB } as const;
 const FORMATOS = ["image/jpeg", "image/png", "image/webp"] as const;
 
 /**
- * Registra una foto ya subida: verifica que los tres objetos estén dentro de este fotolibro y que
- * sean imágenes de verdad (por su firma binaria, no por lo que dijo el navegador), y devuelve la
- * foto lista para sumar a la tira. El fotolibro la guarda en su estado al guardarse.
+ * Registra una foto ya subida: verifica que los objetos estén dentro de este fotolibro y que sean
+ * imágenes de verdad (por su firma binaria, no por lo que dijo el navegador), y devuelve la foto
+ * lista para sumar a la tira. El fotolibro la guarda en su estado al guardarse.
+ *
+ * Con `originalPendiente`, la foto se registra apenas llegan la vista y la miniatura, para poder
+ * armar enseguida; el original sigue subiendo de fondo y se confirma después en `/fotos/confirmar`.
  */
 export async function POST(request: Request, context: Ctx) {
   const user = await requireAuth();
@@ -33,12 +36,14 @@ export async function POST(request: Request, context: Ctx) {
     return NextResponse.json({ error: "Faltan las medidas de la foto." }, { status: 400 });
   }
 
+  const pendiente = body.originalPendiente === true;
   for (const tipo of ["original", "vista", "mini"] as const) {
     const key = claves[tipo];
     const prefijo = `${FOTOFFICE_R2_PREFIXES.fotolibroPhoto}/${templateId}/${tipo}/`;
     if (typeof key !== "string" || !key.startsWith(prefijo)) {
       return NextResponse.json({ error: "Esa foto no es de este fotolibro." }, { status: 400 });
     }
+    if (tipo === "original" && pendiente) continue;
     const v = await verifyUploadedImage({ key, maxFileSizeBytes: MAXIMO[tipo], acceptedFormats: FORMATOS });
     if (!v.ok) return NextResponse.json({ error: v.error }, { status: 400 });
   }
@@ -53,6 +58,7 @@ export async function POST(request: Request, context: Ctx) {
       w: Math.round(w),
       h: Math.round(h),
       nombre,
+      ...(pendiente ? { claveOriginal: claves.original } : {}),
     },
   });
 }

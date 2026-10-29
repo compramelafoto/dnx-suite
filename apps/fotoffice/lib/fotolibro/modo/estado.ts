@@ -16,6 +16,13 @@ export type FotoDelLibro = {
   w: number;
   h: number;
   nombre: string;
+  /**
+   * Mientras el original sigue subiendo de fondo: su clave en el almacenamiento, para confirmarlo.
+   * Una foto con esto todavía no se puede mandar a imprimir.
+   */
+  claveOriginal?: string;
+  /** El original no llegó (se cerró la pestaña a mitad de la subida): hay que volver a subirla. */
+  faltaOriginal?: boolean;
 };
 
 export type LadoPliego = "izq" | "der";
@@ -95,7 +102,17 @@ function leerFoto(raw: unknown): FotoDelLibro | null {
   const w = num(raw.w, 0);
   const h = num(raw.h, 0);
   if (!id || !url || w <= 0 || h <= 0) return null;
-  return { id, url, vista: txt(raw.vista) || url, mini: txt(raw.mini) || txt(raw.vista) || url, w, h, nombre: txt(raw.nombre) };
+  return {
+    id,
+    url,
+    vista: txt(raw.vista) || url,
+    mini: txt(raw.mini) || txt(raw.vista) || url,
+    w,
+    h,
+    nombre: txt(raw.nombre),
+    ...(txt(raw.claveOriginal) ? { claveOriginal: txt(raw.claveOriginal) } : {}),
+    ...(raw.faltaOriginal === true ? { faltaOriginal: true } : {}),
+  };
 }
 
 function leerEstilo(raw: unknown): EstiloAplicado | null {
@@ -180,6 +197,12 @@ export function escribirEstadoFotolibro(meta: Record<string, unknown>, estado: E
       margenMm: estado.margenMm,
     },
   };
+}
+
+/** Las fotos puestas en el libro (pliegos y tapa) cuyo original todavía no está para imprimir. */
+export function fotosSinOriginal(estado: EstadoFotolibro): FotoDelLibro[] {
+  const usadas = usosPorFoto(estado);
+  return estado.fotos.filter((f) => (f.claveOriginal || f.faltaOriginal) && usadas.has(f.id));
 }
 
 /** Cuántas veces está usada cada foto en el libro. */

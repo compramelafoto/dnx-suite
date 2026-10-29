@@ -15,6 +15,8 @@ type Props = {
   onSeleccion: (ids: string[]) => void;
   onSubir: (archivos: File[]) => void;
   subiendo: { hechas: number; total: number; errores: string[] } | null;
+  /** Originales que siguen subiendo de fondo. */
+  originales: number;
 };
 
 /**
@@ -22,7 +24,7 @@ type Props = {
  * usadas se ven apagadas y con su cantidad, se seleccionan varias (⌘/Ctrl o Mayús) y se arrastran
  * al pliego. Soltar archivos encima los sube.
  */
-export function TiraFotos({ fotos, usos, seleccion, onSeleccion, onSubir, subiendo }: Props) {
+export function TiraFotos({ fotos, usos, seleccion, onSeleccion, onSubir, subiendo, originales }: Props) {
   const [filtro, setFiltro] = useState<Filtro>("todas");
   const [soltando, setSoltando] = useState(false);
   const archivoRef = useRef<HTMLInputElement>(null);
@@ -115,6 +117,11 @@ export function TiraFotos({ fotos, usos, seleccion, onSeleccion, onSubir, subien
             {subiendo.errores.length ? <span className="ml-2 text-red-300">{subiendo.errores.length} con error</span> : null}
           </span>
         ) : null}
+        {originales > 0 && !subiendo ? (
+          <span className="ml-auto text-xs text-white/50" title="Ya podés armar con estas fotos; el original es lo que se imprime.">
+            Subiendo {originales} {originales === 1 ? "original" : "originales"} de fondo…
+          </span>
+        ) : null}
       </div>
 
       {fotos.length === 0 ? (
@@ -150,6 +157,16 @@ export function TiraFotos({ fotos, usos, seleccion, onSeleccion, onSubir, subien
                   loading="lazy"
                   className={`h-full w-full object-cover ${usada ? "opacity-40" : ""}`}
                 />
+                {f.faltaOriginal ? (
+                  <span
+                    className="absolute left-1 top-1 rounded bg-red-600 px-1 text-[10px] font-semibold text-white"
+                    title="No llegó el original de esta foto: volvé a subirla para poder imprimir."
+                  >
+                    Falta original
+                  </span>
+                ) : f.claveOriginal ? (
+                  <span className="absolute left-1 top-1 h-2 w-2 animate-pulse rounded-full bg-amber-300" title="Subiendo el original…" />
+                ) : null}
                 {usada ? (
                   <span className="absolute bottom-1 right-1 rounded bg-black/70 px-1 text-[10px] font-semibold text-white">{usada}</span>
                 ) : null}
