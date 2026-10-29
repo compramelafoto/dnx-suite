@@ -21,8 +21,18 @@ export function useRevisionCliente(templateId: string) {
     if (r.ok) setDatos((await r.json()) as { revision: RevisionCliente | null; revisionActual: number });
   }, [templateId]);
   useEffect(() => {
-    void cargar();
-  }, [cargar]);
+    // Se pide al montar; el estado se actualiza recién cuando llega la respuesta.
+    let vigente = true;
+    fetch(`/api/fotolibro/${encodeURIComponent(templateId)}/revision`, { credentials: "include", cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { revision: RevisionCliente | null; revisionActual: number } | null) => {
+        if (vigente && d) setDatos(d);
+      })
+      .catch(() => {});
+    return () => {
+      vigente = false;
+    };
+  }, [templateId]);
   return { datos, setDatos, cargar };
 }
 
