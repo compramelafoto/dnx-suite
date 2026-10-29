@@ -80,7 +80,7 @@ export const GUION_ESCOLAR: Guion = {
         texto: "Siete etapas, desde conseguir el colegio hasta entregar los sobres.",
         numerados: true,
         puntos: [
-          { titulo: "Conseguir el colegio", texto: "Tu landing y su pedido de propuesta." },
+          { titulo: "Conseguir el colegio", texto: "Tu página de venta y su pedido de propuesta." },
           { titulo: "Acordar con el colegio", texto: "Alta, listado de alumnos y comisión." },
           { titulo: "Preparar la venta", texto: "Los packs y el diseño del librito." },
           { titulo: "Preventa", texto: "La familia paga antes de la sesión." },
@@ -98,12 +98,12 @@ export const GUION_ESCOLAR: Guion = {
       etapa: "1 · Conseguir el colegio",
       vista: "fotografo",
       ruta: () => "/fotografo/escuelas/landing",
-      titulo: "Tu landing escolar",
-      texto: "«Mi landing escolar»: la dirección de tu página, el QR, lo que le falta y las consultas de colegios.",
+      titulo: "Tu página de venta personalizada",
+      texto: "Tu página de venta personalizada para colegios (en el menú figura como «Mi landing escolar»): la dirección, el QR, lo que le falta y las consultas.",
       puntos: [
         "Cada fotógrafo tiene una página propia para ofrecerle el servicio a los colegios, con su marca.",
-        "Arriba, «Dirección de tu landing»: la copiás para mandar por WhatsApp o descargás el QR para imprimirlo en un folleto.",
-        "«Qué le falta a tu landing» es una lista de tareas: te dice qué completar para que se vea bien.",
+        "Arriba, la dirección de tu página de venta: la copiás para mandar por WhatsApp o descargás el QR para imprimirlo en un folleto.",
+        "Al lado, la lista de lo que le falta: revisa cinco cosas (dirección pública, página activada, logo, WhatsApp o teléfono y nombre comercial). Las dos primeras son obligatorias; si algo falta, «Completar →» te lleva a cargarlo.",
         "Abajo, «Consultas de colegios»: cuando un directivo pide una propuesta, llega acá con sus datos y la cantidad de alumnos.",
       ],
       bot: "Pedile al bot: «mostrame cómo vengo con la configuración escolar».",
@@ -115,7 +115,7 @@ export const GUION_ESCOLAR: Guion = {
       vista: "familia",
       ruta: (c) => `/${c.handler}/escolar`,
       titulo: "Lo que ve el colegio",
-      texto: "La landing pública del estudio: «Fotografía escolar sin gestionar cobros ni pedidos».",
+      texto: "La página de venta del estudio, tal como la ve el colegio: «Fotografía escolar sin gestionar cobros ni pedidos».",
       puntos: [
         "Arriba, el logo y el nombre del estudio: es tu página, no la de la plataforma.",
         "Bajá despacio: «Cómo funciona» explica la preventa, «Qué cambia para el colegio», «Quién se queda con qué».",
@@ -488,7 +488,7 @@ export const GUION_ESCOLAR: Guion = {
         titulo: "Sin listados ni cobros a mano",
         texto: "Todo el circuito escolar en un solo lugar, y configurable conversando con el bot.",
         puntos: [
-          { titulo: "Landing para colegios", texto: "Los colegios te piden propuesta solos." },
+          { titulo: "Página de venta propia", texto: "Los colegios te piden propuesta solos." },
           { titulo: "Preventa con Mercado Pago", texto: "Cobrás antes de sacar la foto." },
           { titulo: "Búsqueda por selfie", texto: "Cada familia se encuentra sola." },
           { titulo: "Librito automático", texto: "Con nombre, curso y mosaico." },
