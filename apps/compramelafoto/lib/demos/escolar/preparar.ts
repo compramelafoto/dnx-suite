@@ -317,7 +317,7 @@ async function asegurarAlbumesExtra(schoolId: number, fotografoId: number, album
     const yaEstan = new Set(
       (
         await prisma.photo.findMany({
-          where: { albumId: album.id, originalFilename: { in: extra.fotos } },
+          where: { albumId: album.id, originalFilename: { in: [...extra.fotos] } },
           select: { originalFilename: true },
         })
       ).map((p) => p.originalFilename),
