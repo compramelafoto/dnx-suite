@@ -1,6 +1,8 @@
 "use client";
 
 import type { EstiloFotolibro, TipoPliego } from "@/lib/fotolibro/estilos/tipos";
+import type { GeometriaTapa } from "@/lib/fotolibro/tapa/geometria";
+import { svgDeTapaIlustrada } from "@/lib/fotolibro/tapa/ilustrada";
 
 /**
  * Dibuja los fondos de un estilo a la medida de este libro y los sube.
@@ -34,7 +36,7 @@ async function svgAJpeg(svg: string, anchoPx: number, altoPx: number): Promise<B
   }
 }
 
-async function subirFondo(templateId: string, tipo: TipoPliego, blob: Blob): Promise<string> {
+async function subirFondo(templateId: string, tipo: string, blob: Blob): Promise<string> {
   const base = `/api/fotolibro/${encodeURIComponent(templateId)}`;
   const pedido = await fetch(`${base}/subida`, {
     method: "POST",
@@ -77,4 +79,15 @@ export async function dibujarYSubirFondos(
     }),
   );
   return fondos;
+}
+
+/**
+ * La portada ilustrada del estilo (ver `lib/fotolibro/tapa/ilustrada.ts`), dibujada a la medida
+ * de la pieza de tapa de este libro y subida como un fondo más.
+ */
+export async function dibujarYSubirPortada(templateId: string, estilo: EstiloFotolibro, g: GeometriaTapa): Promise<string> {
+  const anchoPx = Math.round((g.pieza.ancho / 25.4) * PPP_FONDO);
+  const altoPx = Math.round((g.pieza.alto / 25.4) * PPP_FONDO);
+  const blob = await svgAJpeg(svgDeTapaIlustrada(estilo, g), anchoPx, altoPx);
+  return subirFondo(templateId, "portada", blob);
 }

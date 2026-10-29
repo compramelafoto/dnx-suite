@@ -5,7 +5,7 @@ import type { FotoDelLibro, TapaDelLibro } from "@/lib/fotolibro/modo/estado";
 import type { ModeloTapa } from "@/lib/fotolibro/tapa/catalogo";
 import type { GeometriaTapa } from "@/lib/fotolibro/tapa/geometria";
 import type { CaraTapa } from "./tapa-vista";
-import { DISENOS_TAPA, disenoDeTapa, type DisenoTapa } from "@/lib/fotolibro/tapa/bloques";
+import { DISENOS_TAPA, disenoDeTapa, esDisenoIlustrado, type DisenoTapa } from "@/lib/fotolibro/tapa/bloques";
 
 type Props = {
   modelos: ModeloTapa[];
@@ -16,6 +16,9 @@ type Props = {
   /** Lo que se ve escrito en la tapa (propio de la tapa o, si no, del estilo). */
   textos: { titulo?: string; subtitulo?: string; frase?: string };
   onDiseno: (d: DisenoTapa) => void;
+  /** Las portadas ilustradas usan el estilo del libro. */
+  hayEstilo: boolean;
+  dibujandoPortada: boolean;
   onTexto: (rol: "titulo" | "subtitulo" | "frase", valor: string) => void;
   onModelo: (id: string | null) => void;
   onEncuadre: (crop: PhotoCrop | null) => void;
@@ -38,7 +41,7 @@ function Deslizador({ etiqueta, valor, min, max, paso, onChange }: { etiqueta: s
 }
 
 /** El panel de la tapa: el modelo del laboratorio, la foto elegida y su encuadre. */
-export function PanelTapa({ modelos, tapa, geometria, seleccion, foto, textos, ...props }: Props) {
+export function PanelTapa({ modelos, tapa, geometria, seleccion, foto, textos, hayEstilo, dibujandoPortada, ...props }: Props) {
   const modelo = modelos.find((m) => m.id === tapa?.modeloId) ?? null;
   const encuadre = (seleccion === "contratapa" ? tapa?.contratapaEncuadre : tapa?.encuadre) ?? { zoom: 1, x: 0, y: 0 };
 
@@ -117,14 +120,17 @@ export function PanelTapa({ modelos, tapa, geometria, seleccion, foto, textos, .
               <button
                 key={d.id}
                 type="button"
-                title={d.detalle}
+                title={esDisenoIlustrado(d.id) && !hayEstilo ? "Elegí un estilo para el libro (en el panel de los pliegos) para usar las portadas ilustradas." : d.detalle}
+                disabled={esDisenoIlustrado(d.id) && !hayEstilo}
                 onClick={() => props.onDiseno(d.id)}
-                className={`rounded px-2 py-1.5 text-left text-xs ${disenoDeTapa(tapa?.diseno) === d.id ? "bg-white/15 ring-1 ring-[var(--fo-accent)]" : "bg-white/5 hover:bg-white/10"}`}
+                className={`rounded px-2 py-1.5 text-left text-xs disabled:opacity-35 ${disenoDeTapa(tapa?.diseno) === d.id ? "bg-white/15 ring-1 ring-[var(--fo-accent)]" : "bg-white/5 hover:bg-white/10"}`}
               >
                 {d.nombre}
               </button>
             ))}
           </div>
+          {dibujandoPortada ? <p className="text-[11px] text-amber-200">Dibujando la portada del estilo…</p> : null}
+          {!hayEstilo ? <p className="text-[11px] text-white/45">Las ilustradas toman los adornos y la letra del estilo del libro: elegí uno para usarlas.</p> : null}
           <p className="text-[11px] text-white/45">
             <b>↑</b>/<b>↓</b> (o <b>Q</b>/<b>A</b>) también los recorren.
           </p>

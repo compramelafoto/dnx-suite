@@ -15,7 +15,7 @@ import {
   type TapaDelLibro,
 } from "@/lib/fotolibro/modo/estado";
 import { modelosParaLibro } from "@/lib/fotolibro/tapa/catalogo";
-import { DISENOS_TAPA, bloquesDeTapa, disenoDeTapa, tapaDelLibro } from "@/lib/fotolibro/tapa/bloques";
+import { DISENOS_TAPA, bloquesDeTapa, disenoDeTapa, esDisenoIlustrado, tapaDelLibro } from "@/lib/fotolibro/tapa/bloques";
 import { TapaVista, type CaraTapa } from "./tapa-vista";
 import { PanelTapa } from "./panel-tapa";
 import { cantidadDeDistribuciones, generarBloques, idDeBloque, marcosEnProporcion, permutarHojas, reindexarHojas } from "@/lib/fotolibro/modo/bloques";
@@ -46,7 +46,8 @@ import { GoogleFontsLoader } from "@repo/template-editor-ui";
 import { estiloPorId } from "@/lib/fotolibro/estilos/catalogo";
 import type { EstiloFotolibro, RolTexto } from "@/lib/fotolibro/estilos/tipos";
 import { claveDeMedida, medidasDelLienzo } from "@/lib/fotolibro/modo/bloques";
-import { dibujarYSubirFondos } from "./aplicar-estilo";
+import { dibujarYSubirFondos, dibujarYSubirPortada } from "./aplicar-estilo";
+import { claveDeArte } from "@/lib/fotolibro/tapa/ilustrada";
 import { SelectorEstilo } from "./selector-estilo";
 import { ArmadoAutomatico } from "./armado-automatico";
 import { VistaLibro } from "./vista-libro";
@@ -482,9 +483,11 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
           const paso = tecla === "a" || tecla === "s" || tecla === "arrowdown" ? 1 : -1;
           aplicar((e) => {
             if (!e.tapa) return e;
-            const i = DISENOS_TAPA.findIndex((d) => d.id === disenoDeTapa(e.tapa!.diseno));
-            const n = DISENOS_TAPA.length;
-            return { ...e, tapa: { ...e.tapa, diseno: DISENOS_TAPA[(((i + paso) % n) + n) % n]!.id } };
+            // Sin estilo, las ilustradas no se ofrecen.
+            const lista = DISENOS_TAPA.filter((d) => e.estilo || !esDisenoIlustrado(d.id));
+            const i = lista.findIndex((d) => d.id === disenoDeTapa(e.tapa!.diseno));
+            const n = lista.length;
+            return { ...e, tapa: { ...e.tapa, diseno: lista[(((i + paso) % n) + n) % n]!.id } };
           });
           return;
         }
@@ -541,6 +544,22 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
   const metaLibro = (cargado?.meta.fotolibro ?? {}) as { medidaId?: string; proveedorNombre?: string | null };
   const modelosTapa = useMemo(() => modelosParaLibro(metaLibro.medidaId ?? "", metaLibro.proveedorNombre), [metaLibro.medidaId, metaLibro.proveedorNombre]);
   const armadoTapa = useMemo(() => (estado ? tapaDelLibro(estado, estado.pliegos.length) : null), [estado]);
+  // La portada ilustrada se dibuja (y se sube) cuando hace falta: al elegirla, o si cambian el
+  // estilo, el modelo o las hojas (el lomo). Una sola a la vez.
+  const [dibujandoPortada, setDibujandoPortada] = useState(false);
+  const claveTapa = estado && armadoTapa && estado.estilo ? claveDeArte(estado.estilo.id, armadoTapa.modelo.id, armadoTapa.geometria) : null;
+  const necesitaArte = Boolean(estado?.tapa && esDisenoIlustrado(disenoDeTapa(estado.tapa.diseno)) && claveTapa && estado.tapa.arte?.clave !== claveTapa);
+  useEffect(() => {
+    if (!necesitaArte || dibujandoPortada || !armadoTapa || !claveTapa) return;
+    const estilo = estiloPorId(ref.current.estado?.estilo?.id);
+    if (!estilo) return;
+    setDibujandoPortada(true);
+    dibujarYSubirPortada(templateId, estilo, armadoTapa.geometria)
+      .then((url) => aplicarSinHistoria((e) => (e.tapa ? { ...e, tapa: { ...e.tapa, arte: { clave: claveTapa, url } } } : e)))
+      .catch((err: unknown) => setErrorGuardado(err instanceof Error ? err.message : "No se pudo dibujar la portada."))
+      .finally(() => setDibujandoPortada(false));
+  }, [necesitaArte, dibujandoPortada, armadoTapa, claveTapa, templateId, aplicarSinHistoria]);
+
   const bloquesTapa = useMemo(
     () => (estado && cargado ? bloquesDeTapa(estado, estado.pliegos.length, medidasDelLienzo(cargado.canvas)) : []),
     [estado, cargado],
@@ -827,6 +846,8 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
             foto={fotoDeTapa}
             textos={{ ...(estado.estilo?.textos ?? {}), ...(estado.tapa?.textos ?? {}) }}
             onDiseno={(d) => cambiarTapa((t) => ({ ...t, diseno: d }))}
+            hayEstilo={Boolean(estado.estilo)}
+            dibujandoPortada={dibujandoPortada}
             onModelo={(id) => {
               if (!id) return aplicar((e) => ({ ...e, tapa: null }));
               cambiarTapa((t) => ({ ...t, modeloId: id, ...(modelosTapa.find((m) => m.id === id)?.tipo === "frente" ? { contratapaFotoId: null, contratapaEncuadre: null } : {}) }));
