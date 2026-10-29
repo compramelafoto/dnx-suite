@@ -47,6 +47,7 @@ import { dibujarYSubirFondos } from "./aplicar-estilo";
 import { SelectorEstilo } from "./selector-estilo";
 import { ArmadoAutomatico } from "./armado-automatico";
 import { VistaLibro } from "./vista-libro";
+import { revisarLibro } from "@/lib/fotolibro/modo/revision";
 import { ordenarFotos } from "@/lib/fotolibro/modo/armado";
 import { PanelLateral } from "./panel-lateral";
 import { PliegoVista } from "./pliego-vista";
@@ -113,6 +114,10 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
   const ref = useRef({ cargado, estado, bloques });
   ref.current = { cargado, estado, bloques };
   const historia = useRef<{ estado: EstadoFotolibro; bloques: TemplateV2Block[] }[]>([]);
+  // Lo deshecho, para rehacerlo (⌘⇧Z). Cualquier cambio nuevo lo descarta.
+  const futuro = useRef<{ estado: EstadoFotolibro; bloques: TemplateV2Block[] }[]>([]);
+  const [pasos, setPasos] = useState({ atras: 0, adelante: 0 });
+  const contarPasos = () => setPasos({ atras: historia.current.length, adelante: futuro.current.length });
   const guardandoRef = useRef(false);
 
   // ── Carga ──
@@ -215,6 +220,8 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
       const nuevo = cambio(e);
       if (nuevo === e) return;
       historia.current = [...historia.current.slice(-49), { estado: e, bloques: b }];
+      futuro.current = [];
+      contarPasos();
       const base = ajusteBloques ? ajusteBloques(b) : b;
       const siguientes = generarBloques(nuevo, c.canvas, base);
       ref.current = { cargado: c, estado: nuevo, bloques: siguientes };
@@ -246,13 +253,29 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
     setGuardado("pendiente");
   }, []);
 
+  const volverA = (paso: { estado: EstadoFotolibro; bloques: TemplateV2Block[] }) => {
+    ref.current = { ...ref.current, estado: paso.estado, bloques: paso.bloques };
+    setEstado(paso.estado);
+    setBloques(paso.bloques);
+    setGuardado("pendiente");
+  };
+
   const deshacer = useCallback(() => {
     const ultimo = historia.current.pop();
-    if (!ultimo) return;
-    ref.current = { ...ref.current, estado: ultimo.estado, bloques: ultimo.bloques };
-    setEstado(ultimo.estado);
-    setBloques(ultimo.bloques);
-    setGuardado("pendiente");
+    const { estado: e, bloques: b } = ref.current;
+    if (!ultimo || !e) return;
+    futuro.current = [...futuro.current, { estado: e, bloques: b }];
+    volverA(ultimo);
+    contarPasos();
+  }, []);
+
+  const rehacer = useCallback(() => {
+    const siguiente = futuro.current.pop();
+    const { estado: e, bloques: b } = ref.current;
+    if (!siguiente || !e) return;
+    historia.current = [...historia.current, { estado: e, bloques: b }];
+    volverA(siguiente);
+    contarPasos();
   }, []);
 
   const cantidad = estado?.pliegos.length ?? 1;
@@ -365,6 +388,11 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
     const onKey = (ev: KeyboardEvent) => {
       if (recortando || recortandoTapa || eligiendoEstilo || armando || esEditable(ev.target)) return;
       const tecla = ev.key.toLowerCase();
+      if ((ev.metaKey || ev.ctrlKey) && (tecla === "y" || (tecla === "z" && ev.shiftKey))) {
+        ev.preventDefault();
+        rehacer();
+        return;
+      }
       if ((ev.metaKey || ev.ctrlKey) && tecla === "z") {
         ev.preventDefault();
         deshacer();
@@ -427,7 +455,7 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [recortando, recortandoTapa, caraTapa, eligiendoEstilo, armando, vistaLibro, pliego, seleccionTira, seleccionada, aplicar, deshacer, irA]);
+  }, [recortando, recortandoTapa, caraTapa, eligiendoEstilo, armando, vistaLibro, pliego, seleccionTira, seleccionada, aplicar, deshacer, rehacer, irA]);
 
   const fotosPorId = useMemo(() => new Map((estado?.fotos ?? []).map((f) => [f.id, f])), [estado]);
   const usos = useMemo(() => (estado ? usosPorFoto(estado) : new Map<string, number>()), [estado]);
@@ -517,7 +545,15 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
         </button>
         <h1 className="truncate font-semibold">{cargado.nombre}</h1>
         <span className="text-white/50">{pliego < 0 ? "Tapa" : `Pliego ${pliego + 1} de ${cantidad}`}</span>
-        <span className={`ml-auto text-xs ${guardado === "error" ? "text-red-300" : "text-white/50"}`}>{estadoGuardado}</span>
+        <span className="ml-auto flex gap-0.5">
+          <button type="button" onClick={deshacer} disabled={!pasos.atras} title="Deshacer (⌘Z)" className="rounded px-1.5 py-0.5 text-white/80 hover:bg-white/10 disabled:opacity-30">
+            ↶
+          </button>
+          <button type="button" onClick={rehacer} disabled={!pasos.adelante} title="Rehacer (⌘⇧Z)" className="rounded px-1.5 py-0.5 text-white/80 hover:bg-white/10 disabled:opacity-30">
+            ↷
+          </button>
+        </span>
+        <span className={`text-xs ${guardado === "error" ? "text-red-300" : "text-white/50"}`}>{estadoGuardado}</span>
         <button
           type="button"
           onClick={() => setVistaLibro((v) => !v)}
@@ -548,14 +584,11 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
           nombre={cargado.nombre}
           cantidadPliegos={cantidad}
           conTapa={armadoTapa !== null}
-          bloqueo={(() => {
-            const faltan = fotosSinOriginal(estado);
-            if (!faltan.length) return null;
-            const perdidas = faltan.filter((f) => f.faltaOriginal).length;
-            return perdidas
-              ? `A ${perdidas} ${perdidas === 1 ? "foto le falta" : "fotos les falta"} el original (marcadas en la tira): volvé a subirlas.`
-              : `Todavía se están subiendo ${faltan.length} ${faltan.length === 1 ? "original" : "originales"}. Esperá un momento.`;
-          })()}
+          revisar={() => revisarLibro(estado, bloques, cargado.canvas)}
+          onIr={(i) => {
+            setVistaLibro(false);
+            irA(i);
+          }}
           guardarAntes={async () => (ref.current.estado && guardado !== "al-dia" ? guardar() : true)}
         />
       </header>

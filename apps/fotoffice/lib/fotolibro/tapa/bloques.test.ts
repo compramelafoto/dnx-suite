@@ -60,7 +60,7 @@ describe("bloques de la tapa", () => {
   it("con lomo de 8 mm o más, el título va a lo largo del lomo", () => {
     const con = bloquesDeTapa(estado({ modeloId: "generica-rigido-30x60", fotoId: "a" }, { titulo: "Ana & Juan" }), 20, pliego);
     expect(con.find((x) => x.id === "lomo-titulo")!.layout.rotation).toBe(90);
-    const sin = bloquesDeTapa(estado({ modeloId: "generica-rigido-30x60", fotoId: "a" }, { titulo: "Ana & Juan" }), 2, pliego);
+    const sin = bloquesDeTapa(estado({ modeloId: "generica-rigido-30x60", fotoId: "a" }, { titulo: "Ana & Juan" }), 6, pliego);
     expect(sin.some((x) => x.id === "lomo-titulo")).toBe(false);
   });
 });

@@ -40,8 +40,10 @@ describe("tapas de fotolibro", () => {
     const m = modeloTapaPorId("generica-rigido-30x60")!;
     expect(m.estimada).toBe(true);
     const g = geometriaTapa(m, 20);
-    expect(g.lomo!.w).toBe(16);
+    // 1 mm por hoja: 20 hojas, 20 mm de lomo.
+    expect(g.lomo!.w).toBe(20);
+    expect(geometriaTapa(m, 35).lomo!.w).toBe(35);
     expect(g.tapa.w).toBeCloseTo(308, 0);
-    expect(g.pieza.ancho).toBeCloseTo(18 * 2 + 308 * 2 + 16, 0);
+    expect(g.pieza.ancho).toBeCloseTo(18 * 2 + 308 * 2 + 20, 0);
   });
 });
