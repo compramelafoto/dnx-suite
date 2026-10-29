@@ -43,6 +43,11 @@ export type PaginaDelPliego = {
   fotos: string[];
   /** Qué variante de acomodo usa: la 0 es la que mejor llena la página. */
   variante: number;
+  /**
+   * Una distribución propia (una favorita aplicada): el marco de cada foto en proporción del
+   * pliego (0 a 1). Manda sobre la variante mientras la cantidad de fotos coincida.
+   */
+  marcos?: { x: number; y: number; w: number; h: number }[];
 };
 
 export type PliegoDelLibro = {
@@ -172,7 +177,15 @@ function leerPagina(raw: unknown, existentes: Set<string>): PaginaDelPliego {
     ? raw.fotos.filter((f): f is string => typeof f === "string" && existentes.has(f))
     : [];
   // Una foto no se repite dentro de la misma página.
-  return { fotos: [...new Set(fotos)], variante: Math.max(0, Math.trunc(num(raw.variante, 0))) };
+  const unicas = [...new Set(fotos)];
+  const marcos = Array.isArray(raw.marcos)
+    ? raw.marcos.filter((c): c is { x: number; y: number; w: number; h: number } => esObj(c) && ["x", "y", "w", "h"].every((k) => typeof c[k] === "number"))
+    : [];
+  return {
+    fotos: unicas,
+    variante: Math.trunc(num(raw.variante, 0)),
+    ...(marcos.length && marcos.length === unicas.length ? { marcos: marcos.map(({ x, y, w, h }) => ({ x, y, w, h })) } : {}),
+  };
 }
 
 /**

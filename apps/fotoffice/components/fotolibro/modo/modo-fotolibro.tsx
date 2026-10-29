@@ -18,7 +18,8 @@ import { modelosParaLibro } from "@/lib/fotolibro/tapa/catalogo";
 import { DISENOS_TAPA, bloquesDeTapa, disenoDeTapa, tapaDelLibro } from "@/lib/fotolibro/tapa/bloques";
 import { TapaVista, type CaraTapa } from "./tapa-vista";
 import { PanelTapa } from "./panel-tapa";
-import { cantidadDeDistribuciones, generarBloques, idDeBloque, permutarHojas, reindexarHojas } from "@/lib/fotolibro/modo/bloques";
+import { cantidadDeDistribuciones, generarBloques, idDeBloque, marcosEnProporcion, permutarHojas, reindexarHojas } from "@/lib/fotolibro/modo/bloques";
+import type { Favorita } from "@/lib/fotolibro/favoritas-tipos";
 import {
   agregarAPagina,
   agregarPliego,
@@ -26,6 +27,7 @@ import {
   cambiarModo,
   cambiarVariante,
   confirmarOriginales,
+  aplicarFavorita,
   cambiarFondo,
   duplicarPliego,
   moverPliego,
@@ -108,6 +110,21 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
   const [armando, setArmando] = useState(false);
   const [vistaLibro, setVistaLibro] = useState(false);
   const [textoElegido, setTextoElegido] = useState<string | null>(null);
+  const [favoritas, setFavoritas] = useState<Favorita[]>([]);
+
+  // Las favoritas son de la persona (valen en todos sus libros): se traen una vez.
+  useEffect(() => {
+    fetch("/api/fotolibro/favoritas", { credentials: "include", cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : { favoritas: [] }))
+      .then((d: { favoritas?: Favorita[] }) => setFavoritas(Array.isArray(d.favoritas) ? d.favoritas : []))
+      .catch(() => {});
+  }, []);
+  const pedirFavoritas = useCallback(async (init: RequestInit, url = "/api/fotolibro/favoritas") => {
+    const r = await fetch(url, { credentials: "include", headers: { "Content-Type": "application/json" }, ...init });
+    const d = (await r.json().catch(() => ({}))) as { favoritas?: Favorita[]; error?: string };
+    if (!r.ok) throw new Error(d.error || "No se pudieron guardar las favoritas.");
+    setFavoritas(d.favoritas ?? []);
+  }, []);
   const [aplicandoEstilo, setAplicandoEstilo] = useState<string | null>(null);
   // La tapa es la "hoja -1": va antes del primer pliego.
   const [caraTapa, setCaraTapa] = useState<CaraTapa | null>(null);
@@ -803,6 +820,12 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
             setTextoElegido(null);
           }}
           onFondo={(color) => aplicar((e) => cambiarFondo(e, pliego, color))}
+          favoritas={favoritas}
+          onGuardarFavorita={() =>
+            void pedirFavoritas({ method: "POST", body: JSON.stringify({ nombre: "", marcos: marcosEnProporcion(bloques, pliego, cargado.canvas) }) }).catch((e: Error) => setErrorGuardado(e.message))
+          }
+          onAplicarFavorita={(f) => aplicar((e) => aplicarFavorita(e, pliego, f.marcos))}
+          onBorrarFavorita={(id) => void pedirFavoritas({ method: "DELETE" }, `/api/fotolibro/favoritas?id=${encodeURIComponent(id)}`).catch((e: Error) => setErrorGuardado(e.message))}
           onBorde={(mm, color) => aplicar((e) => ({ ...e, bordeMm: mm, bordeColor: color }))}
           onMargen={(mm) => aplicar((e) => ({ ...e, margenMm: mm }))}
           onVaciar={() => aplicar((e) => vaciarPliego(e, pliego))}

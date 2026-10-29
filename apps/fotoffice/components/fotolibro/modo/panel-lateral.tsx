@@ -2,6 +2,7 @@
 
 import { EDITOR_FONT_CATALOG, type PhotoCrop, type TemplateV2Block } from "@repo/template-editor-core";
 import { puntosDe } from "@/lib/fotolibro/modo/textos-libres";
+import type { Favorita } from "@/lib/fotolibro/favoritas-tipos";
 import type { EstadoFotolibro, FotoDelLibro, Lado, ModoPliego } from "@/lib/fotolibro/modo/estado";
 import type { Ubicacion } from "@/lib/fotolibro/modo/operaciones";
 
@@ -34,7 +35,23 @@ type Props = {
   onQuitarTexto: () => void;
   onFondo: (color: string | null) => void;
   onBorde: (mm: number, color: string) => void;
+  favoritas: Favorita[];
+  onGuardarFavorita: () => void;
+  onAplicarFavorita: (f: Favorita) => void;
+  onBorrarFavorita: (id: string) => void;
 };
+
+/** Dibujito de una distribución: los marcos sobre un pliego chico, con el lomo marcado. */
+function Croquis({ marcos }: { marcos: Favorita["marcos"] }) {
+  return (
+    <svg viewBox="0 0 200 100" className="w-full rounded-sm bg-white/90">
+      {marcos.map((m, i) => (
+        <rect key={i} x={m.x * 200 + 0.6} y={m.y * 100 + 0.6} width={Math.max(0, m.w * 200 - 1.2)} height={Math.max(0, m.h * 100 - 1.2)} fill="#94a3b8" />
+      ))}
+      <line x1="100" y1="0" x2="100" y2="100" stroke="#475569" strokeDasharray="3 3" strokeWidth="0.6" />
+    </svg>
+  );
+}
 
 const Titulo = ({ children }: { children: React.ReactNode }) => (
   <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-white/50">{children}</h3>
@@ -285,6 +302,40 @@ export function PanelLateral(props: Props) {
               </button>
             ) : null}
           </div>
+          {p.modo === "pliego" ? (
+            <div className="mb-3 space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-white/70">Favoritas</span>
+                <button type="button" className={boton} disabled={!p.todo.fotos.length} onClick={props.onGuardarFavorita} title="Guardar esta distribución para usarla en otros pliegos y libros">
+                  ★ Guardar esta
+                </button>
+              </div>
+              {(() => {
+                const sirven = props.favoritas.filter((f) => f.marcos.length === p.todo.fotos.length);
+                if (!props.favoritas.length) return <p className="text-[11px] text-white/40">Guardá las distribuciones que más usás.</p>;
+                if (!sirven.length) return <p className="text-[11px] text-white/40">Ninguna favorita para {p.todo.fotos.length} {p.todo.fotos.length === 1 ? "foto" : "fotos"}.</p>;
+                return (
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {sirven.map((f) => (
+                      <div key={f.id} className="group relative">
+                        <button type="button" onClick={() => props.onAplicarFavorita(f)} title={f.nombre || "Aplicar"} className="block w-full hover:opacity-80">
+                          <Croquis marcos={f.marcos} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => props.onBorrarFavorita(f.id)}
+                          title="Borrar de favoritas"
+                          className="absolute -right-1 -top-1 hidden h-4 w-4 rounded-full bg-black/80 text-[9px] leading-4 text-white group-hover:block"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+            </div>
+          ) : null}
           <button type="button" className={boton} onClick={props.onVaciar} disabled={!p.todo.fotos.length && !p.izq.fotos.length && !p.der.fotos.length}>
             Vaciar pliego
           </button>

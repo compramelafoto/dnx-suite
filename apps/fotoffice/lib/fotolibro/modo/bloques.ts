@@ -71,6 +71,10 @@ export function marcosDePagina(
           return { x: pxDeMm(c.x, dpi), y: pxDeMm(c.y, dpi), w: pxDeMm(c.w, dpi), h: pxDeMm(c.h, dpi) };
         })()
       : cajaDePagina(lienzo, l, estado.margenMm);
+  // Una favorita aplicada: sus marcos, llevados a la medida de este libro.
+  if (pagina.marcos?.length === pagina.fotos.length) {
+    return pagina.marcos.map((c) => ({ x: c.x * lienzo.width, y: c.y * lienzo.height, w: c.w * lienzo.width, h: c.h * lienzo.height }));
+  }
   if (lado === "todo") return disenoDePliego(aspectos, zonasDelPliego(estado, lienzo, pliego), sep, pagina.variante);
   return acomodar(aspectos, cajaDe(lado), sep, pagina.variante);
 }
@@ -297,4 +301,17 @@ export function permutarHojas(bloques: readonly TemplateV2Block[], orden: number
     const id = esBloqueAutomatico(b) ? b.id.replace(/^fl-(\d+)-/, `fl-${nuevo}-`) : b.id;
     return { ...b, id, pageIndex: nuevo };
   });
+}
+
+/** Los marcos de las fotos de un pliego en proporción (0 a 1), para guardarlos como favorita. */
+export function marcosEnProporcion(bloques: readonly TemplateV2Block[], pliego: number, lienzo: Lienzo): Caja[] {
+  const porId = new Map(bloques.map((b) => [b.id, b]));
+  return bloques
+    .filter((b) => b.type === "IMAGE" && esBloqueAutomatico(b) && (b.pageIndex ?? 0) === pliego)
+    .sort((a, b) => a.layout.zIndex - b.layout.zIndex)
+    .map((b) => {
+      // Con borde, la foto está achicada: el marco es el del rectángulo de atrás.
+      const l = (porId.get(b.id.replace(/^fl-/, "fl-borde-")) ?? b).layout;
+      return { x: l.x / lienzo.width, y: l.y / lienzo.height, w: l.width / lienzo.width, h: l.height / lienzo.height };
+    });
 }
