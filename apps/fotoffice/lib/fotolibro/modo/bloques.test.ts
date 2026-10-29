@@ -125,3 +125,23 @@ describe("títulos largos", () => {
     expect(despues.some((b, i) => b.layout.x !== antes[i]!.layout.x || b.layout.width !== antes[i]!.layout.width)).toBe(true);
   });
 });
+
+describe("libros guardados antes del arreglo del guardado", () => {
+  it("las fotos que perdieron la marca se reconocen por su id y no quedan superpuestas", () => {
+    const e = leerEstadoFotolibro({ fotolibro: { fotos: [foto("a"), foto("b"), foto("c")] } }, 1);
+    e.pliegos[0]!.todo.fotos = ["a", "b", "c"];
+    // Como quedaban en la base: sin fotolibroAuto ni fotoId, de una distribución vieja.
+    const viejas = generarBloques(e, lienzo, []).map((b) =>
+      b.type === "IMAGE" ? { ...b, layout: { ...b.layout, x: 10 }, configJson: { src: b.configJson.src, fit: "cover" } } : b,
+    );
+    const nuevas = generarBloques(e, lienzo, viejas).filter((b) => b.type === "IMAGE");
+    expect(nuevas).toHaveLength(3);
+    expect(nuevas.every((b) => b.configJson.fotolibroAuto === true && typeof b.configJson.fotoId === "string")).toBe(true);
+  });
+
+  it("un texto agregado a mano (fl-txt-…) sigue siendo de la persona", () => {
+    const e = leerEstadoFotolibro({ fotolibro: { fotos: [] } }, 1);
+    const t = { id: "fl-txt-1", type: "TEXT" as const, pageIndex: 0, layout: { x: 0, y: 0, width: 10, height: 10, rotation: 0, zIndex: 60, opacity: 1, locked: false, visible: true }, configJson: { content: "hola" } };
+    expect(generarBloques(e, lienzo, [t]).some((b) => b.id === "fl-txt-1")).toBe(true);
+  });
+});

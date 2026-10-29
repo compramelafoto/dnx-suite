@@ -54,6 +54,8 @@ export const RESERVED_SLUGS: ReadonlySet<string> = new Set([
   "formulario-insertado",
   // Fotolibros y Foto carnet, módulos propios desde el plan Base (lib/fotolibro, lib/foto-carnet).
   "foto-carnet",
+  // El fotolibro que el estudio comparte con su cliente para aprobarlo (app/fotolibro/[token]).
+  "fotolibro",
   "fotolibros",
   "galerias",
   "gobierno",

@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import { ORDENES, ordenarFotos, type OrdenFotos } from "@/lib/fotolibro/modo/armado";
 import type { FotoDelLibro } from "@/lib/fotolibro/modo/estado";
+import { ponerFantasma } from "./fantasma";
 
 /** Tipo de dato del arrastre de fotos de la tira (ids en JSON). */
 export const ARRASTRE_FOTOS = "application/x-fotolibro-fotos";
@@ -158,6 +159,7 @@ export function TiraFotos({ fotos, usos, seleccion, onSeleccion, onSubir, subien
                   if (!elegida) onSeleccion([f.id]);
                   e.dataTransfer.setData(ARRASTRE_FOTOS, JSON.stringify(ids));
                   e.dataTransfer.effectAllowed = "copy";
+                  ponerFantasma(e, f.mini, ids.length, f.w / f.h);
                 }}
                 onClick={(e) => clic(e, f.id)}
                 title={`${f.nombre}${f.tomada ? ` · ${f.tomada.slice(8, 10)}/${f.tomada.slice(5, 7)} ${f.tomada.slice(11, 16)}` : ""} · ${f.w} × ${f.h} px${usada ? ` · usada ${usada} ${usada === 1 ? "vez" : "veces"}` : ""}`}

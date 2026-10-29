@@ -5,6 +5,7 @@ import { FOTOFFICE_R2_PREFIXES } from "@/lib/images/r2-key-policy";
 import { getFotofficeR2PublicUrl } from "@/lib/images/r2-client";
 import { verifyUploadedImage } from "@/lib/images/r2-presign";
 import { puedeEditarFotolibro } from "@/lib/fotolibro/permisos";
+import { leerCaras } from "@/lib/fotolibro/modo/estado";
 
 export const runtime = "nodejs";
 
@@ -60,6 +61,7 @@ export async function POST(request: Request, context: Ctx) {
       h: Math.round(h),
       nombre,
       ...(tomada ? { tomada } : {}),
+      ...(Array.isArray(body.caras) ? { caras: leerCaras(body.caras) } : {}),
       ...(pendiente ? { claveOriginal: claves.original } : {}),
     },
   });

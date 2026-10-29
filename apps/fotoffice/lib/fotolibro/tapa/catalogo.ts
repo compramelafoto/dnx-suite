@@ -70,7 +70,7 @@ export function tapaFlexible(medida: MedidaPliego): ModeloTapa {
  * La tapa genérica de un libro rígido: una pieza completa (contratapa + lomo + tapa) con las
  * medidas habituales de una tapa dura, para poder diseñar la portada aunque todavía no esté la
  * plantilla del laboratorio. Cada cara es la página más 3 mm de cartón por lado; se dobla 18 mm
- * sobre el cartón y el lomo mide 6 mm más medio milímetro por hoja.
+ * sobre el cartón y el lomo mide 1 mm por hoja, que es lo que ensancha en la práctica.
  */
 export function tapaGenerica(medida: MedidaPliego): ModeloTapa {
   const cara = medida.anchoMm / 2 + 3;
@@ -82,7 +82,8 @@ export function tapaGenerica(medida: MedidaPliego): ModeloTapa {
     medidas: [medida.id],
     pieza: { ancho: cara, alto: medida.altoMm + 6 },
     demasia: { arriba: 18, abajo: 18, exterior: 18, interior: 0 },
-    lomo: { baseMm: 6, porHojaMm: 0.5 },
+    // Regla de los laboratorios: el lomo ensancha cerca de 1 mm por hoja.
+    lomo: { baseMm: 0, porHojaMm: 1 },
     descripcion: "Contratapa, lomo y tapa con medidas estándar. Confirmá las medidas con tu laboratorio antes de imprimir.",
     estimada: true,
   };

@@ -2,6 +2,7 @@ import type { TemplateV2Block } from "@repo/template-editor-core";
 import { acomodar, type Caja } from "./maquetar";
 import { ladosDe, type EstadoFotolibro, type FotoDelLibro, type Lado, type LadoPliego } from "./estado";
 import { cantidadDeDisenos, disenoDePliego, type Zonas } from "./disenos";
+import { encuadreParaCaras } from "./caras";
 import { estiloPorId } from "@/lib/fotolibro/estilos/catalogo";
 import { tipoDePliego, type EstiloFotolibro } from "@/lib/fotolibro/estilos/tipos";
 import { cajaDeFotos } from "@/lib/fotolibro/estilos/vista-previa";
@@ -42,8 +43,17 @@ export function cajaDePagina(lienzo: Lienzo, lado: LadoPliego, margenMm: number)
 
 export const idDeBloque = (pliego: number, lado: Lado, fotoId: string) => `fl-${pliego}-${lado}-${fotoId}`;
 
-export function esBloqueAutomatico(b: Pick<TemplateV2Block, "configJson">): boolean {
-  return b.configJson?.fotolibroAuto === true;
+/** Los ids que pone este modo: fotos (`fl-3-todo-…`), títulos (`fl-texto-…`) y bordes (`fl-borde-…`). */
+const ID_AUTOMATICO = /^fl-(\d+-(izq|der|todo)|texto|borde)-/;
+
+/**
+ * Si el bloque lo puso este modo. Se mira la marca y, además, el id: hasta que se arregló el
+ * guardado, la marca se perdía al guardar, y esos bloques parecían puestos a mano (se conservaban
+ * y el libro se rearmaba encima, con las fotos superpuestas). Con el id, al abrir se limpian solos.
+ */
+export function esBloqueAutomatico(b: Pick<TemplateV2Block, "configJson"> & Partial<Pick<TemplateV2Block, "id" | "type">>): boolean {
+  if (b.configJson?.fotolibroAuto === true) return true;
+  return b.type !== "BACKGROUND" && typeof b.id === "string" && ID_AUTOMATICO.test(b.id);
 }
 
 /** Los marcos de una página, en píxeles del lienzo, en el orden de sus fotos. */
@@ -71,6 +81,10 @@ export function marcosDePagina(
           return { x: pxDeMm(c.x, dpi), y: pxDeMm(c.y, dpi), w: pxDeMm(c.w, dpi), h: pxDeMm(c.h, dpi) };
         })()
       : cajaDePagina(lienzo, l, estado.margenMm);
+  // Una favorita aplicada: sus marcos, llevados a la medida de este libro.
+  if (pagina.marcos?.length === pagina.fotos.length) {
+    return pagina.marcos.map((c) => ({ x: c.x * lienzo.width, y: c.y * lienzo.height, w: c.w * lienzo.width, h: c.h * lienzo.height }));
+  }
   if (lado === "todo") return disenoDePliego(aspectos, zonasDelPliego(estado, lienzo, pliego), sep, pagina.variante);
   return acomodar(aspectos, cajaDe(lado), sep, pagina.variante);
 }
@@ -141,16 +155,30 @@ export function generarBloques(
         if (!foto || !marco) return;
         const id = idDeBloque(i, lado, fotoId);
         const previo = previoPorId.get(id);
+        // El borde es un rectángulo de color detrás, y la foto se achica hacia adentro: así el
+        // diseño no se mueve y se imprime igual (la impresión no dibuja bordes de imagen).
+        const borde = pxDeMm(estado.bordeMm, lienzo.dpi ?? 300);
+        if (borde > 0) {
+          resultado.push({
+            id: `fl-borde-${i}-${lado}-${fotoId}`,
+            type: "SHAPE",
+            pageIndex: i,
+            name: "Borde",
+            layout: { x: marco.x, y: marco.y, width: marco.w, height: marco.h, rotation: 0, zIndex: 9, opacity: 1, locked: true, visible: true },
+            configJson: { variant: "rectangle", fill: estado.bordeColor, strokeWidth: 0, fotolibroAuto: true },
+          });
+        }
+        const dentro = borde > 0 && marco.w > 4 * borde && marco.h > 4 * borde ? { x: marco.x + borde, y: marco.y + borde, w: marco.w - 2 * borde, h: marco.h - 2 * borde } : marco;
         resultado.push({
           id,
           type: "IMAGE",
           pageIndex: i,
           name: foto.nombre || "Foto",
           layout: {
-            x: marco.x,
-            y: marco.y,
-            width: marco.w,
-            height: marco.h,
+            x: dentro.x,
+            y: dentro.y,
+            width: dentro.w,
+            height: dentro.h,
             rotation: 0,
             zIndex: 10 + k,
             opacity: 1,
@@ -166,7 +194,7 @@ export function generarBloques(
             fotoId,
             fotolibroAuto: true,
             ...(estilo?.esquinasMm ? { borderRadius: pxDeMm(estilo.esquinasMm, lienzo.dpi ?? 300) } : {}),
-            ...(previo?.configJson.crop ? { crop: previo.configJson.crop } : {}),
+            ...encuadreDe(previo, foto, dentro),
           },
         });
       });
@@ -204,6 +232,9 @@ export function reindexarHojas(
 
 /** El fondo de un pliego: el del estilo para su tipo (apertura, interior, cierre) o papel blanco. */
 function fondoDePliego(estado: EstadoFotolibro, estilo: EstiloFotolibro | null, i: number, cantidad: number) {
+  // Un color elegido para este pliego manda sobre el papel y el fondo dibujado del estilo.
+  const propio = estado.pliegos[i]?.fondo;
+  if (propio) return { backgroundColor: propio, src: "", fit: "cover", fotolibroEstilo: true };
   const src = estilo ? estado.estilo?.fondos[tipoDePliego(i, cantidad)] ?? "" : "";
   return { backgroundColor: estilo?.papel ?? "#ffffff", src, fit: "cover", fotolibroEstilo: Boolean(estilo) };
 }
@@ -215,7 +246,7 @@ function aplicarFondosDelEstilo(bloques: TemplateV2Block[], estado: EstadoFotoli
     const i = b.pageIndex ?? 0;
     const nuevo = fondoDePliego(estado, estilo, i, cantidad);
     // Un fondo que alguien eligió a mano en el diseño libre, sin estilo, no se toca.
-    if (!estilo && !b.configJson.fotolibroEstilo) return;
+    if (!estilo && !b.configJson.fotolibroEstilo && !estado.pliegos[i]?.fondo) return;
     bloques[k] = { ...b, configJson: { ...b.configJson, ...nuevo } };
   });
 }
@@ -264,4 +295,43 @@ function textosDelEstilo(estado: EstadoFotolibro, estilo: EstiloFotolibro, lienz
     }
   });
   return out;
+}
+
+/**
+ * Reordena las hojas del diseño cuando se mueven pliegos: `orden[nuevo] = viejo`. Mueve todo, lo
+ * agregado a mano y los bloques automáticos (a los que también les cambia el id, que lleva el
+ * número de pliego), así el encuadre de cada foto viaja con su pliego.
+ */
+export function permutarHojas(bloques: readonly TemplateV2Block[], orden: number[]): TemplateV2Block[] {
+  const nuevoDe = new Map(orden.map((viejo, nuevo) => [viejo, nuevo]));
+  return bloques.map((b) => {
+    const viejo = b.pageIndex ?? 0;
+    const nuevo = nuevoDe.get(viejo);
+    if (nuevo === undefined || nuevo === viejo) return b;
+    const id = esBloqueAutomatico(b) ? b.id.replace(/^fl-(\d+)-/, `fl-${nuevo}-`) : b.id;
+    return { ...b, id, pageIndex: nuevo };
+  });
+}
+
+/** Los marcos de las fotos de un pliego en proporción (0 a 1), para guardarlos como favorita. */
+export function marcosEnProporcion(bloques: readonly TemplateV2Block[], pliego: number, lienzo: Lienzo): Caja[] {
+  const porId = new Map(bloques.map((b) => [b.id, b]));
+  return bloques
+    .filter((b) => b.type === "IMAGE" && esBloqueAutomatico(b) && (b.pageIndex ?? 0) === pliego)
+    .sort((a, b) => a.layout.zIndex - b.layout.zIndex)
+    .map((b) => {
+      // Con borde, la foto está achicada: el marco es el del rectángulo de atrás.
+      const l = (porId.get(b.id.replace(/^fl-/, "fl-borde-")) ?? b).layout;
+      return { x: l.x / lienzo.width, y: l.y / lienzo.height, w: l.width / lienzo.width, h: l.height / lienzo.height };
+    });
+}
+
+/**
+ * El encuadre de una foto al regenerar sus bloques: el que hizo alguien a mano se respeta; si no
+ * hay (o era automático), se centran las caras en el marco nuevo.
+ */
+function encuadreDe(previo: TemplateV2Block | undefined, foto: FotoDelLibro, marco: Caja): Record<string, unknown> {
+  if (previo?.configJson.crop && previo.configJson.cropAuto !== true) return { crop: previo.configJson.crop };
+  const auto = foto.caras?.length ? encuadreParaCaras(foto.caras, marco.w, marco.h, foto.w / foto.h) : null;
+  return auto ? { crop: auto, cropAuto: true } : {};
 }

@@ -18,7 +18,8 @@ import { modelosParaLibro } from "@/lib/fotolibro/tapa/catalogo";
 import { DISENOS_TAPA, bloquesDeTapa, disenoDeTapa, tapaDelLibro } from "@/lib/fotolibro/tapa/bloques";
 import { TapaVista, type CaraTapa } from "./tapa-vista";
 import { PanelTapa } from "./panel-tapa";
-import { cantidadDeDistribuciones, generarBloques, idDeBloque, reindexarHojas } from "@/lib/fotolibro/modo/bloques";
+import { cantidadDeDistribuciones, generarBloques, idDeBloque, marcosEnProporcion, permutarHojas, reindexarHojas } from "@/lib/fotolibro/modo/bloques";
+import type { Favorita } from "@/lib/fotolibro/favoritas-tipos";
 import {
   agregarAPagina,
   agregarPliego,
@@ -26,6 +27,11 @@ import {
   cambiarModo,
   cambiarVariante,
   confirmarOriginales,
+  aplicarFavorita,
+  cambiarFondo,
+  duplicarPliego,
+  moverPliego,
+  ordenTrasMover,
   intercambiar,
   moverAPagina,
   quitarDePagina,
@@ -43,11 +49,16 @@ import { claveDeMedida, medidasDelLienzo } from "@/lib/fotolibro/modo/bloques";
 import { dibujarYSubirFondos } from "./aplicar-estilo";
 import { SelectorEstilo } from "./selector-estilo";
 import { ArmadoAutomatico } from "./armado-automatico";
+import { VistaLibro } from "./vista-libro";
+import { RevisionClienteVentana, useRevisionCliente } from "./revision-cliente";
+import { revisarLibro } from "@/lib/fotolibro/modo/revision";
+import { conCuerpo, moverTexto, nuevoTexto } from "@/lib/fotolibro/modo/textos-libres";
 import { ordenarFotos } from "@/lib/fotolibro/modo/armado";
 import { PanelLateral } from "./panel-lateral";
 import { PliegoVista } from "./pliego-vista";
 import { TiraFotos } from "./tira-fotos";
 import { confirmarOriginalesEnServidor, subirFoto } from "./subir-fotos";
+import { detectarCarasDeUrl } from "./detectar-caras";
 
 type Props = {
   templateId: string;
@@ -99,6 +110,25 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
   const [originales, setOriginales] = useState(0);
   const [eligiendoEstilo, setEligiendoEstilo] = useState(false);
   const [armando, setArmando] = useState(false);
+  const [vistaLibro, setVistaLibro] = useState(false);
+  const [textoElegido, setTextoElegido] = useState<string | null>(null);
+  const [favoritas, setFavoritas] = useState<Favorita[]>([]);
+  const [viendoCliente, setViendoCliente] = useState(false);
+  const cliente = useRevisionCliente(templateId);
+
+  // Las favoritas son de la persona (valen en todos sus libros): se traen una vez.
+  useEffect(() => {
+    fetch("/api/fotolibro/favoritas", { credentials: "include", cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : { favoritas: [] }))
+      .then((d: { favoritas?: Favorita[] }) => setFavoritas(Array.isArray(d.favoritas) ? d.favoritas : []))
+      .catch(() => {});
+  }, []);
+  const pedirFavoritas = useCallback(async (init: RequestInit, url = "/api/fotolibro/favoritas") => {
+    const r = await fetch(url, { credentials: "include", headers: { "Content-Type": "application/json" }, ...init });
+    const d = (await r.json().catch(() => ({}))) as { favoritas?: Favorita[]; error?: string };
+    if (!r.ok) throw new Error(d.error || "No se pudieron guardar las favoritas.");
+    setFavoritas(d.favoritas ?? []);
+  }, []);
   const [aplicandoEstilo, setAplicandoEstilo] = useState<string | null>(null);
   // La tapa es la "hoja -1": va antes del primer pliego.
   const [caraTapa, setCaraTapa] = useState<CaraTapa | null>(null);
@@ -108,6 +138,10 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
   const ref = useRef({ cargado, estado, bloques });
   ref.current = { cargado, estado, bloques };
   const historia = useRef<{ estado: EstadoFotolibro; bloques: TemplateV2Block[] }[]>([]);
+  // Lo deshecho, para rehacerlo (⌘⇧Z). Cualquier cambio nuevo lo descarta.
+  const futuro = useRef<{ estado: EstadoFotolibro; bloques: TemplateV2Block[] }[]>([]);
+  const [pasos, setPasos] = useState({ atras: 0, adelante: 0 });
+  const contarPasos = () => setPasos({ atras: historia.current.length, adelante: futuro.current.length });
   const guardandoRef = useRef(false);
 
   // ── Carga ──
@@ -210,6 +244,8 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
       const nuevo = cambio(e);
       if (nuevo === e) return;
       historia.current = [...historia.current.slice(-49), { estado: e, bloques: b }];
+      futuro.current = [];
+      contarPasos();
       const base = ajusteBloques ? ajusteBloques(b) : b;
       const siguientes = generarBloques(nuevo, c.canvas, base);
       ref.current = { cargado: c, estado: nuevo, bloques: siguientes };
@@ -234,20 +270,53 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
     setBloques((prev) =>
       prev.map((b) => {
         if (b.id !== blockId) return b;
-        const { crop: _viejo, ...resto } = b.configJson;
+        // Encuadrar a mano deja de ser automático: ya no se recalcula con las caras.
+        const { crop: _viejo, cropAuto: _auto, ...resto } = b.configJson;
         return { ...b, configJson: crop ? { ...resto, crop } : resto };
       }),
     );
     setGuardado("pendiente");
   }, []);
 
+  /** Cambios de bloques sueltos (textos a mano), sin tocar las fotos del libro. */
+  const cambiarBloques = useCallback((cambio: (b: TemplateV2Block[]) => TemplateV2Block[], conHistoria: boolean) => {
+    const { estado: e, bloques: b } = ref.current;
+    if (!e) return;
+    if (conHistoria) {
+      historia.current = [...historia.current.slice(-49), { estado: e, bloques: b }];
+      futuro.current = [];
+      contarPasos();
+    }
+    const nuevos = cambio(b);
+    ref.current = { ...ref.current, bloques: nuevos };
+    setBloques(nuevos);
+    setGuardado("pendiente");
+  }, []);
+  const moviendoTexto = useRef(false);
+
+  const volverA = (paso: { estado: EstadoFotolibro; bloques: TemplateV2Block[] }) => {
+    ref.current = { ...ref.current, estado: paso.estado, bloques: paso.bloques };
+    setEstado(paso.estado);
+    setBloques(paso.bloques);
+    setGuardado("pendiente");
+  };
+
   const deshacer = useCallback(() => {
     const ultimo = historia.current.pop();
-    if (!ultimo) return;
-    ref.current = { ...ref.current, estado: ultimo.estado, bloques: ultimo.bloques };
-    setEstado(ultimo.estado);
-    setBloques(ultimo.bloques);
-    setGuardado("pendiente");
+    const { estado: e, bloques: b } = ref.current;
+    if (!ultimo || !e) return;
+    futuro.current = [...futuro.current, { estado: e, bloques: b }];
+    volverA(ultimo);
+    contarPasos();
+  }, []);
+
+  const rehacer = useCallback(() => {
+    const siguiente = futuro.current.pop();
+    const { estado: e, bloques: b } = ref.current;
+    if (!siguiente || !e) return;
+    historia.current = [...historia.current, { estado: e, bloques: b }];
+    volverA(siguiente);
+    contarPasos();
   }, []);
 
   const cantidad = estado?.pliegos.length ?? 1;
@@ -256,6 +325,7 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
       setPliego(Math.max(-1, Math.min(cantidad - 1, i)));
       setSeleccionada(null);
       setRecortando(null);
+      setTextoElegido(null);
       setCaraTapa(null);
       setRecortandoTapa(false);
     },
@@ -322,6 +392,32 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
     [templateId, aplicar, seguirConOriginales],
   );
 
+  // Fotos subidas antes del encuadre por caras: se buscan de fondo, de a una, sin apurar a nadie.
+  const buscandoCaras = useRef(false);
+  useEffect(() => {
+    if (!estado || buscandoCaras.current) return;
+    const pendientes = estado.fotos.filter((f) => f.caras === undefined).map((f) => ({ id: f.id, vista: f.vista }));
+    if (!pendientes.length) return;
+    buscandoCaras.current = true;
+    void (async () => {
+      for (const p of pendientes) {
+        const caras = await detectarCarasDeUrl(p.vista);
+        // Si no se pudo buscar (sin internet, sin permiso para leer la imagen), se deja para la
+        // próxima vez que se abra el libro: no se reintenta en cada cambio.
+        if (caras === null) return;
+        aplicarSinHistoria((e) => ({ ...e, fotos: e.fotos.map((f) => (f.id === p.id ? { ...f, caras } : f)) }));
+        // Con caras nuevas, el encuadre automático de esa foto se recalcula al regenerar.
+        const { cargado: c, estado: e, bloques: b } = ref.current;
+        if (c && e && caras.length) {
+          const nuevos = generarBloques(e, c.canvas, b);
+          ref.current = { cargado: c, estado: e, bloques: nuevos };
+          setBloques(nuevos);
+        }
+      }
+      buscandoCaras.current = false;
+    })();
+  }, [estado, aplicarSinHistoria]);
+
   // Al abrir: originales que quedaron a mitad de camino (se cerró la pestaña). Se revisan una vez.
   const revisados = useRef(false);
   useEffect(() => {
@@ -358,20 +454,32 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
   // ── Teclado ──
   useEffect(() => {
     const onKey = (ev: KeyboardEvent) => {
-      if (recortando || recortandoTapa || eligiendoEstilo || armando || esEditable(ev.target)) return;
+      if (recortando || recortandoTapa || eligiendoEstilo || armando || viendoCliente || esEditable(ev.target)) return;
       const tecla = ev.key.toLowerCase();
+      if ((ev.metaKey || ev.ctrlKey) && (tecla === "y" || (tecla === "z" && ev.shiftKey))) {
+        ev.preventDefault();
+        rehacer();
+        return;
+      }
       if ((ev.metaKey || ev.ctrlKey) && tecla === "z") {
         ev.preventDefault();
         deshacer();
         return;
       }
       if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
+      // G: todo el libro de un vistazo (y de vuelta al pliego).
+      if (tecla === "g") {
+        ev.preventDefault();
+        setVistaLibro((v) => !v);
+        return;
+      }
+      if (vistaLibro) return;
       if (ev.key === "ArrowLeft") return void (ev.preventDefault(), irA(pliego - 1));
       if (ev.key === "ArrowRight") return void (ev.preventDefault(), irA(pliego + 1));
       if (pliego < 0) {
-        if (tecla === "a" || tecla === "q" || tecla === "s" || tecla === "w") {
+        if (["a", "q", "s", "w", "arrowup", "arrowdown"].includes(tecla)) {
           ev.preventDefault();
-          const paso = tecla === "a" || tecla === "s" ? 1 : -1;
+          const paso = tecla === "a" || tecla === "s" || tecla === "arrowdown" ? 1 : -1;
           aplicar((e) => {
             if (!e.tapa) return e;
             const i = DISENOS_TAPA.findIndex((d) => d.id === disenoDeTapa(e.tapa!.diseno));
@@ -395,6 +503,13 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
         setSeleccionTira([]);
         return;
       }
+      if ((ev.key === "Delete" || ev.key === "Backspace") && textoElegido) {
+        ev.preventDefault();
+        const id = textoElegido;
+        cambiarBloques((b) => b.filter((x) => x.id !== id), true);
+        setTextoElegido(null);
+        return;
+      }
       if ((ev.key === "Delete" || ev.key === "Backspace") && seleccionada) {
         ev.preventDefault();
         aplicar((e) => quitarDePagina(e, seleccionada));
@@ -404,9 +519,12 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
       // Las teclas de los diseñadores de fotolibro. En un pliego entero A/S avanzan y Q/W vuelven;
       // por páginas, A/Q son de la izquierda y S/W de la derecha.
       const entero = ref.current.estado?.pliegos[pliego]?.modo === "pliego";
+      // ↑/↓ cambian la distribución: la del pliego entero o, por páginas, la de la página de la
+      // foto elegida (la izquierda si no hay ninguna).
+      const ladoFlechas: Lado = entero ? "todo" : seleccionada?.lado === "der" ? "der" : "izq";
       const atajos: Record<string, [Lado, number]> = entero
-        ? { a: ["todo", 1], s: ["todo", 1], q: ["todo", -1], w: ["todo", -1] }
-        : { a: ["izq", 1], q: ["izq", -1], s: ["der", 1], w: ["der", -1] };
+        ? { a: ["todo", 1], s: ["todo", 1], q: ["todo", -1], w: ["todo", -1], arrowdown: ["todo", 1], arrowup: ["todo", -1] }
+        : { a: ["izq", 1], q: ["izq", -1], s: ["der", 1], w: ["der", -1], arrowdown: [ladoFlechas, 1], arrowup: [ladoFlechas, -1] };
       const atajo = atajos[tecla];
       if (atajo) {
         ev.preventDefault();
@@ -415,7 +533,7 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [recortando, recortandoTapa, caraTapa, eligiendoEstilo, armando, pliego, seleccionTira, seleccionada, aplicar, deshacer, irA]);
+  }, [recortando, recortandoTapa, caraTapa, eligiendoEstilo, armando, viendoCliente, vistaLibro, pliego, seleccionTira, seleccionada, textoElegido, cambiarBloques, aplicar, deshacer, rehacer, irA]);
 
   const fotosPorId = useMemo(() => new Map((estado?.fotos ?? []).map((f) => [f.id, f])), [estado]);
   const usos = useMemo(() => (estado ? usosPorFoto(estado) : new Map<string, number>()), [estado]);
@@ -476,6 +594,21 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
   return (
     <div className="flex h-full flex-col bg-[#18191b] text-white">
       <GoogleFontsLoader />
+      {viendoCliente ? (
+        <RevisionClienteVentana
+          templateId={templateId}
+          guardarAntes={async () => (ref.current.estado && guardado !== "al-dia" ? guardar() : true)}
+          onIr={(i) => {
+            setViendoCliente(false);
+            setVistaLibro(false);
+            irA(i);
+          }}
+          onCerrar={() => {
+            setViendoCliente(false);
+            void cliente.cargar();
+          }}
+        />
+      ) : null}
       {armando ? (
         <ArmadoAutomatico
           estado={estado}
@@ -505,7 +638,41 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
         </button>
         <h1 className="truncate font-semibold">{cargado.nombre}</h1>
         <span className="text-white/50">{pliego < 0 ? "Tapa" : `Pliego ${pliego + 1} de ${cantidad}`}</span>
-        <span className={`ml-auto text-xs ${guardado === "error" ? "text-red-300" : "text-white/50"}`}>{estadoGuardado}</span>
+        <span className="ml-auto flex gap-0.5">
+          <button type="button" onClick={deshacer} disabled={!pasos.atras} title="Deshacer (⌘Z)" className="rounded px-1.5 py-0.5 text-white/80 hover:bg-white/10 disabled:opacity-30">
+            ↶
+          </button>
+          <button type="button" onClick={rehacer} disabled={!pasos.adelante} title="Rehacer (⌘⇧Z)" className="rounded px-1.5 py-0.5 text-white/80 hover:bg-white/10 disabled:opacity-30">
+            ↷
+          </button>
+        </span>
+        <span className={`text-xs ${guardado === "error" ? "text-red-300" : "text-white/50"}`}>{estadoGuardado}</span>
+        <button
+          type="button"
+          onClick={() => setViendoCliente(true)}
+          title="Mandarle el libro al cliente para que lo comente y lo apruebe"
+          className="relative rounded border border-white/15 px-2.5 py-1 text-xs hover:bg-white/10"
+        >
+          Cliente
+          {(() => {
+            const r = cliente.datos?.revision;
+            if (!r) return null;
+            const pendientes = r.comentarios.filter((c) => !c.resuelto).length;
+            return r.estado === "aprobado" ? (
+              <span className="ml-1 text-emerald-300">✓</span>
+            ) : pendientes ? (
+              <span className="ml-1 rounded-full bg-amber-500 px-1.5 text-[10px] font-semibold text-black">{pendientes}</span>
+            ) : null;
+          })()}
+        </button>
+        <button
+          type="button"
+          onClick={() => setVistaLibro((v) => !v)}
+          title="Todos los pliegos de un vistazo, para ordenarlos (G)"
+          className={`rounded border px-2.5 py-1 text-xs ${vistaLibro ? "border-[var(--fo-accent)] bg-white/10" : "border-white/15 hover:bg-white/10"}`}
+        >
+          {vistaLibro ? "Volver al pliego" : "Ver libro"}
+        </button>
         <button
           type="button"
           onClick={() => setArmando(true)}
@@ -528,14 +695,11 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
           nombre={cargado.nombre}
           cantidadPliegos={cantidad}
           conTapa={armadoTapa !== null}
-          bloqueo={(() => {
-            const faltan = fotosSinOriginal(estado);
-            if (!faltan.length) return null;
-            const perdidas = faltan.filter((f) => f.faltaOriginal).length;
-            return perdidas
-              ? `A ${perdidas} ${perdidas === 1 ? "foto le falta" : "fotos les falta"} el original (marcadas en la tira): volvé a subirlas.`
-              : `Todavía se están subiendo ${faltan.length} ${faltan.length === 1 ? "original" : "originales"}. Esperá un momento.`;
-          })()}
+          revisar={() => revisarLibro(estado, bloques, cargado.canvas)}
+          onIr={(i) => {
+            setVistaLibro(false);
+            irA(i);
+          }}
           guardarAntes={async () => (ref.current.estado && guardado !== "al-dia" ? guardar() : true)}
         />
       </header>
@@ -552,7 +716,30 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
       <div className="flex min-h-0 flex-1">
         <main className="flex min-h-0 min-w-0 flex-1 flex-col">
           <div className="min-h-0 flex-1 py-4">
-            {pliego < 0 ? (
+            {vistaLibro ? (
+              <VistaLibro
+                canvas={cargado.canvas}
+                bloques={bloques}
+                estado={estado}
+                minis={minis}
+                actual={pliego}
+                tapa={armadoTapa ? { canvas: armadoTapa.lienzo, bloques: bloquesTapa } : null}
+                onAbrir={(i) => {
+                  irA(i);
+                  setVistaLibro(false);
+                }}
+                onMover={(desde, hasta) => {
+                  aplicar((e) => moverPliego(e, desde, hasta), (b) => permutarHojas(b, ordenTrasMover(cantidad, desde, hasta)));
+                  if (pliego === desde) setPliego(hasta);
+                }}
+                onDuplicar={(i) => aplicar((e) => duplicarPliego(e, i), (b) => reindexarHojas(b, { tipo: "insertar", indice: i + 1 }))}
+                onAgregar={(i) => aplicar((e) => agregarPliego(e, i), (b) => reindexarHojas(b, { tipo: "insertar", indice: i + 1 }))}
+                onQuitar={(i) => {
+                  aplicar((e) => quitarPliego(e, i), (b) => reindexarHojas(b, { tipo: "quitar", indice: i }));
+                  setPliego((p) => Math.max(0, Math.min(p, cantidad - 2)));
+                }}
+              />
+            ) : pliego < 0 ? (
               <TapaVista
                 armado={armadoTapa}
                 bloques={bloquesTapa}
@@ -584,7 +771,19 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
               onIrA={irA}
               onSeleccionar={(u) => {
                 setSeleccionada(u);
+                setTextoElegido(null);
                 if (!u) setRecortando(null);
+              }}
+              textoElegido={textoElegido}
+              onElegirTexto={(id) => {
+                setTextoElegido(id);
+                setSeleccionada(null);
+              }}
+              onMoverTexto={(id, x, y, fin) => {
+                // Un solo paso de deshacer por arrastre: se guarda al empezar a mover.
+                const primero = !moviendoTexto.current;
+                moviendoTexto.current = !fin;
+                cambiarBloques((b) => b.map((t) => (t.id === id ? moverTexto(t, x, y, cargado.canvas) : t)), primero);
               }}
               onSoltarFotos={(lado, ids) => aplicar((e) => agregarAPagina(e, pliego, lado, ids))}
               onSoltarSobreFoto={(destino, ids) =>
@@ -660,6 +859,41 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
             setSeleccionada(null);
           }}
           onSeparacion={(mm) => aplicar((e) => ({ ...e, separacionMm: mm }))}
+          textoLibre={textoElegido ? bloques.find((b) => b.id === textoElegido) ?? null : null}
+          onAgregarTexto={() => {
+            const id = `fl-txt-${Date.now().toString(36)}`;
+            cambiarBloques((b) => [...b, nuevoTexto(pliego, cargado.canvas, id)], true);
+            setTextoElegido(id);
+            setSeleccionada(null);
+          }}
+          onCambiarTexto={(c) => {
+            const id = textoElegido;
+            if (!id) return;
+            const dpi = cargado.canvas.dpi ?? 300;
+            cambiarBloques(
+              (b) =>
+                b.map((t) => {
+                  if (t.id !== id) return t;
+                  const { puntos, ...resto } = c;
+                  const conCambios = { ...t, configJson: { ...t.configJson, ...resto } };
+                  return puntos !== undefined || c.content !== undefined ? conCuerpo(conCambios, puntos ?? Math.round((Number(t.configJson.fontSize) * 72) / dpi), dpi) : conCambios;
+                }),
+              c.content === undefined,
+            );
+          }}
+          onQuitarTexto={() => {
+            const id = textoElegido;
+            cambiarBloques((b) => b.filter((x) => x.id !== id), true);
+            setTextoElegido(null);
+          }}
+          onFondo={(color) => aplicar((e) => cambiarFondo(e, pliego, color))}
+          favoritas={favoritas}
+          onGuardarFavorita={() =>
+            void pedirFavoritas({ method: "POST", body: JSON.stringify({ nombre: "", marcos: marcosEnProporcion(bloques, pliego, cargado.canvas) }) }).catch((e: Error) => setErrorGuardado(e.message))
+          }
+          onAplicarFavorita={(f) => aplicar((e) => aplicarFavorita(e, pliego, f.marcos))}
+          onBorrarFavorita={(id) => void pedirFavoritas({ method: "DELETE" }, `/api/fotolibro/favoritas?id=${encodeURIComponent(id)}`).catch((e: Error) => setErrorGuardado(e.message))}
+          onBorde={(mm, color) => aplicar((e) => ({ ...e, bordeMm: mm, bordeColor: color }))}
           onMargen={(mm) => aplicar((e) => ({ ...e, margenMm: mm }))}
           onVaciar={() => aplicar((e) => vaciarPliego(e, pliego))}
           onAgregarPliego={() => {

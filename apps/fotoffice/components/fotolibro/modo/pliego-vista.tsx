@@ -6,7 +6,9 @@ import type { PhotoCrop, TemplateV2Block, TemplateV2Canvas } from "@repo/templat
 import type { Lado, ModoPliego } from "@/lib/fotolibro/modo/estado";
 import type { Ubicacion } from "@/lib/fotolibro/modo/operaciones";
 import { esBloqueAutomatico } from "@/lib/fotolibro/modo/bloques";
+import { esTextoLibre } from "@/lib/fotolibro/modo/textos-libres";
 import { ARRASTRE_FOTOS } from "./tira-fotos";
+import { ponerFantasma } from "./fantasma";
 
 /** Tipo de dato del arrastre de una foto ya puesta en el pliego. */
 const ARRASTRE_COLOCADA = "application/x-fotolibro-colocada";
@@ -30,6 +32,10 @@ type Props = {
   onEmpezarRecorte: (blockId: string) => void;
   onRecorte: (blockId: string, crop: PhotoCrop) => void;
   onTerminarRecorte: () => void;
+  /** Textos agregados a mano: cuál está elegido, y moverlo (`fin` al soltar). */
+  textoElegido: string | null;
+  onElegirTexto: (id: string | null) => void;
+  onMoverTexto: (id: string, x: number, y: number, fin: boolean) => void;
 };
 
 const ubicacionDe = (b: TemplateV2Block): Ubicacion | null => {
@@ -58,8 +64,8 @@ const ANIMACION = `
 .fl-animado [data-block-type="IMAGE"],
 .fl-animado [data-block-type="IMAGE"] img,
 .fl-animado-marco {
-  transition: left 480ms cubic-bezier(.22,.9,.24,1), top 480ms cubic-bezier(.22,.9,.24,1),
-    width 480ms cubic-bezier(.22,.9,.24,1), height 480ms cubic-bezier(.22,.9,.24,1) !important;
+  transition: left 260ms cubic-bezier(.2,.8,.2,1), top 260ms cubic-bezier(.2,.8,.2,1),
+    width 260ms cubic-bezier(.2,.8,.2,1), height 260ms cubic-bezier(.2,.8,.2,1) !important;
 }
 @media (prefers-reduced-motion: reduce) {
   .fl-animado [data-block-type="IMAGE"], .fl-animado [data-block-type="IMAGE"] img, .fl-animado-marco { transition: none !important; }
@@ -101,6 +107,8 @@ export function PliegoVista(props: Props) {
   const contenedorRef = useRef<HTMLDivElement>(null);
   const [lugar, setLugar] = useState({ w: 800, h: 500 });
   const [sobre, setSobre] = useState<string | null>(null);
+  // La foto que se está arrastrando: se ve apagada en su lugar mientras tanto.
+  const [arrastrada, setArrastrada] = useState<string | null>(null);
 
   useEffect(() => {
     const el = contenedorRef.current;
@@ -120,6 +128,8 @@ export function PliegoVista(props: Props) {
   const delPliego = bloques.filter((b) => (b.pageIndex ?? 0) === pliego);
   const fotos = delPliego.filter((b) => b.type === "IMAGE" && esBloqueAutomatico(b));
   const recorte = recortando ? delPliego.find((b) => b.id === recortando) ?? null : null;
+  const textos = delPliego.filter(esTextoLibre);
+  const arrastre = useRef<{ id: string; dx: number; dy: number; x0: number; y0: number; movio: boolean } | null>(null);
   const vacia = (lado: Lado) => !fotos.some((b) => ubicacionDe(b)?.lado === lado);
   // En un pliego entero se suelta en cualquier lado; por páginas, en cada página.
   const zonas: { lado: Lado; left: number; width: number }[] =
@@ -199,7 +209,10 @@ export function PliegoVista(props: Props) {
                 onDragStart={(e) => {
                   e.dataTransfer.setData(ARRASTRE_COLOCADA, JSON.stringify(u));
                   e.dataTransfer.effectAllowed = "move";
+                  ponerFantasma(e, props.minis.get(u.fotoId) ?? (typeof b.configJson.previewSrc === "string" ? b.configJson.previewSrc : null), 1, b.layout.width / b.layout.height);
+                  setArrastrada(b.id);
                 }}
+                onDragEnd={() => setArrastrada(null)}
                 onDragOver={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
@@ -231,12 +244,50 @@ export function PliegoVista(props: Props) {
                   top: b.layout.y,
                   width: b.layout.width,
                   height: b.layout.height,
+                  zIndex: 1000,
                   outline: elegida ? `${borde}px solid #facc15` : sobre === clave ? `${borde * 1.5}px solid #22c55e` : "none",
+                  background: arrastrada === b.id ? "rgba(15,23,42,0.55)" : sobre === clave ? "rgba(34,197,94,0.18)" : "transparent",
                   outlineOffset: 0,
                 }}
               />
             );
           })}
+
+          {/* Los textos agregados a mano: clic los elige, arrastrar los mueve. */}
+          {textos.map((b) => (
+            <div
+              key={b.id}
+              title="Clic: editar en el panel · Arrastrar: mover"
+              className="absolute cursor-move"
+              style={{
+                left: b.layout.x,
+                top: b.layout.y,
+                width: b.layout.width,
+                height: b.layout.height,
+                // Por encima de los bloques del dibujo (que llevan su propio z-index).
+                zIndex: 1001,
+                outline: props.textoElegido === b.id ? `${borde}px solid #38bdf8` : `${borde / 2}px dashed rgba(56,189,248,0.5)`,
+              }}
+              onClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => {
+                e.stopPropagation();
+                (e.target as HTMLElement).setPointerCapture(e.pointerId);
+                props.onElegirTexto(b.id);
+                arrastre.current = { id: b.id, dx: e.clientX, dy: e.clientY, x0: b.layout.x, y0: b.layout.y, movio: false };
+              }}
+              onPointerMove={(e) => {
+                const a = arrastre.current;
+                if (!a) return;
+                a.movio = true;
+                props.onMoverTexto(a.id, a.x0 + (e.clientX - a.dx) / s, a.y0 + (e.clientY - a.dy) / s, false);
+              }}
+              onPointerUp={(e) => {
+                const a = arrastre.current;
+                arrastre.current = null;
+                if (a?.movio) props.onMoverTexto(a.id, a.x0 + (e.clientX - a.dx) / s, a.y0 + (e.clientY - a.dy) / s, true);
+              }}
+            />
+          ))}
 
           {/* El lomo: el centro del pliego, donde se dobla. */}
           <div

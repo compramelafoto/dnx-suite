@@ -19,6 +19,7 @@ const copiar = (e: EstadoFotolibro): EstadoFotolibro => ({
     todo: { ...p.todo, fotos: [...p.todo.fotos] },
     izq: { ...p.izq, fotos: [...p.izq.fotos] },
     der: { ...p.der, fotos: [...p.der.fotos] },
+    ...(p.fondo ? { fondo: p.fondo } : {}),
   })),
 });
 
@@ -35,6 +36,7 @@ export function agregarAPagina(e: EstadoFotolibro, pliego: number, lado: Lado, i
     if (!pagina.fotos.includes(id)) pagina.fotos.push(id);
   }
   pagina.variante = 0;
+  delete pagina.marcos;
   return n;
 }
 
@@ -59,6 +61,7 @@ export function quitarDePagina(e: EstadoFotolibro, u: Ubicacion): EstadoFotolibr
   if (!pagina) return e;
   pagina.fotos = pagina.fotos.filter((id) => id !== u.fotoId);
   pagina.variante = 0;
+  delete pagina.marcos;
   return n;
 }
 
@@ -92,7 +95,9 @@ export function cambiarVariante(e: EstadoFotolibro, pliego: number, lado: Lado, 
   const n = copiar(e);
   const pagina = n.pliegos[pliego]?.[lado];
   if (!pagina || pagina.fotos.length === 0) return e;
-  pagina.variante = pagina.variante + paso;
+  // Recorrer distribuciones deja la favorita aplicada y vuelve a las del sistema.
+  pagina.variante = pagina.marcos ? pagina.variante : pagina.variante + paso;
+  delete pagina.marcos;
   return n;
 }
 
@@ -176,4 +181,54 @@ export function confirmarOriginales(e: EstadoFotolibro, resultado: Record<string
     return resultado[f.claveOriginal] ? resto : { ...resto, claveOriginal: f.claveOriginal, faltaOriginal: true };
   });
   return cambio ? { ...e, fotos } : e;
+}
+
+/**
+ * Lleva el pliego `desde` al lugar `hasta` (los demás se corren). Para mover también lo hecho a
+ * mano y los encuadres, ver `permutarHojas` en `bloques.ts`, que usa el mismo `ordenNuevo`.
+ */
+export function moverPliego(e: EstadoFotolibro, desde: number, hasta: number): EstadoFotolibro {
+  const n = e.pliegos.length;
+  if (desde === hasta || desde < 0 || hasta < 0 || desde >= n || hasta >= n) return e;
+  const pliegos = [...e.pliegos];
+  const [p] = pliegos.splice(desde, 1);
+  pliegos.splice(hasta, 0, p!);
+  return { ...e, pliegos };
+}
+
+/** Cuál era antes cada pliego después de `moverPliego`: `orden[nuevo] = viejo`. */
+export function ordenTrasMover(cantidad: number, desde: number, hasta: number): number[] {
+  const orden = Array.from({ length: cantidad }, (_, i) => i);
+  const [x] = orden.splice(desde, 1);
+  orden.splice(hasta, 0, x!);
+  return orden;
+}
+
+/** Copia el pliego (mismas fotos, misma distribución) justo después. */
+export function duplicarPliego(e: EstadoFotolibro, pliego: number): EstadoFotolibro {
+  const p = e.pliegos[pliego];
+  if (!p) return e;
+  const copia = { ...p, todo: { ...p.todo, fotos: [...p.todo.fotos] }, izq: { ...p.izq, fotos: [...p.izq.fotos] }, der: { ...p.der, fotos: [...p.der.fotos] } };
+  const pliegos = [...e.pliegos];
+  pliegos.splice(pliego + 1, 0, copia);
+  return { ...e, pliegos };
+}
+
+/** Color de fondo propio de un pliego, o null para volver al papel o al fondo del estilo. */
+export function cambiarFondo(e: EstadoFotolibro, pliego: number, color: string | null): EstadoFotolibro {
+  const p = e.pliegos[pliego];
+  if (!p) return e;
+  const { fondo: _f, ...resto } = p;
+  const pliegos = [...e.pliegos];
+  pliegos[pliego] = color ? { ...resto, fondo: color } : resto;
+  return { ...e, pliegos };
+}
+
+/** Aplica una distribución favorita al pliego entero (si tiene tantas fotos como marcos). */
+export function aplicarFavorita(e: EstadoFotolibro, pliego: number, marcos: { x: number; y: number; w: number; h: number }[]): EstadoFotolibro {
+  const p = e.pliegos[pliego];
+  if (!p || p.modo !== "pliego" || p.todo.fotos.length !== marcos.length) return e;
+  const n = copiar(e);
+  n.pliegos[pliego]!.todo.marcos = marcos.map((c) => ({ ...c }));
+  return n;
 }
