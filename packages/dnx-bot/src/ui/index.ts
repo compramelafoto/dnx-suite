@@ -3,3 +3,4 @@ export { DnxBotBubble, type DnxBotBubbleProps } from "./DnxBotBubble";
 export type { Audiencia as DnxBotAudiencia } from "./comprador";
 export { abrirDnxBot, EVENTO_ABRIR, type PedidoAbrir } from "./abrir";
 export { claveMensajePrecargado, tomarMensajePrecargado, type MensajePrecargado } from "./mensaje";
+export { CUADROS as CUADROS_MASCOTA, DURACION_FOTO_MS as DURACION_FOTO_MASCOTA_MS, keyframesFoto as keyframesFotoMascota } from "./entrada";

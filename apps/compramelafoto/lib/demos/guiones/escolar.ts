@@ -142,7 +142,9 @@ export const GUION_ESCOLAR: Guion = {
       ],
       aclaracion: {
         titulo: "Todo esto lo configura el bot",
-        texto: "«Creá la escuela Los Aromos, con sala de 5 y 6º A, y cargá este Excel.»",
+        bot: true,
+        texto: "Le pedís lo que necesitás, en tus palabras, y DNX Bot lo hace por vos.",
+        chat: "Creá la escuela Los Aromos, con sala de 5 y 6º A, y cargá este Excel.",
         numerados: true,
         puntos: [
           { titulo: "Le pedís", texto: "En tus palabras, como a un asistente." },
@@ -486,6 +488,7 @@ export const GUION_ESCOLAR: Guion = {
       ],
       aclaracion: {
         titulo: "Sin listados ni cobros a mano",
+        bot: true,
         texto: "Todo el circuito escolar en un solo lugar, y configurable conversando con el bot.",
         puntos: [
           { titulo: "Página de venta propia", texto: "Los colegios te piden propuesta solos." },

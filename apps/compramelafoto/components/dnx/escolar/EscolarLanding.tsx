@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 
 import EscolarLeadForm from "@/components/dnx/escolar/EscolarLeadForm";
+import { AAIP_RNBD_URL } from "@/components/legal/AaipBadge";
 import type { EscolarBrand } from "@/lib/dnx-escolar/landing-brand";
 import {
   CUIDADO_SECTION_ID,
@@ -333,6 +334,44 @@ export default function EscolarLanding({ brand }: { brand: EscolarBrand }) {
                 </article>
               );
             })}
+          </div>
+          <div className="mt-6 flex flex-col gap-5 rounded-2xl border border-zinc-200 bg-white p-6 sm:flex-row sm:items-center">
+            <a
+              href={AAIP_RNBD_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="shrink-0 self-center rounded-lg transition-transform hover:scale-[1.03]"
+            >
+              <Image
+                src="/aaip-rnbd.png"
+                alt="AAIP — Registro Nacional de Bases de Datos Personales: ver la inscripción de ComprameLaFoto"
+                width={892}
+                height={669}
+                sizes="144px"
+                className="h-auto w-36 rounded-lg shadow-sm ring-1 ring-black/5"
+              />
+            </a>
+            <div>
+              <h3 className="text-base font-semibold">Protección de datos personales · Ley 25.326</h3>
+              <p className="mt-1.5 text-sm leading-relaxed text-zinc-700">
+                Los datos de alumnos y familias se guardan en una base inscripta por ComprameLaFoto en el Registro Nacional
+                de Bases de Datos Personales de la Agencia de Acceso a la Información Pública (AAIP), y se usan solo para
+                gestionar la preventa, la búsqueda y la entrega de las fotos. La selfie es un dato biométrico: se procesa
+                únicamente con el consentimiento expreso de la familia. Cada familia puede pedir en cualquier momento el
+                acceso, la rectificación o la supresión de sus datos.
+              </p>
+              <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm font-semibold">
+                <a href={AAIP_RNBD_URL} target="_blank" rel="noopener noreferrer" className="text-zinc-900 underline underline-offset-4">
+                  Ver la inscripción en argentina.gob.ar
+                </a>
+                <a href="/consentimiento-biometrico" className="text-zinc-900 underline underline-offset-4">
+                  Consentimiento biométrico
+                </a>
+                <a href="/privacidad/solicitud" className="text-zinc-900 underline underline-offset-4">
+                  Ejercer mis derechos
+                </a>
+              </p>
+            </div>
           </div>
           <p className="mt-6 text-sm text-zinc-600">
             El detalle completo está en la{" "}

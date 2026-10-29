@@ -1,7 +1,23 @@
 "use client";
 
 import Image from "next/image";
+import { CUADROS_MASCOTA, DURACION_FOTO_MASCOTA_MS, keyframesFotoMascota } from "@repo/dnx-bot/ui";
 import type { PasoGuion } from "@/lib/demos/guiones/tipos";
+
+/** La mascota de DNX Bot sacando una foto, en bucle (la misma tira que usa la burbuja del bot). */
+function MascotaBot() {
+  return (
+    <span className="relative block aspect-[291/400] w-[clamp(6rem,min(11vw,17vh),9.5rem)] shrink-0" aria-hidden>
+      <style>{`${keyframesFotoMascota()}
+.placa-mascota { animation: dnxbot-foto ${DURACION_FOTO_MASCOTA_MS}ms steps(1, end) infinite; }
+@media (prefers-reduced-motion: reduce) { .placa-mascota { animation: none; } }`}</style>
+      <span
+        className="placa-mascota absolute inset-0 bg-no-repeat"
+        style={{ backgroundImage: 'url("/dnx-bot/mascota-foto.webp")', backgroundSize: `${CUADROS_MASCOTA * 100}% 100%` }}
+      />
+    </span>
+  );
+}
 
 /** «3 · Preparar la venta» → número y nombre; las etapas sin número (Introducción, Cierre) no cuentan. */
 function partirEtapa(etapa: string): { numero: number | null; nombre: string } {
@@ -91,10 +107,20 @@ export default function PlacaPublico({
             </ol>
           ) : null}
 
-          <h2 className="mt-[clamp(1rem,3.5vh,2rem)] text-[clamp(1.75rem,min(4.2vw,6.2vh),3.5rem)] font-extrabold leading-[1.05] tracking-tight text-slate-900">
-            {placa.titulo}
-          </h2>
-          <p className="mt-3 max-w-3xl text-[clamp(1.05rem,min(1.7vw,2.6vh),1.5rem)] leading-snug text-slate-600">{placa.texto}</p>
+          <div className="mt-[clamp(1rem,3.5vh,2rem)] flex items-end justify-between gap-6">
+            <div className="min-w-0">
+              <h2 className="text-[clamp(1.75rem,min(4.2vw,6.2vh),3.5rem)] font-extrabold leading-[1.05] tracking-tight text-slate-900">
+                {placa.titulo}
+              </h2>
+              <p className="mt-3 max-w-3xl text-[clamp(1.05rem,min(1.7vw,2.6vh),1.5rem)] leading-snug text-slate-600">{placa.texto}</p>
+              {placa.chat ? (
+                <p className="mt-4 inline-block max-w-2xl rounded-2xl rounded-br-md bg-slate-900 px-5 py-3 text-[clamp(1rem,min(1.5vw,2.4vh),1.3rem)] font-medium leading-snug text-white shadow-lg">
+                  {placa.chat}
+                </p>
+              ) : null}
+            </div>
+            {placa.bot ? <MascotaBot /> : null}
+          </div>
 
           {puntos.length ? (
             <ul className={`mt-[clamp(1rem,3vh,1.75rem)] grid grid-cols-1 gap-3 ${columnas(puntos.length)}`}>

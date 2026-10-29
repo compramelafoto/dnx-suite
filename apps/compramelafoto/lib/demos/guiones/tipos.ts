@@ -46,6 +46,10 @@ export type PlacaPublico = {
   puntos?: Array<{ titulo: string; texto?: string }>;
   /** Puntos numerados (un proceso) o sueltos (ideas). Por defecto, sueltos. */
   numerados?: boolean;
+  /** Muestra la mascota de DNX Bot sacando una foto, en las placas que hablan del bot. */
+  bot?: boolean;
+  /** Ejemplo de mensaje al bot, dibujado como un globo de chat. */
+  chat?: string;
 };
 
 export type Guion = {
