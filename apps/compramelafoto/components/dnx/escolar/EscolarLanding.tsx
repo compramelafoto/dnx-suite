@@ -286,6 +286,11 @@ export default function EscolarLanding({ brand }: { brand: EscolarBrand }) {
               Un porcentaje acordado previamente con {brand.nombre}, sobre las ventas pagadas. El colegio lo ve en su panel
               y {brand.nombre} lo liquida según el acuerdo.
             </p>
+            <p className="mt-3 text-sm leading-relaxed text-zinc-700">
+              Si el colegio tiene cuenta de Mercado Pago, recibe su parte directamente en esa cuenta, a medida que las
+              familias pagan. {brand.nombre} cobra solo lo suyo, no la totalidad: las cuentas quedan más ordenadas para
+              los dos, también en lo fiscal.
+            </p>
           </article>
           <article className="rounded-2xl border border-zinc-200 bg-white p-6">
             <h3 className="text-base font-semibold">Procesador de pago</h3>
