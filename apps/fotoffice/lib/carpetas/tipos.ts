@@ -9,5 +9,7 @@ export type VistaCarpeta = {
   trabajo: string;
   cliente: string;
   vence: string | null;
+  /** El número de pedido que cargó el laboratorio (sólo en su enlace). */
+  numeroLaboratorio: string | null;
   archivos: (ArchivoVista & { descargar: string; ver: string | null })[];
 };

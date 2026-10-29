@@ -68,8 +68,10 @@ export const guia: Instructivo = {
     {
       titulo: "Anotá el número que te da el laboratorio",
       texto: [
-        "Cuando el laboratorio responda con su número de pedido, cargalo en «N° de pedido del proveedor» y tocá «Guardar». Sirve para reclamar o preguntar por el pedido.",
+        "El laboratorio puede cargarlo solo: en la página de descarga de los archivos tiene el campo «Tu número de pedido». Lo que anote aparece en «N° de pedido del proveedor» del trabajo.",
+        "Si te lo pasa por correo o WhatsApp, cargalo vos en «N° de pedido del proveedor» y tocá «Guardar». Sirve para reclamar o preguntar por el pedido.",
       ],
+      sistema: ["Cuando el laboratorio carga su número, deja una nota en el trabajo con el número."],
     },
     {
       titulo: "Cuando vuelve del laboratorio",
