@@ -50,6 +50,7 @@ import { dibujarYSubirFondos } from "./aplicar-estilo";
 import { SelectorEstilo } from "./selector-estilo";
 import { ArmadoAutomatico } from "./armado-automatico";
 import { VistaLibro } from "./vista-libro";
+import { RevisionClienteVentana, useRevisionCliente } from "./revision-cliente";
 import { revisarLibro } from "@/lib/fotolibro/modo/revision";
 import { conCuerpo, moverTexto, nuevoTexto } from "@/lib/fotolibro/modo/textos-libres";
 import { ordenarFotos } from "@/lib/fotolibro/modo/armado";
@@ -112,6 +113,8 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
   const [vistaLibro, setVistaLibro] = useState(false);
   const [textoElegido, setTextoElegido] = useState<string | null>(null);
   const [favoritas, setFavoritas] = useState<Favorita[]>([]);
+  const [viendoCliente, setViendoCliente] = useState(false);
+  const cliente = useRevisionCliente(templateId);
 
   // Las favoritas son de la persona (valen en todos sus libros): se traen una vez.
   useEffect(() => {
@@ -451,7 +454,7 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
   // ── Teclado ──
   useEffect(() => {
     const onKey = (ev: KeyboardEvent) => {
-      if (recortando || recortandoTapa || eligiendoEstilo || armando || esEditable(ev.target)) return;
+      if (recortando || recortandoTapa || eligiendoEstilo || armando || viendoCliente || esEditable(ev.target)) return;
       const tecla = ev.key.toLowerCase();
       if ((ev.metaKey || ev.ctrlKey) && (tecla === "y" || (tecla === "z" && ev.shiftKey))) {
         ev.preventDefault();
@@ -527,7 +530,7 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [recortando, recortandoTapa, caraTapa, eligiendoEstilo, armando, vistaLibro, pliego, seleccionTira, seleccionada, textoElegido, cambiarBloques, aplicar, deshacer, rehacer, irA]);
+  }, [recortando, recortandoTapa, caraTapa, eligiendoEstilo, armando, viendoCliente, vistaLibro, pliego, seleccionTira, seleccionada, textoElegido, cambiarBloques, aplicar, deshacer, rehacer, irA]);
 
   const fotosPorId = useMemo(() => new Map((estado?.fotos ?? []).map((f) => [f.id, f])), [estado]);
   const usos = useMemo(() => (estado ? usosPorFoto(estado) : new Map<string, number>()), [estado]);
@@ -588,6 +591,21 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
   return (
     <div className="flex h-full flex-col bg-[#18191b] text-white">
       <GoogleFontsLoader />
+      {viendoCliente ? (
+        <RevisionClienteVentana
+          templateId={templateId}
+          guardarAntes={async () => (ref.current.estado && guardado !== "al-dia" ? guardar() : true)}
+          onIr={(i) => {
+            setViendoCliente(false);
+            setVistaLibro(false);
+            irA(i);
+          }}
+          onCerrar={() => {
+            setViendoCliente(false);
+            void cliente.cargar();
+          }}
+        />
+      ) : null}
       {armando ? (
         <ArmadoAutomatico
           estado={estado}
@@ -626,6 +644,24 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
           </button>
         </span>
         <span className={`text-xs ${guardado === "error" ? "text-red-300" : "text-white/50"}`}>{estadoGuardado}</span>
+        <button
+          type="button"
+          onClick={() => setViendoCliente(true)}
+          title="Mandarle el libro al cliente para que lo comente y lo apruebe"
+          className="relative rounded border border-white/15 px-2.5 py-1 text-xs hover:bg-white/10"
+        >
+          Cliente
+          {(() => {
+            const r = cliente.datos?.revision;
+            if (!r) return null;
+            const pendientes = r.comentarios.filter((c) => !c.resuelto).length;
+            return r.estado === "aprobado" ? (
+              <span className="ml-1 text-emerald-300">✓</span>
+            ) : pendientes ? (
+              <span className="ml-1 rounded-full bg-amber-500 px-1.5 text-[10px] font-semibold text-black">{pendientes}</span>
+            ) : null;
+          })()}
+        </button>
         <button
           type="button"
           onClick={() => setVistaLibro((v) => !v)}
