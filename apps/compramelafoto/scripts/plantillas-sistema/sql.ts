@@ -52,14 +52,14 @@ ${vinculos.join(",\n")};`);
 ${archivos.join(",\n")};`);
 
   partes.push(`INSERT INTO "TemplateV2Publication" ("id", "templateId", "visibility", "reviewStatus", "reviewNotes", "reviewedByUserId", "reviewedAt", "publishedByUserId", "publishedAt", "createdAt", "updatedAt")
-VALUES (${lit(p.publicationId)}, ${t}, 'PUBLIC'::"TemplateV2Visibility", 'APPROVED'::"TemplateV2ReviewStatus", 'Plantilla de sistema: librito 30×20 cm.', ${OWNER}, NOW(), ${OWNER}, NOW(), NOW(), NOW())
+VALUES (${lit(p.publicationId)}, ${t}, 'PUBLIC'::"TemplateV2Visibility", 'APPROVED'::"TemplateV2ReviewStatus", ${lit(p.notaDeRevision ?? "Plantilla de sistema: librito 30×20 cm.")}, ${OWNER}, NOW(), ${OWNER}, NOW(), NOW(), NOW())
 ON CONFLICT ("templateId") DO UPDATE SET "visibility" = EXCLUDED."visibility", "reviewStatus" = EXCLUDED."reviewStatus", "reviewNotes" = EXCLUDED."reviewNotes", "updatedAt" = NOW();`);
   return partes.join("\n");
 }
 
 export function generarSql(plantillas: PlantillaSistema[]): string {
   return [
-    "-- Plantillas de sistema: libritos 30×20 cm para venta escolar (CompraMeLaFoto).",
+    "-- Plantillas de sistema para venta escolar (CompraMeLaFoto).",
     "-- Generado por apps/compramelafoto/scripts/plantillas-sistema/generar.ts. No editar a mano.",
     "-- Reemplazar {{OWNER_USER_ID}} (id del admin) y {{R2_BASE}} (URL pública del bucket, sin barra final).",
     "-- Antes de correrlo, subir los fondos JPG a template-v2/sistema/<archivo> en R2.",

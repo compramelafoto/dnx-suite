@@ -83,6 +83,23 @@ export {
   type CourseMosaicCell,
   type CourseMosaicOptions,
   type CourseMosaicStudent,
+  CALENDAR_VARIABLE_KEY,
+  CALENDAR_YEAR_VARIABLE_KEY,
+  CALENDAR_MONTH_NAMES,
+  CALENDAR_MONTH_NAME_SCALE_MAX,
+  CALENDAR_MONTH_NAME_SCALE_MIN,
+  DEFAULT_CALENDAR_OPTIONS,
+  defaultCalendarYear,
+  isCalendarConfig,
+  layoutCalendar,
+  parseCalendarYear,
+  readCalendarOptions,
+  type CalendarCell,
+  type CalendarOptions,
+  TEMPLATE_DATA_FIELDS,
+  applyTemplateData,
+  readTemplateData,
+  type TemplateDataField,
 } from "@repo/template-engine";
 export * from "./clamp-block-position";
 export * from "./create-default-blocks";

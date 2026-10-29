@@ -38,7 +38,8 @@ export type FilaAsset = {
 };
 
 export type PlantillaSistema = {
-  modelo: Modelo;
+  /** El modelo de librito, o lo mínimo de un producto (diploma, calendario…). */
+  modelo: Pick<Modelo, "slug" | "serie"> & { filtros?: { orientacion?: "vertical" | "horizontal" } };
   templateId: string;
   versionId: string;
   publicationId: string;
@@ -49,7 +50,11 @@ export type PlantillaSistema = {
   bloques: FilaBloque[];
   bindings: FilaBinding[];
   assets: FilaAsset[];
-  fondos: Array<{ archivo: string; pagina: "exterior" | "interior" | "plancha"; svg: () => string }>;
+  fondos: Array<{ archivo: string; pagina: string; svg: () => string }>;
+  /** La nota de la publicación (por defecto, la de los libritos). */
+  notaDeRevision?: string;
+  /** Tamaño en píxeles de cada fondo (por defecto, el del librito). */
+  tamFondo?: { w: number; h: number };
 };
 
 export const ids = (slug: string) => {
@@ -107,32 +112,7 @@ export function definirPlantilla(modelo: Modelo): PlantillaSistema {
     configJson: b.configJson,
   }));
 
-  // Los huecos de foto llevan su vínculo `src` → variable, igual que los guarda el editor.
-  const claveDeFoto = new Map<string, (typeof FOTOS)[keyof typeof FOTOS]>(Object.values(FOTOS).map((f) => [f.variableKey, f]));
-  const bindings: FilaBinding[] = bloques
-    .filter((b) => b.type === "IMAGE")
-    .map((b) => ({ b, key: String((b.configJson.source as { variableKey?: string })?.variableKey ?? "") }))
-    .filter(({ key }) => claveDeFoto.has(key))
-    .map(({ b, key }, i) => ({ id: `vb-${versionId}-${i + 1}`, blockId: b.id, targetPath: "src", variableKey: key }));
-
-  // El logo del colegio lleva el mismo vínculo `src` que le pone el editor al elegir «Logo escuela».
-  for (const b of bloques) {
-    const key = String((b.configJson.source as { variableKey?: string })?.variableKey ?? "");
-    if (b.type === "IMAGE" && key === VARIABLE_LOGO) {
-      bindings.push({ id: `vb-${versionId}-${b.id.slice(versionId.length + 1)}`, blockId: b.id, targetPath: "src", variableKey: key });
-    }
-  }
-
-  // Lo que se le pide a la familia: una entrada por foto distinta, en el orden en que la elige.
-  const orden = Object.values(FOTOS).map((f) => f.variableKey as string);
-  const fotos = [...new Set(bindings.map((b) => b.variableKey).filter((k) => claveDeFoto.has(k)))].sort((x, y) => orden.indexOf(x) - orden.indexOf(y));
-  const photoInputs = fotos.map((key) => {
-    const f = claveDeFoto.get(key)!;
-    const primera = bloques.find((b) => bindings.some((v) => v.blockId === b.id && v.variableKey === key))!;
-    // El modelo puede nombrar la foto a su manera («Foto con la catequista» en vez de «con la maestra»).
-    const rol = (Object.keys(FOTOS) as RolFoto[]).find((r) => FOTOS[r].variableKey === key)!;
-    return { slotKey: key, label: modelo.etiquetasDeFotos?.[rol] ?? f.nombre, pageIndex: primera.pageIndex, role: f.rolMeta };
-  });
+  const { bindings, fotos, photoInputs } = vinculosYFotos(versionId, bloques, modelo.etiquetasDeFotos);
   if (!modelo.filtros && (!fotos.includes("photo_individual") || !fotos.includes("photo_group"))) {
     throw new Error(`${modelo.slug}: faltan los huecos de foto individual y grupal.`);
   }
@@ -186,8 +166,46 @@ export function definirPlantilla(modelo: Modelo): PlantillaSistema {
   };
 }
 
+/**
+ * Los vínculos de las imágenes (fotos de la familia y logo del colegio) y lo que se le pide a la
+ * familia (`photoInputs`). Lo comparten los libritos y los demás productos.
+ */
+export function vinculosYFotos(
+  versionId: string,
+  bloques: FilaBloque[],
+  etiquetasDeFotos?: Partial<Record<RolFoto, string>>,
+): { bindings: FilaBinding[]; fotos: string[]; photoInputs: Array<Record<string, unknown>> } {
+  // Los huecos de foto llevan su vínculo `src` → variable, igual que los guarda el editor.
+  const claveDeFoto = new Map<string, (typeof FOTOS)[keyof typeof FOTOS]>(Object.values(FOTOS).map((f) => [f.variableKey, f]));
+  const bindings: FilaBinding[] = bloques
+    .filter((b) => b.type === "IMAGE")
+    .map((b) => ({ b, key: String((b.configJson.source as { variableKey?: string })?.variableKey ?? "") }))
+    .filter(({ key }) => claveDeFoto.has(key))
+    .map(({ b, key }, i) => ({ id: `vb-${versionId}-${i + 1}`, blockId: b.id, targetPath: "src", variableKey: key }));
+
+  // El logo del colegio lleva el mismo vínculo `src` que le pone el editor al elegir «Logo escuela».
+  for (const b of bloques) {
+    const key = String((b.configJson.source as { variableKey?: string })?.variableKey ?? "");
+    if (b.type === "IMAGE" && key === VARIABLE_LOGO) {
+      bindings.push({ id: `vb-${versionId}-${b.id.slice(versionId.length + 1)}`, blockId: b.id, targetPath: "src", variableKey: key });
+    }
+  }
+
+  // Lo que se le pide a la familia: una entrada por foto distinta, en el orden en que la elige.
+  const orden = Object.values(FOTOS).map((f) => f.variableKey as string);
+  const fotos = [...new Set(bindings.map((b) => b.variableKey).filter((k) => claveDeFoto.has(k)))].sort((x, y) => orden.indexOf(x) - orden.indexOf(y));
+  const photoInputs = fotos.map((key) => {
+    const f = claveDeFoto.get(key)!;
+    const primera = bloques.find((b) => bindings.some((v) => v.blockId === b.id && v.variableKey === key))!;
+    // El modelo puede nombrar la foto a su manera («Foto con la catequista» en vez de «con la maestra»).
+    const rol = (Object.keys(FOTOS) as RolFoto[]).find((r) => FOTOS[r].variableKey === key)!;
+    return { slotKey: key, label: etiquetasDeFotos?.[rol] ?? f.nombre, pageIndex: primera.pageIndex, role: f.rolMeta };
+  });
+  return { bindings, fotos, photoInputs };
+}
+
 /** La caja que ocupa un bloque girado sobre su centro. */
-function caja(b: FilaBloque) {
+export function caja(b: FilaBloque) {
   const a = (b.rotation * Math.PI) / 180;
   const c = Math.abs(Math.cos(a));
   const s = Math.abs(Math.sin(a));

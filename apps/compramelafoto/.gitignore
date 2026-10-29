@@ -9,3 +9,4 @@ node_modules/
 **/._*
 lib/design-v2/pantalla-vs-pdf/salida/
 scripts/plantillas-sistema/salida/
+scripts/plantillas-sistema/salida-productos/

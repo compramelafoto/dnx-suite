@@ -1,6 +1,8 @@
 import type { TemplateVariableDefinition } from "../../variables/types";
 import { CLASS_LIST_SAMPLE_GROUPS, CLASS_LIST_VARIABLE_KEY, serializeClassListGroups } from "./class-list";
 import { COURSE_MOSAIC_SAMPLE, COURSE_MOSAIC_VARIABLE_KEY, serializeCourseMosaic } from "./course-mosaic";
+import { CALENDAR_VARIABLE_KEY, CALENDAR_YEAR_VARIABLE_KEY } from "./calendar";
+import { DIPLOMA_DATE_VARIABLE_KEY, DIPLOMA_REASON_VARIABLE_KEY, DIPLOMA_TITLE_VARIABLE_KEY } from "./template-data";
 
 /** Cuántos huecos de "foto del cliente" ofrece el catálogo: `photo_1` … `photo_12`. */
 export const SCHOOL_CLIENT_PHOTO_SLOT_COUNT = 12;
@@ -254,6 +256,77 @@ export const SCHOOL_TEMPLATE_VARIABLE_DEFINITIONS: TemplateVariableDefinition[] 
     defaultFallback: null,
     group: "course",
     groupLabel: "Curso",
+  },
+  /*
+   * Datos de la plantilla (ver `template-data.ts`): el fotógrafo los escribe una vez y quedan
+   * como texto de respaldo del bloque. Sin ejemplo a propósito: así el editor y las vistas de
+   * ejemplo muestran lo que escribió el fotógrafo y no un texto de muestra.
+   */
+  {
+    path: DIPLOMA_TITLE_VARIABLE_KEY,
+    label: "Diploma - Título",
+    description: "El título del diploma («Diploma de honor»). Se escribe en «Datos de la plantilla».",
+    valueType: "text",
+    required: false,
+    example: "",
+    formatters: ["none", "uppercase", "titleCase", "truncate"],
+    usableIn: ["TEXT"],
+    defaultFallback: "Diploma",
+    group: "diploma",
+    groupLabel: "Diploma",
+  },
+  {
+    path: DIPLOMA_REASON_VARIABLE_KEY,
+    label: "Diploma - Motivo",
+    description: "Por qué se entrega el diploma. Se escribe en «Datos de la plantilla».",
+    valueType: "text",
+    required: false,
+    example: "",
+    formatters: ["none", "uppercase", "titleCase", "truncate"],
+    usableIn: ["TEXT"],
+    defaultFallback: "",
+    group: "diploma",
+    groupLabel: "Diploma",
+  },
+  {
+    path: DIPLOMA_DATE_VARIABLE_KEY,
+    label: "Diploma - Fecha",
+    description: "La fecha del diploma, como se tiene que leer. Se escribe en «Datos de la plantilla».",
+    valueType: "text",
+    required: false,
+    example: "",
+    formatters: ["none", "uppercase", "titleCase", "truncate"],
+    usableIn: ["TEXT"],
+    defaultFallback: "",
+    group: "diploma",
+    groupLabel: "Diploma",
+  },
+  {
+    path: CALENDAR_YEAR_VARIABLE_KEY,
+    label: "Calendario - Año",
+    description: "El año del calendario, para los títulos. Se elige en «Datos de la plantilla».",
+    valueType: "text",
+    required: false,
+    example: "",
+    formatters: ["none"],
+    usableIn: ["TEXT"],
+    defaultFallback: "",
+    group: "calendar",
+    groupLabel: "Calendario",
+  },
+  {
+    path: CALENDAR_VARIABLE_KEY,
+    label: "Calendario - Meses y días",
+    description: "Para el bloque «Calendario»: un mes o el año entero, con los días de ese año.",
+    valueType: "text",
+    required: false,
+    example: "",
+    formatters: ["none"],
+    // Como el listado: no es un texto para insertar, lo dibuja su propio bloque.
+    usableIn: ["LIST"],
+    defaultFallback: null,
+    group: "calendar",
+    groupLabel: "Calendario",
   },
   {
     path: "order.referenceShort",

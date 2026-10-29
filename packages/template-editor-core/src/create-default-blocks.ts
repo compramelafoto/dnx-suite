@@ -1,6 +1,11 @@
 import {
   CLASS_LIST_VARIABLE_KEY,
   COURSE_MOSAIC_VARIABLE_KEY,
+  CALENDAR_VARIABLE_KEY,
+  DEFAULT_CALENDAR_OPTIONS,
+  defaultCalendarYear,
+  isCalendarConfig,
+  readCalendarOptions,
   DEFAULT_CLASS_LIST_OPTIONS,
   DEFAULT_COURSE_MOSAIC_OPTIONS,
 } from "@repo/template-engine";
@@ -290,6 +295,49 @@ export function createDefaultCourseMosaicBlock(
       textAlign: "CENTER",
       color: "#334155",
       courseMosaic: { ...DEFAULT_COURSE_MOSAIC_OPTIONS },
+    },
+  };
+}
+
+/**
+ * «Calendario»: los doce meses del año que viene (o el actual, antes de septiembre), con los
+ * días donde caen. El año se cambia en «Datos de la plantilla».
+ */
+export function createDefaultCalendarBlock(
+  canvas: TemplateV2Canvas,
+  blocks: TemplateV2Block[],
+  pageIndex = 0,
+  opts: {
+    /** Todos los bloques de la plantilla (de todas las páginas), para tomar el año de otro calendario. */
+    allBlocks?: TemplateV2Block[];
+    now?: Date;
+  } = {}
+): TemplateV2Block {
+  const w = Math.max(200, Math.round(canvas.width * 0.8));
+  const h = Math.max(160, Math.round(canvas.height * 0.5));
+  const { x, y, zIndex } = placeBlock({ canvas, blocks, width: w, height: h });
+  // El año que ya usa otro calendario de la plantilla, así quedan todos iguales.
+  const otro = (opts.allBlocks ?? blocks).find((b) => isCalendarConfig(b.configJson));
+  const now = opts.now ?? new Date();
+  const year = otro ? readCalendarOptions(otro.configJson).year : defaultCalendarYear(now);
+  return {
+    id: newBlockId(),
+    type: "VARIABLE_TEXT",
+    pageIndex,
+    name: "Calendario",
+    layout: { x, y, width: w, height: h, rotation: 0, zIndex, opacity: 1, locked: false, visible: true },
+    configJson: {
+      variableKey: CALENDAR_VARIABLE_KEY,
+      fallback: "",
+      fontFamily: "Helvetica",
+      fontSize: 28,
+      fontWeight: 400,
+      lineHeight: 1.2,
+      letterSpacing: 0,
+      textAlign: "CENTER",
+      textTransform: "uppercase",
+      color: "#334155",
+      calendar: { ...DEFAULT_CALENDAR_OPTIONS, year },
     },
   };
 }

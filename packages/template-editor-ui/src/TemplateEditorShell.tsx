@@ -65,6 +65,7 @@ import {
   editorResolvedVariablesForProduct,
   createDefaultClassListBlock,
   createDefaultCourseMosaicBlock,
+  createDefaultCalendarBlock,
   createDefaultVariableTextBlock,
 } from "@repo/template-editor-core";
 import { asObject } from "@repo/template-editor-core";
@@ -583,6 +584,12 @@ export function TemplateEditorShell({
     const ap = state.activePageIndex ?? 0;
     const onPage = state.blocks.filter((b) => (b.pageIndex ?? 0) === ap);
     dispatch(addBlock(createDefaultCourseMosaicBlock(state.canvas, onPage, ap)));
+  }
+  function handleAddCalendar() {
+    setCanvasTool("select");
+    const ap = state.activePageIndex ?? 0;
+    const onPage = state.blocks.filter((b) => (b.pageIndex ?? 0) === ap);
+    dispatch(addBlock(createDefaultCalendarBlock(state.canvas, onPage, ap, { allBlocks: state.blocks })));
   }
   function handleAddShape() {
     setCanvasTool("select");
@@ -1657,6 +1664,15 @@ export function TemplateEditorShell({
                     <rect x="9.5" y="10" width="5" height="5" rx="1" />
                     <rect x="16" y="10" width="5" height="5" rx="1" />
                     <path d="M4 19h3M10.5 19h3M17 19h3" strokeLinecap="round" />
+                  </svg>
+                </EditorToolButton>
+              ) : null}
+              {producto === "school" ? (
+                <EditorToolButton label="Calendario" onClick={handleAddCalendar}>
+                  <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                    <rect x="3" y="5" width="18" height="16" rx="2" />
+                    <path d="M3 10h18M8 3v4M16 3v4" strokeLinecap="round" />
+                    <path d="M7 14h2M11 14h2M15 14h2M7 17h2M11 17h2" strokeLinecap="round" />
                   </svg>
                 </EditorToolButton>
               ) : null}

@@ -64,7 +64,7 @@ import {
   type TemplateV2EditorDispatch,
   type TemplateV2EditorState,
 } from "@repo/template-editor-core";
-import { TEMPLATE_V2_EDITOR_RESOLVED_VARIABLES, isClassListConfig, isCourseMosaicConfig } from "@repo/template-editor-core";
+import { TEMPLATE_V2_EDITOR_RESOLVED_VARIABLES, isCalendarConfig, isClassListConfig, isCourseMosaicConfig } from "@repo/template-editor-core";
 import {
   notifyTemplateTextEditingBlockId,
   registerTemplateTextInsert,
@@ -1288,7 +1288,8 @@ export function TemplateEditorCanvas({
               const isTextKind =
                 (b.type === "TEXT" || b.type === "VARIABLE_TEXT") &&
                 !isClassListConfig(b.configJson) &&
-                !isCourseMosaicConfig(b.configJson);
+                !isCourseMosaicConfig(b.configJson) &&
+                !isCalendarConfig(b.configJson);
               return (
               <button
                 key={`hit-${b.id}`}
@@ -1781,6 +1782,7 @@ export function TemplateEditorCanvas({
                             (primaryBlock.type === "TEXT" || primaryBlock.type === "VARIABLE_TEXT") &&
                             !isClassListConfig(primaryBlock.configJson) &&
                             !isCourseMosaicConfig(primaryBlock.configJson) &&
+                            !isCalendarConfig(primaryBlock.configJson) &&
                             !isResizeEdge(h.key);
                           const nb = normalizeBlockConfig(primaryBlock.type, primaryBlock.configJson) as {
                             fontSize?: number;

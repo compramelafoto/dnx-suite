@@ -4,12 +4,14 @@ import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import type { DesignTemplatePayload } from "@/lib/design-v2/client-payload";
 import { visibleDesignBlocks } from "@/lib/design-v2/render-inputs";
+import { isBookTemplate } from "@/lib/design-v2/book-leaves";
+import VistaPlanaDemo from "./VistaPlanaDemo";
 
 /**
  * «Ver en 3D» del catálogo de plantillas: la plantilla terminada, como la recibiría una familia,
  * con fotos, nombres, curso, colegio, compañeros y logo de demo. Usa el mismo visor 3D que el
  * canje del librito (`Librito3DVisor`); acá sólo se arman los datos de demo y se suma el botón
- * para usar la plantilla.
+ * para usar la plantilla. Lo que no se dobla (un diploma, un calendario) se ve plano.
  */
 
 type Demo = {
@@ -115,6 +117,34 @@ export default function VistaDemoPlantilla3D({
   }
   if (!demo) return <Cargando texto="Preparando la plantilla…" />;
 
+  const usar = onUsar ? (
+    <button
+      type="button"
+      onClick={onUsar}
+      disabled={usando}
+      className="min-h-11 rounded-full bg-[#c27b3d] px-6 text-[15px] font-semibold text-white shadow-sm disabled:opacity-60"
+    >
+      {usando ? "Copiando a tus plantillas…" : "Usar y personalizar"}
+    </button>
+  ) : null;
+
+  if (!isBookTemplate(demo.template)) {
+    return (
+      <VistaPlanaDemo
+        titulo={nombre || demo.template.name || "Plantilla"}
+        subtitulo="Con fotos y datos de ejemplo"
+        canvas={demo.template.canvas}
+        blocks={bloques}
+        values={demo.values}
+        photoOverrides={fotos}
+        pageCount={Math.max(1, demo.template.pageCount)}
+        pageLabels={demo.template.pageLabels}
+        onClose={onClose}
+        acciones={usar}
+      />
+    );
+  }
+
   return (
     <Librito3DVisor
       titulo={nombre || demo.template.name || "Plantilla"}
@@ -126,18 +156,7 @@ export default function VistaDemoPlantilla3D({
       pageCount={Math.max(1, demo.template.pageCount)}
       giro={0}
       onClose={onClose}
-      acciones={
-        onUsar ? (
-          <button
-            type="button"
-            onClick={onUsar}
-            disabled={usando}
-            className="min-h-11 rounded-full bg-[#c27b3d] px-6 text-[15px] font-semibold text-white shadow-sm disabled:opacity-60"
-          >
-            {usando ? "Copiando a tus plantillas…" : "Usar y personalizar"}
-          </button>
-        ) : null
-      }
+      acciones={usar}
     />
   );
 }
