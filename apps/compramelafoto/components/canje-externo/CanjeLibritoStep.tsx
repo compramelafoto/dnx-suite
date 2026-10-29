@@ -593,11 +593,21 @@ function CambiarFoto({
   onPick: (otherPlace: number) => void;
 }) {
   const kind = plan.slots[place].kind;
+  // ¿La foto ya está en otro lugar de ese beneficio? Con el cambio quedaría repetida ahí.
+  const repetidaEn = (benefitKey: string, pid: number | null, sinContar: number) =>
+    pid != null && filled.some((x, i) => i !== sinContar && x === pid && plan.slots[i].benefitKey === benefitKey);
   // Sólo las fotos que ya eligió la familia, y que se puedan cambiar de lugar sin romper el formato.
   const candidatas = filled
     .map((pid, i) => ({ pid, i }))
     .filter((x): x is { pid: number; i: number } => x.pid != null)
-    .filter((x) => x.i === place || (fits(kind, photos.get(x.pid)) && fits(plan.slots[x.i].kind, photos.get(filled[place] ?? -1))));
+    .filter(
+      (x) =>
+        x.i === place ||
+        (fits(kind, photos.get(x.pid)) &&
+          fits(plan.slots[x.i].kind, photos.get(filled[place] ?? -1)) &&
+          !repetidaEn(plan.slots[place].benefitKey, x.pid, x.i) &&
+          !repetidaEn(plan.slots[x.i].benefitKey, filled[place], place))
+    );
   const facesById = new Map(candidatas.map((c) => [c.pid, photos.get(c.pid)?.faces ?? null]));
   const { ids, filtered } = verTodas
     ? { ids: candidatas.map((c) => c.pid), filtered: false }
