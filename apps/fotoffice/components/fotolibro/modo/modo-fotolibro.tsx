@@ -57,6 +57,7 @@ import { PanelLateral } from "./panel-lateral";
 import { PliegoVista } from "./pliego-vista";
 import { TiraFotos } from "./tira-fotos";
 import { confirmarOriginalesEnServidor, subirFoto } from "./subir-fotos";
+import { detectarCarasDeUrl } from "./detectar-caras";
 
 type Props = {
   templateId: string;
@@ -266,7 +267,8 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
     setBloques((prev) =>
       prev.map((b) => {
         if (b.id !== blockId) return b;
-        const { crop: _viejo, ...resto } = b.configJson;
+        // Encuadrar a mano deja de ser automático: ya no se recalcula con las caras.
+        const { crop: _viejo, cropAuto: _auto, ...resto } = b.configJson;
         return { ...b, configJson: crop ? { ...resto, crop } : resto };
       }),
     );
@@ -386,6 +388,32 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
     },
     [templateId, aplicar, seguirConOriginales],
   );
+
+  // Fotos subidas antes del encuadre por caras: se buscan de fondo, de a una, sin apurar a nadie.
+  const buscandoCaras = useRef(false);
+  useEffect(() => {
+    if (!estado || buscandoCaras.current) return;
+    const pendientes = estado.fotos.filter((f) => f.caras === undefined).map((f) => ({ id: f.id, vista: f.vista }));
+    if (!pendientes.length) return;
+    buscandoCaras.current = true;
+    void (async () => {
+      for (const p of pendientes) {
+        const caras = await detectarCarasDeUrl(p.vista);
+        // Si no se pudo buscar (sin internet, sin permiso para leer la imagen), se deja para la
+        // próxima vez que se abra el libro: no se reintenta en cada cambio.
+        if (caras === null) return;
+        aplicarSinHistoria((e) => ({ ...e, fotos: e.fotos.map((f) => (f.id === p.id ? { ...f, caras } : f)) }));
+        // Con caras nuevas, el encuadre automático de esa foto se recalcula al regenerar.
+        const { cargado: c, estado: e, bloques: b } = ref.current;
+        if (c && e && caras.length) {
+          const nuevos = generarBloques(e, c.canvas, b);
+          ref.current = { cargado: c, estado: e, bloques: nuevos };
+          setBloques(nuevos);
+        }
+      }
+      buscandoCaras.current = false;
+    })();
+  }, [estado, aplicarSinHistoria]);
 
   // Al abrir: originales que quedaron a mitad de camino (se cerró la pestaña). Se revisan una vez.
   const revisados = useRef(false);

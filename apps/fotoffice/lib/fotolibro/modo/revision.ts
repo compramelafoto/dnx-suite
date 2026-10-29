@@ -1,6 +1,7 @@
 import type { TemplateV2Block } from "@repo/template-editor-core";
 import { esBloqueAutomatico, type Lienzo } from "./bloques";
 import { fotosSinOriginal, ladosDe, type EstadoFotolibro } from "./estado";
+import { carasEnLienzo } from "./caras";
 
 /**
  * La revisión antes de mandar el libro al laboratorio: lo que suele salir mal y se descubre
@@ -17,6 +18,8 @@ export type Problema = {
 /** Debajo de esto se nota que la foto está estirada; debajo del mínimo, se ve pixelada. */
 export const PPP_BIEN = 200;
 export const PPP_MINIMO = 120;
+/** Media franja del lomo donde una cara se pierde en el doblez (mm a cada lado del centro). */
+const LOMO_MM = 8;
 /** Distancia mínima al borde de corte para un texto (mm): menos, y la guillotina se lo come. */
 const MARGEN_TEXTO_MM = 5;
 
@@ -74,6 +77,13 @@ export function revisarLibro(estado: EstadoFotolibro, bloques: readonly Template
             texto: `Pliego ${pliego + 1}: «${foto.nombre || "una foto"}» sale a ${ppp} ppp${ppp < PPP_MINIMO ? " y se va a ver pixelada" : ""}. Achicá su marco, sacale zoom o usá otra.`,
           });
         }
+      }
+      // Una cara en el doblez se pierde, aunque la foto sea grande a propósito.
+      if (foto?.caras?.length) {
+        const franja = (LOMO_MM * dpi) / 25.4;
+        const crop = (b.configJson.crop as { zoom: number; x: number; y: number } | undefined) ?? null;
+        const enLomo = carasEnLienzo(foto.caras, b.layout, foto.w / foto.h, crop).some((c) => c.x < medio + franja && c.x + c.w > medio - franja);
+        if (enLomo) out.push({ nivel: "aviso", pliego, texto: `Pliego ${pliego + 1}: una cara queda en el doblez del lomo. Corré la foto (doble clic) o probá otra distribución.` });
       }
       // Una foto chica partida por el doblez pierde lo del medio; las grandes, a propósito, no.
       if (x < medio - 2 && x + w > medio + 2 && w < lienzo.width * 0.6) {

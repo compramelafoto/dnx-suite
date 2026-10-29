@@ -19,6 +19,11 @@ export type FotoDelLibro = {
   /** Cuándo se sacó, como lo guardó la cámara ("2026-10-12T21:33:05"), para ordenar. */
   tomada?: string;
   /**
+   * Las caras de la foto, en proporción de la foto (0 a 1), para el encuadre inteligente. Una
+   * lista vacía quiere decir "se buscó y no hay"; sin el campo, todavía no se buscó.
+   */
+  caras?: { x: number; y: number; w: number; h: number }[];
+  /**
    * Mientras el original sigue subiendo de fondo: su clave en el almacenamiento, para confirmarlo.
    * Una foto con esto todavía no se puede mandar a imprimir.
    */
@@ -118,6 +123,15 @@ const esObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 
 const num = (v: unknown, d: number) => (typeof v === "number" && Number.isFinite(v) ? v : d);
 const txt = (v: unknown) => (typeof v === "string" ? v : "");
 
+/** Caras válidas (dentro de la foto), hasta 30. */
+export function leerCaras(raw: unknown[]): { x: number; y: number; w: number; h: number }[] {
+  return raw
+    .filter((c): c is Record<string, number> => esObj(c) && ["x", "y", "w", "h"].every((k) => typeof c[k] === "number" && Number.isFinite(c[k])))
+    .map((c) => ({ x: c.x!, y: c.y!, w: c.w!, h: c.h! }))
+    .filter((c) => c.w > 0 && c.h > 0 && c.x >= -0.05 && c.y >= -0.05 && c.x + c.w <= 1.05 && c.y + c.h <= 1.05)
+    .slice(0, 30);
+}
+
 function leerFoto(raw: unknown): FotoDelLibro | null {
   if (!esObj(raw)) return null;
   const id = txt(raw.id);
@@ -135,6 +149,7 @@ function leerFoto(raw: unknown): FotoDelLibro | null {
     nombre: txt(raw.nombre),
     ...(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(txt(raw.tomada)) ? { tomada: txt(raw.tomada) } : {}),
     ...(txt(raw.claveOriginal) ? { claveOriginal: txt(raw.claveOriginal) } : {}),
+    ...(Array.isArray(raw.caras) ? { caras: leerCaras(raw.caras) } : {}),
     ...(raw.faltaOriginal === true ? { faltaOriginal: true } : {}),
   };
 }

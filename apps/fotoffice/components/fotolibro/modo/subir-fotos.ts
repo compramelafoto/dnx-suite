@@ -2,6 +2,8 @@
 
 import type { FotoDelLibro } from "@/lib/fotolibro/modo/estado";
 import { BYTES_EXIF, fechaDeToma } from "@/lib/fotolibro/modo/exif";
+import type { Cara } from "@/lib/fotolibro/modo/caras";
+import { detectarCaras } from "./detectar-caras";
 
 /**
  * Subida de las fotos del fotolibro, del lado del navegador.
@@ -45,15 +47,15 @@ async function aJpeg(bitmap: ImageBitmap, ladoMax: number, calidad: number): Pro
  * la respeta, pero el PDF de impresión no: la foto saldría acostada y deformada. Por eso, si la foto
  * viene girada, el original se vuelve a guardar derecho antes de subirlo.
  */
-async function prepararVersiones(archivo: File): Promise<{ original: Blob; vista: Blob; mini: Blob; w: number; h: number }> {
+async function prepararVersiones(archivo: File): Promise<{ original: Blob; vista: Blob; mini: Blob; w: number; h: number; caras: Cara[] | null }> {
   const derecha = await createImageBitmap(archivo, { imageOrientation: "from-image" });
   const cruda = await createImageBitmap(archivo, { imageOrientation: "none" });
   const girada = cruda.width !== derecha.width || cruda.height !== derecha.height;
   cruda.close();
   try {
     const original = girada ? await aJpeg(derecha, Number.MAX_SAFE_INTEGER, 0.95) : archivo;
-    const [vista, mini] = await Promise.all([aJpeg(derecha, LADO_VISTA, 0.85), aJpeg(derecha, LADO_MINI, 0.8)]);
-    return { original, vista, mini, w: derecha.width, h: derecha.height };
+    const [vista, mini, caras] = await Promise.all([aJpeg(derecha, LADO_VISTA, 0.85), aJpeg(derecha, LADO_MINI, 0.8), detectarCaras(derecha)]);
+    return { original, vista, mini, w: derecha.width, h: derecha.height, caras };
   } finally {
     derecha.close();
   }
@@ -135,6 +137,7 @@ export async function subirFoto(templateId: string, archivo: File): Promise<Foto
       mini: permiso("mini").key,
       originalPendiente: true,
       tomada,
+      ...(v.caras ? { caras: v.caras } : {}),
       w: v.w,
       h: v.h,
       nombre: archivo.name.replace(/\.[^.]+$/, ""),

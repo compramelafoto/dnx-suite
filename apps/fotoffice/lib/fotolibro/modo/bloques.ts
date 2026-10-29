@@ -2,6 +2,7 @@ import type { TemplateV2Block } from "@repo/template-editor-core";
 import { acomodar, type Caja } from "./maquetar";
 import { ladosDe, type EstadoFotolibro, type FotoDelLibro, type Lado, type LadoPliego } from "./estado";
 import { cantidadDeDisenos, disenoDePliego, type Zonas } from "./disenos";
+import { encuadreParaCaras } from "./caras";
 import { estiloPorId } from "@/lib/fotolibro/estilos/catalogo";
 import { tipoDePliego, type EstiloFotolibro } from "@/lib/fotolibro/estilos/tipos";
 import { cajaDeFotos } from "@/lib/fotolibro/estilos/vista-previa";
@@ -184,7 +185,7 @@ export function generarBloques(
             fotoId,
             fotolibroAuto: true,
             ...(estilo?.esquinasMm ? { borderRadius: pxDeMm(estilo.esquinasMm, lienzo.dpi ?? 300) } : {}),
-            ...(previo?.configJson.crop ? { crop: previo.configJson.crop } : {}),
+            ...encuadreDe(previo, foto, dentro),
           },
         });
       });
@@ -314,4 +315,14 @@ export function marcosEnProporcion(bloques: readonly TemplateV2Block[], pliego: 
       const l = (porId.get(b.id.replace(/^fl-/, "fl-borde-")) ?? b).layout;
       return { x: l.x / lienzo.width, y: l.y / lienzo.height, w: l.width / lienzo.width, h: l.height / lienzo.height };
     });
+}
+
+/**
+ * El encuadre de una foto al regenerar sus bloques: el que hizo alguien a mano se respeta; si no
+ * hay (o era automático), se centran las caras en el marco nuevo.
+ */
+function encuadreDe(previo: TemplateV2Block | undefined, foto: FotoDelLibro, marco: Caja): Record<string, unknown> {
+  if (previo?.configJson.crop && previo.configJson.cropAuto !== true) return { crop: previo.configJson.crop };
+  const auto = foto.caras?.length ? encuadreParaCaras(foto.caras, marco.w, marco.h, foto.w / foto.h) : null;
+  return auto ? { crop: auto, cropAuto: true } : {};
 }
