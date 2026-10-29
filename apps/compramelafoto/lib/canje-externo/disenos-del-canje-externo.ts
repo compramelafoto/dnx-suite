@@ -7,7 +7,8 @@ import {
   type RedeemUnitSelectionInput,
 } from "@/lib/preventa-canjeable/preventa-pack-snapshot-v1";
 import { parseExternalPreventaRefs, type ExternalPreventaRefs } from "./external-preventa";
-import { valoresDelPackExternoDesdePacks } from "./valores-del-pack-externo";
+import { cursoComparable, valoresDelPackExternoDesdePacks } from "./valores-del-pack-externo";
+import { urlDeVistaDelRetrato } from "@/lib/mosaico/retratos";
 import { prepararRevisionDelCanje } from "@/lib/revision-de-impresion/en-el-canje";
 import type { RevisionPedida } from "@/lib/revision-de-impresion/revision-del-canje";
 
@@ -34,9 +35,30 @@ export async function valoresDelPackExterno(input: {
         select: { redemptionPaymentRefsJson: true },
       })
     : [];
+  const curso = input.externo.courseName ? cursoComparable(input.externo.courseName) : null;
+  const padron = curso
+    ? await prisma.albumStudentRosterEntry.findMany({
+        where: { albumId: input.albumId, isActive: true },
+        orderBy: [{ snapshotLastName: "asc" }, { snapshotFirstName: "asc" }],
+        select: {
+          id: true,
+          courseName: true,
+          division: true,
+          snapshotFirstName: true,
+          snapshotLastName: true,
+          mosaicPhotoId: true,
+          mosaicPhotoAspect: true,
+          mosaicPhotoCrop: true,
+          mosaicPhoto: { select: { previewUrl: true, originalKey: true, previewWatermarkedKey: true } },
+        },
+      })
+    : [];
   return valoresDelPackExternoDesdePacks({
     ...input,
     packsDelAlbum: delAlbum.map((o) => parseExternalPreventaRefs(o.redemptionPaymentRefsJson)),
+    padronDelCurso: padron
+      .filter((f) => cursoComparable(f.courseName, f.division) === curso)
+      .map((f) => ({ ...f, urlDeVista: urlDeVistaDelRetrato(f.mosaicPhoto) })),
   });
 }
 

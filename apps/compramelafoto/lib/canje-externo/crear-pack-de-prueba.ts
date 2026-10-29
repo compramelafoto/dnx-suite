@@ -31,6 +31,26 @@ const PACK_REAL = {
   isTest: false,
 } as const;
 
+/**
+ * Un chico real del padrón del álbum para la prueba, cuando no hay compra de la que copiarlo: así
+ * el librito sale con un nombre, un curso y los compañeros de ese curso, y no con «Prueba Alumno».
+ * Null si el álbum no tiene padrón.
+ */
+async function alumnoDeMuestra(albumId: number) {
+  const fila = await prisma.albumStudentRosterEntry.findFirst({
+    where: { albumId, isActive: true },
+    orderBy: [{ courseName: "asc" }, { division: "asc" }, { snapshotLastName: "asc" }, { snapshotFirstName: "asc" }],
+    select: { snapshotFirstName: true, snapshotLastName: true, courseName: true, division: true },
+  });
+  if (!fila) return null;
+  return {
+    studentFirstName: fila.snapshotFirstName,
+    studentLastName: fila.snapshotLastName,
+    buyerName: `Familia ${fila.snapshotLastName}`.trim(),
+    curso: [fila.courseName, fila.division].filter((s) => s && s.trim()).join(" ") || null,
+  };
+}
+
 /** ¿El álbum tiene algo para canjear? (packs vendidos o packs de preventa armados). */
 export async function albumTienePacksCanjeables(albumId: number): Promise<boolean> {
   const [vendidos, definidos] = await Promise.all([
@@ -169,7 +189,7 @@ export async function prepararPackDePrueba(albumId: number): Promise<PackDePrueb
             buyerName: pc.buyerName,
             curso: [pc.studentCourseSnapshot, pc.studentDivisionSnapshot].filter(Boolean).join(" ") || null,
           }
-        : null,
+        : await alumnoDeMuestra(albumId),
     });
     fuente = `pack ${fuenteId}`;
   } else {
@@ -185,7 +205,13 @@ export async function prepararPackDePrueba(albumId: number): Promise<PackDePrueb
     });
     if (def) {
       snapshotBase = buildPreventaPackSnapshotV1(def, new Date());
-      familia = datosDeFamiliaParaPrueba({ refsFuente: null, buyerNameFuente: null, emailFotografo, colegio });
+      familia = datosDeFamiliaParaPrueba({
+        refsFuente: null,
+        buyerNameFuente: null,
+        emailFotografo,
+        colegio,
+        preCompra: await alumnoDeMuestra(albumId),
+      });
       fuente = `definición ${def.id}`;
     } else if (previa?.preventaPackSnapshotJson) {
       // 3) Sólo queda el pack de prueba anterior (p. ej. armado a mano).

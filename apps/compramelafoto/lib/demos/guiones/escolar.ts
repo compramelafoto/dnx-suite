@@ -282,9 +282,19 @@ export const GUION_ESCOLAR: Guion = {
         "Tocá «Elegir las fotos de mi pack» y elegí las fotos: el contador dice cuántas faltan.",
         "Aparece el librito ya armado con el nombre del chico. «Ver en 3D» y pasá las hojas.",
         "Mostrá «Cambiar foto» y «Acomodar»: la familia corrige sola, sin escribirte.",
+        "Pasá a la hoja de adentro: el mosaico «Mis compañeros» ya está armado con todo el grado, cada chico con su foto y su nombre.",
+        "Explicá de dónde sale: cada chico del padrón del colegio tiene un retrato oficial. La familia que compra lo elige al canjear (es la foto de su carpeta, encuadrada en la cara).",
+        "¿Y el que no compró? Aparece igual en el mosaico de todos: ningún chico queda afuera. Su retrato lo pone el fotógrafo desde las fotos de la toma.",
+        "¿Cómo se sabe qué nombre va con qué cara? El nombre nunca se adivina: sale del padrón. El retrato de quien compró queda atado a su alumno al canjear; los que nadie reclamó los nombra el colegio con un enlace, eligiendo de la lista del curso, y el fotógrafo revisa.",
+        "Antes de imprimir el fotógrafo cierra el curso: desde ahí el mosaico no cambia y todas las carpetas del grado salen iguales.",
         "Al final marca «Revisé todos los datos y autorizo la impresión» y toca «Confirmar mi pack».",
         "Remarcá: la familia aprobó el diseño; no hay reclamos después de imprimir.",
       ],
+      aclaracion: {
+        titulo: "El mosaico del curso",
+        texto:
+          "Están todos los chicos del grado, hayan comprado o no. Los nombres salen del padrón del colegio: el retrato de quien compró queda atado a su alumno al canjear, y los que nadie reclamó los nombra el colegio con un enlace. Ningún nombre se pone a ojo.",
+      },
       puente: "Del lado del fotógrafo, ese pedido aprobado ya está esperando.",
     },
 

@@ -141,7 +141,7 @@ describe("datosDeFamiliaParaPrueba", () => {
   });
   it("sin datos de alumno usa un nombre de prueba", () => {
     const d = datosDeFamiliaParaPrueba({ refsFuente: null, buyerNameFuente: null, emailFotografo: "f@x.com", colegio: null });
-    assert.equal(d.refs.studentName, "Prueba Alumno");
+    assert.equal(d.refs.studentName, "López Martina");
   });
 });
 

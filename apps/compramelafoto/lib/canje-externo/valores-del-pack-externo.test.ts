@@ -62,4 +62,44 @@ describe("valoresDelPackExternoDesdePacks", () => {
     assert.equal(lista.length, 2);
     assert.equal(lista.filter((a) => a.o === 1).length, 1);
   });
+  it("arma el mosaico con el padrón del curso, sin el dueño y con los retratos", () => {
+    const fila = (id: number, nombre: string, apellido: string, foto?: number) => ({
+      id,
+      snapshotFirstName: nombre,
+      snapshotLastName: apellido,
+      mosaicPhotoId: foto ?? null,
+      mosaicPhotoAspect: foto ? 0.8 : null,
+      mosaicPhotoCrop: null,
+      urlDeVista: foto ? `https://fotos.test/${foto}.jpg` : null,
+    });
+    const v = valoresDelPackExternoDesdePacks({
+      externo: pack("Pérez Ana"),
+      packsDelAlbum: [],
+      schoolName: null,
+      schoolLogoUrl: null,
+      buyerName: null,
+      photographerName: null,
+      padronDelCurso: [fila(1, "Ana", "Pérez", 10), fila(2, "Luis", "Gómez", 11), fila(3, "Eva", "Díaz")],
+    });
+    const mosaico = JSON.parse(v["course.mosaic"]!) as unknown[];
+    assert.equal(mosaico.length, 2);
+    assert.match(v["course.mosaic"]!, /Gómez/);
+    assert.doesNotMatch(v["course.mosaic"]!, /Pérez/);
+    assert.match(v["course.mosaicOwner"]!, /Pérez/);
+    // Sin otros packs, el listado sale del padrón.
+    assert.match(v["course.studentList"]!, /Díaz/);
+  });
+
+  it("sin padrón, el mosaico lleva los compañeros de los packs sólo con su nombre", () => {
+    const v = valoresDelPackExternoDesdePacks({
+      externo: pack("Pérez Ana"),
+      packsDelAlbum: [pack("Pérez Ana"), pack("Gómez Luis")],
+      schoolName: null,
+      schoolLogoUrl: null,
+      buyerName: null,
+      photographerName: null,
+    });
+    assert.match(v["course.mosaic"]!, /Gómez/);
+    assert.doesNotMatch(v["course.mosaic"]!, /Pérez/);
+  });
 });

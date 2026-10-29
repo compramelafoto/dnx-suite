@@ -220,6 +220,39 @@ async function asegurarPacks(albumId: number, fotografoId: number): Promise<stri
   return plantillaId;
 }
 
+/**
+ * El retrato oficial de cada chico del padrón, para el «Mosaico del curso»: su foto individual de
+ * la demo. Sin esto la hoja de compañeros de las carpetas salía vacía, porque en la demo ninguna
+ * familia compró todavía y el retrato lo elige la familia al canjear. No pisa uno ya asignado.
+ */
+async function asegurarRetratosDelMosaico(albumId: number): Promise<number> {
+  const filas = await prisma.albumStudentRosterEntry.findMany({
+    where: { albumId, mosaicPhotoId: null },
+    select: { id: true, student: { select: { externalStudentId: true } } },
+  });
+  if (filas.length === 0) return 0;
+  const fotos = await prisma.photo.findMany({
+    where: { albumId, originalFilename: { not: null } },
+    select: { id: true, originalFilename: true },
+  });
+  const fotoPorArchivo = new Map(fotos.map((f) => [f.originalFilename!, f.id]));
+  let asignados = 0;
+  for (const fila of filas) {
+    // `demo-6A-07` → `6A-07.jpg`, el mismo archivo que sube `planDeFotos`.
+    const m = /^demo-(.+)-(\d+)$/.exec(fila.student?.externalStudentId ?? "");
+    if (!m) continue;
+    const photoId = fotoPorArchivo.get(archivoDeAlumno(m[1]!, Number(m[2]) - 1));
+    if (!photoId) continue;
+    await prisma.albumStudentRosterEntry.update({
+      where: { id: fila.id },
+      // Las fotos provisorias son 1200×1500 (retrato 4:5).
+      data: { mosaicPhotoId: photoId, mosaicPhotoAspect: 0.8, mosaicPhotoSource: "PHOTOGRAPHER", mosaicPhotoNeedsReview: false },
+    });
+    asignados += 1;
+  }
+  return asignados;
+}
+
 type FotoPlan = { archivo: string; obtener: () => Promise<Buffer> };
 
 function planDeFotos(origen: string): FotoPlan[] {
@@ -408,6 +441,12 @@ export async function prepararDemoEscolar(opts: { origen: string; presupuestoFot
     if (fotos.faltan > 0) avisos.push(`Faltan ${fotos.faltan} fotos: tocá «Preparar» otra vez para seguir.`);
   } catch (err) {
     avisos.push(`Fotos: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
+  try {
+    await asegurarRetratosDelMosaico(album.id);
+  } catch (err) {
+    avisos.push(`Retratos del mosaico: ${err instanceof Error ? err.message : String(err)}`);
   }
 
   return {
