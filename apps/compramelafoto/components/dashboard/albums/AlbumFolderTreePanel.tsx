@@ -11,21 +11,26 @@ function cmpFolder(a: ExplorerFolderRow, b: ExplorerFolderRow): number {
   return a.id - b.id;
 }
 
-/** Ícono de carpeta al estilo de un sistema operativo (pestaña + frente). */
+/**
+ * Ícono de carpeta con la paleta de CompraMeLaFoto: cuerpo gris, pestaña cobre.
+ * Abierta (carpeta en uso) el frente pasa a crema con borde cobre.
+ */
 export function FolderGlyph({ className, open }: { className?: string; open?: boolean }) {
   return (
     <svg viewBox="0 0 64 52" className={className} aria-hidden>
-      <path d="M4 8a4 4 0 0 1 4-4h15.5a4 4 0 0 1 3 1.35L30 9h26a4 4 0 0 1 4 4v3H4z" fill="#3d8ee0" />
-      <rect x="4" y="12" width="56" height="36" rx="4" fill="#5aa6ef" />
-      <path
-        d={
-          open
-            ? "M2 22a4 4 0 0 1 4-4h52a4 4 0 0 1 4 4.4l-2.4 21.8A4 4 0 0 1 55.6 48H8.4a4 4 0 0 1-4-3.8z"
-            : "M4 18a4 4 0 0 1 4-4h48a4 4 0 0 1 4 4v26a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4z"
-        }
-        fill="#7cbcf6"
+      <path d="M4 9a5 5 0 0 1 5-5h13.6a5 5 0 0 1 3.6 1.5L30 9.5h25a5 5 0 0 1 5 5V20H4z" fill="#c27b3d" />
+      <rect x="4" y="11" width="56" height="37" rx="5" fill={open ? "#d9a77b" : "#a8a29e"} />
+      <rect
+        x="4"
+        y="16"
+        width="56"
+        height="32"
+        rx="5"
+        fill={open ? "#f3e6dc" : "#e7e5e4"}
+        stroke={open ? "#c27b3d" : "#a8a29e"}
+        strokeWidth="1.5"
       />
-      {open ? null : <path d="M4 18a4 4 0 0 1 4-4h48a4 4 0 0 1 4 4v1H4z" fill="#a3d1fb" opacity={0.55} />}
+      <rect x="12" y="38" width="16" height="3" rx="1.5" fill="#c27b3d" opacity={open ? 0.9 : 0.75} />
     </svg>
   );
 }
@@ -86,11 +91,11 @@ export type AlbumFolderTreePanelProps = {
 };
 
 const rowBase =
-  "w-full flex items-center gap-1.5 h-8 rounded-md pr-2 text-left text-[13px] leading-none transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#3d8ee0]/60";
+  "w-full flex items-center gap-1.5 h-8 rounded-md pr-2 text-left text-[13px] leading-none transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#c27b3d]/50";
 
 function rowState(selected: boolean) {
   return selected
-    ? "bg-black/[0.08] text-[#111827] font-semibold"
+    ? "bg-[#f3e6dc] text-[#111827] font-semibold"
     : "text-[#374151] hover:bg-black/[0.04]";
 }
 
@@ -202,7 +207,7 @@ export function AlbumFolderTreePanel({
             onClick={() => onSelect("all")}
             className={cn(rowBase, rowState(selection === "all"), "pl-2 disabled:opacity-60")}
           >
-            <Images className="w-4 h-4 shrink-0 text-[#3d8ee0]" aria-hidden />
+            <Images className="w-4 h-4 shrink-0 text-[#c27b3d]" aria-hidden />
             <span className="truncate">Todas las fotos</span>
             {typeof allCount === "number" ? <Count value={allCount} /> : null}
           </button>
@@ -212,7 +217,7 @@ export function AlbumFolderTreePanel({
             onClick={() => onSelect("none")}
             className={cn(rowBase, rowState(selection === "none"), "pl-2 disabled:opacity-60")}
           >
-            <Inbox className="w-4 h-4 shrink-0 text-[#3d8ee0]" aria-hidden />
+            <Inbox className="w-4 h-4 shrink-0 text-[#c27b3d]" aria-hidden />
             <span className="truncate">{UNORGANIZED_FOLDER_LABEL}</span>
             <Count value={uncategorizedCount} />
           </button>

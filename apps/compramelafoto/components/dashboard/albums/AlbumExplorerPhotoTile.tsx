@@ -63,7 +63,7 @@ export default function AlbumExplorerPhotoTile({
         }}
         className={cn(
           "relative w-full aspect-square rounded-lg p-1.5 transition-colors cursor-default",
-          "focus:outline-none focus-visible:ring-2 focus-visible:ring-[#3d8ee0]/70",
+          "focus:outline-none focus-visible:ring-2 focus-visible:ring-[#c27b3d]/60",
           photo.selected ? "bg-[#c27b3d]/15 ring-2 ring-[#c27b3d]" : "hover:bg-black/[0.05]"
         )}
       >
