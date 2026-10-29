@@ -27,7 +27,7 @@ async function main() {
   }
   await prisma.school.update({ where: { id: ctx.schoolId }, data: { logoUrl: getR2PublicUrl(DEMO_ESCOLAR.logos.colegio) } });
   await prisma.user.update({ where: { id: ctx.fotografoId }, data: { logoUrl: getR2PublicUrl(DEMO_ESCOLAR.logos.estudio) } });
-  console.log("Listo: logos puestos en la escuela y en el estudio demo.");
+  console.log("Listo: logos puestos en la escuela y en DNX Estudio.");
 }
 
 main()

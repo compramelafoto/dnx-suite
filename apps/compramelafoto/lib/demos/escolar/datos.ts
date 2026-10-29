@@ -24,7 +24,7 @@ const alumnos = (lista: string[]) =>
 export const DEMO_ESCOLAR = {
   fotografo: {
     email: `fotografo@${DEMO_EMAIL_DOMAIN}`,
-    nombre: "Estudio Demo Escolar",
+    nombre: "DNX Estudio",
     handler: "estudiodemo",
     telefono: "+54 9 341 000-0000",
     ciudad: "Rosario",
@@ -44,12 +44,13 @@ export const DEMO_ESCOLAR = {
     telefono: "+54 9 341 000-0001",
   },
   /**
-   * Logos inventados (en R2). Los dibujos están en docs/compramelafoto/demo-escolar/logos/ y se
+   * Logos (en R2): el colegio es inventado; el estudio es DNX Estudio. Los archivos están en
+   * docs/compramelafoto/demo-escolar/logos/ y se
    * suben con `scripts/demos/escolar/subir-logos.ts`.
    */
   logos: {
     colegio: "demos/escolar/logo-colegio.png",
-    estudio: "demos/escolar/logo-estudio.png",
+    estudio: "demos/escolar/logo-dnx-estudio.png",
   },
   album: {
     titulo: "Escuela Demo Los Aromos · Fotos 2026",

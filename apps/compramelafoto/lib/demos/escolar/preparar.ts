@@ -345,7 +345,10 @@ export async function prepararDemoEscolar(opts: { origen: string; presupuestoFot
     throw new Error("La escuela demo pertenece a otro usuario: no se toca.");
   }
   await prisma.school.update({ where: { id: school.id }, data: { logoUrl: getR2PublicUrl(d.logos.colegio) } });
-  await prisma.user.update({ where: { id: fotografoId }, data: { logoUrl: getR2PublicUrl(d.logos.estudio) } });
+  await prisma.user.update({
+    where: { id: fotografoId },
+    data: { name: d.fotografo.nombre, companyName: d.fotografo.nombre, logoUrl: getR2PublicUrl(d.logos.estudio) },
+  });
 
   await prisma.schoolOrganizer.upsert({
     where: { schoolId_userId: { schoolId: school.id, userId: colegioUserId } },
