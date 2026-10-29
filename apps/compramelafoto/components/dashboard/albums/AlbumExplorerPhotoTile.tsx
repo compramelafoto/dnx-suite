@@ -91,7 +91,7 @@ export default function AlbumExplorerPhotoTile({
         ) : null}
 
         <div
-          className="absolute top-2 right-2 flex items-center rounded-lg bg-black/60 backdrop-blur-sm p-0.5 opacity-0 transition-opacity group-hover/tile:opacity-100 group-focus-within/tile:opacity-100 [@media(hover:none)]:opacity-100"
+          className="absolute top-2 right-2 flex items-center rounded-lg bg-black/60 backdrop-blur-sm p-0.5 opacity-0 transition-opacity group-hover/tile:opacity-100 group-has-[:focus-visible]/tile:opacity-100 [@media(hover:none)]:opacity-100"
           onClick={(e) => e.stopPropagation()}
           onDoubleClick={(e) => e.stopPropagation()}
         >
@@ -124,7 +124,7 @@ export default function AlbumExplorerPhotoTile({
 
         {onSellOptionChange ? (
           <div
-            className="absolute bottom-2 inset-x-2 flex justify-center gap-1 opacity-0 transition-opacity group-hover/tile:opacity-100 group-focus-within/tile:opacity-100 [@media(hover:none)]:opacity-100"
+            className="absolute bottom-2 inset-x-2 flex justify-center gap-1 opacity-0 transition-opacity group-hover/tile:opacity-100 group-has-[:focus-visible]/tile:opacity-100 [@media(hover:none)]:opacity-100"
             onClick={(e) => e.stopPropagation()}
             onDoubleClick={(e) => e.stopPropagation()}
           >

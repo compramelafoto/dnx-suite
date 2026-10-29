@@ -8,6 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
 import {
   ArrowLeft,
   CheckSquare,
@@ -193,7 +194,9 @@ function FolderContextMenu({
     </button>
   );
 
-  return (
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
     <div ref={ref} role="menu" className={cn(MENU_PANEL_CLASS, "fixed w-52")} style={{ left, top }}>
       {item("open", "Abrir")}
       {canManage ? (
@@ -206,7 +209,8 @@ function FolderContextMenu({
           {item("delete", "Eliminar carpeta…", true)}
         </>
       ) : null}
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -811,6 +815,7 @@ export default function AlbumPhotosFolderExplorer({
     const byId = new Map(explorerFolders.map((f) => [f.id, f]));
     setExpanded((prev) => {
       const next = new Set(prev);
+      if (explorerFolders.some((f) => f.parentId === folderId)) next.add(folderId);
       let cur = byId.get(folderId);
       while (cur?.parentId != null) {
         next.add(cur.parentId);
@@ -1135,7 +1140,7 @@ export default function AlbumPhotosFolderExplorer({
         ) : null}
         <button
           type="button"
-          className="ml-1 inline-flex h-8 items-center gap-1.5 rounded-md bg-[#c27b3d] px-3 text-[13px] font-semibold text-white shadow-sm hover:bg-[#b06d32] disabled:opacity-50 disabled:pointer-events-none focus:outline-none focus-visible:ring-2 focus-visible:ring-[#c27b3d]/50"
+          className="ml-1 inline-flex h-8 items-center gap-1.5 rounded-md bg-[#c27b3d] px-2 sm:px-3 text-[13px] font-semibold text-white shadow-sm hover:bg-[#b06d32] disabled:opacity-50 disabled:pointer-events-none focus:outline-none focus-visible:ring-2 focus-visible:ring-[#c27b3d]/50"
           disabled={uploadDisabled}
           onClick={() => uploadTriggerRef.current?.pickFiles()}
           title={
@@ -1145,7 +1150,7 @@ export default function AlbumPhotosFolderExplorer({
           }
         >
           <Upload className="w-4 h-4" aria-hidden />
-          Subir
+          <span className="hidden sm:inline">Subir</span>
         </button>
       </div>
     </div>
@@ -1168,13 +1173,21 @@ export default function AlbumPhotosFolderExplorer({
     </div>
   );
 
-  const gridStyle = { gridTemplateColumns: `repeat(auto-fill, minmax(${thumbSize}px, 1fr))` };
+  // Con pantalla angosta siempre entran al menos 2 fotos (y 3 carpetas) por fila.
+  const gridStyle = {
+    gridTemplateColumns: `repeat(auto-fill, minmax(min(${thumbSize}px, calc((100% - 8px) / 2)), 1fr))`,
+  };
+  // Las carpetas ocupan menos que una foto, como en un explorador de archivos.
+  const folderTile = Math.max(88, Math.round(thumbSize * 0.72));
+  const folderGridStyle = {
+    gridTemplateColumns: `repeat(auto-fill, minmax(min(${folderTile}px, calc((100% - 16px) / 3)), 1fr))`,
+  };
 
   const content = (
     <div className="p-3 sm:p-4">
       {childFolders.length > 0 ? (
         <div className="mb-4">
-          <div className="grid gap-x-2 gap-y-3" style={gridStyle}>
+          <div className="grid gap-x-2 gap-y-3" style={folderGridStyle}>
             {childFolders.map((folder) => (
               <div
                 key={folder.id}
@@ -1195,7 +1208,7 @@ export default function AlbumPhotosFolderExplorer({
                 }}
               >
                 <FolderGlyph
-                  className="w-full h-auto transition-transform group-hover/folder:-translate-y-0.5"
+                  className="w-[72%] h-auto transition-transform group-hover/folder:-translate-y-0.5"
                   open={false}
                 />
                 <span className="max-w-full truncate text-[12px] font-medium text-[#111827] leading-4">
@@ -1322,7 +1335,12 @@ export default function AlbumPhotosFolderExplorer({
           <p className="text-[13px] text-[#6b7280] m-0">
             {mode === "event"
               ? "Carpetas definidas por el organizador: solo podés subir fotos en las carpetas existentes."
-              : "Organizá el material del álbum en carpetas. Click derecho sobre una carpeta para ver sus opciones."}
+              : (
+                <>
+                  Organizá el material del álbum en carpetas.
+                  <span className="hidden lg:inline"> Click derecho sobre una carpeta para ver sus opciones.</span>
+                </>
+              )}
           </p>
         </div>
       </div>
