@@ -32,6 +32,7 @@ import { guia as galeriasCompartirYSeleccion } from "./guias/galerias-compartir-
 import { guia as trabajosTomarConSena } from "./guias/trabajos-tomar-con-sena";
 import { guia as trabajosRetiroYSaldo } from "./guias/trabajos-retiro-y-saldo";
 import { guia as trabajosTableroEnCurso } from "./guias/trabajos-tablero-en-curso";
+import { guia as trabajosEnviarAlProveedor } from "./guias/trabajos-enviar-al-proveedor";
 import { guia as trabajosFichaYEtapas } from "./guias/trabajos-ficha-y-etapas";
 import { guia as digitalizacionGrabarCassette } from "./guias/digitalizacion-grabar-cassette";
 import { guia as digitalizacionEntregarVideos } from "./guias/digitalizacion-entregar-videos";
@@ -63,6 +64,7 @@ export const INSTRUCTIVOS: readonly Instructivo[] = [
   // Trabajos y entregas, en el orden en que pasa un trabajo
   trabajosTomarConSena,
   trabajosTableroEnCurso,
+  trabajosEnviarAlProveedor,
   trabajosFichaYEtapas,
   trabajosRetiroYSaldo,
   // Digitalización de VHS y DVD, en el orden del circuito: grabar, entregar, resolver

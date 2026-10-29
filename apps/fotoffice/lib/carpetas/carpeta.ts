@@ -184,6 +184,7 @@ export async function abrirCarpeta(workspaceId: string, token: unknown, ahora = 
       name: true,
       carpetaClienteHash: true,
       carpetaVence: true,
+      proveedorRef: true,
       client: { select: { firstName: true, lastName: true, businessName: true } },
       product: { select: { name: true } },
     },
@@ -199,12 +200,14 @@ export async function abrirCarpeta(workspaceId: string, token: unknown, ahora = 
     prisma.fotofficeWorkspaceBranding.findUnique({ where: { workspaceId }, select: { commercialName: true } }),
   ]);
   const cliente = p.client?.businessName?.trim() || [p.client?.firstName, p.client?.lastName].filter(Boolean).join(" ") || "";
+  const audiencia: Audiencia = p.carpetaClienteHash === hash ? "CLIENTE" : "LABORATORIO";
   return {
-    audiencia: p.carpetaClienteHash === hash ? "CLIENTE" : "LABORATORIO",
+    audiencia,
     estudio: branding?.commercialName?.trim() || "el estudio",
     trabajo: p.product?.name ?? p.name,
     cliente,
     vence: p.carpetaVence ? p.carpetaVence.toISOString() : null,
+    numeroLaboratorio: audiencia === "LABORATORIO" ? p.proveedorRef : null,
     archivos: await Promise.all(
       archivos.map(async (a) => ({
         id: a.id,
@@ -217,6 +220,42 @@ export async function abrirCarpeta(workspaceId: string, token: unknown, ahora = 
       })),
     ),
   };
+}
+
+export type ResultadoNumeroLaboratorio = { ok: true; numero: string | null } | { ok: false; error: string };
+
+/**
+ * El laboratorio anota, desde su enlace, su número de pedido interno: queda en «N° de pedido del
+ * proveedor» del trabajo y como nota. Sólo con el enlace del laboratorio (el del cliente no puede).
+ */
+export async function anotarNumeroDelLaboratorio(
+  workspaceId: string,
+  token: unknown,
+  numeroRaw: unknown,
+  ahora = new Date(),
+): Promise<ResultadoNumeroLaboratorio> {
+  if (!tokenConForma(token)) return { ok: false, error: "Este enlace ya no es válido." };
+  if (typeof numeroRaw !== "string") return { ok: false, error: "Escribí el número de pedido." };
+  const numero = numeroRaw.trim().slice(0, 80) || null;
+  const p = await prisma.fotofficeProyecto.findFirst({
+    where: { workspaceId, carpetaLabHash: hashDeToken(token) },
+    select: { id: true, carpetaVence: true, proveedorRef: true, proveedor: { select: { name: true } } },
+  });
+  if (!p || (p.carpetaVence && p.carpetaVence < ahora)) return { ok: false, error: "Este enlace ya no es válido." };
+  if (numero === p.proveedorRef) return { ok: true, numero };
+  const quien = p.proveedor?.name ?? "El laboratorio";
+  await prisma.$transaction([
+    prisma.fotofficeProyecto.updateMany({ where: { id: p.id, workspaceId }, data: { proveedorRef: numero } }),
+    prisma.fotofficeProyectoNota.create({
+      data: {
+        workspaceId,
+        proyectoId: p.id,
+        authorUserId: null,
+        body: numero ? `${quien} cargó su número de pedido: ${numero}.` : `${quien} borró su número de pedido.`,
+      },
+    }),
+  ]);
+  return { ok: true, numero };
 }
 
 // --- Borrado de carpetas vencidas (cron) -----------------------------------------------------------

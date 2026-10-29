@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { Download, FileText, Film, FolderOpen, ImageIcon, Printer } from "lucide-react";
+import { useState, useTransition, type FormEvent } from "react";
+import { Download, FileText, Film, FolderOpen, Hash, ImageIcon, Printer } from "lucide-react";
+import { anotarNumeroDelLaboratorioAction } from "@/app/w/[workspaceSlug]/archivos/[token]/actions";
 import { tamanoLegible } from "@/lib/carpetas/reglas";
 import type { VistaCarpeta } from "@/lib/carpetas/tipos";
 
@@ -17,9 +18,20 @@ function Icono({ tipo }: { tipo: string }) {
 
 /**
  * Lo que ve quien abre el enlace de la carpeta. El laboratorio: la lista para descargar todo. El
- * cliente: además, los videos para mirar ahí mismo y hasta cuándo puede descargarlos.
+ * cliente: además, los videos para mirar ahí mismo y hasta cuándo puede descargarlos. El laboratorio
+ * también puede anotar su número de pedido interno.
  */
-export function CarpetaPublica({ vista, enlaceImprimir }: { vista: VistaCarpeta; enlaceImprimir?: string }) {
+export function CarpetaPublica({
+  vista,
+  enlaceImprimir,
+  slug,
+  token,
+}: {
+  vista: VistaCarpeta;
+  enlaceImprimir?: string;
+  slug: string;
+  token: string;
+}) {
   const [bajando, setBajando] = useState(false);
   const total = vista.archivos.reduce((a, f) => a + f.bytes, 0);
   const esCliente = vista.audiencia === "CLIENTE";
@@ -59,6 +71,8 @@ export function CarpetaPublica({ vista, enlaceImprimir }: { vista: VistaCarpeta;
             </p>
           ) : null}
         </header>
+
+        {!esCliente ? <NumeroDelLaboratorio slug={slug} token={token} inicial={vista.numeroLaboratorio} /> : null}
 
         {enlaceImprimir ? (
           <a href={enlaceImprimir} className="fo-card flex items-center gap-3 border-2 border-[var(--fo-accent)] p-4 hover:bg-[var(--fo-surface-hover)]">
@@ -109,5 +123,53 @@ export function CarpetaPublica({ vista, enlaceImprimir }: { vista: VistaCarpeta;
         )}
       </div>
     </main>
+  );
+}
+
+/** Donde el laboratorio anota su número de pedido: le llega al estudio en la ficha del trabajo. */
+function NumeroDelLaboratorio({ slug, token, inicial }: { slug: string; token: string; inicial: string | null }) {
+  const [numero, setNumero] = useState(inicial ?? "");
+  const [guardado, setGuardado] = useState(inicial ?? "");
+  const [mensaje, setMensaje] = useState<{ ok: boolean; texto: string } | null>(null);
+  const [ocupado, start] = useTransition();
+
+  function guardar(e: FormEvent) {
+    e.preventDefault();
+    start(async () => {
+      const r = await anotarNumeroDelLaboratorioAction(slug, token, numero);
+      if (r.ok) {
+        setGuardado(r.numero ?? "");
+        setMensaje({ ok: true, texto: r.numero ? "Listo: el estudio ya ve su número de pedido." : "Número borrado." });
+      } else setMensaje({ ok: false, texto: r.error });
+    });
+  }
+
+  return (
+    <form onSubmit={guardar} className="fo-card space-y-2 p-4">
+      <label htmlFor="numero-laboratorio" className="flex items-center gap-2 text-sm font-semibold">
+        <Hash className="size-4 text-[var(--fo-accent)]" aria-hidden />
+        Tu número de pedido
+      </label>
+      <p className="text-xs text-[var(--fo-muted)]">Si le dan un número interno a este pedido, anotalo acá: al estudio le queda en el trabajo.</p>
+      <div className="flex gap-2">
+        <input
+          id="numero-laboratorio"
+          className="fo-input min-w-0 flex-1"
+          value={numero}
+          maxLength={80}
+          onChange={(e) => setNumero(e.target.value)}
+          placeholder="Ej.: 8384"
+          autoComplete="off"
+        />
+        <button type="submit" className="fo-btn fo-btn-primary text-sm" disabled={ocupado || numero.trim() === guardado}>
+          {ocupado ? "Guardando…" : "Guardar"}
+        </button>
+      </div>
+      {mensaje ? (
+        <p className={`text-sm ${mensaje.ok ? "text-[var(--fo-success)]" : "text-[var(--fo-warning)]"}`} role="status">
+          {mensaje.texto}
+        </p>
+      ) : null}
+    </form>
   );
 }
