@@ -126,7 +126,7 @@ export function PanelTapa({ modelos, tapa, geometria, seleccion, foto, textos, .
             ))}
           </div>
           <p className="text-[11px] text-white/45">
-            <b>A</b>/<b>Q</b> también los recorren.
+            <b>↑</b>/<b>↓</b> (o <b>Q</b>/<b>A</b>) también los recorren.
           </p>
         </section>
       ) : null}

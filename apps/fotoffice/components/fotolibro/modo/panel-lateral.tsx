@@ -180,7 +180,7 @@ export function PanelLateral(props: Props) {
             <li>Arrastrá fotos de la tira al pliego: se acomodan solas.</li>
             <li>Elegí varias y apretá <b>Enter</b>: arman el pliego.</li>
             <li>
-              <b>A</b>/<b>Q</b> recorren las distribuciones del pliego (por páginas: <b>A</b>/<b>Q</b> la izquierda, <b>S</b>/<b>W</b> la derecha).
+              <b>↑</b>/<b>↓</b> (o <b>Q</b>/<b>A</b>) recorren las distribuciones del pliego.
             </li>
             <li>Arrastrá una foto sobre otra para intercambiarlas.</li>
             <li>Doble clic en una foto para encuadrarla.</li>
@@ -263,11 +263,11 @@ export function PanelLateral(props: Props) {
                 )}
               </span>
               <span className="flex gap-1">
-                <button type="button" className={boton} disabled={props.distribuciones < 2} title="Q" onClick={() => props.onVariante("todo", -1)}>
-                  ◀
+                <button type="button" className={boton} disabled={props.distribuciones < 2} title="Anterior (↑ o Q)" onClick={() => props.onVariante("todo", -1)}>
+                  ▲
                 </button>
-                <button type="button" className={boton} disabled={props.distribuciones < 2} title="A" onClick={() => props.onVariante("todo", 1)}>
-                  ▶
+                <button type="button" className={boton} disabled={props.distribuciones < 2} title="Siguiente (↓ o A)" onClick={() => props.onVariante("todo", 1)}>
+                  ▼
                 </button>
               </span>
             </div>
@@ -278,11 +278,11 @@ export function PanelLateral(props: Props) {
                   {lado === "izq" ? "Izquierda" : "Derecha"} · {p[lado].fotos.length} {p[lado].fotos.length === 1 ? "foto" : "fotos"}
                 </span>
                 <span className="flex gap-1">
-                  <button type="button" className={boton} disabled={p[lado].fotos.length < 2} title={lado === "izq" ? "Q" : "W"} onClick={() => props.onVariante(lado, -1)}>
-                    ◀
+                  <button type="button" className={boton} disabled={p[lado].fotos.length < 2} title={lado === "izq" ? "Anterior (↑ o Q)" : "Anterior (W; ↑ con una foto de esta página elegida)"} onClick={() => props.onVariante(lado, -1)}>
+                    ▲
                   </button>
-                  <button type="button" className={boton} disabled={p[lado].fotos.length < 2} title={lado === "izq" ? "A" : "S"} onClick={() => props.onVariante(lado, 1)}>
-                    ▶
+                  <button type="button" className={boton} disabled={p[lado].fotos.length < 2} title={lado === "izq" ? "Siguiente (↓ o A)" : "Siguiente (S; ↓ con una foto de esta página elegida)"} onClick={() => props.onVariante(lado, 1)}>
+                    ▼
                   </button>
                 </span>
               </div>

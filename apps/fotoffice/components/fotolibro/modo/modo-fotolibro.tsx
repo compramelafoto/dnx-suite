@@ -477,9 +477,9 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
       if (ev.key === "ArrowLeft") return void (ev.preventDefault(), irA(pliego - 1));
       if (ev.key === "ArrowRight") return void (ev.preventDefault(), irA(pliego + 1));
       if (pliego < 0) {
-        if (tecla === "a" || tecla === "q" || tecla === "s" || tecla === "w") {
+        if (["a", "q", "s", "w", "arrowup", "arrowdown"].includes(tecla)) {
           ev.preventDefault();
-          const paso = tecla === "a" || tecla === "s" ? 1 : -1;
+          const paso = tecla === "a" || tecla === "s" || tecla === "arrowdown" ? 1 : -1;
           aplicar((e) => {
             if (!e.tapa) return e;
             const i = DISENOS_TAPA.findIndex((d) => d.id === disenoDeTapa(e.tapa!.diseno));
@@ -519,9 +519,12 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
       // Las teclas de los diseñadores de fotolibro. En un pliego entero A/S avanzan y Q/W vuelven;
       // por páginas, A/Q son de la izquierda y S/W de la derecha.
       const entero = ref.current.estado?.pliegos[pliego]?.modo === "pliego";
+      // ↑/↓ cambian la distribución: la del pliego entero o, por páginas, la de la página de la
+      // foto elegida (la izquierda si no hay ninguna).
+      const ladoFlechas: Lado = entero ? "todo" : seleccionada?.lado === "der" ? "der" : "izq";
       const atajos: Record<string, [Lado, number]> = entero
-        ? { a: ["todo", 1], s: ["todo", 1], q: ["todo", -1], w: ["todo", -1] }
-        : { a: ["izq", 1], q: ["izq", -1], s: ["der", 1], w: ["der", -1] };
+        ? { a: ["todo", 1], s: ["todo", 1], q: ["todo", -1], w: ["todo", -1], arrowdown: ["todo", 1], arrowup: ["todo", -1] }
+        : { a: ["izq", 1], q: ["izq", -1], s: ["der", 1], w: ["der", -1], arrowdown: [ladoFlechas, 1], arrowup: [ladoFlechas, -1] };
       const atajo = atajos[tecla];
       if (atajo) {
         ev.preventDefault();

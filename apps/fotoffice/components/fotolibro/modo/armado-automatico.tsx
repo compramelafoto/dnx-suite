@@ -47,7 +47,7 @@ export function ArmadoAutomatico({ estado, elegidas, onArmar, onCerrar }: Props)
       <div className="w-full max-w-lg space-y-4 rounded-lg bg-[#202124] p-5 text-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <header>
           <h2 className="text-base font-semibold">Armado automático</h2>
-          <p className="text-xs text-white/55">Reparte las fotos en los pliegos, en orden y por momentos. Después retocás con A/Q como siempre; ⌘Z lo deshace.</p>
+          <p className="text-xs text-white/55">Reparte las fotos en los pliegos, en orden y por momentos. Después retocás con ↑/↓ como siempre; ⌘Z lo deshace.</p>
         </header>
 
         <section className="space-y-1.5">
