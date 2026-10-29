@@ -241,11 +241,11 @@ export const GUION_ESCOLAR: Guion = {
         "En la demo ya está copiada y ligada al pack con librito: está en «Mis plantillas».",
       ],
       aclaracion: {
-        titulo: "El librito se arma solo",
-        texto: "No diseñás uno por chico: elegís una plantilla y el sistema hace el resto.",
+        titulo: "Se arma completamente solo",
+        texto: "Librito, diploma, anuario o cualquier diseño: elegís la plantilla y el sistema lo completa para cada chico.",
         numerados: true,
         puntos: [
-          { titulo: "Elegís la plantilla", texto: "Decenas de libritos listos para usar." },
+          { titulo: "Elegís la plantilla", texto: "Libritos, diplomas y anuarios listos." },
           { titulo: "La familia elige sus fotos", texto: "Desde su celular, cuando estén listas." },
           { titulo: "Se completa solo", texto: "Nombre, curso, colegio y mosaico del grado." },
           { titulo: "Vos revisás e imprimís", texto: "Un clic para mandar a la imprenta." },
@@ -495,7 +495,7 @@ export const GUION_ESCOLAR: Guion = {
           { titulo: "Página de venta propia", texto: "Los colegios te piden propuesta solos." },
           { titulo: "Preventa con Mercado Pago", texto: "Cobrás antes de sacar la foto." },
           { titulo: "Búsqueda por selfie", texto: "Cada familia se encuentra sola." },
-          { titulo: "Librito automático", texto: "Con nombre, curso y mosaico." },
+          { titulo: "Diseños automáticos", texto: "Librito, diploma o anuario, solos." },
           { titulo: "Imprenta y sobres con QR", texto: "Producción y entrega ordenadas." },
           { titulo: "Todo con el bot", texto: "Lo configurás conversando." },
         ],

@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import { FOTOS_DEMO_SIN_PUBLICAR } from "@/lib/demos/identidad";
 import { DesignProjectError, type DesignActor } from "./projects";
 import { loadDesignTemplateVersion, type DesignTemplateVersion } from "./template";
 
@@ -26,7 +27,8 @@ export async function assertPhotosUsable(photoIds: number[], actor: DesignActor)
   if (photoIds.length === 0) return;
   if (photoIds.length > 50) throw new DesignProjectError("Elegí hasta 50 fotos para probar.", 422);
   const photos = await prisma.photo.findMany({
-    where: { id: { in: photoIds }, isRemoved: false },
+    // Las fotos de la toma de una demo, aún sin publicar, también sirven para probar.
+    where: { id: { in: photoIds }, OR: [{ isRemoved: false }, { removedReason: FOTOS_DEMO_SIN_PUBLICAR }] },
     select: { id: true, album: { select: { userId: true } } },
   });
   if (photos.length !== new Set(photoIds).size) {

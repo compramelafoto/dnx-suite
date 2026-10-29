@@ -14,6 +14,8 @@ export const DEMO_EMAIL_DOMAIN = "demo.compramelafoto.test";
 export const DEMO_ADMIN_USER_ID = 1;
 /** Token de Mercado Pago falso de los usuarios demo: nunca se usa para cobrar (el pago es simulado). */
 export const MP_TOKEN_DEMO = "DEMO_SIN_MERCADO_PAGO";
+/** Marca de las fotos de la toma de una demo, escondidas hasta el paso en que se publican. */
+export const FOTOS_DEMO_SIN_PUBLICAR = "DEMO_SIN_PUBLICAR";
 
 export function esUsuarioDemo(u: { tags?: string[] | null } | null | undefined): boolean {
   return Boolean(u?.tags?.includes(DEMO_TAG));

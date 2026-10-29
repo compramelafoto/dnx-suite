@@ -2,11 +2,20 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireDesignActor } from "@/lib/design-v2/http";
 import { designPhotoDisplayUrl } from "@/lib/design-v2/projects";
+import { FOTOS_DEMO_SIN_PUBLICAR } from "@/lib/demos/identidad";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const MAX_PHOTOS = 400;
+
+/**
+ * Fotos que se pueden usar para probar un diseño: las publicadas y, en las demos, las de la toma
+ * que todavía no se publicaron (son del mismo fotógrafo y en el modo prueba nada se guarda).
+ */
+const FOTOS_PARA_PROBAR = {
+  OR: [{ isRemoved: false }, { removedReason: FOTOS_DEMO_SIN_PUBLICAR }],
+};
 
 /**
  * GET /api/fotografo/diseno/fotos — para el modo prueba.
@@ -19,10 +28,10 @@ export async function GET(req: Request) {
   const albumId = Number(new URL(req.url).searchParams.get("albumId"));
   if (!Number.isInteger(albumId) || albumId <= 0) {
     const albums = await prisma.album.findMany({
-      where: { userId: actor.id, photos: { some: { isRemoved: false } } },
+      where: { userId: actor.id, photos: { some: FOTOS_PARA_PROBAR } },
       orderBy: { createdAt: "desc" },
       take: 100,
-      select: { id: true, title: true, _count: { select: { photos: { where: { isRemoved: false } } } } },
+      select: { id: true, title: true, _count: { select: { photos: { where: FOTOS_PARA_PROBAR } } } },
     });
     return NextResponse.json({
       ok: true,
@@ -35,7 +44,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ ok: false, error: "No encontramos ese álbum." }, { status: 404 });
   }
   const photos = await prisma.photo.findMany({
-    where: { albumId, isRemoved: false },
+    where: { albumId, ...FOTOS_PARA_PROBAR },
     orderBy: { id: "asc" },
     take: MAX_PHOTOS,
     select: { id: true, previewUrl: true, originalKey: true },
