@@ -182,9 +182,10 @@ export function herramientasDeAtencion(
   fotos: Map<number, FotoNumerada> = new Map(),
   /** Fotos del cliente que todavía se están bajando (no entran al pedido). */
   fotosBajando = 0,
-): { tools: BotTool[]; pedidoDePersona: () => string | null } {
+): { tools: BotTool[]; pedidoDePersona: () => string | null; pedidoDeSilencio: () => string | null } {
   const deps: DepsAtencion = { ...DEPS, ...parciales };
   let motivoPersona: string | null = null;
+  let motivoSilencio: string | null = null;
 
   const tools: BotTool[] = [
     defineTool({
@@ -382,7 +383,7 @@ export function herramientasDeAtencion(
     defineTool({
       name: "pasar_a_persona",
       description:
-        "Deja el chat para que lo atienda una persona del estudio. Usala para presupuestos de eventos cuando preparar_presupuesto no los arma; reclamos; pedidos de descuento; cuando el cliente pide hablar con alguien; o cuando no sabés la respuesta. Después de usarla, no le digas al cliente que lo derivás ni que le va a escribir otra persona: decile algo como \"Dejame chequearlo y te confirmo en un ratito.\"",
+        "Deja el chat para que lo atienda una persona del estudio. Usala para presupuestos de eventos cuando preparar_presupuesto no los arma; reclamos; facturas (con los datos ya pedidos); cuando el cliente pide hablar con alguien; o cuando no sabés la respuesta. Después de usarla, no le digas al cliente que lo derivás ni que le va a escribir otra persona: decile algo como \"Dejame chequearlo y te confirmo en un ratito.\"",
       input: z.object({ motivo: z.string().min(3).max(200) }),
       kind: "read",
       run: async ({ motivo }) => {
@@ -390,7 +391,18 @@ export function herramientasDeAtencion(
         return { ok: true, message: "Listo: cuando termines este mensaje el chat pasa a una persona del estudio." };
       },
     }),
+    defineTool({
+      name: "no_responder",
+      description:
+        "No le contestes nada a este chat porque no es un cliente: un proveedor que nos vende o nos cobra, publicidad, spam, o alguien del equipo. El chat queda para que lo mire una persona del estudio. Después de usarla no escribas ningún texto.",
+      input: z.object({ motivo: z.string().min(3).max(200) }),
+      kind: "read",
+      run: async ({ motivo }) => {
+        motivoSilencio = motivo.trim();
+        return { ok: true, message: "Listo: no se le manda nada y el chat queda para una persona del estudio." };
+      },
+    }),
   ];
 
-  return { tools, pedidoDePersona: () => motivoPersona };
+  return { tools, pedidoDePersona: () => motivoPersona, pedidoDeSilencio: () => motivoSilencio };
 }

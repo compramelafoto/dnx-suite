@@ -87,4 +87,33 @@ describe("guía del bot de atención", () => {
     expect(g).toContain("mañana a primera hora");
     expect(g).not.toContain("en breve le escribe alguien del estudio");
   });
+
+  it("saluda según la hora y ofrece las opciones; escribe corto, con una carita", () => {
+    const g = guiaDeAtencion();
+    expect(g).toContain("Buen día, buenas tardes o buenas noches");
+    expect(g).toContain("¿En qué te puedo ayudar?");
+    expect(g).toContain("digitalizar un video");
+    expect(g).toMatch(/al menos un emoji/);
+  });
+
+  it("confirma medida y cantidad antes de cobrar y da total y seña en una línea", () => {
+    const g = guiaDeAtencion();
+    expect(g).toContain("confirmá la medida y la cantidad");
+    expect(g).toContain("en una sola línea");
+  });
+
+  it("factura: pide los datos; sólo los reclamos pasan a una persona; con proveedores y spam no responde", () => {
+    const g = guiaDeAtencion();
+    expect(g).toContain("condición frente al IVA");
+    expect(g).toContain("no_responder");
+    expect(g).not.toMatch(/pedidos de descuento o de factura/);
+  });
+
+  it("recomienda Tecnoflash para cámaras y explica que CD y DVD son medios obsoletos", () => {
+    const g = guiaDeAtencion();
+    expect(g).toContain("Av. Francia 1591");
+    expect(g).toContain("recomendado por DNX Estudio");
+    expect(g).toMatch(/obsoletos/);
+    expect(g).toContain("20x30");
+  });
 });
