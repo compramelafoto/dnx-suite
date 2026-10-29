@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { TemplateCanvasRenderer } from "@repo/template-editor-ui";
 import type { TemplateV2Block, TemplateV2Canvas } from "@repo/template-editor-core";
 import type { EstadoFotolibro } from "@/lib/fotolibro/modo/estado";
+import { ponerFantasma } from "./fantasma";
 
 const ARRASTRE_PLIEGO = "application/x-fotolibro-pliego";
 
@@ -72,6 +73,7 @@ export function VistaLibro({ canvas, bloques, estado, minis, actual, tapa, ...pr
               onDragStart={(e) => {
                 e.dataTransfer.setData(ARRASTRE_PLIEGO, String(i));
                 e.dataTransfer.effectAllowed = "move";
+                ponerFantasma(e, null, 1, canvas.width / canvas.height);
                 setArrastrando(i);
               }}
               onDragEnd={() => {

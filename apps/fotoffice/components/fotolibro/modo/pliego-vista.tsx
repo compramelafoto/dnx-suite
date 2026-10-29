@@ -8,6 +8,7 @@ import type { Ubicacion } from "@/lib/fotolibro/modo/operaciones";
 import { esBloqueAutomatico } from "@/lib/fotolibro/modo/bloques";
 import { esTextoLibre } from "@/lib/fotolibro/modo/textos-libres";
 import { ARRASTRE_FOTOS } from "./tira-fotos";
+import { ponerFantasma } from "./fantasma";
 
 /** Tipo de dato del arrastre de una foto ya puesta en el pliego. */
 const ARRASTRE_COLOCADA = "application/x-fotolibro-colocada";
@@ -106,6 +107,8 @@ export function PliegoVista(props: Props) {
   const contenedorRef = useRef<HTMLDivElement>(null);
   const [lugar, setLugar] = useState({ w: 800, h: 500 });
   const [sobre, setSobre] = useState<string | null>(null);
+  // La foto que se está arrastrando: se ve apagada en su lugar mientras tanto.
+  const [arrastrada, setArrastrada] = useState<string | null>(null);
 
   useEffect(() => {
     const el = contenedorRef.current;
@@ -206,7 +209,10 @@ export function PliegoVista(props: Props) {
                 onDragStart={(e) => {
                   e.dataTransfer.setData(ARRASTRE_COLOCADA, JSON.stringify(u));
                   e.dataTransfer.effectAllowed = "move";
+                  ponerFantasma(e, props.minis.get(u.fotoId) ?? (typeof b.configJson.previewSrc === "string" ? b.configJson.previewSrc : null), 1, b.layout.width / b.layout.height);
+                  setArrastrada(b.id);
                 }}
+                onDragEnd={() => setArrastrada(null)}
                 onDragOver={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
@@ -240,6 +246,7 @@ export function PliegoVista(props: Props) {
                   height: b.layout.height,
                   zIndex: 1000,
                   outline: elegida ? `${borde}px solid #facc15` : sobre === clave ? `${borde * 1.5}px solid #22c55e` : "none",
+                  background: arrastrada === b.id ? "rgba(15,23,42,0.55)" : sobre === clave ? "rgba(34,197,94,0.18)" : "transparent",
                   outlineOffset: 0,
                 }}
               />
