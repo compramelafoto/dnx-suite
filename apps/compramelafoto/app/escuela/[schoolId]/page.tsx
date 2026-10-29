@@ -9,6 +9,7 @@ import Input from "@/components/ui/Input";
 import Textarea from "@/components/ui/Textarea";
 import SchoolOrganizerHeader from "@/components/school-organizer/SchoolOrganizerHeader";
 import SchoolProfileEditor from "@/components/school-organizer/SchoolProfileEditor";
+import SchoolMercadoPagoCard from "@/components/school-organizer/SchoolMercadoPagoCard";
 import { RosterImportChatGptTipPanel } from "@/components/roster/RosterImportChatGptTipPanel";
 import { ensureSchoolOrganizerSession } from "@/lib/school-organizer-session-client";
 import {
@@ -35,6 +36,7 @@ type SchoolDetailResponse = {
 };
 
 type SchoolAlbum = {
+  coverUrl?: string | null;
   id: number;
   title: string;
   description: string | null;
@@ -744,6 +746,8 @@ export default function EscuelaDetailPage() {
               </p>
             </Card>
 
+            <SchoolMercadoPagoCard />
+
             <Card className="p-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <h2 className="font-semibold text-gray-900">Ventas generadas por la escuela</h2>
@@ -984,6 +988,20 @@ export default function EscuelaDetailPage() {
                   {albumsWithShareData.map((album) => (
                     <div key={album.id} className="rounded-xl border border-gray-200 bg-white p-3">
                       <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                        <div className="flex gap-3">
+                          {album.coverUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={album.coverUrl}
+                              alt=""
+                              loading="lazy"
+                              className="h-24 w-32 shrink-0 rounded-lg object-cover ring-1 ring-black/5"
+                            />
+                          ) : (
+                            <div className="flex h-24 w-32 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-xs text-gray-400">
+                              Sin portada
+                            </div>
+                          )}
                         <div>
                           <p className="font-medium text-gray-900">{album.title}</p>
                           <p className="text-xs text-gray-600">
@@ -1004,6 +1022,7 @@ export default function EscuelaDetailPage() {
                               : "No activa"}
                           </p>
                           <p className="text-xs text-gray-500">{album.commissionConfig.disclaimer}</p>
+                        </div>
                         </div>
                         <div className="flex items-center gap-2">
                           <Button

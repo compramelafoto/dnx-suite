@@ -61,9 +61,25 @@ describe("demos — navegación del guion", () => {
 
   it("ningún texto usa el signo $ ni «plata» (en las charlas se dice pesos y dinero)", () => {
     for (const p of GUION_ESCOLAR.pasos) {
-      const todo = [p.texto, p.aclaracion?.texto, p.puente, ...(p.puntos ?? [])].join(" ");
+      const placa = p.aclaracion;
+      const todo = [
+        p.texto,
+        placa?.titulo,
+        placa?.texto,
+        ...(placa?.puntos ?? []).flatMap((x) => [x.titulo, x.texto]),
+        p.puente,
+        ...(p.puntos ?? []),
+      ].join(" ");
       assert.ok(!todo.includes("$"), p.id);
       assert.ok(!/\bplata\b/i.test(todo), p.id);
+    }
+  });
+
+  it("las placas para el público son un resumen: hasta siete ideas cortas", () => {
+    for (const p of GUION_ESCOLAR.pasos) {
+      const puntos = p.aclaracion?.puntos ?? [];
+      assert.ok(puntos.length <= 7, p.id);
+      for (const x of puntos) assert.ok(x.titulo.length <= 32 && (x.texto ?? "").length <= 60, `${p.id}: ${x.titulo}`);
     }
   });
 

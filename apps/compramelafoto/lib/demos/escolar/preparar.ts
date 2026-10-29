@@ -30,6 +30,7 @@ import { finalizeAlbumPhotoFromRaw } from "@/lib/albums/finalize-album-photo-fro
 import { getAlbumPhotoMaxBytes, getAlbumPhotoMaxMb } from "@/lib/albums/album-photo-upload-limits";
 import { TERMS_VERSION } from "@/lib/terms/photographerTerms";
 import { FOTOS_SIN_PUBLICAR } from "@/lib/demos/escolar/fotos-toma";
+import { sembrarVentasDeEjemplo } from "@/lib/demos/escolar/ventas-ejemplo";
 
 export type ResumenDemo = {
   fotografoId: number;
@@ -43,7 +44,8 @@ export type ResumenDemo = {
 };
 
 /** Marca del token de MP falso: el álbum demo nunca cobra por Mercado Pago. */
-export const MP_TOKEN_DEMO = "DEMO_SIN_MERCADO_PAGO";
+export { MP_TOKEN_DEMO } from "@/lib/demos/identidad";
+import { MP_TOKEN_DEMO } from "@/lib/demos/identidad";
 
 const NIVEL: Record<string, string> = { S5: "Inicial", "6A": "Primaria" };
 
@@ -173,6 +175,7 @@ async function asegurarPacks(albumId: number, fotografoId: number): Promise<stri
     });
     if (existente) {
       plantillaId = plantillaId ?? existente.benefits.find((b) => b.templateV2Id)?.templateV2Id ?? null;
+      await prisma.packDefinition.update({ where: { id: existente.id }, data: { coverImageUrl: getR2PublicUrl(pack.imagen) } });
       continue;
     }
     const creado = await prisma.packDefinition.create({
@@ -182,6 +185,7 @@ async function asegurarPacks(albumId: number, fotografoId: number): Promise<stri
         description: pack.descripcion,
         priceClientArs: pack.precioPesos,
         displayOrder: i,
+        coverImageUrl: getR2PublicUrl(pack.imagen),
         isRecommended: pack.conLibrito,
         availabilityPhase: PackAvailabilityPhase.PRE_UPLOAD,
       },
@@ -303,6 +307,76 @@ export async function subirFotoDemo(albumId: number, fotografoId: number, archiv
   return photo.id;
 }
 
+/**
+ * Otros álbumes del colegio (acto patrio, día de la primavera) con fotos publicadas y portada.
+ * Copian fotos del álbum principal por nombre de archivo: si todavía no están, se saltean y la
+ * próxima corrida de «Preparar» las completa.
+ */
+async function asegurarAlbumesExtra(schoolId: number, fotografoId: number, albumPrincipalId: number, vence: Date) {
+  const d = DEMO_ESCOLAR;
+  for (const extra of d.albumesExtra) {
+    let album = await prisma.album.findUnique({
+      where: { publicSlug: extra.slug },
+      select: { id: true, userId: true, isTest: true, coverPhotoId: true },
+    });
+    if (album && (album.userId !== fotografoId || !album.isTest)) {
+      throw new Error(`El álbum ${extra.slug} no es del fotógrafo demo o no está en prueba: no se toca.`);
+    }
+    if (!album) {
+      album = await prisma.album.create({
+        data: {
+          userId: fotografoId,
+          title: extra.titulo,
+          publicSlug: extra.slug,
+          location: `${d.escuela.direccion}, ${d.escuela.ciudad}`,
+          type: "SCHOOL",
+          isTest: true,
+          isPublic: true,
+          schoolId,
+          eventDate: new Date(extra.fecha),
+          enableDigitalPhotos: true,
+          enablePrintedPhotos: false,
+          digitalPhotoPriceCents: 4000,
+          termsAcceptedAt: new Date(),
+          termsVersion: TERMS_VERSION,
+          expiresAt: vence,
+        } as never,
+        select: { id: true, userId: true, isTest: true, coverPhotoId: true },
+      });
+    } else {
+      await prisma.album.update({ where: { id: album.id }, data: { expiresAt: vence, deletedAt: null, title: extra.titulo } });
+    }
+
+    const yaEstan = new Set(
+      (
+        await prisma.photo.findMany({
+          where: { albumId: album.id, originalFilename: { in: [...extra.fotos] } },
+          select: { originalFilename: true },
+        })
+      ).map((p) => p.originalFilename),
+    );
+    let portada = album.coverPhotoId;
+    for (const archivo of extra.fotos) {
+      if (yaEstan.has(archivo)) continue;
+      const origen = await prisma.photo.findFirst({
+        where: { albumId: albumPrincipalId, originalFilename: archivo },
+        orderBy: { id: "desc" },
+        select: { originalKey: true },
+      });
+      if (!origen) continue;
+      const res = await fetch(getR2PublicUrl(origen.originalKey));
+      if (!res.ok) continue;
+      const id = await subirFotoDemo(album.id, fotografoId, archivo, Buffer.from(await res.arrayBuffer()));
+      // Estos álbumes ya pasaron: sus fotos están publicadas.
+      await prisma.photo.update({ where: { id }, data: { isRemoved: false, removedAt: null, removedReason: null } });
+      portada ??= id;
+    }
+    if (portada && portada !== album.coverPhotoId) {
+      await prisma.album.update({ where: { id: album.id }, data: { coverPhotoId: portada } });
+    }
+  }
+}
+
 /** Sube las fotos que falten. */
 async function asegurarFotos(albumId: number, fotografoId: number, origen: string, presupuestoMs: number) {
   const existentes = await prisma.photo.findMany({
@@ -378,7 +452,10 @@ export async function prepararDemoEscolar(opts: { origen: string; presupuestoFot
     throw new Error("La escuela demo pertenece a otro usuario: no se toca.");
   }
   await prisma.school.update({ where: { id: school.id }, data: { logoUrl: getR2PublicUrl(d.logos.colegio) } });
-  await prisma.user.update({ where: { id: fotografoId }, data: { logoUrl: getR2PublicUrl(d.logos.estudio) } });
+  await prisma.user.update({
+    where: { id: fotografoId },
+    data: { name: d.fotografo.nombre, companyName: d.fotografo.nombre, logoUrl: getR2PublicUrl(d.logos.estudio) },
+  });
 
   await prisma.schoolOrganizer.upsert({
     where: { schoolId_userId: { schoolId: school.id, userId: colegioUserId } },
@@ -400,6 +477,7 @@ export async function prepararDemoEscolar(opts: { origen: string; presupuestoFot
         userId: fotografoId,
         title: d.album.titulo,
         publicSlug: d.album.slug,
+        eventDate: new Date(d.album.fecha),
         location: `${d.escuela.direccion}, ${d.escuela.ciudad}`,
         type: "SCHOOL",
         mode: AlbumMode.SCHOOL,
@@ -422,8 +500,11 @@ export async function prepararDemoEscolar(opts: { origen: string; presupuestoFot
       select: { id: true, userId: true, isTest: true },
     });
   } else {
-    // Que no venza mientras se ensaya.
-    await prisma.album.update({ where: { id: album.id }, data: { expiresAt: enUnAnio, deletedAt: null } });
+    // Que no venza mientras se ensaya (y con el nombre vigente del guion).
+    await prisma.album.update({
+      where: { id: album.id },
+      data: { expiresAt: enUnAnio, deletedAt: null, title: d.album.titulo, eventDate: new Date(d.album.fecha) },
+    });
   }
 
   await asegurarAlumnosYCursos(school.id, album.id);
@@ -435,7 +516,18 @@ export async function prepararDemoEscolar(opts: { origen: string; presupuestoFot
     avisos.push(`Packs: ${err instanceof Error ? err.message : String(err)}`);
   }
 
+  try {
+    await sembrarVentasDeEjemplo({ albumId: album.id, schoolId: school.id, fotografoId });
+  } catch (err) {
+    avisos.push(`Ventas de ejemplo: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
   let fotos = { total: 0, subidasAhora: 0, faltan: 0 };
+  try {
+    await asegurarAlbumesExtra(school.id, fotografoId, album.id, enUnAnio);
+  } catch (err) {
+    avisos.push(`Otros álbumes: ${err instanceof Error ? err.message : String(err)}`);
+  }
   try {
     fotos = await asegurarFotos(album.id, fotografoId, opts.origen, opts.presupuestoFotosMs ?? 200_000);
     if (fotos.faltan > 0) avisos.push(`Faltan ${fotos.faltan} fotos: tocá «Preparar» otra vez para seguir.`);

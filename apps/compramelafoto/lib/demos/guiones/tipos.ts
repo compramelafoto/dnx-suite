@@ -30,12 +30,26 @@ export type PasoGuion = {
   puntos?: string[];
   /** Cómo enlazar con el paso siguiente, para que la charla no salte de tema. */
   puente?: string;
-  /** Tarjeta grande para el público, antes de mostrar el paso. */
-  aclaracion?: { titulo: string; texto: string };
+  /** Placa para el público (tipo diapositiva), antes de mostrar el paso. */
+  aclaracion?: PlacaPublico;
   /** Qué se le puede pedir al bot en este paso. */
   bot?: string;
   /** Botón propio de la demo en el cuadro guía (por ejemplo, publicar las fotos de la toma). */
   accion?: { etiqueta: string; endpoint: string; hecho: string };
+};
+
+/** Diapositiva para el público: título, una bajada y hasta siete ideas cortas. */
+export type PlacaPublico = {
+  titulo: string;
+  /** Bajada: una oración que resume la placa. */
+  texto: string;
+  puntos?: Array<{ titulo: string; texto?: string }>;
+  /** Puntos numerados (un proceso) o sueltos (ideas). Por defecto, sueltos. */
+  numerados?: boolean;
+  /** Muestra la mascota de DNX Bot sacando una foto, en las placas que hablan del bot. */
+  bot?: boolean;
+  /** Ejemplo de mensaje al bot, dibujado como un globo de chat. */
+  chat?: string;
 };
 
 export type Guion = {

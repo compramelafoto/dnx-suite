@@ -855,3 +855,11 @@ body[data-demo="1"] [data-demo-esquina] {
 body[data-demo="1"] [data-demo-ocultar] {
   display: none !important;
 }
+
+/* Placas de las demos para el público: entran como una diapositiva. */
+@keyframes placa-entra {
+  from { opacity: 0; transform: translateY(14px) scale(0.985); }
+  to { opacity: 1; transform: none; }
+}
+.placa-entra { animation: placa-entra 260ms ease-out; }
+@media (prefers-reduced-motion: reduce) { .placa-entra { animation: none; } }

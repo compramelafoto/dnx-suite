@@ -134,7 +134,10 @@ export function buildEscolarContent(brand: Pick<EscolarBrand, "nombre" | "benefi
     { titulo: "Sin planillas de cobro", texto: "Cada compra queda registrada en el sistema, con su pedido y su estado." },
     { titulo: "Compra y entrega centralizadas", texto: "Todo pasa por un mismo lugar, para el colegio y para las familias." },
     { titulo: "Beneficio para la institución", texto: "Un porcentaje acordado sobre las ventas, con reporte en su panel." },
-    { titulo: "Atención directa a las familias", texto: `Las consultas las responde ${n}, no la secretaría.` },
+    {
+      titulo: "Atención a las familias, a toda hora",
+      texto: `Un asistente virtual (DNX Bot) responde las dudas de las familias en el momento, de día o de noche. Lo que necesite una persona lo atiende ${n}. La secretaría no recibe consultas.`,
+    },
     { titulo: "Fotografía profesional", texto: "Un fotógrafo con experiencia en retratos, grupos y eventos." },
   ];
   if (brand.beneficioLocal) beneficios.push(brand.beneficioLocal);
