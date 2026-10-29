@@ -11,6 +11,12 @@ import { EXTERNAL_PREVENTA_KIND, EXTERNAL_SIN_EMAIL, parseExternalPreventaRefs }
 /** Clave dentro de `redemptionPaymentRefsJson` con lo propio de la prueba. */
 export const PACK_DE_PRUEBA_KEY = "packDePrueba";
 
+/**
+ * El alumno de la prueba cuando el álbum no tiene ni compras ni padrón: un nombre creíble (en el
+ * orden del Excel, apellido primero), porque la prueba se muestra en demos y charlas.
+ */
+export const ALUMNO_DE_MUESTRA = "López Martina";
+
 type SnapshotBenefitLike = {
   stableKey: string;
   benefitDefinitionId: number;
@@ -163,7 +169,7 @@ export function datosDeFamiliaParaPrueba(input: {
   return {
     refs: {
       kind: EXTERNAL_PREVENTA_KIND,
-      studentName: alumno || "Prueba Alumno",
+      studentName: alumno || ALUMNO_DE_MUESTRA,
       parentName: adulto,
       courseName: pc?.curso?.trim() || null,
       schoolName: input.colegio,
