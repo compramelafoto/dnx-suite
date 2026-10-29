@@ -13,6 +13,7 @@ import {
   type PhotoCrop,
 } from "@repo/template-editor-core";
 import type { DesignTemplatePayload } from "@/lib/design-v2/client-payload";
+import { paginasDelLibro } from "@/lib/design-v2/book-leaves";
 import {
   GROUP_PHOTO_MIN_FACES,
   photosForCanjeRole,
@@ -542,7 +543,8 @@ export default function CanjeLibritoStep({
           blocks={visibleBlocks}
           values={values}
           photoOverrides={overrides}
-          pageCount={pageCount}
+          // La plancha de figuritas no es una hoja del álbum: se ve en su pestaña, no en el 3D.
+          pageCount={paginasDelLibro(t)}
           giro={giro}
           onClose={() => setVer3d(false)}
         />

@@ -13,12 +13,32 @@ export type BookHalf = "left" | "right";
 export type BookFace = { pageIndex: number; half: BookHalf };
 export type BookLeaf = { front: BookFace; back: BookFace };
 
+/**
+ * Las caras que no son parte del libro sino una pieza aparte: la plancha de figuritas de los
+ * álbumes, que se imprime en papel autoadhesivo y se recorta. Se reconocen por su nombre y sólo
+ * cuentan las del final (después del interior).
+ */
+export function hojasAparte(input: { pageCount: number; pageLabels?: readonly string[] }): number[] {
+  const aparte: number[] = [];
+  for (let i = input.pageCount - 1; i >= 2; i--) {
+    if (!/plancha/i.test(input.pageLabels?.[i] ?? "")) break;
+    aparte.unshift(i);
+  }
+  return aparte;
+}
+
+/** Cuántas caras forman el libro (sin las piezas aparte, como la plancha de figuritas). */
+export function paginasDelLibro(input: { pageCount: number; pageLabels?: readonly string[] }): number {
+  return input.pageCount - hojasAparte(input).length;
+}
+
 /** Es un librito si tiene tapa más al menos un interior, y cada cara es un pliego apaisado. */
 export function isBookTemplate(input: {
   pageCount: number;
   canvas: { width: number; height: number };
   /** Lo que dice la plantilla, si lo dice (los productos planos traen `false`). */
   plegado?: boolean;
+  pageLabels?: readonly string[];
 }): boolean {
   if (typeof input.plegado === "boolean") return input.plegado;
   const width = Number(input.canvas.width) || 0;

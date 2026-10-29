@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PAPER_TOKENS, TemplateCanvasRenderer, editorThemeStyle } from "@repo/template-editor-ui";
 import type { DesignV2Data } from "@/lib/design-v2/design-data";
 import type { DesignPhotoPayload, DesignTemplatePayload } from "@/lib/design-v2/client-payload";
-import { bookLeaves, bookSpreadLabel, type BookFace } from "@/lib/design-v2/book-leaves";
+import { bookLeaves, bookSpreadLabel, paginasDelLibro, type BookFace } from "@/lib/design-v2/book-leaves";
 import { designPhotoOverrides, sinFondoDelDiseno, visibleDesignBlocks } from "@/lib/design-v2/render-inputs";
 
 /**
@@ -38,7 +38,8 @@ function useViewport(): { width: number; height: number } {
 }
 
 export default function BookPreview3D({ template, photos, data, onClose }: Props) {
-  const leaves = useMemo(() => bookLeaves(template.pageCount), [template.pageCount]);
+  // La plancha de figuritas no se encuaderna: el libro son la tapa y los interiores.
+  const leaves = useMemo(() => bookLeaves(paginasDelLibro(template)), [template]);
   const [flipped, setFlipped] = useState(0);
   // La hoja que está girando va arriba de todas mientras dura el giro.
   const [moving, setMoving] = useState<number | null>(null);

@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import type { DesignTemplatePayload } from "@/lib/design-v2/client-payload";
 import { visibleDesignBlocks } from "@/lib/design-v2/render-inputs";
-import { isBookTemplate } from "@/lib/design-v2/book-leaves";
+import { hojasAparte, isBookTemplate, paginasDelLibro } from "@/lib/design-v2/book-leaves";
 import VistaPlanaDemo from "./VistaPlanaDemo";
 
 /**
@@ -56,6 +56,8 @@ export default function VistaDemoPlantilla3D({
 }) {
   const [demo, setDemo] = useState<Demo | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** El álbum de figuritas: la plancha para recortar se mira aparte, plana. */
+  const [verPlancha, setVerPlancha] = useState(false);
 
   useEffect(() => {
     let vivo = true;
@@ -128,6 +130,33 @@ export default function VistaDemoPlantilla3D({
     </button>
   ) : null;
 
+  const aparte = hojasAparte(demo.template);
+  if (verPlancha && aparte.length) {
+    return (
+      <VistaPlanaDemo
+        titulo={`${nombre || demo.template.name || "Plantilla"} · Plancha de figuritas`}
+        subtitulo="Se imprime aparte, en papel autoadhesivo, para recortar y pegar en el álbum"
+        canvas={demo.template.canvas}
+        blocks={bloques}
+        values={demo.values}
+        photoOverrides={fotos}
+        pageCount={demo.template.pageCount}
+        pageLabels={demo.template.pageLabels}
+        soloPaginas={aparte}
+        onClose={() => setVerPlancha(false)}
+        acciones={
+          <button
+            type="button"
+            onClick={() => setVerPlancha(false)}
+            className="min-h-11 rounded-full bg-white px-5 text-[15px] font-semibold text-[#1f2328] shadow-sm"
+          >
+            Volver al álbum
+          </button>
+        }
+      />
+    );
+  }
+
   if (!isBookTemplate(demo.template)) {
     return (
       <VistaPlanaDemo
@@ -153,10 +182,26 @@ export default function VistaDemoPlantilla3D({
       blocks={bloques}
       values={demo.values}
       photoOverrides={fotos}
-      pageCount={Math.max(1, demo.template.pageCount)}
+      // El libro son la tapa y los interiores; la plancha de figuritas se mira con su botón.
+      pageCount={Math.max(1, paginasDelLibro(demo.template))}
       giro={0}
       onClose={onClose}
-      acciones={usar}
+      acciones={
+        aparte.length ? (
+          <>
+            <button
+              type="button"
+              onClick={() => setVerPlancha(true)}
+              className="min-h-11 rounded-full bg-white px-5 text-[15px] font-semibold text-[#1f2328] shadow-sm ring-1 ring-[#e7e1da]"
+            >
+              Ver la plancha de figuritas
+            </button>
+            {usar}
+          </>
+        ) : (
+          usar
+        )
+      }
     />
   );
 }
