@@ -24,7 +24,7 @@ const alumnos = (lista: string[]) =>
 export const DEMO_ESCOLAR = {
   fotografo: {
     email: `fotografo@${DEMO_EMAIL_DOMAIN}`,
-    nombre: "Estudio Demo Escolar",
+    nombre: "DNX Estudio",
     handler: "estudiodemo",
     telefono: "+54 9 341 000-0000",
     ciudad: "Rosario",
@@ -44,15 +44,36 @@ export const DEMO_ESCOLAR = {
     telefono: "+54 9 341 000-0001",
   },
   /**
-   * Logos inventados (en R2). Los dibujos están en docs/compramelafoto/demo-escolar/logos/ y se
+   * Logos (en R2): el colegio es inventado; el estudio es DNX Estudio. Los archivos están en
+   * docs/compramelafoto/demo-escolar/logos/ y se
    * suben con `scripts/demos/escolar/subir-logos.ts`.
    */
   logos: {
     colegio: "demos/escolar/logo-colegio.png",
-    estudio: "demos/escolar/logo-estudio.png",
+    estudio: "demos/escolar/logo-dnx-estudio-redondo.png",
   },
+  /**
+   * Otros álbumes del colegio, para que su panel muestre una historia. Usan fotos de la demo (por
+   * nombre de archivo) copiadas a cada álbum, ya publicadas; la primera es la portada.
+   */
+  albumesExtra: [
+    {
+      slug: "demo-escolar-acto-25-de-mayo",
+      titulo: "Acto Patrio 25 de Mayo 2026",
+      fecha: "2026-05-25T10:00:00-03:00",
+      fotos: ["EXTRA-04-PATIO.jpg", "EXTRA-03-FRENTE-ESCUELA.jpg", "6A-GRUPO.jpg", "EXTRA-07-CARTEL.jpg", "EXTRA-02-MAESTRA.jpg"],
+    },
+    {
+      slug: "demo-escolar-dia-de-la-primavera",
+      titulo: "Día de la Primavera 2026 · Sala de 5",
+      fecha: "2026-09-21T10:00:00-03:00",
+      fotos: ["EXTRA-06-AULA-SALA-5.jpg", "S5-GRUPO.jpg", "EXTRA-10-ARTE.jpg", "EXTRA-08-PERCHEROS.jpg", "EXTRA-09-BIBLIOTECA.jpg"],
+    },
+  ],
   album: {
-    titulo: "Escuela Demo Los Aromos · Fotos 2026",
+    titulo: "Foto Escolar Escuela Los Aromos 2026",
+    /** Día de la toma (la preventa se vende antes). */
+    fecha: "2026-11-05T12:00:00-03:00",
     slug: "demo-escolar-los-aromos",
     comisionColegioPorcentaje: 10,
   },
@@ -63,6 +84,8 @@ export const DEMO_ESCOLAR = {
   packs: [
     {
       clave: "librito",
+      /** Imagen del pack en R2 (archivo en docs/compramelafoto/demo-escolar/packs/). */
+      imagen: "demos/escolar/pack-librito.jpg",
       nombre: "Librito de fin de año + 5 fotos digitales",
       descripcion: "Librito impreso de 30×20 cm con la foto individual, la del grado y la de la maestra, y el mosaico de todo el curso. Más 5 fotos digitales a elección.",
       precioPesos: 38000,
@@ -72,6 +95,7 @@ export const DEMO_ESCOLAR = {
     },
     {
       clave: "digitales",
+      imagen: "demos/escolar/pack-digitales.jpg",
       nombre: "10 fotos digitales",
       descripcion: "Elegís 10 fotos de tu hijo o hija y las descargás en alta calidad.",
       precioPesos: 18000,

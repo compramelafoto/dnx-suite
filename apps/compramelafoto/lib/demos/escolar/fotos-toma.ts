@@ -9,7 +9,8 @@ import { prisma } from "@/lib/prisma";
 import { runAnalysisPipeline } from "@/lib/analysis/analysis-runner";
 
 /** Motivo con el que quedan ocultas las fotos sembradas: solo estas se publican y se esconden. */
-export const FOTOS_SIN_PUBLICAR = "DEMO_SIN_PUBLICAR";
+export { FOTOS_DEMO_SIN_PUBLICAR as FOTOS_SIN_PUBLICAR } from "@/lib/demos/identidad";
+import { FOTOS_DEMO_SIN_PUBLICAR as FOTOS_SIN_PUBLICAR } from "@/lib/demos/identidad";
 
 export async function publicarFotosDeLaToma(albumId: number): Promise<{ publicadas: number; analizadas: number }> {
   const r = await prisma.photo.updateMany({

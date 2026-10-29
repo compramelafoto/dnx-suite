@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
 import { getMercadoPagoConnectionHealth } from "@/lib/mercadopago/mp-connection-health";
+import { MP_TOKEN_DEMO } from "@/lib/demos/identidad";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,13 +22,22 @@ export async function GET(req: Request) {
     }
 
     if (ownerType === "USER") {
-      if (!["PHOTOGRAPHER", "LAB_PHOTOGRAPHER", "ORGANIZER", "ADMIN"].includes(user.role)) {
+      if (!["PHOTOGRAPHER", "LAB_PHOTOGRAPHER", "ORGANIZER", "SCHOOL_ORGANIZER", "ADMIN"].includes(user.role)) {
         return NextResponse.json({ error: "No autorizado" }, { status: 403 });
       }
       const data = await prisma.user.findUnique({
         where: { id: user.id },
         select: { mpAccessToken: true, mpUserId: true, mpConnectedAt: true },
       });
+      // Usuarios de las demos: la conexión es simulada, no se consulta a Mercado Pago.
+      if (data?.mpAccessToken === MP_TOKEN_DEMO) {
+        return NextResponse.json({
+          connected: true,
+          status: "CONNECTED",
+          mpUserId: data.mpUserId,
+          updatedAt: data.mpConnectedAt ? data.mpConnectedAt.toISOString() : null,
+        });
+      }
       // Un token guardado puede estar vencido: se consulta el estado real contra Mercado Pago.
       const health = data?.mpAccessToken
         ? await getMercadoPagoConnectionHealth({ ownerType: "USER", ownerId: user.id })

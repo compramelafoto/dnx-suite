@@ -35,6 +35,7 @@ import {
   ventanaAparteViva,
 } from "@/lib/demos/guiones/navegacion";
 import { VISTAS_DEMO, type VistaDemo } from "@/lib/demos/vistas";
+import PlacaPublico from "@/components/demos/PlacaPublico";
 
 const CLAVE_PASO = "dnx-demo-escolar-paso";
 const CLAVE_VISTAS = "dnx-demo-escolar-aclaraciones";
@@ -359,30 +360,7 @@ export default function CuadroGuia() {
 
   return (
     <>
-      {aclaracion?.aclaracion ? (
-        <div
-          className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/60 p-6"
-          onClick={cerrarAclaracion}
-          role="dialog"
-          aria-modal="true"
-        >
-          <div
-            className="max-w-2xl rounded-2xl bg-white p-10 text-center shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <p className="text-sm font-semibold uppercase tracking-widest text-[#c27b3d]">Para tener en cuenta</p>
-            <h2 className="mt-3 text-3xl font-bold text-gray-900">{aclaracion.aclaracion.titulo}</h2>
-            <p className="mt-4 text-xl leading-relaxed text-gray-700">{aclaracion.aclaracion.texto}</p>
-            <button
-              type="button"
-              onClick={cerrarAclaracion}
-              className="mt-8 rounded-full bg-[#c27b3d] px-6 py-3 text-base font-semibold text-white hover:bg-[#a0652d]"
-            >
-              Seguir
-            </button>
-          </div>
-        </div>
-      ) : null}
+      {aclaracion?.aclaracion ? <PlacaPublico paso={aclaracion} pasos={pasos} onSeguir={cerrarAclaracion} /> : null}
 
       {ventanaAparte ? null : (
         <div
@@ -611,6 +589,11 @@ function VentanaAparte(props: {
                   </p>
                   <p className="mt-1 text-lg font-bold">{aclaracion.aclaracion.titulo}</p>
                   <p className="mt-1 text-base text-gray-700">{aclaracion.aclaracion.texto}</p>
+                  {aclaracion.aclaracion.puntos?.length ? (
+                    <p className="mt-1 text-sm text-gray-500">
+                      {aclaracion.aclaracion.puntos.map((p) => p.titulo).join(" · ")}
+                    </p>
+                  ) : null}
                   <button
                     type="button"
                     onClick={props.cerrarAclaracion}

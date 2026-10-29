@@ -19,17 +19,47 @@ export const GUION_ESCOLAR: Guion = {
       titulo: "De qué se trata",
       texto: "El módulo «Escolar» del fotógrafo: desde acá se maneja todo lo del colegio.",
       puntos: [
-        "Presentate y contá en una frase qué es lo que más trabajo da hoy en la foto escolar: listados en papel, cobrar en efectivo, armar sobres a mano.",
+        "Presentate y contá en una frase quién sos y qué vamos a hacer en esta hora.",
         "Lo que van a ver es una venta escolar completa, de punta a punta, en las pantallas reales.",
         "Todo es una demo: escuela, alumnos y familias inventados, pagos simulados. Nada de lo que toquemos se rompe.",
         "Señalá el título «Escolar» y la frase de abajo: instituciones, alumnos, preventas y producción en un solo lugar.",
       ],
       aclaracion: {
-        titulo: "Todo lo que van a ver es una demo",
-        texto:
-          "La escuela, los alumnos y las familias son inventados, y los pagos son simulados. Las pantallas son las reales: es exactamente lo que vas a usar con tus colegios.",
+        titulo: "Venta escolar, de punta a punta",
+        texto: "Una demo en vivo, sobre las pantallas reales de ComprameLaFoto.",
+        puntos: [
+          { titulo: "Pantallas reales", texto: "Lo mismo que vas a usar con tus colegios." },
+          { titulo: "Datos inventados", texto: "Escuela, alumnos y familias de prueba." },
+          { titulo: "Pagos simulados", texto: "Nada se cobra y nada se rompe." },
+        ],
       },
-      puente: "Antes de entrar en pantallas, mostrá el mapa del recorrido para que todos sepan dónde estamos.",
+      puente: "Antes de entrar en pantallas, contá qué problemas vamos a resolver.",
+    },
+    {
+      id: "problema",
+      etapa: "Introducción",
+      vista: "fotografo",
+      ruta: () => "/fotografo/escuelas",
+      titulo: "Lo que hoy complica la foto escolar",
+      texto: "La placa para el público con los cuatro problemas; de fondo sigue «Escolar».",
+      puntos: [
+        "Preguntá al público cuántos hacen foto escolar y qué es lo que más les cuesta.",
+        "Listados en papel: nombres mal escritos, chicos que cambian de curso.",
+        "Cobros en efectivo: el colegio junta dinero, hay que rendir y siempre falta alguien.",
+        "Fotos sin dueño y sobres a mano: días de trabajo que nadie paga.",
+        "Todo lo que vamos a ver apunta a sacarte esas cuatro tareas de encima.",
+      ],
+      aclaracion: {
+        titulo: "Lo que hoy complica la foto escolar",
+        texto: "Cuatro tareas que se comen el tiempo del fotógrafo y no suman a la foto.",
+        puntos: [
+          { titulo: "Listados en papel", texto: "Nombres mal escritos y cursos mezclados." },
+          { titulo: "Cobros en efectivo", texto: "El colegio junta dinero y vos rendís cuentas." },
+          { titulo: "Fotos sin dueño", texto: "Separar cientos de fotos por chico lleva días." },
+          { titulo: "Sobres a mano", texto: "Armar, rotular y entregar uno por uno." },
+        ],
+      },
+      puente: "Ahora sí, el mapa del recorrido.",
     },
     {
       id: "recorrido",
@@ -46,9 +76,18 @@ export const GUION_ESCOLAR: Guion = {
         "Cerramos viendo cómo el colegio sigue su parte de la venta.",
       ],
       aclaracion: {
-        titulo: "El recorrido",
-        texto:
-          "1 Conseguir el colegio · 2 Acordar con el colegio · 3 Preparar la venta · 4 Preventa · 5 Día de la toma · 6 La familia elige · 7 Producción y entrega.",
+        titulo: "El recorrido de hoy",
+        texto: "Siete etapas, desde conseguir el colegio hasta entregar los sobres.",
+        numerados: true,
+        puntos: [
+          { titulo: "Conseguir el colegio", texto: "Tu página de venta y su pedido de propuesta." },
+          { titulo: "Acordar con el colegio", texto: "Alta, listado de alumnos y comisión." },
+          { titulo: "Preparar la venta", texto: "Los packs y el diseño del librito." },
+          { titulo: "Preventa", texto: "La familia paga antes de la sesión." },
+          { titulo: "Día de la toma", texto: "Subís todas las fotos juntas." },
+          { titulo: "La familia elige", texto: "Se encuentra con una selfie y arma su librito." },
+          { titulo: "Producción y entrega", texto: "Imprenta y sobres con QR." },
+        ],
       },
       puente: "Arrancamos por el principio: ¿cómo llega un colegio a trabajar con vos?",
     },
@@ -59,12 +98,12 @@ export const GUION_ESCOLAR: Guion = {
       etapa: "1 · Conseguir el colegio",
       vista: "fotografo",
       ruta: () => "/fotografo/escuelas/landing",
-      titulo: "Tu landing escolar",
-      texto: "«Mi landing escolar»: la dirección de tu página, el QR, lo que le falta y las consultas de colegios.",
+      titulo: "Tu página de venta personalizada",
+      texto: "Tu página de venta personalizada para colegios (en el menú figura como «Mi landing escolar»): la dirección, el QR, lo que le falta y las consultas.",
       puntos: [
         "Cada fotógrafo tiene una página propia para ofrecerle el servicio a los colegios, con su marca.",
-        "Arriba, «Dirección de tu landing»: la copiás para mandar por WhatsApp o descargás el QR para imprimirlo en un folleto.",
-        "«Qué le falta a tu landing» es una lista de tareas: te dice qué completar para que se vea bien.",
+        "Arriba, la dirección de tu página de venta: la copiás para mandar por WhatsApp o descargás el QR para imprimirlo en un folleto.",
+        "Al lado, la lista de lo que le falta: revisa cinco cosas (dirección pública, página activada, logo, WhatsApp o teléfono y nombre comercial). Las dos primeras son obligatorias; si algo falta, «Completar →» te lleva a cargarlo.",
         "Abajo, «Consultas de colegios»: cuando un directivo pide una propuesta, llega acá con sus datos y la cantidad de alumnos.",
       ],
       bot: "Pedile al bot: «mostrame cómo vengo con la configuración escolar».",
@@ -76,7 +115,7 @@ export const GUION_ESCOLAR: Guion = {
       vista: "familia",
       ruta: (c) => `/${c.handler}/escolar`,
       titulo: "Lo que ve el colegio",
-      texto: "La landing pública del estudio: «Fotografía escolar sin gestionar cobros ni pedidos».",
+      texto: "La página de venta del estudio, tal como la ve el colegio: «Fotografía escolar sin gestionar cobros ni pedidos».",
       puntos: [
         "Arriba, el logo y el nombre del estudio: es tu página, no la de la plataforma.",
         "Bajá despacio: «Cómo funciona» explica la preventa, «Qué cambia para el colegio», «Quién se queda con qué».",
@@ -102,9 +141,16 @@ export const GUION_ESCOLAR: Guion = {
         "Pestaña «Administradores»: le creás un usuario al colegio para que siga sus ventas sin pedirte planillas.",
       ],
       aclaracion: {
-        titulo: "No hace falta tocar nada de esto a mano",
-        texto:
-          "Todo lo que ven en estas pantallas se puede configurar hablando con el bot: «creá la escuela Los Aromos, con sala de 5 y 6º A, y cargá este Excel». El bot hace cada paso y te pide confirmación.",
+        titulo: "Todo esto lo configura el bot",
+        bot: true,
+        texto: "Le pedís lo que necesitás, en tus palabras, y DNX Bot lo hace por vos.",
+        chat: "Creá la escuela Los Aromos, con sala de 5 y 6º A, y cargá este Excel.",
+        numerados: true,
+        puntos: [
+          { titulo: "Le pedís", texto: "En tus palabras, como a un asistente." },
+          { titulo: "El bot lo hace", texto: "Crea la escuela, los cursos e importa el listado." },
+          { titulo: "Vos confirmás", texto: "Nada se guarda sin tu aprobación." },
+        ],
       },
       bot: "«Creá un curso 5º grado B en la Escuela Demo Los Aromos».",
       puente: "Con el colegio cargado, falta lo que más le importa al colegio: qué parte de la venta le toca.",
@@ -123,6 +169,15 @@ export const GUION_ESCOLAR: Guion = {
         "El sistema la calcula sola en cada compra: nadie hace cuentas a fin de mes.",
         "La comisión es un acuerdo entre vos y el colegio; la plataforma no se mete.",
       ],
+      aclaracion: {
+        titulo: "El colegio también gana",
+        texto: "Un porcentaje de cada venta, acordado entre vos y el colegio.",
+        puntos: [
+          { titulo: "Lo acordás una vez", texto: "En la demo, 10 % de la preventa." },
+          { titulo: "Se calcula solo", texto: "En cada compra, sin planillas." },
+          { titulo: "El colegio lo ve", texto: "En su propio panel, en tiempo real." },
+        ],
+      },
       bot: "«Poné la comisión del colegio en 10 % para la preventa».",
       puente: "Veamos cómo lo ve el colegio desde su propio usuario.",
     },
@@ -137,8 +192,9 @@ export const GUION_ESCOLAR: Guion = {
         "Cambiamos de persona: ahora somos el colegio (botón «Colegio» de la guía).",
         "Arriba, «Editar perfil»: el colegio mantiene su logo y sus datos.",
         "«Fotógrafo responsable»: sabe con quién trabaja.",
-        "«Ventas generadas por la escuela»: hoy está todo en cero, porque todavía no se vendió nada.",
-        "Más abajo, sus alumnos. Volvemos a este panel al final, cuando ya haya ventas.",
+        "«Cobrar con Mercado Pago»: el colegio conecta su cuenta y recibe su parte directamente, a medida que las familias pagan. Tocá «Conectar Mercado Pago» (en la demo es simulado).",
+        "«Ventas generadas por la escuela»: ya hay compras de otras familias, con la comisión de cada una; las más viejas figuran como pagadas.",
+        "Más abajo, sus álbumes y sus alumnos. Volvemos a este panel al final, para ver la compra que vamos a hacer.",
       ],
       puente: "El colegio está listo. Ahora, antes de abrir la venta, el fotógrafo decide qué va a vender.",
     },
@@ -158,6 +214,15 @@ export const GUION_ESCOLAR: Guion = {
         "Precios: 38.000 pesos el pack con librito y 18.000 pesos el digital.",
         "El pack con librito es un producto impreso, y para imprimirlo necesita un diseño. Eso es lo que vemos ahora.",
       ],
+      aclaracion: {
+        titulo: "Primero definís qué vendés",
+        texto: "La familia compra antes de la sesión: por eso se arman los packs antes.",
+        puntos: [
+          { titulo: "Librito + 5 digitales", texto: "38.000 pesos. Impreso, con el nombre del chico." },
+          { titulo: "10 fotos digitales", texto: "18.000 pesos. Descarga en alta calidad." },
+          { titulo: "Vos ponés las reglas", texto: "Qué incluye cada pack y cuánto cuesta." },
+        ],
+      },
       bot: "«Creá un pack de 10 digitales a 18.000 pesos».",
       puente: "El librito necesita un diseño: veamos de dónde sale, sin que tengas que diseñar uno por chico.",
     },
@@ -176,9 +241,15 @@ export const GUION_ESCOLAR: Guion = {
         "En la demo ya está copiada y ligada al pack con librito: está en «Mis plantillas».",
       ],
       aclaracion: {
-        titulo: "El diseño se arma solo",
-        texto:
-          "Cuando la familia elige sus fotos, el librito se arma automáticamente con el nombre del alumno, el curso, el colegio y el mosaico de todo el grado. Ustedes solo revisan y mandan a imprimir.",
+        titulo: "Se arma completamente solo",
+        texto: "Librito, diploma, anuario o cualquier diseño: elegís la plantilla y el sistema lo completa para cada chico.",
+        numerados: true,
+        puntos: [
+          { titulo: "Elegís la plantilla", texto: "Libritos, diplomas y anuarios listos." },
+          { titulo: "La familia elige sus fotos", texto: "Desde su celular, cuando estén listas." },
+          { titulo: "Se completa solo", texto: "Nombre, curso, colegio y mosaico del grado." },
+          { titulo: "Vos revisás e imprimís", texto: "Un clic para mandar a la imprenta." },
+        ],
       },
       puente: "¿Cómo sé que la plantilla funciona con mi colegio? La pruebo con el listado real.",
     },
@@ -218,8 +289,12 @@ export const GUION_ESCOLAR: Guion = {
       ],
       aclaracion: {
         titulo: "Cobrás antes de sacar la foto",
-        texto:
-          "El dinero entra por Mercado Pago directo a tu cuenta, el colegio no maneja efectivo y vos no armás listados de quién pagó: el sistema ya sabe qué compró cada familia.",
+        texto: "La preventa cambia el orden: primero se vende, después se trabaja.",
+        puntos: [
+          { titulo: "Directo a tu cuenta", texto: "El dinero entra por Mercado Pago." },
+          { titulo: "Sin efectivo", texto: "El colegio no junta ni rinde dinero." },
+          { titulo: "Sin listas de quién pagó", texto: "El sistema sabe qué compró cada familia." },
+        ],
       },
       puente: "La familia ya pagó. Llega el día de la sesión de fotos.",
     },
@@ -239,6 +314,15 @@ export const GUION_ESCOLAR: Guion = {
         "En la demo las fotos ya están cargadas: tocá «Publicar las fotos de la toma» en esta guía y aparecen.",
         "Si querés, subí alguna foto más a mano para mostrar la subida.",
       ],
+      aclaracion: {
+        titulo: "Subís todo junto",
+        texto: "El día de la toma no separás nada: el sistema reconoce quién está en cada foto.",
+        puntos: [
+          { titulo: "Una carpeta por jornada", texto: "Todas las fotos de una vez." },
+          { titulo: "Reconocimiento de caras", texto: "Automático, en segundo plano." },
+          { titulo: "Cero clasificación a mano", texto: "Cada familia encuentra lo suyo." },
+        ],
+      },
       accion: {
         etiqueta: "Publicar las fotos de la toma",
         endpoint: "/api/demo/fotos",
@@ -249,14 +333,41 @@ export const GUION_ESCOLAR: Guion = {
 
     // ── 6 · La familia elige ──────────────────────────────────────────────────────────────
     {
+      id: "galeria-fotografo",
+      etapa: "6 · La familia elige",
+      vista: "fotografo",
+      ruta: (c) => `/album/${c.albumSlug}`,
+      titulo: "La galería, vista por el fotógrafo",
+      texto: "El álbum publicado, abierto por su dueño: el aviso amarillo «Vista de fotógrafo» y todas las fotos.",
+      puntos: [
+        "Seguimos como fotógrafo. Así se ve la galería por dentro: arriba el logo de tu estudio y el nombre del álbum.",
+        "Leé el aviso amarillo: como dueño ves todas las fotos; las familias tienen que pasar por reconocimiento facial.",
+        "Bajá y mostrá que están las fotos de todos los chicos, las grupales y las del colegio.",
+        "Ese modo se llama «oculto hasta la selfie» y se prende en la configuración del álbum.",
+        "Ahora veamos exactamente la misma galería, pero con los ojos de una familia.",
+      ],
+      aclaracion: {
+        titulo: "Misma galería, dos miradas",
+        texto: "El fotógrafo ve todo. Cada familia ve solo lo suyo.",
+        numerados: true,
+        puntos: [
+          { titulo: "El fotógrafo", texto: "Ve todas las fotos de la jornada." },
+          { titulo: "La familia", texto: "Ve una galería cerrada hasta la selfie." },
+          { titulo: "Después de la selfie", texto: "Ve solo las fotos de su hijo y las grupales." },
+        ],
+      },
+      puente: "Pasemos a la vista de la familia: misma dirección, otra persona.",
+    },
+    {
       id: "selfie",
       etapa: "6 · La familia elige",
       vista: "familia",
-      ruta: (c) => `/album/${c.albumSlug}`,
-      titulo: "Se encuentra con una selfie",
-      texto: "«Galería con fotos ocultas»: nadie ve todas las fotos; cada uno se busca con una selfie.",
+      // La vista cliente del álbum: con la sesión del dueño, muestra lo mismo que ve una familia.
+      ruta: (c) => `/album/${c.albumSlug}?vista=cliente`,
+      titulo: "La familia se encuentra con una selfie",
+      texto: "La misma galería vista por una familia: cerrada, con «Galería con fotos ocultas» y la búsqueda por selfie.",
       puntos: [
-        "Somos la familia de nuevo. La galería no muestra nada hasta que te identificás.",
+        "Ahora somos la familia. Misma galería que recién, pero no se ve ninguna foto: hay que identificarse.",
         "Aceptá el consentimiento y sacate una selfie (en la computadora aparece un QR para hacerlo con el celular).",
         "Hacelo en vivo con tu cara: sos el profesor de 6º A y vas a aparecer en tus fotos.",
         "Mostrá que solo aparecen las fotos donde estás vos, más las grupales.",
@@ -264,8 +375,12 @@ export const GUION_ESCOLAR: Guion = {
       ],
       aclaracion: {
         titulo: "Privacidad de los chicos",
-        texto:
-          "Nadie ve las fotos de otros chicos. La selfie se usa solo para buscar, con consentimiento, y se borra según el plazo que fije el fotógrafo.",
+        texto: "Cada familia ve solo sus fotos. Nadie ve las de otros chicos.",
+        puntos: [
+          { titulo: "Galería oculta", texto: "No se puede recorrer el álbum completo." },
+          { titulo: "Selfie con consentimiento", texto: "Se usa solo para buscar." },
+          { titulo: "Se borra", texto: "Cuando la familia quiere o en el plazo que fijes." },
+        ],
       },
       puente: "Ya encontró sus fotos. Ahora usa lo que compró en la preventa.",
     },
@@ -285,6 +400,16 @@ export const GUION_ESCOLAR: Guion = {
         "Al final marca «Revisé todos los datos y autorizo la impresión» y toca «Confirmar mi pack».",
         "Remarcá: la familia aprobó el diseño; no hay reclamos después de imprimir.",
       ],
+      aclaracion: {
+        titulo: "La familia aprueba antes de imprimir",
+        texto: "Elige, revisa y autoriza: no hay reclamos después de la imprenta.",
+        numerados: true,
+        puntos: [
+          { titulo: "Elige sus fotos", texto: "Las que entran en su pack." },
+          { titulo: "Ve su librito en 3D", texto: "Con el nombre y el mosaico del curso." },
+          { titulo: "Corrige y aprueba", texto: "Cambia o acomoda fotos y confirma." },
+        ],
+      },
       puente: "Del lado del fotógrafo, ese pedido aprobado ya está esperando.",
     },
 
@@ -333,7 +458,13 @@ export const GUION_ESCOLAR: Guion = {
       ],
       aclaracion: {
         titulo: "Entregar sin listas en papel",
-        texto: "Cada sobre sabe de quién es. En el colegio escaneás el QR y marcás la entrega.",
+        texto: "Cada sobre sabe de quién es.",
+        numerados: true,
+        puntos: [
+          { titulo: "Etiqueta con QR", texto: "Alumno, curso, colegio y pedido." },
+          { titulo: "Escaneás en el colegio", texto: "Ves la ficha de entrega de ese chico." },
+          { titulo: "Marcás entregado", texto: "Y el pedido queda cerrado." },
+        ],
       },
       puente: "Y para tener todo esto a la vista en el estudio, hay una pantalla especial.",
     },
@@ -362,8 +493,8 @@ export const GUION_ESCOLAR: Guion = {
       titulo: "El colegio ve su venta",
       texto: "El «Panel Escuela» otra vez, ahora con la venta y su comisión.",
       puntos: [
-        "Somos el colegio otra vez. Antes estaba en cero.",
-        "En «Ventas generadas por la escuela» aparece la compra de la preventa y la comisión que le toca.",
+        "Somos el colegio otra vez.",
+        "En «Ventas generadas por la escuela» se sumó la compra que hicimos en la preventa, con la comisión que le toca.",
         "La tabla muestra fecha, pedido, monto y estado de cada comisión.",
         "Con «Solicitar cobro» el colegio te pide su parte; vos la ves y la marcás pagada.",
         "Nadie le pasó una planilla al colegio: lo ve solo.",
@@ -385,8 +516,16 @@ export const GUION_ESCOLAR: Guion = {
       ],
       aclaracion: {
         titulo: "Sin listados ni cobros a mano",
-        texto:
-          "Landing para conseguir colegios, preventa cobrada por Mercado Pago, búsqueda por selfie, librito que se arma solo, imprenta y sobres con QR. Y todo se configura conversando con el bot.",
+        bot: true,
+        texto: "Todo el circuito escolar en un solo lugar, y configurable conversando con el bot.",
+        puntos: [
+          { titulo: "Página de venta propia", texto: "Los colegios te piden propuesta solos." },
+          { titulo: "Preventa con Mercado Pago", texto: "Cobrás antes de sacar la foto." },
+          { titulo: "Búsqueda por selfie", texto: "Cada familia se encuentra sola." },
+          { titulo: "Diseños automáticos", texto: "Librito, diploma o anuario, solos." },
+          { titulo: "Imprenta y sobres con QR", texto: "Producción y entrega ordenadas." },
+          { titulo: "Todo con el bot", texto: "Lo configurás conversando." },
+        ],
       },
     },
   ],

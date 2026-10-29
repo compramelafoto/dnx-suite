@@ -1,5 +1,5 @@
 /**
- * Sube los logos inventados de la demo escolar (colegio y estudio) a R2 y los deja puestos.
+ * Sube a R2 los logos (colegio y estudio) y las imágenes de los packs de la demo escolar.
  * Los dibujos están en docs/compramelafoto/demo-escolar/logos/; si se cambian, se vuelve a correr.
  *
  *   ../../packages/payments/node_modules/.bin/tsx --env-file=.env.local --conditions=react-server \
@@ -20,6 +20,10 @@ async function main() {
     await uploadToR2(readFileSync(join(CARPETA, `logo-${nombre}.png`)), key, "image/png");
     console.log(`${nombre}: ${getR2PublicUrl(key)}`);
   }
+  for (const pack of DEMO_ESCOLAR.packs) {
+    await uploadToR2(readFileSync(join(CARPETA, "../packs", `pack-${pack.clave}.jpg`)), pack.imagen, "image/jpeg");
+    console.log(`pack ${pack.clave}: ${getR2PublicUrl(pack.imagen)}`);
+  }
   const ctx = await getContextoDemoEscolar();
   if (!ctx) {
     console.log("Logos subidos. La demo no está preparada en esta base: «Preparar» los pone.");
@@ -27,7 +31,7 @@ async function main() {
   }
   await prisma.school.update({ where: { id: ctx.schoolId }, data: { logoUrl: getR2PublicUrl(DEMO_ESCOLAR.logos.colegio) } });
   await prisma.user.update({ where: { id: ctx.fotografoId }, data: { logoUrl: getR2PublicUrl(DEMO_ESCOLAR.logos.estudio) } });
-  console.log("Listo: logos puestos en la escuela y en el estudio demo.");
+  console.log("Listo: logos puestos en la escuela y en DNX Estudio.");
 }
 
 main()

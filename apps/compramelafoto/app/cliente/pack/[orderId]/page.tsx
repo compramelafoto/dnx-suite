@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { ArrowRight, BookOpen, CalendarClock, Check, Image as ImageIcon } from "lucide-react";
 import { use, useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import PreventaPackHubJourney from "@/components/preventa/PreventaPackHubJourney";
@@ -95,6 +96,11 @@ function benefitClientLine(b: {
       : `Cuando estén las fotos, elegís ${rpc} fotos distintas para cada una de las ${iq}.`;
   }
   return `Cuando estén las fotos, elegís ${iq} ${iq === 1 ? "foto" : "fotos"} ${destino}.`;
+}
+
+/** Precio en pesos con separador de miles: «$ 38.000». */
+function pesos(monto: number | null | undefined): string {
+  return `$ ${Math.round(Number(monto ?? 0)).toLocaleString("es-AR")}`;
 }
 
 export default function ClientePackPage({
@@ -318,188 +324,167 @@ export default function ClientePackPage({
         />
       ) : null}
 
-      <header className="space-y-2">
-        <h1 className="text-2xl font-semibold">
+      <header className="overflow-hidden rounded-3xl bg-gradient-to-br from-[#2a2018] via-[#3a2a1d] to-[#c27b3d] px-6 py-8 text-white shadow-lg sm:px-10 sm:py-10">
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/70">
           {uxV2 ? "Tu preventa" : "Tu pack de preventa"}
-        </h1>
-        <p className="text-sm text-gray-600">
-          Pedido #{order.id} · {uxV2 ? statusLabel : `Estado: ${order.status}`}
         </p>
-        {order.album ? (
-          <p className="text-sm text-gray-600">Campaña: {order.album.title}</p>
-        ) : null}
+        <h1 className="mt-2 text-3xl font-bold leading-tight sm:text-4xl">{snapshot?.packName || "Pack"}</h1>
+        {order.album ? <p className="mt-2 text-base text-white/85">{order.album.title}</p> : null}
+        <div className="mt-5 flex flex-wrap gap-2 text-sm">
+          <span className="rounded-full bg-white/15 px-3 py-1 font-medium">
+            {uxV2 ? statusLabel : `Estado: ${order.status}`}
+          </span>
+          <span className="rounded-full bg-white/15 px-3 py-1">Pedido #{order.id}</span>
+          {snapshot?.priceClientArs != null ? (
+            <span className="rounded-full bg-white/15 px-3 py-1">{pesos(snapshot.priceClientArs)}</span>
+          ) : null}
+        </div>
       </header>
 
-      <section className="border rounded-xl p-5 sm:p-6 space-y-3 bg-white">
-        <h2 className="text-lg font-medium">{snapshot?.packName || "Pack"}</h2>
-
-        {snapshot?.packDescription ? (
-          <p className="text-sm text-gray-700">{snapshot.packDescription}</p>
-        ) : null}
-
-        <p className="text-sm text-gray-700">
-          Precio: ${snapshot?.priceClientArs ?? 0}
-        </p>
-
-        {snapshot?.redemptionDeadlineAt ? (
-          <p className="text-sm text-gray-700">
-            Disponible para usar hasta:{" "}
-            {new Date(snapshot.redemptionDeadlineAt).toLocaleString("es-AR")}
-          </p>
-        ) : null}
-      </section>
-
-      <section className="border rounded-xl p-5 sm:p-6 space-y-4 bg-white">
-        <h2 className="text-lg font-medium">Qué incluye tu pack</h2>
-
-        {packCompositionLines.length > 0 ? (
-          <ul className="text-sm text-gray-700 space-y-1 m-0 pl-4 list-disc">
-            {packCompositionLines.map((line) => (
-              <li key={line}>{line}</li>
-            ))}
-          </ul>
-        ) : null}
-
-        {snapshot?.benefits?.length ? (
-          <div className="space-y-3">
-            {snapshot.benefits.map((b) => (
-              <div key={b.stableKey} className="border rounded-lg p-3">
-                <p className="font-medium">{b.name}</p>
-                <p className="text-sm text-gray-600">{b.kindLabel}</p>
-                <p className="text-sm text-gray-700 mt-1">{benefitClientLine(b)}</p>
-              </div>
-            ))}
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start">
+        <section className="space-y-5 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-black/5 sm:p-8">
+          <div>
+            <h2 className="text-xl font-semibold text-gray-900">Qué incluye tu pack</h2>
+            {snapshot?.packDescription ? (
+              <p className="mt-2 text-base leading-relaxed text-gray-600">{snapshot.packDescription}</p>
+            ) : null}
           </div>
-        ) : (
-          <p className="text-sm text-gray-600">
-            Este pack todavía no tiene beneficios visibles.
-          </p>
-        )}
-      </section>
+
+          {snapshot?.benefits?.length ? (
+            <div className="grid gap-4 sm:grid-cols-2">
+              {snapshot.benefits.map((b) => (
+                <div key={b.stableKey} className="rounded-2xl bg-[#fbf6f1] p-5 ring-1 ring-[#c27b3d]/15">
+                  <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[#c27b3d] text-white">
+                    {b.kind === "PHYSICAL" ? <BookOpen className="h-5 w-5" aria-hidden /> : <ImageIcon className="h-5 w-5" aria-hidden />}
+                  </span>
+                  <p className="mt-4 text-lg font-semibold leading-snug text-gray-900">{b.name}</p>
+                  <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-[#a0652d]">{b.kindLabel}</p>
+                  <p className="mt-3 text-sm leading-relaxed text-gray-700">{benefitClientLine(b)}</p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-gray-600">Este pack todavía no tiene beneficios visibles.</p>
+          )}
+
+          {packCompositionLines.length > 0 ? (
+            <ul className="m-0 grid list-none gap-2.5 border-t border-gray-100 p-0 pt-5 sm:grid-cols-2">
+              {packCompositionLines.map((line) => (
+                <li key={line} className="flex items-start gap-2.5 text-sm leading-snug text-gray-700">
+                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" aria-hidden />
+                  <span>{line}</span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </section>
+
+        <aside className="space-y-4 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-black/5 lg:sticky lg:top-6">
+          <h2 className="text-xl font-semibold text-gray-900">Usar tu pack</h2>
+
+          {!isPreventaPack ? (
+            <p className="text-sm text-gray-600">Este pedido no es una preventa canjeable desde acá.</p>
+          ) : alreadyRedeemed ? (
+            <p className="rounded-2xl bg-emerald-50 p-4 text-sm font-medium text-emerald-800">
+              Este pack ya fue usado. Pedido de canje: #{order.redemptionOrderId}
+            </p>
+          ) : !isPaid ? (
+            <p className="rounded-2xl bg-amber-50 p-4 text-sm leading-relaxed text-amber-900">
+              Cuando el pago se confirme vas a poder elegir las fotos y completar el canje. Si ya pagaste y sigue
+              pendiente, esperá unos minutos o revisá el estado en Mercado Pago.
+            </p>
+          ) : !order.album ? (
+            <p className="text-sm text-gray-600">No hay álbum asociado a este pedido.</p>
+          ) : redeemEntryHref ? (
+            <>
+              <p className="text-sm leading-relaxed text-gray-600">
+                Entrá al álbum para elegir las fotos según lo que incluye tu pack.
+              </p>
+              <Link
+                href={redeemEntryHref}
+                className="flex w-full items-center justify-center gap-2 rounded-full bg-[#c27b3d] px-5 py-3.5 text-base font-semibold text-white shadow-md shadow-[#c27b3d]/25 hover:bg-[#a0652d]"
+              >
+                Elegir las fotos de mi pack
+                <ArrowRight className="h-4 w-4" aria-hidden />
+              </Link>
+            </>
+          ) : null}
+
+          {snapshot?.redemptionDeadlineAt ? (
+            <p className="flex items-center gap-2 text-sm text-gray-600">
+              <CalendarClock className="h-4 w-4 shrink-0 text-gray-400" aria-hidden />
+              Podés usarlo hasta el{" "}
+              {new Date(snapshot.redemptionDeadlineAt).toLocaleDateString("es-AR", {
+                timeZone: "America/Argentina/Buenos_Aires",
+              })}
+            </p>
+          ) : null}
+
+          {canStartRedeem ? (
+            <p className="break-all text-xs text-gray-400">
+              Guardá este link para volver:{" "}
+              {isNumericId ? `/cliente/pack/${order.id}` : `/cliente/pack/${rawId}`}
+            </p>
+          ) : null}
+
+          {uxV2 &&
+          !showEmbeddedSelfie &&
+          data.journey?.preCompraOrderId != null &&
+          isPaid &&
+          !alreadyRedeemed ? (
+            <p className="border-t border-gray-100 pt-4 text-xs text-gray-500">
+              ¿Te pidieron una selfie?{" "}
+              <Link
+                href={`/order/${data.journey.preCompraOrderId}/selfies`}
+                className="font-semibold text-[#c27b3d] hover:underline"
+              >
+                Subir selfie (paso escolar)
+              </Link>
+            </p>
+          ) : null}
+        </aside>
+      </div>
 
       {hasUpsells ? (
-        <section className="border rounded-xl p-5 sm:p-6 space-y-4 bg-white">
+        <section className="space-y-5 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-black/5 sm:p-8">
           <div>
-            <h2 className="text-lg font-medium">Sumá más fotos a tu pedido</h2>
-            <p className="text-sm text-gray-600">
-              Lo que ya incluye tu pack no cambia. Esto es adicional.
-            </p>
+            <h2 className="text-xl font-semibold text-gray-900">Sumá más fotos a tu pedido</h2>
+            <p className="mt-1 text-sm text-gray-600">Lo que ya incluye tu pack no cambia. Esto es adicional.</p>
           </div>
-          <div className="rounded-lg border border-dashed border-gray-200 p-3 text-sm text-gray-700">
-            <p className="font-medium text-gray-800">Incluido en tu pack</p>
-            <p className="mt-1 text-gray-600">
-              {snapshot?.packName ? `${snapshot.packName}` : "Pack de preventa"}
-              {snapshot?.priceClientArs != null ? ` · $${snapshot.priceClientArs}` : ""}
-            </p>
-          </div>
-          <div className="space-y-3">
-            {upsellExtras.digitalExtraFromArs != null &&
-            upsellExtras.digitalExtraFromArs > 0 ? (
-              <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3">
-                <div>
-                  <p className="text-sm font-semibold text-emerald-900">Extra</p>
-                  <p className="text-sm text-emerald-800">Foto digital extra</p>
-                </div>
-                <div className="text-sm font-semibold text-emerald-900">
-                  ${upsellExtras.digitalExtraFromArs}
-                </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {upsellExtras.digitalExtraFromArs != null && upsellExtras.digitalExtraFromArs > 0 ? (
+              <div className="rounded-2xl bg-emerald-50 p-5 ring-1 ring-emerald-100">
+                <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Extra</p>
+                <p className="mt-1 text-base font-semibold text-emerald-950">Foto digital extra</p>
+                <p className="mt-2 text-lg font-bold text-emerald-900">{pesos(upsellExtras.digitalExtraFromArs)}</p>
               </div>
             ) : null}
             {upsellExtras.printExtraFromArs != null && upsellExtras.printExtraFromArs > 0 ? (
-              <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3">
-                <div>
-                  <p className="text-sm font-semibold text-emerald-900">Extra</p>
-                  <p className="text-sm text-emerald-800">Impresión extra</p>
-                </div>
-                <div className="text-sm font-semibold text-emerald-900">
-                  ${upsellExtras.printExtraFromArs}
-                </div>
+              <div className="rounded-2xl bg-emerald-50 p-5 ring-1 ring-emerald-100">
+                <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Extra</p>
+                <p className="mt-1 text-base font-semibold text-emerald-950">Impresión extra</p>
+                <p className="mt-2 text-lg font-bold text-emerald-900">{pesos(upsellExtras.printExtraFromArs)}</p>
               </div>
             ) : null}
-            {upsellPacks.length > 0 ? (
-              <div className="space-y-2">
-                <p className="text-sm font-semibold text-gray-800">Packs adicionales</p>
-                {upsellPacks.map((p) => (
-                  <div
-                    key={p.id}
-                    className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3"
-                  >
-                    <div>
-                      <p className="text-sm font-semibold text-amber-900">Extra</p>
-                      <p className="text-sm text-amber-800">{p.name}</p>
-                    </div>
-                    <div className="text-sm font-semibold text-amber-900">${p.clientPriceArs}</div>
-                  </div>
-                ))}
+            {upsellPacks.map((p) => (
+              <div key={p.id} className="rounded-2xl bg-[#fbf6f1] p-5 ring-1 ring-[#c27b3d]/15">
+                <p className="text-xs font-semibold uppercase tracking-wide text-[#a0652d]">Pack adicional</p>
+                <p className="mt-1 text-base font-semibold text-gray-900">{p.name}</p>
+                <p className="mt-2 text-lg font-bold text-gray-900">{pesos(p.clientPriceArs)}</p>
               </div>
-            ) : null}
+            ))}
           </div>
           {upsellHref ? (
             <Link
               href={upsellHref}
-              className="inline-flex items-center justify-center rounded-lg bg-[#c27b3d] px-4 py-2 text-sm font-semibold text-white hover:bg-[#b26f36]"
+              className="inline-flex items-center justify-center gap-2 rounded-full bg-gray-900 px-5 py-3 text-sm font-semibold text-white hover:bg-black"
             >
               Comprar extras
+              <ArrowRight className="h-4 w-4" aria-hidden />
             </Link>
           ) : null}
         </section>
       ) : null}
-
-      <section className="border rounded-xl p-5 sm:p-6 bg-white space-y-3">
-        <h2 className="text-lg font-medium">Usar tu pack</h2>
-
-        {!isPreventaPack ? (
-          <p className="text-sm text-gray-600">
-            Este pedido no es una preventa canjeable desde acá.
-          </p>
-        ) : alreadyRedeemed ? (
-          <p className="text-green-700 font-medium">
-            Este pack ya fue usado. Pedido de canje: #{order.redemptionOrderId}
-          </p>
-        ) : !isPaid ? (
-          <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3">
-            Cuando el pago se confirme vas a poder elegir las fotos y completar el canje. Si ya pagaste y sigue
-            pendiente, esperá unos minutos o revisá el estado en Mercado Pago.
-          </p>
-        ) : !order.album ? (
-          <p className="text-sm text-gray-600">No hay álbum asociado a este pedido.</p>
-        ) : redeemEntryHref ? (
-          <>
-            <p className="text-sm text-gray-700">
-              Entrá al álbum para elegir las fotos según lo que incluye tu pack.
-            </p>
-            <Link
-              href={redeemEntryHref}
-              className="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-black text-white text-sm font-medium hover:bg-gray-900"
-            >
-              Elegir las fotos de mi pack
-            </Link>
-          </>
-        ) : null}
-
-        {canStartRedeem ? (
-          <p className="text-xs text-gray-500">
-            Guardá este link para volver:{" "}
-            {isNumericId ? `/cliente/pack/${order.id}` : `/cliente/pack/${rawId}`}
-          </p>
-        ) : null}
-
-        {uxV2 &&
-        !showEmbeddedSelfie &&
-        data.journey?.preCompraOrderId != null &&
-        isPaid &&
-        !alreadyRedeemed ? (
-          <p className="text-xs text-gray-500 border-t border-gray-100 pt-3 mt-3">
-            ¿Te pidieron una selfie?{" "}
-            <Link
-              href={`/order/${data.journey.preCompraOrderId}/selfies`}
-              className="text-[#c27b3d] font-semibold hover:underline"
-            >
-              Subir selfie (paso escolar)
-            </Link>
-          </p>
-        ) : null}
-      </section>
     </main>
   );
 }
