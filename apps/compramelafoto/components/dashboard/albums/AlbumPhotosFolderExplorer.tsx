@@ -8,15 +8,27 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { ChevronDown, MoreVertical } from "lucide-react";
-import Card from "@/components/ui/Card";
+import { createPortal } from "react-dom";
+import {
+  ArrowLeft,
+  CheckSquare,
+  FolderPlus,
+  ImageIcon,
+  Loader2,
+  MoreHorizontal,
+  PanelLeft,
+  Trash2,
+  Upload,
+  X,
+} from "lucide-react";
 import Button from "@/components/ui/Button";
 import AppModal from "@/components/ui/AppModal";
+import { cn } from "@/lib/utils";
 import type { AlbumUploadSelection } from "@/components/dashboard/albums/AlbumUploadZone";
 import AlbumUploadTrigger, {
   type AlbumUploadTriggerHandle,
 } from "@/components/dashboard/albums/AlbumUploadTrigger";
-import PhotoGrid from "@/components/photo/PhotoGrid";
+import AlbumExplorerPhotoTile from "@/components/dashboard/albums/AlbumExplorerPhotoTile";
 import PhotoSlideViewer from "@/components/photo/PhotoSlideViewer";
 import EventFolderAlbumTreePicker from "@/components/dashboard/EventFolderAlbumTreePicker";
 import AlbumPhotoBulkUploadPanel from "@/components/dashboard/albums/AlbumPhotoBulkUploadPanel";
@@ -24,8 +36,13 @@ import AlbumFolderActionsBar, {
   type AlbumFolderActionsHandle,
 } from "@/components/dashboard/albums/AlbumFolderActionsBar";
 import AlbumFullFolderUploadConfirmModal from "@/components/dashboard/albums/AlbumFullFolderUploadConfirmModal";
-import { AlbumFolderTreePanel } from "@/components/dashboard/albums/AlbumFolderTreePanel";
 import {
+  AlbumFolderBreadcrumb,
+  AlbumFolderTreePanel,
+  FolderGlyph,
+} from "@/components/dashboard/albums/AlbumFolderTreePanel";
+import {
+  buildFolderBreadcrumb,
   flatFolderSelectOptions,
   folderViewDisplayName,
   folderViewToPhotosQuery,
@@ -111,6 +128,92 @@ export type AlbumPhotosFolderExplorerProps = {
   onUploadAlbumFolderIdChange: (value: string) => void;
 };
 
+const TOOL_BTN =
+  "inline-flex h-8 min-w-8 items-center justify-center gap-1.5 rounded-md px-2 text-[13px] font-medium text-[#374151] hover:bg-black/[0.06] active:bg-black/[0.1] disabled:opacity-40 disabled:pointer-events-none focus:outline-none focus-visible:ring-2 focus-visible:ring-[#3d8ee0]/60";
+
+const MENU_PANEL_CLASS =
+  "z-50 rounded-lg border border-black/10 bg-white/95 backdrop-blur-md p-1 shadow-[0_10px_30px_rgba(0,0,0,0.16)]";
+
+const MENU_ITEM_CLASS =
+  "w-full text-left px-2.5 py-1.5 text-[13px] text-[#1f2937] rounded-[5px] hover:bg-[#3d8ee0] hover:text-white disabled:opacity-40 disabled:pointer-events-none";
+
+const THUMB_SIZE_KEY = "clf.albumExplorer.thumbSize";
+const THUMB_MIN = 96;
+const THUMB_MAX = 280;
+const THUMB_DEFAULT = 150;
+
+type FolderMenuAction = "open" | "subfolder" | "rename" | "move" | "delete";
+
+/** Menú contextual (click derecho) sobre una carpeta. */
+function FolderContextMenu({
+  x,
+  y,
+  canManage,
+  onAction,
+  onClose,
+}: {
+  x: number;
+  y: number;
+  canManage: boolean;
+  onAction: (action: FolderMenuAction) => void;
+  onClose: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const onDown = (e: MouseEvent) => {
+      if (!ref.current?.contains(e.target as Node)) onClose();
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    window.addEventListener("scroll", onClose, true);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+      window.removeEventListener("scroll", onClose, true);
+    };
+  }, [onClose]);
+
+  const left = typeof window !== "undefined" ? Math.min(x, window.innerWidth - 220) : x;
+  const top = typeof window !== "undefined" ? Math.min(y, window.innerHeight - 200) : y;
+
+  const item = (action: FolderMenuAction, label: string, danger?: boolean) => (
+    <button
+      type="button"
+      role="menuitem"
+      className={cn(MENU_ITEM_CLASS, danger && "text-red-600 hover:bg-red-600")}
+      onClick={() => {
+        onClose();
+        onAction(action);
+      }}
+    >
+      {label}
+    </button>
+  );
+
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
+    <div ref={ref} role="menu" className={cn(MENU_PANEL_CLASS, "fixed w-52")} style={{ left, top }}>
+      {item("open", "Abrir")}
+      {canManage ? (
+        <>
+          <div className="my-1 border-t border-black/10" />
+          {item("subfolder", "Nueva subcarpeta")}
+          {item("rename", "Renombrar…")}
+          {item("move", "Mover a…")}
+          <div className="my-1 border-t border-black/10" />
+          {item("delete", "Eliminar carpeta…", true)}
+        </>
+      ) : null}
+    </div>,
+    document.body
+  );
+}
+
 function FolderManageMenu({
   disabled,
   hasFolderSelected,
@@ -142,30 +245,25 @@ function FolderManageMenu({
     return () => document.removeEventListener("mousedown", onDoc);
   }, [open]);
 
-  const itemClass =
-    "w-full text-left px-3 py-2.5 text-sm text-[#374151] hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg";
+  const itemClass = MENU_ITEM_CLASS;
 
   return (
     <div ref={rootRef} className="relative shrink-0">
-      <Button
+      <button
         type="button"
-        variant="outline"
-        size="md"
-        className="min-h-11 min-w-11 px-0 justify-center"
+        className={TOOL_BTN}
         disabled={disabled}
         aria-label="Más acciones de carpetas"
+        title="Más acciones"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
       >
-        <MoreVertical className="w-5 h-5" aria-hidden />
-      </Button>
+        <MoreHorizontal className="w-4 h-4" aria-hidden />
+      </button>
       {open ? (
-        <div
-          className="absolute right-0 top-full z-30 mt-1 w-64 rounded-xl border border-[#e5e7eb] bg-white py-1 shadow-lg"
-          role="menu"
-        >
+        <div className={cn(MENU_PANEL_CLASS, "absolute right-0 top-full mt-1 w-60")} role="menu">
           {folderActionsHint ? (
-            <p className="px-3 py-2 text-xs text-[#6b7280] leading-snug m-0 border-b border-[#e5e7eb]">
+            <p className="px-2.5 py-1.5 mb-1 text-[11px] text-[#6b7280] leading-snug m-0 border-b border-[#e5e7eb]">
               {folderActionsHint}
             </p>
           ) : null}
@@ -208,7 +306,7 @@ function FolderManageMenu({
           <button
             type="button"
             role="menuitem"
-            className={`${itemClass} text-red-700 hover:bg-red-50`}
+            className={cn(itemClass, "text-red-600 hover:bg-red-600")}
             disabled={disabled || !hasFolderSelected}
             onClick={() => {
               setOpen(false);
@@ -217,7 +315,7 @@ function FolderManageMenu({
           >
             Eliminar carpeta
           </button>
-          <div className="my-1 border-t border-[#e5e7eb]" />
+          <div className="my-1 border-t border-black/10" />
           <button
             type="button"
             role="menuitem"
@@ -292,6 +390,32 @@ export default function AlbumPhotosFolderExplorer({
   const [folderViewNextCursor, setFolderViewNextCursor] = useState<string | null>(null);
   const [mobileFolderOpen, setMobileFolderOpen] = useState(false);
   const [fullFolderUploadConfirmOpen, setFullFolderUploadConfirmOpen] = useState(false);
+  const [contextMenu, setContextMenu] = useState<{ folderId: number; x: number; y: number } | null>(
+    null
+  );
+  const [pendingFolderAction, setPendingFolderAction] = useState<FolderMenuAction | null>(null);
+  const [thumbSize, setThumbSize] = useState(THUMB_DEFAULT);
+  const lastClickedIndexRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    try {
+      const saved = Number(window.localStorage.getItem(THUMB_SIZE_KEY));
+      if (Number.isFinite(saved) && saved >= THUMB_MIN && saved <= THUMB_MAX) setThumbSize(saved);
+    } catch {
+      // Sin almacenamiento local: queda el tamaño por defecto.
+    }
+  }, []);
+
+  function changeThumbSize(value: number) {
+    setThumbSize(value);
+    try {
+      window.localStorage.setItem(THUMB_SIZE_KEY, String(value));
+    } catch {
+      // Sin almacenamiento local: el tamaño vale solo para esta visita.
+    }
+  }
+
+  const closeContextMenu = useCallback(() => setContextMenu(null), []);
 
   const uploadTriggerRef = useRef<AlbumUploadTriggerHandle>(null);
   const folderActionsRef = useRef<AlbumFolderActionsHandle>(null);
@@ -549,6 +673,7 @@ export default function AlbumPhotosFolderExplorer({
   }
 
   function selectFolder(key: FolderViewKey) {
+    lastClickedIndexRef.current = null;
     onClearSelection();
     setFolderView(key);
     setMobileFolderOpen(false);
@@ -664,16 +789,126 @@ export default function AlbumPhotosFolderExplorer({
 
   const showExplorerChrome = mode === "album" || explorerFolders.length > 0;
 
+  const crumbs = useMemo(
+    () => buildFolderBreadcrumb(explorerFolders, folderView),
+    [explorerFolders, folderView]
+  );
+
+  /** Subcarpetas de la ubicación actual, que se muestran como íconos arriba de las fotos. */
+  const childFolders = useMemo(() => {
+    if (folderView === "none") return [];
+    const parentId = folderView === "all" ? null : folderView;
+    return explorerFolders
+      .filter((f) => f.parentId === parentId)
+      .sort((a, b) => (a.sortOrder !== b.sortOrder ? a.sortOrder - b.sortOrder : a.id - b.id));
+  }, [explorerFolders, folderView]);
+
+  const parentView: FolderViewKey | null = useMemo(() => {
+    if (folderView === "all") return null;
+    if (folderView === "none") return "all";
+    const current = explorerFolders.find((f) => f.id === folderView);
+    return current?.parentId ?? "all";
+  }, [folderView, explorerFolders]);
+
+  /** Abre una carpeta desde el contenido o el menú: también despliega sus ancestros en el árbol. */
+  function openFolder(folderId: number) {
+    const byId = new Map(explorerFolders.map((f) => [f.id, f]));
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (explorerFolders.some((f) => f.parentId === folderId)) next.add(folderId);
+      let cur = byId.get(folderId);
+      while (cur?.parentId != null) {
+        next.add(cur.parentId);
+        cur = byId.get(cur.parentId);
+      }
+      return next;
+    });
+    selectFolder(folderId);
+  }
+
+  function handleFolderContextMenu(folderId: number, e: { clientX: number; clientY: number }) {
+    setContextMenu({ folderId, x: e.clientX, y: e.clientY });
+  }
+
+  function handleFolderMenuAction(folderId: number, action: FolderMenuAction) {
+    if (action === "open") {
+      openFolder(folderId);
+      return;
+    }
+    if (action === "subfolder") {
+      folderActionsRef.current?.openCreateFolder(folderId);
+      return;
+    }
+    // Renombrar/mover/eliminar actúan sobre la carpeta abierta: primero la abrimos.
+    if (folderView !== folderId) openFolder(folderId);
+    setPendingFolderAction(action);
+  }
+
+  useEffect(() => {
+    if (!pendingFolderAction) return;
+    if (pendingFolderAction === "rename") folderActionsRef.current?.openRenameFolder();
+    else if (pendingFolderAction === "move") folderActionsRef.current?.openMoveFolder();
+    else if (pendingFolderAction === "delete") folderActionsRef.current?.openDeleteFolder();
+    setPendingFolderAction(null);
+  }, [pendingFolderAction, folderView]);
+
+  function handleTileClick(index: number, e: { shiftKey: boolean }) {
+    const photo = gridPhotos[index];
+    if (!photo) return;
+    if (e.shiftKey && lastClickedIndexRef.current != null) {
+      const from = Math.min(lastClickedIndexRef.current, index);
+      const to = Math.max(lastClickedIndexRef.current, index);
+      for (let i = from; i <= to; i++) {
+        const p = gridPhotos[i];
+        if (p && !p.selected) handlePhotoSelectFromGrid(p.id);
+      }
+    } else {
+      handlePhotoSelectFromGrid(photo.id);
+    }
+    lastClickedIndexRef.current = index;
+  }
+
+  function onWindowKeyDown(e: React.KeyboardEvent) {
+    const target = e.target as HTMLElement;
+    if (target.closest("input, textarea, select, [role=menu]")) return;
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "a" && photoSelectionEnabled) {
+      e.preventDefault();
+      void selectAllInView();
+    } else if (e.key === "Escape" && selectedPhotoIds.size > 0) {
+      onClearSelection();
+    } else if (e.key === "Backspace" && parentView != null && !(e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      selectFolder(parentView);
+    }
+  }
+
+  // Carga automática de la página siguiente al llegar al final del contenido.
+  const loadMoreSentinelRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = loadMoreSentinelRef.current;
+    if (!el || !folderViewNextCursor) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((en) => en.isIntersecting)) loadMoreFolderPhotos();
+      },
+      { rootMargin: "400px" }
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [folderViewNextCursor, loadMoreFolderPhotos]);
+
   const folderTreePanel = (
     <AlbumFolderTreePanel
       folders={explorerFolders}
       selection={folderView}
       expanded={expanded}
       uncategorizedCount={uncategorizedCount}
+      allCount={albumPhotoTotal}
       canManage={canManageFolders}
       disabled={foldersLoading}
       onSelect={selectFolder}
       onToggleExpand={toggleExpand}
+      onFolderContextMenu={handleFolderContextMenu}
     />
   );
 
@@ -686,31 +921,33 @@ export default function AlbumPhotosFolderExplorer({
 
     bulkBar = (
       <div
-        className="fixed inset-x-0 bottom-0 z-40 border-t border-[#111827]/10 bg-white/[0.98] backdrop-blur-md shadow-[0_-8px_32px_rgba(0,0,0,0.12)]"
+        className="fixed inset-x-0 bottom-0 z-40 border-t border-black/10 bg-white/[0.97] backdrop-blur-md shadow-[0_-8px_28px_rgba(0,0,0,0.10)]"
         role="region"
         aria-label="Acciones sobre fotos seleccionadas"
       >
-        <div className="mx-auto w-full max-w-6xl px-4 sm:px-6 py-4 pb-[max(1rem,env(safe-area-inset-bottom,0px))]">
-          <div className="flex flex-col gap-4">
-            <div className="min-w-[12rem] shrink-0">
-              <p className="text-sm font-semibold text-[#1a1a1a] m-0 leading-snug">{selectionLabel}</p>
-              <p className="text-xs text-[#6b7280] m-0 mt-0.5">
-                {mode === "album" ? "Elegí una carpeta destino" : "Elegí una carpeta del evento"}
-              </p>
+        <div className="mx-auto w-full max-w-6xl px-4 sm:px-6 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:gap-4">
+            <div className="shrink-0 lg:w-56">
+              <p className="text-sm font-semibold text-[#111827] m-0 leading-snug">{selectionLabel}</p>
               {bulkFolderBanner ? (
                 <p
                   role="status"
-                  className={`text-xs mt-1.5 font-medium m-0 leading-snug ${
+                  className={cn(
+                    "text-xs mt-0.5 font-medium m-0 leading-snug",
                     bulkFolderBanner.kind === "success" ? "text-green-700" : "text-red-600"
-                  }`}
+                  )}
                 >
                   {bulkFolderBanner.text}
                 </p>
-              ) : null}
+              ) : (
+                <p className="text-xs text-[#6b7280] m-0 mt-0.5">
+                  {mode === "album" ? "Mover a otra carpeta" : "Mover a una carpeta del evento"}
+                </p>
+              )}
             </div>
 
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:gap-4">
-              <div className="w-full lg:flex-1 lg:min-w-[16rem]">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center lg:flex-1">
+              <div className="w-full sm:flex-1 min-w-0">
                 {mode === "event" && typeof eventId === "number" ? (
                   <EventFolderAlbumTreePicker
                     layout="compact"
@@ -721,43 +958,51 @@ export default function AlbumPhotosFolderExplorer({
                     disabled={bulkFolderLoading}
                   />
                 ) : (
-                  <label className="block w-full space-y-1.5">
-                    <span className="block text-sm font-medium text-[#1a1a1a]">Carpeta destino</span>
-                    <select
-                      className="w-full min-h-11 rounded-xl border border-[#e5e7eb] bg-white px-3 py-2.5 text-sm text-[#1a1a1a] shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-[#c27b3d]/40 disabled:opacity-60"
-                      value={bulkFolderPick}
-                      disabled={bulkFolderLoading}
-                      onChange={(e) => onBulkFolderPickChange(e.target.value)}
-                    >
-                      {flatFolderSelectOptions(explorerFolders).map((o) => (
-                        <option key={o.value || "pick"} value={o.value}>
-                          {o.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                  <select
+                    aria-label="Carpeta destino"
+                    className="w-full h-9 rounded-md border border-black/15 bg-white px-2.5 text-[13px] text-[#111827] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#3d8ee0]/50 disabled:opacity-60"
+                    value={bulkFolderPick}
+                    disabled={bulkFolderLoading}
+                    onChange={(e) => onBulkFolderPickChange(e.target.value)}
+                  >
+                    {flatFolderSelectOptions(explorerFolders).map((o) => (
+                      <option key={o.value || "pick"} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
                 )}
               </div>
 
-              <div className="flex flex-col sm:flex-row gap-2 w-full lg:w-auto lg:shrink-0">
+              <div className="flex gap-2 shrink-0">
                 <Button
                   variant="primary"
-                  size="md"
-                  className="w-full sm:min-w-[10.5rem] min-h-11 justify-center whitespace-nowrap rounded-xl"
+                  size="sm"
+                  className="h-9 flex-1 sm:flex-none justify-center whitespace-nowrap rounded-md"
                   onClick={() => void onBulkApplyFolder()}
                   disabled={bulkFolderPick === "" || bulkFolderLoading}
                 >
-                  {bulkFolderLoading ? "Guardando…" : "Aplicar carpeta"}
+                  {bulkFolderLoading ? "Guardando…" : "Mover aquí"}
                 </Button>
                 <Button
                   variant="secondary"
-                  size="md"
-                  className="w-full sm:min-w-[10.5rem] min-h-11 justify-center whitespace-nowrap rounded-xl border-[#111827]/12"
+                  size="sm"
+                  className="h-9 flex-1 sm:flex-none justify-center whitespace-nowrap rounded-md"
                   onClick={() => void onBulkClearFolder()}
                   disabled={bulkFolderLoading}
                 >
                   Quitar de carpeta
                 </Button>
+                <button
+                  type="button"
+                  className={TOOL_BTN}
+                  onClick={onClearSelection}
+                  disabled={bulkFolderLoading}
+                  aria-label="Cerrar selección"
+                  title="Deseleccionar"
+                >
+                  <X className="w-4 h-4" aria-hidden />
+                </button>
               </div>
             </div>
           </div>
@@ -766,172 +1011,339 @@ export default function AlbumPhotosFolderExplorer({
     );
   }
 
-  const photosPanel = (
-    <div className="min-w-0 flex-1 ds-stack-section gap-4">
-      <div className="space-y-3">
-        <div className="space-y-1">
-          <h3 className="text-xl font-semibold text-[#1a1a1a] m-0 truncate" title={currentFolderLabel}>
-            {currentFolderLabel}
-          </h3>
-          <p className="text-sm text-[#6b7280] m-0">
-            {folderViewPhotosLoading ? "Cargando…" : photoCountLabel}
-            {folderView !== "all" && albumHasPhotos
-              ? ` · ${albumPhotoTotal} en el álbum`
-              : null}
-          </p>
-        </div>
+  const selectionCount = selectedPhotoIds.size;
+  const canSelectAll =
+    photoSelectionEnabled && gridPhotos.length > 0 && !allSelectTargetsChosen && selectAllTargetIds.length > 0;
 
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
+  const toolbar = (
+    <div className="flex items-center gap-1 min-h-11 px-2 py-1.5 border-b border-black/[0.08] bg-[#f5f5f4]">
+      <button
+        type="button"
+        className={TOOL_BTN}
+        disabled={parentView == null || foldersLoading}
+        onClick={() => parentView != null && selectFolder(parentView)}
+        aria-label="Subir un nivel"
+        title="Volver a la carpeta anterior"
+      >
+        <ArrowLeft className="w-4 h-4" aria-hidden />
+      </button>
+      {showExplorerChrome ? (
+        <button
+          type="button"
+          className={cn(TOOL_BTN, "lg:hidden")}
+          onClick={() => setMobileFolderOpen(true)}
+          disabled={foldersLoading}
+          aria-label="Ver carpetas"
+          title="Carpetas"
+        >
+          <PanelLeft className="w-4 h-4" aria-hidden />
+        </button>
+      ) : null}
+
+      <div className="min-w-0 flex-1 overflow-hidden px-1">
+        <AlbumFolderBreadcrumb crumbs={crumbs} onNavigate={selectFolder} disabled={foldersLoading} />
+      </div>
+
+      {selectionCount > 0 ? (
+        <div className="flex items-center gap-1 shrink-0">
+          <span className="hidden sm:inline text-[12px] font-medium text-[#6b7280] tabular-nums px-1">
+            {selectionCount === 1 ? "1 seleccionada" : `${selectionCount} seleccionadas`}
+          </span>
+          {canSelectAll ? (
+            <button
+              type="button"
+              className={TOOL_BTN}
+              onClick={() => void selectAllInView()}
+              disabled={deletingSelected || bulkFolderLoading || selectingAll}
+              title="Seleccionar todas (⌘A)"
+            >
+              {selectingAll ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden /> : <CheckSquare className="w-4 h-4" aria-hidden />}
+              <span className="hidden md:inline">Todas</span>
+            </button>
+          ) : null}
+          {canDeleteAny ? (
+            <button
+              type="button"
+              className={cn(TOOL_BTN, "text-red-600 hover:bg-red-50")}
+              onClick={onDeleteSelected}
+              disabled={deletingSelected}
+              title="Eliminar seleccionadas"
+            >
+              {deletingSelected ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden /> : <Trash2 className="w-4 h-4" aria-hidden />}
+              <span className="hidden md:inline">Eliminar</span>
+            </button>
+          ) : null}
+          <button
             type="button"
-            variant="primary"
-            size="md"
-            className="min-h-11"
-            disabled={uploadDisabled}
-            onClick={() => uploadTriggerRef.current?.pickFiles()}
+            className={TOOL_BTN}
+            onClick={onClearSelection}
+            disabled={deletingSelected || bulkFolderLoading}
+            aria-label="Deseleccionar"
+            title="Deseleccionar (Esc)"
           >
-            Subir fotos aquí
-          </Button>
-          {mpConnected === false ? (
-            <p className="text-xs text-amber-700 m-0">Conectá Mercado Pago para subir fotos.</p>
+            <X className="w-4 h-4" aria-hidden />
+          </button>
+          <span className="mx-1 h-5 w-px bg-black/10" aria-hidden />
+        </div>
+      ) : canSelectAll ? (
+        <button
+          type="button"
+          className={cn(TOOL_BTN, "shrink-0")}
+          onClick={() => void selectAllInView()}
+          disabled={deletingSelected || bulkFolderLoading || selectingAll}
+          title="Seleccionar todas (⌘A)"
+        >
+          {selectingAll ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden /> : <CheckSquare className="w-4 h-4" aria-hidden />}
+          <span className="hidden md:inline">Seleccionar</span>
+        </button>
+      ) : null}
+
+      <div className="flex items-center gap-1 shrink-0">
+        {canManageFolders ? (
+          <button
+            type="button"
+            className={TOOL_BTN}
+            disabled={foldersLoading || uploading}
+            onClick={() =>
+              folderActionsRef.current?.openCreateFolder(typeof folderView === "number" ? folderView : null)
+            }
+            aria-label="Nueva carpeta"
+            title={typeof folderView === "number" ? "Nueva carpeta dentro de esta" : "Nueva carpeta"}
+          >
+            <FolderPlus className="w-4 h-4" aria-hidden />
+          </button>
+        ) : null}
+        {canManageFolders ? (
+          <FolderManageMenu
+            disabled={foldersLoading || uploading}
+            hasFolderSelected={hasFolderSelected}
+            folderActionsHint={folderActionsHint}
+            onNewSubfolder={() =>
+              folderActionsRef.current?.openCreateFolder(typeof folderView === "number" ? folderView : null)
+            }
+            onRename={() => folderActionsRef.current?.openRenameFolder()}
+            onMove={() => folderActionsRef.current?.openMoveFolder()}
+            onDelete={() => folderActionsRef.current?.openDeleteFolder()}
+            onUploadFolder={requestFullFolderUpload}
+          />
+        ) : mode === "event" ? (
+          <button
+            type="button"
+            className={TOOL_BTN}
+            disabled={uploadDisabled}
+            onClick={requestFullFolderUpload}
+            title="Subir una carpeta completa"
+          >
+            <FolderPlus className="w-4 h-4" aria-hidden />
+            <span className="hidden md:inline">Subir carpeta</span>
+          </button>
+        ) : null}
+        <button
+          type="button"
+          className="ml-1 inline-flex h-8 items-center gap-1.5 rounded-md bg-[#c27b3d] px-2 sm:px-3 text-[13px] font-semibold text-white shadow-sm hover:bg-[#b06d32] disabled:opacity-50 disabled:pointer-events-none focus:outline-none focus-visible:ring-2 focus-visible:ring-[#c27b3d]/50"
+          disabled={uploadDisabled}
+          onClick={() => uploadTriggerRef.current?.pickFiles()}
+          title={
+            typeof folderView === "number"
+              ? `Subir fotos a «${currentFolderLabel}»`
+              : "Subir fotos al álbum"
+          }
+        >
+          <Upload className="w-4 h-4" aria-hidden />
+          <span className="hidden sm:inline">Subir</span>
+        </button>
+      </div>
+    </div>
+  );
+
+  const emptyState = (title: string, text: string) => (
+    <div className="flex flex-col items-center justify-center text-center gap-2 py-16 px-4">
+      <ImageIcon className="w-10 h-10 text-[#d1d5db]" strokeWidth={1.5} aria-hidden />
+      <p className="text-sm font-semibold text-[#374151] m-0">{title}</p>
+      <p className="text-xs text-[#6b7280] m-0 max-w-xs">{text}</p>
+      <button
+        type="button"
+        className="mt-2 inline-flex h-8 items-center gap-1.5 rounded-md border border-black/15 bg-white px-3 text-[13px] font-medium text-[#374151] shadow-sm hover:bg-[#fafafa] disabled:opacity-50"
+        disabled={uploadDisabled}
+        onClick={() => uploadTriggerRef.current?.pickFiles()}
+      >
+        <Upload className="w-4 h-4" aria-hidden />
+        Subir fotos aquí
+      </button>
+    </div>
+  );
+
+  // Con pantalla angosta siempre entran al menos 2 fotos (y 3 carpetas) por fila.
+  const gridStyle = {
+    gridTemplateColumns: `repeat(auto-fill, minmax(min(${thumbSize}px, calc((100% - 8px) / 2)), 1fr))`,
+  };
+  // Las carpetas ocupan menos que una foto, como en un explorador de archivos.
+  const folderTile = Math.max(88, Math.round(thumbSize * 0.72));
+  const folderGridStyle = {
+    gridTemplateColumns: `repeat(auto-fill, minmax(min(${folderTile}px, calc((100% - 16px) / 3)), 1fr))`,
+  };
+
+  const content = (
+    <div className="p-3 sm:p-4">
+      {childFolders.length > 0 ? (
+        <div className="mb-4">
+          <div className="grid gap-x-2 gap-y-3" style={folderGridStyle}>
+            {childFolders.map((folder) => (
+              <div
+                key={folder.id}
+                role="button"
+                tabIndex={0}
+                className="group/folder flex flex-col items-center gap-1 rounded-lg p-2 cursor-default hover:bg-black/[0.05] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#3d8ee0]/60"
+                title={`${folder.name} · ${folder.photoCount} foto${folder.photoCount !== 1 ? "s" : ""}`}
+                onClick={() => openFolder(folder.id)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    openFolder(folder.id);
+                  }
+                }}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  handleFolderContextMenu(folder.id, e);
+                }}
+              >
+                <FolderGlyph
+                  className="w-[72%] h-auto transition-transform group-hover/folder:-translate-y-0.5"
+                  open={false}
+                />
+                <span className="max-w-full truncate text-[12px] font-medium text-[#111827] leading-4">
+                  {folder.name}
+                </span>
+                <span className="text-[11px] text-[#9ca3af] leading-3 tabular-nums">
+                  {folder.photoCount.toLocaleString("es-AR")} foto{folder.photoCount !== 1 ? "s" : ""}
+                </span>
+              </div>
+            ))}
+          </div>
+          {gridPhotos.length > 0 || folderViewPhotosLoading ? (
+            <div className="mt-4 border-t border-black/[0.06]" aria-hidden />
           ) : null}
         </div>
-      </div>
-
-      <div className="flex flex-wrap items-center justify-end gap-2">
-        {photoSelectionEnabled && gridPhotos.length > 0 ? (
-          <>
-            {!allSelectTargetsChosen && selectAllTargetIds.length > 0 ? (
-              <Button
-                variant="secondary"
-                size="md"
-                className="min-h-11"
-                onClick={() => void selectAllInView()}
-                disabled={deletingSelected || bulkFolderLoading || selectingAll}
-              >
-                {selectingAll
-                  ? "Seleccionando…"
-                  : folderViewTotalCount != null
-                    ? `Seleccionar todas (${folderViewTotalCount})`
-                    : "Seleccionar todas"}
-              </Button>
-            ) : null}
-            {selectedPhotoIds.size > 0 ? (
-              <>
-                <Button
-                  variant="secondary"
-                  size="md"
-                  className="min-h-11"
-                  onClick={onClearSelection}
-                  disabled={deletingSelected || bulkFolderLoading}
-                >
-                  Deseleccionar
-                </Button>
-                {canDeleteAny ? (
-                  <Button
-                    variant="primary"
-                    size="md"
-                    className="min-h-11 bg-red-600 hover:bg-red-700"
-                    onClick={onDeleteSelected}
-                    disabled={deletingSelected}
-                  >
-                    {deletingSelected
-                      ? "Eliminando..."
-                      : `Eliminar (${selectedPhotoIds.size})`}
-                  </Button>
-                ) : null}
-              </>
-            ) : null}
-          </>
-        ) : null}
-      </div>
+      ) : null}
 
       {folderViewPhotosLoading ? (
-        <Card>
-          <p className="text-center py-10 text-[#6b7280] m-0" role="status">
-            Cargando fotos…
-          </p>
-        </Card>
+        <div className="grid gap-x-2 gap-y-3" style={gridStyle} role="status" aria-label="Cargando fotos">
+          {Array.from({ length: 12 }).map((_, i) => (
+            <div key={i} className="flex flex-col items-center gap-1.5 p-1.5">
+              <div className="w-full aspect-square rounded-md bg-black/[0.05] animate-pulse" />
+              <div className="h-3 w-12 rounded bg-black/[0.05] animate-pulse" />
+            </div>
+          ))}
+        </div>
       ) : gridPhotos.length > 0 ? (
-        <div className="ds-gallery-inner w-full min-w-0 ds-stack-section gap-4">
-          <PhotoGrid
-            photos={gridPhotos}
-            onPhotoSelect={photoSelectionEnabled ? handlePhotoSelectFromGrid : undefined}
-            onPhotoRemove={onDeletePhoto}
-            onPhotoSetCover={onSetCover ? handleSetCoverFromGrid : undefined}
-            onPhotoSellOptionChange={showSellOptions ? handlePhotoSellOptionChange : undefined}
-            onPhotoOpenSlide={(id) => {
-              const idx = gridPhotos.findIndex((p) => p.id === id);
-              if (idx >= 0) {
-                setSlideViewerIndex(idx);
-                setShowSlideViewer(true);
-              }
-            }}
-          />
+        <>
+          <div
+            className="grid gap-x-2 gap-y-3 select-none album-photo-container"
+            style={gridStyle}
+            data-protected="true"
+          >
+            {gridPhotos.map((photo, index) => (
+              <AlbumExplorerPhotoTile
+                key={photo.id}
+                photo={photo}
+                onClick={photoSelectionEnabled ? (e) => handleTileClick(index, e) : undefined}
+                onOpen={() => {
+                  setSlideViewerIndex(index);
+                  setShowSlideViewer(true);
+                }}
+                onRemove={() => onDeletePhoto(photo.id)}
+                onSetCover={onSetCover ? () => handleSetCoverFromGrid(photo.id) : undefined}
+                onSellOptionChange={
+                  showSellOptions
+                    ? (field, value) => void handlePhotoSellOptionChange(photo.id, field, value)
+                    : undefined
+                }
+              />
+            ))}
+          </div>
           {folderViewNextCursor ? (
-            <div className="flex justify-center pt-2">
-              <Button
+            <div ref={loadMoreSentinelRef} className="flex justify-center pt-4">
+              <button
                 type="button"
-                variant="secondary"
-                size="md"
-                className="min-h-11 w-full sm:w-auto"
+                className={cn(TOOL_BTN, "border border-black/10 bg-white px-3")}
                 disabled={isLoadingMore || folderViewPhotosLoading}
                 onClick={() => loadMoreFolderPhotos()}
               >
+                {isLoadingMore ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden /> : null}
                 {isLoadingMore ? "Cargando…" : "Cargar más"}
-              </Button>
+              </button>
             </div>
           ) : null}
-        </div>
-      ) : !folderViewPhotosLoading && folderViewTotalCount === 0 && albumHasPhotos ? (
-        <Card>
-          <div className="text-center py-10 px-4 space-y-3">
-            <p className="text-[#374151] font-medium m-0">Todavía no hay fotos en esta carpeta</p>
-            <p className="text-sm text-[#6b7280] m-0">
-              Subí archivos con el botón de arriba o mové fotos desde otra carpeta.
-            </p>
-            <Button
-              type="button"
-              variant="primary"
-              size="md"
-              className="min-h-11"
-              disabled={uploadDisabled}
-              onClick={() => uploadTriggerRef.current?.pickFiles()}
-            >
-              Subir fotos aquí
-            </Button>
-          </div>
-        </Card>
+        </>
+      ) : childFolders.length > 0 ? null : folderViewTotalCount === 0 && albumHasPhotos ? (
+        emptyState(
+          "Esta carpeta está vacía",
+          "Subí fotos acá o seleccioná fotos de otra carpeta y movelas."
+        )
       ) : (
-        <Card>
-          <div className="text-center py-10 px-4 space-y-3">
-            <p className="text-[#374151] font-medium m-0">Tu álbum está vacío</p>
-            <p className="text-sm text-[#6b7280] m-0">
-              Empezá subiendo las primeras fotos. Podés organizarlas en carpetas después.
-            </p>
-            <Button
-              type="button"
-              variant="primary"
-              size="md"
-              className="min-h-11"
-              disabled={uploadDisabled}
-              onClick={() => uploadTriggerRef.current?.pickFiles()}
-            >
-              Subir fotos aquí
-            </Button>
-          </div>
-        </Card>
+        emptyState(
+          "Tu álbum está vacío",
+          "Empezá subiendo las primeras fotos. Podés organizarlas en carpetas después."
+        )
       )}
     </div>
   );
 
+  const statusParts: string[] = [];
+  if (childFolders.length > 0) {
+    statusParts.push(childFolders.length === 1 ? "1 carpeta" : `${childFolders.length} carpetas`);
+  }
+  statusParts.push(folderViewPhotosLoading ? "Cargando…" : photoCountLabel);
+  if (selectionCount > 0) {
+    statusParts.push(selectionCount === 1 ? "1 seleccionada" : `${selectionCount} seleccionadas`);
+  }
+
+  const statusBar = (
+    <div className="flex items-center gap-3 h-8 px-3 border-t border-black/[0.08] bg-[#f5f5f4] text-[11px] text-[#6b7280]">
+      <span className="min-w-0 truncate tabular-nums">{statusParts.join(" · ")}</span>
+      {mpConnected === false ? (
+        <span className="text-amber-700 font-medium truncate">Conectá Mercado Pago para subir fotos</span>
+      ) : null}
+      <label className="ml-auto hidden sm:flex items-center gap-2 shrink-0" title="Tamaño de las miniaturas">
+        <span className="sr-only">Tamaño de las miniaturas</span>
+        <ImageIcon className="w-3 h-3" aria-hidden />
+        <input
+          type="range"
+          min={THUMB_MIN}
+          max={THUMB_MAX}
+          step={4}
+          value={thumbSize}
+          onChange={(e) => changeThumbSize(Number(e.target.value))}
+          className="w-24 accent-[#6b7280] cursor-pointer"
+        />
+        <ImageIcon className="w-4 h-4" aria-hidden />
+      </label>
+    </div>
+  );
+
   return (
-    <div className="w-full min-w-0 ds-stack-section gap-5">
+    <div className="w-full min-w-0 ds-stack-section gap-4">
       <AlbumUploadTrigger
         ref={uploadTriggerRef}
         onFilesSelected={onFilesSelected}
         disabled={uploadDisabled}
       />
+
+      <div className="flex items-end justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="text-xl font-semibold text-[#1a1a1a] m-0">Fotos</h2>
+          <p className="text-[13px] text-[#6b7280] m-0">
+            {mode === "event"
+              ? "Carpetas definidas por el organizador: solo podés subir fotos en las carpetas existentes."
+              : (
+                <>
+                  Organizá el material del álbum en carpetas.
+                  <span className="hidden lg:inline"> Click derecho sobre una carpeta para ver sus opciones.</span>
+                </>
+              )}
+          </p>
+        </div>
+      </div>
 
       {uploading && uploadTotal > 0 ? (
         <AlbumPhotoBulkUploadPanel
@@ -946,74 +1358,6 @@ export default function AlbumPhotosFolderExplorer({
           startedAt={uploadStartedAt}
         />
       ) : null}
-
-      <div className="space-y-1">
-        <h2 className="text-2xl font-semibold text-[#1a1a1a] m-0">Fotos</h2>
-        <p className="text-sm text-[#6b7280] m-0">
-          Organizá y subí el material de tu álbum por carpetas.
-        </p>
-      </div>
-
-      {mode === "event" ? (
-        <div className="rounded-xl border border-[#e5e7eb] bg-[#fafaf9] px-4 py-3">
-          <p className="text-sm text-[#374151] m-0 leading-relaxed">
-            Carpetas definidas por el organizador. Los fotógrafos solo pueden subir fotos en las
-            carpetas existentes.
-          </p>
-        </div>
-      ) : null}
-
-      <div className="flex flex-wrap items-center gap-2">
-        <Button
-          type="button"
-          variant="primary"
-          size="md"
-          className="min-h-11 hidden lg:inline-flex"
-          disabled={uploadDisabled}
-          onClick={() => uploadTriggerRef.current?.pickFiles()}
-        >
-          Subir fotos
-        </Button>
-        {canManageFolders ? (
-          <>
-            <Button
-              type="button"
-              variant="secondary"
-              size="md"
-              className="min-h-11"
-              disabled={foldersLoading || uploading}
-              onClick={() => folderActionsRef.current?.openCreateFolder(null)}
-            >
-              Nueva carpeta
-            </Button>
-            <FolderManageMenu
-              disabled={foldersLoading || uploading}
-              hasFolderSelected={hasFolderSelected}
-              folderActionsHint={folderActionsHint}
-              onNewSubfolder={() =>
-                folderActionsRef.current?.openCreateFolder(
-                  typeof folderView === "number" ? folderView : null
-                )
-              }
-              onRename={() => folderActionsRef.current?.openRenameFolder()}
-              onMove={() => folderActionsRef.current?.openMoveFolder()}
-              onDelete={() => folderActionsRef.current?.openDeleteFolder()}
-              onUploadFolder={requestFullFolderUpload}
-            />
-          </>
-        ) : mode === "album" ? null : (
-          <Button
-            type="button"
-            variant="outline"
-            size="md"
-            className="min-h-11"
-            disabled={uploadDisabled}
-            onClick={requestFullFolderUpload}
-          >
-            Subir carpeta completa
-          </Button>
-        )}
-      </div>
 
       {canManageFolders ? (
         <AlbumFolderActionsBar
@@ -1033,47 +1377,40 @@ export default function AlbumPhotosFolderExplorer({
       ) : null}
 
       {uploading && uploadTotal > 0 ? null : (
-        <>
-          {/* Mobile: selector de carpeta + grilla */}
-          <div className="lg:hidden space-y-3">
+        <div
+          className="w-full min-w-0 overflow-hidden rounded-xl border border-black/[0.12] bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.06)] flex flex-col lg:h-[min(78vh,880px)]"
+          onKeyDown={onWindowKeyDown}
+        >
+          {toolbar}
+          <div className="flex min-h-0 flex-1">
             {showExplorerChrome ? (
-              <button
-                type="button"
-                className="w-full min-h-11 flex items-center justify-between gap-3 rounded-xl border border-[#e5e7eb] bg-white px-4 py-2.5 text-left shadow-sm"
-                onClick={() => setMobileFolderOpen(true)}
-                disabled={foldersLoading}
+              <aside
+                className="hidden lg:block w-60 xl:w-64 shrink-0 overflow-y-auto border-r border-black/[0.08] bg-[#fafaf9] px-2 py-3"
+                aria-label="Carpetas del álbum"
               >
-                <span className="text-sm text-[#6b7280]">Carpeta:</span>
-                <span className="text-sm font-medium text-[#1a1a1a] truncate flex-1 text-right">
-                  {currentFolderLabel}
-                </span>
-                <ChevronDown className="w-4 h-4 shrink-0 text-[#9ca3af]" aria-hidden />
-              </button>
+                {folderTreePanel}
+              </aside>
             ) : null}
-            {photosPanel}
+            <div className="min-w-0 flex-1 lg:overflow-y-auto">{content}</div>
           </div>
-
-          {/* Desktop: sidebar + grilla */}
-          <div className="hidden lg:flex w-full min-w-0 gap-4">
-            {showExplorerChrome ? (
-              <Card className="w-full lg:w-60 xl:w-64 shrink-0 p-3 sm:p-4 min-w-0">
-                <div className="ds-stack-section gap-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-[#6b7280] m-0">
-                    Carpetas
-                  </p>
-                  {folderTreePanel}
-                </div>
-              </Card>
-            ) : null}
-            {photosPanel}
-          </div>
-        </>
+          {statusBar}
+        </div>
       )}
+
+      {contextMenu ? (
+        <FolderContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          canManage={canManageFolders}
+          onClose={closeContextMenu}
+          onAction={(action) => handleFolderMenuAction(contextMenu.folderId, action)}
+        />
+      ) : null}
 
       <AppModal
         open={mobileFolderOpen}
         onClose={() => setMobileFolderOpen(false)}
-        title="Elegir carpeta"
+        title="Carpetas"
         description="La carpeta elegida será la que ves y el destino de la próxima subida de archivos sueltos."
         size="md"
       >
