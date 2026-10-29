@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   FILTROS_VACIOS,
+  alternarOpcion,
+  cantidadDeFiltros,
   filtrarPlantillas,
   hayFiltros,
   opcionesDeFiltros,
@@ -27,6 +29,7 @@ test("sin metadatos se deduce de los bloques: listado, logo, fotos y vertical", 
     ],
   });
   assert.deepEqual(r, {
+    tipoProducto: null,
     categoria: "Primaria",
     estilo: null,
     orientacion: "vertical",
@@ -78,6 +81,7 @@ test("los metadatos mandan sobre lo deducido", () => {
 });
 
 const base: RasgosDePlantilla = {
+  tipoProducto: "Librito",
   categoria: null,
   estilo: null,
   orientacion: "vertical",
@@ -101,21 +105,21 @@ const items = [
 test("los filtros se combinan", () => {
   assert.equal(filtrarPlantillas(items, FILTROS_VACIOS).length, 4);
   assert.deepEqual(
-    filtrarPlantillas(items, { ...FILTROS_VACIOS, estilo: "divertido", logo: "si" }).map((i) => i.name),
+    filtrarPlantillas(items, { ...FILTROS_VACIOS, estilo: ["divertido"], logo: ["si"] }).map((i) => i.name),
     ["Librito Primaria · Pizarrón"],
   );
   assert.deepEqual(
-    filtrarPlantillas(items, { ...FILTROS_VACIOS, listado: "no" }).map((i) => i.name),
+    filtrarPlantillas(items, { ...FILTROS_VACIOS, listado: ["no"] }).map((i) => i.name),
     ["Estampita"],
   );
   assert.deepEqual(
-    filtrarPlantillas(items, { ...FILTROS_VACIOS, orientacion: "horizontal", cantidadFotos: "1", evento: "Primera Comunión" }).map(
+    filtrarPlantillas(items, { ...FILTROS_VACIOS, orientacion: ["horizontal"], cantidadFotos: ["1"], evento: ["Primera Comunión"] }).map(
       (i) => i.name,
     ),
     ["Estampita"],
   );
-  assert.equal(filtrarPlantillas(items, { ...FILTROS_VACIOS, categoria: "Jardin" }).length, 1, "sin tilde también");
-  assert.equal(filtrarPlantillas(items, { ...FILTROS_VACIOS, categoria: "Secundaria" }).length, 0);
+  assert.equal(filtrarPlantillas(items, { ...FILTROS_VACIOS, categoria: ["Jardin"] }).length, 1, "sin tilde también");
+  assert.equal(filtrarPlantillas(items, { ...FILTROS_VACIOS, categoria: ["Secundaria"] }).length, 0);
 });
 
 test("el buscador mira nombre y etiquetas, sin importar tildes ni mayúsculas", () => {
@@ -136,7 +140,7 @@ test("las opciones salen de lo que hay, con los niveles en orden escolar", () =>
   assert.deepEqual(op.orientaciones, ["horizontal", "vertical"]);
   assert.deepEqual(op.cantidades, [1, 2]);
   assert.equal(hayFiltros(FILTROS_VACIOS), false);
-  assert.equal(hayFiltros({ ...FILTROS_VACIOS, logo: "no" }), true);
+  assert.equal(hayFiltros({ ...FILTROS_VACIOS, logo: ["no"] }), true);
 });
 
 test("una plantilla con mosaico del curso tiene el rasgo y se filtra", () => {
@@ -151,6 +155,62 @@ test("una plantilla con mosaico del curso tiene el rasgo y se filtra", () => {
     { name: "con", rasgos: conMosaico },
     { name: "sin", rasgos: sinMosaico },
   ];
-  assert.deepEqual(filtrarPlantillas(items, { ...FILTROS_VACIOS, mosaico: "si" }).map((i) => i.name), ["con"]);
-  assert.deepEqual(filtrarPlantillas(items, { ...FILTROS_VACIOS, mosaico: "no" }).map((i) => i.name), ["sin"]);
+  assert.deepEqual(filtrarPlantillas(items, { ...FILTROS_VACIOS, mosaico: ["si"] }).map((i) => i.name), ["con"]);
+  assert.deepEqual(filtrarPlantillas(items, { ...FILTROS_VACIOS, mosaico: ["no"] }).map((i) => i.name), ["sin"]);
+});
+
+test("varias opciones tildadas en un filtro suman; entre filtros, se cumplen todos", () => {
+  const varias = [
+    ...items,
+    { name: "Diploma jardín", rasgos: { ...base, tipoProducto: "Diploma", categoria: "Jardín", cantidadFotos: 1, conListado: false } },
+    { name: "Diploma egresados", rasgos: { ...base, tipoProducto: "Diploma", categoria: "Egresados", cantidadFotos: 1, conListado: false } },
+    { name: "Calendario 2027", rasgos: { ...base, tipoProducto: "Calendario", categoria: "Primaria", cantidadFotos: 1, conListado: false } },
+  ];
+  const nombres = (f: typeof FILTROS_VACIOS) => filtrarPlantillas(varias, f).map((i) => i.name);
+  assert.deepEqual(nombres({ ...FILTROS_VACIOS, categoria: ["Jardín", "Primaria"] }), [
+    "Librito Jardín · Acuarelas",
+    "Librito Primaria · Pizarrón",
+    "Diploma jardín",
+    "Calendario 2027",
+  ]);
+  assert.deepEqual(nombres({ ...FILTROS_VACIOS, tipoProducto: ["Diploma", "Calendario"] }), [
+    "Diploma jardín",
+    "Diploma egresados",
+    "Calendario 2027",
+  ]);
+  assert.deepEqual(nombres({ ...FILTROS_VACIOS, tipoProducto: ["Diploma"], categoria: ["Jardín", "Primaria"] }), ["Diploma jardín"]);
+  // «Con» y «Sin» tildados a la vez es lo mismo que no filtrar.
+  assert.equal(nombres({ ...FILTROS_VACIOS, logo: ["si", "no"] }).length, varias.length);
+  assert.deepEqual(nombres({ ...FILTROS_VACIOS, cantidadFotos: ["1", "3"], tipoProducto: ["Librito"] }), ["Estampita"]);
+});
+
+test("tildar y destildar una opción", () => {
+  const uno = alternarOpcion(FILTROS_VACIOS, "tipoProducto", "Diploma");
+  const dos = alternarOpcion(uno, "tipoProducto", "Calendario");
+  assert.deepEqual(dos.tipoProducto, ["Diploma", "Calendario"]);
+  assert.equal(cantidadDeFiltros(dos), 2);
+  assert.deepEqual(alternarOpcion(dos, "tipoProducto", "Diploma").tipoProducto, ["Calendario"]);
+  assert.deepEqual(FILTROS_VACIOS.tipoProducto, [], "no toca los filtros vacíos");
+  assert.equal(hayFiltros({ ...FILTROS_VACIOS, texto: "flores" }), true);
+});
+
+test("el tipo de producto: el de los metadatos, o librito y álbum de figuritas por el doblez", () => {
+  assert.equal(rasgosDePlantilla({ meta: { tipoProducto: "Diploma" }, blocks: [] }).tipoProducto, "Diploma");
+  const librito = { system: true, foldGuideMmFromLeft: 150, pageLabels: ["Exterior (contratapa + tapa)", "Interior"] };
+  assert.equal(rasgosDePlantilla({ meta: librito, blocks: [] }).tipoProducto, "Librito");
+  assert.equal(
+    rasgosDePlantilla({
+      meta: { ...librito, pageLabels: [...librito.pageLabels, "Plancha de figuritas (papel autoadhesivo)"] },
+      blocks: [],
+    }).tipoProducto,
+    "Álbum de figuritas",
+  );
+  // Una plantilla de un fotógrafo, sin datos: no se adivina.
+  assert.equal(rasgosDePlantilla({ meta: { foldGuideMmFromLeft: 150 }, blocks: [] }).tipoProducto, null);
+  const op = opcionesDeFiltros([
+    { rasgos: { ...base, tipoProducto: "Calendario" } },
+    { rasgos: { ...base, tipoProducto: "Diploma" } },
+    { rasgos: { ...base, tipoProducto: "Librito" } },
+  ]);
+  assert.deepEqual(op.tipos, ["Librito", "Diploma", "Calendario"]);
 });

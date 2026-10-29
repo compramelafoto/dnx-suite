@@ -355,6 +355,8 @@ export default function DashboardDesignsPage() {
           <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {sistemaFiltradas.map((t) => {
               const catalogEditorHref = editorHrefFor(t);
+              // Sólo lo que se dobla se ve en 3D; un diploma o un calendario, plano.
+              const en3d = t.rasgos.tipoProducto == null || t.rasgos.tipoProducto === "Librito" || t.rasgos.tipoProducto === "Álbum de figuritas";
               return (
                 <li key={t.id}>
                   <Card className="flex h-full flex-col overflow-hidden border border-[#eef2f6] p-4 shadow-sm">
@@ -362,11 +364,11 @@ export default function DashboardDesignsPage() {
                       type="button"
                       className="group relative block w-full rounded-lg text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-[#c27b3d]"
                       onClick={() => setVista3d({ id: t.id, name: t.name })}
-                      aria-label={`Ver «${t.name || "Sin nombre"}» en 3D con fotos de ejemplo`}
+                      aria-label={`Ver «${t.name || "Sin nombre"}»${en3d ? " en 3D" : ""} con fotos de ejemplo`}
                     >
                       <TemplatePreviewThumb name={t.name} thumbnailUrl={t.thumbnailUrl} preview={t.preview} templateId={t.id} />
                       <span className="pointer-events-none absolute bottom-2 right-2 rounded-full bg-black/60 px-2.5 py-1 text-[11px] font-semibold text-white opacity-90 transition group-hover:opacity-100">
-                        Ver en 3D
+                        {en3d ? "Ver en 3D" : "Ver con fotos"}
                       </span>
                     </button>
                     <p className="mt-4 line-clamp-2 text-base font-semibold text-[#0f172a]">{t.name || "Sin nombre"}</p>
@@ -377,7 +379,7 @@ export default function DashboardDesignsPage() {
                         className="font-semibold"
                         onClick={() => setVista3d({ id: t.id, name: t.name })}
                       >
-                        Ver en 3D con fotos de ejemplo
+                        {en3d ? "Ver en 3D con fotos de ejemplo" : "Ver con fotos de ejemplo"}
                       </Button>
                       <Button
                         variant="primary"

@@ -1,5 +1,19 @@
-import { CLASS_LIST_VARIABLE_KEY, COURSE_MOSAIC_VARIABLE_KEY, COURSE_MOSAIC_OWNER_VARIABLE_KEY } from "@repo/template-editor-core";
+import {
+  CALENDAR_VARIABLE_KEY,
+  CALENDAR_YEAR_VARIABLE_KEY,
+  CLASS_LIST_VARIABLE_KEY,
+  COURSE_MOSAIC_VARIABLE_KEY,
+  COURSE_MOSAIC_OWNER_VARIABLE_KEY,
+} from "@repo/template-editor-core";
 import type { ClientPhotoSlot, TemplateV2Block, TemplateV2Canvas } from "@repo/template-editor-core";
+
+const SIN_CORRECCION = new Set([
+  CLASS_LIST_VARIABLE_KEY,
+  COURSE_MOSAIC_VARIABLE_KEY,
+  COURSE_MOSAIC_OWNER_VARIABLE_KEY,
+  CALENDAR_VARIABLE_KEY,
+  CALENDAR_YEAR_VARIABLE_KEY,
+]);
 
 /**
  * Lo que la pantalla de diseño necesita de una plantilla para dibujarla en el navegador.
@@ -16,6 +30,11 @@ export type DesignTemplatePayload = {
   pageLabels: string[];
   /** Variables de texto que usa la plantilla (para poder corregir nombre, curso, etc.). */
   textVariables: string[];
+  /**
+   * Si se dobla como un librito (y se puede ver en 3D). Los diplomas, calendarios y demás
+   * productos planos dicen `false` en su meta (`plegado`); sin dato, se deduce por la forma.
+   */
+  plegado?: boolean;
 };
 
 export type DesignPhotoPayload = {
@@ -48,10 +67,10 @@ export function toDesignTemplatePayload(template: {
         .filter((b) => b.type === "VARIABLE_TEXT")
         .map((b) => asRecord(b.configJson).variableKey)
         // El listado y el mosaico del curso no se corrigen a mano como un texto: salen del padrón.
-        .filter(
-          (k): k is string =>
-            typeof k === "string" && k.trim() !== "" && k !== CLASS_LIST_VARIABLE_KEY && k !== COURSE_MOSAIC_VARIABLE_KEY && k !== COURSE_MOSAIC_OWNER_VARIABLE_KEY,
-        ),
+        // El calendario y su año son de la plantilla entera (un año distinto en un solo diseño
+        // dejaría el título diciendo un año y los días otro). El título y el motivo del diploma
+        // sí se pueden cambiar para un alumno.
+        .filter((k): k is string => typeof k === "string" && k.trim() !== "" && !SIN_CORRECCION.has(k)),
     ),
   ];
   return {
@@ -64,6 +83,7 @@ export function toDesignTemplatePayload(template: {
     pageCount: template.pageCount,
     pageLabels,
     textVariables,
+    ...(typeof meta.plegado === "boolean" ? { plegado: meta.plegado } : {}),
   };
 }
 

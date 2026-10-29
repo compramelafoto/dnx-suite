@@ -8,7 +8,7 @@
  * Todas las medidas están en píxeles del lienzo (300 dpi → 11,81 px por milímetro).
  */
 
-import { DEFAULT_COURSE_MOSAIC_OPTIONS } from "@repo/template-engine";
+import { CALENDAR_MONTH_NAMES as MESES, DEFAULT_CALENDAR_OPTIONS, DEFAULT_COURSE_MOSAIC_OPTIONS } from "@repo/template-engine";
 
 export const ANCHO = 3543;
 export const ALTO = 2362;
@@ -32,8 +32,11 @@ export const VARIABLE_LOGO = "branding.schoolLogoUrl";
 
 export type Rect = { x: number; y: number; w: number; h: number };
 
-/** 0 = exterior, 1 = interior, 2 = la plancha de figuritas (sólo los álbumes de figuritas). */
-export type Pagina = 0 | 1 | 2;
+/**
+ * En los libritos: 0 = exterior, 1 = interior, 2 = la plancha de figuritas (sólo los álbumes de
+ * figuritas). Los demás productos (diplomas, calendarios…) numeran sus hojas desde 0.
+ */
+export type Pagina = number;
 
 export type TipoBloque = "IMAGE" | "TEXT" | "VARIABLE_TEXT" | "SHAPE";
 
@@ -122,17 +125,20 @@ export class Armador {
     });
   }
 
-  /** Fondo de página entera: imagen fija bloqueada (como San Patricio). */
-  fondo(pagina: Pagina, archivo: string) {
+  /**
+   * Fondo de página entera: imagen fija bloqueada (como San Patricio). Sin `hoja`, el de un
+   * librito; los demás productos pasan su tamaño y el nombre de la cara.
+   */
+  fondo(pagina: Pagina, archivo: string, hoja?: { w: number; h: number; nombre: string }) {
     this.push({
       clave: `p${pagina}_fondo`,
       pagina,
       tipo: "IMAGE",
-      nombre: pagina === 0 ? "Fondo exterior" : pagina === 1 ? "Fondo interior" : "Fondo de la plancha",
+      nombre: hoja?.nombre ?? (pagina === 0 ? "Fondo exterior" : pagina === 1 ? "Fondo interior" : "Fondo de la plancha"),
       x: 0,
       y: 0,
-      width: ANCHO,
-      height: ALTO,
+      width: hoja?.w ?? ANCHO,
+      height: hoja?.h ?? ALTO,
       locked: true,
       configJson: {
         fit: "cover",
@@ -290,6 +296,37 @@ export class Armador {
         variableKey: "course.mosaic",
         fallback: "",
         courseMosaic: { ...DEFAULT_COURSE_MOSAIC_OPTIONS, ...opciones },
+        ...tipografia(e),
+      },
+    });
+  }
+
+  /**
+   * «Calendario»: un mes (1–12) o el año entero (0), con los días del año elegido. El año va en
+   * «Datos de la plantilla»; acá se deja el de fábrica.
+   */
+  calendario(
+    pagina: Pagina,
+    clave: string,
+    r: Rect,
+    e: Estilo,
+    opciones: Partial<import("@repo/template-engine").CalendarOptions> & { year: number },
+    giro = 0,
+  ) {
+    this.push({
+      clave: `p${pagina}_${clave}`,
+      pagina,
+      tipo: "VARIABLE_TEXT",
+      nombre: opciones.month ? `Calendario · ${MESES[(opciones.month ?? 1) - 1]}` : "Calendario",
+      x: r.x,
+      y: r.y,
+      width: r.w,
+      height: r.h,
+      rotation: giro,
+      configJson: {
+        variableKey: "calendar.grid",
+        fallback: "",
+        calendar: { ...DEFAULT_CALENDAR_OPTIONS, ...opciones },
         ...tipografia(e),
       },
     });

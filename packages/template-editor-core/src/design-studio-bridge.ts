@@ -7,7 +7,10 @@ import {
   CLASS_LIST_VARIABLE_KEY,
   SCHOOL_CLIENT_PHOTO_PLACEHOLDER,
   distributeCourseMosaic,
+  isCalendarConfig,
   isCourseMosaicConfig,
+  layoutCalendar,
+  readCalendarOptions,
   layoutCourseMosaic,
   readCourseMosaicOptions,
   type CourseMosaicRect,
@@ -356,6 +359,56 @@ export function editorADocumento(input: {
                 avisoSombra = true;
                 avisos.push("El mosaico en óvalo va sin sombra: la impresión no dibuja óvalos de color.");
               }
+              break;
+            }
+            if (isCalendarConfig(cfg)) {
+              /*
+               * El calendario se imprime como un texto por celda (nombre del mes, día de la
+               * semana, número), con la misma cuenta que el lienzo. Girado, cada celda va a su
+               * lugar girando alrededor del centro del bloque, como el listado.
+               */
+              const reparto = layoutCalendar({
+                options: readCalendarOptions(cfg),
+                width: num(b.width, 0),
+                height: num(b.height, 0),
+                fontSize: num(cfg.fontSize, 20),
+                lineHeight: num(cfg.lineHeight, 1.2),
+              });
+              const fuente = fuenteDesde(texto(cfg.fontFamily, "Helvetica"), avisos);
+              const colorBase = texto(cfg.color, "#111111");
+              const pesoBase = num(cfg.fontWeight, 400) >= 600 ? "bold" : "normal";
+              const giro = num(b.rotation, 0);
+              const rad = (giro * Math.PI) / 180;
+              const bx = num(b.x, 0);
+              const by = num(b.y, 0);
+              const centroX = bx + num(b.width, 0) / 2;
+              const centroY = by + num(b.height, 0) / 2;
+              reparto.cells.forEach((celda, i) => {
+                const dx = bx + celda.x + celda.width / 2 - centroX;
+                const dy = by + celda.y + celda.height / 2 - centroY;
+                const cx = centroX + dx * Math.cos(rad) - dy * Math.sin(rad);
+                const cy = centroY + dx * Math.sin(rad) + dy * Math.cos(rad);
+                dibujables.push({
+                  ...geo,
+                  id: `${b.id}__${i}`,
+                  type: "text",
+                  x: mm(cx - celda.width / 2),
+                  y: mm(cy - celda.height / 2),
+                  width: mm(celda.width),
+                  height: mm(celda.height),
+                  rotation: giro || undefined,
+                  content: celda.text,
+                  fontId: fuente,
+                  // La impresión no acepta menos de 4 pt: un calendario muy chico sale apenas encimado, no roto.
+                  fontSize: Math.max(4, pt(celda.fontSize)),
+                  fontWeight: celda.bold ? "bold" : pesoBase,
+                  fontStyle: cfg.fontItalic === true ? "italic" : "normal",
+                  color: celda.color ?? colorBase,
+                  align: celda.kind === "month" ? alineacion(cfg.textAlign) : "center",
+                  textTransform: celda.kind === "month" ? conversionDeLetras(cfg.textTransform) : "none",
+                  lineHeight: num(cfg.lineHeight, 1.2),
+                });
+              });
               break;
             }
             if (clave === CLASS_LIST_VARIABLE_KEY) {

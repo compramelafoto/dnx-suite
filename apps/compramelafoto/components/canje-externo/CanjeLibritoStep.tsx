@@ -244,7 +244,8 @@ export default function CanjeLibritoStep({
   const sheetPlace = sheet ? libro.placeByBlock.get(sheet.blockId) ?? null : null;
   const sheetBlock = sheet ? blockById.get(sheet.blockId) : undefined;
 
-  const boton3d = (
+  // Un diploma o un calendario no se doblan: no hay librito que ver en 3D.
+  const boton3d = t.plegado === false ? null : (
     <button
       type="button"
       onClick={() => setVer3d(true)}

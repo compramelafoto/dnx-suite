@@ -22,6 +22,7 @@ import {
   CLASS_LIST_VARIABLE_KEY,
   COURSE_MOSAIC_VARIABLE_KEY,
   COURSE_MOSAIC_OWNER_VARIABLE_KEY,
+  isCalendarConfig,
   isClassListConfig,
   isCourseMosaicConfig,
   parseClassListGroups,
@@ -220,7 +221,7 @@ export async function dibujarPlantilla(
       if (src) config = fixedImageConfig(config, src);
       else if (type !== "BACKGROUND") return [];
     }
-    if (type === "VARIABLE_TEXT" && !isClassListConfig(config) && !isCourseMosaicConfig(config)) type = "TEXT";
+    if (type === "VARIABLE_TEXT" && !isClassListConfig(config) && !isCourseMosaicConfig(config) && !isCalendarConfig(config)) type = "TEXT";
     return [
       {
         id: block.id,

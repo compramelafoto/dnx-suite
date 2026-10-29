@@ -36,6 +36,16 @@ import {
   isCourseMosaicConfig,
   readCourseMosaicOptions,
   type CourseMosaicOptions,
+  CALENDAR_MONTH_NAMES,
+  CALENDAR_MONTH_NAME_SCALE_MAX,
+  CALENDAR_MONTH_NAME_SCALE_MIN,
+  CALENDAR_YEAR_VARIABLE_KEY,
+  TEMPLATE_DATA_FIELDS,
+  applyTemplateData,
+  isCalendarConfig,
+  readCalendarOptions,
+  readTemplateData,
+  type CalendarOptions,
 } from "@repo/template-editor-core";
 import {
   alignBlocksToSelectionBounds,
@@ -127,6 +137,7 @@ export function TemplateEditorInspector({
     const bg = typeof canvas.background === "string" ? canvas.background : "var(--te-surface)";
     return (
       <div className={cn("w-full min-w-0", className)}>
+        <TemplateDataPanel blocks={blocks} dispatch={dispatch} />
         <InspectorPanel title="Hoja">
           <ColorField
             label="Color de fondo"
@@ -337,7 +348,23 @@ export function TemplateEditorInspector({
         />
       )}
 
-      {selectedBlock.type === "VARIABLE_TEXT" && !isClassListConfig(cfg) && !isCourseMosaicConfig(cfg) && (
+      {selectedBlock.type === "VARIABLE_TEXT" && isCalendarConfig(cfg) && (
+        <CalendarOptionsPanel
+          options={readCalendarOptions(cfg)}
+          onChange={(patch) => updateConfig({ calendar: { ...readCalendarOptions(cfg), ...patch } })}
+          onYearChange={(year) => dispatch(setBlocks(applyTemplateData(blocks, CALENDAR_YEAR_VARIABLE_KEY, String(year))))}
+        />
+      )}
+
+      {selectedBlock.type === "VARIABLE_TEXT" &&
+        TEMPLATE_DATA_FIELDS.some((f) => f.key === cfg.variableKey) && (
+          <p className="border-b border-[color:var(--te-line)] px-3 py-2 text-[11px] leading-snug text-[color:var(--te-ink-muted)]">
+            Este texto es un dato de la plantilla: se cambia de una vez para todos los bloques en «Datos de la
+            plantilla» (hacé clic en una parte vacía del lienzo).
+          </p>
+        )}
+
+      {selectedBlock.type === "VARIABLE_TEXT" && !isClassListConfig(cfg) && !isCourseMosaicConfig(cfg) && !isCalendarConfig(cfg) && (
         <InspectorPanel title="Contenido">
           <div>
             <FieldLabel>Variable de datos</FieldLabel>
@@ -1047,6 +1074,192 @@ const MOSAIC_ASPECTS: Array<{ value: string; label: string }> = [
   { value: "1", label: "1:1" },
   { value: "0.6667", label: "2:3" },
 ];
+
+/**
+ * «Datos de la plantilla»: lo que vale para todos los alumnos (título, motivo y fecha del
+ * diploma; año del calendario). Aparece sólo si la plantilla usa alguno. Cada dato se escribe en
+ * todos los bloques que lo usan a la vez.
+ */
+function TemplateDataPanel({ blocks, dispatch }: { blocks: TemplateV2Block[]; dispatch: TemplateV2EditorDispatch }) {
+  const datos = readTemplateData(blocks);
+  if (datos.length === 0) return null;
+  return (
+    <InspectorPanel title="Datos de la plantilla">
+      <p className="text-[11px] leading-snug text-[color:var(--te-ink-muted)]">
+        Valen para todos los alumnos. El nombre, el curso y el colegio se completan solos con cada alumno.
+      </p>
+      {datos.map((d) => (
+        <div key={d.key}>
+          <FieldLabel>{d.label}</FieldLabel>
+          {d.key === CALENDAR_YEAR_VARIABLE_KEY ? (
+            <YearInput value={Number(d.value) || new Date().getFullYear()} onChange={(y) => dispatch(setBlocks(applyTemplateData(blocks, d.key, String(y))))} />
+          ) : d.multiline ? (
+            <textarea
+              className={cn(inputBase, "h-auto min-h-[52px] py-1 leading-snug")}
+              value={d.value}
+              placeholder={d.placeholder}
+              rows={3}
+              onChange={(e) => dispatch(setBlocks(applyTemplateData(blocks, d.key, e.target.value)))}
+            />
+          ) : (
+            <input
+              className={inputBase}
+              value={d.value}
+              placeholder={d.placeholder}
+              onChange={(e) => dispatch(setBlocks(applyTemplateData(blocks, d.key, e.target.value)))}
+            />
+          )}
+          <p className="mt-1 text-[10px] leading-snug text-[color:var(--te-ink-faint)]">{d.hint}</p>
+        </div>
+      ))}
+    </InspectorPanel>
+  );
+}
+
+/** El año con botones de un año menos y uno más (escribir «202» a medias no rompe nada). */
+function YearInput({ value, onChange }: { value: number; onChange: (year: number) => void }) {
+  return (
+    <div className="flex items-center gap-1">
+      <button type="button" className={alignBtnClass} aria-label="Un año menos" onClick={() => onChange(value - 1)}>
+        −
+      </button>
+      <input
+        className={cn(inputBase, "text-center")}
+        inputMode="numeric"
+        defaultValue={value}
+        key={value}
+        aria-label="Año del calendario"
+        onBlur={(e) => {
+          const y = Number(e.target.value);
+          if (Number.isInteger(y) && y >= 1900 && y <= 2200) onChange(y);
+          else e.target.value = String(value);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+        }}
+      />
+      <button type="button" className={alignBtnClass} aria-label="Un año más" onClick={() => onChange(value + 1)}>
+        +
+      </button>
+    </div>
+  );
+}
+
+function CalendarOptionsPanel({
+  options: o,
+  onChange,
+  onYearChange,
+}: {
+  options: CalendarOptions;
+  onChange: (patch: Partial<CalendarOptions>) => void;
+  /** El año se cambia en todos los calendarios de la plantilla a la vez. */
+  onYearChange: (year: number) => void;
+}) {
+  return (
+    <InspectorPanel title="Calendario">
+      <p className="text-[11px] leading-snug text-[color:var(--te-ink-muted)]">
+        Los días caen donde corresponde para el año elegido (bisiestos incluidos). La tipografía y el color de los
+        números se eligen en la barra de texto; el cuerpo se achica solo si no entra.
+      </p>
+      <div>
+        <FieldLabel>Año (para todos los calendarios de la plantilla)</FieldLabel>
+        <YearInput value={o.year} onChange={onYearChange} />
+      </div>
+      <div>
+        <FieldLabel>Qué muestra</FieldLabel>
+        <select className={selectBase} value={o.month} onChange={(e) => onChange({ month: Number(e.target.value) })}>
+          <option value={0}>El año entero (12 meses)</option>
+          {CALENDAR_MONTH_NAMES.map((m, i) => (
+            <option key={m} value={i + 1}>
+              Sólo {m.toLowerCase()}
+            </option>
+          ))}
+        </select>
+      </div>
+      {o.month === 0 ? (
+        <div>
+          <FieldLabel>Meses por fila</FieldLabel>
+          <SegmentedControl
+            className="w-full"
+            value={String(o.columns)}
+            onChange={(v) => onChange({ columns: Number(v) })}
+            options={[
+              { value: "2", label: "2" },
+              { value: "3", label: "3" },
+              { value: "4", label: "4" },
+              { value: "6", label: "6" },
+            ]}
+          />
+        </div>
+      ) : null}
+      <div>
+        <FieldLabel>La semana empieza el</FieldLabel>
+        <SegmentedControl
+          className="w-full"
+          value={o.weekStart}
+          onChange={(weekStart) => onChange({ weekStart })}
+          options={[
+            { value: "monday", label: "Lunes" },
+            { value: "sunday", label: "Domingo" },
+          ]}
+        />
+      </div>
+      <ToggleSwitch checked={o.showMonthName} onChange={(showMonthName) => onChange({ showMonthName })} label="Nombre del mes" />
+      {o.showMonthName ? (
+        <>
+          <ToggleSwitch
+            checked={o.showYearInTitle}
+            onChange={(showYearInTitle) => onChange({ showYearInTitle })}
+            label="Con el año al lado («Marzo 2027»)"
+          />
+          <div>
+            <FieldLabel>Tamaño del nombre del mes</FieldLabel>
+            <NumberSliderField
+              ariaLabel="Tamaño del nombre del mes, en veces el de los días"
+              value={o.monthNameScale}
+              min={CALENDAR_MONTH_NAME_SCALE_MIN}
+              max={CALENDAR_MONTH_NAME_SCALE_MAX}
+              step={0.1}
+              onChange={(monthNameScale) => onChange({ monthNameScale })}
+            />
+          </div>
+          <ColorField
+            label="Color del nombre del mes"
+            value={o.monthNameColor ?? ""}
+            onChange={(monthNameColor) => onChange({ monthNameColor: monthNameColor || null })}
+          />
+        </>
+      ) : null}
+      <ToggleSwitch checked={o.showWeekdays} onChange={(showWeekdays) => onChange({ showWeekdays })} label="Días de la semana" />
+      {o.showWeekdays ? (
+        <>
+          <SegmentedControl
+            className="w-full"
+            value={o.weekdayStyle}
+            onChange={(weekdayStyle) => onChange({ weekdayStyle })}
+            options={[
+              { value: "initial", label: "L M M J" },
+              { value: "short", label: "Lu Ma Mi" },
+            ]}
+          />
+          <ColorField
+            label="Color de los días de la semana"
+            value={o.weekdayColor ?? ""}
+            onChange={(weekdayColor) => onChange({ weekdayColor: weekdayColor || null })}
+          />
+        </>
+      ) : null}
+      <ToggleSwitch
+        checked={o.sundayColor != null}
+        onChange={(on) => onChange({ sundayColor: on ? "#c0392b" : null })}
+        label="Domingos de otro color"
+      />
+      {o.sundayColor != null ? (
+        <ColorField label="Color de los domingos" value={o.sundayColor} onChange={(sundayColor) => onChange({ sundayColor })} />
+      ) : null}
+    </InspectorPanel>
+  );
+}
 
 function CourseMosaicOptionsPanel({
   options: o,

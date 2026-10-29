@@ -17,8 +17,11 @@ import {
   CLIENT_PHOTO_VARIABLE_PATTERN,
   SCHOOL_CLIENT_PHOTO_PLACEHOLDER,
   distributeCourseMosaic,
+  isCalendarConfig,
   isClassListConfig,
   isCourseMosaicConfig,
+  layoutCalendar,
+  readCalendarOptions,
   layoutCourseMosaic,
   parseCourseMosaic,
   parseCourseMosaicOwner,
@@ -471,6 +474,55 @@ function ClassListBlockRenderer({
             lineHeight: String(t.lineHeight),
             letterSpacing: `${t.letterSpacing}px`,
             textAlign: cell.heading ? titulo.align : t.textAlign,
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+          }}
+        >
+          {cell.text}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** «Calendario»: la misma cuenta de meses, semanas y cuerpo que usa la impresión. */
+function CalendarBlockRenderer({
+  config,
+  layoutWidth,
+  layoutHeight,
+}: {
+  config: Record<string, unknown>;
+  layoutWidth: number;
+  layoutHeight: number;
+}) {
+  const t = getTextVisualConfig(config);
+  const { cells } = layoutCalendar({
+    options: readCalendarOptions(config),
+    width: layoutWidth,
+    height: layoutHeight,
+    fontSize: t.fontSize,
+    lineHeight: t.lineHeight,
+  });
+  return (
+    <div style={{ position: "relative", width: "100%", height: "100%", overflow: "hidden" }}>
+      {cells.map((cell, i) => (
+        <div
+          key={i}
+          data-calendar-cell={cell.kind}
+          style={{
+            position: "absolute",
+            left: cell.x,
+            top: cell.y,
+            width: cell.width,
+            height: cell.height,
+            color: cell.color ?? t.color,
+            fontFamily: t.fontFamilyCss,
+            fontSize: cell.fontSize,
+            fontWeight: cell.bold ? 700 : t.fontWeight,
+            fontStyle: t.fontStyle,
+            textTransform: cell.kind === "month" ? t.textTransform : "none",
+            lineHeight: String(t.lineHeight),
+            textAlign: cell.kind === "month" ? t.textAlign : "center",
             whiteSpace: "nowrap",
             overflow: "hidden",
           }}
@@ -996,6 +1048,12 @@ export function TemplateCanvasRenderer({
                   layoutWidth={block.layout.width}
                   layoutHeight={block.layout.height}
                   readOnly={readOnly}
+                />
+              ) : isCalendarConfig(block.configJson) ? (
+                <CalendarBlockRenderer
+                  config={block.configJson}
+                  layoutWidth={block.layout.width}
+                  layoutHeight={block.layout.height}
                 />
               ) : isClassListConfig(block.configJson) ? (
                 <ClassListBlockRenderer

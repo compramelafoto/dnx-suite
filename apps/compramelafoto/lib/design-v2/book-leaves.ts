@@ -14,7 +14,13 @@ export type BookFace = { pageIndex: number; half: BookHalf };
 export type BookLeaf = { front: BookFace; back: BookFace };
 
 /** Es un librito si tiene tapa más al menos un interior, y cada cara es un pliego apaisado. */
-export function isBookTemplate(input: { pageCount: number; canvas: { width: number; height: number } }): boolean {
+export function isBookTemplate(input: {
+  pageCount: number;
+  canvas: { width: number; height: number };
+  /** Lo que dice la plantilla, si lo dice (los productos planos traen `false`). */
+  plegado?: boolean;
+}): boolean {
+  if (typeof input.plegado === "boolean") return input.plegado;
   const width = Number(input.canvas.width) || 0;
   const height = Number(input.canvas.height) || 0;
   return input.pageCount >= 2 && width > height;

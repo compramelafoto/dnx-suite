@@ -5,6 +5,7 @@ import { editorADocumento } from "@repo/template-editor-core/rendering";
 import { huecosSinFondo } from "@repo/template-editor-core";
 import {
   CLASS_LIST_VARIABLE_KEY,
+  isCalendarConfig,
   isClassListConfig,
   isCourseMosaicConfig,
   parseClassListGroups,
@@ -180,7 +181,7 @@ function editorBlocksFromResolved(
     }
     // El texto ya viene resuelto: si siguiera como variable, el puente reescribiría el marcador.
     // El listado y el mosaico del curso siguen como variable: el puente los reparte.
-    if (type === "VARIABLE_TEXT" && !isClassListConfig(config) && !isCourseMosaicConfig(config)) type = "TEXT";
+    if (type === "VARIABLE_TEXT" && !isClassListConfig(config) && !isCourseMosaicConfig(config) && !isCalendarConfig(config)) type = "TEXT";
     blocks.push({
       id: block.id,
       type,
