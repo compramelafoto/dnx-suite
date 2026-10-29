@@ -15,7 +15,7 @@ import {
   type TapaDelLibro,
 } from "@/lib/fotolibro/modo/estado";
 import { modelosParaLibro } from "@/lib/fotolibro/tapa/catalogo";
-import { bloquesDeTapa, tapaDelLibro } from "@/lib/fotolibro/tapa/bloques";
+import { DISENOS_TAPA, bloquesDeTapa, disenoDeTapa, tapaDelLibro } from "@/lib/fotolibro/tapa/bloques";
 import { TapaVista, type CaraTapa } from "./tapa-vista";
 import { PanelTapa } from "./panel-tapa";
 import { cantidadDeDistribuciones, generarBloques, idDeBloque, reindexarHojas } from "@/lib/fotolibro/modo/bloques";
@@ -42,6 +42,8 @@ import type { EstiloFotolibro, RolTexto } from "@/lib/fotolibro/estilos/tipos";
 import { claveDeMedida, medidasDelLienzo } from "@/lib/fotolibro/modo/bloques";
 import { dibujarYSubirFondos } from "./aplicar-estilo";
 import { SelectorEstilo } from "./selector-estilo";
+import { ArmadoAutomatico } from "./armado-automatico";
+import { ordenarFotos } from "@/lib/fotolibro/modo/armado";
 import { PanelLateral } from "./panel-lateral";
 import { PliegoVista } from "./pliego-vista";
 import { TiraFotos } from "./tira-fotos";
@@ -96,6 +98,7 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
   // Originales que siguen subiendo de fondo (la foto ya se puede usar).
   const [originales, setOriginales] = useState(0);
   const [eligiendoEstilo, setEligiendoEstilo] = useState(false);
+  const [armando, setArmando] = useState(false);
   const [aplicandoEstilo, setAplicandoEstilo] = useState<string | null>(null);
   // La tapa es la "hoja -1": va antes del primer pliego.
   const [caraTapa, setCaraTapa] = useState<CaraTapa | null>(null);
@@ -355,7 +358,7 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
   // ── Teclado ──
   useEffect(() => {
     const onKey = (ev: KeyboardEvent) => {
-      if (recortando || recortandoTapa || eligiendoEstilo || esEditable(ev.target)) return;
+      if (recortando || recortandoTapa || eligiendoEstilo || armando || esEditable(ev.target)) return;
       const tecla = ev.key.toLowerCase();
       if ((ev.metaKey || ev.ctrlKey) && tecla === "z") {
         ev.preventDefault();
@@ -366,6 +369,17 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
       if (ev.key === "ArrowLeft") return void (ev.preventDefault(), irA(pliego - 1));
       if (ev.key === "ArrowRight") return void (ev.preventDefault(), irA(pliego + 1));
       if (pliego < 0) {
+        if (tecla === "a" || tecla === "q" || tecla === "s" || tecla === "w") {
+          ev.preventDefault();
+          const paso = tecla === "a" || tecla === "s" ? 1 : -1;
+          aplicar((e) => {
+            if (!e.tapa) return e;
+            const i = DISENOS_TAPA.findIndex((d) => d.id === disenoDeTapa(e.tapa!.diseno));
+            const n = DISENOS_TAPA.length;
+            return { ...e, tapa: { ...e.tapa, diseno: DISENOS_TAPA[(((i + paso) % n) + n) % n]!.id } };
+          });
+          return;
+        }
         if ((ev.key === "Delete" || ev.key === "Backspace") && caraTapa) {
           ev.preventDefault();
           const campo = caraTapa === "tapa" ? "fotoId" : "contratapaFotoId";
@@ -376,7 +390,8 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
       }
       if (ev.key === "Enter" && seleccionTira.length) {
         ev.preventDefault();
-        aplicar((e) => armarPliego(e, pliego, seleccionTira));
+        // En el orden de la tira, no en el de los clics.
+        aplicar((e) => armarPliego(e, pliego, ordenarFotos(e.fotos, e.orden).map((f) => f.id).filter((id) => seleccionTira.includes(id))));
         setSeleccionTira([]);
         return;
       }
@@ -400,7 +415,7 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [recortando, recortandoTapa, caraTapa, eligiendoEstilo, pliego, seleccionTira, seleccionada, aplicar, deshacer, irA]);
+  }, [recortando, recortandoTapa, caraTapa, eligiendoEstilo, armando, pliego, seleccionTira, seleccionada, aplicar, deshacer, irA]);
 
   const fotosPorId = useMemo(() => new Map((estado?.fotos ?? []).map((f) => [f.id, f])), [estado]);
   const usos = useMemo(() => (estado ? usosPorFoto(estado) : new Map<string, number>()), [estado]);
@@ -461,6 +476,20 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
   return (
     <div className="flex h-full flex-col bg-[#18191b] text-white">
       <GoogleFontsLoader />
+      {armando ? (
+        <ArmadoAutomatico
+          estado={estado}
+          elegidas={seleccionTira}
+          onCerrar={() => setArmando(false)}
+          onArmar={(nuevo) => {
+            aplicar(() => nuevo);
+            setArmando(false);
+            setSeleccionTira([]);
+            setSeleccionada(null);
+            setPliego(0);
+          }}
+        />
+      ) : null}
       {eligiendoEstilo ? (
         <SelectorEstilo
           medidas={medidas}
@@ -477,6 +506,15 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
         <h1 className="truncate font-semibold">{cargado.nombre}</h1>
         <span className="text-white/50">{pliego < 0 ? "Tapa" : `Pliego ${pliego + 1} de ${cantidad}`}</span>
         <span className={`ml-auto text-xs ${guardado === "error" ? "text-red-300" : "text-white/50"}`}>{estadoGuardado}</span>
+        <button
+          type="button"
+          onClick={() => setArmando(true)}
+          disabled={!estado.fotos.length}
+          title="Reparte las fotos en todo el libro, en orden y por momentos"
+          className="rounded border border-white/15 px-2.5 py-1 text-xs hover:bg-white/10 disabled:opacity-40"
+        >
+          ✨ Armado automático
+        </button>
         <button
           type="button"
           onClick={() => void salirA(libreHref)}
@@ -588,7 +626,8 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
             geometria={armadoTapa?.geometria ?? null}
             seleccion={caraTapa}
             foto={fotoDeTapa}
-            textos={estado.estilo ? estado.estilo.textos : null}
+            textos={{ ...(estado.estilo?.textos ?? {}), ...(estado.tapa?.textos ?? {}) }}
+            onDiseno={(d) => cambiarTapa((t) => ({ ...t, diseno: d }))}
             onModelo={(id) => {
               if (!id) return aplicar((e) => ({ ...e, tapa: null }));
               cambiarTapa((t) => ({ ...t, modeloId: id, ...(modelosTapa.find((m) => m.id === id)?.tipo === "frente" ? { contratapaFotoId: null, contratapaEncuadre: null } : {}) }));
@@ -598,9 +637,7 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
               cambiarTapa((t) => (caraTapa === "contratapa" ? { ...t, contratapaFotoId: null, contratapaEncuadre: null } : { ...t, fotoId: null, encuadre: null }));
               setCaraTapa(null);
             }}
-            onTexto={(rol, valor) =>
-              aplicar((e) => (e.estilo ? { ...e, estilo: { ...e.estilo, textos: { ...e.estilo.textos, [rol]: valor } } } : e))
-            }
+            onTexto={(rol, valor) => cambiarTapa((t) => ({ ...t, textos: { ...(t.textos ?? {}), [rol]: valor } }))}
           />
         ) : (
         <PanelLateral
@@ -652,6 +689,8 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
           onSubir={(a) => void subir(a)}
           subiendo={subiendo}
           originales={originales}
+          orden={estado.orden}
+          onOrden={(o) => aplicar((e) => ({ ...e, orden: o }))}
         />
       </div>
     </div>

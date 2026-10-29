@@ -16,6 +16,8 @@ export type FotoDelLibro = {
   w: number;
   h: number;
   nombre: string;
+  /** Cuándo se sacó, como lo guardó la cámara ("2026-10-12T21:33:05"), para ordenar. */
+  tomada?: string;
   /**
    * Mientras el original sigue subiendo de fondo: su clave en el almacenamiento, para confirmarlo.
    * Una foto con esto todavía no se puede mandar a imprimir.
@@ -73,6 +75,10 @@ export type TapaDelLibro = {
   encuadre: Encuadre | null;
   contratapaFotoId: string | null;
   contratapaEncuadre: Encuadre | null;
+  /** Qué diseño de portada genérico usa (ver `DISENOS_TAPA`). */
+  diseno?: string;
+  /** Textos propios de la tapa; lo que no esté acá sale del estilo. */
+  textos?: { titulo?: string; subtitulo?: string; frase?: string };
 };
 
 export type EstadoFotolibro = {
@@ -80,6 +86,8 @@ export type EstadoFotolibro = {
   pliegos: PliegoDelLibro[];
   estilo: EstiloAplicado | null;
   tapa: TapaDelLibro | null;
+  /** Cómo se ordena la tira de fotos (y el armado automático). */
+  orden: "fecha" | "nombre" | "subida";
   /** Separación entre fotos y margen de la página, en milímetros. */
   separacionMm: number;
   margenMm: number;
@@ -110,6 +118,7 @@ function leerFoto(raw: unknown): FotoDelLibro | null {
     w,
     h,
     nombre: txt(raw.nombre),
+    ...(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(txt(raw.tomada)) ? { tomada: txt(raw.tomada) } : {}),
     ...(txt(raw.claveOriginal) ? { claveOriginal: txt(raw.claveOriginal) } : {}),
     ...(raw.faltaOriginal === true ? { faltaOriginal: true } : {}),
   };
@@ -136,6 +145,14 @@ function leerTapa(raw: unknown, existentes: Set<string>): TapaDelLibro | null {
     encuadre: leerEncuadre(raw.encuadre),
     contratapaFotoId: foto(raw.contratapaFotoId),
     contratapaEncuadre: leerEncuadre(raw.contratapaEncuadre),
+    ...(txt(raw.diseno) ? { diseno: txt(raw.diseno) } : {}),
+    ...(esObj(raw.textos)
+      ? {
+          textos: Object.fromEntries(
+            (["titulo", "subtitulo", "frase"] as const).filter((k) => typeof (raw.textos as Record<string, unknown>)[k] === "string").map((k) => [k, (raw.textos as Record<string, string>)[k]]),
+          ),
+        }
+      : {}),
   };
 }
 
@@ -175,6 +192,7 @@ export function leerEstadoFotolibro(meta: unknown, cantidadPliegos: number): Est
     pliegos,
     estilo: leerEstilo(fl.estilo),
     tapa: leerTapa(fl.tapa, ids),
+    orden: fl.orden === "nombre" || fl.orden === "subida" ? fl.orden : "fecha",
     separacionMm: Math.min(30, Math.max(0, num(fl.separacionMm, SEPARACION_MM_INICIAL))),
     margenMm: Math.min(40, Math.max(0, num(fl.margenMm, MARGEN_MM_INICIAL))),
   };
@@ -193,6 +211,7 @@ export function escribirEstadoFotolibro(meta: Record<string, unknown>, estado: E
       pliegos: estado.pliegos,
       estilo: estado.estilo,
       tapa: estado.tapa,
+      orden: estado.orden,
       separacionMm: estado.separacionMm,
       margenMm: estado.margenMm,
     },

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
+import { ORDENES, ordenarFotos, type OrdenFotos } from "@/lib/fotolibro/modo/armado";
 import type { FotoDelLibro } from "@/lib/fotolibro/modo/estado";
 
 /** Tipo de dato del arrastre de fotos de la tira (ids en JSON). */
@@ -17,6 +18,8 @@ type Props = {
   subiendo: { hechas: number; total: number; errores: string[] } | null;
   /** Originales que siguen subiendo de fondo. */
   originales: number;
+  orden: OrdenFotos;
+  onOrden: (o: OrdenFotos) => void;
 };
 
 /**
@@ -24,7 +27,7 @@ type Props = {
  * usadas se ven apagadas y con su cantidad, se seleccionan varias (⌘/Ctrl o Mayús) y se arrastran
  * al pliego. Soltar archivos encima los sube.
  */
-export function TiraFotos({ fotos, usos, seleccion, onSeleccion, onSubir, subiendo, originales }: Props) {
+export function TiraFotos({ fotos, usos, seleccion, onSeleccion, onSubir, subiendo, originales, orden, onOrden }: Props) {
   const [filtro, setFiltro] = useState<Filtro>("todas");
   const [soltando, setSoltando] = useState(false);
   const archivoRef = useRef<HTMLInputElement>(null);
@@ -32,10 +35,10 @@ export function TiraFotos({ fotos, usos, seleccion, onSeleccion, onSubir, subien
 
   const visibles = useMemo(
     () =>
-      fotos.filter((f) =>
+      ordenarFotos(fotos, orden).filter((f) =>
         filtro === "todas" ? true : filtro === "usadas" ? (usos.get(f.id) ?? 0) > 0 : (usos.get(f.id) ?? 0) === 0,
       ),
-    [fotos, usos, filtro],
+    [fotos, usos, filtro, orden],
   );
   const sinUsar = fotos.filter((f) => (usos.get(f.id) ?? 0) === 0).length;
 
@@ -94,6 +97,18 @@ export function TiraFotos({ fotos, usos, seleccion, onSeleccion, onSubir, subien
             if (archivos.length) onSubir(archivos);
           }}
         />
+        <select
+          value={orden}
+          onChange={(e) => onOrden(e.target.value as OrdenFotos)}
+          title="Orden de la tira (y del armado automático)"
+          className="rounded border border-white/15 bg-black/30 px-1.5 py-1 text-white"
+        >
+          {ORDENES.map((o) => (
+            <option key={o.id} value={o.id}>
+              {o.nombre}
+            </option>
+          ))}
+        </select>
         {(["todas", "sin-usar", "usadas"] as const).map((f) => (
           <button
             key={f}
@@ -145,7 +160,7 @@ export function TiraFotos({ fotos, usos, seleccion, onSeleccion, onSubir, subien
                   e.dataTransfer.effectAllowed = "copy";
                 }}
                 onClick={(e) => clic(e, f.id)}
-                title={`${f.nombre} · ${f.w} × ${f.h} px${usada ? ` · usada ${usada} ${usada === 1 ? "vez" : "veces"}` : ""}`}
+                title={`${f.nombre}${f.tomada ? ` · ${f.tomada.slice(8, 10)}/${f.tomada.slice(5, 7)} ${f.tomada.slice(11, 16)}` : ""} · ${f.w} × ${f.h} px${usada ? ` · usada ${usada} ${usada === 1 ? "vez" : "veces"}` : ""}`}
                 className={`relative h-full flex-none overflow-hidden rounded-sm bg-black/30 outline-offset-2 ${elegida ? "outline outline-2 outline-[#facc15]" : ""}`}
                 style={{ aspectRatio: `${f.w} / ${f.h}` }}
               >

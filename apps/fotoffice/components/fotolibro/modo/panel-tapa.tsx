@@ -5,6 +5,7 @@ import type { FotoDelLibro, TapaDelLibro } from "@/lib/fotolibro/modo/estado";
 import type { ModeloTapa } from "@/lib/fotolibro/tapa/catalogo";
 import type { GeometriaTapa } from "@/lib/fotolibro/tapa/geometria";
 import type { CaraTapa } from "./tapa-vista";
+import { DISENOS_TAPA, disenoDeTapa, type DisenoTapa } from "@/lib/fotolibro/tapa/bloques";
 
 type Props = {
   modelos: ModeloTapa[];
@@ -12,8 +13,9 @@ type Props = {
   geometria: GeometriaTapa | null;
   seleccion: CaraTapa | null;
   foto: FotoDelLibro | null;
-  /** Los títulos viven en el estilo: sin estilo, la tapa no lleva título. */
-  textos: { titulo?: string; subtitulo?: string; fecha?: string; frase?: string } | null;
+  /** Lo que se ve escrito en la tapa (propio de la tapa o, si no, del estilo). */
+  textos: { titulo?: string; subtitulo?: string; frase?: string };
+  onDiseno: (d: DisenoTapa) => void;
   onTexto: (rol: "titulo" | "subtitulo" | "frase", valor: string) => void;
   onModelo: (id: string | null) => void;
   onEncuadre: (crop: PhotoCrop | null) => void;
@@ -59,6 +61,7 @@ export function PanelTapa({ modelos, tapa, geometria, seleccion, foto, textos, .
               >
                 <span className="block font-medium">{[m.laboratorio, m.modelo].filter(Boolean).join(" · ")}</span>
                 <span className="block text-white/55">{m.descripcion}</span>
+                {m.estimada ? <span className="mt-1 inline-block rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] text-amber-200">Medidas estimadas</span> : null}
               </button>
             ))}
             {tapa ? (
@@ -107,6 +110,28 @@ export function PanelTapa({ modelos, tapa, geometria, seleccion, foto, textos, .
       ) : null}
 
       {modelo ? (
+        <section className="space-y-1.5">
+          <h3 className="text-[11px] font-semibold uppercase tracking-wide text-white/50">Diseño de portada</h3>
+          <div className="grid grid-cols-2 gap-1.5">
+            {DISENOS_TAPA.map((d) => (
+              <button
+                key={d.id}
+                type="button"
+                title={d.detalle}
+                onClick={() => props.onDiseno(d.id)}
+                className={`rounded px-2 py-1.5 text-left text-xs ${disenoDeTapa(tapa?.diseno) === d.id ? "bg-white/15 ring-1 ring-[var(--fo-accent)]" : "bg-white/5 hover:bg-white/10"}`}
+              >
+                {d.nombre}
+              </button>
+            ))}
+          </div>
+          <p className="text-[11px] text-white/45">
+            <b>A</b>/<b>Q</b> también los recorren.
+          </p>
+        </section>
+      ) : null}
+
+      {modelo ? (
         <section className="space-y-2">
           <h3 className="text-[11px] font-semibold uppercase tracking-wide text-white/50">Textos de la tapa</h3>
           {textos ? (
@@ -126,9 +151,8 @@ export function PanelTapa({ modelos, tapa, geometria, seleccion, foto, textos, .
                 />
               </label>
             ))
-          ) : (
-            <p className="text-xs text-white/55">Elegí un estilo en el primer pliego para ponerle título con su tipografía.</p>
-          )}
+          ) : null}
+          {/* Sin estilo, la letra es una clásica; con estilo, la del estilo. */}
         </section>
       ) : null}
     </aside>

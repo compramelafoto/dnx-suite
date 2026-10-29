@@ -22,9 +22,10 @@ describe("tapas de fotolibro", () => {
   });
 
   it("filtra por laboratorio y por medida", () => {
-    expect(modelosParaLibro("rigido-30x60", "Román")).toHaveLength(1);
-    expect(modelosParaLibro("rigido-30x60", "La Isla")).toHaveLength(0);
-    expect(modelosParaLibro("rigido-20x30", "Román")).toHaveLength(0);
+    // La del laboratorio primero, y la genérica siempre.
+    expect(modelosParaLibro("rigido-30x60", "Román").map((m) => m.id)).toEqual(["roman-gold-premium-30x60", "generica-rigido-30x60"]);
+    expect(modelosParaLibro("rigido-30x60", "La Isla").map((m) => m.id)).toEqual(["generica-rigido-30x60"]);
+    expect(modelosParaLibro("rigido-20x30", "Román").map((m) => m.id)).toEqual(["generica-rigido-20x30"]);
   });
 
   it("en una tapa completa el lomo crece con las hojas", () => {
@@ -33,5 +34,14 @@ describe("tapas de fotolibro", () => {
     const veinte = geometriaTapa(completa, 20);
     expect(diez.lomo!.w).toBe(19);
     expect(veinte.pieza.ancho - diez.pieza.ancho).toBe(15);
+  });
+
+  it("la genérica de un 30x60 es una pieza completa cuyo lomo crece con las hojas", () => {
+    const m = modeloTapaPorId("generica-rigido-30x60")!;
+    expect(m.estimada).toBe(true);
+    const g = geometriaTapa(m, 20);
+    expect(g.lomo!.w).toBe(16);
+    expect(g.tapa.w).toBeCloseTo(308, 0);
+    expect(g.pieza.ancho).toBeCloseTo(18 * 2 + 308 * 2 + 16, 0);
   });
 });

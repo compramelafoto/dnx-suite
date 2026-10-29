@@ -32,6 +32,8 @@ export type ModeloTapa = {
   /** Sólo "completa": lomo = base + hojas × porHoja, en mm. */
   lomo?: { baseMm: number; porHojaMm: number };
   descripcion: string;
+  /** Medidas estándar, no las de una plantilla del laboratorio: hay que confirmarlas antes de imprimir. */
+  estimada?: boolean;
 };
 
 export const MODELOS_TAPA: readonly ModeloTapa[] = [
@@ -65,6 +67,28 @@ export function tapaFlexible(medida: MedidaPliego): ModeloTapa {
 }
 
 /**
+ * La tapa genérica de un libro rígido: una pieza completa (contratapa + lomo + tapa) con las
+ * medidas habituales de una tapa dura, para poder diseñar la portada aunque todavía no esté la
+ * plantilla del laboratorio. Cada cara es la página más 3 mm de cartón por lado; se dobla 18 mm
+ * sobre el cartón y el lomo mide 6 mm más medio milímetro por hoja.
+ */
+export function tapaGenerica(medida: MedidaPliego): ModeloTapa {
+  const cara = medida.anchoMm / 2 + 3;
+  return {
+    id: `generica-${medida.id}`,
+    laboratorio: "",
+    modelo: "Tapa dura genérica",
+    tipo: "completa",
+    medidas: [medida.id],
+    pieza: { ancho: cara, alto: medida.altoMm + 6 },
+    demasia: { arriba: 18, abajo: 18, exterior: 18, interior: 0 },
+    lomo: { baseMm: 6, porHojaMm: 0.5 },
+    descripcion: "Contratapa, lomo y tapa con medidas estándar. Confirmá las medidas con tu laboratorio antes de imprimir.",
+    estimada: true,
+  };
+}
+
+/**
  * Las tapas posibles para un libro: las del laboratorio elegido para esa medida (o las de todos,
  * si no hay laboratorio), más la flexible si la medida es de tapa flexible.
  */
@@ -73,13 +97,19 @@ export function modelosParaLibro(medidaId: string, laboratorio?: string | null):
   if (!medida) return [];
   if (medida.linea === "FLEXIBLE") return [tapaFlexible(medida)];
   const lab = laboratorio ? normalizarNombreProveedor(laboratorio) : null;
-  return MODELOS_TAPA.filter(
-    (m) => m.medidas.includes(medidaId) && (!lab || normalizarNombreProveedor(m.laboratorio) === lab),
-  );
+  // Primero las plantillas del laboratorio; la genérica siempre, para no quedarse sin tapa.
+  return [
+    ...MODELOS_TAPA.filter((m) => m.medidas.includes(medidaId) && (!lab || normalizarNombreProveedor(m.laboratorio) === lab)),
+    tapaGenerica(medida),
+  ];
 }
 
 export function modeloTapaPorId(id: string | null | undefined): ModeloTapa | null {
   if (!id) return null;
+  if (id.startsWith("generica-")) {
+    const medida = medidaPorId(id.slice("generica-".length));
+    return medida ? tapaGenerica(medida) : null;
+  }
   if (id.startsWith("flexible-")) {
     const medida = medidaPorId(id.slice("flexible-".length));
     return medida ? tapaFlexible(medida) : null;

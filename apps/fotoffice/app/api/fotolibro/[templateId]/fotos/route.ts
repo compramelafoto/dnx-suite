@@ -49,6 +49,7 @@ export async function POST(request: Request, context: Ctx) {
   }
 
   const nombre = typeof body.nombre === "string" ? body.nombre.slice(0, 120) : "";
+  const tomada = typeof body.tomada === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(body.tomada) ? body.tomada : null;
   return NextResponse.json({
     foto: {
       id: randomUUID().slice(0, 12),
@@ -58,6 +59,7 @@ export async function POST(request: Request, context: Ctx) {
       w: Math.round(w),
       h: Math.round(h),
       nombre,
+      ...(tomada ? { tomada } : {}),
       ...(pendiente ? { claveOriginal: claves.original } : {}),
     },
   });

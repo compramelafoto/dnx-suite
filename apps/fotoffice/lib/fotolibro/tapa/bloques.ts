@@ -106,9 +106,35 @@ function bloqueTexto(id: string, contenido: string, caja: Rect, puntos: number, 
   };
 }
 
+/** Los diseños de portada genéricos: sirven para cualquier modelo de tapa. */
+export const DISENOS_TAPA = [
+  { id: "franja", nombre: "Foto con franja", detalle: "Foto a sangre y el título sobre una franja abajo." },
+  { id: "titulo-arriba", nombre: "Título arriba", detalle: "Foto a sangre y el título en una franja arriba." },
+  { id: "ventana", nombre: "Ventana", detalle: "La foto en un recuadro sobre el papel y el título debajo." },
+  { id: "mitad", nombre: "Media foto", detalle: "La foto ocupa la parte de arriba; el título va en el papel." },
+  { id: "tipografica", nombre: "Sólo título", detalle: "Sin foto: el título grande, centrado, con filetes." },
+  { id: "sin-texto", nombre: "Sólo foto", detalle: "La foto a sangre, sin textos." },
+] as const;
+
+export type DisenoTapa = (typeof DISENOS_TAPA)[number]["id"];
+
+export const disenoDeTapa = (id: string | null | undefined): DisenoTapa =>
+  (DISENOS_TAPA.find((d) => d.id === id)?.id ?? "franja") as DisenoTapa;
+
+function rect(id: string, r: Rect, dpi: number, fill: string, opacity = 1, z = 30): TemplateV2Block {
+  return {
+    id,
+    type: "SHAPE",
+    pageIndex: 0,
+    name: id,
+    layout: { x: px(r.x, dpi), y: px(r.y, dpi), width: px(r.w, dpi), height: px(r.h, dpi), rotation: 0, zIndex: z, opacity, locked: false, visible: true },
+    configJson: { variant: "rectangle", fill, strokeWidth: 0 },
+  };
+}
+
 /**
- * Los bloques de la tapa: papel, fotos (tapa y, si la hay, contratapa) y el título del libro sobre
- * una franja, en la cara de la tapa. En la contratapa sin foto va la frase del cierre.
+ * Los bloques de la tapa: papel, fotos (tapa y, si la hay, contratapa), el título según el diseño
+ * elegido y, si el lomo da, el título en el lomo. En la contratapa sin foto va la frase del cierre.
  */
 export function bloquesDeTapa(estado: EstadoFotolibro, hojas: number, medidasPliego: Medidas): TemplateV2Block[] {
   const armado = tapaDelLibro(estado, hojas);
@@ -119,6 +145,8 @@ export function bloquesDeTapa(estado: EstadoFotolibro, hojas: number, medidasPli
   const papel = estilo?.papel ?? "#ffffff";
   const fotos = new Map(estado.fotos.map((f) => [f.id, f]));
   const marcos = marcosDeTapa(modelo, g);
+  const diseno = disenoDeTapa(estado.tapa.diseno);
+  const cara = g.tapa;
   const out: TemplateV2Block[] = [
     {
       id: "tapa-fondo",
@@ -130,41 +158,72 @@ export function bloquesDeTapa(estado: EstadoFotolibro, hojas: number, medidasPli
     },
   ];
 
+  // Dónde va la foto de tapa según el diseño. Las que van a sangre siguen por la demasía.
+  const marcoFoto: Rect | null =
+    diseno === "tipografica"
+      ? null
+      : diseno === "ventana"
+        ? { x: cara.x + cara.w * 0.14, y: cara.y + cara.h * 0.12, w: cara.w * 0.72, h: cara.h * 0.56 }
+        : diseno === "mitad"
+          ? { x: marcos.tapa.x, y: 0, w: marcos.tapa.w, h: cara.y + cara.h * 0.62 }
+          : marcos.tapa;
   const fotoTapa = estado.tapa.fotoId ? fotos.get(estado.tapa.fotoId) : undefined;
-  if (fotoTapa) out.push(bloqueFoto(ID_FOTO_TAPA, fotoTapa, marcos.tapa, estado.tapa.encuadre, dpi));
+  if (fotoTapa && marcoFoto) out.push(bloqueFoto(ID_FOTO_TAPA, fotoTapa, marcoFoto, estado.tapa.encuadre, dpi));
   const fotoContra = estado.tapa.contratapaFotoId ? fotos.get(estado.tapa.contratapaFotoId) : undefined;
   if (fotoContra && marcos.contratapa) {
     out.push(bloqueFoto(ID_FOTO_CONTRATAPA, fotoContra, marcos.contratapa, estado.tapa.contratapaEncuadre, dpi));
   }
 
-  const textos = estado.estilo?.textos ?? {};
+  // Los textos de la tapa: los propios, o si no, los del estilo.
+  const textos = { ...(estado.estilo?.textos ?? {}), ...(estado.tapa.textos ?? {}) };
   const titulo = textos.titulo?.trim();
   const debajo = (textos.subtitulo || textos.fecha)?.trim();
   const letra = letraDelTitulo(estado, medidasPliego);
-  const cara = g.tapa;
-  if (titulo) {
-    const margen = cara.w * 0.08;
-    const alto = cara.h * (debajo ? 0.2 : 0.15);
-    const franja = { x: cara.x, y: cara.y + cara.h * 0.66, w: cara.w, h: alto };
-    // Sobre una foto el título necesita fondo para leerse; sobre el papel, no.
-    if (fotoTapa) {
-      out.push({
-        id: "tapa-franja",
-        type: "SHAPE",
-        pageIndex: 0,
-        name: "Franja del título",
-        layout: { x: px(franja.x, dpi), y: px(franja.y, dpi), width: px(franja.w, dpi), height: px(franja.h, dpi), rotation: 0, zIndex: 30, opacity: 0.85, locked: false, visible: true },
-        configJson: { variant: "rectangle", fill: papel, strokeWidth: 0 },
-      });
-    }
-    const puntos = (cara.h * 0.07 * 72) / 25.4;
-    const altoTitulo = debajo ? franja.h * 0.6 : franja.h;
-    out.push(bloqueTexto("tapa-titulo", titulo, { x: franja.x + margen, y: franja.y + (debajo ? franja.h * 0.08 : 0), w: franja.w - 2 * margen, h: altoTitulo }, puntos, letra, dpi));
+  const letraChica = { ...letra, fuente: letra.texto, mayusculas: true, negrita: false, italica: false };
+  const margen = cara.w * 0.08;
+  const puntos = (cara.h * 0.07 * 72) / 25.4;
+
+  /** Título (y lo de debajo) centrados en una caja de la cara. */
+  const titular = (caja: Rect, escala = 1) => {
+    if (!titulo) return;
+    const altoTitulo = debajo ? caja.h * 0.6 : caja.h;
+    out.push(bloqueTexto("tapa-titulo", titulo, { x: caja.x + margen, y: caja.y + (debajo ? caja.h * 0.08 : 0), w: caja.w - 2 * margen, h: altoTitulo }, puntos * escala, letra, dpi));
     if (debajo) {
-      out.push(
-        bloqueTexto("tapa-subtitulo", debajo, { x: franja.x + margen, y: franja.y + franja.h * 0.64, w: franja.w - 2 * margen, h: franja.h * 0.3 }, puntos * 0.38, { ...letra, fuente: letra.texto, mayusculas: true, negrita: false, italica: false }, dpi),
-      );
+      out.push(bloqueTexto("tapa-subtitulo", debajo, { x: caja.x + margen, y: caja.y + caja.h * 0.64, w: caja.w - 2 * margen, h: caja.h * 0.3 }, puntos * escala * 0.38, letraChica, dpi));
     }
+  };
+
+  if (titulo && diseno !== "sin-texto") {
+    const alto = cara.h * (debajo ? 0.2 : 0.15);
+    if (diseno === "franja" || diseno === "titulo-arriba") {
+      const franja = { x: cara.x, y: diseno === "franja" ? cara.y + cara.h * 0.66 : cara.y + cara.h * 0.08, w: cara.w, h: alto };
+      // Sobre una foto el título necesita fondo para leerse; sobre el papel, no.
+      if (fotoTapa) out.push(rect("tapa-franja", franja, dpi, papel, 0.85));
+      titular(franja);
+    } else if (diseno === "ventana") {
+      titular({ x: cara.x, y: cara.y + cara.h * 0.72, w: cara.w, h: alto });
+    } else if (diseno === "mitad") {
+      titular({ x: cara.x, y: cara.y + cara.h * 0.7, w: cara.w, h: alto });
+    } else {
+      // Tipográfica: título grande en el centro, entre dos filetes finos del color de la letra.
+      const caja = { x: cara.x, y: cara.y + cara.h * 0.36, w: cara.w, h: cara.h * 0.28 };
+      const filete = Math.max(0.4, cara.h * 0.0015);
+      out.push(rect("tapa-filete-1", { x: cara.x + cara.w * 0.3, y: caja.y - cara.h * 0.03, w: cara.w * 0.4, h: filete }, dpi, letra.color));
+      out.push(rect("tapa-filete-2", { x: cara.x + cara.w * 0.3, y: caja.y + caja.h + cara.h * 0.03, w: cara.w * 0.4, h: filete }, dpi, letra.color));
+      titular(caja, 1.35);
+    }
+  }
+
+  // El lomo: el título a lo largo, si entra una letra legible (8 mm o más).
+  if (titulo && g.lomo && g.lomo.w >= 8) {
+    const l = g.lomo;
+    const largo = l.h * 0.8;
+    const grosor = l.w * 0.8;
+    const cx = l.x + l.w / 2;
+    const cy = l.y + l.h / 2;
+    const b = bloqueTexto("lomo-titulo", titulo, { x: cx - largo / 2, y: cy - grosor / 2, w: largo, h: grosor }, (grosor * 0.55 * 72) / 25.4, letra, dpi);
+    // Se lee de arriba hacia abajo, como los lomos de los libros en castellano e inglés.
+    out.push({ ...b, layout: { ...b.layout, rotation: 90 } });
   }
 
   const frase = textos.frase?.trim();
