@@ -75,6 +75,10 @@ export type TapaDelLibro = {
   encuadre: Encuadre | null;
   contratapaFotoId: string | null;
   contratapaEncuadre: Encuadre | null;
+  /** Qué diseño de portada genérico usa (ver `DISENOS_TAPA`). */
+  diseno?: string;
+  /** Textos propios de la tapa; lo que no esté acá sale del estilo. */
+  textos?: { titulo?: string; subtitulo?: string; frase?: string };
 };
 
 export type EstadoFotolibro = {
@@ -141,6 +145,14 @@ function leerTapa(raw: unknown, existentes: Set<string>): TapaDelLibro | null {
     encuadre: leerEncuadre(raw.encuadre),
     contratapaFotoId: foto(raw.contratapaFotoId),
     contratapaEncuadre: leerEncuadre(raw.contratapaEncuadre),
+    ...(txt(raw.diseno) ? { diseno: txt(raw.diseno) } : {}),
+    ...(esObj(raw.textos)
+      ? {
+          textos: Object.fromEntries(
+            (["titulo", "subtitulo", "frase"] as const).filter((k) => typeof (raw.textos as Record<string, unknown>)[k] === "string").map((k) => [k, (raw.textos as Record<string, string>)[k]]),
+          ),
+        }
+      : {}),
   };
 }
 

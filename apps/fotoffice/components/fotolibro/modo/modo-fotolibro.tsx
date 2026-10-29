@@ -15,7 +15,7 @@ import {
   type TapaDelLibro,
 } from "@/lib/fotolibro/modo/estado";
 import { modelosParaLibro } from "@/lib/fotolibro/tapa/catalogo";
-import { bloquesDeTapa, tapaDelLibro } from "@/lib/fotolibro/tapa/bloques";
+import { DISENOS_TAPA, bloquesDeTapa, disenoDeTapa, tapaDelLibro } from "@/lib/fotolibro/tapa/bloques";
 import { TapaVista, type CaraTapa } from "./tapa-vista";
 import { PanelTapa } from "./panel-tapa";
 import { cantidadDeDistribuciones, generarBloques, idDeBloque, reindexarHojas } from "@/lib/fotolibro/modo/bloques";
@@ -369,6 +369,17 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
       if (ev.key === "ArrowLeft") return void (ev.preventDefault(), irA(pliego - 1));
       if (ev.key === "ArrowRight") return void (ev.preventDefault(), irA(pliego + 1));
       if (pliego < 0) {
+        if (tecla === "a" || tecla === "q" || tecla === "s" || tecla === "w") {
+          ev.preventDefault();
+          const paso = tecla === "a" || tecla === "s" ? 1 : -1;
+          aplicar((e) => {
+            if (!e.tapa) return e;
+            const i = DISENOS_TAPA.findIndex((d) => d.id === disenoDeTapa(e.tapa!.diseno));
+            const n = DISENOS_TAPA.length;
+            return { ...e, tapa: { ...e.tapa, diseno: DISENOS_TAPA[(((i + paso) % n) + n) % n]!.id } };
+          });
+          return;
+        }
         if ((ev.key === "Delete" || ev.key === "Backspace") && caraTapa) {
           ev.preventDefault();
           const campo = caraTapa === "tapa" ? "fotoId" : "contratapaFotoId";
@@ -615,7 +626,8 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
             geometria={armadoTapa?.geometria ?? null}
             seleccion={caraTapa}
             foto={fotoDeTapa}
-            textos={estado.estilo ? estado.estilo.textos : null}
+            textos={{ ...(estado.estilo?.textos ?? {}), ...(estado.tapa?.textos ?? {}) }}
+            onDiseno={(d) => cambiarTapa((t) => ({ ...t, diseno: d }))}
             onModelo={(id) => {
               if (!id) return aplicar((e) => ({ ...e, tapa: null }));
               cambiarTapa((t) => ({ ...t, modeloId: id, ...(modelosTapa.find((m) => m.id === id)?.tipo === "frente" ? { contratapaFotoId: null, contratapaEncuadre: null } : {}) }));
@@ -625,9 +637,7 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
               cambiarTapa((t) => (caraTapa === "contratapa" ? { ...t, contratapaFotoId: null, contratapaEncuadre: null } : { ...t, fotoId: null, encuadre: null }));
               setCaraTapa(null);
             }}
-            onTexto={(rol, valor) =>
-              aplicar((e) => (e.estilo ? { ...e, estilo: { ...e.estilo, textos: { ...e.estilo.textos, [rol]: valor } } } : e))
-            }
+            onTexto={(rol, valor) => cambiarTapa((t) => ({ ...t, textos: { ...(t.textos ?? {}), [rol]: valor } }))}
           />
         ) : (
         <PanelLateral
