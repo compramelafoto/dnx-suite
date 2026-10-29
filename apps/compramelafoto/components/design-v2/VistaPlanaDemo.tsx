@@ -19,6 +19,7 @@ export default function VistaPlanaDemo({
   photoOverrides,
   pageCount,
   pageLabels,
+  soloPaginas,
   onClose,
   acciones,
 }: {
@@ -30,13 +31,16 @@ export default function VistaPlanaDemo({
   photoOverrides: Record<string, PhotoOverride>;
   pageCount: number;
   pageLabels: string[];
+  /** Sólo estas caras (por ejemplo la plancha de figuritas). Sin valor, todas. */
+  soloPaginas?: number[];
   onClose: () => void;
   acciones?: ReactNode;
 }) {
   const caja = useRef<HTMLDivElement>(null);
   const [tam, setTam] = useState({ width: 0, height: 0 });
+  const lista = soloPaginas?.length ? soloPaginas : Array.from({ length: Math.max(1, pageCount) }, (_, i) => i);
   /** Con muchas hojas (un almanaque de 13), de a una con flechas; con pocas, todas juntas. */
-  const deAUna = pageCount > 4;
+  const deAUna = lista.length > 4;
   const [pagina, setPagina] = useState(0);
 
   useEffect(() => {
@@ -52,16 +56,16 @@ export default function VistaPlanaDemo({
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
-      if (deAUna && e.key === "ArrowRight") setPagina((p) => Math.min(pageCount - 1, p + 1));
+      if (deAUna && e.key === "ArrowRight") setPagina((p) => Math.min(lista.length - 1, p + 1));
       if (deAUna && e.key === "ArrowLeft") setPagina((p) => Math.max(0, p - 1));
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose, deAUna, pageCount]);
+  }, [onClose, deAUna, lista.length]);
 
   const w = Number(canvas.width) || 1;
   const h = Number(canvas.height) || 1;
-  const paginas = deAUna ? [pagina] : Array.from({ length: Math.max(1, pageCount) }, (_, i) => i);
+  const paginas = deAUna ? [lista[pagina]!] : lista;
   const { columnas, escala } = mejorGrilla(paginas.length, tam, { width: w, height: h });
   const etiqueta = (i: number) => pageLabels[i]?.trim() || (pageCount === 1 ? "Diseño" : `Hoja ${i + 1}`);
 
@@ -103,12 +107,12 @@ export default function VistaPlanaDemo({
             ‹
           </button>
           <span className="min-w-[9rem] text-center text-sm">
-            {etiqueta(pagina)} · {pagina + 1} de {pageCount}
+            {etiqueta(lista[pagina]!)} · {pagina + 1} de {lista.length}
           </span>
           <button
             type="button"
-            onClick={() => setPagina((p) => Math.min(pageCount - 1, p + 1))}
-            disabled={pagina === pageCount - 1}
+            onClick={() => setPagina((p) => Math.min(lista.length - 1, p + 1))}
+            disabled={pagina === lista.length - 1}
             aria-label="Hoja siguiente"
             className="grid h-10 w-10 place-items-center rounded-full bg-white/10 text-xl disabled:opacity-30"
           >

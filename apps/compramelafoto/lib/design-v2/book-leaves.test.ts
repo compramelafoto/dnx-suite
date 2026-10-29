@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { bookLeaves, bookSpreadLabel, isBookTemplate } from "./book-leaves";
+import { bookLeaves, bookSpreadLabel, hojasAparte, isBookTemplate, paginasDelLibro } from "./book-leaves";
 
 test("un librito es un pliego apaisado con tapa e interior", () => {
   assert.equal(isBookTemplate({ pageCount: 2, canvas: { width: 3602, height: 2421 } }), true);
@@ -28,4 +28,16 @@ test("el contador nombra tapa, páginas y contratapa", () => {
   assert.equal(bookSpreadLabel(1, 3), "Páginas 1 y 2");
   assert.equal(bookSpreadLabel(2, 3), "Páginas 3 y 4");
   assert.equal(bookSpreadLabel(3, 3), "Contratapa");
+});
+
+test("la plancha de figuritas no es parte del libro: va aparte", () => {
+  const album = { pageCount: 3, pageLabels: ["Exterior (contratapa + tapa)", "Interior (álbum)", "Plancha de figuritas (papel autoadhesivo)"] };
+  assert.deepEqual(hojasAparte(album), [2]);
+  assert.equal(paginasDelLibro(album), 2);
+  assert.equal(isBookTemplate({ ...album, canvas: { width: 3543, height: 2362 } }), true);
+  // Un librito común no tiene nada aparte.
+  assert.deepEqual(hojasAparte({ pageCount: 2, pageLabels: ["Exterior", "Interior"] }), []);
+  assert.deepEqual(hojasAparte({ pageCount: 4, pageLabels: [] }), []);
+  // Sólo al final: una «plancha» en el medio sigue siendo parte del libro.
+  assert.deepEqual(hojasAparte({ pageCount: 4, pageLabels: ["Exterior", "Interior", "Plancha", "Interior 2"] }), []);
 });
