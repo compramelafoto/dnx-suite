@@ -47,7 +47,7 @@ describe("bloques de la tapa", () => {
     for (const d of DISENOS_TAPA) {
       const e = estado({ modeloId: "generica-rigido-30x60", fotoId: "a", diseno: d.id }, { titulo: "Viaje a Bariloche" });
       const b = bloquesDeTapa(e, 10, pliego);
-      expect(b.some((x) => x.id === "tapa-foto")).toBe(d.id !== "tipografica");
+      expect(b.some((x) => x.id === "tapa-foto")).toBe(d.id !== "tipografica" && d.id !== "ilustrada");
       expect(b.some((x) => x.id === "tapa-titulo")).toBe(d.id !== "sin-texto");
     }
   });

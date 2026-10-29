@@ -96,6 +96,8 @@ export type TapaDelLibro = {
   diseno?: string;
   /** Textos propios de la tapa; lo que no esté acá sale del estilo. */
   textos?: { titulo?: string; subtitulo?: string; frase?: string };
+  /** La portada ilustrada ya dibujada y subida, con la clave de lo que se dibujó (ver `claveDeArte`). */
+  arte?: { clave: string; url: string };
 };
 
 export type EstadoFotolibro = {
@@ -176,6 +178,7 @@ function leerTapa(raw: unknown, existentes: Set<string>): TapaDelLibro | null {
     contratapaFotoId: foto(raw.contratapaFotoId),
     contratapaEncuadre: leerEncuadre(raw.contratapaEncuadre),
     ...(txt(raw.diseno) ? { diseno: txt(raw.diseno) } : {}),
+    ...(esObj(raw.arte) && txt(raw.arte.clave) && /^https?:\/\//.test(txt(raw.arte.url)) ? { arte: { clave: txt(raw.arte.clave), url: txt(raw.arte.url) } } : {}),
     ...(esObj(raw.textos)
       ? {
           textos: Object.fromEntries(

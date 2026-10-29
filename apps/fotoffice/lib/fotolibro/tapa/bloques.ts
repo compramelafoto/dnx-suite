@@ -4,6 +4,7 @@ import { estiloPorId } from "../estilos/catalogo";
 import type { Medidas, TextoDelEstilo } from "../estilos/tipos";
 import { modeloTapaPorId, type ModeloTapa } from "./catalogo";
 import { geometriaTapa, type GeometriaTapa, type Rect } from "./geometria";
+import { claveDeArte, fotoDePortada, fraseDeContratapa, textosDePortada } from "./ilustrada";
 
 /**
  * La tapa como bloques del editor, para verla en el Modo Fotolibro y para mandarla al laboratorio
@@ -114,7 +115,12 @@ export const DISENOS_TAPA = [
   { id: "mitad", nombre: "Media foto", detalle: "La foto ocupa la parte de arriba; el título va en el papel." },
   { id: "tipografica", nombre: "Sólo título", detalle: "Sin foto: el título grande, centrado, con filetes." },
   { id: "sin-texto", nombre: "Sólo foto", detalle: "La foto a sangre, sin textos." },
+  { id: "ilustrada", nombre: "Ilustrada del estilo", detalle: "La portada con los adornos y la tipografía del estilo del libro; la contratapa con su frase." },
+  { id: "ilustrada-foto", nombre: "Ilustrada con foto", detalle: "La portada del estilo con una foto en el lugar que deja libre." },
 ] as const;
+
+/** Las ilustradas necesitan un estilo aplicado al libro. */
+export const esDisenoIlustrado = (d: DisenoTapa) => d === "ilustrada" || d === "ilustrada-foto";
 
 export type DisenoTapa = (typeof DISENOS_TAPA)[number]["id"];
 
@@ -145,8 +151,11 @@ export function bloquesDeTapa(estado: EstadoFotolibro, hojas: number, medidasPli
   const papel = estilo?.papel ?? "#ffffff";
   const fotos = new Map(estado.fotos.map((f) => [f.id, f]));
   const marcos = marcosDeTapa(modelo, g);
-  const diseno = disenoDeTapa(estado.tapa.diseno);
+  const elegido = disenoDeTapa(estado.tapa.diseno);
+  // Sin estilo no hay ilustración: se usa la foto con franja.
+  const diseno: DisenoTapa = esDisenoIlustrado(elegido) && !estilo ? "franja" : elegido;
   const cara = g.tapa;
+  if (esDisenoIlustrado(diseno) && estilo) return bloquesIlustrados(estado, armado, estilo, diseno, fotos, dpi);
   const out: TemplateV2Block[] = [
     {
       id: "tapa-fondo",
@@ -230,6 +239,66 @@ export function bloquesDeTapa(estado: EstadoFotolibro, hojas: number, medidasPli
   if (frase && g.contratapa && !fotoContra) {
     const c = g.contratapa;
     out.push(bloqueTexto("contratapa-frase", frase, { x: c.x + c.w * 0.12, y: c.y + c.h * 0.4, w: c.w * 0.76, h: c.h * 0.2 }, (c.h * 0.035 * 72) / 25.4, { ...letra, mayusculas: false }, dpi));
+  }
+  return out;
+}
+
+/**
+ * La portada ilustrada: el dibujo del estilo (ya subido como imagen, ver `ilustrada.ts`) como
+ * fondo de toda la pieza, los títulos en el lugar del estilo y, si se eligió, la foto en la zona
+ * libre. Mientras el dibujo no está listo para esta medida, se ve el papel del estilo.
+ */
+function bloquesIlustrados(
+  estado: EstadoFotolibro,
+  armado: NonNullable<ReturnType<typeof tapaDelLibro>>,
+  estilo: NonNullable<ReturnType<typeof estiloPorId>>,
+  diseno: DisenoTapa,
+  fotos: Map<string, FotoDelLibro>,
+  dpi: number,
+): TemplateV2Block[] {
+  const { modelo, geometria: g, lienzo } = armado;
+  const tapa = estado.tapa!;
+  const arte = tapa.arte && tapa.arte.clave === claveDeArte(estilo.id, modelo.id, g) ? tapa.arte.url : "";
+  const out: TemplateV2Block[] = [
+    {
+      id: "tapa-fondo",
+      type: "BACKGROUND",
+      pageIndex: 0,
+      name: "Portada ilustrada",
+      layout: { x: 0, y: 0, width: lienzo.width, height: lienzo.height, rotation: 0, zIndex: 0, opacity: 1, locked: true, visible: true },
+      configJson: { backgroundColor: estilo.papel, src: arte, fit: "cover" },
+    },
+  ];
+  const fotoTapa = tapa.fotoId ? fotos.get(tapa.fotoId) : undefined;
+  if (diseno === "ilustrada-foto" && fotoTapa) {
+    const b = bloqueFoto(ID_FOTO_TAPA, fotoTapa, fotoDePortada(estilo, g.tapa), tapa.encuadre, dpi);
+    out.push(estilo.esquinasMm ? { ...b, configJson: { ...b.configJson, borderRadius: px(estilo.esquinasMm, dpi) } } : b);
+  }
+  const fotoContra = tapa.contratapaFotoId ? fotos.get(tapa.contratapaFotoId) : undefined;
+  const marcos = marcosDeTapa(modelo, g);
+  if (fotoContra && marcos.contratapa) out.push(bloqueFoto(ID_FOTO_CONTRATAPA, fotoContra, marcos.contratapa, tapa.contratapaEncuadre, dpi));
+
+  const textos: Record<string, string | undefined> = { ...(estado.estilo?.textos ?? {}), ...(tapa.textos ?? {}) };
+  for (const t of textosDePortada(estilo, g.tapa)) {
+    const contenido = textos[t.rol]?.trim();
+    if (!contenido) continue;
+    const b = bloqueTexto(`tapa-${t.rol}`, contenido, { x: t.x, y: t.y, w: t.w, h: t.h }, t.puntos, { fuente: t.fuente, color: t.color, negrita: t.negrita, italica: t.italica, mayusculas: t.mayusculas }, dpi);
+    out.push({ ...b, configJson: { ...b.configJson, textAlign: t.alineacion ?? "center" } });
+  }
+  const frase = textos.frase?.trim();
+  const lugarFrase = g.contratapa && !fotoContra ? fraseDeContratapa(estilo, g.contratapa) : null;
+  if (frase && lugarFrase) {
+    const t = lugarFrase;
+    out.push(bloqueTexto("contratapa-frase", frase, { x: t.x, y: t.y, w: t.w, h: t.h }, t.puntos, { fuente: t.fuente, color: t.color, negrita: t.negrita, italica: t.italica, mayusculas: t.mayusculas }, dpi));
+  }
+  const titulo = textos.titulo?.trim();
+  if (titulo && g.lomo && g.lomo.w >= 8) {
+    const l = g.lomo;
+    const largo = l.h * 0.8;
+    const grosor = l.w * 0.8;
+    const t0 = textosDePortada(estilo, g.tapa).find((t) => t.rol === "titulo");
+    const b = bloqueTexto("lomo-titulo", titulo, { x: l.x + l.w / 2 - largo / 2, y: l.y + l.h / 2 - grosor / 2, w: largo, h: grosor }, (grosor * 0.55 * 72) / 25.4, { fuente: t0?.fuente ?? "Playfair Display", color: t0?.color ?? "#2b2b2b" }, dpi);
+    out.push({ ...b, layout: { ...b.layout, rotation: 90 } });
   }
   return out;
 }
