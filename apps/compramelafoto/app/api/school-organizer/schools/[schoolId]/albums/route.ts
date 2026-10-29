@@ -6,6 +6,8 @@ import {
   ORGANIZER_COMMISSION_BASE_DESCRIPTION,
 } from "@/lib/school-organizer-commission-logic";
 import { loadPreCompraBucketsByAlbum } from "@/lib/school-organizer-operations";
+import { coverPhotoPublicUrl, getR2PublicUrl } from "@/lib/r2-client";
+import { esCorreoDePrueba } from "@/lib/demos/identidad";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -52,6 +54,8 @@ export async function GET(_req: NextRequest, { params }: RouteContext) {
         organizerCommissionEnabled: true,
         organizerCommissionPercentage: true,
         organizerCommissionAppliesTo: true,
+        coverThumbnailKey: true,
+        coverPhoto: { select: { originalKey: true, previewUrl: true } },
         user: {
           select: {
             id: true,
@@ -91,11 +95,13 @@ export async function GET(_req: NextRequest, { params }: RouteContext) {
         return {
           id: album.id,
           title: album.title,
+          coverUrl: album.coverThumbnailKey ? getR2PublicUrl(album.coverThumbnailKey) : coverPhotoPublicUrl(album.coverPhoto),
           description: album.location,
           publicSlug: album.publicSlug,
           eventDate: album.eventDate,
           isTest: album.isTest,
-          status: album.isTest ? "TEST" : album.isHidden ? "OCULTO" : "ACTIVO",
+          // Los álbumes de las demos se muestran como reales (son de prueba, pero la demo enseña el panel real).
+          status: album.isTest && !esCorreoDePrueba(album.user.email) ? "TEST" : album.isHidden ? "OCULTO" : "ACTIVO",
           owner: album.user,
           studentsCount: studentCountByAlbumId.get(album.id) ?? 0,
           photosCount: photoCountByAlbumId.get(album.id) ?? 0,

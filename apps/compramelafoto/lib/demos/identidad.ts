@@ -12,6 +12,8 @@ export const DEMO_TAG = "DEMO_PRESENTACION";
 export const DEMO_EMAIL_DOMAIN = "demo.compramelafoto.test";
 /** Daniel (cuart.daniel@gmail.com): el único que prepara, reinicia y entra a las demos. */
 export const DEMO_ADMIN_USER_ID = 1;
+/** Token de Mercado Pago falso de los usuarios demo: nunca se usa para cobrar (el pago es simulado). */
+export const MP_TOKEN_DEMO = "DEMO_SIN_MERCADO_PAGO";
 
 export function esUsuarioDemo(u: { tags?: string[] | null } | null | undefined): boolean {
   return Boolean(u?.tags?.includes(DEMO_TAG));

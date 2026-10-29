@@ -11,6 +11,7 @@ import { prisma } from "@/lib/prisma";
 import { esUsuarioDemo } from "@/lib/demos/identidad";
 import { DEMO_ESCOLAR } from "@/lib/demos/escolar/datos";
 import { ocultarFotosDeLaToma } from "@/lib/demos/escolar/fotos-toma";
+import { sembrarVentasDeEjemplo } from "@/lib/demos/escolar/ventas-ejemplo";
 
 export type ResumenReinicio = { borrados: Record<string, number>; avisos: string[] };
 
@@ -84,6 +85,13 @@ export async function reiniciarDemoEscolar(): Promise<ResumenReinicio> {
   );
 
   await paso("fotos vueltas a ocultar", () => ocultarFotosDeLaToma(albumId));
+  // Así el paso del panel del colegio vuelve a mostrar «Conectar Mercado Pago».
+  await paso("Mercado Pago del colegio desconectado", () =>
+    prisma.user.updateMany({
+      where: { email: DEMO_ESCOLAR.colegioUsuario.email },
+      data: { mpAccessToken: null, mpRefreshToken: null, mpUserId: null, mpConnectedAt: null },
+    }),
+  );
 
   // Lo creado en vivo: colegios nuevos, alumnos cargados a mano, usuarios del colegio sumados.
   const escuelaSembrada = album.schoolId;
@@ -116,6 +124,15 @@ export async function reiniciarDemoEscolar(): Promise<ResumenReinicio> {
     await paso("invitaciones del colegio", () =>
       prisma.schoolOrganizerInvitation.deleteMany({ where: { schoolId: escuelaSembrada } }),
     );
+  }
+
+  // Las ventas de ejemplo se vuelven a crear: el panel del colegio nunca arranca vacío.
+  if (album.schoolId) {
+    const schoolId = album.schoolId;
+    await paso("ventas de ejemplo recreadas", async () => {
+      const r = await sembrarVentasDeEjemplo({ albumId, schoolId, fotografoId: fotografo.id });
+      return r.creadas;
+    });
   }
 
   return { borrados, avisos };

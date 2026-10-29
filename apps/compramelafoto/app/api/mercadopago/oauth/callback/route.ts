@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { exchangeCodeForToken } from "@/lib/mercadopago-oauth";
+import { rutaDeVueltaMercadoPago } from "@/lib/mercadopago/ruta-de-vuelta";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -59,9 +60,11 @@ export async function GET(req: Request) {
       return NextResponse.redirect(buildRedirect(stateRecord.ownerType, { mp_error: "no_token" }));
     }
 
+    let rolDelUsuario: string | null = null;
     if (stateRecord.ownerType === "USER") {
-      await prisma.user.update({
+      const actualizado = await prisma.user.update({
         where: { id: stateRecord.ownerId },
+        select: { role: true },
         data: {
           mpAccessToken: access_token,
           mpRefreshToken: refresh_token || null,
@@ -69,6 +72,7 @@ export async function GET(req: Request) {
           mpConnectedAt: new Date(),
         },
       });
+      rolDelUsuario = actualizado.role;
     } else {
       await prisma.lab.update({
         where: { id: stateRecord.ownerId },
@@ -86,6 +90,10 @@ export async function GET(req: Request) {
       data: { usedAt: new Date() },
     });
 
+    if (rolDelUsuario === "SCHOOL_ORGANIZER") {
+      const ruta = await rutaDeVueltaMercadoPago(stateRecord.ownerId, rolDelUsuario, "USER", { mp_connected: "true" });
+      return NextResponse.redirect(new URL(ruta, baseUrl).toString());
+    }
     return NextResponse.redirect(buildRedirect(stateRecord.ownerType, { mp_connected: "true" }));
   } catch (err: any) {
     console.error("GET /api/mercadopago/oauth/callback ERROR >>>", err);
