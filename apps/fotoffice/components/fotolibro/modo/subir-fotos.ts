@@ -1,6 +1,7 @@
 "use client";
 
 import type { FotoDelLibro } from "@/lib/fotolibro/modo/estado";
+import { BYTES_EXIF, fechaDeToma } from "@/lib/fotolibro/modo/exif";
 
 /**
  * Subida de las fotos del fotolibro, del lado del navegador.
@@ -60,6 +61,22 @@ async function prepararVersiones(archivo: File): Promise<{ original: Blob; vista
 
 const TIPOS = ["image/jpeg", "image/png", "image/webp"];
 
+/**
+ * Cuándo se sacó: del EXIF si es un JPG de cámara; si no, la fecha del archivo (en la hora de
+ * esta computadora, igual que la cámara guarda la suya), que suele ser la de la toma o la copia.
+ */
+async function cuandoSeSaco(archivo: File): Promise<string> {
+  try {
+    const exif = fechaDeToma(await archivo.slice(0, BYTES_EXIF).arrayBuffer());
+    if (exif) return exif;
+  } catch {
+    // Sin EXIF legible: se usa la fecha del archivo.
+  }
+  const d = new Date(archivo.lastModified || Date.now());
+  const dd = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${dd(d.getMonth() + 1)}-${dd(d.getDate())}T${dd(d.getHours())}:${dd(d.getMinutes())}:${dd(d.getSeconds())}`;
+}
+
 async function leerError(r: Response, porDefecto: string): Promise<string> {
   const data = (await r.json().catch(() => ({}))) as { error?: string };
   return data.error || porDefecto;
@@ -78,7 +95,7 @@ export type FotoSubida = {
  */
 export async function subirFoto(templateId: string, archivo: File): Promise<FotoSubida> {
   if (!TIPOS.includes(archivo.type)) throw new Error(`${archivo.name}: sólo JPG, PNG o WebP.`);
-  const v = await prepararVersiones(archivo);
+  const [v, tomada] = await Promise.all([prepararVersiones(archivo), cuandoSeSaco(archivo)]);
   const tipoOriginal = v.original === archivo ? archivo.type : "image/jpeg";
 
   const base = `/api/fotolibro/${encodeURIComponent(templateId)}`;
@@ -117,6 +134,7 @@ export async function subirFoto(templateId: string, archivo: File): Promise<Foto
       vista: permiso("vista").key,
       mini: permiso("mini").key,
       originalPendiente: true,
+      tomada,
       w: v.w,
       h: v.h,
       nombre: archivo.name.replace(/\.[^.]+$/, ""),
