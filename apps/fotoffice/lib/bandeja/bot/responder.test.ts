@@ -108,6 +108,15 @@ describe("responderConBot", () => {
     expect(mensajes().find((m) => m.direccion === "SISTEMA")?.texto).toContain("presupuesto de casamiento");
   });
 
+  it("a un proveedor o spam no le contesta: no manda nada y deja el chat a una persona con el motivo", async () => {
+    const chatId = await chatCon(["Hola, somos fabricantes de ropa de trabajo, te paso el catálogo"]);
+    const t = turnoQue("", [{ name: "no_responder", input: { motivo: "publicidad de ropa de trabajo" } }]);
+    expect(await responderConBot(chatId, deps(t.fn))).toBe("derivo");
+    expect(mensajes().some((m) => m.autor === "BOT")).toBe(false);
+    expect(chats()[0]).toMatchObject({ estado: "HUMANO" });
+    expect(mensajes().find((m) => m.direccion === "SISTEMA")?.texto).toContain("publicidad de ropa de trabajo");
+  });
+
   it("si mientras espera entra otro mensaje, no contesta (lo hará la próxima ejecución)", async () => {
     const chatId = await chatCon(["hola"]);
     const t = turnoQue("¡Hola!");

@@ -143,7 +143,7 @@ async function turno(chatId: string, deps: DepsResponder): Promise<SalidaBot> {
     .findUnique({ where: { workspaceId }, select: { commercialName: true } })
     .then((b) => b?.commercialName ?? "el estudio")
     .catch(() => "el estudio");
-  const { tools, pedidoDePersona } = herramientasDeAtencion(workspaceId, deps.herramientas, {
+  const { tools, pedidoDePersona, pedidoDeSilencio } = herramientasDeAtencion(workspaceId, deps.herramientas, {
     id: chat.id, waId: chat.waId, clientId: chat.clientId, nombre: chat.nombre,
   }, h.fotos, h.fotosBajando);
   const enPreparacion = await import("@/lib/presupuesto-automatico/flujo")
@@ -176,6 +176,12 @@ async function turno(chatId: string, deps: DepsResponder): Promise<SalidaBot> {
     return fallar(`api_${causa instanceof Error ? causa.name : "error"}`, causa instanceof Error ? causa.message : String(causa));
   }
   await cobrar(result.usage, true);
+
+  const silencio = result.outcome === "ok" ? pedidoDeSilencio() : null;
+  if (silencio) {
+    await pasarAPersona(workspaceId, chatId, `no es un cliente (${silencio}); el bot no le contestó`, ahora());
+    return "derivo";
+  }
 
   const texto = textoFinal(result.appended);
   if (result.outcome !== "ok" || !texto) return fallar(`turno_${result.outcome}`, result.outcome);
