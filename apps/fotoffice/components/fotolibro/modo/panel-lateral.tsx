@@ -1,6 +1,7 @@
 "use client";
 
-import type { PhotoCrop, TemplateV2Block } from "@repo/template-editor-core";
+import { EDITOR_FONT_CATALOG, type PhotoCrop, type TemplateV2Block } from "@repo/template-editor-core";
+import { puntosDe } from "@/lib/fotolibro/modo/textos-libres";
 import type { EstadoFotolibro, FotoDelLibro, Lado, ModoPliego } from "@/lib/fotolibro/modo/estado";
 import type { Ubicacion } from "@/lib/fotolibro/modo/operaciones";
 
@@ -26,6 +27,13 @@ type Props = {
   onAbrirEstilos: () => void;
   onSacarEstilo: () => void;
   onTexto: (rol: string, valor: string) => void;
+  /** El texto agregado a mano que está elegido, si hay. */
+  textoLibre: TemplateV2Block | null;
+  onAgregarTexto: () => void;
+  onCambiarTexto: (cambio: { content?: string; fontFamily?: string; puntos?: number; color?: string; textAlign?: string; fontWeight?: number; fontItalic?: boolean }) => void;
+  onQuitarTexto: () => void;
+  onFondo: (color: string | null) => void;
+  onBorde: (mm: number, color: string) => void;
 };
 
 const Titulo = ({ children }: { children: React.ReactNode }) => (
@@ -76,9 +84,49 @@ export function PanelLateral(props: Props) {
   const crop = (bloque?.configJson.crop as PhotoCrop | undefined) ?? { zoom: 1, x: 0, y: 0 };
   const p = estado.pliegos[pliego];
 
+  const t = props.textoLibre;
   return (
     <aside className="flex h-full w-72 flex-none flex-col gap-5 overflow-y-auto border-l border-white/10 bg-[#26272b] p-4 text-white">
-      {foto && bloque ? (
+      {t ? (
+        <section className="space-y-2">
+          <Titulo>Texto</Titulo>
+          <textarea
+            value={String(t.configJson.content ?? "")}
+            onChange={(e) => props.onCambiarTexto({ content: e.target.value })}
+            rows={3}
+            className="w-full rounded border border-white/15 bg-black/30 px-2 py-1 text-sm text-white"
+          />
+          <select
+            value={String(t.configJson.fontFamily ?? "Playfair Display")}
+            onChange={(e) => props.onCambiarTexto({ fontFamily: e.target.value })}
+            className="w-full rounded border border-white/15 bg-black/30 px-2 py-1 text-sm text-white"
+          >
+            {EDITOR_FONT_CATALOG.map((f) => (
+              <option key={f.family} value={f.family} style={{ fontFamily: f.family }}>
+                {f.family}
+              </option>
+            ))}
+          </select>
+          <Deslizador etiqueta="Tamaño" valor={puntosDe(t, dpi)} min={6} max={120} paso={1} sufijo=" pt" onChange={(puntos) => props.onCambiarTexto({ puntos })} />
+          <div className="flex items-center gap-2">
+            <input type="color" value={String(t.configJson.color ?? "#222222")} onChange={(e) => props.onCambiarTexto({ color: e.target.value })} className="h-7 w-9 rounded border border-white/15 bg-transparent" title="Color" />
+            {(["left", "center", "right"] as const).map((a) => (
+              <button key={a} type="button" className={`${boton} ${t.configJson.textAlign === a ? "bg-white/20" : ""}`} onClick={() => props.onCambiarTexto({ textAlign: a })} title={a === "left" ? "A la izquierda" : a === "center" ? "Centrado" : "A la derecha"}>
+                {a === "left" ? "⇤" : a === "center" ? "≡" : "⇥"}
+              </button>
+            ))}
+            <button type="button" className={`${boton} font-bold ${Number(t.configJson.fontWeight) >= 700 ? "bg-white/20" : ""}`} onClick={() => props.onCambiarTexto({ fontWeight: Number(t.configJson.fontWeight) >= 700 ? 400 : 700 })}>
+              N
+            </button>
+            <button type="button" className={`${boton} italic ${t.configJson.fontItalic ? "bg-white/20" : ""}`} onClick={() => props.onCambiarTexto({ fontItalic: !t.configJson.fontItalic })}>
+              K
+            </button>
+          </div>
+          <button type="button" className={boton} onClick={props.onQuitarTexto}>
+            Borrar texto
+          </button>
+        </section>
+      ) : foto && bloque ? (
         <section>
           <Titulo>Foto elegida</Titulo>
           <p className="truncate text-sm">{foto.nombre || "Foto"}</p>
@@ -223,6 +271,20 @@ export function PanelLateral(props: Props) {
               </div>
             ))
           )}
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <button type="button" className={boton} onClick={props.onAgregarTexto}>
+              ＋ Texto
+            </button>
+            <label className="flex items-center gap-1 text-xs text-white/70" title="Color de fondo de este pliego">
+              Fondo
+              <input type="color" value={p.fondo ?? "#ffffff"} onChange={(e) => props.onFondo(e.target.value)} className="h-6 w-8 rounded border border-white/15 bg-transparent" />
+            </label>
+            {p.fondo ? (
+              <button type="button" className={boton} onClick={() => props.onFondo(null)} title="Volver al papel o al fondo del estilo">
+                Quitar color
+              </button>
+            ) : null}
+          </div>
           <button type="button" className={boton} onClick={props.onVaciar} disabled={!p.todo.fotos.length && !p.izq.fotos.length && !p.der.fotos.length}>
             Vaciar pliego
           </button>
@@ -233,6 +295,12 @@ export function PanelLateral(props: Props) {
         <Titulo>Todo el libro</Titulo>
         <Deslizador etiqueta="Separación entre fotos" valor={estado.separacionMm} min={0} max={20} paso={0.5} sufijo=" mm" onChange={props.onSeparacion} />
         <Deslizador etiqueta="Margen de la página" valor={estado.margenMm} min={0} max={30} paso={0.5} sufijo=" mm" onChange={props.onMargen} />
+        <div className="flex items-end gap-2">
+          <div className="flex-1">
+            <Deslizador etiqueta="Borde de las fotos" valor={estado.bordeMm} min={0} max={10} paso={0.5} sufijo=" mm" onChange={(mm) => props.onBorde(mm, estado.bordeColor)} />
+          </div>
+          <input type="color" value={estado.bordeColor} onChange={(e) => props.onBorde(estado.bordeMm, e.target.value)} className="mb-0.5 h-6 w-8 rounded border border-white/15 bg-transparent" title="Color del borde" />
+        </div>
         <div className="flex gap-2">
           <button type="button" className={boton} onClick={props.onAgregarPliego}>
             + Pliego

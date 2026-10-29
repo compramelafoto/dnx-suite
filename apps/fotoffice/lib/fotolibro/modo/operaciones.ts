@@ -19,6 +19,7 @@ const copiar = (e: EstadoFotolibro): EstadoFotolibro => ({
     todo: { ...p.todo, fotos: [...p.todo.fotos] },
     izq: { ...p.izq, fotos: [...p.izq.fotos] },
     der: { ...p.der, fotos: [...p.der.fotos] },
+    ...(p.fondo ? { fondo: p.fondo } : {}),
   })),
 });
 
@@ -203,8 +204,18 @@ export function ordenTrasMover(cantidad: number, desde: number, hasta: number): 
 export function duplicarPliego(e: EstadoFotolibro, pliego: number): EstadoFotolibro {
   const p = e.pliegos[pliego];
   if (!p) return e;
-  const copia = { modo: p.modo, todo: { ...p.todo, fotos: [...p.todo.fotos] }, izq: { ...p.izq, fotos: [...p.izq.fotos] }, der: { ...p.der, fotos: [...p.der.fotos] } };
+  const copia = { ...p, todo: { ...p.todo, fotos: [...p.todo.fotos] }, izq: { ...p.izq, fotos: [...p.izq.fotos] }, der: { ...p.der, fotos: [...p.der.fotos] } };
   const pliegos = [...e.pliegos];
   pliegos.splice(pliego + 1, 0, copia);
+  return { ...e, pliegos };
+}
+
+/** Color de fondo propio de un pliego, o null para volver al papel o al fondo del estilo. */
+export function cambiarFondo(e: EstadoFotolibro, pliego: number, color: string | null): EstadoFotolibro {
+  const p = e.pliegos[pliego];
+  if (!p) return e;
+  const { fondo: _f, ...resto } = p;
+  const pliegos = [...e.pliegos];
+  pliegos[pliego] = color ? { ...resto, fondo: color } : resto;
   return { ...e, pliegos };
 }

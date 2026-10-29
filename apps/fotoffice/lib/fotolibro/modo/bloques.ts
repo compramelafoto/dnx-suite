@@ -141,16 +141,30 @@ export function generarBloques(
         if (!foto || !marco) return;
         const id = idDeBloque(i, lado, fotoId);
         const previo = previoPorId.get(id);
+        // El borde es un rectángulo de color detrás, y la foto se achica hacia adentro: así el
+        // diseño no se mueve y se imprime igual (la impresión no dibuja bordes de imagen).
+        const borde = pxDeMm(estado.bordeMm, lienzo.dpi ?? 300);
+        if (borde > 0) {
+          resultado.push({
+            id: `fl-borde-${i}-${lado}-${fotoId}`,
+            type: "SHAPE",
+            pageIndex: i,
+            name: "Borde",
+            layout: { x: marco.x, y: marco.y, width: marco.w, height: marco.h, rotation: 0, zIndex: 9, opacity: 1, locked: true, visible: true },
+            configJson: { variant: "rectangle", fill: estado.bordeColor, strokeWidth: 0, fotolibroAuto: true },
+          });
+        }
+        const dentro = borde > 0 && marco.w > 4 * borde && marco.h > 4 * borde ? { x: marco.x + borde, y: marco.y + borde, w: marco.w - 2 * borde, h: marco.h - 2 * borde } : marco;
         resultado.push({
           id,
           type: "IMAGE",
           pageIndex: i,
           name: foto.nombre || "Foto",
           layout: {
-            x: marco.x,
-            y: marco.y,
-            width: marco.w,
-            height: marco.h,
+            x: dentro.x,
+            y: dentro.y,
+            width: dentro.w,
+            height: dentro.h,
             rotation: 0,
             zIndex: 10 + k,
             opacity: 1,
@@ -204,6 +218,9 @@ export function reindexarHojas(
 
 /** El fondo de un pliego: el del estilo para su tipo (apertura, interior, cierre) o papel blanco. */
 function fondoDePliego(estado: EstadoFotolibro, estilo: EstiloFotolibro | null, i: number, cantidad: number) {
+  // Un color elegido para este pliego manda sobre el papel y el fondo dibujado del estilo.
+  const propio = estado.pliegos[i]?.fondo;
+  if (propio) return { backgroundColor: propio, src: "", fit: "cover", fotolibroEstilo: true };
   const src = estilo ? estado.estilo?.fondos[tipoDePliego(i, cantidad)] ?? "" : "";
   return { backgroundColor: estilo?.papel ?? "#ffffff", src, fit: "cover", fotolibroEstilo: Boolean(estilo) };
 }
@@ -215,7 +232,7 @@ function aplicarFondosDelEstilo(bloques: TemplateV2Block[], estado: EstadoFotoli
     const i = b.pageIndex ?? 0;
     const nuevo = fondoDePliego(estado, estilo, i, cantidad);
     // Un fondo que alguien eligió a mano en el diseño libre, sin estilo, no se toca.
-    if (!estilo && !b.configJson.fotolibroEstilo) return;
+    if (!estilo && !b.configJson.fotolibroEstilo && !estado.pliegos[i]?.fondo) return;
     bloques[k] = { ...b, configJson: { ...b.configJson, ...nuevo } };
   });
 }

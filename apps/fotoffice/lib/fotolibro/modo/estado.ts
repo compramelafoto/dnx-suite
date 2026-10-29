@@ -45,7 +45,14 @@ export type PaginaDelPliego = {
   variante: number;
 };
 
-export type PliegoDelLibro = { modo: ModoPliego; todo: PaginaDelPliego; izq: PaginaDelPliego; der: PaginaDelPliego };
+export type PliegoDelLibro = {
+  modo: ModoPliego;
+  todo: PaginaDelPliego;
+  izq: PaginaDelPliego;
+  der: PaginaDelPliego;
+  /** Color de fondo propio de este pliego (manda sobre el papel y el fondo del estilo). */
+  fondo?: string;
+};
 
 /** Las partes del pliego que tienen fotos según su modo. */
 export const ladosDe = (p: PliegoDelLibro): Lado[] => (p.modo === "pliego" ? ["todo"] : ["izq", "der"]);
@@ -91,6 +98,9 @@ export type EstadoFotolibro = {
   /** Separación entre fotos y margen de la página, en milímetros. */
   separacionMm: number;
   margenMm: number;
+  /** Borde alrededor de cada foto, en mm (0 = sin borde), y su color. */
+  bordeMm: number;
+  bordeColor: string;
 };
 
 export const SEPARACION_MM_INICIAL = 4;
@@ -185,7 +195,8 @@ export function leerEstadoFotolibro(meta: unknown, cantidadPliegos: number): Est
     const der = leerPagina(p.der, ids);
     // Los libros de antes (sin modo) que ya tenían fotos por página siguen así.
     const modo: ModoPliego = p.modo === "pliego" || p.modo === "paginas" ? p.modo : izq.fotos.length || der.fotos.length ? "paginas" : "pliego";
-    pliegos.push({ modo, todo: leerPagina(p.todo, ids), izq, der });
+    const fondo = typeof p.fondo === "string" && /^#[0-9a-f]{6}$/i.test(p.fondo) ? p.fondo : undefined;
+    pliegos.push({ modo, todo: leerPagina(p.todo, ids), izq, der, ...(fondo ? { fondo } : {}) });
   }
   return {
     fotos,
@@ -195,6 +206,8 @@ export function leerEstadoFotolibro(meta: unknown, cantidadPliegos: number): Est
     orden: fl.orden === "nombre" || fl.orden === "subida" ? fl.orden : "fecha",
     separacionMm: Math.min(30, Math.max(0, num(fl.separacionMm, SEPARACION_MM_INICIAL))),
     margenMm: Math.min(40, Math.max(0, num(fl.margenMm, MARGEN_MM_INICIAL))),
+    bordeMm: Math.min(10, Math.max(0, num(fl.bordeMm, 0))),
+    bordeColor: typeof fl.bordeColor === "string" && /^#[0-9a-f]{6}$/i.test(fl.bordeColor) ? fl.bordeColor : "#ffffff",
   };
 }
 
@@ -214,6 +227,8 @@ export function escribirEstadoFotolibro(meta: Record<string, unknown>, estado: E
       orden: estado.orden,
       separacionMm: estado.separacionMm,
       margenMm: estado.margenMm,
+      bordeMm: estado.bordeMm,
+      bordeColor: estado.bordeColor,
     },
   };
 }

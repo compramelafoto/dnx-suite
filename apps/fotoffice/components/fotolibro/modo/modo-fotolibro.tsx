@@ -26,6 +26,7 @@ import {
   cambiarModo,
   cambiarVariante,
   confirmarOriginales,
+  cambiarFondo,
   duplicarPliego,
   moverPliego,
   ordenTrasMover,
@@ -48,6 +49,7 @@ import { SelectorEstilo } from "./selector-estilo";
 import { ArmadoAutomatico } from "./armado-automatico";
 import { VistaLibro } from "./vista-libro";
 import { revisarLibro } from "@/lib/fotolibro/modo/revision";
+import { conCuerpo, moverTexto, nuevoTexto } from "@/lib/fotolibro/modo/textos-libres";
 import { ordenarFotos } from "@/lib/fotolibro/modo/armado";
 import { PanelLateral } from "./panel-lateral";
 import { PliegoVista } from "./pliego-vista";
@@ -105,6 +107,7 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
   const [eligiendoEstilo, setEligiendoEstilo] = useState(false);
   const [armando, setArmando] = useState(false);
   const [vistaLibro, setVistaLibro] = useState(false);
+  const [textoElegido, setTextoElegido] = useState<string | null>(null);
   const [aplicandoEstilo, setAplicandoEstilo] = useState<string | null>(null);
   // La tapa es la "hoja -1": va antes del primer pliego.
   const [caraTapa, setCaraTapa] = useState<CaraTapa | null>(null);
@@ -253,6 +256,22 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
     setGuardado("pendiente");
   }, []);
 
+  /** Cambios de bloques sueltos (textos a mano), sin tocar las fotos del libro. */
+  const cambiarBloques = useCallback((cambio: (b: TemplateV2Block[]) => TemplateV2Block[], conHistoria: boolean) => {
+    const { estado: e, bloques: b } = ref.current;
+    if (!e) return;
+    if (conHistoria) {
+      historia.current = [...historia.current.slice(-49), { estado: e, bloques: b }];
+      futuro.current = [];
+      contarPasos();
+    }
+    const nuevos = cambio(b);
+    ref.current = { ...ref.current, bloques: nuevos };
+    setBloques(nuevos);
+    setGuardado("pendiente");
+  }, []);
+  const moviendoTexto = useRef(false);
+
   const volverA = (paso: { estado: EstadoFotolibro; bloques: TemplateV2Block[] }) => {
     ref.current = { ...ref.current, estado: paso.estado, bloques: paso.bloques };
     setEstado(paso.estado);
@@ -284,6 +303,7 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
       setPliego(Math.max(-1, Math.min(cantidad - 1, i)));
       setSeleccionada(null);
       setRecortando(null);
+      setTextoElegido(null);
       setCaraTapa(null);
       setRecortandoTapa(false);
     },
@@ -435,6 +455,13 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
         setSeleccionTira([]);
         return;
       }
+      if ((ev.key === "Delete" || ev.key === "Backspace") && textoElegido) {
+        ev.preventDefault();
+        const id = textoElegido;
+        cambiarBloques((b) => b.filter((x) => x.id !== id), true);
+        setTextoElegido(null);
+        return;
+      }
       if ((ev.key === "Delete" || ev.key === "Backspace") && seleccionada) {
         ev.preventDefault();
         aplicar((e) => quitarDePagina(e, seleccionada));
@@ -455,7 +482,7 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [recortando, recortandoTapa, caraTapa, eligiendoEstilo, armando, vistaLibro, pliego, seleccionTira, seleccionada, aplicar, deshacer, rehacer, irA]);
+  }, [recortando, recortandoTapa, caraTapa, eligiendoEstilo, armando, vistaLibro, pliego, seleccionTira, seleccionada, textoElegido, cambiarBloques, aplicar, deshacer, rehacer, irA]);
 
   const fotosPorId = useMemo(() => new Map((estado?.fotos ?? []).map((f) => [f.id, f])), [estado]);
   const usos = useMemo(() => (estado ? usosPorFoto(estado) : new Map<string, number>()), [estado]);
@@ -660,7 +687,19 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
               onIrA={irA}
               onSeleccionar={(u) => {
                 setSeleccionada(u);
+                setTextoElegido(null);
                 if (!u) setRecortando(null);
+              }}
+              textoElegido={textoElegido}
+              onElegirTexto={(id) => {
+                setTextoElegido(id);
+                setSeleccionada(null);
+              }}
+              onMoverTexto={(id, x, y, fin) => {
+                // Un solo paso de deshacer por arrastre: se guarda al empezar a mover.
+                const primero = !moviendoTexto.current;
+                moviendoTexto.current = !fin;
+                cambiarBloques((b) => b.map((t) => (t.id === id ? moverTexto(t, x, y, cargado.canvas) : t)), primero);
               }}
               onSoltarFotos={(lado, ids) => aplicar((e) => agregarAPagina(e, pliego, lado, ids))}
               onSoltarSobreFoto={(destino, ids) =>
@@ -736,6 +775,35 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
             setSeleccionada(null);
           }}
           onSeparacion={(mm) => aplicar((e) => ({ ...e, separacionMm: mm }))}
+          textoLibre={textoElegido ? bloques.find((b) => b.id === textoElegido) ?? null : null}
+          onAgregarTexto={() => {
+            const id = `fl-txt-${Date.now().toString(36)}`;
+            cambiarBloques((b) => [...b, nuevoTexto(pliego, cargado.canvas, id)], true);
+            setTextoElegido(id);
+            setSeleccionada(null);
+          }}
+          onCambiarTexto={(c) => {
+            const id = textoElegido;
+            if (!id) return;
+            const dpi = cargado.canvas.dpi ?? 300;
+            cambiarBloques(
+              (b) =>
+                b.map((t) => {
+                  if (t.id !== id) return t;
+                  const { puntos, ...resto } = c;
+                  const conCambios = { ...t, configJson: { ...t.configJson, ...resto } };
+                  return puntos !== undefined || c.content !== undefined ? conCuerpo(conCambios, puntos ?? Math.round((Number(t.configJson.fontSize) * 72) / dpi), dpi) : conCambios;
+                }),
+              c.content === undefined,
+            );
+          }}
+          onQuitarTexto={() => {
+            const id = textoElegido;
+            cambiarBloques((b) => b.filter((x) => x.id !== id), true);
+            setTextoElegido(null);
+          }}
+          onFondo={(color) => aplicar((e) => cambiarFondo(e, pliego, color))}
+          onBorde={(mm, color) => aplicar((e) => ({ ...e, bordeMm: mm, bordeColor: color }))}
           onMargen={(mm) => aplicar((e) => ({ ...e, margenMm: mm }))}
           onVaciar={() => aplicar((e) => vaciarPliego(e, pliego))}
           onAgregarPliego={() => {
