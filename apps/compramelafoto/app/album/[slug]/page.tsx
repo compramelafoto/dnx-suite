@@ -159,6 +159,7 @@ const selectAlbumBase = {
   showComingSoonMessage: true,
   hiddenPhotosEnabled: true,
   scanProtectionEnabled: true,
+  scanProtectionThumbnailsEnabled: true,
   enableFaceBulkPurchase: true,
   faceBulkPriceCents: true,
   albumPackPayEnabled: true,
@@ -707,6 +708,8 @@ export default async function AlbumPublicPage({
               hiddenPhotosEnabled,
               scanProtectionEnabled:
                 (album as { scanProtectionEnabled?: boolean }).scanProtectionEnabled !== false,
+              scanProtectionThumbnailsEnabled:
+                (album as { scanProtectionThumbnailsEnabled?: boolean }).scanProtectionThumbnailsEnabled === true,
               enableFaceBulkPurchase: Boolean((album as any).enableFaceBulkPurchase),
               faceBulkPriceCents:
                 typeof (album as any).faceBulkPriceCents === "number"

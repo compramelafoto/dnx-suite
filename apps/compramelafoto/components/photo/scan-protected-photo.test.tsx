@@ -4,6 +4,8 @@ import { readFileSync } from "node:fs";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
+import PhotoCard from "./PhotoCard";
+import PhotoGrid from "./PhotoGrid";
 import PhotoSlideViewer from "./PhotoSlideViewer";
 import ScanProtectedPhoto from "./ScanProtectedPhoto";
 
@@ -124,6 +126,36 @@ describe("ventana de escaneo en el visor ampliado", () => {
       1,
       "todas las capas deben apuntar a la misma URL: una sola descarga",
     );
+  });
+});
+
+describe("ventana de escaneo en las miniaturas", () => {
+  const GRID_PHOTO = { id: "1", src: PHOTO.src, alt: PHOTO.alt };
+
+  it("por defecto las miniaturas se ven sin protección", () => {
+    const html = renderToStaticMarkup(<PhotoGrid photos={[GRID_PHOTO]} />);
+    assert.ok(!html.includes("data-scan-protected"), "protegió la miniatura sin pedirlo");
+  });
+
+  it("con el interruptor encendido, la miniatura lleva desenfoque y franja", () => {
+    const html = renderToStaticMarkup(
+      <PhotoGrid photos={[GRID_PHOTO]} scanProtectThumbnails />,
+    );
+    assert.ok(html.includes('data-scan-protected="true"'), "falta la capa de protección");
+    assert.ok(html.includes("cmf-scan--thumb"), "no usa la variante de miniatura");
+    assert.ok(html.includes("cmf-scan__window"), "falta la franja");
+  });
+
+  it("la miniatura usa un desenfoque menor y carga diferida", () => {
+    const html = renderToStaticMarkup(<PhotoCard src={PHOTO.src} alt={PHOTO.alt} scanProtected />);
+    assert.ok(html.includes("--cmf-scan-blur:4px"), "el desenfoque de miniatura no se aplicó");
+    assert.ok(html.includes('loading="lazy"'), "la miniatura protegida no carga diferida");
+  });
+
+  it("la foto ampliada mantiene su franja de tamaño fijo", () => {
+    const html = renderToStaticMarkup(<ScanProtectedPhoto src={PHOTO.src} alt={PHOTO.alt} />);
+    assert.ok(html.includes("--cmf-scan-band:clamp("), "cambió la franja del visor ampliado");
+    assert.ok(!html.includes("cmf-scan--thumb"));
   });
 });
 

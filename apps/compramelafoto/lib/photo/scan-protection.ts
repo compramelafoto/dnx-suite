@@ -32,6 +32,21 @@ export const SCAN_FALLBACK_DURATION_MS = 6000;
 /** Alto estimado de la franja mientras no hay medición real del DOM. */
 export const SCAN_FALLBACK_BAND_HEIGHT_PX = 220;
 
+/**
+ * Miniaturas de la galería: la franja se mide en proporción a la foto (una
+ * franja de 6 cm taparía casi toda una miniatura) y el desenfoque es menor
+ * porque la imagen ya es chica.
+ */
+export const SCAN_THUMB_BAND_RATIO = 0.34;
+export const SCAN_THUMB_MIN_BAND_PX = 40;
+export const SCAN_THUMB_BASE_BLUR_CSS = "4px";
+
+/** Alto de la franja de una miniatura, según el alto real de la foto. */
+export function computeThumbnailBandPx(frameHeightPx: number): number {
+  if (!Number.isFinite(frameHeightPx) || frameHeightPx <= 0) return SCAN_THUMB_MIN_BAND_PX;
+  return Math.round(Math.max(SCAN_THUMB_MIN_BAND_PX, frameHeightPx * SCAN_THUMB_BAND_RATIO));
+}
+
 export interface ScanProtectionDecisionInput {
   /** La vista activa la protección (galerías de cliente, no paneles internos). */
   enabled?: boolean;

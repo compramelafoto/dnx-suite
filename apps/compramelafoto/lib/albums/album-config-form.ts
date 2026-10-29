@@ -17,6 +17,8 @@ export type AlbumConfigFormSnapshot = {
   hiddenSelfieRetentionDays: string;
   showComingSoonMessage: boolean;
   scanProtectionEnabled: boolean;
+  /** Ventana de escaneo también en las miniaturas de la galería. */
+  scanProtectionThumbnailsEnabled: boolean;
   /**
    * El interruptor de la búsqueda por dorsal.
    *
@@ -65,6 +67,7 @@ export function hasUnsavedAlbumConfigChanges(
     a.hiddenPhotosEnabled !== b.hiddenPhotosEnabled ||
     a.hiddenSelfieRetentionDays !== b.hiddenSelfieRetentionDays ||
     a.showComingSoonMessage !== b.showComingSoonMessage ||
-    a.scanProtectionEnabled !== b.scanProtectionEnabled
+    a.scanProtectionEnabled !== b.scanProtectionEnabled ||
+    a.scanProtectionThumbnailsEnabled !== b.scanProtectionThumbnailsEnabled
   );
 }
