@@ -43,8 +43,17 @@ export function cajaDePagina(lienzo: Lienzo, lado: LadoPliego, margenMm: number)
 
 export const idDeBloque = (pliego: number, lado: Lado, fotoId: string) => `fl-${pliego}-${lado}-${fotoId}`;
 
-export function esBloqueAutomatico(b: Pick<TemplateV2Block, "configJson">): boolean {
-  return b.configJson?.fotolibroAuto === true;
+/** Los ids que pone este modo: fotos (`fl-3-todo-…`), títulos (`fl-texto-…`) y bordes (`fl-borde-…`). */
+const ID_AUTOMATICO = /^fl-(\d+-(izq|der|todo)|texto|borde)-/;
+
+/**
+ * Si el bloque lo puso este modo. Se mira la marca y, además, el id: hasta que se arregló el
+ * guardado, la marca se perdía al guardar, y esos bloques parecían puestos a mano (se conservaban
+ * y el libro se rearmaba encima, con las fotos superpuestas). Con el id, al abrir se limpian solos.
+ */
+export function esBloqueAutomatico(b: Pick<TemplateV2Block, "configJson"> & Partial<Pick<TemplateV2Block, "id" | "type">>): boolean {
+  if (b.configJson?.fotolibroAuto === true) return true;
+  return b.type !== "BACKGROUND" && typeof b.id === "string" && ID_AUTOMATICO.test(b.id);
 }
 
 /** Los marcos de una página, en píxeles del lienzo, en el orden de sus fotos. */

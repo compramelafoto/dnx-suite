@@ -64,8 +64,8 @@ const ANIMACION = `
 .fl-animado [data-block-type="IMAGE"],
 .fl-animado [data-block-type="IMAGE"] img,
 .fl-animado-marco {
-  transition: left 480ms cubic-bezier(.22,.9,.24,1), top 480ms cubic-bezier(.22,.9,.24,1),
-    width 480ms cubic-bezier(.22,.9,.24,1), height 480ms cubic-bezier(.22,.9,.24,1) !important;
+  transition: left 260ms cubic-bezier(.2,.8,.2,1), top 260ms cubic-bezier(.2,.8,.2,1),
+    width 260ms cubic-bezier(.2,.8,.2,1), height 260ms cubic-bezier(.2,.8,.2,1) !important;
 }
 @media (prefers-reduced-motion: reduce) {
   .fl-animado [data-block-type="IMAGE"], .fl-animado [data-block-type="IMAGE"] img, .fl-animado-marco { transition: none !important; }

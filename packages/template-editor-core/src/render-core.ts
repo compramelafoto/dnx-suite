@@ -48,12 +48,46 @@ export function asObject(value: unknown): Record<string, unknown> {
  * que es del editor y vale para cualquier tipo: sin esto, guardar la borraría.
  */
 export function normalizeBlockConfig(type: TemplateV2BlockType, input: unknown): Record<string, unknown> {
-  const normalized = normalizeBlockConfigByType(type, input);
+  const normalized = { ...normalizeBlockConfigByType(type, input), ...extrasQueSeConservan(type, asObject(input)) };
   const lock = asObject(input).aspectLock;
   if (typeof lock === "number" && Number.isFinite(lock) && lock > 0) {
     return { ...normalized, aspectLock: lock };
   }
   return normalized;
+}
+
+const numeroPositivo = (v: unknown) => typeof v === "number" && Number.isFinite(v) && v > 0;
+const entre = (v: unknown, min: number, max: number, d: number) =>
+  typeof v === "number" && Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : d;
+
+/**
+ * Lo que la normalización por tipo no conoce pero hay que guardar igual. Sin esto, cada guardado
+ * borraba:
+ *
+ * - el **encuadre** de la foto en su marco (`crop`, y `srcWidth`/`srcHeight` para calcularlo) y
+ *   la copia liviana para la pantalla (`previewSrc`);
+ * - las marcas del Modo Fotolibro (`fotolibroAuto`, `fotoId`, `cropAuto`, `fotolibroEstilo`): al
+ *   reabrir, las fotos parecían puestas a mano, se conservaban y el libro se rearmaba encima, con
+ *   las fotos duplicadas y superpuestas.
+ */
+function extrasQueSeConservan(type: TemplateV2BlockType, cfg: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  if (cfg.fotolibroAuto === true) out.fotolibroAuto = true;
+  if (typeof cfg.fotolibroEstilo === "boolean") out.fotolibroEstilo = cfg.fotolibroEstilo;
+  if (typeof cfg.fotoId === "string" && cfg.fotoId.length <= 64) out.fotoId = cfg.fotoId;
+  if (type === "IMAGE") {
+    const crop = asObject(cfg.crop);
+    if (cfg.crop && typeof cfg.crop === "object") {
+      out.crop = { zoom: entre(crop.zoom, 1, 4, 1), x: entre(crop.x, -1, 1, 0), y: entre(crop.y, -1, 1, 0) };
+    }
+    if (cfg.cropAuto === true) out.cropAuto = true;
+    if (numeroPositivo(cfg.srcWidth) && numeroPositivo(cfg.srcHeight)) {
+      out.srcWidth = cfg.srcWidth;
+      out.srcHeight = cfg.srcHeight;
+    }
+    if (typeof cfg.previewSrc === "string" && /^https?:\/\//.test(cfg.previewSrc)) out.previewSrc = cfg.previewSrc;
+  }
+  return out;
 }
 
 function normalizeBlockConfigByType(type: TemplateV2BlockType, input: unknown): Record<string, unknown> {
