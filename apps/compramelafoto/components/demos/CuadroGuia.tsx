@@ -17,7 +17,7 @@
  * que navega.
  *
  * Atajos: Avance de página / Retroceso de página (los presentadores inalámbricos mandan esas
- * teclas) o Alt + flechas. Funcionan en las dos ventanas. Las flechas solas quedan para las
+ * teclas), Cmd + flecha abajo/arriba o Alt + flechas. Funcionan en las dos ventanas. Las flechas solas quedan para las
  * pantallas (visor 3D, galería).
  */
 

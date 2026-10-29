@@ -26,12 +26,17 @@ export function ventanaAparteViva(ultimoLatido: number | null, ahora: number): b
 
 /**
  * Qué hace una tecla en la guía. El presentador inalámbrico manda Avance/Retroceso de página, y
- * eso vale aunque el cursor esté en un campo (si no, después de escribir en un formulario la
- * charla se traba). Alt+flechas solo fuera de los campos: adentro mueven el cursor por palabras.
+ * Cmd/Ctrl + flecha abajo/arriba es el atajo del teclado; los dos valen aunque el cursor esté en un
+ * campo (si no, después de escribir en un formulario la charla se traba). Alt+flechas solo fuera
+ * de los campos: adentro mueven el cursor por palabras.
  */
-export function accionDeTecla(e: { key: string; altKey: boolean }, enCampo: boolean): "adelante" | "atras" | "cerrar" | null {
-  if (e.key === "PageDown" || (!enCampo && e.altKey && e.key === "ArrowRight")) return "adelante";
-  if (e.key === "PageUp" || (!enCampo && e.altKey && e.key === "ArrowLeft")) return "atras";
+export function accionDeTecla(
+  e: { key: string; altKey: boolean; metaKey?: boolean; ctrlKey?: boolean },
+  enCampo: boolean,
+): "adelante" | "atras" | "cerrar" | null {
+  const cmd = Boolean(e.metaKey || e.ctrlKey) && !e.altKey;
+  if (e.key === "PageDown" || (cmd && e.key === "ArrowDown") || (!enCampo && e.altKey && e.key === "ArrowRight")) return "adelante";
+  if (e.key === "PageUp" || (cmd && e.key === "ArrowUp") || (!enCampo && e.altKey && e.key === "ArrowLeft")) return "atras";
   if (!enCampo && (e.key === "Escape" || e.key === "Enter")) return "cerrar";
   return null;
 }

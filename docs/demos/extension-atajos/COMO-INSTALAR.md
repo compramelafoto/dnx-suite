@@ -23,5 +23,7 @@ la guía de la demo.
 - Con la demo abierta (y la guía en la segunda pantalla, si la usás), apretá los atajos desde
   donde estés. La pantalla compartida cambia de paso sola.
 - Sin la extensión siguen andando, con la ventana de la demo o la de la guía activas:
-  **Avance/Retroceso de página** (el presentador inalámbrico) y **Alt + flechas**.
+  **Cmd + ↓ / Cmd + ↑** (siguiente / anterior), **Avance/Retroceso de página** (el presentador
+  inalámbrico) y **Alt + flechas**. Chrome no deja usar Cmd + flechas como atajo global: desde
+  otra aplicación hay que usar Cmd + Shift + 9 / 8.
 - Si Chrome está cerrado, los atajos no hacen nada.

@@ -41,6 +41,10 @@ describe("demos — navegación del guion", () => {
     assert.equal(accionDeTecla({ key: "Enter", altKey: false }, true), null);
     assert.equal(accionDeTecla({ key: "Escape", altKey: false }, false), "cerrar");
     assert.equal(accionDeTecla({ key: "a", altKey: false }, false), null);
+    assert.equal(accionDeTecla({ key: "ArrowDown", altKey: false, metaKey: true }, true), "adelante");
+    assert.equal(accionDeTecla({ key: "ArrowUp", altKey: false, metaKey: true }, false), "atras");
+    assert.equal(accionDeTecla({ key: "ArrowDown", altKey: false, ctrlKey: true }, false), "adelante");
+    assert.equal(accionDeTecla({ key: "ArrowDown", altKey: false }, false), null);
   });
 
   it("la ventana aparte se da por cerrada si deja de latir", () => {

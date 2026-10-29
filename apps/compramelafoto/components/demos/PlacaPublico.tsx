@@ -150,7 +150,7 @@ export default function PlacaPublico({
             >
               Seguir →
             </button>
-            <span className="text-sm text-slate-400">o Avance de página</span>
+            <span className="text-sm text-slate-400">o Cmd + ↓</span>
           </div>
         </div>
       </div>
