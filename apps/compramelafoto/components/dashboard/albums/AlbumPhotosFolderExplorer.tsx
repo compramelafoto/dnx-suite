@@ -129,13 +129,13 @@ export type AlbumPhotosFolderExplorerProps = {
 };
 
 const TOOL_BTN =
-  "inline-flex h-8 min-w-8 items-center justify-center gap-1.5 rounded-md px-2 text-[13px] font-medium text-[#374151] hover:bg-black/[0.06] active:bg-black/[0.1] disabled:opacity-40 disabled:pointer-events-none focus:outline-none focus-visible:ring-2 focus-visible:ring-[#3d8ee0]/60";
+  "inline-flex h-8 min-w-8 items-center justify-center gap-1.5 rounded-md px-2 text-[13px] font-medium text-[#374151] hover:bg-black/[0.06] active:bg-black/[0.1] disabled:opacity-40 disabled:pointer-events-none focus:outline-none focus-visible:ring-2 focus-visible:ring-[#c27b3d]/50";
 
 const MENU_PANEL_CLASS =
   "z-50 rounded-lg border border-black/10 bg-white/95 backdrop-blur-md p-1 shadow-[0_10px_30px_rgba(0,0,0,0.16)]";
 
 const MENU_ITEM_CLASS =
-  "w-full text-left px-2.5 py-1.5 text-[13px] text-[#1f2937] rounded-[5px] hover:bg-[#3d8ee0] hover:text-white disabled:opacity-40 disabled:pointer-events-none";
+  "w-full text-left px-2.5 py-1.5 text-[13px] text-[#1f2937] rounded-[5px] hover:bg-[#c27b3d] hover:text-white disabled:opacity-40 disabled:pointer-events-none";
 
 const THUMB_SIZE_KEY = "clf.albumExplorer.thumbSize";
 const THUMB_MIN = 96;
@@ -960,7 +960,7 @@ export default function AlbumPhotosFolderExplorer({
                 ) : (
                   <select
                     aria-label="Carpeta destino"
-                    className="w-full h-9 rounded-md border border-black/15 bg-white px-2.5 text-[13px] text-[#111827] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#3d8ee0]/50 disabled:opacity-60"
+                    className="w-full h-9 rounded-md border border-black/15 bg-white px-2.5 text-[13px] text-[#111827] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#c27b3d]/50 disabled:opacity-60"
                     value={bulkFolderPick}
                     disabled={bulkFolderLoading}
                     onChange={(e) => onBulkFolderPickChange(e.target.value)}
@@ -1193,7 +1193,7 @@ export default function AlbumPhotosFolderExplorer({
                 key={folder.id}
                 role="button"
                 tabIndex={0}
-                className="group/folder flex flex-col items-center gap-1 rounded-lg p-2 cursor-default hover:bg-black/[0.05] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#3d8ee0]/60"
+                className="group/folder flex flex-col items-center gap-1 rounded-lg p-2 cursor-default hover:bg-black/[0.05] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#c27b3d]/50"
                 title={`${folder.name} · ${folder.photoCount} foto${folder.photoCount !== 1 ? "s" : ""}`}
                 onClick={() => openFolder(folder.id)}
                 onKeyDown={(e) => {
