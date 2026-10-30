@@ -30,6 +30,8 @@ export const COMPOSICIONES = [
   { id: "grilla2", label: "Grilla 2×2" },
   { id: "grilla3", label: "Grilla 3×3" },
   { id: "galeria", label: "Galería" },
+  { id: "escalonado4", label: "Escalonado 4" },
+  { id: "escalonado5", label: "Escalonado 5" },
 ] as const;
 
 export type ComposicionId = (typeof COMPOSICIONES)[number]["id"];
@@ -66,8 +68,22 @@ export function cuadrosDe(id: ComposicionId, w: number, h: number, g: number): R
       for (let j = 0; j < 2; j++) for (let i = 0; i < 2; i++) r.push({ x: w + g + i * (sw + g), y: j * (s + g), w: sw, h: s });
       break;
     }
+    // Una foto repartida en piezas de alturas distintas, centradas en alto (las referencias que
+    // mostró Daniel): los de afuera apaisados y los del centro altos y angostos…
+    case "escalonado4":
+      enFila([[w, h * 0.6], [w * 0.5, h], [w * 0.5, h], [w, h * 0.6]]);
+      break;
+    // …o cinco del mismo ancho que crecen hacia el centro.
+    case "escalonado5":
+      enFila([0.6, 0.8, 1, 0.8, 0.6].map((k) => [w * 0.6, h * k] as [number, number]));
+      break;
   }
   return r;
+
+  function enFila(medidas: [number, number][]) {
+    let x = 0;
+    for (const [mw, mh] of medidas) { r.push({ x, y: (h - mh) / 2, w: mw, h: mh }); x += mw + g; }
+  }
 }
 
 /** Ancho y alto totales del conjunto. */
