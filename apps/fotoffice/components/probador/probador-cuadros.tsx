@@ -9,7 +9,8 @@ import { montarProbador } from "./motor";
  *
  * El marcado es fijo y React lo dibuja una sola vez; todo lo que cambia (el lienzo, las
  * composiciones, las miniaturas, las medidas) lo maneja `montarProbador` sobre los `data-pdc`.
- * Los colores salen del sitio de cada estudio (`--wsite-*`, ver `PublicSiteShell`).
+ * Los colores salen del sitio de cada estudio (`--wsite-*`, ver `PublicSiteShell`); dentro del
+ * panel, donde esas variables no existen, toma las del panel (`--fo-*`).
  */
 export function ProbadorCuadros() {
   const raiz = useRef<HTMLDivElement>(null);
@@ -163,9 +164,9 @@ export function ProbadorCuadros() {
 
 const CSS = `
 .pdc{
-  --pdc-fg: var(--wsite-text, #1d2321);
-  --pdc-accent: var(--wsite-primary, #2b6a5f);
-  --pdc-on-accent: var(--wsite-bg, #ffffff);
+  --pdc-fg: var(--wsite-text, var(--fo-text, #1d2321));
+  --pdc-accent: var(--wsite-primary, var(--fo-accent, #2b6a5f));
+  --pdc-on-accent: var(--wsite-bg, var(--fo-on-accent, #ffffff));
   --pdc-line: color-mix(in srgb, var(--pdc-fg) 16%, transparent);
   --pdc-soft: color-mix(in srgb, var(--pdc-fg) 5%, transparent);
   --pdc-stage: color-mix(in srgb, var(--pdc-fg) 9%, transparent);
@@ -224,7 +225,7 @@ const CSS = `
 .pdc-tag{font-size:11px; font-weight:700; letter-spacing:.06em; color:var(--pdc-accent); background:var(--pdc-sel); border-radius:5px; padding:2px 6px; margin-left:6px; vertical-align:2px; opacity:1}
 .pdc-error{color:#b3261e; font-size:13px; margin:0}
 .pdc-modal{position:fixed; inset:0; background:rgba(10,14,12,.72); z-index:60; display:flex; align-items:center; justify-content:center; padding:16px}
-.pdc-modal-tarjeta{background:var(--wsite-bg, #fff); color:var(--pdc-fg); border-radius:14px; padding:14px; max-width:min(1100px,100%); max-height:100%; display:flex; flex-direction:column; gap:10px; overflow:auto}
+.pdc-modal-tarjeta{background:var(--wsite-bg, var(--fo-surface, #fff)); color:var(--pdc-fg); border-radius:14px; padding:14px; max-width:min(1100px,100%); max-height:100%; display:flex; flex-direction:column; gap:10px; overflow:auto}
 .pdc-modal-tarjeta img{max-width:100%; max-height:70vh; object-fit:contain; border-radius:8px; align-self:center}
 @media (max-width:900px){
   .pdc-layout{grid-template-columns:minmax(0,1fr)}

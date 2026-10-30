@@ -57,6 +57,7 @@ export const NAV_KEYWORDS: Record<string, string[]> = {
   "/ventas/comisiones": ["comisión", "comision", "comisiones", "incentivo", "ganancia del equipo", "vendedora"],
   "/ventas/costos": ["costos", "costo", "margen", "ganancia", "proveedor", "lista de precios", "listas", "la isla", "fotolag", "roman", "redondeo", "actualizar precios"],
   "/foto-carnet": ["foto carnet", "fotocarnet", "recortar", "recorte", "encuadrar", "dni", "pasaporte", "plancha", "4x4", "imprimir"],
+  "/probador": ["probador", "cuadro", "cuadros", "díptico", "diptico", "tríptico", "triptico", "pared", "marco", "paspartú", "living", "galería"],
   "/polaroid": ["polaroid", "polaroids", "instax", "marco", "textura", "plancha", "imprimir", "foto con texto"],
   "/ventas/impresiones": ["imprimir", "impresion", "cola", "para imprimir", "kodak", "epson", "carnet", "reimprimir"],
   "/fotolibros": ["fotolibro", "fotolibros", "album", "libro", "pliego", "pliegos", "diseñar", "maquetar", "la isla", "roman", "copy express"],

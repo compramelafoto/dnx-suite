@@ -39,8 +39,10 @@ import {
   Truck,
   Printer,
   Coins,
+  Frame,
 } from "lucide-react";
 import type { ComponentType } from "react";
+import { PROBADOR_LABEL, PROBADOR_PANEL_ROUTE } from "@/lib/probador/constantes";
 import { useShellNav } from "./shell-frame";
 import { MenuSearch, type MenuSearchSection } from "./menu-search";
 import { ICONOS } from "./nav-icons";
@@ -327,7 +329,21 @@ export function ShellNav({
 
   // Ventas (con el Mostrador primero), Caja y Clientes: antes sólo se llegaba desde las
   // tarjetas del inicio, y el equipo de un local no encontraba dónde cobrar.
-  const ventas: Item[] = itemsDeModulo(SALES_MODULE_KEY, access, vocabulary);
+  // El probador de cuadros va con Ventas: es para mostrarle al cliente cómo le quedan en su pared.
+  const ventas: Item[] = [
+    ...itemsDeModulo(SALES_MODULE_KEY, access, vocabulary),
+    ...(ve(SALES_MODULE_KEY)
+      ? [
+          {
+            href: PROBADOR_PANEL_ROUTE,
+            label: PROBADOR_LABEL,
+            description: "Probar cuadros, dípticos y trípticos sobre la foto de la pared del cliente.",
+            icon: Frame,
+            isActive: under(PROBADOR_PANEL_ROUTE),
+          },
+        ]
+      : []),
+  ];
   const caja: Item[] = itemsDeModulo(CASH_MODULE_KEY, access, vocabulary);
   const clientes: Item[] = itemsDeModulo(CLIENTS_MODULE_KEY, access, vocabulary);
   // Equipo: jornadas, fichas y mensajes. Cada pantalla exige dueño o administrador.

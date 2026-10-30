@@ -6,6 +6,7 @@ import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 import { PORTFOLIO_MODULE_KEY } from "@/lib/portfolio/constants";
 import { STORE_MODULE_KEY } from "@/lib/store/constants";
 import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
+import { PRINT_ORDERS_MODULE_KEY } from "@/lib/impresiones/constantes";
 import { buildSiteNav } from "./site-nav";
 import { personVocabulary } from "@/lib/vocabulario/personas";
 import {
@@ -179,9 +180,26 @@ describe("el probador de cuadros", () => {
     expect(optionalPublicPagesFor(new Set()).map((p) => p.key)).toContain("probador");
   });
 
-  it("no entra solo al menú de los sitios ya publicados", () => {
+  it("no entra solo al menú de quien no vende impresiones", () => {
     const menu = buildSiteNav({ workspaceSlug: "dnx-estudio", homeBlocks: [], enabledModuleKeys: new Set(), hasPublishedSite: true });
     expect(menu.some((i) => i.href.endsWith("/probador-de-cuadros"))).toBe(false);
+  });
+
+  it("con Pedidos de impresión entra solo al menú, también al que el dueño ya había editado", () => {
+    const claves = new Set([PRINT_ORDERS_MODULE_KEY]);
+    const automatico = buildSiteNav({ workspaceSlug: "dnx-estudio", homeBlocks: [], enabledModuleKeys: claves, hasPublishedSite: true });
+    expect(automatico.some((i) => i.href === "/w/dnx-estudio/probador-de-cuadros")).toBe(true);
+
+    const editado: SiteMenu = {
+      version: SITE_MENU_VERSION,
+      items: [{ id: "page:home", kind: "page", page: "home", label: null, hidden: false }],
+    };
+    const nav = resolveSiteNav({ workspaceSlug: "dnx-estudio", homeBlocks: [], enabledModuleKeys: claves, hasPublishedSite: true, menu: editado });
+    expect(nav.map((i) => i.label)).toEqual(["Inicio", "Probador de cuadros"]);
+  });
+
+  it("con Pedidos de impresión no se ofrece dos veces para agregar", () => {
+    expect(optionalPublicPagesFor(new Set([PRINT_ORDERS_MODULE_KEY])).map((p) => p.key)).not.toContain("probador");
   });
 
   it("su dirección queda reservada para que ninguna página propia la pise", () => {
