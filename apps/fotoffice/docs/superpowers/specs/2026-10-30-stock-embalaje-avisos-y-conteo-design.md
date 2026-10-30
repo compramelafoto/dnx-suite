@@ -139,8 +139,11 @@ Mismos momentos que la receta, una sola vez por entrega:
   no se vuelve a descontar (misma protección que ya tiene la receta).
 - **Presupuesto confirmado** (`lib/pedidos/confirmar.ts`): igual que el pedido.
 - **Pedidos de impresión online** (`FotofficePrintOrder`): **se suman**. Se descuenta el embalaje (no la
-  receta: el papel es del laboratorio) cuando el pedido pasa a pagado. *(Decisión del diseño: el cliente igual
-  retira o recibe las copias en sobre.)*
+  receta: el papel es del laboratorio) cuando el pedido pasa a pagado. **Confirmado por Daniel (30/10): las copias
+  del laboratorio pasan por el local y se colocan en sobres y bolsas** antes de entregarse o enviarse.
+  Sus ítems (`FotofficePrintOrderItem`) no tienen producto, solo medidas en cm: se tratan como `PIEZA_SUELTA` con
+  esa medida. Un pedido es **una sola entrega** aunque lo impriman dos laboratorios. Las medidas más grandes que la
+  bolsa mayor (hasta 50x70) usan la bolsa más grande, y el mostrador la corrige con "Cambiar embalaje".
 
 Movimientos: `StockMovement` con `reason = "CONSUMO"`, mismo `sourceModule`/`sourceRef` que la venta o pedido,
 y `note = "embalaje:<sourceRef>"`. El prefijo es distinto de `consumo:item:` y de `item:` para no confundir
@@ -314,7 +317,7 @@ Migraciones como el resto de FOTOFFICE (a mano y `resolve`; sin staging: se apli
 - Las fotos dentro de un marco se emparejan por medida.
 - "La medida siguiente" del portarretratos = la bolsa más chica que sea más grande en los dos lados
   (13x18 → 20x30; 20x25 → 30x45; 20x30 → 30x45).
-- Los pedidos de impresión online también descuentan embalaje.
+- Un pedido de impresión online repartido entre dos laboratorios es una sola entrega.
 - Las entregas en partes no suman sobres solas: se agregan con "Cambiar embalaje".
 - Cancelar un pedido con partes entregadas no devuelve el embalaje.
 - Amarillo al 25 %; un ajuste por conteo no cambia la base del porcentaje; sin entradas, se usa el mínimo.
