@@ -146,7 +146,7 @@ Mismos momentos que la receta, una sola vez por entrega:
   bolsa mayor (hasta 50x70) usan la bolsa más grande, y el mostrador la corrige con "Cambiar embalaje".
 
 Movimientos: `StockMovement` con `reason = "CONSUMO"`, mismo `sourceModule`/`sourceRef` que la venta o pedido,
-y `note = "embalaje:<sourceRef>"`. El prefijo es distinto de `consumo:item:` y de `item:` para no confundir
+y `note = "consumo:embalaje"`. La nota es distinta de `consumo:item:` y de `item:` para no confundir
 las devoluciones existentes. Anular la venta o cancelar el pedido devuelve **exactamente** lo descontado
 (leyendo esos movimientos), aunque las reglas hayan cambiado. Cancelar un pedido con partes ya entregadas
 **no devuelve** el embalaje (ya se usó). Las filas de los envoltorios se suman a `lockStockRows` en el mismo
