@@ -44,7 +44,7 @@ Además, Daniel quiere:
 2. **Avisos por porcentaje de la última carga**: semáforo gradual, rojo al 10 %, aviso inmediato al
    equipo, con la cantidad sugerida para 2 meses.
 3. **Conteo quincenal guiado** con motivo por diferencia, y **registro de desperdicio**.
-4. **Costo real** de cada venta (insumos + embalaje, al último costo cargado).
+4. **Costo real** de cada venta (costo del producto + embalaje, al último costo cargado).
 5. **Aviso de temporada** mensual.
 6. Que todo sirva **para cualquier negocio** (nada atado a DNX Estudio salvo la carga inicial), en el
    plan pago (lo que Daniel llama "modo pro").
