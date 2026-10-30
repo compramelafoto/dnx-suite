@@ -13,7 +13,6 @@ vi.mock("@repo/db", () => ({
 const C = await import("./embalaje-config");
 
 beforeEach(() => {
-  B.reiniciar?.();
   for (const t of ["product", "fotofficeEmbalaje", "fotofficeProductoEntrega", "fotofficeInsumo"] as const) B.datos[t].length = 0;
   B.agregar("product", { id: "copia", workspaceId: "ws-1", name: "Copia 10x15", kind: "PRODUCTO", isActive: true });
   B.agregar("product", { id: "marco", workspaceId: "ws-1", name: "Portarretratos 20x25", kind: "PRODUCTO", isActive: true });

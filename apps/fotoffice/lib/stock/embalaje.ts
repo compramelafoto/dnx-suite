@@ -75,10 +75,11 @@ export function calcularEmbalaje(piezas: readonly PiezaEntrega[], envoltorios: r
 
   // 1. Cada marco se lleva adentro una foto de su medida o, si no hay, la más grande que entre.
   for (const g of grandes) {
-    if (g.pieza.forma !== "ENMARCADO" || !g.m) continue;
+    const marco = g.m;
+    if (g.pieza.forma !== "ENMARCADO" || !marco) continue;
     for (let i = 0; i < g.pieza.qty; i++) {
-      const candidatas = sueltas.filter((s) => s.qty > 0 && s.m && entra(s.m, g.m, false));
-      const igual = candidatas.find((s) => s.m!.menor === g.m.menor && s.m!.mayor === g.m.mayor);
+      const candidatas = sueltas.filter((s) => s.qty > 0 && s.m && entra(s.m, marco, false));
+      const igual = candidatas.find((s) => s.m!.menor === marco.menor && s.m!.mayor === marco.mayor);
       const elegida = igual ?? candidatas.sort((a, b) => area(b.m!) - area(a.m!))[0];
       if (!elegida) break;
       elegida.qty--;
