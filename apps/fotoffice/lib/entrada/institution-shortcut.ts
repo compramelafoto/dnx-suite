@@ -74,6 +74,8 @@ export const RESERVED_SLUGS: ReadonlySet<string> = new Set([
   "portal",
   // El probador de cuadros dentro del panel (components/probador).
   "probador",
+  // La recuperación de tarjetas dentro del panel (lib/recuperacion).
+  "recuperacion",
   "portfolios",
   "presupuestos",
   "privacidad",
