@@ -61,6 +61,22 @@ async function preparacionLab(workspaceId: string, id: unknown) {
   return prep;
 }
 
+/**
+ * El Mostrador muestra «Pedido para laboratorio» si hay copias de laboratorio en el catálogo: la
+ * misma lectura que usa el editor (todos los productos activos, no sólo los del mostrador).
+ */
+export async function hayCopiasDeLaboratorio(workspaceId: string): Promise<boolean> {
+  const filas = await prisma.product.findMany({
+    where: { workspaceId, isActive: true },
+    select: { id: true, name: true, priceArs: true, costArs: true, preferredProveedorId: true },
+  });
+  return (
+    leerProductosDeCopia(
+      filas.map((p) => ({ id: p.id, name: p.name, priceArs: Number(p.priceArs), costArs: p.costArs === null ? null : Number(p.costArs), preferredProveedorId: p.preferredProveedorId })),
+    ).length > 0
+  );
+}
+
 /** Los productos de copias del catálogo (activos del negocio) y el laboratorio de cada uno. */
 async function leerCatalogo(workspaceId: string): Promise<{ catalogo: ProductoCopia[]; proveedorDeProducto: Map<string, string | null>; nombres: Map<string, string> }> {
   const filas = await prisma.product.findMany({

@@ -51,7 +51,7 @@ import { anularPreparacionAction, crearPreparacionAction, crearPreparacionLabora
 import { DialogoPreparar, copiasTerminadas } from "./dialogo-preparar";
 import { DialogoLaboratorio } from "./dialogo-laboratorio";
 import type { RenglonTicketLab } from "@/components/copias/editor-laboratorio";
-import { avisoLaboratorios, deshacerConLab, hayCopiasDeLaboratorio, reemplazarGrupoLab } from "@/lib/sales/ticket-laboratorio";
+import { avisoLaboratorios, deshacerConLab, reemplazarGrupoLab } from "@/lib/sales/ticket-laboratorio";
 import { CalculadoraFotolibro, type FotolibroAgregado, type LineaFotolibro } from "@/components/fotolibro/calculadora-fotolibro";
 import type { CatalogoFotolibro, TipoTapa } from "@/lib/fotolibro/cotizar";
 import { esSkuCajaFotolibro, tipoTapaDeSku, type FotolibroVendido } from "@/lib/fotolibro/venta";
@@ -148,6 +148,7 @@ export function Pos({
   fotolibro = null,
   comision = null,
   agregarAlAbrir = [],
+  hayCopiasLab = false,
 }: {
   products: ProductRow[];
   categories: ProductCategoryRow[];
@@ -180,6 +181,8 @@ export function Pos({
   comision?: { porcentaje: number; productIds: string[]; mia: MiComision | null } | null;
   /** Productos que otra pantalla manda a cobrar (`?agregar=`): se suman al ticket al abrir. */
   agregarAlAbrir?: AgregarAlAbrir[];
+  /** Hay copias de laboratorio en el catálogo: se ofrece «Pedido para laboratorio». */
+  hayCopiasLab?: boolean;
 }) {
   // El mostrador necesita el ancho: el menú lateral se oculta mientras está abierto.
   useOcultarMenuEnEstaPantalla();
@@ -239,7 +242,6 @@ export function Pos({
   const [abriendoLab, setAbriendoLab] = useState(false);
   const todasLabRef = useRef<Set<string>>(new Set());
   const keysLab = useMemo(() => new Set(laboratorio?.keys ?? []), [laboratorio]);
-  const hayCopiasLab = useMemo(() => hayCopiasDeLaboratorio(products), [products]);
   // Lo que manda a cobrar otra pantalla (el diseñador de polaroids): se suma una sola vez y la
   // dirección se limpia, para que recargar no lo vuelva a agregar. El precio es el del catálogo.
   const agregadoAlAbrirRef = useRef(false);
@@ -482,9 +484,10 @@ export function Pos({
       avisar("No hay nada para deshacer.");
       return;
     }
-    // Nunca quedan renglones del laboratorio sueltos; si se vuelve a un ticket sin el grupo, se olvida.
-    const { rows: anterior, sinGrupo } = deshacerConLab(popped, laboratorio?.keys ?? null, todasLabRef.current);
-    if (sinGrupo) setLaboratorio(null);
+    // Nunca quedan renglones del laboratorio sueltos; si se vuelve a un ticket sin el grupo, el grupo
+    // sale pero la preparación queda (el botón vuelve a ella; si no se usa, se anula al cobrar).
+    const { rows: anterior, laboratorio: labDeshecho } = deshacerConLab(popped, laboratorio, todasLabRef.current);
+    if (labDeshecho !== laboratorio) setLaboratorio(labDeshecho);
     setRows(anterior);
     setActivo(anterior.at(-1)?.key ?? null);
     avisar("Deshecho.");

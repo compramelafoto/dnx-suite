@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { avisoLaboratorios, deshacerConLab, hayCopiasDeLaboratorio, reemplazarGrupoLab, unirNombres } from "./ticket-laboratorio";
+import { avisoLaboratorios, deshacerConLab, reemplazarGrupoLab, unirNombres } from "./ticket-laboratorio";
 
 const r = (key: string) => ({ key });
 const keys = (rows: { key: string }[]) => rows.map((x) => x.key);
@@ -23,43 +23,34 @@ describe("reemplazarGrupoLab", () => {
 });
 
 describe("deshacerConLab", () => {
+  const lab = (...k: string[]) => ({ preparacionId: "p1", keys: k });
+
   it("vuelve a un estado con el grupo actual: no cambia nada", () => {
-    const res = deshacerConLab([r("a"), r("l1")], ["l1"], new Set(["l1"]));
+    const res = deshacerConLab([r("a"), r("l1")], lab("l1"), new Set(["l1"]));
     expect(keys(res.rows)).toEqual(["a", "l1"]);
-    expect(res.sinGrupo).toBe(false);
+    expect(res.laboratorio).toEqual(lab("l1"));
   });
 
-  it("vuelve a un estado sin el grupo: hay que olvidarlo", () => {
-    const res = deshacerConLab([r("a")], ["l1"], new Set(["l1"]));
+  it("vuelve a un estado sin el grupo: el grupo sale, la preparación se conserva", () => {
+    const res = deshacerConLab([r("a")], lab("l1"), new Set(["l1"]));
     expect(keys(res.rows)).toEqual(["a"]);
-    expect(res.sinGrupo).toBe(true);
+    expect(res.laboratorio).toEqual(lab());
   });
 
   it("saca los renglones de una versión vieja del grupo o de un grupo quitado", () => {
     const res = deshacerConLab([r("a"), r("v1"), r("b")], null, new Set(["v1"]));
     expect(keys(res.rows)).toEqual(["a", "b"]);
-    expect(res.sinGrupo).toBe(false);
+    expect(res.laboratorio).toBeNull();
   });
 
   it("un grupo a medias no queda suelto", () => {
-    const res = deshacerConLab([r("l1"), r("a")], ["l1", "l2"], new Set(["l1", "l2"]));
+    const res = deshacerConLab([r("l1"), r("a")], lab("l1", "l2"), new Set(["l1", "l2"]));
     expect(keys(res.rows)).toEqual(["a"]);
-    expect(res.sinGrupo).toBe(true);
+    expect(res.laboratorio).toEqual(lab());
   });
 
-  it("un grupo sin renglones (Listo con nada) no se olvida", () => {
-    expect(deshacerConLab([r("a")], [], new Set()).sinGrupo).toBe(false);
-  });
-});
-
-describe("hayCopiasDeLaboratorio", () => {
-  it("encuentra una copia del catálogo con precio", () => {
-    expect(hayCopiasDeLaboratorio([{ id: "1", name: "Copia para mañana 10x15", priceMinor: 50000 }])).toBe(true);
-  });
-
-  it("sin copias, o con precio cero, no hay", () => {
-    expect(hayCopiasDeLaboratorio([{ id: "1", name: "Portarretrato", priceMinor: 50000 }])).toBe(false);
-    expect(hayCopiasDeLaboratorio([{ id: "1", name: "Copia instantánea 10x15", priceMinor: 0 }])).toBe(false);
+  it("un grupo sin renglones (Listo con nada, o ya deshecho) sigue igual", () => {
+    expect(deshacerConLab([r("a")], lab(), new Set(["v1"])).laboratorio).toEqual(lab());
   });
 });
 

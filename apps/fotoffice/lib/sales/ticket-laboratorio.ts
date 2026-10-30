@@ -2,8 +2,6 @@
  * El «Pedido para laboratorio» dentro del ticket del Mostrador: un grupo de renglones (las copias
  * de una preparación) que se arma, se reemplaza y se quita entero, nunca de a uno. Módulo PURO.
  */
-import { leerProductosDeCopia } from "@/lib/impresiones/catalogo-copias";
-
 /**
  * Pone los renglones nuevos del grupo en lugar de los viejos, en el lugar donde estaba el primero.
  * Si el ticket no tiene ninguno de los viejos (primera vez, o se vació), van al final.
@@ -18,32 +16,25 @@ export function reemplazarGrupoLab<R extends { key: string }>(rows: readonly R[]
   return [...sinViejas.slice(0, antes), ...nuevos, ...sinViejas.slice(antes)];
 }
 
+export type GrupoLab = { preparacionId: string; keys: string[] };
+
 /**
  * Deshacer (Ctrl/⌘+Z) no puede dejar renglones del grupo sueltos: se sacan los de versiones
- * anteriores del grupo (o de un grupo ya quitado), y si el estado al que se vuelve no tiene el
- * grupo actual completo, `sinGrupo` avisa que hay que olvidar el pedido para laboratorio.
+ * anteriores del grupo (o de un grupo ya quitado). Si el estado al que se vuelve no tiene el grupo
+ * actual completo, el grupo sale del ticket pero la preparación se conserva (keys vacías): tocar
+ * «Pedido para laboratorio» vuelve a ella con sus fotos, y si no se usa se anula al cobrar.
  */
 export function deshacerConLab<R extends { key: string }>(
   anterior: readonly R[],
-  keysGrupo: readonly string[] | null,
+  laboratorio: GrupoLab | null,
   todasLab: ReadonlySet<string>,
-): { rows: R[]; sinGrupo: boolean } {
-  const grupo = new Set(keysGrupo ?? []);
+): { rows: R[]; laboratorio: GrupoLab | null } {
+  const grupo = new Set(laboratorio?.keys ?? []);
   const limpias = anterior.filter((r) => !todasLab.has(r.key) || grupo.has(r.key));
   const presentes = new Set(limpias.map((r) => r.key));
-  const sinGrupo = grupo.size > 0 && [...grupo].some((k) => !presentes.has(k));
-  return { rows: sinGrupo ? limpias.filter((r) => !grupo.has(r.key)) : limpias, sinGrupo };
-}
-
-/** Hay copias de laboratorio en el catálogo (los nombres que entiende `leerProductosDeCopia`). */
-export function hayCopiasDeLaboratorio(
-  productos: readonly { id: string; name: string; priceMinor: number; preferredProveedorId?: string | null }[],
-): boolean {
-  return (
-    leerProductosDeCopia(
-      productos.map((p) => ({ id: p.id, name: p.name, priceArs: p.priceMinor / 100, costArs: null, preferredProveedorId: p.preferredProveedorId ?? null })),
-    ).length > 0
-  );
+  const sinGrupo = laboratorio !== null && grupo.size > 0 && [...grupo].some((k) => !presentes.has(k));
+  if (!sinGrupo) return { rows: limpias, laboratorio };
+  return { rows: limpias.filter((r) => !grupo.has(r.key)), laboratorio: { preparacionId: laboratorio.preparacionId, keys: [] } };
 }
 
 /** «A», «A y B», «A, B y C». */
