@@ -45,6 +45,7 @@ export function EditorUnaFoto({
   onIr,
   onPegarATodas,
   onCerrar,
+  cantidadMax = CANTIDAD_MAX,
 }: {
   foto: FotoCopia & { pieza: NonNullable<FotoCopia["pieza"]> };
   papel: Papel & { nombre: string };
@@ -55,6 +56,8 @@ export function EditorUnaFoto({
   onIr: (delta: -1 | 1) => void;
   onPegarATodas: (d: { modo: Modo; cantidad: number }) => void;
   onCerrar: () => void;
+  /** Tope de copias de la foto (las copias instantáneas usan `CANTIDAD_MAX`). */
+  cantidadMax?: number;
 }) {
   const [receta, setRecetaLibre] = useState<Receta>(foto.pieza.receta);
   const [cantidad, setCantidadLibre] = useState(foto.pieza.cantidad);
@@ -304,10 +307,10 @@ export function EditorUnaFoto({
               <input
                 type="number"
                 min={1}
-                max={CANTIDAD_MAX}
+                max={cantidadMax}
                 step={1}
                 value={cantidad}
-                onChange={(e) => setCantidad(cantidadDesdeTexto(e.target.value))}
+                onChange={(e) => setCantidad(cantidadDesdeTexto(e.target.value, cantidadMax))}
                 className="fo-input"
               />
             </label>

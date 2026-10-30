@@ -7,6 +7,7 @@ import { nombreDeContacto } from "@/lib/pedidos/nombre-contacto";
 import { MENSAJES_PROYECTO, puedeGestionarProyectos, type CtxProyectos } from "./acceso";
 import { correoParaProveedor } from "./correo-proveedor";
 import { moverAFase } from "./avance";
+import { leerProductosDeCopia } from "@/lib/impresiones/catalogo-copias";
 import { enlaceDeCarpeta, enlaceLaboratorioSiHayArchivos } from "@/lib/carpetas/carpeta";
 
 /**
@@ -198,16 +199,53 @@ export async function enviarTrabajosDelPedidoAlProveedor(ctx: CtxProyectos, pedi
   try {
     const trabajos = await prisma.fotofficeProyecto.findMany({
       where: { workspaceId: ctx.workspaceId, pedidoId, proveedorId: { not: null }, proveedorEnviadoAt: null },
-      select: { id: true, proveedorId: true, product: { select: { sku: true } } },
+      select: { id: true, proveedorId: true, productId: true },
     });
     for (const t of trabajos) {
-      if (esProductoDeFotolibro(t.product?.sku)) continue;
+      const p = t.productId
+        ? await prisma.product.findFirst({
+            where: { id: t.productId, workspaceId: ctx.workspaceId },
+            select: { sku: true, name: true, priceArs: true, costArs: true, preferredProveedorId: true },
+          })
+        : null;
+      const esFotolibro = esProductoDeFotolibro(p?.sku);
+      if (esFotolibro) continue;
+      const esCopia = p ? leerProductosDeCopia([{ id: "x", name: p.name, priceArs: Number(p.priceArs), costArs: Number(p.costArs ?? 0), preferredProveedorId: p.preferredProveedorId }]).length > 0 : false;
+      // Un trabajo de mostrador lo manda el cron de pedidos de impresión cuando hay archivos: si se
+      // mandara acá quedaría «enviado» y el cron lo salteaba para siempre. Sin nota: el cron avisa.
+      const esDeMostrador =
+        (await prisma.fotofficePrintOrderItem.count({ where: { proyectoId: t.id, order: { workspaceId: ctx.workspaceId } } })) > 0;
+      const archivosListos =
+        esCopia && !esDeMostrador
+          ? await prisma.fotofficeArchivoTrabajo.count({ where: { workspaceId: ctx.workspaceId, proyectoId: t.id, estado: "LISTO" } })
+          : 0;
+      if (!seMandaAlCobrar({ esCopia, esDeMostrador, archivosListos, esFotolibro })) {
+        if (esCopia && !esDeMostrador) {
+          const lab = await prisma.fotofficeProveedor.findFirst({ where: { id: t.proveedorId!, workspaceId: ctx.workspaceId }, select: { name: true } });
+          await prisma.fotofficeProyectoNota.create({
+            data: {
+              workspaceId: ctx.workspaceId,
+              proyectoId: t.id,
+              authorUserId: ctx.userId,
+              body: `Falta subir los archivos para mandarlo a ${lab?.name ?? "el laboratorio"}.`,
+            },
+          });
+        }
+        continue;
+      }
       const r = await enviarAlProveedor(ctx, t.id, t.proveedorId, null, { siempreConCarpeta: true });
       if (!r.ok) console.error("[proyectos][proveedor] envío automático falló", { error: r.error });
     }
   } catch (e) {
     console.error("[proyectos][proveedor] envío automático falló", { error: e instanceof Error ? e.message : "desconocido" });
   }
+}
+
+/** ¿Se manda al laboratorio en el momento de cobrar? No: fotolibros (sin diseño), mostrador (lo manda el cron) ni copias sin archivos. */
+export function seMandaAlCobrar(t: { esCopia: boolean; esDeMostrador: boolean; archivosListos: number; esFotolibro: boolean }): boolean {
+  if (t.esFotolibro || t.esDeMostrador) return false;
+  if (t.esCopia && t.archivosListos === 0) return false;
+  return true;
 }
 
 function esProductoDeFotolibro(sku: string | null | undefined): boolean {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { conLimite, validarArchivoFoto } from "./subidas";
+import { ESPERAR_SUBIDA, conLimite, queHacerConLoSoltado, validarArchivoFoto } from "./subidas";
 
 describe("subir fotos", () => {
   it("acepta JPG, PNG y WebP de hasta 60 MB; avisa HEIC y lo demás", () => {
@@ -33,5 +33,18 @@ describe("subir fotos", () => {
 
   it("sin nada para subir, no hace nada", async () => {
     expect(await conLimite([], 3, async () => 1)).toEqual([]);
+  });
+});
+
+describe("fotos soltadas sobre el editor", () => {
+  it("mientras se suben otras no se descartan en silencio: se pide esperar", () => {
+    expect(queHacerConLoSoltado({ subiendo: true, ocupado: false, habilitado: true })).toBe("ESPERAR");
+    expect(ESPERAR_SUBIDA).toBe("Esperá a que terminen de subirse las fotos y volvé a soltarlas.");
+  });
+
+  it("libre, se suben; ocupado con otra cosa o sin copias en el catálogo, no se hace nada", () => {
+    expect(queHacerConLoSoltado({ subiendo: false, ocupado: false, habilitado: true })).toBe("SUBIR");
+    expect(queHacerConLoSoltado({ subiendo: false, ocupado: true, habilitado: true })).toBe("IGNORAR");
+    expect(queHacerConLoSoltado({ subiendo: true, ocupado: false, habilitado: false })).toBe("IGNORAR");
   });
 });

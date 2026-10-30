@@ -1,5 +1,6 @@
 import sharp from "sharp";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { AJUSTES_NEUTROS } from "@/lib/impresion/ajustes";
 
 /* eslint-disable @typescript-eslint/no-unused-vars -- los mocks reciben argumentos que la prueba lee con `mock.calls` */
 type Item = {
@@ -26,7 +27,7 @@ const H = vi.hoisted(() => {
   const estado = {
     pedidos: {} as Record<string, unknown>,
     lecturas: {} as Record<string, unknown[]>,
-    pagados: [] as { id: string }[],
+    pagados: [] as { id: string; source?: string }[],
     pendientesPago: [] as { id: string; workspaceId: string }[],
     sinCircuito: [] as { id: string; workspaceId: string }[],
   };
@@ -61,6 +62,7 @@ const H = vi.hoisted(() => {
       deleteMany: vi.fn(async (..._a: unknown[]) => ({ count: 0 })),
     },
     fotofficePrintSize: { findMany: vi.fn(async (..._a: unknown[]) => [] as unknown[]) },
+    fotofficePiezaImpresion: { findMany: vi.fn(async (..._a: unknown[]) => [] as unknown[]) },
     fotofficePrintOrderItem: { update: vi.fn(async (..._a: unknown[]) => ({})), updateMany: vi.fn(async (..._a: unknown[]) => ({ count: 1 })) },
     $transaction: vi.fn(async (fn: (tx: unknown) => unknown) => fn(db)),
   };
@@ -85,6 +87,7 @@ vi.mock("@/lib/communications/send-email", () => ({ sendTransactionalEmail: vi.f
 vi.mock("@/lib/communications/load-workspace-sender", () => ({ loadWorkspaceSender: async () => ({ name: "DNX Estudio", replyTo: null }) }));
 vi.mock("@/lib/carpetas/subir-servidor", () => ({ subirFlujo: vi.fn() }));
 vi.mock("@/lib/carpetas/almacen", () => ({ borrarArchivoGuardado: H.borrar }));
+vi.mock("@/lib/impresion/render-laboratorio", () => ({ renderParaLaboratorio: vi.fn() }));
 vi.mock("./fuentes-servidor", () => ({ leerOriginal: vi.fn() }));
 vi.mock("./acreditar-servidor", () => ({ asegurarTrabajosDelPedido: H.asegurar, acreditarPagoImpresion: H.acreditar }));
 vi.mock("@/lib/payments/connect/collector", () => ({ resolveWorkspaceCollector: H.collector }));
@@ -559,6 +562,137 @@ describe("procesarPedidosDeImpresion", () => {
     H.estado.pagados = [];
     await P.procesarPedidosDeImpresion(deps());
     expect(orden.updateMany).not.toHaveBeenCalled();
+  });
+});
+
+describe("prepararPedido: pedidos de mostrador con receta", () => {
+  const receta = { version: 1, modo: "RECORTAR", orientacion: "HORIZONTAL", rotacion90: 0, enderezar: 0, encuadre: { x: 0, y: 0, ancho: 1, alto: 1 }, ajustes: { ...AJUSTES_NEUTROS }, nitidez: null };
+  const conPieza = (): Pedido => ({
+    ...pedidoBase(),
+    items: [
+      { ...item({ id: "m1", sourceName: "m.jpg", widthCm: "10", heightCm: "15" }), piezaId: "pz1" } as Item,
+      item({ id: "m2", sourceName: "s.jpg", widthCm: "13", heightCm: "18" }),
+    ],
+  });
+
+  it("el ítem con piezaId se renderiza con la receta y la medida real; el otro sigue con el recorte simple", async () => {
+    H.estado.pedidos = { ord1: conPieza() };
+    H.db.fotofficePiezaImpresion.findMany.mockResolvedValue([{ id: "pz1", receta, medida: "10x15" }]);
+    const d = { ...deps(), renderizar: vi.fn(async (..._a: unknown[]) => Buffer.from("lab")) };
+    expect(await P.prepararPedido("ord1", d)).toBe("ENVIADO");
+    expect(d.renderizar).toHaveBeenCalledTimes(1);
+    expect(d.renderizar).toHaveBeenCalledWith(expect.any(Buffer), receta, { anchoMm: 102, altoMm: 152 });
+    expect(d.recortar).toHaveBeenCalledTimes(1);
+    expect(d.recortar.mock.calls[0]![1].sourceName).toBe("s.jpg");
+    expect(H.db.fotofficePiezaImpresion.findMany).toHaveBeenCalledTimes(1);
+    expect(H.db.fotofficePiezaImpresion.findMany.mock.calls[0]![0]).toMatchObject({ where: { workspaceId: "ws", id: { in: ["pz1"] } } });
+  });
+
+  it("si la pieza no existe, el pedido queda PAGADO_SIN_ENVIAR y no se manda un recorte simple", async () => {
+    H.estado.pedidos = { ord1: conPieza() };
+    H.db.fotofficePiezaImpresion.findMany.mockResolvedValue([]);
+    const d = { ...deps(), renderizar: vi.fn(async (..._a: unknown[]) => Buffer.from("lab")) };
+    expect(await P.prepararPedido("ord1", d)).toBe("PAGADO_SIN_ENVIAR");
+    expect(d.renderizar).not.toHaveBeenCalled();
+    expect(d.recortar.mock.calls.map((c) => c[1].sourceName)).not.toContain("m.jpg");
+  });
+
+  it.each([
+    ["receta inválida", { receta: { version: 2 }, medida: "10x15" }],
+    ["receta sin orientación", { receta: { ...receta, orientacion: undefined }, medida: "10x15" }],
+    ["medida nula", { receta, medida: null }],
+    ["medida desconocida", { receta, medida: "grande" }],
+  ])("%s: el pedido queda PAGADO_SIN_ENVIAR y la copia no sale con recorte simple", async (_n, fila) => {
+    H.estado.pedidos = { ord1: conPieza() };
+    H.db.fotofficePiezaImpresion.findMany.mockResolvedValue([{ id: "pz1", ...fila }]);
+    const d = { ...deps(), renderizar: vi.fn(async (..._a: unknown[]) => Buffer.from("lab")) };
+    expect(await P.prepararPedido("ord1", d)).toBe("PAGADO_SIN_ENVIAR");
+    expect(d.renderizar).not.toHaveBeenCalled();
+    expect(d.recortar.mock.calls.map((c) => c[1].sourceName)).not.toContain("m.jpg");
+  });
+
+  it("sin ítems con piezaId no se consulta la tabla de piezas", async () => {
+    await P.prepararPedido("ord1", deps());
+    expect(H.db.fotofficePiezaImpresion.findMany).not.toHaveBeenCalled();
+  });
+});
+
+describe("pedidos de mostrador grandes: el tiempo de la función", () => {
+  const mostrador = (id: string) => ({ ...pedidoBase(), id, source: "MOSTRADOR" });
+
+  it("procesarPedidosDeImpresion prepara a lo sumo un pedido de mostrador por corrida", async () => {
+    H.estado.pedidos = { ord1: { ...pedidoBase(), source: "WHATSAPP" }, ord2: mostrador("ord2"), ord3: mostrador("ord3") };
+    H.estado.pagados = [
+      { id: "ord1", source: "WHATSAPP" },
+      { id: "ord2", source: "MOSTRADOR" },
+      { id: "ord3", source: "MOSTRADOR" },
+    ];
+    expect(await P.procesarPedidosDeImpresion(deps())).toEqual({ procesados: 2, enviados: 2, fallidos: 0 });
+    const tomados = orden.updateMany.mock.calls.map((c) => (c[0] as { where: { id: string } }).where.id);
+    expect(tomados).toContain("ord2");
+    expect(tomados).not.toContain("ord3");
+  });
+
+  it("con el pedido de mostrador primero, no empieza otro en la misma corrida", async () => {
+    H.estado.pedidos = { ord1: mostrador("ord1"), ord2: { ...pedidoBase(), id: "ord2" } };
+    H.estado.pagados = [{ id: "ord1", source: "MOSTRADOR" }, { id: "ord2", source: "CARPETA" }];
+    expect(await P.procesarPedidosDeImpresion(deps())).toEqual({ procesados: 1, enviados: 1, fallidos: 0 });
+  });
+
+  it("pasado el presupuesto, deja lo enviado enviado y el pedido PAGADO, sin sumar intento ni avisar", async () => {
+    H.estado.pedidos = { ord1: mostrador("ord1") };
+    H.estado.pagados = [{ id: "ord1", source: "MOSTRADOR" }];
+    const d = deps();
+    let t = AHORA.getTime();
+    const reloj = vi.fn(() => new Date(t));
+    // El primer trabajo (Fotolag) tarda 245 segundos: el de La Isla queda para la próxima corrida.
+    d.enviar.mockImplementation(async () => {
+      t += 245_000;
+      return { status: "SENT", providerId: "re_1" };
+    });
+    expect(await P.procesarPedidosDeImpresion({ ...d, ahora: reloj })).toEqual({ procesados: 1, enviados: 0, fallidos: 0 });
+    expect(d.subir).toHaveBeenCalledTimes(1);
+    expect(d.enviar).toHaveBeenCalledTimes(1);
+    expect(d.enviar).toHaveBeenCalledWith(expect.objectContaining({ to: "pedidos@fotolag.test" }));
+    expect(H.db.fotofficeProyecto.update).toHaveBeenCalledWith({ where: { id: "p-f" }, data: { proveedorEnviadoAt: AHORA } });
+    expect(H.db.fotofficeProyecto.update).not.toHaveBeenCalledWith(expect.objectContaining({ where: { id: "p-isla" } }));
+    const fin = actualizaciones().filter((u) => u.where.id === "ord1");
+    expect(fin).toEqual([{ where: { id: "ord1" }, data: { status: "PAGADO", lockedAt: null } }]);
+  });
+
+  it("prepararPedido solo mide desde su propio comienzo y devuelve PAUSADO", async () => {
+    H.estado.pedidos = { ord1: mostrador("ord1") };
+    const d = deps();
+    let t = AHORA.getTime();
+    d.enviar.mockImplementation(async () => {
+      t += 241_000;
+      return { status: "SENT", providerId: "re_1" };
+    });
+    expect(await P.prepararPedido("ord1", { ...d, ahora: () => new Date(t) })).toBe("PAUSADO");
+    expect(d.enviar).toHaveBeenCalledTimes(1);
+  });
+
+  it("la corrida siguiente sigue con los trabajos que faltan (el enviado no se repite)", async () => {
+    H.estado.pedidos = { ord1: mostrador("ord1") };
+    H.db.fotofficeProyecto.findMany.mockResolvedValue([
+      { id: "p-f", number: "T-1", proveedorId: "f", proveedorEnviadoAt: AHORA },
+      { id: "p-isla", number: "T-2", proveedorId: "isla", proveedorEnviadoAt: null },
+    ]);
+    const d = deps();
+    expect(await P.prepararPedido("ord1", d)).toBe("ENVIADO");
+    expect(d.enviar).toHaveBeenCalledTimes(1);
+    expect(d.enviar).toHaveBeenCalledWith(expect.objectContaining({ to: "isla@lab.test" }));
+  });
+
+  it("un pedido que no es de mostrador no se corta por el presupuesto", async () => {
+    const d = deps();
+    let t = AHORA.getTime();
+    d.enviar.mockImplementation(async () => {
+      t += 245_000;
+      return { status: "SENT", providerId: "re_1" };
+    });
+    expect(await P.prepararPedido("ord1", { ...d, ahora: () => new Date(t) })).toBe("ENVIADO");
+    expect(d.enviar).toHaveBeenCalledTimes(2);
   });
 });
 

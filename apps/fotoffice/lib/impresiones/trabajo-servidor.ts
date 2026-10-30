@@ -19,6 +19,8 @@ export type PedidoDelTrabajo = {
   lastError: string | null;
   copias: { tamano: string; papel: string; cantidad: number }[];
   totalCents: number;
+  /** Pedido armado en el Mostrador: no tiene montos (se cobró en el ticket). */
+  deMostrador: boolean;
   costoCents: number;
   gananciaCents: number;
   /** Pedidos del bot (con seña): lo pagado y el saldo. null en los pedidos que se pagan enteros. */
@@ -35,7 +37,7 @@ export async function pedidoDelTrabajo(workspaceId: string, proyectoId: string):
   const p = await prisma.fotofficePrintOrder.findFirst({
     where: { workspaceId, items: { some: { proyectoId } } },
     select: {
-      id: true, number: true, status: true, lastError: true, paper: true, totalArs: true, costTotalArs: true,
+      id: true, number: true, status: true, lastError: true, source: true, paper: true, totalArs: true, costTotalArs: true,
       delivery: true, shippingArs: true, shippingAddress: true, shippingLat: true, shippingLon: true, shippingKm: true,
       depositArs: true, paidArs: true,
       items: { select: { widthCm: true, heightCm: true, quantity: true, paper: true } },
@@ -70,14 +72,14 @@ export async function pedidoDelTrabajo(workspaceId: string, proyectoId: string):
           mapa: p.shippingLat != null && p.shippingLon != null ? enlaceDeMapa(p.shippingLat, p.shippingLon) : null,
         }
       : null;
-  return { pedidoId: p.id, numero: p.number, estado: p.status, lastError: p.lastError, copias, totalCents, costoCents,
+  return { pedidoId: p.id, numero: p.number, estado: p.status, lastError: p.lastError, copias, totalCents, deMostrador: p.source === "MOSTRADOR", costoCents,
     pagadoCents, saldoCents: pagadoCents === null ? null : Math.max(0, totalCents - pagadoCents),
     deMasCents: pagadoCents === null ? null : Math.max(0, pagadoCents - totalCents),
     // El envío se cobra para pagar el traslado: no es ganancia de las copias.
     gananciaCents: totalCents - (entrega?.envioCents ?? 0) - costoCents, entrega };
 }
 
-export type PedidoSinEnviar = { pedidoId: string; numero: number; cliente: string; pagadoEl: Date | null; totalCents: number; lastError: string | null };
+export type PedidoSinEnviar = { pedidoId: string; numero: number; cliente: string; pagadoEl: Date | null; totalCents: number; deMostrador: boolean; lastError: string | null };
 
 /**
  * Los pedidos pagados que no salieron al laboratorio (Configuración → Impresiones): incluye los que no tienen
@@ -88,9 +90,9 @@ export async function pedidosPagadosSinEnviar(workspaceId: string): Promise<Pedi
     where: { workspaceId, status: "PAGADO_SIN_ENVIAR" },
     orderBy: [{ paidAt: "asc" }, { number: "asc" }],
     take: 50,
-    select: { id: true, number: true, nombre: true, paidAt: true, totalArs: true, lastError: true },
+    select: { id: true, number: true, nombre: true, paidAt: true, totalArs: true, lastError: true, source: true },
   });
-  return filas.map((p) => ({ pedidoId: p.id, numero: p.number, cliente: p.nombre, pagadoEl: p.paidAt, totalCents: cents(p.totalArs), lastError: p.lastError }));
+  return filas.map((p) => ({ pedidoId: p.id, numero: p.number, cliente: p.nombre, pagadoEl: p.paidAt, totalCents: cents(p.totalArs), deMostrador: p.source === "MOSTRADOR", lastError: p.lastError }));
 }
 
 /**

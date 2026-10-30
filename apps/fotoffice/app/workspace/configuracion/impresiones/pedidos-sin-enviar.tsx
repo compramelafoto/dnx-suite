@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { RotateCcw } from "lucide-react";
 import { reintentarEnvioAction } from "@/app/actions/impresiones";
 
-export type FilaSinEnviar = { pedidoId: string; numero: number; cliente: string; pagadoEl: string; total: string; lastError: string | null };
+export type FilaSinEnviar = { pedidoId: string; numero: number; cliente: string; pagadoEl: string; total: string; deMostrador?: boolean; lastError: string | null };
 
 /**
  * Pedidos pagados que no salieron al laboratorio, con «Reintentar envío». Es el único lugar desde donde se
@@ -39,10 +39,15 @@ export function PedidosSinEnviar({ filas }: { filas: FilaSinEnviar[] }) {
             <div className="flex flex-wrap items-baseline justify-between gap-2 text-sm">
               <span className="font-medium">
                 Pedido N° {f.numero} · {f.cliente}
+                {f.deMostrador ? (
+                  <span className="ml-2 inline-flex rounded-full border border-[var(--fo-border)] px-1.5 py-px align-middle text-[10px] font-semibold uppercase tracking-wide text-[var(--fo-text-secondary)]">
+                    Mostrador
+                  </span>
+                ) : null}
               </span>
               <span className="tabular-nums text-[var(--fo-muted)]">
-                {f.pagadoEl ? `Pagado el ${f.pagadoEl} · ` : ""}
-                {f.total}
+                {f.pagadoEl && !f.deMostrador ? `Pagado el ${f.pagadoEl} · ` : f.pagadoEl ? `Pagado el ${f.pagadoEl}` : ""}
+                {!f.deMostrador ? f.total : null}
               </span>
             </div>
             <p className="text-sm text-[var(--fo-warning)]">{f.lastError ?? "El pedido está pagado pero no salió al laboratorio."}</p>

@@ -13,6 +13,7 @@ import { prisma } from "@repo/db";
 import { contextoDePedidos } from "@/lib/pedidos/contexto";
 import { proyectosEncendidos } from "@/lib/proyectos/crear";
 import { Pos } from "./pos";
+import { hayCopiasDeLaboratorio } from "@/lib/impresion/laboratorio-servidor";
 import { leerAgregarAlAbrir } from "@/lib/sales/agregar-al-abrir";
 import { leerQrMostrador } from "@/lib/sales/qr-mp-servidor";
 import { esDuenoOAdmin, leerReglas, miComision, productosConComision } from "@/lib/comisiones/servidor";
@@ -101,6 +102,7 @@ export default async function VentasPage({
         qrActivo={qr.activo}
         comision={comision}
         agregarAlAbrir={agregarAlAbrir}
+        hayCopiasLab={await hayCopiasDeLaboratorio(workspace.id).catch(() => false)}
         fotolibro={await leerCatalogoFotolibro(workspace.id, { conCostos: canEditCatalog }).then((catalogo) => (catalogo ? { catalogo, verCostos: canEditCatalog } : null))}
         permisosCarnet={{ puedeBuscarClientes: hasLevel(nivelClientes, "VIEW"), puedeAltaCliente: hasLevel(nivelClientes, "MANAGE") }}
         egresos={
