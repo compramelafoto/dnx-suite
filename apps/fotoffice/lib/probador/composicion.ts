@@ -143,10 +143,12 @@ export function aplicarATodos(
   c: Composicion,
   cambios: { w?: number; h?: number; tipo?: TipoCuadro; paspartu?: number },
 ): Composicion {
+  const resto: Partial<Pick<Cuadro, "tipo" | "paspartu">> = {};
+  if (cambios.tipo) resto.tipo = cambios.tipo;
+  if (cambios.paspartu != null) resto.paspartu = cambios.paspartu;
   let r = c;
   for (const q of c.cuadros) {
     if (cambios.w != null && cambios.h != null) r = cambiarMedida(r, q.id, cambios.w, cambios.h);
-    const { w: _w, h: _h, ...resto } = cambios;
     if (Object.keys(resto).length) r = cambiarCuadro(r, q.id, resto);
   }
   return r;

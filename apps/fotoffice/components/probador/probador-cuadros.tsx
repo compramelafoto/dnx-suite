@@ -5,10 +5,11 @@ import { montarProbador } from "./motor";
 
 /**
  * El probador de cuadros: el cliente saca una foto de su pared, marca algo cuya medida conoce y
- * ve cómo quedan los cuadros a escala, con marco, paspartú y perspectiva.
+ * arma su conjunto a escala, editando cada cuadro por separado (medida, lugar, encuadre,
+ * inclinación) con deshacer y rehacer.
  *
- * El marcado es fijo y React lo dibuja una sola vez; todo lo que cambia (el lienzo, las
- * composiciones, las miniaturas, las medidas) lo maneja `montarProbador` sobre los `data-pdc`.
+ * El marcado es fijo y React lo dibuja una sola vez; todo lo que cambia (el lienzo, los paneles,
+ * las miniaturas, las medidas) lo maneja `montarProbador` sobre los `data-pdc`.
  * Los colores salen del sitio de cada estudio (`--wsite-*`, ver `PublicSiteShell`); dentro del
  * panel, donde esas variables no existen, toma las del panel (`--fo-*`).
  */
@@ -26,6 +27,10 @@ export function ProbadorCuadros() {
               <button type="button" data-pdc="modo-pared" aria-pressed="false">1 · Marcar pared</button>
               <button type="button" data-pdc="modo-ubicar" aria-pressed="true">2 · Ubicar cuadros</button>
             </div>
+            <div className="pdc-fila pdc-historial">
+              <button type="button" className="pdc-btn pdc-icono" data-pdc="deshacer" aria-label="Deshacer" title="Deshacer (⌘Z)">↶</button>
+              <button type="button" className="pdc-btn pdc-icono" data-pdc="rehacer" aria-label="Rehacer" title="Rehacer (⇧⌘Z)">↷</button>
+            </div>
             <span className="pdc-pista" data-pdc="pista" />
           </div>
           <div className="pdc-fondo">
@@ -33,7 +38,7 @@ export function ProbadorCuadros() {
               data-pdc="lienzo"
               className="pdc-lienzo"
               tabIndex={0}
-              aria-label="Foto de la pared con los cuadros. Usá las flechas para mover el conjunto."
+              aria-label="Foto de la pared con los cuadros. Tocá un cuadro para editarlo; con las flechas lo movés."
             />
           </div>
           <div className="pdc-medidas" data-pdc="medidas" />
@@ -71,17 +76,17 @@ export function ProbadorCuadros() {
             <p className="pdc-error" data-pdc="error-pared" hidden />
           </section>
 
-          <section className="pdc-bloque">
-            <h2>Composición</h2>
+          <section className="pdc-bloque" data-pdc="panel-conjunto">
+            <h2>Conjunto</h2>
             <div className="pdc-chips" data-pdc="composiciones" />
             <div className="pdc-campos">
-              <label className="pdc-campo" htmlFor="pdc-medida">
-                Medida de cada cuadro
-                <select id="pdc-medida" data-pdc="medida" />
+              <label className="pdc-campo" htmlFor="pdc-medida-todos">
+                Medida base
+                <select id="pdc-medida-todos" data-pdc="medida-todos" />
               </label>
-              <label className="pdc-campo" htmlFor="pdc-orientacion">
+              <label className="pdc-campo" htmlFor="pdc-orientacion-todos">
                 Orientación
-                <select id="pdc-orientacion" data-pdc="orientacion" defaultValue="v">
+                <select id="pdc-orientacion-todos" data-pdc="orientacion-todos" defaultValue="v">
                   <option value="v">Vertical</option>
                   <option value="h">Horizontal</option>
                 </select>
@@ -91,23 +96,72 @@ export function ProbadorCuadros() {
               <span>Separación entre cuadros: <output data-pdc="separacion-valor" /></span>
               <input type="range" id="pdc-separacion" data-pdc="separacion" min={2} max={20} step={1} />
             </label>
+            <p className="pdc-nota">Cambiar la plantilla, la medida o la separación rearma el conjunto.</p>
+            <div className="pdc-campo">
+              Tipo, para todos
+              <div className="pdc-seg pdc-seg-ancho" role="group" aria-label="Tipo de cuadro para todos" data-pdc="tipo-todos" />
+            </div>
             <label className="pdc-check">
-              <input type="checkbox" data-pdc="repartida" /> Una sola foto repartida entre todos los cuadros
+              <input type="checkbox" data-pdc="una-foto" /> Una sola foto repartida entre todos los cuadros
             </label>
+            <div className="pdc-campos">
+              <label className="pdc-campo" htmlFor="pdc-paspartu-todos">
+                Paspartú
+                <select id="pdc-paspartu-todos" data-pdc="paspartu-todos" />
+              </label>
+              <label className="pdc-campo" htmlFor="pdc-modelo-marco">
+                <span>Modelo de marco <span className="pdc-tag">Próximamente</span></span>
+                <select id="pdc-modelo-marco" disabled defaultValue="negro">
+                  <option value="negro">Negro</option>
+                </select>
+              </label>
+            </div>
           </section>
 
-          <section className="pdc-bloque">
-            <h2>Marco</h2>
-            <div className="pdc-swatches" data-pdc="marcos" />
-            <label className="pdc-campo" htmlFor="pdc-paspartu">
-              Paspartú (borde blanco alrededor de la foto)
-              <select id="pdc-paspartu" data-pdc="paspartu" defaultValue="6">
-                <option value="0">Sin paspartú</option>
-                <option value="4">4 cm</option>
-                <option value="6">6 cm</option>
-                <option value="8">8 cm</option>
-              </select>
+          <section className="pdc-bloque" data-pdc="panel-cuadro" hidden>
+            <div className="pdc-fila pdc-entre">
+              <h2 data-pdc="titulo-cuadro">Este cuadro</h2>
+              <button type="button" className="pdc-btn" data-pdc="listo">Listo</button>
+            </div>
+            <div className="pdc-seg pdc-seg-ancho" role="group" aria-label="Tipo de este cuadro" data-pdc="tipo-cuadro" />
+            <div className="pdc-campos">
+              <label className="pdc-campo" htmlFor="pdc-medida-cuadro">
+                Medida
+                <select id="pdc-medida-cuadro" data-pdc="medida-cuadro" />
+              </label>
+              <label className="pdc-campo" htmlFor="pdc-orientacion-cuadro">
+                Orientación
+                <select id="pdc-orientacion-cuadro" data-pdc="orientacion-cuadro" defaultValue="v">
+                  <option value="v">Vertical</option>
+                  <option value="h">Horizontal</option>
+                </select>
+              </label>
+            </div>
+            <div className="pdc-fila">
+              <button type="button" className="pdc-btn pdc-btn-principal" data-pdc="encuadrar" aria-pressed="false">Encuadrar foto</button>
+              <button type="button" className="pdc-btn" data-pdc="rotar-foto">Rotar 90°</button>
+              <button type="button" className="pdc-btn" data-pdc="centrar-foto">Centrar foto</button>
+            </div>
+            <p className="pdc-nota" data-pdc="nota-una-foto" hidden>La foto es la misma para todo el conjunto: lo que cambies acá mueve a todos.</p>
+            <label className="pdc-campo" htmlFor="pdc-zoom">
+              Zoom
+              <input type="range" id="pdc-zoom" data-pdc="zoom" step={0.01} />
             </label>
+            <div className="pdc-campo">
+              <label htmlFor="pdc-inclinacion">Inclinación: <output data-pdc="inclinacion-valor" /></label>
+              <div className="pdc-fila pdc-centro">
+                <input type="range" id="pdc-inclinacion" data-pdc="inclinacion" step={0.5} className="pdc-flex" />
+                <button type="button" className="pdc-btn" data-pdc="inclinacion-cero">0°</button>
+              </div>
+            </div>
+            <label className="pdc-campo" htmlFor="pdc-paspartu-cuadro">
+              Paspartú (solo con marco)
+              <select id="pdc-paspartu-cuadro" data-pdc="paspartu-cuadro" />
+            </label>
+            <div className="pdc-fila">
+              <button type="button" className="pdc-btn" data-pdc="duplicar">Duplicar cuadro</button>
+              <button type="button" className="pdc-btn" data-pdc="quitar">Quitar cuadro</button>
+            </div>
           </section>
 
           <section className="pdc-bloque">
@@ -227,6 +281,14 @@ const CSS = `
 .pdc-modal{position:fixed; inset:0; background:rgba(10,14,12,.72); z-index:60; display:flex; align-items:center; justify-content:center; padding:16px}
 .pdc-modal-tarjeta{background:var(--wsite-bg, var(--fo-surface, #fff)); color:var(--pdc-fg); border-radius:14px; padding:14px; max-width:min(1100px,100%); max-height:100%; display:flex; flex-direction:column; gap:10px; overflow:auto}
 .pdc-modal-tarjeta img{max-width:100%; max-height:70vh; object-fit:contain; border-radius:8px; align-self:center}
+.pdc-historial{gap:4px}
+.pdc-icono{padding:6px 11px; font-size:17px; line-height:1}
+.pdc-btn:disabled{opacity:.4; cursor:default; border-color:var(--pdc-line)}
+.pdc-seg-ancho{display:flex; width:100%}
+.pdc-seg-ancho button{flex:1}
+.pdc-centro{align-items:center; flex-wrap:nowrap}
+.pdc-flex{flex:1; min-width:0}
+.pdc select:disabled{opacity:.5}
 @media (max-width:900px){
   .pdc-layout{grid-template-columns:minmax(0,1fr)}
   .pdc-escena{position:static}
