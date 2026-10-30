@@ -85,8 +85,11 @@ describe("crearPedidoDeMostrador", () => {
       orderId: pedido!.id, proyectoId: "t10", proveedorId: "lab1", sourceKey: "impresion/ws-1/o1.jpg", sourceName: "o1.jpg",
       quantity: 2, paper: "BRILLO", plazo: "MANANA", cropX: 0, cropY: 0, cropW: 1, cropH: 1,
     });
-    expect(Number(de("p-o1").widthCm)).toBeCloseTo(10.2);
-    expect(Number(de("p-o1").heightCm)).toBeCloseTo(15.2);
+    // La medida nominal (como los pedidos del bot): el ZIP y el resumen del laboratorio dicen «10x15».
+    expect(Number(de("p-o1").widthCm)).toBe(10);
+    expect(Number(de("p-o1").heightCm)).toBe(15);
+    expect(Number(de("p-o3").widthCm)).toBe(13);
+    expect(Number(de("p-o3").heightCm)).toBe(18);
     expect(de("p-o2")).toMatchObject({ proyectoId: "t10", proveedorId: "lab1", quantity: 3 });
     expect(de("p-o3")).toMatchObject({ proyectoId: "t13", proveedorId: "lab2", quantity: 1, paper: "MATE" });
     // Cada ítem lleva el mismo laboratorio que su trabajo.
@@ -172,6 +175,21 @@ describe("comprobarTicketDeLaboratorio", () => {
     cargar();
     const r = await M.comprobarTicketDeLaboratorio("ws-2", "prep1", lineas);
     expect(r).toEqual({ ok: false, error: "Esa preparación no existe." });
+  });
+});
+
+describe("preparacionYaCobrada", () => {
+  it("no, mientras se prepara; sí, con su pedido de mostrador o LISTA; nunca mira otro negocio", async () => {
+    cargar();
+    expect(await M.preparacionYaCobrada(WS, "prep1")).toBe(false);
+    B.agregar("fotofficePrintOrder", { id: "ajeno", workspaceId: "ws-2", number: 7, pricingSnapshot: { origen: "mostrador", preparacionId: "prep1" } });
+    expect(await M.preparacionYaCobrada(WS, "prep1")).toBe(false);
+    await M.crearPedidoDeMostrador(datosPedido);
+    expect(await M.preparacionYaCobrada(WS, "prep1")).toBe(true);
+    B.vaciar();
+    cargar();
+    B.datos.fotofficePreparacionImpresion[0]!.estado = "LISTA";
+    expect(await M.preparacionYaCobrada(WS, "prep1")).toBe(true);
   });
 });
 

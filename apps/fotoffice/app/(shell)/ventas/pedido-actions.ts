@@ -26,7 +26,7 @@ import { DIGITALIZACION_MODULE_KEY } from "@/lib/digitalizacion/constants";
 import { trabajosDeDigitalizacionDelPedido } from "@/lib/digitalizacion/servidor/trabajo";
 import { getModuleLevel } from "@/lib/permissions/module-access";
 import { hasLevel } from "@/lib/permissions/levels";
-import { comprobarTicketDeLaboratorio, crearPedidoDeMostrador, mensajeSinFlujo, productosSinFlujo } from "@/lib/impresiones/mostrador-servidor";
+import { comprobarTicketDeLaboratorio, crearPedidoDeMostrador, mensajeSinFlujo, preparacionYaCobrada, productosSinFlujo } from "@/lib/impresiones/mostrador-servidor";
 
 /**
  * El Mostrador con trabajos "con proceso" o renglones marcados «Seña». Esa parte se vuelve un pedido (con su seña
@@ -183,11 +183,16 @@ export async function cobrarConPedidoAction(input: CobroConPedidoInput): Promise
   // cada producto necesita su flujo (sin él no hay trabajo al que atar las fotos).
   const lineasLab = input.lines.filter((l) => l.paraLaboratorio === true);
   const preparacionId = input.laboratorio && typeof input.laboratorio.preparacionId === "string" ? input.laboratorio.preparacionId : null;
-  // El mismo cobro que vuelve (ya hay pedido con esta clave) no se vuelve a comprobar: la primera
-  // vuelta ya lo hizo y la preparación pudo haber quedado LISTA (como `crearPedidoManual`, que
-  // devuelve el pedido repetido antes de validar nada).
+  // El mismo cobro que vuelve (ya hay pedido con esta clave) cuya preparación ya se cobró (LISTA o
+  // con su pedido de impresión) no se vuelve a comprobar: la primera vuelta ya lo hizo y ahora la
+  // comprobación la rechazaría. En cualquier otro caso se comprueba.
   const conLaboratorio = Boolean(input.laboratorio) || lineasLab.length > 0;
-  if (conLaboratorio && !(await prisma.fotofficePedido.findFirst({ where: { workspaceId: workspace.id, altaKey: input.clave }, select: { id: true } }))) {
+  const yaCobrado =
+    conLaboratorio &&
+    preparacionId !== null &&
+    (await prisma.fotofficePedido.findFirst({ where: { workspaceId: workspace.id, altaKey: input.clave }, select: { id: true } })) !== null &&
+    (await preparacionYaCobrada(workspace.id, preparacionId));
+  if (conLaboratorio && !yaCobrado) {
     if (!preparacionId || lineasLab.length === 0) return { ok: false, error: "Las fotos cambiaron: tocá el pedido para laboratorio y volvé a cobrar." };
     const t = await comprobarTicketDeLaboratorio(workspace.id, preparacionId, lineasLab);
     if (!t.ok) return { ok: false, error: t.error };
@@ -294,7 +299,7 @@ export async function cobrarConPedidoAction(input: CobroConPedidoInput): Promise
       cobradoMinor: despues ? Math.round(despues.plan.cobrado * 100) : 0,
       saldoMinor: despues ? Math.round(despues.plan.saldo * 100) : 0,
       saleNumber: null,
-      aviso: [avisoCobroRepetido({ numero: alta.numero, sena: senaRepetida, habiaVentaEnElMomento: enElMomento.length > 0 }), lab.aviso].filter(Boolean).join(" "),
+      aviso: [avisoCobroRepetido({ numero: alta.numero, sena: senaRepetida, habiaVentaEnElMomento: enElMomento.length > 0 }), lab.aviso].filter(Boolean).join(" ") || null,
       grabar: await trabajosParaGrabar(workspace.id, user.id, alta.pedidoId),
       laboratorios: lab.laboratorios,
     };

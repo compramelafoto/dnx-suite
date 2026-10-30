@@ -100,6 +100,8 @@ const RELACIONES: Record<string, { columna: string; tabla: Tabla }> = {
   // Digitalización: la grabación es de un trabajo y el cargo, de una entrega.
   proyecto: { columna: "proyectoId", tabla: "fotofficeProyecto" },
   entrega: { columna: "entregaId", tabla: "digitalizacionEntrega" },
+  // El ítem de un pedido de impresión (otras tablas tienen una columna `order` numérica: ver `cumple`).
+  order: { columna: "orderId", tabla: "fotofficePrintOrder" },
 };
 
 const DEFECTOS: Partial<Record<Tabla, () => Fila>> = {
@@ -371,7 +373,8 @@ export function crearBaseEnMemoria() {
       // Como Prisma: NOT { a, b } = no (a y b); NOT [x, y] = no x y no y.
       if (k === "NOT") return (Array.isArray(cond) ? (cond as Where[]) : [cond as Where]).every((w) => !cumple(f, w));
       const rel = RELACIONES[k];
-      if (rel && cond && typeof cond === "object") {
+      // `order` sólo es relación en las filas con `orderId`; en las demás es la columna de orden.
+      if (rel && cond && typeof cond === "object" && (k !== "order" || rel.columna in f)) {
         const destino = datos[rel.tabla].find((x) => x.id === f[rel.columna]);
         return destino !== undefined && cumple(destino, cond as Where);
       }

@@ -58,6 +58,12 @@ export async function comprobarTicketDeLaboratorio(
   return { ok: true, renglones: r.renglones };
 }
 
+/** La medida nominal en cm («10x15» → 10 y 15), como los pedidos del bot: así la leen el ZIP y el resumen del laboratorio. */
+function medidaNominalCm(medida: string): { widthCm: number; heightCm: number } | null {
+  const m = medida.match(/^(\d{1,3})x(\d{1,3})$/);
+  return m ? { widthCm: Number(m[1]), heightCm: Number(m[2]) } : null;
+}
+
 async function nombresDeLaboratorios(workspaceId: string, ids: readonly (string | null)[]): Promise<string[]> {
   const unicos = [...new Set(ids.filter((x): x is string => !!x))];
   if (unicos.length === 0) return [];
@@ -73,8 +79,18 @@ function pedidoDeLaPreparacion(cliente: Pick<Prisma.TransactionClient, "fotoffic
   });
 }
 
+/**
+ * La preparación ya se cobró: quedó LISTA o ya tiene su pedido de mostrador. Con un cobro repetido
+ * es lo único que justifica no volver a comprobar el ticket (la comprobación la rechazaría).
+ */
+export async function preparacionYaCobrada(workspaceId: string, preparacionId: string): Promise<boolean> {
+  const prep = await prisma.fotofficePreparacionImpresion.findFirst({ where: { workspaceId, id: preparacionId }, select: { estado: true } });
+  if (prep?.estado === "LISTA") return true;
+  return (await pedidoDeLaPreparacion(prisma, workspaceId, preparacionId)) !== null;
+}
+
 async function respuestaDe(workspaceId: string, pedido: { id: string; number: number }) {
-  const items = await prisma.fotofficePrintOrderItem.findMany({ where: { orderId: pedido.id }, select: { proveedorId: true } });
+  const items = await prisma.fotofficePrintOrderItem.findMany({ where: { orderId: pedido.id, order: { workspaceId } }, select: { proveedorId: true } });
   return { ok: true as const, numero: pedido.number, laboratorios: await nombresDeLaboratorios(workspaceId, items.map((i) => i.proveedorId)) };
 }
 
@@ -129,18 +145,20 @@ export async function crearPedidoDeMostrador(d: {
   const items: Prisma.FotofficePrintOrderItemCreateManyInput[] = [];
   for (const p of r.piezas) {
     const original = originales.find((o) => o.id === p.originalId);
+    // Los mm reales sólo sirven para medir la calidad (y para el render, que lo hace desde la pieza).
     const papelMm = medidaEnMm(p.medida);
+    const nominal = medidaNominalCm(p.medida);
     const plazo = r.plazoFinal.get(p.originalId);
     const destino = plazo ? porRenglon.find((x) => x.renglon.claves.includes(`${p.medida}|${plazo}`)) : undefined;
-    if (!original || !papelMm || !plazo || !destino) return { ok: false, error: FOTOS_CAMBIARON };
+    if (!original || !papelMm || !nominal || !plazo || !destino) return { ok: false, error: FOTOS_CAMBIARON };
     const receta = validarReceta(recetas.find((x) => x.id === p.id)?.receta);
     const pixelada = receta !== null && calidadDeCopia({ ancho: original.anchoPx, alto: original.altoPx }, receta, papelMm).aviso === "PIXELADA";
     items.push({
       orderId: "",
       sourceKey: original.key,
       sourceName: original.nombre,
-      widthCm: papelMm.anchoMm / 10,
-      heightCm: papelMm.altoMm / 10,
+      widthCm: nominal.widthCm,
+      heightCm: nominal.heightCm,
       quantity: p.cantidad,
       unitPriceArs: 0,
       unitCostArs: 0,
