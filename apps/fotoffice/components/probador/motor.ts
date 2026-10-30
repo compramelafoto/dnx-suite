@@ -41,6 +41,7 @@ import {
   type Cuadro,
   type TipoCuadro,
 } from "@/lib/probador/composicion";
+import { cotizar, medidaMasCercana, medidasDe, precioDe, type PrecioProbador } from "@/lib/probador/catalogo";
 import { deshacer, iniciar, puedeDeshacer, puedeRehacer, registrar, rehacer, type Historial } from "@/lib/probador/historial";
 import { fotoDeMuestra, iniciarGl, leerArchivo, lienzo, livingDeEjemplo, miniatura, PALETAS } from "./recursos";
 
@@ -71,6 +72,7 @@ const MARCO_GENERICO: readonly [number, number, number] = [30, 30, 32];
 const TIPOS: { id: TipoCuadro; label: string }[] = [
   { id: "IMPRESION", label: "Impresión" },
   { id: "CANVAS", label: "Canvas" },
+  { id: "MDF", label: "MDF" },
   { id: "MARCO", label: "Con marco" },
 ];
 /** Cuánto hay que mover el dedo (px de pantalla) para que deje de ser un toque. */
@@ -83,8 +85,12 @@ const rgb = (c: readonly number[], s: number) =>
 const fmt = (n: number) => (Math.round(n * 10) / 10).toLocaleString("es-AR");
 const esCampo = (el: Element | null) => !!el && /^(INPUT|SELECT|TEXTAREA)$/.test(el.tagName);
 
-/** Monta el probador sobre el marcado de `ProbadorCuadros` (los `data-pdc`). Devuelve cómo desmontarlo. */
-export function montarProbador(raiz: HTMLElement): () => void {
+/**
+ * Monta el probador sobre el marcado de `ProbadorCuadros` (los `data-pdc`). Con `catalogo`, cada
+ * tipo ofrece sólo sus medidas con precio y el panel muestra el presupuesto; sin catálogo, las
+ * medidas son las de siempre y no hay precios. Devuelve cómo desmontarlo.
+ */
+export function montarProbador(raiz: HTMLElement, catalogo: readonly PrecioProbador[] = []): () => void {
   const $ = <T extends HTMLElement = HTMLElement>(n: string) => raiz.querySelector<T>(`[data-pdc="${n}"]`)!;
   const cv = $<HTMLCanvasElement>("lienzo"), ctx = cv.getContext("2d")!;
   const gl = iniciarGl();
@@ -94,7 +100,7 @@ export function montarProbador(raiz: HTMLElement): () => void {
     H: null as Homografia | null, Hi: null as Homografia | null, modoPared: false,
     fotos: [] as Foto[], deMuestra: true,
     // Lo que el panel "Conjunto" usa para rearmar la plantilla.
-    plantilla: "escalonado5" as ComposicionId, medida: 3, orient: "v", sep: 5,
+    plantilla: "escalonado5" as ComposicionId, base: { corto: 50, largo: 50 }, orient: "v", sep: 5,
     hist: null as unknown as Historial<Composicion>, provisorio: null as Composicion | null,
     sel: null as string | null, encuadrando: false, guias: { x: [] as number[], y: [] as number[] },
     capa: null as Capa | null,
@@ -163,6 +169,12 @@ export function montarProbador(raiz: HTMLElement): () => void {
       g.fillStyle = gr; g.fillRect(x + w - e, y, e, h);
       gr = g.createLinearGradient(0, y + h - e, 0, y + h); gr.addColorStop(0, "rgba(0,0,0,0)"); gr.addColorStop(1, "rgba(0,0,0,.25)");
       g.fillStyle = gr; g.fillRect(x, y + h - e, w, e);
+      return;
+    }
+    if (q.tipo === "MDF") {
+      // La placa de MDF se ve como un canto fino y oscuro abajo y a la derecha.
+      const e = 0.5;
+      g.fillStyle = "rgba(0,0,0,.28)"; g.fillRect(x + w - e, y, e, h); g.fillRect(x, y + h - e, w, e);
       return;
     }
     if (q.tipo === "IMPRESION") {
@@ -320,7 +332,7 @@ export function montarProbador(raiz: HTMLElement): () => void {
   }
   function medidas(c: Composicion) {
     const r = rectanguloDelConjunto(c), grupos = new Map<string, number>();
-    const nombre: Record<TipoCuadro, [string, string]> = { IMPRESION: ["impresión", "impresiones"], CANVAS: ["canvas", "canvas"], MARCO: ["con marco", "con marco"] };
+    const nombre: Record<TipoCuadro, [string, string]> = { IMPRESION: ["impresión", "impresiones"], CANVAS: ["canvas", "canvas"], MDF: ["MDF", "MDF"], MARCO: ["con marco", "con marco"] };
     for (const q of c.cuadros) { const k = `${q.tipo}|${fmt(q.w)} × ${fmt(q.h)} cm`; grupos.set(k, (grupos.get(k) ?? 0) + 1); }
     const partes = [...grupos].map(([k, n]) => {
       const [tipo, medida] = k.split("|") as [TipoCuadro, string];
@@ -481,11 +493,28 @@ export function montarProbador(raiz: HTMLElement): () => void {
   document.addEventListener("keydown", alTeclear); window.addEventListener("resize", alRedimensionar);
 
   /* ---------- Panel ---------- */
-  const opcionesMedida = (w: number, h: number) => {
-    const opciones = MEDIDAS.map(([a, b]) => `${a}x${b}`);
-    const actual = `${fmt(Math.min(w, h))}x${fmt(Math.max(w, h))}`.replace(/,/g, ".");
-    const html = MEDIDAS.map(([a, b]) => `<option value="${a}x${b}">${a} × ${b} cm</option>`).join("");
-    return { html: opciones.includes(actual) ? html : `<option value="${actual}">${actual.replace("x", " × ")} cm (actual)</option>${html}`, actual };
+  const pesos = (n: number) => n.toLocaleString("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
+  /** Las medidas que ofrece un tipo: las del catálogo, con su precio, o las de siempre si no hay catálogo. */
+  const medidasDelTipo = (tipo: TipoCuadro): { corto: number; largo: number; precio: number | null }[] => {
+    const delCatalogo = medidasDe(catalogo, tipo);
+    if (delCatalogo.length) return delCatalogo.map((p) => ({ corto: p.corto, largo: p.largo, precio: p.precioArs }));
+    return MEDIDAS.map(([a, b]) => ({ corto: a, largo: b, precio: null }));
+  };
+  const opcionesMedida = (tipo: TipoCuadro, w: number, h: number) => {
+    const lista = medidasDelTipo(tipo);
+    const actual = `${Math.min(w, h)}x${Math.max(w, h)}`;
+    const html = lista.map((m) => `<option value="${m.corto}x${m.largo}">${m.corto} × ${m.largo} cm${m.precio != null ? ` · ${pesos(m.precio)}` : ""}</option>`).join("");
+    return { html: lista.some((m) => `${m.corto}x${m.largo}` === actual) ? html : `<option value="${actual}">${fmt(Math.min(w, h))} × ${fmt(Math.max(w, h))} cm (sin precio)</option>${html}`, actual };
+  };
+  /** Lleva cada cuadro sin precio a la medida con precio más parecida de su tipo, sin moverle el centro. */
+  const alCatalogo = (c: Composicion): Composicion => {
+    let r = c;
+    for (const q of c.cuadros) {
+      if (precioDe(catalogo, q.tipo, q.w, q.h)) continue;
+      const m = medidaMasCercana(catalogo, q.tipo, q.w, q.h);
+      if (m) r = cambiarMedida(r, q.id, m.w, m.h);
+    }
+    return r;
   };
   const leerMedida = (v: string, vertical: boolean) => {
     const [a, b] = v.split("x").map(Number);
@@ -514,6 +543,9 @@ export function montarProbador(raiz: HTMLElement): () => void {
     $<HTMLInputElement>("una-foto").disabled = c.cuadros.length < 2;
     const tipos = new Set(c.cuadros.map((x) => x.tipo));
     $("tipo-todos").innerHTML = tiposHtml(tipos.size === 1 ? [...tipos][0] : null);
+    const medidaTodos = $<HTMLSelectElement>("medida-todos"), base = opcionesMedida(c.cuadros[0]?.tipo ?? "CANVAS", P.base.corto, P.base.largo);
+    medidaTodos.innerHTML = base.html; medidaTodos.value = base.actual;
+    presupuesto(c);
     const pasp = new Set(c.cuadros.filter((x) => x.tipo === "MARCO").map((x) => x.paspartu));
     $<HTMLSelectElement>("paspartu-todos").disabled = !tipos.has("MARCO");
     $<HTMLSelectElement>("paspartu-todos").value = pasp.size === 0 ? "0" : pasp.size === 1 ? String([...pasp][0]) : "";
@@ -523,7 +555,7 @@ export function montarProbador(raiz: HTMLElement): () => void {
     const n = c.cuadros.findIndex((x) => x.id === q.id) + 1;
     $("titulo-cuadro").textContent = `Cuadro ${n} de ${c.cuadros.length}`;
     $("tipo-cuadro").innerHTML = tiposHtml(q.tipo);
-    const m = opcionesMedida(q.w, q.h);
+    const m = opcionesMedida(q.tipo, q.w, q.h);
     const medida = $<HTMLSelectElement>("medida-cuadro");
     medida.innerHTML = m.html; medida.value = m.actual;
     $<HTMLSelectElement>("orientacion-cuadro").value = q.h >= q.w ? "v" : "h";
@@ -554,8 +586,19 @@ export function montarProbador(raiz: HTMLElement): () => void {
     cont.querySelectorAll<HTMLButtonElement>(".pdc-chip").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.id === P.plantilla)));
   }
   /** Rearma la plantilla con la medida, orientación y separación del panel, conservando tipo, fotos y encuadres. */
+  function presupuesto(c: Composicion) {
+    $("presupuesto").hidden = !catalogo.length;
+    if (!catalogo.length) return;
+    const r = cotizar(catalogo, c), nombre = Object.fromEntries(TIPOS.map((t) => [t.id, t.label]));
+    $("presupuesto-lineas").innerHTML = r.lineas.map((l) =>
+      `<li><span>${l.cantidad} × ${nombre[l.tipo]} ${fmt(l.corto)} × ${fmt(l.largo)} cm</span><span>${l.precioArs != null ? pesos(l.precioArs * l.cantidad) : "Sin precio"}</span></li>`).join("");
+    $("presupuesto-total").textContent = pesos(r.total);
+    $("presupuesto-nota").textContent = r.sinPrecio
+      ? `${r.sinPrecio === 1 ? "Un cuadro no tiene" : `${r.sinPrecio} cuadros no tienen`} precio todavía: se presupuesta aparte.`
+      : "Precios de lista del estudio, por cuadro.";
+  }
   function rearmar() {
-    const c = comp(), [a, b] = MEDIDAS[P.medida], w = P.orient === "v" ? a : b, h = P.orient === "v" ? b : a;
+    const c = comp(), a = P.base.corto, b = P.base.largo, w = P.orient === "v" ? a : b, h = P.orient === "v" ? b : a;
     const tipo = c.cuadros[0]?.tipo ?? "CANVAS";
     const nueva = desdePlantilla(P.plantilla, w, h, P.sep, tipo, centroEnLaPared(c));
     nueva.cuadros = nueva.cuadros.map((q, i) => {
@@ -563,7 +606,7 @@ export function montarProbador(raiz: HTMLElement): () => void {
       return viejo ? { ...q, tipo: viejo.tipo, paspartu: viejo.paspartu, foto: viejo.foto, encuadre: viejo.encuadre } : { ...q, foto: i };
     });
     P.sel = null; P.encuadrando = false;
-    confirmar({ ...nueva, unaFoto: c.unaFoto, fotoConjunto: c.fotoConjunto, encuadreConjunto: c.encuadreConjunto });
+    confirmar(alCatalogo({ ...nueva, unaFoto: c.unaFoto, fotoConjunto: c.fotoConjunto, encuadreConjunto: c.encuadreConjunto }));
   }
   function miniaturas() {
     const c = comp(), q = cuadroSel();
@@ -593,11 +636,11 @@ export function montarProbador(raiz: HTMLElement): () => void {
     enClick("composiciones", (b) => { P.plantilla = b.dataset.id as ComposicionId; rearmar(); }),
     enClick("tipo-todos", (b) => {
       const tipo = b.dataset.tipo as TipoCuadro;
-      confirmar(aplicarATodos(comp(), { tipo, paspartu: tipo === "MARCO" ? 5 : 0 }));
+      confirmar(alCatalogo(aplicarATodos(comp(), { tipo, paspartu: tipo === "MARCO" ? 5 : 0 })));
     }),
     enClick("tipo-cuadro", (b) => {
       const tipo = b.dataset.tipo as TipoCuadro;
-      conSel((c, q) => cambiarCuadro(c, q.id, { tipo, paspartu: tipo === "MARCO" ? (q.paspartu || 5) : 0 }));
+      conSel((c, q) => alCatalogo(cambiarCuadro(c, q.id, { tipo, paspartu: tipo === "MARCO" ? (q.paspartu || 5) : 0 })));
     }),
     enClick("miniaturas", (b) => {
       const i = Number(b.dataset.i), c = comp(), q = cuadroSel();
@@ -605,7 +648,7 @@ export function montarProbador(raiz: HTMLElement): () => void {
       else if (q) confirmar(cambiarCuadro(c, q.id, { foto: i, encuadre: ENCUADRE_INICIAL }));
       else $("nota-fotos").textContent = "Primero tocá un cuadro en la pared para elegir dónde va esta foto.";
     }),
-    enCambio("medida-todos", "change", (el) => { P.medida = MEDIDAS.findIndex(([a, b]) => `${a}x${b}` === el.value); rearmar(); }),
+    enCambio("medida-todos", "change", (el) => { const [a, b] = el.value.split("x").map(Number); P.base = { corto: a, largo: b }; rearmar(); }),
     enCambio("orientacion-todos", "change", (el) => { P.orient = el.value; rearmar(); }),
     enCambio("separacion", "input", (el) => { P.sep = Number(el.value); $("separacion-valor").textContent = `${P.sep} cm`; }),
     enCambio("separacion", "change", () => rearmar()),
@@ -662,9 +705,6 @@ export function montarProbador(raiz: HTMLElement): () => void {
   inclinacion.min = String(-INCLINACION_MAXIMA); inclinacion.max = String(INCLINACION_MAXIMA);
 
   function sincronizar() {
-    const medida = $<HTMLSelectElement>("medida-todos");
-    medida.innerHTML = MEDIDAS.map(([a, b]) => `<option value="${a}x${b}">${a} × ${b} cm</option>`).join("");
-    medida.value = `${MEDIDAS[P.medida][0]}x${MEDIDAS[P.medida][1]}`;
     $<HTMLSelectElement>("orientacion-todos").value = P.orient;
     $<HTMLInputElement>("separacion").value = String(P.sep);
     $("separacion-valor").textContent = `${P.sep} cm`;
@@ -743,8 +783,7 @@ export function montarProbador(raiz: HTMLElement): () => void {
 
   /* ---------- Arranque: un escalonado de canvas con una sola foto, como las referencias ---------- */
   P.fotos = PALETAS.map((_, i) => { const c = fotoDeMuestra(i); return { img: c, thumb: miniatura(c) }; });
-  const [a0, b0] = MEDIDAS[P.medida];
-  P.hist = iniciar({ ...desdePlantilla(P.plantilla, a0, b0, P.sep, "CANVAS", { x: 0, y: 0 }), unaFoto: true, fotoConjunto: 1 });
+  P.hist = iniciar(alCatalogo({ ...desdePlantilla(P.plantilla, P.base.corto, P.base.largo, P.sep, "CANVAS", { x: 0, y: 0 }), unaFoto: true, fotoConjunto: 1 }));
   usarLiving();
 
   return () => {

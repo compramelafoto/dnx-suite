@@ -3,6 +3,7 @@ import { prisma } from "@repo/db";
 import { PageHeader } from "@/components/page-header";
 import { ProbadorCuadros } from "@/components/probador/probador-cuadros";
 import { EnlaceParaClientes } from "@/components/probador/enlace-para-clientes";
+import { cargarCatalogoProbador } from "@/lib/probador/catalogo.server";
 import { requireActiveWorkspace } from "@/lib/workspace";
 import { getModuleLevel } from "@/lib/permissions/module-access";
 import { hasLevel } from "@/lib/permissions/levels";
@@ -23,10 +24,10 @@ export default async function ProbadorPanelPage() {
   const nivel = await getModuleLevel(user.id, workspace.id, SALES_MODULE_KEY);
   if (!hasLevel(nivel, "VIEW")) redirect("/dashboard");
 
-  const branding = await prisma.fotofficeWorkspaceBranding.findUnique({
-    where: { workspaceId: workspace.id },
-    select: { publicSlug: true },
-  });
+  const [branding, catalogo] = await Promise.all([
+    prisma.fotofficeWorkspaceBranding.findUnique({ where: { workspaceId: workspace.id }, select: { publicSlug: true } }),
+    cargarCatalogoProbador(workspace.id),
+  ]);
   const enlace = branding?.publicSlug ? `${appUrl()}/w/${branding.publicSlug}/${PROBADOR_PUBLIC_SEGMENT}` : null;
 
   return (
@@ -36,7 +37,7 @@ export default async function ProbadorPanelPage() {
         description="Sacale una foto a la pared del cliente, marcá una medida que conozcas y mostrale cómo quedan los cuadros a escala: individuales, dípticos, trípticos o una galería, con el marco que elija."
       />
       {enlace ? <EnlaceParaClientes url={enlace} /> : null}
-      <ProbadorCuadros />
+      <ProbadorCuadros catalogo={catalogo} />
     </div>
   );
 }

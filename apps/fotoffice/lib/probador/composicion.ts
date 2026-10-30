@@ -7,7 +7,7 @@ import { ENCUADRE_INICIAL, type Encuadre } from "./encuadre";
  * viven las operaciones, que nunca modifican la composición recibida.
  */
 
-export type TipoCuadro = "IMPRESION" | "CANVAS" | "MARCO";
+export type TipoCuadro = "IMPRESION" | "CANVAS" | "MDF" | "MARCO";
 
 export type Cuadro = {
   id: string;
