@@ -2,6 +2,7 @@ import "server-only";
 import { after } from "next/server";
 import { prisma, type Prisma } from "@repo/db";
 import { createMercadoPagoCheckoutProLiveAdapter } from "@repo/payments/mercado-pago";
+import { descontarEmbalajeDeImpresion } from "@/lib/stock/embalaje-impresion";
 import { resolveDepositTarget } from "@/lib/cash/auto-deposit";
 import { CASH_MODULE_KEY } from "@/lib/cash/constants";
 import { recordCashMovement } from "@/lib/cash/record-movement";
@@ -276,6 +277,8 @@ export async function acreditarPagoImpresion(workspaceId: string, pago: PagoMp):
     }
 
     const trabajos = await crearTrabajosEnTransaccion(tx, workspaceId, { id, number: pedido.number, clientId, hoy, prometido, items: pedido.items, pagado: paidAt });
+    // Sobres y bolsas: una sola vez, en el primer paso a PAGADO (los pagos extra del bot no llegan acá).
+    await descontarEmbalajeDeImpresion(tx, { workspaceId, pedidoId: id, items: pedido.items });
     if (!trabajos) await tx.fotofficePrintOrder.update({ where: { id }, data: { lastError: SIN_CIRCUITO } });
 
     // Caja. Nunca inventa una cuenta: sin cuenta no hay movimiento, pero el pago no se pierde.
