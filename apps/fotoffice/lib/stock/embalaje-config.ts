@@ -1,5 +1,5 @@
 import "server-only";
-import { prisma } from "@repo/db";
+import { prisma, type Prisma } from "@repo/db";
 import {
   FORMAS_ENTREGA,
   TIPOS_ENVOLTORIO,
@@ -30,7 +30,7 @@ export const ENVOLTORIOS_DE_EJEMPLO: readonly {
 ];
 
 const MEDIDA_MAXIMA_CM = 300;
-type Tx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
+type Tx = Prisma.TransactionClient;
 type Resultado = { ok: true } | { ok: false; error: string };
 
 /** Crea el insumo de un envoltorio (existencia 0) y su ficha. Nunca escribe movimientos. */
