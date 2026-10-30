@@ -73,7 +73,15 @@ async function leerEnvoltorios(
 
 /** Los envoltorios activos del negocio. */
 export async function envoltoriosActivos(tx: Tx, workspaceId: string): Promise<Envoltorio[]> {
-  return (await leerEnvoltorios(tx, workspaceId, { activo: true })).map(({ filaId: _, ...e }) => e);
+  return (await leerEnvoltorios(tx, workspaceId, { activo: true })).map((e) => ({
+    insumoId: e.insumoId,
+    nombre: e.nombre,
+    tipo: e.tipo,
+    admiteAnchoCm: e.admiteAnchoCm,
+    admiteAltoCm: e.admiteAltoCm,
+    piezasPorUnidad: e.piezasPorUnidad,
+    orden: e.orden,
+  }));
 }
 
 /** Valida lo elegido a mano: envoltorios del negocio (activos o no) y cantidades enteras de 0 a 999. */
@@ -198,5 +206,47 @@ export async function ajustarEmbalaje(
       unitCostArs: null,
       createdByUserId: d.createdByUserId,
     });
+  }
+}
+
+/** Para mostrar y cambiar el embalaje ya descontado de un pedido: lo que hay y con qué se puede cambiar. */
+export async function leerEmbalajeDe(
+  workspaceId: string,
+  d: { sourceModule: FuenteConsumo; sourceRef: string },
+  db: Tx,
+): Promise<{ actual: EmbalajeElegido[]; opciones: { insumoId: string; nombre: string }[] }> {
+  const [descontado, opciones] = await Promise.all([embalajeDescontado(db, { workspaceId, ...d }), envoltoriosActivos(db, workspaceId)]);
+  return {
+    actual: [...descontado.entries()].map(([insumoId, qty]) => ({ insumoId, qty })),
+    opciones: opciones.map((o) => ({ insumoId: o.insumoId, nombre: o.nombre })),
+  };
+}
+
+/**
+ * Cambia el embalaje de un pedido con seña (por ejemplo, la segunda entrega de un pedido en partes
+ * suma un sobre). El pedido tiene que ser del negocio y no estar cancelado.
+ */
+export async function cambiarEmbalajeDePedido(
+  db: PrismaClient,
+  d: { workspaceId: string; pedidoId: string; deseado: unknown; userId: number | null },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!Array.isArray(d.deseado)) return { ok: false, error: "La cantidad de embalaje no se entiende." };
+  const pedido = await db.fotofficePedido.findFirst({ where: { id: d.pedidoId, workspaceId: d.workspaceId }, select: { status: true } });
+  if (!pedido) return { ok: false, error: "No encontramos ese pedido." };
+  if (pedido.status === "CANCELADO") return { ok: false, error: "El pedido está cancelado." };
+  try {
+    await db.$transaction((tx) =>
+      ajustarEmbalaje(tx, {
+        workspaceId: d.workspaceId,
+        sourceModule: "pedidos",
+        sourceRef: d.pedidoId,
+        deseado: d.deseado as EmbalajeElegido[],
+        createdByUserId: d.userId,
+      }),
+    );
+    return { ok: true };
+  } catch (e) {
+    if (e instanceof EmbalajeInvalido) return { ok: false, error: e.message };
+    throw e;
   }
 }

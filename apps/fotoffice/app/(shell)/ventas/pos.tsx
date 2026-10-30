@@ -46,6 +46,7 @@ import { VerificarPago } from "./verificar-pago";
 import { CobroQr } from "./cobro-qr";
 import type { PagoCandidato } from "@/lib/sales/verificar-pago";
 import type { ClienteBuscado } from "./mostrador-actions";
+import { LineaEmbalaje } from "@/components/stock/linea-embalaje";
 import { checkoutAction, findProductByCodeAction, searchProductsAction, type CheckoutInput } from "./actions";
 import { crearPreparacionAction, produccionDeProductosAction } from "./impresion/actions";
 import { DialogoPreparar, copiasTerminadas } from "./dialogo-preparar";
@@ -185,6 +186,8 @@ export function Pos({
   const searchRef = useRef<HTMLInputElement>(null);
 
   const [rows, setRows] = useState<TicketRow[]>([]);
+  // Sobres y bolsas cambiados a mano (null = los calcula el sistema al cobrar).
+  const [embalajeElegido, setEmbalajeElegido] = useState<{ insumoId: string; qty: number }[] | null>(null);
   const [discountText, setDiscountText] = useState("");
   const [note, setNote] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<SalePaymentMethod>("EFECTIVO");
@@ -713,6 +716,7 @@ export function Pos({
 
   function reiniciarTicket() {
     setRows([]);
+    setEmbalajeElegido(null);
     setPreparaciones({});
     setFotolibros({});
     setParaRetirar({});
@@ -821,6 +825,7 @@ export function Pos({
       client: cliente ? { mode: "existing", clientId: cliente.id } : { mode: "none" },
       mpPaymentId: mpOrderId ? null : verificadoPara(pedido.aCobrar),
       mpOrderId,
+      embalaje: embalajeElegido,
     };
 
     if (pedido.hay && cliente) {
@@ -1618,6 +1623,12 @@ export function Pos({
               <span className="text-sm font-medium text-[var(--fo-muted)]">Total</span>
               <span className="whitespace-nowrap text-[26px] font-bold tabular-nums tracking-tight 2xl:text-3xl">{formatMinorArs(totals.totalMinor)}</span>
             </div>
+            <LineaEmbalaje
+              lineas={rows.map((r) => ({ productId: r.productId, qty: r.qty }))}
+              conPedido={pedido.hay}
+              elegido={embalajeElegido}
+              onElegido={setEmbalajeElegido}
+            />
           </div>
 
           {/* Medio de pago */}

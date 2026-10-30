@@ -1,0 +1,20 @@
+[
+  {
+    "archivo": "01-envoltorios.png",
+    "ruta": "/ventas/stock/embalaje",
+    "que_mostrar": "Sección 'Sobres y bolsas' con el sobre de papel 19x24 (entra hasta 15x21, uno más cada 100) y las bolsas negras 20x30, 30x45 y 35x45. Recortar la sección.",
+    "selector_recorte": "section:first-of-type"
+  },
+  {
+    "archivo": "02-forma-de-entrega.png",
+    "ruta": "/ventas/stock/embalaje",
+    "que_mostrar": "Tabla 'Cómo se entrega cada producto' con una copia 10x15 (pieza suelta 10x15), un portarretratos 13x18 (con marco, bolsa más grande tildada) y un fotolibro (volumen, siempre en bolsa 35x45). Alguna fila 'sugerido'.",
+    "selector_recorte": "section:last-of-type"
+  },
+  {
+    "archivo": "03-cobrador-embalaje.png",
+    "ruta": "/ventas",
+    "que_mostrar": "Cobrador con 20 copias 10x15 y un portarretratos 13x18 con su foto: debajo del total, 'Embalaje: 1 Sobre de papel 19x24 + 1 Bolsa negra 20x30 · Cambiar'. NO cobrar.",
+    "selector_recorte": null
+  }
+]

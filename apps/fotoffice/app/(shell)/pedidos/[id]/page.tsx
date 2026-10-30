@@ -26,6 +26,8 @@ import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
 import { etiquetaDeUsuario } from "@/lib/listado/acceso";
 import { claseDeColorEtiqueta, fechaHoraBA } from "@/lib/ficha/formato";
 import { puedeGestionarPedidos } from "@/lib/pedidos/acceso";
+import { EmbalajeDelPedido } from "@/components/pedidos/embalaje-del-pedido";
+import { leerEmbalajeDe } from "@/lib/stock/embalaje-servidor";
 import { leerChecklist } from "@/lib/pedidos/checklist";
 import { costosYPagosDelPedido, proveedoresParaCuentas, puedeGestionarCuentas, rubrosDeCosto } from "@/lib/pedidos/cuentas-pagar";
 import { ETIQUETA_ESTADO_CUOTA, ETIQUETA_ESTADO_PEDIDO, ETIQUETA_MEDIO_COBRO, esMedioCobro, type EstadoCuota } from "@/lib/pedidos/constantes";
@@ -88,6 +90,7 @@ export default async function PedidoPage({ params }: { params: Promise<{ id: str
 
   const gestiona = puedeGestionarPedidos(ctx);
   const cancelado = detalle.estado === "CANCELADO";
+  const embalaje = await leerEmbalajeDe(workspace.id, { sourceModule: "pedidos", sourceRef: detalle.id }, prisma);
   const hoy = diaEnBuenosAires(new Date());
   const costos = detalle.veCostos ? await costosDelPedido(ctx, detalle) : null;
   const costosYPagos = detalle.veCostos
@@ -432,6 +435,15 @@ export default async function PedidoPage({ params }: { params: Promise<{ id: str
             </h2>
             <ChecklistDelPedido pedidoId={detalle.id} tareas={tareasVista} plantillas={checklist?.plantillas ?? []} puedeEditar={gestiona && !cancelado} />
           </section>
+
+          {embalaje.opciones.length > 0 || embalaje.actual.length > 0 ? (
+            <section aria-labelledby="embalaje-titulo" className="fo-card space-y-3">
+              <h2 id="embalaje-titulo" className="text-base font-semibold text-[var(--fo-text)]">
+                Embalaje
+              </h2>
+              <EmbalajeDelPedido pedidoId={detalle.id} actual={embalaje.actual} opciones={embalaje.opciones} puedeEditar={gestiona && !cancelado} />
+            </section>
+          ) : null}
 
           {trabajosDigitalizacion.length > 0 ? (
             <DigitalizacionDelPedido

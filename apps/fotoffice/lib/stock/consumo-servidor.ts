@@ -8,7 +8,7 @@ import {
   type LineaVendida,
   type Receta,
 } from "./consumo";
-import { NOTA_EMBALAJE, REF_EMBALAJE, type PiezaEntrega } from "./embalaje";
+import { NOTA_EMBALAJE, REF_EMBALAJE, type EmbalajeCalculado, type PiezaEntrega } from "./embalaje";
 import { planificarEmbalaje, type OpcionesEmbalaje } from "./embalaje-servidor";
 
 /**
@@ -59,25 +59,7 @@ async function consumoDeRecetas(
   raices: ReadonlySet<string>,
 ): Promise<{ lineas: ConsumoLinea[]; combos: ComponenteCombo[]; alcanzados: Set<string> }> {
   if (raices.size === 0) return { lineas: [], combos: [], alcanzados: new Set() };
-
-  // En anchura: cada vuelta trae los componentes de los combos recién hallados.
-  const combos: ComponenteCombo[] = [];
-  const alcanzados = new Set(raices);
-  let frontera = [...raices];
-  for (let vuelta = 0; vuelta < VUELTAS_MAXIMAS && frontera.length > 0; vuelta++) {
-    const filas = await tx.fotofficeComboItem.findMany({
-      where: { workspaceId, comboProductId: { in: frontera } },
-      select: { comboProductId: true, componentProductId: true, quantity: true },
-    });
-    combos.push(...filas);
-    frontera = [];
-    for (const f of filas) {
-      if (!alcanzados.has(f.componentProductId)) {
-        alcanzados.add(f.componentProductId);
-        frontera.push(f.componentProductId);
-      }
-    }
-  }
+  const { combos, alcanzados } = await combosAlcanzados(tx, workspaceId, raices);
 
   const recetas: Receta[] = await tx.fotofficeRecetaInsumo.findMany({
     where: { workspaceId, productId: { in: [...alcanzados] } },
@@ -95,6 +77,43 @@ async function consumoDeRecetas(
   const insumosValidos = new Set(validos.map((p) => p.id));
 
   return { lineas: expandirConsumo(lineas, recetas, combos, insumosValidos), combos, alcanzados };
+}
+
+/** Los combos que cuelgan de los productos vendidos, en anchura: cada vuelta trae los componentes recién hallados. */
+async function combosAlcanzados(
+  tx: Tx,
+  workspaceId: string,
+  raices: ReadonlySet<string>,
+): Promise<{ combos: ComponenteCombo[]; alcanzados: Set<string> }> {
+  const combos: ComponenteCombo[] = [];
+  const alcanzados = new Set(raices);
+  let frontera = [...raices];
+  for (let vuelta = 0; vuelta < VUELTAS_MAXIMAS && frontera.length > 0; vuelta++) {
+    const filas = await tx.fotofficeComboItem.findMany({
+      where: { workspaceId, comboProductId: { in: frontera } },
+      select: { comboProductId: true, componentProductId: true, quantity: true },
+    });
+    combos.push(...filas);
+    frontera = [];
+    for (const f of filas) {
+      if (!alcanzados.has(f.componentProductId)) {
+        alcanzados.add(f.componentProductId);
+        frontera.push(f.componentProductId);
+      }
+    }
+  }
+  return { combos, alcanzados };
+}
+
+/** El embalaje que el sistema propondría para estos renglones (vista previa del Cobrador). Sólo lee. */
+export async function proponerEmbalaje(
+  tx: Tx,
+  workspaceId: string,
+  lineas: readonly { productId: string | null; qty: number }[],
+): Promise<EmbalajeCalculado[]> {
+  const raices = new Set(lineas.flatMap((l) => (l.productId ? [l.productId] : [])));
+  const { combos, alcanzados } = raices.size > 0 ? await combosAlcanzados(tx, workspaceId, raices) : { combos: [], alcanzados: new Set<string>() };
+  return planificarEmbalaje(tx, workspaceId, { lineas, combos, alcanzados, piezasSinProducto: [], opciones: { modo: "auto" } });
 }
 
 /** La nota de un consumo: la del renglón, o la del embalaje de toda la entrega. */

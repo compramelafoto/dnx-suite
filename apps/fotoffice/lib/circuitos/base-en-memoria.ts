@@ -41,7 +41,7 @@ const TABLAS = [
   // Recetas de insumos (stock de insumos, etapa 1): lo que gasta cada producto al tomarse un pedido.
   "fotofficeRecetaInsumo",
   // Embalaje por entrega (stock, etapa 1 de embalaje): envoltorios y forma de entrega de cada producto.
-  "fotofficeEmbalaje", "fotofficeProductoEntrega",
+  "fotofficeEmbalaje", "fotofficeProductoEntrega", "fotofficeInsumo",
   // Presupuestos (etapa 2).
   "fotofficePresupuesto", "fotofficePresupuestoVersion", "fotofficePresupuestoVista", "fotofficePresupuestoAjustes",
   // Propuesta modelo por categoría (etapa 2, Entrega B).
@@ -475,6 +475,7 @@ export function crearBaseEnMemoria() {
     fotofficeRecetaInsumo: [{ columnas: ["productId", "insumoId"] }],
     fotofficeEmbalaje: [{ columnas: ["insumoId"] }],
     fotofficeProductoEntrega: [{ columnas: ["productId"] }],
+    fotofficeInsumo: [{ columnas: ["productId"] }],
     fotofficePresupuesto: [
       { columnas: ["currentVersionId"], aplica: (f) => f.currentVersionId !== null && f.currentVersionId !== undefined },
       { columnas: ["acceptedVersionId"], aplica: (f) => f.acceptedVersionId !== null && f.acceptedVersionId !== undefined },
