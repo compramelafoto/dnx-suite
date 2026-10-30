@@ -377,6 +377,12 @@ export function crearBaseEnMemoria() {
       }
       if (cond && typeof cond === "object" && !(cond instanceof Date)) {
         const c = cond as Record<string, unknown>;
+        // Como Prisma en una columna Json: `{ path: ["a", "b"], equals: x }` compara el valor de adentro.
+        if (Array.isArray(c.path)) {
+          let adentro: unknown = f[k] ?? null;
+          for (const p of c.path as string[]) adentro = adentro && typeof adentro === "object" ? ((adentro as Record<string, unknown>)[p] ?? null) : null;
+          return igual(adentro, c.equals);
+        }
         const v = f[k] ?? null;
         const n = (x: unknown) => (x instanceof Date ? x.getTime() : (x as number | string));
         return Object.entries(c).every(([op, x]) => {
