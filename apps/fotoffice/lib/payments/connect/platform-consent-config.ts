@@ -24,7 +24,7 @@ export { SPLIT_CONSENT_PRODUCTION_FLAG };
  */
 export function buildPlatformConsentConfig(
   accessToken: string,
-  env: NodeJS.ProcessEnv = process.env,
+  env: Readonly<Record<string, string | undefined>> = process.env,
 ): MercadoPagoProviderConfig {
   const escribeEnProduccion = isSplitConsentProductionEnabled(env);
   return createMercadoPagoProviderConfig({
