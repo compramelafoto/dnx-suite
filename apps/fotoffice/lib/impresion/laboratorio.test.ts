@@ -77,4 +77,11 @@ describe("renglonesDelPedido", () => {
     const r = renglonesDelPedido([pieza("a", "20x30", "MANANA", "MATE", 1)], CATALOGO, new Map([["m2030", "otro"]]));
     expect(r.ok && r.renglones[0].proveedorId).toBe("otro");
   });
+  it("pocas copias: el laboratorio es el del producto «para mañana», no el de la instantánea", () => {
+    const piezas = [pieza("a", "13x18", "SEMANA", "MATE", 3)];
+    const r = renglonesDelPedido(piezas, CATALOGO, new Map([["m1318", "otro"]]));
+    expect(r.ok && r.renglones[0]).toMatchObject({ productId: "i1318", proveedorId: "otro" });
+    const r2 = renglonesDelPedido(piezas, CATALOGO, new Map([["i1318", "ignorado"]]));
+    expect(r2.ok && r2.renglones[0]).toMatchObject({ productId: "i1318", proveedorId: "fotolag" });
+  });
 });

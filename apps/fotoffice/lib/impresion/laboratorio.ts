@@ -2,7 +2,7 @@
  * Preparar para laboratorio: reglas puras del pedido (medidas reales, opciones del catálogo y
  * renglones del ticket, uno por producto del catálogo). Módulo PURO.
  */
-import { cotizarCopias, nombreDelPlazo, type PedidoLinea, type Plazo, type ProductoCopia } from "@/lib/impresiones/catalogo-copias";
+import { cotizarCopias, nombreDelPlazo, type PedidoLinea, type ProductoCopia } from "@/lib/impresiones/catalogo-copias";
 import type { Papel } from "./encuadre";
 
 export const FOTOS_MAX_LAB = 200;
@@ -26,6 +26,8 @@ export function medidaEnMm(medida: string): Papel | null {
   if (!m) return null;
   return { anchoMm: Number(m[1]) * 10, altoMm: Number(m[2]) * 10 };
 }
+
+const TEXTO_PLAZO_ERROR: Record<PlazoLab, string> = { MANANA: "para mañana", SEMANA: "próxima semana" };
 
 export type PiezaLab = { originalId: string; medida: string; plazo: PlazoLab; papel: PapelLab; cantidad: number };
 export type OpcionesLab = { medidas: { medida: string; plazos: PlazoLab[] }[]; papeles: PapelLab[] };
@@ -71,13 +73,13 @@ export function renglonesDelPedido(
     grupos.set(k, g);
   }
   const lista = [...grupos.values()];
-  const lineas: PedidoLinea[] = lista.map((g) => ({ medida: g.medida, plazo: g.plazo as Plazo, cantidad: g.cantidad }));
+  const lineas: PedidoLinea[] = lista.map((g) => ({ medida: g.medida, plazo: g.plazo, cantidad: g.cantidad }));
   const cot = cotizarCopias(lineas, catalogo);
   if (!cot.ok) {
     // cotizarCopias corta en la primera línea sin precio; `falta` es «medida plazo».
     const medida = cot.falta.split(" ")[0];
     const grupo = lista.find((g) => `${g.medida} ${nombreDelPlazo(g.plazo)}` === cot.falta);
-    const plazo = grupo ? nombreDelPlazo(grupo.plazo).replace("para la ", "") : "";
+    const plazo = grupo ? TEXTO_PLAZO_ERROR[grupo.plazo as PlazoLab] ?? "" : "";
     return { ok: false, error: `No hay precio para ${medida} ${plazo} en el catálogo.` };
   }
   const plazoFinal = new Map<string, PlazoLab>();
@@ -87,7 +89,16 @@ export function renglonesDelPedido(
     const pf: PlazoLab = l.plazo === "SEMANA" ? "SEMANA" : "MANANA";
     for (const id of g.ids) plazoFinal.set(id, pf);
     const clave = `${l.medida}|${pf}`;
-    const prov = proveedorDeProducto.get(l.productoId) ?? l.proveedorId;
+    // Pocas copias: cotizarCopias devuelve el producto instantáneo, pero el laboratorio es el del
+    // producto «para mañana» de esa medida (el de la instantánea no cuenta).
+    const elegido = catalogo.find((p) => p.id === l.productoId);
+    const pocasCopias = elegido?.plazo === "INSTANTANEA" && g.plazo !== "INSTANTANEA";
+    const manana = pocasCopias ? catalogo.find((p) => p.medida === l.medida && p.plazo === "MANANA") : undefined;
+    const prov = manana
+      ? (proveedorDeProducto.get(manana.id) ?? manana.proveedorId)
+      : pocasCopias
+        ? l.proveedorId
+        : (proveedorDeProducto.get(l.productoId) ?? l.proveedorId);
     const r = porProducto.get(l.productoId);
     if (r) {
       r.cantidad += l.cantidad;
