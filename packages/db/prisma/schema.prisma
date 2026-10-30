@@ -7480,6 +7480,8 @@ model Workspace {
   fotofficeRecepcionLineas       FotofficeRecepcionLinea[]
   fotofficeRecetasInsumo         FotofficeRecetaInsumo[]
   fotofficeConsumosTamano        FotofficeConsumoTamano[]
+  fotofficeEmbalajes             FotofficeEmbalaje[]
+  fotofficeProductosEntrega      FotofficeProductoEntrega[]
   fotofficeCostosPlantilla       FotofficeCostoPlantilla[]
   fotofficePresupuestos          FotofficePresupuesto[]
   fotofficePresupuestoVersiones  FotofficePresupuestoVersion[]
@@ -21555,6 +21557,56 @@ model FotofficeConsumoTamano {
   @@index([insumoId])
 }
 
+/// Un envoltorio del negocio (sobre o bolsa) que se descuenta por entrega, no por producto.
+/// Diseño: apps/fotoffice/docs/superpowers/specs/2026-10-30-stock-embalaje-avisos-y-conteo-design.md §4.
+/// CHECK en el SQL: tipo SOBRE | BOLSA, medidas > 0, piezasPorUnidad > 0.
+model FotofficeEmbalaje {
+  id              String   @id @default(cuid())
+  workspaceId     String
+  /// El insumo que se descuenta (Product con kind INSUMO).
+  insumoId        String   @unique
+  tipo            String
+  /// Lo más grande que entra (cm). Sobre 19x24 → 15x21.
+  admiteAnchoCm   Decimal  @db.Decimal(6, 1)
+  admiteAltoCm    Decimal  @db.Decimal(6, 1)
+  /// Uno más cada N piezas (sobre → 100). Null = sin tope.
+  piezasPorUnidad Int?
+  orden           Int      @default(0)
+  activo          Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  workspace Workspace                  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  insumo    Product                    @relation("FotofficeEmbalajeInsumo", fields: [insumoId], references: [id], onDelete: Restrict)
+  fijos     FotofficeProductoEntrega[]
+
+  @@index([workspaceId])
+}
+
+/// Cómo se entrega un producto vendible, para elegir su envoltorio.
+/// CHECK en el SQL: forma PIEZA_SUELTA | ENMARCADO | VOLUMEN | SIN_EMBALAJE, medidas > 0.
+model FotofficeProductoEntrega {
+  id                String   @id @default(cuid())
+  workspaceId       String
+  productId         String   @unique
+  forma             String
+  anchoCm           Decimal? @db.Decimal(6, 1)
+  altoCm            Decimal? @db.Decimal(6, 1)
+  /// Necesita un envoltorio más grande que su medida (portarretratos).
+  embalajeSiguiente Boolean  @default(false)
+  /// Siempre este envoltorio (fotolibro → bolsa 35x45).
+  embalajeFijoId    String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  workspace    Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  product      Product            @relation("FotofficeProductoEntregaProducto", fields: [productId], references: [id], onDelete: Cascade)
+  embalajeFijo FotofficeEmbalaje? @relation(fields: [embalajeFijoId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId])
+  @@index([embalajeFijoId])
+}
+
 /// Componente de un combo. Mismo workspace y sin ciclos: lo valida el código (`lib/catalogo/combos.ts`);
 /// el SQL frena cantidad <= 0 y que un combo se contenga a sí mismo.
 model FotofficeComboItem {
@@ -23146,6 +23198,8 @@ model Product {
   fotofficeReceta         FotofficeRecetaInsumo[]     @relation("FotofficeRecetaProducto")
   fotofficeRecetasComoInsumo FotofficeRecetaInsumo[]  @relation("FotofficeRecetaComoInsumo")
   fotofficeConsumosTamano FotofficeConsumoTamano[]    @relation("FotofficeConsumoTamanoInsumo")
+  fotofficeEmbalaje       FotofficeEmbalaje?          @relation("FotofficeEmbalajeInsumo")
+  fotofficeEntrega        FotofficeProductoEntrega?   @relation("FotofficeProductoEntregaProducto")
   fotofficeCostos         FotofficeCostoPlantilla[]
   fotofficeProyectos      FotofficeProyecto[]
   fotofficeProyectoReglas FotofficeProductoProyecto[]
