@@ -171,6 +171,18 @@ Encuadre { centroX, centroY, escala, rotacion90, inclinacionGrados }  // relativ
 
 ### 7.1 De dónde salen los precios
 
+> **Actualización 30/10/2026 (al construir la etapa 2).** El catálogo real de DNX no tiene un producto con variantes por medida: tiene **un producto por medida** ("Cuadro canvas 30x40", "Cuadro MDF 50x75", "Ampliación 20x30 para mañana"). Por eso la etapa 2 **no usa tabla ni pantalla de configuración**:
+>
+> - El tipo sale del nombre del producto: "canvas" o "lienzo" es Canvas, "MDF" es **Foto en MDF** (un tipo nuevo que el diseño no tenía) y los que empiezan con "Ampliación" son Impresión.
+> - La medida también sale del nombre.
+> - Solo cuentan los productos activos, con precio mayor que 0 y que no son de VGO.
+> - Si dos productos dan el mismo tipo y medida, gana el más caro, para no prometer menos de lo que se cobra en el mostrador.
+> - Las medidas libres de las plantillas se llevan a la medida con precio más parecida.
+> - "Con marco" queda sin precio hasta la etapa de marcos.
+>
+> Está en `lib/probador/catalogo.ts`. Lo que sigue de esta sección queda como referencia para cuando haga falta configurar a mano.
+
+
 Va una pantalla nueva en **Configuración → Probador de cuadros**, para dueño y administrador. El estudio elige:
 
 - **Producto de impresión:** por ejemplo, "Ampliación". Cada variante con medida legible ("20x30", "30x45"…) y precio mayor que 0 es una medida ofrecida.

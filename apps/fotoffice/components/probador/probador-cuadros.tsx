@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import type { PrecioProbador } from "@/lib/probador/catalogo";
 import { montarProbador } from "./motor";
 
 /**
@@ -13,9 +14,9 @@ import { montarProbador } from "./motor";
  * Los colores salen del sitio de cada estudio (`--wsite-*`, ver `PublicSiteShell`); dentro del
  * panel, donde esas variables no existen, toma las del panel (`--fo-*`).
  */
-export function ProbadorCuadros() {
+export function ProbadorCuadros({ catalogo }: { catalogo: PrecioProbador[] }) {
   const raiz = useRef<HTMLDivElement>(null);
-  useEffect(() => (raiz.current ? montarProbador(raiz.current) : undefined), []);
+  useEffect(() => (raiz.current ? montarProbador(raiz.current, catalogo) : undefined), [catalogo]);
 
   return (
     <div ref={raiz} className="pdc">
@@ -192,6 +193,15 @@ export function ProbadorCuadros() {
             </p>
           </section>
 
+          <section className="pdc-bloque" data-pdc="presupuesto" hidden>
+            <h2>Presupuesto</h2>
+            <ul className="pdc-lineas" data-pdc="presupuesto-lineas" />
+            <p className="pdc-total">
+              Total <b data-pdc="presupuesto-total" />
+            </p>
+            <p className="pdc-nota" data-pdc="presupuesto-nota" />
+          </section>
+
           <button type="button" className="pdc-btn pdc-btn-principal pdc-ancho" data-pdc="ver-final">
             Ver imagen final
           </button>
@@ -289,6 +299,10 @@ const CSS = `
 .pdc-centro{align-items:center; flex-wrap:nowrap}
 .pdc-flex{flex:1; min-width:0}
 .pdc select:disabled{opacity:.5}
+.pdc-lineas{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:4px; font-size:14px; font-variant-numeric:tabular-nums}
+.pdc-lineas li{display:flex; justify-content:space-between; gap:12px}
+.pdc-total{display:flex; justify-content:space-between; margin:0; padding-top:8px; border-top:1px solid var(--pdc-line); font-size:16px; font-variant-numeric:tabular-nums}
+.pdc-total b{font-size:18px}
 @media (max-width:900px){
   .pdc-layout{grid-template-columns:minmax(0,1fr)}
   .pdc-escena{position:static}

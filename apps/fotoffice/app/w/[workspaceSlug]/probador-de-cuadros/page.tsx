@@ -2,19 +2,19 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { prisma } from "@repo/db";
 import { ProbadorCuadros } from "@/components/probador/probador-cuadros";
+import { cargarCatalogoProbador } from "@/lib/probador/catalogo.server";
 
 type Props = { params: Promise<{ workspaceSlug: string }> };
 
-async function nombreComercial(workspaceSlug: string) {
-  const branding = await prisma.fotofficeWorkspaceBranding.findUnique({
+async function estudio(workspaceSlug: string) {
+  return prisma.fotofficeWorkspaceBranding.findUnique({
     where: { publicSlug: workspaceSlug },
-    select: { commercialName: true },
+    select: { workspaceId: true, commercialName: true },
   });
-  return branding?.commercialName ?? null;
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const nombre = await nombreComercial((await params).workspaceSlug);
+  const nombre = (await estudio((await params).workspaceSlug))?.commercialName;
   if (!nombre) return {};
   return {
     title: `Probador de cuadros · ${nombre}`,
@@ -24,12 +24,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 /**
  * El probador de cuadros de cada estudio. No depende de ningún módulo ni lee datos del cliente:
- * las fotos se procesan en el navegador. Entra al menú sólo si el dueño la suma desde la pestaña
- * Menú del constructor (ver `OPTIONAL_PUBLIC_PAGES`).
+ * las fotos se procesan en el navegador. Los precios salen del catálogo de Ventas del estudio
+ * (`cargarCatalogoProbador`). Cómo entra al menú: ver `PUBLIC_MODULE_PAGES` y
+ * `OPTIONAL_PUBLIC_PAGES`.
  */
 export default async function ProbadorDeCuadrosPage({ params }: Props) {
   const { workspaceSlug } = await params;
-  if (!(await nombreComercial(workspaceSlug))) notFound();
+  const branding = await estudio(workspaceSlug);
+  if (!branding) notFound();
+  const catalogo = await cargarCatalogoProbador(branding.workspaceId);
 
   return (
     // El aire de arriba deja lugar al encabezado de los diseños que lo superponen a la página.
@@ -41,7 +44,7 @@ export default async function ProbadorDeCuadrosPage({ params }: Props) {
           individuales, dípticos, trípticos o una galería, con el marco que elijas.
         </p>
       </header>
-      <ProbadorCuadros />
+      <ProbadorCuadros catalogo={catalogo} />
     </main>
   );
 }
