@@ -13,7 +13,8 @@ export const guia: Instructivo = {
     {
       titulo: "Cuándo se hace a mano",
       texto: [
-        "Si el producto tiene un «proveedor por defecto», el pedido al laboratorio sale solo al confirmar el pedido del cliente. Esta guía es para todo lo demás: trabajos sin proveedor asignado, fotolibros (se mandan cuando el diseño está listo), un envío que falló o un trabajo que hay que mandar a otro laboratorio.",
+        "Si el producto tiene un «proveedor por defecto», el pedido al laboratorio sale solo al confirmar el pedido del cliente. Lo mismo pasa con las copias que se arman en el Cobrador con «Pedido para laboratorio»: salen solas, sin tocar nada (ver la guía «Armar un pedido para el laboratorio desde el Cobrador»). Esta guía es para todo lo demás: trabajos sin proveedor asignado, fotolibros (se mandan cuando el diseño está listo), un envío que falló o un trabajo que hay que mandar a otro laboratorio.",
+        "Las copias cuya carpeta está vacía ya no se mandan vacías al laboratorio: el trabajo queda sin enviar con la nota «Falta subir los archivos para mandarlo a [laboratorio].». Subí los archivos (paso 4) y tocá «Enviar a [laboratorio] por correo».",
         "Primero tiene que existir el trabajo: nace al cobrar con seña en el Cobrador, al confirmar un pedido o con «Agregar proyecto» desde la ficha del pedido.",
       ],
     },

@@ -48,8 +48,11 @@ import type { PagoCandidato } from "@/lib/sales/verificar-pago";
 import type { ClienteBuscado } from "./mostrador-actions";
 import { LineaEmbalaje } from "@/components/stock/linea-embalaje";
 import { checkoutAction, findProductByCodeAction, searchProductsAction, type CheckoutInput } from "./actions";
-import { crearPreparacionAction, produccionDeProductosAction } from "./impresion/actions";
+import { anularPreparacionAction, crearPreparacionAction, crearPreparacionLaboratorioAction, produccionDeProductosAction } from "./impresion/actions";
 import { DialogoPreparar, copiasTerminadas } from "./dialogo-preparar";
+import { DialogoLaboratorio } from "./dialogo-laboratorio";
+import type { RenglonTicketLab } from "@/components/copias/editor-laboratorio";
+import { avisoLaboratorios, deshacerConLab, reemplazarGrupoLab } from "@/lib/sales/ticket-laboratorio";
 import { CalculadoraFotolibro, type FotolibroAgregado, type LineaFotolibro } from "@/components/fotolibro/calculadora-fotolibro";
 import type { CatalogoFotolibro, TipoTapa } from "@/lib/fotolibro/cotizar";
 import { esSkuCajaFotolibro, tipoTapaDeSku, type FotolibroVendido } from "@/lib/fotolibro/venta";
@@ -146,6 +149,7 @@ export function Pos({
   fotolibro = null,
   comision = null,
   agregarAlAbrir = [],
+  hayCopiasLab = false,
 }: {
   products: ProductRow[];
   categories: ProductCategoryRow[];
@@ -178,6 +182,8 @@ export function Pos({
   comision?: { porcentaje: number; productIds: string[]; mia: MiComision | null } | null;
   /** Productos que otra pantalla manda a cobrar (`?agregar=`): se suman al ticket al abrir. */
   agregarAlAbrir?: AgregarAlAbrir[];
+  /** Hay copias de laboratorio en el catálogo: se ofrece «Pedido para laboratorio». */
+  hayCopiasLab?: boolean;
 }) {
   // El mostrador necesita el ancho: el menú lateral se oculta mientras está abierto.
   useOcultarMenuEnEstaPantalla();
@@ -231,6 +237,14 @@ export function Pos({
   // Renglones de copias cuyo editor se cerró sin terminar: el ticket lo avisa (cobrarlas exige terminarlas).
   const [copiasSinTerminar, setCopiasSinTerminar] = useState<ReadonlySet<string>>(new Set());
   const [abriendoPreparacion, setAbriendoPreparacion] = useState<string | null>(null);
+  // «Pedido para laboratorio»: la preparación y las keys de su grupo de renglones (bloqueados: se
+  // cambian sólo desde el editor y se quitan todos juntos). `todasLabRef` guarda toda key que alguna
+  // vez fue del grupo, para que deshacer no deje sueltos renglones de una versión vieja o quitada.
+  const [laboratorio, setLaboratorio] = useState<{ preparacionId: string; keys: string[] } | null>(null);
+  const [labAbierto, setLabAbierto] = useState(false);
+  const [abriendoLab, setAbriendoLab] = useState(false);
+  const todasLabRef = useRef<Set<string>>(new Set());
+  const keysLab = useMemo(() => new Set(laboratorio?.keys ?? []), [laboratorio]);
   // Lo que manda a cobrar otra pantalla (el diseñador de polaroids): se suma una sola vez y la
   // dirección se limpia, para que recargar no lo vuelva a agregar. El precio es el del catálogo.
   const agregadoAlAbrirRef = useRef(false);
@@ -272,7 +286,15 @@ export function Pos({
     /** Lo que ganó quien vendió con este cobro; `ganada` = ya cobrado entero. */
     comision?: { minor: number; ganada: boolean } | null;
     /** `grabar`: los trabajos de digitalización del pedido, con su «Ir a grabar». */
-    pedido?: { numero: string; cobradoMinor: number; saldoMinor: number; aviso: string | null; grabar: { proyectoId: string; numero: string; nombre: string }[] };
+    pedido?: {
+      numero: string;
+      cobradoMinor: number;
+      saldoMinor: number;
+      aviso: string | null;
+      grabar: { proyectoId: string; numero: string; nombre: string }[];
+      /** A qué laboratorios sale solo el pedido para laboratorio (vacío si no hubo). */
+      laboratorios: string[];
+    };
   } | null>(null);
   // Pedido para retirar (cuando el ticket tiene trabajos con proceso).
   const [entregaElegida, setEntregaElegida] = useState<string | null>(null);
@@ -412,10 +434,12 @@ export function Pos({
     setEligiendoTalle(null);
     const variantId = talle?.id ?? null;
     const precio = talle?.priceMinor ?? p.priceMinor;
-    const existente = rowsRef.current.find((r) => r.productId === p.id && r.variantId === variantId);
+    // Un renglón del pedido para laboratorio no suma: el producto suelto va en su propio renglón.
+    const mismo = (r: TicketRow) => r.productId === p.id && r.variantId === variantId && !esRenglonLab(r.key);
+    const existente = rowsRef.current.find(mismo);
     const key = existente?.key ?? nuevaKey();
     cambiarRenglones((prev) => {
-      const ya = prev.find((r) => r.productId === p.id && r.variantId === variantId);
+      const ya = prev.find(mismo);
       if (ya) {
         return prev.map((r) => (r.key === ya.key ? { ...r, qty: fijarCantidad ?? r.qty + 1 } : r));
       }
@@ -452,12 +476,21 @@ export function Pos({
     avisoTimerRef.current = setTimeout(() => setAvisoAtajo(null), 3000);
   }
 
+  /** Un renglón del pedido para laboratorio (en callbacks; al dibujar se usa `keysLab`). */
+  function esRenglonLab(key: string): boolean {
+    return todasLabRef.current.has(key);
+  }
+
   function deshacer() {
-    const anterior = historialRef.current.pop();
-    if (!anterior) {
+    const popped = historialRef.current.pop();
+    if (!popped) {
       avisar("No hay nada para deshacer.");
       return;
     }
+    // Nunca quedan renglones del laboratorio sueltos; si se vuelve a un ticket sin el grupo, el grupo
+    // sale pero la preparación queda (el botón vuelve a ella; si no se usa, se anula al cobrar).
+    const { rows: anterior, laboratorio: labDeshecho } = deshacerConLab(popped, laboratorio, todasLabRef.current);
+    if (labDeshecho !== laboratorio) setLaboratorio(labDeshecho);
     setRows(anterior);
     setActivo(anterior.at(-1)?.key ?? null);
     avisar("Deshecho.");
@@ -564,14 +597,15 @@ export function Pos({
     });
   }
 
+  // Los renglones del pedido para laboratorio no se tocan de a uno: cantidad y precio salen del editor.
   function actualizarCantidad(key: string, qty: number) {
-    if (!Number.isFinite(qty) || qty < 1) return;
+    if (!Number.isFinite(qty) || qty < 1 || esRenglonLab(key)) return;
     cambiarRenglones((prev) => prev.map((r) => (r.key === key ? { ...r, qty: Math.floor(qty) } : r)));
   }
 
   function actualizarPrecio(key: string, texto: string) {
     const minor = parseArsToMinor(texto);
-    if (minor === null) return;
+    if (minor === null || esRenglonLab(key)) return;
     cambiarRenglones((prev) =>
       prev.map((r) =>
         r.key === key
@@ -582,7 +616,78 @@ export function Pos({
   }
 
   function quitarRenglon(key: string) {
+    if (esRenglonLab(key)) return;
     cambiarRenglones((prev) => prev.filter((r) => r.key !== key));
+  }
+
+  /** «Pedido para laboratorio»: el primer toque crea la preparación; los siguientes reabren la misma. */
+  async function abrirLaboratorio() {
+    if (abriendoLab || procesando) return;
+    if (laboratorio) {
+      setLabAbierto(true);
+      return;
+    }
+    limpiarAviso();
+    setAbriendoLab(true);
+    try {
+      const c = await crearPreparacionLaboratorioAction({ clientId: cliente?.id ?? null });
+      if (!c.ok) return setError(c.error);
+      setLaboratorio({ preparacionId: c.id, keys: [] });
+      setLabAbierto(true);
+    } catch {
+      setError("No se pudo abrir el pedido para laboratorio. Probá de nuevo.");
+    } finally {
+      setAbriendoLab(false);
+    }
+  }
+
+  /**
+   * «Listo» del editor: los renglones del grupo se reemplazan por los nuevos. La primera vez es un
+   * cambio más del ticket (se puede deshacer); después, el reemplazo también se aplica al historial,
+   * así deshacer otra cosa no trae de vuelta una versión vieja del grupo.
+   */
+  function alListoLab(renglones: RenglonTicketLab[]) {
+    if (!laboratorio) return;
+    const nuevos: TicketRow[] = renglones.map((x) => ({
+      key: nuevaKey(),
+      productId: x.productId,
+      variantId: null,
+      description: x.nombre,
+      qty: x.cantidad,
+      unitPriceMinor: x.precioUnitarioMinor,
+      unitCostMinor: null,
+      priceWasOverridden: false,
+      catalogPriceMinor: x.precioUnitarioMinor,
+      tracksStock: false,
+      stockQty: null,
+    }));
+    for (const n of nuevos) todasLabRef.current.add(n.key);
+    const viejas = laboratorio.keys;
+    const tiene = (filas: readonly TicketRow[]) => filas.some((r) => viejas.includes(r.key));
+    if (tiene(rowsRef.current)) {
+      historialRef.current = historialRef.current.map((h) => (tiene(h) ? reemplazarGrupoLab(h, viejas, nuevos) : h));
+      setRows((prev) => reemplazarGrupoLab(prev, viejas, nuevos));
+    } else {
+      cambiarRenglones((prev) => reemplazarGrupoLab(prev, viejas, nuevos));
+    }
+    setLaboratorio({ preparacionId: laboratorio.preparacionId, keys: nuevos.map((n) => n.key) });
+    setLabAbierto(false);
+    setEditandoPrecio(null);
+    if (nuevos[0]) setActivo(nuevos[0].key);
+  }
+
+  /** «Quitar pedido para laboratorio»: saca todo el grupo y anula la preparación. */
+  function quitarLaboratorio() {
+    if (!laboratorio || procesando) return;
+    const { preparacionId, keys } = laboratorio;
+    cambiarRenglones((prev) => prev.filter((r) => !keys.includes(r.key)));
+    setLaboratorio(null);
+    setLabAbierto(false);
+    anularPreparacionAction(preparacionId)
+      .then((r) => {
+        if (!r.ok) setError(r.error);
+      })
+      .catch(() => setError("No se pudo anular el pedido para laboratorio. Revisá la conexión."));
   }
 
   /**
@@ -722,6 +827,9 @@ export function Pos({
     setParaRetirar({});
     setPreparando(null);
     setCopiasSinTerminar(new Set());
+    setLaboratorio(null);
+    setLabAbierto(false);
+    todasLabRef.current = new Set();
     setDiscountText("");
     setNote("");
     setPaymentMethod("EFECTIVO");
@@ -742,7 +850,8 @@ export function Pos({
    */
   function calcularPedido() {
     const filas = separarTicket(
-      rows.map((r) => ({ ...r, paraRetirar: paraRetirar[r.key] === true })),
+      // Los renglones del pedido para laboratorio van siempre al pedido (como los marcados «Seña»).
+      rows.map((r) => ({ ...r, paraRetirar: paraRetirar[r.key] === true || keysLab.has(r.key) })),
       conProceso,
     ).delPedido;
     const subPedido = filas.reduce((a, r) => a + r.qty * r.unitPriceMinor, 0);
@@ -805,6 +914,14 @@ export function Pos({
         : "";
     const notaFinal = [note.trim(), notaDePago].filter((t) => t !== "").join(" — ");
     const comisionDelTicket = rows.reduce((s, r) => s + (comisionDelRenglon(r) ?? 0), 0);
+    // El pedido para laboratorio viaja sólo con su grupo entero en el ticket. Una preparación que
+    // quedó sin renglones (se vació el ticket) se anula al cobrar: si no, quedaría colgada.
+    const lab = laboratorio;
+    const labVigente = lab !== null && lab.keys.length > 0 && lab.keys.every((k) => rows.some((r) => r.key === k));
+    const labSinUsar = lab !== null && !labVigente ? lab.preparacionId : null;
+    const soltarLabSinUsar = () => {
+      if (labSinUsar) void anularPreparacionAction(labSinUsar).catch(() => undefined);
+    };
 
     const input: CheckoutInput = {
       // `priceWasOverridden` no viaja: lo recalcula el servidor comparando contra el precio
@@ -841,6 +958,7 @@ export function Pos({
             unitPriceMinor: r.unitPriceMinor,
             paraRetirar: !tieneProceso(r) && paraRetirar[r.key] === true,
             fotolibro: fotolibros[r.key] ? { ...fotolibros[r.key], url: undefined } : undefined,
+            ...(labVigente && keysLab.has(r.key) ? { paraLaboratorio: true } : {}),
           })),
           discountMinor,
           paymentMethod,
@@ -851,6 +969,7 @@ export function Pos({
           clave,
           mpPaymentId: mpOrderId ? null : verificadoPara(pedido.aCobrar),
           mpOrderId,
+          laboratorio: labVigente ? { preparacionId: lab.preparacionId } : null,
         });
         // Una respuesta que llega tarde, de un cobro que ya se cerró (la clave cambió o se limpió),
         // no toca el ticket que se está armando ahora: ese cobro ya mostró su resultado.
@@ -861,10 +980,18 @@ export function Pos({
             saleNumber: r.saleNumber,
             deposited: true,
             vueltoMinor: vueltoAlCobrar.estado === "ok" ? vueltoAlCobrar.vueltoMinor : null,
-            pedido: { numero: r.pedidoNumero, cobradoMinor: r.cobradoMinor, saldoMinor: r.saldoMinor, aviso: r.aviso, grabar: r.grabar ?? [] },
+            pedido: {
+              numero: r.pedidoNumero,
+              cobradoMinor: r.cobradoMinor,
+              saldoMinor: r.saldoMinor,
+              aviso: r.aviso,
+              grabar: r.grabar ?? [],
+              laboratorios: r.laboratorios ?? [],
+            },
             comision: comisionDelTicket > 0 ? { minor: comisionDelTicket, ganada: r.saldoMinor <= 0 } : null,
           });
           refrescarComision();
+          soltarLabSinUsar();
           reiniciarTicket();
           historialRef.current = [];
           setActivo(null);
@@ -886,6 +1013,7 @@ export function Pos({
           comision: comisionDelTicket > 0 ? { minor: comisionDelTicket, ganada: true } : null,
         });
         refrescarComision();
+        soltarLabSinUsar();
         reiniciarTicket();
         // Lo cobrado no se deshace con Ctrl/⌘+Z: para eso está anular la venta.
         historialRef.current = [];
@@ -902,7 +1030,7 @@ export function Pos({
     const key =
       objetivo.tipo === "renglon"
         ? objetivo.key
-        : rowsRef.current.find((r) => r.productId === objetivo.id && r.variantId === null)?.key;
+        : rowsRef.current.find((r) => r.productId === objetivo.id && r.variantId === null && !esRenglonLab(r.key))?.key;
     if (!key) {
       if (objetivo.tipo === "producto" && delta > 0) {
         const p = products.find((x) => x.id === objetivo.id);
@@ -920,7 +1048,7 @@ export function Pos({
   /** Un número tipeado sobre el objetivo: esa es la cantidad (0 lo quita). */
   function fijarCantidad(objetivo: Objetivo, cantidad: number) {
     if (objetivo.tipo === "producto") {
-      const enTicket = rowsRef.current.find((r) => r.productId === objetivo.id && r.variantId === null);
+      const enTicket = rowsRef.current.find((r) => r.productId === objetivo.id && r.variantId === null && !esRenglonLab(r.key));
       if (enTicket) {
         fijarCantidad({ tipo: "renglon", key: enTicket.key }, cantidad);
         return;
@@ -1247,6 +1375,18 @@ export function Pos({
             >
               + Otro
             </button>
+            {hayCopiasLab ? (
+              <button
+                type="button"
+                onClick={() => void abrirLaboratorio()}
+                disabled={abriendoLab || procesando}
+                className="fo-btn fo-btn-ghost gap-1 whitespace-nowrap px-2 text-xs"
+                title={laboratorio ? "Volver a abrir las fotos del pedido para laboratorio" : "Subir fotos que se mandan a imprimir al laboratorio"}
+              >
+                <Images className="size-3.5" aria-hidden />
+                {abriendoLab ? "Abriendo…" : "Pedido para laboratorio"}
+              </button>
+            ) : null}
             {fotolibro ? (
               <button
                 type="button"
@@ -1323,26 +1463,37 @@ export function Pos({
                   apuntado?.tipo === "renglon"
                     ? apuntado.key === r.key
                     : apuntado === null && r.key === (activo ?? rows.at(-1)?.key);
+                // Del pedido para laboratorio: bloqueado (se cambia desde el editor, que abre al tocarlo).
+                const delLab = keysLab.has(r.key);
                 return (
                   <li
                     key={r.key}
                     onMouseEnter={() => setApuntado({ tipo: "renglon", key: r.key })}
                     onMouseLeave={() => setApuntado(null)}
-                    onClick={() => setActivo(r.key)}
-                    className={`-mx-4 flex items-center gap-3 px-4 py-2.5 transition-colors ${marcado ? "bg-[var(--fo-accent-muted)]" : ""}`}
+                    onClick={() => {
+                      setActivo(r.key);
+                      if (delLab) void abrirLaboratorio();
+                    }}
+                    title={delLab ? "Tocá para ver o cambiar las fotos del pedido para laboratorio" : undefined}
+                    className={`-mx-4 flex items-center gap-3 px-4 py-2.5 transition-colors ${delLab ? "cursor-pointer" : ""} ${marcado ? "bg-[var(--fo-accent-muted)]" : ""}`}
                   >
                     <div className="min-w-0 flex-1">
                       <p className="line-clamp-2 text-sm font-medium leading-snug text-[var(--fo-text)]">
-                          {tieneProceso(r) || paraRetirar[r.key] ? (
+                          {tieneProceso(r) || paraRetirar[r.key] || delLab ? (
                             <span className="mr-1.5 inline-flex rounded-full bg-[var(--fo-accent-muted)] px-1.5 py-px align-middle text-[10px] font-semibold uppercase tracking-wide text-[var(--fo-text-secondary)]">
                               Pedido
+                            </span>
+                          ) : null}
+                          {delLab ? (
+                            <span className="mr-1.5 inline-flex rounded-full border border-[var(--fo-border)] px-1.5 py-px align-middle text-[10px] font-semibold uppercase tracking-wide text-[var(--fo-text-secondary)]">
+                              Laboratorio
                             </span>
                           ) : null}
                           {r.description}
                         </p>
                       {/* Un producto con proceso ya es un pedido: muestra «Seña» prendido y fijo, para
                           que todos los renglones se vean igual. Uno sin proceso puede quedar señado. */}
-                      {tieneProceso(r) ? (
+                      {delLab ? null : tieneProceso(r) ? (
                         <span
                           title="Este producto se produce después: siempre va como pedido. Seña o pago total se eligen abajo."
                           className="mt-1 inline-flex h-6 cursor-default items-center rounded-full border border-[var(--fo-accent)] bg-[var(--fo-accent-muted)] px-2 text-[11px] font-medium text-[var(--fo-text)]"
@@ -1368,7 +1519,7 @@ export function Pos({
                           Seña
                         </button>
                       ) : null}
-                      {r.productId !== null && (produccion[r.productId]?.tipoPieza === "CARNET" || produccion[r.productId]?.tipoPieza === "COPIA") ? (
+                      {!delLab && r.productId !== null && (produccion[r.productId]?.tipoPieza === "CARNET" || produccion[r.productId]?.tipoPieza === "COPIA") ? (
                         <button
                           type="button"
                           className="fo-btn fo-btn-secondary mt-1 h-7 px-2 text-xs"
@@ -1400,7 +1551,9 @@ export function Pos({
                         </button>
                       ) : null}
                       {copiasSinTerminar.has(r.key) ? <span className="ml-2 text-xs font-medium text-[var(--fo-warning)]">Copias sin terminar</span> : null}
-                      {editandoPrecio === r.key ? (
+                      {delLab ? (
+                        <p className="text-xs text-[var(--fo-muted)]">{formatMinorArs(r.unitPriceMinor)} c/u</p>
+                      ) : editandoPrecio === r.key ? (
                         <InputMoneda
                           autoFocus
                           defaultValue={formatMinorArs(r.unitPriceMinor).replace("$", "").trim()}
@@ -1438,8 +1591,9 @@ export function Pos({
                     <div className="flex shrink-0 items-center rounded-full border border-[var(--fo-border)] bg-[var(--fo-bg-elevated)]">
                       <button
                         type="button"
+                        disabled={delLab}
                         onClick={() => (r.qty > 1 ? actualizarCantidad(r.key, r.qty - 1) : quitarRenglon(r.key))}
-                        className="flex size-7 items-center justify-center rounded-full text-[var(--fo-muted)] hover:bg-[var(--fo-surface-hover)] hover:text-[var(--fo-text)]"
+                        className="flex size-7 items-center justify-center rounded-full text-[var(--fo-muted)] hover:bg-[var(--fo-surface-hover)] hover:text-[var(--fo-text)] disabled:pointer-events-none disabled:opacity-30"
                         aria-label={r.qty > 1 ? `Uno menos de ${r.description}` : `Quitar ${r.description}`}
                       >
                         {r.qty > 1 ? <Minus className="size-3.5" aria-hidden /> : <Trash2 className="size-3.5" aria-hidden />}
@@ -1447,8 +1601,9 @@ export function Pos({
                       <span className="w-7 text-center text-sm font-semibold tabular-nums">{r.qty}</span>
                       <button
                         type="button"
+                        disabled={delLab}
                         onClick={() => actualizarCantidad(r.key, r.qty + 1)}
-                        className="flex size-7 items-center justify-center rounded-full text-[var(--fo-muted)] hover:bg-[var(--fo-surface-hover)] hover:text-[var(--fo-text)]"
+                        className="flex size-7 items-center justify-center rounded-full text-[var(--fo-muted)] hover:bg-[var(--fo-surface-hover)] hover:text-[var(--fo-text)] disabled:pointer-events-none disabled:opacity-30"
                         aria-label={`Uno más de ${r.description}`}
                       >
                         <Plus className="size-3.5" aria-hidden />
@@ -1460,6 +1615,19 @@ export function Pos({
                   </li>
                 );
               })}
+              {rows.some((r) => keysLab.has(r.key)) ? (
+                <li className="-mx-4 px-4 py-2">
+                  <button
+                    type="button"
+                    onClick={quitarLaboratorio}
+                    disabled={procesando}
+                    className="fo-btn fo-btn-ghost gap-1 px-2 text-xs text-[var(--fo-danger)]"
+                  >
+                    <Trash2 className="size-3.5" aria-hidden />
+                    Quitar pedido para laboratorio
+                  </button>
+                </li>
+              ) : null}
             </ul>
           )}
         </div>
@@ -1777,6 +1945,9 @@ export function Pos({
                     </p>
                     {ultimaVenta.saleNumber !== null ? <p className="text-[var(--fo-text)]">Y la venta #{ultimaVenta.saleNumber}.</p> : null}
                     {ultimaVenta.pedido.aviso ? <p className="text-[var(--fo-warning)]">{ultimaVenta.pedido.aviso}</p> : null}
+                    {ultimaVenta.pedido.laboratorios.length > 0 ? (
+                      <p className="text-[var(--fo-text)]">{avisoLaboratorios(ultimaVenta.pedido.laboratorios)}</p>
+                    ) : null}
                     {ultimaVenta.pedido.grabar.length > 0 ? (
                       <div className="mt-2 flex flex-wrap gap-2">
                         {ultimaVenta.pedido.grabar.map((t) => (
@@ -1870,6 +2041,10 @@ export function Pos({
             );
           })()
         : null}
+
+      {labAbierto && laboratorio ? (
+        <DialogoLaboratorio preparacionId={laboratorio.preparacionId} onListo={alListoLab} onCerrar={() => setLabAbierto(false)} />
+      ) : null}
 
       {egresos && egresoAbierto ? (
         <EgresoDialogo

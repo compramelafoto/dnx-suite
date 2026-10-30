@@ -16,6 +16,7 @@ import { avisoDeCalidad, cajaRotada, rectanguloEnPixeles, resolucionEfectiva, ta
 import { huellaDe } from "./huella";
 import { pendientes, type HojaAImprimir, type RegistroDeHoja } from "./impresion-multiple";
 import { FOTOS_MAX } from "./lote";
+import { FOTOS_MAX_LAB } from "./laboratorio";
 import { pixelesDeHoja, type Nitidez } from "./medidas";
 import { disposicionCarnet } from "./plancha";
 import { anguloTotal, validarReceta, type Receta } from "./receta";
@@ -170,7 +171,7 @@ export async function preparacionPropia(workspaceId: string, id: unknown) {
   if (!esId(id)) return null;
   return prisma.fotofficePreparacionImpresion.findFirst({
     where: { id, workspaceId },
-    select: { id: true, productId: true, clientId: true, saleItemId: true, proyectoId: true, estado: true },
+    select: { id: true, productId: true, clientId: true, saleItemId: true, proyectoId: true, estado: true, destino: true },
   });
 }
 
@@ -180,7 +181,7 @@ export async function preparacionPropia(workspaceId: string, id: unknown) {
  */
 async function preparacionDeCarnet(workspaceId: string, id: unknown) {
   const prep = await preparacionPropia(workspaceId, id);
-  if (!prep || prep.estado === "ANULADA") return null;
+  if (!prep || prep.estado === "ANULADA" || prep.destino === "LABORATORIO") return null;
   if (prep.productId) {
     const copias = await prisma.fotofficeProductoProduccion.count({ where: { workspaceId, productId: prep.productId, tipoPieza: "COPIA" } });
     if (copias > 0) return null;
@@ -244,7 +245,10 @@ export async function pedirSubidaOriginal(
   if (!prep || prep.estado === "ANULADA") return NO_EXISTE;
   if (!(TIPOS_ORIGINAL as readonly string[]).includes(a.tipo)) return { ok: false, error: "La foto tiene que ser JPG, PNG, WebP o HEIC." };
   if (!enteroEntre(a.bytes, 1, MAX_BYTES_ORIGINAL)) return { ok: false, error: "La foto pesa más de 60 MB." };
-  if (await esDeCopias(ctx.workspaceId, prep.productId)) {
+  if (prep.destino === "LABORATORIO") {
+    const subidas = await prisma.fotofficeOriginalImpresion.count({ where: { workspaceId: ctx.workspaceId, preparacionId: prep.id } });
+    if (subidas >= FOTOS_MAX_LAB) return { ok: false, error: `Un pedido para laboratorio admite hasta ${FOTOS_MAX_LAB} fotos.` };
+  } else if (await esDeCopias(ctx.workspaceId, prep.productId)) {
     // Cuentan también las que se están subiendo (PENDIENTE): las fallidas ya se borraron.
     const subidas = await prisma.fotofficeOriginalImpresion.count({ where: { workspaceId: ctx.workspaceId, preparacionId: prep.id } });
     if (subidas >= FOTOS_MAX) return { ok: false, error: `Una preparación admite hasta ${FOTOS_MAX} fotos.` };
@@ -668,16 +672,22 @@ export async function registrarPrueba(ctx: CtxImpresion, salidaId: string, taman
   return { ok: true };
 }
 
-/** Una preparación cobrada no se anula: queda atada a la venta (se libera si se anula la venta). */
+const YA_COBRADA = { ok: false as const, error: "Esa preparación ya se cobró: no se puede anular." };
+
+/**
+ * Una preparación cobrada no se anula: queda atada a la venta (se libera si se anula la venta). La
+ * de laboratorio queda LISTA al cobrarse (su pedido de impresión ya existe), sin venta atada.
+ */
 export async function anularPreparacion(ctx: CtxImpresion, preparacionId: string): Promise<R> {
   const prep = await preparacionPropia(ctx.workspaceId, preparacionId);
   if (!prep) return NO_EXISTE;
   if (prep.estado === "ANULADA") return { ok: true };
+  if (prep.destino === "LABORATORIO" && prep.estado === "LISTA") return YA_COBRADA;
   const r = await prisma.fotofficePreparacionImpresion.updateMany({
-    where: { id: prep.id, workspaceId: ctx.workspaceId, saleItemId: null },
+    where: { id: prep.id, workspaceId: ctx.workspaceId, saleItemId: null, NOT: { destino: "LABORATORIO", estado: "LISTA" } },
     data: { estado: "ANULADA" },
   });
-  return r.count === 1 ? { ok: true } : { ok: false, error: "Esa preparación ya se cobró: no se puede anular." };
+  return r.count === 1 ? { ok: true } : YA_COBRADA;
 }
 
 const FALTAN_COPIAS = { ok: false as const, error: "Faltan armar fotos de las copias: abrí Editar fotos y tocá Listo." };

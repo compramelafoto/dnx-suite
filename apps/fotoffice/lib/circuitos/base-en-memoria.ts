@@ -16,7 +16,7 @@ type Orden = Record<string, "asc" | "desc">;
 
 const TABLAS = [
   // Pedidos de impresión (el candado del saldo los consulta desde el motor de recorridos).
-  "fotofficePrintOrder", "fotofficePrintOrderItem",
+  "fotofficePrintOrder", "fotofficePrintOrderItem", "fotofficeArchivoTrabajo",
   "fotofficeCircuit", "fotofficeStage", "fotofficeStageTaskTemplate", "fotofficeLossReason",
   "fotofficeJourney", "fotofficeJourneyStep", "fotofficeTask", "serviceSalesLead", "workspaceMembership",
   "fotofficeStageRule", "fotofficeProcessedEvent", "fotofficeWorkspaceBranding", "serviceLeadForm",
@@ -74,7 +74,7 @@ const TABLAS = [
   // Impresión (etapa 1).
   "fotofficeTamanoImpresion", "fotofficeSalidaImpresion", "fotofficeSalidaTamano", "fotofficeProductoProduccion",
   "fotofficePreparacionImpresion", "fotofficeOriginalImpresion", "fotofficePiezaImpresion", "fotofficeHojaImpresion",
-  "fotofficeRegistroImpresion", "saleItem",
+  "fotofficeRegistroImpresion", "saleItem", "fotofficePrintSettings",
   // Migración de Alboom (8B-2): el mapa de ids (lo histórico que no avisa), su libro de finanzas y la ficha.
   "fotofficeAlboomMapa", "fotofficeAlboomFinanza", "fotofficeNote", "fotofficeNoteCategory", "fotofficePersonEvent",
   // Bandeja de WhatsApp.
@@ -102,6 +102,8 @@ const RELACIONES: Record<string, { columna: string; tabla: Tabla }> = {
   // Digitalización: la grabación es de un trabajo y el cargo, de una entrega.
   proyecto: { columna: "proyectoId", tabla: "fotofficeProyecto" },
   entrega: { columna: "entregaId", tabla: "digitalizacionEntrega" },
+  // El ítem de un pedido de impresión (otras tablas tienen una columna `order` numérica: ver `cumple`).
+  order: { columna: "orderId", tabla: "fotofficePrintOrder" },
 };
 
 const DEFECTOS: Partial<Record<Tabla, () => Fila>> = {
@@ -322,9 +324,9 @@ const DEFECTOS: Partial<Record<Tabla, () => Fila>> = {
     admiteCopias: true, activo: true, createdAt: new Date(), updatedAt: new Date(),
   }),
   fotofficeProductoProduccion: () => ({ unidad: "HOJA", createdAt: new Date(), updatedAt: new Date() }),
-  fotofficePreparacionImpresion: () => ({ productId: null, clientId: null, saleItemId: null, proyectoId: null, estado: "PREPARANDO", createdAt: new Date(), updatedAt: new Date() }),
+  fotofficePreparacionImpresion: () => ({ destino: "LOCAL", productId: null, clientId: null, saleItemId: null, proyectoId: null, estado: "PREPARANDO", createdAt: new Date(), updatedAt: new Date() }),
   fotofficeOriginalImpresion: () => ({ previewKey: null, bytes: 0, anchoPx: 0, altoPx: 0, perfilColor: null, estado: "PENDIENTE", archivoTrabajoId: null, adjuntoId: null, adjuntoPropio: false, createdAt: new Date() }),
-  fotofficePiezaImpresion: () => ({ tamanoId: null, anchoMm: null, altoMm: null, cantidad: 1, revisadaAt: null, createdAt: new Date(), updatedAt: new Date() }),
+  fotofficePiezaImpresion: () => ({ medida: null, plazo: null, papel: null, tamanoId: null, anchoMm: null, altoMm: null, cantidad: 1, revisadaAt: null, createdAt: new Date(), updatedAt: new Date() }),
   fotofficeHojaImpresion: () => ({ finalKey: null, finalHuella: null, finalAnchoPx: 0, finalAltoPx: 0, copias: 1, createdAt: new Date(), updatedAt: new Date() }),
   fotofficeRegistroImpresion: () => ({ hojaId: null, productId: null, saleItemId: null, proyectoId: null, userId: null, createdAt: new Date() }),
   fotofficePerfilPrecios: () => ({ schemaVersion: 1, source: null, updatedAt: new Date(), updatedByUserId: null }),
@@ -375,12 +377,19 @@ export function crearBaseEnMemoria() {
       // Como Prisma: NOT { a, b } = no (a y b); NOT [x, y] = no x y no y.
       if (k === "NOT") return (Array.isArray(cond) ? (cond as Where[]) : [cond as Where]).every((w) => !cumple(f, w));
       const rel = RELACIONES[k];
-      if (rel && cond && typeof cond === "object") {
+      // `order` sólo es relación en las filas con `orderId`; en las demás es la columna de orden.
+      if (rel && cond && typeof cond === "object" && (k !== "order" || rel.columna in f)) {
         const destino = datos[rel.tabla].find((x) => x.id === f[rel.columna]);
         return destino !== undefined && cumple(destino, cond as Where);
       }
       if (cond && typeof cond === "object" && !(cond instanceof Date)) {
         const c = cond as Record<string, unknown>;
+        // Como Prisma en una columna Json: `{ path: ["a", "b"], equals: x }` compara el valor de adentro.
+        if (Array.isArray(c.path)) {
+          let adentro: unknown = f[k] ?? null;
+          for (const p of c.path as string[]) adentro = adentro && typeof adentro === "object" ? ((adentro as Record<string, unknown>)[p] ?? null) : null;
+          return igual(adentro, c.equals);
+        }
         const v = f[k] ?? null;
         const n = (x: unknown) => (x instanceof Date ? x.getTime() : (x as number | string));
         return Object.entries(c).every(([op, x]) => {

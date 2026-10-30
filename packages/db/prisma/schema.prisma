@@ -23469,6 +23469,8 @@ model FotofficePreparacionImpresion {
   proyectoId      String?
   /// PREPARANDO | LISTA | IMPRESA | ANULADA (CHECK en el SQL)
   estado          String   @default("PREPARANDO")
+  /// A dónde va a imprimirse: LOCAL | LABORATORIO (CHECK en el SQL)
+  destino         String   @default("LOCAL")
   createdByUserId Int?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -23536,6 +23538,12 @@ model FotofficePiezaImpresion {
   receta        Json
   huella        String
   cantidad      Int       @default(1)
+  /// Para laboratorio: medida pedida, texto libre (por ejemplo "10x15").
+  medida        String?
+  /// Para laboratorio: plazo de entrega, MANANA | SEMANA (CHECK en el SQL)
+  plazo         String?
+  /// Para laboratorio: tipo de papel, MATE | BRILLO (CHECK en el SQL)
+  papel         String?
   revisadaAt    DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -26930,6 +26938,8 @@ model FotofficePrintOrderItem {
   /// El original va tal cual al laboratorio (sin recorte ni recompresión).
   sinRecorte    Boolean   @default(false)
   calidadBaja   Boolean   @default(false)
+  /// Pieza de una preparación para laboratorio de la que sale este ítem (texto, sin relación, como archivoId).
+  piezaId       String?
   createdAt     DateTime @default(now())
 
   order    FotofficePrintOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
@@ -26937,6 +26947,7 @@ model FotofficePrintOrderItem {
 
   @@index([orderId])
   @@index([proyectoId])
+  @@index([piezaId])
 }
 
 model FotofficePrintSourceImage {

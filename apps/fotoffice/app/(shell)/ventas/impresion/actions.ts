@@ -12,6 +12,14 @@ import { getModuleLevel } from "@/lib/permissions/module-access";
 import { hasLevel } from "@/lib/permissions/levels";
 import { asignarCliente, fotosCarnetDelCliente, usarFotoAnterior } from "@/lib/impresion/ficha-carnet";
 import { estadoCopias, generarHojaCopia, guardarPiezasCopia, quitarFotoCopia, type PiezaCopiaEntrada } from "@/lib/impresion/copias";
+import {
+  crearPreparacionLaboratorio,
+  estadoLaboratorio,
+  guardarPiezasLaboratorio,
+  quitarFotoLaboratorio,
+  renglonesDeLaPreparacion,
+  type PiezaLabEntrada,
+} from "@/lib/impresion/laboratorio-servidor";
 import { guardarEscala, guardarProduccion, produccionDeProductos, type ProduccionVista } from "@/lib/impresion/configuracion";
 import {
   anularPreparacion,
@@ -74,6 +82,44 @@ async function ctxImpresion(): Promise<CtxImpresion> {
 export async function crearPreparacionAction(d: { productId: string | null; clientId: string | null }) {
   const ctx = await ctxImpresion();
   return crearPreparacion(ctx, d);
+}
+
+export async function crearPreparacionLaboratorioAction(d: { clientId: string | null }) {
+  const ctx = await ctxImpresion();
+  return crearPreparacionLaboratorio(ctx, d);
+}
+
+export async function estadoLaboratorioAction(preparacionId: string) {
+  const ctx = await ctxImpresion();
+  return estadoLaboratorio(ctx, preparacionId);
+}
+
+export async function guardarPiezasLaboratorioAction(preparacionId: string, items: PiezaLabEntrada[]) {
+  const ctx = await ctxImpresion();
+  return guardarPiezasLaboratorio(ctx, preparacionId, items);
+}
+
+export async function quitarFotoLaboratorioAction(preparacionId: string, originalId: string) {
+  const ctx = await ctxImpresion();
+  return quitarFotoLaboratorio(ctx, preparacionId, originalId);
+}
+
+/** Los renglones del ticket de una preparación de laboratorio, listos para sumar al carrito del Mostrador. */
+export async function listoLaboratorioAction(
+  preparacionId: string,
+): Promise<{ ok: true; renglones: { productId: string; nombre: string; cantidad: number; precioUnitarioMinor: number }[] } | { ok: false; error: string }> {
+  const ctx = await ctxImpresion();
+  const r = await renglonesDeLaPreparacion(ctx.workspaceId, preparacionId);
+  if (!r.ok) return r;
+  return {
+    ok: true,
+    renglones: r.renglones.map((x) => ({
+      productId: x.productId,
+      nombre: r.nombres.get(x.productId) ?? "Copia",
+      cantidad: x.cantidad,
+      precioUnitarioMinor: Math.round(x.precioUnitario * 100),
+    })),
+  };
 }
 
 /** Lo ya armado de una preparación, para reabrir el editor donde quedó (Mostrador → "Editar fotos"). */
