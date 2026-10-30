@@ -46,8 +46,8 @@ export function PedidosSinEnviar({ filas }: { filas: FilaSinEnviar[] }) {
                 ) : null}
               </span>
               <span className="tabular-nums text-[var(--fo-muted)]">
-                {f.pagadoEl ? `Pagado el ${f.pagadoEl}${f.deMostrador ? "" : " · "}` : ""}
-                {f.deMostrador ? "" : f.total}
+                {f.pagadoEl && !f.deMostrador ? `Pagado el ${f.pagadoEl} · ` : f.pagadoEl ? `Pagado el ${f.pagadoEl}` : ""}
+                {!f.deMostrador ? f.total : null}
               </span>
             </div>
             <p className="text-sm text-[var(--fo-warning)]">{f.lastError ?? "El pedido está pagado pero no salió al laboratorio."}</p>

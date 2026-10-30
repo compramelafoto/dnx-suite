@@ -30,10 +30,10 @@ export const guia: Instructivo = {
     {
       titulo: "Ajustá cada foto",
       texto: [
-        "Cada foto se muestra sobre su papel, con una línea como «10x15 · mate · ×2 · próxima semana». Para cambiar varias juntas, tildá «Elegir» en cada una (o tocá «Elegir todas»), cambiá los valores de la fila «A todas:» o «A las elegidas:» y tocá «Aplicar». Lo que dice «Sin cambiar» no se toca.",
+        "Cada foto se muestra sobre su papel, con una línea como «10x15 · mate · ×2 · próxima semana». Para cambiar varias juntas, tildá «Elegir» en cada una (o tocá «Elegir todas»), cambiá los valores de la fila «A todas:» (o «A las N elegidas:» si tildaste algunas) y tocá «Aplicar». Lo que dice «Sin cambiar» no se toca.",
         "Para una sola foto, tocala o tocá «Editar»: ahí la movés, la girás o la encajás para recortarla. «Quitar» la saca del pedido.",
         "El «Plazo» es «para mañana» o «próxima semana». Papel: mate o brillo.",
-        "Si una foto es chica para ese tamaño, aparece la marca «Pixelada». Cuando una foto ya está lista, aparece «Revisada».",
+        "Si una foto es chica para ese tamaño, aparece la marca «Pixelada». «Revisada» aparece en las fotos que ya miraste o editaste.",
       ],
       nota: "Si hay fotos «Pixeladas», al tocar «Listo» el sistema pregunta «¿Mandarlas igual?». Conviene pedirle al cliente una foto mejor.",
     },
