@@ -1,8 +1,18 @@
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("sharp", () => ({ default: vi.fn() }));
-vi.mock("./render", () => ({ renderizarPieza: vi.fn(), leerOriginal: vi.fn() }));
-const { pixelesParaLaboratorio } = await import("./render-laboratorio");
+const S = vi.hoisted(() => {
+  const llamadas: [string, unknown[]][] = [];
+  const cadena: Record<string, unknown> = {};
+  for (const m of ["toColourspace", "jpeg", "withIccProfile", "withMetadata"]) cadena[m] = (...a: unknown[]) => (llamadas.push([m, a]), cadena);
+  cadena.toBuffer = async () => Buffer.from("jpg");
+  return { llamadas, cadena };
+});
+vi.mock("sharp", () => ({ default: vi.fn(() => S.cadena) }));
+vi.mock("./render", () => ({
+  renderizarPieza: vi.fn(async () => ({ data: Buffer.alloc(3), ancho: 1, alto: 1 })),
+  leerOriginal: vi.fn(async () => ({ ancho: 4000, alto: 6000 })),
+}));
+const { pixelesParaLaboratorio, renderParaLaboratorio } = await import("./render-laboratorio");
 const { medidaEnMm } = await import("./laboratorio");
 const { encuadreQueLlena } = await import("./encuadre");
 import type { Receta } from "./receta";
@@ -31,5 +41,14 @@ describe("pixelesParaLaboratorio", () => {
   it("papel horizontal según la receta", () => {
     const r = pixelesParaLaboratorio(papel, receta({ orientacion: "HORIZONTAL", encuadre: encuadreQueLlena(6000 / 4000, 152 / 102) }), { ancho: 6000, alto: 4000 });
     expect(r).toEqual({ ancho: 1795, alto: 1205 });
+  });
+});
+
+describe("renderParaLaboratorio", () => {
+  it("el JPEG sale q95 4:4:4 con perfil sRGB y 300 ppp de densidad", async () => {
+    await renderParaLaboratorio(Buffer.from("x"), receta(), papel);
+    expect(S.llamadas).toContainEqual(["jpeg", [{ quality: 95, chromaSubsampling: "4:4:4" }]]);
+    expect(S.llamadas).toContainEqual(["withIccProfile", ["srgb"]]);
+    expect(S.llamadas).toContainEqual(["withMetadata", [{ density: 300 }]]);
   });
 });

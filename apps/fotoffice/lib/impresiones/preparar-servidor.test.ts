@@ -594,6 +594,21 @@ describe("prepararPedido: pedidos de mostrador con receta", () => {
     const d = { ...deps(), renderizar: vi.fn(async (..._a: unknown[]) => Buffer.from("lab")) };
     expect(await P.prepararPedido("ord1", d)).toBe("PAGADO_SIN_ENVIAR");
     expect(d.renderizar).not.toHaveBeenCalled();
+    expect(d.recortar.mock.calls.map((c) => c[1].sourceName)).not.toContain("m.jpg");
+  });
+
+  it.each([
+    ["receta inválida", { receta: { version: 2 }, medida: "10x15" }],
+    ["receta sin orientación", { receta: { ...receta, orientacion: undefined }, medida: "10x15" }],
+    ["medida nula", { receta, medida: null }],
+    ["medida desconocida", { receta, medida: "grande" }],
+  ])("%s: el pedido queda PAGADO_SIN_ENVIAR y la copia no sale con recorte simple", async (_n, fila) => {
+    H.estado.pedidos = { ord1: conPieza() };
+    H.db.fotofficePiezaImpresion.findMany.mockResolvedValue([{ id: "pz1", ...fila }]);
+    const d = { ...deps(), renderizar: vi.fn(async (..._a: unknown[]) => Buffer.from("lab")) };
+    expect(await P.prepararPedido("ord1", d)).toBe("PAGADO_SIN_ENVIAR");
+    expect(d.renderizar).not.toHaveBeenCalled();
+    expect(d.recortar.mock.calls.map((c) => c[1].sourceName)).not.toContain("m.jpg");
   });
 
   it("sin ítems con piezaId no se consulta la tabla de piezas", async () => {

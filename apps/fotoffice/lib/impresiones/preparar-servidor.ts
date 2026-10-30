@@ -153,7 +153,7 @@ async function completarLaboratoriosSinTrabajo(workspaceId: string, items: Item[
 
 type PiezaLab = { receta: Receta; papel: PapelMm };
 
-/** Receta y medida real de las piezas de los ítems de mostrador; las que no existen o no sirven no entran. */
+/** Receta y medida real de las piezas de los ítems de mostrador; las que no existen, sin orientación o sin medida válida no entran. */
 async function piezasDelPedido(workspaceId: string, items: Item[]): Promise<Map<string, PiezaLab>> {
   const ids = [...new Set(items.map((i) => i.piezaId).filter((x): x is string => !!x))];
   const mapa = new Map<string, PiezaLab>();
@@ -162,7 +162,7 @@ async function piezasDelPedido(workspaceId: string, items: Item[]): Promise<Map<
   for (const f of filas) {
     const receta = validarReceta(f.receta);
     const papel = f.medida ? medidaEnMm(f.medida) : null;
-    if (receta && papel) mapa.set(f.id, { receta, papel });
+    if (receta?.orientacion && papel) mapa.set(f.id, { receta, papel });
   }
   return mapa;
 }

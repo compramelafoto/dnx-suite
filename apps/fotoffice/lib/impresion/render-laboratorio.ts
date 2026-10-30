@@ -20,7 +20,8 @@ export function pixelesParaLaboratorio(papel: Papel, receta: Receta, original: {
   const orientado = papelOrientado(papel, receta.orientacion ?? "VERTICAL");
   const destino = { ancho: mmAPx(orientado.anchoMm, PPP_LABORATORIO), alto: mmAPx(orientado.altoMm, PPP_LABORATORIO) };
   const caja = cajaRotada(original.ancho, original.alto, anguloTotal(receta));
-  const plan = planDeRecorte(receta, caja, destino);
+  // El mismo margen que usa `renderizarPieza`.
+  const plan = planDeRecorte(receta, caja, destino, anguloTotal(receta) % 90 === 0 ? 0 : 2);
   const escala = Math.min(1, plan.recorte.width / plan.colocacion.width, plan.recorte.height / plan.colocacion.height);
   if (escala >= 1) return destino;
   return { ancho: Math.max(1, Math.min(destino.ancho, Math.floor(destino.ancho * escala + 1e-6))), alto: Math.max(1, Math.min(destino.alto, Math.floor(destino.alto * escala + 1e-6))) };
@@ -34,5 +35,7 @@ export async function renderParaLaboratorio(original: Buffer, receta: Receta, pa
   return sharp(pieza.data, { raw: { width: pieza.ancho, height: pieza.alto, channels: 3 } })
     .toColourspace("srgb")
     .jpeg({ quality: 95, chromaSubsampling: "4:4:4" })
+    .withIccProfile("srgb")
+    .withMetadata({ density: PPP_LABORATORIO })
     .toBuffer();
 }
