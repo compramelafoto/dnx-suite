@@ -4,6 +4,7 @@ vi.mock("server-only", () => ({}));
 
 const { planificarConsumo, aplicarConsumo, consumosPendientesDeDevolver, devolverConsumos } =
   await import("./consumo-servidor");
+const { ajustarEmbalaje, EmbalajeInvalido } = await import("./embalaje-servidor");
 
 type Mov = {
   workspaceId: string;
@@ -21,9 +22,13 @@ function fakeTx(
     combos?: { comboProductId: string; componentProductId: string; quantity: number }[];
     productos?: { id: string; kind: string }[];
     movimientos?: Mov[];
+    envoltorios?: { id: string; insumoId: string; tipo: string; admiteAnchoCm: number; admiteAltoCm: number; piezasPorUnidad: number | null; orden: number; activo?: boolean; insumo: { name: string; kind: string } }[];
+    entregas?: { productId: string; forma: string; anchoCm: number | null; altoCm: number | null; embalajeSiguiente: boolean; embalajeFijoId: string | null }[];
   } = {},
 ) {
   const recetas = over.recetas ?? [];
+  const envoltorios = over.envoltorios ?? [];
+  const entregas = over.entregas ?? [];
   const combos = over.combos ?? [];
   const productos = over.productos ?? [];
   return {
@@ -47,6 +52,17 @@ function fakeTx(
       create: vi.fn(async () => ({})),
       findMany: vi.fn(async () => over.movimientos ?? []),
     },
+    fotofficeEmbalaje: {
+      findMany: vi.fn(async ({ where }: { where: { activo?: boolean; insumoId?: { in: string[] } } }) =>
+        envoltorios.filter(
+          (e) => (where.activo === undefined || (e.activo ?? true) === where.activo) && (!where.insumoId || where.insumoId.in.includes(e.insumoId)),
+        ),
+      ),
+    },
+    fotofficeProductoEntrega: {
+      findMany: vi.fn(async ({ where }: { where: { productId: { in: string[] } } }) => entregas.filter((e) => where.productId.in.includes(e.productId))),
+    },
+    $queryRaw: vi.fn(async () => []),
   };
 }
 
@@ -174,5 +190,92 @@ describe("devolverConsumos", () => {
         sourceRef: "s1",
       }),
     });
+  });
+});
+
+const SOBRE = { id: "e1", insumoId: "sobre", tipo: "SOBRE", admiteAnchoCm: 15, admiteAltoCm: 21, piezasPorUnidad: 100, orden: 0, insumo: { name: "Sobre 19x24", kind: "INSUMO" } };
+const BOLSA = { id: "e2", insumoId: "bolsa", tipo: "BOLSA", admiteAnchoCm: 20, admiteAltoCm: 30, piezasPorUnidad: null, orden: 1, insumo: { name: "Bolsa 20x30", kind: "INSUMO" } };
+const COPIA = { productId: "copia", forma: "PIEZA_SUELTA", anchoCm: 10, altoCm: 15, embalajeSiguiente: false, embalajeFijoId: null };
+
+describe("embalaje dentro del plan de consumo", () => {
+  it("una 10x15 con el sobre configurado suma el sobre al plan y a los bloqueos", async () => {
+    const tx = fakeTx({ envoltorios: [SOBRE], entregas: [COPIA] });
+    const plan = await planificarConsumo(tx as never, "w1", [{ ref: "0", productId: "copia", qty: 3 }]);
+    expect(plan.consumos).toEqual([{ ref: "embalaje", insumoId: "sobre", qty: 1 }]);
+    expect(plan.insumoIds).toEqual(["sobre"]);
+  });
+
+  it("sin envoltorios el plan es el de siempre", async () => {
+    const tx = fakeTx({ entregas: [COPIA] });
+    const plan = await planificarConsumo(tx as never, "w1", [{ ref: "0", productId: "copia", qty: 3 }]);
+    expect(plan).toEqual({ insumoIds: [], consumos: [] });
+  });
+
+  it("modo ninguno no descuenta embalaje", async () => {
+    const tx = fakeTx({ envoltorios: [SOBRE], entregas: [COPIA] });
+    const plan = await planificarConsumo(tx as never, "w1", [{ ref: "0", productId: "copia", qty: 3 }], { embalaje: { modo: "ninguno" } });
+    expect(plan.consumos).toEqual([]);
+  });
+
+  it("piezas sin producto (pedido de impresión) también se embalan", async () => {
+    const tx = fakeTx({ envoltorios: [SOBRE, BOLSA] });
+    const plan = await planificarConsumo(tx as never, "w1", [], {
+      piezasSinProducto: [{ forma: "PIEZA_SUELTA", anchoCm: 20, altoCm: 30, embalajeSiguiente: false, embalajeFijoId: null, qty: 1 }],
+    });
+    expect(plan.consumos).toEqual([{ ref: "embalaje", insumoId: "bolsa", qty: 1 }]);
+  });
+
+  it("elegido a mano reemplaza al calculado", async () => {
+    const tx = fakeTx({ envoltorios: [SOBRE, BOLSA], entregas: [COPIA] });
+    const plan = await planificarConsumo(tx as never, "w1", [{ ref: "0", productId: "copia", qty: 3 }], {
+      embalaje: { modo: "manual", elegido: [{ insumoId: "bolsa", qty: 2 }, { insumoId: "sobre", qty: 0 }] },
+    });
+    expect(plan.consumos).toEqual([{ ref: "embalaje", insumoId: "bolsa", qty: 2 }]);
+  });
+
+  it("elegido a mano rechaza lo que no es un envoltorio del negocio y cantidades raras", async () => {
+    const tx = fakeTx({ envoltorios: [SOBRE] });
+    const manual = (elegido: { insumoId: string; qty: number }[]) =>
+      planificarConsumo(tx as never, "w1", [], { embalaje: { modo: "manual", elegido } });
+    await expect(manual([{ insumoId: "ajeno", qty: 1 }])).rejects.toBeInstanceOf(EmbalajeInvalido);
+    await expect(manual([{ insumoId: "sobre", qty: -1 }])).rejects.toBeInstanceOf(EmbalajeInvalido);
+    await expect(manual([{ insumoId: "sobre", qty: 1.5 }])).rejects.toBeInstanceOf(EmbalajeInvalido);
+  });
+
+  it("aplicarConsumo usa la nota consumo:embalaje", async () => {
+    const tx = fakeTx();
+    await aplicarConsumo(tx as never, {
+      ...base,
+      plan: { insumoIds: ["sobre"], consumos: [{ ref: "embalaje", insumoId: "sobre", qty: 1 }] },
+      createdByUserId: null,
+    });
+    expect(tx.stockMovement.create).toHaveBeenCalledWith({ data: expect.objectContaining({ productId: "sobre", qty: -1, note: "consumo:embalaje" }) });
+  });
+
+  it("pendientes de devolver: el embalaje entra sin refs o si refs lo pide", async () => {
+    const tx = fakeTx({ movimientos: [mov("CONSUMO", -1, "consumo:embalaje", "sobre"), mov("CONSUMO", -2, "consumo:item:a")] });
+    const q = (refs: ReadonlySet<string> | null) => consumosPendientesDeDevolver(tx as never, { ...base, refs });
+    expect(await q(null)).toContainEqual({ insumoId: "sobre", qty: 1, note: "consumo:embalaje" });
+    expect((await q(new Set(["a"]))).map((p) => p.note)).toEqual(["consumo:item:a"]);
+    expect((await q(new Set(["embalaje"]))).map((p) => p.note)).toEqual(["consumo:embalaje"]);
+  });
+});
+
+describe("ajustarEmbalaje", () => {
+  it("de 1 sobre a 2 sobres y 1 bolsa descuenta la diferencia", async () => {
+    const tx = fakeTx({ envoltorios: [SOBRE, BOLSA], movimientos: [mov("CONSUMO", -1, "consumo:embalaje", "sobre")] });
+    await ajustarEmbalaje(tx as never, { ...base, deseado: [{ insumoId: "sobre", qty: 2 }, { insumoId: "bolsa", qty: 1 }], createdByUserId: null });
+    const escritos = tx.stockMovement.create.mock.calls.map((c) => (c as unknown as [{ data: { productId: string; qty: number; reason: string; note: string } }])[0].data);
+    expect(escritos.map((d) => [d.productId, d.qty, d.reason, d.note])).toEqual([
+      ["bolsa", -1, "CONSUMO", "consumo:embalaje"],
+      ["sobre", -1, "CONSUMO", "consumo:embalaje"],
+    ]);
+  });
+
+  it("de 2 sobres a nada devuelve los dos", async () => {
+    const tx = fakeTx({ envoltorios: [SOBRE], movimientos: [mov("CONSUMO", -2, "consumo:embalaje", "sobre")] });
+    await ajustarEmbalaje(tx as never, { ...base, deseado: [], createdByUserId: null });
+    expect(tx.stockMovement.create).toHaveBeenCalledTimes(1);
+    expect(tx.stockMovement.create).toHaveBeenCalledWith({ data: expect.objectContaining({ productId: "sobre", qty: 2, reason: "DEVOLUCION", note: "consumo:embalaje" }) });
   });
 });
