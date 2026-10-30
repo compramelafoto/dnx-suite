@@ -637,3 +637,50 @@ describe("insumos de la seña", () => {
     });
   });
 });
+
+describe("embalaje del pedido", () => {
+  // Un portarretratos 13x18 con su foto: va armado en una bolsa 20x30, sin sobre.
+  beforeEach(() => {
+    B.agregar("product", { id: "sobre", workspaceId: "ws-1", name: "Sobre 19x24", kind: "INSUMO", tracksStock: true, stockQty: 0 });
+    B.agregar("product", { id: "bolsa2030", workspaceId: "ws-1", name: "Bolsa 20x30", kind: "INSUMO", tracksStock: true, stockQty: 0 });
+    B.agregar("product", { id: "marco13x18", workspaceId: "ws-1", name: "Portarretratos 13x18", tracksStock: false, stockQty: 0 });
+    B.agregar("product", { id: "copia13x18", workspaceId: "ws-1", name: "Copia 13x18", tracksStock: false, stockQty: 0 });
+    B.agregar("fotofficeEmbalaje", { id: "e-sobre", workspaceId: "ws-1", insumoId: "sobre", tipo: "SOBRE", admiteAnchoCm: 15, admiteAltoCm: 21, piezasPorUnidad: 100, orden: 0 });
+    B.agregar("fotofficeEmbalaje", { id: "e-bolsa", workspaceId: "ws-1", insumoId: "bolsa2030", tipo: "BOLSA", admiteAnchoCm: 20, admiteAltoCm: 30, orden: 1 });
+    B.agregar("fotofficeProductoEntrega", { id: "pe1", workspaceId: "ws-1", productId: "marco13x18", forma: "ENMARCADO", anchoCm: 13, altoCm: 18, embalajeSiguiente: true });
+    B.agregar("fotofficeProductoEntrega", { id: "pe2", workspaceId: "ws-1", productId: "copia13x18", forma: "PIEZA_SUELTA", anchoCm: 13, altoCm: 18 });
+  });
+  const embalaje = () => B.datos.stockMovement.filter((m) => m.note === "consumo:embalaje");
+
+  async function pedidoConMarco(): Promise<string> {
+    const r = await P.crearPedidoManual(
+      DUENO,
+      base({
+        items: [item("m1", { productId: "marco13x18", cantidad: 1 }), item("c1", { productId: "copia13x18", cantidad: 1 })],
+        paraRetirar: ["m1", "c1"],
+      }),
+      deps,
+    );
+    if (!r.ok) throw new Error(r.error);
+    return r.pedidoId;
+  }
+
+  it("al tomar el pedido descuenta una bolsa 20x30 y ningún sobre", async () => {
+    const id = await pedidoConMarco();
+    expect(embalaje().map((m) => [m.productId, m.qty, m.reason, m.sourceRef])).toEqual([["bolsa2030", -1, "CONSUMO", id]]);
+  });
+
+  it("cancelar sin nada entregado devuelve la bolsa", async () => {
+    const id = await pedidoConMarco();
+    await P.cambiarEstadoPedido(DUENO, id, "CANCELADO", "Se arrepintió");
+    expect(embalaje().filter((m) => m.reason === "DEVOLUCION").map((m) => [m.productId, m.qty])).toEqual([["bolsa2030", 1]]);
+  });
+
+  it("cancelar con algo ya entregado no devuelve la bolsa", async () => {
+    const id = await pedidoConMarco();
+    const trabajo = B.datos.fotofficeProyecto.find((p) => p.pedidoId === id && p.pedidoItemIndex === 0)!;
+    Object.assign(B.datos.fotofficeJourney.find((j) => j.subjectId === trabajo.id)!, { stageId: null, outcome: "TERMINADO", closedAt: AHORA });
+    await P.cambiarEstadoPedido(DUENO, id, "CANCELADO", "Se arrepintió");
+    expect(embalaje().filter((m) => m.reason === "DEVOLUCION")).toEqual([]);
+  });
+});

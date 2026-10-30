@@ -149,7 +149,8 @@ export async function consumosPendientesDeDevolver(
       sourceModule: d.sourceModule,
       sourceRef: d.sourceRef,
       reason: { in: ["CONSUMO", "DEVOLUCION"] },
-      OR: [{ note: { startsWith: PREFIJO_NOTA } }, { note: NOTA_EMBALAJE }],
+      // Las dos notas (`consumo:item:<id>` y `consumo:embalaje`) comparten este prefijo; `refDeNota` las separa.
+      note: { startsWith: "consumo:" },
     },
     select: { productId: true, qty: true, note: true, reason: true },
   });

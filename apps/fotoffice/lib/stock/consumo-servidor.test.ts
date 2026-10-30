@@ -30,7 +30,8 @@ function fakeTx(
   const envoltorios = over.envoltorios ?? [];
   const entregas = over.entregas ?? [];
   const combos = over.combos ?? [];
-  const productos = over.productos ?? [];
+  // Cada envoltorio es un insumo: aparece en `product` con su nombre.
+  const productos = [...(over.productos ?? []), ...envoltorios.map((e) => ({ id: e.insumoId, kind: e.insumo.kind, name: e.insumo.name }))];
   return {
     fotofficeRecetaInsumo: {
       findMany: vi.fn(async ({ where }: { where: { productId: { in: string[] } } }) =>

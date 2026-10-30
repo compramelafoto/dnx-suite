@@ -31,46 +31,49 @@ export class EmbalajeInvalido extends Error {}
 
 const CANTIDAD_MAXIMA = 999;
 
-type FilaEnvoltorio = {
-  insumoId: string;
-  tipo: string;
-  admiteAnchoCm: unknown;
-  admiteAltoCm: unknown;
-  piezasPorUnidad: number | null;
-  orden: number;
-  insumo: { name: string; kind: string };
-};
+type EnvoltorioConFila = Envoltorio & { filaId: string };
 
-function aEnvoltorio(f: FilaEnvoltorio): Envoltorio {
-  return {
-    insumoId: f.insumoId,
-    nombre: f.insumo.name,
-    tipo: f.tipo as TipoEnvoltorio,
-    admiteAnchoCm: Number(f.admiteAnchoCm),
-    admiteAltoCm: Number(f.admiteAltoCm),
-    piezasPorUnidad: f.piezasPorUnidad,
-    orden: f.orden,
-  };
+/**
+ * Los envoltorios del negocio con su insumo. Dos lecturas simples en vez de una relación anidada.
+ * Lo que dejó de ser insumo (cambió de `kind`) no cuenta.
+ */
+async function leerEnvoltorios(
+  tx: Tx,
+  workspaceId: string,
+  filtro: { activo?: true; insumoIds?: readonly string[] },
+): Promise<EnvoltorioConFila[]> {
+  const filas = await tx.fotofficeEmbalaje.findMany({
+    where: {
+      workspaceId,
+      ...(filtro.activo ? { activo: true } : {}),
+      ...(filtro.insumoIds ? { insumoId: { in: [...filtro.insumoIds] } } : {}),
+    },
+    orderBy: { orden: "asc" },
+    select: { id: true, insumoId: true, tipo: true, admiteAnchoCm: true, admiteAltoCm: true, piezasPorUnidad: true, orden: true },
+  });
+  if (filas.length === 0) return [];
+  const insumos = await tx.product.findMany({
+    where: { workspaceId, kind: "INSUMO", id: { in: filas.map((f) => f.insumoId) } },
+    select: { id: true, name: true },
+  });
+  const nombre = new Map(insumos.map((p) => [p.id, p.name]));
+  return filas
+    .filter((f) => nombre.has(f.insumoId))
+    .map((f) => ({
+      filaId: f.id,
+      insumoId: f.insumoId,
+      nombre: nombre.get(f.insumoId)!,
+      tipo: f.tipo as TipoEnvoltorio,
+      admiteAnchoCm: Number(f.admiteAnchoCm),
+      admiteAltoCm: Number(f.admiteAltoCm),
+      piezasPorUnidad: f.piezasPorUnidad,
+      orden: f.orden,
+    }));
 }
 
-const SELECT_ENVOLTORIO = {
-  insumoId: true,
-  tipo: true,
-  admiteAnchoCm: true,
-  admiteAltoCm: true,
-  piezasPorUnidad: true,
-  orden: true,
-  insumo: { select: { name: true, kind: true } },
-} as const;
-
-/** Los envoltorios activos del negocio. Lo que dejó de ser insumo (cambió de `kind`) no cuenta. */
+/** Los envoltorios activos del negocio. */
 export async function envoltoriosActivos(tx: Tx, workspaceId: string): Promise<Envoltorio[]> {
-  const filas = (await tx.fotofficeEmbalaje.findMany({
-    where: { workspaceId, activo: true },
-    orderBy: { orden: "asc" },
-    select: SELECT_ENVOLTORIO,
-  })) as FilaEnvoltorio[];
-  return filas.filter((f) => f.insumo.kind === "INSUMO").map(aEnvoltorio);
+  return (await leerEnvoltorios(tx, workspaceId, { activo: true })).map(({ filaId: _, ...e }) => e);
 }
 
 /** Valida lo elegido a mano: envoltorios del negocio (activos o no) y cantidades enteras de 0 a 999. */
@@ -84,11 +87,7 @@ async function validarElegido(tx: Tx, workspaceId: string, elegido: readonly Emb
   }
   const ids = [...porInsumo.keys()];
   if (ids.length === 0) return [];
-  const filas = (await tx.fotofficeEmbalaje.findMany({
-    where: { workspaceId, insumoId: { in: ids } },
-    select: SELECT_ENVOLTORIO,
-  })) as FilaEnvoltorio[];
-  const propios = new Set(filas.filter((f) => f.insumo.kind === "INSUMO").map((f) => f.insumoId));
+  const propios = new Set((await leerEnvoltorios(tx, workspaceId, { insumoIds: ids })).map((e) => e.insumoId));
   if (ids.some((id) => !propios.has(id))) throw new EmbalajeInvalido("Ese embalaje no es de este negocio.");
   return [...porInsumo.entries()].filter(([, qty]) => qty > 0).map(([insumoId, qty]) => ({ insumoId, qty }));
 }
@@ -113,7 +112,7 @@ export async function planificarEmbalaje(
     return (await validarElegido(tx, workspaceId, d.opciones.elegido)).map((e) => ({ ...e, motivo: "elegido a mano" }));
   }
   if (d.alcanzados.size === 0 && d.piezasSinProducto.length === 0) return [];
-  const envoltorios = await envoltoriosActivos(tx, workspaceId);
+  const envoltorios = await leerEnvoltorios(tx, workspaceId, { activo: true });
   if (envoltorios.length === 0) return [];
 
   const filas =
@@ -124,14 +123,7 @@ export async function planificarEmbalaje(
         })
       : [];
   // `embalajeFijoId` apunta a la fila del envoltorio; el cálculo trabaja con el insumo.
-  const insumoDeFila = new Map(
-    (
-      await tx.fotofficeEmbalaje.findMany({
-        where: { workspaceId, activo: true },
-        select: { id: true, insumoId: true },
-      })
-    ).map((f) => [f.id, f.insumoId]),
-  );
+  const insumoDeFila = new Map(envoltorios.map((e) => [e.filaId, e.insumoId]));
   const entregas = new Map<string, EntregaProducto>(
     filas.map((f) => [
       f.productId,
