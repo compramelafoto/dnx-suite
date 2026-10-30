@@ -248,11 +248,13 @@ La cobertura en días se sigue mostrando como información.
 ## 8. Costo real de cada venta
 
 - El costo se carga al recibir la compra (ya existe: recepción con costo).
-- En el detalle de una venta o pedido: "Costo de insumos y embalaje: $X" = suma de sus movimientos `CONSUMO` ×
-  costo unitario **guardado en el movimiento al descontar** (último costo del insumo en ese momento). Y
-  "Ganancia real" = total − costo de los productos − ese costo.
+- **El costo de cada producto ya incluye sus insumos** (Daniel, 30/10: el costo de una 10x15 ya contiene el papel y
+  el ribbon del kit). Por eso lo que consume la receta **no se vuelve a sumar** al costo: solo se usa para el stock.
+- En el detalle de una venta o pedido: "Costo de embalaje: $X" = suma de sus movimientos `CONSUMO` con nota
+  `embalaje:` × costo unitario **guardado en el movimiento al descontar** (último costo del insumo en ese momento).
+  Y "Ganancia real" = total − costo de los productos (lo que ya calcula `lib/sales/margin.ts`) − costo de embalaje.
 - Para eso, al escribir `CONSUMO` se guarda `unitCostArs` (la columna ya existe en `StockMovement`).
-- En Informes, una línea "Insumos y embalaje" dentro de los costos del período.
+- En Informes, una línea "Embalaje" dentro de los costos del período.
 
 ## 9. Lo que queda preparado para después
 
