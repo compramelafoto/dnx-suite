@@ -118,6 +118,22 @@ describe("laboratorio: guardar piezas", () => {
   });
 });
 
+describe("laboratorio: guardado grande", () => {
+  it("guarda 200 fotos en una sola llamada", async () => {
+    const p = await L.crearPreparacionLaboratorio(CTX, { clientId: null });
+    if (!p.ok) throw new Error(p.error);
+    const ids: string[] = [];
+    for (let i = 0; i < 200; i++) {
+      const id = `o${i}`;
+      ids.push(id);
+      B.agregar("fotofficeOriginalImpresion", { id, workspaceId: "ws-1", preparacionId: p.id, key: `k${i}`, nombre: "x.jpg", tipo: "image/jpeg", estado: "LISTO", anchoPx: 600, altoPx: 400 });
+    }
+    const r = await L.guardarPiezasLaboratorio(CTX, p.id, ids.map((id) => item(id)));
+    expect(r).toEqual({ ok: true, guardadas: 200 });
+    expect(B.datos.fotofficePiezaImpresion).toHaveLength(200);
+  });
+});
+
 describe("laboratorio: quitar foto", () => {
   it("borra la pieza y el original", async () => {
     const { prep, ids } = await prepConFotos(2);

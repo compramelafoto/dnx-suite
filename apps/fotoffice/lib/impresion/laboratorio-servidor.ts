@@ -179,7 +179,8 @@ export async function guardarPiezasLaboratorio(ctx: CtxImpresion, preparacionId:
       else await tx.fotofficePiezaImpresion.create({ data: { workspaceId: ctx.workspaceId, preparacionId: prep.id, originalId: f.originalId, tipo: "COPIA", ...data } });
     }
     return null;
-  });
+    // Hasta 200 fotos en una llamada: una ida y vuelta por fila supera los 5 s por omisión de Prisma.
+  }, { timeout: 30_000, maxWait: 10_000 });
   if (error) return error;
   return { ok: true, guardadas: filas.length };
 }
