@@ -92,7 +92,7 @@ export function renglonesDelPedido(
     // Pocas copias: cotizarCopias devuelve el producto instantáneo, pero el laboratorio es el del
     // producto «para mañana» de esa medida (el de la instantánea no cuenta).
     const elegido = catalogo.find((p) => p.id === l.productoId);
-    const pocasCopias = elegido?.plazo === "INSTANTANEA" && g.plazo !== "INSTANTANEA";
+    const pocasCopias = elegido?.plazo === "INSTANTANEA";
     const manana = pocasCopias ? catalogo.find((p) => p.medida === l.medida && p.plazo === "MANANA") : undefined;
     const prov = manana
       ? (proveedorDeProducto.get(manana.id) ?? manana.proveedorId)
