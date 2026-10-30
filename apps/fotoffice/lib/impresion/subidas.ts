@@ -35,3 +35,15 @@ export async function conLimite<T, R>(items: readonly T[], limite: number, fn: (
   await Promise.all(Array.from({ length: Math.min(Math.max(1, limite), items.length) }, trabajador));
   return resultados;
 }
+
+export const ESPERAR_SUBIDA = "Esperá a que terminen de subirse las fotos y volvé a soltarlas.";
+
+/**
+ * Fotos soltadas sobre el editor: con una subida en curso no se descartan en silencio (se pide
+ * esperar); sin valores para las fotos nuevas o con otra operación en curso, no se hace nada.
+ */
+export function queHacerConLoSoltado(d: { subiendo: boolean; ocupado: boolean; habilitado: boolean }): "SUBIR" | "ESPERAR" | "IGNORAR" {
+  if (!d.habilitado) return "IGNORAR";
+  if (d.subiendo) return "ESPERAR";
+  return d.ocupado ? "IGNORAR" : "SUBIR";
+}

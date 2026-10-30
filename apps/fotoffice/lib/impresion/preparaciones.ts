@@ -672,16 +672,22 @@ export async function registrarPrueba(ctx: CtxImpresion, salidaId: string, taman
   return { ok: true };
 }
 
-/** Una preparación cobrada no se anula: queda atada a la venta (se libera si se anula la venta). */
+const YA_COBRADA = { ok: false as const, error: "Esa preparación ya se cobró: no se puede anular." };
+
+/**
+ * Una preparación cobrada no se anula: queda atada a la venta (se libera si se anula la venta). La
+ * de laboratorio queda LISTA al cobrarse (su pedido de impresión ya existe), sin venta atada.
+ */
 export async function anularPreparacion(ctx: CtxImpresion, preparacionId: string): Promise<R> {
   const prep = await preparacionPropia(ctx.workspaceId, preparacionId);
   if (!prep) return NO_EXISTE;
   if (prep.estado === "ANULADA") return { ok: true };
+  if (prep.destino === "LABORATORIO" && prep.estado === "LISTA") return YA_COBRADA;
   const r = await prisma.fotofficePreparacionImpresion.updateMany({
-    where: { id: prep.id, workspaceId: ctx.workspaceId, saleItemId: null },
+    where: { id: prep.id, workspaceId: ctx.workspaceId, saleItemId: null, NOT: { destino: "LABORATORIO", estado: "LISTA" } },
     data: { estado: "ANULADA" },
   });
-  return r.count === 1 ? { ok: true } : { ok: false, error: "Esa preparación ya se cobró: no se puede anular." };
+  return r.count === 1 ? { ok: true } : YA_COBRADA;
 }
 
 const FALTAN_COPIAS = { ok: false as const, error: "Faltan armar fotos de las copias: abrí Editar fotos y tocá Listo." };

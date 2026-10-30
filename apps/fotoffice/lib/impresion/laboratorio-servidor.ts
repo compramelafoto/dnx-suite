@@ -63,7 +63,8 @@ async function preparacionLab(workspaceId: string, id: unknown) {
 
 /**
  * El Mostrador muestra «Pedido para laboratorio» si hay copias de laboratorio en el catálogo: la
- * misma lectura que usa el editor (todos los productos activos, no sólo los del mostrador).
+ * misma lectura que usa el editor (todos los productos activos, no sólo los del mostrador). Las
+ * instantáneas solas no cuentan: hace falta al menos una copia «para mañana» o «próxima semana».
  */
 export async function hayCopiasDeLaboratorio(workspaceId: string): Promise<boolean> {
   const filas = await prisma.product.findMany({
@@ -73,7 +74,7 @@ export async function hayCopiasDeLaboratorio(workspaceId: string): Promise<boole
   return (
     leerProductosDeCopia(
       filas.map((p) => ({ id: p.id, name: p.name, priceArs: Number(p.priceArs), costArs: p.costArs === null ? null : Number(p.costArs), preferredProveedorId: p.preferredProveedorId })),
-    ).length > 0
+    ).some((p) => p.plazo !== "INSTANTANEA")
   );
 }
 

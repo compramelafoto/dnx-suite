@@ -22,7 +22,7 @@ import {
   type PiezaLabAGuardar,
   type ValoresLab,
 } from "@/lib/impresion/lote-laboratorio";
-import { SUBIDAS_A_LA_VEZ, conLimite, validarArchivoFoto } from "@/lib/impresion/subidas";
+import { ESPERAR_SUBIDA, SUBIDAS_A_LA_VEZ, conLimite, queHacerConLoSoltado, validarArchivoFoto } from "@/lib/impresion/subidas";
 import type { FotoLab } from "@/lib/impresion/laboratorio-servidor";
 import {
   confirmarOriginalAction,
@@ -79,6 +79,8 @@ export function EditorLaboratorio({
   const [lote, setLote] = useState<CambioLab>({});
   const [abierta, setAbierta] = useState<string | null>(null);
   const [arrastrando, setArrastrando] = useState(false);
+  /** Fotos soltadas mientras otras se subían: no se suben, se avisa. */
+  const [soltadasDeMas, setSoltadasDeMas] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
   // Los valores de las fotos nuevas se leen al terminar cada subida (pueden cambiar mientras sube).
   const nuevasRef = useRef<ValoresLab | null>(null);
@@ -152,6 +154,7 @@ export function EditorLaboratorio({
 
   async function subir(lista: File[]) {
     if (!opciones || lista.length === 0) return;
+    setSoltadasDeMas(false);
     const avisos: string[] = [];
     const validos: { file: File; tipo: string }[] = [];
     const lugar = FOTOS_MAX_LAB - fotos.length;
@@ -323,7 +326,9 @@ export function EditorLaboratorio({
         onDrop={(e) => {
           e.preventDefault();
           setArrastrando(false);
-          if (trabajando || !nuevas) return;
+          const que = queHacerConLoSoltado({ subiendo: subida !== null, ocupado, habilitado: nuevas !== null });
+          setSoltadasDeMas(que === "ESPERAR");
+          if (que !== "SUBIR") return;
           void subir(Array.from(e.dataTransfer.files));
         }}
       >
@@ -373,6 +378,7 @@ export function EditorLaboratorio({
           Arrastrá las fotos acá o tocá «Agregar fotos». JPG, PNG o WebP de hasta 60 MB, hasta {FOTOS_MAX_LAB} fotos. Cada foto llega con los
           valores de arriba y un recorte propuesto: tocala para moverla, girarla o encajarla.
         </p>
+        {soltadasDeMas ? <p className="fo-alert-warning text-sm">{ESPERAR_SUBIDA}</p> : null}
         {avisosSubida.length > 0 ? (
           <ul className="fo-alert-warning list-disc space-y-1 pl-5 text-sm">
             {avisosSubida.map((a, i) => (
