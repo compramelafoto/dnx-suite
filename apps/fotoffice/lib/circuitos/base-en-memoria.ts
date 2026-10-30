@@ -16,7 +16,7 @@ type Orden = Record<string, "asc" | "desc">;
 
 const TABLAS = [
   // Pedidos de impresión (el candado del saldo los consulta desde el motor de recorridos).
-  "fotofficePrintOrder", "fotofficePrintOrderItem",
+  "fotofficePrintOrder", "fotofficePrintOrderItem", "fotofficeArchivoTrabajo",
   "fotofficeCircuit", "fotofficeStage", "fotofficeStageTaskTemplate", "fotofficeLossReason",
   "fotofficeJourney", "fotofficeJourneyStep", "fotofficeTask", "serviceSalesLead", "workspaceMembership",
   "fotofficeStageRule", "fotofficeProcessedEvent", "fotofficeWorkspaceBranding", "serviceLeadForm",
