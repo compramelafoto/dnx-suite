@@ -7548,6 +7548,7 @@ model Workspace {
   fotofficeGaleriaRondas         FotofficeGaleriaRonda[]
   fotofficeGaleriaDecisiones     FotofficeGaleriaDecision[]
   fotofficeDispositivos          FotofficeDispositivo[]
+  fotofficeRecuperaciones        FotofficeRecuperacion[]
   fotofficeAlboomCrudos          FotofficeAlboomCrudo[]
   fotofficeAlboomExtracciones    FotofficeAlboomExtraccion[]
   fotofficeAlboomMapas           FotofficeAlboomMapa[]
@@ -27760,4 +27761,62 @@ model FotofficeSitioDocumento {
 
   @@unique([workspaceId, slug])
   @@index([workspaceId, createdAt])
+}
+
+/// Recuperación de tarjetas: un caso por tarjeta que se analiza. El programa de escritorio se
+/// vincula con `codigo` y desde ahí usa un token (en la base sólo su hash). Las fotos completas
+/// quedan en la computadora donde corrió el programa; acá llegan los datos y una miniatura.
+model FotofficeRecuperacion {
+  id               String    @id @default(cuid())
+  workspaceId      String
+  titulo           String
+  notas            String?
+  codigo           String    @unique
+  codigoVenceAt    DateTime
+  tokenHash        String?   @unique
+  /// ESPERANDO | ESCANEANDO | TERMINADO | ERROR
+  estado           String    @default("ESPERANDO")
+  dispositivo      String?
+  equipo           String?
+  versionPrograma  String?
+  bytesTotales     BigInt    @default(0)
+  bytesLeidos      BigInt    @default(0)
+  encontrados      Int       @default(0)
+  sectoresMalos    BigInt    @default(0)
+  mensaje          String?
+  vinculadoAt      DateTime?
+  ultimaSenalAt    DateTime?
+  terminadoAt      DateTime?
+  createdByUserId  Int?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  workspace Workspace                      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  archivos  FotofficeRecuperacionArchivo[]
+
+  @@index([workspaceId, createdAt])
+}
+
+model FotofficeRecuperacionArchivo {
+  id              String   @id @default(cuid())
+  recuperacionId  String
+  indice          Int
+  /// JPEG | RAW | HEIC | VIDEO
+  tipo            String
+  extension       String
+  tamanio         BigInt
+  offset          BigInt
+  ancho           Int?
+  alto            Int?
+  /// Tal como la guarda la cámara ("2026:10:12 15:30:22"): hora local de la cámara, sin zona.
+  fechaToma       String?
+  camara          String?
+  nombreLocal     String
+  miniaturaKey    String?
+  createdAt       DateTime @default(now())
+
+  recuperacion FotofficeRecuperacion @relation(fields: [recuperacionId], references: [id], onDelete: Cascade)
+
+  @@unique([recuperacionId, indice])
+  @@index([recuperacionId, tipo])
 }

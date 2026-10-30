@@ -40,9 +40,11 @@ import {
   Printer,
   Coins,
   Frame,
+  HardDriveDownload,
 } from "lucide-react";
 import type { ComponentType } from "react";
 import { PROBADOR_LABEL, PROBADOR_PANEL_ROUTE } from "@/lib/probador/constantes";
+import { RECUPERACION_LABEL, RECUPERACION_PANEL_ROUTE } from "@/lib/recuperacion/constantes";
 import { useShellNav } from "./shell-frame";
 import { MenuSearch, type MenuSearchSection } from "./menu-search";
 import { ICONOS } from "./nav-icons";
@@ -330,6 +332,7 @@ export function ShellNav({
   // Ventas (con el Mostrador primero), Caja y Clientes: antes sólo se llegaba desde las
   // tarjetas del inicio, y el equipo de un local no encontraba dónde cobrar.
   // El probador de cuadros va con Ventas: es para mostrarle al cliente cómo le quedan en su pared.
+  // La recuperación de tarjetas también: es un servicio que se le ofrece al cliente en el mostrador.
   const ventas: Item[] = [
     ...itemsDeModulo(SALES_MODULE_KEY, access, vocabulary),
     ...(ve(SALES_MODULE_KEY)
@@ -340,6 +343,13 @@ export function ShellNav({
             description: "Probar cuadros, dípticos y trípticos sobre la foto de la pared del cliente.",
             icon: Frame,
             isActive: under(PROBADOR_PANEL_ROUTE),
+          },
+          {
+            href: RECUPERACION_PANEL_ROUTE,
+            label: RECUPERACION_LABEL,
+            description: "Rescatar fotos y videos borrados o de tarjetas formateadas.",
+            icon: HardDriveDownload,
+            isActive: under(RECUPERACION_PANEL_ROUTE),
           },
         ]
       : []),
