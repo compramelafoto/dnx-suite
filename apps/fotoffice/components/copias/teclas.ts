@@ -47,8 +47,8 @@ export function accionDeTecla(e: Tecla, pos: { primera: boolean; ultima: boolean
   }
 }
 
-/** La cantidad de copias de lo que se escribió: entera, entre 1 y `CANTIDAD_MAX`. */
-export function cantidadDesdeTexto(texto: string): number {
+/** La cantidad de copias de lo que se escribió: entera, entre 1 y `max` (por omisión `CANTIDAD_MAX`). */
+export function cantidadDesdeTexto(texto: string, max: number = CANTIDAD_MAX): number {
   const n = Math.round(Number(texto));
-  return Number.isFinite(n) && n >= 1 ? Math.min(CANTIDAD_MAX, n) : 1;
+  return Number.isFinite(n) && n >= 1 ? Math.min(max, n) : 1;
 }
