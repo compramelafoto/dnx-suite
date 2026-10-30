@@ -21,6 +21,10 @@ import { resumenParaLab, rutasDelZip } from "./carpeta-lab";
 import { correoPedidoLab, esc } from "./correo-lab";
 import { pedidoDeReferencia, referenciaPedido } from "./pago-servidor";
 import { recorteEnPixeles } from "./recorte";
+import { renderParaLaboratorio } from "@/lib/impresion/render-laboratorio";
+import { medidaEnMm } from "@/lib/impresion/laboratorio";
+import { validarReceta, type Receta } from "@/lib/impresion/receta";
+import type { Papel as PapelMm } from "@/lib/impresion/encuadre";
 import type { Papel } from "./constantes";
 
 /**
@@ -57,6 +61,8 @@ type Item = {
   id: string; sourceKey: string; sourceName: string; widthCm: unknown; heightCm: unknown; quantity: number;
   cropX: number; cropY: number; cropW: number; cropH: number; proveedorId: string | null; proyectoId: string | null;
   sizeId?: string | null; unitCostArs?: unknown;
+  /** Pedidos de mostrador: la pieza con la receta completa de la cajera. */
+  piezaId?: string | null;
   /** Pedidos del bot (spec 2026-10-28). */
   sinRecorte?: boolean; plazo?: string | null; paper?: string | null; calidadBaja?: boolean;
 };
@@ -71,6 +77,8 @@ export async function recortarParaImprimir(original: Buffer, item: Pick<Item, "c
 
 export type DepsPreparar = {
   recortar?: (original: Buffer, item: Item) => Promise<Buffer>;
+  /** Copias de mostrador (con `piezaId`): la receta completa a la medida real del papel. */
+  renderizar?: (original: Buffer, receta: Receta, papel: PapelMm) => Promise<Buffer>;
   leer?: (key: string) => Promise<Buffer>;
   subir?: typeof subirFlujo;
   enviar?: typeof sendTransactionalEmail;
@@ -141,6 +149,22 @@ async function completarLaboratoriosSinTrabajo(workspaceId: string, items: Item[
     await prisma.fotofficePrintOrderItem.update({ where: { id: i.id }, data: { proveedorId: nuevo } });
     i.proveedorId = nuevo;
   }
+}
+
+type PiezaLab = { receta: Receta; papel: PapelMm };
+
+/** Receta y medida real de las piezas de los ítems de mostrador; las que no existen o no sirven no entran. */
+async function piezasDelPedido(workspaceId: string, items: Item[]): Promise<Map<string, PiezaLab>> {
+  const ids = [...new Set(items.map((i) => i.piezaId).filter((x): x is string => !!x))];
+  const mapa = new Map<string, PiezaLab>();
+  if (ids.length === 0) return mapa;
+  const filas = await prisma.fotofficePiezaImpresion.findMany({ where: { workspaceId, id: { in: ids } }, select: { id: true, receta: true, medida: true } });
+  for (const f of filas) {
+    const receta = validarReceta(f.receta);
+    const papel = f.medida ? medidaEnMm(f.medida) : null;
+    if (receta && papel) mapa.set(f.id, { receta, papel });
+  }
+  return mapa;
 }
 
 type Trabajo = { id: string; number: string; proveedorId: string | null; proveedorEnviadoAt: Date | null };
@@ -226,6 +250,7 @@ export async function prepararPedido(pedidoId: string, deps: DepsPreparar = {}):
   const toma = await tomar(pedidoId, ahora);
   if (toma === "OCUPADO") return "OCUPADO";
   const recortar = deps.recortar ?? recortarParaImprimir;
+  const renderizar = deps.renderizar ?? renderParaLaboratorio;
   const leer = deps.leer ?? leerOriginal;
   const subir = deps.subir ?? subirFlujo;
   const enviar = deps.enviar ?? sendTransactionalEmail;
@@ -268,6 +293,8 @@ export async function prepararPedido(pedidoId: string, deps: DepsPreparar = {}):
       if (i.plazo === "INSTANTANEA") continue;
       porTrabajo.set(i.proyectoId!, [...(porTrabajo.get(i.proyectoId!) ?? []), i]);
     }
+    // Las piezas de mostrador se leen una sola vez por pedido (no por copia).
+    const piezas = await piezasDelPedido(ws, p.items as Item[]);
     const yaEnviados = new Set(trabajos.filter((t) => t.proveedorEnviadoAt).map((t) => t.id));
     const { laboratorio, errores } = await laboratoriosPorTrabajo(ws, porTrabajo, trabajos, yaEnviados);
 
@@ -292,7 +319,13 @@ export async function prepararPedido(pedidoId: string, deps: DepsPreparar = {}):
           // Si una copia falla, el pedido no sale incompleto: se corta todo el ZIP.
           try {
             // Los originales del bot van tal cual: el encuadre lo decide el laboratorio.
-            const jpg = i.sinRecorte ? await leer(i.sourceKey) : await recortar(await leer(i.sourceKey), i);
+            let jpg: Buffer;
+            if (i.sinRecorte) jpg = await leer(i.sourceKey);
+            else if (i.piezaId) {
+              const pieza = piezas.get(i.piezaId);
+              if (!pieza) throw new Error("la pieza con el recorte de la cajera no existe o no es válida");
+              jpg = await renderizar(await leer(i.sourceKey), pieza.receta, pieza.papel);
+            } else jpg = await recortar(await leer(i.sourceKey), i);
             return (async function* () {
               yield new Uint8Array(jpg);
             })();

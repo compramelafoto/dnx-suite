@@ -1,5 +1,6 @@
 import sharp from "sharp";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { AJUSTES_NEUTROS } from "@/lib/impresion/ajustes";
 
 /* eslint-disable @typescript-eslint/no-unused-vars -- los mocks reciben argumentos que la prueba lee con `mock.calls` */
 type Item = {
@@ -61,6 +62,7 @@ const H = vi.hoisted(() => {
       deleteMany: vi.fn(async (..._a: unknown[]) => ({ count: 0 })),
     },
     fotofficePrintSize: { findMany: vi.fn(async (..._a: unknown[]) => [] as unknown[]) },
+    fotofficePiezaImpresion: { findMany: vi.fn(async (..._a: unknown[]) => [] as unknown[]) },
     fotofficePrintOrderItem: { update: vi.fn(async (..._a: unknown[]) => ({})), updateMany: vi.fn(async (..._a: unknown[]) => ({ count: 1 })) },
     $transaction: vi.fn(async (fn: (tx: unknown) => unknown) => fn(db)),
   };
@@ -85,6 +87,7 @@ vi.mock("@/lib/communications/send-email", () => ({ sendTransactionalEmail: vi.f
 vi.mock("@/lib/communications/load-workspace-sender", () => ({ loadWorkspaceSender: async () => ({ name: "DNX Estudio", replyTo: null }) }));
 vi.mock("@/lib/carpetas/subir-servidor", () => ({ subirFlujo: vi.fn() }));
 vi.mock("@/lib/carpetas/almacen", () => ({ borrarArchivoGuardado: H.borrar }));
+vi.mock("@/lib/impresion/render-laboratorio", () => ({ renderParaLaboratorio: vi.fn() }));
 vi.mock("./fuentes-servidor", () => ({ leerOriginal: vi.fn() }));
 vi.mock("./acreditar-servidor", () => ({ asegurarTrabajosDelPedido: H.asegurar, acreditarPagoImpresion: H.acreditar }));
 vi.mock("@/lib/payments/connect/collector", () => ({ resolveWorkspaceCollector: H.collector }));
@@ -559,6 +562,43 @@ describe("procesarPedidosDeImpresion", () => {
     H.estado.pagados = [];
     await P.procesarPedidosDeImpresion(deps());
     expect(orden.updateMany).not.toHaveBeenCalled();
+  });
+});
+
+describe("prepararPedido: pedidos de mostrador con receta", () => {
+  const receta = { version: 1, modo: "RECORTAR", orientacion: "HORIZONTAL", rotacion90: 0, enderezar: 0, encuadre: { x: 0, y: 0, ancho: 1, alto: 1 }, ajustes: { ...AJUSTES_NEUTROS }, nitidez: null };
+  const conPieza = (): Pedido => ({
+    ...pedidoBase(),
+    items: [
+      { ...item({ id: "m1", sourceName: "m.jpg", widthCm: "10", heightCm: "15" }), piezaId: "pz1" } as Item,
+      item({ id: "m2", sourceName: "s.jpg", widthCm: "13", heightCm: "18" }),
+    ],
+  });
+
+  it("el ítem con piezaId se renderiza con la receta y la medida real; el otro sigue con el recorte simple", async () => {
+    H.estado.pedidos = { ord1: conPieza() };
+    H.db.fotofficePiezaImpresion.findMany.mockResolvedValue([{ id: "pz1", receta, medida: "10x15" }]);
+    const d = { ...deps(), renderizar: vi.fn(async (..._a: unknown[]) => Buffer.from("lab")) };
+    expect(await P.prepararPedido("ord1", d)).toBe("ENVIADO");
+    expect(d.renderizar).toHaveBeenCalledTimes(1);
+    expect(d.renderizar).toHaveBeenCalledWith(expect.any(Buffer), receta, { anchoMm: 102, altoMm: 152 });
+    expect(d.recortar).toHaveBeenCalledTimes(1);
+    expect(d.recortar.mock.calls[0]![1].sourceName).toBe("s.jpg");
+    expect(H.db.fotofficePiezaImpresion.findMany).toHaveBeenCalledTimes(1);
+    expect(H.db.fotofficePiezaImpresion.findMany.mock.calls[0]![0]).toMatchObject({ where: { workspaceId: "ws", id: { in: ["pz1"] } } });
+  });
+
+  it("si la pieza no existe, el pedido queda PAGADO_SIN_ENVIAR y no se manda un recorte simple", async () => {
+    H.estado.pedidos = { ord1: conPieza() };
+    H.db.fotofficePiezaImpresion.findMany.mockResolvedValue([]);
+    const d = { ...deps(), renderizar: vi.fn(async (..._a: unknown[]) => Buffer.from("lab")) };
+    expect(await P.prepararPedido("ord1", d)).toBe("PAGADO_SIN_ENVIAR");
+    expect(d.renderizar).not.toHaveBeenCalled();
+  });
+
+  it("sin ítems con piezaId no se consulta la tabla de piezas", async () => {
+    await P.prepararPedido("ord1", deps());
+    expect(H.db.fotofficePiezaImpresion.findMany).not.toHaveBeenCalled();
   });
 });
 
