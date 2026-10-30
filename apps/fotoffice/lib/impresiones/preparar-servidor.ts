@@ -51,6 +51,12 @@ const MINUTO = 60 * 1000;
 const MAX_INTENTOS = 3;
 /** La función dura hasta 300 s: pasados 200 no se empieza otro pedido (lo toma la próxima corrida). */
 const PRESUPUESTO_MS = 200 * 1000;
+/**
+ * Un pedido de mostrador puede traer cientos de fotos renderizadas a 300 ppp: pasados 240 s desde que
+ * empezó la corrida no se arranca el ZIP de otro trabajo. Lo enviado queda enviado y el pedido vuelve a
+ * PAGADO (sin sumar intento ni avisar): la próxima corrida sigue con los trabajos que faltan.
+ */
+const PRESUPUESTO_PEDIDO_MS = 240 * 1000;
 
 const PREFIJO_SIN_CIRCUITO = "No hay un circuito de trabajo";
 export const SIN_CIRCUITO_PARA_ENVIAR = `${PREFIJO_SIN_CIRCUITO} para crear el trabajo. Creá uno en Configuración → Circuitos y tocá «Reintentar envío».`;
@@ -245,8 +251,14 @@ function ordenarParaZip<T extends { widthCm: number; heightCm: number; quantity:
   return [...items].sort((a, b) => corto(a) - corto(b) || largo(a) - largo(b) || a.quantity - b.quantity || a.sourceName.localeCompare(b.sourceName, "es"));
 }
 
-export async function prepararPedido(pedidoId: string, deps: DepsPreparar = {}): Promise<"ENVIADO" | "PAGADO_SIN_ENVIAR" | "OCUPADO"> {
-  const ahora = (deps.ahora ?? (() => new Date()))();
+export async function prepararPedido(
+  pedidoId: string,
+  deps: DepsPreparar = {},
+  opciones: { inicio?: Date } = {},
+): Promise<"ENVIADO" | "PAGADO_SIN_ENVIAR" | "OCUPADO" | "PAUSADO"> {
+  const reloj = deps.ahora ?? (() => new Date());
+  const ahora = reloj();
+  const inicio = opciones.inicio ?? ahora;
   const toma = await tomar(pedidoId, ahora);
   if (toma === "OCUPADO") return "OCUPADO";
   const recortar = deps.recortar ?? recortarParaImprimir;
@@ -300,6 +312,11 @@ export async function prepararPedido(pedidoId: string, deps: DepsPreparar = {}):
 
     for (const [proyectoId, items] of porTrabajo) {
       if (yaEnviados.has(proyectoId) || errores.has(proyectoId)) continue;
+      // Sólo los de mostrador (los únicos con render a 300 ppp): se corta prolijo antes del próximo ZIP.
+      if (p.source === "MOSTRADOR" && reloj().getTime() - inicio.getTime() > PRESUPUESTO_PEDIDO_MS) {
+        await prisma.fotofficePrintOrder.update({ where: { id: pedidoId }, data: { status: "PAGADO", lockedAt: null } });
+        return "PAUSADO";
+      }
       const prov = laboratorio.get(proyectoId);
       if (!prov) throw new Error("Hay copias sin laboratorio asignado.");
       const proveedorId = prov.id;
@@ -461,15 +478,15 @@ export async function procesarPedidosDeImpresion(
   await conciliarPagos(ahora).catch((error) => console.warn("[impresiones] falló la conciliación de pagos", { detalle: sanitizeError(error) }));
   if (opciones.preparar === false) return { procesados: 0, enviados: 0, fallidos: 0 };
   await reencolarLosQueEsperabanCircuito().catch((error) => console.warn("[impresiones] no se pudieron reencolar pedidos", { detalle: sanitizeError(error) }));
-  const pendientes = await prisma.fotofficePrintOrder.findMany({ where: tomable(ahora), orderBy: { paidAt: "asc" }, take: 3, select: { id: true } });
+  const pendientes = await prisma.fotofficePrintOrder.findMany({ where: tomable(ahora), orderBy: { paidAt: "asc" }, take: 3, select: { id: true, source: true } });
   let procesados = 0;
   let enviados = 0;
   let fallidos = 0;
-  for (const { id } of pendientes) {
+  for (const { id, source } of pendientes) {
     if (reloj().getTime() - ahora.getTime() > PRESUPUESTO_MS) break;
     procesados++;
     try {
-      const r = await prepararPedido(id, deps);
+      const r = await prepararPedido(id, deps, { inicio: ahora });
       if (r === "ENVIADO") enviados++;
       if (r === "PAGADO_SIN_ENVIAR") fallidos++;
     } catch (error) {
@@ -477,6 +494,8 @@ export async function procesarPedidosDeImpresion(
       fallidos++;
       console.error("[impresiones] falló la preparación de un pedido", { pedidoId: id, detalle: sanitizeError(error) });
     }
+    // Un pedido de mostrador puede llevarse casi toda la función: los demás, en la próxima corrida.
+    if (source === "MOSTRADOR") break;
   }
   return { procesados, enviados, fallidos };
 }
