@@ -64,7 +64,7 @@ describe("pedidoDelTrabajo", () => {
     expect(r).toEqual({
       pedidoId: "ord1", numero: 8, estado: "PAGADO_SIN_ENVIAR", lastError: "Fotolag no tiene correo cargado.",
       copias: [{ tamano: "10x15", papel: "Brillo", cantidad: 3 }, { tamano: "13x18", papel: "Brillo", cantidad: 3 }],
-      totalCents: 1000000, costoCents: 400050, gananciaCents: 599950, entrega: null, pagadoCents: null, saldoCents: null, deMasCents: null,
+      totalCents: 1000000, deMostrador: false, costoCents: 400050, gananciaCents: 599950, entrega: null, pagadoCents: null, saldoCents: null, deMasCents: null,
     });
   });
   it("con envío a domicilio muestra la dirección, los km, el costo y el enlace al mapa", async () => {
@@ -93,9 +93,9 @@ describe("pedidosPagadosSinEnviar", () => {
       where: { workspaceId: "ws", status: "PAGADO_SIN_ENVIAR" },
       orderBy: [{ paidAt: "asc" }, { number: "asc" }],
       take: 50,
-      select: { id: true, number: true, nombre: true, paidAt: true, totalArs: true, lastError: true },
+      select: { id: true, number: true, nombre: true, paidAt: true, totalArs: true, lastError: true, source: true },
     });
-    expect(r).toEqual([{ pedidoId: "ord1", numero: 8, cliente: "Juan", pagadoEl: pagado, totalCents: 150050, lastError: "Fotolag no tiene correo cargado." }]);
+    expect(r).toEqual([{ pedidoId: "ord1", numero: 8, cliente: "Juan", pagadoEl: pagado, totalCents: 150050, deMostrador: false, lastError: "Fotolag no tiene correo cargado." }]);
   });
 });
 

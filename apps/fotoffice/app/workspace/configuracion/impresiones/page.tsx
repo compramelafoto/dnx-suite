@@ -53,7 +53,7 @@ export default async function ImpresionesPage({ searchParams }: { searchParams: 
 
       {sinEnviar.length > 0 ? (
         <PedidosSinEnviar
-          filas={sinEnviar.map((p) => ({ pedidoId: p.pedidoId, numero: p.numero, cliente: p.cliente, pagadoEl: fechaAr(p.pagadoEl), total: pesos(p.totalCents), lastError: p.lastError }))}
+          filas={sinEnviar.map((p) => ({ pedidoId: p.pedidoId, numero: p.numero, cliente: p.cliente, pagadoEl: fechaAr(p.pagadoEl), total: p.deMostrador ? "" : pesos(p.totalCents), deMostrador: p.deMostrador, lastError: p.lastError }))}
         />
       ) : null}
 

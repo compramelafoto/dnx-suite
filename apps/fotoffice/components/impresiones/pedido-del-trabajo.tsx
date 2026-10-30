@@ -23,7 +23,7 @@ export function PedidoDelTrabajo({
 }: {
   pedido: {
     pedidoId: string; numero: number; estado: string; lastError: string | null;
-    copias: { tamano: string; papel: string; cantidad: number }[]; totalCents: number; costoCents: number; gananciaCents: number;
+    copias: { tamano: string; papel: string; cantidad: number }[]; totalCents: number; costoCents: number; gananciaCents: number; deMostrador?: boolean;
     entrega: { direccion: string; km: number | null; envioCents: number; mapa: string | null } | null;
     pagadoCents?: number | null; saldoCents?: number | null; deMasCents?: number | null;
   };
@@ -56,6 +56,9 @@ export function PedidoDelTrabajo({
       <h2 id="pedido-impresion-titulo" className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-[var(--fo-muted-soft)]">
         <Printer className="size-4" aria-hidden />
         Pedido de impresión N° {pedido.numero}
+        {pedido.deMostrador ? (
+          <span className="rounded-full border border-[var(--fo-border)] px-1.5 py-px text-[10px] font-semibold tracking-wide">Mostrador</span>
+        ) : null}
       </h2>
       <p className="text-xs text-[var(--fo-muted)]">{ESTADOS[pedido.estado] ?? pedido.estado}</p>
 
@@ -93,6 +96,9 @@ export function PedidoDelTrabajo({
           Retiro en el local
         </p>
       )}
+      {pedido.deMostrador ? (
+        <p className="border-t border-[var(--fo-border)] pt-2 text-xs text-[var(--fo-muted)]">Se cobró en el ticket del Mostrador.</p>
+      ) : (
       <dl className="space-y-1 border-t border-[var(--fo-border)] pt-2 text-sm">
         <div className="flex justify-between gap-2">
           <dt className="text-[var(--fo-muted)]">Total cobrado</dt>
@@ -131,6 +137,7 @@ export function PedidoDelTrabajo({
           <dd className="tabular-nums">{pesos(pedido.gananciaCents)}</dd>
         </div>
       </dl>
+      )}
 
       {pedido.saldoCents && puedeEditar ? (
         <div className="flex flex-wrap items-center gap-2 rounded-[var(--fo-radius-sm)] border border-[var(--fo-border)] p-3">
