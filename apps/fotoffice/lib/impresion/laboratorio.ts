@@ -57,7 +57,15 @@ export function opcionesDelCatalogo(catalogo: ProductoCopia[], papeles: { mate: 
   return { medidas, papeles: lista };
 }
 
-export type RenglonLab = { productId: string; cantidad: number; precioUnitario: number; proveedorId: string | null; claves: string[] };
+export type RenglonLab = {
+  productId: string;
+  cantidad: number;
+  precioUnitario: number;
+  proveedorId: string | null;
+  claves: string[];
+  /** Lo que cobra el laboratorio por copia (el de `cotizarCopias`; con pocas copias, el del producto «para mañana»). */
+  costoUnitario?: number | null;
+};
 
 export function renglonesDelPedido(
   piezas: PiezaLab[],
@@ -104,7 +112,7 @@ export function renglonesDelPedido(
       r.cantidad += l.cantidad;
       if (!r.claves.includes(clave)) r.claves.push(clave);
     } else {
-      porProducto.set(l.productoId, { productId: l.productoId, cantidad: l.cantidad, precioUnitario: l.precioUnitario, proveedorId: prov, claves: [clave] });
+      porProducto.set(l.productoId, { productId: l.productoId, cantidad: l.cantidad, precioUnitario: l.precioUnitario, proveedorId: prov, claves: [clave], costoUnitario: l.costoUnitario });
     }
   });
   return { ok: true, renglones: [...porProducto.values()], plazoFinal };

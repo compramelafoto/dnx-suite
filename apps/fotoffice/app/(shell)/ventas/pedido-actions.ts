@@ -26,7 +26,14 @@ import { DIGITALIZACION_MODULE_KEY } from "@/lib/digitalizacion/constants";
 import { trabajosDeDigitalizacionDelPedido } from "@/lib/digitalizacion/servidor/trabajo";
 import { getModuleLevel } from "@/lib/permissions/module-access";
 import { hasLevel } from "@/lib/permissions/levels";
-import { comprobarTicketDeLaboratorio, crearPedidoDeMostrador, mensajeSinFlujo, preparacionYaCobrada, productosSinFlujo } from "@/lib/impresiones/mostrador-servidor";
+import {
+  anotarFalloDeLaboratorio,
+  comprobarTicketDeLaboratorio,
+  crearPedidoDeMostrador,
+  flujosQueNoSirven,
+  mensajeFlujoQueNoSirve,
+  preparacionYaCobrada,
+} from "@/lib/impresiones/mostrador-servidor";
 
 /**
  * El Mostrador con trabajos "con proceso" o renglones marcados «Seña». Esa parte se vuelve un pedido (con su seña
@@ -128,17 +135,24 @@ async function trabajosParaGrabar(workspaceId: string, userId: number, pedidoId:
 
 /**
  * Después de crear el pedido: el pedido de impresión de mostrador con las fotos de la preparación.
- * El cobro ya está hecho y no se deshace: si algo falla, vuelve como aviso para el cajero.
+ * El cobro ya está hecho y no se deshace: si algo falla, vuelve como aviso para el cajero y cada
+ * trabajo de laboratorio del pedido queda con una nota que nombra la preparación (para retomarla).
  */
 async function pedidoParaLaboratorio(
   workspaceId: string,
   preparacionId: string,
   d: { pedidoId: string; numero: string; clientId: string; delPedido: readonly LineaMostrador[] },
 ): Promise<{ laboratorios: string[]; aviso: string | null }> {
-  const fallo = (error: string) => ({
-    laboratorios: [],
-    aviso: `El pedido ${d.numero} quedó cobrado, pero las fotos no se prepararon: ${error.replace(/\.$/, "")}. Avisá a sistemas.`,
-  });
+  const itemIndexes = d.delPedido.flatMap((l, itemIndex) => (l.paraLaboratorio === true ? [itemIndex] : []));
+  const fallo = async (error: string, detalle: string = error) => {
+    await anotarFalloDeLaboratorio({ workspaceId, pedidoId: d.pedidoId, preparacionId, itemIndexes, error: detalle }).catch((e) =>
+      console.error("[cobrador][laboratorio] nota del fallo", { pedido: d.numero, preparacionId }, e),
+    );
+    return {
+      laboratorios: [],
+      aviso: `El pedido ${d.numero} quedó cobrado, pero las fotos no se prepararon: ${error.replace(/\.$/, "")}. Avisá a sistemas.`,
+    };
+  };
   try {
     const c = await prisma.client.findFirst({
       where: { id: d.clientId, workspaceId },
@@ -154,10 +168,10 @@ async function pedidoParaLaboratorio(
     });
     if (r.ok) return { laboratorios: r.laboratorios, aviso: null };
     console.error("[cobrador][laboratorio]", { pedido: d.numero, preparacionId, error: r.error });
-    return fallo(r.error);
+    return await fallo(r.error);
   } catch (e) {
     console.error("[cobrador][laboratorio]", { pedido: d.numero, preparacionId }, e);
-    return fallo("error inesperado");
+    return await fallo("error inesperado", e instanceof Error && e.message ? e.message.slice(0, 300) : "error inesperado");
   }
 }
 
@@ -179,8 +193,9 @@ export async function cobrarConPedidoAction(input: CobroConPedidoInput): Promise
   }
   if (!Number.isInteger(input.discountMinor) || input.discountMinor < 0) return { ok: false, error: "El descuento no se entiende." };
 
-  // El «Pedido para laboratorio»: el ticket tiene que decir lo mismo que las fotos preparadas, y
-  // cada producto necesita su flujo (sin él no hay trabajo al que atar las fotos).
+  // El «Pedido para laboratorio»: el ticket tiene que decir lo mismo que las fotos preparadas. Un
+  // producto sin regla abre su trabajo en «Para retirar»; uno con regla necesita que su flujo sirva
+  // (si se saltea no hay trabajo al que atar las fotos), y eso se dice antes de cobrar.
   const lineasLab = input.lines.filter((l) => l.paraLaboratorio === true);
   const preparacionId = input.laboratorio && typeof input.laboratorio.preparacionId === "string" ? input.laboratorio.preparacionId : null;
   // El mismo cobro que vuelve (ya hay pedido con esta clave) cuya preparación ya se cobró (LISTA o
@@ -196,8 +211,8 @@ export async function cobrarConPedidoAction(input: CobroConPedidoInput): Promise
     if (!preparacionId || lineasLab.length === 0) return { ok: false, error: "Las fotos cambiaron: tocá el pedido para laboratorio y volvé a cobrar." };
     const t = await comprobarTicketDeLaboratorio(workspace.id, preparacionId, lineasLab);
     if (!t.ok) return { ok: false, error: t.error };
-    const sinFlujo = await productosSinFlujo(workspace.id, t.renglones.map((r) => r.productId));
-    if (sinFlujo.length > 0) return { ok: false, error: mensajeSinFlujo(sinFlujo[0]!) };
+    const rotos = await flujosQueNoSirven(workspace.id, t.renglones.map((r) => r.productId));
+    if (rotos.length > 0) return { ok: false, error: mensajeFlujoQueNoSirve(rotos[0]!) };
   }
 
   const procesos = await conProceso(workspace.id, input.lines.map((l) => l.productId).filter((x): x is string => x !== null));

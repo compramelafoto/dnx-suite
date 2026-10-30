@@ -204,16 +204,91 @@ describe("laboratorioFaltante", () => {
   });
 });
 
-describe("productosSinFlujo y su mensaje", () => {
-  it("devuelve los nombres de los productos sin regla en el catálogo, sólo de este negocio", async () => {
+describe("flujosQueNoSirven y su mensaje", () => {
+  const circuito = (id: string, extra: Record<string, unknown> = {}, etapas: { archivedAt: Date | null }[] = [{ archivedAt: null }]) => {
+    B.agregar("fotofficeCircuit", { id, workspaceId: WS, name: `Flujo ${id}`, kind: "TRABAJO", isActive: true, ...extra });
+    etapas.forEach((e, i) => B.agregar("fotofficeStage", { id: `${id}-e${i}`, circuitId: id, order: i, days: 1, ...e }));
+  };
+
+  it("un producto sin regla no es problema (su trabajo va a «Para retirar»), ni uno con flujo sano", async () => {
     cargar();
+    circuito("circ");
+    B.agregar("product", { id: "inst10", workspaceId: WS, name: "Copia instantánea 10x15", priceArs: "500", isActive: true });
+    expect(await M.flujosQueNoSirven(WS, ["c10m", "c13m", "inst10"])).toEqual([]);
+    expect(await M.flujosQueNoSirven(WS, [])).toEqual([]);
+  });
+
+  it("nombra los productos con regla cuyo flujo no existe, está archivado, no es de trabajo o no tiene etapas", async () => {
+    cargar();
+    circuito("circ");
+    circuito("archivado", { isActive: false });
+    circuito("venta", { kind: "VENTA" });
+    circuito("vacio", {}, [{ archivedAt: new Date() }]);
+    const productos: [string, string][] = [["pBorrado", "nada"], ["pArchivado", "archivado"], ["pVenta", "venta"], ["pVacio", "vacio"]];
+    for (const [id, circuitId] of productos) {
+      B.agregar("product", { id, workspaceId: WS, name: `Producto ${id}`, priceArs: "100", isActive: true });
+      B.agregar("fotofficeProductoProyecto", { id: `r-${id}`, workspaceId: WS, productId: id, circuitId, proveedorId: "lab1" });
+    }
+    expect(await M.flujosQueNoSirven(WS, ["c10m", "pBorrado", "pArchivado", "pVenta", "pVacio"])).toEqual([
+      "Producto pBorrado", "Producto pArchivado", "Producto pVenta", "Producto pVacio",
+    ]);
+  });
+
+  it("un flujo de otro negocio con el mismo id no cuenta como sano; una regla de otro negocio no se mira", async () => {
+    cargar();
+    B.agregar("fotofficeCircuit", { id: "circ", workspaceId: "ws-2", name: "Ajeno", kind: "TRABAJO", isActive: true });
+    B.agregar("fotofficeStage", { id: "circ-e0", circuitId: "circ", order: 0, days: 1, archivedAt: null });
+    expect(await M.flujosQueNoSirven(WS, ["c10m"])).toEqual(["Copia para mañana 10x15"]);
     B.agregar("product", { id: "c20m", workspaceId: WS, name: "Copia para mañana 20x30", priceArs: "3000", isActive: true });
-    B.agregar("fotofficeProductoProyecto", { id: "r20-ajena", workspaceId: "ws-2", productId: "c20m", circuitId: "circ", proveedorId: "lab9" });
-    expect(await M.productosSinFlujo(WS, ["c10m", "c20m", "c13m"])).toEqual(["Copia para mañana 20x30"]);
-    expect(await M.productosSinFlujo(WS, [])).toEqual([]);
+    B.agregar("fotofficeProductoProyecto", { id: "r20-ajena", workspaceId: "ws-2", productId: "c20m", circuitId: "roto", proveedorId: "lab9" });
+    expect(await M.flujosQueNoSirven(WS, ["c20m"])).toEqual([]);
   });
 
   it("arma el error exacto para el cobro", () => {
-    expect(M.mensajeSinFlujo("Copia para mañana 20x30")).toBe("Configurá el flujo de Copia para mañana 20x30 en el catálogo: sin él no se puede mandar al laboratorio.");
+    expect(M.mensajeFlujoQueNoSirve("Copia para mañana 20x30")).toBe("El flujo de Copia para mañana 20x30 no sirve: revisalo en el catálogo antes de cobrar.");
+  });
+});
+
+describe("costo del laboratorio en el trabajo", () => {
+  it("cada trabajo queda con el costo unitario de su renglón por la cantidad", async () => {
+    cargar();
+    await M.crearPedidoDeMostrador(datosPedido);
+    const t = (id: string) => B.datos.fotofficeProyecto.find((x) => x.id === id)!;
+    // c10m: 5 copias a $300; c13m: 1 copia a $500.
+    expect(Number(t("t10").proveedorCostoArs)).toBe(1500);
+    expect(Number(t("t13").proveedorCostoArs)).toBe(500);
+    expect(t("t-otro").proveedorCostoArs).toBeUndefined();
+  });
+
+  it("sin costo cargado en el producto, el costo del trabajo no se toca", async () => {
+    cargar();
+    B.datos.product = B.datos.product.map((p) => (p.id === "c13m" ? { ...p, costArs: null } : p));
+    B.datos.fotofficeProyecto = B.datos.fotofficeProyecto.map((p) => (p.id === "t13" ? { ...p, proveedorCostoArs: "999" } : p));
+    await M.crearPedidoDeMostrador(datosPedido);
+    expect(B.datos.fotofficeProyecto.find((x) => x.id === "t13")!.proveedorCostoArs).toBe("999");
+    expect(Number(B.datos.fotofficeProyecto.find((x) => x.id === "t10")!.proveedorCostoArs)).toBe(1500);
+  });
+});
+
+describe("anotarFalloDeLaboratorio", () => {
+  it("deja una nota con la preparación en cada trabajo de laboratorio del pedido, sólo de este negocio", async () => {
+    cargar();
+    B.agregar("fotofficeProyecto", { id: "t-ajeno", number: "T-9", circuitId: "circ-ajeno", workspaceId: "ws-2", pedidoId: "ped1", pedidoItemIndex: 0, productId: "c10m", name: "Ajeno" });
+    await M.anotarFalloDeLaboratorio({ workspaceId: WS, pedidoId: "ped1", preparacionId: "prep1", itemIndexes: [0, 1], error: "se cortó la base." });
+    const notas = B.datos.fotofficeProyectoNota;
+    expect(notas.map((n) => n.proyectoId).sort()).toEqual(["t10", "t13"]);
+    for (const n of notas) {
+      expect(n).toMatchObject({
+        workspaceId: WS,
+        authorUserId: null,
+        body: "No se pudo preparar el pedido para laboratorio (preparación prep1): se cortó la base. Avisá a sistemas.",
+      });
+    }
+  });
+
+  it("sin ítems de laboratorio no escribe nada", async () => {
+    cargar();
+    await M.anotarFalloDeLaboratorio({ workspaceId: WS, pedidoId: "ped1", preparacionId: "prep1", itemIndexes: [], error: "x" });
+    expect(B.datos.fotofficeProyectoNota ?? []).toHaveLength(0);
   });
 });

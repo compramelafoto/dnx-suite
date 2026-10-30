@@ -23,19 +23,46 @@ export function laboratorioFaltante(renglones: readonly RenglonLab[], nombres: R
   return r ? `${nombres.get(r.productId) ?? "Un producto"} no tiene laboratorio asignado: cargá el proveedor en el catálogo.` : null;
 }
 
-export const mensajeSinFlujo = (producto: string) => `Configurá el flujo de ${producto} en el catálogo: sin él no se puede mandar al laboratorio.`;
+export const mensajeFlujoQueNoSirve = (producto: string) => `El flujo de ${producto} no sirve: revisalo en el catálogo antes de cobrar.`;
 
-/** Los nombres de los productos que no tienen regla en «Proyecto que genera» (sin ella no hay trabajo). */
-export async function productosSinFlujo(workspaceId: string, productIds: readonly string[]): Promise<string[]> {
+/**
+ * Los nombres de los productos con regla en «Proyecto que genera» cuyo flujo se saltearía al crear
+ * el pedido (no existe, no es de trabajo, está archivado o no tiene etapas: las mismas condiciones
+ * con las que `planificarProyectos` deja su aviso): sin trabajo no hay a qué atar las fotos. Un
+ * producto SIN regla no está acá: su trabajo se crea igual, en «Para retirar».
+ */
+export async function flujosQueNoSirven(workspaceId: string, productIds: readonly string[]): Promise<string[]> {
   const ids = [...new Set(productIds)];
   if (ids.length === 0) return [];
-  const reglas = await prisma.fotofficeProductoProyecto.findMany({ where: { workspaceId, productId: { in: ids } }, select: { productId: true } });
-  const conRegla = new Set(reglas.map((r) => r.productId));
-  const faltan = ids.filter((id) => !conRegla.has(id));
-  if (faltan.length === 0) return [];
-  const productos = await prisma.product.findMany({ where: { workspaceId, id: { in: faltan } }, select: { id: true, name: true } });
+  const reglas = await prisma.fotofficeProductoProyecto.findMany({ where: { workspaceId, productId: { in: ids } }, select: { productId: true, circuitId: true } });
+  if (reglas.length === 0) return [];
+  const circuitIds = [...new Set(reglas.map((r) => r.circuitId))];
+  const [circuitos, etapas] = await Promise.all([
+    prisma.fotofficeCircuit.findMany({ where: { workspaceId, id: { in: circuitIds } }, select: { id: true, kind: true, isActive: true } }),
+    prisma.fotofficeStage.findMany({ where: { circuit: { workspaceId }, circuitId: { in: circuitIds }, archivedAt: null }, select: { circuitId: true } }),
+  ]);
+  const conEtapas = new Set(etapas.map((e) => e.circuitId));
+  const sirve = new Set(circuitos.filter((c) => c.kind === "TRABAJO" && c.isActive && conEtapas.has(c.id)).map((c) => c.id));
+  const rotos = ids.filter((id) => reglas.some((r) => r.productId === id && !sirve.has(r.circuitId)));
+  if (rotos.length === 0) return [];
+  const productos = await prisma.product.findMany({ where: { workspaceId, id: { in: rotos } }, select: { id: true, name: true } });
   const nombre = new Map(productos.map((p) => [p.id, p.name]));
-  return faltan.map((id) => nombre.get(id) ?? "un producto");
+  return rotos.map((id) => nombre.get(id) ?? "un producto");
+}
+
+/**
+ * Si el pedido de impresión no se pudo crear después de cobrar, cada trabajo de laboratorio del
+ * pedido queda con una nota que nombra la preparación: así se puede retomar sin perderla.
+ */
+export async function anotarFalloDeLaboratorio(d: { workspaceId: string; pedidoId: string; preparacionId: string; itemIndexes: readonly number[]; error: string }): Promise<void> {
+  if (d.itemIndexes.length === 0) return;
+  const trabajos = await prisma.fotofficeProyecto.findMany({
+    where: { workspaceId: d.workspaceId, pedidoId: d.pedidoId, pedidoItemIndex: { in: [...d.itemIndexes] } },
+    select: { id: true },
+  });
+  if (trabajos.length === 0) return;
+  const body = `No se pudo preparar el pedido para laboratorio (preparación ${d.preparacionId}): ${d.error.trim().replace(/\.$/, "")}. Avisá a sistemas.`;
+  await prisma.fotofficeProyectoNota.createMany({ data: trabajos.map((t) => ({ workspaceId: d.workspaceId, proyectoId: t.id, body, authorUserId: null })) });
 }
 
 /**
@@ -205,9 +232,14 @@ export async function crearPedidoDeMostrador(d: {
     });
     await tx.fotofficePrintOrderItem.createMany({ data: items.map((i) => ({ ...i, orderId: creado.id })) });
     for (const x of porRenglon) {
+      // El costo del laboratorio, si el catálogo lo sabe; si no, el del trabajo queda como estaba.
+      const costo = x.renglon.costoUnitario;
       await tx.fotofficeProyecto.updateMany({
         where: { workspaceId, pedidoId: d.pedidoId, pedidoItemIndex: x.itemIndex },
-        data: { proveedorId: x.renglon.proveedorId },
+        data: {
+          proveedorId: x.renglon.proveedorId,
+          ...(typeof costo === "number" && Number.isFinite(costo) ? { proveedorCostoArs: Math.round(costo * x.renglon.cantidad * 100) / 100 } : {}),
+        },
       });
     }
     await tx.fotofficePreparacionImpresion.updateMany({ where: { workspaceId, id: d.preparacionId }, data: { estado: "LISTA" } });
