@@ -16,6 +16,8 @@ import { PORTFOLIO_MODULE_KEY, PORTFOLIO_PUBLIC_SEGMENT } from "@/lib/portfolio/
 import { STORE_MODULE_KEY, STORE_PUBLIC_SEGMENT } from "@/lib/store/constants";
 import { SALES_MODULE_KEY } from "@/lib/sales/constants";
 import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
+import { PRINT_ORDERS_MODULE_KEY } from "@/lib/impresiones/constantes";
+import { PROBADOR_LABEL, PROBADOR_PUBLIC_SEGMENT } from "@/lib/probador/constantes";
 import type { PersonVocabulary } from "@/lib/vocabulario/personas";
 
 /**
@@ -69,6 +71,9 @@ export const PUBLIC_MODULE_PAGES: readonly PublicModulePage[] = [
   // Entra al menú sólo con al menos un testimonio publicado: ver `withTestimoniosPage`.
   { moduleKey: TESTIMONIOS_PUBLIC_PAGE_KEY, segment: TESTIMONIOS_PUBLIC_SEGMENT, label: "Testimonios", order: 39 },
   { moduleKey: BLOG_PUBLIC_PAGE_KEY, segment: "blog", label: "Blog", order: 40 },
+  // El probador de cuadros entra solo para quien vende impresiones; el resto lo suma a mano
+  // (es también una página opcional, ver `OPTIONAL_PUBLIC_PAGES`).
+  { moduleKey: PRINT_ORDERS_MODULE_KEY, segment: PROBADOR_PUBLIC_SEGMENT, label: PROBADOR_LABEL, order: 45 },
 ] as const;
 
 /**
@@ -137,6 +142,11 @@ export type OptionalPublicPage = {
   /** Ruta bajo `/w/[slug]/`. */
   path: string;
   label: string;
+  /**
+   * Con esta llave encendida la página deja de ofrecerse acá, porque ya entra sola al menú desde
+   * `PUBLIC_MODULE_PAGES`: así no aparece dos veces en la lista para agregar.
+   */
+  automaticWith?: string;
 };
 
 export const OPTIONAL_PUBLIC_PAGES: readonly OptionalPublicPage[] = [
@@ -151,13 +161,23 @@ export const OPTIONAL_PUBLIC_PAGES: readonly OptionalPublicPage[] = [
   // del presupuesto que se le manda a cada cliente).
   { key: "presupuesto", moduleKey: SERVICE_LEADS_MODULE_KEY, path: "presupuesto", label: PRESUPUESTO_PAGE_LABEL },
   // El cliente prueba cuadros sobre una foto de su pared. No usa ningún módulo: todo pasa en el
-  // navegador, así que está disponible para cualquier sitio.
-  { key: "probador", moduleKey: null, path: "probador-de-cuadros", label: "Probador de cuadros" },
+  // navegador, así que cualquier sitio puede sumarlo. Con Pedidos de impresión entra solo.
+  {
+    key: "probador",
+    moduleKey: null,
+    path: PROBADOR_PUBLIC_SEGMENT,
+    label: PROBADOR_LABEL,
+    automaticWith: PRINT_ORDERS_MODULE_KEY,
+  },
 ] as const;
 
 /** Las páginas opcionales disponibles con los módulos habilitados. */
 export function optionalPublicPagesFor(enabledModuleKeys: ReadonlySet<string>): OptionalPublicPage[] {
-  return OPTIONAL_PUBLIC_PAGES.filter((p) => p.moduleKey === null || enabledModuleKeys.has(p.moduleKey));
+  return OPTIONAL_PUBLIC_PAGES.filter(
+    (p) =>
+      (p.moduleKey === null || enabledModuleKeys.has(p.moduleKey)) &&
+      !(p.automaticWith && enabledModuleKeys.has(p.automaticWith)),
+  );
 }
 
 /**
