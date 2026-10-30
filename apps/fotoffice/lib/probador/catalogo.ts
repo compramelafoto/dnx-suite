@@ -10,9 +10,14 @@ import type { Composicion, TipoCuadro } from "./composicion";
  * Módulo PURO: la lectura de la base vive en `catalogo.server.ts`.
  */
 
-export type ProductoDelCatalogo = { id: string; name: string; priceArs: number; supplierName: string | null };
+export type ProductoDelCatalogo = {
+  id: string; name: string; priceArs: number; supplierName: string | null;
+  /** Para el pedido: lo que cuesta y a qué laboratorio va. */
+  costArs?: number | null; preferredProveedorId?: string | null;
+};
 
-export type PrecioProbador = {
+/** Lo que puede ver el cliente: precio de venta, sin costo ni laboratorio. */
+export type PrecioPublico = {
   tipo: TipoCuadro;
   /** Lado corto y largo en cm: la medida vale en las dos orientaciones. */
   corto: number;
@@ -21,6 +26,13 @@ export type PrecioProbador = {
   productoId: string;
   nombre: string;
 };
+
+/** Para el servidor: además, lo que cuesta y a qué laboratorio va. Nunca se manda al navegador. */
+export type PrecioProbador = PrecioPublico & { costoArs: number | null; proveedorId: string | null };
+
+export function catalogoPublico(cat: readonly PrecioProbador[]): PrecioPublico[] {
+  return cat.map(({ tipo, corto, largo, precioArs, productoId, nombre }) => ({ tipo, corto, largo, precioArs, productoId, nombre }));
+}
 
 const MEDIDA = /(\d{1,3}(?:[.,]\d)?)\s*x\s*(\d{1,3}(?:[.,]\d)?)/;
 
@@ -54,17 +66,17 @@ export function armarCatalogo(productos: readonly ProductoDelCatalogo[]): Precio
     if (!tipo || !medida) continue;
     const clave = `${tipo}|${medida.corto}x${medida.largo}`, previo = porClave.get(clave);
     if (!previo || p.priceArs > previo.precioArs) {
-      porClave.set(clave, { tipo, ...medida, precioArs: p.priceArs, productoId: p.id, nombre: p.name });
+      porClave.set(clave, { tipo, ...medida, precioArs: p.priceArs, productoId: p.id, nombre: p.name, costoArs: p.costArs ?? null, proveedorId: p.preferredProveedorId ?? null });
     }
   }
   return [...porClave.values()].sort((a, b) => a.tipo.localeCompare(b.tipo) || a.corto * a.largo - b.corto * b.largo || a.corto - b.corto);
 }
 
-export function medidasDe(cat: readonly PrecioProbador[], tipo: TipoCuadro): PrecioProbador[] {
+export function medidasDe<T extends PrecioPublico>(cat: readonly T[], tipo: TipoCuadro): T[] {
   return cat.filter((p) => p.tipo === tipo);
 }
 
-export function precioDe(cat: readonly PrecioProbador[], tipo: TipoCuadro, w: number, h: number): PrecioProbador | null {
+export function precioDe<T extends PrecioPublico>(cat: readonly T[], tipo: TipoCuadro, w: number, h: number): T | null {
   const corto = Math.min(w, h), largo = Math.max(w, h);
   return cat.find((p) => p.tipo === tipo && Math.abs(p.corto - corto) < 0.05 && Math.abs(p.largo - largo) < 0.05) ?? null;
 }
@@ -74,7 +86,7 @@ export function precioDe(cat: readonly PrecioProbador[], tipo: TipoCuadro, w: nu
  * diferencia de proporción en cada lado (en escala logarítmica, así 30 → 40 pesa igual que 60 → 80).
  * `null` si el tipo no tiene medidas con precio.
  */
-export function medidaMasCercana(cat: readonly PrecioProbador[], tipo: TipoCuadro, w: number, h: number): { w: number; h: number } | null {
+export function medidaMasCercana(cat: readonly PrecioPublico[], tipo: TipoCuadro, w: number, h: number): { w: number; h: number } | null {
   let mejor: { w: number; h: number; d: number } | null = null;
   for (const p of medidasDe(cat, tipo)) {
     const [mw, mh] = w <= h ? [p.corto, p.largo] : [p.largo, p.corto];
@@ -87,7 +99,7 @@ export function medidaMasCercana(cat: readonly PrecioProbador[], tipo: TipoCuadr
 export type LineaPresupuesto = { tipo: TipoCuadro; corto: number; largo: number; cantidad: number; precioArs: number | null };
 
 /** Lo que cuesta la composición: un renglón por tipo y medida, el total y cuántos cuadros no tienen precio. */
-export function cotizar(cat: readonly PrecioProbador[], c: Composicion) {
+export function cotizar(cat: readonly PrecioPublico[], c: Composicion) {
   const lineas = new Map<string, LineaPresupuesto>();
   let total = 0, sinPrecio = 0;
   for (const q of c.cuadros) {

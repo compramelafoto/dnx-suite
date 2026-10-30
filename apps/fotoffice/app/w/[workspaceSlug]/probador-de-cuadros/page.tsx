@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@repo/db";
 import { ProbadorCuadros } from "@/components/probador/probador-cuadros";
 import { cargarCatalogoProbador } from "@/lib/probador/catalogo.server";
+import { catalogoPublico } from "@/lib/probador/catalogo";
 
 type Props = { params: Promise<{ workspaceSlug: string }> };
 
@@ -44,7 +45,7 @@ export default async function ProbadorDeCuadrosPage({ params }: Props) {
           individuales, dípticos, trípticos o una galería, con el marco que elijas.
         </p>
       </header>
-      <ProbadorCuadros catalogo={catalogo} />
+      <ProbadorCuadros catalogo={catalogoPublico(catalogo)} />
     </main>
   );
 }

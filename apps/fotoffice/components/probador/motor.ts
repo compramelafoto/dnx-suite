@@ -41,7 +41,7 @@ import {
   type Cuadro,
   type TipoCuadro,
 } from "@/lib/probador/composicion";
-import { cotizar, medidaMasCercana, medidasDe, precioDe, type PrecioProbador } from "@/lib/probador/catalogo";
+import { cotizar, medidaMasCercana, medidasDe, precioDe, type PrecioPublico } from "@/lib/probador/catalogo";
 import { deshacer, iniciar, puedeDeshacer, puedeRehacer, registrar, rehacer, type Historial } from "@/lib/probador/historial";
 import { fotoDeMuestra, iniciarGl, leerArchivo, lienzo, livingDeEjemplo, miniatura, PALETAS } from "./recursos";
 
@@ -90,7 +90,7 @@ const esCampo = (el: Element | null) => !!el && /^(INPUT|SELECT|TEXTAREA)$/.test
  * tipo ofrece sólo sus medidas con precio y el panel muestra el presupuesto; sin catálogo, las
  * medidas son las de siempre y no hay precios. Devuelve cómo desmontarlo.
  */
-export function montarProbador(raiz: HTMLElement, catalogo: readonly PrecioProbador[] = []): () => void {
+export function montarProbador(raiz: HTMLElement, catalogo: readonly PrecioPublico[] = []): () => void {
   const $ = <T extends HTMLElement = HTMLElement>(n: string) => raiz.querySelector<T>(`[data-pdc="${n}"]`)!;
   const cv = $<HTMLCanvasElement>("lienzo"), ctx = cv.getContext("2d")!;
   const gl = iniciarGl();

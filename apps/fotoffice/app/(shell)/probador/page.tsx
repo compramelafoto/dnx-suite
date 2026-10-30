@@ -4,6 +4,7 @@ import { PageHeader } from "@/components/page-header";
 import { ProbadorCuadros } from "@/components/probador/probador-cuadros";
 import { EnlaceParaClientes } from "@/components/probador/enlace-para-clientes";
 import { cargarCatalogoProbador } from "@/lib/probador/catalogo.server";
+import { catalogoPublico } from "@/lib/probador/catalogo";
 import { requireActiveWorkspace } from "@/lib/workspace";
 import { getModuleLevel } from "@/lib/permissions/module-access";
 import { hasLevel } from "@/lib/permissions/levels";
@@ -37,7 +38,7 @@ export default async function ProbadorPanelPage() {
         description="Sacale una foto a la pared del cliente, marcá una medida que conozcas y mostrale cómo quedan los cuadros a escala: individuales, dípticos, trípticos o una galería, con el marco que elija."
       />
       {enlace ? <EnlaceParaClientes url={enlace} /> : null}
-      <ProbadorCuadros catalogo={catalogo} />
+      <ProbadorCuadros catalogo={catalogoPublico(catalogo)} />
     </div>
   );
 }

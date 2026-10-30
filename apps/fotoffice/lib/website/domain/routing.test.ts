@@ -31,6 +31,10 @@ describe("decideCustomDomainRoute", () => {
     expect(decide("/w/otra")).toEqual({ kind: "redirect", url: `${ORIGIN}/w/otra` });
   });
 
+  it("el probador de cuadros se abre en FOTOFFICE, desde donde se suben las fotos", () => {
+    expect(decide("/probador-de-cuadros")).toEqual({ kind: "redirect", url: `${ORIGIN}/w/sfpr/probador-de-cuadros` });
+  });
+
   it("las reservas se abren en FOTOFFICE, donde se reconoce al socio", () => {
     expect(decide("/reservas")).toEqual({ kind: "redirect", url: `${ORIGIN}/w/sfpr/reservas` });
     expect(decide("/reservas/abc", "?fecha=2026-10-05")).toEqual({

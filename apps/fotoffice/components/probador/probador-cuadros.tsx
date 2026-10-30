@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import type { PrecioProbador } from "@/lib/probador/catalogo";
+import type { PrecioPublico } from "@/lib/probador/catalogo";
 import { montarProbador } from "./motor";
 
 /**
@@ -14,7 +14,7 @@ import { montarProbador } from "./motor";
  * Los colores salen del sitio de cada estudio (`--wsite-*`, ver `PublicSiteShell`); dentro del
  * panel, donde esas variables no existen, toma las del panel (`--fo-*`).
  */
-export function ProbadorCuadros({ catalogo }: { catalogo: PrecioProbador[] }) {
+export function ProbadorCuadros({ catalogo }: { catalogo: PrecioPublico[] }) {
   const raiz = useRef<HTMLDivElement>(null);
   useEffect(() => (raiz.current ? montarProbador(raiz.current, catalogo) : undefined), [catalogo]);
 

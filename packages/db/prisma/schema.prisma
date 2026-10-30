@@ -26850,6 +26850,8 @@ model FotofficePrintOrder {
   pagosExtra     Json?
   waChatId       String?
   waId           String?
+  /// Probador de cuadros: los cuadros del conjunto (posición y medida) para el mapa de armado.
+  composicion    Json?
 
   @@unique([workspaceId, number])
   @@index([workspaceId, status])
@@ -26887,6 +26889,8 @@ model FotofficePrintOrderItem {
   calidadBaja   Boolean   @default(false)
   /// Pieza de una preparación para laboratorio de la que sale este ítem (texto, sin relación, como archivoId).
   piezaId       String?
+  /// Probador de cuadros: la receta del cuadro (tipo, marco, ventana, encuadre, envoltura). Ver lib/probador/salida.ts.
+  probador      Json?
   createdAt     DateTime @default(now())
 
   order    FotofficePrintOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)

@@ -26,6 +26,8 @@ import { medidaEnMm } from "@/lib/impresion/laboratorio";
 import { validarReceta, type Receta } from "@/lib/impresion/receta";
 import type { Papel as PapelMm } from "@/lib/impresion/encuadre";
 import type { Papel } from "./constantes";
+import { esRecetaProbador, renderProbador } from "@/lib/probador/render.server";
+import { mapaDeArmado, rutaEnZip, type CuadroDelMapa, type RecetaProbador } from "@/lib/probador/salida";
 
 /**
  * Preparar los pedidos pagados y mandarlos al laboratorio (lo corre el cron cada 5 minutos):
@@ -71,6 +73,8 @@ type Item = {
   piezaId?: string | null;
   /** Pedidos del bot (spec 2026-10-28). */
   sinRecorte?: boolean; plazo?: string | null; paper?: string | null; calidadBaja?: boolean;
+  /** Probador de cuadros: la receta del cuadro (se renderiza a su medida, con envoltura si es canvas). */
+  probador?: unknown;
 };
 
 export async function recortarParaImprimir(original: Buffer, item: Pick<Item, "cropX" | "cropY" | "cropW" | "cropH">): Promise<Buffer> {
@@ -85,6 +89,8 @@ export type DepsPreparar = {
   recortar?: (original: Buffer, item: Item) => Promise<Buffer>;
   /** Copias de mostrador (con `piezaId`): la receta completa a la medida real del papel. */
   renderizar?: (original: Buffer, receta: Receta, papel: PapelMm) => Promise<Buffer>;
+  /** Cuadros del probador. */
+  renderizarCuadro?: (original: Buffer, receta: RecetaProbador) => Promise<Buffer>;
   leer?: (key: string) => Promise<Buffer>;
   subir?: typeof subirFlujo;
   enviar?: typeof sendTransactionalEmail;
@@ -263,6 +269,7 @@ export async function prepararPedido(
   if (toma === "OCUPADO") return "OCUPADO";
   const recortar = deps.recortar ?? recortarParaImprimir;
   const renderizar = deps.renderizar ?? renderParaLaboratorio;
+  const renderizarCuadro = deps.renderizarCuadro ?? renderProbador;
   const leer = deps.leer ?? leerOriginal;
   const subir = deps.subir ?? subirFlujo;
   const enviar = deps.enviar ?? sendTransactionalEmail;
@@ -329,6 +336,8 @@ export async function prepararPedido(
         paper: i.paper === "MATE" || i.paper === "BRILLO" ? (i.paper as Papel) : null, original: i.sinRecorte === true,
       }));
       const rutas = new Map(rutasDelZip(p.number, p.nombre, p.paper as Papel, paraLab).map((r) => [r.itemId, r.ruta]));
+      // Los cuadros del probador van por tipo y medida, numerados como en el mapa de armado.
+      for (const i of ordenados) if (esRecetaProbador(i.probador)) rutas.set(i.id, rutaEnZip(p.number, p.nombre, i.probador));
       const archivos = ordenados.map((i) => ({
         nombre: rutas.get(i.id)!,
         fecha: ahora,
@@ -337,7 +346,8 @@ export async function prepararPedido(
           try {
             // Los originales del bot van tal cual: el encuadre lo decide el laboratorio.
             let jpg: Buffer;
-            if (i.sinRecorte) jpg = await leer(i.sourceKey);
+            if (esRecetaProbador(i.probador)) jpg = await renderizarCuadro(await leer(i.sourceKey), i.probador);
+            else if (i.sinRecorte) jpg = await leer(i.sourceKey);
             else if (i.piezaId) {
               const pieza = piezas.get(i.piezaId);
               if (!pieza) throw new Error("la pieza con el recorte de la cajera no existe o no es válida");
@@ -351,6 +361,19 @@ export async function prepararPedido(
           }
         },
       }));
+
+      const mapa = mapaDelPedido(p);
+      if (mapa) {
+        // La misma carpeta raíz que los cuadros (`rutaEnZip`), así el mapa queda al lado de ellos.
+        const raiz = rutaEnZip(p.number, p.nombre, { tipo: "CANVAS", ventana: { x: 0, y: 0, w: 1, h: 1 }, orden: 1, total: 1 }).split("/")[0];
+        for (const [nombre, contenido] of [["00 Mapa de armado.svg", mapa.svg], ["00 Mapa de armado.txt", mapa.texto]] as const) {
+          archivos.unshift({
+            nombre: `${raiz}/${nombre}`,
+            fecha: ahora,
+            abrir: async () => (async function* () { yield new TextEncoder().encode(contenido); })(),
+          });
+        }
+      }
 
       const archivoId = randomUUID();
       const nombreZip = `Pedido-${p.number}.zip`;
@@ -394,6 +417,13 @@ export async function prepararPedido(
     await avisarFallaAlEstudio(ws, p.number, lastError, enviar).catch(() => undefined);
     return "PAGADO_SIN_ENVIAR";
   }
+}
+
+/** El mapa de armado de un pedido del probador, si lo es. */
+function mapaDelPedido(p: { source: string; number: number; nombre: string; composicion?: unknown }) {
+  if (p.source !== "PROBADOR") return null;
+  const cuadros = (p.composicion as { cuadros?: CuadroDelMapa[] } | null)?.cuadros;
+  return Array.isArray(cuadros) && cuadros.length ? mapaDeArmado(cuadros, p.number, p.nombre) : null;
 }
 
 const QUE_HACER = "Entrá a FOTOFFICE → Configuración → Impresiones (o al trabajo, si existe) y tocá «Reintentar envío».";

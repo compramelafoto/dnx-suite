@@ -62,8 +62,10 @@ export const FOTOFFICE_ONLY_SEGMENTS: ReadonlySet<string> = new Set([
  *   la tarifa plena. Allá se lo reconoce y se lo lleva a su portal.
  * - `proyecto` y `reunion` son los enlaces de la comisión para compartir por WhatsApp
  *   (`lib/governance/share.ts`): deciden según quién los abre.
+ * - `probador-de-cuadros` sube las fotos del cliente directo al depósito, que sólo acepta subidas
+ *   desde el dominio de FOTOFFICE.
  */
-const SITE_SEGMENTS_ON_FOTOFFICE = new Set(["entrar", "reservas", "proyecto", "reunion"]);
+const SITE_SEGMENTS_ON_FOTOFFICE = new Set(["entrar", "reservas", "proyecto", "reunion", "probador-de-cuadros"]);
 
 const STATIC_FILE = /\.(?:png|jpe?g|gif|webp|avif|svg|ico|mp4|webm|woff2?|ttf|css|js|map|pdf)$/i;
 
