@@ -16,6 +16,7 @@ import { avisoDeCalidad, cajaRotada, rectanguloEnPixeles, resolucionEfectiva, ta
 import { huellaDe } from "./huella";
 import { pendientes, type HojaAImprimir, type RegistroDeHoja } from "./impresion-multiple";
 import { FOTOS_MAX } from "./lote";
+import { FOTOS_MAX_LAB } from "./laboratorio";
 import { pixelesDeHoja, type Nitidez } from "./medidas";
 import { disposicionCarnet } from "./plancha";
 import { anguloTotal, validarReceta, type Receta } from "./receta";
@@ -170,7 +171,7 @@ export async function preparacionPropia(workspaceId: string, id: unknown) {
   if (!esId(id)) return null;
   return prisma.fotofficePreparacionImpresion.findFirst({
     where: { id, workspaceId },
-    select: { id: true, productId: true, clientId: true, saleItemId: true, proyectoId: true, estado: true },
+    select: { id: true, productId: true, clientId: true, saleItemId: true, proyectoId: true, estado: true, destino: true },
   });
 }
 
@@ -180,7 +181,7 @@ export async function preparacionPropia(workspaceId: string, id: unknown) {
  */
 async function preparacionDeCarnet(workspaceId: string, id: unknown) {
   const prep = await preparacionPropia(workspaceId, id);
-  if (!prep || prep.estado === "ANULADA") return null;
+  if (!prep || prep.estado === "ANULADA" || prep.destino === "LABORATORIO") return null;
   if (prep.productId) {
     const copias = await prisma.fotofficeProductoProduccion.count({ where: { workspaceId, productId: prep.productId, tipoPieza: "COPIA" } });
     if (copias > 0) return null;
@@ -244,7 +245,10 @@ export async function pedirSubidaOriginal(
   if (!prep || prep.estado === "ANULADA") return NO_EXISTE;
   if (!(TIPOS_ORIGINAL as readonly string[]).includes(a.tipo)) return { ok: false, error: "La foto tiene que ser JPG, PNG, WebP o HEIC." };
   if (!enteroEntre(a.bytes, 1, MAX_BYTES_ORIGINAL)) return { ok: false, error: "La foto pesa más de 60 MB." };
-  if (await esDeCopias(ctx.workspaceId, prep.productId)) {
+  if (prep.destino === "LABORATORIO") {
+    const subidas = await prisma.fotofficeOriginalImpresion.count({ where: { workspaceId: ctx.workspaceId, preparacionId: prep.id } });
+    if (subidas >= FOTOS_MAX_LAB) return { ok: false, error: `Un pedido para laboratorio admite hasta ${FOTOS_MAX_LAB} fotos.` };
+  } else if (await esDeCopias(ctx.workspaceId, prep.productId)) {
     // Cuentan también las que se están subiendo (PENDIENTE): las fallidas ya se borraron.
     const subidas = await prisma.fotofficeOriginalImpresion.count({ where: { workspaceId: ctx.workspaceId, preparacionId: prep.id } });
     if (subidas >= FOTOS_MAX) return { ok: false, error: `Una preparación admite hasta ${FOTOS_MAX} fotos.` };
