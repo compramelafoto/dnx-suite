@@ -68,6 +68,11 @@ describe("calcularEmbalaje — bordes", () => {
     const r = calcularEmbalaje([suelta(30, 45, 1), suelta(10, 15, 1)], DNX);
     expect(r.map((e) => e.insumoId)).toEqual(["sobre", "bolsa3045"]);
   });
+  it("sin bolsas, una pieza con envoltorio fijo igual descuenta ese envoltorio", () => {
+    const soloSobres = DNX.filter((e) => e.tipo === "SOBRE");
+    const pieza: PiezaEntrega = { ...fotolibro(1), embalajeFijoId: "sobre" };
+    expect(ids(calcularEmbalaje([pieza], soloSobres))).toEqual({ sobre: 1 });
+  });
   it("una foto más chica que el marco va adentro si no hay de la misma medida", () =>
     expect(ids(calcularEmbalaje([marco(20, 25, 1), suelta(13, 18, 1)], DNX))).toEqual({ bolsa3045: 1 }));
 });

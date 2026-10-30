@@ -101,20 +101,18 @@ export function calcularEmbalaje(piezas: readonly PiezaEntrega[], envoltorios: r
       grandes.push({ pieza: { forma: "PIEZA_SUELTA", anchoCm: s.m?.menor ?? null, altoCm: s.m?.mayor ?? null, embalajeSiguiente: false, embalajeFijoId: null, qty: s.qty }, m: s.m });
     }
   }
-  if (grandes.length > 0 && bolsas.length > 0) {
-    let mayor: { bolsa: Envoltorio; por: string } | null = null;
-    for (const g of grandes) {
-      const fijo = g.pieza.embalajeFijoId ? validos.find((e) => e.insumoId === g.pieza.embalajeFijoId) : undefined;
-      const bolsa =
-        fijo ??
-        (g.m ? bolsas.find((e) => entra(g.m!, medidaDe(e), g.pieza.embalajeSiguiente)) : bolsas[0]) ??
-        bolsas[bolsas.length - 1]!;
-      if (!mayor || masChicoPrimero(bolsa, mayor.bolsa) > 0) {
-        mayor = { bolsa, por: [PIEZA[g.pieza.forma], g.m ? texto(g.m) : ""].filter(Boolean).join(" ") };
-      }
+  // Un envoltorio fijo vale aunque el negocio no tenga bolsas; sin fijo ni bolsas, no hay en qué envolver.
+  let mayor: { bolsa: Envoltorio; por: string } | null = null;
+  for (const g of grandes) {
+    const fijo = g.pieza.embalajeFijoId ? validos.find((e) => e.insumoId === g.pieza.embalajeFijoId) : undefined;
+    const porMedida = g.m ? bolsas.find((e) => entra(g.m!, medidaDe(e), g.pieza.embalajeSiguiente)) : bolsas[0];
+    const bolsa = fijo ?? porMedida ?? bolsas[bolsas.length - 1];
+    if (!bolsa) continue;
+    if (!mayor || masChicoPrimero(bolsa, mayor.bolsa) > 0) {
+      mayor = { bolsa, por: [PIEZA[g.pieza.forma], g.m ? texto(g.m) : ""].filter(Boolean).join(" ") };
     }
-    salida.push({ insumoId: mayor!.bolsa.insumoId, qty: 1, motivo: mayor!.por });
   }
+  if (mayor) salida.push({ insumoId: mayor.bolsa.insumoId, qty: 1, motivo: mayor.por });
   return salida;
 }
 

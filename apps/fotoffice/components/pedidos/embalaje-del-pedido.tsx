@@ -34,7 +34,15 @@ export function EmbalajeDelPedido({
         {puedeEditar ? (
           <>
             {" "}·{" "}
-            <button type="button" className="underline hover:text-[var(--fo-text)]" onClick={() => setEditando(true)}>
+            <button
+              type="button"
+              className="underline hover:text-[var(--fo-text)]"
+              onClick={() => {
+                // Siempre arranca de lo descontado, no de lo que se tocó y se canceló antes.
+                setCantidades(Object.fromEntries(actual.map((e) => [e.insumoId, e.qty])));
+                setEditando(true);
+              }}
+            >
               Cambiar
             </button>
           </>
