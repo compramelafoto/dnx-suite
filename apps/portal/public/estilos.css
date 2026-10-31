@@ -1,0 +1,599 @@
+@font-face {
+  font-family: "League Spartan";
+  src: url("/fuentes/league-spartan-variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Public Sans";
+  src: url("/fuentes/public-sans-variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+:root {
+  color-scheme: light;
+  --papel: #f5f7fa;
+  --blanco: #ffffff;
+  --tinta: #172033;
+  --gris: #556074;
+  --linea: #dde2ea;
+  --foco: #1593f0;
+  --titulos: "League Spartan", "Avenir Next", "Helvetica Neue", Arial, sans-serif;
+  --texto: "Public Sans", -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  --ancho: 1120px;
+  --margen: clamp(16px, 4vw, 40px);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  background: var(--papel);
+  color: var(--tinta);
+  font-family: var(--texto);
+  font-size: 1.0625rem;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+a {
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 3px solid var(--foco);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--titulos);
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: -0.015em;
+  margin: 0;
+  text-wrap: balance;
+}
+
+h1 {
+  font-size: clamp(2.5rem, 5.6vw, 4.5rem);
+}
+
+h2 {
+  font-size: clamp(1.75rem, 3vw, 2.375rem);
+}
+
+h3 {
+  font-size: 1.3rem;
+}
+
+p {
+  margin: 0;
+}
+
+.saltar {
+  position: absolute;
+  left: -9999px;
+}
+.saltar:focus {
+  left: var(--margen);
+  top: 8px;
+  background: var(--blanco);
+  padding: 8px 12px;
+  z-index: 10;
+}
+
+/* Cabecera y pie */
+
+.cabecera,
+main,
+.pie {
+  max-width: var(--ancho);
+  margin-inline: auto;
+  padding-inline: var(--margen);
+}
+
+.cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-block: 22px;
+}
+
+.marca {
+  font-family: var(--titulos);
+  font-weight: 800;
+  font-size: 1.5rem;
+  letter-spacing: -0.02em;
+  text-decoration: none;
+}
+
+.cabecera nav {
+  display: flex;
+  gap: clamp(14px, 3vw, 32px);
+  font-size: 0.98rem;
+}
+
+.cabecera nav a {
+  text-decoration: none;
+  color: var(--gris);
+}
+.cabecera nav a:hover,
+.cabecera nav a[aria-current] {
+  color: var(--tinta);
+}
+
+.pie {
+  border-top: 1px solid var(--linea);
+  padding-block: 40px 56px;
+  margin-top: 40px;
+  color: var(--gris);
+  font-size: 0.95rem;
+  display: grid;
+  gap: 10px;
+}
+.pie .marca {
+  color: var(--tinta);
+  font-size: 1.25rem;
+}
+.pie ul {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 22px;
+}
+
+/* Botones y enlaces */
+
+.boton {
+  --c: var(--tinta);
+  display: inline-block;
+  background: var(--c);
+  color: var(--blanco);
+  font-weight: 600;
+  text-decoration: none;
+  padding: 14px 22px;
+  border-radius: 999px;
+  line-height: 1.2;
+}
+.boton:hover {
+  filter: brightness(1.12);
+}
+.boton-chico {
+  padding: 10px 16px;
+  font-size: 0.95rem;
+}
+
+.enlace {
+  --t: var(--tinta);
+  color: var(--t);
+  font-weight: 600;
+  text-underline-offset: 4px;
+  text-decoration-thickness: 2px;
+}
+
+.estado {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--t, var(--gris));
+}
+.estado::before {
+  content: "";
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+}
+.estado-grande {
+  font-size: 1.1rem;
+}
+
+.portada-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px 24px;
+  margin-top: 32px;
+}
+
+.bajada {
+  font-size: clamp(1.1rem, 1.6vw, 1.25rem);
+  color: var(--gris);
+  max-width: 60ch;
+  margin-top: 22px;
+}
+
+/* Portada del inicio */
+
+.portada {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  align-items: center;
+  gap: clamp(24px, 5vw, 72px);
+  padding-block: clamp(24px, 6vw, 72px) clamp(40px, 7vw, 96px);
+}
+
+.diafragma {
+  position: relative;
+  width: min(100%, 470px);
+  justify-self: center;
+}
+
+.diafragma svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  overflow: visible;
+}
+
+.hoja path {
+  fill: var(--c);
+  stroke: var(--papel);
+  stroke-width: 5;
+  stroke-linejoin: round;
+  transition: opacity 0.2s ease, transform 0.25s ease;
+  transform-origin: 0 0;
+}
+
+/* Al apuntar una hoja, las demás se apagan: queda a la vista cuál es. */
+/* El script marca la hoja apuntada; las demás se apagan para que se vea cuál es. */
+.hojas.apuntando .hoja path {
+  opacity: 0.28;
+}
+.hojas.apuntando .hoja.activa path {
+  opacity: 1;
+  transform: scale(1.035);
+}
+.hoja:focus-visible {
+  outline: none;
+}
+
+.diafragma-centro {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+.diafragma-centro span {
+  max-width: 30%;
+  text-align: center;
+  font-family: var(--titulos);
+  font-weight: 700;
+  font-size: clamp(0.95rem, 2.2vw, 1.25rem);
+  line-height: 1.05;
+  color: var(--tinta);
+}
+
+/* Una sola animación: el diafragma se abre al cargar la página. */
+@media (prefers-reduced-motion: no-preference) {
+  .hojas {
+    animation: abrir 1.1s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+    transform-origin: 0 0;
+  }
+  @keyframes abrir {
+    from {
+      transform: rotate(-70deg) scale(0.86);
+      opacity: 0;
+    }
+    to {
+      transform: none;
+      opacity: 1;
+    }
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .hoja path {
+    transition: none;
+  }
+}
+
+/* Bloques */
+
+.bloque {
+  padding-block: clamp(40px, 6vw, 72px);
+  border-top: 1px solid var(--linea);
+}
+.bloque > h2 + * {
+  margin-top: 14px;
+}
+.bloque-bajada {
+  color: var(--gris);
+}
+
+/* Lista de herramientas */
+
+.filas {
+  list-style: none;
+  padding: 0;
+  margin: 32px 0 0;
+}
+
+.fila {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px 40px;
+  padding: 26px 0 26px 22px;
+  border-left: 5px solid var(--c);
+  background: var(--blanco);
+  border-radius: 0 14px 14px 0;
+  padding-right: 24px;
+}
+.fila + .fila {
+  margin-top: 12px;
+}
+
+.fila-logo img {
+  height: var(--alto);
+  width: auto;
+  max-width: 100%;
+  object-fit: contain;
+  object-position: left center;
+}
+
+.fila-frase {
+  font-family: var(--titulos);
+  font-weight: 600;
+  font-size: 1.35rem;
+  line-height: 1.15;
+}
+.fila-para {
+  color: var(--gris);
+  margin-top: 6px;
+  font-size: 0.98rem;
+}
+
+.fila-acciones {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+  text-align: right;
+}
+.fila-acciones .enlace {
+  --t: var(--t);
+}
+
+/* ¿Por dónde empiezo? */
+
+.necesidades {
+  list-style: none;
+  padding: 0;
+  margin: 28px 0 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 40px;
+}
+.necesidades a {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--linea);
+  text-decoration: none;
+  font-size: 1.1rem;
+}
+.necesidades a:hover span:first-child {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.necesidad-destino {
+  color: var(--t);
+  font-weight: 600;
+  font-size: 0.95rem;
+  white-space: nowrap;
+}
+
+/* Otras herramientas */
+
+.otras {
+  list-style: none;
+  padding: 0;
+  margin: 28px 0 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 32px 48px;
+}
+.otras p {
+  color: var(--gris);
+  margin-top: 8px;
+  max-width: 52ch;
+}
+.otras h3 a {
+  text-decoration: none;
+}
+.otras h3 a:hover {
+  text-decoration: underline;
+}
+
+.dominio {
+  font-size: 0.92rem;
+  color: var(--gris);
+}
+
+.cuentas p {
+  max-width: 64ch;
+  font-size: 1.1rem;
+}
+
+/* Página de cada herramienta */
+
+.producto-portada {
+  padding-block: clamp(24px, 5vw, 56px) clamp(40px, 6vw, 72px);
+  border-top: 6px solid var(--c);
+  margin-top: 4px;
+}
+.producto-logo {
+  width: min(100%, 420px);
+  margin: 36px 0 32px;
+}
+.producto-portada h1 {
+  max-width: 18ch;
+}
+.producto-portada .dominio {
+  margin-top: 18px;
+}
+.producto .boton {
+  --c: var(--t);
+}
+
+.producto-grilla {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 40px 64px;
+}
+
+.lista {
+  list-style: none;
+  padding: 0;
+  margin: 18px 0 0;
+}
+.lista li {
+  position: relative;
+  padding: 9px 0 9px 22px;
+  border-bottom: 1px solid var(--linea);
+}
+.lista li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.95em;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--c);
+}
+
+.pasos {
+  list-style: none;
+  counter-reset: paso;
+  padding: 0;
+  margin: 18px 0 0;
+}
+.pasos li {
+  counter-increment: paso;
+  display: grid;
+  grid-template-columns: 40px 1fr;
+  align-items: baseline;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--linea);
+}
+.pasos li::before {
+  content: counter(paso);
+  font-family: var(--titulos);
+  font-weight: 700;
+  font-size: 1.4rem;
+  color: var(--t);
+}
+
+.nota {
+  margin-top: 20px;
+  color: var(--gris);
+  font-size: 0.98rem;
+  max-width: 52ch;
+}
+
+.funciones {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 32px 48px;
+  margin-top: 28px;
+}
+
+.cierre {
+  text-align: left;
+}
+.cierre .portada-acciones {
+  margin-top: 22px;
+}
+
+.vecinas ul {
+  list-style: none;
+  padding: 0;
+  margin: 24px 0 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 16px;
+}
+.vecinas a {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-decoration: none;
+  font-weight: 600;
+  line-height: 1.2;
+}
+.vecinas a:hover span {
+  text-decoration: underline;
+}
+.vecinas img {
+  width: 48px;
+  height: 48px;
+  flex: none;
+}
+
+/* Pantallas angostas */
+
+@media (max-width: 860px) {
+  .portada {
+    grid-template-columns: 1fr;
+  }
+  .diafragma {
+    width: min(100%, 320px);
+  }
+  .fila {
+    grid-template-columns: 1fr;
+    padding-left: 18px;
+  }
+  .fila-acciones {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 12px 20px;
+    text-align: left;
+  }
+  .necesidades,
+  .otras,
+  .producto-grilla {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 520px) {
+  .cabecera {
+    flex-wrap: wrap;
+  }
+  .necesidades a {
+    flex-direction: column;
+    gap: 2px;
+  }
+}
