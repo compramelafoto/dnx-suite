@@ -10,6 +10,11 @@ import {
 import { cookies } from "next/headers";
 import { sanitizeClickatonReturnPath } from "@/lib/auth/return-path";
 import { siteConfig } from "@/config/site";
+import {
+  clearSuiteReferralCookie,
+  readSuiteReferralCodeFromCookies,
+  scheduleSuiteReferralSignupReport,
+} from "@/lib/suite-referral/service";
 
 export type ClickatonRegisterFormState = { error: string | null; info: string | null };
 
@@ -61,6 +66,17 @@ export async function registerClickatonAccountAction(
   if (!result.ok) {
     return { error: result.message, info: null };
   }
+
+  // Referidos DNX Suite: la cuenta es nueva (registerDnxAccount rechaza las existentes).
+  // El aviso a CLF va después de responder y nunca tira.
+  const suiteReferralScheduled = scheduleSuiteReferralSignupReport({
+    created: result.created,
+    code: await readSuiteReferralCodeFromCookies(),
+    userId: result.user.id,
+    email: result.user.email,
+    name: result.user.name,
+  });
+  if (suiteReferralScheduled) await clearSuiteReferralCookie();
 
   // Sesión local post-registro (misma identidad DNX). Inscripciones siguen gated por feature flag.
   const session = await createUserSession(result.user.id);

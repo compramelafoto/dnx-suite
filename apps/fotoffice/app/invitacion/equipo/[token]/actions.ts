@@ -10,6 +10,7 @@ import { FOTOFFICE_WORKSPACE_COOKIE } from "@/lib/courses-sales/constants";
 import { hashInvitationToken } from "@/lib/members/invitation-tokens";
 import { emailsMatch, invitationState } from "@/lib/members/invitations";
 import { clearTeamInvitationContinuity, setTeamInvitationContinuity } from "@/lib/team/continuity";
+import { avisarReferidoDeAlta } from "@/lib/suite-referral/alta";
 
 const NO_DISPONIBLE = "Esta invitación ya no está disponible.";
 const WORKSPACE_COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
@@ -106,11 +107,14 @@ export async function startTeamActivationAction(
     email = existing.email;
   } else {
     // `upsert` y no `create`: dos clics simultáneos no producen dos cuentas.
-    await prisma.user.upsert({
+    const creado = await prisma.user.upsert({
       where: { email },
       update: {},
       create: { email, role: "CUSTOMER" },
+      select: { id: true, email: true, name: true },
     });
+    // Referidos de DNX Suite: la cuenta la creó el propio visitante desde su enlace.
+    await avisarReferidoDeAlta(creado);
   }
 
   // Antes de mandar el correo: si se guardara después y el envío fallara a medias, la persona

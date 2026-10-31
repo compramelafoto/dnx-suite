@@ -58,6 +58,7 @@ const documento = ({ titulo, descripcion, ruta, cuerpo, tema = "#172033" }) => `
 <meta name="theme-color" content="${tema}">
 <link rel="preload" href="/fuentes/league-spartan-variable.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/estilos.css">
+<script src="/referidos.js" defer></script>
 </head>
 <body>
 <a class="saltar" href="#contenido">Ir al contenido</a>

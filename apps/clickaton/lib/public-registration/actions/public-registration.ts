@@ -175,6 +175,12 @@ export async function createPublicRegistrationAction(
     );
     await registrarClaimDeReferido(data.registrationId);
 
+    // Lo mismo para el código de referido de DNX Suite (`dnx_ref`).
+    const { captureSuiteReferralForRegistration } = await import(
+      "@/lib/suite-referral/service"
+    );
+    await captureSuiteReferralForRegistration(data.registrationId);
+
     // Ubicar la ciudad en el mapa de Personas, sin demorar a quien se inscribe.
     after(async () => {
       const { asegurarLocalidad } = await import("@/lib/localities/service");

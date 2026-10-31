@@ -1,4 +1,4 @@
-import type { ReferralSharePath } from "@/lib/referral-link";
+import { DNX_SUITE_PORTAL_URL, type ReferralSharePath } from "@/lib/referral-link";
 
 export type ReferralShareOption = {
   label: string;
@@ -12,6 +12,12 @@ export const REFERRAL_SHARE_OPTIONS: ReferralShareOption[] = [
     path: "/",
     whatsappMessage:
       "Estoy usando ComprameLaFoto para vender mis fotos online. Mirá cómo funciona 👇",
+  },
+  {
+    label: "DNX Suite (todas las herramientas)",
+    path: "dnx-suite",
+    whatsappMessage:
+      "Te comparto DNX Suite: herramientas para fotógrafos para vender fotos, organizar el estudio, concursos y más. Mirá 👇",
   },
   {
     label: "Landing general",
@@ -38,6 +44,11 @@ export function buildReferralUrlForPath(
   referralCode: string,
   path: ReferralSharePath
 ): string {
+  if (path === "dnx-suite") {
+    const portal = new URL(DNX_SUITE_PORTAL_URL);
+    portal.searchParams.set("ref", referralCode);
+    return portal.toString();
+  }
   try {
     const parsed = new URL(referralCodeUrl);
     parsed.pathname = path;
@@ -51,6 +62,9 @@ export function buildReferralUrlForPath(
 }
 
 export function referralShareHelperText(path: ReferralSharePath): string {
+  if (path === "dnx-suite") {
+    return "Lleva al portal de DNX Suite. Si la persona crea su cuenta en cualquier herramienta (ComprameLaFoto, FOTOFFICE, FotoRank, Muestras y las demás), queda registrado que la referiste vos.";
+  }
   if (path === "/Escuelas") {
     return "Compartí este link para que la escuela complete su solicitud. Si avanza, quedará identificado que la recomendaste vos.";
   }

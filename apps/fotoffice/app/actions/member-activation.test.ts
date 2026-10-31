@@ -7,6 +7,7 @@ const {
   requestPasswordResetMock,
   setContinuityMock,
   clearContinuityMock,
+  avisarReferidoMock,
 } = vi.hoisted(() => ({
   findInvitationMock: vi.fn(),
   userFindUniqueMock: vi.fn(),
@@ -14,6 +15,7 @@ const {
   requestPasswordResetMock: vi.fn(),
   setContinuityMock: vi.fn(),
   clearContinuityMock: vi.fn(),
+  avisarReferidoMock: vi.fn(),
 }));
 
 vi.mock("@repo/db", () => ({
@@ -27,6 +29,8 @@ vi.mock("@/lib/members/invitation-continuity", () => ({
   setInvitationContinuity: setContinuityMock,
   clearInvitationContinuity: clearContinuityMock,
 }));
+
+vi.mock("@/lib/suite-referral/alta", () => ({ avisarReferidoDeAlta: avisarReferidoMock }));
 
 const { startPasswordActivationAction } = await import("./member-activation");
 
@@ -63,6 +67,7 @@ beforeEach(() => {
   });
   setContinuityMock.mockReset();
   clearContinuityMock.mockReset();
+  avisarReferidoMock.mockReset().mockResolvedValue(undefined);
 });
 
 afterEach(() => vi.unstubAllEnvs());
@@ -93,6 +98,12 @@ describe("usuario inexistente", () => {
     // No hay ninguna escritura sobre Member en este paso: el mock de prisma solo expone user.
   });
 
+  it("avisa el referido de DNX Suite con la cuenta recién creada", async () => {
+    await startPasswordActivationAction(undefined, form());
+    expect(avisarReferidoMock).toHaveBeenCalledTimes(1);
+    expect(avisarReferidoMock).toHaveBeenCalledWith({ id: 9 });
+  });
+
   it("guarda la continuidad acotada al vencimiento de la invitación", async () => {
     await startPasswordActivationAction(undefined, form());
     expect(setContinuityMock).toHaveBeenCalledWith("token-crudo", FUTURE);
@@ -105,6 +116,7 @@ describe("usuario existente", () => {
     const state = await startPasswordActivationAction(undefined, form());
     expect(state.status).toBe("PASSWORD_EMAIL_SENT");
     expect(userUpsertMock).not.toHaveBeenCalled();
+    expect(avisarReferidoMock).not.toHaveBeenCalled();
   });
 
   it("con contraseña se lo manda a iniciar sesión y no se crea nada", async () => {

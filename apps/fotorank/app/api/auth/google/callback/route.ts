@@ -1,10 +1,13 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
+import { SUITE_REFERRAL_COOKIE } from "@repo/auth/suite-referral";
 import { prisma } from "@repo/db";
 import {
   resolveOrLinkGoogleUser,
   resolveOrCreateUser,
 } from "@repo/auth";
 import { attachAdminSessionCookieToResponse } from "../../../../lib/auth";
+import { reportarAltaReferida } from "../../../../lib/fotorank/suite-referral/reportarAltaReferida";
 import { resolvePostLoginPathForUser } from "../../../../lib/fotorank/access/home-capabilities";
 import {
   parseFotorankGoogleOAuthState,
@@ -114,6 +117,11 @@ export async function GET(req: Request) {
     }
 
     let resolved;
+    // Usuario creado recién en este pedido (para el aviso de referidos de DNX Suite).
+    // (Objeto contenedor: TS no sigue asignaciones hechas dentro del callback `onCreate`.)
+    const altaNueva: { usuario: { id: number; email: string; name: string | null } | null } = {
+      usuario: null,
+    };
     try {
       resolved = await resolveOrLinkGoogleUser({
         google: {
@@ -125,7 +133,7 @@ export async function GET(req: Request) {
         },
         onCreate: async ({ email: e, name: n, googleId: gid }) => {
           // Cuenta DNX base — NO otorga organizador/jurado automáticamente.
-          const { user: created } = await resolveOrCreateUser({
+          const { user: created, created: wasCreated } = await resolveOrCreateUser({
             email: e,
             name: n,
             googleId: gid,
@@ -133,6 +141,10 @@ export async function GET(req: Request) {
             sourceApplication: "fotorank",
             markEmailVerified: true,
           });
+          // Sólo si se creó de verdad: en una carrera puede devolver uno que ya existía.
+          if (wasCreated) {
+            altaNueva.usuario = { id: created.id, email: created.email, name: created.name };
+          }
           return { id: created.id, role: created.role };
         },
       });
@@ -166,6 +178,21 @@ export async function GET(req: Request) {
     const dest = new URL(destPath, baseUrl).toString();
     const response = NextResponse.redirect(dest);
     await attachAdminSessionCookieToResponse(response, resolved.userId);
+
+    // Referidos de DNX Suite: si la cuenta nació en este ingreso con Google y el visitante llegó
+    // con `?dnx_ref=`, se le avisa a CLF quién lo refirió. Nunca rompe el ingreso.
+    if (resolved.created && altaNueva.usuario) {
+      try {
+        const cookieStore = await cookies();
+        const habia = await reportarAltaReferida(
+          altaNueva.usuario,
+          cookieStore.get(SUITE_REFERRAL_COOKIE)?.value,
+        );
+        if (habia) response.cookies.delete(SUITE_REFERRAL_COOKIE);
+      } catch (err) {
+        console.warn("FOTORANK Google referido", err);
+      }
+    }
     return response;
   } catch (err: unknown) {
     console.error("FOTORANK GOOGLE CALLBACK ERROR", err);

@@ -26,3 +26,12 @@ la página de registro de cada una.
 
 DNX Suite todavía no tiene logo: el portal usa el nombre en texto y no tiene
 ícono de pestaña hasta que haya uno.
+
+## Link de referidos
+
+`www.dnx-suite.com/?ref=CODIGO` usa el código de referidos de ComprameLaFoto (se copia
+desde el panel de referidos de CLF, opción "DNX Suite"). `public/referidos.js` recuerda el
+código 30 días en el navegador y lo agrega a los links de cada herramienta: a
+ComprameLaFoto como `?ref=` y al resto como `?dnx_ref=`. Cada plataforma guarda ese código
+en una cookie y, cuando la persona crea su cuenta, le avisa a CLF
+(`POST /api/referrals/suite-signup`), que es quien registra la atribución.

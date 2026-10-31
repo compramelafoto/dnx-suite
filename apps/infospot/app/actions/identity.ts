@@ -11,6 +11,7 @@ import {
 import { prisma, infoSpotRoleLabel, resolveInfoSpotPublicationFields } from "@repo/db";
 import { createInfoSpotSession } from "@/lib/session-cookie";
 import { getSiteUrl } from "@/lib/settings";
+import { reportInfoSpotReferralSignupFromCookies } from "@/lib/suite-referral/report-signup";
 
 export type IdentityFormState = { ok: boolean; message: string };
 
@@ -36,6 +37,12 @@ export async function acceptInvitationAction(
     if (invitation.app !== "infospot") {
       return { ok: false, message: "Esta invitación no es para Info Spot." };
     }
+
+    // Referidos de DNX Suite: acceptAppInvitation crea el User sólo si no había uno con ese email.
+    const existedBefore = await prisma.user.findUnique({
+      where: { email: invitation.email },
+      select: { id: true },
+    });
 
     const result = await acceptAppInvitation({
       rawToken,
@@ -84,6 +91,14 @@ export async function acceptInvitationAction(
       where: { id: result.userId },
       data: { lastLoginAt: new Date() },
     });
+
+    if (!existedBefore) {
+      await reportInfoSpotReferralSignupFromCookies({
+        id: result.userId,
+        email: result.email,
+        name: name.trim() || null,
+      });
+    }
   } catch (err) {
     if (isNextRedirect(err)) throw err;
     return {

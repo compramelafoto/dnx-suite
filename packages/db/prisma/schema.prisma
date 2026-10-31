@@ -6025,6 +6025,30 @@ model ReferralAttributionAttempt {
   @@index([createdAt])
 }
 
+/// Alta en otra plataforma de DNX Suite (FOTOFFICE, FotoRank, Muestras…) que llegó con
+/// un código de referido de CLF. Sólo vive en la base de CLF: las otras plataformas le
+/// avisan por `POST /api/referrals/suite-signup`. Por ahora sólo registra: no genera
+/// comisiones (las comisiones siguen saliendo sólo de ventas en CLF).
+/// `outcome`: CREATED | CODE_NOT_FOUND | SELF_REFERRAL
+model SuiteReferralSignup {
+  id             Int      @id @default(autoincrement())
+  platform       String
+  /// Id del usuario en la base de esa plataforma (no es un User de CLF).
+  externalUserId String
+  email          String
+  name           String?
+  refCode        String
+  referralCodeId Int?
+  referrerUserId Int?
+  outcome        String
+  createdAt      DateTime @default(now())
+
+  @@unique([platform, externalUserId])
+  @@index([referrerUserId])
+  @@index([refCode])
+  @@index([createdAt])
+}
+
 model OrganizerCommission {
   id              Int                       @id @default(autoincrement())
   schoolId        Int

@@ -9,6 +9,7 @@ import {
   clearInvitationContinuity,
   setInvitationContinuity,
 } from "@/lib/members/invitation-continuity";
+import { avisarReferidoDeAlta } from "@/lib/suite-referral/alta";
 
 export type ActivationStatus =
   | "IDLE"
@@ -82,11 +83,14 @@ export async function startPasswordActivationAction(
     // `upsert` y no `create`: dos clics simultáneos no pueden producir dos cuentas.
     // Sin contraseña no hay login posible, `globalRole` queda en USER y no se crea
     // ninguna membresía de workspace: la cuenta no otorga acceso a nada todavía.
-    await prisma.user.upsert({
+    const creado = await prisma.user.upsert({
       where: { email },
       update: {},
       create: { email, role: "CUSTOMER" },
+      select: { id: true, email: true, name: true },
     });
+    // Referidos de DNX Suite: la cuenta la creó el propio visitante desde su enlace.
+    await avisarReferidoDeAlta(creado);
   }
 
   // La continuidad se guarda ANTES de mandar el email: si se guardara después y el envío

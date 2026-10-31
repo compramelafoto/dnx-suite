@@ -21,6 +21,7 @@ import {
   SESSION_COOKIE_OPTIONS,
   setFotofficeWorkspaceCookieOnResponse,
 } from "@/lib/session-cookie";
+import { avisarReferidoDeAlta, borrarCookieDeReferido } from "@/lib/suite-referral/alta";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -118,6 +119,16 @@ export async function GET(req: Request) {
       );
     }
 
+    // Referidos de DNX Suite: sólo si la cuenta se creó en este ingreso (`created`), y recién
+    // acá, con la cuenta ya guardada. Va antes de la sesión para que un fallo posterior no deje
+    // el alta sin avisar. Nunca lanza ni demora la respuesta (el aviso sale en `after()`).
+    if (resolved.created) {
+      await avisarReferidoDeAlta(
+        { id: resolved.userId, email: resolved.email, name: google.name },
+        { borrarCookie: false },
+      );
+    }
+
     await prisma.user.update({
       where: { id: resolved.userId },
       data: { lastLoginAt: new Date() },
@@ -171,6 +182,8 @@ export async function GET(req: Request) {
         `No se pudo guardar la sesión (${message.slice(0, 160)}).`,
       );
     }
+    // La cookie del referido ya cumplió (el aviso se programó arriba).
+    if (resolved.created) borrarCookieDeReferido(res);
     return res;
   } catch (err) {
     console.error("[fotoffice] Google OAuth callback error", err);

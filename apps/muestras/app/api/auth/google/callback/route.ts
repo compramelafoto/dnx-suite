@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { cookies } from "next/headers";
 import {
   DNX_GOOGLE_OAUTH_COOKIE,
@@ -11,10 +11,12 @@ import {
   resolveGoogleRedirectUri,
   resolveOrLinkGoogleUser,
 } from "@repo/auth";
+import { reportSuiteReferralSignup, SUITE_REFERRAL_COOKIE } from "@repo/auth/suite-referral";
 import { prisma } from "@repo/db";
 import { adjuntarSesion, OPCIONES_COOKIE } from "@/lib/sesion";
 import { APP_OAUTH } from "@/lib/google-app";
 import { rutaInternaSegura } from "@/lib/ruta-segura";
+import { codigoDeReferidoParaReportar } from "@/lib/referido-suite";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -83,6 +85,8 @@ export async function GET(req: Request) {
     const google = await fetchGoogleUserInfo(accessToken);
 
     let resuelto;
+    // Sólo se llena si la cuenta se crea en este ingreso (para el aviso de referidos).
+    let cuentaNueva: { id: number; email: string; name: string | null } | null = null;
     try {
       resuelto = await resolveOrLinkGoogleUser({
         google,
@@ -96,8 +100,9 @@ export async function GET(req: Request) {
               emailVerifiedAt: new Date(),
               ...(picture ? { logoUrl: picture } : {}),
             },
-            select: { id: true, role: true },
+            select: { id: true, role: true, email: true, name: true },
           });
+          cuentaNueva = { id: creado.id, email: creado.email, name: creado.name };
           return { id: creado.id, role: String(creado.role) };
         },
       });
@@ -130,6 +135,27 @@ export async function GET(req: Request) {
     await adjuntarSesion(respuesta, resuelto.userId, {
       recordarme: transito.rememberMe === true,
     });
+
+    // Referidos de DNX Suite: si la cuenta es nueva y llegó con `?dnx_ref=`, se le avisa a
+    // ComprameLaFoto quién la refirió. Va en `after` para no demorar el ingreso, y nunca tira
+    // error. La cookie se borra sólo cuando se usó: quien ya tenía cuenta la conserva sin efecto.
+    const codigoReferido = codigoDeReferidoParaReportar(
+      resuelto.created,
+      almacen.get(SUITE_REFERRAL_COOKIE)?.value,
+    );
+    const nueva = cuentaNueva as { id: number; email: string; name: string | null } | null;
+    if (codigoReferido && nueva) {
+      after(() =>
+        reportSuiteReferralSignup({
+          platform: "muestras",
+          code: codigoReferido,
+          externalUserId: nueva.id,
+          email: nueva.email,
+          name: nueva.name,
+        }),
+      );
+      respuesta.cookies.set(SUITE_REFERRAL_COOKIE, "", { path: "/", maxAge: 0, expires: new Date(0) });
+    }
 
     return respuesta;
   } catch (err) {

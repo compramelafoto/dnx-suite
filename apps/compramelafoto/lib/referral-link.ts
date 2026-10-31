@@ -1,4 +1,8 @@
-export type ReferralSharePath = "/" | "/land" | "/landescolar" | "/Escuelas";
+/** "dnx-suite" no es una ruta de CLF: apunta al portal www.dnx-suite.com. */
+export type ReferralSharePath = "/" | "/land" | "/landescolar" | "/Escuelas" | "dnx-suite";
+
+/** Portal de DNX Suite: recuerda el código y lo pasa a la herramienta donde se registre. */
+export const DNX_SUITE_PORTAL_URL = "https://www.dnx-suite.com/";
 
 function normalizeReferralPath(path?: string): string {
   if (!path || path.trim() === "") return "/";

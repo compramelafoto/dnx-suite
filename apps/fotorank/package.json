@@ -30,6 +30,7 @@
     "test:jury-base": "pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/jury/baseDelConcurso.test.ts",
     "test:jury-entry": "CLICKATON_JURY_MEDIA_SECRET=secreto-de-prueba-largo-1234 pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/jury/entry-for-juror.test.ts",
     "test:design": "pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/design/design.test.ts",
+    "test:suite-referral": "pnpm --filter @repo/db exec tsx --test ../../apps/fotorank/app/lib/fotorank/suite-referral/avisoDeReferido.test.ts",
     "test:access:home-capabilities-failclosed": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/app/lib/fotorank/access/home-capabilities.failclosed.selfcheck.ts",
     "ops:grant-super-admin": "pnpm --filter @repo/db exec tsx prisma/scripts/ops-grant-fotorank-super-admin.ts",
     "test:registration:selfcheck": "pnpm --filter @repo/db exec tsx ../../apps/fotorank/app/lib/fotorank/registration/registration.selfcheck.ts",
