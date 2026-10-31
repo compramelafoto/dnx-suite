@@ -24,6 +24,7 @@ export function ForgotPasswordForm() {
       notice={state.info}
       loading={pending ? "sending-email" : "idle"}
       loginHref="/login"
+      showRegister={Boolean(state.noAccount)}
     />
   );
 }
