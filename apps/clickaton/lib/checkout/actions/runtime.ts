@@ -38,6 +38,7 @@ import {
   DNX_COLLECTOR_PAYMENT_ACCOUNT_ID,
   DNX_COLLECTOR_PROVIDER_USER_ID,
 } from "@/lib/affiliates/infrastructure/split-consent";
+import { CLICKATON_LIVE_COLLECTOR_PAYMENT_ACCOUNT_ID } from "@/lib/payments/live-collector";
 
 type G = {
   __clickatonCheckoutService?: CheckoutService;
@@ -129,7 +130,7 @@ function buildOrdersHttp(): {
  * Cobro dividido al afiliado (DNX_CLICKATON_AFFILIATE_SPLIT_ENABLED, apagado
  * por defecto). Apagado ⇒ devuelve el mismo puente de Checkout Pro, intacto.
  * Encendido ⇒ puente compuesto: Checkout Pro de siempre + Orders 1:N
- * productivo para las tarjetas con reparto (dueño = cuenta cobradora DNX).
+ * productivo para las tarjetas con reparto (dueño = cuenta cobradora, ver live-collector).
  */
 export function wrapWithAffiliateSplitIfEnabled(
   checkoutPro: ClickatonCheckoutProviderBridge,
@@ -342,7 +343,6 @@ export function getDnxPaymentsClient(): DnxPaymentsClient {
   return globals.__clickatonDnxPaymentsClient;
 }
 
-const CANONICAL_LIVE_COLLECTOR_PA = "pa_ba733fa7a35f4326";
 
 /**
  * Runtime: DNX Payments durable (Prisma) por defecto.
@@ -381,7 +381,7 @@ export async function getCheckoutServiceReady(): Promise<CheckoutService> {
         "@/lib/admin/edition-finance/infrastructure/resolve-collector-token"
       );
       const resolved = await resolveCollectorAccessTokenFromPaymentAccount(
-        CANONICAL_LIVE_COLLECTOR_PA,
+        CLICKATON_LIVE_COLLECTOR_PAYMENT_ACCOUNT_ID,
       );
       if (resolved.ok) {
         process.env.MERCADOPAGO_LIVE_ACCESS_TOKEN = resolved.accessToken;
