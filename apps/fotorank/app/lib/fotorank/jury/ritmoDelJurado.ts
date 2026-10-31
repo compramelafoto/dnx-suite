@@ -86,3 +86,98 @@ export function sumarAlLatido(input: {
   const suma = Math.min(input.segundosDesdeElUltimo, UMBRAL_DE_INACTIVIDAD_SEGUNDOS);
   return input.acumulado + Math.round(suma);
 }
+
+/* ---------- el tiempo de cada foto ---------- */
+
+/**
+ * Cuánto de este tic se cuenta como trabajo.
+ *
+ * El latido va al servidor cada treinta segundos, pero una foto se califica en
+ * menos de un minuto: repartir de a treinta le daría todo el rato a la que
+ * estuviera en pantalla justo al latir. Por eso el visor cuenta de a poco, y
+ * sólo mientras haya pantalla a la vista y alguien haya tocado algo hace menos
+ * que el umbral: mirar una foto sin mover el mouse también es trabajar.
+ */
+export function segundosQueCuentan(input: {
+  desdeElTicAnterior: number;
+  desdeLaUltimaInteraccion: number;
+  pantallaVisible: boolean;
+}): number {
+  if (!input.pantallaVisible) return 0;
+  if (!Number.isFinite(input.desdeElTicAnterior) || input.desdeElTicAnterior <= 0) return 0;
+  if (
+    !Number.isFinite(input.desdeLaUltimaInteraccion) ||
+    input.desdeLaUltimaInteraccion > UMBRAL_DE_INACTIVIDAD_SEGUNDOS
+  ) {
+    return 0;
+  }
+  // Un tic atrasado (la pestaña dormida, la computadora suspendida) no es trabajo.
+  return Math.min(input.desdeElTicAnterior, UMBRAL_DE_INACTIVIDAD_SEGUNDOS);
+}
+
+export type TiempoPorFoto = Record<string, number>;
+
+export function sumarALaFoto(
+  tiempo: TiempoPorFoto,
+  snapshotId: string,
+  segundos: number,
+): TiempoPorFoto {
+  if (!Number.isFinite(segundos) || segundos <= 0) return tiempo;
+  return { ...tiempo, [snapshotId]: (tiempo[snapshotId] ?? 0) + segundos };
+}
+
+/**
+ * Lo que ya quedó guardado se descuenta; lo demás espera al latido siguiente.
+ *
+ * Una foto que se mira antes de ponerle la primera nota todavía no tiene fila
+ * en la base: ese tiempo se guarda en el navegador y se anota cuando exista.
+ * Si no, se perdería justo el rato de mirarla, que es el más largo.
+ */
+export function descontarLoAnotado(
+  tiempo: TiempoPorFoto,
+  enviado: Array<{ snapshotId: string; segundos: number }>,
+  anotadas: string[],
+): TiempoPorFoto {
+  const siguen = { ...tiempo };
+  const yaEstan = new Set(anotadas);
+  for (const e of enviado) {
+    if (!yaEstan.has(e.snapshotId)) continue;
+    const resto = (siguen[e.snapshotId] ?? 0) - e.segundos;
+    if (resto > 0.5) siguen[e.snapshotId] = resto;
+    else delete siguen[e.snapshotId];
+  }
+  return siguen;
+}
+
+/** Más fotos que esto en un latido es alguien recorriendo, no calificando. */
+export const FOTOS_POR_LATIDO = 30;
+
+/** Tope por foto y por latido: alcanza para varios latidos perdidos seguidos. */
+export const TOPE_POR_FOTO_POR_LATIDO = 15 * 60;
+
+/**
+ * Lo que manda el navegador, antes de escribirlo.
+ *
+ * Lo manda el propio jurado, así que se limpia: enteros positivos, una fila por
+ * foto y un tope razonable, para que un pedido armado a mano no le escriba
+ * horas a nadie.
+ */
+export function limpiarTiempoPorFoto(
+  porFoto: Array<{ snapshotId: unknown; segundos: unknown }> | undefined,
+): Array<{ snapshotId: string; segundos: number }> {
+  if (!Array.isArray(porFoto)) return [];
+  const sumado = new Map<string, number>();
+  for (const f of porFoto) {
+    if (typeof f?.snapshotId !== "string" || f.snapshotId.length === 0) continue;
+    if (typeof f.segundos !== "number" || !Number.isFinite(f.segundos)) continue;
+    const s = Math.round(f.segundos);
+    if (s <= 0) continue;
+    sumado.set(f.snapshotId, (sumado.get(f.snapshotId) ?? 0) + s);
+  }
+  return [...sumado.entries()]
+    .slice(0, FOTOS_POR_LATIDO)
+    .map(([snapshotId, segundos]) => ({
+      snapshotId,
+      segundos: Math.min(segundos, TOPE_POR_FOTO_POR_LATIDO),
+    }));
+}
