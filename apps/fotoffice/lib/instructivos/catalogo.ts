@@ -41,6 +41,7 @@ import { guia as digitalizacionConfiguracionYProblemas } from "./guias/digitaliz
 import { guia as stockCargarPasoAPaso } from "./guias/stock-cargar-paso-a-paso";
 import { guia as stockInsumosAlta } from "./guias/stock-insumos-alta";
 import { guia as stockRecetaConsumo } from "./guias/stock-receta-consumo";
+import { guia as stockEmbalaje } from "./guias/stock-embalaje";
 import { guia as stockContarYAjustar } from "./guias/stock-contar-y-ajustar";
 import { guia as stockRecibirPedido } from "./guias/stock-recibir-pedido";
 import { guia as stockImportarFactura } from "./guias/stock-importar-factura";
@@ -77,6 +78,7 @@ export const INSTRUCTIVOS: readonly Instructivo[] = [
   stockCargarPasoAPaso,
   stockInsumosAlta,
   stockRecetaConsumo,
+  stockEmbalaje,
   stockContarYAjustar,
   stockRecibirPedido,
   stockImportarFactura,

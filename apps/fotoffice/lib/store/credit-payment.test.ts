@@ -109,6 +109,9 @@ function crearTx(
     // Recetas de insumos (`planificarConsumo`): por omisión nada consume insumos. Con
     // `recetaP2`, la taza gasta 1 "kit" por unidad.
     fotofficeComboItem: { findMany: vi.fn(async () => []) },
+    // Embalaje: el negocio no tiene envoltorios.
+    fotofficeEmbalaje: { findMany: vi.fn(async () => []) },
+    fotofficeProductoEntrega: { findMany: vi.fn(async () => []) },
     fotofficeRecetaInsumo: {
       findMany: vi.fn(async () =>
         over.recetaP2 ? [{ productId: "p2", insumoId: "kit", quantity: 1, porCada: 1 }] : [],

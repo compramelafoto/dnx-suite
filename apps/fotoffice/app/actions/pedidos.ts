@@ -144,6 +144,18 @@ export async function cambiarEstadoPedidoAction(datos: { pedidoId: string; estad
   return r;
 }
 
+/** "Cambiar embalaje" del pedido: deja los sobres y bolsas descontados como dice la lista. */
+export async function cambiarEmbalajePedidoAction(datos: { pedidoId: string; deseado: unknown }): Promise<Resultado> {
+  if (!esObjeto(datos) || !esId(datos.pedidoId)) return INVALIDO;
+  const ctx = await contextoDePedidos("operar");
+  if (!ctx) return SIN_ACCESO;
+  const { prisma } = await import("@repo/db");
+  const { cambiarEmbalajeDePedido } = await import("@/lib/stock/embalaje-servidor");
+  const r = await cambiarEmbalajeDePedido(prisma, { workspaceId: ctx.workspaceId, pedidoId: datos.pedidoId, deseado: datos.deseado, userId: ctx.userId });
+  if (r.ok) revalidar(datos.pedidoId);
+  return r;
+}
+
 /** "Editar plan": las cuotas en orden, con `id` las que ya existen. */
 export async function editarPlanAction(datos: { pedidoId: string; cuotas: unknown[] }): Promise<Resultado> {
   if (!esObjeto(datos) || !esId(datos.pedidoId) || !Array.isArray(datos.cuotas)) return INVALIDO;

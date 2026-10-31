@@ -64,6 +64,9 @@ function saleTx(over: Record<string, unknown> = {}) {
     // receta, así que la venta no consume insumos.
     fotofficeComboItem: { findMany: vi.fn(async () => []) },
     fotofficeRecetaInsumo: { findMany: vi.fn(async () => []) },
+    // Embalaje (`planificarEmbalaje`): por omisión el negocio no tiene envoltorios.
+    fotofficeEmbalaje: { findMany: vi.fn(async () => []) },
+    fotofficeProductoEntrega: { findMany: vi.fn(async () => []) },
     client: { count: tablaAusente("Client") },
     cashAccount: { findMany: tablaAusente("cash_account") },
     cashCategory: { findMany: tablaAusente("cash_category") },
@@ -590,5 +593,45 @@ describe("recordSale — insumos (recetas)", () => {
       ]),
     );
     expect(consumos).toHaveLength(2);
+  });
+});
+
+describe("recordSale — embalaje", () => {
+  // Una 10x15 configurada como pieza suelta y el sobre 19x24 del negocio.
+  function txConSobre() {
+    return saleTx({
+      product: {
+        findMany: vi.fn(async ({ where }: { where: { kind?: string } }) =>
+          where.kind === "INSUMO" ? [{ id: "sobre", name: "Sobre 19x24" }] : [{ id: "p1", tracksStock: false }],
+        ),
+        update: vi.fn(async () => ({})),
+      },
+      fotofficeEmbalaje: {
+        findMany: vi.fn(async () => [
+          { id: "e1", insumoId: "sobre", tipo: "SOBRE", admiteAnchoCm: 15, admiteAltoCm: 21, piezasPorUnidad: 100, orden: 0, insumo: { name: "Sobre 19x24", kind: "INSUMO" } },
+        ]),
+      },
+      fotofficeProductoEntrega: {
+        findMany: vi.fn(async () => [{ productId: "p1", forma: "PIEZA_SUELTA", anchoCm: 10, altoCm: 15, embalajeSiguiente: false, embalajeFijoId: null }]),
+      },
+    });
+  }
+  const notas = (tx: ReturnType<typeof saleTx>) =>
+    tx.stockMovement.create.mock.calls
+      .map((c) => (c as unknown as [{ data: { productId: string; qty: number; note: string | null; sourceModule: string } }])[0].data)
+      .filter((d) => d.note === "consumo:embalaje");
+
+  it("una venta con fotos descuenta un sobre, una sola vez y sin romper el re-mapeo de renglones", async () => {
+    moduleState({ cash: false, clients: false });
+    const tx = txConSobre();
+    await recordSale(tx as never, inputBase);
+    expect(notas(tx)).toEqual([expect.objectContaining({ productId: "sobre", qty: -1, sourceModule: "sales" })]);
+  });
+
+  it("con embalaje «ninguno» no descuenta sobres", async () => {
+    moduleState({ cash: false, clients: false });
+    const tx = txConSobre();
+    await recordSale(tx as never, { ...inputBase, embalaje: { modo: "ninguno" } });
+    expect(notas(tx)).toEqual([]);
   });
 });
