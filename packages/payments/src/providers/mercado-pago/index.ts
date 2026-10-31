@@ -16,6 +16,11 @@ export type { ParsedMpResponse, Rfc7807Problem } from "./client/mercado-pago-res
 export { moneyToMercadoPagoAmount, percentageBpsToMercadoPagoAmount } from "./money-mapper.js";
 export { mapMercadoPagoHttpError, isRetryableStatus } from "./errors/error-mapper.js";
 export { MercadoPagoSplitConsentAdapter } from "./split-consent/adapter.js";
+export {
+  SPLIT_CONSENT_PRODUCTION_FLAG,
+  isSplitConsentProductionEnabled,
+  assertSplitConsentWriteAllowed,
+} from "./split-consent/production-flag.js";
 export { MercadoPagoOrdersAdapter } from "./orders/adapter.js";
 export type { MercadoPagoOrdersAdapterOptions, CreateSplitOrderInput } from "./orders/adapter.js";
 export {
