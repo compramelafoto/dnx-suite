@@ -1,6 +1,5 @@
 import { randomBytes } from "node:crypto";
 import {
-  CLICKATON_CRITERIO_PARA_DESEMPATAR,
   CLICKATON_GANADORES_POR_CONSIGNA,
 } from "../jury/clickaton-2026-rubric";
 import { baseDelConcurso } from "../jury/baseDelConcurso";
@@ -94,7 +93,14 @@ export async function ensureDraftResultRuleSet(input: {
       name,
       status: "DRAFT",
       aggregationMethod: "WEIGHTED_AVERAGE",
-      tieBreakStrategy: "PRIORITY_CRITERION_THEN_MEDIAN_THEN_DISPERSION",
+      /*
+       * Clickatón, desde la 2ª edición: promedio y, si empata, la suma de
+       * todas las fotos del participante. La 1ª edición conserva su regla
+       * guardada (criterio prioritario, mediana y dispersión).
+       */
+      tieBreakStrategy: esDeClickaton
+        ? "PARTICIPANT_TOTAL"
+        : "PRIORITY_CRITERION_THEN_MEDIAN_THEN_DISPERSION",
       minimumValidEvaluations: session.minimumEvaluationsPerEntry,
       discardHighestScore: false,
       discardLowestScore: false,
@@ -105,11 +111,7 @@ export async function ensureDraftResultRuleSet(input: {
        * consigna y el resto quedaría sin distinguir.
        */
       winnersPerScope: esDeClickaton ? CLICKATON_GANADORES_POR_CONSIGNA : 1,
-      priorityCriterionKey: esDeClickaton
-        ? CLICKATON_CRITERIO_PARA_DESEMPATAR
-        : isSantaFe
-          ? "narrative_impact"
-          : null,
+      priorityCriterionKey: isSantaFe ? "narrative_impact" : null,
       createdByUserId: input.actorUserId,
     },
   });
@@ -181,9 +183,28 @@ async function loadRankingInputs(contestId: string, scoringSessionId: string) {
   const snapshots = await db.fotorankJuryEntrySnapshot.findMany({
     where: { admissionBatchId: session.admissionBatchId },
     include: {
-      entry: { select: { status: true, admissionStatus: true } },
+      entry: { select: { status: true, admissionStatus: true, externalRegistrationId: true } },
     },
   });
+
+  /*
+   * La consigna sorpresa de Clickatón se juzga pero no suma al total del
+   * participante. En un concurso de FotoRank no hay consignas de Clickatón y
+   * todo suma.
+   */
+  const promptIds = [
+    ...new Set(snapshots.map((s) => s.promptExternalId).filter((id): id is string => Boolean(id))),
+  ];
+  const consignas =
+    promptIds.length > 0
+      ? await db.clickatonPrompt.findMany({
+          where: { id: { in: promptIds } },
+          select: { id: true, countsForScoring: true },
+        })
+      : [];
+  const consignasQueNoSuman = new Set(
+    consignas.filter((c) => !c.countsForScoring).map((c) => c.id),
+  );
 
   const evaluations = await db.fotorankJuryEvaluation.findMany({
     where: {
@@ -195,7 +216,7 @@ async function loadRankingInputs(contestId: string, scoringSessionId: string) {
     },
   });
 
-  return { session, snapshots, evaluations };
+  return { session, snapshots, evaluations, consignasQueNoSuman };
 }
 
 export async function generateResultBatch(input: {
@@ -224,7 +245,7 @@ export async function generateResultBatch(input: {
     throw new ResultError("RULESET_NOT_ACTIVE", "Ruleset no usable.", 409);
   }
 
-  const { session, snapshots, evaluations } = await loadRankingInputs(
+  const { session, snapshots, evaluations, consignasQueNoSuman } = await loadRankingInputs(
     input.contestId,
     input.scoringSessionId,
   );
@@ -276,6 +297,8 @@ export async function generateResultBatch(input: {
     promptExternalId: s.promptExternalId,
     admissionStatus: s.entry.admissionStatus ?? "NOT_EVALUATED",
     entryStatus: s.entry.status,
+    participantKey: s.entry.externalRegistrationId ?? s.participantId,
+    countsForParticipantTotal: !(s.promptExternalId && consignasQueNoSuman.has(s.promptExternalId)),
   }));
 
   const scope = input.scope ?? "CATEGORY_AND_PROMPT";

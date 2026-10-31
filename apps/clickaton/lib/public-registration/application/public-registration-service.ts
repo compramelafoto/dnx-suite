@@ -1112,11 +1112,11 @@ export function createPublicRegistrationService(deps: {
           // Viene del dominio (pegajosa), no del pedido crudo: ver
           // `resolveLocationConsent`.
           locationConsentDeclaredAdult: locationConsent.locationConsentDeclaredAdult,
-          termsVersion: input.termsVersion ?? "CLICKATON_TERMS_2026_09_19_v2",
+          termsVersion: input.termsVersion ?? "CLICKATON_TERMS_2026_10_06_v3",
           termsAcceptedAt: now,
           promotionalLicenseAcceptedAt: promotionalLicenseConsent ? now : null,
           identifiablePersonsDeclaredAt: identifiablePersonsConsent ? now : null,
-          identifiablePersonsPolicyVersion: input.termsVersion ?? "CLICKATON_TERMS_2026_09_19_v2",
+          identifiablePersonsPolicyVersion: input.termsVersion ?? "CLICKATON_TERMS_2026_10_06_v3",
           holdMinutes,
           items,
         },
