@@ -1473,19 +1473,21 @@ export function Pos({
                     className={`-mx-4 flex items-center gap-3 px-4 py-2.5 transition-colors ${delLab ? "cursor-pointer" : ""} ${marcado ? "bg-[var(--fo-accent-muted)]" : ""}`}
                   >
                     <div className="min-w-0 flex-1">
-                      <p className="line-clamp-2 text-sm font-medium leading-snug text-[var(--fo-text)]">
-                          {tieneProceso(r) || paraRetirar[r.key] || delLab ? (
-                            <span className="mr-1.5 inline-flex rounded-full bg-[var(--fo-accent-muted)] px-1.5 py-px align-middle text-[10px] font-semibold uppercase tracking-wide text-[var(--fo-text-secondary)]">
-                              Pedido
-                            </span>
-                          ) : null}
+                      {/* Las etiquetas van en su propia línea: dentro del texto recortado a dos líneas,
+                          en pantallas angostas tapaban el nombre del producto. */}
+                      {tieneProceso(r) || paraRetirar[r.key] || delLab ? (
+                        <div className="mb-0.5 flex flex-wrap gap-1.5">
+                          <span className="inline-flex rounded-full bg-[var(--fo-accent-muted)] px-1.5 py-px text-[10px] font-semibold uppercase tracking-wide text-[var(--fo-text-secondary)]">
+                            Pedido
+                          </span>
                           {delLab ? (
-                            <span className="mr-1.5 inline-flex rounded-full border border-[var(--fo-border)] px-1.5 py-px align-middle text-[10px] font-semibold uppercase tracking-wide text-[var(--fo-text-secondary)]">
+                            <span className="inline-flex rounded-full border border-[var(--fo-border)] px-1.5 py-px text-[10px] font-semibold uppercase tracking-wide text-[var(--fo-text-secondary)]">
                               Laboratorio
                             </span>
                           ) : null}
-                          {r.description}
-                        </p>
+                        </div>
+                      ) : null}
+                      <p className="line-clamp-2 text-sm font-medium leading-snug text-[var(--fo-text)]">{r.description}</p>
                       {/* Un producto con proceso ya es un pedido: muestra «Seña» prendido y fijo, para
                           que todos los renglones se vean igual. Uno sin proceso puede quedar señado. */}
                       {delLab ? null : tieneProceso(r) ? (
