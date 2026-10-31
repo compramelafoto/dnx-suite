@@ -18,38 +18,13 @@ const ALTO = { compramelafoto: 175, "cuanto-cobro": 191, fotoffice: 276, fotoflu
 
 const porSlug = Object.fromEntries(herramientas.map((h) => [h.slug, h]));
 
-// Diafragma: seis hojas que cubren el anillo entre el círculo exterior y un
-// hexágono central. Cada hoja es una herramienta.
-function hojas(R, r, giro = 38) {
-  const p = (rad, grados) => {
-    const a = ((grados - 90) * Math.PI) / 180;
-    return `${(rad * Math.cos(a)).toFixed(2)} ${(rad * Math.sin(a)).toFixed(2)}`;
-  };
-  return herramientas.map((h, i) => {
-    const a = i * 60;
-    return { h, d: `M ${p(R, a)} A ${R} ${R} 0 0 1 ${p(R, a + 60)} L ${p(r, a + 60 + giro)} L ${p(r, a + giro)} Z` };
-  });
-}
-
-function diafragma() {
-  const enlaces = hojas(196, 74)
-    .map(
-      ({ h, d }) =>
-        `<a href="/${h.slug}" class="hoja" data-nombre="${esc(h.nombre)}" data-color="${h.tinta}" aria-label="${esc(h.nombre)}: ${esc(h.frase)}" style="--c:${h.color}"><path d="${d}"/></a>`,
-    )
-    .join("");
-  return `<div class="diafragma">
-  <svg viewBox="-200 -200 400 400" role="group" aria-label="Las seis herramientas principales">
-    <g class="hojas">${enlaces}</g>
-  </svg>
-  <p class="diafragma-centro" aria-hidden="true"><span>DNX Suite</span></p>
-</div>`;
-}
-
-const favicon = () =>
-  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="-100 -100 200 200"><g stroke="#fff" stroke-width="6" stroke-linejoin="round">${hojas(98, 30)
-    .map(({ h, d }) => `<path fill="${h.color}" d="${d}"/>`)
-    .join("")}</g></svg>\n`;
+// Fila de íconos de la portada: el diafragma de cada herramienta, con su nombre.
+const iconos = () => `<ul class="iconos" aria-label="Las herramientas principales">${herramientas
+  .map(
+    (h) =>
+      `<li><a href="/${h.slug}"><img src="/logos/${h.slug}-icono.webp" alt="" width="64" height="64"><span>${esc(h.nombre)}</span></a></li>`,
+  )
+  .join("")}</ul>`;
 
 const cabecera = (actual) => `<header class="cabecera">
   <a class="marca" href="/" aria-label="DNX Suite, inicio">DNX Suite</a>
@@ -67,7 +42,7 @@ const pie = `<footer class="pie">
     .join("")}</ul>
 </footer>`;
 
-const documento = ({ titulo, descripcion, ruta, cuerpo, tema = "#172033", script = "" }) => `<!doctype html>
+const documento = ({ titulo, descripcion, ruta, cuerpo, tema = "#172033" }) => `<!doctype html>
 <html lang="es-AR">
 <head>
 <meta charset="utf-8">
@@ -81,14 +56,12 @@ const documento = ({ titulo, descripcion, ruta, cuerpo, tema = "#172033", script
 <meta property="og:type" content="website">
 <meta property="og:locale" content="es_AR">
 <meta name="theme-color" content="${tema}">
-<link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="preload" href="/fuentes/league-spartan-variable.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/estilos.css">
 </head>
 <body>
 <a class="saltar" href="#contenido">Ir al contenido</a>
 ${cuerpo}
-${script}
 </body>
 </html>
 `;
@@ -128,7 +101,7 @@ function inicio() {
         <a class="enlace" href="#empezar">¿Por dónde empiezo?</a>
       </p>
     </div>
-    ${diafragma()}
+    ${iconos()}
   </section>
 
   <section id="herramientas" class="bloque">
@@ -169,7 +142,6 @@ ${pie}`;
       "ComprameLaFoto, ¿Cuánto Cobro?, FOTOFFICE, FotoFluxx, FotoRank y Muestras Fotográficas: las herramientas de DNX Suite para vender, cobrar, organizar y mostrar fotografía.",
     ruta: "/",
     cuerpo,
-    script: `<script src="/diafragma.js" defer></script>`,
   });
 }
 
@@ -233,6 +205,5 @@ ${pie}`;
 }
 
 writeFileSync(join(salida, "index.html"), inicio());
-writeFileSync(join(salida, "favicon.svg"), favicon());
 for (const h of herramientas) writeFileSync(join(salida, `${h.slug}.html`), pagina(h));
 console.log(`Generadas ${herramientas.length + 1} páginas en ${salida}`);

@@ -5,8 +5,8 @@ lleva a la página de registro de cada una.
 
 - `herramientas.mjs`: textos, colores y enlaces de cada herramienta. Es lo único
   que hay que tocar para cambiar contenido.
-- `generar.mjs`: arma `public/index.html`, una página por herramienta y el
-  `favicon.svg`. Después de editar los datos:
+- `generar.mjs`: arma `public/index.html` y una página por herramienta.
+  Después de editar los datos:
 
   ```bash
   node apps/portal/generar.mjs
@@ -23,3 +23,6 @@ lockfile, así que no puede romper otras apps.
 
 Cada herramienta tiene su propia cuenta; el portal no registra a nadie, manda a
 la página de registro de cada una.
+
+DNX Suite todavía no tiene logo: el portal usa el nombre en texto y no tiene
+ícono de pestaña hasta que haya uno.
