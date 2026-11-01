@@ -18,6 +18,7 @@ const m = vi.hoisted(() => {
     setContinuity: vi.fn(),
     clearContinuity: vi.fn(),
     cookieSet: vi.fn(),
+    avisarReferido: vi.fn(),
     redirect: vi.fn((path: string) => {
       throw new Error(`NEXT_REDIRECT:${path}`);
     }),
