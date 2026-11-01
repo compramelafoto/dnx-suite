@@ -117,3 +117,21 @@ export async function drawLiveRafflePrizeAction(input: {
   revalidatePath(screenPath(input.code, input.token).split("?")[0]);
   return resultado;
 }
+
+/** Borrar todos los resultados desde la pantalla (por ejemplo, después de un ensayo). */
+export async function resetLiveRaffleResultsAction(input: {
+  code: string;
+  token: string;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const sorteo = await prisma.liveRaffle.findUnique({
+    where: { publicCode: String(input.code) },
+    select: { id: true, screenToken: true },
+  });
+  if (!sorteo || sorteo.screenToken !== String(input.token)) {
+    return { ok: false, error: "El enlace de la pantalla ya no es válido. Pedí uno nuevo." };
+  }
+  // Sólo los sorteos: inscriptos, premios y encuestas quedan como estaban.
+  await prisma.liveRaffleDraw.deleteMany({ where: { liveRaffleId: sorteo.id } });
+  revalidatePath(screenPath(input.code, input.token).split("?")[0]);
+  return { ok: true };
+}
