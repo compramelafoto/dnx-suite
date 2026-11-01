@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { drawLiveRafflePrizeAction } from "../actions";
+import { drawLiveRafflePrizeAction, resetLiveRaffleResultsAction } from "../actions";
 import { LogosBanner } from "../logos-banner";
 
 type Prize = {
@@ -105,6 +105,19 @@ export function Pantalla(props: {
     }, 800);
   }
 
+  async function resetear() {
+    if (girandoRef.current) return;
+    if (!window.confirm("¿Borrar todos los resultados y empezar el sorteo de cero? Los inscriptos y las encuestas no se tocan.")) return;
+    setError(null);
+    const r = await resetLiveRaffleResultsAction({ code: props.code, token: props.token }).catch(() => ({
+      ok: false as const,
+      error: "No se pudo resetear. Revisá la conexión y probá de nuevo.",
+    }));
+    if (!r.ok) setError(r.error);
+    setPrizeId(props.prizes[0]?.id ?? null);
+    router.refresh();
+  }
+
   function siguientePremio() {
     const resto = props.prizes.filter((p) => !ganadorDePremio.has(p.id) && p.id !== prizeId);
     if (resto[0]) setPrizeId(resto[0].id);
@@ -129,6 +142,16 @@ export function Pantalla(props: {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {props.results.length > 0 ? (
+            <button
+              type="button"
+              disabled={girando}
+              onClick={resetear}
+              className="mr-2 rounded-full px-4 py-2 text-sm text-white/50 hover:bg-white/10 hover:text-white disabled:opacity-40"
+            >
+              Resetear resultados
+            </button>
+          ) : null}
           {(["sorteo", "encuestas"] as const).map((v) => (
             <button
               key={v}
