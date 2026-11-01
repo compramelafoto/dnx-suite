@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { requireAuth } from "../../../../../lib/auth";
 import { EntryError, listContestEntriesForOrganizer } from "../../../../../lib/fotorank/entries";
 import { PageContainer } from "../../../../../components/PageContainer";
+import { estadoDeLaObra, estadoTecnico } from "../../../../../lib/fotorank/entries/listadoDeParticipantes";
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -48,7 +49,7 @@ export default async function ContestInscripcionesAdminPage({ params }: Props) {
   return (
     <PageContainer
       title="Inscripciones y obras"
-      description="Panel operativo mínimo: participantes, estado técnico y checklist."
+      description="Quién se inscribió, cuántas obras presentó cada persona y cómo está cada una."
     >
       <div className="mb-8 flex flex-wrap gap-4">
         <Link href={`/dashboard/concursos/${contestId}`} className="text-sm text-gold hover:text-gold-hover">
@@ -60,6 +61,16 @@ export default async function ContestInscripcionesAdminPage({ params }: Props) {
         >
           Cola de admisión técnica
         </Link>
+        {rows.length > 0 ? (
+          <a
+            href={`/api/fotorank/contests/${contestId}/participantes.xlsx`}
+            className="fr-btn fr-btn-primary ml-auto inline-flex min-h-10 items-center px-4 text-sm"
+            data-testid="org-entries-export"
+            download
+          >
+            Descargar listado (Excel)
+          </a>
+        ) : null}
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4" data-testid="org-entry-stats">
@@ -84,9 +95,13 @@ export default async function ContestInscripcionesAdminPage({ params }: Props) {
               <th className="px-4 py-3">Participante</th>
               <th className="px-4 py-3">Categoría</th>
               <th className="px-4 py-3">Obra</th>
-              <th className="px-4 py-3">Técnico</th>
-              <th className="px-4 py-3">Warn/Fail</th>
-              <th className="px-4 py-3">Acción</th>
+              <th className="px-4 py-3" title="Control automático de tamaño, formato y metadatos">
+                Control técnico
+              </th>
+              <th className="px-4 py-3" title="Avisos / fallas del control técnico">
+                Avisos
+              </th>
+              <th className="px-4 py-3" />
             </tr>
           </thead>
           <tbody>
@@ -114,13 +129,13 @@ export default async function ContestInscripcionesAdminPage({ params }: Props) {
                   ) : null}
                   <td className="px-4 py-3 text-fr-primary">{e?.categoryName ?? r.categoryName}</td>
                   <td className="px-4 py-3 text-fr-primary">
-                    {e?.entryStatus ?? "—"}
+                    {e ? estadoDeLaObra({ estado: e.entryStatus, admision: e.admissionStatus }) : "Sin obra"}
                     {e?.entryNumber ? <div className="text-xs text-fr-muted">{e.entryNumber}</div> : null}
                   </td>
-                  <td className="px-4 py-3 text-fr-primary">{e?.technicalSummaryStatus ?? "—"}</td>
+                  <td className="px-4 py-3 text-fr-primary">{estadoTecnico(e?.technicalSummaryStatus ?? null)}</td>
                   <td className="px-4 py-3 text-fr-muted">
-                    {e ? `${e.warnings}/${e.failures}` : "—"}
-                    {e?.requiresReview ? ` · RR ${e.requiresReview}` : ""}
+                    {e ? (e.warnings + e.failures === 0 ? "Ninguno" : `${e.warnings} / ${e.failures}`) : "—"}
+                    {e?.requiresReview ? ` · ${e.requiresReview} para revisar` : ""}
                   </td>
                   <td className="px-4 py-3">
                     {e ? (
