@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import QRCode from "qrcode";
 import { prisma } from "@repo/db";
-import { voteTotals } from "@/lib/live-raffles/rules";
+import { currentWinners, parsePollKind, voteTotals, writtenAnswers } from "@/lib/live-raffles/rules";
 import { appOrigin, loadLiveRaffleByCode, publicPath } from "@/lib/live-raffles/server";
 import { sponsorLogos } from "../logos-banner";
 import { Pantalla } from "./pantalla";
@@ -51,22 +51,27 @@ export default async function PantallaSorteoPage({
       logoUrl={sorteo.logoUrl}
       qr={qr}
       registrationOpen={sorteo.registrationOpen}
+      usePrizeList={sorteo.usePrizeList}
+      results={currentWinners(sorteo.draws).map((d) => ({ round: d.round, entrantId: d.entrantId, prizeId: d.prizeId }))}
       entrants={entrants.map((e) => ({ id: e.id, name: `${e.firstName} ${e.lastName}` }))}
       prizes={sorteo.prizes.map((p) => ({
         id: p.id,
         title: p.title,
         sponsorName: p.sponsorName,
         sponsorLogoUrl: p.sponsorLogoUrl,
-        winnerEntrantId: p.winnerEntrantId,
       }))}
       polls={sorteo.polls.map((p) => ({
         id: p.id,
         question: p.question,
-        options: p.options,
-        totals: voteTotals(p.options.length, p.votes),
+        kind: parsePollKind(p.kind),
+        options: p.allowOther ? [...p.options, "Otra"] : p.options,
+        totals: p.allowOther
+          ? [...voteTotals(p.options.length, p.votes), p.votes.filter((v) => v.optionIndex === null).length]
+          : voteTotals(p.options.length, p.votes),
+        answers: writtenAnswers(p.votes).slice(0, 12),
         isOpen: p.isOpen,
       }))}
-      logos={sponsorLogos(sorteo.prizes)}
+      logos={sponsorLogos(sorteo.sponsors, sorteo.prizes)}
     />
   );
 }

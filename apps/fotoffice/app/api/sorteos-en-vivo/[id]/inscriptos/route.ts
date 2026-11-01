@@ -1,6 +1,7 @@
 import { prisma } from "@repo/db";
 import { requireRafflesConductor } from "@/lib/raffles/access";
 import { fechaHora } from "@/lib/raffles/labels";
+import { currentWinners } from "@/lib/live-raffles/rules";
 
 export const dynamic = "force-dynamic";
 
@@ -12,12 +13,17 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const { id } = await params;
   const sorteo = await prisma.liveRaffle.findFirst({
     where: { id, workspaceId: workspace.id },
-    include: { entrants: { orderBy: { createdAt: "asc" } }, prizes: true },
+    include: { entrants: { orderBy: { createdAt: "asc" } }, prizes: true, draws: true },
   });
   if (!sorteo) return new Response("No encontrado", { status: 404 });
 
+  // Lo que ganó cada persona; sin listado, "Sorteo 3", "Sorteo 7".
+  const titulo = new Map(sorteo.prizes.map((p) => [p.id, p.title]));
   const premioDe = new Map<string, string>();
-  for (const p of sorteo.prizes) if (p.winnerEntrantId) premioDe.set(p.winnerEntrantId, p.title);
+  for (const d of currentWinners(sorteo.draws)) {
+    const nombre = d.prizeId ? (titulo.get(d.prizeId) ?? "Premio") : `Sorteo ${d.round}`;
+    premioDe.set(d.entrantId, premioDe.has(d.entrantId) ? `${premioDe.get(d.entrantId)}, ${nombre}` : nombre);
+  }
 
   const filas = [
     ["Nombre", "Apellido", "Celular", "DNI", "Correo", "Se anotó", "Ganó"].map(celda).join(";"),

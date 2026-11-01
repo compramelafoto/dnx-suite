@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { prisma } from "@repo/db";
-import { parseDedupMode, voteTotals } from "@/lib/live-raffles/rules";
+import { parseDedupMode, parsePollKind, voteTotals } from "@/lib/live-raffles/rules";
 import { entrantCookieName, loadLiveRaffleByCode } from "@/lib/live-raffles/server";
 import { registerLiveRaffleEntrantAction, voteLiveRafflePollAction } from "./actions";
 import { LogosBanner, sponsorLogos } from "./logos-banner";
@@ -38,7 +38,7 @@ export default async function SorteoPublicoPage({
   const conDni = parseDedupMode(sorteo.dedupMode) === "CELULAR_DNI";
   const bases = sorteo.rulesText?.trim();
   const polls = sorteo.polls.filter((p) => p.isOpen || (yo && p.votes.some((v) => v.entrantId === yo.id)));
-  const logos = sponsorLogos(sorteo.prizes);
+  const logos = sponsorLogos(sorteo.sponsors, sorteo.prizes);
 
   return (
     <div className="flex min-h-screen flex-col bg-[var(--fo-bg)] text-[var(--fo-text)]">
@@ -129,22 +129,39 @@ export default async function SorteoPublicoPage({
             <h2 className="text-lg font-semibold">Encuestas</h2>
             {polls.map((poll) => {
               const miVoto = poll.votes.find((v) => v.entrantId === yo.id);
+              const esTexto = parsePollKind(poll.kind) === "TEXTO";
               if (miVoto || !poll.isOpen) {
+                if (esTexto) {
+                  return (
+                    <div key={poll.id} className="fo-card space-y-2 p-5 text-sm">
+                      <p className="font-medium">{poll.question}</p>
+                      {miVoto?.text ? (
+                        <p className="whitespace-pre-line text-[var(--fo-muted)]">{miVoto.text}</p>
+                      ) : null}
+                      <p className="text-[var(--fo-muted)]">{miVoto ? "¡Gracias por tu respuesta!" : "La pregunta ya cerró."}</p>
+                    </div>
+                  );
+                }
                 const totales = voteTotals(poll.options.length, poll.votes);
+                const otras = poll.votes.filter((v) => v.optionIndex === null).length;
+                const filas = [
+                  ...poll.options.map((o, i) => ({ label: o, n: totales[i], mio: miVoto?.optionIndex === i })),
+                  ...(poll.allowOther ? [{ label: "Otra", n: otras, mio: !!miVoto && miVoto.optionIndex === null }] : []),
+                ];
                 const total = poll.votes.length || 1;
                 return (
                   <div key={poll.id} className="fo-card space-y-3 p-5 text-sm">
                     <p className="font-medium">{poll.question}</p>
-                    {poll.options.map((o, i) => (
+                    {filas.map((f, i) => (
                       <div key={i} className="space-y-1">
                         <div className="flex justify-between gap-3">
-                          <span className={miVoto?.optionIndex === i ? "font-semibold" : ""}>
-                            {o} {miVoto?.optionIndex === i ? "· tu voto" : ""}
+                          <span className={f.mio ? "font-semibold" : ""}>
+                            {f.label} {f.mio ? "· tu voto" : ""}
                           </span>
-                          <span className="tabular-nums text-[var(--fo-muted)]">{Math.round((totales[i] / total) * 100)} %</span>
+                          <span className="tabular-nums text-[var(--fo-muted)]">{Math.round((f.n / total) * 100)} %</span>
                         </div>
                         <div className="h-2 rounded-full bg-[var(--fo-border-muted)]">
-                          <div className="h-2 rounded-full bg-[var(--fo-accent)]" style={{ width: `${(totales[i] / total) * 100}%` }} />
+                          <div className="h-2 rounded-full bg-[var(--fo-accent)]" style={{ width: `${(f.n / total) * 100}%` }} />
                         </div>
                       </div>
                     ))}
@@ -156,14 +173,27 @@ export default async function SorteoPublicoPage({
                   <input type="hidden" name="code" value={sorteo.publicCode} />
                   <input type="hidden" name="pollId" value={poll.id} />
                   <p className="font-medium">{poll.question}</p>
-                  {poll.options.map((o, i) => (
-                    <label key={i} className="flex items-center gap-3 rounded-md border border-[var(--fo-border)] p-3">
-                      <input type="radio" name="optionIndex" value={i} required />
-                      {o}
-                    </label>
-                  ))}
+                  {esTexto ? (
+                    <textarea name="text" rows={4} required maxLength={2000} className="fo-input" placeholder="Escribí tu respuesta" />
+                  ) : (
+                    <>
+                      {poll.options.map((o, i) => (
+                        <label key={i} className="flex items-center gap-3 rounded-md border border-[var(--fo-border)] p-3">
+                          <input type="radio" name="optionIndex" value={i} required />
+                          {o}
+                        </label>
+                      ))}
+                      {poll.allowOther ? (
+                        <label className="flex flex-wrap items-center gap-3 rounded-md border border-[var(--fo-border)] p-3">
+                          <input type="radio" name="optionIndex" value="otra" required />
+                          Otra:
+                          <input name="text" maxLength={200} className="fo-input min-w-0 flex-1" placeholder="Escribila acá" />
+                        </label>
+                      ) : null}
+                    </>
+                  )}
                   <button type="submit" className="fo-btn fo-btn-primary w-full">
-                    Votar
+                    {esTexto ? "Enviar" : "Votar"}
                   </button>
                 </form>
               );
