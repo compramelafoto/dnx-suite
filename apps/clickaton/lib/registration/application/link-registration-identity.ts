@@ -1,5 +1,6 @@
 import { resolveOrCreateUser } from "@repo/auth";
 import { prisma } from "@repo/db";
+import { reportSuiteReferralForRegistrationSignup } from "@/lib/suite-referral/service";
 
 /**
  * Vincula (o crea sin password) la Cuenta DNX de una inscripción confirmada.
@@ -48,6 +49,16 @@ export async function linkRegistrationIdentity(input: {
     where: { id: input.registrationId },
     data: { userId: resolved.user.id },
   });
+
+  // Referidos DNX Suite: sólo si la cuenta se creó recién acá. Nunca tira.
+  if (resolved.created) {
+    await reportSuiteReferralForRegistrationSignup({
+      registrationId: input.registrationId,
+      userId: resolved.user.id,
+      email: resolved.user.email,
+      name: resolved.user.name ?? input.name,
+    });
+  }
 
   return {
     userId: resolved.user.id,

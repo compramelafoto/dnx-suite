@@ -9,6 +9,7 @@ import {
   DNX_SESSION_MAX_AGE_SECONDS,
 } from "@repo/auth";
 import { safeNextPath } from "../lib/safe-next-path";
+import { reportarAltaReferidaDesdeCookies } from "../lib/fotorank/suite-referral/reportarAltaReferida";
 
 export type FotorankRegisterFormState = { error: string | null };
 
@@ -60,6 +61,14 @@ export async function registerFotorankAccountAction(
   if (!result.ok) {
     return { error: result.message };
   }
+
+  // `registerDnxAccount` sólo devuelve ok cuando el usuario se creó recién (si ya existía, EXISTS).
+  // Referidos de DNX Suite: si llegó con `?dnx_ref=`, se le avisa a CLF quién lo refirió.
+  await reportarAltaReferidaDesdeCookies({
+    id: result.user.id,
+    email: result.user.email,
+    name: result.user.name,
+  });
 
   const session = await createUserSession(result.user.id);
   const cookieStore = await cookies();

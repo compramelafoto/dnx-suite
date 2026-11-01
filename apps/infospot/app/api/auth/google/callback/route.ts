@@ -21,6 +21,8 @@ import {
   loadPostLoginDestination,
 } from "@/lib/google-login";
 import { SESSION_COOKIE_OPTIONS } from "@/lib/session-cookie";
+import { SUITE_REFERRAL_COOKIE } from "@repo/auth/suite-referral";
+import { reportInfoSpotReferralSignup } from "@/lib/suite-referral/report-signup";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -128,6 +130,15 @@ export async function GET(req: Request) {
       });
     }
 
+    // Referidos de DNX Suite: sólo si la cuenta se acaba de crear (no en un login).
+    let referralReported = false;
+    if (resolved.created) {
+      referralReported = await reportInfoSpotReferralSignup(
+        { id: resolved.userId, email: resolved.email, name: google.name },
+        cookieStore.get(SUITE_REFERRAL_COOKIE)?.value,
+      );
+    }
+
     const destination = await loadPostLoginDestination(
       resolved.userId,
       resolved.suiteRole,
@@ -150,6 +161,9 @@ export async function GET(req: Request) {
       maxAge: 0,
       expires: new Date(0),
     });
+    if (referralReported) {
+      res.cookies.set(SUITE_REFERRAL_COOKIE, "", { path: "/", maxAge: 0, expires: new Date(0) });
+    }
     try {
       await attachInfoSpotSessionCookieToResponse(res, resolved.userId, {
         rememberMe: transit.rememberMe === true,

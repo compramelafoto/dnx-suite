@@ -18,6 +18,9 @@ import {
   getReferrerAvailableBalancePesos,
   getReferrerTotalPaidPesos,
 } from "@/lib/referral/balance";
+import { maskEmail, maskName } from "@/lib/referral-helpers";
+import { SUITE_REFERRAL_PLATFORM_LABEL } from "@/lib/referral/suite-referral-signup";
+import { isSuiteReferralPlatform } from "@repo/auth/suite-referral";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -33,6 +36,34 @@ function resolveAppUrl(): string {
 }
 
 const REFERRER_ROLES = [Role.PHOTOGRAPHER, Role.LAB_PHOTOGRAPHER, Role.LAB] as const;
+
+/**
+ * Altas en otras plataformas de DNX Suite. Si la tabla todavía no existe en esta base,
+ * el panel tiene que seguir andando: se devuelve la lista vacía.
+ */
+async function getSuiteSignupsForReferrer(referrerUserId: number) {
+  try {
+    const rows = await prisma.suiteReferralSignup.findMany({
+      where: { referrerUserId, outcome: "CREATED" },
+      orderBy: { createdAt: "desc" },
+      take: 200,
+      select: { id: true, platform: true, email: true, name: true, createdAt: true },
+    });
+    return rows.map((r) => ({
+      id: r.id,
+      platform: r.platform,
+      platformLabel: isSuiteReferralPlatform(r.platform)
+        ? SUITE_REFERRAL_PLATFORM_LABEL[r.platform]
+        : r.platform,
+      maskedEmail: maskEmail(r.email),
+      maskedName: maskName(r.name),
+      createdAt: r.createdAt.toISOString(),
+    }));
+  } catch (err) {
+    console.warn("[referrals.me] no se pudieron leer las altas de DNX Suite", err);
+    return [];
+  }
+}
 
 export async function GET() {
   try {
@@ -65,6 +96,7 @@ export async function GET() {
     const programStats = await buildReferralProgramStats(user.id, referred);
 
     const url = referralCode ? getPublicReferralUrl(referralCode.code) : null;
+    const suiteSignups = await getSuiteSignupsForReferrer(user.id);
 
     let trainingPromos: Array<{
       id: number;
@@ -130,6 +162,7 @@ export async function GET() {
       trainingPromos,
       totalReferred: referred.length,
       referred,
+      suiteSignups,
       balanceCents,
       totalPaidCents,
       referredPhotographersCount: programStats.referredPhotographersCount,

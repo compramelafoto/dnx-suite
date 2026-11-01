@@ -9,7 +9,11 @@ import {
   REFERRAL_SHARE_OPTIONS,
   referralShareHelperText,
 } from "@/lib/referrals/referral-share-options";
-import { useReferralsMe, type ReferredRow } from "@/components/referrals/ReferralsMeProvider";
+import {
+  useReferralsMe,
+  type ReferredRow,
+  type SuiteSignupRow,
+} from "@/components/referrals/ReferralsMeProvider";
 
 function ShareLinkIcon({ className = "w-10 h-10" }: { className?: string }) {
   return (
@@ -427,8 +431,57 @@ export function ReferralsReferredPanel() {
               : "Las ventas incluyen pedidos pagados en eventos creados por el organizador referido."}
           </p>
         )}
+
+        <SuiteSignupsSection rows={data?.suiteSignups ?? []} />
       </div>
     </Card>
+  );
+}
+
+function SuiteSignupsSection({ rows }: { rows: SuiteSignupRow[] }) {
+  return (
+    <div className="border-t border-amber-100 pt-4 space-y-3">
+      <h3 className="text-sm font-semibold text-[#374151]">
+        En otras herramientas de DNX Suite:{" "}
+        <span className="text-orange-600">{rows.length}</span>
+      </h3>
+      {rows.length > 0 ? (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-gray-500 border-b">
+                <th className="py-2 pr-4">Referido</th>
+                <th className="py-2 pr-4">Herramienta</th>
+                <th className="py-2">Fecha alta</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.id} className="border-b border-gray-100">
+                  <td className="py-2 pr-4">
+                    <span className="text-[#1a1a1a]">{r.maskedEmail}</span>
+                    {r.maskedName !== "—" && (
+                      <span className="text-gray-500 ml-1">({r.maskedName})</span>
+                    )}
+                  </td>
+                  <td className="py-2 pr-4 text-gray-600">{r.platformLabel}</td>
+                  <td className="py-2 text-gray-600">
+                    {new Date(r.createdAt).toLocaleDateString("es-AR", {
+                      timeZone: "America/Argentina/Buenos_Aires",
+                    })}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
+      <p className="text-xs text-[#9ca3af]">
+        Personas que crearon su cuenta en FOTOFFICE, FotoRank, Muestras Fotográficas u otra
+        herramienta de DNX Suite con tu link. Por ahora quedan registradas a tu nombre; las
+        ganancias siguen saliendo de las ventas en ComprameLaFoto.
+      </p>
+    </div>
   );
 }
 

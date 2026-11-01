@@ -55,6 +55,15 @@ export type ReferralProgramStats = {
   organizerBalanceCents: number;
 };
 
+export type SuiteSignupRow = {
+  id: number;
+  platform: string;
+  platformLabel: string;
+  maskedEmail: string;
+  maskedName: string;
+  createdAt: string;
+};
+
 export type ReferralsMeData = {
   mpConnected: boolean;
   cbu?: string | null;
@@ -63,6 +72,8 @@ export type ReferralsMeData = {
   trainingPromos?: TrainingPromoRow[];
   totalReferred: number;
   referred: ReferredRow[];
+  /** Altas en otras plataformas de DNX Suite (sólo registro, sin comisión). */
+  suiteSignups?: SuiteSignupRow[];
   balanceCents?: number;
   totalPaidCents?: number;
   referredPhotographersCount?: number;
