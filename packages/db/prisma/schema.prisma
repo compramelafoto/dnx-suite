@@ -27844,3 +27844,109 @@ model FotofficeRecuperacionArchivo {
   @@unique([recuperacionId, indice])
   @@index([recuperacionId, tipo])
 }
+
+/// Sorteo de evento (congresos, encuentros): se anota cualquiera escaneando un QR y se sortea
+/// en vivo desde una pantalla. Es otro módulo que `Raffle`, que es sólo para socios y verificable.
+///
+/// `workspaceId` va sin relación a propósito, como `partnerId` en `RafflePrize`: el modelo
+/// `Workspace` ya es enorme y esto no necesita navegar desde ahí.
+model LiveRaffle {
+  id          String @id @default(cuid())
+  workspaceId String
+
+  title       String
+  description String?
+  /// Bases y condiciones: el participante las acepta antes de anotarse.
+  rulesText   String?
+  logoUrl     String?
+
+  /// Código corto de la dirección pública `/sorteo/<code>`, la que lleva el QR.
+  publicCode  String @unique
+  /// Credencial de la pantalla del sorteador: `/sorteo/<code>/pantalla?k=<screenToken>`.
+  screenToken String @unique
+
+  /// CELULAR | CELULAR_DNI: qué dato no se puede repetir entre inscriptos.
+  dedupMode        String  @default("CELULAR")
+  /// Una persona no puede ganar más de un premio.
+  oneWinPerPerson  Boolean @default(true)
+  /// Con la inscripción cerrada, el QR muestra un aviso en lugar del formulario.
+  registrationOpen Boolean @default(true)
+
+  createdByUserId Int?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  entrants LiveRaffleEntrant[]
+  prizes   LiveRafflePrize[]
+  polls    LiveRafflePoll[]
+
+  @@index([workspaceId, createdAt])
+}
+
+model LiveRaffleEntrant {
+  id           String   @id @default(cuid())
+  liveRaffleId String
+  firstName    String
+  lastName     String
+  /// Sólo dígitos, para que "+54 9 341..." y "341..." no pasen como personas distintas.
+  phone        String
+  email        String?
+  /// Sólo dígitos. Obligatorio cuando el sorteo usa CELULAR_DNI.
+  dni          String?
+  createdAt    DateTime @default(now())
+
+  liveRaffle LiveRaffle       @relation(fields: [liveRaffleId], references: [id], onDelete: Cascade)
+  votes      LiveRaffleVote[]
+
+  @@unique([liveRaffleId, phone])
+  @@unique([liveRaffleId, dni])
+}
+
+model LiveRafflePrize {
+  id             String  @id @default(cuid())
+  liveRaffleId   String
+  order          Int
+  title          String
+  /// Quién dona el premio. Su logo desfila en el banner de la pantalla.
+  sponsorName    String?
+  sponsorLogoUrl String?
+
+  winnerEntrantId  String?
+  drawnAt          DateTime?
+  /// Los que salieron y no estaban: no vuelven a salir para este premio.
+  absentEntrantIds String[]  @default([])
+
+  createdAt DateTime @default(now())
+
+  liveRaffle LiveRaffle @relation(fields: [liveRaffleId], references: [id], onDelete: Cascade)
+
+  @@index([liveRaffleId, order])
+}
+
+model LiveRafflePoll {
+  id           String   @id @default(cuid())
+  liveRaffleId String
+  order        Int
+  question     String
+  options      String[]
+  isOpen       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  liveRaffle LiveRaffle       @relation(fields: [liveRaffleId], references: [id], onDelete: Cascade)
+  votes      LiveRaffleVote[]
+
+  @@index([liveRaffleId, order])
+}
+
+model LiveRaffleVote {
+  id          String   @id @default(cuid())
+  pollId      String
+  entrantId   String
+  optionIndex Int
+  createdAt   DateTime @default(now())
+
+  poll    LiveRafflePoll    @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  entrant LiveRaffleEntrant @relation(fields: [entrantId], references: [id], onDelete: Cascade)
+
+  @@unique([pollId, entrantId])
+}
