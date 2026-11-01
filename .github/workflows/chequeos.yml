@@ -143,6 +143,11 @@ jobs:
       - name: Pruebas de la cola del visor del jurado
         run: pnpm --filter fotorank test:jury-visor
 
+      # El Excel de participantes que descarga el organizador: estados en
+      # castellano, hora argentina y sin columnas que nadie completó.
+      - name: Pruebas del listado de participantes
+        run: pnpm --filter fotorank test:listado-participantes
+
       # Poner, cambiar, sacar y deshacer notas. Codifican el defecto que
       # apareció calificando: una nota cae en el criterio que se nombra, nunca
       # en "el que estaba seleccionado".
