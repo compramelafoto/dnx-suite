@@ -30,7 +30,7 @@ describe("parseEntrantForm", () => {
   });
 
   it("exige aceptar las bases cuando hay bases", () => {
-    const { acceptRules: _, ...sinAceptar } = base;
+    const sinAceptar = { firstName: base.firstName, lastName: base.lastName, phone: base.phone };
     expect(parseEntrantForm(form(sinAceptar), "CELULAR", true).ok).toBe(false);
     expect(parseEntrantForm(form(sinAceptar), "CELULAR", false).ok).toBe(true);
   });
