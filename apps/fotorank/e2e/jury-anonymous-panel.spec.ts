@@ -28,7 +28,10 @@ test.describe("Panel jurado anónimo @smoke", () => {
     test.skip(!hasLink, "Sin asignación de jurado en seed");
 
     await link.click();
-    await expect(page.getByTestId("jury-entries-list")).toBeVisible({ timeout: 30_000 });
+    // Primero los términos; aceptados, la pantalla sigue de largo al visor.
+    await expect(
+      page.getByTestId("jury-terms-gate").or(page.getByTestId("visor-aviso")).or(page.getByRole("button", { name: /enviar/i })).first(),
+    ).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText(/@fotorank\.local|participante/i)).toHaveCount(0);
   });
 });

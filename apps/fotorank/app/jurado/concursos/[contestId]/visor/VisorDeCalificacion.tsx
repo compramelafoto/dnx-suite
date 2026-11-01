@@ -9,9 +9,11 @@
  * Cada nota se guarda apenas se pone. Si la persona cierra la pestaña, lo
  * cargado está; lo que falta es enviar, que es otra cosa y se avisa aparte.
  */
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { AyudaDelVisor } from "./AyudaDelVisor";
+import { avisoDelVisor } from "../../../../lib/fotorank/jury/avisoDelVisor";
 import { BotoneraDeNota } from "./BotoneraDeNota";
 import {
   acumularDigito,
@@ -1039,16 +1041,48 @@ export function VisorDeCalificacion({
     />
   );
 
-  if (cola.obras.length === 0) {
+  const avisoDeEtapa = avisoDelVisor({
+    etapa: cola.etapa,
+    cantidadDeObras: cola.obras.length,
+    judgingEndsAt: cola.judgingEndsAt,
+  });
+
+  if (avisoDeEtapa?.tipo === "PANTALLA") {
+    const esperando = cola.etapa === "ESPERANDO_APERTURA";
     return (
-      <div className="mx-auto max-w-2xl px-4 py-16 text-center">
-        <h1 className="text-2xl font-semibold text-fr-primary">
-          No hay obras para calificar
+      <div
+        className="mx-auto flex min-h-[70vh] max-w-xl flex-col items-center justify-center px-4 py-16 text-center"
+        data-testid="visor-aviso"
+        data-etapa={cola.etapa}
+      >
+        <p className="fr-eyebrow text-gold">{cola.contestTitle}</p>
+        <div
+          aria-hidden
+          className="mt-6 flex size-14 items-center justify-center rounded-full border border-fr-border bg-fr-card text-2xl"
+        >
+          {esperando ? "⏳" : "🗂️"}
+        </div>
+        <h1 className="mt-6 text-2xl font-semibold tracking-tight text-fr-primary">
+          {avisoDeEtapa.titulo}
         </h1>
-        <p className="mt-4 text-sm text-fr-muted">
-          Todavía no te tocó ninguna obra en este concurso. Si creés que es un
-          error, escribile a la organización.
-        </p>
+        <p className="mt-4 text-sm leading-relaxed text-fr-muted">{avisoDeEtapa.texto}</p>
+        <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+          {esperando ? (
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="fr-btn fr-btn-primary inline-flex min-h-11 items-center justify-center px-5 text-sm"
+            >
+              Volver a fijarme
+            </button>
+          ) : null}
+          <Link
+            href="/jurado/panel"
+            className="fr-btn inline-flex min-h-11 items-center justify-center border border-fr-border px-5 text-sm text-fr-primary"
+          >
+            Ir a mis concursos
+          </Link>
+        </div>
       </div>
     );
   }
@@ -1059,6 +1093,17 @@ export function VisorDeCalificacion({
       className="fixed inset-0 z-50 flex flex-col"
       style={{ background: colores.fondo, color: colores.tinta }}
     >
+      {avisoDeEtapa?.tipo === "FRANJA" ? (
+        <div
+          role="status"
+          data-testid="visor-franja"
+          className="px-4 py-2 text-center text-xs sm:text-sm"
+          hidden={inmersivo}
+          style={{ background: "#3a2a12", color: "#f3d9b1" }}
+        >
+          <strong className="font-semibold">{avisoDeEtapa.titulo}.</strong> {avisoDeEtapa.texto}
+        </div>
+      ) : null}
       {/*
        * Consignas. Con el teléfono acostado esta fila se esconde --44 píxeles
        * pesan mucho cuando el alto total son 375-- y la consigna pasa a

@@ -172,9 +172,10 @@ test.describe("Santa Fe ETAPA 07B — jurado 8/8", () => {
     await page.waitForURL(/\/jurado\/panel/, { timeout: 90_000 });
 
     await gotoWhenReady(page, `/jurado/concursos/${contestId}`);
-    await expect(page.getByTestId("jury-entries-blocked-terms")).toBeVisible();
+    await expect(page.getByTestId("jury-terms-gate")).toBeVisible();
     await acceptTermsIfNeeded(page);
-    await expect(page.getByTestId("jury-entries-list")).toBeVisible();
+    // Aceptados los términos, la pantalla del concurso sigue de largo al visor.
+    await page.waitForURL(/\/visor/, { timeout: 60_000 });
 
     // Org ve invitación ACCEPTED (sin token)
     await context.clearCookies();
