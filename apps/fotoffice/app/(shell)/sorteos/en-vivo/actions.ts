@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@repo/db";
 import { requireRafflesConductor } from "@/lib/raffles/access";
-import { parseDedupMode, parsePollOptions } from "@/lib/live-raffles/rules";
+import { parseDedupMode, parseNonNegativeInt, parsePollKind, parsePollOptions } from "@/lib/live-raffles/rules";
 import { newPublicCode, newScreenToken, uploadLogoFromForm } from "@/lib/live-raffles/server";
 
 /**
@@ -67,7 +67,9 @@ export async function updateLiveRaffleAction(form: FormData): Promise<void> {
       description: texto(form, "description") || null,
       rulesText: texto(form, "rulesText", 8000) || null,
       dedupMode: parseDedupMode(form.get("dedupMode")),
-      oneWinPerPerson: form.get("oneWinPerPerson") === "on",
+      usePrizeList: form.get("usePrizeList") === "si",
+      maxWinsPerPerson: parseNonNegativeInt(form.get("maxWinsPerPerson"), 100),
+      cooldownDraws: parseNonNegativeInt(form.get("cooldownDraws"), 1000),
       registrationOpen: form.get("registrationOpen") === "on",
       ...(logo.url ? { logoUrl: logo.url } : {}),
       ...(form.get("removeLogo") === "on" ? { logoUrl: null } : {}),
@@ -114,27 +116,80 @@ export async function deleteLiveRafflePrizeAction(form: FormData): Promise<void>
 /** Deshacer el ganador de un premio (por ejemplo, después de un ensayo). */
 export async function resetLiveRafflePrizeAction(form: FormData): Promise<void> {
   const { sorteo } = await sorteoPropio(form);
-  await prisma.liveRafflePrize.updateMany({
-    where: { id: texto(form, "prizeId", 64), liveRaffleId: sorteo.id },
-    data: { winnerEntrantId: null, drawnAt: null, absentEntrantIds: [] },
+  await prisma.liveRaffleDraw.deleteMany({
+    where: { liveRaffleId: sorteo.id, prizeId: texto(form, "prizeId", 64) },
   });
   revalidatePath(detalle(sorteo.id));
-  redirect(`${detalle(sorteo.id)}#premios`);
+  redirect(`${detalle(sorteo.id)}#resultados`);
+}
+
+/** Borrar un resultado del sorteo sin listado (con sus "no estaba"). */
+export async function deleteLiveRaffleRoundAction(form: FormData): Promise<void> {
+  const { sorteo } = await sorteoPropio(form);
+  const round = Number(form.get("round"));
+  if (Number.isInteger(round)) {
+    await prisma.liveRaffleDraw.deleteMany({ where: { liveRaffleId: sorteo.id, round } });
+  }
+  revalidatePath(detalle(sorteo.id));
+  redirect(`${detalle(sorteo.id)}#resultados`);
+}
+
+/** Empezar de cero: borra todos los resultados (los inscriptos y las encuestas quedan). */
+export async function resetLiveRaffleDrawsAction(form: FormData): Promise<void> {
+  const { sorteo } = await sorteoPropio(form);
+  await prisma.liveRaffleDraw.deleteMany({ where: { liveRaffleId: sorteo.id } });
+  revalidatePath(detalle(sorteo.id));
+  redirect(`${detalle(sorteo.id)}?ok=reiniciado#resultados`);
+}
+
+export async function addLiveRaffleSponsorAction(form: FormData): Promise<void> {
+  const { sorteo } = await sorteoPropio(form);
+  const logo = await uploadLogoFromForm(form, "logo", `sorteo-${sorteo.id}`);
+  if (!logo.ok) conError(detalle(sorteo.id), logo.error);
+  if (!logo.url) conError(detalle(sorteo.id), "Elegí el archivo del logo.");
+
+  const ultimo = await prisma.liveRaffleSponsor.aggregate({
+    where: { liveRaffleId: sorteo.id },
+    _max: { order: true },
+  });
+  await prisma.liveRaffleSponsor.create({
+    data: {
+      liveRaffleId: sorteo.id,
+      order: (ultimo._max.order ?? 0) + 1,
+      name: texto(form, "name", 160) || null,
+      logoUrl: logo.url,
+    },
+  });
+  revalidatePath(detalle(sorteo.id));
+  redirect(`${detalle(sorteo.id)}?ok=sponsor#sponsors`);
+}
+
+export async function deleteLiveRaffleSponsorAction(form: FormData): Promise<void> {
+  const { sorteo } = await sorteoPropio(form);
+  await prisma.liveRaffleSponsor.deleteMany({
+    where: { id: texto(form, "sponsorId", 64), liveRaffleId: sorteo.id },
+  });
+  revalidatePath(detalle(sorteo.id));
+  redirect(`${detalle(sorteo.id)}#sponsors`);
 }
 
 export async function addLiveRafflePollAction(form: FormData): Promise<void> {
   const { sorteo } = await sorteoPropio(form);
   const question = texto(form, "question", 300);
-  const options = parsePollOptions(texto(form, "options", 4000));
+  const kind = parsePollKind(form.get("kind"));
+  const options = kind === "TEXTO" ? [] : parsePollOptions(texto(form, "options", 4000));
+  const allowOther = kind === "OPCIONES" && form.get("allowOther") === "on";
   if (!question) conError(detalle(sorteo.id), "Escribí la pregunta.");
-  if (options.length < 2) conError(detalle(sorteo.id), "Una encuesta necesita al menos dos opciones.");
+  if (kind === "OPCIONES" && options.length + (allowOther ? 1 : 0) < 2) {
+    conError(detalle(sorteo.id), "Una encuesta de opciones necesita al menos dos (contando \"Otra\").");
+  }
 
   const ultimo = await prisma.liveRafflePoll.aggregate({
     where: { liveRaffleId: sorteo.id },
     _max: { order: true },
   });
   await prisma.liveRafflePoll.create({
-    data: { liveRaffleId: sorteo.id, order: (ultimo._max.order ?? 0) + 1, question, options },
+    data: { liveRaffleId: sorteo.id, order: (ultimo._max.order ?? 0) + 1, question, kind, options, allowOther },
   });
   revalidatePath(detalle(sorteo.id));
   redirect(`${detalle(sorteo.id)}?ok=encuesta#encuestas`);
@@ -161,14 +216,9 @@ export async function deleteLiveRafflePollAction(form: FormData): Promise<void> 
 
 export async function deleteLiveRaffleEntrantAction(form: FormData): Promise<void> {
   const { sorteo } = await sorteoPropio(form);
-  const entrantId = texto(form, "entrantId", 64);
-  await prisma.$transaction(async (tx) => {
-    // Si había ganado algo, el premio vuelve a quedar sin ganador.
-    await tx.liveRafflePrize.updateMany({
-      where: { liveRaffleId: sorteo.id, winnerEntrantId: entrantId },
-      data: { winnerEntrantId: null, drawnAt: null },
-    });
-    await tx.liveRaffleEntrant.deleteMany({ where: { id: entrantId, liveRaffleId: sorteo.id } });
+  // Sus resultados se borran en cascada: si había ganado algo, ese sorteo queda sin ganador.
+  await prisma.liveRaffleEntrant.deleteMany({
+    where: { id: texto(form, "entrantId", 64), liveRaffleId: sorteo.id },
   });
   revalidatePath(detalle(sorteo.id));
   redirect(`${detalle(sorteo.id)}#inscriptos`);

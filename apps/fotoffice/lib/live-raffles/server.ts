@@ -54,70 +54,86 @@ export async function loadLiveRaffleByCode(code: string) {
     where: { publicCode: code },
     include: {
       prizes: { orderBy: [{ order: "asc" }, { createdAt: "asc" }] },
-      polls: { orderBy: [{ order: "asc" }, { createdAt: "asc" }], include: { votes: { select: { optionIndex: true, entrantId: true } } } },
+      sponsors: { orderBy: [{ order: "asc" }, { createdAt: "asc" }] },
+      draws: { orderBy: [{ round: "asc" }, { createdAt: "asc" }] },
+      polls: {
+        orderBy: [{ order: "asc" }, { createdAt: "asc" }],
+        include: { votes: { select: { optionIndex: true, text: true, entrantId: true, createdAt: true } } },
+      },
       _count: { select: { entrants: true } },
     },
   });
 }
 
 /**
- * Saca un ganador para el premio. Con `markAbsentId`, antes anota que esa persona salió y no
- * estaba, así no vuelve a salir para este premio.
+ * Saca un ganador.
+ *
+ * - Con `prizeId` (sorteo con listado): un sorteo nuevo para ese premio, si todavía no tiene ganador.
+ * - Sin `prizeId` (sin listado): un sorteo nuevo, el siguiente número.
+ * - Con `redoRound`: el ganador de ese sorteo no estaba. Queda AUSENTE y se saca otro para el
+ *   mismo número y el mismo premio.
  *
  * Corre en una transacción serializable: dos clics seguidos en la pantalla no pueden dejar dos
- * ganadores distintos ni saltearse la regla de "un premio por persona".
+ * ganadores ni saltearse el máximo o la espera.
  */
-export async function drawPrize(params: {
+export async function drawWinner(params: {
   liveRaffleId: string;
-  prizeId: string;
-  markAbsentId?: string;
-}): Promise<{ ok: true; winnerId: string } | { ok: false; error: string }> {
+  prizeId?: string;
+  redoRound?: number;
+}): Promise<{ ok: true; winnerId: string; round: number } | { ok: false; error: string }> {
   return prisma.$transaction(
     async (tx) => {
       const sorteo = await tx.liveRaffle.findUnique({
         where: { id: params.liveRaffleId },
         select: {
-          oneWinPerPerson: true,
-          prizes: { select: { id: true, winnerEntrantId: true, absentEntrantIds: true } },
+          maxWinsPerPerson: true,
+          cooldownDraws: true,
+          prizes: { select: { id: true } },
           entrants: { select: { id: true } },
+          draws: { select: { id: true, round: true, entrantId: true, prizeId: true, status: true } },
         },
       });
       if (!sorteo) return { ok: false as const, error: "El sorteo no existe." };
-      const premio = sorteo.prizes.find((p) => p.id === params.prizeId);
-      if (!premio) return { ok: false as const, error: "El premio no existe." };
+      const draws = [...sorteo.draws];
 
-      if (params.markAbsentId) {
-        if (premio.winnerEntrantId !== params.markAbsentId) {
-          return { ok: false as const, error: "Ese premio ya cambió. Recargá la pantalla." };
+      let round: number;
+      let prizeId: string | null = null;
+      if (params.redoRound !== undefined) {
+        const vigente = draws.find((d) => d.round === params.redoRound && d.status === "GANADOR");
+        if (!vigente) return { ok: false as const, error: "Ese sorteo ya cambió. Recargá la pantalla." };
+        await tx.liveRaffleDraw.update({ where: { id: vigente.id }, data: { status: "AUSENTE" } });
+        vigente.status = "AUSENTE";
+        round = vigente.round;
+        prizeId = vigente.prizeId;
+      } else {
+        if (params.prizeId) {
+          if (!sorteo.prizes.some((p) => p.id === params.prizeId)) {
+            return { ok: false as const, error: "El premio no existe." };
+          }
+          if (draws.some((d) => d.prizeId === params.prizeId && d.status === "GANADOR")) {
+            return { ok: false as const, error: "Ese premio ya tiene ganador." };
+          }
+          prizeId = params.prizeId;
         }
-        premio.absentEntrantIds = [...premio.absentEntrantIds, params.markAbsentId];
-        premio.winnerEntrantId = null;
-      } else if (premio.winnerEntrantId) {
-        return { ok: false as const, error: "Ese premio ya tiene ganador." };
+        round = draws.reduce((max, d) => Math.max(max, d.round), 0) + 1;
       }
 
       const candidatos = eligibleEntrantIds({
         entrantIds: sorteo.entrants.map((e) => e.id),
-        prizeId: premio.id,
-        prizes: sorteo.prizes,
-        oneWinPerPerson: sorteo.oneWinPerPerson,
+        draws,
+        round,
+        maxWins: sorteo.maxWinsPerPerson,
+        cooldown: sorteo.cooldownDraws,
       });
       if (candidatos.length === 0) {
-        if (params.markAbsentId) {
-          await tx.liveRafflePrize.update({
-            where: { id: premio.id },
-            data: { winnerEntrantId: null, drawnAt: null, absentEntrantIds: premio.absentEntrantIds },
-          });
-        }
-        return { ok: false as const, error: "No quedan participantes que puedan ganar este premio." };
+        return { ok: false as const, error: "No quedan participantes que puedan salir en este sorteo." };
       }
 
       const winnerId = candidatos[randomInt(candidatos.length)];
-      await tx.liveRafflePrize.update({
-        where: { id: premio.id },
-        data: { winnerEntrantId: winnerId, drawnAt: new Date(), absentEntrantIds: premio.absentEntrantIds },
+      await tx.liveRaffleDraw.create({
+        data: { liveRaffleId: params.liveRaffleId, round, entrantId: winnerId, prizeId, status: "GANADOR" },
       });
-      return { ok: true as const, winnerId };
+      return { ok: true as const, winnerId, round };
     },
     { isolationLevel: "Serializable" },
   );

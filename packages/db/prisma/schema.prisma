@@ -27867,10 +27867,16 @@ model LiveRaffle {
 
   /// CELULAR | CELULAR_DNI: qué dato no se puede repetir entre inscriptos.
   dedupMode        String  @default("CELULAR")
-  /// Una persona no puede ganar más de un premio.
-  oneWinPerPerson  Boolean @default(true)
   /// Con la inscripción cerrada, el QR muestra un aviso en lugar del formulario.
   registrationOpen Boolean @default(true)
+
+  /// Con listado, cada sorteo es de un premio cargado. Sin listado, cada "Sortear" saca un
+  /// ganador más y la pantalla va mostrando la lista de resultados.
+  usePrizeList     Boolean @default(true)
+  /// Cuántas veces puede ganar una misma persona. 0 = sin límite.
+  maxWinsPerPerson Int     @default(1)
+  /// Cuántos sorteos tienen que pasar, desde que alguien ganó, para que pueda volver a salir.
+  cooldownDraws    Int     @default(0)
 
   createdByUserId Int?
   createdAt       DateTime @default(now())
@@ -27879,12 +27885,14 @@ model LiveRaffle {
   entrants LiveRaffleEntrant[]
   prizes   LiveRafflePrize[]
   polls    LiveRafflePoll[]
+  sponsors LiveRaffleSponsor[]
+  draws    LiveRaffleDraw[]
 
   @@index([workspaceId, createdAt])
 }
 
 model LiveRaffleEntrant {
-  id           String   @id @default(cuid())
+  id           String  @id @default(cuid())
   liveRaffleId String
   firstName    String
   lastName     String
@@ -27897,6 +27905,7 @@ model LiveRaffleEntrant {
 
   liveRaffle LiveRaffle       @relation(fields: [liveRaffleId], references: [id], onDelete: Cascade)
   votes      LiveRaffleVote[]
+  draws      LiveRaffleDraw[]
 
   @@unique([liveRaffleId, phone])
   @@unique([liveRaffleId, dni])
@@ -27911,12 +27920,43 @@ model LiveRafflePrize {
   sponsorName    String?
   sponsorLogoUrl String?
 
-  winnerEntrantId  String?
-  drawnAt          DateTime?
-  /// Los que salieron y no estaban: no vuelven a salir para este premio.
-  absentEntrantIds String[]  @default([])
-
   createdAt DateTime @default(now())
+
+  liveRaffle LiveRaffle       @relation(fields: [liveRaffleId], references: [id], onDelete: Cascade)
+  draws      LiveRaffleDraw[]
+
+  @@index([liveRaffleId, order])
+}
+
+/// Cada vez que sale un nombre. Es la única fuente de quién ganó qué: el ganador de un premio
+/// es su último sorteo en GANADOR, y las reglas de máximo y espera se cuentan sobre esta lista.
+model LiveRaffleDraw {
+  id           String  @id @default(cuid())
+  liveRaffleId String
+  /// Número de sorteo, desde 1. "No está, volver a sortear" repite el mismo número.
+  round        Int
+  entrantId    String
+  /// Con listado de premios, el premio que se sorteaba.
+  prizeId      String?
+  /// GANADOR | AUSENTE (salió y no estaba: no cuenta como premio ganado).
+  status       String  @default("GANADOR")
+  createdAt    DateTime @default(now())
+
+  liveRaffle LiveRaffle        @relation(fields: [liveRaffleId], references: [id], onDelete: Cascade)
+  entrant    LiveRaffleEntrant @relation(fields: [entrantId], references: [id], onDelete: Cascade)
+  prize      LiveRafflePrize?  @relation(fields: [prizeId], references: [id], onDelete: Cascade)
+
+  @@index([liveRaffleId, round])
+}
+
+/// Las marcas que acompañan el evento: sus logos desfilan al pie de la pantalla y del QR.
+model LiveRaffleSponsor {
+  id           String   @id @default(cuid())
+  liveRaffleId String
+  order        Int
+  name         String?
+  logoUrl      String
+  createdAt    DateTime @default(now())
 
   liveRaffle LiveRaffle @relation(fields: [liveRaffleId], references: [id], onDelete: Cascade)
 
@@ -27928,7 +27968,11 @@ model LiveRafflePoll {
   liveRaffleId String
   order        Int
   question     String
+  /// OPCIONES (elegir una) | TEXTO (escribir un párrafo).
+  kind         String   @default("OPCIONES")
   options      String[]
+  /// Suma la opción "Otra", que deja escribir una respuesta propia.
+  allowOther   Boolean  @default(false)
   isOpen       Boolean  @default(true)
   createdAt    DateTime @default(now())
 
@@ -27942,7 +27986,10 @@ model LiveRaffleVote {
   id          String   @id @default(cuid())
   pollId      String
   entrantId   String
-  optionIndex Int
+  /// La opción elegida. Nulo en las encuestas de texto y cuando se eligió "Otra".
+  optionIndex Int?
+  /// La respuesta escrita: el párrafo, o lo que se puso en "Otra".
+  text        String?
   createdAt   DateTime @default(now())
 
   poll    LiveRafflePoll    @relation(fields: [pollId], references: [id], onDelete: Cascade)

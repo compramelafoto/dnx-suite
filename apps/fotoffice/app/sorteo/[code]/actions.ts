@@ -4,8 +4,8 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { Prisma, prisma } from "@repo/db";
-import { parseDedupMode, parseEntrantForm } from "@/lib/live-raffles/rules";
-import { drawPrize, entrantCookieName, publicPath, screenPath } from "@/lib/live-raffles/server";
+import { parseDedupMode, parseEntrantForm, parseVote } from "@/lib/live-raffles/rules";
+import { drawWinner, entrantCookieName, publicPath, screenPath } from "@/lib/live-raffles/server";
 
 /**
  * Acciones públicas del sorteo en vivo: anotarse y votar (sin cuenta, desde el QR) y sortear
@@ -74,17 +74,15 @@ export async function voteLiveRafflePollAction(form: FormData): Promise<void> {
 
   const poll = await prisma.liveRafflePoll.findFirst({
     where: { id: texto(form, "pollId", 64), liveRaffleId: sorteo.id },
-    select: { id: true, isOpen: true, options: true },
+    select: { id: true, isOpen: true, kind: true, options: true, allowOther: true },
   });
-  const opcion = Number(form.get("optionIndex"));
   if (!poll || !poll.isOpen) volver(code, { error: "Esa votación ya está cerrada." });
-  if (!Number.isInteger(opcion) || opcion < 0 || opcion >= poll.options.length) {
-    volver(code, { error: "Elegí una opción." });
-  }
+  const voto = parseVote(form, poll);
+  if (!voto.ok) volver(code, { error: voto.error });
 
   // Un voto por persona y encuesta. Si ya votó, el voto queda como estaba.
   await prisma.liveRaffleVote
-    .create({ data: { pollId: poll.id, entrantId: entrant.id, optionIndex: opcion } })
+    .create({ data: { pollId: poll.id, entrantId: entrant.id, optionIndex: voto.optionIndex, text: voto.text } })
     .catch((error) => {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return null;
       throw error;
@@ -93,13 +91,16 @@ export async function voteLiveRafflePollAction(form: FormData): Promise<void> {
   redirect(`${publicPath(code)}#encuestas`);
 }
 
-/** Sortear (o volver a sortear si el ganador no está) desde la pantalla del sorteador. */
+/**
+ * Sortear desde la pantalla del sorteador: un premio de la lista (`prizeId`), el siguiente
+ * sorteo sin listado (sin `prizeId`), o rehacer uno cuyo ganador no estaba (`redoRound`).
+ */
 export async function drawLiveRafflePrizeAction(input: {
   code: string;
   token: string;
-  prizeId: string;
-  markAbsentId?: string;
-}): Promise<{ ok: true; winnerId: string } | { ok: false; error: string }> {
+  prizeId?: string;
+  redoRound?: number;
+}): Promise<{ ok: true; winnerId: string; round: number } | { ok: false; error: string }> {
   const sorteo = await prisma.liveRaffle.findUnique({
     where: { publicCode: String(input.code) },
     select: { id: true, screenToken: true },
@@ -107,10 +108,11 @@ export async function drawLiveRafflePrizeAction(input: {
   if (!sorteo || sorteo.screenToken !== String(input.token)) {
     return { ok: false, error: "El enlace de la pantalla ya no es válido. Pedí uno nuevo." };
   }
-  const resultado = await drawPrize({
+  const redo = Number(input.redoRound);
+  const resultado = await drawWinner({
     liveRaffleId: sorteo.id,
-    prizeId: String(input.prizeId),
-    markAbsentId: input.markAbsentId ? String(input.markAbsentId) : undefined,
+    prizeId: input.prizeId ? String(input.prizeId) : undefined,
+    redoRound: Number.isInteger(redo) && redo > 0 ? redo : undefined,
   });
   revalidatePath(screenPath(input.code, input.token).split("?")[0]);
   return resultado;

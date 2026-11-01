@@ -5,14 +5,18 @@ import { prisma } from "@repo/db";
 import { PageHeader } from "@/components/page-header";
 import { requireRafflesConductor } from "@/lib/raffles/access";
 import { fechaHora } from "@/lib/raffles/labels";
-import { DEDUP_LABELS, parseDedupMode, voteTotals } from "@/lib/live-raffles/rules";
+import { DEDUP_LABELS, currentWinners, parseDedupMode, parsePollKind, voteTotals, writtenAnswers } from "@/lib/live-raffles/rules";
 import { appOrigin, publicPath, screenPath } from "@/lib/live-raffles/server";
 import {
   addLiveRafflePollAction,
   addLiveRafflePrizeAction,
+  addLiveRaffleSponsorAction,
   deleteLiveRaffleEntrantAction,
+  deleteLiveRaffleRoundAction,
+  deleteLiveRaffleSponsorAction,
   deleteLiveRafflePollAction,
   deleteLiveRafflePrizeAction,
+  resetLiveRaffleDrawsAction,
   resetLiveRafflePrizeAction,
   rotateLiveRaffleScreenTokenAction,
   toggleLiveRafflePollAction,
@@ -26,6 +30,8 @@ const AVISOS: Record<string, string> = {
   premio: "Premio agregado.",
   encuesta: "Encuesta agregada.",
   enlace: "Enlace de pantalla renovado. El anterior ya no funciona.",
+  sponsor: "Sponsor agregado.",
+  reiniciado: "Se borraron todos los resultados.",
 };
 
 export default async function SorteoEnVivoPage({
@@ -43,7 +49,12 @@ export default async function SorteoEnVivoPage({
     where: { id, workspaceId: workspace.id },
     include: {
       prizes: { orderBy: [{ order: "asc" }, { createdAt: "asc" }] },
-      polls: { orderBy: [{ order: "asc" }, { createdAt: "asc" }], include: { votes: { select: { optionIndex: true } } } },
+      polls: {
+        orderBy: [{ order: "asc" }, { createdAt: "asc" }],
+        include: { votes: { select: { optionIndex: true, text: true, createdAt: true } } },
+      },
+      sponsors: { orderBy: [{ order: "asc" }, { createdAt: "asc" }] },
+      draws: { orderBy: [{ round: "asc" }, { createdAt: "asc" }] },
       entrants: { orderBy: { createdAt: "desc" } },
     },
   });
@@ -55,6 +66,9 @@ export default async function SorteoEnVivoPage({
   const qr = await QRCode.toDataURL(urlPublica, { margin: 2, width: 1024 });
   const nombre = new Map(sorteo.entrants.map((e) => [e.id, `${e.firstName} ${e.lastName}`]));
   const conDni = parseDedupMode(sorteo.dedupMode) === "CELULAR_DNI";
+  const ganadores = currentWinners(sorteo.draws);
+  const ganadorDePremio = new Map(ganadores.filter((d) => d.prizeId).map((d) => [d.prizeId as string, d.entrantId]));
+  const premioPorId = new Map(sorteo.prizes.map((p) => [p.id, p.title]));
 
   return (
     <div className="space-y-8">
@@ -167,11 +181,43 @@ export default async function SorteoEnVivoPage({
           </fieldset>
 
           <fieldset className="space-y-2">
-            <legend className="fo-label">Reglas</legend>
-            <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" name="oneWinPerPerson" defaultChecked={sorteo.oneWinPerPerson} />
-              Una persona no puede ganar más de un premio
+            <legend className="fo-label">Cómo se sortea</legend>
+            <label className="flex items-start gap-2 text-sm">
+              <input type="radio" name="usePrizeList" value="si" defaultChecked={sorteo.usePrizeList} className="mt-1" />
+              <span>
+                <strong>Con listado de premios</strong>
+                <span className="block text-[var(--fo-muted)]">Cada sorteo es de un premio de la lista, en orden.</span>
+              </span>
             </label>
+            <label className="flex items-start gap-2 text-sm">
+              <input type="radio" name="usePrizeList" value="no" defaultChecked={!sorteo.usePrizeList} className="mt-1" />
+              <span>
+                <strong>Sin listado</strong>
+                <span className="block text-[var(--fo-muted)]">
+                  Solo se aprieta &quot;Sortear&quot; y va saliendo un ganador por vez. La pantalla muestra la lista de resultados.
+                </span>
+              </span>
+            </label>
+          </fieldset>
+
+          <fieldset className="grid gap-4 md:grid-cols-2">
+            <legend className="fo-label mb-2">Reglas</legend>
+            <div className="fo-field-stack">
+              <label className="fo-label" htmlFor="maxWinsPerPerson">
+                Máximo de premios por persona
+              </label>
+              <input id="maxWinsPerPerson" name="maxWinsPerPerson" type="number" min={0} max={100} className="fo-input" defaultValue={sorteo.maxWinsPerPerson} />
+              <p className="fo-helper">1 = nadie gana dos veces. 0 = sin límite.</p>
+            </div>
+            <div className="fo-field-stack">
+              <label className="fo-label" htmlFor="cooldownDraws">
+                Sorteos de espera para volver a salir
+              </label>
+              <input id="cooldownDraws" name="cooldownDraws" type="number" min={0} max={1000} className="fo-input" defaultValue={sorteo.cooldownDraws} />
+              <p className="fo-helper">
+                Con 3, quien gana no puede volver a salir en los 3 sorteos siguientes. 0 = sin espera.
+              </p>
+            </div>
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" name="registrationOpen" defaultChecked={sorteo.registrationOpen} />
               Inscripción abierta (si la desmarcás, el QR deja de aceptar inscripciones)
@@ -201,7 +247,9 @@ export default async function SorteoEnVivoPage({
       <section id="premios" className="space-y-3">
         <h2 className="text-lg font-semibold">Premios</h2>
         <p className="text-sm text-[var(--fo-muted)]">
-          Se sortean en este orden. Los logos de quienes donan desfilan al pie de la pantalla y de la página del QR.
+          {sorteo.usePrizeList
+            ? "Se sortean en este orden. Los logos de quienes donan también desfilan en el banner."
+            : "Este sorteo está configurado sin listado: los premios no se usan para sortear, pero sus logos sí desfilan en el banner."}
         </p>
         {sorteo.prizes.length > 0 ? (
           <ul className="fo-card divide-y divide-[var(--fo-border-muted)]">
@@ -215,13 +263,11 @@ export default async function SorteoEnVivoPage({
                 <div className="min-w-[12rem] flex-1">
                   <p className="font-medium">{p.title}</p>
                   {p.sponsorName ? <p className="text-[var(--fo-muted)]">Dona: {p.sponsorName}</p> : null}
-                  {p.winnerEntrantId ? (
-                    <p className="text-[var(--fo-success,#15803d)]">
-                      Ganó: {nombre.get(p.winnerEntrantId) ?? "—"} {p.drawnAt ? `(${fechaHora(p.drawnAt)})` : ""}
-                    </p>
+                  {ganadorDePremio.get(p.id) ? (
+                    <p className="text-[var(--fo-success,#15803d)]">Ganó: {nombre.get(ganadorDePremio.get(p.id) as string) ?? "—"}</p>
                   ) : null}
                 </div>
-                {p.winnerEntrantId ? (
+                {ganadorDePremio.get(p.id) ? (
                   <form action={resetLiveRafflePrizeAction}>
                     <input type="hidden" name="liveRaffleId" value={sorteo.id} />
                     <input type="hidden" name="prizeId" value={p.id} />
@@ -269,6 +315,88 @@ export default async function SorteoEnVivoPage({
         </form>
       </section>
 
+      {/* Sponsors */}
+      <section id="sponsors" className="space-y-3">
+        <h2 className="text-lg font-semibold">Sponsors del banner</h2>
+        <p className="text-sm text-[var(--fo-muted)]">
+          Sus logos desfilan lentamente al pie de la pantalla del sorteador y de la página del QR.
+        </p>
+        {sorteo.sponsors.length > 0 ? (
+          <ul className="fo-card flex flex-wrap gap-4 p-4">
+            {sorteo.sponsors.map((sp) => (
+              <li key={sp.id} className="flex flex-col items-center gap-2 text-xs">
+                {/* eslint-disable-next-line @next/next/no-img-element -- logo subido a R2 */}
+                <img src={sp.logoUrl} alt={sp.name ?? ""} className="h-14 w-28 rounded border border-[var(--fo-border)] bg-white object-contain p-1" />
+                <span className="max-w-28 truncate text-[var(--fo-muted)]">{sp.name ?? "Sin nombre"}</span>
+                <form action={deleteLiveRaffleSponsorAction}>
+                  <input type="hidden" name="liveRaffleId" value={sorteo.id} />
+                  <input type="hidden" name="sponsorId" value={sp.id} />
+                  <button type="submit" className="underline">
+                    Quitar
+                  </button>
+                </form>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        <form action={addLiveRaffleSponsorAction} className="fo-card grid gap-4 p-5 md:grid-cols-3">
+          <input type="hidden" name="liveRaffleId" value={sorteo.id} />
+          <div className="fo-field-stack">
+            <label className="fo-label" htmlFor="sp-name">
+              Nombre
+            </label>
+            <input id="sp-name" name="name" className="fo-input" placeholder="Marca" />
+          </div>
+          <div className="fo-field-stack">
+            <label className="fo-label" htmlFor="sp-logo">
+              Logo
+            </label>
+            <input id="sp-logo" name="logo" type="file" required accept="image/png,image/jpeg,image/webp" className="text-sm" />
+          </div>
+          <div className="flex items-end">
+            <button type="submit" className="fo-btn fo-btn-primary text-sm">
+              Agregar sponsor
+            </button>
+          </div>
+        </form>
+      </section>
+
+      {/* Resultados */}
+      <section id="resultados" className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-lg font-semibold">Resultados ({ganadores.length})</h2>
+          {sorteo.draws.length > 0 ? (
+            <form action={resetLiveRaffleDrawsAction}>
+              <input type="hidden" name="liveRaffleId" value={sorteo.id} />
+              <button type="submit" className="fo-btn fo-btn-ghost text-sm">
+                Borrar todos los resultados
+              </button>
+            </form>
+          ) : null}
+        </div>
+        {ganadores.length === 0 ? (
+          <p className="text-sm text-[var(--fo-muted)]">Todavía no se sorteó nada. Se sortea desde la pantalla.</p>
+        ) : (
+          <ol className="fo-card divide-y divide-[var(--fo-border-muted)]">
+            {ganadores.map((d, i) => (
+              <li key={d.round} className="flex flex-wrap items-center gap-3 px-4 py-2 text-sm">
+                <span className="w-8 text-[var(--fo-muted)] tabular-nums">{i + 1}.</span>
+                <span className="flex-1 font-medium">{nombre.get(d.entrantId) ?? "—"}</span>
+                {d.prizeId ? <span className="text-[var(--fo-muted)]">{premioPorId.get(d.prizeId)}</span> : null}
+                <span className="text-xs text-[var(--fo-muted)]">{fechaHora(d.createdAt)}</span>
+                <form action={deleteLiveRaffleRoundAction}>
+                  <input type="hidden" name="liveRaffleId" value={sorteo.id} />
+                  <input type="hidden" name="round" value={d.round} />
+                  <button type="submit" className="text-xs text-[var(--fo-muted)] underline">
+                    Borrar
+                  </button>
+                </form>
+              </li>
+            ))}
+          </ol>
+        )}
+      </section>
+
       {/* Encuestas */}
       <section id="encuestas" className="space-y-3">
         <h2 className="text-lg font-semibold">Encuestas</h2>
@@ -278,6 +406,8 @@ export default async function SorteoEnVivoPage({
         {sorteo.polls.map((poll) => {
           const totales = voteTotals(poll.options.length, poll.votes);
           const total = poll.votes.length;
+          const escritas = writtenAnswers(poll.votes);
+          const esTexto = parsePollKind(poll.kind) === "TEXTO";
           return (
             <div key={poll.id} className="fo-card space-y-3 p-5 text-sm">
               <div className="flex flex-wrap items-start justify-between gap-3">
@@ -305,6 +435,7 @@ export default async function SorteoEnVivoPage({
                   </form>
                 </div>
               </div>
+              {esTexto ? null : (
               <ul className="space-y-1">
                 {poll.options.map((o, i) => (
                   <li key={i} className="flex justify-between gap-4">
@@ -314,7 +445,28 @@ export default async function SorteoEnVivoPage({
                     </span>
                   </li>
                 ))}
+                {poll.allowOther ? (
+                  <li className="flex justify-between gap-4">
+                    <span>Otra</span>
+                    <span className="tabular-nums text-[var(--fo-muted)]">{escritas.length}</span>
+                  </li>
+                ) : null}
               </ul>
+              )}
+              {escritas.length > 0 ? (
+                <details className="rounded-md border border-[var(--fo-border)] p-3" open={esTexto}>
+                  <summary className="cursor-pointer font-medium">
+                    {esTexto ? `Respuestas (${escritas.length})` : `Lo que escribieron en "Otra" (${escritas.length})`}
+                  </summary>
+                  <ul className="mt-2 space-y-2">
+                    {escritas.map((t, i) => (
+                      <li key={i} className="whitespace-pre-line border-l-2 border-[var(--fo-border)] pl-3 text-[var(--fo-text-secondary)]">
+                        {t}
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              ) : null}
             </div>
           );
         })}
@@ -330,8 +482,21 @@ export default async function SorteoEnVivoPage({
             <label className="fo-label" htmlFor="poll-o">
               Opciones (una por renglón)
             </label>
-            <textarea id="poll-o" name="options" rows={4} className="fo-input" required />
+            <textarea id="poll-o" name="options" rows={4} className="fo-input" />
+            <p className="fo-helper">Si la pregunta es para escribir un párrafo, dejalo vacío.</p>
           </div>
+          <fieldset className="space-y-2 text-sm md:col-span-2">
+            <legend className="fo-label mb-1">Tipo de respuesta</legend>
+            <label className="flex items-center gap-2">
+              <input type="radio" name="kind" value="OPCIONES" defaultChecked /> Elegir una opción
+            </label>
+            <label className="ml-6 flex items-center gap-2">
+              <input type="checkbox" name="allowOther" /> Sumar la opción &quot;Otra&quot; para escribir una respuesta propia
+            </label>
+            <label className="flex items-center gap-2">
+              <input type="radio" name="kind" value="TEXTO" /> Escribir un párrafo
+            </label>
+          </fieldset>
           <div>
             <button type="submit" className="fo-btn fo-btn-primary text-sm">
               Agregar encuesta

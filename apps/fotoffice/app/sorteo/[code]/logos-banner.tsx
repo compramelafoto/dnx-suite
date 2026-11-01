@@ -36,10 +36,18 @@ export function LogosBanner({
   );
 }
 
-/** Los logos sin repetir, en el orden de los premios. */
-export function sponsorLogos(prizes: { sponsorLogoUrl: string | null; sponsorName: string | null }[]) {
+/** Los logos sin repetir: primero los sponsors cargados, después los de quienes donan premios. */
+export function sponsorLogos(
+  sponsors: { logoUrl: string; name: string | null }[],
+  prizes: { sponsorLogoUrl: string | null; sponsorName: string | null }[],
+) {
   const vistos = new Set<string>();
   const logos: { url: string; name: string | null }[] = [];
+  for (const s of sponsors) {
+    if (vistos.has(s.logoUrl)) continue;
+    vistos.add(s.logoUrl);
+    logos.push({ url: s.logoUrl, name: s.name });
+  }
   for (const p of prizes) {
     if (!p.sponsorLogoUrl || vistos.has(p.sponsorLogoUrl)) continue;
     vistos.add(p.sponsorLogoUrl);

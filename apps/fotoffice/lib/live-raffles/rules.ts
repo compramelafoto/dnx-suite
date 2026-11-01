@@ -68,24 +68,87 @@ export function parseEntrantForm(
   };
 }
 
+export type DrawRow = { round: number; entrantId: string; prizeId: string | null; status: string };
+
+/** Lo que sale de leer y validar los números de la configuración. */
+export function parseNonNegativeInt(value: unknown, max: number): number {
+  const n = Math.floor(Number(value));
+  return Number.isFinite(n) && n > 0 ? Math.min(n, max) : 0;
+}
+
 /**
- * Quiénes pueden salir para un premio: todos los inscriptos menos los que ya ganaron otro
- * premio (si la regla está activa) y los que salieron para este premio y no estaban.
+ * Quiénes pueden salir en el sorteo número `round`:
+ *
+ * - `maxWins`: cuántas veces puede ganar una persona (0 = sin límite).
+ * - `cooldown`: cuántos sorteos con ganador tienen que pasar, desde que alguien ganó, para que
+ *   pueda volver a salir. Con 3, quien ganó en el sorteo 2 no puede salir en el 3, 4 ni 5.
+ * - Los que salieron en este mismo sorteo y no estaban (AUSENTE) tampoco vuelven a salir.
+ *
+ * Los resultados del propio `round` no cuentan: al volver a sortear, ese sorteo se está rehaciendo.
  */
 export function eligibleEntrantIds(params: {
   entrantIds: readonly string[];
-  prizeId: string;
-  prizes: readonly { id: string; winnerEntrantId: string | null; absentEntrantIds: readonly string[] }[];
-  oneWinPerPerson: boolean;
+  draws: readonly DrawRow[];
+  round: number;
+  maxWins: number;
+  cooldown: number;
 }): string[] {
-  const prize = params.prizes.find((p) => p.id === params.prizeId);
-  const excluidos = new Set<string>(prize?.absentEntrantIds ?? []);
-  if (params.oneWinPerPerson) {
-    for (const p of params.prizes) {
-      if (p.id !== params.prizeId && p.winnerEntrantId) excluidos.add(p.winnerEntrantId);
-    }
+  const ganados = params.draws.filter((d) => d.status === "GANADOR" && d.round !== params.round);
+  const rondasConGanador = [...new Set(ganados.map((d) => d.round))];
+  const victorias = new Map<string, number>();
+  const ultima = new Map<string, number>();
+  for (const d of ganados) {
+    victorias.set(d.entrantId, (victorias.get(d.entrantId) ?? 0) + 1);
+    ultima.set(d.entrantId, Math.max(ultima.get(d.entrantId) ?? 0, d.round));
   }
-  return params.entrantIds.filter((id) => !excluidos.has(id));
+  const ausentes = new Set(
+    params.draws.filter((d) => d.status === "AUSENTE" && d.round === params.round).map((d) => d.entrantId),
+  );
+
+  return params.entrantIds.filter((id) => {
+    if (ausentes.has(id)) return false;
+    if (params.maxWins > 0 && (victorias.get(id) ?? 0) >= params.maxWins) return false;
+    const r = ultima.get(id);
+    if (params.cooldown > 0 && r !== undefined) {
+      const pasaron = rondasConGanador.filter((x) => x > r).length;
+      if (pasaron < params.cooldown) return false;
+    }
+    return true;
+  });
+}
+
+/** El ganador vigente de cada sorteo (el último GANADOR de cada número), en orden. */
+export function currentWinners<T extends DrawRow>(draws: readonly T[]): T[] {
+  const porRonda = new Map<number, T>();
+  for (const d of draws) if (d.status === "GANADOR") porRonda.set(d.round, d);
+  return [...porRonda.values()].sort((a, b) => a.round - b.round);
+}
+
+export type PollKind = "OPCIONES" | "TEXTO";
+
+export function parsePollKind(value: unknown): PollKind {
+  return value === "TEXTO" ? "TEXTO" : "OPCIONES";
+}
+
+/** El voto que llega del formulario: una opción, "Otra" con texto, o un párrafo. */
+export function parseVote(
+  form: FormData,
+  poll: { kind: string; options: readonly string[]; allowOther: boolean },
+): { ok: true; optionIndex: number | null; text: string | null } | { ok: false; error: string } {
+  const texto = String(form.get("text") ?? "").trim().slice(0, 2000);
+  if (parsePollKind(poll.kind) === "TEXTO") {
+    return texto ? { ok: true, optionIndex: null, text: texto } : { ok: false, error: "Escribí tu respuesta." };
+  }
+  const elegido = String(form.get("optionIndex") ?? "");
+  if (elegido === "otra") {
+    if (!poll.allowOther) return { ok: false, error: "Elegí una opción." };
+    return texto ? { ok: true, optionIndex: null, text: texto.slice(0, 200) } : { ok: false, error: "Escribí tu otra opción." };
+  }
+  const n = Number(elegido);
+  if (elegido === "" || !Number.isInteger(n) || n < 0 || n >= poll.options.length) {
+    return { ok: false, error: "Elegí una opción." };
+  }
+  return { ok: true, optionIndex: n, text: null };
 }
 
 /** Las opciones de una encuesta, una por renglón, sin vacías ni repetidas. */
@@ -101,8 +164,18 @@ export function parsePollOptions(raw: string): string[] {
   return opciones.slice(0, 12);
 }
 
-export function voteTotals(optionCount: number, votes: readonly { optionIndex: number }[]): number[] {
+export function voteTotals(optionCount: number, votes: readonly { optionIndex: number | null }[]): number[] {
   const totales = Array.from({ length: optionCount }, () => 0);
-  for (const v of votes) if (v.optionIndex >= 0 && v.optionIndex < optionCount) totales[v.optionIndex]++;
+  for (const v of votes) {
+    if (v.optionIndex !== null && v.optionIndex >= 0 && v.optionIndex < optionCount) totales[v.optionIndex]++;
+  }
   return totales;
+}
+
+/** Las respuestas escritas: los párrafos, o lo que se puso en "Otra". La más nueva primero. */
+export function writtenAnswers(votes: readonly { optionIndex: number | null; text: string | null; createdAt?: Date }[]): string[] {
+  return [...votes]
+    .filter((v) => v.optionIndex === null && v.text)
+    .sort((a, b) => (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0))
+    .map((v) => v.text as string);
 }
