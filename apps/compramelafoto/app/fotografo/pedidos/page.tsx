@@ -36,7 +36,7 @@ export default function PhotographerPedidosPage() {
       const session = await ensurePhotographerSession();
       if (!active) return;
       if (!session) {
-        router.push("/fotografo/login");
+        router.push(`/fotografo/login?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`);
         return;
       }
       setPhotographerId(session.photographerId);
@@ -48,7 +48,7 @@ export default function PhotographerPedidosPage() {
             if (res.status === 401) {
               sessionStorage.removeItem("photographer");
               sessionStorage.removeItem("photographerId");
-              router.push("/fotografo/login");
+              router.push(`/fotografo/login?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`);
               return;
             }
             console.error(data?.error || "Error cargando pedidos");
@@ -137,8 +137,8 @@ export default function PhotographerPedidosPage() {
         <header className="mb-5 w-full min-w-0">
           <h1 className="text-lg md:text-xl font-semibold text-gray-900 mb-1.5">Pedidos</h1>
           <p className="max-w-4xl text-gray-600 leading-relaxed text-balance ds-readable-text ds-readable-text--fluid">
-            Todos tus pedidos en un solo lugar: digitales, impresión, videos y ventas de eventos. Si la entrega es a
-            tu cargo, podés actualizar el estado de pedidos de impresión.
+            Todos tus pedidos en un solo lugar: digitales, impresión, videos y ventas de eventos. Tocá un pedido
+            para ver el detalle; con el filtro Impresión ves solo los que tenés que imprimir o entregar.
           </p>
         </header>
 

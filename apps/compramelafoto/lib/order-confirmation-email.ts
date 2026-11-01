@@ -366,7 +366,8 @@ export async function queuePhotographerOrderNotification(orderId: number): Promi
   );
   const isMixed = kind === "MIXED";
   const total = formatPesos(order.totalCents);
-  const pedidosUrl = `${APP_URL}/fotografo/pedidos`;
+  // Abre la pantalla de pedidos con este pedido ya desplegado.
+  const pedidosUrl = `${APP_URL}/fotografo/pedidos?pedido=ALBUM_ORDER-${order.id}`;
   const exportPrintUrl = `${APP_URL}/api/fotografo/pedidos/${order.id}/export-print`;
 
   let bodyPrint = "";
@@ -393,7 +394,7 @@ export async function queuePhotographerOrderNotification(orderId: number): Promi
   await queueEmail({
     to: photographer.email,
     subject: `Nuevo pedido #${order.id} en tu álbum - ${buyerLabel}`,
-    body: `Hola ${photographer.name || "fotógrafo/a"},\n\nTenés un nuevo pedido en tu álbum "${order.album.title}".\n\nDatos del cliente:\n${buyerContactLines}\n\nTotal: ${total}\nEstado: ${order.status === "PAID" ? "Pagado" : order.status}${bodyPrint}\n\nVer todos tus pedidos: ${pedidosUrl}\n\nSaludos,\nComprameLaFoto`,
+    body: `Hola ${photographer.name || "fotógrafo/a"},\n\nTenés un nuevo pedido en tu álbum "${order.album.title}".\n\nDatos del cliente:\n${buyerContactLines}\n\nTotal: ${total}\nEstado: ${order.status === "PAID" ? "Pagado" : order.status}${bodyPrint}\n\nVer este pedido en tu panel: ${pedidosUrl}\n\nSaludos,\nComprameLaFoto`,
     htmlBody: "",
     templateId: template.id,
     templateData: {
@@ -440,7 +441,10 @@ export async function queuePhotographerPrintOrderNotification(printOrderId: numb
   const displayOrderId = Number.isFinite(linkedAlbumOrderId) ? (linkedAlbumOrderId as number) : order.id;
 
   const total = formatPesos(order.total);
-  const pedidosUrl = `${APP_URL}/fotografo/pedidos`;
+  // Los PrintOrder espejo no se listan en el panel: el enlace abre el pedido de álbum vinculado.
+  const pedidosUrl = Number.isFinite(linkedAlbumOrderId)
+    ? `${APP_URL}/fotografo/pedidos?pedido=ALBUM_ORDER-${linkedAlbumOrderId}`
+    : `${APP_URL}/fotografo/pedidos?pedido=PRINT_ORDER-${order.id}`;
   // Espejo de álbum: fileKey en ítems es `photo:{id}`; el ZIP correcto es export-print del Order de álbum.
   const exportUrl =
     linkedAlbumOrderId != null && Number.isFinite(linkedAlbumOrderId)
@@ -455,7 +459,7 @@ export async function queuePhotographerPrintOrderNotification(printOrderId: numb
   await queueEmail({
     to: order.photographer.email,
     subject: `Nuevo pedido de impresión #${displayOrderId}`,
-    body: `Hola ${order.photographer.name || "fotógrafo/a"},\n\nTenés un nuevo pedido de impresión.\n\nPedido: #${displayOrderId}\nCliente: ${order.customerName || "-"}\nEmail: ${order.customerEmail || "-"}\nWhatsApp / teléfono: ${order.customerPhone || "-"}\nItems: ${itemsCount}\nTotal: ${total}${extra}\n\nDescargar carpeta de impresión (tenés que estar logueado):\n${exportUrl}\n\nVer todos tus pedidos: ${pedidosUrl}\n\nSaludos,\nComprameLaFoto`,
+    body: `Hola ${order.photographer.name || "fotógrafo/a"},\n\nTenés un nuevo pedido de impresión.\n\nPedido: #${displayOrderId}\nCliente: ${order.customerName || "-"}\nEmail: ${order.customerEmail || "-"}\nWhatsApp / teléfono: ${order.customerPhone || "-"}\nItems: ${itemsCount}\nTotal: ${total}${extra}\n\nDescargar carpeta de impresión (tenés que estar logueado):\n${exportUrl}\n\nVer este pedido en tu panel: ${pedidosUrl}\n\nSaludos,\nComprameLaFoto`,
     htmlBody: "",
     idempotencyKey: `photographer_print_order_${order.id}`,
   });
