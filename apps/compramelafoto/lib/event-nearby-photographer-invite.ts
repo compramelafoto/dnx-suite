@@ -8,6 +8,10 @@ import {
   publicEventJoinPath,
 } from "@/lib/public-site-url";
 import { ensureEventShareSlug } from "@/lib/ensure-event-share-slug";
+import {
+  EVENT_ALREADY_ENDED_INVITE_MESSAGE,
+  eventAcceptsNearbyInvites,
+} from "@/lib/events/nearby-invite-window";
 
 export const EVENT_TYPE_LABELS: Record<string, string> = {
   PUBLIC_SESSION: "Sesión pública",
@@ -162,6 +166,7 @@ export async function notifyNearbyPhotographersForEvent(
       city: true,
       type: true,
       startsAt: true,
+      endsAt: true,
       locationName: true,
       latitude: true,
       longitude: true,
@@ -182,6 +187,16 @@ export async function notifyNearbyPhotographersForEvent(
       invited: 0,
       skippedAlreadyNotified: 0,
       message: "El evento no es público; no se enviaron invitaciones.",
+    };
+  }
+
+  if (!eventAcceptsNearbyInvites(event)) {
+    return {
+      ok: true,
+      found: 0,
+      invited: 0,
+      skippedAlreadyNotified: 0,
+      message: EVENT_ALREADY_ENDED_INVITE_MESSAGE,
     };
   }
 
