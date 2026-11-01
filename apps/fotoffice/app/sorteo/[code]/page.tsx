@@ -46,7 +46,7 @@ export default async function SorteoPublicoPage({
         <header className="space-y-3 text-center">
           {sorteo.logoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element -- logo subido a R2
-            <img src={sorteo.logoUrl} alt="" className="mx-auto h-20 w-auto max-w-[16rem] object-contain" />
+            <img src={sorteo.logoUrl} alt="" className="mx-auto h-24 w-auto max-w-[18rem] rounded-lg bg-neutral-200 object-contain p-3" />
           ) : null}
           <h1 className="text-2xl font-semibold tracking-tight">{sorteo.title}</h1>
           {sorteo.description ? (
@@ -102,9 +102,9 @@ export default async function SorteoPublicoPage({
             ) : null}
             <div className="fo-field-stack">
               <label className="fo-label" htmlFor="email">
-                Correo (opcional)
+                Correo
               </label>
-              <input id="email" name="email" type="email" className="fo-input" autoComplete="email" />
+              <input id="email" name="email" type="email" className="fo-input" required autoComplete="email" />
             </div>
             {bases ? (
               <div className="space-y-2">

@@ -119,7 +119,7 @@ export function Pantalla(props: {
         <div className="flex items-center gap-5">
           {props.logoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element -- logo subido a R2
-            <img src={props.logoUrl} alt="" className="h-16 w-auto max-w-[14rem] rounded bg-white object-contain p-2" />
+            <img src={props.logoUrl} alt="" className="h-16 w-auto max-w-[14rem] rounded bg-neutral-200 object-contain p-2" />
           ) : null}
           <div>
             <h1 className="text-3xl font-semibold tracking-tight">{props.title}</h1>
@@ -156,7 +156,7 @@ export function Pantalla(props: {
                     <div className="flex items-center justify-center gap-3 text-xl text-white/70">
                       {premio.sponsorLogoUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element -- logo subido a R2
-                        <img src={premio.sponsorLogoUrl} alt="" className="h-12 w-auto rounded bg-white object-contain p-1" />
+                        <img src={premio.sponsorLogoUrl} alt="" className="h-12 w-auto rounded bg-neutral-200 object-contain p-1" />
                       ) : null}
                       {premio.sponsorName ? <span>Dona {premio.sponsorName}</span> : null}
                     </div>

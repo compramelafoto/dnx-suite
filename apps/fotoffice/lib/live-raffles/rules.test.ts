@@ -16,7 +16,13 @@ describe("normalizePhone", () => {
 });
 
 describe("parseEntrantForm", () => {
-  const base = { firstName: "Ana", lastName: "Pérez", phone: "3415551234", acceptRules: "on" };
+  const base = { firstName: "Ana", lastName: "Pérez", phone: "3415551234", email: "ana@mail.com", acceptRules: "on" };
+
+  it("el correo es obligatorio", () => {
+    const sinCorreo = { firstName: base.firstName, lastName: base.lastName, phone: base.phone, acceptRules: "on" };
+    expect(parseEntrantForm(form(sinCorreo), "CELULAR", true).ok).toBe(false);
+    expect(parseEntrantForm(form({ ...base, email: "no-es-correo" }), "CELULAR", true).ok).toBe(false);
+  });
 
   it("con celular único no pide DNI", () => {
     const r = parseEntrantForm(form(base), "CELULAR", true);
@@ -30,7 +36,7 @@ describe("parseEntrantForm", () => {
   });
 
   it("exige aceptar las bases cuando hay bases", () => {
-    const sinAceptar = { firstName: base.firstName, lastName: base.lastName, phone: base.phone };
+    const sinAceptar = { firstName: base.firstName, lastName: base.lastName, phone: base.phone, email: base.email };
     expect(parseEntrantForm(form(sinAceptar), "CELULAR", true).ok).toBe(false);
     expect(parseEntrantForm(form(sinAceptar), "CELULAR", false).ok).toBe(true);
   });

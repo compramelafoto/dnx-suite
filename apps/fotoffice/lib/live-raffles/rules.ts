@@ -29,7 +29,7 @@ export type EntrantInput = {
   firstName: string;
   lastName: string;
   phone: string;
-  email: string | null;
+  email: string;
   dni: string | null;
 };
 
@@ -47,9 +47,8 @@ export function parseEntrantForm(
 
   if (!firstName || !lastName) return { ok: false, error: "Completá nombre y apellido." };
   if (phone.length < 8) return { ok: false, error: "Revisá el celular: tiene que tener al menos 8 números." };
-  if (emailRaw && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailRaw)) {
-    return { ok: false, error: "Revisá el correo." };
-  }
+  if (!emailRaw) return { ok: false, error: "Completá tu correo." };
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailRaw)) return { ok: false, error: "Revisá el correo." };
   if (mode === "CELULAR_DNI" && (dniRaw.length < 6 || dniRaw.length > 9)) {
     return { ok: false, error: "Revisá el DNI: va sin puntos, entre 6 y 9 números." };
   }
@@ -62,7 +61,7 @@ export function parseEntrantForm(
       firstName,
       lastName,
       phone,
-      email: emailRaw || null,
+      email: emailRaw.toLowerCase(),
       dni: mode === "CELULAR_DNI" ? dniRaw : null,
     },
   };
