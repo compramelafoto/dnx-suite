@@ -102,9 +102,9 @@ export default async function SorteoPublicoPage({
             ) : null}
             <div className="fo-field-stack">
               <label className="fo-label" htmlFor="email">
-                Correo (opcional)
+                Correo
               </label>
-              <input id="email" name="email" type="email" className="fo-input" autoComplete="email" />
+              <input id="email" name="email" type="email" className="fo-input" required autoComplete="email" />
             </div>
             {bases ? (
               <div className="space-y-2">
