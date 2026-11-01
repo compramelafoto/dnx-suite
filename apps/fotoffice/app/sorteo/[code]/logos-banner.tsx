@@ -1,5 +1,5 @@
 /**
- * El banner de logos (fondo gris claro: ahí se leen tanto los logos oscuros como los blancos) de quienes donan premios: desfila suave y en bucle.
+ * El banner de logos (fondo casi negro, un poco más claro que el de la pantalla) de quienes donan premios: desfila suave y en bucle.
  *
  * La lista va dos veces seguidas y la animación corre exactamente la mitad del ancho, así el
  * final empalma con el principio sin salto. Con "reducir movimiento" activado queda quieta.
@@ -18,7 +18,7 @@ export function LogosBanner({
   const segundos = Math.max(20, base.length * 4);
 
   return (
-    <div className="fo-logos-banner relative w-full overflow-hidden bg-neutral-200 py-4" aria-label="Quienes donan los premios">
+    <div className="fo-logos-banner relative w-full overflow-hidden bg-neutral-900 py-4" aria-label="Quienes donan los premios">
       <style>{`
         @keyframes fo-logos-desfile { from { transform: translateX(0); } to { transform: translateX(-50%); } }
         .fo-logos-banner .fo-logos-pista { animation: fo-logos-desfile ${segundos}s linear infinite; }
