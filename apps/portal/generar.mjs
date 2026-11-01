@@ -14,7 +14,7 @@ const esc = (s) =>
   String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
 // Alto de cada logo a 900 px de ancho (los originales no tienen la misma proporción).
-const ALTO = { compramelafoto: 175, "cuanto-cobro": 191, fotoffice: 276, fotofluxx: 271, fotorank: 278, "muestras-fotograficas": 169, camofduty: 180 };
+const ALTO = { compramelafoto: 175, "cuanto-cobro": 191, fotoffice: 276, fotofluxx: 271, fotorank: 278, "muestras-fotograficas": 169, camofduty: 179 };
 
 const porSlug = Object.fromEntries(herramientas.map((h) => [h.slug, h]));
 
