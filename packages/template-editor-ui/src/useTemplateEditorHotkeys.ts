@@ -2,6 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { clampBlockPosition } from "@repo/template-editor-core";
+import { isGuidedTourOpen } from "./editorTour";
 import {
   buildPasteStyleUpdate,
   canPasteStyle,
@@ -108,6 +109,8 @@ export function useTemplateEditorHotkeys(options: UseTemplateEditorHotkeysOption
     if (!enabled) return;
 
     const onKeyDown = (e: KeyboardEvent) => {
+      // Con el recorrido guiado abierto, Enter, las flechas y Escape son del recorrido.
+      if (isGuidedTourOpen()) return;
       const s = stateRef.current;
       const mod = e.metaKey || e.ctrlKey;
       const editable = isEditableTarget(e.target);

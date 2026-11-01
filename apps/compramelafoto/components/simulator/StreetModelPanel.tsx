@@ -4,6 +4,7 @@ import { EXPRESSIONS } from "@/lib/simulator/face/face-expressions";
 import { MODEL_ACTIONS, MODEL_TEMPOS, type ModelCommand } from "@/lib/simulator/street/model-direction";
 import { modelStore } from "@/lib/simulator/street/model-store";
 import { useEffect, useState, useSyncExternalStore } from "react";
+import { isModalDialogOpen } from "@/lib/simulator/modal-open";
 
 const BODY: { label: string; cmd: ModelCommand }[] = [
   { label: "De frente", cmd: { kind: "facing", value: 0 } },
@@ -34,6 +35,8 @@ function useTalkKey() {
       if (event.code !== "KeyT" || event.metaKey || event.ctrlKey || event.altKey) return;
       const target = event.target as HTMLElement | null;
       if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA")) return;
+      // Con una ventana modal abierta (recorrido guiado, ayuda, galería) el juego no escucha.
+      if (isModalDialogOpen()) return;
       if (modelStore.talkToNearby()) event.preventDefault();
     };
     window.addEventListener("keydown", onKey);

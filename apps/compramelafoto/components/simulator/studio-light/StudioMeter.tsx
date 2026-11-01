@@ -92,7 +92,7 @@ export default function StudioMeter({ histogram }: { histogram: Histogram | null
   const ratioText = report.ratio === null ? "—" : `${(Math.round(report.ratio * 10) / 10).toString().replace(".", ",")}:1`;
 
   return (
-    <section className="cod-studio-card cod-studio-meter" aria-label="Fotómetro">
+    <section className="cod-studio-card cod-studio-meter" aria-label="Fotómetro" data-tour="cod-estudio-fotometro">
       <header className="cod-studio-card__head">
         <h2 className="cod-studio-card__title">Fotómetro</h2>
         <span className="cod-studio-meter__settings">

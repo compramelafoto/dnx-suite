@@ -98,6 +98,7 @@ export default function SimulatorViewportToolbar({
       <button
         type="button"
         className="cod-viewport-toolbar__btn cod-viewport-toolbar__btn--gallery"
+        data-tour="cod-galeria"
         onClick={onOpenGallery}
         aria-label="Abrir galería de fotos tomadas"
         title="Galería de fotos"

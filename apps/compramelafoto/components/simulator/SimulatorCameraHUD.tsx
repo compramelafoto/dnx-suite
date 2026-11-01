@@ -54,12 +54,12 @@ export default function SimulatorCameraHUD() {
       </div>
 
       <div className="cod-hud__margin-bottom">
-        <div className={`cod-hud__shutter${shutterOpen ? " cod-hud__shutter--open" : ""}`}>
+        <div className={`cod-hud__shutter${shutterOpen ? " cod-hud__shutter--open" : ""}`} data-tour="cod-obturar">
           <span className={`cod-hud__shutter-dot${shutterOpen ? " cod-hud__shutter-dot--open" : ""}`} />
           {shutterOpen ? "Obturando…" : "Espacio — Obturar"}
         </div>
 
-        <div className="cod-hud__bottom">
+        <div className="cod-hud__bottom" data-tour="cod-fotometro">
           <DslrViewfinderBar />
         </div>
       </div>

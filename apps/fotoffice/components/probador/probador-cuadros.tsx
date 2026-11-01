@@ -24,17 +24,17 @@ export function ProbadorCuadros({ catalogo }: { catalogo: PrecioProbador[] }) {
       <div className="pdc-layout">
         <section className="pdc-escena">
           <div className="pdc-barra">
-            <div className="pdc-seg" role="group" aria-label="Qué querés hacer">
+            <div className="pdc-seg" role="group" aria-label="Qué querés hacer" data-tour="probador-modos">
               <button type="button" data-pdc="modo-pared" aria-pressed="false">1 · Marcar pared</button>
               <button type="button" data-pdc="modo-ubicar" aria-pressed="true">2 · Ubicar cuadros</button>
             </div>
-            <div className="pdc-fila pdc-historial">
+            <div className="pdc-fila pdc-historial" data-tour="probador-deshacer">
               <button type="button" className="pdc-btn pdc-icono" data-pdc="deshacer" aria-label="Deshacer" title="Deshacer (⌘Z)">↶</button>
               <button type="button" className="pdc-btn pdc-icono" data-pdc="rehacer" aria-label="Rehacer" title="Rehacer (⇧⌘Z)">↷</button>
             </div>
             <span className="pdc-pista" data-pdc="pista" />
           </div>
-          <div className="pdc-fondo">
+          <div className="pdc-fondo" data-tour="probador-lienzo">
             <canvas
               data-pdc="lienzo"
               className="pdc-lienzo"
@@ -46,7 +46,7 @@ export function ProbadorCuadros({ catalogo }: { catalogo: PrecioProbador[] }) {
         </section>
 
         <aside className="pdc-panel">
-          <section className="pdc-bloque">
+          <section className="pdc-bloque" data-tour="probador-pared">
             <h2>Tu pared</h2>
             <div className="pdc-fila">
               <label className="pdc-btn pdc-btn-principal" htmlFor="pdc-archivo-pared">Sacar o subir foto</label>
@@ -57,7 +57,7 @@ export function ProbadorCuadros({ catalogo }: { catalogo: PrecioProbador[] }) {
               Marcá con los 4 puntos algo cuya medida sepas: la pared entera, una puerta o un mueble. Después cargá su
               ancho y alto.
             </p>
-            <div className="pdc-campos">
+            <div className="pdc-campos" data-tour="probador-referencia">
               <label className="pdc-campo" htmlFor="pdc-ref-ancho">
                 Ancho de lo marcado
                 <span className="pdc-unidad">
@@ -77,7 +77,7 @@ export function ProbadorCuadros({ catalogo }: { catalogo: PrecioProbador[] }) {
             <p className="pdc-error" data-pdc="error-pared" hidden />
           </section>
 
-          <section className="pdc-bloque" data-pdc="panel-conjunto">
+          <section className="pdc-bloque" data-pdc="panel-conjunto" data-tour="probador-conjunto">
             <h2>Conjunto</h2>
             <div className="pdc-chips" data-pdc="composiciones" />
             <div className="pdc-campos">
@@ -98,7 +98,7 @@ export function ProbadorCuadros({ catalogo }: { catalogo: PrecioProbador[] }) {
               <input type="range" id="pdc-separacion" data-pdc="separacion" min={2} max={20} step={1} />
             </label>
             <p className="pdc-nota">Cambiar la plantilla, la medida o la separación rearma el conjunto.</p>
-            <div className="pdc-campo">
+            <div className="pdc-campo" data-tour="probador-tipo">
               Tipo, para todos
               <div className="pdc-seg pdc-seg-ancho" role="group" aria-label="Tipo de cuadro para todos" data-pdc="tipo-todos" />
             </div>
@@ -165,7 +165,7 @@ export function ProbadorCuadros({ catalogo }: { catalogo: PrecioProbador[] }) {
             </div>
           </section>
 
-          <section className="pdc-bloque">
+          <section className="pdc-bloque" data-tour="probador-fotos">
             <h2>
               Fotos <span className="pdc-tag" data-pdc="etiqueta-muestras">Muestras</span>
             </h2>
@@ -181,7 +181,7 @@ export function ProbadorCuadros({ catalogo }: { catalogo: PrecioProbador[] }) {
             <p className="pdc-error" data-pdc="error-fotos" hidden />
           </section>
 
-          <section className="pdc-bloque">
+          <section className="pdc-bloque" data-tour="probador-posicion">
             <h2>Posición</h2>
             <div className="pdc-fila">
               <button type="button" className="pdc-btn" data-pdc="centrar">Centrar a lo ancho</button>
@@ -193,7 +193,7 @@ export function ProbadorCuadros({ catalogo }: { catalogo: PrecioProbador[] }) {
             </p>
           </section>
 
-          <section className="pdc-bloque" data-pdc="presupuesto" hidden>
+          <section className="pdc-bloque" data-pdc="presupuesto" data-tour="probador-presupuesto" hidden>
             <h2>Presupuesto</h2>
             <ul className="pdc-lineas" data-pdc="presupuesto-lineas" />
             <p className="pdc-total">
@@ -202,7 +202,7 @@ export function ProbadorCuadros({ catalogo }: { catalogo: PrecioProbador[] }) {
             <p className="pdc-nota" data-pdc="presupuesto-nota" />
           </section>
 
-          <button type="button" className="pdc-btn pdc-btn-principal pdc-ancho" data-pdc="ver-final">
+          <button type="button" className="pdc-btn pdc-btn-principal pdc-ancho" data-pdc="ver-final" data-tour="probador-ver-final">
             Ver imagen final
           </button>
           <p className="pdc-nota pdc-privacidad">Tus fotos no se suben a ningún lado: todo pasa en tu celular o computadora.</p>

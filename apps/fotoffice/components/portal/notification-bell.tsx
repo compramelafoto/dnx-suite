@@ -74,7 +74,7 @@ export function NotificationBell() {
   const numero = badgeText(unread);
 
   return (
-    <div ref={caja} className="relative">
+    <div ref={caja} className="relative" data-tour="portal-campanita">
       <button
         type="button"
         onClick={alternar}

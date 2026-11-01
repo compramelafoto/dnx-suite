@@ -1047,7 +1047,7 @@ export function TemplateEditorCanvas({
       className={cn("flex min-h-0 min-w-0 flex-1 flex-col", className)}
       data-testid="template-v2-canvas"
     >
-      <div className="flex shrink-0" style={{ height: RULER_SIZE_PX }}>
+      <div className="flex shrink-0" style={{ height: RULER_SIZE_PX }} data-tour="editor-reglas">
         <div
           className="shrink-0 border-b border-r border-[color:var(--te-line)] bg-[color:var(--te-chrome)]"
           style={{ width: RULER_SIZE_PX }}
@@ -1076,6 +1076,7 @@ export function TemplateEditorCanvas({
       {/* Área de trabajo: gris suave. El lienzo se centra; el marco tiene el tamaño *ya escalado* para no duplicar altura en el scroll (bug: hijo con width/height en px + scale ocupaba layout completo). */}
       <div
         ref={workAreaRef}
+        data-tour="editor-lienzo"
         className="flex min-h-0 w-full min-w-0 flex-1 overflow-auto overscroll-contain bg-[color:var(--te-void)] px-3 py-4 sm:px-5 sm:py-6 md:px-8 md:py-8"
         style={{ cursor: workAreaCursor }}
         onPointerDownCapture={onWorkAreaPointerDownCapture}

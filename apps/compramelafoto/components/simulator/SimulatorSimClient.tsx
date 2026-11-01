@@ -24,7 +24,15 @@ import { isTouchGameDevice } from "@/lib/simulator/touch-input";
 import { setViewfinderCompact } from "@/lib/simulator/viewfinder-frame";
 import { CameraProvider, useCameraStore } from "@/lib/simulator/camera-store";
 import { useFullscreenElement } from "@/components/simulator/useFullscreenElement";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { GuidedTour } from "@repo/guided-tour";
+import {
+  buildStreetTour,
+  COD_STREET_TOUR_ID,
+  COD_TOUR_ACCENT,
+  COD_TOUR_OFFER_DELAY_MS,
+} from "@/components/simulator/camofduty-tours";
+import { loadingGate } from "@/lib/simulator/loading-gate";
 
 function SimulatorSimContent() {
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -38,6 +46,17 @@ function SimulatorSimContent() {
   // Celular: pantalla de juego con controles táctiles y el panel como cajón.
   const [touchMode, setTouchMode] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
+  // Recorrido guiado: se ofrece recién con la escena cargada y nunca con el puntero
+  // capturado (caminando por la calle), para no chocar con los controles del juego.
+  const loading = useSyncExternalStore(loadingGate.subscribe, loadingGate.getSnapshot, loadingGate.getSnapshot);
+  const [pointerLocked, setPointerLocked] = useState(false);
+  useEffect(() => {
+    const onChange = () => setPointerLocked(document.pointerLockElement !== null);
+    document.addEventListener("pointerlockchange", onChange);
+    return () => document.removeEventListener("pointerlockchange", onChange);
+  }, []);
+  // Al terminar, el panel vuelve a la solapa Cámara.
+  const tour = useMemo(() => buildStreetTour(() => setSideTab("camera")), []);
   // Los márgenes del visor se fijan antes de que el visor (hijo) mida su recuadro.
   useState(() => {
     if (typeof window !== "undefined") setViewfinderCompact(isTouchGameDevice());
@@ -84,7 +103,7 @@ function SimulatorSimContent() {
       <SimulatorFocusKeyboardListener />
       <SimulatorShutterListener />
       <SimulatorZoomKeyboardListener />
-      <SimulatorShell variant="simulator">
+      <SimulatorShell variant="simulator" tourId={COD_STREET_TOUR_ID}>
         <main className={`cod-sim${touchMode ? " cod-sim--touch" : ""}`}>
           <div className="cod-sim__body">
             <SimulatorViewport
@@ -129,6 +148,13 @@ function SimulatorSimContent() {
       ) : null}
 
       <SimulatorPhotoGallery open={galleryOpen} onClose={() => setGalleryOpen(false)} />
+
+      <GuidedTour
+        tour={tour}
+        accentColor={COD_TOUR_ACCENT}
+        autoOffer={loading.ready && !pointerLocked && !lesson}
+        offerDelayMs={COD_TOUR_OFFER_DELAY_MS}
+      />
     </>
   );
 }

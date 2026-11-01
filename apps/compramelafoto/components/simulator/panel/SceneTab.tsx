@@ -78,7 +78,7 @@ export default function SceneTab() {
         <span className="cod-scene-card__desc">{scene.description}</span>
       </div>
 
-      <div className="cod-scene-traffic-stack">
+      <div className="cod-scene-traffic-stack" data-tour="cod-transito">
         <div className="cod-scene-vehicle" aria-label="Tráfico experimental">
           <h4 className="cod-scene-vehicle__title">Auto</h4>
           <label className="cod-scene-vehicle__toggle">

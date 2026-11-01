@@ -113,7 +113,7 @@ export default function CameraTab({ activeIndex }: CameraTabProps) {
       id="cod-side-panel-camera"
       aria-labelledby="cod-side-tab-camera"
     >
-      <div className="cod-param-form cod-param-form--compact">
+      <div className="cod-param-form cod-param-form--compact" data-tour="cod-exposicion">
         <div ref={setParamRef(0)}>
           <CameraParamTimeline
             id="cod-iso"
@@ -180,7 +180,7 @@ export default function CameraTab({ activeIndex }: CameraTabProps) {
       <div className="cod-param-divider" aria-hidden="true" />
 
       <h3 className="cod-panel__subtitle">Enfoque</h3>
-      <div className="cod-param-form cod-param-form--compact cod-focus-panel">
+      <div className="cod-param-form cod-param-form--compact cod-focus-panel" data-tour="cod-enfoque">
         <CameraParamOptionRow label="Modo de enfoque">
           {FOCUS_MODES.map((item) => (
             <CameraOptionBtn
@@ -249,7 +249,7 @@ export default function CameraTab({ activeIndex }: CameraTabProps) {
 
       <h3 className="cod-panel__subtitle">Opciones</h3>
 
-      <div className="cod-param-options">
+      <div className="cod-param-options" data-tour="cod-modo">
         <div ref={setParamRef(4)}>
           <CameraParamOptionRow
             label="Modo"

@@ -118,7 +118,11 @@ export default function AlbumWorkspaceNav({
         className
       )}
     >
-      <div ref={areaBarRef} className="border-b border-[#f1f5f9] ds-overflow-x-soft touch-pan-x">
+      <div
+        ref={areaBarRef}
+        data-tour="album-pestanas"
+        className="border-b border-[#f1f5f9] ds-overflow-x-soft touch-pan-x"
+      >
         <div
           role="tablist"
           aria-label="Áreas del álbum"
@@ -135,6 +139,7 @@ export default function AlbumWorkspaceNav({
                 type="button"
                 role="tab"
                 aria-selected={isActive}
+                data-tour={`album-tab-${area.id}`}
                 onClick={() => handleAreaClick(area.id)}
                 className={areaButtonClass(isActive)}
               >
@@ -148,6 +153,7 @@ export default function AlbumWorkspaceNav({
       {showSubTabs && currentAreaConfig ? (
         <div
           ref={subTabBarRef}
+          data-tour="album-subpestanas"
           className="border-b border-[#f1f5f9] bg-[#fafafa] ds-overflow-x-soft touch-pan-x"
         >
           <div
@@ -175,6 +181,7 @@ export default function AlbumWorkspaceNav({
                   type="button"
                   role="tab"
                   aria-selected={isActive}
+                  data-tour={`album-subtab-${subKey}`}
                   onClick={() => {
                     if (subtab.id === "publicacion" && subtab.publicationPanel) {
                       if (activeTab !== "publicacion") onTabChange("publicacion");

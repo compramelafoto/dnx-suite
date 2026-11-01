@@ -219,6 +219,7 @@ export default function AlbumPublicationSection({
               </div>
             </Card>
           ) : null}
+          <div data-tour="album-publicacion-compartir" className="w-full min-w-0">
           <AlbumSharePanel
             albumId={albumId}
             publicSlug={publicSlug}
@@ -231,6 +232,7 @@ export default function AlbumPublicationSection({
             description="Copiá el enlace principal, descargá el QR o abrí la galería pública."
             disabled={!canShareWithClients}
           />
+          </div>
         </>
       ) : null}
 
