@@ -2,10 +2,11 @@
 
 import { sinPedidosDemo } from "@/lib/canje-externo/pack-de-prueba";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { OrderVisualProvider } from "@/components/fotografo/orders/OrderVisualContext";
 import OrdersNeedsAttention from "@/components/fotografo/orders/OrdersNeedsAttention";
+import { buildOrdersAttentionSummary } from "@/components/fotografo/orders/orders-activity-helpers";
 import OrdersActivityFeed from "@/components/fotografo/orders/OrdersActivityFeed";
 import OrdersOperationalInsights from "@/components/fotografo/orders/OrdersOperationalInsights";
 import OrdersAnalyticsWorkspace from "@/components/fotografo/orders/OrdersAnalyticsWorkspace";
@@ -32,6 +33,7 @@ import {
 import {
   filterOrders,
   getOrderFulfillmentKind,
+  matchesQuickFilter,
   rowKey,
   type OrdersQuickFilter,
   type PhotographerOrderRow,
@@ -43,6 +45,19 @@ type PhotographerOrdersTableProps = {
   orders: PhotographerOrderRow[];
   photographerId: number;
 };
+
+/** Valores de `?filtro=` aceptados en la URL (enlaces de correos y del panel). */
+const URL_QUICK_FILTERS: Record<string, OrdersQuickFilter> = {
+  todos: "ALL",
+  pendientes: "PENDING",
+  pagados: "PAID",
+  digitales: "DIGITAL",
+  impresion: "PRINT",
+  videos: "VIDEO",
+  preventa: "PREVENTA",
+};
+
+const STATS_OPEN_STORAGE_KEY = "clf:pedidos:estadisticas-abiertas";
 
 type BulkLoadingState = {
   download: boolean;
@@ -65,6 +80,44 @@ export default function PhotographerOrdersTable({ orders, photographerId }: Phot
     delivered: false,
   });
   const listAnchorRef = useRef<HTMLDivElement>(null);
+  const statsAnchorRef = useRef<HTMLDivElement>(null);
+  /** Estadísticas y sugerencias van plegadas debajo de la lista: lo primero que se ve son los pedidos. */
+  const [statsOpen, setStatsOpen] = useState(false);
+
+  useEffect(() => {
+    try {
+      if (window.localStorage.getItem(STATS_OPEN_STORAGE_KEY) === "1") setStatsOpen(true);
+    } catch {
+      // Sin almacenamiento disponible: queda plegado.
+    }
+  }, []);
+
+  const toggleStats = useCallback((open: boolean) => {
+    setStatsOpen(open);
+    try {
+      window.localStorage.setItem(STATS_OPEN_STORAGE_KEY, open ? "1" : "0");
+    } catch {
+      // Sin almacenamiento disponible.
+    }
+  }, []);
+
+  // Enlace directo (p. ej. desde el correo de aviso): ?pedido=ALBUM_ORDER-123 abre ese pedido
+  // y ?filtro=impresion deja la lista filtrada. Se lee una sola vez al montar.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const filtro = URL_QUICK_FILTERS[(params.get("filtro") ?? "").trim().toLowerCase()];
+    if (filtro) setQuickFilter(filtro);
+    const pedido = (params.get("pedido") ?? "").trim();
+    if (pedido) {
+      const match =
+        orders.find((o) => rowKey(o) === pedido) ?? orders.find((o) => String(o.id) === pedido);
+      if (match) {
+        if (filtro && !matchesQuickFilter(match, filtro)) setQuickFilter("ALL");
+        setSelectedOrderKey(rowKey(match));
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const filtered = useMemo(
     () => filterOrders(orders, quickFilter, q),
@@ -72,6 +125,10 @@ export default function PhotographerOrdersTable({ orders, photographerId }: Phot
   );
   /** Sin los pedidos DEMO: para indicadores, alertas, analítica y actividad. */
   const realOrders = useMemo(() => sinPedidosDemo(orders), [orders]);
+  const attentionCount = useMemo(
+    () => buildOrdersAttentionSummary(realOrders).totalCount,
+    [realOrders]
+  );
 
   const visibleKeys = useMemo(() => filtered.map(rowKey), [filtered]);
 
@@ -410,21 +467,28 @@ export default function PhotographerOrdersTable({ orders, photographerId }: Phot
   return (
     <OrderVisualProvider>
     <div className={cn("flex flex-col gap-5 w-full min-w-0", hasBulkSelection && "pb-24")}>
-      <OrdersNeedsAttention
-        orders={realOrders}
-        automationHandlers={automationHandlers}
-        onViewOrders={() => {
-          setQuickFilter("ALL");
-          setQ("");
-          scrollToOrdersList();
-        }}
-      />
+      {attentionCount > 0 && !statsOpen ? (
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+          <p className="text-xs text-amber-800">
+            <span className="font-semibold tabular-nums">{attentionCount}</span>{" "}
+            {attentionCount === 1 ? "situación requiere" : "situaciones requieren"} tu atención.
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              toggleStats(true);
+              requestAnimationFrame(() =>
+                statsAnchorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+              );
+            }}
+            className="shrink-0 text-xs font-semibold text-amber-800 underline underline-offset-2 hover:text-amber-900"
+          >
+            Ver detalle
+          </button>
+        </div>
+      ) : null}
 
-      <OrdersOperationalInsights orders={realOrders} automationHandlers={automationHandlers} />
-
-      <OrdersAnalyticsWorkspace orders={realOrders} />
-
-      <div ref={listAnchorRef} className="scroll-mt-4 w-full min-w-0 space-y-3 border-t border-gray-100 pt-5">
+      <div ref={listAnchorRef} className="scroll-mt-4 w-full min-w-0 space-y-3">
       <OrdersWorkspaceHeader
         orders={orders}
         quickFilter={quickFilter}
@@ -506,11 +570,48 @@ export default function PhotographerOrdersTable({ orders, photographerId }: Phot
       </div>
       </div>
 
-      <OrdersActivityFeed
-        orders={realOrders}
-        automationHandlers={automationHandlers}
-        variant="compact"
-      />
+      <div ref={statsAnchorRef} className="scroll-mt-4 w-full min-w-0 border-t border-gray-100 pt-5">
+        <button
+          type="button"
+          onClick={() => toggleStats(!statsOpen)}
+          aria-expanded={statsOpen}
+          className="flex w-full items-center justify-between gap-3 rounded-lg border border-gray-100 bg-white px-3 py-2.5 text-left hover:bg-gray-50"
+        >
+          <span className="min-w-0">
+            <span className="block text-sm font-semibold text-gray-900">Estadísticas y sugerencias</span>
+            <span className="block text-[11px] text-gray-500">
+              Requiere atención, estado operativo, analítica de los últimos 7 días y actividad reciente
+            </span>
+          </span>
+          <span className="shrink-0 text-xs font-semibold text-[#c27b3d]">
+            {statsOpen ? "Ocultar" : "Mostrar"}
+          </span>
+        </button>
+
+        {statsOpen ? (
+          <div className="mt-3 flex flex-col gap-5">
+            <OrdersNeedsAttention
+              orders={realOrders}
+              automationHandlers={automationHandlers}
+              onViewOrders={() => {
+                setQuickFilter("ALL");
+                setQ("");
+                scrollToOrdersList();
+              }}
+            />
+
+            <OrdersOperationalInsights orders={realOrders} automationHandlers={automationHandlers} />
+
+            <OrdersAnalyticsWorkspace orders={realOrders} />
+
+            <OrdersActivityFeed
+              orders={realOrders}
+              automationHandlers={automationHandlers}
+              variant="compact"
+            />
+          </div>
+        ) : null}
+      </div>
 
       <OrderDetailDrawer
         order={selectedOrder}
