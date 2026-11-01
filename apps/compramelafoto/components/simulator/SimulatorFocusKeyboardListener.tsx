@@ -8,6 +8,7 @@ import {
 } from "@/lib/simulator/simulator-nav-surface";
 import { unlockSimulatorAudioFromGesture } from "@/lib/simulator/sound-engine";
 import { useEffect, useRef } from "react";
+import { isModalDialogOpen } from "@/lib/simulator/modal-open";
 
 function isEditableTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
@@ -67,6 +68,8 @@ export default function SimulatorFocusKeyboardListener() {
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (isEditableTarget(event.target)) return;
+      // Con una ventana modal abierta (recorrido guiado, ayuda, galería) el juego no escucha.
+      if (isModalDialogOpen()) return;
 
       if (event.code === "KeyV" && !event.metaKey && !event.ctrlKey && !event.altKey) {
         event.preventDefault();

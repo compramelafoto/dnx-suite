@@ -82,6 +82,7 @@ export function TiraFotos({ fotos, usos, seleccion, onSeleccion, onSubir, subien
         <button
           type="button"
           onClick={() => archivoRef.current?.click()}
+          data-tour="fotolibro-subir"
           className="rounded bg-[var(--fo-accent)] px-2.5 py-1 font-medium text-white hover:opacity-90"
         >
           Subir fotos
@@ -145,7 +146,7 @@ export function TiraFotos({ fotos, usos, seleccion, onSeleccion, onSubir, subien
           Subí las fotos del trabajo (o soltalas acá) para empezar a armar el libro.
         </div>
       ) : (
-        <div className="flex flex-1 gap-2 overflow-x-auto overflow-y-hidden px-3 py-2">
+        <div data-tour="fotolibro-tira" className="flex flex-1 gap-2 overflow-x-auto overflow-y-hidden px-3 py-2">
           {visibles.map((f) => {
             const usada = usos.get(f.id) ?? 0;
             const elegida = seleccion.includes(f.id);

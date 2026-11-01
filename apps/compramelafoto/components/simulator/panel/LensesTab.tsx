@@ -50,7 +50,7 @@ export default function LensesTab() {
         la profundidad de campo.
       </p>
 
-      <div className="cod-lens-catalog" role="list" aria-label="Catálogo de objetivos">
+      <div className="cod-lens-catalog" data-tour="cod-objetivos" role="list" aria-label="Catálogo de objetivos">
         {SIMULATOR_LENSES.map((def) => {
           const selected = lens.lensId === def.id;
           return (
@@ -80,7 +80,7 @@ export default function LensesTab() {
       <h3 className="cod-panel__subtitle">Distancia focal</h3>
 
       {lens.isZoomLens ? (
-        <div className="cod-lens-zoom">
+        <div className="cod-lens-zoom" data-tour="cod-focal">
           <div className="cod-lens-zoom__readout">
             <span>{lens.minFocalLengthMm}mm</span>
             <strong>{lens.focalLengthMm}mm</strong>
@@ -125,7 +125,7 @@ export default function LensesTab() {
           </p>
         </div>
       ) : (
-        <div className="cod-lens-prime">
+        <div className="cod-lens-prime" data-tour="cod-focal">
           <p className="cod-lens-prime__focal">
             Focal fija: <strong>{lens.focalLengthMm}mm</strong>
           </p>

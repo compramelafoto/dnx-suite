@@ -118,6 +118,7 @@ export function ExportarBoton({ templateId, nombre, cantidadPliegos, conTapa, re
           if (lista.length) setProblemas(lista);
           else void exportar();
         }}
+        data-tour="fotolibro-exportar"
         title="Un JPG por pliego (y la tapa), a 300 ppp, en un ZIP para mandar al laboratorio"
         className="rounded bg-[var(--fo-accent)] px-2.5 py-1 text-xs font-medium text-white hover:opacity-90 disabled:opacity-60"
       >

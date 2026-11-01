@@ -80,6 +80,7 @@
     "@repo/dnx-bot": "workspace:*",
     "@repo/finance-control": "workspace:*",
     "@repo/geo": "workspace:*",
+    "@repo/guided-tour": "workspace:*",
     "@repo/media-composition": "workspace:*",
     "@repo/ops-daily-report": "workspace:*",
     "@repo/partners": "workspace:*",

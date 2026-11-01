@@ -22,6 +22,12 @@ import { MenuSearch } from "@/components/shell/menu-search";
  * - Teléfono: barra inferior con las cuatro de todos los días más "Más", que abre el resto.
  */
 
+/** La marca del recorrido guiado para cada sección: `portal-menu-` + el último tramo de la ruta. */
+function marcaTour(href: string): string {
+  const tramo = href.replace(/\/+$/, "").split("/").pop() ?? "";
+  return `portal-menu-${href === "/portal" || tramo === "" ? "inicio" : tramo}`;
+}
+
 function esActiva(pathname: string, href: string): boolean {
   if (href === "/portal") return pathname === "/portal";
   return pathname === href || pathname.startsWith(`${href}/`);
@@ -34,11 +40,14 @@ export function PortalSidebar({
   items,
   vocabulary,
   top = null,
+  bottom = null,
 }: {
   items: ResolvedPortalItem[];
   vocabulary: PersonVocabulary;
   /** Lo que va arriba de las secciones: el selector de rol, si corresponde. */
   top?: ReactNode;
+  /** Lo que va al pie, arriba de "Cerrar sesión": el botón Ayuda del recorrido guiado. */
+  bottom?: ReactNode;
 }) {
   const pathname = usePathname() ?? "";
   const disponibles = items.filter((i) => i.state === "DISPONIBLE");
@@ -60,13 +69,14 @@ export function PortalSidebar({
           },
         ]}
       />
-      <nav aria-label="Secciones" className="space-y-0.5">
+      <nav aria-label="Secciones" data-tour="portal-menu" className="space-y-0.5">
         {disponibles.map((i) => {
           const activa = esActiva(pathname, i.href);
           return (
             <Link
               key={i.href}
               href={i.href}
+              data-tour={marcaTour(i.href)}
               aria-current={activa ? "page" : undefined}
               className={[
                 "flex items-center gap-3 rounded-[var(--fo-radius-sm)] px-3 py-2 text-sm transition-colors",
@@ -112,14 +122,17 @@ export function PortalSidebar({
         </details>
       ) : null}
 
-      <form action="/api/auth/logout" method="post" className="mt-auto pt-6">
-        <button
-          type="submit"
-          className="w-full rounded-[var(--fo-radius-sm)] px-3 py-2 text-left text-sm text-[var(--fo-muted)] hover:bg-[var(--fo-surface-hover)] hover:text-[var(--fo-text)]"
-        >
-          Cerrar sesión
-        </button>
-      </form>
+      <div className="mt-auto space-y-0.5 pt-6">
+        {bottom}
+        <form action="/api/auth/logout" method="post">
+          <button
+            type="submit"
+            className="w-full rounded-[var(--fo-radius-sm)] px-3 py-2 text-left text-sm text-[var(--fo-muted)] hover:bg-[var(--fo-surface-hover)] hover:text-[var(--fo-text)]"
+          >
+            Cerrar sesión
+          </button>
+        </form>
+      </div>
     </aside>
   );
 }
@@ -178,6 +191,7 @@ export function PortalNav({
                   <li key={i.href}>
                     <Link
                       href={i.href}
+                      data-tour={marcaTour(i.href)}
                       onClick={() => setAbierto(false)}
                       className="flex h-full flex-col items-center gap-1.5 rounded-[var(--fo-radius)] bg-[var(--fo-surface-hover)] px-2 py-3 text-center text-xs font-medium"
                     >
@@ -225,6 +239,7 @@ export function PortalNav({
 
       <nav
         aria-label="Secciones"
+        data-tour="portal-barra"
         className="fixed inset-x-0 bottom-0 z-50 flex border-t border-[var(--fo-border)] bg-[var(--fo-surface)] pb-[env(safe-area-inset-bottom)] md:hidden"
       >
         {barra.map((i) => {
@@ -233,6 +248,7 @@ export function PortalNav({
             <Link
               key={i.href}
               href={i.href}
+              data-tour={marcaTour(i.href)}
               aria-current={activa ? "page" : undefined}
               className={tab(activa)}
             >

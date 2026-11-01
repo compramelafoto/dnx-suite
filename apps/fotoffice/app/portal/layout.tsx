@@ -93,6 +93,7 @@ export default async function PortalLayout({ children }: { children: ReactNode }
       roleSelector={selector}
       account={{ userEmail: user.email, menu: accountMenu(perfiles, context.workspace.id) }}
       notifications
+      guidedTour
       institution={{
         name: branding?.commercialName?.trim() || context.workspace.name,
         logoUrl: branding?.logoUrl ?? null,

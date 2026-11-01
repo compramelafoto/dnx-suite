@@ -16,6 +16,7 @@ import { simulatorRuntime } from "@/lib/simulator/simulator-runtime";
 import { TOUCH_SPRINT_THRESHOLD, touchInput } from "@/lib/simulator/touch-input";
 import { useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useRef } from "react";
+import { isModalDialogOpen } from "@/lib/simulator/modal-open";
 import * as THREE from "three";
 import { EYE_HEIGHT, getSimulatorSpawnPose } from "./simulator-camera-constants";
 
@@ -234,6 +235,8 @@ export default function FirstPersonController({ onLockChange }: FirstPersonContr
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (isEditableTarget(event.target)) return;
+      // Con una ventana modal abierta (recorrido guiado, ayuda, galería) el juego no escucha.
+      if (isModalDialogOpen()) return;
 
       if (event.code === "ShiftLeft" || event.code === "ShiftRight") {
         keys.current.sprint = true;

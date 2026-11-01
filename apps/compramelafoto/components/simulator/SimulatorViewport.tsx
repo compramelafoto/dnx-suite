@@ -103,7 +103,7 @@ const SimulatorViewport = forwardRef<HTMLDivElement, SimulatorViewportProps>(
     }, []);
 
     return (
-      <div ref={setViewportRef} className="cod-sim__viewport-wrap">
+      <div ref={setViewportRef} className="cod-sim__viewport-wrap" data-tour="cod-vista-3d">
         <div className="cod-sim__canvas-layer">
           <SimulatorCanvasBoundary onError={handleCanvasError}>
             <SimulatorCanvas onLockChange={handleLockChange} onLoaded={handleLoaded} />

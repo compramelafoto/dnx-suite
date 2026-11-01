@@ -18,7 +18,7 @@ export function EnlaceParaClientes({ url }: { url: string }) {
   }
 
   return (
-    <div className="fo-card flex flex-wrap items-center gap-3">
+    <div className="fo-card flex flex-wrap items-center gap-3" data-tour="probador-enlace">
       <div className="min-w-0 flex-1">
         <p className="text-sm font-medium text-[var(--fo-text)]">Enlace para tus clientes</p>
         <a

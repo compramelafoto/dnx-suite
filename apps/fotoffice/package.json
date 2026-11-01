@@ -32,6 +32,7 @@
     "@repo/dnx-bot": "workspace:*",
     "@repo/design-studio": "workspace:*",
     "@repo/geo": "workspace:*",
+    "@repo/guided-tour": "workspace:*",
     "@repo/partners": "workspace:*",
     "@repo/payments": "workspace:*",
     "@repo/template-editor-core": "workspace:*",

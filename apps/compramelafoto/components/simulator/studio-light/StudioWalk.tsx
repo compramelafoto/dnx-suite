@@ -4,6 +4,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useRef, type MutableRefObject } from "react";
 import * as THREE from "three";
 import { subjectHead } from "@/lib/simulator/studio-light/metering";
+import { isModalDialogOpen } from "@/lib/simulator/modal-open";
 import { SET_BOUNDS, useStudio } from "@/lib/simulator/studio-light/studio-store";
 
 /** Objetivos que se recorren con la rueda en primera persona (como un zoom). */
@@ -146,6 +147,8 @@ export function StudioWalkController({
       t instanceof HTMLElement && (t.tagName === "INPUT" || t.tagName === "SELECT" || t.tagName === "TEXTAREA");
     const onKeyDown = (e: KeyboardEvent) => {
       if (isTyping(e.target)) return;
+      // Con una ventana modal abierta (recorrido guiado, ayuda, galería) el juego no escucha.
+      if (isModalDialogOpen()) return;
       if (e.code === "KeyF") {
         toggleGrab();
         return;

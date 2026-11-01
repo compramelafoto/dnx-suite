@@ -6,6 +6,7 @@ import { playShutterSound, preloadShutterSamples, COD_OBTURAR_EVENT, type CodObt
 import { shutterSpeedToSeconds } from "@/lib/simulator/camera-math";
 import { unlockSimulatorAudioFromGesture } from "@/lib/simulator/sound-engine";
 import { useCallback, useEffect } from "react";
+import { isModalDialogOpen } from "@/lib/simulator/modal-open";
 import { simulatorRuntime } from "@/lib/simulator/simulator-runtime";
 
 /**
@@ -51,6 +52,8 @@ export default function SimulatorShutterListener() {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.code !== "Space" || event.repeat) return;
+      // Con una ventana modal abierta (recorrido guiado, ayuda, galería) el juego no escucha.
+      if (isModalDialogOpen()) return;
       if (
         event.target instanceof HTMLInputElement ||
         event.target instanceof HTMLTextAreaElement ||

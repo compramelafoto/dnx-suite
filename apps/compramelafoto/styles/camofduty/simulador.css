@@ -1010,3 +1010,9 @@
 .cod-flash__add {
   width: 100%;
 }
+
+/* ── Recorrido guiado ── */
+
+.cod-sim .cod-help-modal__tour {
+  margin: 0 0 1rem;
+}

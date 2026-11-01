@@ -178,7 +178,7 @@ export default function FlashTab() {
       </label>
 
       <h3 className="cod-panel__subtitle">Flash sobre la cámara</h3>
-      <div className="cod-flash__card">
+      <div className="cod-flash__card" data-tour="cod-flash">
         <div className="cod-flash__row">
           <label className="cod-flash__toggle">
             <input type="checkbox" checked={state.onCamera.on} onChange={(e) => flashStore.setOnCamera({ on: e.target.checked })} /> Encendido
@@ -207,7 +207,9 @@ export default function FlashTab() {
       <p className="cod-natural-light-panel__hint">
         Consejo: pará a una persona (tecla T o el botón Hablarle), enfocála y poné los flashes alrededor, como en el estudio.
       </p>
-      <ThirdPersonSection />
+      <div className="cod-flash" data-tour="cod-vista-afuera">
+        <ThirdPersonSection />
+      </div>
     </div>
   );
 }

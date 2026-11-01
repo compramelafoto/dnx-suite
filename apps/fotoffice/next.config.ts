@@ -36,6 +36,7 @@ const nextConfig: NextConfig = {
   // webpack el motor nativo no llega al bundle y toda consulta falla en runtime.
   transpilePackages: [
     "@repo/quick-search",
+    "@repo/guided-tour",
     "@repo/auth",
     "@repo/auth-ui",
     // El blog de cada institución: el motor compartido y su editor (los mismos de CLF y Clickatón).

@@ -60,6 +60,8 @@ import { PliegoVista } from "./pliego-vista";
 import { TiraFotos } from "./tira-fotos";
 import { confirmarOriginalesEnServidor, subirFoto } from "./subir-fotos";
 import { detectarCarasDeUrl } from "./detectar-caras";
+import { GuidedTour, TourHelpButton } from "@repo/guided-tour";
+import { ACENTO_TOUR_FOTOLIBRO, TOUR_FOTOLIBRO, TOUR_FOTOLIBRO_ID } from "./tour";
 
 type Props = {
   templateId: string;
@@ -455,7 +457,8 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
   // ── Teclado ──
   useEffect(() => {
     const onKey = (ev: KeyboardEvent) => {
-      if (recortando || recortandoTapa || eligiendoEstilo || armando || viendoCliente || esEditable(ev.target)) return;
+      // `defaultPrevented`: la tecla ya la usó otro (por ejemplo, las flechas del recorrido guiado).
+      if (ev.defaultPrevented || recortando || recortandoTapa || eligiendoEstilo || armando || viendoCliente || esEditable(ev.target)) return;
       const tecla = ev.key.toLowerCase();
       if ((ev.metaKey || ev.ctrlKey) && (tecla === "y" || (tecla === "z" && ev.shiftKey))) {
         ev.preventDefault();
@@ -613,6 +616,7 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
   return (
     <div className="flex h-full flex-col bg-[#18191b] text-white">
       <GoogleFontsLoader />
+      <GuidedTour tour={TOUR_FOTOLIBRO} accentColor={ACENTO_TOUR_FOTOLIBRO} />
       {viendoCliente ? (
         <RevisionClienteVentana
           templateId={templateId}
@@ -669,6 +673,7 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
         <button
           type="button"
           onClick={() => setViendoCliente(true)}
+          data-tour="fotolibro-cliente"
           title="Mandarle el libro al cliente para que lo comente y lo apruebe"
           className="relative rounded border border-white/15 px-2.5 py-1 text-xs hover:bg-white/10"
         >
@@ -687,6 +692,7 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
         <button
           type="button"
           onClick={() => setVistaLibro((v) => !v)}
+          data-tour="fotolibro-ver-libro"
           title="Todos los pliegos de un vistazo, para ordenarlos (G)"
           className={`rounded border px-2.5 py-1 text-xs ${vistaLibro ? "border-[var(--fo-accent)] bg-white/10" : "border-white/15 hover:bg-white/10"}`}
         >
@@ -695,6 +701,7 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
         <button
           type="button"
           onClick={() => setArmando(true)}
+          data-tour="fotolibro-armado"
           disabled={!estado.fotos.length}
           title="Reparte las fotos en todo el libro, en orden y por momentos"
           className="rounded border border-white/15 px-2.5 py-1 text-xs hover:bg-white/10 disabled:opacity-40"
@@ -704,6 +711,7 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
         <button
           type="button"
           onClick={() => void salirA(libreHref)}
+          data-tour="fotolibro-libre"
           title="El editor de siempre: textos, formas y mover cosas a mano"
           className="rounded border border-white/15 px-2.5 py-1 text-xs hover:bg-white/10"
         >
@@ -720,6 +728,10 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
             irA(i);
           }}
           guardarAntes={async () => (ref.current.estado && guardado !== "al-dia" ? guardar() : true)}
+        />
+        <TourHelpButton
+          tourId={TOUR_FOTOLIBRO_ID}
+          className="inline-flex items-center gap-1 rounded border border-white/15 px-2.5 py-1 text-xs text-white/90 hover:bg-white/10 [&_svg]:h-3.5 [&_svg]:w-3.5"
         />
       </header>
 
@@ -816,10 +828,11 @@ export function ModoFotolibro({ templateId, versionId, salirHref, libreHref }: P
             />
             )}
           </div>
-          <div className="flex flex-none items-center justify-center gap-1 pb-2">
+          <div data-tour="fotolibro-navegacion" className="flex flex-none items-center justify-center gap-1 pb-2">
             <button
               type="button"
               onClick={() => irA(-1)}
+              data-tour="fotolibro-tapa"
               title="Tapa"
               className={`mr-1 h-2.5 rounded-sm text-[0] transition-all ${pliego < 0 ? "w-6 bg-[var(--fo-accent)]" : armadoTapa ? "w-3 bg-white/50" : "w-3 bg-white/15"}`}
             >

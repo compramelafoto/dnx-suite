@@ -54,14 +54,17 @@ export type AlbumConfigurationSectionProps = {
 function ConfigBlock({
   title,
   description,
+  tourId,
   children,
 }: {
   title: string;
   description?: string;
+  /** Marca para el recorrido guiado (`data-tour`). */
+  tourId?: string;
   children: React.ReactNode;
 }) {
   return (
-    <Card className="ds-fill-width w-full min-w-0 p-5 sm:p-6">
+    <Card className="ds-fill-width w-full min-w-0 p-5 sm:p-6" data-tour={tourId}>
       <div className="ds-stack-section w-full gap-4">
         <div className="ds-content-container w-full max-w-3xl space-y-1">
           <h3 className="text-base font-semibold text-[#1a1a1a] m-0">{title}</h3>
@@ -131,7 +134,7 @@ export default function AlbumConfigurationSection({
         </div>
       ) : null}
 
-      <ConfigBlock title="Datos del álbum" description="Información visible para vos y tus clientes.">
+      <ConfigBlock tourId="album-config-datos" title="Datos del álbum" description="Información visible para vos y tus clientes.">
         <div className="ds-form-stack w-full gap-4">
           <label className="block space-y-1.5">
             <span className="text-sm font-medium text-[#1a1a1a]">
@@ -173,6 +176,7 @@ export default function AlbumConfigurationSection({
       </ConfigBlock>
 
       <ConfigBlock
+        tourId="album-config-privacidad"
         title="Privacidad y acceso"
         description="Controlá quién puede encontrar y acceder al álbum."
       >
@@ -380,7 +384,7 @@ export default function AlbumConfigurationSection({
         </ul>
       </ConfigBlock>
 
-      <div className="flex flex-wrap items-center gap-3 pt-1">
+      <div className="flex flex-wrap items-center gap-3 pt-1" data-tour="album-config-guardar">
         <Button
           variant="primary"
           size="md"

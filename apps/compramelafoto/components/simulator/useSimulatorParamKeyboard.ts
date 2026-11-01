@@ -5,6 +5,7 @@ import { useCameraStore } from "@/lib/simulator/camera-store";
 import type { CameraMode } from "@/lib/simulator/camera-types";
 import { defaultCompare, stepOption } from "@/lib/simulator/param-step";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { isModalDialogOpen } from "@/lib/simulator/modal-open";
 
 export const SIM_PARAM_COUNT = 8;
 
@@ -122,6 +123,8 @@ export function useSimulatorParamKeyboard(options?: {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (isEditableTarget(event.target)) return;
+      // Con una ventana modal abierta (recorrido guiado, ayuda, galería) el juego no escucha.
+      if (isModalDialogOpen()) return;
 
       if (event.key === "?" || (event.shiftKey && event.code === "Slash")) {
         event.preventDefault();
