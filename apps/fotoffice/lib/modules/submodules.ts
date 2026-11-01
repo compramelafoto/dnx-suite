@@ -249,6 +249,14 @@ const SORTEOS: SubmoduleItem[] = [
     activeMatch: "rest",
   },
   {
+    href: "/sorteos/en-vivo",
+    label: "Sorteos en vivo",
+    icon: "QrCode",
+    description: "Sorteos de eventos y congresos: la gente se anota con un QR y se sortea en pantalla.",
+    requiresManage: false,
+    activeMatch: "under",
+  },
+  {
     href: "/sorteos/entregas",
     label: "Entregas",
     icon: "PackageCheck",

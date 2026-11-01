@@ -76,10 +76,12 @@ jobs:
       # tipos (PR #368) y se apagó allá (`typescript.ignoreBuildErrors` en su next.config.ts).
       # Sus pruebas incluyen archivos de test en el chequeo de tipos (`tsconfig` toma `**/*.ts`):
       # un error en un test frena el merge igual que uno en una pantalla.
+      # El 01/11/2026 (sorteos en vivo, cinco tablas nuevas) el chequeo pasó los 8 GB y murió por
+      # memoria dos veces seguidas. El runner tiene 16 GB: se le da más al único paso que lo necesita.
       - name: Chequear tipos de FOTOFFICE
         run: pnpm --filter fotoffice typecheck
         env:
-          NODE_OPTIONS: --max-old-space-size=8192
+          NODE_OPTIONS: --max-old-space-size=12288
 
       # FotoRank, lo mismo: el 09-10/10/2026 casi todos sus deploys de producción murieron
       # por memoria en el paso de tipos y se apagó allá (`typescript.ignoreBuildErrors`).
