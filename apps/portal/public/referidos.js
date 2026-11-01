@@ -43,7 +43,8 @@
     } catch (e) {
       return;
     }
-    if (url.hostname === location.hostname) return;
+    // Sólo los links a las herramientas: WhatsApp y otros sitios quedan como están.
+    if (url.hostname === location.hostname || url.hostname === "wa.me") return;
     url.searchParams.set(CLF.test(url.hostname) ? "ref" : CLAVE, codigo);
     a.href = url.toString();
   });

@@ -57,7 +57,7 @@ export const herramientas = [
       "Subí el álbum y compartí el link con tus clientes.",
       "Ellos eligen, pagan y reciben sus fotos.",
     ],
-    cuenta: "La cuenta de ComprameLaFoto también te sirve para entrar a ¿Cuánto Cobro?.",
+    cuenta: "La cuenta de ComprameLaFoto también te sirve para entrar a ¿Cuánto Cobro? y a Cam Of Duty.",
   },
   {
     slug: "cuanto-cobro",
@@ -300,6 +300,60 @@ export const herramientas = [
     ],
     cuenta: "Muestras Fotográficas tiene su propia cuenta. Para ver las muestras no hace falta registrarse.",
   },
+  {
+    slug: "camofduty",
+    para: "Para quien quiere aprender o practicar fotografía.",
+    altoLogo: 58,
+    nombre: "Cam Of Duty",
+    color: "#D7262E",
+    tinta: "#A3161D",
+    dominio: "compramelafoto.com/camofduty",
+    url: "https://compramelafoto.com/camofduty",
+    registro: { texto: "Entrar al simulador", url: "https://compramelafoto.com/camofduty/registro" },
+    secundario: { texto: "Ver el curso", url: "https://compramelafoto.com/camofduty/curso" },
+    frase: "Aprendé fotografía practicando con una cámara virtual.",
+    resumen:
+      "Un simulador fotográfico: manejás ISO, tiempo de exposición, diafragma y balance de blancos como en una cámara real, en un estudio 3D y en la calle, con modelos que posan y luz que cambia según la hora. Es gratis para fotógrafos.",
+    paraQuien: [
+      "Quien arranca y quiere entender la cámara en manual",
+      "Fotógrafos que quieren practicar iluminación de estudio",
+      "Docentes y alumnos de cursos de fotografía",
+    ],
+    funciones: [
+      {
+        titulo: "Practicar",
+        items: [
+          "Cámara manual: ISO, tiempo de exposición, diafragma y balance de blancos",
+          "Contraluces, interiores, exteriores, luz dura y luz suave",
+          "Fotografía de calle con luz que cambia según la hora",
+        ],
+      },
+      {
+        titulo: "Estudio fotográfico",
+        items: [
+          "Flashes, softbox y reflectores alrededor del modelo",
+          "Medición con fotómetro",
+          "Esquemas Rembrandt, mariposa, loop y más",
+        ],
+      },
+      {
+        titulo: "Aprender",
+        items: [
+          "Curso de veinte lecciones, de nivel inicial a avanzado",
+          "Tareas en el simulador que se corrigen solas",
+          "Medallas y certificado de cada nivel",
+          "Una pregunta de fotografía por día",
+        ],
+      },
+    ],
+    pasos: [
+      "Registrate gratis o ingresá con Google.",
+      "Entrá al simulador o al estudio fotográfico.",
+      "Seguí las lecciones del curso y hacé cada tarea.",
+      "Sumá medallas y descargá tu certificado.",
+    ],
+    cuenta: "Cam Of Duty usa la cuenta de ComprameLaFoto: si ya tenés una, entrás con ella.",
+  },
 ];
 
 // Herramientas de la suite que no son para el fotógrafo en su día a día,
@@ -329,5 +383,6 @@ export const necesidades = [
   ["Elegir y revelar fotos más rápido", "fotofluxx"],
   ["Organizar un concurso o participar", "fotorank"],
   ["Difundir una muestra o encontrar una", "muestras-fotograficas"],
+  ["Aprender a usar la cámara en manual", "camofduty"],
   ["Que los invitados suban fotos a la pantalla", "subilafoto"],
 ];

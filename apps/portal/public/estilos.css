@@ -143,7 +143,8 @@ main,
 
 .pie {
   border-top: 1px solid var(--linea);
-  padding-block: 40px 56px;
+  /* Abajo queda lugar para el globo de WhatsApp, que está fijo en la esquina. */
+  padding-block: 40px 96px;
   margin-top: 40px;
   color: var(--gris);
   font-size: 0.95rem;
@@ -240,9 +241,16 @@ main,
   list-style: none;
   padding: 0;
   margin: 0;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 28px 20px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  row-gap: 28px;
+}
+/* Cuatro por fila (y tres en celulares): con siete herramientas, la última fila queda centrada. */
+.iconos li {
+  flex: 0 0 25%;
+  min-width: 0;
+  padding-inline: 4px;
 }
 .iconos a {
   display: grid;
@@ -253,10 +261,12 @@ main,
   font-weight: 600;
   font-size: 0.95rem;
   line-height: 1.2;
+  overflow-wrap: anywhere;
 }
 .iconos img {
   width: 88px;
   height: 88px;
+  border-radius: 50%;
 }
 .iconos a:hover span {
   text-decoration: underline;
@@ -303,6 +313,11 @@ main,
 }
 .fila + .fila {
   margin-top: 12px;
+}
+
+.fila-logo img,
+.producto-logo {
+  border-radius: 8px;
 }
 
 .fila-logo img {
@@ -512,6 +527,32 @@ main,
 .vecinas img {
   width: 48px;
   height: 48px;
+  border-radius: 50%;
+  flex: none;
+}
+
+/* Globo de WhatsApp */
+
+.whatsapp {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 18px 12px 14px;
+  border-radius: 999px;
+  background: #1f8f4e;
+  color: var(--blanco);
+  font-weight: 600;
+  text-decoration: none;
+  box-shadow: 0 6px 20px rgba(23, 32, 51, 0.22);
+}
+.whatsapp:hover {
+  background: #1a7a43;
+}
+.whatsapp svg {
   flex: none;
 }
 
@@ -524,6 +565,9 @@ main,
   .iconos img {
     width: 64px;
     height: 64px;
+  }
+  .iconos li {
+    flex-basis: 33.333%;
   }
   .fila {
     grid-template-columns: 1fr;
@@ -545,6 +589,18 @@ main,
 }
 
 @media (max-width: 520px) {
+  .whatsapp {
+    right: 16px;
+    bottom: 16px;
+    padding: 12px;
+  }
+  .whatsapp span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+  }
   .cabecera {
     flex-wrap: wrap;
   }
