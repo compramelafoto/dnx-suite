@@ -42,7 +42,7 @@ const CSS = `
 .dnx-tour-fade { animation: dnxTourFade .25s ease both }
 .dnx-tour-spot { transition: top .38s cubic-bezier(.2,.8,.2,1), left .38s cubic-bezier(.2,.8,.2,1), width .38s cubic-bezier(.2,.8,.2,1), height .38s cubic-bezier(.2,.8,.2,1) }
 .dnx-tour-pos { transition: top .38s cubic-bezier(.2,.8,.2,1), left .38s cubic-bezier(.2,.8,.2,1) }
-.dnx-tour-btn { cursor: pointer; font: inherit; font-size: 14px; font-weight: 600; border-radius: 10px; padding: 9px 16px; border: 1px solid transparent; transition: filter .15s, background .15s }
+.dnx-tour-btn { cursor: pointer; font: inherit; font-size: 14px; white-space: nowrap; line-height: 1.2; font-weight: 600; border-radius: 10px; padding: 9px 16px; border: 1px solid transparent; transition: filter .15s, background .15s }
 .dnx-tour-btn:hover { filter: brightness(.95) }
 .dnx-tour-btn:focus-visible { outline: 2px solid var(--dnx-tour-accent); outline-offset: 2px }
 .dnx-tour-ghost { background: transparent; color: #475569; border-color: #e2e8f0 }
@@ -337,7 +337,8 @@ export function GuidedTour({ tour, accentColor = "#c2410c", autoOffer = true, of
           position: "fixed",
           right: 24,
           bottom: 24,
-          width: 360,
+          width: 380,
+          maxWidth: "calc(100vw - 48px)",
           zIndex: Z,
           background: "#fff",
           borderRadius: 18,
