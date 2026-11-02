@@ -34,6 +34,11 @@ export type Placa = {
   puntos?: Array<{ titulo: string; texto?: string }>;
   numerados?: boolean;
   visual?: VisualPlaca;
+  /**
+   * Captura real de la pantalla (en `public/demos/escolar/`), sacada de la demo escolar con datos
+   * de prueba. Si está, se muestra en lugar del dibujo.
+   */
+  captura?: string;
   /** Placa ancha, sin dibujo: los puntos ocupan todo el ancho. */
   ancha?: boolean;
 };
@@ -95,6 +100,7 @@ export const PLACAS: Placa[] = [
     etapa: "1 · Conseguir el colegio",
     titulo: "Tu página de venta escolar",
     bajada: "Una página propia para presentarte a los colegios, con tu marca, tus trabajos y un botón para pedir propuesta.",
+    captura: "/demos/escolar/landing.jpg",
     visual: "landing",
     puntos: [
       { titulo: "Dirección y QR propios", texto: "Para mandar por WhatsApp o imprimir." },
@@ -103,11 +109,19 @@ export const PLACAS: Placa[] = [
     ],
   },
 
+  {
+    etapa: "1 · Conseguir el colegio",
+    titulo: "Lo que ve el colegio",
+    bajada: "Tu página, tal como la ve la dirección: cómo funciona, la preventa y el botón para pedirte una propuesta.",
+    captura: "/demos/escolar/landing-publica.jpg",
+  },
+
   // 2 · Acordar con el colegio
   {
     etapa: "2 · Acordar con el colegio",
     titulo: "El alta del colegio",
     bajada: "La ficha del colegio reúne todo: datos de la institución, sus administradores, la gestión escolar y sus álbumes.",
+    captura: "/demos/escolar/colegio.jpg",
     visual: "ficha",
     puntos: [
       { titulo: "Datos y logo", texto: "Se usan solos en los diseños." },
@@ -119,6 +133,7 @@ export const PLACAS: Placa[] = [
     etapa: "2 · Acordar con el colegio",
     titulo: "El listado de alumnos",
     bajada: "Importás el padrón del colegio una vez y queda armado por curso. Los nombres salen de la lista oficial, no se escriben a mano.",
+    captura: "/demos/escolar/mosaico-listado.jpg",
     visual: "listado",
     puntos: [
       { titulo: "Desde Excel", texto: "Pegás o subís la planilla del colegio." },
@@ -142,6 +157,7 @@ export const PLACAS: Placa[] = [
     etapa: "2 · Acordar con el colegio",
     titulo: "La comisión del colegio",
     bajada: "El colegio gana un porcentaje de cada venta, acordado una sola vez entre vos y la institución.",
+    captura: "/demos/escolar/comision.jpg",
     visual: "comision",
     puntos: [
       { titulo: "Lo acordás una vez", texto: "El porcentaje que quieras." },
@@ -153,6 +169,7 @@ export const PLACAS: Placa[] = [
     etapa: "2 · Acordar con el colegio",
     titulo: "El panel del colegio",
     bajada: "La dirección entra con su usuario y ve, en tiempo real, cómo va la venta de su colegio y cuánto le corresponde.",
+    captura: "/demos/escolar/panel-colegio.jpg",
     visual: "panelEscuela",
     puntos: [
       { titulo: "Ventas por curso", texto: "Cuántas familias ya compraron." },
@@ -166,6 +183,7 @@ export const PLACAS: Placa[] = [
     etapa: "3 · Preparar la venta",
     titulo: "Los packs de preventa",
     bajada: "Primero definís qué vendés: qué incluye cada pack y cuánto cuesta. La familia compra antes de la sesión.",
+    captura: "/demos/escolar/packs.jpg",
     visual: "packs",
     puntos: [
       { titulo: "Librito + digitales", texto: "Impreso, con el nombre del chico." },
@@ -177,6 +195,7 @@ export const PLACAS: Placa[] = [
     etapa: "3 · Preparar la venta",
     titulo: "La página de plantillas",
     bajada: "Un catálogo de diseños listos para usar: arriba tus plantillas, abajo las del sistema, con filtros para encontrar la indicada.",
+    captura: "/demos/escolar/plantillas-filtros.jpg",
     visual: "plantillas",
     puntos: [
       { titulo: "Nueve tipos de producto", texto: "Librito, diploma, calendario, anuario, figuritas, señalador, portarretrato, tarjeta y póster del curso." },
@@ -188,6 +207,7 @@ export const PLACAS: Placa[] = [
     etapa: "3 · Preparar la venta",
     titulo: "El diseñador",
     bajada: "Un editor en el navegador para crear o retocar cualquier plantilla: páginas, fotos, textos, fondos y logos, en medidas reales de imprenta.",
+    captura: "/demos/escolar/disenador.jpg",
     visual: "disenador",
     puntos: [
       { titulo: "Bloques", texto: "Foto, texto, imagen, fondo, mosaico y listado." },
@@ -200,6 +220,7 @@ export const PLACAS: Placa[] = [
     etapa: "3 · Preparar la venta",
     titulo: "Se completa solo, para cada chico",
     bajada: "Los textos y las fotos del diseño son variables: el sistema los llena con los datos de cada alumno. Diseñás una vez, sale para todo el colegio.",
+    captura: "/demos/escolar/probar.jpg",
     visual: "variables",
     puntos: [
       { titulo: "Nombre y curso", texto: "Del listado oficial." },
@@ -211,6 +232,7 @@ export const PLACAS: Placa[] = [
     etapa: "3 · Preparar la venta",
     titulo: "Probar la plantilla antes de vender",
     bajada: "Elegís fotos de prueba y un curso, y ves el librito armado tal como va a salir. Sin sorpresas en la imprenta.",
+    captura: "/demos/escolar/plantillas.jpg",
     visual: "probar",
     puntos: [
       { titulo: "Con fotos de prueba", texto: "De cualquier álbum." },
@@ -224,6 +246,7 @@ export const PLACAS: Placa[] = [
     etapa: "4 · Preventa",
     titulo: "La familia compra en preventa",
     bajada: "El colegio comparte un link y cada familia elige su pack y paga con Mercado Pago, antes de la sesión.",
+    captura: "/demos/escolar/familia-pasos.jpg",
     visual: "preventa",
     puntos: [
       { titulo: "Directo a tu cuenta", texto: "El dinero entra por Mercado Pago." },
@@ -237,6 +260,7 @@ export const PLACAS: Placa[] = [
     etapa: "5 · Día de la toma",
     titulo: "Subís todas las fotos juntas",
     bajada: "El día de la toma no separás nada: subís la carpeta completa y el sistema reconoce quién está en cada foto.",
+    captura: "/demos/escolar/subida.jpg",
     visual: "subida",
     puntos: [
       { titulo: "Una carpeta por jornada", texto: "Todas las fotos de una vez." },
@@ -250,6 +274,7 @@ export const PLACAS: Placa[] = [
     etapa: "6 · La familia elige",
     titulo: "Galería privada y búsqueda por selfie",
     bajada: "La galería del colegio está cerrada. Cada familia se saca una selfie y ve solo las fotos de su hijo y las grupales.",
+    captura: "/demos/escolar/selfie.jpg",
     visual: "selfie",
     puntos: [
       { titulo: "Galería oculta", texto: "Nadie recorre el álbum completo." },
@@ -261,6 +286,7 @@ export const PLACAS: Placa[] = [
     etapa: "6 · La familia elige",
     titulo: "Elige las fotos de su pack",
     bajada: "Desde el celular, la familia marca las fotos que entran en su pack. El contador le avisa cuántas le faltan.",
+    captura: "/demos/escolar/galeria.jpg",
     visual: "elegir",
     puntos: [
       { titulo: "Desde el celular", texto: "Sin instalar nada." },
@@ -272,6 +298,7 @@ export const PLACAS: Placa[] = [
     etapa: "6 · La familia elige",
     titulo: "El librito en 3D",
     bajada: "Antes de confirmar, la familia ve su librito ya armado, en 3D: lo da vuelta, lo abre y recorre página por página.",
+    captura: "/demos/escolar/librito-3d-tapa.jpg",
     visual: "libro3d",
     puntos: [
       { titulo: "Ya armado", texto: "Con sus fotos, el nombre y el curso." },
@@ -294,6 +321,7 @@ export const PLACAS: Placa[] = [
     etapa: "6 · La familia elige",
     titulo: "El mosaico de compañeros",
     bajada: "La hoja de adentro del librito con todo el grado: cada chico con su foto y su nombre. Ningún chico queda afuera.",
+    captura: "/demos/escolar/librito-3d-mosaico.jpg",
     visual: "mosaico",
     puntos: [
       { titulo: "Nombres del padrón", texto: "La lista oficial del colegio." },
@@ -308,6 +336,7 @@ export const PLACAS: Placa[] = [
     etapa: "7 · Producción y entrega",
     titulo: "La línea de producción",
     bajada: "Cada pedido avanza por siete etapas, y ves de un vistazo en qué está cada uno.",
+    captura: "/demos/escolar/pedidos.jpg",
     visual: "embudo",
     numerados: true,
     puntos: [
@@ -358,6 +387,7 @@ export const PLACAS: Placa[] = [
     etapa: "7 · Producción y entrega",
     titulo: "La pantalla de pedidos",
     bajada: "Una pantalla para el taller: las siete etapas y las tarjetas de cada pedido, para seguir la producción en una tele o un monitor.",
+    captura: "/demos/escolar/pantalla.jpg",
     visual: "pantalla",
     puntos: [
       { titulo: "Para el equipo", texto: "Todos ven en qué está cada pedido." },
@@ -369,6 +399,7 @@ export const PLACAS: Placa[] = [
     etapa: "Cierre",
     titulo: "El colegio ve su venta",
     bajada: "Al terminar, la dirección ve en su panel la venta completa y la comisión que le corresponde, sin pedir planillas.",
+    captura: "/demos/escolar/venta-colegio.jpg",
     visual: "ventaColegio",
   },
   {
