@@ -9,6 +9,8 @@ import { BotonControlRemoto } from "@/components/control-remoto/BotonControlRemo
 import { PLACAS as PLACAS_COMPLETA, type Placa } from "./placas";
 import { PLACAS_RESUMIDA } from "./placas-resumida";
 import { VisualDePlaca } from "./Visuales";
+import { AppsDnx } from "./AppsDnx";
+import Librito3DEnVivo from "./Librito3DEnVivo";
 
 export type VersionPresentacion = "completa" | "resumida";
 
@@ -76,17 +78,22 @@ function Puntos({ placa }: { placa: Placa }) {
  * Presentación de la foto escolar, una placa por funcionalidad. Se maneja con las flechas, la
  * barra espaciadora o un control de diapositivas (Avance/Retroceso de página); «F» la pone en
  * pantalla completa e «I» abre el índice. El número de placa queda en la dirección (#5).
- * «Control remoto» muestra un QR para manejarla desde el celular.
+ * «Control remoto» muestra un QR para manejarla desde el celular. En la placa del librito en 3D,
+ * «Siguiente» primero pasa sus páginas.
  */
 export default function PresentacionEscolar({ version = "completa" }: { version?: VersionPresentacion }) {
   const PLACAS = version === "resumida" ? PLACAS_RESUMIDA : PLACAS_COMPLETA;
   const ETAPAS = etapasDe(PLACAS);
   const [actual, setActual] = useState(0);
   const [indice, setIndice] = useState(false);
+  /** Cara del librito en 3D que se ve, en la placa que lo muestra. */
+  const [subpaso, setSubpaso] = useState(0);
+  const [pasosLibro, setPasosLibro] = useState<string[]>([]);
 
   const ir = useCallback((n: number) => {
     const destino = Math.max(0, Math.min(PLACAS.length - 1, n));
     setActual(destino);
+    setSubpaso(0);
     window.history.replaceState(null, "", `#${destino + 1}`);
   }, [PLACAS.length]);
 
@@ -94,15 +101,27 @@ export default function PresentacionEscolar({ version = "completa" }: { version?
     setActual(leerHash(PLACAS.length));
   }, [PLACAS.length]);
 
+  const totalSub = PLACAS[actual].libro3d ? pasosLibro.length : 0;
+  const avanzar = useCallback(() => {
+    if (subpaso < totalSub - 1) setSubpaso(subpaso + 1);
+    else ir(actual + 1);
+  }, [subpaso, totalSub, ir, actual]);
+  const retroceder = useCallback(() => {
+    if (totalSub && subpaso > 0) setSubpaso(subpaso - 1);
+    else ir(actual - 1);
+  }, [subpaso, totalSub, ir, actual]);
+  const haySiguiente = actual < PLACAS.length - 1 || subpaso < totalSub - 1;
+  const hayAnterior = actual > 0 || subpaso > 0;
+
   useEffect(() => {
     function alTeclear(e: KeyboardEvent) {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       if (["ArrowRight", "PageDown", " ", "Enter"].includes(e.key)) {
         e.preventDefault();
-        ir(actual + 1);
+        avanzar();
       } else if (["ArrowLeft", "PageUp", "Backspace"].includes(e.key)) {
         e.preventDefault();
-        ir(actual - 1);
+        retroceder();
       } else if (e.key === "Home") {
         ir(0);
       } else if (e.key === "End") {
@@ -118,15 +137,15 @@ export default function PresentacionEscolar({ version = "completa" }: { version?
     }
     window.addEventListener("keydown", alTeclear);
     return () => window.removeEventListener("keydown", alTeclear);
-  }, [actual, ir, PLACAS.length]);
+  }, [avanzar, retroceder, ir, PLACAS.length]);
 
   const estadoRemoto = useMemo<EstadoPantalla>(
     () => ({
-      titulo: version === "resumida" ? "Foto escolar en 8 placas" : "Foto escolar paso a paso",
+      titulo: version === "resumida" ? "Foto escolar, versión corta" : "Foto escolar paso a paso",
       posicion: { actual: actual + 1, total: PLACAS.length, nombre: "Placa" },
-      detalle: PLACAS[actual].titulo,
+      detalle: totalSub ? `${PLACAS[actual].titulo} · ${pasosLibro[subpaso] ?? ""}` : PLACAS[actual].titulo,
       nota: PLACAS[actual].bajada,
-      navegacion: { anterior: actual > 0, siguiente: actual < PLACAS.length - 1 },
+      navegacion: { anterior: hayAnterior, siguiente: haySiguiente },
       botones: actual > 0 ? [{ id: "portada", etiqueta: "Volver a la portada" }] : [],
       lista: {
         titulo: "Todas las placas",
@@ -134,16 +153,16 @@ export default function PresentacionEscolar({ version = "completa" }: { version?
         items: PLACAS.map((p, i) => ({ id: String(i), etiqueta: p.titulo, grupo: p.etapa })),
       },
     }),
-    [actual, PLACAS, version],
+    [actual, PLACAS, version, totalSub, pasosLibro, subpaso, hayAnterior, haySiguiente],
   );
   const alComando = useCallback(
     (c: Comando) => {
-      if (c.tipo === "siguiente") ir(actual + 1);
-      else if (c.tipo === "anterior") ir(actual - 1);
+      if (c.tipo === "siguiente") avanzar();
+      else if (c.tipo === "anterior") retroceder();
       else if (c.tipo === "ir") ir(Number(c.id));
       else if (c.tipo === "boton" && c.id === "portada") ir(0);
     },
-    [actual, ir],
+    [avanzar, retroceder, ir],
   );
   const remoto = usePantallaRemota({
     clave: `control-remoto:presentacion-escolar:${version}`,
@@ -155,6 +174,7 @@ export default function PresentacionEscolar({ version = "completa" }: { version?
   const placa = PLACAS[actual];
   const etapa = partirEtapa(placa.etapa);
   const conVisual = Boolean(placa.visual || placa.captura) && !placa.ancha;
+  const pasosVisibles = placa.libro3d ? pasosLibro : [];
 
   return (
     <div className="fixed inset-0 z-[10000] flex flex-col bg-gradient-to-br from-slate-900 via-slate-900 to-[#3a2614] p-[clamp(0.5rem,2vw,1.5rem)]">
@@ -200,6 +220,29 @@ export default function PresentacionEscolar({ version = "completa" }: { version?
             </ol>
           ) : null}
 
+          {placa.libro3d ? (
+            <div className="mt-[clamp(0.75rem,2vh,1.25rem)] flex min-h-0 flex-1 flex-col">
+              <div className="flex flex-wrap items-end justify-between gap-3">
+                <div className="min-w-0">
+                  <h1 className="text-[clamp(1.5rem,min(3vw,4.5vh),2.5rem)] font-extrabold leading-tight tracking-tight text-slate-900">{placa.titulo}</h1>
+                  <p className="mt-1 text-[clamp(0.95rem,min(1.3vw,2vh),1.2rem)] text-slate-600">{placa.bajada}</p>
+                </div>
+                <ol className="flex flex-wrap gap-2" aria-label="Páginas del librito">
+                  {pasosVisibles.map((p, i) => (
+                    <li
+                      key={p}
+                      className={`rounded-full px-4 py-1.5 text-sm font-semibold ${i === subpaso ? "bg-[#c27b3d] text-white" : "bg-slate-100 text-slate-500"}`}
+                    >
+                      {p}
+                    </li>
+                  ))}
+                </ol>
+              </div>
+              <div className="relative mt-3 min-h-[320px] flex-1 overflow-hidden rounded-3xl bg-gradient-to-br from-[#fbf6f1] to-[#f3e6d8]">
+                <Librito3DEnVivo templateId={placa.libro3d} paso={subpaso} onPasos={setPasosLibro} />
+              </div>
+            </div>
+          ) : (
           <div
             className={`mt-[clamp(1rem,3vh,2rem)] flex flex-1 flex-col gap-[clamp(1rem,3vw,3rem)] ${conVisual ? "lg:flex-row lg:items-center" : "justify-center"}`}
           >
@@ -213,6 +256,7 @@ export default function PresentacionEscolar({ version = "completa" }: { version?
               </h1>
               <p className="mt-3 max-w-3xl text-[clamp(1.05rem,min(1.6vw,2.5vh),1.45rem)] leading-snug text-slate-600">{placa.bajada}</p>
               <Puntos placa={placa} />
+              {placa.apps ? <AppsDnx /> : null}
             </div>
             {conVisual && placa.captura ? (
               <div className="flex min-w-0 flex-1 items-center justify-center">
@@ -226,6 +270,7 @@ export default function PresentacionEscolar({ version = "completa" }: { version?
               </div>
             ) : null}
           </div>
+          )}
         </div>
       </div>
 
@@ -258,8 +303,8 @@ export default function PresentacionEscolar({ version = "completa" }: { version?
           </span>
           <button
             type="button"
-            onClick={() => ir(actual - 1)}
-            disabled={actual === 0}
+            onClick={retroceder}
+            disabled={!hayAnterior}
             className="rounded-full border border-white/20 px-4 py-1.5 hover:bg-white/10 disabled:opacity-30"
             aria-label="Placa anterior"
           >
@@ -267,8 +312,8 @@ export default function PresentacionEscolar({ version = "completa" }: { version?
           </button>
           <button
             type="button"
-            onClick={() => ir(actual + 1)}
-            disabled={actual === PLACAS.length - 1}
+            onClick={avanzar}
+            disabled={!haySiguiente}
             className="rounded-full bg-[#c27b3d] px-5 py-1.5 font-semibold text-white hover:bg-[#a0652d] disabled:opacity-30"
           >
             Seguir →

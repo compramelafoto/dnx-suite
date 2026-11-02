@@ -29,6 +29,13 @@ export type Librito3DVisorProps = {
   acciones?: React.ReactNode;
   /** Texto bajo el título. Sin valor, cómo se maneja el visor. */
   subtitulo?: string;
+  /**
+   * Dentro de otra pantalla (la presentación de las demos): ocupa su lugar en vez de abrirse
+   * encima, sin título, botones ni teclado propios. Lo maneja `pasoExterno`.
+   */
+  incrustado?: boolean;
+  /** Qué cara mostrar, manejada desde afuera (ver `pasosDelLibrito`). */
+  pasoExterno?: number;
 };
 
 type Estado =
@@ -55,6 +62,8 @@ export default function Librito3DVisor({
   onClose,
   acciones,
   subtitulo,
+  incrustado = false,
+  pasoExterno,
 }: Librito3DVisorProps) {
   const canvasW = Number(canvas.width) || 1;
   const canvasH = Number(canvas.height) || 1;
@@ -72,6 +81,17 @@ export default function Librito3DVisor({
   const [volteada, setVolteada] = useState(false);
   const [giro, setGiro] = useState(giroInicial);
   const [webgl] = useState(hayWebGL);
+
+  useEffect(() => {
+    if (pasoExterno == null) return;
+    if (modelo.tipo === "plegado") {
+      setPaso(Math.max(0, Math.min(2, pasoExterno)));
+      return;
+    }
+    const p = Math.max(0, Math.min(modelo.hojas.length * 2 - 1, pasoExterno));
+    setHoja(Math.floor(p / 2));
+    setVolteada(p % 2 === 1);
+  }, [pasoExterno, modelo]);
 
   /*
    * Cada cara puede estar diseñada con otra orientación (en San Patricio la contratapa lleva el
@@ -140,6 +160,7 @@ export default function Librito3DVisor({
     };
   });
   useEffect(() => {
+    if (incrustado) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.preventDefault();
@@ -156,6 +177,7 @@ export default function Librito3DVisor({
       window.removeEventListener("keydown", onKey);
       document.body.style.overflow = overflow;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Dibuja las páginas una vez montadas fuera de la pantalla.
@@ -207,6 +229,77 @@ export default function Librito3DVisor({
   const esPlegado = modelo.tipo === "plegado";
   const hojas = modelo.tipo === "hojas" ? modelo.hojas.length : 1;
 
+  const escena = (
+    <>
+      {!webgl ? (
+        <div className="grid h-full place-items-center px-6 text-center text-[15px] text-[#4b4f56]">
+          Este navegador no puede mostrar el 3D. Podés ver todas las páginas en la vista plana.
+        </div>
+      ) : estado.tipo === "cargando" ? (
+        <div className="grid h-full place-items-center" role="status" aria-live="polite">
+          <div className="flex flex-col items-center gap-3 text-[14px] text-[#6b6f76]">
+            <span className="h-8 w-8 animate-spin rounded-full border-[3px] border-[#e7e1da] border-t-[#c27b3d]" aria-hidden />
+            Armando tu librito…
+          </div>
+        </div>
+      ) : (
+        <LibritoEscena
+          modelo={modelo}
+          paginas={estado.paginas}
+          abierto={abierto}
+          deEspaldas={paso === 2}
+          hoja={hoja}
+          volteada={volteada}
+          giro={giro}
+        />
+      )}
+      {estado.tipo === "listo" && estado.aviso ? (
+        <p className="absolute inset-x-3 top-1 m-0 rounded-lg bg-[#fff6e5] px-3 py-2 text-[13px] text-[#7a5418] shadow-sm">
+          {estado.aviso}
+        </p>
+      ) : null}
+    </>
+  );
+  const paginasOcultas = (
+    <div aria-hidden style={{ position: "fixed", left: -100000, top: 0, pointerEvents: "none" }}>
+      {Array.from({ length: paginasTotales }, (_, i) => (
+        <div
+          key={i}
+          ref={(el) => {
+            paginasRef.current[i] = el;
+          }}
+          style={{
+            ...editorThemeStyle(),
+            ...PAPER_TOKENS,
+            position: "relative",
+            width: canvasW,
+            height: canvasH,
+            overflow: "hidden",
+            background: "#ffffff",
+          }}
+        >
+          <TemplateCanvasRenderer
+            canvas={canvas}
+            blocks={blocks}
+            resolvedVariables={values}
+            readOnly
+            pageIndex={i}
+            photoOverrides={photoOverrides}
+          />
+        </div>
+      ))}
+    </div>
+  );
+
+  if (incrustado) {
+    return (
+      <div className="relative h-full w-full" aria-label={`${titulo} en 3D`}>
+        {escena}
+        {paginasOcultas}
+      </div>
+    );
+  }
+
   return (
     <div
       role="dialog"
@@ -239,33 +332,7 @@ export default function Librito3DVisor({
         </div>
 
         <div className="relative min-h-0 flex-1">
-          {!webgl ? (
-            <div className="grid h-full place-items-center px-6 text-center text-[15px] text-[#4b4f56]">
-              Este navegador no puede mostrar el 3D. Podés ver todas las páginas en la vista plana.
-            </div>
-          ) : estado.tipo === "cargando" ? (
-            <div className="grid h-full place-items-center" role="status" aria-live="polite">
-              <div className="flex flex-col items-center gap-3 text-[14px] text-[#6b6f76]">
-                <span className="h-8 w-8 animate-spin rounded-full border-[3px] border-[#e7e1da] border-t-[#c27b3d]" aria-hidden />
-                Armando tu librito…
-              </div>
-            </div>
-          ) : (
-            <LibritoEscena
-              modelo={modelo}
-              paginas={estado.paginas}
-              abierto={abierto}
-              deEspaldas={paso === 2}
-              hoja={hoja}
-              volteada={volteada}
-              giro={giro}
-            />
-          )}
-          {estado.tipo === "listo" && estado.aviso ? (
-            <p className="absolute inset-x-3 top-1 m-0 rounded-lg bg-[#fff6e5] px-3 py-2 text-[13px] text-[#7a5418] shadow-sm">
-              {estado.aviso}
-            </p>
-          ) : null}
+          {escena}
         </div>
 
         <div className="flex flex-wrap items-center justify-center gap-2 px-4 pb-[calc(14px+env(safe-area-inset-bottom,0px))] pt-2">
@@ -359,34 +426,7 @@ export default function Librito3DVisor({
       </div>
 
       {/* Las páginas a tamaño real, fuera de la pantalla: de acá salen las texturas. */}
-      <div aria-hidden style={{ position: "fixed", left: -100000, top: 0, pointerEvents: "none" }}>
-        {Array.from({ length: paginasTotales }, (_, i) => (
-          <div
-            key={i}
-            ref={(el) => {
-              paginasRef.current[i] = el;
-            }}
-            style={{
-              ...editorThemeStyle(),
-              ...PAPER_TOKENS,
-              position: "relative",
-              width: canvasW,
-              height: canvasH,
-              overflow: "hidden",
-              background: "#ffffff",
-            }}
-          >
-            <TemplateCanvasRenderer
-              canvas={canvas}
-              blocks={blocks}
-              resolvedVariables={values}
-              readOnly
-              pageIndex={i}
-              photoOverrides={photoOverrides}
-            />
-          </div>
-        ))}
-      </div>
+      {paginasOcultas}
     </div>
   );
 }

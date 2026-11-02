@@ -209,19 +209,19 @@ function Libro3D() {
   );
 }
 
+/** Portada: el logo de ComprameLaFoto y una galería real con la búsqueda por selfie. */
 function Portada() {
   return (
-    <div className="relative flex h-[360px] items-center justify-center">
-      <div className="absolute left-4 top-6 w-40 -rotate-6 rounded-xl bg-white p-2 shadow-xl">
-        <Foto tono={1} className="aspect-[4/3] rounded-md" />
-        <Barra w="60%" alto="h-1.5" tono="bg-slate-300 mt-2" />
-      </div>
-      <div className="absolute bottom-6 right-4 w-44 rotate-6 rounded-xl bg-white p-2 shadow-xl">
-        <Foto tono={2} className="aspect-[4/3] rounded-md" />
-        <Barra w="45%" alto="h-1.5" tono="bg-slate-300 mt-2" />
-      </div>
-      <div className="relative z-10 flex h-56 w-56 items-center justify-center rounded-full bg-white shadow-2xl">
-        <Image src="/demos/isotipo-clf.png" alt="" width={290} height={290} className="h-36 w-36" />
+    <div className="flex flex-col items-center gap-5">
+      <Image src="/LOGO CLF.png" alt="ComprameLaFoto" width={1200} height={350} className="h-auto w-full max-w-[440px]" priority />
+      <div className="w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">
+        <Image
+          src="/demos/escolar/galeria.jpg"
+          alt="Un álbum de ComprameLaFoto con la búsqueda por selfie"
+          width={800}
+          height={500}
+          className="block h-auto w-full"
+        />
       </div>
     </div>
   );

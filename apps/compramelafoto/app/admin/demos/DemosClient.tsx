@@ -118,10 +118,10 @@ export default function DemosClient({ preparada, albumSlug }: { preparada: boole
         </div>
         <div className="flex flex-wrap gap-3">
           <Button variant="primary" onClick={() => (window.location.href = "/admin/demos/presentacion-escolar-resumida")}>
-            Versión corta (8 placas)
+            Versión corta (10 placas)
           </Button>
           <Button variant="outline" onClick={() => (window.location.href = "/admin/demos/presentacion-escolar")}>
-            Versión completa (30 placas)
+            Versión completa (32 placas)
           </Button>
         </div>
       </Card>

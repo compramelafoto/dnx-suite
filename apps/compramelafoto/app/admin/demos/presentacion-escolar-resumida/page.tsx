@@ -7,7 +7,7 @@ import PresentacionEscolar from "@/components/demos/presentacion-escolar/Present
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Foto escolar en 8 placas",
+  title: "Foto escolar, versión corta",
   robots: { index: false, follow: false },
 };
 
