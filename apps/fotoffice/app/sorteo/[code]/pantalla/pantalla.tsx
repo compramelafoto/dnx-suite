@@ -2,6 +2,9 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import type { BotonRemoto, Comando, EstadoPantalla } from "@/lib/control-remoto/protocolo";
+import { usePantallaRemota } from "@/components/control-remoto/usePantallaRemota";
+import { BotonControlRemoto } from "@/components/control-remoto/BotonControlRemoto";
 import { drawLiveRafflePrizeAction, resetLiveRaffleResultsAction } from "../actions";
 import { LogosBanner, type LogoBanner } from "../logos-banner";
 
@@ -145,9 +148,10 @@ export function Pantalla(props: {
     }, 800);
   }
 
-  async function resetear() {
+  /** `confirmado`: la pregunta ya se hizo en el celular del control remoto. */
+  async function resetear(confirmado = false) {
     if (girandoRef.current) return;
-    if (!window.confirm("¿Borrar todos los resultados y empezar el sorteo de cero? Los inscriptos y las encuestas no se tocan.")) return;
+    if (!confirmado && !window.confirm("¿Borrar todos los resultados y empezar el sorteo de cero? Los inscriptos y las encuestas no se tocan.")) return;
     setError(null);
     const r = await resetLiveRaffleResultsAction({ code: props.code, token: props.token }).catch(() => ({
       ok: false as const,
@@ -165,6 +169,113 @@ export function Pantalla(props: {
 
   const enPantalla = girando ? nombreGiro : resultado ? (nombre.get(resultado.entrantId) ?? "—") : null;
   const puedeSortearNuevo = conListado ? !!premio && !resultado : true;
+  const haySiguientePremio = conListado && props.prizes.some((p) => !ganadorDePremio.has(p.id) && p.id !== prizeId);
+
+  // Control remoto: el celular ve lo mismo que esta pantalla y toca los mismos botones.
+  const indicePremio = premio ? props.prizes.indexOf(premio) : -1;
+  const indicePoll = poll ? props.polls.indexOf(poll) : -1;
+  const botonesSorteo: BotonRemoto[] = [
+    ...(puedeSortearNuevo
+      ? [{ id: "sortear", etiqueta: girando ? "Sorteando…" : "🎰 Sortear", tono: "principal" as const, deshabilitado: girando || props.entrants.length === 0 }]
+      : haySiguientePremio
+        ? [{ id: "siguiente-premio", etiqueta: "Siguiente premio", tono: "principal" as const, deshabilitado: girando }]
+        : []),
+    ...(resultado && !girando ? [{ id: "resortear", etiqueta: "No está, volver a sortear" }] : []),
+    ...(logoGrande && !girando ? [{ id: "sacar-logo", etiqueta: "Sacar el logo de la pantalla" }] : []),
+    { id: "vista-encuestas", etiqueta: "Mostrar encuestas", deshabilitado: girando },
+    ...(props.results.length > 0
+      ? [
+          {
+            id: "resetear",
+            etiqueta: "Resetear resultados",
+            tono: "peligro" as const,
+            deshabilitado: girando,
+            confirmar: "¿Borrar todos los resultados y empezar el sorteo de cero? Los inscriptos y las encuestas no se tocan.",
+          },
+        ]
+      : []),
+  ];
+  const sponsorsElegibles = props.logos.filter((l) => l.sponsorId);
+  const estadoRemoto: EstadoPantalla =
+    vista === "sorteo"
+      ? {
+          titulo: props.title,
+          posicion: conListado && premio ? { actual: indicePremio + 1, total: props.prizes.length, nombre: "Premio" } : undefined,
+          detalle: premio?.title ?? logoGrande?.title ?? `Sorteo ${Math.max(props.results.length + (girando ? 1 : 0), 1)}`,
+          aviso: girando ? "Sorteando…" : error ? error : resultado ? `Salió: ${nombre.get(resultado.entrantId) ?? "—"}` : undefined,
+          nota: `${props.entrants.length} participantes`,
+          navegacion: conListado ? { anterior: indicePremio > 0 && !girando, siguiente: indicePremio < props.prizes.length - 1 && !girando } : undefined,
+          botones: botonesSorteo,
+          lista: conListado
+            ? {
+                titulo: "Elegir premio",
+                actual: premio ? `premio:${premio.id}` : null,
+                items: props.prizes.map((p) => {
+                  const g = ganadorDePremio.get(p.id);
+                  return { id: `premio:${p.id}`, etiqueta: p.title, nota: g ? `Ganó ${nombre.get(g.entrantId) ?? "—"}` : "Sin sortear" };
+                }),
+              }
+            : sponsorsElegibles.length
+              ? {
+                  titulo: "Elegir el sponsor del próximo premio",
+                  actual: destacado ? `sponsor:${destacado.sponsorId}` : null,
+                  items: sponsorsElegibles.map((l) => ({ id: `sponsor:${l.sponsorId}`, etiqueta: l.name ?? "Sponsor" })),
+                }
+              : undefined,
+        }
+      : {
+          titulo: props.title,
+          posicion: poll ? { actual: indicePoll + 1, total: props.polls.length, nombre: "Pregunta" } : undefined,
+          detalle: poll?.question ?? "No hay encuestas cargadas.",
+          nota: poll ? `${poll.kind === "TEXTO" ? poll.answers.length : poll.totals.reduce((a, b) => a + b, 0)} respuestas · ${poll.isOpen ? "abierta" : "cerrada"}` : undefined,
+          navegacion: props.polls.length > 1 ? { anterior: indicePoll > 0, siguiente: indicePoll < props.polls.length - 1 } : undefined,
+          botones: [{ id: "vista-sorteo", etiqueta: "Volver al sorteo", tono: "principal" }],
+          lista: props.polls.length
+            ? {
+                titulo: "Elegir pregunta",
+                actual: poll ? `encuesta:${poll.id}` : null,
+                items: props.polls.map((p, i) => ({ id: `encuesta:${p.id}`, etiqueta: `${i + 1}. ${p.question}` })),
+              }
+            : undefined,
+        };
+
+  function alComando(c: Comando) {
+    if (c.tipo === "anterior" || c.tipo === "siguiente") {
+      const paso = c.tipo === "siguiente" ? 1 : -1;
+      if (vista === "encuestas") {
+        const p = props.polls[indicePoll + paso];
+        if (p) setPollId(p.id);
+      } else if (conListado && !girandoRef.current) {
+        const p = props.prizes[indicePremio + paso];
+        if (p) setPrizeId(p.id);
+      }
+      return;
+    }
+    if (c.tipo === "ir") {
+      const [tipo, id] = [c.id.slice(0, c.id.indexOf(":")), c.id.slice(c.id.indexOf(":") + 1)];
+      if (tipo === "premio" && !girandoRef.current && props.prizes.some((p) => p.id === id)) setPrizeId(id);
+      else if (tipo === "encuesta" && props.polls.some((p) => p.id === id)) setPollId(id);
+      else if (tipo === "sponsor" && !girandoRef.current) {
+        const logo = sponsorsElegibles.find((l) => l.sponsorId === id);
+        if (logo?.sponsorId) setDestacado({ sponsorId: logo.sponsorId, url: logo.url, name: logo.name, title: "" });
+      }
+      return;
+    }
+    if (c.id === "sortear" && puedeSortearNuevo && props.entrants.length > 0) void sortear();
+    else if (c.id === "resortear" && resultado) void sortear(resultado.round);
+    else if (c.id === "siguiente-premio") siguientePremio();
+    else if (c.id === "sacar-logo") sacarLogoGrande();
+    else if (c.id === "vista-encuestas") setVista("encuestas");
+    else if (c.id === "vista-sorteo") setVista("sorteo");
+    else if (c.id === "resetear") void resetear(true);
+  }
+
+  const remoto = usePantallaRemota({
+    clave: `control-remoto:sorteo:${props.code}`,
+    pedido: { ambito: "sorteo", code: props.code, token: props.token },
+    estado: estadoRemoto,
+    alComando,
+  });
 
   return (
     <div className="flex min-h-screen flex-col bg-neutral-950 text-white">
@@ -186,12 +297,13 @@ export function Pantalla(props: {
             <button
               type="button"
               disabled={girando}
-              onClick={resetear}
+              onClick={() => void resetear()}
               className="mr-2 rounded-full px-4 py-2 text-sm text-white/50 hover:bg-white/10 hover:text-white disabled:opacity-40"
             >
               Resetear resultados
             </button>
           ) : null}
+          <BotonControlRemoto remoto={remoto} className="mr-2 rounded-full px-4 py-2 text-sm text-white/70 hover:bg-white/10 hover:text-white" />
           {(["sorteo", "encuestas"] as const).map((v) => (
             <button
               key={v}
@@ -275,7 +387,7 @@ export function Pantalla(props: {
                 >
                   {girando ? "Sorteando…" : "Sortear"}
                 </button>
-              ) : conListado && props.prizes.some((p) => !ganadorDePremio.has(p.id) && p.id !== prizeId) ? (
+              ) : haySiguientePremio ? (
                 <button
                   type="button"
                   disabled={girando}

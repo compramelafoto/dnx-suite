@@ -16,6 +16,8 @@
  * «cambiá de vista») viajan por un BroadcastChannel hacia la pantalla compartida, que es la única
  * que navega.
  *
+ * **Desde el celular**: «📱» muestra un QR que abre un control remoto (pasos, tarjetas y acciones).
+ *
  * Atajos: Avance de página / Retroceso de página (los presentadores inalámbricos mandan esas
  * teclas) o Alt + flechas. Funcionan en las dos ventanas. Las flechas solas quedan para las
  * pantallas (visor 3D, galería).
@@ -36,6 +38,9 @@ import {
 } from "@/lib/demos/guiones/navegacion";
 import { VISTAS_DEMO, type VistaDemo } from "@/lib/demos/vistas";
 import PlacaPublico from "@/components/demos/PlacaPublico";
+import type { Comando, EstadoPantalla } from "@/lib/control-remoto/protocolo";
+import { usePantallaRemota } from "@/components/control-remoto/usePantallaRemota";
+import { BotonControlRemoto } from "@/components/control-remoto/BotonControlRemoto";
 
 const CLAVE_PASO = "dnx-demo-escolar-paso";
 const CLAVE_VISTAS = "dnx-demo-escolar-aclaraciones";
@@ -332,6 +337,57 @@ export default function CuadroGuia() {
     if (!w) window.alert("El navegador bloqueó la ventana. Permití las ventanas emergentes para este sitio.");
   }, []);
 
+  const enPantallaDelPaso =
+    rutaDelPaso != null && typeof window !== "undefined" && rutaDelPaso.split("?")[0] === pathname;
+
+  const estadoRemoto = useMemo<EstadoPantalla>(() => {
+    const nota = paso
+      ? [paso.texto, ...(paso.puntos ?? []).map((x) => `• ${x}`), paso.puente ? `→ ${paso.puente}` : "", paso.bot ? `Con el bot: ${paso.bot}` : ""]
+          .filter(Boolean)
+          .join("\n")
+      : "";
+    return {
+      titulo: "Demo en vivo · foto escolar",
+      posicion: { actual: indice + 1, total: pasos.length, nombre: "Paso" },
+      detalle: aclaracion ? `Tarjeta: ${aclaracion.aclaracion?.titulo ?? aclaracion.titulo}` : paso?.titulo,
+      nota,
+      aviso: trabajando ? "Trabajando…" : (avisoAccion ?? undefined),
+      navegacion: { anterior: indice > 0 && !trabajando, siguiente: (indice < pasos.length - 1 || Boolean(aclaracion)) && !trabajando },
+      botones: [
+        ...(aclaracion ? [{ id: "seguir", etiqueta: "Cerrar la tarjeta y mostrar", tono: "principal" as const }] : []),
+        ...(paso?.accion && !aclaracion ? [{ id: "accion", etiqueta: paso.accion.etiqueta, tono: "principal" as const, deshabilitado: trabajando }] : []),
+        ...(rutaDelPaso && !enPantallaDelPaso && !aclaracion ? [{ id: "ir-pantalla", etiqueta: "Ir a la pantalla de este paso" }] : []),
+      ],
+      lista: {
+        titulo: "Todos los pasos",
+        actual: String(indice),
+        items: pasos.map((p, i) => ({ id: String(i), etiqueta: p.titulo, grupo: p.etapa })),
+      },
+    };
+  }, [paso, indice, pasos, aclaracion, trabajando, avisoAccion, rutaDelPaso, enPantallaDelPaso]);
+
+  const alComando = useCallback(
+    (c: Comando) => {
+      if (c.tipo === "siguiente") {
+        if (aclaracion) cerrarAclaracion();
+        else moverA(siguientePaso(indice, pasos.length), "adelante");
+      } else if (c.tipo === "anterior") moverA(pasoAnterior(indice), "atras");
+      else if (c.tipo === "ir" && pasos[Number(c.id)]) moverA(Number(c.id), "salto");
+      else if (c.tipo === "boton" && c.id === "seguir") cerrarAclaracion();
+      else if (c.tipo === "boton" && c.id === "accion" && paso) void ejecutarAccion(paso);
+      else if (c.tipo === "boton" && c.id === "ir-pantalla" && paso) irAlPaso(paso);
+    },
+    [aclaracion, cerrarAclaracion, moverA, indice, pasos, paso, ejecutarAccion, irAlPaso],
+  );
+  // Sólo la pantalla compartida obedece al celular: es la que navega.
+  const remoto = usePantallaRemota({
+    clave: "control-remoto:demo-guia",
+    pedido: { ambito: "demo-guia" },
+    estado: estadoRemoto,
+    alComando,
+    activo: activa && !esVentanaAparte,
+  });
+
   if (esVentanaAparte) {
     return (
       <VentanaAparte
@@ -354,9 +410,6 @@ export default function CuadroGuia() {
   }
 
   if (!activa || !paso) return null;
-
-  const enPantallaDelPaso =
-    rutaDelPaso != null && typeof window !== "undefined" && rutaDelPaso.split("?")[0] === pathname;
 
   return (
     <>
@@ -381,6 +434,7 @@ export default function CuadroGuia() {
               >
                 Otra ventana ↗
               </button>
+              <BotonControlRemoto remoto={remoto} className="rounded px-1.5 text-xs hover:bg-white/20" />
               <button
                 type="button"
                 className="rounded px-1.5 text-xs hover:bg-white/20"
