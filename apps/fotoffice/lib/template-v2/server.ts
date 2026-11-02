@@ -20,7 +20,8 @@ import {
 } from "@/lib/images/r2-client";
 import { FOTOFFICE_R2_PREFIXES } from "@/lib/images/r2-key-policy";
 import { resolveWorkspaceRole } from "@/lib/workspace-role";
-import { canDesignPlacas, canDesignTemplates } from "./access";
+import { canDesignDiplomas, canDesignPlacas, canDesignTemplates } from "./access";
+import { DIPLOMA_TEMPLATE_KEY } from "@/lib/eventos/diploma-constantes";
 import { listKeyedTemplatesTodas } from "./keyed-template";
 import { canDesignFotolibros } from "@/lib/fotolibro/acceso";
 import { ROL_SOCIO_FOTOLIBROS, ROL_SOLO_PLACAS, puedeAbrirPlantilla } from "./owns";
@@ -98,11 +99,12 @@ setTemplateV2Runtime({
        * Acceso acotado: las placas a quien gestiona Comunicación, los fotolibros a quien
        * gestiona Ventas. Quien tiene los dos permisos abre las dos cosas, y ninguna otra.
        */
-      const [placas, fotolibros] = await Promise.all([
+      const [placas, fotolibros, diplomas] = await Promise.all([
         canDesignPlacas(user.id, workspace.id),
         canDesignFotolibros(user.id, workspace.id),
+        canDesignDiplomas(user.id, workspace.id),
       ]);
-      if (!placas && !fotolibros) {
+      if (!placas && !fotolibros && !diplomas) {
         if (await accesoFotolibrosSocio(user.id)) return socioDeFotolibros(user);
         throw new Error("Sin permisos para diseñar plantillas");
       }
@@ -110,7 +112,8 @@ setTemplateV2Runtime({
         .filter(
           (t) =>
             (placas && isPlacaTemplateKey(t.templateKey)) ||
-            (fotolibros && t.templateKey === FOTOLIBRO_TEMPLATE_KEY),
+            (fotolibros && t.templateKey === FOTOLIBRO_TEMPLATE_KEY) ||
+            (diplomas && t.templateKey === DIPLOMA_TEMPLATE_KEY),
         )
         .map((t) => t.templateId);
       plantillasDePlacasPorUsuario.set(user.id, new Set(permitidas));

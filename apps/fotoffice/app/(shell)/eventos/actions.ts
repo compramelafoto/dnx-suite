@@ -6,6 +6,10 @@ import { contextoEventos } from "@/lib/eventos/contexto";
 import { esEstadoPago } from "@/lib/eventos/constants";
 import * as S from "@/lib/eventos/servidor";
 import { getterDe, validarEvento, validarInscripto } from "@/lib/eventos/validar";
+import { prisma } from "@repo/db";
+import { crearPlantillaDiploma, plantillasDeDiploma } from "@/lib/eventos/diploma";
+import { DIPLOMAS_EDITOR_BASE_PATH } from "@/lib/eventos/diploma-constantes";
+import { esDiplomaPara } from "@/lib/eventos/reglas";
 
 /**
  * Formularios del panel de Eventos. Sin permiso vuelve al tablero; con datos inválidos vuelve a
@@ -110,4 +114,30 @@ export async function eliminarInscriptoAction(fd: FormData) {
   const g = getterDe(fd);
   await S.eliminarInscripto(ctx.workspaceId, g("inscriptoId"));
   volver(rutaDe(fd, `/eventos/${g("eventoId")}`));
+}
+
+export async function crearDiplomaAction(fd: FormData) {
+  const ctx = await ctxManage();
+  const eventoId = getterDe(fd)("eventoId");
+  const r = await crearPlantillaDiploma(ctx.workspaceId, ctx.userId, eventoId);
+  if (!r.ok) volver(`/eventos/${eventoId}`, r.error);
+  revalidatePath(`/eventos/${eventoId}`);
+  redirect(`${DIPLOMAS_EDITOR_BASE_PATH}/${r.templateId}/${r.versionId}`);
+}
+
+export async function diplomaConfigAction(fd: FormData) {
+  const ctx = await ctxManage();
+  const g = getterDe(fd);
+  const eventoId = g("eventoId");
+  const para = g("diplomaPara");
+  const plantilla = g("diplomaTemplateId");
+  const validas = new Set((await plantillasDeDiploma(ctx.workspaceId)).map((p) => p.id));
+  await prisma.fotofficeEvento.updateMany({
+    where: { id: eventoId, workspaceId: ctx.workspaceId },
+    data: {
+      ...(esDiplomaPara(para) ? { diplomaPara: para } : {}),
+      ...(plantilla === "" ? { diplomaTemplateId: null } : validas.has(plantilla) ? { diplomaTemplateId: plantilla } : {}),
+    },
+  });
+  volver(`/eventos/${eventoId}`);
 }

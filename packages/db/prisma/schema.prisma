@@ -28013,6 +28013,10 @@ model FotofficeEvento {
   /// Las claves de los formularios del sitio (`FotofficeSitioFormulario.clave`) cuyos envíos
   /// suman un inscripto con el pago pendiente.
   formularioClaves String[] @default([])
+  /// La plantilla del diseñador (`TemplateV2.id`) con la que se dibuja el diploma. null = sin diploma.
+  diplomaTemplateId String?
+  /// A quién se le da diploma: ACREDITADOS | PAGADOS (pagados y cortesías) | TODOS (menos anulados).
+  diplomaPara String  @default("ACREDITADOS")
   archivado   Boolean   @default(false)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt

@@ -3,7 +3,10 @@ import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/page-header";
 import { requireEventos } from "@/lib/eventos/contexto";
 import { ESTADOS_PAGO, ESTADO_PAGO_LABEL, ORIGEN_LABEL, esEstadoPago, type Origen } from "@/lib/eventos/constants";
-import { coincide, resumir } from "@/lib/eventos/reglas";
+import { DIPLOMA_PARA, DIPLOMA_PARA_LABEL, coincide, resumir, tieneDiploma } from "@/lib/eventos/reglas";
+import { plantillasDeDiploma } from "@/lib/eventos/diploma";
+import { DIPLOMAS_EDITOR_BASE_PATH } from "@/lib/eventos/diploma-constantes";
+import { prisma } from "@repo/db";
 import {
   formulariosDelSitio,
   listarInscriptos,
@@ -14,6 +17,8 @@ import {
 import {
   acreditarAction,
   agregarInscriptoAction,
+  crearDiplomaAction,
+  diplomaConfigAction,
   desvincularEntradaAction,
   editarEventoAction,
   editarInscriptoAction,
@@ -51,11 +56,21 @@ export default async function EventoPage({ params, searchParams }: Props) {
   const evento = await obtenerEvento(workspace.id, id);
   if (!evento) notFound();
 
-  const [todos, productos, formularios] = await Promise.all([
+  const [todos, productos, formularios, diplomas, sitio] = await Promise.all([
     listarInscriptos(workspace.id, id),
     puedeEditar ? productosParaEntradas(workspace.id) : Promise.resolve([]),
     puedeEditar ? formulariosDelSitio(workspace.id) : Promise.resolve([]),
+    plantillasDeDiploma(workspace.id),
+    prisma.fotofficeWorkspaceBranding.findUnique({
+      where: { workspaceId: workspace.id },
+      select: { publicSlug: true, workspace: { select: { fotofficeDomain: { select: { domain: true, status: true } } } } },
+    }),
   ]);
+  const diploma = diplomas.find((p) => p.id === evento.diplomaTemplateId) ?? null;
+  const conDiploma = todos.filter((i) => tieneDiploma(i, evento.diplomaPara));
+  const dominio = sitio?.workspace.fotofficeDomain;
+  const baseDiploma =
+    dominio?.status === "CONNECTED" ? `https://${dominio.domain}/diploma` : `https://fotoffice.com/w/${sitio?.publicSlug ?? ""}/diploma`;
   const r = resumir(todos);
   const filtro = esEstadoPago(estado) ? estado : null;
   const lista = todos.filter((i) => (!filtro || i.estadoPago === filtro) && coincide(i, q));
@@ -101,6 +116,69 @@ export default async function EventoPage({ params, searchParams }: Props) {
         ))}
       </div>
 
+      <section className="fo-card space-y-3 p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold">Diplomas</h2>
+            <p className="text-sm text-[var(--fo-muted)]">
+              {diploma
+                ? `${conDiploma.length} ${conDiploma.length === 1 ? "persona tiene" : "personas tienen"} diploma (${DIPLOMA_PARA_LABEL[evento.diplomaPara as keyof typeof DIPLOMA_PARA_LABEL]?.toLowerCase() ?? evento.diplomaPara}).`
+                : "Diseñá el diploma una vez y cada inscripto tiene el suyo, con su nombre."}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {diploma && puedeEditar ? (
+              <a href={`${DIPLOMAS_EDITOR_BASE_PATH}/${diploma.id}/${diploma.currentVersionId}`} className="fo-btn fo-btn-secondary">
+                Editar diseño
+              </a>
+            ) : null}
+            {diploma && conDiploma.length > 0 ? (
+              <a href={`/eventos/${id}/diplomas`} className="fo-btn fo-btn-primary">
+                Descargar todos ({Math.min(conDiploma.length, 60)})
+              </a>
+            ) : null}
+            {!diploma && puedeEditar ? (
+              <form action={crearDiplomaAction}>
+                <input type="hidden" name="eventoId" value={id} />
+                <button className="fo-btn fo-btn-primary">Diseñar el diploma</button>
+              </form>
+            ) : null}
+          </div>
+        </div>
+        {conDiploma.length > 60 ? (
+          <p className="text-sm text-[var(--fo-muted)]">El archivo trae los primeros 60 en orden alfabético; los demás se bajan uno por uno desde el listado.</p>
+        ) : null}
+        {puedeEditar ? (
+          <form action={diplomaConfigAction} className="flex flex-wrap items-end gap-2">
+            <input type="hidden" name="eventoId" value={id} />
+            <label className="min-w-0 flex-1">
+              <span className="fo-label">¿A quién?</span>
+              <select name="diplomaPara" defaultValue={evento.diplomaPara} className="fo-input w-full">
+                {DIPLOMA_PARA.map((p) => (
+                  <option key={p} value={p}>
+                    {DIPLOMA_PARA_LABEL[p]}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {diplomas.length > 0 ? (
+              <label className="min-w-0 flex-1">
+                <span className="fo-label">Diseño</span>
+                <select name="diplomaTemplateId" defaultValue={evento.diplomaTemplateId ?? ""} className="fo-input w-full">
+                  <option value="">Sin diploma</option>
+                  {diplomas.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+            <button className="fo-btn fo-btn-secondary">Guardar</button>
+          </form>
+        ) : null}
+      </section>
+
       <form className="flex flex-wrap gap-2" method="get">
         <input name="q" defaultValue={q} placeholder="Buscar por nombre, correo, teléfono, DNI o código" className="fo-input min-w-0 flex-1" />
         <select name="estado" defaultValue={filtro ?? ""} className="fo-input w-auto">
@@ -142,6 +220,14 @@ export default async function EventoPage({ params, searchParams }: Props) {
                   </span>
                   {i.acreditadoAt ? (
                     <span className="rounded-full bg-emerald-600 px-2.5 py-0.5 text-xs font-medium text-white">Acreditado {hora(i.acreditadoAt)}</span>
+                  ) : null}
+                  {diploma && tieneDiploma(i, evento.diplomaPara) ? (
+                    <>
+                      <a href={`/eventos/${id}/diplomas?inscripto=${i.id}&ver=1`} target="_blank" rel="noopener" className="text-xs underline">
+                        Diploma
+                      </a>
+                      <span className="select-all text-xs text-[var(--fo-muted)]">{`${baseDiploma}/${i.codigo}`}</span>
+                    </>
                   ) : null}
                 </div>
               </div>

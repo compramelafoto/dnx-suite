@@ -137,3 +137,48 @@ export function resumir(filas: { estadoPago: string; acreditadoAt: Date | null }
   }
   return r;
 }
+
+/** A quién se le da diploma en un evento. */
+export const DIPLOMA_PARA = ["ACREDITADOS", "PAGADOS", "TODOS"] as const;
+export type DiplomaPara = (typeof DIPLOMA_PARA)[number];
+export const DIPLOMA_PARA_LABEL: Record<DiplomaPara, string> = {
+  ACREDITADOS: "Sólo a los acreditados en la puerta",
+  PAGADOS: "A los pagados y cortesías",
+  TODOS: "A todos los inscriptos",
+};
+
+export function esDiplomaPara(v: unknown): v is DiplomaPara {
+  return typeof v === "string" && (DIPLOMA_PARA as readonly string[]).includes(v);
+}
+
+/** Si a este inscripto le corresponde diploma. Un anulado nunca, aunque se haya acreditado. */
+export function tieneDiploma(i: { estadoPago: string; acreditadoAt: Date | null }, para: string): boolean {
+  if (i.estadoPago === "ANULADO") return false;
+  if (para === "TODOS") return true;
+  if (para === "PAGADOS") return i.estadoPago === "PAGADO" || i.estadoPago === "CORTESIA" || i.acreditadoAt !== null;
+  return i.acreditadoAt !== null;
+}
+
+const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+
+function partesAr(d: Date) {
+  const [a, m, dia] = d.toLocaleDateString("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).split("-").map(Number);
+  return { a, m, dia };
+}
+
+/**
+ * La fecha del evento escrita como en un diploma: "1 de noviembre de 2026", "1 y 2 de noviembre
+ * de 2026", "31 de octubre al 3 de noviembre de 2026". Sin fecha: "".
+ */
+export function fechaDeEvento(inicio: Date | null, fin: Date | null): string {
+  if (!inicio) return "";
+  const i = partesAr(inicio);
+  if (!fin) return `${i.dia} de ${MESES[i.m - 1]} de ${i.a}`;
+  const f = partesAr(fin);
+  if (i.a === f.a && i.m === f.m && i.dia === f.dia) return `${i.dia} de ${MESES[i.m - 1]} de ${i.a}`;
+  if (i.a === f.a && i.m === f.m) {
+    return f.dia - i.dia === 1 ? `${i.dia} y ${f.dia} de ${MESES[i.m - 1]} de ${i.a}` : `${i.dia} al ${f.dia} de ${MESES[i.m - 1]} de ${i.a}`;
+  }
+  if (i.a === f.a) return `${i.dia} de ${MESES[i.m - 1]} al ${f.dia} de ${MESES[f.m - 1]} de ${f.a}`;
+  return `${i.dia} de ${MESES[i.m - 1]} de ${i.a} al ${f.dia} de ${MESES[f.m - 1]} de ${f.a}`;
+}
