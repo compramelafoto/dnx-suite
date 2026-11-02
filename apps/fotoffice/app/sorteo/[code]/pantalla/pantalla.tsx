@@ -52,6 +52,29 @@ export function Pantalla(props: {
    */
   const [congelados, setCongelados] = useState<Result[] | null>(null);
   const results = congelados ?? props.results;
+  /**
+   * "Limpiar": el último resultado que se sacó de la pantalla. Lo anterior sigue guardado (el
+   * administrador lo ve en el panel); sólo deja de mostrarse acá. Se recuerda en el navegador
+   * para que sobreviva a recargar la página.
+   */
+  const claveLimpieza = `fo-sorteo-limpio-${props.code}`;
+  const [limpioHasta, setLimpioHasta] = useState<{ round: number; entrantId: string } | null>(null);
+  // Se lee después de montar: el servidor no tiene el almacenamiento del navegador.
+  useEffect(() => {
+    try {
+      const v = window.localStorage.getItem(claveLimpieza);
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- dato del navegador, sólo existe al montar
+      if (v) setLimpioHasta(JSON.parse(v) as { round: number; entrantId: string });
+    } catch {
+      // Sin almacenamiento del navegador, no hay limpieza guardada.
+    }
+  }, [claveLimpieza]);
+  // Si ese resultado ya no existe (se resetearon los resultados), la limpieza no corre más.
+  const corte =
+    limpioHasta && results.some((r) => r.round === limpioHasta.round && r.entrantId === limpioHasta.entrantId)
+      ? limpioHasta.round
+      : 0;
+  const visibles = results.filter((r) => r.round > corte);
   /** El QR en grande, en el centro, para proyectarlo. */
   const [qrGrande, setQrGrande] = useState(false);
 
@@ -97,7 +120,12 @@ export function Pantalla(props: {
 
   function elegirSponsor(logo: LogoBanner) {
     if (girandoRef.current || conListado || !logo.sponsorId) return;
-    setTextoPremio("");
+    // El último premio que se sorteó con esta marca, para no tener que escribirlo de nuevo.
+    const anterior = [...props.results]
+      .reverse()
+      .map((r) => (r.prizeId ? premioPorId.get(r.prizeId) : undefined))
+      .find((p) => p && p.sponsorLogoUrl === logo.url);
+    setTextoPremio(destacado?.sponsorId === logo.sponsorId ? destacado.title : (anterior?.title ?? ""));
     setEligiendo(logo);
   }
 
@@ -175,8 +203,27 @@ export function Pantalla(props: {
       error: "No se pudo resetear. Revisá la conexión y probá de nuevo.",
     }));
     if (!r.ok) setError(r.error);
+    setLimpioHasta(null);
+    try {
+      window.localStorage.removeItem(claveLimpieza);
+    } catch {
+      // nada que borrar
+    }
     setPrizeId(props.prizes[0]?.id ?? null);
     router.refresh();
+  }
+
+  function limpiar() {
+    if (girandoRef.current) return;
+    const ultimo = results[results.length - 1];
+    if (!ultimo) return;
+    const marca = { round: ultimo.round, entrantId: ultimo.entrantId };
+    setLimpioHasta(marca);
+    try {
+      window.localStorage.setItem(claveLimpieza, JSON.stringify(marca));
+    } catch {
+      // Sin almacenamiento del navegador la limpieza dura hasta recargar.
+    }
   }
 
   function siguientePremio() {
@@ -184,7 +231,9 @@ export function Pantalla(props: {
     if (resto[0]) setPrizeId(resto[0].id);
   }
 
-  const enPantalla = girando ? nombreGiro : resultado ? (nombre.get(resultado.entrantId) ?? "—") : null;
+  // El logo grande sigue aunque se limpie; el nombre y "No está, volver a sortear" no.
+  const resultadoVisible = resultado && resultado.round > corte ? resultado : null;
+  const enPantalla = girando ? nombreGiro : resultadoVisible ? (nombre.get(resultadoVisible.entrantId) ?? "—") : null;
   const puedeSortearNuevo = conListado ? !!premio && !resultado : true;
 
   return (
@@ -203,6 +252,17 @@ export function Pantalla(props: {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {!conListado && visibles.length > 0 ? (
+            <button
+              type="button"
+              disabled={girando}
+              onClick={limpiar}
+              title="Saca los resultados de la pantalla. Siguen guardados en el panel."
+              className="rounded-full bg-white/10 px-4 py-2 text-sm font-semibold text-white/90 hover:bg-white/20 disabled:opacity-40"
+            >
+              Limpiar
+            </button>
+          ) : null}
           {results.length > 0 ? (
             <button
               type="button"
@@ -278,10 +338,10 @@ export function Pantalla(props: {
             {error ? <p className="rounded-lg bg-red-500/20 px-4 py-2 text-red-200">{error}</p> : null}
 
             <div className="flex flex-wrap justify-center gap-3">
-              {resultado && !girando ? (
+              {resultadoVisible && !girando ? (
                 <button
                   type="button"
-                  onClick={() => sortear(resultado.round)}
+                  onClick={() => sortear(resultadoVisible.round)}
                   className="rounded-full bg-white/10 px-6 py-3 text-lg hover:bg-white/20"
                 >
                   No está, volver a sortear
@@ -367,13 +427,13 @@ export function Pantalla(props: {
                 })}
               </ul>
             </div>
-          ) : results.length > 0 ? (
+          ) : visibles.length > 0 ? (
             <div className="space-y-2">
               <p className="text-sm uppercase tracking-widest text-white/50">Resultados</p>
               <ol className="max-h-[50vh] space-y-1 overflow-y-auto">
-                {[...results].reverse().map((r, i) => (
+                {[...visibles].reverse().map((r, i) => (
                   <li key={r.round} className="flex gap-3 rounded-lg bg-white/5 px-3 py-2 text-sm">
-                    <span className="w-6 tabular-nums text-white/50">{results.length - i}.</span>
+                    <span className="w-6 tabular-nums text-white/50">{visibles.length - i}.</span>
                     <span className="min-w-0 flex-1">
                       <span className="block font-medium">{nombre.get(r.entrantId) ?? "—"}</span>
                       {r.prizeId && premioPorId.get(r.prizeId) ? (
@@ -427,6 +487,7 @@ export function Pantalla(props: {
             <img src={eligiendo.url} alt="" className="h-10 w-auto max-w-[5rem] shrink-0 object-contain" />
             <input
               autoFocus
+              onFocus={(e) => e.currentTarget.select()}
               value={textoPremio}
               onChange={(e) => setTextoPremio(e.target.value)}
               onKeyDown={(e) => {
