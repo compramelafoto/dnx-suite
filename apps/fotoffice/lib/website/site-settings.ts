@@ -318,7 +318,7 @@ export function buildTrackingScripts(analytics: WebsiteSiteSettings["analytics"]
  * el token. Además, cualquier dirección con un parámetro sensible en la consulta queda afuera.
  * Sirve con y sin el prefijo `/w/<slug>` (dominio propio).
  */
-const TOKEN_SEGMENTS = new Set(["pedido", "diploma", "recibo", "contrato", "galeria", "videos", "presupuesto", "archivos", "impresion"]);
+const TOKEN_SEGMENTS = new Set(["pedido", "diploma", "entrada", "recibo", "contrato", "galeria", "videos", "presupuesto", "archivos", "impresion"]);
 
 /** Parámetros de consulta que identifican a una persona, un pago o un enlace personal. */
 export const SENSITIVE_QUERY_PARAMS = new Set([

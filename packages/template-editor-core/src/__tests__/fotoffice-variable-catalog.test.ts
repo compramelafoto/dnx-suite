@@ -86,6 +86,7 @@ test("FotoOffice puede insertar la foto del socio y el logo de la institución",
   // La regresión concreta: el editor ofrecía "Logo escuela" y ninguna forma de poner la foto.
   // Las placas de Comunicación suman la foto de perfil y las tres destacadas.
   assert.deepEqual(claves.sort(), [
+    "attendeePhoto",
     "featuredPhoto1",
     "featuredPhoto2",
     "featuredPhoto3",

@@ -299,6 +299,30 @@ export const FOTOFFICE_TEMPLATE_VARIABLE_DEFINITIONS: TemplateVariableDefinition
     group: "evento",
     groupLabel: "Evento",
   },
+  {
+    path: "attendeePhoto",
+    label: "Evento - Foto del asistente",
+    description: "La foto que subió el inscripto al completar su inscripción (placa de bienvenida).",
+    valueType: "image",
+    example: "eventos/ejemplo/attendeePhoto.png",
+    usableIn: ["IMAGE"],
+    defaultFallback: null,
+    group: "evento",
+    groupLabel: "Evento",
+  },
+  {
+    path: "attendeeInstagram",
+    label: "Evento - Instagram del asistente",
+    description: "El usuario de Instagram del inscripto, con la arroba, para etiquetarlo en la placa.",
+    valueType: "text",
+    example: "@mariagomez.foto",
+    aliases: ["instagram"],
+    formatters: ["none"],
+    usableIn: ["TEXT"],
+    defaultFallback: null,
+    group: "evento",
+    groupLabel: "Evento",
+  },
 
   // ── Placas de Comunicación (bienvenida y socio de la semana) ──
   {

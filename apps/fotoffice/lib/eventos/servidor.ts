@@ -255,7 +255,9 @@ export async function cambiarEstadoPago(workspaceId: string, id: string, estadoP
 export async function acreditar(workspaceId: string, id: string, userId: number, si: boolean) {
   await prisma.fotofficeEventoInscripto.updateMany({
     where: { id, workspaceId },
-    data: si ? { acreditadoAt: new Date(), acreditadoPorUserId: userId } : { acreditadoAt: null, acreditadoPorUserId: null },
+    data: si
+      ? { acreditadoAt: new Date(), acreditadoPorUserId: userId, acreditadoFuente: "LISTADO" }
+      : { acreditadoAt: null, acreditadoPorUserId: null, acreditadoFuente: null, acreditacionClave: null },
   });
 }
 

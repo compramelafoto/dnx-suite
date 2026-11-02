@@ -20,6 +20,7 @@ import { lockStockRows } from "@/lib/sales/stock-lock";
 import { planificarConsumo } from "@/lib/stock/consumo-servidor";
 import { canTransition } from "./transitions";
 import { sincronizarInscriptos } from "@/lib/eventos/servidor";
+import { enviarEnlacesDeEntrada } from "@/lib/eventos/entrada";
 
 /**
  * Acreditar el pago de un pedido de la tienda: el punto donde la plata se vuelve una `Sale`.
@@ -592,7 +593,10 @@ async function pasarASinStock(
 
 async function sumarInscriptos(orderId: string): Promise<void> {
   const pedido = await prisma.storeOrder.findUnique({ where: { id: orderId }, select: { workspaceId: true } });
-  if (pedido) await sincronizarInscriptos(pedido.workspaceId);
+  if (!pedido) return;
+  await sincronizarInscriptos(pedido.workspaceId);
+  // Cada comprador recibe el enlace a su entrada para completar los datos y subir la foto.
+  await enviarEnlacesDeEntrada({ workspaceId: pedido.workspaceId, storeOrderId: orderId, soloSinEnviar: true });
 }
 
 async function avisar(enviar: () => Promise<void>): Promise<void> {

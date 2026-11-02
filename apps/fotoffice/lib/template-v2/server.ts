@@ -21,7 +21,7 @@ import {
 import { FOTOFFICE_R2_PREFIXES } from "@/lib/images/r2-key-policy";
 import { resolveWorkspaceRole } from "@/lib/workspace-role";
 import { canDesignDiplomas, canDesignPlacas, canDesignTemplates } from "./access";
-import { DIPLOMA_TEMPLATE_KEY } from "@/lib/eventos/diploma-constantes";
+import { esPlantillaDeEvento } from "@/lib/eventos/diploma-constantes";
 import { listKeyedTemplatesTodas } from "./keyed-template";
 import { canDesignFotolibros } from "@/lib/fotolibro/acceso";
 import { ROL_SOCIO_FOTOLIBROS, ROL_SOLO_PLACAS, puedeAbrirPlantilla } from "./owns";
@@ -113,7 +113,7 @@ setTemplateV2Runtime({
           (t) =>
             (placas && isPlacaTemplateKey(t.templateKey)) ||
             (fotolibros && t.templateKey === FOTOLIBRO_TEMPLATE_KEY) ||
-            (diplomas && t.templateKey === DIPLOMA_TEMPLATE_KEY),
+            (diplomas && esPlantillaDeEvento(t.templateKey)),
         )
         .map((t) => t.templateId);
       plantillasDePlacasPorUsuario.set(user.id, new Set(permitidas));

@@ -16,4 +16,6 @@ export const EVENTO_VARIABLES: VariableDeclaration[] = [
   { key: "eventPlace", type: "text", label: "Lugar del evento", required: false, sampleValue: "Centro Cultural Viejo Mercado, Rafaela" },
   { key: "ticketType", type: "text", label: "Tipo de entrada", required: false, sampleValue: "General" },
   { key: "attendeeCode", type: "text", label: "Código del asistente", required: false, sampleValue: "AB7K2M" },
+  { key: "attendeePhoto", type: "image", label: "Foto del asistente", required: false, sampleValue: "foto.jpg" },
+  { key: "attendeeInstagram", type: "text", label: "Instagram del asistente", required: false, sampleValue: "@mariagomez.foto" },
 ];
