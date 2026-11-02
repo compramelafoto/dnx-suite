@@ -21,6 +21,8 @@ function fechaLarga(d: Date): string {
   return d.toLocaleDateString("es-AR", { timeZone: "UTC", weekday: "long", day: "numeric", month: "long" });
 }
 
+const NOMBRE_CUADRO: Record<string, string> = { CANVAS: "canvas", MDF: "MDF", IMPRESION: "impresión", MARCO: "con marco" };
+
 /** Seguimiento público de un pedido de copias impresas (enlace privado) y vuelta de Mercado Pago. */
 export default async function SeguimientoImpresionPage({
   params,
@@ -43,10 +45,11 @@ export default async function SeguimientoImpresionPage({
         number: true,
         status: true,
         paper: true,
+        source: true,
         promisedAt: true,
         delivery: true,
         shippingAddress: true,
-        items: { select: { widthCm: true, heightCm: true, quantity: true, proyectoId: true } },
+        items: { select: { widthCm: true, heightCm: true, quantity: true, proyectoId: true, probador: true } },
       },
     });
   let pedido = await buscar();
@@ -69,10 +72,12 @@ export default async function SeguimientoImpresionPage({
   const fases = pedido.status === "ENVIADO" ? await fasesDeTrabajos(workspaceId, proyectoIds) : [];
   const actual = PASOS.findIndex((p) => p.clave === pasoDelPedido(pedido.status, fases));
 
-  // Copias por tamaño.
+  // Copias por tamaño; los cuadros del probador, por tipo y tamaño.
+  const esCuadros = pedido.source === "PROBADOR";
   const porTamano = new Map<string, number>();
   for (const i of pedido.items) {
-    const t = etiquetaTamano(Number(i.widthCm), Number(i.heightCm));
+    const tipo = esCuadros ? NOMBRE_CUADRO[(i.probador as { tipo?: string } | null)?.tipo ?? ""] ?? "cuadro" : "";
+    const t = `${tipo ? `${tipo} de ` : ""}${etiquetaTamano(Number(i.widthCm), Number(i.heightCm))}`;
     porTamano.set(t, (porTamano.get(t) ?? 0) + i.quantity);
   }
   const papel = ETIQUETA_PAPEL[pedido.paper as Papel] ?? pedido.paper;
@@ -100,11 +105,11 @@ export default async function SeguimientoImpresionPage({
       <section className="mt-6 rounded-lg border border-neutral-200 p-4">
         <p className="text-sm text-neutral-500">Pedido</p>
         <p className="text-lg font-medium">N° {pedido.number}</p>
-        <p className="mt-3 text-sm text-neutral-500">Copias · papel {papel}</p>
+        <p className="mt-3 text-sm text-neutral-500">{esCuadros ? "Cuadros" : `Copias · papel ${papel}`}</p>
         <ul className="mt-1 text-sm">
           {[...porTamano].map(([t, n]) => (
             <li key={t}>
-              {n} {n === 1 ? "copia" : "copias"} de {t} cm
+              {esCuadros ? `${n} × ${t} cm` : `${n} ${n === 1 ? "copia" : "copias"} de ${t} cm`}
             </li>
           ))}
         </ul>

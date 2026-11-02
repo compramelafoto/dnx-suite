@@ -6,6 +6,7 @@ import { ProbadorCuadros } from "@/components/probador/probador-cuadros";
 import { TourProbador } from "@/components/probador/tour-probador";
 import { EnlaceParaClientes } from "@/components/probador/enlace-para-clientes";
 import { cargarCatalogoProbador } from "@/lib/probador/catalogo.server";
+import { catalogoPublico } from "@/lib/probador/catalogo";
 import { requireActiveWorkspace } from "@/lib/workspace";
 import { getModuleLevel } from "@/lib/permissions/module-access";
 import { hasLevel } from "@/lib/permissions/levels";
@@ -42,7 +43,7 @@ export default async function ProbadorPanelPage() {
         }
       />
       {enlace ? <EnlaceParaClientes url={enlace} /> : null}
-      <ProbadorCuadros catalogo={catalogo} />
+      <ProbadorCuadros catalogo={catalogoPublico(catalogo)} />
       <TourProbador variante="estudio" />
     </div>
   );

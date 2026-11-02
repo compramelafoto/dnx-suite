@@ -10,7 +10,7 @@ import { armarCatalogo, type PrecioProbador } from "./catalogo";
 export async function cargarCatalogoProbador(workspaceId: string): Promise<PrecioProbador[]> {
   const productos = await prisma.product.findMany({
     where: { workspaceId, isActive: true, priceArs: { gt: 0 } },
-    select: { id: true, name: true, priceArs: true, supplierName: true },
+    select: { id: true, name: true, priceArs: true, costArs: true, supplierName: true, preferredProveedorId: true },
   });
-  return armarCatalogo(productos.map((p) => ({ ...p, priceArs: Number(p.priceArs) })));
+  return armarCatalogo(productos.map((p) => ({ ...p, priceArs: Number(p.priceArs), costArs: p.costArs == null ? null : Number(p.costArs) })));
 }

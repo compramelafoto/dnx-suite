@@ -749,3 +749,25 @@ describe("avisarPagoARevisar", () => {
     expect((enviar.mock.calls[1][0] as { subject: string }).subject).toBe("Pedido de impresión 9: pagaron un pedido que ya se había reemplazado");
   });
 });
+
+describe("prepararPedido con cuadros del probador", () => {
+  it("renderiza cada cuadro a su medida, lo nombra por tipo y suma el mapa de armado", async () => {
+    const receta = { tipo: "CANVAS", marco: { w: 30, h: 40 }, ventana: { x: 0, y: 0, w: 30, h: 40 }, encuadre: { cx: 0.5, cy: 0.5, escala: 1, rot90: 0, incl: 0 }, envolturaCm: 5, orden: 1, total: 1 };
+    H.estado.pedidos = {
+      ord1: {
+        ...pedidoBase(),
+        source: "PROBADOR",
+        composicion: { cuadros: [{ x: 0, y: 0, w: 30, h: 40, tipo: "CANVAS" }] },
+        items: [{ ...item({ id: "q1", sourceName: "Cuadro 1 de 1", widthCm: "30", heightCm: "40", proveedorId: "isla", proyectoId: "p-isla" }), probador: receta }],
+      },
+    };
+    const d = { ...deps(), renderizarCuadro: vi.fn(async (..._a: unknown[]) => Buffer.from("cuadro")) };
+    expect(await P.prepararPedido("ord1", d)).toBe("ENVIADO");
+    expect(d.renderizarCuadro).toHaveBeenCalledTimes(1);
+    expect(d.recortar).not.toHaveBeenCalled();
+    const zip = zips[0].buf.toString("utf8");
+    expect(zip).toContain("Pedido 8 - Juan/Canvas 30x40/Cuadro 1 de 1.jpg");
+    expect(zip).toContain("Pedido 8 - Juan/00 Mapa de armado.txt");
+    expect(zip).toContain("Pedido 8 - Juan/00 Mapa de armado.svg");
+  });
+});

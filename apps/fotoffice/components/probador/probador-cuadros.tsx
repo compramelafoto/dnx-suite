@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import type { PrecioProbador } from "@/lib/probador/catalogo";
-import { montarProbador } from "./motor";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { PrecioPublico } from "@/lib/probador/catalogo";
+import { EncabezadoPaso, GuiaDelPaso, PASOS, type DatosAsistente } from "./asistente";
+import { montarProbador, type ApiProbador } from "./motor";
 
 /**
  * El probador de cuadros: el cliente saca una foto de su pared, marca algo cuya medida conoce y
@@ -14,17 +15,60 @@ import { montarProbador } from "./motor";
  * Los colores salen del sitio de cada estudio (`--wsite-*`, ver `PublicSiteShell`); dentro del
  * panel, donde esas variables no existen, toma las del panel (`--fo-*`).
  */
-export function ProbadorCuadros({ catalogo }: { catalogo: PrecioProbador[] }) {
+export function ProbadorCuadros({ catalogo, asistente }: { catalogo: PrecioPublico[]; asistente?: DatosAsistente }) {
   const raiz = useRef<HTMLDivElement>(null);
-  useEffect(() => (raiz.current ? montarProbador(raiz.current, catalogo) : undefined), [catalogo]);
+  const [api, setApi] = useState<ApiProbador | null>(null);
+  // El motor avisa cada cambio; el asistente sólo necesita volver a leer (habilitar botones, el total).
+  const [, setVersion] = useState(0);
+  const [paso, setPaso] = useState(1);
+  const [referencia, setReferencia] = useState<"A4" | "PUERTA" | "OTRA" | null>(null);
+  const pasoActual = useRef(1);
+  const esAsistente = !!asistente;
+  useEffect(() => {
+    if (!raiz.current) return;
+    let propiaAntes = false;
+    const m = montarProbador(raiz.current, catalogo, () => {
+      setVersion((v) => v + 1);
+      // Apenas llega la foto de la pared, el asistente pasa solo a marcar la medida.
+      const propiaAhora = m.api.paredPropia();
+      if (esAsistente && propiaAhora && !propiaAntes && pasoActual.current === 1) {
+        pasoActual.current = 2;
+        setReferencia(null);
+        setPaso(2);
+      }
+      propiaAntes = propiaAhora;
+    });
+    setApi(m.api);
+    return () => { setApi(null); m.desmontar(); };
+  }, [catalogo, esAsistente]);
+
+  const irA = useCallback((n: number) => {
+    const a = api;
+    // Al salir de marcar la medida con foto propia, los cuadros arrancan centrados sobre lo marcado.
+    if (pasoActual.current === 2 && n === 3 && a?.paredPropia()) a.centrarEnReferencia();
+    pasoActual.current = n;
+    setPaso(n);
+    // Marcar la medida sólo en el paso 2 y con foto propia; en los demás, se ubican los cuadros.
+    a?.modoPared(n === 2 && a.paredPropia());
+    requestAnimationFrame(() => { a?.redibujar(); raiz.current?.scrollIntoView({ behavior: "smooth", block: "start" }); });
+  }, [api]);
+  const propia = api?.paredPropia() ?? false;
+  const elegirReferencia = (r: "A4" | "PUERTA" | "OTRA" | null) => {
+    setReferencia(r);
+    if (r === "A4") api?.fijarReferencia(21, 29.7, false);
+    if (r === "PUERTA") api?.fijarReferencia(80, 200, true);
+  };
+  const puedeSeguir = !(paso === 2 && propia && !referencia);
 
   return (
-    <div ref={raiz} className="pdc">
+    <div ref={raiz} className={asistente ? "pdc pdc-asistente" : "pdc"} data-paso={asistente ? paso : undefined}>
       <style>{CSS}</style>
+      {asistente ? <EncabezadoPaso paso={paso} /> : null}
+      {asistente ? <input type="file" id="pdc-archivo-pared-camara" data-pdc="archivo-pared-camara" accept="image/*" capture="environment" hidden /> : null}
       <div className="pdc-layout">
         <section className="pdc-escena">
           <div className="pdc-barra">
-            <div className="pdc-seg" role="group" aria-label="Qué querés hacer" data-tour="probador-modos">
+            <div className="pdc-seg" role="group" aria-label="Qué querés hacer" data-solo-editor data-tour="probador-modos">
               <button type="button" data-pdc="modo-pared" aria-pressed="false">1 · Marcar pared</button>
               <button type="button" data-pdc="modo-ubicar" aria-pressed="true">2 · Ubicar cuadros</button>
             </div>
@@ -46,7 +90,10 @@ export function ProbadorCuadros({ catalogo }: { catalogo: PrecioProbador[] }) {
         </section>
 
         <aside className="pdc-panel">
-          <section className="pdc-bloque" data-tour="probador-pared">
+          {asistente ? (
+            <GuiaDelPaso paso={paso} api={api} referencia={referencia} elegirReferencia={elegirReferencia} raiz={() => raiz.current} datos={asistente} />
+          ) : null}
+          <section className="pdc-bloque" data-solo-editor data-tour="probador-pared">
             <h2>Tu pared</h2>
             <div className="pdc-fila">
               <label className="pdc-btn pdc-btn-principal" htmlFor="pdc-archivo-pared">Sacar o subir foto</label>
@@ -77,6 +124,7 @@ export function ProbadorCuadros({ catalogo }: { catalogo: PrecioProbador[] }) {
             <p className="pdc-error" data-pdc="error-pared" hidden />
           </section>
 
+          <div data-en="3">
           <section className="pdc-bloque" data-pdc="panel-conjunto" data-tour="probador-conjunto">
             <h2>Conjunto</h2>
             <div className="pdc-chips" data-pdc="composiciones" />
@@ -93,11 +141,11 @@ export function ProbadorCuadros({ catalogo }: { catalogo: PrecioProbador[] }) {
                 </select>
               </label>
             </div>
-            <label className="pdc-campo" htmlFor="pdc-separacion">
+            <label className="pdc-campo" htmlFor="pdc-separacion" data-solo-editor>
               <span>Separación entre cuadros: <output data-pdc="separacion-valor" /></span>
               <input type="range" id="pdc-separacion" data-pdc="separacion" min={2} max={20} step={1} />
             </label>
-            <p className="pdc-nota">Cambiar la plantilla, la medida o la separación rearma el conjunto.</p>
+            <p className="pdc-nota" data-solo-editor>Cambiar la plantilla, la medida o la separación rearma el conjunto.</p>
             <div className="pdc-campo" data-tour="probador-tipo">
               Tipo, para todos
               <div className="pdc-seg pdc-seg-ancho" role="group" aria-label="Tipo de cuadro para todos" data-pdc="tipo-todos" />
@@ -105,7 +153,7 @@ export function ProbadorCuadros({ catalogo }: { catalogo: PrecioProbador[] }) {
             <label className="pdc-check">
               <input type="checkbox" data-pdc="una-foto" /> Una sola foto repartida entre todos los cuadros
             </label>
-            <div className="pdc-campos">
+            <div className="pdc-campos" data-solo-editor>
               <label className="pdc-campo" htmlFor="pdc-paspartu-todos">
                 Paspartú
                 <select id="pdc-paspartu-todos" data-pdc="paspartu-todos" />
@@ -119,6 +167,9 @@ export function ProbadorCuadros({ catalogo }: { catalogo: PrecioProbador[] }) {
             </div>
           </section>
 
+          </div>
+
+          <div data-en="3 5">
           <section className="pdc-bloque" data-pdc="panel-cuadro" hidden>
             <div className="pdc-fila pdc-entre">
               <h2 data-pdc="titulo-cuadro">Este cuadro</h2>
@@ -165,6 +216,9 @@ export function ProbadorCuadros({ catalogo }: { catalogo: PrecioProbador[] }) {
             </div>
           </section>
 
+          </div>
+
+          <div data-en="4">
           <section className="pdc-bloque" data-tour="probador-fotos">
             <h2>
               Fotos <span className="pdc-tag" data-pdc="etiqueta-muestras">Muestras</span>
@@ -181,6 +235,9 @@ export function ProbadorCuadros({ catalogo }: { catalogo: PrecioProbador[] }) {
             <p className="pdc-error" data-pdc="error-fotos" hidden />
           </section>
 
+          </div>
+
+          <div data-en="5">
           <section className="pdc-bloque" data-tour="probador-posicion">
             <h2>Posición</h2>
             <div className="pdc-fila">
@@ -193,6 +250,9 @@ export function ProbadorCuadros({ catalogo }: { catalogo: PrecioProbador[] }) {
             </p>
           </section>
 
+          </div>
+
+          <div data-en="3 5 6">
           <section className="pdc-bloque" data-pdc="presupuesto" data-tour="probador-presupuesto" hidden>
             <h2>Presupuesto</h2>
             <ul className="pdc-lineas" data-pdc="presupuesto-lineas" />
@@ -202,12 +262,25 @@ export function ProbadorCuadros({ catalogo }: { catalogo: PrecioProbador[] }) {
             <p className="pdc-nota" data-pdc="presupuesto-nota" />
           </section>
 
+          </div>
+
+          <div data-en="5 6">
           <button type="button" className="pdc-btn pdc-btn-principal pdc-ancho" data-pdc="ver-final" data-tour="probador-ver-final">
             Ver imagen final
           </button>
-          <p className="pdc-nota pdc-privacidad">Tus fotos no se suben a ningún lado: todo pasa en tu celular o computadora.</p>
+          </div>
+          <p className="pdc-nota pdc-privacidad" data-solo-editor>Tus fotos no se suben a ningún lado: todo pasa en tu celular o computadora.</p>
         </aside>
       </div>
+
+      {asistente ? (
+        <nav className="pdc-navegacion" aria-label="Pasos">
+          <button type="button" className="pdc-btn pdc-grande" disabled={paso === 1} onClick={() => irA(paso - 1)}>Atrás</button>
+          {paso < PASOS.length ? (
+            <button type="button" className="pdc-btn pdc-btn-principal pdc-grande" disabled={!puedeSeguir} onClick={() => irA(paso + 1)}>Siguiente</button>
+          ) : null}
+        </nav>
+      ) : null}
 
       <div className="pdc-modal" data-pdc="modal" hidden>
         <div className="pdc-modal-tarjeta" role="dialog" aria-modal="true" aria-label="Imagen final">
@@ -303,6 +376,35 @@ const CSS = `
 .pdc-lineas li{display:flex; justify-content:space-between; gap:12px}
 .pdc-total{display:flex; justify-content:space-between; margin:0; padding-top:8px; border-top:1px solid var(--pdc-line); font-size:16px; font-variant-numeric:tabular-nums}
 .pdc-total b{font-size:18px}
+/* ---- Paso a paso público: una columna, botones grandes, un paso por vez ---- */
+.pdc-asistente{max-width:760px; margin:0 auto}
+.pdc-asistente .pdc-layout{grid-template-columns:minmax(0,1fr); gap:12px}
+.pdc-asistente .pdc-escena{position:static}
+.pdc-asistente .pdc-panel{border:0; padding:0}
+.pdc-asistente .pdc-lienzo{max-height:58vh}
+.pdc-asistente [data-solo-editor]{display:none!important}
+.pdc-asistente [data-en]{display:none}
+.pdc-asistente[data-paso="1"] [data-en~="1"],.pdc-asistente[data-paso="2"] [data-en~="2"],.pdc-asistente[data-paso="3"] [data-en~="3"],
+.pdc-asistente[data-paso="4"] [data-en~="4"],.pdc-asistente[data-paso="5"] [data-en~="5"],.pdc-asistente[data-paso="6"] [data-en~="6"]{display:contents}
+.pdc-asistente[data-paso="1"] .pdc-historial,.pdc-asistente[data-paso="2"] .pdc-historial,.pdc-asistente[data-paso="6"] .pdc-historial,.pdc-asistente .pdc-pista{display:none}
+.pdc-paso-encabezado{display:flex; flex-direction:column; gap:6px; margin-bottom:12px}
+.pdc-paso-numero{margin:0; font-size:13px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; opacity:.65}
+.pdc-paso-titulo{margin:0; font-size:22px; line-height:1.2; font-weight:700; text-wrap:balance}
+.pdc-progreso{height:6px; border-radius:99px; background:var(--pdc-soft); overflow:hidden}
+.pdc-progreso span{display:block; height:100%; background:var(--pdc-accent); border-radius:99px; transition:width .25s}
+.pdc-guia{font-size:16px; gap:12px}
+.pdc-guia p{margin:0}
+.pdc-consejos{margin:0; padding-left:20px; display:flex; flex-direction:column; gap:6px; font-size:15px}
+.pdc-grande{padding:14px 18px; font-size:16px; flex:1; min-height:50px}
+.pdc-enlace{font:inherit; background:none; border:0; padding:0; color:var(--pdc-accent); text-decoration:underline; cursor:pointer; text-align:left; font-size:15px}
+.pdc-ok{color:var(--pdc-accent); font-weight:600}
+.pdc-opciones{display:flex; flex-direction:column; gap:8px}
+.pdc-opcion{font:inherit; text-align:left; display:flex; flex-direction:column; gap:2px; padding:12px 14px; border-radius:12px; border:1px solid var(--pdc-line); background:var(--pdc-soft); color:inherit; cursor:pointer}
+.pdc-opcion span{font-size:13px; opacity:.75}
+.pdc-opcion[aria-pressed="true"]{border-color:var(--pdc-accent); background:var(--pdc-sel)}
+.pdc-guia input:not([type=checkbox]){font:inherit; font-size:16px; color:inherit; background:var(--pdc-soft); border:1px solid var(--pdc-line); border-radius:10px; padding:11px 12px; width:100%}
+.pdc-subida{display:flex; flex-direction:column; gap:6px}
+.pdc-navegacion{position:sticky; bottom:0; z-index:5; display:flex; gap:10px; padding:12px 0 calc(12px + env(safe-area-inset-bottom, 0px)); margin-top:16px; background:var(--wsite-bg, var(--fo-bg, #fff)); border-top:1px solid var(--pdc-line)}
 @media (max-width:900px){
   .pdc-layout{grid-template-columns:minmax(0,1fr)}
   .pdc-escena{position:static}

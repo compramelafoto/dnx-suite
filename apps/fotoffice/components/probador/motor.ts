@@ -41,7 +41,7 @@ import {
   type Cuadro,
   type TipoCuadro,
 } from "@/lib/probador/composicion";
-import { cotizar, medidaMasCercana, medidasDe, precioDe, type PrecioProbador } from "@/lib/probador/catalogo";
+import { cotizar, medidaMasCercana, medidasDe, precioDe, type PrecioPublico } from "@/lib/probador/catalogo";
 import { deshacer, iniciar, puedeDeshacer, puedeRehacer, registrar, rehacer, type Historial } from "@/lib/probador/historial";
 import { fotoDeMuestra, iniciarGl, leerArchivo, lienzo, livingDeEjemplo, miniatura, PALETAS } from "./recursos";
 
@@ -60,7 +60,27 @@ import { fotoDeMuestra, iniciarGl, leerArchivo, lienzo, livingDeEjemplo, miniatu
  * Nada sale del navegador: las fotos del cliente se leen con `URL.createObjectURL` y no se suben.
  */
 
-type Foto = { img: HTMLCanvasElement; thumb: string };
+/** `archivo` es el original elegido por el cliente (para subirlo al pedir); las muestras no lo tienen. */
+type Foto = { img: HTMLCanvasElement; thumb: string; archivo?: File };
+
+/** Lo que el paso a paso público necesita del motor (ver `components/probador/asistente.tsx`). */
+export type ApiProbador = {
+  /** Fija la medida de referencia y deja los 4 puntos sobre la foto con su proporción, listos para arrastrar. */
+  fijarReferencia: (anchoCm: number, altoCm: number, desdeElPiso: boolean) => void;
+  modoPared: (si: boolean) => void;
+  /** Lleva el conjunto al centro de lo que se marcó como medida (sin dejarlo en el historial). */
+  centrarEnReferencia: () => void;
+  /** Hubo foto propia de la pared (no el living de ejemplo). */
+  paredPropia: () => boolean;
+  /** Las fotos son las de muestra (no se pueden pedir). */
+  esMuestra: () => boolean;
+  /** Lo que se manda al pedir: la composición con los encuadres ya ajustados y el total que se ve. */
+  pedido: () => { pedido: unknown; fotos: { indice: number; archivo: File }[] };
+  total: () => number;
+  redibujar: () => void;
+  /** Imagen final (JPEG en data URL) para mostrar al terminar. */
+  imagen: () => string;
+};
 type Capa = { canvas: HTMLCanvasElement; k: number; m: number; rx: number; ry: number; firma: unknown[] };
 type Arrastre =
   | { tipo: "esquina"; i: number }
@@ -90,14 +110,18 @@ const esCampo = (el: Element | null) => !!el && /^(INPUT|SELECT|TEXTAREA)$/.test
  * tipo ofrece sólo sus medidas con precio y el panel muestra el presupuesto; sin catálogo, las
  * medidas son las de siempre y no hay precios. Devuelve cómo desmontarlo.
  */
-export function montarProbador(raiz: HTMLElement, catalogo: readonly PrecioProbador[] = []): () => void {
+export function montarProbador(
+  raiz: HTMLElement,
+  catalogo: readonly PrecioPublico[] = [],
+  alCambiar?: () => void,
+): { desmontar: () => void; api: ApiProbador } {
   const $ = <T extends HTMLElement = HTMLElement>(n: string) => raiz.querySelector<T>(`[data-pdc="${n}"]`)!;
   const cv = $<HTMLCanvasElement>("lienzo"), ctx = cv.getContext("2d")!;
   const gl = iniciarGl();
 
   const P = {
     pared: null as HTMLCanvasElement | null, quad: [] as Punto[], refW: 380, refH: 260, piso: true,
-    H: null as Homografia | null, Hi: null as Homografia | null, modoPared: false,
+    H: null as Homografia | null, Hi: null as Homografia | null, modoPared: false, paredPropia: false,
     fotos: [] as Foto[], deMuestra: true,
     // Lo que el panel "Conjunto" usa para rearmar la plantilla.
     plantilla: "escalonado5" as ComposicionId, base: { corto: 50, largo: 50 }, orient: "v", sep: 5,
@@ -524,6 +548,8 @@ export function montarProbador(raiz: HTMLElement, catalogo: readonly PrecioProba
     TIPOS.map((t) => `<button type="button" data-tipo="${t.id}" aria-pressed="${t.id === sel}">${t.label}</button>`).join("");
 
   function panel() {
+    // Cada vez que cambia algo, el asistente se entera (habilitar "Siguiente", el total…), con el panel ya al día.
+    if (alCambiar) queueMicrotask(alCambiar);
     const c = comp(), q = cuadroSel();
     $<HTMLButtonElement>("deshacer").disabled = !puedeDeshacer(P.hist);
     $<HTMLButtonElement>("rehacer").disabled = !puedeRehacer(P.hist);
@@ -722,7 +748,7 @@ export function montarProbador(raiz: HTMLElement, catalogo: readonly PrecioProba
   }
   function usarLiving() {
     const s = livingDeEjemplo();
-    P.pared = s.canvas; P.quad = s.quad.map((q) => ({ ...q })); P.refW = s.RW; P.refH = s.RH; P.piso = true; P.modoPared = false;
+    P.pared = s.canvas; P.quad = s.quad.map((q) => ({ ...q })); P.refW = s.RW; P.refH = s.RH; P.piso = true; P.modoPared = false; P.paredPropia = false;
     recalcularH(); reubicar(P.hist.actual, { x: 185, y: P.refH - 145 }); sincronizar(); pedir(); panel();
   }
   $("living").addEventListener("click", usarLiving);
@@ -737,7 +763,7 @@ export function montarProbador(raiz: HTMLElement, catalogo: readonly PrecioProba
       P.pared = c;
       const W = c.width, H = c.height;
       P.quad = [{ x: W * 0.2, y: H * 0.18 }, { x: W * 0.8, y: H * 0.18 }, { x: W * 0.8, y: H * 0.72 }, { x: W * 0.2, y: H * 0.72 }];
-      P.refW = 200; P.refH = 150; P.piso = false; P.modoPared = true;
+      P.refW = 200; P.refH = 150; P.piso = false; P.modoPared = true; P.paredPropia = true;
       recalcularH(); reubicar(P.hist.actual, { x: 100, y: 75 }); sincronizar(); pedir(); panel();
     } catch {
       mostrarError("error-pared", "No pude abrir esa imagen. Probá con una foto en JPG o PNG.");
@@ -750,7 +776,7 @@ export function montarProbador(raiz: HTMLElement, catalogo: readonly PrecioProba
     const nuevas: Foto[] = [];
     let malas = 0;
     for (const f of archivos) {
-      try { const c = await leerArchivo(f, 1600); nuevas.push({ img: c, thumb: miniatura(c) }); } catch { malas++; }
+      try { const c = await leerArchivo(f, 1600); nuevas.push({ img: c, thumb: miniatura(c), archivo: f }); } catch { malas++; }
     }
     if (nuevas.length) {
       let c = P.hist.actual;
@@ -767,7 +793,9 @@ export function montarProbador(raiz: HTMLElement, catalogo: readonly PrecioProba
     }
     if (malas) mostrarError("error-fotos", `${malas === 1 ? "Una foto no se pudo abrir" : `${malas} fotos no se pudieron abrir`}. Probá con JPG o PNG.`);
   };
-  $("archivo-pared").addEventListener("change", alElegirPared);
+  // La foto de la pared puede venir de la galería o, en el paso a paso, directo de la cámara.
+  const entradasPared = [...raiz.querySelectorAll<HTMLInputElement>('[data-pdc="archivo-pared"], [data-pdc="archivo-pared-camara"]')];
+  entradasPared.forEach((el) => el.addEventListener("change", alElegirPared));
   $("archivo-fotos").addEventListener("change", alElegirFotos);
 
   const modal = $("modal");
@@ -786,7 +814,46 @@ export function montarProbador(raiz: HTMLElement, catalogo: readonly PrecioProba
   P.hist = iniciar(alCatalogo({ ...desdePlantilla(P.plantilla, P.base.corto, P.base.largo, P.sep, "CANVAS", { x: 0, y: 0 }), unaFoto: true, fotoConjunto: 1 }));
   usarLiving();
 
-  return () => {
+  /* ---------- Lo que usa el paso a paso público ---------- */
+  const api: ApiProbador = {
+    fijarReferencia(anchoCm, altoCm, desdeElPiso) {
+      if (!P.pared) return;
+      // Los 4 puntos arrancan al centro con la proporción de lo elegido: una hoja A4 se ve chica, una puerta alta.
+      const W = P.pared.width, H = P.pared.height, alto = H * (altoCm > 150 ? 0.7 : 0.25), ancho = Math.min(W * 0.8, (alto * anchoCm) / altoCm);
+      const x0 = (W - ancho) / 2, y0 = desdeElPiso ? H * 0.92 - alto : (H - alto) / 2;
+      P.quad = [{ x: x0, y: y0 }, { x: x0 + ancho, y: y0 }, { x: x0 + ancho, y: y0 + alto }, { x: x0, y: y0 + alto }];
+      P.refW = anchoCm; P.refH = altoCm; P.piso = desdeElPiso; P.modoPared = true;
+      recalcularH(); sincronizar(); pedir(); panel();
+    },
+    modoPared(si) { P.modoPared = si; if (si) seleccionar(null); else { pedir(); panel(); } },
+    centrarEnReferencia() {
+      // Si lo marcado llega al piso (una puerta), a la altura de galería: centro a 150 cm del piso.
+      const y = P.piso && P.refH > 150 ? P.refH - 150 : P.refH / 2;
+      reubicar(P.hist.actual, { x: P.refW / 2, y }); pedir(); panel();
+    },
+    paredPropia: () => P.paredPropia,
+    esMuestra: () => P.deMuestra,
+    pedido() {
+      const c = P.hist.actual;
+      const usadas = new Set(c.unaFoto ? [c.fotoConjunto] : c.cuadros.map((q) => q.foto));
+      const n = P.fotos.length;
+      const real = (i: number) => (n ? ((i % n) + n) % n : 0);
+      const fotos = [...usadas].map((i) => ({ indice: real(i), archivo: P.fotos[real(i)]?.archivo })).filter((f): f is { indice: number; archivo: File } => !!f.archivo);
+      const pedido = {
+        cuadros: c.cuadros.map((q) => ({ tipo: q.tipo, w: q.w, h: q.h, x: q.x, y: q.y, paspartu: q.paspartu, foto: real(q.foto), encuadre: encuadreDe(c, q) })),
+        unaFoto: c.unaFoto,
+        fotoConjunto: real(c.fotoConjunto),
+        encuadreConjunto: c.cuadros[0] && c.unaFoto ? encuadreDe(c, c.cuadros[0]) : c.encuadreConjunto,
+        totalVisto: cotizar(catalogo, c).total,
+      };
+      return { pedido, fotos };
+    },
+    total: () => cotizar(catalogo, P.hist.actual).total,
+    redibujar: () => pedir(),
+    imagen() { dibujar(true); const url = cv.toDataURL("image/jpeg", 0.9); dibujar(false); return url; },
+  };
+
+  const desmontar = () => {
     cancelAnimationFrame(raf);
     if (ruedaPendiente) clearTimeout(ruedaPendiente);
     cv.removeEventListener("pointerdown", alApoyar); cv.removeEventListener("pointermove", alMover);
@@ -794,7 +861,7 @@ export function montarProbador(raiz: HTMLElement, catalogo: readonly PrecioProba
     cv.removeEventListener("dblclick", alDobleToque); cv.removeEventListener("wheel", alGirarRueda);
     document.removeEventListener("keydown", alTeclear); window.removeEventListener("resize", alRedimensionar);
     $("living").removeEventListener("click", usarLiving);
-    $("archivo-pared").removeEventListener("change", alElegirPared);
+    entradasPared.forEach((el) => el.removeEventListener("change", alElegirPared));
     $("archivo-fotos").removeEventListener("change", alElegirFotos);
     $("ver-final").removeEventListener("click", verFinal);
     $("cerrar-modal").removeEventListener("click", cerrarModal);
@@ -802,4 +869,5 @@ export function montarProbador(raiz: HTMLElement, catalogo: readonly PrecioProba
     desenlazar.forEach((d) => d()); quitarBotones.forEach((d) => d());
     gl?.gl.getExtension("WEBGL_lose_context")?.loseContext();
   };
+  return { desmontar, api };
 }
