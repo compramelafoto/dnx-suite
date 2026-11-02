@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@repo/db";
 import { PageHeader } from "@/components/page-header";
@@ -7,6 +8,8 @@ import { TourProbador } from "@/components/probador/tour-probador";
 import { EnlaceParaClientes } from "@/components/probador/enlace-para-clientes";
 import { cargarCatalogoProbador } from "@/lib/probador/catalogo.server";
 import { catalogoPublico } from "@/lib/probador/catalogo";
+import { marcosPublicos } from "@/lib/probador/marcos";
+import { cargarMarcos } from "@/lib/probador/marcos.server";
 import { requireActiveWorkspace } from "@/lib/workspace";
 import { getModuleLevel } from "@/lib/permissions/module-access";
 import { hasLevel } from "@/lib/permissions/levels";
@@ -27,9 +30,10 @@ export default async function ProbadorPanelPage() {
   const nivel = await getModuleLevel(user.id, workspace.id, SALES_MODULE_KEY);
   if (!hasLevel(nivel, "VIEW")) redirect("/dashboard");
 
-  const [branding, catalogo] = await Promise.all([
+  const [branding, catalogo, marcos] = await Promise.all([
     prisma.fotofficeWorkspaceBranding.findUnique({ where: { workspaceId: workspace.id }, select: { publicSlug: true } }),
     cargarCatalogoProbador(workspace.id),
+    cargarMarcos(workspace.id),
   ]);
   const enlace = branding?.publicSlug ? `${appUrl()}/w/${branding.publicSlug}/${PROBADOR_PUBLIC_SEGMENT}` : null;
 
@@ -39,11 +43,14 @@ export default async function ProbadorPanelPage() {
         title="Probador de cuadros"
         description="Sacale una foto a la pared del cliente, marcá una medida que conozcas y mostrale cómo quedan los cuadros a escala: individuales, dípticos, trípticos o una galería, con el marco que elija."
         actions={
-          <TourHelpButton tourId="probador-cuadros-estudio" className="fo-btn fo-btn-secondary inline-flex items-center gap-2" />
+          <div className="flex flex-wrap gap-2">
+            <Link href="/probador/marcos" className="fo-btn fo-btn-secondary">Marcos</Link>
+            <TourHelpButton tourId="probador-cuadros-estudio" className="fo-btn fo-btn-secondary inline-flex items-center gap-2" />
+          </div>
         }
       />
       {enlace ? <EnlaceParaClientes url={enlace} /> : null}
-      <ProbadorCuadros catalogo={catalogoPublico(catalogo)} />
+      <ProbadorCuadros catalogo={catalogoPublico(catalogo)} marcos={marcosPublicos(marcos)} />
       <TourProbador variante="estudio" />
     </div>
   );

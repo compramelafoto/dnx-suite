@@ -27,6 +27,8 @@ export const FOTOFFICE_R2_PREFIXES = {
   productPhoto: "fotoffice/product-photos",
   /** Galería de la ficha online (tienda). */
   productGallery: "fotoffice/product-gallery",
+  /** Foto de frente enderezada de un modelo de marco del probador de cuadros (PNG con la ventana transparente). */
+  frameModel: "fotoffice/frame-models",
   /** Imagen de la tabla de talles de un producto (tienda). */
   sizeChart: "fotoffice/size-charts",
   memberPortfolioPhoto: "fotoffice/member-portfolio",

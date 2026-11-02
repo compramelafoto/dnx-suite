@@ -67,8 +67,9 @@ describe("preset memberPortfolioPhoto — la obra de un fotógrafo", () => {
     // presets que no lo declaran no tienen la propiedad en su tipo inferido.
     const todos: ImagePreset[] = Object.values(IMAGE_PRESETS);
     const libres = todos.filter((p) => p.aspectRatioFree);
-    // `sizeChart` también, a propósito: una tabla de talles tiene la forma que tenga.
-    expect(libres.map((p) => p.key).sort()).toEqual(["memberPortfolioPhoto", "sizeChart"]);
+    // `sizeChart` también, a propósito: una tabla de talles tiene la forma que tenga. Y `frameModel`:
+    // la foto de frente de un marco tiene la proporción de ese marco.
+    expect(libres.map((p) => p.key).sort()).toEqual(["frameModel", "memberPortfolioPhoto", "sizeChart"]);
   });
 
   it("tiene su namespace propio en R2, separado del resto", () => {

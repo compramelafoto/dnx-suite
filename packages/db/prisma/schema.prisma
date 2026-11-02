@@ -26885,6 +26885,30 @@ model FotofficePrintOrder {
   @@index([workspaceId, waChatId, status])
 }
 
+/// Probador de cuadros: un marco real (producto del catálogo en un color) con su foto de frente
+/// enderezada, la ventana transparente. Ver lib/probador/marcos.ts.
+model FotofficeModeloMarco {
+  id               String   @id @default(cuid())
+  workspaceId      String
+  productId        String
+  color            String
+  imagenUrl        String
+  imagenAncho      Int
+  imagenAlto       Int
+  ventanaX         Float
+  ventanaY         Float
+  ventanaW         Float
+  ventanaH         Float
+  exteriorAnchoCm  Float
+  exteriorAltoCm   Float
+  activo           Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([workspaceId, productId, color])
+  @@index([workspaceId, activo])
+}
+
 model FotofficePrintOrderItem {
   id            String   @id @default(cuid())
   orderId       String

@@ -218,6 +218,21 @@ export const IMAGE_PRESETS = {
     acceptedFormats: ["image/jpeg", "image/png", "image/webp"],
     objectFit: "cover",
   },
+  frameModel: {
+    key: "frameModel",
+    label: "Foto de frente de un marco",
+    // La genera el navegador al enderezar la foto del marco: PNG, con la ventana transparente.
+    widthRecommended: 1000,
+    heightRecommended: 1000,
+    aspectRatio: { width: 1, height: 1 },
+    aspectRatioTolerance: 1,
+    aspectRatioFree: true,
+    minWidth: 300,
+    minHeight: 300,
+    maxFileSizeBytes: 8 * MB,
+    acceptedFormats: ["image/png"],
+    objectFit: "contain",
+  },
   sizeChart: {
     key: "sizeChart",
     label: "Tabla de talles",
