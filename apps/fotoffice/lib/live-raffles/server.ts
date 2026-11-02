@@ -80,6 +80,11 @@ export async function drawWinner(params: {
   liveRaffleId: string;
   prizeId?: string;
   redoRound?: number;
+  /**
+   * Sin listado: el premio que se eligió en la pantalla tocando el logo de un sponsor. Se guarda
+   * como un premio más del sorteo, así queda junto al ganador en los resultados y en el panel.
+   */
+  premioNuevo?: { title: string; sponsorName: string | null; sponsorLogoUrl: string | null };
 }): Promise<{ ok: true; winnerId: string; round: number } | { ok: false; error: string }> {
   return prisma.$transaction(
     async (tx) => {
@@ -88,7 +93,7 @@ export async function drawWinner(params: {
         select: {
           maxWinsPerPerson: true,
           cooldownDraws: true,
-          prizes: { select: { id: true } },
+          prizes: { select: { id: true, order: true } },
           entrants: { select: { id: true } },
           draws: { select: { id: true, round: true, entrantId: true, prizeId: true, status: true } },
         },
@@ -114,6 +119,18 @@ export async function drawWinner(params: {
             return { ok: false as const, error: "Ese premio ya tiene ganador." };
           }
           prizeId = params.prizeId;
+        } else if (params.premioNuevo) {
+          const creado = await tx.liveRafflePrize.create({
+            data: {
+              liveRaffleId: params.liveRaffleId,
+              order: sorteo.prizes.reduce((max, p) => Math.max(max, p.order), 0) + 1,
+              title: params.premioNuevo.title,
+              sponsorName: params.premioNuevo.sponsorName,
+              sponsorLogoUrl: params.premioNuevo.sponsorLogoUrl,
+            },
+            select: { id: true },
+          });
+          prizeId = creado.id;
         }
         round = draws.reduce((max, d) => Math.max(max, d.round), 0) + 1;
       }

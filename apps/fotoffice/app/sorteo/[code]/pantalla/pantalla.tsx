@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { drawLiveRafflePrizeAction, resetLiveRaffleResultsAction } from "../actions";
-import { LogosBanner } from "../logos-banner";
+import { LogosBanner, type LogoBanner } from "../logos-banner";
 
 type Prize = {
   id: string;
@@ -37,7 +37,7 @@ export function Pantalla(props: {
   entrants: { id: string; name: string }[];
   prizes: Prize[];
   polls: Poll[];
-  logos: { url: string; name: string | null }[];
+  logos: LogoBanner[];
 }) {
   const router = useRouter();
   const [, startTransition] = useTransition();
@@ -56,6 +56,12 @@ export function Pantalla(props: {
   const [nombreGiro, setNombreGiro] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const girandoRef = useRef(false);
+  /** Sin listado: el sponsor tocado en el banner y el premio que se escribió, para el próximo sorteo. */
+  const [eligiendo, setEligiendo] = useState<LogoBanner | null>(null);
+  const [textoPremio, setTextoPremio] = useState("");
+  const [destacado, setDestacado] = useState<{ sponsorId: string; url: string; name: string | null; title: string } | null>(null);
+  /** Premios de sorteos ya hechos que se sacaron de la pantalla tocando el logo grande. */
+  const [ocultos, setOcultos] = useState<ReadonlySet<number>>(new Set());
 
   const nombre = useMemo(() => new Map(props.entrants.map((e) => [e.id, e.name])), [props.entrants]);
   const premio = conListado ? (props.prizes.find((p) => p.id === prizeId) ?? null) : null;
@@ -66,6 +72,36 @@ export function Pantalla(props: {
       : null
     : (props.results[props.results.length - 1] ?? null);
   const poll = props.polls.find((p) => p.id === pollId) ?? null;
+  const premioPorId = useMemo(() => new Map(props.prizes.map((p) => [p.id, p])), [props.prizes]);
+  // Lo que se muestra en grande sin listado: el premio elegido para el próximo sorteo o, si no hay,
+  // el del último sorteo (hasta que se lo saque tocándolo).
+  const premioDeResultado =
+    !conListado && resultado?.prizeId && !ocultos.has(resultado.round) ? (premioPorId.get(resultado.prizeId) ?? null) : null;
+  const logoGrande = !conListado
+    ? destacado
+      ? { url: destacado.url, name: destacado.name, title: destacado.title }
+      : premioDeResultado
+        ? { url: premioDeResultado.sponsorLogoUrl, name: premioDeResultado.sponsorName, title: premioDeResultado.title }
+        : null
+    : null;
+
+  function elegirSponsor(logo: LogoBanner) {
+    if (girandoRef.current || conListado || !logo.sponsorId) return;
+    setTextoPremio("");
+    setEligiendo(logo);
+  }
+
+  function confirmarPremio() {
+    if (!eligiendo?.sponsorId) return;
+    setDestacado({ sponsorId: eligiendo.sponsorId, url: eligiendo.url, name: eligiendo.name, title: textoPremio.trim() });
+    setEligiendo(null);
+  }
+
+  function sacarLogoGrande() {
+    if (girandoRef.current) return;
+    if (destacado) setDestacado(null);
+    else if (resultado) setOcultos((prev) => new Set(prev).add(resultado.round));
+  }
 
   // Inscriptos, votos y resultados llegan solos: se refresca cada pocos segundos, salvo mientras gira.
   useEffect(() => {
@@ -90,12 +126,16 @@ export function Pantalla(props: {
         token: props.token,
         prizeId: redoRound === undefined && premio ? premio.id : undefined,
         redoRound,
+        premio: redoRound === undefined && destacado ? { sponsorId: destacado.sponsorId, title: destacado.title } : undefined,
       }).catch(() => ({ ok: false as const, error: "No se pudo sortear. Revisá la conexión y probá de nuevo." })),
       new Promise((res) => setTimeout(res, GIRO_MS)),
     ]);
     clearInterval(ruleta);
-    if (r.ok) setNombreGiro(nombre.get(r.winnerId) ?? null);
-    else setError(r.error);
+    if (r.ok) {
+      setNombreGiro(nombre.get(r.winnerId) ?? null);
+      // El premio ya quedó guardado con ese sorteo: desde ahora se muestra como su resultado.
+      if (redoRound === undefined) setDestacado(null);
+    } else setError(r.error);
     router.refresh();
     // Se deja el nombre final hasta que llegue el refresco con el ganador guardado.
     setTimeout(() => {
@@ -187,6 +227,22 @@ export function Pantalla(props: {
                 </>
               ) : null}
             </div>
+
+            {logoGrande ? (
+              <button
+                type="button"
+                onClick={sacarLogoGrande}
+                disabled={girando}
+                title="Sacar de la pantalla"
+                className="flex flex-col items-center gap-4 rounded-2xl p-2 transition-opacity hover:opacity-80"
+              >
+                {logoGrande.url ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- logo subido a R2
+                  <img src={logoGrande.url} alt={logoGrande.name ?? ""} className="h-40 w-auto max-w-[28rem] object-contain md:h-48" />
+                ) : null}
+                {logoGrande.title ? <span className="text-4xl font-semibold md:text-5xl">{logoGrande.title}</span> : null}
+              </button>
+            ) : null}
 
             <div className="flex min-h-[9rem] items-center justify-center">
               {enPantalla ? (
@@ -292,7 +348,18 @@ export function Pantalla(props: {
                 {[...props.results].reverse().map((r, i) => (
                   <li key={r.round} className="flex gap-3 rounded-lg bg-white/5 px-3 py-2 text-sm">
                     <span className="w-6 tabular-nums text-white/50">{props.results.length - i}.</span>
-                    <span className="font-medium">{nombre.get(r.entrantId) ?? "—"}</span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block font-medium">{nombre.get(r.entrantId) ?? "—"}</span>
+                      {r.prizeId && premioPorId.get(r.prizeId) ? (
+                        <span className="mt-0.5 flex items-center gap-2 text-xs text-white/60">
+                          {premioPorId.get(r.prizeId)?.sponsorLogoUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element -- logo subido a R2
+                            <img src={premioPorId.get(r.prizeId)?.sponsorLogoUrl ?? ""} alt="" className="h-5 w-auto max-w-[4rem] object-contain" />
+                          ) : null}
+                          <span className="truncate">{premioPorId.get(r.prizeId)?.title}</span>
+                        </span>
+                      ) : null}
+                    </span>
                   </li>
                 ))}
               </ol>
@@ -301,7 +368,37 @@ export function Pantalla(props: {
         </aside>
       </main>
 
-      <LogosBanner logos={props.logos} size="lg" />
+      <LogosBanner logos={props.logos} size="lg" onSelect={conListado ? undefined : elegirSponsor} />
+
+      {eligiendo ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center pb-40" onClick={() => setEligiendo(null)}>
+          <form
+            onClick={(e) => e.stopPropagation()}
+            onSubmit={(e) => {
+              e.preventDefault();
+              confirmarPremio();
+            }}
+            className="flex w-full max-w-md items-center gap-3 rounded-2xl border border-white/10 bg-neutral-900/95 p-3 shadow-2xl backdrop-blur"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element -- logo subido a R2 */}
+            <img src={eligiendo.url} alt="" className="h-10 w-auto max-w-[5rem] shrink-0 object-contain" />
+            <input
+              autoFocus
+              value={textoPremio}
+              onChange={(e) => setTextoPremio(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") setEligiendo(null);
+              }}
+              maxLength={120}
+              placeholder="¿Qué premio se sortea?"
+              className="min-w-0 flex-1 bg-transparent text-base text-white placeholder:text-white/40 focus:outline-none"
+            />
+            <button type="submit" className="shrink-0 rounded-full bg-amber-400 px-4 py-1.5 text-sm font-semibold text-neutral-950">
+              Listo
+            </button>
+          </form>
+        </div>
+      ) : null}
     </div>
   );
 }

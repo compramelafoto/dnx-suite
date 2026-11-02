@@ -100,19 +100,27 @@ export async function drawLiveRafflePrizeAction(input: {
   token: string;
   prizeId?: string;
   redoRound?: number;
+  /** Sin listado: el logo del sponsor que se tocó en el banner y el premio que se escribió. */
+  premio?: { sponsorId: string; title: string };
 }): Promise<{ ok: true; winnerId: string; round: number } | { ok: false; error: string }> {
   const sorteo = await prisma.liveRaffle.findUnique({
     where: { publicCode: String(input.code) },
-    select: { id: true, screenToken: true },
+    select: { id: true, screenToken: true, sponsors: { select: { id: true, name: true, logoUrl: true } } },
   });
   if (!sorteo || sorteo.screenToken !== String(input.token)) {
     return { ok: false, error: "El enlace de la pantalla ya no es válido. Pedí uno nuevo." };
   }
   const redo = Number(input.redoRound);
+  // El logo y el nombre salen del sponsor cargado, nunca de lo que mande la pantalla.
+  const sponsor = input.premio ? sorteo.sponsors.find((x) => x.id === String(input.premio?.sponsorId)) : undefined;
+  const titulo = typeof input.premio?.title === "string" ? input.premio.title.trim().slice(0, 120) : "";
   const resultado = await drawWinner({
     liveRaffleId: sorteo.id,
     prizeId: input.prizeId ? String(input.prizeId) : undefined,
     redoRound: Number.isInteger(redo) && redo > 0 ? redo : undefined,
+    premioNuevo: sponsor
+      ? { title: titulo || `Premio de ${sponsor.name ?? "un sponsor"}`, sponsorName: sponsor.name, sponsorLogoUrl: sponsor.logoUrl }
+      : undefined,
   });
   revalidatePath(screenPath(input.code, input.token).split("?")[0]);
   return resultado;
