@@ -20,6 +20,8 @@ export type RecetaProbador = {
   /** Número del cuadro dentro del conjunto (1..total), para el nombre del archivo y el mapa. */
   orden: number;
   total: number;
+  /** Con un marco real: cuál (sale del stock del estudio, no del laboratorio). */
+  marcoReal?: { nombre: string; color: string };
 };
 
 export const ENVOLTURA_CANVAS_CM = 5;
@@ -104,11 +106,13 @@ const num = (n: number) => (Number.isInteger(n) ? String(n) : String(Number(n.to
 const medida = (w: number, h: number) => `${num(Math.min(w, h))}x${num(Math.max(w, h))}`;
 
 /** `Pedido 12 - Ana Pérez/Canvas 30x40/Cuadro 2 de 5.jpg` */
-export function rutaEnZip(numero: number, cliente: string, r: Pick<RecetaProbador, "tipo" | "ventana" | "orden" | "total">): string {
-  return `Pedido ${numero} - ${limpio(cliente)}/${NOMBRE_TIPO[r.tipo]} ${medida(r.ventana.w, r.ventana.h)}/Cuadro ${r.orden} de ${r.total}.jpg`;
+export function rutaEnZip(numero: number, cliente: string, r: Pick<RecetaProbador, "tipo" | "ventana" | "orden" | "total" | "marcoReal">): string {
+  // Con marco real, el laboratorio imprime la foto: la carpeta dice la medida de la copia y para qué marco va.
+  const carpeta = r.marcoReal ? `Foto ${medida(r.ventana.w, r.ventana.h)} para marco ${limpio(r.marcoReal.color)}` : `${NOMBRE_TIPO[r.tipo]} ${medida(r.ventana.w, r.ventana.h)}`;
+  return `Pedido ${numero} - ${limpio(cliente)}/${carpeta}/Cuadro ${r.orden} de ${r.total}.jpg`;
 }
 
-export type CuadroDelMapa = { x: number; y: number; w: number; h: number; tipo: TipoCuadro };
+export type CuadroDelMapa = { x: number; y: number; w: number; h: number; tipo: TipoCuadro; marco?: { nombre: string; color: string } };
 
 /**
  * El mapa de armado: el conjunto de frente, numerado, con medidas y distancias. Sirve al laboratorio
@@ -128,7 +132,7 @@ export function mapaDeArmado(cuadros: readonly CuadroDelMapa[], numero: number, 
   const titulo = `Pedido ${numero} · ${cliente.replace(/[<>&]/g, "")} · conjunto de ${num(ancho)} × ${num(alto)} cm`;
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><rect width="100%" height="100%" fill="#fff"/><text x="16" y="28" font-family="sans-serif" font-size="20">${titulo}</text>${rects}</svg>`;
   const lineas = cuadros.map((q, i) =>
-    `Cuadro ${i + 1} · ${NOMBRE_TIPO[q.tipo]} ${num(q.w)} × ${num(q.h)} cm · a ${num(q.x - x0)} cm de la izquierda y ${num(q.y - y0)} cm de arriba`);
+    `Cuadro ${i + 1} · ${NOMBRE_TIPO[q.tipo]} ${num(q.w)} × ${num(q.h)} cm${q.marco ? ` (${q.marco.nombre}, ${q.marco.color})` : ""} · a ${num(q.x - x0)} cm de la izquierda y ${num(q.y - y0)} cm de arriba`);
   const texto = [`Mapa de armado — pedido ${numero} (${cliente})`, `Conjunto: ${num(ancho)} × ${num(alto)} cm (ancho × alto). Medidas desde la esquina superior izquierda del conjunto.`, "", ...lineas, ""].join("\n");
   return { svg, texto };
 }

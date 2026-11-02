@@ -1,5 +1,6 @@
 import { normalizarTexto } from "@/lib/precios-proveedor/clave";
 import type { Composicion, TipoCuadro } from "./composicion";
+import { medidaDelMarco, type MarcoPublico } from "./marcos";
 
 /**
  * Los precios del probador salen del catálogo de Ventas, sin configurar nada: cada producto con
@@ -99,11 +100,14 @@ export function medidaMasCercana(cat: readonly PrecioPublico[], tipo: TipoCuadro
 export type LineaPresupuesto = { tipo: TipoCuadro; corto: number; largo: number; cantidad: number; precioArs: number | null };
 
 /** Lo que cuesta la composición: un renglón por tipo y medida, el total y cuántos cuadros no tienen precio. */
-export function cotizar(cat: readonly PrecioPublico[], c: Composicion) {
+export function cotizar(cat: readonly PrecioPublico[], c: Composicion, marcos: readonly MarcoPublico[] = []) {
   const lineas = new Map<string, LineaPresupuesto>();
   let total = 0, sinPrecio = 0;
   for (const q of c.cuadros) {
-    const corto = Math.min(q.w, q.h), largo = Math.max(q.w, q.h), p = precioDe(cat, q.tipo, q.w, q.h);
+    const corto = Math.min(q.w, q.h), largo = Math.max(q.w, q.h);
+    // Con un marco real, el precio es el de su medida (marco + ampliación); si no, el del catálogo.
+    const conMarco = q.tipo === "MARCO" ? medidaDelMarco(marcos, q) : null;
+    const p = conMarco ? (conMarco.medida.precioArs != null ? { precioArs: conMarco.medida.precioArs } : null) : precioDe(cat, q.tipo, q.w, q.h);
     const clave = `${q.tipo}|${corto}x${largo}`;
     const l = lineas.get(clave) ?? { tipo: q.tipo, corto, largo, cantidad: 0, precioArs: p?.precioArs ?? null };
     l.cantidad++;

@@ -4,6 +4,8 @@ import { prisma } from "@repo/db";
 import { ProbadorCuadros } from "@/components/probador/probador-cuadros";
 import { cargarCatalogoProbador } from "@/lib/probador/catalogo.server";
 import { catalogoPublico } from "@/lib/probador/catalogo";
+import { marcosPublicos } from "@/lib/probador/marcos";
+import { cargarMarcos } from "@/lib/probador/marcos.server";
 import { puedePedir } from "@/lib/probador/pedido.server";
 
 type Props = { params: Promise<{ workspaceSlug: string }> };
@@ -34,7 +36,7 @@ export default async function ProbadorDeCuadrosPage({ params }: Props) {
   const { workspaceSlug } = await params;
   const branding = await estudio(workspaceSlug);
   if (!branding) notFound();
-  const [catalogo, pedidos] = await Promise.all([cargarCatalogoProbador(branding.workspaceId), puedePedir(branding.workspaceId)]);
+  const [catalogo, pedidos, marcos] = await Promise.all([cargarCatalogoProbador(branding.workspaceId), puedePedir(branding.workspaceId), cargarMarcos(branding.workspaceId)]);
 
   return (
     // El aire de arriba deja lugar al encabezado de los diseños que lo superponen a la página.
@@ -43,7 +45,7 @@ export default async function ProbadorDeCuadrosPage({ params }: Props) {
         <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Tus cuadros en tu pared</h1>
         <p className="opacity-80">En 6 pasos, desde el celular: sacale una foto a tu pared, elegí tus cuadros y mirá cómo quedan antes de pedirlos.</p>
       </header>
-      <ProbadorCuadros catalogo={catalogoPublico(catalogo)} asistente={{ slug: workspaceSlug, puedePedir: pedidos }} />
+      <ProbadorCuadros catalogo={catalogoPublico(catalogo)} marcos={marcosPublicos(marcos)} asistente={{ slug: workspaceSlug, puedePedir: pedidos }} />
     </main>
   );
 }

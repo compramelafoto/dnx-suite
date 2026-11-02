@@ -11,6 +11,7 @@ import { resolveWorkspaceCollector } from "@/lib/payments/connect/collector";
 import { sanitizeError } from "@/lib/payments/connect/log";
 import { cargarCatalogoProbador } from "./catalogo.server";
 import { validarPedido } from "./pedido";
+import { cargarMarcos } from "./marcos.server";
 
 /**
  * El pedido pago del probador de cuadros (spec 2026-10-30, etapa 3). Reusa el circuito de Pedidos de
@@ -86,8 +87,9 @@ export async function crearPedidoProbador(workspaceId: string, datos: unknown): 
     if (typeof ext !== "string" || !Object.values(TIPOS).includes(ext)) return { ok: false, error: "Volvé a subir tus fotos." };
     claves.set(indice as number, claveDeFoto(workspaceId, d.borrador, n as number, ext));
   }
-  const [catalogo, pedir, branding] = await Promise.all([
+  const [catalogo, marcos, pedir, branding] = await Promise.all([
     cargarCatalogoProbador(workspaceId),
+    cargarMarcos(workspaceId),
     puedePedir(workspaceId),
     prisma.fotofficeWorkspaceBranding.findUnique({ where: { workspaceId }, select: { publicSlug: true } }),
   ]);
@@ -96,7 +98,7 @@ export async function crearPedidoProbador(workspaceId: string, datos: unknown): 
   // Sólo cuentan las fotos que de verdad están en el depósito.
   const subidas = new Set<number>();
   for (const [indice, clave] of claves) if ((await tamanoDeArchivo(clave)) != null) subidas.add(indice);
-  const v = validarPedido(d.pedido, catalogo, subidas);
+  const v = validarPedido(d.pedido, catalogo, subidas, marcos);
   if (!v.ok) return v;
 
   const origen = base();

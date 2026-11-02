@@ -21,6 +21,19 @@ export type Cuadro = {
   /** Índice de la foto propia (cuando no es "una foto para todos"). */
   foto: number;
   encuadre: Encuadre;
+  /** Con un marco real: qué modelo y dónde va la foto (ver `lib/probador/marcos.ts`). */
+  marco?: MarcoDelCuadro;
+};
+
+export type MarcoDelCuadro = {
+  modeloId: string;
+  /** Medida de la foto (lado corto y largo, en cm): con ella se busca el precio. */
+  medidaFoto: { corto: number; largo: number };
+  /** La ventana del marco y la foto, en cm desde la esquina del cuadro. */
+  ventana: Rect;
+  foto: Rect;
+  /** 90 cuando el cuadro va en la otra orientación que la foto del modelo. */
+  giro: 0 | 90;
 };
 
 export type Composicion = {
@@ -116,13 +129,14 @@ export function moverCuadro(c: Composicion, id: string, dx: number, dy: number, 
 }
 
 export function cambiarMedida(c: Composicion, id: string, w: number, h: number): Composicion {
-  return conCuadro(c, id, (q) => ({ ...q, x: q.x + (q.w - w) / 2, y: q.y + (q.h - h) / 2, w, h }));
+  // Cambiar la medida a mano deja de lado el marco real (sus medidas son las del modelo).
+  return conCuadro(c, id, (q) => ({ ...q, x: q.x + (q.w - w) / 2, y: q.y + (q.h - h) / 2, w, h, marco: undefined }));
 }
 
 export function cambiarCuadro(
   c: Composicion,
   id: string,
-  cambios: Partial<Pick<Cuadro, "tipo" | "paspartu" | "foto" | "encuadre">>,
+  cambios: Partial<Pick<Cuadro, "tipo" | "paspartu" | "foto" | "encuadre" | "marco">>,
 ): Composicion {
   return conCuadro(c, id, (q) => ({ ...q, ...cambios }));
 }
@@ -157,6 +171,7 @@ export function aplicarATodos(
 /** La ventana donde va la foto: el canvas y la impresión la llevan entera; el marco descuenta perfil y paspartú. */
 export function rectFoto(q: Cuadro): Rect {
   if (q.tipo !== "MARCO") return { x: q.x, y: q.y, w: q.w, h: q.h };
+  if (q.marco) return { x: q.x + q.marco.foto.x, y: q.y + q.marco.foto.y, w: q.marco.foto.w, h: q.marco.foto.h };
   const m = PERFIL_MARCO_CM + q.paspartu;
   return { x: q.x + m, y: q.y + m, w: Math.max(1, q.w - 2 * m), h: Math.max(1, q.h - 2 * m) };
 }

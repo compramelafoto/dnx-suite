@@ -1,5 +1,6 @@
 import { normalizarTexto } from "@/lib/precios-proveedor/clave";
 import { precioDe, type PrecioProbador } from "./catalogo";
+import type { Composicion } from "./composicion";
 
 /**
  * Los marcos reales del probador (etapa 4). Un **modelo** es un producto del catálogo en un color,
@@ -193,7 +194,7 @@ export function armarMarcos(productos: readonly ProductoMarco[], modelos: readon
 }
 
 export function marcosPublicos(m: readonly MarcoServidor[]): MarcoPublico[] {
-  return m.map(({ productoId: _p, extra: _e, ...resto }) => resto);
+  return m.map((x) => ({ modeloId: x.modeloId, nombre: x.nombre, color: x.color, imagen: x.imagen, exteriorCm: x.exteriorCm, medidas: x.medidas }));
 }
 
 /** El modelo como lo necesita el dibujo, a partir de lo que ve el cliente. */
@@ -203,4 +204,48 @@ export function modeloDePublico(m: MarcoPublico): ModeloMarco {
     imagenAncho: m.imagen.ancho, imagenAlto: m.imagen.alto, ventana: m.imagen.ventana,
     exteriorAnchoCm: m.exteriorCm.w, exteriorAltoCm: m.exteriorCm.h,
   };
+}
+
+/**
+ * Pone un marco real en un cuadro: lo lleva a la medida exterior de esa medida del modelo, en la
+ * orientación pedida, conservando el centro.
+ */
+export function aplicarMarco(c: Composicion, id: string, marco: MarcoPublico, medida: MedidaMarco, vertical: boolean): Composicion {
+  const geo = medidaConMarco(modeloDePublico(marco), medida.foto, medida.exterior, vertical);
+  return {
+    ...c,
+    cuadros: c.cuadros.map((q) => {
+      if (q.id !== id) return q;
+      const w = geo.exterior.w, h = geo.exterior.h;
+      return {
+        ...q,
+        tipo: "MARCO" as const,
+        paspartu: 0,
+        x: q.x + (q.w - w) / 2,
+        y: q.y + (q.h - h) / 2,
+        w,
+        h,
+        marco: { modeloId: marco.modeloId, medidaFoto: medida.foto, ventana: geo.ventana, foto: geo.foto, giro: geo.giro as 0 | 90 },
+      };
+    }),
+  };
+}
+
+/** La medida del modelo cuyo exterior más se parece a `w × h` (en escala logarítmica, como `medidaMasCercana`). */
+export function medidaMarcoMasCercana(marco: MarcoPublico, w: number, h: number): MedidaMarco | null {
+  let mejor: { m: MedidaMarco; d: number } | null = null;
+  const corto = Math.min(w, h), largo = Math.max(w, h);
+  for (const m of marco.medidas) {
+    const d = Math.abs(Math.log(m.exterior.corto / corto)) + Math.abs(Math.log(m.exterior.largo / largo));
+    if (!mejor || d < mejor.d) mejor = { m, d };
+  }
+  return mejor?.m ?? null;
+}
+
+/** La medida del modelo de un cuadro con marco, si existe. */
+export function medidaDelMarco(marcos: readonly MarcoPublico[], q: { marco?: { modeloId: string; medidaFoto: Medida } }): { marco: MarcoPublico; medida: MedidaMarco } | null {
+  if (!q.marco) return null;
+  const marco = marcos.find((m) => m.modeloId === q.marco!.modeloId);
+  const medida = marco?.medidas.find((m) => m.foto.corto === q.marco!.medidaFoto.corto && m.foto.largo === q.marco!.medidaFoto.largo);
+  return marco && medida ? { marco, medida } : null;
 }

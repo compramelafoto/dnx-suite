@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { PrecioPublico } from "@/lib/probador/catalogo";
+import type { MarcoPublico } from "@/lib/probador/marcos";
 import { EncabezadoPaso, GuiaDelPaso, PASOS, type DatosAsistente } from "./asistente";
 import { montarProbador, type ApiProbador } from "./motor";
 
@@ -15,7 +16,7 @@ import { montarProbador, type ApiProbador } from "./motor";
  * Los colores salen del sitio de cada estudio (`--wsite-*`, ver `PublicSiteShell`); dentro del
  * panel, donde esas variables no existen, toma las del panel (`--fo-*`).
  */
-export function ProbadorCuadros({ catalogo, asistente }: { catalogo: PrecioPublico[]; asistente?: DatosAsistente }) {
+export function ProbadorCuadros({ catalogo, marcos, asistente }: { catalogo: PrecioPublico[]; marcos?: MarcoPublico[]; asistente?: DatosAsistente }) {
   const raiz = useRef<HTMLDivElement>(null);
   const [api, setApi] = useState<ApiProbador | null>(null);
   // El motor avisa cada cambio; el asistente sólo necesita volver a leer (habilitar botones, el total).
@@ -37,10 +38,10 @@ export function ProbadorCuadros({ catalogo, asistente }: { catalogo: PrecioPubli
         setPaso(2);
       }
       propiaAntes = propiaAhora;
-    });
+    }, marcos);
     setApi(m.api);
     return () => { setApi(null); m.desmontar(); };
-  }, [catalogo, esAsistente]);
+  }, [catalogo, marcos, esAsistente]);
 
   const irA = useCallback((n: number) => {
     const a = api;
@@ -153,15 +154,15 @@ export function ProbadorCuadros({ catalogo, asistente }: { catalogo: PrecioPubli
             <label className="pdc-check">
               <input type="checkbox" data-pdc="una-foto" /> Una sola foto repartida entre todos los cuadros
             </label>
-            <div className="pdc-campos" data-solo-editor>
-              <label className="pdc-campo" htmlFor="pdc-paspartu-todos">
+            <div className="pdc-campos">
+              <label className="pdc-campo" htmlFor="pdc-paspartu-todos" data-solo-editor data-pdc="fila-paspartu-todos">
                 Paspartú
                 <select id="pdc-paspartu-todos" data-pdc="paspartu-todos" />
               </label>
-              <label className="pdc-campo" htmlFor="pdc-modelo-marco">
-                <span>Modelo de marco <span className="pdc-tag">Próximamente</span></span>
-                <select id="pdc-modelo-marco" disabled defaultValue="negro">
-                  <option value="negro">Negro</option>
+              <label className="pdc-campo" htmlFor="pdc-modelo-todos">
+                <span>Modelo de marco <span className="pdc-tag" data-pdc="modelo-proximamente">Próximamente</span></span>
+                <select id="pdc-modelo-todos" data-pdc="modelo-todos" disabled>
+                  <option value="">Negro</option>
                 </select>
               </label>
             </div>
@@ -206,7 +207,11 @@ export function ProbadorCuadros({ catalogo, asistente }: { catalogo: PrecioPubli
                 <button type="button" className="pdc-btn" data-pdc="inclinacion-cero">0°</button>
               </div>
             </div>
-            <label className="pdc-campo" htmlFor="pdc-paspartu-cuadro">
+            <label className="pdc-campo" htmlFor="pdc-modelo-cuadro" data-pdc="fila-modelo-cuadro" hidden>
+              Modelo de marco
+              <select id="pdc-modelo-cuadro" data-pdc="modelo-cuadro" />
+            </label>
+            <label className="pdc-campo" htmlFor="pdc-paspartu-cuadro" data-pdc="fila-paspartu-cuadro">
               Paspartú (solo con marco)
               <select id="pdc-paspartu-cuadro" data-pdc="paspartu-cuadro" />
             </label>

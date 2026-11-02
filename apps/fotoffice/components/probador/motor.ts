@@ -24,7 +24,6 @@ import {
   type Giro90,
 } from "@/lib/probador/encuadre";
 import {
-  aplicarATodos,
   cambiarCuadro,
   cambiarMedida,
   centroEnLaPared,
@@ -42,6 +41,7 @@ import {
   type TipoCuadro,
 } from "@/lib/probador/composicion";
 import { cotizar, medidaMasCercana, medidasDe, precioDe, type PrecioPublico } from "@/lib/probador/catalogo";
+import { aplicarMarco, medidaDelMarco, medidaMarcoMasCercana, type MarcoPublico } from "@/lib/probador/marcos";
 import { deshacer, iniciar, puedeDeshacer, puedeRehacer, registrar, rehacer, type Historial } from "@/lib/probador/historial";
 import { fotoDeMuestra, iniciarGl, leerArchivo, lienzo, livingDeEjemplo, miniatura, PALETAS } from "./recursos";
 
@@ -114,6 +114,7 @@ export function montarProbador(
   raiz: HTMLElement,
   catalogo: readonly PrecioPublico[] = [],
   alCambiar?: () => void,
+  marcos: readonly MarcoPublico[] = [],
 ): { desmontar: () => void; api: ApiProbador } {
   const $ = <T extends HTMLElement = HTMLElement>(n: string) => raiz.querySelector<T>(`[data-pdc="${n}"]`)!;
   const cv = $<HTMLCanvasElement>("lienzo"), ctx = cv.getContext("2d")!;
@@ -124,12 +125,56 @@ export function montarProbador(
     H: null as Homografia | null, Hi: null as Homografia | null, modoPared: false, paredPropia: false,
     fotos: [] as Foto[], deMuestra: true,
     // Lo que el panel "Conjunto" usa para rearmar la plantilla.
+    modelo: "",
     plantilla: "escalonado5" as ComposicionId, base: { corto: 50, largo: 50 }, orient: "v", sep: 5,
     hist: null as unknown as Historial<Composicion>, provisorio: null as Composicion | null,
     sel: null as string | null, encuadrando: false, guias: { x: [] as number[], y: [] as number[] },
     capa: null as Capa | null,
   };
   const comp = () => P.provisorio ?? P.hist.actual;
+
+  /* ---------- Marcos reales: la foto de frente de cada modelo, derecha y girada 90° ---------- */
+  type ImagenMarco = { derecha: HTMLCanvasElement; girada: HTMLCanvasElement };
+  const imagenesMarco = new Map<string, ImagenMarco>();
+  let marcosCargados = 0;
+  for (const m of marcos) {
+    const im = new Image();
+    im.onload = () => {
+      const { c: derecha, g } = lienzo(im.naturalWidth, im.naturalHeight); g.drawImage(im, 0, 0);
+      // Girada 90° a la derecha, para los cuadros que van en la otra orientación que la foto.
+      const { c: girada, g: gg } = lienzo(im.naturalHeight, im.naturalWidth);
+      gg.translate(im.naturalHeight, 0); gg.rotate(Math.PI / 2); gg.drawImage(im, 0, 0);
+      imagenesMarco.set(m.modeloId, { derecha, girada });
+      marcosCargados++; pedir();
+    };
+    im.src = `/api/probador/marco/${encodeURIComponent(m.modeloId)}`;
+  }
+  /** El marco estirado por partes: esquinas fijas, lados estirados, la ventana vacía. */
+  function marcoPorPartes(g: CanvasRenderingContext2D, q: Cuadro) {
+    const datos = q.marco ? marcos.find((m) => m.modeloId === q.marco!.modeloId) : null;
+    const imgs = datos ? imagenesMarco.get(datos.modeloId) : null;
+    if (!q.marco) return false;
+    const v = q.marco.ventana;
+    if (!datos || !imgs) {
+      // Mientras carga la foto del modelo: un marco liso oscuro con la misma ventana.
+      g.save(); g.beginPath(); g.rect(q.x, q.y, q.w, q.h); g.rect(q.x + v.x, q.y + v.y, v.w, v.h);
+      g.fillStyle = rgb(MARCO_GENERICO, 1); g.fill("evenodd"); g.restore();
+      return true;
+    }
+    const iv = datos.imagen.ventana, W = datos.imagen.ancho, H = datos.imagen.alto;
+    const src = q.marco.giro ? imgs.girada : imgs.derecha;
+    // Girada 90° a la derecha: la ventana pasa a medirse desde el borde de abajo original.
+    const sv = q.marco.giro ? { x: H - iv.y - iv.h, y: iv.x, w: iv.h, h: iv.w } : iv;
+    const sw = q.marco.giro ? H : W, sh = q.marco.giro ? W : H;
+    const sx = [0, sv.x, sv.x + sv.w, sw], sy = [0, sv.y, sv.y + sv.h, sh];
+    const dx = [q.x, q.x + v.x, q.x + v.x + v.w, q.x + q.w], dy = [q.y, q.y + v.y, q.y + v.y + v.h, q.y + q.h];
+    for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) {
+      if (i === 1 && j === 1) continue;
+      const a = sx[i + 1] - sx[i], b = sy[j + 1] - sy[j];
+      if (a > 0 && b > 0) g.drawImage(src, sx[i], sy[j], a, b, dx[i], dy[j], dx[i + 1] - dx[i], dy[j + 1] - dy[j]);
+    }
+    return true;
+  }
   const cuadroSel = () => comp().cuadros.find((q) => q.id === P.sel) ?? null;
   const fotoDe = (i: number) => P.fotos.length ? P.fotos[((i % P.fotos.length) + P.fotos.length) % P.fotos.length].img : undefined;
 
@@ -182,6 +227,16 @@ export function montarProbador(
     g.shadowOffsetX = 0.5 * k; g.shadowOffsetY = (lienzoT ? 1.8 : q.tipo === "IMPRESION" ? 0.6 : 1.3) * k; g.fillStyle = "#222"; g.fillRect(x, y, w, h); g.restore();
     g.save(); g.shadowColor = "rgba(25,18,10,.35)"; g.shadowBlur = 0.35 * k; g.shadowOffsetY = 0.18 * k; g.fillStyle = "#222"; g.fillRect(x, y, w, h); g.restore();
     const ventana = rectFoto(q), img = fotoDe(c.unaFoto ? c.fotoConjunto : q.foto);
+    if (q.tipo === "MARCO" && q.marco) {
+      // Marco real: paspartú entre la ventana y la foto (si la medida lo trae), la foto y el marco encima.
+      const v = q.marco.ventana;
+      g.fillStyle = "#f6f4ef"; g.fillRect(x + v.x, y + v.y, v.w, v.h);
+      if (img) fotoEncuadrada(g, img, ventana, marcoDelEncuadre(c, q), encuadreDe(c, q));
+      else { g.fillStyle = "#c9cdca"; g.fillRect(ventana.x, ventana.y, ventana.w, ventana.h); }
+      if (v.w - ventana.w > 0.5) { g.strokeStyle = "rgba(0,0,0,.18)"; g.lineWidth = 0.15; g.strokeRect(ventana.x, ventana.y, ventana.w, ventana.h); }
+      marcoPorPartes(g, q);
+      return;
+    }
     if (q.tipo === "MARCO" && q.paspartu > 0) {
       g.fillStyle = "#f6f4ef"; g.fillRect(x + PERFIL_MARCO_CM, y + PERFIL_MARCO_CM, w - 2 * PERFIL_MARCO_CM, h - 2 * PERFIL_MARCO_CM);
     }
@@ -249,7 +304,7 @@ export function montarProbador(
     }
   }
   /** Lo que obliga a redibujar la capa: todo menos mover el conjunto entero sobre la pared. */
-  const firmaDe = (c: Composicion) => [c.cuadros, c.unaFoto, c.fotoConjunto, c.encuadreConjunto, P.fotos, P.encuadrando, P.sel, P.quad, P.refW, P.refH];
+  const firmaDe = (c: Composicion) => [c.cuadros, c.unaFoto, c.fotoConjunto, c.encuadreConjunto, P.fotos, P.encuadrando, P.sel, P.quad, P.refW, P.refH, marcosCargados];
   const capaVigente = (c: Composicion) => !!P.capa && firmaDe(c).every((v, i) => v === P.capa!.firma[i]);
 
   /* ---------- Proyección de la capa sobre la foto ---------- */
@@ -530,11 +585,17 @@ export function montarProbador(
     const html = lista.map((m) => `<option value="${m.corto}x${m.largo}">${m.corto} × ${m.largo} cm${m.precio != null ? ` · ${pesos(m.precio)}` : ""}</option>`).join("");
     return { html: lista.some((m) => `${m.corto}x${m.largo}` === actual) ? html : `<option value="${actual}">${fmt(Math.min(w, h))} × ${fmt(Math.max(w, h))} cm (sin precio)</option>${html}`, actual };
   };
+  /** Las medidas de un modelo de marco: la de la foto, la de afuera y el precio (o por qué no tiene). */
+  const opcionesMarco = (marco: MarcoPublico, actual: { foto: { corto: number; largo: number } }) => ({
+    html: marco.medidas.map((m) =>
+      `<option value="${m.foto.corto}x${m.foto.largo}">Foto ${m.foto.corto} × ${m.foto.largo} · marco ${fmt(m.exterior.corto)} × ${fmt(m.exterior.largo)} cm · ${m.precioArs != null ? pesos(m.precioArs) : "sin precio"}</option>`).join(""),
+    actual: `${actual.foto.corto}x${actual.foto.largo}`,
+  });
   /** Lleva cada cuadro sin precio a la medida con precio más parecida de su tipo, sin moverle el centro. */
   const alCatalogo = (c: Composicion): Composicion => {
     let r = c;
     for (const q of c.cuadros) {
-      if (precioDe(catalogo, q.tipo, q.w, q.h)) continue;
+      if (q.marco || precioDe(catalogo, q.tipo, q.w, q.h)) continue;
       const m = medidaMasCercana(catalogo, q.tipo, q.w, q.h);
       if (m) r = cambiarMedida(r, q.id, m.w, m.h);
     }
@@ -573,6 +634,16 @@ export function montarProbador(
     medidaTodos.innerHTML = base.html; medidaTodos.value = base.actual;
     presupuesto(c);
     const pasp = new Set(c.cuadros.filter((x) => x.tipo === "MARCO").map((x) => x.paspartu));
+    // Con marcos reales cargados, el modelo se elige; el paspartú lo trae cada medida del modelo.
+    const conModelos = marcos.length > 0;
+    const modeloTodos = $<HTMLSelectElement>("modelo-todos");
+    if (conModelos && modeloTodos.disabled) {
+      modeloTodos.innerHTML = marcos.map((m) => `<option value="${m.modeloId}">${m.nombre} · ${m.color}</option>`).join("");
+      modeloTodos.disabled = false;
+      $("modelo-proximamente").hidden = true;
+    }
+    if (conModelos) modeloTodos.value = modeloElegido();
+    $("fila-paspartu-todos").hidden = conModelos;
     $<HTMLSelectElement>("paspartu-todos").disabled = !tipos.has("MARCO");
     $<HTMLSelectElement>("paspartu-todos").value = pasp.size === 0 ? "0" : pasp.size === 1 ? String([...pasp][0]) : "";
     composiciones();
@@ -581,10 +652,19 @@ export function montarProbador(
     const n = c.cuadros.findIndex((x) => x.id === q.id) + 1;
     $("titulo-cuadro").textContent = `Cuadro ${n} de ${c.cuadros.length}`;
     $("tipo-cuadro").innerHTML = tiposHtml(q.tipo);
-    const m = opcionesMedida(q.tipo, q.w, q.h);
+    const real = medidaDelMarco(marcos, q);
+    const m = real ? opcionesMarco(real.marco, real.medida) : opcionesMedida(q.tipo, q.w, q.h);
     const medida = $<HTMLSelectElement>("medida-cuadro");
     medida.innerHTML = m.html; medida.value = m.actual;
     $<HTMLSelectElement>("orientacion-cuadro").value = q.h >= q.w ? "v" : "h";
+    const filaModelo = $("fila-modelo-cuadro");
+    filaModelo.hidden = !(conModelos && q.tipo === "MARCO");
+    if (!filaModelo.hidden) {
+      const sel = $<HTMLSelectElement>("modelo-cuadro");
+      sel.innerHTML = marcos.map((m) => `<option value="${m.modeloId}">${m.nombre} · ${m.color}</option>`).join("");
+      sel.value = q.marco?.modeloId ?? modeloElegido();
+    }
+    $("fila-paspartu-cuadro").hidden = !!q.marco;
     $<HTMLSelectElement>("paspartu-cuadro").disabled = q.tipo !== "MARCO";
     $<HTMLSelectElement>("paspartu-cuadro").value = String(q.paspartu);
     const e = encuadreDe(c, q), img = fotoDe(c.unaFoto ? c.fotoConjunto : q.foto);
@@ -615,7 +695,7 @@ export function montarProbador(
   function presupuesto(c: Composicion) {
     $("presupuesto").hidden = !catalogo.length;
     if (!catalogo.length) return;
-    const r = cotizar(catalogo, c), nombre = Object.fromEntries(TIPOS.map((t) => [t.id, t.label]));
+    const r = cotizar(catalogo, c, marcos), nombre = Object.fromEntries(TIPOS.map((t) => [t.id, t.label]));
     $("presupuesto-lineas").innerHTML = r.lineas.map((l) =>
       `<li><span>${l.cantidad} × ${nombre[l.tipo]} ${fmt(l.corto)} × ${fmt(l.largo)} cm</span><span>${l.precioArs != null ? pesos(l.precioArs * l.cantidad) : "Sin precio"}</span></li>`).join("");
     $("presupuesto-total").textContent = pesos(r.total);
@@ -658,16 +738,40 @@ export function montarProbador(
     P.provisorio = f(P.hist.actual, q); pedir(); panel();
   };
 
+  /** El modelo elegido en el panel del conjunto (o el primero). */
+  const modeloElegido = () => P.modelo || marcos[0]?.modeloId || "";
+  /**
+   * Cambia el tipo de un cuadro. "Con marco" con modelos cargados pone el marco real en la medida
+   * más parecida; cualquier otro tipo le saca el marco y lo lleva a una medida con precio.
+   */
+  function conTipo(c: Composicion, q: Cuadro, tipo: TipoCuadro, modeloId: string): Composicion {
+    const marco = tipo === "MARCO" ? marcos.find((m) => m.modeloId === modeloId) : undefined;
+    if (marco) {
+      const medida = medidaMarcoMasCercana(marco, q.w, q.h);
+      if (medida) return aplicarMarco(c, q.id, marco, medida, q.h >= q.w);
+    }
+    return alCatalogo(cambiarCuadro(c, q.id, { tipo, marco: undefined, paspartu: tipo === "MARCO" ? (q.paspartu || 5) : 0 }));
+  }
+
   const desenlazar = [
     enClick("composiciones", (b) => { P.plantilla = b.dataset.id as ComposicionId; rearmar(); }),
     enClick("tipo-todos", (b) => {
       const tipo = b.dataset.tipo as TipoCuadro;
-      confirmar(alCatalogo(aplicarATodos(comp(), { tipo, paspartu: tipo === "MARCO" ? 5 : 0 })));
+      let r = comp();
+      for (const q of r.cuadros) r = conTipo(r, q, tipo, modeloElegido());
+      confirmar(r);
     }),
     enClick("tipo-cuadro", (b) => {
       const tipo = b.dataset.tipo as TipoCuadro;
-      conSel((c, q) => alCatalogo(cambiarCuadro(c, q.id, { tipo, paspartu: tipo === "MARCO" ? (q.paspartu || 5) : 0 })));
+      conSel((c, q) => conTipo(c, q, tipo, q.marco?.modeloId ?? modeloElegido()));
     }),
+    enCambio("modelo-todos", "change", (el) => {
+      P.modelo = el.value;
+      let r = comp();
+      for (const q of r.cuadros) if (q.tipo === "MARCO") r = conTipo(r, q, "MARCO", el.value);
+      confirmar(r);
+    }),
+    enCambio("modelo-cuadro", "change", (el) => conSel((c, q) => conTipo(c, q, "MARCO", el.value))),
     enClick("miniaturas", (b) => {
       const i = Number(b.dataset.i), c = comp(), q = cuadroSel();
       if (c.unaFoto) confirmar({ ...c, fotoConjunto: i, encuadreConjunto: ENCUADRE_INICIAL });
@@ -686,11 +790,20 @@ export function montarProbador(
     }),
     enCambio("una-foto", "change", (el) => confirmar({ ...comp(), unaFoto: el.checked, encuadreConjunto: ENCUADRE_INICIAL })),
     enCambio("medida-cuadro", "change", (el) => conSel((c, q) => {
-      const m = leerMedida(el.value, $<HTMLSelectElement>("orientacion-cuadro").value === "v");
+      const vertical = $<HTMLSelectElement>("orientacion-cuadro").value === "v";
+      const real = medidaDelMarco(marcos, q);
+      if (real) {
+        const medida = real.marco.medidas.find((m) => `${m.foto.corto}x${m.foto.largo}` === el.value);
+        return medida ? aplicarMarco(c, q.id, real.marco, medida, vertical) : c;
+      }
+      const m = leerMedida(el.value, vertical);
       return cambiarMedida(c, q.id, m.w, m.h);
     })),
     enCambio("orientacion-cuadro", "change", (el) => conSel((c, q) => {
-      const vertical = el.value === "v", corto = Math.min(q.w, q.h), largo = Math.max(q.w, q.h);
+      const vertical = el.value === "v";
+      const real = medidaDelMarco(marcos, q);
+      if (real) return aplicarMarco(c, q.id, real.marco, real.medida, vertical);
+      const corto = Math.min(q.w, q.h), largo = Math.max(q.w, q.h);
       return cambiarMedida(c, q.id, vertical ? corto : largo, vertical ? largo : corto);
     })),
     enCambio("paspartu-cuadro", "change", (el) => conSel((c, q) => cambiarCuadro(c, q.id, { paspartu: Number(el.value) }))),
@@ -840,15 +953,18 @@ export function montarProbador(
       const real = (i: number) => (n ? ((i % n) + n) % n : 0);
       const fotos = [...usadas].map((i) => ({ indice: real(i), archivo: P.fotos[real(i)]?.archivo })).filter((f): f is { indice: number; archivo: File } => !!f.archivo);
       const pedido = {
-        cuadros: c.cuadros.map((q) => ({ tipo: q.tipo, w: q.w, h: q.h, x: q.x, y: q.y, paspartu: q.paspartu, foto: real(q.foto), encuadre: encuadreDe(c, q) })),
+        cuadros: c.cuadros.map((q) => ({
+          tipo: q.tipo, w: q.w, h: q.h, x: q.x, y: q.y, paspartu: q.paspartu, foto: real(q.foto), encuadre: encuadreDe(c, q),
+          ...(q.marco ? { marco: { modeloId: q.marco.modeloId, medidaFoto: q.marco.medidaFoto } } : {}),
+        })),
         unaFoto: c.unaFoto,
         fotoConjunto: real(c.fotoConjunto),
         encuadreConjunto: c.cuadros[0] && c.unaFoto ? encuadreDe(c, c.cuadros[0]) : c.encuadreConjunto,
-        totalVisto: cotizar(catalogo, c).total,
+        totalVisto: cotizar(catalogo, c, marcos).total,
       };
       return { pedido, fotos };
     },
-    total: () => cotizar(catalogo, P.hist.actual).total,
+    total: () => cotizar(catalogo, P.hist.actual, marcos).total,
     redibujar: () => pedir(),
     imagen() { dibujar(true); const url = cv.toDataURL("image/jpeg", 0.9); dibujar(false); return url; },
   };
