@@ -59,7 +59,8 @@ export default async function EventoPage({ params, searchParams }: Props) {
   const r = resumir(todos);
   const filtro = esEstadoPago(estado) ? estado : null;
   const lista = todos.filter((i) => (!filtro || i.estadoPago === filtro) && coincide(i, q));
-  const volver = `/eventos/${id}${q || filtro ? `?${new URLSearchParams({ ...(q ? { q } : {}), ...(filtro ? { estado: filtro } : {}) })}` : ""}`;
+  const consulta = new URLSearchParams({ ...(q ? { q } : {}), ...(filtro ? { estado: filtro } : {}) }).toString();
+  const volver = consulta ? "/eventos/" + id + "?" + consulta : "/eventos/" + id;
   const nombreProducto = new Map(productos.map((p) => [p.id, p.name]));
 
   return (
