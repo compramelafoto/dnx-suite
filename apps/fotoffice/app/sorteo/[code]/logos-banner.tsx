@@ -4,12 +4,17 @@
  * La lista va dos veces seguidas y la animación corre exactamente la mitad del ancho, así el
  * final empalma con el principio sin salto. Con "reducir movimiento" activado queda quieta.
  */
+export type LogoBanner = { url: string; name: string | null; sponsorId?: string };
+
 export function LogosBanner({
   logos,
   size = "md",
+  onSelect,
 }: {
-  logos: { url: string; name: string | null }[];
+  logos: LogoBanner[];
   size?: "md" | "lg";
+  /** En la pantalla del sorteador: tocar un logo de sponsor lo elige para el próximo premio. */
+  onSelect?: (logo: LogoBanner) => void;
 }) {
   if (logos.length === 0) return null;
   // Con pocos logos se repiten para que la tira llene el ancho de una pantalla grande.
@@ -27,8 +32,21 @@ export function LogosBanner({
       <div className="fo-logos-pista flex w-max items-center">
         {[...base, ...base].map((logo, i) => (
           <div key={i} className="flex shrink-0 items-center px-8" aria-hidden={i >= base.length}>
-            {/* eslint-disable-next-line @next/next/no-img-element -- logos subidos a R2 */}
-            <img src={logo.url} alt={logo.name ?? ""} className={`${alto} w-auto max-w-[12rem] object-contain`} />
+            {onSelect && logo.sponsorId ? (
+              <button
+                type="button"
+                onClick={() => onSelect(logo)}
+                tabIndex={i >= base.length ? -1 : 0}
+                className="rounded-lg transition-transform hover:scale-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
+                title={logo.name ? `Sortear un premio de ${logo.name}` : "Sortear un premio de este sponsor"}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element -- logos subidos a R2 */}
+                <img src={logo.url} alt={logo.name ?? ""} className={`${alto} w-auto max-w-[12rem] object-contain`} />
+              </button>
+            ) : (
+              // eslint-disable-next-line @next/next/no-img-element -- logos subidos a R2
+              <img src={logo.url} alt={logo.name ?? ""} className={`${alto} w-auto max-w-[12rem] object-contain`} />
+            )}
           </div>
         ))}
       </div>
@@ -38,15 +56,15 @@ export function LogosBanner({
 
 /** Los logos sin repetir: primero los sponsors cargados, después los de quienes donan premios. */
 export function sponsorLogos(
-  sponsors: { logoUrl: string; name: string | null }[],
+  sponsors: { id?: string; logoUrl: string; name: string | null }[],
   prizes: { sponsorLogoUrl: string | null; sponsorName: string | null }[],
 ) {
   const vistos = new Set<string>();
-  const logos: { url: string; name: string | null }[] = [];
+  const logos: LogoBanner[] = [];
   for (const s of sponsors) {
     if (vistos.has(s.logoUrl)) continue;
     vistos.add(s.logoUrl);
-    logos.push({ url: s.logoUrl, name: s.name });
+    logos.push({ url: s.logoUrl, name: s.name, sponsorId: s.id });
   }
   for (const p of prizes) {
     if (!p.sponsorLogoUrl || vistos.has(p.sponsorLogoUrl)) continue;
