@@ -41,7 +41,7 @@ export default async function PantallaSorteoPage({
     where: { liveRaffleId: sorteo.id },
     select: { id: true, firstName: true, lastName: true },
   });
-  const qr = await QRCode.toDataURL(`${appOrigin()}${publicPath(sorteo.publicCode)}`, { margin: 1, width: 480 });
+  const qr = await QRCode.toDataURL(`${appOrigin()}${publicPath(sorteo.publicCode)}`, { margin: 1, width: 1000 });
 
   return (
     <Pantalla
