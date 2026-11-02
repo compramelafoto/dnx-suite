@@ -45,9 +45,42 @@ export function Pantalla(props: {
   const [pollId, setPollId] = useState<string | null>(props.polls[0]?.id ?? null);
   const conListado = props.usePrizeList && props.prizes.length > 0;
 
+  /**
+   * Los resultados como estaban al apretar "Sortear". La acción del servidor refresca la página
+   * apenas guarda al ganador, antes de que termine la ruleta: sin esto, el nombre aparecía en la
+   * lista lateral mientras todavía giraba.
+   */
+  const [congelados, setCongelados] = useState<Result[] | null>(null);
+  const results = congelados ?? props.results;
+  /**
+   * "Limpiar": el último resultado que se sacó de la pantalla. Lo anterior sigue guardado (el
+   * administrador lo ve en el panel); sólo deja de mostrarse acá. Se recuerda en el navegador
+   * para que sobreviva a recargar la página.
+   */
+  const claveLimpieza = `fo-sorteo-limpio-${props.code}`;
+  const [limpioHasta, setLimpioHasta] = useState<{ round: number; entrantId: string } | null>(null);
+  // Se lee después de montar: el servidor no tiene el almacenamiento del navegador.
+  useEffect(() => {
+    try {
+      const v = window.localStorage.getItem(claveLimpieza);
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- dato del navegador, sólo existe al montar
+      if (v) setLimpioHasta(JSON.parse(v) as { round: number; entrantId: string });
+    } catch {
+      // Sin almacenamiento del navegador, no hay limpieza guardada.
+    }
+  }, [claveLimpieza]);
+  // Si ese resultado ya no existe (se resetearon los resultados), la limpieza no corre más.
+  const corte =
+    limpioHasta && results.some((r) => r.round === limpioHasta.round && r.entrantId === limpioHasta.entrantId)
+      ? limpioHasta.round
+      : 0;
+  const visibles = results.filter((r) => r.round > corte);
+  /** El QR en grande, en el centro, para proyectarlo. */
+  const [qrGrande, setQrGrande] = useState(false);
+
   const ganadorDePremio = useMemo(
-    () => new Map(props.results.filter((r) => r.prizeId).map((r) => [r.prizeId as string, r])),
-    [props.results],
+    () => new Map(results.filter((r) => r.prizeId).map((r) => [r.prizeId as string, r])),
+    [results],
   );
   const [prizeId, setPrizeId] = useState<string | null>(
     () => props.prizes.find((p) => !ganadorDePremio.has(p.id))?.id ?? props.prizes[0]?.id ?? null,
@@ -70,7 +103,7 @@ export function Pantalla(props: {
     ? premio
       ? (ganadorDePremio.get(premio.id) ?? null)
       : null
-    : (props.results[props.results.length - 1] ?? null);
+    : (results[results.length - 1] ?? null);
   const poll = props.polls.find((p) => p.id === pollId) ?? null;
   const premioPorId = useMemo(() => new Map(props.prizes.map((p) => [p.id, p])), [props.prizes]);
   // Lo que se muestra en grande sin listado: el premio elegido para el próximo sorteo o, si no hay,
@@ -87,7 +120,12 @@ export function Pantalla(props: {
 
   function elegirSponsor(logo: LogoBanner) {
     if (girandoRef.current || conListado || !logo.sponsorId) return;
-    setTextoPremio("");
+    // El último premio que se sorteó con esta marca, para no tener que escribirlo de nuevo.
+    const anterior = [...props.results]
+      .reverse()
+      .map((r) => (r.prizeId ? premioPorId.get(r.prizeId) : undefined))
+      .find((p) => p && p.sponsorLogoUrl === logo.url);
+    setTextoPremio(destacado?.sponsorId === logo.sponsorId ? destacado.title : (anterior?.title ?? ""));
     setEligiendo(logo);
   }
 
@@ -103,6 +141,15 @@ export function Pantalla(props: {
     else if (resultado) setOcultos((prev) => new Set(prev).add(resultado.round));
   }
 
+  useEffect(() => {
+    if (!qrGrande) return;
+    const cerrar = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setQrGrande(false);
+    };
+    window.addEventListener("keydown", cerrar);
+    return () => window.removeEventListener("keydown", cerrar);
+  }, [qrGrande]);
+
   // Inscriptos, votos y resultados llegan solos: se refresca cada pocos segundos, salvo mientras gira.
   useEffect(() => {
     const t = setInterval(() => {
@@ -115,6 +162,7 @@ export function Pantalla(props: {
     if (girandoRef.current) return;
     setError(null);
     girandoRef.current = true;
+    setCongelados(props.results);
     setGirando(true);
     const nombres = props.entrants.map((e) => e.name);
     const ruleta = setInterval(() => {
@@ -142,6 +190,7 @@ export function Pantalla(props: {
       girandoRef.current = false;
       setGirando(false);
       setNombreGiro(null);
+      setCongelados(null);
     }, 800);
   }
 
@@ -154,8 +203,27 @@ export function Pantalla(props: {
       error: "No se pudo resetear. Revisá la conexión y probá de nuevo.",
     }));
     if (!r.ok) setError(r.error);
+    setLimpioHasta(null);
+    try {
+      window.localStorage.removeItem(claveLimpieza);
+    } catch {
+      // nada que borrar
+    }
     setPrizeId(props.prizes[0]?.id ?? null);
     router.refresh();
+  }
+
+  function limpiar() {
+    if (girandoRef.current) return;
+    const ultimo = results[results.length - 1];
+    if (!ultimo) return;
+    const marca = { round: ultimo.round, entrantId: ultimo.entrantId };
+    setLimpioHasta(marca);
+    try {
+      window.localStorage.setItem(claveLimpieza, JSON.stringify(marca));
+    } catch {
+      // Sin almacenamiento del navegador la limpieza dura hasta recargar.
+    }
   }
 
   function siguientePremio() {
@@ -163,7 +231,9 @@ export function Pantalla(props: {
     if (resto[0]) setPrizeId(resto[0].id);
   }
 
-  const enPantalla = girando ? nombreGiro : resultado ? (nombre.get(resultado.entrantId) ?? "—") : null;
+  // El logo grande sigue aunque se limpie; el nombre y "No está, volver a sortear" no.
+  const resultadoVisible = resultado && resultado.round > corte ? resultado : null;
+  const enPantalla = girando ? nombreGiro : resultadoVisible ? (nombre.get(resultadoVisible.entrantId) ?? "—") : null;
   const puedeSortearNuevo = conListado ? !!premio && !resultado : true;
 
   return (
@@ -182,7 +252,18 @@ export function Pantalla(props: {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {props.results.length > 0 ? (
+          {!conListado && visibles.length > 0 ? (
+            <button
+              type="button"
+              disabled={girando}
+              onClick={limpiar}
+              title="Saca los resultados de la pantalla. Siguen guardados en el panel."
+              className="rounded-full bg-white/10 px-4 py-2 text-sm font-semibold text-white/90 hover:bg-white/20 disabled:opacity-40"
+            >
+              Limpiar
+            </button>
+          ) : null}
+          {results.length > 0 ? (
             <button
               type="button"
               disabled={girando}
@@ -210,7 +291,7 @@ export function Pantalla(props: {
           <section className="flex flex-col items-center justify-center gap-8 rounded-2xl bg-white/5 p-8 text-center">
             <div className="space-y-3">
               <p className="text-sm uppercase tracking-[0.3em] text-white/50">
-                {conListado ? "Se sortea" : `Sorteo ${girando ? props.results.length + 1 : Math.max(props.results.length, 1)}`}
+                {conListado ? "Se sortea" : `Sorteo ${girando ? results.length + 1 : Math.max(results.length, 1)}`}
               </p>
               {premio ? (
                 <>
@@ -257,10 +338,10 @@ export function Pantalla(props: {
             {error ? <p className="rounded-lg bg-red-500/20 px-4 py-2 text-red-200">{error}</p> : null}
 
             <div className="flex flex-wrap justify-center gap-3">
-              {resultado && !girando ? (
+              {resultadoVisible && !girando ? (
                 <button
                   type="button"
-                  onClick={() => sortear(resultado.round)}
+                  onClick={() => sortear(resultadoVisible.round)}
                   className="rounded-full bg-white/10 px-6 py-3 text-lg hover:bg-white/20"
                 >
                   No está, volver a sortear
@@ -313,11 +394,16 @@ export function Pantalla(props: {
 
         <aside className="space-y-6">
           {props.registrationOpen ? (
-            <div className="space-y-2 rounded-2xl bg-white p-4 text-center text-neutral-950">
+            <button
+              type="button"
+              onClick={() => setQrGrande(true)}
+              title="Mostrar el QR en grande"
+              className="block w-full space-y-2 rounded-2xl bg-white p-4 text-center text-neutral-950 transition-transform hover:scale-[1.02]"
+            >
               {/* eslint-disable-next-line @next/next/no-img-element -- QR generado en el servidor */}
               <img src={props.qr} alt="QR para anotarse" className="mx-auto w-full" />
-              <p className="font-semibold">Escaneá y participá</p>
-            </div>
+              <span className="block font-semibold">Escaneá y participá</span>
+            </button>
           ) : null}
           {conListado ? (
             <div className="space-y-2">
@@ -341,13 +427,13 @@ export function Pantalla(props: {
                 })}
               </ul>
             </div>
-          ) : props.results.length > 0 ? (
+          ) : visibles.length > 0 ? (
             <div className="space-y-2">
               <p className="text-sm uppercase tracking-widest text-white/50">Resultados</p>
               <ol className="max-h-[50vh] space-y-1 overflow-y-auto">
-                {[...props.results].reverse().map((r, i) => (
+                {[...visibles].reverse().map((r, i) => (
                   <li key={r.round} className="flex gap-3 rounded-lg bg-white/5 px-3 py-2 text-sm">
-                    <span className="w-6 tabular-nums text-white/50">{props.results.length - i}.</span>
+                    <span className="w-6 tabular-nums text-white/50">{visibles.length - i}.</span>
                     <span className="min-w-0 flex-1">
                       <span className="block font-medium">{nombre.get(r.entrantId) ?? "—"}</span>
                       {r.prizeId && premioPorId.get(r.prizeId) ? (
@@ -370,6 +456,23 @@ export function Pantalla(props: {
 
       <LogosBanner logos={props.logos} size="lg" onSelect={conListado ? undefined : elegirSponsor} />
 
+      {qrGrande ? (
+        <div
+          role="dialog"
+          aria-label="QR para anotarse"
+          onClick={() => setQrGrande(false)}
+          className="fixed inset-0 z-50 flex cursor-zoom-out flex-col items-center justify-center gap-6 bg-neutral-950/95 p-6"
+        >
+          <p className="text-center text-4xl font-semibold md:text-5xl">{props.title}</p>
+          <div className="rounded-3xl bg-white p-6">
+            {/* eslint-disable-next-line @next/next/no-img-element -- QR generado en el servidor */}
+            <img src={props.qr} alt="QR para anotarse" className="h-[min(70vh,80vw)] w-[min(70vh,80vw)] [image-rendering:pixelated]" />
+          </div>
+          <p className="text-3xl font-semibold text-amber-300 md:text-4xl">Escaneá y participá</p>
+          <p className="text-sm text-white/40">Tocá en cualquier lado o apretá Esc para volver</p>
+        </div>
+      ) : null}
+
       {eligiendo ? (
         <div className="fixed inset-0 z-50 flex items-end justify-center pb-40" onClick={() => setEligiendo(null)}>
           <form
@@ -384,6 +487,7 @@ export function Pantalla(props: {
             <img src={eligiendo.url} alt="" className="h-10 w-auto max-w-[5rem] shrink-0 object-contain" />
             <input
               autoFocus
+              onFocus={(e) => e.currentTarget.select()}
               value={textoPremio}
               onChange={(e) => setTextoPremio(e.target.value)}
               onKeyDown={(e) => {
