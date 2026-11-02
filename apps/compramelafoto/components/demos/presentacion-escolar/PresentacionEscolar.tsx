@@ -1,8 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import type { Comando, EstadoPantalla } from "@/lib/control-remoto/protocolo";
+import { usePantallaRemota } from "@/components/control-remoto/usePantallaRemota";
+import { BotonControlRemoto } from "@/components/control-remoto/BotonControlRemoto";
 import { PLACAS as PLACAS_COMPLETA, type Placa } from "./placas";
 import { PLACAS_RESUMIDA } from "./placas-resumida";
 import { VisualDePlaca } from "./Visuales";
@@ -73,6 +76,7 @@ function Puntos({ placa }: { placa: Placa }) {
  * Presentación de la foto escolar, una placa por funcionalidad. Se maneja con las flechas, la
  * barra espaciadora o un control de diapositivas (Avance/Retroceso de página); «F» la pone en
  * pantalla completa e «I» abre el índice. El número de placa queda en la dirección (#5).
+ * «Control remoto» muestra un QR para manejarla desde el celular.
  */
 export default function PresentacionEscolar({ version = "completa" }: { version?: VersionPresentacion }) {
   const PLACAS = version === "resumida" ? PLACAS_RESUMIDA : PLACAS_COMPLETA;
@@ -115,6 +119,38 @@ export default function PresentacionEscolar({ version = "completa" }: { version?
     window.addEventListener("keydown", alTeclear);
     return () => window.removeEventListener("keydown", alTeclear);
   }, [actual, ir, PLACAS.length]);
+
+  const estadoRemoto = useMemo<EstadoPantalla>(
+    () => ({
+      titulo: version === "resumida" ? "Foto escolar en 8 placas" : "Foto escolar paso a paso",
+      posicion: { actual: actual + 1, total: PLACAS.length, nombre: "Placa" },
+      detalle: PLACAS[actual].titulo,
+      nota: PLACAS[actual].bajada,
+      navegacion: { anterior: actual > 0, siguiente: actual < PLACAS.length - 1 },
+      botones: actual > 0 ? [{ id: "portada", etiqueta: "Volver a la portada" }] : [],
+      lista: {
+        titulo: "Todas las placas",
+        actual: String(actual),
+        items: PLACAS.map((p, i) => ({ id: String(i), etiqueta: p.titulo, grupo: p.etapa })),
+      },
+    }),
+    [actual, PLACAS, version],
+  );
+  const alComando = useCallback(
+    (c: Comando) => {
+      if (c.tipo === "siguiente") ir(actual + 1);
+      else if (c.tipo === "anterior") ir(actual - 1);
+      else if (c.tipo === "ir") ir(Number(c.id));
+      else if (c.tipo === "boton" && c.id === "portada") ir(0);
+    },
+    [actual, ir],
+  );
+  const remoto = usePantallaRemota({
+    clave: `control-remoto:presentacion-escolar:${version}`,
+    pedido: { ambito: "presentacion-escolar" },
+    estado: estadoRemoto,
+    alComando,
+  });
 
   const placa = PLACAS[actual];
   const etapa = partirEtapa(placa.etapa);
@@ -211,6 +247,7 @@ export default function PresentacionEscolar({ version = "completa" }: { version?
           >
             Pantalla completa (F)
           </button>
+          <BotonControlRemoto remoto={remoto} className="rounded-full px-3 py-1.5 hover:bg-white/10" />
         </div>
         <div className="flex items-center gap-3">
           <div className="hidden h-1.5 w-40 overflow-hidden rounded-full bg-white/10 sm:block">
