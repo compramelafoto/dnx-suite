@@ -1,7 +1,8 @@
 /** Eventos con inscriptos: congresos, jornadas, workshops (02/11/2026, Rafaela en Foco). */
 export const EVENTOS_MODULE_KEY = "eventos";
 
-export const ORIGENES = ["TIENDA", "FORMULARIO", "MANUAL"] as const;
+/** WEB = se anotó solo desde la página pública de inscripción del evento. */
+export const ORIGENES = ["TIENDA", "FORMULARIO", "MANUAL", "WEB"] as const;
 export type Origen = (typeof ORIGENES)[number];
 
 /** ANULADO = el pedido de la tienda se canceló después de pagarse. */
@@ -12,6 +13,7 @@ export const ORIGEN_LABEL: Record<Origen, string> = {
   TIENDA: "Tienda",
   FORMULARIO: "Formulario",
   MANUAL: "Carga manual",
+  WEB: "Inscripción web",
 };
 
 export const ESTADO_PAGO_LABEL: Record<EstadoPago, string> = {
@@ -28,3 +30,12 @@ export const PEDIDO_ANULADO = ["CANCELLED"] as const;
 export function esEstadoPago(v: unknown): v is EstadoPago {
   return typeof v === "string" && (ESTADOS_PAGO as readonly string[]).includes(v);
 }
+
+/** Por dónde entró a la puerta (`FotofficeEventoInscripto.acreditadoFuente`). */
+export const FUENTE_ACREDITACION_LABEL: Record<string, string> = {
+  QR: "QR",
+  PUERTA: "Búsqueda en la puerta",
+  OFFLINE: "Sin conexión",
+  EXCEPCION: "Excepción (cobro en la puerta)",
+  LISTADO: "Desde el listado",
+};

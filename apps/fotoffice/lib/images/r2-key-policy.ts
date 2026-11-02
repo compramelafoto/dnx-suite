@@ -38,6 +38,8 @@ export const FOTOFFICE_R2_PREFIXES = {
   sitePaginaImage: "fotoffice/site-paginas",
   /** Fotos de un fotolibro (original, vista y miniatura), por plantilla. */
   fotolibroPhoto: "fotoffice/fotolibros",
+  /** Foto que sube el inscripto a un evento, para su credencial y su placa de bienvenida. */
+  eventoInscriptoPhoto: "fotoffice/evento-inscriptos",
   /** Fotos que el socio sube sólo para su placa de Socio de la semana («Más sobre mí»). */
   memberFeaturedPhoto: "fotoffice/member-featured",
   /** Vista previa con marca de agua de una obra de concurso de FotoRank publicada en la tienda. */

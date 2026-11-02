@@ -100,7 +100,7 @@ export async function crearPlantillaDiploma(workspaceId: string, userId: number,
 }
 
 /** Las plantillas de diploma de la institución, para reutilizar un diseño en otro evento. */
-export async function plantillasDeDiploma(workspaceId: string) {
+export async function plantillasDeDiploma(workspaceId: string, templateKey: string = DIPLOMA_TEMPLATE_KEY) {
   const plantillas = await prisma.templateV2.findMany({
     where: { workspaceId, status: { not: "ARCHIVED" }, currentVersionId: { not: null } },
     select: { id: true, name: true, currentVersionId: true },
@@ -112,7 +112,7 @@ export async function plantillasDeDiploma(workspaceId: string) {
   });
   const esDiploma = new Set(
     versiones
-      .filter((v) => (v.metaJson as { templateKey?: unknown } | null)?.templateKey === DIPLOMA_TEMPLATE_KEY)
+      .filter((v) => (v.metaJson as { templateKey?: unknown } | null)?.templateKey === templateKey)
       .map((v) => v.id),
   );
   return plantillas.filter((p) => p.currentVersionId && esDiploma.has(p.currentVersionId));

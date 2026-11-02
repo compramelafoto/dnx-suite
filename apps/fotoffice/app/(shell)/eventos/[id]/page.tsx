@@ -5,7 +5,11 @@ import { requireEventos } from "@/lib/eventos/contexto";
 import { ESTADOS_PAGO, ESTADO_PAGO_LABEL, ORIGEN_LABEL, esEstadoPago, type Origen } from "@/lib/eventos/constants";
 import { DIPLOMA_PARA, DIPLOMA_PARA_LABEL, coincide, resumir, tieneDiploma } from "@/lib/eventos/reglas";
 import { plantillasDeDiploma } from "@/lib/eventos/diploma";
-import { DIPLOMAS_EDITOR_BASE_PATH } from "@/lib/eventos/diploma-constantes";
+import { DIPLOMAS_EDITOR_BASE_PATH, PLACA_EVENTO_TEMPLATE_KEY } from "@/lib/eventos/diploma-constantes";
+import { presentarInterruptorDeAcreditacion } from "@/lib/eventos/acreditacion/ui/accreditation-switch";
+import { armadorDeUrlsDeEntrada } from "@/lib/eventos/entrada";
+import { FUENTE_ACREDITACION_LABEL } from "@/lib/eventos/constants";
+import { BotonConfirmar } from "./boton-confirmar";
 import { prisma } from "@repo/db";
 import {
   formulariosDelSitio,
@@ -15,8 +19,12 @@ import {
   sincronizarInscriptos,
 } from "@/lib/eventos/servidor";
 import {
+  acreditacionInterruptorAction,
   acreditarAction,
   agregarInscriptoAction,
+  crearPlacaAction,
+  enviarEnlacesAction,
+  inscripcionConfigAction,
   crearDiplomaAction,
   diplomaConfigAction,
   desvincularEntradaAction,
@@ -56,7 +64,7 @@ export default async function EventoPage({ params, searchParams }: Props) {
   const evento = await obtenerEvento(workspace.id, id);
   if (!evento) notFound();
 
-  const [todos, productos, formularios, diplomas, sitio] = await Promise.all([
+  const [todos, productos, formularios, diplomas, sitio, placas, urlDeEntrada] = await Promise.all([
     listarInscriptos(workspace.id, id),
     puedeEditar ? productosParaEntradas(workspace.id) : Promise.resolve([]),
     puedeEditar ? formulariosDelSitio(workspace.id) : Promise.resolve([]),
@@ -65,12 +73,26 @@ export default async function EventoPage({ params, searchParams }: Props) {
       where: { workspaceId: workspace.id },
       select: { publicSlug: true, workspace: { select: { fotofficeDomain: { select: { domain: true, status: true } } } } },
     }),
+    plantillasDeDiploma(workspace.id, PLACA_EVENTO_TEMPLATE_KEY),
+    armadorDeUrlsDeEntrada(workspace.id),
   ]);
+  const placa = placas.find((p) => p.id === evento.placaTemplateId) ?? null;
   const diploma = diplomas.find((p) => p.id === evento.diplomaTemplateId) ?? null;
   const conDiploma = todos.filter((i) => tieneDiploma(i, evento.diplomaPara));
   const dominio = sitio?.workspace.fotofficeDomain;
-  const baseDiploma =
-    dominio?.status === "CONNECTED" ? `https://${dominio.domain}/diploma` : `https://fotoffice.com/w/${sitio?.publicSlug ?? ""}/diploma`;
+  const baseSitio = dominio?.status === "CONNECTED" ? `https://${dominio.domain}` : `https://fotoffice.com/w/${sitio?.publicSlug ?? ""}`;
+  const baseDiploma = `${baseSitio}/diploma`;
+  const vigentes = todos.filter((i) => i.estadoPago !== "ANULADO");
+  const completos = vigentes.filter((i) => i.datosCompletosAt != null).length;
+  const conFoto = vigentes.filter((i) => i.fotoUrl != null).length;
+  const sinEnlace = vigentes.filter((i) => i.email && !i.enlaceEnviadoAt).length;
+  const hoy = new Date().toLocaleDateString("en-CA", { timeZone: "America/Argentina/Buenos_Aires" });
+  const enCurso = evento.fechaInicio != null && aInput(evento.fechaInicio) <= hoy && hoy <= aInput(evento.fechaFin ?? evento.fechaInicio);
+  const interruptor = presentarInterruptorDeAcreditacion({
+    habilitado: evento.acreditacionHabilitada,
+    ingresosRegistrados: vigentes.filter((i) => i.acreditadoAt != null).length,
+    ventanaAbierta: enCurso,
+  });
   const r = resumir(todos);
   const filtro = esEstadoPago(estado) ? estado : null;
   const lista = todos.filter((i) => (!filtro || i.estadoPago === filtro) && coincide(i, q));
@@ -115,6 +137,114 @@ export default async function EventoPage({ params, searchParams }: Props) {
           </div>
         ))}
       </div>
+
+      <section className="fo-card space-y-5 p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="text-lg font-semibold">Acreditación</h2>
+            <p className="text-sm">
+              <span
+                className={`mr-2 rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                  interruptor.tono === "success"
+                    ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
+                    : interruptor.tono === "danger"
+                      ? "bg-red-500/15 text-red-700 dark:text-red-300"
+                      : "bg-amber-500/15 text-amber-700 dark:text-amber-300"
+                }`}
+              >
+                {interruptor.estado}
+              </span>
+              <span className="text-[var(--fo-muted)]">{interruptor.explicacion}</span>
+            </p>
+          </div>
+          {puedeEditar ? (
+            <form action={acreditacionInterruptorAction}>
+              <input type="hidden" name="eventoId" value={id} />
+              <input type="hidden" name="encender" value={interruptor.accion === "ENCENDER" ? "1" : "0"} />
+              <BotonConfirmar
+                texto={interruptor.etiquetaDelBoton}
+                confirmacion={interruptor.pideConfirmacion ? interruptor.textoDeConfirmacion : null}
+                className={`fo-btn ${interruptor.accion === "ENCENDER" ? "fo-btn-primary" : "fo-btn-ghost"}`}
+              />
+            </form>
+          ) : null}
+        </div>
+
+        <div className="grid gap-3 border-t border-[var(--fo-border)] pt-4 md:grid-cols-3">
+          <div>
+            <p className="text-xs text-[var(--fo-muted)]">Completaron su inscripción</p>
+            <p className="text-xl font-semibold">
+              {completos} / {vigentes.length}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-[var(--fo-muted)]">Subieron su foto</p>
+            <p className="text-xl font-semibold">
+              {conFoto} / {vigentes.length}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-[var(--fo-muted)]">Sin el enlace por correo</p>
+            <p className="text-xl font-semibold">{sinEnlace}</p>
+          </div>
+        </div>
+        <p className="text-sm text-[var(--fo-muted)]">
+          Cada inscripto tiene un enlace personal donde completa sus datos, sube su foto, ve el QR que se escanea en la puerta y baja
+          su placa de bienvenida. A quien compra en la tienda le llega solo después del pago.
+        </p>
+        {puedeEditar ? (
+          <div className="flex flex-wrap gap-2">
+            {sinEnlace > 0 ? (
+              <form action={enviarEnlacesAction}>
+                <input type="hidden" name="eventoId" value={id} />
+                <BotonConfirmar
+                  texto={`Mandar el enlace a los que faltan (${sinEnlace})`}
+                  confirmacion={`Se va a mandar un correo a ${sinEnlace} ${sinEnlace === 1 ? "persona" : "personas"} con el enlace a su entrada. ¿Seguimos?`}
+                  className="fo-btn fo-btn-secondary"
+                />
+              </form>
+            ) : null}
+            {placa ? (
+              <a href={`${DIPLOMAS_EDITOR_BASE_PATH}/${placa.id}/${placa.currentVersionId}`} className="fo-btn fo-btn-secondary">
+                Editar diseño de la placa
+              </a>
+            ) : (
+              <form action={crearPlacaAction}>
+                <input type="hidden" name="eventoId" value={id} />
+                <button className="fo-btn fo-btn-secondary">Personalizar la placa de bienvenida</button>
+              </form>
+            )}
+          </div>
+        ) : null}
+
+        {puedeEditar ? (
+          <form action={inscripcionConfigAction} className="grid gap-3 border-t border-[var(--fo-border)] pt-4 md:grid-cols-2">
+            <input type="hidden" name="eventoId" value={id} />
+            <label className="md:col-span-2">
+              <span className="fo-label">Página pública de inscripción</span>
+              <span className="flex items-center gap-1 text-sm">
+                <span className="text-[var(--fo-muted)]">{baseSitio}/evento/</span>
+                <input name="slug" defaultValue={evento.slug ?? ""} className="fo-input min-w-0 flex-1" placeholder="por ejemplo workshops-2026" />
+              </span>
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" name="inscripcionPublica" defaultChecked={evento.inscripcionPublica} /> Aceptar inscripciones desde esa
+              página (quedan con el pago pendiente)
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" name="pideFoto" defaultChecked={evento.pideFoto} /> Pedir la foto al inscribirse (para la placa)
+            </label>
+            <div className="flex flex-wrap items-center gap-3 md:col-span-2">
+              <button className="fo-btn fo-btn-secondary">Guardar</button>
+              {evento.slug && evento.inscripcionPublica ? (
+                <a href={`${baseSitio}/evento/${evento.slug}`} target="_blank" rel="noopener" className="text-sm underline">
+                  Ver la página
+                </a>
+              ) : null}
+            </div>
+          </form>
+        ) : null}
+      </section>
 
       <section className="fo-card space-y-3 p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -203,7 +333,11 @@ export default async function EventoPage({ params, searchParams }: Props) {
           {lista.map((i) => (
             <li key={i.id} className="space-y-2 p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="min-w-0">
+                {i.fotoUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={i.fotoUrl} alt="" className="size-12 shrink-0 rounded-full object-cover" />
+                ) : null}
+                <div className="min-w-0 flex-1">
                   <p className="font-medium">
                     {i.nombre} <span className="ml-1 font-mono text-xs text-[var(--fo-muted)]">{i.codigo}</span>
                   </p>
@@ -213,6 +347,30 @@ export default async function EventoPage({ params, searchParams }: Props) {
                       .join(" · ")}
                   </p>
                   {i.notas ? <p className="text-sm">{i.notas}</p> : null}
+                  <p className="text-xs text-[var(--fo-muted)]">
+                    {[
+                      i.datosCompletosAt ? "Completó su inscripción" : "Falta completar la inscripción",
+                      i.instagram ? `@${i.instagram}` : null,
+                      i.enlaceEnviadoAt ? `Enlace enviado ${hora(i.enlaceEnviadoAt)}` : null,
+                      i.acreditadoFuente ? `Entró por: ${FUENTE_ACREDITACION_LABEL[i.acreditadoFuente] ?? i.acreditadoFuente}` : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </p>
+                  {urlDeEntrada && i.estadoPago !== "ANULADO" ? (
+                    <details className="text-xs">
+                      <summary className="cursor-pointer text-[var(--fo-muted)]">Enlace personal y placa</summary>
+                      <p className="mt-1 select-all break-all">{urlDeEntrada(i)}</p>
+                      <p className="mt-1 flex flex-wrap gap-3">
+                        <a href={`/eventos/${id}/placa?inscripto=${i.id}`} target="_blank" rel="noopener" className="underline">
+                          Ver la placa
+                        </a>
+                        <a href={`/eventos/${id}/placa?inscripto=${i.id}&descargar=1`} className="underline">
+                          Descargar la placa
+                        </a>
+                      </p>
+                    </details>
+                  ) : null}
                 </div>
                 <div className="flex flex-wrap items-center gap-2 text-sm">
                   <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${COLOR_ESTADO[i.estadoPago] ?? ""}`}>
@@ -256,6 +414,14 @@ export default async function EventoPage({ params, searchParams }: Props) {
                     </select>
                     <button className="fo-btn fo-btn-ghost">Cambiar pago</button>
                   </form>
+                  {i.email && i.estadoPago !== "ANULADO" ? (
+                    <form action={enviarEnlacesAction}>
+                      <input type="hidden" name="eventoId" value={id} />
+                      <input type="hidden" name="inscriptoId" value={i.id} />
+                      <input type="hidden" name="volver" value={volver} />
+                      <button className="fo-btn fo-btn-ghost">{i.enlaceEnviadoAt ? "Reenviar enlace" : "Mandar enlace"}</button>
+                    </form>
+                  ) : null}
                   <details className="w-full">
                     <summary className="cursor-pointer text-sm text-[var(--fo-muted)]">Editar datos</summary>
                     <form action={editarInscriptoAction} className="mt-2 grid gap-2 md:grid-cols-3">

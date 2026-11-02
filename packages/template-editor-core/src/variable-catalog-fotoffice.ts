@@ -390,6 +390,8 @@ export function createFotofficeExampleData(
     eventPlace: "Centro Cultural Viejo Mercado, Rafaela",
     ticketType: "General",
     attendeeCode: "AB7K2M",
+    attendeePhoto: FOTOFFICE_FIXTURE_PHOTO_DATA_URL,
+    attendeeInstagram: "@mariagomez.foto",
     ...overrides,
   };
 }

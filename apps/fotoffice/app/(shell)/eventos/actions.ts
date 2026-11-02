@@ -10,6 +10,10 @@ import { prisma } from "@repo/db";
 import { crearPlantillaDiploma, plantillasDeDiploma } from "@/lib/eventos/diploma";
 import { DIPLOMAS_EDITOR_BASE_PATH } from "@/lib/eventos/diploma-constantes";
 import { esDiplomaPara } from "@/lib/eventos/reglas";
+import { crearPlantillaPlaca } from "@/lib/eventos/placa";
+import { cambiarAcreditacionHabilitada } from "@/lib/eventos/acreditacion/servicio";
+import { enviarEnlacesDeEntrada } from "@/lib/eventos/entrada";
+import { slugDeEvento } from "@/lib/eventos/enlace";
 
 /**
  * Formularios del panel de Eventos. Sin permiso vuelve al tablero; con datos inválidos vuelve a
@@ -140,4 +144,57 @@ export async function diplomaConfigAction(fd: FormData) {
     },
   });
   volver(`/eventos/${eventoId}`);
+}
+
+/** El interruptor de la acreditación por QR (Clickatón): nace apagado y se enciende a mano. */
+export async function acreditacionInterruptorAction(fd: FormData) {
+  const ctx = await ctxManage();
+  const g = getterDe(fd);
+  await cambiarAcreditacionHabilitada(ctx.workspaceId, g("eventoId"), g("encender") === "1");
+  volver(`/eventos/${g("eventoId")}`);
+}
+
+/** La página pública de inscripción: su dirección, si acepta inscripciones y si pide la foto. */
+export async function inscripcionConfigAction(fd: FormData) {
+  const ctx = await ctxManage();
+  const g = getterDe(fd);
+  const eventoId = g("eventoId");
+  const slug = slugDeEvento(g("slug"));
+  const publica = fd.get("inscripcionPublica") === "on";
+  if (publica && !slug) volver(`/eventos/${eventoId}`, "Poné la dirección de la página de inscripción.");
+  const ocupado = slug
+    ? await prisma.fotofficeEvento.findFirst({ where: { workspaceId: ctx.workspaceId, slug, NOT: { id: eventoId } }, select: { id: true } })
+    : null;
+  if (ocupado) volver(`/eventos/${eventoId}`, "Esa dirección ya la usa otro evento.");
+  await prisma.fotofficeEvento.updateMany({
+    where: { id: eventoId, workspaceId: ctx.workspaceId },
+    data: { slug: slug || null, inscripcionPublica: publica, pideFoto: fd.get("pideFoto") === "on" },
+  });
+  volver(`/eventos/${eventoId}`);
+}
+
+export async function crearPlacaAction(fd: FormData) {
+  const ctx = await ctxManage();
+  const eventoId = getterDe(fd)("eventoId");
+  const r = await crearPlantillaPlaca(ctx.workspaceId, ctx.userId, eventoId);
+  if (!r.ok) volver(`/eventos/${eventoId}`, r.error);
+  revalidatePath(`/eventos/${eventoId}`);
+  redirect(`${DIPLOMAS_EDITOR_BASE_PATH}/${r.templateId}/${r.versionId}`);
+}
+
+/** Manda el enlace a su entrada: a uno (reenvío) o a todos los que todavía no lo recibieron. */
+export async function enviarEnlacesAction(fd: FormData) {
+  const ctx = await ctxManage();
+  const g = getterDe(fd);
+  const eventoId = g("eventoId");
+  const uno = g("inscriptoId");
+  const r = await enviarEnlacesDeEntrada({
+    workspaceId: ctx.workspaceId,
+    eventoId,
+    ...(uno ? { inscriptoIds: [uno] } : {}),
+    soloSinEnviar: !uno,
+  });
+  const ruta = rutaDe(fd, `/eventos/${eventoId}`);
+  if (r.enviados === 0) volver(ruta, r.fallidos > 0 ? "No salió el correo. Revisá la configuración de correo." : "No había a quién mandarle el enlace.");
+  volver(ruta);
 }
