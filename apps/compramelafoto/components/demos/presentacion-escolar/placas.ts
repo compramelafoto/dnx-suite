@@ -39,6 +39,13 @@ export type Placa = {
    * de prueba. Si está, se muestra en lugar del dibujo.
    */
   captura?: string;
+  /**
+   * Placa con el librito real en 3D (id de una plantilla del sistema), sin otra cosa: «Siguiente»
+   * pasa sus páginas y, en la última, sigue con la placa de después.
+   */
+  libro3d?: string;
+  /** Placa de cierre con las apps de DNX y el QR a dnx-suite.com. */
+  apps?: boolean;
   /** Placa ancha, sin dibujo: los puntos ocupan todo el ancho. */
   ancha?: boolean;
 };
@@ -46,8 +53,8 @@ export type Placa = {
 export const PLACAS: Placa[] = [
   {
     etapa: "ComprameLaFoto",
-    titulo: "Foto escolar, paso a paso",
-    bajada: "Todo el circuito de la fotografía escolar en una sola plataforma: del primer contacto con el colegio hasta el sobre entregado.",
+    titulo: "¿Qué es ComprameLaFoto?",
+    bajada: "La plataforma donde el fotógrafo vende sus fotos en línea: cada persona se encuentra con una selfie, paga con Mercado Pago y recibe sus fotos.",
     visual: "portada",
   },
   {
@@ -246,7 +253,7 @@ export const PLACAS: Placa[] = [
     etapa: "4 · Preventa",
     titulo: "La familia compra en preventa",
     bajada: "El colegio comparte un link y cada familia elige su pack y paga con Mercado Pago, antes de la sesión.",
-    captura: "/demos/escolar/familia-pasos.jpg",
+    captura: "/demos/escolar/preventa.jpg",
     visual: "preventa",
     puntos: [
       { titulo: "Directo a tu cuenta", texto: "El dinero entra por Mercado Pago." },
@@ -305,6 +312,12 @@ export const PLACAS: Placa[] = [
       { titulo: "Página por página", texto: "Tapa, interiores y contratapa." },
       { titulo: "Igual al impreso", texto: "Lo que ve es lo que recibe." },
     ],
+  },
+  {
+    etapa: "6 · La familia elige",
+    titulo: "Así lo ve la familia",
+    bajada: "El librito real en 3D. Con «Siguiente» se pasan sus páginas.",
+    libro3d: "sys_librito_mosaico_primaria_fin_de_ano",
   },
   {
     etapa: "6 · La familia elige",
@@ -417,5 +430,11 @@ export const PLACAS: Placa[] = [
       { titulo: "Panel del colegio", texto: "Comisión transparente." },
       { titulo: "Todo con el bot", texto: "Lo configurás conversando." },
     ],
+  },
+  {
+    etapa: "Cierre",
+    titulo: "Todo el ecosistema DNX",
+    bajada: "Herramientas para fotógrafos, estudios e instituciones, conectadas entre sí.",
+    apps: true,
   },
 ];

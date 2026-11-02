@@ -4,14 +4,14 @@ import type { Placa } from "./placas";
 export const PLACAS_RESUMIDA: Placa[] = [
   {
     etapa: "ComprameLaFoto",
-    titulo: "Foto escolar, sin papeles ni efectivo",
-    bajada: "Del colegio al sobre entregado, en un solo lugar.",
+    titulo: "¿Qué es ComprameLaFoto?",
+    bajada: "Vendés tus fotos en línea. Cada persona se encuentra con una selfie, paga y las recibe.",
     visual: "portada",
   },
   {
     etapa: "ComprameLaFoto",
-    titulo: "ComprameLaFoto",
-    bajada: "Vendés tus fotos en línea y cobrás directo.",
+    titulo: "Lo que hace ComprameLaFoto",
+    bajada: "Eventos, deportes y colegios, cobrando directo en tu cuenta.",
     ancha: true,
     puntos: [
       { titulo: "Álbumes que venden solos" },
@@ -31,7 +31,7 @@ export const PLACAS_RESUMIDA: Placa[] = [
     etapa: "2 · Preventa",
     titulo: "Cobrás antes de la foto",
     bajada: "Cada familia paga su pack con Mercado Pago. El colegio no toca dinero.",
-    captura: "/demos/escolar/packs.jpg",
+    captura: "/demos/escolar/preventa.jpg",
     visual: "preventa",
   },
   {
@@ -47,6 +47,12 @@ export const PLACAS_RESUMIDA: Placa[] = [
     bajada: "Selfie, elige sus fotos y aprueba su librito antes de imprimir.",
     captura: "/demos/escolar/librito-3d-tapa.jpg",
     visual: "libro3d",
+  },
+  {
+    etapa: "4 · La familia",
+    titulo: "Así lo ve la familia",
+    bajada: "El librito real en 3D. Con «Siguiente» se pasan sus páginas.",
+    libro3d: "sys_librito_mosaico_primaria_fin_de_ano",
   },
   {
     etapa: "5 · Entrega",
@@ -66,5 +72,11 @@ export const PLACAS_RESUMIDA: Placa[] = [
       { titulo: "Diseños automáticos" },
       { titulo: "Entrega ordenada" },
     ],
+  },
+  {
+    etapa: "Cierre",
+    titulo: "Todo el ecosistema DNX",
+    bajada: "Herramientas para fotógrafos, estudios e instituciones.",
+    apps: true,
   },
 ];
