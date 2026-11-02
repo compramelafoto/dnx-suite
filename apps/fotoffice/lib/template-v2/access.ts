@@ -2,6 +2,7 @@ import "server-only";
 import { hasModuleLevel } from "@/lib/permissions/module-access";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { COMMUNICATIONS_MODULE_KEY } from "@/lib/communications/constants";
+import { EVENTOS_MODULE_KEY } from "@/lib/eventos/constants";
 
 /**
  * Quién puede diseñar las plantillas de la institución: quien gestiona Socios (`members`
@@ -25,4 +26,9 @@ export async function canDesignTemplates(userId: number, workspaceId: string): P
  */
 export async function canDesignPlacas(userId: number, workspaceId: string): Promise<boolean> {
   return hasModuleLevel(userId, workspaceId, COMMUNICATIONS_MODULE_KEY, "MANAGE");
+}
+
+/** Los diplomas de los eventos los diseña quien gestiona Eventos (sólo esas plantillas). */
+export async function canDesignDiplomas(userId: number, workspaceId: string): Promise<boolean> {
+  return hasModuleLevel(userId, workspaceId, EVENTOS_MODULE_KEY, "MANAGE");
 }

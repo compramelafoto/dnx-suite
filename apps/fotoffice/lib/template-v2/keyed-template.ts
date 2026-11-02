@@ -160,7 +160,31 @@ export async function loadKeyedTemplate(input: {
     (t) => t.templateKey === input.templateKey,
   );
   if (!ref) return null;
+  return cargarVersion(ref, input);
+}
 
+/**
+ * Lo mismo que `loadKeyedTemplate`, pero por id: para las piezas de las que una institución puede
+ * tener varias (un diploma por evento). Sólo devuelve plantillas de ESA institución.
+ */
+export async function loadTemplateById(input: {
+  workspaceId: string;
+  templateId: string;
+  documentName: string;
+  fallbackCanvas: { width: number; height: number };
+}): Promise<LoadedTemplate | null> {
+  const t = await prisma.templateV2.findFirst({
+    where: { id: input.templateId, workspaceId: input.workspaceId, status: { not: "ARCHIVED" } },
+    select: { id: true, currentVersionId: true },
+  });
+  if (!t?.currentVersionId) return null;
+  return cargarVersion({ templateId: t.id, versionId: t.currentVersionId }, input);
+}
+
+async function cargarVersion(
+  ref: { templateId: string; versionId: string },
+  input: { documentName: string; fallbackCanvas: { width: number; height: number } },
+): Promise<LoadedTemplate | null> {
   const version = await prisma.templateV2Version.findUnique({
     where: { id: ref.versionId },
     select: { id: true, canvasJson: true },
@@ -261,69 +285,101 @@ export async function createKeyedTemplate(input: {
       };
     }
 
-    const creado = await prisma.$transaction(async (tx) => {
-      const template = await tx.templateV2.create({
-        data: {
-          ownerUserId: input.userId,
-          workspaceId: input.workspaceId,
-          name: input.name,
-          description: input.description,
-          status: "ACTIVE",
-        },
-        select: { id: true },
-      });
+    return { ok: true, ...(await crearPlantilla(input)), created: true };
+  } catch (error) {
+    return errorDeCreacion(error);
+  }
+}
 
-      // El diseño de fábrica se guarda traducido al modelo del editor. Guardarlo como documento
-      // de impresión haría que el editor lo abriera en blanco: no entiende ese formato.
-      const semilla = documentoAEditor(input.document);
+/**
+ * Crea SIEMPRE una plantilla nueva con la marca, sin buscar si ya hay una: para las piezas de
+ * las que puede haber varias, como el diploma de cada evento.
+ */
+export async function createTemplateWithKey(input: {
+  workspaceId: string;
+  userId: number;
+  templateKey: string;
+  name: string;
+  description: string;
+  document: unknown;
+}): Promise<CreateKeyedTemplateResult> {
+  try {
+    return { ok: true, ...(await crearPlantilla(input)), created: true };
+  } catch (error) {
+    return errorDeCreacion(error);
+  }
+}
 
-      const version = await tx.templateV2Version.create({
-        data: {
-          templateId: template.id,
-          versionNumber: 1,
-          canvasJson: semilla.canvas as object,
-          metaJson: { templateKey: input.templateKey, product: "fotoffice", origin: "system" },
-          createdByUserId: input.userId,
-        },
-        select: { id: true },
-      });
+function errorDeCreacion(error: unknown): CreateKeyedTemplateResult {
+  // Las tablas del módulo de diseño podrían no existir en una base sin migrar.
+  const message = error instanceof Error ? error.message : String(error);
+  if (/(?:table|relation).*does not exist/i.test(message)) {
+    return { ok: false, error: "El módulo de diseño todavía no está habilitado en esta base." };
+  }
+  throw error;
+}
 
-      await tx.templateV2Block.createMany({
-        // Los ids de bloque son explícitos en este modelo: la base no los genera.
-        data: semilla.blocks.map((b) => ({
-          id: randomUUID(),
-          templateVersionId: version.id,
-          pageIndex: b.pageIndex,
-          type: b.type as Prisma.TemplateV2BlockCreateManyInput["type"],
-          name: b.name,
-          x: b.x,
-          y: b.y,
-          width: b.width,
-          height: b.height,
-          rotation: b.rotation,
-          zIndex: b.zIndex,
-          opacity: b.opacity,
-          locked: b.locked,
-          visible: b.visible,
-          configJson: b.configJson as object,
-        })),
-      });
-
-      await tx.templateV2.update({
-        where: { id: template.id },
-        data: { currentVersionId: version.id },
-      });
-
-      return { templateId: template.id, versionId: version.id };
+function crearPlantilla(input: {
+  workspaceId: string;
+  userId: number;
+  templateKey: string;
+  name: string;
+  description: string;
+  document: unknown;
+}): Promise<{ templateId: string; versionId: string }> {
+  return prisma.$transaction(async (tx) => {
+    const template = await tx.templateV2.create({
+      data: {
+        ownerUserId: input.userId,
+        workspaceId: input.workspaceId,
+        name: input.name,
+        description: input.description,
+        status: "ACTIVE",
+      },
+      select: { id: true },
     });
 
-    return { ok: true, ...creado, created: true };
-  } catch (error) {
-    // Las tablas del módulo de diseño podrían no existir en una base sin migrar.
-    const message = error instanceof Error ? error.message : String(error);
-    if (/(?:table|relation).*does not exist/i.test(message)) {
-      return { ok: false, error: "El módulo de diseño todavía no está habilitado en esta base." };
-    }
-    throw error;
-  }
+    // El diseño de fábrica se guarda traducido al modelo del editor. Guardarlo como documento
+    // de impresión haría que el editor lo abriera en blanco: no entiende ese formato.
+    const semilla = documentoAEditor(input.document);
+
+    const version = await tx.templateV2Version.create({
+      data: {
+        templateId: template.id,
+        versionNumber: 1,
+        canvasJson: semilla.canvas as object,
+        metaJson: { templateKey: input.templateKey, product: "fotoffice", origin: "system" },
+        createdByUserId: input.userId,
+      },
+      select: { id: true },
+    });
+
+    await tx.templateV2Block.createMany({
+      // Los ids de bloque son explícitos en este modelo: la base no los genera.
+      data: semilla.blocks.map((b) => ({
+        id: randomUUID(),
+        templateVersionId: version.id,
+        pageIndex: b.pageIndex,
+        type: b.type as Prisma.TemplateV2BlockCreateManyInput["type"],
+        name: b.name,
+        x: b.x,
+        y: b.y,
+        width: b.width,
+        height: b.height,
+        rotation: b.rotation,
+        zIndex: b.zIndex,
+        opacity: b.opacity,
+        locked: b.locked,
+        visible: b.visible,
+        configJson: b.configJson as object,
+      })),
+    });
+
+    await tx.templateV2.update({
+      where: { id: template.id },
+      data: { currentVersionId: version.id },
+    });
+
+    return { templateId: template.id, versionId: version.id };
+  });
 }

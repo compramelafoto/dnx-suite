@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { coincide, generarCodigo, planillaInscriptos, resumir, unidadesDeEntrada } from "./reglas";
+import { coincide, fechaDeEvento, generarCodigo, planillaInscriptos, resumir, tieneDiploma, unidadesDeEntrada } from "./reglas";
 import { fechaDeInput, validarEvento, validarInscripto } from "./validar";
 
 const getter = (o: Record<string, string>) => (k: string) => o[k] ?? "";
@@ -97,5 +97,29 @@ describe("validar", () => {
     expect(validarInscripto(getter({ nombre: "Ana", email: "no-es-correo" }))).toBeNull();
     const d = validarInscripto(getter({ nombre: "Ana", email: "ANA@X.COM", montoArs: "110.000", dni: "30.123.456", estadoPago: "ANULADO" }))!;
     expect(d).toMatchObject({ email: "ana@x.com", montoArs: "110000", dni: "30123456", estadoPago: "PENDIENTE" });
+  });
+});
+
+
+describe("diplomas", () => {
+  const d = (s: string) => new Date(`${s}T15:00:00Z`);
+
+  it("fecha escrita como en un diploma", () => {
+    expect(fechaDeEvento(null, null)).toBe("");
+    expect(fechaDeEvento(d("2026-11-01"), null)).toBe("1 de noviembre de 2026");
+    expect(fechaDeEvento(d("2026-11-01"), d("2026-11-02"))).toBe("1 y 2 de noviembre de 2026");
+    expect(fechaDeEvento(d("2026-11-01"), d("2026-11-04"))).toBe("1 al 4 de noviembre de 2026");
+    expect(fechaDeEvento(d("2026-10-31"), d("2026-11-03"))).toBe("31 de octubre al 3 de noviembre de 2026");
+    expect(fechaDeEvento(d("2026-12-30"), d("2027-01-02"))).toBe("30 de diciembre de 2026 al 2 de enero de 2027");
+  });
+
+  it("a quién le toca", () => {
+    const acreditado = { estadoPago: "PENDIENTE", acreditadoAt: new Date() };
+    const pagado = { estadoPago: "PAGADO", acreditadoAt: null };
+    const pendiente = { estadoPago: "PENDIENTE", acreditadoAt: null };
+    const anulado = { estadoPago: "ANULADO", acreditadoAt: new Date() };
+    expect([acreditado, pagado, pendiente, anulado].map((i) => tieneDiploma(i, "ACREDITADOS"))).toEqual([true, false, false, false]);
+    expect([acreditado, pagado, pendiente, anulado].map((i) => tieneDiploma(i, "PAGADOS"))).toEqual([true, true, false, false]);
+    expect([acreditado, pagado, pendiente, anulado].map((i) => tieneDiploma(i, "TODOS"))).toEqual([true, true, true, false]);
   });
 });
