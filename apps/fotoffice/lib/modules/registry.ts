@@ -23,6 +23,7 @@ import { CUANTO_COBRO_SOCIO_MODULE_KEY } from "@/lib/cuanto-cobro-socio/constant
 import { FOTOLIBROS_MODULE_KEY, FOTOLIBROS_SOCIO_MODULE_KEY } from "@/lib/fotolibro/constantes";
 import { FOTO_CARNET_MODULE_KEY } from "@/lib/foto-carnet/constantes";
 import { POLAROID_MODULE_KEY } from "@/lib/polaroid/constantes";
+import { EVENTOS_MODULE_KEY } from "@/lib/eventos/constants";
 import { INVOICING_MODULE_KEY } from "@/lib/invoicing/constants";
 import { EQUIPO_MODULE_KEY } from "@/lib/equipo/constantes";
 
@@ -221,6 +222,19 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
     category: "GENERAL",
     order: 41,
     route: "/polaroid",
+    status: "AVAILABLE",
+    family: "negocio",
+  },
+  {
+    // Congresos, jornadas y workshops (02/11/2026, Rafaela en Foco): las entradas de la tienda y
+    // los formularios del sitio suman inscriptos; se cobran, se acreditan en la puerta y se exportan.
+    key: EVENTOS_MODULE_KEY,
+    label: "Eventos e inscriptos",
+    description:
+      "Inscriptos a congresos, jornadas y workshops: las entradas vendidas en la tienda y los formularios del sitio los suman solos; se cobran, se acreditan en la puerta y se exportan.",
+    category: "GENERAL",
+    order: 42,
+    route: "/eventos",
     status: "AVAILABLE",
     family: "negocio",
   },

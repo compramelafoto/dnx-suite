@@ -27997,3 +27997,83 @@ model LiveRaffleVote {
 
   @@unique([pollId, entrantId])
 }
+
+/// Un evento con inscriptos: un congreso, una jornada, un workshop (módulo "eventos", 02/11/2026).
+/// Sin relación a `Workspace` a propósito, como `LiveRaffle`: el esquema se comparte con otras
+/// bases y así no hay que tocar el modelo más consultado de todos.
+model FotofficeEvento {
+  id          String    @id @default(cuid())
+  workspaceId String
+  nombre      String
+  fechaInicio DateTime?
+  fechaFin    DateTime?
+  lugar       String?
+  /// Tope de inscriptos (sólo informativo: la tienda tiene su propio stock). null = sin tope.
+  cupo        Int?
+  /// Las claves de los formularios del sitio (`FotofficeSitioFormulario.clave`) cuyos envíos
+  /// suman un inscripto con el pago pendiente.
+  formularioClaves String[] @default([])
+  archivado   Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  entradas    FotofficeEventoEntrada[]
+  inscriptos  FotofficeEventoInscripto[]
+
+  @@index([workspaceId, archivado])
+}
+
+/// Un producto de la tienda que es una entrada a un evento: cada unidad pagada es un inscripto.
+model FotofficeEventoEntrada {
+  id          String   @id @default(cuid())
+  workspaceId String
+  eventoId    String
+  /// `Product.id`. Sin FK para no tocar `Product`; un producto es entrada de un solo evento.
+  productId   String   @unique
+  /// Cómo se llama esta entrada en el listado ("Preventa", "General"…). null = el nombre del producto.
+  tipo        String?
+  createdAt   DateTime @default(now())
+
+  evento FotofficeEvento @relation(fields: [eventoId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([eventoId])
+}
+
+/// Una persona anotada en un evento. Llega de la tienda (pagada), de un formulario del sitio
+/// (pendiente) o se carga a mano. Se acredita en la puerta.
+model FotofficeEventoInscripto {
+  id          String   @id @default(cuid())
+  workspaceId String
+  eventoId    String
+  nombre      String
+  email       String?
+  telefono    String?
+  dni         String?
+  /// "Preventa", "General", "Cortesía"… texto libre.
+  tipo        String?
+  /// TIENDA | FORMULARIO | MANUAL
+  origen      String
+  /// PAGADO | PENDIENTE | CORTESIA
+  estadoPago  String   @default("PENDIENTE")
+  montoArs    Decimal? @db.Decimal(12, 2)
+  /// De la tienda: el ítem del pedido y cuál de sus unidades (un ítem de 3 entradas = 3 inscriptos).
+  storeOrderId     String?
+  storeOrderItemId String?
+  unidad           Int      @default(1)
+  /// Del formulario del sitio.
+  formularioEnvioId String? @unique
+  /// Código corto para buscarlo en la puerta.
+  codigo      String   @unique
+  acreditadoAt        DateTime?
+  acreditadoPorUserId Int?
+  notas       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  evento FotofficeEvento @relation(fields: [eventoId], references: [id], onDelete: Cascade)
+
+  @@unique([storeOrderItemId, unidad])
+  @@index([workspaceId, eventoId])
+  @@index([eventoId, acreditadoAt])
+}

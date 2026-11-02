@@ -19,6 +19,7 @@ import { reservedQtyByKey } from "./repository";
 import { lockStockRows } from "@/lib/sales/stock-lock";
 import { planificarConsumo } from "@/lib/stock/consumo-servidor";
 import { canTransition } from "./transitions";
+import { sincronizarInscriptos } from "@/lib/eventos/servidor";
 
 /**
  * Acreditar el pago de un pedido de la tienda: el punto donde la plata se vuelve una `Sale`.
@@ -554,6 +555,9 @@ export async function creditStorePayment(input: {
       } else {
         await avisar(() => sendPaidNoStockAlert(ref));
       }
+      // Las entradas a un evento suman inscriptos (módulo Eventos). Fuera de la transacción del
+      // pago: si falla, el pago ya está y el listado los trae solo al abrirse.
+      await avisar(() => sumarInscriptos(input.orderId));
       return { applied: true, status: resultado.status };
     case "duplicado":
       await avisar(() => sendDuplicatePaymentAlert({ ...ref, providerPaymentId: input.providerPaymentId }));
@@ -584,6 +588,11 @@ async function pasarASinStock(
   await tx.storeOrderEvent.create({
     data: { orderId: order.id, fromStatus: order.status, toStatus: "PAID_NO_STOCK", note },
   });
+}
+
+async function sumarInscriptos(orderId: string): Promise<void> {
+  const pedido = await prisma.storeOrder.findUnique({ where: { id: orderId }, select: { workspaceId: true } });
+  if (pedido) await sincronizarInscriptos(pedido.workspaceId);
 }
 
 async function avisar(enviar: () => Promise<void>): Promise<void> {
