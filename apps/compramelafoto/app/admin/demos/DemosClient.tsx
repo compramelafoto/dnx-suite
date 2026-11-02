@@ -111,7 +111,7 @@ export default function DemosClient({ preparada, albumSlug }: { preparada: boole
         <div>
           <h2 className="text-lg font-semibold text-gray-900">Presentación: foto escolar paso a paso</h2>
           <p className="text-sm text-gray-600">
-            Placas tipo diapositiva, sin datos ni demo preparada: ComprameLaFoto en una placa y después una placa
+            Placas tipo diapositiva con capturas reales de la demo escolar, sin necesidad de prepararla: ComprameLaFoto en una placa y después una placa
             por cada funcionalidad escolar (plantillas, diseñador, librito en 3D, imprenta y entrega). Se pasa con
             las flechas o un control de diapositivas; «F» para pantalla completa.
           </p>
@@ -121,7 +121,7 @@ export default function DemosClient({ preparada, albumSlug }: { preparada: boole
             Versión corta (8 placas)
           </Button>
           <Button variant="outline" onClick={() => (window.location.href = "/admin/demos/presentacion-escolar")}>
-            Versión completa (29 placas)
+            Versión completa (30 placas)
           </Button>
         </div>
       </Card>

@@ -51,7 +51,7 @@ function Puntos({ placa }: { placa: Placa }) {
   const puntos = placa.puntos ?? [];
   if (!puntos.length) return null;
   return (
-    <ul className={`mt-[clamp(1rem,3vh,1.75rem)] grid grid-cols-1 gap-3 ${columnas(puntos.length, Boolean(placa.ancha))}`}>
+    <ul className={`mt-[clamp(1rem,3vh,1.75rem)] grid grid-cols-1 gap-3 ${placa.captura ? "" : columnas(puntos.length, Boolean(placa.ancha))}`}>
       {puntos.map((p, i) => (
         <li key={p.titulo} className="rounded-2xl border border-[#c27b3d]/15 bg-[#fbf6f1] p-[clamp(0.75rem,min(1.4vw,2vh),1.2rem)]">
           {placa.numerados ? (
