@@ -6025,6 +6025,30 @@ model ReferralAttributionAttempt {
   @@index([createdAt])
 }
 
+/// Alta en otra plataforma de DNX Suite (FOTOFFICE, FotoRank, Muestras…) que llegó con
+/// un código de referido de CLF. Sólo vive en la base de CLF: las otras plataformas le
+/// avisan por `POST /api/referrals/suite-signup`. Por ahora sólo registra: no genera
+/// comisiones (las comisiones siguen saliendo sólo de ventas en CLF).
+/// `outcome`: CREATED | CODE_NOT_FOUND | SELF_REFERRAL
+model SuiteReferralSignup {
+  id             Int      @id @default(autoincrement())
+  platform       String
+  /// Id del usuario en la base de esa plataforma (no es un User de CLF).
+  externalUserId String
+  email          String
+  name           String?
+  refCode        String
+  referralCodeId Int?
+  referrerUserId Int?
+  outcome        String
+  createdAt      DateTime @default(now())
+
+  @@unique([platform, externalUserId])
+  @@index([referrerUserId])
+  @@index([refCode])
+  @@index([createdAt])
+}
+
 model OrganizerCommission {
   id              Int                       @id @default(autoincrement())
   schoolId        Int
@@ -27823,4 +27847,272 @@ model FotofficeRecuperacionArchivo {
 
   @@unique([recuperacionId, indice])
   @@index([recuperacionId, tipo])
+}
+
+/// Sorteo de evento (congresos, encuentros): se anota cualquiera escaneando un QR y se sortea
+/// en vivo desde una pantalla. Es otro módulo que `Raffle`, que es sólo para socios y verificable.
+///
+/// `workspaceId` va sin relación a propósito, como `partnerId` en `RafflePrize`: el modelo
+/// `Workspace` ya es enorme y esto no necesita navegar desde ahí.
+model LiveRaffle {
+  id          String @id @default(cuid())
+  workspaceId String
+
+  title       String
+  description String?
+  /// Bases y condiciones: el participante las acepta antes de anotarse.
+  rulesText   String?
+  logoUrl     String?
+
+  /// Código corto de la dirección pública `/sorteo/<code>`, la que lleva el QR.
+  publicCode  String @unique
+  /// Credencial de la pantalla del sorteador: `/sorteo/<code>/pantalla?k=<screenToken>`.
+  screenToken String @unique
+
+  /// CELULAR | CELULAR_DNI: qué dato no se puede repetir entre inscriptos.
+  dedupMode        String  @default("CELULAR")
+  /// Con la inscripción cerrada, el QR muestra un aviso en lugar del formulario.
+  registrationOpen Boolean @default(true)
+
+  /// Con listado, cada sorteo es de un premio cargado. Sin listado, cada "Sortear" saca un
+  /// ganador más y la pantalla va mostrando la lista de resultados.
+  usePrizeList     Boolean @default(true)
+  /// Cuántas veces puede ganar una misma persona. 0 = sin límite.
+  maxWinsPerPerson Int     @default(1)
+  /// Cuántos sorteos tienen que pasar, desde que alguien ganó, para que pueda volver a salir.
+  cooldownDraws    Int     @default(0)
+
+  createdByUserId Int?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  entrants LiveRaffleEntrant[]
+  prizes   LiveRafflePrize[]
+  polls    LiveRafflePoll[]
+  sponsors LiveRaffleSponsor[]
+  draws    LiveRaffleDraw[]
+
+  @@index([workspaceId, createdAt])
+}
+
+model LiveRaffleEntrant {
+  id           String  @id @default(cuid())
+  liveRaffleId String
+  firstName    String
+  lastName     String
+  /// Sólo dígitos, para que "+54 9 341..." y "341..." no pasen como personas distintas.
+  phone        String
+  email        String?
+  /// Sólo dígitos. Obligatorio cuando el sorteo usa CELULAR_DNI.
+  dni          String?
+  createdAt    DateTime @default(now())
+
+  liveRaffle LiveRaffle       @relation(fields: [liveRaffleId], references: [id], onDelete: Cascade)
+  votes      LiveRaffleVote[]
+  draws      LiveRaffleDraw[]
+
+  @@unique([liveRaffleId, phone])
+  @@unique([liveRaffleId, dni])
+}
+
+model LiveRafflePrize {
+  id             String  @id @default(cuid())
+  liveRaffleId   String
+  order          Int
+  title          String
+  /// Quién dona el premio. Su logo desfila en el banner de la pantalla.
+  sponsorName    String?
+  sponsorLogoUrl String?
+
+  createdAt DateTime @default(now())
+
+  liveRaffle LiveRaffle       @relation(fields: [liveRaffleId], references: [id], onDelete: Cascade)
+  draws      LiveRaffleDraw[]
+
+  @@index([liveRaffleId, order])
+}
+
+/// Cada vez que sale un nombre. Es la única fuente de quién ganó qué: el ganador de un premio
+/// es su último sorteo en GANADOR, y las reglas de máximo y espera se cuentan sobre esta lista.
+model LiveRaffleDraw {
+  id           String  @id @default(cuid())
+  liveRaffleId String
+  /// Número de sorteo, desde 1. "No está, volver a sortear" repite el mismo número.
+  round        Int
+  entrantId    String
+  /// Con listado de premios, el premio que se sorteaba.
+  prizeId      String?
+  /// GANADOR | AUSENTE (salió y no estaba: no cuenta como premio ganado).
+  status       String  @default("GANADOR")
+  createdAt    DateTime @default(now())
+
+  liveRaffle LiveRaffle        @relation(fields: [liveRaffleId], references: [id], onDelete: Cascade)
+  entrant    LiveRaffleEntrant @relation(fields: [entrantId], references: [id], onDelete: Cascade)
+  prize      LiveRafflePrize?  @relation(fields: [prizeId], references: [id], onDelete: Cascade)
+
+  @@index([liveRaffleId, round])
+}
+
+/// Las marcas que acompañan el evento: sus logos desfilan al pie de la pantalla y del QR.
+model LiveRaffleSponsor {
+  id           String   @id @default(cuid())
+  liveRaffleId String
+  order        Int
+  name         String?
+  logoUrl      String
+  createdAt    DateTime @default(now())
+
+  liveRaffle LiveRaffle @relation(fields: [liveRaffleId], references: [id], onDelete: Cascade)
+
+  @@index([liveRaffleId, order])
+}
+
+model LiveRafflePoll {
+  id           String   @id @default(cuid())
+  liveRaffleId String
+  order        Int
+  question     String
+  /// OPCIONES (elegir una) | TEXTO (escribir un párrafo).
+  kind         String   @default("OPCIONES")
+  options      String[]
+  /// Suma la opción "Otra", que deja escribir una respuesta propia.
+  allowOther   Boolean  @default(false)
+  isOpen       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  liveRaffle LiveRaffle       @relation(fields: [liveRaffleId], references: [id], onDelete: Cascade)
+  votes      LiveRaffleVote[]
+
+  @@index([liveRaffleId, order])
+}
+
+model LiveRaffleVote {
+  id          String   @id @default(cuid())
+  pollId      String
+  entrantId   String
+  /// La opción elegida. Nulo en las encuestas de texto y cuando se eligió "Otra".
+  optionIndex Int?
+  /// La respuesta escrita: el párrafo, o lo que se puso en "Otra".
+  text        String?
+  createdAt   DateTime @default(now())
+
+  poll    LiveRafflePoll    @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  entrant LiveRaffleEntrant @relation(fields: [entrantId], references: [id], onDelete: Cascade)
+
+  @@unique([pollId, entrantId])
+}
+
+/// Un evento con inscriptos: un congreso, una jornada, un workshop (módulo "eventos", 02/11/2026).
+/// Sin relación a `Workspace` a propósito, como `LiveRaffle`: el esquema se comparte con otras
+/// bases y así no hay que tocar el modelo más consultado de todos.
+model FotofficeEvento {
+  id          String    @id @default(cuid())
+  workspaceId String
+  nombre      String
+  fechaInicio DateTime?
+  fechaFin    DateTime?
+  lugar       String?
+  /// Tope de inscriptos (sólo informativo: la tienda tiene su propio stock). null = sin tope.
+  cupo        Int?
+  /// Las claves de los formularios del sitio (`FotofficeSitioFormulario.clave`) cuyos envíos
+  /// suman un inscripto con el pago pendiente.
+  formularioClaves String[] @default([])
+  /// La plantilla del diseñador (`TemplateV2.id`) con la que se dibuja el diploma. null = sin diploma.
+  diplomaTemplateId String?
+  /// A quién se le da diploma: ACREDITADOS | PAGADOS (pagados y cortesías) | TODOS (menos anulados).
+  diplomaPara String  @default("ACREDITADOS")
+  /// La plantilla del diseñador de la placa de bienvenida (cuadrada, con la foto del inscripto).
+  /// null = la placa sale con el diseño base.
+  placaTemplateId String?
+  /// La dirección pública de la inscripción: `/w/<institución>/evento/<slug>`. null = sin página.
+  slug String?
+  /// Si la página pública acepta inscripciones (las de la tienda entran igual, por su pedido).
+  inscripcionPublica Boolean @default(false)
+  /// Si al completar la inscripción se pide la foto (para la placa de bienvenida y la credencial).
+  pideFoto Boolean @default(true)
+  /// Interruptor de la acreditación por QR, como en Clickatón: nace apagado y se enciende a mano.
+  acreditacionHabilitada Boolean @default(false)
+  archivado   Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  entradas    FotofficeEventoEntrada[]
+  inscriptos  FotofficeEventoInscripto[]
+
+  @@unique([workspaceId, slug])
+  @@index([workspaceId, archivado])
+}
+
+/// Un producto de la tienda que es una entrada a un evento: cada unidad pagada es un inscripto.
+model FotofficeEventoEntrada {
+  id          String   @id @default(cuid())
+  workspaceId String
+  eventoId    String
+  /// `Product.id`. Sin FK para no tocar `Product`; un producto es entrada de un solo evento.
+  productId   String   @unique
+  /// Cómo se llama esta entrada en el listado ("Preventa", "General"…). null = el nombre del producto.
+  tipo        String?
+  createdAt   DateTime @default(now())
+
+  evento FotofficeEvento @relation(fields: [eventoId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([eventoId])
+}
+
+/// Una persona anotada en un evento. Llega de la tienda (pagada), de un formulario del sitio
+/// (pendiente) o se carga a mano. Se acredita en la puerta.
+model FotofficeEventoInscripto {
+  id          String   @id @default(cuid())
+  workspaceId String
+  eventoId    String
+  nombre      String
+  email       String?
+  telefono    String?
+  dni         String?
+  /// "Preventa", "General", "Cortesía"… texto libre.
+  tipo        String?
+  /// TIENDA | FORMULARIO | MANUAL
+  origen      String
+  /// PAGADO | PENDIENTE | CORTESIA
+  estadoPago  String   @default("PENDIENTE")
+  montoArs    Decimal? @db.Decimal(12, 2)
+  /// De la tienda: el ítem del pedido y cuál de sus unidades (un ítem de 3 entradas = 3 inscriptos).
+  storeOrderId     String?
+  storeOrderItemId String?
+  unidad           Int      @default(1)
+  /// Del formulario del sitio.
+  formularioEnvioId String? @unique
+  /// Código corto para buscarlo en la puerta.
+  codigo      String   @unique
+  acreditadoAt        DateTime?
+  acreditadoPorUserId Int?
+  /// Cómo entró: PUERTA (búsqueda), QR, OFFLINE (escaneo sin conexión), EXCEPCION (pago pendiente
+  /// autorizado en la puerta) o LISTADO (desde el panel).
+  acreditadoFuente    String?
+  /// Clave de idempotencia del último check-in: el mismo escaneo repetido no acredita dos veces.
+  acreditacionClave   String?  @unique
+  instagram   String?
+  /// La foto del inscripto (R2), para la placa de bienvenida y la credencial.
+  fotoUrl     String?
+  fotoKey     String?
+  /// Cuándo completó sus datos desde su enlace personal. null = todavía no.
+  datosCompletosAt DateTime?
+  /// Lo que aceptó al inscribirse ({ terminos, usoDeImagen }), con la versión del texto.
+  consentimientos  Json?
+  consentVersion   String?
+  consentAt        DateTime?
+  /// SHA-256 del QR de la credencial. El QR se re-deriva con HMAC; en claro no se guarda.
+  qrTokenHash String?  @unique
+  /// Cuándo se le mandó el enlace personal por correo.
+  enlaceEnviadoAt DateTime?
+  notas       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  evento FotofficeEvento @relation(fields: [eventoId], references: [id], onDelete: Cascade)
+
+  @@unique([storeOrderItemId, unidad])
+  @@index([workspaceId, eventoId])
+  @@index([eventoId, acreditadoAt])
 }

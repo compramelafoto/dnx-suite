@@ -15,6 +15,7 @@ import { EQUIPO_MODULE_KEY } from "@/lib/equipo/constantes";
 import { FOTOLIBROS_MODULE_KEY } from "@/lib/fotolibro/constantes";
 import { FOTO_CARNET_MODULE_KEY } from "@/lib/foto-carnet/constantes";
 import { POLAROID_MODULE_KEY } from "@/lib/polaroid/constantes";
+import { EVENTOS_MODULE_KEY } from "@/lib/eventos/constants";
 import {
   BOOKINGS_CONFIGURE_ACTION,
   CASH_CONFIGURE_ACTION,
@@ -247,6 +248,14 @@ const SORTEOS: SubmoduleItem[] = [
     description: "Los sorteos entre {personas} al día, con premios de las marcas aliadas.",
     requiresManage: false,
     activeMatch: "rest",
+  },
+  {
+    href: "/sorteos/en-vivo",
+    label: "Sorteos en vivo",
+    icon: "QrCode",
+    description: "Sorteos de eventos y congresos: la gente se anota con un QR y se sortea en pantalla.",
+    requiresManage: false,
+    activeMatch: "under",
   },
   {
     href: "/sorteos/entregas",
@@ -692,6 +701,17 @@ const POLAROID: SubmoduleItem[] = [
   },
 ];
 
+const EVENTOS: SubmoduleItem[] = [
+  {
+    href: "/eventos",
+    label: "Eventos",
+    icon: "Ticket",
+    description: "Los inscriptos de cada evento: de la tienda, de los formularios y cargados a mano.",
+    requiresManage: false,
+    activeMatch: "under",
+  },
+];
+
 const POR_MODULO: Record<string, SubmoduleItem[]> = {
   [MEMBERS_MODULE_KEY]: SOCIOS,
   [COURSES_SALES_MODULE_KEY]: CURSOS,
@@ -708,6 +728,7 @@ const POR_MODULO: Record<string, SubmoduleItem[]> = {
   [FOTOLIBROS_MODULE_KEY]: FOTOLIBROS,
   [FOTO_CARNET_MODULE_KEY]: FOTO_CARNET,
   [POLAROID_MODULE_KEY]: POLAROID,
+  [EVENTOS_MODULE_KEY]: EVENTOS,
 };
 
 /**

@@ -79,6 +79,7 @@ test("un producto desconocido no hereda el vocabulario de nadie", () => {
 test("las imágenes insertables también quedan de cada lado", () => {
   const foto = getInsertableImageVariablesForProduct("fotoffice").map((v) => v.key);
   assert.deepEqual(foto.sort(), [
+    "attendeePhoto",
     "featuredPhoto1",
     "featuredPhoto2",
     "featuredPhoto3",

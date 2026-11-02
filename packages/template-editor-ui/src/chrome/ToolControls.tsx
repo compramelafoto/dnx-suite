@@ -67,15 +67,19 @@ export function ToolGroup({
   children,
   className,
   "aria-label": ariaLabel,
+  "data-tour": dataTour,
 }: {
   children: ReactNode;
   className?: string;
   "aria-label"?: string;
+  /** Marca para el recorrido guiado del editor. */
+  "data-tour"?: string;
 }) {
   return (
     <div
       role="group"
       aria-label={ariaLabel}
+      data-tour={dataTour}
       className={cn(
         "flex shrink-0 items-center overflow-hidden",
         "rounded-[var(--te-radius)] border border-[color:var(--te-line)] bg-[color:var(--te-surface)]",

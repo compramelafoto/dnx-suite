@@ -36,6 +36,7 @@ import {
   assertRegistrationAcceptedCurrentRules,
 } from "../registration/rules-reacceptance";
 import { RegistrationError } from "../registration/errors";
+import type { InscripcionParaListar } from "./listadoDeParticipantes";
 
 export type EntryEligibilityFormInput = {
   captureLocality?: string | null;
@@ -1329,6 +1330,7 @@ export async function listContestEntriesForOrganizer(input: {
         .map((e) => ({
           entryId: e.id,
           entryStatus: e.status,
+          admissionStatus: e.admissionStatus,
           entryNumber: e.entryNumber,
           technicalSummaryStatus: e.technicalSummaryStatus,
           categoryName: e.category.name,
@@ -1341,6 +1343,91 @@ export async function listContestEntriesForOrganizer(input: {
       requiresReview: checks.filter((c) => c.status === "REQUIRES_REVIEW").length,
     };
   });
+}
+
+/**
+ * Lo que necesita el listado de participantes en Excel (ver
+ * `listadoDeParticipantes.ts`). Pide el mismo acceso que la pantalla de
+ * inscripciones: cualquier miembro activo de la organización.
+ */
+export async function participantesParaElListado(input: {
+  contestId: string;
+  organizerUserId: number;
+}): Promise<{ titulo: string; categorias: string[]; inscripciones: InscripcionParaListar[] }> {
+  const contest = await prisma.fotorankContest.findUnique({
+    where: { id: input.contestId },
+    select: {
+      title: true,
+      organizationId: true,
+      categories: { select: { name: true }, orderBy: { sortOrder: "asc" } },
+    },
+  });
+  if (!contest) throw new EntryError("CONTEST_NOT_FOUND", "Concurso no encontrado.", 404);
+  const member = await prisma.contestOrganizationMember.findFirst({
+    where: {
+      organizationId: contest.organizationId,
+      userId: input.organizerUserId,
+      status: "ACTIVE",
+      role: { in: ["OWNER", "ADMIN", "EDITOR", "VIEWER"] },
+    },
+  });
+  if (!member) throw new EntryError("FORBIDDEN", "Sin acceso a este concurso.", 403);
+
+  const registrations = await prisma.fotorankContestRegistration.findMany({
+    where: { contestId: input.contestId },
+    include: {
+      participant: {
+        select: {
+          name: true,
+          email: true,
+          phone: true,
+          whatsapp: true,
+          instagram: true,
+          city: true,
+          province: true,
+          country: true,
+        },
+      },
+      entries: {
+        orderBy: { createdAt: "asc" },
+        include: {
+          category: { select: { name: true } },
+          assets: { where: { kind: "ORIGINAL" }, select: { id: true }, take: 1 },
+        },
+      },
+    },
+    orderBy: { createdAt: "asc" },
+  });
+
+  return {
+    titulo: contest.title,
+    categorias: contest.categories.map((c) => c.name),
+    inscripciones: registrations.map((r) => ({
+      numero: r.registrationNumber,
+      estado: r.status,
+      pago: r.paymentStatus,
+      inscriptaEl: r.registeredAt ?? r.createdAt,
+      aceptaNovedades: r.promotionalOptIn,
+      persona: {
+        nombre: r.participant.name,
+        email: r.participant.email,
+        telefono: r.participant.phone,
+        whatsapp: r.participant.whatsapp,
+        instagram: r.participant.instagram,
+        ciudad: r.participant.city,
+        provincia: r.participant.province,
+        pais: r.participant.country,
+      },
+      obras: r.entries
+        .filter((e) => !isEmptyDraftEntry({ status: e.status, hasOriginal: e.assets.length > 0 }))
+        .map((e) => ({
+          numero: e.entryNumber,
+          categoria: e.category.name,
+          estado: e.status,
+          admision: e.admissionStatus,
+        })),
+    })),
+  };
 }
 
 export async function withdrawEntry(input: {

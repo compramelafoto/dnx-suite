@@ -6,6 +6,8 @@ import { type ResolvedPortalItem } from "@/lib/portal/menu";
 import type { PersonVocabulary } from "@/lib/vocabulario/personas";
 import { PortalNav, PortalSidebar } from "./portal-nav";
 import { NotificationBell } from "./notification-bell";
+import { TourHelpButton } from "@repo/guided-tour";
+import { PORTAL_TOUR_ID, PortalTour } from "./portal-tour";
 
 /**
  * El marco del portal: identidad arriba, navegación al costado (computadora) o abajo
@@ -26,6 +28,7 @@ export function PortalShell({
   roleSelector = null,
   account = null,
   notifications = false,
+  guidedTour = false,
   children,
 }: {
   items: ResolvedPortalItem[];
@@ -41,6 +44,11 @@ export function PortalShell({
   account?: { userEmail: string; menu: AccountMenuData } | null;
   /** La campanita de novedades: sólo para el socio (el alumno no tiene de qué enterarse acá). */
   notifications?: boolean;
+  /**
+   * El recorrido guiado del portal y su botón Ayuda: sólo para el socio. El alumno ve otro menú
+   * (sus cursos y "Hacete socio") y el recorrido le hablaría de cuotas y carnet que no tiene.
+   */
+  guidedTour?: boolean;
   children: ReactNode;
 }) {
   return (
@@ -67,6 +75,15 @@ export function PortalShell({
           <div className="flex min-w-0 items-center gap-3">
             {/* A la izquierda del nombre: se ve sin tapar la identidad y queda a mano del pulgar. */}
             {notifications ? <NotificationBell /> : null}
+            {/* En el teléfono no hay panel lateral: Ayuda queda acá, junto a la campanita. */}
+            {guidedTour ? (
+              <TourHelpButton
+                tourId={PORTAL_TOUR_ID}
+                iconOnly
+                className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-[var(--fo-text-secondary)] transition-colors hover:bg-[var(--fo-surface-hover)] hover:text-[var(--fo-text)] md:hidden"
+                title="Ver consejos para usar tu portal"
+              />
+            ) : null}
             <div className="min-w-0 text-right">
               <p className="truncate text-sm font-semibold leading-tight">{member.fullName}</p>
               <p className="truncate text-xs text-[var(--fo-muted)]">
@@ -100,6 +117,15 @@ export function PortalShell({
           items={items}
           vocabulary={vocabulary}
           top={<RoleSelector selector={roleSelector} className="mb-5" />}
+          bottom={
+            guidedTour ? (
+              <TourHelpButton
+                tourId={PORTAL_TOUR_ID}
+                className="flex w-full items-center gap-3 rounded-[var(--fo-radius-sm)] px-3 py-2 text-left text-sm text-[var(--fo-text-secondary)] transition-colors hover:bg-[var(--fo-surface-hover)] hover:text-[var(--fo-text)]"
+                title="Ver el recorrido guiado de tu portal"
+              />
+            ) : null
+          }
         />
         <main className="min-w-0 flex-1 px-4 py-5 md:px-0 md:py-6">
           {/* En el teléfono la navegación va abajo: el selector queda arriba del contenido. */}
@@ -109,6 +135,7 @@ export function PortalShell({
       </div>
 
       <PortalNav items={items} vocabulary={vocabulary} />
+      {guidedTour ? <PortalTour persona={vocabulary.singular} /> : null}
     </div>
   );
 }

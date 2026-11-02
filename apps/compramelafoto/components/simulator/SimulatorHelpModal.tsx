@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { startGuidedTour } from "@repo/guided-tour";
+import { COD_STREET_TOUR_ID } from "@/components/simulator/camofduty-tours";
 
 const HELP_ITEMS = [
   {
@@ -131,6 +133,19 @@ export default function SimulatorHelpModal({ open, onClose }: SimulatorHelpModal
           Atajos de teclado del simulador. Los parámetros de cámara también se ajustan desde el panel
           derecho con click o flechas.
         </p>
+
+        <button
+          type="button"
+          className="cod-btn cod-btn--secondary cod-btn--sm cod-help-modal__tour"
+          onClick={() => {
+            onClose();
+            // El recorrido se dibuja sobre la página: en pantalla completa no se vería.
+            if (document.fullscreenElement) void document.exitFullscreen().catch(() => null);
+            startGuidedTour(COD_STREET_TOUR_ID);
+          }}
+        >
+          Ver el recorrido guiado por los controles
+        </button>
 
         <ul className="cod-help-modal__list">
           {HELP_ITEMS.map((item) => (

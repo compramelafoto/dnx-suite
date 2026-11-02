@@ -75,7 +75,7 @@ export default function AlbumResumenSection({
     <div className="ds-tab-panel ds-stack-section w-full min-w-0 gap-6">
       {isTest ? <AlbumTestModeDashboardAlert /> : null}
 
-      <Card className="ds-fill-width w-full min-w-0 p-5 sm:p-6">
+      <Card className="ds-fill-width w-full min-w-0 p-5 sm:p-6" data-tour="album-resumen-estado">
         <div className="ds-stack-section w-full gap-4">
           <div className="ds-content-container w-full space-y-1">
             <h2 className="text-lg font-semibold text-[#1a1a1a] m-0">Estado del álbum</h2>
@@ -173,6 +173,7 @@ export default function AlbumResumenSection({
         </Link>
       </div>
 
+      <div data-tour="album-resumen-proximos" className="w-full min-w-0">
       <AlbumNextSteps
         mode={nextStepsMode}
         albumId={albumId}
@@ -181,6 +182,7 @@ export default function AlbumResumenSection({
         videoMvpEnabled={videoMvpEnabled}
         albumModeControl={albumModeControl}
       />
+      </div>
 
       {(topError || mpConnected === false || organizerLocksAlbumDigitalPricing) && (
         <Card className="ds-fill-width w-full min-w-0 p-5 sm:p-6 border-[#fecaca]/40">

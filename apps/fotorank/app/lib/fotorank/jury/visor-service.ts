@@ -14,6 +14,7 @@ import { assertJudgeContestAccess } from "./jury-access";
 import { sortEntriesForJuror } from "./jury-order";
 import { leTocaLaConsigna } from "./repartoPorConsigna";
 import { pestanasPorCategoria, type ObraEnElVisor } from "./colaDelVisor";
+import { etapaDelVisor, type EtapaDelVisor } from "./avisoDelVisor";
 
 /** Diez minutos: lo que dura una tanda sin que se venzan los enlaces. */
 const PREVIEW_TTL_SEC = 600;
@@ -59,6 +60,8 @@ export type ColaDelVisor = {
   obras: ObraEnElVisor[];
   /** Sin sesión abierta se puede mirar, no calificar. */
   sePuedeCalificar: boolean;
+  /** Para decirle al jurado por qué no ve obras o no puede calificar. */
+  etapa: EtapaDelVisor;
 };
 
 export async function colaParaElVisor(input: {
@@ -117,6 +120,7 @@ export async function colaParaElVisor(input: {
       consignas: [],
       obras: [],
       sePuedeCalificar: false,
+      etapa: "ESPERANDO_APERTURA",
     };
   }
 
@@ -275,6 +279,10 @@ export async function colaParaElVisor(input: {
     input.contestId,
   );
 
+  const sePuedeCalificar = Boolean(
+    sesion && rubrica && rubrica.criterios.length > 0,
+  );
+
   const consignas: ConsignaDelVisor[] = [
     ...new Map(
       ordenadas
@@ -309,8 +317,7 @@ export async function colaParaElVisor(input: {
       comentario: o.comentario,
       enviada: o.enviada,
     })),
-    sePuedeCalificar: Boolean(
-      sesion && rubrica && rubrica.criterios.length > 0,
-    ),
+    sePuedeCalificar,
+    etapa: etapaDelVisor({ hayLote: true, sePuedeCalificar }),
   };
 }

@@ -2,6 +2,7 @@
 
 import { useCameraStore } from "@/lib/simulator/camera-store";
 import { isSimulatorPointerLocked } from "@/lib/simulator/simulator-nav-surface";
+import { isModalDialogOpen } from "@/lib/simulator/modal-open";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 function isEditableTarget(target: EventTarget | null): boolean {
@@ -43,6 +44,8 @@ export default function SimulatorZoomKeyboardListener() {
     const onKeyDown = (event: KeyboardEvent) => {
       if (isEditableTarget(event.target)) return;
       if (isSimulatorPointerLocked()) return;
+      // Con una ventana modal abierta (recorrido guiado, ayuda, galería) el juego no escucha.
+      if (isModalDialogOpen()) return;
 
       if (event.code === "KeyX" && !event.metaKey && !event.ctrlKey && !event.altKey) {
         event.preventDefault();

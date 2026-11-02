@@ -1,8 +1,17 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { isModalDialogOpen } from "@/lib/simulator/modal-open";
 import SimulatorShell from "@/components/simulator/SimulatorShell";
+import { GuidedTour, startGuidedTour } from "@repo/guided-tour";
+import {
+  buildStudioTour,
+  COD_STUDIO_TOUR_ID,
+  COD_TOUR_ACCENT,
+  COD_TOUR_OFFER_DELAY_MS,
+} from "@/components/simulator/camofduty-tours";
+import { loadingGate } from "@/lib/simulator/loading-gate";
 import { formatShutter, meter } from "@/lib/simulator/studio-light/metering";
 import { deserializeStudio, serializeStudio } from "@/lib/simulator/studio-light/share";
 import { StudioProvider, useStudio } from "@/lib/simulator/studio-light/studio-store";
@@ -242,9 +251,21 @@ function HelpDialog({ onClose }: { onClose: () => void }) {
           Contenidos pedagógicos basados en los apuntes de la profesora Débora Priasco.
           Inspirado en Virtual Lighting Studio (zvork) y Set a Light 3D. Escaneo de cabeza: Lee Perry-Smith (Infinite-Realities), licencia CC BY 3.0. Modelos de cuerpo entero: Microsoft Rocketbox Avatar Library, licencia MIT.
         </p>
-        <button type="button" className="cod-studio-btn cod-studio-btn--accent" onClick={onClose}>
-          Entendido
-        </button>
+        <div className="cod-studio-editor__actions">
+          <button type="button" className="cod-studio-btn cod-studio-btn--accent" onClick={onClose}>
+            Entendido
+          </button>
+          <button
+            type="button"
+            className="cod-studio-btn"
+            onClick={() => {
+              onClose();
+              startGuidedTour(COD_STUDIO_TOUR_ID);
+            }}
+          >
+            Ver el recorrido guiado
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -267,6 +288,11 @@ function StudioWorkspace() {
   const [lesson, setLesson] = useState<Lesson | null>(null);
   // La tarjeta de inicio del modo caminar se va apenas el fotógrafo se mueve.
   const [walkStarted, setWalkStarted] = useState(false);
+  // Recorrido guiado: se ofrece recién con el estudio cargado y nunca caminando
+  // (con el puntero capturado), para no chocar con los controles del juego.
+  const loading = useSyncExternalStore(loadingGate.subscribe, loadingGate.getSnapshot, loadingGate.getSnapshot);
+  // Al terminar, el panel vuelve a Luces.
+  const tour = useMemo(() => buildStudioTour(() => setTab("lights")), []);
 
   // El visor de primera persona cambia cuando el mouse queda capturado.
   useEffect(() => {
@@ -351,6 +377,8 @@ function StudioWorkspace() {
     function onKey(e: KeyboardEvent) {
       const t = e.target as HTMLElement | null;
       if (t && (t.tagName === "INPUT" || t.tagName === "SELECT" || t.tagName === "TEXTAREA")) return;
+      // Con una ventana modal abierta (recorrido guiado, ayuda, galería) el juego no escucha.
+      if (isModalDialogOpen()) return;
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") {
         e.preventDefault();
         dispatch({ type: e.shiftKey ? "redo" : "undo" });
@@ -402,12 +430,12 @@ function StudioWorkspace() {
   return (
     <main className="cod-studio">
       <section className="cod-studio__stage">
-        <div className="cod-studio__viewport" onPointerDown={() => mode === "walk" && setWalkStarted(true)}>
+        <div className="cod-studio__viewport" data-tour="cod-estudio-vista-3d" onPointerDown={() => mode === "walk" && setWalkStarted(true)}>
           <StudioCanvas mode={mode} captureRef={captureRef} onHistogram={setHistogram} showPip onShoot={captureNext} viewRef={viewRef} />
           <CamOfDutyLoadingScreen stage={studioStage} />
 
           {mode === "set" ? (
-            <div className="cod-studio-views" role="group" aria-label="Vistas rápidas">
+            <div className="cod-studio-views" data-tour="cod-estudio-vistas" role="group" aria-label="Vistas rápidas">
               {QUICK_VIEWS.map((v) => (
                 <button key={v.id} type="button" onClick={() => viewRef.current?.(v.id)}>
                   {v.label}
@@ -435,9 +463,9 @@ function StudioWorkspace() {
             </div>
           ) : null}
 
-          <div className="cod-studio-dock" role="toolbar" aria-label="Herramientas del estudio">
-            <div className="cod-studio-switch" role="group" aria-label="Vista principal">
-              <button type="button" aria-pressed={mode === "set"} className={mode === "set" ? "is-on" : ""} onClick={() => setMode("set")}>
+          <div className="cod-studio-dock" data-tour="cod-estudio-herramientas" role="toolbar" aria-label="Herramientas del estudio">
+            <div className="cod-studio-switch" data-tour="cod-estudio-modos" role="group" aria-label="Vista principal">
+              <button type="button" data-tour="cod-estudio-modo-set" aria-pressed={mode === "set"} className={mode === "set" ? "is-on" : ""} onClick={() => setMode("set")}>
                 <StudioIcon name="set" />
                 Set
               </button>
@@ -486,7 +514,7 @@ function StudioWorkspace() {
             </p>
           ) : null}
           {flash ? <div className="cod-studio__flash" aria-hidden="true" /> : null}
-          <button type="button" className="cod-studio__shutter" onClick={captureNext} aria-label="Capturar foto (Espacio)">
+          <button type="button" className="cod-studio__shutter" data-tour="cod-estudio-capturar" onClick={captureNext} aria-label="Capturar foto (Espacio)">
             <span />
           </button>
         </div>
@@ -522,7 +550,7 @@ function StudioWorkspace() {
 
       <aside className="cod-studio__side" aria-label="Controles del estudio">
         <StudioMeter histogram={histogram} />
-        <section className="cod-studio-card cod-studio-card--plan">
+        <section className="cod-studio-card cod-studio-card--plan" data-tour="cod-estudio-planta">
           <header className="cod-studio-card__head">
             <h2 className="cod-studio-card__title">Planta</h2>
             <span className="cod-studio-hint">Arrastrá luces y cámara</span>
@@ -536,6 +564,7 @@ function StudioWorkspace() {
                 key={t.id}
                 type="button"
                 role="tab"
+                data-tour={`cod-estudio-tab-${t.id}`}
                 aria-selected={tab === t.id}
                 className={`cod-studio-tabs__btn${tab === t.id ? " is-on" : ""}`}
                 onClick={() => setTab(t.id)}
@@ -556,6 +585,13 @@ function StudioWorkspace() {
       {helpOpen ? <HelpDialog onClose={() => setHelpOpen(false)} /> : null}
       {lesson ? <LessonPanel lesson={lesson} placement="estudio" /> : null}
       {exportOpen ? <ExportDialog onClose={() => setExportOpen(false)} /> : null}
+
+      <GuidedTour
+        tour={tour}
+        accentColor={COD_TOUR_ACCENT}
+        autoOffer={loading.ready && mode !== "walk" && !walkLocked && !lesson}
+        offerDelayMs={COD_TOUR_OFFER_DELAY_MS}
+      />
     </main>
   );
 }
@@ -563,7 +599,7 @@ function StudioWorkspace() {
 export default function StudioLightClient() {
   return (
     <StudioProvider>
-      <SimulatorShell variant="simulator">
+      <SimulatorShell variant="simulator" tourId={COD_STUDIO_TOUR_ID}>
         <StudioWorkspace />
       </SimulatorShell>
     </StudioProvider>

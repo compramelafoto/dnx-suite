@@ -159,7 +159,7 @@ export function PliegoVista(props: Props) {
         <div style={{ width: anchoMini }} />
       )}
 
-      <div className="relative flex-none bg-white shadow-2xl" style={{ width: canvas.width * s, height: canvas.height * s }}>
+      <div data-tour="fotolibro-pliego" className="relative flex-none bg-white shadow-2xl" style={{ width: canvas.width * s, height: canvas.height * s }}>
         <div
           className="absolute left-0 top-0"
           style={{ transform: `scale(${s})`, transformOrigin: "0 0", width: canvas.width, height: canvas.height }}

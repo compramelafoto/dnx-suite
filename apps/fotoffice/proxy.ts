@@ -4,6 +4,11 @@ import { hostWithoutPort } from "@/lib/website/domain/normalize";
 import { decideCustomDomainRoute, isFotofficeHost } from "@/lib/website/domain/routing";
 import { lookupCustomDomain, lookupCustomDomainSlug } from "@/lib/website/domain/proxy-lookup";
 import { rutaInternaInsertada } from "@/lib/service-leads/insertar";
+import {
+  SUITE_REFERRAL_COOKIE,
+  buildSuiteReferralSetCookie,
+  suiteReferralCodeToStore,
+} from "@repo/auth/suite-referral";
 
 // Next 16 renombró `middleware.ts` a `proxy.ts`. No carga Prisma: para resolver un dominio
 // propio le pregunta a `/api/dominio-propio` (ver `lib/website/domain/proxy-lookup.ts`).
@@ -28,6 +33,25 @@ const PROTECTED_PREFIXES = [
 const FOTOFFICE_ORIGIN = (process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || "").trim().replace(/\/+$/, "");
 
 export async function proxy(req: NextRequest) {
+  const response = await routeRequest(req);
+  return withSuiteReferralCookie(req, response);
+}
+
+/**
+ * Referidos de DNX Suite: si la visita trae `?dnx_ref=CODIGO`, se guarda en la cookie `dnx_ref`
+ * para avisarle a CompraMeLaFoto cuando la persona cree su cuenta (`lib/suite-referral/alta.ts`).
+ * Va en TODAS las respuestas —también redirects y rewrites— para no perder el código si la
+ * primera visita rebota a otra dirección. El primer link gana: una cookie válida no se pisa.
+ */
+function withSuiteReferralCookie(req: NextRequest, response: NextResponse): NextResponse {
+  const code = suiteReferralCodeToStore(req.nextUrl, req.cookies.get(SUITE_REFERRAL_COOKIE)?.value);
+  if (code) {
+    response.headers.append("Set-Cookie", buildSuiteReferralSetCookie(code, req.nextUrl.protocol === "https:"));
+  }
+  return response;
+}
+
+async function routeRequest(req: NextRequest): Promise<NextResponse> {
   const host = hostWithoutPort(req.headers.get("x-forwarded-host") ?? req.headers.get("host") ?? "");
 
   if (!isFotofficeHost(host, FOTOFFICE_ORIGIN)) {
@@ -83,7 +107,7 @@ async function handleCustomDomain(req: NextRequest, host: string): Promise<NextR
   }
 }
 
-function protectPanel(req: NextRequest) {
+function protectPanel(req: NextRequest): NextResponse {
   const { pathname } = req.nextUrl;
 
   /*

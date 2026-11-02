@@ -40,6 +40,8 @@ export const RESERVED_SLUGS: ReadonlySet<string> = new Set([
   "comunicacion",
   "consultas",
   "contratos",
+  // El control remoto en el celular de la pantalla del sorteo (app/control-remoto/[id]).
+  "control-remoto",
   "correo",
   "courses",
   "cursos",
@@ -71,6 +73,7 @@ export const RESERVED_SLUGS: ReadonlySet<string> = new Set([
   "pedidos",
   // Polaroid: el diseñador de polaroids (lib/polaroid).
   "polaroid",
+  "eventos",
   "portal",
   // El probador de cuadros dentro del panel (components/probador).
   "probador",
@@ -83,6 +86,8 @@ export const RESERVED_SLUGS: ReadonlySet<string> = new Set([
   "recuperar",
   "reservas",
   "sc",
+  // La página pública de un sorteo en vivo, la que abre el QR (app/sorteo/[code]).
+  "sorteo",
   "sorteos",
   "sponsor",
   "sponsors",

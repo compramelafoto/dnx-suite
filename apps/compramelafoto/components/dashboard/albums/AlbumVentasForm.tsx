@@ -938,7 +938,7 @@ export default function AlbumVentasForm({
         </Card>
       ) : null}
 
-      <div className="ds-stack-section w-full min-w-0 gap-4">
+      <div className="ds-stack-section w-full min-w-0 gap-4" data-tour="album-venta-productos">
         <AlbumSaleProductCard
           id="album-ventas-digitales"
           active={sellDigital}
@@ -1364,7 +1364,10 @@ export default function AlbumVentasForm({
         </AlbumSaleProductCard>
       </div>
 
-      <Card className="ds-fill-width w-full min-w-0 p-5 sm:p-6 border border-[#e5e7eb] bg-[#fafafa]">
+      <Card
+        className="ds-fill-width w-full min-w-0 p-5 sm:p-6 border border-[#e5e7eb] bg-[#fafafa]"
+        data-tour="album-venta-estado"
+      >
         <div className="ds-form-stack w-full max-w-[60rem] gap-4">
           <div className="flex flex-wrap items-center gap-3">
             <h2 className="text-lg font-semibold text-[#1a1a1a] m-0">Estado de ventas</h2>

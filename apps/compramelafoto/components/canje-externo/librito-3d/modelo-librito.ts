@@ -110,3 +110,15 @@ export function giroParaLeer(
 export function giroMasCercano(actual: number, destino: number): number {
   return actual + normalizar(destino - actual);
 }
+
+/**
+ * Las caras que se recorren una por una, en orden: en el plegado tapa, interior y contratapa;
+ * en las hojas, frente y dorso de cada una. Para manejar el visor desde afuera (`pasoExterno`).
+ */
+export function pasosDelLibrito(modelo: ModeloLibrito): string[] {
+  if (modelo.tipo === "plegado") return ["Tapa", "Interior", "Contratapa"];
+  return modelo.hojas.flatMap((h, i) => [`Hoja ${i + 1} · frente`, `Hoja ${i + 1} · dorso`]).slice(
+    0,
+    modelo.hojas[modelo.hojas.length - 1]?.dorso == null ? -1 : undefined,
+  );
+}

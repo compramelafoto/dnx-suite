@@ -12,6 +12,7 @@ import { INVOICING_MODULE_KEY } from "@/lib/invoicing/constants";
 import { FOTOLIBROS_MODULE_KEY } from "@/lib/fotolibro/constantes";
 import { FOTO_CARNET_MODULE_KEY } from "@/lib/foto-carnet/constantes";
 import { POLAROID_MODULE_KEY } from "@/lib/polaroid/constantes";
+import { EVENTOS_MODULE_KEY } from "@/lib/eventos/constants";
 import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
 import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
 import { EVALUACIONES_MODULE_KEY } from "@/lib/evaluaciones/constants";
@@ -447,6 +448,14 @@ export const MODULOS_DISPONIBLES: FichaModulo[] = [
     resuelve:
       "Armás polaroids con la foto encuadrada, una textura en el marco y un texto con la letra que quieras, y bajás las planchas listas para imprimir. Cada una se cobra con su producto del catálogo.",
     pantallas: ["Polaroid"],
+  },
+  {
+    key: EVENTOS_MODULE_KEY,
+    cuadro: "35",
+    nombre: "Eventos e inscriptos",
+    resuelve:
+      "Para congresos, jornadas y workshops: las entradas que vendés en la tienda y los formularios del sitio suman inscriptos solos, cargás a mano las transferencias y cortesías, acreditás en la puerta desde el celular y bajás la planilla.",
+    pantallas: ["Eventos", "Acreditación en la puerta"],
   },
 ];
 /** Lo que está siempre, se encienda lo que se encienda. No son módulos con interruptor. */

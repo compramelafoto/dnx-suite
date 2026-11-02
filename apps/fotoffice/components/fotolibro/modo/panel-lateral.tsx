@@ -191,7 +191,7 @@ export function PanelLateral(props: Props) {
         </section>
       )}
 
-      <section>
+      <section data-tour="fotolibro-estilo">
         <Titulo>Estilo</Titulo>
         {props.estilo ? (
           <div className="space-y-2">
@@ -229,6 +229,7 @@ export function PanelLateral(props: Props) {
       {p ? (
         <section>
           <Titulo>Pliego {pliego + 1}</Titulo>
+          <div data-tour="fotolibro-distribucion">
           <div className="mb-3 grid grid-cols-2 rounded-md bg-black/30 p-0.5 text-xs" role="radiogroup" aria-label="Cómo se arma el pliego">
             {(
               [
@@ -288,7 +289,8 @@ export function PanelLateral(props: Props) {
               </div>
             ))
           )}
-          <div className="mb-2 flex flex-wrap items-center gap-2">
+          </div>
+          <div data-tour="fotolibro-extras" className="mb-2 flex flex-wrap items-center gap-2">
             <button type="button" className={boton} onClick={props.onAgregarTexto}>
               ＋ Texto
             </button>

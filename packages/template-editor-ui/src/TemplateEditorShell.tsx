@@ -84,7 +84,9 @@ import {
   isRevisionConflictResponse,
   TEMPLATE_V2_REVISION_CONFLICT_MESSAGE,
 } from "@repo/template-editor-core";
-import { editorThemeStyle, type TemplateEditorTheme } from "./theme";
+import { DEFAULT_EDITOR_THEME, editorThemeStyle, type TemplateEditorTheme } from "./theme";
+import { GuidedTour, TourHelpButton } from "@repo/guided-tour";
+import { buildTemplateEditorTour, TEMPLATE_EDITOR_TOUR_ID } from "./editorTour";
 import { EditorThemeProvider } from "./theme-context";
 import { ActionButton, ToolButton, ToolDivider, ToolGroup } from "./chrome/ToolControls";
 import { ReferenceGuidesMenu } from "./ReferenceGuidesMenu";
@@ -277,8 +279,11 @@ function RightSidebarSection({
   onToggle,
   children,
   flush = false,
+  tourId,
 }: {
   sectionId: string;
+  /** Marca para el recorrido guiado (`data-tour`). */
+  tourId?: string;
   title: string;
   open: boolean;
   onToggle: () => void;
@@ -287,7 +292,7 @@ function RightSidebarSection({
   flush?: boolean;
 }) {
   return (
-    <section className="border-b border-[color:var(--te-line)] bg-[color:var(--te-chrome)]">
+    <section className="border-b border-[color:var(--te-line)] bg-[color:var(--te-chrome)]" data-tour={tourId}>
       <button
         type="button"
         className="flex h-7 w-full items-center gap-1.5 border-b border-[color:var(--te-line)] bg-[color:var(--te-chrome-sunken)] px-2 text-left transition-colors hover:bg-[color:var(--te-line)] focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[color:var(--te-accent)]"
@@ -345,7 +350,27 @@ type TemplateEditorShellProps = {
    * los heredaba sin quererlo.
    */
   theme?: TemplateEditorTheme;
+  /**
+   * Recorrido guiado con globos (se ofrece solo la primera vez, en computadora, y se repite con
+   * el botón «Ayuda»). Activo por defecto. Sin `accentColor` usa el acento del tema del editor.
+   */
+  guidedTour?: { accentColor?: string; enabled?: boolean };
 };
+
+/** El recorrido pinta sus botones con un color hexadecimal (#rrggbb); acepta también rgb(). */
+function toHexColor(value: string | null | undefined): string | null {
+  const v = (value ?? "").trim();
+  if (/^#[0-9a-f]{6}$/i.test(v)) return v;
+  const short = /^#([0-9a-f])([0-9a-f])([0-9a-f])$/i.exec(v);
+  if (short) return `#${short[1]}${short[1]}${short[2]}${short[2]}${short[3]}${short[3]}`;
+  const rgb = /^rgba?\(\s*(\d+)[\s,]+(\d+)[\s,]+(\d+)/i.exec(v);
+  if (rgb) {
+    return `#${[rgb[1], rgb[2], rgb[3]]
+      .map((n) => Math.max(0, Math.min(255, Number(n))).toString(16).padStart(2, "0"))
+      .join("")}`;
+  }
+  return null;
+}
 
 type LoadResponse = {
   ok: boolean;
@@ -375,6 +400,7 @@ export function TemplateEditorShell({
   exitHref,
   notice,
   onVersionForked,
+  guidedTour,
 }: TemplateEditorShellProps) {
   const router = useRouter();
   /*
@@ -1063,6 +1089,40 @@ export function TemplateEditorShell({
     }
   }, [editorReady, state.selectedBlockIds.join("|")]);
 
+  /*
+   * Recorrido guiado. El acento puede venir como referencia a un token de la app
+   * (`var(--fo-accent)` en FOTOFFICE, que cambia con cada institución): se lee el color ya
+   * resuelto del editor, porque el globo se dibuja fuera de él y necesita un color concreto.
+   */
+  const tourEnabled = guidedTour?.enabled !== false;
+  const [tourAccent, setTourAccent] = useState<string>(
+    () => toHexColor(guidedTour?.accentColor) ?? toHexColor(theme?.accent) ?? DEFAULT_EDITOR_THEME.accent
+  );
+  useEffect(() => {
+    if (!tourEnabled || !editorReady) return;
+    const elegido = toHexColor(guidedTour?.accentColor);
+    if (elegido) {
+      setTourAccent(elegido);
+      return;
+    }
+    const root = raizEditorRef.current;
+    const resuelto = root ? toHexColor(getComputedStyle(root).getPropertyValue("--te-accent")) : null;
+    setTourAccent(resuelto ?? toHexColor(theme?.accent) ?? DEFAULT_EDITOR_THEME.accent);
+  }, [tourEnabled, editorReady, guidedTour?.accentColor, theme?.accent]);
+  const editorTour = useMemo(
+    () =>
+      buildTemplateEditorTour({
+        autosaveSeconds: Math.round(TEMPLATE_V2_AUTOSAVE_DEBOUNCE_MS / 1000),
+        openSidebarSection: (section) => {
+          setRightPanelOpen(true);
+          if (section === "layers") setRightPanelLayersOpen(true);
+          else if (section === "inspector") setRightPanelInspectorOpen(true);
+          else setRightPanelReviewOpen(true);
+        },
+      }),
+    []
+  );
+
   return (
     <EditorThemeProvider theme={theme}>
     <div
@@ -1098,7 +1158,7 @@ export function TemplateEditorShell({
           </div>
           {!loadError ? (
             <>
-              <div className="flex flex-wrap items-center gap-x-2 gap-y-2 px-3 py-2 md:px-4">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-2 px-3 py-2 md:px-4" data-tour="editor-barra">
               {/*
                 La barra agrupa por asunto en vez de alinear todo en una hilera. Antes eran once
                 controles idénticos, todos del mismo tamaño y con la misma forma: nada indicaba
@@ -1143,7 +1203,7 @@ export function TemplateEditorShell({
                 </ToolButton>
               </ToolGroup>
 
-              <ToolGroup aria-label="Documento">
+              <ToolGroup aria-label="Documento" data-tour="editor-documento">
                 <ToolButton
                   label="Tamaño del lienzo"
                   onClick={() => setCanvasSizeModalOpen(true)}
@@ -1178,7 +1238,7 @@ export function TemplateEditorShell({
               </ToolGroup>
 
               {/* Guías: no cambian el diseño, cambian lo que se ve mientras se diseña. */}
-              <ToolGroup aria-label="Guías">
+              <ToolGroup aria-label="Guías" data-tour="editor-guias">
                 <ToolButton
                   label="Zona segura"
                   active={showSafeArea}
@@ -1227,6 +1287,19 @@ export function TemplateEditorShell({
                   </ToolButton>
                 </ToolGroup>
 
+                {tourEnabled ? (
+                  <TourHelpButton
+                    tourId={TEMPLATE_EDITOR_TOUR_ID}
+                    className={cn(
+                      "inline-flex h-[var(--te-control)] shrink-0 items-center gap-1.5 whitespace-nowrap px-2.5",
+                      "rounded-[var(--te-radius)] border border-[color:var(--te-line)] bg-[color:var(--te-surface)]",
+                      "text-[12.5px] font-medium text-[color:var(--te-ink)] transition-colors hover:bg-[color:var(--te-chrome-sunken)]",
+                      "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[color:var(--te-accent)]",
+                      "[&>svg]:h-4 [&>svg]:w-4"
+                    )}
+                  />
+                ) : null}
+
                 <ToolDivider />
 
                 {/*
@@ -1238,6 +1311,7 @@ export function TemplateEditorShell({
                   onClick={() => void handleSave()}
                   disabled={state.isSaving || savingAsNew || !state.isDirty || revisionConflictLocked}
                   data-testid="template-v2-save-button"
+                  data-tour="editor-guardar"
                   title={
                     state.isSaving
                       ? "Guardando cambios…"
@@ -1255,6 +1329,7 @@ export function TemplateEditorShell({
             {editorReady ? (
               <div
                 className="flex flex-wrap items-center gap-1.5 border-t border-[color:var(--te-line)] bg-[color:var(--te-chrome)] px-3 py-2 md:px-4"
+                data-tour="editor-hojas"
                 onDragOver={(e) => {
                   if (sheetDragFrom == null) return;
                   e.preventDefault();
@@ -1611,6 +1686,7 @@ export function TemplateEditorShell({
             <aside
               className="flex w-[44px] shrink-0 flex-col items-center gap-0.5 border-r border-[color:var(--te-line)] bg-[color:var(--te-chrome)] py-2"
               aria-label="Herramientas"
+              data-tour="editor-herramientas"
             >
               <EditorToolButton
                 label="Selección(V)"
@@ -1809,7 +1885,7 @@ export function TemplateEditorShell({
                 describen.
               */}
               <div className="flex h-9 shrink-0 items-center gap-0.5 border-t border-[color:var(--te-line)] bg-[color:var(--te-chrome)] px-2">
-                <div className="ml-auto flex items-center gap-0.5">
+                <div className="ml-auto flex items-center gap-0.5" data-tour="editor-zoom">
                   <ToolButton
                     label="Alejar"
                     shortcut="⌘−"
@@ -1863,6 +1939,7 @@ export function TemplateEditorShell({
                 <RightSidebarSection
                   sectionId="template-v2-panel-layers"
                   title="Capas"
+                  tourId="editor-capas"
                   open={rightPanelLayersOpen}
                   onToggle={() => setRightPanelLayersOpen((v) => !v)}
                   flush
@@ -1873,6 +1950,7 @@ export function TemplateEditorShell({
                 <RightSidebarSection
                   sectionId="template-v2-panel-inspector"
                   title="Propiedades"
+                  tourId="editor-propiedades"
                   open={rightPanelInspectorOpen}
                   onToggle={() => setRightPanelInspectorOpen((v) => !v)}
                   flush
@@ -1900,6 +1978,7 @@ export function TemplateEditorShell({
                 <RightSidebarSection
                   sectionId="template-v2-panel-review"
                   title="Revisión rápida"
+                  tourId="editor-revision"
                   open={rightPanelReviewOpen}
                   onToggle={() => setRightPanelReviewOpen((v) => !v)}
                   variant="white"
@@ -1992,6 +2071,10 @@ export function TemplateEditorShell({
             </p>
           </div>
         </div>
+      ) : null}
+
+      {tourEnabled && editorReady && !loadError ? (
+        <GuidedTour tour={editorTour} accentColor={tourAccent} />
       ) : null}
     </div>
     </EditorThemeProvider>

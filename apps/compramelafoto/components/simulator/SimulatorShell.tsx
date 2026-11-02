@@ -1,13 +1,16 @@
 import CamOfDutyLogo from "@/components/simulator/CamOfDutyLogo";
 import Link from "next/link";
+import { TourHelpButton } from "@repo/guided-tour";
 
 export interface SimulatorShellProps {
   children: React.ReactNode;
   /** "landing" muestra CTA al simulador; "simulator" muestra volver a inicio */
   variant?: "landing" | "simulator";
+  /** Recorrido guiado de la pantalla: muestra el botón Ayuda en la barra. */
+  tourId?: string;
 }
 
-export default function SimulatorShell({ children, variant = "landing" }: SimulatorShellProps) {
+export default function SimulatorShell({ children, variant = "landing", tourId }: SimulatorShellProps) {
   return (
     <div className={`cod-shell${variant === "simulator" ? " cod-shell--simulator" : ""}`}>
       <header className="cod-header">
@@ -28,6 +31,13 @@ export default function SimulatorShell({ children, variant = "landing" }: Simula
             </>
           ) : (
             <>
+              {tourId ? (
+                <TourHelpButton
+                  tourId={tourId}
+                  className="cod-btn cod-btn--ghost cod-btn--sm"
+                  title="Recorrido guiado por los controles de esta pantalla"
+                />
+              ) : null}
               <Link href="/camofduty/estudio" className="cod-btn cod-btn--ghost cod-btn--sm">
                 Estudio Fotográfico
               </Link>

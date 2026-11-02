@@ -110,7 +110,7 @@ export function PortalHome({
   const proximas = secciones.filter((s) => s.state === "PROXIMAMENTE");
 
   const cuotasCard = (
-          <section className="fo-card space-y-4 p-5">
+          <section className="fo-card space-y-4 p-5" data-tour="portal-cuotas">
             <div className="flex flex-wrap items-baseline justify-between gap-3">
               <h2 className="text-base font-semibold">Tus cuotas</h2>
               {alDia ? null : (
@@ -236,7 +236,7 @@ export function PortalHome({
         Identidad antes que trámite: lo primero que ve el socio es que la institución sabe quién
         es. Son datos que ya existen en la ficha, así que nunca quedan desactualizados.
       */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" data-tour="portal-tablero">
         <Indicador
           rotulo="Tu cuenta"
           valor={alDia ? "Al día" : formatMinorArs(cuenta.dueMinor)}
@@ -363,6 +363,7 @@ export function PortalHome({
           {/* Una muestra del carnet: se reconoce de un vistazo y lleva directo a la credencial. */}
           <Link
             href="/portal/carnet"
+            data-tour="portal-carnet"
             className="block overflow-hidden rounded-[var(--fo-radius)] bg-gradient-to-br from-[var(--fo-accent)] to-[var(--fo-accent-hover)] p-5 text-white shadow-[var(--fo-shadow-md)] transition-transform hover:-translate-y-0.5"
           >
             <p className="text-xs font-medium uppercase tracking-wide text-white/80">

@@ -259,7 +259,7 @@ export function LightsPanel() {
 
   return (
     <div className="cod-studio-panel">
-      <ul className="cod-studio-lights">
+      <ul className="cod-studio-lights" data-tour="cod-estudio-luces">
         {state.lights.map((l) => {
           const spec = MODIFIERS[l.modifier];
           return (
@@ -296,7 +296,7 @@ export function LightsPanel() {
       </ul>
 
       {state.lights.length < MAX_LIGHTS ? (
-        <div className="cod-studio-add">
+        <div className="cod-studio-add" data-tour="cod-estudio-agregar">
           <ModifierSelect value={adding} onChange={setAdding} />
           <button type="button" className="cod-studio-btn cod-studio-btn--accent" onClick={() => dispatch({ type: "add-light", modifier: adding })}>
             <StudioIcon name="plus" size={16} />
@@ -333,81 +333,87 @@ export function CameraPanel() {
 
   return (
     <div className="cod-studio-panel">
-      <span className="cod-studio-field__label">Encuadre</span>
-      <div className="cod-studio-chips">
-        {(Object.keys(FRAMINGS) as FramingId[]).map((id) => (
-          <button
-            key={id}
-            type="button"
-            className={`cod-studio-chip${Math.abs(c.aimY - FRAMINGS[id].aimY) < 0.02 ? " cod-studio-chip--on" : ""}`}
-            onClick={() => dispatch({ type: "framing", id })}
-          >
-            {FRAMINGS[id].label}
-          </button>
-        ))}
+      <div className="cod-studio-panel" data-tour="cod-estudio-encuadre">
+        <span className="cod-studio-field__label">Encuadre</span>
+        <div className="cod-studio-chips">
+          {(Object.keys(FRAMINGS) as FramingId[]).map((id) => (
+            <button
+              key={id}
+              type="button"
+              className={`cod-studio-chip${Math.abs(c.aimY - FRAMINGS[id].aimY) < 0.02 ? " cod-studio-chip--on" : ""}`}
+              onClick={() => dispatch({ type: "framing", id })}
+            >
+              {FRAMINGS[id].label}
+            </button>
+          ))}
+        </div>
+        <Slider
+          label="Altura del encuadre"
+          value={c.aimY}
+          min={0.4}
+          max={2}
+          step={0.01}
+          display={m(c.aimY)}
+          onChange={(v) => set({ aimY: v })}
+        />
+        <Choice label="Distancia focal" value={c.focalMm} options={FOCALS.map((f) => ({ value: f, label: `${f} mm` }))} onChange={(v) => set({ focalMm: v })} />
       </div>
-      <Slider
-        label="Altura del encuadre"
-        value={c.aimY}
-        min={0.4}
-        max={2}
-        step={0.01}
-        display={m(c.aimY)}
-        onChange={(v) => set({ aimY: v })}
-      />
-      <Choice label="Distancia focal" value={c.focalMm} options={FOCALS.map((f) => ({ value: f, label: `${f} mm` }))} onChange={(v) => set({ focalMm: v })} />
-      <div className="cod-studio-grid3">
-        <Choice label="Diafragma" value={c.aperture} options={APERTURES.map((a) => ({ value: a, label: `f/${a}` }))} onChange={(v) => set({ aperture: v })} />
-        <Choice label="Obturador" value={c.shutter} options={SHUTTERS.map((s) => ({ value: s, label: formatShutter(s) }))} onChange={(v) => set({ shutter: v })} />
-        <Choice label="ISO" value={c.iso} options={ISOS.map((i) => ({ value: i, label: String(i) }))} onChange={(v) => set({ iso: v })} />
-      </div>
-      <p className="cod-studio-hint">
-        El flash dura menos que el obturador: con flash, el diafragma y el ISO controlan la exposición; el obturador sólo cambia cuánto entra de la luz de la sala.
-      </p>
+      <div className="cod-studio-panel" data-tour="cod-estudio-exposicion">
+        <div className="cod-studio-grid3">
+          <Choice label="Diafragma" value={c.aperture} options={APERTURES.map((a) => ({ value: a, label: `f/${a}` }))} onChange={(v) => set({ aperture: v })} />
+          <Choice label="Obturador" value={c.shutter} options={SHUTTERS.map((s) => ({ value: s, label: formatShutter(s) }))} onChange={(v) => set({ shutter: v })} />
+          <Choice label="ISO" value={c.iso} options={ISOS.map((i) => ({ value: i, label: String(i) }))} onChange={(v) => set({ iso: v })} />
+        </div>
+        <p className="cod-studio-hint">
+          El flash dura menos que el obturador: con flash, el diafragma y el ISO controlan la exposición; el obturador sólo cambia cuánto entra de la luz de la sala.
+        </p>
 
-      <Slider
-        label="Balance de blancos"
-        value={c.whiteBalance}
-        min={2800}
-        max={7500}
-        step={100}
-        display={`${c.whiteBalance} K`}
-        onChange={(v) => set({ whiteBalance: v })}
-      />
-      <div className="cod-studio-chips">
-        {WB_PRESETS.map((p) => (
-          <button key={p.k} type="button" className={`cod-studio-chip${c.whiteBalance === p.k ? " cod-studio-chip--on" : ""}`} onClick={() => set({ whiteBalance: p.k })}>
-            {p.label}
-          </button>
-        ))}
-        <span className="cod-studio-wb" style={{ background: `rgb(${wb.map((v) => Math.round(v * 255)).join(",")})` }} aria-hidden="true" />
+        <Slider
+          label="Balance de blancos"
+          value={c.whiteBalance}
+          min={2800}
+          max={7500}
+          step={100}
+          display={`${c.whiteBalance} K`}
+          onChange={(v) => set({ whiteBalance: v })}
+        />
+        <div className="cod-studio-chips">
+          {WB_PRESETS.map((p) => (
+            <button key={p.k} type="button" className={`cod-studio-chip${c.whiteBalance === p.k ? " cod-studio-chip--on" : ""}`} onClick={() => set({ whiteBalance: p.k })}>
+              {p.label}
+            </button>
+          ))}
+          <span className="cod-studio-wb" style={{ background: `rgb(${wb.map((v) => Math.round(v * 255)).join(",")})` }} aria-hidden="true" />
+        </div>
       </div>
 
-      <Slider label="Altura de cámara" value={c.y} min={0.5} max={2.8} step={0.05} display={m(c.y)} onChange={(v) => set({ y: v })} />
-      <Slider
-        label="Distancia al sujeto"
-        value={dist}
-        min={0.8}
-        max={6}
-        step={0.05}
-        display={m(dist)}
-        onChange={(v) => {
-          const { x, z } = polarToXZ(az, v);
-          set({ x, z });
-        }}
-      />
-      <Slider
-        label="Ángulo de cámara"
-        value={Math.round(az)}
-        min={-80}
-        max={80}
-        step={1}
-        display={`${Math.round(az)}°`}
-        onChange={(v) => {
-          const { x, z } = polarToXZ(v, dist);
-          set({ x, z });
-        }}
-      />
+      <div className="cod-studio-panel" data-tour="cod-estudio-posicion">
+        <Slider label="Altura de cámara" value={c.y} min={0.5} max={2.8} step={0.05} display={m(c.y)} onChange={(v) => set({ y: v })} />
+        <Slider
+          label="Distancia al sujeto"
+          value={dist}
+          min={0.8}
+          max={6}
+          step={0.05}
+          display={m(dist)}
+          onChange={(v) => {
+            const { x, z } = polarToXZ(az, v);
+            set({ x, z });
+          }}
+        />
+        <Slider
+          label="Ángulo de cámara"
+          value={Math.round(az)}
+          min={-80}
+          max={80}
+          step={1}
+          display={`${Math.round(az)}°`}
+          onChange={(v) => {
+            const { x, z } = polarToXZ(v, dist);
+            set({ x, z });
+          }}
+        />
+      </div>
     </div>
   );
 }
@@ -666,7 +672,7 @@ export function ScenePanel() {
   const set = (patch: ScenePatch) => dispatch({ type: "scene", patch });
 
   return (
-    <div className="cod-studio-panel">
+    <div className="cod-studio-panel" data-tour="cod-estudio-modelo">
       <SubjectPicker />
       {isBust(state.subject) ? null : <PosePicker />}
 
@@ -710,7 +716,7 @@ export function PresetsPanel({ onApplied }: { onApplied?: () => void }) {
       <p className="cod-studio-hint">
         Cada esquema arma las luces y ajusta la potencia a tu cámara. Después movelas para entender qué cambia.
       </p>
-      <div className="cod-studio-presets">
+      <div className="cod-studio-presets" data-tour="cod-estudio-esquemas">
         {PRESETS.map((p) => (
           <button
             key={p.id}

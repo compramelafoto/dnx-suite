@@ -18,6 +18,7 @@ const m = vi.hoisted(() => {
     setContinuity: vi.fn(),
     clearContinuity: vi.fn(),
     cookieSet: vi.fn(),
+    avisarReferido: vi.fn(),
     redirect: vi.fn((path: string) => {
       throw new Error(`NEXT_REDIRECT:${path}`);
     }),
@@ -39,6 +40,7 @@ vi.mock("@repo/db/fotoffice-team", () => ({
   findTeamInvitationByTokenHash: m.findByHash,
 }));
 vi.mock("@repo/auth", () => ({ requestPasswordReset: m.requestPasswordReset }));
+vi.mock("@/lib/suite-referral/alta", () => ({ avisarReferidoDeAlta: m.avisarReferido }));
 vi.mock("@/lib/team/continuity", () => ({
   setTeamInvitationContinuity: m.setContinuity,
   clearTeamInvitationContinuity: m.clearContinuity,
@@ -168,7 +170,10 @@ describe("startTeamActivationAction", () => {
       where: { email: "ana@example.com" },
       update: {},
       create: { email: "ana@example.com", role: "CUSTOMER" },
+      select: { id: true, email: true, name: true },
     });
+    // Referidos de DNX Suite: la cuenta nueva se informa con lo que devolvió el alta.
+    expect(m.avisarReferido).toHaveBeenCalledWith({ id: 50 });
     expect(m.setContinuity).toHaveBeenCalledWith("tok-crudo", FUTURE);
     expect(m.requestPasswordReset).toHaveBeenCalledWith({
       email: "ana@example.com",

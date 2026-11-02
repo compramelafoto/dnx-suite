@@ -67,8 +67,8 @@ export const FOTOFFICE_TOP_LEVEL_APP_ROUTES = [
  */
 export const SITE_FOLDER_SEGMENTS = [
   // Carpetas bajo app/w/[workspaceSlug]/ (`d` = documentos compartidos, PR D)
-  "archivos", "asociarse", "blog", "coberturas", "contrato", "cursos", "d", "entrar", "galeria",
-  "impresion", "institucional", "obras", "pedido", "presupuesto", "proyecto", "recibo",
+  "archivos", "asociarse", "blog", "coberturas", "contrato", "cursos", "d", "entrada", "entrar", "evento", "galeria",
+  "diploma", "impresion", "institucional", "obras", "pedido", "presupuesto", "proyecto", "recibo",
   "reservas", "reunion", "socios", "sorteos", "testimonio", "testimonios", "tienda", "trabajos", "videos", "xv",
   // Rutas fijas del sitio que no son carpetas de esa ruta
   "insertar", "api", "w", "sitemap.xml", "robots.txt",

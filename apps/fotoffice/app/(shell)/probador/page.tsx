@@ -1,7 +1,9 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@repo/db";
 import { PageHeader } from "@/components/page-header";
+import { TourHelpButton } from "@repo/guided-tour";
 import { ProbadorCuadros } from "@/components/probador/probador-cuadros";
+import { TourProbador } from "@/components/probador/tour-probador";
 import { EnlaceParaClientes } from "@/components/probador/enlace-para-clientes";
 import { cargarCatalogoProbador } from "@/lib/probador/catalogo.server";
 import { catalogoPublico } from "@/lib/probador/catalogo";
@@ -36,9 +38,13 @@ export default async function ProbadorPanelPage() {
       <PageHeader
         title="Probador de cuadros"
         description="Sacale una foto a la pared del cliente, marcá una medida que conozcas y mostrale cómo quedan los cuadros a escala: individuales, dípticos, trípticos o una galería, con el marco que elija."
+        actions={
+          <TourHelpButton tourId="probador-cuadros-estudio" className="fo-btn fo-btn-secondary inline-flex items-center gap-2" />
+        }
       />
       {enlace ? <EnlaceParaClientes url={enlace} /> : null}
       <ProbadorCuadros catalogo={catalogoPublico(catalogo)} />
+      <TourProbador variante="estudio" />
     </div>
   );
 }

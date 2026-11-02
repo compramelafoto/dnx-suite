@@ -384,6 +384,14 @@ export function createFotofficeExampleData(
     featuredPhoto1: FOTOFFICE_FIXTURE_PHOTO_DATA_URL,
     featuredPhoto2: FOTOFFICE_FIXTURE_PHOTO_DATA_URL,
     featuredPhoto3: FOTOFFICE_FIXTURE_PHOTO_DATA_URL,
+    attendeeName: "María Fernanda Gómez",
+    eventName: "Rafaela en Foco 2026",
+    eventDate: "1 y 2 de noviembre de 2026",
+    eventPlace: "Centro Cultural Viejo Mercado, Rafaela",
+    ticketType: "General",
+    attendeeCode: "AB7K2M",
+    attendeePhoto: FOTOFFICE_FIXTURE_PHOTO_DATA_URL,
+    attendeeInstagram: "@mariagomez.foto",
     ...overrides,
   };
 }

@@ -205,9 +205,10 @@ describe("submodulesFor — niveles y acciones sensibles", () => {
     ).toEqual(["/reservas", "/reservas/liquidaciones", "/reservas/espacios", "/reservas/extras", "/reservas/configuracion"]);
   });
 
-  it("Sorteos: la lista y las entregas alcanzan con ver", () => {
+  it("Sorteos: la lista, los sorteos en vivo y las entregas alcanzan con ver", () => {
     expect(hrefs("raffles", { levels: { raffles: "VIEW" }, actions: [] })).toEqual([
       "/sorteos",
+      "/sorteos/en-vivo",
       "/sorteos/entregas",
     ]);
   });

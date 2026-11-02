@@ -14,6 +14,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@repo/db";
 
 import { hashPassword } from "../lib/security/password";
+import { reportarAltaReferidaDesdeCookies } from "../lib/fotorank/suite-referral/reportarAltaReferida";
 import { createJudgeSessionForJudge, requireJudgeAuth } from "../lib/judge-auth";
 import { avisarFichaPendienteDeRevision } from "../lib/fotorank/judges/avisoDeFichaPendiente";
 import { enqueueTransactionalEmail } from "../lib/fotorank/notifications/outbox";
@@ -233,13 +234,16 @@ export async function postularseComoJuradoAction(
       select: { id: true },
     });
     if (!yaEnElSitio) {
-      await prisma.user.create({
+      const usuarioDelSitio = await prisma.user.create({
         data: {
           email: datos.email,
           password: hashPassword(datos.password),
           name: `${datos.firstName.trim()} ${datos.lastName.trim()}`.trim(),
         },
+        select: { id: true, email: true, name: true },
       });
+      // Referidos de DNX Suite: sólo cuando la cuenta del sitio nace acá (no si ya existía).
+      await reportarAltaReferidaDesdeCookies(usuarioDelSitio);
     }
   } catch (err) {
     console.warn("[postulacion de jurado] no se pudo crear la cuenta del sitio", err);

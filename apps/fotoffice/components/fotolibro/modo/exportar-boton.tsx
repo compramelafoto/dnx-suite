@@ -73,7 +73,7 @@ export function ExportarBoton({ templateId, nombre, cantidadPliegos, conTapa, re
             <h2 className="text-base font-semibold">Revisión antes de mandar al laboratorio</h2>
             <p className="text-xs text-white/55">
               {errores
-                ? "Hay cosas que hay que corregir antes de imprimir. Clic en cada una para ir al pliego."
+                ? "Hay cosas que conviene corregir antes de imprimir. Clic en cada una para ir al pliego, o exportá de todas formas."
                 : "No hay errores; revisá estos avisos o exportá igual. Clic en cada uno para ir al pliego."}
             </p>
             <ul className="max-h-80 space-y-1 overflow-y-auto">
@@ -99,11 +99,18 @@ export function ExportarBoton({ templateId, nombre, cantidadPliegos, conTapa, re
               <button type="button" onClick={() => setProblemas(null)} className="rounded px-3 py-1.5 text-xs text-white/70 hover:bg-white/10">
                 Volver a corregir
               </button>
-              {!errores ? (
-                <button type="button" onClick={() => void exportar()} className="rounded bg-[var(--fo-accent)] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90">
-                  Exportar igual
-                </button>
-              ) : null}
+              {/* Con errores también se puede exportar: la decisión es de quien arma el libro. */}
+              <button
+                type="button"
+                onClick={() => void exportar()}
+                className={
+                  errores
+                    ? "rounded bg-red-500/80 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-500"
+                    : "rounded bg-[var(--fo-accent)] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90"
+                }
+              >
+                {errores ? "Exportar de todas formas" : "Exportar igual"}
+              </button>
             </div>
           </div>
         </div>
@@ -118,6 +125,7 @@ export function ExportarBoton({ templateId, nombre, cantidadPliegos, conTapa, re
           if (lista.length) setProblemas(lista);
           else void exportar();
         }}
+        data-tour="fotolibro-exportar"
         title="Un JPG por pliego (y la tapa), a 300 ppp, en un ZIP para mandar al laboratorio"
         className="rounded bg-[var(--fo-accent)] px-2.5 py-1 text-xs font-medium text-white hover:opacity-90 disabled:opacity-60"
       >

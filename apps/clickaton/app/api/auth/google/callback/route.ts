@@ -20,6 +20,11 @@ import {
   cookieOptionsForRequest,
 } from "@/lib/auth/session-cookie";
 import { CLICKATON_LOGIN_PATH } from "@/lib/auth/return-path";
+import { SUITE_REFERRAL_COOKIE } from "@repo/auth/suite-referral";
+import {
+  readSuiteReferralCodeFromCookies,
+  scheduleSuiteReferralSignupReport,
+} from "@/lib/suite-referral/service";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -128,6 +133,15 @@ export async function GET(req: Request) {
       data: { lastLoginAt: new Date() },
     });
 
+    // Referidos DNX Suite: sólo si la cuenta se creó recién con Google (no en un login).
+    const suiteReferralScheduled = scheduleSuiteReferralSignupReport({
+      created: resolved.created,
+      code: resolved.created ? await readSuiteReferralCodeFromCookies() : null,
+      userId: resolved.userId,
+      email: resolved.email,
+      name: google.name,
+    });
+
     const globalRole =
       resolved.suiteRole === "SUPER_ADMIN" ? "SUPER_ADMIN" : "USER";
     const destination = resolveClickatonPostGoogleLoginPath({
@@ -143,6 +157,13 @@ export async function GET(req: Request) {
       maxAge: 0,
       expires: new Date(0),
     });
+    if (suiteReferralScheduled) {
+      res.cookies.set(SUITE_REFERRAL_COOKIE, "", {
+        path: "/",
+        maxAge: 0,
+        expires: new Date(0),
+      });
+    }
 
     try {
       await attachClickatonSessionCookieToResponse(res, resolved.userId, {

@@ -28,6 +28,7 @@ export default function NaturalLightTab() {
   return (
     <div
       className="cod-side-panel cod-natural-light-panel"
+      data-tour="cod-luz-natural"
       role="tabpanel"
       id="cod-side-panel-sun"
       aria-labelledby="cod-side-tab-sun"

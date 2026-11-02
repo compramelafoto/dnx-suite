@@ -44,6 +44,8 @@ import AlbumSchoolCommissionSection from "@/components/dashboard/albums/AlbumSch
 import AlbumWorkspaceNav from "@/components/dashboard/albums/AlbumWorkspaceNav";
 import AlbumVentasForm from "@/components/dashboard/albums/AlbumVentasForm";
 import AlbumSalesStatusBadge from "@/components/dashboard/albums/AlbumSalesStatusBadge";
+import { GuidedTour, TourHelpButton } from "@repo/guided-tour";
+import { ALBUM_TOUR, ALBUM_TOUR_ACCENT } from "@/components/dashboard/albums/album-tour";
 import { evaluateAlbumShareEligibility } from "@/lib/albums/album-share-eligibility";
 import {
   hasUnsavedAlbumConfigChanges,
@@ -2090,6 +2092,7 @@ export default function DashboardAlbumDetailPage() {
   return (
     <>
       <PhotographerDashboardHeader photographer={null} />
+      <GuidedTour tour={ALBUM_TOUR} accentColor={ALBUM_TOUR_ACCENT} />
       <section className="py-12 md:py-16 bg-white min-h-screen w-full min-w-0">
         <div className="container-custom ds-page-shell ds-fill-width">
           <DsDashboardInner className="w-full ds-stack-section gap-8 px-1 sm:px-0">
@@ -2103,7 +2106,7 @@ export default function DashboardAlbumDetailPage() {
               />
             </Suspense>
             {/* Panel superior: título y acciones en la misma fila */}
-            <div className="w-full min-w-0 space-y-2">
+            <div className="w-full min-w-0 space-y-2" data-tour="album-encabezado">
               <div className="flex w-full min-w-0 items-center justify-between gap-3 sm:gap-4">
                 <div className="min-w-0 flex-1">
                   {editing ? (
@@ -2129,7 +2132,11 @@ export default function DashboardAlbumDetailPage() {
                     />
                   ) : null}
                 </div>
-                <div className="flex shrink-0 items-center justify-end gap-2">
+                <div className="flex shrink-0 items-center justify-end gap-2" data-tour="album-acciones">
+                  <TourHelpButton
+                    tourId={ALBUM_TOUR.id}
+                    className="inline-flex h-10 min-w-10 shrink-0 items-center justify-center gap-1.5 rounded-md border border-[#e5e7eb] bg-white px-2.5 text-sm font-medium text-[#6b7280] transition-colors hover:border-[#c27b3d]/40 hover:bg-[#fdf8f3] hover:text-[#c27b3d] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#c27b3d] [&>span]:hidden sm:[&>span]:inline"
+                  />
                   <ProbarComoClienteButton
                     albumId={album.id}
                     variant="header"

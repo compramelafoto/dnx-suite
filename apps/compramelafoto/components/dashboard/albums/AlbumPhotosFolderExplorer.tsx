@@ -1143,6 +1143,7 @@ export default function AlbumPhotosFolderExplorer({
           className="ml-1 inline-flex h-8 items-center gap-1.5 rounded-md bg-[#c27b3d] px-2 sm:px-3 text-[13px] font-semibold text-white shadow-sm hover:bg-[#b06d32] disabled:opacity-50 disabled:pointer-events-none focus:outline-none focus-visible:ring-2 focus-visible:ring-[#c27b3d]/50"
           disabled={uploadDisabled}
           onClick={() => uploadTriggerRef.current?.pickFiles()}
+          data-tour="album-fotos-subir"
           title={
             typeof folderView === "number"
               ? `Subir fotos a «${currentFolderLabel}»`
@@ -1378,6 +1379,7 @@ export default function AlbumPhotosFolderExplorer({
 
       {uploading && uploadTotal > 0 ? null : (
         <div
+          data-tour="album-fotos-explorador"
           className="w-full min-w-0 overflow-hidden rounded-xl border border-black/[0.12] bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.06)] flex flex-col lg:h-[min(78vh,880px)]"
           onKeyDown={onWindowKeyDown}
         >
@@ -1387,6 +1389,7 @@ export default function AlbumPhotosFolderExplorer({
               <aside
                 className="hidden lg:block w-60 xl:w-64 shrink-0 overflow-y-auto border-r border-black/[0.08] bg-[#fafaf9] px-2 py-3"
                 aria-label="Carpetas del álbum"
+                data-tour="album-fotos-carpetas"
               >
                 {folderTreePanel}
               </aside>
