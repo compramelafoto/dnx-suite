@@ -21,6 +21,8 @@ import {
   validarEnvio,
   type ContenidoRevelado,
 } from "@/lib/website/formularios";
+import { EVENTOS_MODULE_KEY } from "@/lib/eventos/constants";
+import { sincronizarInscriptos } from "@/lib/eventos/servidor";
 import { esTablaFaltante, guardarEnvio, huellaIp, suscribir, vincularConsulta } from "@/lib/website/formularios.server";
 import { resolverCategoriaDelSitio } from "@/lib/website/inquiry";
 
@@ -124,6 +126,16 @@ export async function submitSiteForm(_prev: SiteFormState, formData: FormData): 
     } catch (err) {
       if (esTablaFaltante(err)) return { status: "error", error: MENSAJE_NO_DISPONIBLE };
       throw err;
+    }
+
+    // Si el formulario anota en un evento (Eventos → De dónde llegan), el inscripto aparece ya.
+    // Si falla no importa: el envío está guardado y la próxima vez que se abra el listado entra.
+    if (sitio.modulos.has(EVENTOS_MODULE_KEY)) {
+      try {
+        await sincronizarInscriptos(sitio.workspaceId);
+      } catch (err) {
+        registrarFallo("sumar el inscripto al evento", err);
+      }
     }
 
     // «Crear también una consulta»: sólo con Consultas encendido y con nombre + correo o teléfono.
