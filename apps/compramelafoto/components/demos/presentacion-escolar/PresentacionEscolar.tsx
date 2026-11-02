@@ -3,8 +3,11 @@
 import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { PLACAS, type Placa } from "./placas";
+import { PLACAS as PLACAS_COMPLETA, type Placa } from "./placas";
+import { PLACAS_RESUMIDA } from "./placas-resumida";
 import { VisualDePlaca } from "./Visuales";
+
+export type VersionPresentacion = "completa" | "resumida";
 
 /** «3 · Preparar la venta» → número y nombre; las etapas sin número no cuentan en la barra. */
 function partirEtapa(etapa: string): { numero: number | null; nombre: string } {
@@ -12,7 +15,9 @@ function partirEtapa(etapa: string): { numero: number | null; nombre: string } {
   return m ? { numero: Number(m[1]), nombre: m[2] } : { numero: null, nombre: etapa };
 }
 
-const ETAPAS = [...new Set(PLACAS.map((p) => p.etapa))].map(partirEtapa).filter((e) => e.numero != null);
+function etapasDe(placas: Placa[]) {
+  return [...new Set(placas.map((p) => p.etapa))].map(partirEtapa).filter((e) => e.numero != null);
+}
 
 function columnas(n: number, ancha: boolean): string {
   if (!ancha) return n >= 4 ? "sm:grid-cols-2" : "sm:grid-cols-3";
@@ -22,10 +27,24 @@ function columnas(n: number, ancha: boolean): string {
   return "sm:grid-cols-2 lg:grid-cols-4";
 }
 
-function leerHash(): number {
+function leerHash(total: number): number {
   if (typeof window === "undefined") return 0;
   const n = Number(window.location.hash.replace("#", ""));
-  return Number.isInteger(n) && n >= 1 && n <= PLACAS.length ? n - 1 : 0;
+  return Number.isInteger(n) && n >= 1 && n <= total ? n - 1 : 0;
+}
+
+/** Captura real de la pantalla, dentro de un marco de ventana. */
+function Captura({ src, titulo }: { src: string; titulo: string }) {
+  return (
+    <div className="w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+      <div className="flex items-center gap-1.5 border-b border-slate-200 bg-slate-50 px-3 py-2">
+        <span className="h-2.5 w-2.5 rounded-full bg-red-300" />
+        <span className="h-2.5 w-2.5 rounded-full bg-amber-300" />
+        <span className="h-2.5 w-2.5 rounded-full bg-green-300" />
+      </div>
+      <Image src={src} alt={titulo} width={1440} height={900} className="block h-auto w-full" sizes="(min-width: 1024px) 55vw, 100vw" />
+    </div>
+  );
 }
 
 function Puntos({ placa }: { placa: Placa }) {
@@ -55,7 +74,9 @@ function Puntos({ placa }: { placa: Placa }) {
  * barra espaciadora o un control de diapositivas (Avance/Retroceso de página); «F» la pone en
  * pantalla completa e «I» abre el índice. El número de placa queda en la dirección (#5).
  */
-export default function PresentacionEscolar() {
+export default function PresentacionEscolar({ version = "completa" }: { version?: VersionPresentacion }) {
+  const PLACAS = version === "resumida" ? PLACAS_RESUMIDA : PLACAS_COMPLETA;
+  const ETAPAS = etapasDe(PLACAS);
   const [actual, setActual] = useState(0);
   const [indice, setIndice] = useState(false);
 
@@ -63,11 +84,11 @@ export default function PresentacionEscolar() {
     const destino = Math.max(0, Math.min(PLACAS.length - 1, n));
     setActual(destino);
     window.history.replaceState(null, "", `#${destino + 1}`);
-  }, []);
+  }, [PLACAS.length]);
 
   useEffect(() => {
-    setActual(leerHash());
-  }, []);
+    setActual(leerHash(PLACAS.length));
+  }, [PLACAS.length]);
 
   useEffect(() => {
     function alTeclear(e: KeyboardEvent) {
@@ -93,11 +114,11 @@ export default function PresentacionEscolar() {
     }
     window.addEventListener("keydown", alTeclear);
     return () => window.removeEventListener("keydown", alTeclear);
-  }, [actual, ir]);
+  }, [actual, ir, PLACAS.length]);
 
   const placa = PLACAS[actual];
   const etapa = partirEtapa(placa.etapa);
-  const conVisual = Boolean(placa.visual) && !placa.ancha;
+  const conVisual = Boolean(placa.visual || placa.captura) && !placa.ancha;
 
   return (
     <div className="fixed inset-0 z-[10000] flex flex-col bg-gradient-to-br from-slate-900 via-slate-900 to-[#3a2614] p-[clamp(0.5rem,2vw,1.5rem)]">
@@ -146,7 +167,7 @@ export default function PresentacionEscolar() {
           <div
             className={`mt-[clamp(1rem,3vh,2rem)] flex flex-1 flex-col gap-[clamp(1rem,3vw,3rem)] ${conVisual ? "lg:flex-row lg:items-center" : "justify-center"}`}
           >
-            <div className={`min-w-0 ${conVisual ? "lg:w-[46%]" : ""}`}>
+            <div className={`min-w-0 ${conVisual ? (placa.captura ? "lg:w-[34%]" : "lg:w-[46%]") : ""}`}>
               <h1
                 className={`font-extrabold leading-[1.05] tracking-tight text-slate-900 ${
                   actual === 0 ? "text-[clamp(2.25rem,min(5.5vw,8vh),4.75rem)]" : "text-[clamp(1.75rem,min(3.8vw,5.8vh),3.25rem)]"
@@ -157,7 +178,11 @@ export default function PresentacionEscolar() {
               <p className="mt-3 max-w-3xl text-[clamp(1.05rem,min(1.6vw,2.5vh),1.45rem)] leading-snug text-slate-600">{placa.bajada}</p>
               <Puntos placa={placa} />
             </div>
-            {conVisual && placa.visual ? (
+            {conVisual && placa.captura ? (
+              <div className="flex min-w-0 flex-1 items-center justify-center">
+                <Captura src={placa.captura} titulo={placa.titulo} />
+              </div>
+            ) : conVisual && placa.visual ? (
               <div className="flex min-w-0 flex-1 items-center justify-center rounded-3xl bg-gradient-to-br from-[#fbf6f1] to-[#f3e6d8] p-[clamp(0.75rem,2vw,1.75rem)]">
                 <div className="w-full max-w-[560px]">
                   <VisualDePlaca visual={placa.visual} />

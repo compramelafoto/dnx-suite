@@ -116,9 +116,14 @@ export default function DemosClient({ preparada, albumSlug }: { preparada: boole
             las flechas o un control de diapositivas; «F» para pantalla completa.
           </p>
         </div>
-        <Button variant="primary" onClick={() => (window.location.href = "/admin/demos/presentacion-escolar")}>
-          Abrir la presentación
-        </Button>
+        <div className="flex flex-wrap gap-3">
+          <Button variant="primary" onClick={() => (window.location.href = "/admin/demos/presentacion-escolar-resumida")}>
+            Versión corta (8 placas)
+          </Button>
+          <Button variant="outline" onClick={() => (window.location.href = "/admin/demos/presentacion-escolar")}>
+            Versión completa (29 placas)
+          </Button>
+        </div>
       </Card>
     </div>
   );

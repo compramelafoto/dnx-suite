@@ -34,6 +34,11 @@ export type Placa = {
   puntos?: Array<{ titulo: string; texto?: string }>;
   numerados?: boolean;
   visual?: VisualPlaca;
+  /**
+   * Captura real de la pantalla (en `public/demos/escolar/`), sacada de la demo escolar con datos
+   * de prueba. Si está, se muestra en lugar del dibujo.
+   */
+  captura?: string;
   /** Placa ancha, sin dibujo: los puntos ocupan todo el ancho. */
   ancha?: boolean;
 };
