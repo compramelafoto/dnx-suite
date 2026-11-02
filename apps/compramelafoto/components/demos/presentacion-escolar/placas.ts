@@ -253,7 +253,7 @@ export const PLACAS: Placa[] = [
     etapa: "4 · Preventa",
     titulo: "La familia compra en preventa",
     bajada: "El colegio comparte un link y cada familia elige su pack y paga con Mercado Pago, antes de la sesión.",
-    captura: "/demos/escolar/familia-pasos.jpg",
+    captura: "/demos/escolar/preventa.jpg",
     visual: "preventa",
     puntos: [
       { titulo: "Directo a tu cuenta", texto: "El dinero entra por Mercado Pago." },

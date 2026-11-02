@@ -31,7 +31,7 @@ export const PLACAS_RESUMIDA: Placa[] = [
     etapa: "2 · Preventa",
     titulo: "Cobrás antes de la foto",
     bajada: "Cada familia paga su pack con Mercado Pago. El colegio no toca dinero.",
-    captura: "/demos/escolar/packs.jpg",
+    captura: "/demos/escolar/preventa.jpg",
     visual: "preventa",
   },
   {
