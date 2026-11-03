@@ -84,6 +84,23 @@ describe("crearPedidoDeCatalogoDesdeWhatsapp", () => {
     expect(crear).not.toHaveBeenCalled();
   });
 
+  it("no vende lo que no hay en stock, ni más de lo que queda", async () => {
+    const marco = { id: "marco", name: "Portarretratos madera", priceMinor: 900_000, tracksStock: true, stockQty: 2, variants: [] };
+    const agotado = { id: "agotado", name: "Portarretratos vidrio", priceMinor: 900_000, tracksStock: true, stockQty: 0, variants: [] };
+    const { d, crear } = deps({ productos: async () => [...CATALOGO, marco, agotado] });
+    const sinStock = await crearPedidoDeCatalogoDesdeWhatsapp("w1", CHAT, { lineas: [{ producto: "portarretratos vidrio", cantidad: 1 }], pago: "SENA", nombre: "Ana" }, d);
+    expect(sinStock).toEqual({ ok: false, motivo: "PRODUCTO", detalle: '"Portarretratos vidrio" no tiene stock ahora.' });
+    // Dos renglones del mismo producto suman: 1 + 2 = 3 y quedan 2.
+    const deMas = await crearPedidoDeCatalogoDesdeWhatsapp("w1", CHAT, {
+      lineas: [{ producto: "portarretratos madera", cantidad: 1 }, { producto: "portarretratos madera", cantidad: 2 }],
+      pago: "SENA", nombre: "Ana",
+    }, d);
+    expect(deMas).toEqual({ ok: false, motivo: "PRODUCTO", detalle: 'De "Portarretratos madera" quedan 2.' });
+    expect(crear).not.toHaveBeenCalled();
+    const justo = await crearPedidoDeCatalogoDesdeWhatsapp("w1", CHAT, { lineas: [{ producto: "portarretratos madera", cantidad: 2 }], pago: "SENA", nombre: "Ana" }, d);
+    expect(justo).toMatchObject({ ok: true });
+  });
+
   it("sin el módulo de pedidos, no vende", async () => {
     const { d, crear } = deps({ moduloEncendido: async () => false });
     expect(await crearPedidoDeCatalogoDesdeWhatsapp("w1", CHAT, { lineas: [{ producto: "vhs", cantidad: 1 }], pago: "SENA", nombre: "Ana" }, d)).toEqual({ ok: false, motivo: "MODULO" });

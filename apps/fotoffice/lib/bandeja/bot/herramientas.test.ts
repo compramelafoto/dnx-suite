@@ -60,6 +60,22 @@ describe("herramientasDeAtencion", () => {
     expect(r.message).toMatch(/35\.000/);
   });
 
+  it("buscar_productos avisa lo que no tiene stock y cuánto queda", async () => {
+    const { tools } = herramientasDeAtencion("w1", {
+      ...deps,
+      productos: async () => [
+        { ...P("Portarretratos madera 13x18", 9000), tracksStock: true, stockQty: 0 },
+        { ...P("Portarretratos vidrio 13x18", 9500), tracksStock: true, stockQty: 3 },
+        { ...P("Portarretratos VGO", 0), tracksStock: true, stockQty: 0, variants: [{ name: "Negro", priceMinor: 1_000_000, stockQty: 0 }, { name: "Blanco", priceMinor: 1_000_000, stockQty: 4 }] },
+      ],
+    });
+    const r = await tools.find((x) => x.name === "buscar_productos")!.run({ texto: "portarretratos" }, { userId: 0, role: "CLIENTE", email: "", name: null });
+    expect(r.message).toMatch(/madera 13x18: \$\s?9\.000 \(sin stock\)/);
+    expect(r.message).toMatch(/vidrio 13x18: \$\s?9\.500 \(quedan 3\)/);
+    expect(r.message).toMatch(/Negro \$\s?10\.000 \(sin stock\)/);
+    expect(r.message).toMatch(/Blanco \$\s?10\.000 \(quedan 4\)/);
+  });
+
   it("buscar_productos sin resultados lo dice", async () => {
     const { tools } = herramientasDeAtencion("w1", deps);
     const r = await tools.find((x) => x.name === "buscar_productos")!.run({ texto: "drones" }, { userId: 0, role: "CLIENTE", email: "", name: null });

@@ -15,7 +15,10 @@ export type ProductoDelBot = {
   id: string;
   name: string;
   priceMinor: number;
-  variants: { id: string; name: string; priceMinor: number }[];
+  /** Sin `tracksStock` el producto no tiene tope (servicios, copias). */
+  tracksStock?: boolean;
+  stockQty?: number;
+  variants: { id: string; name: string; priceMinor: number; stockQty?: number }[];
 };
 
 export type Eleccion =
@@ -40,6 +43,14 @@ export function elegirProducto(productos: readonly ProductoDelBot[], nombre: str
   }
   if (p.priceMinor <= 0) return { ok: false, motivo: "SIN_PRECIO", opciones: [p.name] };
   return { ok: true, productId: p.id, variantId: null, nombre: p.name, precio: p.priceMinor / 100 };
+}
+
+/** Cuánto queda para vender, del talle si lo tiene; `null` = no cuenta stock, no hay tope. */
+export function disponibleDe(productos: readonly ProductoDelBot[], productId: string, variantId: string | null): number | null {
+  const p = productos.find((x) => x.id === productId);
+  if (!p?.tracksStock) return null;
+  const v = variantId ? p.variants.find((x) => x.id === variantId) : undefined;
+  return Math.max(0, (v ? v.stockQty : p.stockQty) ?? 0);
 }
 
 /** La seña (redondeada a pesos enteros) y el saldo de un total en pesos. */

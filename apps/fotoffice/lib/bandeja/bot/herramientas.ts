@@ -18,7 +18,10 @@ export type ProductoAtencion = {
   name: string;
   priceMinor: number;
   categoryName: string | null;
-  variants: { name: string; priceMinor: number }[];
+  /** Sin `tracksStock` el producto no tiene tope (servicios, copias). */
+  tracksStock?: boolean;
+  stockQty?: number;
+  variants: { name: string; priceMinor: number; stockQty?: number }[];
 };
 export type EstudioAtencion = { nombre: string; direccion: string | null; horario: string | null; ciudad: string | null };
 /** Un curso publicado del estudio (módulo Cursos), con el enlace público para inscribirse o comprarlo. */
@@ -154,7 +157,7 @@ export function buscarEnCatalogo<T extends ProductoAtencion>(productos: readonly
   const raices = [...new Set(palabras(texto).map(raiz))];
   if (raices.length === 0) return [];
   return productos
-    .filter((p) => p.priceMinor > 0)
+    .filter((p) => p.priceMinor > 0 || p.variants.some((v) => v.priceMinor > 0))
     .map((p) => {
       const suyas = palabras(p.name);
       const puntos = raices.filter((r) => suyas.some((s) => s.startsWith(r))).length;
@@ -168,10 +171,17 @@ export function buscarEnCatalogo<T extends ProductoAtencion>(productos: readonly
 
 const pesos = (minor: number) => precioDeLista(Math.round(minor) / 100);
 
+/** Lo que cuenta stock dice cuánto queda: el bot no ofrece lo que no hay. */
+function stockDe(p: ProductoAtencion, stockQty: number | undefined): string {
+  if (!p.tracksStock) return "";
+  const n = Math.max(0, stockQty ?? 0);
+  return n === 0 ? " (sin stock)" : ` (quedan ${n})`;
+}
+
 function lineaDe(p: ProductoAtencion): string {
   const variantes = p.variants.filter((v) => v.priceMinor > 0);
-  if (variantes.length === 0) return `- ${p.name}: ${pesos(p.priceMinor)}`;
-  return `- ${p.name}: ${variantes.map((v) => `${v.name} ${pesos(v.priceMinor)}`).join(" · ")}`;
+  if (variantes.length === 0) return `- ${p.name}: ${pesos(p.priceMinor)}${stockDe(p, p.stockQty)}`;
+  return `- ${p.name}: ${variantes.map((v) => `${v.name} ${pesos(v.priceMinor)}${stockDe(p, v.stockQty)}`).join(" · ")}`;
 }
 
 export function herramientasDeAtencion(
