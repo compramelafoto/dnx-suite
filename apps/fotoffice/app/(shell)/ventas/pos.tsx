@@ -887,11 +887,6 @@ export function Pos({
       setError("Elegí el cliente: hay trabajos que quedan como pedido para retirar.");
       return;
     }
-    // Etapa 1: el cobro con pedido no ata preparaciones; se cobran en un ticket aparte.
-    if (pedido.hay && rows.some((r) => preparaciones[r.key])) {
-      setError("Las fotos preparadas se cobran solas: sacá los trabajos de pedido a otro ticket.");
-      return;
-    }
     // Pagado con el QR del mostrador: la order viaja y el servidor la vuelve a leer en Mercado Pago.
     const qrDelTicket = qr ?? pagoQr;
     const mpOrderId =
@@ -954,6 +949,8 @@ export function Pos({
             paraRetirar: !tieneProceso(r) && paraRetirar[r.key] === true,
             fotolibro: fotolibros[r.key] ? { ...fotolibros[r.key], url: undefined } : undefined,
             ...(labVigente && keysLab.has(r.key) ? { paraLaboratorio: true } : {}),
+            // La foto preparada viaja con su renglón: a la venta o al trabajo del pedido.
+            preparacionId: preparaciones[r.key] ?? null,
           })),
           discountMinor,
           paymentMethod,

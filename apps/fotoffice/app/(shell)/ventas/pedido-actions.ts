@@ -22,6 +22,7 @@ import type { OrdenQr } from "@/lib/sales/qr-mp";
 import { leerFotolibroVendido } from "@/lib/fotolibro/venta";
 import { atarFotolibrosAlPedido } from "@/lib/fotolibro/venta-servidor";
 import { clientDisplayName } from "@/lib/clients/display";
+import { etiquetaDeUsuario } from "@/lib/listado/acceso";
 import { DIGITALIZACION_MODULE_KEY } from "@/lib/digitalizacion/constants";
 import { trabajosDeDigitalizacionDelPedido } from "@/lib/digitalizacion/servidor/trabajo";
 import { getModuleLevel } from "@/lib/permissions/module-access";
@@ -63,6 +64,11 @@ export type LineaMostrador = {
   fotolibro?: unknown;
   /** Renglón del «Pedido para laboratorio» (las copias de una preparación): va siempre al pedido. */
   paraLaboratorio?: boolean;
+  /**
+   * La foto carnet o las copias preparadas en el Mostrador para este renglón. Si el renglón se lleva
+   * en el momento, viaja a la venta; si queda en el pedido, se ata al trabajo de su ítem.
+   */
+  preparacionId?: string | null;
 };
 
 export type CobroConPedidoInput = {
@@ -175,6 +181,50 @@ async function pedidoParaLaboratorio(
   }
 }
 
+/**
+ * Después de crear el pedido: cada foto preparada de un renglón del pedido queda atada al trabajo de
+ * su ítem (el primero, si la regla dio varios) y su original pasa a la ficha del cliente. El cobro
+ * ya está hecho y no se deshace: si algo falla, vuelve como aviso para el cajero (null si todo bien).
+ */
+async function atarPreparacionesAlPedido(
+  workspaceId: string,
+  user: Parameters<typeof etiquetaDeUsuario>[0],
+  d: { pedidoId: string; numero: string; clientId: string; delPedido: readonly LineaMostrador[] },
+): Promise<string | null> {
+  const preparadas = d.delPedido.flatMap((l, itemIndex) => (typeof l.preparacionId === "string" ? [{ preparacionId: l.preparacionId, itemIndex }] : []));
+  if (preparadas.length === 0) return null;
+  const aviso = `El pedido ${d.numero} quedó cobrado, pero la foto preparada no quedó atada a su trabajo: avisá a sistemas.`;
+  try {
+    const trabajos = await prisma.fotofficeProyecto.findMany({
+      where: { workspaceId, pedidoId: d.pedidoId, pedidoItemIndex: { in: preparadas.map((p) => p.itemIndex) } },
+      orderBy: { createdAt: "asc" },
+      select: { id: true, pedidoItemIndex: true },
+    });
+    const pares = preparadas.flatMap((p) => {
+      const t = trabajos.find((x) => x.pedidoItemIndex === p.itemIndex);
+      return t ? [{ preparacionId: p.preparacionId, proyectoId: t.id }] : [];
+    });
+    const { vincularConTrabajo } = await import("@/lib/impresion/preparaciones");
+    const ctx = { workspaceId, userId: user.id, userLabel: etiquetaDeUsuario(user) };
+    await vincularConTrabajo(ctx, pares, d.clientId);
+    const { guardarOriginalesEnFicha } = await import("@/lib/impresion/ficha-carnet");
+    for (const p of pares) {
+      await guardarOriginalesEnFicha(ctx, p.preparacionId).catch((e) =>
+        console.error("[cobrador][preparacion] no se guardó en la ficha", { pedido: d.numero, error: e instanceof Error ? e.name : "?" }),
+      );
+    }
+    revalidatePath("/ventas/impresiones");
+    if (pares.length < preparadas.length) {
+      console.error("[cobrador][preparacion] renglón sin trabajo", { pedido: d.numero });
+      return aviso;
+    }
+    return null;
+  } catch (e) {
+    console.error("[cobrador][preparacion]", { pedido: d.numero }, e);
+    return aviso;
+  }
+}
+
 export async function cobrarConPedidoAction(input: CobroConPedidoInput): Promise<CobroConPedidoResult> {
   const { workspace, user } = await requireSalesStaff();
   const ctx = await contextoDePedidos("operar");
@@ -213,6 +263,18 @@ export async function cobrarConPedidoAction(input: CobroConPedidoInput): Promise
     if (!t.ok) return { ok: false, error: t.error };
     const rotos = await flujosQueNoSirven(workspace.id, t.renglones.map((r) => r.productId));
     if (rotos.length > 0) return { ok: false, error: mensajeFlujoQueNoSirve(rotos[0]!) };
+  }
+
+  // Las fotos preparadas en el Mostrador: se validan antes de cobrar, como en la venta común. El
+  // mismo cobro que vuelve no se valida otra vez: la primera vuelta ya las ató (y ahora se rechazarían).
+  const preparadas = input.lines.flatMap((l) => (typeof l.preparacionId === "string" ? [{ preparacionId: l.preparacionId, productId: l.productId, qty: l.qty }] : []));
+  if (preparadas.length > 0) {
+    const repetido = (await prisma.fotofficePedido.findFirst({ where: { workspaceId: workspace.id, altaKey: input.clave }, select: { id: true } })) !== null;
+    if (!repetido) {
+      const { validarParaCobrar } = await import("@/lib/impresion/preparaciones");
+      const v = await validarParaCobrar(workspace.id, preparadas);
+      if (!v.ok) return { ok: false, error: v.error };
+    }
   }
 
   const procesos = await conProceso(workspace.id, input.lines.map((l) => l.productId).filter((x): x is string => x !== null));
@@ -307,6 +369,7 @@ export async function cobrarConPedidoAction(input: CobroConPedidoInput): Promise
     const lab = preparacionId
       ? await pedidoParaLaboratorio(workspace.id, preparacionId, { pedidoId: alta.pedidoId, numero: alta.numero, clientId: input.clientId, delPedido })
       : { laboratorios: [], aviso: null };
+    const fotos = await atarPreparacionesAlPedido(workspace.id, user, { pedidoId: alta.pedidoId, numero: alta.numero, clientId: input.clientId, delPedido });
     return {
       ok: true,
       pedidoId: alta.pedidoId,
@@ -314,7 +377,7 @@ export async function cobrarConPedidoAction(input: CobroConPedidoInput): Promise
       cobradoMinor: despues ? Math.round(despues.plan.cobrado * 100) : 0,
       saldoMinor: despues ? Math.round(despues.plan.saldo * 100) : 0,
       saleNumber: null,
-      aviso: [avisoCobroRepetido({ numero: alta.numero, sena: senaRepetida, habiaVentaEnElMomento: enElMomento.length > 0 }), lab.aviso].filter(Boolean).join(" ") || null,
+      aviso: [avisoCobroRepetido({ numero: alta.numero, sena: senaRepetida, habiaVentaEnElMomento: enElMomento.length > 0 }), lab.aviso, fotos].filter(Boolean).join(" ") || null,
       grabar: await trabajosParaGrabar(workspace.id, user.id, alta.pedidoId),
       laboratorios: lab.laboratorios,
     };
@@ -385,6 +448,7 @@ export async function cobrarConPedidoAction(input: CobroConPedidoInput): Promise
         description: l.description,
         qty: l.qty,
         unitPriceMinor: l.unitPriceMinor,
+        preparacionId: l.preparacionId ?? null,
       })),
       discountMinor: desc.venta,
       paymentMethod: metodo,
@@ -395,6 +459,10 @@ export async function cobrarConPedidoAction(input: CobroConPedidoInput): Promise
     if (v.ok) saleNumber = v.saleNumber;
     else avisos.push(`El pedido ${alta.numero} quedó bien, pero lo que se llevaba en el momento no se cobró: ${v.error}`);
   }
+
+  // Las fotos preparadas de los renglones que quedaron en el pedido: a su trabajo.
+  const fotos = await atarPreparacionesAlPedido(workspace.id, user, { pedidoId: alta.pedidoId, numero: alta.numero, clientId: input.clientId, delPedido });
+  if (fotos) avisos.push(fotos);
 
   // Las fotos del pedido para laboratorio: antes del envío automático de abajo (corre en `after`).
   let laboratorios: string[] = [];

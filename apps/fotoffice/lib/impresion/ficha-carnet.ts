@@ -5,7 +5,7 @@ import { DIAS_PURGA, claveDeAdjunto } from "@/lib/ficha/adjuntos-reglas";
 import { registrarEventoPersona } from "@/lib/ficha/eventos";
 import { duenoDe } from "@/lib/ficha/persona";
 import { TIPOS_ORIGINAL, borrarObjetoImpresion, claveImpresion, copiarObjeto } from "./almacen";
-import { EXT, esId, nuevoId, preparacionPropia, procesarOriginalSubido, type CtxImpresion, type R } from "./preparaciones";
+import { EXT, esId, estaCobrada, nuevoId, preparacionPropia, procesarOriginalSubido, type CtxImpresion, type R } from "./preparaciones";
 
 /**
  * El original de la foto carnet queda en la ficha del cliente (spec §10.1): una copia como
@@ -201,7 +201,7 @@ export async function usarFotoAnterior(
 export async function asignarCliente(ctx: CtxImpresion, preparacionId: string, clientId: string | null): Promise<R> {
   const prep = await preparacionPropia(ctx.workspaceId, preparacionId);
   if (!prep || prep.estado === "ANULADA") return { ok: false, error: "Esa preparación no existe." };
-  if (prep.saleItemId !== null) return COBRADA;
+  if (estaCobrada(prep)) return COBRADA;
   let nuevo: string | null = null;
   if (clientId !== null) {
     const cliente = esId(clientId)
@@ -227,7 +227,7 @@ export async function asignarCliente(ctx: CtxImpresion, preparacionId: string, c
 async function cambiarCliente(tx: Prisma.TransactionClient, ctx: CtxImpresion, preparacionId: string, nuevo: string | null): Promise<void> {
   // Condicionado: si una venta se quedó con la preparación entre medio, no se cambia nada.
   const r = await tx.fotofficePreparacionImpresion.updateMany({
-    where: { id: preparacionId, workspaceId: ctx.workspaceId, saleItemId: null },
+    where: { id: preparacionId, workspaceId: ctx.workspaceId, saleItemId: null, proyectoId: null },
     data: { clientId: nuevo },
   });
   if (r.count !== 1) throw new PreparacionCobrada();
