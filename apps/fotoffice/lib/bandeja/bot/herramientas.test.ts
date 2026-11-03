@@ -137,7 +137,7 @@ describe("herramientasDeAtencion", () => {
       if (d.lineas[0].producto === "pendrive") return { ok: false as const, motivo: "PRODUCTO" as const, detalle: '"pendrive" puede ser: Pendrive 64 GB, Pendrive 128 GB.' };
       return {
         ok: true as const, numero: "2026-0042", lineas: [{ nombre: "Digitalización de VHS", cantidad: 5, precio: 12000 }],
-        total: 60000, aPagarAhora: 30000, saldo: 30000, url: "https://fotoffice.com/p/tok",
+        total: 60000, aPagarAhora: 30000, saldo: 30000, url: "https://fotoffice.com/p/tok", fotos: 0,
       };
     };
     const h = herramientasDeAtencion("w1", { ...deps, armarPedidoCatalogo }, { id: "c1", waId: "549", clientId: null, nombre: "Ana" });
