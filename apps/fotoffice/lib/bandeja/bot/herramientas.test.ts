@@ -153,6 +153,28 @@ describe("herramientasDeAtencion", () => {
     expect(dudoso.message).toContain("Pendrive 128 GB");
   });
 
+  it("armar_pedido traduce los números de foto de cada renglón", async () => {
+    const recibidos: { lineas: unknown[] }[] = [];
+    const armarPedidoCatalogo = async (_w: string, _c: unknown, d: { lineas: unknown[] }) => {
+      recibidos.push(d);
+      return { ok: true as const, numero: "2026-0050", lineas: [{ nombre: "Fotoimán 10x15", cantidad: 2, precio: 3600 }], total: 7200, aPagarAhora: 3600, saldo: 3600, url: "https://fotoffice.com/p/t", fotos: 2 };
+    };
+    const fotos = new Map([[1, { id: "m1", en: new Date("2026-10-28T10:00:00Z") }], [2, { id: "m2", en: new Date("2026-10-28T10:01:00Z") }]]);
+    const h = herramientasDeAtencion("w1", { ...deps, armarPedidoCatalogo, ultimoPedidoEn: async () => null }, { id: "c1", waId: "549", clientId: null, nombre: "Ana" }, fotos);
+    const t = h.tools.find((x) => x.name === "armar_pedido")!;
+    const entrada = { lineas: [{ producto: "Fotoimán 10x15", cantidad: 2, fotos: [2, 1] }], pago: "seña", nombre: "Ana Pérez" };
+    expect(t.input.safeParse(entrada).success).toBe(true);
+    const r = await t.run(entrada, { userId: 0, role: "CLIENTE", email: "", name: null });
+    expect(recibidos[0].lineas).toEqual([{ producto: "Fotoimán 10x15", cantidad: 2, fotos: [{ mensajeId: "m2" }, { mensajeId: "m1" }] }]);
+    expect(r.message).toMatch(/2 fotos/);
+    const todas = await t.run({ lineas: [{ producto: "Fotoimán 10x15", cantidad: 2, fotos: "todas" }], pago: "seña", nombre: "Ana Pérez" }, { userId: 0, role: "CLIENTE", email: "", name: null });
+    expect(todas.ok).toBe(true);
+    expect(recibidos[1].lineas).toEqual([{ producto: "Fotoimán 10x15", cantidad: 2, fotos: [{ mensajeId: "m1" }, { mensajeId: "m2" }] }]);
+    const falta = await t.run({ lineas: [{ producto: "Fotoimán 10x15", cantidad: 1, fotos: [7] }], pago: "seña", nombre: "Ana Pérez" }, { userId: 0, role: "CLIENTE", email: "", name: null });
+    expect(falta.message).toMatch(/foto 7/);
+    expect(recibidos).toHaveLength(2);
+  });
+
   it("armar_pedido_impresion traduce los números de foto y devuelve el resumen con los dos links", async () => {
     const recibidos: unknown[] = [];
     const armarPedido = async (_w: string, _c: unknown, d: unknown) => {

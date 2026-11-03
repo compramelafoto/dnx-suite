@@ -46,7 +46,7 @@ describe("crearPedidoDeCatalogoDesdeWhatsapp", () => {
     expect(r).toEqual({
       ok: true, numero: "2026-0042",
       lineas: [{ nombre: "Digitalización de VHS", cantidad: 5, precio: 12000 }, { nombre: "Pendrive 64 GB", cantidad: 1, precio: 26000 }],
-      total: 86000, aPagarAhora: 43000, saldo: 43000, url: "https://fotoffice.com/p/tok",
+      total: 86000, aPagarAhora: 43000, saldo: 43000, url: "https://fotoffice.com/p/tok", fotos: 0,
     });
     expect(cliente).toHaveBeenCalledWith("w1", CHAT, "Daniel Cuart", "cliente@mail.com");
     const datos = crear.mock.calls[0][1];
@@ -99,6 +99,65 @@ describe("crearPedidoDeCatalogoDesdeWhatsapp", () => {
     expect(crear).not.toHaveBeenCalled();
     const justo = await crearPedidoDeCatalogoDesdeWhatsapp("w1", CHAT, { lineas: [{ producto: "portarretratos madera", cantidad: 2 }], pago: "SENA", nombre: "Ana" }, d);
     expect(justo).toMatchObject({ ok: true });
+  });
+
+  it("las fotos del chat van a la carpeta del trabajo de su renglón", async () => {
+    const iman = { id: "iman", name: "Fotoimán 10x15", priceMinor: 360_000, variants: [] };
+    const media = vi.fn(async () => [
+      { id: "m1", tipo: "IMAGEN", media: { id: "w1", descarga: "LISTO", clave: "bandeja/w1/chat1/m1.jpg", mimeType: "image/jpeg", bytes: 1000 } },
+      { id: "m2", tipo: "DOCUMENTO", media: { id: "w2", descarga: "LISTO", clave: "bandeja/w1/chat1/m2.jpg", mimeType: "image/jpeg", filename: "boda.jpg", bytes: 2000 } },
+    ]);
+    const guardarFotos = vi.fn(async () => 2);
+    const { d, crear } = deps({ productos: async () => [...CATALOGO, iman], media, guardarFotos });
+    const r = await crearPedidoDeCatalogoDesdeWhatsapp("w1", CHAT, {
+      lineas: [{ producto: "vhs", cantidad: 1 }, { producto: "fotoiman 10x15", cantidad: 2, fotos: [{ mensajeId: "m1" }, { mensajeId: "m2" }] }],
+      pago: "SENA", nombre: "Ana",
+    }, d);
+    expect(r).toMatchObject({ ok: true, fotos: 2 });
+    expect(media).toHaveBeenCalledWith("w1", "chat1", ["m1", "m2"]);
+    expect(guardarFotos).toHaveBeenCalledWith("w1", "ped1", [
+      { itemIndex: 1, archivos: [
+        { clave: "bandeja/w1/chat1/m1.jpg", nombre: "Foto 1.jpg", tipo: "image/jpeg", bytes: 1000 },
+        { clave: "bandeja/w1/chat1/m2.jpg", nombre: "Foto 2 - boda.jpg", tipo: "image/jpeg", bytes: 2000 },
+      ] },
+    ]);
+    // Otras fotos = otro pedido: la clave las incluye.
+    expect(crear.mock.calls[0][1].clave).not.toBe(claveDelAlta("chat1", [{ productId: "vhs", variantId: null, cantidad: 1 }, { productId: "iman", variantId: null, cantidad: 2 }], "SENA"));
+  });
+
+  it("una foto que no se bajó no arma el pedido", async () => {
+    const iman = { id: "iman", name: "Fotoimán 10x15", priceMinor: 360_000, variants: [] };
+    const { d, crear } = deps({
+      productos: async () => [...CATALOGO, iman],
+      media: async () => [{ id: "m1", tipo: "IMAGEN", media: { id: "w1", descarga: "FALLO" } }],
+    });
+    const r = await crearPedidoDeCatalogoDesdeWhatsapp("w1", CHAT, { lineas: [{ producto: "fotoiman", cantidad: 1, fotos: [{ mensajeId: "m1" }] }], pago: "SENA", nombre: "Ana" }, d);
+    expect(r).toEqual({ ok: false, motivo: "FOTO_NO_LISTA" });
+    expect(crear).not.toHaveBeenCalled();
+  });
+
+  it("cada renglón abre su trabajo para retirar y lo que lleva stock queda apartado", async () => {
+    const marco = { id: "marco", name: "Portarretratos madera", priceMinor: 900_000, tracksStock: true, stockQty: 5, variants: [] };
+    const { d, crear } = deps({ productos: async () => [...CATALOGO, marco] });
+    await crearPedidoDeCatalogoDesdeWhatsapp("w1", CHAT, { lineas: [{ producto: "vhs", cantidad: 1 }, { producto: "portarretratos madera", cantidad: 2 }], pago: "SENA", nombre: "Ana" }, d);
+    expect(crear.mock.calls[0][1]).toMatchObject({
+      paraRetirar: ["wa1", "wa2"],
+      apartar: [{ itemId: "wa2", productId: "marco", variantId: null, cantidad: 2 }],
+    });
+  });
+
+  it("si el pedido ya existía (mismo pedido repetido), no copia las fotos otra vez", async () => {
+    const iman = { id: "iman", name: "Fotoimán 10x15", priceMinor: 360_000, variants: [] };
+    const guardarFotos = vi.fn(async () => 1);
+    const { d } = deps({
+      productos: async () => [...CATALOGO, iman],
+      media: async () => [{ id: "m1", tipo: "IMAGEN", media: { id: "w1", descarga: "LISTO", clave: "bandeja/w1/chat1/m1.jpg", mimeType: "image/jpeg" } }],
+      guardarFotos,
+      crear: async () => ({ ok: true as const, pedidoId: "ped1", numero: "2026-0042", repetido: true }),
+    });
+    const r = await crearPedidoDeCatalogoDesdeWhatsapp("w1", CHAT, { lineas: [{ producto: "fotoiman", cantidad: 1, fotos: [{ mensajeId: "m1" }] }], pago: "SENA", nombre: "Ana" }, d);
+    expect(r).toMatchObject({ ok: true });
+    expect(guardarFotos).not.toHaveBeenCalled();
   });
 
   it("sin el módulo de pedidos, no vende", async () => {
