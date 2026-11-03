@@ -76,7 +76,12 @@ export function prefijoDelChat(chatId: string): string {
 }
 
 /** La clave del alta: el chat más lo que se pide. El mismo pedido repetido devuelve el que ya existe. */
-export function claveDelAlta(chatId: string, lineas: readonly { productId: string; variantId: string | null; cantidad: number }[], pago: string): string {
-  const firma = JSON.stringify([pago, ...lineas.map((l) => [l.productId, l.variantId, l.cantidad])]);
+export function claveDelAlta(
+  chatId: string,
+  lineas: readonly { productId: string; variantId: string | null; cantidad: number; fotos?: readonly string[] }[],
+  pago: string,
+): string {
+  // Las fotos entran sólo si las hay: así un renglón sin fotos conserva la clave de siempre.
+  const firma = JSON.stringify([pago, ...lineas.map((l) => (l.fotos?.length ? [l.productId, l.variantId, l.cantidad, l.fotos] : [l.productId, l.variantId, l.cantidad]))]);
   return `${prefijoDelChat(chatId)}${createHash("sha256").update(firma).digest("hex").slice(0, 12)}`.slice(0, 90);
 }

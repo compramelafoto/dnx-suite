@@ -351,10 +351,17 @@ export function herramientasDeAtencion(
     defineTool({
       name: "armar_pedido",
       description:
-        "Vende cualquier producto o servicio del catálogo que no sean copias con fotos del chat (digitalización de VHS/DVD/CD/casetes, pendrives, revelado, cuadros, portarretratos…): crea el pedido a nombre del cliente y devuelve el total, lo que paga ahora (seña del 50 % o el total) y el enlace para pagar con Mercado Pago. Usala cuando sepas el producto (nombre como lo da buscar_productos y, si tiene, la medida o talle), la cantidad, el nombre y apellido del cliente y si paga seña o total; el correo es opcional. Si el cliente cambia algo, volvé a usarla: el pedido anterior sin pagar se cancela.",
+        "Vende cualquier producto o servicio del catálogo que no sean copias o ampliaciones (digitalización de VHS/DVD/CD/casetes, pendrives, revelado, cuadros, dípticos, fotoimanes, Polaroid, llaveros, vasos, portarretratos…): crea el pedido a nombre del cliente y devuelve el total, lo que paga ahora (seña del 50 % o el total) y el enlace para pagar con Mercado Pago. Usala cuando sepas el producto (nombre como lo da buscar_productos y, si tiene, la medida o talle), la cantidad, el nombre y apellido del cliente y si paga seña o total; el correo es opcional. Si el producto lleva fotos del cliente (cuadros, dípticos, imanes, Polaroid, llaveros, vasos…), pasá en ese renglón los números de las fotos del chat ([foto 1], [foto 2]…; \"todas\" = las que mandó después de su último pedido): quedan en el trabajo del pedido. Si el cliente cambia algo, volvé a usarla: el pedido anterior sin pagar se cancela.",
       input: z.object({
         lineas: z
-          .array(z.object({ producto: z.string().min(2).max(120), variante: z.string().max(60).optional(), cantidad: z.number().int().min(1).max(500) }))
+          .array(
+            z.object({
+              producto: z.string().min(2).max(120),
+              variante: z.string().max(60).optional(),
+              cantidad: z.number().int().min(1).max(500),
+              fotos: z.union([z.literal("todas"), z.array(z.number().int().min(1)).min(1).max(50)]).optional(),
+            }),
+          )
           .min(1)
           .max(20),
         pago: z.enum(["seña", "total"]),
@@ -364,8 +371,29 @@ export function herramientasDeAtencion(
       kind: "read",
       run: async ({ lineas, pago, nombre, email }) => {
         if (!chat) return { ok: true, message: "Ahora no puedo armar el pedido. Usá pasar_a_persona con un resumen de lo que pide." };
-        const res = await deps.armarPedidoCatalogo(workspaceId, chat, { lineas, pago: pago === "total" ? "TOTAL" : "SENA", nombre, email: email ?? null });
+        // Los números de foto, como en armar_pedido_impresion: "todas" = las posteriores al último pedido de copias.
+        const conFotos = lineas.some((l) => l.fotos !== undefined);
+        const desde = conFotos ? await deps.ultimoPedidoEn(workspaceId, chat).catch(() => null) : null;
+        const todas = [...fotos.entries()]
+          .filter(([, f]) => !desde || !f.en || f.en.getTime() > desde.getTime())
+          .map(([n]) => n)
+          .sort((a, b) => a - b);
+        const renglones: DatosPedidoCatalogo["lineas"] = [];
+        for (const { fotos: pedidas, ...l } of lineas) {
+          if (pedidas === undefined) {
+            renglones.push(l);
+            continue;
+          }
+          const numeros = pedidas === "todas" ? todas : pedidas;
+          const falta = numeros.find((n) => !fotos.has(n));
+          if (falta !== undefined || numeros.length === 0) {
+            return { ok: true, message: falta !== undefined ? `No hay una foto ${falta} lista en el chat. Pedile al cliente que la mande (o la reenvíe).` : "Todavía no hay fotos listas en el chat: pedile que las mande." };
+          }
+          renglones.push({ ...l, fotos: numeros.map((n) => ({ mensajeId: fotos.get(n)!.id })) });
+        }
+        const res = await deps.armarPedidoCatalogo(workspaceId, chat, { lineas: renglones, pago: pago === "total" ? "TOTAL" : "SENA", nombre, email: email ?? null });
         if (!res.ok) {
+          if (res.motivo === "FOTO_NO_LISTA") return { ok: true, message: "Una de las fotos no se pudo bajar: pedile al cliente que la reenvíe." };
           if (res.motivo === "PRODUCTO") return { ok: true, message: `${res.detalle ?? "No encontré ese producto."} Revisá con buscar_productos o preguntale al cliente cuál quiere, y volvé a usar armar_pedido.` };
           return { ok: true, message: "No pude armar el pedido. Usá pasar_a_persona con un resumen de lo que pide (productos, cantidades y cómo quiere pagar)." };
         }
@@ -377,6 +405,7 @@ export function herramientasDeAtencion(
             `Total: ${precioDeLista(res.total)}.`,
             res.saldo > 0 ? `Paga ahora la seña: ${precioDeLista(res.aPagarAhora)}. Saldo: ${precioDeLista(res.saldo)} (al retirar o desde el mismo enlace).` : `Paga ahora el total: ${precioDeLista(res.aPagarAhora)}.`,
             `Enlace del pedido para pagar: ${res.url}`,
+            ...(res.fotos > 0 ? [`Las ${res.fotos === 1 ? "foto quedó" : `${res.fotos} fotos quedaron`} en el trabajo del pedido.`] : []),
             ...(email ? [`El detalle del pedido también le llega por correo a ${email}.`] : []),
             "Pasale al cliente el resumen corto, el total, lo que paga ahora y el enlace. Si es material para digitalizar, recordale que lo trae al estudio.",
           ].join("\n"),
