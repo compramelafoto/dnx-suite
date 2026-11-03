@@ -675,8 +675,9 @@ export async function registrarPrueba(ctx: CtxImpresion, salidaId: string, taman
 const YA_COBRADA = { ok: false as const, error: "Esa preparación ya se cobró: no se puede anular." };
 
 /**
- * Una preparación cobrada no se anula: queda atada a la venta (se libera si se anula la venta). La
- * de laboratorio queda LISTA al cobrarse (su pedido de impresión ya existe), sin venta atada.
+ * Una preparación cobrada no se anula: queda atada a la venta (se libera si se anula la venta) o al
+ * trabajo del pedido con seña. La de laboratorio queda LISTA al cobrarse (su pedido de impresión ya
+ * existe), sin venta atada.
  */
 export async function anularPreparacion(ctx: CtxImpresion, preparacionId: string): Promise<R> {
   const prep = await preparacionPropia(ctx.workspaceId, preparacionId);
@@ -684,7 +685,7 @@ export async function anularPreparacion(ctx: CtxImpresion, preparacionId: string
   if (prep.estado === "ANULADA") return { ok: true };
   if (prep.destino === "LABORATORIO" && prep.estado === "LISTA") return YA_COBRADA;
   const r = await prisma.fotofficePreparacionImpresion.updateMany({
-    where: { id: prep.id, workspaceId: ctx.workspaceId, saleItemId: null, NOT: { destino: "LABORATORIO", estado: "LISTA" } },
+    where: { id: prep.id, workspaceId: ctx.workspaceId, saleItemId: null, proyectoId: null, NOT: { destino: "LABORATORIO", estado: "LISTA" } },
     data: { estado: "ANULADA" },
   });
   return r.count === 1 ? { ok: true } : YA_COBRADA;
@@ -721,12 +722,12 @@ export async function validarParaCobrar(
   if (vistos.size === 0) return { ok: true };
   const preps = await prisma.fotofficePreparacionImpresion.findMany({
     where: { workspaceId, id: { in: [...vistos] } },
-    select: { id: true, productId: true, saleItemId: true, estado: true },
+    select: { id: true, productId: true, saleItemId: true, proyectoId: true, estado: true },
   });
   for (const it of items) {
     const p = preps.find((x) => x.id === it.preparacionId);
     if (!p || p.estado === "ANULADA") return NO_EXISTE;
-    if (p.saleItemId !== null) return { ok: false, error: "Esa preparación ya se cobró en otra venta." };
+    if (estaCobrada(p)) return { ok: false, error: "Esa preparación ya se cobró en otra venta." };
     if (p.productId !== it.productId) return { ok: false, error: "La preparación es de otro producto." };
   }
   const productos = [...new Set(preps.map((p) => p.productId).filter((x): x is string => x !== null))];
@@ -767,7 +768,7 @@ export async function vincularConVenta(
     const prep = await tx.fotofficePreparacionImpresion.findFirst({ where: { id: p.preparacionId, workspaceId }, select: { clientId: true } });
     const cliente = clientId ?? prep?.clientId ?? null;
     const r = await tx.fotofficePreparacionImpresion.updateMany({
-      where: { id: p.preparacionId, workspaceId, saleItemId: null, estado: { not: "ANULADA" } },
+      where: { id: p.preparacionId, workspaceId, saleItemId: null, proyectoId: null, estado: { not: "ANULADA" } },
       data: { saleItemId: p.saleItemId, clientId: cliente },
     });
     if (r.count !== 1) throw new PreparacionNoVinculable();
@@ -779,6 +780,44 @@ export async function vincularConVenta(
   }
 }
 
+/**
+ * La foto de un renglón que quedó como pedido con seña: no hay renglón de venta, así que la
+ * preparación se ata al trabajo de ese ítem del pedido (`proyectoId`) y queda cobrada como si se
+ * hubiera vendido. El mismo candado que `vincularConVenta`; si ya está atada a ESE trabajo (el
+ * mismo cobro que vuelve), no hace nada. El cliente es el del pedido.
+ */
+export async function vincularConTrabajo(
+  ctx: CtxImpresion,
+  pares: { preparacionId: string; proyectoId: string }[],
+  clientId: string,
+): Promise<void> {
+  const workspaceId = ctx.workspaceId;
+  await prisma.$transaction(async (tx) => {
+    for (const p of pares) {
+      if (!esId(p.preparacionId)) throw new PreparacionNoVinculable();
+      const prep = await tx.fotofficePreparacionImpresion.findFirst({
+        where: { id: p.preparacionId, workspaceId },
+        select: { clientId: true, proyectoId: true },
+      });
+      if (prep?.proyectoId === p.proyectoId) continue;
+      const r = await tx.fotofficePreparacionImpresion.updateMany({
+        where: { id: p.preparacionId, workspaceId, saleItemId: null, proyectoId: null, estado: { not: "ANULADA" } },
+        data: { proyectoId: p.proyectoId, clientId },
+      });
+      if (r.count !== 1) throw new PreparacionNoVinculable();
+      if (clientId !== (prep?.clientId ?? null)) {
+        const { moverAdjuntosPropios } = await import("./ficha-carnet");
+        await moverAdjuntosPropios(tx, ctx, p.preparacionId, clientId);
+      }
+    }
+  });
+}
+
+/** Cobrada: atada a un renglón de venta o al trabajo de un pedido con seña. */
+export function estaCobrada(p: { saleItemId: string | null; proyectoId: string | null }): boolean {
+  return p.saleItemId !== null || p.proyectoId !== null;
+}
+
 export type FilaCola = {
   preparacionId: string;
   producto: string | null;
@@ -787,7 +826,7 @@ export type FilaCola = {
   hojaId: string | null;
   /** La versión de la hoja (va en el enlace para imprimir): null si no hay hoja. */
   hojaVersion: string | null;
-  /** Cobrada: atada a un renglón de venta (no se anula desde la cola). */
+  /** Cobrada: atada a un renglón de venta o al trabajo de un pedido con seña (no se anula desde la cola). */
   cobrada: boolean;
   creada: string;
   /** Copias: cuántas fotos tiene la preparación (0 en carnet). */
@@ -820,12 +859,13 @@ export async function colas(
         workspaceId,
         OR: [
           { saleItemId: { not: null }, estado: { in: ["PREPARANDO", "LISTA"] } },
-          // Los de un trabajo (etapa 4) no son del Mostrador.
+          // Cobrada con seña desde el Mostrador: atada al trabajo del pedido, se imprime igual.
+          { proyectoId: { not: null }, destino: "LOCAL", estado: { in: ["PREPARANDO", "LISTA"] } },
           { saleItemId: null, proyectoId: null, estado: { in: ["PREPARANDO", "LISTA", "IMPRESA"] } },
         ],
       },
       orderBy: { createdAt: "asc" },
-      select: { id: true, productId: true, clientId: true, saleItemId: true, estado: true, createdAt: true },
+      select: { id: true, productId: true, clientId: true, saleItemId: true, proyectoId: true, estado: true, createdAt: true },
     }),
     prisma.fotofficeRegistroImpresion.findMany({
       where: { workspaceId, createdAt: { gte: inicioDelDiaArgentina(ahora), lte: ahora } },
@@ -873,7 +913,7 @@ export async function colas(
       estado: p.estado,
       hojaId: ultima?.id ?? null,
       hojaVersion: ultima ? versionDeHoja(ultima.finalHuella) : null,
-      cobrada: p.saleItemId !== null,
+      cobrada: estaCobrada(p),
       creada: p.createdAt.toISOString(),
       fotos,
       imprimirHref,
@@ -882,8 +922,8 @@ export async function colas(
   const nombreSalida = new Map(salidas.map((s) => [s.id, s.nombre]));
   const nombreTamano = new Map(tamanos.map((t) => [t.id, t.nombre]));
   return {
-    paraImprimir: preps.filter((p) => p.saleItemId !== null).map(fila),
-    sinCobrar: preps.filter((p) => p.saleItemId === null).map(fila),
+    paraImprimir: preps.filter(estaCobrada).map(fila),
+    sinCobrar: preps.filter((p) => !estaCobrada(p)).map(fila),
     impresoHoy: registros.map((r) => ({
       registroId: r.id,
       salida: nombreSalida.get(r.salidaId) ?? "",
@@ -957,7 +997,7 @@ export async function datosParaImprimirPreparacion(
   const prep = await preparacionPropia(workspaceId, preparacionId);
   if (!prep || prep.estado === "ANULADA") return null;
   const v = await hojasVigentes(prisma, workspaceId, prep.id);
-  const cobrada = prep.saleItemId !== null;
+  const cobrada = estaCobrada(prep);
   if (v.hojas.length === 0) return { hojas: [], faltan: v.faltan, cobrada, papel: null };
   // Todas las páginas van en el mismo papel: el que fija el producto. Si ninguna hoja está armada en ese papel
   // (o no es un producto de copias), el de la primera hoja. Las de otro papel se cuentan en `faltan`: hay que volver a armarlas.
