@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { claveDelAlta, elegirProducto, planDelBot, senaDe } from "./whatsapp";
+import { claveDelAlta, disponibleDe, elegirProducto, planDelBot, senaDe } from "./whatsapp";
 
 const CATALOGO = [
   { id: "vhs", name: "Digitalización de VHS", priceMinor: 1_200_000, variants: [] },
@@ -26,6 +26,20 @@ describe("elegirProducto", () => {
   it("con talles, exige el talle", () => {
     expect(elegirProducto(CATALOGO, "cuadro canvas")).toMatchObject({ ok: false, motivo: "VARIANTE", opciones: ["Cuadro canvas 30x40", "Cuadro canvas 50x70"] });
     expect(elegirProducto(CATALOGO, "cuadro canvas", "50x70")).toEqual({ ok: true, productId: "cuadro", variantId: "c50", nombre: "Cuadro canvas 50x70", precio: 60000 });
+  });
+});
+
+describe("disponibleDe", () => {
+  const CON_STOCK = [
+    { id: "marco", name: "Portarretratos madera", priceMinor: 900_000, tracksStock: true, stockQty: 3, variants: [] },
+    { id: "vgo", name: "Portarretratos VGO", priceMinor: 0, tracksStock: true, stockQty: 0, variants: [{ id: "n", name: "Negro", priceMinor: 1_000_000, stockQty: 2 }] },
+  ];
+  it("lo que no cuenta stock no tiene tope", () => {
+    expect(disponibleDe(CATALOGO, "vhs", null)).toBeNull();
+  });
+  it("lo que cuenta stock dice cuánto hay, del producto o del talle", () => {
+    expect(disponibleDe(CON_STOCK, "marco", null)).toBe(3);
+    expect(disponibleDe(CON_STOCK, "vgo", "n")).toBe(2);
   });
 });
 

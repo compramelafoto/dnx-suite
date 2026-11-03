@@ -4,7 +4,7 @@ import { diaEnBuenosAires } from "@/lib/presupuestos/estados";
 import type { CtxPedidos } from "./acceso";
 import type { DatosPedidoManual } from "./pedidos";
 import { ORDERS_MODULE_KEY } from "./acceso";
-import { claveDelAlta, elegirProducto, planDelBot, prefijoDelChat, senaDe, type ProductoDelBot } from "./whatsapp";
+import { claveDelAlta, disponibleDe, elegirProducto, planDelBot, prefijoDelChat, senaDe, type ProductoDelBot } from "./whatsapp";
 
 /**
  * El bot de WhatsApp vende cualquier producto del catálogo (digitalización de VHS, pendrives,
@@ -136,6 +136,20 @@ export async function crearPedidoDeCatalogoDesdeWhatsapp(
         return { ok: false, motivo: "PRODUCTO", detalle };
       }
       elegidas.push({ productId: e.productId, variantId: e.variantId, nombre: e.nombre, precio: e.precio, cantidad: l.cantidad });
+    }
+
+    // No se vende lo que no hay: el mismo producto en dos renglones suma.
+    const pedidas = new Map<string, { productId: string; variantId: string | null; nombre: string; cantidad: number }>();
+    for (const l of elegidas) {
+      const clave = `${l.productId}:${l.variantId ?? ""}`;
+      const previa = pedidas.get(clave);
+      pedidas.set(clave, { ...l, cantidad: (previa?.cantidad ?? 0) + l.cantidad });
+    }
+    for (const l of pedidas.values()) {
+      const disponible = disponibleDe(catalogo, l.productId, l.variantId);
+      if (disponible === null || disponible >= l.cantidad) continue;
+      const detalle = disponible === 0 ? `"${l.nombre}" no tiene stock ahora.` : `De "${l.nombre}" quedan ${disponible}.`;
+      return { ok: false, motivo: "PRODUCTO", detalle };
     }
 
     const ctx = await d.ctxDelDuenio(workspaceId);
