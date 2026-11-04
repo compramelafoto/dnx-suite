@@ -41,9 +41,20 @@ entorno/bin/python subir.py --manifiesto ../../../docs/demos/tutoriales/escolar/
   autorización la hace Daniel una sola vez, con la cuenta dueña del canal.
 - La lista de reproducción del curso va en `listas.escolar` del manifiesto. Vacío = no los agrega a ninguna.
 
-## La página de Tutoriales de CLF
+## La página del curso en CLF
 
-Se cargan en `/admin/tutoriales` pegando el link de YouTube. El panel no guarda el título ni la descripción que
+El curso tiene su página: **https://www.compramelafoto.com/tutoriales/fotografia-escolar**, con las 23 clases
+por bloque, y la página de Tutoriales la muestra arriba de todo. Las clases sin video dicen «Próximamente».
+
+- **Cargar un video:** en `/admin/tutoriales`, tarjeta «Curso de fotografía escolar», pegar el link en su clase
+  y guardar. No hace falta desplegar nada. Si el video todavía es privado, el panel avisa que no se va a ver.
+- **Referidos:** en el panel de referidos, «Curso de fotografía escolar (videos)» arma el link del curso con el
+  código del referidor (`?ref=`). El fotógrafo que se registra desde el curso queda como referido suyo.
+- **Títulos y resúmenes de las clases:** están en `apps/compramelafoto/lib/tutorials/escolar-course.ts`.
+
+## La lista general de Tutoriales de CLF
+
+La lista de abajo se carga en `/admin/tutoriales`, tarjeta «Tutoriales», pegando el link de YouTube. El panel no guarda el título ni la descripción que
 uno escribe: los trae de YouTube. Eso tiene dos consecuencias:
 
 1. **Un video privado no sirve para CLF.** YouTube no da sus datos (queda como «Video xxxx») y los visitantes

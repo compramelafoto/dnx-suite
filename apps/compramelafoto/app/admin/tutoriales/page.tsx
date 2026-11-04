@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
+import AdminEscolarCourseCard from "@/components/tutorials/AdminEscolarCourseCard";
 
 type TutorialDraft = {
   youtubeUrl: string;
@@ -224,6 +225,8 @@ export default function AdminTutorialsPage() {
           </a>
         </div>
       </Card>
+
+      <AdminEscolarCourseCard />
     </div>
   );
 }
