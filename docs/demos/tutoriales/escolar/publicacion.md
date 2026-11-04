@@ -58,7 +58,8 @@ entorno/bin/python subir.py --manifiesto ../../../docs/demos/tutoriales/escolar/
   Volver a correrlo no duplica nada.
 - Necesita `client_secret.json` y `token.json` en `tools/video/youtube/`. Ver el `LEEME.md` de esa carpeta: la
   autorización la hace Daniel una sola vez, con la cuenta dueña del canal.
-- Cada video subido se agrega solo a la lista del curso (`listas.escolar`).
+- Cada video subido se agrega solo a la lista del curso (`listas.escolar`), al final. Si se publica una clase
+  fuera de orden (el E17 salió antes que el E14), hay que reordenar la lista por número de clase.
 - Después de subir: cargar el link en `/admin/tutoriales`, tarjeta «Curso de fotografía escolar». E01 a E03 se
   cargaron directo en el ajuste `tutorials_escolar_course` de la base de producción.
 
@@ -111,6 +112,8 @@ se armaron con cuadros donde no se ve.
 | E10 | Probar la carpeta escolar con el listado real | 0:56 | publicado | [público](https://youtu.be/MIvKuWItd1A) | clase 10 |
 | E11 | El día de la toma: subir las fotos | 0:50 | publicado | [público](https://youtu.be/qWbIo7uH9HQ) | clase 11 |
 | E12 | La línea de producción | 0:58 | publicado | [público](https://youtu.be/NK8cAqEXmd8) | clase 12 |
+| E13 | Revisar los diseños de corrido | 1:06 | publicado | [público](https://youtu.be/BPiRQqVAAKo) | clase 13 |
+| E17 | El mosaico del curso | 1:06 | publicado | [público](https://youtu.be/IQycJe2T_OM) | clase 17 |
 
 ## Copys
 

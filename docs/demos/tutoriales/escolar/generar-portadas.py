@@ -45,6 +45,10 @@ PORTADAS = {
          'Subí<br><em>todas juntas</em>'),
     12: ('E12-la-linea-de-produccion.mp4', 8, (460, 210, 1000, 562),
          'Pedidos,<br><em>paso a paso</em>'),
+    13: ('E13-revisar-los-disenos-de-corrido.mp4', 30, (30, 30, 1860, 1046),
+         'Revisá<br><em>de corrido</em>'),
+    17: ('E17-el-mosaico-del-curso.mp4', 30, (480, 160, 1400, 788),
+         'El mosaico<br><em>del curso</em>'),
 }
 
 CSS = """

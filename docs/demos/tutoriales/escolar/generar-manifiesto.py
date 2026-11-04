@@ -246,6 +246,43 @@ COPYS = [
         'proxima': 'Revisar los diseños de corrido',
         'etiquetas': ['pedidos escolares', 'produccion escolar', 'carpetas escolares'],
     },
+    {
+        'n': 13,
+        'archivo': 'E13-revisar-los-disenos-de-corrido.mp4',
+        'titulo': 'Revisar los diseños de corrido | Curso de fotografía escolar, clase 13',
+        'gancho': ("Cuando tenés muchas carpetas escolares para revisar, no las abrís una por una: las revisás de "
+                   "corrido, una detrás de la otra, en minutos. Antes de empezar, el curso tiene que estar cerrado en "
+                   "la pestaña Mosaico, así todas las carpetas del grado salen con el mismo mosaico. Te muestro cómo "
+                   "se maneja con el teclado (la A aprueba, la C pide cambios y la E abre el editor), cómo pedirle "
+                   "un cambio a la familia, que le llega por correo, y el resumen al final."),
+        'capitulos': [
+            ('0:00', 'Revisar en minutos y el requisito'),
+            ('0:21', 'Revisar de corrido con el teclado'),
+            ('0:36', 'Aprobar y pedir cambios'),
+            ('0:51', 'El resumen y lo que sigue'),
+        ],
+        'proxima': 'Mandar a la imprenta por lotes',
+        'etiquetas': ['carpetas escolares', 'revision de diseños', 'produccion escolar'],
+    },
+    {
+        'n': 17,
+        'archivo': 'E17-el-mosaico-del-curso.mp4',
+        'titulo': 'El mosaico del curso | Curso de fotografía escolar, clase 17',
+        'gancho': ("El mosaico es la hoja de la carpeta escolar con todo el grado: cada chico con su foto y su nombre. "
+                   "Te muestro dónde está, cómo ves qué chicos ya tienen su retrato y cómo completás los que faltan "
+                   "con una foto del álbum, para que nadie quede afuera. También sumás a la seño y a los directivos, "
+                   "y si tenés retratos sin identificar, le mandás al colegio un enlace para que les ponga el nombre, "
+                   "sin crear cuenta. Al final cerrás el curso: el mosaico ya no cambia, todas las carpetas del grado "
+                   "salen iguales y recién ahí podés aprobar los diseños."),
+        'capitulos': [
+            ('0:00', 'Qué es el mosaico del curso'),
+            ('0:13', 'El retrato de cada chico'),
+            ('0:30', 'La seño, los directivos y los retratos sin nombre'),
+            ('0:48', 'Cerrar el curso'),
+        ],
+        'proxima': 'El panel del colegio',
+        'etiquetas': ['mosaico escolar', 'carpetas escolares', 'foto de curso'],
+    },
 ]
 
 
