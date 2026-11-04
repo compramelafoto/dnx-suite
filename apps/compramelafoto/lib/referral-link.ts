@@ -4,6 +4,7 @@ export type ReferralSharePath =
   | "/land"
   | "/landescolar"
   | "/tutoriales/fotografia-escolar"
+  | "/tutoriales/fotografia-de-turismo"
   | "/Escuelas"
   | "dnx-suite";
 

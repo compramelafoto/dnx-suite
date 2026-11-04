@@ -1,62 +1,65 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  ESCOLAR_COURSE_BLOCKS,
-  ESCOLAR_COURSE_LESSON_COUNT,
-  extractYoutubeId,
-  formatLessonDuration,
-  type EscolarCourseLesson,
-} from "@/lib/tutorials/escolar-course";
-import { ESCOLAR_COURSE_DETAILS } from "@/lib/tutorials/escolar-course-details";
+import { extractYoutubeId, formatLessonDuration, type TutorialCourse } from "@/lib/tutorials/course";
 
 type Props = {
+  course: Pick<TutorialCourse, "blocks" | "details" | "lessonCount">;
   /** Número de clase → link de YouTube. */
   videos: Record<number, string>;
 };
 
-const AUDIENCE_LABEL: Record<EscolarCourseLesson["audience"], string> = {
-  Fotógrafo: "Para el fotógrafo",
-  "Fotógrafo y colegio": "Para el fotógrafo y el colegio",
-  Colegio: "Para el colegio",
-  Familia: "Para la familia",
-};
-
-const AUDIENCE_DOT: Record<EscolarCourseLesson["audience"], string> = {
+const AUDIENCE_DOT: Record<string, string> = {
   Fotógrafo: "bg-[#c27b3d]",
   "Fotógrafo y colegio": "bg-[#c27b3d]",
+  "Fotógrafo y turista": "bg-[#c27b3d]",
+  "Fotógrafo y empresa de turismo": "bg-[#c27b3d]",
   Colegio: "bg-[#2f7a6d]",
+  "Empresa de turismo": "bg-[#2f7a6d]",
   Familia: "bg-[#3d6aa8]",
+  Turista: "bg-[#3d6aa8]",
 };
 
-const LESSONS = ESCOLAR_COURSE_BLOCKS.flatMap((block, blockIndex) =>
-  block.lessons.map((lesson) => ({ ...lesson, blockIndex }))
-);
+function audienceLabel(audience: string): string {
+  return `Para ${audience
+    .split(" y ")
+    .map((who) => `${/^(familia|empresa)/i.test(who) ? "la" : "el"} ${who.toLowerCase()}`)
+    .join(" y ")}`;
+}
 
-function lessonFromHash(): number | null {
+function audienceDot(audience: string): string {
+  return AUDIENCE_DOT[audience] ?? "bg-[#9ca3af]";
+}
+
+function lessonFromHash(lessonCount: number): number | null {
   if (typeof window === "undefined") return null;
   const match = window.location.hash.match(/^#clase-(\d+)$/);
   const number = match ? Number(match[1]) : NaN;
-  return Number.isInteger(number) && number >= 1 && number <= ESCOLAR_COURSE_LESSON_COUNT ? number : null;
+  return Number.isInteger(number) && number >= 1 && number <= lessonCount ? number : null;
 }
 
-export default function EscolarCoursePlayer({ videos }: Props) {
+export default function CoursePlayer({ course, videos }: Props) {
+  const { blocks, details, lessonCount } = course;
+  const LESSONS = useMemo(
+    () => blocks.flatMap((block, blockIndex) => block.lessons.map((lesson) => ({ ...lesson, blockIndex }))),
+    [blocks]
+  );
   const firstAvailable = LESSONS.find((l) => videos[l.number])?.number ?? 1;
   const [current, setCurrent] = useState(firstAvailable);
   const [start, setStart] = useState<{ at: number; autoplay: boolean }>({ at: 0, autoplay: false });
   const playerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const fromHash = lessonFromHash();
+    const fromHash = lessonFromHash(lessonCount);
     if (fromHash) setCurrent(fromHash);
-  }, []);
+  }, [lessonCount]);
 
   const lesson = LESSONS.find((l) => l.number === current) ?? LESSONS[0];
-  const detail = ESCOLAR_COURSE_DETAILS[lesson.number];
+  const detail = details[lesson.number];
   const youtubeId = videos[lesson.number] ? extractYoutubeId(videos[lesson.number]) : null;
   const totalSeconds = useMemo(
-    () => Object.values(ESCOLAR_COURSE_DETAILS).reduce((sum, d) => sum + d.durationSeconds, 0),
-    []
+    () => Object.values(details).reduce((sum, d) => sum + d.durationSeconds, 0),
+    [details]
   );
 
   const open = useCallback((number: number, at = 0, autoplay = true) => {
@@ -102,11 +105,11 @@ export default function EscolarCoursePlayer({ videos }: Props) {
         <div className="mt-6 max-w-[68ch]">
           <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-[#6b7280]">
             <span className="font-semibold text-[#9a5c2a]">
-              Clase {lesson.number} de {ESCOLAR_COURSE_LESSON_COUNT}
+              Clase {lesson.number} de {lessonCount}
             </span>
             <span className="inline-flex items-center gap-1.5">
-              <span className={`h-2 w-2 rounded-full ${AUDIENCE_DOT[lesson.audience]}`} aria-hidden />
-              {AUDIENCE_LABEL[lesson.audience]}
+              <span className={`h-2 w-2 rounded-full ${audienceDot(lesson.audience)}`} aria-hidden />
+              {audienceLabel(lesson.audience)}
             </span>
             {detail && <span className="tabular-nums">{formatLessonDuration(detail.durationSeconds)}</span>}
           </p>
@@ -157,11 +160,13 @@ export default function EscolarCoursePlayer({ videos }: Props) {
       <nav aria-label="Clases del curso" className="lg:sticky lg:top-24">
         <div className="rounded-2xl border border-[#ece7df] bg-white">
           <p className="border-b border-[#ece7df] px-5 py-4 text-sm text-[#6b7280]">
-            <span className="font-semibold text-[#1a1a1a]">{ESCOLAR_COURSE_LESSON_COUNT} clases</span>, unos{" "}
-            {Math.round(totalSeconds / 60)} minutos en total
+            <span className="font-semibold text-[#1a1a1a]">{lessonCount} clases</span>
+            {Object.keys(details).length === lessonCount
+              ? `, unos ${Math.round(totalSeconds / 60)} minutos en total`
+              : ""}
           </p>
           <div className="max-h-none overflow-y-auto lg:max-h-[calc(100vh-11rem)]">
-            {ESCOLAR_COURSE_BLOCKS.map((block, blockIndex) => (
+            {blocks.map((block, blockIndex) => (
               <section key={block.title} className="border-b border-[#ece7df] last:border-b-0">
                 <h3 className="px-5 pt-4 pb-1 text-[0.8rem] font-semibold text-[#6b7280]">
                   Bloque {blockIndex + 1}: {block.title}
@@ -170,7 +175,7 @@ export default function EscolarCoursePlayer({ videos }: Props) {
                   {block.lessons.map((item) => {
                     const active = item.number === lesson.number;
                     const available = Boolean(videos[item.number]);
-                    const d = ESCOLAR_COURSE_DETAILS[item.number];
+                    const d = details[item.number];
                     return (
                       <li key={item.number}>
                         <button
@@ -199,7 +204,7 @@ export default function EscolarCoursePlayer({ videos }: Props) {
                               {item.title}
                             </span>
                             <span className="mt-0.5 flex items-center gap-1.5 text-xs text-[#9ca3af]">
-                              <span className={`h-1.5 w-1.5 rounded-full ${AUDIENCE_DOT[item.audience]}`} aria-hidden />
+                              <span className={`h-1.5 w-1.5 rounded-full ${audienceDot(item.audience)}`} aria-hidden />
                               {available && d ? formatLessonDuration(d.durationSeconds) : "Próximamente"}
                             </span>
                           </span>

@@ -1,11 +1,8 @@
 import { prisma } from "@/lib/prisma";
+import Image from "next/image";
 import Link from "next/link";
 import TutorialCard from "@/components/tutorials/TutorialCard";
-import {
-  ESCOLAR_COURSE_LESSON_COUNT,
-  ESCOLAR_COURSE_PATH,
-  ESCOLAR_COURSE_TAGLINE,
-} from "@/lib/tutorials/escolar-course";
+import { TUTORIAL_COURSES } from "@/lib/tutorials/courses";
 
 export const dynamic = "force-dynamic";
 
@@ -132,19 +129,39 @@ export default async function TutorialsPage() {
           </p>
         </div>
 
-        <Link
-          href={ESCOLAR_COURSE_PATH}
-          className="mx-auto mb-10 flex max-w-5xl flex-col gap-4 rounded-2xl border border-[#ecd9c6] bg-white p-6 text-left shadow-sm transition hover:shadow-md sm:flex-row sm:items-center sm:justify-between"
-        >
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-[#c27b3d]">
-              Curso · {ESCOLAR_COURSE_LESSON_COUNT} clases
-            </p>
-            <h2 className="mt-1 text-xl font-semibold text-[#1a1a1a]">Curso de fotografía escolar</h2>
-            <p className="mt-1 text-sm text-[#6b7280]">{ESCOLAR_COURSE_TAGLINE}.</p>
-          </div>
-          <span className="clf-btn clf-btn--primary shrink-0">Ver el curso</span>
-        </Link>
+        <div className="mx-auto mb-12 grid max-w-5xl gap-6 md:grid-cols-2">
+          {TUTORIAL_COURSES.map((course) => (
+            <Link
+              key={course.slug}
+              href={course.path}
+              className="group relative flex aspect-[4/3] flex-col justify-end overflow-hidden rounded-2xl bg-[#1a1a1a] text-left shadow-[0_24px_60px_-30px_rgba(26,26,26,0.7)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#c27b3d] sm:aspect-[16/10]"
+            >
+              <Image
+                src={course.cover.src}
+                alt={course.cover.alt}
+                fill
+                sizes="(min-width: 768px) 512px, 100vw"
+                className="object-cover transition-transform duration-500 group-hover:scale-[1.03] motion-reduce:transition-none"
+              />
+              <div
+                className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/55 to-black/5"
+                aria-hidden
+              />
+              <div className="relative p-6 md:p-7">
+                <span className="inline-flex rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-[#1a1a1a]">
+                  Curso en video, {course.lessonCount} clases
+                </span>
+                <h2 className="mt-3 text-2xl font-semibold leading-tight text-white md:text-[1.7rem]">
+                  {course.title}
+                </h2>
+                <p className="mt-1.5 max-w-md text-sm leading-relaxed text-white/80">{course.tagline}.</p>
+                <span className="mt-4 inline-flex items-center rounded-full bg-[#c27b3d] px-4 py-2 text-sm font-semibold text-white">
+                  Ver el curso
+                </span>
+              </div>
+            </Link>
+          ))}
+        </div>
 
         {items.length === 0 ? (
           <div className="text-center py-16">

@@ -4,9 +4,11 @@ import { useEffect, useState } from "react";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
-import { ESCOLAR_COURSE_BLOCKS, ESCOLAR_COURSE_PATH } from "@/lib/tutorials/escolar-course";
+import type { TutorialCourse } from "@/lib/tutorials/course";
 
-export default function AdminEscolarCourseCard() {
+type Props = { course: Pick<TutorialCourse, "slug" | "title" | "path" | "blocks"> };
+
+export default function AdminCourseCard({ course }: Props) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [videos, setVideos] = useState<Record<number, string>>({});
@@ -15,13 +17,14 @@ export default function AdminEscolarCourseCard() {
 
   useEffect(() => {
     loadVideos();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [course.slug]);
 
   async function loadVideos() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/admin/tutorials/escolar", { credentials: "include" });
+      const res = await fetch(`/api/admin/tutorials/${course.slug}`, { credentials: "include" });
       if (!res.ok) throw new Error("Error cargando el curso");
       const data = await res.json();
       setVideos(data.videos && typeof data.videos === "object" ? data.videos : {});
@@ -37,7 +40,7 @@ export default function AdminEscolarCourseCard() {
     setError(null);
     setSuccess(null);
     try {
-      const res = await fetch("/api/admin/tutorials/escolar", {
+      const res = await fetch(`/api/admin/tutorials/${course.slug}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -61,7 +64,7 @@ export default function AdminEscolarCourseCard() {
 
   return (
     <Card className="p-6 mb-6">
-      <h2 className="text-lg font-semibold text-[#1a1a1a] mb-1">Curso de fotografía escolar</h2>
+      <h2 className="text-lg font-semibold text-[#1a1a1a] mb-1">{course.title}</h2>
       <p className="text-sm text-[#6b7280] mb-4">
         Pegá el link de YouTube de cada clase. Las clases sin link se muestran como «Próximamente». El video tiene
         que estar público o no listado para que se pueda ver.
@@ -74,7 +77,7 @@ export default function AdminEscolarCourseCard() {
         <p className="text-sm text-[#6b7280]">Cargando curso...</p>
       ) : (
         <div className="space-y-6">
-          {ESCOLAR_COURSE_BLOCKS.map((block) => (
+          {course.blocks.map((block) => (
             <div key={block.title} className="space-y-3">
               <div className="text-sm font-medium text-[#1a1a1a]">{block.title}</div>
               {block.lessons.map((lesson) => (
@@ -101,7 +104,7 @@ export default function AdminEscolarCourseCard() {
         <Button variant="primary" onClick={handleSave} disabled={saving || loading}>
           {saving ? "Guardando…" : "Guardar curso"}
         </Button>
-        <a href={ESCOLAR_COURSE_PATH} target="_blank" rel="noopener noreferrer">
+        <a href={course.path} target="_blank" rel="noopener noreferrer">
           <Button variant="secondary">Ver curso</Button>
         </a>
       </div>

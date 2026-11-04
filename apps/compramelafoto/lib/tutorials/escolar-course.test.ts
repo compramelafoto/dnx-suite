@@ -8,6 +8,7 @@ import {
   validateEscolarCourseVideos,
 } from "./escolar-course";
 import { ESCOLAR_COURSE_DETAILS } from "./escolar-course-details";
+import { TUTORIAL_COURSES, getTutorialCourse } from "./courses";
 
 describe("escolar-course", () => {
   it("numera las 23 clases de corrido", () => {
@@ -54,5 +55,29 @@ describe("escolar-course", () => {
   it("formatea la duración en minutos y segundos", () => {
     assert.equal(formatLessonDuration(144), "2:24");
     assert.equal(formatLessonDuration(36), "0:36");
+  });
+});
+
+describe("cursos de tutoriales", () => {
+  it("cada curso numera sus clases de corrido y su detalle es coherente", () => {
+    for (const course of TUTORIAL_COURSES) {
+      const numbers = course.blocks.flatMap((block) => block.lessons.map((l) => l.number));
+      assert.deepEqual(numbers, Array.from({ length: course.lessonCount }, (_, i) => i + 1), course.slug);
+      for (const [key, detail] of Object.entries(course.details)) {
+        const n = Number(key);
+        assert.ok(n >= 1 && n <= course.lessonCount, `${course.slug}: la clase ${n} no existe`);
+        assert.ok(!/librito/i.test(detail.description), `${course.slug} ${n} dice librito`);
+        assert.ok(detail.chapters.every((c) => c.at < detail.durationSeconds));
+      }
+    }
+  });
+
+  it("los slugs y los ajustes no se repiten", () => {
+    const slugs = TUTORIAL_COURSES.map((c) => c.slug);
+    const keys = TUTORIAL_COURSES.map((c) => c.settingsKey);
+    assert.equal(new Set(slugs).size, slugs.length);
+    assert.equal(new Set(keys).size, keys.length);
+    assert.equal(getTutorialCourse("turismo")?.lessonCount, 13);
+    assert.equal(getTutorialCourse("nada"), null);
   });
 });

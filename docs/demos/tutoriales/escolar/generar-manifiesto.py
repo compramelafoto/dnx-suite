@@ -159,7 +159,7 @@ COPYS = [
             ('0:43', 'Mercado Pago divide el pago solo'),
         ],
         'proxima': 'Los packs de preventa',
-        'etiquetas': ['comision escolar', 'comision del colegio', 'mercado pago split'],
+        'etiquetas': ['comision escolar', 'comision del colegio', 'mercado pago'],
     },
     {
         'n': 8,
@@ -482,8 +482,8 @@ def detalle_para_clf():
                      f"    description: {json.dumps(c['gancho'], ensure_ascii=False)},\n"
                      f"    chapters: [{capitulos}],\n  }},")
     return ('// Generado por docs/demos/tutoriales/escolar/generar-manifiesto.py: no editar a mano.\n'
-            'import type { EscolarCourseLessonDetail } from "./escolar-course";\n\n'
-            'export const ESCOLAR_COURSE_DETAILS: Record<number, EscolarCourseLessonDetail> = {\n'
+            'import type { CourseLessonDetail } from "./course";\n\n'
+            'export const ESCOLAR_COURSE_DETAILS: Record<number, CourseLessonDetail> = {\n'
             + '\n'.join(filas) + '\n};\n')
 
 
