@@ -148,17 +148,18 @@ COPYS = [
         'gancho': ("Que el colegio también gane es una de las cosas que más ayuda a cerrar con una escuela. Te "
                    "muestro dónde activás la comisión en el álbum, cómo cargás el porcentaje que acordaste y sobre "
                    "qué ventas se aplica. El sistema la calcula sola en cada compra que entra con el enlace del "
-                   "colegio, y en la ficha del colegio ves lo vendido, lo pendiente y lo ya pagado. Al final te "
-                   "explico el circuito del cobro: el colegio lo solicita desde su panel, vos le pagás, anotás el "
-                   "medio de pago y el comprobante, y lo marcás como pagado."),
+                   "colegio, y en la ficha del colegio ves lo vendido y la comisión de cada pedido. Y lo mejor: no "
+                   "le pagás nada a mano. El colegio conecta su cuenta de Mercado Pago una sola vez desde su panel, "
+                   "y en cada compra Mercado Pago divide el pago: tu parte entra en tu cuenta y la del colegio, "
+                   "directo en la suya, sin transferencias ni comprobantes."),
         'capitulos': [
             ('0:00', 'Por qué la comisión ayuda a cerrar'),
             ('0:11', 'Activar la comisión y el porcentaje'),
-            ('0:25', 'Cómo se calcula y dónde la seguís'),
-            ('0:43', 'Cuando el colegio pide su parte'),
+            ('0:26', 'Cómo se calcula y dónde la seguís'),
+            ('0:43', 'Mercado Pago divide el pago solo'),
         ],
         'proxima': 'Los packs de preventa',
-        'etiquetas': ['comision escolar', 'comision del colegio', 'acuerdo con el colegio'],
+        'etiquetas': ['comision escolar', 'comision del colegio', 'mercado pago split'],
     },
     {
         'n': 8,
@@ -336,30 +337,30 @@ COPYS = [
         'titulo': 'El panel del colegio | Curso de fotografía escolar, clase 18',
         'gancho': ("Este video es para el colegio. Te muestro el panel con el que el colegio sigue toda la foto "
                    "escolar sin pedir planillas: los datos y el logo, cuántos álbumes, alumnos y preventas pagadas "
-                   "tiene, quién es el fotógrafo responsable, cómo conectar la cuenta de Mercado Pago del colegio "
-                   "para recibir su parte a medida que las familias pagan, y las ventas que entraron con el enlace "
-                   "del colegio, con lo que le corresponde y en qué estado está."),
+                   "tiene y quién es el fotógrafo responsable. El colegio conecta su cuenta de Mercado Pago una sola "
+                   "vez y su parte entra directo a medida que las familias pagan. Y en Ventas generadas por la "
+                   "escuela ve cada compra que entró con su enlace, con lo que le corresponde y en qué estado está."),
         'capitulos': [
             ('0:00', 'Un panel para el colegio'),
-            ('0:13', 'Los datos y los números del colegio'),
-            ('0:26', 'Mercado Pago y las ventas de la escuela'),
+            ('0:11', 'Los datos y los números del colegio'),
+            ('0:22', 'Mercado Pago y las ventas de la escuela'),
         ],
-        'proxima': 'Compartir la preventa y cobrar la comisión',
+        'proxima': 'Compartir la preventa y recibir la comisión',
         'etiquetas': ['panel del colegio', 'fotografia escolar colegios', 'comision escolar'],
     },
     {
         'n': 19,
         'archivo': 'E19-compartir-la-preventa-y-cobrar.mp4',
-        'titulo': 'Compartir la preventa y cobrar la comisión | Curso de fotografía escolar, clase 19',
-        'gancho': ("Para el colegio: cómo compartir la preventa con las familias y cómo pedir su parte. Te muestro "
+        'titulo': 'Compartir la preventa y recibir la comisión | Curso de fotografía escolar, clase 19',
+        'gancho': ("Para el colegio: cómo compartir la preventa con las familias y cómo le llega su parte. Te muestro "
                    "dónde copiar el enlace del colegio (las compras que entran por ahí son las que le suman) y el "
-                   "mensaje de WhatsApp ya armado para pegar en el grupo de cada curso. Y cuando el colegio quiere "
-                   "cobrar lo que juntó, toca Solicitar cobro: al fotógrafo le llega el pedido y, cuando le paga, el "
-                   "colegio lo ve como pagado."),
+                   "mensaje de WhatsApp ya armado para pegar en el grupo de cada curso. ¿Y la comisión? No hay que "
+                   "pedirla: cada vez que una familia paga, Mercado Pago divide el pago y la parte del colegio entra "
+                   "directo en su cuenta. En el panel ve cada venta y lo que le tocó."),
         'capitulos': [
             ('0:00', 'Lo que hace el colegio'),
             ('0:11', 'El enlace y el mensaje de WhatsApp'),
-            ('0:27', 'Pedir el cobro'),
+            ('0:27', 'La comisión llega sola'),
         ],
         'proxima': 'Comprar en la preventa',
         'etiquetas': ['preventa escolar', 'comision escolar', 'fotografia escolar colegios'],
