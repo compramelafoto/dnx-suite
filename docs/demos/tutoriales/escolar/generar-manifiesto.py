@@ -229,6 +229,23 @@ COPYS = [
         'proxima': 'La línea de producción',
         'etiquetas': ['subir fotos', 'reconocimiento facial', 'dia de la toma'],
     },
+    {
+        'n': 12,
+        'archivo': 'E12-la-linea-de-produccion.mp4',
+        'titulo': 'La línea de producción | Curso de fotografía escolar, clase 12',
+        'gancho': ("¿Qué pasa con cada pedido después de que la familia paga? Te muestro Pedidos escolares, la línea "
+                   "de producción en siete pasos: por canjear, revisar diseño, cambios pedidos, para imprimir, en "
+                   "imprenta, para entregar y entregado. Cada pedido avanza solo a medida que vos y la familia hacen "
+                   "su parte. Ves qué tenés que hacer en cada paso, filtrás por escuela y por curso, y con un botón "
+                   "les volvés a avisar a las familias que todavía no eligieron sus fotos."),
+        'capitulos': [
+            ('0:00', 'Qué pasa después del pago'),
+            ('0:14', 'Los siete pasos'),
+            ('0:34', 'Pedidos, filtros y avisos a las familias'),
+        ],
+        'proxima': 'Revisar los diseños de corrido',
+        'etiquetas': ['pedidos escolares', 'produccion escolar', 'carpetas escolares'],
+    },
 ]
 
 

@@ -110,6 +110,7 @@ se armaron con cuadros donde no se ve.
 | E09 | Elegir el diseño de la carpeta escolar | 1:23 | publicado | [público](https://youtu.be/8VX8Aax6FQE) | clase 9 |
 | E10 | Probar la carpeta escolar con el listado real | 0:56 | publicado | [público](https://youtu.be/MIvKuWItd1A) | clase 10 |
 | E11 | El día de la toma: subir las fotos | 0:50 | publicado | [público](https://youtu.be/qWbIo7uH9HQ) | clase 11 |
+| E12 | La línea de producción | 0:58 | publicado | [público](https://youtu.be/NK8cAqEXmd8) | clase 12 |
 
 ## Copys
 

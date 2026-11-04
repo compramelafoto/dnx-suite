@@ -43,6 +43,8 @@ PORTADAS = {
          'Cada chico,<br><em>su carpeta</em>'),
     11: ('E11-el-dia-de-la-toma.mp4', 36, (820, 150, 1060, 596),
          'Subí<br><em>todas juntas</em>'),
+    12: ('E12-la-linea-de-produccion.mp4', 8, (460, 210, 1000, 562),
+         'Pedidos,<br><em>paso a paso</em>'),
 }
 
 CSS = """
