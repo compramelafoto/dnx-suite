@@ -159,7 +159,7 @@ COPYS = [
             ('0:43', 'Mercado Pago divide el pago solo'),
         ],
         'proxima': 'Los packs de preventa',
-        'etiquetas': ['comision escolar', 'comision del colegio', 'mercado pago split'],
+        'etiquetas': ['comision escolar', 'comision del colegio', 'mercado pago'],
     },
     {
         'n': 8,
