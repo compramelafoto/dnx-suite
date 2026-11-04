@@ -10,6 +10,7 @@ import {
   isCourseMosaicConfig,
   parseClassListGroups,
   resolveTemplateDocument,
+  valuesWithListedCourses,
   type LegacyTemplateV2Payload,
 } from "@repo/template-engine";
 import {
@@ -224,7 +225,12 @@ export async function renderDesignV2(input: {
     const { document } = legacyPayloadToCore(legacy, { id: template.templateId, name: template.name });
     const product = resolveTemplateProduct(legacy.meta);
     const registry = resolveTemplateVariablePlugin(product === "unknown" ? "school" : product);
-    resolvedDocument = resolveTemplateDocument({ template: document, data: data.values, registry }).document;
+    resolvedDocument = resolveTemplateDocument({
+      template: document,
+      // Con varios cursos en el listado, el «Curso» los nombra a todos (igual que en pantalla).
+      data: valuesWithListedCourses(data.values),
+      registry,
+    }).document;
   } catch (err) {
     return { ok: false, errors: [err instanceof Error ? err.message : "La plantilla no se pudo leer."] };
   }

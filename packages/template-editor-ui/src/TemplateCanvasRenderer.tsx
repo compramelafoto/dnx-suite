@@ -17,6 +17,7 @@ import {
   CLIENT_PHOTO_VARIABLE_PATTERN,
   SCHOOL_CLIENT_PHOTO_PLACEHOLDER,
   distributeCourseMosaic,
+  valuesWithListedCourses,
   isCalendarConfig,
   isClassListConfig,
   isCourseMosaicConfig,
@@ -979,7 +980,7 @@ function PhotoLegacyRenderer({ layoutWidth, layoutHeight }: { layoutWidth: numbe
 export function TemplateCanvasRenderer({
   canvas,
   blocks,
-  resolvedVariables,
+  resolvedVariables: variablesGuardadas,
   readOnly,
   selectedBlockIds = [],
   primarySelectedBlockId = null,
@@ -989,6 +990,8 @@ export function TemplateCanvasRenderer({
   pageIndex,
   photoOverrides,
 }: TemplateCanvasRendererProps) {
+  // Con varios cursos en el listado, el «Curso» los nombra a todos (igual que en el PDF).
+  const resolvedVariables = valuesWithListedCourses(variablesGuardadas);
   const canvasBackground = typeof canvas.background === "string" ? canvas.background : "var(--te-surface)";
   const renderableBlocks = toRenderableBlocks(
     pageIndex == null ? blocks : blocks.filter((b) => (b.pageIndex ?? 0) === pageIndex),

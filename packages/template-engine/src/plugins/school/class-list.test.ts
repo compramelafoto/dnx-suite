@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  CLASS_LIST_VARIABLE_KEY,
   classListCrowdMessage,
   classListCrowdWarning,
   combineClassListHeadings,
@@ -8,6 +9,7 @@ import {
   layoutClassListBlock,
   parseClassListGroups,
   serializeClassListGroups,
+  valuesWithListedCourses,
   formatClassList,
   layoutClassList,
   parseClassListValue,
@@ -377,4 +379,33 @@ test("el título puede tener un cuerpo propio, aparte del de los nombres", () =>
   assert.ok(Math.abs(justo.cells[0]!.fontSize / justo.fontSize - 30 / 40) < 1e-9);
   // Sin cuerpo propio sigue siendo proporcional, y un cuerpo inválido se ignora.
   assert.equal(readClassListOptions({ classList: { headingStyle: { fontSize: -3 } } }).headingStyle.fontSize, undefined);
+});
+
+test("valuesWithListedCourses: con dos cursos, el «Curso» nombra a los dos", () => {
+  const values = {
+    "course.displayName": "7° Grado A",
+    "school.name": "Colegio San Patricio",
+    "course.withSchool": "7° Grado A - Colegio San Patricio",
+    [CLASS_LIST_VARIABLE_KEY]: serializeClassListGroups([
+      { title: "7° Grado A", students: [{ firstName: "Ana", lastName: "Paz", isOwner: true }] },
+      { title: "7° Grado B", courseKey: "b", students: [{ firstName: "Juan", lastName: "Gil" }] },
+    ]),
+  };
+  const out = valuesWithListedCourses(values);
+  assert.equal(out["course.displayName"], "7° Grado A y 7° Grado B");
+  assert.equal(out["course.withSchool"], "7° Grado A y 7° Grado B - Colegio San Patricio");
+  assert.equal("school.withCourse" in out, false);
+  // Lo guardado no se toca.
+  assert.equal(values["course.displayName"], "7° Grado A");
+});
+
+test("valuesWithListedCourses: con un solo curso no cambia nada", () => {
+  const values = {
+    "course.displayName": "7° Grado A",
+    [CLASS_LIST_VARIABLE_KEY]: serializeClassListGroups([
+      { title: "7° Grado A", students: [{ firstName: "Ana", lastName: "Paz" }] },
+    ]),
+  };
+  assert.equal(valuesWithListedCourses(values), values);
+  assert.equal(valuesWithListedCourses(undefined), undefined);
 });
