@@ -78,6 +78,7 @@ Los tutoriales nuevos se agregan al final de la lista, en el orden en que se peg
 | E01 | La venta escolar de punta a punta | 2:23 | aprobado | [público](https://youtu.be/kDdvZ92JKfo) | clase 1 |
 | E02 | Tu página de venta para colegios | 1:32 | aprobado | [público](https://youtu.be/uBmMxi7d52Q) | clase 2 |
 | E03 | Dar de alta un colegio | 1:01 | aprobado | [público](https://youtu.be/e5wVhLMNK7Q) | clase 3 |
+| E04 | Cursos y listado de alumnos | 1:31 | publicado | [público](https://youtu.be/X-79p1_9Z1I) | clase 4 |
 
 ## Copys
 
@@ -137,6 +138,24 @@ Los tutoriales nuevos se agregan al final de la lista, en el orden en que se peg
 > 0:40 Crear la escuela y su ficha
 >
 > ▶ Próxima clase: Cursos y listado de alumnos.
+
+### E04 · Cursos y listado de alumnos
+
+**Título:** Cursos y listado de alumnos | Curso de fotografía escolar, clase 4
+
+> El listado de alumnos es lo que hace que todo lo demás funcione solo: la familia encuentra a su hijo por el
+> nombre, el librito sale bien escrito y el mosaico del curso se arma solo. Te muestro cómo crear un curso a mano
+> y cómo importar de una vez el Excel o el CSV que te pasa el colegio. Y si el archivo viene desordenado, un
+> botón te copia el pedido listo para que ChatGPT te lo devuelva en el formato correcto.
+>
+> En esta clase:
+> 0:00 Por qué importa el listado de alumnos
+> 0:20 Crear un curso a mano
+> 0:39 Importar el Excel o el CSV del colegio
+> 0:53 Ordenar el archivo con ChatGPT
+> 1:03 Procesar la importación y ver los alumnos
+>
+> ▶ Próxima clase: El usuario del colegio.
 
 ### Bloque común (al final de cada descripción)
 
