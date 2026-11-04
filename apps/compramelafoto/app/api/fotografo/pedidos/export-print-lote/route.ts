@@ -1,9 +1,12 @@
 /**
  * GET /api/fotografo/pedidos/export-print-lote?albumes=3888,3882&impresion=652
  *
- * Varios pedidos en un solo ZIP, cada uno en su carpeta con la misma organización que la
- * descarga de a uno (Producto/Acabado/Tamaño + MANIFEST + resumen). Reemplaza a abrir una
- * pestaña por pedido, que el navegador bloqueaba como ventanas emergentes.
+ * Varios pedidos en un solo ZIP. Reemplaza a abrir una pestaña por pedido, que el navegador
+ * bloqueaba como ventanas emergentes.
+ *
+ * Por defecto va ordenado para el laboratorio: una carpeta por tamaño y acabado, y adentro
+ * una por cliente (ver `organizar-por-tamano`). Con `&orden=cliente` sale como antes: una
+ * carpeta por pedido con la misma organización que la descarga de a uno.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -15,6 +18,7 @@ import {
   streamPrintExportZip,
   type PrintExportPlan,
 } from "@/lib/orders/print-export/stream-print-export-zip";
+import { organizarPorTamano } from "@/lib/orders/print-export/organizar-por-tamano";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -78,7 +82,12 @@ export async function GET(req: NextRequest) {
     const extras = omitidos.length
       ? [{ name: "PEDIDOS_NO_INCLUIDOS.txt", content: ["Estos pedidos no se incluyeron:", "", ...omitidos].join("\n") }]
       : [];
-    return streamPrintExportZip(plans, `Impresiones ${fecha} - ${plans.length} pedidos`, extras);
+    const nombre = `Impresiones ${fecha} - ${plans.length} pedidos`;
+    if (req.nextUrl.searchParams.get("orden") === "cliente") {
+      return streamPrintExportZip(plans, nombre, extras);
+    }
+    const porTamano = organizarPorTamano(plans);
+    return streamPrintExportZip(porTamano.plans, nombre, [porTamano.resumen, ...extras]);
   } catch (err: unknown) {
     console.error("EXPORT PRINT LOTE ERROR >>>", err);
     return NextResponse.json(
