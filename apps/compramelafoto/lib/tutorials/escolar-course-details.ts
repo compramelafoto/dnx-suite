@@ -1,7 +1,7 @@
 // Generado por docs/demos/tutoriales/escolar/generar-manifiesto.py: no editar a mano.
-import type { EscolarCourseLessonDetail } from "./escolar-course";
+import type { CourseLessonDetail } from "./course";
 
-export const ESCOLAR_COURSE_DETAILS: Record<number, EscolarCourseLessonDetail> = {
+export const ESCOLAR_COURSE_DETAILS: Record<number, CourseLessonDetail> = {
   1: {
     durationSeconds: 144,
     description: "¿Se te va el tiempo en listados en papel, sobres armados a mano y el colegio juntando dinero en efectivo? En esta primera clase te muestro el recorrido completo de la fotografía escolar en ComprameLaFoto, en siete etapas: desde conseguir el colegio hasta entregar los sobres con un código para escanear.\n\nLa idea central: primero se vende y se cobra, después se saca la foto.",

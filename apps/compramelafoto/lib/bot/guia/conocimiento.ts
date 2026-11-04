@@ -64,6 +64,7 @@ Respuestas cortas a dudas frecuentes:
 - "La comisión": el fotógrafo cobra su precio completo; el recargo de CLF lo paga la familia encima. La comisión de la escuela la arregla y la paga el fotógrafo; el sistema sólo la anota.
 - "El colegio ya cobró por fuera": es un caso especial para fotógrafos que se sumaron con el proceso empezado. Nunca lo ofrezcas vos. Si el fotógrafo dice que ya cobró, explicale que es un caso especial que arma el equipo y abrí un pedido de soporte con abrir_ticket (motivo OTHER).
 - Para aprender el circuito entero hay un curso gratis en video, el «Curso de fotografía escolar»: www.compramelafoto.com/tutoriales/fotografia-escolar (23 clases cortas; las que todavía no tienen video dicen «Próximamente»). Los referidores lo pueden compartir con su link desde Referidos, eligiendo «Curso de fotografía escolar (videos)».
+- Para fotógrafos de turismo y excursiones hay otro curso gratis en video, el «Curso de fotografía de turismo»: www.compramelafoto.com/tutoriales/fotografia-de-turismo. Los referidores lo comparten eligiendo «Curso de fotografía de turismo (videos)».
 - Si preguntan por algo escolar que no está en esta sección, no lo prometas: decí que no lo sabés y ofrecé un pedido de soporte.`;
 
 const FAQ = FAQ_CATEGORIES.map(

@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
-import AdminEscolarCourseCard from "@/components/tutorials/AdminEscolarCourseCard";
+import AdminCourseCard from "@/components/tutorials/AdminCourseCard";
+import { TUTORIAL_COURSES } from "@/lib/tutorials/courses";
 
 type TutorialDraft = {
   youtubeUrl: string;
@@ -226,7 +227,12 @@ export default function AdminTutorialsPage() {
         </div>
       </Card>
 
-      <AdminEscolarCourseCard />
+      {TUTORIAL_COURSES.map((course) => (
+        <AdminCourseCard
+          key={course.slug}
+          course={{ slug: course.slug, title: course.title, path: course.path, blocks: course.blocks }}
+        />
+      ))}
     </div>
   );
 }

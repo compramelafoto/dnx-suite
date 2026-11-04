@@ -4,28 +4,27 @@
  * /admin/tutoriales, en el ajuste ESCOLAR_COURSE_SETTINGS_KEY.
  */
 
+import {
+  countLessons,
+  extractYoutubeId,
+  formatLessonDuration,
+  parseCourseVideos,
+  validateCourseVideos,
+  type CourseBlock,
+  type CourseLesson,
+  type CourseLessonDetail,
+  type CourseVideos,
+} from "./course";
+
 export const ESCOLAR_COURSE_PATH = "/tutoriales/fotografia-escolar";
 export const ESCOLAR_COURSE_SETTINGS_KEY = "tutorials_escolar_course";
 export const ESCOLAR_COURSE_TAGLINE = "La herramienta definitiva para organizar tu fotografía escolar";
 
-export type EscolarCourseLesson = {
-  number: number;
-  title: string;
-  summary: string;
-  audience: "Fotógrafo" | "Fotógrafo y colegio" | "Colegio" | "Familia";
-};
-
-/** Lo que la página muestra al reproducir una clase (sale de escolar-course-details.ts, generado). */
-export type EscolarCourseLessonDetail = {
-  durationSeconds: number;
-  description: string;
-  chapters: { at: number; label: string }[];
-};
-
-export type EscolarCourseBlock = {
-  title: string;
-  lessons: EscolarCourseLesson[];
-};
+export type EscolarCourseLesson = CourseLesson;
+export type EscolarCourseLessonDetail = CourseLessonDetail;
+export type EscolarCourseBlock = CourseBlock;
+export type EscolarCourseVideos = CourseVideos;
+export { extractYoutubeId, formatLessonDuration };
 
 export const ESCOLAR_COURSE_BLOCKS: EscolarCourseBlock[] = [
   {
@@ -78,86 +77,12 @@ export const ESCOLAR_COURSE_BLOCKS: EscolarCourseBlock[] = [
   },
 ];
 
-export const ESCOLAR_COURSE_LESSON_COUNT = ESCOLAR_COURSE_BLOCKS.reduce(
-  (total, block) => total + block.lessons.length,
-  0
-);
+export const ESCOLAR_COURSE_LESSON_COUNT = countLessons(ESCOLAR_COURSE_BLOCKS);
 
-/** 144 → "2:24". */
-export function formatLessonDuration(seconds: number): string {
-  const total = Math.max(0, Math.round(seconds));
-  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
+export function parseEscolarCourseVideos(value: string | null | undefined): CourseVideos {
+  return parseCourseVideos(value, ESCOLAR_COURSE_LESSON_COUNT);
 }
 
-/** Número de clase → link de YouTube, tal como se guarda en SystemSettings. */
-export type EscolarCourseVideos = Record<number, string>;
-
-export function extractYoutubeId(input: string): string | null {
-  const trimmed = input.trim();
-  if (!trimmed) return null;
-  try {
-    const url = new URL(trimmed.startsWith("http") ? trimmed : `https://${trimmed}`);
-    const host = url.hostname.replace("www.", "");
-    if (host === "youtu.be") {
-      return url.pathname.split("/").filter(Boolean)[0] || null;
-    }
-    if (host.endsWith("youtube.com") || host.endsWith("youtube-nocookie.com")) {
-      if (url.pathname.startsWith("/watch")) {
-        return url.searchParams.get("v");
-      }
-      if (url.pathname.startsWith("/embed/") || url.pathname.startsWith("/shorts/")) {
-        return url.pathname.split("/")[2] || null;
-      }
-    }
-    return null;
-  } catch {
-    if (/^[a-zA-Z0-9_-]{6,}$/.test(trimmed)) return trimmed;
-    return null;
-  }
-}
-
-function isLessonNumber(value: number): boolean {
-  return Number.isInteger(value) && value >= 1 && value <= ESCOLAR_COURSE_LESSON_COUNT;
-}
-
-/** Lee el ajuste guardado; descarta clases inexistentes y links que no son de YouTube. */
-export function parseEscolarCourseVideos(value: string | null | undefined): EscolarCourseVideos {
-  if (!value) return {};
-  try {
-    const parsed = JSON.parse(value) as { videos?: unknown };
-    const raw = parsed?.videos;
-    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
-    const videos: EscolarCourseVideos = {};
-    for (const [key, url] of Object.entries(raw as Record<string, unknown>)) {
-      const number = Number(key);
-      if (!isLessonNumber(number) || typeof url !== "string") continue;
-      if (extractYoutubeId(url)) videos[number] = url.trim();
-    }
-    return videos;
-  } catch {
-    return {};
-  }
-}
-
-/** Valida lo que manda el admin. Un link vacío saca el video de esa clase. */
-export function validateEscolarCourseVideos(
-  input: unknown
-): { videos: EscolarCourseVideos } | { error: string } {
-  if (!input || typeof input !== "object" || Array.isArray(input)) {
-    return { error: "Body debe incluir { videos: { número: link } }" };
-  }
-  const videos: EscolarCourseVideos = {};
-  for (const [key, url] of Object.entries(input as Record<string, unknown>)) {
-    const number = Number(key);
-    if (!isLessonNumber(number)) {
-      return { error: `La clase ${key} no existe` };
-    }
-    const trimmed = typeof url === "string" ? url.trim() : "";
-    if (!trimmed) continue;
-    if (!extractYoutubeId(trimmed)) {
-      return { error: `La clase ${number} debe tener un link de YouTube válido` };
-    }
-    videos[number] = trimmed;
-  }
-  return { videos };
+export function validateEscolarCourseVideos(input: unknown): { videos: CourseVideos } | { error: string } {
+  return validateCourseVideos(input, ESCOLAR_COURSE_LESSON_COUNT);
 }

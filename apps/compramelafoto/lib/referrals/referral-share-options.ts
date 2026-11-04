@@ -38,6 +38,12 @@ export const REFERRAL_SHARE_OPTIONS: ReferralShareOption[] = [
       "Te paso este curso gratis de fotografía escolar: muestra cómo vender, cobrar la preventa y entregar los libritos con ComprameLaFoto 👇",
   },
   {
+    label: "Curso de fotografía de turismo (videos)",
+    path: "/tutoriales/fotografia-de-turismo",
+    whatsappMessage:
+      "Te paso este curso gratis de fotografía de turismo: muestra cómo vender las fotos de cada paseo con ComprameLaFoto, el turista las encuentra con una selfie 👇",
+  },
+  {
     label: "Recomendar a una escuela",
     path: "/Escuelas",
     whatsappMessage:
@@ -74,8 +80,8 @@ export function referralShareHelperText(path: ReferralSharePath): string {
   if (path === "/Escuelas") {
     return "Compartí este link para que la escuela complete su solicitud. Si avanza, quedará identificado que la recomendaste vos.";
   }
-  if (path === "/tutoriales/fotografia-escolar") {
-    return "Lleva al curso de fotografía escolar en video. Si el fotógrafo se registra desde ahí, queda registrado que lo referiste vos.";
+  if (path === "/tutoriales/fotografia-escolar" || path === "/tutoriales/fotografia-de-turismo") {
+    return "Lleva al curso en video. Si el fotógrafo se registra desde ahí, queda registrado que lo referiste vos.";
   }
   return "Elegí la landing según a quién le compartís el link. Para fotógrafos escolares, la de fotografía escolar; para instituciones, «Recomendar a una escuela».";
 }
