@@ -83,6 +83,6 @@ describe("transacción del alta", () => {
 
 describe("contacto público", () => {
   it("es el de SOYBELUZ, no el correo personal de quien administra", () => {
-    expect(CONTACTO).toEqual({ email: "info.soybeluz@gmail.com", whatsapp: "3412121469" });
+    expect(CONTACTO).toEqual({ email: "infosoybeluz@gmail.com", whatsapp: "3412121469" });
   });
 });

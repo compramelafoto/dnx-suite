@@ -19,7 +19,7 @@ export const NOMBRE = "Soy Beluz";
 export const TIEMPO_TRANSACCION_MS = 30_000;
 
 /** Datos de contacto públicos que pasó Daniel el 4/11/2026 (María Belén Saldaña). */
-export const CONTACTO = { email: "info.soybeluz@gmail.com", whatsapp: "3412121469" } as const;
+export const CONTACTO = { email: "infosoybeluz@gmail.com", whatsapp: "3412121469" } as const;
 
 /** Pedido de Daniel (4/11/2026): Belén es la dueña y Daniel administra. */
 export const ADMINISTRADORES = [
