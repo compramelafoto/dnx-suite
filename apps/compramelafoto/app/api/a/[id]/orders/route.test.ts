@@ -11,7 +11,11 @@ const m = vi.hoisted(() => ({
   registerAuditEvent: vi.fn(),
 }));
 
-vi.mock("@/lib/prisma", () => ({ prisma: { album: m.album, order: m.order } }));
+// Dueño del álbum sin la etiqueta demo: el checkout sigue por Mercado Pago.
+vi.mock("@/lib/prisma", () => ({
+  prisma: { album: m.album, order: m.order, user: { findUnique: vi.fn(async () => ({ id: 1, tags: [] })) } },
+}));
+vi.mock("@/lib/demos/sesion-demo", () => ({ getDemoActiva: vi.fn(async () => null) }));
 vi.mock("@prisma/client", () => ({
   CheckoutPaymentSource: { MERCADO_PAGO: "MERCADO_PAGO", PREPAID_PACK: "PREPAID_PACK" },
   OrderOrigin: { STANDARD_CHECKOUT: "STANDARD_CHECKOUT" },
