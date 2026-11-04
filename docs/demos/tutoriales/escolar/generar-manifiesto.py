@@ -100,7 +100,7 @@ def descripcion(c):
 def manifiesto():
     return {
         'canal': 'DNX ESTUDIO (dnxfotografia@gmail.com)',
-        'listas': {'escolar': ''},
+        'listas': {'escolar': 'PLGDPLEY4OFJQ'},
         '_nota': ('Curso de fotografía escolar de ComprameLaFoto. Se sube con '
                   'subir.py --manifiesto <este archivo>. Los copys se explican en publicacion.md.'),
         'videos': [{

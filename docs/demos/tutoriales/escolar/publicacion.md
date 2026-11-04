@@ -5,8 +5,14 @@ la acción, la subida a YouTube y el alta en la página de Tutoriales de CLF.
 
 Lema del curso: **La herramienta definitiva para organizar tu fotografía escolar.**
 
-Decidido con Daniel el 2026-11-04: van al canal **DNX ESTUDIO** (@DNXESTUDIO, cuenta `dnxfotografia@gmail.com`,
-el mismo de los tutoriales que ya muestra CLF), se suben **en privado** y la visibilidad la decide él después.
+Decidido con Daniel el 2026-11-04: van al canal **DNX ESTUDIO** (@dnxestudio, `UC7kYtrTLwKpbCrMVG-bMW8A`, el
+mismo de los tutoriales que ya muestra CLF) y se publican **en público**. Todos entran en la lista
+[Curso de fotografía escolar | ComprameLaFoto](https://www.youtube.com/playlist?list=PLGDPLEY4OFJQ)
+(`listas.escolar` del manifiesto).
+
+Ojo al autorizar: la cuenta `dnxfotografia@gmail.com` maneja dos canales. En la ventana de Google hay que elegir
+**DNX ESTUDIO**, no «DNX Estudio de Fotografía y Video» (@dnxestudiodefotografiayvid5193). Para revisar a qué
+canal quedó atado el permiso, `subir.py` imprime el nombre del canal antes de subir.
 
 ## Dónde está cada cosa
 
@@ -35,11 +41,13 @@ cd tools/video/youtube
 entorno/bin/python subir.py --manifiesto ../../../docs/demos/tutoriales/escolar/youtube-manifiesto.json
 ```
 
-- Sube **en privado** lo que falte y anota los IDs en `tools/video/youtube/estado-youtube-manifiesto.json`.
+- Sube **en privado** lo que falte (con `--publico`, en público) y anota los IDs en `tools/video/youtube/estado-youtube-manifiesto.json`.
   Volver a correrlo no duplica nada.
 - Necesita `client_secret.json` y `token.json` en `tools/video/youtube/`. Ver el `LEEME.md` de esa carpeta: la
   autorización la hace Daniel una sola vez, con la cuenta dueña del canal.
-- La lista de reproducción del curso va en `listas.escolar` del manifiesto. Vacío = no los agrega a ninguna.
+- Cada video subido se agrega solo a la lista del curso (`listas.escolar`).
+- Después de subir: cargar el link en `/admin/tutoriales`, tarjeta «Curso de fotografía escolar». E01 a E03 se
+  cargaron directo en el ajuste `tutorials_escolar_course` de la base de producción.
 
 ## La página del curso en CLF
 
@@ -67,9 +75,9 @@ Los tutoriales nuevos se agregan al final de la lista, en el orden en que se peg
 
 | # | Video | Duración | Copy | YouTube | CLF |
 |---|---|---|---|---|---|
-| E01 | La venta escolar de punta a punta | 2:23 | listo, falta aprobar | — | — |
-| E02 | Tu página de venta para colegios | 1:32 | listo, falta aprobar | — | — |
-| E03 | Dar de alta un colegio | 1:01 | listo, falta aprobar | — | — |
+| E01 | La venta escolar de punta a punta | 2:23 | aprobado | [público](https://youtu.be/kDdvZ92JKfo) | clase 1 |
+| E02 | Tu página de venta para colegios | 1:32 | aprobado | [público](https://youtu.be/uBmMxi7d52Q) | clase 2 |
+| E03 | Dar de alta un colegio | 1:01 | aprobado | [público](https://youtu.be/e5wVhLMNK7Q) | clase 3 |
 
 ## Copys
 
