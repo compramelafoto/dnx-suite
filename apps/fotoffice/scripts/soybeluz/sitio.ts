@@ -14,12 +14,18 @@ import { bloque, enOrden, hero, placa } from "@/lib/website/templates/tipos";
  */
 
 /** La paleta del manual (página 06): cacao y marfil sostienen la lectura, el rosa acompaña. */
+/**
+ * El tema dibuja texto BLANCO sobre el secundario (portada sin foto) y sobre el acento (botones y
+ * «Mi cuenta»). Rosa viejo (2,4:1) y terracota (3,5:1) no llegan al 4,5:1 de lectura, así que los
+ * dos van en cacao: es la versión negativa del manual (marfil sobre cacao). El rosa sigue en el
+ * logo, que es donde «acompaña sin dominar».
+ */
 export const SOYBELUZ_COLORES: WebsiteColors & { panelColor: string } = {
   primaryColor: "#60433A", // Cacao
-  secondaryColor: "#C99A9D", // Rosa viejo
+  secondaryColor: "#60433A", // Cacao (fondo de la portada sin foto)
   backgroundColor: "#FAF6EF", // Marfil
   textColor: "#60433A", // Cacao
-  accentColor: "#B87A60", // Terracota
+  accentColor: "#60433A", // Cacao (botones)
   panelColor: "#E5D4C2", // Arena
 };
 
@@ -27,13 +33,14 @@ const A_CONFIRMAR = "a confirmar";
 const INSTAGRAM = "https://instagram.com/soybeluz";
 
 /** La línea de accesibilidad que el manual pide para cada propuesta (página 12). */
-function fichaDeLaPropuesta(datos: { edad: string; nivel: string; modalidad: string; materiales: string; duracion: string }): string {
+function fichaDeLaPropuesta(datos: { edad: string; nivel: string; modalidad: string; materiales: string; duracion: string; apoyos: string }): string {
   return [
     `Edad sugerida: ${datos.edad}.`,
     `Nivel: ${datos.nivel}.`,
     `Modalidad: ${datos.modalidad}.`,
     `Materiales: ${datos.materiales}.`,
     `Duración: ${datos.duracion}.`,
+    `Apoyos: ${datos.apoyos}.`,
   ].join("\n");
 }
 
@@ -109,6 +116,7 @@ const clasesGratuitas: WebsiteBlock[] = enOrden([
         modalidad: "en vivo por Instagram (@soybeluz), gratuita",
         materiales: "una fibra, microfibra o lapicera y una hoja blanca",
         duracion: A_CONFIRMAR,
+        apoyos: "contanos si necesitás algún apoyo para participar y lo pensamos con vos",
       }),
     ].join("\n"),
     align: "left",
@@ -124,13 +132,14 @@ const clasesGratuitas: WebsiteBlock[] = enOrden([
     buttonUrl: INSTAGRAM,
     stylePreset: "outline",
   }),
-  bloque("beluz-clases-whatsapp", "WHATSAPP_BUTTON", {
+  // Un grupo se comparte con su enlace de invitación (chat.whatsapp.com), no con un teléfono: por
+  // eso va un CTA y no WHATSAPP_BUTTON (que además desaparece entero si no tiene número).
+  bloque("beluz-clases-whatsapp", "CTA", {
     title: "Grupo gratuito de WhatsApp",
-    text: "Para compartir los dibujos de cada vivo, intercambiar experiencias y seguir en contacto entre una clase y otra.",
-    phone: "",
+    text: `Para compartir los dibujos de cada vivo, intercambiar experiencias y seguir en contacto entre una clase y otra. Enlace de invitación: ${A_CONFIRMAR}.`,
     buttonLabel: "Sumate al grupo gratuito",
-    message: "",
-    style: "solid",
+    buttonUrl: "",
+    stylePreset: "solid",
   }),
 ]);
 
@@ -202,6 +211,7 @@ const encuentros: WebsiteBlock[] = enOrden([
       modalidad: "online en vivo, cada quince días, para participantes con suscripción",
       materiales: "los de cada proyecto, siempre simples y caseros",
       duracion: A_CONFIRMAR,
+      apoyos: "contanos si necesitás algún apoyo para participar y lo pensamos con vos",
     }),
     align: "left",
   }),
@@ -313,6 +323,9 @@ const REGULAR = { font: "dejavu-sans", weight: 400 } as const;
 export const SOYBELUZ_DISENO: WebsiteDesignPresets = {
   ...DEFAULT_DESIGN_PRESETS,
   loginButtonLabel: "Mi cuenta",
+  // Nueve entradas con DejaVu Sans (letra ancha) no entran en la barra superior: un botón abre el
+  // menú desde un costado, igual en celular y en computadora.
+  menuLayout: "drawer",
   // El conjunto del logo es ~2,4:1: con 84 px de alto queda en ~200 px de ancho (mínimo del manual).
   logoSizePx: 84,
   buttonPreset: "rounded",

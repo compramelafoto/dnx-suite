@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ADMINISTRADORES, MODULOS, planDeAlta, type EstadoActual } from "./alta";
+import { ADMINISTRADORES, MODULOS, TIEMPO_TRANSACCION_MS, planDeAlta, type EstadoActual } from "./alta";
 
 const VACIO: EstadoActual = { workspace: false, branding: false, membresias: [], vocabulario: false, modulos: [], sitio: null };
 
@@ -72,5 +72,11 @@ describe("planDeAlta", () => {
   it("los emails se comparan sin importar mayúsculas", () => {
     const acciones = planDeAlta({ ...TODO_CREADO, membresias: [{ email: "BelenFister@Gmail.com", role: "WORKSPACE_OWNER" }, TODO_CREADO.membresias[1]] });
     expect(acciones.some((a) => a.tipo === "crearMembresia")).toBe(false);
+  });
+});
+
+describe("transacción del alta", () => {
+  it("le da tiempo a las ~14 consultas contra Neon (el límite de Prisma por omisión es 5 s)", () => {
+    expect(TIEMPO_TRANSACCION_MS).toBeGreaterThanOrEqual(20_000);
   });
 });

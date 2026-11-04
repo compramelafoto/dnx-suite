@@ -8,7 +8,7 @@
  *   DATABASE_URL_FOTOFFICE=... pnpm --filter fotoffice soybeluz:alta [--aplicar]
  */
 import { prisma, type PrismaClient } from "@repo/db";
-import { ADMINISTRADORES, MODULOS, NOMBRE, SLUG, WORKSPACE_ID, planDeAlta, type Accion, type EstadoActual } from "./soybeluz/alta";
+import { ADMINISTRADORES, MODULOS, NOMBRE, SLUG, TIEMPO_TRANSACCION_MS, WORKSPACE_ID, planDeAlta, type Accion, type EstadoActual } from "./soybeluz/alta";
 import { SOYBELUZ_COLORES, SOYBELUZ_DISENO, SOYBELUZ_MENU, SOYBELUZ_SECCIONES } from "./soybeluz/sitio";
 
 function salir(mensaje: string): never {
@@ -113,7 +113,7 @@ async function aplicar(db: PrismaClient, acciones: Accion[], usuarios: Map<strin
           break;
       }
     }
-  });
+  }, { timeout: TIEMPO_TRANSACCION_MS, maxWait: TIEMPO_TRANSACCION_MS });
 }
 
 async function main() {

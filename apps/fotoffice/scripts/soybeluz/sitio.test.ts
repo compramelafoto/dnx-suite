@@ -84,6 +84,24 @@ describe("sitio de SOYBELUZ", () => {
     expect(SOYBELUZ_COLORES.textColor).not.toBe(PALETA.arena);
   });
 
+  it("los pares que el sitio dibuja con texto blanco tienen contraste suficiente", () => {
+    // Hero sin foto: texto blanco sobre el secundario. Botones sólidos y «Mi cuenta»: blanco sobre
+    // el acento. CTA: blanco sobre el principal. (hero-block-view, website-header-view)
+    for (const fondo of [SOYBELUZ_COLORES.secondaryColor, SOYBELUZ_COLORES.accentColor, SOYBELUZ_COLORES.primaryColor]) {
+      expect(contraste("#FFFFFF", fondo)).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it("el menú de nueve entradas va en panel lateral: en barra superior no entra", () => {
+    expect(SOYBELUZ_DISENO.menuLayout).toBe("drawer");
+  });
+
+  it("el grupo gratuito de WhatsApp se ve aunque falte el enlace (no depende de un teléfono)", () => {
+    const bloques = SOYBELUZ_SECCIONES.pages.clases_gratuitas;
+    expect(bloques.some((b) => b.type === "WHATSAPP_BUTTON")).toBe(false);
+    expect(textoVisible(bloques)).toContain("Grupo gratuito de WhatsApp");
+  });
+
   it("respeta la voz del manual", () => {
     const texto = textoVisible(todasLasPaginas()).toLowerCase();
     for (const prohibida of ["juntas", "socio", "socia", "alumna", "alumno"]) expect(texto).not.toContain(prohibida);
@@ -93,7 +111,7 @@ describe("sitio de SOYBELUZ", () => {
   it("cada propuesta concreta dice edad, nivel, modalidad, materiales y duración", () => {
     for (const clave of ["clases_gratuitas", "encuentros"]) {
       const texto = textoVisible(SOYBELUZ_SECCIONES.pages[clave]);
-      for (const dato of ["Edad sugerida", "Nivel", "Modalidad", "Materiales", "Duración"]) expect(texto).toContain(dato);
+      for (const dato of ["Edad sugerida", "Nivel", "Modalidad", "Materiales", "Duración", "Apoyos"]) expect(texto).toContain(dato);
     }
   });
 
