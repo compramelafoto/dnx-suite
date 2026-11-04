@@ -2,7 +2,7 @@
   "installCommand": "cd ../.. && pnpm install",
   "buildCommand": "cd ../.. && pnpm --filter fotoffice build",
   "framework": "nextjs",
-  "ignoreCommand": "cd ../.. && if [ \"$VERCEL_ENV\" = \"production\" ]; then exit 1; else npx turbo-ignore fotoffice --fallback=HEAD^1; fi",
+  "ignoreCommand": "node ../../scripts/vercel-ignore-build.mjs fotoffice",
   "crons": [
     {
       "path": "/api/cron/conciliar-cuotas",
