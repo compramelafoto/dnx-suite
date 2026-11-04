@@ -11,6 +11,14 @@ export {
   CURRENCY_DECIMAL_SCALE,
 } from "./client/mercado-pago-environment.js";
 export { MercadoPagoHttpClient } from "./client/mercado-pago-http-client.js";
+export {
+  assertLiveCollectorAccount,
+  fetchCollectorIdentity,
+  isTestAccountIdentity,
+  MercadoPagoAccountUnknownError,
+  MercadoPagoTestAccountError,
+} from "./client/live-account-guard.js";
+export type { MercadoPagoAccountIdentity } from "./client/live-account-guard.js";
 export type { MercadoPagoRequestOptions } from "./client/mercado-pago-request.js";
 export type { ParsedMpResponse, Rfc7807Problem } from "./client/mercado-pago-response.js";
 export { moneyToMercadoPagoAmount, percentageBpsToMercadoPagoAmount } from "./money-mapper.js";

@@ -48,6 +48,11 @@ export {
   signMercadoPagoTestWebhook,
   buildOrdersWebhookFixtureBody,
   mapMercadoPagoOrderResponse,
+  assertLiveCollectorAccount,
+  fetchCollectorIdentity,
+  isTestAccountIdentity,
+  MercadoPagoAccountUnknownError,
+  MercadoPagoTestAccountError,
 } from "./providers/mercado-pago/index.js";
 export type {
   MercadoPagoProviderConfig,
@@ -60,6 +65,7 @@ export type {
   OrderItemInput,
   ItemsTotalRelation,
   MpSplitAmountTypeStrategy,
+  MercadoPagoAccountIdentity,
 } from "./providers/mercado-pago/index.js";
 export {
   observeOrdersWebhook,
