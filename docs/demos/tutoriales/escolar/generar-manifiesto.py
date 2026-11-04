@@ -105,6 +105,22 @@ COPYS = [
         'proxima': 'El usuario del colegio',
         'etiquetas': ['listado de alumnos', 'importar excel', 'gestion escolar'],
     },
+    {
+        'n': 5,
+        'archivo': 'E05-el-usuario-del-colegio.mp4',
+        'titulo': 'El usuario del colegio | Curso de fotografía escolar, clase 5',
+        'gancho': ("Con su propio usuario, el colegio ve sus ventas, lo que le corresponde y sus alumnos, sin "
+                   "pedirte planillas. Te muestro cómo invitar al responsable del colegio desde su ficha, cómo "
+                   "seguir si ya activó la cuenta y qué ve el colegio cuando entra a su panel: sus álbumes, sus "
+                   "alumnos, la conexión con Mercado Pago para cobrar su parte y las ventas que generó."),
+        'capitulos': [
+            ('0:00', 'Para qué sirve el usuario del colegio'),
+            ('0:15', 'Invitar al responsable del colegio'),
+            ('0:30', 'La activación y el panel del colegio'),
+        ],
+        'proxima': 'El álbum del colegio y las fotos ocultas',
+        'etiquetas': ['panel del colegio', 'usuario del colegio', 'gestion escolar'],
+    },
 ]
 
 

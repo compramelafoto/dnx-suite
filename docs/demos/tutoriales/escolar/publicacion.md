@@ -79,6 +79,7 @@ Los tutoriales nuevos se agregan al final de la lista, en el orden en que se peg
 | E02 | Tu página de venta para colegios | 1:32 | aprobado | [público](https://youtu.be/uBmMxi7d52Q) | clase 2 |
 | E03 | Dar de alta un colegio | 1:01 | aprobado | [público](https://youtu.be/e5wVhLMNK7Q) | clase 3 |
 | E04 | Cursos y listado de alumnos | 1:31 | publicado | [público](https://youtu.be/X-79p1_9Z1I) | clase 4 |
+| E05 | El usuario del colegio | 0:55 | publicado | [público](https://youtu.be/4966Kx_hQ9I) | clase 5 |
 
 ## Copys
 
@@ -156,6 +157,22 @@ Los tutoriales nuevos se agregan al final de la lista, en el orden en que se peg
 > 1:03 Procesar la importación y ver los alumnos
 >
 > ▶ Próxima clase: El usuario del colegio.
+
+### E05 · El usuario del colegio
+
+**Título:** El usuario del colegio | Curso de fotografía escolar, clase 5
+
+> Con su propio usuario, el colegio ve sus ventas, lo que le corresponde y sus alumnos, sin pedirte planillas.
+> Te muestro cómo invitar al responsable del colegio desde su ficha, cómo seguir si ya activó la cuenta y qué ve
+> el colegio cuando entra a su panel: sus álbumes, sus alumnos, la conexión con Mercado Pago para cobrar su parte
+> y las ventas que generó.
+>
+> En esta clase:
+> 0:00 Para qué sirve el usuario del colegio
+> 0:15 Invitar al responsable del colegio
+> 0:30 La activación y el panel del colegio
+>
+> ▶ Próxima clase: El álbum del colegio y las fotos ocultas.
 
 ### Bloque común (al final de cada descripción)
 
