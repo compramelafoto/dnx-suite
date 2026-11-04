@@ -559,6 +559,11 @@ export default function FotografoEscuelasPedidosPage() {
                 <a href={`/api/fotografo/disenos/${d.id}/jpg`} className={link} title="JPG de 300 dpi para imprenta, un archivo por cara">
                   JPG
                 </a>
+                <span aria-hidden>·</span>
+                {/* Ya aprobado: se abre para corregirlo y «Aprobar de nuevo» (rehace el PDF y el JPG). */}
+                <Link href={`/fotografo/disenos/${d.id}`} className={link}>
+                  Abrir diseño
+                </Link>
               </span>
             ))}
             {o.disenos.length === 0 ? <span className="text-xs text-gray-600">Copias sueltas, sin librito</span> : null}
