@@ -439,6 +439,28 @@ export function combineClassListHeadings(headings: readonly string[]): string {
 }
 
 /**
+ * Los textos del diseño con el «Curso» de todos los cursos del listado. Si se sumó otro curso
+ * (la grupal de 7° A y 7° B juntos), el «Curso» del interior dice «7° Grado A y 7° Grado B»,
+ * igual que el título del listado. Con un solo curso no cambia nada.
+ *
+ * No se guarda: se aplica al dibujar (pantalla y PDF), así sumar o sacar un curso lo corrige solo.
+ */
+export function valuesWithListedCourses<T extends Record<string, unknown> | null | undefined>(values: T): T {
+  if (!values) return values;
+  const groups = parseClassListGroups(values[CLASS_LIST_VARIABLE_KEY]).filter((g) => g.students.length > 0);
+  if (groups.length < 2) return values;
+  const own = typeof values["course.displayName"] === "string" ? values["course.displayName"].trim() : "";
+  const names = [own || formatClassListHeading(groups[0]!, false), ...groups.slice(1).map((g) => formatClassListHeading(g, false))];
+  const curso = combineClassListHeadings(names);
+  if (!curso || curso === own) return values;
+  const colegio = typeof values["school.name"] === "string" ? values["school.name"].trim() : "";
+  const out: Record<string, unknown> = { ...values, "course.displayName": curso };
+  if ("course.withSchool" in values) out["course.withSchool"] = [curso, colegio].filter(Boolean).join(" - ");
+  if ("school.withCourse" in values) out["school.withCourse"] = [colegio, curso].filter(Boolean).join(" - ");
+  return out as T;
+}
+
+/**
  * Ordena y escribe el listado; el título sólo si las opciones lo piden y el curso lo tiene.
  * El turno va según «Mostrar turno», salvo que dos cursos del listado se llamen igual: ahí el
  * turno es lo único que los distingue y va siempre.

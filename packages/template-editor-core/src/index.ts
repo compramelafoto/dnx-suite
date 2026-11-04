@@ -42,6 +42,7 @@ export {
   layoutClassListBlock,
   layoutClassListSections,
   parseClassListGroups,
+  valuesWithListedCourses,
   serializeClassListGroups,
   type ClassListGroup,
   type ClassListSection,
