@@ -6,6 +6,7 @@ import { normalizeEmail } from "@/lib/order-claims";
 import { isDownloadCenterRolloutActive } from "@/lib/digital-download/download-center-rollout";
 import { computeDownloadAvailability, resolveDownloadLinkDays } from "@/lib/digital-download/download-link-policy";
 import { getAppConfig } from "@/lib/services/settingsService";
+import { buildClientPreventaPackRows } from "@/lib/preventa-canjeable/client-panel-packs";
 
 export type ClientDigitalDownloadOrder = {
   orderId: number;
@@ -72,15 +73,28 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    // Obtener pedidos digitales (Order) del cliente
+    // Obtener pedidos digitales (Order) del cliente. El correo se compara sin mayúsculas:
+    // hay compras guardadas como "Cristianlucero@hotmail.com".
+    const emailMatch = user.email
+      ? { equals: normalizeEmail(user.email), mode: "insensitive" as const }
+      : null;
     const digitalWhere = {
       OR: [
         { buyerUserId: user.id },
-        ...(user.emailVerifiedAt && user.email
-          ? [{ buyerUserId: null, buyerEmail: normalizeEmail(user.email) }]
+        ...(user.emailVerifiedAt && emailMatch
+          ? [{ buyerUserId: null, buyerEmail: emailMatch }]
           : []),
       ],
     };
+
+    // Compras hechas con este correo antes de crear la cuenta: sólo se muestran después de
+    // verificarlo, así que el panel avisa para que la familia no crea que se perdieron.
+    const purchasesAwaitingVerification =
+      !user.emailVerifiedAt && emailMatch
+        ? await prisma.order.count({
+            where: { buyerUserId: null, buyerEmail: emailMatch, status: "PAID" },
+          })
+        : 0;
 
     const digitalOrders = await prisma.order.findMany({
       where: digitalWhere,
@@ -246,6 +260,8 @@ export async function GET(req: NextRequest) {
         itemsCount: o.items.length,
       })),
       digitalDownloads,
+      preventaPacks: buildClientPreventaPackRows(digitalOrders),
+      purchasesAwaitingVerification,
       visitedAlbums,
     });
   } catch (error: any) {
