@@ -113,6 +113,9 @@ se armaron con cuadros donde no se ve.
 | E11 | El día de la toma: subir las fotos | 0:50 | publicado | [público](https://youtu.be/qWbIo7uH9HQ) | clase 11 |
 | E12 | La línea de producción | 0:58 | publicado | [público](https://youtu.be/NK8cAqEXmd8) | clase 12 |
 | E13 | Revisar los diseños de corrido | 1:06 | publicado | [público](https://youtu.be/BPiRQqVAAKo) | clase 13 |
+| E14 | Mandar a la imprenta por lotes | 0:49 | publicado | [público](https://youtu.be/dzo1IxCGDsI) | clase 14 |
+| E15 | Sobres con QR y entrega | 0:45 | publicado | [público](https://youtu.be/ij_wDnq3mQA) | clase 15 |
+| E16 | La pantalla de pedidos del estudio | 0:36 | publicado, sin capítulos (muy corto) | [público](https://youtu.be/djynDo2fzNg) | clase 16 |
 | E17 | El mosaico del curso | 1:06 | publicado | [público](https://youtu.be/IQycJe2T_OM) | clase 17 |
 
 ## Copys

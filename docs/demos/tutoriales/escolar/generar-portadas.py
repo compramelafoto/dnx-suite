@@ -47,6 +47,12 @@ PORTADAS = {
          'Pedidos,<br><em>paso a paso</em>'),
     13: ('E13-revisar-los-disenos-de-corrido.mp4', 30, (30, 30, 1860, 1046),
          'Revisá<br><em>de corrido</em>'),
+    14: ('E14-mandar-a-la-imprenta.mp4', 29, (520, 230, 1010, 568),
+         'A la imprenta,<br><em>por lotes</em>'),
+    15: ('E15-sobres-con-qr-y-entrega.mp4', 20, (130, 85, 1640, 922),
+         'Cada sobre,<br><em>con su QR</em>'),
+    16: ('E16-la-pantalla-de-pedidos.mp4', 6, (0, 0, 1920, 1080),
+         'La pantalla<br><em>del estudio</em>'),
     17: ('E17-el-mosaico-del-curso.mp4', 30, (480, 160, 1400, 788),
          'El mosaico<br><em>del curso</em>'),
 }

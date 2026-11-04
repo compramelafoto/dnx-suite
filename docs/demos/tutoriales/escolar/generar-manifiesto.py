@@ -283,11 +283,59 @@ COPYS = [
         'proxima': 'El panel del colegio',
         'etiquetas': ['mosaico escolar', 'carpetas escolares', 'foto de curso'],
     },
+    {
+        'n': 14,
+        'archivo': 'E14-mandar-a-la-imprenta.mp4',
+        'titulo': 'Mandar a la imprenta por lotes | Curso de fotografía escolar, clase 14',
+        'gancho': ("Las carpetas escolares aprobadas no se mandan de a una: se juntan en un lote de impresión, "
+                   "ordenado por colegio, curso y alumno. Te muestro cómo crear el lote, cómo descargarlo en un ZIP "
+                   "ya ordenado en PDF o en JPG, como te lo pida tu imprenta, y cómo marcarlo como impreso cuando "
+                   "vuelve: todos esos pedidos pasan juntos a Para entregar."),
+        'capitulos': [
+            ('0:00', 'Las carpetas aprobadas'),
+            ('0:13', 'Crear el lote de impresión'),
+            ('0:23', 'Descargar, imprimir y marcar el lote'),
+        ],
+        'proxima': 'Sobres con QR y entrega',
+        'etiquetas': ['carpetas escolares', 'imprenta', 'produccion escolar'],
+    },
+    {
+        'n': 15,
+        'archivo': 'E15-sobres-con-qr-y-entrega.mp4',
+        'titulo': 'Sobres con QR y entrega | Curso de fotografía escolar, clase 15',
+        'gancho': ("Cada sobre sabe de quién es. Te muestro cómo imprimir las etiquetas: un PDF en hoja A4 con "
+                   "veinticuatro etiquetas por hoja, en el mismo orden que el lote. Cada una lleva el alumno, el "
+                   "curso, el colegio, el número de pedido y un código QR. En el colegio escaneás el QR con el "
+                   "celular y ves la ficha de entrega de ese chico, y al terminar marcás los pedidos como "
+                   "entregados."),
+        'capitulos': [
+            ('0:00', 'Imprimir las etiquetas'),
+            ('0:17', 'Qué lleva cada etiqueta'),
+            ('0:27', 'Escanear y marcar entregados'),
+        ],
+        'proxima': 'La pantalla de pedidos del estudio',
+        'etiquetas': ['etiquetas con qr', 'entrega escolar', 'sobres escolares'],
+    },
+    {
+        'n': 16,
+        'archivo': 'E16-la-pantalla-de-pedidos.mp4',
+        'titulo': 'La pantalla de pedidos del estudio | Curso de fotografía escolar, clase 16',
+        'gancho': ("Un video cortito: la pantalla de pedidos pensada para el televisor del estudio. Fondo oscuro, los "
+                   "siete pasos y una tarjeta por cada pedido, que se actualiza sola. Tu equipo ve de un vistazo qué "
+                   "hay en cada paso sin preguntarte, y también sirve para mostrarle al colegio cómo viene su "
+                   "producción."),
+        'capitulos': [],
+        'proxima': 'El mosaico del curso',
+        'etiquetas': ['pedidos escolares', 'produccion escolar', 'estudio fotografico'],
+    },
 ]
 
 
 def descripcion(c):
-    partes = [c['gancho'], 'En esta clase:\n' + '\n'.join(f'{t} {x}' for t, x in c['capitulos'])]
+    # YouTube pide al menos tres capítulos de 10 segundos; un video muy corto va sin ellos.
+    partes = [c['gancho']]
+    if c['capitulos']:
+        partes.append('En esta clase:\n' + '\n'.join(f'{t} {x}' for t, x in c['capitulos']))
     if c.get('proxima'):
         partes.append(f"▶ Próxima clase: {c['proxima']}.")
     partes.append(PIE.format(n=c['n'], total=TOTAL))
