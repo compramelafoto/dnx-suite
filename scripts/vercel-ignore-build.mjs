@@ -283,6 +283,15 @@ function main() {
     const desde = opcion("--desde") ?? process.env.VERCEL_GIT_PREVIOUS_SHA;
     const hasta = opcion("--hasta") ?? "HEAD";
     if (!desde) compilar("no hay deploy anterior con qué comparar");
+    if (!manual) {
+      // Publicar en producción desde otra rama es siempre a propósito. Y Vercel compara
+      // contra el último deploy de esa misma rama, que suele ser este mismo commit como
+      // preview: sin estas dos salidas, la publicación se cancelaba sola (pasó en agosto
+      // de 2026 con FOTOFFICE, commit 84f3388be).
+      const rama = process.env.VERCEL_GIT_COMMIT_REF;
+      if (rama && rama !== "main") compilar(`es una publicación a producción desde la rama ${rama}`);
+      if (desde === process.env.VERCEL_GIT_COMMIT_SHA) compilar("el deploy anterior es este mismo commit");
+    }
     if (!tieneCommit(raiz, desde)) {
       // Vercel clona con poca historia. Si el último deploy quedó más atrás, se pide ese
       // commit puntual; si tampoco se puede, se compila.
