@@ -7,6 +7,7 @@ import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Tabs from "@/components/ui/Tabs";
 import { cn } from "@/lib/utils";
+import type { ClientPreventaPackRow } from "@/lib/preventa-canjeable/client-panel-packs";
 
 type DigitalDownloadOrder = {
   orderId: number;
@@ -72,6 +73,9 @@ export default function ClientDashboardPage() {
   const [stats, setStats] = useState<any>(null);
   const [orders, setOrders] = useState<any[]>([]);
   const [digitalDownloads, setDigitalDownloads] = useState<DigitalDownloadOrder[]>([]);
+  const [preventaPacks, setPreventaPacks] = useState<ClientPreventaPackRow[]>([]);
+  const [purchasesAwaitingVerification, setPurchasesAwaitingVerification] = useState(0);
+  const [verifyState, setVerifyState] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [visitedAlbums, setVisitedAlbums] = useState<any[]>([]);
   const [marketingOptIn, setMarketingOptIn] = useState(false);
   const [downloadingOrderId, setDownloadingOrderId] = useState<number | null>(null);
@@ -126,6 +130,8 @@ export default function ClientDashboardPage() {
       setStats(data.stats);
       setOrders(data.orders || []);
       setDigitalDownloads(data.digitalDownloads || []);
+      setPreventaPacks(data.preventaPacks || []);
+      setPurchasesAwaitingVerification(data.purchasesAwaitingVerification || 0);
       setVisitedAlbums(data.visitedAlbums || []);
       setMarketingOptIn(data.marketingOptIn ?? false);
     } catch (error) {
@@ -133,6 +139,16 @@ export default function ClientDashboardPage() {
       router.push("/cliente/login");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleResendVerification() {
+    setVerifyState("sending");
+    try {
+      const res = await fetch("/api/invitations/resend-verification", { method: "POST" });
+      setVerifyState(res.ok ? "sent" : "error");
+    } catch {
+      setVerifyState("error");
     }
   }
 
@@ -273,10 +289,93 @@ export default function ClientDashboardPage() {
             )}
           </div>
 
+          {purchasesAwaitingVerification > 0 && (
+            <Card className="p-5 border-amber-200 bg-amber-50">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div className="space-y-1">
+                  <p className="font-semibold text-amber-900">
+                    {purchasesAwaitingVerification === 1
+                      ? "Tenés 1 compra hecha con tu correo que todavía no aparece acá."
+                      : `Tenés ${purchasesAwaitingVerification} compras hechas con tu correo que todavía no aparecen acá.`}
+                  </p>
+                  <p className="text-sm text-amber-900/80">
+                    Para verlas, confirmá tu correo con el link que te mandamos. Si no lo
+                    encontrás, revisá la carpeta de correo no deseado.
+                  </p>
+                  {verifyState === "sent" && (
+                    <p className="text-sm font-medium text-emerald-700">
+                      Listo, te mandamos un correo nuevo. Tocá el link y volvé a esta página.
+                    </p>
+                  )}
+                  {verifyState === "error" && (
+                    <p className="text-sm font-medium text-red-700">
+                      No pudimos mandar el correo. Probá de nuevo en un rato.
+                    </p>
+                  )}
+                </div>
+                <Button
+                  variant="primary"
+                  size="md"
+                  className="whitespace-nowrap"
+                  disabled={verifyState === "sending" || verifyState === "sent"}
+                  onClick={handleResendVerification}
+                >
+                  {verifyState === "sending" ? "Enviando..." : "Reenviar correo"}
+                </Button>
+              </div>
+            </Card>
+          )}
+
           <Tabs tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab}>
             {activeTab === "pedidos" && (
             <div className="space-y-4">
-              {orders.length === 0 ? (
+              {preventaPacks.map((pack) => (
+                <Card key={`pack-${pack.orderId}`} className="p-6">
+                  <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-4">
+                    <div className="flex-1">
+                      <div className="flex flex-wrap items-center gap-3 mb-3">
+                        <h3 className="text-lg font-medium text-[#1a1a1a]">
+                          {pack.packName}
+                        </h3>
+                        <span
+                          className={cn(
+                            "px-3 py-1 rounded-full text-xs font-medium",
+                            pack.redeemed
+                              ? "bg-[#10b981]/10 text-[#10b981]"
+                              : "bg-[#3b82f6]/10 text-[#3b82f6]"
+                          )}
+                        >
+                          {pack.redeemed ? "Preventa canjeada" : "Preventa pagada"}
+                        </span>
+                      </div>
+                      <div className="space-y-1 text-sm text-[#6b7280]">
+                        <p>
+                          <span className="font-medium">Álbum:</span> {pack.albumTitle}
+                        </p>
+                        {pack.photographerName ? (
+                          <p>
+                            <span className="font-medium">Fotógrafo:</span> {pack.photographerName}
+                          </p>
+                        ) : null}
+                        <p>
+                          Pedido #{pack.orderId} · {formatPurchaseDate(pack.orderCreatedAt)}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-stretch gap-3 md:items-end">
+                      <p className="text-2xl font-medium text-[#1a1a1a] md:text-right">
+                        {formatARS(pack.totalArs)}
+                      </p>
+                      <Link href={pack.href}>
+                        <Button variant="primary" size="md" className="w-full whitespace-nowrap">
+                          Ver mi pack
+                        </Button>
+                      </Link>
+                    </div>
+                  </div>
+                </Card>
+              ))}
+              {orders.length === 0 && preventaPacks.length === 0 ? (
                 <Card className="text-center py-12">
                   <p className="text-[#6b7280] mb-4">
                     Aún no tenés pedidos.{" "}
