@@ -139,6 +139,25 @@ COPYS = [
         'proxima': 'La comisión del colegio',
         'etiquetas': ['album escolar', 'fotos ocultas', 'privacidad de menores'],
     },
+    {
+        'n': 7,
+        'archivo': 'E07-la-comision-del-colegio.mp4',
+        'titulo': 'La comisión del colegio | Curso de fotografía escolar, clase 7',
+        'gancho': ("Que el colegio también gane es una de las cosas que más ayuda a cerrar con una escuela. Te "
+                   "muestro dónde activás la comisión en el álbum, cómo cargás el porcentaje que acordaste y sobre "
+                   "qué ventas se aplica. El sistema la calcula sola en cada compra que entra con el enlace del "
+                   "colegio, y en la ficha del colegio ves lo vendido, lo pendiente y lo ya pagado. Al final te "
+                   "explico el circuito del cobro: el colegio lo solicita desde su panel, vos le pagás, anotás el "
+                   "medio de pago y el comprobante, y lo marcás como pagado."),
+        'capitulos': [
+            ('0:00', 'Por qué la comisión ayuda a cerrar'),
+            ('0:11', 'Activar la comisión y el porcentaje'),
+            ('0:25', 'Cómo se calcula y dónde la seguís'),
+            ('0:43', 'Cuando el colegio pide su parte'),
+        ],
+        'proxima': 'Los packs de preventa',
+        'etiquetas': ['comision escolar', 'comision del colegio', 'acuerdo con el colegio'],
+    },
 ]
 
 

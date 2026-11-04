@@ -45,7 +45,7 @@ máximo, un cuadro real del video y el isotipo de ComprameLaFoto. Las deja en `v
 python3 docs/demos/tutoriales/escolar/generar-portadas.py 6
 ```
 
-E01 a E06 tienen su portada.
+E01 a E07 tienen su portada.
 
 ## Cómo se sube
 
@@ -94,6 +94,7 @@ Los tutoriales nuevos se agregan al final de la lista, en el orden en que se peg
 | E04 | Cursos y listado de alumnos | 1:31 | publicado | [público](https://youtu.be/X-79p1_9Z1I) | clase 4 |
 | E05 | El usuario del colegio | 0:55 | publicado | [público](https://youtu.be/4966Kx_hQ9I) | clase 5 |
 | E06 | El álbum del colegio y las fotos ocultas | 1:28 | publicado | [público](https://youtu.be/dWYvylvHw4Q) | clase 6 |
+| E07 | La comisión del colegio | 1:02 | publicado | [público](https://youtu.be/nw18jU_MUzs) | clase 7 |
 
 ## Copys
 
@@ -208,6 +209,27 @@ ocultas hasta selfie», en Configuración del álbum. El copy lo dice así.
 > 1:04 Fotos ocultas hasta selfie
 >
 > ▶ Próxima clase: La comisión del colegio.
+
+### E07 · La comisión del colegio
+
+**Título:** La comisión del colegio | Curso de fotografía escolar, clase 7
+
+Ojo: en la demo el pedido de cobro está bloqueado a propósito, así que el video no muestra un pago hecho. El copy
+solo explica el circuito.
+
+> Que el colegio también gane es una de las cosas que más ayuda a cerrar con una escuela. Te muestro dónde activás
+> la comisión en el álbum, cómo cargás el porcentaje que acordaste y sobre qué ventas se aplica. El sistema la
+> calcula sola en cada compra que entra con el enlace del colegio, y en la ficha del colegio ves lo vendido, lo
+> pendiente y lo ya pagado. Al final te explico el circuito del cobro: el colegio lo solicita desde su panel, vos
+> le pagás, anotás el medio de pago y el comprobante, y lo marcás como pagado.
+>
+> En esta clase:
+> 0:00 Por qué la comisión ayuda a cerrar
+> 0:11 Activar la comisión y el porcentaje
+> 0:25 Cómo se calcula y dónde la seguís
+> 0:43 Cuando el colegio pide su parte
+>
+> ▶ Próxima clase: Los packs de preventa.
 
 ### Bloque común (al final de cada descripción)
 
