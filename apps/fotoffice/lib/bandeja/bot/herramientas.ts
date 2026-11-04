@@ -4,6 +4,7 @@ import { precioDeLista } from "@/lib/presupuestos/lista-precios";
 import { listProducts } from "@/lib/sales/repository";
 import type { DatosPedidoBot, ResultadoPedidoBot } from "@/lib/impresiones/whatsapp-servidor";
 import type { DatosPedidoCatalogo, ResultadoPedidoCatalogo } from "@/lib/pedidos/whatsapp-servidor";
+import type { PedidoFotolibro, RespuestaFotolibro } from "@/lib/fotolibro/bot";
 import type { FotoNumerada } from "./historial";
 
 /**
@@ -60,6 +61,8 @@ export type DepsAtencion = {
   estadoPedido: (workspaceId: string, chat: ChatAtencion) => Promise<string>;
   /** Pedido común de productos del catálogo (VHS, pendrives, cuadros…) con su enlace de pago. */
   armarPedidoCatalogo: (workspaceId: string, chat: ChatAtencion, datos: DatosPedidoCatalogo) => Promise<ResultadoPedidoCatalogo>;
+  /** La calculadora de fotolibros del Cobrador. */
+  cotizarFotolibro: (workspaceId: string, pedido: PedidoFotolibro) => Promise<RespuestaFotolibro>;
   /** Cuándo se armó el último pedido de copias del chat ("todas" las fotos = las posteriores). */
   ultimoPedidoEn: (workspaceId: string, chat: ChatAtencion) => Promise<Date | null>;
 };
@@ -110,6 +113,10 @@ const DEPS: DepsAtencion = {
   armarPedido: async (workspaceId, chat, datos) => {
     const { crearPedidoDesdeWhatsapp } = await import("@/lib/impresiones/whatsapp-servidor");
     return crearPedidoDesdeWhatsapp(workspaceId, chat, datos);
+  },
+  cotizarFotolibro: async (workspaceId, pedido) => {
+    const { cotizarFotolibroParaBot } = await import("@/lib/fotolibro/bot-servidor");
+    return cotizarFotolibroParaBot(workspaceId, pedido);
   },
   armarPedidoCatalogo: async (workspaceId, chat, datos) => {
     const { crearPedidoDeCatalogoDesdeWhatsapp } = await import("@/lib/pedidos/whatsapp-servidor");
@@ -182,6 +189,34 @@ function lineaDe(p: ProductoAtencion): string {
   const variantes = p.variants.filter((v) => v.priceMinor > 0);
   if (variantes.length === 0) return `- ${p.name}: ${pesos(p.priceMinor)}${stockDe(p, p.stockQty)}`;
   return `- ${p.name}: ${variantes.map((v) => `${v.name} ${pesos(v.priceMinor)}${stockDe(p, v.stockQty)}`).join(" · ")}`;
+}
+
+/** Lo que el bot lee de la calculadora de fotolibros (no se le copia al cliente tal cual). */
+export function textoFotolibro(r: RespuestaFotolibro, tapa: "rigida" | "flexible"): string {
+  const producto = tapa === "flexible" ? "Fotolibro tapa flexible" : "Fotolibro tapa rígida";
+  switch (r.tipo) {
+    case "ERROR":
+      return `${r.mensaje} Usá pasar_a_persona con un resumen de lo que pide.`;
+    case "AMBIGUO":
+      return `Ese nombre puede ser: ${r.opciones.join(", ")}. Preguntale cuál.`;
+    case "NO_ESTA":
+      return `No hay una tapa con ese nombre. Los modelos de tapa son: ${r.modelos.join(", ")}.`;
+    case "RANGO":
+      return [
+        `${producto} para unas ${r.fotos} fotos (precio según el modelo de tapa):`,
+        ...r.filas.map((f) => `- ${f.medida} (${f.hojas} hojas): desde ${pesos(f.desdeMinor)} (tapa ${f.desdeModelo}) hasta ${pesos(f.hastaMinor)}`),
+        `Hay ${r.modelos.length} modelos de tapa: ${r.modelos.join(", ")}.`,
+        "No le mandes la lista entera: preguntale la medida y qué estilo de tapa le gusta (o que venga a ver los muestrarios al estudio), y volvé a usar cotizar_fotolibro con el modelo.",
+      ].join("\n");
+    case "MEDIDAS":
+      return [`Fotolibro ${r.modelo} para unas ${r.fotos} fotos:`, ...r.filas.map((f) => `- ${f.medida}: ${f.hojas} hojas, ${pesos(f.precioMinor)}`)].join("\n");
+    case "PRECIO":
+      return [
+        `Fotolibro ${r.modelo} ${r.medida}, ${r.hojas} hojas${r.fotos ? ` (para ${r.fotos} fotos)` : ""}: ${pesos(r.precioMinor)}.`,
+        r.caja ? `Caja para ese libro (opcional): ${pesos(r.caja.precioMinor)}.` : "Ese modelo no tiene caja en esa medida.",
+        `Para venderlo usá armar_pedido con el producto "${producto}" y fotolibro { modelo: "${r.modelo}", medida: "${r.medida}", hojas: ${r.hojas}${r.fotos ? `, fotos: ${r.fotos}` : ""}, caja: true/false }. El diseño se hace en el estudio con sus fotos.`,
+      ].join("\n");
+  }
 }
 
 export function herramientasDeAtencion(
@@ -349,9 +384,27 @@ export function herramientasDeAtencion(
       },
     }),
     defineTool({
+      name: "cotizar_fotolibro",
+      description:
+        "Calcula el precio de un fotolibro con la lista del laboratorio, como la calculadora del mostrador. Tapa rígida (muchos modelos de tapa) o flexible. Con lo que sepas: sin modelo te da el rango de precios por medida; con modelo y sin medida, las medidas con sus hojas y precio; con modelo y medida, el precio del libro y de la caja (opcional). Si el cliente dice cuántas fotos quiere poner, pasalas: las hojas salen de ahí. Usala SIEMPRE antes de decir el precio de un fotolibro.",
+      input: z.object({
+        tapa: z.enum(["rigida", "flexible"]),
+        modelo: z.string().max(60).optional(),
+        medida: z.string().regex(/^\d{1,3} ?x ?\d{1,3}$/).optional(),
+        fotos: z.number().int().min(1).max(2000).optional(),
+        hojas: z.number().int().min(1).max(100).optional(),
+        caja: z.boolean().optional(),
+      }),
+      kind: "read",
+      run: async ({ tapa, ...resto }) => {
+        const r = await deps.cotizarFotolibro(workspaceId, { tapa: tapa === "flexible" ? "FLEXIBLE" : "RIGIDA", ...resto });
+        return { ok: true, message: textoFotolibro(r, tapa) };
+      },
+    }),
+    defineTool({
       name: "armar_pedido",
       description:
-        "Vende cualquier producto o servicio del catálogo que no sean copias o ampliaciones (digitalización de VHS/DVD/CD/casetes, pendrives, revelado, cuadros, dípticos, fotoimanes, Polaroid, llaveros, vasos, portarretratos…): crea el pedido a nombre del cliente y devuelve el total, lo que paga ahora (seña del 50 % o el total) y el enlace para pagar con Mercado Pago. Usala cuando sepas el producto (nombre como lo da buscar_productos y, si tiene, la medida o talle), la cantidad, el nombre y apellido del cliente y si paga seña o total; el correo es opcional. Si el producto lleva fotos del cliente (cuadros, dípticos, imanes, Polaroid, llaveros, vasos…), pasá en ese renglón los números de las fotos del chat ([foto 1], [foto 2]…; \"todas\" = las que mandó después de su último pedido): quedan en el trabajo del pedido. Si el cliente cambia algo, volvé a usarla: el pedido anterior sin pagar se cancela.",
+        "Vende cualquier producto o servicio del catálogo que no sean copias o ampliaciones (fotolibros, digitalización de VHS/DVD/CD/casetes, pendrives, revelado, cuadros, dípticos, fotoimanes, Polaroid, llaveros, vasos, portarretratos…): crea el pedido a nombre del cliente y devuelve el total, lo que paga ahora (seña del 50 % o el total) y el enlace para pagar con Mercado Pago. Usala cuando sepas el producto (nombre como lo da buscar_productos y, si tiene, la medida o talle), la cantidad, el nombre y apellido del cliente y si paga seña o total; el correo es opcional. Si el producto lleva fotos del cliente (cuadros, dípticos, imanes, Polaroid, llaveros, vasos…), pasá en ese renglón los números de las fotos del chat ([foto 1], [foto 2]…; \"todas\" = las que mandó después de su último pedido): quedan en el trabajo del pedido. Para un fotolibro, pasá en su renglón el objeto fotolibro con el modelo, la medida y las hojas que te dio cotizar_fotolibro (y caja si la quiere): el precio lo vuelve a calcular el sistema. Si el cliente cambia algo, volvé a usarla: el pedido anterior sin pagar se cancela.",
       input: z.object({
         lineas: z
           .array(
@@ -360,6 +413,15 @@ export function herramientasDeAtencion(
               variante: z.string().max(60).optional(),
               cantidad: z.number().int().min(1).max(500),
               fotos: z.union([z.literal("todas"), z.array(z.number().int().min(1)).min(1).max(50)]).optional(),
+              fotolibro: z
+                .object({
+                  modelo: z.string().min(2).max(60),
+                  medida: z.string().regex(/^\d{1,3} ?x ?\d{1,3}$/),
+                  hojas: z.number().int().min(1).max(100),
+                  fotos: z.number().int().min(1).max(2000).optional(),
+                  caja: z.boolean().optional(),
+                })
+                .optional(),
             }),
           )
           .min(1)
@@ -393,7 +455,8 @@ export function herramientasDeAtencion(
         }
         const res = await deps.armarPedidoCatalogo(workspaceId, chat, { lineas: renglones, pago: pago === "total" ? "TOTAL" : "SENA", nombre, email: email ?? null });
         if (!res.ok) {
-          if (res.motivo === "FOTO_NO_LISTA") return { ok: true, message: "Una de las fotos no se pudo bajar: pedile al cliente que la reenvíe." };
+          if (res.motivo === "FOTOLIBRO") return { ok: true, message: `${res.detalle ?? "No pude cotizar el fotolibro."} Revisalo con cotizar_fotolibro y volvé a usar armar_pedido.` };
+                    if (res.motivo === "FOTO_NO_LISTA") return { ok: true, message: "Una de las fotos no se pudo bajar: pedile al cliente que la reenvíe." };
           if (res.motivo === "PRODUCTO") return { ok: true, message: `${res.detalle ?? "No encontré ese producto."} Revisá con buscar_productos o preguntale al cliente cuál quiere, y volvé a usar armar_pedido.` };
           return { ok: true, message: "No pude armar el pedido. Usá pasar_a_persona con un resumen de lo que pide (productos, cantidades y cómo quiere pagar)." };
         }
