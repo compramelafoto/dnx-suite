@@ -158,6 +158,23 @@ COPYS = [
         'proxima': 'Los packs de preventa',
         'etiquetas': ['comision escolar', 'comision del colegio', 'acuerdo con el colegio'],
     },
+    {
+        'n': 8,
+        'archivo': 'E08-los-packs-de-preventa.mp4',
+        'titulo': 'Los packs de preventa | Curso de fotografía escolar, clase 8',
+        'gancho': ("En la venta escolar el orden es al revés: la familia compra primero y elige las fotos después. "
+                   "Por eso lo primero es definir qué le vas a vender. Te muestro los packs de preventa del álbum, "
+                   "la diferencia entre lo que cobrás vos y lo que paga la familia con la comisión de la plataforma "
+                   "incluida, y cómo crear un pack nuevo: nombre, cuándo se vende, tu precio y lo que incluye."),
+        'capitulos': [
+            ('0:00', 'Primero se vende el pack'),
+            ('0:20', 'Los packs y sus precios'),
+            ('0:37', 'Crear un pack nuevo'),
+            ('0:54', 'Lo que incluye el pack'),
+        ],
+        'proxima': 'Elegir el diseño del librito',
+        'etiquetas': ['preventa escolar', 'packs escolares', 'precios fotografia escolar'],
+    },
 ]
 
 

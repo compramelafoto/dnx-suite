@@ -35,6 +35,8 @@ PORTADAS = {
         'El álbum<br><em>del colegio</em>'),
     7: ('E07-la-comision-del-colegio.mp4', 18, (460, 160, 1400, 788),
         'El colegio<br><em>también gana</em>'),
+    8: ('E08-los-packs-de-preventa.mp4', 36, (480, 160, 1360, 765),
+        'Vendé<br><em>el pack</em><br>primero'),
 }
 
 CSS = """

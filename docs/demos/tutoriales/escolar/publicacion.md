@@ -45,7 +45,7 @@ máximo, un cuadro real del video y el isotipo de ComprameLaFoto. Las deja en `v
 python3 docs/demos/tutoriales/escolar/generar-portadas.py 6
 ```
 
-E01 a E07 tienen su portada.
+Todas las clases publicadas tienen su portada.
 
 ## Cómo se sube
 
@@ -95,6 +95,7 @@ Los tutoriales nuevos se agregan al final de la lista, en el orden en que se peg
 | E05 | El usuario del colegio | 0:55 | publicado | [público](https://youtu.be/4966Kx_hQ9I) | clase 5 |
 | E06 | El álbum del colegio y las fotos ocultas | 1:28 | publicado | [público](https://youtu.be/dWYvylvHw4Q) | clase 6 |
 | E07 | La comisión del colegio | 1:02 | publicado | [público](https://youtu.be/nw18jU_MUzs) | clase 7 |
+| E08 | Los packs de preventa | 1:08 | publicado | [público](https://youtu.be/QIQfRYMr8Uk) | clase 8 |
 
 ## Copys
 
@@ -230,6 +231,11 @@ solo explica el circuito.
 > 0:43 Cuando el colegio pide su parte
 >
 > ▶ Próxima clase: Los packs de preventa.
+
+### E08 a E23
+
+Desde el E08, el título, la descripción y los capítulos de cada clase están solo en `generar-manifiesto.py`
+(lista `COPYS`), para no copiarlos dos veces. Ahí se leen y se corrigen.
 
 ### Bloque común (al final de cada descripción)
 
