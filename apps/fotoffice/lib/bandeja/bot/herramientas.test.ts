@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buscarEnCatalogo, herramientasDeAtencion, type ProductoAtencion } from "./herramientas";
+import { buscarEnCatalogo, herramientasDeAtencion, textoFotolibro, type ProductoAtencion } from "./herramientas";
 
 const P = (name: string, pesos: number, variantes: { name: string; pesos: number }[] = []): ProductoAtencion => ({
   name,
@@ -173,6 +173,33 @@ describe("herramientasDeAtencion", () => {
     const falta = await t.run({ lineas: [{ producto: "Fotoimán 10x15", cantidad: 1, fotos: [7] }], pago: "seña", nombre: "Ana Pérez" }, { userId: 0, role: "CLIENTE", email: "", name: null });
     expect(falta.message).toMatch(/foto 7/);
     expect(recibidos).toHaveLength(2);
+  });
+
+  it("cotizar_fotolibro usa la calculadora y le dice al bot cómo venderlo", async () => {
+    const pedidos: unknown[] = [];
+    const cotizarFotolibro = async (_w: string, p: unknown) => {
+      pedidos.push(p);
+      return {
+        tipo: "PRECIO" as const, proveedorId: "roman", modelo: "Gold", medida: "30x45", hojas: 18, fotos: 180,
+        precioMinor: 52_900_000, costoMinor: 1, caja: { precioMinor: 12_600_000, costoMinor: 1 }, conCaja: false,
+      };
+    };
+    const h = herramientasDeAtencion("w1", { ...deps, cotizarFotolibro });
+    const t = h.tools.find((x) => x.name === "cotizar_fotolibro")!;
+    const r = await t.run({ tapa: "rigida", modelo: "gold", medida: "30x45", fotos: 180 }, { userId: 0, role: "CLIENTE", email: "", name: null });
+    expect(pedidos[0]).toEqual({ tapa: "RIGIDA", modelo: "gold", medida: "30x45", fotos: 180 });
+    expect(r.message).toMatch(/Gold 30x45, 18 hojas/);
+    expect(r.message).toMatch(/529\.000/);
+    expect(r.message).toMatch(/Caja .*126\.000/);
+    expect(r.message).toContain('"Fotolibro tapa rígida"');
+    // El costo nunca sale en el texto.
+    expect(r.message).not.toMatch(/costo/i);
+  });
+
+  it("cotizar_fotolibro sin modelo da rangos y no manda la lista entera", () => {
+    const texto = textoFotolibro({ tipo: "RANGO", fotos: 100, modelos: ["Basic", "Gold"], filas: [{ medida: "30x45", hojas: 10, desdeMinor: 12_600_000, hastaMinor: 18_000_000, desdeModelo: "Basic" }] }, "rigida");
+    expect(texto).toMatch(/30x45 \(10 hojas\): desde .*126\.000 \(tapa Basic\) hasta .*180\.000/);
+    expect(texto).toMatch(/No le mandes la lista entera/);
   });
 
   it("armar_pedido_impresion traduce los números de foto y devuelve el resumen con los dos links", async () => {

@@ -2,6 +2,8 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { prisma } from "@repo/db";
 import { archivoDeMensaje, claveDeMedia } from "@/lib/bandeja/archivo-de-mensaje";
+import type { PedidoFotolibro, RespuestaFotolibro } from "@/lib/fotolibro/bot";
+import { SKU_CAJA_FOTOLIBRO, tipoTapaDeSku, type FotolibroVendido } from "@/lib/fotolibro/venta";
 import { diaEnBuenosAires } from "@/lib/presupuestos/estados";
 import type { CtxPedidos } from "./acceso";
 import type { DatosPedidoManual } from "./pedidos";
@@ -24,7 +26,14 @@ export type ChatDelPedidoCatalogo = { id: string; waId: string; clientId: string
 export type FotoDelRenglon = { mensajeId: string };
 
 export type DatosPedidoCatalogo = {
-  lineas: { producto: string; variante?: string | null; cantidad: number; fotos?: FotoDelRenglon[] }[];
+  lineas: {
+    producto: string;
+    variante?: string | null;
+    cantidad: number;
+    fotos?: FotoDelRenglon[];
+    /** Lo elegido en la calculadora; el precio se vuelve a calcular acá. */
+    fotolibro?: { modelo: string; medida: string; hojas: number; fotos?: number | null; caja?: boolean };
+  }[];
   pago: "SENA" | "TOTAL";
   nombre: string;
   email?: string | null;
@@ -42,12 +51,13 @@ export type ResultadoPedidoCatalogo =
       /** Fotos del chat que quedaron en las carpetas de los trabajos. */
       fotos: number;
     }
-  | { ok: false; motivo: "MODULO" | "PRODUCTO" | "FOTO_NO_LISTA" | "SIN_DUENO" | "SIN_ENLACE" | "ERROR"; detalle?: string };
+  | { ok: false; motivo: "MODULO" | "PRODUCTO" | "FOTOLIBRO" | "FOTO_NO_LISTA" | "SIN_DUENO" | "SIN_ENLACE" | "ERROR"; detalle?: string };
 
 /** Un archivo del chat (ya en el R2 privado) para copiar a la carpeta de un trabajo. */
 export type ArchivoDelChat = { clave: string; nombre: string; tipo: string; bytes: number };
 export type FotosDelItem = { itemIndex: number; archivos: ArchivoDelChat[] };
 type MensajeConMedia = { id: string; tipo: string; media: unknown };
+type Elegida = { productId: string; variantId: string | null; nombre: string; precio: number; cantidad: number; linea: number; esCaja?: boolean };
 
 type CtxDuenio = CtxPedidos & { userId: number };
 
@@ -63,6 +73,9 @@ export type DepsPedidoCatalogo = {
   crear?: (ctx: CtxDuenio, datos: DatosPedidoManual) => Promise<{ ok: true; pedidoId: string; numero: string; repetido?: boolean } | { ok: false; error: string }>;
   /** Los mensajes del chat con su archivo (sólo los de este chat). */
   media?: (workspaceId: string, chatId: string, ids: string[]) => Promise<MensajeConMedia[]>;
+  cotizarFotolibro?: (workspaceId: string, pedido: PedidoFotolibro) => Promise<RespuestaFotolibro>;
+  /** Crea cada fotolibro vendido y lo ata a su trabajo, como el Cobrador. */
+  atarFotolibros?: (workspaceId: string, userId: number, pedido: { id: string; numero: string }, cliente: string, libros: { itemIndex: number; fotolibro: FotolibroVendido }[]) => Promise<string[]>;
   /** Copia los archivos a la carpeta del trabajo de cada ítem; devuelve cuántos quedaron. */
   guardarFotos?: (workspaceId: string, pedidoId: string, porItem: FotosDelItem[]) => Promise<number>;
   enlace?: (workspaceId: string, pedidoId: string) => Promise<string | null>;
@@ -120,6 +133,14 @@ const POR_OMISION: Required<Omit<DepsPedidoCatalogo, "ahora">> = {
     const r = await crearPedidoManual(ctx, datos);
     return r.ok ? { ok: true, pedidoId: r.pedidoId, numero: r.numero, repetido: r.repetido } : r;
   },
+  cotizarFotolibro: async (workspaceId, pedido) => {
+    const { cotizarFotolibroParaBot } = await import("@/lib/fotolibro/bot-servidor");
+    return cotizarFotolibroParaBot(workspaceId, pedido);
+  },
+  atarFotolibros: async (workspaceId, userId, pedido, cliente, libros) => {
+    const { atarFotolibrosAlPedido } = await import("@/lib/fotolibro/venta-servidor");
+    return atarFotolibrosAlPedido({ workspaceId, userId, pedidoId: pedido.id, pedidoNumero: pedido.numero, cliente, libros });
+  },
   media: async (workspaceId, chatId, ids) =>
     prisma.fotofficeWaMensaje.findMany({ where: { workspaceId, chatId, id: { in: ids } }, select: { id: true, tipo: true, media: true } }),
   guardarFotos: async (workspaceId, pedidoId, porItem) => {
@@ -169,9 +190,12 @@ export async function crearPedidoDeCatalogoDesdeWhatsapp(
     if (!(await d.moduloEncendido(workspaceId))) return { ok: false, motivo: "MODULO" };
 
     const catalogo = await d.productos(workspaceId);
-    const elegidas: { productId: string; variantId: string | null; nombre: string; precio: number; cantidad: number }[] = [];
-    for (const l of datos.lineas) {
-      const e = elegirProducto(catalogo, l.producto, l.variante ?? null);
+    // Los fotolibros figuran a $0: su precio sale de la calculadora, no de la lista.
+    const paraElegir = catalogo.map((p) => (tipoTapaDeSku(p.sku) ? { ...p, priceMinor: Math.max(p.priceMinor, 1) } : p));
+    const elegidas: Elegida[] = [];
+    const libros: { itemIndex: number; fotolibro: FotolibroVendido }[] = [];
+    for (const [linea, l] of datos.lineas.entries()) {
+      const e = elegirProducto(paraElegir, l.producto, l.variante ?? null);
       if (!e.ok) {
         const detalle =
           e.motivo === "AMBIGUO" ? `"${l.producto}" puede ser: ${e.opciones.join(", ")}.`
@@ -180,7 +204,33 @@ export async function crearPedidoDeCatalogoDesdeWhatsapp(
           : `"${l.producto}" no está en el catálogo.`;
         return { ok: false, motivo: "PRODUCTO", detalle };
       }
-      elegidas.push({ productId: e.productId, variantId: e.variantId, nombre: e.nombre, precio: e.precio, cantidad: l.cantidad });
+      const tapa = tipoTapaDeSku(catalogo.find((p) => p.id === e.productId)?.sku);
+      if (!tapa) {
+        elegidas.push({ productId: e.productId, variantId: e.variantId, nombre: e.nombre, precio: e.precio, cantidad: l.cantidad, linea });
+        continue;
+      }
+      const f = l.fotolibro;
+      if (!f) return { ok: false, motivo: "FOTOLIBRO", detalle: "Para vender un fotolibro hacen falta el modelo de tapa, la medida y las hojas." };
+      const r = await d.cotizarFotolibro(workspaceId, { tapa, modelo: f.modelo, medida: f.medida, hojas: f.hojas, fotos: f.fotos ?? null, caja: f.caja === true });
+      if (r.tipo !== "PRECIO") {
+        const detalle = r.tipo === "ERROR" ? r.mensaje : r.tipo === "AMBIGUO" ? `El modelo puede ser: ${r.opciones.join(", ")}.` : `No encontré la tapa "${f.modelo}" en ${f.medida}.`;
+        return { ok: false, motivo: "FOTOLIBRO", detalle };
+      }
+      if (f.caja && !r.caja) return { ok: false, motivo: "FOTOLIBRO", detalle: `La tapa ${r.modelo} no tiene caja en ${r.medida}.` };
+      libros.push({
+        itemIndex: elegidas.length,
+        fotolibro: {
+          proveedorId: r.proveedorId, modelo: r.modelo, medida: r.medida, hojas: r.hojas, fotos: r.fotos,
+          costoMinor: r.costoMinor, cajaCostoMinor: r.conCaja && r.caja ? r.caja.costoMinor : null, templateId: null,
+        },
+      });
+      const detalle = `${r.modelo} ${r.medida} · ${r.hojas} hojas`;
+      elegidas.push({ productId: e.productId, variantId: null, nombre: `${e.nombre} ${detalle}`, precio: r.precioMinor / 100, cantidad: l.cantidad, linea });
+      if (r.conCaja && r.caja) {
+        const caja = catalogo.find((p) => p.sku?.trim().toUpperCase() === SKU_CAJA_FOTOLIBRO);
+        if (!caja) return { ok: false, motivo: "FOTOLIBRO", detalle: "El catálogo no tiene el producto de la caja del fotolibro." };
+        elegidas.push({ productId: caja.id, variantId: null, nombre: `${caja.name} ${r.modelo} ${r.medida}`, precio: r.caja.precioMinor / 100, cantidad: l.cantidad, linea, esCaja: true });
+      }
     }
 
     // No se vende lo que no hay: el mismo producto en dos renglones suma.
@@ -212,7 +262,7 @@ export async function crearPedidoDeCatalogoDesdeWhatsapp(
         numeroFoto++;
         archivos.push({ clave, nombre: nombreDeFoto(numeroFoto, archivo.nombre, archivo.mime, m.tipo), tipo: archivo.mime ?? "application/octet-stream", bytes: archivo.bytes ?? 0 });
       }
-      if (archivos.length > 0) porItem.push({ itemIndex: i, archivos });
+      if (archivos.length > 0) porItem.push({ itemIndex: elegidas.findIndex((x) => x.linea === i && !x.esCaja), archivos });
     }
 
     const ctx = await d.ctxDelDuenio(workspaceId);
@@ -226,7 +276,7 @@ export async function crearPedidoDeCatalogoDesdeWhatsapp(
     const hoy = diaEnBuenosAires((d.ahora ?? (() => new Date()))());
     const clave = claveDelAlta(
       chat.id,
-      elegidas.map((l, i) => ({ ...l, fotos: (datos.lineas[i]?.fotos ?? []).map((f) => f.mensajeId) })),
+      elegidas.map((l) => ({ ...l, fotos: l.esCaja ? [] : (datos.lineas[l.linea]?.fotos ?? []).map((f) => f.mensajeId) })),
       datos.pago,
     );
 
@@ -278,6 +328,14 @@ export async function crearPedidoDeCatalogoDesdeWhatsapp(
             return 0;
           })
         : 0;
+
+    // Los fotolibros: se crean en el editor y quedan atados a su trabajo, como en el Cobrador.
+    if (libros.length > 0 && !alta.repetido) {
+      await d.atarFotolibros(workspaceId, ctx.userId, { id: alta.pedidoId, numero: alta.numero }, nombre, libros).catch((e) => {
+        console.warn("[pedidos/whatsapp] no se pudo preparar el fotolibro", { codigo: (e as { code?: string } | null)?.code ?? "ERROR" });
+        return [];
+      });
+    }
 
     const { sena, saldo } = senaDe(total);
     return {

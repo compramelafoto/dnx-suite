@@ -160,6 +160,38 @@ describe("crearPedidoDeCatalogoDesdeWhatsapp", () => {
     expect(guardarFotos).not.toHaveBeenCalled();
   });
 
+  it("un fotolibro se cotiza de nuevo en el servidor, lleva la caja en su renglón y queda atado al trabajo", async () => {
+    const libro = { id: "fl", sku: "FOTOLIBRO-RIGIDA", name: "Fotolibro tapa rígida", priceMinor: 0, variants: [] };
+    const caja = { id: "cj", sku: "FOTOLIBRO-CAJA", name: "Caja para fotolibro", priceMinor: 0, variants: [] };
+    const cotizarFotolibro = vi.fn(async () => ({
+      tipo: "PRECIO" as const, proveedorId: "roman", modelo: "Gold", medida: "30x45", hojas: 18, fotos: 180,
+      precioMinor: 52_900_000, costoMinor: 17_633_300, caja: { precioMinor: 12_600_000, costoMinor: 4_200_000 }, conCaja: true,
+    }));
+    const atarFotolibros = vi.fn(async () => []);
+    const { d, crear } = deps({ productos: async () => [...CATALOGO, libro, caja], cotizarFotolibro, atarFotolibros });
+    const r = await crearPedidoDeCatalogoDesdeWhatsapp("w1", CHAT, {
+      lineas: [{ producto: "Fotolibro tapa rígida", cantidad: 1, fotolibro: { modelo: "gold", medida: "45x30", hojas: 18, fotos: 180, caja: true } }],
+      pago: "SENA", nombre: "Ana Pérez",
+    }, d);
+    expect(cotizarFotolibro).toHaveBeenCalledWith("w1", { tapa: "RIGIDA", modelo: "gold", medida: "45x30", hojas: 18, fotos: 180, caja: true });
+    expect(r).toMatchObject({
+      ok: true, total: 655_000,
+      lineas: [{ nombre: "Fotolibro tapa rígida Gold 30x45 · 18 hojas", cantidad: 1, precio: 529_000 }, { nombre: "Caja para fotolibro Gold 30x45", cantidad: 1, precio: 126_000 }],
+    });
+    expect((crear.mock.calls[0][1].items as { productId: string }[]).map((i) => i.productId)).toEqual(["fl", "cj"]);
+    expect(atarFotolibros).toHaveBeenCalledWith("w1", 4, { id: "ped1", numero: "2026-0042" }, "Ana Pérez", [
+      { itemIndex: 0, fotolibro: { proveedorId: "roman", modelo: "Gold", medida: "30x45", hojas: 18, fotos: 180, costoMinor: 17_633_300, cajaCostoMinor: 4_200_000, templateId: null } },
+    ]);
+  });
+
+  it("un fotolibro sin lo elegido en la calculadora no arma el pedido", async () => {
+    const libro = { id: "fl", sku: "FOTOLIBRO-RIGIDA", name: "Fotolibro tapa rígida", priceMinor: 0, variants: [] };
+    const { d, crear } = deps({ productos: async () => [...CATALOGO, libro] });
+    const r = await crearPedidoDeCatalogoDesdeWhatsapp("w1", CHAT, { lineas: [{ producto: "fotolibro tapa rigida", cantidad: 1 }], pago: "SENA", nombre: "Ana" }, d);
+    expect(r).toMatchObject({ ok: false, motivo: "FOTOLIBRO" });
+    expect(crear).not.toHaveBeenCalled();
+  });
+
   it("sin el módulo de pedidos, no vende", async () => {
     const { d, crear } = deps({ moduloEncendido: async () => false });
     expect(await crearPedidoDeCatalogoDesdeWhatsapp("w1", CHAT, { lineas: [{ producto: "vhs", cantidad: 1 }], pago: "SENA", nombre: "Ana" }, d)).toEqual({ ok: false, motivo: "MODULO" });

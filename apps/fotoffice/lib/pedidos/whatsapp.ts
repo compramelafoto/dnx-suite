@@ -14,6 +14,8 @@ export const DIAS_SALDO = 7;
 export type ProductoDelBot = {
   id: string;
   name: string;
+  /** Los fotolibros se reconocen por su código interno (ver `lib/fotolibro/venta.ts`). */
+  sku?: string | null;
   priceMinor: number;
   /** Sin `tracksStock` el producto no tiene tope (servicios, copias). */
   tracksStock?: boolean;
