@@ -567,6 +567,17 @@ export default function FotografoEscuelasPedidosPage() {
               </span>
             ))}
             {o.disenos.length === 0 ? <span className="text-xs text-gray-600">Copias sueltas, sin librito</span> : null}
+            {o.kind === "PACK_EXTERNO" && o.redemptionOrderId ? (
+              // Las copias sueltas no entran en los lotes: se bajan del pedido (fotos por tamaño y,
+              // si hay librito, su PDF).
+              <a
+                href={`/api/fotografo/pedidos/${o.redemptionOrderId}/export-print`}
+                className={link}
+                title="ZIP con las copias de este pedido ordenadas por tamaño (y el PDF del librito, si tiene)"
+              >
+                Descargar impresiones (ZIP)
+              </a>
+            ) : null}
             {verPedido}
             {item && item.status === "EXPORTED" ? (
               <button
