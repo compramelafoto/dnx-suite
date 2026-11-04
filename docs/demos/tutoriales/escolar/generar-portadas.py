@@ -31,6 +31,8 @@ PORTADAS = {
         'Todos los<br><em>alumnos</em>,<br>de una vez'),
     5: ('E05-el-usuario-del-colegio.mp4', 40.5, (160, 150, 1120, 630),
         'El panel<br><em>del colegio</em>'),
+    6: ('E06-el-album-del-colegio.mp4', 16, (330, 240, 1420, 799),
+        'El álbum<br><em>del colegio</em>'),
 }
 
 CSS = """

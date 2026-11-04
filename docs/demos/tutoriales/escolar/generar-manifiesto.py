@@ -121,6 +121,24 @@ COPYS = [
         'proxima': 'El álbum del colegio y las fotos ocultas',
         'etiquetas': ['panel del colegio', 'usuario del colegio', 'gestion escolar'],
     },
+    {
+        'n': 6,
+        'archivo': 'E06-el-album-del-colegio.mp4',
+        'titulo': 'El álbum del colegio y las fotos ocultas | Curso de fotografía escolar, clase 6',
+        'gancho': ("Cada colegio tiene su álbum, y ahí pasa toda la venta. Te muestro el asistente paso a paso: el "
+                   "tipo escolar, los datos de la sesión, el colegio y su comisión, y los cursos. Y el detalle más "
+                   "importante cuando hay chicos: en Configuración activás «Fotos ocultas hasta selfie», para que "
+                   "cada familia vea solo las fotos de su hijo, y decidís cuántos días se guarda la selfie."),
+        'capitulos': [
+            ('0:00', 'El asistente del álbum escolar'),
+            ('0:18', 'Datos de la sesión, ventas e impresiones'),
+            ('0:43', 'El colegio, la comisión y los cursos'),
+            ('0:54', 'Privacidad y crear el álbum'),
+            ('1:04', 'Fotos ocultas hasta selfie'),
+        ],
+        'proxima': 'La comisión del colegio',
+        'etiquetas': ['album escolar', 'fotos ocultas', 'privacidad de menores'],
+    },
 ]
 
 

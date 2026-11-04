@@ -45,7 +45,7 @@ máximo, un cuadro real del video y el isotipo de ComprameLaFoto. Las deja en `v
 python3 docs/demos/tutoriales/escolar/generar-portadas.py 6
 ```
 
-E01 a E05 tienen su portada desde el 2026-11-04.
+E01 a E06 tienen su portada.
 
 ## Cómo se sube
 
@@ -93,6 +93,7 @@ Los tutoriales nuevos se agregan al final de la lista, en el orden en que se peg
 | E03 | Dar de alta un colegio | 1:01 | aprobado | [público](https://youtu.be/e5wVhLMNK7Q) | clase 3 |
 | E04 | Cursos y listado de alumnos | 1:31 | publicado | [público](https://youtu.be/X-79p1_9Z1I) | clase 4 |
 | E05 | El usuario del colegio | 0:55 | publicado | [público](https://youtu.be/4966Kx_hQ9I) | clase 5 |
+| E06 | El álbum del colegio y las fotos ocultas | 1:28 | publicado | [público](https://youtu.be/dWYvylvHw4Q) | clase 6 |
 
 ## Copys
 
@@ -186,6 +187,27 @@ Los tutoriales nuevos se agregan al final de la lista, en el orden en que se peg
 > 0:30 La activación y el panel del colegio
 >
 > ▶ Próxima clase: El álbum del colegio y las fotos ocultas.
+
+### E06 · El álbum del colegio y las fotos ocultas
+
+**Título:** El álbum del colegio y las fotos ocultas | Curso de fotografía escolar, clase 6
+
+Ojo: el paso «Seguridad» del asistente hoy es solo una referencia. Lo que de verdad oculta las fotos es «Fotos
+ocultas hasta selfie», en Configuración del álbum. El copy lo dice así.
+
+> Cada colegio tiene su álbum, y ahí pasa toda la venta. Te muestro el asistente paso a paso: el tipo escolar,
+> los datos de la sesión, el colegio y su comisión, y los cursos. Y el detalle más importante cuando hay chicos:
+> en Configuración activás «Fotos ocultas hasta selfie», para que cada familia vea solo las fotos de su hijo, y
+> decidís cuántos días se guarda la selfie.
+>
+> En esta clase:
+> 0:00 El asistente del álbum escolar
+> 0:18 Datos de la sesión, ventas e impresiones
+> 0:43 El colegio, la comisión y los cursos
+> 0:54 Privacidad y crear el álbum
+> 1:04 Fotos ocultas hasta selfie
+>
+> ▶ Próxima clase: La comisión del colegio.
 
 ### Bloque común (al final de cada descripción)
 
