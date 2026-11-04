@@ -168,24 +168,121 @@ evitarlo: es el último requisito de la lista de evidencias.
 
 **Nada de este bloque se ejecuta sin tu autorización expresa.**
 
-### F1. Decidir el caso
-- Qué producto crea la Order.
-- Qué monto — conviene el mínimo que Mercado Pago acepte.
-- Quiénes son los receptores: owner + al menos un partner real.
-- **Quién paga:** tiene que ser una persona distinta del collector. No podés pagarte a vos mismo.
+> **La superficie del video no sirve para esto.** `/homologacion/compra` se bloquea a
+> propósito cuando `DNX_MP_ORDERS_1N_PRODUCTION_ENABLED` está encendida (ver
+> `assert-safe-environment.ts`): las dos banderas son mutuamente excluyentes por diseño,
+> para que la pantalla del video nunca pueda mover dinero real. Por eso la orden de cierre
+> tiene su propia superficie, `/admin/cierre-split-1n`, con sus propios frenos.
+
+### F1. Decidir el caso — DECIDIDO (2026-10-28)
+
+| Rol | Quién | Porcentaje | Con $3.000 |
+|---|---|---|---|
+| Owner (cobrador) | La plataforma | 20 % | $600 |
+| Partner — fotógrafo | Un referido de Marcos Piaggio | 70 % | $2.100 |
+| Partner — referidor | Marcos Piaggio | 10 % | $300 |
+
+Tres receptores, con la forma del negocio real.
+
+**El monto.** Mercado Pago **no** fija un mínimo para esta operación; el único mínimo que
+puede aplicar es el del medio de pago (Marilyn Urrego, 2026-10-30). Lo que hay que mirar no
+es el total sino **la porción más chica del reparto**: al referidor le toca el 10 %, así que
+un total de $1.000 le dejaría $100. Por eso el valor por omisión es $3.000, con tope duro de
+$5.000.
+
+**Quién paga — confirmado por Mercado Pago.** Tiene que ser **un tercero con tarjeta
+propia, distinto de los tres que reciben el reparto**. No alcanza con que no sea el
+collector: tampoco puede ser el fotógrafo ni el referidor.
+
+Se declara en `DNX_CLF_SPLIT_1N_CIERRE_PAYER_EMAIL`. La pantalla avisa si no está declarado,
+y el servidor **rechaza la orden** si el correo del pagador coincide con el de alguno de los
+receptores — los compara contra los que devuelve la consulta del consentimiento, que es la
+única fuente que sabe a qué cuenta pertenecen.
+
+Conviene que la persona esté presente: la pantalla corre en la máquina local y la tarjeta la
+carga quien paga.
 
 ### F2. Consentimientos en producción
-Cada receptor necesita su `split-consent` en estado `ACTIVE` **antes** de crear la Order.
-Requiere `DNX_MP_SPLIT_CONSENT_PRODUCTION_ENABLED=true`.
+
+> **BLOQUEADO POR LA CREDENCIAL (2026-10-31, causa hallada el 2026-11-02).**
+>
+> | Operación | Resultado |
+> |---|---|
+> | `GET /v1/split-consent` | 200, lista vacía |
+> | `POST /v1/split-consent` | **403 `Operation not allowed`** |
+>
+> El 31/10 esto se leyó como una falta de permisos de Mercado Pago y se le escaló a Marilyn,
+> que lo derivó a su equipo. **Era un error de diagnóstico.** `GET /users/me` con ese mismo
+> token devuelve:
+>
+> ```
+> id: 3141372692 | nickname: TESTUSER313600323196489184 | email: test_user_…@testuser.com
+> ```
+>
+> Es un **usuario de prueba**. Mercado Pago emite sus credenciales con prefijo `APP_USR-`,
+> igual que las productivas, así que el control `token.startsWith("TEST-")` no los ve. Un
+> usuario de prueba lee la lista de consentimientos pero no puede crear consentimientos
+> reales: de ahí el 403, y de ahí que la lectura funcionara.
+>
+> La aplicación sí era la correcta (`MP_CLIENT_ID` = `6578882958889626`, DNX Suite). Haber
+> verificado la aplicación y no la **cuenta** fue lo que sostuvo el error durante dos días.
+>
+> **Lo que falta para desbloquear F2 y F3:** la credencial productiva de la cuenta real que
+> cobra, en `MP_ACCESS_TOKEN`. Nada que Mercado Pago tenga que habilitar.
+>
+> Desde ahora `assertLiveCollectorAccount` (`live-account-guard.ts`) consulta `GET /users/me`
+> antes de cualquier escritura productiva y frena si la cuenta es de prueba. El ensayo sin
+> `--confirm` informa de quién es la cuenta antes de tocar nada:
+>
+> ```
+> "status": "CUENTA_RECHAZADA",
+> "errorCode": "MP_CUENTA_DE_PRUEBA",
+> "message": "La credencial es de una cuenta de prueba de Mercado Pago (TESTUSER3136…)"
+> ```
+
+
+Cada partner necesita su `split-consent` en `ACTIVE` **antes** de crear la Order. Se otorga
+del lado de Mercado Pago; la plataforma solo manda la invitación.
+
+Primero hacen falta los correos de **las cuentas de Mercado Pago** de los dos partners —
+pueden no ser los mismos con los que entran a CLF.
+
+```bash
+DNX_MP_SPLIT_CONSENT_PRODUCTION_ENABLED=true \
+pnpm --filter @repo/payments exec tsx src/cli/prod-split-consent-invite.ts -- \
+  --email=<correo-del-fotografo> --email=<correo-del-referidor> --confirm
+```
+
+Sin `--confirm` hace una pasada en seco. Devuelve, por cada uno, el `receiver_id` y el
+`inviteUrl` que hay que hacerle llegar. Cuando los dos estén `ACTIVE`, seguir.
 
 ### F3. Ventana controlada
-1. Encender `DNX_MP_ORDERS_1N_PRODUCTION_ENABLED=true`.
-2. Crear **una** Order.
-3. Guardar el Order ID y verificar `live_mode: true`.
-4. **Apagar el flag de nuevo.**
+
+La pantalla corre **en local contra credenciales productivas**: no se despliega. Así la
+orden es real pero no queda ninguna superficie que mueva dinero expuesta en el sitio.
+
+1. Cargar en el entorno local, además del token productivo:
+
+   | Variable | Qué es |
+   |---|---|
+   | `DNX_CLF_SPLIT_1N_CIERRE_PRODUCCION_ENABLED` | `true` solo para esta operación |
+   | `DNX_CLF_SPLIT_1N_CIERRE_OWNER_USER_ID` | `user_id` de Mercado Pago de la cuenta cobradora |
+   | `DNX_CLF_SPLIT_1N_CIERRE_RECEIVER_A` | `receiver_id` del fotógrafo (lo da F2) |
+   | `DNX_CLF_SPLIT_1N_CIERRE_RECEIVER_B` | `receiver_id` del referidor (lo da F2) |
+   | `DNX_CLF_SPLIT_1N_CIERRE_MONTO_CENTAVOS` | opcional; por omisión 300000 ($3.000) |
+   | `DNX_CLF_SPLIT_1N_CIERRE_PAYER_EMAIL` | **el tercero que paga**; sin esto el pagador sería el admin |
+
+2. `pnpm --filter compramelafoto dev` y entrar a `/admin/cierre-split-1n` con sesión de admin.
+3. Pagar con una tarjeta real. La pantalla verifica los dos consentimientos **antes** de
+   cobrar: si alguno no está `ACTIVE`, no crea nada.
+4. Copiar el Order ID entero y verificar `live_mode: true`. Queda también en
+   `.local/cierre-split-1n/ultima.json`.
+5. **Apagar `DNX_CLF_SPLIT_1N_CIERRE_PRODUCCION_ENABLED`.**
 
 ### F4. Revertir
-Reembolso total vía `POST /v1/orders/{id}/refund`, que ya está implementado y probado.
+
+Reembolso total vía `POST /v1/orders/{id}/refund`, que ya está implementado y probado. En
+una orden con split el cuerpo lleva `splits` de primer nivel, nunca `transactions`.
 
 ---
 
