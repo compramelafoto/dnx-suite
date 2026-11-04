@@ -16,7 +16,7 @@ import { bloque, enOrden, hero, placa } from "@/lib/website/templates/tipos";
 /** La paleta del manual (página 06): cacao y marfil sostienen la lectura, el rosa acompaña. */
 /**
  * El tema dibuja texto BLANCO sobre el secundario (portada sin foto) y sobre el acento (botones y
- * «Mi cuenta»). Rosa viejo (2,4:1) y terracota (3,5:1) no llegan al 4,5:1 de lectura, así que los
+ * «Iniciá sesión»). Rosa viejo (2,4:1) y terracota (3,5:1) no llegan al 4,5:1 de lectura, así que los
  * dos van en cacao: es la versión negativa del manual (marfil sobre cacao). El rosa sigue en el
  * logo, que es donde «acompaña sin dominar».
  */
@@ -302,7 +302,7 @@ export const SOYBELUZ_SECCIONES: WebsiteSections = {
 
 const propia = (pageKey: string, label: string): SiteMenuEntry => ({ id: `custom:${pageKey}`, kind: "custom", pageKey, label, hidden: false });
 
-/** El menú del brief (sección 9). "Mi cuenta" es el botón de ingreso del encabezado. */
+/** El menú del brief (sección 9). A «Mi cuenta» se entra con el botón «Iniciá sesión» del encabezado. */
 export const SOYBELUZ_MENU: SiteMenu = {
   version: SITE_MENU_VERSION,
   items: [

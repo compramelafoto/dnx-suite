@@ -85,7 +85,7 @@ describe("sitio de SOYBELUZ", () => {
   });
 
   it("los pares que el sitio dibuja con texto blanco tienen contraste suficiente", () => {
-    // Hero sin foto: texto blanco sobre el secundario. Botones sólidos y «Mi cuenta»: blanco sobre
+    // Hero sin foto: texto blanco sobre el secundario. Botones sólidos e «Iniciá sesión»: blanco sobre
     // el acento. CTA: blanco sobre el principal. (hero-block-view, website-header-view)
     for (const fondo of [SOYBELUZ_COLORES.secondaryColor, SOYBELUZ_COLORES.accentColor, SOYBELUZ_COLORES.primaryColor]) {
       expect(contraste("#FFFFFF", fondo)).toBeGreaterThanOrEqual(4.5);
