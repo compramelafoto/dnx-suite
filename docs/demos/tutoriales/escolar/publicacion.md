@@ -96,6 +96,7 @@ Los tutoriales nuevos se agregan al final de la lista, en el orden en que se peg
 | E06 | El álbum del colegio y las fotos ocultas | 1:28 | publicado | [público](https://youtu.be/dWYvylvHw4Q) | clase 6 |
 | E07 | La comisión del colegio | 1:02 | publicado | [público](https://youtu.be/nw18jU_MUzs) | clase 7 |
 | E08 | Los packs de preventa | 1:08 | publicado | [público](https://youtu.be/QIQfRYMr8Uk) | clase 8 |
+| E09 | Elegir el diseño del librito | 1:39 | publicado | [público](https://youtu.be/cJIGgNakRrk) | clase 9 |
 
 ## Copys
 

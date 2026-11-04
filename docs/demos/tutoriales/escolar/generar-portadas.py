@@ -37,6 +37,8 @@ PORTADAS = {
         'El colegio<br><em>también gana</em>'),
     8: ('E08-los-packs-de-preventa.mp4', 36, (480, 160, 1360, 765),
         'Vendé<br><em>el pack</em><br>primero'),
+    9: ('E09-elegir-el-diseno-del-librito.mp4', 36, (330, 100, 1360, 765),
+        'Elegí<br><em>el diseño</em>'),
 }
 
 CSS = """

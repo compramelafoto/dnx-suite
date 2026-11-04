@@ -175,6 +175,25 @@ COPYS = [
         'proxima': 'Elegir el diseño del librito',
         'etiquetas': ['preventa escolar', 'packs escolares', 'precios fotografia escolar'],
     },
+    {
+        'n': 9,
+        'archivo': 'E09-elegir-el-diseno-del-librito.mp4',
+        'titulo': 'Elegir el diseño del librito | Curso de fotografía escolar, clase 9',
+        'gancho': ("El librito sale de una plantilla: la elegís una vez y sirve para todo el colegio. Te muestro las "
+                   "plantillas del sistema (más de setenta libritos, además de diplomas, calendarios y anuarios), "
+                   "cómo filtrarlas por tipo y nivel, cómo verlas en 3D y cómo hacerte una copia propia. Y lo más "
+                   "importante: en el editor marcás los datos variables (el colegio, el curso, el nombre del alumno "
+                   "y los lugares de las fotos), y en cada pedido el sistema los completa solo."),
+        'capitulos': [
+            ('0:00', 'Las plantillas del sistema'),
+            ('0:21', 'Filtrar por tipo y nivel'),
+            ('0:28', 'Ver en 3D y usar la plantilla'),
+            ('1:06', 'Los datos variables en el editor'),
+            ('1:24', 'Un diseño para todo el colegio'),
+        ],
+        'proxima': 'Probar el librito con el listado real',
+        'etiquetas': ['libritos escolares', 'plantillas escolares', 'diseño de carpetas'],
+    },
 ]
 
 
