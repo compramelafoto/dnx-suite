@@ -14,7 +14,7 @@ export const TURISMO_COURSE_BLOCKS: CourseBlock[] = [
   {
     title: "Preparar el álbum del paseo",
     lessons: [
-      { number: 1, title: "La fotografía de turismo de punta a punta", audience: "Fotógrafo", summary: "El recorrido completo: del álbum del paseo a la descarga del turista." },
+      { number: 1, title: "La fotografía de turismo de punta a punta", audience: "Fotógrafo y empresa de turismo", summary: "Las dos formas de trabajar: el fotógrafo que vende sus paseos y la agencia que arma el viaje." },
       { number: 2, title: "Crear el álbum de la excursión", audience: "Fotógrafo", summary: "Un álbum por paseo, con el lugar en el mapa, la fecha y la venta de fotos digitales." },
       { number: 3, title: "Precios y packs para turistas", audience: "Fotógrafo", summary: "Un precio accesible por foto, descuentos por cantidad y el pack «Todas mis fotos»." },
       { number: 4, title: "Fotos ocultas hasta la selfie", audience: "Fotógrafo", summary: "El paseo es público, pero cada turista ve solo las fotos donde aparece." },
@@ -33,9 +33,10 @@ export const TURISMO_COURSE_BLOCKS: CourseBlock[] = [
   {
     title: "Con una empresa de turismo",
     lessons: [
-      { number: 10, title: "La empresa de turismo crea el viaje y convoca fotógrafos", audience: "Empresa de turismo", summary: "La empresa arma el viaje en ocho pasos y suma a los fotógrafos." },
-      { number: 11, title: "La comisión de la empresa de turismo", audience: "Empresa de turismo", summary: "La empresa conecta su Mercado Pago y su parte le llega sola en cada compra." },
-      { number: 12, title: "Postularte a un viaje como fotógrafo", audience: "Fotógrafo", summary: "Te inscribís al viaje de una empresa y vendés las fotos desde tu cuenta." },
+      { number: 10, title: "Empresas de turismo y agencias: cómo se organizan", audience: "Empresa de turismo", summary: "Cómo trabaja una agencia en la plataforma: sus viajes, sus fotógrafos y su panel." },
+      { number: 11, title: "La empresa de turismo crea el viaje y convoca fotógrafos", audience: "Empresa de turismo", summary: "La empresa arma el viaje en ocho pasos y suma a los fotógrafos." },
+      { number: 12, title: "La comisión de la empresa de turismo", audience: "Empresa de turismo", summary: "La empresa conecta su Mercado Pago y su parte le llega directo en cada compra." },
+      { number: 13, title: "Postularte a un viaje como fotógrafo", audience: "Fotógrafo", summary: "Te inscribís al viaje de una empresa y vendés las fotos desde tu cuenta." },
     ],
   },
 ];

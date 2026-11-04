@@ -8,7 +8,7 @@ Misma estructura que docs/demos/tutoriales/escolar/generar-manifiesto.py.
 import json, pathlib, re, sys
 
 VIDEOS = '/Users/danielcuart/Desktop/PROGRAMACIONES/dnx-suite/docs/demos/tutoriales/turismo/videos'
-TOTAL = 12
+TOTAL = 13
 
 PIE = """━━━━━━━━━━━━━━━━━━━━━━━━
 🎓 Curso de fotografía de turismo de ComprameLaFoto
@@ -29,6 +29,25 @@ ETIQUETAS_SERIE = ['fotografia de turismo', 'compramelafoto', 'curso de fotograf
                    'fotografo de excursiones', 'vender fotos a turistas']
 
 COPYS = [
+    {
+        'n': 1,
+        'archivo': 'T01-la-fotografia-de-turismo-de-punta-a-punta.mp4',
+        'titulo': 'La fotografía de turismo de punta a punta | Curso de fotografía de turismo, clase 1',
+        'gancho': ("En este curso te muestro cómo organizar y vender tu fotografía de turismo, y hay dos formas de "
+                   "trabajar. Si sos fotógrafo y cubrís paseos o excursiones, creás un álbum por paseo, le ponés "
+                   "precio a las fotos y un pack con todas las fotos de cada turista, imprimís el QR en un cartel y el "
+                   "turista se encuentra con una selfie desde el celular, paga y descarga sus fotos. El dinero entra "
+                   "en tu cuenta de Mercado Pago. La otra forma es la de las empresas de turismo y las agencias: arman "
+                   "el viaje, suman fotógrafos en cada destino y cada uno recibe su parte directo en su propia cuenta "
+                   "de Mercado Pago."),
+        'capitulos': [
+            ('0:00', 'Dos formas de trabajar'),
+            ('0:13', 'El fotógrafo que vende sus paseos'),
+            ('0:53', 'Empresas de turismo y agencias'),
+        ],
+        'proxima': 'Crear el álbum de la excursión',
+        'etiquetas': ['agencias de turismo', 'excursiones', 'vender fotos online'],
+    },
     {
         'n': 2,
         'archivo': 'T02-crear-el-album-de-la-excursion.mp4',

@@ -2,6 +2,11 @@
 import type { CourseLessonDetail } from "./course";
 
 export const TURISMO_COURSE_DETAILS: Record<number, CourseLessonDetail> = {
+  1: {
+    durationSeconds: 78,
+    description: "En este curso te muestro cómo organizar y vender tu fotografía de turismo, y hay dos formas de trabajar. Si sos fotógrafo y cubrís paseos o excursiones, creás un álbum por paseo, le ponés precio a las fotos y un pack con todas las fotos de cada turista, imprimís el QR en un cartel y el turista se encuentra con una selfie desde el celular, paga y descarga sus fotos. El dinero entra en tu cuenta de Mercado Pago. La otra forma es la de las empresas de turismo y las agencias: arman el viaje, suman fotógrafos en cada destino y cada uno recibe su parte directo en su propia cuenta de Mercado Pago.",
+    chapters: [{ at: 0, label: "Dos formas de trabajar" }, { at: 13, label: "El fotógrafo que vende sus paseos" }, { at: 53, label: "Empresas de turismo y agencias" }],
+  },
   2: {
     durationSeconds: 55,
     description: "Cada paseo tiene su álbum. Te muestro cómo crearlo con el asistente para un city tour por Caminito y San Telmo: el tipo Evento, un título que el turista reconozca, el lugar en el mapa y la fecha del paseo. Activás la venta de fotos digitales y, en Seguridad, elegís Público, para que cualquiera que pasó por el paseo encuentre el álbum.",

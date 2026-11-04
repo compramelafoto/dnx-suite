@@ -77,7 +77,7 @@ describe("cursos de tutoriales", () => {
     const keys = TUTORIAL_COURSES.map((c) => c.settingsKey);
     assert.equal(new Set(slugs).size, slugs.length);
     assert.equal(new Set(keys).size, keys.length);
-    assert.equal(getTutorialCourse("turismo")?.lessonCount, 12);
+    assert.equal(getTutorialCourse("turismo")?.lessonCount, 13);
     assert.equal(getTutorialCourse("nada"), null);
   });
 });

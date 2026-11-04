@@ -21,6 +21,8 @@ ISOTIPO = pathlib.Path(__file__).resolve().parents[4] / 'apps/compramelafoto/pub
 CHROME = os.environ.get('CHROME') or '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
 
 PORTADAS = {
+    1: ('T01-la-fotografia-de-turismo-de-punta-a-punta.mp4', 8, (720, 0, 480, 1060),
+        'Vendé<br><em>cada paseo</em>'),
     2: ('T02-crear-el-album-de-la-excursion.mp4', 15, (130, 240, 1420, 799),
         'El álbum<br><em>del paseo</em>'),
     3: ('T03-precios-y-packs-para-turistas.mp4', 60, (480, 200, 1380, 776),

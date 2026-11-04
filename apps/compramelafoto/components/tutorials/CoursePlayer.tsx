@@ -13,6 +13,7 @@ const AUDIENCE_DOT: Record<string, string> = {
   Fotógrafo: "bg-[#c27b3d]",
   "Fotógrafo y colegio": "bg-[#c27b3d]",
   "Fotógrafo y turista": "bg-[#c27b3d]",
+  "Fotógrafo y empresa de turismo": "bg-[#c27b3d]",
   Colegio: "bg-[#2f7a6d]",
   "Empresa de turismo": "bg-[#2f7a6d]",
   Familia: "bg-[#3d6aa8]",
@@ -22,7 +23,7 @@ const AUDIENCE_DOT: Record<string, string> = {
 function audienceLabel(audience: string): string {
   return `Para ${audience
     .split(" y ")
-    .map((who) => `${who === "Familia" || who.startsWith("Empresa") ? "la" : "el"} ${who.toLowerCase()}`)
+    .map((who) => `${/^(familia|empresa)/i.test(who) ? "la" : "el"} ${who.toLowerCase()}`)
     .join(" y ")}`;
 }
 
