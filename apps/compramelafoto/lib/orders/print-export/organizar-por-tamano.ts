@@ -8,6 +8,10 @@
  *   Control por cliente/Pedido-Album-003888 - Juan Perez/MANIFEST.txt   (+ resumen PDF y avisos)
  *   RESUMEN_PARA_LABORATORIO.txt                                         (copias por tamaño)
  *
+ * Con `separarClientes: false` no hay carpeta por cliente: todas las copias de un tamaño van
+ * juntas y el número de pedido encabeza el nombre del archivo (`Pedido-Album-003888 - 2 Copias…`).
+ * Es para el fotógrafo que separa recién al embolsar y no quiere abrir una carpeta por cliente.
+ *
  * Sólo cambia dónde va cada archivo; qué archivos entran lo siguen decidiendo los planes.
  */
 
@@ -22,7 +26,15 @@ function carpetaDeTamano(i: { tamano: string; acabado: string; producto: string 
 
 const porNombre = (a: string, b: string) => a.localeCompare(b, "es", { numeric: true, sensitivity: "base" });
 
-export function organizarPorTamano(plans: PrintExportPlan[]): {
+/** "Pedido-Album-003888 - Juan Perez" → "Pedido-Album-003888": el número sin el nombre. */
+function numeroDePedido(folder: string): string {
+  return folder.split(" - ")[0] || folder;
+}
+
+export function organizarPorTamano(
+  plans: PrintExportPlan[],
+  { separarClientes = true }: { separarClientes?: boolean } = {}
+): {
   plans: PrintExportPlan[];
   resumen: { name: string; content: string };
 } {
@@ -31,13 +43,16 @@ export function organizarPorTamano(plans: PrintExportPlan[]): {
 
   const reorganizados = plans.map((plan) => {
     const prefijo = `${plan.folder}/`;
+    const pedido = numeroDePedido(plan.folder);
+    // Dentro de cada grupo: la carpeta del cliente, o el número de pedido delante del archivo.
+    const dentro = (resto: string) => (separarClientes ? `${plan.folder}/${resto}` : `${pedido} - ${resto}`);
     const files = plan.files.map((file) => {
       const relativa = file.zipPath.startsWith(prefijo) ? file.zipPath.slice(prefijo.length) : file.zipPath;
       const partes = relativa.split("/");
       let zipPath: string;
       if (file.impresion) {
         const grupo = carpetaDeTamano(file.impresion);
-        zipPath = `${grupo}/${plan.folder}/${partes[partes.length - 1]}`;
+        zipPath = `${grupo}/${dentro(partes[partes.length - 1]!)}`;
         const clientes = conteo.get(grupo) ?? new Map();
         const fila = clientes.get(plan.folder) ?? { fotos: 0, copias: 0 };
         fila.fotos += 1;
@@ -46,9 +61,9 @@ export function organizarPorTamano(plans: PrintExportPlan[]): {
         conteo.set(grupo, clientes);
       } else if (partes.length > 1) {
         // Diseños (PDF y caras): la primera carpeta es el producto.
-        zipPath = `${partes[0]}/${plan.folder}/${partes.slice(1).join("/")}`;
+        zipPath = `${partes[0]}/${dentro(partes.slice(1).join("/"))}`;
       } else {
-        zipPath = `Otros/${plan.folder}/${relativa}`;
+        zipPath = `Otros/${dentro(relativa)}`;
       }
       return {
         ...file,
@@ -62,7 +77,9 @@ export function organizarPorTamano(plans: PrintExportPlan[]): {
   const lineas = [
     `Resumen para el laboratorio - ${plans.length} pedido${plans.length === 1 ? "" : "s"}`,
     "",
-    "Cada carpeta es un tamaño y acabado; adentro hay una carpeta por cliente.",
+    separarClientes
+      ? "Cada carpeta es un tamaño y acabado; adentro hay una carpeta por cliente."
+      : "Cada carpeta es un tamaño y acabado; cada archivo empieza con el número de pedido.",
     "Si falta algún archivo, figura como (FALTA ARCHIVO) en el MANIFEST del cliente,",
     `dentro de "${CARPETA_CONTROL}".`,
     "",

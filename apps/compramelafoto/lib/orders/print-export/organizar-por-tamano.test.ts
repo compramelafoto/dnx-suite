@@ -71,6 +71,21 @@ describe("organizarPorTamano", () => {
     assert.match(resumen.content, /TOTAL: 6 copias \(3 fotos\)/);
   });
 
+  it("sin separar clientes: todas las copias del tamaño juntas, con el número de pedido delante", () => {
+    const { plans, resumen } = organizarPorTamano(planes(), { separarClientes: false });
+    const rutas = plans.flatMap((p) => p.files.map((f) => f.zipPath));
+    assert.deepEqual(rutas, [
+      "10x15 - BRILLO - Foto impresa/Pedido-Album-000123 - 2 Copias - 10x15 - IMG_1.jpg",
+      "15x21 - MATE - Foto impresa/Pedido-Album-000123 - 1 Copias - 15x21 - IMG_2.jpg",
+      "Foto grupal/Pedido-Album-000123 - Diseno 12.pdf",
+      "10x15 - BRILLO - Foto impresa/Pedido-000045 - 3 Copias - 10x15 - DSC_9.jpg",
+    ]);
+    // El control por cliente sigue estando, y el resumen sigue diciendo de quién es cada pedido.
+    assert.equal(plans[1]!.folder, `${CARPETA_CONTROL}/${ANA}`);
+    assert.match(resumen.content, new RegExp(`   ${ANA}: 3 copias`));
+    assert.match(resumen.content, /cada archivo empieza con el número de pedido/);
+  });
+
   it("el ZIP sale con esas carpetas y abre sano", async () => {
     const { plans, resumen } = organizarPorTamano(planes());
     const leer = async (key: string) => (key === "fotos/IMG_2.jpg" ? null : Buffer.from(`bytes de ${key}`));

@@ -6,7 +6,8 @@
  *
  * Por defecto va ordenado para el laboratorio: una carpeta por tamaño y acabado, y adentro
  * una por cliente (ver `organizar-por-tamano`). Con `&orden=cliente` sale como antes: una
- * carpeta por pedido con la misma organización que la descarga de a uno.
+ * carpeta por pedido con la misma organización que la descarga de a uno. Con `&clientes=no`
+ * va sólo por tamaño y acabado, sin carpeta por cliente (el número de pedido va en el archivo).
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -86,7 +87,9 @@ export async function GET(req: NextRequest) {
     if (req.nextUrl.searchParams.get("orden") === "cliente") {
       return streamPrintExportZip(plans, nombre, extras);
     }
-    const porTamano = organizarPorTamano(plans);
+    const porTamano = organizarPorTamano(plans, {
+      separarClientes: req.nextUrl.searchParams.get("clientes") !== "no",
+    });
     return streamPrintExportZip(porTamano.plans, nombre, [porTamano.resumen, ...extras]);
   } catch (err: unknown) {
     console.error("EXPORT PRINT LOTE ERROR >>>", err);
