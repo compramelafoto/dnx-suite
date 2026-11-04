@@ -86,6 +86,25 @@ COPYS = [
         'proxima': 'Cursos y listado de alumnos',
         'etiquetas': ['alta de colegio', 'gestion escolar'],
     },
+    {
+        'n': 4,
+        'archivo': 'E04-cursos-y-listado-de-alumnos.mp4',
+        'titulo': 'Cursos y listado de alumnos | Curso de fotografía escolar, clase 4',
+        'gancho': ("El listado de alumnos es lo que hace que todo lo demás funcione solo: la familia encuentra a su "
+                   "hijo por el nombre, el librito sale bien escrito y el mosaico del curso se arma solo. Te muestro "
+                   "cómo crear un curso a mano y cómo importar de una vez el Excel o el CSV que te pasa el colegio. "
+                   "Y si el archivo viene desordenado, un botón te copia el pedido listo para que ChatGPT te lo "
+                   "devuelva en el formato correcto."),
+        'capitulos': [
+            ('0:00', 'Por qué importa el listado de alumnos'),
+            ('0:20', 'Crear un curso a mano'),
+            ('0:39', 'Importar el Excel o el CSV del colegio'),
+            ('0:53', 'Ordenar el archivo con ChatGPT'),
+            ('1:03', 'Procesar la importación y ver los alumnos'),
+        ],
+        'proxima': 'El usuario del colegio',
+        'etiquetas': ['listado de alumnos', 'importar excel', 'gestion escolar'],
+    },
 ]
 
 
