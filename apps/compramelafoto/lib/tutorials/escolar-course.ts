@@ -37,7 +37,7 @@ export const ESCOLAR_COURSE_BLOCKS: EscolarCourseBlock[] = [
       { number: 4, title: "Cursos y listado de alumnos", audience: "Fotógrafo", summary: "Importás el Excel del colegio y cada chico queda en su curso, con el nombre bien escrito." },
       { number: 5, title: "El usuario del colegio", audience: "Fotógrafo", summary: "El colegio sigue sus ventas, su comisión y sus alumnos con su propio usuario." },
       { number: 6, title: "El álbum del colegio y las fotos ocultas", audience: "Fotógrafo", summary: "El asistente del álbum escolar y la privacidad: cada familia ve solo las fotos de su hijo." },
-      { number: 7, title: "La comisión del colegio", audience: "Fotógrafo", summary: "El porcentaje del colegio se calcula solo en cada compra, sin cuentas a fin de mes." },
+      { number: 7, title: "La comisión del colegio", audience: "Fotógrafo", summary: "El porcentaje del colegio se calcula solo y Mercado Pago le deposita su parte en cada compra." },
     ],
   },
   {
@@ -64,7 +64,7 @@ export const ESCOLAR_COURSE_BLOCKS: EscolarCourseBlock[] = [
     title: "El colegio",
     lessons: [
       { number: 18, title: "El panel del colegio", audience: "Colegio", summary: "Lo que ve el colegio: ventas, comisión y alumnos, sin pedir planillas." },
-      { number: 19, title: "Compartir la preventa y cobrar la comisión", audience: "Colegio", summary: "El colegio comparte su link con las familias y pide su parte de la venta." },
+      { number: 19, title: "Compartir la preventa y recibir la comisión", audience: "Colegio", summary: "El colegio comparte su link con las familias y su parte le llega sola por Mercado Pago." },
     ],
   },
   {

@@ -97,6 +97,14 @@ Ojo: varias pantallas de CLF que salen en los videos todavía dicen «librito» 
 librito», «Armando tu librito…», «Otro librito igual» y los nombres de plantillas y packs de la demo). Las portadas
 se armaron con cuadros donde no se ve.
 
+## La comisión con Split 1:N
+
+El 2026-11-04 se volvieron a grabar E07, E18 y E19: ya no se enseña «Solicitar cobro» ni que el fotógrafo le paga
+al colegio a mano. El colegio conecta su cuenta de Mercado Pago una sola vez y en cada compra Mercado Pago divide el
+pago: la parte del fotógrafo va a su cuenta y la del colegio, directo a la del colegio. El E19 pasó a llamarse
+«Compartir la preventa y recibir la comisión». Los videos viejos quedaron en privado y fuera de la lista
+(`tools/video/youtube/reemplazados-split.json`).
+
 ## Estado
 
 | # | Video | Duración | Copy | YouTube | CLF |
@@ -107,7 +115,7 @@ se armaron con cuadros donde no se ve.
 | E04 | Cursos y listado de alumnos | 1:31 | publicado | [público](https://youtu.be/0fbM508v21Q) | clase 4 |
 | E05 | El usuario del colegio | 0:55 | publicado | [público](https://youtu.be/4966Kx_hQ9I) | clase 5 |
 | E06 | El álbum del colegio y las fotos ocultas | 1:28 | publicado | [público](https://youtu.be/dWYvylvHw4Q) | clase 6 |
-| E07 | La comisión del colegio | 1:02 | publicado | [público](https://youtu.be/nw18jU_MUzs) | clase 7 |
+| E07 | La comisión del colegio | 1:08 | publicado | [público](https://youtu.be/ttLsxLB7x_k) | clase 7 |
 | E08 | Los packs de preventa | 1:08 | publicado | [público](https://youtu.be/YRRa_ea6HAo) | clase 8 |
 | E09 | Elegir el diseño de la carpeta escolar | 1:23 | publicado | [público](https://youtu.be/8VX8Aax6FQE) | clase 9 |
 | E10 | Probar la carpeta escolar con el listado real | 0:56 | publicado | [público](https://youtu.be/MIvKuWItd1A) | clase 10 |
@@ -118,8 +126,8 @@ se armaron con cuadros donde no se ve.
 | E15 | Sobres con QR y entrega | 0:45 | publicado | [público](https://youtu.be/ij_wDnq3mQA) | clase 15 |
 | E16 | La pantalla de pedidos del estudio | 0:36 | publicado, sin capítulos (muy corto) | [público](https://youtu.be/djynDo2fzNg) | clase 16 |
 | E17 | El mosaico del curso | 1:06 | publicado | [público](https://youtu.be/IQycJe2T_OM) | clase 17 |
-| E18 | El panel del colegio | 0:53 | publicado | [público](https://youtu.be/Gl5bLjAqSNU) | clase 18 |
-| E19 | Compartir la preventa y cobrar la comisión | 0:46 | publicado | [público](https://youtu.be/h73X2LdrzJE) | clase 19 |
+| E18 | El panel del colegio | 0:45 | publicado | [público](https://youtu.be/BlPHi-Ndt9Y) | clase 18 |
+| E19 | Compartir la preventa y recibir la comisión | 0:48 | publicado | [público](https://youtu.be/NVjgBzs0fHE) | clase 19 |
 | E20 | Comprar en la preventa | 0:48 | publicado | [público](https://youtu.be/cz55jC-uiws) | clase 20 |
 | E21 | Encontrar las fotos con una selfie | 0:43 | publicado | [público](https://youtu.be/dODgxZ2yvZk) | clase 21 |
 | E22 | Elegir las fotos y aprobar la carpeta escolar | 0:54 | publicado | [público](https://youtu.be/E61DwWAyXmg) | clase 22 |
@@ -245,22 +253,7 @@ ocultas hasta selfie», en Configuración del álbum. El copy lo dice así.
 
 **Título:** La comisión del colegio | Curso de fotografía escolar, clase 7
 
-Ojo: en la demo el pedido de cobro está bloqueado a propósito, así que el video no muestra un pago hecho. El copy
-solo explica el circuito.
-
-> Que el colegio también gane es una de las cosas que más ayuda a cerrar con una escuela. Te muestro dónde activás
-> la comisión en el álbum, cómo cargás el porcentaje que acordaste y sobre qué ventas se aplica. El sistema la
-> calcula sola en cada compra que entra con el enlace del colegio, y en la ficha del colegio ves lo vendido, lo
-> pendiente y lo ya pagado. Al final te explico el circuito del cobro: el colegio lo solicita desde su panel, vos
-> le pagás, anotás el medio de pago y el comprobante, y lo marcás como pagado.
->
-> En esta clase:
-> 0:00 Por qué la comisión ayuda a cerrar
-> 0:11 Activar la comisión y el porcentaje
-> 0:25 Cómo se calcula y dónde la seguís
-> 0:43 Cuando el colegio pide su parte
->
-> ▶ Próxima clase: Los packs de preventa.
+Versión con Split 1:N: el copy está en `generar-manifiesto.py` (lista `COPYS`).
 
 ### E08 a E23
 

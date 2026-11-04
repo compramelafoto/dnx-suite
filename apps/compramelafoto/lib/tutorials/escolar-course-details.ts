@@ -33,9 +33,9 @@ export const ESCOLAR_COURSE_DETAILS: Record<number, EscolarCourseLessonDetail> =
     chapters: [{ at: 0, label: "El asistente del álbum escolar" }, { at: 18, label: "Datos de la sesión, ventas e impresiones" }, { at: 43, label: "El colegio, la comisión y los cursos" }, { at: 54, label: "Privacidad y crear el álbum" }, { at: 64, label: "Fotos ocultas hasta selfie" }],
   },
   7: {
-    durationSeconds: 63,
-    description: "Que el colegio también gane es una de las cosas que más ayuda a cerrar con una escuela. Te muestro dónde activás la comisión en el álbum, cómo cargás el porcentaje que acordaste y sobre qué ventas se aplica. El sistema la calcula sola en cada compra que entra con el enlace del colegio, y en la ficha del colegio ves lo vendido, lo pendiente y lo ya pagado. Al final te explico el circuito del cobro: el colegio lo solicita desde su panel, vos le pagás, anotás el medio de pago y el comprobante, y lo marcás como pagado.",
-    chapters: [{ at: 0, label: "Por qué la comisión ayuda a cerrar" }, { at: 11, label: "Activar la comisión y el porcentaje" }, { at: 25, label: "Cómo se calcula y dónde la seguís" }, { at: 43, label: "Cuando el colegio pide su parte" }],
+    durationSeconds: 68,
+    description: "Que el colegio también gane es una de las cosas que más ayuda a cerrar con una escuela. Te muestro dónde activás la comisión en el álbum, cómo cargás el porcentaje que acordaste y sobre qué ventas se aplica. El sistema la calcula sola en cada compra que entra con el enlace del colegio, y en la ficha del colegio ves lo vendido y la comisión de cada pedido. Y lo mejor: no le pagás nada a mano. El colegio conecta su cuenta de Mercado Pago una sola vez desde su panel, y en cada compra Mercado Pago divide el pago: tu parte entra en tu cuenta y la del colegio, directo en la suya, sin transferencias ni comprobantes.",
+    chapters: [{ at: 0, label: "Por qué la comisión ayuda a cerrar" }, { at: 11, label: "Activar la comisión y el porcentaje" }, { at: 26, label: "Cómo se calcula y dónde la seguís" }, { at: 43, label: "Mercado Pago divide el pago solo" }],
   },
   8: {
     durationSeconds: 68,
@@ -88,14 +88,14 @@ export const ESCOLAR_COURSE_DETAILS: Record<number, EscolarCourseLessonDetail> =
     chapters: [{ at: 0, label: "Qué es el mosaico del curso" }, { at: 13, label: "El retrato de cada chico" }, { at: 30, label: "La seño, los directivos y los retratos sin nombre" }, { at: 48, label: "Cerrar el curso" }],
   },
   18: {
-    durationSeconds: 52,
-    description: "Este video es para el colegio. Te muestro el panel con el que el colegio sigue toda la foto escolar sin pedir planillas: los datos y el logo, cuántos álbumes, alumnos y preventas pagadas tiene, quién es el fotógrafo responsable, cómo conectar la cuenta de Mercado Pago del colegio para recibir su parte a medida que las familias pagan, y las ventas que entraron con el enlace del colegio, con lo que le corresponde y en qué estado está.",
-    chapters: [{ at: 0, label: "Un panel para el colegio" }, { at: 13, label: "Los datos y los números del colegio" }, { at: 26, label: "Mercado Pago y las ventas de la escuela" }],
+    durationSeconds: 45,
+    description: "Este video es para el colegio. Te muestro el panel con el que el colegio sigue toda la foto escolar sin pedir planillas: los datos y el logo, cuántos álbumes, alumnos y preventas pagadas tiene y quién es el fotógrafo responsable. El colegio conecta su cuenta de Mercado Pago una sola vez y su parte entra directo a medida que las familias pagan. Y en Ventas generadas por la escuela ve cada compra que entró con su enlace, con lo que le corresponde y en qué estado está.",
+    chapters: [{ at: 0, label: "Un panel para el colegio" }, { at: 11, label: "Los datos y los números del colegio" }, { at: 22, label: "Mercado Pago y las ventas de la escuela" }],
   },
   19: {
-    durationSeconds: 46,
-    description: "Para el colegio: cómo compartir la preventa con las familias y cómo pedir su parte. Te muestro dónde copiar el enlace del colegio (las compras que entran por ahí son las que le suman) y el mensaje de WhatsApp ya armado para pegar en el grupo de cada curso. Y cuando el colegio quiere cobrar lo que juntó, toca Solicitar cobro: al fotógrafo le llega el pedido y, cuando le paga, el colegio lo ve como pagado.",
-    chapters: [{ at: 0, label: "Lo que hace el colegio" }, { at: 11, label: "El enlace y el mensaje de WhatsApp" }, { at: 27, label: "Pedir el cobro" }],
+    durationSeconds: 48,
+    description: "Para el colegio: cómo compartir la preventa con las familias y cómo le llega su parte. Te muestro dónde copiar el enlace del colegio (las compras que entran por ahí son las que le suman) y el mensaje de WhatsApp ya armado para pegar en el grupo de cada curso. ¿Y la comisión? No hay que pedirla: cada vez que una familia paga, Mercado Pago divide el pago y la parte del colegio entra directo en su cuenta. En el panel ve cada venta y lo que le tocó.",
+    chapters: [{ at: 0, label: "Lo que hace el colegio" }, { at: 11, label: "El enlace y el mensaje de WhatsApp" }, { at: 27, label: "La comisión llega sola" }],
   },
   20: {
     durationSeconds: 49,
