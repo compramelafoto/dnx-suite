@@ -18,6 +18,9 @@ export const NOMBRE = "Soy Beluz";
 /** El alta hace ~14 consultas seguidas contra Neon: el límite de Prisma por omisión (5 s) no alcanza. */
 export const TIEMPO_TRANSACCION_MS = 30_000;
 
+/** Datos de contacto públicos que pasó Daniel el 4/11/2026 (María Belén Saldaña). */
+export const CONTACTO = { email: "info.soybeluz@gmail.com", whatsapp: "3412121469" } as const;
+
 /** Pedido de Daniel (4/11/2026): Belén es la dueña y Daniel administra. */
 export const ADMINISTRADORES = [
   { email: "belenfister@gmail.com", role: "WORKSPACE_OWNER" },

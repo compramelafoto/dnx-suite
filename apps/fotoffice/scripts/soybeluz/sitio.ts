@@ -243,10 +243,11 @@ const sobre: WebsiteBlock[] = enOrden([
   bloque("beluz-sobre", "TEXT", {
     title: "Sobre SOYBELUZ",
     content:
-      "Soy Belén, profesora de Historia y Artes Visuales, con experiencia docente. SOYBELUZ nace de una mirada artística y pedagógica: no se trata sólo de enseñar a hacer dibujos, sino de acompañar procesos creativos, estimular la observación y generar experiencias de aprendizaje.\n\nEs un universo creativo que empieza por el dibujo y va a ir sumando acuarela, pintura, técnicas mixtas y otras propuestas.",
+      "Soy Belén (María Belén Saldaña), profesora de Historia y Artes Visuales, con experiencia docente. SOYBELUZ nace de una mirada artística y pedagógica: no se trata sólo de enseñar a hacer dibujos, sino de acompañar procesos creativos, estimular la observación y generar experiencias de aprendizaje.\n\nEs un universo creativo que empieza por el dibujo y va a ir sumando acuarela, pintura, técnicas mixtas y otras propuestas.",
     align: "left",
   }),
-  bloque("beluz-sobre-foto", "IMAGE", { alt: "Belén, docente de SOYBELUZ", caption: "", widthPreset: "narrow" }),
+  // La foto («SOY BELUZ/web/foto-sobre-belen.webp» en el Escritorio de Daniel) se sube desde el editor.
+  bloque("beluz-sobre-foto", "IMAGE", { alt: "María Belén Saldaña, docente de SOYBELUZ, sonriendo con un saco rosa", caption: "", widthPreset: "narrow" }),
 ]);
 
 const suscripcion: WebsiteBlock[] = enOrden([
@@ -326,8 +327,9 @@ export const SOYBELUZ_DISENO: WebsiteDesignPresets = {
   // Nueve entradas con DejaVu Sans (letra ancha) no entran en la barra superior: un botón abre el
   // menú desde un costado, igual en celular y en computadora.
   menuLayout: "drawer",
-  // El conjunto del logo es ~2,4:1: con 84 px de alto queda en ~200 px de ancho (mínimo del manual).
-  logoSizePx: 84,
+  // El conjunto del logo mide 1,82:1 (trazado del manual): con 110 px de alto queda en ~200 px de
+  // ancho, el mínimo del manual.
+  logoSizePx: 110,
   buttonPreset: "rounded",
   footerPreset: "simple",
   typographyLevels: {

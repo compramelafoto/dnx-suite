@@ -4,6 +4,10 @@
 solo se ordenó el formato. Las decisiones técnicas y el análisis sobre DNX Suite están en
 [analisis-comunidad-belen.md](analisis-comunidad-belen.md).
 
+**Datos de contacto (4/11/2026):** María Belén Saldaña · info.soybeluz@gmail.com · WhatsApp 341 212-1469 ·
+`soybeluz.com` · Instagram `@soybeluz`. Manual de marca V1.1 (noviembre 2026). Logo, isotipo y fotos para la web
+(extraídos del manual en vector y preparados en WebP) en la carpeta `SOY BELUZ/web` del Escritorio de Daniel.
+
 **Agregado por Daniel (4/11/2026), no figura en el brief de Belén:**
 - Las alumnas tienen que poder **armar sus cuadros con sus propias obras y ver cómo quedan en la pared de su
   casa** (probador de cuadros).

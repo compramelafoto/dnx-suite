@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ADMINISTRADORES, MODULOS, TIEMPO_TRANSACCION_MS, planDeAlta, type EstadoActual } from "./alta";
+import { ADMINISTRADORES, CONTACTO, MODULOS, TIEMPO_TRANSACCION_MS, planDeAlta, type EstadoActual } from "./alta";
 
 const VACIO: EstadoActual = { workspace: false, branding: false, membresias: [], vocabulario: false, modulos: [], sitio: null };
 
@@ -78,5 +78,11 @@ describe("planDeAlta", () => {
 describe("transacción del alta", () => {
   it("le da tiempo a las ~14 consultas contra Neon (el límite de Prisma por omisión es 5 s)", () => {
     expect(TIEMPO_TRANSACCION_MS).toBeGreaterThanOrEqual(20_000);
+  });
+});
+
+describe("contacto público", () => {
+  it("es el de SOYBELUZ, no el correo personal de quien administra", () => {
+    expect(CONTACTO).toEqual({ email: "info.soybeluz@gmail.com", whatsapp: "3412121469" });
   });
 });

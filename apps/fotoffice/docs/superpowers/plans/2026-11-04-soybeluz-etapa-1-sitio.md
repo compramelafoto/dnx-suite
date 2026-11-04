@@ -344,7 +344,7 @@ Consulta de solo lectura: las cuatro instituciones existentes siguen con la mism
 
 - [ ] **Step 4: Logo e isotipo**
 
-**Bloqueado hasta que Belén mande el paquete del manual** (SVG trazados y PNG transparentes, versiones color, cacao y marfil). Se cargan desde el panel en Configuración → Marca:
+Los archivos ya están listos (4/11): logo e isotipo extraídos en vector del PDF del manual y las dos fotos de Belén, en la carpeta `SOY BELUZ/web` del Escritorio de Daniel. Se cargan desde el panel en Configuración → Marca (y las fotos desde el editor: portada y «Sobre SOYBELUZ»):
 - `logoUrl`: el conjunto principal en color;
 - `faviconUrl`: el isotipo en color.
 

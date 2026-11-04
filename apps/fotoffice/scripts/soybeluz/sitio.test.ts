@@ -126,7 +126,7 @@ describe("sitio de SOYBELUZ", () => {
     expect(t.body.size).not.toBe("sm");
   });
 
-  it("el logo queda en el mínimo del manual (~200 px de ancho para un conjunto de 2,4:1)", () => {
-    expect(SOYBELUZ_DISENO.logoSizePx * 2.4).toBeGreaterThanOrEqual(200);
+  it("el logo queda en el mínimo del manual (200 px de ancho para un conjunto de 1,82:1)", () => {
+    expect(SOYBELUZ_DISENO.logoSizePx * 1.82).toBeGreaterThanOrEqual(200);
   });
 });
