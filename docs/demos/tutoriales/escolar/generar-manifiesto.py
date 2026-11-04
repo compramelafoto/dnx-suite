@@ -211,6 +211,22 @@ COPYS = [
         'proxima': 'El día de la toma: subir las fotos',
         'etiquetas': ['libritos escolares', 'listado de alumnos', 'plantillas escolares'],
     },
+    {
+        'n': 11,
+        'archivo': 'E11-el-dia-de-la-toma.mp4',
+        'titulo': 'El día de la toma: subir las fotos | Curso de fotografía escolar, clase 11',
+        'gancho': ("Llegó el día de la sesión, y lo mejor es que no tenés que separar nada por chico. Te muestro cómo "
+                   "subir todas las fotos de la jornada juntas, cómo ordenarlas en carpetas por curso o por momento "
+                   "mientras se suben, y qué hace el sistema en segundo plano: reconoce las caras de cada foto, que es "
+                   "lo que después le permite a cada familia encontrar las de su hijo con una selfie."),
+        'capitulos': [
+            ('0:00', 'No hay que separar nada por chico'),
+            ('0:14', 'Subir toda la jornada junta'),
+            ('0:27', 'Las caras se reconocen solas'),
+        ],
+        'proxima': 'La línea de producción',
+        'etiquetas': ['subir fotos', 'reconocimiento facial', 'dia de la toma'],
+    },
 ]
 
 

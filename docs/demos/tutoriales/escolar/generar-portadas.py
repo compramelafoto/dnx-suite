@@ -41,6 +41,8 @@ PORTADAS = {
         'Elegí<br><em>el diseño</em>'),
     10: ('E10-probar-el-librito-con-el-listado.mp4', 52, (330, 120, 1260, 709),
          'Cada chico,<br><em>su librito</em>'),
+    11: ('E11-el-dia-de-la-toma.mp4', 36, (820, 150, 1060, 596),
+         'Subí<br><em>todas juntas</em>'),
 }
 
 CSS = """
