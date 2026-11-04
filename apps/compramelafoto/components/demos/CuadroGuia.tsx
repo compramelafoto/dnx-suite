@@ -36,7 +36,7 @@ import {
   siguientePaso,
   ventanaAparteViva,
 } from "@/lib/demos/guiones/navegacion";
-import { VISTAS_DEMO, type VistaDemo } from "@/lib/demos/vistas";
+import { sesionParaVista, VISTAS_DEMO, type SesionDemo, type VistaDemo } from "@/lib/demos/vistas";
 import PlacaPublico from "@/components/demos/PlacaPublico";
 import type { Comando, EstadoPantalla } from "@/lib/control-remoto/protocolo";
 import { usePantallaRemota } from "@/components/control-remoto/usePantallaRemota";
@@ -55,7 +55,7 @@ export const RUTA_VENTANA_APARTE = "/demo/guia";
 type Estado = {
   activa: boolean;
   ctx: CtxGuion | null;
-  sesion: "fotografo" | "colegio" | null;
+  sesion: SesionDemo | null;
 };
 
 type Orden =
@@ -211,7 +211,7 @@ export default function CuadroGuia() {
     (p: PasoGuion) => {
       if (!ctx || !p.ruta) return;
       const ruta = p.ruta(ctx);
-      const sesionNecesaria = p.vista === "colegio" ? "colegio" : "fotografo";
+      const sesionNecesaria = sesionParaVista(p.vista);
       if (estado?.sesion !== sesionNecesaria) {
         void cambiarVista(p.vista, ruta);
         return;

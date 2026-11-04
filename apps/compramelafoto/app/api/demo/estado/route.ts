@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getDemoActiva } from "@/lib/demos/sesion-demo";
 import { getContextoDemoEscolar } from "@/lib/demos/escolar/contexto";
 import { getAuthUser } from "@/lib/auth";
+import { sesionDeRol } from "@/lib/demos/vistas";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,6 +25,6 @@ export async function GET() {
           plantillaId: ctx.plantillaId,
         }
       : null,
-    sesion: user ? (String(user.role) === "SCHOOL_ORGANIZER" ? "colegio" : "fotografo") : null,
+    sesion: user ? sesionDeRol(String(user.role)) : null,
   });
 }
