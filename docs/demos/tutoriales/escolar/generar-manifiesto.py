@@ -145,7 +145,7 @@ def manifiesto():
             'etiquetas': ETIQUETAS_SERIE + c['etiquetas'],
             'categoria': '27',
             'lista': 'escolar',
-            'portada': '',
+            'portada': f"{VIDEOS}/portadas/{c['archivo'].rsplit('.', 1)[0]}.png",
         } for c in COPYS],
     }
 

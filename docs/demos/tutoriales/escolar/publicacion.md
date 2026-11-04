@@ -34,6 +34,19 @@ Todas las descripciones terminan con el mismo bloque. Las direcciones se revisar
 | Conocer el sistema escolar (dice «Crear mi usuario gratis») | https://www.compramelafoto.com/landescolar |
 | Ver todos los tutoriales | https://www.compramelafoto.com/tutoriales |
 
+## Portadas
+
+`generar-portadas.py` arma la portada de cada clase (1280×720): número de clase, un texto de cuatro palabras como
+máximo, un cuadro real del video y el isotipo de ComprameLaFoto. Las deja en `videos/portadas/`, fuera de git, y
+`subir.py` la sube junto con el video (campo `portada` del manifiesto). Para una clase nueva se agrega a
+`PORTADAS` el segundo del cuadro y el recorte, y se corre:
+
+```bash
+python3 docs/demos/tutoriales/escolar/generar-portadas.py 6
+```
+
+E01 a E05 tienen su portada desde el 2026-11-04.
+
 ## Cómo se sube
 
 ```bash

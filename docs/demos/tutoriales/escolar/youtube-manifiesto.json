@@ -21,7 +21,7 @@
    ],
    "categoria": "27",
    "lista": "escolar",
-   "portada": ""
+   "portada": "/Users/danielcuart/Desktop/PROGRAMACIONES/dnx-suite/docs/demos/tutoriales/escolar/videos/portadas/E01-la-venta-escolar-de-punta-a-punta.png"
   },
   {
    "archivo": "/Users/danielcuart/Desktop/PROGRAMACIONES/dnx-suite/docs/demos/tutoriales/escolar/videos/E02-tu-pagina-de-venta-para-colegios.mp4",
@@ -39,7 +39,7 @@
    ],
    "categoria": "27",
    "lista": "escolar",
-   "portada": ""
+   "portada": "/Users/danielcuart/Desktop/PROGRAMACIONES/dnx-suite/docs/demos/tutoriales/escolar/videos/portadas/E02-tu-pagina-de-venta-para-colegios.png"
   },
   {
    "archivo": "/Users/danielcuart/Desktop/PROGRAMACIONES/dnx-suite/docs/demos/tutoriales/escolar/videos/E03-dar-de-alta-un-colegio.mp4",
@@ -56,7 +56,7 @@
    ],
    "categoria": "27",
    "lista": "escolar",
-   "portada": ""
+   "portada": "/Users/danielcuart/Desktop/PROGRAMACIONES/dnx-suite/docs/demos/tutoriales/escolar/videos/portadas/E03-dar-de-alta-un-colegio.png"
   },
   {
    "archivo": "/Users/danielcuart/Desktop/PROGRAMACIONES/dnx-suite/docs/demos/tutoriales/escolar/videos/E04-cursos-y-listado-de-alumnos.mp4",
@@ -74,7 +74,7 @@
    ],
    "categoria": "27",
    "lista": "escolar",
-   "portada": ""
+   "portada": "/Users/danielcuart/Desktop/PROGRAMACIONES/dnx-suite/docs/demos/tutoriales/escolar/videos/portadas/E04-cursos-y-listado-de-alumnos.png"
   },
   {
    "archivo": "/Users/danielcuart/Desktop/PROGRAMACIONES/dnx-suite/docs/demos/tutoriales/escolar/videos/E05-el-usuario-del-colegio.mp4",
@@ -92,7 +92,7 @@
    ],
    "categoria": "27",
    "lista": "escolar",
-   "portada": ""
+   "portada": "/Users/danielcuart/Desktop/PROGRAMACIONES/dnx-suite/docs/demos/tutoriales/escolar/videos/portadas/E05-el-usuario-del-colegio.png"
   }
  ]
 }
