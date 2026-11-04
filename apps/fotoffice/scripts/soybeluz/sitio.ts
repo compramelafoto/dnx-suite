@@ -52,6 +52,8 @@ const inicio: WebsiteBlock[] = enOrden([
         title: "Aprender, crear y compartir.",
         subtitle: "Un espacio para aprender y compartir el dibujo creativo, desde cero y a tu ritmo.",
         showButton: true,
+        // Contorno blanco: un botón sólido sería cacao sobre el fondo cacao de la portada.
+        buttonStyle: "outline",
         buttonLabel: "Clases creativas gratuitas",
         buttonUrl: "/clases-creativas-gratuitas",
       }),

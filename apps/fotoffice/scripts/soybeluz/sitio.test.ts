@@ -92,6 +92,13 @@ describe("sitio de SOYBELUZ", () => {
     }
   });
 
+  it("el botón de la portada no es sólido: fondo y botón serían cacao sobre cacao", () => {
+    const portada = SOYBELUZ_SECCIONES.pages.home.find((b) => b.type === "HERO");
+    const placas = portada?.type === "HERO" ? portada.config.slides : [];
+    expect(SOYBELUZ_COLORES.secondaryColor).toBe(SOYBELUZ_COLORES.accentColor);
+    for (const placa of placas) if (placa.showButton) expect(placa.buttonStyle).toBe("outline");
+  });
+
   it("el menú de nueve entradas va en panel lateral: en barra superior no entra", () => {
     expect(SOYBELUZ_DISENO.menuLayout).toBe("drawer");
   });
