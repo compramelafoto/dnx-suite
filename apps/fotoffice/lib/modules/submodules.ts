@@ -568,6 +568,17 @@ const VENTAS: SubmoduleItem[] = [
     requiresAction: STORE_CONFIGURE_ACTION,
     activeMatch: "under",
   },
+  {
+    // Mismo permiso que los pedidos online (`requireStoreOperator`): pasarle los pedidos al
+    // productor es operar la tienda. Regenerar el enlace pide además configurarla.
+    href: "/ventas/tienda/productores",
+    label: "Productores",
+    icon: "Handshake",
+    description: "Lo que produce y despacha otro: la planilla de pedidos para el productor y lo pendiente de pasarle.",
+    requiresManage: true,
+    levelModuleKey: STORE_MODULE_KEY,
+    activeMatch: "under",
+  },
 ];
 
 const COMUNICACION: SubmoduleItem[] = [

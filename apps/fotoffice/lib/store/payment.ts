@@ -74,6 +74,7 @@ export async function startStoreCheckout(input: {
       status: true,
       holdExpiresAt: true,
       subtotalArs: true,
+      discountArs: true,
       shippingArs: true,
       totalArs: true,
       buyerEmail: true,
@@ -114,8 +115,9 @@ export async function startStoreCheckout(input: {
   } else {
     feeBps = await getPlatformFeeBps(input.workspaceId, STORE_MODULE_KEY);
     const deuda = await pendingFeeDebtMinor(input.workspaceId);
-    // Sobre los productos (E11): ni la comisión ni la deuda arrastrada salen del envío.
-    const subtotalMinor = decimalArsToMinor(pedido.subtotalArs);
+    // Sobre los productos (E11) con la promo ya restada: ni la comisión ni la deuda arrastrada
+    // salen del envío, ni de lo que la promo descontó.
+    const subtotalMinor = decimalArsToMinor(pedido.subtotalArs) - decimalArsToMinor(pedido.discountArs);
     withholdMinor = feeForBooking({ totalMinor: subtotalMinor, feeBps, pendingDebtMinor: deuda }).withholdMinor;
   }
 

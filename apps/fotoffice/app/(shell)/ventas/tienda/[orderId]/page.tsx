@@ -6,6 +6,7 @@ import { requireStoreOperator } from "@/lib/store/access";
 import { artworkProductionInfo, canDownloadOriginal } from "@/lib/store/artworks/production";
 import { STORE_ORDER_STATUS_LABELS } from "@/lib/store/constants";
 import { cancelNeedsNote, loadStoreOrderDetail, staffTargets } from "@/lib/store/order-admin";
+import { proveedorNames } from "@/lib/store/fulfillment/repository";
 import { ANDREANI_TEST_MODE_WARNING, orderQuoteSummary, orderShippingView } from "@/lib/store/shipping/order-destination";
 import { trackingCarrierName, trackingUrl } from "@/lib/store/shipping/tracking";
 import { DownloadOriginalButton } from "./download-original-button";
@@ -44,6 +45,10 @@ export default async function PedidoOnlinePage({ params }: { params: Promise<{ o
   const cotizacion = envio ? orderQuoteSummary(pedido.shippingQuoteJson) : null;
   const enlaceSeguimiento = trackingUrl(pedido.shippingSource, pedido.trackingNumber);
   const originalDisponible = canDownloadOriginal(pedido.status);
+  const productores = await proveedorNames(
+    workspace.id,
+    pedido.items.flatMap((i) => (i.fulfillmentProveedorId ? [i.fulfillmentProveedorId] : [])),
+  );
 
   return (
     <div className="space-y-6">
@@ -92,6 +97,12 @@ export default async function PedidoOnlinePage({ params }: { params: Promise<{ o
                       <td className="py-1">
                         {i.productName}
                         {i.variantName ? <span className="text-[var(--fo-muted)]"> — {i.variantName}</span> : null}
+                        {i.fulfillmentProveedorId ? (
+                          <p className="mt-1 text-xs text-[var(--fo-muted)]">
+                            Productor: {productores.get(i.fulfillmentProveedorId) ?? "proveedor borrado"} ·{" "}
+                            {i.fulfillmentSentAt ? `pasado el ${fecha(i.fulfillmentSentAt)}` : "pendiente"}
+                          </p>
+                        ) : null}
                         {obra ? (
                           <div className="mt-1 space-y-1 text-xs text-[var(--fo-muted)]">
                             <p>
@@ -112,6 +123,14 @@ export default async function PedidoOnlinePage({ params }: { params: Promise<{ o
                 })}
               </tbody>
               <tfoot>
+                {decimalArsToMinor(pedido.discountArs) > 0 ? (
+                  <tr className="border-t border-[var(--fo-border)]">
+                    <td className="py-1" colSpan={3}>
+                      Descuento por promo
+                    </td>
+                    <td className="py-1 text-right">− {formatMinorArs(decimalArsToMinor(pedido.discountArs))}</td>
+                  </tr>
+                ) : null}
                 {envio ? (
                   <tr className="border-t border-[var(--fo-border)]">
                     <td className="py-1" colSpan={3}>

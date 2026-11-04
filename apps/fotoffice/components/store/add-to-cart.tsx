@@ -1,15 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Minus, Plus } from "lucide-react";
 import { lineKey } from "@/lib/store/cart";
 import { STORE_PUBLIC_SEGMENT } from "@/lib/store/constants";
 import { maxAddableQty, type StoreProductDetail } from "@/lib/store/storefront";
+import { buildVariantAxes, imageIndexForModel, optionForVariant, variantAfterModelChange } from "@/lib/store/variant-axes";
 import { useCart } from "./cart-provider";
 import { Price } from "./price";
 import { SizeChartDialog } from "./size-chart-dialog";
-import { VariantPicker } from "./variant-picker";
+import { useProductView } from "./product-view-context";
+import { VariantAxesPicker, VariantPicker } from "./variant-picker";
 
 /**
  * La compra desde la ficha: talle (si tiene), cantidad y "Agregar al carrito".
@@ -17,14 +19,31 @@ import { VariantPicker } from "./variant-picker";
  * La cantidad se acota a lo que se puede agregar de verdad: lo disponible, el máximo por compra y
  * lo que ya está en el carrito. Es una ayuda, no la garantía: el carrito y el checkout revalidan
  * en el servidor.
+ *
+ * Si las variantes se llaman "Modelo / Talle", se eligen en dos pasos (modelo y después talle) y el
+ * modelo elegido se avisa a la galería por `ProductViewProvider`.
  */
 export function AddToCart({ product }: { product: StoreProductDetail }) {
   const cart = useCart();
   const tieneTalles = product.variants.length > 0;
   const disponibles = product.variants.filter((v) => v.available !== 0);
-  const [variantId, setVariantId] = useState<string | null>(
-    tieneTalles && disponibles.length === 1 ? disponibles[0].id : null,
-  );
+  const axes = useMemo(() => buildVariantAxes(product.variants), [product.variants]);
+  const [variantId, setVariantId] = useState<string | null>(() => {
+    if (tieneTalles && disponibles.length === 1) return disponibles[0].id;
+    // Un solo modelo: ya queda elegido, y si tiene un único talle disponible, también el talle.
+    if (axes && axes.models.length === 1) return variantAfterModelChange(axes, axes.models[0], null);
+    return null;
+  });
+  const [modelo, setModelo] = useState<string | null>(() => {
+    if (!axes) return null;
+    if (axes.models.length === 1) return axes.models[0];
+    return optionForVariant(axes, variantId)?.model ?? null;
+  });
+  const vista = useProductView();
+  const avisarModelo = vista?.setModel;
+  useEffect(() => {
+    avisarModelo?.(modelo);
+  }, [avisarModelo, modelo]);
   const [qty, setQty] = useState(1);
   const [agregado, setAgregado] = useState(false);
 
@@ -47,6 +66,8 @@ export function AddToCart({ product }: { product: StoreProductDetail }) {
   const faltaTalle = tieneTalles && !talle;
   const puedeAgregar = cart.hydrated && !product.soldOut && !faltaTalle && maximo > 0;
 
+  const imagenDelModelo = product.images[imageIndexForModel(product.images, modelo)] ?? null;
+
   function agregar() {
     if (!puedeAgregar) return;
     cart.add({
@@ -56,7 +77,7 @@ export function AddToCart({ product }: { product: StoreProductDetail }) {
       slug: product.slug,
       name: product.title,
       variantName: talle?.name ?? null,
-      imageUrl: product.images[0]?.url ?? null,
+      imageUrl: imagenDelModelo?.url ?? product.images[0]?.url ?? null,
       unitPriceMinor: precio,
       qty: cantidad,
     });
@@ -66,7 +87,7 @@ export function AddToCart({ product }: { product: StoreProductDetail }) {
 
   let aviso: string | null = null;
   if (product.soldOut) aviso = "Este producto está agotado.";
-  else if (faltaTalle) aviso = "Elegí un talle.";
+  else if (faltaTalle) aviso = axes && modelo === null ? "Elegí un modelo y un talle." : "Elegí un talle.";
   else if (maximo === 0) {
     aviso =
       product.maxPerOrder !== null && enCarritoProducto >= product.maxPerOrder
@@ -80,15 +101,34 @@ export function AddToCart({ product }: { product: StoreProductDetail }) {
 
       {tieneTalles ? (
         <div className="space-y-2">
-          <VariantPicker
-            variants={product.variants}
-            value={variantId}
-            onChange={(id) => {
-              setVariantId(id);
-              setQty(1);
-              setAgregado(false);
-            }}
-          />
+          {axes ? (
+            <VariantAxesPicker
+              axes={axes}
+              model={modelo}
+              variantId={variantId}
+              onModelChange={(m) => {
+                setModelo(m);
+                setVariantId(variantAfterModelChange(axes, m, optionForVariant(axes, variantId)?.size ?? null));
+                setQty(1);
+                setAgregado(false);
+              }}
+              onVariantChange={(id) => {
+                setVariantId(id);
+                setQty(1);
+                setAgregado(false);
+              }}
+            />
+          ) : (
+            <VariantPicker
+              variants={product.variants}
+              value={variantId}
+              onChange={(id) => {
+                setVariantId(id);
+                setQty(1);
+                setAgregado(false);
+              }}
+            />
+          )}
           {product.sizeChartImageUrl ? (
             <SizeChartDialog imageUrl={product.sizeChartImageUrl} productTitle={product.title} />
           ) : null}

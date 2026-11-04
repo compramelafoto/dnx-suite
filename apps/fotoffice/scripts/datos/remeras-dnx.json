@@ -1,0 +1,392 @@
+{
+ "modelos": [
+  {
+   "codigo": "OVN",
+   "nombre": "Oversize negra",
+   "oscura": true
+  },
+  {
+   "codigo": "OVB",
+   "nombre": "Oversize blanca",
+   "oscura": false
+  },
+  {
+   "codigo": "OVS",
+   "nombre": "Oversize stone wash",
+   "oscura": true
+  },
+  {
+   "codigo": "CHN",
+   "nombre": "Clásica hombre negra",
+   "oscura": true
+  },
+  {
+   "codigo": "CHB",
+   "nombre": "Clásica hombre blanca",
+   "oscura": false
+  },
+  {
+   "codigo": "CMN",
+   "nombre": "Clásica mujer negra",
+   "oscura": true
+  },
+  {
+   "codigo": "CMB",
+   "nombre": "Clásica mujer blanca",
+   "oscura": false
+  }
+ ],
+ "disenos": [
+  {
+   "codigo": "CFLAG",
+   "nombre": "Camera Flag",
+   "slug": "camera-flag",
+   "activo": true,
+   "descripcion": "Una cámara clásica sobre una bandera de franjas gastadas, en tonos vintage.",
+   "estampaOscura": "1SKEv5gS94WQuJphQXMnlZg8qLQouy7kb",
+   "estampaClara": "1SKEv5gS94WQuJphQXMnlZg8qLQouy7kb",
+   "mockups": [
+    {
+     "modelo": "Oversize negra",
+     "driveId": "16go1LeGWXWA8zy69XnneZpm1Fu79YJvk"
+    },
+    {
+     "modelo": "Oversize blanca",
+     "driveId": "116AWJxLusnVNwBWd8cK3ZS9lFSR9J5uv"
+    },
+    {
+     "modelo": "Oversize stone wash",
+     "driveId": "1diqSM4uKrLs-2YzRNjsguSYSTeRLS3Ar"
+    },
+    {
+     "modelo": "Clásica hombre negra",
+     "driveId": "1VhmkIX75wGBTP5M2ItVrk5u_8aPLxrlW"
+    },
+    {
+     "modelo": "Clásica hombre blanca",
+     "driveId": "1toww1574nKchRLSsxKPKzaufwKHPnpLB"
+    },
+    {
+     "modelo": "Clásica mujer negra",
+     "driveId": "1F2O0YHIaJckxU9pL4AdgVUkZPSRCY_Of"
+    },
+    {
+     "modelo": "Clásica mujer blanca",
+     "driveId": "1o_MRag_AJ_A-J0R6Y--OPfhc3ehuUBmQ"
+    }
+   ]
+  },
+  {
+   "codigo": "DSLR",
+   "nombre": "DSLR por dentro",
+   "slug": "dslr",
+   "activo": true,
+   "descripcion": "El corte de una réflex con sus partes: espejo, pentaprisma, obturador y sensor. Para quienes saben qué pasa adentro.",
+   "estampaOscura": "1syZt1-ybxgoeXcwrLy0SBe4_lZQHrp1K",
+   "estampaClara": "1g7DpK0EtKKrQHR6vbJPmh9YSzZtMs3az",
+   "mockups": [
+    {
+     "modelo": "Oversize negra",
+     "driveId": "1lsKYJ2WkhAS--nvj00EbM1mJo0tj_YdY"
+    },
+    {
+     "modelo": "Oversize blanca",
+     "driveId": "1HfOr-tbvh01SViRFErh9iI31QylznJmQ"
+    },
+    {
+     "modelo": "Oversize stone wash",
+     "driveId": "1XD74KNsWvwhzn85BrVxSJoI-E5XTC2ZS"
+    },
+    {
+     "modelo": "Clásica hombre negra",
+     "driveId": "10xmti3SpLHJu409SIhIIWQykoKOqSa5r"
+    },
+    {
+     "modelo": "Clásica hombre blanca",
+     "driveId": "1xqrqtVCIiAosUdXH_0ZJMFt5lrpachzx"
+    },
+    {
+     "modelo": "Clásica mujer negra",
+     "driveId": "1pB5nwtP1NrdowkVAZL9enyYZurmAOiB7"
+    },
+    {
+     "modelo": "Clásica mujer blanca",
+     "driveId": "1xFi9tewD1m-oNJiEsZXHfEB81tHEaak_"
+    }
+   ]
+  },
+  {
+   "codigo": "SUTRA",
+   "nombre": "The Camera Sutra",
+   "slug": "the-camera-sutra",
+   "activo": true,
+   "descripcion": "Las posturas que todo fotógrafo hizo alguna vez para lograr la toma.",
+   "estampaOscura": "1CBx6yfh2xo821bdVQVYXQ8Neu1kvkCUI",
+   "estampaClara": "1CS8j2ICnRd2HObJO0qOtC3vk7WMCcPum",
+   "mockups": [
+    {
+     "modelo": "Oversize negra",
+     "driveId": "1uiKrqPid0Q1iIzwiEvitKh9NNpoEKZSN"
+    },
+    {
+     "modelo": "Oversize blanca",
+     "driveId": "1ycexrlr4shDZRZ1Pj_JGUgb08zmHdi6l"
+    },
+    {
+     "modelo": "Oversize stone wash",
+     "driveId": "1GFUSFYkkSXH3iz9__4y5WqiZU0KnSv6f"
+    },
+    {
+     "modelo": "Clásica hombre negra",
+     "driveId": "1aboeGhkKe8du6yVurD1ZlaZUWduFXtNu"
+    },
+    {
+     "modelo": "Clásica hombre blanca",
+     "driveId": "1xXIG485j8-DQJuY8SivwNoDnOKVD4rmX"
+    },
+    {
+     "modelo": "Clásica mujer negra",
+     "driveId": "1IWoYzMkg0xLfgra_hEXxNfEqUXWz8qIr"
+    },
+    {
+     "modelo": "Clásica mujer blanca",
+     "driveId": "16fpTGIc4SWq_RP9N2SVS9vQ3KOB5jNt1"
+    }
+   ]
+  },
+  {
+   "codigo": "POLA",
+   "nombre": "Polaroid 80s",
+   "slug": "polaroid-80s",
+   "activo": true,
+   "descripcion": "Una instantánea con toda la estética de los 80: colores flúo y formas geométricas.",
+   "estampaOscura": "1UJa5Qw2uv9c7aaVNn53-L42gFeYFfC3v",
+   "estampaClara": "1UJa5Qw2uv9c7aaVNn53-L42gFeYFfC3v",
+   "mockups": [
+    {
+     "modelo": "Oversize negra",
+     "driveId": "1IQ0JKN76QptarjM8NQrXfrP4vr9AEd29"
+    },
+    {
+     "modelo": "Oversize blanca",
+     "driveId": "1yFfzKK22J52OKM60GXELsxx9c2PBgyK-"
+    },
+    {
+     "modelo": "Oversize stone wash",
+     "driveId": "1tqFt16MTeoFFAf7ZsSVSD1WUEKwpHol3"
+    },
+    {
+     "modelo": "Clásica hombre negra",
+     "driveId": "1DkhtzISpCtJaS1LXg9z4ZLFCTvWCnQT-"
+    },
+    {
+     "modelo": "Clásica hombre blanca",
+     "driveId": "1qLcRHiqp8x1E5utDz6UoR4VkK_Ml8jbC"
+    },
+    {
+     "modelo": "Clásica mujer negra",
+     "driveId": "1x77InwUChUFwH1Z2gRTGsbx8pbrdDlDy"
+    },
+    {
+     "modelo": "Clásica mujer blanca",
+     "driveId": "1i1AnD5K2hiawNql5FUvf3YQEf0KQNSC3"
+    }
+   ]
+  },
+  {
+   "codigo": "CAMS",
+   "nombre": "Cámaras",
+   "slug": "camaras",
+   "activo": true,
+   "descripcion": "Una colección de cámaras de todas las épocas y colores.",
+   "estampaOscura": "1mZqY_KD0_mhPdGjC1722SO4KLqZAxy2z",
+   "estampaClara": "1mZqY_KD0_mhPdGjC1722SO4KLqZAxy2z",
+   "mockups": [
+    {
+     "modelo": "Oversize negra",
+     "driveId": "1rei3LmLmAYhUyVshT0uZw6igqxyYC1_7"
+    },
+    {
+     "modelo": "Oversize blanca",
+     "driveId": "1dyjEyGVDdIDhJgIXCBp9fHLgO8hyPnbH"
+    },
+    {
+     "modelo": "Oversize stone wash",
+     "driveId": "1N4lpivw8Rj0PWklwxrSXyCjd9ijlpyYg"
+    },
+    {
+     "modelo": "Clásica hombre negra",
+     "driveId": "1sg0O-IUOPwfXf-Y8hgDyRLgJX9wS1MfC"
+    },
+    {
+     "modelo": "Clásica hombre blanca",
+     "driveId": "1_mj9glUWAxyPSaSP3BlcP9oOWr-l_gnc"
+    },
+    {
+     "modelo": "Clásica mujer negra",
+     "driveId": "1vBhk4iG-xIC_9q6q1B-medOu_dHmSKgb"
+    },
+    {
+     "modelo": "Clásica mujer blanca",
+     "driveId": "1QYkfHQM8MLeHNnST7pqFuw1aw1MzvnWT"
+    }
+   ]
+  },
+  {
+   "codigo": "WPO",
+   "nombre": "What Part Of",
+   "slug": "what-part-of",
+   "activo": true,
+   "descripcion": "La pantalla de la cámara en modo manual. ¿Qué parte no entendiste?",
+   "estampaOscura": "189465MOGttO8wvZ_c_tz4s1TFOwsrxJy",
+   "estampaClara": "1BeDrHQyk0bwHteaXDYUtpi7GaQ9kXvej",
+   "mockups": [
+    {
+     "modelo": "Oversize negra",
+     "driveId": "1bEUn7VPuUTQQfFpJulXgdg6xS8V3QiUk"
+    },
+    {
+     "modelo": "Oversize blanca",
+     "driveId": "1qTaKzWYxwHso2QdCp7waclPF89xQjdHs"
+    },
+    {
+     "modelo": "Oversize stone wash",
+     "driveId": "1JqA3ymHySFFrUwgF13JPhqqyje6cBYcH"
+    },
+    {
+     "modelo": "Clásica hombre negra",
+     "driveId": "1JGGLjsiwUBmVpUNcojqDoPnG9J5pOc9E"
+    },
+    {
+     "modelo": "Clásica hombre blanca",
+     "driveId": "1EW_8HSZp7Tu0UkGI7LmJo2s_udwcmbZI"
+    },
+    {
+     "modelo": "Clásica mujer negra",
+     "driveId": "1zrGQaVFfgw0GBbwEzGavfsvcHOzUyC3Z"
+    },
+    {
+     "modelo": "Clásica mujer blanca",
+     "driveId": "1GK8h5Am5ecv5NmUy_d10gymcUnw8Iq5t"
+    }
+   ]
+  },
+  {
+   "codigo": "SPRING",
+   "nombre": "Spring",
+   "slug": "spring",
+   "activo": true,
+   "descripcion": "Una cámara rodeada de flores. Primavera para fotógrafos.",
+   "estampaOscura": "1mr0fmLhfDvQ5twwiYrAGyytIioL-0K6i",
+   "estampaClara": "1mr0fmLhfDvQ5twwiYrAGyytIioL-0K6i",
+   "mockups": [
+    {
+     "modelo": "Oversize negra",
+     "driveId": "1ofQtnKWCWuT2C3qvVOnlnpyN3rJDpOQ4"
+    },
+    {
+     "modelo": "Oversize blanca",
+     "driveId": "11MMULxHT5GtX038AMj-bctcp2M4sX2me"
+    },
+    {
+     "modelo": "Oversize stone wash",
+     "driveId": "1E4LFW8sCrV5hjwwSWleTUiNtHU9_kaBQ"
+    },
+    {
+     "modelo": "Clásica hombre negra",
+     "driveId": "1ui2kjOpgN_A5F8JXhR-4FSnXkw_-1RIq"
+    },
+    {
+     "modelo": "Clásica hombre blanca",
+     "driveId": "19vyRZ0ncFhzNy89lf-4pd8XMFdz1ipYM"
+    },
+    {
+     "modelo": "Clásica mujer negra",
+     "driveId": "1duFqMt9G8QsAUvuhsJah0Yjk-b31Hzyi"
+    },
+    {
+     "modelo": "Clásica mujer blanca",
+     "driveId": "18EpZnQnRy1rfO1Y2d-Dp85Qls69km5me"
+    }
+   ]
+  },
+  {
+   "codigo": "MITYP",
+   "nombre": "May I Take Your Picture?",
+   "slug": "may-i-take-your-picture",
+   "activo": true,
+   "descripcion": "Una cámara dibujada a mano entre estrellas y la pregunta de siempre.",
+   "estampaOscura": "1ZFKuzg6133qearT32XIv5ZRKGV_TzE6M",
+   "estampaClara": "1T3gnjrUOTDbe7vtWXvqpHfwpLNaAni7k",
+   "mockups": [
+    {
+     "modelo": "Oversize negra",
+     "driveId": "1go20ieVtrhyQCk6c8zq730uVZwgqEtkD"
+    },
+    {
+     "modelo": "Oversize blanca",
+     "driveId": "1dDGUHMTv_V0TTjOJpFruXZQvBf1WneOu"
+    },
+    {
+     "modelo": "Oversize stone wash",
+     "driveId": "1c3LdfgtOCKSZndV6zXvVPj0TJReSUA_W"
+    },
+    {
+     "modelo": "Clásica hombre negra",
+     "driveId": "1QQaNf6Jf76F1IxHEMMyRSdhj6cSN2joJ"
+    },
+    {
+     "modelo": "Clásica hombre blanca",
+     "driveId": "1rCIMiS54H1jMCYmQkiwEKz5oiQ5FAQOi"
+    },
+    {
+     "modelo": "Clásica mujer negra",
+     "driveId": "1P1g2aiJQBygvtarbqeYQsXraFbgcNv5d"
+    },
+    {
+     "modelo": "Clásica mujer blanca",
+     "driveId": "1mjrQHDQWOJ2eFyIOlAuxUenc_MDvS3xo"
+    }
+   ]
+  },
+  {
+   "codigo": "CAMS2",
+   "nombre": "Cameras",
+   "slug": "cameras",
+   "activo": false,
+   "descripcion": "Cámaras de colores en grilla.",
+   "estampaOscura": null,
+   "estampaClara": null,
+   "mockups": [
+    {
+     "modelo": "Oversize negra",
+     "driveId": "1uwCu6nExSry1S9ifLlEEygRQVB6tJBin"
+    },
+    {
+     "modelo": "Oversize blanca",
+     "driveId": "1vtcrI7WbGsy1EcC-qHN2-x3aVWmJWE-A"
+    },
+    {
+     "modelo": "Oversize stone wash",
+     "driveId": "1_d3eHyMWij6XagrjzYeuTULrAQeZZsyS"
+    },
+    {
+     "modelo": "Clásica hombre negra",
+     "driveId": "1c14JA4v8XqZmssIstAvbnkVPckUK2nrI"
+    },
+    {
+     "modelo": "Clásica hombre blanca",
+     "driveId": "1PHPlflR1OBd1oy4OSxyrNmwhjug9VEDO"
+    },
+    {
+     "modelo": "Clásica mujer negra",
+     "driveId": "1ItqxLZxSGbR6NdST3THFFrt51cDsozyd"
+    },
+    {
+     "modelo": "Clásica mujer blanca",
+     "driveId": "17O5ZnEo-_eSNzDJ0jhq_at8xtYnwlOoW"
+    }
+   ]
+  }
+ ]
+}

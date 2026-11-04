@@ -5,6 +5,7 @@ import { requireStoreConfigurer } from "@/lib/store/access";
 import { DEFAULT_RETURNS_POLICY, STORE_PUBLIC_SEGMENT } from "@/lib/store/constants";
 import { loadPublicSlug } from "@/lib/blog/admin-queries";
 import { resolveWorkspaceCollector } from "@/lib/payments/connect/collector";
+import { decimalArsToMinor, minorToDecimalString } from "@/lib/membership/money";
 import { StoreSettingsForm } from "./settings-form";
 
 export const dynamic = "force-dynamic";
@@ -12,7 +13,7 @@ export const dynamic = "force-dynamic";
 export default async function TiendaConfiguracionPage() {
   const { workspace } = await requireStoreConfigurer();
 
-  const [settings, publicSlug, collector] = await Promise.all([
+  const [settings, publicSlug, collector, categorias] = await Promise.all([
     prisma.storeSettings.findUnique({
       where: { workspaceId: workspace.id },
       select: {
@@ -22,21 +23,41 @@ export default async function TiendaConfiguracionPage() {
         pickupInstructions: true,
         returnsPolicy: true,
         notifyEmail: true,
+        bundleCategoryId: true,
+        bundleQty: true,
+        bundlePriceArs: true,
+        bundleLabel: true,
       },
     }),
     loadPublicSlug(workspace.id),
     resolveWorkspaceCollector(workspace.id),
+    // Para la promo "N por $X": las categorías de productos del negocio.
+    prisma.productCategory.findMany({
+      where: { workspaceId: workspace.id, isActive: true },
+      orderBy: [{ order: "asc" }, { name: "asc" }],
+      select: { id: true, name: true },
+    }),
   ]);
 
   // Sin fila todavía, la tienda está cerrada y sin nada cargado.
-  const valores = settings ?? {
-    isOpen: false,
-    pickupAddress: null,
-    pickupHours: null,
-    pickupInstructions: null,
-    returnsPolicy: null,
-    notifyEmail: null,
-  };
+  const valores = settings
+    ? {
+        ...settings,
+        bundlePriceArs:
+          settings.bundlePriceArs === null ? null : minorToDecimalString(decimalArsToMinor(settings.bundlePriceArs)),
+      }
+    : {
+        isOpen: false,
+        pickupAddress: null,
+        pickupHours: null,
+        pickupInstructions: null,
+        returnsPolicy: null,
+        notifyEmail: null,
+        bundleCategoryId: null,
+        bundleQty: null,
+        bundlePriceArs: null,
+        bundleLabel: null,
+      };
 
   return (
     <div className="space-y-8">
@@ -65,7 +86,7 @@ export default async function TiendaConfiguracionPage() {
         </p>
       ) : null}
 
-      <StoreSettingsForm settings={valores} defaultReturnsPolicy={DEFAULT_RETURNS_POLICY} />
+      <StoreSettingsForm settings={valores} defaultReturnsPolicy={DEFAULT_RETURNS_POLICY} categories={categorias} />
     </div>
   );
 }

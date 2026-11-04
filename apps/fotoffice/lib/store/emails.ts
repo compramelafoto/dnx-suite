@@ -44,6 +44,7 @@ async function cargar(input: StoreOrderEmailInput): Promise<Cargado | null> {
       buyerEmail: true,
       buyerPhone: true,
       totalArs: true,
+      discountArs: true,
       deliveryMethod: true,
       shippingMethod: true,
       shippingSource: true,
@@ -88,6 +89,7 @@ async function cargar(input: StoreOrderEmailInput): Promise<Cargado | null> {
       buyerEmail: order.buyerEmail,
       buyerPhone: order.buyerPhone,
       totalMinor: decimalArsToMinor(order.totalArs),
+      discountMinor: decimalArsToMinor(order.discountArs),
       items: order.items.map((i) => ({
         description: i.productName + (i.variantName ? ` — ${i.variantName}` : ""),
         qty: i.qty,

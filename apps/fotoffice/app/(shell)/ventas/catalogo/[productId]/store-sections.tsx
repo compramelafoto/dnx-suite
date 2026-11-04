@@ -58,15 +58,18 @@ export function StoreSections({
   product,
   publicSlug,
   storeEnabled,
+  proveedores = [],
 }: {
   product: ProductDetail;
   /** La dirección pública del sitio de la institución; null si todavía no tiene. */
   publicSlug: string | null;
   storeEnabled: boolean;
+  /** Los proveedores que pueden producirlo (dropshipping): los activos y el que ya tiene. */
+  proveedores?: { id: string; name: string }[];
 }) {
   return (
     <div className="space-y-6">
-      <ListingForm product={product} publicSlug={publicSlug} storeEnabled={storeEnabled} />
+      <ListingForm product={product} publicSlug={publicSlug} storeEnabled={storeEnabled} proveedores={proveedores} />
       <GallerySection product={product} storeEnabled={storeEnabled} />
       {/* La key remonta la tabla cuando cambian los talles guardados: sin esto, después de
           guardar, las filas nuevas seguirían en pantalla sin su id y un segundo "Guardar" las
@@ -84,10 +87,12 @@ function ListingForm({
   product,
   publicSlug,
   storeEnabled,
+  proveedores,
 }: {
   product: ProductDetail;
   publicSlug: string | null;
   storeEnabled: boolean;
+  proveedores: { id: string; name: string }[];
 }) {
   const ficha = product.storeListing;
   const [slug, setSlug] = useState(ficha?.slug ?? "");
@@ -185,6 +190,49 @@ function ListingForm({
         <div className="sm:max-w-xs">
           <CampoEntero nombre="maxPerOrder" etiqueta="Tope por compra" valor={ficha?.maxPerOrder ?? null} />
           <p className="fo-helper">Cuántas unidades puede llevar una persona en un pedido. Vacío: sin tope.</p>
+        </div>
+      </section>
+
+      <section className="fo-card space-y-4 p-5">
+        <h2 className="text-base font-semibold">Producción</h2>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="fo-field-stack">
+            <label className="fo-label" htmlFor="fulfillmentProveedorId">
+              Lo produce
+            </label>
+            <select
+              id="fulfillmentProveedorId"
+              name="fulfillmentProveedorId"
+              className="fo-input"
+              defaultValue={ficha?.fulfillmentProveedorId ?? ""}
+            >
+              <option value="">Lo preparamos nosotros</option>
+              {proveedores.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+            <p className="fo-helper">
+              Si lo produce y despacha otro, sus pedidos aparecen en Tienda → Productores, con la planilla para pasárselos.
+            </p>
+          </div>
+          <div className="fo-field-stack">
+            <label className="fo-label" htmlFor="printFileUrl">
+              Archivo para producir (link)
+            </label>
+            <input
+              id="printFileUrl"
+              name="printFileUrl"
+              type="url"
+              inputMode="url"
+              className="fo-input"
+              defaultValue={ficha?.printFileUrl ?? ""}
+              placeholder="https://drive.google.com/…"
+              maxLength={2048}
+            />
+            <p className="fo-helper">El archivo listo para estampar o imprimir. Cada talle puede tener el suyo.</p>
+          </div>
         </div>
       </section>
 
@@ -318,6 +366,7 @@ type FilaTalle = {
   price: string;
   isActive: boolean;
   stockQty: number | null;
+  printFileUrl: string;
 };
 
 function filaDesde(v: ProductVariantDetail): FilaTalle {
@@ -330,13 +379,24 @@ function filaDesde(v: ProductVariantDetail): FilaTalle {
     price: minorToInputText(v.priceMinor),
     isActive: v.isActive,
     stockQty: v.stockQty,
+    printFileUrl: v.printFileUrl ?? "",
   };
 }
 
 let proximaClave = 0;
 function filaNueva(): FilaTalle {
   proximaClave += 1;
-  return { clave: `nueva-${proximaClave}`, id: null, name: "", sku: "", barcode: "", price: "", isActive: true, stockQty: null };
+  return {
+    clave: `nueva-${proximaClave}`,
+    id: null,
+    name: "",
+    sku: "",
+    barcode: "",
+    price: "",
+    isActive: true,
+    stockQty: null,
+    printFileUrl: "",
+  };
 }
 
 function VariantsSection({ product, storeEnabled }: { product: ProductDetail; storeEnabled: boolean }) {
@@ -369,6 +429,10 @@ function VariantsSection({ product, storeEnabled }: { product: ProductDetail; st
         desactiva, y para eso su stock tiene que estar en cero. La primera vez, el stock que ya tenía el producto pasa
         al primer talle.
       </p>
+      <p className="fo-helper">
+        Si nombrás los talles como «Modelo / Talle» (por ejemplo «Oversize negra / M»), la tienda muestra dos selectores:
+        modelo y talle.
+      </p>
 
       <form onSubmit={(e) => { e.preventDefault(); guardar(new FormData(e.currentTarget)); }} className="space-y-4">
         <div className="overflow-x-auto">
@@ -380,6 +444,7 @@ function VariantsSection({ product, storeEnabled }: { product: ProductDetail; st
                 <th className="py-2 pr-2 font-medium">Código de barras</th>
                 <th className="py-2 pr-2 font-medium">Precio</th>
                 <th className="py-2 pr-2 font-medium">Stock</th>
+                <th className="py-2 pr-2 font-medium">Archivo</th>
                 <th className="py-2 font-medium">Activo</th>
               </tr>
             </thead>
@@ -433,6 +498,17 @@ function VariantsSection({ product, storeEnabled }: { product: ProductDetail; st
                         {f.stockQty}
                       </Link>
                     )}
+                  </td>
+                  <td className="py-2 pr-2">
+                    <input
+                      name={`variants.${i}.printFileUrl`}
+                      type="url"
+                      className="fo-input"
+                      value={f.printFileUrl}
+                      onChange={(e) => cambiar(f.clave, { printFileUrl: e.target.value })}
+                      placeholder="Igual a la ficha"
+                      aria-label="Archivo para producir de este talle"
+                    />
                   </td>
                   <td className="py-2">
                     {/* La casilla no tiene `name`: el valor viaja en el oculto, siempre "on" u

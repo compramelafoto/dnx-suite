@@ -24,6 +24,15 @@ export async function saveStoreSettingsAction(formData: FormData): Promise<Store
   if (!parsed.ok) return parsed;
   const values = parsed.values;
 
+  // La promo sólo puede apuntar a una categoría de este negocio.
+  if (values.bundleCategoryId) {
+    const categoria = await prisma.productCategory.findFirst({
+      where: { id: values.bundleCategoryId, workspaceId: workspace.id },
+      select: { id: true },
+    });
+    if (!categoria) return { ok: false, error: "Esa categoría ya no existe. Elegí otra para la promo." };
+  }
+
   // Abrir sin cuenta de cobro dejaría al comprador frente a un botón de pagar que falla. Se
   // verifica cada vez que se guarda abierta (no sólo al pasar de cerrada a abierta): una
   // cuenta desconectada después tampoco puede seguir vendiendo por un guardado cualquiera.
@@ -39,7 +48,7 @@ export async function saveStoreSettingsAction(formData: FormData): Promise<Store
   });
 
   revalidatePath("/ventas/tienda/configuracion");
-  // El menú del sitio público muestra la tienda sólo abierta.
+  // El menú del sitio público muestra la tienda sólo abierta, y la tienda muestra la promo.
   revalidatePath("/w/[workspaceSlug]", "layout");
   return { ok: true };
 }

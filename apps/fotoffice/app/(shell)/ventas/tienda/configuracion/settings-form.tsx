@@ -1,7 +1,12 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { InputMoneda } from "@/components/campos/input-moneda";
+import { formatMinorArs, parseArsToMinor } from "@/lib/membership/money";
 import {
+  BUNDLE_MAX_QTY,
+  BUNDLE_MIN_QTY,
+  MAX_BUNDLE_LABEL,
   MAX_PICKUP_ADDRESS,
   MAX_PICKUP_HOURS,
   MAX_PICKUP_INSTRUCTIONS,
@@ -17,12 +22,25 @@ import { saveStoreSettingsAction, type StoreSettingsActionResult } from "./actio
 export function StoreSettingsForm({
   settings,
   defaultReturnsPolicy,
+  categories,
 }: {
   settings: StoreSettingsValues;
   /** La que ve el comprador si el campo queda vacío. Se muestra como ejemplo. */
   defaultReturnsPolicy: string;
+  /** Las categorías de productos del negocio, para la promo "N por $X". */
+  categories: { id: string; name: string }[];
 }) {
   const [resultado, setResultado] = useState<StoreSettingsActionResult | null>(null);
+  const [conPromo, setConPromo] = useState(settings.bundleCategoryId !== null);
+  const [promoQty, setPromoQty] = useState(String(settings.bundleQty ?? 2));
+  const [promoPrecio, setPromoPrecio] = useState(settings.bundlePriceArs?.replace(".", ",") ?? "");
+  const precioMinor = parseArsToMinor(promoPrecio);
+  const textoPorOmision = `Llevá ${promoQty || "N"} por ${precioMinor ? formatMinorArs(precioMinor) : "$X"}`;
+  // Una categoría guardada que ya no está activa igual se muestra, para no perderla sin aviso.
+  const opcionesCategoria =
+    settings.bundleCategoryId && !categories.some((c) => c.id === settings.bundleCategoryId)
+      ? [...categories, { id: settings.bundleCategoryId, name: "(categoría inactiva)" }]
+      : categories;
   const [guardando, startTransition] = useTransition();
 
   function guardar(fd: FormData) {
@@ -134,6 +152,86 @@ export function StoreSettingsForm({
           />
           <p className="fo-helper">A esta dirección llega un aviso cada vez que entra un pedido pagado.</p>
         </div>
+      </section>
+
+      <section className="fo-card space-y-4 p-5">
+        <h2 className="text-base font-semibold">Promo por cantidad</h2>
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            name="bundleEnabled"
+            checked={conPromo}
+            onChange={(e) => setConPromo(e.currentTarget.checked)}
+          />
+          <input type="hidden" name="bundleEnabled" value="off" />
+          Promo &quot;llevá varios por un precio&quot;
+        </label>
+        <p className="fo-helper">
+          Por ejemplo, 2 remeras por $60.000. Vale para los productos de una categoría, mezclando modelos y talles. Si
+          la apagás, se borra.
+        </p>
+        {conPromo ? (
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="fo-field-stack">
+              <label className="fo-label" htmlFor="bundleCategoryId">
+                Categoría
+              </label>
+              <select
+                id="bundleCategoryId"
+                name="bundleCategoryId"
+                className="fo-input"
+                defaultValue={settings.bundleCategoryId ?? ""}
+              >
+                <option value="">Elegí una categoría</option>
+                {opcionesCategoria.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+              {categories.length === 0 ? (
+                <p className="fo-helper">Primero creá una categoría de productos en Ventas.</p>
+              ) : null}
+            </div>
+            <div className="fo-field-stack">
+              <label className="fo-label" htmlFor="bundleQty">
+                Cantidad
+              </label>
+              <input
+                id="bundleQty"
+                name="bundleQty"
+                type="number"
+                min={BUNDLE_MIN_QTY}
+                max={BUNDLE_MAX_QTY}
+                step={1}
+                className="fo-input"
+                value={promoQty}
+                onChange={(e) => setPromoQty(e.currentTarget.value)}
+              />
+            </div>
+            <div className="fo-field-stack">
+              <label className="fo-label" htmlFor="bundlePrice">
+                Precio de la promo
+              </label>
+              <InputMoneda id="bundlePrice" name="bundlePrice" value={promoPrecio} onChange={setPromoPrecio} />
+              <p className="fo-helper">Lo que pagan juntas. Las que sobran pagan su precio de lista.</p>
+            </div>
+            <div className="fo-field-stack">
+              <label className="fo-label" htmlFor="bundleLabel">
+                Texto que ve el comprador
+              </label>
+              <input
+                id="bundleLabel"
+                name="bundleLabel"
+                className="fo-input"
+                defaultValue={settings.bundleLabel ?? ""}
+                maxLength={MAX_BUNDLE_LABEL}
+                placeholder={textoPorOmision}
+              />
+              <p className="fo-helper">Si lo dejás vacío, se muestra &quot;{textoPorOmision}&quot;.</p>
+            </div>
+          </div>
+        ) : null}
       </section>
 
       <div className="flex flex-wrap items-center gap-4">

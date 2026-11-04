@@ -154,6 +154,14 @@ export default async function StoreOrderPage({ params, searchParams }: Props) {
               <Price minor={decimalArsToMinor(it.lineTotalArs)} className="shrink-0 font-medium" />
             </li>
           ))}
+          {decimalArsToMinor(pedido.discountArs) > 0 ? (
+            <li className="flex items-start justify-between gap-4 py-3 text-[var(--fo-success)]">
+              <p className="font-medium">Descuento por promo</p>
+              <span className="shrink-0 font-medium tabular-nums">
+                − <Price minor={decimalArsToMinor(pedido.discountArs)} />
+              </span>
+            </li>
+          ) : null}
           {envio ? (
             <li className="flex items-start justify-between gap-4 py-3">
               <p className="font-medium">{envio.label}</p>

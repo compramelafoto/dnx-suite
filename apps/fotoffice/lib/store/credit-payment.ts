@@ -64,6 +64,7 @@ export const SELECT_PEDIDO_A_ACREDITAR = {
   buyerEmail: true,
   buyerPhone: true,
   subtotalArs: true,
+  discountArs: true,
   shippingArs: true,
   shippingMethod: true,
   totalArs: true,
@@ -262,7 +263,8 @@ export async function finalizePaidOrder(
     createdByUserId: opts.actorUserId ?? null,
     occurredAt: paidAt,
     paymentMethod: "MERCADO_PAGO",
-    discountMinor: 0,
+    // La promo "N por $X" del pedido: líneas + envío − descuento = lo que se cobró.
+    discountMinor: decimalArsToMinor(order.discountArs),
     note: `Pedido online #${order.orderNumber}`,
     client: {
       mode: "new",
@@ -282,7 +284,11 @@ export async function finalizePaidOrder(
   // deuda arrastrada, y el asiento negativo la cancela. La comisión propia es sobre los productos
   // (E11), igual que al abrir el pago (`payment.ts`): el envío no la paga.
   const retenido = decimalArsToMinor(order.feeArs);
-  const propio = splitMinorByPlatformFee(decimalArsToMinor(order.subtotalArs), order.feeBps).feeMinor;
+  // Con la promo ya restada, igual que al abrir el pago.
+  const propio = splitMinorByPlatformFee(
+    decimalArsToMinor(order.subtotalArs) - decimalArsToMinor(order.discountArs),
+    order.feeBps,
+  ).feeMinor;
   const aDeuda = Math.max(0, retenido - propio);
   if (aDeuda > 0) {
     await recordDischarge(tx, {

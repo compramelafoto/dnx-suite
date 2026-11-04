@@ -22368,11 +22368,15 @@ model FotofficeProveedor {
   phone       String?
   notes       String?
   active      Boolean  @default(true)
+  /// Enlace secreto de la planilla de pedidos que produce este proveedor (tienda → productor).
+  /// null = sin enlace. Regenerarlo invalida el anterior.
+  ordersFeedToken String?  @unique
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   workspace Workspace                   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   proyectos FotofficeProyecto[]
+  listingsProducidos ProductStoreListing[]
   reglas    FotofficeProductoProyecto[]
   salidasImpresion FotofficeSalidaImpresion[]
   productosPreferidos Product[]                        @relation("ProductoProveedorPreferido")
@@ -23600,14 +23604,20 @@ model ProductStoreListing {
   heightCm          Int?
   maxPerOrder       Int?
   sortOrder         Int      @default(0)
+  /// Quién produce y despacha lo que se vende online (dropshipping). null = lo prepara el negocio.
+  fulfillmentProveedorId String?
+  /// Enlace al archivo listo para producir (p. ej. la estampa en Drive). Una variante lo puede pisar.
+  printFileUrl      String?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   product   Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  fulfillmentProveedor FotofficeProveedor? @relation(fields: [fulfillmentProveedorId], references: [id], onDelete: SetNull)
 
   @@unique([workspaceId, slug])
   @@index([workspaceId, sellOnline])
+  @@index([fulfillmentProveedorId])
 }
 
 /// Galería del producto. La de menor `sortOrder` es la principal en la tienda.
@@ -23639,6 +23649,8 @@ model ProductVariant {
   stockQty    Int      @default(0)
   isActive    Boolean  @default(true)
   sortOrder   Int      @default(0)
+  /// Pisa `ProductStoreListing.printFileUrl` para esta variante (p. ej. la estampa para remera blanca).
+  printFileUrl String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -23661,6 +23673,12 @@ model StoreSettings {
   pickupInstructions String?
   returnsPolicy      String?
   notifyEmail        String?
+  /// Promo "N por $X": los productos de esta categoría, de a `bundleQty`, pagan `bundlePriceArs`.
+  /// Apagada si falta cualquiera de los tres.
+  bundleCategoryId   String?
+  bundleQty          Int?
+  bundlePriceArs     Decimal? @db.Decimal(12, 2)
+  bundleLabel        String?
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
@@ -23754,6 +23772,8 @@ model StoreOrder {
   memberId             String?
   deliveryMethod       String           @default("PICKUP")
   subtotalArs          Decimal          @db.Decimal(12, 2)
+  /// Descuento de la promo "N por $X". total = subtotal − descuento + envío.
+  discountArs          Decimal          @default(0) @db.Decimal(12, 2)
   shippingArs          Decimal          @default(0) @db.Decimal(12, 2)
   totalArs             Decimal          @db.Decimal(12, 2)
   feeBps               Int              @default(0)
@@ -23820,6 +23840,12 @@ model StoreOrderItem {
   royaltyBps          Int?
   /// Autor de la obra (User de FotoRank); sin relación a propósito: queda como dato histórico.
   artworkAuthorUserId Int?
+  /// Copias del catálogo al crear el pedido, para el productor (dropshipping).
+  sku                    String?
+  fulfillmentProveedorId String?
+  printFileUrl           String?
+  /// Cuándo se le pasó la línea al productor. null = pendiente (si tiene productor).
+  fulfillmentSentAt      DateTime?
 
   order          StoreOrder      @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product        Product?        @relation(fields: [productId], references: [id], onDelete: SetNull)
@@ -23833,6 +23859,7 @@ model StoreOrderItem {
   @@index([variantId])
   @@index([artworkListingId])
   @@index([printFormatId])
+  @@index([fulfillmentProveedorId, fulfillmentSentAt])
 }
 
 model StoreOrderEvent {

@@ -1,13 +1,27 @@
 "use client";
 
 import { useState } from "react";
+import { imageIndexForModel } from "@/lib/store/variant-axes";
+import { useProductView } from "./product-view-context";
 
 /**
  * La galería de la ficha: la foto grande arriba y las miniaturas abajo para cambiarla. Sin fotos,
  * un recuadro con el nombre (nunca una imagen rota).
+ *
+ * Dentro de `ProductViewProvider`, cuando se elige un modelo salta a la foto cuyo texto
+ * alternativo es ese modelo (el mockup), si la hay.
  */
 export function ProductGallery({ images, title }: { images: { url: string; alt: string | null }[]; title: string }) {
   const [actual, setActual] = useState(0);
+  const modelo = useProductView()?.model ?? null;
+  const [modeloVisto, setModeloVisto] = useState<string | null>(null);
+  // Ajuste durante el render (sin efecto): sólo cuando CAMBIA el modelo, así las miniaturas
+  // siguen funcionando después.
+  if (modelo !== modeloVisto) {
+    setModeloVisto(modelo);
+    const i = imageIndexForModel(images, modelo);
+    if (i >= 0) setActual(i);
+  }
   const foto = images[actual] ?? images[0];
 
   return (

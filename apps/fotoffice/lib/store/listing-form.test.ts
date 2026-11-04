@@ -55,7 +55,27 @@ describe("parseListingForm", () => {
         widthCm: null,
         heightCm: null,
         maxPerOrder: null,
+        fulfillmentProveedorId: null,
+        printFileUrl: null,
       },
+    });
+  });
+
+  it("lee el productor y el archivo para producir", () => {
+    const r = parseListingForm(
+      form({ ...base, fulfillmentProveedorId: " prov1 ", printFileUrl: "https://drive.google.com/file/d/abc/view" }),
+    );
+    expect(r.ok && [r.values.fulfillmentProveedorId, r.values.printFileUrl]).toEqual([
+      "prov1",
+      "https://drive.google.com/file/d/abc/view",
+    ]);
+  });
+
+  it.each(["javascript:alert(1)", "drive.google.com/x", "ftp://x.com/a"])("rechaza el archivo %j", (printFileUrl) => {
+    const r = parseListingForm(form({ ...base, printFileUrl }));
+    expect(r).toEqual({
+      ok: false,
+      error: "El archivo para producir tiene que ser un enlace que empiece con https:// o http://.",
     });
   });
 

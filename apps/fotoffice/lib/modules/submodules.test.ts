@@ -247,6 +247,13 @@ describe("submodulesFor — niveles y acciones sensibles", () => {
     expect(existsSync(pageDe("/ventas/tienda/obras"))).toBe(true);
   });
 
+  it("Ventas: Productores aparece con el mismo permiso que los pedidos online", () => {
+    expect(hrefs("sales", { levels: { sales: "MANAGE" }, actions: [] })).not.toContain("/ventas/tienda/productores");
+    const operador = hrefs("sales", { levels: { sales: "MANAGE", store: "MANAGE" }, actions: [] });
+    expect(operador).toContain("/ventas/tienda/productores");
+    expect(existsSync(pageDe("/ventas/tienda/productores"))).toBe(true);
+  });
+
   it("Ventas: los pedidos online aparecen con la tienda encendida, sin hacer falta configurarla", () => {
     expect(hrefs("sales", { levels: { sales: "MANAGE" }, actions: [] })).not.toContain("/ventas/tienda");
     expect(hrefs("sales", { levels: { sales: "VIEW", store: "VIEW" }, actions: [] })).not.toContain("/ventas/tienda");

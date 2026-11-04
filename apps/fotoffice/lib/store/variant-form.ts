@@ -1,5 +1,6 @@
 import { normalizeBarcode } from "@/lib/sales/barcode";
 import { parseArsToMinor } from "@/lib/membership/money";
+import { isAcceptablePrintFileUrl } from "./listing-form";
 
 /**
  * La tabla de talles (variantes) de un producto. Módulo PURO.
@@ -13,7 +14,7 @@ import { parseArsToMinor } from "@/lib/membership/money";
  * formulario mandado a mano tiene que quedar igual de protegido.
  */
 
-export const MAX_VARIANTS_PER_PRODUCT = 30;
+export const MAX_VARIANTS_PER_PRODUCT = 60;
 
 export type VariantInput = {
   id: string | null;
@@ -24,13 +25,18 @@ export type VariantInput = {
   priceMinor: number | null;
   isActive: boolean;
   sortOrder: number;
+  /**
+   * Archivo para producir de este talle (pisa el de la ficha). `undefined` = el formulario no
+   * trajo la columna y no se toca; null = se borra.
+   */
+  printFileUrl?: string | null;
 };
 
 export type VariantsFormResult = { ok: true; variants: VariantInput[] } | { ok: false; error: string };
 
-const CAMPO = /^variants\.(\d+)\.(id|name|sku|barcode|price|isActive)$/;
+const CAMPO = /^variants\.(\d+)\.(id|name|sku|barcode|price|isActive|printFileUrl)$/;
 
-type FilaCruda = Partial<Record<"id" | "name" | "sku" | "barcode" | "price" | "isActive", string>>;
+type FilaCruda = Partial<Record<"id" | "name" | "sku" | "barcode" | "price" | "isActive" | "printFileUrl", string>>;
 
 function vacioANull(v: string | undefined): string | null {
   const t = (v ?? "").trim();
@@ -56,9 +62,10 @@ export function parseVariantsForm(fd: FormData): VariantsFormResult {
     const sku = vacioANull(fila.sku);
     const barcodeRaw = vacioANull(fila.barcode);
     const priceRaw = vacioANull(fila.price);
+    const printFileUrl = fila.printFileUrl === undefined ? undefined : vacioANull(fila.printFileUrl);
 
     // La fila en blanco del final de la tabla (nueva y sin nada escrito) no es un talle.
-    if (id === null && name === "" && sku === null && barcodeRaw === null && priceRaw === null) continue;
+    if (id === null && name === "" && sku === null && barcodeRaw === null && priceRaw === null && !printFileUrl) continue;
 
     if (name === "") return { ok: false, error: "Cada talle necesita un nombre." };
 
@@ -82,7 +89,20 @@ export function parseVariantsForm(fd: FormData): VariantsFormResult {
     const isActiveRaw = fila.isActive;
     const isActive = isActiveRaw !== "off" && isActiveRaw !== "false";
 
-    variants.push({ id, name, sku, barcode, priceMinor, isActive, sortOrder: variants.length });
+    if (printFileUrl && !isAcceptablePrintFileUrl(printFileUrl)) {
+      return { ok: false, error: `El archivo del talle ${name} tiene que ser un enlace que empiece con https:// o http://.` };
+    }
+
+    variants.push({
+      id,
+      name,
+      sku,
+      barcode,
+      priceMinor,
+      isActive,
+      sortOrder: variants.length,
+      ...(printFileUrl !== undefined ? { printFileUrl } : {}),
+    });
   }
 
   if (variants.length > MAX_VARIANTS_PER_PRODUCT) {

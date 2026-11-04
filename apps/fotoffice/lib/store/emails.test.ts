@@ -29,6 +29,7 @@ beforeEach(() => {
     buyerEmail: "ana@example.com",
     buyerPhone: null,
     totalArs: "100.00",
+    discountArs: "0.00",
     items: [{ productName: "Taza", variantName: null, qty: 1, lineTotalArs: "100.00" }],
   });
   h.prisma.storeSettings.findUnique.mockResolvedValue({
@@ -111,6 +112,7 @@ describe("correos de envío", () => {
       buyerEmail: "ana@example.com",
       buyerPhone: null,
       totalArs: "150.00",
+      discountArs: "0.00",
       deliveryMethod: "SHIPPING",
       shippingMethod: "HOME",
       shippingSource: "CORREO_ARGENTINO",

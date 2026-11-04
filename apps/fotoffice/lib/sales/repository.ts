@@ -288,6 +288,8 @@ export type ProductStoreListingDetail = {
   widthCm: number | null;
   heightCm: number | null;
   maxPerOrder: number | null;
+  fulfillmentProveedorId: string | null;
+  printFileUrl: string | null;
 };
 
 export type ProductImageRow = { id: string; url: string; alt: string | null };
@@ -302,6 +304,8 @@ export type ProductVariantDetail = {
   priceMinor: number | null;
   stockQty: number;
   isActive: boolean;
+  /** Archivo para producir de este talle (dropshipping); null = usa el de la ficha online. */
+  printFileUrl: string | null;
 };
 
 /** La ficha. Devuelve null si no existe o si es de otro workspace. */
@@ -345,6 +349,8 @@ export async function getProduct(
           widthCm: true,
           heightCm: true,
           maxPerOrder: true,
+          fulfillmentProveedorId: true,
+          printFileUrl: true,
         },
       },
       // Las relaciones no tienen restricción que las ate al workspace del producto: se filtra
@@ -357,7 +363,16 @@ export async function getProduct(
       variants: {
         where: { workspaceId },
         orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-        select: { id: true, name: true, sku: true, barcode: true, priceArs: true, stockQty: true, isActive: true },
+        select: {
+          id: true,
+          name: true,
+          sku: true,
+          barcode: true,
+          priceArs: true,
+          stockQty: true,
+          isActive: true,
+          printFileUrl: true,
+        },
       },
     },
   });
@@ -394,6 +409,7 @@ export async function getProduct(
       priceMinor: v.priceArs === null ? null : decimalArsToMinor(v.priceArs),
       stockQty: v.stockQty,
       isActive: v.isActive,
+      printFileUrl: v.printFileUrl,
     })),
   };
 }
