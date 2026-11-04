@@ -6,7 +6,7 @@ import {
   websiteDesignCssVars,
   websiteFontsHref,
 } from "./design-presets";
-import { compactTypographyLevels, getFont, nearestWeight, typographyLevelsSchema } from "./typography";
+import { compactTypographyLevels, FONT_OPTIONS, getFont, googleFontsHref, localFontsUsed, nearestWeight, TYPOGRAPHY_LEVELS, typographyLevelsSchema } from "./typography";
 
 describe("tipografía por niveles", () => {
   it("sin cambios, las variables viejas valen lo mismo que antes (los sitios publicados no cambian)", () => {
@@ -67,5 +67,36 @@ describe("tipografía por niveles", () => {
     const vars = websiteDesignCssVars({ ...DEFAULT_DESIGN_PRESETS, typographyLevels: { menu: { uppercase: true } } });
     expect(vars["--wsite-menu-transform"]).toBe("uppercase");
     expect(vars["--wsite-body-transform"]).toBe("none");
+  });
+});
+
+/** Los seis niveles con la misma letra: así se prueba la letra sin depender del estilo de partida. */
+function nivelesTodosCon(font: string) {
+  const levels = Object.fromEntries(TYPOGRAPHY_LEVELS.map((l) => [l.id, { font }]));
+  return resolvedTypography({ ...DEFAULT_DESIGN_PRESETS, typographyLevels: levels });
+}
+
+describe("DejaVu Sans (letra del manual de SOYBELUZ)", () => {
+  it("está en el catálogo como letra local, no de Google", () => {
+    const f = getFont("dejavu-sans");
+    expect(f.id).toBe("dejavu-sans");
+    expect(f.google).toBeNull();
+    expect(f.local).toBe("dejavu-sans");
+    expect(f.weights).toEqual([400, 700]);
+    expect(f.stack.startsWith("var(--font-dejavu-sans)")).toBe(true);
+  });
+
+  it("no pide nada a Google Fonts", () => {
+    expect(googleFontsHref(nivelesTodosCon("dejavu-sans"))).toBeNull();
+  });
+
+  it("localFontsUsed la detecta sólo cuando algún nivel la usa", () => {
+    expect(localFontsUsed(nivelesTodosCon("dejavu-sans"))).toEqual(["dejavu-sans"]);
+    expect(localFontsUsed(nivelesTodosCon("inter"))).toEqual([]);
+    expect(localFontsUsed(resolvedTypography(DEFAULT_DESIGN_PRESETS))).toEqual([]);
+  });
+
+  it("todas las opciones que ya existían siguen sin letra local", () => {
+    expect(FONT_OPTIONS.filter((f) => f.local !== null).map((f) => f.id)).toEqual(["dejavu-sans"]);
   });
 });

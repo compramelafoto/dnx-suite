@@ -1,5 +1,7 @@
 import type { CSSProperties, ReactNode } from "react";
-import { websiteFontsHref, type WebsiteDesignPresets } from "@/lib/website/design-presets";
+import { dejavuSans } from "@/app/_fonts/dejavu-sans";
+import { resolvedTypography, websiteFontsHref, type WebsiteDesignPresets } from "@/lib/website/design-presets";
+import { localFontsUsed } from "@/lib/website/typography";
 
 /**
  * El marco común del sitio: encabezado, contenido y pie. Lo usan el sitio público
@@ -30,8 +32,10 @@ export function SiteFrame({
   // Sólo las letras de Google que el diseño usa. React 19 sube este `<link>` al `<head>` (por
   // `precedence`) y no lo repite aunque se dibuje dos veces.
   const fuentes = websiteFontsHref(designPresets);
+  // Las letras guardadas en el proyecto se activan con su variable CSS sólo si el diseño las usa.
+  const locales = localFontsUsed(resolvedTypography(designPresets)).includes("dejavu-sans") ? ` ${dejavuSans.variable}` : "";
   return (
-    <div className="@container" style={{ ...style, minHeight }}>
+    <div className={`@container${locales}`} style={{ ...style, minHeight }}>
       {fuentes ? <link rel="stylesheet" href={fuentes} precedence="wsite-fonts" /> : null}
       <div className={`flex flex-col ${fila}`} style={{ minHeight }}>
         {header}
