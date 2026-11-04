@@ -34,9 +34,11 @@ export default function PagoSimuladoClient({ orderId, preCompraOrderId, totalPes
         return;
       }
       setEstado("aprobado");
-      // Mismo camino que la vuelta de un pago real (`/pago/success`).
-      const destino =
-        data.packAccessUrl && isPreventaUxV2EnabledClient()
+      // Mismo camino que la vuelta de un pago real (`/pago/success`). La compra de la galería
+      // trae su destino armado (el centro de descargas del pedido).
+      const destino = typeof data.destino === "string" && data.destino
+        ? data.destino
+        : data.packAccessUrl && isPreventaUxV2EnabledClient()
           ? data.packAccessUrl
           : preCompraOrderId
             ? `/order/${preCompraOrderId}/selfies`

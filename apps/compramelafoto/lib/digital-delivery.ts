@@ -98,7 +98,8 @@ export async function ensureDigitalDelivery(orderId: number): Promise<DigitalDel
   // nunca. Acá no hay nada que preparar: el link ya sirve, se avisa en el acto.
   // La clave fija evita que un segundo intento le mande dos correos.
   const emailAhora = shouldEmailDownloadRightAway({ digitalPhotoCount, videoCount });
-  if (emailAhora) {
+  // Pedido de prueba (demos, "Probar como cliente"): igual que el aviso del ZIP, no se manda.
+  if (emailAhora && !order.isTest) {
     try {
       await resendDigitalDownloadEmailForOrder(order.id, {
         idempotencyKey: `order-${order.id}-video-download`,

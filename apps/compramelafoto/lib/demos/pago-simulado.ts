@@ -1,9 +1,10 @@
 /**
- * Pago simulado de las demos grabables: deja un pedido de preventa exactamente como lo deja un
- * pago aprobado de Mercado Pago (`finalizeAlbumOrderMercadoPagoApproved`), pero sin consultar a
- * Mercado Pago y sin avisos: ni correos, ni WhatsApp, ni referidos, ni registro de webhook.
+ * Pago simulado de las demos grabables: deja un pedido (de preventa o de la galería) exactamente
+ * como lo deja un pago aprobado de Mercado Pago (`finalizeAlbumOrderMercadoPagoApproved`), pero
+ * sin consultar a Mercado Pago y sin avisos: ni correos, ni WhatsApp, ni referidos, ni registro
+ * de webhook.
  *
- * Solo para pedidos `isTest` de álbumes de usuarios demo (lo verifica quien la llama).
+ * Solo para pedidos `isTest` de álbumes de usuarios demo.
  */
 
 import { OrderOrigin, Prisma } from "@prisma/client";
@@ -20,6 +21,13 @@ import { createPackAccessTokenForOrder } from "@/lib/preventa-canjeable/pack-acc
 import { readPackDefinitionIdFromOrderPricingSnapshot } from "@/lib/preventa-canjeable/order-checkout-kind";
 import { createOrganizerCommissionForPaidOrder } from "@/lib/school-organizer-commission";
 import { ensureAlbumPackDesignsForPaidOrder } from "@/lib/design-v2/album-pack-designs";
+import { resolvePlatformCommissionPercent } from "@/lib/services/commissionService";
+import { getOrderDownloadTokens } from "@/lib/download-tokens";
+import {
+  evaluarPagoSimuladoGaleria,
+  rutaDescargaDelPedido,
+  type ActorDemo,
+} from "@/lib/demos/pago-simulado-galeria";
 
 export function mpPaymentIdSimulado(orderId: number): string {
   return `SIM-${orderId}`;
@@ -136,4 +144,94 @@ export async function finalizeAlbumOrderSimulatedApproved(
   }
 
   return { ok: true, packToken };
+}
+
+/**
+ * Hermana de `finalizeAlbumOrderSimulatedApproved` para la compra de la galería
+ * (`/a/[id]/comprar`): deja el pedido como un pago aprobado de Mercado Pago (entrega digital,
+ * comisión de plataforma, espejo de impresión, diseños) sin consultar a Mercado Pago y sin
+ * avisos: ni correos, ni WhatsApp, ni referidos, ni registro de webhook.
+ *
+ * Revisa otra vez la guarda completa (`evaluarPagoSimuladoGaleria`): pedido `isTest`, que no sea
+ * de preventa, de un álbum cuyo dueño es un usuario demo, y que quien paga sea ese dueño o tenga
+ * la demo activa.
+ */
+export async function finalizeAlbumGalleryOrderSimulatedApproved(
+  orderId: number,
+  actor: ActorDemo,
+): Promise<{ ok: true; destino: string | null; albumId: number } | { ok: false; error: string }> {
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    include: {
+      items: { select: { productType: true } },
+      album: { select: { userId: true, selectedLabId: true, user: { select: { id: true, tags: true } } } },
+    },
+  });
+  const guarda = evaluarPagoSimuladoGaleria({
+    pedido: order ? { isTest: order.isTest, origin: order.origin ?? null, status: order.status } : null,
+    dueno: order?.album?.user ?? null,
+    actor,
+  });
+  if (!guarda.ok) return guarda;
+  if (!order) return { ok: false, error: "order_not_found" };
+
+  if (guarda.yaPagado) {
+    // Se repite la grabación: vuelve a la misma descarga.
+    await ensureDigitalDelivery(orderId);
+  } else {
+    const hasPrintItems = order.items.some((it) => it.productType === "PRINT");
+    const feeInput = {
+      photographerId: order.album?.userId ?? null,
+      labId: order.album?.selectedLabId ?? null,
+    };
+    const percent = hasPrintItems
+      ? await resolvePlatformCommissionPercent(feeInput)
+      : await resolveClientMarketplaceFeePercent(feeInput);
+    const extensionSurchargeCents = Number(order.extensionSurchargeCents ?? 0);
+    const baseTotalCents = Math.max(0, order.totalCents - extensionSurchargeCents);
+    const platformCommissionCents = feeFromTotal(baseTotalCents, percent) + extensionSurchargeCents;
+
+    // Pedido `isTest`: arma el token y el ZIP, pero no avisa por correo.
+    await ensureDigitalDelivery(orderId);
+
+    const paymentId = mpPaymentIdSimulado(orderId);
+    await prisma.order.update({
+      where: { id: orderId },
+      data: { status: "PAID", mpPaymentId: paymentId, platformCommissionCents },
+    });
+
+    for (const eventType of ["PAYMENT_APPROVED", "CUSTOMER_DATA_RELEASED", "ORDER_ITEMS_RELEASED"] as const) {
+      await registerAuditEvent({
+        targetOrderType: "ALBUM_ORDER",
+        targetOrderId: orderId,
+        targetAlbumId: order.albumId,
+        eventType,
+      });
+    }
+
+    try {
+      await createOrganizerCommissionForPaidOrder({ orderId, paymentId });
+    } catch (err) {
+      console.error("[DEMO] comisión del organizador falló", err);
+    }
+
+    try {
+      await prisma.printOrder.updateMany({
+        where: { tags: { has: `ALBUM_ORDER:${orderId}` } },
+        data: { paymentStatus: "PAID", mpPaymentId: paymentId, statusUpdatedAt: new Date() },
+      });
+    } catch (err) {
+      console.error("[DEMO] espejo de impresión falló", err);
+    }
+
+    try {
+      await ensureAlbumPackDesignsForPaidOrder(orderId);
+    } catch (err) {
+      console.error("[DEMO] armado de diseños falló", { orderId, err });
+    }
+  }
+
+  const tokens = await getOrderDownloadTokens(orderId);
+  const token = tokens.find((t) => t.type === "CLIENT_DIGITAL" && !t.photoId)?.token ?? null;
+  return { ok: true, destino: rutaDescargaDelPedido(token), albumId: order.albumId };
 }
