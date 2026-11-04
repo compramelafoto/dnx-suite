@@ -38,6 +38,8 @@ export type TutorialCourse = {
   blocks: CourseBlock[];
   details: Record<number, CourseLessonDetail>;
   lessonCount: number;
+  /** Foto de la tarjeta del curso en /tutoriales (en /public). */
+  cover: { src: string; alt: string };
   /** El recuadro del final de la página, antes de los botones. */
   closing: { title: string; text: string };
   /** Segundo botón del cierre, además de crear la cuenta. */

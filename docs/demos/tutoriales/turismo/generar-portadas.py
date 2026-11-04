@@ -29,6 +29,12 @@ PORTADAS = {
         'Cada turista,<br><em>sus fotos</em>'),
     5: ('T05-el-qr-para-el-punto-turistico.mp4', 23, (0, 0, 1920, 1080),
         'Un QR<br><em>en el paseo</em>'),
+    6: ('T06-los-interesados.mp4', 18, (720, 0, 480, 900),
+        'El turista<br><em>te deja</em><br><em>su contacto</em>'),
+    7: ('T07-subir-las-fotos-del-paseo.mp4', 29, (480, 100, 1380, 776),
+        'Subí<br><em>el paseo</em>'),
+    8: ('T08-encontrar-las-fotos-con-una-selfie.mp4', 22, (720, 0, 480, 1080),
+        'Sus fotos,<br><em>con una selfie</em>'),
 }
 
 CSS = """

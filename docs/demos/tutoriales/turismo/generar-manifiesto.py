@@ -1,7 +1,7 @@
 """Genera youtube-manifiesto.json (y el detalle para CLF) del Curso de fotografía de turismo.
 
 Para sumar un video: agregalo a COPYS (capítulos sacados del audio final) y corré
-    python3 docs/demos/tutoriales/turismo/generar-manifiesto.py docs/demos/tutoriales/turismo/youtube-manifiesto.json \
+    python3 docs/demos/tutoriales/turismo/generar-manifiesto.py docs/demos/tutoriales/turismo/youtube-manifiesto-turismo.json \
         apps/compramelafoto/lib/tutorials/turismo-course-details.ts
 Misma estructura que docs/demos/tutoriales/escolar/generar-manifiesto.py.
 """
@@ -94,6 +94,53 @@ COPYS = [
         ],
         'proxima': 'Los interesados: el turista deja su contacto',
         'etiquetas': ['codigo qr', 'punto turistico', 'compartir album'],
+    },
+    {
+        'n': 6,
+        'archivo': 'T06-los-interesados.mp4',
+        'titulo': 'Los interesados: el turista deja su contacto | Curso de fotografía de turismo, clase 6',
+        'gancho': ("Si el turista escanea el QR antes de que subas las fotos, no se va con las manos vacías: ve el "
+                   "aviso de que la galería todavía no está disponible y deja su nombre, su WhatsApp y su correo. "
+                   "Te muestro dónde aparece en la ficha del álbum, en Interesados, y cómo le llega el aviso por "
+                   "correo cuando publicás las fotos. Si no lo vio, se lo mandás por WhatsApp desde ahí."),
+        'capitulos': [
+            ('0:00', 'Los interesados'),
+            ('0:11', 'El turista deja su contacto'),
+            ('0:23', 'El aviso cuando publicás las fotos'),
+        ],
+        'proxima': 'Subir las fotos del paseo',
+        'etiquetas': ['interesados', 'avisos por whatsapp', 'clientes'],
+    },
+    {
+        'n': 7,
+        'archivo': 'T07-subir-las-fotos-del-paseo.mp4',
+        'titulo': 'Subir las fotos del paseo | Curso de fotografía de turismo, clase 7',
+        'gancho': ("Terminó el paseo: subís todas las fotos del día juntas, sin separarlas por persona. Te muestro "
+                   "cómo se suben, cómo el sistema les pone tu marca de agua y las analiza para que cada turista se "
+                   "encuentre con su selfie, y cómo los interesados reciben el aviso de que sus fotos ya están."),
+        'capitulos': [
+            ('0:00', 'Subir las fotos del día'),
+            ('0:15', 'Marca de agua y reconocimiento de caras'),
+            ('0:28', 'El aviso a los interesados'),
+        ],
+        'proxima': 'El turista encuentra sus fotos con una selfie',
+        'etiquetas': ['subir fotos', 'marca de agua', 'reconocimiento facial'],
+    },
+    {
+        'n': 8,
+        'archivo': 'T08-encontrar-las-fotos-con-una-selfie.mp4',
+        'titulo': 'El turista encuentra sus fotos con una selfie | Curso de fotografía de turismo, clase 8',
+        'gancho': ("Así lo vive el turista desde el celular: escanea el QR del paseo y entra al álbum, pero no ve la "
+                   "galería completa porque las fotos están ocultas. Acepta el consentimiento, se saca una selfie o "
+                   "sube una, y en segundos aparecen solo las fotos donde está él. Después elige las que quiere o se "
+                   "lleva el pack con todas sus fotos."),
+        'capitulos': [
+            ('0:00', 'Del QR al álbum'),
+            ('0:15', 'La selfie que encuentra sus fotos'),
+            ('0:28', 'Elegir o llevarse el pack'),
+        ],
+        'proxima': 'El turista compra y descarga',
+        'etiquetas': ['reconocimiento facial', 'selfie', 'fotos de turistas'],
     },
 ]
 

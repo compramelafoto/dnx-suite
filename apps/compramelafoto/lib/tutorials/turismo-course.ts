@@ -25,7 +25,7 @@ export const TURISMO_COURSE_BLOCKS: CourseBlock[] = [
     title: "El día del paseo y la venta",
     lessons: [
       { number: 6, title: "Los interesados: el turista deja su contacto", audience: "Fotógrafo y turista", summary: "El turista deja su contacto y le avisás cuando las fotos están listas." },
-      { number: 7, title: "Subir las fotos del día", audience: "Fotógrafo", summary: "Subís toda la jornada junta, sin separar las fotos por persona." },
+      { number: 7, title: "Subir las fotos del paseo", audience: "Fotógrafo", summary: "Subís toda la jornada junta, sin separar las fotos por persona." },
       { number: 8, title: "El turista encuentra sus fotos con una selfie", audience: "Turista", summary: "Desde el celular, una selfie y aparecen solo sus fotos." },
       { number: 9, title: "El turista compra y descarga", audience: "Turista", summary: "Elige, paga por Mercado Pago y descarga sus fotos en el momento." },
     ],

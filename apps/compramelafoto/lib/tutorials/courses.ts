@@ -29,6 +29,10 @@ export const TUTORIAL_COURSES: TutorialCourse[] = [
     blocks: ESCOLAR_COURSE_BLOCKS,
     details: ESCOLAR_COURSE_DETAILS,
     lessonCount: ESCOLAR_COURSE_LESSON_COUNT,
+    cover: {
+      src: "/images/landescolar/fotografo-curso-bandera-argentina.jpg",
+      alt: "Un fotógrafo saca la foto de un curso con la bandera argentina detrás",
+    },
     closing: {
       title: "Probalo con tu primer colegio",
       text: "Primero se vende y se cobra, después se saca la foto. Creá tu cuenta y armá la preventa por la plataforma.",
@@ -46,6 +50,10 @@ export const TUTORIAL_COURSES: TutorialCourse[] = [
     blocks: TURISMO_COURSE_BLOCKS,
     details: TURISMO_COURSE_DETAILS,
     lessonCount: TURISMO_COURSE_LESSON_COUNT,
+    cover: {
+      src: "/images/tutoriales/curso-turismo.jpg",
+      alt: "Una turista recorre las paredes de colores de Caminito, en La Boca",
+    },
     closing: {
       title: "Probalo en tu próximo paseo",
       text: "Creá tu cuenta, armá el álbum de la excursión y poné el QR en el punto de encuentro.",
