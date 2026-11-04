@@ -39,13 +39,14 @@ Todas las descripciones terminan con el mismo bloque. Las direcciones se revisar
 `generar-portadas.py` arma la portada de cada clase (1280×720): número de clase, un texto de cuatro palabras como
 máximo, un cuadro real del video y el isotipo de ComprameLaFoto. Las deja en `videos/portadas/`, fuera de git, y
 `subir.py` la sube junto con el video (campo `portada` del manifiesto). Para una clase nueva se agrega a
-`PORTADAS` el segundo del cuadro y el recorte, y se corre:
+`PORTADAS` el segundo del cuadro y el recorte (si el recorte es vertical, como en las clases de la familia grabadas
+en vista de celular, va en un marco de teléfono), y se corre:
 
 ```bash
 python3 docs/demos/tutoriales/escolar/generar-portadas.py 6
 ```
 
-E01 a E07 tienen su portada.
+Todas las clases publicadas tienen su portada.
 
 ## Cómo se sube
 
@@ -58,7 +59,8 @@ entorno/bin/python subir.py --manifiesto ../../../docs/demos/tutoriales/escolar/
   Volver a correrlo no duplica nada.
 - Necesita `client_secret.json` y `token.json` en `tools/video/youtube/`. Ver el `LEEME.md` de esa carpeta: la
   autorización la hace Daniel una sola vez, con la cuenta dueña del canal.
-- Cada video subido se agrega solo a la lista del curso (`listas.escolar`).
+- Cada video subido se agrega solo a la lista del curso (`listas.escolar`), al final. Si se publica una clase
+  fuera de orden (el E17 salió antes que el E14), hay que reordenar la lista por número de clase.
 - Después de subir: cargar el link en `/admin/tutoriales`, tarjeta «Curso de fotografía escolar». E01 a E03 se
   cargaron directo en el ajuste `tutorials_escolar_course` de la base de producción.
 
@@ -84,17 +86,46 @@ uno escribe: los trae de YouTube. Eso tiene dos consecuencias:
 
 Los tutoriales nuevos se agregan al final de la lista, en el orden en que se pegan.
 
+## «Carpeta escolar», no «librito»
+
+El 2026-11-04 Daniel pidió dejar de decir «librito» en toda la serie: se dice «carpeta escolar». Se volvieron a
+montar E01, E04, E08, E09 y E10 con la voz nueva. Como YouTube no deja cambiar el archivo de un video subido, se
+subieron de nuevo y los viejos quedaron **en privado, sin borrar** y fuera de la lista
+(`tools/video/youtube/reemplazados-librito.json`). Ningún copy ni portada dice «librito».
+
+Ojo: varias pantallas de CLF que salen en los videos todavía dicen «librito» (por ejemplo «Vista 3D del
+librito», «Armando tu librito…», «Otro librito igual» y los nombres de plantillas y packs de la demo). Las portadas
+se armaron con cuadros donde no se ve.
+
 ## Estado
 
 | # | Video | Duración | Copy | YouTube | CLF |
 |---|---|---|---|---|---|
-| E01 | La venta escolar de punta a punta | 2:23 | aprobado | [público](https://youtu.be/kDdvZ92JKfo) | clase 1 |
+| E01 | La venta escolar de punta a punta | 2:24 | aprobado | [público](https://youtu.be/BCJqM7JUifg) | clase 1 |
 | E02 | Tu página de venta para colegios | 1:32 | aprobado | [público](https://youtu.be/uBmMxi7d52Q) | clase 2 |
 | E03 | Dar de alta un colegio | 1:01 | aprobado | [público](https://youtu.be/e5wVhLMNK7Q) | clase 3 |
-| E04 | Cursos y listado de alumnos | 1:31 | publicado | [público](https://youtu.be/X-79p1_9Z1I) | clase 4 |
+| E04 | Cursos y listado de alumnos | 1:31 | publicado | [público](https://youtu.be/0fbM508v21Q) | clase 4 |
 | E05 | El usuario del colegio | 0:55 | publicado | [público](https://youtu.be/4966Kx_hQ9I) | clase 5 |
 | E06 | El álbum del colegio y las fotos ocultas | 1:28 | publicado | [público](https://youtu.be/dWYvylvHw4Q) | clase 6 |
 | E07 | La comisión del colegio | 1:02 | publicado | [público](https://youtu.be/nw18jU_MUzs) | clase 7 |
+| E08 | Los packs de preventa | 1:08 | publicado | [público](https://youtu.be/YRRa_ea6HAo) | clase 8 |
+| E09 | Elegir el diseño de la carpeta escolar | 1:23 | publicado | [público](https://youtu.be/8VX8Aax6FQE) | clase 9 |
+| E10 | Probar la carpeta escolar con el listado real | 0:56 | publicado | [público](https://youtu.be/MIvKuWItd1A) | clase 10 |
+| E11 | El día de la toma: subir las fotos | 0:50 | publicado | [público](https://youtu.be/qWbIo7uH9HQ) | clase 11 |
+| E12 | La línea de producción | 0:58 | publicado | [público](https://youtu.be/NK8cAqEXmd8) | clase 12 |
+| E13 | Revisar los diseños de corrido | 1:06 | publicado | [público](https://youtu.be/BPiRQqVAAKo) | clase 13 |
+| E14 | Mandar a la imprenta por lotes | 0:49 | publicado | [público](https://youtu.be/dzo1IxCGDsI) | clase 14 |
+| E15 | Sobres con QR y entrega | 0:45 | publicado | [público](https://youtu.be/ij_wDnq3mQA) | clase 15 |
+| E16 | La pantalla de pedidos del estudio | 0:36 | publicado, sin capítulos (muy corto) | [público](https://youtu.be/djynDo2fzNg) | clase 16 |
+| E17 | El mosaico del curso | 1:06 | publicado | [público](https://youtu.be/IQycJe2T_OM) | clase 17 |
+| E18 | El panel del colegio | 0:53 | publicado | [público](https://youtu.be/Gl5bLjAqSNU) | clase 18 |
+| E19 | Compartir la preventa y cobrar la comisión | 0:46 | publicado | [público](https://youtu.be/h73X2LdrzJE) | clase 19 |
+| E20 | Comprar en la preventa | 0:48 | publicado | [público](https://youtu.be/cz55jC-uiws) | clase 20 |
+| E21 | Encontrar las fotos con una selfie | 0:43 | publicado | [público](https://youtu.be/dODgxZ2yvZk) | clase 21 |
+| E22 | Elegir las fotos y aprobar la carpeta escolar | 0:54 | publicado | [público](https://youtu.be/E61DwWAyXmg) | clase 22 |
+| E23 | Recuperar el pack | 0:32 | publicado, sin capítulos (muy corto) | [público](https://youtu.be/FwF-2TEGZzo) | clase 23 |
+
+La serie quedó completa el 2026-11-04: 23 clases públicas en la lista, en orden.
 
 ## Copys
 
@@ -112,12 +143,12 @@ Los tutoriales nuevos se agregan al final de la lista, en el orden en que se peg
 >
 > En esta clase:
 > 0:00 Qué vas a ver en este curso
-> 0:19 Lo que hoy complica la foto escolar
+> 0:20 Lo que hoy complica la foto escolar
 > 0:35 Conseguir el colegio y acordar con él
 > 0:55 Packs y plantillas con datos variables
 > 1:17 La preventa y el día de la toma
-> 1:35 La selfie, el librito automático y la segunda venta
-> 2:02 Producción, entrega y la idea más importante
+> 1:34 La selfie, la carpeta automática y la segunda venta
+> 2:03 Producción, entrega y la idea más importante
 >
 > ▶ Próxima clase: Tu página de venta para colegios.
 
@@ -160,13 +191,13 @@ Los tutoriales nuevos se agregan al final de la lista, en el orden en que se peg
 **Título:** Cursos y listado de alumnos | Curso de fotografía escolar, clase 4
 
 > El listado de alumnos es lo que hace que todo lo demás funcione solo: la familia encuentra a su hijo por el
-> nombre, el librito sale bien escrito y el mosaico del curso se arma solo. Te muestro cómo crear un curso a mano
+> nombre, la carpeta escolar sale bien escrita y el mosaico del curso se arma solo. Te muestro cómo crear un curso a mano
 > y cómo importar de una vez el Excel o el CSV que te pasa el colegio. Y si el archivo viene desordenado, un
 > botón te copia el pedido listo para que ChatGPT te lo devuelva en el formato correcto.
 >
 > En esta clase:
 > 0:00 Por qué importa el listado de alumnos
-> 0:20 Crear un curso a mano
+> 0:22 Crear un curso a mano
 > 0:39 Importar el Excel o el CSV del colegio
 > 0:53 Ordenar el archivo con ChatGPT
 > 1:03 Procesar la importación y ver los alumnos
@@ -230,6 +261,11 @@ solo explica el circuito.
 > 0:43 Cuando el colegio pide su parte
 >
 > ▶ Próxima clase: Los packs de preventa.
+
+### E08 a E23
+
+Desde el E08, el título, la descripción y los capítulos de cada clase están solo en `generar-manifiesto.py`
+(lista `COPYS`), para no copiarlos dos veces. Ahí se leen y se corrigen.
 
 ### Bloque común (al final de cada descripción)
 
