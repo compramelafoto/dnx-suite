@@ -198,6 +198,10 @@ jobs:
       - name: Pruebas del embudo de pedidos escolares
         run: pnpm --filter compramelafoto test:embudo-escolar
 
+      # El ZIP de varios pedidos para el laboratorio (carpetas por tamaño): se arma y se abre de verdad.
+      - name: Pruebas de la carpeta de impresión
+        run: pnpm --filter compramelafoto test:print-export
+
       # El motor de análisis corre con vitest y hasta hoy NO estaba en el CI: las
       # pruebas existían, pasaban en la máquina de quien las escribía y nadie las
       # volvía a correr. `should-run-ocr` quedó un rato reclamado por los dos

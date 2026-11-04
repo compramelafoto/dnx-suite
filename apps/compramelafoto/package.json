@@ -55,6 +55,7 @@
     "camofduty:animaciones": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.test.json scripts/camofduty/convert-rocketbox-animations.ts",
     "test:demos": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.json --test lib/demos/identidad.test.ts lib/demos/vistas.test.ts lib/demos/escolar/fotos-provisorias.test.ts lib/demos/guiones/navegacion.test.ts",
     "test:tutoriales": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.json --test lib/tutorials/escolar-course.test.ts",
+    "test:print-export": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.json --test lib/orders/print-export/export-product-name.test.ts lib/orders/print-export/organizar-por-tamano.test.ts",
     "test:event-invites": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.json --test lib/events/nearby-invite-window.test.ts"
   },
   "dependencies": {

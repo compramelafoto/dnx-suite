@@ -205,6 +205,7 @@ export async function loadPrintOrderPrintPlan(orderId: number, user: PrintExport
       r2Key: urlToR2Key(sourceKey),
       manifestLine: `${base} | ${zipPath}`,
       missingLine: `${base} | (FALTA ARCHIVO)`,
+      impresion: { producto: productName, acabado: finish, tamano: size, copias: qty },
     };
   });
 

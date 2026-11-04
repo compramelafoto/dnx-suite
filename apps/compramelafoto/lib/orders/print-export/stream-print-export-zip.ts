@@ -26,6 +26,8 @@ export type PrintExportFile = {
   missingLine: string;
   /** Ajuste del archivo antes de entrar al ZIP (p. ej. la marca de 300 dpi de un JPG). */
   transform?: (bytes: Buffer) => Buffer | Uint8Array;
+  /** Sólo en copias sueltas: con qué se agrupan en el ZIP ordenado por tamaño. */
+  impresion?: { producto: string; acabado: string; tamano: string; copias: number };
 };
 
 /** De dónde salen los archivos: R2, salvo en las pruebas. Null si no existe. */
