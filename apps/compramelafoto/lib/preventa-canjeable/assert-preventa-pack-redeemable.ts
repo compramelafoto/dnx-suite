@@ -52,6 +52,7 @@ export async function assertPreventaPackOrderRedeemable(orderId: number): Promis
       redemptionOrderId: true,
       albumId: true,
       checkoutPaymentSource: true,
+      isTest: true,
     },
   });
 
@@ -111,7 +112,9 @@ export async function assertPreventaPackOrderRedeemable(orderId: number): Promis
   const noMpCheck =
     !order.mpPaymentId ||
     order.checkoutPaymentSource === CheckoutPaymentSource.PREPAID_PACK ||
-    order.mpPaymentId.trim() === "";
+    order.mpPaymentId.trim() === "" ||
+    // Pedidos de prueba («Probar canje», demos): el pago es simulado («SIM-…») y Mercado Pago no lo conoce.
+    (order.isTest && order.checkoutPaymentSource === CheckoutPaymentSource.SIMULATED);
 
   if (noMpCheck) {
     return { ok: true };
