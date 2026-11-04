@@ -84,20 +84,31 @@ uno escribe: los trae de YouTube. Eso tiene dos consecuencias:
 
 Los tutoriales nuevos se agregan al final de la lista, en el orden en que se pegan.
 
+## «Carpeta escolar», no «librito»
+
+El 2026-11-04 Daniel pidió dejar de decir «librito» en toda la serie: se dice «carpeta escolar». Se volvieron a
+montar E01, E04, E08, E09 y E10 con la voz nueva. Como YouTube no deja cambiar el archivo de un video subido, se
+subieron de nuevo y los viejos quedaron **en privado, sin borrar** y fuera de la lista
+(`tools/video/youtube/reemplazados-librito.json`). Ningún copy ni portada dice «librito».
+
+Ojo: varias pantallas de CLF que salen en los videos todavía dicen «librito» (por ejemplo «Vista 3D del
+librito», «Armando tu librito…», «Otro librito igual» y los nombres de plantillas y packs de la demo). Las portadas
+se armaron con cuadros donde no se ve.
+
 ## Estado
 
 | # | Video | Duración | Copy | YouTube | CLF |
 |---|---|---|---|---|---|
-| E01 | La venta escolar de punta a punta | 2:23 | aprobado | [público](https://youtu.be/kDdvZ92JKfo) | clase 1 |
+| E01 | La venta escolar de punta a punta | 2:24 | aprobado | [público](https://youtu.be/BCJqM7JUifg) | clase 1 |
 | E02 | Tu página de venta para colegios | 1:32 | aprobado | [público](https://youtu.be/uBmMxi7d52Q) | clase 2 |
 | E03 | Dar de alta un colegio | 1:01 | aprobado | [público](https://youtu.be/e5wVhLMNK7Q) | clase 3 |
-| E04 | Cursos y listado de alumnos | 1:31 | publicado | [público](https://youtu.be/X-79p1_9Z1I) | clase 4 |
+| E04 | Cursos y listado de alumnos | 1:31 | publicado | [público](https://youtu.be/0fbM508v21Q) | clase 4 |
 | E05 | El usuario del colegio | 0:55 | publicado | [público](https://youtu.be/4966Kx_hQ9I) | clase 5 |
 | E06 | El álbum del colegio y las fotos ocultas | 1:28 | publicado | [público](https://youtu.be/dWYvylvHw4Q) | clase 6 |
 | E07 | La comisión del colegio | 1:02 | publicado | [público](https://youtu.be/nw18jU_MUzs) | clase 7 |
-| E08 | Los packs de preventa | 1:08 | publicado | [público](https://youtu.be/QIQfRYMr8Uk) | clase 8 |
-| E09 | Elegir el diseño del librito | 1:39 | publicado | [público](https://youtu.be/cJIGgNakRrk) | clase 9 |
-| E10 | Probar el librito con el listado real | 0:58 | publicado | [público](https://youtu.be/7lkq0mdNRDQ) | clase 10 |
+| E08 | Los packs de preventa | 1:08 | publicado | [público](https://youtu.be/YRRa_ea6HAo) | clase 8 |
+| E09 | Elegir el diseño de la carpeta escolar | 1:23 | publicado | [público](https://youtu.be/8VX8Aax6FQE) | clase 9 |
+| E10 | Probar la carpeta escolar con el listado real | 0:56 | publicado | [público](https://youtu.be/MIvKuWItd1A) | clase 10 |
 | E11 | El día de la toma: subir las fotos | 0:50 | publicado | [público](https://youtu.be/qWbIo7uH9HQ) | clase 11 |
 
 ## Copys
@@ -116,12 +127,12 @@ Los tutoriales nuevos se agregan al final de la lista, en el orden en que se peg
 >
 > En esta clase:
 > 0:00 Qué vas a ver en este curso
-> 0:19 Lo que hoy complica la foto escolar
+> 0:20 Lo que hoy complica la foto escolar
 > 0:35 Conseguir el colegio y acordar con él
 > 0:55 Packs y plantillas con datos variables
 > 1:17 La preventa y el día de la toma
-> 1:35 La selfie, el librito automático y la segunda venta
-> 2:02 Producción, entrega y la idea más importante
+> 1:34 La selfie, la carpeta automática y la segunda venta
+> 2:03 Producción, entrega y la idea más importante
 >
 > ▶ Próxima clase: Tu página de venta para colegios.
 
@@ -164,13 +175,13 @@ Los tutoriales nuevos se agregan al final de la lista, en el orden en que se peg
 **Título:** Cursos y listado de alumnos | Curso de fotografía escolar, clase 4
 
 > El listado de alumnos es lo que hace que todo lo demás funcione solo: la familia encuentra a su hijo por el
-> nombre, el librito sale bien escrito y el mosaico del curso se arma solo. Te muestro cómo crear un curso a mano
+> nombre, la carpeta escolar sale bien escrita y el mosaico del curso se arma solo. Te muestro cómo crear un curso a mano
 > y cómo importar de una vez el Excel o el CSV que te pasa el colegio. Y si el archivo viene desordenado, un
 > botón te copia el pedido listo para que ChatGPT te lo devuelva en el formato correcto.
 >
 > En esta clase:
 > 0:00 Por qué importa el listado de alumnos
-> 0:20 Crear un curso a mano
+> 0:22 Crear un curso a mano
 > 0:39 Importar el Excel o el CSV del colegio
 > 0:53 Ordenar el archivo con ChatGPT
 > 1:03 Procesar la importación y ver los alumnos

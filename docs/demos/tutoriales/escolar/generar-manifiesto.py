@@ -41,15 +41,15 @@ COPYS = [
                    "La idea central: primero se vende y se cobra, después se saca la foto."),
         'capitulos': [
             ('0:00', 'Qué vas a ver en este curso'),
-            ('0:19', 'Lo que hoy complica la foto escolar'),
+            ('0:20', 'Lo que hoy complica la foto escolar'),
             ('0:35', 'Conseguir el colegio y acordar con él'),
             ('0:55', 'Packs y plantillas con datos variables'),
             ('1:17', 'La preventa y el día de la toma'),
-            ('1:35', 'La selfie, el librito automático y la segunda venta'),
-            ('2:02', 'Producción, entrega y la idea más importante'),
+            ('1:34', 'La selfie, la carpeta automática y la segunda venta'),
+            ('2:03', 'Producción, entrega y la idea más importante'),
         ],
         'proxima': 'Tu página de venta para colegios',
-        'etiquetas': ['preventa escolar', 'libritos escolares', 'plantillas escolares'],
+        'etiquetas': ['preventa escolar', 'carpetas escolares', 'plantillas escolares'],
     },
     {
         'n': 2,
@@ -91,13 +91,13 @@ COPYS = [
         'archivo': 'E04-cursos-y-listado-de-alumnos.mp4',
         'titulo': 'Cursos y listado de alumnos | Curso de fotografía escolar, clase 4',
         'gancho': ("El listado de alumnos es lo que hace que todo lo demás funcione solo: la familia encuentra a su "
-                   "hijo por el nombre, el librito sale bien escrito y el mosaico del curso se arma solo. Te muestro "
+                   "hijo por el nombre, la carpeta escolar sale bien escrita y el mosaico del curso se arma solo. Te muestro "
                    "cómo crear un curso a mano y cómo importar de una vez el Excel o el CSV que te pasa el colegio. "
                    "Y si el archivo viene desordenado, un botón te copia el pedido listo para que ChatGPT te lo "
                    "devuelva en el formato correcto."),
         'capitulos': [
             ('0:00', 'Por qué importa el listado de alumnos'),
-            ('0:20', 'Crear un curso a mano'),
+            ('0:22', 'Crear un curso a mano'),
             ('0:39', 'Importar el Excel o el CSV del colegio'),
             ('0:53', 'Ordenar el archivo con ChatGPT'),
             ('1:03', 'Procesar la importación y ver los alumnos'),
@@ -168,48 +168,50 @@ COPYS = [
                    "incluida, y cómo crear un pack nuevo: nombre, cuándo se vende, tu precio y lo que incluye."),
         'capitulos': [
             ('0:00', 'Primero se vende el pack'),
-            ('0:20', 'Los packs y sus precios'),
+            ('0:19', 'Los packs y sus precios'),
             ('0:37', 'Crear un pack nuevo'),
-            ('0:54', 'Lo que incluye el pack'),
+            ('0:53', 'Lo que incluye el pack'),
         ],
-        'proxima': 'Elegir el diseño del librito',
+        'proxima': 'Elegir el diseño de la carpeta escolar',
         'etiquetas': ['preventa escolar', 'packs escolares', 'precios fotografia escolar'],
     },
     {
         'n': 9,
-        'archivo': 'E09-elegir-el-diseno-del-librito.mp4',
-        'titulo': 'Elegir el diseño del librito | Curso de fotografía escolar, clase 9',
-        'gancho': ("El librito sale de una plantilla: la elegís una vez y sirve para todo el colegio. Te muestro las "
-                   "plantillas del sistema (más de setenta libritos, además de diplomas, calendarios y anuarios), "
-                   "cómo filtrarlas por tipo y nivel, cómo verlas en 3D y cómo hacerte una copia propia. Y lo más "
-                   "importante: en el editor marcás los datos variables (el colegio, el curso, el nombre del alumno "
-                   "y los lugares de las fotos), y en cada pedido el sistema los completa solo."),
+        'archivo': 'E09-elegir-el-diseno-de-la-carpeta-escolar.mp4',
+        'titulo': 'Elegir el diseño de la carpeta escolar | Curso de fotografía escolar, clase 9',
+        'gancho': ("La carpeta escolar sale de una plantilla: la elegís una vez y sirve para todo el colegio. Te "
+                   "muestro las plantillas del sistema (más de setenta carpetas escolares, además de diplomas, "
+                   "calendarios y anuarios), cómo filtrarlas por tipo y nivel, cómo verlas en 3D pasando hoja por "
+                   "hoja y cómo hacerte una copia propia. Y lo más importante: los datos variables. Podés usar el "
+                   "nombre y el apellido del alumno, el nombre y el logo del colegio, el curso, el listado de los "
+                   "alumnos del curso, el mosaico de compañeros, la foto individual y la grupal, la fecha del "
+                   "evento, tu nombre y tu logo, y hasta el código QR del pedido para la entrega. Armás el diseño "
+                   "una vez y en cada pedido el sistema completa esos datos solo."),
         'capitulos': [
             ('0:00', 'Las plantillas del sistema'),
-            ('0:21', 'Filtrar por tipo y nivel'),
-            ('0:28', 'Ver en 3D y usar la plantilla'),
-            ('1:06', 'Los datos variables en el editor'),
-            ('1:24', 'Un diseño para todo el colegio'),
+            ('0:22', 'Filtrar y ver la carpeta en 3D'),
+            ('0:39', 'Los datos variables'),
+            ('1:04', 'Un diseño para todo el colegio'),
         ],
-        'proxima': 'Probar el librito con el listado real',
-        'etiquetas': ['libritos escolares', 'plantillas escolares', 'diseño de carpetas'],
+        'proxima': 'Probar la carpeta escolar con el listado real',
+        'etiquetas': ['carpetas escolares', 'plantillas escolares', 'diseño de carpetas'],
     },
     {
         'n': 10,
-        'archivo': 'E10-probar-el-librito-con-el-listado.mp4',
-        'titulo': 'Probar el librito con el listado real | Curso de fotografía escolar, clase 10',
+        'archivo': 'E10-probar-la-carpeta-escolar-con-el-listado.mp4',
+        'titulo': 'Probar la carpeta escolar con el listado real | Curso de fotografía escolar, clase 10',
         'gancho': ("Antes de abrir la venta, probá la plantilla con los datos del colegio. Te muestro cómo elegir el "
-                   "álbum y algunas fotos como lo haría una familia, cargar la escuela y el curso, y ver el librito "
-                   "armado con el nombre real de cada chico. Pasás de un alumno a otro y lo ves en 3D, terminado, "
-                   "como lo va a ver la familia. Se hace una vez por colegio, no una vez por chico."),
+                   "álbum y algunas fotos como lo haría una familia, cargar la escuela y el curso, y ver la carpeta "
+                   "escolar armada con el nombre real de cada chico. Pasás de un alumno a otro y la ves en 3D, "
+                   "terminada, como la va a ver la familia. Se hace una vez por colegio, no una vez por chico."),
         'capitulos': [
             ('0:00', 'Probar antes de abrir la venta'),
             ('0:13', 'Las fotos y el listado del colegio'),
-            ('0:28', 'El librito de cada alumno, en 3D'),
-            ('0:45', 'Una vez por colegio'),
+            ('0:27', 'La carpeta de cada alumno, en 3D'),
+            ('0:43', 'Una vez por colegio'),
         ],
         'proxima': 'El día de la toma: subir las fotos',
-        'etiquetas': ['libritos escolares', 'listado de alumnos', 'plantillas escolares'],
+        'etiquetas': ['carpetas escolares', 'listado de alumnos', 'plantillas escolares'],
     },
     {
         'n': 11,

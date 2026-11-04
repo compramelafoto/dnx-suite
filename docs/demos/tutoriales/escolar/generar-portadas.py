@@ -21,7 +21,7 @@ ISOTIPO = pathlib.Path(__file__).resolve().parents[4] / 'apps/compramelafoto/pub
 CHROME = os.environ.get('CHROME') or '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
 
 PORTADAS = {
-    1: ('E01-la-venta-escolar-de-punta-a-punta.mp4', 112, (300, 150, 1320, 742),
+    1: ('E01-la-venta-escolar-de-punta-a-punta.mp4', 112, (330, 500, 1020, 574),
         'Cobrá <em>antes</em><br>de la foto'),
     2: ('E02-tu-pagina-de-venta-para-colegios.mp4', 45, (40, 236, 1320, 742),
         'Tu página<br><em>para colegios</em>'),
@@ -35,12 +35,12 @@ PORTADAS = {
         'El álbum<br><em>del colegio</em>'),
     7: ('E07-la-comision-del-colegio.mp4', 18, (460, 160, 1400, 788),
         'El colegio<br><em>también gana</em>'),
-    8: ('E08-los-packs-de-preventa.mp4', 36, (480, 160, 1360, 765),
+    8: ('E08-los-packs-de-preventa.mp4', 51, (100, 30, 1120, 630),
         'Vendé<br><em>el pack</em><br>primero'),
-    9: ('E09-elegir-el-diseno-del-librito.mp4', 36, (330, 100, 1360, 765),
+    9: ('E09-elegir-el-diseno-de-la-carpeta-escolar.mp4', 37, (330, 30, 1360, 765),
         'Elegí<br><em>el diseño</em>'),
-    10: ('E10-probar-el-librito-con-el-listado.mp4', 52, (330, 120, 1260, 709),
-         'Cada chico,<br><em>su librito</em>'),
+    10: ('E10-probar-la-carpeta-escolar-con-el-listado.mp4', 46, (330, 160, 1260, 709),
+         'Cada chico,<br><em>su carpeta</em>'),
     11: ('E11-el-dia-de-la-toma.mp4', 36, (820, 150, 1060, 596),
          'Subí<br><em>todas juntas</em>'),
 }

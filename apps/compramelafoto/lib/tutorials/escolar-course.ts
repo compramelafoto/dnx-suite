@@ -37,8 +37,8 @@ export const ESCOLAR_COURSE_BLOCKS: EscolarCourseBlock[] = [
     title: "Preparar la venta y el día de la toma",
     lessons: [
       { number: 8, title: "Los packs de preventa", audience: "Fotógrafo", summary: "Armás lo que vas a vender y las familias lo pagan por la plataforma antes de la sesión." },
-      { number: 9, title: "Elegir el diseño del librito", audience: "Fotógrafo", summary: "La plantilla es un molde: la elegís una vez y sirve para todo el colegio." },
-      { number: 10, title: "Probar el librito con el listado real", audience: "Fotógrafo", summary: "Antes de abrir la venta, ves cómo queda la plantilla con los nombres del colegio." },
+      { number: 9, title: "Elegir el diseño de la carpeta escolar", audience: "Fotógrafo", summary: "La plantilla es un molde: la elegís una vez y sirve para todo el colegio." },
+      { number: 10, title: "Probar la carpeta escolar con el listado real", audience: "Fotógrafo", summary: "Antes de abrir la venta, ves cómo queda la plantilla con los nombres del colegio." },
       { number: 11, title: "El día de la toma: subir las fotos", audience: "Fotógrafo", summary: "Subís todas las fotos juntas, sin separarlas chico por chico." },
     ],
   },
@@ -46,8 +46,8 @@ export const ESCOLAR_COURSE_BLOCKS: EscolarCourseBlock[] = [
     title: "Producción y entrega",
     lessons: [
       { number: 12, title: "La línea de producción", audience: "Fotógrafo", summary: "Los pedidos pagados y elegidos llegan a una sola pantalla, etapa por etapa." },
-      { number: 13, title: "Revisar los diseños de corrido", audience: "Fotógrafo", summary: "Revisás muchos libritos seguidos, sin abrirlos uno por uno." },
-      { number: 14, title: "Mandar a la imprenta por lotes", audience: "Fotógrafo", summary: "Juntás los libritos aprobados en lotes listos para imprimir." },
+      { number: 13, title: "Revisar los diseños de corrido", audience: "Fotógrafo", summary: "Revisás muchas carpetas seguidas, sin abrirlas una por una." },
+      { number: 14, title: "Mandar a la imprenta por lotes", audience: "Fotógrafo", summary: "Juntás las carpetas aprobadas en lotes listos para imprimir." },
       { number: 15, title: "Sobres con QR y entrega", audience: "Fotógrafo", summary: "Etiquetas con código para que cada sobre sepa a quién pertenece." },
       { number: 16, title: "La pantalla de pedidos del estudio", audience: "Fotógrafo", summary: "Una vista para el televisor del estudio, con todos los pedidos a la vista." },
       { number: 17, title: "El mosaico del curso", audience: "Fotógrafo y colegio", summary: "La hoja con todo el grado, cada chico con su foto y su nombre, armada sola." },
@@ -65,7 +65,7 @@ export const ESCOLAR_COURSE_BLOCKS: EscolarCourseBlock[] = [
     lessons: [
       { number: 20, title: "Comprar en la preventa", audience: "Familia", summary: "Con el link del colegio, la familia deja resuelta la foto en un par de minutos." },
       { number: 21, title: "Encontrar las fotos con una selfie", audience: "Familia", summary: "Nadie recorre el álbum: cada familia encuentra a su hijo con una selfie." },
-      { number: 22, title: "Elegir las fotos y aprobar el librito", audience: "Familia", summary: "La familia elige sus fotos y aprueba el librito antes de imprimirlo." },
+      { number: 22, title: "Elegir las fotos y aprobar la carpeta escolar", audience: "Familia", summary: "La familia elige sus fotos y aprueba la carpeta escolar antes de imprimirla." },
       { number: 23, title: "Recuperar el pack", audience: "Familia", summary: "Si se perdió el correo, el link del pack se recupera en un minuto." },
     ],
   },
