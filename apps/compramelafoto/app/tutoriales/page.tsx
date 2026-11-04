@@ -1,5 +1,11 @@
 import { prisma } from "@/lib/prisma";
+import Link from "next/link";
 import TutorialCard from "@/components/tutorials/TutorialCard";
+import {
+  ESCOLAR_COURSE_LESSON_COUNT,
+  ESCOLAR_COURSE_PATH,
+  ESCOLAR_COURSE_TAGLINE,
+} from "@/lib/tutorials/escolar-course";
 
 export const dynamic = "force-dynamic";
 
@@ -125,6 +131,20 @@ export default async function TutorialsPage() {
             Videos educativos para aprender a usar ComprameLaFoto paso a paso.
           </p>
         </div>
+
+        <Link
+          href={ESCOLAR_COURSE_PATH}
+          className="mx-auto mb-10 flex max-w-5xl flex-col gap-4 rounded-2xl border border-[#ecd9c6] bg-white p-6 text-left shadow-sm transition hover:shadow-md sm:flex-row sm:items-center sm:justify-between"
+        >
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-[#c27b3d]">
+              Curso · {ESCOLAR_COURSE_LESSON_COUNT} clases
+            </p>
+            <h2 className="mt-1 text-xl font-semibold text-[#1a1a1a]">Curso de fotografía escolar</h2>
+            <p className="mt-1 text-sm text-[#6b7280]">{ESCOLAR_COURSE_TAGLINE}.</p>
+          </div>
+          <span className="clf-btn clf-btn--primary shrink-0">Ver el curso</span>
+        </Link>
 
         {items.length === 0 ? (
           <div className="text-center py-16">

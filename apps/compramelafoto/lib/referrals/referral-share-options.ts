@@ -32,6 +32,12 @@ export const REFERRAL_SHARE_OPTIONS: ReferralShareOption[] = [
       "Estoy usando este sistema para organizar fotografía escolar. Es muy práctico 👇",
   },
   {
+    label: "Curso de fotografía escolar (videos)",
+    path: "/tutoriales/fotografia-escolar",
+    whatsappMessage:
+      "Te paso este curso gratis de fotografía escolar: muestra cómo vender, cobrar la preventa y entregar los libritos con ComprameLaFoto 👇",
+  },
+  {
     label: "Recomendar a una escuela",
     path: "/Escuelas",
     whatsappMessage:
@@ -67,6 +73,9 @@ export function referralShareHelperText(path: ReferralSharePath): string {
   }
   if (path === "/Escuelas") {
     return "Compartí este link para que la escuela complete su solicitud. Si avanza, quedará identificado que la recomendaste vos.";
+  }
+  if (path === "/tutoriales/fotografia-escolar") {
+    return "Lleva al curso de fotografía escolar en video. Si el fotógrafo se registra desde ahí, queda registrado que lo referiste vos.";
   }
   return "Elegí la landing según a quién le compartís el link. Para fotógrafos escolares, la de fotografía escolar; para instituciones, «Recomendar a una escuela».";
 }
