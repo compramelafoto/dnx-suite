@@ -362,6 +362,69 @@ COPYS = [
         'proxima': 'Comprar en la preventa',
         'etiquetas': ['preventa escolar', 'comision escolar', 'fotografia escolar colegios'],
     },
+    {
+        'n': 20,
+        'archivo': 'E20-comprar-en-la-preventa.mp4',
+        'titulo': 'Comprar en la preventa | Curso de fotografía escolar, clase 20',
+        'gancho': ("Para la familia. Si te llegó el enlace del colegio, en un par de minutos dejás resuelta la foto "
+                   "escolar de tu hijo. Te muestro cómo elegir tu opción (por ejemplo, la carpeta escolar impresa "
+                   "con cinco fotos digitales), cómo buscar a tu hijo en la lista del colegio para que salga bien "
+                   "escrito y en su curso, y cómo pagar con Mercado Pago, con tarjeta o con el medio que prefieras. "
+                   "No tenés que mandar dinero al colegio ni guardar comprobantes. En la demo, el pago es de prueba."),
+        'capitulos': [
+            ('0:00', 'Si te llegó el enlace del colegio'),
+            ('0:11', 'Elegir el pack y a tu hijo'),
+            ('0:24', 'Pagar y confirmar'),
+        ],
+        'proxima': 'Encontrar las fotos con una selfie',
+        'etiquetas': ['preventa escolar', 'fotos del colegio', 'carpeta escolar'],
+    },
+    {
+        'n': 21,
+        'archivo': 'E21-encontrar-las-fotos-con-una-selfie.mp4',
+        'titulo': 'Encontrar las fotos con una selfie | Curso de fotografía escolar, clase 21',
+        'gancho': ("Para la familia. Cuando las fotos están listas, al entrar no ves ninguna, y no es un error: es "
+                   "para cuidar a los chicos, nadie puede recorrer el álbum completo. Aceptás que la selfie se use "
+                   "solo para buscar tus fotos, te la sacás vos o se la sacás a tu hijo, y aparecen solo las fotos "
+                   "donde está él, más las grupales del curso."),
+        'capitulos': [
+            ('0:00', 'Por qué no ves ninguna foto'),
+            ('0:17', 'La selfie que encuentra a tu hijo'),
+            ('0:31', 'Solo para buscar'),
+        ],
+        'proxima': 'Elegir las fotos y aprobar la carpeta escolar',
+        'etiquetas': ['reconocimiento facial', 'fotos del colegio', 'privacidad de menores'],
+    },
+    {
+        'n': 22,
+        'archivo': 'E22-elegir-las-fotos-y-aprobar-la-carpeta.mp4',
+        'titulo': 'Elegir las fotos y aprobar la carpeta escolar | Curso de fotografía escolar, clase 22',
+        'gancho': ("Para la familia. Con el enlace de tu pack elegís las fotos que más te gustan, y el contador te "
+                   "dice cuántas te faltan. Enseguida ves la carpeta escolar armada con el nombre de tu hijo, en 3D "
+                   "y hoja por hoja: si una foto no te convence la cambiás, y si el nombre está mal escrito en el "
+                   "listado lo avisás desde ahí. Cuando está todo bien confirmás tu pack, que se imprime tal cual lo "
+                   "aprobaste, y si te gustaron otras fotos las podés sumar en el momento."),
+        'capitulos': [
+            ('0:00', 'Elegir las fotos del pack'),
+            ('0:21', 'La carpeta escolar en 3D'),
+            ('0:34', 'Confirmar y sumar más fotos'),
+        ],
+        'proxima': 'Recuperar el pack',
+        'etiquetas': ['carpeta escolar', 'fotos del colegio', 'elegir fotos'],
+    },
+    {
+        'n': 23,
+        'archivo': 'E23-recuperar-el-pack.mp4',
+        'titulo': 'Recuperar el pack | Curso de fotografía escolar, clase 23',
+        'gancho': ("Para la familia. ¿Borraste el correo o no encontrás el enlace de tu pack? Lo recuperás en un "
+                   "minuto: entrás a recuperar el acceso a tu pack, escribís el correo con el que compraste y te "
+                   "llega un enlace nuevo para seguir donde quedaste. Si con ese correo no aparece nada, probá con "
+                   "otro que hayas usado o escribile a tu fotógrafo. Es la última clase del curso: gracias por "
+                   "mirarlo."),
+        'capitulos': [],
+        'proxima': None,
+        'etiquetas': ['recuperar pack', 'fotos del colegio', 'ayuda familias'],
+    },
 ]
 
 

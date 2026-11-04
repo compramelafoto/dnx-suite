@@ -39,7 +39,8 @@ Todas las descripciones terminan con el mismo bloque. Las direcciones se revisar
 `generar-portadas.py` arma la portada de cada clase (1280×720): número de clase, un texto de cuatro palabras como
 máximo, un cuadro real del video y el isotipo de ComprameLaFoto. Las deja en `videos/portadas/`, fuera de git, y
 `subir.py` la sube junto con el video (campo `portada` del manifiesto). Para una clase nueva se agrega a
-`PORTADAS` el segundo del cuadro y el recorte, y se corre:
+`PORTADAS` el segundo del cuadro y el recorte (si el recorte es vertical, como en las clases de la familia grabadas
+en vista de celular, va en un marco de teléfono), y se corre:
 
 ```bash
 python3 docs/demos/tutoriales/escolar/generar-portadas.py 6
@@ -119,6 +120,12 @@ se armaron con cuadros donde no se ve.
 | E17 | El mosaico del curso | 1:06 | publicado | [público](https://youtu.be/IQycJe2T_OM) | clase 17 |
 | E18 | El panel del colegio | 0:53 | publicado | [público](https://youtu.be/Gl5bLjAqSNU) | clase 18 |
 | E19 | Compartir la preventa y cobrar la comisión | 0:46 | publicado | [público](https://youtu.be/h73X2LdrzJE) | clase 19 |
+| E20 | Comprar en la preventa | 0:48 | publicado | [público](https://youtu.be/cz55jC-uiws) | clase 20 |
+| E21 | Encontrar las fotos con una selfie | 0:43 | publicado | [público](https://youtu.be/dODgxZ2yvZk) | clase 21 |
+| E22 | Elegir las fotos y aprobar la carpeta escolar | 0:54 | publicado | [público](https://youtu.be/E61DwWAyXmg) | clase 22 |
+| E23 | Recuperar el pack | 0:32 | publicado, sin capítulos (muy corto) | [público](https://youtu.be/FwF-2TEGZzo) | clase 23 |
+
+La serie quedó completa el 2026-11-04: 23 clases públicas en la lista, en orden.
 
 ## Copys
 

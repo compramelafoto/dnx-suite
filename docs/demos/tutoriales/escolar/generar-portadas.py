@@ -59,6 +59,14 @@ PORTADAS = {
          'El colegio<br><em>lo ve todo</em>'),
     19: ('E19-compartir-la-preventa-y-cobrar.mp4', 20, (330, 80, 1440, 810),
          'Compartí<br><em>la preventa</em>'),
+    20: ('E20-comprar-en-la-preventa.mp4', 36, (715, 20, 490, 600),
+         'Comprá<br><em>en la preventa</em>'),
+    21: ('E21-encontrar-las-fotos-con-una-selfie.mp4', 30, (715, 0, 490, 760),
+         'Tus fotos,<br><em>con una selfie</em>'),
+    22: ('E22-elegir-las-fotos-y-aprobar-la-carpeta.mp4', 16, (715, 520, 490, 560),
+         'Elegí<br><em>tus fotos</em>'),
+    23: ('E23-recuperar-el-pack.mp4', 15, (715, 0, 490, 600),
+         'Recuperá<br><em>tu pack</em>'),
 }
 
 CSS = """
@@ -80,6 +88,7 @@ h1 em{font-style:normal;color:var(--naranja)}
   background:#fff;border:4px solid #fff;box-shadow:0 30px 70px rgba(31,28,25,.22);overflow:hidden;
   transform:rotate(2deg)}
 .pantalla div{position:absolute;inset:0;background-repeat:no-repeat}
+.pantalla.celular{left:auto;right:150px;top:70px;border:10px solid var(--tinta);border-radius:34px;transform:rotate(3deg)}
 """
 
 
@@ -90,7 +99,11 @@ def cuadro(archivo, segundo, destino):
 
 def html(n, titulo, cuadro_b64, recorte):
     x, y, w, h = recorte
-    escala = 672 / w
+    # Un recorte vertical (las clases grabadas en vista de celular) va en un marco de teléfono.
+    vertical = h > w
+    escala = (540 / h) if vertical else (672 / w)
+    marco = (f' class="pantalla celular" style="width:{w * escala:.0f}px;height:{h * escala:.0f}px"'
+             if vertical else ' class="pantalla"')
     fondo = (f"background-image:url(data:image/jpeg;base64,{cuadro_b64});"
              f"background-size:{1920 * escala:.1f}px {1080 * escala:.1f}px;"
              f"background-position:-{x * escala:.1f}px -{y * escala:.1f}px")
@@ -99,7 +112,7 @@ def html(n, titulo, cuadro_b64, recorte):
 <div class="fondo"></div>
 <div class="num">CLASE {n}</div>
 <h1>{titulo}</h1>
-<div class="pantalla"><div style="{fondo}"></div></div>
+<div{marco}><div style="{fondo}"></div></div>
 <div class="marca"><img src="data:image/png;base64,{iso}">
   <div><b>ComprameLaFoto</b><span>Curso de fotografía escolar</span></div></div>"""
 
