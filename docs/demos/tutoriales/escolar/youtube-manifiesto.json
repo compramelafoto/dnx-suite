@@ -21,7 +21,7 @@
    ],
    "categoria": "27",
    "lista": "escolar",
-   "portada": ""
+   "portada": "/Users/danielcuart/Desktop/PROGRAMACIONES/dnx-suite/docs/demos/tutoriales/escolar/videos/portadas/E01-la-venta-escolar-de-punta-a-punta.png"
   },
   {
    "archivo": "/Users/danielcuart/Desktop/PROGRAMACIONES/dnx-suite/docs/demos/tutoriales/escolar/videos/E02-tu-pagina-de-venta-para-colegios.mp4",
@@ -39,7 +39,7 @@
    ],
    "categoria": "27",
    "lista": "escolar",
-   "portada": ""
+   "portada": "/Users/danielcuart/Desktop/PROGRAMACIONES/dnx-suite/docs/demos/tutoriales/escolar/videos/portadas/E02-tu-pagina-de-venta-para-colegios.png"
   },
   {
    "archivo": "/Users/danielcuart/Desktop/PROGRAMACIONES/dnx-suite/docs/demos/tutoriales/escolar/videos/E03-dar-de-alta-un-colegio.mp4",
@@ -56,7 +56,7 @@
    ],
    "categoria": "27",
    "lista": "escolar",
-   "portada": ""
+   "portada": "/Users/danielcuart/Desktop/PROGRAMACIONES/dnx-suite/docs/demos/tutoriales/escolar/videos/portadas/E03-dar-de-alta-un-colegio.png"
   },
   {
    "archivo": "/Users/danielcuart/Desktop/PROGRAMACIONES/dnx-suite/docs/demos/tutoriales/escolar/videos/E04-cursos-y-listado-de-alumnos.mp4",
@@ -74,7 +74,7 @@
    ],
    "categoria": "27",
    "lista": "escolar",
-   "portada": ""
+   "portada": "/Users/danielcuart/Desktop/PROGRAMACIONES/dnx-suite/docs/demos/tutoriales/escolar/videos/portadas/E04-cursos-y-listado-de-alumnos.png"
   },
   {
    "archivo": "/Users/danielcuart/Desktop/PROGRAMACIONES/dnx-suite/docs/demos/tutoriales/escolar/videos/E05-el-usuario-del-colegio.mp4",
@@ -92,7 +92,25 @@
    ],
    "categoria": "27",
    "lista": "escolar",
-   "portada": ""
+   "portada": "/Users/danielcuart/Desktop/PROGRAMACIONES/dnx-suite/docs/demos/tutoriales/escolar/videos/portadas/E05-el-usuario-del-colegio.png"
+  },
+  {
+   "archivo": "/Users/danielcuart/Desktop/PROGRAMACIONES/dnx-suite/docs/demos/tutoriales/escolar/videos/E06-el-album-del-colegio.mp4",
+   "titulo": "El álbum del colegio y las fotos ocultas | Curso de fotografía escolar, clase 6",
+   "descripcion": "Cada colegio tiene su álbum, y ahí pasa toda la venta. Te muestro el asistente paso a paso: el tipo escolar, los datos de la sesión, el colegio y su comisión, y los cursos. Y el detalle más importante cuando hay chicos: en Configuración activás «Fotos ocultas hasta selfie», para que cada familia vea solo las fotos de su hijo, y decidís cuántos días se guarda la selfie.\n\nEn esta clase:\n0:00 El asistente del álbum escolar\n0:18 Datos de la sesión, ventas e impresiones\n0:43 El colegio, la comisión y los cursos\n0:54 Privacidad y crear el álbum\n1:04 Fotos ocultas hasta selfie\n\n▶ Próxima clase: La comisión del colegio.\n\n━━━━━━━━━━━━━━━━━━━━━━━━\n🎓 Curso de fotografía escolar de ComprameLaFoto\nLa herramienta definitiva para organizar tu fotografía escolar.\nClase 6 de 23. Todo lo que ves es una demo: el colegio, los chicos y las familias son inventados y los pagos son de prueba.\n\n👉 CREÁ TU CUENTA DE FOTÓGRAFO, GRATIS\nhttps://www.compramelafoto.com/fotografo/registro\n\n📚 Conocé el sistema para fotografía escolar\nhttps://www.compramelafoto.com/landescolar\n\n🎬 Todos los tutoriales\nhttps://www.compramelafoto.com/tutoriales\n\n💬 ¿Te quedó una duda? Dejala en los comentarios.\n━━━━━━━━━━━━━━━━━━━━━━━━\n#FotografiaEscolar #ComprameLaFoto",
+   "etiquetas": [
+    "fotografia escolar",
+    "compramelafoto",
+    "curso de fotografia escolar",
+    "fotografo escolar",
+    "vender fotos escolares",
+    "album escolar",
+    "fotos ocultas",
+    "privacidad de menores"
+   ],
+   "categoria": "27",
+   "lista": "escolar",
+   "portada": "/Users/danielcuart/Desktop/PROGRAMACIONES/dnx-suite/docs/demos/tutoriales/escolar/videos/portadas/E06-el-album-del-colegio.png"
   }
  ]
 }
