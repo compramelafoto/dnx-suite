@@ -15,6 +15,13 @@ export type EscolarCourseLesson = {
   audience: "Fotógrafo" | "Fotógrafo y colegio" | "Colegio" | "Familia";
 };
 
+/** Lo que la página muestra al reproducir una clase (sale de escolar-course-details.ts, generado). */
+export type EscolarCourseLessonDetail = {
+  durationSeconds: number;
+  description: string;
+  chapters: { at: number; label: string }[];
+};
+
 export type EscolarCourseBlock = {
   title: string;
   lessons: EscolarCourseLesson[];
@@ -75,6 +82,12 @@ export const ESCOLAR_COURSE_LESSON_COUNT = ESCOLAR_COURSE_BLOCKS.reduce(
   (total, block) => total + block.lessons.length,
   0
 );
+
+/** 144 → "2:24". */
+export function formatLessonDuration(seconds: number): string {
+  const total = Math.max(0, Math.round(seconds));
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
+}
 
 /** Número de clase → link de YouTube, tal como se guarda en SystemSettings. */
 export type EscolarCourseVideos = Record<number, string>;

@@ -1,7 +1,9 @@
 """Genera youtube-manifiesto.json desde los copys de esta lista.
 
 Para sumar un video: agregalo a COPYS (capítulos sacados del audio final) y corré
-    python3 docs/demos/tutoriales/escolar/generar-manifiesto.py docs/demos/tutoriales/escolar/youtube-manifiesto.json
+    python3 docs/demos/tutoriales/escolar/generar-manifiesto.py docs/demos/tutoriales/escolar/youtube-manifiesto.json \
+        apps/compramelafoto/lib/tutorials/escolar-course-details.ts
+El segundo archivo es lo que muestra la página del curso en CLF (descripción, duración y capítulos).
 """
 import json, pathlib, re, sys
 
@@ -457,8 +459,37 @@ def manifiesto():
     }
 
 
+def segundos(tiempo):
+    m, s = tiempo.split(':')
+    return int(m) * 60 + int(s)
+
+
+def duracion(archivo):
+    import subprocess
+    salida = subprocess.run(['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0',
+                             f'{VIDEOS}/{archivo}'], capture_output=True, text=True, check=True).stdout
+    return round(float(salida))
+
+
+def detalle_para_clf():
+    """Lo que muestra la página del curso en CLF: descripción, duración y capítulos de cada clase."""
+    filas = []
+    for c in sorted(COPYS, key=lambda c: c['n']):
+        capitulos = ', '.join(f'{{ at: {segundos(t)}, label: {json.dumps(x, ensure_ascii=False)} }}'
+                              for t, x in c['capitulos'])
+        filas.append(f"  {c['n']}: {{\n    durationSeconds: {duracion(c['archivo'])},\n"
+                     f"    description: {json.dumps(c['gancho'], ensure_ascii=False)},\n"
+                     f"    chapters: [{capitulos}],\n  }},")
+    return ('// Generado por docs/demos/tutoriales/escolar/generar-manifiesto.py: no editar a mano.\n'
+            'import type { EscolarCourseLessonDetail } from "./escolar-course";\n\n'
+            'export const ESCOLAR_COURSE_DETAILS: Record<number, EscolarCourseLessonDetail> = {\n'
+            + '\n'.join(filas) + '\n};\n')
+
+
 if __name__ == '__main__':
     destino = pathlib.Path(sys.argv[1])
+    if len(sys.argv) > 2:
+        pathlib.Path(sys.argv[2]).write_text(detalle_para_clf(), encoding='utf-8')
     m = manifiesto()
     for v in m['videos']:
         assert len(v['titulo']) <= 100, v['titulo']
