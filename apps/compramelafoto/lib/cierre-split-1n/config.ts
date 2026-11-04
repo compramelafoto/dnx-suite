@@ -24,15 +24,15 @@ export const CIERRE_FLAG = "DNX_CLF_SPLIT_1N_CIERRE_PRODUCCION_ENABLED" as const
 export const MONTO_MAXIMO_CENTAVOS = 500_000;
 
 /**
- * Monto por omisión: $3.000.
+ * Monto por omisión: $3.450, una foto de $3.000 más el 15 % de la plataforma.
  *
  * Mercado Pago no fija un mínimo para esta operación de cierre; el mínimo que puede
  * aplicar es el del medio de pago (Marilyn Urrego, 2026-10-30). Lo que conviene mirar no
- * es el total sino **la porción más chica del reparto**: con $3.000, al referidor le toca
- * $300. Un total más chico dejaría esa parte en cifras donde la comisión de Mercado Pago
- * y los mínimos del medio de pago empiezan a pesar.
+ * es el total sino **la porción más chica del reparto**: con $3.450, a la plataforma le
+ * tocan unos $450. Un total más chico dejaría esa parte en cifras donde la comisión de
+ * Mercado Pago y los mínimos del medio de pago empiezan a pesar.
  */
-export const MONTO_POR_OMISION_CENTAVOS = 300_000;
+export const MONTO_POR_OMISION_CENTAVOS = 345_000;
 
 export const TOKEN_ENV_CANDIDATES = [
   "DNX_MP_PLATFORM_ACCESS_TOKEN",
@@ -186,14 +186,18 @@ export function resolveCierreConfig(
 }
 
 /**
- * Reparto del cierre, con la forma del negocio real: la mayor parte para el fotógrafo que
- * vende, una comisión para quien lo refirió, y el resto para la plataforma, que es la que
- * cobra. En puntos básicos sobre 10.000.
+ * Reparto del cierre, con la forma de las ventas del Club 9 de Julio en CLF: la plataforma
+ * cobra el 15 % como recargo sobre el precio de la foto, y el precio se reparte mitad para
+ * el club que organiza y mitad para el fotógrafo.
+ *
+ * Mercado Pago reparte sobre el total que paga el comprador, no sobre el precio: el 15 %
+ * sobre el precio es 15/115 ≈ 13,04 % del total, y cada mitad del precio ≈ 43,48 %. En
+ * puntos básicos sobre 10.000.
  */
 export const REPARTO_BPS = {
-  owner: 2_000,
-  fotografo: 7_000,
-  referidor: 1_000,
+  owner: 1_304,
+  fotografo: 4_348,
+  organizador: 4_348,
 } as const;
 
 /**

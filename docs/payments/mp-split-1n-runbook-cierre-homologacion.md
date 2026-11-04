@@ -174,25 +174,34 @@ evitarlo: es el último requisito de la lista de evidencias.
 > para que la pantalla del video nunca pueda mover dinero real. Por eso la orden de cierre
 > tiene su propia superficie, `/admin/cierre-split-1n`, con sus propios frenos.
 
-### F1. Decidir el caso — DECIDIDO (2026-10-28)
+### F1. Decidir el caso — DECIDIDO (2026-11-04): Club 9 de Julio
 
-| Rol | Quién | Porcentaje | Con $3.000 |
+Reemplaza al caso de Marcos Piaggio del 28/10. Se eligió un caso con ventas reales y
+semanales: el Club 9 de Julio (Rafaela) organiza los partidos y sus fotógrafos venden en
+CLF. Hoy la plataforma cobra todo y el club pide retiros por transferencia
+(`EventOrganizerCommission`, `HELD_BY_PLATFORM`).
+
+| Rol | Quién | % del total pagado | Con una foto de $3.000 (paga $3.450) |
 |---|---|---|---|
-| Owner (cobrador) | La plataforma | 20 % | $600 |
-| Partner — fotógrafo | Un referido de Marcos Piaggio | 70 % | $2.100 |
-| Partner — referidor | Marcos Piaggio | 10 % | $300 |
+| Owner (cobrador) | La plataforma | 13,04 % | ~$450 — el 15 % sobre el precio |
+| Partner — organizador | Club 9 de Julio | 43,48 % | ~$1.500 |
+| Partner — fotógrafo | El fotógrafo del partido | 43,48 % | ~$1.500 |
 
-Tres receptores, con la forma del negocio real.
+**Por qué 13,04 % y no 15 %:** la plataforma cobra el 15 % como recargo sobre el precio,
+pero Mercado Pago reparte sobre el total que paga el comprador. 15/115 ≈ 13,04 %.
+Coincide con las ventas del club en CLF: al 50 %, $119.880 de plataforma sobre $799.200
+de precio.
+
+`DNX_CLF_SPLIT_1N_CIERRE_RECEIVER_A` es el fotógrafo y `_RECEIVER_B` el organizador.
 
 **El monto.** Mercado Pago **no** fija un mínimo para esta operación; el único mínimo que
 puede aplicar es el del medio de pago (Marilyn Urrego, 2026-10-30). Lo que hay que mirar no
-es el total sino **la porción más chica del reparto**: al referidor le toca el 10 %, así que
-un total de $1.000 le dejaría $100. Por eso el valor por omisión es $3.000, con tope duro de
-$5.000.
+es el total sino **la porción más chica del reparto**: con el reparto del club la porción más chica es la de la plataforma (13,04 %). El valor por
+omisión es $3.450, con tope duro de $5.000.
 
 **Quién paga — confirmado por Mercado Pago.** Tiene que ser **un tercero con tarjeta
 propia, distinto de los tres que reciben el reparto**. No alcanza con que no sea el
-collector: tampoco puede ser el fotógrafo ni el referidor.
+collector: tampoco puede ser el fotógrafo ni el club.
 
 Se declara en `DNX_CLF_SPLIT_1N_CIERRE_PAYER_EMAIL`. La pantalla avisa si no está declarado,
 y el servidor **rechaza la orden** si el correo del pagador coincide con el de alguno de los

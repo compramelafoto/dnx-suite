@@ -12,7 +12,7 @@ type Props = {
    * pagador sería el admin con sesión — y Mercado Pago pide expresamente un tercero.
    */
   pagadorDeclarado: boolean;
-  repartoBps: { owner: number; fotografo: number; referidor: number };
+  repartoBps: { owner: number; fotografo: number; organizador: number };
 };
 
 function pesos(centavos: number) {
@@ -29,7 +29,7 @@ export function CierreClient(props: Props) {
   const reparto = [
     { nombre: "Plataforma (owner)", bps: props.repartoBps.owner },
     { nombre: "Fotógrafo (partner)", bps: props.repartoBps.fotografo },
-    { nombre: "Referidor (partner)", bps: props.repartoBps.referidor },
+    { nombre: "Organizador (partner)", bps: props.repartoBps.organizador },
   ];
 
   if (resultado?.providerOrderId) {
