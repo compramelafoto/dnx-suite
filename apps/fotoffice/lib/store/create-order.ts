@@ -14,8 +14,10 @@ import {
 } from "./checkout-input";
 import { STORE_HOLD_MINUTES, STORE_LEGAL_VERSION, STORE_MAX_PENDING_PER_EMAIL } from "./constants";
 import { loadCartCatalog, reservedQtyByKey } from "./repository";
+import { bundleDiscountForProductLines } from "./bundle-server";
 import { lockStockRows } from "@/lib/sales/stock-lock";
-import { checkCartLines, type CartProblem } from "./storefront";
+import { checkCartLines, type CartProblem, type StorefrontProductRow } from "./storefront";
+import { fulfillmentSnapshot } from "./fulfillment/snapshot";
 import { SHIPPING_FAILURE_MESSAGES, shippingFailureMessage } from "./shipping/checkout";
 import { loadAgenciesForOrder, loadCheckoutDeliveryOptions } from "./shipping/checkout-server";
 import { quoteShipping, type QuoteShippingItem, type ShippingQuote } from "./shipping/quote";
@@ -441,6 +443,8 @@ export async function createStoreOrder(input: {
     resultado = await prisma.$transaction(
       async (tx): Promise<ResultadoTx> => {
         let revisado: ReturnType<typeof checkCartLines> = { lines: [], problems: [] };
+        // El catálogo leído con las filas bloqueadas: de acá sale lo que copia cada línea para el productor.
+        let catalogoProductos = new Map<string, StorefrontProductRow>();
         if (productos.length > 0) {
           await lockStockRows(tx, {
             workspaceId,
@@ -458,6 +462,7 @@ export async function createStoreOrder(input: {
             reservedQtyByKey(workspaceId, tx, { now }),
           ]);
           revisado = checkCartLines(catalogo, productos, reservado);
+          catalogoProductos = catalogo;
           // Cualquier ajuste (agotado, menos cantidad, talle inactivo, máximo por compra) frena la
           // compra: se cobra exactamente lo que la persona vio y aceptó, o nada.
           if (revisado.problems.length > 0 || revisado.lines.length === 0) {
@@ -481,10 +486,17 @@ export async function createStoreOrder(input: {
           }
         }
 
-        // Base de la comisión de DNX y del total: productos y obras, sin envío.
+        // Suma de las líneas (productos y obras), sin envío ni descuento. La comisión de DNX va
+        // sobre `subtotal − descuento`.
         const subtotalMinor =
           revisado.lines.reduce((s, l) => s + l.unitPriceMinor * l.qty, 0) +
           obrasRevisadas.lines.reduce((s, l) => s + l.unitPriceMinor * l.qty, 0);
+        // Promo "N por $X": sólo productos de su categoría (nunca obras), con los precios recién
+        // revisados. Se recalcula acá: el carrito sólo la muestra.
+        const discountMinor = Math.min(
+          subtotalMinor,
+          await bundleDiscountForProductLines(workspaceId, revisado.lines, tx),
+        );
 
         // Número correlativo: mismo patrón que `recordSale` (createMany + skipDuplicates + relectura).
         // NO un `create` con `catch` de P2002: un error dentro de la transacción la aborta entera.
@@ -511,7 +523,8 @@ export async function createStoreOrder(input: {
                 deliveryMethod: envio ? "SHIPPING" : "PICKUP",
                 subtotalArs: minorToDecimalString(subtotalMinor),
                 shippingArs: minorToDecimalString(shippingMinor),
-                totalArs: minorToDecimalString(subtotalMinor + shippingMinor),
+                discountArs: minorToDecimalString(discountMinor),
+                totalArs: minorToDecimalString(subtotalMinor - discountMinor + shippingMinor),
                 ...(envio ? envio.data : {}),
                 holdExpiresAt,
                 legalAcceptedAt: now,
@@ -548,6 +561,7 @@ export async function createStoreOrder(input: {
               variantName: l.variantName,
               productSlug: l.slug,
               imageUrl: l.imageUrl,
+              ...fulfillmentSnapshot(catalogoProductos.get(l.productId), l.variantId),
               qty: l.qty,
               unitPriceArs: minorToDecimalString(l.unitPriceMinor),
               lineTotalArs: minorToDecimalString(l.unitPriceMinor * l.qty),

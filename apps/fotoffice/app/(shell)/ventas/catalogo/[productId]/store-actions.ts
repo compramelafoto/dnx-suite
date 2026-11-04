@@ -37,7 +37,7 @@ function refrescar(productId: string) {
 async function productoPropio(workspaceId: string, productId: string) {
   return prisma.product.findFirst({
     where: { id: productId, workspaceId },
-    select: { id: true, name: true, kind: true, storeListing: { select: { slug: true } } },
+    select: { id: true, name: true, kind: true, storeListing: { select: { slug: true, fulfillmentProveedorId: true } } },
   });
 }
 
@@ -64,6 +64,17 @@ export async function saveListingAction(productId: string, formData: FormData): 
   const parsed = parseListingForm(formData);
   if (!parsed.ok) return parsed;
   const v = parsed.values;
+
+  // El productor llega del formulario: tiene que ser un proveedor de ESTE workspace, y activo
+  // salvo que sea el que ya tenía (guardar otro campo no obliga a cambiarlo).
+  if (v.fulfillmentProveedorId !== null) {
+    const elDeAntes = v.fulfillmentProveedorId === producto.storeListing?.fulfillmentProveedorId;
+    const proveedor = await prisma.fotofficeProveedor.findFirst({
+      where: { id: v.fulfillmentProveedorId, workspaceId: workspace.id, ...(elDeAntes ? {} : { active: true }) },
+      select: { id: true },
+    });
+    if (!proveedor) return { ok: false, error: "Ese proveedor no existe o está inactivo." };
+  }
 
   const tomados = await slugsTomados(workspace.id, productId);
   let slug = v.slug;

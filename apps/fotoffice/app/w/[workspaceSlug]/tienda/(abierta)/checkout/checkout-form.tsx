@@ -61,7 +61,7 @@ export function CheckoutForm({
   pickupInstructions,
   deliveryOptions,
 }: Props) {
-  const { workspaceSlug, state, hydrated, itemsCount, subtotalMinor } = useCart();
+  const { workspaceSlug, state, hydrated, itemsCount, subtotalMinor, bundle, discountMinor } = useCart();
   const revision = useCartRevalidation();
   const [enviando, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -268,6 +268,12 @@ export function CheckoutForm({
               </span>
               <Price minor={subtotalMinor} />
             </div>
+            {bundle && discountMinor > 0 ? (
+              <div className="flex items-baseline justify-between gap-3">
+                <span>Promo: {bundle.label}</span>
+                <span className="tabular-nums">− <Price minor={discountMinor} /></span>
+              </div>
+            ) : null}
             <div className="flex items-baseline justify-between gap-3">
               <span className="text-[var(--fo-muted)]">Envío</span>
               {delivery.method === "PICKUP" ? (
@@ -283,7 +289,7 @@ export function CheckoutForm({
           </div>
           <div className="flex items-baseline justify-between gap-3 border-t border-[var(--fo-border)] pt-3">
             <span className="text-sm text-[var(--fo-muted)]">Total</span>
-            <Price minor={subtotalMinor + envioMinor} className="text-xl font-semibold" />
+            <Price minor={subtotalMinor - discountMinor + envioMinor} className="text-xl font-semibold" />
           </div>
 
           {avisos.length > 0 || revision.error ? (

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { StoreProductCard } from "@/lib/store/storefront";
 import { Price } from "./price";
+import { BundleBadge } from "./bundle-badge";
 
 /** Una tarjeta de la vitrina: foto cuadrada, nombre, precio (con talles, el más bajo) y si se agotó. */
 export function ProductCard({ product, href }: { product: StoreProductCard; href: string }) {
@@ -29,7 +30,7 @@ export function ProductCard({ product, href }: { product: StoreProductCard; href
           </span>
         ) : null}
       </div>
-      <div className="min-w-0 space-y-1">
+      <div className="flex min-w-0 flex-col gap-1">
         {product.categoryName ? (
           <p className="truncate text-xs uppercase tracking-wide text-[var(--fo-muted)]">{product.categoryName}</p>
         ) : null}
@@ -37,6 +38,7 @@ export function ProductCard({ product, href }: { product: StoreProductCard; href
           {product.title}
         </h2>
         <Price minor={product.fromPriceMinor} className="text-sm font-semibold" />
+        <BundleBadge productId={product.productId} />
       </div>
     </Link>
   );

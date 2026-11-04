@@ -59,6 +59,7 @@ type Status = "PENDING_PAYMENT" | "PAID" | "READY" | "DELIVERED" | "CANCELLED" |
 function pedido(over: { status?: Status; mpPaymentId?: string | null } = {}) {
   return {
     subtotalArs: "25000.00",
+    discountArs: "0.00",
     shippingArs: "0.00",
     shippingMethod: null as string | null,
     id: "ord1",
@@ -244,6 +245,17 @@ describe("creditStorePayment — pedido esperando el pago", () => {
     await creditStorePayment({ ...cobro, orderId: "ord1", providerPaymentId: "mp1" });
     // 5% de $25.000 = $1.250 propios; se retuvieron $1.500: $250 eran deuda.
     expect(h.recordDischarge).toHaveBeenCalledWith(tx, expect.objectContaining({ workspaceId: "ws1", amountMinor: 250_00 }));
+  });
+
+  it("con la promo: la venta lleva el descuento y la comisión propia va sobre subtotal − descuento", async () => {
+    // $25.000 de líneas − $5.000 de promo = $20.000 cobrados.
+    preparar({ ...pedido(), discountArs: "5000.00", totalArs: "20000.00" });
+    const r = await creditStorePayment({ amountMinor: 20_000_00, currency: "ARS", orderId: "ord1", providerPaymentId: "mp1" });
+    expect(r.status).toBe("PAID");
+    const [, input] = h.recordSale.mock.calls[0];
+    expect(input).toMatchObject({ discountMinor: 5_000_00 });
+    // 5% de $20.000 = $1.000 propios; se retuvieron $1.500: $500 eran deuda.
+    expect(h.recordDischarge).toHaveBeenCalledWith(tx, expect.objectContaining({ amountMinor: 500_00 }));
   });
 
   it("avisa al comprador y a la institución DESPUÉS de la transacción", async () => {

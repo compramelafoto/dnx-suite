@@ -79,6 +79,7 @@ describe("startStoreCheckout — la comisión se congela una sola vez", () => {
     status: "PENDING_PAYMENT",
     holdExpiresAt: new Date("2026-10-04T15:10:00Z"),
     subtotalArs: dec("10000.00"),
+    discountArs: dec("0.00"),
     totalArs: dec("10000.00"),
     shippingArs: dec("0.00"),
     buyerEmail: "ana@example.com",
@@ -162,6 +163,22 @@ describe("startStoreCheckout — la comisión se congela una sola vez", () => {
         description: "Compra en Sociedad — pedido #7 (incluye envío)",
       }),
     );
+  });
+
+  it("con la promo: la comisión va sobre el subtotal menos el descuento, y se cobra el total", async () => {
+    pendingFeeDebtMinor.mockResolvedValue(0);
+    storeOrder.findFirst.mockResolvedValue(
+      pedido({ subtotalArs: dec("70000.00"), discountArs: dec("10000.00"), totalArs: dec("60000.00") }),
+    );
+
+    await startStoreCheckout(entrada);
+
+    // 5% de $60.000 (no de $70.000).
+    expect(storeOrder.updateMany).toHaveBeenNthCalledWith(1, {
+      where: { id: "ord1", workspaceId: "ws1", status: "PENDING_PAYMENT" },
+      data: { feeBps: 500, feeArs: "3000.00" },
+    });
+    expect(createPreference).toHaveBeenCalledWith(expect.objectContaining({ amountMinor: 60_000_00, marketplaceFeeMinor: 3_000_00 }));
   });
 
   it("la deuda arrastrada no se cobra del envío: tope en el subtotal de productos", async () => {

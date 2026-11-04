@@ -5,6 +5,7 @@ import {
   EMPTY_CART,
   cartReducer,
   cartStorageKey,
+  cartBundleDiscount,
   cartTotals,
   loadCart,
   saveCart,
@@ -12,6 +13,7 @@ import {
   type CartLine,
   type CartState,
 } from "@/lib/store/cart";
+import type { ClientBundle } from "@/lib/store/bundle";
 
 /**
  * El carrito de la tienda pública: vive en el navegador (`localStorage`, uno por institución) y
@@ -27,6 +29,10 @@ type CartContextValue = {
   hydrated: boolean;
   itemsCount: number;
   subtotalMinor: number;
+  /** La promo "N por $X" de la tienda (sólo para mostrar), o `null`. */
+  bundle: ClientBundle | null;
+  /** Lo que descuenta la promo sobre este carrito (0 sin promo). El servidor lo recalcula. */
+  discountMinor: number;
   add: (line: CartLine) => void;
   setQty: (key: string, qty: number) => void;
   remove: (key: string) => void;
@@ -45,7 +51,15 @@ function providerReducer(s: ProviderState, a: ProviderAction): ProviderState {
   return { ...s, cart: cartReducer(s.cart, a) };
 }
 
-export function CartProvider({ workspaceSlug, children }: { workspaceSlug: string; children: ReactNode }) {
+export function CartProvider({
+  workspaceSlug,
+  bundle = null,
+  children,
+}: {
+  workspaceSlug: string;
+  bundle?: ClientBundle | null;
+  children: ReactNode;
+}) {
   const [{ cart: state, hydrated }, dispatch] = useReducer(providerReducer, { cart: EMPTY_CART, hydrated: false });
   // Lo que llega de otra pestaña ya está guardado: no hace falta volver a escribirlo.
   const saltearGuardado = useRef(false);
@@ -83,8 +97,9 @@ export function CartProvider({ workspaceSlug, children }: { workspaceSlug: strin
 
   const value = useMemo<CartContextValue>(() => {
     const t = cartTotals(state);
-    return { workspaceSlug, state, hydrated, ...t, add, setQty, remove, replaceLines, clear };
-  }, [workspaceSlug, state, hydrated, add, setQty, remove, replaceLines, clear]);
+    const discountMinor = cartBundleDiscount(state, bundle);
+    return { workspaceSlug, state, hydrated, ...t, bundle, discountMinor, add, setQty, remove, replaceLines, clear };
+  }, [workspaceSlug, state, hydrated, bundle, add, setQty, remove, replaceLines, clear]);
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 }

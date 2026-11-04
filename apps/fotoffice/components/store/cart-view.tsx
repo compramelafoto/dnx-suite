@@ -137,11 +137,23 @@ export function CartView({
       </ul>
 
       <div className="fo-card space-y-4 p-5">
+        {cart.bundle && cart.discountMinor > 0 ? (
+          <div className="space-y-1 text-sm">
+            <div className="flex items-baseline justify-between gap-3">
+              <span className="text-[var(--fo-muted)]">Subtotal</span>
+              <Price minor={cart.subtotalMinor} />
+            </div>
+            <div className="flex items-baseline justify-between gap-3 text-[var(--fo-success)]">
+              <span>Promo: {cart.bundle.label}</span>
+              <span className="tabular-nums">− <Price minor={cart.discountMinor} /></span>
+            </div>
+          </div>
+        ) : null}
         <div className="flex items-baseline justify-between gap-3">
           <span className="text-sm text-[var(--fo-muted)]">
             Total ({cart.itemsCount} {cart.itemsCount === 1 ? "unidad" : "unidades"})
           </span>
-          <Price minor={cart.subtotalMinor} className="text-xl font-semibold" />
+          <Price minor={cart.subtotalMinor - cart.discountMinor} className="text-xl font-semibold" />
         </div>
         {shippingAvailable ? (
           <p className="text-xs text-[var(--fo-muted)]">El envío se calcula en el siguiente paso.</p>

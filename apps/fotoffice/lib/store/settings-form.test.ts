@@ -36,6 +36,10 @@ describe("parseSettingsForm", () => {
         pickupInstructions: "Tocá el timbre del estudio",
         returnsPolicy: null,
         notifyEmail: "tienda@ejemplo.com",
+        bundleCategoryId: null,
+        bundleQty: null,
+        bundlePriceArs: null,
+        bundleLabel: null,
       },
     });
   });
@@ -66,6 +70,10 @@ describe("parseSettingsForm", () => {
         pickupInstructions: null,
         returnsPolicy: null,
         notifyEmail: null,
+        bundleCategoryId: null,
+        bundleQty: null,
+        bundlePriceArs: null,
+        bundleLabel: null,
       },
     });
   });
@@ -101,5 +109,48 @@ describe("effectiveReturnsPolicy", () => {
 
   it("con política propia, muestra la propia", () => {
     expect(effectiveReturnsPolicy("La nuestra.")).toBe("La nuestra.");
+  });
+});
+
+describe("parseSettingsForm — promo N por $X", () => {
+  const promo = {
+    bundleEnabled: ["on", "off"],
+    bundleCategoryId: "cat-remeras",
+    bundleQty: "2",
+    bundlePrice: "60000",
+    bundleLabel: "",
+  };
+
+  it("prendida y completa → guarda categoría, cantidad, precio y texto por omisión", () => {
+    const r = parseSettingsForm(form({ ...abierta, ...promo }));
+    expect(r.ok && r.values).toMatchObject({
+      bundleCategoryId: "cat-remeras",
+      bundleQty: 2,
+      bundlePriceArs: "60000.00",
+      bundleLabel: null,
+    });
+  });
+
+  it("acepta el precio con puntos y coma, y un texto propio", () => {
+    const r = parseSettingsForm(form({ ...abierta, ...promo, bundlePrice: "60.000,50", bundleLabel: " 2 remeras x $60 mil " }));
+    expect(r.ok && r.values).toMatchObject({ bundlePriceArs: "60000.50", bundleLabel: "2 remeras x $60 mil" });
+  });
+
+  it("apagada → borra todo aunque vengan datos", () => {
+    const r = parseSettingsForm(form({ ...abierta, ...promo, bundleEnabled: "off" }));
+    expect(r.ok && r.values).toMatchObject({ bundleCategoryId: null, bundleQty: null, bundlePriceArs: null, bundleLabel: null });
+  });
+
+  it("sin categoría, cantidad fuera de rango o precio en cero → error", () => {
+    expect(parseSettingsForm(form({ ...abierta, ...promo, bundleCategoryId: "" }))).toEqual({
+      ok: false,
+      error: "Elegí la categoría de la promo.",
+    });
+    for (const bundleQty of ["1", "11", "2.5", ""]) {
+      expect(parseSettingsForm(form({ ...abierta, ...promo, bundleQty })).ok).toBe(false);
+    }
+    for (const bundlePrice of ["0", "", "abc"]) {
+      expect(parseSettingsForm(form({ ...abierta, ...promo, bundlePrice })).ok).toBe(false);
+    }
   });
 });

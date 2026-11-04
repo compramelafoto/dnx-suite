@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { STORE_PUBLIC_SEGMENT } from "@/lib/store/constants";
 import { loadOpenStore } from "@/lib/store/repository";
+import { loadClientBundle } from "@/lib/store/bundle-server";
 import { storeShowsArtworks } from "@/lib/store/artworks/storefront";
 import { StoreSectionNav } from "@/components/store/store-section-nav";
 import { CartProvider } from "@/components/store/cart-provider";
@@ -28,11 +29,15 @@ export default async function StoreLayout({ children, params }: Props) {
   const { workspaceSlug } = await params;
   const store = await loadOpenStore(workspaceSlug);
   if (!store) notFound();
-  const conObras = await storeShowsArtworks(store.workspace.id);
+  const [conObras, bundle] = await Promise.all([
+    storeShowsArtworks(store.workspace.id),
+    // La promo "N por $X", para mostrarla en el carrito, el checkout y las fichas.
+    loadClientBundle(store.workspace.id),
+  ]);
   const base = `/w/${workspaceSlug}/${STORE_PUBLIC_SEGMENT}`;
 
   return (
-    <CartProvider workspaceSlug={workspaceSlug}>
+    <CartProvider workspaceSlug={workspaceSlug} bundle={bundle}>
       <div className="mx-auto max-w-6xl px-4 pt-6 md:px-8">
         <div className="flex items-center justify-between gap-3 border-b border-[var(--fo-border)] pb-4">
           <Link href={base} className="min-w-0 truncate text-sm font-medium hover:underline">

@@ -15,6 +15,7 @@ const SELECT_PAGINA = {
   accessTokenHash: true,
   holdExpiresAt: true,
   subtotalArs: true,
+  discountArs: true,
   shippingArs: true,
   totalArs: true,
   deliveryMethod: true,

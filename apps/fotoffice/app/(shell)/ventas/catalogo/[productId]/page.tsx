@@ -167,7 +167,20 @@ export default async function ProductoPage({
 
       {/* Un insumo no se vende: no se ofrece publicarlo en la tienda. */}
       {producto.kind !== "INSUMO" ? (
-        <StoreSections product={producto} publicSlug={publicSlug} storeEnabled={storeEnabled} />
+        <StoreSections
+          product={producto}
+          publicSlug={publicSlug}
+          storeEnabled={storeEnabled}
+          // Quién puede producirlo: los proveedores activos y, si quedó inactivo, el que ya tiene.
+          proveedores={await prisma.fotofficeProveedor.findMany({
+            where: {
+              workspaceId: workspace.id,
+              OR: [{ active: true }, { id: producto.storeListing?.fulfillmentProveedorId ?? "" }],
+            },
+            orderBy: { name: "asc" },
+            select: { id: true, name: true },
+          })}
+        />
       ) : null}
     </div>
   );

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { MAX_VARIANTS_PER_PRODUCT, parseVariantsForm } from "./variant-form";
 
-type Fila = Partial<Record<"id" | "name" | "sku" | "barcode" | "price" | "isActive", string>>;
+type Fila = Partial<Record<"id" | "name" | "sku" | "barcode" | "price" | "isActive" | "printFileUrl", string>>;
 
 function form(filas: Fila[]): FormData {
   const fd = new FormData();
@@ -81,15 +81,15 @@ describe("parseVariantsForm", () => {
   });
 
   it(`más de ${MAX_VARIANTS_PER_PRODUCT} talles es un error`, () => {
-    const filas = Array.from({ length: 31 }, (_, i) => ({ name: `T${i}` }));
+    const filas = Array.from({ length: MAX_VARIANTS_PER_PRODUCT + 1 }, (_, i) => ({ name: `T${i}` }));
     expect(parseVariantsForm(form(filas))).toEqual({
       ok: false,
       error: `Un producto puede tener hasta ${MAX_VARIANTS_PER_PRODUCT} talles.`,
     });
   });
 
-  it("30 talles todavía se aceptan", () => {
-    const filas = Array.from({ length: 30 }, (_, i) => ({ name: `T${i}` }));
+  it(`${MAX_VARIANTS_PER_PRODUCT} talles todavía se aceptan`, () => {
+    const filas = Array.from({ length: MAX_VARIANTS_PER_PRODUCT }, (_, i) => ({ name: `T${i}` }));
     expect(parseVariantsForm(form(filas)).ok).toBe(true);
   });
 
@@ -133,5 +133,24 @@ describe("parseVariantsForm", () => {
 
   it("sin filas da una lista vacía", () => {
     expect(parseVariantsForm(new FormData())).toEqual({ ok: true, variants: [] });
+  });
+
+  it("lee el archivo de cada talle sólo si viene la columna", () => {
+    const r = parseVariantsForm(
+      form([
+        { name: "S", printFileUrl: "https://drive.google.com/s" },
+        { name: "M", printFileUrl: "  " },
+        { name: "L" },
+      ]),
+    );
+    expect(r.ok && r.variants.map((v) => v.printFileUrl)).toEqual(["https://drive.google.com/s", null, undefined]);
+    expect(r.ok && "printFileUrl" in r.variants[2]!).toBe(false);
+  });
+
+  it("rechaza un archivo de talle que no es un enlace http", () => {
+    expect(parseVariantsForm(form([{ name: "S", printFileUrl: "javascript:alert(1)" }]))).toEqual({
+      ok: false,
+      error: "El archivo del talle S tiene que ser un enlace que empiece con https:// o http://.",
+    });
   });
 });

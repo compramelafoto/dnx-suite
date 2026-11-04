@@ -172,5 +172,7 @@ function datosDelTalle(v: VariantInput) {
     priceArs: v.priceMinor === null ? null : minorToDecimalString(v.priceMinor),
     isActive: v.isActive,
     sortOrder: v.sortOrder,
+    // Sin la columna en el formulario, el archivo del talle queda como estaba.
+    ...(v.printFileUrl !== undefined ? { printFileUrl: v.printFileUrl } : {}),
   };
 }

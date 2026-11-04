@@ -1,4 +1,5 @@
 import { SINGLE_EMAIL_RE } from "@/lib/communications/constants";
+import { minorToDecimalString, parseArsToMinor } from "@/lib/membership/money";
 import { DEFAULT_RETURNS_POLICY } from "./constants";
 
 /**
@@ -19,6 +20,9 @@ export const MAX_PICKUP_HOURS = 300;
 export const MAX_PICKUP_INSTRUCTIONS = 2000;
 export const MAX_RETURNS_POLICY = 5000;
 const MAX_EMAIL = 254;
+export const BUNDLE_MIN_QTY = 2;
+export const BUNDLE_MAX_QTY = 10;
+export const MAX_BUNDLE_LABEL = 80;
 
 export type StoreSettingsValues = {
   isOpen: boolean;
@@ -28,6 +32,14 @@ export type StoreSettingsValues = {
   /** `null` = la política por omisión (`DEFAULT_RETURNS_POLICY`, ver `effectiveReturnsPolicy`). */
   returnsPolicy: string | null;
   notifyEmail: string | null;
+  /**
+   * Promo "llevá N por $X": la categoría, la cantidad, el precio del grupo (decimal en texto) y
+   * el texto propio (null = "Llevá N por $X"). Apagada: todo null.
+   */
+  bundleCategoryId: string | null;
+  bundleQty: number | null;
+  bundlePriceArs: string | null;
+  bundleLabel: string | null;
 };
 
 export type SettingsFormResult = { ok: true; values: StoreSettingsValues } | { ok: false; error: string };
@@ -71,15 +83,54 @@ export function parseSettingsForm(fd: FormData): SettingsFormResult {
     return { ok: false, error: "El email de avisos no es válido." };
   }
 
+  const promo = parseBundle(fd);
+  if (!promo.ok) return promo;
+
   return {
     ok: true,
     values: {
+      ...promo.values,
       isOpen,
       pickupAddress: textos.pickupAddress ?? null,
       pickupHours: textos.pickupHours ?? null,
       pickupInstructions: textos.pickupInstructions ?? null,
       returnsPolicy: textos.returnsPolicy ?? null,
       notifyEmail: emailCrudo || null,
+    },
+  };
+}
+
+type BundleValues = Pick<StoreSettingsValues, "bundleCategoryId" | "bundleQty" | "bundlePriceArs" | "bundleLabel">;
+
+const SIN_PROMO: BundleValues = { bundleCategoryId: null, bundleQty: null, bundlePriceArs: null, bundleLabel: null };
+
+/**
+ * La promo "N por $X". Apagada (casilla `bundleEnabled` sin tildar) se borra entera. Prendida
+ * exige categoría, cantidad entre 2 y 10 y un precio mayor que cero. Que la categoría sea de este
+ * negocio lo verifica la acción, porque necesita la base.
+ */
+function parseBundle(fd: FormData): { ok: true; values: BundleValues } | { ok: false; error: string } {
+  if (!casilla(fd, "bundleEnabled")) return { ok: true, values: SIN_PROMO };
+  const categoria = texto(fd, "bundleCategoryId");
+  if (!categoria) return { ok: false, error: "Elegí la categoría de la promo." };
+  const qtyCruda = texto(fd, "bundleQty");
+  const qty = /^\d+$/.test(qtyCruda) ? Number(qtyCruda) : NaN;
+  if (!Number.isInteger(qty) || qty < BUNDLE_MIN_QTY || qty > BUNDLE_MAX_QTY) {
+    return { ok: false, error: `La cantidad de la promo va de ${BUNDLE_MIN_QTY} a ${BUNDLE_MAX_QTY}.` };
+  }
+  const precio = parseArsToMinor(texto(fd, "bundlePrice"));
+  if (precio === null || precio <= 0) return { ok: false, error: "Poné el precio de la promo." };
+  const etiqueta = texto(fd, "bundleLabel");
+  if (etiqueta.length > MAX_BUNDLE_LABEL) {
+    return { ok: false, error: `El texto de la promo puede tener hasta ${MAX_BUNDLE_LABEL} caracteres.` };
+  }
+  return {
+    ok: true,
+    values: {
+      bundleCategoryId: categoria,
+      bundleQty: qty,
+      bundlePriceArs: minorToDecimalString(precio),
+      bundleLabel: etiqueta || null,
     },
   };
 }

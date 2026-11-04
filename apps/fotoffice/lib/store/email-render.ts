@@ -16,6 +16,8 @@ export type StoreEmailOrder = {
   buyerPhone: string | null;
   totalMinor: number;
   items: { description: string; qty: number; lineTotalMinor: number }[];
+  /** Lo que descontó la promo "N por $X" (en positivo). Ausente o 0: sin promo. */
+  discountMinor?: number;
   pickup: { address: string | null; hours: string | null; instructions: string | null };
   /** Con envío: qué tipo, cuánto y a dónde (ya en renglones). Sin envío (retiro): ausente o null. */
   shipping?: { label: string; amountMinor: number; lines: string[] } | null;
@@ -64,22 +66,25 @@ export function parrafo(texto: string, rico = escapeHtml(texto)): Bloque {
   };
 }
 
-function fila(etiqueta: string, montoMinor: number): string {
+function fila(etiqueta: string, montoMinor: number, signo = ""): string {
   return (
     `<tr><td style="padding:6px 0;border-bottom:1px solid ${C.borde};font-size:14px;color:${C.cuerpo};">${escapeHtml(etiqueta)}</td>` +
-    `<td align="right" style="padding:6px 0;border-bottom:1px solid ${C.borde};font-size:14px;color:${C.cuerpo};white-space:nowrap;">${formatMinorArs(montoMinor)}</td></tr>`
+    `<td align="right" style="padding:6px 0;border-bottom:1px solid ${C.borde};font-size:14px;color:${C.cuerpo};white-space:nowrap;">${signo}${formatMinorArs(montoMinor)}</td></tr>`
   );
 }
 
 function detalle(o: StoreEmailOrder): Bloque {
   const envio = o.shipping ?? null;
+  const descuento = o.discountMinor && o.discountMinor > 0 ? o.discountMinor : 0;
   const filas =
     o.items.map((i) => fila(`${i.qty} × ${i.description}`, i.lineTotalMinor)).join("") +
+    (descuento ? fila("Descuento por promo", descuento, "− ") : "") +
     (envio ? fila(envio.label, envio.amountMinor) : "");
   return {
     text: [
       `Pedido #${o.orderNumber}`,
       ...o.items.map((i) => `- ${i.qty} × ${i.description}: ${formatMinorArs(i.lineTotalMinor)}`),
+      ...(descuento ? [`- Descuento por promo: − ${formatMinorArs(descuento)}`] : []),
       ...(envio ? [`- ${envio.label}: ${formatMinorArs(envio.amountMinor)}`] : []),
       `Total: ${formatMinorArs(o.totalMinor)}`,
     ],

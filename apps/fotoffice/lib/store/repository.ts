@@ -156,10 +156,14 @@ const SELECT_FILA = {
   onlineDescription: true,
   sizeChartImageUrl: true,
   maxPerOrder: true,
+  // Para la línea del pedido (dropshipping); nunca llegan a la vitrina pública.
+  fulfillmentProveedorId: true,
+  printFileUrl: true,
   product: {
     select: {
       id: true,
       name: true,
+      sku: true,
       description: true,
       priceArs: true,
       tracksStock: true,
@@ -172,7 +176,7 @@ const SELECT_FILA = {
       variants: {
         where: { isActive: true },
         orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-        select: { id: true, name: true, priceArs: true, stockQty: true },
+        select: { id: true, name: true, priceArs: true, stockQty: true, sku: true, printFileUrl: true },
       },
     },
   },

@@ -88,6 +88,14 @@ describe("correos al comprador", () => {
     expect(r.text).toContain("$ 25.000,00");
   });
 
+  it("con la promo: muestra el descuento antes del total", () => {
+    const r = renderOrderPaid({ ...pedido, discountMinor: 5_000_00, totalMinor: 20_000_00 });
+    expect(r.text).toContain("- Descuento por promo: − $ 5.000,00");
+    expect(r.html).toContain("Descuento por promo");
+    expect(r.text.indexOf("Descuento por promo")).toBeLessThan(r.text.indexOf("Total: $ 20.000,00"));
+    expect(renderOrderPaid(pedido).text).not.toContain("Descuento");
+  });
+
   it("sin datos de retiro cargados, no muestra renglones vacíos", () => {
     const r = renderOrderReady({ ...pedido, pickup: { address: null, hours: null, instructions: null } });
     expect(r.text).not.toMatch(/Dirección:|Horarios:/);

@@ -100,6 +100,9 @@ function orderTx(over: Record<string, unknown> = {}) {
     },
     storeOrderItem: { createMany: vi.fn(async () => ({ count: 1 })) },
     storeOrderEvent: { create: vi.fn(async () => ({})) },
+    // Sin promo "N por $X" salvo que la prueba la cargue.
+    storeSettings: { findUnique: vi.fn(async (): Promise<unknown> => null) },
+    product: { findMany: vi.fn(async (): Promise<{ id: string }[]> => []) },
     ...over,
   };
 }
@@ -274,10 +277,15 @@ describe("createStoreOrder — el pedido creado", () => {
           "p1",
           producto({
             variantCount: 2,
-            listing: { ...producto().listing, onlineTitle: "Remera oficial" },
+            listing: {
+              ...producto().listing,
+              onlineTitle: "Remera oficial",
+              fulfillmentProveedorId: "prov1",
+              printFileUrl: "https://drive.google.com/remera",
+            },
             variants: [
               { id: "v1", name: "S", priceArs: null, stockQty: 3 },
-              { id: "v2", name: "XL", priceArs: dec("12500.00"), stockQty: 3 },
+              { id: "v2", name: "XL", priceArs: dec("12500.00"), stockQty: 3, sku: "REM-XL" },
             ],
           }),
         ],
@@ -326,6 +334,10 @@ describe("createStoreOrder — el pedido creado", () => {
           qty: 2,
           unitPriceArs: "12500.00",
           lineTotalArs: "25000.00",
+          // Copias para el productor (dropshipping): el código del talle y el archivo de la ficha.
+          sku: "REM-XL",
+          fulfillmentProveedorId: "prov1",
+          printFileUrl: "https://drive.google.com/remera",
         },
       ],
     });
@@ -1135,5 +1147,71 @@ describe("createStoreOrder — idempotencia con obras", () => {
     );
     const r = await createStoreOrder({ workspaceId: "ws1", memberId: null, checkout: { ...checkoutBase, lines: lineas }, now: NOW });
     expect(r).toMatchObject({ ok: false, renewKey: true });
+  });
+});
+
+describe("createStoreOrder — promo N por $X", () => {
+  const promo = { bundleCategoryId: "cat-remeras", bundleQty: 2, bundlePriceArs: dec("60000.00"), bundleLabel: null };
+  const remera = (id: string) => producto({ id, priceArs: dec("35000.00"), stockQty: 10 });
+
+  beforeEach(() => {
+    loadCartCatalog.mockReset().mockResolvedValue(
+      new Map([
+        ["p1", remera("p1")],
+        ["p2", remera("p2")],
+        ["taza", producto({ id: "taza", priceArs: dec("35000.00"), stockQty: 10 })],
+      ]),
+    );
+    tx.storeSettings.findUnique.mockResolvedValue(promo);
+    // Sólo las remeras son de la categoría de la promo.
+    tx.product.findMany.mockImplementation(async () => [{ id: "p1" }, { id: "p2" }]);
+  });
+
+  it("2 remeras (distintas) pagan $60.000: guarda el descuento y lo resta del total", async () => {
+    const r = await createStoreOrder({
+      workspaceId: "ws1",
+      memberId: null,
+      checkout: {
+        ...checkoutBase,
+        lines: [
+          { productId: "p1", variantId: null, qty: 1 },
+          { productId: "p2", variantId: null, qty: 1 },
+        ],
+      },
+      now: NOW,
+    });
+    expect(r.ok).toBe(true);
+    expect(primerPedido()).toMatchObject({ subtotalArs: "70000.00", discountArs: "10000.00", totalArs: "60000.00" });
+    expect(tx.product.findMany).toHaveBeenCalledWith({
+      where: { workspaceId: "ws1", categoryId: "cat-remeras", id: { in: ["p1", "p2"] } },
+      select: { id: true },
+    });
+  });
+
+  it("3 remeras: la tercera paga precio de lista; un producto de otra categoría no entra", async () => {
+    await createStoreOrder({
+      workspaceId: "ws1",
+      memberId: null,
+      checkout: {
+        ...checkoutBase,
+        lines: [
+          { productId: "p1", variantId: null, qty: 3 },
+          { productId: "taza", variantId: null, qty: 1 },
+        ],
+      },
+      now: NOW,
+    });
+    expect(primerPedido()).toMatchObject({ subtotalArs: "140000.00", discountArs: "10000.00", totalArs: "130000.00" });
+  });
+
+  it("sin promo cargada: descuento 0", async () => {
+    tx.storeSettings.findUnique.mockResolvedValue(null);
+    await createStoreOrder({
+      workspaceId: "ws1",
+      memberId: null,
+      checkout: { ...checkoutBase, lines: [{ productId: "p1", variantId: null, qty: 2 }] },
+      now: NOW,
+    });
+    expect(primerPedido()).toMatchObject({ subtotalArs: "70000.00", discountArs: "0.00", totalArs: "70000.00" });
   });
 });

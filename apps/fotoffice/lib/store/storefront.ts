@@ -36,10 +36,22 @@ export type StorefrontProductRow = {
     onlineDescription: string | null;
     sizeChartImageUrl: string | null;
     maxPerOrder: number | null;
+    /** Productor (dropshipping) y archivo para producir: se copian a la línea del pedido. */
+    fulfillmentProveedorId?: string | null;
+    printFileUrl?: string | null;
   };
+  /** Código interno del producto; se copia a la línea del pedido si el talle no tiene uno. */
+  sku?: string | null;
   /** Galería ordenada: la primera es la principal. */
   images: { url: string; alt: string | null }[];
-  variants: { id: string; name: string; priceArs: Decimalish | null; stockQty: number }[];
+  variants: {
+    id: string;
+    name: string;
+    priceArs: Decimalish | null;
+    stockQty: number;
+    sku?: string | null;
+    printFileUrl?: string | null;
+  }[];
 };
 
 export type StoreProductCard = {

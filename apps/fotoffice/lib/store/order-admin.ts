@@ -486,6 +486,7 @@ const SELECT_DETALLE = {
   saleId: true,
   mpPaymentId: true,
   subtotalArs: true,
+  discountArs: true,
   shippingArs: true,
   totalArs: true,
   deliveryMethod: true,
@@ -516,6 +517,9 @@ const SELECT_DETALLE = {
       printFormatName: true,
       printFormat: { select: { name: true, widthCm: true, heightCm: true } },
       artworkListing: { select: { originalWidth: true, originalHeight: true } },
+      // Productor (dropshipping): quién lo produce y cuándo se le pasó.
+      fulfillmentProveedorId: true,
+      fulfillmentSentAt: true,
     },
   },
   events: {

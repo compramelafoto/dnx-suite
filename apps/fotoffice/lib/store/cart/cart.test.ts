@@ -5,6 +5,7 @@ import {
   CART_MAX_QTY,
   cartReducer,
   cartStorageKey,
+  cartBundleDiscount,
   cartTotals,
   clampQty,
   lineKey,
@@ -230,5 +231,25 @@ describe("storage", () => {
     vi.unstubAllGlobals();
     expect(loadCart("sfpr")).toEqual(empty);
     expect(() => saveCart("sfpr", empty)).not.toThrow();
+  });
+});
+
+describe("cartBundleDiscount", () => {
+  const bundle = { qty: 2, priceMinor: 6_000_000, label: "Llevá 2 por $60.000", productIds: ["p1", "p2"] };
+  it("descuenta sólo los productos de la promo, mezclados", () => {
+    const s: CartState = {
+      version: 1,
+      lines: [
+        line({ productId: "p1", qty: 1, unitPriceMinor: 3_500_000 }),
+        line({ productId: "p2", qty: 1, unitPriceMinor: 3_500_000 }),
+        line({ productId: "taza", qty: 2, unitPriceMinor: 3_500_000 }),
+      ],
+    };
+    expect(cartBundleDiscount(s, bundle)).toBe(1_000_000);
+  });
+  it("sin promo o con una sola unidad: 0", () => {
+    const s: CartState = { version: 1, lines: [line({ productId: "p1", qty: 1, unitPriceMinor: 3_500_000 })] };
+    expect(cartBundleDiscount(s, bundle)).toBe(0);
+    expect(cartBundleDiscount({ version: 1, lines: [line({ productId: "p1", qty: 2, unitPriceMinor: 3_500_000 })] }, null)).toBe(0);
   });
 });

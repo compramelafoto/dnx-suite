@@ -11,6 +11,7 @@ import { isReservedSlug, slugify } from "./slug";
 export const MAX_ONLINE_TITLE = 200;
 export const MAX_ONLINE_DESCRIPTION = 5000;
 const MAX_IMAGE_URL = 2048;
+export const MAX_PRINT_FILE_URL = 2048;
 
 export type ListingValues = {
   sellOnline: boolean;
@@ -24,6 +25,11 @@ export type ListingValues = {
   widthCm: number | null;
   heightCm: number | null;
   maxPerOrder: number | null;
+  /** Quién lo produce y despacha (dropshipping). null = lo prepara el negocio. La acción
+   * verifica que el proveedor sea del workspace y esté activo. */
+  fulfillmentProveedorId: string | null;
+  /** Enlace al archivo listo para producir (p. ej. la estampa en Drive). */
+  printFileUrl: string | null;
 };
 
 export type ListingFormResult = { ok: true; values: ListingValues } | { ok: false; error: string };
@@ -73,6 +79,12 @@ export function parseListingForm(fd: FormData): ListingFormResult {
     return { ok: false, error: `La descripción online puede tener hasta ${MAX_ONLINE_DESCRIPTION} caracteres.` };
   }
 
+  const fulfillmentProveedorId = texto(fd, "fulfillmentProveedorId") || null;
+  const printFileUrl = texto(fd, "printFileUrl") || null;
+  if (printFileUrl !== null && !isAcceptablePrintFileUrl(printFileUrl)) {
+    return { ok: false, error: "El archivo para producir tiene que ser un enlace que empiece con https:// o http://." };
+  }
+
   const enteros: Partial<Record<(typeof ENTEROS)[number][0], number | null>> = {};
   for (const [campo, error] of ENTEROS) {
     const crudo = texto(fd, campo);
@@ -100,6 +112,8 @@ export function parseListingForm(fd: FormData): ListingFormResult {
       widthCm: enteros.widthCm ?? null,
       heightCm: enteros.heightCm ?? null,
       maxPerOrder: enteros.maxPerOrder ?? null,
+      fulfillmentProveedorId,
+      printFileUrl,
     },
   };
 }
@@ -113,6 +127,20 @@ export function isAcceptableImageUrl(url: string): boolean {
   if (url === "" || url.length > MAX_IMAGE_URL) return false;
   try {
     return new URL(url).protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * El enlace al archivo para producir (Drive, Dropbox…). Sólo http o https: lo abre el productor
+ * desde la planilla, y un `javascript:` ahí sería una trampa.
+ */
+export function isAcceptablePrintFileUrl(url: string): boolean {
+  if (url === "" || url.length > MAX_PRINT_FILE_URL) return false;
+  try {
+    const p = new URL(url).protocol;
+    return p === "https:" || p === "http:";
   } catch {
     return false;
   }

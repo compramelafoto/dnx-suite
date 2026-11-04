@@ -6,7 +6,9 @@ import { STORE_PUBLIC_SEGMENT } from "@/lib/store/constants";
 import { buildStoreProductJsonLd, serializeJsonLd } from "@/lib/store/product-json-ld";
 import { getStoreProduct, loadOpenStore } from "@/lib/store/repository";
 import { AddToCart } from "@/components/store/add-to-cart";
+import { BundleBadge } from "@/components/store/bundle-badge";
 import { ProductGallery } from "@/components/store/product-gallery";
+import { ProductViewProvider } from "@/components/store/product-view-context";
 
 export const dynamic = "force-dynamic";
 
@@ -75,37 +77,41 @@ export default async function StoreProductPage({ params }: Props) {
         </Link>
       </p>
 
-      <div className="grid gap-8 md:grid-cols-2 md:gap-12">
-        <ProductGallery images={product.images} title={product.title} />
+      {/* El proveedor une la galería con el selector: al elegir un modelo, se ve su foto. */}
+      <ProductViewProvider>
+        <div className="grid gap-8 md:grid-cols-2 md:gap-12">
+          <ProductGallery images={product.images} title={product.title} />
 
-        <div className="min-w-0 space-y-6">
-          <div className="space-y-2">
-            {product.categoryName ? (
-              <p className="text-xs uppercase tracking-wide text-[var(--fo-muted)]">{product.categoryName}</p>
-            ) : null}
-            <h1 className="text-2xl font-semibold tracking-tight break-words md:text-3xl">{product.title}</h1>
-          </div>
-
-          <AddToCart product={product} />
-
-          {product.description ? (
-            <div className="space-y-2 border-t border-[var(--fo-border)] pt-6">
-              <h2 className="text-sm font-semibold">Descripción</h2>
-              <p className="whitespace-pre-line break-words text-sm leading-relaxed text-[var(--fo-text-secondary)]">
-                {product.description}
-              </p>
+          <div className="min-w-0 space-y-6">
+            <div className="space-y-2">
+              {product.categoryName ? (
+                <p className="text-xs uppercase tracking-wide text-[var(--fo-muted)]">{product.categoryName}</p>
+              ) : null}
+              <h1 className="text-2xl font-semibold tracking-tight break-words md:text-3xl">{product.title}</h1>
             </div>
-          ) : null}
+            <BundleBadge productId={product.productId} size="md" />
 
-          <div className="space-y-1 border-t border-[var(--fo-border)] pt-6 text-sm text-[var(--fo-muted)]">
-            <p>
-              <span className="font-medium text-[var(--fo-text)]">Retiro:</span> {store.settings.pickupAddress ?? "en el local"}
-              {store.settings.pickupHours ? ` · ${store.settings.pickupHours}` : ""}
-            </p>
-            <p>Pagás online con Mercado Pago y retirás cuando te avisamos que está listo.</p>
+            <AddToCart product={product} />
+
+            {product.description ? (
+              <div className="space-y-2 border-t border-[var(--fo-border)] pt-6">
+                <h2 className="text-sm font-semibold">Descripción</h2>
+                <p className="whitespace-pre-line break-words text-sm leading-relaxed text-[var(--fo-text-secondary)]">
+                  {product.description}
+                </p>
+              </div>
+            ) : null}
+
+            <div className="space-y-1 border-t border-[var(--fo-border)] pt-6 text-sm text-[var(--fo-muted)]">
+              <p>
+                <span className="font-medium text-[var(--fo-text)]">Retiro:</span> {store.settings.pickupAddress ?? "en el local"}
+                {store.settings.pickupHours ? ` · ${store.settings.pickupHours}` : ""}
+              </p>
+              <p>Pagás online con Mercado Pago y retirás cuando te avisamos que está listo.</p>
+            </div>
           </div>
         </div>
-      </div>
+      </ProductViewProvider>
     </main>
   );
 }
