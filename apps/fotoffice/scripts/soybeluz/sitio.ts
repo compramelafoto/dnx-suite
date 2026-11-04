@@ -325,7 +325,7 @@ const REGULAR = { font: "dejavu-sans", weight: 400 } as const;
 
 export const SOYBELUZ_DISENO: WebsiteDesignPresets = {
   ...DEFAULT_DESIGN_PRESETS,
-  loginButtonLabel: "Mi cuenta",
+  loginButtonLabel: "Iniciá sesión",
   // Nueve entradas con DejaVu Sans (letra ancha) no entran en la barra superior: un botón abre el
   // menú desde un costado, igual en celular y en computadora.
   menuLayout: "drawer",

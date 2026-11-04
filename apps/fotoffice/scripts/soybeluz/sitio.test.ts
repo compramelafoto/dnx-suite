@@ -39,7 +39,7 @@ describe("sitio de SOYBELUZ", () => {
     expect(() => siteMenuSchema.parse(SOYBELUZ_MENU)).not.toThrow();
   });
 
-  it("el menú visible sigue el orden del brief (Mi cuenta es el botón del encabezado)", () => {
+  it("el menú visible sigue el orden del brief (el ingreso es el botón «Iniciá sesión» del encabezado)", () => {
     const etiquetas = SOYBELUZ_MENU.items.filter((i) => !i.hidden).map((i) => i.label);
     expect(etiquetas).toEqual([
       "Inicio",
@@ -52,7 +52,7 @@ describe("sitio de SOYBELUZ", () => {
       "Sobre SOYBELUZ",
       "Suscripción",
     ]);
-    expect(SOYBELUZ_DISENO.loginButtonLabel).toBe("Mi cuenta");
+    expect(SOYBELUZ_DISENO.loginButtonLabel).toBe("Iniciá sesión");
   });
 
   it("la página automática de asociarse queda oculta hasta la Etapa 2", () => {
