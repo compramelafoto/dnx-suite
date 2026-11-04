@@ -31,10 +31,13 @@ import { getAlbumPhotoMaxBytes, getAlbumPhotoMaxMb } from "@/lib/albums/album-ph
 import { TERMS_VERSION } from "@/lib/terms/photographerTerms";
 import { FOTOS_SIN_PUBLICAR } from "@/lib/demos/escolar/fotos-toma";
 import { sembrarVentasDeEjemplo } from "@/lib/demos/escolar/ventas-ejemplo";
+import { asegurarOrganizadorTurismoDemo } from "@/lib/demos/organizador";
 
 export type ResumenDemo = {
   fotografoId: number;
   colegioUserId: number;
+  /** Organizador demo de turismo (vista «organizador»); `null` si no se pudo asegurar. */
+  organizadorUserId: number | null;
   schoolId: number;
   albumId: number;
   albumSlug: string;
@@ -431,6 +434,13 @@ export async function prepararDemoEscolar(opts: { origen: string; presupuestoFot
     nombre: d.colegioUsuario.nombre,
     role: Role.SCHOOL_ORGANIZER,
   });
+  // Vista «organizador» (empresa de turismo): si falla, la demo escolar sigue igual.
+  let organizadorUserId: number | null = null;
+  try {
+    organizadorUserId = await asegurarOrganizadorTurismoDemo();
+  } catch (err) {
+    avisos.push(`Organizador de turismo: ${err instanceof Error ? err.message : String(err)}`);
+  }
 
   const school = await prisma.school.upsert({
     where: { slug: d.escuela.slug },
@@ -544,6 +554,7 @@ export async function prepararDemoEscolar(opts: { origen: string; presupuestoFot
   return {
     fotografoId,
     colegioUserId,
+    organizadorUserId,
     schoolId: school.id,
     albumId: album.id,
     albumSlug: d.album.slug,

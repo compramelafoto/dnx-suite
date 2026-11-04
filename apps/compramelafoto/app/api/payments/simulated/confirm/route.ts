@@ -6,11 +6,16 @@ import {
   Role,
 } from "@/lib/prisma";
 import { prisma } from "@/lib/prisma";
-import { requireAuth } from "@/lib/auth";
+import { getAuthUser, requireAuth } from "@/lib/auth";
 import { isAlbumTestOwnerPhotographer } from "@/lib/public-album-test-access";
 import { createPackAccessTokenForOrder } from "@/lib/preventa-canjeable/pack-access-tokens";
 import { esUsuarioDemo } from "@/lib/demos/identidad";
-import { finalizeAlbumOrderSimulatedApproved } from "@/lib/demos/pago-simulado";
+import {
+  finalizeAlbumGalleryOrderSimulatedApproved,
+  finalizeAlbumOrderSimulatedApproved,
+} from "@/lib/demos/pago-simulado";
+import { getDemoActiva } from "@/lib/demos/sesion-demo";
+import { evaluarPagoSimuladoGaleria } from "@/lib/demos/pago-simulado-galeria";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,11 +30,6 @@ type SimResult = "approved" | "pending" | "rejected";
  */
 export async function POST(req: NextRequest) {
   try {
-    const { error, user } = await requireAuth([Role.PHOTOGRAPHER, Role.LAB_PHOTOGRAPHER]);
-    if (error || !user) {
-      return NextResponse.json({ error: error || "No autorizado" }, { status: 401 });
-    }
-
     const body = await req.json().catch(() => ({}));
     const orderIdRaw = body.orderId;
     const result = body.result as SimResult | undefined;
@@ -59,6 +59,17 @@ export async function POST(req: NextRequest) {
 
     if (!orderRow) {
       return NextResponse.json({ error: "Pedido no encontrado" }, { status: 404 });
+    }
+
+    // Compra de la galería de un álbum demo (no preventa): el comprador puede no ser fotógrafo,
+    // así que la autorización es la de la demo (dueño del álbum o demo activa).
+    if (orderRow.origin !== OrderOrigin.PREVENTA_PACK) {
+      return confirmarPagoSimuladoGaleria(orderId, result);
+    }
+
+    const { error, user } = await requireAuth([Role.PHOTOGRAPHER, Role.LAB_PHOTOGRAPHER]);
+    if (error || !user) {
+      return NextResponse.json({ error: error || "No autorizado" }, { status: 401 });
     }
 
     if (!orderRow.isTest) {
@@ -184,4 +195,52 @@ export async function POST(req: NextRequest) {
     console.error("simulated confirm error:", e);
     return NextResponse.json({ error: "Error al simular confirmación" }, { status: 500 });
   }
+}
+
+/**
+ * Pago simulado de la compra de la galería de un álbum demo. Solo pedidos `isTest` (no preventa)
+ * de álbumes cuyo dueño es un usuario demo, y solo para su dueño o con la demo activa.
+ */
+async function confirmarPagoSimuladoGaleria(orderId: number, result: SimResult) {
+  const user = await getAuthUser();
+  const actor = { userId: user?.id ?? null, demoActiva: (await getDemoActiva()) != null };
+
+  if (result === "approved") {
+    const fin = await finalizeAlbumGalleryOrderSimulatedApproved(orderId, actor);
+    if (!fin.ok) {
+      console.error(LOG_SIM, { orderId, error: fin.error, galeria: true });
+      return NextResponse.json({ error: "No se pudo simular el pago." }, { status: 403 });
+    }
+    console.info(LOG_SIM, { orderId, result, demo: true, galeria: true, userId: actor.userId });
+    return NextResponse.json({
+      ok: true,
+      orderId,
+      result,
+      orderStatus: OrderStatus.PAID,
+      // Centro de descargas del pedido; sin fotos digitales, de vuelta al álbum.
+      destino: fin.destino ?? `/a/${fin.albumId}`,
+    });
+  }
+
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    select: {
+      isTest: true,
+      origin: true,
+      status: true,
+      album: { select: { user: { select: { id: true, tags: true } } } },
+    },
+  });
+  const guarda = evaluarPagoSimuladoGaleria({
+    pedido: order ? { isTest: order.isTest, origin: order.origin ?? null, status: order.status } : null,
+    dueno: order?.album?.user ?? null,
+    actor,
+  });
+  if (!guarda.ok || guarda.yaPagado) {
+    return NextResponse.json({ error: "No se pudo simular el pago." }, { status: 403 });
+  }
+  const orderStatus = result === "pending" ? OrderStatus.PENDING : OrderStatus.FAILED;
+  await prisma.order.update({ where: { id: orderId }, data: { status: orderStatus } });
+  console.info(LOG_SIM, { orderId, result, orderStatus, demo: true, galeria: true, userId: actor.userId });
+  return NextResponse.json({ ok: true, orderId, result, orderStatus });
 }

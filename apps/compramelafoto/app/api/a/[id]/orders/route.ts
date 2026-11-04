@@ -45,6 +45,8 @@ import {
 } from "@/lib/canje-externo/external-voucher";
 import { completePrepaidAlbumOrder } from "@/lib/canje-externo/complete-prepaid-order";
 import { vincularPedidoConBot } from "@/lib/bot/comprador/vincular-pedido";
+import { getDemoActiva } from "@/lib/demos/sesion-demo";
+import { actorPuedeUsarPagoSimulado, albumUsaPagoSimulado } from "@/lib/demos/pago-simulado-galeria";
 
 function normalizePercent(value: unknown): number | null {
   const parsed = Number(value);
@@ -230,6 +232,22 @@ export async function POST(
     }
 
     const authUser = await getAuthUser();
+
+    // Demos grabables: el álbum de un usuario demo nunca cobra por Mercado Pago. El pedido queda
+    // `isTest` y va al pago simulado. Solo lo compra su dueño o quien tiene la demo activa.
+    const albumOwner = album.userId
+      ? await prisma.user.findUnique({ where: { id: album.userId }, select: { id: true, tags: true } })
+      : null;
+    const pagoSimulado = albumUsaPagoSimulado(albumOwner);
+    if (pagoSimulado) {
+      const demoActiva = (await getDemoActiva()) != null;
+      if (!actorPuedeUsarPagoSimulado(albumOwner, { userId: authUser?.id ?? null, demoActiva })) {
+        return NextResponse.json(
+          { error: "Este es un álbum de demostración: sus fotos no están a la venta.", code: "ALBUM_DEMO" },
+          { status: 403 }
+        );
+      }
+    }
 
     // El link de canje lo da el fotógrafo: alcanza para comprar aunque el álbum no esté
     // listado (si no, la familia que entra con su link quedaba en "Álbum no disponible").
@@ -469,6 +487,9 @@ export async function POST(
     if (extensionSurchargeCents > 0) {
       baseData.extensionSurchargeCents = extensionSurchargeCents;
     }
+    if (pagoSimulado) {
+      baseData.isTest = true;
+    }
 
     const mpCredsPrecheck = await resolveAlbumOrderMercadoPagoCredentials({
       photographerUserId: album?.userId ?? null,
@@ -478,7 +499,8 @@ export async function POST(
     const orderItemsSignature = buildOrderItemsSignature(orderItemsData);
     const recentThreshold = new Date(Date.now() - 10 * 60 * 1000);
     // Con canje no se reutiliza un pedido anterior: el combo se reserva para el pedido nuevo.
-    const recentCandidates = voucher ? [] : await prisma.order.findMany({
+    // Pago simulado: tampoco, cada compra de la demo arranca un pedido de prueba nuevo.
+    const recentCandidates = voucher || pagoSimulado ? [] : await prisma.order.findMany({
       where: {
         albumId,
         buyerEmail: normalizedBuyerEmail,
@@ -568,6 +590,7 @@ export async function POST(
 
     if (
       !coveredByVoucher &&
+      !pagoSimulado &&
       !mpCredsPrecheck.ok &&
       mpCredsPrecheck.code === "ORGANIZER_MP_NOT_CONNECTED"
     ) {
@@ -733,6 +756,17 @@ export async function POST(
       const { downloadUrl } = await completePrepaidAlbumOrder(order.id, voucher.orderId, baseUrl);
       return NextResponse.json(
         { id: order.id, totalCents: 0, paid: true, coveredByVoucher: true, downloadUrl },
+        { status: 201 }
+      );
+    }
+
+    if (pagoSimulado) {
+      // La pantalla de compra sigue igual que con Mercado Pago: va a `initPoint`, que acá es la
+      // pantalla del pago simulado (`/pago-simulado/[orderId]`).
+      const simulatedInitPoint = `/pago-simulado/${order.id}`;
+      console.info("[DEMO] pedido de galería con pago simulado", { orderId: order.id, albumId });
+      return NextResponse.json(
+        { id: order.id, totalCents: order.totalCents, initPoint: simulatedInitPoint, simulated: true },
         { status: 201 }
       );
     }

@@ -34,6 +34,11 @@ export const DEMO_ESCOLAR = {
     email: `colegio@${DEMO_EMAIL_DOMAIN}`,
     nombre: "Dirección · Escuela Demo Los Aromos",
   },
+  /** Empresa de turismo inventada: la vista «organizador» de la serie de turismo. */
+  organizadorTurismo: {
+    email: `organizador.turismo@${DEMO_EMAIL_DOMAIN}`,
+    nombre: "Turismo Demo Patagonia",
+  },
   escuela: {
     nombre: "Escuela Demo Los Aromos",
     slug: "escuela-demo-los-aromos",
