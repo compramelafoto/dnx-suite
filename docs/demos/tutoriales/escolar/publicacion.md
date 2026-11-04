@@ -5,6 +5,9 @@ la acción, la subida a YouTube y el alta en la página de Tutoriales de CLF.
 
 Lema del curso: **La herramienta definitiva para organizar tu fotografía escolar.**
 
+Decidido con Daniel el 2026-11-04: van al canal **DNX ESTUDIO** (@DNXESTUDIO, cuenta `dnxfotografia@gmail.com`,
+el mismo de los tutoriales que ya muestra CLF), se suben **en privado** y la visibilidad la decide él después.
+
 ## Dónde está cada cosa
 
 - **Videos terminados:** `docs/demos/tutoriales/escolar/videos/` en el checkout principal. No van a git (la
