@@ -10,7 +10,7 @@ import { prisma, Role } from "@/lib/prisma";
 import { urlToR2Key } from "@/lib/r2-client";
 import { safeFilename } from "@/lib/safe-filename";
 import { formatBuyerContactForPhotographer } from "@/lib/orders/resolve-album-order-buyer-contact";
-import type { PrintExportPlan } from "./stream-print-export-zip";
+import type { PrintExportFile, PrintExportPlan } from "./stream-print-export-zip";
 import { chosenProductNameFromMetadata, resolveExportProductName } from "./export-product-name";
 import { loadOrderDesigns, photoIdsInDesigns } from "./order-designs";
 
@@ -159,7 +159,7 @@ export async function loadAlbumOrderPrintPlan(orderId: number, user: PrintExport
   const customerLabel = safeName(buyer.name || buyer.email || "Cliente");
   const folder = `Pedido-Album-${pad(order.id)} - ${customerLabel}`;
 
-  const files = sueltas.map((it) => {
+  const files: PrintExportFile[] = sueltas.map((it) => {
     const finish = safeName(String(it.finish || "BRILLO"));
     const size = safeName(String(it.size || ""));
     const qty = Number(it.quantity || 0);
@@ -174,6 +174,7 @@ export async function loadAlbumOrderPrintPlan(orderId: number, user: PrintExport
       r2Key: urlToR2Key(originalKey),
       manifestLine: `${productName} | ${finish} | ${size} | ${qty} | ${zipPath}`,
       missingLine: `${productName} | ${finish} | ${size} | ${qty} | (FALTA ARCHIVO)`,
+      impresion: { producto: productName, acabado: finish, tamano: size, copias: qty },
     };
   });
 
