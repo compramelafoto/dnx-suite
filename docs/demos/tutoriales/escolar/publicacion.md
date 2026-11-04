@@ -117,6 +117,8 @@ se armaron con cuadros donde no se ve.
 | E15 | Sobres con QR y entrega | 0:45 | publicado | [público](https://youtu.be/ij_wDnq3mQA) | clase 15 |
 | E16 | La pantalla de pedidos del estudio | 0:36 | publicado, sin capítulos (muy corto) | [público](https://youtu.be/djynDo2fzNg) | clase 16 |
 | E17 | El mosaico del curso | 1:06 | publicado | [público](https://youtu.be/IQycJe2T_OM) | clase 17 |
+| E18 | El panel del colegio | 0:53 | publicado | [público](https://youtu.be/Gl5bLjAqSNU) | clase 18 |
+| E19 | Compartir la preventa y cobrar la comisión | 0:46 | publicado | [público](https://youtu.be/h73X2LdrzJE) | clase 19 |
 
 ## Copys
 

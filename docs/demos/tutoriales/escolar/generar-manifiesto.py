@@ -328,6 +328,40 @@ COPYS = [
         'proxima': 'El mosaico del curso',
         'etiquetas': ['pedidos escolares', 'produccion escolar', 'estudio fotografico'],
     },
+    {
+        'n': 18,
+        'archivo': 'E18-el-panel-del-colegio.mp4',
+        'titulo': 'El panel del colegio | Curso de fotografía escolar, clase 18',
+        'gancho': ("Este video es para el colegio. Te muestro el panel con el que el colegio sigue toda la foto "
+                   "escolar sin pedir planillas: los datos y el logo, cuántos álbumes, alumnos y preventas pagadas "
+                   "tiene, quién es el fotógrafo responsable, cómo conectar la cuenta de Mercado Pago del colegio "
+                   "para recibir su parte a medida que las familias pagan, y las ventas que entraron con el enlace "
+                   "del colegio, con lo que le corresponde y en qué estado está."),
+        'capitulos': [
+            ('0:00', 'Un panel para el colegio'),
+            ('0:13', 'Los datos y los números del colegio'),
+            ('0:26', 'Mercado Pago y las ventas de la escuela'),
+        ],
+        'proxima': 'Compartir la preventa y cobrar la comisión',
+        'etiquetas': ['panel del colegio', 'fotografia escolar colegios', 'comision escolar'],
+    },
+    {
+        'n': 19,
+        'archivo': 'E19-compartir-la-preventa-y-cobrar.mp4',
+        'titulo': 'Compartir la preventa y cobrar la comisión | Curso de fotografía escolar, clase 19',
+        'gancho': ("Para el colegio: cómo compartir la preventa con las familias y cómo pedir su parte. Te muestro "
+                   "dónde copiar el enlace del colegio (las compras que entran por ahí son las que le suman) y el "
+                   "mensaje de WhatsApp ya armado para pegar en el grupo de cada curso. Y cuando el colegio quiere "
+                   "cobrar lo que juntó, toca Solicitar cobro: al fotógrafo le llega el pedido y, cuando le paga, el "
+                   "colegio lo ve como pagado."),
+        'capitulos': [
+            ('0:00', 'Lo que hace el colegio'),
+            ('0:11', 'El enlace y el mensaje de WhatsApp'),
+            ('0:27', 'Pedir el cobro'),
+        ],
+        'proxima': 'Comprar en la preventa',
+        'etiquetas': ['preventa escolar', 'comision escolar', 'fotografia escolar colegios'],
+    },
 ]
 
 

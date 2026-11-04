@@ -55,6 +55,10 @@ PORTADAS = {
          'La pantalla<br><em>del estudio</em>'),
     17: ('E17-el-mosaico-del-curso.mp4', 30, (480, 160, 1400, 788),
          'El mosaico<br><em>del curso</em>'),
+    18: ('E18-el-panel-del-colegio.mp4', 8, (120, 140, 1680, 945),
+         'El colegio<br><em>lo ve todo</em>'),
+    19: ('E19-compartir-la-preventa-y-cobrar.mp4', 20, (330, 80, 1440, 810),
+         'Compartí<br><em>la preventa</em>'),
 }
 
 CSS = """
