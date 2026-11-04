@@ -194,6 +194,23 @@ COPYS = [
         'proxima': 'Probar el librito con el listado real',
         'etiquetas': ['libritos escolares', 'plantillas escolares', 'diseño de carpetas'],
     },
+    {
+        'n': 10,
+        'archivo': 'E10-probar-el-librito-con-el-listado.mp4',
+        'titulo': 'Probar el librito con el listado real | Curso de fotografía escolar, clase 10',
+        'gancho': ("Antes de abrir la venta, probá la plantilla con los datos del colegio. Te muestro cómo elegir el "
+                   "álbum y algunas fotos como lo haría una familia, cargar la escuela y el curso, y ver el librito "
+                   "armado con el nombre real de cada chico. Pasás de un alumno a otro y lo ves en 3D, terminado, "
+                   "como lo va a ver la familia. Se hace una vez por colegio, no una vez por chico."),
+        'capitulos': [
+            ('0:00', 'Probar antes de abrir la venta'),
+            ('0:13', 'Las fotos y el listado del colegio'),
+            ('0:28', 'El librito de cada alumno, en 3D'),
+            ('0:45', 'Una vez por colegio'),
+        ],
+        'proxima': 'El día de la toma: subir las fotos',
+        'etiquetas': ['libritos escolares', 'listado de alumnos', 'plantillas escolares'],
+    },
 ]
 
 

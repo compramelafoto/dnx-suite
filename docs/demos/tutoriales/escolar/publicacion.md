@@ -97,6 +97,7 @@ Los tutoriales nuevos se agregan al final de la lista, en el orden en que se peg
 | E07 | La comisión del colegio | 1:02 | publicado | [público](https://youtu.be/nw18jU_MUzs) | clase 7 |
 | E08 | Los packs de preventa | 1:08 | publicado | [público](https://youtu.be/QIQfRYMr8Uk) | clase 8 |
 | E09 | Elegir el diseño del librito | 1:39 | publicado | [público](https://youtu.be/cJIGgNakRrk) | clase 9 |
+| E10 | Probar el librito con el listado real | 0:58 | publicado | [público](https://youtu.be/7lkq0mdNRDQ) | clase 10 |
 
 ## Copys
 
