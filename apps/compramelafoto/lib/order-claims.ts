@@ -22,7 +22,7 @@ export async function claimOrdersForVerifiedUser({
   const result = await prisma.order.updateMany({
     where: {
       buyerUserId: null,
-      // Hay compras guardadas con mayúsculas ("Cristianlucero@hotmail.com").
+      // Hay compras guardadas con el correo en mayúsculas.
       buyerEmail: { equals: normalizedEmail, mode: "insensitive" },
     },
     data: {

@@ -74,7 +74,7 @@ export async function GET(req: NextRequest) {
     });
 
     // Obtener pedidos digitales (Order) del cliente. El correo se compara sin mayúsculas:
-    // hay compras guardadas como "Cristianlucero@hotmail.com".
+    // hay compras guardadas con mayúsculas.
     const emailMatch = user.email
       ? { equals: normalizeEmail(user.email), mode: "insensitive" as const }
       : null;
