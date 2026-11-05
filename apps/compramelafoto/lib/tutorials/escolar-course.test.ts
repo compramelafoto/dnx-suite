@@ -9,6 +9,7 @@ import {
 } from "./escolar-course";
 import { ESCOLAR_COURSE_DETAILS } from "./escolar-course-details";
 import { TUTORIAL_COURSES, getTutorialCourse } from "./courses";
+import { courseEntries } from "./course";
 
 describe("escolar-course", () => {
   it("numera las 23 clases de corrido", () => {
@@ -79,5 +80,18 @@ describe("cursos de tutoriales", () => {
     assert.equal(new Set(keys).size, keys.length);
     assert.equal(getTutorialCourse("turismo")?.lessonCount, 13);
     assert.equal(getTutorialCourse("nada"), null);
+  });
+
+  it("todos los cursos llevan el 1-B «¿Cuánto cuesta?» justo después de la clase 1", () => {
+    for (const course of TUTORIAL_COURSES) {
+      const entries = courseEntries(course, { 1: "https://youtu.be/abc123" });
+      assert.deepEqual(entries.slice(0, 3).map((e) => e.key), ["1", "1b", "2"], course.slug);
+      assert.equal(entries.length, course.lessonCount + 1);
+      assert.equal(entries[0].videoUrl, "https://youtu.be/abc123");
+      const costo = entries[1];
+      assert.equal(costo.number, null);
+      assert.equal(costo.label, "1-B");
+      assert.ok(!/\b(plata|split)\b/i.test(costo.detail?.description ?? ""), "el 1-B dice plata o split");
+    }
   });
 });

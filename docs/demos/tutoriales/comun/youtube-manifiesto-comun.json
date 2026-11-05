@@ -1,0 +1,27 @@
+{
+ "canal": "DNX ESTUDIO (dnxfotografia@gmail.com)",
+ "listas": {
+  "escolar": "PLGDPLEY4OFJQ",
+  "turismo": "PLKqgKVjrkXso"
+ },
+ "_nota": "Video común a todos los cursos de ComprameLaFoto. subir.py no lo suma a ninguna lista: va en la posición 2 de cada una y eso se hace aparte (ver publicacion.md).",
+ "videos": [
+  {
+   "archivo": "/Users/danielcuart/Desktop/PROGRAMACIONES/dnx-suite/docs/demos/tutoriales/comun/videos/01B-cuanto-cuesta-compramelafoto.mp4",
+   "titulo": "¿Cuánto cuesta ComprameLaFoto? Cero pesos por mes, sin abono",
+   "descripcion": "Antes de seguir con el curso, la pregunta que todos hacen: ¿cuánto cuesta ComprameLaFoto? Por mes pagás cero pesos: no hay abono, no hay plan y no hay permanencia. La plataforma cobra un 15 % sobre lo que vendés, y ese 15 % lo paga el cliente. Si la foto vale 10.000 pesos, el cliente paga 11.500 y vos recibís tus 10.000 pesos completos, directo en tu cuenta de Mercado Pago en el momento de la compra, sin esperar transferencias.\n\nSi no vendés, el costo es cero aunque subas miles de fotos. Si lo usás una vez cada tres meses, los demás meses no pagás nada. Y si estás arrancando, no tenés que invertir todos los meses en un sistema: el costo aparece recién cuando vendés, y lo cubre tu cliente.\n\nEn este video:\n0:00 Cero pesos por mes\n0:17 Un 15 % que paga el cliente\n0:27 El ejemplo: una foto de 10.000 pesos\n0:52 Si no vendés, no pagás\n1:21 Pensado para fotógrafos\n\n━━━━━━━━━━━━━━━━━━━━━━━━\n🎓 Cursos en video de ComprameLaFoto\nEste video va en todos los cursos, justo después de la clase 1. Todo lo que ves es una demo: los pagos son de prueba.\n\n👉 CREÁ TU CUENTA DE FOTÓGRAFO, GRATIS\nhttps://www.compramelafoto.com/fotografo/registro\n\n🎬 Curso de fotografía escolar\nhttps://www.compramelafoto.com/tutoriales/fotografia-escolar\n\n🎬 Curso de fotografía de turismo\nhttps://www.compramelafoto.com/tutoriales/fotografia-de-turismo\n\n💬 ¿Te quedó una duda? Dejala en los comentarios.\n━━━━━━━━━━━━━━━━━━━━━━━━\n#ComprameLaFoto #FotografiaEscolar #FotografiaDeTurismo",
+   "etiquetas": [
+    "compramelafoto",
+    "cuanto cuesta compramelafoto",
+    "vender fotos online",
+    "plataforma para fotografos",
+    "fotografia escolar",
+    "fotografia de turismo",
+    "vender fotos sin abono",
+    "cobrar con mercado pago"
+   ],
+   "categoria": "27",
+   "portada": "/Users/danielcuart/Desktop/PROGRAMACIONES/dnx-suite/docs/demos/tutoriales/comun/videos/portadas/01B-cuanto-cuesta-compramelafoto.png"
+  }
+ ]
+}

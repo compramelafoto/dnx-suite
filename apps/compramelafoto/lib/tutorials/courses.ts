@@ -1,4 +1,5 @@
 import type { TutorialCourse } from "./course";
+import { COSTO_LESSON } from "./costo-lesson";
 import {
   ESCOLAR_COURSE_BLOCKS,
   ESCOLAR_COURSE_LESSON_COUNT,
@@ -29,6 +30,7 @@ export const TUTORIAL_COURSES: TutorialCourse[] = [
     blocks: ESCOLAR_COURSE_BLOCKS,
     details: ESCOLAR_COURSE_DETAILS,
     lessonCount: ESCOLAR_COURSE_LESSON_COUNT,
+    extras: [COSTO_LESSON],
     cover: {
       src: "/images/landescolar/fotografo-curso-bandera-argentina.jpg",
       alt: "Un fotógrafo saca la foto de un curso con la bandera argentina detrás",
@@ -50,6 +52,7 @@ export const TUTORIAL_COURSES: TutorialCourse[] = [
     blocks: TURISMO_COURSE_BLOCKS,
     details: TURISMO_COURSE_DETAILS,
     lessonCount: TURISMO_COURSE_LESSON_COUNT,
+    extras: [COSTO_LESSON],
     cover: {
       src: "/images/tutoriales/curso-turismo.jpg",
       alt: "Una turista recorre las paredes de colores de Caminito, en La Boca",
