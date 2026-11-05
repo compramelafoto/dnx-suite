@@ -37,6 +37,16 @@ PORTADAS = {
         'Subí<br><em>el paseo</em>'),
     8: ('T08-encontrar-las-fotos-con-una-selfie.mp4', 22, (720, 0, 480, 1080),
         'Sus fotos,<br><em>con una selfie</em>'),
+    9: ('T09-compra-y-descarga.mp4', 38, (720, 0, 480, 1080),
+        'Compra<br><em>y descarga</em>'),
+    10: ('T10-empresas-de-turismo-como-se-organizan.mp4', 23, (380, 100, 1520, 855),
+         'Agencias<br><em>de turismo</em>'),
+    11: ('T11-crear-el-viaje-y-convocar-fotografos.mp4', 18, (440, 120, 1440, 810),
+         'Armá<br><em>el viaje</em>'),
+    12: ('T12-la-comision-de-la-empresa-de-turismo.mp4', 22, (520, 200, 1360, 765),
+         'La agencia<br><em>también gana</em>'),
+    13: ('T13-postularte-a-un-viaje-como-fotografo.mp4', 27, (440, 120, 1440, 810),
+         'Sumate<br><em>a un viaje</em>'),
 }
 
 CSS = """
