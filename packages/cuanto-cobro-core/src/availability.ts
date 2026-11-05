@@ -16,7 +16,7 @@ export const PHOTOGRAPHY_TIME_DISTRIBUTION_LABELS: Record<keyof PhotographyTimeD
   coverage: "Coberturas fotográficas",
   editing: "Edición y postproducción",
   administration: "Administración",
-  sales: "Presupuestos y ventas",
+  sales: "Cotizaciones y ventas",
   marketing: "Marketing y redes sociales",
   training: "Capacitación",
 };

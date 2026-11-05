@@ -170,7 +170,7 @@ export function EditorOpcionesPago({
 
       {sinOpciones && !previa ? (
         <p className="text-sm text-[var(--fo-muted)]">
-          Sin contado ni planes, cada presupuesto ofrece «Hasta 6 cuotas sin interés» (o menos, si faltan menos de 6 meses
+          Sin contado ni planes, cada cotización ofrece «Hasta 6 cuotas sin interés» (o menos, si faltan menos de 6 meses
           para el evento).
         </p>
       ) : null}

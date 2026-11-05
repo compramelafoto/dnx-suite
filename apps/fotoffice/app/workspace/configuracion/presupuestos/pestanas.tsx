@@ -7,7 +7,7 @@ export function PestanasPresupuestos({ activa }: { activa: "ajustes" | "propuest
     { clave: "propuestas", href: "/workspace/configuracion/presupuestos/propuestas", texto: "Propuestas modelo" },
   ] as const;
   return (
-    <nav aria-label="Secciones de Presupuestos" className="flex flex-wrap gap-2 border-b border-[var(--fo-border)]">
+    <nav aria-label="Secciones de Cotizaciones" className="flex flex-wrap gap-2 border-b border-[var(--fo-border)]">
       {pestanas.map((p) => (
         <Link
           key={p.clave}

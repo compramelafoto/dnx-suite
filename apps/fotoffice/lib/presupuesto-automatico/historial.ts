@@ -30,7 +30,7 @@ const esCanales = (v: unknown): v is ResultadoCanales =>
 export function eventosDeFila(f: Fila, leadId: string): EventoDeAprobacion[] {
   const href = f.presupuestoId ? `/presupuestos/${encodeURIComponent(f.presupuestoId)}` : `/consultas/${encodeURIComponent(leadId)}`;
   const out: EventoDeAprobacion[] = [];
-  const armado = f.presupuestoId ? "Se armó solo el presupuesto con la propuesta modelo" : "Llegó la consulta, pero la categoría no tiene propuesta modelo";
+  const armado = f.presupuestoId ? "Se armó sola la cotización con la propuesta modelo" : "Llegó la consulta, pero la categoría no tiene propuesta modelo";
   const aviso = f.telegramMessageId ? " y se avisó por Telegram para aprobar" : f.errorCode?.startsWith("TELEGRAM_") ? " (no se pudo avisar por Telegram)" : "";
   out.push({ id: `auto-${f.id}`, fecha: f.createdAt, texto: `${armado}${aviso}`, href });
   if (f.status === "ENVIADO" && f.sentAt) {
@@ -38,7 +38,7 @@ export function eventosDeFila(f: Fila, leadId: string): EventoDeAprobacion[] {
     const detalle = f.errorCode === "ENVIADO_A_MANO" ? "ya se había enviado a mano" : esCanales(f.channels) ? textoDeCanales(f.channels) : "enviado";
     out.push({ id: `auto-enviado-${f.id}`, fecha: f.sentAt, texto: `Se aprobó ${quien}: ${detalle}`, href });
   } else if (f.status === "FALLO" && f.approvedAt) {
-    out.push({ id: `auto-fallo-${f.id}`, fecha: f.approvedAt, texto: "Se aprobó, pero el envío falló: revisá el presupuesto", href });
+    out.push({ id: `auto-fallo-${f.id}`, fecha: f.approvedAt, texto: "Se aprobó, pero el envío falló: revisá la cotización", href });
   }
   return out;
 }

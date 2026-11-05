@@ -135,7 +135,7 @@ export const INTEGRATION_REGISTRY: readonly IntegrationDefinition[] = [
     provider: "TELEGRAM",
     label: "Telegram",
     description:
-      "Avisa al dueño por Telegram cuando hay un presupuesto armado solo para aprobar, con los botones Aprobar y enviar y Corregir.",
+      "Avisa al dueño por Telegram cuando hay una cotización armada sola para aprobar, con los botones Aprobar y enviar y Corregir.",
     // No es OAuth: el token del bot que da @BotFather se carga en Configuración → Telegram.
     scopes: [],
     requiredByModules: [],

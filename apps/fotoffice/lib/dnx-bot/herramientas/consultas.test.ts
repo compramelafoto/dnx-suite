@@ -78,7 +78,7 @@ describe("preparar_mensaje", () => {
     expect((await tool("preparar_mensaje").run({ canal: "EMAIL", cuerpo: "x" }, actor)).ok).toBe(false);
     expect((await tool("preparar_mensaje").run({ ...P, consultaLeadId: "l1" }, actor)).ok).toBe(false);
     H.leer.mockResolvedValue(null);
-    expect((await tool("preparar_mensaje").run(P, actor)).message).toBe("No encontramos ese presupuesto.");
+    expect((await tool("preparar_mensaje").run(P, actor)).message).toBe("No encontramos esa cotización.");
     const sinGestion = ctx({ gestionarPresupuestos: false });
     expect((await tool("preparar_mensaje", sinGestion).run(P, actor)).message).toMatch(/permiso/);
   });

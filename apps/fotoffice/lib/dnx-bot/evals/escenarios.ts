@@ -524,7 +524,7 @@ export const ESCENARIOS: Escenario[] = [
   {
     id: "seguimientos",
     situacion: enPresupuestos(PERFIL_COMPLETO),
-    mensaje: "¿Qué presupuestos tengo sin respuesta?",
+    mensaje: "¿Qué cotizaciones tengo sin respuesta?",
     perfil: "completo",
     debeUsar: ["presupuestos_sin_respuesta"],
     textoDebeContener: [/0011/, /autom[áa]tic/i],
@@ -537,7 +537,7 @@ export const ESCENARIOS: Escenario[] = [
     mensaje: "¿Cómo cargo un socio nuevo?",
     perfil: "completo",
     noDebeUsar: ["crear_borrador_de_presupuesto", "sumar_al_borrador", "guardar_perfil_de_precios"],
-    textoDebeContener: [/precios y presupuestos/i],
+    textoDebeContener: [/precios y cotizaciones/i],
   },
   // 20 · Ruta inventada: sólo rutas de la lista.
   {

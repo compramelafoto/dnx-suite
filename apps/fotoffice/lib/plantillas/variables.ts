@@ -49,7 +49,7 @@ export type ContextoVariables = {
 };
 
 export type GrupoVariable =
-  | "Persona" | "Organización" | "Usuario que envía" | "Fecha" | "Consulta" | "Presupuesto" | "Pedido" | "Cita" | "Contrato" | "Galería" | "Testimonio" | "Socio" | "Campos";
+  | "Persona" | "Organización" | "Usuario que envía" | "Fecha" | "Consulta" | "Cotización" | "Pedido" | "Cita" | "Contrato" | "Galería" | "Testimonio" | "Socio" | "Campos";
 
 export type DefinicionVariable = {
   clave: string;
@@ -147,10 +147,10 @@ export const VARIABLES: readonly DefinicionVariable[] = [
   { clave: "consulta_etapa", etiqueta: "Etapa de la consulta", descripcion: "La etapa actual de la consulta en su recorrido.", grupo: "Consulta", tipos: CONSULTA, obtener: (c) => limpio(c.consulta?.etapa) },
   { clave: "lista_precios", etiqueta: "Lista de precios", descripcion: "Los productos del catálogo marcados «en lista de precios», con su precio en pesos (hasta 50).", grupo: "Consulta", tipos: CONSULTA, obtener: (c) => limpio(c.listaPrecios) },
   // Presupuesto (etapa 2)
-  { clave: "presupuesto_numero", etiqueta: "Número de presupuesto", descripcion: "El número del presupuesto (se asigna al enviarlo por primera vez).", grupo: "Presupuesto", tipos: PRESUPUESTO, obtener: (c) => limpio(c.presupuesto?.numero) },
-  { clave: "presupuesto_enlace", etiqueta: "Enlace al presupuesto", descripcion: "La dirección donde la persona ve y acepta el presupuesto.", grupo: "Presupuesto", tipos: PRESUPUESTO, obtener: (c) => limpio(c.presupuesto?.enlace) },
-  { clave: "presupuesto_total", etiqueta: "Total del presupuesto", descripcion: "El total, en pesos (sin los opcionales).", grupo: "Presupuesto", tipos: PRESUPUESTO, obtener: (c) => limpio(c.presupuesto?.total) },
-  { clave: "presupuesto_vence", etiqueta: "Vencimiento del presupuesto", descripcion: "El último día de validez, en dd/mm/aaaa.", grupo: "Presupuesto", tipos: PRESUPUESTO, obtener: (c) => limpio(c.presupuesto?.vence) },
+  { clave: "presupuesto_numero", etiqueta: "Número de cotización", descripcion: "El número de la cotización (se asigna al enviarlo por primera vez).", grupo: "Cotización", tipos: PRESUPUESTO, obtener: (c) => limpio(c.presupuesto?.numero) },
+  { clave: "presupuesto_enlace", etiqueta: "Enlace a la cotización", descripcion: "La dirección donde la persona ve y acepta la cotización.", grupo: "Cotización", tipos: PRESUPUESTO, obtener: (c) => limpio(c.presupuesto?.enlace) },
+  { clave: "presupuesto_total", etiqueta: "Total de la cotización", descripcion: "El total, en pesos (sin los opcionales).", grupo: "Cotización", tipos: PRESUPUESTO, obtener: (c) => limpio(c.presupuesto?.total) },
+  { clave: "presupuesto_vence", etiqueta: "Vencimiento de la cotización", descripcion: "El último día de validez, en dd/mm/aaaa.", grupo: "Cotización", tipos: PRESUPUESTO, obtener: (c) => limpio(c.presupuesto?.vence) },
   // Pedido (etapa 3)
   { clave: "pedido_numero", etiqueta: "Número de pedido", descripcion: "El número del pedido.", grupo: "Pedido", tipos: PEDIDO, obtener: (c) => limpio(c.pedido?.numero) },
   { clave: "pedido_enlace", etiqueta: "Enlace al pedido", descripcion: "La dirección donde la persona ve su pedido: plan de cuotas, saldo y recibos.", grupo: "Pedido", tipos: PEDIDO, obtener: (c) => limpio(c.pedido?.enlace) },

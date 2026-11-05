@@ -8,7 +8,7 @@ import { bloque, diseno, enOrden, hero, menuDe, placa, type SiteTemplate } from 
  */
 const presupuesto = (id: string) =>
   bloque(id, "INQUIRY_FORM", {
-    title: "Pedí tu presupuesto",
+    title: "Pedí tu cotización",
     intro: "Contá acá qué le pedís a quien te escribe: la fecha, el lugar y qué tipo de evento es. Respondé siempre en el día.",
     categoryIds: [],
     askOrigin: true,
@@ -21,7 +21,7 @@ const presupuesto = (id: string) =>
 export const PLANTILLA_EVENTOS: SiteTemplate = {
   id: "eventos",
   nombre: "Eventos",
-  descripcion: "Foto a pantalla completa, tus trabajos, testimonios y el pedido de presupuesto a mano.",
+  descripcion: "Foto a pantalla completa, tus trabajos, testimonios y el pedido de cotización a mano.",
   paraQuien: "Fotógrafos de XV, bodas y eventos sociales.",
   recommendedFor: ["FREELANCE_PHOTOGRAPHER", "PHOTO_STUDIO", "PHOTOGRAPHY_COMPANY", "AGENCY_PRODUCTION"],
   tier: "free",
@@ -53,8 +53,8 @@ export const PLANTILLA_EVENTOS: SiteTemplate = {
               title: "Tu nombre o el de tu estudio",
               subtitle: "Fotografía de XV, bodas y eventos. Cambiá esta frase por la tuya.",
               showButton: true,
-              buttonLabel: "Pedí tu presupuesto",
-              buttonUrl: "#pedi-tu-presupuesto",
+              buttonLabel: "Pedí tu cotización",
+              buttonUrl: "#pedi-tu-cotizacion",
               overlay: "soft",
             }),
             placa("eventos-portada-2", {
@@ -114,7 +114,7 @@ export const PLANTILLA_EVENTOS: SiteTemplate = {
         bloque("quien-soy-cta", "CTA", {
           title: "¿Hablamos?",
           text: "Contame la fecha y el lugar de tu evento.",
-          buttonLabel: "Pedí tu presupuesto",
+          buttonLabel: "Pedí tu cotización",
           buttonUrl: "/pedi-tu-presupuesto",
           stylePreset: "solid",
         }),
@@ -122,7 +122,7 @@ export const PLANTILLA_EVENTOS: SiteTemplate = {
     },
     {
       clave: "pedi_presupuesto",
-      meta: { slug: "pedi-tu-presupuesto", title: "Pedí tu presupuesto" },
+      meta: { slug: "pedi-tu-presupuesto", title: "Pedí tu cotización" },
       bloques: enOrden([
         hero(
           "presupuesto-portada",
@@ -130,7 +130,7 @@ export const PLANTILLA_EVENTOS: SiteTemplate = {
             placa("presupuesto-portada-1", {
               imageUrl: F.brindis.url,
               imageAlt: F.brindis.alt,
-              title: "Pedí tu presupuesto",
+              title: "Pedí tu cotización",
               subtitle: "Contá acá cuánto tardás en responder y qué datos necesitás para cotizar.",
               overlay: "medium",
             }),

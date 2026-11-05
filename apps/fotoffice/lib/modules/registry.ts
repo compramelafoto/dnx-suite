@@ -109,9 +109,9 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
   },
   {
     key: SERVICE_LEADS_MODULE_KEY,
-    label: "Consultas de presupuesto",
+    label: "Consultas de cotización",
     description:
-      "Formularios públicos para pedir presupuesto y la bandeja donde llegan esas consultas.",
+      "Formularios públicos para pedir cotización y la bandeja donde llegan esas consultas.",
     category: "GENERAL",
     order: 24,
     route: "/consultas",
@@ -123,9 +123,9 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
     // presupuestos cuelgan de una consulta, por eso depende de Consultas. Lo enciende el
     // administrador de la plataforma, como el resto (la pantalla de Módulos no cambia).
     key: "quotes",
-    label: "Presupuestos",
+    label: "Cotizaciones",
     description:
-      "Presupuestos de las consultas con productos del catálogo o calculados con ¿Cuánto Cobro?, enlace para el cliente y aceptación en línea.",
+      "Cotizaciones de las consultas con productos del catálogo o calculados con ¿Cuánto Cobro?, enlace para el cliente y aceptación en línea.",
     category: "GENERAL",
     order: 26,
     route: "/presupuestos",
@@ -440,7 +440,7 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
     key: "orders",
     label: "Pedidos",
     description:
-      "Pedidos confirmados desde un presupuesto aceptado o cargados a mano, con plan de cuotas, cobros que van a Caja y recibos.",
+      "Pedidos confirmados desde una cotización aceptada o cargados a mano, con plan de cuotas, cobros que van a Caja y recibos.",
     category: "GENERAL",
     order: 27,
     route: "/pedidos",

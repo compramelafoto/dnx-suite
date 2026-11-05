@@ -15,9 +15,9 @@ export type EstadoPresupuestosConfig = { error: string | null; ok?: string };
 
 const RUTA = "/workspace/configuracion/presupuestos";
 const RUTA_PROPUESTAS = "/workspace/configuracion/presupuestos/propuestas";
-const SIN_PERMISO: EstadoPresupuestosConfig = { error: "Sólo el dueño o un administrador pueden configurar los presupuestos." };
+const SIN_PERMISO: EstadoPresupuestosConfig = { error: "Sólo el dueño o un administrador pueden configurar las cotizaciones." };
 const DATOS_INVALIDOS: EstadoPresupuestosConfig = { error: "Los datos no son válidos." };
-const SIN_PERMISO_PROPUESTA = { ok: false as const, error: "Sólo el dueño o un administrador pueden configurar los presupuestos." };
+const SIN_PERMISO_PROPUESTA = { ok: false as const, error: "Sólo el dueño o un administrador pueden configurar las cotizaciones." };
 
 /**
  * Sesión, workspace activo y rol salen siempre de la sesión, nunca del formulario. Sin

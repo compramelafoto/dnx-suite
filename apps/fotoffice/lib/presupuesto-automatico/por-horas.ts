@@ -69,7 +69,7 @@ export async function guardarAjustesPorHoras(
     return { ok: true };
   } catch (e) {
     falla("guardarAjustesPorHoras", e);
-    return { ok: false, error: "No se pudo guardar. ¿Ya se aplicó el SQL del presupuesto por horas?" };
+    return { ok: false, error: "No se pudo guardar. ¿Ya se aplicó el SQL de la cotización por horas?" };
   }
 }
 

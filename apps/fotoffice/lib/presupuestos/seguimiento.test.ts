@@ -118,7 +118,7 @@ describe("enviarSeguimientos", () => {
     expect(d.enviar).toHaveBeenCalledTimes(1);
     const correo = d.enviar.mock.calls[0]![0];
     expect(correo.to).toBe(EMAIL);
-    expect(correo.subject).toContain("¿Pudiste ver el presupuesto");
+    expect(correo.subject).toContain("¿Pudiste ver la cotización");
     expect(correo.text).toContain("https://fotoffice.test/");
     expect(correo.text).toContain("31/12/2026");
     const plantilla = B.datos.fotofficeMessageTemplate.find((t) => t.systemKey === "PRESUPUESTO_SEGUIMIENTO")!;
@@ -245,7 +245,7 @@ describe("historial", () => {
     const { eventosDePresupuestos } = await import("./historial");
     const ctx = { workspaceId: "ws-1", userId: 1, userLabel: "Dueño", role: "WORKSPACE_OWNER", acceso: { role: "WORKSPACE_OWNER", levels: { quotes: "MANAGE" } } as never };
     const eventos = await eventosDePresupuestos(ctx, leadId);
-    expect(eventos.map((e) => e.texto)).toContain("Se envió el seguimiento automático del presupuesto sin número (V1)");
+    expect(eventos.map((e) => e.texto)).toContain("Se envió el seguimiento automático de la cotización sin número (V1)");
   });
 });
 

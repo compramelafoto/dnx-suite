@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 type Props = { params: Promise<{ workspaceSlug: string; token: string }> };
 
 export async function generateMetadata(): Promise<Metadata> {
-  return { title: "Presupuesto", robots: { index: false, follow: false }, referrer: "no-referrer" };
+  return { title: "Cotización", robots: { index: false, follow: false }, referrer: "no-referrer" };
 }
 
 /**

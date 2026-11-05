@@ -39,7 +39,7 @@ export function PresupuestoLanding({ workspaceSlug, commercialName, form, origen
             {commercialName}
           </p>
           <h1 className="text-3xl md:text-4xl font-semibold tracking-tight leading-tight text-balance">
-            {form?.title ?? "Solicitá tu presupuesto"}
+            {form?.title ?? "Solicitá tu cotización"}
           </h1>
           <p className="text-[var(--fo-muted)] leading-relaxed max-w-2xl">
             {form?.description ??

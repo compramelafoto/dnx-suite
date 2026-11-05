@@ -56,7 +56,7 @@ describe("«Seguimientos» en la lista", () => {
     expect(buscar(await lista(), PreguntaleAlBot)).toEqual([]);
     S.cantidad = 2;
     const [b] = buscar(await lista(), PreguntaleAlBot);
-    expect(b!.props).toMatchObject({ etiqueta: "Seguimientos (2)", mensaje: "¿Qué presupuestos tengo sin respuesta?" });
+    expect(b!.props).toMatchObject({ etiqueta: "Seguimientos (2)", mensaje: "¿Qué cotizaciones tengo sin respuesta?" });
     H.bot = null;
     expect(buscar(await lista(), PreguntaleAlBot)).toEqual([]);
   });
@@ -84,7 +84,7 @@ describe("editor de un borrador (fuente)", () => {
     const armar = e.indexOf("Armar con ¿Cuánto Cobro?");
     const bot = e.indexOf('etiqueta="Calcular con el bot"');
     expect(bot).toBeGreaterThan(armar);
-    expect(e.slice(bot, bot + 400)).toContain('mensaje="Quiero sumar ítems calculados a este presupuesto."');
+    expect(e.slice(bot, bot + 400)).toContain('mensaje="Quiero sumar ítems calculados a esta cotización."');
     expect(e.slice(bot, bot + 400)).toContain('contexto={{ pantalla: "presupuesto", presupuestoId: botPresupuestoId }}');
   });
 });

@@ -88,7 +88,7 @@ export function DesconectarForm() {
     <form
       action={desconectar}
       onSubmit={(e) => {
-        if (!window.confirm("¿Desconectar Telegram? Dejan de llegarte los avisos de presupuestos para aprobar.")) e.preventDefault();
+        if (!window.confirm("¿Desconectar Telegram? Dejan de llegarte los avisos de cotizaciones para aprobar.")) e.preventDefault();
       }}
       className="space-y-2"
     >
@@ -147,7 +147,7 @@ export function AprobarForm({ aprobacionId, cliente }: { aprobacionId: string; c
     <form
       action={aprobar}
       onSubmit={(e) => {
-        if (!window.confirm(`¿Enviarle el presupuesto a ${cliente}?`)) e.preventDefault();
+        if (!window.confirm(`¿Enviarle la cotización a ${cliente}?`)) e.preventDefault();
       }}
       className="space-y-1"
     >
@@ -172,7 +172,7 @@ export function PorHorasForm({ ajustes: a, categorias }: { ajustes: AjustesPorHo
     <form action={guardar} className="space-y-4">
       <label className="flex items-center gap-2 text-sm">
         <input type="checkbox" name="porHorasEncendido" value="1" defaultChecked={a.encendido} />
-        Armar solo el presupuesto de los eventos y sesiones que no tienen propuesta modelo
+        Armar sola la cotización de los eventos y sesiones que no tienen propuesta modelo
       </label>
       <div className="grid gap-4 sm:grid-cols-2">
         {numero("edicionPorHora", "Horas de edición por cada hora de cobertura", a.edicionPorHora, undefined, 0.5)}

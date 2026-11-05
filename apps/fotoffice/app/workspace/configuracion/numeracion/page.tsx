@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic";
 
 const NOMBRES: Record<ClaveSecuencia, string> = {
   CONSULTA: "Consultas",
-  PRESUPUESTO: "Presupuestos",
+  PRESUPUESTO: "Cotizaciones",
   PEDIDO: "Pedidos",
   CONTRATO: "Contratos",
   PROYECTO: "Proyectos",
@@ -67,7 +67,7 @@ export default async function ConfiguracionNumeracionPage() {
     <div className="max-w-4xl space-y-6">
       <PageHeader
         title="Numeración"
-        description="Cómo se numeran las consultas, presupuestos, pedidos, contratos y proyectos. El próximo número no puede volver a uno ya usado."
+        description="Cómo se numeran las consultas, cotizaciones, pedidos, contratos y proyectos. El próximo número no puede volver a uno ya usado."
       />
       {vistas.map((v) => (
         <SecuenciaFila key={v.clave} s={v} anio={anio} />

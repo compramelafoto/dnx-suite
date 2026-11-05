@@ -106,7 +106,7 @@ export function computeRecommendedBusinessPrice(
   return roundCuantoCobroPrice(Math.max(minimumSustainablePrice, raw));
 }
 
-export const CC_MINIMUM_RECOMMENDED_PRICE_TITLE = "Precio mínimo recomendado";
+export const CC_MINIMUM_RECOMMENDED_PRICE_TITLE = "Cotización mínima recomendada";
 
 /** @deprecated Usar CC_MINIMUM_RECOMMENDED_PRICE_TITLE en UI. El cálculo interno sigue siendo minimumSustainablePrice. */
 export const CC_MINIMUM_SUSTAINABLE_PRICE_EXPLANATION =
@@ -115,10 +115,10 @@ export const CC_MINIMUM_SUSTAINABLE_PRICE_EXPLANATION =
 export const CC_RECOMMENDED_BUSINESS_PRICE_EXPLANATION =
   "Considerando el momento comercial que describiste para tu negocio, este es el valor que te recomendamos presentar a tus clientes.";
 
-export const CC_RESULT_WHY_RECOMMENDED_HIGHER_TITLE = "¿Por qué el precio recomendado es mayor?";
+export const CC_RESULT_WHY_RECOMMENDED_HIGHER_TITLE = "¿Por qué la cotización recomendada es mayor?";
 
 export const CC_RESULT_WHY_RECOMMENDED_HIGHER_TEXT =
-  "Porque el mercado no paga solamente tus costos. También paga tu experiencia, tu marca, la confianza que generás, la calidad de tu trabajo, el servicio que brindás y la demanda que tiene tu negocio.\n\nEl precio recomendado representa el valor comercial de todo tu servicio, no únicamente el costo de producirlo.";
+  "Porque el mercado no paga solamente tus costos. También paga tu experiencia, tu marca, la confianza que generás, la calidad de tu trabajo, el servicio que brindás y la demanda que tiene tu negocio.\n\nLa cotización recomendada representa el valor comercial de todo tu servicio, no únicamente el costo de producirlo.";
 
 export const CC_BEGINNING_POSITIONING_PRICE_NOTE =
-  "Como estás comenzando, mantenemos la recomendación en tu precio mínimo recomendado para evitar sugerirte un valor por debajo de lo que tu negocio necesita.";
+  "Como estás comenzando, mantenemos la recomendación en tu cotización mínima recomendada para evitar sugerirte un valor por debajo de lo que tu negocio necesita.";

@@ -250,7 +250,7 @@ export function herramientasDeAtencion(
     defineTool({
       name: "cursos_del_estudio",
       description:
-        "Los cursos y talleres que ofrece el estudio (grabados o presenciales), con precio y el enlace para inscribirse o comprarlos. Usala cuando pregunten por cursos, talleres o clases de fotografía. No armes presupuesto para un curso: pasale el enlace.",
+        "Los cursos y talleres que ofrece el estudio (grabados o presenciales), con precio y el enlace para inscribirse o comprarlos. Usala cuando pregunten por cursos, talleres o clases de fotografía. No armes una cotización para un curso: pasale el enlace.",
       input: z.object({}),
       kind: "read",
       run: async () => {
@@ -289,7 +289,7 @@ export function herramientasDeAtencion(
     defineTool({
       name: "preparar_presupuesto",
       description:
-        "Para cualquier evento o sesión de fotos (XV / 15 años, casamientos, cumpleaños, bautismos, comuniones, eventos corporativos, sesiones, books…): registra la consulta y el estudio arma el presupuesto (te lo aprueba una persona y le llega al cliente por WhatsApp y correo). Usala cuando ya sepas el tipo, el nombre del cliente y cuántas horas dura (horas, de a media hora); si podés, también la fecha (aaaa-mm-dd), el lugar (salón o dirección y localidad), los invitados y el correo. No digas precios: el presupuesto lo manda el estudio. Si la herramienta te dice que no hay presupuesto automático para ese tipo, usá pasar_a_persona.",
+        "Para cualquier evento o sesión de fotos (XV / 15 años, casamientos, cumpleaños, bautismos, comuniones, eventos corporativos, sesiones, books…): registra la consulta y el estudio arma la cotización (te la aprueba una persona y le llega al cliente por WhatsApp y correo). Usala cuando ya sepas el tipo, el nombre del cliente y cuántas horas dura (horas, de a media hora); si podés, también la fecha (aaaa-mm-dd), el lugar (salón o dirección y localidad), los invitados y el correo. No digas precios: la cotización la manda el estudio. Si la herramienta te dice que no hay cotización automática para ese tipo, usá pasar_a_persona.",
       input: z.object({
         tipo: z.string().min(2).max(80),
         nombre: z.string().min(2).max(80),
@@ -485,7 +485,7 @@ export function herramientasDeAtencion(
     defineTool({
       name: "pasar_a_persona",
       description:
-        "Deja el chat para que lo atienda una persona del estudio. Usala para presupuestos de eventos cuando preparar_presupuesto no los arma; reclamos; facturas (con los datos ya pedidos); cuando el cliente pide hablar con alguien; o cuando no sabés la respuesta. Después de usarla, no le digas al cliente que lo derivás ni que le va a escribir otra persona: decile algo como \"Dejame chequearlo y te confirmo en un ratito.\"",
+        "Deja el chat para que lo atienda una persona del estudio. Usala para cotizaciones de eventos cuando preparar_presupuesto no las arma; reclamos; facturas (con los datos ya pedidos); cuando el cliente pide hablar con alguien; o cuando no sabés la respuesta. Después de usarla, no le digas al cliente que lo derivás ni que le va a escribir otra persona: decile algo como \"Dejame chequearlo y te confirmo en un ratito.\"",
       input: z.object({ motivo: z.string().min(3).max(200) }),
       kind: "read",
       run: async ({ motivo }) => {

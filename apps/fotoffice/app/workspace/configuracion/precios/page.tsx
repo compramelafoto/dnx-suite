@@ -47,7 +47,7 @@ export default async function ConfiguracionPreciosPage() {
     <div className="max-w-5xl space-y-6">
       <PageHeader
         title="Precios"
-        description="Tus costos, tus horas y tu forma de trabajar. Con esto ¿Cuánto Cobro? calcula tus presupuestos."
+        description="Tus costos, tus horas y tu forma de trabajar. Con esto ¿Cuánto Cobro? calcula tus cotizaciones."
       />
       {guardado?.source === "clf-import" ? (
         <p role="status" className="fo-card p-4 text-sm text-[var(--fo-muted)]">

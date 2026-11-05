@@ -48,11 +48,11 @@ export default async function NuevoPresupuestoPage({ searchParams }: { searchPar
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Nuevo presupuesto"
+        title="Nueva cotización"
         description={contacto ? `Para ${contacto.nombre}.` : "Elegí la consulta o creala con su contacto."}
         actions={
           <Link href="/presupuestos" className="fo-btn fo-btn-secondary text-sm">
-            Volver a Presupuestos
+            Volver a Cotizaciones
           </Link>
         }
       />

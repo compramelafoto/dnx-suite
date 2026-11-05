@@ -28,8 +28,8 @@ export default async function PresupuestosPage({
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Presupuestos"
-        description="Los presupuestos de las consultas, con su estado y vencimiento."
+        title="Cotizaciones"
+        description="Las cotizaciones de las consultas, con su estado y vencimiento."
         actions={
           <div className="flex flex-wrap gap-2">
             {/* DNX Bot (etapa 2): sólo si está encendido y la persona puede usar ¿Cuánto Cobro?. */}
@@ -37,11 +37,11 @@ export default async function PresupuestosPage({
               <PreguntaleAlBot etiqueta="¿Cuánto cobro esto?" mensaje="Quiero saber cuánto cobrar un trabajo." contexto={{ pantalla: "presupuestos" }} />
             ) : null}
             {sinRespuesta > 0 ? (
-              <PreguntaleAlBot etiqueta={`Seguimientos (${sinRespuesta})`} mensaje="¿Qué presupuestos tengo sin respuesta?" contexto={{ pantalla: "presupuestos" }} />
+              <PreguntaleAlBot etiqueta={`Seguimientos (${sinRespuesta})`} mensaje="¿Qué cotizaciones tengo sin respuesta?" contexto={{ pantalla: "presupuestos" }} />
             ) : null}
             {puedeGestionarPresupuestos(ctx) ? (
               <Link href="/presupuestos/nuevo" className="fo-btn fo-btn-primary text-sm">
-                Nuevo presupuesto
+                Nueva cotización
               </Link>
             ) : null}
           </div>

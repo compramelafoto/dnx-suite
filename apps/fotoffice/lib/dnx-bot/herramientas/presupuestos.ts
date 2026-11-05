@@ -56,7 +56,7 @@ const DEPS: DepsPresupuestosBot = {
 
 const RUTA_PRECIOS = "/workspace/configuracion/precios";
 export const CAMBIO_EL_CALCULO = "El cálculo cambió desde que te lo mostré: volvé a cotizar.";
-export const ES_PARCIAL = "Es un cálculo parcial: completá las preguntas (o confirmá que van en cero) antes de pasarlo a un presupuesto.";
+export const ES_PARCIAL = "Es un cálculo parcial: completá las preguntas (o confirmá que van en cero) antes de pasarlo a una cotización.";
 
 const pesos = (n: number) => formatCuantoCobroCurrency(n, "ARS");
 const totalDe = (items: readonly ItemPresupuesto[]) => Math.round(items.reduce((s, i) => s + i.precioUnitario * i.cantidad, 0));
@@ -65,7 +65,7 @@ const totalEsperado = z
   .string()
   .regex(/^\d{1,12}$/)
   .describe("El `totalParaConfirmar` que devolvió cotizar_trabajo para este mismo trabajo. Si el cálculo cambió, la acción no se hace.");
-const seccion = z.string().max(120).optional().describe("Sección del presupuesto donde van los ítems (opcional).");
+const seccion = z.string().max(120).optional().describe("Sección de la cotización donde van los ítems (opcional).");
 
 async function cotizarCon(ctx: CtxBot, c: Cotizacion, deps: DepsPresupuestosBot, seccionDe?: string): Promise<ResultadoCotizacion> {
   const g = await deps.leerPerfil(ctx);
@@ -79,9 +79,9 @@ function sinPrecio(r: Exclude<ResultadoCotizacion, { estado: "OK" }>): string {
 }
 
 export function siguientePaso(c: ConsultaBot): string {
-  if (!c.tieneFicha) return `Le falta el contacto: hay que completarla en /consultas/${c.leadId} antes de presupuestar.`;
+  if (!c.tieneFicha) return `Le falta el contacto: hay que completarla en /consultas/${c.leadId} antes de cotizar.`;
   const borrador = c.presupuestos.find((p) => p.tieneBorrador);
-  if (borrador) return `Ya tiene un presupuesto en borrador: usá sumar_al_borrador con presupuestoId ${borrador.id}.`;
+  if (borrador) return `Ya tiene una cotización en borrador: usá sumar_al_borrador con presupuestoId ${borrador.id}.`;
   return "Se puede crear el borrador con crear_borrador_de_presupuesto.";
 }
 
@@ -116,7 +116,7 @@ async function validarCreacion(ctx: CtxBot, input: Cotizacion & { consultaLeadId
   if (!consulta.tieneFicha) return { ok: false, error: `${MENSAJES_PRESUPUESTO.consultaSinContacto} Está en /consultas/${consulta.leadId}.` } as const;
   const borrador = consulta.presupuestos.find((p) => p.tieneBorrador);
   if (borrador) {
-    return { ok: false, error: `Esa consulta ya tiene el presupuesto ${borrador.numero ? `N.º ${borrador.numero}` : ""} en borrador: usá sumar_al_borrador con presupuestoId ${borrador.id}.` } as const;
+    return { ok: false, error: `Esa consulta ya tiene la cotización ${borrador.numero ? `N.º ${borrador.numero}` : ""} en borrador: usá sumar_al_borrador con presupuestoId ${borrador.id}.` } as const;
   }
   const r = await cotizarCon(ctx, input, deps, input.seccion);
   if (r.estado !== "OK") return { ok: false, error: sinPrecio(r) } as const;
@@ -170,7 +170,7 @@ export function herramientasDePresupuestos(ctx: CtxBot, depsParciales: Partial<D
       defineTool({
         name: "buscar_consultas",
         description:
-          "Busca consultas del workspace por texto (nombre de pila, categoría, número) o por fecha del evento. Devuelve hasta 10, con sus presupuestos y qué herramienta usar después. Sólo trae el nombre de pila del cliente.",
+          "Busca consultas del workspace por texto (nombre de pila, categoría, número) o por fecha del evento. Devuelve hasta 10, con sus cotizaciones y qué herramienta usar después. Sólo trae el nombre de pila del cliente.",
         input: z.object({
           texto: z.string().max(80).optional(),
           desde: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe("Fecha del evento desde (aaaa-mm-dd)."),
@@ -194,7 +194,7 @@ export function herramientasDePresupuestos(ctx: CtxBot, depsParciales: Partial<D
     defineTool({
       name: "ver_presupuesto",
       description:
-        "Lee un presupuesto del workspace: número, estado, ítems y total del borrador (o de la versión vigente). Con permiso de costos, también la ganancia de cada ítem calculado. Pasale el presupuestoId (el id que da la situación o buscar_consultas), no el número N.º.",
+        "Lee una cotización del workspace: número, estado, ítems y total del borrador (o de la versión vigente). Con permiso de costos, también la ganancia de cada ítem calculado. Pasale el presupuestoId (el id que da la situación o buscar_consultas), no el número N.º.",
       input: z.object({ presupuestoId: idPresupuesto }),
       kind: "read",
       run: async ({ presupuestoId }) => {
@@ -209,7 +209,7 @@ export function herramientasDePresupuestos(ctx: CtxBot, depsParciales: Partial<D
         }
         return {
           ok: true,
-          message: "Presupuesto leído.",
+          message: "Cotización leída.",
           data: {
             id: d.id,
             numero: d.numero,
@@ -238,7 +238,7 @@ export function herramientasDePresupuestos(ctx: CtxBot, depsParciales: Partial<D
       defineTool({
         name: "crear_borrador_de_presupuesto",
         description:
-          "Propone crear el borrador del presupuesto de una consulta con los ítems calculados (los mismos de cotizar_trabajo), en lugar de los que traería la propuesta modelo. No se hace hasta que la persona toque «Confirmar». No se puede deshacer desde el chat. Si la consulta ya tiene un borrador, usá sumar_al_borrador.",
+          "Propone crear el borrador de la cotización de una consulta con los ítems calculados (los mismos de cotizar_trabajo), en lugar de los que traería la propuesta modelo. No se hace hasta que la persona toque «Confirmar». No se puede deshacer desde el chat. Si la consulta ya tiene un borrador, usá sumar_al_borrador.",
         input: esquemaCotizacion.extend({ consultaLeadId: idPresupuesto, totalEsperado, seccion }),
         kind: "write",
         describe: async (input) => {
@@ -246,7 +246,7 @@ export function herramientasDePresupuestos(ctx: CtxBot, depsParciales: Partial<D
           if (!v.ok) throw new Error(v.error);
           const modelo = await deps.itemsDePropuestaModelo(ctx.workspaceId, v.consulta.categoriaId);
           return [
-            `Crear el borrador del presupuesto de ${textoConsulta(v.consulta)} con ${v.r.items.length} ${v.r.items.length === 1 ? "ítem" : "ítems"}: ${lineaItems(v.r.items)}.`,
+            `Crear el borrador de la cotización de ${textoConsulta(v.consulta)} con ${v.r.items.length} ${v.r.items.length === 1 ? "ítem" : "ítems"}: ${lineaItems(v.r.items)}.`,
             `Total ${pesos(totalDe(v.r.items))}. Ganancia ${gananciaDe(v.r)}.`,
             ...(modelo > 0 ? [`Reemplaza los ${modelo} ítems de la propuesta modelo.`] : []),
             "Esto no se deshace desde acá.",
@@ -258,9 +258,9 @@ export function herramientasDePresupuestos(ctx: CtxBot, depsParciales: Partial<D
           const creado = await deps.crearPresupuesto(ctx, { consultaLeadId: input.consultaLeadId });
           if (!creado.ok) return { ok: false, message: creado.error };
           const d = await deps.leerPresupuesto(ctx, creado.presupuestoId);
-          if (!d?.borrador) return { ok: false, message: `Creé el presupuesto pero no pude cargarle los ítems: abrilo en /presupuestos/${creado.presupuestoId}.` };
+          if (!d?.borrador) return { ok: false, message: `Creé la cotización pero no pude cargarle los ítems: abrila en /presupuestos/${creado.presupuestoId}.` };
           const g = await deps.guardarBorrador(ctx, creado.presupuestoId, entradaCon(v.r.items, d.borrador));
-          if (!g.ok) return { ok: false, message: `Creé el presupuesto pero no pude cargarle los ítems (${g.error}): abrilo en /presupuestos/${creado.presupuestoId}.` };
+          if (!g.ok) return { ok: false, message: `Creé la cotización pero no pude cargarle los ítems (${g.error}): abrila en /presupuestos/${creado.presupuestoId}.` };
           return {
             ok: true,
             message: `Listo: borrador creado con ${v.r.items.length} ítems por ${pesos(totalDe(v.r.items))}. Está en /presupuestos/${creado.presupuestoId}. Enviarlo lo hacés vos desde ahí.`,
@@ -271,7 +271,7 @@ export function herramientasDePresupuestos(ctx: CtxBot, depsParciales: Partial<D
       defineTool({
         name: "sumar_al_borrador",
         description:
-          "Propone sumar ítems calculados (los mismos de cotizar_trabajo) al borrador de un presupuesto existente, sin tocar los que ya tiene. No se hace hasta que la persona toque «Confirmar». Se puede deshacer 10 minutos.",
+          "Propone sumar ítems calculados (los mismos de cotizar_trabajo) al borrador de una cotización existente, sin tocar los que ya tiene. No se hace hasta que la persona toque «Confirmar». Se puede deshacer 10 minutos.",
         input: esquemaCotizacion.extend({ presupuestoId: idPresupuesto, totalEsperado, seccion }),
         kind: "write",
         describe: async (input) => {
@@ -283,7 +283,7 @@ export function herramientasDePresupuestos(ctx: CtxBot, depsParciales: Partial<D
           const g = await deps.leerPerfil(ctx);
           const viejos = v.existentes.some((i) => perfilParaPanel(i.calculo ? i : null, g?.perfil ?? null).desactualizado);
           return [
-            `Sumar al borrador del presupuesto ${v.d.numero ? `N.º ${v.d.numero}` : ""} ${v.r.items.length} ${v.r.items.length === 1 ? "ítem" : "ítems"}: ${lineaItems(v.r.items)}.`,
+            `Sumar al borrador de la cotización ${v.d.numero ? `N.º ${v.d.numero}` : ""} ${v.r.items.length} ${v.r.items.length === 1 ? "ítem" : "ítems"}: ${lineaItems(v.r.items)}.`,
             `El total pasa de ${pesos(antes)} a ${pesos(despues)}.`,
             ...(viejos ? ["Ojo: el borrador tiene ítems calculados con un perfil de precios anterior."] : []),
           ]

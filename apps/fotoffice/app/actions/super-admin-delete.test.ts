@@ -161,7 +161,7 @@ describe("deleteWorkspaceAction", () => {
     isPlatformAdminMock.mockResolvedValueOnce(true);
     presupuestoCountMock.mockResolvedValue(2);
     const result = await deleteWorkspaceAction(undefined, buildFormData());
-    expect(result.error).toContain("2 presupuesto(s)");
+    expect(result.error).toContain("2 cotización(es)");
     expect(presupuestoCountMock).toHaveBeenCalledWith({ where: { workspaceId: "ws-fixture" } });
     expect(workspaceDeleteMock).not.toHaveBeenCalled();
   });

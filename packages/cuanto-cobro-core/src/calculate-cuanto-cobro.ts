@@ -253,7 +253,7 @@ export function getCuantoCobroMissingFields(
       return quote.client.jobType ? [] : ["Tipo de trabajo"];
     case "quote-items": {
       const concepts = getQuoteConcepts(quote);
-      if (concepts.length === 0) return ["Al menos un producto o servicio en el presupuesto"];
+      if (concepts.length === 0) return ["Al menos un producto o servicio en la cotización"];
       return concepts.flatMap((item, index) => getConceptMissingFields(item, index));
     }
     case "quote-financing":

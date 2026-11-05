@@ -89,7 +89,7 @@ export default async function ConfiguracionPlantillasPage({
     CLIENTE: "Clientes",
     SOCIO: vocabulario.Plural,
     CONSULTA: "Consultas",
-    PRESUPUESTO: "Presupuestos",
+    PRESUPUESTO: "Cotizaciones",
     PEDIDO: "Pedidos",
     CITA: "Citas",
     CONTRATO: "Contratos",
@@ -197,7 +197,7 @@ export default async function ConfiguracionPlantillasPage({
             cuerpo={seguimiento?.body ?? ""}
             campos={campos[defSeguimiento.tipo]}
             soloApagar={false}
-            descripcion="Recordatorio a la persona de un presupuesto enviado que todavía no aceptó ni rechazó, a los días elegidos en Configuración → Presupuestos (donde también se enciende el seguimiento). Sale una vez por versión enviada, a las 10 de la mañana, y cuenta en el tope de correos automáticos. Si no tiene el enlace al presupuesto, se agrega al final."
+            descripcion="Recordatorio a la persona de una cotización enviada que todavía no aceptó ni rechazó, a los días elegidos en Configuración → Cotizaciones (donde también se enciende el seguimiento). Sale una vez por versión enviada, a las 10 de la mañana, y cuenta en el tope de correos automáticos. Si no tiene el enlace a la cotización, se agrega al final."
           />
         ) : null}
         {conPedidos ? (

@@ -34,7 +34,7 @@ export function validarMensajeDelBot(m: { destino: DestinoMensaje; canal: Canal;
     if (!r.ok) errores.push(`El ${nombre} tiene una variable que no existe para este envío: ${r.errores.map((e) => e.mensaje).join("; ")}`);
   }
   if (m.destino === "PRESUPUESTO" && !cuerpo.includes("[presupuesto_enlace]")) {
-    errores.push("Falta el enlace al presupuesto: poné [presupuesto_enlace].");
+    errores.push("Falta el enlace a la cotización: poné [presupuesto_enlace].");
   }
   const todo = `${asunto}\n${cuerpo}`;
   if (cifrasDelTexto(todo).length > 0) {

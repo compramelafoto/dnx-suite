@@ -43,7 +43,7 @@ export const DUDAS_8B2 = {
   pedidoAbierto: "Pedido abierto en Alboom (no se había confirmado la venta): quedó Confirmado",
   numeroOcupado: "El número de Alboom ya lo usa otro registro: quedó con ALB- adelante",
   totalDistinto: "El total recalculado no coincide con el de Alboom (se guardó el de Alboom)",
-  presupuestoUsado: "El presupuesto ya tiene otro pedido: se cargó sin presupuesto",
+  presupuestoUsado: "La cotización ya tiene otro pedido: se cargó sin cotización",
   medioDesconocido: "Medio de pago desconocido (quedó Otro)",
   sinCuotas: "El pedido no tiene cuotas con saldo: el cobro quedó sin imputar",
   fechaFin: "La cita terminaba antes de empezar: quedó de una hora",

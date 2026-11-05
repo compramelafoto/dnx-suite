@@ -19,14 +19,14 @@ type Props = { params: Promise<{ workspaceSlug: string; token: string }> };
 export async function generateMetadata(): Promise<Metadata> {
   // Es del cliente: no se indexa, y la dirección (que lleva el token) no se manda a ningún sitio
   // que se abra desde acá. El encabezado HTTP lo pone `next.config.ts`.
-  return { title: "Presupuesto", robots: { index: false, follow: false }, referrer: "no-referrer" };
+  return { title: "Cotización", robots: { index: false, follow: false }, referrer: "no-referrer" };
 }
 
 function Aviso({ vista }: { vista: VistaPublica }) {
   if (vista.estado === "ACEPTADO") {
     return (
       <div className="fo-card space-y-2 p-4">
-        <p className="font-semibold">¡Gracias! Este presupuesto ya está aceptado.</p>
+        <p className="font-semibold">¡Gracias! Esta cotización ya está aceptada.</p>
         {vista.pedidoUrl ? (
           <a href={vista.pedidoUrl} className="fo-btn fo-btn-primary text-sm" rel="noreferrer">
             Ver tu pedido y pagar la seña
@@ -38,7 +38,7 @@ function Aviso({ vista }: { vista: VistaPublica }) {
     );
   }
   if (vista.estado === "RECHAZADO") {
-    return <p className="fo-card p-4">Este presupuesto ya no está disponible. Si te interesa, escribinos y armamos uno nuevo.</p>;
+    return <p className="fo-card p-4">Esta cotización ya no está disponible. Si te interesa, escribinos y armamos una nueva.</p>;
   }
   return null;
 }

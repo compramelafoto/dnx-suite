@@ -46,7 +46,7 @@ export function textoDeCanales(r: ResultadoCanales): string {
   const salieron = [r.correo === "ENVIADO" ? "correo" : null, r.whatsapp === "ENVIADO" ? "WhatsApp" : null].filter(Boolean);
   const partes: string[] = [];
   partes.push(salieron.length > 0 ? `Enviado por ${salieron.join(" y ")}.` : "No salió por ningún canal.");
-  if (r.correo === "FALLO") partes.push("El correo no salió: reenvialo desde el presupuesto.");
+  if (r.correo === "FALLO") partes.push("El correo no salió: reenvialo desde la cotización.");
   if (r.correo === "SIN_CORREO") partes.push("No dejó correo.");
   if (r.whatsapp !== "ENVIADO") partes.push(`${MOTIVOS_WHATSAPP[r.whatsapp]}.`);
   return partes.join(" ");

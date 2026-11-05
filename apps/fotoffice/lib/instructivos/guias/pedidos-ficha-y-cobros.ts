@@ -24,7 +24,7 @@ export const guia: Instructivo = {
     {
       titulo: "Leé la ficha del pedido",
       texto: [
-        "Arriba: el número, el estado (Confirmado, En curso, Completado o Cancelado) y botones para ir al contacto, al presupuesto o a la consulta.",
+        "Arriba: el número, el estado (Confirmado, En curso, Completado o Cancelado) y botones para ir al contacto, a la cotización o a la consulta.",
         "«Evento y pago»: fecha y descripción del evento, la opción de pago, el Total, lo Cobrado, el Saldo y, en rojo, lo «Vencido».",
         "Más abajo: «Cobros y recibos», «Plan de cuotas», «Checklist», «Proyectos» (los trabajos), «Citas», «Ítems» e «Historial».",
       ],
@@ -42,7 +42,7 @@ export const guia: Instructivo = {
         "Si es el primer cobro, el pedido pasa solo a «En curso» y los trabajos que esperaban la seña avanzan.",
         "Si el cliente tiene correo y el recibo automático está encendido, se lo manda.",
       ],
-      nota: "Un pedido que viene de un presupuesto aceptado se paga por transferencia desde su enlace, pero FOTOFFICE todavía no reconoce las transferencias solo: cuando veas la plata en la cuenta, registrá el cobro acá.",
+      nota: "Un pedido que viene de una cotización aceptada se paga por transferencia desde su enlace, pero FOTOFFICE todavía no reconoce las transferencias solo: cuando veas la plata en la cuenta, registrá el cobro acá.",
     },
     {
       titulo: "Entregá el recibo",

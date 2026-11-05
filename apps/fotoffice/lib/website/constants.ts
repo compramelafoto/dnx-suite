@@ -34,4 +34,4 @@ export const TESTIMONIO_FORM_SEGMENT = "testimonio";
 export const INSTITUTIONAL_PUBLIC_SEGMENT = "institucional";
 
 /** Nombre de la página `/presupuesto` (formulario de presupuesto) en el menú y título del formulario. */
-export const PRESUPUESTO_PAGE_LABEL = "Pedí tu presupuesto";
+export const PRESUPUESTO_PAGE_LABEL = "Pedí tu cotización";

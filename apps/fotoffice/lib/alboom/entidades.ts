@@ -287,13 +287,13 @@ export const ENTIDADES: readonly Entidad[] = [
     },
   },
   // ── Presupuestos y pedidos ────────────────────────────────────────────────
-  { clave: "presupuestos", nombre: "Presupuestos", fuente: { tipo: "paginada", ruta: "/quotes/paginate", body: listado({ user: "all" }) } },
+  { clave: "presupuestos", nombre: "Cotizaciones", fuente: { tipo: "paginada", ruta: "/quotes/paginate", body: listado({ user: "all" }) } },
   // Detalles: el panel usa `Quotes.query({id})` / `Orders.query({id})` → `GET /quotes/<id>` y `GET /orders/<id>`.
   // La acción `get` de la fábrica (`GET /quotes?id=`) existe pero el panel nunca la usa, y Alboom responde 500 a
   // todos (extracción real de DNX, 13/10/2026: 174 de 174). El listado no trae los ítems (`quote_item_count` 0).
   {
     clave: "presupuestos_detalle",
-    nombre: "Detalle de presupuestos (con ítems)",
+    nombre: "Detalle de cotizaciones (con ítems)",
     version: 2,
     fuente: { tipo: "porPadre", padre: "presupuestos", mismoId: true, pedido: (id) => get(`/quotes/${id}`), filas: filaUnica },
   },

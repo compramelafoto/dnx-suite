@@ -212,7 +212,7 @@ export default async function ClientePage({
                 presupuestos={presupuestos}
                 hrefNuevo={`/presupuestos/nuevo?contacto=${encodeURIComponent(cliente.id)}`}
                 puedeCrear={puede(acceso, "operar", QUOTES_MODULE_KEY)}
-                vacio="Todavía no tiene presupuestos."
+                vacio="Todavía no tiene cotizaciones."
               />
             ) : null}
             {pedidos ? (

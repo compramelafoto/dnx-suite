@@ -92,7 +92,7 @@ export function PanelDelCliente({
             Abrir la ficha
           </Link>
           {cliente.consultas !== null ? <p className="text-[var(--fo-muted)]">Consultas: {cliente.consultas}</p> : null}
-          {cliente.presupuestos !== null ? <p className="text-[var(--fo-muted)]">Presupuestos: {cliente.presupuestos}</p> : null}
+          {cliente.presupuestos !== null ? <p className="text-[var(--fo-muted)]">Cotizaciones: {cliente.presupuestos}</p> : null}
         </div>
       ) : clienteOculto ? (
         <p className="text-sm text-[var(--fo-muted)]">Este chat está vinculado a un cliente, pero no tenés permiso para ver Clientes.</p>

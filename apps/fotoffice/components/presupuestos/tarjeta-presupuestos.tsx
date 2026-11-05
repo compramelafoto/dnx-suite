@@ -36,7 +36,7 @@ export function TarjetaPresupuestos({
   presupuestos,
   hrefNuevo,
   puedeCrear,
-  vacio = "Todavía no hay presupuestos.",
+  vacio = "Todavía no hay cotizaciones.",
 }: {
   presupuestos: PresupuestoDeTarjeta[];
   hrefNuevo: string;
@@ -46,7 +46,7 @@ export function TarjetaPresupuestos({
   return (
     <section aria-labelledby="tarjeta-presupuestos-titulo" className="fo-card space-y-3 p-4">
       <h2 id="tarjeta-presupuestos-titulo" className="text-sm font-semibold uppercase tracking-wide text-[var(--fo-muted-soft)]">
-        Presupuestos
+        Cotizaciones
       </h2>
       {presupuestos.length === 0 ? (
         <p className="text-sm text-[var(--fo-muted)]">{vacio}</p>
@@ -73,7 +73,7 @@ export function TarjetaPresupuestos({
       )}
       {puedeCrear ? (
         <Link href={hrefNuevo} className="fo-btn fo-btn-secondary w-full justify-center text-sm">
-          Nuevo presupuesto
+          Nueva cotización
         </Link>
       ) : null}
     </section>

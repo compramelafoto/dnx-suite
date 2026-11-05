@@ -118,7 +118,7 @@ export function ProposalForm() {
           rows={2}
           required
           maxLength={2000}
-          placeholder="Ej.: pido tres presupuestos de carpintería y coordino a los que ayuden el fin de semana."
+          placeholder="Ej.: pido tres cotizaciones de carpintería y coordino a los que ayuden el fin de semana."
         />
         <p className="fo-helper">Los proyectos salen cuando alguien se pone al frente. Contale a la comisión con qué podés ayudar.</p>
       </div>
@@ -127,7 +127,7 @@ export function ProposalForm() {
           Archivos (opcional)
         </label>
         <input id="files" type="file" multiple className="fo-input" onChange={(e) => setArchivos(Array.from(e.target.files ?? []))} />
-        <p className="fo-helper">Presupuestos, fotos, un PDF: lo que ayude a entender la idea. Hasta 25 MB cada uno.</p>
+        <p className="fo-helper">Cotizaciones, fotos, un PDF: lo que ayude a entender la idea. Hasta 25 MB cada uno.</p>
       </div>
       {detalle ? <p className="fo-helper">{detalle}</p> : null}
       {error ? (

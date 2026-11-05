@@ -205,7 +205,7 @@ export default async function WorkspaceSettingsPage() {
           <span className="space-y-0.5">
             <span className="block text-sm font-semibold">Precios</span>
             <span className="block text-xs text-[var(--fo-muted)]">
-              Tus costos, tus horas y el valor de tu hora para calcular presupuestos con ¿Cuánto Cobro?
+              Tus costos, tus horas y el valor de tu hora para calcular cotizaciones con ¿Cuánto Cobro?
             </span>
           </span>
           <span className="text-sm text-[var(--fo-accent,#1d4ed8)]">Ver →</span>
@@ -218,9 +218,9 @@ export default async function WorkspaceSettingsPage() {
           className="fo-card flex items-center justify-between gap-4 p-4 transition hover:border-[var(--fo-accent,#1d4ed8)]"
         >
           <span className="space-y-0.5">
-            <span className="block text-sm font-semibold">Presupuestos</span>
+            <span className="block text-sm font-semibold">Cotizaciones</span>
             <span className="block text-xs text-[var(--fo-muted)]">
-              Validez, condiciones generales, propuesta de pago y seguimiento de los presupuestos.
+              Validez, condiciones generales, propuesta de pago y seguimiento de las cotizaciones.
             </span>
           </span>
           <span className="text-sm text-[var(--fo-accent,#1d4ed8)]">Ver →</span>
@@ -250,7 +250,7 @@ export default async function WorkspaceSettingsPage() {
           <span className="space-y-0.5">
             <span className="block text-sm font-semibold">Telegram</span>
             <span className="block text-xs text-[var(--fo-muted)]">
-              Presupuestos armados solos que te llegan a Telegram para aprobar, y el portfolio de cada tipo de evento.
+              Cotizaciones armadas solas que te llegan a Telegram para aprobar, y el portfolio de cada tipo de evento.
             </span>
           </span>
           <span className="text-sm text-[var(--fo-accent,#1d4ed8)]">Ver →</span>
@@ -325,7 +325,7 @@ export default async function WorkspaceSettingsPage() {
           <span className="space-y-0.5">
             <span className="block text-sm font-semibold">Numeración</span>
             <span className="block text-xs text-[var(--fo-muted)]">
-              Prefijo, año y próximo número de consultas, presupuestos, pedidos, contratos y proyectos.
+              Prefijo, año y próximo número de consultas, cotizaciones, pedidos, contratos y proyectos.
             </span>
           </span>
           <span className="text-sm text-[var(--fo-accent,#1d4ed8)]">Ver →</span>

@@ -272,10 +272,10 @@ export type ResultadoAprobar =
   | { ok: false; codigo: "NO_EXISTE" | "YA_ENVIADO" | "EN_CURSO" | "SIN_PRESUPUESTO" | "SIN_CANAL" | "NO_SALIO" | "ERROR"; texto: string };
 
 export const TEXTOS_APROBAR = {
-  NO_EXISTE: "No encontramos ese presupuesto.",
-  YA_ENVIADO: "Este presupuesto ya se envió. No se manda de nuevo.",
+  NO_EXISTE: "No encontramos esa cotización.",
+  YA_ENVIADO: "Esta cotización ya se envió. No se manda de nuevo.",
   EN_CURSO: "Ya se está enviando.",
-  SIN_PRESUPUESTO: "Esta consulta no tiene presupuesto armado: abrila y respondé a mano.",
+  SIN_PRESUPUESTO: "Esta consulta no tiene cotización armada: abrila y respondé a mano.",
   SIN_CANAL: "No dejó correo y no se le puede escribir por WhatsApp: cargale un correo en la consulta y volvé a aprobar.",
   NO_SALIO: "No se pudo enviar. Revisalo en FOTOFFICE y volvé a aprobar.",
   ERROR: "Algo falló. Probá de nuevo en un rato.",

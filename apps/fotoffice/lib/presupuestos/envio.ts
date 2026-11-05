@@ -66,13 +66,13 @@ import { alternativasGuardadas, itemsDeAlternativa, MENSAJES_ALTERNATIVAS, total
 export const VENTANA_REPETIDO_MS = 15_000;
 
 export const MENSAJES_ENVIO_PRESUPUESTO = {
-  sinClave: "El envío de presupuestos no está configurado. Avisale a quien administra FOTOFFICE.",
-  sinSitio: "Para enviar presupuestos, la organización necesita su dirección pública (Configuración → Sitio web).",
+  sinClave: "El envío de cotizaciones no está configurado. Avisale a quien administra FOTOFFICE.",
+  sinSitio: "Para enviar cotizaciones, la organización necesita su dirección pública (Configuración → Sitio web).",
   sinItems: "Agregá al menos un ítem antes de enviar.",
   sinTexto: "Elegí una plantilla o escribí el mensaje.",
   yaEnviado: "Esta versión ya se envió. Para mandarla otra vez usá «Reenviar»; para cambiarla, creá una versión nueva.",
-  noReenviable: "Este presupuesto está vencido o rechazado: creá una versión nueva para volver a enviarlo.",
-  sinVigente: "Este presupuesto todavía no se envió.",
+  noReenviable: "Esta cotización está vencida o rechazada: creá una versión nueva para volver a enviarla.",
+  sinVigente: "Esta cotización todavía no se envió.",
   canal: "Elegí correo o WhatsApp.",
 } as const;
 
@@ -139,7 +139,7 @@ export function ddmmaaaa(fecha: Date | null): string | null {
 /** El enlace al final del texto (antes de `[firma]`, si está) cuando la plantilla no lo trae. */
 export function conEnlace(cuerpo: string, enlace: string): string {
   if (cuerpo.includes(enlace)) return cuerpo;
-  const linea = `Podés ver el presupuesto acá: ${enlace}`;
+  const linea = `Podés ver la cotización acá: ${enlace}`;
   const i = cuerpo.lastIndexOf("[firma]");
   if (i === -1) return `${cuerpo.trimEnd()}\n\n${linea}`;
   return `${cuerpo.slice(0, i).trimEnd()}\n\n${linea}\n\n${cuerpo.slice(i)}`;
@@ -398,7 +398,7 @@ async function enviarComo(
 
   const quedoEnviado = (error: string): ResultadoEnvioPresupuesto => ({
     ok: false,
-    error: hecho.tipo === "NUEVA" ? `El presupuesto quedó enviado, pero el mensaje no salió: ${error} Podés reenviarlo.` : error,
+    error: hecho.tipo === "NUEVA" ? `La cotización quedó enviada, pero el mensaje no salió: ${error} Podés reenviarla.` : error,
     enviado: true,
     enlace,
   });

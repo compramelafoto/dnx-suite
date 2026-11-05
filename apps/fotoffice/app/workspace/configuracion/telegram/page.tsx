@@ -21,7 +21,7 @@ const ESTADOS: Record<string, string> = {
   AVISO_FALLIDO: "Esperando tu aprobación (no se pudo avisar por Telegram)",
   SIN_PROPUESTA: "Sin propuesta modelo: respondé a mano",
   ENVIANDO: "Enviando…",
-  FALLO: "El envío falló: revisá el presupuesto",
+  FALLO: "El envío falló: revisá la cotización",
 };
 
 const fecha = new Intl.DateTimeFormat("es-AR", {
@@ -65,7 +65,7 @@ export default async function ConfiguracionTelegramPage() {
     <div className="max-w-3xl space-y-6">
       <PageHeader
         title="Telegram"
-        description="Cuando entra una consulta, FOTOFFICE arma el presupuesto solo y te lo manda a Telegram para que lo apruebes con un toque."
+        description="Cuando entra una consulta, FOTOFFICE arma la cotización sola y te la manda a Telegram para que lo apruebes con un toque."
       />
 
       {sinTablas ? (
@@ -79,7 +79,7 @@ export default async function ConfiguracionTelegramPage() {
         <ol className="list-decimal space-y-1 pl-5 text-[var(--fo-muted)]">
           <li>Entra una consulta por el formulario de tu web o por el WhatsApp del estudio.</li>
           <li>Al cliente le llega enseguida un «recibimos tu consulta, en un rato te mandamos la propuesta».</li>
-          <li>FOTOFFICE arma el presupuesto con la propuesta modelo de esa categoría (los precios de hoy y ¿Cuánto Cobro?).</li>
+          <li>FOTOFFICE arma la cotización con la propuesta modelo de esa categoría (los precios de hoy y ¿Cuánto Cobro?).</li>
           <li>Te llega a Telegram un resumen: quién es, qué evento, qué incluye, el precio y cómo se calculó.</li>
           <li>Tocás <strong>Aprobar y enviar</strong> y al cliente le llega por correo (y por WhatsApp, si se puede) el enlace a su página, con fotos de tus trabajos y el botón para aceptar y pagar la seña. Si querés cambiar algo, tocás <strong>Corregir</strong>.</li>
         </ol>
@@ -90,7 +90,7 @@ export default async function ConfiguracionTelegramPage() {
         <ol className="list-decimal space-y-1 pl-5">
           <li>En Telegram, buscá <strong>@BotFather</strong> (tiene el tilde azul) y abrí el chat.</li>
           <li>Escribile <code>/newbot</code>.</li>
-          <li>Te pide un nombre: poné, por ejemplo, <em>Presupuestos {workspace.name}</em>.</li>
+          <li>Te pide un nombre: poné, por ejemplo, <em>Cotizaciones {workspace.name}</em>.</li>
           <li>Te pide un usuario que termine en <em>bot</em>, por ejemplo <em>dnxestudio_presupuestos_bot</em>.</li>
           <li>Te contesta con un mensaje que trae el <strong>token</strong>: una línea con números, dos puntos y letras. Copiala entera.</li>
         </ol>
@@ -132,7 +132,7 @@ export default async function ConfiguracionTelegramPage() {
         <h2 id="tg-cat-titulo" className="text-base font-semibold">Paso 4 · Qué consultas te llegan para aprobar</h2>
         <p className="text-[var(--fo-muted)]">
           Encendelo en las categorías que quieras (vienen apagadas). En esas categorías la propuesta modelo ya no sale sola: siempre espera tu aprobación.
-          El portfolio es lo que ve el cliente arriba del presupuesto.
+          El portfolio es lo que ve el cliente arriba de la cotización.
         </p>
         {categorias.length === 0 ? (
           <p className="text-[var(--fo-muted)]">Todavía no hay categorías de consulta activas.</p>
@@ -167,11 +167,11 @@ export default async function ConfiguracionTelegramPage() {
       </section>
 
       <section className="fo-card space-y-3 p-5 text-sm" aria-labelledby="tg-horas-titulo">
-        <h2 id="tg-horas-titulo" className="text-base font-semibold">Presupuesto por horas (eventos sin propuesta modelo)</h2>
+        <h2 id="tg-horas-titulo" className="text-base font-semibold">Cotización por horas (eventos sin propuesta modelo)</h2>
         <p className="text-[var(--fo-muted)]">
-          Para los eventos y sesiones que no tienen propuesta modelo (cumpleaños, bautismos, eventos de empresa…), el presupuesto se arma solo con las horas
+          Para los eventos y sesiones que no tienen propuesta modelo (cumpleaños, bautismos, eventos de empresa…), la cotización se arma sola con las horas
           que dura: cobertura + edición, con el precio de ¿Cuánto cobro? y el traslado sumado. Te llega acá para aprobar, como los demás. En bodas y con
-          muchos invitados suma la opción de un segundo fotógrafo. Las horas las pregunta el bot por WhatsApp y el formulario de presupuesto del sitio.
+          muchos invitados suma la opción de un segundo fotógrafo. Las horas las pregunta el bot por WhatsApp y el formulario de cotización del sitio.
         </p>
         <PorHorasForm ajustes={porHoras} categorias={categorias.map((c) => ({ categoriaId: c.categoriaId, nombre: c.nombre }))} />
       </section>
@@ -189,7 +189,7 @@ export default async function ConfiguracionTelegramPage() {
       <section className="fo-card space-y-3 p-5 text-sm" aria-labelledby="tg-pend-titulo">
         <h2 id="tg-pend-titulo" className="text-base font-semibold">Esperando aprobación</h2>
         {pendientes.length === 0 ? (
-          <p className="text-[var(--fo-muted)]">No hay presupuestos esperando.</p>
+          <p className="text-[var(--fo-muted)]">No hay cotizaciones esperando.</p>
         ) : (
           <ul className="divide-y divide-[var(--fo-border)]">
             {pendientes.map((p) => (
@@ -212,7 +212,7 @@ export default async function ConfiguracionTelegramPage() {
                   ) : null}
                   <p className="mt-1 flex flex-wrap gap-3 text-xs">
                     {p.presupuestoId ? (
-                      <Link href={`/presupuestos/${encodeURIComponent(p.presupuestoId)}`} className="text-[var(--fo-accent)] hover:underline">Ver o corregir el presupuesto</Link>
+                      <Link href={`/presupuestos/${encodeURIComponent(p.presupuestoId)}`} className="text-[var(--fo-accent)] hover:underline">Ver o corregir la cotización</Link>
                     ) : null}
                     <Link href={`/consultas/${encodeURIComponent(p.leadId)}`} className="text-[var(--fo-accent)] hover:underline">Abrir la consulta</Link>
                   </p>

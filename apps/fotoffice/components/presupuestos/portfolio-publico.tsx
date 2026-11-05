@@ -11,7 +11,7 @@ export function PortfolioPublico({ portfolio }: { portfolio: Datos }) {
     <section aria-labelledby="portfolio-titulo" className="space-y-3 print:hidden">
       <div>
         <h2 id="portfolio-titulo" className="text-lg font-semibold">Algunos de nuestros trabajos · {portfolio.titulo}</h2>
-        <p className="text-sm text-[var(--fo-muted)]">Deslizá para ver más. Abajo tenés tu presupuesto.</p>
+        <p className="text-sm text-[var(--fo-muted)]">Deslizá para ver más. Abajo tenés tu cotización.</p>
       </div>
       <ul className="-mx-4 flex snap-x snap-mandatory gap-2 overflow-x-auto px-4 pb-2 md:mx-0 md:grid md:grid-cols-4 md:overflow-visible md:px-0">
         {portfolio.fotos.map((f, i) => (

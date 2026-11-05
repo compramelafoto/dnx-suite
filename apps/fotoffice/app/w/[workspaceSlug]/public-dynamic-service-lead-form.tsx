@@ -167,7 +167,7 @@ export function PublicDynamicServiceLeadForm({
         setError(null);
 
         if (!selectedForm) {
-          setError("Seleccioná primero el tipo de presupuesto.");
+          setError("Seleccioná primero el tipo de cotización.");
           return;
         }
 
@@ -210,7 +210,7 @@ export function PublicDynamicServiceLeadForm({
       <CampoTrampa />
       <div className="fo-field-stack">
         <label className="fo-label" htmlFor="general-budget-type">
-          {selector?.label ?? "Solicitud de presupuesto para"}
+          {selector?.label ?? "Solicitud de cotización para"}
         </label>
         <select
           id="general-budget-type"

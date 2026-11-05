@@ -19,7 +19,7 @@ export const guia: Instructivo = {
       imagen: "/instructivos/mostrador-transferencia-y-qr/01-datos-para-transferir.jpg",
       imagenAlt:
         "Medio Transferencia elegido: alias, CBU/CVU y monto con sus botones Copiar, el titular y el botón Verificar pago.",
-      nota: "Si dice «Todavía no cargaste el alias ni el CVU del negocio.», los datos se cargan en Configuración → Presupuestos, en «Datos para transferir». Lo hace quien administra FOTOFFICE.",
+      nota: "Si dice «Todavía no cargaste el alias ni el CVU del negocio.», los datos se cargan en Configuración → Cotizaciones, en «Datos para transferir». Lo hace quien administra FOTOFFICE.",
     },
     {
       titulo: "Comprobá que llegó",

@@ -51,7 +51,7 @@ export async function enviarAvisoPorWhatsapp(
       if (!chat || !puedeResponderLibre(aEstado(chat), ahora)) return null;
       const m = await tx.fotofficeWaMensaje.create({
         data: {
-          workspaceId, chatId: chat.id, direccion: "SALIENTE", autor: "BOT", autorLabel: deps.autor ?? "Presupuesto automático",
+          workspaceId, chatId: chat.id, direccion: "SALIENTE", autor: "BOT", autorLabel: deps.autor ?? "Cotización automática",
           tipo: "TEXTO", texto, estadoEnvio: "PENDIENTE", createdAt: ahora,
         },
         select: { id: true },

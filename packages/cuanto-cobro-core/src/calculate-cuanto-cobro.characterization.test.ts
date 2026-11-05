@@ -443,7 +443,7 @@ describe("calculateCuantoCobro — caracterización orquestador", () => {
       expect(result.status).toBe("incomplete");
       if (result.status !== "incomplete") return;
       expect(result.missingFields).toContain(
-        "Al menos un producto o servicio en el presupuesto",
+        "Al menos un producto o servicio en la cotización",
       );
     });
 

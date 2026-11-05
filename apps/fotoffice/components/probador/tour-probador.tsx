@@ -136,13 +136,13 @@ const TOUR_ESTUDIO: TourDefinition = {
     },
     {
       target: '[data-tour="probador-presupuesto"]',
-      title: "Presupuesto al instante",
-      body: "Sale de los precios de tu catálogo de Ventas. Si una medida no tiene precio, avisa que se presupuesta aparte.",
+      title: "Cotización al instante",
+      body: "Sale de los precios de tu catálogo de Ventas. Si una medida no tiene precio, avisa que se cotiza aparte.",
     },
     {
       target: '[data-tour="probador-ver-final"]',
       title: "Imagen para el cliente",
-      body: "Generá la imagen final de la pared con los cuadros para guardarla y mandársela junto con el presupuesto.",
+      body: "Generá la imagen final de la pared con los cuadros para guardarla y mandársela junto con la cotización.",
     },
     {
       target: '[data-tour="ayuda"]',

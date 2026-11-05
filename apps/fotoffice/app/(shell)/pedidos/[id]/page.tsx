@@ -166,7 +166,7 @@ export default async function PedidoPage({ params }: { params: Promise<{ id: str
   }));
 
   const hitos: Hito[] = [
-    { clave: "alta", fecha: detalle.createdAt.toISOString(), texto: detalle.presupuestoId ? "Pedido confirmado desde el presupuesto." : "Pedido creado." },
+    { clave: "alta", fecha: detalle.createdAt.toISOString(), texto: detalle.presupuestoId ? "Pedido confirmado desde la cotización." : "Pedido creado." },
     ...detalle.cobros.flatMap((c): Hito[] => [
       { clave: `cobro-${c.id}`, fecha: c.paidAt.toISOString(), texto: `Cobro de ${pesosPedido(c.amountArs)} · recibo N° ${c.receiptNumber}.` },
       ...(c.voidedAt ? [{ clave: `anulado-${c.id}`, fecha: c.voidedAt.toISOString(), texto: `Recibo N° ${c.receiptNumber} anulado.` }] : []),
@@ -202,7 +202,7 @@ export default async function PedidoPage({ params }: { params: Promise<{ id: str
             ) : null}
             {vePresupuesto ? (
               <Link href={`/presupuestos/${encodeURIComponent(detalle.presupuestoId!)}`} className="fo-btn fo-btn-secondary text-sm">
-                Ver el presupuesto
+                Ver la cotización
               </Link>
             ) : null}
             {veConsulta ? (

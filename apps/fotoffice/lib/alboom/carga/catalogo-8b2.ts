@@ -241,7 +241,7 @@ export const PARTES_8B2: readonly ParteCarga[] = [
   }),
   parte({
     clave: "presupuestos",
-    nombre: "Presupuestos",
+    nombre: "Cotizaciones",
     fuentes: [{ entity: "presupuestos" }],
     depende: ["consultas", "productos"],
     targetType: TIPO_PRESUPUESTO,

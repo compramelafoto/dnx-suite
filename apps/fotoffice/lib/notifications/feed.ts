@@ -85,7 +85,7 @@ const ROTULO: Record<NoticeKind, string> = {
   spotlight: "Socio de la semana",
   booking: "Reservas",
   contest: "Concursos",
-  lead: "Pedidos de presupuesto",
+  lead: "Pedidos de cotización",
   meeting: "Comisión",
 };
 

@@ -79,10 +79,10 @@ export function PortadaPresupuesto({ vista }: { vista: VistaPublica }) {
   ].filter((m): m is string => m !== null);
 
   const titulo = !activo
-    ? ficha?.nombrePila ? `${ficha.nombrePila}, este es tu presupuesto` : "Tu presupuesto"
+    ? ficha?.nombrePila ? `${ficha.nombrePila}, esta es tu cotización` : "Tu cotización"
     : opciones > 1
       ? ficha?.nombrePila ? `${ficha.nombrePila}, elegí tu propuesta` : "Elegí tu propuesta"
-      : ficha?.nombrePila ? `${ficha.nombrePila}, tu presupuesto está listo` : "Tu presupuesto está listo";
+      : ficha?.nombrePila ? `${ficha.nombrePila}, tu cotización está lista` : "Tu cotización está lista";
   const bajada = !activo
     ? null
     : opciones > 1
@@ -106,7 +106,7 @@ export function PortadaPresupuesto({ vista }: { vista: VistaPublica }) {
       />
       <div className="relative mx-auto max-w-6xl px-4 pb-12 pt-28 md:px-8 md:pb-16 md:pt-36">
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/70">
-          Presupuesto{vista.numero ? ` N° ${vista.numero}` : ""} · Versión {vista.version}
+          Cotización{vista.numero ? ` N° ${vista.numero}` : ""} · Versión {vista.version}
         </p>
         <h1 className="mt-3 text-3xl font-bold tracking-tight md:text-5xl">{titulo}</h1>
         {bajada ? <p className="mt-4 max-w-2xl text-base text-white/80 md:text-lg">{bajada}</p> : null}
@@ -116,7 +116,7 @@ export function PortadaPresupuesto({ vista }: { vista: VistaPublica }) {
           <div className="rounded-2xl bg-white/[0.06] p-5 ring-1 ring-white/15 backdrop-blur-sm md:p-6">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/55">{ficha?.cliente ? "Preparado para" : "Tu presupuesto"}</p>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/55">{ficha?.cliente ? "Preparado para" : "Tu cotización"}</p>
                 {ficha?.cliente ? <p className="mt-1 text-xl font-semibold md:text-2xl">{ficha.cliente}</p> : null}
               </div>
               {ficha?.faltan ? (

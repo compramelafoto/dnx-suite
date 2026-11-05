@@ -166,7 +166,7 @@ const esquemaEstudio = z
       .describe("Gastos fijos del estudio (los que se pagan haya trabajo o no). Sin monotributo ni seguro del equipo: van en «cobros»."),
     retiro: montoMes.optional().describe("Lo que se lleva el dueño por mes, aparte del estudio."),
     tuJornada: z
-      .object({ dias: diasOHoras.optional(), horasDia: diasOHoras.optional(), vacaciones: diasOHoras.optional().describe("Semanas por año."), vendible: porcentaje.optional().describe("% de su tiempo que termina en un presupuesto.") })
+      .object({ dias: diasOHoras.optional(), horasDia: diasOHoras.optional(), vacaciones: diasOHoras.optional().describe("Semanas por año."), vendible: porcentaje.optional().describe("% de su tiempo que termina en una cotización.") })
       .optional()
       .describe("La jornada del dueño."),
     personas: z
@@ -187,7 +187,7 @@ const esquemaEstudio = z
           dias: diasOHoras.optional().describe("Días por semana. 5 días + sábados alternados = \"5,5\"."),
           horasDia: diasOHoras.optional(),
           vacaciones: diasOHoras.optional().describe("Semanas de vacaciones por año."),
-          vendible: porcentaje.optional().describe("% de su tiempo que termina en un presupuesto."),
+          vendible: porcentaje.optional().describe("% de su tiempo que termina en una cotización."),
           insumos: montoMes.optional().describe("Insumos y gastos de la persona por mes (viáticos, celular, uniforme)."),
           activa: z.boolean().optional(),
           de: z.enum(["local", "coberturas"]).optional().describe("Sólo con «Local y coberturas» encendido: si trabaja en el local o en las coberturas."),

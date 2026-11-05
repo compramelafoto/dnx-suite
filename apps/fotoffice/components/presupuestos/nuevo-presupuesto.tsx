@@ -44,7 +44,7 @@ export function NuevoPresupuesto({
         modo === "consulta"
           ? { consultaLeadId: consulta || null }
           : { nuevaConsulta: contacto ? { contacto: { clientId: contacto.id }, categoriaId: categoria } : null };
-      const r = await crearPresupuestoAction(datos).catch(() => ({ ok: false as const, error: "No se pudo crear el presupuesto. Probá de nuevo." }));
+      const r = await crearPresupuestoAction(datos).catch(() => ({ ok: false as const, error: "No se pudo crear la cotización. Probá de nuevo." }));
       if (r.ok) router.push(`/presupuestos/${encodeURIComponent(r.presupuestoId)}`);
       else {
         setError(r.error);
@@ -57,7 +57,7 @@ export function NuevoPresupuesto({
     <section className="fo-card max-w-2xl space-y-4">
       {puedeCrearConsulta && consultas.length > 0 ? (
         <fieldset className="flex flex-wrap gap-4 text-sm">
-          <legend className="sr-only">De dónde sale el presupuesto</legend>
+          <legend className="sr-only">De dónde sale la cotización</legend>
           <label className="flex items-center gap-2">
             <input type="radio" name={`${id}-modo`} checked={modo === "consulta"} onChange={() => setModo("consulta")} />
             De una consulta
@@ -106,7 +106,7 @@ export function NuevoPresupuesto({
 
       <div className="flex flex-wrap items-center gap-3">
         <button type="button" className="fo-btn fo-btn-primary" disabled={pendiente || (modo === "consulta" ? !consulta : !contacto || !categoria)} onClick={crear}>
-          {pendiente ? "Creando…" : "Crear presupuesto"}
+          {pendiente ? "Creando…" : "Crear cotización"}
         </button>
         {error ? (
           <p role="alert" className="text-sm text-[var(--fo-danger)]">

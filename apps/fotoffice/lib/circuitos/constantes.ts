@@ -11,8 +11,8 @@ export const EVENTOS = ["CONSULTA_RECIBIDA", "PRESUPUESTO_ENVIADO", "PRESUPUESTO
 export type Evento = (typeof EVENTOS)[number];
 export const ETIQUETA_EVENTO: Record<Evento, string> = {
   CONSULTA_RECIBIDA: "Llegó una consulta nueva",
-  PRESUPUESTO_ENVIADO: "Se envió el presupuesto",
-  PRESUPUESTO_ACEPTADO: "El cliente aceptó el presupuesto",
+  PRESUPUESTO_ENVIADO: "Se envió la cotización",
+  PRESUPUESTO_ACEPTADO: "El cliente aceptó la cotización",
   CONTRATO_FIRMADO: "Se firmó el contrato",
   SENA_COBRADA: "Se cobró la seña",
   BACKUP_TERMINADO: "DNX FLUX terminó el backup",

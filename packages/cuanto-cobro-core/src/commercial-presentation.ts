@@ -3,7 +3,7 @@ import type { CuantoCobroQuoteDisplayMode, CuantoCobroQuoteItemType } from "./ty
 export type CuantoCobroCommercialDisplayMode = "detailed" | "total-only" | "grouped";
 
 export const CC_DEFAULT_COMMERCIAL_NOTE =
-  "Presupuesto válido por 7 días. La fecha queda reservada únicamente con seña.";
+  "Cotización válida por 7 días. La fecha queda reservada únicamente con seña.";
 
 export const CC_COMMERCIAL_DISPLAY_MODE_LABELS: Record<CuantoCobroCommercialDisplayMode, string> = {
   detailed: "Detallado por producto o servicio",

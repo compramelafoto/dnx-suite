@@ -25,7 +25,7 @@ export const CLIENT_HOUR_LABELS: Record<ClientHourField, string> = {
 };
 
 export const CLIENT_HOUR_HINTS: Partial<Record<ClientHourField, string>> = {
-  salesHours: "Presupuestación, negociación y cierre comercial de este cliente.",
+  salesHours: "Cotización, negociación y cierre comercial de este cliente.",
   meetingsHours: "Reuniones previas o de alineación del trabajo.",
   generalPrepHours: "Planificación general que no pertenece a un producto o servicio puntual.",
   coordinationHours: "Emails, logística y gestión con el cliente.",

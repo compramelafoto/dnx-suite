@@ -48,12 +48,12 @@ export const MENSAJES_ACEPTACION = {
   enlaceInvalido: "Este enlace ya no es válido. Pedile uno nuevo a quien te lo mandó.",
   nombre: "Escribí tu nombre y apellido.",
   condiciones: "Para aceptar, marcá que leíste y aceptás las condiciones.",
-  yaAceptado: "Este presupuesto ya fue aceptado.",
-  reemplazado: "Esta versión del presupuesto fue reemplazada por una más nueva. Abrí el último enlace que te mandaron.",
-  vencido: "Este presupuesto venció y ya no se puede aceptar. Podés pedir uno nuevo desde esta misma página.",
-  rechazado: "Este presupuesto ya no está disponible. Escribile a quien te lo mandó.",
+  yaAceptado: "Esta cotización ya fue aceptada.",
+  reemplazado: "Esta versión de la cotización fue reemplazada por una más nueva. Abrí el último enlace que te mandaron.",
+  vencido: "Esta cotización venció y ya no se puede aceptar. Podés pedir una nueva desde esta misma página.",
+  rechazado: "Esta cotización ya no está disponible. Escribile a quien te la mandó.",
   fallo: "No pudimos registrar tu aceptación. Probá de nuevo en un rato.",
-  noVencido: "Este presupuesto todavía está vigente: lo podés aceptar desde esta misma página.",
+  noVencido: "Esta cotización todavía está vigente: la podés aceptar desde esta misma página.",
 } as const;
 
 export const MAX_NOMBRE_ACEPTACION = 120;
@@ -174,8 +174,8 @@ export async function aceptarPresupuesto(
   const cual = numero ? ` N° ${numero}` : "";
   // Las dos nunca lanzan. La primera cierra el recorrido abierto (si hay); la segunda cubre la
   // consulta perdida o sin recorrido (con el recorrido ya ganado, no hace nada).
-  await ganarConsultaPorSistema(workspaceId, aceptado.leadId, `Ganada: el cliente aceptó el presupuesto${cual}.`);
-  await reabrirComoGanadaPorSistema(workspaceId, aceptado.leadId, `Se reabrió como ganada: el cliente aceptó el presupuesto${cual}.`);
+  await ganarConsultaPorSistema(workspaceId, aceptado.leadId, `Ganada: el cliente aceptó la cotización${cual}.`);
+  await reabrirComoGanadaPorSistema(workspaceId, aceptado.leadId, `Se reabrió como ganada: el cliente aceptó la cotización${cual}.`);
   await avisarAceptacion(
     { workspaceId, leadId: aceptado.leadId, presupuestoId: v0.presupuestoId, ownerUserId: aceptado.ownerUserId, numero, total: pesos(aceptado.total) },
     { ...deps, ahora: () => ahora },

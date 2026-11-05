@@ -44,7 +44,7 @@ export default async function PortfolioCategoriaPage({ params, searchParams }: P
 
   return (
     <div className="max-w-3xl space-y-6">
-      <PageHeader title={`Portfolio · ${categoria.name}`} description="Las fotos que ve el cliente en la página de su presupuesto, antes del detalle. Elegí trabajos de este tipo de evento." />
+      <PageHeader title={`Portfolio · ${categoria.name}`} description="Las fotos que ve el cliente en la página de su cotización, antes del detalle. Elegí trabajos de este tipo de evento." />
       <p className="text-sm">
         <Link href="/workspace/configuracion/telegram" className="text-[var(--fo-accent)] hover:underline">← Volver a Telegram</Link>
       </p>
@@ -52,7 +52,7 @@ export default async function PortfolioCategoriaPage({ params, searchParams }: P
       <section className="fo-card space-y-3 p-5 text-sm" aria-labelledby="pf-actual">
         <h2 id="pf-actual" className="text-base font-semibold">Lo que ve el cliente (en este orden)</h2>
         {vistas.length === 0 ? (
-          <p className="text-[var(--fo-muted)]">Todavía no hay nada. Agregá una galería o subí fotos: sin portfolio, la página muestra sólo el presupuesto.</p>
+          <p className="text-[var(--fo-muted)]">Todavía no hay nada. Agregá una galería o subí fotos: sin portfolio, la página muestra sólo la cotización.</p>
         ) : (
           <ul className="divide-y divide-[var(--fo-border)]">
             {vistas.map((v, i) => (

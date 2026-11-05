@@ -111,7 +111,7 @@ describe("crear_borrador_de_presupuesto", () => {
     modelo = 3;
     const { total } = await cotizado();
     const s = await tool("crear_borrador_de_presupuesto").describe!({ ...BODA, consultaLeadId: "l1", totalEsperado: total }, actor);
-    expect(s).toMatch(/^Crear el borrador del presupuesto de la consulta N\.º 12 \(Bodas · 15\/11\/2026\) con 2 ítems: Cobertura \$.* · Álbum \$/);
+    expect(s).toMatch(/^Crear el borrador de la cotización de la consulta N\.º 12 \(Bodas · 15\/11\/2026\) con 2 ítems: Cobertura \$.* · Álbum \$/);
     expect(s).toContain("Reemplaza los 3 ítems de la propuesta modelo.");
     expect(s).toContain("Esto no se deshace desde acá.");
     expect(B.datos.fotofficePresupuesto).toHaveLength(0);
@@ -210,7 +210,7 @@ describe("sumar_al_borrador", () => {
     B.datos.fotofficePresupuesto.find((p) => p.id === id)!.status = "ACEPTADO";
     const { total } = await cotizado();
     await expect(tool("sumar_al_borrador").describe!({ ...BODA, presupuestoId: id, totalEsperado: total }, actor)).rejects.toThrow(/No hay un borrador para editar/);
-    await expect(tool("sumar_al_borrador").describe!({ ...BODA, presupuestoId: "otro", totalEsperado: total }, actor)).rejects.toThrow("No encontramos ese presupuesto.");
+    await expect(tool("sumar_al_borrador").describe!({ ...BODA, presupuestoId: "otro", totalEsperado: total }, actor)).rejects.toThrow("No encontramos esa cotización.");
   });
 });
 

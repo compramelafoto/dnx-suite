@@ -23,7 +23,7 @@ const INICIAL: EstadoCircuitos = { error: null };
 const ESTADO_CAPTACION: Record<string, string> = {
   NEW: "Nuevo",
   CONTACTED: "Contactado",
-  QUOTED: "Presupuestado",
+  QUOTED: "Cotizado",
   INTERESTED: "Interesado",
 };
 

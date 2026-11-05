@@ -465,12 +465,12 @@ async function tareaDeRevision(
 
 /** PURO. Título de la tarea cuando la propuesta quedó enviada pero el correo no llegó. */
 export function tituloDeRevision(numero: string | null): string {
-  return `Revisar envío del presupuesto ${numero ? `N° ${numero}` : "sin número"}`;
+  return `Revisar envío de la cotización ${numero ? `N° ${numero}` : "sin número"}`;
 }
 
 /** PURO. Título de la tarea del borrador automático; `numero` es el de la CONSULTA (el presupuesto aún no tiene). */
 export function tituloDeBorrador(numero: string | null): string {
-  return numero ? `Revisar y enviar el presupuesto de la consulta N° ${numero}` : "Revisar y enviar el presupuesto armado";
+  return numero ? `Revisar y enviar la cotización de la consulta N° ${numero}` : "Revisar y enviar la cotización armada";
 }
 
 /** Borra el presupuesto que creó el sistema SÓLO si sigue en borrador (nunca uno enviado). Nunca lanza. */

@@ -42,8 +42,8 @@ describe("/w/<slug>/presupuesto", () => {
   it("dibuja un único formulario de presupuesto a página completa, con la config por omisión", async () => {
     const { blocks, dynamicData } = (await pagina()).props.children.props;
     expect(blocks).toHaveLength(1);
-    expect(blocks[0]).toMatchObject({ type: "INQUIRY_FORM", visible: true, config: { categoryIds: [], askOrigin: true, buttonLabel: "Pedir presupuesto" } });
-    expect(blocks[0]!.config.title).toBe("Pedí tu presupuesto");
+    expect(blocks[0]).toMatchObject({ type: "INQUIRY_FORM", visible: true, config: { categoryIds: [], askOrigin: true, buttonLabel: "Pedir cotización" } });
+    expect(blocks[0]!.config.title).toBe("Pedí tu cotización");
     expect(dynamicData.inquiry).toEqual(INQUIRY);
     expect(H.datos).toHaveBeenCalledWith(SITIO, blocks);
   });
@@ -64,7 +64,7 @@ describe("/w/<slug>/presupuesto", () => {
 
   it("título de la pestaña con el nombre comercial", async () => {
     expect(await generateMetadata({ params: Promise.resolve({ workspaceSlug: "dnx-estudio" }), searchParams: Promise.resolve({}) })).toEqual({
-      title: "Pedí tu presupuesto · DNX Estudio",
+      title: "Pedí tu cotización · DNX Estudio",
     });
   });
 });

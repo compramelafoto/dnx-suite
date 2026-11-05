@@ -259,7 +259,7 @@ export function ProbadorCuadros({ catalogo, marcos, asistente }: { catalogo: Pre
 
           <div data-en="3 5 6">
           <section className="pdc-bloque" data-pdc="presupuesto" data-tour="probador-presupuesto" hidden>
-            <h2>Presupuesto</h2>
+            <h2>Cotización</h2>
             <ul className="pdc-lineas" data-pdc="presupuesto-lineas" />
             <p className="pdc-total">
               Total <b data-pdc="presupuesto-total" />

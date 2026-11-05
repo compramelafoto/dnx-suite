@@ -40,7 +40,7 @@ describe("guía del bot de atención", () => {
     expect(g).toContain("el nombre del salón y la localidad alcanzan");
   });
 
-  it("para cursos usa cursos_del_estudio y no arma presupuesto", () => {
+  it("para cursos usa cursos_del_estudio y no arma cotización", () => {
     expect(guiaDeAtencion()).toContain("cursos_del_estudio");
   });
 

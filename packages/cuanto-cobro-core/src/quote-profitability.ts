@@ -61,13 +61,13 @@ export function deriveChosenPriceCommercialStatus(
 export function getProfitabilityDiagnosisMessage(status: ProfitabilityStatus): string {
   switch (status) {
     case "loss":
-      return "Este presupuesto genera pérdida: el precio recomendado no cubre el costo mínimo.";
+      return "Esta cotización genera pérdida: la cotización recomendada no cubre el costo mínimo.";
     case "tight":
-      return "Presupuesto muy ajustado: el margen sobre el costo mínimo es menor al 10%.";
+      return "Cotización muy ajustada: el margen sobre el costo mínimo es menor al 10%.";
     case "profitable":
-      return "Presupuesto rentable: el margen sobre el costo mínimo es saludable.";
+      return "Cotización rentable: el margen sobre el costo mínimo es saludable.";
     default:
-      return "Completá costos y márgenes para evaluar la rentabilidad de este presupuesto.";
+      return "Completá costos y márgenes para evaluar la rentabilidad de esta cotización.";
   }
 }
 
@@ -182,5 +182,5 @@ export function computeServicesNeededPerMonth(
 
 export function buildMonthlyRecoveryWarning(monthlyRecoveryFromJob: number): string | null {
   if (monthlyRecoveryFromJob > 0) return null;
-  return "No hay horas de trabajo valoradas en este presupuesto: no se puede calcular cuántos trabajos similares necesitás por mes.";
+  return "No hay horas de trabajo valoradas en esta cotización: no se puede calcular cuántos trabajos similares necesitás por mes.";
 }

@@ -19,8 +19,8 @@ export default async function PropuestasModeloPage() {
   if (!puede(role, "configurar")) {
     return (
       <div className="max-w-xl space-y-6">
-        <PageHeader title="Presupuestos" />
-        <p className="text-sm text-[var(--fo-muted)]">Sólo el dueño o un administrador pueden configurar los presupuestos.</p>
+        <PageHeader title="Cotizaciones" />
+        <p className="text-sm text-[var(--fo-muted)]">Sólo el dueño o un administrador pueden configurar las cotizaciones.</p>
       </div>
     );
   }
@@ -31,13 +31,13 @@ export default async function PropuestasModeloPage() {
   return (
     <div className="max-w-3xl space-y-6">
       <PageHeader
-        title="Presupuestos"
+        title="Cotizaciones"
         description="Una propuesta modelo por categoría: productos del catálogo a precio de lista, conceptos calculados con ¿Cuánto Cobro? y condiciones, lista para mandar."
       />
       <PestanasPresupuestos activa="propuestas" />
       <p className="text-sm text-[var(--fo-muted)]">
         Si una propuesta tiene encendido «Enviar sola al llegar una consulta web», la consulta de esa categoría que llegue por el
-        formulario recibe el presupuesto por correo en lugar de la respuesta automática (que tiene que estar encendida en
+        formulario recibe la cotización por correo en lugar de la respuesta automática (que tiene que estar encendida en
         Configuración → Plantillas → Automáticos). Nunca salen las dos.
       </p>
       {categorias.length === 0 ? (

@@ -318,7 +318,7 @@ describe("las fallas caen a la autorespuesta común, sin duplicar", () => {
     expect(mensajes()[0]).toMatchObject({ status: "FAILED", templateId: plantillaPresupuesto, automatic: true });
     // El presupuesto quedó enviado: se puede reenviar desde la ficha, y hay una tarea para revisarlo.
     expect(presupuestos()[0]!.status).toBe("ENVIADO");
-    const tareas = B.datos.fotofficeTask.filter((t) => String(t.title).startsWith("Revisar envío del presupuesto"));
+    const tareas = B.datos.fotofficeTask.filter((t) => String(t.title).startsWith("Revisar envío de la cotización"));
     expect(tareas).toHaveLength(1);
     expect(tareas[0]).toMatchObject({ assigneeUserId: 1, subjectType: "CAPTACION" });
   });
@@ -400,7 +400,7 @@ describe("revisión: carreras y fallas después de enviar", () => {
     expect(presupuestos()[0]!.status).toBe("ENVIADO");
     // Ni el correo de la propuesta (cortó antes) ni la común.
     expect(H.enviar).not.toHaveBeenCalled();
-    expect(B.datos.fotofficeTask.filter((t) => String(t.title).startsWith("Revisar envío del presupuesto"))).toHaveLength(1);
+    expect(B.datos.fotofficeTask.filter((t) => String(t.title).startsWith("Revisar envío de la cotización"))).toHaveLength(1);
     // Directo: el resultado es ERROR_TRAS_ENVIO (con otra dirección, para que la regla de 24 h no lo tape).
     B.datos.serviceSalesLead.at(-1)!.email = "otra@persona.test";
     expect(await PA.enviarPropuestaModelo("ws-1", B.datos.serviceSalesLead.at(-1)!.id as string)).toBe("ERROR_TRAS_ENVIO");
@@ -428,7 +428,7 @@ describe("armarBorradorDePropuesta (borrador automático)", () => {
     const v = B.datos.fotofficePresupuestoVersion.find((x) => x.id === p.currentVersionId)!;
     expect(v).toMatchObject({ createdByUserId: null, sentAt: null });
     expect((v.totals as { total: number }).total).toBe(900001);
-    expect(tareas().some((t) => String(t.title).startsWith("Revisar y enviar el presupuesto"))).toBe(true);
+    expect(tareas().some((t) => String(t.title).startsWith("Revisar y enviar la cotización"))).toBe(true);
   });
 
   it("con la común encendida y sin envío automático: sale la común y además queda el borrador", async () => {
@@ -484,9 +484,9 @@ describe("armarBorradorDePropuesta (borrador automático)", () => {
     const titulos = tareas().map((t) => String(t.title)).filter((t) => t.startsWith("Revisar y enviar"));
     expect(titulos).toHaveLength(1);
     expect(titulos[0]).not.toContain("sin número");
-    expect(titulos[0]).toMatch(/^(Revisar y enviar el presupuesto de la consulta N° \S+|Revisar y enviar el presupuesto armado)$/);
-    expect(PA.tituloDeBorrador("0042")).toBe("Revisar y enviar el presupuesto de la consulta N° 0042");
-    expect(PA.tituloDeBorrador(null)).toBe("Revisar y enviar el presupuesto armado");
+    expect(titulos[0]).toMatch(/^(Revisar y enviar la cotización de la consulta N° \S+|Revisar y enviar la cotización armada)$/);
+    expect(PA.tituloDeBorrador("0042")).toBe("Revisar y enviar la cotización de la consulta N° 0042");
+    expect(PA.tituloDeBorrador(null)).toBe("Revisar y enviar la cotización armada");
   });
 
   it("no duplica: con un presupuesto ya existente devuelve YA_TIENE_PRESUPUESTO", async () => {

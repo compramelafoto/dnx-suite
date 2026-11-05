@@ -140,7 +140,7 @@ export function CategoriasCatalogo({ categorias }: { categorias: CategoriaFila[]
           <label className="fo-label" htmlFor="cat-nueva">
             Nueva categoría
           </label>
-          <input id="cat-nueva" name="nombre" maxLength={40} required className="fo-input" placeholder="Por ejemplo: Presupuesto" />
+          <input id="cat-nueva" name="nombre" maxLength={40} required className="fo-input" placeholder="Por ejemplo: Cotización" />
         </div>
         <button type="submit" className="fo-btn fo-btn-primary text-sm" disabled={creando}>
           <Plus className="size-4" aria-hidden />

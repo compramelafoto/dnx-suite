@@ -19,7 +19,7 @@ export const MENSAJES_AJUSTES_AUTO = {
   datosInvalidos: MENSAJES_PRESUPUESTO.datosInvalidos,
   categoria: "No encontramos esa categoría.",
   acuse: `El acuse puede tener hasta ${MAX_ACUSE} caracteres.`,
-  fallo: "No se pudo guardar. ¿Ya se aplicó el SQL del presupuesto automático?",
+  fallo: "No se pudo guardar. ¿Ya se aplicó el SQL de la cotización automática?",
 } as const;
 
 export type ResultadoAjustesAuto = { ok: true } | { ok: false; error: string };

@@ -54,7 +54,7 @@ export type ResultadoCreado = { ok: true; id: string } | { ok: false; error: str
 export const AUTOMATICOS: Record<ClaveAutomatico, { canal: Canal; tipo: TipoPlantilla; nombre: string }> = {
   CONSULTA_AUTORESPUESTA: { canal: "EMAIL", tipo: "CONSULTA", nombre: "Respuesta automática a una consulta nueva" },
   CONSULTA_AVISO_EQUIPO: { canal: "EMAIL", tipo: "CONSULTA", nombre: "Aviso de consulta nueva al equipo" },
-  PRESUPUESTO_SEGUIMIENTO: { canal: "EMAIL", tipo: "PRESUPUESTO", nombre: "Seguimiento de un presupuesto enviado" },
+  PRESUPUESTO_SEGUIMIENTO: { canal: "EMAIL", tipo: "PRESUPUESTO", nombre: "Seguimiento de una cotización enviada" },
   RECIBO_DE_PAGO: { canal: "EMAIL", tipo: "PEDIDO", nombre: "Recibo de pago" },
   RECORDATORIO_CUOTA: { canal: "EMAIL", tipo: "PEDIDO", nombre: "Recordatorio de vencimiento de una cuota" },
   RECORDATORIO_CITA: { canal: "EMAIL", tipo: "CITA", nombre: "Recordatorio de una cita al cliente" },

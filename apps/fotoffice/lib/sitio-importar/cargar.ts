@@ -777,7 +777,7 @@ async function bloquesDePagina(def: PaginaAImportar, pagina: PaginaAlboom, clave
   if (pagina.portadaUrl) bloques.unshift(bloque("IMAGE", `${prefijo}_portada`, { imageUrl: pagina.portadaUrl, alt: def.titulo ?? pagina.titulo, widthPreset: "full" }));
   for (const extra of def.agregar ?? []) {
     if (extra === "PRESUPUESTO") {
-      bloques.push(bloque("CTA", `${prefijo}_presupuesto`, { title: "¿Hablamos?", buttonLabel: "Pedí tu presupuesto", buttonUrl: `${ctx.prefijoSitio}/presupuesto`, stylePreset: "solid" }));
+      bloques.push(bloque("CTA", `${prefijo}_presupuesto`, { title: "¿Hablamos?", buttonLabel: "Pedí tu cotización", buttonUrl: `${ctx.prefijoSitio}/presupuesto`, stylePreset: "solid" }));
     } else if (extra === "WHATSAPP") {
       bloques.push(bloque("CTA", `${prefijo}_whatsapp`, { buttonLabel: "Escribinos por WhatsApp", buttonUrl: WHATSAPP_DNX, stylePreset: "outline" }));
     } else if (extra === "TESTIMONIOS") {
@@ -838,7 +838,7 @@ function portadaDnx(args: { prefijoSitio: string; fotosCarrusel: string[]; sobre
         id: `${id("foto")}_${i}`,
         imageUrl,
         imageFocus: "center",
-        ...(i === 0 ? { title: "DNX Fotografía", showButton: true, buttonLabel: "Pedí tu presupuesto", buttonUrl: `${args.prefijoSitio}/presupuesto` } : { showButton: false }),
+        ...(i === 0 ? { title: "DNX Fotografía", showButton: true, buttonLabel: "Pedí tu cotización", buttonUrl: `${args.prefijoSitio}/presupuesto` } : { showButton: false }),
         buttonStyle: "solid",
         align: "center",
         contentPosition: "center",
@@ -868,7 +868,7 @@ function portadaDnx(args: { prefijoSitio: string; fotosCarrusel: string[]; sobre
   }
   bloques.push(bloque("TESTIMONIALS", id("testimonios"), { title: "Lo que dicen de nosotros", count: 6, layout: "carousel", showCta: true }));
   bloques.push(bloque("BLOG_LATEST", id("blog"), { title: "Del blog", count: 3, showExcerpt: true }));
-  bloques.push(bloque("INQUIRY_FORM", id("presupuesto"), { title: "Pedí tu presupuesto" }));
+  bloques.push(bloque("INQUIRY_FORM", id("presupuesto"), { title: "Pedí tu cotización" }));
   bloques.push(
     bloque("CONTACT", id("contacto"), {
       title: "Contacto",
@@ -903,7 +903,7 @@ function menuDnx(sections: WebsiteSections): SiteMenu {
   pagina(TRABAJOS_PUBLIC_PAGE_KEY, "Trabajos");
   pagina(BLOG_PUBLIC_PAGE_KEY, "Blog");
   propia("quien-soy", "Quién soy");
-  pagina("presupuesto", "Pedí tu presupuesto");
+  pagina("presupuesto", "Pedí tu cotización");
   propia("imprimi-tus-fotos", "Imprimí tus fotos");
   propia("agenda", "Agendá un turno");
   propia("capacitate", "Capacitate");

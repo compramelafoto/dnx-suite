@@ -92,7 +92,7 @@ async function findWorkspaceDeletionBlockers(workspaceId: string): Promise<strin
   if (serviceLeadForms > 0) blockers.push(`${serviceLeadForms} formulario(s) de consultas`);
   if (artworkRoyalties > 0) blockers.push(`${artworkRoyalties} regalía(s) de autores de obras`);
   if (publishedArtworks > 0) blockers.push(`${publishedArtworks} obra(s) publicada(s) en la tienda`);
-  if (presupuestos > 0) blockers.push(`${presupuestos} presupuesto(s)`);
+  if (presupuestos > 0) blockers.push(`${presupuestos} cotización(es)`);
   return blockers;
 }
 

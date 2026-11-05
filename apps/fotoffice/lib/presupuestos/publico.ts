@@ -226,7 +226,7 @@ export async function abrirPresupuestoPublico(
     organizacion: {
       nombre: sitio.nombre,
       logoUrl: sitio.logoUrl && /^https:\/\//i.test(sitio.logoUrl) ? sitio.logoUrl : null,
-      whatsappUrl: buildWhatsappUrl(sitio.whatsapp, `Hola, tengo dudas sobre el presupuesto${numero ? ` N° ${numero}` : ""}.`),
+      whatsappUrl: buildWhatsappUrl(sitio.whatsapp, `Hola, tengo dudas sobre la cotización${numero ? ` N° ${numero}` : ""}.`),
       email: sitio.email,
     },
     numero,

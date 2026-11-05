@@ -2092,7 +2092,7 @@ function DatosParaTransferir({ datos, totalMinor }: { datos: DatosTransferencia;
   if (!datos.alias && !datos.cbuCvu) {
     return (
       <p className="rounded-[var(--fo-radius-sm)] border border-dashed border-[var(--fo-border)] p-3 text-sm text-[var(--fo-muted)]">
-        Todavía no cargaste el alias ni el CVU del negocio. Se cargan en Configuración → Presupuestos, en
+        Todavía no cargaste el alias ni el CVU del negocio. Se cargan en Configuración → Cotizaciones, en
         «Datos para transferir».
       </p>
     );

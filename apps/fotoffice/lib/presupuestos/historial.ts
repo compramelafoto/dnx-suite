@@ -58,15 +58,15 @@ export async function eventosDePresupuestos(ctx: CtxPresupuestos, leadId: string
     const numero = numeros.get(v.presupuestoId);
     const cual = `${numero ? `N° ${numero}` : "sin número"} (V${v.number})`;
     const href = `/presupuestos/${encodeURIComponent(v.presupuestoId)}`;
-    if (v.sentAt) out.push({ id: `envio-${v.id}`, fecha: v.sentAt, texto: `Se envió el presupuesto ${cual}`, href });
+    if (v.sentAt) out.push({ id: `envio-${v.id}`, fecha: v.sentAt, texto: `Se envió la cotización ${cual}`, href });
     const vista = porVersion.get(v.id);
     if (vista) {
-      const veces = vista.cantidad > 1 ? ` (lo abrió ${vista.cantidad} veces)` : "";
-      out.push({ id: `vista-${v.id}`, fecha: vista.primera, texto: `El cliente abrió el presupuesto ${cual}${veces}`, href });
+      const veces = vista.cantidad > 1 ? ` (la abrió ${vista.cantidad} veces)` : "";
+      out.push({ id: `vista-${v.id}`, fecha: vista.primera, texto: `El cliente abrió la cotización ${cual}${veces}`, href });
     }
     if (v.acceptedAt) {
       const quien = v.acceptedName ? ` (${v.acceptedName})` : "";
-      out.push({ id: `aceptado-${v.id}`, fecha: v.acceptedAt, texto: `El cliente aceptó el presupuesto ${cual}${quien}`, href });
+      out.push({ id: `aceptado-${v.id}`, fecha: v.acceptedAt, texto: `El cliente aceptó la cotización ${cual}${quien}`, href });
     }
   }
   // Seguimientos automáticos (registrados en el presupuesto): de la versión de ese presupuesto
@@ -89,8 +89,8 @@ export async function eventosDePresupuestos(ctx: CtxPresupuestos, leadId: string
       const numero = numeros.get(m.entityId);
       const cual = `${numero ? `N° ${numero}` : "sin número"}${v ? ` (V${v.number})` : ""}`;
       const texto = m.status === "SENT"
-        ? `Se envió el seguimiento automático del presupuesto ${cual}`
-        : `No salió el seguimiento automático del presupuesto ${cual}`;
+        ? `Se envió el seguimiento automático de la cotización ${cual}`
+        : `No salió el seguimiento automático de la cotización ${cual}`;
       out.push({ id: `seguimiento-${m.id}`, fecha: m.createdAt, texto, href: `/presupuestos/${encodeURIComponent(m.entityId)}` });
     }
   }

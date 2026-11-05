@@ -134,7 +134,7 @@ export const MODULOS_DISPONIBLES: FichaModulo[] = [
     nombre: "¿Cuánto Cobro? para socios",
     resuelve:
       "Cada socio calcula en su portal cuánto cobrar un trabajo sin regalarlo: parte de lo que necesita ganar por mes para vivir de la fotografía, suma sus gastos fijos, reparte sus horas y le agrega los gastos de cada evento. Lo que carga es personal: la institución no lo ve. Si después crea su negocio en FotoOffice, se lleva el perfil armado.",
-    pantallas: ["¿Cuánto Cobro?, en el portal del socio", "Valor de la hora y presupuesto de un trabajo, con el desglose"],
+    pantallas: ["¿Cuánto Cobro?, en el portal del socio", "Valor de la hora y cotización de un trabajo, con el desglose"],
   },
   {
     key: FOTOLIBROS_SOCIO_MODULE_KEY,
@@ -235,9 +235,9 @@ export const MODULOS_DISPONIBLES: FichaModulo[] = [
   {
     key: SERVICE_LEADS_MODULE_KEY,
     cuadro: "11",
-    nombre: "Consultas de presupuesto",
+    nombre: "Consultas de cotización",
     resuelve:
-      "Un formulario público por tipo de evento —casamiento, quince, lo que arme— que compartís por donde quieras. La consulta entra con todos los datos que pediste y queda en una bandeja, con su historial, en vez de perderse entre mensajes de WhatsApp. El precio se lo ponés con Presupuestos.",
+      "Un formulario público por tipo de evento —casamiento, quince, lo que arme— que compartís por donde quieras. La consulta entra con todos los datos que pediste y queda en una bandeja, con su historial, en vez de perderse entre mensajes de WhatsApp. El precio se lo ponés con Cotizaciones.",
     pantallas: [
       "Formularios por tipo de evento",
       "Enlace para compartir",
@@ -247,11 +247,11 @@ export const MODULOS_DISPONIBLES: FichaModulo[] = [
   {
     key: "quotes",
     cuadro: "15",
-    nombre: "Presupuestos",
+    nombre: "Cotizaciones",
     resuelve:
-      "El presupuesto sale de la consulta, con los precios de tu catálogo o calculado con ¿Cuánto Cobro?. Se lo mandás por correo o WhatsApp con un enlace: el cliente lo ve, lo descarga y lo acepta ahí mismo, y la consulta pasa a ganada sola. Cada cambio después de enviarlo es una versión nueva, y tu equipo no ve tus costos.",
+      "La cotización sale de la consulta, con los precios de tu catálogo o calculada con ¿Cuánto Cobro?. Se la mandás por correo o WhatsApp con un enlace: el cliente la ve, la descarga y la acepta ahí mismo, y la consulta pasa a ganada sola. Cada cambio después de enviarla es una versión nueva, y tu equipo no ve tus costos.",
     pantallas: [
-      "Presupuestos por consulta",
+      "Cotizaciones por consulta",
       "Ítems de lista o calculados",
       "Enlace para que el cliente acepte",
       "Versiones y quién lo vio",
@@ -262,9 +262,9 @@ export const MODULOS_DISPONIBLES: FichaModulo[] = [
     cuadro: "20",
     nombre: "Pedidos",
     resuelve:
-      "El presupuesto aceptado se confirma como pedido con un clic: copia lo que se vendió, la fecha del evento y arma el plan de cuotas con la forma de pago que eligió el cliente. Ves qué cuota está pagada, cuál vence y cuál ya venció, y cada cobro entra a la Caja con su recibo.",
+      "La cotización aceptada se confirma como pedido con un clic: copia lo que se vendió, la fecha del evento y arma el plan de cuotas con la forma de pago que eligió el cliente. Ves qué cuota está pagada, cuál vence y cuál ya venció, y cada cobro entra a la Caja con su recibo.",
     pantallas: [
-      "Pedido desde el presupuesto aceptado",
+      "Pedido desde la cotización aceptada",
       "Plan de cuotas editable",
       "Saldo y cuotas vencidas",
       "Pedido cargado a mano",
@@ -463,9 +463,9 @@ export const BASE_DEL_SISTEMA: FichaModulo[] = [
   {
     key: "consultas",
     cuadro: "A1",
-    nombre: "Consultas y pedidos de presupuesto",
+    nombre: "Consultas y pedidos de cotización",
     resuelve:
-      "Un formulario público que cambia según lo que te piden. Si es una boda pregunta por los novios y las tres fechas; si son XV, por la quinceañera y el salón; si es un show, por la duración. La consulta entra a un tablero y la vas moviendo: nueva, contactada, presupuestada, interesada, ganada o perdida.",
+      "Un formulario público que cambia según lo que te piden. Si es una boda pregunta por los novios y las tres fechas; si son XV, por la quinceañera y el salón; si es un show, por la duración. La consulta entra a un tablero y la vas moviendo: nueva, contactada, cotizada, interesada, ganada o perdida.",
     pantallas: [
       "Nueve tipos de evento",
       "Sesiones: retrato, book, familia, embarazo, newborn, producto y once más",
@@ -621,6 +621,6 @@ export const PASOS = [
     icono: "puerta",
     titulo: "Se abre la puerta de afuera",
     texto:
-      "Tu espacio queda con un sitio público y un portal privado. Por el sitio entran los clientes a pedirte presupuesto o a anotarse a un curso; por el portal entran tus socios a ver su carnet y pagar la cuota.",
+      "Tu espacio queda con un sitio público y un portal privado. Por el sitio entran los clientes a pedirte una cotización o a anotarse a un curso; por el portal entran tus socios a ver su carnet y pagar la cuota.",
   },
 ] as const;

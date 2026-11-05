@@ -46,7 +46,7 @@ export function AccionesPresupuesto({
           className="fo-btn fo-btn-danger-outline text-sm"
           disabled={pendiente}
           onClick={() => {
-            if (window.confirm("¿Marcar este presupuesto como rechazado?")) correr(() => rechazarPresupuestoAction(presupuestoId));
+            if (window.confirm("¿Marcar esta cotización como rechazada?")) correr(() => rechazarPresupuestoAction(presupuestoId));
           }}
         >
           Marcar rechazado
