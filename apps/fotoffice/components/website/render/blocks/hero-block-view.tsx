@@ -32,6 +32,12 @@ const CONTENT_JUSTIFY: Record<HeroContentPosition, string> = { top: "justify-sta
 const ALIGN_CLASS: Record<HeroSlideAlign, string> = { left: "items-start text-left", center: "items-center text-center", right: "items-end text-right" };
 const OBJECT_POSITION: Record<HeroImageFocus, string> = { center: "center", top: "top", bottom: "bottom", left: "left", right: "right" };
 
+/** Sobre la foto entera el espacio libre crece con el ancho del sitio: el título y la bajada
+ * se achican con él (en `cqi`, el ancho del marco) para no pisar lo que rodea ese espacio. */
+const TITULO_SOBRE_FOTO = "[font-size:var(--wsite-title-size)] @min-[900px]:[font-size:min(var(--wsite-title-size),3.6cqi)]";
+const SUBTITULO_SOBRE_FOTO =
+  "[font-size:var(--wsite-subtitle-size)] @min-[900px]:[font-size:max(0.8125rem,min(var(--wsite-subtitle-size),1.4cqi))]";
+
 /** Subrayado a mano de las palabras del título marcadas con asteriscos. */
 function TituloConAcentos({ title }: { title: string }) {
   return (
@@ -251,9 +257,10 @@ export function HeroBlockView({ config, blockId, data }: { config: HeroBlockConf
             <div
               className={`relative flex flex-1 flex-col gap-4 w-full ${
                 entera
-                  ? // Con la foto entera, desde 1280 px de ancho del sitio (medido en el marco, así la vista previa
-                    // coincide) el texto se apoya sobre la mitad izquierda, delante de la foto.
-                    "px-6 py-12 @min-[1280px]:absolute @min-[1280px]:inset-y-0 @min-[1280px]:left-0 @min-[1280px]:z-10 @min-[1280px]:w-[54%] @min-[1280px]:pb-[2%] @min-[1280px]:pt-[6%] @min-[1280px]:pl-[7%] @min-[1280px]:pr-0"
+                  ? // Con la foto entera, desde 900 px de ancho del sitio (medido en el marco, así la vista previa
+                    // coincide) el texto se apoya sobre la mitad izquierda, delante de la foto. Más angosto
+                    // no entra en el espacio libre: va arriba, sobre el fondo de la página.
+                    "px-6 py-12 @min-[900px]:absolute @min-[900px]:inset-y-0 @min-[900px]:left-0 @min-[900px]:z-10 @min-[900px]:w-[54%] @min-[900px]:pb-[2%] @min-[900px]:pt-[6%] @min-[900px]:pl-[7%] @min-[900px]:pr-0"
                   : `px-6 py-16 sm:py-20 mx-auto ${slide.figureUrl ? "max-w-6xl" : "h-full max-w-4xl"}`
               } ${CONTENT_JUSTIFY[slide.contentPosition]} ${ALIGN_CLASS[slide.align]} ${slideHref ? "pointer-events-none [&_a]:pointer-events-auto" : ""}`}
             >
@@ -264,16 +271,16 @@ export function HeroBlockView({ config, blockId, data }: { config: HeroBlockConf
                 ) : null}
                 {/* Sobre la foto, título y subtítulo van en blanco; con texto oscuro, en los colores del sitio. */}
                 <h1
-                  className={oscuro ? undefined : "text-white"}
-                  style={{ ...levelStyle("title", { color: oscuro }), textWrap: "balance", letterSpacing: "var(--wsite-letter-spacing)" }}
+                  className={`${oscuro ? "" : "text-white"} ${entera ? TITULO_SOBRE_FOTO : ""}`}
+                  style={{ ...levelStyle("title", { color: oscuro }), ...(entera ? { fontSize: undefined } : {}), textWrap: "balance", letterSpacing: "var(--wsite-letter-spacing)" }}
                 >
                   <TituloConAcentos title={slide.title || "Título principal"} />
                 </h1>
                 {slide.subtitle ? (
                   <p
                     // La bajada de un artículo puede ser larga: tres renglones y "…".
-                    className={`max-w-2xl leading-relaxed whitespace-pre-line ${oscuro ? "" : "text-white/90"} ${slideHref ? "line-clamp-3" : ""}`}
-                    style={{ ...levelStyle("subtitle", { color: oscuro }), ...(oscuro ? { opacity: 0.88 } : {}) }}
+                    className={`max-w-2xl leading-relaxed whitespace-pre-line ${entera ? SUBTITULO_SOBRE_FOTO : ""} ${oscuro ? "" : "text-white/90"} ${slideHref ? "line-clamp-3" : ""}`}
+                    style={{ ...levelStyle("subtitle", { color: oscuro }), ...(entera ? { fontSize: undefined } : {}), ...(oscuro ? { opacity: 0.88 } : {}) }}
                   >
                     {slide.subtitle}
                   </p>
