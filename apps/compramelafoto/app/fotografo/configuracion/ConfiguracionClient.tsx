@@ -13,6 +13,7 @@ import StatusOverlay from "@/components/layout/StatusOverlay";
 import { ensurePhotographerSession } from "@/lib/photographer-session-client";
 import { feeFromBase } from "@/lib/pricing/fee-formula";
 import MercadoPagoIntegration from "@/components/mercadopago/MercadoPagoIntegration";
+import CobrosInternacionalesSection from "@/components/fotografo/CobrosInternacionalesSection";
 import ReferidosTab from "@/components/referrals/ReferidosTab";
 import ConfigLegacyTabNotice, { isConfigLegacyTab } from "@/components/fotografo/ConfigLegacyTabNotice";
 import PreferenciasMarcaSection from "@/components/fotografo/PreferenciasMarcaSection";
@@ -160,6 +161,7 @@ export default function ConfiguracionClient({
   const searchParams = useSearchParams();
   const [photographer, setPhotographer] = useState<PhotographerData | null>(null);
   const [activeTab, setActiveTab] = useState(defaultTab || "datos");
+  const [intlAvailable, setIntlAvailable] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -1672,6 +1674,9 @@ export default function ConfiguracionClient({
 
             {/* Tab: Mercado Pago */}
             {activeTab === "mercadopago" && (
+              <>
+              <CobrosInternacionalesSection onAvailability={setIntlAvailable} />
+              {!intlAvailable && (
               <Card className="space-y-6">
                 <h2 className="text-xl font-medium text-[#1a1a1a]">Mercado Pago</h2>
                 <MercadoPagoIntegration
@@ -1686,6 +1691,8 @@ export default function ConfiguracionClient({
                   onSuccess={setSuccess}
                 />
               </Card>
+              )}
+              </>
             )}
 
             {/* Tab: Upselling */}

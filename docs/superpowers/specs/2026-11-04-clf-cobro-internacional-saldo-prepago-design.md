@@ -199,14 +199,15 @@ precios (los valores en pesos no se convierten: se le pide cargarlos). Decisión
 ### 6.7 Cotizaciones
 
 - Una tarea diaria trae la cotización de cada moneda usada contra el dólar desde un servicio
-  público de cotizaciones y la guarda (moneda, valor, fecha, fuente).
+  público de cotizaciones y la guarda (moneda, valor de compra, valor de venta, fecha, fuente).
 - Cada venta usa la cotización guardada más reciente y **la congela en el pedido**; nunca se
   recalcula.
 - Si la cotización más reciente tiene más de 48 h, aviso al administrador. Se sigue usando la
   última disponible.
 - Venezuela vende en USD, así que no necesita conversión.
-- Para pasar dólares a pesos argentinos (referidos, 6.8) se usa el dólar oficial del Banco Nación
-  (vendedor).
+- Se guardan los dos valores cuando el servicio los da (**compra** y **venta**); si da uno solo, se
+  guarda ese en los dos. Para pesos argentinos se usa el dólar oficial del Banco Nación (compra y
+  venta). Qué valor se usa en cada caso lo fija la regla de 6.8 bis.
 
 ### 6.8 Referidos
 
@@ -216,11 +217,31 @@ año de vigencia de la atribución.
 - **Referidor internacional** (de una venta internacional o argentina): se acredita en su
   **saldo prepago en dólares** como movimiento "crédito de referido". Le sirve para pagar sus
   propias comisiones. No se puede retirar.
-- **Referidor argentino** de un fotógrafo internacional: el crédito en dólares se convierte a pesos
-  (6.7) y se registra como una `ReferralEarning` normal en pesos. Así entra en el mecanismo que ya
+- **Organizador internacional** con comisión sobre una venta (eventos): igual que el referidor
+  internacional, su parte va a su **saldo en dólares**. No se paga en dinero.
+- **Referidor u organizador argentino** de un fotógrafo internacional: el crédito se convierte a
+  pesos (6.8 bis) y se registra como una `ReferralEarning` normal en pesos. Así entra en el mecanismo que ya
   existe: **se descuenta de la comisión de sus propias ventas por Mercado Pago** o lo pide por
   CBU como hoy.
 - Las ventas argentinas con referidor argentino siguen exactamente igual.
+
+### 6.8 bis Cambio interno de moneda (pedido del owner, 2026-11-05)
+
+DNX hace el cambio por dentro: cuando lo que se acredita o se descuenta está en una moneda y el
+saldo de la persona en otra, se convierte. **Siempre se usa el valor que más le conviene a la
+plataforma.**
+
+| Caso | Dirección | Valor que se usa | Por qué conviene a DNX |
+|------|-----------|------------------|------------------------|
+| Comisión de una venta en moneda local que se descuenta del saldo en dólares | local → USD | **compra** (menos moneda local por dólar) | se descuentan más dólares |
+| Crédito de referido u organizador internacional por una venta en moneda local | local → USD | **venta** (más moneda local por dólar) | se acreditan menos dólares |
+| Crédito de referido u organizador internacional por una venta argentina | ARS → USD | **venta** del oficial Banco Nación | se acreditan menos dólares |
+| Crédito de referido u organizador argentino por una venta internacional | USD → ARS | **compra** del oficial Banco Nación | se acreditan menos pesos |
+
+- Si el servicio da un solo valor, se usa ese (no se agrega margen).
+- El pedido guarda los dos valores, cuál se usó y el resultado. Nunca se recalcula.
+- La regla vive en una sola función ("elegir cotización según quién cobra") con pruebas por cada
+  fila de la tabla.
 
 ### 6.9 Lo que ve el cliente
 
@@ -276,7 +297,11 @@ oculto hasta la etapa 7).
   existen).
 - Venezuela vende en USD por PayPal.
 - La compra en curso puede dejar el saldo negativo.
-- Referidor argentino recibe el crédito en pesos al dólar oficial del Banco Nación.
+- Referidor u organizador argentino recibe el crédito en pesos al dólar oficial **comprador** del
+  Banco Nación (regla 6.8 bis, que reemplaza la idea anterior de usar el vendedor).
+- Si el servicio de cotizaciones da un solo valor, se usa sin margen agregado.
+- Un organizador del exterior que no es fotógrafo acumula su crédito en dólares igual; lo puede usar
+  si después vende como fotógrafo. No se retira.
 - Fotógrafos sin país cargado se tratan como argentinos.
 - Montos en centavos para monedas que no sean `ARS`.
 - Devoluciones detectadas por revisión diaria durante 30 días; después, ajuste manual.
