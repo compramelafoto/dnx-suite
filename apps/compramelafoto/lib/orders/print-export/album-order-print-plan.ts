@@ -12,7 +12,8 @@ import { safeFilename } from "@/lib/safe-filename";
 import { formatBuyerContactForPhotographer } from "@/lib/orders/resolve-album-order-buyer-contact";
 import type { PrintExportFile, PrintExportPlan } from "./stream-print-export-zip";
 import { chosenProductNameFromMetadata, resolveExportProductName } from "./export-product-name";
-import { loadOrderDesigns, photoIdsInDesigns } from "./order-designs";
+import { copiasFueraDelDiseno } from "./copias-fuera-del-diseno";
+import { loadOrderDesigns } from "./order-designs";
 
 export type PlanResult = { ok: true; plan: PrintExportPlan } | { ok: false; status: number; error: string };
 
@@ -132,8 +133,10 @@ export async function loadAlbumOrderPrintPlan(orderId: number, user: PrintExport
   // Productos con plantilla (carpeta escolar, librito): se imprimen como el PDF del diseño,
   // no como las fotos sueltas que lo forman.
   const designs = await loadOrderDesigns(order.id);
-  const enDiseno = photoIdsInDesigns(designs);
-  const sueltas = order.items.filter((it) => !enDiseno.has(it.photoId));
+  const sueltas = copiasFueraDelDiseno(
+    order.items,
+    designs.flatMap((d) => d.photoIds),
+  );
   if (sueltas.length === 0 && designs.length === 0) {
     return { ok: false, status: 400, error: "Este pedido no tiene ítems de impresión" };
   }
