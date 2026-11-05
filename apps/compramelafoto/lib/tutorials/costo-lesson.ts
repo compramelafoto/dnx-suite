@@ -13,6 +13,6 @@ export const COSTO_LESSON: CourseExtraLesson = {
   title: "¿Cuánto cuesta ComprameLaFoto?",
   audience: "Fotógrafo",
   summary: "Cero pesos por mes: un 15 % sobre lo que vendés, que paga el cliente.",
-  videoUrl: null,
+  videoUrl: "https://youtu.be/7lRRK876R1Q",
   detail: COSTO_LESSON_DETAIL,
 };

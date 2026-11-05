@@ -12,4 +12,4 @@ paga. Se sube **una sola vez** a YouTube (canal DNX ESTUDIO) y se suma a cada li
 
 | Video | Estado | YouTube |
 |---|---|---|
-| 1-B ¿Cuánto cuesta ComprameLaFoto? | Listo para subir | — |
+| 1-B ¿Cuánto cuesta ComprameLaFoto? | [público](https://youtu.be/7lRRK876R1Q), 2.º en las listas escolar y turismo | clase 1-B en los dos cursos |
