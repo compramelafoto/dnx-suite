@@ -5,8 +5,7 @@ import { ensureAlbumPhotosQueuedForHiddenMode } from "@/lib/hidden-album/prepare
 import { requireAuth } from "@/lib/auth";
 import { AlbumMode, EventType, OrganizerCommissionAppliesTo, Role } from "@/lib/prisma";
 import crypto from "crypto";
-import { currencyForNewAlbum } from "@/lib/international/album-currency";
-import { isInternationalEnabled } from "@/lib/international/flag";
+import { resolveNewAlbumCurrency } from "@/lib/international/album-currency";
 import { TERMS_VERSION } from "@/lib/terms/photographerTerms";
 import { encodeGeohash } from "@/lib/geo";
 import { eventPhotographerAlbumVisibilityForEventJoin } from "@/lib/events/event-photographer-album-visibility";
@@ -63,14 +62,6 @@ async function photographerHasActiveProducts(userId: number): Promise<boolean> {
 }
 
 // GET: Listar álbumes del fotógrafo autenticado
-/** Moneda del álbum nuevo. Con el interruptor apagado no consulta nada y devuelve "ARS". */
-async function resolveNewAlbumCurrency(userId: number): Promise<string> {
-  const enabled = isInternationalEnabled();
-  if (!enabled) return currencyForNewAlbum(null, false);
-  const owner = await prisma.user.findUnique({ where: { id: userId }, select: { countryCode: true } });
-  return currencyForNewAlbum(owner?.countryCode ?? null, true);
-}
-
 export async function GET(req: NextRequest) {
   try {
     const { error, user } = await requireAuth([Role.PHOTOGRAPHER, Role.LAB_PHOTOGRAPHER]);
