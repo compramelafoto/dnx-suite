@@ -106,6 +106,8 @@ export function HeroBlockView({ config, blockId, data }: { config: HeroBlockConf
   // es más alto que el mínimo del banner, el banner crece en vez de cortarlo. En el carrusel las
   // placas se apilan una sobre otra y necesitan ir posicionadas.
   const enFlujo = !isCarousel;
+  // Foto entera: la altura la da la propia foto, así que no se impone el alto mínimo del banner.
+  const esEntera = (slide: HeroRenderSlide) => enFlujo && slide.imageLayout === "whole" && !!slide.imageUrl;
   const forcedIndex = forcedSlideId ? slides.findIndex((s) => s.id === forcedSlideId) : -1;
   const effectiveIndex = forcedIndex >= 0 ? forcedIndex : Math.min(activeIndex, Math.max(slides.length - 1, 0));
 
@@ -179,7 +181,7 @@ export function HeroBlockView({ config, blockId, data }: { config: HeroBlockConf
 
   return (
     <section
-      className={`relative overflow-hidden ${HEIGHT_CLASS[config.heightPreset]}`}
+      className={`relative overflow-hidden ${slides[0] && esEntera(slides[0]) ? "" : HEIGHT_CLASS[config.heightPreset]}`}
       style={{ backgroundColor: "var(--wsite-secondary)" }}
       role={isCarousel ? "region" : undefined}
       aria-roledescription={isCarousel ? "carrusel" : undefined}
@@ -200,6 +202,7 @@ export function HeroBlockView({ config, blockId, data }: { config: HeroBlockConf
         if (!isActive) style.pointerEvents = "none";
         const slideHref = enlaceDeBoton(slide.href);
         const oscuro = slide.textTone === "dark";
+        const entera = esEntera(slide);
         const href = slide.showButton && slide.buttonLabel ? enlaceDeBoton(slide.buttonUrl, data?.paginasDelSitio) : null;
         const href2 = slide.showSecondaryButton && slide.secondaryButtonLabel ? enlaceDeBoton(slide.secondaryButtonUrl, data?.paginasDelSitio) : null;
         // Sobre la foto, el contorno va en blanco; sobre fondo claro, en el color del sitio.
@@ -224,7 +227,7 @@ export function HeroBlockView({ config, blockId, data }: { config: HeroBlockConf
               className="absolute inset-0"
               style={{
                 backgroundColor: "var(--wsite-secondary)",
-                backgroundImage: slide.imageUrl ? `url(${slide.imageUrl})` : undefined,
+                backgroundImage: slide.imageUrl && !entera ? `url(${slide.imageUrl})` : undefined,
                 backgroundSize: "cover",
                 backgroundPosition: OBJECT_POSITION[slide.imageFocus],
               }}
@@ -245,9 +248,14 @@ export function HeroBlockView({ config, blockId, data }: { config: HeroBlockConf
               <a href={slideHref} className="absolute inset-0" tabIndex={-1} aria-hidden="true" />
             ) : null}
             <div
-              className={`relative flex flex-1 flex-col gap-4 px-6 py-16 sm:py-20 mx-auto w-full ${slide.figureUrl ? "max-w-6xl" : "h-full max-w-4xl"} ${CONTENT_JUSTIFY[slide.contentPosition]} ${ALIGN_CLASS[slide.align]} ${slideHref ? "pointer-events-none [&_a]:pointer-events-auto" : ""}`}
+              className={`relative flex flex-1 flex-col gap-4 w-full ${
+                entera
+                  ? // Con la foto entera, desde la computadora el texto se apoya sobre la mitad izquierda.
+                    "px-6 py-12 xl:absolute xl:inset-y-0 xl:left-0 xl:w-[54%] xl:pb-[2%] xl:pt-[6%] xl:pl-[7%] xl:pr-0"
+                  : `px-6 py-16 sm:py-20 mx-auto ${slide.figureUrl ? "max-w-6xl" : "h-full max-w-4xl"}`
+              } ${CONTENT_JUSTIFY[slide.contentPosition]} ${ALIGN_CLASS[slide.align]} ${slideHref ? "pointer-events-none [&_a]:pointer-events-auto" : ""}`}
             >
-              <div className={`flex flex-col gap-4 ${ALIGN_CLASS[slide.align]} ${slide.figureUrl ? "md:max-w-[52%]" : "w-full"}`}>
+              <div className={`flex flex-col gap-4 ${ALIGN_CLASS[slide.align]} ${slide.figureUrl && !entera ? "md:max-w-[52%]" : "w-full"}`}>
                 {slide.logoUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={slide.logoUrl} alt="Logo" className="mb-2 h-auto w-60 max-w-full sm:w-80" />
@@ -294,6 +302,10 @@ export function HeroBlockView({ config, blockId, data }: { config: HeroBlockConf
                 />
               ) : null}
             </div>
+            {entera ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={slide.imageUrl} alt={slide.imageAlt ?? ""} className="relative block h-auto w-full" />
+            ) : null}
           </div>
         );
       })}

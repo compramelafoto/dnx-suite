@@ -373,6 +373,12 @@ describe("HERO — portada con figura, logo y segundo botón", () => {
     expect(parsed.textTone).toBeUndefined();
   });
 
+  it("la foto entera se guarda; un modo desconocido cae a vacío (cubrir)", () => {
+    const base = { id: "a", imageFocus: "center", showButton: false, buttonStyle: "solid", align: "left", contentPosition: "center", overlay: "none" };
+    expect(heroSlideSchema.parse({ ...base, imageLayout: "whole" }).imageLayout).toBe("whole");
+    expect(heroSlideSchema.parse({ ...base, imageLayout: "mosaico" }).imageLayout).toBeUndefined();
+  });
+
   it("subraya las palabras entre asteriscos y deja el resto como texto", () => {
     expect(heroTitleSegments("Un espacio para *crear*, aprender y *compartir*.")).toEqual([
       { text: "Un espacio para ", accent: false },
