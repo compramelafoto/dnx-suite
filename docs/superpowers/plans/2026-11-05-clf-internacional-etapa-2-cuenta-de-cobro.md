@@ -364,3 +364,20 @@
 - Purgar las credenciales `INACTIVE` de más de 30 días (etapa 5).
 - Capturas en el instructivo.
 - Bloquear la venta sin cuenta conectada (etapa 5).
+
+## Resultado y pendientes que heredan las etapas siguientes (2026-11-05)
+
+Hecho: tabla `ClfIntlCollectionAccount` aplicada y registrada en las 6 bases; probado en navegador con base local descartable (Mercado Pago real rechaza token inventado; token TEST real se guarda cifrado, se prueba y se desconecta quedando INACTIVE; PayPal sandbox rechaza credenciales inventadas; Argentina ve la pantalla de siempre; 375 px sin desborde).
+
+**Obligatorio en la etapa 5 (venta):**
+- `getActiveCollectionAccount` hoy no mira el interruptor, el país ni el entorno: la etapa 5 debe verificar acceso y que `row.environment === resolveIntlPaymentsEnvironment()` antes de cobrar.
+- Revisar que el bloqueo actual "sin Mercado Pago vinculado no podés subir fotos ni vender" no frene a fotógrafos internacionales con cuenta propia conectada.
+- Purga de credenciales `INACTIVE` de más de 30 días y de credenciales huérfanas (si falla la transacción de conectar, o se borra el usuario).
+- `recheck` fallido no deja rastro (no actualiza estado); y no revalida el formato para el entorno actual.
+
+**Antes de encender (etapa 7):**
+- Cargar `DNX_FINANCIAL_CREDENTIAL_MASTER_KEY` en Vercel de CLF (con OK del owner). Sin ella la pantalla responde 503.
+- `CLF_INTL_PAYMENTS_ENV` debe ir en mayúsculas (`PROD`/`TEST`); en minúsculas se ignora.
+- Renombrar el ítem de menú "Mercado Pago" para fotógrafos que cobran con PayPal.
+- Fotógrafo internacional con `mpAccessToken` argentino viejo: hoy deja de ver la tarjeta argentina; decidir qué mostrar.
+- Mensajes de PayPal dicen "app Live" también en TEST (cosmético).
