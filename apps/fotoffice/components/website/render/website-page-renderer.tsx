@@ -6,6 +6,7 @@ import { anchorMapForBlocks } from "@/lib/website/navigation";
 import type { WebsiteDynamicData } from "@/lib/website/dynamic-data";
 import { BlockErrorBoundary } from "./block-error-boundary";
 import { WebsiteBlockRenderer } from "./website-block-renderer";
+import { DoodleMargin } from "./doodle-margin";
 
 /**
  * Renderer real de una página de `WebsiteSections`: recibe los bloques de una página y los
@@ -42,6 +43,7 @@ export function WebsitePageRenderer({
   const animationClass =
     designPresets.animationPreset === "none" ? "" : designPresets.animationPreset === "soft" ? "wsite-anim-soft" : "wsite-anim-dynamic";
   const anchors = anchorMapForBlocks(blocks);
+  const conDibujos = designPresets.decorationPreset === "doodles";
 
   return (
     <div
@@ -62,10 +64,11 @@ export function WebsitePageRenderer({
           <BlockErrorBoundary key={block.id}>
             <div
               id={anchors.get(block.id)}
-              className={animationClass}
+              className={`${animationClass} ${conDibujos ? "relative" : ""}`}
               style={animationClass ? { animationDelay: `${Math.min(i, 5) * 80}ms` } : undefined}
             >
               <WebsiteBlockRenderer block={block} data={dynamicData} />
+              {conDibujos && block.type !== "HERO" ? <DoodleMargin index={i} /> : null}
             </div>
           </BlockErrorBoundary>
         ))

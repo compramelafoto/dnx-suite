@@ -91,7 +91,35 @@ export function HeroSlideEditor({
           ]}
         />
 
-        <TextField label="Título" value={editingSlide.title ?? ""} onChange={(v) => onChange(updateHeroSlide(config, editingSlide.id, { title: v }))} />
+        <ImageUploadField
+          name="_hero_slide_figure"
+          presetKey="websiteHeroImage"
+          label="Figura recortada (opcional)"
+          initialUrl={editingSlide.figureUrl ?? null}
+          onUploaded={(url) => onChange(updateHeroSlide(config, editingSlide.id, { figureUrl: url ?? undefined }))}
+        />
+        {editingSlide.figureUrl ? (
+          <TextField
+            label="Texto alternativo de la figura"
+            value={editingSlide.figureAlt ?? ""}
+            onChange={(v) => onChange(updateHeroSlide(config, editingSlide.id, { figureAlt: v }))}
+            helper="Una foto PNG sin fondo (por ejemplo, una persona). Se apoya abajo a la derecha y nunca se corta."
+          />
+        ) : null}
+        <ImageUploadField
+          name="_hero_slide_logo"
+          presetKey="websiteHeroImage"
+          label="Logo arriba del título (opcional)"
+          initialUrl={editingSlide.logoUrl ?? null}
+          onUploaded={(url) => onChange(updateHeroSlide(config, editingSlide.id, { logoUrl: url ?? undefined }))}
+        />
+
+        <TextField
+          label="Título"
+          value={editingSlide.title ?? ""}
+          onChange={(v) => onChange(updateHeroSlide(config, editingSlide.id, { title: v }))}
+          helper="Poné una palabra entre asteriscos (*crear*) para subrayarla con un trazo a mano."
+        />
         <TextAreaField label="Subtítulo" value={editingSlide.subtitle ?? ""} onChange={(v) => onChange(updateHeroSlide(config, editingSlide.id, { subtitle: v }))} rows={2} />
 
         <ToggleField label="Mostrar botón" checked={editingSlide.showButton} onChange={(v) => onChange(updateHeroSlide(config, editingSlide.id, { showButton: v }))} />
@@ -113,6 +141,27 @@ export function HeroSlideEditor({
           </>
         ) : null}
 
+        <ToggleField
+          label="Mostrar segundo botón"
+          checked={editingSlide.showSecondaryButton ?? false}
+          onChange={(v) => onChange(updateHeroSlide(config, editingSlide.id, { showSecondaryButton: v }))}
+        />
+        {editingSlide.showSecondaryButton ? (
+          <div className="grid grid-cols-2 gap-3">
+            <TextField label="Texto del segundo botón" value={editingSlide.secondaryButtonLabel ?? ""} onChange={(v) => onChange(updateHeroSlide(config, editingSlide.id, { secondaryButtonLabel: v }))} />
+            <TextField label="Enlace del segundo botón" value={editingSlide.secondaryButtonUrl ?? ""} onChange={(v) => onChange(updateHeroSlide(config, editingSlide.id, { secondaryButtonUrl: v }))} />
+          </div>
+        ) : null}
+
+        <SelectField
+          label="Color del texto"
+          value={editingSlide.textTone ?? "light"}
+          onChange={(v) => onChange(updateHeroSlide(config, editingSlide.id, { textTone: v as HeroSlide["textTone"] }))}
+          options={[
+            { value: "light", label: "Claro (sobre fotos)" },
+            { value: "dark", label: "Oscuro (sobre fondos claros)" },
+          ]}
+        />
         <SelectField
           label="Alineación del texto"
           value={editingSlide.align}

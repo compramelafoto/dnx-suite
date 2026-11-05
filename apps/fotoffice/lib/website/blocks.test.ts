@@ -15,6 +15,8 @@ import {
   type HeroBlock,
   type HeroBlockConfig,
   type WebsiteBlock,
+  heroSlideSchema,
+  heroTitleSegments,
 } from "./blocks";
 
 describe("parseWebsiteSections — parseo tolerante de sectionsJson", () => {
@@ -355,5 +357,33 @@ describe("vista del bloque TESTIMONIALS", () => {
     const { TestimonialsBlockView } = await import("@/components/website/render/blocks/testimonials-block-view");
     expect(TestimonialsBlockView({ config, blockId: "b1", data: { testimonios: { items: [uno], verTodosHref: "/w/x/testimonios", formularioHref: "/w/x/testimonio" } } })).not.toBeNull();
     expect(TestimonialsBlockView({ config, blockId: "b1" })).not.toBeNull();
+  });
+});
+
+describe("HERO — portada con figura, logo y segundo botón", () => {
+  it("una placa guardada antes sigue igual: los campos nuevos quedan vacíos", () => {
+    const parsed = heroSlideSchema.parse({ id: "a", imageFocus: "center", showButton: false, buttonStyle: "solid", align: "left", contentPosition: "center", overlay: "none" });
+    expect(parsed.textTone).toBeUndefined();
+    expect(parsed.figureUrl).toBeUndefined();
+    expect(parsed.showSecondaryButton).toBeUndefined();
+  });
+
+  it("un tono de texto desconocido cae a vacío (claro) en vez de romper la placa", () => {
+    const parsed = heroSlideSchema.parse({ id: "a", imageFocus: "center", showButton: false, buttonStyle: "solid", align: "left", contentPosition: "center", overlay: "none", textTone: "fucsia" });
+    expect(parsed.textTone).toBeUndefined();
+  });
+
+  it("subraya las palabras entre asteriscos y deja el resto como texto", () => {
+    expect(heroTitleSegments("Un espacio para *crear*, aprender y *compartir*.")).toEqual([
+      { text: "Un espacio para ", accent: false },
+      { text: "crear", accent: true },
+      { text: ", aprender y ", accent: false },
+      { text: "compartir", accent: true },
+      { text: ".", accent: false },
+    ]);
+  });
+
+  it("un asterisco suelto queda como texto", () => {
+    expect(heroTitleSegments("Precio * a confirmar")).toEqual([{ text: "Precio * a confirmar", accent: false }]);
   });
 });
