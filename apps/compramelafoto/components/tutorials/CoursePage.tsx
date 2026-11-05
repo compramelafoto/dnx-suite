@@ -41,7 +41,7 @@ export default async function CoursePage({ course }: { course: TutorialCourse })
         </header>
 
         <CoursePlayer
-          course={{ blocks: course.blocks, details: course.details, lessonCount: course.lessonCount }}
+          course={{ blocks: course.blocks, details: course.details, lessonCount: course.lessonCount, extras: course.extras }}
           videos={videos}
         />
 

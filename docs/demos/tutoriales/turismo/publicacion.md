@@ -27,11 +27,13 @@ explican como si el Split 1:N ya funcionara.
 | T06 | Los interesados: el turista deja su contacto | 0:43 | publicado | [público](https://youtu.be/Y6T5tmdwxZc) | clase 6 |
 | T07 | Subir las fotos del paseo | 0:41 | publicado | [público](https://youtu.be/QAklfcLxRI0) | clase 7 |
 | T08 | El turista encuentra sus fotos con una selfie | 0:40 | publicado | [público](https://youtu.be/LHJ9FIc0GJU) | clase 8 |
+| T09 | El turista compra y descarga sus fotos | 0:53 | publicado | [público](https://youtu.be/7yT2GcWfEEw) | clase 9 |
+| T10 | Empresas de turismo y agencias: cómo se organizan | 0:54 | publicado | [público](https://youtu.be/F4I7cImCNOc) | clase 10 |
+| T11 | La empresa de turismo crea el viaje y convoca fotógrafos | 1:05 | publicado | [público](https://youtu.be/815AXcdgu8g) | clase 11 |
+| T12 | La comisión de la empresa de turismo | 0:53 | publicado | [público](https://youtu.be/7OWt1FZm9lo) | clase 12 |
+| T13 | Postularte a un viaje como fotógrafo | 0:48 | publicado | [público](https://youtu.be/S0vgrzHLLnU) | clase 13 |
 
 La serie pasó a 13 clases (se sumó T10 «Empresas de turismo y agencias: cómo se organizan»).
 
-**Pendiente para cuando vuelva la cuota de YouTube (se agotó el 2026-11-04; se renueva a las 0 h del Pacífico, 5 h en
-Argentina):** subir T09 a T13 (copys y portadas listos), poner T01 primero en la lista, actualizar las descripciones de
-T02 a T08 («Clase N de 12» → «de 13») y la de la lista («12 clases»), y cargar T09 a T13 en `tutorials_turismo_course`.
-
-Los links están cargados en `tutorials_turismo_course` (producción). La página los muestra cuando se despliega el PR 941.
+T09 a T13 se subieron el 2026-11-05 a las 5:05. La lista quedó en orden (T01 primero y el 1-B, común a todos los
+cursos, segundo), las descripciones dicen «de 13» y los 13 links están en `tutorials_turismo_course` (producción).

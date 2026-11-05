@@ -24,6 +24,20 @@ export type CourseLessonDetail = {
   chapters: { at: number; label: string }[];
 };
 
+/**
+ * Un video que no es una clase numerada y va igual en todos los cursos (el 1-B, «¿Cuánto cuesta
+ * ComprameLaFoto?»). Se sube una sola vez a YouTube, así que su link vive en el código y no en el
+ * ajuste de cada curso.
+ */
+export type CourseExtraLesson = Omit<CourseLesson, "number"> & {
+  /** Lo que se lee en lugar del número («1-B») y el ancla del link (#clase-1b). */
+  label: string;
+  /** La clase numerada después de la cual se muestra. */
+  afterLesson: number;
+  videoUrl: string | null;
+  detail: CourseLessonDetail;
+};
+
 /** Número de clase → link de YouTube, tal como se guarda en SystemSettings. */
 export type CourseVideos = Record<number, string>;
 
@@ -38,6 +52,8 @@ export type TutorialCourse = {
   blocks: CourseBlock[];
   details: Record<number, CourseLessonDetail>;
   lessonCount: number;
+  /** Videos comunes a todos los cursos, intercalados entre las clases. */
+  extras: CourseExtraLesson[];
   /** Foto de la tarjeta del curso en /tutoriales (en /public). */
   cover: { src: string; alt: string };
   /** El recuadro del final de la página, antes de los botones. */
@@ -125,4 +141,48 @@ export function validateCourseVideos(
     videos[number] = trimmed;
   }
   return { videos };
+}
+
+/** Cada video del curso tal como se lista en la página: las clases numeradas y los comunes, en orden. */
+export type CourseEntry = Omit<CourseLesson, "number"> & {
+  /** Lo que va en el ancla (#clase-3, #clase-1b). */
+  key: string;
+  /** Lo que se lee en lugar del número: «3», «1-B». */
+  label: string;
+  /** El número de la clase; null en los videos comunes. */
+  number: number | null;
+  blockIndex: number;
+  detail: CourseLessonDetail | undefined;
+  videoUrl: string | null;
+};
+
+export function courseEntries(
+  course: Pick<TutorialCourse, "blocks" | "details" | "extras">,
+  videos: CourseVideos
+): CourseEntry[] {
+  return course.blocks.flatMap((block, blockIndex) =>
+    block.lessons.flatMap((lesson) => [
+      {
+        ...lesson,
+        key: String(lesson.number),
+        label: String(lesson.number),
+        blockIndex,
+        detail: course.details[lesson.number],
+        videoUrl: videos[lesson.number] ?? null,
+      },
+      ...course.extras
+        .filter((extra) => extra.afterLesson === lesson.number)
+        .map((extra) => ({
+          title: extra.title,
+          summary: extra.summary,
+          audience: extra.audience,
+          key: extra.label.toLowerCase().replace(/[^a-z0-9]/g, ""),
+          label: extra.label,
+          number: null,
+          blockIndex,
+          detail: extra.detail,
+          videoUrl: extra.videoUrl,
+        })),
+    ])
+  );
 }
