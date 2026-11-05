@@ -6,6 +6,8 @@ import { Role } from "@/lib/prisma";
 import crypto from "crypto";
 import { TERMS_VERSION } from "@/lib/terms/photographerTerms";
 import { encodeGeohash } from "@/lib/geo";
+import { currencyForNewAlbum } from "@/lib/international/album-currency";
+import { isInternationalEnabled } from "@/lib/international/flag";
 import { eventPhotographerAlbumVisibilityForEventJoin } from "@/lib/events/event-photographer-album-visibility";
 import {
   LAST_ALBUM_SCAN_PROTECTION_QUERY,
@@ -31,6 +33,14 @@ async function photographerHasActiveProducts(userId: number): Promise<boolean> {
 }
 
 // POST: Confirmar creación o unión (selectedEventId | selectedAlbumId | createNew)
+/** Moneda del álbum nuevo. Con el interruptor apagado no consulta nada y devuelve "ARS". */
+async function resolveNewAlbumCurrency(userId: number): Promise<string> {
+  const enabled = isInternationalEnabled();
+  if (!enabled) return currencyForNewAlbum(null, false);
+  const owner = await prisma.user.findUnique({ where: { id: userId }, select: { countryCode: true } });
+  return currencyForNewAlbum(owner?.countryCode ?? null, true);
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { error, user } = await requireAuth([Role.PHOTOGRAPHER, Role.LAB_PHOTOGRAPHER]);
@@ -124,6 +134,7 @@ export async function POST(req: NextRequest) {
       const eventAlbumVisibility = eventPhotographerAlbumVisibilityForEventJoin();
 
       const albumData: any = {
+        currency: await resolveNewAlbumCurrency(user.id),
         userId: user.id,
         creatorId: user.id,
         eventId: event.id,
@@ -247,6 +258,7 @@ export async function POST(req: NextRequest) {
     const eventSchedule = parseAlbumEventScheduleInput(scheduleInput);
 
     const albumData: any = {
+      currency: await resolveNewAlbumCurrency(user.id),
       userId: user.id,
       creatorId: user.id,
       title,
