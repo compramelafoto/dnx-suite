@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { resolveProfileCountryUpdate } from "./profile-country";
+import { hasCountryCodeRequest, resolveProfileCountryUpdate } from "./profile-country";
 
 test("sin país pedido no cambia nada", () => {
   const r = resolveProfileCountryUpdate({ requestedCode: undefined, currentCode: "AR", albumCount: 5 });
@@ -53,4 +53,9 @@ test("AR a MX sin álbumes es válido", () => {
 test("código no soportado devuelve 400", () => {
   const r = resolveProfileCountryUpdate({ requestedCode: "XX", currentCode: null, albumCount: 0 });
   assert.deepEqual(r, { ok: false, status: 400, error: "País no válido" });
+});
+
+test("null, undefined y vacío no cuentan como pedido de país", () => {
+  for (const v of [null, undefined, "", "  "]) assert.equal(hasCountryCodeRequest(v), false);
+  for (const v of ["MX", "XX", "ar"]) assert.equal(hasCountryCodeRequest(v), true);
 });

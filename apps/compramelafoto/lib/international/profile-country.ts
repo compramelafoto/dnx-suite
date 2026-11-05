@@ -37,3 +37,8 @@ export function resolveProfileCountryUpdate(input: {
 
   return { ok: true, countryCode: requested.code, countryName: requested.name };
 }
+
+/** ¿El pedido trae un país para escribir? null, undefined o vacío = no toca el país. */
+export function hasCountryCodeRequest(value: unknown): boolean {
+  return value != null && String(value).trim() !== "";
+}
