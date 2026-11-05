@@ -116,15 +116,17 @@ export async function PATCH(req: Request) {
       const countryRow = await prisma.user.findUnique({ where: { id }, select: { countryCode: true } });
       const albumCount = await prisma.album.count({ where: { userId: id } });
       const countryResult = resolveProfileCountryUpdate({
-        requestedCode: body.countryCode?.toString(),
+        requestedCode: body.countryCode == null ? undefined : body.countryCode.toString(),
         currentCode: countryRow?.countryCode ?? null,
         albumCount,
       });
       if (!countryResult.ok) {
         return NextResponse.json({ error: countryResult.error }, { status: countryResult.status });
       }
-      updateData.countryCode = countryResult.countryCode;
-      updateData.country = countryResult.countryName;
+      if (countryResult.countryCode) {
+        updateData.countryCode = countryResult.countryCode;
+        updateData.country = countryResult.countryName;
+      }
     } else if (body.country !== undefined) {
       updateData.country = body.country?.toString().trim() || null;
     }

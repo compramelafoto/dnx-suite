@@ -8,7 +8,7 @@ export type ProfileCountryResult =
  * Decide si el fotógrafo puede quedar con el país pedido.
  * - Sin país pedido: no cambia nada.
  * - País no soportado: 400.
- * - Cambiar un país ya cargado teniendo álbumes: 409 (lo hace el equipo a mano).
+ * - Cambiar el país (null cuenta como AR) teniendo álbumes: 409 (lo hace el equipo a mano).
  */
 export function resolveProfileCountryUpdate(input: {
   requestedCode: string | undefined;
@@ -25,7 +25,9 @@ export function resolveProfileCountryUpdate(input: {
   const requested = getCountry(requestedCode);
   if (!requested) return { ok: false, status: 400, error: "País no válido" };
 
-  if (currentCode && currentCode !== requested.code && albumCount > 0) {
+  // Sin país cargado, las cuentas existentes son de Argentina: cambiarlas con álbumes también se bloquea.
+  const effectiveCurrent = currentCode ?? "AR";
+  if (effectiveCurrent !== requested.code && albumCount > 0) {
     return {
       ok: false,
       status: 409,

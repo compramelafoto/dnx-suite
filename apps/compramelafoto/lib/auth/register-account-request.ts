@@ -49,8 +49,11 @@ export function buildRegisterAccountRequest(input: {
   accountType: RegisterAccountType;
   refCode: string | null;
   trainingMeta: TrainingMeta;
+  /** País ISO del fotógrafo (solo se manda en el alta de fotógrafo). */
+  countryCode?: string | null;
 }): RegisterAccountRequest {
   const { name, email, password, accountType, trainingMeta } = input;
+  const countryCode = input.countryCode?.trim() || null;
   const refCode = input.refCode?.trim() || null;
 
   if (accountType === "CUSTOMER") {
@@ -67,6 +70,7 @@ export function buildRegisterAccountRequest(input: {
       email,
       password,
       marketingOptIn: true,
+      ...(countryCode ? { countryCode } : {}),
       ...(refCode ? { ref: refCode } : {}),
       ...(trainingMeta
         ? {

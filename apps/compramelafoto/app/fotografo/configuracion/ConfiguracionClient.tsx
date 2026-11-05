@@ -791,7 +791,8 @@ export default function ConfiguracionClient({
         workingCoverageRadiusKm: serializeWorkingCoverageRadiusForApi(coverageRadiusKm),
       };
 
-      if (countryCode !== initialCountryCode) {
+      // Si ya tenía país y deja la opción vacía, no se manda (el servidor lo rechazaría).
+      if (countryCode !== initialCountryCode && countryCode) {
         updateData.countryCode = countryCode;
       }
 
@@ -817,7 +818,7 @@ export default function ConfiguracionClient({
       setTitularLastName(savedTitular.lastName);
       setName(data.name || "");
       setContactPhone(pickContactPhone(data.phone, data.whatsapp));
-      setInitialCountryCode(countryCode);
+      if (countryCode) setInitialCountryCode(countryCode);
       setSuccess("Datos guardados correctamente");
       setTimeout(() => setSuccess(null), 3000);
       if (userHasWorkLocation(data.latitude, data.longitude)) {

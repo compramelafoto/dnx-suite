@@ -17,8 +17,22 @@ test("AR a AR con álbumes es válido", () => {
   assert.deepEqual(r, { ok: true, countryCode: "AR", countryName: "Argentina" });
 });
 
-test("sin país actual a MX con álbumes es válido", () => {
+test("sin país actual (cuenta como AR) a MX con álbumes se rechaza con 409", () => {
   const r = resolveProfileCountryUpdate({ requestedCode: "MX", currentCode: null, albumCount: 2 });
+  assert.deepEqual(r, {
+    ok: false,
+    status: 409,
+    error: "Para cambiar el país con álbumes creados, escribinos y lo hacemos nosotros.",
+  });
+});
+
+test("sin país actual a AR con álbumes es válido", () => {
+  const r = resolveProfileCountryUpdate({ requestedCode: "AR", currentCode: null, albumCount: 2 });
+  assert.deepEqual(r, { ok: true, countryCode: "AR", countryName: "Argentina" });
+});
+
+test("sin país actual a MX sin álbumes es válido", () => {
+  const r = resolveProfileCountryUpdate({ requestedCode: "MX", currentCode: null, albumCount: 0 });
   assert.deepEqual(r, { ok: true, countryCode: "MX", countryName: "México" });
 });
 
