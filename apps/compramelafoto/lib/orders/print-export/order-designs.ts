@@ -64,8 +64,3 @@ export async function loadOrderDesigns(orderId: number): Promise<OrderDesign[]> 
     };
   });
 }
-
-/** Fotos que no van sueltas porque son parte de un diseño del pedido. */
-export function photoIdsInDesigns(designs: OrderDesign[]): Set<number> {
-  return new Set(designs.flatMap((d) => d.photoIds));
-}
