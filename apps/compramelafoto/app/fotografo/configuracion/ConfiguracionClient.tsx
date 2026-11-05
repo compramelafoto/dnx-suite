@@ -819,6 +819,8 @@ export default function ConfiguracionClient({
       setName(data.name || "");
       setContactPhone(pickContactPhone(data.phone, data.whatsapp));
       if (countryCode) setInitialCountryCode(countryCode);
+      // Si se guardó un país nuevo, el texto `country` pasa a ser el nombre que guardó el servidor.
+      if (updateData.countryCode) setCountry(data.country || "");
       setSuccess("Datos guardados correctamente");
       setTimeout(() => setSuccess(null), 3000);
       if (userHasWorkLocation(data.latitude, data.longitude)) {
