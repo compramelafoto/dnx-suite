@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
+import Select from "@/components/ui/Select";
+import { SUPPORTED_COUNTRIES } from "@/lib/international/countries";
 import Card from "@/components/ui/Card";
 import {
   getReferralCookie,
@@ -17,6 +19,7 @@ export default function PhotographerRegisterPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [countryCode, setCountryCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -30,6 +33,11 @@ export default function PhotographerRegisterPage() {
 
     if (!name.trim()) {
       setError("El nombre es requerido");
+      return;
+    }
+
+    if (!countryCode) {
+      setError("Elegí tu país");
       return;
     }
 
@@ -65,6 +73,7 @@ export default function PhotographerRegisterPage() {
           name,
           email,
           password,
+          countryCode,
           ...(ref ? { ref } : {}),
           ...(trainingMeta
             ? {
@@ -214,6 +223,25 @@ export default function PhotographerRegisterPage() {
                 <p className="text-xs text-[#6b7280] mt-1">
                   Mínimo 6 caracteres
                 </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-[#1a1a1a] mb-2">
+                  País
+                </label>
+                <Select
+                  value={countryCode}
+                  onChange={(e) => setCountryCode(e.target.value)}
+                  required
+                  disabled={loading}
+                >
+                  <option value="">Elegí tu país</option>
+                  {SUPPORTED_COUNTRIES.map((c) => (
+                    <option key={c.code} value={c.code}>
+                      {c.name}
+                    </option>
+                  ))}
+                </Select>
               </div>
 
               <div>

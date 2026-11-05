@@ -54,6 +54,7 @@ async function ensurePhotographerPrintProducts(userId: number, options: { carnet
 import { getAppConfig } from "@/lib/services/settingsService";
 import { getAuthUser } from "@/lib/auth";
 import { Role } from "@/lib/prisma";
+import { resolveProfileCountryUpdate } from "@/lib/international/profile-country";
 import { normalizeWorkingCoverageRadiusKm } from "@/lib/photographer/working-coverage-radius";
 import {
   normalizeDefaultDigitalPrice,
@@ -110,7 +111,21 @@ export async function PATCH(req: Request) {
       updateData.province = body.province?.toString().trim() || null;
     }
 
-    if (body.country !== undefined) {
+    if (body.countryCode !== undefined) {
+      // País con código ISO: valida contra los países soportados y bloquea el cambio con álbumes creados.
+      const countryRow = await prisma.user.findUnique({ where: { id }, select: { countryCode: true } });
+      const albumCount = await prisma.album.count({ where: { userId: id } });
+      const countryResult = resolveProfileCountryUpdate({
+        requestedCode: body.countryCode?.toString(),
+        currentCode: countryRow?.countryCode ?? null,
+        albumCount,
+      });
+      if (!countryResult.ok) {
+        return NextResponse.json({ error: countryResult.error }, { status: countryResult.status });
+      }
+      updateData.countryCode = countryResult.countryCode;
+      updateData.country = countryResult.countryName;
+    } else if (body.country !== undefined) {
       updateData.country = body.country?.toString().trim() || null;
     }
 
