@@ -61,6 +61,8 @@ model User {
   companyName                           String?
   companyOwner                          String?
   country                               String?
+  /// País ISO 3166-1; null = Argentina.
+  countryCode                           String?
   cuit                                  String?
   phone                                 String?
   province                              String?
@@ -2267,6 +2269,8 @@ model Album {
   albumProfitMarginPercent        Float?
   coverPhotoId                    Int?
   digitalPhotoPriceCents          Int?
+  /// Moneda de los precios. ARS = pesos enteros; otras = unidad mínima.
+  currency                        String                         @default("ARS")
   pickupBy                        PickupBy?
   selectedLabId                   Int?
   enableDigitalPhotos             Boolean                        @default(true)
@@ -3887,6 +3891,8 @@ model Order {
   status                    OrderStatus               @default(PENDING)
   /// Total en ARS enteros (no centavos). Se conserva el sufijo "Cents" por compatibilidad histórica.
   totalCents                Int                       @default(0)
+  /// Moneda del pedido. ARS = pesos enteros; otras = unidad mínima.
+  currency                  String                    @default("ARS")
   createdAt                 DateTime                  @default(now())
   /// Recargo por extensión en ARS enteros (no centavos).
   extensionSurchargeCents   Int                       @default(0)
