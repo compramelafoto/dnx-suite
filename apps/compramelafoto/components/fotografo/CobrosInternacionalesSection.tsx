@@ -6,6 +6,7 @@ import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import { DsField } from "@/components/ui/DsField";
 import type { CollectionAccountView } from "@/lib/international/collection-access";
+import { getCountry } from "@/lib/international/countries";
 import IntlCollectionInstructions from "@/components/fotografo/IntlCollectionInstructions";
 
 type Provider = "MERCADOPAGO_OWN" | "PAYPAL_OWN";
@@ -125,6 +126,11 @@ export default function CobrosInternacionalesSection({
         <div className="space-y-3 rounded-lg border border-[#e5e7eb] bg-[#f9fafb] p-4 text-[#1a1a1a]">
           {account.accountLabel ? <p className="break-words font-medium">{account.accountLabel}</p> : null}
           <p className="text-sm">Termina en ···{account.secretLast4}</p>
+          {account.accountCountryCode ? (
+            <p className="text-sm">
+              País de la cuenta: {getCountry(account.accountCountryCode)?.name ?? account.accountCountryCode}
+            </p>
+          ) : null}
           <p className="text-sm text-[#6b7280]">Conectada el {formatDate(account.connectedAt)}</p>
           {account.lastCheckedAt ? (
             <p className="text-sm text-[#6b7280]">Última comprobación {formatDate(account.lastCheckedAt)}</p>

@@ -28176,6 +28176,7 @@ model FotofficeEventoInscripto {
 }
 
 /// CLF internacional: cuenta de cobro propia del fotógrafo (MP de su país o PayPal). El secreto vive cifrado en DnxEncryptedCredential.
+/// El índice único parcial "ClfIntlCollectionAccount_one_active_per_user" (una sola fila ACTIVE por userId) vive solo en la migración SQL 20270127090000_clf_intl_collection_account porque Prisma no puede expresarlo: no lo elimines si `prisma migrate diff` lo propone.
 model ClfIntlCollectionAccount {
   id                 String    @id @default(cuid())
   userId             Int

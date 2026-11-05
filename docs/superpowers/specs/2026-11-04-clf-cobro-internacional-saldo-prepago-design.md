@@ -199,7 +199,7 @@ precios (los valores en pesos no se convierten: se le pide cargarlos). Decisión
 ### 6.7 Cotizaciones
 
 - Una tarea diaria trae la cotización de cada moneda usada contra el dólar desde un servicio
-  público de cotizaciones y la guarda (moneda, valor, fecha, fuente).
+  público de cotizaciones y la guarda (moneda, valor de compra, valor de venta, fecha, fuente).
 - Cada venta usa la cotización guardada más reciente y **la congela en el pedido**; nunca se
   recalcula.
 - Si la cotización más reciente tiene más de 48 h, aviso al administrador. Se sigue usando la
