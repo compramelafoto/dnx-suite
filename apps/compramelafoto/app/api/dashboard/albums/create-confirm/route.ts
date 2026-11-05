@@ -6,6 +6,7 @@ import { Role } from "@/lib/prisma";
 import crypto from "crypto";
 import { TERMS_VERSION } from "@/lib/terms/photographerTerms";
 import { encodeGeohash } from "@/lib/geo";
+import { resolveNewAlbumCurrency } from "@/lib/international/album-currency";
 import { eventPhotographerAlbumVisibilityForEventJoin } from "@/lib/events/event-photographer-album-visibility";
 import {
   LAST_ALBUM_SCAN_PROTECTION_QUERY,
@@ -124,6 +125,7 @@ export async function POST(req: NextRequest) {
       const eventAlbumVisibility = eventPhotographerAlbumVisibilityForEventJoin();
 
       const albumData: any = {
+        currency: await resolveNewAlbumCurrency(user.id),
         userId: user.id,
         creatorId: user.id,
         eventId: event.id,
@@ -247,6 +249,7 @@ export async function POST(req: NextRequest) {
     const eventSchedule = parseAlbumEventScheduleInput(scheduleInput);
 
     const albumData: any = {
+      currency: await resolveNewAlbumCurrency(user.id),
       userId: user.id,
       creatorId: user.id,
       title,

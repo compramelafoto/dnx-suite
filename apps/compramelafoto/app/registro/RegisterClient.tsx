@@ -15,6 +15,7 @@ import {
   parseAccountType,
   type RegisterAccountType,
 } from "@/lib/auth/register-account-request";
+import { SUPPORTED_COUNTRIES } from "@/lib/international/countries";
 import { clearReferralCookies } from "@/lib/referral-cookie";
 
 export default function RegisterClient() {
@@ -22,6 +23,7 @@ export default function RegisterClient() {
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState<"idle" | "submitting">("idle");
   const [error, setError] = useState<string | null>(null);
+  const [countryCode, setCountryCode] = useState("");
   const [refCode, setRefCode] = useState<string | null>(null);
   const [accountType, setAccountType] = useState<RegisterAccountType>(() =>
     parseAccountType(searchParams?.get("tipo") ?? null)
@@ -63,6 +65,12 @@ export default function RegisterClient() {
       return;
     }
 
+    if (accountType === "PHOTOGRAPHER" && !countryCode) {
+      setError("Elegí tu país.");
+      setLoading("idle");
+      return;
+    }
+
     try {
       const { endpoint, body } = buildRegisterAccountRequest({
         name,
@@ -71,6 +79,7 @@ export default function RegisterClient() {
         accountType,
         refCode,
         trainingMeta,
+        countryCode,
       });
       const res = await fetch(endpoint, {
         method: "POST",
@@ -119,6 +128,7 @@ export default function RegisterClient() {
       brand={compramelafotoAuthBrand}
       onSubmit={handleSubmit}
       hiddenFields={
+        <>
         <fieldset
           data-dnx-auth-slot="accountType"
           style={{ border: "none", margin: 0, padding: 0 }}
@@ -179,6 +189,45 @@ export default function RegisterClient() {
             })}
           </div>
         </fieldset>
+        {accountType === "PHOTOGRAPHER" ? (
+          <label
+            style={{ display: "grid", gap: "0.35rem", fontFamily: "var(--auth-font)" }}
+          >
+            <span
+              style={{
+                fontSize: "0.875rem",
+                fontWeight: 600,
+                color: "var(--auth-text-primary)",
+              }}
+            >
+              País
+            </span>
+            <select
+              name="countryCode"
+              value={countryCode}
+              onChange={(e) => setCountryCode(e.target.value)}
+              disabled={submitting}
+              required
+              style={{
+                padding: "0.625rem 0.75rem",
+                borderRadius: "var(--auth-radius)",
+                border: "1px solid var(--auth-border)",
+                background: "transparent",
+                color: "var(--auth-text-primary)",
+                fontFamily: "var(--auth-font)",
+                fontSize: "0.9375rem",
+              }}
+            >
+              <option value="">Elegí tu país</option>
+              {SUPPORTED_COUNTRIES.map((c) => (
+                <option key={c.code} value={c.code}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
+        </>
       }
       googleHref={googleHref}
       error={error}

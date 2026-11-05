@@ -18,6 +18,7 @@ import ConfigLegacyTabNotice, { isConfigLegacyTab } from "@/components/fotografo
 import PreferenciasMarcaSection from "@/components/fotografo/PreferenciasMarcaSection";
 import PerfilDatosSection from "@/components/fotografo/PerfilDatosSection";
 import { userHasWorkLocation } from "@/lib/photographer/work-location";
+import { normalizeCountryInput } from "@/lib/international/countries";
 import {
   joinTitularName,
   pickContactPhone,
@@ -177,6 +178,9 @@ export default function ConfiguracionClient({
   const [city, setCity] = useState("");
   const [province, setProvince] = useState("");
   const [country, setCountry] = useState("");
+  // País ISO elegido y el que había al cargar: solo se manda si el fotógrafo lo cambió.
+  const [countryCode, setCountryCode] = useState("");
+  const [initialCountryCode, setInitialCountryCode] = useState("");
   const [address, setAddress] = useState("");
   const [latitude, setLatitude] = useState("");
   const [longitude, setLongitude] = useState("");
@@ -608,6 +612,9 @@ export default function ConfiguracionClient({
         setCity(data.city || "");
         setProvince(data.province || "");
         setCountry(data.country || "");
+        const loadedCountryCode = data.countryCode || normalizeCountryInput(data.country || "") || "";
+        setCountryCode(loadedCountryCode);
+        setInitialCountryCode(loadedCountryCode);
         setAddress(data.address || "");
         setLatitude(data.latitude != null ? String(data.latitude) : "");
         setLongitude(data.longitude != null ? String(data.longitude) : "");
@@ -784,6 +791,11 @@ export default function ConfiguracionClient({
         workingCoverageRadiusKm: serializeWorkingCoverageRadiusForApi(coverageRadiusKm),
       };
 
+      // Si ya tenía país y deja la opción vacía, no se manda (el servidor lo rechazaría).
+      if (countryCode !== initialCountryCode && countryCode) {
+        updateData.countryCode = countryCode;
+      }
+
       console.log("Enviando datos de actualización:", updateData);
 
       const res = await fetch("/api/fotografo/update", {
@@ -806,6 +818,9 @@ export default function ConfiguracionClient({
       setTitularLastName(savedTitular.lastName);
       setName(data.name || "");
       setContactPhone(pickContactPhone(data.phone, data.whatsapp));
+      if (countryCode) setInitialCountryCode(countryCode);
+      // Si se guardó un país nuevo, el texto `country` pasa a ser el nombre que guardó el servidor.
+      if (updateData.countryCode) setCountry(data.country || "");
       setSuccess("Datos guardados correctamente");
       setTimeout(() => setSuccess(null), 3000);
       if (userHasWorkLocation(data.latitude, data.longitude)) {
@@ -966,6 +981,8 @@ export default function ConfiguracionClient({
                 setProvince={setProvince}
                 country={country}
                 setCountry={setCountry}
+                countryCode={countryCode}
+                setCountryCode={setCountryCode}
                 latitude={latitude}
                 setLatitude={setLatitude}
                 longitude={longitude}

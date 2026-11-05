@@ -9,6 +9,7 @@ import { buildVerifyEmail } from "@/emails/templates/auth";
 import { CC_PRODUCT_KEY } from "@/lib/cuantocobro/constants";
 import { buildCuantoCobroSignupUserFields } from "@/lib/cuantocobro/user-access";
 import { tryCreateReferralAttributionOnSignup } from "@/lib/referral/referral-signup-attribution";
+import { getCountry } from "@/lib/international/countries";
 import { resolveSignupReferralInput } from "@/lib/referral/resolve-signup-referral-input";
 
 export const runtime = "nodejs";
@@ -35,6 +36,13 @@ export async function POST(req: NextRequest) {
         { error: "Nombre, email y contraseña son requeridos" },
         { status: 400 }
       );
+    }
+
+    // País (opcional: otras vías de alta no lo mandan). Si viene, tiene que ser un país soportado.
+    const rawCountryCode = (body.countryCode ?? "").toString().trim();
+    const signupCountry = rawCountryCode ? getCountry(rawCountryCode) : null;
+    if (rawCountryCode && !signupCountry) {
+      return NextResponse.json({ error: "País no válido" }, { status: 400 });
     }
 
     if (password.length < 6) {
@@ -69,6 +77,10 @@ export async function POST(req: NextRequest) {
       marketingOptIn,
       workingCoverageRadiusKm: 50,
     };
+    if (signupCountry) {
+      userData.countryCode = signupCountry.code;
+      userData.country = signupCountry.name;
+    }
     if (marketingOptIn) {
       userData.marketingOptInAt = new Date();
       userData.marketingOptInIp = ip;

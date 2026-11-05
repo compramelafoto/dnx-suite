@@ -34,6 +34,7 @@ export async function GET(
         city: true,
         province: true,
         country: true,
+        countryCode: true,
         address: true,
         latitude: true,
         longitude: true,
@@ -91,7 +92,7 @@ export async function GET(
     } catch (err: any) {
       // Si falla por campos desconocidos, intentar sin ellos
       const errorMsg = String(err?.message ?? "");
-      if (errorMsg.includes("enableAlbumsPage") || errorMsg.includes("enablePrintPage") || errorMsg.includes("showCarnetPrints") || errorMsg.includes("showPolaroidPrints") || errorMsg.includes("printSectionOnTop") || errorMsg.includes("tertiaryColor") || errorMsg.includes("fontColor") || errorMsg.includes("headerBackgroundColor") || errorMsg.includes("footerBackgroundColor") || errorMsg.includes("heroBackgroundColor") || errorMsg.includes("pageBackgroundColor") || errorMsg.includes("website") || errorMsg.includes("instagram") || errorMsg.includes("tiktok") || errorMsg.includes("facebook") || errorMsg.includes("whatsapp") || errorMsg.includes("companyAddress") || errorMsg.includes("Unknown field")) {
+      if (errorMsg.includes("enableAlbumsPage") || errorMsg.includes("enablePrintPage") || errorMsg.includes("showCarnetPrints") || errorMsg.includes("showPolaroidPrints") || errorMsg.includes("printSectionOnTop") || errorMsg.includes("tertiaryColor") || errorMsg.includes("fontColor") || errorMsg.includes("headerBackgroundColor") || errorMsg.includes("footerBackgroundColor") || errorMsg.includes("heroBackgroundColor") || errorMsg.includes("pageBackgroundColor") || errorMsg.includes("website") || errorMsg.includes("instagram") || errorMsg.includes("tiktok") || errorMsg.includes("facebook") || errorMsg.includes("whatsapp") || errorMsg.includes("companyAddress") || errorMsg.includes("countryCode") || errorMsg.includes("Unknown field")) {
         console.warn("GET /api/fotografo/[id]: algunos campos no existen. Ejecutá: npx prisma db push && npx prisma generate");
         user = await prisma.user.findUnique({
           where: { id },
@@ -147,6 +148,7 @@ export async function GET(
           user.facebook = null;
           user.whatsapp = null;
           user.companyAddress = null;
+          user.countryCode = null;
         }
       } else {
         throw err;

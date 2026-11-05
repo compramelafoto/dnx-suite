@@ -7,6 +7,8 @@ import Button from "@/components/ui/Button";
 import RecommendLabModal from "@/components/RecommendLabModal";
 import { DsInfoPanel } from "@/components/ui/DsLayout";
 import PhotographerWorkspacePageHeader from "./PhotographerWorkspacePageHeader";
+import CountryPromptBanner from "./CountryPromptBanner";
+import { shouldAskCountry } from "@/lib/international/profile-country";
 
 function ReferralsIcon({ className }: { className?: string }) {
   return (
@@ -86,7 +88,14 @@ type DashboardStats = {
 
 type PhotographerHomeWorkspaceProps = {
   stats: DashboardStats | null;
-  photographer: { id?: number; name?: string | null; email?: string | null } | null;
+  photographer: {
+    id?: number;
+    name?: string | null;
+    email?: string | null;
+    role?: string | null;
+    country?: string | null;
+    countryCode?: string | null;
+  } | null;
   pendingRemovalCount: number;
   pendingOrdersCount: number;
   myEventsCount: number;
@@ -138,6 +147,11 @@ export default function PhotographerHomeWorkspace({
   preferredLabSet,
 }: PhotographerHomeWorkspaceProps) {
   const [recommendLabOpen, setRecommendLabOpen] = useState(false);
+  const [countrySaved, setCountrySaved] = useState(false);
+  const askCountry =
+    !countrySaved &&
+    !!photographer &&
+    shouldAskCountry({ role: String(photographer.role ?? ""), countryCode: photographer.countryCode ?? null });
 
   const alerts: {
     id: string;
@@ -202,6 +216,13 @@ export default function PhotographerHomeWorkspace({
           </Link>
         }
       />
+
+      {askCountry ? (
+        <CountryPromptBanner
+          currentCountryText={photographer?.country}
+          onSaved={() => setCountrySaved(true)}
+        />
+      ) : null}
 
       {alerts.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">

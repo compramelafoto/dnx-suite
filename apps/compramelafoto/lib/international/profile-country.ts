@@ -1,0 +1,49 @@
+import { getCountry } from "./countries";
+
+export type ProfileCountryResult =
+  | { ok: true; countryCode: string | null; countryName: string | null }
+  | { ok: false; status: 400 | 409; error: string };
+
+/**
+ * Decide si el fotógrafo puede quedar con el país pedido.
+ * - Sin país pedido: no cambia nada.
+ * - País no soportado: 400.
+ * - Cambiar el país (null cuenta como AR) teniendo álbumes: 409 (lo hace el equipo a mano).
+ */
+export function resolveProfileCountryUpdate(input: {
+  requestedCode: string | undefined;
+  currentCode: string | null;
+  albumCount: number;
+}): ProfileCountryResult {
+  const { requestedCode, currentCode, albumCount } = input;
+
+  if (requestedCode === undefined) {
+    const current = currentCode ? getCountry(currentCode) : undefined;
+    return { ok: true, countryCode: current ? current.code : null, countryName: current ? current.name : null };
+  }
+
+  const requested = getCountry(requestedCode);
+  if (!requested) return { ok: false, status: 400, error: "País no válido" };
+
+  // Sin país cargado, las cuentas existentes son de Argentina: cambiarlas con álbumes también se bloquea.
+  const effectiveCurrent = currentCode ?? "AR";
+  if (effectiveCurrent !== requested.code && albumCount > 0) {
+    return {
+      ok: false,
+      status: 409,
+      error: "Para cambiar el país con álbumes creados, escribinos y lo hacemos nosotros.",
+    };
+  }
+
+  return { ok: true, countryCode: requested.code, countryName: requested.name };
+}
+
+/** ¿El pedido trae un país para escribir? null, undefined o vacío = no toca el país. */
+export function hasCountryCodeRequest(value: unknown): boolean {
+  return value != null && String(value).trim() !== "";
+}
+
+/** ¿Hay que pedirle el país al usuario? A fotógrafos y laboratorios-fotógrafos que todavía no lo cargaron. */
+export function shouldAskCountry(user: { role: string; countryCode: string | null }): boolean {
+  return (user.role === "PHOTOGRAPHER" || user.role === "LAB_PHOTOGRAPHER") && !user.countryCode;
+}

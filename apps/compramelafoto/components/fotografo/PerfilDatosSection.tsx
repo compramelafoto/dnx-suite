@@ -7,6 +7,7 @@ import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import Select from "@/components/ui/Select";
 import { DsField } from "@/components/ui/DsField";
+import { SUPPORTED_COUNTRIES } from "@/lib/international/countries";
 import {
   coverageRadiusToSelectValue,
   selectValueToCoverageRadius,
@@ -72,6 +73,8 @@ export type PerfilDatosSectionProps = {
   setProvince: (v: string) => void;
   country: string;
   setCountry: (v: string) => void;
+  countryCode: string;
+  setCountryCode: (v: string) => void;
   latitude: string;
   setLatitude: (v: string) => void;
   longitude: string;
@@ -116,6 +119,8 @@ export default function PerfilDatosSection({
   setProvince,
   country,
   setCountry,
+  countryCode,
+  setCountryCode,
   latitude,
   setLatitude,
   longitude,
@@ -379,8 +384,20 @@ export default function PerfilDatosSection({
                 <DsField label="Provincia / estado">
                   <Input type="text" value={province} onChange={(e) => setProvince(e.target.value)} />
                 </DsField>
-                <DsField label="País">
-                  <Input type="text" value={country} onChange={(e) => setCountry(e.target.value)} />
+                <DsField label="País" htmlFor="photographer-country">
+                  <Select
+                    id="photographer-country"
+                    className="rounded-2xl"
+                    value={countryCode}
+                    onChange={(e) => setCountryCode(e.target.value)}
+                  >
+                    <option value="">Elegí tu país</option>
+                    {SUPPORTED_COUNTRIES.map((c) => (
+                      <option key={c.code} value={c.code}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </Select>
                 </DsField>
               </div>
             )}

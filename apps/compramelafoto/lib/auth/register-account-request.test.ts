@@ -71,6 +71,35 @@ describe("buildRegisterAccountRequest", () => {
     assert.equal(req.body.sourceType, "TRAINING");
     assert.equal(req.body.sourceEntityId, 4);
   });
+
+  it("el fotógrafo manda el país y el cliente no", () => {
+    const photographer = buildRegisterAccountRequest({
+      ...base,
+      accountType: "PHOTOGRAPHER",
+      refCode: null,
+      trainingMeta: null,
+      countryCode: "MX",
+    });
+    assert.equal(photographer.body.countryCode, "MX");
+    const customer = buildRegisterAccountRequest({
+      ...base,
+      accountType: "CUSTOMER",
+      refCode: null,
+      trainingMeta: null,
+      countryCode: "MX",
+    });
+    assert.equal("countryCode" in customer.body, false);
+  });
+
+  it("sin país no agrega el campo", () => {
+    const req = buildRegisterAccountRequest({
+      ...base,
+      accountType: "PHOTOGRAPHER",
+      refCode: null,
+      trainingMeta: null,
+    });
+    assert.equal("countryCode" in req.body, false);
+  });
 });
 
 describe("googleRoleForAccountType", () => {

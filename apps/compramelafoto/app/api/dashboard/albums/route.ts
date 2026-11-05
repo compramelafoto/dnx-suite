@@ -5,6 +5,7 @@ import { ensureAlbumPhotosQueuedForHiddenMode } from "@/lib/hidden-album/prepare
 import { requireAuth } from "@/lib/auth";
 import { AlbumMode, EventType, OrganizerCommissionAppliesTo, Role } from "@/lib/prisma";
 import crypto from "crypto";
+import { resolveNewAlbumCurrency } from "@/lib/international/album-currency";
 import { TERMS_VERSION } from "@/lib/terms/photographerTerms";
 import { encodeGeohash } from "@/lib/geo";
 import { eventPhotographerAlbumVisibilityForEventJoin } from "@/lib/events/event-photographer-album-visibility";
@@ -708,6 +709,7 @@ export async function POST(req: NextRequest) {
     }
 
     const albumData: any = {
+      currency: await resolveNewAlbumCurrency(user.id),
       userId: user.id,
       title: title.trim(),
       location: location?.trim() || null,
