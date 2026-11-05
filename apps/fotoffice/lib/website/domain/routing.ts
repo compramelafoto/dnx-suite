@@ -48,6 +48,7 @@ export const FOTOFFICE_ONLY_SEGMENTS: ReadonlySet<string> = new Set([
   "sc",
   "soy-socio",
   "terminos",
+  "tutoriales",
   "website",
   "workspace",
 ]);

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BookOpen } from "lucide-react";
+import { BookOpen, PlayCircle } from "lucide-react";
 import { FotofficeLogo } from "@/components/fotoffice-logo";
 import { NavToggle } from "./nav-toggle";
 import { ShellNav } from "./shell-nav";
@@ -82,7 +82,7 @@ export function ShellSidebar({
         openGroups={openGroups}
         bandejaNoLeidos={bandejaNoLeidos}
       />
-      {/* Al pie, a mano para todo el equipo: las guías paso a paso de cada pantalla. */}
+      {/* Al pie, a mano para todo el equipo: las guías paso a paso de cada pantalla y los cursos en video. */}
       <div className="mt-8 border-t border-[var(--fo-border)] pt-4">
         <Link
           href="/instructivos"
@@ -90,6 +90,14 @@ export function ShellSidebar({
         >
           <BookOpen className="h-4 w-4" aria-hidden />
           Instructivos
+        </Link>
+        <Link
+          href="/tutoriales"
+          target="_blank"
+          className="flex items-center gap-2 rounded-[var(--fo-radius-sm)] px-2 py-2 text-sm text-[var(--fo-muted)] hover:bg-[var(--fo-bg)] hover:text-[var(--fo-text)]"
+        >
+          <PlayCircle className="h-4 w-4" aria-hidden />
+          Tutoriales en video
         </Link>
       </div>
     </aside>

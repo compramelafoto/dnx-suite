@@ -62,7 +62,12 @@ export function FotofficeLanding({
           <Link href="/" className={styles.barraMarca} aria-label="FotOffice, inicio">
             <FotofficeLogo variant="landing" priority />
           </Link>
-          <EnlaceIngresar className={`${styles.btn} ${styles.btnPrimario}`}>Entrar</EnlaceIngresar>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <Link href="/tutoriales" className={`${styles.btn} ${styles.btnSecundario}`}>
+              Tutoriales
+            </Link>
+            <EnlaceIngresar className={`${styles.btn} ${styles.btnPrimario}`}>Entrar</EnlaceIngresar>
+          </div>
         </div>
       </header>
 
@@ -296,6 +301,7 @@ export function FotofficeLanding({
 
       <footer className={styles.pie}>
         <div className={`${styles.ancho} ${styles.pieFila}`}>
+          <Link href="/tutoriales">Tutoriales en video</Link>
           <Link href="/terminos">Términos</Link>
           <Link href="/privacidad">Privacidad</Link>
           <span className={styles.pieNota}>FOTOFFICE es parte de DNX Suite.</span>

@@ -93,6 +93,8 @@ export const RESERVED_SLUGS: ReadonlySet<string> = new Set([
   "sponsors",
   "soy-socio",
   "terminos",
+  // Los cursos en video, públicos (app/tutoriales).
+  "tutoriales",
   "ventas",
   "w",
   "website",
