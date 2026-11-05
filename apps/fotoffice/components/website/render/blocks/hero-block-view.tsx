@@ -250,8 +250,9 @@ export function HeroBlockView({ config, blockId, data }: { config: HeroBlockConf
             <div
               className={`relative flex flex-1 flex-col gap-4 w-full ${
                 entera
-                  ? // Con la foto entera, desde la computadora el texto se apoya sobre la mitad izquierda.
-                    "px-6 py-12 xl:absolute xl:inset-y-0 xl:left-0 xl:w-[54%] xl:pb-[2%] xl:pt-[6%] xl:pl-[7%] xl:pr-0"
+                  ? // Con la foto entera, desde 1280 px de ancho del sitio (medido en el marco, así la vista previa
+                    // coincide) el texto se apoya sobre la mitad izquierda, delante de la foto.
+                    "px-6 py-12 @min-[1280px]:absolute @min-[1280px]:inset-y-0 @min-[1280px]:left-0 @min-[1280px]:z-10 @min-[1280px]:w-[54%] @min-[1280px]:pb-[2%] @min-[1280px]:pt-[6%] @min-[1280px]:pl-[7%] @min-[1280px]:pr-0"
                   : `px-6 py-16 sm:py-20 mx-auto ${slide.figureUrl ? "max-w-6xl" : "h-full max-w-4xl"}`
               } ${CONTENT_JUSTIFY[slide.contentPosition]} ${ALIGN_CLASS[slide.align]} ${slideHref ? "pointer-events-none [&_a]:pointer-events-auto" : ""}`}
             >
