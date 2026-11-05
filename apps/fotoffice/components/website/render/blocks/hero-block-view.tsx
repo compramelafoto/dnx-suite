@@ -182,7 +182,8 @@ export function HeroBlockView({ config, blockId, data }: { config: HeroBlockConf
   return (
     <section
       className={`relative overflow-hidden ${slides[0] && esEntera(slides[0]) ? "" : HEIGHT_CLASS[config.heightPreset]}`}
-      style={{ backgroundColor: "var(--wsite-secondary)" }}
+      // Con la foto entera, donde el texto no va sobre la foto (celular) se ve el fondo de la página.
+      style={{ backgroundColor: slides[0] && esEntera(slides[0]) ? undefined : "var(--wsite-secondary)" }}
       role={isCarousel ? "region" : undefined}
       aria-roledescription={isCarousel ? "carrusel" : undefined}
       aria-label={isCarousel ? "Banner principal" : undefined}
@@ -226,7 +227,7 @@ export function HeroBlockView({ config, blockId, data }: { config: HeroBlockConf
             <div
               className="absolute inset-0"
               style={{
-                backgroundColor: "var(--wsite-secondary)",
+                backgroundColor: entera ? undefined : "var(--wsite-secondary)",
                 backgroundImage: slide.imageUrl && !entera ? `url(${slide.imageUrl})` : undefined,
                 backgroundSize: "cover",
                 backgroundPosition: OBJECT_POSITION[slide.imageFocus],
