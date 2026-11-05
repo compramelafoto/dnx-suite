@@ -206,6 +206,31 @@ describe("Hero / Banner — carrusel de placas", () => {
   });
 });
 
+describe("TEXT — foto al costado", () => {
+  it("un bloque guardado antes de la foto sigue siendo válido y queda sin foto, con el lado derecho", () => {
+    const parsed = websiteBlockSchema.parse({ id: "t", type: "TEXT", visible: true, order: 0, config: { title: "Hola", content: "c", align: "left" } });
+    expect(parsed.type === "TEXT" && parsed.config.imageUrl).toBeFalsy();
+    expect(parsed.type === "TEXT" && parsed.config.imageSide).toBeUndefined();
+  });
+
+  it("conserva la foto, su texto alternativo y el lado elegido", () => {
+    const config = { content: "c", align: "left", imageUrl: "https://x/foto.webp", imageAlt: "Belén", imageSide: "left" };
+    const parsed = websiteBlockSchema.parse({ id: "t", type: "TEXT", visible: true, order: 0, config });
+    expect(parsed.config).toEqual(config);
+  });
+
+  it("un lado inválido se descarta (queda a la derecha) en vez de romper la página", () => {
+    const parsed = websiteBlockSchema.parse({ id: "t", type: "TEXT", visible: true, order: 0, config: { align: "left", imageSide: "arriba" } });
+    expect(parsed.type === "TEXT" && parsed.config.imageSide).toBeUndefined();
+  });
+
+  it("el bloque nuevo arranca sin foto", () => {
+    const block = createEmptyBlock("TEXT", 0);
+    expect(block.type === "TEXT" && block.config).toMatchObject({ imageUrl: "", imageSide: "right" });
+    expect(websiteBlockSchema.safeParse(block).success).toBe(true);
+  });
+});
+
 describe("RICH_TEXT — texto con formato", () => {
   it("el bloque nuevo arranca vacío y es válido para el guardado", () => {
     const block = createEmptyBlock("RICH_TEXT", 0);

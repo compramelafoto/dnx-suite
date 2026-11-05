@@ -11,6 +11,8 @@ import { externalHttpUrl, externalHttpsUrl } from "./blocks-extra";
  * nuevas de esta unión cuando se construyan — nunca reutilizan estos 5 tipos.
  */
 export const WEBSITE_BLOCK_ALIGN = ["left", "center"] as const;
+/** De qué lado va la foto opcional del bloque de texto (en el celular siempre va arriba). */
+export const WEBSITE_TEXT_IMAGE_SIDE = ["left", "right"] as const;
 export type WebsiteBlockAlign = (typeof WEBSITE_BLOCK_ALIGN)[number];
 
 export const WEBSITE_IMAGE_WIDTH_PRESET = ["full", "contained", "narrow"] as const;
@@ -199,6 +201,11 @@ export const textConfigSchema = z.object({
   title: z.string().max(200).optional(),
   content: z.string().max(8000).optional(),
   align: z.enum(WEBSITE_BLOCK_ALIGN),
+  /** Foto opcional al costado del texto. Los bloques guardados antes no la tienen. */
+  imageUrl: z.string().max(2000).optional(),
+  imageAlt: z.string().max(300).optional(),
+  /** Sin valor (o con uno inválido), la foto va a la derecha. */
+  imageSide: z.enum(WEBSITE_TEXT_IMAGE_SIDE).optional().catch(undefined),
 });
 
 export const imageConfigSchema = z.object({
@@ -902,7 +909,7 @@ export const WEBSITE_BLOCK_DEFINITIONS: {
     description: "Bloque de contenido.",
     category: "BASICAS",
     source: "static",
-    defaultConfig: () => ({ title: "", content: "", align: "left" }),
+    defaultConfig: () => ({ title: "", content: "", align: "left", imageUrl: "", imageAlt: "", imageSide: "right" }),
     previewLabel: (c) => c.title || (c.content ?? "").slice(0, 60) || "Sin contenido todavía",
   },
   IMAGE: {

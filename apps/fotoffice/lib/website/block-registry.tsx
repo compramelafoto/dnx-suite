@@ -103,6 +103,27 @@ export const WEBSITE_BLOCK_REGISTRY: { [K in WebsiteBlockType]: BlockRegistryEnt
             { value: "center", label: "Centro" },
           ]}
         />
+        <ImageUploadField
+          name="_text_block_image"
+          presetKey="websiteBlockImage"
+          label="Foto al costado (opcional)"
+          initialUrl={config.imageUrl || null}
+          onUploaded={(url) => onChange({ ...config, imageUrl: url ?? "" })}
+        />
+        {config.imageUrl ? (
+          <>
+            <TextField label="Texto alternativo de la foto" value={config.imageAlt ?? ""} onChange={(v) => onChange({ ...config, imageAlt: v })} helper="Para lectores de pantalla y buscadores." />
+            <SelectField
+              label="Lado de la foto"
+              value={config.imageSide ?? "right"}
+              onChange={(v) => onChange({ ...config, imageSide: v as TextBlockConfig["imageSide"] })}
+              options={[
+                { value: "left", label: "Izquierda" },
+                { value: "right", label: "Derecha" },
+              ]}
+            />
+          </>
+        ) : null}
       </div>
     ),
   },
