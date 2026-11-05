@@ -71,3 +71,7 @@ test("shouldAskCountry: fotógrafo con país → no pide", () => {
 test("shouldAskCountry: cliente sin país → no pide", () => {
   assert.equal(shouldAskCountry({ role: "CUSTOMER", countryCode: null }), false);
 });
+
+test("shouldAskCountry: lab-fotógrafo sin país → pide", () => {
+  assert.equal(shouldAskCountry({ role: "LAB_PHOTOGRAPHER", countryCode: null }), true);
+});

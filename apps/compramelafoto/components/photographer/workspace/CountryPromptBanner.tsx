@@ -41,9 +41,9 @@ export default function CountryPromptBanner({ currentCountryText, onSaved }: Pro
 
   return (
     <div className="rounded-lg border border-amber-200 bg-amber-50/80 p-4">
-      <p className="text-sm font-semibold text-gray-900 m-0">¿Desde qué país vendés?</p>
+      <p className="text-sm font-semibold text-gray-900 m-0">CompraMeLaFoto ahora funciona en otros países</p>
       <p className="text-sm text-gray-600 mt-1 mb-3 m-0">
-        Elegilo una sola vez para que tus álbumes muestren la moneda correcta.
+        Por eso necesitamos saber de qué país sos. Elegilo una sola vez para que tus álbumes muestren la moneda correcta.
       </p>
       <div className="flex flex-wrap items-center gap-2">
         <select
