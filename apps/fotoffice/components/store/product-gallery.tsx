@@ -28,6 +28,13 @@ export function ProductGallery({ images, title }: { images: { url: string; alt: 
   const visible = images[actual] ? actual : 0;
   // Ancho / alto de la primera foto; cuadrado hasta que carga (o si no hay fotos).
   const [proporcion, setProporcion] = useState(1);
+  // La primera foto puede terminar de cargar ANTES de que la página se active (viene en el HTML o
+  // del caché) y entonces `onLoad` no llega: también se mide al montarla si ya está completa.
+  const medir = (img: HTMLImageElement | null) => {
+    if (img && img.complete && img.naturalWidth > 0 && img.naturalHeight > 0) {
+      setProporcion(img.naturalWidth / img.naturalHeight);
+    }
+  };
 
   return (
     <div className="min-w-0 space-y-3">
@@ -43,14 +50,8 @@ export function ProductGallery({ images, title }: { images: { url: string; alt: 
               src={img.url}
               alt={i === visible ? (img.alt ?? title) : ""}
               aria-hidden={i === visible ? undefined : true}
-              onLoad={
-                i === 0
-                  ? (e) => {
-                      const { naturalWidth: w, naturalHeight: h } = e.currentTarget;
-                      if (w > 0 && h > 0) setProporcion(w / h);
-                    }
-                  : undefined
-              }
+              ref={i === 0 ? medir : undefined}
+              onLoad={i === 0 ? (e) => medir(e.currentTarget) : undefined}
               className={`absolute inset-0 h-full w-full object-contain transition-[opacity,transform] duration-500 ease-out motion-reduce:transition-none ${
                 i === visible ? "scale-100 opacity-100" : "pointer-events-none scale-[1.02] opacity-0"
               }`}
