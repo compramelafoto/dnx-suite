@@ -35,6 +35,7 @@ datasource db {
 
 model User {
   botConversations BotConversation[] @relation("BotConversationUser")
+  clfIntlCollectionAccounts             ClfIntlCollectionAccount[]
   id                                    Int                                    @id @default(autoincrement())
   email                                 String                                 @unique
   password                              String?
@@ -28172,4 +28173,31 @@ model FotofficeEventoInscripto {
   @@unique([storeOrderItemId, unidad])
   @@index([workspaceId, eventoId])
   @@index([eventoId, acreditadoAt])
+}
+
+/// CLF internacional: cuenta de cobro propia del fotógrafo (MP de su país o PayPal). El secreto vive cifrado en DnxEncryptedCredential.
+model ClfIntlCollectionAccount {
+  id                 String    @id @default(cuid())
+  userId             Int
+  /// "MERCADOPAGO_OWN" | "PAYPAL_OWN"
+  provider           String
+  /// "TEST" | "PROD"
+  environment        String
+  /// Id de DnxEncryptedCredential (sin relación Prisma).
+  credentialId       String
+  secretLast4        String
+  accountId          String?
+  accountLabel       String?
+  accountCountryCode String?
+  /// "ACTIVE" | "INACTIVE"
+  status             String    @default("ACTIVE")
+  connectedAt        DateTime  @default(now())
+  disconnectedAt     DateTime?
+  lastCheckedAt      DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
 }
