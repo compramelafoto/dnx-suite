@@ -50,6 +50,10 @@ export type HeroImageFocus = (typeof HERO_IMAGE_FOCUS)[number];
  * tenía el Hero de una sola placa antes de esta etapa (rgba(15,23,42,0.45)) — así una placa
  * migrada de un Hero viejo con imagen se ve pixel-a-pixel igual. */
 export const HERO_OVERLAY_PRESET = ["none", "soft", "medium", "dark"] as const;
+/** Color del texto de la placa: `light` (blanco, sobre fotos) es el de siempre; `dark` usa los
+ * colores del sitio, para fondos claros como una pared o un papel. */
+export const HERO_TEXT_TONE = ["light", "dark"] as const;
+export type HeroTextTone = (typeof HERO_TEXT_TONE)[number];
 export type HeroOverlayPreset = (typeof HERO_OVERLAY_PRESET)[number];
 
 export const HERO_TRANSITION = ["fade", "slide"] as const;
@@ -79,8 +83,34 @@ export const heroSlideSchema = z.object({
   align: z.enum(HERO_SLIDE_ALIGN).catch("center"),
   contentPosition: z.enum(HERO_CONTENT_POSITION).catch("center"),
   overlay: z.enum(HERO_OVERLAY_PRESET).catch("none"),
+  // Todo lo que sigue es opcional: una placa guardada antes se ve exactamente igual que siempre.
+  textTone: z.enum(HERO_TEXT_TONE).optional().catch(undefined),
+  /** Logo o firma arriba del título. */
+  logoUrl: z.string().max(2000).optional(),
+  /** Figura recortada (PNG con fondo transparente) apoyada abajo a la derecha, delante del fondo:
+   * a diferencia de la imagen de fondo, nunca se corta. En el celular va debajo del texto. */
+  figureUrl: z.string().max(2000).optional(),
+  figureAlt: z.string().max(300).optional(),
+  showSecondaryButton: z.boolean().optional().catch(undefined),
+  secondaryButtonLabel: z.string().max(60).optional(),
+  secondaryButtonUrl: z.string().max(2000).optional(),
 });
 export type HeroSlide = z.infer<typeof heroSlideSchema>;
+
+/** Las palabras del título entre asteriscos (`un espacio para *crear*`) van subrayadas con un
+ * trazo a mano. Devuelve los tramos en orden; un asterisco sin pareja queda como texto. */
+export function heroTitleSegments(title: string): { text: string; accent: boolean }[] {
+  const segments: { text: string; accent: boolean }[] = [];
+  const re = /\*([^*\n]+)\*/g;
+  let last = 0;
+  for (const m of title.matchAll(re)) {
+    if (m.index > last) segments.push({ text: title.slice(last, m.index), accent: false });
+    segments.push({ text: m[1], accent: true });
+    last = m.index + m[0].length;
+  }
+  if (last < title.length) segments.push({ text: title.slice(last), accent: false });
+  return segments;
+}
 
 export function createEmptyHeroSlide(): HeroSlide {
   return {

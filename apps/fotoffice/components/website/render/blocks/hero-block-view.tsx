@@ -2,7 +2,15 @@
 
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type TouchEvent } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import type { HeroBlockConfig, HeroContentPosition, HeroHeightPreset, HeroImageFocus, HeroOverlayPreset, HeroSlideAlign } from "@/lib/website/blocks";
+import {
+  heroTitleSegments,
+  type HeroBlockConfig,
+  type HeroContentPosition,
+  type HeroHeightPreset,
+  type HeroImageFocus,
+  type HeroOverlayPreset,
+  type HeroSlideAlign,
+} from "@/lib/website/blocks";
 import { useHeroEditingSlideId } from "@/lib/website/hero-editing-context";
 import { enlaceDeBoton } from "@/lib/website/button-href";
 import { mergeHeroBlogSlides, type HeroRenderSlide } from "@/lib/website/blog-banner";
@@ -23,6 +31,38 @@ const OVERLAY_ALPHA: Record<HeroOverlayPreset, number> = { none: 0, soft: 0.25, 
 const CONTENT_JUSTIFY: Record<HeroContentPosition, string> = { top: "justify-start", center: "justify-center", bottom: "justify-end" };
 const ALIGN_CLASS: Record<HeroSlideAlign, string> = { left: "items-start text-left", center: "items-center text-center", right: "items-end text-right" };
 const OBJECT_POSITION: Record<HeroImageFocus, string> = { center: "center", top: "top", bottom: "bottom", left: "left", right: "right" };
+
+/** Subrayado a mano de las palabras del título marcadas con asteriscos. */
+function TituloConAcentos({ title }: { title: string }) {
+  return (
+    <>
+      {heroTitleSegments(title).map((seg, i) =>
+        seg.accent ? (
+          <span key={i} className="relative inline-block whitespace-nowrap">
+            {seg.text}
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 200 16"
+              preserveAspectRatio="none"
+              className="pointer-events-none absolute -bottom-[0.12em] left-[-2%] h-[0.32em] w-[104%]"
+            >
+              <path
+                d="M3 11 C 40 6, 90 4, 130 6 S 185 9, 197 5"
+                fill="none"
+                stroke="var(--wsite-accent)"
+                strokeWidth="2.6"
+                strokeLinecap="round"
+                vectorEffect="non-scaling-stroke"
+              />
+            </svg>
+          </span>
+        ) : (
+          <span key={i}>{seg.text}</span>
+        ),
+      )}
+    </>
+  );
+}
 
 /** Preset interno de duración de transición (pedido: nunca exponer milisegundos técnicos al
  * usuario). `prefers-reduced-motion` la lleva a 0 — cambio inmediato, sin movimiento. */
@@ -62,6 +102,10 @@ export function HeroBlockView({ config, blockId, data }: { config: HeroBlockConf
   const touchStartX = useRef<number | null>(null);
 
   const isCarousel = slides.length > 1;
+  // Con una sola placa, va en el flujo de la página: si el contenido (logo, figura en el celular)
+  // es más alto que el mínimo del banner, el banner crece en vez de cortarlo. En el carrusel las
+  // placas se apilan una sobre otra y necesitan ir posicionadas.
+  const enFlujo = !isCarousel;
   const forcedIndex = forcedSlideId ? slides.findIndex((s) => s.id === forcedSlideId) : -1;
   const effectiveIndex = forcedIndex >= 0 ? forcedIndex : Math.min(activeIndex, Math.max(slides.length - 1, 0));
 
@@ -155,8 +199,27 @@ export function HeroBlockView({ config, blockId, data }: { config: HeroBlockConf
         // Las placas apiladas e invisibles no deben tapar los clics de la que se ve.
         if (!isActive) style.pointerEvents = "none";
         const slideHref = enlaceDeBoton(slide.href);
+        const oscuro = slide.textTone === "dark";
+        const href = slide.showButton && slide.buttonLabel ? enlaceDeBoton(slide.buttonUrl, data?.paginasDelSitio) : null;
+        const href2 = slide.showSecondaryButton && slide.secondaryButtonLabel ? enlaceDeBoton(slide.secondaryButtonUrl, data?.paginasDelSitio) : null;
+        // Sobre la foto, el contorno va en blanco; sobre fondo claro, en el color del sitio.
+        const contorno = oscuro ? "var(--wsite-primary)" : "#ffffff";
+        const estiloBoton = (variante: "solid" | "outline"): CSSProperties => ({
+          ...levelStyle("button", { color: false }),
+          borderRadius: "var(--wsite-button-radius)",
+          paddingInline: "var(--wsite-button-padding-x)",
+          paddingBlock: "var(--wsite-button-padding-y)",
+          ...(variante === "solid"
+            ? { backgroundColor: "var(--wsite-accent)", color: "#ffffff" }
+            : { border: `2px solid ${contorno}`, color: contorno }),
+        });
         return (
-          <div key={slide.id} className="absolute inset-0" style={style} aria-hidden={!isActive}>
+          <div
+            key={slide.id}
+            className={enFlujo ? "relative flex flex-col" : "absolute inset-0"}
+            style={enFlujo ? { ...style, minHeight: "inherit" } : style}
+            aria-hidden={!isActive}
+          >
             <div
               className="absolute inset-0"
               style={{
@@ -167,46 +230,68 @@ export function HeroBlockView({ config, blockId, data }: { config: HeroBlockConf
               }}
             />
             <div className="absolute inset-0" style={{ background: `rgba(15, 23, 42, ${OVERLAY_ALPHA[slide.overlay]})` }} />
+            {slide.figureUrl ? (
+              // Desde tablet, la figura se apoya abajo a la derecha, delante del fondo.
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={slide.figureUrl}
+                alt={slide.figureAlt ?? ""}
+                className="pointer-events-none absolute bottom-0 right-[3%] hidden h-[92%] max-w-[46%] object-contain object-bottom md:block"
+              />
+            ) : null}
             {slideHref ? (
               // La placa entera lleva al artículo. Fuera del orden de tabulación: el botón ya es
               // el camino con teclado, y dos enlaces seguidos al mismo lugar molestan.
               <a href={slideHref} className="absolute inset-0" tabIndex={-1} aria-hidden="true" />
             ) : null}
             <div
-              className={`relative flex h-full flex-col gap-4 px-6 py-16 sm:py-20 max-w-4xl mx-auto ${CONTENT_JUSTIFY[slide.contentPosition]} ${ALIGN_CLASS[slide.align]} ${slideHref ? "pointer-events-none [&_a]:pointer-events-auto" : ""}`}
+              className={`relative flex flex-1 flex-col gap-4 px-6 py-16 sm:py-20 mx-auto w-full ${slide.figureUrl ? "max-w-6xl" : "h-full max-w-4xl"} ${CONTENT_JUSTIFY[slide.contentPosition]} ${ALIGN_CLASS[slide.align]} ${slideHref ? "pointer-events-none [&_a]:pointer-events-auto" : ""}`}
             >
-              {/* Sobre la foto, título y subtítulo van siempre en blanco: no toman el color del nivel. */}
-              <h1
-                className="text-white"
-                style={{ ...levelStyle("title", { color: false }), textWrap: "balance", letterSpacing: "var(--wsite-letter-spacing)" }}
-              >
-                {slide.title || "Título principal"}
-              </h1>
-              {slide.subtitle ? (
-                <p
-                  // La bajada de un artículo puede ser larga: tres renglones y "…".
-                  className={`max-w-2xl leading-relaxed text-white/90 ${slideHref ? "line-clamp-3" : ""}`}
-                  style={levelStyle("subtitle", { color: false })}
+              <div className={`flex flex-col gap-4 ${ALIGN_CLASS[slide.align]} ${slide.figureUrl ? "md:max-w-[52%]" : "w-full"}`}>
+                {slide.logoUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={slide.logoUrl} alt="Logo" className="mb-2 h-auto w-60 max-w-full sm:w-80" />
+                ) : null}
+                {/* Sobre la foto, título y subtítulo van en blanco; con texto oscuro, en los colores del sitio. */}
+                <h1
+                  className={oscuro ? undefined : "text-white"}
+                  style={{ ...levelStyle("title", { color: oscuro }), textWrap: "balance", letterSpacing: "var(--wsite-letter-spacing)" }}
                 >
-                  {slide.subtitle}
-                </p>
-              ) : null}
-              {slide.showButton && slide.buttonLabel && enlaceDeBoton(slide.buttonUrl, data?.paginasDelSitio) ? (
-                <a
-                  href={enlaceDeBoton(slide.buttonUrl, data?.paginasDelSitio) ?? undefined}
-                  className="inline-flex mt-2 transition-transform hover:scale-[1.02]"
-                  style={{
-                    ...levelStyle("button", { color: false }),
-                    borderRadius: "var(--wsite-button-radius)",
-                    paddingInline: "var(--wsite-button-padding-x)",
-                    paddingBlock: "var(--wsite-button-padding-y)",
-                    ...(slide.buttonStyle === "solid"
-                      ? { backgroundColor: "var(--wsite-accent)", color: "#ffffff" }
-                      : { border: "2px solid #ffffff", color: "#ffffff" }),
-                  }}
-                >
-                  {slide.buttonLabel}
-                </a>
+                  <TituloConAcentos title={slide.title || "Título principal"} />
+                </h1>
+                {slide.subtitle ? (
+                  <p
+                    // La bajada de un artículo puede ser larga: tres renglones y "…".
+                    className={`max-w-2xl leading-relaxed whitespace-pre-line ${oscuro ? "" : "text-white/90"} ${slideHref ? "line-clamp-3" : ""}`}
+                    style={{ ...levelStyle("subtitle", { color: oscuro }), ...(oscuro ? { opacity: 0.88 } : {}) }}
+                  >
+                    {slide.subtitle}
+                  </p>
+                ) : null}
+                {href || href2 ? (
+                  <div className="mt-2 flex flex-wrap items-center gap-3">
+                    {href ? (
+                      <a href={href} className="inline-flex transition-transform hover:scale-[1.02]" style={estiloBoton(slide.buttonStyle)}>
+                        {slide.buttonLabel}
+                      </a>
+                    ) : null}
+                    {href2 ? (
+                      <a href={href2} className="inline-flex transition-transform hover:scale-[1.02]" style={estiloBoton("outline")}>
+                        {slide.secondaryButtonLabel}
+                      </a>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+              {slide.figureUrl ? (
+                // En el celular, la figura va debajo del texto, entera.
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={slide.figureUrl}
+                  alt=""
+                  aria-hidden="true"
+                  className="-mb-16 mx-auto mt-2 h-auto max-h-[420px] w-auto max-w-full object-contain sm:-mb-20 md:hidden"
+                />
               ) : null}
             </div>
           </div>

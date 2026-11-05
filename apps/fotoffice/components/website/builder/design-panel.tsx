@@ -4,6 +4,7 @@ import { ImageUploadField } from "@/components/image-upload-field";
 import { SelectField } from "@/components/website/inspector/inspector-fields";
 import {
   ANIMATION_PRESETS,
+  DECORATION_PRESETS,
   BUTTON_PRESETS,
   FOOTER_PRESETS,
   type WebsiteDesignPresets,
@@ -130,6 +131,16 @@ export function DesignPanel({
             value={presets.animationPreset}
             onChange={(v) => onPresetsChange({ ...presets, animationPreset: v as WebsiteDesignPresets["animationPreset"] })}
             options={ANIMATION_PRESETS.map((p) => ({ value: p.id, label: p.label }))}
+          />
+        </section>
+
+        <section className="space-y-3">
+          <p className="text-xs font-semibold text-[var(--fo-text)]">Adornos</p>
+          <SelectField
+            label="Estilo"
+            value={presets.decorationPreset}
+            onChange={(v) => onPresetsChange({ ...presets, decorationPreset: v as WebsiteDesignPresets["decorationPreset"] })}
+            options={DECORATION_PRESETS.map((p) => ({ value: p.id, label: p.label }))}
           />
         </section>
 

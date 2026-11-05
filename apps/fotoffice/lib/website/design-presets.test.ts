@@ -40,6 +40,7 @@ describe("parseWebsiteDesignPresets", () => {
       typographyPreset: "editorial",
       buttonPreset: "pill",
       animationPreset: "dynamic",
+      decorationPreset: "doodles",
       footerPreset: "simple",
       menuLayout: "drawer",
       menuSide: "left",
@@ -104,5 +105,15 @@ describe("loginButtonText", () => {
   it("un texto propio se respeta", () => {
     expect(loginButtonText({ loginButtonLabel: " Entrar " })).toBe("Entrar");
     expect(loginButtonText({ loginButtonLabel: "Soy socio" })).toBe("Soy socio");
+  });
+});
+
+describe("Adornos dibujados a mano", () => {
+  it("un sitio guardado sin el campo queda sin adornos", () => {
+    expect(parseWebsiteDesignPresets({ headerPreset: "centered" }).decorationPreset).toBe("none");
+  });
+  it("respeta los dibujos a mano y descarta valores desconocidos", () => {
+    expect(parseWebsiteDesignPresets({ decorationPreset: "doodles" }).decorationPreset).toBe("doodles");
+    expect(parseWebsiteDesignPresets({ decorationPreset: "brillos" }).decorationPreset).toBe("none");
   });
 });

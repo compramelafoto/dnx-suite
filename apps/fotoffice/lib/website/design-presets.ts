@@ -98,6 +98,13 @@ export const ANIMATION_PRESETS = [
 ] as const;
 export type AnimationPresetId = (typeof ANIMATION_PRESETS)[number]["id"];
 
+/** Adornos dibujados a mano en los márgenes de las secciones (solo en pantallas anchas). */
+export const DECORATION_PRESETS = [
+  { id: "none", label: "Ninguno", description: "Las secciones sin adornos." },
+  { id: "doodles", label: "Dibujos a mano", description: "Trazos libres, espirales y puntitos en los costados, como en un cuaderno." },
+] as const;
+export type DecorationPresetId = (typeof DECORATION_PRESETS)[number]["id"];
+
 /** Variantes del pie del sitio. `simple` es el default: es el único que se ve bien sin ningún
  * dato de contacto cargado, y un workspace recién creado no tiene ninguno. */
 export const FOOTER_PRESETS = [
@@ -139,6 +146,7 @@ const HEADER_IDS = HEADER_PRESETS.map((p) => p.id) as [HeaderPresetId, ...Header
 const BUTTON_IDS = BUTTON_PRESETS.map((p) => p.id) as [ButtonPresetId, ...ButtonPresetId[]];
 const TYPOGRAPHY_IDS = TYPOGRAPHY_PRESETS.map((p) => p.id) as [TypographyPresetId, ...TypographyPresetId[]];
 const ANIMATION_IDS = ANIMATION_PRESETS.map((p) => p.id) as [AnimationPresetId, ...AnimationPresetId[]];
+const DECORATION_IDS = DECORATION_PRESETS.map((p) => p.id) as [DecorationPresetId, ...DecorationPresetId[]];
 const FOOTER_IDS = FOOTER_PRESETS.map((p) => p.id) as [FooterPresetId, ...FooterPresetId[]];
 const MENU_LAYOUT_IDS = MENU_LAYOUTS.map((p) => p.id) as [MenuLayoutId, ...MenuLayoutId[]];
 const MENU_SIDE_IDS = MENU_SIDES.map((p) => p.id) as [MenuSideId, ...MenuSideId[]];
@@ -153,6 +161,7 @@ export const DEFAULT_DESIGN_PRESETS: WebsiteDesignPresets = {
   typographyPreset: "modern",
   buttonPreset: "rounded",
   animationPreset: "none",
+  decorationPreset: "none",
   footerPreset: "simple",
   // Los sitios ya publicados no tenían estos campos: el default tiene que ser el menú de siempre.
   menuLayout: "topbar",
@@ -172,6 +181,7 @@ export const websiteDesignPresetsSchema = z.object({
   typographyPreset: z.enum(TYPOGRAPHY_IDS).catch(DEFAULT_DESIGN_PRESETS.typographyPreset),
   buttonPreset: z.enum(BUTTON_IDS).catch(DEFAULT_DESIGN_PRESETS.buttonPreset),
   animationPreset: z.enum(ANIMATION_IDS).catch(DEFAULT_DESIGN_PRESETS.animationPreset),
+  decorationPreset: z.enum(DECORATION_IDS).catch(DEFAULT_DESIGN_PRESETS.decorationPreset),
   footerPreset: z.enum(FOOTER_IDS).catch(DEFAULT_DESIGN_PRESETS.footerPreset),
   menuLayout: z.enum(MENU_LAYOUT_IDS).catch(DEFAULT_DESIGN_PRESETS.menuLayout),
   menuSide: z.enum(MENU_SIDE_IDS).catch(DEFAULT_DESIGN_PRESETS.menuSide),
@@ -186,6 +196,7 @@ export type WebsiteDesignPresets = {
   typographyPreset: TypographyPresetId;
   buttonPreset: ButtonPresetId;
   animationPreset: AnimationPresetId;
+  decorationPreset: DecorationPresetId;
   footerPreset: FooterPresetId;
   menuLayout: MenuLayoutId;
   menuSide: MenuSideId;
