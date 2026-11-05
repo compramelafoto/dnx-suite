@@ -250,7 +250,7 @@
   ```
 - **Reglas de `resolveCollectionAccess`:** `available` es `true` solo si `enabled` está encendido y `isInternationalCountry(countryCode)`. El `provider` sale de `getCountry(code).provider`. En cualquier otro caso, incluidos `null` y `"AR"`, devuelve `{available:false}`.
 - **Reglas de `toCollectionAccountView`:** el `warning` es, en este orden:
-  1. Si `row.provider !== access.provider`: `"La cuenta conectada es de otro medio de cobro y no corresponde a {countryName}. Conectá la cuenta correcta."` Para el nombre del medio en el texto: MP es "Mercado Pago" y PayPal es "PayPal".
+  1. Si `row.provider !== access.provider`: `"La cuenta conectada es de {medio de la cuenta} y no corresponde a {countryName}. Conectá la cuenta correcta."` {medio de la cuenta}: `MERCADOPAGO_OWN` → "Mercado Pago", `PAYPAL_OWN` → "PayPal".
   2. Si no, `countryMismatchMessage(access.countryCode, row.accountCountryCode)`.
 - **`connectCollectionAccount`**, en este orden:
   1. Calcula el acceso. Si no está disponible → `404 "No disponible."`.
