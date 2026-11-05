@@ -22,6 +22,7 @@ import {
   type OrdersQuickAutomationHandlers,
 } from "@/components/fotografo/orders/orders-quick-automation-helpers";
 import { pollOrderZipDownloadUrl } from "@/lib/digital-download/poll-order-zip-download";
+import AppModal from "@/components/ui/AppModal";
 import {
   getBulkDeliverableOrders,
   getBulkDownloadableOrders,
@@ -74,6 +75,8 @@ export default function PhotographerOrdersTable({ orders, photographerId }: Phot
   const [selectedOrderKey, setSelectedOrderKey] = useState<string | null>(null);
   const [bulkSelectedKeys, setBulkSelectedKeys] = useState<Set<string>>(() => new Set());
   const [mobileSelectionMode, setMobileSelectionMode] = useState(false);
+  // Pedidos ya validados que esperan que el fotógrafo elija cómo ordenar el ZIP.
+  const [exportPending, setExportPending] = useState<PhotographerOrderRow[] | null>(null);
   const [bulkLoading, setBulkLoading] = useState<BulkLoadingState>({
     download: false,
     export: false,
@@ -376,15 +379,25 @@ export default function PhotographerOrdersTable({ orders, photographerId }: Phot
       );
       return;
     }
+    setExportPending(eligible);
+  }
+
+  /** Separar por cliente o no lo elige el fotógrafo: si separa recién al embolsar, las
+   *  carpetas por cliente le duplican el trabajo; si entrega por cliente, le ahorran buscar. */
+  function startBulkExport(separarClientes: boolean) {
+    const eligible = exportPending;
+    setExportPending(null);
+    if (!eligible?.length) return;
     setBulkLoading((prev) => ({ ...prev, export: true }));
     try {
-      // Un solo ZIP con una carpeta por pedido. Antes se abría una pestaña por pedido y el
+      // Un solo ZIP ordenado por tamaño. Antes se abría una pestaña por pedido y el
       // navegador bloqueaba todas menos la primera como ventanas emergentes.
       const albumes = eligible.filter((o) => o.source !== "PRINT_ORDER").map((o) => o.id);
       const impresion = eligible.filter((o) => o.source === "PRINT_ORDER").map((o) => o.id);
       const params = new URLSearchParams();
       if (albumes.length) params.set("albumes", albumes.join(","));
       if (impresion.length) params.set("impresion", impresion.join(","));
+      if (!separarClientes) params.set("clientes", "no");
       window.location.href = `/api/fotografo/pedidos/export-print-lote?${params.toString()}`;
     } finally {
       setTimeout(() => setBulkLoading((prev) => ({ ...prev, export: false })), 400);
@@ -633,6 +646,44 @@ export default function PhotographerOrdersTable({ orders, photographerId }: Phot
         onClear={clearBulkSelection}
         actions={bulkActions}
       />
+
+      <AppModal
+        open={exportPending !== null}
+        onClose={() => setExportPending(null)}
+        size="sm"
+        title="¿Cómo querés el ZIP para el laboratorio?"
+        titleId="bulk-export-modal-title"
+        zIndexClass="z-[110]"
+      >
+        <div className="space-y-3 px-5 py-5 sm:px-6">
+          <p className="text-sm text-[#6b7280]">
+            {exportPending?.length ?? 0} pedido{exportPending?.length === 1 ? "" : "s"}. En los dos casos las fotos
+            van en una carpeta por tamaño y acabado.
+          </p>
+          {[
+            {
+              separar: false,
+              titulo: "Solo por tamaño y acabado",
+              detalle: "Todas las fotos del mismo tamaño juntas. Cada archivo empieza con el número de pedido.",
+            },
+            {
+              separar: true,
+              titulo: "Por tamaño y, adentro, por cliente",
+              detalle: "Dentro de cada tamaño, una carpeta con el nombre de cada cliente.",
+            },
+          ].map((op) => (
+            <button
+              key={op.titulo}
+              type="button"
+              onClick={() => startBulkExport(op.separar)}
+              className="w-full rounded-xl border border-[#e5e7eb] px-4 py-3 text-left transition hover:border-[#c27b3d] hover:bg-[#fdf8f3]"
+            >
+              <span className="block text-sm font-semibold text-[#1a1a1a]">{op.titulo}</span>
+              <span className="mt-0.5 block text-xs text-[#6b7280]">{op.detalle}</span>
+            </button>
+          ))}
+        </div>
+      </AppModal>
     </div>
     </OrderVisualProvider>
   );
