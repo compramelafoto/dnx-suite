@@ -54,6 +54,10 @@ export const HERO_OVERLAY_PRESET = ["none", "soft", "medium", "dark"] as const;
  * colores del sitio, para fondos claros como una pared o un papel. */
 export const HERO_TEXT_TONE = ["light", "dark"] as const;
 export type HeroTextTone = (typeof HERO_TEXT_TONE)[number];
+/** `cover`: la foto cubre la placa y se recorta según el tamaño de pantalla. `whole`: la foto se ve
+ * entera, sin recortes, y el texto va en el espacio libre de su mitad izquierda (en el celular, arriba). */
+export const HERO_IMAGE_LAYOUT = ["cover", "whole"] as const;
+export type HeroImageLayout = (typeof HERO_IMAGE_LAYOUT)[number];
 export type HeroOverlayPreset = (typeof HERO_OVERLAY_PRESET)[number];
 
 export const HERO_TRANSITION = ["fade", "slide"] as const;
@@ -85,6 +89,7 @@ export const heroSlideSchema = z.object({
   overlay: z.enum(HERO_OVERLAY_PRESET).catch("none"),
   // Todo lo que sigue es opcional: una placa guardada antes se ve exactamente igual que siempre.
   textTone: z.enum(HERO_TEXT_TONE).optional().catch(undefined),
+  imageLayout: z.enum(HERO_IMAGE_LAYOUT).optional().catch(undefined),
   /** Logo o firma arriba del título. */
   logoUrl: z.string().max(2000).optional(),
   /** Figura recortada (PNG con fondo transparente) apoyada abajo a la derecha, delante del fondo:

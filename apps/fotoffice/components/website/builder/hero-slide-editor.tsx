@@ -154,6 +154,15 @@ export function HeroSlideEditor({
         ) : null}
 
         <SelectField
+          label="Cómo se ve la foto"
+          value={editingSlide.imageLayout ?? "cover"}
+          onChange={(v) => onChange(updateHeroSlide(config, editingSlide.id, { imageLayout: v as HeroSlide["imageLayout"] }))}
+          options={[
+            { value: "cover", label: "Cubre todo el banner (puede recortarse)" },
+            { value: "whole", label: "Entera, con el texto en su espacio libre de la izquierda" },
+          ]}
+        />
+        <SelectField
           label="Color del texto"
           value={editingSlide.textTone ?? "light"}
           onChange={(v) => onChange(updateHeroSlide(config, editingSlide.id, { textTone: v as HeroSlide["textTone"] }))}
