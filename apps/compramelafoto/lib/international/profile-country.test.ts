@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { hasCountryCodeRequest, resolveProfileCountryUpdate } from "./profile-country";
+import { hasCountryCodeRequest, resolveProfileCountryUpdate, shouldAskCountry } from "./profile-country";
 
 test("sin país pedido no cambia nada", () => {
   const r = resolveProfileCountryUpdate({ requestedCode: undefined, currentCode: "AR", albumCount: 5 });
@@ -58,4 +58,16 @@ test("código no soportado devuelve 400", () => {
 test("null, undefined y vacío no cuentan como pedido de país", () => {
   for (const v of [null, undefined, "", "  "]) assert.equal(hasCountryCodeRequest(v), false);
   for (const v of ["MX", "XX", "ar"]) assert.equal(hasCountryCodeRequest(v), true);
+});
+
+test("shouldAskCountry: fotógrafo sin país → pide", () => {
+  assert.equal(shouldAskCountry({ role: "PHOTOGRAPHER", countryCode: null }), true);
+});
+
+test("shouldAskCountry: fotógrafo con país → no pide", () => {
+  assert.equal(shouldAskCountry({ role: "PHOTOGRAPHER", countryCode: "AR" }), false);
+});
+
+test("shouldAskCountry: cliente sin país → no pide", () => {
+  assert.equal(shouldAskCountry({ role: "CUSTOMER", countryCode: null }), false);
 });

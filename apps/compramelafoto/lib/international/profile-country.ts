@@ -42,3 +42,8 @@ export function resolveProfileCountryUpdate(input: {
 export function hasCountryCodeRequest(value: unknown): boolean {
   return value != null && String(value).trim() !== "";
 }
+
+/** ¿Hay que pedirle el país al usuario? Sólo a fotógrafos que todavía no lo cargaron. */
+export function shouldAskCountry(user: { role: string; countryCode: string | null }): boolean {
+  return user.role === "PHOTOGRAPHER" && !user.countryCode;
+}
