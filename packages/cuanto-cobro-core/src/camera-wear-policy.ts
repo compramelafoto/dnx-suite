@@ -132,7 +132,7 @@ export function buildCameraWearWarnings(
   // Sólo en presupuestos guardados con el modelo anterior.
   if (policy.mode === "structural") {
     warnings.push(
-      "Presupuesto calculado con el modelo anterior: la cámara estaba en la renovación mensual del perfil y el desgaste de este trabajo no se sumó al precio.",
+      "Cotización calculada con el modelo anterior: la cámara estaba en la renovación mensual del perfil y el desgaste de este trabajo no se sumó al precio.",
     );
   }
 

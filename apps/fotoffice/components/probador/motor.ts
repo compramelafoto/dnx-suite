@@ -700,7 +700,7 @@ export function montarProbador(
       `<li><span>${l.cantidad} × ${nombre[l.tipo]} ${fmt(l.corto)} × ${fmt(l.largo)} cm</span><span>${l.precioArs != null ? pesos(l.precioArs * l.cantidad) : "Sin precio"}</span></li>`).join("");
     $("presupuesto-total").textContent = pesos(r.total);
     $("presupuesto-nota").textContent = r.sinPrecio
-      ? `${r.sinPrecio === 1 ? "Un cuadro no tiene" : `${r.sinPrecio} cuadros no tienen`} precio todavía: se presupuesta aparte.`
+      ? `${r.sinPrecio === 1 ? "Un cuadro no tiene" : `${r.sinPrecio} cuadros no tienen`} precio todavía: se cotiza aparte.`
       : "Precios de lista del estudio, por cuadro.";
   }
   function rearmar() {

@@ -102,7 +102,7 @@ describe("lista de Presupuestos (motor 0.2)", () => {
     // Sin texto no hay búsqueda por número aunque lleguen listas.
     expect(L.idsDeBusqueda(consulta({}), null, null)).toEqual({ excedido: false, y: null, o: [] });
     expect(typeof L.listadoPresupuestos.aviso).toBe("function");
-    expect(L.AVISO_DEMASIADOS).toMatch(/demasiados/);
+    expect(L.AVISO_DEMASIADOS).toMatch(/demasiadas/);
   });
 
   it("marcar vencidos: sólo los enviados o vistos que ya vencieron, dentro del workspace", async () => {

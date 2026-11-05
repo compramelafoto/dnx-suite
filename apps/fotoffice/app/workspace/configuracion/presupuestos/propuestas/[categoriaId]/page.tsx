@@ -28,8 +28,8 @@ export default async function PropuestaModeloPage({ params }: { params: Promise<
   if (!puede(role, "configurar")) {
     return (
       <div className="max-w-xl space-y-6">
-        <PageHeader title="Presupuestos" />
-        <p className="text-sm text-[var(--fo-muted)]">Sólo el dueño o un administrador pueden configurar los presupuestos.</p>
+        <PageHeader title="Cotizaciones" />
+        <p className="text-sm text-[var(--fo-muted)]">Sólo el dueño o un administrador pueden configurar las cotizaciones.</p>
       </div>
     );
   }

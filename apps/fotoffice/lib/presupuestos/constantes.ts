@@ -16,11 +16,11 @@ export type EstadoPresupuesto = (typeof ESTADOS_PRESUPUESTO)[number];
 
 export const ETIQUETA_ESTADO: Record<EstadoPresupuesto, string> = {
   BORRADOR: "Borrador",
-  ENVIADO: "Enviado",
-  VISTO: "Visto",
-  ACEPTADO: "Aceptado",
-  RECHAZADO: "Rechazado",
-  VENCIDO: "Vencido",
+  ENVIADO: "Enviada",
+  VISTO: "Vista",
+  ACEPTADO: "Aceptada",
+  RECHAZADO: "Rechazada",
+  VENCIDO: "Vencida",
 };
 
 export function esEstadoPresupuesto(v: unknown): v is EstadoPresupuesto {
@@ -268,7 +268,7 @@ export function validarItem(raw: unknown): ResultadoValidacion<ItemPresupuesto> 
 
 export function validarItems(raw: unknown): ResultadoValidacion<ItemPresupuesto[]> {
   if (!Array.isArray(raw)) return { ok: false, error: "Los ítems no son válidos." };
-  if (raw.length > MAX_ITEMS_VERSION) return { ok: false, error: `Un presupuesto admite hasta ${MAX_ITEMS_VERSION} ítems.` };
+  if (raw.length > MAX_ITEMS_VERSION) return { ok: false, error: `Una cotización admite hasta ${MAX_ITEMS_VERSION} ítems.` };
   const items: ItemPresupuesto[] = [];
   const claves = new Set<string>();
   for (const x of raw) {

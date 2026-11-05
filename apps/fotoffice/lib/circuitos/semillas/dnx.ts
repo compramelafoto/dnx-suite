@@ -52,7 +52,7 @@ export const CIRCUITOS_DNX: SemillaCircuito[] = [
     "Embudo de Ventas DNX 2022",
     [
       ["Recepción de la oportunidad", 2, "NEW"],
-      ["WSP - Recepción del Presupuesto", 1, "CONTACTED"],
+      ["WSP - Recepción de la Cotización", 1, "CONTACTED"],
       ["Coordinar entrevista", 1, "QUOTED"],
       ["Cliente potencial", 1, "INTERESTED"],
       ["Cliente dudoso", 1],

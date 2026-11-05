@@ -68,7 +68,7 @@ const ALIAS: Record<string, CampoCsv> = {
   lugar: "lugar", lugardelevento: "lugar", salon: "lugar", ubicacion: "lugar",
   invitados: "invitados", cantidaddeinvitados: "invitados", cantidadinvitados: "invitados",
   origen: "origen", comonosconociste: "origen", fuente: "origen", canal: "origen",
-  valor: "valor", valorestimado: "valor", presupuesto: "valor", monto: "valor", importe: "valor",
+  valor: "valor", valorestimado: "valor", presupuesto: "valor", cotizacion: "valor", monto: "valor", importe: "valor",
   responsable: "responsable", correodelresponsable: "responsable", responsablecorreo: "responsable", emaildelresponsable: "responsable",
   etapa: "etapa", estado: "etapa",
   nota: "nota", notas: "nota", mensaje: "nota", comentario: "nota", comentarios: "nota", observaciones: "nota",

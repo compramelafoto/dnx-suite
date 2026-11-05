@@ -33,10 +33,10 @@ export function AjustesForm({ ajustes }: { ajustes: AjustesVista }) {
       <section className="fo-card space-y-4 p-5" aria-labelledby="ajustes-presupuesto-titulo">
         <div className="space-y-1">
           <h2 id="ajustes-presupuesto-titulo" className="text-base font-semibold">
-            Presupuestos nuevos
+            Cotizaciones nuevas
           </h2>
           <p className="text-sm text-[var(--fo-muted)]">
-            Cada presupuesto nuevo arranca con estos datos. En cada presupuesto los podés cambiar; los que ya existen no
+            Cada cotización nueva arranca con estos datos. En cada cotización los podés cambiar; las que ya existen no
             cambian.
           </p>
         </div>
@@ -97,7 +97,7 @@ export function AjustesForm({ ajustes }: { ajustes: AjustesVista }) {
             Opciones de pago
           </h2>
           <p className="text-sm text-[var(--fo-muted)]">
-            Cada presupuesto nuevo las ofrece calculadas sobre su total, y en cada uno las podés cambiar. El cliente elige una
+            Cada cotización nueva las ofrece calculadas sobre su total, y en cada una las podés cambiar. El cliente elige una
             al aceptar; si no elige, queda la primera.
           </p>
         </div>
@@ -110,7 +110,7 @@ export function AjustesForm({ ajustes }: { ajustes: AjustesVista }) {
             Seguimiento
           </h2>
           <p className="text-sm text-[var(--fo-muted)]">
-            Si el cliente no responde, se le recuerda el presupuesto por correo a los días que elijas (una vez por
+            Si el cliente no responde, se le recuerda la cotización por correo a los días que elijas (una vez por
             versión enviada, a las 10 de la mañana). No sale si ya lo aceptó, lo rechazó o venció. El texto se edita en
             Configuración → Plantillas → Automáticos.
           </p>

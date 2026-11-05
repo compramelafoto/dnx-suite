@@ -98,8 +98,8 @@ describe("POST /api/dnx-bot/chat", () => {
     const prep = await p.preparar();
     expect(H.conv).toHaveBeenCalledWith({ plataforma: "FOTOFFICE:ws1", userId: 7, pagePath: "/presupuestos", model: "claude-sonnet-5-5" });
     expect(prep.systemGuide).toContain("Nunca inventes precios");
-    expect(prep.situation).toContain("Pantalla: lista de presupuestos");
-    expect(prep.situation).toContain("Está mirando el presupuesto N.º 0007 (presupuestoId p1), en borrador.");
+    expect(prep.situation).toContain("Pantalla: lista de cotizaciones");
+    expect(prep.situation).toContain("Está mirando la cotización N.º 0007 (presupuestoId p1), en borrador.");
     expect(prep.situation).toContain("Perfil de precios: incompleto (cargado a mano). Falta: Software y herramientas.");
     expect(prep.tools.map((t) => t.name)).toEqual([
       "ver_perfil_de_precios", "anotar_en_borrador", "simular_perfil", "guardar_perfil_de_precios",

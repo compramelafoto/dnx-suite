@@ -64,7 +64,7 @@ function OpcionesDePago({ opciones }: { opciones: OpcionPublica[] }) {
 /** Las opciones lado a lado (en el celular, una debajo de otra). */
 function Alternativas({ alternativas }: { alternativas: AlternativaDeLaVista[] }) {
   return (
-    <section aria-label="Opciones del presupuesto" className="space-y-4">
+    <section aria-label="Opciones de la cotización" className="space-y-4">
       <h2 className="text-lg font-semibold">Las {alternativas.length} opciones</h2>
       <div className={`grid gap-6 pt-2 ${alternativas.length >= 4 ? "md:grid-cols-2 xl:grid-cols-4" : alternativas.length >= 3 ? "md:grid-cols-2 lg:grid-cols-3" : "md:grid-cols-2"}`}>
         {alternativas.map((a, i) => (
@@ -139,7 +139,7 @@ export function PresupuestoPublico({
           <p className="text-lg font-semibold">{vista.organizacion.nombre}</p>
         </div>
         <div className="text-right text-sm">
-          <p className="font-semibold">Presupuesto{vista.numero ? ` N° ${vista.numero}` : ""}</p>
+          <p className="font-semibold">Cotización{vista.numero ? ` N° ${vista.numero}` : ""}</p>
           <p className="opacity-70">Versión {vista.version}</p>
           {vista.vence ? <p className="opacity-70">Válido hasta el {vista.vence}</p> : null}
         </div>
@@ -153,7 +153,7 @@ export function PresupuestoPublico({
       {!detalle || conAlternativas ? null : (
       <>
       <section aria-label="Ítems" className="space-y-4">
-        {vista.items.length === 0 ? <p className="opacity-70">Este presupuesto no tiene ítems.</p> : null}
+        {vista.items.length === 0 ? <p className="opacity-70">Esta cotización no tiene ítems.</p> : null}
         {secciones.map((sec) => (
           <div key={sec ?? "__sin__"}>
             {sec !== null ? <h2 className="text-base font-semibold">{sec}</h2> : null}

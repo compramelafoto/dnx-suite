@@ -342,7 +342,7 @@ export const contactConfigSchema = z.object({
  * después no rompen nada (ver `categoriasDelBloque` y `resolverCategoriaDelSitio`). Las
  * categorías y los orígenes se leen al dibujar, nunca se copian acá.
  */
-export const INQUIRY_DEFAULT_BUTTON_LABEL = "Pedir presupuesto";
+export const INQUIRY_DEFAULT_BUTTON_LABEL = "Pedir cotización";
 export const INQUIRY_DEFAULT_THANKS = "¡Gracias! Te escribimos dentro de las 24 horas.";
 
 export const inquiryFormConfigSchema = z.object({
@@ -989,8 +989,8 @@ export const WEBSITE_BLOCK_DEFINITIONS: {
   },
   INQUIRY_FORM: {
     type: "INQUIRY_FORM",
-    label: "Formulario de presupuesto",
-    description: "Quien visita el sitio pide presupuesto y la consulta entra sola a Consultas, con su categoría y cómo te conoció.",
+    label: "Formulario de cotización",
+    description: "Quien visita el sitio pide una cotización y la consulta entra sola a Consultas, con su categoría y cómo te conoció.",
     category: "COMERCIAL",
     source: "dynamic",
     defaultConfig: () => ({
@@ -1004,7 +1004,7 @@ export const WEBSITE_BLOCK_DEFINITIONS: {
       thanksMessage: INQUIRY_DEFAULT_THANKS,
     }),
     // Alimenta también el menú (ver HERO).
-    previewLabel: (c) => c.title?.trim() || "Pedí tu presupuesto",
+    previewLabel: (c) => c.title?.trim() || "Pedí tu cotización",
   },
   BLOG_LATEST: {
     type: "BLOG_LATEST",

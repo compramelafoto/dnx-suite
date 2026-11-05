@@ -189,8 +189,8 @@ describe("enlace y token", () => {
   });
 
   it("conEnlace agrega el enlace antes de la firma si el texto no lo trae", () => {
-    expect(EN.conEnlace("Hola.\n\n[firma]", "https://x/p")).toBe("Hola.\n\nPodés ver el presupuesto acá: https://x/p\n\n[firma]");
-    expect(EN.conEnlace("Hola", "https://x/p")).toBe("Hola\n\nPodés ver el presupuesto acá: https://x/p");
+    expect(EN.conEnlace("Hola.\n\n[firma]", "https://x/p")).toBe("Hola.\n\nPodés ver la cotización acá: https://x/p\n\n[firma]");
+    expect(EN.conEnlace("Hola", "https://x/p")).toBe("Hola\n\nPodés ver la cotización acá: https://x/p");
     expect(EN.conEnlace("Mirá https://x/p", "https://x/p")).toBe("Mirá https://x/p");
   });
 });
@@ -216,7 +216,7 @@ describe("plantillas del presupuesto", () => {
     await PL.asegurarPlantillasPresupuesto("ws-1");
     await PL.asegurarPlantillasPresupuesto("ws-1");
     const delWs = B.datos.fotofficeMessageTemplate.filter((t) => t.workspaceId === "ws-1" && t.entityType === "PRESUPUESTO");
-    expect(delWs.map((t) => [t.channel, t.name])).toEqual([["EMAIL", "Te enviamos tu presupuesto"], ["WHATSAPP", "Tu presupuesto"]]);
+    expect(delWs.map((t) => [t.channel, t.name])).toEqual([["EMAIL", "Te enviamos tu cotización"], ["WHATSAPP", "Tu cotización"]]);
     // Con el candado por organización antes de contar.
     expect(B.sql.some((q) => q.texto.includes("pg_advisory_xact_lock") && q.valores.includes("fotoffice-plantillas-presupuesto:ws-1"))).toBe(true);
   });
@@ -369,7 +369,7 @@ describe("enviar", () => {
     const { presupuestoId } = await armado();
     const templateId = plantilla();
     const r = await EN.enviarPresupuesto(DUENO, presupuestoId, { canal: "EMAIL", templateId }, depsEnvio({ enviar: enviador({ status: "PROVIDER_REJECTED", detail: "HTTP 422" }) }));
-    expect(r).toMatchObject({ ok: false, enviado: true, error: expect.stringContaining("quedó enviado") });
+    expect(r).toMatchObject({ ok: false, enviado: true, error: expect.stringContaining("quedó enviada") });
     expect(presupuesto(presupuestoId).status).toBe("ENVIADO");
     const otra = await EN.enviarPresupuesto(DUENO, presupuestoId, { canal: "EMAIL", templateId, reenviar: true }, depsEnvio({ ahora: () => new Date(AHORA.getTime() + MINUTO) }));
     expect(otra).toMatchObject({ ok: true, repetido: false });
@@ -386,7 +386,7 @@ describe("enviar", () => {
     const { presupuestoId } = await armado();
     const antes = await EN.opcionesDeEnvio(DUENO, presupuestoId, { clave: CLAVE, appOrigin: ORIGEN, ahora: () => AHORA });
     expect(antes).toMatchObject({ destino: { correo: true, whatsapp: true }, enlace: null, hayBorrador: true, puedeReenviar: false, bloqueo: null });
-    expect(antes!.plantillas.map((p) => p.nombre)).toEqual(["Te enviamos tu presupuesto", "Tu presupuesto"]);
+    expect(antes!.plantillas.map((p) => p.nombre)).toEqual(["Te enviamos tu cotización", "Tu cotización"]);
     const r = await EN.enviarPresupuesto(DUENO, presupuestoId, { canal: "EMAIL", templateId: antes!.plantillas[0]!.id }, depsEnvio());
     expect(r.ok).toBe(true);
     const despues = await EN.opcionesDeEnvio(DUENO, presupuestoId, { clave: CLAVE, appOrigin: ORIGEN, ahora: () => AHORA });
@@ -547,9 +547,9 @@ describe("vistas", () => {
     const ev = await HI.eventosDePresupuestos(DUENO, "lead-1");
     const n = envio.ok ? envio.numero : "";
     expect(ev.map((e) => e.texto)).toEqual([
-      `El cliente aceptó el presupuesto N° ${n} (V1) (Laura Pérez)`,
-      `El cliente abrió el presupuesto N° ${n} (V1) (lo abrió 2 veces)`,
-      `Se envió el presupuesto N° ${n} (V1)`,
+      `El cliente aceptó la cotización N° ${n} (V1) (Laura Pérez)`,
+      `El cliente abrió la cotización N° ${n} (V1) (la abrió 2 veces)`,
+      `Se envió la cotización N° ${n} (V1)`,
     ]);
     expect(ev[0]!.href).toBe(`/presupuestos/${presupuestoId}`);
     expect(JSON.stringify(ev)).not.toMatch(/hash-ip|iPhone/);
@@ -579,7 +579,7 @@ describe("aceptar", () => {
     expect(avisos).toHaveBeenCalledTimes(1);
     const correo = avisos.mock.calls[0]![0];
     expect(correo.to).toBe("dueno@estudio.test");
-    expect(correo.subject).toBe(`Aceptaron el presupuesto N° ${envio.ok ? envio.numero : ""}`);
+    expect(correo.subject).toBe(`Aceptaron la cotización N° ${envio.ok ? envio.numero : ""}`);
     expect(correo.text).toContain(`${ORIGEN}/presupuestos/${presupuestoId}`);
 
     // La página ahora lo muestra aceptado, con quién y cuándo.

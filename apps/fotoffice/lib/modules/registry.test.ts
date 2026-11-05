@@ -186,7 +186,7 @@ describe("presupuestos (etapa 2)", () => {
   it("figura disponible, con su ruta, en Negocio y dependiendo de Consultas", () => {
     const m = getModuleDefinition("quotes");
     expect(m?.status).toBe("AVAILABLE");
-    expect(m?.label).toBe("Presupuestos");
+    expect(m?.label).toBe("Cotizaciones");
     expect(m?.route).toBe("/presupuestos");
     expect(m?.family).toBe("negocio");
     expect(m?.dependsOn).toEqual([SERVICE_LEADS_MODULE_KEY]);

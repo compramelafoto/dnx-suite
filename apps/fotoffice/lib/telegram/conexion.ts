@@ -26,7 +26,7 @@ export const MENSAJES_TELEGRAM = {
   webhook: "Guardamos el bot, pero Telegram no aceptó la dirección de avisos. Probá de nuevo en un rato.",
   sinClave: "No se pudo guardar el token: falta configurar la clave de cifrado del servidor.",
   sinConexion: "Primero conectá el bot.",
-  fallo: "No se pudo guardar. ¿Ya se aplicó el SQL del presupuesto automático?",
+  fallo: "No se pudo guardar. ¿Ya se aplicó el SQL de la cotización automática?",
 } as const;
 
 export type ConexionTelegram = {

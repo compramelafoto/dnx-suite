@@ -3,9 +3,9 @@ import { ORDERS_MODULE_KEY } from "@/lib/pedidos/acceso";
 
 export const guia: Instructivo = {
   slug: "pedidos-nuevo-y-confirmar",
-  titulo: "Crear un pedido o confirmar uno que viene de un presupuesto",
+  titulo: "Crear un pedido o confirmar uno que viene de una cotización",
   resumen:
-    "Cargar un pedido para un evento o una sesión, con sus cuotas, o confirmar el pedido de un presupuesto que el cliente aceptó.",
+    "Cargar un pedido para un evento o una sesión, con sus cuotas, o confirmar el pedido de una cotización que el cliente aceptó.",
   seccion: "Clientes y pedidos",
   moduleKey: ORDERS_MODULE_KEY,
   minutos: 7,
@@ -44,10 +44,10 @@ export const guia: Instructivo = {
       ],
     },
     {
-      titulo: "Confirmar un presupuesto aceptado",
+      titulo: "Confirmar una cotización aceptada",
       texto: [
-        "Cuando el cliente acepta un presupuesto, al responsable le llega una tarea «Presupuesto aceptado: confirmar el pedido» y el presupuesto dice «Pedido por confirmar».",
-        "Abrí el presupuesto y tocá «Confirmar pedido». Revisá la opción de pago, el total y las cuotas (se pueden ajustar), la plantilla de tareas, y los trabajos y citas que se van a crear (destildá lo que no corresponda).",
+        "Cuando el cliente acepta una cotización, al responsable le llega una tarea «Cotización aceptada: confirmar el pedido» y la cotización dice «Pedido por confirmar».",
+        "Abrí la cotización y tocá «Confirmar pedido». Revisá la opción de pago, el total y las cuotas (se pueden ajustar), la plantilla de tareas, y los trabajos y citas que se van a crear (destildá lo que no corresponda).",
         "Tocá «Confirmar el pedido».",
       ],
       nota: "Si el estudio tiene encendido «Crear el pedido solo cuando el cliente acepta», el pedido ya aparece creado y el cliente va directo a pagar la seña.",

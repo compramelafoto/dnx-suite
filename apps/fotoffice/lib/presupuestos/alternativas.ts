@@ -43,14 +43,14 @@ export type Alternativa = {
 export type AlternativaConTotales = Alternativa & { totales: TotalesPresupuesto };
 
 export const MENSAJES_ALTERNATIVAS = {
-  invalidas: "Las opciones del presupuesto no son válidas.",
-  maximo: `Un presupuesto puede tener hasta ${MAX_ALTERNATIVAS} opciones.`,
+  invalidas: "Las opciones de la cotización no son válidas.",
+  maximo: `Una cotización puede tener hasta ${MAX_ALTERNATIVAS} opciones.`,
   nombre: `Cada opción necesita un nombre de hasta ${MAX_NOMBRE_ALTERNATIVA} caracteres.`,
   descripcion: `La descripción de cada opción puede tener hasta ${MAX_DESCRIPCION_ALTERNATIVA} caracteres.`,
   repetida: "Hay dos opciones con el mismo nombre.",
   masElegida: "Sólo una opción puede ser «la más elegida».",
   sinItems: (nombre: string) => `La opción «${nombre}» no tiene ítems: agregale alguno o borrala.`,
-  elegir: "Elegí una de las opciones del presupuesto.",
+  elegir: "Elegí una de las opciones de la cotización.",
 } as const;
 
 // --- Validación -----------------------------------------------------------------------------------

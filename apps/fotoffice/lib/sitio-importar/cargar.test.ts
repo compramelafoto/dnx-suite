@@ -160,7 +160,7 @@ describe("importarSitioAlboom", () => {
 
     const menu = parseSiteMenu(estado.borrador.navJson)!;
     const visibles = menu.items.filter((i) => !i.hidden).map((i) => i.label);
-    expect(visibles).toEqual(["Inicio", "Trabajos", "Blog", "Quién soy", "Pedí tu presupuesto", "Imprimí tus fotos", "Agendá un turno", "Capacitate", "Testimonios", "Tienda Online"]);
+    expect(visibles).toEqual(["Inicio", "Trabajos", "Blog", "Quién soy", "Pedí tu cotización", "Imprimí tus fotos", "Agendá un turno", "Capacitate", "Testimonios", "Tienda Online"]);
     expect(menu.items.find((i) => i.kind === "link")).toMatchObject({ url: "https://www.dnxshop.com.ar/", newTab: true });
   });
 

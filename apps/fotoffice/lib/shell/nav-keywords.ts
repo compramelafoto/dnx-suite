@@ -85,8 +85,8 @@ export const NAV_KEYWORDS: Record<string, string[]> = {
   "/agenda": ["calendario", "citas", "reunion", "sesion", "evento", "turno", "semana", "mes", "recordatorio", "cumpleanos", "vencimientos"],
 
   // Consultas (antes Captación)
-  "/dashboard/service-leads/forms": ["presupuesto", "contacto", "formulario"],
-  "/consultas": ["captacion", "bandeja", "tablero", "contactos", "interesados", "consultas", "presupuestos"],
+  "/dashboard/service-leads/forms": ["cotizacion", "presupuesto", "contacto", "formulario"],
+  "/consultas": ["captacion", "bandeja", "tablero", "contactos", "interesados", "consultas", "cotizaciones", "presupuestos"],
   "/presupuestos": ["cotizacion", "cotizar", "precio", "cuanto cobro", "propuesta", "vencidos"],
   "/pedidos": ["pedido", "cobro", "cobrar", "cuotas", "recibo", "saldo", "seña", "sena"],
   "/contratos": ["contrato", "firma", "firmar", "firmado", "firmante", "pdf", "enviar contrato", "papel", "anular"],

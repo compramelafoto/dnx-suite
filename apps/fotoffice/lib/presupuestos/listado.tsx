@@ -25,7 +25,7 @@ const ID_VALIDO = /^[A-Za-z0-9_-]{1,64}$/;
 /** Tope de ids por subconsulta: comparten el presupuesto de parámetros de la consulta (`presupuestoDeIds`). */
 const TOPE_NUMERO = TOPE_IDS_POR_CONSULTA;
 
-export const AVISO_DEMASIADOS = "Hay demasiados presupuestos con ese número. Escribí el número más completo.";
+export const AVISO_DEMASIADOS = "Hay demasiadas cotizaciones con ese número. Escribí el número más completo.";
 
 export type FilaListaPresupuesto = {
   id: string;
@@ -244,14 +244,14 @@ function ctxDePresupuestos(ctx: ContextoListado): CtxPresupuestos {
   return { workspaceId: ctx.workspaceId, userId: ctx.userId, userLabel: ctx.userLabel, role: ctx.role, acceso: ctx.acceso };
 }
 
-export const MOTIVO_NO_VENCIDO = "No está vencido o ya está marcado.";
+export const MOTIVO_NO_VENCIDO = "No está vencida o ya está marcada.";
 
 export const ACCION_MARCAR_VENCIDOS: AccionLote = {
   clave: "marcar-vencidos",
-  etiqueta: "Marcar vencidos",
+  etiqueta: "Marcar vencidas",
   capacidad: "operar",
   maximo: 500,
-  confirmacion: "Vas a marcar como vencidos {n} presupuestos.",
+  confirmacion: "Vas a marcar como vencidas {n} cotizaciones.",
   elegibles: async (ctx, ids) => {
     const hoy = hoyEnBuenosAires(new Date());
     const filas = ids.length
@@ -277,9 +277,9 @@ export const ACCION_MARCAR_VENCIDOS: AccionLote = {
 
 export const listadoPresupuestos: DefinicionListado<FilaListaPresupuesto> = {
   clave: "presupuestos",
-  titulo: "Presupuestos",
-  sustantivo: { singular: "presupuesto", plural: "presupuestos" },
-  placeholderBusqueda: "Buscar por número del presupuesto o de la consulta, contacto o consulta",
+  titulo: "Cotizaciones",
+  sustantivo: { singular: "cotización", plural: "cotizaciones" },
+  placeholderBusqueda: "Buscar por número de la cotización o de la consulta, contacto o consulta",
   columnas: [
     {
       clave: "numero",
@@ -325,7 +325,7 @@ export const listadoPresupuestos: DefinicionListado<FilaListaPresupuesto> = {
   ],
   filtros: [
     { tipo: "opcion", clave: "estado", etiqueta: "Estado", opciones: OPCIONES_ESTADO },
-    { tipo: "siNo", clave: "vencidos", etiqueta: "Vencidos", si: "Vencidos", no: "Sin vencer" },
+    { tipo: "siNo", clave: "vencidos", etiqueta: "Vencidas", si: "Vencidas", no: "Sin vencer" },
     { tipo: "relacion", clave: "responsable", etiqueta: "Responsable" },
   ],
   ordenes: ["actualizado", "vence", "alta"],

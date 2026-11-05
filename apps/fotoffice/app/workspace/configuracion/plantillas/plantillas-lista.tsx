@@ -222,7 +222,7 @@ function EditorPlantilla({
             maxLength={MAX_NOMBRE_PLANTILLA}
             required
             className="fo-input"
-            placeholder="Por ejemplo: Envío de presupuesto"
+            placeholder="Por ejemplo: Envío de cotización"
           />
         </div>
         <div className="fo-field-stack">

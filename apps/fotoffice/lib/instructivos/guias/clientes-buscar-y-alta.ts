@@ -54,7 +54,7 @@ export const guia: Instructivo = {
       titulo: "Leé la ficha",
       texto: [
         "Arriba está el número y la categoría (Contacto, Cliente, Proveedor o Colaborador).",
-        "Al costado están sus Consultas, Presupuestos, Pedidos, Proyectos y Contratos, cada uno con su botón para crear uno nuevo para esta persona.",
+        "Al costado están sus Consultas, Cotizaciones, Pedidos, Proyectos y Contratos, cada uno con su botón para crear uno nuevo para esta persona.",
         "En el centro, la línea de tiempo con todo lo que pasó (altas, ventas, pedidos, mensajes). Tocá «Ver más» para lo más viejo.",
       ],
     },

@@ -33,7 +33,7 @@ export default async function NuevoPedidoPage({ searchParams }: { searchParams: 
     <div className="space-y-6">
       <PageHeader
         title="Nuevo pedido"
-        description={contacto ? `Para ${contacto.nombre}, sin presupuesto.` : "Un pedido sin presupuesto, para un contacto."}
+        description={contacto ? `Para ${contacto.nombre}, sin cotización.` : "Un pedido sin cotización, para un contacto."}
         actions={
           <Link href="/pedidos" className="fo-btn fo-btn-secondary text-sm">
             Volver a Pedidos
@@ -45,8 +45,8 @@ export default async function NuevoPedidoPage({ searchParams }: { searchParams: 
       ) : (
         <div className="fo-card space-y-2 text-sm">
           <p>
-            El pedido sin presupuesto se crea desde la ficha del contacto: abrí el contacto y tocá «Nuevo pedido» en la tarjeta
-            Pedidos. Para un trabajo presupuestado, confirmá el pedido desde el presupuesto aceptado.
+            El pedido sin cotización se crea desde la ficha del contacto: abrí el contacto y tocá «Nuevo pedido» en la tarjeta
+            Pedidos. Para un trabajo cotizado, confirmá el pedido desde la cotización aceptada.
           </p>
           {veContactos ? (
             <Link href="/clientes" className="font-medium text-[var(--fo-accent)] hover:underline">

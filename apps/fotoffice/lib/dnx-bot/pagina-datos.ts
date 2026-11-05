@@ -16,14 +16,14 @@ import { DIAS_DE_RETENCION } from "./limpieza";
 export const TITULO_DATOS = "Cómo cuidamos tus datos";
 
 export const INTRO_DATOS =
-  "DNX Bot te ayuda a calcular cuánto cobrar y a armar tus presupuestos. Esto es lo que pasa con lo que le contás.";
+  "DNX Bot te ayuda a calcular cuánto cobrar y a armar tus cotizaciones. Esto es lo que pasa con lo que le contás.";
 
 export const SECCIONES_DATOS: readonly { titulo: string; puntos: readonly string[] }[] = [
   {
     titulo: "Qué se guarda",
     puntos: [
       "La conversación con el bot queda guardada en la cuenta de tu estudio en FOTOFFICE.",
-      "Lo que confirmás con el bot —tu perfil de precios, los presupuestos que arma— queda en tu estudio, igual que si lo cargaras a mano.",
+      "Lo que confirmás con el bot —tu perfil de precios, las cotizaciones que arma— queda en tu estudio, igual que si lo cargaras a mano.",
     ],
   },
   {
@@ -31,7 +31,7 @@ export const SECCIONES_DATOS: readonly { titulo: string; puntos: readonly string
     puntos: [
       "La conversación: sólo vos. No hay ninguna pantalla donde otra persona la pueda leer, ni siquiera alguien de tu estudio.",
       "Tu perfil de precios: vos, y el dueño y los administradores de tu estudio.",
-      "Los presupuestos: las personas de tu estudio con permiso en Presupuestos. Tu cliente ve un presupuesto sólo cuando vos se lo enviás, y nunca ve tus costos ni tu ganancia.",
+      "Las cotizaciones: las personas de tu estudio con permiso en Cotizaciones. Tu cliente ve una cotización sólo cuando vos se la enviás, y nunca ve tus costos ni tu ganancia.",
       "No lo ven otros fotógrafos ni otros estudios que usan FOTOFFICE.",
       "El equipo de DNX lo mira sólo si nos pedís ayuda.",
     ],

@@ -129,7 +129,7 @@ export function ConfirmarPedido({ presupuestoId, hoy }: { presupuestoId: string;
         </p>
         {ajuste ? (
           <p className="text-sm text-[var(--fo-muted)]">
-            Total del presupuesto: {pesosPedido(vista.totalPresupuesto)} · {ajuste.etiqueta}: {pesosConSigno(ajuste.importe)}.
+            Total de la cotización: {pesosPedido(vista.totalPresupuesto)} · {ajuste.etiqueta}: {pesosConSigno(ajuste.importe)}.
           </p>
         ) : null}
         {vista.fechaEvento || vista.eventLabel ? (

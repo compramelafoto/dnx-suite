@@ -741,7 +741,7 @@ describe("borrador: no pisar cambios hechos con el editor abierto", () => {
   });
 
   it("el mensaje es claro y en castellano", () => {
-    expect(CAMBIO_EDITOR).toMatch(/cambió mientras lo tenías abierto/);
+    expect(CAMBIO_EDITOR).toMatch(/cambió mientras la tenías abierta/);
     expect(CAMBIO_EDITOR).toMatch(/Recargá/);
   });
 });

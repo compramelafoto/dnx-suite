@@ -29,7 +29,7 @@ export function ArmazonCaptacion({
     <div className="space-y-6">
       <PageHeader
         title="Consultas"
-        description="Consultas de presupuesto, organizadas por etapas."
+        description="Consultas de cotización, organizadas por etapas."
         actions={
           puedeCrear ? (
             <div className="flex flex-wrap gap-2">

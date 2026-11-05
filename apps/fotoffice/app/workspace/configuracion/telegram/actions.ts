@@ -65,7 +65,7 @@ export async function desconectarTelegramAction(_prev: EstadoTelegramConfig | un
 export async function probarTelegramAction(_prev: EstadoTelegramConfig | undefined, _fd: FormData): Promise<EstadoTelegramConfig> {
   const ctx = await contexto();
   if (!ctx) return { error: MENSAJES_TELEGRAM.sinPermiso };
-  const r = await avisarPorTelegram(ctx.workspaceId, "👋 <b>Prueba de FOTOFFICE.</b> Si ves esto, los avisos de presupuestos te van a llegar acá.", null);
+  const r = await avisarPorTelegram(ctx.workspaceId, "👋 <b>Prueba de FOTOFFICE.</b> Si ves esto, los avisos de cotizaciones te van a llegar acá.", null);
   return r.ok ? { error: null, ok: "Mensaje de prueba enviado: fijate en Telegram." } : { error: `No se pudo mandar el mensaje de prueba (código ${r.codigo}).` };
 }
 

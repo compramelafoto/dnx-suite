@@ -44,7 +44,7 @@ describe("Configuración → Telegram: presupuesto por horas", () => {
     const p = aqui("page.tsx");
     expect(p).toContain("leerAjustesPorHoras(");
     expect(p.indexOf("leerAjustesPorHoras(")).toBeGreaterThan(p.indexOf('puede(role, "configurar")'));
-    expect(p).toContain("Presupuesto por horas");
+    expect(p).toContain("Cotización por horas");
     expect(p).toContain("<PorHorasForm");
   });
 

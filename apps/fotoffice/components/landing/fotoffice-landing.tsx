@@ -133,7 +133,7 @@ export function FotofficeLanding({
                     Portada con varias imágenes que pasan solas, con el texto donde quieras.
                   </Punto>
                   <Punto icono="consultas">
-                    Un formulario de presupuesto que cambia según lo que te pidan: una boda
+                    Un formulario de cotización que cambia según lo que te pidan: una boda
                     pregunta por los novios y las tres fechas, unos XV por la quinceañera y el
                     salón.
                   </Punto>

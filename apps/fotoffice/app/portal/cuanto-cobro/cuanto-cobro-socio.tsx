@@ -40,7 +40,7 @@ const PASOS_FINALES: PasoAgregado[] = [
   },
   {
     id: "presupuesto",
-    title: "Presupuestar un trabajo",
+    title: "Cotizar un trabajo",
     description: "Las horas de ese trabajo al valor de tu hora, más los gastos variables del evento.",
     Contenido: ({ perfil }) => <SeccionPresupuestoTrabajo perfil={perfil} />,
   },

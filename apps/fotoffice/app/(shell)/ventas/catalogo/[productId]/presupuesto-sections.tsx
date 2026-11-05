@@ -134,7 +134,7 @@ function PerfilSection({
       }}
       className="fo-card space-y-4 p-5"
     >
-      <h2 className="text-base font-semibold">Para presupuestos</h2>
+      <h2 className="text-base font-semibold">Para cotizaciones</h2>
       <label className="flex items-center gap-2 text-sm">
         <input type="checkbox" name="inPriceList" defaultChecked={perfil.inPriceList} />
         <input type="hidden" name="inPriceList" value="off" />
@@ -422,7 +422,7 @@ function CostosSection({
 
       {filas.length > 0 ? (
         <p className="text-sm">
-          Fijo por presupuesto: <span className="font-medium">{pesosSinDecimales(fijo)}</span> · Por unidad:{" "}
+          Fijo por cotización: <span className="font-medium">{pesosSinDecimales(fijo)}</span> · Por unidad:{" "}
           <span className="font-medium">{pesosSinDecimales(porUnidad)}</span>
         </p>
       ) : null}

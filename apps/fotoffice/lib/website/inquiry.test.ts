@@ -142,10 +142,10 @@ describe("bloque INQUIRY_FORM", () => {
       askOrigin: true,
       askEventDate: true,
       askEventLocation: true,
-      buttonLabel: "Pedir presupuesto",
+      buttonLabel: "Pedir cotización",
       thanksMessage: "¡Gracias! Te escribimos dentro de las 24 horas.",
     });
-    expect(WEBSITE_BLOCK_DEFINITIONS.INQUIRY_FORM).toMatchObject({ label: "Formulario de presupuesto", category: "COMERCIAL", source: "dynamic" });
+    expect(WEBSITE_BLOCK_DEFINITIONS.INQUIRY_FORM).toMatchObject({ label: "Formulario de cotización", category: "COMERCIAL", source: "dynamic" });
   });
 
   it("valores fuera de lo permitido caen a los de omisión en vez de tirar el bloque", () => {
@@ -155,7 +155,7 @@ describe("bloque INQUIRY_FORM", () => {
     expect(parsed.data.config).toMatchObject({
       categoryIds: [],
       askOrigin: true,
-      buttonLabel: "Pedir presupuesto",
+      buttonLabel: "Pedir cotización",
       thanksMessage: "¡Gracias! Te escribimos dentro de las 24 horas.",
     });
   });

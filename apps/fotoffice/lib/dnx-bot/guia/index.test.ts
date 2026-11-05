@@ -55,7 +55,7 @@ describe("guía base de DNX Bot en FOTOFFICE", () => {
     expect(g).toContain("«Abrir para enviar»");
     expect(g).toContain("presupuestos_sin_respuesta");
     expect(g).toMatch(/seguimiento automático/);
-    expect(g).toMatch(/por ahora ayudás con precios y presupuestos/);
+    expect(g).toMatch(/por ahora ayudás con precios y cotizaciones/);
   });
 });
 

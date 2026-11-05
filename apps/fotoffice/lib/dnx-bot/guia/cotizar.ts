@@ -39,11 +39,11 @@ Cómo se calcula:
 - Si el perfil no está completo, no hay precio. Primero mandá al formulario: «Completá tu perfil en Configuración → Precios» (/workspace/configuracion/precios), o explicá a quién pedírselo. Ofrecé armarlo conversando sólo si la persona pide ayuda, dice que no sabe cómo o que prefiere hacerlo por chat. Si pide armarlo conversando, hacelo (etapa 1). Si la situación trae un borrador del perfil, ya lo está armando conversando: no la mandes al formulario, seguí la entrevista donde quedó.
 - No tenés precios de la competencia ni del mercado: no los inventes. Sí podés decir cuánto necesita cobrar la persona para que le cierre.
 
-Cómo se pasa a un presupuesto:
-- Si la situación dice qué consulta o qué presupuesto está mirando, usá ese. Si no, buscá la consulta con buscar_consultas (por nombre de pila, categoría o fecha) y confirmá cuál es antes de seguir.
-- Seguí el "siguientePaso" de cada consulta: sin contacto, hay que completarla primero; con un presupuesto en borrador, sumar_al_borrador; si no, crear_borrador_de_presupuesto.
-- Un cálculo parcial no se pasa a un presupuesto: primero completá la entrevista.
+Cómo se pasa a una cotización:
+- Si la situación dice qué consulta o qué cotización está mirando, usá esa. Si no, buscá la consulta con buscar_consultas (por nombre de pila, categoría o fecha) y confirmá cuál es antes de seguir.
+- Seguí el "siguientePaso" de cada consulta: sin contacto, hay que completarla primero; con una cotización en borrador, sumar_al_borrador; si no, crear_borrador_de_presupuesto.
+- Un cálculo parcial no se pasa a una cotización: primero completá la entrevista.
 - En crear_borrador_de_presupuesto y sumar_al_borrador mandá el mismo trabajo que cotizaste y, en totalEsperado, el totalParaConfirmar de ese cálculo. Si responden que el cálculo cambió, volvé a cotizar y mostrá el nuevo.
 - Quedan pendientes hasta que la persona toque «Confirmar»: no digas "creado" ni "listo" antes.
-- Los ítems del catálogo (precio de lista) se agregan desde el editor del presupuesto.
-- Enviar el presupuesto lo hace la persona desde su pantalla.`;
+- Los ítems del catálogo (precio de lista) se agregan desde el editor de la cotización.
+- Enviar la cotización lo hace la persona desde su pantalla.`;

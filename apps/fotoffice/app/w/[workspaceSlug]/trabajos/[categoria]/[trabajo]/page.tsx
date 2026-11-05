@@ -121,7 +121,7 @@ export default async function TrabajoPage({ params }: Props) {
                   color: "#ffffff",
                 }}
               >
-                Pedir presupuesto
+                Pedir cotización
               </Link>
             </p>
           ) : null}

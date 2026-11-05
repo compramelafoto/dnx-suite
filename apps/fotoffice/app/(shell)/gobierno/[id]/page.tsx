@@ -364,7 +364,7 @@ export default async function ProyectoPage({
                 rows={2}
                 required
                 maxLength={MAX_COMMENT}
-                placeholder="Escribí tu opinión. Ej.: a favor si conseguimos un segundo presupuesto."
+                placeholder="Escribí tu opinión. Ej.: a favor si conseguimos una segunda cotización."
               />
               <button type="submit" className="fo-btn fo-btn-secondary text-sm">
                 <MessageSquare className="size-4" aria-hidden />

@@ -54,7 +54,7 @@ export function Historial({
             </li>
           ) : e.tipo === "presupuesto" ? (
             <li key={`presupuesto-${e.evento.id}`} className="border-l-2 border-[var(--fo-border)] pl-3 text-sm">
-              <p className="text-xs text-[var(--fo-muted)]">{fechaHoraBA(e.evento.fecha)} · Presupuestos</p>
+              <p className="text-xs text-[var(--fo-muted)]">{fechaHoraBA(e.evento.fecha)} · Cotizaciones</p>
               <p className="text-[var(--fo-text)]">
                 <Link href={e.evento.href} className="hover:underline">
                   {e.evento.texto}

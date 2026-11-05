@@ -151,13 +151,13 @@ describe("la página pública de la tienda", () => {
   });
 });
 
-describe("la página «Pedí tu presupuesto»", () => {
+describe("la página «Pedí tu cotización»", () => {
   it("es opcional (no automática), ocupa /presupuesto, ligada a Consultas, y su segmento queda reservado", () => {
     expect(PUBLIC_MODULE_PAGES.some((p) => p.segment === "presupuesto")).toBe(false);
     expect(OPTIONAL_PUBLIC_PAGES.find((p) => p.key === "presupuesto")).toMatchObject({
       moduleKey: SERVICE_LEADS_MODULE_KEY,
       path: "presupuesto",
-      label: "Pedí tu presupuesto",
+      label: "Pedí tu cotización",
     });
     expect(isSiteSegmentReserved("presupuesto")).toBe(true);
   });

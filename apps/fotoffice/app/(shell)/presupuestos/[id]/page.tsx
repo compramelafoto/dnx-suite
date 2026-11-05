@@ -107,7 +107,7 @@ export default async function PresupuestoPage({ params }: { params: Promise<{ id
   // puede copiar igual de uno aceptado: el cliente ve su aceptación).
   const envio = gestiona ? await opcionesDeEnvio(ctx, detalle.id) : null;
   const enviadoVigente = vigente !== null && vigente.sentAt !== null;
-  const titulo = detalle.numero ? `Presupuesto N° ${detalle.numero}` : "Presupuesto sin enviar";
+  const titulo = detalle.numero ? `Cotización N° ${detalle.numero}` : "Cotización sin enviar";
   const ultima = detalle.versiones.at(-1)?.number ?? 1;
   // Las opciones de pago congeladas en la vigente enviada, y la que eligió el cliente.
   // Con opciones y sin aceptar, las de la principal (cada opción tiene las suyas, sobre su total).
@@ -129,7 +129,7 @@ export default async function PresupuestoPage({ params }: { params: Promise<{ id
               Ver la consulta
             </Link>
             <Link href="/presupuestos" className="fo-btn fo-btn-secondary text-sm">
-              Volver a Presupuestos
+              Volver a Cotizaciones
             </Link>
           </div>
         }
@@ -145,7 +145,7 @@ export default async function PresupuestoPage({ params }: { params: Promise<{ id
 
       {pedido ? (
         <p className="fo-card text-sm">
-          Este presupuesto ya tiene pedido:{" "}
+          Esta cotización ya tiene pedido:{" "}
           <Link href={`/pedidos/${encodeURIComponent(pedido.id)}`} className="font-medium text-[var(--fo-accent)] hover:underline">
             Pedido N° {pedido.numero}
           </Link>
@@ -182,7 +182,7 @@ export default async function PresupuestoPage({ params }: { params: Promise<{ id
             alternativas={alternativasParaVista(vigente.totals, detalle.veCostos ? vigente.costos : null)}
           />
         ) : (
-          <p className="fo-card text-sm text-[var(--fo-muted)]">Este presupuesto todavía no tiene una versión para mostrar.</p>
+          <p className="fo-card text-sm text-[var(--fo-muted)]">Esta cotización todavía no tiene una versión para mostrar.</p>
         ))}
 
       {!editor && opcionesVigente.length > 0 ? (

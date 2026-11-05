@@ -43,7 +43,7 @@ export const MENSAJES_PROPUESTA_MODELO = {
   sinPerfil: "Para que salga sola con conceptos calculados, primero cargá tu perfil en Configuración → Precios.",
   calculoSinPrecio: "Uno de los conceptos calculados no da precio con tu perfil actual: revisalo antes de activar el envío automático.",
   fotolibroSinPrecio: "Uno de los fotolibros ya no está en la lista de hoy del proveedor: elegilo de nuevo antes de activar el envío automático.",
-  plantilla: "Elegí una plantilla de correo de tipo Presupuesto.",
+  plantilla: "Elegí una plantilla de correo de tipo Cotización.",
   sinItems: "Para que salga sola, la propuesta necesita al menos un ítem.",
   sinPlantilla: "Para que salga sola, elegí la plantilla de correo con la que se envía.",
   texto: `Las condiciones pueden tener hasta ${MAX_TEXTO_VERSION} caracteres.`,

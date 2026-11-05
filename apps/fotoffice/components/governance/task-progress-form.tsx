@@ -83,7 +83,7 @@ export function TaskProgressForm({
           rows={3}
           value={texto}
           onChange={(e) => setTexto(e.target.value)}
-          placeholder="Ej.: Pedí presupuesto a dos imprentas, quedan en contestar el jueves."
+          placeholder="Ej.: Pedí cotización a dos imprentas, quedan en contestar el jueves."
         />
       </div>
       <div className="fo-field-stack">

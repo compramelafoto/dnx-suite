@@ -75,7 +75,7 @@ export const ETIQUETA_TIPO_PLANTILLA: Record<TipoPlantilla, string> = {
   CLIENTE: "Cliente",
   SOCIO: "Socio",
   CONSULTA: "Consulta",
-  PRESUPUESTO: "Presupuesto",
+  PRESUPUESTO: "Cotización",
   PEDIDO: "Pedido",
   CITA: "Cita",
   CONTRATO: "Contrato",

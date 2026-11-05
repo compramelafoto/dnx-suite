@@ -161,12 +161,12 @@ export function armarResumen(d: DatosResumen, estado: EstadoDelAviso = { tipo: "
   if (!p) {
     l.push(
       d.motivoSinPresupuesto === "SIN_HORAS"
-        ? "⚠️ <b>Falta la cantidad de horas</b> del evento, así que no armé el presupuesto: respondé a mano desde la consulta. Si el cliente escribe por WhatsApp y dice las horas, el bot lo vuelve a armar."
+        ? "⚠️ <b>Falta la cantidad de horas</b> del evento, así que no armé la cotización: respondé a mano desde la consulta. Si el cliente escribe por WhatsApp y dice las horas, el bot lo vuelve a armar."
         : d.motivoSinPresupuesto === "SIN_PERFIL"
           ? "⚠️ <b>No pude calcular el precio</b>: completá tu perfil en ¿Cuánto cobro? (Configuración → Precios) y respondé esta consulta a mano."
         : d.motivoSinPresupuesto === "NO_SE_PUDO_ARMAR"
-        ? "⚠️ <b>No se pudo armar el presupuesto solo</b> (revisá la propuesta modelo de esta categoría: algún producto inactivo o un concepto sin precio)."
-        : "⚠️ <b>Esta categoría no tiene propuesta modelo</b>, así que no armé presupuesto. Abrí la consulta y respondé a mano, o cargá la propuesta en Configuración → Presupuestos → Propuestas.",
+        ? "⚠️ <b>No se pudo armar la cotización sola</b> (revisá la propuesta modelo de esta categoría: algún producto inactivo o un concepto sin precio)."
+        : "⚠️ <b>Esta categoría no tiene propuesta modelo</b>, así que no armé cotización. Abrí la consulta y respondé a mano, o cargá la propuesta en Configuración → Cotizaciones → Propuestas.",
     );
   } else if (p.alternativas && p.alternativas.length > 0) {
     // Con opciones: cada una con lo que incluye, su precio, su costo y su margen.
@@ -189,7 +189,7 @@ export function armarResumen(d: DatosResumen, estado: EstadoDelAviso = { tipo: "
   if (estado.tipo === "FALLO") {
     l.push("");
     l.push(`❌ <b>No salió.</b> ${e(estado.motivo)}`);
-    return { html: l.join("\n"), teclado: urlValida(d.urlPresupuesto) ? { inline_keyboard: [[{ text: "Abrir el presupuesto", url: d.urlPresupuesto }]] } : null };
+    return { html: l.join("\n"), teclado: urlValida(d.urlPresupuesto) ? { inline_keyboard: [[{ text: "Abrir la cotización", url: d.urlPresupuesto }]] } : null };
   }
   return { html: l.join("\n"), teclado: botonesDelAviso(d) };
 }

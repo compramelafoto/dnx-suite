@@ -398,7 +398,7 @@ export function ShellNav({
   ];
 
   /*
-    Formularios públicos para pedir presupuesto y la bandeja donde llegan esas consultas.
+    Formularios públicos para pedir cotización y la bandeja donde llegan esas consultas.
 
     Estaban escritos a mano acá, sin llave de módulo, así que **le aparecían a todo el
     mundo** usara o no la función —la deuda estaba anotada en este mismo lugar desde que se
@@ -424,7 +424,7 @@ export function ShellNav({
         {
           href: "/dashboard/service-leads/forms",
           label: "Formularios",
-          description: "Los formularios públicos para pedir presupuesto.",
+          description: "Los formularios públicos para pedir cotización.",
           icon: FileText,
           isActive: under("/dashboard/service-leads/forms"),
         },
@@ -434,7 +434,7 @@ export function ShellNav({
           // El grupo ya se llama "Consultas" (antes "Captación"): el ítem no repite el nombre.
           href: "/consultas",
           label: "Bandeja",
-          description: "Las consultas y pedidos de presupuesto que llegaron, por etapa.",
+          description: "Las consultas y pedidos de cotización que llegaron, por etapa.",
           icon: Inbox,
           isActive: under("/consultas"),
         },
@@ -446,8 +446,8 @@ export function ShellNav({
       ? [
           {
             href: "/presupuestos",
-            label: "Presupuestos",
-            description: "Los presupuestos de las consultas: armarlos, versionarlos y seguirlos.",
+            label: "Cotizaciones",
+            description: "Las cotizaciones de las consultas: armarlas, versionarlas y seguirlas.",
             icon: Calculator,
             isActive: under("/presupuestos"),
           },
@@ -646,8 +646,8 @@ export function ShellNav({
           ? [
               {
                 href: "/workspace/configuracion/presupuestos",
-                label: "Presupuestos",
-                description: "Validez, condiciones generales, propuesta de pago y seguimiento de los presupuestos.",
+                label: "Cotizaciones",
+                description: "Validez, condiciones generales, propuesta de pago y seguimiento de las cotizaciones.",
                 icon: Calculator,
                 isActive: under("/workspace/configuracion/presupuestos"),
               },
@@ -700,7 +700,7 @@ export function ShellNav({
         {
           href: "/workspace/configuracion/numeracion",
           label: "Numeración",
-          description: "Prefijo, año y próximo número de consultas, presupuestos, pedidos y proyectos.",
+          description: "Prefijo, año y próximo número de consultas, cotizaciones, pedidos y proyectos.",
           icon: Hash,
           isActive: under("/workspace/configuracion/numeracion"),
         },

@@ -70,7 +70,7 @@ describe("validarItems", () => {
     expect(ok({ nombre: "n".repeat(201) })).toBe(false);
     const muchos = (n: number) => Array.from({ length: n }, (_, i) => ({ ...base, id: `r${i}` }));
     expect(validarItems(muchos(200)).ok).toBe(true);
-    expect(validarItems(muchos(201))).toEqual({ ok: false, error: "Un presupuesto admite hasta 200 ítems." });
+    expect(validarItems(muchos(201))).toEqual({ ok: false, error: "Una cotización admite hasta 200 ítems." });
   });
 });
 

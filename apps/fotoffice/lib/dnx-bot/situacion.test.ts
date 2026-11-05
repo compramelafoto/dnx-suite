@@ -11,7 +11,7 @@ describe("armarSituacion", () => {
     expect(s).toMatch(/^# Situación/);
     expect(s).toContain("DNX Estudio");
     expect(s).toContain("Rol: dueño");
-    expect(s).toContain("Pantalla: lista de presupuestos");
+    expect(s).toContain("Pantalla: lista de cotizaciones");
     expect(s).toContain("Puede usar ¿Cuánto Cobro?");
   });
   it("STAFF sin configurar: dice que el cálculo lo usan el dueño y los administradores", () => {
@@ -46,7 +46,7 @@ describe("armarSituacion", () => {
         consulta: { leadId: "l1", numero: "12", nombreDePila: "Lucía", categoria: "Bodas", fechaEvento: "15/11/2026", tieneFicha: true },
       },
     });
-    expect(s).toContain("Está mirando el presupuesto N.º 0007 (presupuestoId p1), en borrador.");
+    expect(s).toContain("Está mirando la cotización N.º 0007 (presupuestoId p1), en borrador.");
     expect(s).toContain("Está mirando la consulta N.º 12 (consultaLeadId l1): Bodas · 15/11/2026 · de Lucía.");
   });
   it("borrador del perfil: retoma donde quedó (lo anotado y lo que falta), sin montos", () => {

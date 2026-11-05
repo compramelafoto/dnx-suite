@@ -41,7 +41,7 @@ export async function prepararDesdeWhatsapp(
 ): Promise<ResultadoDelBot> {
   try {
     if (await enPreparacionParaWhatsapp(workspaceId, chat.waId)) {
-      return { ok: true, message: "Ya hay un presupuesto en preparación para este cliente. Decile que en un rato se lo mandamos; no le des precios." };
+      return { ok: true, message: "Ya hay una cotización en preparación para este cliente. Decile que en un rato se la mandamos; no le des precios." };
     }
     // Presupuesto por horas (spec 2026-10-28): cualquier categoría activa; si ninguna coincide, "Evento".
     const ajustesPorHoras = await leerAjustesPorHoras(workspaceId);
@@ -58,7 +58,7 @@ export async function prepararDesdeWhatsapp(
           })
         : [];
     if (categorias.length === 0 && !porHoras) {
-      return { ok: false, message: "El estudio todavía no arma presupuestos automáticos. Usá pasar_a_persona con un resumen de lo que pide." };
+      return { ok: false, message: "El estudio todavía no arma cotizaciones automáticas. Usá pasar_a_persona con un resumen de lo que pide." };
     }
     const coincidencias = coincidenciasDelTipo(categorias, datos.tipo);
     if (porHoras && coincidencias.length > 1) {
@@ -73,13 +73,13 @@ export async function prepararDesdeWhatsapp(
     if (categoria && porHoras && !porHorasAplica(ajustesPorHoras, categoria.id)) {
       const conInterruptor = await prisma.fotofficePresupuestoAutoCategoria.findFirst({ where: { workspaceId, categoryId: categoria.id, telegramEnabled: true }, select: { id: true } });
       if (!conInterruptor) {
-        return { ok: false, message: `"${categoria.name}" no se presupuesta sola: lo arma una persona del estudio. Usá pasar_a_persona con un resumen de lo que pide.` };
+        return { ok: false, message: `"${categoria.name}" no se cotiza sola: la arma una persona del estudio. Usá pasar_a_persona con un resumen de lo que pide.` };
       }
     }
     if (!categoria) {
       return {
         ok: false,
-        message: `No sé a qué tipo corresponde "${datos.tipo}". Los tipos con presupuesto automático son: ${categorias.map((c) => c.name).join(", ")}. Si es uno de esos, volvé a usar la herramienta con ese nombre; si no, usá pasar_a_persona.`,
+        message: `No sé a qué tipo corresponde "${datos.tipo}". Los tipos con cotización automática son: ${categorias.map((c) => c.name).join(", ")}. Si es uno de esos, volvé a usar la herramienta con ese nombre; si no, usá pasar_a_persona.`,
       };
     }
 
@@ -108,14 +108,14 @@ export async function prepararDesdeWhatsapp(
     const llegada = await alLlegarConsulta(workspaceId, alta.leadId, "WHATSAPP", { waId: chat.waId }, deps);
     // Ningún recorrido toma la consulta: no se le promete un presupuesto que nadie va a armar.
     if (llegada === "APAGADO" || llegada === "ERROR") {
-      return { ok: false, message: "La consulta quedó registrada, pero el presupuesto lo arma una persona. Usá pasar_a_persona con un resumen de lo que pide." };
+      return { ok: false, message: "La consulta quedó registrada, pero la cotización la arma una persona. Usá pasar_a_persona con un resumen de lo que pide." };
     }
     const acuse = await leerAcuse(workspaceId);
     return {
       ok: true,
       message: acuse.encendido
-        ? `Listo, el estudio ya está armando el presupuesto. Decile al cliente esto, con tus palabras si hace falta: "${acuse.texto}". No le des precios ni plazos.`
-        : "Listo, el estudio ya está armando el presupuesto. Agradecele y decile que en breve le escribimos. No le des precios ni plazos.",
+        ? `Listo, el estudio ya está armando la cotización. Decile al cliente esto, con tus palabras si hace falta: "${acuse.texto}". No le des precios ni plazos.`
+        : "Listo, el estudio ya está armando la cotización. Agradecele y decile que en breve le escribimos. No le des precios ni plazos.",
     };
   } catch {
     console.error("[presupuesto-automatico] falló preparar_presupuesto", { codigo: "INTERNO" });

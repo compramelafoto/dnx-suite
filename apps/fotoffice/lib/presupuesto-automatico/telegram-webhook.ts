@@ -16,8 +16,8 @@ import { aprobarYEnviar, type DepsFlujo } from "./flujo";
  */
 
 export const TEXTOS_VINCULO: Record<ResultadoVinculo, string> = {
-  VINCULADO: "¡Listo! Este chat quedó vinculado a FOTOFFICE. Acá te van a llegar los presupuestos para aprobar.",
-  YA_VINCULADO: "Este chat ya está vinculado. Acá te llegan los presupuestos para aprobar.",
+  VINCULADO: "¡Listo! Este chat quedó vinculado a FOTOFFICE. Acá te van a llegar las cotizaciones para aprobar.",
+  YA_VINCULADO: "Este chat ya está vinculado. Acá te llegan las cotizaciones para aprobar.",
   CODIGO_INVALIDO: "Ese enlace ya no sirve (vence a los 30 minutos o ya se usó). Pedí uno nuevo en FOTOFFICE → Configuración → Telegram.",
   NO_PRIVADO: "Para recibir los avisos, abrí el bot en un chat privado (no en un grupo).",
 };
@@ -58,7 +58,7 @@ export async function procesarUpdateTelegram(conexion: ConexionTelegram, update:
       ...deps.flujo,
       alReclamar: async () => {
         contestado = true;
-        await contestarBoton(token, update.callbackId, "Enviando el presupuesto…", deps);
+        await contestarBoton(token, update.callbackId, "Enviando la cotización…", deps);
       },
     });
     if (!contestado) await contestarBoton(token, update.callbackId, r.texto, deps);

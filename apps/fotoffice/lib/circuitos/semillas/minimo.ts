@@ -8,7 +8,7 @@ export const CIRCUITO_MINIMO: SemillaCircuito = {
   stages: [
     { name: "Nueva", days: 2, color: "azul", leadStatus: "NEW" },
     { name: "Contactada", days: 2, color: "violeta", leadStatus: "CONTACTED" },
-    { name: "Presupuesto enviado", days: 3, color: "azul", leadStatus: "QUOTED" },
+    { name: "Cotización enviada", days: 3, color: "azul", leadStatus: "QUOTED" },
     { name: "Interesada", days: 5, color: "violeta", leadStatus: "INTERESTED" },
   ],
 };

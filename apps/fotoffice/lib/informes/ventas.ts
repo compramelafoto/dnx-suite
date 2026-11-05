@@ -28,7 +28,7 @@ export const ETIQUETAS_AGRUPAMIENTO: Record<AgrupamientoVentas, string> = {
 };
 
 export const AVISO_DESCUENTO_GLOBAL =
-  "Los descuentos globales de cada presupuesto no se reparten entre los productos: la suma por producto puede dar más que el total de los pedidos. Los ítems opcionales no se cuentan.";
+  "Los descuentos globales de cada cotización no se reparten entre los productos: la suma por producto puede dar más que el total de los pedidos. Los ítems opcionales no se cuentan.";
 
 export const SIN_VENDEDOR = "Sin vendedor";
 export const SIN_CONSULTA = "Sin consulta";

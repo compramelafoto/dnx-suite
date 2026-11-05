@@ -57,8 +57,8 @@ const ROLES: Record<string, string> = {
 
 const PANTALLA: Record<Pantalla, string> = {
   precios: "Configuración → Precios (perfil de precios)",
-  presupuestos: "lista de presupuestos",
-  presupuesto: "un presupuesto",
+  presupuestos: "lista de cotizaciones",
+  presupuesto: "una cotización",
   consulta: "ficha de una consulta",
   otra: "otra pantalla del panel",
 };
@@ -82,14 +82,14 @@ export function armarSituacion(p: {
   const pr = p.enPantalla?.presupuesto;
   if (pr) {
     lineas.push(
-      `Está mirando el presupuesto ${pr.numero ? `N.º ${pr.numero}` : "sin número"} (presupuestoId ${pr.id}), ${pr.esBorrador ? "en borrador" : `sin borrador editable (${pr.estado.toLowerCase()})`}.`,
+      `Está mirando la cotización ${pr.numero ? `N.º ${pr.numero}` : "sin número"} (presupuestoId ${pr.id}), ${pr.esBorrador ? "en borrador" : `sin borrador editable (${pr.estado.toLowerCase()})`}.`,
     );
   }
   const co = p.enPantalla?.consulta;
   if (co) {
     const datos = [co.categoria, co.fechaEvento, co.nombreDePila ? `de ${co.nombreDePila}` : null].filter(Boolean).join(" · ");
     lineas.push(
-      `Está mirando la consulta ${co.numero ? `N.º ${co.numero}` : "sin número"} (consultaLeadId ${co.leadId})${datos ? `: ${datos}` : ""}.${co.tieneFicha ? "" : " Le falta el contacto: hay que completarla antes de presupuestar."}`,
+      `Está mirando la consulta ${co.numero ? `N.º ${co.numero}` : "sin número"} (consultaLeadId ${co.leadId})${datos ? `: ${datos}` : ""}.${co.tieneFicha ? "" : " Le falta el contacto: hay que completarla antes de cotizar."}`,
     );
   }
   if (p.capacidades.configurar) {
@@ -103,7 +103,7 @@ export function armarSituacion(p: {
     lineas.push(lineaPerfil(p.perfil));
     if (p.perfil.borrador) lineas.push(lineaBorrador(p.perfil.borrador));
   }
-  if (!p.capacidades.gestionarPresupuestos) lineas.push("Puede ver presupuestos, pero no armarlos ni editarlos.");
+  if (!p.capacidades.gestionarPresupuestos) lineas.push("Puede ver cotizaciones, pero no armarlas ni editarlas.");
   const permitidas = new Set(rutasPara(p.capacidades).map((r) => r.ruta));
   const vedadas = RUTAS_BOT.filter((r) => !permitidas.has(r.ruta)).map((r) => r.ruta);
   if (vedadas.length) lineas.push(`No puede abrir: ${vedadas.join(", ")}`);

@@ -108,7 +108,7 @@ export function SeccionCobros({ perfil, cambiar }: PropsSeccion) {
   return (
     <div className="space-y-5">
       <Aviso>
-        Todo es opcional. Lo que cargues acá se suma solo al precio de cada presupuesto: primero el costo y tu ganancia, después los
+        Todo es opcional. Lo que cargues acá se suma solo al precio de cada cotización: primero el costo y tu ganancia, después los
         recargos, y al final los impuestos y la comisión (que se calculan sobre el total que paga el cliente).
       </Aviso>
 
@@ -125,7 +125,7 @@ export function SeccionCobros({ perfil, cambiar }: PropsSeccion) {
           </select>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
-          {ri ? <CampoTexto etiqueta="IVA (%)" valor={e.ivaPercent} onCambio={(v) => poner({ ivaPercent: v })} ayuda="Vacío: 21 %. Se muestra aparte en el presupuesto." /> : null}
+          {ri ? <CampoTexto etiqueta="IVA (%)" valor={e.ivaPercent} onCambio={(v) => poner({ ivaPercent: v })} ayuda="Vacío: 21 %. Se muestra aparte en la cotización." /> : null}
           {!ri ? (
             <CampoTexto tipo="moneda" etiqueta="Cuota mensual del monotributo" valor={e.monotributoMonthly} onCambio={(v) => poner({ monotributoMonthly: v })} ayuda="Es un costo fijo: sube tu valor hora." />
           ) : null}
@@ -196,7 +196,7 @@ export function SeccionCobros({ perfil, cambiar }: PropsSeccion) {
         <div className="grid gap-3 sm:grid-cols-2">
           <CampoTexto tipo="moneda" etiqueta="Seguro del equipo (por año)" valor={e.equipmentInsuranceAnnual} onCambio={(v) => poner({ equipmentInsuranceAnnual: v })} ayuda="Se reparte por mes y sube tu valor hora." />
           <CampoTexto etiqueta="Minutos de retoque por foto" valor={e.retouchMinutesPerPhoto} onCambio={(v) => poner({ retouchMinutesPerPhoto: v })} />
-          <CampoTexto tipo="moneda" etiqueta="Precio mínimo por trabajo" valor={e.minimumJobPrice} onCambio={(v) => poner({ minimumJobPrice: v })} ayuda="Te avisa si un presupuesto queda por debajo." />
+          <CampoTexto tipo="moneda" etiqueta="Precio mínimo por trabajo" valor={e.minimumJobPrice} onCambio={(v) => poner({ minimumJobPrice: v })} ayuda="Te avisa si una cotización queda por debajo." />
         </div>
         <Casilla
           etiqueta="Ajustar por inflación los eventos a meses"

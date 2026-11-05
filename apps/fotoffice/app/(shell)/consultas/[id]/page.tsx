@@ -215,7 +215,7 @@ export default async function FichaConsultaPage({ params }: { params: Promise<{ 
               presupuestos={presupuestos}
               hrefNuevo={`/presupuestos/nuevo?consulta=${encodeURIComponent(id)}`}
               puedeCrear={puede(acceso, "operar", QUOTES_MODULE_KEY) && datosConsulta !== null}
-              vacio="Esta consulta todavía no tiene presupuestos."
+              vacio="Esta consulta todavía no tiene cotizaciones."
             />
           ) : null}
           {pedidos ? <TarjetaPedidos pedidos={pedidos} vacio="Esta consulta todavía no tiene pedidos." /> : null}

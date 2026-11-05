@@ -13,32 +13,32 @@ export const PLANTILLAS_PRESUPUESTO: readonly PlantillaInicial[] = [
   {
     canal: "EMAIL",
     tipo: "PRESUPUESTO",
-    nombre: "Te enviamos tu presupuesto",
-    asunto: "Tu presupuesto[si:presupuesto_numero] N° [presupuesto_numero][/si][si:consulta_fecha] para el [consulta_fecha][/si]",
+    nombre: "Te enviamos tu cotización",
+    asunto: "Tu cotización[si:presupuesto_numero] N° [presupuesto_numero][/si][si:consulta_fecha] para el [consulta_fecha][/si]",
     cuerpo: `Hola[si:nombre], [nombre][/si]:
 
-¡Muchas gracias por tu consulta! Armamos el presupuesto pensado para lo que nos contaste[si:consulta_fecha] para tu evento del [consulta_fecha][/si][si:consulta_lugar] en [consulta_lugar][/si].
+¡Muchas gracias por tu consulta! Armamos la cotización pensada para lo que nos contaste[si:consulta_fecha] para tu evento del [consulta_fecha][/si][si:consulta_lugar] en [consulta_lugar][/si].
 
-Lo podés ver completo en este enlace:
+La podés ver completa en este enlace:
 
 [presupuesto_enlace]
 
-[si:presupuesto_total]El total es de [presupuesto_total][/si][si:presupuesto_vence] y vale hasta el [presupuesto_vence][/si]. Desde el mismo enlace lo podés aceptar o descargar en PDF.
+[si:presupuesto_total]El total es de [presupuesto_total][/si][si:presupuesto_vence] y vale hasta el [presupuesto_vence][/si]. Desde el mismo enlace la podés aceptar o descargar en PDF.
 
-Si te queda alguna duda o querés ajustar algo, respondé este correo[si:organizacion_whatsapp] o escribinos por WhatsApp al [organizacion_whatsapp][/si]. Con gusto lo adaptamos.
+Si te queda alguna duda o querés ajustar algo, respondé este correo[si:organizacion_whatsapp] o escribinos por WhatsApp al [organizacion_whatsapp][/si]. Con gusto la adaptamos.
 
 [firma]`,
   },
   {
     canal: "WHATSAPP",
     tipo: "PRESUPUESTO",
-    nombre: "Tu presupuesto",
+    nombre: "Tu cotización",
     asunto: null,
-    cuerpo: `¡Hola[si:nombre], [nombre][/si]! [si:organizacion]Te escribimos de [organizacion]. [/si]Te mandamos el presupuesto[si:presupuesto_numero] N° [presupuesto_numero][/si] para tu evento[si:consulta_fecha] del [consulta_fecha][/si]:
+    cuerpo: `¡Hola[si:nombre], [nombre][/si]! [si:organizacion]Te escribimos de [organizacion]. [/si]Te mandamos la cotización[si:presupuesto_numero] N° [presupuesto_numero][/si] para tu evento[si:consulta_fecha] del [consulta_fecha][/si]:
 
 [presupuesto_enlace]
 
-[si:presupuesto_vence]Vale hasta el [presupuesto_vence]. [/si]Desde ahí lo podés aceptar o descargar en PDF. Cualquier duda, escribinos por acá.`,
+[si:presupuesto_vence]Vale hasta el [presupuesto_vence]. [/si]Desde ahí la podés aceptar o descargar en PDF. Cualquier duda, escribinos por acá.`,
   },
 ];
 
@@ -68,12 +68,12 @@ export async function asegurarPlantillasPresupuesto(workspaceId: string): Promis
 
 /** Texto inicial del seguimiento automático (Entrega B). Sólo variables válidas para PRESUPUESTO. */
 export const SEGUIMIENTO_INICIAL = {
-  asunto: "¿Pudiste ver el presupuesto[si:presupuesto_numero] N° [presupuesto_numero][/si]?",
+  asunto: "¿Pudiste ver la cotización[si:presupuesto_numero] N° [presupuesto_numero][/si]?",
   cuerpo: `Hola[si:nombre], [nombre][/si]:
 
-Hace unos días te mandamos el presupuesto[si:consulta_fecha] para tu evento del [consulta_fecha][/si]. Queríamos saber si lo pudiste ver y si te quedó alguna duda.
+Hace unos días te mandamos la cotización[si:consulta_fecha] para tu evento del [consulta_fecha][/si]. Queríamos saber si la pudiste ver y si te quedó alguna duda.
 
-Lo podés volver a abrir acá:
+La podés volver a abrir acá:
 
 [presupuesto_enlace]
 

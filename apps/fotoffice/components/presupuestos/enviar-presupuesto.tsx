@@ -88,7 +88,7 @@ export function EnviarPresupuesto({ presupuestoId, opciones }: { presupuestoId: 
           setWhatsappUrl(r.whatsappUrl);
           setHecho("Listo. Abrí WhatsApp para mandar el mensaje.");
           window.open(r.whatsappUrl, "_blank", "noopener,noreferrer");
-        } else setHecho("Listo: el presupuesto salió por correo.");
+        } else setHecho("Listo: la cotización salió por correo.");
         setAbierto(false);
         router.refresh();
       } else {

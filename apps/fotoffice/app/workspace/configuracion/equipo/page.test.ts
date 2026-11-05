@@ -114,7 +114,7 @@ describe("pantalla Equipo", () => {
     expect(h).toContain('value="STAFF"');
     expect(h).not.toContain('value="COLLABORATOR"');
     expect(h).not.toContain('value="WORKSPACE_OWNER"');
-    expect(h).toContain("Trabaja en Presupuestos, Pedidos, Caja, Agenda y Clientes.");
+    expect(h).toContain("Trabaja en Cotizaciones, Pedidos, Caja, Agenda y Clientes.");
     expect(h).toContain("Sólo mira Socios.");
     expect(h).toContain("No entra a la configuración ni gestiona el equipo.");
     expect(h).toMatch(/name="role" checked="" value="STAFF"/);

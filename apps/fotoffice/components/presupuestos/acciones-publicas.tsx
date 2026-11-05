@@ -110,7 +110,7 @@ export function AccionesPublicas({
     setError(null);
     iniciar(async () => {
       const r = await pedirPresupuestoNuevoAction(slug, token).catch(() => ({ ok: false as const, error: "No pudimos avisar. Probá de nuevo." }));
-      if (r.ok) setAviso("Listo: les avisamos que querés un presupuesto nuevo. Te van a escribir.");
+      if (r.ok) setAviso("Listo: les avisamos que querés una cotización nueva. Te van a escribir.");
       else setError(r.error);
     });
   }
@@ -212,7 +212,7 @@ export function AccionesPublicas({
                 </label>
                 <label className="flex items-start gap-2.5 text-sm">
                   <input type="checkbox" checked={acepta} onChange={(e) => setAcepta(e.target.checked)} className="mt-0.5 h-4 w-4" />
-                  <span>Leí el presupuesto y acepto sus condiciones.</span>
+                  <span>Leí la cotización y acepto sus condiciones.</span>
                 </label>
                 <button
                   type="submit"
@@ -234,7 +234,7 @@ export function AccionesPublicas({
             <div className="fixed inset-x-0 bottom-0 z-30 border-t border-[var(--fo-border)] bg-[var(--fo-surface)] shadow-[0_-8px_24px_rgba(15,23,42,0.08)]">
               <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3 md:px-8">
                 <div className="min-w-0 text-sm">
-                  <p className="truncate font-semibold">{elegida && alternativas.length > 1 ? elegida.nombre : "Tu presupuesto"}</p>
+                  <p className="truncate font-semibold">{elegida && alternativas.length > 1 ? elegida.nombre : "Tu cotización"}</p>
                   <p className="truncate text-[var(--fo-muted)]">{forma ? `${tituloForma(forma)} · ${pesos(forma.total)}` : pesos(base)}</p>
                 </div>
                 <button type="button" className="fo-btn fo-btn-primary shrink-0 text-sm" onClick={() => ir(faltaForma ? pasoPago.current : formulario.current)}>
@@ -248,7 +248,7 @@ export function AccionesPublicas({
 
       {estado === "VENCIDO" ? (
         <div className="fo-card space-y-2 p-4">
-          <p className="font-semibold">Este presupuesto venció.</p>
+          <p className="font-semibold">Esta cotización venció.</p>
           {aviso ? (
             <p role="status" className="text-sm">{aviso}</p>
           ) : (

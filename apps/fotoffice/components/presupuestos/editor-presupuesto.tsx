@@ -163,7 +163,7 @@ export function PanelAlternativas({
   const a = alternativas.find((x) => x.id === activa) ?? null;
   if (alternativas.length === 0) {
     return (
-      <section aria-label="Opciones del presupuesto" className="fo-card flex flex-wrap items-center justify-between gap-3">
+      <section aria-label="Opciones de la cotización" className="fo-card flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-[var(--fo-muted)]">
           ¿Querés ofrecer varias opciones para que el cliente elija una (por ejemplo Básico, Intermedio y Premium)?
         </p>
@@ -179,7 +179,7 @@ export function PanelAlternativas({
     if (a) onCambiar(alternativas.map((x) => (x.id === a.id ? { ...x, ...parche } : x)));
   };
   return (
-    <section aria-label="Opciones del presupuesto" className="fo-card space-y-3">
+    <section aria-label="Opciones de la cotización" className="fo-card space-y-3">
       <div role="tablist" aria-label="Opciones" className="flex flex-wrap gap-2">
         {alternativas.map((x) => {
           const c = costos?.[x.id];
@@ -265,7 +265,7 @@ export function PanelAlternativas({
                 type="button"
                 className="fo-btn fo-btn-ghost text-sm text-[var(--fo-danger)]"
                 onClick={() => {
-                  const aviso = alternativas.length === 2 ? " Queda un presupuesto común con la otra." : "";
+                  const aviso = alternativas.length === 2 ? " Queda una cotización común con la otra." : "";
                   if (window.confirm(`¿Borrar la opción «${a.nombre}» con sus ítems?${aviso}`)) onQuitar(a.id);
                 }}
               >
@@ -449,7 +449,7 @@ export function EditorPresupuesto({
                 {botPresupuestoId ? (
                   <PreguntaleAlBot
                     etiqueta="Calcular con el bot"
-                    mensaje="Quiero sumar ítems calculados a este presupuesto."
+                    mensaje="Quiero sumar ítems calculados a esta cotización."
                     contexto={{ pantalla: "presupuesto", presupuestoId: botPresupuestoId }}
                   />
                 ) : null}
@@ -460,7 +460,7 @@ export function EditorPresupuesto({
             <CalculadoraFotolibro
               catalogo={fotolibro}
               verCostos={!!internos}
-              textoAgregar="Agregar al presupuesto"
+              textoAgregar="Agregar a la cotización"
               onCerrar={() => setCalculadoraFotolibro(false)}
               onAgregar={(f) => {
                 // Ítem de lista con nombre, detalle y precio de la calculadora: el servidor lo guarda tal cual.

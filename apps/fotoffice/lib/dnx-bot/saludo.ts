@@ -6,15 +6,15 @@ import type { Pantalla } from "./contexto";
  * sugerencias son los mismos primeros mensajes de los botones «Preguntale al bot» (spec §4.1).
  * Quien no tiene `configurar` nunca ve sugerencias de perfil ni de cálculo.
  */
-const SALUDO = "Hola, soy DNX Bot. Te ayudo con tus precios y tus presupuestos.";
+const SALUDO = "Hola, soy DNX Bot. Te ayudo con tus precios y tus cotizaciones.";
 
 /** Ayuda con el formulario (barato). Armarlo conversando no se sugiere: se ofrece si la persona se traba. */
 const QUE_FALTA = "¿Qué me falta para completar mi perfil?";
 const COTIZAR = "Quiero saber cuánto cobrar un trabajo.";
-const SUMAR = "Quiero sumar ítems calculados a este presupuesto.";
+const SUMAR = "Quiero sumar ítems calculados a esta cotización.";
 const RESPONDER = "Ayudame a responder esta consulta.";
-const SEGUIMIENTOS = "¿Qué presupuestos tengo sin respuesta?";
-const COMO_ARMAR = "¿Cómo armo un presupuesto?";
+const SEGUIMIENTOS = "¿Qué cotizaciones tengo sin respuesta?";
+const COMO_ARMAR = "¿Cómo armo una cotización?";
 
 export function saludoPara(pantalla: Pantalla, c: Capacidades): { saludo: string; sugerencias: string[] } {
   const lista: string[] = [];

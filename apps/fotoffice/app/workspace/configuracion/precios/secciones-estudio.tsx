@@ -344,7 +344,7 @@ function TarjetaPersona({ persona, props, numero }: { persona: StudioPerson; pro
           <CampoTexto
             tipo="text"
             etiqueta="% de su tiempo que se puede cobrar"
-            ayuda="De sus horas, ¿cuántas terminan en un presupuesto? Sesiones, eventos, edición, retoque, impresión. No cuentes atender el teléfono, ordenar o redes. Vacío = 70 %."
+            ayuda="De sus horas, ¿cuántas terminan en una cotización? Sesiones, eventos, edición, retoque, impresión. No cuentes atender el teléfono, ordenar o redes. Vacío = 70 %."
             valor={persona.billablePercent}
             onCambio={(v) => cambiar({ billablePercent: v })}
           />
@@ -421,7 +421,7 @@ export function SeccionVosEnElEstudio(props: PropsSeccionEstudio) {
         <CampoTexto
           tipo="text"
           etiqueta="% de tu tiempo que se puede cobrar"
-          ayuda="Vos también vendés, administrás y atendés: contá sólo lo que termina en un presupuesto. Vacío = 70 %."
+          ayuda="Vos también vendés, administrás y atendés: contá sólo lo que termina en una cotización. Vacío = 70 %."
           valor={owner.billablePercent}
           onCambio={(v) => cambiar({ billablePercent: v })}
         />
@@ -491,7 +491,7 @@ export function SeccionOtrasLineas(props: PropsSeccionEstudio) {
     <div className="space-y-5">
       <div className="space-y-2">
         <h3 className="text-[0.9375rem] font-semibold">Líneas del estudio</h3>
-        <p className="text-sm text-[var(--fo-muted)]">Sirven para etiquetar presupuestos; más adelante, con Caja, para medir cuánto deja cada una.</p>
+        <p className="text-sm text-[var(--fo-muted)]">Sirven para etiquetar cotizaciones; más adelante, con Caja, para medir cuánto deja cada una.</p>
         {lineas.map((l) => (
           <div key={l.id} className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <input

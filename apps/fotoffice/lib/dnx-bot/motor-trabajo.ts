@@ -41,7 +41,7 @@ const pct = z.string().regex(/^\d{1,3}([.,]\d{1,2})?$/).describe("Porcentaje, s�
 
 export const esquemaTrabajoBot = z
   .object({
-    nombre: z.string().min(1).max(120).describe("Nombre del concepto como lo diría el presupuesto (\"Cobertura\", \"Álbum\")."),
+    nombre: z.string().min(1).max(120).describe("Nombre del concepto como lo diría la cotización (\"Cobertura\", \"Álbum\")."),
     tipo: z
       .enum(["own-service", "physical-product", "outsourced", "expense"])
       .optional()
@@ -114,7 +114,7 @@ export const esquemaCotizacion = z.object({
   parcial: z
     .boolean()
     .optional()
-    .describe("true si todavía faltan grupos de la entrevista (horas, disparos, costos variables): el resultado se muestra como PARCIAL y no se puede pasar a un presupuesto."),
+    .describe("true si todavía faltan grupos de la entrevista (horas, disparos, costos variables): el resultado se muestra como PARCIAL y no se puede pasar a una cotización."),
 });
 
 export type Cotizacion = z.infer<typeof esquemaCotizacion>;

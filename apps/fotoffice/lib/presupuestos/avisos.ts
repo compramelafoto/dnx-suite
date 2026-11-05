@@ -20,9 +20,9 @@ import { venceHoyALas2359 } from "@/lib/consultas/aviso";
  * Nunca lanzan y nunca loguean datos personales: sólo códigos.
  */
 
-export const TITULO_TAREA_VISTO = "Presupuesto visto";
-export const TITULO_TAREA_ACEPTADO = "Presupuesto aceptado: confirmar el pedido";
-export const TITULO_TAREA_PEDIR_NUEVO = "Piden un presupuesto nuevo";
+export const TITULO_TAREA_VISTO = "Cotización vista";
+export const TITULO_TAREA_ACEPTADO = "Cotización aceptada: confirmar el pedido";
+export const TITULO_TAREA_PEDIR_NUEVO = "Piden una cotización nueva";
 export const TOPE_AVISOS_ACEPTACION_DIA = 50;
 
 export type DepsAvisos = {
@@ -52,7 +52,7 @@ export async function destinatarioDelPresupuesto(workspaceId: string, ownerUserI
 
 /**
  * Crea una tarea de la consulta para `para`. Con `unaSolaAbierta`, no la repite si ya hay una
- * igual sin hacer (p. ej. "Piden un presupuesto nuevo" apretado dos veces).
+ * igual sin hacer (p. ej. "Piden una cotización nueva" apretado dos veces).
  */
 export async function crearTareaDeConsulta(
   workspaceId: string,
@@ -109,16 +109,16 @@ export type ResultadoAvisoAceptacion = {
 /** Texto del correo interno (puro). Sin el nombre de quien aceptó: lo ve en FOTOFFICE. */
 export function correoDeAceptacion(args: { numero: string | null; total: string; enlaceFicha: string | null }): { asunto: string; texto: string; html: string } {
   const cual = args.numero ? `N° ${args.numero}` : "sin número";
-  const asunto = `Aceptaron el presupuesto ${cual}`;
+  const asunto = `Aceptaron la cotización ${cual}`;
   const lineas = [
     "Hola:",
     "",
-    `El cliente aceptó el presupuesto ${cual}, por ${args.total}.`,
+    `El cliente aceptó la cotización ${cual}, por ${args.total}.`,
     "Quedó como pedido por confirmar. Revisalo y confirmalo desde FOTOFFICE.",
     ...(args.enlaceFicha ? ["", args.enlaceFicha] : []),
   ];
   const html = lineas
-    .map((l) => (l === "" ? "<br>" : l === args.enlaceFicha ? `<p><a href="${escapeHtml(l)}">Ver el presupuesto</a></p>` : `<p>${escapeHtml(l)}</p>`))
+    .map((l) => (l === "" ? "<br>" : l === args.enlaceFicha ? `<p><a href="${escapeHtml(l)}">Ver la cotización</a></p>` : `<p>${escapeHtml(l)}</p>`))
     .join("");
   return { asunto, texto: lineas.join("\n"), html };
 }

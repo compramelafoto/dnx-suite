@@ -116,7 +116,7 @@ export default async function PublicXvLandingPage({ params }: Props) {
             </h1>
             <p className="text-[var(--fo-muted)] leading-relaxed max-w-2xl">
               Dejanos tus datos y te enviamos una propuesta personalizada para cubrir tu evento de XV:
-              opciones de foto, video, tiempos de entrega y presupuesto estimado.
+              opciones de foto, video, tiempos de entrega y cotización estimada.
             </p>
           </div>
 

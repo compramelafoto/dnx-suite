@@ -124,7 +124,7 @@ export function DesglosePrecio({ linea, trabajo }: { linea?: CuantoCobroPriceBui
         {horaExtra ? <Fila etiqueta="Hora extra" valor={pesos(horaExtra)} /> : null}
         <Fila etiqueta="Te queda (sin impuestos ni comisión)" valor={pesos(sinIva - deducciones)} />
       </dl>
-      {iva > 0 ? <p className="text-xs text-[var(--fo-muted)]">El ítem del presupuesto queda sin IVA; el IVA en los totales llega en la próxima etapa.</p> : null}
+      {iva > 0 ? <p className="text-xs text-[var(--fo-muted)]">El ítem de la cotización queda sin IVA; el IVA en los totales llega en la próxima etapa.</p> : null}
       {descuento ? <p className="text-xs text-[var(--fo-muted)]">La comisión está sumada: podés ofrecer un descuento por transferencia del {descuento} %.</p> : null}
       {politica ? <p className="text-xs text-[var(--fo-muted)]">Política de cancelación: {politica}</p> : null}
       {avisos.length > 0 ? (

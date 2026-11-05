@@ -3,7 +3,7 @@ import Link from "next/link";
 const LABELS: Record<string, string> = {
   clientes: "Clientes",
   trabajos: "Trabajos / eventos",
-  presupuestos: "Presupuestos",
+  presupuestos: "Cotizaciones",
   agenda: "Agenda",
   finanzas: "Finanzas",
   equipo: "Equipo",

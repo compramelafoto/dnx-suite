@@ -290,7 +290,7 @@ export type CuantoCobroStepId =
   | "result";
 
 export const CC_PROFILE_SCOPE_LABEL = "Se guarda en tu perfil" as const;
-export const CC_QUOTE_SCOPE_LABEL = "Propio de este presupuesto" as const;
+export const CC_QUOTE_SCOPE_LABEL = "Propio de esta cotización" as const;
 
 export type CuantoCobroWizardStep = {
   id: CuantoCobroStepId;
@@ -389,7 +389,7 @@ export const CC_WIZARD_STEPS: readonly CuantoCobroWizardStep[] = [
   {
     id: "quote-details",
     block: "quote",
-    blockTitle: "Trabajo / Presupuesto",
+    blockTitle: "Trabajo / Cotización",
     title: "Cliente y trabajo",
     description:
       "Datos del cliente, del trabajo y horas generales que no pertenecen a ningún producto o servicio (venta, reuniones, coordinación, etc.).",
@@ -398,16 +398,16 @@ export const CC_WIZARD_STEPS: readonly CuantoCobroWizardStep[] = [
   {
     id: "quote-items",
     block: "quote",
-    blockTitle: "Trabajo / Presupuesto",
+    blockTitle: "Trabajo / Cotización",
     title: "Productos y servicios",
     description:
-      "Armá tu presupuesto con productos y servicios. Cada línea calcula horas propias, costos, margen y precio sugerido.",
+      "Armá tu cotización con productos y servicios. Cada línea calcula horas propias, costos, margen y precio sugerido.",
     scopeLabel: CC_QUOTE_SCOPE_LABEL,
   },
   {
     id: "quote-financing",
     block: "quote",
-    blockTitle: "Trabajo / Presupuesto",
+    blockTitle: "Trabajo / Cotización",
     title: "Financiación",
     description:
       "Definí cómo puede pagar el cliente: descuento por contado, cuotas e intereses. No modifica tu precio interno ni la rentabilidad.",
@@ -416,24 +416,24 @@ export const CC_WIZARD_STEPS: readonly CuantoCobroWizardStep[] = [
   {
     id: "result",
     block: "quote",
-    blockTitle: "Trabajo / Presupuesto",
-    title: "Resultado y presupuesto",
-    description: "Tu Valor Hora Hombre, totales del presupuesto y vista previa para el cliente.",
+    blockTitle: "Trabajo / Cotización",
+    title: "Resultado y cotización",
+    description: "Tu Valor Hora Hombre, totales de la cotización y vista previa para el cliente.",
     scopeLabel: CC_QUOTE_SCOPE_LABEL,
   },
 ] as const;
 
 export const CC_WIZARD_MODAL_SUBTITLE =
-  "Completá tu perfil una vez y armá presupuestos rentables para cada trabajo.";
+  "Completá tu perfil una vez y armá cotizaciones rentables para cada trabajo.";
 
 export const CC_WIZARD_MODAL_HINT =
-  "Los datos del perfil se usarán para calcular tu Valor Hora Hombre. Los datos del evento cambian en cada presupuesto.";
+  "Los datos del perfil se usarán para calcular tu Valor Hora Hombre. Los datos del evento cambian en cada cotización.";
 
 export const CC_PERSONAL_EXPENSES_EDUCATION =
   "Incluí tus gastos reales de vida. No se trata solo de sobrevivir: este cálculo debe reflejar el estilo de vida que querés sostener.";
 
 export const CC_PERSONAL_EXPENSES_SECURITY =
-  "Estos datos quedan asociados a tu usuario y se usan únicamente para calcular tus presupuestos. No se muestran públicamente ni se comparten con clientes.";
+  "Estos datos quedan asociados a tu usuario y se usan únicamente para calcular tus cotizaciones. No se muestran públicamente ni se comparten con clientes.";
 
 export const CC_PERSONAL_FINANCE_GROUP_DESC =
   "Compromisos financieros que ya forman parte de tu presupuesto mensual de vida (deudas, tarjetas, ahorro corriente, etc.).";
@@ -448,7 +448,7 @@ export const CC_SAVINGS_GOALS_VS_PERSONAL_VACATIONS =
   "En Finanzas personales → Vacaciones va lo que ya gastás o comprometés mes a mes. En este paso va el ahorro adicional para metas a futuro. No cargues el mismo importe en ambos lados.";
 
 export const CC_DATA_SECURITY_NOTICE =
-  "Tus datos quedan asociados a tu usuario y se utilizan únicamente para calcular tus presupuestos. No se muestran públicamente ni se comparten con clientes.";
+  "Tus datos quedan asociados a tu usuario y se utilizan únicamente para calcular tus cotizaciones. No se muestran públicamente ni se comparten con clientes.";
 
 import type { CameraWearAnalysis, EquipmentDepreciationMode } from "./camera-equipment";
 import type { EquipmentSavingsBreakdown } from "./equipment/types";

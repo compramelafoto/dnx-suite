@@ -27,8 +27,8 @@ export default async function ConfiguracionPresupuestosPage() {
   if (!puede(role, "configurar")) {
     return (
       <div className="max-w-xl space-y-6">
-        <PageHeader title="Presupuestos" />
-        <p className="text-sm text-[var(--fo-muted)]">Sólo el dueño o un administrador pueden configurar los presupuestos.</p>
+        <PageHeader title="Cotizaciones" />
+        <p className="text-sm text-[var(--fo-muted)]">Sólo el dueño o un administrador pueden configurar las cotizaciones.</p>
       </div>
     );
   }
@@ -51,13 +51,13 @@ export default async function ConfiguracionPresupuestosPage() {
   return (
     <div className="max-w-3xl space-y-6">
       <PageHeader
-        title="Presupuestos"
-        description="Validez, condiciones generales, propuesta y opciones de pago de los presupuestos nuevos, y el seguimiento."
+        title="Cotizaciones"
+        description="Validez, condiciones generales, propuesta y opciones de pago de las cotizaciones nuevas, y el seguimiento."
       />
       <PestanasPresupuestos activa="ajustes" />
       {!encendido ? (
         <div role="status" className="fo-card p-4 text-sm text-[var(--fo-muted)]">
-          El módulo Presupuestos todavía no está encendido. Podés dejar los ajustes listos; para encenderlo, pedilo desde{" "}
+          El módulo Cotizaciones todavía no está encendido. Podés dejar los ajustes listos; para encenderlo, pedilo desde{" "}
           <Link href="/workspace/configuracion/modulos" className="text-[var(--fo-accent)] hover:underline">
             Configuración → Módulos
           </Link>
@@ -71,11 +71,11 @@ export default async function ConfiguracionPresupuestosPage() {
           Numeración
         </h2>
         <p className="text-[var(--fo-muted)]">
-          El número de cada presupuesto (prefijo, año y próximo número) se configura en{" "}
+          El número de cada cotización (prefijo, año y próximo número) se configura en{" "}
           <Link href="/workspace/configuracion/numeracion" className="text-[var(--fo-accent)] hover:underline">
             Configuración → Numeración
           </Link>
-          , en la fila «Presupuestos».
+          , en la fila «Cotizaciones».
         </p>
         <p className="text-[var(--fo-muted)]">
           Por omisión el número lleva el año y cuatro dígitos (2026-0001) y vuelve a 0001 cada 1° de enero.
