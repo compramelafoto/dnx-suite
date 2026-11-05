@@ -251,7 +251,7 @@ export function HeroBlockView({ config, blockId, data }: { config: HeroBlockConf
               className={`relative flex flex-1 flex-col gap-4 w-full ${
                 entera
                   ? // Con la foto entera, desde la computadora el texto se apoya sobre la mitad izquierda.
-                    "px-6 py-12 xl:absolute xl:inset-y-0 xl:left-0 xl:w-[54%] xl:pb-[2%] xl:pt-[6%] xl:pl-[7%] xl:pr-0"
+                    "px-6 py-12 xl:absolute xl:inset-y-0 xl:left-0 xl:z-10 xl:w-[54%] xl:pb-[2%] xl:pt-[6%] xl:pl-[7%] xl:pr-0"
                   : `px-6 py-16 sm:py-20 mx-auto ${slide.figureUrl ? "max-w-6xl" : "h-full max-w-4xl"}`
               } ${CONTENT_JUSTIFY[slide.contentPosition]} ${ALIGN_CLASS[slide.align]} ${slideHref ? "pointer-events-none [&_a]:pointer-events-auto" : ""}`}
             >
