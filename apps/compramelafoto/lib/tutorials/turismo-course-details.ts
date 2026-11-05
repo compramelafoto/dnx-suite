@@ -42,4 +42,29 @@ export const TURISMO_COURSE_DETAILS: Record<number, CourseLessonDetail> = {
     description: "Así lo vive el turista desde el celular: escanea el QR del paseo y entra al álbum, pero no ve la galería completa porque las fotos están ocultas. Acepta el consentimiento, se saca una selfie o sube una, y en segundos aparecen solo las fotos donde está él. Después elige las que quiere o se lleva el pack con todas sus fotos.",
     chapters: [{ at: 0, label: "Del QR al álbum" }, { at: 15, label: "La selfie que encuentra sus fotos" }, { at: 28, label: "Elegir o llevarse el pack" }],
   },
+  9: {
+    durationSeconds: 53,
+    description: "Así se cierra la venta del paseo, todo desde el celular del turista. Toca las fotos que quiere, elige el formato y, como lleva varias, ya tiene el descuento por cantidad. Completa sus datos y paga con Mercado Pago, tarjeta de crédito o débito u otros medios de pago (en la demo, el pago es de prueba). Le llega un correo con el enlace y descarga sus fotos en alta calidad, sin marca de agua.",
+    chapters: [{ at: 0, label: "Elegir las fotos" }, { at: 15, label: "Resumen, datos y pago" }, { at: 35, label: "La descarga en alta calidad" }],
+  },
+  10: {
+    durationSeconds: 54,
+    description: "Para empresas de turismo y agencias. La empresa se registra como organizadora, crea cada viaje como un evento, convoca fotógrafos en el destino y organiza la cobertura. Desde su panel ve todos sus viajes, con sus fotógrafos y el cupo de cada uno, y cada viaje tiene dos enlaces: uno para invitar fotógrafos y otro con la galería para los pasajeros. Los fotógrafos suben las fotos, los pasajeros las compran y el dinero llega solo a cada uno: cada fotógrafo cobra en su cuenta de Mercado Pago y la empresa recibe su comisión en la suya.",
+    chapters: [{ at: 0, label: "Cómo trabaja una agencia" }, { at: 18, label: "El panel y los enlaces de cada viaje" }, { at: 30, label: "El dinero llega a cada uno" }],
+  },
+  11: {
+    durationSeconds: 65,
+    description: "La empresa de turismo crea el viaje desde su panel: el nombre, el tipo, la fecha de salida y el destino en el mapa (en la demo, un viaje de egresados a Bariloche). En Convocatoria elige cómo se suman los fotógrafos: con aprobación, los de la zona piden entrar y la empresa decide quién trabaja. Pone un cupo, escribe las indicaciones del día y deja que cada fotógrafo ponga sus precios. Al crear el evento, la convocatoria queda publicada.",
+    chapters: [{ at: 0, label: "Crear el viaje y el destino" }, { at: 21, label: "La convocatoria de fotógrafos" }, { at: 38, label: "Los precios y publicar el viaje" }],
+  },
+  12: {
+    durationSeconds: 53,
+    description: "Cómo gana la empresa de turismo con cada foto que se vende del viaje. En el evento activa la comisión y carga el porcentaje (en la demo, un diez por ciento sobre el precio de cada foto). Desde ahí, en cada compra el dinero se reparte solo: el fotógrafo cobra lo suyo en su cuenta de Mercado Pago y la parte de la empresa entra directo en la suya, sin transferencias ni comprobantes. En Comisiones ve, viaje por viaje, cuánto lleva registrado y cuánto ya cobró.",
+    chapters: [{ at: 0, label: "Cómo gana la empresa" }, { at: 10, label: "Activar la comisión" }, { at: 26, label: "El dinero llega a cada uno" }, { at: 37, label: "Seguir las comisiones" }],
+  },
+  13: {
+    durationSeconds: 48,
+    description: "El fotógrafo se postula para trabajar en el viaje de una empresa. Con el enlace de la convocatoria ve el destino, la fecha, las indicaciones del día, el cupo y cómo se venden las fotos, y envía su solicitud. La empresa la aprueba con un clic y el viaje aparece en Mis eventos del fotógrafo. Cuando se habilita la subida, suma sus fotos y cada venta se reparte sola: su parte entra en su cuenta de Mercado Pago y la de la empresa, en la suya. Es la última clase del curso.",
+    chapters: [{ at: 0, label: "La convocatoria del viaje" }, { at: 16, label: "Postularse y la aprobación" }, { at: 29, label: "Subir las fotos y cobrar" }],
+  },
 };

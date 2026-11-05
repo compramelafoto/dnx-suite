@@ -158,8 +158,95 @@ COPYS = [
             ('0:15', 'La selfie que encuentra sus fotos'),
             ('0:28', 'Elegir o llevarse el pack'),
         ],
-        'proxima': 'El turista compra y descarga',
+        'proxima': 'El turista compra y descarga sus fotos',
         'etiquetas': ['reconocimiento facial', 'selfie', 'fotos de turistas'],
+    },
+    {
+        'n': 9,
+        'archivo': 'T09-compra-y-descarga.mp4',
+        'titulo': 'El turista compra y descarga sus fotos | Curso de fotografía de turismo, clase 9',
+        'gancho': ("Así se cierra la venta del paseo, todo desde el celular del turista. Toca las fotos que quiere, "
+                   "elige el formato y, como lleva varias, ya tiene el descuento por cantidad. Completa sus datos y "
+                   "paga con Mercado Pago, tarjeta de crédito o débito u otros medios de pago (en la demo, el pago es "
+                   "de prueba). Le llega un correo con el enlace y descarga sus fotos en alta calidad, sin marca de "
+                   "agua."),
+        'capitulos': [
+            ('0:00', 'Elegir las fotos'),
+            ('0:15', 'Resumen, datos y pago'),
+            ('0:35', 'La descarga en alta calidad'),
+        ],
+        'proxima': 'Empresas de turismo y agencias: cómo se organizan',
+        'etiquetas': ['vender fotos online', 'descargar fotos', 'mercado pago'],
+    },
+    {
+        'n': 10,
+        'archivo': 'T10-empresas-de-turismo-como-se-organizan.mp4',
+        'titulo': 'Empresas de turismo y agencias: cómo se organizan | Curso de fotografía de turismo, clase 10',
+        'gancho': ("Para empresas de turismo y agencias. La empresa se registra como organizadora, crea cada viaje "
+                   "como un evento, convoca fotógrafos en el destino y organiza la cobertura. Desde su panel ve todos "
+                   "sus viajes, con sus fotógrafos y el cupo de cada uno, y cada viaje tiene dos enlaces: uno para "
+                   "invitar fotógrafos y otro con la galería para los pasajeros. Los fotógrafos suben las fotos, los "
+                   "pasajeros las compran y el dinero llega solo a cada uno: cada fotógrafo cobra en su cuenta de "
+                   "Mercado Pago y la empresa recibe su comisión en la suya."),
+        'capitulos': [
+            ('0:00', 'Cómo trabaja una agencia'),
+            ('0:18', 'El panel y los enlaces de cada viaje'),
+            ('0:30', 'El dinero llega a cada uno'),
+        ],
+        'proxima': 'La empresa de turismo crea el viaje y convoca fotógrafos',
+        'etiquetas': ['agencias de turismo', 'empresas de turismo', 'viajes de egresados'],
+    },
+    {
+        'n': 11,
+        'archivo': 'T11-crear-el-viaje-y-convocar-fotografos.mp4',
+        'titulo': 'La empresa de turismo crea el viaje y convoca fotógrafos | Curso de fotografía de turismo, clase 11',
+        'gancho': ("La empresa de turismo crea el viaje desde su panel: el nombre, el tipo, la fecha de salida y el "
+                   "destino en el mapa (en la demo, un viaje de egresados a Bariloche). En Convocatoria elige cómo se "
+                   "suman los fotógrafos: con aprobación, los de la zona piden entrar y la empresa decide quién "
+                   "trabaja. Pone un cupo, escribe las indicaciones del día y deja que cada fotógrafo ponga sus "
+                   "precios. Al crear el evento, la convocatoria queda publicada."),
+        'capitulos': [
+            ('0:00', 'Crear el viaje y el destino'),
+            ('0:21', 'La convocatoria de fotógrafos'),
+            ('0:38', 'Los precios y publicar el viaje'),
+        ],
+        'proxima': 'La comisión de la empresa de turismo',
+        'etiquetas': ['agencias de turismo', 'convocar fotografos', 'viajes de egresados'],
+    },
+    {
+        'n': 12,
+        'archivo': 'T12-la-comision-de-la-empresa-de-turismo.mp4',
+        'titulo': 'La comisión de la empresa de turismo | Curso de fotografía de turismo, clase 12',
+        'gancho': ("Cómo gana la empresa de turismo con cada foto que se vende del viaje. En el evento activa la "
+                   "comisión y carga el porcentaje (en la demo, un diez por ciento sobre el precio de cada foto). "
+                   "Desde ahí, en cada compra el dinero se reparte solo: el fotógrafo cobra lo suyo en su cuenta de "
+                   "Mercado Pago y la parte de la empresa entra directo en la suya, sin transferencias ni "
+                   "comprobantes. En Comisiones ve, viaje por viaje, cuánto lleva registrado y cuánto ya cobró."),
+        'capitulos': [
+            ('0:00', 'Cómo gana la empresa'),
+            ('0:10', 'Activar la comisión'),
+            ('0:26', 'El dinero llega a cada uno'),
+            ('0:37', 'Seguir las comisiones'),
+        ],
+        'proxima': 'Postularte a un viaje como fotógrafo',
+        'etiquetas': ['comision', 'agencias de turismo', 'mercado pago'],
+    },
+    {
+        'n': 13,
+        'archivo': 'T13-postularte-a-un-viaje-como-fotografo.mp4',
+        'titulo': 'Postularte a un viaje como fotógrafo | Curso de fotografía de turismo, clase 13',
+        'gancho': ("El fotógrafo se postula para trabajar en el viaje de una empresa. Con el enlace de la "
+                   "convocatoria ve el destino, la fecha, las indicaciones del día, el cupo y cómo se venden las "
+                   "fotos, y envía su solicitud. La empresa la aprueba con un clic y el viaje aparece en Mis eventos "
+                   "del fotógrafo. Cuando se habilita la subida, suma sus fotos y cada venta se reparte sola: su parte "
+                   "entra en su cuenta de Mercado Pago y la de la empresa, en la suya. Es la última clase del curso."),
+        'capitulos': [
+            ('0:00', 'La convocatoria del viaje'),
+            ('0:16', 'Postularse y la aprobación'),
+            ('0:29', 'Subir las fotos y cobrar'),
+        ],
+        'proxima': None,
+        'etiquetas': ['fotografos de viajes', 'agencias de turismo', 'trabajo para fotografos'],
     },
 ]
 

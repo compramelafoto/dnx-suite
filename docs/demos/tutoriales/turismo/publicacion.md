@@ -30,8 +30,8 @@ explican como si el Split 1:N ya funcionara.
 
 La serie pasó a 13 clases (se sumó T10 «Empresas de turismo y agencias: cómo se organizan»).
 
-**Pendiente para cuando vuelva la cuota de YouTube (se agotó el 2026-11-04):** poner T01 primero en la lista y actualizar
-las descripciones de T02 a T08, que dicen «Clase N de 12», y la de la lista («12 clases»). Se hace corriendo de nuevo
-el paso de sincronizar copys y ordenar la lista.
+**Pendiente para cuando vuelva la cuota de YouTube (se agotó el 2026-11-04; se renueva a las 0 h del Pacífico, 5 h en
+Argentina):** subir T09 a T13 (copys y portadas listos), poner T01 primero en la lista, actualizar las descripciones de
+T02 a T08 («Clase N de 12» → «de 13») y la de la lista («12 clases»), y cargar T09 a T13 en `tutorials_turismo_course`.
 
 Los links están cargados en `tutorials_turismo_course` (producción). La página los muestra cuando se despliega el PR 941.
