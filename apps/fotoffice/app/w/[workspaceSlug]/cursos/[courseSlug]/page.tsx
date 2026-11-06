@@ -25,7 +25,7 @@ const INCLUDE_CURSO = {
   lessons: {
     where: { videoStatus: "READY" as const },
     orderBy: { sortOrder: "asc" as const },
-    select: { id: true, title: true, description: true, durationSeconds: true, isPreview: true },
+    select: { id: true, title: true, description: true, durationSeconds: true, isPreview: true, thumbnailUrl: true },
   },
 };
 
