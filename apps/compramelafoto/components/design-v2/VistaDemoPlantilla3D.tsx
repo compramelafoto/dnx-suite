@@ -46,6 +46,8 @@ export default function VistaDemoPlantilla3D({
   onClose,
   onUsar,
   usando,
+  url,
+  subtitulo,
 }: {
   templateId: string;
   nombre: string;
@@ -53,6 +55,13 @@ export default function VistaDemoPlantilla3D({
   /** Sin valor, no se muestra el botón de usar la plantilla. */
   onUsar?: () => void;
   usando?: boolean;
+  /**
+   * De dónde sale la demo. Por omisión, la del catálogo del fotógrafo; la página pública de
+   * preventa usa la de su pack (con el colegio real).
+   */
+  url?: string;
+  /** El texto bajo el título del visor. */
+  subtitulo?: string;
 }) {
   const [demo, setDemo] = useState<Demo | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -61,7 +70,7 @@ export default function VistaDemoPlantilla3D({
 
   useEffect(() => {
     let vivo = true;
-    fetch(`/api/fotografo/diseno/plantillas/${encodeURIComponent(templateId)}/vista-demo`, {
+    fetch(url ?? `/api/fotografo/diseno/plantillas/${encodeURIComponent(templateId)}/vista-demo`, {
       credentials: "include",
     })
       .then((r) => r.json().then((d) => ({ ok: r.ok, d })))
@@ -74,7 +83,7 @@ export default function VistaDemoPlantilla3D({
     return () => {
       vivo = false;
     };
-  }, [templateId]);
+  }, [templateId, url]);
 
   useEffect(() => {
     if (!error) return;
@@ -177,7 +186,7 @@ export default function VistaDemoPlantilla3D({
   return (
     <Librito3DVisor
       titulo={nombre || demo.template.name || "Plantilla"}
-      subtitulo="Con fotos y datos de ejemplo · arrastrá para girarlo"
+      subtitulo={subtitulo ?? "Con fotos y datos de ejemplo · arrastrá para girarlo"}
       canvas={demo.template.canvas}
       blocks={bloques}
       values={demo.values}

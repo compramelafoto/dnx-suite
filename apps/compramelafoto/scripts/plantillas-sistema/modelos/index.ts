@@ -22,6 +22,7 @@ import { institucionalBanda } from "./20-institucional-banda";
 import { VARIADAS } from "./variadas";
 import { RELIGIOSOS } from "./religiosos";
 import { MOSAICOS } from "./mosaicos";
+import { graduacionSol } from "./75-graduacion-sol";
 
 /** Los modelos, en el orden en que se listan. */
 export const MODELOS: Modelo[] = [
@@ -48,4 +49,5 @@ export const MODELOS: Modelo[] = [
   ...VARIADAS,
   ...RELIGIOSOS,
   ...MOSAICOS,
+  graduacionSol,
 ];

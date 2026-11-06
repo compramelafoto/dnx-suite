@@ -146,6 +146,8 @@ export async function GET(
         /** Precio de lista final (tachado) y % de descuento; null si el pack no tiene descuento real. */
         listPriceArs: listPrice?.listPriceArs ?? null,
         discountPercent: listPrice?.discountPercent ?? null,
+        /** El pack lleva un diseño (librito, carpeta…): la página ofrece verlo en 3D con fotos de ejemplo. */
+        hasDesignPreview: p.benefits.some((b) => Boolean(b.templateV2Id)),
         validFrom: p.validFrom,
         validUntil: p.validUntil,
         redemptionDeadlineAt: p.redemptionDeadlineAt,
