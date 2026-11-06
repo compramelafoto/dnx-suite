@@ -13,6 +13,7 @@ import { safeFilename } from "@/lib/safe-filename";
 import { formatBuyerContactForPhotographer } from "@/lib/orders/resolve-album-order-buyer-contact";
 import type { PlanResult, PrintExportUser } from "./album-order-print-plan";
 import { resolveExportProductName } from "./export-product-name";
+import { acabadoCorto, carpetaDeImpresion, carpetaDePedido, nombreDeCopia, tamanoCorto } from "./rutas-cortas";
 
 /** Referencia lógica del carrito de álbum en PrintOrderItem.fileKey (no es key de R2). */
 const PRINT_ORDER_FILE_KEY_PHOTO_REF = /^photo:(\d+)$/i;
@@ -23,9 +24,6 @@ function safeName(name: string): string {
   return safeFilename(name, "Cliente");
 }
 
-function pad(n: number, len = 6) {
-  return String(n).padStart(len, "0");
-}
 
 function formatDate(d: Date) {
   const dd = String(d.getDate()).padStart(2, "0");
@@ -71,9 +69,9 @@ async function buildPdf(
   draw("Resumen de producción (por producto, acabado y tamaño)", 13);
   const summary: Record<string, Record<string, Record<string, { photos: number; copies: number }>>> = {};
   for (const it of order.items) {
-    const finish = String(it.acabado || "BRILLO");
+    const finish = String(it.acabado || "Sin acabado");
     const size = String(it.size);
-    const productName = getProductName(size, finish);
+    const productName = getProductName(size, String(it.acabado || ""));
     summary[productName] ??= {};
     summary[productName][finish] ??= {};
     summary[productName][finish][size] ??= { photos: 0, copies: 0 };
@@ -155,8 +153,9 @@ export async function loadPrintOrderPrintPlan(orderId: number, user: PrintExport
     }
   }
 
-  const customer = safeName(buyer.name || buyer.email || "Cliente");
-  const folder = safeName(`Pedido-${pad(displayOrderId)} - ${customer}`);
+  // Rutas cortas: Windows no descomprime rutas largas (ver `rutas-cortas`).
+  const codigo = String(displayOrderId);
+  const folder = carpetaDePedido(codigo, buyer.name || buyer.email || "Cliente");
 
   type ProductRow = { name: string; size: string | null; acabado: string | null };
   let productRows: ProductRow[] = [];
@@ -185,13 +184,13 @@ export async function loadPrintOrderPrintPlan(orderId: number, user: PrintExport
   const originalKeyByPhotoId = new Map(photos.map((p) => [p.id, p.originalKey] as const));
 
   const files = order.items.map((it) => {
-    const finish = safeName(String(it.acabado || "BRILLO"));
-    const size = safeName(String(it.size));
+    const finish = acabadoCorto(it.acabado);
+    const size = tamanoCorto(it.size);
     const qty = Number(it.quantity || 0);
-    const productName = safeName(getExportFolderName(getProductName(size, finish)));
-    const originalName = safeName(it.originalName || it.fileKey);
-    const ext = path.extname(originalName) || path.extname(it.fileKey) || ".jpg";
-    const zipPath = `${folder}/${productName}/${finish}/${size}/${qty} Copias - ${size} - ${originalName.replace(ext, "")}${ext}`;
+    const productName = safeName(getExportFolderName(getProductName(String(it.size), String(it.acabado || ""))));
+    const originalName = it.originalName || path.basename(it.fileKey);
+    const impresion = { producto: productName, acabado: finish, tamano: size, copias: qty };
+    const zipPath = `${folder}/${carpetaDeImpresion(impresion)}/${nombreDeCopia(qty, originalName)}`;
 
     let sourceKey = it.fileKey;
     const ref = String(it.fileKey).match(PRINT_ORDER_FILE_KEY_PHOTO_REF);
@@ -199,13 +198,13 @@ export async function loadPrintOrderPrintPlan(orderId: number, user: PrintExport
       const resolved = originalKeyByPhotoId.get(Number(ref[1]));
       if (resolved) sourceKey = resolved;
     }
-    const base = `${productName} | ${finish} | ${size} | ${qty} | ${it.originalName || "-"} | ${it.fileKey}`;
+    const base = `${productName} | ${finish || "-"} | ${size} | ${qty} | ${it.originalName || "-"} | ${it.fileKey}`;
     return {
       zipPath,
       r2Key: urlToR2Key(sourceKey),
       manifestLine: `${base} | ${zipPath}`,
       missingLine: `${base} | (FALTA ARCHIVO)`,
-      impresion: { producto: productName, acabado: finish, tamano: size, copias: qty },
+      impresion,
     };
   });
 
@@ -213,6 +212,7 @@ export async function loadPrintOrderPrintPlan(orderId: number, user: PrintExport
     ok: true,
     plan: {
       folder,
+      codigo,
       manifestHeader: [
         `Pedido: ${displayOrderId}`,
         `Nombre: ${buyer.name || "-"}`,

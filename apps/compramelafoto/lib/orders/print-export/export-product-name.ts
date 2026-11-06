@@ -22,7 +22,7 @@ const norm = (s: string | null | undefined) =>
     .trim()
     .toLowerCase();
 
-function esGenerico(name: string): boolean {
+export function esGenerico(name: string): boolean {
   const n = norm(name);
   return n === "foto impresa" || n === "fotos impresas" || n === "impresa" || n === "copia";
 }

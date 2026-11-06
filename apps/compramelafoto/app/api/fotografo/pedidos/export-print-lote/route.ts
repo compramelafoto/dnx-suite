@@ -83,7 +83,8 @@ export async function GET(req: NextRequest) {
     const extras = omitidos.length
       ? [{ name: "PEDIDOS_NO_INCLUIDOS.txt", content: ["Estos pedidos no se incluyeron:", "", ...omitidos].join("\n") }]
       : [];
-    const nombre = `Impresiones ${fecha} - ${plans.length} pedidos`;
+    // Corto: Windows descomprime en una carpeta con este nombre y cuenta su largo en la ruta.
+    const nombre = `Impresiones ${fecha}`;
     if (req.nextUrl.searchParams.get("orden") === "cliente") {
       return streamPrintExportZip(plans, nombre, extras);
     }
