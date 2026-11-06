@@ -4,15 +4,20 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { DNX_SESSION_COOKIE, getSessionUserByRawToken } from "@repo/auth";
 import {
+  DnxAuthDivider,
   DnxAuthError,
   DnxAuthHeader,
   DnxAuthShell,
+  DnxEmailField,
   DnxGoogleButton,
+  DnxPasswordField,
+  DnxPrimaryAuthButton,
   muestrasAuthBrand,
 } from "@repo/auth-ui";
 import { rutaInternaSegura } from "@/lib/ruta-segura";
 
-/** Ingreso a Muestras Fotográficas. La misma cuenta que en el resto de DNX Suite; sólo Google. */
+/** Ingreso a Muestras Fotográficas. La misma cuenta que en el resto de DNX Suite: con Google o
+ * con la contraseña que la persona ya tiene (FotoRank, FOTOFFICE). */
 
 export const dynamic = "force-dynamic";
 
@@ -43,6 +48,20 @@ export default async function Login({ searchParams }: Props) {
       />
 
       <DnxAuthError message={error} />
+
+      {/* La misma clave de DNX Suite. Muestras no crea cuentas ni recupera claves por acá. */}
+      <form
+        action="/api/auth/clave"
+        method="post"
+        style={{ display: "flex", flexDirection: "column", gap: "1.5rem", width: "100%" }}
+      >
+        {next ? <input type="hidden" name="next" value={next} /> : null}
+        <DnxEmailField />
+        <DnxPasswordField autoComplete="current-password" />
+        <DnxPrimaryAuthButton>Entrar</DnxPrimaryAuthButton>
+      </form>
+
+      <DnxAuthDivider />
 
       {/*
         `secondary` y no `emphasized`: es el estilo canónico de la suite y el
