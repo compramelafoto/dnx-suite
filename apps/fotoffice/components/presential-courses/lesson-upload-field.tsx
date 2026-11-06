@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { refrescarEstadoDeVideo, traerVideoDesdeEnlace } from "@/app/actions/course-lessons";
+import { refrescarEstadoDeVideo, traerVideoDesdeEnlace, usarVideoDeYoutube } from "@/app/actions/course-lessons";
 
 /** Cada cuánto se pregunta si el proveedor terminó de preparar el video. */
 const ESPERA_ENTRE_CONSULTAS_MS = 15_000;
@@ -32,10 +32,16 @@ export function LessonUploadField({
   lessonId,
   estadoInicial,
   duracionSegundos,
+  gratuito = false,
+  youtubeId = null,
 }: {
   lessonId: string;
   estadoInicial: Estado;
   duracionSegundos: number | null;
+  /** Curso gratuito: el video se toma de YouTube en vez de subirse. */
+  gratuito?: boolean;
+  /** El video de YouTube que ya tiene la clase, si tiene. */
+  youtubeId?: string | null;
 }) {
   const [estado, setEstado] = useState<Estado>(estadoInicial);
   const [progreso, setProgreso] = useState(0);
@@ -118,7 +124,69 @@ export function LessonUploadField({
     }
   }
 
+  async function usarYoutube() {
+    setError(null);
+    setTrayendo(true);
+    const r = await usarVideoDeYoutube(lessonId, enlace);
+    setTrayendo(false);
+    if (r.error) {
+      setError(r.error);
+      return;
+    }
+    setEnlace("");
+    setEstado("READY");
+    router.refresh();
+  }
+
   const minutos = duracionSegundos ? Math.round(duracionSegundos / 60) : null;
+
+  if (gratuito) {
+    return (
+      <div className="space-y-2">
+        <p className="text-sm">
+          {youtubeId ? (
+            <>
+              <span className="font-medium text-[var(--fo-success)]">Lista · video de YouTube</span>{" "}
+              <a
+                href={`https://youtu.be/${youtubeId}`}
+                target="_blank"
+                rel="noreferrer"
+                className="text-[var(--fo-accent)] underline"
+              >
+                verlo
+              </a>
+            </>
+          ) : (
+            <span className="font-medium text-[var(--fo-muted)]">{ETIQUETA[estado]}</span>
+          )}
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            type="url"
+            className="fo-input min-w-0 flex-1 text-sm"
+            placeholder="Pegá el enlace del video en YouTube (https://youtu.be/…)"
+            aria-label="Enlace del video en YouTube"
+            value={enlace}
+            onChange={(e) => setEnlace(e.target.value)}
+            disabled={trayendo}
+          />
+          <button
+            type="button"
+            className="fo-btn fo-btn-secondary text-sm"
+            onClick={() => void usarYoutube()}
+            disabled={!enlace.trim() || trayendo}
+          >
+            {trayendo ? "Guardando…" : youtubeId ? "Cambiar video" : "Usar este video"}
+          </button>
+        </div>
+        {error ? (
+          <p className="text-sm text-[var(--fo-danger)]" role="alert">
+            {error}
+          </p>
+        ) : null}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-2">

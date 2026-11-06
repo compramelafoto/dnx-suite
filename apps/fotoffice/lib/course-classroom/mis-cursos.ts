@@ -71,7 +71,7 @@ async function institucionesDondeEsSociaActiva(userId: number): Promise<Set<stri
 
 const seleccionDeLecciones = {
   orderBy: { sortOrder: "asc" as const },
-  select: { id: true, title: true, description: true, durationSeconds: true, videoStatus: true, videoUid: true, sortOrder: true },
+  select: { id: true, title: true, description: true, durationSeconds: true, videoStatus: true, videoUid: true, videoProvider: true, sortOrder: true },
 };
 
 export async function cargarMisCursos(userId: number): Promise<GrupoDeMisCursos[]> {

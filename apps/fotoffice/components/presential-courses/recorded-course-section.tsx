@@ -32,6 +32,7 @@ export function RecordedCourseSection({
   dueno,
   precioSocios,
   cursoDe,
+  gratuito = false,
 }: {
   workspaceSlug: string;
   courseSlug: string;
@@ -50,13 +51,16 @@ export function RecordedCourseSection({
   precioSocios: { institucion: string; amountArs: string } | null;
   /** Nombre del dueño cuando el curso es de otro negocio: "Un curso de …". */
   cursoDe: string | null;
+  /** Grabado sin precio: todas las clases se ven sin registrarse. */
+  gratuito?: boolean;
 }) {
   const montos = precioArs
     ? montosDeCompraSinReparto({ listaArs: precioArs, comisionPlataformaBps: cargoServicioBps, owner: dueno })
     : null;
   const total = clases.reduce((s, c) => s + (c.durationSeconds ?? 0), 0);
-  const plazo =
-    accessMonths === 0 ? "cuando quieras, sin vencimiento" : accessMonths === 1 ? "durante 1 mes" : `durante ${accessMonths} meses`;
+  const plazo = gratuito
+    ? "gratis y sin registrarte"
+    : accessMonths === 0 ? "cuando quieras, sin vencimiento" : accessMonths === 1 ? "durante 1 mes" : `durante ${accessMonths} meses`;
   return (
     <section className="fo-card space-y-4">
       {cursoDe ? <p className="text-xs text-[var(--fo-muted)]">Un curso de {cursoDe}</p> : null}
@@ -81,19 +85,31 @@ export function RecordedCourseSection({
             </div>
             <div className="shrink-0 text-right text-sm text-[var(--fo-muted)]">
               <p>{duracionLegible(clase.durationSeconds)}</p>
-              {clase.isPreview && publicado && appUrl ? (
+              {(clase.isPreview || gratuito) && publicado && appUrl ? (
                 <a
                   href={`${appUrl}/w/${workspaceSlug}/cursos/${courseSlug}/muestra/${clase.id}`}
                   className="text-[var(--fo-accent)] underline"
                 >
-                  Ver gratis
+                  {gratuito ? "Ver clase" : "Ver gratis"}
                 </a>
               ) : null}
             </div>
           </li>
         ))}
       </ol>
-      {gratisParaSocios && publicado ? (
+      {gratuito && publicado && clases[0] ? (
+        <div className="flex flex-wrap items-center gap-3 rounded-[var(--fo-radius-sm)] border border-[var(--fo-accent)]/40 p-3 text-sm">
+          <strong>Curso gratuito.</strong>
+          <span className="text-[var(--fo-muted)]">Mirá todas las clases sin registrarte ni pagar.</span>
+          <a
+            href={`${appUrl}/w/${workspaceSlug}/cursos/${courseSlug}/muestra/${clases[0].id}`}
+            className="fo-btn fo-btn-primary text-sm"
+          >
+            Empezar el curso
+          </a>
+        </div>
+      ) : null}
+      {gratisParaSocios && publicado && !gratuito ? (
         <p className="rounded-[var(--fo-radius-sm)] border border-[var(--fo-accent)]/40 p-3 text-sm">
           <strong>Gratis para socios de {gratisParaSocios.institucion}.</strong>{" "}
           <a href={`${appUrl}/login?next=/portal/cursos`} className="text-[var(--fo-accent)] underline">
@@ -102,7 +118,7 @@ export function RecordedCourseSection({
           y anotate sin pagar.
         </p>
       ) : null}
-      {precioArs ? (
+      {precioArs && !gratuito ? (
         montos?.ok && Number(montos.platformFeeArs) > 0 ? (
           <p className="text-lg">
             <strong>{formatMoney(Number(montos.listPriceArs), "ARS")}</strong> +{" "}
@@ -122,12 +138,12 @@ export function RecordedCourseSection({
           para comprarlo con tu descuento.
         </p>
       ) : null}
-      {publicado && precioArs && !aLaVenta ? (
+      {publicado && precioArs && !gratuito && !aLaVenta ? (
         <p className="rounded-[var(--fo-radius-sm)] border border-[var(--fo-border)] p-3 text-sm font-medium">
           Disponible próximamente
         </p>
       ) : null}
-      {publicado && precioArs && aLaVenta ? (
+      {publicado && precioArs && !gratuito && aLaVenta ? (
         <details id="comprar" className="scroll-mt-6 pt-2" open>
           <summary className="cursor-pointer text-sm text-[var(--fo-accent)]">Comprar el curso</summary>
           <div className="pt-3">
