@@ -16,6 +16,7 @@ import archiver, { type Archiver } from "archiver";
 import { Readable } from "stream";
 import { fileExistsInR2, readFromR2 } from "@/lib/r2-client";
 import { safeFilename } from "@/lib/safe-filename";
+import { ajustarRuta } from "./rutas-cortas";
 
 export type PrintExportFile = {
   /** Ruta dentro del ZIP, ya con la carpeta del pedido adelante. */
@@ -38,6 +39,8 @@ const leerDeR2: LectorDeArchivos = async (r2Key) => ((await fileExistsInR2(r2Key
 export type PrintExportPlan = {
   /** Carpeta del pedido dentro del ZIP. */
   folder: string;
+  /** Número del pedido, para nombrar archivos cuando no hay carpeta por cliente. */
+  codigo?: string;
   manifestHeader: string[];
   files: PrintExportFile[];
   pdfBytes: Uint8Array;
@@ -69,28 +72,39 @@ function appendAndWait(archive: Archiver, data: Buffer | string, name: string): 
   });
 }
 
-async function writePlan(archive: Archiver, plan: PrintExportPlan, leer: LectorDeArchivos): Promise<void> {
+async function writePlan(
+  archive: Archiver,
+  plan: PrintExportPlan,
+  leer: LectorDeArchivos,
+  usadas: Set<string>,
+): Promise<void> {
   const lines = [...plan.manifestHeader];
   for (const file of plan.files) {
+    // Tope de largo para Windows y sin nombres repetidos (ver `rutas-cortas`).
+    const zipPath = ajustarRuta(file.zipPath, usadas);
     let ok = false;
     try {
       const buffer = await leer(file.r2Key);
       if (buffer) {
         const final = file.transform ? Buffer.from(file.transform(buffer)) : buffer;
-        await appendAndWait(archive, final, file.zipPath);
+        await appendAndWait(archive, final, zipPath);
         ok = true;
       }
     } catch (err) {
       // Un archivo que no se puede leer no frena el resto: queda anotado en el MANIFEST.
       console.error("[print-export] no se pudo leer", file.r2Key, err);
     }
-    lines.push(ok ? file.manifestLine : file.missingLine);
+    lines.push(ok ? file.manifestLine.split(file.zipPath).join(zipPath) : file.missingLine);
   }
   for (const note of plan.notes ?? []) {
-    await appendAndWait(archive, note.content, `${plan.folder}/${note.name}`);
+    await appendAndWait(archive, note.content, ajustarRuta(`${plan.folder}/${note.name}`, usadas));
   }
-  await appendAndWait(archive, lines.join("\n"), `${plan.folder}/${plan.manifestName ?? "MANIFEST.txt"}`);
-  await appendAndWait(archive, Buffer.from(plan.pdfBytes), `${plan.folder}/${plan.summaryName ?? "RESUMEN_PEDIDO.pdf"}`);
+  await appendAndWait(archive, lines.join("\n"), ajustarRuta(`${plan.folder}/${plan.manifestName ?? "MANIFEST.txt"}`, usadas));
+  await appendAndWait(
+    archive,
+    Buffer.from(plan.pdfBytes),
+    ajustarRuta(`${plan.folder}/${plan.summaryName ?? "RESUMEN_PEDIDO.pdf"}`, usadas),
+  );
 }
 
 export function streamPrintExportZip(
@@ -104,8 +118,9 @@ export function streamPrintExportZip(
 
   void (async () => {
     try {
-      for (const plan of plans) await writePlan(archive, plan, leer);
-      for (const extra of extras) await appendAndWait(archive, extra.content, extra.name);
+      const usadas = new Set<string>();
+      for (const plan of plans) await writePlan(archive, plan, leer, usadas);
+      for (const extra of extras) await appendAndWait(archive, extra.content, ajustarRuta(extra.name, usadas));
       await archive.finalize();
     } catch (err) {
       console.error("[print-export] ZIP interrumpido", err);

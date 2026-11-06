@@ -3,32 +3,31 @@
  * adentro una carpeta por cliente. Así el laboratorio imprime juntas todas las 10x15 brillo
  * sin abrir pedido por pedido, y el fotógrafo igual sabe de quién es cada copia.
  *
- *   15x21 cm - MATE - Foto impresa/Pedido-Album-003888 - Juan Perez/2 Copias - 15x21 cm - IMG_1.jpg
- *   Foto grupal/Pedido-Album-003888 - Juan Perez/Diseno 12.pdf          (diseños: por producto)
- *   Control por cliente/Pedido-Album-003888 - Juan Perez/MANIFEST.txt   (+ resumen PDF y avisos)
- *   RESUMEN_PARA_LABORATORIO.txt                                         (copias por tamaño)
+ *   15x21 Mate/3888 Juan Perez/2x IMG_1.jpg
+ *   Foto grupal/3888 Juan Perez/Diseno 12.pdf          (diseños: por producto)
+ *   Control/3888 Juan Perez/MANIFEST.txt               (+ resumen PDF y avisos)
+ *   RESUMEN_PARA_LABORATORIO.txt                       (copias por tamaño)
+ *
+ * Los nombres son cortos a propósito: Windows no descomprime rutas largas (ver `rutas-cortas`).
  *
  * Con `separarClientes: false` no hay carpeta por cliente: todas las copias de un tamaño van
- * juntas y el número de pedido encabeza el nombre del archivo (`Pedido-Album-003888 - 2 Copias…`).
+ * juntas y el número de pedido encabeza el nombre del archivo (`3888 2x IMG_1.jpg`).
  * Es para el fotógrafo que separa recién al embolsar y no quiere abrir una carpeta por cliente.
  *
  * Sólo cambia dónde va cada archivo; qué archivos entran lo siguen decidiendo los planes.
  */
 
 import type { PrintExportPlan } from "./stream-print-export-zip";
+import { carpetaDeImpresion } from "./rutas-cortas";
 
-export const CARPETA_CONTROL = "Control por cliente";
+export const CARPETA_CONTROL = "Control";
 export const NOMBRE_RESUMEN = "RESUMEN_PARA_LABORATORIO.txt";
-
-function carpetaDeTamano(i: { tamano: string; acabado: string; producto: string }): string {
-  return `${i.tamano} - ${i.acabado} - ${i.producto}`;
-}
 
 const porNombre = (a: string, b: string) => a.localeCompare(b, "es", { numeric: true, sensitivity: "base" });
 
-/** "Pedido-Album-003888 - Juan Perez" → "Pedido-Album-003888": el número sin el nombre. */
-function numeroDePedido(folder: string): string {
-  return folder.split(" - ")[0] || folder;
+/** "3888 Juan Perez" → "3888": el número sin el nombre. */
+function numeroDePedido(plan: PrintExportPlan): string {
+  return plan.codigo ?? (plan.folder.split(" ")[0] || plan.folder);
 }
 
 export function organizarPorTamano(
@@ -43,15 +42,15 @@ export function organizarPorTamano(
 
   const reorganizados = plans.map((plan) => {
     const prefijo = `${plan.folder}/`;
-    const pedido = numeroDePedido(plan.folder);
+    const pedido = numeroDePedido(plan);
     // Dentro de cada grupo: la carpeta del cliente, o el número de pedido delante del archivo.
-    const dentro = (resto: string) => (separarClientes ? `${plan.folder}/${resto}` : `${pedido} - ${resto}`);
+    const dentro = (resto: string) => (separarClientes ? `${plan.folder}/${resto}` : `${pedido} ${resto}`);
     const files = plan.files.map((file) => {
       const relativa = file.zipPath.startsWith(prefijo) ? file.zipPath.slice(prefijo.length) : file.zipPath;
       const partes = relativa.split("/");
       let zipPath: string;
       if (file.impresion) {
-        const grupo = carpetaDeTamano(file.impresion);
+        const grupo = carpetaDeImpresion(file.impresion);
         zipPath = `${grupo}/${dentro(partes[partes.length - 1]!)}`;
         const clientes = conteo.get(grupo) ?? new Map();
         const fila = clientes.get(plan.folder) ?? { fotos: 0, copias: 0 };

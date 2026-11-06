@@ -14,6 +14,7 @@ import type { PrintExportFile, PrintExportPlan } from "./stream-print-export-zip
 import { chosenProductNameFromMetadata, resolveExportProductName } from "./export-product-name";
 import { copiasFueraDelDiseno } from "./copias-fuera-del-diseno";
 import { loadOrderDesigns } from "./order-designs";
+import { acabadoCorto, carpetaDeImpresion, carpetaDePedido, nombreDeCopia, recortar, tamanoCorto } from "./rutas-cortas";
 
 export type PlanResult = { ok: true; plan: PrintExportPlan } | { ok: false; status: number; error: string };
 
@@ -23,9 +24,6 @@ function safeName(name: string): string {
   return safeFilename(name, "Cliente");
 }
 
-function pad(n: number, len = 6) {
-  return String(n).padStart(len, "0");
-}
 
 function formatDate(d: Date) {
   const dd = String(d.getDate()).padStart(2, "0");
@@ -74,9 +72,9 @@ async function buildPdf(
 
   const summary: Record<string, Record<string, Record<string, { photos: number; copies: number }>>> = {};
   for (const it of order.items) {
-    const finish = String(it.finish || "BRILLO");
+    const finish = String(it.finish || "Sin acabado");
     const size = String(it.size || "");
-    const productName = getProductName(size, finish, it.metadata);
+    const productName = getProductName(size, String(it.finish || ""), it.metadata);
     summary[productName] ??= {};
     summary[productName][finish] ??= {};
     summary[productName][finish][size] ??= { photos: 0, copies: 0 };
@@ -159,25 +157,25 @@ export async function loadAlbumOrderPrintPlan(orderId: number, user: PrintExport
     if (!buyer.phone && mirrorPhone) buyer.phone = mirrorPhone;
   }
 
-  const customerLabel = safeName(buyer.name || buyer.email || "Cliente");
-  const folder = `Pedido-Album-${pad(order.id)} - ${customerLabel}`;
+  // Rutas cortas: Windows no descomprime rutas largas (ver `rutas-cortas`).
+  const codigo = String(order.id);
+  const folder = carpetaDePedido(codigo, buyer.name || buyer.email || "Cliente");
 
   const files: PrintExportFile[] = sueltas.map((it) => {
-    const finish = safeName(String(it.finish || "BRILLO"));
-    const size = safeName(String(it.size || ""));
+    const finish = acabadoCorto(it.finish);
+    const size = tamanoCorto(it.size);
     const qty = Number(it.quantity || 0);
-    const productName = safeName(getProductName(size, finish, it.metadata));
+    const productName = safeName(getProductName(String(it.size || ""), String(it.finish || ""), it.metadata));
     const originalKey = it.photo?.originalKey ?? "";
     const baseName = path.basename(originalKey) || `foto-${it.photoId}`;
-    const ext = path.extname(baseName) || ".jpg";
-    const originalName = safeName(baseName.replace(ext, "")) + ext;
-    const zipPath = `${folder}/${productName}/${finish}/${size}/${qty} Copias - ${size} - ${originalName}`;
+    const impresion = { producto: productName, acabado: finish, tamano: size, copias: qty };
+    const zipPath = `${folder}/${carpetaDeImpresion(impresion)}/${nombreDeCopia(qty, baseName)}`;
     return {
       zipPath,
       r2Key: urlToR2Key(originalKey),
-      manifestLine: `${productName} | ${finish} | ${size} | ${qty} | ${zipPath}`,
-      missingLine: `${productName} | ${finish} | ${size} | ${qty} | (FALTA ARCHIVO)`,
-      impresion: { producto: productName, acabado: finish, tamano: size, copias: qty },
+      manifestLine: `${productName} | ${finish || "-"} | ${size} | ${qty} | ${zipPath}`,
+      missingLine: `${productName} | ${finish || "-"} | ${size} | ${qty} | (FALTA ARCHIVO)`,
+      impresion,
     };
   });
 
@@ -185,14 +183,14 @@ export async function loadAlbumOrderPrintPlan(orderId: number, user: PrintExport
   const productoDeDiseno = (photoIds: number[]) => {
     const it = order.items.find((i) => photoIds.includes(i.photoId));
     return safeName(
-      it ? getProductName(String(it.size || ""), String(it.finish || "BRILLO"), it.metadata) : "Disenos"
+      recortar(it ? getProductName(String(it.size || ""), String(it.finish || ""), it.metadata) : "Disenos", 24)
     );
   };
   const notes: Array<{ name: string; content: string }> = [];
   const designLines: string[] = [];
   for (const d of designs) {
     const producto = productoDeDiseno(d.photoIds);
-    const titulo = safeName(`Diseno ${d.id}${d.templateName ? ` - ${d.templateName}` : ""}`);
+    const titulo = recortar(safeName(`Diseno ${d.id}${d.templateName ? ` ${d.templateName}` : ""}`), 30);
     if (d.ready && d.pdfUrl) {
       const pdfPath = `${folder}/${producto}/${titulo}.pdf`;
       files.push({
@@ -202,7 +200,7 @@ export async function loadAlbumOrderPrintPlan(orderId: number, user: PrintExport
         missingLine: `${producto} | DISEÑO | ${d.id} | 1 | (FALTA EL PDF DEL DISEÑO)`,
       });
       d.jpgUrls.forEach((url, i) => {
-        const jpgPath = `${folder}/${producto}/${titulo} - caras/Cara ${i + 1}.jpg`;
+        const jpgPath = `${folder}/${producto}/${titulo} caras/Cara ${i + 1}.jpg`;
         files.push({
           zipPath: jpgPath,
           r2Key: urlToR2Key(url),
@@ -213,7 +211,7 @@ export async function loadAlbumOrderPrintPlan(orderId: number, user: PrintExport
       designLines.push(`  • ${producto}: diseño ${d.id} listo (PDF incluido)`);
     } else {
       notes.push({
-        name: `${producto} - DISENO ${d.id} PENDIENTE DE APROBAR.txt`,
+        name: `DISENO ${d.id} PENDIENTE DE APROBAR.txt`,
         content: [
           `El diseño ${d.id}${d.templateName ? ` (${d.templateName})` : ""} todavía no está aprobado.`,
           "",
@@ -231,6 +229,7 @@ export async function loadAlbumOrderPrintPlan(orderId: number, user: PrintExport
     ok: true,
     plan: {
       folder,
+      codigo,
       notes,
       manifestHeader: [
         `Pedido Álbum: ${order.id}`,
