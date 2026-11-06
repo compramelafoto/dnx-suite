@@ -16,6 +16,7 @@ import { RecordedCourseSection } from "@/components/presential-courses/recorded-
 import { CourseHero } from "@/components/presential-courses/course-hero";
 import { bloquesDeVenta } from "@/lib/presential-courses/texto-de-venta";
 import { duracionLegible } from "@/lib/course-classroom/aula";
+import { esCursoGratuito } from "@/lib/courses-video/youtube";
 import { montosDeCompraSinReparto } from "@/lib/course-marketplace/compra";
 import { PublicCourseEnrollmentForm } from "@/components/presential-courses/public-course-enrollment-form";
 
@@ -96,6 +97,7 @@ export default async function PublicCourseLandingPage({ params }: Props) {
   if (!presentialCourse) notFound();
   const revendido = acuerdo !== null;
   const esCursoGrabado = presentialCourse.deliveryMode === "RECORDED";
+  const gratuito = esCursoGratuito(presentialCourse);
   const appUrl = direccionDeLaApp();
   let cargoServicioBps = 0;
   let aLaVenta = true;
@@ -145,18 +147,26 @@ export default async function PublicCourseLandingPage({ params }: Props) {
   const faqItems = Array.isArray(presentialCourse.faqJson) ? presentialCourse.faqJson : [];
 
   const etiqueta =
-    presentialCourse.status === "UPCOMING" ? "Próximamente" : esCursoGrabado ? "Curso grabado" : "Cursos presenciales";
+    presentialCourse.status === "UPCOMING"
+      ? "Próximamente"
+      : gratuito
+        ? "Curso gratuito"
+        : esCursoGrabado
+          ? "Curso grabado"
+          : "Cursos presenciales";
   // Para el encabezado con portada: lo mismo que muestra la sección de clases, en grande.
   const segundosTotales = presentialCourse.lessons.reduce((s, c) => s + (c.durationSeconds ?? 0), 0);
   const montosEncabezado =
-    esCursoGrabado && presentialCourse.priceArs
+    esCursoGrabado && !gratuito && presentialCourse.priceArs
       ? montosDeCompraSinReparto({
           listaArs: presentialCourse.priceArs.toString(),
           comisionPlataformaBps: cargoServicioBps,
           owner: dueno,
         })
       : null;
-  const precioEncabezado = montosEncabezado?.ok
+  const precioEncabezado = gratuito
+    ? "Gratis"
+    : montosEncabezado?.ok
     ? formatMoney(Number(montosEncabezado.amountArs), "ARS")
     : esCursoGrabado && presentialCourse.priceArs
       ? formatMoney(Number(presentialCourse.priceArs), "ARS")
@@ -169,7 +179,9 @@ export default async function PublicCourseLandingPage({ params }: Props) {
           ? [{ valor: String(presentialCourse.lessons.length), detalle: presentialCourse.lessons.length === 1 ? "clase grabada" : "clases grabadas" }]
           : []),
         ...(segundosTotales > 0 ? [{ valor: duracionLegible(segundosTotales), detalle: "de video" }] : []),
-        presentialCourse.accessMonths === 0
+        gratuito
+          ? { valor: "Gratis", detalle: "sin registrarte" }
+          : presentialCourse.accessMonths === 0
           ? { valor: "Sin vencimiento", detalle: "lo mirás cuando quieras" }
           : {
               valor: presentialCourse.accessMonths === 1 ? "1 mes" : `${presentialCourse.accessMonths} meses`,
@@ -178,7 +190,7 @@ export default async function PublicCourseLandingPage({ params }: Props) {
       ]
     : [];
   const sePuedeComprar =
-    esCursoGrabado && presentialCourse.status === "PUBLISHED" && aLaVenta && Boolean(presentialCourse.priceArs);
+    esCursoGrabado && !gratuito && presentialCourse.status === "PUBLISHED" && aLaVenta && Boolean(presentialCourse.priceArs);
 
   return (
     <main className="max-w-5xl mx-auto px-4 md:px-8 py-12 md:py-16 space-y-10">
@@ -265,6 +277,7 @@ export default async function PublicCourseLandingPage({ params }: Props) {
           dueno={dueno}
           precioSocios={precioSocios}
           cursoDe={cursoDe}
+          gratuito={gratuito}
         />
       ) : (
       <section className="fo-card space-y-4">

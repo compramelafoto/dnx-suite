@@ -12,6 +12,8 @@ type Clase = {
   durationSeconds: number | null;
   videoStatus: "PENDING" | "UPLOADING" | "PROCESSING" | "READY" | "ERROR";
   isPreview: boolean;
+  videoProvider: string;
+  videoUid: string | null;
 };
 
 const estadoInicial = { error: null as string | null };
@@ -26,10 +28,13 @@ export function CourseLessonsSection({
   courseId,
   clases,
   faltaConfigurarVideo,
+  gratuito,
 }: {
   courseId: string;
   clases: Clase[];
   faltaConfigurarVideo: string | null;
+  /** Grabado sin precio: las clases pueden ser videos de YouTube y se ven sin registrarse. */
+  gratuito: boolean;
 }) {
   const [estado, accionCrear, creando] = useActionState(crearClase, estadoInicial);
 
@@ -38,12 +43,27 @@ export function CourseLessonsSection({
       <div className="space-y-1">
         <h2 className="text-lg font-semibold">Clases</h2>
         <p className="text-sm text-[var(--fo-muted)]">
-          El alumno las mira en este orden, cuando quiera. Marcá una como muestra gratuita para
-          que cualquiera pueda verla sin pagar.
+          El alumno las mira en este orden, cuando quiera.{" "}
+          {gratuito
+            ? "Es un curso gratuito: cualquiera ve todas las clases sin registrarse."
+            : "Marcá una como muestra gratuita para que cualquiera pueda verla sin pagar."}
         </p>
       </div>
 
-      {faltaConfigurarVideo ? (
+      {gratuito ? (
+        <p className="rounded-[var(--fo-radius-sm)] border border-[var(--fo-accent)]/40 p-3 text-sm">
+          <strong>Curso gratuito con videos de YouTube.</strong> Pegá en cada clase el enlace del
+          video en YouTube: no se sube a FOTOFFICE ni ocupa espacio. El video tiene que estar en
+          YouTube como público o no listado.
+        </p>
+      ) : (
+        <p className="text-xs text-[var(--fo-muted)]">
+          ¿Querés que sea gratuito? Dejá el precio vacío y vas a poder usar videos de YouTube en
+          lugar de subirlos.
+        </p>
+      )}
+
+      {faltaConfigurarVideo && !gratuito ? (
         <p className="rounded-[var(--fo-radius-sm)] border border-[var(--fo-border)] p-3 text-sm text-[var(--fo-muted)]">
           {faltaConfigurarVideo} Podés cargar las clases igual: el video se sube cuando quede
           configurado.
@@ -138,6 +158,8 @@ export function CourseLessonsSection({
                 lessonId={clase.id}
                 estadoInicial={clase.videoStatus}
                 duracionSegundos={clase.durationSeconds}
+                gratuito={gratuito}
+                youtubeId={clase.videoProvider === "youtube" ? clase.videoUid : null}
               />
             </li>
           ))}

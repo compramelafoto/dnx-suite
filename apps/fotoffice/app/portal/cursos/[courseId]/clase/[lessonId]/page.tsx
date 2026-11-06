@@ -12,6 +12,8 @@ import { DURACION_PERMISO_SEGUNDOS, playbackIframeUrl, signPlaybackToken, Stream
 import { clientIp } from "@/lib/geocode/rate-limit";
 import { logCourseEvent } from "@/lib/presential-courses/log";
 import { LessonPlayer } from "@/components/course-classroom/lesson-player";
+import { YoutubeLessonPlayer } from "@/components/course-classroom/youtube-lesson-player";
+import { PROVEEDOR_YOUTUBE, urlDeInsercionDeYoutube } from "@/lib/courses-video/youtube";
 
 export const dynamic = "force-dynamic";
 
@@ -60,8 +62,9 @@ export default async function ClasePage({
   const anterior = clases[indice - 1];
   const siguiente = clases[indice + 1];
 
+  const esYoutube = leccion.videoProvider === PROVEEDOR_YOUTUBE;
   let iframeUrl: string | null = null;
-  try {
+  if (!esYoutube) try {
     iframeUrl = playbackIframeUrl(
       signPlaybackToken({ videoUid: leccion.videoUid, ttlSeconds: DURACION_PERMISO_SEGUNDOS }),
       { startSeconds: clase.retomarDesde },
@@ -86,7 +89,9 @@ export default async function ClasePage({
       </div>
       <h1 className="text-2xl font-semibold tracking-tight">{clase.title}</h1>
 
-      {iframeUrl ? (
+      {esYoutube ? (
+        <YoutubeLessonPlayer src={urlDeInsercionDeYoutube(leccion.videoUid)} titulo={clase.title} />
+      ) : iframeUrl ? (
         <LessonPlayer
           key={lessonId}
           iframeUrl={iframeUrl}

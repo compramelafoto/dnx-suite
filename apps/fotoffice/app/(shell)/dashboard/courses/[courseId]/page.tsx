@@ -13,6 +13,7 @@ import {
 } from "@/app/actions/presential-courses";
 import { prisma } from "@repo/db";
 import { CourseLessonsSection } from "@/components/presential-courses/course-lessons-section";
+import { esCursoGratuito } from "@/lib/courses-video/youtube";
 import { CourseInvitationSection } from "@/components/presential-courses/course-invitation-section";
 import { explicarConfiguracionFaltante, readStreamConfig } from "@/lib/courses-video/config";
 import { esGrabado } from "@/lib/presential-courses/delivery-mode";
@@ -53,6 +54,8 @@ export default async function DashboardCourseDetailPage({
           durationSeconds: true,
           videoStatus: true,
           isPreview: true,
+          videoProvider: true,
+          videoUid: true,
         },
       })
     : [];
@@ -120,6 +123,7 @@ export default async function DashboardCourseDetailPage({
           <CourseLessonsSection
             courseId={course.id}
             clases={clases}
+            gratuito={esCursoGratuito(course)}
             faltaConfigurarVideo={
               configVideo.ok ? null : explicarConfiguracionFaltante(configVideo.missing)
             }

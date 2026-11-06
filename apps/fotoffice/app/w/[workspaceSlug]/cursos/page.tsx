@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@repo/db";
+import { esCursoGratuito } from "@/lib/courses-video/youtube";
 import { formatMoney } from "@/lib/format";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import { cursosRevendidosDe } from "@/lib/course-marketplace/vitrina";
@@ -68,7 +69,13 @@ export default async function PublicWorkspaceCoursesPage({ params }: Props) {
                 <p className="text-sm text-[var(--fo-muted)] line-clamp-3">{course.shortDescription}</p>
               ) : null}
               <p className="text-sm text-[var(--fo-muted)]">
-                {course.instances[0] ? `Desde ${formatMoney(course.instances[0].priceArs, "ARS")}` : "Sin ediciones activas"}
+                {course.deliveryMode === "RECORDED"
+                  ? esCursoGratuito(course)
+                    ? "Curso gratuito"
+                    : `Curso grabado · ${formatMoney(Number(course.priceArs), "ARS")}`
+                  : course.instances[0]
+                    ? `Desde ${formatMoney(course.instances[0].priceArs, "ARS")}`
+                    : "Sin ediciones activas"}
               </p>
               <Link href={`/w/${workspaceSlug}/cursos/${course.slug}`} className="fo-btn fo-btn-secondary text-sm w-fit">
                 Ver curso

@@ -9,6 +9,13 @@ import { copyFromUrl, createDirectUpload, getVideoStatus } from "@/lib/courses-v
 import { enlaceDeDescargaDirecta } from "@/lib/courses-video/video-link";
 import { logCourseEvent } from "@/lib/presential-courses/log";
 import { calcularNuevoOrden } from "@/lib/presential-courses/lesson-order";
+import {
+  esCursoGratuito,
+  leerEnlaceDeYoutube,
+  miniaturaDeYoutube,
+  PROVEEDOR_STREAM,
+  PROVEEDOR_YOUTUBE,
+} from "@/lib/courses-video/youtube";
 
 /**
  * Las clases de un curso grabado.
@@ -46,7 +53,7 @@ async function asegurarCursoDelWorkspace(workspaceId: string, courseId: string) 
 async function asegurarClaseDelWorkspace(workspaceId: string, lessonId: string) {
   const clase = await prisma.courseLesson.findFirst({
     where: { id: lessonId, course: { workspaceId } },
-    select: { id: true, courseId: true, videoUid: true },
+    select: { id: true, courseId: true, videoUid: true, videoProvider: true },
   });
   if (!clase) throw new Error("Clase no encontrada para este workspace.");
   return clase;
@@ -208,7 +215,8 @@ export async function refrescarEstadoDeVideo(lessonId: string): Promise<CourseLe
   try {
     const { workspace } = await requireCoursesSalesContext("MANAGE");
     const clase = await asegurarClaseDelWorkspace(workspace.id, lessonId);
-    if (!clase.videoUid) return { error: null, ok: true };
+    // Un video de YouTube no se procesa: queda listo al pegarlo.
+    if (!clase.videoUid || clase.videoProvider === PROVEEDOR_YOUTUBE) return { error: null, ok: true };
 
     const estado = await getVideoStatus(clase.videoUid);
     await prisma.courseLesson.update({
@@ -246,7 +254,7 @@ export async function prepararSubidaDeVideo(
 
   await prisma.courseLesson.update({
     where: { id: lessonId },
-    data: { videoUid: subida.uid, videoStatus: "UPLOADING" },
+    data: { videoUid: subida.uid, videoProvider: PROVEEDOR_STREAM, videoStatus: "UPLOADING" },
   });
   logCourseEvent("video_subida_preparada", {
     workspaceId: workspace.id,
@@ -282,6 +290,7 @@ export async function traerVideoDesdeEnlace(
       where: { id: lessonId },
       data: {
         videoUid: copia.uid,
+        videoProvider: PROVEEDOR_STREAM,
         videoStatus: "PROCESSING",
         durationSeconds: null,
         thumbnailUrl: null,
@@ -302,5 +311,56 @@ export async function traerVideoDesdeEnlace(
           ? error.message
           : "No se pudo traer el video. Revisá que el archivo esté compartido con cualquiera que tenga el enlace.",
     };
+  }
+}
+
+/**
+ * Usa un video de YouTube como clase. Sólo en cursos gratuitos (ver `lib/courses-video/youtube.ts`).
+ *
+ * El video no se copia a ningún lado: queda en YouTube y la clase lo muestra insertado. Por eso
+ * queda lista en el acto, sin procesar.
+ */
+export async function usarVideoDeYoutube(
+  lessonId: string,
+  enlace: string,
+): Promise<CourseLessonActionState> {
+  try {
+    const { workspace } = await requireCoursesSalesContext("MANAGE");
+    const clase = await asegurarClaseDelWorkspace(workspace.id, lessonId);
+    const curso = await prisma.course.findUniqueOrThrow({
+      where: { id: clase.courseId },
+      select: { deliveryMode: true, priceArs: true },
+    });
+    if (!esCursoGratuito(curso)) {
+      return {
+        error:
+          "Los videos de YouTube son sólo para cursos gratuitos: cualquiera con el enlace los puede ver. Dejá el precio vacío para hacerlo gratuito, o subí el video.",
+      };
+    }
+    const leido = leerEnlaceDeYoutube(enlace);
+    if (!leido.ok) return { error: leido.error };
+
+    const repetida = await prisma.courseLesson.findFirst({
+      where: { videoUid: leido.id, NOT: { id: lessonId } },
+      select: { id: true },
+    });
+    if (repetida) return { error: "Ese video ya está en otra clase." };
+
+    await prisma.courseLesson.update({
+      where: { id: lessonId },
+      data: {
+        videoProvider: PROVEEDOR_YOUTUBE,
+        videoUid: leido.id,
+        videoStatus: "READY",
+        durationSeconds: null,
+        thumbnailUrl: miniaturaDeYoutube(leido.id),
+      },
+    });
+    logCourseEvent("video_de_youtube", { workspaceId: workspace.id, courseId: clase.courseId, lessonId });
+    revalidatePath(`/dashboard/courses/${clase.courseId}`);
+    return { error: null, ok: true, videoStatus: "READY" };
+  } catch (error) {
+    unstable_rethrow(error);
+    return { error: error instanceof Error ? error.message : "No se pudo guardar el video." };
   }
 }
