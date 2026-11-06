@@ -3,6 +3,9 @@ import type { CardsBlockConfig } from "@/lib/website/blocks";
 import { cardHref, isShowableImageUrl } from "@/lib/website/blocks-extra";
 import { levelStyle } from "@/lib/website/typography";
 
+/** El color de los botones del sitio (el de acento; si el tema no lo define, el principal). */
+const ACENTO = "var(--wsite-accent, var(--wsite-primary))";
+
 /** Dos tarjetas ocupan media pantalla cada una; con tres o más, tres por fila (cuatro en pantallas muy anchas). */
 function columnas(n: number): string {
   if (n <= 1) return "mx-auto max-w-sm";
@@ -70,7 +73,7 @@ export function CardsBlockView({ config, data }: { config: CardsBlockConfig; blo
                   {item.badge.trim() ? (
                     <span
                       className="absolute left-3 top-3 rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide shadow"
-                      style={{ backgroundColor: "var(--wsite-primary)", color: "#ffffff" }}
+                      style={{ backgroundColor: ACENTO, color: "#ffffff" }}
                     >
                       {item.badge}
                     </span>
@@ -91,8 +94,8 @@ export function CardsBlockView({ config, data }: { config: CardsBlockConfig; blo
                     <a
                       href={href}
                       {...(externo ? { target: "_blank", rel: "noopener noreferrer" } : {})}
-                      className="mt-auto inline-flex items-center justify-center gap-1 self-start pt-2 text-sm font-semibold transition-opacity hover:opacity-80"
-                      style={{ color: "var(--wsite-primary)" }}
+                      className="mt-auto inline-flex items-center justify-center gap-1.5 self-start rounded-full px-4 py-2 text-sm font-semibold transition-opacity hover:opacity-85"
+                      style={{ backgroundColor: ACENTO, color: "#ffffff" }}
                     >
                       {item.buttonLabel} <span aria-hidden>→</span>
                     </a>

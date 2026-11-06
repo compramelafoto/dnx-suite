@@ -57,7 +57,7 @@ export function TestimoniosBanner({ testimonios }: { testimonios: readonly Testi
             <figure
               key={t.id}
               aria-hidden={!visible}
-              className="col-start-1 row-start-1 flex flex-col items-center gap-5 px-2 text-center transition-opacity duration-700"
+              className="col-start-1 row-start-1 flex flex-col items-center justify-center gap-5 px-2 text-center transition-opacity duration-700"
               style={{ opacity: visible ? 1 : 0, visibility: visible ? "visible" : "hidden", color: "var(--wsite-text)" }}
             >
               {urlMostrable(t.autorFotoUrl) ? (
@@ -116,7 +116,7 @@ export function TestimoniosBanner({ testimonios }: { testimonios: readonly Testi
                 aria-label={`Testimonio ${i + 1} de ${total}`}
                 aria-current={i === actual}
                 className="h-2.5 w-2.5 rounded-full transition-opacity"
-                style={{ backgroundColor: "var(--wsite-primary)", opacity: i === actual ? 1 : 0.25 }}
+                style={{ backgroundColor: "var(--wsite-accent, var(--wsite-primary))", opacity: i === actual ? 1 : 0.25 }}
               />
             ))}
           </div>
