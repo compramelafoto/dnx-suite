@@ -134,13 +134,14 @@ export function blogLatestLimitFor(blocks: readonly WebsiteBlock[]): number {
 
 /**
  * Cuántos testimonios leer para los bloques TESTIMONIALS visibles: 0 si no hay ninguno (no se
- * consulta), el mayor `count`, o `null` (todos) si alguno pide todos (`count: 0`).
+ * consulta), el mayor `count`, o `null` (todos) si alguno pide todos (`count: 0`) o filtra por el
+ * detalle del autor (el filtro se aplica después, sobre la lista completa).
  */
 export function testimonialsLimitFor(blocks: readonly WebsiteBlock[]): number | null {
   let limit = 0;
   for (const block of blocks) {
     if (block.type !== "TESTIMONIALS" || !block.visible) continue;
-    if (block.config.count === 0) return null;
+    if (block.config.count === 0 || block.config.filtroDetalle?.trim()) return null;
     limit = Math.max(limit, block.config.count);
   }
   return limit;

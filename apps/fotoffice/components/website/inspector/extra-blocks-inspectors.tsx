@@ -5,6 +5,7 @@ import { ImageUploadField } from "@/components/image-upload-field";
 import { InputMoneda } from "@/components/campos/input-moneda";
 import { SelectField, TextAreaField, TextField, ToggleField } from "@/components/website/inspector/inspector-fields";
 import {
+  CARDS_MAX_ITEMS,
   FAQ_MAX_ITEMS,
   FEATURE_ICONS,
   FEATURES_MAX_ITEMS,
@@ -15,6 +16,7 @@ import {
   PARTNERS_MAX_ITEMS,
   PAYMENT_MAX_AMOUNT,
   type BeforeAfterBlockConfig,
+  type CardsBlockConfig,
   type CountdownBlockConfig,
   type DividerBlockConfig,
   type FaqBlockConfig,
@@ -25,7 +27,7 @@ import {
   type PaymentButtonBlockConfig,
   type WhatsappButtonBlockConfig,
 } from "@/lib/website/blocks";
-import { countdownTargetMs, externalHttpUrl, externalHttpsUrl } from "@/lib/website/blocks-extra";
+import { cardHref, countdownTargetMs, externalHttpUrl, externalHttpsUrl } from "@/lib/website/blocks-extra";
 import { whatsappHref } from "@/lib/website/contact";
 
 /**
@@ -441,6 +443,60 @@ export function PaymentButtonInspector({ config, onChange }: { config: PaymentBu
       />
       {config.url.trim() && !externalHttpsUrl(config.url) ? <Warning>Ese enlace no es válido (tiene que empezar con https://): no se va a guardar.</Warning> : null}
       <Helper>El monto es sólo informativo: lo que se cobra es lo que diga la página del enlace.</Helper>
+    </div>
+  );
+}
+
+export function CardsInspector({ config, onChange }: { config: CardsBlockConfig; onChange: (c: CardsBlockConfig) => void }) {
+  const latest = useLatest(config);
+  const items = config.items;
+  const set = (next: CardsBlockConfig["items"]) => onChange({ ...config, items: next });
+  const cambiar = (i: number, cambio: Partial<CardsBlockConfig["items"][number]>) => set(items.map((it, j) => (j === i ? { ...it, ...cambio } : it)));
+  return (
+    <div className="space-y-4">
+      <TextField label="Título (opcional)" value={config.title} onChange={(v) => onChange({ ...config, title: v })} />
+      <TextAreaField label="Texto de introducción (opcional)" value={config.intro} onChange={(v) => onChange({ ...config, intro: v })} />
+      {items.map((item, i) => (
+        <div key={item.id || i} className="space-y-2 rounded-lg border border-[var(--fo-border)] p-3">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-sm font-semibold">Tarjeta {i + 1}</span>
+            <ItemActions index={i} count={items.length} noun="tarjeta" onMove={(to) => set(move(items, i, to))} onRemove={() => set(items.filter((_, j) => j !== i))} />
+          </div>
+          <ImageUploadField
+            key={item.id || i}
+            name={`_card_image_${i}`}
+            presetKey="websiteBlockImage"
+            label="Foto de portada"
+            initialUrl={item.imageUrl || null}
+            onUploaded={(url) => {
+              const cur = latest.current;
+              onChange({ ...cur, items: cur.items.map((it, j) => (j === i ? { ...it, imageUrl: url ?? "" } : it)) });
+            }}
+          />
+          <TextField label="Título" value={item.title} onChange={(v) => cambiar(i, { title: v })} />
+          <TextField label="Etiqueta sobre la foto (opcional)" value={item.badge} onChange={(v) => cambiar(i, { badge: v })} helper="Por ejemplo «Gratis» o «Próximamente»." />
+          <TextAreaField label="Texto corto" value={item.text} onChange={(v) => cambiar(i, { text: v })} />
+          <TextField label="Texto del botón" value={item.buttonLabel} onChange={(v) => cambiar(i, { buttonLabel: v })} />
+          <TextField
+            label="Enlace del botón"
+            value={item.buttonUrl}
+            onChange={(v) => cambiar(i, { buttonUrl: v })}
+            helper="Una página de tu sitio (/w/…), una sección de esta página (#…) o un enlace https://. Vacío, la tarjeta va sin botón."
+          />
+          {item.buttonUrl.trim() && !cardHref(item.buttonUrl) ? <Warning>Ese enlace no es válido: la tarjeta se va a ver sin botón.</Warning> : null}
+        </div>
+      ))}
+      {items.length < CARDS_MAX_ITEMS ? (
+        <button
+          type="button"
+          className="text-sm underline"
+          onClick={() => set([...items, { id: newItemId(), imageUrl: "", badge: "", title: "", text: "", buttonLabel: "Ver más", buttonUrl: "" }])}
+        >
+          Agregar tarjeta
+        </button>
+      ) : (
+        <Helper>Llegaste al máximo de {CARDS_MAX_ITEMS} tarjetas.</Helper>
+      )}
     </div>
   );
 }

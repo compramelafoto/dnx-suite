@@ -85,3 +85,14 @@ export function countdownParts(targetMs: number, nowMs: number): CountdownParts 
     done: left === 0,
   };
 }
+
+/**
+ * Enlace del botón de una tarjeta: una página del sitio (`/…`, nunca `//otro-sitio`), un ancla de la
+ * misma página (`#…`) o un enlace http/https bien formado. Si no es ninguno, `undefined` (no hay botón).
+ */
+export function cardHref(value: string | null | undefined): string | undefined {
+  const v = value?.trim() ?? "";
+  if (!v) return undefined;
+  if (/^\/(?![/\\])/.test(v) || /^#[\w-]+$/.test(v)) return v;
+  return externalHttpUrl(v);
+}

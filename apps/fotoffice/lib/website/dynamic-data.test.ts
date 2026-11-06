@@ -48,6 +48,13 @@ describe("testimonialsLimitFor", () => {
     expect(testimonialsLimitFor([con(3), con(9)])).toBe(9);
     expect(testimonialsLimitFor([con(3), con(0)])).toBeNull();
   });
+
+  it("null (todos) si algún bloque filtra por el detalle del autor: el filtro se aplica sobre la lista completa", async () => {
+    const { testimonialsLimitFor } = await import("./dynamic-data");
+    const base = createEmptyBlock("TESTIMONIALS", 0);
+    const filtrado = { ...base, config: { ...base.config, count: 6, filtroDetalle: "Alumno" } } as WebsiteBlock;
+    expect(testimonialsLimitFor([filtrado])).toBeNull();
+  });
 });
 
 describe("portfolioBlocksFor", () => {

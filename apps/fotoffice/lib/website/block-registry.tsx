@@ -26,6 +26,7 @@ import { FaqBlockView } from "@/components/website/render/blocks/faq-block-view"
 import { CountdownBlockView } from "@/components/website/render/blocks/countdown-block-view";
 import { BeforeAfterBlockView } from "@/components/website/render/blocks/before-after-block-view";
 import { PartnersBlockView } from "@/components/website/render/blocks/partners-block-view";
+import { CardsBlockView } from "@/components/website/render/blocks/cards-block-view";
 import { FeaturesBlockView } from "@/components/website/render/blocks/features-block-view";
 import { MapBlockView } from "@/components/website/render/blocks/map-block-view";
 import { WhatsappButtonBlockView } from "@/components/website/render/blocks/whatsapp-button-block-view";
@@ -41,6 +42,7 @@ import {
   FeaturesInspector,
   MapInspector,
   PartnersInspector,
+  CardsInspector,
   PaymentButtonInspector,
   WhatsappButtonInspector,
 } from "@/components/website/inspector/extra-blocks-inspectors";
@@ -393,11 +395,18 @@ export const WEBSITE_BLOCK_REGISTRY: { [K in WebsiteBlockType]: BlockRegistryEnt
         <SelectField
           label="Disposición"
           value={config.layout}
-          onChange={(v) => onChange({ ...config, layout: v === "grid" ? "grid" : "carousel" })}
+          onChange={(v) => onChange({ ...config, layout: v === "grid" ? "grid" : v === "banner" ? "banner" : "carousel" })}
           options={[
             { value: "carousel", label: "Carrusel" },
             { value: "grid", label: "Grilla" },
+            { value: "banner", label: "Banner (uno por vez, con la foto arriba)" },
           ]}
+        />
+        <TextField
+          label="Mostrar sólo los que en el detalle digan"
+          value={config.filtroDetalle ?? ""}
+          onChange={(v) => onChange({ ...config, filtroDetalle: v })}
+          helper="Opcional. Por ejemplo «Alumno»: se ven sólo los testimonios que tengan esa palabra en el detalle del autor. Vacío, se ven todos."
         />
         <ToggleField label="Mostrar el botón para dejar un testimonio" checked={config.showCta} onChange={(v) => onChange({ ...config, showCta: v })} />
         {config.showCta ? (
@@ -414,6 +423,7 @@ export const WEBSITE_BLOCK_REGISTRY: { [K in WebsiteBlockType]: BlockRegistryEnt
   COUNTDOWN: { View: CountdownBlockView, Inspector: CountdownInspector },
   BEFORE_AFTER: { View: BeforeAfterBlockView, Inspector: BeforeAfterInspector },
   PARTNERS: { View: PartnersBlockView, Inspector: PartnersInspector },
+  CARDS: { View: CardsBlockView, Inspector: CardsInspector },
   FEATURES: { View: FeaturesBlockView, Inspector: FeaturesInspector },
   MAP: { View: MapBlockView, Inspector: MapInspector },
   WHATSAPP_BUTTON: { View: WhatsappButtonBlockView, Inspector: WhatsappButtonInspector },
