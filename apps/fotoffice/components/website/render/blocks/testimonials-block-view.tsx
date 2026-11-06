@@ -65,7 +65,7 @@ export function TestimonialsBlockView({ config, data }: { config: TestimonialsBl
   return (
     <section className="px-4 py-16 sm:px-6">
       <div className="mx-auto max-w-6xl space-y-10">
-        <div className="flex flex-wrap items-end justify-between gap-4">
+        <div className={`flex flex-wrap items-end gap-4 ${config.layout === "banner" ? "justify-center text-center" : "justify-between"}`}>
           <h2 className="text-2xl sm:text-3xl" style={BLOG_HEADING_STYLE}>
             {config.title?.trim() || TESTIMONIALS_DEFAULT_TITLE}
           </h2>
