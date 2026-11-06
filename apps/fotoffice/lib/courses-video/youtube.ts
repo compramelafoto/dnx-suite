@@ -46,5 +46,5 @@ export function urlDeInsercionDeYoutube(id: string): string {
 }
 
 export function miniaturaDeYoutube(id: string): string {
-  return `https://i.ytimg.com/vi/${id}/hqdefault.jpg`;
+  return `https://i.ytimg.com/vi/${id}/mqdefault.jpg`;
 }

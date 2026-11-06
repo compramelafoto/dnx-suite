@@ -82,7 +82,7 @@ export function RecordedCourseSection({
               src={clase.thumbnailUrl}
               alt=""
               loading="lazy"
-              className="h-12 w-20 shrink-0 rounded-[var(--fo-radius-sm)] border border-[var(--fo-border)] object-cover"
+              className="aspect-video w-20 shrink-0 rounded-[var(--fo-radius-sm)] border border-[var(--fo-border)] object-cover"
             />
           ) : null;
           return (
