@@ -244,3 +244,42 @@ describe("PAYMENT_BUTTON", () => {
     expect(PaymentButtonBlockView({ config: parse("PAYMENT_BUTTON", {}), data: publico })).toBeNull();
   });
 });
+
+describe("CARDS (tarjetas con foto)", () => {
+  it("parsea tolerante y conserva los campos de cada tarjeta", () => {
+    const c = websiteBlockSchema.parse({
+      id: "b1",
+      type: "CARDS",
+      visible: true,
+      order: 0,
+      config: { title: "Cursos", items: [{ id: "1", imageUrl: "https://cdn/x.jpg", badge: "Gratis", title: "Curso", text: "Texto", buttonLabel: "Ver", buttonUrl: "/w/x/cursos/y" }, "roto"] },
+    }).config as Extract<WebsiteBlock, { type: "CARDS" }>["config"];
+    expect(c.intro).toBe("");
+    expect(c.items).toHaveLength(1);
+    expect(c.items[0]).toMatchObject({ badge: "Gratis", buttonUrl: "/w/x/cursos/y" });
+  });
+
+  it("dibuja portada, etiqueta y botón; el enlace inválido no genera botón; sin tarjetas no se dibuja en el sitio", async () => {
+    const { CardsBlockView } = await import("@/components/website/render/blocks/cards-block-view");
+    const base = { title: "", intro: "", items: [] as never[] };
+    const item = { id: "1", imageUrl: "https://cdn/x.jpg", badge: "Próximamente", title: "Inicial", text: "Básico", buttonLabel: "Avisame", buttonUrl: "#avisame" };
+    const html = renderToStaticMarkup(createElement(CardsBlockView, { config: { ...base, items: [item, { ...item, id: "2", buttonUrl: "javascript:alert(1)" }] }, data: publico }));
+    expect(html).toContain('src="https://cdn/x.jpg"');
+    expect(html).toContain("Próximamente");
+    expect(html.match(/href="#avisame"/g)).toHaveLength(1);
+    expect(html).not.toContain("javascript:");
+    expect(renderToStaticMarkup(createElement(CardsBlockView, { config: base, data: publico }))).toBe("");
+  });
+});
+
+describe("cardHref", () => {
+  it("acepta páginas del sitio, anclas y http/https; rechaza lo demás", async () => {
+    const { cardHref } = await import("./blocks-extra");
+    expect(cardHref("/w/dnx/cursos")).toBe("/w/dnx/cursos");
+    expect(cardHref("#avisame")).toBe("#avisame");
+    expect(cardHref("https://ejemplo.com")).toBeTruthy();
+    expect(cardHref("//otro.com")).toBeUndefined();
+    expect(cardHref("javascript:alert(1)")).toBeUndefined();
+    expect(cardHref("")).toBeUndefined();
+  });
+});

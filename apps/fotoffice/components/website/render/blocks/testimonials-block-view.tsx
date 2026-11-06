@@ -5,6 +5,23 @@ import type { TestimonioPublico } from "@/lib/testimonios/publico";
 import { BLOG_HEADING_STYLE } from "@/components/website/blog/blog-post-card";
 import { TestimoniosGrilla } from "@/components/website/render/testimonios/testimonio-card";
 import { TestimoniosCarrusel } from "@/components/website/render/testimonios/testimonios-carrusel";
+import { TestimoniosBanner } from "@/components/website/render/testimonios/testimonios-banner";
+
+/** Para comparar el filtro con el detalle del autor sin mirar mayúsculas ni acentos. */
+function normalizar(texto: string): string {
+  return texto
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+/** Los testimonios cuyo detalle del autor contiene `filtro`; sin filtro, todos. */
+export function filtrarPorDetalle(testimonios: readonly TestimonioPublico[], filtro: string): TestimonioPublico[] {
+  const buscado = normalizar(filtro);
+  if (!buscado) return [...testimonios];
+  return testimonios.filter((t) => normalizar(t.autorDetalle ?? "").includes(buscado));
+}
 
 /**
  * Testimonios de ejemplo para la vista previa del constructor: ahí el renderer corre en el navegador
@@ -37,9 +54,10 @@ function ejemplos(count: number): TestimonioPublico[] {
  */
 export function TestimonialsBlockView({ config, data }: { config: TestimonialsBlockConfig; blockId?: string; data?: WebsiteDynamicData }) {
   const real = data === undefined ? null : data.testimonios;
-  if (real !== null && (!real || real.items.length === 0)) return null;
+  const filtrados = real ? filtrarPorDetalle(real.items, config.filtroDetalle ?? "") : null;
+  if (real !== null && (!filtrados || filtrados.length === 0)) return null;
 
-  const todos = real ? real.items : ejemplos(config.count);
+  const todos = filtrados ?? ejemplos(config.count);
   const testimonios = config.count === 0 ? todos : todos.slice(0, config.count);
   const formularioHref = real?.formularioHref ?? "#";
   const verTodosHref = real?.verTodosHref ?? "#";
@@ -51,13 +69,19 @@ export function TestimonialsBlockView({ config, data }: { config: TestimonialsBl
           <h2 className="text-2xl sm:text-3xl" style={BLOG_HEADING_STYLE}>
             {config.title?.trim() || TESTIMONIALS_DEFAULT_TITLE}
           </h2>
-          {config.count !== 0 && todos.length > testimonios.length ? (
+          {config.count !== 0 && !config.filtroDetalle?.trim() && todos.length > testimonios.length ? (
             <Link href={verTodosHref} className="text-sm font-semibold" style={{ color: "var(--wsite-primary)" }}>
               Ver todos los testimonios →
             </Link>
           ) : null}
         </div>
-        {config.layout === "grid" ? <TestimoniosGrilla testimonios={testimonios} /> : <TestimoniosCarrusel testimonios={testimonios} />}
+        {config.layout === "grid" ? (
+          <TestimoniosGrilla testimonios={testimonios} />
+        ) : config.layout === "banner" ? (
+          <TestimoniosBanner testimonios={testimonios} />
+        ) : (
+          <TestimoniosCarrusel testimonios={testimonios} />
+        )}
         {config.showCta ? (
           <div className="flex justify-center">
             <Link

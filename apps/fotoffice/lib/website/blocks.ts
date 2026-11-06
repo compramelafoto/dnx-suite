@@ -414,10 +414,13 @@ export const portfolioConfigSchema = z.object({
  * Testimonios: los testimonios PUBLICADOS del estudio (con permiso del autor), en carrusel o en
  * grilla. Como "Trabajos", se leen al dibujar y nunca se copian acá. `count: 0` = todos. Sin ninguno
  * publicado el bloque no se dibuja. `showCta` suma el botón al formulario para dejar uno.
+ * `banner`: uno por vez, con la foto chica arriba y el texto abajo, que pasa solo.
+ * `filtroDetalle`: sólo los testimonios cuyo detalle del autor contiene ese texto (sin mirar
+ * mayúsculas ni acentos), para armar, por ejemplo, una sección sólo con los de alumnos.
  */
 export const TESTIMONIALS_COUNT_OPTIONS = [3, 6, 9, 12, 0] as const;
 export type TestimonialsCount = (typeof TESTIMONIALS_COUNT_OPTIONS)[number];
-export const TESTIMONIALS_LAYOUTS = ["carousel", "grid"] as const;
+export const TESTIMONIALS_LAYOUTS = ["carousel", "grid", "banner"] as const;
 export const TESTIMONIALS_DEFAULT_TITLE = "Lo que dicen de nosotros";
 export const TESTIMONIALS_DEFAULT_CTA = "Dejá tu testimonio";
 
@@ -427,6 +430,7 @@ export const testimonialsConfigSchema = z.object({
   layout: z.enum(TESTIMONIALS_LAYOUTS).catch("carousel"),
   showCta: z.boolean().catch(true),
   ctaLabel: z.string().trim().min(1).max(60).catch(TESTIMONIALS_DEFAULT_CTA),
+  filtroDetalle: z.string().max(80).optional().catch(undefined),
 });
 
 /**
@@ -535,6 +539,31 @@ export const partnersConfigSchema = z.object({
   title: tolerantText(200, PARTNERS_DEFAULT_TITLE),
   items: tolerantList(partnerItemSchema, PARTNERS_MAX_ITEMS),
   grayscale: z.boolean().catch(true),
+});
+
+/**
+ * Tarjetas con foto: una grilla de tarjetas chicas, cada una con su portada, una etiqueta opcional
+ * sobre la foto («Gratis», «Próximamente»), título, texto corto y un botón. Sirve para cursos,
+ * servicios o productos. El enlace del botón es una página del sitio (`/…`), un ancla (`#…`) o un
+ * enlace http/https; lo demás no se dibuja (`cardHref`).
+ */
+export const CARDS_MAX_ITEMS = 12;
+
+export const cardItemSchema = z.object({
+  id: itemIdSchema,
+  imageUrl: imageUrlSchema,
+  badge: tolerantText(40),
+  title: tolerantText(120),
+  text: tolerantText(400),
+  buttonLabel: tolerantText(60),
+  buttonUrl: tolerantText(2000),
+});
+export type CardItem = z.infer<typeof cardItemSchema>;
+
+export const cardsConfigSchema = z.object({
+  title: tolerantText(200),
+  intro: tolerantText(600),
+  items: tolerantList(cardItemSchema, CARDS_MAX_ITEMS),
 });
 
 /** Set cerrado de íconos (se dibujan con lucide-react en la vista). */
@@ -707,6 +736,7 @@ export const faqBlockSchema = z.object({ ...blockEnvelope, type: z.literal("FAQ"
 export const countdownBlockSchema = z.object({ ...blockEnvelope, type: z.literal("COUNTDOWN"), config: countdownConfigSchema });
 export const beforeAfterBlockSchema = z.object({ ...blockEnvelope, type: z.literal("BEFORE_AFTER"), config: beforeAfterConfigSchema });
 export const partnersBlockSchema = z.object({ ...blockEnvelope, type: z.literal("PARTNERS"), config: partnersConfigSchema });
+export const cardsBlockSchema = z.object({ ...blockEnvelope, type: z.literal("CARDS"), config: cardsConfigSchema });
 export const featuresBlockSchema = z.object({ ...blockEnvelope, type: z.literal("FEATURES"), config: featuresConfigSchema });
 export const mapBlockSchema = z.object({ ...blockEnvelope, type: z.literal("MAP"), config: mapConfigSchema });
 export const whatsappButtonBlockSchema = z.object({ ...blockEnvelope, type: z.literal("WHATSAPP_BUTTON"), config: whatsappButtonConfigSchema });
@@ -735,6 +765,7 @@ export const websiteBlockSchema = z.discriminatedUnion("type", [
   countdownBlockSchema,
   beforeAfterBlockSchema,
   partnersBlockSchema,
+  cardsBlockSchema,
   featuresBlockSchema,
   mapBlockSchema,
   whatsappButtonBlockSchema,
@@ -798,6 +829,7 @@ export type FaqBlockConfig = z.infer<typeof faqConfigSchema>;
 export type CountdownBlockConfig = z.infer<typeof countdownConfigSchema>;
 export type BeforeAfterBlockConfig = z.infer<typeof beforeAfterConfigSchema>;
 export type PartnersBlockConfig = z.infer<typeof partnersConfigSchema>;
+export type CardsBlockConfig = z.infer<typeof cardsConfigSchema>;
 export type FeaturesBlockConfig = z.infer<typeof featuresConfigSchema>;
 export type MapBlockConfig = z.infer<typeof mapConfigSchema>;
 export type WhatsappButtonBlockConfig = z.infer<typeof whatsappButtonConfigSchema>;
@@ -825,6 +857,7 @@ export type FaqBlock = z.infer<typeof faqBlockSchema>;
 export type CountdownBlock = z.infer<typeof countdownBlockSchema>;
 export type BeforeAfterBlock = z.infer<typeof beforeAfterBlockSchema>;
 export type PartnersBlock = z.infer<typeof partnersBlockSchema>;
+export type CardsBlock = z.infer<typeof cardsBlockSchema>;
 export type FeaturesBlock = z.infer<typeof featuresBlockSchema>;
 export type MapBlock = z.infer<typeof mapBlockSchema>;
 export type WhatsappButtonBlock = z.infer<typeof whatsappButtonBlockSchema>;
@@ -1128,6 +1161,19 @@ export const WEBSITE_BLOCK_DEFINITIONS: {
     source: "static",
     defaultConfig: () => ({ title: PARTNERS_DEFAULT_TITLE, items: [], grayscale: true }),
     previewLabel: (c) => c.title.trim() || PARTNERS_DEFAULT_TITLE,
+  },
+  CARDS: {
+    type: "CARDS",
+    label: "Tarjetas con foto",
+    description: "Tarjetas chicas con portada, etiqueta, título, texto y botón: para mostrar cursos, servicios o productos en grilla.",
+    category: "COMERCIAL",
+    source: "static",
+    defaultConfig: () => ({
+      title: "",
+      intro: "",
+      items: [1, 2, 3].map(() => ({ id: generateLocalId(), imageUrl: "", badge: "", title: "", text: "", buttonLabel: "Ver más", buttonUrl: "" })),
+    }),
+    previewLabel: (c) => c.title.trim() || "Tarjetas",
   },
   FEATURES: {
     type: "FEATURES",
