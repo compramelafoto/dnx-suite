@@ -93,12 +93,67 @@ export const DETALLES: Record<string, Record<string, DetalleClase>> = {
       descripcion: "Cómo va tu negocio de un vistazo: lo que te deben y lo que tenés que pagar, los resultados por rubro y por mes, las ventas por producto, cliente o vendedor, el flujo de caja de los próximos meses y lo cobrado contra el tope de tu categoría del monotributo, con un semáforo.",
       capitulos: [{ en: 0, texto: "El tablero" }, { en: 19, texto: "Resultados y ventas" }, { en: 30, texto: "Flujo de caja y monotributo" }],
     },
+    "18": {
+      duracionSegundos: 110,
+      descripcion: "Vender bien es tan importante como sacar buenas fotos. Cada consulta es una tarjeta en tu embudo de ventas, con el dinero en juego de cada etapa y el aviso de las que se están enfriando. La cotización sale en minutos con tres opciones, calculadas con tus costos y tus horas; el cliente la abre en el celular, elige y reserva la fecha. Cuando acepta, el trabajo pasa a proyectos, y el informe del embudo te muestra cuántas consultas ganaste y qué evento te deja más dinero.",
+      capitulos: [{ en: 0, texto: "Tu embudo de ventas" }, { en: 37, texto: "Mover una consulta y ver todo junto" }, { en: 55, texto: "La cotización con tres opciones" }, { en: 70, texto: "El cliente elige y reserva" }, { en: 83, texto: "Proyectos e informe del embudo" }],
+    },
   },
   "sociedad-o-fotoclub": {
     "1b": {
       duracionSegundos: 62,
       descripcion: "Por mes, la institución paga cero pesos: no hay abono ni plan que contratar. El costo es un 5 % de cada cuota que cobrás, y solo cuando un socio paga. Si la cuota es de diez mil pesos, el costo es de quinientos pesos y a la institución le quedan nueve mil quinientos. Si un mes no cobrás cuotas, no pagás nada. Así, un fotoclub chico puede empezar sin invertir y crecer a su ritmo.",
       capitulos: [{ en: 0, texto: "Cero pesos por mes" }, { en: 16, texto: "Un 5 % de cada cuota" }, { en: 38, texto: "Todo lo que incluye" }],
+    },
+    "2": {
+      duracionSegundos: 64,
+      descripcion: "El padrón de tu fotoclub: cada socio con su categoría, su estado y si tiene deuda, con filtros y para exportar. Sumás un socio en un minuto, definís las categorías (profesional, estudiante, aficionado u honorario) con su propia cuota, aprobás las solicitudes que llegan desde la página web e importás el padrón que ya tenés en una planilla.",
+      capitulos: [{ en: 0, texto: "El padrón de socios" }, { en: 21, texto: "Sumar un socio" }, { en: 33, texto: "Las categorías" }, { en: 43, texto: "Solicitudes e importación" }],
+    },
+    "3": {
+      duracionSegundos: 66,
+      descripcion: "Cuánto cobrás, cuándo vence y cómo se les avisa a los socios. Ves la deuda total y el saldo de cada socio; con Mercado Pago conectado, el socio paga desde su portal y la cuota se marca sola. Cargás el valor general o por categoría, los aumentos con su fecha, y el recordatorio sale solo por correo el día 5 de cada mes. Y el socio que trae a un colega recibe una bonificación.",
+      capitulos: [{ en: 0, texto: "Cuotas y deuda" }, { en: 23, texto: "Valores por categoría y aumentos" }, { en: 38, texto: "El recordatorio automático y el calendario" }],
+    },
+    "4": {
+      duracionSegundos: 53,
+      descripcion: "El carnet digital con código QR y, si el socio lo pide, también impreso. Con un botón emitís el carnet de todos los socios activos, seguís cada tarjeta impresa hasta entregarla y le cambiás al diseño los colores y la tipografía. El socio lo lleva en el celular y el QR comprueba que está al día.",
+      capitulos: [{ en: 0, texto: "Emitir los carnets" }, { en: 16, texto: "El carnet impreso y su diseño" }, { en: 31, texto: "Así lo ve el socio" }],
+    },
+    "5": {
+      duracionSegundos: 61,
+      descripcion: "Cómo te comunicás con los socios sin escribir los correos uno por uno. Elegís el remitente y ves todo lo que sale: el blog, el resumen semanal, las fechas y saludos y tus propias campañas. El sistema saluda solo en cada cumpleaños y aniversario de ingreso, da la bienvenida, invita a volver y saluda en las fiestas. Cada saludo lo encendés, lo apagás o lo editás.",
+      capitulos: [{ en: 0, texto: "Los correos a los socios" }, { en: 25, texto: "Fechas y saludos" }, { en: 41, texto: "Fiestas y horario de envío" }],
+    },
+    "6": {
+      duracionSegundos: 57,
+      descripcion: "Sumamos un sponsor y su beneficio para los socios. Las marcas de la red DNX aparecen listas para agregar; elegís dónde se muestran y hasta cuándo, y cargás el beneficio, que el socio ve en su portal. Si preferís, el sponsor mismo carga su logo y su beneficio con un enlace. En el comercio, el socio muestra su carnet y usa el beneficio.",
+      capitulos: [{ en: 0, texto: "Sumar un sponsor" }, { en: 17, texto: "Dónde aparece y el beneficio" }, { en: 34, texto: "El enlace para el sponsor y así lo usa el socio" }],
+    },
+    "7": {
+      duracionSegundos: 53,
+      descripcion: "Un incentivo para que los socios estén al día. Cada mes armás un sorteo en el que participan solo los socios al día, y el resultado sale de un número público que cualquiera puede comprobar. Cargás los premios con el aliado que los dona, lo proyectás en vivo el día del acto y seguís cada entrega. Es un módulo en desarrollo que suma mejoras todo el tiempo.",
+      capitulos: [{ en: 0, texto: "Un sorteo por mes" }, { en: 20, texto: "Premios y sorteo en vivo" }, { en: 30, texto: "La prueba y la entrega" }],
+    },
+    "8": {
+      duracionSegundos: 55,
+      descripcion: "Remeras, tazas y todo lo que tu institución quiera vender. Cargás cada producto con su precio, su foto y su stock por talle, y con un clic lo publicás en la tienda online de tu página. Los socios pagan con Mercado Pago y retiran en la sede; cada pedido se sigue hasta la entrega y el dinero entra en la caja de la institución.",
+      capitulos: [{ en: 0, texto: "El catálogo y los talles" }, { en: 19, texto: "Publicarlo en la tienda" }, { en: 33, texto: "La compra y los pedidos online" }],
+    },
+    "9": {
+      duracionSegundos: 57,
+      descripcion: "Tu fotoclub con su propia página web, sin contratar a nadie. Elegís la plantilla de institución, armás las secciones (portada, quiénes son, cómo asociarse, el blog y el contacto), la ves en la computadora y en el celular, elegís los colores y la publicás. En el menú quedan los cursos, las reservas y la tienda.",
+      capitulos: [{ en: 0, texto: "La plantilla de institución" }, { en: 15, texto: "Las secciones" }, { en: 27, texto: "Celular, diseño y publicar" }, { en: 40, texto: "Así la ven tus socios" }],
+    },
+    "10": {
+      duracionSegundos: 52,
+      descripcion: "La voz de tu fotoclub: las salidas, los resultados de los concursos y las novedades, en tu página web. Escribís el artículo con subtítulos, fotos y videos de YouTube o de Instagram, y lo publicás en el momento o lo programás para el día y la hora que elijas. Las últimas notas aparecen solas en la portada.",
+      capitulos: [{ en: 0, texto: "Para qué sirve el blog" }, { en: 13, texto: "Escribir un artículo" }, { en: 30, texto: "Publicar, programar y así lo leen los socios" }],
+    },
+    "11": {
+      duracionSegundos: 56,
+      descripcion: "Tu fotoclub vende sus propios cursos: presenciales, en vivo o grabados. Creás el curso con su docente, su portada y su descripción. Los presenciales van por ediciones, con fecha, lugar, precio y cupos; los grabados, por clases que el alumno mira cuando quiere. Y si lo marcás gratis para socios, el socio activo lo toma sin pagar.",
+      capitulos: [{ en: 0, texto: "Tus cursos" }, { en: 13, texto: "Crear un curso" }, { en: 23, texto: "Ediciones y clases grabadas" }, { en: 37, texto: "Gratis para socios y la página del curso" }],
     },
   },
   "cuanto-cobrar": {
@@ -171,6 +226,66 @@ export const DETALLES: Record<string, Record<string, DetalleClase>> = {
       duracionSegundos: 48,
       descripcion: "«Acá no se puede cobrar más.» Es mentira: la cantidad de fotógrafos va en proporción a los habitantes, en un pueblo de veinte mil y en una ciudad de un millón. La competencia es la misma en todos lados. Lo que cambia es cómo te diferenciás: tu trabajo, tu nicho, tu presentación y tu marketing.",
       capitulos: [{ en: 0, texto: "Una frase que escuchamos siempre" }, { en: 10, texto: "Uno cada dos mil personas" }, { en: 27, texto: "Cómo te diferenciás" }],
+    },
+    "15": {
+      duracionSegundos: 61,
+      descripcion: "El precio es lo que el cliente paga; el valor, lo que percibe de tu trabajo. Y es el valor el que decide si sos caro o barato. Lo construyen la calidad de tus fotos, la experiencia, tu marca, tu reputación y lo emocional. No alcanza con hacer un buen trabajo: hay que demostrarlo con un buen portfolio, testimonios, una presentación cuidada y respuestas rápidas.",
+      capitulos: [{ en: 0, texto: "Precio y valor no son lo mismo" }, { en: 22, texto: "Qué construye el valor" }, { en: 37, texto: "Hay que demostrarlo" }],
+    },
+    "16": {
+      duracionSegundos: 56,
+      descripcion: "Quince años, bodas, recién nacidos, deportes o producto: el que es el mejor en su nicho cobra lo mejor, porque los clientes buscan al especialista. Fuera de tu nicho sos uno más. Para entrar a uno nuevo, unos trabajos por canje pueden armarte el portfolio: es una inversión, no un regalo. Elegí pocos nichos y hacelos muy bien.",
+      capitulos: [{ en: 0, texto: "Qué es un nicho" }, { en: 12, texto: "El especialista cobra mejor" }, { en: 29, texto: "Entrar a un nicho nuevo" }, { en: 40, texto: "Pocos y muy bien" }],
+    },
+    "17": {
+      duracionSegundos: 65,
+      descripcion: "Un presupuesto de vida bajo, poca experiencia, no tener portfolio ni referencias, pocas consultas o miedo a no ser contratado. Y del otro lado, el que cobra caro tiene experiencia, contactos, filtra por precio o le dio a su trabajo un valor diferencial. La buena noticia: casi todas las causas de cobrar barato se pueden cambiar, y el miedo se va cuando sabés tu mínimo.",
+      capitulos: [{ en: 0, texto: "Por qué cobrar barato" }, { en: 21, texto: "Por qué cobrar caro" }, { en: 35, texto: "Casi todo se puede cambiar" }, { en: 47, texto: "Tu mínimo" }],
+    },
+    "18": {
+      duracionSegundos: 101,
+      descripcion: "Vender fotos de eventos tiene su propia lógica: ponés un precio por foto o por pack. Antes, mirá la oferta y la demanda del evento, y preguntate si tus fotos se pueden sacar con un celular. Los packs bajan el precio por foto, pero el más chico ya tiene que dejarte ganancia. Una impresión que te cuesta mil pesos no se cobra menos de seis mil. Y una referencia real: el precio por foto digital más elegido es de tres mil pesos.",
+      capitulos: [{ en: 0, texto: "Precio por foto o por pack" }, { en: 11, texto: "La oferta y la demanda del evento" }, { en: 27, texto: "Lo que el celular no logra" }, { en: 47, texto: "Los packs" }, { en: 58, texto: "La foto impresa" }, { en: 73, texto: "Una referencia real" }],
+    },
+    "19": {
+      duracionSegundos: 56,
+      descripcion: "El boca en boca es la mejor publicidad, pero no alcanza: si solo dependés de que te recomienden, tu demanda depende de otros. Hoy los clientes te buscan en redes y en Google antes de escribirte, y esto vale también para los que trabajamos hace veinte años. Publicá seguido, mostrá tu nicho, contá el detrás de escena y respondé rápido.",
+      capitulos: [{ en: 0, texto: "El boca en boca no alcanza" }, { en: 12, texto: "Te buscan antes de escribirte" }, { en: 22, texto: "Los que recién arrancan" }, { en: 39, texto: "Cada publicación es una vidriera" }],
+    },
+    "20": {
+      duracionSegundos: 53,
+      descripcion: "Tu portfolio trabaja las veinticuatro horas y es lo que más sube el valor percibido: el cliente entiende tu cotización antes de leerla. Mostrá pocas fotos y muy buenas, ordenalo por nicho, mostrá trabajos completos y actualizalo seguido.",
+      capitulos: [{ en: 0, texto: "Tu mejor vendedor" }, { en: 19, texto: "Pocas y muy buenas" }, { en: 29, texto: "Trabajos completos y actualizados" }],
+    },
+    "21": {
+      duracionSegundos: 72,
+      descripcion: "Llegó el momento de juntar todo. Con tu perfil cargado, agregás a la cotización un ítem calculado con ¿Cuánto Cobro?: la boda de Lucía, seis horas de cobertura, doce de edición y dos de viaje. Te da dos números: el mínimo sostenible, por debajo del cual trabajás a pérdida, y el recomendado según el momento de tu negocio. Sumás el álbum o las impresiones y ves el total, el costo y tu margen. Cien por ciento gratis en FOTOFFICE.",
+      capitulos: [{ en: 0, texto: "Juntar todo" }, { en: 13, texto: "Cargar el trabajo" }, { en: 26, texto: "Mínimo y recomendado" }, { en: 38, texto: "Total, costo y margen" }, { en: 50, texto: "Entre las dos decidís vos" }],
+    },
+    "22": {
+      duracionSegundos: 67,
+      descripcion: "Tu cotización no debería llegar sola. Armá un PDF de presentación con una frase que impacte, quién sos, testimonios, tu trabajo, los paquetes, preguntas frecuentes y las formas de pago. ¿Con precios o sin precios? Depende de cómo llega el cliente y de cuántas consultas tenés. Y armá uno por nicho.",
+      capitulos: [{ en: 0, texto: "Las partes de la presentación" }, { en: 25, texto: "Arrancá fuerte y sumá testimonios" }, { en: 37, texto: "¿Con precios o sin precios?" }, { en: 51, texto: "Uno por nicho" }],
+    },
+    "23": {
+      duracionSegundos: 65,
+      descripcion: "La entrevista es donde se cierran los trabajos. Hacela cuanto antes y con quien decide, en tu estudio, en un café o por videollamada, y con un álbum en la mano. Preguntá más de lo que hablás, preparate para el «es caro» o el «lo voy a pensar», y cerrá con una seña para reservar la fecha y un plan de pago claro.",
+      capitulos: [{ en: 0, texto: "Cuanto antes y con quien decide" }, { en: 13, texto: "Dónde y con qué" }, { en: 24, texto: "Preguntá más de lo que hablás" }, { en: 35, texto: "Las objeciones" }, { en: 46, texto: "Cerrar" }],
+    },
+    "24": {
+      duracionSegundos: 60,
+      descripcion: "La consulta que no respondés la responde otro fotógrafo. En FOTOFFICE todas las consultas llegan a un mismo lugar, ordenadas por etapas, y desde cada una creás la cotización. En Cotizaciones ves el estado de todas: borrador, enviada, vista, aceptada o vencida. Respondé rápido y hacé seguimiento.",
+      capitulos: [{ en: 0, texto: "Cada consulta es un trabajo" }, { en: 10, texto: "Las consultas por etapas" }, { en: 22, texto: "Cotizaciones y su estado" }, { en: 38, texto: "Respondé rápido y hacé seguimiento" }],
+    },
+    "25": {
+      duracionSegundos: 60,
+      descripcion: "Una sola palabra. ¿Le pasás la cotización o le proponés una entrevista? Depende de cómo llega el cliente y de cuánto tiempo tenés. Si viene recomendado, entrevista; si es un contacto frío, primero mostrale el valor; si tenés muchas consultas, la cotización directa ya filtra por precio. Lo que nunca: dejar el «info» sin respuesta.",
+      capitulos: [{ en: 0, texto: "Una sola palabra" }, { en: 16, texto: "Recomendado o contacto frío" }, { en: 31, texto: "Cuando tenés muchas consultas" }, { en: 42, texto: "Nunca sin respuesta" }],
+    },
+    "26": {
+      duracionSegundos: 54,
+      descripcion: "Aunque estés en pleno evento o durmiendo, el bot de FOTOFFICE responde las consultas por WhatsApp, pregunta la fecha, las horas y los invitados, y arma la cotización con tu perfil de ¿Cuánto Cobro? Vos tenés el control: nada sale al cliente sin que lo apruebes. Ese es el camino de este curso: conocer tus números, cargarlos y dejar que trabajen por vos.",
+      capitulos: [{ en: 0, texto: "El bot que cotiza" }, { en: 23, texto: "Vos tenés el control" }, { en: 37, texto: "El camino de este curso" }],
     },
   },
 };
