@@ -64,6 +64,9 @@ export function WebsitePageRenderer({
           <BlockErrorBoundary key={block.id}>
             <div
               id={anchors.get(block.id)}
+              // El encabezado transparente sólo flota sobre la página si ésta empieza con un banner
+              // (ver `REGLA_ENCABEZADO_TRANSPARENTE` en `site-frame.tsx`).
+              data-primer-bloque={i === 0 ? "" : undefined}
               className={`${animationClass} ${conDibujos ? "relative" : ""}`}
               style={animationClass ? { animationDelay: `${Math.min(i, 5) * 80}ms` } : undefined}
             >

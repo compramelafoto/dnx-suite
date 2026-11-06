@@ -47,7 +47,7 @@ describe("encabezado según la disposición del menú", () => {
   });
 
   it("la barra superior muestra los ítems a la vista en pantallas grandes; el panel lateral no", () => {
-    expect(dibujar({ menuLayout: "topbar" })).toContain('aria-label="Menú principal" class="hidden items-center');
+    expect(dibujar({ menuLayout: "topbar" })).toContain('aria-label="Menú principal" class="relative hidden min-w-0 flex-1 items-center');
     expect(dibujar({ menuLayout: "drawer" })).not.toContain("@3xl:flex");
   });
 

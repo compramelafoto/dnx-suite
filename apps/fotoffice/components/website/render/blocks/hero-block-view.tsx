@@ -26,17 +26,35 @@ const HEIGHT_CLASS: Record<HeroHeightPreset, string> = {
 
 /** `medium` = 0.45, el mismo valor fijo que tenía el overlay del Hero de una sola placa antes de
  * esta etapa — así una placa migrada de un Hero viejo con imagen se ve igual. */
-const OVERLAY_ALPHA: Record<HeroOverlayPreset, number> = { none: 0, soft: 0.25, medium: 0.45, dark: 0.65 };
+const OVERLAY_ALPHA: Record<HeroOverlayPreset, number> = {
+  none: 0,
+  soft: 0.25,
+  medium: 0.45,
+  dark: 0.65,
+};
 
-const CONTENT_JUSTIFY: Record<HeroContentPosition, string> = { top: "justify-start", center: "justify-center", bottom: "justify-end" };
-const ALIGN_CLASS: Record<HeroSlideAlign, string> = { left: "items-start text-left", center: "items-center text-center", right: "items-end text-right" };
-const OBJECT_POSITION: Record<HeroImageFocus, string> = { center: "center", top: "top", bottom: "bottom", left: "left", right: "right" };
+const CONTENT_JUSTIFY: Record<HeroContentPosition, string> = {
+  top: "justify-start",
+  center: "justify-center",
+  bottom: "justify-end",
+};
+const ALIGN_CLASS: Record<HeroSlideAlign, string> = {
+  left: "items-start text-left",
+  center: "items-center text-center",
+  right: "items-end text-right",
+};
+const OBJECT_POSITION: Record<HeroImageFocus, string> = {
+  center: "center",
+  top: "top",
+  bottom: "bottom",
+  left: "left",
+  right: "right",
+};
 
 /** Sobre la foto entera el espacio libre crece con el ancho del sitio: el título y la bajada
  * se achican con él (en `cqi`, el ancho del marco) para no pisar lo que rodea ese espacio. */
 const TITULO_SOBRE_FOTO = "[font-size:var(--wsite-title-size)] @min-[900px]:[font-size:min(var(--wsite-title-size),3.6cqi)]";
-const SUBTITULO_SOBRE_FOTO =
-  "[font-size:var(--wsite-subtitle-size)] @min-[900px]:[font-size:max(0.8125rem,min(var(--wsite-subtitle-size),1.4cqi))]";
+const SUBTITULO_SOBRE_FOTO = "[font-size:var(--wsite-subtitle-size)] @min-[900px]:[font-size:max(0.8125rem,min(var(--wsite-subtitle-size),1.4cqi))]";
 
 /** Subrayado a mano de las palabras del título marcadas con asteriscos. */
 function TituloConAcentos({ title }: { title: string }) {
@@ -87,6 +105,29 @@ function usePrefersReducedMotion(): boolean {
   return reduced;
 }
 
+/** Qué fotos de fondo son verticales (más altas que anchas). Se averigua en el navegador al
+ * cargarlas: el banner es una franja apaisada y una foto vertical como fondo quedaría reducida a una
+ * cuarta parte (sin cara, sin pies). Esas se muestran enteras sobre una copia difuminada. */
+function useFotosVerticales(urls: (string | undefined)[]): Set<string> {
+  const [verticales, setVerticales] = useState<Set<string>>(() => new Set());
+  const clave = urls.filter(Boolean).join("\n");
+  useEffect(() => {
+    let vivo = true;
+    for (const url of clave ? clave.split("\n") : []) {
+      const img = new Image();
+      img.onload = () => {
+        if (!vivo || img.naturalHeight <= img.naturalWidth) return;
+        setVerticales((prev) => (prev.has(url) ? prev : new Set(prev).add(url)));
+      };
+      img.src = url;
+    }
+    return () => {
+      vivo = false;
+    };
+  }, [clave]);
+  return verticales;
+}
+
 /**
  * Hero / Banner — 1 placa se comporta exactamente como el Hero de siempre (sin flechas, sin
  * indicadores, sin timer). 2+ placas se convierten automáticamente en carrusel. Mismo componente
@@ -106,6 +147,7 @@ export function HeroBlockView({ config, blockId, data }: { config: HeroBlockConf
   const [hovered, setHovered] = useState(false);
   const [tabVisible, setTabVisible] = useState(true);
   const touchStartX = useRef<number | null>(null);
+  const fotosVerticales = useFotosVerticales(slides.map((s) => s.imageUrl));
 
   const isCarousel = slides.length > 1;
   // Con una sola placa, va en el flujo de la página: si el contenido (logo, figura en el celular)
@@ -187,9 +229,12 @@ export function HeroBlockView({ config, blockId, data }: { config: HeroBlockConf
 
   return (
     <section
+      data-fondo-bajo-encabezado=""
       className={`relative overflow-hidden ${slides[0] && esEntera(slides[0]) ? "" : HEIGHT_CLASS[config.heightPreset]}`}
       // Con la foto entera, donde el texto no va sobre la foto (celular) se ve el fondo de la página.
-      style={{ backgroundColor: slides[0] && esEntera(slides[0]) ? undefined : "var(--wsite-secondary)" }}
+      style={{
+        backgroundColor: slides[0] && esEntera(slides[0]) ? undefined : "var(--wsite-secondary)",
+      }}
       role={isCarousel ? "region" : undefined}
       aria-roledescription={isCarousel ? "carrusel" : undefined}
       aria-label={isCarousel ? "Banner principal" : undefined}
@@ -203,13 +248,23 @@ export function HeroBlockView({ config, blockId, data }: { config: HeroBlockConf
       {slides.map((slide, index) => {
         const isActive = index === effectiveIndex;
         const style: CSSProperties = useSlideEffect
-          ? { transform: `translateX(${(index - effectiveIndex) * 100}%)`, transition: `transform ${transitionMs}ms ease` }
-          : { opacity: isActive ? 1 : 0, transition: `opacity ${transitionMs}ms ease` };
+          ? {
+              transform: `translateX(${(index - effectiveIndex) * 100}%)`,
+              transition: `transform ${transitionMs}ms ease`,
+            }
+          : {
+              opacity: isActive ? 1 : 0,
+              transition: `opacity ${transitionMs}ms ease`,
+            };
         // Las placas apiladas e invisibles no deben tapar los clics de la que se ve.
         if (!isActive) style.pointerEvents = "none";
         const slideHref = enlaceDeBoton(slide.href);
         const oscuro = slide.textTone === "dark";
         const entera = esEntera(slide);
+        // Sin título: en el sitio publicado no se inventa uno; en el constructor (sin `data`) queda la
+        // guía «Título principal» para saber dónde va.
+        const titulo = slide.title?.trim() || (data ? "" : "Título principal");
+        const vertical = !entera && !!slide.imageUrl && fotosVerticales.has(slide.imageUrl);
         const href = slide.showButton && slide.buttonLabel ? enlaceDeBoton(slide.buttonUrl, data?.paginasDelSitio) : null;
         const href2 = slide.showSecondaryButton && slide.secondaryButtonLabel ? enlaceDeBoton(slide.secondaryButtonUrl, data?.paginasDelSitio) : null;
         // Sobre la foto, el contorno va en blanco; sobre fondo claro, en el color del sitio.
@@ -219,9 +274,7 @@ export function HeroBlockView({ config, blockId, data }: { config: HeroBlockConf
           borderRadius: "var(--wsite-button-radius)",
           paddingInline: "var(--wsite-button-padding-x)",
           paddingBlock: "var(--wsite-button-padding-y)",
-          ...(variante === "solid"
-            ? { backgroundColor: "var(--wsite-accent)", color: "#ffffff" }
-            : { border: `2px solid ${contorno}`, color: contorno }),
+          ...(variante === "solid" ? { backgroundColor: "var(--wsite-accent)", color: "#ffffff" } : { border: `2px solid ${contorno}`, color: contorno }),
         });
         return (
           <div
@@ -237,9 +290,25 @@ export function HeroBlockView({ config, blockId, data }: { config: HeroBlockConf
                 backgroundImage: slide.imageUrl && !entera ? `url(${slide.imageUrl})` : undefined,
                 backgroundSize: "cover",
                 backgroundPosition: OBJECT_POSITION[slide.imageFocus],
+                // Foto vertical: el fondo es la misma foto difuminada; la foto va entera encima.
+                ...(vertical
+                  ? {
+                      filter: "blur(28px) brightness(0.85)",
+                      transform: "scale(1.15)",
+                    }
+                  : {}),
               }}
             />
-            <div className="absolute inset-0" style={{ background: `rgba(15, 23, 42, ${OVERLAY_ALPHA[slide.overlay]})` }} />
+            {vertical ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={slide.imageUrl} alt={slide.imageAlt ?? ""} className="pointer-events-none absolute inset-0 h-full w-full object-contain" />
+            ) : null}
+            <div
+              className="absolute inset-0"
+              style={{
+                background: `rgba(15, 23, 42, ${OVERLAY_ALPHA[slide.overlay]})`,
+              }}
+            />
             {slide.figureUrl ? (
               // Desde tablet, la figura se apoya abajo a la derecha, delante del fondo.
               // eslint-disable-next-line @next/next/no-img-element
@@ -270,17 +339,28 @@ export function HeroBlockView({ config, blockId, data }: { config: HeroBlockConf
                   <img src={slide.logoUrl} alt="Logo" className="mb-2 h-auto w-60 max-w-full sm:w-80" />
                 ) : null}
                 {/* Sobre la foto, título y subtítulo van en blanco; con texto oscuro, en los colores del sitio. */}
-                <h1
-                  className={`${oscuro ? "" : "text-white"} ${entera ? TITULO_SOBRE_FOTO : ""}`}
-                  style={{ ...levelStyle("title", { color: oscuro }), ...(entera ? { fontSize: undefined } : {}), textWrap: "balance", letterSpacing: "var(--wsite-letter-spacing)" }}
-                >
-                  <TituloConAcentos title={slide.title || "Título principal"} />
-                </h1>
+                {titulo ? (
+                  <h1
+                    className={`${oscuro ? "" : "text-white"} ${entera ? TITULO_SOBRE_FOTO : ""}`}
+                    style={{
+                      ...levelStyle("title", { color: oscuro }),
+                      ...(entera ? { fontSize: undefined } : {}),
+                      textWrap: "balance",
+                      letterSpacing: "var(--wsite-letter-spacing)",
+                    }}
+                  >
+                    <TituloConAcentos title={titulo} />
+                  </h1>
+                ) : null}
                 {slide.subtitle ? (
                   <p
                     // La bajada de un artículo puede ser larga: tres renglones y "…".
                     className={`max-w-2xl leading-relaxed whitespace-pre-line ${entera ? SUBTITULO_SOBRE_FOTO : ""} ${oscuro ? "" : "text-white/90"} ${slideHref ? "line-clamp-3" : ""}`}
-                    style={{ ...levelStyle("subtitle", { color: oscuro }), ...(entera ? { fontSize: undefined } : {}), ...(oscuro ? { opacity: 0.88 } : {}) }}
+                    style={{
+                      ...levelStyle("subtitle", { color: oscuro }),
+                      ...(entera ? { fontSize: undefined } : {}),
+                      ...(oscuro ? { opacity: 0.88 } : {}),
+                    }}
                   >
                     {slide.subtitle}
                   </p>
@@ -352,7 +432,10 @@ export function HeroBlockView({ config, blockId, data }: { config: HeroBlockConf
               aria-current={index === effectiveIndex}
               onClick={() => jumpTo(index)}
               className="h-2 rounded-full transition-all"
-              style={{ width: index === effectiveIndex ? 20 : 8, backgroundColor: index === effectiveIndex ? "#ffffff" : "rgba(255,255,255,0.5)" }}
+              style={{
+                width: index === effectiveIndex ? 20 : 8,
+                backgroundColor: index === effectiveIndex ? "#ffffff" : "rgba(255,255,255,0.5)",
+              }}
             />
           ))}
         </div>
