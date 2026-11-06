@@ -9,6 +9,7 @@ type Clase = {
   description: string | null;
   durationSeconds: number | null;
   isPreview: boolean;
+  thumbnailUrl?: string | null;
 };
 
 /**
@@ -70,12 +71,35 @@ export function RecordedCourseSection({
         {total > 0 ? ` · ${duracionLegible(total)} en total` : ""} · Lo mirás a tu ritmo, {plazo}.
       </p>
       <ol className="space-y-2">
-        {clases.map((clase, i) => (
+        {clases.map((clase, i) => {
+          const verHref =
+            (clase.isPreview || gratuito) && publicado && appUrl
+              ? `${appUrl}/w/${workspaceSlug}/cursos/${courseSlug}/muestra/${clase.id}`
+              : null;
+          const miniatura = clase.thumbnailUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={clase.thumbnailUrl}
+              alt=""
+              loading="lazy"
+              className="h-12 w-20 shrink-0 rounded-[var(--fo-radius-sm)] border border-[var(--fo-border)] object-cover"
+            />
+          ) : null;
+          return (
           <li
             key={clase.id}
             className="flex items-start justify-between gap-3 rounded-[var(--fo-radius-sm)] border border-[var(--fo-border)] p-3"
           >
-            <div className="min-w-0">
+            {miniatura ? (
+              verHref ? (
+                <a href={verHref} aria-label={`Ver ${clase.title}`} className="shrink-0">
+                  {miniatura}
+                </a>
+              ) : (
+                miniatura
+              )
+            ) : null}
+            <div className="min-w-0 flex-1">
               <p className="font-medium">
                 {i + 1}. {clase.title}
               </p>
@@ -85,17 +109,15 @@ export function RecordedCourseSection({
             </div>
             <div className="shrink-0 text-right text-sm text-[var(--fo-muted)]">
               <p>{duracionLegible(clase.durationSeconds)}</p>
-              {(clase.isPreview || gratuito) && publicado && appUrl ? (
-                <a
-                  href={`${appUrl}/w/${workspaceSlug}/cursos/${courseSlug}/muestra/${clase.id}`}
-                  className="text-[var(--fo-accent)] underline"
-                >
+              {verHref ? (
+                <a href={verHref} className="text-[var(--fo-accent)] underline">
                   {gratuito ? "Ver clase" : "Ver gratis"}
                 </a>
               ) : null}
             </div>
           </li>
-        ))}
+          );
+        })}
       </ol>
       {gratuito && publicado && clases[0] ? (
         <div className="flex flex-wrap items-center gap-3 rounded-[var(--fo-radius-sm)] border border-[var(--fo-accent)]/40 p-3 text-sm">
