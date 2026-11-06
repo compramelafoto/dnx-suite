@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { ChevronDown, RotateCcw } from "lucide-react";
+import { dejavuSans } from "@/app/_fonts/dejavu-sans";
 import { SelectField, ToggleField } from "@/components/website/inspector/inspector-fields";
 import type { WebsiteColors } from "@/lib/website/branding-defaults";
 import { TYPOGRAPHY_PRESETS, resolvedTypography, type WebsiteDesignPresets } from "@/lib/website/design-presets";
@@ -144,7 +145,9 @@ function LevelRow({
             {edited ? <span className="rounded-full bg-[var(--fo-accent-soft)] px-1.5 text-[10px] text-[var(--fo-accent)]">editado</span> : null}
           </span>
           <span
-            className="block truncate text-[15px]"
+            // Una letra guardada en el proyecto necesita su variable CSS para verse de verdad
+            // (si no, la muestra caería en el respaldo y engañaría a quien elige).
+            className={`block truncate text-[15px]${font.local === "dejavu-sans" ? ` ${dejavuSans.variable}` : ""}`}
             style={{
               fontFamily: font.stack,
               fontWeight: value.weight,

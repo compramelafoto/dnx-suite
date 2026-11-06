@@ -21,14 +21,21 @@ import { z } from "zod";
 
 export type FontCategory = "serif" | "sans" | "display";
 
+export type LocalFontId = "dejavu-sans";
+
 export type FontOption = {
   id: string;
   label: string;
   category: FontCategory;
   /** Valor de `font-family`, con su respaldo. */
   stack: string;
-  /** Nombre en Google Fonts; `null` = letra del sistema, no se descarga nada. */
+  /** Nombre en Google Fonts; `null` = letra del sistema o local, no se pide nada a Google. */
   google: string | null;
+  /**
+   * Letra guardada en el proyecto (`app/_fonts`, con `next/font/local`). Sus archivos se sirven
+   * bajo `/_next/static`, que el proxy no reescribe: así también cargan en un dominio propio.
+   */
+  local: LocalFontId | null;
   /** Grosores que trae la letra. Las del sistema los simulan todos. */
   weights: readonly number[];
 };
@@ -39,30 +46,32 @@ const SANS = "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
 
 export const FONT_OPTIONS: readonly FontOption[] = [
   // Del sistema: son las que usaban los 5 estilos de partida. No se descargan.
-  { id: "system-serif", label: "Georgia (sistema)", category: "serif", stack: SERIF, google: null, weights: TODOS },
-  { id: "system-sans", label: "Sans del sistema", category: "sans", stack: SANS, google: null, weights: TODOS },
-  { id: "helvetica", label: "Helvetica (sistema)", category: "sans", stack: "'Helvetica Neue', Arial, sans-serif", google: null, weights: TODOS },
+  { id: "system-serif", label: "Georgia (sistema)", category: "serif", stack: SERIF, google: null, local: null, weights: TODOS },
+  { id: "system-sans", label: "Sans del sistema", category: "sans", stack: SANS, google: null, local: null, weights: TODOS },
+  { id: "helvetica", label: "Helvetica (sistema)", category: "sans", stack: "'Helvetica Neue', Arial, sans-serif", google: null, local: null, weights: TODOS },
   // Google Fonts, con serifa.
-  { id: "playfair-display", label: "Playfair Display", category: "serif", stack: `'Playfair Display', ${SERIF}`, google: "Playfair Display", weights: [400, 500, 600, 700, 800] },
-  { id: "lora", label: "Lora", category: "serif", stack: `'Lora', ${SERIF}`, google: "Lora", weights: [400, 500, 600, 700] },
-  { id: "merriweather", label: "Merriweather", category: "serif", stack: `'Merriweather', ${SERIF}`, google: "Merriweather", weights: [300, 400, 700] },
-  { id: "cormorant-garamond", label: "Cormorant Garamond", category: "serif", stack: `'Cormorant Garamond', ${SERIF}`, google: "Cormorant Garamond", weights: [300, 400, 500, 600, 700] },
-  { id: "libre-baskerville", label: "Libre Baskerville", category: "serif", stack: `'Libre Baskerville', ${SERIF}`, google: "Libre Baskerville", weights: [400, 700] },
+  { id: "playfair-display", label: "Playfair Display", category: "serif", stack: `'Playfair Display', ${SERIF}`, google: "Playfair Display", local: null, weights: [400, 500, 600, 700, 800] },
+  { id: "lora", label: "Lora", category: "serif", stack: `'Lora', ${SERIF}`, google: "Lora", local: null, weights: [400, 500, 600, 700] },
+  { id: "merriweather", label: "Merriweather", category: "serif", stack: `'Merriweather', ${SERIF}`, google: "Merriweather", local: null, weights: [300, 400, 700] },
+  { id: "cormorant-garamond", label: "Cormorant Garamond", category: "serif", stack: `'Cormorant Garamond', ${SERIF}`, google: "Cormorant Garamond", local: null, weights: [300, 400, 500, 600, 700] },
+  { id: "libre-baskerville", label: "Libre Baskerville", category: "serif", stack: `'Libre Baskerville', ${SERIF}`, google: "Libre Baskerville", local: null, weights: [400, 700] },
   // Google Fonts, sin serifa.
-  { id: "montserrat", label: "Montserrat", category: "sans", stack: `'Montserrat', ${SANS}`, google: "Montserrat", weights: TODOS },
-  { id: "poppins", label: "Poppins", category: "sans", stack: `'Poppins', ${SANS}`, google: "Poppins", weights: TODOS },
-  { id: "inter", label: "Inter", category: "sans", stack: `'Inter', ${SANS}`, google: "Inter", weights: TODOS },
-  { id: "raleway", label: "Raleway", category: "sans", stack: `'Raleway', ${SANS}`, google: "Raleway", weights: TODOS },
-  { id: "lato", label: "Lato", category: "sans", stack: `'Lato', ${SANS}`, google: "Lato", weights: [300, 400, 700] },
-  { id: "open-sans", label: "Open Sans", category: "sans", stack: `'Open Sans', ${SANS}`, google: "Open Sans", weights: TODOS },
-  { id: "nunito", label: "Nunito", category: "sans", stack: `'Nunito', ${SANS}`, google: "Nunito", weights: TODOS },
-  { id: "work-sans", label: "Work Sans", category: "sans", stack: `'Work Sans', ${SANS}`, google: "Work Sans", weights: TODOS },
-  { id: "josefin-sans", label: "Josefin Sans", category: "sans", stack: `'Josefin Sans', ${SANS}`, google: "Josefin Sans", weights: [300, 400, 500, 600, 700] },
+  { id: "montserrat", label: "Montserrat", category: "sans", stack: `'Montserrat', ${SANS}`, google: "Montserrat", local: null, weights: TODOS },
+  { id: "poppins", label: "Poppins", category: "sans", stack: `'Poppins', ${SANS}`, google: "Poppins", local: null, weights: TODOS },
+  { id: "inter", label: "Inter", category: "sans", stack: `'Inter', ${SANS}`, google: "Inter", local: null, weights: TODOS },
+  { id: "raleway", label: "Raleway", category: "sans", stack: `'Raleway', ${SANS}`, google: "Raleway", local: null, weights: TODOS },
+  { id: "lato", label: "Lato", category: "sans", stack: `'Lato', ${SANS}`, google: "Lato", local: null, weights: [300, 400, 700] },
+  { id: "open-sans", label: "Open Sans", category: "sans", stack: `'Open Sans', ${SANS}`, google: "Open Sans", local: null, weights: TODOS },
+  { id: "nunito", label: "Nunito", category: "sans", stack: `'Nunito', ${SANS}`, google: "Nunito", local: null, weights: TODOS },
+  { id: "work-sans", label: "Work Sans", category: "sans", stack: `'Work Sans', ${SANS}`, google: "Work Sans", local: null, weights: TODOS },
+  // La letra del manual de marca de SOYBELUZ. No está en Google Fonts: va guardada en el proyecto.
+  { id: "dejavu-sans", label: "DejaVu Sans", category: "sans", stack: "var(--font-dejavu-sans), 'DejaVu Sans', Verdana, sans-serif", google: null, local: "dejavu-sans", weights: [400, 700] },
+  { id: "josefin-sans", label: "Josefin Sans", category: "sans", stack: `'Josefin Sans', ${SANS}`, google: "Josefin Sans", local: null, weights: [300, 400, 500, 600, 700] },
   // Google Fonts, de exhibición (para títulos).
-  { id: "dm-serif-display", label: "DM Serif Display", category: "display", stack: `'DM Serif Display', ${SERIF}`, google: "DM Serif Display", weights: [400] },
-  { id: "oswald", label: "Oswald", category: "display", stack: `'Oswald', ${SANS}`, google: "Oswald", weights: [300, 400, 500, 600, 700] },
-  { id: "bebas-neue", label: "Bebas Neue", category: "display", stack: `'Bebas Neue', ${SANS}`, google: "Bebas Neue", weights: [400] },
-  { id: "dancing-script", label: "Dancing Script", category: "display", stack: `'Dancing Script', cursive`, google: "Dancing Script", weights: [400, 500, 600, 700] },
+  { id: "dm-serif-display", label: "DM Serif Display", category: "display", stack: `'DM Serif Display', ${SERIF}`, google: "DM Serif Display", local: null, weights: [400] },
+  { id: "oswald", label: "Oswald", category: "display", stack: `'Oswald', ${SANS}`, google: "Oswald", local: null, weights: [300, 400, 500, 600, 700] },
+  { id: "bebas-neue", label: "Bebas Neue", category: "display", stack: `'Bebas Neue', ${SANS}`, google: "Bebas Neue", local: null, weights: [400] },
+  { id: "dancing-script", label: "Dancing Script", category: "display", stack: `'Dancing Script', cursive`, google: "Dancing Script", local: null, weights: [400, 500, 600, 700] },
 ];
 
 export const FONT_CATEGORY_LABELS: Record<FontCategory, string> = {
@@ -283,6 +292,16 @@ export function levelStyle(level: TypographyLevelId, options: { color: boolean }
     ...(options.color ? { color: `var(--wsite-${level}-color)` } : {}),
   };
   return estilo as CSSProperties;
+}
+
+/** Las letras guardadas en el proyecto que el sitio usa de verdad (sin repetir). */
+export function localFontsUsed(levels: Record<TypographyLevelId, TypographyLevel>): LocalFontId[] {
+  const usadas = new Set<LocalFontId>();
+  for (const id of LEVEL_IDS) {
+    const local = getFont(levels[id].font).local;
+    if (local) usadas.add(local);
+  }
+  return [...usadas];
 }
 
 /**

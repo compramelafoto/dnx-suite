@@ -14,7 +14,8 @@
     "caja:importar-historico": "../../packages/db/node_modules/.bin/tsx --import ./scripts/sin-server-only.mjs scripts/caja-importar-historico.ts",
     "caja:apertura": "../../packages/db/node_modules/.bin/tsx --import ./scripts/sin-server-only.mjs scripts/caja-apertura.ts",
     "sitio:importar-alboom": "../../packages/db/node_modules/.bin/tsx --import ./scripts/sin-server-only.mjs ../../packages/db/prisma/scripts/ops-sitio-importar-alboom-prosite.ts",
-    "sitio:importar-inbox-prosite": "../../packages/db/node_modules/.bin/tsx --import ./scripts/sin-server-only.mjs ../../packages/db/prisma/scripts/ops-sitio-importar-inbox-prosite.ts"
+    "sitio:importar-inbox-prosite": "../../packages/db/node_modules/.bin/tsx --import ./scripts/sin-server-only.mjs ../../packages/db/prisma/scripts/ops-sitio-importar-inbox-prosite.ts",
+    "soybeluz:alta": "../../packages/db/node_modules/.bin/tsx --import ./scripts/sin-server-only.mjs scripts/alta-soybeluz.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.972.0",

@@ -4,13 +4,15 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     environment: "node",
-    include: ["lib/**/*.test.ts", "app/**/*.test.ts", "components/**/*.test.ts", "components/**/*.test.tsx"],
+    include: ["lib/**/*.test.ts", "app/**/*.test.ts", "components/**/*.test.ts", "components/**/*.test.tsx", "scripts/**/*.test.ts"],
   },
   resolve: {
     alias: {
       "@": path.resolve(__dirname),
       // Ver test/server-only-stub.ts: Next resuelve este especificador, vitest no.
       "server-only": path.resolve(__dirname, "test/server-only-stub.ts"),
+      // Ver test/next-font-local-stub.ts.
+      "next/font/local": path.resolve(__dirname, "test/next-font-local-stub.ts"),
     },
   },
 });
