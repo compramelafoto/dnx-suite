@@ -109,6 +109,8 @@ export type PublicCatalogPackRow = {
     extraUnitPriceOverrideArs: number | null;
     /** Precio final por unidad después de la preventa: con esto se arma el precio de lista tachado. */
     regularUnitPriceAfterPreventaArs?: number | null;
+    /** Plantilla del diseño (librito, carpeta…): con esto la página de preventa ofrece «Ver en 3D». */
+    templateV2Id?: string | null;
     photographerProduct: { name: string } | null;
   }>;
 };
@@ -149,6 +151,7 @@ export async function listActivePacksForPublicCatalog(
           requiredPhotoCount: true,
           extraUnitPriceOverrideArs: true,
           regularUnitPriceAfterPreventaArs: true,
+          templateV2Id: true,
           photographerProduct: { select: { name: true } },
         },
       },

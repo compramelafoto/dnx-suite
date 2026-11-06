@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
@@ -26,6 +27,9 @@ import { getCheckoutEmailValidationError } from "@/lib/email-validation";
 import { packSavingsArs } from "@/lib/preventa-canjeable/pack-savings";
 import { splitPackDescription } from "@/lib/preventa-canjeable/pack-list-price";
 
+/** El visor 3D trae three.js: se carga recién cuando la familia toca «Ver en 3D». */
+const VistaDemoPlantilla3D = dynamic(() => import("@/components/design-v2/VistaDemoPlantilla3D"), { ssr: false });
+
 type PackBenefitLine = { line: string };
 
 type Pack = {
@@ -43,6 +47,8 @@ type Pack = {
   validUntil: string | null;
   redemptionDeadlineAt: string | null;
   benefits: PackBenefitLine[];
+  /** El pack lleva un diseño (librito, carpeta…) que se puede ver en 3D con fotos de ejemplo. */
+  hasDesignPreview?: boolean;
 };
 
 type SchoolCourse = { id: number; name: string; division: string | null };
@@ -167,6 +173,8 @@ export default function PreventaPage({ testClientPreview = false }: PreventaPage
   const [albumRosterEntryId, setAlbumRosterEntryId] = useState<number | null>(null);
   const [organizerReferralSchoolId, setOrganizerReferralSchoolId] = useState<number | null>(null);
   const [highlightPackId, setHighlightPackId] = useState<number | null>(null);
+  /** El pack cuyo diseño se está mirando en 3D. */
+  const [pack3d, setPack3d] = useState<{ id: number; name: string } | null>(null);
   const packFromUrlAppliedRef = useRef(false);
 
   useEffect(() => {
@@ -724,6 +732,16 @@ export default function PreventaPage({ testClientPreview = false }: PreventaPage
                         Pack de preventa
                       </div>
                     )}
+                    {pack.hasDesignPreview ? (
+                      <button
+                        type="button"
+                        onClick={() => setPack3d({ id: pack.id, name: pack.name })}
+                        className="absolute bottom-3 right-3 inline-flex min-h-11 items-center gap-2 rounded-full bg-white/95 px-4 text-sm font-semibold text-[#1f2328] shadow-md ring-1 ring-black/5 hover:bg-white"
+                      >
+                        <span aria-hidden>🔄</span>
+                        Ver en 3D
+                      </button>
+                    ) : null}
                   </div>
                   <div className="flex flex-1 flex-col p-5 sm:p-6 gap-4 min-h-0">
                     <div className="space-y-2">
@@ -822,6 +840,16 @@ export default function PreventaPage({ testClientPreview = false }: PreventaPage
             <p className="-mt-6 lg:-mt-8 text-center text-xs text-[#9ca3af]">
               Las imágenes de los packs son ilustrativas.
             </p>
+          ) : null}
+
+          {pack3d ? (
+            <VistaDemoPlantilla3D
+              templateId={`pack-${pack3d.id}`}
+              url={`/api/public/album/${encodeURIComponent(slug)}/preventa-packs/${pack3d.id}/vista-3d`}
+              nombre={pack3d.name}
+              subtitulo="Con fotos y nombres de ejemplo · arrastrá para girarlo"
+              onClose={() => setPack3d(null)}
+            />
           ) : null}
 
           {/* 4 — Cómo funciona */}
