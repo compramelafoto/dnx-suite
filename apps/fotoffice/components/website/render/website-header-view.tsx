@@ -55,10 +55,12 @@ export function WebsiteHeaderView({
   const minimal = layout === "topbar" && preset === "minimal";
 
   // Los ítems del menú toman el color de su nivel; sobre la portada (barra transparente), blanco.
-  const colorTexto = overlay ? "#ffffff" : "var(--wsite-menu-color)";
+  // Con la barra transparente, el color sale de `--wsite-header-ink`: blanco sobre el banner, y el del
+  // menú cuando la página no empieza con un banner (ver `REGLA_ENCABEZADO_TRANSPARENTE`).
+  const colorTexto = overlay ? "var(--wsite-header-ink, #ffffff)" : "var(--wsite-menu-color)";
 
   const logo = (
-    <a href={homeHref} className="flex shrink-0 items-center gap-2" style={{ color: overlay ? "#ffffff" : "var(--wsite-text)" }}>
+    <a href={homeHref} className="flex shrink-0 items-center gap-2" style={{ color: overlay ? "var(--wsite-header-logo-ink, #ffffff)" : "var(--wsite-text)" }}>
       {logoUrl ? (
         // En el teléfono se limita al 18% del ancho: un logo de 160 px taparía media pantalla.
         // eslint-disable-next-line @next/next/no-img-element -- el logo vive en R2
@@ -140,10 +142,10 @@ export function WebsiteHeaderView({
   const wrapperStyle = overlay ? undefined : { backgroundColor: "var(--wsite-bg)", borderBottom: floating ? undefined : borde };
 
   return (
-    <header className={wrapperClass} style={wrapperStyle}>
+    <header className={wrapperClass} style={wrapperStyle} data-header-transparente={overlay ? "" : undefined}>
       <div className={`mx-auto flex max-w-6xl items-center gap-4 px-6 py-4 ${centered ? "flex-col text-center" : "justify-between"}`}>
         {logo}
-        <div data-sitio-menu className={`flex items-center gap-4 ${centered ? "flex-col" : ""}`}>
+        <div data-sitio-menu className={`flex items-center gap-4 ${centered ? "flex-col" : "min-w-0 flex-1 justify-end"}`}>
           <WebsiteHeaderNavClient navItems={navItems} colorTexto={colorTexto} minimal={minimal} centered={centered} />
           {botonLogin}
           <WebsiteMenuOverlay navItems={navItems} variant="drawer" side={side} colorTexto={colorTexto} triggerClassName="@3xl:hidden" />

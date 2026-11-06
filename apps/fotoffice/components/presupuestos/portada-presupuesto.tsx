@@ -98,7 +98,7 @@ export function PortadaPresupuesto({ vista }: { vista: VistaPublica }) {
   ].filter(Boolean);
 
   return (
-    <section className="no-imprimir relative overflow-hidden bg-[var(--presupuesto-portada,#0b1220)] text-white">
+    <section data-fondo-bajo-encabezado="" data-primer-bloque="" className="no-imprimir relative overflow-hidden bg-[var(--presupuesto-portada,#0b1220)] text-white">
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0 opacity-40"

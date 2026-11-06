@@ -8,7 +8,8 @@ import { BLOG_HEADING_STYLE, BLOG_SOFT_BG } from "@/components/website/blog/blog
  * (cliente), así que no consulta nada ni usa hooks.
  *
  * No hay redimensionador de imágenes en el sitio: la portada va con su dirección original, con
- * carga diferida y el tamaño lo pone el CSS.
+ * carga diferida y el tamaño lo pone el CSS. En la grilla el recorte se apoya arriba
+ * (`object-[50%_20%]`): en una foto vertical de una persona, la cara queda adentro.
  */
 
 export type TrabajosLayout = "grid" | "masonry";
@@ -39,7 +40,7 @@ function Portada({ src, alt, masonry }: { src: string | null; alt: string; mason
       alt={alt}
       loading="lazy"
       decoding="async"
-      className={`w-full transition-transform duration-500 group-hover:scale-[1.03] ${masonry ? "h-auto" : "aspect-[4/3] object-cover"}`}
+      className={`w-full transition-transform duration-500 group-hover:scale-[1.03] ${masonry ? "h-auto" : "aspect-[4/3] object-cover object-[50%_20%]"}`}
     />
   );
 }

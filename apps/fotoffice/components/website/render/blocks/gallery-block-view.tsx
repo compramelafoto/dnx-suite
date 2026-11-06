@@ -41,7 +41,7 @@ export function GalleryBlockView({ config }: { config: GalleryBlockConfig }) {
                 src={photo.url}
                 alt={photo.alt ?? ""}
                 loading="lazy"
-                className={masonry ? "w-full h-auto rounded-xl" : "aspect-square w-full rounded-xl object-cover"}
+                className={masonry ? "w-full h-auto rounded-xl" : "aspect-square w-full rounded-xl object-cover object-[50%_20%]"}
               />
             );
             return config.lightbox ? (

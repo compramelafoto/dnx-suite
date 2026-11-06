@@ -2,6 +2,16 @@ import type { CSSProperties, ReactNode } from "react";
 import { websiteFontsHref, type WebsiteDesignPresets } from "@/lib/website/design-presets";
 
 /**
+ * La barra transparente (`transparent-hero`) flota encima del banner con letras blancas. En una
+ * página que NO empieza con un banner (Trabajos, una página propia con texto arriba, los módulos)
+ * flotaría sobre fondo claro: menú blanco sobre blanco y el título tapado. Ahí pasa a ser una barra
+ * común, en el flujo de la página y con los colores del menú. Sólo CSS (`:has`), sin JavaScript:
+ * la página ya llega bien dibujada desde el servidor.
+ */
+const REGLA_ENCABEZADO_TRANSPARENTE =
+  "[data-site-frame]:not(:has([data-primer-bloque] [data-fondo-bajo-encabezado],[data-primer-bloque][data-fondo-bajo-encabezado])) [data-header-transparente]{position:relative;background-color:var(--wsite-bg);border-bottom:1px solid rgba(127,127,127,0.15);--wsite-header-ink:var(--wsite-menu-color);--wsite-header-logo-ink:var(--wsite-text)}";
+
+/**
  * El marco común del sitio: encabezado, contenido y pie. Lo usan el sitio público
  * (`PublicSiteShell`) y las dos vistas previas del panel, así las tres se acomodan igual.
  *
@@ -31,7 +41,8 @@ export function SiteFrame({
   // `precedence`) y no lo repite aunque se dibuje dos veces.
   const fuentes = websiteFontsHref(designPresets);
   return (
-    <div className="@container" style={{ ...style, minHeight }}>
+    <div className="@container" style={{ ...style, minHeight }} data-site-frame="">
+      <style>{REGLA_ENCABEZADO_TRANSPARENTE}</style>
       {fuentes ? <link rel="stylesheet" href={fuentes} precedence="wsite-fonts" /> : null}
       <div className={`flex flex-col ${fila}`} style={{ minHeight }}>
         {header}

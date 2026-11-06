@@ -29,7 +29,7 @@ export function TestimoniosCarrusel({ testimonios }: { testimonios: readonly Tes
     <div role="group" aria-roledescription="carrusel" aria-label="Testimonios">
       <ul
         ref={pistaRef}
-        className="flex snap-x snap-mandatory items-start gap-6 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="relative flex snap-x snap-mandatory items-start gap-6 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         {testimonios.map((t) => (
           <li key={t.id} className="w-full shrink-0 snap-start sm:w-[calc((100%-1.5rem)/2)] lg:w-[calc((100%-3rem)/3)]">
