@@ -3,6 +3,8 @@ import { prisma } from "@repo/db";
 import { nombreDeContacto } from "@/lib/pedidos/nombre-contacto";
 import type { CtxProyectos } from "./acceso";
 import { faseDeEtapa, type EtapaVista, type Fase } from "./en-curso-puro";
+import type { EstadoEnvio } from "./estado-envio";
+import { estadosDeEnvio } from "./situacion-envio";
 
 /**
  * Los datos de "Trabajos en curso": cada trabajo con su recorrido abierto (o cerrado en los
@@ -30,6 +32,8 @@ export type TarjetaTrabajo = {
   proveedor: string | null;
   proveedorId: string | null;
   enviadoAt: string | null;
+  /** En qué punto está el pedido con el proveedor (faltan archivos, enviado, abierto, descargado). */
+  envio: EstadoEnvio | null;
   pedido: { id: string; numero: string; saldoMinor: number } | null;
   cerrado: boolean;
   /** Cuándo se cerró: el tablero lo manda al reabrir (control de cambios simultáneos). */
@@ -109,6 +113,10 @@ export async function cargarTrabajosEnCurso(ctx: CtxProyectos, ahora: Date): Pro
     ]),
   );
 
+  const envios = await estadosDeEnvio(
+    ctx.workspaceId,
+    proyectos.filter((p) => p.proveedorId !== null).map((p) => p.id),
+  );
   const proyectoDe = new Map(proyectos.map((p) => [p.id, p]));
   const circuitoDe = new Map(circuitos.map((c) => [c.id, c.name]));
   const etapasDe = new Map<string, EtapaVista[]>();
@@ -148,6 +156,7 @@ export async function cargarTrabajosEnCurso(ctx: CtxProyectos, ahora: Date): Pro
       proveedor: p.proveedor?.name ?? null,
       proveedorId: p.proveedorId,
       enviadoAt: p.proveedorEnviadoAt ? p.proveedorEnviadoAt.toISOString() : null,
+      envio: envios.get(p.id) ?? null,
       pedido: p.pedidoId ? (pedidoDe.get(p.pedidoId) ?? null) : null,
       cerrado,
       cerradoAt: j.closedAt ? j.closedAt.toISOString() : null,

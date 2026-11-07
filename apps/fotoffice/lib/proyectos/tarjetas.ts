@@ -4,6 +4,8 @@ import { fechaValida } from "./fechas";
 import { estadoDe, type EstadoDeProyecto } from "./ficha-vista";
 import { puedeVerProyectos, type CtxProyectos } from "./acceso";
 import { suspendidosEntre } from "./proyectos";
+import type { EstadoEnvio } from "./estado-envio";
+import { estadosDeEnvio } from "./situacion-envio";
 
 /** Lo que muestra la tarjeta "Proyectos" de la ficha del pedido, de la consulta y del contacto. */
 export type ProyectoDeTarjeta = {
@@ -15,6 +17,8 @@ export type ProyectoDeTarjeta = {
   /** "YYYY-MM-DD". */
   finalDueDate: string | null;
   estado: EstadoDeProyecto;
+  /** En qué punto está el pedido con el proveedor; null si se hace en el estudio. */
+  envio: EstadoEnvio | null;
 };
 
 export type DondeProyectos = { pedidoId: string } | { clientId: string } | { consultaLeadId: string };
@@ -44,7 +48,7 @@ export async function proyectosParaTarjeta(ctx: CtxProyectos, donde: DondeProyec
   });
   if (filas.length === 0) return [];
   const ids = filas.map((f) => f.id);
-  const [circuitos, recorridos, suspendidos] = await Promise.all([
+  const [circuitos, recorridos, suspendidos, envios] = await Promise.all([
     prisma.fotofficeCircuit.findMany({
       where: { workspaceId, id: { in: [...new Set(filas.map((f) => f.circuitId))] } },
       select: { id: true, name: true },
@@ -54,6 +58,7 @@ export async function proyectosParaTarjeta(ctx: CtxProyectos, donde: DondeProyec
       select: { subjectId: true, stageId: true },
     }),
     suspendidosEntre(workspaceId, ids),
+    estadosDeEnvio(workspaceId, ids),
   ]);
   const etapaIds = [...new Set(recorridos.map((r) => r.stageId).filter((x): x is string => x !== null))];
   const etapas = etapaIds.length
@@ -70,5 +75,6 @@ export async function proyectosParaTarjeta(ctx: CtxProyectos, donde: DondeProyec
     etapa: abierto.has(f.id) ? ((abierto.get(f.id) ? etapa.get(abierto.get(f.id)!) : null) ?? null) : null,
     finalDueDate: fechaValida(f.finalDueDate),
     estado: estadoDe(suspendidos.has(f.id), !abierto.has(f.id)),
+    envio: envios.get(f.id) ?? null,
   }));
 }

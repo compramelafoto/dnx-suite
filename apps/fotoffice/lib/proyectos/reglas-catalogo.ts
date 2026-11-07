@@ -29,7 +29,7 @@ export type ReglaEntrada = {
 
 export const PLAZO_MAXIMO_DIAS = 365;
 
-export type ReglaDetalle = ReglaEntrada & { id: string; circuitName: string; circuitActive: boolean; ultimoPlazoDias: number | null };
+export type ReglaDetalle = ReglaEntrada & { id: string; circuitName: string; circuitActive: boolean; ultimoPlazoDias: number | null; envioSinArchivos: boolean };
 
 export type OpcionesDeRegla = {
   /** Flujos de trabajo activos. */
@@ -97,7 +97,7 @@ export async function leerReglas(workspaceId: string, productId: string): Promis
   const filas = await prisma.fotofficeProductoProyecto.findMany({
     where: { workspaceId, productId },
     orderBy: [{ order: "asc" }],
-    select: { id: true, circuitId: true, ownerUserId: true, daysFromEvent: true, nameTemplate: true, plazoDias: true, ultimoPlazoDias: true, proveedorId: true },
+    select: { id: true, circuitId: true, ownerUserId: true, daysFromEvent: true, nameTemplate: true, plazoDias: true, ultimoPlazoDias: true, proveedorId: true, envioSinArchivos: true },
   });
   if (filas.length === 0) return [];
   const circuitos = await prisma.fotofficeCircuit.findMany({
@@ -114,6 +114,7 @@ export async function leerReglas(workspaceId: string, productId: string): Promis
     plazoDias: f.plazoDias,
     ultimoPlazoDias: f.ultimoPlazoDias,
     proveedorId: f.proveedorId,
+    envioSinArchivos: f.envioSinArchivos,
     circuitName: porId.get(f.circuitId)?.name ?? "Flujo",
     circuitActive: porId.get(f.circuitId)?.isActive === true,
   }));
@@ -170,12 +171,13 @@ export async function guardarReglas(workspaceId: string, productId: string, entr
       }
     }
 
-    // El último plazo usado en el Mostrador sobrevive al guardar: es lo que se va a proponer.
-    const ultimos = new Map(
-      (
-        await tx.fotofficeProductoProyecto.findMany({ where: { workspaceId, productId }, select: { circuitId: true, ultimoPlazoDias: true } })
-      ).map((f) => [f.circuitId, f.ultimoPlazoDias]),
-    );
+    // El último plazo usado en el Mostrador y la marca de «material físico» sobreviven al guardar.
+    const anteriores = await tx.fotofficeProductoProyecto.findMany({
+      where: { workspaceId, productId },
+      select: { circuitId: true, ultimoPlazoDias: true, envioSinArchivos: true },
+    });
+    const ultimos = new Map(anteriores.map((f) => [f.circuitId, f.ultimoPlazoDias]));
+    const sinArchivos = anteriores.some((f) => f.envioSinArchivos);
     await tx.fotofficeProductoProyecto.deleteMany({ where: { workspaceId, productId } });
     if (reglas.length > 0) {
       await tx.fotofficeProductoProyecto.createMany({
@@ -189,6 +191,7 @@ export async function guardarReglas(workspaceId: string, productId: string, entr
           plazoDias: r.plazoDias,
           proveedorId: r.proveedorId,
           ultimoPlazoDias: ultimos.get(r.circuitId) ?? null,
+          envioSinArchivos: sinArchivos,
           order,
         })),
       });
@@ -209,5 +212,15 @@ export async function guardarProveedorPorDefecto(workspaceId: string, productId:
     if (existe === 0) return { ok: false, error: "Ese proveedor no existe." };
   }
   const r = await prisma.fotofficeProductoProyecto.updateMany({ where: { workspaceId, productId }, data: { proveedorId } });
+  return r.count > 0 ? { ok: true } : { ok: false, error: "Este producto no genera un trabajo: activá «Proyecto que genera» primero." };
+}
+
+/**
+ * «El material es físico»: el pedido le sale al proveedor sin archivos (un rollo para revelar). Se
+ * aplica a todas las reglas del producto. Sin marcar, el pedido espera a que se suban los archivos.
+ */
+export async function guardarEnvioSinArchivos(workspaceId: string, productId: string, valor: boolean): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!/^[A-Za-z0-9_-]{1,64}$/.test(productId)) return { ok: false, error: "El producto no es válido." };
+  const r = await prisma.fotofficeProductoProyecto.updateMany({ where: { workspaceId, productId }, data: { envioSinArchivos: valor === true } });
   return r.count > 0 ? { ok: true } : { ok: false, error: "Este producto no genera un trabajo: activá «Proyecto que genera» primero." };
 }

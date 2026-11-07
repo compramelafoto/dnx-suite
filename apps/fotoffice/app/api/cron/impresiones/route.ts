@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { adjuntosR2Configurado } from "@/lib/ficha/adjuntos-r2";
 import { procesarPedidosDeImpresion } from "@/lib/impresiones/preparar-servidor";
 import { purgarOriginalesProbador } from "@/lib/probador/purga.server";
+import { enviarTrabajosCompletos } from "@/lib/proyectos/proveedor";
 import { isAuthorizedCronRequest } from "@/lib/security/cron-auth";
 import { sanitizeError } from "@/lib/payments/connect/log";
 
@@ -13,7 +14,8 @@ export const maxDuration = 300;
  * hasta 3 pedidos pagados (recorte, ZIP ordenado por laboratorio en la carpeta del trabajo y correo "PARA
  * MAÑANA"). Un pedido trabado más de 15 minutos se vuelve a tomar (al tercero se corta); los que esperaban un
  * circuito de trabajo se reencolan solos cuando existe (ver `lib/impresiones/preparar-servidor.ts`).
- * También borra las fotos del probador de cuadros que ya no hacen falta (`lib/probador/purga.server.ts`).
+ * También borra las fotos del probador de cuadros que ya no hacen falta (`lib/probador/purga.server.ts`) y
+ * manda al proveedor los trabajos que esperaban archivos y ya los tienen (`enviarTrabajosCompletos`).
  */
 function autorizado(request: Request): boolean {
   return isAuthorizedCronRequest({
@@ -35,7 +37,12 @@ export async function POST(request: Request) {
           return 0;
         })
       : 0;
-    return NextResponse.json({ ok: true, ...r, fotosProbadorBorradas, ...(preparar ? {} : { omitido: "preparación: almacenamiento sin configurar" }) });
+    // Los trabajos que esperaban archivos: también es un plus que no frena lo anterior.
+    const trabajosEnviados = await enviarTrabajosCompletos(new Date()).catch((e) => {
+      console.error("[fotoffice][proveedor] falló el envío de trabajos completos", { detalle: sanitizeError(e) });
+      return 0;
+    });
+    return NextResponse.json({ ok: true, ...r, fotosProbadorBorradas, trabajosEnviados, ...(preparar ? {} : { omitido: "preparación: almacenamiento sin configurar" }) });
   } catch (error) {
     console.error("[fotoffice][impresiones] falló la preparación de pedidos", { detalle: sanitizeError(error) });
     return NextResponse.json({ ok: false, error: "falló la preparación de pedidos" }, { status: 500 });

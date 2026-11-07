@@ -57,7 +57,9 @@ export const guia: Instructivo = {
       ],
       sistema: [
         "Si el proveedor tiene correo cargado, le manda el pedido con las indicaciones del trabajo. Si no tiene, avisa «No tiene correo cargado: avisale por otro medio.».",
+        "Si la carpeta del trabajo está vacía no manda nada y avisa «Falta subir los archivos»: subilos y el pedido sale solo a los pocos minutos.",
       ],
+      nota: "Debajo del cliente, cada tarjeta muestra el estado del pedido con el proveedor: «Faltan los archivos» (rojo), «Sale solo en unos minutos», «Enviado», «Abrió el pedido» o «Descargó los archivos» (verde).",
     },
     {
       titulo: "Marcá que llegó",
