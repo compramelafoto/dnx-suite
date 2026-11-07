@@ -40,6 +40,7 @@ export async function GET(request: NextRequest) {
     console.error("[fotoffice][clf] no se pudo guardar la conexión", { detalle: sanitizeError(error) });
     return ir("error");
   }
-  await sincronizarEspacio(workspace.id).catch((error) => console.error("[fotoffice][clf] primera sincronización", { detalle: sanitizeError(error) }));
+  // Primera sincronización corta (la función tiene 60 s); el resto lo sigue el cron cada 15 minutos.
+  await sincronizarEspacio(workspace.id, { topes: { validaciones: 20, revalidaciones: 0 } }).catch((error) => console.error("[fotoffice][clf] primera sincronización", { detalle: sanitizeError(error) }));
   return ir("ok");
 }

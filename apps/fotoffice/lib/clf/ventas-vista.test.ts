@@ -11,6 +11,7 @@ function v(p: Partial<VentaVista>): VentaVista {
     comisionPlataformaArs: 2609,
     mpComisionMpArs: 1200,
     mpAcreditadoArs: 16191,
+    mpBrutoArs: 20000,
     mpReintegradoArs: 0,
     reintegradoEl: null,
     ...p,
@@ -21,7 +22,13 @@ describe("totalesDelMes", () => {
   it("la venta suma en su mes y el reintegro resta en el mes del reintegro", () => {
     const ventas = [v({ validacion: "REINTEGRADA", mpReintegradoArs: 20000, reintegradoEl: new Date("2026-11-03T10:00:00-03:00") })];
     expect(totalesDelMes(ventas, "2026-10")).toMatchObject({ cantidad: 1, acreditado: 16191, reintegros: 0, cobradoNeto: 16191 });
-    expect(totalesDelMes(ventas, "2026-11")).toMatchObject({ cantidad: 0, acreditado: 0, reintegros: 20000, cobradoNeto: -20000 });
+    // Al devolver, Mercado Pago también devuelve las comisiones: al fotógrafo le resta lo que se le había acreditado.
+    expect(totalesDelMes(ventas, "2026-11")).toMatchObject({ cantidad: 0, acreditado: 0, reintegros: 16191, cobradoNeto: -16191 });
+  });
+
+  it("un reintegro parcial resta la parte proporcional de lo acreditado", () => {
+    const venta = v({ validacion: "REINTEGRO_PARCIAL", mpReintegradoArs: 5000, reintegradoEl: new Date("2026-10-20T10:00:00-03:00") });
+    expect(totalesDelMes([venta], "2026-10").reintegros).toBe(4047.75);
   });
 
   it("lo que no está en el Mercado Pago del espacio no suma", () => {

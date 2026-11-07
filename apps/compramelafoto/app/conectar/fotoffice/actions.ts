@@ -24,11 +24,12 @@ export async function autorizarFotofficeAction(formData: FormData) {
   const { state, espacio, vuelta } = leer(formData);
   if (!retornoPermitido(vuelta) || !stateValido(state)) paginaInvalida();
 
+  const qs = new URLSearchParams({ state, espacio, vuelta }).toString();
   const { error, user } = await requireAuth([Role.PHOTOGRAPHER, Role.LAB_PHOTOGRAPHER]);
-  if (error || !user) {
-    const qs = new URLSearchParams({ state, espacio, vuelta }).toString();
-    redirect(`/login?redirect=${encodeURIComponent(`/conectar/fotoffice?${qs}`)}`);
-  }
+  if (error === "No autenticado") redirect(`/login?redirect=${encodeURIComponent(`/conectar/fotoffice?${qs}`)}`);
+  // `requireAuth` también deja pasar cuentas LAB puras: sólo fotógrafos autorizan. Si no lo es, vuelve a la página,
+  // que muestra el aviso (no al login).
+  if (!user || (user.role !== Role.PHOTOGRAPHER && user.role !== Role.LAB_PHOTOGRAPHER)) redirect(`/conectar/fotoffice?${qs}`);
 
   const code = await crearCodigo({ userId: user.id, externalLabel: recortarNombreEspacio(espacio), returnUrl: vuelta });
   redirect(urlDeVuelta(vuelta, { code, state }));

@@ -59,7 +59,8 @@ export default async function ConectarFotofficePage({ searchParams }: { searchPa
     const qs = new URLSearchParams({ state, espacio: espacioCrudo, vuelta }).toString();
     redirect(`/login?redirect=${encodeURIComponent(`/conectar/fotoffice?${qs}`)}`);
   }
-  if (!user) {
+  // `requireAuth` también deja pasar cuentas LAB puras: sólo fotógrafos autorizan.
+  if (!user || (user.role !== Role.PHOTOGRAPHER && user.role !== Role.LAB_PHOTOGRAPHER)) {
     return (
       <Marco>
         <h1 className="text-xl font-semibold text-[#1a1a1a]">Necesitás una cuenta de fotógrafo</h1>

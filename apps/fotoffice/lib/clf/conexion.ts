@@ -50,7 +50,9 @@ export async function guardarConexion(workspaceId: string, userId: number | null
   const comun = { clfCuentaNombre: datos.cuenta.nombre, clfMpUserId: datos.cuenta.mpUserId, ultimoError: null, cerradaEl: null };
   const previa = await prisma.fotofficeClfConexion.findUnique({ where: { workspaceId }, select: { clfUserId: true } });
   if (previa && previa.clfUserId !== datos.cuenta.id) {
-    // Otra cuenta de CLF: el cursor de la anterior no sirve.
+    // Otra cuenta de CLF: el cursor de la anterior no sirve y sus ventas no son de esta cuenta. Se borran las copias
+    // (son sólo una copia de CLF: si se vuelve a conectar la cuenta anterior, se traen de nuevo).
+    await prisma.fotofficeClfVenta.deleteMany({ where: { workspaceId } });
     await prisma.fotofficeClfConexion.update({ where: { workspaceId }, data: { ...comun, clfUserId: datos.cuenta.id, cursor: null } });
   } else {
     await prisma.fotofficeClfConexion.upsert({

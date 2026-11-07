@@ -6,7 +6,7 @@ import { getAuthUser } from "@/lib/auth";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import { arMonthRange } from "@/lib/store/artworks/royalty-report";
 import { resolveActiveWorkspace } from "@/lib/workspace";
-import type { VentaVista } from "./ventas-vista";
+import { netoReintegrado, type VentaVista } from "./ventas-vista";
 
 export const CLF_SALES_MODULE_KEY = "clf-sales";
 
@@ -72,6 +72,7 @@ export async function ventasDelMes(workspaceId: string, mes: string, albumId: nu
     mpComisionPlataformaArs: nn(f.mpComisionPlataformaArs),
     mpComisionMpArs: nn(f.mpComisionMpArs),
     mpAcreditadoArs: nn(f.mpAcreditadoArs),
+    mpBrutoArs: nn(f.mpBrutoArs),
     mpReintegradoArs: nn(f.mpReintegradoArs),
     reintegradoEl: f.reintegradoEl,
   }));
@@ -81,10 +82,13 @@ export async function ventasDelMes(workspaceId: string, mes: string, albumId: nu
 export async function resumenDelAlbum(workspaceId: string, albumId: number): Promise<{ ventas: number; acreditado: number } | null> {
   const filas = await prisma.fotofficeClfVenta.findMany({
     where: { workspaceId, albumId, validacion: { notIn: ["NO_EN_TU_MP"] } },
-    select: { mpAcreditadoArs: true, mpReintegradoArs: true },
+    select: { mpAcreditadoArs: true, mpReintegradoArs: true, mpBrutoArs: true },
   });
   if (filas.length === 0) return null;
-  const acreditado = filas.reduce((s, f) => s + (nn(f.mpAcreditadoArs) ?? 0) - (nn(f.mpReintegradoArs) ?? 0), 0);
+  const acreditado = filas.reduce(
+    (s, f) => s + (nn(f.mpAcreditadoArs) ?? 0) - netoReintegrado({ mpAcreditadoArs: nn(f.mpAcreditadoArs), mpBrutoArs: nn(f.mpBrutoArs), mpReintegradoArs: nn(f.mpReintegradoArs) }),
+    0,
+  );
   return { ventas: filas.length, acreditado: Math.round(acreditado * 100) / 100 };
 }
 

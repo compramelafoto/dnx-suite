@@ -3,6 +3,9 @@ import { prisma } from "@/lib/prisma";
 import { parsePreventaPackSnapshotV1 } from "@/lib/preventa-canjeable/preventa-pack-snapshot-v1";
 import { armarPagina, decodificarCursor, type EntradaVenta, type VentaFotoffice, ventaParaFotoffice } from "./ventas";
 
+/** Minutos que una venta tiene que estar quieta antes de entregarse (ver el filtro de `leerVentas`). */
+export const VENTANA_ASENTAMIENTO_MS = 10 * 60 * 1000;
+
 export const LIMITE_VENTAS = 200;
 
 const EVENTOS = ["PAYMENT_APPROVED", "PAYMENT_REFUNDED", "PAYMENT_CHARGED_BACK"] as const;
@@ -38,9 +41,13 @@ export async function leerVentas(
       isTest: false,
       checkoutPaymentSource: "MERCADO_PAGO",
       status: { in: ["PAID", "REFUNDED", "FAILED"] },
-      ...(cursor
-        ? { OR: [{ updatedAt: { gt: cursor.updatedAt } }, { updatedAt: cursor.updatedAt, id: { gt: cursor.id } }] }
-        : {}),
+      // Ventana de asentamiento: al aprobarse un pago, el log PAYMENT_APPROVED y la comisión del organizador se
+      // escriben DESPUÉS de pasar a PAID y no tocan `updatedAt`. Si se leyera en ese instante, la venta saldría
+      // incompleta (o se descartaría) y el cursor ya no volvería a ella. Se entrega recién con 10 minutos de quieta.
+      AND: [
+        { updatedAt: { lt: new Date(Date.now() - VENTANA_ASENTAMIENTO_MS) } },
+        ...(cursor ? [{ OR: [{ updatedAt: { gt: cursor.updatedAt } }, { updatedAt: cursor.updatedAt, id: { gt: cursor.id } }] }] : []),
+      ],
     },
     orderBy: [{ updatedAt: "asc" }, { id: "asc" }],
     take: limite + 1,
@@ -83,7 +90,9 @@ export async function leerVentas(
 
   return armarPagina(filas, limite, cursorTexto, (f) => {
     const logsDelPedido = logsPorPedido.get(f.id) ?? [];
-    if (!logsDelPedido.some((l) => l.eventType === "PAYMENT_APPROVED")) return null;
+    // Un pedido FAILED sin aprobación nunca se cobró. Uno PAID o REFUNDED sin el log (si `registerAuditEvent`
+    // falló al escribirlo) se entrega igual, con la fecha del pedido: no se pierde una venta cobrada.
+    if (f.status === "FAILED" && !logsDelPedido.some((l) => l.eventType === "PAYMENT_APPROVED")) return null;
     const eoc = f.eventOrganizerCommission;
     return ventaParaFotoffice({
       order: {

@@ -59,7 +59,7 @@ export type EntradaVenta = {
     referralFeeDiscountCents: number | null;
   };
   album: { id: number; title: string };
-  /** Logs `OrderAuditLog` del pedido (`ALBUM_ORDER`), en cualquier orden. Debe haber al menos un PAYMENT_APPROVED. */
+  /** Logs `OrderAuditLog` del pedido (`ALBUM_ORDER`), en cualquier orden. Sin PAYMENT_APPROVED, la fecha es la del pedido. */
   logs: { eventType: string; createdAt: Date }[];
   /** `packName` del `preventaPackSnapshotJson`, si el pedido es de un pack. */
   packName: string | null;
@@ -161,7 +161,8 @@ export function ventaParaFotoffice(e: EntradaVenta): VentaFotoffice {
     retenidoEsperadoMp,
     netoFotografo,
     cobrador,
-    cobradorMpUserId: (cobrador === "ORGANIZER" ? org?.organizadorMpUserId : e.duenoMpUserId) ?? null,
+    // Si cobró el organizador no se manda su cuenta (es de un tercero): FOTOFFICE sólo compara contra la suya.
+    cobradorMpUserId: cobrador === "ORGANIZER" ? null : (e.duenoMpUserId ?? null),
   };
 }
 

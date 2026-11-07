@@ -41,7 +41,7 @@ export type VentaParaValidar = {
 
 export type LecturaMp =
   | { ok: true; facts: MpPaymentFacts }
-  /** NO_ACCESO: el pago no es de esta cuenta (401/403/404). TEMPORAL: Mercado Pago caído o lento. SIN_COBROS: el espacio no tiene Cobros conectado. */
+  /** NO_ACCESO: el pago no es de esta cuenta (403/404). TEMPORAL: Mercado Pago caído, lento o el token vencido (401). SIN_COBROS: el espacio no tiene Cobros conectado. */
   | { ok: false; tipo: "NO_ACCESO" | "TEMPORAL" | "SIN_COBROS" };
 
 export type ResultadoValidacion =
@@ -86,8 +86,11 @@ export function validarVenta(v: VentaParaValidar, mp: LecturaMp, cuentaDelEspaci
     mpReintegradoArs: reintegrado,
   };
 
-  const reintegradoEnMp = reintegrado > 0 || ["refunded", "charged_back"].includes(f.status.toLowerCase());
-  if (reintegradoEnMp || v.estadoClf === "REFUNDED") {
+  const estado = f.status.toLowerCase();
+  const reintegradoEnMp = reintegrado > 0 || ["refunded", "charged_back"].includes(estado);
+  // CLF dice reintegrado pero Mercado Pago no muestra ninguna devolución: no cuadra.
+  if (!reintegradoEnMp && v.estadoClf === "REFUNDED") return { validacion: "CON_DIFERENCIA", ...montos, reintegradoEl: null };
+  if (reintegradoEnMp) {
     const total = reintegrado >= bruto - TOLERANCIA_ARS || ["refunded", "charged_back"].includes(f.status.toLowerCase());
     return {
       validacion: total ? "REINTEGRADA" : "REINTEGRO_PARCIAL",
@@ -100,6 +103,10 @@ export function validarVenta(v: VentaParaValidar, mp: LecturaMp, cuentaDelEspaci
   const referenciaOk = f.externalReference !== null && f.externalReference.trim() === String(v.clfOrderId);
   const brutoOk = igual(bruto, v.pagoFamiliaArs);
   const cuentaPropia = cuentaDelEspacio !== null && v.cobradorMpUserId !== null && cuentaDelEspacio === v.cobradorMpUserId;
+
+  // Un pago en disputa (`in_mediation`), cancelado o pendiente no está cobrado aunque los montos coincidan:
+  // no hay acreditado que sumar.
+  if (estado !== "approved") return { validacion: "CON_DIFERENCIA", ...montos, mpAcreditadoArs: null, reintegradoEl: null };
 
   let validacion: Exclude<Validacion, "PENDIENTE">;
   if (!referenciaOk || !brutoOk) validacion = "CON_DIFERENCIA";

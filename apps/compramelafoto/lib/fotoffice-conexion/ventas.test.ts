@@ -133,7 +133,7 @@ test("si cobra el organizador, el retenido no suma su comisión y el cobrador es
   assert.equal(v.retenidoEsperadoMp, 2609);
   assert.equal(v.comisionOrganizador, 17391);
   assert.equal(v.cobrador, "ORGANIZER");
-  assert.equal(v.cobradorMpUserId, "555");
+  assert.equal(v.cobradorMpUserId, null); // la cuenta del organizador (un tercero) no viaja
 });
 
 test("montos Decimal con centavos se redondean a dos decimales", () => {

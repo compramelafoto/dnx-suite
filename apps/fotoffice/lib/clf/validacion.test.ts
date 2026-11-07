@@ -73,6 +73,14 @@ describe("validarVenta", () => {
     expect(validarVenta(VENTA, { ok: false, tipo: "SIN_COBROS" }, null).validacion).toBe("NO_EN_TU_MP");
   });
 
+  it("un pago en disputa no sale validado aunque los montos coincidan", () => {
+    expect(validarVenta(VENTA, { ok: true, facts: facts({ status: "in_mediation" }) }, "97484805")).toMatchObject({ validacion: "CON_DIFERENCIA", mpAcreditadoArs: null });
+  });
+
+  it("CLF dice reintegrado y Mercado Pago no muestra devolución: diferencia", () => {
+    expect(validarVenta({ ...VENTA, estadoClf: "REFUNDED" }, { ok: true, facts: facts() }, "97484805").validacion).toBe("CON_DIFERENCIA");
+  });
+
   it("Mercado Pago caído: queda pendiente para reintentar", () => {
     expect(validarVenta(VENTA, { ok: false, tipo: "TEMPORAL" }, "97484805")).toEqual({ validacion: "PENDIENTE" });
   });

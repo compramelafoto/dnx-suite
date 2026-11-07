@@ -16,6 +16,7 @@ export type VentaVista = {
   comisionPlataformaArs: number;
   mpComisionMpArs: number | null;
   mpAcreditadoArs: number | null;
+  mpBrutoArs: number | null;
   mpReintegradoArs: number | null;
   reintegradoEl: Date | null;
 };
@@ -34,6 +35,16 @@ export type TotalesMes = {
 
 const redondo = (n: number) => Math.round(n * 100) / 100;
 
+/**
+ * Lo que el reintegro le saca al fotógrafo: la parte proporcional de lo que se le había acreditado (al devolver,
+ * Mercado Pago también devuelve su comisión y la de la plataforma). Sin datos de Mercado Pago, lo devuelto.
+ */
+export function netoReintegrado(v: Pick<VentaVista, "mpReintegradoArs" | "mpAcreditadoArs" | "mpBrutoArs">): number {
+  const devuelto = v.mpReintegradoArs ?? 0;
+  if (v.mpAcreditadoArs === null || !v.mpBrutoArs) return devuelto;
+  return Math.round(Math.min(1, devuelto / v.mpBrutoArs) * v.mpAcreditadoArs * 100) / 100;
+}
+
 export function cuentaEnTotales(validacion: string): boolean {
   return validacion !== "NO_EN_TU_MP";
 }
@@ -50,7 +61,7 @@ export function totalesDelMes(ventas: readonly VentaVista[], mes: string): Total
       if (v.mpAcreditadoArs !== null) t.acreditado += v.mpAcreditadoArs;
       else t.sinValidar++;
     }
-    if (v.reintegradoEl && v.mpReintegradoArs && arMonthOf(v.reintegradoEl) === mes) t.reintegros += v.mpReintegradoArs;
+    if (v.reintegradoEl && v.mpReintegradoArs && arMonthOf(v.reintegradoEl) === mes) t.reintegros += netoReintegrado(v);
   }
   for (const k of ["pagoFamilia", "tuPrecio", "comisionPlataforma", "comisionMp", "acreditado", "reintegros"] as const) t[k] = redondo(t[k]);
   t.cobradoNeto = redondo(t.acreditado - t.reintegros);
