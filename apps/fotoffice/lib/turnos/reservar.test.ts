@@ -22,7 +22,7 @@ const LUNES_10 = ar("2026-11-09T10:00");
 
 const TIPO: TipoPublicado = {
   id: "tipo-1", name: "Asesoramiento uno a uno", color: "#000000", publicDescription: null, durationMinutes: 60,
-  modality: "ONLINE", address: "https://meet.google.com/abc", franjas: [{ weekday: 1, startMinute: 600, endMinute: 780 }],
+  modality: "ONLINE", address: "https://meet.google.com/abc", imageUrl: null, franjas: [{ weekday: 1, startMinute: 600, endMinute: 780 }],
 };
 const DATOS = { nombre: "Ana Pérez", correo: "ana@x.com", telefono: "3415551234", mensaje: "Quiero ordenar mis precios" };
 const entrada = (over: Partial<Parameters<typeof reservarTurno>[0]> = {}) => ({
