@@ -24641,6 +24641,8 @@ model FotofficeCitaTipo {
   modality          String?
   /// Dirección (ESTUDIO, DIRECCION) o enlace de la videollamada (ONLINE).
   address           String?
+  /// Foto de la tarjeta en la página pública de turnos (se muestra chica, en círculo).
+  imageUrl          String?
 
   workspace Workspace                 @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   citas     FotofficeCita[]

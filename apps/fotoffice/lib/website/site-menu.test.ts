@@ -126,6 +126,15 @@ describe("resolveSiteNav", () => {
     expect(nav.map((i) => [i.label, i.href])).toEqual([["Turnos", "/w/sfpr/reservas"]]);
   });
 
+  it("la página de turnos se suma a mano y lleva a /turnos sólo con la Agenda encendida", () => {
+    const conAgenda = resolveSiteNav({ ...base, enabledModuleKeys: new Set(["agenda"]), menu: menu(page("turnos")) });
+    expect(conAgenda.map((i) => [i.label, i.href])).toContainEqual(["Agendá un turno", "/w/sfpr/turnos"]);
+    const sinAgenda = resolveSiteNav({ ...base, enabledModuleKeys: new Set(), menu: menu(page("turnos")) });
+    expect(sinAgenda.some((i) => i.href.endsWith("/turnos"))).toBe(false);
+    // No entra sola al menú de quien ya tiene la Agenda encendida.
+    expect(materializeSiteMenu(menu(page("home")), new Set(["agenda"])).items.map((i) => i.id)).toEqual(["page:home"]);
+  });
+
   it("la página de un módulo apagado desaparece, sin link roto", () => {
     const nav = resolveSiteNav({
       ...base,

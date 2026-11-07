@@ -63,6 +63,7 @@ export const MENSAJES_TURNOS = {
   franjas: "Revisá los horarios: cada franja necesita día, hora de inicio y de fin, y no pueden pisarse.",
   sinFranjas: "Para publicar, cargá al menos un horario en que lo ofrecés.",
   direccion: "Para un turno en el estudio o en otra dirección, poné la dirección.",
+  imagen: "La foto tiene que ser una dirección que empiece con https://.",
   descripcion: `La descripción puede tener hasta ${MAX_DESCRIPCION} caracteres.`,
   ajustes: "Revisá los números: anticipación de 0 a 720 horas, hasta 365 días, plazo de 0 a 720 horas y margen de 0 a 240 minutos.",
   correoAviso: "El correo de aviso no es válido.",

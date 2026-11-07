@@ -56,7 +56,7 @@ function marco(cuerpo: string): string {
 export function correoAlCliente(d: DatosCorreoTurno, evento: EventoTurno, negocio: string, ajustes: Pick<AjustesTurnos, "cancelWindowHours">) {
   const cuando = fechaLarga(d.inicio);
   const filas: [string, string][] = [["Turno", d.tipoNombre], ["Cuándo", cuando], ["Modalidad", ETIQUETA_MODALIDAD[d.modalidad]]];
-  if (d.lugar) filas.push([d.modalidad === "ONLINE" ? "Enlace" : "Dónde", d.lugar]);
+  if (d.lugar) filas.push([/^https?:\/\//.test(d.lugar) ? "Enlace" : "Dónde", d.lugar]);
   const asunto =
     evento === "CANCELADO" ? `Turno cancelado: ${d.tipoNombre}` : evento === "REPROGRAMADO" ? `Turno reprogramado: ${d.tipoNombre}, ${cuando}` : `Turno confirmado: ${d.tipoNombre}, ${cuando}`;
   const intro =

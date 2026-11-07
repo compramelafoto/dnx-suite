@@ -60,6 +60,17 @@ export function ConfigTurno({ tipoId, inicial, enlacePublico }: { tipoId: string
           <textarea className="fo-input w-full" rows={4} maxLength={2000} value={c.publicDescription} onChange={(e) => set("publicDescription", e.target.value)} placeholder="Qué es este turno y qué conviene traer o preparar." />
         </label>
 
+        <label className="fo-field-stack">
+          <span className="fo-label">Foto (dirección https://, se muestra chica y en círculo)</span>
+          <div className="flex items-center gap-3">
+            {c.imageUrl.startsWith("https://") ? (
+              // eslint-disable-next-line @next/next/no-img-element -- vista previa de una dirección que escribe el dueño.
+              <img src={c.imageUrl} alt="" className="h-12 w-12 shrink-0 rounded-full object-cover" />
+            ) : null}
+            <input className="fo-input w-full" maxLength={500} value={c.imageUrl} onChange={(e) => set("imageUrl", e.target.value)} placeholder="https://…" />
+          </div>
+        </label>
+
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="fo-field-stack">
             <span className="fo-label">Duración (minutos)</span>
