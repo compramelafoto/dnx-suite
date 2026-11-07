@@ -548,6 +548,10 @@ export const partnersConfigSchema = z.object({
  * enlace http/https; lo demás no se dibuja (`cardHref`).
  */
 export const CARDS_MAX_ITEMS = 12;
+/** `featured`: tarjetas grandes y horizontales (foto a un lado, texto al otro), para lo principal. */
+export const CARDS_VARIANTS = ["grid", "featured"] as const;
+/** Qué parte de la foto queda a la vista cuando la portada se recorta. */
+export const CARD_IMAGE_POSITIONS = ["top", "center", "bottom"] as const;
 
 export const cardItemSchema = z.object({
   id: itemIdSchema,
@@ -557,6 +561,7 @@ export const cardItemSchema = z.object({
   text: tolerantText(400),
   buttonLabel: tolerantText(60),
   buttonUrl: tolerantText(2000),
+  imagePosition: z.enum(CARD_IMAGE_POSITIONS).optional().catch(undefined),
 });
 export type CardItem = z.infer<typeof cardItemSchema>;
 
@@ -564,6 +569,7 @@ export const cardsConfigSchema = z.object({
   title: tolerantText(200),
   intro: tolerantText(600),
   items: tolerantList(cardItemSchema, CARDS_MAX_ITEMS),
+  variant: z.enum(CARDS_VARIANTS).optional().catch(undefined),
 });
 
 /** Set cerrado de íconos (se dibujan con lucide-react en la vista). */

@@ -283,3 +283,16 @@ describe("cardHref", () => {
     expect(cardHref("")).toBeUndefined();
   });
 });
+
+describe("CARDS destacadas y encuadre", () => {
+  it("la forma destacada dibuja tarjetas horizontales y el encuadre «arriba» sube la foto", async () => {
+    const { CardsBlockView } = await import("@/components/website/render/blocks/cards-block-view");
+    const item = { id: "1", imageUrl: "https://cdn/x.jpg", badge: "", title: "Curso", text: "", buttonLabel: "Ver", buttonUrl: "/w/x", imagePosition: "top" as const };
+    const html = renderToStaticMarkup(createElement(CardsBlockView, { config: { title: "", intro: "", items: [item], variant: "featured" }, data: publico }));
+    expect(html).toContain("md:flex-row");
+    expect(html).toContain("object-[50%_15%]");
+    const grilla = renderToStaticMarkup(createElement(CardsBlockView, { config: { title: "", intro: "", items: [{ ...item, imagePosition: undefined }] }, data: publico }));
+    expect(grilla).not.toContain("md:flex-row");
+    expect(grilla).toContain("object-center");
+  });
+});
