@@ -12,7 +12,7 @@ import { COLOR_TIPO_POR_OMISION } from "./constantes";
 export const NOMBRE_TIPO_MAXIMO = 80;
 export const COLOR_VALIDO = /^#[0-9a-fA-F]{6}$/;
 
-export type TipoVisible = { id: string; name: string; color: string; order: number; isActive: boolean };
+export type TipoVisible = { id: string; name: string; color: string; order: number; isActive: boolean; isBookable?: boolean };
 export type ResultadoTipo = { ok: true; id: string } | { ok: false; error: string };
 export type ResultadoSimple = { ok: true } | { ok: false; error: string };
 
@@ -40,7 +40,7 @@ export async function listarTipos(ctx: CtxAgenda, opciones: { conBajas?: boolean
   if (!puedeVerAgenda(ctx)) return [];
   const filas = await prisma.fotofficeCitaTipo.findMany({
     where: { workspaceId: ctx.workspaceId, ...(opciones.conBajas ? {} : { isActive: true }) },
-    select: { id: true, name: true, color: true, order: true, isActive: true },
+    select: { id: true, name: true, color: true, order: true, isActive: true, isBookable: true },
     orderBy: [{ order: "asc" }, { name: "asc" }],
   });
   return filas as TipoVisible[];

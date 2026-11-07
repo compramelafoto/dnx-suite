@@ -1,10 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { crearTipoCitaAction, editarTipoCitaAction } from "@/app/actions/agenda";
 
-type Tipo = { id: string; name: string; color: string; order: number; isActive: boolean };
+type Tipo = { id: string; name: string; color: string; order: number; isActive: boolean; isBookable?: boolean };
 
 const MENSAJE_FALLA = "No se pudo guardar el cambio. Probá de nuevo.";
 
@@ -114,6 +115,9 @@ function FilaTipo({
       <button type="button" className="fo-btn fo-btn-ghost text-xs" disabled={pendiente || ultimo} aria-label={`Bajar ${tipo.name}`} onClick={() => onMover(1)}>
         ↓
       </button>
+      <Link href={`/workspace/configuracion/agenda/tipos/${tipo.id}`} className="fo-btn fo-btn-ghost text-xs">
+        {tipo.isBookable ? "Turnos online · publicado" : "Turnos online"}
+      </Link>
       <button type="button" className="fo-btn fo-btn-ghost text-xs" disabled={pendiente} onClick={() => correr(() => editarTipoCitaAction(tipo.id, { isActive: !tipo.isActive }))}>
         {tipo.isActive ? "Dar de baja" : "Reactivar"}
       </button>
