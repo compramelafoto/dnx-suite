@@ -28,7 +28,7 @@ const CLF_OK = fetchCon(200, { id: 1283, titulo: "Colación 7°", slug: "escuela
 
 beforeEach(() => {
   vi.clearAllMocks();
-  H.pedido.mockResolvedValue({ id: "ped-1" });
+  H.pedido.mockResolvedValue({ id: "ped-1", status: "CONFIRMADO" });
   H.proyecto.mockResolvedValue({ id: "pro-1", pedidoId: null });
   H.upsert.mockResolvedValue(FILA);
   H.vinculoFind.mockResolvedValue(null);
@@ -69,6 +69,14 @@ describe("vincularAlbum", () => {
     H.proyecto.mockResolvedValue({ id: "pro-1", pedidoId: "ped-1" });
     expect(await V.vincularAlbum("ws-1", 7, { proyectoId: "pro-1" }, ENLACE, { fetch: CLF_OK })).toEqual({ ok: false, error: V.MENSAJES_VINCULO_CLF.heredado });
     expect(H.upsert).not.toHaveBeenCalled();
+  });
+
+  it("pedido cancelado: no se vincula ni se quita", async () => {
+    H.pedido.mockResolvedValue({ id: "ped-1", status: "CANCELADO" });
+    expect(await V.vincularAlbum("ws-1", 7, { pedidoId: "ped-1" }, ENLACE, { fetch: CLF_OK })).toEqual({ ok: false, error: V.MENSAJES_VINCULO_CLF.cancelado });
+    expect(await V.quitarVinculo("ws-1", { pedidoId: "ped-1" })).toEqual({ ok: false, error: V.MENSAJES_VINCULO_CLF.cancelado });
+    expect(H.upsert).not.toHaveBeenCalled();
+    expect(H.deleteMany).not.toHaveBeenCalled();
   });
 
   it("proyecto sin pedido: vínculo propio", async () => {

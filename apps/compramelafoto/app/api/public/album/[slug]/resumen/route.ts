@@ -21,11 +21,11 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ slu
     const id = esIdDeAlbum(segmento);
     const album = await prisma.album.findFirst({
       where: id !== null ? { id } : { publicSlug: segmento },
-      select: { id: true, title: true, publicSlug: true, isTest: true, deletedAt: true },
+      select: { id: true, title: true, publicSlug: true, isTest: true, isHidden: true, deletedAt: true },
     });
     if (!album) return NextResponse.json(NO_ENCONTRADO, { status: 404 });
 
-    const packs = await prisma.packDefinition.findMany({ where: { albumId: album.id }, select: { validUntil: true } });
+    const packs = await prisma.packDefinition.findMany({ where: { albumId: album.id }, select: { validUntil: true, isActive: true } });
     const resumen = armarResumen(album, packs);
     if (!resumen) return NextResponse.json(NO_ENCONTRADO, { status: 404 });
 

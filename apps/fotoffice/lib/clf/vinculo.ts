@@ -26,6 +26,7 @@ export const MENSAJES_VINCULO_CLF = {
   noExiste: "Ese álbum no existe en CompraMeLaFoto o no está publicado.",
   sinConexion: "No pudimos consultar CompraMeLaFoto. Probá de nuevo en un rato.",
   pedido: "No encontramos el pedido.",
+  cancelado: "El pedido está cancelado: no se le cambia el álbum.",
   proyecto: "No encontramos el proyecto.",
   heredado: "Este proyecto toma el álbum de su pedido. Vinculalo desde el pedido.",
 } as const;
@@ -51,14 +52,14 @@ function aVista(f: FilaVinculo, heredadoDelPedido: boolean): VinculoVista {
 async function resolverDestino(
   workspaceId: string,
   destino: DestinoVinculo,
-): Promise<{ donde: { pedidoId: string } | { proyectoId: string }; heredado: boolean } | { error: string }> {
+): Promise<{ donde: { pedidoId: string } | { proyectoId: string }; heredado: boolean; cancelado: boolean } | { error: string }> {
   if ("pedidoId" in destino) {
-    const p = await prisma.fotofficePedido.findFirst({ where: { id: destino.pedidoId, workspaceId }, select: { id: true } });
-    return p ? { donde: { pedidoId: p.id }, heredado: false } : { error: MENSAJES_VINCULO_CLF.pedido };
+    const p = await prisma.fotofficePedido.findFirst({ where: { id: destino.pedidoId, workspaceId }, select: { id: true, status: true } });
+    return p ? { donde: { pedidoId: p.id }, heredado: false, cancelado: p.status === "CANCELADO" } : { error: MENSAJES_VINCULO_CLF.pedido };
   }
   const pr = await prisma.fotofficeProyecto.findFirst({ where: { id: destino.proyectoId, workspaceId }, select: { id: true, pedidoId: true } });
   if (!pr) return { error: MENSAJES_VINCULO_CLF.proyecto };
-  return pr.pedidoId ? { donde: { pedidoId: pr.pedidoId }, heredado: true } : { donde: { proyectoId: pr.id }, heredado: false };
+  return pr.pedidoId ? { donde: { pedidoId: pr.pedidoId }, heredado: true, cancelado: false } : { donde: { proyectoId: pr.id }, heredado: false, cancelado: false };
 }
 
 export async function vinculoDe(workspaceId: string, destino: DestinoVinculo): Promise<VinculoVista | null> {
@@ -86,6 +87,7 @@ export async function vincularAlbum(
   const d = await resolverDestino(workspaceId, destino);
   if ("error" in d) return { ok: false, error: d.error };
   if (d.heredado) return { ok: false, error: MENSAJES_VINCULO_CLF.heredado };
+  if (d.cancelado) return { ok: false, error: MENSAJES_VINCULO_CLF.cancelado };
 
   const r = await leerResumenAlbumClf(ref, deps);
   if (!r.ok) return { ok: false, error: r.codigo === "NO_EXISTE" ? MENSAJES_VINCULO_CLF.noExiste : MENSAJES_VINCULO_CLF.sinConexion };
@@ -111,6 +113,7 @@ export async function quitarVinculo(workspaceId: string, destino: DestinoVinculo
   const d = await resolverDestino(workspaceId, destino);
   if ("error" in d) return { ok: false, error: d.error };
   if (d.heredado) return { ok: false, error: MENSAJES_VINCULO_CLF.heredado };
+  if (d.cancelado) return { ok: false, error: MENSAJES_VINCULO_CLF.cancelado };
   await prisma.fotofficeClfVinculo.deleteMany({ where: { workspaceId, ...d.donde } });
   return { ok: true };
 }

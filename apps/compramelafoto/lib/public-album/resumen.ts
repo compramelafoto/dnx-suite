@@ -21,13 +21,23 @@ export type AlbumParaResumen = {
   title: string;
   publicSlug: string;
   isTest: boolean;
+  /** Oculto por su dueño: CLF no lo muestra, así que tampoco hay resumen. */
+  isHidden: boolean;
   deletedAt: Date | null;
 };
 
-/** Álbumes de prueba y borrados no tienen resumen público (la ruta responde 404). */
-export function armarResumen(album: AlbumParaResumen, packs: ReadonlyArray<{ validUntil: Date | null }>): ResumenAlbumPublico | null {
-  if (album.isTest || album.deletedAt) return null;
-  const vencimientos = packs.flatMap((p) => (p.validUntil ? [p.validUntil.getTime()] : []));
+/**
+ * Álbumes de prueba, ocultos y borrados no tienen resumen público (la ruta responde 404).
+ * La fecha de cierre sale de los packs activos; si no queda ninguno activo, de todos (la preventa ya cerró).
+ */
+export function armarResumen(
+  album: AlbumParaResumen,
+  packs: ReadonlyArray<{ validUntil: Date | null; isActive: boolean }>,
+): ResumenAlbumPublico | null {
+  if (album.isTest || album.isHidden || album.deletedAt) return null;
+  const activos = packs.filter((p) => p.isActive);
+  const base = activos.length ? activos : packs;
+  const vencimientos = base.flatMap((p) => (p.validUntil ? [p.validUntil.getTime()] : []));
   return {
     id: album.id,
     titulo: album.title,
