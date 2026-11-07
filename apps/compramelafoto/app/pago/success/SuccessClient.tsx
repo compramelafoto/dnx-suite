@@ -5,6 +5,7 @@ import { purchasedThingsLabel } from "@/lib/videos/purchase-success-copy";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { isPreventaUxV2EnabledClient } from "@/lib/preventa-canjeable/preventa-ux-v2-feature-flag";
+import { destinoTrasPagoDePreventa } from "@/lib/preventa-canjeable/destino-pago-exitoso";
 import Card from "@/components/ui/Card";
 import CheckoutMpPreparingOverlay from "@/components/checkout/CheckoutMpPreparingOverlay";
 import PaymentRecoveryActions from "@/components/checkout/PaymentRecoveryActions";
@@ -152,11 +153,14 @@ export default function SuccessClient() {
       // Preventa escolar: puente legacy selfies o hub unificado (PREVENTA_UX_V2)
       if (data.paymentStatus === "approved" && orderType === "PRECOMPRA_ORDER") {
         setTimeout(() => {
-          if (isPreventaUxV2EnabledClient()) {
-            router.push(`/cliente/pack/${orderId}`);
-          } else {
-            router.push(`/order/${orderId}/selfies`);
-          }
+          router.push(
+            destinoTrasPagoDePreventa({
+              packAccessUrl: data.packAccessUrl,
+              preventaUxV2: isPreventaUxV2EnabledClient(),
+              orderId,
+              selfiesOrderId: orderId ?? "",
+            }),
+          );
         }, 1500);
         return;
       }
@@ -167,11 +171,16 @@ export default function SuccessClient() {
         Number.isFinite(data.preCompraOrderId)
       ) {
         setTimeout(() => {
-          if (isPreventaUxV2EnabledClient() && orderId) {
-            router.push(`/cliente/pack/${orderId}`);
-          } else {
-            router.push(`/order/${data.preCompraOrderId}/selfies`);
-          }
+          // Con el enlace del pack (código personal) la familia entra sin sesión; antes iba a
+          // `/cliente/pack/<id>`, que pide sesión y mostraba "Error: No autenticado".
+          router.push(
+            destinoTrasPagoDePreventa({
+              packAccessUrl: data.packAccessUrl,
+              preventaUxV2: isPreventaUxV2EnabledClient(),
+              orderId,
+              selfiesOrderId: data.preCompraOrderId,
+            }),
+          );
         }, 1500);
         return;
       }
