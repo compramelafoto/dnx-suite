@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { enlaceDelAlbumClf, interpretarEnlaceClf } from "./enlace";
+import { enlaceDelAlbumClf, interpretarEnlaceClf, textoPreventaClf } from "./enlace";
 
 describe("interpretarEnlaceClf", () => {
   it("el enlace de la preventa de José Ingenieros", () => {
@@ -39,5 +39,19 @@ describe("enlaceDelAlbumClf", () => {
   });
   it("sin preventa, al álbum", () => {
     expect(enlaceDelAlbumClf({ slug: "abc", tienePreventa: false })).toBe("https://www.compramelafoto.com/album/abc");
+  });
+});
+
+describe("textoPreventaClf", () => {
+  const AHORA = new Date("2026-11-07T15:00:00-03:00");
+  it("abierta: fecha en hora de Buenos Aires", () => {
+    expect(textoPreventaClf({ tienePreventa: true, preventaCierraEl: new Date("2026-11-15T23:59:00-03:00") }, AHORA)).toBe("Preventa: cierra el 15/11/2026");
+  });
+  it("vencida", () => {
+    expect(textoPreventaClf({ tienePreventa: true, preventaCierraEl: new Date("2026-11-01T23:59:00-03:00") }, AHORA)).toBe("Preventa cerrada");
+  });
+  it("sin fecha y sin preventa", () => {
+    expect(textoPreventaClf({ tienePreventa: true, preventaCierraEl: null }, AHORA)).toBe("Preventa sin fecha de cierre");
+    expect(textoPreventaClf({ tienePreventa: false, preventaCierraEl: null }, AHORA)).toBeNull();
   });
 });

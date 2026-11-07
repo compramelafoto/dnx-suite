@@ -40,3 +40,13 @@ export function enlaceDelAlbumClf(a: { slug: string; tienePreventa: boolean }, b
   const raiz = `${base.replace(/\/+$/, "")}/album/${encodeURIComponent(a.slug)}`;
   return a.tienePreventa ? `${raiz}/preventa` : raiz;
 }
+
+const DIA_BA = new Intl.DateTimeFormat("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "2-digit", month: "2-digit", year: "numeric" });
+
+/** La línea de estado de la preventa para la tarjeta: «Preventa: cierra el dd/mm/aaaa», «Preventa cerrada» o null. */
+export function textoPreventaClf(v: { tienePreventa: boolean; preventaCierraEl: Date | null }, ahora: Date): string | null {
+  if (!v.tienePreventa) return null;
+  if (!v.preventaCierraEl) return "Preventa sin fecha de cierre";
+  if (v.preventaCierraEl.getTime() < ahora.getTime()) return "Preventa cerrada";
+  return `Preventa: cierra el ${DIA_BA.format(v.preventaCierraEl)}`;
+}

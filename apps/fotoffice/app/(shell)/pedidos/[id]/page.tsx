@@ -12,6 +12,8 @@ import { EnviarPedido } from "@/components/pedidos/enviar-pedido";
 import { ProyectosDelPedido } from "@/components/pedidos/proyectos-del-pedido";
 import { ContratantesDelPedido } from "@/components/contratos/contratantes-del-pedido";
 import { ContratosDelPedido } from "@/components/contratos/contratos-del-pedido";
+import { TarjetaClf } from "@/components/clf/tarjeta-clf";
+import { vinculoParaTarjeta } from "@/lib/clf/vinculo";
 import { aItemDePedido, ItemsPedido } from "@/components/pedidos/items-pedido";
 import { RegistrarCobro } from "@/components/pedidos/registrar-cobro";
 import { TarjetaCitas } from "@/components/agenda/tarjeta-citas";
@@ -133,6 +135,8 @@ export default async function PedidoPage({ params }: { params: Promise<{ id: str
         gestionaContratos ? listarPlantillas(ctx) : Promise.resolve([]),
       ])
     : [null, []];
+  // Tarjeta "CompraMeLaFoto" (conexión con CLF, etapa 1): el álbum de CLF vinculado al pedido.
+  const vinculoClf = await vinculoParaTarjeta(workspace.id, { pedidoId: detalle.id });
   const [mensajes, comprobantes, envio, rubros] = await Promise.all([
     mensajesDePedido(workspace.id, detalle.id),
     comprobantesDeCobros(workspace.id, detalle.cobros.map((c) => c.id)),
@@ -488,6 +492,8 @@ export default async function PedidoPage({ params }: { params: Promise<{ id: str
               />
             </section>
           ) : null}
+
+          <TarjetaClf destino={{ pedidoId: detalle.id }} vinculo={vinculoClf} puedeEditar={gestiona && !cancelado} sujeto="Este pedido" />
 
           {citas ? <TarjetaCitas citas={citas} nueva={`pedido=${encodeURIComponent(detalle.id)}`} vacio="Este pedido todavía no tiene citas." /> : null}
 

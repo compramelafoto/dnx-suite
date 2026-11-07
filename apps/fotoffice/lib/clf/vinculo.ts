@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "@repo/db";
-import { enlaceDelAlbumClf, interpretarEnlaceClf } from "./enlace";
+import { enlaceDelAlbumClf, interpretarEnlaceClf, textoPreventaClf } from "./enlace";
 import { leerResumenAlbumClf, type DepsResumenClf } from "./resumen";
 
 /**
@@ -113,4 +113,14 @@ export async function quitarVinculo(workspaceId: string, destino: DestinoVinculo
   if (d.heredado) return { ok: false, error: MENSAJES_VINCULO_CLF.heredado };
   await prisma.fotofficeClfVinculo.deleteMany({ where: { workspaceId, ...d.donde } });
   return { ok: true };
+}
+
+/** Lo que la tarjeta de la ficha necesita, ya armado en el servidor (el estado de la preventa, en hora de Buenos Aires). */
+export async function vinculoParaTarjeta(
+  workspaceId: string,
+  destino: DestinoVinculo,
+  ahora: Date = new Date(),
+): Promise<{ titulo: string; enlace: string; estadoPreventa: string | null; heredadoDelPedido: boolean } | null> {
+  const v = await vinculoDe(workspaceId, destino);
+  return v ? { titulo: v.titulo, enlace: v.enlace, estadoPreventa: textoPreventaClf(v, ahora), heredadoDelPedido: v.heredadoDelPedido } : null;
 }
