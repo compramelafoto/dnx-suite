@@ -14,6 +14,7 @@ import { ContratantesDelPedido } from "@/components/contratos/contratantes-del-p
 import { ContratosDelPedido } from "@/components/contratos/contratos-del-pedido";
 import { TarjetaClf } from "@/components/clf/tarjeta-clf";
 import { vinculoParaTarjeta } from "@/lib/clf/vinculo";
+import { puedeVerVentasClf, resumenDelAlbum } from "@/lib/clf/ventas-servidor";
 import { aItemDePedido, ItemsPedido } from "@/components/pedidos/items-pedido";
 import { RegistrarCobro } from "@/components/pedidos/registrar-cobro";
 import { TarjetaCitas } from "@/components/agenda/tarjeta-citas";
@@ -137,6 +138,10 @@ export default async function PedidoPage({ params }: { params: Promise<{ id: str
     : [null, []];
   // Tarjeta "CompraMeLaFoto" (conexión con CLF, etapa 1): el álbum de CLF vinculado al pedido.
   const vinculoClf = await vinculoParaTarjeta(workspace.id, { pedidoId: detalle.id });
+  // Lo vendido por ese álbum (Ventas CLF, etapa 2): sólo para quien puede ver ese dinero. El total del pedido no cambia.
+  const resumenClf =
+    vinculoClf && (await puedeVerVentasClf(user.id, workspace.id)) ? await resumenDelAlbum(workspace.id, vinculoClf.albumId) : null;
+  const ventasClf = resumenClf && vinculoClf ? { cantidad: resumenClf.ventas, acreditado: resumenClf.acreditado, albumId: vinculoClf.albumId } : null;
   const [mensajes, comprobantes, envio, rubros] = await Promise.all([
     mensajesDePedido(workspace.id, detalle.id),
     comprobantesDeCobros(workspace.id, detalle.cobros.map((c) => c.id)),
@@ -493,7 +498,7 @@ export default async function PedidoPage({ params }: { params: Promise<{ id: str
             </section>
           ) : null}
 
-          <TarjetaClf destino={{ pedidoId: detalle.id }} vinculo={vinculoClf} puedeEditar={gestiona && !cancelado} sujeto="Este pedido" />
+          <TarjetaClf destino={{ pedidoId: detalle.id }} vinculo={vinculoClf} puedeEditar={gestiona && !cancelado} sujeto="Este pedido" ventas={ventasClf} />
 
           {citas ? <TarjetaCitas citas={citas} nueva={`pedido=${encodeURIComponent(detalle.id)}`} vacio="Este pedido todavía no tiene citas." /> : null}
 

@@ -12,6 +12,7 @@ export type VinculoClfDeTarjeta = {
   /** Ya armada en el servidor (hora de Buenos Aires): «Preventa: cierra el …», «Preventa cerrada» o null. */
   estadoPreventa: string | null;
   heredadoDelPedido: boolean;
+  albumId?: number;
 };
 
 /**
@@ -24,12 +25,15 @@ export function TarjetaClf({
   vinculo,
   puedeEditar,
   sujeto,
+  ventas = null,
 }: {
   destino: { pedidoId: string } | { proyectoId: string };
   vinculo: VinculoClfDeTarjeta | null;
   puedeEditar: boolean;
   /** «Este pedido» / «Este proyecto», para el texto vacío. */
   sujeto: string;
+  /** Lo vendido por este álbum en Ventas CLF (sólo para quien puede ver ese dinero). */
+  ventas?: { cantidad: number; acreditado: number; albumId: number } | null;
 }) {
   const router = useRouter();
   const [pendiente, iniciar] = useTransition();
@@ -83,6 +87,15 @@ export function TarjetaClf({
           {vinculo.estadoPreventa ? <p className="text-[var(--fo-muted)]">{vinculo.estadoPreventa}</p> : null}
           {vinculo.heredadoDelPedido ? <p className="text-xs text-[var(--fo-muted)]">Tomado del pedido.</p> : null}
           <p className="break-all text-xs text-[var(--fo-muted)]">{vinculo.enlace}</p>
+          {ventas ? (
+            <p>
+              Vendido por este álbum: {ventas.cantidad} {ventas.cantidad === 1 ? "venta" : "ventas"} ·{" "}
+              {ventas.acreditado.toLocaleString("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 })} acreditado.{" "}
+              <a className="underline" href={`/ventas-clf?album=${ventas.albumId}`}>
+                Ver ventas
+              </a>
+            </p>
+          ) : null}
           <div className="flex flex-wrap gap-2">
             <a className="fo-btn fo-btn-secondary text-sm" href={vinculo.enlace} target="_blank" rel="noopener noreferrer">
               Abrir en CLF
