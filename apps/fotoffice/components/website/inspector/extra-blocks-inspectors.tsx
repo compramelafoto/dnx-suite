@@ -456,6 +456,15 @@ export function CardsInspector({ config, onChange }: { config: CardsBlockConfig;
     <div className="space-y-4">
       <TextField label="Título (opcional)" value={config.title} onChange={(v) => onChange({ ...config, title: v })} />
       <TextAreaField label="Texto de introducción (opcional)" value={config.intro} onChange={(v) => onChange({ ...config, intro: v })} />
+      <SelectField
+        label="Forma"
+        value={config.variant ?? "grid"}
+        onChange={(v) => onChange({ ...config, variant: v === "featured" ? "featured" : "grid" })}
+        options={[
+          { value: "grid", label: "Grilla de tarjetas chicas" },
+          { value: "featured", label: "Destacadas: grandes, con la foto al costado" },
+        ]}
+      />
       {items.map((item, i) => (
         <div key={item.id || i} className="space-y-2 rounded-lg border border-[var(--fo-border)] p-3">
           <div className="flex items-center justify-between gap-2">
@@ -472,6 +481,16 @@ export function CardsInspector({ config, onChange }: { config: CardsBlockConfig;
               const cur = latest.current;
               onChange({ ...cur, items: cur.items.map((it, j) => (j === i ? { ...it, imageUrl: url ?? "" } : it)) });
             }}
+          />
+          <SelectField
+            label="Qué parte de la foto se ve"
+            value={item.imagePosition ?? "center"}
+            onChange={(v) => cambiar(i, { imagePosition: v === "top" ? "top" : v === "bottom" ? "bottom" : "center" })}
+            options={[
+              { value: "center", label: "El centro" },
+              { value: "top", label: "Arriba (para que se vea la cara)" },
+              { value: "bottom", label: "Abajo" },
+            ]}
           />
           <TextField label="Título" value={item.title} onChange={(v) => cambiar(i, { title: v })} />
           <TextField label="Etiqueta sobre la foto (opcional)" value={item.badge} onChange={(v) => cambiar(i, { badge: v })} helper="Por ejemplo «Gratis» o «Próximamente»." />
