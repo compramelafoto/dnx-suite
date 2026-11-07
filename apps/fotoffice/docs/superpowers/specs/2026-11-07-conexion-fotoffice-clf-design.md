@@ -11,7 +11,7 @@ Hoy un trabajo que se vende por CompraMeLaFoto (CLF) queda partido en dos. Por e
 
 Lo que se busca:
 1. **Cualquier fotógrafo** que use las dos plataformas ve en FOTOFFICE lo que realmente cobró por CLF, venta por venta. Cada venta está verificada contra su cuenta de Mercado Pago y separada del dinero del mostrador.
-2. **Daniel**, como dueño de CLF, ve desde FOTOFFICE todas las comisiones que cobra la plataforma.
+2. **Daniel**, sólo con su cuenta dnxfotografia@gmail.com, ve en FOTOFFICE el dinero limpio que le dejan las comisiones de CLF y de FOTOFFICE (y más adelante las del resto de las plataformas), conciliado con su cuenta de Mercado Pago.
 3. Un pedido o un proyecto de FOTOFFICE sabe a qué álbum de CLF corresponde y puede poner ese enlace en el contrato.
 
 **Cuándo sale bien:** el fotógrafo abre FOTOFFICE y, sin cuentas a mano, ve «este mes cobré $X por CLF». La cifra coincide peso por peso con lo que entró a su Mercado Pago. La Caja del mostrador no cambia nada.
@@ -19,7 +19,7 @@ Lo que se busca:
 **Cuándo sale mal, aunque funcione:**
 - Una cifra en FOTOFFICE no coincide con Mercado Pago.
 - Aparece en FOTOFFICE un nombre, correo o teléfono de una familia, o el nombre de un chico.
-- Sabina o Camila ven las comisiones de la plataforma.
+- Alguien que no sea Daniel con su cuenta dnxfotografia@gmail.com (Sabina, Camila, un usuario futuro, incluso un super admin) ve los ingresos de la plataforma.
 - La Caja o los Informes de resultados se inflan con ventas de CLF sin que nadie lo haya decidido.
 
 ## 2. Hechos de partida (verificados el 07/11/2026)
@@ -47,7 +47,7 @@ Lo que se busca:
 |---|---|---|
 | **1. Vínculo con el álbum** | El pedido o proyecto queda unido a un álbum de CLF; el enlace se ve en las fichas; variable `[preventa_enlace]` en contratos | Una ruta pública chica de sólo lectura |
 | **2. Ventas CLF del fotógrafo** | Conexión de cuentas con consentimiento; libro «Ventas CLF» verificado contra Mercado Pago; reintegros | Sí: pantalla de autorización y API de ventas |
-| **3. Comisiones de plataforma** | Panel de comisiones de todas las ventas de CLF, sólo para Daniel | Sí: API de comisiones con llave de plataforma |
+| **3. Ingresos de la plataforma** | Dinero limpio de las comisiones de CLF y FOTOFFICE, conciliado con Mercado Pago, sólo para la cuenta de Daniel | Sí: API de comisiones con llave de plataforma |
 
 Cada etapa sale a producción sola y tiene su propio plan. La 1 no depende de la 2.
 
@@ -210,31 +210,77 @@ Lo que resulte cambia esto:
 
 ---
 
-## 6. Etapa 3 — Comisiones de plataforma (sólo Daniel)
+## 6. Etapa 3 — Ingresos de la plataforma DNX (sólo la cuenta de Daniel)
 
-**Qué se ve.** Pantalla **«Comisiones CLF»** dentro del área de administración de plataforma de FOTOFFICE (`/admin/comisiones-clf`):
-- Por mes: ventas, dinero cobrado a las familias y estas columnas:
-  - **Comisión bruta:** `platformCommissionCents`.
-  - **Descuento a vendedores referidos:** `referralFeeDiscountCents`.
-  - **Pagado a quienes refirieron:** `ReferralEarning` que no fueron revertidos.
-  - **Comisión neta** = bruta − descuento − pagado a quienes refirieron. Es lo que de verdad le queda a la plataforma.
-  - **Retenido para organizadores:** entra a la cuenta de la aplicación pero se le debe a otro, así que va en una columna aparte y **no** suma a la comisión.
-  - **Es mi decisión.**
-- Desglose por fotógrafo (nombre de la cuenta de CLF) y por álbum.
-- Lista de pedidos con id de pago de Mercado Pago, sin datos de compradores.
+**Lo que pidió Daniel el 07/11/2026:**
+- Verlo **desde dnxfotografia@gmail.com**, y **sólo con esa cuenta**.
+- Ver las comisiones de **CLF y también las que genera FOTOFFICE**. Más adelante, las del resto de las plataformas; hoy sólo esas dos generan comisiones.
+- Ver el **dinero limpio que le llega**, asociado a los cobros de Mercado Pago.
+- Que Sabina, Camila y cualquier usuario futuro **no** lo puedan ver.
+
+### 6.1 Quién lo ve
+
+- Hay un permiso personal nuevo, **«Ingresos de la plataforma»**, que se guarda en una tabla propia: `FotofficePlatformGrant`, con `userId`, `permiso`, `otorgadoPor` y `otorgadoEl`.
+- Se lo da **únicamente** al usuario 4 de FOTOFFICE (dnxfotografia@gmail.com).
+- **No sale** de ningún rol:
+  - Ni del rol dentro del espacio (dueño, admin, Equipo).
+  - Ni de `GlobalRole`. **El super admin tampoco lo ve** si no tiene el permiso.
+  - Así, a dnxfotografia no hace falta devolverle el super admin, y nadie que se sume a DNX Estudio, por más permisos que tenga, llega a esta pantalla.
+- **No hay pantalla para dar este permiso.** Se da por SQL, con registro en la auditoría de plataforma. **Es mi decisión:** sacar el botón elimina el riesgo de que alguien se lo dé por error.
+- La pantalla vive fuera de los espacios, en `/mi-cuenta/ingresos-plataforma`, y aparece en el menú de cuenta sólo para quien tiene el permiso.
+- Para cualquier otra persona, la dirección responde **404**: ni siquiera se entera de que existe.
+- Las rutas de datos piden el permiso en el servidor en cada consulta; esconder el botón no alcanza.
+
+### 6.2 Qué muestra
+
+**Por mes, y por plataforma (CLF, FOTOFFICE y, más adelante, las demás):**
+
+| Columna | Qué es |
+|---|---|
+| Ventas | cantidad de cobros con comisión |
+| Comisión bruta | lo que la plataforma cobró arriba del precio |
+| Descuentos a referidos | lo que se le perdonó al vendedor referido (CLF) |
+| Pagado a quienes refirieron | `ReferralEarning` no revertido (CLF) |
+| **Dinero limpio** | bruta − descuentos − pagado a quienes refirieron. **Es la cifra principal** |
+| Confirmado en Mercado Pago | cuánto de ese dinero limpio está encontrado en la cuenta 97484805 (ver 6.4) |
+| Retenido para terceros | lo que entra a la cuenta pero se le debe a otro (comisión de organizadores en CLF). Va aparte y **no** suma al dinero limpio |
+
+**Abajo de la tabla**
+- Detalle de cada cobro: fecha, plataforma, espacio o fotógrafo, álbum o concepto, comisión, id de pago de Mercado Pago y estado de la conciliación («Confirmado», «Pendiente de liberar», «No encontrado», «Reintegrado»).
+- Botón de CSV.
 - Los reintegros restan en el mes en que ocurren.
+- **Ventas propias de DNX.** Cuando la que vende es la misma cuenta 97484805, la comisión se muestra con la marca «venta propia», porque ese dinero entra junto con el precio. **Es mi decisión:** se cuenta en el dinero limpio, pero el filtro «sin ventas propias» deja ver lo que pagaron los demás.
 
-**De dónde sale.** Ruta nueva en CLF: `GET /api/integraciones/fotoffice/v1/comisiones?cursor=…`.
-- **No** usa una llave de fotógrafo: usa una **llave de plataforma** (`DNX_CLF_PLATFORM_FEES_KEY`) que sólo conoce el servidor de FOTOFFICE.
-- Toma los mismos `Order` de la etapa 2, de todos los fotógrafos, y descarta las copias `PrintOrder` con `ALBUM_ORDER:*`. Así corrige el doble conteo que hoy tiene `/admin/finanzas` de CLF.
-- Las comisiones de pedidos de impresión puros (`PrintOrder` sin espejo) se suman como un renglón aparte.
+### 6.3 De dónde salen los números
 
-**Validación.** Por ahora se valida **contra los datos de CLF**, no contra Mercado Pago. Las comisiones entran a la cuenta de la aplicación (`97484805`, la de dnxfotografia), pero leer pagos de **otros** cobradores con esa credencial no está garantizado por Mercado Pago. Para las ventas de DNX la validación sí sale, porque son de esa misma cuenta. Cruzar todo contra el reporte de liquidaciones de Mercado Pago queda para más adelante.
+**Las reglas son las de `/admin/finanzas-dnx/balance` de CLF (PR 633).** Ese balance ya calcula el neto de cada plataforma y se verificó contra SQL directo. Las reglas se mueven a un paquete compartido, para que el balance de CLF y este panel nunca den cifras distintas. Las que importan:
+- **CLF**
+  - Usa `platformCommissionCents` en pesos, que ya trae el recargo por extensión.
+  - Resta `referralFeeDiscountCents` y `ReferralEarning.referralAmountCents` sin `reversedAt`.
+  - Descarta las copias `PrintOrder` con `ALBUM_ORDER:*`.
+  - La comisión de organizadores sale de la parte del fotógrafo.
+- **FOTOFFICE**
+  - Usa `platformFeeArs` de los cobros por Mercado Pago. Puede incluir comisión arrastrada de cobros en efectivo, que se retuvo en ese pago.
+  - La de efectivo, transferencia u «OTRO» no cuenta hasta que se retiene o queda `SALDADO_MANUAL`.
+  - Los cobros `HIST:*` importados tienen comisión 0.
 
-**Quién lo ve.** Ver la pregunta abierta 1 (§8). Lo firme es esto:
-- **No** depende del rol dentro del espacio DNX Estudio, así que ni Sabina ni Camila lo ven, tengan el rol que tengan.
-- Depende de un permiso de **plataforma** que sólo da el super admin.
-- Si nadie lo tiene, la pantalla no existe en el menú y la ruta responde 404.
+**Cómo se trae cada plataforma**
+- **CLF:** ruta nueva `GET /api/integraciones/fotoffice/v1/comisiones?cursor=…`. Pide una **llave de plataforma** (`DNX_CLF_PLATFORM_FEES_KEY`) que sólo conoce el servidor de FOTOFFICE. Devuelve cobro por cobro, sin datos de compradores. Un cron la trae cada hora y la guarda en `FotofficePlataformaComision`.
+- **FOTOFFICE:** se lee de su propia base, de los cobros de todos los espacios, y se guarda en la misma tabla con plataforma = FOTOFFICE.
+- **Más adelante:** cada plataforma nueva (SubiLaFoto, FotoRank) se suma como otra fuente, sin cambiar la pantalla.
+
+### 6.4 Asociación con los cobros de Mercado Pago
+
+Todas las aplicaciones de Mercado Pago de DNX (DNX Suite/CLF, FotoOffice) pertenecen a la cuenta **97484805**, así que las comisiones entran ahí. Para confirmar que cada comisión entró de verdad:
+- FOTOFFICE usa la credencial de esa cuenta, que es la que DNX Estudio tiene conectada en Cobros, para pedir el **reporte de liberaciones** de Mercado Pago. Ese reporte trae cada movimiento de dinero de la cuenta, incluidas las comisiones de marketplace, con el id del pago de origen.
+- Cada renglón se empareja con la comisión por id de pago:
+  - **Confirmado:** el monto coincide.
+  - **Pendiente de liberar:** Mercado Pago todavía no liberó el dinero.
+  - **No encontrado:** no está en el reporte.
+  - **Reintegrado:** Mercado Pago lo devolvió.
+- **Primer paso obligatorio de la etapa 3: prueba de factibilidad.** Hay que pedir un reporte real de un mes y confirmar que trae las comisiones de cobros hechos por **otras** cuentas, con el id de pago de origen.
+  - Si no las trae, la confirmación se hace leyendo cada pago con el token de la aplicación (`GET /v1/payments/{id}`, que muestra `application_fee`).
+  - Si ninguna de las dos funciona, la columna «Confirmado en Mercado Pago» queda como «sin verificar» y se le avisa a Daniel antes de seguir.
 
 ---
 
@@ -249,17 +295,17 @@ Lo que resulte cambia esto:
 
 ## 8. Preguntas abiertas para Daniel
 
-1. **Quién ve las comisiones de plataforma.** Pediste atarlo a `GlobalRole` (super admin) y verlo desde dnxfotografia@gmail.com. Pero el 25/09 le quitaste el super admin a esa cuenta y quedó anotado «no volver a dárselo»: hoy el único super admin es cuart.daniel@gmail.com. Se puede resolver de dos maneras:
-   - **(a) Recomendada:** un permiso de plataforma nuevo y angosto, «Ver comisiones de CLF». Lo da sólo el super admin, lo tiene sólo dnxfotografia y no da ningún otro poder de super admin.
-   - **(b)** Verlo sólo entrando con cuart.daniel@gmail.com.
-2. **¿Arranco ya por la etapa 1?** La etapa 1 sale sola y no espera a las otras dos.
+Ninguna. Daniel decidió el 07/11 quién ve los ingresos de la plataforma (§6.1). Falta sólo que apruebe este documento.
 
 ## 9. Decisiones que tomé yo (para revisar)
 
 - Un álbum por pedido. El proyecto sólo tiene vínculo propio si no tiene pedido.
 - `[preventa_enlace]` usa la forma `/album/<slug>/preventa`, la misma que está pegada hoy en el contrato 2026-0001.
 - La etapa 2 arranca con una prueba de lectura real en Mercado Pago. Para las ventas de DNX, donde la cuenta se cobra a sí misma, puede quedar el estado «Validada (cuenta propia)».
-- Comisión neta de plataforma = bruta − descuento a referidos − pagado a quienes refirieron. Lo retenido para organizadores va aparte.
+- Dinero limpio de la plataforma = bruta − descuentos a referidos − pagado a quienes refirieron. Lo retenido para organizadores va aparte.
+- El permiso «Ingresos de la plataforma» se da sólo por SQL: no hay pantalla para darlo, y ni el super admin lo ve sin el permiso.
+- Las comisiones de ventas propias de DNX cuentan en el dinero limpio, con marca y filtro.
+- La conciliación con Mercado Pago usa el reporte de liberaciones de la cuenta 97484805, y antes hay que probar que sirve.
 - En la etapa 1 se acepta cualquier enlace válido de CLF, sin verificar que el álbum sea del fotógrafo.
 - Si las cuentas de Mercado Pago no coinciden, la conexión se hace igual, pero ninguna venta sale validada.
 - FOTOFFICE pregunta a CLF cada 15 minutos; CLF no empuja las ventas.
