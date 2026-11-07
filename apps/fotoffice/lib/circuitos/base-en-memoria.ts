@@ -243,7 +243,7 @@ const DEFECTOS: Partial<Record<Tabla, () => Fila>> = {
   }),
   fotofficeCitaTipo: () => ({
     color: "#6b7280", order: 0, isActive: true, createdAt: new Date(), updatedAt: new Date(),
-    isBookable: false, publicDescription: null, durationMinutes: null, modality: null, address: null,
+    isBookable: false, publicDescription: null, durationMinutes: null, modality: null, address: null, imageUrl: null,
   }),
   fotofficeTurnosAjustes: () => ({
     pageTitle: null, pageIntro: null, cancelWindowHours: 48, bufferMinutes: 0, minAdvanceHours: 24, maxAdvanceDays: 60, notifyEmail: null, updatedAt: new Date(),

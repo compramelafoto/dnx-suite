@@ -15,6 +15,7 @@ export type ConfigTipoEnPantalla = {
   durationMinutes: number | null;
   modality: string;
   address: string;
+  imageUrl: string;
   franjas: { weekday: number; inicio: string; fin: string }[];
 };
 
@@ -22,7 +23,7 @@ export async function leerConfigTurnoTipo(workspaceId: string, tipoId: string): 
   const t = await prisma.fotofficeCitaTipo.findFirst({
     where: { id: tipoId, workspaceId },
     select: {
-      name: true, isBookable: true, publicDescription: true, durationMinutes: true, modality: true, address: true,
+      name: true, isBookable: true, publicDescription: true, durationMinutes: true, modality: true, address: true, imageUrl: true,
       franjas: { select: { weekday: true, startMinute: true, endMinute: true }, orderBy: [{ weekday: "asc" }, { startMinute: "asc" }] },
     },
   });
@@ -34,6 +35,7 @@ export async function leerConfigTurnoTipo(workspaceId: string, tipoId: string): 
     durationMinutes: t.durationMinutes ?? null,
     modality: esModalidad(t.modality) ? t.modality : "",
     address: t.address ?? "",
+    imageUrl: t.imageUrl ?? "",
     franjas: t.franjas.map((f) => ({ weekday: f.weekday, inicio: horaDeMinutos(f.startMinute), fin: horaDeMinutos(f.endMinute) })),
   };
 }
@@ -51,7 +53,7 @@ export async function guardarConfigTurnoTipo(ctx: CtxAgenda, tipoId: unknown, da
     await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       await tx.fotofficeCitaTipo.updateMany({
         where: { id: tipoId, workspaceId },
-        data: { isBookable: c.isBookable, publicDescription: c.publicDescription, durationMinutes: c.durationMinutes, modality: c.modality, address: c.address },
+        data: { isBookable: c.isBookable, publicDescription: c.publicDescription, durationMinutes: c.durationMinutes, modality: c.modality, address: c.address, imageUrl: c.imageUrl },
       });
       await tx.fotofficeCitaTipoFranja.deleteMany({ where: { typeId: tipoId, workspaceId } });
       if (c.franjas.length > 0) {
