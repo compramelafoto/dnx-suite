@@ -77,7 +77,7 @@ export async function enlacePreventaDelPedido(workspaceId: string, pedidoId: str
 
 export async function vincularAlbum(
   workspaceId: string,
-  userId: number,
+  userId: number | null,
   destino: DestinoVinculo,
   texto: string,
   deps: DepsResumenClf = {},
