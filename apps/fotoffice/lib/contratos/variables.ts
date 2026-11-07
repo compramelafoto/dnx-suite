@@ -44,6 +44,7 @@ export const VARIABLES_CONTRATO: readonly VariableContrato[] = [
   { clave: "pedido_total", etiqueta: "Total del pedido", descripcion: "El total del pedido, en pesos.", grupo: "Pedido" },
   { clave: "pedido_items", etiqueta: "Detalle del pedido", descripcion: "Tabla con lo contratado: producto, cantidad, precio e importe.", grupo: "Pedido" },
   { clave: "pedido_cuotas", etiqueta: "Plan de cuotas", descripcion: "Tabla con las cuotas: número, vencimiento e importe. Vacía si el pedido no tiene cuotas.", grupo: "Pedido" },
+  { clave: "preventa_enlace", etiqueta: "Enlace de la preventa en CLF", descripcion: "La dirección de la preventa (o del álbum) de CompraMeLaFoto vinculado al pedido. Vacía si el pedido no tiene álbum vinculado.", grupo: "Pedido" },
   { clave: "evento", etiqueta: "Evento", descripcion: "El nombre del evento del pedido.", grupo: "Evento" },
   { clave: "evento_fecha", etiqueta: "Fecha del evento", descripcion: "El día del evento, en dd/mm/aaaa.", grupo: "Evento" },
   { clave: "empresa_nombre", etiqueta: "Nombre de la empresa", descripcion: "El nombre o razón social que se cargó en Ajustes de contratos.", grupo: "Empresa" },
@@ -100,6 +101,8 @@ export type ContextoContratoEntrada = {
   contratantes: readonly ContratanteParaContrato[];
   empresa: { nombre: string | null; cuit: string | null; domicilio: string | null };
   evento: { nombre: string | null; fecha: string | null };
+  /** `[preventa_enlace]`: el enlace del álbum de CLF vinculado al pedido (null o ausente sin vínculo). */
+  preventaEnlace?: string | null;
   numero: string;
   hoy: Date;
 };
@@ -177,6 +180,7 @@ export function contextoContrato(entrada: ContextoContratoEntrada): (clave: stri
         ])
       : null,
   );
+  valores.set("preventa_enlace", limpio(entrada.preventaEnlace ?? null));
   valores.set("evento", limpio(entrada.evento.nombre));
   valores.set("evento_fecha", fechaYmd(entrada.evento.fecha));
   valores.set("empresa_nombre", limpio(entrada.empresa.nombre));
