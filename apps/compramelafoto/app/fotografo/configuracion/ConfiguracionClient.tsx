@@ -1692,6 +1692,20 @@ export default function ConfiguracionClient({
                 />
               </Card>
               )}
+              <Card className="flex flex-wrap items-center justify-between gap-3 p-6">
+                <div>
+                  <h2 className="text-lg font-medium text-[#1a1a1a]">Apps conectadas</h2>
+                  <p className="text-sm text-[#6b7280]">
+                    Apps como FOTOFFICE a las que autorizaste a ver tus ventas. Desde ahí podés quitarles el acceso.
+                  </p>
+                </div>
+                <Link
+                  href="/fotografo/configuracion/apps-conectadas"
+                  className="text-sm font-medium text-[#c27b3d] hover:underline"
+                >
+                  Ver apps conectadas →
+                </Link>
+              </Card>
               </>
             )}
 
