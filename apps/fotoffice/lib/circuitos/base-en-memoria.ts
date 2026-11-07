@@ -66,7 +66,7 @@ const TABLAS = [
   "fotofficeGaleriaAjustes", "fotofficeGaleriaCompra", "fotofficeGaleriaCompraFoto", "fotofficeGaleriaDescarga",
   "fotofficeGaleriaRonda", "fotofficeGaleriaDecision",
   // Conexión con CLF (etapa 1): el álbum vinculado a un pedido o proyecto.
-  "fotofficeClfVinculo",
+  "fotofficeClfVinculo", "fotofficeClfConexion", "fotofficeClfVenta",
   // Caja (los cobros de pedidos depositan y se anulan con contramovimiento), módulos encendidos y adjuntos.
   "cashAccount", "cashShift", "cashMovement", "workspaceFeatureModule", "fotofficeAttachment",
   // Perfil de precios del workspace y el personal del socio (portal).
@@ -270,6 +270,14 @@ const DEFECTOS: Partial<Record<Tabla, () => Fila>> = {
   }),
   fotofficeCitaRecordatorio: () => ({ sentAt: new Date() }),
   fotofficeContratoPlantilla: () => ({ isActive: true, order: 0, createdAt: new Date(), updatedAt: new Date() }),
+  fotofficeClfConexion: () => ({
+    clfMpUserId: null, cursor: null, ultimaSincronizacionEl: null, ultimoError: null, cerradaEl: null, createdAt: new Date(), updatedAt: new Date(),
+  }),
+  fotofficeClfVenta: () => ({
+    validacion: "PENDIENTE", motivo: null, mpPaymentId: null, cobradorMpUserId: null, mpBrutoArs: null, mpComisionPlataformaArs: null,
+    mpComisionMpArs: null, mpAcreditadoArs: null, mpReintegradoArs: null, reintegradoEl: null, mpRevisadoEl: null, conexionCerrada: false,
+    createdAt: new Date(), updatedAt: new Date(),
+  }),
   fotofficePedidoContratante: () => ({ createdAt: new Date() }),
   fotofficeContrato: () => ({
     templateId: null, status: "BORRADOR", currentVersionId: null, sentAt: null, signedAt: null, rejectedAt: null,
@@ -566,6 +574,8 @@ export function crearBaseEnMemoria() {
     fotofficeContratoVersion: [{ columnas: ["contratoId", "number"] }],
     fotofficeContratoFirmante: [{ columnas: ["tokenHash"] }],
     fotofficeContratoAjustes: [{ columnas: ["workspaceId"] }],
+    fotofficeClfConexion: [{ columnas: ["workspaceId"] }],
+    fotofficeClfVenta: [{ columnas: ["workspaceId", "clfOrderId"] }],
     fotofficeClfVinculo: [
       { columnas: ["pedidoId"], aplica: (f) => f.pedidoId !== null && f.pedidoId !== undefined },
       { columnas: ["proyectoId"], aplica: (f) => f.proyectoId !== null && f.proyectoId !== undefined },
