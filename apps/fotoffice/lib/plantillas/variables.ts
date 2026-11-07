@@ -29,7 +29,7 @@ export type ContextoVariables = {
   /** Sólo al enviar un presupuesto (etapa 2): ya formateados para leer. */
   presupuesto?: { numero: string | null; enlace: string | null; total: string | null; vence: string | null };
   /** Sólo al enviar el enlace de un pedido o un recibo (etapa 3): ya formateados para leer. */
-  pedido?: { numero: string | null; enlace: string | null; saldo: string | null; cuotaLinkPago?: string | null };
+  pedido?: { numero: string | null; enlace: string | null; saldo: string | null; cuotaLinkPago?: string | null; preventaEnlace?: string | null };
   /** Sólo al enviar un recibo (etapa 3): ya formateados para leer. */
   recibo?: { numero: string | null; enlace: string | null; importe: string | null };
   /** Sólo en el recordatorio de una cuota (etapa 3, Entrega B1): ya formateados para leer. */
@@ -155,6 +155,7 @@ export const VARIABLES: readonly DefinicionVariable[] = [
   { clave: "pedido_numero", etiqueta: "Número de pedido", descripcion: "El número del pedido.", grupo: "Pedido", tipos: PEDIDO, obtener: (c) => limpio(c.pedido?.numero) },
   { clave: "pedido_enlace", etiqueta: "Enlace al pedido", descripcion: "La dirección donde la persona ve su pedido: plan de cuotas, saldo y recibos.", grupo: "Pedido", tipos: PEDIDO, obtener: (c) => limpio(c.pedido?.enlace) },
   { clave: "pedido_saldo", etiqueta: "Saldo del pedido", descripcion: "Lo que falta pagar del pedido, en pesos.", grupo: "Pedido", tipos: PEDIDO, obtener: (c) => limpio(c.pedido?.saldo) },
+  { clave: "preventa_enlace", etiqueta: "Enlace de la preventa en CLF", descripcion: "La dirección de la preventa (o del álbum) de CompraMeLaFoto vinculado al pedido. Vacía si el pedido no tiene álbum vinculado.", grupo: "Pedido", tipos: PEDIDO, obtener: (c) => limpio(c.pedido?.preventaEnlace) },
   { clave: "recibo_numero", etiqueta: "Número de recibo", descripcion: "El número del recibo del cobro (sólo al enviar un recibo).", grupo: "Pedido", tipos: PEDIDO, obtener: (c) => limpio(c.recibo?.numero) },
   { clave: "recibo_enlace", etiqueta: "Enlace al recibo", descripcion: "La dirección donde la persona ve e imprime el recibo (sólo al enviar un recibo).", grupo: "Pedido", tipos: PEDIDO, obtener: (c) => limpio(c.recibo?.enlace) },
   { clave: "recibo_importe", etiqueta: "Importe del recibo", descripcion: "Lo que se cobró, en pesos (sólo al enviar un recibo).", grupo: "Pedido", tipos: PEDIDO, obtener: (c) => limpio(c.recibo?.importe) },

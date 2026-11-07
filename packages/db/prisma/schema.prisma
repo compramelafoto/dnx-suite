@@ -7582,6 +7582,7 @@ model Workspace {
   fotofficeGaleriaRondas         FotofficeGaleriaRonda[]
   fotofficeGaleriaDecisiones     FotofficeGaleriaDecision[]
   fotofficeDispositivos          FotofficeDispositivo[]
+  fotofficeClfVinculos           FotofficeClfVinculo[]
   fotofficeRecuperaciones        FotofficeRecuperacion[]
   fotofficeAlboomCrudos          FotofficeAlboomCrudo[]
   fotofficeAlboomExtracciones    FotofficeAlboomExtraccion[]
@@ -21881,6 +21882,7 @@ model FotofficePedido {
   esperasPago     FotofficeEsperaPago[]
   digitalizacionEntrega DigitalizacionEntrega?
   digitalizacionCargos  DigitalizacionCargo[]
+  clfVinculo            FotofficeClfVinculo?
 
   @@unique([workspaceId, number])
   @@index([workspaceId, status])
@@ -22334,6 +22336,7 @@ model FotofficeProyecto {
   @@index([circuitId])
   printOrdersOrigen FotofficePrintOrder[] @relation("PrintOrderOrigen")
   printItems FotofficePrintOrderItem[] @relation("PrintOrderItemTrabajo")
+  clfVinculo FotofficeClfVinculo?
 }
 
 /// Regla "Proyecto que genera" de un producto (Catálogo). Puede haber varias por producto.
@@ -26469,6 +26472,31 @@ model FotofficeDispositivo {
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@index([workspaceId, revokedAt])
+}
+
+/// Conexión FOTOFFICE ↔ CLF, etapa 1: el álbum de CompraMeLaFoto de un pedido o de un proyecto sin pedido.
+/// Guarda una foto del álbum (título, slug, preventa) leída de la ruta pública de CLF al vincular; la variable
+/// `[preventa_enlace]` sale de acá sin consultar CLF. CHECK en SQL: exactamente uno de `pedidoId`/`proyectoId`.
+model FotofficeClfVinculo {
+  id               String    @id @default(cuid())
+  workspaceId      String
+  pedidoId         String?   @unique
+  proyectoId       String?   @unique
+  /// `Album.id` en la base de CLF (otra base: sin FK).
+  clfAlbumId       Int
+  albumSlug        String
+  tituloSnapshot   String
+  tienePreventa    Boolean
+  preventaCierraEl DateTime?
+  creadoPorUserId  Int?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  workspace Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  pedido    FotofficePedido?   @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  proyecto  FotofficeProyecto? @relation(fields: [proyectoId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
 }
 
 /// Etapa 8A: respuesta CRUDA de Alboom, un registro por entidad e identificador de Alboom. Sólo la escribe el

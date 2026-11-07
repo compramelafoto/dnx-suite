@@ -32,10 +32,10 @@ describe("catálogo", () => {
     const claves = VARIABLES_CONTRATO.map((v) => v.clave);
     expect(new Set(claves).size).toBe(claves.length);
     for (const n of [1, 2]) for (const s of ["nombre", "documento", "domicilio", "correo", "telefono"]) expect(claves).toContain(`contratante${n}_${s}`);
-    for (const c of ["pedido_numero", "pedido_total", "pedido_items", "pedido_cuotas", "evento", "evento_fecha", "empresa_nombre", "empresa_cuit", "empresa_domicilio", "fecha_hoy", "contrato_numero", "salto_de_pagina"]) {
+    for (const c of ["pedido_numero", "pedido_total", "pedido_items", "pedido_cuotas", "preventa_enlace", "evento", "evento_fecha", "empresa_nombre", "empresa_cuit", "empresa_domicilio", "fecha_hoy", "contrato_numero", "salto_de_pagina"]) {
       expect(claves).toContain(c);
     }
-    expect(claves).toHaveLength(22);
+    expect(claves).toHaveLength(23);
     for (const v of VARIABLES_CONTRATO) expect(v.descripcion.length).toBeGreaterThan(10);
     expect(clavesContrato().has("firma")).toBe(false);
   });
@@ -130,5 +130,24 @@ describe("datos de afuera", () => {
     expect(textoDeDato(" # # y ")).toBe("y");
     expect(textoDeDato("a ** b **")).toBe("a * b *");
     expect(textoDeDato(`a${MARCA}tabla${MARCA}b`)).toBe("atablab");
+  });
+});
+
+describe("[preventa_enlace] (conexión con CLF, etapa 1)", () => {
+  const ENLACE = "https://www.compramelafoto.com/album/escuela-jose-ingenieros-funes-colacion-7-grado-2026-7c1e4a92/preventa";
+
+  it("pone el enlace del álbum vinculado", () => {
+    const r = completarContrato("Enlace: [preventa_enlace]", contextoContrato({ ...ENTRADA, preventaEnlace: ENLACE }));
+    expect(r).toMatchObject({ ok: true, texto: `Enlace: ${ENLACE}` });
+  });
+
+  it("sin vínculo queda vacía y el bloque [si:] desaparece", () => {
+    const r = completarContrato("[si:preventa_enlace]Ver: [preventa_enlace][/si]", contextoContrato({ ...ENTRADA, preventaEnlace: null }));
+    expect(r).toMatchObject({ ok: true, texto: "" });
+    expect(contextoContrato(ENTRADA)("preventa_enlace")).toBeNull();
+  });
+
+  it("una plantilla que la usa es válida", () => {
+    expect(revisarPlantillaContrato("[preventa_enlace]")).toEqual({ ok: true });
   });
 });
