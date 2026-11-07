@@ -56,6 +56,8 @@ const TABLAS = [
   // Agenda (etapa 4, Entrega B).
   "fotofficeCitaTipo", "fotofficeCita", "fotofficeCitaParticipante", "fotofficeProductoCita", "fotofficeAgendaAjustes",
   "fotofficeCitaRecordatorio",
+  // Turnos de servicio (etapa 1).
+  "fotofficeCitaTipoFranja", "fotofficeTurnosAjustes", "fotofficeTurno",
   // Contratos (etapa 5).
   "fotofficeContratoPlantilla", "fotofficePedidoContratante", "fotofficeContrato", "fotofficeContratoVersion",
   "fotofficeContratoFirmante", "fotofficeContratoEvento", "fotofficeContratoAjustes",
@@ -239,7 +241,17 @@ const DEFECTOS: Partial<Record<Tabla, () => Fila>> = {
   fotofficeProyectoAdjunto: () => ({
     status: "PENDIENTE", uploadedByUserId: null, deletedAt: null, purgeAfter: null, createdAt: new Date(),
   }),
-  fotofficeCitaTipo: () => ({ color: "#6b7280", order: 0, isActive: true, createdAt: new Date(), updatedAt: new Date() }),
+  fotofficeCitaTipo: () => ({
+    color: "#6b7280", order: 0, isActive: true, createdAt: new Date(), updatedAt: new Date(),
+    isBookable: false, publicDescription: null, durationMinutes: null, modality: null, address: null,
+  }),
+  fotofficeTurnosAjustes: () => ({
+    pageTitle: null, pageIntro: null, cancelWindowHours: 48, bufferMinutes: 0, minAdvanceHours: 24, maxAdvanceDays: 60, notifyEmail: null, updatedAt: new Date(),
+  }),
+  fotofficeTurno: () => ({
+    hostUserId: null, status: "CONFIRMADO", contactPhone: null, answers: null, citaId: null, clientId: null, cancelledAt: null,
+    cancelledBy: null, cancelledInWindow: null, rejectReason: null, createdAt: new Date(), updatedAt: new Date(),
+  }),
   fotofficeCita: () => ({
     status: "AGENDADA", allDay: false, typeId: null, location: null, notes: null, ownerUserId: null, clientId: null,
     proyectoId: null, pedidoId: null, consultaLeadId: null, reglaId: null, pedidoItemIndex: null, googleEventId: null,

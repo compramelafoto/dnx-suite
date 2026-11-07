@@ -7561,6 +7561,9 @@ model Workspace {
   fotofficeCitas                 FotofficeCita[]
   fotofficeProductoCitas         FotofficeProductoCita[]
   fotofficeAgendaAjustes         FotofficeAgendaAjustes?
+  fotofficeCitaTipoFranjas       FotofficeCitaTipoFranja[]
+  fotofficeTurnosAjustes         FotofficeTurnosAjustes?
+  fotofficeTurnos                FotofficeTurno[]
   fotofficeContratoPlantillas    FotofficeContratoPlantilla[]
   fotofficePedidoContratantes    FotofficePedidoContratante[]
   fotofficeContratos             FotofficeContrato[]
@@ -19123,6 +19126,7 @@ model Client {
   fotofficeProyectos               FotofficeProyecto[]
   fotofficeProyectoParticipaciones FotofficeProyectoParticipante[]
   fotofficeCitas                   FotofficeCita[]
+  fotofficeTurnos                  FotofficeTurno[]
   fotofficePedidoContratantes      FotofficePedidoContratante[]
   fotofficeContratos               FotofficeContrato[]
   fotofficeContratoFirmas          FotofficeContratoFirmante[]
@@ -24624,11 +24628,96 @@ model FotofficeCitaTipo {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  workspace Workspace               @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  // --- Turnos de servicio (etapa 1): el cliente reserva solo un turno de este tipo. ---
+  /// Publicado en la página pública de turnos del sitio.
+  isBookable        Boolean @default(false)
+  publicDescription String?
+  /// Duración del turno, en minutos. Obligatoria para publicar.
+  durationMinutes   Int?
+  /// ONLINE | TELEFONO | ESTUDIO | DIRECCION (texto: el esquema es compartido).
+  modality          String?
+  /// Dirección (ESTUDIO, DIRECCION) o enlace de la videollamada (ONLINE).
+  address           String?
+
+  workspace Workspace                 @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   citas     FotofficeCita[]
   reglas    FotofficeProductoCita[]
+  franjas   FotofficeCitaTipoFranja[]
+  turnos    FotofficeTurno[]
 
   @@unique([workspaceId, name])
+}
+
+/// Franja semanal en que se ofrece un tipo de turno. Mismo formato que `BookingSpaceHours`.
+model FotofficeCitaTipoFranja {
+  id          String @id @default(cuid())
+  workspaceId String
+  typeId      String
+  /// 0 domingo … 6 sábado, hora de Argentina.
+  weekday     Int
+  startMinute Int
+  endMinute   Int
+
+  workspace Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  type      FotofficeCitaTipo @relation(fields: [typeId], references: [id], onDelete: Cascade)
+
+  @@index([typeId])
+  @@index([workspaceId])
+}
+
+/// Ajustes de la página pública de turnos (uno por negocio). Sin fila, valen los de fábrica.
+model FotofficeTurnosAjustes {
+  id                String   @id @default(cuid())
+  workspaceId       String   @unique
+  pageTitle         String?
+  pageIntro         String?
+  cancelWindowHours Int      @default(48)
+  bufferMinutes     Int      @default(0)
+  minAdvanceHours   Int      @default(24)
+  maxAdvanceDays    Int      @default(60)
+  notifyEmail       String?
+  updatedAt         DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+/// Un turno reservado por un cliente desde la página pública.
+model FotofficeTurno {
+  id                String    @id @default(cuid())
+  workspaceId       String
+  typeId            String
+  startAt           DateTime
+  endAt             DateTime
+  hostUserId        Int?
+  /// CONFIRMADO | CANCELADO (etapa 1). Más adelante: PENDIENTE_APROBACION, PENDIENTE_PAGO, RECHAZADO, VENCIDO.
+  status            String    @default("CONFIRMADO")
+  contactName       String
+  contactEmail      String
+  contactPhone      String?
+  /// Respuestas del formulario: `{ mensaje }` en la etapa 1.
+  answers           Json?
+  /// SHA-256 (hex) del token del enlace de gestión. El token nunca se guarda.
+  manageTokenHash   String    @unique
+  citaId            String?   @unique
+  clientId          String?
+  cancelledAt       DateTime?
+  /// CLIENTE | FOTOGRAFO
+  cancelledBy       String?
+  cancelledInWindow Boolean?
+  rejectReason      String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  workspace Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  type      FotofficeCitaTipo @relation(fields: [typeId], references: [id], onDelete: Cascade)
+  cita      FotofficeCita?    @relation(fields: [citaId], references: [id], onDelete: SetNull)
+  client    Client?           @relation(fields: [clientId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, status])
+  @@index([workspaceId, startAt])
+  @@index([workspaceId, contactEmail])
+  @@index([typeId])
+  @@index([clientId])
 }
 
 /// Cita de la agenda. Fechas en instantes UTC; `allDay` = ocupa el día de Argentina.
@@ -24668,6 +24757,7 @@ model FotofficeCita {
   regla         FotofficeProductoCita?      @relation(fields: [reglaId], references: [id], onDelete: SetNull)
   participantes FotofficeCitaParticipante[]
   recordatorios FotofficeCitaRecordatorio[]
+  turno         FotofficeTurno?
 
   @@unique([workspaceId, googleEventId])
   @@unique([pedidoId, pedidoItemIndex, reglaId])

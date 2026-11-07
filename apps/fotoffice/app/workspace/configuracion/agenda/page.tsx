@@ -116,6 +116,16 @@ export default async function ConfiguracionAgendaPage() {
           <span className="text-sm text-[var(--fo-accent,#1d4ed8)]">Ver →</span>
         </Link>
         <Link
+          href="/workspace/configuracion/agenda/turnos"
+          className="fo-card flex items-center justify-between gap-4 p-4 transition hover:border-[var(--fo-accent,#1d4ed8)]"
+        >
+          <span className="space-y-0.5">
+            <span className="block text-sm font-semibold">Página de turnos</span>
+            <span className="block text-xs text-[var(--fo-muted)]">Tus clientes reservan solos entrevistas, llamadas o sesiones.</span>
+          </span>
+          <span className="text-sm text-[var(--fo-accent,#1d4ed8)]">Ver →</span>
+        </Link>
+        <Link
           href="/workspace/configuracion/integraciones"
           className="fo-card flex items-center justify-between gap-4 p-4 transition hover:border-[var(--fo-accent,#1d4ed8)]"
         >
