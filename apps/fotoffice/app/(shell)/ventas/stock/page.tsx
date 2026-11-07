@@ -10,6 +10,7 @@ import {
   textoCobertura,
 } from "@/lib/stock/avisos";
 import { itemsDeStock } from "@/lib/stock/avisos-servidor";
+import { productosSinEntrega, tieneEnvoltorios } from "@/lib/stock/embalaje-config";
 import { kodak305Pendiente } from "@/lib/stock/kodak305";
 import { configurarKodak305Action } from "../actions";
 import { StockForm } from "../stock-form";
@@ -35,10 +36,12 @@ export default async function StockPage({
   const { workspace } = await requireSalesStaff();
   const sp = await searchParams;
 
-  const [productos, items, kodakPendiente] = await Promise.all([
+  const [productos, items, kodakPendiente, conEnvoltorios, sinEntrega] = await Promise.all([
     listProducts(workspace.id, { onlyActive: true, tracksStock: true }),
     itemsDeStock(workspace.id),
     kodak305Pendiente(workspace.id),
+    tieneEnvoltorios(workspace.id),
+    productosSinEntrega(workspace.id),
   ]);
   // Qué comprar sale de `lib/stock/avisos.ts`, la misma regla que usa la tarjeta del inicio:
   // negativo, debajo del mínimo, o una semana de consumo o menos.
@@ -58,9 +61,14 @@ export default async function StockPage({
         title="Stock"
         description="Qué queda, cuánto te dura y qué hay que comprar."
         actions={
-          <Link href="/ventas/stock/recepcion" className="fo-btn fo-btn-primary text-sm">
-            Recibir pedido
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <Link href="/ventas/stock/embalaje" className="fo-btn text-sm">
+              Embalaje
+            </Link>
+            <Link href="/ventas/stock/recepcion" className="fo-btn fo-btn-primary text-sm">
+              Recibir pedido
+            </Link>
+          </div>
         }
       />
 
@@ -75,6 +83,22 @@ export default async function StockPage({
           Listo, la Kodak 305 quedó configurada. Ahora contá cuántas copias le quedan al ribbon y
           cargalo con &quot;Ajustar por conteo&quot; en el kit.
         </p>
+      ) : null}
+
+      {!conEnvoltorios || sinEntrega > 0 ? (
+        <section className="fo-card flex flex-wrap items-center justify-between gap-3 p-4">
+          <div className="min-w-0">
+            <h2 className="text-base font-semibold text-[var(--fo-text)]">
+              {conEnvoltorios ? `Faltan ${sinEntrega} productos por configurar su embalaje` : "Controlá sobres y bolsas"}
+            </h2>
+            <p className="text-sm text-[var(--fo-muted)]">
+              Cada venta descuenta sola el sobre o la bolsa que usa, según lo que lleva.
+            </p>
+          </div>
+          <Link href="/ventas/stock/embalaje" className="fo-btn fo-btn-primary text-sm">
+            Configurar embalaje
+          </Link>
+        </section>
       ) : null}
 
       {kodakPendiente ? (

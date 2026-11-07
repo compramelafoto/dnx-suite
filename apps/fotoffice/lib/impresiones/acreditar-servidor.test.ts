@@ -44,6 +44,7 @@ const H = vi.hoisted(() => {
     collector: vi.fn(async (..._a: unknown[]) => ({ ok: true, collector: { accessToken: "tok" } }) as unknown),
     whatsapp: vi.fn(async (..._a: unknown[]) => "ENVIADO"),
     falla: vi.fn(async (..._a: unknown[]) => undefined),
+    embalaje: vi.fn(async (..._a: unknown[]) => undefined),
   };
 });
 vi.mock("server-only", () => ({}));
@@ -67,6 +68,7 @@ vi.mock("./avisos-servidor", () => ({ avisarPedidoConfirmado: H.aviso }));
 vi.mock("@/lib/bandeja/aviso-sistema", () => ({ enviarAvisoPorWhatsapp: H.whatsapp }));
 vi.mock("./preparar-servidor", () => ({ avisarFallaAlEstudio: H.falla, avisarPagoARevisar: H.falla }));
 vi.mock("@/lib/communications/send-email", () => ({ sendTransactionalEmail: vi.fn() }));
+vi.mock("@/lib/stock/embalaje-impresion", () => ({ descontarEmbalajeDeImpresion: H.embalaje }));
 const A = await import("./acreditar-servidor");
 
 const pago = (o: Partial<{ status: string; amountMinor: number; currency: string; externalReference: string }> = {}) => ({
@@ -104,6 +106,16 @@ describe("acreditarPagoImpresion", () => {
     expect(H.caja).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ sourceModule: "impresiones", sourceRef: "ord1", amountMinor: 100000, kind: "INGRESO", accountId: "acc", paymentMethod: "MERCADO_PAGO" }));
     expect(orden.update).toHaveBeenCalledWith({ where: { id: "ord1" }, data: { cashMovementId: "mov1" } });
     expect(H.aviso).toHaveBeenCalledWith("ws", "ord1");
+  });
+  it("al pasar a PAGADO descuenta el embalaje de sus copias, en la misma transacción", async () => {
+    await A.acreditarPagoImpresion("ws", pago());
+    expect(H.embalaje).toHaveBeenCalledTimes(1);
+    expect(H.embalaje).toHaveBeenCalledWith(H.db, expect.objectContaining({ workspaceId: "ws", pedidoId: "ord1", items: H.pedido.items }));
+  });
+  it("un pago que no cambia el estado (repetido o segundo pago del bot) no vuelve a descontar el embalaje", async () => {
+    orden.updateMany.mockResolvedValueOnce({ count: 0 });
+    await A.acreditarPagoImpresion("ws", pago());
+    expect(H.embalaje).not.toHaveBeenCalled();
   });
   it("un aviso repetido no duplica nada", async () => {
     orden.updateMany.mockResolvedValueOnce({ count: 0 });

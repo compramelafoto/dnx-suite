@@ -40,6 +40,8 @@ const TABLAS = [
   "product", "productCategory", "fotofficeProductoCatalogo", "fotofficeComboItem", "fotofficeCostoPlantilla", "fotofficeProveedor",
   // Recetas de insumos (stock de insumos, etapa 1): lo que gasta cada producto al tomarse un pedido.
   "fotofficeRecetaInsumo",
+  // Embalaje por entrega (stock, etapa 1 de embalaje): envoltorios y forma de entrega de cada producto.
+  "fotofficeEmbalaje", "fotofficeProductoEntrega", "fotofficeInsumo",
   // Presupuestos (etapa 2).
   "fotofficePresupuesto", "fotofficePresupuestoVersion", "fotofficePresupuestoVista", "fotofficePresupuestoAjustes",
   // Propuesta modelo por categoría (etapa 2, Entrega B).
@@ -162,6 +164,8 @@ const DEFECTOS: Partial<Record<Tabla, () => Fila>> = {
   }),
   fotofficeComboItem: () => ({ quantity: 1, order: 0, createdAt: new Date() }),
   fotofficeRecetaInsumo: () => ({ porCada: 1, order: 0, createdAt: new Date(), updatedAt: new Date() }),
+  fotofficeEmbalaje: () => ({ piezasPorUnidad: null, orden: 0, activo: true, createdAt: new Date(), updatedAt: new Date() }),
+  fotofficeProductoEntrega: () => ({ anchoCm: null, altoCm: null, embalajeSiguiente: false, embalajeFijoId: null, createdAt: new Date(), updatedAt: new Date() }),
   fotofficeCostoPlantilla: () => ({ supplierClientId: null, perUnit: false, daysFromEvent: 0, order: 0, createdAt: new Date(), updatedAt: new Date() }),
   fotofficePresupuesto: () => ({
     status: "BORRADOR", currentVersionId: null, acceptedVersionId: null, ownerUserId: null, validUntil: null,
@@ -478,6 +482,9 @@ export function crearBaseEnMemoria() {
     fotofficeProductoCatalogo: [{ columnas: ["productId"] }],
     fotofficeComboItem: [{ columnas: ["comboProductId", "componentProductId"] }],
     fotofficeRecetaInsumo: [{ columnas: ["productId", "insumoId"] }],
+    fotofficeEmbalaje: [{ columnas: ["insumoId"] }],
+    fotofficeProductoEntrega: [{ columnas: ["productId"] }],
+    fotofficeInsumo: [{ columnas: ["productId"] }],
     fotofficePresupuesto: [
       { columnas: ["currentVersionId"], aplica: (f) => f.currentVersionId !== null && f.currentVersionId !== undefined },
       { columnas: ["acceptedVersionId"], aplica: (f) => f.acceptedVersionId !== null && f.acceptedVersionId !== undefined },
