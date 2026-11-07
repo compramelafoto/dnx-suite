@@ -33,7 +33,7 @@ export function SelectorHorario({ dias, onElegir }: { dias: DiaConHorarios[]; on
                 setDia(d.ymd);
                 elegir(null);
               }}
-              className={`rounded-[var(--fo-radius-sm)] border px-3 py-2 text-left text-sm capitalize transition ${
+              className={`rounded-[var(--fo-radius-sm)] border px-3 py-2 text-left text-sm transition first-letter:uppercase ${
                 d.ymd === actual?.ymd ? "border-[var(--fo-accent)] bg-[var(--fo-accent)] text-white" : "border-[var(--fo-border)] hover:border-[var(--fo-accent)]"
               }`}
             >
