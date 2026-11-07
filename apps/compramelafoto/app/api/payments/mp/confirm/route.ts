@@ -14,6 +14,7 @@ import {
   type DigitalDeliveryResult,
 } from "@/lib/digital-delivery";
 import { getOrderDownloadTokens, revokeOrderDownloadTokens } from "@/lib/download-tokens";
+import { enlaceDelPackParaPagoExitoso } from "@/lib/preventa-canjeable/enlace-pago-exitoso";
 import {
   buildZipDownloadApiUrl,
 } from "@/lib/digital-download/download-center-url";
@@ -181,6 +182,8 @@ export async function POST(req: Request) {
     /** El pago aprobado llegó sobre un pedido ya pagado con otro pago (cobro duplicado). */
     let duplicatePaymentForClient = false;
     let preCompraOrderIdForClient: number | null = null;
+    /** Enlace personal del pack de preventa (sin sesión), para la pantalla de pago exitoso. */
+    let packAccessUrlForClient: string | null = null;
 
     // Actualizar el pedido según su tipo
     if (orderType === "PRINT_ORDER") {
@@ -332,6 +335,18 @@ export async function POST(req: Request) {
         if ("skipped" in fin && fin.skipped === "duplicate_payment") {
           duplicatePaymentForClient = true;
         }
+        // Pack de preventa: la familia casi siempre compra sin cuenta, así que la pantalla de
+        // pago exitoso no la puede mandar a `/cliente/pack/<id>` (esa vista pide sesión y
+        // muestra "No autenticado"). Se le da su enlace personal del pack, el mismo tipo que va
+        // en el comprobante. Ya se verificó con Mercado Pago que este pago es de este pedido;
+        // no se anulan los enlaces anteriores (el del correo sigue sirviendo).
+        if (
+          albumRow.origin === OrderOrigin.PREVENTA_PACK &&
+          !foreignPaymentOnPaidOrder &&
+          !duplicatePaymentForClient
+        ) {
+          packAccessUrlForClient = await enlaceDelPackParaPagoExitoso(orderId);
+        }
         digitalDelivery = await ensureDigitalDelivery(orderId);
         if (digitalDelivery) {
           const baseUrl =
@@ -446,6 +461,7 @@ export async function POST(req: Request) {
         orderType,
         albumId: albumIdForClient,
         preCompraOrderId: preCompraOrderIdForClient,
+        packAccessUrl: packAccessUrlForClient,
         duplicatePayment: duplicatePaymentForClient,
         paymentId,
         paymentStatus: paymentInfo.status,
