@@ -27,7 +27,7 @@ export default async function TurnosPage({ params }: Props) {
   const [ajustes, tipos] = await Promise.all([leerAjustesTurnos(negocio.workspaceId), tiposPublicados(negocio.workspaceId)]);
 
   return (
-    <main className="mx-auto max-w-5xl space-y-10 px-4 py-12 md:px-8 md:py-16">
+    <main className="fo-turnos-marca mx-auto max-w-5xl space-y-10 px-4 py-12 md:px-8 md:py-16">
       <header className="mx-auto max-w-2xl space-y-4 text-center">
         <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">{ajustes.pageTitle ?? TITULO_PAGINA_POR_OMISION}</h1>
         <p className="whitespace-pre-line text-base leading-relaxed text-[var(--fo-muted)]">
