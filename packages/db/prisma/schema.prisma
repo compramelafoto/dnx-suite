@@ -350,6 +350,8 @@ model User {
   clickatonReferralsMade              ClickatonReferralAttribution[]     @relation("ClickatonReferralReferrer")
   clickatonReferralReceived           ClickatonReferralAttribution?      @relation("ClickatonReferralReferred")
   fotofficeNotes                      FotofficeNote[]                    @relation("FotofficeNoteAuthor")
+  clfAppConnections  ClfAppConnection[]
+  clfAppConnectCodes ClfAppConnectCode[]
 }
 
 /// Perfil financiero de ¿Cuánto Cobro? (wizard bloque A), 1:1 con User.
@@ -7583,6 +7585,8 @@ model Workspace {
   fotofficeGaleriaDecisiones     FotofficeGaleriaDecision[]
   fotofficeDispositivos          FotofficeDispositivo[]
   fotofficeClfVinculos           FotofficeClfVinculo[]
+  fotofficeClfConexion           FotofficeClfConexion?
+  fotofficeClfVentas             FotofficeClfVenta[]
   fotofficeRecuperaciones        FotofficeRecuperacion[]
   fotofficeAlboomCrudos          FotofficeAlboomCrudo[]
   fotofficeAlboomExtracciones    FotofficeAlboomExtraccion[]
@@ -26472,6 +26476,100 @@ model FotofficeDispositivo {
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@index([workspaceId, revokedAt])
+}
+
+/// CLF: una app de la suite (hoy FOTOFFICE) autorizada por el fotógrafo a leer sus ventas. Sólo se guarda el
+/// hash de la llave (`clf_fo_…`); `externalLabel` es el nombre del espacio que pidió el acceso.
+model ClfAppConnection {
+  id            String    @id @default(cuid())
+  userId        Int
+  appKey        String
+  externalLabel String
+  keyHash       String    @unique
+  keyPrefix     String
+  createdAt     DateTime  @default(now())
+  lastUsedAt    DateTime?
+  revokedAt     DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt])
+}
+
+/// CLF: código de un solo uso (2 minutos) que la app canjea de servidor a servidor por la llave. Sólo el hash.
+model ClfAppConnectCode {
+  id            String    @id @default(cuid())
+  codeHash      String    @unique
+  userId        Int
+  appKey        String
+  externalLabel String
+  returnUrl     String
+  expiresAt     DateTime
+  usedAt        DateTime?
+  createdAt     DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+}
+
+/// FOTOFFICE: la cuenta de CLF conectada a un espacio (etapa 2 de la conexión con CLF). La llave vive cifrada en
+/// `WorkspaceIntegration` (`compramelafoto`); acá, el estado de la sincronización.
+model FotofficeClfConexion {
+  id                     String    @id @default(cuid())
+  workspaceId            String    @unique
+  clfUserId              Int
+  clfCuentaNombre        String
+  clfMpUserId            String?
+  cursor                 String?
+  ultimaSincronizacionEl DateTime?
+  ultimoError            String?
+  cerradaEl              DateTime?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+/// FOTOFFICE: una venta de CLF del fotógrafo conectado, validada contra su Mercado Pago. No toca la Caja.
+/// Montos en pesos. `validacion`: PENDIENTE | VALIDADA | VALIDADA_CUENTA_PROPIA | CON_DIFERENCIA | NO_EN_TU_MP |
+/// REINTEGRADA | REINTEGRO_PARCIAL. Sin datos de compradores ni de alumnos.
+model FotofficeClfVenta {
+  id                      String    @id @default(cuid())
+  workspaceId             String
+  clfOrderId              Int
+  mpPaymentId             String?
+  albumId                 Int
+  albumTitulo             String
+  detalle                 String
+  pagadoEl                DateTime
+  estadoClf               String
+  motivo                  String?
+  pagoFamiliaArs          Decimal   @db.Decimal(14, 2)
+  comisionPlataformaArs   Decimal   @db.Decimal(14, 2)
+  descuentoReferidosArs   Decimal   @db.Decimal(14, 2)
+  comisionOrganizadorArs  Decimal   @db.Decimal(14, 2)
+  retenidoEsperadoArs     Decimal   @db.Decimal(14, 2)
+  netoFotografoArs        Decimal   @db.Decimal(14, 2)
+  cobrador                String
+  cobradorMpUserId        String?
+  validacion              String    @default("PENDIENTE")
+  mpBrutoArs              Decimal?  @db.Decimal(14, 2)
+  mpComisionPlataformaArs Decimal?  @db.Decimal(14, 2)
+  mpComisionMpArs         Decimal?  @db.Decimal(14, 2)
+  mpAcreditadoArs         Decimal?  @db.Decimal(14, 2)
+  mpReintegradoArs        Decimal?  @db.Decimal(14, 2)
+  reintegradoEl           DateTime?
+  mpRevisadoEl            DateTime?
+  conexionCerrada         Boolean   @default(false)
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, clfOrderId])
+  @@index([workspaceId, pagadoEl])
+  @@index([workspaceId, validacion])
 }
 
 /// Conexión FOTOFFICE ↔ CLF, etapa 1: el álbum de CompraMeLaFoto de un pedido o de un proyecto sin pedido.
