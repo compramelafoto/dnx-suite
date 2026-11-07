@@ -24,10 +24,10 @@ import {
  */
 export const REGLA_DE_FABRICA_DE_MARATON = {
   aggregationMethod: "WEIGHTED_AVERAGE" as AggregationMethod,
-  tieBreakStrategy: "PRIORITY_CRITERION_THEN_MEDIAN_THEN_DISPERSION" as TieBreakStrategy,
+  tieBreakStrategy: "PARTICIPANT_TOTAL" as TieBreakStrategy,
   discardHighestScore: false,
   discardLowestScore: false,
-  priorityCriterionKey: "prompt_fit",
+  priorityCriterionKey: null,
   winnersPerScope: 3,
   ruleSetVersion: 0,
 };
@@ -39,6 +39,10 @@ export type ObraCongelada = {
   promptExternalId: string | null;
   admissionStatus: string;
   entryStatus: string;
+  /** La inscripción que mandó la foto: el desempate suma todas las suyas. */
+  participantKey: string | null;
+  /** false para la consigna sorpresa, que no suma al total. */
+  countsForParticipantTotal: boolean;
 };
 
 export type NotaDeJurado = {

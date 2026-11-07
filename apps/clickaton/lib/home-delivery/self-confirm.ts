@@ -144,7 +144,11 @@ export async function confirmKitReceived(input: {
     });
     // El kit está en sus manos: los artículos incluidos quedan entregados.
     await tx.clickatonRegistrationItem.updateMany({
-      where: { registrationId: row.id, isIncluded: true, fulfillmentStatus: { not: "DELIVERED" } },
+      where: {
+        registrationId: row.id,
+        isIncluded: true,
+        fulfillmentStatus: { notIn: ["DELIVERED", "CANCELLED"] },
+      },
       data: {
         fulfillmentStatus: "DELIVERED",
         fulfilledAt: now,
