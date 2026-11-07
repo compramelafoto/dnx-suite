@@ -437,3 +437,13 @@ select.fo-input {
     box-shadow: none !important;
   }
 }
+
+/* Turnos de servicio en el sitio público: botones y selección con el color de acento del sitio
+   (el naranja de DNX, por ejemplo) y la forma de píldora de sus botones, en vez del azul del panel. */
+.fo-turnos-marca {
+  --fo-accent: var(--wsite-accent, #0ea5e9);
+  --fo-accent-hover: color-mix(in srgb, var(--wsite-accent, #0ea5e9) 85%, #000000);
+}
+.fo-turnos-marca .fo-btn {
+  border-radius: 999px;
+}

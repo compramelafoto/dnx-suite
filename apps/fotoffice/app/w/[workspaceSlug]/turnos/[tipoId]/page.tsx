@@ -30,7 +30,7 @@ export default async function ReservarTurnoPage({ params }: Props) {
   const horarios = await horariosPublicos(negocio, tipo, ajustes, new Date());
 
   return (
-    <main className="mx-auto max-w-3xl space-y-6 px-4 py-12 md:px-8 md:py-16">
+    <main className="fo-turnos-marca mx-auto max-w-3xl space-y-6 px-4 py-12 md:px-8 md:py-16">
       <Link href={`/w/${workspaceSlug}/turnos`} className="text-sm text-[var(--fo-muted)] hover:underline">
         ← Todos los turnos
       </Link>

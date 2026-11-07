@@ -37,7 +37,7 @@ export default async function GestionTurnoPage({ params, searchParams }: Props) 
   const titulo = turno.cancelado ? "Turno cancelado" : q.nuevo ? "¡Listo! Tu turno está confirmado" : q.reprogramado ? "Listo, cambiamos el horario" : "Tu turno";
 
   return (
-    <main className="mx-auto max-w-2xl space-y-6 px-4 py-12 md:px-8 md:py-16">
+    <main className="fo-turnos-marca mx-auto max-w-2xl space-y-6 px-4 py-12 md:px-8 md:py-16">
       <h1 className="text-3xl font-semibold tracking-tight">{titulo}</h1>
       {q.nuevo && !turno.cancelado ? (
         <p className="text-sm text-[var(--fo-muted)]">Te mandamos la confirmación a {turno.contactEmail}, con el archivo para agregarlo a tu calendario.</p>
