@@ -152,3 +152,50 @@ describe("marca del piloto en el pedido", () => {
     assert.equal(leerMarcaPiloto("x"), null);
   });
 });
+
+import { decidirFinalizacion, pedidoIdDesdeReferencia } from "./decidir";
+
+describe("referencia de la orden de Mercado Pago", () => {
+  it("lee el pedido de una referencia del piloto", () => {
+    assert.equal(pedidoIdDesdeReferencia("clf-album-order-42"), 42);
+  });
+
+  it("ignora referencias de otras superficies", () => {
+    assert.equal(pedidoIdDesdeReferencia("clf-cierre-1n-abc"), null);
+    assert.equal(pedidoIdDesdeReferencia("clf-album-order-x"), null);
+    assert.equal(pedidoIdDesdeReferencia(null), null);
+    assert.equal(pedidoIdDesdeReferencia(undefined), null);
+  });
+});
+
+describe("cuándo se confirma el pedido", () => {
+  const base = {
+    estadoPedido: "PENDING",
+    mpStatus: "processed",
+    mpStatusDetail: "accredited",
+    refPedidoId: 42,
+    pedidoId: 42,
+  };
+
+  it("se aplica con la orden acreditada y la referencia del mismo pedido", () => {
+    assert.equal(decidirFinalizacion(base), "aplicar");
+  });
+
+  it("un pedido FAILED también se recupera", () => {
+    assert.equal(decidirFinalizacion({ ...base, estadoPedido: "FAILED" }), "aplicar");
+  });
+
+  it("un pedido ya pagado no se vuelve a aplicar aunque llegue otro aviso", () => {
+    assert.equal(decidirFinalizacion({ ...base, estadoPedido: "PAID" }), "ya_pagado");
+  });
+
+  it("no se aplica si la orden no está acreditada", () => {
+    assert.equal(decidirFinalizacion({ ...base, mpStatusDetail: "in_process" }), "no_acreditada");
+    assert.equal(decidirFinalizacion({ ...base, mpStatus: "failed", mpStatusDetail: "rejected" }), "no_acreditada");
+  });
+
+  it("no se aplica si la orden es de otro pedido", () => {
+    assert.equal(decidirFinalizacion({ ...base, refPedidoId: 7 }), "referencia_distinta");
+    assert.equal(decidirFinalizacion({ ...base, refPedidoId: null }), "referencia_distinta");
+  });
+});
