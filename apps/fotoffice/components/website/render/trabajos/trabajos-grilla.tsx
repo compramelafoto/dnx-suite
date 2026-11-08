@@ -7,8 +7,8 @@ import { BLOG_HEADING_STYLE, BLOG_SOFT_BG } from "@/components/website/blog/blog
  * vieron») y el bloque PORTFOLIO — que también se dibuja en la vista previa del constructor
  * (cliente), así que no consulta nada ni usa hooks.
  *
- * No hay redimensionador de imágenes en el sitio: la portada va con su dirección original, con
- * carga diferida y el tamaño lo pone el CSS. En la grilla el recorte se apoya arriba
+ * La portada va en su versión chica (`portadaMiniaturaUrl`, ver `lib/trabajos/miniaturas.ts`) y,
+ * si todavía no la tiene, la original; con carga diferida y el tamaño lo pone el CSS. En la grilla el recorte se apoya arriba
  * (`object-[50%_20%]`): en una foto vertical de una persona, la cara queda adentro.
  */
 
@@ -51,7 +51,11 @@ export function TrabajoCard({ trabajo, masonry = false }: { trabajo: TrabajoTarj
   return (
     <Link href={trabajo.href} prefetch={false} className={`group block ${masonry ? "mb-6 break-inside-avoid" : ""}`}>
       <div className="overflow-hidden rounded-2xl" style={{ backgroundColor: BLOG_SOFT_BG }}>
-        <Portada src={trabajo.portadaUrl} alt={trabajo.titulo} masonry={masonry} />
+        <Portada
+          src={urlMostrable(trabajo.portadaMiniaturaUrl) ? trabajo.portadaMiniaturaUrl : trabajo.portadaUrl}
+          alt={trabajo.titulo}
+          masonry={masonry}
+        />
       </div>
       <div className="space-y-1 pt-3">
         <p className="text-xs font-semibold uppercase tracking-[0.18em]" style={{ color: "var(--wsite-primary)" }}>

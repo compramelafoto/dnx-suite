@@ -2,6 +2,7 @@ import "server-only";
 import { prisma } from "@repo/db";
 import { deleteFotofficeR2Object, getFotofficeR2PublicUrl, isFotofficeR2Configured } from "@/lib/images/r2-client";
 import { createFotofficeUploadUrl, verifyUploadedImage } from "@/lib/images/r2-presign";
+import { miniaturasDeFotosNuevas } from "./miniaturas";
 import { agregarFotos } from "./repositorio";
 import {
   FORMATOS_FOTO_TRABAJO,
@@ -192,6 +193,8 @@ export async function confirmarSubida(
       await borrarSinFila(workspaceId, trabajoId, validas, "no se pudo registrar");
       return fallo("NO_REGISTRADA", r.error);
     }
+    // La versión chica para el sitio. No falla hacia afuera: sin ella se ve la original.
+    await miniaturasDeFotosNuevas(workspaceId, trabajoId, validas);
     // Las que otro pedido registró en el medio ya estaban: no se borran ni son error.
     const agregadas = r.valor.agregadas;
     return { ok: true, valor: { agregadas, yaEstaban: yaEstaban.size + validas.length - agregadas, rechazadas } };

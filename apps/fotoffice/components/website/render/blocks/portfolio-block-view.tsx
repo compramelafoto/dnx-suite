@@ -18,6 +18,7 @@ function ejemplos(count: number): TrabajoTarjeta[] {
     lugar: "Lugar",
     fechaTexto: "14 de marzo de 2025",
     portadaUrl: null,
+    portadaMiniaturaUrl: null,
     href: "#",
   }));
 }

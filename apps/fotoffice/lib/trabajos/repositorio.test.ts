@@ -17,6 +17,7 @@ vi.mock("@repo/db", () => ({
     $transaction: tx,
   },
 }));
+vi.mock("./miniaturas", () => ({ miniaturasDeFotosNuevas: async () => undefined, borrarMiniatura: async () => null }));
 vi.mock("@repo/content", () => ({ sanitizeContentHtml: (h: string) => h.replace(/<script.*?<\/script>/g, "") }));
 vi.mock("@/lib/images/r2-client", () => ({ deleteFotofficeR2Object: borrarR2, listFotofficeR2Keys: listarR2 }));
 

@@ -63,7 +63,14 @@ export default async function TrabajoPage({ params }: Props) {
 
   const fotos = trabajo.fotos
     .filter((f) => f.tipo === "FOTO" && urlMostrable(f.url))
-    .map((f) => ({ id: f.id, url: f.url, alt: f.alt, ancho: f.ancho, alto: f.alto }));
+    .map((f) => ({
+      id: f.id,
+      url: f.url,
+      miniaturaUrl: urlMostrable(f.miniaturaUrl) ? f.miniaturaUrl : null,
+      alt: f.alt,
+      ancho: f.ancho,
+      alto: f.alto,
+    }));
   const videos = trabajo.fotos.flatMap((f) => {
     const src = f.tipo === "VIDEO_URL" ? toVideoEmbedUrl(f.url) : null;
     return src ? [{ id: f.id, src, titulo: f.alt || trabajo.titulo }] : [];

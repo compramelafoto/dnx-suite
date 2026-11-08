@@ -189,6 +189,7 @@ export function datosDeMuestra(input: { bloques: readonly WebsiteBlock[]; fotos:
     lugar: t.lugar,
     fechaTexto: null,
     portadaUrl: foto(i),
+    portadaMiniaturaUrl: null,
     href: "#",
   }));
   const portfolio: Record<string, PortfolioData> = {};

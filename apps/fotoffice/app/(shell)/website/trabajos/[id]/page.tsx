@@ -88,7 +88,15 @@ export default async function TrabajoPage({ params }: Props) {
         <TrabajoFotos
           trabajoId={trabajo.id}
           portadaUrl={trabajo.portadaUrl}
-          fotos={trabajo.fotos.map((f) => ({ id: f.id, tipo: f.tipo, url: f.url, alt: f.alt, ancho: f.ancho, alto: f.alto }))}
+          fotos={trabajo.fotos.map((f) => ({
+            id: f.id,
+            tipo: f.tipo,
+            url: f.url,
+            miniaturaUrl: f.miniaturaUrl,
+            alt: f.alt,
+            ancho: f.ancho,
+            alto: f.alto,
+          }))}
         />
       </div>
     </TrabajosShell>

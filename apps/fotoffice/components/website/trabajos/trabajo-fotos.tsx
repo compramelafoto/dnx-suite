@@ -34,6 +34,8 @@ export type FotoDelPanel = {
   id: string;
   tipo: string;
   url: string;
+  /** Versión chica para la grilla del panel; sin ella, la original. */
+  miniaturaUrl?: string | null;
   alt: string | null;
   ancho: number | null;
   alto: number | null;
@@ -598,7 +600,7 @@ function FotoOrdenable({
       ) : (
         // eslint-disable-next-line @next/next/no-img-element -- las fotos viven en R2, sin redimensionador
         <img
-          src={foto.url}
+          src={foto.miniaturaUrl || foto.url}
           alt={foto.alt ?? ""}
           width={foto.ancho ?? undefined}
           height={foto.alto ?? undefined}

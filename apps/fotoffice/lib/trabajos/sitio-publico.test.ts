@@ -53,8 +53,8 @@ describe("serializarGaleriaJsonLd", () => {
         lugar: "Rosario",
         portadaUrl: "/p.jpg",
         fotos: [
-          { id: "f1", tipo: "FOTO", url: "https://cdn/1.jpg", ancho: 1200, alto: 800, alt: "Entrada" },
-          { id: "v1", tipo: "VIDEO_URL", url: "https://youtu.be/x", ancho: null, alto: null, alt: null },
+          { id: "f1", tipo: "FOTO", url: "https://cdn/1.jpg", miniaturaUrl: null, ancho: 1200, alto: 800, alt: "Entrada" },
+          { id: "v1", tipo: "VIDEO_URL", url: "https://youtu.be/x", miniaturaUrl: null, ancho: null, alto: null, alt: null },
         ],
       },
     });

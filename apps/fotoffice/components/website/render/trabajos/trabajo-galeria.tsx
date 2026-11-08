@@ -3,16 +3,25 @@
 import { useCallback, useState } from "react";
 import { Visor } from "./visor";
 
-export type FotoDeGaleria = { id: string; url: string; alt: string | null; ancho: number | null; alto: number | null };
+export type FotoDeGaleria = {
+  id: string;
+  /** La original: la abre el visor. */
+  url: string;
+  /** La versión chica para el mosaico; sin ella va la original. */
+  miniaturaUrl: string | null;
+  alt: string | null;
+  ancho: number | null;
+  alto: number | null;
+};
 
 /** Fotos que se agregan al mosaico de una vez. Un trabajo de 300 fotos no arma 300 miniaturas al
  * entrar: las primeras van y el resto aparece con «Ver más fotos». */
 const TANDA = 48;
 
 /**
- * El mosaico de fotos de un trabajo, con el visor a pantalla completa. No hay redimensionador en
- * el sitio: cada miniatura es la foto original con carga diferida, y `width`/`height` (cuando se
- * conocen) reservan su lugar para que la página no salte mientras cargan.
+ * El mosaico de fotos de un trabajo, con el visor a pantalla completa. El mosaico usa la miniatura
+ * (WebP de 800 px, ver `lib/trabajos/miniaturas.ts`) y el visor la original. Carga diferida, y
+ * `width`/`height` (cuando se conocen) reservan su lugar para que la página no salte mientras cargan.
  */
 export function TrabajoGaleria({ fotos, titulo }: { fotos: FotoDeGaleria[]; titulo: string }) {
   const [visibles, setVisibles] = useState(TANDA);
@@ -33,7 +42,7 @@ export function TrabajoGaleria({ fotos, titulo }: { fotos: FotoDeGaleria[]; titu
           >
             {/* eslint-disable-next-line @next/next/no-img-element -- las fotos viven en R2, sin redimensionador */}
             <img
-              src={foto.url}
+              src={foto.miniaturaUrl ?? foto.url}
               alt={foto.alt ?? ""}
               width={foto.ancho ?? undefined}
               height={foto.alto ?? undefined}
