@@ -28292,3 +28292,36 @@ model ClfIntlCollectionAccount {
 
   @@index([userId, status])
 }
+
+// ---------------------------------------------------------------------------
+// FOTOFFICE · Equipo de agentes, pieza 1: cola de propuestas (Periodista)
+// Tabla nueva sin relaciones con tablas existentes: publicar el código antes del SQL no rompe ningún
+// modelo (el código tolera que falte). El chat de Telegram vinculado vive en `SystemSettings`
+// (clave `fotoffice_agentes_telegram`), no acá.
+// Diseño: apps/fotoffice/docs/superpowers/specs/2026-11-07-agente-periodista-design.md
+// ---------------------------------------------------------------------------
+
+/// Una propuesta de un agente que espera la respuesta de Daniel por Telegram.
+model FotofficeAgentePropuesta {
+  id                String    @id @default(cuid())
+  /// PERIODISTA (después MUESTRAS, EVENTOS…). Texto y no enum: las bases comparten el esquema.
+  agente            String
+  /// PREPARANDO | PENDIENTE | PUBLICADA | DESCARTADA | FALLO
+  estado            String    @default("PREPARANDO")
+  workspaceId       String
+  /// Dirección de la noticia, normalizada (para no repetirla).
+  fuenteUrl         String?
+  /// Borrador creado en el blog (BlogPost.id, sin relación Prisma).
+  blogPostId        Int?
+  /// El último mensaje de Telegram de la propuesta (al que Daniel responde para corregir).
+  telegramMessageId String?
+  /// Cuántas veces se reescribió (tope 5).
+  correcciones      Int       @default(0)
+  /// JSON: título y extractos de la fuente, trabajo/foto elegida, mensajes anteriores, error.
+  datos             Json?
+  creadaEn          DateTime  @default(now())
+  resueltaEn        DateTime?
+
+  @@index([fuenteUrl])
+  @@index([agente, creadaEn])
+}

@@ -42,6 +42,25 @@ describe("leerUpdate", () => {
     expect(leerUpdate({ edited_message: {} })).toEqual({ tipo: "OTRO" });
   });
 
+  it("un texto que responde a un mensaje del bot es una RESPUESTA", () => {
+    const u = leerUpdate({
+      message: { message_id: 90, chat: { id: 123456, type: "private" }, from: { id: 123456 }, text: "  más corto, nombrá a la SFPR ", reply_to_message: { message_id: 77 } },
+    });
+    expect(u).toEqual({ tipo: "RESPUESTA", chatId: "123456", chatPrivado: true, deId: "123456", messageId: "90", respondeA: "77", texto: "más corto, nombrá a la SFPR" });
+  });
+
+  it("una respuesta vacía, un comando o sin id del mensaje respondido se ignora; el texto largo se corta", () => {
+    expect(leerUpdate({ message: { chat: { id: 1, type: "private" }, text: "  ", reply_to_message: { message_id: 3 } } })).toEqual({ tipo: "OTRO" });
+    expect(leerUpdate({ message: { chat: { id: 1, type: "private" }, text: "/ayuda", reply_to_message: { message_id: 3 } } })).toEqual({ tipo: "OTRO" });
+    expect(leerUpdate({ message: { chat: { id: 1, type: "private" }, text: "hola", reply_to_message: {} } })).toEqual({ tipo: "OTRO" });
+    const largo = leerUpdate({ message: { chat: { id: 1, type: "private" }, text: "a".repeat(5000), reply_to_message: { message_id: 3 } } });
+    expect(largo.tipo === "RESPUESTA" && largo.texto.length).toBe(2000);
+  });
+
+  it("/start respondiendo a un mensaje sigue siendo START", () => {
+    expect(leerUpdate({ message: { chat: { id: 1, type: "private" }, text: "/start ABCD234567", reply_to_message: { message_id: 3 } } })).toMatchObject({ tipo: "START", codigo: "ABCD234567" });
+  });
+
   it("el toque de un botón trae quién, desde qué chat y el dato", () => {
     const u = leerUpdate({
       callback_query: { id: "cb-1", from: { id: 123456 }, message: { message_id: 77, chat: { id: 123456 } }, data: "ap:ckaprobacion0001" },

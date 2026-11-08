@@ -32,7 +32,7 @@ export type DepsWebhookTelegram = DepsTelegramApi & {
 
 export async function procesarUpdateTelegram(conexion: ConexionTelegram, update: UpdateTelegram, deps: DepsWebhookTelegram = {}): Promise<void> {
   try {
-    if (update.tipo === "OTRO") return;
+    if (update.tipo !== "START" && update.tipo !== "BOTON") return;
     const token = await (deps.leerToken ?? leerTokenTelegram)(conexion.workspaceId);
     if (!token) return;
     const ahora = (deps.ahora ?? (() => new Date()))();

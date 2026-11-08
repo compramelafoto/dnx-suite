@@ -55,4 +55,11 @@ describe("POST /api/webhooks/telegram/[conexionId]", () => {
     expect(r.status).toBe(200);
     expect(procesados).toHaveLength(0);
   });
+
+  it("una respuesta de texto a un mensaje (la usa el canal de agentes) acá se ignora", async () => {
+    const r = await post({ update_id: 11, message: { message_id: 8, chat: { id: 555, type: "private" }, from: { id: 555 }, text: "más corto", reply_to_message: { message_id: 1 } } });
+    expect(r.status).toBe(200);
+    expect(await r.json()).toEqual({ ok: true, ignored: true });
+    expect(procesados).toHaveLength(0);
+  });
 });

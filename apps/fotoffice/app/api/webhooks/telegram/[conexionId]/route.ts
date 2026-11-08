@@ -30,7 +30,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ con
     return NextResponse.json({ ok: true, ignored: true });
   }
   const update = leerUpdate(payload);
-  if (update.tipo === "OTRO") return NextResponse.json({ ok: true, ignored: true });
+  // Este bot sólo vincula el chat y aprueba con el botón; una respuesta de texto (que sí usa el
+  // canal de agentes) acá no significa nada.
+  if (update.tipo !== "START" && update.tipo !== "BOTON") return NextResponse.json({ ok: true, ignored: true });
   after(() => procesarUpdateTelegram(conexion, update));
   return NextResponse.json({ ok: true });
 }
