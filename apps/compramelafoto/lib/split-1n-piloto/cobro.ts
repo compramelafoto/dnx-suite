@@ -38,7 +38,7 @@ export function prepararCobro(params: {
     return { ok: false, codigo: "YA_PAGADO" };
   }
   const estado = params.marca?.estado;
-  if (estado === "EN_REVISION" || estado === "ACREDITADA" || estado === "PAGADO") {
+  if (estado && estado !== "PENDIENTE") {
     return { ok: false, codigo: "ORDEN_EN_CURSO" };
   }
   if (pagadorTambienRecibe(params.payerEmail, params.correosReceptores)) {

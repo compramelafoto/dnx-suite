@@ -47,6 +47,11 @@ export async function finalizarPedidoPiloto(params: {
   if (decision !== "aplicar") return { ok: false, error: decision };
 
   const paymentRef = mp.paymentId ?? mp.id;
+
+  // Como Checkout Pro: la entrega se prepara antes de marcar el pedido pagado. Si falla acá,
+  // el pedido sigue sin pagar y el próximo intento (página, aviso o recarga) lo retoma.
+  await ensureDigitalDelivery(order.id);
+
   const actualizado = await prisma.order.updateMany({
     where: { id: order.id, status: { in: ["PENDING", "FAILED"] } },
     data: {
@@ -61,47 +66,83 @@ export async function finalizarPedidoPiloto(params: {
   });
   if (actualizado.count !== 1) return { ok: true, resultado: "ya_pagado" };
 
-  await ensureDigitalDelivery(order.id);
+  // Desde acá el pedido está pagado y no hay vuelta atrás: cada efecto va por separado para
+  // que uno que falle no se lleve puestos a los demás.
+  const efecto = async (nombre: string, fn: () => Promise<unknown>) => {
+    try {
+      await fn();
+    } catch (err: unknown) {
+      console.error("[split-1n-piloto] efecto_fallido", {
+        orderId: order.id,
+        efecto: nombre,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  };
 
   for (const eventType of ["PAYMENT_APPROVED", "CUSTOMER_DATA_RELEASED", "ORDER_ITEMS_RELEASED"] as const) {
-    await registerAuditEvent({
-      targetOrderType: "ALBUM_ORDER",
-      targetOrderId: order.id,
-      targetAlbumId: order.albumId,
-      eventType,
-      ...(eventType === "PAYMENT_APPROVED"
-        ? { metadata: { canal: "split-1n-piloto", providerOrderId: mp.id } }
-        : {}),
-    });
+    await efecto(`auditoria_${eventType}`, () =>
+      registerAuditEvent({
+        targetOrderType: "ALBUM_ORDER",
+        targetOrderId: order.id,
+        targetAlbumId: order.albumId,
+        eventType,
+        ...(eventType === "PAYMENT_APPROVED"
+          ? { metadata: { canal: "split-1n-piloto", providerOrderId: mp.id } }
+          : {}),
+      }),
+    );
   }
 
   const saleRef = `ALBUM_ORDER:${order.id}`;
-  if (order.album?.userId) {
-    await createReferralEarningsForPaidSale({
-      saleRef,
-      orderType: "ALBUM_ORDER",
-      orderId: order.id,
-      paymentId: paymentRef,
-      photographerUserId: order.album.userId,
-      eventId: order.album.eventId ?? null,
-      grossPlatformFeeCents: feePesos,
-      referralFeeDiscountCents: 0,
-    });
-    await prisma.referralEarning.updateMany({
-      where: { saleRef, paidOutAt: null },
-      data: { paidOutAt: new Date() },
+  const photographerUserId = order.album?.userId;
+  if (photographerUserId) {
+    await efecto("comision_referidor", async () => {
+      await createReferralEarningsForPaidSale({
+        saleRef,
+        orderType: "ALBUM_ORDER",
+        orderId: order.id,
+        paymentId: paymentRef,
+        photographerUserId,
+        eventId: order.album?.eventId ?? null,
+        grossPlatformFeeCents: feePesos,
+        referralFeeDiscountCents: 0,
+      });
+      // Sólo nace pagada la comisión del referidor que cobró por el split. Cualquier otra
+      // queda como siempre, para que se le pague por el circuito de referidos.
+      const referidorUserId = marca.referidorUserId ?? null;
+      if (referidorUserId != null) {
+        const marcadas = await prisma.referralEarning.updateMany({
+          where: {
+            saleRef,
+            paidOutAt: null,
+            referralProgram: "PHOTOGRAPHER_REFERRAL",
+            attribution: { referrerUserId: referidorUserId },
+          },
+          data: { paidOutAt: new Date() },
+        });
+        if (marcadas.count !== 1) {
+          console.warn("[split-1n-piloto] comision_referidor_sin_registro", {
+            orderId: order.id,
+            referidorUserId,
+            marcadas: marcadas.count,
+          });
+        }
+      }
     });
   }
 
-  await runAlbumOrderPaidSideEffects({
-    orderId: order.id,
-    origin: order.origin,
-    items: order.items,
-    paymentRef,
-  });
+  await efecto("avisos", () =>
+    runAlbumOrderPaidSideEffects({
+      orderId: order.id,
+      origin: order.origin,
+      items: order.items,
+      paymentRef,
+    }),
+  );
 
-  try {
-    await prisma.webhookEvent.create({
+  await efecto("webhook_event", () =>
+    prisma.webhookEvent.create({
       data: {
         paymentId: paymentRef,
         status: "approved",
@@ -109,10 +150,8 @@ export async function finalizarPedidoPiloto(params: {
         orderType: "ALBUM_ORDER",
         externalRef: mp.externalReference ?? undefined,
       },
-    });
-  } catch (err: unknown) {
-    console.error("[split-1n-piloto] webhook_event_no_registrado", { orderId: order.id, err });
-  }
+    }),
+  );
 
   console.info("[split-1n-piloto] pedido_pagado", { orderId: order.id, providerOrderId: mp.id });
   return { ok: true, resultado: "aplicado" };

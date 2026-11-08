@@ -294,3 +294,61 @@ describe("aviso de Mercado Pago", () => {
     assert.equal(idOrdenDelAviso({ enabled: true, type: null, dataId: "ORD01ABC" }), null);
   });
 });
+
+import {
+  PaymentProviderTemporaryError,
+  PaymentProviderValidationError,
+} from "@repo/payments";
+import { clasificarErrorCobro, claveIntento, siguienteIntento } from "./intento";
+
+describe("correcciones de la revisión: cobro doble", () => {
+  it("C1: un pedido con un cobro en curso no se vuelve a cobrar", () => {
+    const r = prepararCobro({
+      estadoPedido: "PENDING",
+      marca: { v: 1, estado: "COBRANDO", intento: 1 },
+      totalPesos: 3450,
+      feePesos: 450,
+      receivers: { fotografo: "aaa", referidor: null },
+      payerEmail: "ariel@ejemplo.com",
+      correosReceptores: [],
+    });
+    assert.deepEqual(r, { ok: false, codigo: "ORDEN_EN_CURSO" });
+  });
+
+  it("C1: cada intento tiene su propia clave, estable para el mismo intento", () => {
+    assert.equal(siguienteIntento({ v: 1, estado: "PENDIENTE" }), 1);
+    assert.equal(siguienteIntento({ v: 1, estado: "PENDIENTE", intento: 2 }), 3);
+    assert.equal(claveIntento(42, 3), "clf-album-order-42-3");
+  });
+
+  it("C2: un rechazo de validación libera el pedido para reintentar", () => {
+    assert.equal(clasificarErrorCobro(new PaymentProviderValidationError("rechazada", 402)), "rechazo");
+  });
+
+  it("C2: un error temporal o desconocido deja el pedido trabado hasta verificar", () => {
+    assert.equal(clasificarErrorCobro(new PaymentProviderTemporaryError("timeout")), "incierto");
+    assert.equal(clasificarErrorCobro(new Error("Order not found")), "incierto");
+    assert.equal(clasificarErrorCobro("raro"), "incierto");
+  });
+});
+
+describe("correcciones de la revisión: alcance", () => {
+  it("I3: un álbum con organizador no entra en el piloto", () => {
+    assert.deepEqual(evaluarElegibilidadPiloto(entrada({ tieneEvento: true })), {
+      ok: false,
+      motivo: "album_con_organizador",
+    });
+  });
+});
+
+import { ocultarCorreo } from "./mensajes";
+
+describe("M4: la página no muestra el correo entero", () => {
+  it("deja las dos primeras letras y el dominio", () => {
+    assert.equal(ocultarCorreo("ariel.11@hotmail.com"), "ar•••@hotmail.com");
+  });
+
+  it("un correo raro no se muestra", () => {
+    assert.equal(ocultarCorreo("sin-arroba"), "tu correo");
+  });
+});

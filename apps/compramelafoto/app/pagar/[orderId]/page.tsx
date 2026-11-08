@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { resolvePilotoConfig } from "@/lib/split-1n-piloto/config";
+import { finalizarPedidoPiloto } from "@/lib/split-1n-piloto/finalizar";
+import { ocultarCorreo } from "@/lib/split-1n-piloto/mensajes";
 import { leerMarcaPiloto } from "@/lib/split-1n-piloto/snapshot";
 import PagarClient from "./PagarClient";
 
@@ -20,7 +22,7 @@ export default async function PagarPage({ params }: { params: Promise<{ orderId:
   const config = resolvePilotoConfig();
   if (!config.enabled || !config.publicKey) notFound();
 
-  const order = await prisma.order.findUnique({
+  const cargarPedido = () => prisma.order.findUnique({
     where: { id: orderId },
     select: {
       id: true,
@@ -33,7 +35,21 @@ export default async function PagarPage({ params }: { params: Promise<{ orderId:
       _count: { select: { items: true } },
     },
   });
-  if (!order || !leerMarcaPiloto(order.pricingSnapshot)) notFound();
+  let order = await cargarPedido();
+  const marcaInicial = order ? leerMarcaPiloto(order.pricingSnapshot) : null;
+  if (!order || !marcaInicial) notFound();
+
+  // Conciliación al visitar: si ya hay una orden de Mercado Pago y el pedido no figura pagado
+  // (el comprador cerró la página o el aviso no llegó), se verifica y se confirma acá.
+  if (order.status !== "PAID" && marcaInicial.providerOrderId) {
+    try {
+      await finalizarPedidoPiloto({ pedidoId: order.id, providerOrderId: marcaInicial.providerOrderId });
+      order = (await cargarPedido()) ?? order;
+    } catch (err: unknown) {
+      console.error("[split-1n-piloto] conciliacion_visita_fallida", { orderId, err });
+    }
+  }
+  const marca = leerMarcaPiloto(order.pricingSnapshot) ?? marcaInicial;
 
   const titulo = order.album?.title ?? "tu álbum";
   const fotos = order._count.items;
@@ -48,14 +64,19 @@ export default async function PagarPage({ params }: { params: Promise<{ orderId:
       <div className="mt-6">
         {order.status === "PAID" ? (
           <p className="text-emerald-700">
-            Esta compra ya está pagada. Revisá tu correo ({order.buyerEmail}) para descargar las fotos.
+            Esta compra ya está pagada. Revisá tu correo ({ocultarCorreo(order.buyerEmail)}) para descargar las fotos.
+          </p>
+        ) : marca.estado !== "PENDIENTE" ? (
+          <p className="text-neutral-700">
+            Estamos verificando tu pago con Mercado Pago. Te avisamos por correo a {ocultarCorreo(order.buyerEmail)}{" "}
+            apenas se confirme. <strong>No pagues de nuevo.</strong>
           </p>
         ) : (
           <PagarClient
             publicKey={config.publicKey}
             orderId={order.id}
             totalPesos={order.totalCents}
-            payerEmail={order.buyerEmail}
+            correoVisible={ocultarCorreo(order.buyerEmail)}
             volverA={`/a/${order.albumId}/comprar/resumen`}
           />
         )}

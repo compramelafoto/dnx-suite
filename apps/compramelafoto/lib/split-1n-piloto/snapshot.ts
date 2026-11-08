@@ -4,13 +4,20 @@
  * El piloto no agrega columnas: la marca dice que el pedido se cobra por Split y guarda el
  * Order ID de Mercado Pago y el reparto. Así no hay migración que aplicar a mano en producción.
  */
-/** EN_REVISION: Mercado Pago dejó el pago pendiente; no se puede volver a cobrar. */
-export type EstadoPiloto = "PENDIENTE" | "EN_REVISION" | "ACREDITADA" | "PAGADO";
+/**
+ * - COBRANDO: hay un pedido a Mercado Pago en curso o con resultado incierto. Nadie más cobra.
+ * - EN_REVISION: Mercado Pago dejó el pago pendiente; no se puede volver a cobrar.
+ */
+export type EstadoPiloto = "PENDIENTE" | "COBRANDO" | "EN_REVISION" | "ACREDITADA" | "PAGADO";
 
 export type MarcaPiloto = {
   v: 1;
   estado: EstadoPiloto;
   providerOrderId?: string;
+  /** Intento de cobro vigente: arma la clave de idempotencia. */
+  intento?: number;
+  /** Usuario de CLF que cobró como referidor por el split: su comisión nace pagada. */
+  referidorUserId?: number | null;
   reparto?: { fotografo: number; referidor: number; plataforma: number };
 };
 

@@ -14,7 +14,8 @@ type Props = {
   publicKey: string;
   orderId: number;
   totalPesos: number;
-  payerEmail: string;
+  /** Correo a medias, sólo para mostrar: el servidor usa el del pedido. */
+  correoVisible: string;
   volverA: string;
 };
 
@@ -85,7 +86,7 @@ export default function PagarClient(props: Props) {
       <div className="space-y-4 text-center">
         <p className="text-xl font-semibold text-emerald-700">¡Listo! Tu pago se acreditó.</p>
         <p className="text-neutral-700">
-          Te mandamos el comprobante y el enlace de descarga a {props.payerEmail}.
+          Te mandamos el comprobante y el enlace de descarga a {props.correoVisible}.
         </p>
         {estado.descargaUrl ? (
           <a
@@ -105,7 +106,7 @@ export default function PagarClient(props: Props) {
         <p className="text-lg font-semibold">Tu pago está en revisión.</p>
         <p className="text-neutral-700">
           Mercado Pago lo está verificando. Cuando se acredite te llega un correo a{" "}
-          {props.payerEmail} con tus fotos. No hace falta que pagues de nuevo.
+          {props.correoVisible} con tus fotos. No hace falta que pagues de nuevo.
         </p>
       </div>
     );
@@ -114,7 +115,7 @@ export default function PagarClient(props: Props) {
   return (
     <div className="space-y-3">
       <CardPayment
-        initialization={{ amount: props.totalPesos, payer: { email: props.payerEmail } }}
+        initialization={{ amount: props.totalPesos }}
         onSubmit={onSubmit}
         onError={onError}
       />

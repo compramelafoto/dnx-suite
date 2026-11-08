@@ -6,6 +6,8 @@ export type ElegibilidadInput = {
   photographerUserId: number | null;
   /** Referidor activo del fotógrafo (programa de fotógrafos), o null si no tiene. */
   referrerUserId: number | null;
+  /** El álbum es de un evento: tiene organizador con comisión, que el piloto todavía no reparte. */
+  tieneEvento?: boolean;
   items: Array<{ productType: string }>;
   tieneVideos: boolean;
   esCanje: boolean;
@@ -26,6 +28,7 @@ export function evaluarElegibilidadPiloto(input: ElegibilidadInput): Elegibilida
   const { config } = input;
   if (!config.enabled) return { ok: false, motivo: "piloto_apagado" };
   if (!config.albumIds.has(input.albumId)) return { ok: false, motivo: "album_fuera_de_piloto" };
+  if (input.tieneEvento) return { ok: false, motivo: "album_con_organizador" };
   if (input.esPagoSimulado || input.esCanje || !input.origenEstandar) {
     return { ok: false, motivo: "compra_especial" };
   }

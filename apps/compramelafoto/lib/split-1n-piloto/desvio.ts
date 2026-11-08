@@ -18,6 +18,7 @@ export function urlPagoPiloto(orderId: number): string {
 export async function desviarAlPilotoSiCorresponde(params: {
   order: { id: number; albumId: number; origin: OrderOrigin | null; pricingSnapshot: unknown };
   photographerUserId: number | null;
+  tieneEvento: boolean;
   items: Array<{ productType: string }>;
   tieneVideos: boolean;
   esCanje: boolean;
@@ -36,6 +37,7 @@ export async function desviarAlPilotoSiCorresponde(params: {
       albumId: params.order.albumId,
       photographerUserId: params.photographerUserId,
       referrerUserId,
+      tieneEvento: params.tieneEvento,
       items: params.items,
       tieneVideos: params.tieneVideos,
       esCanje: params.esCanje,

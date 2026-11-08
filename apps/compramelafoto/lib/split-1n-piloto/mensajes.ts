@@ -9,3 +9,10 @@ export function mensajeRechazo(statusDetail: string | null | undefined): string 
   }
   return "No se pudo hacer el pago. Probá con otra tarjeta o comunicate con tu banco.";
 }
+
+/** Correo a medias para mostrar en pantalla: los ids de pedido son correlativos. */
+export function ocultarCorreo(email: string): string {
+  const [usuario, dominio] = email.trim().split("@");
+  if (!usuario || !dominio) return "tu correo";
+  return `${usuario.slice(0, 2)}•••@${dominio}`;
+}
