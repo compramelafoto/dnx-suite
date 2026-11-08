@@ -276,3 +276,21 @@ describe("mensaje al comprador cuando se rechaza el pago", () => {
     assert.match(mensajeRechazo(null), /otra tarjeta/);
   });
 });
+
+import { idOrdenDelAviso } from "./aviso";
+
+describe("aviso de Mercado Pago", () => {
+  it("con el piloto encendido, un aviso de orden se consulta", () => {
+    assert.equal(idOrdenDelAviso({ enabled: true, type: "order", dataId: "ORD01ABC" }), "ORD01ABC");
+  });
+
+  it("con el piloto apagado no se consulta nada", () => {
+    assert.equal(idOrdenDelAviso({ enabled: false, type: "order", dataId: "ORD01ABC" }), null);
+  });
+
+  it("los avisos de pagos y los que no traen id no son del piloto", () => {
+    assert.equal(idOrdenDelAviso({ enabled: true, type: "payment", dataId: "123" }), null);
+    assert.equal(idOrdenDelAviso({ enabled: true, type: "order", dataId: "  " }), null);
+    assert.equal(idOrdenDelAviso({ enabled: true, type: null, dataId: "ORD01ABC" }), null);
+  });
+});
