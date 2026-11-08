@@ -330,6 +330,12 @@ describe("publicar y descartar", () => {
     expect(blog.cambios).toHaveLength(1);
   });
 
+  it("Publicar sólo toca estado y fecha: no borra la foto, el resumen ni los textos para Google", async () => {
+    const id = await propuestaCreada();
+    await F.publicarPropuesta(id, { ahora: () => new Date("2026-11-09T12:10:00.000Z") });
+    expect(Object.keys(blog.cambios[0]!.data).sort()).toEqual(["publishedAt", "status"]);
+  });
+
   it("aprobada después de las 11 sale enseguida", async () => {
     const id = await propuestaCreada();
     const ahora = new Date("2026-11-09T16:00:00.000Z");
@@ -362,6 +368,10 @@ describe("corregirPropuesta", () => {
     await F.corregirPropuesta("701", "nombrá a la SFPR", d);
     expect(JSON.stringify(c.pedidos[0]!.messages)).toContain("nombrá a la SFPR");
     expect(blog.cambios[0]).toMatchObject({ id: 100, data: expect.objectContaining({ title: "Una cámara nueva que nombra a la SFPR" }) });
+    // La corrección no toca la foto ni las etiquetas.
+    expect(blog.cambios[0]!.data).not.toHaveProperty("heroImageUrl");
+    expect(blog.cambios[0]!.data).not.toHaveProperty("ogImageUrl");
+    expect(blog.cambios[0]!.data).not.toHaveProperty("tagIds");
     // Sin foto de la noticia, la versión nueva va como texto.
     const nueva = api.llamadas.find((l) => l.metodo === "sendMessage" && String(l.cuerpo.text).includes("Periodista"))!;
     expect(String(nueva.cuerpo.text)).toContain("versión 2");

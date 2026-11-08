@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "@repo/db";
-import { normalizeContentSlug, parseContentPostCreate, parseContentPostUpdate } from "@repo/content";
+import { normalizeContentSlug, parseContentPostCreate, parseContentPostUpdate, type ContentPostUpdateInput } from "@repo/content";
 import { appUrl } from "@/lib/app-url";
 import { createBlogPost, deleteBlogPost, updateBlogPost } from "@/lib/blog/admin-queries";
 import { absoluteUrl, BLOG_RESERVED_POST_SLUGS } from "@/lib/blog/public-format";
@@ -196,6 +196,18 @@ async function slugLibre(workspaceId: string, titulo: string, dia: string): Prom
     if (!existe) return c;
   }
   return `${base.slice(0, 50).replace(/-+$/, "")}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
+/**
+ * Valida un cambio al artículo y se queda SÓLO con los campos enviados. `parseContentPostUpdate`
+ * completa con vacío lo que no recibe (foto, resumen, textos para Google, etiquetas): pasarle
+ * sólo el estado al publicar borraba la foto de la nota. null = no pasó la validación.
+ */
+export function soloLoQueCambia(cambio: Record<string, unknown>): ContentPostUpdateInput | null {
+  const r = parseContentPostUpdate(cambio);
+  if (!r.success) return null;
+  const enviados = new Set(Object.keys(cambio));
+  return Object.fromEntries(Object.entries(r.data).filter(([k]) => enviados.has(k))) as ContentPostUpdateInput;
 }
 
 function contenidoDelBorrador(nota: NotaReescrita, fuente: { url: string; titulo: string; medio?: string | null }, foto: FotoDeLaNota | null | undefined) {
@@ -471,8 +483,8 @@ export async function publicarPropuesta(propuestaId: string, deps: { ahora?: () 
     });
     if (reclamo.count !== 1) return { ok: false, texto: "Esa propuesta ya no está pendiente." };
     const cuando = horaDePublicacion(ahora);
-    const cambios = parseContentPostUpdate({ status: "PUBLISHED", publishedAt: cuando.toISOString() });
-    const post = cambios.success ? await updateBlogPost(p.workspaceId, p.blogPostId, cambios.data).catch(() => null) : null;
+    const cambios = soloLoQueCambia({ status: "PUBLISHED", publishedAt: cuando.toISOString() });
+    const post = cambios ? await updateBlogPost(p.workspaceId, p.blogPostId, cambios).catch(() => null) : null;
     if (!post) {
       await prisma.fotofficeAgentePropuesta.updateMany({ where: { id: p.id }, data: { estado: "PENDIENTE", resueltaEn: null, datos: d as object } }).catch(() => undefined);
       return { ok: false, texto: "No pude publicar el borrador (¿lo borraron del blog?)." };
@@ -573,8 +585,8 @@ export async function corregirPropuesta(respondeA: string, pedido: string, deps:
     }
     const nota = limpia.nota;
 
-    const cambios = parseContentPostUpdate(contenidoDelBorrador(nota, { url: d.fuenteUrlOriginal, titulo: fuente.titulo, medio: d.fuenteMedio }, d.foto));
-    const post = cambios.success ? await updateBlogPost(p.workspaceId, p.blogPostId, cambios.data).catch(() => null) : null;
+    const cambios = soloLoQueCambia(contenidoDelBorrador(nota, { url: d.fuenteUrlOriginal, titulo: fuente.titulo, medio: d.fuenteMedio }, d.foto));
+    const post = cambios ? await updateBlogPost(p.workspaceId, p.blogPostId, cambios).catch(() => null) : null;
     if (!post) {
       await guardarUso(p.id, uso);
       return void (await decir("No pude guardar la versión nueva en el borrador (¿lo borraron del blog?)."));
