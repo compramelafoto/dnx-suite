@@ -39,3 +39,8 @@ export function fechaHoraArgentina(instante: Date): string {
   const mm = String(d.getUTCMinutes()).padStart(2, "0");
   return `${dias[d.getUTCDay()]} ${d.getUTCDate()}/${d.getUTCMonth() + 1}, ${hh}:${mm}`;
 }
+
+/** Las 0:00 argentinas del día 1 del mes de `instante`, como instante UTC. */
+export function inicioDelMesArgentino(instante: Date): Date {
+  return new Date(`${diaArgentino(instante).slice(0, 8)}01T03:00:00.000Z`);
+}

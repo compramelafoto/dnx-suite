@@ -27,9 +27,13 @@ vi.mock("@/lib/blog/admin-queries", () => ({
   },
 }));
 
+// La subida real va a R2 y anota en BlogMedia: las pruebas pasan `subirImagen`.
+vi.mock("@/lib/blog/storage", () => ({ uploadBlogImage: async () => ({ ok: false, error: "no se usa en las pruebas" }) }));
+
 process.env.NEXT_PUBLIC_APP_URL = "https://fotoffice.test";
 
 const F = await import("./flujo");
+import type { SubirImagen } from "./flujo";
 import type { ClientePeriodista } from "./redactor";
 
 const WS = "cmv5z6qxwwmmhf0q5gp8qja1j";
@@ -44,8 +48,8 @@ const notaDeClaude = (extra: Record<string, unknown> = {}) => ({
   titulo: "Una cámara nueva para los que hacen bodas",
   bajada: "La marca presentó un modelo con sensor de alta resolución y video 8K.",
   cuerpo: [parrafo(200), { tipo: "subtitulo", texto: "Qué cambia" }, parrafo(200, "otra")],
-  temaFoto: "casamiento",
-  trabajoId: "trabajo-elegido",
+  tema: "Nueva cámara de 60 MP para bodas",
+  categoria: "equipos y lanzamientos",
   ...extra,
 });
 const respuesta = (obj: unknown, citas: string[] = []) => ({
@@ -92,13 +96,37 @@ function botApi() {
 
 const sinPagina = (async () => new Response("", { status: 404 })) as unknown as typeof fetch;
 
+/** La página de la noticia (con su og:image) y la imagen misma. */
+function webConImagen() {
+  const pedidas: string[] = [];
+  const f = (async (url: string) => {
+    pedidas.push(String(url));
+    if (String(url).endsWith("/portada.jpg")) return new Response(new Uint8Array(2048), { headers: { "content-type": "image/jpeg" } });
+    return new Response('<head><meta property="og:image" content="https://cdn.petapixel.com/portada.jpg"><meta property="og:site_name" content="PetaPixel"></head><p>Texto de la nota original.</p>', {
+      headers: { "content-type": "text/html" },
+    });
+  }) as unknown as typeof fetch;
+  return { f, pedidas };
+}
+
 function deps(respuestas: unknown[], ahora = LUNES_9) {
   const c = claude(respuestas);
   const api = botApi();
+  const subidas: Array<{ nombre: string; tipo: string; titulo: string; alt: string; bytes: number }> = [];
   return {
     c,
     api,
-    d: { fetch: api.f, ahora: () => ahora, destino: async () => DESTINO, redactor: { cliente: c.cliente, fetch: sinPagina } },
+    subidas,
+    d: {
+      fetch: api.f,
+      ahora: () => ahora,
+      destino: async () => DESTINO,
+      redactor: { cliente: c.cliente, fetch: sinPagina },
+      subirImagen: (async (i) => {
+        subidas.push({ nombre: i.nombre, tipo: i.tipo, titulo: i.titulo, alt: i.alt, bytes: i.bytes.byteLength });
+        return `https://r2.fotoffice.test/blog-hero/${i.workspaceId}/${i.nombre}`;
+      }) as SubirImagen,
+    },
   };
 }
 
@@ -107,36 +135,117 @@ beforeEach(() => {
   blog.creados.length = 0;
   blog.cambios.length = 0;
   blog.borrados.length = 0;
-  B.agregar("fotofficeTrabajoCategoria", { id: "cat-bodas", workspaceId: WS, nombre: "Bodas" });
   // La categoría Noticias ya existe (en la base real el id es numérico; la base en memoria inventa ids de texto).
   B.agregar("blogCategory", { id: 7, platform: "fotoffice", workspaceKey: WS, name: "Noticias", slug: "noticias" });
-  B.agregar("fotofficeTrabajo", { id: "trabajo-elegido", workspaceId: WS, titulo: "Casamiento de Ana y Juan", categoriaId: "cat-bodas", estado: "PUBLICADO", portadaUrl: "/uploads/ana.jpg", fecha: null, orden: 0 });
 });
 
 const filas = () => B.tablas.fotofficeAgentePropuesta.findMany({}) as Promise<Array<Record<string, unknown>>>;
 
 describe("correrPeriodista", () => {
-  it("crea el borrador en Noticias con la foto del portfolio y manda la propuesta con foto y botones", async () => {
-    const { d, api, c } = deps([respuesta(notaDeClaude())]);
+  it("crea el borrador en Noticias con la foto de la NOTICIA (copiada a R2, con crédito) y la manda con foto y botones", async () => {
+    const { d, api, c, subidas } = deps([respuesta(notaDeClaude())]);
+    const web = webConImagen();
+    d.redactor.fetch = web.f;
     const r = await F.correrPeriodista({ motivo: "CRON" }, d);
     expect(r).toMatchObject({ estado: "CREADA" });
 
+    // La página se baja una sola vez (texto + og:image) y después la imagen.
+    expect(web.pedidas).toEqual(["https://www.petapixel.com/2026/11/05/nueva-camara/?utm_source=x", "https://cdn.petapixel.com/portada.jpg"]);
+    expect(subidas).toEqual([{ nombre: "periodista-cdn.petapixel.com.jpg", tipo: "image/jpeg", titulo: "Foto: PetaPixel", alt: "Una cámara nueva para los que hacen bodas", bytes: 2048 }]);
+    const nuestra = `https://r2.fotoffice.test/blog-hero/${WS}/periodista-cdn.petapixel.com.jpg`;
+
     const [p] = await filas();
     expect(p).toMatchObject({ estado: "PENDIENTE", workspaceId: WS, fuenteUrl: "https://petapixel.com/2026/11/05/nueva-camara", blogPostId: 100, telegramMessageId: "701" });
+    const datos = p!.datos as Record<string, unknown>;
+    expect(datos).toMatchObject({
+      tema: "Nueva cámara de 60 MP para bodas",
+      categoria: "equipos y lanzamientos",
+      foto: { url: nuestra, original: "https://cdn.petapixel.com/portada.jpg", credito: { texto: "PetaPixel", enlace: "petapixel.com" } },
+    });
+    expect(datos).not.toHaveProperty("trabajo");
+    expect((datos.uso as { costoUsd: number }).costoUsd).toBeGreaterThan(0);
 
     expect(blog.creados).toHaveLength(1);
     const post = blog.creados[0]!;
-    expect(post).toMatchObject({ title: "Una cámara nueva para los que hacen bodas", status: "DRAFT", heroImageUrl: "https://fotoffice.test/uploads/ana.jpg", workspaceKey: WS });
+    expect(post).toMatchObject({ title: "Una cámara nueva para los que hacen bodas", status: "DRAFT", heroImageUrl: nuestra, ogImageUrl: nuestra, workspaceKey: WS });
     expect(post.categoryId).toBe(7);
-    expect(JSON.stringify(post.contentJson)).toContain("https://www.petapixel.com/2026/11/05/nueva-camara/?utm_source=x");
+    const contenido = JSON.stringify(post.contentJson);
+    expect(contenido).toContain("https://www.petapixel.com/2026/11/05/nueva-camara/?utm_source=x");
+    expect(contenido).toContain("Foto: PetaPixel — ");
 
     const foto = api.llamadas.find((l) => l.metodo === "sendPhoto")!;
-    expect(foto.cuerpo).toMatchObject({ chat_id: "555", photo: "https://fotoffice.test/uploads/ana.jpg", parse_mode: "HTML" });
+    expect(foto.cuerpo).toMatchObject({ chat_id: "555", photo: nuestra, parse_mode: "HTML" });
     expect(String(foto.cuerpo.caption).length).toBeLessThanOrEqual(1024);
     expect(String(foto.cuerpo.caption)).toContain("https://fotoffice.test/website/blog/100");
+    expect(String(foto.cuerpo.caption)).toContain("Foto: PetaPixel");
     expect(JSON.stringify(foto.cuerpo.reply_markup)).toContain(`pe:p:${p!.id}`);
-    // A Claude se le pasó la lista de trabajos.
-    expect(JSON.stringify(c.pedidos[0]!.messages)).toContain("trabajo-elegido · Casamiento de Ana y Juan (Bodas)");
+    // Ya no se habla de portfolio con Claude.
+    expect(JSON.stringify(c.pedidos[0])).not.toMatch(/trabajoId|portfolio/);
+  });
+
+  it("si la noticia no tiene imagen usable, la nota va sin foto (nada del portfolio) y el mensaje es texto", async () => {
+    const { d, api, subidas } = deps([respuesta(notaDeClaude())]);
+    expect((await F.correrPeriodista({ motivo: "CRON" }, d)).estado).toBe("CREADA");
+    expect(subidas).toHaveLength(0);
+    expect(blog.creados[0]).toMatchObject({ heroImageUrl: null });
+    expect(JSON.stringify(blog.creados[0]!.contentJson)).not.toContain("Foto:");
+    expect(api.llamadas.some((l) => l.metodo === "sendPhoto")).toBe(false);
+    expect(String(api.llamadas.find((l) => l.metodo === "sendMessage")!.cuerpo.text)).toContain("Sin foto");
+    expect(((await filas())[0]!.datos as Record<string, unknown>).foto).toBeNull();
+  });
+
+  it("si la subida a nuestro almacenamiento falla, también va sin foto", async () => {
+    const { d, api } = deps([respuesta(notaDeClaude())]);
+    d.redactor.fetch = webConImagen().f;
+    d.subirImagen = async () => null;
+    expect((await F.correrPeriodista({ motivo: "CRON" }, d)).estado).toBe("CREADA");
+    expect(blog.creados[0]).toMatchObject({ heroImageUrl: null });
+    expect(api.llamadas.some((l) => l.metodo === "sendPhoto")).toBe(false);
+  });
+
+  it("le pasa a Claude los temas de los últimos 45 días (con énfasis en los descartados de hoy) y los gustos", async () => {
+    const vieja = { agente: "PERIODISTA", workspaceId: WS };
+    await B.tablas.fotofficeAgentePropuesta.create({ data: { ...vieja, estado: "DESCARTADA", creadaEn: new Date("2026-11-09T11:00:00.000Z"), datos: { motivo: "CRON", tema: "World Press Photo 2026 en Barcelona", categoria: "muestras y exposiciones", resultado: "OTRA" } } });
+    await B.tablas.fotofficeAgentePropuesta.create({ data: { ...vieja, estado: "PUBLICADA", creadaEn: new Date("2026-10-20T12:00:00.000Z"), datos: { motivo: "CRON", tema: "Concurso Fotográfico Rosario 2026", categoria: "concursos y premios", correccionesPedidas: ["más corto"] } } });
+    await B.tablas.fotofficeAgentePropuesta.create({ data: { ...vieja, estado: "PUBLICADA", creadaEn: new Date("2026-08-01T12:00:00.000Z"), datos: { motivo: "CRON", tema: "Tema de agosto que ya no cuenta" } } });
+    await B.tablas.fotofficeAgentePropuesta.create({ data: { ...vieja, estado: "FALLO", creadaEn: new Date("2026-11-08T12:00:00.000Z"), datos: { motivo: "CRON", tema: "Uno que falló" } } });
+    const { d, c } = deps([respuesta(notaDeClaude())]);
+    expect((await F.correrPeriodista({ motivo: "OTRA", forzar: true }, d)).estado).toBe("CREADA");
+    const pedido = (c.pedidos[0]!.messages as Array<{ content: string }>)[0]!.content;
+    expect(pedido).toMatch(/Daniel descartó HOY estos temas[^]*World Press Photo 2026 en Barcelona/);
+    expect(pedido).toContain("- Concurso Fotográfico Rosario 2026 (publicada)");
+    expect(pedido).not.toContain("Tema de agosto");
+    expect(pedido).not.toContain("Uno que falló");
+    expect(pedido).toContain("Publicó: concursos y premios (1).");
+    expect(pedido).toContain("Al corregir suele pedir: notas más cortas (1).");
+  });
+
+  it("si elige el mismo tema que uno reciente (otro medio, mismo hecho), le pide otra elección una vez", async () => {
+    await B.tablas.fotofficeAgentePropuesta.create({
+      data: { agente: "PERIODISTA", estado: "DESCARTADA", workspaceId: WS, creadaEn: new Date("2026-11-09T11:00:00.000Z"), fuenteUrl: "https://elpais.com/wpp", datos: { motivo: "CRON", tema: "World Press Photo 2026 en Barcelona" } },
+    });
+    const repetida = notaDeClaude({ fuenteUrl: "https://lavanguardia.com/wpp-barcelona", tema: "La exposición World Press Photo abre en Barcelona" });
+    const { d, c } = deps([respuesta(repetida), respuesta(notaDeClaude())]);
+    expect((await F.correrPeriodista({ motivo: "OTRA", forzar: true }, d)).estado).toBe("CREADA");
+    expect(c.pedidos).toHaveLength(2);
+    expect(JSON.stringify(c.pedidos[1]!.messages)).toContain("ya habías elegido «La exposición World Press Photo abre en Barcelona» y no sirve (es el mismo tema que «World Press Photo 2026 en Barcelona»");
+    const nueva = (await filas()).find((f) => f.estado === "PENDIENTE")!;
+    expect((nueva.datos as Record<string, unknown>).tema).toBe("Nueva cámara de 60 MP para bodas");
+    // El uso de las dos búsquedas queda sumado.
+    expect((nueva.datos as { uso: { entrada: number } }).uso.entrada).toBe(2);
+  });
+
+  it("si insiste con el mismo tema, falla y avisa", async () => {
+    await B.tablas.fotofficeAgentePropuesta.create({
+      data: { agente: "PERIODISTA", estado: "PUBLICADA", workspaceId: WS, creadaEn: new Date("2026-11-02T12:00:00.000Z"), datos: { motivo: "CRON", tema: "World Press Photo 2026 en Barcelona" } },
+    });
+    const repetida = notaDeClaude({ tema: "World Press Photo en Barcelona" });
+    const { d, api } = deps([respuesta(repetida), respuesta(repetida)]);
+    const r = await F.correrPeriodista({ motivo: "CRON" }, d);
+    expect(r.estado).toBe("FALLO");
+    expect(r.mensaje).toContain("insistió");
+    expect(blog.creados).toHaveLength(0);
+    expect(String(api.llamadas.find((l) => l.metodo === "sendMessage")!.cuerpo.text)).toContain("no pudo preparar la nota");
   });
 
   it("idempotente: si ya hay una del día, el cron no hace nada; a mano sí; y nunca más de 3 por día", async () => {
@@ -147,7 +256,7 @@ describe("correrPeriodista", () => {
     expect((await F.correrPeriodista({ motivo: "CRON" }, segundo.d)).estado).toBe("YA_HAY");
     expect(segundo.c.pedidos).toHaveLength(0);
 
-    const manual = deps([respuesta(notaDeClaude({ fuenteUrl: "https://ejemplo.com.ar/otra-nota" }))]);
+    const manual = deps([respuesta(notaDeClaude({ fuenteUrl: "https://ejemplo.com.ar/otra-nota", tema: "Muestra de Annemarie Heinrich en Rosario", titulo: "Annemarie Heinrich vuelve a Rosario con una muestra" }))]);
     expect((await F.correrPeriodista({ motivo: "MANUAL", forzar: true }, manual.d)).estado).toBe("CREADA");
 
     await B.tablas.fotofficeAgentePropuesta.create({ data: { agente: "PERIODISTA", estado: "FALLO", workspaceId: WS, creadaEn: LUNES_9 } });
@@ -157,7 +266,7 @@ describe("correrPeriodista", () => {
 
     // Al otro día vuelve a correr.
     const martes = deps([], new Date("2026-11-10T12:00:00.000Z"));
-    martes.d.redactor.cliente = claude([respuesta(notaDeClaude({ fuenteUrl: "https://ejemplo.com.ar/tercera" }))]).cliente;
+    martes.d.redactor.cliente = claude([respuesta(notaDeClaude({ fuenteUrl: "https://ejemplo.com.ar/tercera", tema: "Convocatoria del Salón Nacional de Fotografía", titulo: "Abrió la convocatoria del Salón Nacional" }))]).cliente;
     expect((await F.correrPeriodista({ motivo: "CRON" }, martes.d)).estado).toBe("CREADA");
   });
 
@@ -165,10 +274,13 @@ describe("correrPeriodista", () => {
     await B.tablas.fotofficeAgentePropuesta.create({
       data: { agente: "PERIODISTA", estado: "PUBLICADA", workspaceId: WS, fuenteUrl: "https://petapixel.com/2026/11/05/nueva-camara", creadaEn: new Date("2026-11-02T12:00:00.000Z") },
     });
-    const { d, api, c } = deps([respuesta(notaDeClaude())]);
+    // Elige la ya usada, se le pide otra y vuelve a elegirla: falla.
+    const { d, api, c } = deps([respuesta(notaDeClaude()), respuesta(notaDeClaude())]);
     const r = await F.correrPeriodista({ motivo: "CRON" }, d);
     expect(r.estado).toBe("FALLO");
+    expect(c.pedidos).toHaveLength(2);
     expect(JSON.stringify(c.pedidos[0]!.messages)).toContain("https://petapixel.com/2026/11/05/nueva-camara");
+    expect(JSON.stringify(c.pedidos[1]!.messages)).toContain("esa noticia ya la habíamos usado");
     expect(api.llamadas.find((l) => l.metodo === "sendMessage")!.cuerpo.text).toContain("no pudo preparar la nota");
     expect(blog.creados).toHaveLength(0);
     expect((await filas()).find((f) => f.estado === "FALLO" && f.creadaEn instanceof Date && (f.creadaEn as Date) >= LUNES_9)).toBeTruthy();
@@ -213,7 +325,7 @@ describe("publicar y descartar", () => {
     const r = await F.publicarPropuesta(id, { ahora: () => new Date("2026-11-09T12:10:00.000Z") });
     expect(r).toEqual({ ok: true, texto: "✅ Aprobada: sale publicada hoy a las 11:00." });
     expect(blog.cambios).toEqual([{ id: 100, data: expect.objectContaining({ status: "PUBLISHED", publishedAt: new Date("2026-11-09T14:00:00.000Z") }) }]);
-    expect((await filas())[0]).toMatchObject({ estado: "PUBLICADA" });
+    expect((await filas())[0]).toMatchObject({ estado: "PUBLICADA", datos: expect.objectContaining({ resultado: "PUBLICADA", tema: "Nueva cámara de 60 MP para bodas" }) });
     expect((await F.publicarPropuesta(id)).ok).toBe(false);
     expect(blog.cambios).toHaveLength(1);
   });
@@ -229,9 +341,15 @@ describe("publicar y descartar", () => {
   it("Descartar deja la propuesta DESCARTADA y borra el borrador", async () => {
     const id = await propuestaCreada();
     expect((await F.descartarPropuesta(id)).ok).toBe(true);
-    expect((await filas())[0]).toMatchObject({ estado: "DESCARTADA" });
+    expect((await filas())[0]).toMatchObject({ estado: "DESCARTADA", datos: expect.objectContaining({ resultado: "DESCARTADA" }) });
     expect(blog.borrados).toEqual([100]);
     expect((await F.publicarPropuesta(id)).ok).toBe(false);
+  });
+
+  it("«Otra noticia» descarta y deja anotado el resultado OTRA (para aprender)", async () => {
+    const id = await propuestaCreada();
+    expect((await F.descartarPropuesta(id, { otra: true })).ok).toBe(true);
+    expect((await filas())[0]).toMatchObject({ estado: "DESCARTADA", datos: expect.objectContaining({ resultado: "OTRA", categoria: "equipos y lanzamientos" }) });
   });
 });
 
@@ -244,15 +362,28 @@ describe("corregirPropuesta", () => {
     await F.corregirPropuesta("701", "nombrá a la SFPR", d);
     expect(JSON.stringify(c.pedidos[0]!.messages)).toContain("nombrá a la SFPR");
     expect(blog.cambios[0]).toMatchObject({ id: 100, data: expect.objectContaining({ title: "Una cámara nueva que nombra a la SFPR" }) });
-    const nueva = api.llamadas.find((l) => l.metodo === "sendPhoto")!;
-    expect(String(nueva.cuerpo.caption)).toContain("versión 2");
+    // Sin foto de la noticia, la versión nueva va como texto.
+    const nueva = api.llamadas.find((l) => l.metodo === "sendMessage" && String(l.cuerpo.text).includes("Periodista"))!;
+    expect(String(nueva.cuerpo.text)).toContain("versión 2");
     expect(api.llamadas.find((l) => l.metodo === "editMessageReplyMarkup")!.cuerpo).toMatchObject({ message_id: 701 });
     const [p] = await filas();
     expect(p).toMatchObject({ correcciones: 1, telegramMessageId: "702" });
+    // Se aprende el pedido y se suma lo gastado en la corrección (1 + 1 tokens de entrada).
+    expect(p!.datos).toMatchObject({ correccionesPedidas: ["nombrá a la SFPR"], uso: { entrada: 2, salida: 2 } });
     // Responder al mensaje viejo también encuentra la propuesta.
     const otra = deps([respuesta(reescrita)]);
     await F.corregirPropuesta("701", "más corto", otra.d);
-    expect((await filas())[0]).toMatchObject({ correcciones: 2 });
+    expect((await filas())[0]).toMatchObject({ correcciones: 2, datos: expect.objectContaining({ correccionesPedidas: ["nombrá a la SFPR", "más corto"] }) });
+  });
+
+  it("con foto de la noticia, la versión corregida mantiene la foto y su crédito", async () => {
+    const primero = deps([respuesta(notaDeClaude())]);
+    primero.d.redactor.fetch = webConImagen().f;
+    await F.correrPeriodista({ motivo: "CRON" }, primero.d);
+    const { d, api } = deps([respuesta(reescrita)]);
+    await F.corregirPropuesta("701", "nombrá a la SFPR", d);
+    expect(api.llamadas.find((l) => l.metodo === "sendPhoto")!.cuerpo.photo).toBe(`https://r2.fotoffice.test/blog-hero/${WS}/periodista-cdn.petapixel.com.jpg`);
+    expect(JSON.stringify(blog.cambios[0]!.data.contentJson)).toContain("Foto: PetaPixel — ");
   });
 
   it("tope de 5 correcciones", async () => {
@@ -268,5 +399,29 @@ describe("corregirPropuesta", () => {
     const { d, api } = deps([]);
     await F.corregirPropuesta("999", "hola", d);
     expect(String(api.llamadas[0]!.cuerpo.text)).toContain("No encontré");
+  });
+});
+
+describe("página Agentes", () => {
+  it("lista tema, categoría, foto y costo; resume gustos y suma el costo del mes", async () => {
+    await propuestaCreada();
+    await B.tablas.fotofficeAgentePropuesta.create({
+      data: { agente: "PERIODISTA", estado: "PUBLICADA", workspaceId: WS, creadaEn: new Date("2026-11-03T12:00:00.000Z"), datos: { motivo: "CRON", categoria: "concursos y premios", uso: { entrada: 1_000_000, salida: 0, busquedas: 0 } } },
+    });
+    await B.tablas.fotofficeAgentePropuesta.create({
+      data: { agente: "PERIODISTA", estado: "PUBLICADA", workspaceId: WS, creadaEn: new Date("2026-10-30T12:00:00.000Z"), datos: { motivo: "CRON", uso: { entrada: 1_000_000, salida: 0, busquedas: 0 } } },
+    });
+    const lista = (await F.ultimasPropuestas())!;
+    expect(lista[0]).toMatchObject({ tema: "Nueva cámara de 60 MP para bodas", categoria: "equipos y lanzamientos", conFoto: false, resultado: null });
+    expect(lista[0]!.costoUsd).toBeGreaterThan(0);
+
+    const gustos = (await F.gustosDelPeriodista())!;
+    expect(gustos.lineas).toContain("Publicó: concursos y premios (1).");
+
+    const mes = (await F.costoDelMes(LUNES_9))!;
+    // La de octubre no entra; la de noviembre cuesta USD 2 + lo poquito de la corrida de prueba.
+    expect(mes.corridas).toBe(2);
+    expect(mes.costoUsd).toBeGreaterThanOrEqual(2);
+    expect(mes.costoUsd).toBeLessThan(2.01);
   });
 });

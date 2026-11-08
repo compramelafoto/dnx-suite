@@ -9,7 +9,7 @@ const datos = {
   fuenteMedio: "PetaPixel",
   fuenteUrl: "https://petapixel.com/a?x=1&y=2",
   editorUrl: "https://fotoffice.app/website/blog/42",
-  trabajoTitulo: "Casamiento de Ana y Juan",
+  fotoCredito: "PetaPixel",
 };
 
 describe("botones", () => {
@@ -41,7 +41,7 @@ describe("armarMensajePropuesta", () => {
     expect(html).toContain("alta resolución &amp; video 8K.");
     expect(html).toContain('<a href="https://petapixel.com/a?x=1&amp;y=2">PetaPixel — New camera &lt;announced&gt;</a>');
     expect(html).toContain('<a href="https://fotoffice.app/website/blog/42">Ver y editar el borrador en FOTOFFICE</a>');
-    expect(html).toContain("Foto: Casamiento de Ana y Juan");
+    expect(html).toContain("Foto: PetaPixel");
     expect(html).toContain("respondé a este mensaje");
     expect(html).toContain("Propuesta del Periodista");
   });

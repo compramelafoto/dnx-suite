@@ -1,11 +1,13 @@
 import { z } from "zod";
+import { categoriaValida, CATEGORIAS_NOTA, type CategoriaNota } from "./gustos";
+import type { CreditoFoto } from "./imagen";
 import { normalizarUrl } from "./url";
 
 /**
  * Lo que devuelve Claude, validado. El modelo contesta un bloque ```json (no se usa la salida
  * estructurada de la API porque se combina con la búsqueda web y sus citas): acá se extrae, se
  * valida con zod y se arma el contenido Tiptap del borrador (párrafos y subtítulos H2, nunca H1,
- * con la fuente enlazada al final). Módulo PURO.
+ * con la fuente y el crédito de la foto enlazados al final). Módulo PURO.
  */
 
 export const MIN_PALABRAS = 300;
@@ -32,8 +34,13 @@ const esquemaNota = z.object({
   fuenteTitulo: z.string().trim().min(3).max(300),
   fuenteMedio: z.string().trim().max(120).optional().nullable(),
   ...camposDeNota,
-  temaFoto: z.string().trim().min(3).max(300),
-  trabajoId: z.string().trim().max(60).optional().nullable(),
+  /** El hecho del que trata la noticia, corto (para no repetir temas). */
+  tema: z.string().trim().min(5).max(120),
+  /** Una de `CATEGORIAS_NOTA` (sin importar mayúsculas ni tildes). */
+  categoria: z
+    .string()
+    .refine((c) => categoriaValida(c) !== null, { message: `tiene que ser una de: ${CATEGORIAS_NOTA.join(", ")}` })
+    .transform((c): CategoriaNota => categoriaValida(c) ?? CATEGORIAS_NOTA[0]),
 });
 
 export type NotaPropuesta = z.infer<typeof esquemaNota> & { fuenteUrlNormalizada: string };
@@ -107,20 +114,28 @@ export type DocTiptap = { type: "doc"; content: Record<string, unknown>[] };
 
 const texto = (t: string) => ({ type: "text", text: t });
 
-/** El contenido del borrador: párrafos y H2, y al final "Fuente: <medio — título enlazado>". */
-export function notaATiptap(cuerpo: BloqueNota[], fuente: { url: string; titulo: string; medio?: string | null }): DocTiptap {
+const enlace = (t: string, href: string) => ({
+  type: "text",
+  text: t,
+  marks: [{ type: "link", attrs: { href, target: "_blank", rel: "noopener noreferrer nofollow" } }],
+});
+
+/**
+ * El contenido del borrador: párrafos y H2; al final "Fuente: <medio: título enlazado>" y, si la
+ * nota lleva la foto de la noticia, "Foto: <autor / medio> — <dominio enlazado a la fuente>".
+ */
+export function notaATiptap(
+  cuerpo: BloqueNota[],
+  fuente: { url: string; titulo: string; medio?: string | null },
+  foto?: CreditoFoto | null,
+): DocTiptap {
   const content: Record<string, unknown>[] = cuerpo.map((b) =>
     b.tipo === "subtitulo"
       ? { type: "heading", attrs: { level: 2 }, content: [texto(b.texto)] }
       : { type: "paragraph", content: [texto(b.texto)] },
   );
   const etiqueta = fuente.medio?.trim() ? `${fuente.medio.trim()}: ${fuente.titulo}` : fuente.titulo;
-  content.push({
-    type: "paragraph",
-    content: [
-      texto("Fuente: "),
-      { type: "text", text: etiqueta, marks: [{ type: "link", attrs: { href: fuente.url, target: "_blank", rel: "noopener noreferrer nofollow" } }] },
-    ],
-  });
+  content.push({ type: "paragraph", content: [texto("Fuente: "), enlace(etiqueta, fuente.url)] });
+  if (foto) content.push({ type: "paragraph", content: [texto(`Foto: ${foto.texto} — `), enlace(foto.enlace, foto.url)] });
   return { type: "doc", content };
 }
