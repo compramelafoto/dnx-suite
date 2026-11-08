@@ -14,6 +14,8 @@ vi.mock("./conexion", () => ({ leerLlave: vi.fn() }));
 const { sincronizarEspacio, MENSAJE_LLAVE_RECHAZADA } = await import("./sincronizar");
 
 const WS = "ws-dnx";
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const P = B.prisma as Record<string, any>;
 
 function venta(orderId: number, p: Record<string, unknown> = {}) {
   return {
@@ -66,10 +68,9 @@ function deps(paginas: Array<() => Response>, pago: (id: string) => MpPaymentFac
 }
 
 beforeEach(async () => {
-  B.reset?.();
-  await B.prisma.fotofficeClfVenta.deleteMany({});
-  await B.prisma.fotofficeClfConexion.deleteMany({});
-  await B.prisma.fotofficeClfConexion.create({ data: { workspaceId: WS, clfUserId: 79, clfCuentaNombre: "DNX" } });
+  await P.fotofficeClfVenta.deleteMany({});
+  await P.fotofficeClfConexion.deleteMany({});
+  await P.fotofficeClfConexion.create({ data: { workspaceId: WS, clfUserId: 79, clfCuentaNombre: "DNX" } });
 });
 
 describe("sincronizarEspacio", () => {
@@ -80,9 +81,9 @@ describe("sincronizarEspacio", () => {
     ]);
     const r = await sincronizarEspacio(WS, d);
     expect(r).toMatchObject({ ok: true, nuevas: 2, validadas: 2, error: null });
-    const ventas = await B.prisma.fotofficeClfVenta.findMany({ where: { workspaceId: WS } });
+    const ventas = await P.fotofficeClfVenta.findMany({ where: { workspaceId: WS } });
     expect(ventas.map((v: { validacion: string }) => v.validacion)).toEqual(["VALIDADA", "VALIDADA"]);
-    const c = await B.prisma.fotofficeClfConexion.findUnique({ where: { workspaceId: WS } });
+    const c = await P.fotofficeClfConexion.findUnique({ where: { workspaceId: WS } });
     expect(c.cursor).toBe("c2");
     expect(d.fetchFalso).toHaveBeenCalledTimes(2);
     expect(c.ultimaSincronizacionEl).toEqual(new Date("2026-11-07T18:00:00Z"));
@@ -96,7 +97,7 @@ describe("sincronizarEspacio", () => {
     );
     const r = await sincronizarEspacio(WS, d);
     expect(r).toMatchObject({ nuevas: 0, actualizadas: 1 });
-    const v = await B.prisma.fotofficeClfVenta.findFirst({ where: { workspaceId: WS, clfOrderId: 5978 } });
+    const v = await P.fotofficeClfVenta.findFirst({ where: { workspaceId: WS, clfOrderId: 5978 } });
     expect(v).toMatchObject({ validacion: "REINTEGRADA", estadoClf: "REFUNDED", reintegradoEl: new Date("2026-11-20T12:00:00Z") });
   });
 
@@ -104,31 +105,31 @@ describe("sincronizarEspacio", () => {
     await sincronizarEspacio(WS, deps([() => respuesta(200, { ventas: [venta(5978)], siguiente: null })]));
     const r = await sincronizarEspacio(WS, deps([() => respuesta(401, {})]));
     expect(r.error).toBe(MENSAJE_LLAVE_RECHAZADA);
-    expect(await B.prisma.fotofficeClfVenta.count({ where: { workspaceId: WS } })).toBe(1);
-    const c = await B.prisma.fotofficeClfConexion.findUnique({ where: { workspaceId: WS } });
+    expect(await P.fotofficeClfVenta.count({ where: { workspaceId: WS } })).toBe(1);
+    const c = await P.fotofficeClfConexion.findUnique({ where: { workspaceId: WS } });
     expect(c.ultimoError).toBe(MENSAJE_LLAVE_RECHAZADA);
   });
 
   it("Mercado Pago caído: la venta queda pendiente para la próxima corrida", async () => {
     await sincronizarEspacio(WS, deps([() => respuesta(200, { ventas: [venta(5978)], siguiente: null })], () => new Error("timeout")));
-    const v = await B.prisma.fotofficeClfVenta.findFirst({ where: { workspaceId: WS } });
+    const v = await P.fotofficeClfVenta.findFirst({ where: { workspaceId: WS } });
     expect(v.validacion).toBe("PENDIENTE");
   });
 
   it("el pago no es de la cuenta del espacio", async () => {
     const noEs = Object.assign(new Error("404"), { status: 404 });
     await sincronizarEspacio(WS, deps([() => respuesta(200, { ventas: [venta(5978)], siguiente: null })], () => noEs));
-    const v = await B.prisma.fotofficeClfVenta.findFirst({ where: { workspaceId: WS } });
+    const v = await P.fotofficeClfVenta.findFirst({ where: { workspaceId: WS } });
     expect(v.validacion).toBe("NO_EN_TU_MP");
   });
 
   it("no escribe nunca en la Caja", async () => {
     await sincronizarEspacio(WS, deps([() => respuesta(200, { ventas: [venta(5974), venta(5978)], siguiente: null })]));
-    expect(await B.prisma.cashMovement.count({})).toBe(0);
+    expect(await P.cashMovement.count({})).toBe(0);
   });
 
   it("con la conexión cerrada no hace nada", async () => {
-    await B.prisma.fotofficeClfConexion.update({ where: { workspaceId: WS }, data: { cerradaEl: new Date() } });
+    await P.fotofficeClfConexion.update({ where: { workspaceId: WS }, data: { cerradaEl: new Date() } });
     const d = deps([() => respuesta(200, { ventas: [venta(5978)], siguiente: null })]);
     expect((await sincronizarEspacio(WS, d)).ok).toBe(false);
     expect(d.fetchFalso).not.toHaveBeenCalled();
