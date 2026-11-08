@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import { avisarAMuestras } from "@/lib/dnx-payments/aviso-muestras";
 import { handleClfOrdersWebhook } from "@/lib/homologation/mp-split-1n/orders-webhook";
+import { intentarWebhookPiloto } from "@/lib/split-1n-piloto/webhook";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,6 +16,16 @@ export const dynamic = "force-dynamic";
 export async function POST(request: NextRequest) {
   const rawBody = await request.text();
   const url = request.nextUrl;
+
+  // Piloto Split 1:N en el cobro de álbumes de CLF. Sólo toma las órdenes cuya referencia es
+  // de un pedido del piloto; todo lo demás sigue por el receptor de siempre.
+  const piloto = await intentarWebhookPiloto({
+    dataId: url.searchParams.get("data.id"),
+    type: url.searchParams.get("type") ?? url.searchParams.get("topic"),
+  });
+  if (piloto.manejado) {
+    return NextResponse.json({ ok: true, piloto: true, resultado: piloto.resultado }, { status: 200 });
+  }
 
   const result = await handleClfOrdersWebhook({
     headers: {
