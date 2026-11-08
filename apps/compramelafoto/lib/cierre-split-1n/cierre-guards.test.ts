@@ -122,24 +122,25 @@ describe("frenos de la orden de cierre Split 1:N", () => {
 
 describe("reparto del cierre", () => {
   it("suma 10.000 puntos básicos, o Mercado Pago rechaza la orden", () => {
-    const suma = REPARTO_BPS.owner + REPARTO_BPS.fotografo + REPARTO_BPS.organizador;
+    const suma = REPARTO_BPS.owner + REPARTO_BPS.fotografo + REPARTO_BPS.referidor;
     assert.equal(suma, 10_000);
   });
 
-  it("reparte el precio mitad para el club y mitad para el fotógrafo", () => {
-    assert.equal(REPARTO_BPS.fotografo, REPARTO_BPS.organizador);
+  it("el fotógrafo cobra el precio entero, no el precio menos la comisión", () => {
+    // 100 / 115 del total, redondeado a puntos básicos.
+    assert.equal(REPARTO_BPS.fotografo, Math.round((100 / 115) * 10_000));
   });
 
-  it("la plataforma se queda con el 15 % sobre el precio, no sobre el total", () => {
-    // 15 / 115 del total, redondeado a puntos básicos.
-    assert.equal(REPARTO_BPS.owner, Math.round((15 / 115) * 10_000));
+  it("el 15 % sobre el precio se reparte mitad plataforma y mitad referidor", () => {
+    assert.equal(REPARTO_BPS.owner, REPARTO_BPS.referidor);
+    assert.equal(REPARTO_BPS.owner, Math.round((7.5 / 115) * 10_000));
   });
 
   it("la porción más chica no queda en cifras ridículas con el monto por omisión", () => {
     const menor = Math.min(
       REPARTO_BPS.owner,
       REPARTO_BPS.fotografo,
-      REPARTO_BPS.organizador,
+      REPARTO_BPS.referidor,
     );
     const centavos = Math.floor((MONTO_POR_OMISION_CENTAVOS * menor) / 10_000);
     // $100 es el piso por debajo del cual los mínimos del medio de pago empiezan a pesar.
@@ -148,11 +149,11 @@ describe("reparto del cierre", () => {
 });
 
 describe("el pagador tiene que ser un tercero", () => {
-  const receptores = ["fotografo@ejemplo.com", "organizador@ejemplo.com"];
+  const receptores = ["fotografo@ejemplo.com", "referidor@ejemplo.com"];
 
   it("detecta que el pagador es uno de los receptores", () => {
     assert.equal(pagadorTambienRecibe("fotografo@ejemplo.com", receptores), true);
-    assert.equal(pagadorTambienRecibe("organizador@ejemplo.com", receptores), true);
+    assert.equal(pagadorTambienRecibe("referidor@ejemplo.com", receptores), true);
   });
 
   it("no se deja engañar por mayúsculas ni espacios", () => {

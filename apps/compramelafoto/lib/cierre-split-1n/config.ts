@@ -29,8 +29,8 @@ export const MONTO_MAXIMO_CENTAVOS = 500_000;
  * Mercado Pago no fija un mínimo para esta operación de cierre; el mínimo que puede
  * aplicar es el del medio de pago (Marilyn Urrego, 2026-10-30). Lo que conviene mirar no
  * es el total sino **la porción más chica del reparto**: con $3.450, a la plataforma le
- * tocan unos $450. Un total más chico dejaría esa parte en cifras donde la comisión de
- * Mercado Pago y los mínimos del medio de pago empiezan a pesar.
+ * tocan unos $225, lo mismo que a la referidora. Un total más chico dejaría esas partes en
+ * cifras donde la comisión de Mercado Pago y los mínimos del medio de pago empiezan a pesar.
  */
 export const MONTO_POR_OMISION_CENTAVOS = 345_000;
 
@@ -186,18 +186,19 @@ export function resolveCierreConfig(
 }
 
 /**
- * Reparto del cierre, con la forma de las ventas del Club 9 de Julio en CLF: la plataforma
- * cobra el 15 % como recargo sobre el precio de la foto, y el precio se reparte mitad para
- * el club que organiza y mitad para el fotógrafo.
+ * Reparto del cierre, con la forma de una venta de CLF con referido: el fotógrafo cobra el
+ * precio de la foto entero, y el 15 % que la plataforma recarga sobre el precio se reparte
+ * mitad para la plataforma y mitad para quien refirió al fotógrafo (7,5 % y 7,5 %), como el
+ * programa de referidos de fotógrafos (`REFERRAL_PROGRAM_FEE_SHARE`).
  *
- * Mercado Pago reparte sobre el total que paga el comprador, no sobre el precio: el 15 %
- * sobre el precio es 15/115 ≈ 13,04 % del total, y cada mitad del precio ≈ 43,48 %. En
- * puntos básicos sobre 10.000.
+ * Mercado Pago reparte sobre el total que paga el comprador, no sobre el precio: el precio
+ * es 100/115 ≈ 86,96 % del total, y cada 7,5 % del precio ≈ 6,52 %. En puntos básicos sobre
+ * 10.000.
  */
 export const REPARTO_BPS = {
-  owner: 1_304,
-  fotografo: 4_348,
-  organizador: 4_348,
+  owner: 652,
+  fotografo: 8_696,
+  referidor: 652,
 } as const;
 
 /**
