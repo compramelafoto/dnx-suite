@@ -782,7 +782,7 @@ export async function POST(
     const urlPiloto = await desviarAlPilotoSiCorresponde({
       order,
       photographerUserId: album.userId ?? null,
-      tieneEvento: album.eventId != null,
+      eventId: album.eventId ?? null,
       items: totals.items.map((it) => ({ productType: it.component })),
       tieneVideos: Boolean(videoQuote && videoQuote.items.length > 0),
       esCanje: voucher != null,

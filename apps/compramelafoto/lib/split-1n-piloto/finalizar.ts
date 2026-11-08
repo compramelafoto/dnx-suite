@@ -4,6 +4,8 @@ import { ensureDigitalDelivery } from "@/lib/digital-delivery";
 import { registerAuditEvent } from "@/lib/antifraud/audit";
 import { createReferralEarningsForPaidSale } from "@/lib/referral/create-referral-earnings-for-paid-sale";
 import { runAlbumOrderPaidSideEffects } from "@/lib/mercadopago/finalize-album-order-mp-approved";
+import { ensureEventOrganizerCommissionSnapshotForPaidOrder } from "@/lib/event-organizer-commission-snapshot";
+import { organizerDirectMpCollectionCommissionFields } from "@/lib/event-organizer-commission-ledger";
 import { resolvePilotoConfig } from "./config";
 import { decidirFinalizacion, pedidoIdDesdeReferencia } from "./decidir";
 import { crearClientesPiloto, leerOrdenMp } from "./mp";
@@ -108,15 +110,19 @@ export async function finalizarPedidoPiloto(params: {
         grossPlatformFeeCents: feePesos,
         referralFeeDiscountCents: 0,
       });
-      // Sólo nace pagada la comisión del referidor que cobró por el split. Cualquier otra
-      // queda como siempre, para que se le pague por el circuito de referidos.
-      const referidorUserId = marca.referidorUserId ?? null;
-      if (referidorUserId != null) {
+      // Sólo nacen pagadas las comisiones de los referidores que cobraron por el split.
+      // Cualquier otra queda como siempre, para que se le pague por el circuito de referidos.
+      const cobradosPorSplit = [
+        ["PHOTOGRAPHER_REFERRAL", marca.referidorUserId ?? null],
+        ["ORGANIZER_REFERRAL", marca.referidorOrganizadorUserId ?? null],
+      ] as const;
+      for (const [programa, referidorUserId] of cobradosPorSplit) {
+        if (referidorUserId == null) continue;
         const marcadas = await prisma.referralEarning.updateMany({
           where: {
             saleRef,
             paidOutAt: null,
-            referralProgram: "PHOTOGRAPHER_REFERRAL",
+            referralProgram: programa,
             attribution: { referrerUserId: referidorUserId },
           },
           data: { paidOutAt: new Date() },
@@ -124,10 +130,40 @@ export async function finalizarPedidoPiloto(params: {
         if (marcadas.count !== 1) {
           console.warn("[split-1n-piloto] comision_referidor_sin_registro", {
             orderId: order.id,
+            programa,
             referidorUserId,
             marcadas: marcadas.count,
           });
         }
+      }
+    });
+  }
+
+  // Comisión del organizador: se registra con el cálculo de siempre y, si la cobró por el
+  // split, como cobrada directo. Si quedara retenida, se le volvería a pagar por retiro.
+  if (order.album?.eventId != null) {
+    await efecto("comision_organizador", async () => {
+      const ahora = new Date();
+      await ensureEventOrganizerCommissionSnapshotForPaidOrder(order.id, { paymentApprovedAt: ahora });
+      const organizadorUserId = marca.organizadorUserId ?? null;
+      if (organizadorUserId == null) return;
+      const directa = await prisma.eventOrganizerCommission.updateMany({
+        where: { orderId: order.id, organizerUserId: organizadorUserId },
+        data: organizerDirectMpCollectionCommissionFields(ahora),
+      });
+      const fila = await prisma.eventOrganizerCommission.findUnique({
+        where: { orderId: order.id },
+        select: { organizerCommissionAmount: true },
+      });
+      const registrado = fila ? Number(fila.organizerCommissionAmount) : null;
+      if (directa.count !== 1 || registrado !== (marca.reparto?.organizador ?? null)) {
+        console.error("[split-1n-piloto] comision_organizador_no_coincide", {
+          orderId: order.id,
+          organizadorUserId,
+          marcadas: directa.count,
+          registrado,
+          cobrado: marca.reparto?.organizador ?? null,
+        });
       }
     });
   }

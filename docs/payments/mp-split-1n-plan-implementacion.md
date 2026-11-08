@@ -335,4 +335,14 @@ tocan; los pendientes del piloto dan 404 en `/pagar` y el comprador vuelve a emp
 `pricingSnapshot.split1nPiloto.providerOrderId` del pedido. Después, marcar el pedido como
 corresponda en el panel.
 
+**Etapa 2 — organizadores (plan `docs/superpowers/plans/2026-11-08-clf-split-1n-piloto-organizador.md`).**
+Un álbum de un evento entra al piloto si el organizador (`Event.creatorId`) y su referidor del
+programa de organizadores, cuando tienen parte, están en `DNX_CLF_SPLIT_1N_PILOTO_RECEIVERS`.
+Reparto con `base = total − recargo`: organizador `round(base × %)`, fotógrafo `base − organizador`,
+referidor del fotógrafo 50 % del recargo, referidor del organizador 20 % del recargo, plataforma el
+resto. Al confirmar, la comisión del organizador queda `PAID_DIRECT_TO_ORGANIZER` (no suma a su
+saldo de retiro) y las de los referidores que cobraron por el split nacen pagadas. Quedan fuera:
+eventos al 100 %, álbumes escolares, impresiones, videos y preventas. Si una cuenta cumple dos
+roles, va una sola vez en la orden con la suma.
+
 **Clickatón no participa** (ver la nota al principio de este documento).

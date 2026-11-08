@@ -18,7 +18,14 @@ export async function cargarPedidoPiloto(pedidoId: number) {
       pricingSnapshot: true,
       createdAt: true,
       album: {
-        select: { title: true, userId: true, eventId: true, selectedLabId: true, createdAt: true },
+        select: {
+          title: true,
+          userId: true,
+          eventId: true,
+          schoolId: true,
+          selectedLabId: true,
+          createdAt: true,
+        },
       },
       items: { select: { productType: true } },
     },

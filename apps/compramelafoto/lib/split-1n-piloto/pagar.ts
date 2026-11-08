@@ -16,6 +16,7 @@ import { clasificarErrorCobro, claveIntento, siguienteIntento } from "./intento"
 import { mensajeRechazo } from "./mensajes";
 import { crearClientesPiloto, leerOrdenMp } from "./mp";
 import { cargarPedidoPiloto } from "./pedido";
+import { buscarOrganizador } from "./organizador";
 import { buscarReferidorActivo } from "./referidor";
 import { leerMarcaPiloto, marcarSnapshotPiloto, type MarcaPiloto } from "./snapshot";
 
@@ -105,12 +106,14 @@ export async function pagarPedidoPiloto(input: {
   const photographerUserId = order.album?.userId ?? null;
   const referrerUserId =
     photographerUserId != null ? await buscarReferidorActivo(photographerUserId) : null;
+  const organizador = await buscarOrganizador(order.album?.eventId ?? null);
   const elegibilidad = evaluarElegibilidadPiloto({
     config,
     albumId: order.albumId,
     photographerUserId,
     referrerUserId,
-    tieneEvento: order.album?.eventId != null,
+    organizador,
+    esEscolar: order.album?.schoolId != null,
     items: order.items,
     tieneVideos: false,
     esCanje: false,
@@ -137,9 +140,14 @@ export async function pagarPedidoPiloto(input: {
     clientes = crearClientesPiloto(config);
     const cuenta = await assertLiveCollectorAccount(clientes.http);
 
-    const receptores = [elegibilidad.receivers.fotografo, elegibilidad.receivers.referidor].filter(
-      (r): r is string => r != null,
-    );
+    const rcv = elegibilidad.receivers;
+    const receptores = [
+      ...new Set(
+        [rcv.fotografo, rcv.referidor, rcv.organizador, rcv.referidorOrganizador].filter(
+          (r): r is string => r != null,
+        ),
+      ),
+    ];
     const consultas = await Promise.all(receptores.map((r) => clientes.consents.getConsent(r)));
     if (consultas.some((c) => c?.status !== "ACTIVE")) {
       console.warn("[split-1n-piloto] consentimiento_no_activo", { pedidoId: order.id });
@@ -149,7 +157,12 @@ export async function pagarPedidoPiloto(input: {
     const correosReceptores = [
       ...consultas.map((c) => (c?.sellerEmail ?? "").toLowerCase()),
       ...(cuenta.email ? [cuenta.email.toLowerCase()] : []),
-      ...(await correosClf([photographerUserId, referrerUserId])),
+      ...(await correosClf([
+        photographerUserId,
+        referrerUserId,
+        rcv.organizador != null ? organizador?.userId ?? null : null,
+        rcv.referidorOrganizador != null ? organizador?.referrerUserId ?? null : null,
+      ])),
     ];
 
     const preparado = prepararCobro({
@@ -157,6 +170,7 @@ export async function pagarPedidoPiloto(input: {
       marca,
       totalPesos: order.totalCents,
       feePesos,
+      porcentajeOrganizador: organizador?.porcentaje ?? 0,
       receivers: elegibilidad.receivers,
       payerEmail: order.buyerEmail,
       correosReceptores,
@@ -171,6 +185,20 @@ export async function pagarPedidoPiloto(input: {
     return falla("NO_DISPONIBLE", "No pudimos procesar el pago. No se te cobró nada; probá de nuevo en unos minutos.");
   }
 
+  // Quiénes de CLF cobran por el split: al confirmar, sus comisiones nacen pagadas.
+  const quienesCobran = {
+    referidorUserId: elegibilidad.receivers.referidor != null ? referrerUserId : null,
+    organizadorUserId:
+      elegibilidad.receivers.organizador != null && cobro.reparto.organizador > 0
+        ? organizador?.userId ?? null
+        : null,
+    referidorOrganizadorUserId:
+      elegibilidad.receivers.referidorOrganizador != null && cobro.reparto.referidorOrganizador > 0
+        ? organizador?.referrerUserId ?? null
+        : null,
+    reparto: cobro.reparto,
+  };
+
   // Reserva: sólo un intento puede pasar de PENDIENTE a COBRANDO.
   const intento = siguienteIntento(marca);
   const reservado = await prisma.order.updateMany({
@@ -183,8 +211,7 @@ export async function pagarPedidoPiloto(input: {
       pricingSnapshot: marcarSnapshotPiloto(order.pricingSnapshot, {
         estado: "COBRANDO",
         intento,
-        referidorUserId: elegibilidad.receivers.referidor != null ? referrerUserId : null,
-        reparto: cobro.reparto,
+        ...quienesCobran,
       }) as Prisma.InputJsonValue,
     },
   });
@@ -192,8 +219,7 @@ export async function pagarPedidoPiloto(input: {
   const reservada = marcarSnapshotPiloto(order.pricingSnapshot, {
     estado: "COBRANDO",
     intento,
-    referidorUserId: elegibilidad.receivers.referidor != null ? referrerUserId : null,
-    reparto: cobro.reparto,
+    ...quienesCobran,
   });
 
   const externalReference = referenciaPedido(order.id);
