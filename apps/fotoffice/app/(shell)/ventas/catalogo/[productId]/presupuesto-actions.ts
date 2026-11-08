@@ -6,7 +6,7 @@ import { parseArsToMinor } from "@/lib/membership/money";
 import { guardarPerfil } from "@/lib/catalogo/perfil";
 import { guardarComponentes } from "@/lib/catalogo/combos";
 import { guardarCostos } from "@/lib/catalogo/costos";
-import { guardarProveedorPorDefecto, guardarReglas } from "@/lib/proyectos/reglas-catalogo";
+import { guardarEnvioSinArchivos, guardarProveedorPorDefecto, guardarReglas } from "@/lib/proyectos/reglas-catalogo";
 import { guardarReglas as guardarReglasCita } from "@/lib/agenda/reglas-catalogo";
 
 /**
@@ -162,6 +162,14 @@ export async function guardarReglasCitaAction(productId: string, reglas: ReglaCi
 export async function guardarProveedorPorDefectoAction(productId: string, proveedorId: string): Promise<CatalogoActionResult> {
   const { workspace } = await requireSalesAdmin();
   const res = await guardarProveedorPorDefecto(workspace.id, String(productId), String(proveedorId ?? "").trim() || null);
+  if (res.ok) refrescar(productId);
+  return res;
+}
+
+/** «El material es físico (se manda sin archivos)». Exige `sales.catalog`, como el resto de la ficha. */
+export async function guardarEnvioSinArchivosAction(productId: string, valor: boolean): Promise<CatalogoActionResult> {
+  const { workspace } = await requireSalesAdmin();
+  const res = await guardarEnvioSinArchivos(workspace.id, String(productId), valor === true);
   if (res.ok) refrescar(productId);
   return res;
 }

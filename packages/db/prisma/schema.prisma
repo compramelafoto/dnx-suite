@@ -22293,6 +22293,10 @@ model FotofficeProyecto {
   proveedorRef       String?
   proveedorCostoArs  Decimal?  @db.Decimal(14, 2)
   proveedorEnviadoAt DateTime?
+  /// Primera vez que el laboratorio abrió la carpeta con su enlace.
+  proveedorAbiertoAt    DateTime?
+  /// Primera vez que el laboratorio bajó un archivo de la carpeta.
+  proveedorDescargadoAt DateTime?
   /// Carpeta del trabajo: enlaces privados (laboratorio y cliente). El token se rehace con HMAC desde
   /// la fecha de emisión; acá queda sólo su hash para encontrarlo.
   carpetaClienteEmitida DateTime?
@@ -22358,6 +22362,8 @@ model FotofficeProductoProyecto {
   ultimoPlazoDias Int?
   /// Proveedor al que se manda por omisión (se puede cambiar en cada trabajo).
   proveedorId     String?
+  /// true = el material es físico (un rollo): el pedido sale aunque la carpeta no tenga archivos.
+  envioSinArchivos Boolean @default(false)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 

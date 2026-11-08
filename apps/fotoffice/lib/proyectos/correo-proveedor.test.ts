@@ -32,4 +32,16 @@ describe("correoParaProveedor", () => {
   it("con enlace de archivos, lo ofrece para descargar", () => {
     expect(correoParaProveedor({ ...base, enlaceArchivos: "https://fotoffice.com/x" }).html).toContain('href="https://fotoffice.com/x"');
   });
+
+  it("el material físico avisa que se lleva al local y no lleva enlace", () => {
+    const { text } = correoParaProveedor({ ...base, materialFisico: true });
+    expect(text).toContain("Material: Es material físico: se lo llevamos al local.");
+    expect(text).not.toContain("Archivos:");
+  });
+
+  it("con enlace, no menciona material físico", () => {
+    const { text } = correoParaProveedor({ ...base, enlaceArchivos: "https://x/c", materialFisico: false });
+    expect(text).toContain("Archivos: https://x/c");
+    expect(text).not.toContain("Material:");
+  });
 });

@@ -66,7 +66,7 @@ describe("tarjeta Proyectos", () => {
     proyecto("b", { clientId: "cl-2" });
     proyecto("c", { circuitId: "ct-x", workspaceId: "ws-2" }, null);
     const r = await T.proyectosParaTarjeta(ctx("VIEW"), { clientId: "cl-1" });
-    expect(r).toEqual([{ id: "a", numero: "P-a", nombre: "Proyecto a", flujo: "Fotolibro", etapa: "Edición", finalDueDate: "2026-12-20", estado: "EN_CURSO" }]);
+    expect(r).toEqual([{ id: "a", numero: "P-a", nombre: "Proyecto a", flujo: "Fotolibro", etapa: "Edición", finalDueDate: "2026-12-20", estado: "EN_CURSO", envio: null }]);
   });
 
   it("suspendido y cerrado se distinguen; el cerrado no tiene etapa", async () => {

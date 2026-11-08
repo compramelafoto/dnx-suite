@@ -13,8 +13,8 @@ export const guia: Instructivo = {
     {
       titulo: "Cuándo se hace a mano",
       texto: [
-        "Si el producto tiene un «proveedor por defecto», el pedido al laboratorio sale solo al confirmar el pedido del cliente. Lo mismo pasa con las copias que se arman en el Cobrador con «Pedido para laboratorio»: salen solas, sin tocar nada (ver la guía «Armar un pedido para el laboratorio desde el Cobrador»). Esta guía es para todo lo demás: trabajos sin proveedor asignado, fotolibros (se mandan cuando el diseño está listo), un envío que falló o un trabajo que hay que mandar a otro laboratorio.",
-        "Las copias cuya carpeta está vacía ya no se mandan vacías al laboratorio: el trabajo queda sin enviar con la nota «Falta subir los archivos para mandarlo a [laboratorio].». Subí los archivos (paso 4) y tocá «Enviar a [laboratorio] por correo».",
+        "Si el producto tiene un «proveedor por defecto», el pedido al laboratorio sale solo cuando está completo: apenas se cobra si el material es físico (un rollo para revelar) o, para todo lo demás, a los pocos minutos de subir los archivos a la carpeta del trabajo. Lo mismo pasa con las copias que se arman en el Cobrador con «Pedido para laboratorio»: salen solas, sin tocar nada (ver la guía «Armar un pedido para el laboratorio desde el Cobrador»). Esta guía es para todo lo demás: trabajos sin proveedor asignado, fotolibros (se mandan cuando el diseño está listo), un envío que falló o un trabajo que hay que mandar a otro laboratorio.",
+        "Nunca sale un pedido con la carpeta vacía. Si se cobró sin archivos, el trabajo muestra en rojo «Faltan los archivos para [laboratorio]» en el tablero y en la ficha del pedido. Subí los archivos (paso 4): sale solo a los 5 minutos del último archivo, o tocá «Enviar a [laboratorio] por correo» para mandarlo ya.",
         "Primero tiene que existir el trabajo: nace al cobrar con seña en el Cobrador, al confirmar un pedido o con «Agregar proyecto» desde la ficha del pedido.",
       ],
     },
@@ -64,7 +64,15 @@ export const guia: Instructivo = {
         "Deja una nota en el trabajo con a quién se mandó y las indicaciones, y guarda la fecha de envío.",
         "El trabajo pasa solo a «En el proveedor».",
       ],
-      nota: "Si aparece «el correo no salió. Avisale por otro medio.», el trabajo igual queda marcado como enviado: mandale el pedido por WhatsApp para que no quede sin hacer.",
+      nota: "Si aparece «Falta subir los archivos», la carpeta está vacía: subilos primero. Si aparece «el correo no salió», el trabajo sigue sin enviar: probá de nuevo o mandale el pedido por WhatsApp y tocá «Marcar enviado».",
+    },
+    {
+      titulo: "Fijate si el laboratorio lo abrió y lo descargó",
+      texto: [
+        "En la tarjeta del tablero «En curso» y en la ficha del pedido, cada trabajo dice en qué punto está: «Enviado a [laboratorio]», «[laboratorio] abrió el pedido» o, en verde, «[laboratorio] descargó los archivos», con el día y la hora.",
+        "Si pasó el día y sigue en «Enviado», escribile al laboratorio para confirmar que le llegó.",
+      ],
+      sistema: ["La primera vez que el laboratorio abre su enlace y la primera vez que baja un archivo, queda anotado en el trabajo con una nota."],
     },
     {
       titulo: "Anotá el número que te da el laboratorio",

@@ -6,6 +6,7 @@ import { useState, useTransition } from "react";
 import { agregarProyectoAction } from "@/app/actions/proyectos";
 import type { ProyectoDeTarjeta as ProyectoDelPedido } from "@/lib/proyectos/tarjetas";
 import { fechaCorta } from "@/lib/pedidos/pantalla";
+import { EtiquetaEnvio } from "@/components/proyectos/etiqueta-envio";
 
 const ERROR_CONEXION = "No pudimos conectar con el servidor. Probá de nuevo.";
 
@@ -69,6 +70,7 @@ export function ProyectosDelPedido({
                   N° {p.numero} · {p.flujo}
                   {p.estado === "SUSPENDIDO" ? " · Suspendido" : p.estado === "CERRADO" ? " · Cerrado" : p.etapa ? ` · ${p.etapa}` : ""}
                 </p>
+                {p.envio ? <EtiquetaEnvio envio={p.envio} className="mt-1.5" /> : null}
               </div>
               {p.finalDueDate ? <span className="text-xs text-[var(--fo-muted)]">Entrega: {fechaCorta(p.finalDueDate)}</span> : null}
             </li>

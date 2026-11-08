@@ -22,5 +22,16 @@ export default async function CarpetaPublicaPage({ params }: { params: Promise<{
   // Pedir copias: sólo el cliente (no el laboratorio) y si el estudio tiene la impresión encendida y con precios.
   const imprimir = vista.audiencia === "CLIENTE" && (await ofertaPublica(workspaceId)) !== null;
   const enlaceImprimir = imprimir ? `/w/${workspaceSlug}/archivos/${encodeURIComponent(token)}/imprimir` : undefined;
-  return <CarpetaPublica vista={vista} enlaceImprimir={enlaceImprimir} slug={workspaceSlug} token={token} />;
+  // El laboratorio descarga por una ruta propia que anota «descargó» en el trabajo antes de redirigir.
+  const vistaFinal =
+    vista.audiencia === "LABORATORIO"
+      ? {
+          ...vista,
+          archivos: vista.archivos.map((a) => ({
+            ...a,
+            descargar: `/api/w/${encodeURIComponent(workspaceSlug)}/archivos/${encodeURIComponent(token)}/descargar/${encodeURIComponent(a.id)}`,
+          })),
+        }
+      : vista;
+  return <CarpetaPublica vista={vistaFinal} enlaceImprimir={enlaceImprimir} slug={workspaceSlug} token={token} />;
 }

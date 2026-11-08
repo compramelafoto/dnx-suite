@@ -163,15 +163,58 @@ export async function carpetaTieneArchivos(workspaceId: string, proyectoId: stri
   return (await prisma.fotofficeArchivoTrabajo.count({ where: { workspaceId, proyectoId, estado: "LISTO" } })) > 0;
 }
 
-/** Para el correo al proveedor: el enlace del laboratorio, si la carpeta tiene archivos. */
-export async function enlaceLaboratorioSiHayArchivos(ctx: CtxProyectos, proyectoId: string): Promise<string | null> {
-  const hay = await prisma.fotofficeArchivoTrabajo.count({ where: { workspaceId: ctx.workspaceId, proyectoId, estado: "LISTO" } });
-  if (hay === 0) return null;
-  const r = await enlaceDeCarpeta(ctx, proyectoId, "LABORATORIO");
-  return r.ok ? r.url : null;
+// --- Lo que ve quien abre el enlace ---------------------------------------------------------------
+
+/**
+ * Seguimiento del pedido: la primera vez que el laboratorio abre su enlace y la primera vez que baja
+ * un archivo quedan en el trabajo (fecha y nota). Sólo después de mandado: si alguien del estudio
+ * prueba el enlace antes de enviarlo, no cuenta. Nunca frena la página ni la descarga.
+ */
+async function anotarDelLaboratorio(workspaceId: string, proyectoId: string, que: "ABIERTO" | "DESCARGADO", ahora: Date): Promise<void> {
+  try {
+    const campo = que === "ABIERTO" ? "proveedorAbiertoAt" : "proveedorDescargadoAt";
+    const r = await prisma.fotofficeProyecto.updateMany({
+      where: { id: proyectoId, workspaceId, proveedorEnviadoAt: { not: null }, [campo]: null },
+      data: { [campo]: ahora },
+    });
+    if (r.count === 0) return;
+    const p = await prisma.fotofficeProyecto.findFirst({ where: { id: proyectoId, workspaceId }, select: { proveedorId: true } });
+    const prov = p?.proveedorId
+      ? await prisma.fotofficeProveedor.findFirst({ where: { id: p.proveedorId, workspaceId }, select: { name: true } })
+      : null;
+    const quien = prov?.name ?? "El proveedor";
+    await prisma.fotofficeProyectoNota.create({
+      data: {
+        workspaceId,
+        proyectoId,
+        authorUserId: null,
+        body: que === "ABIERTO" ? `${quien} abrió el pedido.` : `${quien} descargó los archivos.`,
+      },
+    });
+  } catch (e) {
+    console.error("[carpetas] no se pudo anotar el seguimiento del laboratorio", { error: e instanceof Error ? e.message : "desconocido" });
+  }
 }
 
-// --- Lo que ve quien abre el enlace ---------------------------------------------------------------
+/**
+ * Descarga de un archivo con el enlace del laboratorio: anota «descargó» y devuelve la URL firmada.
+ * null si el enlace no es del laboratorio, venció o el archivo no es de esa carpeta.
+ */
+export async function descargaDelLaboratorio(workspaceId: string, token: unknown, archivoId: unknown, ahora = new Date()): Promise<string | null> {
+  if (!tokenConForma(token) || typeof archivoId !== "string" || !ID.test(archivoId)) return null;
+  const p = await prisma.fotofficeProyecto.findFirst({
+    where: { workspaceId, carpetaLabHash: hashDeToken(token) },
+    select: { id: true, carpetaVence: true },
+  });
+  if (!p || (p.carpetaVence && p.carpetaVence < ahora)) return null;
+  const a = await prisma.fotofficeArchivoTrabajo.findFirst({
+    where: { id: archivoId, workspaceId, proyectoId: p.id, estado: "LISTO" },
+    select: { key: true, nombre: true },
+  });
+  if (!a) return null;
+  await anotarDelLaboratorio(workspaceId, p.id, "DESCARGADO", ahora);
+  return urlDeLecturaArchivo(a.key, a.nombre, "descargar");
+}
 
 
 export async function abrirCarpeta(workspaceId: string, token: unknown, ahora = new Date()): Promise<VistaCarpeta | null> {
@@ -201,6 +244,7 @@ export async function abrirCarpeta(workspaceId: string, token: unknown, ahora = 
   ]);
   const cliente = p.client?.businessName?.trim() || [p.client?.firstName, p.client?.lastName].filter(Boolean).join(" ") || "";
   const audiencia: Audiencia = p.carpetaClienteHash === hash ? "CLIENTE" : "LABORATORIO";
+  if (audiencia === "LABORATORIO") await anotarDelLaboratorio(workspaceId, p.id, "ABIERTO", ahora);
   return {
     audiencia,
     estudio: branding?.commercialName?.trim() || "el estudio",

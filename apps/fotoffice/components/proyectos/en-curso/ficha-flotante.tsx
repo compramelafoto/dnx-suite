@@ -357,7 +357,7 @@ function Detalle({ t, d }: { t: TarjetaTrabajo; d: DetalleTrabajo }) {
       {t.proveedor ? (
         <Seccion titulo="Laboratorio">
           <Dato etiqueta="Proveedor" valor={t.proveedor} />
-          <Dato etiqueta="Envío" valor={t.enviadoAt ? `Se le mandó el ${fechaHoraBA(t.enviadoAt)}` : "Todavía no se le mandó"} />
+          <Dato etiqueta="Envío" valor={t.envio ? t.envio.texto : t.enviadoAt ? `Se le mandó el ${fechaHoraBA(t.enviadoAt)}` : "Todavía no se le mandó"} />
           {d.proveedorRef ? <Dato etiqueta="Referencia" valor={d.proveedorRef} /> : null}
         </Seccion>
       ) : null}
