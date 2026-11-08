@@ -199,3 +199,80 @@ describe("cuándo se confirma el pedido", () => {
     assert.equal(decidirFinalizacion({ ...base, refPedidoId: null }), "referencia_distinta");
   });
 });
+
+import { prepararCobro } from "./cobro";
+
+describe("preparar el cobro", () => {
+  const base = {
+    estadoPedido: "PENDING",
+    marca: { v: 1 as const, estado: "PENDIENTE" as const },
+    totalPesos: 3450,
+    feePesos: 450,
+    receivers: { fotografo: "aaa", referidor: "bbb" as string | null },
+    payerEmail: "ariel@ejemplo.com",
+    correosReceptores: ["gabriel@ejemplo.com", "belen@ejemplo.com", "plataforma@ejemplo.com"],
+  };
+
+  it("no cobra un pedido ya pagado", () => {
+    assert.deepEqual(prepararCobro({ ...base, estadoPedido: "PAID" }), { ok: false, codigo: "YA_PAGADO" });
+  });
+
+  it("no cobra dos veces un pedido con una orden ya acreditada", () => {
+    const r = prepararCobro({
+      ...base,
+      marca: { v: 1, estado: "ACREDITADA", providerOrderId: "ORD01X" },
+    });
+    assert.deepEqual(r, { ok: false, codigo: "ORDEN_EN_CURSO" });
+  });
+
+  it("no cobra de nuevo un pedido con un pago en revisión", () => {
+    const r = prepararCobro({
+      ...base,
+      marca: { v: 1, estado: "EN_REVISION", providerOrderId: "ORD01Y" },
+    });
+    assert.deepEqual(r, { ok: false, codigo: "ORDEN_EN_CURSO" });
+  });
+
+  it("no cobra si quien paga también recibe parte", () => {
+    const r = prepararCobro({ ...base, payerEmail: "Gabriel@Ejemplo.com " });
+    assert.deepEqual(r, { ok: false, codigo: "PAGADOR_ES_RECEPTOR" });
+  });
+
+  it("arma un reparto fijo que suma el total en centavos", () => {
+    const r = prepararCobro(base);
+    assert.equal(r.ok, true);
+    if (!r.ok) return;
+    assert.deepEqual(r.reparto, { fotografo: 3000, referidor: 225, plataforma: 225 });
+    const montos = r.distribution.entries.map((e) => [e.recipientId, e.amount.amountMinor]);
+    assert.deepEqual(
+      Object.fromEntries(montos),
+      { owner: 22500n, fotografo: 300000n, referidor: 22500n },
+    );
+    assert.equal(r.partnerReceiverIds.get("referidor"), "bbb");
+  });
+
+  it("sin referidor no hay regla de referidor", () => {
+    const r = prepararCobro({ ...base, receivers: { fotografo: "aaa", referidor: null } });
+    assert.equal(r.ok, true);
+    if (!r.ok) return;
+    assert.deepEqual(r.distribution.entries.map((e) => e.recipientId).sort(), ["fotografo", "owner"]);
+    assert.equal(r.partnerReceiverIds.has("referidor"), false);
+  });
+});
+
+import { mensajeRechazo } from "./mensajes";
+
+describe("mensaje al comprador cuando se rechaza el pago", () => {
+  it("explica la falta de fondos", () => {
+    assert.match(mensajeRechazo("insufficient_amount"), /fondos/);
+  });
+
+  it("pide revisar los datos si están mal cargados", () => {
+    assert.match(mensajeRechazo("bad_filled_security_code"), /revisá/i);
+  });
+
+  it("da un mensaje general para cualquier otro rechazo", () => {
+    assert.match(mensajeRechazo("rejected_other_reason"), /otra tarjeta/);
+    assert.match(mensajeRechazo(null), /otra tarjeta/);
+  });
+});

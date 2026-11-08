@@ -4,7 +4,8 @@
  * El piloto no agrega columnas: la marca dice que el pedido se cobra por Split y guarda el
  * Order ID de Mercado Pago y el reparto. Así no hay migración que aplicar a mano en producción.
  */
-export type EstadoPiloto = "PENDIENTE" | "ACREDITADA" | "PAGADO";
+/** EN_REVISION: Mercado Pago dejó el pago pendiente; no se puede volver a cobrar. */
+export type EstadoPiloto = "PENDIENTE" | "EN_REVISION" | "ACREDITADA" | "PAGADO";
 
 export type MarcaPiloto = {
   v: 1;
