@@ -92,6 +92,8 @@ const TABLAS = [
   "workspaceIntegration",
   // Testimonios del sitio (PR 3): el formulario público y la invitación personal.
   "fotofficeTestimonio", "fotofficeTestimonioInvitacion", "fotofficeTestimonioAjustes",
+  // Equipo de agentes (2026-11-07): el canal en SystemSettings, la cola, el portfolio y el blog que toca el Periodista.
+  "systemSettings", "fotofficeAgentePropuesta", "fotofficeTrabajo", "fotofficeTrabajoCategoria", "blogCategory", "blogPost",
 ] as const;
 export type Tabla = (typeof TABLAS)[number];
 
@@ -109,6 +111,10 @@ const RELACIONES: Record<string, { columna: string; tabla: Tabla }> = {
 };
 
 const DEFECTOS: Partial<Record<Tabla, () => Fila>> = {
+  fotofficeAgentePropuesta: () => ({
+    estado: "PREPARANDO", fuenteUrl: null, blogPostId: null, telegramMessageId: null, correcciones: 0, datos: null,
+    creadaEn: new Date(), resueltaEn: null,
+  }),
   fotofficeCircuit: () => ({ isActive: true, isDefault: false, systemKey: null, createdAt: new Date() }),
   fotofficeStage: () => ({ color: "gris", days: 0, requireTasks: false, leadStatus: null, archivedAt: null }),
   fotofficeStageTaskTemplate: () => ({ days: 0, required: false }),
@@ -459,6 +465,7 @@ export function crearBaseEnMemoria() {
     fotofficePresupuestoAprobacion: [{ columnas: ["workspaceId", "leadId"] }],
     fotofficePresupuestoAutoCategoria: [{ columnas: ["workspaceId", "categoryId"] }],
     fotofficeTelegramConexion: [{ columnas: ["workspaceId"] }],
+    systemSettings: [{ columnas: ["key"] }],
     // Como en el schema (@@unique workspaceId+name) y la migración (único parcial donde systemKey no es null).
     fotofficeCircuit: [
       { columnas: ["workspaceId", "name"] },

@@ -130,3 +130,41 @@ export function editarMensaje(
 export function contestarBoton(token: string, callbackId: string, texto: string, deps: DepsTelegramApi = {}) {
   return llamarTelegram<boolean>(token, "answerCallbackQuery", { callback_query_id: callbackId, text: texto.slice(0, 190) }, deps);
 }
+
+/** Tope de la leyenda de una foto en Telegram (el texto de un mensaje admite 4096). */
+export const MAX_LEYENDA_FOTO = 1024;
+
+/**
+ * Foto por dirección (Telegram la baja) con leyenda HTML. Devuelve el id del mensaje. Si la
+ * dirección no es pública o la imagen no le sirve a Telegram, falla: quien llama decide si manda
+ * el texto solo.
+ */
+export async function mandarFoto(
+  token: string,
+  chatId: string,
+  fotoUrl: string,
+  leyendaHtml: string,
+  teclado: TecladoTelegram | null,
+  deps: DepsTelegramApi = {},
+): Promise<RespuestaTelegram<{ messageId: string }>> {
+  const r = await llamarTelegram<{ message_id?: unknown }>(
+    token,
+    "sendPhoto",
+    { chat_id: chatId, photo: fotoUrl, caption: leyendaHtml, parse_mode: "HTML", ...(teclado ? { reply_markup: teclado } : {}) },
+    deps,
+  );
+  if (!r.ok) return r;
+  const id = r.resultado?.message_id;
+  if (typeof id !== "number" && typeof id !== "string") return { ok: false, codigo: "SIN_ID" };
+  return { ok: true, resultado: { messageId: String(id) } };
+}
+
+/** Saca (o cambia) los botones de un mensaje ya enviado, sea de texto o de foto. */
+export function cambiarBotones(token: string, chatId: string, messageId: string, teclado: TecladoTelegram | null, deps: DepsTelegramApi = {}) {
+  return llamarTelegram<unknown>(
+    token,
+    "editMessageReplyMarkup",
+    { chat_id: chatId, message_id: Number(messageId), reply_markup: teclado ?? { inline_keyboard: [] } },
+    deps,
+  );
+}

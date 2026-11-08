@@ -6,8 +6,10 @@ import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
  * - El secreto: lo elegimos nosotros al registrar el webhook (`secret_token` de setWebhook) y
  *   Telegram lo manda en cada aviso en `X-Telegram-Bot-Api-Secret-Token`. Se guarda sólo su SHA-256
  *   y se compara en tiempo constante.
- * - Sólo interesan dos cosas: `/start <código>` en un chat privado (vincular el chat de Daniel) y
- *   el toque de un botón (`callback_query`). Todo lo demás se confirma con 200 y se ignora.
+ * - Interesan tres cosas: `/start <código>` en un chat privado (vincular el chat de Daniel), el
+ *   toque de un botón (`callback_query`) y un texto que RESPONDE a un mensaje del bot
+ *   (`reply_to_message`, lo usa el canal de agentes para las correcciones). Todo lo demás se
+ *   confirma con 200 y se ignora. El webhook de presupuestos sólo atiende START y BOTON.
  */
 
 export const ENCABEZADO_SECRETO = "x-telegram-bot-api-secret-token";
@@ -39,7 +41,11 @@ export function codigoDeVinculo(): string {
 export type UpdateTelegram =
   | { tipo: "START"; chatId: string; chatPrivado: boolean; codigo: string | null; nombre: string | null }
   | { tipo: "BOTON"; callbackId: string; chatId: string | null; deId: string; messageId: string | null; data: string }
+  | { tipo: "RESPUESTA"; chatId: string; chatPrivado: boolean; deId: string | null; messageId: string | null; respondeA: string; texto: string }
   | { tipo: "OTRO" };
+
+/** Tope del texto de una respuesta (Telegram admite 4096; una corrección no necesita más). */
+export const MAX_TEXTO_RESPUESTA = 2000;
 
 const objeto = (v: unknown): Record<string, unknown> | null => (v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null);
 const id = (v: unknown): string | null => (typeof v === "number" && Number.isFinite(v) ? String(v) : typeof v === "string" && /^-?\d{1,20}$/.test(v) ? v : null);
@@ -66,8 +72,21 @@ export function leerUpdate(payload: unknown): UpdateTelegram {
   const chatId = id(chat?.id);
   if (!m || !chatId) return { tipo: "OTRO" };
   const start = /^\/start(?:@\w+)?(?:\s+([A-Za-z0-9_-]{1,64}))?$/.exec(texto);
-  if (!start) return { tipo: "OTRO" };
   const de = objeto(m.from);
+  if (!start) {
+    // Texto que responde a otro mensaje (no un comando): una corrección para el canal de agentes.
+    const respondeA = id(objeto(m.reply_to_message)?.message_id);
+    if (!respondeA || !texto || texto.startsWith("/")) return { tipo: "OTRO" };
+    return {
+      tipo: "RESPUESTA",
+      chatId,
+      chatPrivado: chat?.type === "private",
+      deId: id(de?.id),
+      messageId: id(m.message_id),
+      respondeA,
+      texto: texto.slice(0, MAX_TEXTO_RESPUESTA),
+    };
+  }
   const nombre = [de?.first_name, de?.last_name].filter((x): x is string => typeof x === "string" && x.trim() !== "").join(" ").slice(0, 80) || null;
   return { tipo: "START", chatId, chatPrivado: chat?.type === "private", codigo: start[1] ?? null, nombre };
 }
