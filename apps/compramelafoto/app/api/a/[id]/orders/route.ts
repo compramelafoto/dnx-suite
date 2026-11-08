@@ -47,6 +47,8 @@ import { completePrepaidAlbumOrder } from "@/lib/canje-externo/complete-prepaid-
 import { vincularPedidoConBot } from "@/lib/bot/comprador/vincular-pedido";
 import { getDemoActiva } from "@/lib/demos/sesion-demo";
 import { actorPuedeUsarPagoSimulado, albumUsaPagoSimulado } from "@/lib/demos/pago-simulado-galeria";
+import { desviarAlPilotoSiCorresponde, urlPagoPiloto } from "@/lib/split-1n-piloto/desvio";
+import { leerMarcaPiloto } from "@/lib/split-1n-piloto/snapshot";
 
 function normalizePercent(value: unknown): number | null {
   const parsed = Number(value);
@@ -517,6 +519,7 @@ export async function POST(
         totalCents: true,
         mpInitPoint: true,
         mpPreferenceId: true,
+        pricingSnapshot: true,
         items: {
           select: {
             photoId: true,
@@ -580,7 +583,10 @@ export async function POST(
         {
           id: reusableOrder.id,
           totalCents: reusableOrder.totalCents,
-          initPoint: reusableOrder.mpInitPoint,
+          // Un pedido del piloto Split 1:N no tiene preferencia: vuelve a su página de pago.
+          initPoint: leerMarcaPiloto(reusableOrder.pricingSnapshot)
+            ? urlPagoPiloto(reusableOrder.id)
+            : reusableOrder.mpInitPoint,
           preferenceId: reusableOrder.mpPreferenceId,
           reused: true,
         },
@@ -767,6 +773,23 @@ export async function POST(
       console.info("[DEMO] pedido de galería con pago simulado", { orderId: order.id, albumId });
       return NextResponse.json(
         { id: order.id, totalCents: order.totalCents, initPoint: simulatedInitPoint, simulated: true },
+        { status: 201 }
+      );
+    }
+
+    // Piloto Split 1:N: un álbum de la lista cobra con tarjeta y reparto en el momento, en su
+    // propia página. Si no corresponde o algo falla, sigue Checkout Pro como siempre.
+    const urlPiloto = await desviarAlPilotoSiCorresponde({
+      order,
+      photographerUserId: album.userId ?? null,
+      items: totals.items.map((it) => ({ productType: it.component })),
+      tieneVideos: Boolean(videoQuote && videoQuote.items.length > 0),
+      esCanje: voucher != null,
+      esPagoSimulado: pagoSimulado,
+    });
+    if (urlPiloto) {
+      return NextResponse.json(
+        { id: order.id, totalCents: order.totalCents, initPoint: urlPiloto, split1nPiloto: true },
         { status: 201 }
       );
     }

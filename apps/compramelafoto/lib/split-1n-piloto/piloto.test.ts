@@ -1,11 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { resolvePilotoConfig, type PilotoConfig } from "./config";
-import {
-  calcularRepartoPiloto,
-  evaluarElegibilidadPiloto,
-  type ElegibilidadInput,
-} from "./elegibilidad";
+import { evaluarElegibilidadPiloto, type ElegibilidadInput } from "./elegibilidad";
+import { calcularRepartoPiloto } from "./reparto";
 
 describe("configuración del piloto", () => {
   it("queda apagado si la bandera no está", () => {
@@ -131,5 +128,27 @@ describe("reparto del piloto", () => {
       referidor: 0,
       plataforma: 450,
     });
+  });
+});
+
+import { leerMarcaPiloto, marcarSnapshotPiloto } from "./snapshot";
+
+describe("marca del piloto en el pedido", () => {
+  it("se agrega sin pisar el resto del snapshot", () => {
+    const s = marcarSnapshotPiloto({ marketplaceFeeCents: 450 }, { estado: "PENDIENTE" });
+    assert.equal((s as Record<string, unknown>).marketplaceFeeCents, 450);
+    assert.deepEqual(leerMarcaPiloto(s), { v: 1, estado: "PENDIENTE" });
+  });
+
+  it("se actualiza conservando lo anterior de la marca", () => {
+    const a = marcarSnapshotPiloto({}, { estado: "PENDIENTE" });
+    const b = marcarSnapshotPiloto(a, { estado: "ACREDITADA", providerOrderId: "ORD01X" });
+    assert.deepEqual(leerMarcaPiloto(b), { v: 1, estado: "ACREDITADA", providerOrderId: "ORD01X" });
+  });
+
+  it("un pedido sin marca no es del piloto", () => {
+    assert.equal(leerMarcaPiloto({ marketplaceFeeCents: 1 }), null);
+    assert.equal(leerMarcaPiloto(null), null);
+    assert.equal(leerMarcaPiloto("x"), null);
   });
 });
