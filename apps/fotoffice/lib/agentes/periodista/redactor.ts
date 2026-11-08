@@ -1,13 +1,11 @@
 import "server-only";
 import { Anthropic } from "@repo/dnx-bot";
 import { textoDeHtml } from "./copia";
-import {
-  pedidoDeNota,
-  pedidoDeReescritura,
-  SISTEMA_PERIODISTA,
-  SISTEMA_REESCRITURA,
-  type TrabajoParaFoto,
-} from "./prompts";
+import { conCosto, sumarUso, usoVacio, type UsoClaude } from "./costo";
+import { imagenDeHtml, MAX_BYTES_IMAGEN, tipoDeImagenAceptado, type ImagenDeLaFuente } from "./imagen";
+import { pedidoDeNota, pedidoDeReescritura, SISTEMA_PERIODISTA, SISTEMA_REESCRITURA } from "./prompts";
+import type { TemaPrevio } from "./temas";
+import { esDireccionPublica } from "./url";
 import { parsearNota, parsearReescritura, type NotaPropuesta, type NotaReescrita, type ResultadoParseo } from "./salida";
 
 /**
@@ -51,7 +49,7 @@ function clienteReal(): ClientePeriodista | null {
 
 export type DepsRedactor = { cliente?: ClientePeriodista | null; fetch?: typeof fetch; ahora?: () => number };
 
-export type UsoClaude = { entrada: number; salida: number; busquedas: number };
+export type { UsoClaude };
 
 export type ResultadoRedaccion<T> =
   | { ok: true; valor: T; extractos: string[]; uso: UsoClaude }
@@ -74,32 +72,33 @@ function citasDe(contenido: RespuestaBeta["content"]): string[] {
   return citas;
 }
 
-function sumarUso(uso: UsoClaude, r: RespuestaBeta): void {
-  uso.entrada += r.usage?.input_tokens ?? 0;
-  uso.salida += r.usage?.output_tokens ?? 0;
-  const busquedas = (r.usage as { server_tool_use?: { web_search_requests?: number } | null } | undefined)?.server_tool_use?.web_search_requests;
-  uso.busquedas += typeof busquedas === "number" ? busquedas : 0;
-}
-
 function nombreDeError(e: unknown): string {
   if (e instanceof Anthropic.APIError) return `la API de Claude respondió ${e.status ?? "sin código"}`;
   if (e instanceof Error && e.name === "AbortError") return "Claude tardó demasiado";
   return e instanceof Error ? e.name : "error desconocido";
 }
 
-/**
- * La conversación con Claude hasta tener un JSON válido. `parsear` decide si sirve; si no, se le
- * explica el error una sola vez.
- */
-async function conversar<T>(input: {
+type Conversacion<T> = {
   sistema: string;
   pedido: string;
   conBusqueda: boolean;
   parsear: (texto: string) => ResultadoParseo<T>;
   hasta: number;
   deps: DepsRedactor;
-}): Promise<ResultadoRedaccion<T>> {
-  const uso: UsoClaude = { entrada: 0, salida: 0, busquedas: 0 };
+};
+
+/**
+ * La conversación con Claude hasta tener un JSON válido. `parsear` decide si sirve; si no, se le
+ * explica el error una sola vez. El uso vuelve con su costo estimado.
+ */
+async function conversar<T>(input: Conversacion<T>): Promise<ResultadoRedaccion<T>> {
+  const res = await conversarSinCosto(input);
+  return { ...res, uso: conCosto(res.uso) };
+}
+
+async function conversarSinCosto<T>(input: Conversacion<T>): Promise<ResultadoRedaccion<T>> {
+  // Se suma CADA respuesta: las continuaciones por pause_turn y el pedido de corrección del JSON.
+  const uso: UsoClaude = usoVacio();
   const api = input.deps.cliente === undefined ? clienteReal() : input.deps.cliente;
   if (!api) return { ok: false, motivo: "Falta ANTHROPIC_API_KEY en el servidor.", uso };
   const ahora = input.deps.ahora ?? Date.now;
@@ -139,7 +138,7 @@ async function conversar<T>(input: {
     } catch (e) {
       return { ok: false, motivo: nombreDeError(e), uso };
     }
-    sumarUso(uso, r);
+    sumarUso(uso, r.usage);
     mensajes.push({ role: "assistant", content: r.content as MensajeBeta["content"] });
     citas.push(...citasDe(r.content));
 
@@ -160,7 +159,7 @@ async function conversar<T>(input: {
 }
 
 export function buscarYEscribir(
-  input: { hoy: string; excluidas: string[]; trabajos: TrabajoParaFoto[]; hasta: number },
+  input: { hoy: string; excluidas: string[]; temas?: TemaPrevio[]; gustos?: string[]; rechazo?: { tema: string; motivo: string } | null; hasta: number },
   deps: DepsRedactor = {},
 ): Promise<ResultadoRedaccion<NotaPropuesta>> {
   return conversar({
@@ -194,26 +193,89 @@ export function reescribir(
 }
 
 const MAX_BYTES_PAGINA = 2_000_000;
+const AGENTE_HTTP = "Mozilla/5.0 (compatible; DNXPeriodista/1.0)";
+
+export type PaginaDeLaFuente = { texto: string; imagen: ImagenDeLaFuente | null };
 
 /**
- * El texto de la página de la noticia, para el detector de copia. Lo mejor que se pueda: si la
- * página no responde, no es HTML o es enorme, se devuelve vacío y el detector usa sólo las citas.
+ * La página de la noticia, bajada UNA vez: su texto (para el detector de copia) y su imagen
+ * principal (para la foto de la nota). Lo mejor que se pueda: si no responde, no es HTML o es
+ * enorme, vuelve vacía y el detector usa sólo las citas. Sólo direcciones públicas.
  */
-export async function textoDeLaFuente(url: string, deps: DepsRedactor = {}): Promise<string> {
+export async function paginaDeLaFuente(url: string, deps: DepsRedactor = {}): Promise<PaginaDeLaFuente> {
+  const vacia = { texto: "", imagen: null };
+  if (!esDireccionPublica(url)) return vacia;
   try {
     const res = await (deps.fetch ?? fetch)(url, {
-      headers: { "User-Agent": "Mozilla/5.0 (compatible; DNXPeriodista/1.0)", Accept: "text/html" },
+      headers: { "User-Agent": AGENTE_HTTP, Accept: "text/html" },
       redirect: "follow",
       signal: AbortSignal.timeout(8_000),
     });
-    if (!res.ok) return "";
+    if (!res.ok) return vacia;
     const tipo = res.headers.get("content-type") ?? "";
-    if (tipo && !/html|text/i.test(tipo)) return "";
+    if (tipo && !/html|text/i.test(tipo)) return vacia;
     const largo = Number(res.headers.get("content-length") ?? "0");
-    if (largo > MAX_BYTES_PAGINA) return "";
-    const html = await res.text();
-    return textoDeHtml(html.slice(0, MAX_BYTES_PAGINA));
+    if (largo > MAX_BYTES_PAGINA) return vacia;
+    const html = (await res.text()).slice(0, MAX_BYTES_PAGINA);
+    // Las relativas se resuelven contra la dirección final (después de redirecciones).
+    const base = res.url && esDireccionPublica(res.url) ? res.url : url;
+    return { texto: textoDeHtml(html), imagen: imagenDeHtml(html, base) };
   } catch {
-    return "";
+    return vacia;
+  }
+}
+
+/** Lee el cuerpo cortando apenas pasa `max` bytes (no confía en content-length). */
+async function leerConTope(res: Response, max: number): Promise<Uint8Array | null> {
+  if (!res.body) {
+    const buf = new Uint8Array(await res.arrayBuffer());
+    return buf.byteLength > max ? null : buf;
+  }
+  const lector = res.body.getReader();
+  const partes: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await lector.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > max) {
+      await lector.cancel().catch(() => undefined);
+      return null;
+    }
+    partes.push(value);
+  }
+  const salida = new Uint8Array(total);
+  let i = 0;
+  for (const p of partes) {
+    salida.set(p, i);
+    i += p.byteLength;
+  }
+  return salida;
+}
+
+export type ImagenBajada = { bytes: Uint8Array; tipo: string };
+
+/**
+ * Baja la imagen principal de la noticia: sólo direcciones públicas, sólo JPEG/PNG/WebP y hasta
+ * 8 MB. Si algo no cumple, null (la nota va sin foto). Nunca lanza.
+ */
+export async function bajarImagen(url: string, deps: DepsRedactor = {}): Promise<ImagenBajada | null> {
+  if (!esDireccionPublica(url)) return null;
+  try {
+    const res = await (deps.fetch ?? fetch)(url, {
+      headers: { "User-Agent": AGENTE_HTTP, Accept: "image/jpeg,image/png,image/webp" },
+      redirect: "follow",
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!res.ok) return null;
+    if (res.url && !esDireccionPublica(res.url)) return null;
+    const tipo = tipoDeImagenAceptado(res.headers.get("content-type"));
+    if (!tipo) return null;
+    const largo = Number(res.headers.get("content-length") ?? "0");
+    if (largo > MAX_BYTES_IMAGEN) return null;
+    const bytes = await leerConTope(res, MAX_BYTES_IMAGEN);
+    return bytes && bytes.byteLength > 0 ? { bytes, tipo } : null;
+  } catch {
+    return null;
   }
 }

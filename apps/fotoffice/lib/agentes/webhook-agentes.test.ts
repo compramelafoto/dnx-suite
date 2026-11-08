@@ -62,7 +62,7 @@ describe("procesarUpdateAgentes", () => {
   it("Otra noticia: descarta y vuelve a correr con forzar", async () => {
     const { d } = deps();
     await procesarUpdateAgentes(canal, boton(`pe:o:${ID}`), d);
-    expect(d.descartar).toHaveBeenCalledWith(ID);
+    expect(d.descartar).toHaveBeenCalledWith(ID, { otra: true });
     expect(d.correr).toHaveBeenCalledWith({ motivo: "OTRA", forzar: true }, undefined);
   });
 

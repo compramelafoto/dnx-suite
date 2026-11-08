@@ -49,8 +49,8 @@ export type DatosMensaje = {
   fuenteUrl: string;
   /** Enlace al borrador en FOTOFFICE (null si falta la dirección pública). */
   editorUrl: string | null;
-  /** Título del trabajo del portfolio cuya foto acompaña la nota. */
-  trabajoTitulo?: string | null;
+  /** Crédito de la foto de la nota (la de la noticia), o null si va sin foto. */
+  fotoCredito?: string | null;
   /** 0 = primera versión; 1, 2… = correcciones. */
   version?: number;
 };
@@ -70,7 +70,7 @@ function armar(d: DatosMensaje, titulo: string, bajada: string, conEnlaceFuente 
       ? `Fuente: <a href="${escaparHtml(d.fuenteUrl)}">${escaparHtml(recortar(fuente, 120))}</a>`
       : `Fuente: ${escaparHtml(recortar(fuente, 120))}`,
     d.editorUrl ? `<a href="${escaparHtml(d.editorUrl)}">Ver y editar el borrador en FOTOFFICE</a>` : null,
-    d.trabajoTitulo ? `Foto: ${escaparHtml(recortar(d.trabajoTitulo, 80))}` : null,
+    d.fotoCredito ? `Foto: ${escaparHtml(recortar(d.fotoCredito, 80))}` : "Sin foto (la noticia no tenía una imagen usable).",
     "",
     "<i>Para corregir, respondé a este mensaje con lo que quieras cambiar.</i>",
   ];

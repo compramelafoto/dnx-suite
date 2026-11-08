@@ -26,19 +26,25 @@ const ENTIDADES: Record<string, string> = {
   laquo: "«", raquo: "»", ldquo: "“", rdquo: "”", lsquo: "‘", rsquo: "’", hellip: "…", mdash: "—", ndash: "–",
 };
 
+/** Reemplaza las entidades HTML (`&amp;`, `&#233;`, `&aacute;`...) por sus caracteres. */
+export function decodificarEntidades(texto: string): string {
+  return texto.replace(/&(#x[0-9a-f]+|#[0-9]+|[a-z]+);/gi, (entera, cuerpo: string) => {
+    if (cuerpo[0] === "#") {
+      const n = cuerpo[1] === "x" || cuerpo[1] === "X" ? parseInt(cuerpo.slice(2), 16) : parseInt(cuerpo.slice(1), 10);
+      return Number.isFinite(n) && n > 0 && n < 0x110000 ? String.fromCodePoint(n) : " ";
+    }
+    return ENTIDADES[cuerpo] ?? ENTIDADES[cuerpo.toLowerCase()] ?? entera;
+  });
+}
+
 /** El texto visible de una página HTML (sin scripts, estilos ni etiquetas). */
 export function textoDeHtml(html: string): string {
-  return html
-    .replace(/<(script|style|noscript|svg|template)[\s\S]*?<\/\1>/gi, " ")
-    .replace(/<!--[\s\S]*?-->/g, " ")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&(#x[0-9a-f]+|#[0-9]+|[a-z]+);/gi, (entera, cuerpo: string) => {
-      if (cuerpo[0] === "#") {
-        const n = cuerpo[1] === "x" || cuerpo[1] === "X" ? parseInt(cuerpo.slice(2), 16) : parseInt(cuerpo.slice(1), 10);
-        return Number.isFinite(n) && n > 0 && n < 0x110000 ? String.fromCodePoint(n) : " ";
-      }
-      return ENTIDADES[cuerpo] ?? ENTIDADES[cuerpo.toLowerCase()] ?? entera;
-    })
+  return decodificarEntidades(
+    html
+      .replace(/<(script|style|noscript|svg|template)[\s\S]*?<\/\1>/gi, " ")
+      .replace(/<!--[\s\S]*?-->/g, " ")
+      .replace(/<[^>]+>/g, " "),
+  )
     .replace(/\s+/g, " ")
     .trim();
 }

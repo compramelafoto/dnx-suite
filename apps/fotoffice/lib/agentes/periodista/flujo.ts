@@ -5,23 +5,32 @@ import { appUrl } from "@/lib/app-url";
 import { createBlogPost, deleteBlogPost, updateBlogPost } from "@/lib/blog/admin-queries";
 import { absoluteUrl, BLOG_RESERVED_POST_SLUGS } from "@/lib/blog/public-format";
 import { blogWhere } from "@/lib/blog/scope";
+import { uploadBlogImage } from "@/lib/blog/storage";
 import { MAX_LEYENDA_FOTO, type DepsTelegramApi } from "@/lib/telegram/api";
 import { cambiarBotones, destinoAgentes, mandarMensaje, mandarPropuesta } from "../canal";
 import { frasesCopiadas } from "./copia";
-import { diaArgentino, horaDePublicacion, inicioDelDiaArgentino, textoDePublicacion } from "./horario";
+import { costoUsd, juntarUsos, type UsoClaude } from "./costo";
+import { resumenDeGustos, PROPUESTAS_PARA_GUSTOS, type CategoriaNota, type ResultadoPropuesta, type ResumenGustos } from "./gustos";
+import { diaArgentino, horaDePublicacion, inicioDelDiaArgentino, inicioDelMesArgentino, textoDePublicacion } from "./horario";
+import { creditoDeFoto, nombreDeArchivo, type CreditoFoto, type ImagenDeLaFuente } from "./imagen";
 import { armarMensajePropuesta, escaparHtml, mensajeDeFallo, tecladoDePropuesta } from "./mensaje";
-import { pedidoPorCopia, type TrabajoParaFoto } from "./prompts";
-import { buscarYEscribir, reescribir, textoDeLaFuente, type DepsRedactor, type UsoClaude } from "./redactor";
-import { notaATiptap, textoDeLaNota, type NotaReescrita } from "./salida";
-import { esDireccionPublica } from "./url";
+import { pedidoPorCopia } from "./prompts";
+import { bajarImagen, buscarYEscribir, paginaDeLaFuente, reescribir, type DepsRedactor } from "./redactor";
+import { notaATiptap, textoDeLaNota, type NotaPropuesta, type NotaReescrita } from "./salida";
+import { DIAS_TEMAS_A_EVITAR, temaRepetido, type TemaPrevio } from "./temas";
 
 /**
- * El Periodista (spec 2026-11-07): propone una nota para el blog de DNX Estudio, la manda por
- * Telegram y, con la respuesta de Daniel, la publica, la corrige o la descarta. Nada se publica sin
- * el botón de Daniel. Todo tolera que falte la tabla (el SQL se aplica a mano). Nunca lanza.
+ * El Periodista (spec 2026-11-07, ajustes 2026-11-08): propone una nota para el blog de DNX
+ * Estudio, la manda por Telegram y, con la respuesta de Daniel, la publica, la corrige o la
+ * descarta. Nada se publica sin el botón de Daniel. Todo tolera que falte la tabla (el SQL se
+ * aplica a mano). Nunca lanza.
  *
  * Estados: PREPARANDO (corriendo) → PENDIENTE (esperando a Daniel) → PUBLICADA | DESCARTADA,
  * o FALLO. Cada corrida deja una fila, aunque falle: así se cuenta el tope de 3 por día.
+ *
+ * La foto es la imagen principal de la noticia (copiada a nuestro almacenamiento, con crédito al
+ * medio); si no hay una usable, la nota va sin foto. No repite temas (los de los últimos 45 días
+ * van en el pedido y se controlan acá) y aprende de lo que Daniel publica, descarta y corrige.
  */
 
 export const AGENTE_PERIODISTA = "PERIODISTA";
@@ -34,13 +43,22 @@ const PLAZO_CLAUDE_MS = 255_000;
 const MAX_TEXTO_EXTRACTOS = 40_000;
 const NOMBRE_CATEGORIA = "Noticias";
 const SLUG_CATEGORIA = "noticias";
+/** Estados que cuentan como "ya propuesto" (los FALLO no llegaron a Daniel). */
+const ESTADOS_PROPUESTOS = ["PENDIENTE", "PUBLICADA", "DESCARTADA"];
 
-/** El workspace de DNX Estudio (su blog y su portfolio). */
+/** El workspace de DNX Estudio (su blog). */
 export function workspacePeriodista(): string {
   return process.env.FOTOFFICE_PERIODISTA_WORKSPACE_ID?.trim() || "cmv5z6qxwwmmhf0q5gp8qja1j";
 }
 
-export type TrabajoElegido = { id: string; titulo: string; fotoUrl: string | null };
+/** La foto de la nota: la imagen de la noticia copiada a nuestro almacenamiento. */
+export type FotoDeLaNota = {
+  /** Dirección de NUESTRA copia (absoluta). */
+  url: string;
+  /** De dónde se bajó (la imagen en el sitio del medio). */
+  original: string;
+  credito: CreditoFoto;
+};
 
 /** Lo que se guarda en `datos` (JSON) de la propuesta. */
 export type DatosPropuesta = {
@@ -48,13 +66,21 @@ export type DatosPropuesta = {
   fuenteUrlOriginal?: string;
   fuenteTitulo?: string;
   fuenteMedio?: string | null;
-  temaFoto?: string;
-  trabajo?: TrabajoElegido | null;
+  /** El hecho del que trata la noticia (para no repetir temas). */
+  tema?: string;
+  categoria?: CategoriaNota;
+  /** null = la nota va sin foto. */
+  foto?: FotoDeLaNota | null;
   nota?: NotaReescrita;
+  /** Qué hizo Daniel: publicar, descartar u "otra noticia". */
+  resultado?: ResultadoPropuesta;
+  /** Los pedidos de corrección de Daniel (sus textos), en orden. */
+  correccionesPedidas?: string[];
   /** Citas de la búsqueda + texto de la página, para revisar copia en las correcciones. */
   extractos?: string[];
   /** Todos los mensajes de Telegram de la propuesta (el último está en `telegramMessageId`). */
   mensajes?: string[];
+  /** Todo lo gastado en Claude por esta propuesta (corrida, reescrituras y correcciones), con su costo. */
   uso?: UsoClaude;
   error?: string;
 };
@@ -67,10 +93,14 @@ export type ResultadoCorrida = {
   propuestaId?: string;
 };
 
+/** Sube la imagen a nuestro almacenamiento y devuelve su dirección (o null si no se pudo). */
+export type SubirImagen = (input: { workspaceId: string; bytes: Uint8Array; tipo: string; nombre: string; titulo: string; alt: string }) => Promise<string | null>;
+
 export type DepsPeriodista = DepsTelegramApi & {
   redactor?: DepsRedactor;
   ahora?: () => Date;
   destino?: () => Promise<{ token: string; chatId: string } | null>;
+  subirImagen?: SubirImagen;
 };
 
 const esTablaFaltante = (e: unknown) => (e as { code?: unknown } | null)?.code === "P2021";
@@ -100,26 +130,45 @@ export function editorDelBorrador(postId: number): string | null {
   return base ? `${base}/website/blog/${postId}` : null;
 }
 
-/** Los trabajos publicados de DNX Estudio que tienen portada (para elegir la foto). */
-async function trabajosConFoto(workspaceId: string): Promise<Array<TrabajoParaFoto & { portadaUrl: string }>> {
-  try {
-    const [trabajos, categorias] = await Promise.all([
-      prisma.fotofficeTrabajo.findMany({
-        where: { workspaceId, estado: "PUBLICADO", portadaUrl: { not: null } },
-        orderBy: [{ fecha: { sort: "desc", nulls: "last" } }, { orden: "asc" }],
-        take: 60,
-        select: { id: true, titulo: true, categoriaId: true, portadaUrl: true },
-      }),
-      prisma.fotofficeTrabajoCategoria.findMany({ where: { workspaceId }, select: { id: true, nombre: true } }),
-    ]);
-    const nombres = new Map(categorias.map((c) => [c.id, c.nombre]));
-    return trabajos.flatMap((t) =>
-      t.portadaUrl ? [{ id: t.id, titulo: t.titulo, categoria: t.categoriaId ? (nombres.get(t.categoriaId) ?? null) : null, portadaUrl: t.portadaUrl }] : [],
-    );
-  } catch (e) {
-    registrar("trabajosConFoto", e);
-    return [];
-  }
+function datosDe(fila: { datos: unknown }): DatosPropuesta {
+  const d = fila.datos;
+  return d && typeof d === "object" && !Array.isArray(d) ? (d as DatosPropuesta) : { motivo: "CRON" };
+}
+
+/** El tema de una propuesta (las anteriores a los ajustes no lo tienen: se usa el título). */
+function temaPrevioDe(fila: { estado: string; creadaEn: Date; datos: unknown }, desdeHoy: Date): TemaPrevio | null {
+  const d = datosDe(fila);
+  const titulo = d.nota?.titulo ?? d.fuenteTitulo ?? null;
+  const tema = d.tema ?? titulo;
+  return tema ? { tema, titulo, estado: fila.estado, deHoy: fila.creadaEn.getTime() >= desdeHoy.getTime() } : null;
+}
+
+/** Los temas ya propuestos en los últimos 45 días (el más reciente primero). */
+async function temasRecientes(ahora: Date): Promise<TemaPrevio[]> {
+  const filas = await prisma.fotofficeAgentePropuesta.findMany({
+    where: { agente: AGENTE_PERIODISTA, estado: { in: ESTADOS_PROPUESTOS }, creadaEn: { gte: new Date(ahora.getTime() - DIAS_TEMAS_A_EVITAR * 86_400_000) } },
+    orderBy: { creadaEn: "desc" },
+    take: 300,
+    select: { estado: true, creadaEn: true, datos: true },
+  });
+  const desdeHoy = inicioDelDiaArgentino(ahora);
+  return filas.map((f) => temaPrevioDe(f, desdeHoy)).filter((t): t is TemaPrevio => t !== null);
+}
+
+/** El resumen de gustos con las últimas propuestas que llegaron a Daniel. */
+async function gustosRecientes(): Promise<ResumenGustos> {
+  const filas = await prisma.fotofficeAgentePropuesta.findMany({
+    where: { agente: AGENTE_PERIODISTA, estado: { in: ESTADOS_PROPUESTOS } },
+    orderBy: { creadaEn: "desc" },
+    take: PROPUESTAS_PARA_GUSTOS,
+    select: { estado: true, datos: true },
+  });
+  return resumenDeGustos(
+    filas.map((f) => {
+      const d = datosDe(f);
+      return { estado: f.estado, categoria: d.categoria ?? null, resultado: d.resultado ?? null, correccionesPedidas: d.correccionesPedidas ?? [] };
+    }),
+  );
 }
 
 async function categoriaNoticias(workspaceId: string): Promise<number | null> {
@@ -149,11 +198,11 @@ async function slugLibre(workspaceId: string, titulo: string, dia: string): Prom
   return `${base.slice(0, 50).replace(/-+$/, "")}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
-function contenidoDelBorrador(nota: NotaReescrita, fuente: { url: string; titulo: string; medio?: string | null }) {
+function contenidoDelBorrador(nota: NotaReescrita, fuente: { url: string; titulo: string; medio?: string | null }, foto: FotoDeLaNota | null | undefined) {
   return {
     title: nota.titulo,
     excerpt: nota.bajada,
-    contentJson: notaATiptap(nota.cuerpo, fuente),
+    contentJson: notaATiptap(nota.cuerpo, fuente, foto?.credito ?? null),
     seoTitle: nota.titulo,
     seoDescription: nota.bajada.slice(0, 320),
   };
@@ -170,20 +219,80 @@ async function marcarFallo(propuestaId: string, datos: DatosPropuesta, motivo: s
   }
 }
 
-/** Revisa copia contra los extractos; si hay, pide UNA reescritura. Devuelve la nota limpia o el motivo. */
+/**
+ * Revisa copia contra los extractos; si hay, pide UNA reescritura. Devuelve la nota limpia o el
+ * motivo, y siempre lo gastado en Claude.
+ */
 async function sinCopia(
   nota: NotaReescrita,
   fuente: { titulo: string; url: string },
   extractos: string[],
   hasta: number,
   deps: DepsPeriodista,
-): Promise<{ ok: true; nota: NotaReescrita } | { ok: false; motivo: string }> {
+): Promise<({ ok: true; nota: NotaReescrita } | { ok: false; motivo: string }) & { uso: UsoClaude | null }> {
   const frases = frasesCopiadas(textoDeLaNota(nota), extractos);
-  if (frases.length === 0) return { ok: true, nota };
+  if (frases.length === 0) return { ok: true, nota, uso: null };
   const r = await reescribir({ nota, fuente, pedido: pedidoPorCopia(frases), hasta }, deps.redactor);
-  if (!r.ok) return { ok: false, motivo: `La nota repetía frases de la fuente y no se pudo reescribir (${r.motivo}).` };
-  if (frasesCopiadas(textoDeLaNota(r.valor), extractos).length > 0) return { ok: false, motivo: "La nota seguía repitiendo frases textuales de la fuente." };
-  return { ok: true, nota: r.valor };
+  if (!r.ok) return { ok: false, motivo: `La nota repetía frases de la fuente y no se pudo reescribir (${r.motivo}).`, uso: r.uso };
+  if (frasesCopiadas(textoDeLaNota(r.valor), extractos).length > 0) return { ok: false, motivo: "La nota seguía repitiendo frases textuales de la fuente.", uso: r.uso };
+  return { ok: true, nota: r.valor, uso: r.uso };
+}
+
+const subirImagenReal: SubirImagen = async (input) => {
+  const r = await uploadBlogImage({
+    workspaceId: input.workspaceId,
+    kind: "hero",
+    bytes: input.bytes,
+    filename: input.nombre,
+    mimeType: input.tipo,
+    title: input.titulo,
+    altText: input.alt,
+  });
+  if (!r.ok) {
+    console.warn("[agentes][periodista] la imagen de la noticia no se pudo guardar", { motivo: r.error.slice(0, 120) });
+    return null;
+  }
+  return r.url;
+};
+
+/**
+ * La foto de la nota: la imagen principal de la noticia, bajada y guardada en nuestro
+ * almacenamiento (no se depende del enlace ajeno). null = la nota va sin foto. Nunca lanza.
+ */
+async function fotoDeLaNoticia(
+  workspaceId: string,
+  imagen: ImagenDeLaFuente | null,
+  propuesta: Pick<NotaPropuesta, "fuenteUrl" | "fuenteMedio">,
+  titulo: string,
+  deps: DepsPeriodista,
+): Promise<FotoDeLaNota | null> {
+  if (!imagen) return null;
+  try {
+    const bajada = await bajarImagen(imagen.url, deps.redactor);
+    if (!bajada) return null;
+    const credito = creditoDeFoto({ medio: propuesta.fuenteMedio, sitio: imagen.sitio, credito: imagen.credito, fuenteUrl: propuesta.fuenteUrl });
+    const subida = await (deps.subirImagen ?? subirImagenReal)({
+      workspaceId,
+      bytes: bajada.bytes,
+      tipo: bajada.tipo,
+      nombre: nombreDeArchivo(imagen.url, bajada.tipo),
+      titulo: `Foto: ${credito.texto}`,
+      alt: titulo,
+    });
+    const url = subida ? absoluteUrl(appUrl(), subida) : null;
+    return url ? { url, original: imagen.url, credito } : null;
+  } catch (e) {
+    registrar("fotoDeLaNoticia", e);
+    return null;
+  }
+}
+
+/** Por qué una elección de Claude no sirve (noticia ya usada o tema repetido), o null si sirve. */
+function problemaDeEleccion(p: NotaPropuesta, excluidas: string[], temas: TemaPrevio[]): string | null {
+  if (excluidas.includes(p.fuenteUrlNormalizada)) return "esa noticia ya la habíamos usado";
+  const repetido = temaRepetido({ tema: p.tema, titulo: p.titulo }, temas);
+  if (repetido) return `es el mismo tema que «${repetido.tema}», que ya propusimos`;
+  return null;
 }
 
 /**
@@ -225,7 +334,9 @@ export async function correrPeriodista(opciones: { motivo: MotivoCorrida; forzar
   }
 
   const datos: DatosPropuesta = { motivo: opciones.motivo };
+  const usos: Array<UsoClaude | null> = [];
   const fallar = async (motivo: string): Promise<ResultadoCorrida> => {
+    if (usos.length) datos.uso = juntarUsos(...usos);
     await marcarFallo(propuestaId, datos, motivo, ahora());
     await mandarMensaje(destino.token, destino.chatId, mensajeDeFallo(motivo), null, deps);
     return { estado: "FALLO", mensaje: motivo, propuestaId };
@@ -239,45 +350,52 @@ export async function correrPeriodista(opciones: { motivo: MotivoCorrida; forzar
       select: { fuenteUrl: true },
     });
     const excluidas = [...new Set(usadas.map((u) => u.fuenteUrl).filter((u): u is string => Boolean(u)))];
-    const trabajos = await trabajosConFoto(workspaceId);
+    const temas = await temasRecientes(ahora());
+    const gustos = await gustosRecientes();
     const hasta = Date.now() + PLAZO_CLAUDE_MS;
+    const pedido = { hoy: diaArgentino(ahora()), excluidas, temas, gustos: gustos.lineas, hasta };
 
-    const r = await buscarYEscribir(
-      { hoy: diaArgentino(ahora()), excluidas, trabajos: trabajos.map(({ id, titulo, categoria }) => ({ id, titulo, categoria })), hasta },
-      deps.redactor,
-    );
-    if (!r.ok) {
-      datos.uso = r.uso;
-      return await fallar(r.motivo);
+    // Si elige una noticia ya usada o un tema repetido, se le pide otra elección UNA vez.
+    let r = await buscarYEscribir(pedido, deps.redactor);
+    usos.push(r.uso);
+    if (!r.ok) return await fallar(r.motivo);
+    const problema = problemaDeEleccion(r.valor, excluidas, temas);
+    if (problema) {
+      r = await buscarYEscribir({ ...pedido, rechazo: { tema: r.valor.tema, motivo: problema } }, deps.redactor);
+      usos.push(r.uso);
+      if (!r.ok) return await fallar(r.motivo);
+      const otra = problemaDeEleccion(r.valor, excluidas, temas);
+      if (otra) return await fallar(`Claude insistió con una noticia que no sirve (${otra}).`);
     }
     const propuesta = r.valor;
-    datos.uso = r.uso;
     datos.fuenteUrlOriginal = propuesta.fuenteUrl;
     datos.fuenteTitulo = propuesta.fuenteTitulo;
     datos.fuenteMedio = propuesta.fuenteMedio ?? null;
-    datos.temaFoto = propuesta.temaFoto;
-    if (excluidas.includes(propuesta.fuenteUrlNormalizada)) return await fallar("Claude eligió una noticia que ya habíamos usado.");
+    datos.tema = propuesta.tema;
+    datos.categoria = propuesta.categoria;
 
-    const pagina = esDireccionPublica(propuesta.fuenteUrl) ? await textoDeLaFuente(propuesta.fuenteUrl, deps.redactor) : "";
-    const extractos = recortarExtractos([...r.extractos, pagina]);
+    // La página de la noticia se baja una sola vez: texto para el detector de copia e imagen.
+    const pagina = await paginaDeLaFuente(propuesta.fuenteUrl, deps.redactor);
+    const extractos = recortarExtractos([...r.extractos, pagina.texto]);
     datos.extractos = extractos;
     const fuente = { titulo: propuesta.fuenteTitulo, url: propuesta.fuenteUrl };
     const limpia = await sinCopia({ titulo: propuesta.titulo, bajada: propuesta.bajada, cuerpo: propuesta.cuerpo }, fuente, extractos, hasta, deps);
+    usos.push(limpia.uso);
     if (!limpia.ok) return await fallar(limpia.motivo);
     const nota = limpia.nota;
     datos.nota = nota;
+    datos.uso = juntarUsos(...usos);
 
-    const elegido = trabajos.find((t) => t.id === propuesta.trabajoId) ?? trabajos[0] ?? null;
-    const fotoUrl = elegido ? absoluteUrl(appUrl(), elegido.portadaUrl) : null;
-    datos.trabajo = elegido ? { id: elegido.id, titulo: elegido.titulo, fotoUrl } : null;
+    const foto = await fotoDeLaNoticia(workspaceId, pagina.imagen, propuesta, nota.titulo, deps);
+    datos.foto = foto;
 
     const categoryId = await categoriaNoticias(workspaceId);
     const parseado = parseContentPostCreate({
-      ...contenidoDelBorrador(nota, { url: propuesta.fuenteUrl, titulo: propuesta.fuenteTitulo, medio: propuesta.fuenteMedio }),
+      ...contenidoDelBorrador(nota, { url: propuesta.fuenteUrl, titulo: propuesta.fuenteTitulo, medio: propuesta.fuenteMedio }, foto),
       slug: await slugLibre(workspaceId, nota.titulo, diaArgentino(ahora())),
       status: "DRAFT",
-      heroImageUrl: fotoUrl,
-      ogImageUrl: fotoUrl,
+      heroImageUrl: foto?.url ?? null,
+      ogImageUrl: foto?.url ?? null,
       categoryId,
     });
     if (!parseado.success) {
@@ -293,11 +411,11 @@ export async function correrPeriodista(opciones: { motivo: MotivoCorrida; forzar
       fuenteMedio: propuesta.fuenteMedio,
       fuenteUrl: propuesta.fuenteUrl,
       editorUrl: editorDelBorrador(post.id),
-      trabajoTitulo: elegido?.titulo ?? null,
+      fotoCredito: foto?.credito.texto ?? null,
     };
     const messageId = await mandarPropuesta(
       destino,
-      { fotoUrl, leyenda: armarMensajePropuesta(datosMensaje, MAX_LEYENDA_FOTO), texto: armarMensajePropuesta(datosMensaje, 4096), teclado: tecladoDePropuesta(propuestaId) },
+      { fotoUrl: foto?.url ?? null, leyenda: armarMensajePropuesta(datosMensaje, MAX_LEYENDA_FOTO), texto: armarMensajePropuesta(datosMensaje, 4096), teclado: tecladoDePropuesta(propuestaId) },
       deps,
     );
     datos.mensajes = messageId ? [messageId] : [];
@@ -332,11 +450,6 @@ type FilaPropuesta = {
 
 const SELECCION = { id: true, estado: true, workspaceId: true, blogPostId: true, telegramMessageId: true, correcciones: true, datos: true } as const;
 
-function datosDe(fila: { datos: unknown }): DatosPropuesta {
-  const d = fila.datos;
-  return d && typeof d === "object" && !Array.isArray(d) ? (d as DatosPropuesta) : { motivo: "CRON" };
-}
-
 export type ResultadoAccion = { ok: boolean; texto: string };
 
 async function propuestaPendiente(propuestaId: string): Promise<FilaPropuesta | null> {
@@ -351,13 +464,17 @@ export async function publicarPropuesta(propuestaId: string, deps: { ahora?: () 
     if (!p) return { ok: false, texto: "No encontré esa propuesta." };
     if (p.estado === "PUBLICADA") return { ok: false, texto: "Esa nota ya estaba aprobada." };
     if (p.estado !== "PENDIENTE" || !p.blogPostId) return { ok: false, texto: "Esa propuesta ya no está pendiente." };
-    const reclamo = await prisma.fotofficeAgentePropuesta.updateMany({ where: { id: p.id, estado: "PENDIENTE" }, data: { estado: "PUBLICADA", resueltaEn: ahora } });
+    const d = datosDe(p);
+    const reclamo = await prisma.fotofficeAgentePropuesta.updateMany({
+      where: { id: p.id, estado: "PENDIENTE" },
+      data: { estado: "PUBLICADA", resueltaEn: ahora, datos: { ...d, resultado: "PUBLICADA" } as object },
+    });
     if (reclamo.count !== 1) return { ok: false, texto: "Esa propuesta ya no está pendiente." };
     const cuando = horaDePublicacion(ahora);
     const cambios = parseContentPostUpdate({ status: "PUBLISHED", publishedAt: cuando.toISOString() });
     const post = cambios.success ? await updateBlogPost(p.workspaceId, p.blogPostId, cambios.data).catch(() => null) : null;
     if (!post) {
-      await prisma.fotofficeAgentePropuesta.updateMany({ where: { id: p.id }, data: { estado: "PENDIENTE", resueltaEn: null } }).catch(() => undefined);
+      await prisma.fotofficeAgentePropuesta.updateMany({ where: { id: p.id }, data: { estado: "PENDIENTE", resueltaEn: null, datos: d as object } }).catch(() => undefined);
       return { ok: false, texto: "No pude publicar el borrador (¿lo borraron del blog?)." };
     }
     return { ok: true, texto: `✅ Aprobada: sale publicada ${textoDePublicacion(cuando, ahora)}.` };
@@ -367,14 +484,21 @@ export async function publicarPropuesta(propuestaId: string, deps: { ahora?: () 
   }
 }
 
-/** Descartar: la propuesta queda DESCARTADA y su borrador (si sigue en borrador) se borra. */
-export async function descartarPropuesta(propuestaId: string, deps: { ahora?: () => Date } = {}): Promise<ResultadoAccion> {
+/**
+ * Descartar: la propuesta queda DESCARTADA y su borrador (si sigue en borrador) se borra. Con
+ * `otra` (el botón "Otra noticia") el resultado que se aprende es "OTRA".
+ */
+export async function descartarPropuesta(propuestaId: string, deps: { ahora?: () => Date; otra?: boolean } = {}): Promise<ResultadoAccion> {
   const ahora = (deps.ahora ?? (() => new Date()))();
   try {
     const p = await propuestaPendiente(propuestaId);
     if (!p) return { ok: false, texto: "No encontré esa propuesta." };
     if (p.estado === "DESCARTADA") return { ok: false, texto: "Esa nota ya estaba descartada." };
-    const reclamo = await prisma.fotofficeAgentePropuesta.updateMany({ where: { id: p.id, estado: "PENDIENTE" }, data: { estado: "DESCARTADA", resueltaEn: ahora } });
+    const resultado: ResultadoPropuesta = deps.otra ? "OTRA" : "DESCARTADA";
+    const reclamo = await prisma.fotofficeAgentePropuesta.updateMany({
+      where: { id: p.id, estado: "PENDIENTE" },
+      data: { estado: "DESCARTADA", resueltaEn: ahora, datos: { ...datosDe(p), resultado } as object },
+    });
     if (reclamo.count !== 1) return { ok: false, texto: "Esa propuesta ya no está pendiente." };
     if (p.blogPostId) {
       const borrador = await prisma.blogPost.findFirst({ where: { ...blogWhere(p.workspaceId), id: p.blogPostId, status: "DRAFT" }, select: { id: true } });
@@ -398,6 +522,16 @@ async function propuestaDelMensaje(messageId: string): Promise<FilaPropuesta | n
     select: SELECCION,
   });
   return recientes.find((p) => datosDe(p).mensajes?.includes(messageId)) ?? null;
+}
+
+/** Guarda el uso acumulado sin pisar el resto de `datos` (se relee la fila). */
+async function guardarUso(propuestaId: string, uso: UsoClaude): Promise<void> {
+  try {
+    const fila = await prisma.fotofficeAgentePropuesta.findFirst({ where: { id: propuestaId }, select: { datos: true } });
+    if (fila) await prisma.fotofficeAgentePropuesta.update({ where: { id: propuestaId }, data: { datos: { ...datosDe(fila), uso } as object } });
+  } catch (e) {
+    registrar("guardarUso", e);
+  }
 }
 
 /**
@@ -426,14 +560,25 @@ export async function corregirPropuesta(respondeA: string, pedido: string, deps:
     const hasta = Date.now() + PLAZO_CLAUDE_MS;
     const fuente = { titulo: d.fuenteTitulo ?? d.fuenteUrlOriginal, url: d.fuenteUrlOriginal };
     const r = await reescribir({ nota: d.nota, fuente, pedido, hasta }, deps.redactor);
-    if (!r.ok) return void (await decir(`No pude reescribirla: ${escaparHtml(r.motivo)} Probá de nuevo respondiendo al mensaje.`));
+    if (!r.ok) {
+      await guardarUso(p.id, juntarUsos(d.uso, r.uso));
+      return void (await decir(`No pude reescribirla: ${escaparHtml(r.motivo)} Probá de nuevo respondiendo al mensaje.`));
+    }
     const limpia = await sinCopia(r.valor, fuente, d.extractos ?? [], hasta, deps);
-    if (!limpia.ok) return void (await decir(`No pude reescribirla: ${escaparHtml(limpia.motivo)}`));
+    // Lo gastado en la corrección se suma a la propuesta aunque no se haya podido usar.
+    const uso = juntarUsos(d.uso, r.uso, limpia.uso);
+    if (!limpia.ok) {
+      await guardarUso(p.id, uso);
+      return void (await decir(`No pude reescribirla: ${escaparHtml(limpia.motivo)}`));
+    }
     const nota = limpia.nota;
 
-    const cambios = parseContentPostUpdate(contenidoDelBorrador(nota, { url: d.fuenteUrlOriginal, titulo: fuente.titulo, medio: d.fuenteMedio }));
+    const cambios = parseContentPostUpdate(contenidoDelBorrador(nota, { url: d.fuenteUrlOriginal, titulo: fuente.titulo, medio: d.fuenteMedio }, d.foto));
     const post = cambios.success ? await updateBlogPost(p.workspaceId, p.blogPostId, cambios.data).catch(() => null) : null;
-    if (!post) return void (await decir("No pude guardar la versión nueva en el borrador (¿lo borraron del blog?)."));
+    if (!post) {
+      await guardarUso(p.id, uso);
+      return void (await decir("No pude guardar la versión nueva en el borrador (¿lo borraron del blog?)."));
+    }
 
     const version = p.correcciones + 1;
     const datosMensaje = {
@@ -443,13 +588,13 @@ export async function corregirPropuesta(respondeA: string, pedido: string, deps:
       fuenteMedio: d.fuenteMedio,
       fuenteUrl: d.fuenteUrlOriginal,
       editorUrl: editorDelBorrador(p.blogPostId),
-      trabajoTitulo: d.trabajo?.titulo ?? null,
+      fotoCredito: d.foto?.credito.texto ?? null,
       version,
     };
     const messageId = await mandarPropuesta(
       destino,
       {
-        fotoUrl: d.trabajo?.fotoUrl ?? null,
+        fotoUrl: d.foto?.url ?? null,
         leyenda: armarMensajePropuesta(datosMensaje, MAX_LEYENDA_FOTO),
         texto: armarMensajePropuesta(datosMensaje, 4096),
         teclado: tecladoDePropuesta(p.id),
@@ -461,7 +606,13 @@ export async function corregirPropuesta(respondeA: string, pedido: string, deps:
       where: { id: p.id },
       data: {
         ...(messageId ? { telegramMessageId: messageId } : {}),
-        datos: { ...d, nota, mensajes: [...(d.mensajes ?? []), ...(messageId ? [messageId] : [])] } as object,
+        datos: {
+          ...d,
+          nota,
+          uso,
+          correccionesPedidas: [...(d.correccionesPedidas ?? []), pedido.trim().slice(0, 1000)],
+          mensajes: [...(d.mensajes ?? []), ...(messageId ? [messageId] : [])],
+        } as object,
       },
     });
     if (!messageId) await decir("Guardé la versión nueva en el borrador, pero Telegram no aceptó el mensaje.");
@@ -491,6 +642,11 @@ export async function ultimasPropuestas(limite = 15) {
         fuenteUrl: f.fuenteUrl,
         titulo: d.nota?.titulo ?? null,
         fuenteTitulo: d.fuenteTitulo ?? null,
+        tema: d.tema ?? null,
+        categoria: d.categoria ?? null,
+        conFoto: Boolean(d.foto),
+        resultado: d.resultado ?? null,
+        costoUsd: costoUsd(d.uso),
         motivo: d.motivo,
         error: d.error ?? null,
         editorUrl: f.blogPostId ? editorDelBorrador(f.blogPostId) : null,
@@ -499,5 +655,30 @@ export async function ultimasPropuestas(limite = 15) {
   } catch (e) {
     registrar("ultimasPropuestas", e);
     return esTablaFaltante(e) ? null : [];
+  }
+}
+
+/** Para la página Agentes: lo que el Periodista aprendió de los gustos de Daniel. `null` = falta la tabla. */
+export async function gustosDelPeriodista(): Promise<ResumenGustos | null> {
+  try {
+    return await gustosRecientes();
+  } catch (e) {
+    registrar("gustosDelPeriodista", e);
+    return esTablaFaltante(e) ? null : { resueltas: 0, lineas: [] };
+  }
+}
+
+/** Para la página Agentes: el costo estimado en Claude de las propuestas de este mes (hora argentina). */
+export async function costoDelMes(ahora: Date = new Date()): Promise<{ costoUsd: number; corridas: number } | null> {
+  try {
+    const filas = await prisma.fotofficeAgentePropuesta.findMany({
+      where: { agente: AGENTE_PERIODISTA, creadaEn: { gte: inicioDelMesArgentino(ahora) } },
+      select: { datos: true },
+    });
+    const total = filas.reduce((suma, f) => suma + costoUsd(datosDe(f).uso), 0);
+    return { costoUsd: Math.round(total * 1_000_000) / 1_000_000, corridas: filas.length };
+  } catch (e) {
+    registrar("costoDelMes", e);
+    return null;
   }
 }

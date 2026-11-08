@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buscarYEscribir, reescribir, textoDeLaFuente, type ClientePeriodista } from "./redactor";
+import { bajarImagen, buscarYEscribir, paginaDeLaFuente, reescribir, type ClientePeriodista } from "./redactor";
 
 const parrafo = (n: number) => ({ tipo: "parrafo" as const, texto: Array.from({ length: n }, (_, i) => `palabra${i}`).join(" ") });
 const nota = {
@@ -9,8 +9,8 @@ const nota = {
   titulo: "Una cámara nueva para los que hacen bodas",
   bajada: "La marca presentó un modelo con sensor de alta resolución y video 8K.",
   cuerpo: [parrafo(200), parrafo(200)],
-  temaFoto: "casamiento",
-  trabajoId: null,
+  tema: "Nueva cámara para bodas",
+  categoria: "equipos y lanzamientos",
 };
 const JSON_OK = "```json\n" + JSON.stringify(nota) + "\n```";
 
@@ -39,7 +39,15 @@ function clienteFalso(respuestas: Respuesta[]) {
   return { cliente, pedidos };
 }
 
-const base = { hoy: "2026-11-09", excluidas: ["https://ya.usada.com/nota"], trabajos: [{ id: "ck1", titulo: "Casamiento", categoria: "Bodas" }] };
+const base = {
+  hoy: "2026-11-09",
+  excluidas: ["https://ya.usada.com/nota"],
+  temas: [
+    { tema: "World Press Photo 2026 en Barcelona", titulo: null, estado: "DESCARTADA", deHoy: true },
+    { tema: "Concurso Fotográfico Rosario 2026", titulo: null, estado: "PUBLICADA", deHoy: false },
+  ],
+  gustos: ["Publicó: concursos y premios (3)."],
+};
 const hasta = () => Date.now() + 200_000;
 
 describe("buscarYEscribir", () => {
@@ -53,26 +61,34 @@ describe("buscarYEscribir", () => {
     if (r.ok) {
       expect(r.valor.titulo).toBe(nota.titulo);
       expect(r.extractos).toEqual(["la nueva cámara incorpora un sensor"]);
-      expect(r.uso).toEqual({ entrada: 20, salida: 10, busquedas: 2 });
+      // Suma las dos respuestas (la pausada y la final) y estima el costo:
+      // 20 × 2/1M + 10 × 10/1M + 2 × 0,01 = 0,00004 + 0,0001 + 0,02 = 0,02014.
+      expect(r.uso).toEqual({ entrada: 20, salida: 10, busquedas: 2, cacheEscritura: 0, cacheLectura: 0, costoUsd: 0.02014 });
     }
     expect(pedidos).toHaveLength(2);
     const primero = pedidos[0]!.body;
     expect(primero.model).toBe("claude-sonnet-5-5");
     expect(primero.tools).toEqual([expect.objectContaining({ type: "web_search_20260209", name: "web_search", max_uses: 5 })]);
     expect(JSON.stringify(primero.messages)).toContain("https://ya.usada.com/nota");
-    expect(JSON.stringify(primero.messages)).toContain("ck1 · Casamiento (Bodas)");
+    const pedido = JSON.stringify(primero.messages);
+    expect(pedido).toContain("Daniel descartó HOY estos temas");
+    expect(pedido).toContain("World Press Photo 2026 en Barcelona");
+    expect(pedido).toContain("Concurso Fotográfico Rosario 2026 (publicada)");
+    expect(pedido).toContain("Publicó: concursos y premios (3).");
+    expect(String((primero.system as Array<{ text: string }>)[0]!.text)).toMatch(/PRIORIDAD: Argentina y Latinoamérica/);
     // La segunda vuelta reenvía lo que vino (el turno pausado).
     const mensajes = pedidos[1]!.body.messages as Array<{ role: string }>;
     expect(mensajes.map((m) => m.role)).toEqual(["user", "assistant"]);
   });
 
-  it("si el JSON no sirve, se lo pide corregido una vez", async () => {
+  it("si el JSON no sirve, se lo pide corregido una vez (y suma el uso de las dos respuestas)", async () => {
     const { cliente, pedidos } = clienteFalso([
       { stop_reason: "end_turn", content: [texto("```json\n{\"titulo\": \"x\"}\n```")] },
       { stop_reason: "end_turn", content: [texto(JSON_OK)] },
     ]);
     const r = await buscarYEscribir({ ...base, hasta: hasta() }, { cliente });
     expect(r.ok).toBe(true);
+    expect(r.uso).toMatchObject({ entrada: 20, salida: 10, busquedas: 2 });
     const mensajes = pedidos[1]!.body.messages as Array<{ role: string; content: unknown }>;
     expect(mensajes.map((m) => m.role)).toEqual(["user", "assistant", "user"]);
     expect(String(mensajes[2]!.content)).toMatch(/no sirve todavía/);
@@ -115,15 +131,52 @@ describe("reescribir", () => {
   });
 });
 
-describe("textoDeLaFuente", () => {
-  it("baja la página y devuelve el texto; si falla, vacío", async () => {
-    const ok = (async () => new Response("<p>Hola &amp; chau</p>", { headers: { "content-type": "text/html" } })) as unknown as typeof fetch;
-    expect(await textoDeLaFuente("https://x.com/a", { fetch: ok })).toBe("Hola & chau");
+describe("paginaDeLaFuente", () => {
+  it("baja la página UNA vez y devuelve el texto y la imagen principal; si falla, vacía", async () => {
+    let llamadas = 0;
+    const ok = (async () => {
+      llamadas++;
+      return new Response('<head><meta property="og:image" content="/fotos/portada.jpg"><meta property="og:site_name" content="Medio"></head><p>Hola &amp; chau</p>', {
+        headers: { "content-type": "text/html" },
+      });
+    }) as unknown as typeof fetch;
+    expect(await paginaDeLaFuente("https://x.com/a", { fetch: ok })).toEqual({
+      texto: "Hola & chau",
+      imagen: { url: "https://x.com/fotos/portada.jpg", credito: null, sitio: "Medio" },
+    });
+    expect(llamadas).toBe(1);
     const pdf = (async () => new Response("%PDF", { headers: { "content-type": "application/pdf" } })) as unknown as typeof fetch;
-    expect(await textoDeLaFuente("https://x.com/a", { fetch: pdf })).toBe("");
+    expect(await paginaDeLaFuente("https://x.com/a", { fetch: pdf })).toEqual({ texto: "", imagen: null });
     const roto = (async () => {
       throw new Error("red");
     }) as unknown as typeof fetch;
-    expect(await textoDeLaFuente("https://x.com/a", { fetch: roto })).toBe("");
+    expect(await paginaDeLaFuente("https://x.com/a", { fetch: roto })).toEqual({ texto: "", imagen: null });
+  });
+
+  it("una dirección no pública ni se baja", async () => {
+    let llamadas = 0;
+    const f = (async () => {
+      llamadas++;
+      return new Response("<p>x</p>", { headers: { "content-type": "text/html" } });
+    }) as unknown as typeof fetch;
+    expect(await paginaDeLaFuente("http://127.0.0.1/admin", { fetch: f })).toEqual({ texto: "", imagen: null });
+    expect(llamadas).toBe(0);
+  });
+});
+
+describe("bajarImagen", () => {
+  const imagen = (tipo: string, bytes: number, extra: Record<string, string> = {}) =>
+    (async () => new Response(new Uint8Array(bytes), { headers: { "content-type": tipo, ...extra } })) as unknown as typeof fetch;
+
+  it("sólo JPEG, PNG o WebP de hasta 8 MB, y sólo de direcciones públicas", async () => {
+    expect(await bajarImagen("https://x.com/a.jpg", { fetch: imagen("image/jpeg; charset=binary", 1000) })).toMatchObject({ tipo: "image/jpeg" });
+    expect(await bajarImagen("https://x.com/a.svg", { fetch: imagen("image/svg+xml", 100) })).toBeNull();
+    expect(await bajarImagen("https://x.com/a.html", { fetch: imagen("text/html", 100) })).toBeNull();
+    expect(await bajarImagen("https://x.com/a.jpg", { fetch: imagen("image/jpeg", 10, { "content-length": String(9 * 1024 * 1024) }) })).toBeNull();
+    // Sin content-length: corta al pasar el tope.
+    expect(await bajarImagen("https://x.com/a.jpg", { fetch: imagen("image/jpeg", 8 * 1024 * 1024 + 1) })).toBeNull();
+    expect(await bajarImagen("http://localhost/a.jpg", { fetch: imagen("image/jpeg", 100) })).toBeNull();
+    const noEncontrada = (async () => new Response("", { status: 404 })) as unknown as typeof fetch;
+    expect(await bajarImagen("https://x.com/a.jpg", { fetch: noEncontrada })).toBeNull();
   });
 });

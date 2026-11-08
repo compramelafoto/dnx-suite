@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { diaArgentino, fechaHoraArgentina, horaDePublicacion, inicioDelDiaArgentino, textoDePublicacion } from "./horario";
+import { diaArgentino, fechaHoraArgentina, horaDePublicacion, inicioDelDiaArgentino, inicioDelMesArgentino, textoDePublicacion } from "./horario";
 
 describe("horario argentino", () => {
   it("el día argentino cambia a las 3:00 UTC", () => {
@@ -30,5 +30,11 @@ describe("horario argentino", () => {
 
   it("de madrugada (antes de las 11 AR) espera a las 11 de ese mismo día", () => {
     expect(horaDePublicacion(new Date("2026-11-10T04:00:00.000Z")).toISOString()).toBe("2026-11-10T14:00:00.000Z");
+  });
+
+  it("el mes argentino empieza el día 1 a las 3:00 UTC (la noche del 31 a las 23 AR todavía es el mes anterior)", () => {
+    expect(inicioDelMesArgentino(new Date("2026-11-09T12:00:00.000Z"))).toEqual(new Date("2026-11-01T03:00:00.000Z"));
+    expect(inicioDelMesArgentino(new Date("2026-12-01T02:00:00.000Z"))).toEqual(new Date("2026-11-01T03:00:00.000Z"));
+    expect(inicioDelMesArgentino(new Date("2026-12-01T03:00:00.000Z"))).toEqual(new Date("2026-12-01T03:00:00.000Z"));
   });
 });

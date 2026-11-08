@@ -13,8 +13,8 @@ Muestras, Radar de eventos, Buscador, etc.
 
 - Bot de Telegram **nuevo y aparte** del de presupuestos (`@Dnxestuio_ventas_bot` sigue igual).
 - Blog: sitio de **DNX Estudio** (workspace `cmv5z6qxwwmmhf0q5gp8qja1j`).
-- Foto de cada nota: **del portfolio de Daniel** (Trabajos publicados de DNX Estudio), nunca la de la
-  noticia.
+- Foto de cada nota: ~~del portfolio de Daniel~~ → desde el 08/11, **la imagen principal de la
+  noticia**, con crédito al medio (ver "Ajustes 08/11").
 - Propuestas **lunes, miércoles y viernes 9:00** (hora argentina); si aprueba, se publica **ese día
   11:00** (o enseguida si aprueba después de las 11).
 
@@ -25,7 +25,8 @@ Muestras, Radar de eventos, Buscador, etc.
    Latinoamérica), descarta las que ya usó y elige la mejor.
 2. Escribe una nota **propia** (no copia ni traduce párrafos): título, bajada, 400–700 palabras,
    tono DNX (rioplatense semiformal), con la fuente enlazada al final.
-3. Elige una foto de tu portfolio que vaya con el tema.
+3. Usa la imagen principal de la noticia (copiada a nuestro almacenamiento) con crédito al medio; si
+   no hay una usable, la nota va sin foto.
 4. Te llega por Telegram: título, bajada, foto, enlace a la vista previa y la fuente, con botones
    **✅ Publicar · 🔁 Otra noticia · ❌ Descartar**.
 5. Para corregir, **respondés al mensaje** con lo que querés cambiar ("más corto", "nombrá a la
@@ -99,3 +100,31 @@ de fotógrafos, recomendación en WhatsApp. Usan el mismo canal y la misma cola.
 Tests de las partes puras (lectura de updates con respuesta, armado del mensaje, horario de
 publicación, detección de copia, deduplicación). Prueba real: Daniel vincula el chat, se dispara el
 cron a mano una vez y se recorre Publicar / Corregir / Otra / Descartar.
+
+## Ajustes 08/11 (pedido de Daniel después de la primera semana)
+
+1. **Foto de la noticia, no del portfolio.** Se baja la página de la fuente una sola vez (la misma
+   descarga del detector de copia, sólo direcciones públicas) y se toma `og:image` /
+   `twitter:image`. La imagen se baja (sólo JPEG/PNG/WebP, hasta 8 MB) y se guarda en el R2 de
+   FOTOFFICE como portada del blog (`uploadBlogImage`, preset `blogHero`). La nota lleva al final
+   "Foto: <crédito de la foto si la página lo declara / medio> — <dominio enlazado a la fuente>". Sin
+   imagen usable, va sin foto (no hay vuelta al portfolio). Telegram: `sendPhoto` con foto, si no
+   texto. `datos.foto = { url, original, credito }` reemplaza a `trabajo` y `temaFoto`.
+2. **No repetir temas.** Claude devuelve `tema` (el hecho, corto). Antes de cada corrida se le pasan
+   los temas de los últimos 45 días (pendientes, publicados y descartados) y, con énfasis, los
+   descartados de hoy, con la instrucción de elegir otro hecho y no otra fuente del mismo hecho.
+   Control en código (`temas.ts`): palabras clave normalizadas (sin vacías, genéricas del rubro ni
+   años) y coincidencia ≥ 60 % del tema/título más corto con al menos 2 palabras en común → se le pide
+   otra elección una vez; si insiste (o repite una dirección ya usada), `FALLO` con aviso.
+3. **Prioridad Argentina y Latinoamérica** en el prompt; lo internacional sólo si es muy relevante.
+4. **Aprender gustos.** Por propuesta, en `datos`: `tema`, `categoria` (lista fija en `gustos.ts`),
+   `resultado` (`PUBLICADA` / `DESCARTADA` / `OTRA`) y `correccionesPedidas` (los textos de Daniel).
+   Con las últimas 40 se arma un resumen corto (qué categorías publica, cuáles suele descartar, qué
+   pide al corregir y sus últimos pedidos) que va en el pedido a Claude y se muestra en
+   /admin/agentes ("Lo que aprendí de tus gustos"). Sin migración.
+5. **Costo.** `datos.uso` guarda tokens (incluido el caché), búsquedas y `costoUsd`: USD 2 por
+   millón de entrada, 10 por millón de salida, 0,01 por búsqueda (constantes en `costo.ts`). Suma
+   todas las respuestas: continuaciones por `pause_turn`, el pedido de corregir el JSON, la segunda
+   elección por tema repetido, la reescritura por copia y las correcciones de Daniel. La página
+   muestra el costo por propuesta y el total del mes (hora argentina).
+

@@ -58,8 +58,9 @@ export async function procesarUpdateAgentes(canal: CanalAgentes, update: UpdateT
       return;
     }
 
-    // Otra noticia: descarta esta y corre de nuevo (excluye su fuente porque ya quedó en la cola).
-    const d = await (deps.descartar ?? descartarPropuesta)(boton.propuestaId);
+    // Otra noticia: descarta esta (como "otra", para aprender) y corre de nuevo. La corrida nueva
+    // excluye su fuente y, con énfasis, su tema (es un descarte de hoy).
+    const d = await (deps.descartar ?? descartarPropuesta)(boton.propuestaId, { otra: true });
     if (!d.ok) {
       await contestarBoton(token, update.callbackId, d.texto, deps);
       return;
