@@ -175,10 +175,10 @@ export async function crearOrdenCierreProduccion(
       optional: false,
     },
     {
-      recipientId: "organizador",
+      recipientId: "referidor",
       role: "OTHER" as const,
       kind: "PERCENTAGE" as const,
-      percentageBps: REPARTO_BPS.organizador,
+      percentageBps: REPARTO_BPS.referidor,
       priority: 3,
       optional: false,
     },
@@ -205,7 +205,7 @@ export async function crearOrdenCierreProduccion(
 
   const partnerReceiverIds = new Map<string, string>([
     ["fotografo", config.receiverA],
-    ["organizador", config.receiverB],
+    ["referidor", config.receiverB],
   ]);
   const partnerConsentsByRecipientId = new Map(
     [...partnerReceiverIds.entries()].map(([recipientId, receiverId]) => [

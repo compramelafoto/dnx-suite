@@ -174,34 +174,35 @@ evitarlo: es el último requisito de la lista de evidencias.
 > para que la pantalla del video nunca pueda mover dinero real. Por eso la orden de cierre
 > tiene su propia superficie, `/admin/cierre-split-1n`, con sus propios frenos.
 
-### F1. Decidir el caso — DECIDIDO (2026-11-04): Club 9 de Julio
+### F1. Decidir el caso — DECIDIDO (2026-11-08): Gabriel Villagomez con referido
 
-Reemplaza al caso de Marcos Piaggio del 28/10. Se eligió un caso con ventas reales y
-semanales: el Club 9 de Julio (Rafaela) organiza los partidos y sus fotógrafos venden en
-CLF. Hoy la plataforma cobra todo y el club pide retiros por transferencia
-(`EventOrganizerCommission`, `HELD_BY_PLATFORM`).
+Reemplaza a los casos de Marcos Piaggio (28/10) y del Club 9 de Julio (04/11). Al club y a
+Romina Devalle se les mandó la invitación, pero no se consiguió que la aceptaran a tiempo.
+Se eligió un caso con personas cercanas que pueden aceptar enseguida, con la forma de una
+venta de CLF con referido:
 
 | Rol | Quién | % del total pagado | Con una foto de $3.000 (paga $3.450) |
 |---|---|---|---|
-| Owner (cobrador) | La plataforma | 13,04 % | ~$450 — el 15 % sobre el precio |
-| Partner — organizador | Club 9 de Julio | 43,48 % | ~$1.500 |
-| Partner — fotógrafo | El fotógrafo del partido | 43,48 % | ~$1.500 |
+| Owner (cobrador) | La plataforma | 6,52 % | ~$225 — 7,5 % sobre el precio |
+| Partner — fotógrafo | Gabriel Villagomez | 86,96 % | ~$3.000 — el precio entero |
+| Partner — referidora | Belén Fister | 6,52 % | ~$225 — 7,5 % sobre el precio |
 
-**Por qué 13,04 % y no 15 %:** la plataforma cobra el 15 % como recargo sobre el precio,
-pero Mercado Pago reparte sobre el total que paga el comprador. 15/115 ≈ 13,04 %.
-Coincide con las ventas del club en CLF: al 50 %, $119.880 de plataforma sobre $799.200
-de precio.
+**Por qué esos números:** la plataforma recarga el 15 % sobre el precio, y el programa de
+referidos de fotógrafos le da la mitad al referidor (`REFERRAL_PROGRAM_FEE_SHARE`). Mercado
+Pago reparte sobre el total que paga el comprador: 100/115 ≈ 86,96 % y 7,5/115 ≈ 6,52 %.
 
-`DNX_CLF_SPLIT_1N_CIERRE_RECEIVER_A` es el fotógrafo y `_RECEIVER_B` el organizador.
+`DNX_CLF_SPLIT_1N_CIERRE_RECEIVER_A` es el fotógrafo y `_RECEIVER_B` la referidora.
+Invitaciones enviadas el 2026-11-08.
 
 **El monto.** Mercado Pago **no** fija un mínimo para esta operación; el único mínimo que
 puede aplicar es el del medio de pago (Marilyn Urrego, 2026-10-30). Lo que hay que mirar no
-es el total sino **la porción más chica del reparto**: con el reparto del club la porción más chica es la de la plataforma (13,04 %). El valor por
+es el total sino **la porción más chica del reparto**: con este reparto las porciones más chicas son la de la plataforma y la de la referidora
+(6,52 % cada una, unos $225). El valor por
 omisión es $3.450, con tope duro de $5.000.
 
 **Quién paga — confirmado por Mercado Pago.** Tiene que ser **un tercero con tarjeta
 propia, distinto de los tres que reciben el reparto**. No alcanza con que no sea el
-collector: tampoco puede ser el fotógrafo ni el club.
+collector: tampoco puede ser el fotógrafo ni la referidora — ni otra cuenta de ellos.
 
 Se declara en `DNX_CLF_SPLIT_1N_CIERRE_PAYER_EMAIL`. La pantalla avisa si no está declarado,
 y el servidor **rechaza la orden** si el correo del pagador coincide con el de alguno de los
