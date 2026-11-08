@@ -11,6 +11,7 @@ import { MAX_CUERPO_CONTRATO, MAX_MOTIVO, MAX_NOMBRE_CONTRATO } from "./constant
 import { resolverContratantes } from "./contratantes";
 import { registrarEvento } from "./eventos";
 import { Corte, bloquearContrato } from "./versiones";
+import { enlacePreventaDelPedido } from "@/lib/clf/vinculo";
 import { completarContrato, contextoContrato, type ContextoContratoEntrada, type ItemParaContrato } from "./variables";
 
 /**
@@ -76,10 +77,11 @@ type BaseDelTexto = {
 
 /** Lee (fuera de toda transacción) lo que el texto del contrato necesita del pedido: contratantes, ítems, cuotas, empresa y evento. */
 async function leerBaseDelTexto(workspaceId: string, pedidoId: string): Promise<BaseDelTexto | { error: string } | null> {
-  const [d, contratantes, ajustes] = await Promise.all([
+  const [d, contratantes, ajustes, preventaEnlace] = await Promise.all([
     datosDelPedido(workspaceId, pedidoId),
     resolverContratantes(workspaceId, pedidoId),
     leerAjustesContratos(workspaceId),
+    enlacePreventaDelPedido(workspaceId, pedidoId),
   ]);
   if (d === "ITEMS_INVALIDOS") return { error: M.itemsInvalidos };
   if (!d || !contratantes || contratantes.length === 0) return null;
@@ -91,6 +93,7 @@ async function leerBaseDelTexto(workspaceId: string, pedidoId: string): Promise<
       contratantes: contratantes.map((c) => c.datos),
       empresa: { nombre: ajustes.companyName, cuit: ajustes.companyTaxId, domicilio: ajustes.companyAddress },
       evento: { nombre: d.pedido.eventLabel, fecha: d.pedido.eventDate ? fechaDeBase(d.pedido.eventDate) : null },
+      preventaEnlace,
     },
     clientId: contratantes[0]!.clientId,
     nombrePedido: d.pedido.number,

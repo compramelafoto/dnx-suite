@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { FormularioReserva } from "@/components/turnos/formulario-reserva";
+import { FotoTurno } from "@/components/turnos/foto-turno";
 import { MENSAJES_TURNOS } from "@/lib/turnos/constantes";
 import { horariosPublicos } from "@/lib/turnos/horarios";
 import { leerAjustesTurnos, negocioPorSlug, tipoPublicado } from "@/lib/turnos/publico";
@@ -29,14 +30,17 @@ export default async function ReservarTurnoPage({ params }: Props) {
   const horarios = await horariosPublicos(negocio, tipo, ajustes, new Date());
 
   return (
-    <main className="mx-auto max-w-3xl space-y-6 px-4 py-12 md:px-8 md:py-16">
+    <main className="fo-turnos-marca mx-auto max-w-3xl space-y-6 px-4 py-12 md:px-8 md:py-16">
       <Link href={`/w/${workspaceSlug}/turnos`} className="text-sm text-[var(--fo-muted)] hover:underline">
         ← Todos los turnos
       </Link>
-      <div className="space-y-2">
-        <h1 className="text-3xl font-semibold tracking-tight">{tipo.name}</h1>
-        <p className="text-xs font-medium uppercase tracking-wide text-[var(--fo-muted-soft)]">{resumenDelTipo(tipo)}</p>
-        {tipo.publicDescription ? <p className="whitespace-pre-line text-sm leading-relaxed text-[var(--fo-muted)]">{tipo.publicDescription}</p> : null}
+      <div className="flex items-start gap-4">
+        <FotoTurno url={tipo.imageUrl} nombre={tipo.name} tamano="sm" />
+        <div className="min-w-0 space-y-2">
+          <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">{tipo.name}</h1>
+          <p className="text-xs font-medium uppercase tracking-wide text-[var(--fo-muted-soft)]">{resumenDelTipo(tipo)}</p>
+          {tipo.publicDescription ? <p className="whitespace-pre-line text-sm leading-relaxed text-[var(--fo-muted)]">{tipo.publicDescription}</p> : null}
+        </div>
       </div>
 
       {!horarios.ok ? (

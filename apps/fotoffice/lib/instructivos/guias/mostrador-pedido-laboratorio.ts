@@ -74,7 +74,7 @@ export const guia: Instructivo = {
       texto: [
         "Si el pedido no pudo salir (por ejemplo, el laboratorio no tiene correo cargado), el sistema te avisa a vos y el pedido queda en Configuración → Impresiones, en «Pedidos pagados sin enviar», con la etiqueta «Mostrador» y el motivo. Arreglá el motivo y tocá «Reintentar envío».",
         "También podés reintentar desde la ficha del trabajo: la tarjeta «Pedido de impresión» tiene el mismo botón «Reintentar envío». Los pedidos del Mostrador no muestran montos: el dinero ya está en el ticket.",
-        "Una copia común cuya carpeta está vacía no se manda: queda sin enviar con la nota «Falta subir los archivos para mandarlo a [laboratorio].». Subí los archivos en la ficha del trabajo y tocá «Enviar a [laboratorio] por correo».",
+        "Una copia vendida como producto común (sin «Pedido para laboratorio») no sale con la carpeta vacía: queda en rojo «Faltan los archivos para [laboratorio]». Subí los archivos en la ficha del trabajo y sale solo a los pocos minutos.",
       ],
       sistema: [
         "Cuando algo falla, el estudio recibe un aviso, así el pedido pagado no queda olvidado.",

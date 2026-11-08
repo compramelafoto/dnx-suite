@@ -18,6 +18,7 @@ export type TipoPublicado = {
   durationMinutes: number;
   modality: Modalidad;
   address: string | null;
+  imageUrl: string | null;
   franjas: Franja[];
 };
 
@@ -51,12 +52,12 @@ export async function leerAjustesTurnos(workspaceId: string): Promise<AjustesTur
 }
 
 const SELECT_TIPO = {
-  id: true, name: true, color: true, publicDescription: true, durationMinutes: true, modality: true, address: true,
+  id: true, name: true, color: true, publicDescription: true, durationMinutes: true, modality: true, address: true, imageUrl: true,
   franjas: { select: { weekday: true, startMinute: true, endMinute: true }, orderBy: [{ weekday: "asc" as const }, { startMinute: "asc" as const }] },
 };
 
 type FilaTipo = {
-  id: string; name: string; color: string; publicDescription: string | null; durationMinutes: number | null; modality: string | null; address: string | null;
+  id: string; name: string; color: string; publicDescription: string | null; durationMinutes: number | null; modality: string | null; address: string | null; imageUrl: string | null;
   franjas: Franja[];
 };
 

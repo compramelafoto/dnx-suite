@@ -146,6 +146,7 @@ export default async function ProductoPage({
             select: { id: true, name: true, email: true },
           })}
           generaTrabajo={proyectos.reglas.length > 0}
+          envioSinArchivos={proyectos.reglas.some((r) => r.envioSinArchivos)}
         />
       ) : null}
 

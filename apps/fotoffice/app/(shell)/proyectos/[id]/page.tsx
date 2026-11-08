@@ -20,6 +20,8 @@ import { listarArchivos } from "@/lib/carpetas/carpeta";
 import { leerProveedorDelTrabajo } from "@/lib/proyectos/proveedor";
 import { ReasignarTareas } from "@/components/proyectos/reasignar-tareas";
 import { TarjetaCitas } from "@/components/agenda/tarjeta-citas";
+import { TarjetaClf } from "@/components/clf/tarjeta-clf";
+import { vinculoParaTarjeta } from "@/lib/clf/vinculo";
 import { TarjetaGaleriasProyecto } from "@/components/galerias/tarjeta-galerias-proyecto";
 import { PedirTestimonioFicha } from "@/components/website/testimonios/pedir-testimonio-ficha";
 import { puede, puedeEnContexto } from "@/lib/access/policy";
@@ -84,6 +86,8 @@ export default async function FichaProyectoPage({ params }: { params: Promise<{ 
   const ajustesDigitalizacion = digitalizacion ? await leerAjustes(workspace.id) : null;
 
   const puedeEditar = puedeEnContexto(ctx, "operar", PROJECTS_MODULE_KEY);
+  // Tarjeta "CompraMeLaFoto" (conexión con CLF, etapa 1): con pedido muestra el álbum del pedido; sin pedido, uno propio.
+  const vinculoClf = await vinculoParaTarjeta(workspace.id, { proyectoId: ficha.id });
   const configura = puedeEnContexto(ctx, "configurar");
   const veContactos = puedeEnContexto(ctx, "ver", CLIENTS_MODULE_KEY);
   const vePedido = puedeEnContexto(ctx, "ver", ORDERS_MODULE_KEY);
@@ -151,6 +155,7 @@ export default async function FichaProyectoPage({ params }: { params: Promise<{ 
               </Link>
             </section>
           ) : null}
+          <TarjetaClf destino={{ proyectoId: ficha.id }} vinculo={vinculoClf} puedeEditar={puedeEditar && !ficha.pedido} sujeto="Este proyecto" />
           {fotolibro ? (
             <section aria-labelledby="fotolibro-titulo" className="fo-card space-y-2 p-4">
               <h2 id="fotolibro-titulo" className="text-sm font-semibold uppercase tracking-wide text-[var(--fo-muted-soft)]">

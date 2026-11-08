@@ -65,6 +65,8 @@ const TABLAS = [
   "fotofficeGaleria", "fotofficeGaleriaFoto", "fotofficeGaleriaCliente", "fotofficeGaleriaSeleccion", "fotofficeGaleriaComentario", "fotofficeGaleriaEvento",
   "fotofficeGaleriaAjustes", "fotofficeGaleriaCompra", "fotofficeGaleriaCompraFoto", "fotofficeGaleriaDescarga",
   "fotofficeGaleriaRonda", "fotofficeGaleriaDecision",
+  // Conexión con CLF (etapa 1): el álbum vinculado a un pedido o proyecto.
+  "fotofficeClfVinculo",
   // Caja (los cobros de pedidos depositan y se anulan con contramovimiento), módulos encendidos y adjuntos.
   "cashAccount", "cashShift", "cashMovement", "workspaceFeatureModule", "fotofficeAttachment",
   // Perfil de precios del workspace y el personal del socio (portal).
@@ -249,7 +251,7 @@ const DEFECTOS: Partial<Record<Tabla, () => Fila>> = {
   }),
   fotofficeCitaTipo: () => ({
     color: "#6b7280", order: 0, isActive: true, createdAt: new Date(), updatedAt: new Date(),
-    isBookable: false, publicDescription: null, durationMinutes: null, modality: null, address: null,
+    isBookable: false, publicDescription: null, durationMinutes: null, modality: null, address: null, imageUrl: null,
   }),
   fotofficeTurnosAjustes: () => ({
     pageTitle: null, pageIntro: null, cancelWindowHours: 48, bufferMinutes: 0, minAdvanceHours: 24, maxAdvanceDays: 60, notifyEmail: null, updatedAt: new Date(),
@@ -571,6 +573,10 @@ export function crearBaseEnMemoria() {
     fotofficeContratoVersion: [{ columnas: ["contratoId", "number"] }],
     fotofficeContratoFirmante: [{ columnas: ["tokenHash"] }],
     fotofficeContratoAjustes: [{ columnas: ["workspaceId"] }],
+    fotofficeClfVinculo: [
+      { columnas: ["pedidoId"], aplica: (f) => f.pedidoId !== null && f.pedidoId !== undefined },
+      { columnas: ["proyectoId"], aplica: (f) => f.proyectoId !== null && f.proyectoId !== undefined },
+    ],
     // Etapa 7: los de la migración de galerías.
     fotofficeGaleria: [{ columnas: ["workspaceId", "number"] }],
     fotofficeGaleriaCliente: [

@@ -3,6 +3,7 @@ import { prisma } from "@repo/db";
 import type { ResultadoAutomatico } from "@/lib/plantillas/automaticos";
 import { contextoDe, correoValido, destinoDe, type ContextoMensaje, type UsuarioQueEnvia } from "@/lib/plantillas/contexto";
 import { leerAutomatico } from "@/lib/plantillas/definiciones";
+import { enlacePreventaDelPedido } from "@/lib/clf/vinculo";
 import {
   candadoDeDireccion, completarTextos, enviarCorreo, liberarReserva, MENSAJES_ENVIO, reservarEnvioAutomatico, type CtxEnvio, type DepsEnvio,
 } from "@/lib/plantillas/envio";
@@ -158,6 +159,9 @@ export async function contextoDeMensajePedido(
     }
   }
 
+  // `[preventa_enlace]`: el álbum de CLF vinculado al pedido; sólo se lee si algún texto lo usa.
+  const preventaEnlace = usa("preventa_enlace", opciones.textos) ? await enlacePreventaDelPedido(workspaceId, p.id) : null;
+
   let recibo: NonNullable<ContextoMensaje["variables"]["recibo"]> | undefined;
   let enlaceRecibo: string | null = null;
   if (opciones.cobroId) {
@@ -177,7 +181,7 @@ export async function contextoDeMensajePedido(
     variables: {
       ...base.variables,
       // Saldo 0 → null: así el bloque `[si:pedido_saldo]` desaparece en vez de decir "$ 0".
-      pedido: { numero: p.number, enlace: enlacePedido, saldo: aCentavos(saldo) > 0 ? pesos(saldo) : null, cuotaLinkPago },
+      pedido: { numero: p.number, enlace: enlacePedido, saldo: aCentavos(saldo) > 0 ? pesos(saldo) : null, cuotaLinkPago, preventaEnlace },
       ...(recibo ? { recibo } : {}),
     },
   };

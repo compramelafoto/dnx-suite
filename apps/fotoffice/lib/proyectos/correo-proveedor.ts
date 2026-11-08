@@ -16,6 +16,8 @@ export type DatosCorreoProveedor = {
   notas: string | null;
   /** Enlace para descargar los archivos (cuando la carpeta del pedido esté cargada). */
   enlaceArchivos: string | null;
+  /** El material es físico (un rollo): no hay archivos, lo llevamos al local. */
+  materialFisico?: boolean;
 };
 
 function escapar(t: string): string {
@@ -37,6 +39,7 @@ export function correoParaProveedor(d: DatosCorreoProveedor): { subject: string;
     ...(d.entregaDeseada ? ([["Lo necesitamos para", fecha(d.entregaDeseada)]] as [string, string][]) : []),
     ...(d.notas ? ([["Indicaciones", d.notas]] as [string, string][]) : []),
     ...(d.enlaceArchivos ? ([["Archivos", d.enlaceArchivos]] as [string, string][]) : []),
+    ...(!d.enlaceArchivos && d.materialFisico ? ([["Material", "Es material físico: se lo llevamos al local."]] as [string, string][]) : []),
   ];
   const text = [
     `Hola ${d.proveedor}:`,

@@ -29,7 +29,7 @@ describe("catálogo de variables", () => {
       "hoy",
       "consulta_numero", "consulta_tipo", "consulta_fecha", "consulta_lugar", "consulta_mensaje", "consulta_etapa", "lista_precios",
       "presupuesto_numero", "presupuesto_enlace", "presupuesto_total", "presupuesto_vence",
-      "pedido_numero", "pedido_enlace", "pedido_saldo", "recibo_numero", "recibo_enlace", "recibo_importe",
+      "pedido_numero", "pedido_enlace", "pedido_saldo", "preventa_enlace", "recibo_numero", "recibo_enlace", "recibo_importe",
       "cuota_vence", "cuota_importe", "cuota_link_pago",
       "cita_titulo", "cita_fecha", "cita_hora", "cita_lugar",
       "contrato_numero", "contrato_enlace", "contrato_codigo", "firmante_nombre",
@@ -59,7 +59,7 @@ describe("catálogo de variables", () => {
   });
 
   it("las de pedido y recibo sólo valen en PEDIDO y salen del contexto (etapa 3)", () => {
-    const claves = ["pedido_numero", "pedido_enlace", "pedido_saldo", "recibo_numero", "recibo_enlace", "recibo_importe", "cuota_vence", "cuota_importe", "cuota_link_pago"];
+    const claves = ["pedido_numero", "pedido_enlace", "pedido_saldo", "preventa_enlace", "recibo_numero", "recibo_enlace", "recibo_importe", "cuota_vence", "cuota_importe", "cuota_link_pago"];
     for (const c of claves) {
       expect(clavesPermitidas("PEDIDO", []).has(c)).toBe(true);
       for (const t of ["GENERAL", "CLIENTE", "CONSULTA", "PRESUPUESTO", "SOCIO"] as const) expect(clavesPermitidas(t, []).has(c)).toBe(false);
@@ -68,12 +68,12 @@ describe("catálogo de variables", () => {
     expect(clavesPermitidas("PEDIDO", []).has("consulta_fecha")).toBe(false);
     const r = resolverVariables({
       ...base(),
-      pedido: { numero: "2026-0001", enlace: "https://x.test/pedido/t", saldo: "$ 80.000" },
+      pedido: { numero: "2026-0001", enlace: "https://x.test/pedido/t", saldo: "$ 80.000", preventaEnlace: "https://www.compramelafoto.com/album/x/preventa" },
       recibo: { numero: "2026-0003", enlace: "https://x.test/recibo/t", importe: "$ 40.000,00" },
       cuota: { vence: "15/11/2026", importe: "$ 30.000,50", linkPago: "https://x.test/pedido/t?pagar=c1" },
     });
     expect(claves.map(r)).toEqual([
-      "2026-0001", "https://x.test/pedido/t", "$ 80.000", "2026-0003", "https://x.test/recibo/t", "$ 40.000,00", "15/11/2026", "$ 30.000,50", "https://x.test/pedido/t?pagar=c1",
+      "2026-0001", "https://x.test/pedido/t", "$ 80.000", "https://www.compramelafoto.com/album/x/preventa", "2026-0003", "https://x.test/recibo/t", "$ 40.000,00", "15/11/2026", "$ 30.000,50", "https://x.test/pedido/t?pagar=c1",
     ]);
     expect(resolverVariables(base())("recibo_numero")).toBeNull();
     expect(resolverVariables(base())("cuota_vence")).toBeNull();

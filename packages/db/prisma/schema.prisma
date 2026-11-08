@@ -7582,6 +7582,7 @@ model Workspace {
   fotofficeGaleriaRondas         FotofficeGaleriaRonda[]
   fotofficeGaleriaDecisiones     FotofficeGaleriaDecision[]
   fotofficeDispositivos          FotofficeDispositivo[]
+  fotofficeClfVinculos           FotofficeClfVinculo[]
   fotofficeRecuperaciones        FotofficeRecuperacion[]
   fotofficeAlboomCrudos          FotofficeAlboomCrudo[]
   fotofficeAlboomExtracciones    FotofficeAlboomExtraccion[]
@@ -21881,6 +21882,7 @@ model FotofficePedido {
   esperasPago     FotofficeEsperaPago[]
   digitalizacionEntrega DigitalizacionEntrega?
   digitalizacionCargos  DigitalizacionCargo[]
+  clfVinculo            FotofficeClfVinculo?
 
   @@unique([workspaceId, number])
   @@index([workspaceId, status])
@@ -22291,6 +22293,10 @@ model FotofficeProyecto {
   proveedorRef       String?
   proveedorCostoArs  Decimal?  @db.Decimal(14, 2)
   proveedorEnviadoAt DateTime?
+  /// Primera vez que el laboratorio abrió la carpeta con su enlace.
+  proveedorAbiertoAt    DateTime?
+  /// Primera vez que el laboratorio bajó un archivo de la carpeta.
+  proveedorDescargadoAt DateTime?
   /// Carpeta del trabajo: enlaces privados (laboratorio y cliente). El token se rehace con HMAC desde
   /// la fecha de emisión; acá queda sólo su hash para encontrarlo.
   carpetaClienteEmitida DateTime?
@@ -22334,6 +22340,7 @@ model FotofficeProyecto {
   @@index([circuitId])
   printOrdersOrigen FotofficePrintOrder[] @relation("PrintOrderOrigen")
   printItems FotofficePrintOrderItem[] @relation("PrintOrderItemTrabajo")
+  clfVinculo FotofficeClfVinculo?
 }
 
 /// Regla "Proyecto que genera" de un producto (Catálogo). Puede haber varias por producto.
@@ -22355,6 +22362,8 @@ model FotofficeProductoProyecto {
   ultimoPlazoDias Int?
   /// Proveedor al que se manda por omisión (se puede cambiar en cada trabajo).
   proveedorId     String?
+  /// true = el material es físico (un rollo): el pedido sale aunque la carpeta no tenga archivos.
+  envioSinArchivos Boolean @default(false)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -24638,6 +24647,8 @@ model FotofficeCitaTipo {
   modality          String?
   /// Dirección (ESTUDIO, DIRECCION) o enlace de la videollamada (ONLINE).
   address           String?
+  /// Foto de la tarjeta en la página pública de turnos (se muestra chica, en círculo).
+  imageUrl          String?
 
   workspace Workspace                 @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   citas     FotofficeCita[]
@@ -26469,6 +26480,31 @@ model FotofficeDispositivo {
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@index([workspaceId, revokedAt])
+}
+
+/// Conexión FOTOFFICE ↔ CLF, etapa 1: el álbum de CompraMeLaFoto de un pedido o de un proyecto sin pedido.
+/// Guarda una foto del álbum (título, slug, preventa) leída de la ruta pública de CLF al vincular; la variable
+/// `[preventa_enlace]` sale de acá sin consultar CLF. CHECK en SQL: exactamente uno de `pedidoId`/`proyectoId`.
+model FotofficeClfVinculo {
+  id               String    @id @default(cuid())
+  workspaceId      String
+  pedidoId         String?   @unique
+  proyectoId       String?   @unique
+  /// `Album.id` en la base de CLF (otra base: sin FK).
+  clfAlbumId       Int
+  albumSlug        String
+  tituloSnapshot   String
+  tienePreventa    Boolean
+  preventaCierraEl DateTime?
+  creadoPorUserId  Int?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  workspace Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  pedido    FotofficePedido?   @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  proyecto  FotofficeProyecto? @relation(fields: [proyectoId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
 }
 
 /// Etapa 8A: respuesta CRUDA de Alboom, un registro por entidad e identificador de Alboom. Sólo la escribe el

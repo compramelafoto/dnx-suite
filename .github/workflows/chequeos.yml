@@ -202,6 +202,10 @@ jobs:
       - name: Pruebas de la carpeta de impresión
         run: pnpm --filter compramelafoto test:print-export
 
+      # Resumen público del álbum que lee FOTOFFICE para vincular pedidos: lista cerrada de campos.
+      - name: Pruebas del resumen público del álbum
+        run: pnpm --filter compramelafoto test:fotoffice-vinculo
+
       # El motor de análisis corre con vitest y hasta hoy NO estaba en el CI: las
       # pruebas existían, pasaban en la máquina de quien las escribía y nadie las
       # volvía a correr. `should-run-ocr` quedó un rato reclamado por los dos

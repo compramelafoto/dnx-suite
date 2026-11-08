@@ -29,6 +29,7 @@ export function entradaDeMuestra(empresa: EmpresaMuestra, hoy: Date): ContextoCo
       domicilio: empresa.domicilio ?? "Calle Ejemplo 123, Rosario",
     },
     evento: { nombre: "Casamiento de Ana y Luis", fecha: "2027-04-17" },
+    preventaEnlace: "https://www.compramelafoto.com/album/casamiento-ana-y-luis-2027/preventa",
     numero: "C-0001",
     hoy,
   };

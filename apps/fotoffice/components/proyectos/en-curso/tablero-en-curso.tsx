@@ -1,5 +1,6 @@
 "use client";
 
+import { EtiquetaEnvio } from "@/components/proyectos/etiqueta-envio";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
@@ -604,6 +605,8 @@ function Tarjeta({
         ) : null}
       </div>
 
+      {/* Hasta que vuelve del proveedor: faltan archivos, sale solo, enviado, abierto o descargado. */}
+      {t.envio && !t.cerrado && t.fase !== "LISTO" ? <EtiquetaEnvio envio={t.envio} className="max-w-full !text-[10.5px]" /> : null}
       <div className="flex items-center gap-1.5">
         <span className={`inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-[10.5px] tabular-nums ${ESTILO_URGENCIA[u]}`}>
           <CalendarDays className="size-3" aria-hidden />
