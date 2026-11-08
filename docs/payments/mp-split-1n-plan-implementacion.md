@@ -4,6 +4,18 @@
 **Estado:** **CONGELADO — a la espera de Mercado Pago.** Nada de esto se ejecuta todavía.
 **Decisión que lo origina:** [`mp-split-1n-mercadopago-confirmations.md`](./mp-split-1n-mercadopago-confirmations.md)
 
+> **Actualización 2026-11-08.**
+>
+> - **Homologación cerrada de nuestro lado.** La orden productiva de cierre se hizo y se
+>   reembolsó (ver [runbook](./mp-split-1n-runbook-cierre-homologacion.md)); el Order ID se
+>   envió a Mercado Pago.
+> - **Clickatón queda fuera.** Por decisión de Daniel, sobre Clickatón no se hace **ninguna**
+>   modificación: ni código, ni merge, ni deploy, ni configuración, y **no se le aplica el
+>   Split 1:N**. No es una plataforma que se siga usando por el momento. La §6.1 queda como
+>   registro histórico, no como tarea.
+> - **Orden de adopción:** Comprame la Foto con un solo álbum piloto → organizadores de
+>   eventos en CLF → FOTOFFICE, si corresponde.
+
 Este documento existe para que, el día que llegue el OK de Mercado Pago, la implementación
 sea ejecutar una lista y no volver a razonar la arquitectura.
 
@@ -209,7 +221,12 @@ Un producto está listo para Split 1:N cuando cumple estos cinco puntos. No alca
 | 4 | Expone (o comparte) el endpoint de webhook y lo tiene declarado |
 | 5 | Genera `external_reference` con su prefijo vía `buildOpaqueExternalReference()` |
 
-### 6.1 Clickatón
+### 6.1 Clickatón — FUERA DE ALCANCE (decisión 2026-11-08)
+
+**No se toca.** Ni código, ni merge, ni deploy, ni configuración, ni Split 1:N. Lo que sigue
+describe el estado al 2026-09-03 y se conserva sólo como registro. Si un cambio en un
+paquete compartido (`packages/payments`, `packages/db`) afectara a Clickatón, se avisa; no se
+adapta ni se prueba Clickatón por eso.
 
 El más avanzado: ya consume el paquete, tiene el bridge de Orders 1:N, el endpoint de
 webhook y el collector configurado (`providerUserId 97484805`, PA `pa_ba733fa7a35f4326`).
