@@ -39,6 +39,8 @@ function p2021() {
 beforeEach(() => {
   for (const m of [trabajo, categoria, foto]) for (const f of Object.values(m)) f.mockReset();
   categoriasActivas.mockReset();
+  // Miniaturas de las portadas: por defecto, ninguna (se usa la original).
+  foto.findMany.mockResolvedValue([]);
 });
 
 describe("listarTrabajosPublicos", () => {
@@ -62,8 +64,19 @@ describe("listarTrabajosPublicos", () => {
       lugar: "Rosario",
       fechaTexto: "14 de marzo de 2025",
       portadaUrl: "https://cdn/x.jpg",
+      portadaMiniaturaUrl: null,
       href: "/w/sfpr/trabajos/casamientos/boda-de-sofi",
     });
+  });
+
+  it("la tarjeta lleva la miniatura de la foto que es portada, buscada por su dirección", async () => {
+    categoria.findMany.mockResolvedValueOnce([cat]);
+    trabajo.findMany.mockResolvedValueOnce([fila(), fila({ id: "t2", slug: "otra", portadaUrl: "https://cdn/y.jpg" })]);
+    trabajo.count.mockResolvedValueOnce(2);
+    foto.findMany.mockResolvedValueOnce([{ url: "https://cdn/x.jpg", miniaturaUrl: "https://cdn/miniaturas/x.webp" }]);
+    const r = await listarTrabajosPublicos("ws-1");
+    expect(foto.findMany.mock.calls[0][0].where).toMatchObject({ workspaceId: "ws-1", url: { in: ["https://cdn/x.jpg", "https://cdn/y.jpg"] } });
+    expect(r.trabajos.map((t) => t.portadaMiniaturaUrl)).toEqual(["https://cdn/miniaturas/x.webp", null]);
   });
 
   it("un trabajo sin categoría o con categoría oculta no se lista", async () => {

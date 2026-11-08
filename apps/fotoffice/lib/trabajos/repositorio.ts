@@ -3,6 +3,7 @@ import { prisma } from "@repo/db";
 import type { Prisma } from "@repo/db";
 import { sanitizeContentHtml } from "@repo/content";
 import { deleteFotofficeR2Object, listFotofficeR2Keys } from "@/lib/images/r2-client";
+import { borrarMiniatura } from "./miniaturas";
 import {
   ALT_MAX,
   MAX_FOTOS_POR_TRABAJO,
@@ -314,7 +315,11 @@ export async function borrarFoto(
   const huerfanas: string[] = [];
   if (f.r2Key) {
     if (!f.r2Key.startsWith(prefijoWorkspaceTrabajos(workspaceId))) huerfanas.push(f.r2Key);
-    else if (!(await deleteFotofficeR2Object(f.r2Key)).ok) huerfanas.push(f.r2Key);
+    else {
+      if (!(await deleteFotofficeR2Object(f.r2Key)).ok) huerfanas.push(f.r2Key);
+      const miniatura = await borrarMiniatura(f.r2Key);
+      if (miniatura) huerfanas.push(miniatura);
+    }
   }
   return ok({ huerfanas });
 }

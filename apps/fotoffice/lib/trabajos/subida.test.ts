@@ -14,6 +14,7 @@ const { trabajo, foto, enviarR2, borrarR2, firmar, objetos } = vi.hoisted(() => 
 }));
 
 vi.mock("@repo/db", () => ({ prisma: { fotofficeTrabajo: trabajo, fotofficeTrabajoFoto: foto } }));
+vi.mock("./miniaturas", () => ({ miniaturasDeFotosNuevas: async () => undefined, borrarMiniatura: async () => null }));
 vi.mock("@repo/content", () => ({ sanitizeContentHtml: (h: string) => h }));
 vi.mock("@aws-sdk/s3-request-presigner", () => ({ getSignedUrl: firmar }));
 vi.mock("@/lib/images/r2-client", () => ({

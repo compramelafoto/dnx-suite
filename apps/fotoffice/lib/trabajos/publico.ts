@@ -18,6 +18,8 @@ export type TrabajoTarjeta = {
   lugar: string | null;
   fechaTexto: string | null;
   portadaUrl: string | null;
+  /** Versión chica de la portada para la tarjeta; null si no hay (se usa la original). */
+  portadaMiniaturaUrl: string | null;
   href: string;
 };
 
@@ -25,6 +27,8 @@ export type FotoPublica = {
   id: string;
   tipo: string;
   url: string;
+  /** Versión chica para el mosaico; null si no hay (se usa `url`). */
+  miniaturaUrl: string | null;
   ancho: number | null;
   alto: number | null;
   alt: string | null;
@@ -58,7 +62,21 @@ type FilaTrabajo = {
   portadaUrl: string | null;
 };
 
-function tarjeta(fila: FilaTrabajo, cat: { slug: string; nombre: string }, base: string): TrabajoTarjeta {
+/**
+ * La portada de un trabajo es siempre una de sus fotos (se elige entre ellas): su miniatura se
+ * busca por la dirección. Una consulta para todas las tarjetas de la página.
+ */
+async function miniaturasDePortadas(workspaceId: string, filas: Array<{ portadaUrl: string | null }>): Promise<Map<string, string>> {
+  const urls = [...new Set(filas.map((f) => f.portadaUrl).filter((u): u is string => !!u))];
+  if (urls.length === 0) return new Map();
+  const fotos = await prisma.fotofficeTrabajoFoto.findMany({
+    where: { workspaceId, url: { in: urls }, miniaturaUrl: { not: null } },
+    select: { url: true, miniaturaUrl: true },
+  });
+  return new Map(fotos.map((f) => [f.url, f.miniaturaUrl as string]));
+}
+
+function tarjeta(fila: FilaTrabajo, cat: { slug: string; nombre: string }, base: string, miniaturas?: Map<string, string>): TrabajoTarjeta {
   return {
     titulo: fila.titulo,
     slug: fila.slug,
@@ -67,6 +85,7 @@ function tarjeta(fila: FilaTrabajo, cat: { slug: string; nombre: string }, base:
     lugar: fila.lugar,
     fechaTexto: fila.fecha ? fechaLarga(fila.fecha) : null,
     portadaUrl: fila.portadaUrl,
+    portadaMiniaturaUrl: (fila.portadaUrl && miniaturas?.get(fila.portadaUrl)) || null,
     href: `${base}/trabajos/${cat.slug}/${fila.slug}`,
   };
 }
@@ -169,10 +188,11 @@ export async function listarTrabajosPublicos(
       }),
       opciones.sinTotal ? Promise.resolve(0) : prisma.fotofficeTrabajo.count({ where }),
     ]);
+    const miniaturas = await miniaturasDePortadas(workspaceId, filas);
     const trabajos: TrabajoTarjeta[] = [];
     for (const f of filas) {
       const cat = f.categoriaId ? porId.get(f.categoriaId) : undefined;
-      if (cat) trabajos.push(tarjeta(f, cat, base));
+      if (cat) trabajos.push(tarjeta(f, cat, base, miniaturas));
     }
     return { trabajos, total };
   } catch (err) {
@@ -213,7 +233,7 @@ export async function obtenerTrabajoPublico(
       prisma.fotofficeTrabajoFoto.findMany({
         where: { trabajoId: t.id, workspaceId },
         orderBy: [{ orden: "asc" }, { createdAt: "asc" }],
-        select: { id: true, tipo: true, url: true, ancho: true, alto: true, alt: true },
+        select: { id: true, tipo: true, url: true, miniaturaUrl: true, ancho: true, alto: true, alt: true },
       }),
       prisma.fotofficeTrabajo.findMany({
         where: { workspaceId, estado: "PUBLICADO", categoriaId: cat.id, id: { not: t.id } },
@@ -222,6 +242,7 @@ export async function obtenerTrabajoPublico(
         select: { titulo: true, slug: true, lugar: true, fecha: true, portadaUrl: true },
       }),
     ]);
+    const miniaturas = await miniaturasDePortadas(workspaceId, relacionados);
     return {
       ...tarjeta(t, cat, base),
       id: t.id,
@@ -229,7 +250,7 @@ export async function obtenerTrabajoPublico(
       seoTitle: t.seoTitle,
       seoDescription: t.seoDescription,
       fotos,
-      relacionados: relacionados.map((r) => tarjeta(r, cat, base)),
+      relacionados: relacionados.map((r) => tarjeta(r, cat, base, miniaturas)),
     };
   } catch (err) {
     if (esTablaFaltante(err)) return null;

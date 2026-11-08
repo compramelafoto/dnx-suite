@@ -27749,6 +27749,9 @@ model FotofficeTrabajoFoto {
   alt         String?
   orden       Int      @default(0)
   origenUrl   String?
+  /// Versión chica (WebP, 800 px del lado largo) para mosaicos y tarjetas. Nula mientras no se
+  /// generó (o si la foto no vive en R2): entonces se muestra la original.
+  miniaturaUrl String?
   createdAt   DateTime @default(now())
 
   @@unique([trabajoId, r2Key])
