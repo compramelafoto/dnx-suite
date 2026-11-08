@@ -277,3 +277,45 @@ plan no crea aplicaciones nuevas: no hay nada que deshacer del lado de ellos.
 - Checkout Pro de FotoRank.
 - Inscripciones de Clickatón, mientras `DNX_CLICKATON_MP_LIVE_PAYMENTS_ENABLED` siga en `false`.
 - La consecuencia contable de Split 1:N (en Checkout Pro el cobrador es el receptor; en 1:N es la plataforma). **Lo determina el flujo, no la app.** Revisarlo con el contador antes de operar volumen.
+
+---
+
+## 10. Piloto en un álbum de CLF (2026-11-08)
+
+Primer uso real del Split 1:N en el cobro de Comprame la Foto. Código en
+`apps/compramelafoto/lib/split-1n-piloto/` y la página `app/pagar/[orderId]`. Plan:
+`docs/superpowers/plans/2026-11-08-clf-split-1n-piloto-album.md`.
+
+**Qué hace.** Un pedido de un álbum de la lista, con sólo fotos digitales y cuyo fotógrafo (y
+referidor, si tiene) aceptó el consentimiento, no va a Checkout Pro: la ruta de pedidos lo marca
+(`pricingSnapshot.split1nPiloto`) y lo manda a `/pagar/<id>`, donde se paga con el Card Payment
+Brick. El servidor crea la orden con el token de la plataforma, montos fijos y
+`external_reference = clf-album-order-<id>`: el fotógrafo cobra el precio, el 15 % de recargo se
+reparte mitad referidor y mitad plataforma. Con la orden acreditada, el pedido queda `PAID` con la
+misma entrega y avisos que Checkout Pro, y la comisión del referidor nace **pagada**
+(`ReferralEarning.paidOutAt`) porque Mercado Pago ya se la depositó. El aviso `order` que llega a
+`/api/webhooks/dnx-payments` confirma igual si el comprador cerró la página.
+
+**Todo lo demás no cambia:** otros álbumes, carritos con impresiones o videos, canjes y demos
+siguen con Checkout Pro. Un error del piloto nunca frena una venta: cae al cobro de siempre.
+
+**Variables (Vercel, proyecto de CLF, Production):**
+
+| Variable | Valor |
+|---|---|
+| `DNX_CLF_SPLIT_1N_PILOTO_ENABLED` | `true` para encender, cualquier otra cosa apaga |
+| `DNX_CLF_SPLIT_1N_PILOTO_ALBUM_IDS` | ids de álbum separados por coma |
+| `DNX_CLF_SPLIT_1N_PILOTO_RECEIVERS` | `userId:receiverId` separados por coma (el `receiver_id` lo da `prod-split-consent-invite.ts`) |
+| `DNX_CLF_SPLIT_1N_PILOTO_OWNER_USER_ID` | `97484805` |
+| `DNX_MP_PLATFORM_ACCESS_TOKEN` | token productivo de la app DNX Suite |
+| `NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY` | public key productiva de DNX Suite |
+
+**Apagar:** `DNX_CLF_SPLIT_1N_PILOTO_ENABLED` distinto de `true`. Los pedidos ya pagados no se
+tocan; los pendientes del piloto dan 404 en `/pagar` y el comprador vuelve a empezar.
+
+**Reembolso (a mano por ahora):** `POST /v1/orders/{id}/refund` con cuerpo vacío y
+`X-Idempotency-Key`, con el token de la plataforma. El Order ID está en
+`pricingSnapshot.split1nPiloto.providerOrderId` del pedido. Después, marcar el pedido como
+corresponda en el panel.
+
+**Clickatón no participa** (ver la nota al principio de este documento).
