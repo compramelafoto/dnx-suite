@@ -79,7 +79,7 @@ export default async function ContactosDnxPage({ searchParams }: { searchParams:
         description="La base de prospectos de DNX: fotógrafos, escuelas, clubes y organizadores que encuentran los agentes o que ya conocemos. Nadie de esta lista recibe nada sin que lo decidas."
         actions={
           <div className="flex flex-wrap items-start gap-2">
-            <Link href="/admin/contactos-dnx/vendedor" className="fo-btn-secondary">
+            <Link href="/admin/contactos-dnx/vendedor" className="fo-btn fo-btn-secondary">
               Vendedor
             </Link>
             <BotonImportarConocidos />
@@ -160,16 +160,16 @@ export default async function ContactosDnxPage({ searchParams }: { searchParams:
           Sólo los que tienen correo
         </label>
         <div className="flex flex-wrap items-end gap-2 sm:col-span-2 lg:col-span-3">
-          <button type="submit" className="fo-btn-primary">
+          <button type="submit" className="fo-btn fo-btn-primary">
             Filtrar
           </button>
           {hayFiltros ? (
-            <Link href="/admin/contactos-dnx" className="fo-btn-ghost">
+            <Link href="/admin/contactos-dnx" className="fo-btn fo-btn-ghost">
               Sacar filtros
             </Link>
           ) : null}
           {/* Descarga directa: un enlace común a la ruta del CSV, con los mismos filtros. */}
-          <a href={`/api/admin/contactos-dnx/csv${query(f)}`} className="fo-btn-secondary" download>
+          <a href={`/api/admin/contactos-dnx/csv${query(f)}`} className="fo-btn fo-btn-secondary" download>
             Exportar CSV
           </a>
         </div>
@@ -235,12 +235,12 @@ export default async function ContactosDnxPage({ searchParams }: { searchParams:
         {paginas > 1 ? (
           <nav className="flex flex-wrap items-center gap-3 text-sm" aria-label="Páginas">
             {pagina > 1 ? (
-              <Link href={`/admin/contactos-dnx${query(f, { pagina: pagina > 2 ? String(pagina - 1) : undefined })}`} className="fo-btn-secondary">
+              <Link href={`/admin/contactos-dnx${query(f, { pagina: pagina > 2 ? String(pagina - 1) : undefined })}`} className="fo-btn fo-btn-secondary">
                 Anterior
               </Link>
             ) : null}
             {pagina < paginas ? (
-              <Link href={`/admin/contactos-dnx${query(f, { pagina: String(pagina + 1) })}`} className="fo-btn-secondary">
+              <Link href={`/admin/contactos-dnx${query(f, { pagina: String(pagina + 1) })}`} className="fo-btn fo-btn-secondary">
                 Siguiente
               </Link>
             ) : null}

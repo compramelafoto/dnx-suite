@@ -36,10 +36,10 @@ export function ControlesVendedor({ pausado }: { pausado: boolean }) {
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap gap-2">
-        <button type="button" className="fo-btn-primary" disabled={enCurso} onClick={() => correr(() => pausarVendedorAction(!pausado))}>
+        <button type="button" className="fo-btn fo-btn-primary" disabled={enCurso} onClick={() => correr(() => pausarVendedorAction(!pausado))}>
           {pausado ? "Reanudar" : "Pausar"}
         </button>
-        <button type="button" className="fo-btn-secondary" disabled={enCurso} onClick={() => correr(correrVendedorAction)}>
+        <button type="button" className="fo-btn fo-btn-secondary" disabled={enCurso} onClick={() => correr(correrVendedorAction)}>
           Correr ahora
         </button>
       </div>
@@ -75,7 +75,7 @@ export function FormAjustesVendedor(p: { topeClaudeUsd: number; correosPorDia: n
           <span className="fo-label">Correos por día la primera semana</span>
           <input value={primeraSemana} onChange={(e) => setPrimeraSemana(e.target.value)} inputMode="numeric" className="fo-input w-24" />
         </label>
-        <button type="submit" className="fo-btn-secondary" disabled={enCurso}>
+        <button type="submit" className="fo-btn fo-btn-secondary" disabled={enCurso}>
           {enCurso ? "Guardando…" : "Guardar ajustes"}
         </button>
       </div>
@@ -89,7 +89,7 @@ export function BotonPedirModelo({ grupo }: { grupo: string }) {
   const { estado, enCurso, correr } = useAccion();
   return (
     <div className="space-y-1">
-      <button type="button" className="fo-btn-ghost" disabled={enCurso} onClick={() => correr(() => pedirModeloNuevoAction(grupo))}>
+      <button type="button" className="fo-btn fo-btn-ghost" disabled={enCurso} onClick={() => correr(() => pedirModeloNuevoAction(grupo))}>
         {enCurso ? "Redactando… (puede tardar un par de minutos)" : "Pedir modelo nuevo"}
       </button>
       <Aviso estado={estado} />
@@ -114,13 +114,13 @@ export function FormContactoPrueba({ actual }: { actual: string | null }) {
           <span className="fo-label">Id del contacto de prueba</span>
           <input value={id} onChange={(e) => setId(e.target.value)} placeholder="Vacío: cola normal" className="fo-input w-72" />
         </label>
-        <button type="submit" className="fo-btn-secondary" disabled={enCurso}>
+        <button type="submit" className="fo-btn fo-btn-secondary" disabled={enCurso}>
           Guardar
         </button>
         {actual ? (
           <button
             type="button"
-            className="fo-btn-ghost"
+            className="fo-btn fo-btn-ghost"
             disabled={enCurso}
             onClick={() => {
               setId("");
@@ -141,7 +141,7 @@ export function BotonContactoPrueba({ id, activo }: { id: string; activo: boolea
   const { estado, enCurso, correr } = useAccion();
   return (
     <div className="space-y-2">
-      <button type="button" className="fo-btn-secondary" disabled={enCurso} onClick={() => correr(() => probarConContactoAction(activo ? "" : id))}>
+      <button type="button" className="fo-btn fo-btn-secondary" disabled={enCurso} onClick={() => correr(() => probarConContactoAction(activo ? "" : id))}>
         {activo ? "Dejar de usarlo de prueba" : "Usar de contacto de prueba del Vendedor"}
       </button>
       <Aviso estado={estado} />
