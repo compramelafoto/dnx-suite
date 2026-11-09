@@ -33,6 +33,17 @@ conteste sus dudas y que a él le lleguen solamente los interesados. Así se hac
      dinero.
    - **Escuelas:** sacarse de encima el trabajo tedioso de contratar un fotógrafo y organizar todas las
      fotos escolares.
+   - **Escuelas de fotografía** (tipo `ESCUELA_FOTOGRAFIA`, agregado al Buscador el 09/11 en el PR 995;
+     distinto de `ESCUELA`, que son colegios):
+     - ofrecerles **charlas gratuitas para sus alumnos**;
+     - presentarles CompraMelaFoto a los alumnos;
+     - proponer una **alianza**;
+     - contar que la escuela misma puede usar **FOTOFFICE**.
+
+     No tienen una landing propia: se enlaza a `/tutoriales` y a `/land`, sin inventar páginas. Las
+     respuestas con interés o que piden capacitación de este grupo **nunca se contestan solas**: le
+     llegan a Daniel con una propuesta de respuesta, porque una alianza la decide él. Decisión mía,
+     que cumple el pedido de «también avisar a Daniel» de la forma más prudente.
    - **Asociaciones, organizadores de muestras, empresas de turismo y negocios de fotografía:** misma
      lógica, cada uno con su ángulo.
 2. **Un solo recordatorio** a los que no contestan.
