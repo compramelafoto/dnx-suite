@@ -9,9 +9,9 @@ import {
 } from "./usuarios-existentes";
 
 const USUARIOS: UsuarioCandidato[] = [
-  { id: 10, email: "Luz.Estudio@Gmail.com", phone: null, whatsapp: null, role: "PHOTOGRAPHER" },
-  { id: 11, email: "otra@mail.com", phone: "0341 15-555-1234", whatsapp: null, role: "CUSTOMER" },
-  { id: 12, email: "tercera@mail.com", phone: null, whatsapp: "+54 9 351 777 8899", role: "ORGANIZER" },
+  { id: 10, email: "Luz.Estudio@Gmail.com", phone: null, whatsapp: null, role: "PHOTOGRAPHER", createdAt: new Date("2026-03-01T12:00:00.000Z"), unsubscribedAt: null },
+  { id: 11, email: "otra@mail.com", phone: "0341 15-555-1234", whatsapp: null, role: "CUSTOMER", createdAt: new Date("2026-04-02T12:00:00.000Z"), unsubscribedAt: new Date("2026-05-01T00:00:00.000Z") },
+  { id: 12, email: "tercera@mail.com", phone: null, whatsapp: "+54 9 351 777 8899", role: "ORGANIZER", createdAt: new Date("2026-05-03T12:00:00.000Z"), unsubscribedAt: null },
 ];
 
 /** Buscador falso: imita el filtro grueso de la base (email exacto sin mayúsculas, o cola del teléfono). */
@@ -22,9 +22,11 @@ const buscarFalso: BuscarUsuarios = async ({ emails, colas }) =>
       colas.some((c) => (u.phone ?? "").includes(c) || (u.whatsapp ?? "").includes(c)),
   );
 
+const LUZ = { clave: "luz.estudio@gmail.com", userId: 10, rol: "PHOTOGRAPHER", creadoEn: "2026-03-01T12:00:00.000Z", baja: false };
+
 test("encuentra por email sin importar mayúsculas", async () => {
   const r = await usuariosExistentes({ emails: ["  LUZ.estudio@gmail.COM "], telefonos: [] }, buscarFalso);
-  assert.deepEqual(r, [{ clave: "luz.estudio@gmail.com", userId: 10, rol: "PHOTOGRAPHER" }]);
+  assert.deepEqual(r, [LUZ]);
 });
 
 test("encuentra por teléfono con 9 y 15", async () => {
@@ -33,8 +35,8 @@ test("encuentra por teléfono con 9 y 15", async () => {
   assert.deepEqual(
     r.sort((a, b) => a.userId - b.userId),
     [
-      { clave: "+543415551234", userId: 11, rol: "CUSTOMER" },
-      { clave: "+543517778899", userId: 12, rol: "ORGANIZER" },
+      { clave: "+543415551234", userId: 11, rol: "CUSTOMER", creadoEn: "2026-04-02T12:00:00.000Z", baja: true },
+      { clave: "+543517778899", userId: 12, rol: "ORGANIZER", creadoEn: "2026-05-03T12:00:00.000Z", baja: false },
     ],
   );
 });
@@ -43,7 +45,7 @@ test("devuelve el rol y nunca el nombre", async () => {
   const conNombre = async () => [{ ...USUARIOS[0]!, name: "Luz Pérez" } as UsuarioCandidato];
   const r = await usuariosExistentes({ emails: ["luz.estudio@gmail.com"], telefonos: [] }, conNombre);
   assert.equal(r.length, 1);
-  assert.deepEqual(Object.keys(r[0]!).sort(), ["clave", "rol", "userId"]);
+  assert.deepEqual(Object.keys(r[0]!).sort(), ["baja", "clave", "creadoEn", "rol", "userId"]);
   assert.equal(JSON.stringify(r).includes("Luz Pérez"), false);
 });
 
@@ -96,5 +98,13 @@ test("con secreto correcto responde sólo las coincidencias", async () => {
     { secreto: "s3cr3t", buscar: buscarFalso },
   );
   assert.equal(r.status, 200);
-  assert.deepEqual(await r.json(), { coincidencias: [{ clave: "luz.estudio@gmail.com", userId: 10, rol: "PHOTOGRAPHER" }] });
+  assert.deepEqual(await r.json(), { coincidencias: [LUZ] });
+});
+
+test("usuarios existentes devuelve creadoEn y baja", async () => {
+  const r = await usuariosExistentes({ emails: ["otra@mail.com", "luz.estudio@gmail.com"], telefonos: [] }, buscarFalso);
+  assert.deepEqual(
+    r.sort((a, b) => a.userId - b.userId),
+    [LUZ, { clave: "otra@mail.com", userId: 11, rol: "CUSTOMER", creadoEn: "2026-04-02T12:00:00.000Z", baja: true }],
+  );
 });
