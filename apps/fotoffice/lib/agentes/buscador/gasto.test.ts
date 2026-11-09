@@ -14,7 +14,7 @@ const AHORA = new Date("2026-11-08T15:00:00.000Z");
 const TAREA_BASE = { regionId: "r", provincia: "Santa Fe", tipo: "FOTOGRAFO", fuente: "GOOGLE", prioridad: 1, estado: "HECHA" };
 
 async function tarea(extra: Record<string, unknown>) {
-  await B.prisma.dnxBuscadorTarea.create({ data: { ...TAREA_BASE, hechaEn: new Date("2026-11-03T12:00:00.000Z"), ...extra } });
+  B.agregar("dnxBuscadorTarea", { ...TAREA_BASE, hechaEn: new Date("2026-11-03T12:00:00.000Z"), ...extra });
 }
 
 beforeEach(() => B.vaciar());
@@ -80,7 +80,7 @@ describe("costoLlamadaPlaces", () => {
 describe("ajustes", () => {
   it("por omisión y ante basura", async () => {
     expect(await G.leerAjustes()).toEqual({ topeGoogleUsd: 20, topeClaudeUsd: 30, pausado: false, avisoTope: {} });
-    await B.prisma.systemSettings.create({ data: { key: "fotoffice_buscador_ajustes", value: "{basura", description: "x" } });
+    B.agregar("systemSettings", { key: "fotoffice_buscador_ajustes", value: "{basura", description: "x" });
     expect((await G.leerAjustes()).topeGoogleUsd).toBe(20);
   });
   it("guarda y mezcla parcialmente", async () => {
@@ -89,8 +89,10 @@ describe("ajustes", () => {
     expect(await G.leerAjustes()).toEqual({ topeGoogleUsd: 20, topeClaudeUsd: 10, pausado: false, avisoTope: { GOOGLE: "2026-11" } });
   });
   it("un campo inválido no tira los demás: pausado sigue pausado", async () => {
-    await B.prisma.systemSettings.create({
-      data: { key: "fotoffice_buscador_ajustes", description: "x", value: JSON.stringify({ topeGoogleUsd: -5, pausado: true, avisoTope: { GOOGLE: "2026-11" } }) },
+    B.agregar("systemSettings", {
+      key: "fotoffice_buscador_ajustes",
+      description: "x",
+      value: JSON.stringify({ topeGoogleUsd: -5, pausado: true, avisoTope: { GOOGLE: "2026-11" } }),
     });
     expect(await G.leerAjustes()).toEqual({ topeGoogleUsd: 20, topeClaudeUsd: 30, pausado: true, avisoTope: { GOOGLE: "2026-11" } });
   });
