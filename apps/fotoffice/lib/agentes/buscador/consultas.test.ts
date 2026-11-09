@@ -84,3 +84,31 @@ describe("activarRegion", () => {
     expect((await tareas()).some((t) => t.region === "CUYO")).toBe(true);
   });
 });
+
+describe("activarRegion: no reabre ni arranca lo que no corresponde", () => {
+  type FilaRegion = { region: string; estado: string; iniciadaEn: Date | null; completadaEn: Date | null; resumenEnviadoEn: Date | null };
+  const regiones = () => B.datos.dnxBuscadorRegion as unknown as FilaRegion[];
+  const t0 = new Date("2026-11-08T12:00:00.000Z");
+
+  it("una región COMPLETA no se reactiva sin reabrir", async () => {
+    B.agregar("dnxBuscadorRegion", { region: "CENTRO", orden: 1, estado: "COMPLETA", completadaEn: t0, resumenEnviadoEn: t0 });
+    B.agregar("dnxBuscadorRegion", { region: "CUYO", orden: 3, estado: "EN_CURSO", iniciadaEn: t0 });
+    expect(await C.activarRegion("CENTRO", t0)).toBe(false);
+    expect(regiones().find((r) => r.region === "CENTRO")?.estado).toBe("COMPLETA");
+    expect(regiones().find((r) => r.region === "CUYO")?.estado).toBe("EN_CURSO");
+    expect((await tareas()).length).toBe(0);
+  });
+
+  it("con reabrir: vuelve a EN_CURSO, limpia el cierre y las tareas FALLO vuelven a PENDIENTE", async () => {
+    B.agregar("dnxBuscadorRegion", { region: "CENTRO", orden: 1, estado: "COMPLETA", completadaEn: t0, resumenEnviadoEn: t0 });
+    B.agregar("dnxBuscadorTarea", {
+      region: "CENTRO", provincia: "Santa Fe", ciudad: "Rosario", tipo: "CLUB", nicho: null, fuente: "GOOGLE_PLACES",
+      consulta: "x", paginas: 1, prioridad: 1, estado: "FALLO", intentos: 3,
+    });
+    const t1 = new Date("2026-11-10T12:00:00.000Z");
+    expect(await C.activarRegion("CENTRO", t1, { reabrir: true })).toBe(true);
+    expect(regiones().find((r) => r.region === "CENTRO")).toMatchObject({ estado: "EN_CURSO", iniciadaEn: t1, completadaEn: null, resumenEnviadoEn: null });
+    const fallo = (B.datos.dnxBuscadorTarea as unknown as Array<{ consulta: string; estado: string; intentos: number }>).find((t) => t.consulta === "x");
+    expect(fallo).toMatchObject({ estado: "PENDIENTE", intentos: 0 });
+  });
+});

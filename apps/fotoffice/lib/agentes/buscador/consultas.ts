@@ -116,19 +116,34 @@ export async function generarTareas(region: Region): Promise<{ creadas: number }
   return { creadas: count };
 }
 
-/** Pone la región en curso (las demás en curso vuelven a espera) y genera sus tareas. */
-export async function activarRegion(region: Region, ahora: Date): Promise<void> {
+/**
+ * Pone la región en curso (las demás en curso vuelven a espera) y genera sus tareas. Una región
+ * `COMPLETA` no se reactiva salvo con `reabrir`: entonces se borra su cierre y las tareas en `FALLO`
+ * vuelven a `PENDIENTE` (con los intentos en cero). Devuelve si la región quedó en curso.
+ * Elegir cuál activar (la primera `EN_ESPERA`, nunca una `PAUSADA`) es cosa de quien llama.
+ */
+export async function activarRegion(region: Region, ahora: Date, opciones: { reabrir?: boolean } = {}): Promise<boolean> {
+  const actual = await prisma.dnxBuscadorRegion.findFirst({ where: { region } });
+  const reabre = actual?.estado === "COMPLETA";
+  if (reabre && !opciones.reabrir) return false;
   await prisma.dnxBuscadorRegion.updateMany({
     where: { estado: "EN_CURSO", NOT: { region } },
     data: { estado: "EN_ESPERA" },
   });
-  const actual = await prisma.dnxBuscadorRegion.findFirst({ where: { region } });
   await prisma.dnxBuscadorRegion.upsert({
     where: { region },
     create: { region, orden: REGIONES.indexOf(region) + 1, estado: "EN_CURSO", iniciadaEn: ahora },
-    update: { estado: "EN_CURSO", ...(actual?.estado === "EN_CURSO" ? {} : { iniciadaEn: ahora }) },
+    update: {
+      estado: "EN_CURSO",
+      ...(actual?.estado === "EN_CURSO" ? {} : { iniciadaEn: ahora }),
+      ...(reabre ? { completadaEn: null, resumenEnviadoEn: null } : {}),
+    },
   });
+  if (reabre) {
+    await prisma.dnxBuscadorTarea.updateMany({ where: { region, estado: "FALLO" }, data: { estado: "PENDIENTE", intentos: 0 } });
+  }
   await generarTareas(region);
+  return true;
 }
 
 /** La región que el Buscador está recorriendo ahora, si hay. */
