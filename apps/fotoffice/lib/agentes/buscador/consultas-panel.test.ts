@@ -115,4 +115,14 @@ describe("csvContactos", () => {
     expect(lineas[1]).toContain("Buenos Aires y AMBA");
     expect(lineas[1]).toContain("Mascotas, newborn y familia");
   });
+
+  it("el CSV neutraliza fórmulas: =, +, -, @ al principio llevan una comilla simple", async () => {
+    await contacto({ nombre: '=HYPERLINK("x")', telefono: "+54 9 341 555 1234", web: "@evil", instagram: "-1+1" });
+    const csv = await P.csvContactos({});
+    const fila = csv.slice(1).split("\r\n")[1]!;
+    expect(fila.startsWith(`"'=HYPERLINK(""x"")";`)).toBe(true);
+    expect(fila).toContain(";'+54 9 341 555 1234;");
+    expect(fila).toContain(";'@evil;");
+    expect(fila).toContain(";'-1+1;");
+  });
 });

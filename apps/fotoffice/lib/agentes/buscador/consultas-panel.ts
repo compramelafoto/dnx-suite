@@ -129,9 +129,14 @@ export async function candidatosParaFusionar(propioId: string, busqueda: string)
 // ---------------------------------------------------------------------------------------------
 // CSV
 
-/** Entre comillas si trae `;`, comillas o saltos de línea; las comillas de adentro se duplican. */
+/**
+ * Entre comillas si trae `;`, comillas o saltos de línea; las comillas de adentro se duplican.
+ * Si empieza con `=`, `+`, `-`, `@`, tabulación o retorno, Excel la ejecuta como fórmula (los nombres
+ * y webs vienen de páginas de terceros; un teléfono «+54…» se ve como error): se le antepone `'`.
+ */
 function celda(v: string | null | undefined): string {
-  const s = v ?? "";
+  const crudo = v ?? "";
+  const s = /^[=+\-@\t\r]/.test(crudo) ? `'${crudo}` : crudo;
   return /[;"\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
