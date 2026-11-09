@@ -7,6 +7,7 @@
 import { prisma } from "@/lib/prisma";
 import { isOrderSuperseded } from "@/lib/order-superseded";
 import { queueEmail, getOrCreateTemplate } from "@/lib/email-queue";
+import { leerMarcaGrupo } from "@/lib/split-1n-carrito-evento/marca";
 
 const ONE_HOUR_MS = 60 * 60 * 1000;
 const EMAIL_TEMPLATE_KEY = "abandoned_order_reminder";
@@ -37,6 +38,12 @@ export async function processAbandonedOrders(): Promise<{
   let skipped = 0;
 
   for (const order of orders) {
+    // Carrito de evento (Split 1:N): sus pedidos se pagan juntos y su cobro puede estar en
+    // revisión; un "completá tu pago" por álbum invitaría a pagar dos veces.
+    if (leerMarcaGrupo(order.pricingSnapshot)) {
+      skipped += 1;
+      continue;
+    }
     const alreadySentEmail = order.abandonedReminders.some((r) => r.channel === "EMAIL");
     if (alreadySentEmail) {
       skipped += 1;

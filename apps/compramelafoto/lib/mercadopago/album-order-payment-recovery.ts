@@ -4,6 +4,7 @@ import {
   type OrderStatus,
 } from "@/lib/prisma";
 import { prisma } from "@/lib/prisma";
+import { leerMarcaGrupo } from "@/lib/split-1n-carrito-evento/marca";
 import type { AuthUser } from "@/lib/auth";
 import { normalizeEmail } from "@/lib/order-claims";
 import { ensureAlbumOrderMpPreference } from "@/lib/mercadopago/album-order-mp-preference";
@@ -78,8 +79,11 @@ export function albumOrderCanRetryPayment(order: {
   isTest: boolean;
   checkoutPaymentSource: CheckoutPaymentSource;
   origin: OrderOrigin;
+  /** Si viene y es de un carrito de evento (Split 1:N), el pedido se paga sólo con su grupo. */
+  pricingSnapshot?: unknown;
 }): boolean {
   if (order.isTest) return false;
+  if (order.pricingSnapshot !== undefined && leerMarcaGrupo(order.pricingSnapshot)) return false;
   if (order.checkoutPaymentSource !== CheckoutPaymentSource.MERCADO_PAGO) return false;
   if (!SUPPORTED_ORIGINS.includes(order.origin)) return false;
   return order.status === "PENDING" || order.status === "FAILED";
@@ -95,6 +99,7 @@ type LoadedAlbumOrder = {
   buyerEmail: string;
   buyerUserId: number | null;
   album: { title: string | null; publicSlug: string } | null;
+  pricingSnapshot: unknown;
 };
 
 async function loadAlbumOrderForRecovery(orderId: number): Promise<LoadedAlbumOrder | null> {
@@ -109,6 +114,7 @@ async function loadAlbumOrderForRecovery(orderId: number): Promise<LoadedAlbumOr
       origin: true,
       buyerEmail: true,
       buyerUserId: true,
+      pricingSnapshot: true,
       album: {
         select: {
           title: true,

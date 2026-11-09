@@ -17,7 +17,14 @@ type GalleryResponse = {
   photos: GalleryPhoto[];
 };
 
-export default function EventGallery({ shareSlug }: { shareSlug: string }) {
+export default function EventGallery({
+  shareSlug,
+  carritoEvento = false,
+}: {
+  shareSlug: string;
+  /** Carrito de evento (Split 1:N) encendido para este evento. Apagado por defecto. */
+  carritoEvento?: boolean;
+}) {
   const [loading, setLoading] = useState(true);
   const [photos, setPhotos] = useState<GalleryPhoto[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -82,7 +89,7 @@ export default function EventGallery({ shareSlug }: { shareSlug: string }) {
         <p className="text-xs text-gray-500 mb-4">
           Cada foto respeta el precio definido por su fotógrafo. Las vistas previas incluyen marca de agua.
         </p>
-        <EventGalleryGrid photos={gridPhotos} />
+        <EventGalleryGrid photos={gridPhotos} {...(carritoEvento ? { carritoEvento: { shareSlug } } : {})} />
       </div>
     </ProtectedAlbumWrapper>
   );

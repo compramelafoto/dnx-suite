@@ -10,14 +10,18 @@ import {
 } from "@repo/payments/frontend";
 import { pagarPedidoPiloto } from "@/lib/split-1n-piloto/pagar";
 import { conTipoDeTarjeta } from "@/lib/split-1n-piloto/tarjeta";
+import { pagarGrupo } from "@/lib/split-1n-carrito-evento/pagar-grupo";
 
 type Props = {
   publicKey: string;
-  orderId: number;
+  /** Pedido del piloto de un álbum, o `grupoId` de un carrito de evento (uno de los dos). */
+  orderId?: number;
+  grupoId?: string;
   totalPesos: number;
   /** Correo a medias, sólo para mostrar: el servidor usa el del pedido. */
   correoVisible: string;
   volverA: string;
+  volverTexto?: string;
 };
 
 type Estado =
@@ -58,7 +62,9 @@ export default function PagarClient(props: Props) {
           conTipoDeTarjeta(formData, additionalData),
           deviceSessionId,
         );
-        const r = await pagarPedidoPiloto({ pedidoId: props.orderId, cardPayment });
+        const r = props.grupoId
+          ? await pagarGrupo({ grupoId: props.grupoId, cardPayment })
+          : await pagarPedidoPiloto({ pedidoId: props.orderId ?? 0, cardPayment });
         if (r.ok && r.estado === "ACREDITADA") {
           setEstado({ tipo: "acreditada", descargaUrl: r.descargaUrl });
         } else if (r.ok) {
@@ -78,7 +84,7 @@ export default function PagarClient(props: Props) {
         enviandoRef.current = false;
       }
     },
-    [props.orderId],
+    [props.orderId, props.grupoId],
   );
 
   const onError = useCallback(() => {
@@ -138,7 +144,7 @@ export default function PagarClient(props: Props) {
       ) : null}
       <p className="text-center text-sm">
         <Link href={props.volverA} className="text-neutral-600 underline">
-          Volver al resumen de la compra
+          {props.volverTexto ?? "Volver al resumen de la compra"}
         </Link>
       </p>
     </div>

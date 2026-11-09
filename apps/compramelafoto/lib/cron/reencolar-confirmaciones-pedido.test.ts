@@ -15,6 +15,10 @@ vi.mock("@/lib/prisma", () => ({
 vi.mock("@/lib/order-confirmation-email", () => ({
   queueOrderConfirmationEmail: (...a: unknown[]) => queueOrderConfirmationEmail(...a),
 }));
+const encolarComprobanteGrupo = vi.fn();
+vi.mock("@/lib/split-1n-carrito-evento/correo", () => ({
+  encolarComprobanteGrupo: (...a: unknown[]) => encolarComprobanteGrupo(...a),
+}));
 
 import { runReencolarConfirmacionesPedido } from "./reencolar-confirmaciones-pedido";
 
@@ -84,5 +88,25 @@ describe("runReencolarConfirmacionesPedido", () => {
     expect(result.fallidos).toBe(1);
     expect(result.reencolados).toBe(1);
     expect(queueOrderConfirmationEmail).toHaveBeenCalledTimes(2);
+  });
+
+  it("carrito de evento: un solo comprobante por grupo, nunca uno por pedido", async () => {
+    const grupoId = "3f2b8c1e-9a4d-4e6b-8f1a-2c3d4e5f6a7b";
+    const snapshot = { split1nGrupo: { v: 1, grupoId, pedidos: [20, 21], estado: "PAGADO" } };
+    orderFindMany.mockResolvedValue([
+      { id: 20, pricingSnapshot: snapshot },
+      { id: 21, pricingSnapshot: snapshot },
+      { id: 22, pricingSnapshot: {} },
+    ]);
+    emailQueueFindMany.mockResolvedValue([{ idempotencyKey: "order_confirmed_album_22" }]);
+    encolarComprobanteGrupo.mockResolvedValue(true);
+
+    const result = await runReencolarConfirmacionesPedido({ now });
+
+    expect(result.faltantes).toEqual([]);
+    expect(result.gruposFaltantes).toEqual([grupoId]);
+    expect(queueOrderConfirmationEmail).not.toHaveBeenCalled();
+    expect(encolarComprobanteGrupo.mock.calls).toEqual([[grupoId]]);
+    expect(result.reencolados).toBe(1);
   });
 });

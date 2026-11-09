@@ -49,6 +49,8 @@ import { getDemoActiva } from "@/lib/demos/sesion-demo";
 import { actorPuedeUsarPagoSimulado, albumUsaPagoSimulado } from "@/lib/demos/pago-simulado-galeria";
 import { desviarAlPilotoSiCorresponde } from "@/lib/split-1n-piloto/desvio";
 import { leerMarcaPiloto } from "@/lib/split-1n-piloto/snapshot";
+import { esPedidoDeCarrito } from "@/lib/split-1n-carrito-evento/pedido-interno";
+import { leerMarcaGrupo } from "@/lib/split-1n-carrito-evento/marca";
 
 function normalizePercent(value: unknown): number | null {
   const parsed = Number(value);
@@ -109,10 +111,14 @@ export async function POST(
 
     const body = await req.json().catch(() => ({}));
     const { buyerName, buyerPhone, items } = body;
-    const idempotencyKey =
-      normalizeIdempotencyKey(req.headers.get("x-idempotency-key")) ??
-      normalizeIdempotencyKey(body?.idempotencyKey);
-    const rawPack = body.faceBulkPackPhotoIds;
+    // Pedido de un carrito de evento (Split 1:N): mismo armado, pero sólo fotos y sin cobro acá.
+    // Sólo lo puede marcar el carrito desde el servidor; para cualquier otro pedido es `false`.
+    const carritoEvento = esPedidoDeCarrito(req);
+    const idempotencyKey = carritoEvento
+      ? null
+      : normalizeIdempotencyKey(req.headers.get("x-idempotency-key")) ??
+        normalizeIdempotencyKey(body?.idempotencyKey);
+    const rawPack = carritoEvento ? undefined : body.faceBulkPackPhotoIds;
     const faceBulkPackPhotoIds = Array.isArray(rawPack)
       ? rawPack
           .map((n: unknown) => parseInt(String(n), 10))
@@ -241,6 +247,12 @@ export async function POST(
       ? await prisma.user.findUnique({ where: { id: album.userId }, select: { id: true, tags: true } })
       : null;
     const pagoSimulado = albumUsaPagoSimulado(albumOwner);
+    if (pagoSimulado && carritoEvento) {
+      return NextResponse.json(
+        { error: "Este es un álbum de demostración: sus fotos no están a la venta.", code: "ALBUM_DEMO" },
+        { status: 409 }
+      );
+    }
     if (pagoSimulado) {
       const demoActiva = (await getDemoActiva()) != null;
       if (!actorPuedeUsarPagoSimulado(albumOwner, { userId: authUser?.id ?? null, demoActiva })) {
@@ -253,7 +265,8 @@ export async function POST(
 
     // El link de canje lo da el fotógrafo: alcanza para comprar aunque el álbum no esté
     // listado (si no, la familia que entra con su link quedaba en "Álbum no disponible").
-    const canjeToken = typeof body.canjeToken === "string" ? body.canjeToken.trim() : "";
+    const canjeToken =
+      !carritoEvento && typeof body.canjeToken === "string" ? body.canjeToken.trim() : "";
     let canjeVoucher: ExternalVoucher | null = null;
     if (canjeToken) {
       const lookup = await loadExternalVoucherByToken(canjeToken, albumId);
@@ -436,7 +449,7 @@ export async function POST(
     //
     // Sin videoIds, todo lo que sigue devuelve los mismos números que antes:
     // addVideosToOrderTotals tiene un test que lo garantiza.
-    const requestedVideoIds = Array.isArray(body?.videoIds)
+    const requestedVideoIds = !carritoEvento && Array.isArray(body?.videoIds)
       ? body.videoIds
           .map((n: unknown) => parseInt(String(n), 10))
           .filter((n: number) => Number.isFinite(n) && n > 0)
@@ -502,7 +515,8 @@ export async function POST(
     const recentThreshold = new Date(Date.now() - 10 * 60 * 1000);
     // Con canje no se reutiliza un pedido anterior: el combo se reserva para el pedido nuevo.
     // Pago simulado: tampoco, cada compra de la demo arranca un pedido de prueba nuevo.
-    const recentCandidates = voucher || pagoSimulado ? [] : await prisma.order.findMany({
+    // Carrito de evento: tampoco, cada carrito arma su grupo de pedidos nuevo.
+    const recentCandidates = voucher || pagoSimulado || carritoEvento ? [] : await prisma.order.findMany({
       where: {
         albumId,
         buyerEmail: normalizedBuyerEmail,
@@ -537,6 +551,8 @@ export async function POST(
       // Un pedido del piloto Split 1:N no se reutiliza: si el piloto se apagó o ya no aplica,
       // la compra nueva se vuelve a evaluar y puede ir por Checkout Pro.
       if (leerMarcaPiloto(candidate.pricingSnapshot)) return false;
+      // Tampoco uno de un carrito de evento: se paga sólo junto con su grupo.
+      if (leerMarcaGrupo(candidate.pricingSnapshot)) return false;
       const candidateSignature = buildOrderItemsSignature(
         candidate.items.map((item) => ({
           photoId: item.photoId,
@@ -752,6 +768,15 @@ export async function POST(
         buyerEmail: normalizedBuyerEmail,
       },
     });
+
+    // El carrito de evento cobra todos sus pedidos juntos en su propia página: acá no se crea
+    // ningún cobro (ni Checkout Pro, ni piloto, ni pago simulado).
+    if (carritoEvento) {
+      return NextResponse.json(
+        { id: order.id, totalCents: order.totalCents, carritoEvento: true },
+        { status: 201 }
+      );
+    }
 
     if (coveredByVoucher && voucher) {
       await prisma.order.update({

@@ -65,19 +65,57 @@ export async function finalizarPedidoPiloto(params: {
   // el pedido sigue sin pagar y el próximo intento (página, aviso o recarga) lo retoma.
   await ensureDigitalDelivery(order.id);
 
+  const aplicado = await confirmarPedidoPagado({
+    order,
+    marca,
+    feePesos,
+    paymentRef,
+    providerOrderId: mp.id,
+    externalReference: mp.externalReference,
+    snapshotPagado: marcarSnapshotPiloto(order.pricingSnapshot, { estado: "PAGADO", providerOrderId: mp.id }),
+    canal: "split-1n-piloto",
+  });
+  return { ok: true, resultado: aplicado ? "aplicado" : "ya_pagado" };
+}
+
+/**
+ * Pasa a pagado un pedido cobrado por Split 1:N (la entrega ya tiene que estar preparada) y
+ * corre sus efectos: auditoría, comisiones, avisos y registro del pago. La escritura está
+ * condicionada al estado, así sólo un llamado (página, aviso o visita) dispara los efectos.
+ * Devuelve false si otro llamado ya lo había confirmado.
+ *
+ * La usan el piloto de un álbum y el carrito de evento (un llamado por pedido del grupo).
+ */
+export async function confirmarPedidoPagado(params: {
+  order: PedidoPiloto["order"];
+  /** Quiénes cobraron por el split y su reparto, para las comisiones. */
+  marca: MarcaPiloto;
+  feePesos: number;
+  paymentRef: string;
+  providerOrderId: string;
+  externalReference: string | null;
+  /** `pricingSnapshot` final del pedido, con su marca en `PAGADO`. */
+  snapshotPagado: Record<string, unknown>;
+  canal: string;
+  /** El carrito de evento manda un solo comprobante por grupo en vez de uno por pedido. */
+  omitirComprobanteComprador?: boolean;
+  /**
+   * Registro del pago en `WebhookEvent` (único por pago y estado). En un carrito de evento todos
+   * los pedidos comparten el pago: lo registra uno solo. Por defecto true.
+   */
+  registrarAviso?: boolean;
+}): Promise<boolean> {
+  const { order, marca, feePesos, paymentRef } = params;
   const actualizado = await prisma.order.updateMany({
     where: { id: order.id, status: { in: ["PENDING", "FAILED"] } },
     data: {
       status: "PAID",
       mpPaymentId: paymentRef,
       platformCommissionCents: feePesos,
-      pricingSnapshot: marcarSnapshotPiloto(order.pricingSnapshot, {
-        estado: "PAGADO",
-        providerOrderId: mp.id,
-      }) as Prisma.InputJsonValue,
+      pricingSnapshot: params.snapshotPagado as Prisma.InputJsonValue,
     },
   });
-  if (actualizado.count !== 1) return { ok: true, resultado: "ya_pagado" };
+  if (actualizado.count !== 1) return false;
 
   // Desde acá el pedido está pagado y no hay vuelta atrás: cada efecto va por separado para
   // que uno que falle no se lleve puestos a los demás.
@@ -89,7 +127,7 @@ export async function finalizarPedidoPiloto(params: {
         targetAlbumId: order.albumId,
         eventType,
         ...(eventType === "PAYMENT_APPROVED"
-          ? { metadata: { canal: "split-1n-piloto", providerOrderId: mp.id } }
+          ? { metadata: { canal: params.canal, providerOrderId: params.providerOrderId } }
           : {}),
       }),
     );
@@ -103,23 +141,28 @@ export async function finalizarPedidoPiloto(params: {
       origin: order.origin,
       items: order.items,
       paymentRef,
+      ...(params.omitirComprobanteComprador ? { omitirComprobanteComprador: true } : {}),
     }),
   );
 
-  await efecto(order.id, "webhook_event", () =>
+  if (params.registrarAviso !== false) await efecto(order.id, "webhook_event", () =>
     prisma.webhookEvent.create({
       data: {
         paymentId: paymentRef,
         status: "approved",
         orderId: order.id,
         orderType: "ALBUM_ORDER",
-        externalRef: mp.externalReference ?? undefined,
+        externalRef: params.externalReference ?? undefined,
       },
     }),
   );
 
-  console.info("[split-1n-piloto] pedido_pagado", { orderId: order.id, providerOrderId: mp.id });
-  return { ok: true, resultado: "aplicado" };
+  console.info("[split-1n-piloto] pedido_pagado", {
+    orderId: order.id,
+    providerOrderId: params.providerOrderId,
+    canal: params.canal,
+  });
+  return true;
 }
 
 async function efecto(orderId: number, nombre: string, fn: () => Promise<unknown>) {
@@ -138,7 +181,7 @@ async function efecto(orderId: number, nombre: string, fn: () => Promise<unknown
  * Comisiones de referidores y organizador de un pedido del piloto ya pagado. Idempotente:
  * se llama al confirmar y en cada aviso posterior, para completar lo que haya fallado.
  */
-async function registrarComisiones(params: {
+export async function registrarComisiones(params: {
   order: PedidoPiloto["order"];
   marca: MarcaPiloto;
   feePesos: number;

@@ -346,3 +346,60 @@ eventos al 100 %, álbumes escolares, impresiones, videos y preventas. Si una cu
 roles, va una sola vez en la orden con la suma.
 
 **Clickatón no participa** (ver la nota al principio de este documento).
+
+### 10.1 Carrito de evento: varios fotógrafos, un solo pago (construido APAGADO)
+
+Diseño: `docs/superpowers/specs/2026-11-08-clf-carrito-evento-split-1n-design.md` (D1–D7). Plan:
+`docs/superpowers/plans/2026-11-08-clf-carrito-evento-split-1n.md`. Código en
+`apps/compramelafoto/lib/split-1n-carrito-evento/`, la ruta `POST /api/public/events/[shareSlug]/carrito`
+y la página `app/pagar/grupo/[grupoId]`.
+
+**Qué hace (encendido).** En la galería del evento (`/e/<shareSlug>`), las fotos elegidas de
+varios álbumes se pagan juntas. Se crea un `Order` por álbum con la ruta de pedidos de siempre
+(cortada antes de cualquier cobro) y todos llevan `pricingSnapshot.split1nGrupo` con el mismo
+`grupoId`. Una sola orden de Mercado Pago (`external_reference = clf-event-cart-<grupoId>`) reparte:
+cada pedido con `calcularRepartoPiloto` y después sumado por cuenta (el organizador y quien aparece
+en varios pedidos van una sola vez con la suma). Todo o nada: si un álbum no puede (sin
+consentimiento, escolar, foto de otro autor, demasiados receptores), no se crea nada y se ofrece
+pagar cada álbum por separado. Al acreditarse, cada pedido pasa a `PAID` con sus comisiones como en
+el piloto y el comprador recibe **un solo** correo con el enlace a `/pagar/grupo/<grupoId>`, que ya
+pagado muestra las descargas de cada fotógrafo. El aviso `order` y la visita a la página confirman
+igual (idempotente por pedido).
+
+**Variables (además de las del piloto, que tiene que estar encendido):**
+
+| Variable | Valor |
+|---|---|
+| `DNX_CLF_SPLIT_1N_CARRITO_EVENTO_ENABLED` | `true` para encender; ausente o cualquier otra cosa apaga |
+| `DNX_CLF_SPLIT_1N_CARRITO_EVENTO_IDS` | ids de `Event` separados por coma |
+| `DNX_CLF_SPLIT_1N_MAX_RECEPTORES` | tope de cuentas por orden contando la plataforma; por defecto 10, se acota a 2–11 |
+
+Los fotógrafos, referidores y organizador tienen que estar en `DNX_CLF_SPLIT_1N_PILOTO_RECEIVERS`;
+los álbumes **no** necesitan estar en `DNX_CLF_SPLIT_1N_PILOTO_ALBUM_IDS` (el permiso es por evento).
+
+**Apagado (estado actual):** la galería sigue llevando a cada álbum, la ruta del carrito y
+`/pagar/grupo/*` dan 404, y la ruta de pedidos de álbum se comporta igual que antes.
+
+**Antes de encender el primer evento:** una compra real de prueba (dos fotógrafos y organizador)
+con reembolso, y preguntar a Mercado Pago el máximo de receptores por orden y si acepta dinero en
+cuenta y tarjetas del exterior en Split 1:N.
+
+**Reembolso:** total, igual que el piloto (`POST /v1/orders/{id}/refund`); el Order ID está en
+`pricingSnapshot.split1nGrupo.providerOrderId` de cualquier pedido del grupo, y hay que marcar
+todos los pedidos del grupo. Reembolso parcial (una foto): fuera de alcance, a mano.
+
+**Protecciones contra el cobro doble fuera del carrito:** los pedidos del grupo no tienen la marca
+del piloto (`/pagar/<id>` da 404), la ruta de pedidos no los reutiliza, `create-preference` y el
+reintento de pago los rechazan, y el aviso de "pedido abandonado" los saltea. Si un grupo cobrado
+no se puede confirmar, `/api/webhooks/dnx-payments` responde 503 para que Mercado Pago reintente;
+la página del grupo concilia en cada visita y sigue andando aunque el carrito se apague.
+
+**Pendientes conocidos (antes de encender):**
+- No hay conciliación programada de grupos trabados (`COBRANDO`/`EN_REVISION`): hoy dependen del
+  aviso de Mercado Pago y de la visita a la página. Si Mercado Pago rechaza un pago que estaba en
+  revisión, el grupo queda trabado y se destraba a mano.
+- El filtro por `pricingSnapshot.split1nGrupo` no tiene índice; con volumen conviene una columna.
+- El comprobante es uno por grupo; la entrega por WhatsApp y el correo de "ZIP listo" siguen
+  saliendo por pedido.
+- Los mismos huecos de `create-preference`, reintento y "pedido abandonado" existen para pedidos
+  del piloto de un álbum (no se tocaron acá).

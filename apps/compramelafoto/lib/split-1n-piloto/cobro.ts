@@ -60,32 +60,84 @@ export function prepararCobro(params: {
     return { ok: false, codigo: "PAGADOR_ES_RECEPTOR" };
   }
 
+  const reparto = repartoDelPedido(params);
+  const partes = partesDelPedido(reparto, params.receivers);
+  const { total, distribution, partnerReceiverIds } = armarDistribucion({
+    totalPesos: params.totalPesos,
+    plataformaPesos: reparto.plataforma,
+    partes,
+  });
+  return { ok: true, reparto, total, distribution, partnerReceiverIds };
+}
+
+/**
+ * Reparto de un pedido según sus receptores: un rol sin receptor no cobra (el organizador sin
+ * receptor no cobra su porcentaje y queda para el fotógrafo, como en la contabilidad de CLF).
+ */
+export function repartoDelPedido(params: {
+  totalPesos: number;
+  feePesos: number;
+  basePesos?: number;
+  porcentajeOrganizador?: number;
+  receivers: ReceptoresCobro;
+}): RepartoPiloto {
   const r = params.receivers;
   const organizador = r.organizador ?? null;
-  const referidorOrganizador = r.referidorOrganizador ?? null;
-  const reparto = calcularRepartoPiloto({
+  return calcularRepartoPiloto({
     totalPesos: params.totalPesos,
     feePesos: params.feePesos,
     basePesos: params.basePesos,
     hayReferidor: r.referidor != null,
     porcentajeOrganizador: organizador != null ? params.porcentajeOrganizador ?? 0 : 0,
-    hayReferidorOrganizador: referidorOrganizador != null,
+    hayReferidorOrganizador: (r.referidorOrganizador ?? null) != null,
   });
+}
 
-  // Rol → receptor y monto, en orden de prioridad. Los receptores repetidos se suman al primero.
-  const partes: Array<[string, string, number]> = [["fotografo", r.fotografo, reparto.fotografo]];
-  if (r.referidor != null && reparto.referidor > 0) partes.push(["referidor", r.referidor, reparto.referidor]);
+/** Lo que cobra una cuenta de Mercado Pago por un rol en un pedido. */
+export type ParteReparto = { rol: string; receptor: string; pesos: number };
+
+/**
+ * Rol → receptor y monto de un pedido, en orden de prioridad. Un rol sin receptor o con monto
+ * cero no va (el fotógrafo va siempre).
+ */
+export function partesDelPedido(reparto: RepartoPiloto, r: ReceptoresCobro): ParteReparto[] {
+  const partes: ParteReparto[] = [{ rol: "fotografo", receptor: r.fotografo, pesos: reparto.fotografo }];
+  if (r.referidor != null && reparto.referidor > 0) {
+    partes.push({ rol: "referidor", receptor: r.referidor, pesos: reparto.referidor });
+  }
+  const organizador = r.organizador ?? null;
   if (organizador != null && reparto.organizador > 0) {
-    partes.push(["organizador", organizador, reparto.organizador]);
+    partes.push({ rol: "organizador", receptor: organizador, pesos: reparto.organizador });
   }
+  const referidorOrganizador = r.referidorOrganizador ?? null;
   if (referidorOrganizador != null && reparto.referidorOrganizador > 0) {
-    partes.push(["referidor_organizador", referidorOrganizador, reparto.referidorOrganizador]);
+    partes.push({ rol: "referidor_organizador", receptor: referidorOrganizador, pesos: reparto.referidorOrganizador });
   }
+  return partes;
+}
+
+/**
+ * Reglas fijas de la orden: la plataforma (`owner`) y una regla por cuenta. Las partes de una
+ * misma cuenta se suman en la primera que aparece, que le da su `recipientId` (el rol). Si ese
+ * rol ya lo usa otra cuenta (dos fotógrafos en un carrito de evento), se numera: `fotografo_2`.
+ */
+export function armarDistribucion(params: {
+  totalPesos: number;
+  plataformaPesos: number;
+  partes: ParteReparto[];
+}) {
   const porReceptor = new Map<string, { recipientId: string; pesos: number }>();
-  for (const [rol, receptor, pesos] of partes) {
+  const usados = new Set<string>(["owner"]);
+  for (const { rol, receptor, pesos } of params.partes) {
     const previo = porReceptor.get(receptor);
-    if (previo) previo.pesos += pesos;
-    else porReceptor.set(receptor, { recipientId: rol, pesos });
+    if (previo) {
+      previo.pesos += pesos;
+      continue;
+    }
+    let recipientId = rol;
+    for (let n = 2; usados.has(recipientId); n++) recipientId = `${rol}_${n}`;
+    usados.add(recipientId);
+    porReceptor.set(receptor, { recipientId, pesos });
   }
 
   const total = enPesos(params.totalPesos);
@@ -97,7 +149,7 @@ export function prepararCobro(params: {
     priority,
     optional: false,
   });
-  const rules = [fija("owner", reparto.plataforma, 1)];
+  const rules = [fija("owner", params.plataformaPesos, 1)];
   const partnerReceiverIds = new Map<string, string>();
   for (const [receptor, { recipientId, pesos }] of porReceptor) {
     rules.push(fija(recipientId, pesos, rules.length + 1));
@@ -110,5 +162,5 @@ export function prepararCobro(params: {
     rounding: "LARGEST_REMAINDER",
     eligibleRecipientIds: rules.map((rule) => rule.recipientId),
   });
-  return { ok: true, reparto, total, distribution, partnerReceiverIds };
+  return { total, distribution, partnerReceiverIds };
 }

@@ -6,6 +6,7 @@ import PhotoCard from "@/components/photo/PhotoCard";
 import PhotoSlideViewer from "@/components/photo/PhotoSlideViewer";
 import Button from "@/components/ui/Button";
 import { buildPhotoViewApiUrl } from "@/lib/images/public-photo-view-url";
+import CarritoEventoResumen from "./CarritoEventoResumen";
 
 type EventGalleryPhoto = {
   id: string;
@@ -16,7 +17,14 @@ type EventGalleryPhoto = {
   photographerName: string | null;
 };
 
-export default function EventGalleryGrid({ photos }: { photos: EventGalleryPhoto[] }) {
+export default function EventGalleryGrid({
+  photos,
+  carritoEvento,
+}: {
+  photos: EventGalleryPhoto[];
+  /** Carrito de evento (Split 1:N) encendido: la compra se paga junta. Sin esto, todo igual que siempre. */
+  carritoEvento?: { shareSlug: string };
+}) {
   const [showViewer, setShowViewer] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -133,7 +141,11 @@ export default function EventGalleryGrid({ photos }: { photos: EventGalleryPhoto
     mounted && showSummary
       ? createPortal(
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 py-6 sm:px-6">
-            <div className="w-full max-w-4xl rounded-3xl bg-white p-6 sm:p-10 shadow-2xl">
+            <div
+              className={`w-full max-w-4xl rounded-3xl bg-white p-6 sm:p-10 shadow-2xl${
+                carritoEvento ? " max-h-[90vh] overflow-y-auto" : ""
+              }`}
+            >
               <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div className="space-y-2">
                   <h3 className="text-2xl sm:text-3xl font-semibold text-[#1a1a1a]">Tu compra</h3>
@@ -154,6 +166,17 @@ export default function EventGalleryGrid({ photos }: { photos: EventGalleryPhoto
                 </button>
               </div>
 
+              {carritoEvento ? (
+                <div className="mt-8 space-y-4">
+                  <CarritoEventoResumen
+                    shareSlug={carritoEvento.shareSlug}
+                    photoIds={normalizePhotoIdsForQuery(Array.from(selected))}
+                  />
+                  <Button variant="secondary" onClick={() => setShowSummary(false)} className="px-5 py-2.5">
+                    Seguir eligiendo
+                  </Button>
+                </div>
+              ) : (
               <div className="mt-8 flex flex-wrap items-center gap-3 justify-between">
                 <Button
                   variant="primary"
@@ -172,6 +195,7 @@ export default function EventGalleryGrid({ photos }: { photos: EventGalleryPhoto
                   Seguir eligiendo
                 </Button>
               </div>
+              )}
             </div>
           </div>,
           document.body

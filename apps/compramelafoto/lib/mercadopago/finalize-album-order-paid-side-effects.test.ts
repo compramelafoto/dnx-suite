@@ -123,4 +123,15 @@ describe("runAlbumOrderPaidSideEffects — comprobante al comprador", () => {
     });
     expect(queueOrderConfirmationEmail).not.toHaveBeenCalled();
   });
+
+  it("carrito de evento: no manda el comprobante por pedido (va uno por grupo)", async () => {
+    await runAlbumOrderPaidSideEffects({
+      orderId: 3,
+      origin: "STANDARD_CHECKOUT" as never,
+      items: [{ productType: "DIGITAL" }],
+      paymentRef: "1",
+      omitirComprobanteComprador: true,
+    });
+    expect(queueOrderConfirmationEmail).not.toHaveBeenCalled();
+  });
 });

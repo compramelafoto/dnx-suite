@@ -93,6 +93,11 @@ export async function runAlbumOrderPaidSideEffects(params: {
   items: Array<{ productType: string }>;
   /** Id de pago de Mercado Pago, o la referencia del canje cuando no hubo pago. */
   paymentRef: string | null;
+  /**
+   * Carrito de evento (Split 1:N): el comprador recibe un solo comprobante por grupo, que se
+   * encola aparte. Por defecto false: el resto de los pedidos sigue igual.
+   */
+  omitirComprobanteComprador?: boolean;
 }): Promise<void> {
   const suppressClientDeliveryForPreventaPackOnly =
     params.origin === OrderOrigin.PREVENTA_PACK && params.items.length === 0;
@@ -100,10 +105,12 @@ export async function runAlbumOrderPaidSideEffects(params: {
     // Se espera a que quede en la cola: sin el await, la función podía terminar antes y el
     // comprobante se perdía sin rastro (pedido 3791, 03/10/2026). Si igual falla, el cron
     // horario lo vuelve a encolar (`lib/cron/reencolar-confirmaciones-pedido.ts`).
-    try {
-      await queueOrderConfirmationEmail(params.orderId);
-    } catch (err) {
-      console.error("Error encolando email de confirmación de pedido:", err);
+    if (!params.omitirComprobanteComprador) {
+      try {
+        await queueOrderConfirmationEmail(params.orderId);
+      } catch (err) {
+        console.error("Error encolando email de confirmación de pedido:", err);
+      }
     }
     deliverOrderByWhatsApp(params.orderId).catch((err) =>
       console.error("Error en entrega WhatsApp post-compra:", err)
