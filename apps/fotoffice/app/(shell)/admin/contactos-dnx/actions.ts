@@ -13,6 +13,13 @@ import { etiquetaRegion, etiquetaTipo } from "@/lib/agentes/buscador/etiquetas";
 import { guardarAjustes, leerAjustes } from "@/lib/agentes/buscador/gasto";
 import { correrBuscador } from "@/lib/agentes/buscador/motor";
 import { ESTADOS_CONTACTO, REGIONES, type EstadoContacto, type Region } from "@/lib/agentes/buscador/tipos";
+import { guardarAjustesVendedor, leerAjustesVendedor } from "@/lib/agentes/vendedor/ajustes";
+import {
+  cambiarPausaVendedor, esGrupo, fijarContactoPrueba, leerAjustesFormulario, primerAptoDelGrupo, TEXTO_SIN_PROPUESTA,
+} from "@/lib/agentes/vendedor/estado";
+import { proponerModelo } from "@/lib/agentes/vendedor/modelos";
+import { correrVendedor } from "@/lib/agentes/vendedor/motor";
+import { GRUPOS_DE_CLUBES, ROTULO_GRUPO } from "@/lib/agentes/vendedor/tipos";
 
 export type EstadoAccionContactos = { ok: boolean; mensaje: string } | null;
 
@@ -231,4 +238,106 @@ export async function reordenarRegionesAction(orden: string[]): Promise<EstadoAc
   }
   refrescar();
   return { ok: true, mensaje: "Orden guardado." };
+}
+
+// ---------------------------------------------------------------------------------------------
+// Agente Vendedor (/admin/contactos-dnx/vendedor). Igual que el Buscador: cada acción vuelve a chequear
+// SUPER_ADMIN y la lógica vive en `lib/agentes/vendedor/estado.ts`.
+
+const RUTA_VENDEDOR = `${RUTA}/vendedor`;
+/** Tiempo de «Correr ahora» del Vendedor: el mismo que el cron. */
+const PRESUPUESTO_VENDEDOR_MS = 240_000;
+
+function refrescarVendedor(...contactos: string[]) {
+  revalidatePath(RUTA_VENDEDOR);
+  for (const id of contactos) revalidatePath(`${RUTA}/${id}`);
+}
+
+/**
+ * «Pausar» / «Reanudar». Reanudar exige un correo recibido, el conocimiento de CLF y el chat de
+ * Telegram; mueve el control de salud a ahora y fija el arranque la primera vez.
+ */
+export async function pausarVendedorAction(pausado: boolean): Promise<EstadoAccionContactos> {
+  if (!(await autorSuperAdmin())) return SIN_PERMISO;
+  try {
+    const r = await cambiarPausaVendedor(Boolean(pausado), new Date());
+    if (r.ok) refrescarVendedor();
+    return r;
+  } catch (e) {
+    console.error("[contactos-dnx][vendedor] pausar o reanudar", e);
+    return { ok: false, mensaje: "No se pudo guardar. Probá de nuevo." };
+  }
+}
+
+/**
+ * «Correr ahora»: corre el Vendedor en segundo plano (`after`), como el Buscador. Corre aunque esté en
+ * pausa: lee las respuestas y trae de CLF el conocimiento del día, pero no manda correos nuevos.
+ */
+export async function correrVendedorAction(): Promise<EstadoAccionContactos> {
+  if (!(await autorSuperAdmin())) return SIN_PERMISO;
+  const pausado = (await leerAjustesVendedor()).pausado;
+  after(async () => {
+    try {
+      const r = await correrVendedor({ presupuestoMs: PRESUPUESTO_VENDEDOR_MS, motivo: "MANUAL" });
+      console.info("[contactos-dnx][vendedor] corrida manual", r);
+    } catch (e) {
+      console.error("[contactos-dnx][vendedor] corrida manual", e);
+    }
+  });
+  const avisos = [
+    pausado ? "Está en pausa: lee las respuestas y trae el conocimiento de CompraMeLaFoto, pero no manda correos nuevos." : null,
+    !process.env.ANTHROPIC_API_KEY?.trim() ? "Sin clave de Claude (ANTHROPIC_API_KEY): no puede redactar ni clasificar respuestas." : null,
+  ].filter(Boolean);
+  return { ok: true, mensaje: ["El Vendedor arrancó. Trabaja hasta 4 minutos; recargá la página para ver el avance.", ...avisos].join(" ") };
+}
+
+/** «Pedir modelo nuevo»: Claude redacta el modelo del grupo con su primer contacto apto y llega por Telegram. */
+export async function pedirModeloNuevoAction(grupo: string): Promise<EstadoAccionContactos> {
+  if (!(await autorSuperAdmin())) return SIN_PERMISO;
+  if (!esGrupo(grupo)) return { ok: false, mensaje: "Ese grupo no existe." };
+  if (!process.env.ANTHROPIC_API_KEY?.trim()) {
+    return { ok: false, mensaje: "No hay clave de Claude (ANTHROPIC_API_KEY): el Vendedor no puede redactar el modelo. Cargala en Vercel y volvé a desplegar." };
+  }
+  if ((GRUPOS_DE_CLUBES as readonly string[]).includes(grupo) && !(await leerAjustesVendedor()).paginaClubesPublicada) {
+    return { ok: false, mensaje: TEXTO_SIN_PROPUESTA.CLUBES_SIN_PAGINA };
+  }
+  try {
+    const contactoId = await primerAptoDelGrupo(grupo);
+    if (!contactoId) return { ok: false, mensaje: `No hay ningún contacto apto en «${ROTULO_GRUPO[grupo]}» para usar de ejemplo.` };
+    const r = await proponerModelo(grupo, contactoId);
+    refrescarVendedor();
+    if (!r.ok) return { ok: false, mensaje: TEXTO_SIN_PROPUESTA[r.motivo] };
+    return { ok: true, mensaje: "Listo: te mandé el modelo por Telegram para que lo apruebes, lo corrijas o lo descartes." };
+  } catch (e) {
+    console.error("[contactos-dnx][vendedor] pedir modelo", e);
+    return { ok: false, mensaje: "No se pudo pedir el modelo. Probá de nuevo en un rato." };
+  }
+}
+
+export async function guardarAjustesVendedorAction(topeClaude: string, correosPorDia: string, correosPrimeraSemana: string): Promise<EstadoAccionContactos> {
+  if (!(await autorSuperAdmin())) return SIN_PERMISO;
+  const r = leerAjustesFormulario(topeClaude, correosPorDia, correosPrimeraSemana);
+  if (!r.ok) return { ok: false, mensaje: r.mensaje };
+  try {
+    await guardarAjustesVendedor(r.valor);
+  } catch (e) {
+    console.error("[contactos-dnx][vendedor] guardar ajustes", e);
+    return { ok: false, mensaje: "No se pudieron guardar los ajustes. Probá de nuevo." };
+  }
+  refrescarVendedor();
+  return { ok: true, mensaje: "Ajustes guardados." };
+}
+
+/** Contacto de prueba: con uno puesto, el Vendedor sólo le escribe a ése. Vacío lo saca. */
+export async function probarConContactoAction(contactoId: string): Promise<EstadoAccionContactos> {
+  if (!(await autorSuperAdmin())) return SIN_PERMISO;
+  try {
+    const id = String(contactoId ?? "").trim();
+    const r = await fijarContactoPrueba(id);
+    if (r.ok) refrescarVendedor(...(id ? [id] : []));
+    return r;
+  } catch (e) {
+    console.error("[contactos-dnx][vendedor] contacto de prueba", e);
+    return { ok: false, mensaje: "No se pudo guardar el contacto de prueba. Probá de nuevo." };
+  }
 }

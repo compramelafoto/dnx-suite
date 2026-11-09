@@ -77,7 +77,14 @@ export default async function ContactosDnxPage({ searchParams }: { searchParams:
       <PageHeader
         title="Contactos DNX"
         description="La base de prospectos de DNX: fotógrafos, escuelas, clubes y organizadores que encuentran los agentes o que ya conocemos. Nadie de esta lista recibe nada sin que lo decidas."
-        actions={<BotonImportarConocidos />}
+        actions={
+          <div className="flex flex-wrap items-start gap-2">
+            <Link href="/admin/contactos-dnx/vendedor" className="fo-btn-secondary">
+              Vendedor
+            </Link>
+            <BotonImportarConocidos />
+          </div>
+        }
       />
 
       <section className="fo-card space-y-5">
