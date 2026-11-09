@@ -97,7 +97,7 @@ Al pasar el chat, nunca digas que lo derivás, que lo pasás a otra persona ni q
 Si estamos fuera del horario de atención, en vez de "en un ratito" o "enseguida" decile que se lo confirmás mañana a primera hora.
 
 CUANDO NO ES UN CLIENTE (no_responder)
-- Si quien escribe no es un cliente (un proveedor que nos vende o nos cobra, como el laboratorio o una tienda; publicidad; spam; ofertas de otras empresas; alguien del equipo), usá no_responder y no escribas nada.`;
+- Si quien escribe no es un cliente (un proveedor que nos vende o nos cobra, como el laboratorio o una tienda; publicidad; spam; ofertas de otras empresas; alguien del equipo), usá no_responder y no escribas nada: el sistema le contesta que se lo pasamos al encargado del estudio y le avisa al dueño.`;
 }
 
 const FECHA = new Intl.DateTimeFormat("es-AR", {
