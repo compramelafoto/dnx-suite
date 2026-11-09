@@ -565,3 +565,25 @@ describe("etapa 2: correcciones de la revisión", () => {
     assert.equal(r.partnerReceiverIds.has("referidor"), false);
   });
 });
+
+import { conTipoDeTarjeta } from "./tarjeta";
+
+describe("tipo de tarjeta del Brick (Visa débito Naranja X, pedido 6082)", () => {
+  it("toma el tipo que el Brick manda aparte, en los datos adicionales", () => {
+    const r = conTipoDeTarjeta({ token: "t", payment_method_id: "visa" }, { paymentTypeId: "debit_card" });
+    assert.equal(r.payment_type_id, "debit_card");
+  });
+
+  it("si el formulario ya trae el tipo, no lo pisa", () => {
+    const r = conTipoDeTarjeta(
+      { token: "t", payment_method_id: "visa", payment_type_id: "credit_card" },
+      { paymentTypeId: "debit_card" },
+    );
+    assert.equal(r.payment_type_id, "credit_card");
+  });
+
+  it("sin datos adicionales queda igual", () => {
+    const r = conTipoDeTarjeta({ token: "t", payment_method_id: "visa" }, undefined);
+    assert.equal(r.payment_type_id, undefined);
+  });
+});
