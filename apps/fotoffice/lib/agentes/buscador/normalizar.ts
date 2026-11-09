@@ -33,6 +33,8 @@ export function claveDominio(web: string | null): string | null {
   return host;
 }
 
+const SEGMENTOS_RESERVADOS = new Set(["p", "reel", "reels", "tv", "stories", "explore", "accounts", "direct", "about", "tags", "locations", "web"]);
+
 /** Usuario de Instagram en minúsculas, desde una URL o `@usuario`. */
 export function claveInstagram(texto: string | null): string | null {
   if (!texto) return null;
@@ -40,6 +42,8 @@ export function claveInstagram(texto: string | null): string | null {
   if (t === "") return null;
   const m = /instagram\.com\/([^/?#\s]+)/i.exec(t);
   t = m ? m[1]! : t;
+  // Rutas de Instagram que no son un usuario (publicaciones, historias, login...).
+  if (m && SEGMENTOS_RESERVADOS.has(t.toLowerCase())) return null;
   t = t.replace(/^@/, "").toLowerCase();
   if (!/^[a-z0-9._]{1,30}$/.test(t)) return null;
   return t;
@@ -51,11 +55,16 @@ const CORREOS_RELLENO = new Set([
   "nada@nada.com", "none@none.com", "na@na.com", "a@a.com",
 ]);
 
-/** Correo en minúsculas; `null` si es inválido o de relleno. */
+const CORREO_GRATIS = new Set(["gmail.com", "hotmail.com", "outlook.com", "yahoo.com", "yahoo.com.ar", "live.com", "icloud.com"]);
+const LOCAL_GENERICO = new Set(["info", "contacto", "contact", "ventas", "hola", "admin", "consultas", "administracion", "fotografia", "fotos", "estudio"]);
+
+/** Correo en minúsculas; `null` si es inválido, de relleno o genérico de un proveedor gratuito (lo comparten muchos). */
 export function claveEmail(email: string | null): string | null {
   const { valor } = correo(email);
   if (!valor) return null;
   if (CORREOS_RELLENO.has(valor)) return null;
+  const [local, dominio] = valor.split("@") as [string, string];
+  if (CORREO_GRATIS.has(dominio) && LOCAL_GENERICO.has(local)) return null;
   if (esDatoDePrueba({ correo: valor, nombres: [] })) return null;
   return valor;
 }

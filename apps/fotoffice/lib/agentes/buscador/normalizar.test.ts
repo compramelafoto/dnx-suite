@@ -27,6 +27,12 @@ describe("claveInstagram", () => {
     expect(claveInstagram("@estudio.luz")).toBe("estudio.luz");
     expect(claveInstagram(null)).toBeNull();
   });
+  it("rutas que no son usuario dan null", () => {
+    expect(claveInstagram("https://instagram.com/p/abc")).toBeNull();
+    expect(claveInstagram("https://instagram.com/accounts/login")).toBeNull();
+    expect(claveInstagram("https://instagram.com/stories/estudio.luz/123")).toBeNull();
+    expect(claveInstagram("https://instagram.com/reels/")).toBeNull();
+  });
 });
 
 describe("claveTelefono", () => {
@@ -45,6 +51,12 @@ describe("claveEmail", () => {
     expect(claveEmail("INFO@EstudioLuz.com.ar")).toBe("info@estudioluz.com.ar");
     expect(claveEmail("no@tiene.com")).toBeNull();
     expect(claveEmail("sinarroba")).toBeNull();
+  });
+  it("genéricos de proveedores gratuitos no emparejan; dominio propio sí", () => {
+    expect(claveEmail("info@gmail.com")).toBeNull();
+    expect(claveEmail("contacto@gmail.com")).toBeNull();
+    expect(claveEmail("estudioluz.fotos@gmail.com")).toBe("estudioluz.fotos@gmail.com");
+    expect(claveEmail("info@estudioluz.com.ar")).toBe("info@estudioluz.com.ar");
   });
 });
 
