@@ -241,7 +241,8 @@ export async function registrarEntrante(c: CorreoRecibido, ahora: Date): Promise
           hiloId: hilo?.id ?? null, contactoId: hilo?.contactoId ?? null, direccion: "ENTRADA", resendId: c.id,
           messageId: c.messageId, de: c.de, para: c.para.join(", "), asunto: c.asunto, texto: nuevoTexto,
           clase: rebote ? "REBOTE" : automatica ? "AUTOMATICA" : null,
-          procesadoEn: rebote || automatica ? ahora : null,
+          // Sin hilo quedan para `procesarEntrantes`, que sólo avisa por Telegram (nunca los reenvía).
+          procesadoEn: hilo && (rebote || automatica) ? ahora : null,
         },
         select: { id: true },
       });
@@ -259,7 +260,7 @@ export async function registrarEntrante(c: CorreoRecibido, ahora: Date): Promise
         await tx.dnxVendedorHilo.update({ where: { id: hilo.id }, data: { recordatorioCancelado: true } });
       } else if (!rebote) {
         await tx.dnxVendedorHilo.update({ where: { id: hilo.id }, data: { ultimaRespuestaEn: ahora } });
-        await tx.dnxVendedorHilo.updateMany({ where: { id: hilo.id, estado: { notIn: ["BAJA", "CERRADO"] } }, data: { estado: "RESPONDIO" } });
+        await tx.dnxVendedorHilo.updateMany({ where: { id: hilo.id, estado: { notIn: ["BAJA", "CERRADO", "ESPERA_DANIEL"] } }, data: { estado: "RESPONDIO" } });
       }
       return correo.id;
     });
@@ -370,7 +371,7 @@ export async function reenviarADaniel(correoId: string, deps: DepsEntrante = {})
 
 const esGrupo = (g: string): g is Grupo => (GRUPOS as readonly string[]).includes(g);
 
-type Entrante = { id: string; hiloId: string | null; de: string; para: string; asunto: string; texto: string; messageId: string | null };
+type Entrante = { id: string; hiloId: string | null; de: string; para: string; asunto: string; texto: string; messageId: string | null; clase: string | null };
 type Hilo = {
   id: string; contactoId: string; grupo: string; modeloId: string | null; token: string; estado: string;
   respuestasAutomaticas: number; modoManual: boolean; avisoInteresadoEn: Date | null; recordadoEn: Date | null; registradoEn: Date | null;
@@ -379,7 +380,7 @@ type Hilo = {
 async function procesarUno(correoId: string, ahora: Date, hasta: number, deps: DepsEntrante): Promise<void> {
   const correo: Entrante | null = await prisma.dnxVendedorCorreo.findUnique({
     where: { id: correoId },
-    select: { id: true, hiloId: true, de: true, para: true, asunto: true, texto: true, messageId: true },
+    select: { id: true, hiloId: true, de: true, para: true, asunto: true, texto: true, messageId: true, clase: true },
   });
   if (!correo) return;
   const marcar = (clase?: string) =>
@@ -402,10 +403,18 @@ async function procesarUno(correoId: string, ahora: Date, hasta: number, deps: D
       })
     : null;
 
-  // Sin hilo: a Gmail (salvo que venga de Daniel o del propio dominio) y aviso.
+  // Sin hilo: a Gmail (salvo que venga de Daniel o del propio dominio, o sea automático) y aviso.
   if (!hilo || !contacto) {
-    if (!propia) await reenviarADaniel(correo.id, deps);
-    await avisar(mensajeSinEmparejar({ de: correo.de, asunto: correo.asunto, reenviado: !propia }), null, deps);
+    const motivo =
+      correo.clase === "AUTOMATICA"
+        ? "es una respuesta automática"
+        : correo.clase === "REBOTE"
+          ? "es un rebote"
+          : propia
+            ? "viene de tu propia casilla o de @compramelafoto.com"
+            : null;
+    if (!motivo) await reenviarADaniel(correo.id, deps);
+    await avisar(mensajeSinEmparejar({ de: correo.de, asunto: correo.asunto, reenviado: !motivo, motivo: motivo ?? undefined }), null, deps);
     await marcar();
     return;
   }
@@ -527,12 +536,12 @@ async function procesarUno(correoId: string, ahora: Date, hasta: number, deps: D
 
   // INTERESADO, CAPACITACION y NO_INTERESA contestan solas, salvo que algo lo impida.
   const motivo =
-    interesa && GRUPOS_SIEMPRE_A_DANIEL.includes(grupo)
-      ? "Las escuelas de fotografía interesadas las contestás vos: la alianza la decidís vos."
-      : ajustes.pausado
-        ? "El Vendedor está en pausa: no contesto nada solo."
-        : hilo.respuestasAutomaticas >= MAX_RESPUESTAS_AUTOMATICAS
-          ? `Ya contesté ${MAX_RESPUESTAS_AUTOMATICAS} veces solo en este hilo.`
+    hilo.estado === "ESPERA_DANIEL"
+      ? "Ya esperaba tu respuesta y te volvió a escribir."
+      : interesa && GRUPOS_SIEMPRE_A_DANIEL.includes(grupo)
+        ? "Las escuelas de fotografía interesadas las contestás vos: la alianza la decidís vos."
+        : ajustes.pausado
+          ? "El Vendedor está en pausa: no contesto nada solo."
           : null;
   if (motivo) {
     await aDaniel(propuesta, motivo);
@@ -540,14 +549,34 @@ async function procesarUno(correoId: string, ahora: Date, hasta: number, deps: D
     return;
   }
 
-  const envio = await responder(hilo, grupo, correo, delHilo, propuesta, deps);
+  // Reserva atómica del lugar en el tope: dos procesadores del mismo hilo no pasan los dos de 3.
+  // También exige que el hilo no haya pasado a esperar a Daniel mientras tanto.
+  const lugar = await prisma.dnxVendedorHilo.updateMany({
+    where: { id: hilo.id, estado: { notIn: ["ESPERA_DANIEL", "BAJA", "CERRADO"] }, respuestasAutomaticas: { lt: MAX_RESPUESTAS_AUTOMATICAS } },
+    data: { respuestasAutomaticas: { increment: 1 } },
+  });
+  if (lugar.count !== 1) {
+    await aDaniel(propuesta, `Ya contesté ${MAX_RESPUESTAS_AUTOMATICAS} veces solo en este hilo, o el hilo te estaba esperando.`);
+    await marcar(v.clase);
+    return;
+  }
+  const devolverLugar = () =>
+    prisma.dnxVendedorHilo.update({ where: { id: hilo.id }, data: { respuestasAutomaticas: { decrement: 1 } } });
+
+  let envio: ResultadoEnvio;
+  try {
+    envio = await responder(hilo, grupo, correo, delHilo, propuesta, deps);
+  } catch (error) {
+    await devolverLugar();
+    throw error;
+  }
   if (!envio.ok) {
+    await devolverLugar();
     if (envio.reintentable) throw new Error(`Vendedor: no salió la respuesta (${envio.motivo})`);
     await aDaniel(propuesta, `No pude mandar la respuesta: ${envio.motivo}`);
     await marcar(v.clase);
     return;
   }
-  await prisma.dnxVendedorHilo.update({ where: { id: hilo.id }, data: { respuestasAutomaticas: { increment: 1 } } });
   if (v.clase === "NO_INTERESA") {
     // Si ya era NO_CONTACTAR, `cambiarEstado` no lo toca: está bien.
     await cambiarEstado(contacto.id, "NO_INTERESA", AUTOR_VENDEDOR);

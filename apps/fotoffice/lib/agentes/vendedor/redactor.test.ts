@@ -181,4 +181,17 @@ describe("clasificarYResponder", () => {
     expect(pedido).toContain("mensaje 19");
     expect(pedido).not.toContain("mensaje 0\\n");
   });
+
+  it("el historial conserva los mensajes más recientes aunque sean largos", async () => {
+    const historial = Array.from({ length: 8 }, (_, k) => ({
+      direccion: (k % 2 === 0 ? "SALIDA" : "ENTRADA") as "SALIDA" | "ENTRADA",
+      texto: `${k === 7 ? "ULTIMO-MENSAJE " : ""}${"palabra ".repeat(125)}${k === 7 ? "FIN-DEL-ULTIMO" : ""}`,
+    }));
+    const { cliente, pedidos } = clienteFalso([fin({ clase: "DELICADA", resumen: "r", quiereCapacitarse: false, respuesta: "Lo veo." })]);
+    await clasificarYResponder({ ...i, historial }, { cliente, hasta: hasta() });
+    const pedido = JSON.stringify(pedidos[0]);
+    expect(pedido).toContain("ULTIMO-MENSAJE");
+    expect(pedido).toContain("FIN-DEL-ULTIMO");
+  });
 });
+

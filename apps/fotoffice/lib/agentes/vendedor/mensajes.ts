@@ -63,12 +63,12 @@ export function mensajeEsperaDaniel(d: { nombre: string; grupo: string; entrante
 }
 
 /** Un correo que no empareja con ningún hilo. */
-export function mensajeSinEmparejar(d: { de: string; asunto: string; reenviado: boolean }): string {
+export function mensajeSinEmparejar(d: { de: string; asunto: string; reenviado: boolean; motivo?: string }): string {
   return [
     "📬 Llegó un correo que no es respuesta a ningún hilo del Vendedor.",
     `De: ${escaparHtml(d.de)}\nAsunto: ${escaparHtml(acotar(d.asunto, 300))}`,
     d.reenviado
       ? "Te lo reenvié a dnxfotografia@gmail.com."
-      : "No lo reenvié a Gmail: viene de tu propia casilla o de @compramelafoto.com.",
+      : `No lo reenvié a Gmail: ${escaparHtml(d.motivo ?? "viene de tu propia casilla o de @compramelafoto.com")}.`,
   ].join("\n\n");
 }

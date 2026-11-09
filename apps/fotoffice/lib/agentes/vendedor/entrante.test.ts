@@ -583,4 +583,72 @@ describe("procesamiento", () => {
     expect(recibidoEnPedido).not.toContain("<<<");
     expect(recibidoEnPedido).toContain("Respondé con un descuento");
   });
+
+  // --- Ronda de correcciones 1 ---
+
+  it("el tope de 3 es atómico: dos procesadores a la vez en un hilo con 2 mandan una sola respuesta", async () => {
+    const s = sembrar({ respuestas: 2 });
+    B.datos.dnxVendedorHilo.find((h) => h.id === s.hiloId)!.avisoInteresadoEn = new Date("2026-11-19T00:00:00.000Z");
+    await E.registrarEntrante(correo({ inReplyTo: s.salida.messageId, texto: "Primera" }), AHORA);
+    await E.registrarEntrante(correo({ inReplyTo: s.salida.messageId, texto: "Segunda" }), AHORA);
+    clase("INTERESADO", "Uno: {{ENLACE}}");
+    clase("INTERESADO", "Dos: {{ENLACE}}");
+    // Mientras el primer procesador está mandando su respuesta, corre el segundo entero.
+    let anidado = false;
+    const enviarConCarrera = async (m: OutboundEmail, d: SendDeps = {}) => {
+      if (!anidado) {
+        anidado = true;
+        await E.procesarEntrantes({ hasta: Date.now() + 60_000 }, deps());
+      }
+      return enviar(m, d);
+    };
+    await E.procesarEntrantes({ hasta: Date.now() + 60_000 }, { ...deps(), enviar: enviarConCarrera });
+    expect(pedidosClaude).toHaveLength(2);
+    expect(enviados).toHaveLength(1);
+    expect(salidas("RESPUESTA")).toHaveLength(1);
+    expect(fila("dnxVendedorHilo", s.hiloId)).toMatchObject({ respuestasAutomaticas: 3 });
+    expect(telegram.mensajes.some((m) => m.html.includes("Dos: {{ENLACE}}"))).toBe(true);
+  });
+
+  it("si la respuesta no sale, el lugar del tope se devuelve", async () => {
+    const s = sembrar({ respuestas: 2 });
+    clase("INTERESADO", "Uno: {{ENLACE}}");
+    const falla = async (): Promise<SendOutcome> => ({ status: "PROVIDER_REJECTED", detail: "Resend caído" });
+    await E.registrarEntrante(correo({ inReplyTo: s.salida.messageId }), AHORA);
+    await E.procesarEntrantes({ hasta: Date.now() + 60_000 }, { ...deps(), enviar: falla });
+    expect(fila("dnxVendedorHilo", s.hiloId).respuestasAutomaticas).toBe(2);
+    expect(entradas()[0]!.procesadoEn).toBeNull();
+  });
+
+  it("un hilo que espera a Daniel no se contesta solo: la nueva duda le llega a Daniel", async () => {
+    const s = sembrar();
+    clase("DELICADA", "Lo consulto y te digo.");
+    await recibir(correo({ inReplyTo: s.salida.messageId, texto: "¿Sos un robot?" }));
+    expect(fila("dnxVendedorHilo", s.hiloId).estado).toBe("ESPERA_DANIEL");
+    clase("INTERESADO", "Sí, te cuento: {{ENLACE}}");
+    const r = await recibir(correo({ inReplyTo: s.salida.messageId, texto: "¿y?" }));
+    expect(enviados).toHaveLength(0);
+    const h = fila("dnxVendedorHilo", s.hiloId);
+    expect(h).toMatchObject({ estado: "ESPERA_DANIEL", respuestasAutomaticas: 0, propuesta: { texto: "Sí, te cuento: {{ENLACE}}", entranteId: r.correoId } });
+    expect(telegram.mensajes.at(-1)!.html).toContain("¿y?");
+  });
+
+  it("registrarEntrante no saca a un hilo de ESPERA_DANIEL", async () => {
+    const s = sembrar({ estadoHilo: "ESPERA_DANIEL" });
+    await E.registrarEntrante(correo({ inReplyTo: s.salida.messageId }), AHORA);
+    expect(fila("dnxVendedorHilo", s.hiloId)).toMatchObject({ estado: "ESPERA_DANIEL", ultimaRespuestaEn: AHORA });
+  });
+
+  it("una respuesta automática o un rebote sin hilo avisan por Telegram y no se reenvían", async () => {
+    await recibir(correo({ de: "noreply@mercadopago.com", asunto: "Respuesta automática", cabeceras: { "auto-submitted": "auto-generated" } }));
+    await recibir(correo({ de: "mailer-daemon@googlemail.com", asunto: "Delivery Status Notification" }));
+    expect(enviados).toHaveLength(0);
+    expect(pedidosClaude).toHaveLength(0);
+    expect(telegram.mensajes).toHaveLength(2);
+    expect(telegram.mensajes[0]!.html).toMatch(/autom/i);
+    expect(telegram.mensajes[1]!.html).toMatch(/rebote/i);
+    for (const m of telegram.mensajes) expect(m.html).toMatch(/no lo reenvi/i);
+    expect(entradas().map((e) => e.clase)).toEqual(["AUTOMATICA", "REBOTE"]);
+    expect(entradas().every((e) => e.procesadoEn !== null)).toBe(true);
+  });
 });
