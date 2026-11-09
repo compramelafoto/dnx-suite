@@ -72,6 +72,18 @@ describe("validarTexto", () => {
     expect(validarTexto("{{ENLACE}} {{CURSO}}", o)).toBeNull();
     expect(validarTexto("{{ENLACE}} " + "a ".repeat(200), o)).not.toBeNull();
   });
+  it("rechaza marcadores desconocidos", () => {
+    expect(validarTexto("Hola {{NOMBRE}}, {{ENLACE}}", o)).toMatch(/marcadores/);
+    expect(validarTexto("Hola {{ enlace }} {{ENLACE}}", o)).not.toBeNull();
+    expect(validarTexto("{{ENLACE}} y {{CURSO}}", o)).toBeNull();
+  });
+  it("rechaza dominios sueltos salvo compramelafoto.com", () => {
+    expect(validarTexto("entrá a otrositio.com {{ENLACE}}", o)).toMatch(/otrositio\.com/);
+    expect(validarTexto("mirá fotos.com.ar {{ENLACE}}", o)).not.toBeNull();
+    expect(validarTexto("probá sitio.io {{ENLACE}}", o)).not.toBeNull();
+    expect(validarTexto("Soy de CompraMeLaFoto.com y te cuento {{ENLACE}}", o)).toBeNull();
+    expect(validarTexto("Rosario. Comí bien {{ENLACE}}", o)).toBeNull();
+  });
 });
 
 describe("redactarModelo", () => {
@@ -95,6 +107,13 @@ describe("redactarModelo", () => {
     const r = await redactarModelo({ grupo: "CLUB", contacto, conocimiento: CONOC }, { cliente, hasta: hasta() });
     expect(r.ok && r.valor.landing).toBe("/clubes");
     expect(pedidos).toHaveLength(2);
+  });
+  it("/clubes sólo para clubes y organizadores de eventos", async () => {
+    const { cliente, pedidos } = clienteFalso([fin({ ...ok, landing: "/clubes" }), fin({ ...ok, landing: "/organizador" })]);
+    const r = await redactarModelo({ grupo: "ORGANIZADOR_MUESTRAS", contacto, conocimiento: CONOC }, { cliente, hasta: hasta() });
+    expect(r.ok && r.valor.landing).toBe("/organizador");
+    expect(pedidos).toHaveLength(2);
+    expect(JSON.stringify(pedidos[0]!.messages)).not.toContain("/clubes");
   });
   it("un asunto con {{ENLACE}} se pide corregir", async () => {
     const { cliente, pedidos } = clienteFalso([fin({ ...ok, asunto: "Mirá esto {{ENLACE}}" }), fin(ok)]);

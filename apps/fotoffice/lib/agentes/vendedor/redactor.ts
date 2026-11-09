@@ -3,7 +3,7 @@ import { z } from "zod";
 import { conversar, type DepsClaude, type ResultadoParseo, type ResultadoRedaccion } from "../claude";
 import { extraerJson } from "../periodista/salida";
 import { ANGULO_POR_GRUPO, sistemaVendedor, type DatosContactoPrompt } from "./prompts";
-import { CLASES_RESPUESTA, LANDINGS_PERMITIDAS, type ClaseRespuesta, type Grupo } from "./tipos";
+import { CLASES_RESPUESTA, GRUPOS_DE_CLUBES, LANDINGS_PERMITIDAS, type ClaseRespuesta, type Grupo } from "./tipos";
 
 /**
  * Redacción del Vendedor con Claude (sin búsqueda web). Cada texto se valida con `validarTexto`
@@ -16,10 +16,17 @@ export type OpcionesTexto = { exigirEnlace: boolean; permitirCurso: boolean; max
 
 const cuenta = (t: string, marca: string) => t.split(marca).length - 1;
 
+/** Un dominio suelto (`algo.com`, `sitio.com.ar`): la vía de una inyección para meter un sitio. */
+const DOMINIO = /\b(?:[\w-]+\.)+(?:com|ar|net|org|io|info)\b/gi;
+const DOMINIO_PROPIO = "compramelafoto.com";
+
 /** El motivo del rechazo, o null si el texto sirve. */
 export function validarTexto(texto: string, o: OpcionesTexto): string | null {
   if (/https?:|www\./i.test(texto)) return "no pongas direcciones web: el único enlace es {{ENLACE}}";
   if (/[^\s@]+@[^\s@]+\.[^\s@]+/.test(texto)) return "no pongas direcciones de correo";
+  const dominios = (texto.match(DOMINIO) ?? []).filter((d) => d.toLowerCase() !== DOMINIO_PROPIO);
+  if (dominios.length > 0) return `no nombres sitios web (${dominios[0]}): el único enlace es {{ENLACE}}`;
+  if (/\{\{(?!ENLACE\}\}|CURSO\}\})/.test(texto)) return "los únicos marcadores son {{ENLACE}} y {{CURSO}}: no uses otros (como {{NOMBRE}})";
   const enlaces = cuenta(texto, "{{ENLACE}}");
   if (o.exigirEnlace && enlaces === 0) return "falta {{ENLACE}}";
   if (enlaces > 1) return "{{ENLACE}} va una sola vez";
@@ -86,6 +93,11 @@ const OPC_PRIMERO = (max: number): OpcionesTexto => ({ exigirEnlace: true, permi
 
 export type CorreoModelo = { asunto: string; cuerpo: string; indicaciones: string; landing: string };
 
+/** Las landings que puede elegir un grupo: `/clubes`, sólo los clubes y los organizadores de eventos. */
+export function landingsDelGrupo(grupo: Grupo): string[] {
+  return LANDINGS_PERMITIDAS.filter((l) => l !== "/clubes" || GRUPOS_DE_CLUBES.includes(grupo));
+}
+
 export function redactarModelo(
   i: { grupo: Grupo; contacto: DatosContactoPrompt; conocimiento: string; indicacion?: string; anterior?: { asunto: string; cuerpo: string } },
   deps: Deps,
@@ -96,9 +108,10 @@ export function redactarModelo(
     indicaciones: z.string().trim().max(1000),
     landing: z.string(),
   });
+  // La página de clubes es sólo para clubes y organizadores de eventos (y no se proponen hasta que esté publicada).
+  const landings = landingsDelGrupo(i.grupo);
   const parsear = parser(esquema, (v) => {
-    if (!(LANDINGS_PERMITIDAS as readonly string[]).includes(v.landing))
-      return `la landing tiene que ser una de: ${LANDINGS_PERMITIDAS.join(", ")}`;
+    if (!landings.includes(v.landing)) return `la landing tiene que ser una de: ${landings.join(", ")}`;
     return validarTexto(v.cuerpo, OPC_PRIMERO(160)) ?? validarAsunto(v.asunto);
   });
   const partes = [
@@ -108,7 +121,7 @@ export function redactarModelo(
     ...(i.anterior ? [bloque("Versión anterior a mejorar:", `Asunto: ${i.anterior.asunto}\n${i.anterior.cuerpo}`)] : []),
     ...(i.indicacion ? [bloque("Indicación de Daniel:", i.indicacion)] : []),
     "El cuerpo lleva {{ENLACE}} una sola vez, puede llevar {{CURSO}}, y tiene hasta 160 palabras. En \"landing\" elegí la página que mejor corresponde, de esta lista: " +
-      LANDINGS_PERMITIDAS.join(", ") + ". En \"indicaciones\" explicá en pocas palabras cómo adaptarlo a cada persona.",
+      landings.join(", ") + ". En \"indicaciones\" explicá en pocas palabras cómo adaptarlo a cada persona.",
     `${SOLO_JSON}\n{ "asunto": "...", "cuerpo": "...", "indicaciones": "...", "landing": "/..." }`,
   ];
   return llamar(sistemaVendedor(i.conocimiento), partes.join("\n\n"), parsear, deps);
