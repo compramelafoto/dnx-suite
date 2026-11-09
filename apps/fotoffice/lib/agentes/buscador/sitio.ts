@@ -162,12 +162,13 @@ async function leerAcotado(res: Response): Promise<string> {
 
 /** Pide la página siguiendo redirecciones sólo dentro del mismo dominio. Devuelve el HTML y la URL final. */
 async function pedirPagina(web: string, f: typeof fetch): Promise<{ html: string; url: string } | null> {
-  let url = urlHttp(web);
-  const dominio = url ? claveDominio(url.href) : null;
-  if (!url || !dominio) return null;
+  const primera = urlHttp(web);
+  const dominio = primera ? claveDominio(primera.href) : null;
+  if (!primera || !dominio) return null;
+  let url: URL = primera;
   const senal = AbortSignal.timeout(PLAZO_MS);
   for (let salto = 0; salto <= MAX_REDIRECCIONES; salto++) {
-    const res = await f(url.href, {
+    const res: Response = await f(url.href, {
       method: "GET",
       redirect: "manual",
       credentials: "omit",
@@ -175,8 +176,8 @@ async function pedirPagina(web: string, f: typeof fetch): Promise<{ html: string
       signal: senal,
     });
     if (res.status >= 300 && res.status < 400) {
-      const destino = res.headers.get("location");
-      const siguiente = destino ? urlHttp(new URL(destino, url).href) : null;
+      const destino: string | null = res.headers.get("location");
+      const siguiente: URL | null = destino ? urlHttp(new URL(destino, url).href) : null;
       if (!siguiente || claveDominio(siguiente.href) !== dominio) return null;
       url = siguiente;
       continue;
