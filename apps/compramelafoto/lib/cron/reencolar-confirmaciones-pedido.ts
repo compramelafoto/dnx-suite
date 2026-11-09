@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { queueOrderConfirmationEmail } from "@/lib/order-confirmation-email";
+import { claveComprobanteGrupo, separarPedidosDeGrupo } from "@/lib/split-1n-carrito-evento/cron";
 
 /**
  * Red de seguridad del comprobante al comprador ("Tu pedido #N fue confirmado").
@@ -24,6 +25,8 @@ export type ReencolarConfirmacionesResult = {
   dryRun: boolean;
   revisados: number;
   faltantes: number[];
+  /** Carritos de evento pagados sin su comprobante único (uno por grupo, no por pedido). */
+  gruposFaltantes: string[];
   reencolados: number;
   fallidos: number;
 };
@@ -48,7 +51,7 @@ export async function runReencolarConfirmacionesPedido(options?: {
       createdAt: { gte: desde, lte: hasta },
       OR: [{ origin: { not: "PREVENTA_PACK" } }, { items: { some: {} } }],
     },
-    select: { id: true },
+    select: { id: true, pricingSnapshot: true },
     orderBy: { id: "asc" },
     take: TOPE_PEDIDOS,
   });
@@ -57,21 +60,39 @@ export async function runReencolarConfirmacionesPedido(options?: {
     dryRun,
     revisados: pedidos.length,
     faltantes: [],
+    gruposFaltantes: [],
     reencolados: 0,
     fallidos: 0,
   };
   if (pedidos.length === 0) return result;
 
+  // Los pedidos de un carrito de evento llevan un solo comprobante por grupo.
+  const { sueltos, grupos } = separarPedidosDeGrupo(pedidos);
   const encolados = await prisma.emailQueue.findMany({
-    where: { idempotencyKey: { in: pedidos.map((p) => claveConfirmacion(p.id)) } },
+    where: {
+      idempotencyKey: {
+        in: [...sueltos.map((id) => claveConfirmacion(id)), ...grupos.map((g) => claveComprobanteGrupo(g))],
+      },
+    },
     select: { idempotencyKey: true },
   });
   const yaEncoladas = new Set(encolados.map((e) => e.idempotencyKey));
-  result.faltantes = pedidos
-    .map((p) => p.id)
-    .filter((id) => !yaEncoladas.has(claveConfirmacion(id)));
+  result.faltantes = sueltos.filter((id) => !yaEncoladas.has(claveConfirmacion(id)));
+  result.gruposFaltantes = grupos.filter((g) => !yaEncoladas.has(claveComprobanteGrupo(g)));
 
-  if (dryRun || result.faltantes.length === 0) return result;
+  if (dryRun) return result;
+  if (result.gruposFaltantes.length > 0) {
+    const { encolarComprobanteGrupo } = await import("@/lib/split-1n-carrito-evento/correo");
+    for (const grupoId of result.gruposFaltantes) {
+      try {
+        if (await encolarComprobanteGrupo(grupoId)) result.reencolados++;
+      } catch (err) {
+        result.fallidos++;
+        console.error("[reencolar-confirmaciones-pedido] fallo_grupo", { grupoId, err });
+      }
+    }
+  }
+  if (result.faltantes.length === 0) return result;
 
   for (const orderId of result.faltantes) {
     try {

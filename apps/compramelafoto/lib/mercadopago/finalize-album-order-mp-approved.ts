@@ -93,10 +93,15 @@ export async function runAlbumOrderPaidSideEffects(params: {
   items: Array<{ productType: string }>;
   /** Id de pago de Mercado Pago, o la referencia del canje cuando no hubo pago. */
   paymentRef: string | null;
+  /**
+   * Carrito de evento (Split 1:N): el comprador recibe un solo comprobante por grupo, que se
+   * encola aparte. Por defecto false: el resto de los pedidos sigue igual.
+   */
+  omitirComprobanteComprador?: boolean;
 }): Promise<void> {
   const suppressClientDeliveryForPreventaPackOnly =
     params.origin === OrderOrigin.PREVENTA_PACK && params.items.length === 0;
-  if (!suppressClientDeliveryForPreventaPackOnly) {
+  if (!suppressClientDeliveryForPreventaPackOnly && !params.omitirComprobanteComprador) {
     // Se espera a que quede en la cola: sin el await, la función podía terminar antes y el
     // comprobante se perdía sin rastro (pedido 3791, 03/10/2026). Si igual falla, el cron
     // horario lo vuelve a encolar (`lib/cron/reencolar-confirmaciones-pedido.ts`).

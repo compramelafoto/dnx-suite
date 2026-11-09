@@ -10,6 +10,8 @@ import EventGallery from "./EventGallery";
 import EventLocationMapSection from "./EventLocationMapSection";
 import EventAlbumShareBlock from "./EventAlbumShareBlock";
 import { ensureEventAlbumTitles } from "@/lib/events/event-album";
+import { resolvePilotoConfig } from "@/lib/split-1n-piloto/config";
+import { carritoActivoParaEvento, resolveCarritoConfig } from "@/lib/split-1n-carrito-evento/config";
 import {
   eventPhotoPricingEnrollmentCopy,
   eventPhotoPricingPhotoPickerLine,
@@ -246,7 +248,10 @@ export default async function PublicEventPage({
           description="Este es el link único para compartir la galería del evento con clientes."
           qrLabel="Escaneá o descargá este QR para compartir la galería."
         />
-        <EventGallery shareSlug={shareSlug} />
+        <EventGallery
+          shareSlug={shareSlug}
+          carritoEvento={carritoActivoParaEvento(resolveCarritoConfig(), resolvePilotoConfig(), event.id)}
+        />
       </main>
     </div>
   );

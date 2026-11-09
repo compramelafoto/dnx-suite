@@ -67,6 +67,11 @@ export function grupoIdDesdeReferencia(ref: string | null | undefined): string |
   return esGrupoIdValido(id) ? id : null;
 }
 
+/** Página de pago (y, ya pagado, de descargas) del grupo. */
+export function urlPagoGrupo(grupoId: string): string {
+  return `/pagar/grupo/${grupoId}`;
+}
+
 /** Clave de idempotencia de un intento de cobro del grupo (estable para el mismo intento). */
 export function claveIntentoGrupo(grupoId: string, intento: number): string {
   return `${referenciaGrupo(grupoId)}-${intento}`;

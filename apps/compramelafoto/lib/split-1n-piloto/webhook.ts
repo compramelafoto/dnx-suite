@@ -3,6 +3,8 @@ import { resolvePilotoConfig } from "./config";
 import { pedidoIdDesdeReferencia } from "./decidir";
 import { finalizarPedidoPiloto } from "./finalizar";
 import { crearClientesPiloto, leerOrdenMp } from "./mp";
+import { finalizarGrupo } from "../split-1n-carrito-evento/finalizar-grupo";
+import { grupoIdDesdeReferencia } from "../split-1n-carrito-evento/marca";
 
 export type WebhookPilotoResult = { manejado: false } | { manejado: true; resultado: string };
 
@@ -26,6 +28,15 @@ export async function intentarWebhookPiloto(params: {
   try {
     const { http } = crearClientesPiloto(config);
     const mp = await leerOrdenMp(http, providerOrderId);
+    // Carrito de evento: una orden para varios pedidos, con su propia referencia.
+    const grupoId = grupoIdDesdeReferencia(mp.externalReference);
+    if (grupoId != null) {
+      const fin = await finalizarGrupo({ grupoId, providerOrderId });
+      const resultado = fin.ok ? fin.resultado : fin.error;
+      console.info("[carrito-evento] aviso", { grupoId, providerOrderId, resultado });
+      return { manejado: true, resultado };
+    }
+
     const pedidoId = pedidoIdDesdeReferencia(mp.externalReference);
     if (pedidoId == null) return { manejado: false };
 
