@@ -6,12 +6,16 @@ import {
   ETIQUETA_ESTADO, ETIQUETA_NICHO, ETIQUETA_REGION, ETIQUETA_TIPO, ETIQUETA_VINCULO, etiquetaEstado, etiquetaNicho,
   etiquetaRegion, etiquetaTipo, etiquetaVinculo,
 } from "@/lib/agentes/buscador/etiquetas";
+import { estadoBuscador } from "@/lib/agentes/buscador/estado";
+import { textoUsd } from "@/lib/agentes/periodista/costo";
 import { diaArgentino } from "@/lib/agentes/periodista/horario";
+import { ControlesBuscador, FormTopes, ListaRegiones } from "./acciones-buscador";
 import { BotonImportarConocidos } from "./acciones-contacto";
 
 export const dynamic = "force-dynamic";
 /** «Importar conocidos» recorre todos los clientes de DNX Estudio: puede pasar del minuto. */
 export const maxDuration = 300;
+// También «Correr ahora» del Buscador sigue en segundo plano (`after`) dentro de esos 5 minutos.
 
 type Busqueda = Promise<Record<string, string | string[] | undefined>>;
 
@@ -62,10 +66,11 @@ export default async function ContactosDnxPage({ searchParams }: { searchParams:
     const v = sp[k];
     return Array.isArray(v) ? v[0] : v;
   });
-  const { filas, total } = await listarContactos(f);
+  const [{ filas, total }, buscador] = await Promise.all([listarContactos(f), estadoBuscador(new Date())]);
   const pagina = f.pagina ?? 1;
   const paginas = Math.max(1, Math.ceil(total / POR_PAGINA));
   const hayFiltros = Object.keys(f).some((k) => k !== "pagina");
+  const regionActualDelBuscador = buscador.regiones.find((r) => r.region === buscador.actual) ?? null;
 
   return (
     <div className="space-y-8">
@@ -75,7 +80,59 @@ export default async function ContactosDnxPage({ searchParams }: { searchParams:
         actions={<BotonImportarConocidos />}
       />
 
-      {/* Cabecera del agente Buscador: la agrega la Tarea 11 (estado, regiones, costos). Por ahora, vacía. */}
+      <section className="fo-card space-y-5">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="space-y-1">
+            <h2 className="text-base font-semibold text-[var(--fo-text)]">Agente Buscador</h2>
+            <p className="text-sm text-[var(--fo-muted)] leading-relaxed">
+              Cada 15 minutos busca prospectos en Google Maps y en internet, región por región.{" "}
+              {buscador.ajustes.pausado ? (
+                <span className="text-[var(--fo-text)] font-medium">Está en pausa.</span>
+              ) : regionActualDelBuscador ? (
+                <>
+                  Ahora recorre <span className="text-[var(--fo-text)] font-medium">{regionActualDelBuscador.nombre}</span>:{" "}
+                  {regionActualDelBuscador.hechas}/{regionActualDelBuscador.total} búsquedas hechas.
+                </>
+              ) : (
+                "No hay ninguna región en curso: en la próxima corrida toma la primera en espera."
+              )}
+            </p>
+          </div>
+          <ControlesBuscador pausado={buscador.ajustes.pausado} />
+        </div>
+
+        {!buscador.tieneClaveGoogle ? (
+          <div className="fo-alert-error" role="status">
+            Sin clave de Google: busca sólo en internet.
+          </div>
+        ) : null}
+        {!buscador.tieneClaveClaude ? (
+          <div className="fo-alert-error" role="status">
+            Sin clave de Claude: no busca en internet; de Google sólo guarda los lugares con web propia legible.
+          </div>
+        ) : null}
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <p className="text-sm text-[var(--fo-muted)]">
+            Gasto de Google este mes:{" "}
+            <span className="text-[var(--fo-text)] font-medium">{textoUsd(buscador.gasto.googleUsd)}</span> de {textoUsd(buscador.ajustes.topeGoogleUsd)}
+          </p>
+          <p className="text-sm text-[var(--fo-muted)]">
+            Gasto de Claude este mes:{" "}
+            <span className="text-[var(--fo-text)] font-medium">{textoUsd(buscador.gasto.claudeUsd)}</span> de {textoUsd(buscador.ajustes.topeClaudeUsd)}
+          </p>
+        </div>
+        <FormTopes topeGoogleUsd={buscador.ajustes.topeGoogleUsd} topeClaudeUsd={buscador.ajustes.topeClaudeUsd} />
+
+        <div className="space-y-1">
+          <h3 className="text-sm font-semibold text-[var(--fo-text)]">Regiones, en el orden en que las recorre</h3>
+          <ListaRegiones
+            regiones={buscador.regiones.map((r) => ({
+              region: r.region, nombre: r.nombre, estado: r.estado, hechas: r.hechas, total: r.total, fallidas: r.fallidas,
+            }))}
+          />
+        </div>
+      </section>
 
       <form method="get" className="fo-card grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <label className="space-y-1 text-sm sm:col-span-2">

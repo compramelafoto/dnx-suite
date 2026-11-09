@@ -36,6 +36,14 @@ export const ETIQUETA_REGION: Record<Region, string> = {
   PATAGONIA: "Patagonia",
 };
 
+/** Estado de una región en el recorrido del Buscador. */
+export const ETIQUETA_ESTADO_REGION: Record<string, string> = {
+  EN_ESPERA: "En espera",
+  EN_CURSO: "En curso",
+  COMPLETA: "Completa",
+  PAUSADA: "En pausa",
+};
+
 export const ETIQUETA_ESTADO: Record<EstadoContacto, string> = {
   NUEVO: "Nuevo",
   REVISADO: "Revisado",
@@ -97,6 +105,7 @@ function de(mapa: Record<string, string>, valor: string | null | undefined): str
 
 export const etiquetaTipo = (v: string | null | undefined) => de(ETIQUETA_TIPO, v);
 export const etiquetaRegion = (v: string | null | undefined) => de(ETIQUETA_REGION, v);
+export const etiquetaEstadoRegion = (v: string | null | undefined) => de(ETIQUETA_ESTADO_REGION, v);
 export const etiquetaEstado = (v: string | null | undefined) => de(ETIQUETA_ESTADO, v);
 export const etiquetaVinculo = (v: string | null | undefined) => de(ETIQUETA_VINCULO, v ?? "NINGUNO");
 export const etiquetaFuente = (v: string | null | undefined) => de(ETIQUETA_FUENTE, v);
