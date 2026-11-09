@@ -9,6 +9,7 @@ import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
 import { SALES_MODULE_KEY } from "@/lib/sales/constants";
 import { STORE_MODULE_KEY } from "@/lib/store/constants";
 import { MEMBERSHIP_DUES_MODULE_KEY } from "@/lib/membership/constants";
+import { BOX_MENSUAL_FEATURE } from "@/lib/box-mensual/secuencia";
 import { COMMUNICATIONS_MODULE_KEY } from "@/lib/communications/constants";
 import { GOVERNANCE_MODULE_KEY } from "@/lib/governance/constants";
 import { EQUIPO_MODULE_KEY } from "@/lib/equipo/constantes";
@@ -76,6 +77,12 @@ export type SubmoduleItem = {
    * plata que no se delegan con roles: un MANAGE del módulo no alcanza.
    */
   requiresFullAccess?: boolean;
+  /**
+   * Función que el workspace tiene que usar para que la pantalla aparezca (ver
+   * `SubmoduleAccess.features`). Para pantallas de una sola institución, como la BOX mensual de
+   * SOYBELUZ: a las demás no se les ensucia el menú con algo que no usan.
+   */
+  requiresFeature?: string;
   activeMatch: ActiveMatch;
 };
 
@@ -119,6 +126,15 @@ const SOCIOS: SubmoduleItem[] = [
     icon: "Palette",
     description: "Diseñá el carnet y las placas con tus propios datos variables.",
     requiresManage: true,
+    activeMatch: "under",
+  },
+  {
+    href: "/members/box",
+    label: "BOX mensual",
+    icon: "Package",
+    description: "A quién le toca qué caja, qué preparar y qué ya se envió.",
+    requiresManage: true,
+    requiresFeature: BOX_MENSUAL_FEATURE,
     activeMatch: "under",
   },
   {
@@ -752,6 +768,8 @@ export type SubmoduleAccess = {
   actions: readonly string[];
   /** Dueño o admin del negocio (`isFullAccessRole`). Sin dato, se asume que no. */
   fullAccess?: boolean;
+  /** Funciones que este workspace usa (por ejemplo `box-mensual`). Sin dato, ninguna. */
+  features?: readonly string[];
 };
 
 function puedeAbrir(moduleKey: string, item: SubmoduleItem, access: SubmoduleAccess): boolean {
@@ -763,6 +781,7 @@ function puedeAbrir(moduleKey: string, item: SubmoduleItem, access: SubmoduleAcc
   if (item.requiresAction && !access.actions.includes(item.requiresAction)) return false;
   if (item.requiresFullAccess && access.fullAccess !== true) return false;
   if (item.hiddenIfManages && hasLevel(nivel(item.hiddenIfManages), "MANAGE")) return false;
+  if (item.requiresFeature && !(access.features ?? []).includes(item.requiresFeature)) return false;
   return true;
 }
 

@@ -19,6 +19,7 @@ type CategoryInitial = {
   bookingCreditValidityDays: number;
   bookingCreditLabel: string | null;
   selfRenew: boolean;
+  includesMonthlyBox: boolean;
 };
 
 export function CategoryForm({ category }: { category?: CategoryInitial }) {
@@ -163,6 +164,31 @@ export function CategoryForm({ category }: { category?: CategoryInitial }) {
             <span className="fo-helper block mt-1">
               No se le genera la cuota de cada mes: desde su portal paga &ldquo;Renovar&rdquo; cuando
               decide. Si un mes no renueva, no debe nada.
+            </span>
+          </span>
+        </label>
+      </section>
+
+      <section className="fo-card space-y-4">
+        <div>
+          <h2 className="text-base font-semibold">BOX mensual</h2>
+          <p className="fo-helper mt-1">
+            Para un club que envía una caja de materiales por mes. Las cajas se cargan en Socios → BOX
+            mensual.
+          </p>
+        </div>
+        <label className="flex items-start gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            name="includesMonthlyBox"
+            defaultChecked={category?.includesMonthlyBox ?? false}
+            className="mt-1 size-4 rounded border-[var(--fo-border)]"
+          />
+          <span>
+            <span className="fo-label !inline">Incluye la BOX mensual</span>
+            <span className="fo-helper block mt-1">
+              Cada mes pagado habilita la caja siguiente, en orden desde la BOX N°1, con envío a domicilio.
+              Si un mes no paga, ese mes no hay caja y después sigue donde quedó.
             </span>
           </span>
         </label>

@@ -46,6 +46,8 @@ export const memberCategorySchema = z.object({
   bookingCreditLabel: z.string().max(40).optional().nullable(),
   /** Se renueva cuando quiere, sin deuda (VIP). Con esto, la categoría no genera cuotas mensuales. */
   selfRenew: z.boolean().optional(),
+  /** BOX mensual: quienes tienen esta categoría reciben una caja por cada mes pagado. */
+  includesMonthlyBox: z.boolean().optional(),
 });
 
 export type MemberCategoryFormValues = z.infer<typeof memberCategorySchema>;

@@ -13,6 +13,7 @@
     "bot:eval": "../../packages/db/node_modules/.bin/tsx --import ./scripts/sin-server-only.mjs scripts/bot-eval.ts",
     "caja:importar-historico": "../../packages/db/node_modules/.bin/tsx --import ./scripts/sin-server-only.mjs scripts/caja-importar-historico.ts",
     "caja:apertura": "../../packages/db/node_modules/.bin/tsx --import ./scripts/sin-server-only.mjs scripts/caja-apertura.ts",
+    "box:cargar-soybeluz": "../../packages/db/node_modules/.bin/tsx --import ./scripts/sin-server-only.mjs scripts/box-cargar-soybeluz.ts",
     "trabajos:miniaturas": "../../packages/db/node_modules/.bin/tsx --import ./scripts/sin-server-only.mjs scripts/trabajos-miniaturas.ts",
     "sitio:importar-alboom": "../../packages/db/node_modules/.bin/tsx --import ./scripts/sin-server-only.mjs ../../packages/db/prisma/scripts/ops-sitio-importar-alboom-prosite.ts",
     "sitio:importar-inbox-prosite": "../../packages/db/node_modules/.bin/tsx --import ./scripts/sin-server-only.mjs ../../packages/db/prisma/scripts/ops-sitio-importar-inbox-prosite.ts"

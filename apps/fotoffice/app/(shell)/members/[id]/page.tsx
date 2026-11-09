@@ -28,6 +28,8 @@ import { decimalArsToMinor, formatMinorArs } from "@/lib/membership/money";
 import { chargePeriodLabel } from "@/lib/membership/charge-labels";
 import { RecommendationVoidForm } from "@/components/members/recommendation-void-form";
 import { loadPersonVocabulary } from "@/lib/vocabulario/load";
+import { cargarRecorridoDeSocio, workspaceUsaBoxMensual } from "@/lib/box-mensual/store";
+import { RecorridoBoxFicha } from "@/components/box-mensual/recorrido-ficha";
 
 function initials(firstName: string, lastName: string): string {
   return `${firstName[0] ?? ""}${lastName[0] ?? ""}`.toUpperCase() || "?";
@@ -111,6 +113,12 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
   // es la única forma de no cargar dos veces el mismo comprobante.
   const pagos = puedeCobrar ? await loadMemberPaymentHistory(member.id, { limit: 50 }) : [];
   const cuenta = puedeCobrar ? await loadMemberBalance(member.id) : null;
+
+  // BOX mensual: sólo en las instituciones que la usan (la consulta del menú nunca lanza).
+  const box = (await workspaceUsaBoxMensual(workspace.id))
+    ? await cargarRecorridoDeSocio(workspace.id, member.id)
+    : null;
+  const mostrarBox = box !== null && (box.socio.conBox || box.envios.length > 0);
 
   const estado = MEMBER_STATUS_LABELS[member.status];
   const subtitulo = [`${v.Singular} N° ${member.memberNumber}`, estado, member.category?.name]
@@ -203,6 +211,16 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
               </p>
             )}
           </DatosFicha>
+
+          {box && mostrarBox ? (
+            <RecorridoBoxFicha
+              recorrido={box.recorrido}
+              envios={box.envios}
+              conBox={box.socio.conBox}
+              direccion={box.socio}
+              conEnlace={canManage}
+            />
+          ) : null}
 
           {puedeCobrar ? (
             <DatosFicha titulo="Registrar un pago cobrado en mano">

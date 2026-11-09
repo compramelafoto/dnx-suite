@@ -19,6 +19,7 @@ export const NAV_KEYWORDS: Record<string, string[]> = {
   "/members/carnets": ["credencial", "tarjeta", "identificacion", "imprimir"],
   "/members/disenador": ["diseño", "plantilla", "placas", "editor"],
   "/members/categories": ["profesional", "estudiante", "honorario", "tipos de socio"],
+  "/members/box": ["caja", "cajas", "kit", "materiales", "envio", "envios", "correo", "seguimiento", "beneficio"],
   "/members/cuotas/configuracion": ["valor", "precio", "monto", "vencimiento", "calendario", "aumento"],
 
   // Sorteos
