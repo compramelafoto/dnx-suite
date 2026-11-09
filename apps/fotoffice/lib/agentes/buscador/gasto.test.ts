@@ -88,4 +88,26 @@ describe("ajustes", () => {
     await G.guardarAjustes({ avisoTope: { GOOGLE: "2026-11" } });
     expect(await G.leerAjustes()).toEqual({ topeGoogleUsd: 20, topeClaudeUsd: 10, pausado: false, avisoTope: { GOOGLE: "2026-11" } });
   });
+  it("un campo inválido no tira los demás: pausado sigue pausado", async () => {
+    await B.prisma.systemSettings.create({
+      data: { key: "fotoffice_buscador_ajustes", description: "x", value: JSON.stringify({ topeGoogleUsd: -5, pausado: true, avisoTope: { GOOGLE: "2026-11" } }) },
+    });
+    expect(await G.leerAjustes()).toEqual({ topeGoogleUsd: 20, topeClaudeUsd: 30, pausado: true, avisoTope: { GOOGLE: "2026-11" } });
+  });
+  it("guardar un tope inválido lanza", async () => {
+    await expect(G.guardarAjustes({ topeGoogleUsd: -1 })).rejects.toThrow();
+  });
+  it("avisoTope se mezcla por fuente", async () => {
+    await G.guardarAjustes({ avisoTope: { GOOGLE: "2026-11" } });
+    await G.guardarAjustes({ avisoTope: { CLAUDE: "2026-11" } });
+    expect((await G.leerAjustes()).avisoTope).toEqual({ GOOGLE: "2026-11", CLAUDE: "2026-11" });
+  });
+});
+
+describe("gasto de tareas devueltas", () => {
+  it("una tarea PENDIENTE con tomadaEn del mes y sin hechaEn suma su costo", async () => {
+    await tarea({ estado: "PENDIENTE", hechaEn: null, tomadaEn: new Date("2026-11-05T12:00:00.000Z"), costoClaudeUsdMicros: 5_000_000 });
+    await tarea({ estado: "PENDIENTE", hechaEn: null, tomadaEn: new Date("2026-10-05T12:00:00.000Z"), costoClaudeUsdMicros: 7_000_000 });
+    expect((await G.gastoDelMes(AHORA)).claudeUsd).toBe(5);
+  });
 });

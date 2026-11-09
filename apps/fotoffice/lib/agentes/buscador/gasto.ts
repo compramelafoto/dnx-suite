@@ -29,22 +29,43 @@ const esquemaAjustes = z.object({
   avisoTope: z.object({ GOOGLE: z.string().optional(), CLAUDE: z.string().optional() }),
 });
 
-/** Lee los ajustes; ante basura o ausencia, vuelve a los valores por omisión. */
+/** Lee los ajustes campo por campo: lo válido se conserva (p. ej. `pausado`), sólo lo inválido vuelve al valor por omisión. */
 export async function leerAjustes(): Promise<AjustesBuscador> {
   const fila = await prisma.systemSettings.findUnique({ where: { key: CLAVE_AJUSTES_BUSCADOR }, select: { value: true } });
-  if (!fila?.value) return { ...AJUSTES_POR_OMISION, avisoTope: {} };
+  const base: AjustesBuscador = { ...AJUSTES_POR_OMISION, avisoTope: {} };
+  if (!fila?.value) return base;
+  let crudo: unknown;
   try {
-    const crudo = JSON.parse(fila.value) as Record<string, unknown>;
-    const r = esquemaAjustes.safeParse({ ...AJUSTES_POR_OMISION, ...crudo });
-    return r.success ? r.data : { ...AJUSTES_POR_OMISION, avisoTope: {} };
+    crudo = JSON.parse(fila.value);
   } catch {
-    return { ...AJUSTES_POR_OMISION, avisoTope: {} };
+    return base;
   }
+  if (!crudo || typeof crudo !== "object" || Array.isArray(crudo)) return base;
+  const c = crudo as Record<string, unknown>;
+  const tope = (v: unknown, omision: number) => {
+    const r = esquemaAjustes.shape.topeGoogleUsd.safeParse(v);
+    return r.success ? r.data : omision;
+  };
+  const aviso = esquemaAjustes.shape.avisoTope.safeParse(c.avisoTope);
+  const avisoTope: AjustesBuscador["avisoTope"] = {};
+  if (aviso.success) {
+    if (aviso.data.GOOGLE !== undefined) avisoTope.GOOGLE = aviso.data.GOOGLE;
+    if (aviso.data.CLAUDE !== undefined) avisoTope.CLAUDE = aviso.data.CLAUDE;
+  }
+  return {
+    topeGoogleUsd: tope(c.topeGoogleUsd, base.topeGoogleUsd),
+    topeClaudeUsd: tope(c.topeClaudeUsd, base.topeClaudeUsd),
+    pausado: typeof c.pausado === "boolean" ? c.pausado : base.pausado,
+    avisoTope,
+  };
 }
 
+/** Guarda mezclando con lo actual (también dentro de `avisoTope`). Lanza si un valor nuevo es inválido. */
 export async function guardarAjustes(cambios: Partial<AjustesBuscador>): Promise<void> {
   const actual = await leerAjustes();
-  const value = JSON.stringify(esquemaAjustes.parse({ ...actual, ...cambios }));
+  const value = JSON.stringify(
+    esquemaAjustes.parse({ ...actual, ...cambios, avisoTope: { ...actual.avisoTope, ...(cambios.avisoTope ?? {}) } }),
+  );
   await prisma.systemSettings.upsert({
     where: { key: CLAVE_AJUSTES_BUSCADOR },
     create: { key: CLAVE_AJUSTES_BUSCADOR, value, description: "Topes y pausa del agente Buscador de contactos" },
@@ -83,8 +104,10 @@ export function costoLlamadaPlaces(sku: string, llamadasPreviasDelMes: number, p
 const MICROS = 1_000_000;
 
 export async function gastoDelMes(ahora: Date): Promise<{ googleUsd: number; claudeUsd: number; llamadasPorSku: Record<string, number> }> {
+  const inicio = inicioDelMesArgentino(ahora);
   const tareas = await prisma.dnxBuscadorTarea.findMany({
-    where: { hechaEn: { gte: inicioDelMesArgentino(ahora) } },
+    // Una tarea que gastó y volvió a PENDIENTE/FALLIDA no tiene `hechaEn`: se cuenta por `tomadaEn`.
+    where: { OR: [{ hechaEn: { gte: inicio } }, { hechaEn: null, tomadaEn: { gte: inicio } }] },
     select: { costoGoogleUsdMicros: true, costoClaudeUsdMicros: true, resultado: true },
   });
   let google = 0;
