@@ -34,6 +34,12 @@ export function validarTexto(texto: string, o: OpcionesTexto): string | null {
   return null;
 }
 
+/** El asunto no lleva marcadores ({{…}}): se reemplazan sólo en el cuerpo. */
+function validarAsunto(asunto: string): string | null {
+  if (asunto.includes("{{")) return "el asunto no lleva marcadores como {{ENLACE}}";
+  return validarTexto(asunto, { exigirEnlace: false, permitirCurso: false, maxPalabras: 20 });
+}
+
 /** Arma un parser: JSON → zod → reglas propias → validación de cada texto. */
 function parser<T>(esquema: z.ZodType<T>, revisar: (v: T) => string | null): (texto: string) => ResultadoParseo<T> {
   return (texto) => {
@@ -75,7 +81,7 @@ export function redactarModelo(
   const parsear = parser(esquema, (v) => {
     if (!(LANDINGS_PERMITIDAS as readonly string[]).includes(v.landing))
       return `la landing tiene que ser una de: ${LANDINGS_PERMITIDAS.join(", ")}`;
-    return validarTexto(v.cuerpo, OPC_PRIMERO(160)) ?? validarTexto(v.asunto, { exigirEnlace: false, permitirCurso: false, maxPalabras: 20 });
+    return validarTexto(v.cuerpo, OPC_PRIMERO(160)) ?? validarAsunto(v.asunto);
   });
   const partes = [
     "Escribí el modelo del primer correo para este tipo de contacto.",
@@ -96,7 +102,7 @@ export function adaptarCorreo(
 ): Promise<ResultadoRedaccion<{ asunto: string; cuerpo: string }>> {
   const esquema = z.object({ asunto: z.string().trim().min(1).max(150), cuerpo: z.string().trim().min(1) });
   const parsear = parser(esquema, (v) =>
-    validarTexto(v.cuerpo, OPC_PRIMERO(160)) ?? validarTexto(v.asunto, { exigirEnlace: false, permitirCurso: false, maxPalabras: 20 }),
+    validarTexto(v.cuerpo, OPC_PRIMERO(160)) ?? validarAsunto(v.asunto),
   );
   const pedido = [
     "Adaptá este correo a la persona: mismo mensaje y mismo tono, pero nombrá a la persona, su ciudad y lo que hace.",

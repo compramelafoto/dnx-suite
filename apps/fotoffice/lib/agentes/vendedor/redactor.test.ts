@@ -96,6 +96,15 @@ describe("redactarModelo", () => {
     expect(r.ok && r.valor.landing).toBe("/clubes");
     expect(pedidos).toHaveLength(2);
   });
+  it("un asunto con {{ENLACE}} se pide corregir", async () => {
+    const { cliente, pedidos } = clienteFalso([fin({ ...ok, asunto: "Mirá esto {{ENLACE}}" }), fin(ok)]);
+    const r = await redactarModelo({ grupo: "CLUB", contacto, conocimiento: CONOC }, { cliente, hasta: hasta() });
+    expect(r.ok && r.valor.asunto).toBe(ok.asunto);
+    expect(pedidos).toHaveLength(2);
+    const mal = clienteFalso([fin({ asunto: "Mirá {{ENLACE}}", cuerpo: "{{ENLACE}}" }), fin({ asunto: "Mirá {{ENLACE}}", cuerpo: "{{ENLACE}}" })]);
+    const a = await adaptarCorreo({ modelo: { asunto: "a", cuerpo: "b", indicaciones: "c" }, contacto, conocimiento: CONOC }, { cliente: mal.cliente, hasta: hasta() });
+    expect(a.ok).toBe(false);
+  });
   it("si no logra un texto válido falla sin lanzar", async () => {
     const mal = fin({ ...ok, cuerpo: "ganás plata {{ENLACE}}" });
     const { cliente } = clienteFalso([mal, mal]);
