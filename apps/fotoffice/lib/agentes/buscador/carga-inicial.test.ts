@@ -12,16 +12,16 @@ const { importarConocidos } = await import("./carga-inicial");
 
 const WS = "cmv5z6qxwwmmhf0q5gp8qja1j";
 
-async function sembrar() {
-  const tag = await B.prisma.fotofficeTag.create({ data: { workspaceId: WS, name: "Fotógrafo", nameKey: "fotografo" } });
-  const otra = await B.prisma.fotofficeTag.create({ data: { workspaceId: WS, name: "Cliente VIP", nameKey: "cliente vip" } });
-  const a = await B.prisma.client.create({ data: { workspaceId: WS, clientNumber: 1, firstName: "Ana", lastName: "Luz", email: "ana@luz.com", phone: "341 555 1111", city: "Rosario" } });
-  const b = await B.prisma.client.create({ data: { workspaceId: WS, clientNumber: 2, kind: "EMPRESA", businessName: "Estudio Bruma", email: "hola@bruma.com" } });
-  const c = await B.prisma.client.create({ data: { workspaceId: WS, clientNumber: 3, firstName: "Carlos", lastName: "Sin Etiqueta", email: "c@x.com" } });
-  await B.prisma.fotofficeContactoPerfil.create({ data: { workspaceId: WS, clientId: b.id, website: "https://www.bruma.com", province: "Santa Fe" } });
-  await B.prisma.fotofficeTagAssignment.create({ data: { tagId: tag.id, clientId: a.id } });
-  await B.prisma.fotofficeTagAssignment.create({ data: { tagId: tag.id, clientId: b.id } });
-  await B.prisma.fotofficeTagAssignment.create({ data: { tagId: otra.id, clientId: c.id } });
+function sembrar() {
+  const tag = B.agregar("fotofficeTag", { workspaceId: WS, name: "Fotógrafo", nameKey: "fotografo" });
+  const otra = B.agregar("fotofficeTag", { workspaceId: WS, name: "Cliente VIP", nameKey: "cliente vip" });
+  const a = B.agregar("client", { workspaceId: WS, clientNumber: 1, firstName: "Ana", lastName: "Luz", email: "ana@luz.com", phone: "341 555 1111", city: "Rosario" });
+  const b = B.agregar("client", { workspaceId: WS, clientNumber: 2, kind: "EMPRESA", businessName: "Estudio Bruma", email: "hola@bruma.com" });
+  const c = B.agregar("client", { workspaceId: WS, clientNumber: 3, firstName: "Carlos", lastName: "Sin Etiqueta", email: "c@x.com" });
+  B.agregar("fotofficeContactoPerfil", { workspaceId: WS, clientId: b.id, website: "https://www.bruma.com", province: "Santa Fe" });
+  B.agregar("fotofficeTagAssignment", { tagId: tag.id, clientId: a.id });
+  B.agregar("fotofficeTagAssignment", { tagId: tag.id, clientId: b.id });
+  B.agregar("fotofficeTagAssignment", { tagId: otra.id, clientId: c.id });
   return { a, b, c };
 }
 
@@ -29,7 +29,7 @@ beforeEach(() => B.vaciar());
 
 describe("importarConocidos", () => {
   it("importa los clientes con etiqueta Fotógrafo", async () => {
-    const { a, b } = await sembrar();
+    const { a, b } = sembrar();
     const r = await importarConocidos();
     expect(r).toEqual({ importados: 2, yaEstaban: 0 });
     const cs = B.datos.dnxContacto;
@@ -46,7 +46,7 @@ describe("importarConocidos", () => {
   });
 
   it("correrlo dos veces no duplica", async () => {
-    await sembrar();
+    sembrar();
     await importarConocidos();
     const eventos = B.datos.dnxContactoEvento.length;
     const datos = B.datos.dnxContactoDato.length;
