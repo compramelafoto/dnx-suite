@@ -608,3 +608,144 @@ describe("correrVendedor", () => {
     expect(fila("dnxContacto", id).estado).toBe("CONTACTADO");
   });
 });
+
+describe("pasos programados: resumen diario e informe mensual", () => {
+  /** Martes 10/11/2026 a las 19:00 argentinas: fuera de la ventana de envío, el resumen toca igual. */
+  const A19 = "2026-11-10T22:00:00.000Z";
+  /** Domingo 1/11/2026 a las 9:00 argentinas. */
+  const D1 = "2026-11-01T12:00:00.000Z";
+  const resumenes = () => telegram.mensajes.filter((m) => m.html.includes("resumen de hoy"));
+  const informes = () => telegram.mensajes.filter((m) => m.html.includes("informe de octubre"));
+
+  it("a las 19 manda el resumen con actividad, una sola vez por día", async () => {
+    a(A19);
+    enviadosHoy(2);
+    await correr();
+    expect(resumenes()).toHaveLength(1);
+    expect(resumenes()[0]!.html).toContain("Salieron 2 correos");
+    expect((await leerAjustesVendedor()).resumenDia).toBe("2026-11-10");
+
+    a("2026-11-10T22:15:00.000Z");
+    await correr();
+    expect(resumenes()).toHaveLength(1);
+  });
+
+  it("a las 19 sin actividad no manda nada pero marca el día", async () => {
+    a(A19);
+    await correr();
+    expect(resumenes()).toHaveLength(0);
+    expect((await leerAjustesVendedor()).resumenDia).toBe("2026-11-10");
+  });
+
+  it("antes de las 19 no manda el resumen", async () => {
+    enviadosHoy(2);
+    await correr();
+    expect(resumenes()).toHaveLength(0);
+    expect((await leerAjustesVendedor()).resumenDia).toBeNull();
+  });
+
+  it("el día 1 a las 9 manda el informe del mes anterior, lo guarda y lo manda una sola vez", async () => {
+    a(D1);
+    const h = B.agregar("dnxVendedorHilo", { contactoId: "cx", grupo: "CLUB", token: "tx", estado: "ENVIADO" }) as { id: string };
+    B.agregar("dnxVendedorCorreo", {
+      hiloId: h.id, direccion: "SALIDA", paso: "PRIMERO", de: "d", para: "p", asunto: "a", texto: "t", creadoEn: new Date("2026-10-20T15:00:00Z"),
+    });
+    await correr();
+    expect(informes()).toHaveLength(1);
+    expect(informes()[0]!.html).toContain("mínimo comprobado");
+    expect((await leerAjustesVendedor()).informeMes).toBe("2026-10");
+    expect(B.datos.systemSettings.some((s) => s.key === "fotoffice_vendedor_informe_2026-10")).toBe(true);
+
+    a("2026-11-01T12:15:00.000Z");
+    await correr();
+    expect(informes()).toHaveLength(1);
+  });
+
+  it("si CLF falla el informe sale igual, no se marca y se reintenta sin repetir el aviso", async () => {
+    a(D1);
+    B.agregar("dnxVendedorHilo", {
+      contactoId: "cx", grupo: "CLUB", token: "tx", estado: "ENVIADO", registradoEn: new Date("2026-10-05T15:00:00Z"), usuarioClfId: 9,
+    });
+    // Para el informe CLF falla; la consulta diaria y el conocimiento ya están guardados.
+    const pedirVentas = deps();
+    const fetchOriginal = pedirVentas.clf.fetch;
+    let caidoVentas = true;
+    pedirVentas.clf.fetch = (async (url: string, init?: RequestInit) => {
+      const cuerpo = init?.body ? (JSON.parse(String(init.body)) as Record<string, unknown>) : {};
+      if (cuerpo.consulta === "ventas") {
+        return caidoVentas ? new Response("{}", { status: 503 }) : Response.json({ ventas: [{ userId: 9, ventas: 2, totalPesos: 50_000 }] });
+      }
+      return fetchOriginal(url, init);
+    }) as typeof fetch;
+    const correrConClf = () => M.correrVendedor({ presupuestoMs: 240_000, motivo: "CRON" }, pedirVentas);
+
+    await correrConClf();
+    expect(informes()).toHaveLength(1);
+    expect(informes()[0]!.html).toContain("No pude traer las ventas de CLF");
+    expect(informes()[0]!.html).not.toContain("vendieron");
+    expect((await leerAjustesVendedor()).informeMes).toBeNull();
+
+    // Sigue fallando: se reintenta pero no se repite el aviso.
+    a("2026-11-01T12:15:00.000Z");
+    await correrConClf();
+    expect(informes()).toHaveLength(1);
+    expect((await leerAjustesVendedor()).informeMes).toBeNull();
+
+    // CLF vuelve: sale el informe completo y se marca.
+    caidoVentas = false;
+    a("2026-11-01T12:30:00.000Z");
+    await correrConClf();
+    expect(informes()).toHaveLength(2);
+    expect(informes()[1]!.html).toContain("1 vendieron (2 ventas, $ 50.000)");
+    expect((await leerAjustesVendedor()).informeMes).toBe("2026-10");
+  });
+
+  it("una excepción en un paso anterior no saltea el resumen", async () => {
+    a(A19);
+    enviadosHoy(1);
+    const buscar = B.tablas.dnxVendedorGasto.findMany;
+    let primera = true;
+    B.tablas.dnxVendedorGasto.findMany = async (x) => {
+      if (primera) {
+        primera = false;
+        throw new Error("se cortó la base");
+      }
+      return buscar(x);
+    };
+    await expect(correr()).rejects.toThrow("se cortó la base");
+    B.tablas.dnxVendedorGasto.findMany = buscar;
+    expect(resumenes()).toHaveLength(1);
+  });
+
+  it("si el resumen falla, la corrida no se rompe", async () => {
+    a(A19);
+    enviadosHoy(1);
+    const buscar = B.tablas.dnxVendedorModelo.findMany;
+    B.tablas.dnxVendedorModelo.findMany = async () => {
+      throw new Error("se cortó la base");
+    };
+    await expect(correr()).resolves.toMatchObject({ frenadoPor: "FUERA_DE_HORARIO" });
+    B.tablas.dnxVendedorModelo.findMany = buscar;
+  });
+
+  it("un error inesperado al crear un hilo no corta la cola ni las propuestas", async () => {
+    modeloAprobado();
+    const malo = contacto();
+    const bueno = contacto();
+    contacto({ nicho: "DEPORTIVA" });
+    adaptado();
+    modeloNuevo();
+    const crear = B.tablas.dnxVendedorHilo.create;
+    B.tablas.dnxVendedorHilo.create = async (x) => {
+      if ((x.data as Fila).contactoId === malo) throw new Error("falla de la base");
+      return crear(x);
+    };
+    const r = await correr();
+    B.tablas.dnxVendedorHilo.create = crear;
+
+    expect(r.enviados).toBe(1);
+    expect(r.propuestos).toBe(1);
+    expect(hiloDe(malo)).toBeUndefined();
+    expect(hiloDe(bueno)).toMatchObject({ estado: "ENVIADO" });
+  });
+});

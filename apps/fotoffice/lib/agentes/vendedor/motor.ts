@@ -14,6 +14,7 @@ import { cupoDelDia, cupoHastaAhora, enVentanaDeEnvio, MAX_POR_CORRIDA, venceRec
 import { bloqueadosEnClf, consultaDiaria, leerConocimiento, type DepsClfVendedor } from "./clf";
 import { armarTexto, completarMessageIds, enlaceSeguimiento, enviarCorreoVendedor, urlBajaVendedor, type ResultadoEnvio } from "./correo";
 import { procesarEntrantes } from "./entrante";
+import { armarInforme, guardarInforme, informesGuardados, mesAnterior, resumenDelDia, textoInforme, tocaInforme, tocaResumen } from "./informe";
 import { mensajePausa, mensajeSeSumo } from "./mensajes";
 import { modeloVigente, proponerModelo } from "./modelos";
 import { datosParaPrompt } from "./prompts";
@@ -387,14 +388,51 @@ export async function correrVendedor(
   const reloj = deps.reloj ?? Date.now;
   const hasta = reloj() + o.presupuestoMs;
   const claude: DepsClaude = { ...deps.claude, ahora: deps.claude?.ahora ?? reloj };
-  const r = await corrida(ahoraFn, reloj, hasta, claude, deps);
-  // Acá enganchan el resumen diario y el informe mensual (Tarea 11): corren aunque el envío esté frenado.
-  await pasosProgramados();
-  return r;
+  try {
+    return await corrida(ahoraFn, reloj, hasta, claude, deps);
+  } finally {
+    // El resumen diario y el informe mensual corren aunque el envío esté frenado o un paso anterior haya fallado.
+    await pasosProgramados(ahoraFn(), deps);
+  }
 }
 
-/** Lugar del resumen diario y el informe mensual; por ahora no hace nada. */
-async function pasosProgramados(): Promise<void> {}
+/**
+ * El resumen diario (desde las 19) y el informe mensual (el día 1 desde las 9). Nunca lanza: un fallo
+ * acá no puede tapar el resultado ni el error de la corrida.
+ */
+async function pasosProgramados(ahora: Date, deps: DepsMotorVendedor): Promise<void> {
+  try {
+    const ajustes = await leerAjustesVendedor();
+    if (tocaResumen(ahora, ajustes)) {
+      const texto = await resumenDelDia(ahora);
+      if (texto) await avisarTelegram(texto, deps);
+      // Sin nada que contar también se marca: no se vuelve a mirar hasta mañana.
+      await guardarAjustesVendedor({ resumenDia: diaArgentino(ahora) });
+    }
+  } catch (e) {
+    console.error("[agentes][vendedor] falló el resumen diario", e instanceof Error ? e.message : "");
+  }
+  try {
+    const ajustes = await leerAjustesVendedor();
+    if (!tocaInforme(ahora, ajustes)) return;
+    const mes = mesAnterior(ahora);
+    const informe = await armarInforme(mes, { clf: deps.clf });
+    if (informe.ventasDisponibles) {
+      await guardarInforme(informe);
+      await avisarTelegram(textoInforme(informe), deps);
+      await guardarAjustesVendedor({ informeMes: mes });
+      return;
+    }
+    // Sin las ventas de CLF no se da por hecho: se reintenta en cada corrida del día, pero se avisa una sola vez.
+    const yaAvisado = (await informesGuardados()).some((i) => i.mes === mes);
+    if (!yaAvisado) {
+      await guardarInforme(informe);
+      await avisarTelegram(textoInforme(informe), deps);
+    }
+  } catch (e) {
+    console.error("[agentes][vendedor] falló el informe mensual", e instanceof Error ? e.message : "");
+  }
+}
 
 async function corrida(
   ahoraFn: () => Date,
@@ -518,15 +556,20 @@ async function corrida(
     } else {
       for (const e of cola) {
         if (!seguir()) break;
-        if (bloqueados.has(e.contactoId)) {
-          // Ya es usuario de CLF (o se dio de baja allá): el hilo cerrado lo saca de la cola para siempre.
-          await crearHilo(e.contactoId, e.grupo, { estado: "CERRADO", cierre: "YA_ERA_USUARIO" });
-          continue;
+        try {
+          if (bloqueados.has(e.contactoId)) {
+            // Ya es usuario de CLF (o se dio de baja allá): el hilo cerrado lo saca de la cola para siempre.
+            await crearHilo(e.contactoId, e.grupo, { estado: "CERRADO", cierre: "YA_ERA_USUARIO" });
+            continue;
+          }
+          // Único por contacto: si otra corrida lo creó primero, esta lo saltea.
+          const hiloId = await crearHilo(e.contactoId, e.grupo, { estado: "PENDIENTE_ENVIO", tomadoEn: ahora });
+          if (!hiloId) continue;
+          anotar(await conRescate(hiloId, () => enviarPrimero(hiloId, ctx, { revisarClf: false })), "PRIMERO");
+        } catch (err) {
+          // Un error con un contacto no aborta la cola ni las propuestas: se sigue con el próximo.
+          console.error("[agentes][vendedor] falló un contacto de la cola", { contactoId: e.contactoId, detalle: err instanceof Error ? err.message : "" });
         }
-        // Único por contacto: si otra corrida lo creó primero, esta lo saltea.
-        const hiloId = await crearHilo(e.contactoId, e.grupo, { estado: "PENDIENTE_ENVIO", tomadoEn: ahora });
-        if (!hiloId) continue;
-        anotar(await conRescate(hiloId, () => enviarPrimero(hiloId, ctx, { revisarClf: false })), "PRIMERO");
       }
     }
   }
