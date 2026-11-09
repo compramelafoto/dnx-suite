@@ -16,6 +16,8 @@ import { GRUPOS, ROTULO_GRUPO, type Grupo } from "./tipos";
  */
 
 export const PREFIJO_INFORME = "fotoffice_vendedor_informe_";
+/** Marca de que el aviso de informe incompleto de un mes ya salió. */
+export const PREFIJO_AVISO_INFORME = "fotoffice_vendedor_informe_aviso_";
 const HORA_RESUMEN_AR = 19;
 const HORA_INFORME_AR = 9;
 const DESFASE_AR_MS = 3 * 60 * 60 * 1000;
@@ -101,6 +103,16 @@ export function mesAnterior(ahora: Date): string {
 
 export function tocaInforme(ahora: Date, a: AjustesVendedor): boolean {
   return diaArgentino(ahora).endsWith("-01") && horaArgentina(ahora) >= HORA_INFORME_AR && a.informeMes !== mesAnterior(ahora);
+}
+
+/**
+ * Pendiente: el informe del mes anterior todavía no se completó (CLF no respondió) y estamos entre el día 1
+ * (desde las 9) y el día 7. Sólo reintenta la parte que falta; `tocaInforme` sigue siendo el caso normal.
+ */
+export function informePendiente(ahora: Date, a: AjustesVendedor): boolean {
+  const dia = Number(diaArgentino(ahora).slice(8, 10));
+  if (dia > 7 || a.informeMes === mesAnterior(ahora)) return false;
+  return dia > 1 || horaArgentina(ahora) >= HORA_INFORME_AR;
 }
 
 /** Desde las 0:00 argentinas del día 1 de `mes` hasta las 0:00 del mes siguiente. */
@@ -223,7 +235,7 @@ export function textoInforme(i: InformeMes): string {
   if (i.porGrupo.length > 0) lineas.push("", `Total: ${lineaFila(i.total, i.ventasDisponibles)}`);
   lineas.push("", `Gasto de Claude en el mes: ${textoDinero(i.gastoUsd)}`);
   lineas.push("", "Ventas y registros: mínimo comprobado (alguien que se registró con otro correo y desde otro navegador no se cuenta).");
-  if (!i.ventasDisponibles) lineas.push("No pude traer las ventas de CLF: van en el próximo informe.");
+  if (!i.ventasDisponibles) lineas.push("No pude traer las ventas de CLF: van en el próximo informe. Sigo reintentando en las próximas corridas, hasta el día 7.");
   return lineas.join("\n");
 }
 

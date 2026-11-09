@@ -99,6 +99,28 @@ export async function guardarAjustesVendedor(a: Partial<AjustesVendedor>): Promi
   });
 }
 
+/**
+ * Reclama un aviso programado (resumen o informe) con un compare-and-set sobre la fila de ajustes: lee
+ * el valor guardado, comprueba `toca` y escribe sólo si la fila sigue igual a lo leído. Devuelve
+ * `true` sólo para UNA de las corridas que compiten; la que gana es la única que debe enviar.
+ */
+export async function reclamarAjusteVendedor(a: Partial<AjustesVendedor>, toca: (actual: AjustesVendedor) => boolean): Promise<boolean> {
+  const fila = await prisma.systemSettings.findUnique({ where: { key: CLAVE_AJUSTES_VENDEDOR }, select: { value: true } });
+  const actual = await leerAjustesVendedor();
+  if (!toca(actual)) return false;
+  const value = JSON.stringify(esquemaAjustes.parse({ ...actual, ...a }));
+  if (!fila) {
+    try {
+      await prisma.systemSettings.create({ data: { key: CLAVE_AJUSTES_VENDEDOR, value, description: "Ajustes, tope y pausa del agente Vendedor" } });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+  const r = await prisma.systemSettings.updateMany({ where: { key: CLAVE_AJUSTES_VENDEDOR, value: fila.value }, data: { value } });
+  return r.count === 1;
+}
+
 const MICROS = 1_000_000;
 
 /** Anota un gasto de Claude. No crea fila si el costo da 0. */

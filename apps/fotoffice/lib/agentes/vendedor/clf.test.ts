@@ -187,6 +187,17 @@ describe("registros en CLF", () => {
     expect((await leerAjustesVendedor()).consultaClfDia).toBe("2026-11-20");
   });
 
+  it("traerVentas devuelve error (no una lista) si el cuerpo del 200 viene mal o incompleto", async () => {
+    const entrada = [{ userId: 1, registradoEn: ENVIADO }];
+    const con = (cuerpo: unknown) => ({ fetch: (async () => Response.json(cuerpo)) as unknown as typeof fetch, url: "https://clf.test", secreto: "s" });
+    for (const cuerpo of [{}, { ventas: "x" }, { ventas: [{ userId: 1, ventas: 2 }] }, { ventas: [{ userId: 1, ventas: 2, totalPesos: 10 }, { userId: "2", ventas: 1, totalPesos: 5 }] }, []]) {
+      expect(await V.traerVentas({ desde: ENVIADO, hasta: AHORA, usuarios: entrada }, con(cuerpo))).toEqual({ error: expect.any(String) });
+    }
+    const noJson = { fetch: (async () => new Response("<html>", { status: 200 })) as unknown as typeof fetch, url: "https://clf.test", secreto: "s" };
+    expect(await V.traerVentas({ desde: ENVIADO, hasta: AHORA, usuarios: entrada }, noJson)).toEqual({ error: expect.any(String) });
+    expect(await V.traerVentas({ desde: ENVIADO, hasta: AHORA, usuarios: entrada }, con({ ventas: [] }))).toEqual([]);
+  });
+
   it("sin secreto no consulta", async () => {
     const clf = clfFalso();
     expect(await V.traerConocimiento({ fetch: clf.fetch, url: "https://clf.test", secreto: "" })).toEqual({ error: expect.any(String) });

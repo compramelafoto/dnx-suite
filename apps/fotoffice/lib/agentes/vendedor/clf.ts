@@ -142,9 +142,11 @@ export async function traerVentas(
     if (esError(r)) return r;
     if (!Array.isArray(r.ventas)) return { error: "CLF respondió algo inesperado" };
     for (const v of r.ventas.map(comoObjeto)) {
-      if (esEntero(v.userId) && esEntero(v.ventas) && typeof v.totalPesos === "number") {
-        out.push({ userId: v.userId, ventas: v.ventas, totalPesos: v.totalPesos });
+      // Una fila a medias no se descarta en silencio: el informe contaría de menos sin avisar.
+      if (!(esEntero(v.userId) && esEntero(v.ventas) && typeof v.totalPesos === "number" && Number.isFinite(v.totalPesos))) {
+        return { error: "CLF respondió algo inesperado" };
       }
+      out.push({ userId: v.userId, ventas: v.ventas, totalPesos: v.totalPesos });
     }
   }
   return out;

@@ -7,14 +7,14 @@ import { cambiarEstado } from "../buscador/contactos";
 import { destinoAgentes, mandarMensaje } from "../canal";
 import type { DepsClaude, FallaClaude } from "../claude";
 import { diaArgentino, inicioDelDiaArgentino } from "../periodista/horario";
-import { anotarGasto, gastoDelMesVendedor, guardarAjustesVendedor, leerAjustesVendedor, puedeGastar } from "./ajustes";
+import { anotarGasto, gastoDelMesVendedor, guardarAjustesVendedor, leerAjustesVendedor, puedeGastar, reclamarAjusteVendedor } from "./ajustes";
 import { colaDelDia, sigueApto } from "./aptos";
 import { revisarSalud } from "./avisos";
 import { cupoDelDia, cupoHastaAhora, enVentanaDeEnvio, MAX_POR_CORRIDA, venceRecordatorio } from "./calendario";
 import { bloqueadosEnClf, consultaDiaria, leerConocimiento, type DepsClfVendedor } from "./clf";
 import { armarTexto, completarMessageIds, enlaceSeguimiento, enviarCorreoVendedor, urlBajaVendedor, type ResultadoEnvio } from "./correo";
 import { procesarEntrantes } from "./entrante";
-import { armarInforme, guardarInforme, informesGuardados, mesAnterior, resumenDelDia, textoInforme, tocaInforme, tocaResumen } from "./informe";
+import { armarInforme, guardarInforme, informePendiente, mesAnterior, PREFIJO_AVISO_INFORME, resumenDelDia, textoInforme, tocaInforme, tocaResumen } from "./informe";
 import { mensajePausa, mensajeSeSumo } from "./mensajes";
 import { modeloVigente, proponerModelo } from "./modelos";
 import { datosParaPrompt } from "./prompts";
@@ -139,16 +139,18 @@ async function fallo(h: Hilo, motivo: string): Promise<void> {
 /** Las fallas de Claude que no son de este pedido (servicio caído o sin tiempo) no gastan un intento. */
 const fallaDeServicio = (f: FallaClaude | undefined) => f === "SERVICIO" || f === "SIN_TIEMPO";
 
-async function avisarTelegram(html: string, deps: DepsMotorVendedor): Promise<void> {
+async function avisarTelegram(html: string, deps: DepsMotorVendedor): Promise<boolean> {
   try {
     const destino = await destinoAgentes();
     if (!destino) {
       console.error("[agentes][vendedor] no hay chat de Telegram vinculado para avisar");
-      return;
+      return false;
     }
     await mandarMensaje(destino.token, destino.chatId, html, null, deps.telegram ?? {});
+    return true;
   } catch {
     console.error("[agentes][vendedor] no se pudo avisar por Telegram");
+    return false;
   }
 }
 
@@ -397,38 +399,43 @@ export async function correrVendedor(
 }
 
 /**
- * El resumen diario (desde las 19) y el informe mensual (el día 1 desde las 9). Nunca lanza: un fallo
- * acá no puede tapar el resultado ni el error de la corrida.
+ * El resumen diario (desde las 19) y el informe mensual (día 1 desde las 9; si CLF no respondió, se
+ * reintenta hasta el día 7). Nunca lanza: un fallo acá no puede tapar el resultado ni el error de la
+ * corrida.
+ *
+ * Cada aviso se RECLAMA antes de enviarlo (compare-and-set sobre los ajustes): dos corridas que se
+ * pisan mandan uno solo, y si el envío falla ese aviso se pierde en vez de repetirse sin fin.
  */
-async function pasosProgramados(ahora: Date, deps: DepsMotorVendedor): Promise<void> {
+export async function pasosProgramados(ahora: Date, deps: DepsMotorVendedor): Promise<void> {
   try {
-    const ajustes = await leerAjustesVendedor();
-    if (tocaResumen(ahora, ajustes)) {
+    const dia = diaArgentino(ahora);
+    if (tocaResumen(ahora, await leerAjustesVendedor()) && (await reclamarAjusteVendedor({ resumenDia: dia }, (x) => tocaResumen(ahora, x)))) {
       const texto = await resumenDelDia(ahora);
       if (texto) await avisarTelegram(texto, deps);
-      // Sin nada que contar también se marca: no se vuelve a mirar hasta mañana.
-      await guardarAjustesVendedor({ resumenDia: diaArgentino(ahora) });
     }
   } catch (e) {
     console.error("[agentes][vendedor] falló el resumen diario", e instanceof Error ? e.message : "");
   }
   try {
-    const ajustes = await leerAjustesVendedor();
-    if (!tocaInforme(ahora, ajustes)) return;
+    const pendiente = (x: Awaited<ReturnType<typeof leerAjustesVendedor>>) => tocaInforme(ahora, x) || informePendiente(ahora, x);
+    if (!pendiente(await leerAjustesVendedor())) return;
     const mes = mesAnterior(ahora);
     const informe = await armarInforme(mes, { clf: deps.clf });
     if (informe.ventasDisponibles) {
+      if (!(await reclamarAjusteVendedor({ informeMes: mes }, pendiente))) return;
       await guardarInforme(informe);
       await avisarTelegram(textoInforme(informe), deps);
-      await guardarAjustesVendedor({ informeMes: mes });
       return;
     }
-    // Sin las ventas de CLF no se da por hecho: se reintenta en cada corrida del día, pero se avisa una sola vez.
-    const yaAvisado = (await informesGuardados()).some((i) => i.mes === mes);
-    if (!yaAvisado) {
-      await guardarInforme(informe);
-      await avisarTelegram(textoInforme(informe), deps);
+    // Sin las ventas de CLF no se da por hecho: se reintenta en cada corrida, pero el aviso sale una sola vez.
+    // La marca se toma antes de enviar (no salen dos) y se devuelve si el envío falla (no cuenta como avisado).
+    const marca = `${PREFIJO_AVISO_INFORME}${mes}`;
+    try {
+      await prisma.systemSettings.create({ data: { key: marca, value: ahora.toISOString(), description: "Aviso de informe mensual del Vendedor sin ventas de CLF" } });
+    } catch {
+      return;
     }
+    if (!(await avisarTelegram(textoInforme(informe), deps))) await prisma.systemSettings.deleteMany({ where: { key: marca } });
   } catch (e) {
     console.error("[agentes][vendedor] falló el informe mensual", e instanceof Error ? e.message : "");
   }

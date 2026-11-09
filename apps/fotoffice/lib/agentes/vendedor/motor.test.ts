@@ -748,4 +748,96 @@ describe("pasos programados: resumen diario e informe mensual", () => {
     expect(hiloDe(malo)).toBeUndefined();
     expect(hiloDe(bueno)).toMatchObject({ estado: "ENVIADO" });
   });
+
+  it("dos corridas a la vez mandan un solo resumen y un solo informe", async () => {
+    a(A19);
+    enviadosHoy(2);
+    await Promise.all([M.pasosProgramados(new Date(A19), deps()), M.pasosProgramados(new Date(A19), deps())]);
+    expect(resumenes()).toHaveLength(1);
+
+    a(D1);
+    B.agregar("dnxVendedorHilo", { contactoId: "cx", grupo: "CLUB", token: "tx", estado: "ENVIADO" });
+    await Promise.all([M.pasosProgramados(new Date(D1), deps()), M.pasosProgramados(new Date(D1), deps()), M.pasosProgramados(new Date(D1), deps())]);
+    expect(informes()).toHaveLength(1);
+    expect((await leerAjustesVendedor()).informeMes).toBe("2026-10");
+  });
+
+  it("si el resumen no se pudo mandar no se repite en la corrida siguiente", async () => {
+    a(A19);
+    enviadosHoy(2);
+    telegram.destino = null;
+    await correr();
+    telegram.destino = { token: "tok", chatId: "chat" };
+    a("2026-11-10T22:15:00.000Z");
+    await correr();
+    expect(resumenes()).toHaveLength(0);
+  });
+
+  describe("informe con CLF caído", () => {
+    const registrado = () =>
+      B.agregar("dnxVendedorHilo", {
+        contactoId: "cx", grupo: "CLUB", token: "tx", estado: "ENVIADO", registradoEn: new Date("2026-10-05T15:00:00Z"), usuarioClfId: 9,
+      });
+    const conClf = (caido: () => boolean) => {
+      const d = deps();
+      const original = d.clf.fetch;
+      d.clf.fetch = (async (url: string, init?: RequestInit) => {
+        const cuerpo = init?.body ? (JSON.parse(String(init.body)) as Record<string, unknown>) : {};
+        if (cuerpo.consulta === "ventas") return caido() ? new Response("{}", { status: 503 }) : Response.json({ ventas: [{ userId: 9, ventas: 2, totalPesos: 50_000 }] });
+        return original(url, init);
+      }) as typeof fetch;
+      return () => M.correrVendedor({ presupuestoMs: 240_000, motivo: "CRON" }, d);
+    };
+
+    it("caído el día 1 y de vuelta el día 2: el informe completo sale el día 2, una sola vez", async () => {
+      registrado();
+      let caido = true;
+      const correrClf = conClf(() => caido);
+      a(D1);
+      await correrClf();
+      expect(informes()).toHaveLength(1);
+      expect(informes()[0]!.html).toContain("No pude traer las ventas de CLF");
+      expect(informes()[0]!.html).toContain("reintentando");
+
+      a("2026-11-01T20:00:00.000Z");
+      await correrClf();
+      expect(informes()).toHaveLength(1);
+      expect((await leerAjustesVendedor()).informeMes).toBeNull();
+
+      caido = false;
+      a("2026-11-02T12:00:00.000Z");
+      await correrClf();
+      expect(informes()).toHaveLength(2);
+      expect(informes()[1]!.html).toContain("1 vendieron (2 ventas, $ 50.000)");
+      expect((await leerAjustesVendedor()).informeMes).toBe("2026-10");
+
+      a("2026-11-02T12:15:00.000Z");
+      await correrClf();
+      expect(informes()).toHaveLength(2);
+    });
+
+    it("el día 8 ya no reintenta", async () => {
+      registrado();
+      const correrClf = conClf(() => false);
+      a("2026-11-08T12:00:00.000Z");
+      await correrClf();
+      expect(informes()).toHaveLength(0);
+    });
+
+    it("si el aviso de informe incompleto no se pudo enviar, no cuenta como avisado", async () => {
+      registrado();
+      const correrClf = conClf(() => true);
+      telegram.destino = null;
+      a(D1);
+      await correrClf();
+      expect(informes()).toHaveLength(0);
+      telegram.destino = { token: "tok", chatId: "chat" };
+      a("2026-11-01T12:15:00.000Z");
+      await correrClf();
+      expect(informes()).toHaveLength(1);
+      a("2026-11-01T12:30:00.000Z");
+      await correrClf();
+      expect(informes()).toHaveLength(1);
+    });
+  });
 });
