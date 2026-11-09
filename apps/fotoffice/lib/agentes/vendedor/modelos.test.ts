@@ -28,7 +28,7 @@ vi.mock("../canal", () => ({
 
 const M = await import("./modelos");
 const { guardarAjustesVendedor } = await import("./ajustes");
-const { CLAVE_CONOCIMIENTO } = await import("./clf");
+const { CLAVE_CAMPANA_ESCOLAR, CLAVE_CONOCIMIENTO } = await import("./clf");
 const { tecladoModelo } = await import("./botones");
 
 type Fila = Record<string, unknown>;
@@ -133,6 +133,7 @@ beforeEach(async () => {
   vi.stubEnv("VENDEDOR_RESEND_API_KEY", "");
   await guardarAjustesVendedor({ pausado: false });
   B.agregar("systemSettings", { key: CLAVE_CONOCIMIENTO, value: JSON.stringify({ texto: "CompraMeLaFoto vende fotos.", version: "v1" }) });
+  B.agregar("systemSettings", { key: CLAVE_CAMPANA_ESCOLAR, value: JSON.stringify({ emails: [], traidoEn: AHORA.toISOString() }) });
   return () => vi.unstubAllEnvs();
 });
 

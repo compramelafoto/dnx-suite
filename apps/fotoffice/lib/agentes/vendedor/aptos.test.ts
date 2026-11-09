@@ -34,6 +34,7 @@ describe("motivoNoApto", () => {
   it("EMAIL_YA_ESCRITO", () => expect(motivoNoApto(base, { ...ctx, emailsConHilo: new Set(["a@b.com"]) })).toBe("EMAIL_YA_ESCRITO"));
   it("SIN_GRUPO", () => expect(motivoNoApto({ ...base, tipo: "OTRO" }, ctx)).toBe("SIN_GRUPO"));
   it("FUSIONADO", () => expect(motivoNoApto({ ...base, fusionadoEnId: "x" }, ctx)).toBe("FUSIONADO"));
+  it("EMAIL_BLOQUEADO", () => expect(motivoNoApto(base, { ...ctx, bloqueados: new Set(["a@b.com"]) })).toBe("EMAIL_BLOQUEADO"));
 });
 
 describe("puntajeDatos", () => {
@@ -102,15 +103,33 @@ describe("colaDelDia", () => {
     expect(r.gruposSinModelo).toEqual([{ grupo: "FOTOGRAFO:GENERAL", contactoId: c.id }]);
   });
 
-  it("sin la lista de la campaña escolar no entra ninguna escuela", async () => {
+  it("sin la lista de la campaña escolar no entra nadie (falla cerrado para todos los grupos)", async () => {
     modelo("ESCUELA");
     modelo("FOTOGRAFO:GENERAL");
     const e = contacto({ tipo: "ESCUELA" });
     const f = contacto();
     campana.valor = null;
     const r = await colaDelDia(10, {});
-    expect(r.cola.map((x) => x.contactoId)).toEqual([f.id]);
-    expect(await sigueApto(e.id)).toBe("CAMPANA_ESCOLAR");
+    expect(r).toEqual({ cola: [], gruposSinModelo: [] });
+    expect(await sigueApto(e.id)).toBe("SIN_LISTA_CAMPANA");
+    expect(await sigueApto(f.id)).toBe("SIN_LISTA_CAMPANA");
+  });
+
+  it("un contacto hermano en NO_CONTACTAR (mismo correo, sin hilo) bloquea al otro", async () => {
+    modelo("FOTOGRAFO:GENERAL");
+    contacto({ email: "Ana@Estudio.com", estado: "NO_CONTACTAR" });
+    const b = contacto({ email: "ana@estudio.com" });
+    expect((await colaDelDia(10, {})).cola).toEqual([]);
+    expect(await sigueApto(b.id)).toBe("EMAIL_BLOQUEADO");
+  });
+
+  it("una casilla dada de baja no entra a la cola", async () => {
+    modelo("FOTOGRAFO:GENERAL");
+    const c = contacto({ email: "info@club.com" });
+    const otro = contacto();
+    B.agregar("dnxVendedorBaja", { email: "info@club.com" });
+    expect((await colaDelDia(10, {})).cola.map((x) => x.contactoId)).toEqual([otro.id]);
+    expect(await sigueApto(c.id)).toBe("EMAIL_BLOQUEADO");
   });
 
   it("una escuela de la campaña de octubre queda afuera", async () => {

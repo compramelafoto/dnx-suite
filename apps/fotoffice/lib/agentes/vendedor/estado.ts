@@ -198,11 +198,13 @@ const TEXTO_NO_APTO: Record<MotivoNoApto, string> = {
   ESTADO: "su estado no es Nuevo ni Revisado",
   USUARIO_CLF: "ya es usuario de CompraMeLaFoto",
   CONOCIDO: "es un conocido de DNX Estudio",
-  CAMPANA_ESCOLAR: "recibió la campaña escolar de octubre (o no se pudo leer esa lista)",
+  CAMPANA_ESCOLAR: "recibió la campaña escolar de octubre",
   YA_TIENE_HILO: "ya tiene una conversación con el Vendedor",
   EMAIL_YA_ESCRITO: "a ese correo ya le escribió el Vendedor",
   SIN_GRUPO: "su tipo no tiene grupo de mensaje",
   FUSIONADO: "se fusionó en otro contacto",
+  EMAIL_BLOQUEADO: "su correo está dado de baja o lo tiene otro contacto en «No contactar»",
+  SIN_LISTA_CAMPANA: "todavía no se pudo traer de CompraMeLaFoto la lista de la campaña escolar (se trae una vez por día, desde las 8)",
 };
 
 /**

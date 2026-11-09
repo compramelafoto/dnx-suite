@@ -98,7 +98,7 @@ const TABLAS = [
   "dnxContacto", "dnxContactoDato", "dnxContactoEvento", "dnxBuscadorTarea", "dnxBuscadorRegion",
   "fotofficeTag", "fotofficeTagAssignment",
   // Agente Vendedor (2026-11-09).
-  "dnxVendedorModelo", "dnxVendedorHilo", "dnxVendedorCorreo", "dnxVendedorGasto",
+  "dnxVendedorModelo", "dnxVendedorHilo", "dnxVendedorCorreo", "dnxVendedorGasto", "dnxVendedorBaja",
 ] as const;
 export type Tabla = (typeof TABLAS)[number];
 
@@ -149,6 +149,7 @@ const DEFECTOS: Partial<Record<Tabla, () => Fila>> = {
     quejaEn: null, creadoEn: new Date(),
   }),
   dnxVendedorGasto: () => ({ hiloId: null, modeloId: null, creadoEn: new Date() }),
+  dnxVendedorBaja: () => ({ creadoEn: new Date() }),
   fotofficeAgentePropuesta: () => ({
     estado: "PREPARANDO", fuenteUrl: null, blogPostId: null, telegramMessageId: null, correcciones: 0, datos: null,
     creadaEn: new Date(), resueltaEn: null,
@@ -506,6 +507,7 @@ export function crearBaseEnMemoria() {
     // Vendedor: un hilo por contacto, token y resendId únicos, y dos únicos parciales sobre el modelo de cada grupo.
     dnxVendedorHilo: [{ columnas: ["contactoId"] }, { columnas: ["token"] }],
     dnxVendedorCorreo: [{ columnas: ["resendId"], aplica: (f) => f.resendId !== null && f.resendId !== undefined }],
+    dnxVendedorBaja: [{ columnas: ["email"] }],
     dnxVendedorModelo: [
       { columnas: ["grupo"], aplica: (f) => f.estado === "PROPUESTO" },
       { columnas: ["grupo"], aplica: (f) => f.estado === "APROBADO" && (f.reemplazadoEn === null || f.reemplazadoEn === undefined) },

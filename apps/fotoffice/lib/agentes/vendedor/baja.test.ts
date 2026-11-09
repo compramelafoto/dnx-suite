@@ -11,6 +11,7 @@ vi.mock("@repo/db", () => ({ prisma: B.prisma, Prisma: { JsonNull: null } }));
 
 const { darDeBajaVendedor, leerBajaVendedor } = await import("./baja");
 const { AMBITO_BAJA_VENDEDOR } = await import("./correo");
+const { direccionBloqueada } = await import("./bloqueos");
 
 const SECRETO = "secreto-de-prueba";
 const contacto = (email: string, extra: Record<string, unknown> = {}) =>
@@ -42,6 +43,15 @@ describe("baja del Vendedor", () => {
 
     // Dos veces (el POST de un clic y después la página) no rompe nada.
     expect(await darDeBajaVendedor(token)).toBe("OK");
+  });
+
+  it("la baja de una casilla sin contacto queda anotada y bloquea el envío siguiente", async () => {
+    const token = signUnsubscribeToken({ workspaceId: AMBITO_BAJA_VENDEDOR, email: "Info@Club.com" }, SECRETO);
+    expect(await darDeBajaVendedor(token)).toBe("OK");
+    expect(await darDeBajaVendedor(token)).toBe("OK");
+    expect(B.datos.dnxVendedorBaja.map((b) => b.email)).toEqual(["info@club.com"]);
+    expect(await direccionBloqueada("info@club.com")).toBe(true);
+    expect(await direccionBloqueada("otra@club.com")).toBe(false);
   });
 
   it("un token de baja de una institución no sirve", async () => {

@@ -1,16 +1,20 @@
 /**
  * Qué contactos de la base Contactos DNX se le pueden escribir al Vendedor y en qué orden. `motivoNoApto`
  * es pura; `colaDelDia` arma la lista del día y `sigueApto` vuelve a mirar la base justo antes de enviar.
- * Falla cerrado: si no se puede leer la lista de la campaña escolar de octubre, no entra ninguna escuela.
+ * Falla cerrado: si no se puede leer la lista de la campaña escolar de octubre, no entra nadie (sin la
+ * consulta diaria a CLF tampoco hay conocimiento, así que no se pierde nada).
+ * Las casillas bloqueadas (de cualquier contacto en NO_CONTACTAR o dadas de baja) no entran aunque la
+ * ficha esté en Nuevo: `EMAIL_BLOQUEADO`.
  */
 import "server-only";
 import { prisma } from "@repo/db";
+import { direccionesBloqueadas } from "./bloqueos";
 import { leerCampanaEscolar } from "./clf";
 import { GRUPOS_CON_LANDING_PROPIA, grupoDe, type Grupo } from "./tipos";
 
 export type MotivoNoApto =
   | "SIN_EMAIL" | "EMAIL_GENERICO" | "ESTADO" | "USUARIO_CLF" | "CONOCIDO" | "CAMPANA_ESCOLAR"
-  | "YA_TIENE_HILO" | "EMAIL_YA_ESCRITO" | "SIN_GRUPO" | "FUSIONADO";
+  | "YA_TIENE_HILO" | "EMAIL_YA_ESCRITO" | "SIN_GRUPO" | "FUSIONADO" | "EMAIL_BLOQUEADO" | "SIN_LISTA_CAMPANA";
 
 type DatosApto = {
   email: string | null; claveEmail: string | null; estado: string; vinculo: string | null;
@@ -19,11 +23,12 @@ type DatosApto = {
 
 export function motivoNoApto(
   c: DatosApto,
-  ctx: { campanaEscolar: Set<string>; emailsConHilo: Set<string>; tieneHilo: boolean },
+  ctx: { campanaEscolar: Set<string>; emailsConHilo: Set<string>; tieneHilo: boolean; bloqueados?: Set<string> },
 ): MotivoNoApto | null {
   if (!c.email) return "SIN_EMAIL";
   if (!c.claveEmail) return "EMAIL_GENERICO";
   if (c.estado !== "NUEVO" && c.estado !== "REVISADO") return "ESTADO";
+  if (ctx.bloqueados?.has(c.claveEmail) || ctx.bloqueados?.has(c.email.trim().toLowerCase())) return "EMAIL_BLOQUEADO";
   if (c.vinculo === "USUARIO_CLF") return "USUARIO_CLF";
   if (c.vinculo === "CONOCIDO_DNX_ESTUDIO") return "CONOCIDO";
   if (ctx.campanaEscolar.has(c.claveEmail)) return "CAMPANA_ESCOLAR";
@@ -56,15 +61,14 @@ async function emailsEscritos(excepto?: string): Promise<{ emails: Set<string>; 
   return { emails: new Set(contactos.map((c) => c.claveEmail).filter((x): x is string => !!x)), conHilo };
 }
 
-/** Sin la lista de la campaña no se sabe qué colegios ya recibieron correo: ninguna escuela entra. */
-const esEscuelaSinLista = (grupo: Grupo | null, campana: Set<string> | null) => grupo === "ESCUELA" && campana === null;
-
 export async function colaDelDia(
   limite: number,
   opciones: { soloContactoId?: string | null },
 ): Promise<{ cola: ElementoCola[]; gruposSinModelo: Array<{ grupo: Grupo; contactoId: string }> }> {
   const campana = await leerCampanaEscolar();
-  const { emails, conHilo } = await emailsEscritos();
+  // Sin la lista de la campaña escolar, falla cerrado para todos los grupos.
+  if (campana === null) return { cola: [], gruposSinModelo: [] };
+  const [{ emails, conHilo }, bloqueados] = await Promise.all([emailsEscritos(), direccionesBloqueadas()]);
   const candidatos = await prisma.dnxContacto.findMany({
     where: {
       estado: { in: ["NUEVO", "REVISADO"] },
@@ -76,8 +80,7 @@ export async function colaDelDia(
   for (const c of candidatos) {
     if (!c.claveEmail) continue;
     const grupo = grupoDe(c);
-    if (esEscuelaSinLista(grupo, campana)) continue;
-    const motivo = motivoNoApto(c, { campanaEscolar: campana ?? new Set(), emailsConHilo: emails, tieneHilo: conHilo.has(c.id) });
+    const motivo = motivoNoApto(c, { campanaEscolar: campana, emailsConHilo: emails, tieneHilo: conHilo.has(c.id), bloqueados });
     if (motivo || !grupo) continue;
     aptos.push({ id: c.id, grupo, puntaje: puntajeDatos(c), creadoEn: c.creadoEn });
   }
@@ -117,7 +120,7 @@ export async function sigueApto(contactoId: string): Promise<MotivoNoApto | null
   const c = await prisma.dnxContacto.findUnique({ where: { id: contactoId }, select: SELECCION });
   if (!c) return "ESTADO";
   const campana = await leerCampanaEscolar();
-  if (esEscuelaSinLista(grupoDe(c), campana)) return "CAMPANA_ESCOLAR";
-  const { emails } = await emailsEscritos(contactoId);
-  return motivoNoApto(c, { campanaEscolar: campana ?? new Set(), emailsConHilo: emails, tieneHilo: false });
+  if (campana === null) return "SIN_LISTA_CAMPANA";
+  const [{ emails }, bloqueados] = await Promise.all([emailsEscritos(contactoId), direccionesBloqueadas()]);
+  return motivoNoApto(c, { campanaEscolar: campana, emailsConHilo: emails, tieneHilo: false, bloqueados });
 }

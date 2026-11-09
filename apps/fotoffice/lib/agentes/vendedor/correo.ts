@@ -4,6 +4,7 @@ import { appUrl } from "@/lib/app-url";
 import { sendTransactionalEmail } from "@/lib/communications/send-email";
 import { unsubscribeHeaders } from "@/lib/mailing/context";
 import { resolveUnsubscribeSecret, signUnsubscribeToken } from "@/lib/mailing/unsubscribe-token";
+import { direccionBloqueada } from "./bloqueos";
 import { AUTOR_VENDEDOR, PARAM_SEGUIMIENTO, REMITENTE_VENDEDOR, RESPONDER_A, URL_CLF, type PasoSalida } from "./tipos";
 
 /**
@@ -114,11 +115,16 @@ function esUnicoRepetido(e: unknown): boolean {
 }
 
 export async function enviarCorreoVendedor(i: EntradaEnvio, deps: DepsEnvio = {}): Promise<ResultadoEnvio> {
-  // «No contactar» es permanente: a ese contacto no le sale nada, aunque el hilo siga abierto. El
-  // reenvío a Daniel (REENVIO) va a su casilla, así que no se frena.
-  if (i.contactoId && PASOS_AL_CONTACTO.includes(i.paso)) {
-    const c = await prisma.dnxContacto.findUnique({ where: { id: i.contactoId }, select: { estado: true } });
-    if (c?.estado === "NO_CONTACTAR") return { ok: false, motivo: "NO_CONTACTAR", reintentable: false };
+  // «No contactar» es permanente: a ese contacto no le sale nada, aunque el hilo siga abierto. Se mira
+  // el contacto del hilo y también la dirección de destino: otra ficha con el mismo correo en
+  // NO_CONTACTAR, o una casilla dada de baja (aunque no sea de ningún contacto). El reenvío a Daniel
+  // (REENVIO) va a su casilla, así que no se frena.
+  if (PASOS_AL_CONTACTO.includes(i.paso)) {
+    if (i.contactoId) {
+      const c = await prisma.dnxContacto.findUnique({ where: { id: i.contactoId }, select: { estado: true } });
+      if (c?.estado === "NO_CONTACTAR") return { ok: false, motivo: "NO_CONTACTAR", reintentable: false };
+    }
+    if (await direccionBloqueada(i.para)) return { ok: false, motivo: "NO_CONTACTAR", reintentable: false };
   }
 
   // Un reintento del primero o del recordatorio que ya quedó guardado no sale de nuevo.
@@ -131,6 +137,8 @@ export async function enviarCorreoVendedor(i: EntradaEnvio, deps: DepsEnvio = {}
   }
 
   const headers: Record<string, string> = {};
+  // Respuesta automática (RFC 3834): que un autorrespondedor del otro lado no nos conteste y arme un bucle.
+  if (i.paso === "RESPUESTA") headers["Auto-Submitted"] = "auto-replied";
   if (i.paso !== "REENVIO") {
     const urlBaja = urlBajaVendedor(i.para);
     if (!urlBaja) {
@@ -173,7 +181,8 @@ export async function enviarCorreoVendedor(i: EntradaEnvio, deps: DepsEnvio = {}
         },
         select: { id: true },
       });
-      if (i.contactoId) {
+      // El reenvío a Daniel no se le escribió al contacto: no va a su ficha como correo enviado.
+      if (i.contactoId && i.paso !== "REENVIO") {
         const evento = await tx.dnxContactoEvento.create({
           data: { contactoId: i.contactoId, tipo: "CORREO_ENVIADO", datos: { correoId: correo.id, paso: i.paso, asunto, texto: i.texto }, autor: AUTOR_VENDEDOR },
           select: { id: true },

@@ -74,6 +74,35 @@ describe("envío del Vendedor", () => {
     expect(llamadas).toHaveLength(1);
   });
 
+  it("frena por la dirección: otra ficha con el mismo correo en NO_CONTACTAR bloquea al hermano", async () => {
+    B.agregar("dnxContacto", { tipo: "FOTOGRAFO", nombre: "Ana A", creadoPor: "BUSCADOR", email: "Ana@Estudio.com", claveEmail: "ana@estudio.com", estado: "NO_CONTACTAR" });
+    const hermano = B.agregar("dnxContacto", { tipo: "FOTOGRAFO", nombre: "Ana B", creadoPor: "BUSCADOR", email: "ana@estudio.com", claveEmail: "ana@estudio.com" }) as { id: string };
+    const r = await C.enviarCorreoVendedor(entrada({ contactoId: hermano.id }), { enviar, env: ENV, traerMessageId: sinMessageId });
+    expect(r).toEqual({ ok: false, motivo: "NO_CONTACTAR", reintentable: false });
+    expect(llamadas).toHaveLength(0);
+  });
+
+  it("una casilla dada de baja sin contacto no recibe nada (tampoco una respuesta a un tercero)", async () => {
+    B.agregar("dnxVendedorBaja", { email: "info@club.com" });
+    const c = B.agregar("dnxContacto", { tipo: "CLUB", nombre: "Juan", creadoPor: "BUSCADOR", email: "juan@club.com", claveEmail: "juan@club.com", estado: "CONTACTADO" }) as { id: string };
+    const r = await C.enviarCorreoVendedor(
+      entrada({ contactoId: c.id, para: "INFO@club.com", paso: "RESPUESTA", claveIdempotencia: "k-r" }),
+      { enviar, env: ENV, traerMessageId: sinMessageId },
+    );
+    expect(r).toEqual({ ok: false, motivo: "NO_CONTACTAR", reintentable: false });
+    expect(llamadas).toHaveLength(0);
+  });
+
+  it("el reenvío a Daniel no queda en la ficha del contacto como correo enviado", async () => {
+    const c = B.agregar("dnxContacto", { tipo: "FOTOGRAFO", nombre: "Ana", creadoPor: "BUSCADOR" }) as { id: string };
+    const r = await C.enviarCorreoVendedor(
+      entrada({ contactoId: c.id, para: "dnxfotografia@gmail.com", paso: "REENVIO", claveIdempotencia: "k-reenvio" }),
+      { enviar, env: ENV, traerMessageId: sinMessageId },
+    );
+    expect(r.ok).toBe(true);
+    expect(B.datos.dnxContactoEvento).toHaveLength(0);
+  });
+
   it("usa VENDEDOR_RESEND_API_KEY si está", async () => {
     await C.enviarCorreoVendedor(entrada(), { enviar, env: { ...ENV, VENDEDOR_RESEND_API_KEY: "clave-vendedor" }, traerMessageId: sinMessageId });
     expect(llamadas[0]!.env.RESEND_API_KEY).toBe("clave-vendedor");
