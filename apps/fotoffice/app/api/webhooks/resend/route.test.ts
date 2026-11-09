@@ -12,13 +12,15 @@ const { POST } = await import("./route");
 
 const SECRETO = `whsec_${Buffer.from("clave-de-prueba-123").toString("base64")}`;
 
-function pedido(): Request {
+const SECRETO_VENDEDOR = `whsec_${Buffer.from("otra-cuenta-de-resend-456").toString("base64")}`;
+
+function pedido(secreto = SECRETO): Request {
   const body = JSON.stringify({ type: "email.bounced", created_at: "2026-11-20T15:00:00.000Z", data: { email_id: "re_1" } });
   const ts = String(Math.floor(Date.now() / 1000));
   return new Request("https://fotoffice.com/api/webhooks/resend", {
     method: "POST",
     body,
-    headers: { "svix-id": "msg_1", "svix-timestamp": ts, "svix-signature": `v1,${signSvix(SECRETO, "msg_1", ts, body)}` },
+    headers: { "svix-id": "msg_1", "svix-timestamp": ts, "svix-signature": `v1,${signSvix(secreto, "msg_1", ts, body)}` },
   });
 }
 
@@ -48,5 +50,21 @@ describe("webhook de estados de Resend", () => {
     h.vendedor.mockRejectedValue(new Error("base caída"));
     const r = await POST(pedido());
     expect(r.status).toBe(500);
+  });
+
+  it("acepta la firma del webhook de la otra cuenta del Vendedor (VENDEDOR_RESEND_WEBHOOK_SECRET)", async () => {
+    expect((await POST(pedido(SECRETO_VENDEDOR))).status).toBe(401);
+    vi.stubEnv("VENDEDOR_RESEND_WEBHOOK_SECRET", SECRETO_VENDEDOR);
+    const r = await POST(pedido(SECRETO_VENDEDOR));
+    expect(await r.json()).toEqual({ ok: true, result: "APLICADO" });
+    expect((await POST(pedido())).status).toBe(200);
+  });
+
+  it("con sólo el secreto del Vendedor también anda; sin ninguno, 404", async () => {
+    vi.stubEnv("RESEND_WEBHOOK_SECRET", "");
+    expect((await POST(pedido())).status).toBe(404);
+    vi.stubEnv("VENDEDOR_RESEND_WEBHOOK_SECRET", SECRETO_VENDEDOR);
+    expect((await POST(pedido(SECRETO_VENDEDOR))).status).toBe(200);
+    expect((await POST(pedido())).status).toBe(401);
   });
 });
