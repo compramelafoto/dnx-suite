@@ -78,6 +78,8 @@ export {
   mapMercadoPagoOrderStatus,
   mapMercadoPagoOrderResponse,
   stablePayloadHash,
+  toOrdersCardPaymentMethod,
+  type OrdersCardPaymentType,
 } from "./orders/mapper.js";
 export { parseMercadoPagoOrdersWebhook } from "./webhooks/parser.js";
 export {

@@ -140,6 +140,36 @@ export function buildSplitEntriesFromDistribution(
   return [ownerEntry, ...partners];
 }
 
+export type OrdersCardPaymentType = "credit_card" | "debit_card" | "prepaid_card";
+
+/**
+ * Medio de pago con tarjeta para Orders: marca en `id` y tipo en `type`.
+ *
+ * El Card Payment Brick devuelve ids de la API de Payments, donde la tarjeta de débito tiene
+ * un id propio (`debvisa`, `debmaster`, `debcabal`). Orders sólo acepta la marca (`visa`) y
+ * pide el tipo aparte; con `debvisa` rechaza la orden antes de cobrar (pedido 6059 de CLF,
+ * 09/11/2026). Si el Brick informa el tipo, manda ese.
+ *
+ * Es opcional: `buildMercadoPagoSplitOrderRequest` sólo usa el tipo que le pasen en
+ * `paymentType`, así quien no lo usa (Clickatón) sigue exactamente igual.
+ */
+export function toOrdersCardPaymentMethod(
+  paymentMethodId?: string | null,
+  paymentTypeId?: string | null,
+): { id: string; type: OrdersCardPaymentType } {
+  const raw = paymentMethodId?.trim().toLowerCase() || "visa";
+  const esDebitoPorId = raw.startsWith("deb") && raw.length > 3;
+  const id = esDebitoPorId ? raw.slice(3) : raw;
+  const informado = paymentTypeId?.trim().toLowerCase();
+  const type: OrdersCardPaymentType =
+    informado === "debit_card" || informado === "prepaid_card" || informado === "credit_card"
+      ? informado
+      : esDebitoPorId
+        ? "debit_card"
+        : "credit_card";
+  return { id, type };
+}
+
 export function buildMercadoPagoSplitOrderRequest(opts: {
   externalReference: string;
   total: Money;
@@ -154,6 +184,8 @@ export function buildMercadoPagoSplitOrderRequest(opts: {
   paymentToken?: string;
   /** Required by MP Orders when paymentToken is set (e.g. "visa"). */
   paymentMethodId?: string;
+  /** Tipo de tarjeta para Orders; sin él, `credit_card` como siempre. Ver `toOrdersCardPaymentMethod`. */
+  paymentType?: OrdersCardPaymentType;
   installments?: number;
   /** Señales antifraude opcionales del pagador (checklist IXFS-16376). */
   payerProfile?: OrderPayerProfile;
@@ -207,7 +239,7 @@ export function buildMercadoPagoSplitOrderRequest(opts: {
           payment_method: {
             id: paymentMethodId,
             token: opts.paymentToken,
-            type: "credit_card",
+            type: opts.paymentType ?? "credit_card",
             installments: opts.installments ?? 1,
             statement_descriptor: opts.statementDescriptor,
           },
