@@ -36,11 +36,37 @@ export type DepsCoexistencia = {
 
 const digitos = (v: unknown): string | null => (typeof v === "string" && /^\d{5,30}$/.test(v) ? v : null);
 
+async function leerJson(f: typeof fetch, url: string, token?: string): Promise<Record<string, unknown> | null> {
+  try {
+    const res = await f(url, { cache: "no-store", ...(token ? { headers: { Authorization: `Bearer ${token}` } } : {}) });
+    return res.ok ? ((await res.json().catch(() => null)) as Record<string, unknown> | null) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** La cuenta de WhatsApp a la que el negocio le dio acceso en la ventana de Meta (`debug_token`). */
+async function cuentaDelToken(token: string, tokenDeApp: string, f: typeof fetch, version: string): Promise<string | null> {
+  const q = new URLSearchParams({ input_token: token, access_token: tokenDeApp });
+  const j = await leerJson(f, `https://graph.facebook.com/${version}/debug_token?${q}`);
+  const scopes = (j?.data as { granular_scopes?: { scope?: string; target_ids?: unknown[] }[] } | undefined)?.granular_scopes ?? [];
+  const ids = scopes.find((g) => g.scope === "whatsapp_business_management")?.target_ids ?? [];
+  return ids.length === 1 ? digitos(String(ids[0])) : null;
+}
+
+/** El número de esa cuenta (en coexistencia hay uno solo). */
+async function numeroDeLaCuenta(wabaId: string, token: string, f: typeof fetch, version: string): Promise<string | null> {
+  const j = await leerJson(f, `https://graph.facebook.com/${version}/${wabaId}/phone_numbers?fields=id,display_phone_number`, token);
+  const lista = Array.isArray(j?.data) ? (j!.data as { id?: unknown }[]) : [];
+  return lista.length === 1 ? digitos(String(lista[0].id ?? "")) : null;
+}
+
 export async function conectarCoexistencia(ctx: CtxConsultas, datos: DatosCoexistencia, deps: DepsCoexistencia = {}): Promise<ResultadoCoexistencia> {
   const code = typeof datos?.code === "string" && datos.code.length > 10 && datos.code.length < 2000 ? datos.code : null;
-  const wabaId = digitos(datos?.wabaId);
-  const phoneNumberId = digitos(datos?.phoneNumberId);
-  if (!code || !wabaId || !phoneNumberId) return { ok: false, error: MENSAJES_COEXISTENCIA.datos };
+  if (!code) return { ok: false, error: MENSAJES_COEXISTENCIA.datos };
+  // La ventana de Meta a veces no manda la cuenta o el número: se buscan con el token del canje.
+  let wabaId = digitos(datos?.wabaId);
+  let phoneNumberId = digitos(datos?.phoneNumberId);
   const secreto = deps.appSecret ?? process.env.WHATSAPP_APP_SECRET ?? "";
   if (!secreto) return { ok: false, error: MENSAJES_COEXISTENCIA.sinSecreto };
   const f = deps.fetch ?? fetch;
@@ -56,6 +82,10 @@ export async function conectarCoexistencia(ctx: CtxConsultas, datos: DatosCoexis
     canjeado = null;
   }
   if (!canjeado) return { ok: false, error: MENSAJES_COEXISTENCIA.canje };
+
+  if (!wabaId) wabaId = await cuentaDelToken(canjeado, `${META_APP_ID}|${secreto}`, f, version);
+  if (wabaId && !phoneNumberId) phoneNumberId = await numeroDeLaCuenta(wabaId, canjeado, f, version);
+  if (!wabaId || !phoneNumberId) return { ok: false, error: MENSAJES_COEXISTENCIA.datos };
 
   const permanente = await (deps.leerToken ?? leerTokenWhatsapp)(ctx.workspaceId).catch(() => null);
   const conPermanente = permanente ? await verificarNumeroConMeta(phoneNumberId, permanente, f) : null;

@@ -45,9 +45,26 @@ describe("conectarCoexistencia", () => {
   it("rechaza datos inválidos, sin secreto de la app o si Meta no canjea el código", async () => {
     const { f } = metaFalsa({ canje: { error: { message: "expired" } } });
     const guardar = vi.fn();
-    expect(await conectarCoexistencia(CTX, { ...DATOS, wabaId: "abc" }, { fetch: f, guardar, appSecret: "s" })).toEqual({ ok: false, error: MENSAJES_COEXISTENCIA.datos });
+    expect(await conectarCoexistencia(CTX, { ...DATOS, code: "x" }, { fetch: f, guardar, appSecret: "s" })).toEqual({ ok: false, error: MENSAJES_COEXISTENCIA.datos });
     expect(await conectarCoexistencia(CTX, DATOS, { fetch: f, guardar, appSecret: "" })).toEqual({ ok: false, error: MENSAJES_COEXISTENCIA.sinSecreto });
     expect(await conectarCoexistencia(CTX, DATOS, { fetch: f, guardar, appSecret: "s" })).toEqual({ ok: false, error: MENSAJES_COEXISTENCIA.canje });
     expect(guardar).not.toHaveBeenCalled();
+  });
+
+  it("si la ventana de Meta no mandó la cuenta ni el número, los busca con el token del canje", async () => {
+    const llamadas: string[] = [];
+    const f = (async (url: string) => {
+      llamadas.push(url);
+      if (url.includes("/oauth/access_token")) return new Response(JSON.stringify({ access_token: "token-canjeado" }));
+      if (url.includes("/debug_token")) return new Response(JSON.stringify({ data: { granular_scopes: [{ scope: "whatsapp_business_management", target_ids: ["288314434371834"] }] } }));
+      if (url.includes("/288314434371834/phone_numbers")) return new Response(JSON.stringify({ data: [{ id: "1111222233334444", display_phone_number: "+54 9 341 341-9869" }] }));
+      if (url.includes("/1111222233334444?")) return new Response(JSON.stringify({ id: "1111222233334444", display_phone_number: "+54 9 341 341-9869" }));
+      return new Response("{}", { status: 404 });
+    }) as typeof fetch;
+    const guardar = vi.fn(async () => ({ ok: true as const }));
+    const r = await conectarCoexistencia(CTX, { code: DATOS.code, wabaId: undefined, phoneNumberId: undefined }, { fetch: f, guardar, leerToken: async () => null, appSecret: "secreto" });
+    expect(r).toEqual({ ok: true, tokenPermanente: false });
+    expect(guardar).toHaveBeenCalledWith(CTX, expect.objectContaining({ wabaId: "288314434371834", phoneNumberId: "1111222233334444" }));
+    expect(llamadas.find((u) => u.includes("/debug_token"))).toContain("access_token=2188321802064982%7Csecreto");
   });
 });
