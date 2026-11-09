@@ -93,14 +93,14 @@ describe("quién va por el piloto", () => {
   it("sí, con fotógrafo y referidor", () => {
     assert.deepEqual(evaluarElegibilidadPiloto(entrada()), {
       ok: true,
-      receivers: { fotografo: "aaa", referidor: "bbb" },
+      receivers: { fotografo: "aaa", referidor: "bbb", organizador: null, referidorOrganizador: null },
     });
   });
 
   it("sí, sin referidor", () => {
     assert.deepEqual(evaluarElegibilidadPiloto(entrada({ referrerUserId: null })), {
       ok: true,
-      receivers: { fotografo: "aaa", referidor: null },
+      receivers: { fotografo: "aaa", referidor: null, organizador: null, referidorOrganizador: null },
     });
   });
 });
@@ -110,6 +110,8 @@ describe("reparto del piloto", () => {
     assert.deepEqual(calcularRepartoPiloto({ totalPesos: 3450, feePesos: 450, hayReferidor: true }), {
       fotografo: 3000,
       referidor: 225,
+      organizador: 0,
+      referidorOrganizador: 0,
       plataforma: 225,
     });
   });
@@ -118,6 +120,8 @@ describe("reparto del piloto", () => {
     assert.deepEqual(calcularRepartoPiloto({ totalPesos: 3451, feePesos: 451, hayReferidor: true }), {
       fotografo: 3000,
       referidor: 225,
+      organizador: 0,
+      referidorOrganizador: 0,
       plataforma: 226,
     });
   });
@@ -126,6 +130,8 @@ describe("reparto del piloto", () => {
     assert.deepEqual(calcularRepartoPiloto({ totalPesos: 3450, feePesos: 450, hayReferidor: false }), {
       fotografo: 3000,
       referidor: 0,
+      organizador: 0,
+      referidorOrganizador: 0,
       plataforma: 450,
     });
   });
@@ -242,7 +248,7 @@ describe("preparar el cobro", () => {
     const r = prepararCobro(base);
     assert.equal(r.ok, true);
     if (!r.ok) return;
-    assert.deepEqual(r.reparto, { fotografo: 3000, referidor: 225, plataforma: 225 });
+    assert.deepEqual(r.reparto, { fotografo: 3000, referidor: 225, organizador: 0, referidorOrganizador: 0, plataforma: 225 });
     const montos = r.distribution.entries.map((e) => [e.recipientId, e.amount.amountMinor]);
     assert.deepEqual(
       Object.fromEntries(montos),
@@ -333,11 +339,12 @@ describe("correcciones de la revisión: cobro doble", () => {
 });
 
 describe("correcciones de la revisión: alcance", () => {
-  it("I3: un álbum con organizador no entra en el piloto", () => {
-    assert.deepEqual(evaluarElegibilidadPiloto(entrada({ tieneEvento: true })), {
-      ok: false,
-      motivo: "album_con_organizador",
-    });
+  // Etapa 2: los álbumes con organizador entran, pero sólo si el organizador puede cobrar.
+  it("I3: un álbum con organizador sin consentimiento no entra en el piloto", () => {
+    assert.deepEqual(
+      evaluarElegibilidadPiloto(entrada({ organizador: { userId: 99, porcentaje: 10, referrerUserId: null } })),
+      { ok: false, motivo: "organizador_sin_consentimiento" },
+    );
   });
 });
 
@@ -350,5 +357,211 @@ describe("M4: la página no muestra el correo entero", () => {
 
   it("un correo raro no se muestra", () => {
     assert.equal(ocultarCorreo("sin-arroba"), "tu correo");
+  });
+});
+
+// ---------------------------------------------------------------------------------------------
+// Etapa 2: organizadores
+// ---------------------------------------------------------------------------------------------
+
+const conOrganizador: PilotoConfig = {
+  ...encendido,
+  receiverByUserId: new Map([
+    [35, "aaa"],
+    [53, "bbb"],
+    [70, "ccc"],
+    [80, "ddd"],
+  ]),
+};
+
+describe("etapa 2: quién va por el piloto con organizador", () => {
+  const org = (cambios: Partial<NonNullable<ElegibilidadInput["organizador"]>> = {}) => ({
+    userId: 70,
+    porcentaje: 20,
+    referrerUserId: null as number | null,
+    ...cambios,
+  });
+
+  it("sí, con organizador que tiene consentimiento", () => {
+    assert.deepEqual(
+      evaluarElegibilidadPiloto(entrada({ config: conOrganizador, organizador: org() })),
+      {
+        ok: true,
+        receivers: { fotografo: "aaa", referidor: "bbb", organizador: "ccc", referidorOrganizador: null },
+      },
+    );
+  });
+
+  it("sí, con referidor del organizador", () => {
+    const r = evaluarElegibilidadPiloto(
+      entrada({ config: conOrganizador, organizador: org({ referrerUserId: 80 }) }),
+    );
+    assert.equal(r.ok && r.receivers.referidorOrganizador, "ddd");
+  });
+
+  it("no si el organizador no tiene consentimiento", () => {
+    assert.deepEqual(
+      evaluarElegibilidadPiloto(entrada({ config: conOrganizador, organizador: org({ userId: 71 }) })),
+      { ok: false, motivo: "organizador_sin_consentimiento" },
+    );
+  });
+
+  it("no si el referidor del organizador no tiene consentimiento", () => {
+    assert.deepEqual(
+      evaluarElegibilidadPiloto(
+        entrada({ config: conOrganizador, organizador: org({ referrerUserId: 81 }) }),
+      ),
+      { ok: false, motivo: "referidor_organizador_sin_consentimiento" },
+    );
+  });
+
+  it("no si el organizador cobra el 100 %", () => {
+    assert.deepEqual(
+      evaluarElegibilidadPiloto(entrada({ config: conOrganizador, organizador: org({ porcentaje: 100 }) })),
+      { ok: false, motivo: "organizador_cobra_todo" },
+    );
+  });
+
+  it("evento sin comisión: el organizador no cobra y no necesita consentimiento", () => {
+    const r = evaluarElegibilidadPiloto(
+      entrada({ config: conOrganizador, organizador: org({ userId: 71, porcentaje: 0 }) }),
+    );
+    assert.equal(r.ok && r.receivers.organizador, null);
+  });
+
+  it("no un álbum escolar", () => {
+    assert.deepEqual(evaluarElegibilidadPiloto(entrada({ esEscolar: true })), {
+      ok: false,
+      motivo: "album_escolar",
+    });
+  });
+});
+
+describe("etapa 2: reparto con organizador", () => {
+  it("foto de $3.000 con organizador al 20 % y los dos referidores", () => {
+    assert.deepEqual(
+      calcularRepartoPiloto({
+        totalPesos: 3450,
+        feePesos: 450,
+        hayReferidor: true,
+        porcentajeOrganizador: 20,
+        hayReferidorOrganizador: true,
+      }),
+      { fotografo: 2400, referidor: 225, organizador: 600, referidorOrganizador: 90, plataforma: 135 },
+    );
+  });
+
+  it("sin organizador queda igual que la etapa 1", () => {
+    assert.deepEqual(
+      calcularRepartoPiloto({ totalPesos: 3450, feePesos: 450, hayReferidor: true }),
+      { fotografo: 3000, referidor: 225, organizador: 0, referidorOrganizador: 0, plataforma: 225 },
+    );
+  });
+
+  it("redondea al organizador como la contabilidad de CLF y el resto es del fotógrafo", () => {
+    const r = calcularRepartoPiloto({
+      totalPesos: 1151,
+      feePesos: 150,
+      hayReferidor: false,
+      porcentajeOrganizador: 15,
+    });
+    assert.equal(r.organizador, Math.round((1001 * 15) / 100));
+    assert.equal(r.fotografo + r.organizador + r.referidor + r.referidorOrganizador + r.plataforma, 1151);
+  });
+});
+
+describe("etapa 2: preparar el cobro con organizador", () => {
+  const base = {
+    estadoPedido: "PENDING",
+    marca: { v: 1 as const, estado: "PENDIENTE" as const },
+    totalPesos: 3450,
+    feePesos: 450,
+    porcentajeOrganizador: 20,
+    receivers: { fotografo: "aaa", referidor: "bbb", organizador: "ccc", referidorOrganizador: "ddd" },
+    payerEmail: "ariel@ejemplo.com",
+    correosReceptores: ["gabriel@ejemplo.com"],
+  };
+
+  it("arma cinco reglas que suman el total", () => {
+    const r = prepararCobro(base);
+    assert.equal(r.ok, true);
+    if (!r.ok) return;
+    const montos = Object.fromEntries(r.distribution.entries.map((e) => [e.recipientId, e.amount.amountMinor]));
+    assert.deepEqual(montos, {
+      owner: 13500n,
+      fotografo: 240000n,
+      referidor: 22500n,
+      organizador: 60000n,
+      referidor_organizador: 9000n,
+    });
+    assert.equal(r.partnerReceiverIds.get("organizador"), "ccc");
+    assert.equal(r.partnerReceiverIds.get("referidor_organizador"), "ddd");
+  });
+
+  it("una misma cuenta con dos roles cobra una sola vez la suma", () => {
+    const r = prepararCobro({
+      ...base,
+      receivers: { fotografo: "aaa", referidor: "bbb", organizador: "ccc", referidorOrganizador: "bbb" },
+    });
+    assert.equal(r.ok, true);
+    if (!r.ok) return;
+    const montos = Object.fromEntries(r.distribution.entries.map((e) => [e.recipientId, e.amount.amountMinor]));
+    assert.deepEqual(montos, { owner: 13500n, fotografo: 240000n, referidor: 31500n, organizador: 60000n });
+    assert.deepEqual([...r.partnerReceiverIds.values()].sort(), ["aaa", "bbb", "ccc"]);
+  });
+});
+
+describe("etapa 2: correcciones de la revisión", () => {
+  it("C1: el organizador que refirió al fotógrafo no cobra además la comisión de referido", () => {
+    const r = evaluarElegibilidadPiloto(
+      entrada({
+        config: conOrganizador,
+        referrerUserId: 70,
+        organizador: { userId: 70, porcentaje: 10, comisionActiva: true, referrerUserId: null },
+      }),
+    );
+    assert.deepEqual(r, {
+      ok: true,
+      receivers: { fotografo: "aaa", referidor: null, organizador: "ccc", referidorOrganizador: null },
+    });
+  });
+
+  it("C1: con la comisión del evento apagada, el referido se paga como siempre", () => {
+    const r = evaluarElegibilidadPiloto(
+      entrada({
+        config: conOrganizador,
+        referrerUserId: 70,
+        organizador: { userId: 70, porcentaje: 0, comisionActiva: false, referrerUserId: null },
+      }),
+    );
+    assert.equal(r.ok && r.receivers.referidor, "ccc");
+  });
+
+  it("I1: el organizador se calcula sobre la base de CLF, no sobre total menos recargo", () => {
+    // total 1203 con recargo del 20 %: CLF toma base 1003 (no 1002) y el organizador al 50 % cobra 502.
+    const r = calcularRepartoPiloto({
+      totalPesos: 1203,
+      feePesos: 201,
+      basePesos: 1003,
+      hayReferidor: false,
+      porcentajeOrganizador: 50,
+    });
+    assert.equal(r.organizador, 502);
+    assert.equal(r.fotografo + r.organizador + r.referidor + r.referidorOrganizador + r.plataforma, 1203);
+  });
+
+  it("M2: un referidor con monto cero no va en la orden", () => {
+    const r = prepararCobro({
+      estadoPedido: "PENDING",
+      marca: { v: 1, estado: "PENDIENTE" },
+      totalPesos: 3000,
+      feePesos: 0,
+      receivers: { fotografo: "aaa", referidor: "bbb" },
+      payerEmail: "ariel@ejemplo.com",
+      correosReceptores: [],
+    });
+    assert.equal(r.ok, true);
+    if (!r.ok) return;
+    assert.equal(r.partnerReceiverIds.has("referidor"), false);
   });
 });

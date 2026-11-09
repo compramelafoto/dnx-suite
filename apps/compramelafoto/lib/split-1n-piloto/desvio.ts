@@ -2,6 +2,7 @@ import { OrderOrigin, type Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { resolvePilotoConfig } from "./config";
 import { evaluarElegibilidadPiloto } from "./elegibilidad";
+import { buscarOrganizador } from "./organizador";
 import { buscarReferidorActivo } from "./referidor";
 import { marcarSnapshotPiloto } from "./snapshot";
 
@@ -18,7 +19,8 @@ export function urlPagoPiloto(orderId: number): string {
 export async function desviarAlPilotoSiCorresponde(params: {
   order: { id: number; albumId: number; origin: OrderOrigin | null; pricingSnapshot: unknown };
   photographerUserId: number | null;
-  tieneEvento: boolean;
+  /** Evento del álbum (organizador), o null. */
+  eventId: number | null;
   items: Array<{ productType: string }>;
   tieneVideos: boolean;
   esCanje: boolean;
@@ -32,12 +34,18 @@ export async function desviarAlPilotoSiCorresponde(params: {
       params.photographerUserId != null
         ? await buscarReferidorActivo(params.photographerUserId)
         : null;
+    const album = await prisma.album.findUnique({
+      where: { id: params.order.albumId },
+      select: { schoolId: true },
+    });
+    const organizador = await buscarOrganizador(params.eventId);
     const elegibilidad = evaluarElegibilidadPiloto({
       config,
       albumId: params.order.albumId,
       photographerUserId: params.photographerUserId,
       referrerUserId,
-      tieneEvento: params.tieneEvento,
+      organizador,
+      esEscolar: album?.schoolId != null,
       items: params.items,
       tieneVideos: params.tieneVideos,
       esCanje: params.esCanje,
