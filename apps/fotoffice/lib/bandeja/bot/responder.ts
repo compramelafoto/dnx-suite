@@ -14,6 +14,7 @@ import { guiaDeAtencion, situacionDeAtencion } from "./guia";
 import { herramientasDeAtencion, type DepsAtencion } from "./herramientas";
 import { archivoDeMensaje, PENDIENTE_MAXIMO_MS } from "../archivo-de-mensaje";
 import { historialParaElBot } from "./historial";
+import type { NoCliente } from "./aviso-no-cliente";
 import { botEncendido } from "./interruptor";
 import { registrarUsoWa, usoWa } from "./uso";
 
@@ -25,6 +26,8 @@ import { registrarUsoWa, usoWa } from "./uso";
  */
 
 export const TEXTO_SI_FALLA = "Gracias por escribir. Dejame chequearlo y te confirmo en un ratito.";
+/** A quien no es cliente (publicidad, proveedores, spam): se lo pasamos al encargado y se le avisa al dueño. */
+export const TEXTO_NO_CLIENTE = "¡Gracias por escribirnos! Se lo paso al encargado del estudio. 🙌";
 export const ESPERA_MS = 4_000;
 export const MAX_RESPUESTAS_POR_DIA = 60;
 const MAX_VUELTAS = 6;
@@ -40,6 +43,7 @@ export type DepsResponder = {
   turno?: (i: BotTurnInput) => Promise<BotTurnResult>;
   enviar?: typeof enviarTexto;
   herramientas?: Partial<DepsAtencion>;
+  avisarNoCliente?: (workspaceId: string, p: NoCliente) => Promise<void>;
 };
 
 export type SalidaBot = "respondio" | "derivo" | "nada";
@@ -179,7 +183,11 @@ async function turno(chatId: string, deps: DepsResponder): Promise<SalidaBot> {
 
   const silencio = result.outcome === "ok" ? pedidoDeSilencio() : null;
   if (silencio) {
-    await pasarAPersona(workspaceId, chatId, `no es un cliente (${silencio}); el bot no le contestó`, ahora());
+    const salida = await enviarComoBot(workspaceId, chatId, TEXTO_NO_CLIENTE, { ultimoMensajeId }, { ahora: ahora(), enviar: deps.enviar });
+    if (salida === "omitido") return "nada";
+    const avisar = deps.avisarNoCliente ?? (await import("./aviso-no-cliente-servidor")).avisarNoClienteAlDueno;
+    await avisar(workspaceId, { nombre: chat.nombre, waId: chat.waId, motivo: silencio, texto: h.userText });
+    await pasarAPersona(workspaceId, chatId, `no es un cliente (${silencio}); se avisó al dueño por Telegram`, ahora());
     return "derivo";
   }
 

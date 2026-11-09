@@ -18,7 +18,7 @@ vi.mock("./uso", () => ({
 vi.mock("./interruptor", () => ({ botEncendido: vi.fn(async () => USO.encendido) }));
 
 const USO = { actual: { mensajesHoyPersona: 0, gastoMesGlobal: 0, gastoMesWorkspace: 0 }, encendido: true };
-const { responderConBot, TEXTO_SI_FALLA } = await import("./responder");
+const { responderConBot, TEXTO_SI_FALLA, TEXTO_NO_CLIENTE } = await import("./responder");
 
 const AHORA = new Date("2026-10-20T15:00:00.000Z");
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- la base en memoria tipa el cliente como mapa suelto
@@ -108,11 +108,14 @@ describe("responderConBot", () => {
     expect(mensajes().find((m) => m.direccion === "SISTEMA")?.texto).toContain("presupuesto de casamiento");
   });
 
-  it("a un proveedor o spam no le contesta: no manda nada y deja el chat a una persona con el motivo", async () => {
+  it("a un proveedor o spam le dice que lo pasa al encargado, le avisa al dueño por Telegram y deja el chat a una persona", async () => {
     const chatId = await chatCon(["Hola, somos fabricantes de ropa de trabajo, te paso el catálogo"]);
     const t = turnoQue("", [{ name: "no_responder", input: { motivo: "publicidad de ropa de trabajo" } }]);
-    expect(await responderConBot(chatId, deps(t.fn))).toBe("derivo");
-    expect(mensajes().some((m) => m.autor === "BOT")).toBe(false);
+    const avisos: { motivo: string; texto: string; waId: string }[] = [];
+    const avisarNoCliente = async (_ws: string, a: { motivo: string; texto: string; waId: string }) => void avisos.push(a);
+    expect(await responderConBot(chatId, deps(t.fn, { avisarNoCliente }))).toBe("derivo");
+    expect(mensajes().find((m) => m.autor === "BOT")?.texto).toBe(TEXTO_NO_CLIENTE);
+    expect(avisos).toEqual([{ motivo: "publicidad de ropa de trabajo", texto: expect.stringContaining("ropa de trabajo"), waId: "5493413419869", nombre: "Lucía" }]);
     expect(chats()[0]).toMatchObject({ estado: "HUMANO" });
     expect(mensajes().find((m) => m.direccion === "SISTEMA")?.texto).toContain("publicidad de ropa de trabajo");
   });

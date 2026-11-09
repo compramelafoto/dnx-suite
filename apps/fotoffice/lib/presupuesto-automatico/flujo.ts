@@ -501,11 +501,21 @@ export async function pendientesDeAprobar(workspaceId: string): Promise<Pendient
 }
 
 /** ¿Hay un presupuesto en preparación para ese número de WhatsApp? (el bot no vuelve a cotizar). */
-export async function enPreparacionParaWhatsapp(workspaceId: string, waId: string): Promise<boolean> {
+/** Una consulta sin respuesta más vieja que esto ya no frena otra del mismo número. */
+export const DIAS_EN_PREPARACION = 7;
+
+export async function enPreparacionParaWhatsapp(workspaceId: string, waId: string, ahora: Date = new Date()): Promise<boolean> {
   try {
     const f = await prisma.fotofficePresupuestoAprobacion.findFirst({
-      // Una consulta sin horas no frena otra del mismo número: el cliente puede decirlas después.
-      where: { workspaceId, waId, status: { in: [...ESTADOS_APROBABLES, "SIN_PROPUESTA", "ENVIANDO"] }, NOT: { errorCode: "SIN_HORAS" } },
+      // No frenan otra consulta del mismo número: la que no tenía horas (el cliente puede decirlas
+      // después), la que falló y la que quedó sin aprobar más de DIAS_EN_PREPARACION días.
+      where: {
+        workspaceId,
+        waId,
+        status: { in: [...ESTADOS_APROBABLES, "SIN_PROPUESTA", "ENVIANDO"] },
+        createdAt: { gte: new Date(ahora.getTime() - DIAS_EN_PREPARACION * 86_400_000) },
+        NOT: { errorCode: { in: ["SIN_HORAS", "FALLO"] } },
+      },
       select: { id: true },
     });
     return f !== null;
