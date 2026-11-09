@@ -95,3 +95,14 @@ export function mensajeModelo(d: {
     .filter((l): l is string => l !== null)
     .join("\n\n");
 }
+
+/** Un contacto al que le escribió el Vendedor se registró en CompraMeLaFoto. */
+export function mensajeSeSumo(d: { nombre: string; grupo: string; ciudad: string | null; via: "COOKIE" | "EMAIL" }): string {
+  const quien = d.ciudad ? `${d.nombre} (${d.ciudad})` : d.nombre;
+  return [
+    `✅ Se sumó a CLF: <b>${escaparHtml(quien)}</b>`,
+    `Grupo: ${escaparHtml(d.grupo)}`,
+    d.via === "COOKIE" ? "Llegó por el enlace del correo." : "Lo reconocí por su correo o su teléfono.",
+    "Desde hoy empiezan a contar sus ventas.",
+  ].join("\n");
+}
