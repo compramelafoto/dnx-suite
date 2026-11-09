@@ -121,4 +121,10 @@ describe("guía del bot de atención", () => {
     const g = guiaDeAtencion();
     expect(g.match(/esperá que diga que sí, aunque te haya dado todo/g)?.length).toBe(2);
   });
+
+  it("sólo dice que hay una cotización en preparación si la situación lo indica, no por lo que dijo antes en el chat", () => {
+    const g = guiaDeAtencion();
+    expect(g).toContain("Sólo hay una cotización en preparación si la situación de este turno lo dice");
+    expect(situacionDeAtencion({ estudio: "E", cliente: null, ahora: new Date("2026-11-09T14:00:00Z") })).toContain("No hay ninguna cotización en preparación");
+  });
 });
