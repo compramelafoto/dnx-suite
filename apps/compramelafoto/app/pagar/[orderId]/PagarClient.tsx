@@ -9,6 +9,7 @@ import {
   type MercadoPagoCardPaymentBrickFormData,
 } from "@repo/payments/frontend";
 import { pagarPedidoPiloto } from "@/lib/split-1n-piloto/pagar";
+import { conTipoDeTarjeta } from "@/lib/split-1n-piloto/tarjeta";
 
 type Props = {
   publicKey: string;
@@ -44,13 +45,19 @@ export default function PagarClient(props: Props) {
   const enviandoRef = useRef(false);
 
   const onSubmit = useCallback(
-    async (formData: MercadoPagoCardPaymentBrickFormData) => {
+    async (
+      formData: MercadoPagoCardPaymentBrickFormData,
+      additionalData?: { paymentTypeId?: string },
+    ) => {
       if (enviandoRef.current) return;
       enviandoRef.current = true;
       setEstado({ tipo: "enviando" });
       try {
         const deviceSessionId = assertMercadoPagoDeviceSessionId();
-        const cardPayment = mapBrickFormDataToCardPaymentSubmission(formData, deviceSessionId);
+        const cardPayment = mapBrickFormDataToCardPaymentSubmission(
+          conTipoDeTarjeta(formData, additionalData),
+          deviceSessionId,
+        );
         const r = await pagarPedidoPiloto({ pedidoId: props.orderId, cardPayment });
         if (r.ok && r.estado === "ACREDITADA") {
           setEstado({ tipo: "acreditada", descargaUrl: r.descargaUrl });
