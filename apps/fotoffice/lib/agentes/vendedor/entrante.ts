@@ -177,7 +177,7 @@ function esCasillaPropia(de: string): boolean {
 export function llegoADaniel(para: string | string[]): boolean {
   const todas = (Array.isArray(para) ? para.join(",") : para).toLowerCase();
   // Compara direcciones completas: "otrodaniel@compramelafoto.com" no es la casilla de Daniel.
-  const direcciones = todas.match(/[^\s<>,;"']+@[^\s<>,;"']+/g) ?? [];
+  const direcciones: string[] = todas.match(/[^\s<>,;"']+@[^\s<>,;"']+/g) ?? [];
   return direcciones.includes(RESPONDER_A);
 }
 
