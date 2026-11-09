@@ -545,6 +545,96 @@ describe("correrVendedor", () => {
     expect(hilos().map((h) => h.contactoId)).toEqual([prueba]);
   });
 
+  it("en modo prueba no salen pendientes ni recordatorios de otros contactos", async () => {
+    modeloAprobado();
+    const prueba = contacto();
+    // El ejemplo de un modelo aprobado durante la prueba: un prospecto real.
+    const real = contacto();
+    B.agregar("dnxVendedorHilo", {
+      contactoId: real, grupo: "FOTOGRAFO:ESCOLAR", token: "tok-real", estado: "PENDIENTE_ENVIO",
+      borrador: { asunto: "Hola", cuerpo: "Hola {{ENLACE}}" },
+    });
+    const viejo = hiloEnviado();
+    await guardarAjustesVendedor({ soloContactoPrueba: prueba });
+    adaptado();
+
+    const r = await correr();
+
+    expect(r).toMatchObject({ enviados: 1, recordatorios: 0 });
+    expect(enviados).toHaveLength(1);
+    expect(hiloDe(real)!.estado).toBe("PENDIENTE_ENVIO");
+    expect(fila("dnxVendedorHilo", viejo.hiloId).estado).toBe("ENVIADO");
+    expect(hiloDe(prueba)!.estado).toBe("ENVIADO");
+  });
+
+  it("una pausa en medio del lote frena el envío siguiente", async () => {
+    modeloAprobado();
+    contacto();
+    contacto();
+    adaptado();
+    adaptado();
+    antesDeEnviar = async () => {
+      await guardarAjustesVendedor({ pausado: true, pausadoPor: "SALUD" });
+    };
+
+    const r = await correr();
+
+    expect(r).toMatchObject({ enviados: 1, frenadoPor: "PAUSADO" });
+    expect(enviados).toHaveLength(1);
+  });
+
+  it("antes del recordatorio vuelve a mirar CLF: una baja allá lo cancela", async () => {
+    const h = hiloEnviado();
+    // La consulta diaria ya corrió hoy: la baja en CLF llegó después.
+    await guardarAjustesVendedor({ consultaClfDia: "2026-11-10" });
+    clf.coincidencias = [{ clave: h.email, userId: 9, rol: "CUSTOMER", creadoEn: "2026-01-01T00:00:00.000Z", baja: true }];
+
+    const r = await correr();
+
+    expect(r.recordatorios).toBe(0);
+    expect(enviados).toHaveLength(0);
+    expect(fila("dnxVendedorHilo", h.hiloId)).toMatchObject({ estado: "ENVIADO", recordatorioCancelado: true });
+    expect(pedidosClaude).toBe(0);
+  });
+
+  it("si CLF no responde, no sale el recordatorio", async () => {
+    const h = hiloEnviado();
+    await guardarAjustesVendedor({ consultaClfDia: "2026-11-10" });
+    clf.caido = true;
+
+    const r = await correr();
+
+    expect(r).toMatchObject({ recordatorios: 0, frenadoPor: "SIN_CLF" });
+    expect(enviados).toHaveLength(0);
+    expect(fila("dnxVendedorHilo", h.hiloId)).toMatchObject({ estado: "ENVIADO", recordatorioCancelado: false });
+  });
+
+  it("una baja que llega entre el envío y la marca deja el hilo en BAJA", async () => {
+    modeloAprobado();
+    const id = contacto();
+    adaptado();
+    const enviarOriginal = enviar;
+    antesDeEnviar = async () => undefined;
+    const r = await M.correrVendedor(
+      { presupuestoMs: 240_000, motivo: "CRON" },
+      {
+        ...deps(),
+        enviar: async (m, d) => {
+          const out = await enviarOriginal(m, d);
+          const h = hiloDe(id)!;
+          h.estado = "BAJA";
+          h.cierre = "BAJA";
+          return out;
+        },
+      },
+    );
+
+    expect(enviados).toHaveLength(1);
+    expect(r.enviados).toBe(1);
+    expect(hiloDe(id)).toMatchObject({ estado: "BAJA", cierre: "BAJA", tomadoEn: null });
+    expect(fila("dnxContacto", id).estado).toBe("NUEVO");
+  });
+
   it("tres fallas cierran el hilo como FALLO", async () => {
     modeloAprobado();
     const id = contacto();
@@ -586,9 +676,9 @@ describe("correrVendedor", () => {
     modeloAprobado();
     const id = contacto();
     adaptado();
-    const actualizar = B.tablas.dnxVendedorHilo.update;
+    const actualizar = B.tablas.dnxVendedorHilo.updateMany;
     let fallar = true;
-    B.tablas.dnxVendedorHilo.update = async (x) => {
+    B.tablas.dnxVendedorHilo.updateMany = async (x) => {
       if (fallar && (x.data as Fila).estado === "ENVIADO") {
         fallar = false;
         throw new Error("se cortó la base");
@@ -600,7 +690,7 @@ describe("correrVendedor", () => {
     expect(hiloDe(id)!.estado).toBe("PENDIENTE_ENVIO");
     a("2026-11-10T15:15:00.000Z");
     await correr();
-    B.tablas.dnxVendedorHilo.update = actualizar;
+    B.tablas.dnxVendedorHilo.updateMany = actualizar;
 
     expect(enviados).toHaveLength(1);
     expect(salidas("PRIMERO")).toHaveLength(1);

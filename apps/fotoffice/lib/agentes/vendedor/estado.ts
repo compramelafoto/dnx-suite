@@ -122,10 +122,12 @@ export async function puedeReanudar(): Promise<{ ok: true } | { ok: false; motiv
 /**
  * Lo que cambia al reanudar: la salud se mira desde ahora (una queja vieja no vuelve a frenarlo
  * enseguida), se limpia el motivo de la pausa y el arranque (que fija el cupo de la primera semana) se
- * pone sólo la primera vez, con el día argentino.
+ * pone sólo la primera vez, con el día argentino. Con un contacto de prueba el arranque no se fija: la
+ * prueba no gasta la primera semana.
  */
 export function ajustesAlReanudar(a: AjustesVendedor, ahora: Date): Pick<AjustesVendedor, "pausado" | "pausadoPor" | "saludDesde" | "arrancoEn"> {
-  return { pausado: false, pausadoPor: null, saludDesde: ahora.toISOString(), arrancoEn: a.arrancoEn ?? diaArgentino(ahora) };
+  const arrancoEn = a.arrancoEn ?? (a.soloContactoPrueba ? null : diaArgentino(ahora));
+  return { pausado: false, pausadoPor: null, saludDesde: ahora.toISOString(), arrancoEn };
 }
 
 export async function cambiarPausaVendedor(pausado: boolean, ahora: Date): Promise<{ ok: boolean; mensaje: string }> {
@@ -139,9 +141,11 @@ export async function cambiarPausaVendedor(pausado: boolean, ahora: Date): Promi
   await guardarAjustesVendedor(ajustesAlReanudar(a, ahora));
   return {
     ok: true,
-    mensaje: a.arrancoEn
-      ? "Vendedor reanudado: sigue en la próxima corrida, en días hábiles de 9 a 18."
-      : "Vendedor en marcha: hoy es su primer día. La primera semana manda pocos correos por día; sigue en la próxima corrida, en días hábiles de 9 a 18.",
+    mensaje: a.soloContactoPrueba && !a.arrancoEn
+      ? "Vendedor en marcha en modo prueba: sólo le escribe al contacto de prueba. La primera semana real empieza cuando lo reanudes sin contacto de prueba."
+      : a.arrancoEn
+        ? "Vendedor reanudado: sigue en la próxima corrida, en días hábiles de 9 a 18."
+        : "Vendedor en marcha: hoy es su primer día. La primera semana manda pocos correos por día; sigue en la próxima corrida, en días hábiles de 9 a 18.",
   };
 }
 
@@ -174,9 +178,13 @@ export function leerAjustesFormulario(tope: string, porDia: string, primeraSeman
 
 export const esGrupo = (g: string): g is Grupo => (GRUPOS as readonly string[]).includes(g);
 
-/** El primer contacto apto del grupo (en el orden de la cola), para usarlo de ejemplo al pedir un modelo. */
+/**
+ * El primer contacto apto del grupo (en el orden de la cola), para usarlo de ejemplo al pedir un modelo.
+ * En modo prueba sólo puede ser el contacto de prueba: si no es de ese grupo, no hay ejemplo.
+ */
 export async function primerAptoDelGrupo(grupo: Grupo): Promise<string | null> {
-  const { cola, gruposSinModelo } = await colaDelDia(Number.MAX_SAFE_INTEGER, {});
+  const { soloContactoPrueba } = await leerAjustesVendedor();
+  const { cola, gruposSinModelo } = await colaDelDia(Number.MAX_SAFE_INTEGER, { soloContactoId: soloContactoPrueba });
   return gruposSinModelo.find((g) => g.grupo === grupo)?.contactoId ?? cola.find((c) => c.grupo === grupo)?.contactoId ?? null;
 }
 
@@ -209,13 +217,23 @@ const TEXTO_NO_APTO: Record<MotivoNoApto, string> = {
 
 /**
  * Con un contacto de prueba, el Vendedor sólo le escribe a ése (para probar el circuito con un correo
- * propio). Vacío vuelve a la cola normal.
+ * propio). Vacío vuelve a la cola normal. Si se saca la prueba con el Vendedor andando y todavía no
+ * tiene arranque, hoy pasa a ser su primer día real.
  */
-export async function fijarContactoPrueba(contactoId: string): Promise<{ ok: boolean; mensaje: string }> {
+export async function fijarContactoPrueba(contactoId: string, ahora: Date = new Date()): Promise<{ ok: boolean; mensaje: string }> {
   const id = contactoId.trim();
   if (id === "") {
-    await guardarAjustesVendedor({ soloContactoPrueba: null });
-    return { ok: true, mensaje: "Sin contacto de prueba: el Vendedor vuelve a la cola normal." };
+    const a = await leerAjustesVendedor();
+    const arranca = !a.pausado && !a.arrancoEn;
+    await guardarAjustesVendedor({ soloContactoPrueba: null, ...(arranca ? { arrancoEn: diaArgentino(ahora) } : {}) });
+    return {
+      ok: true,
+      mensaje: a.pausado
+        ? "Sin contacto de prueba. El Vendedor sigue en pausa: cuando lo reanudes, empieza con la cola normal."
+        : arranca
+          ? "Sin contacto de prueba: el Vendedor ya está en marcha con la cola normal y hoy es su primer día."
+          : "Sin contacto de prueba: el Vendedor vuelve a la cola normal.",
+    };
   }
   const c = await prisma.dnxContacto.findUnique({ where: { id }, select: { id: true, nombre: true } });
   if (!c) return { ok: false, mensaje: "No encontré ese contacto. Copiá el id desde la dirección de su ficha." };

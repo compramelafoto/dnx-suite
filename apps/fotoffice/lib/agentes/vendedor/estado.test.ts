@@ -15,7 +15,7 @@ vi.mock("../canal", () => ({
 }));
 
 const E = await import("./estado");
-const { AJUSTES_VENDEDOR_POR_OMISION, CLAVE_AJUSTES_VENDEDOR, leerAjustesVendedor } = await import("./ajustes");
+const { AJUSTES_VENDEDOR_POR_OMISION, CLAVE_AJUSTES_VENDEDOR, guardarAjustesVendedor, leerAjustesVendedor } = await import("./ajustes");
 const { CLAVE_CAMPANA_ESCOLAR, CLAVE_CONOCIMIENTO } = await import("./clf");
 const { GRUPOS } = await import("./tipos");
 
@@ -151,6 +151,12 @@ describe("reanudar y pausar", () => {
     expect(otra.saludDesde).toBe(AHORA.toISOString());
   });
 
+  it("con contacto de prueba no fija el arranque: la prueba no gasta la primera semana", () => {
+    const r = E.ajustesAlReanudar({ ...AJUSTES_VENDEDOR_POR_OMISION, soloContactoPrueba: "c1" }, AHORA);
+    expect(r.arrancoEn).toBeNull();
+    expect(E.ajustesAlReanudar({ ...AJUSTES_VENDEDOR_POR_OMISION, soloContactoPrueba: "c1", arrancoEn: "2026-11-02" }, AHORA).arrancoEn).toBe("2026-11-02");
+  });
+
   it("arrancoEn es el día argentino (a las 23:30 argentinas todavía es el mismo día)", () => {
     const tarde = new Date("2026-11-11T02:30:00.000Z");
     expect(E.ajustesAlReanudar(AJUSTES_VENDEDOR_POR_OMISION, tarde).arrancoEn).toBe("2026-11-10");
@@ -239,6 +245,15 @@ describe("primerAptoDelGrupo", () => {
     expect(await E.primerAptoDelGrupo("FOTOGRAFO:ESCOLAR")).toBe(escolar);
     expect(await E.primerAptoDelGrupo("ESCUELA")).toBeNull();
   });
+
+  it("en modo prueba sólo sirve el contacto de prueba", async () => {
+    contacto();
+    const prueba = contacto();
+    contacto({ tipo: "CLUB", nichos: [] });
+    ajustes({ soloContactoPrueba: prueba });
+    expect(await E.primerAptoDelGrupo("FOTOGRAFO:ESCOLAR")).toBe(prueba);
+    expect(await E.primerAptoDelGrupo("CLUB")).toBeNull();
+  });
 });
 
 describe("fijarContactoPrueba", () => {
@@ -252,5 +267,15 @@ describe("fijarContactoPrueba", () => {
     expect((await leerAjustesVendedor()).soloContactoPrueba).toBe(c);
     expect((await E.fijarContactoPrueba("")).ok).toBe(true);
     expect((await leerAjustesVendedor()).soloContactoPrueba).toBeNull();
+  });
+
+  it("sacar la prueba en pausa no fija el arranque; con el Vendedor andando, hoy es el primer día", async () => {
+    const c = contacto();
+    ajustes({ pausado: true, soloContactoPrueba: c });
+    expect((await E.fijarContactoPrueba("", AHORA)).mensaje).toMatch(/sigue en pausa/);
+    expect((await leerAjustesVendedor()).arrancoEn).toBeNull();
+    await guardarAjustesVendedor({ pausado: false, soloContactoPrueba: c, arrancoEn: null });
+    expect((await E.fijarContactoPrueba("", AHORA)).mensaje).toMatch(/primer día/);
+    expect((await leerAjustesVendedor()).arrancoEn).toBe("2026-11-10");
   });
 });

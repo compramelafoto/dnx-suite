@@ -298,12 +298,20 @@ export async function pedirModeloNuevoAction(grupo: string): Promise<EstadoAccio
   if (!process.env.ANTHROPIC_API_KEY?.trim()) {
     return { ok: false, mensaje: "No hay clave de Claude (ANTHROPIC_API_KEY): el Vendedor no puede redactar el modelo. Cargala en Vercel y volvé a desplegar." };
   }
-  if ((GRUPOS_DE_CLUBES as readonly string[]).includes(grupo) && !(await leerAjustesVendedor()).paginaClubesPublicada) {
+  const ajustes = await leerAjustesVendedor();
+  if ((GRUPOS_DE_CLUBES as readonly string[]).includes(grupo) && !ajustes.paginaClubesPublicada) {
     return { ok: false, mensaje: TEXTO_SIN_PROPUESTA.CLUBES_SIN_PAGINA };
   }
   try {
     const contactoId = await primerAptoDelGrupo(grupo);
-    if (!contactoId) return { ok: false, mensaje: `No hay ningún contacto apto en «${ROTULO_GRUPO[grupo]}» para usar de ejemplo.` };
+    if (!contactoId) {
+      return {
+        ok: false,
+        mensaje: ajustes.soloContactoPrueba
+          ? "En modo prueba sólo se puede pedir el modelo del grupo del contacto de prueba (y si ese contacto todavía es apto). Para otros grupos, sacá el contacto de prueba."
+          : `No hay ningún contacto apto en «${ROTULO_GRUPO[grupo]}» para usar de ejemplo.`,
+      };
+    }
     const r = await proponerModelo(grupo, contactoId);
     refrescarVendedor();
     if (!r.ok) return { ok: false, mensaje: TEXTO_SIN_PROPUESTA[r.motivo] };

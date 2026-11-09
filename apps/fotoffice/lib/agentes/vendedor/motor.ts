@@ -278,11 +278,16 @@ async function terminarEnvio(h: Hilo, envio: ResultadoEnvio, ctx: Ctx): Promise<
   return "SALTEADO";
 }
 
+/** Sólo si sigue pendiente: una baja que llegó entre el envío y la marca deja el hilo en BAJA. */
 async function marcarEnviado(h: Hilo, ahora: Date): Promise<void> {
-  await prisma.dnxVendedorHilo.update({
-    where: { id: h.id },
+  const r = await prisma.dnxVendedorHilo.updateMany({
+    where: { id: h.id, estado: "PENDIENTE_ENVIO" },
     data: { estado: "ENVIADO", enviadoEn: ahora, borrador: Prisma.DbNull, tomadoEn: null },
   });
+  if (r.count !== 1) {
+    await soltar(h.id);
+    return;
+  }
   await cambiarEstado(h.contactoId, "CONTACTADO", AUTOR_VENDEDOR);
 }
 
@@ -292,7 +297,8 @@ async function borrarHilo(hiloId: string): Promise<void> {
 }
 
 async function cerrarPorBaja(hiloId: string): Promise<void> {
-  await prisma.dnxVendedorHilo.update({ where: { id: hiloId }, data: { estado: "BAJA", cierre: "BAJA", tomadoEn: null } });
+  const r = await prisma.dnxVendedorHilo.updateMany({ where: { id: hiloId, estado: "PENDIENTE_ENVIO" }, data: { estado: "BAJA", cierre: "BAJA", tomadoEn: null } });
+  if (r.count !== 1) await soltar(hiloId);
 }
 
 // --- Recordatorio -----------------------------------------------------------------------------
@@ -514,16 +520,27 @@ async function corrida(
       res.frenadoPor = "SIN_CLF";
     }
   };
-  const seguir = () => disponibles > 0 && !parar && quedaTiempo(ctx);
+  // Antes de cada envío se vuelve a leer la pausa: una pausa (de Daniel o por salud) frena el lote en curso.
+  const seguir = async () => {
+    if (disponibles <= 0 || parar || !quedaTiempo(ctx)) return false;
+    if ((await leerAjustesVendedor()).pausado) {
+      parar = true;
+      res.frenadoPor = "PAUSADO";
+      return false;
+    }
+    return true;
+  };
+  // En modo prueba sólo se mueve el contacto de prueba: ni pendientes ni recordatorios de otros.
+  const soloPrueba = ajustes.soloContactoPrueba ? { contactoId: ajustes.soloContactoPrueba } : {};
 
   // 5.1 Hilos pendientes: el ejemplo de un modelo recién aprobado, o un primer correo que falló.
   const pendientes = await prisma.dnxVendedorHilo.findMany({
-    where: { estado: "PENDIENTE_ENVIO", ...libre(ahora) },
+    where: { estado: "PENDIENTE_ENVIO", ...soloPrueba, ...libre(ahora) },
     orderBy: { creadoEn: "asc" },
     select: { id: true },
   });
   for (const p of pendientes) {
-    if (!seguir() || sinClf) break;
+    if (sinClf || !(await seguir())) break;
     const toma = await prisma.dnxVendedorHilo.updateMany({ where: { id: p.id, estado: "PENDIENTE_ENVIO", ...libre(ahora) }, data: { tomadoEn: ahora } });
     if (toma.count !== 1) continue;
     anotar(await conRescate(p.id, () => enviarPrimero(p.id, ctx, { revisarClf: true })), "PRIMERO");
@@ -533,15 +550,41 @@ async function corrida(
   const porRecordar = await prisma.dnxVendedorHilo.findMany({
     where: {
       estado: "ENVIADO", recordadoEn: null, ultimaRespuestaEn: null, recordatorioCancelado: false, registradoEn: null,
-      modoManual: false, enviadoEn: { not: null }, ...libre(ahora),
+      modoManual: false, enviadoEn: { not: null }, ...soloPrueba, ...libre(ahora),
     },
     orderBy: { enviadoEn: "asc" },
     select: SELECCION_HILO,
   });
-  for (const h of porRecordar as Hilo[]) {
-    if (!seguir()) break;
-    const c = await prisma.dnxContacto.findUnique({ where: { id: h.contactoId }, select: { estado: true } });
-    if (!c || !debeRecordar(h, c.estado, ahora)) continue;
+  // Los que vencen hoy, y antes de recordarles se vuelve a mirar CLF: una baja allá o un registro bloquean.
+  const vencidos: Hilo[] = [];
+  if (!parar && !sinClf && disponibles > 0) {
+    for (const h of porRecordar as Hilo[]) {
+      const c = await prisma.dnxContacto.findUnique({ where: { id: h.contactoId }, select: { estado: true } });
+      if (c && debeRecordar(h, c.estado, ahora)) vencidos.push(h);
+    }
+  }
+  let bloqueadosRecordatorio: Set<string> = new Set();
+  if (vencidos.length > 0) {
+    const contactos = await prisma.dnxContacto.findMany({
+      where: { id: { in: vencidos.map((h) => h.contactoId) } },
+      select: { id: true, email: true, telefono: true },
+    });
+    const b = await bloqueadosEnClf(contactos, deps.clf);
+    if (b instanceof Set) bloqueadosRecordatorio = b;
+    else {
+      sinClf = true;
+      res.frenadoPor = "SIN_CLF";
+      vencidos.length = 0;
+    }
+  }
+  for (const h of vencidos) {
+    if (!(await seguir())) break;
+    if (bloqueadosRecordatorio.has(h.contactoId)) {
+      // Se registró o se dio de baja en CLF: sin recordatorio. El hilo queda como está (la consulta
+      // diaria lo cuenta o lo cierra).
+      await prisma.dnxVendedorHilo.updateMany({ where: { id: h.id, recordadoEn: null }, data: { recordatorioCancelado: true } });
+      continue;
+    }
     const toma = await prisma.dnxVendedorHilo.updateMany({
       where: { id: h.id, estado: "ENVIADO", recordadoEn: null, ...libre(ahora) },
       data: { tomadoEn: ahora },
@@ -552,7 +595,7 @@ async function corrida(
 
   // 5.3 Primeros correos de la cola. También trae los grupos sin modelo (paso 6), aunque no quede cupo.
   const { cola, gruposSinModelo } = await colaDelDia(parar || sinClf ? 0 : disponibles, { soloContactoId: ajustes.soloContactoPrueba });
-  if (cola.length > 0 && seguir()) {
+  if (cola.length > 0 && (await seguir())) {
     const contactos = await prisma.dnxContacto.findMany({
       where: { id: { in: cola.map((x) => x.contactoId) } },
       select: { id: true, email: true, telefono: true },
@@ -562,7 +605,7 @@ async function corrida(
       res.frenadoPor = "SIN_CLF";
     } else {
       for (const e of cola) {
-        if (!seguir()) break;
+        if (!(await seguir())) break;
         try {
           if (bloqueados.has(e.contactoId)) {
             // Ya es usuario de CLF (o se dio de baja allá): el hilo cerrado lo saca de la cola para siempre.
@@ -581,7 +624,8 @@ async function corrida(
     }
   }
 
-  // 6. Modelos de los grupos que no tienen: no consumen cupo.
+  // 6. Modelos de los grupos que no tienen: no consumen cupo. Si se pausó en el medio, no se propone nada.
+  if (res.frenadoPor === "PAUSADO") return res;
   for (const g of gruposSinModelo.slice(0, MAX_PROPUESTAS_POR_CORRIDA)) {
     if (!quedaTiempo(ctx)) break;
     try {
