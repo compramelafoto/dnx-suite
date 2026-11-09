@@ -265,7 +265,13 @@ export async function bloqueadosEnClf(
 }
 
 /** Hilos ya cerrados por CLF: no se vuelven a mirar. */
-const CIERRES_DE_CLF = ["YA_ERA_USUARIO", "BAJA_CLF"];
+/**
+ * Hilos que ya no cambian: cerrados por CLF, o por una baja (el contacto ya está en NO_CONTACTAR).
+ * Los demás cerrados (REBOTE, NO_INTERESA…) se siguen mirando sólo para detectar una baja en CLF.
+ */
+const CIERRES_FINALES = ["YA_ERA_USUARIO", "BAJA_CLF", "BAJA"];
+/** Sólo un hilo abierto y sin respuesta puede cerrarlo CLF; uno con respuesta o esperando a Daniel, no. */
+const ESTADOS_CERRABLES_POR_CLF = ["PENDIENTE_ENVIO", "ENVIADO", "RECORDADO"];
 
 /**
  * Busca en CLF los registros de los hilos enviados que todavía no se registraron:
@@ -275,6 +281,11 @@ const CIERRES_DE_CLF = ["YA_ERA_USUARIO", "BAJA_CLF"];
  * - **Baja en CLF**: el contacto pasa a `NO_CONTACTAR` y el hilo a `BAJA` con `BAJA_CLF`.
  * Cada registro nuevo pasa el contacto a `SE_SUMO`. Si CLF falla, se usa lo que sí respondió y se
  * devuelve el error.
+ *
+ * Nunca pisa el cierre de otro motivo ni cierra un hilo que respondió o espera a Daniel: los cierres
+ * de CLF (`YA_ERA_USUARIO`, `BAJA_CLF`) van sólo sobre hilos sin cierre en PENDIENTE_ENVIO, ENVIADO o
+ * RECORDADO. Un registro nuevo se anota en cualquier hilo sin cierre, sin cambiarle el estado. En un
+ * hilo ya cerrado sólo se mira la baja, que pasa el contacto a NO_CONTACTAR sin tocar el hilo.
  */
 export async function actualizarRegistros(
   _ahora: Date,
@@ -285,10 +296,11 @@ export async function actualizarRegistros(
   try {
     const hilos = (
       await prisma.dnxVendedorHilo.findMany({
-        where: { enviadoEn: { not: null }, registradoEn: null },
+        // `cierre: null` aparte: `notIn` solo dejaría afuera las filas con cierre NULL.
+        where: { enviadoEn: { not: null }, registradoEn: null, OR: [{ cierre: null }, { cierre: { notIn: CIERRES_FINALES } }] },
         select: { id: true, contactoId: true, token: true, enviadoEn: true, estado: true, cierre: true },
       })
-    ).filter((h) => !CIERRES_DE_CLF.includes(h.cierre ?? ""));
+    ).filter((h) => !CIERRES_FINALES.includes(h.cierre ?? ""));
     if (hilos.length === 0) return { nuevos };
 
     const contactos = await prisma.dnxContacto.findMany({
@@ -317,9 +329,13 @@ export async function actualizarRegistros(
       const enviadoEn = h.enviadoEn!.getTime();
       const us = deContacto.get(h.contactoId) ?? [];
       const atr = porToken.get(h.token);
+      const sinCierre = h.cierre == null;
+      const cerrablePorClf = sinCierre && ESTADOS_CERRABLES_POR_CLF.includes(h.estado);
       let registrado = false;
 
-      if (atr) {
+      if (!sinCierre) {
+        // Cerrado por otro motivo: no se cuenta ni se cierra de nuevo; sólo la baja de abajo.
+      } else if (atr) {
         await prisma.dnxVendedorHilo.update({
           where: { id: h.id },
           data: { registradoEn: new Date(atr.creadoEn), usuarioClfId: atr.userId, rolClf: atr.rol, viaRegistro: "COOKIE" },
@@ -334,8 +350,9 @@ export async function actualizarRegistros(
           .filter((u) => new Date(u.creadoEn).getTime() > enviadoEn)
           .sort((a, b) => new Date(a.creadoEn).getTime() - new Date(b.creadoEn).getTime());
         if (anteriores.length > 0) {
-          // Ya tenía cuenta antes del primer correo: no es mérito del Vendedor.
-          await prisma.dnxVendedorHilo.update({ where: { id: h.id }, data: { estado: "CERRADO", cierre: "YA_ERA_USUARIO" } });
+          // Ya tenía cuenta antes del primer correo: no es mérito del Vendedor (y no cuenta aunque el
+          // hilo esté esperando a Daniel; ese hilo sigue como está).
+          if (cerrablePorClf) await prisma.dnxVendedorHilo.update({ where: { id: h.id }, data: { estado: "CERRADO", cierre: "YA_ERA_USUARIO" } });
         } else if (posteriores[0]) {
           const u = posteriores[0];
           await prisma.dnxVendedorHilo.update({
@@ -351,7 +368,7 @@ export async function actualizarRegistros(
       if (us.some((u) => u.baja)) {
         // La baja manda: nunca más se le escribe (el registro, si lo hubo, queda contado).
         await cambiarEstado(h.contactoId, "NO_CONTACTAR", AUTOR_VENDEDOR);
-        await prisma.dnxVendedorHilo.update({ where: { id: h.id }, data: { estado: "BAJA", cierre: "BAJA_CLF" } });
+        if (cerrablePorClf) await prisma.dnxVendedorHilo.update({ where: { id: h.id }, data: { estado: "BAJA", cierre: "BAJA_CLF" } });
       }
     }
   } catch (e) {

@@ -132,6 +132,43 @@ describe("registros en CLF", () => {
     ]);
   });
 
+  it("un hilo esperando a Daniel con un usuario anterior sigue en ESPERA_DANIEL", async () => {
+    const c = contacto({ email: "viejo@mail.com" });
+    const h = hilo(c.id, { estado: "ESPERA_DANIEL" });
+    const clf = clfFalso({
+      coincidencias: [{ clave: "viejo@mail.com", userId: 50, rol: "PHOTOGRAPHER", creadoEn: "2026-01-01T10:00:00.000Z", baja: false }],
+    });
+    expect(await V.actualizarRegistros(AHORA, clf.deps)).toEqual({ nuevos: [] });
+    expect(filaHilo(h.id)).toMatchObject({ estado: "ESPERA_DANIEL", cierre: null, registradoEn: null });
+  });
+
+  it("un registro nuevo en un hilo que respondió se anota sin cambiarle el estado", async () => {
+    const c = contacto({ email: "nueva@mail.com" });
+    const h = hilo(c.id, { estado: "RESPONDIO" });
+    const clf = clfFalso({ atribuciones: [{ token: h.token, userId: 51, rol: "PHOTOGRAPHER", creadoEn: "2026-11-12T10:00:00.000Z" }] });
+    expect(await V.actualizarRegistros(AHORA, clf.deps)).toEqual({ nuevos: [{ hiloId: h.id, via: "COOKIE" }] });
+    expect(filaHilo(h.id)).toMatchObject({ estado: "RESPONDIO", cierre: null, viaRegistro: "COOKIE", usuarioClfId: 51 });
+    expect(filaContacto(c.id)).toMatchObject({ estado: "SE_SUMO" });
+  });
+
+  it("un hilo cerrado NO_INTERESA conserva su cierre con una baja en CLF, y el contacto pasa a NO_CONTACTAR", async () => {
+    const c = contacto({ email: "cerrado@mail.com" });
+    const h = hilo(c.id, { estado: "CERRADO", cierre: "NO_INTERESA" });
+    const clf = clfFalso({
+      coincidencias: [{ clave: "cerrado@mail.com", userId: 52, rol: "PHOTOGRAPHER", creadoEn: "2026-11-15T10:00:00.000Z", baja: true }],
+    });
+    expect(await V.actualizarRegistros(AHORA, clf.deps)).toEqual({ nuevos: [] });
+    expect(filaHilo(h.id)).toMatchObject({ estado: "CERRADO", cierre: "NO_INTERESA", registradoEn: null });
+    expect(filaContacto(c.id)).toMatchObject({ estado: "NO_CONTACTAR" });
+  });
+
+  it("los hilos cerrados por CLF o por baja no se vuelven a consultar", async () => {
+    for (const cierre of ["YA_ERA_USUARIO", "BAJA_CLF", "BAJA"]) hilo(contacto({ email: `${cierre}@mail.com` }).id, { estado: "CERRADO", cierre });
+    const clf = clfFalso();
+    expect(await V.actualizarRegistros(AHORA, clf.deps)).toEqual({ nuevos: [] });
+    expect(clf.pedidos).toHaveLength(0);
+  });
+
   it("si CLF falla devuelve error y no lanza", async () => {
     const c = contacto({ email: "luz@estudio.com.ar" });
     const h = hilo(c.id);
