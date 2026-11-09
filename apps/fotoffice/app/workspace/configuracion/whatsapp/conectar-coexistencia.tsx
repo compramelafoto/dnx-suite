@@ -44,9 +44,11 @@ export function ConectarCoexistencia({ appId, configId }: { appId: string; confi
       try {
         const d = typeof e.data === "string" ? JSON.parse(e.data) : e.data;
         if (d?.type !== "WA_EMBEDDED_SIGNUP") return;
+        // Para diagnosticar: qué evento mandó Meta y qué datos trajo (sólo los nombres).
+        console.info("[fotoffice] registro insertado de Meta", d.event, Object.keys(d.data ?? {}));
         if (d.event === "CANCEL") setEstado({ tipo: "error", texto: "Se cerró la ventana de Meta sin terminar." });
         else if (d.event === "ERROR") setEstado({ tipo: "error", texto: `Meta informó un error: ${d.data?.error_message ?? "sin detalle"}` });
-        else if (d.data?.waba_id) datos.current = { wabaId: String(d.data.waba_id), phoneNumberId: d.data.phone_number_id ? String(d.data.phone_number_id) : undefined };
+        else if (d.data?.waba_id || d.data?.phone_number_id) datos.current = { wabaId: d.data.waba_id ? String(d.data.waba_id) : undefined, phoneNumberId: d.data.phone_number_id ? String(d.data.phone_number_id) : undefined };
       } catch {
         // Mensajes de Facebook que no son del registro insertado.
       }
@@ -70,10 +72,10 @@ export function ConectarCoexistencia({ appId, configId }: { appId: string; confi
         if (!code) return setEstado({ tipo: "error", texto: "No se completó la conexión en la ventana de Meta." });
         // Los datos del número llegan por mensaje, a veces un instante después del código.
         void (async () => {
-          for (let i = 0; i < 20 && !datos.current.phoneNumberId; i++) await new Promise((x) => setTimeout(x, 250));
+          for (let i = 0; i < 12 && !datos.current.phoneNumberId; i++) await new Promise((x) => setTimeout(x, 250));
+          // Si Meta no mandó la cuenta o el número, el servidor los busca con el código.
           const { wabaId, phoneNumberId } = datos.current;
-          if (!wabaId || !phoneNumberId) return setEstado({ tipo: "error", texto: "Meta no devolvió los datos del número. Probá de nuevo." });
-          const res = await conectarCoexistenciaAction({ code, wabaId, phoneNumberId });
+          const res = await conectarCoexistenciaAction({ code, wabaId: wabaId ?? "", phoneNumberId: phoneNumberId ?? "" });
           setEstado(res.ok ? { tipo: "ok", texto: res.aviso } : { tipo: "error", texto: res.error });
         })();
       },
