@@ -72,3 +72,26 @@ export function mensajeSinEmparejar(d: { de: string; asunto: string; reenviado: 
       : `No lo reenvié a Gmail: ${escaparHtml(d.motivo ?? "viene de tu propia casilla o de @compramelafoto.com")}.`,
   ].join("\n\n");
 }
+
+/** El modelo del primer correo de un grupo, para que Daniel lo apruebe, lo corrija o lo descarte. */
+export function mensajeModelo(d: {
+  grupo: string;
+  contacto: { nombre: string; ciudad: string | null };
+  asunto: string;
+  cuerpo: string;
+  landing: string;
+  indicaciones: string;
+}): string {
+  const ejemplo = d.contacto.ciudad ? `${d.contacto.nombre} (${d.contacto.ciudad})` : d.contacto.nombre;
+  return [
+    `📝 Modelo de primer correo para <b>${escaparHtml(d.grupo)}</b>`,
+    `Ejemplo para: ${escaparHtml(ejemplo)}`,
+    `Asunto: <b>${escaparHtml(acotar(d.asunto, 300))}</b>\n<blockquote>${escaparHtml(acotar(d.cuerpo))}</blockquote>`,
+    `Lleva a: ${escaparHtml(d.landing)}`,
+    d.indicaciones.trim() ? `Cómo lo adapto a cada persona: ${escaparHtml(acotar(d.indicaciones, 500))}` : null,
+    "Si lo aprobás, los correos de este grupo salen solos, adaptados a cada persona.",
+    "Para corregir, respondé a este mensaje con lo que querés cambiar.",
+  ]
+    .filter((l): l is string => l !== null)
+    .join("\n\n");
+}

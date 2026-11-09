@@ -588,11 +588,14 @@ async function procesarUno(correoId: string, ahora: Date, hasta: number, deps: D
   await marcar(v.clase);
 }
 
-/** Contesta en el mismo hilo, a quien escribió, con los enlaces de seguimiento del hilo. */
-async function responder(
-  hilo: Hilo,
+/**
+ * Contesta en el mismo hilo, a quien escribió, con los enlaces de seguimiento del hilo. También lo usa
+ * «Enviar» desde Telegram (`modelos.ts`) para mandar la propuesta que aprobó Daniel.
+ */
+export async function responder(
+  hilo: Pick<Hilo, "id" | "contactoId" | "modeloId" | "token">,
   grupo: Grupo,
-  correo: Entrante,
+  correo: Pick<Entrante, "id" | "de" | "asunto" | "messageId">,
   delHilo: Array<{ id: string; messageId: string | null; direccion: string; paso: string | null }>,
   respuesta: string,
   deps: DepsEntrante,
