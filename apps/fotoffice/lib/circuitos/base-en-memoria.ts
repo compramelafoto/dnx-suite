@@ -94,6 +94,9 @@ const TABLAS = [
   "fotofficeTestimonio", "fotofficeTestimonioInvitacion", "fotofficeTestimonioAjustes",
   // Equipo de agentes (2026-11-07): el canal en SystemSettings, la cola, el portfolio y el blog que toca el Periodista.
   "systemSettings", "fotofficeAgentePropuesta", "fotofficeTrabajo", "fotofficeTrabajoCategoria", "blogCategory", "blogPost",
+  // Contactos DNX y agente Buscador (2026-11-08), y las etiquetas que se cuelgan a los contactos.
+  "dnxContacto", "dnxContactoDato", "dnxContactoEvento", "dnxBuscadorTarea", "dnxBuscadorRegion",
+  "fotofficeTag", "fotofficeTagAssignment",
 ] as const;
 export type Tabla = (typeof TABLAS)[number];
 
@@ -111,6 +114,22 @@ const RELACIONES: Record<string, { columna: string; tabla: Tabla }> = {
 };
 
 const DEFECTOS: Partial<Record<Tabla, () => Fila>> = {
+  dnxContacto: () => ({
+    nichos: [], plataformas: [], ciudad: null, provincia: null, region: null, lat: null, lng: null, web: null,
+    instagram: null, facebook: null, email: null, telefono: null, whatsapp: null, googlePlaceId: null,
+    estado: "NUEVO", vinculo: null, vinculoId: null, compradorClf: false, creadoEn: new Date(),
+    actualizadoEn: new Date(), fusionadoEnId: null, claveDominio: null, claveInstagram: null, claveEmail: null,
+    claveTelefono: null, claveNombreCiudad: null,
+  }),
+  fotofficeTag: () => ({ color: "gris", createdAt: new Date() }),
+  fotofficeTagAssignment: () => ({ clientId: null, memberId: null, createdByUserId: null, createdAt: new Date() }),
+  dnxContactoDato: () => ({ fuenteUrl: null, vistoEn: new Date() }),
+  dnxContactoEvento: () => ({ datos: null, creadoEn: new Date() }),
+  dnxBuscadorTarea: () => ({
+    ciudad: null, nicho: null, paginas: 1, estado: "PENDIENTE", intentos: 0, resultado: null,
+    costoGoogleUsdMicros: 0, costoClaudeUsdMicros: 0, tomadaEn: null, hechaEn: null,
+  }),
+  dnxBuscadorRegion: () => ({ estado: "EN_ESPERA", iniciadaEn: null, completadaEn: null, resumenEnviadoEn: null }),
   fotofficeAgentePropuesta: () => ({
     estado: "PREPARANDO", fuenteUrl: null, blogPostId: null, telegramMessageId: null, correcciones: 0, datos: null,
     creadaEn: new Date(), resueltaEn: null,

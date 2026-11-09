@@ -28364,3 +28364,131 @@ model FotofficeAgentePropuesta {
   @@index([fuenteUrl])
   @@index([agente, creadaEn])
 }
+
+// ---------------------------------------------------------------------------
+// DNX · Contactos DNX y agente Buscador: base de prospectos (escuelas, clubes, fotógrafos, etc.)
+// Tablas nuevas, sin relaciones con tablas existentes. Los conjuntos cerrados son TEXT con CHECK en el
+// SQL (las bases comparten el esquema). Diseño:
+// apps/fotoffice/docs/superpowers/specs/2026-11-08-agente-buscador-contactos-dnx-design.md
+// ---------------------------------------------------------------------------
+
+/// Un prospecto de DNX.
+model DnxContacto {
+  id              String   @id @default(cuid())
+  /// FOTOGRAFO | ESCUELA | CLUB | ORGANIZADOR_EVENTOS | ASOCIACION_FOTOGRAFOS | ORGANIZADOR_MUESTRAS | EMPRESA_TURISMO | NEGOCIO_FOTOGRAFIA | OTRO
+  tipo            String
+  /// ESCOLAR, DEPORTIVA, TURISTICA, … o `OTRO:<texto>`.
+  nichos          String[]
+  /// CLF | INFOSPOT | MUESTRAS | FOTOFFICE
+  plataformas     String[]
+  nombre          String
+  ciudad          String?
+  provincia       String?
+  /// CENTRO | BUENOS_AIRES_AMBA | CUYO | NOA | NEA | PATAGONIA
+  region          String?
+  lat             Float?
+  lng             Float?
+  web             String?
+  instagram       String?
+  facebook        String?
+  email           String?
+  telefono        String?
+  whatsapp        String?
+  googlePlaceId   String?  @unique
+  /// NUEVO | REVISADO | CONTACTADO | RESPONDIO | SE_SUMO | NO_INTERESA | DESCARTADO | NO_CONTACTAR
+  estado          String   @default("NUEVO")
+  /// CONOCIDO_DNX_ESTUDIO | USUARIO_CLF
+  vinculo         String?
+  vinculoId       String?
+  compradorClf    Boolean  @default(false)
+  creadoPor       String
+  creadoEn        DateTime @default(now())
+  actualizadoEn   DateTime @updatedAt
+  /// Si este contacto se fusionó en otro, el id del que quedó.
+  fusionadoEnId   String?
+
+  // Claves normalizadas para detectar duplicados.
+  claveDominio      String?
+  claveInstagram    String?
+  claveEmail        String?
+  claveTelefono     String?
+  claveNombreCiudad String?
+
+  datos   DnxContactoDato[]
+  eventos DnxContactoEvento[]
+
+  @@index([claveDominio])
+  @@index([claveInstagram])
+  @@index([claveEmail])
+  @@index([claveTelefono])
+  @@index([claveNombreCiudad])
+}
+
+/// Cada dato encontrado, con de dónde salió.
+model DnxContactoDato {
+  id         String   @id @default(cuid())
+  contactoId String
+  campo      String
+  valor      String
+  /// SITIO_PROPIO | WEB_SEARCH | ALBOOM | MANUAL | CLF
+  fuente     String
+  fuenteUrl  String?
+  vistoEn    DateTime @default(now())
+
+  contacto DnxContacto @relation(fields: [contactoId], references: [id], onDelete: Cascade)
+
+  @@index([contactoId, campo])
+}
+
+/// Historia del contacto.
+model DnxContactoEvento {
+  id         String   @id @default(cuid())
+  contactoId String
+  /// CREADO | DATO_NUEVO | ESTADO | NOTA | FUSIONADO | VINCULADO | CORREO_ENVIADO | CORREO_RECIBIDO
+  tipo       String
+  datos      Json?
+  autor      String
+  creadoEn   DateTime @default(now())
+
+  contacto DnxContacto @relation(fields: [contactoId], references: [id], onDelete: Cascade)
+
+  @@index([contactoId, creadoEn])
+}
+
+/// Una búsqueda pendiente del Buscador (región + provincia + tipo + nicho + fuente).
+model DnxBuscadorTarea {
+  id                   String    @id @default(cuid())
+  region               String
+  provincia            String
+  ciudad               String?
+  tipo                 String
+  nicho                String?
+  /// GOOGLE_PLACES | WEB_SEARCH
+  fuente               String
+  consulta             String
+  paginas              Int       @default(1)
+  /// PENDIENTE | EN_CURSO | HECHA | FALLO | SALTEADA
+  estado               String    @default("PENDIENTE")
+  intentos             Int       @default(0)
+  resultado            Json?
+  costoGoogleUsdMicros Int       @default(0)
+  costoClaudeUsdMicros Int       @default(0)
+  tomadaEn             DateTime?
+  hechaEn              DateTime?
+  prioridad            Int
+
+  // En el SQL el único es NULLS NOT DISTINCT (ciudad y nicho pueden ser null).
+  @@unique([region, provincia, ciudad, tipo, nicho, fuente])
+  @@index([region, estado, prioridad])
+}
+
+/// Avance del Buscador por región.
+model DnxBuscadorRegion {
+  region           String    @id
+  orden            Int
+  /// EN_ESPERA | EN_CURSO | COMPLETA | PAUSADA
+  estado           String    @default("EN_ESPERA")
+  iniciadaEn       DateTime?
+  completadaEn     DateTime?
+  resumenEnviadoEn DateTime?
+}
