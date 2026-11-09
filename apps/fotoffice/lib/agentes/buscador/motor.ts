@@ -7,6 +7,7 @@ import { costoUsd, type UsoClaude } from "../periodista/costo";
 import { diaArgentino } from "../periodista/horario";
 import { escaparHtml } from "../periodista/mensaje";
 import { activarRegion, regionActual } from "./consultas";
+import { vincularClf as vincularConClf } from "./clf";
 import { guardarCandidato, type Candidato } from "./contactos";
 import { ETIQUETA_NICHO, ETIQUETA_TIPO } from "./etiquetas";
 import { costoLlamadaPlaces, gastoDelMes, leerAjustes, guardarAjustes, MARGEN_FRENO_USD, puedeUsar } from "./gasto";
@@ -63,7 +64,10 @@ export type DepsMotor = {
   telegram?: DepsTelegramApi;
   /** A quién escribirle; por omisión, el chat vinculado al canal de agentes. */
   destino?: () => Promise<{ token: string; chatId: string } | null>;
-  /** Vincula los contactos nuevos con usuarios de CLF (Task 12); si no está, no se hace nada. */
+  /**
+   * Vincula los contactos nuevos o actualizados con usuarios de CLF. Por omisión, `vincularClf`
+   * de `clf.ts`, que se saltea en silencio si no está `CLF_CONSULTA_USUARIOS_SECRET`.
+   */
   clf?: (ids: string[]) => Promise<void>;
 };
 
@@ -233,15 +237,19 @@ async function microsGoogle(llamadas: Record<string, number>, ahora: Date): Prom
   return micros;
 }
 
-type Conteo = { encontrados: number; nuevos: number; actualizados: number; descartados: number; idsNuevos: string[] };
+/** `idsGuardados`: contactos nuevos o con datos nuevos en este intento (los que se cruzan con CLF). */
+type Conteo = { encontrados: number; nuevos: number; actualizados: number; descartados: number; idsGuardados: string[] };
 
 async function guardar(c: Candidato, conteo: Conteo, ctx: Contexto): Promise<void> {
   const r = await guardarCandidato(c, { ahora: ctx.ahora });
   conteo.encontrados++;
   if (r.nuevo) {
     conteo.nuevos++;
-    conteo.idsNuevos.push(r.contactoId);
-  } else if (r.datosNuevos > 0) conteo.actualizados++;
+    conteo.idsGuardados.push(r.contactoId);
+  } else if (r.datosNuevos > 0) {
+    conteo.actualizados++;
+    conteo.idsGuardados.push(r.contactoId);
+  }
 }
 
 function sinTiempoParaClaude(ctx: Contexto): boolean {
@@ -326,7 +334,7 @@ async function tareaWeb(t: FilaTarea, conteo: Conteo, ctx: Contexto): Promise<Fi
 
 /** Un intento de una tarea ya tomada: la deja HECHA, de nuevo PENDIENTE o en FALLO. */
 async function procesarTarea(t: FilaTarea, ctx: Contexto): Promise<FinTarea> {
-  const conteo: Conteo = { encontrados: 0, nuevos: 0, actualizados: 0, descartados: 0, idsNuevos: [] };
+  const conteo: Conteo = { encontrados: 0, nuevos: 0, actualizados: 0, descartados: 0, idsGuardados: [] };
   try {
     let cortadaPor = t.fuente === "GOOGLE_PLACES" ? await tareaPlaces(t, conteo, ctx) : await tareaWeb(t, conteo, ctx);
     const fila = await prisma.dnxBuscadorTarea.findUnique({ where: { id: t.id }, select: { resultado: true } });
@@ -359,7 +367,7 @@ async function procesarTarea(t: FilaTarea, ctx: Contexto): Promise<FinTarea> {
         data: { estado: "HECHA", hechaEn: ctx.ahora(), resultado: resultado as Prisma.InputJsonValue },
       });
     }
-    await vincularClf(conteo.idsNuevos, ctx.deps);
+    await vincularClf(conteo.idsGuardados, ctx.deps);
     return { nuevos: conteo.nuevos, cortadaPor };
   } catch (e) {
     const motivo = e instanceof ErrorDeTarea ? e.message : "error inesperado";
@@ -372,15 +380,22 @@ async function procesarTarea(t: FilaTarea, ctx: Contexto): Promise<FinTarea> {
         resultado: { ...comoObjeto(fila?.resultado), error: motivo } as Prisma.InputJsonValue,
       },
     });
-    await vincularClf(conteo.idsNuevos, ctx.deps);
+    await vincularClf(conteo.idsGuardados, ctx.deps);
     return { nuevos: conteo.nuevos, cortadaPor: null };
   }
 }
 
+/** Por omisión: sin secreto no se consulta (en silencio); si CLF falla, se anota y se sigue. */
+async function clfPorOmision(ids: string[]): Promise<void> {
+  if (!process.env.CLF_CONSULTA_USUARIOS_SECRET?.trim()) return;
+  const r = await vincularConClf(ids);
+  if (r.error) console.error("[buscador] vínculo con CLF:", r.error);
+}
+
 async function vincularClf(ids: string[], deps: DepsMotor): Promise<void> {
-  if (!deps.clf || ids.length === 0) return;
+  if (ids.length === 0) return;
   try {
-    await deps.clf(ids);
+    await (deps.clf ?? clfPorOmision)([...new Set(ids)]);
   } catch {
     console.error("[buscador] no se pudo vincular con CLF");
   }

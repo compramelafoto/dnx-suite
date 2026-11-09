@@ -503,6 +503,28 @@ describe("correrBuscador", () => {
     expect(vistos).toHaveLength(1);
     expect(vistos[0]).toHaveLength(1);
   });
+
+  it("también pasa a clf los contactos que ganaron datos nuevos", async () => {
+    sembrarRegiones();
+    agregarTarea({ fuente: "WEB_SEARCH" });
+    agregarTarea({ fuente: "WEB_SEARCH", provincia: "Córdoba" });
+    const vistos: string[][] = [];
+    const { deps } = armarDeps({ clf: async (ids) => void vistos.push(ids) });
+    // Las dos tareas descubren el mismo estudio; la segunda le suma un teléfono.
+    let vez = 0;
+    deps.web = {
+      ...deps.web!,
+      descubrir: async () => {
+        vez++;
+        const c = candidato("Mismo Estudio");
+        if (vez === 2) c.datos.telefono = { valor: "0341 15 555-1234", fuente: "SITIO_PROPIO", fuenteUrl: null };
+        return { candidatos: [c], uso: USO, descartados: 0 };
+      },
+    };
+    await correr(deps);
+    expect(vistos).toHaveLength(2);
+    expect(vistos[1]).toEqual(vistos[0]);
+  });
 });
 
 describe("resumenDeRegion", () => {
