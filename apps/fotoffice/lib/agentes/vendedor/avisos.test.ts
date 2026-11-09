@@ -49,6 +49,29 @@ beforeEach(async () => {
 });
 
 describe("avisos de Resend para el Vendedor", () => {
+  it("un rebote o una queja de un REENVIO a Daniel no tocan el hilo ni el contacto del prospecto", async () => {
+    const r = hiloConCorreo({ correo: { paso: "REENVIO", para: "dnxfotografia@gmail.com", asunto: "Reenviado: Consulta de precios" } });
+    expect(await aplicarAvisoVendedor(aviso(r.correo.resendId, "bouncedAt"), AHORA)).toBe("APLICADO");
+    expect(await aplicarAvisoVendedor(aviso(r.correo.resendId, "complainedAt"), AHORA)).toBe("APLICADO");
+    expect(fila("dnxVendedorHilo", r.hiloId)).toMatchObject({ estado: "ENVIADO", cierre: null });
+    expect(fila("dnxContacto", r.contactoId).estado).toBe("CONTACTADO");
+    expect(B.datos.dnxContactoEvento).toHaveLength(0);
+    expect(B.datos.dnxVendedorBaja).toHaveLength(0);
+    expect(fila("dnxVendedorCorreo", r.correo.id)).toMatchObject({ reboteEn: AHORA, quejaEn: AHORA });
+    expect((await leerAjustesVendedor()).pausado).toBe(false);
+    // Avisa una sola vez que el reenvío no llegó.
+    expect(telegram.mensajes).toHaveLength(1);
+    expect(telegram.mensajes[0]).toMatch(/No te llegó el reenvío de «Consulta de precios»/);
+    expect(await aplicarAvisoVendedor(aviso(r.correo.resendId, "bouncedAt"), AHORA)).toBe("DUPLICADO");
+    expect(telegram.mensajes).toHaveLength(1);
+  });
+
+  it("una queja anota la casilla como dada de baja", async () => {
+    const r = hiloConCorreo();
+    await aplicarAvisoVendedor(aviso(r.correo.resendId, "complainedAt"), AHORA);
+    expect(B.datos.dnxVendedorBaja.map((b) => b.email)).toEqual([fila("dnxVendedorCorreo", r.correo.id).para]);
+  });
+
   it("el primer aviso de cada tipo gana", async () => {
     const { correo } = hiloConCorreo();
     const t1 = new Date("2026-11-20T15:01:00.000Z");

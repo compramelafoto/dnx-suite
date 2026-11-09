@@ -74,6 +74,15 @@ export function mensajeSinEmparejar(d: { de: string; asunto: string; reenviado: 
   ].join("\n\n");
 }
 
+/** Un reenvío a la casilla de Daniel rebotó: lo que decía no le llegó. */
+export function mensajeReenvioRebotado(asunto: string): string {
+  const original = asunto.replace(/^Reenviado:\s*/i, "").trim() || "(sin asunto)";
+  return [
+    `⚠️ No te llegó el reenvío de «${escaparHtml(acotar(original, 300))}» a dnxfotografia@gmail.com: rebotó.`,
+    "Buscalo en la ficha del contacto o en Resend, y revisá que la casilla de Gmail reciba correo.",
+  ].join("\n\n");
+}
+
 /** El modelo del primer correo de un grupo, para que Daniel lo apruebe, lo corrija o lo descarte. */
 export function mensajeModelo(d: {
   grupo: string;

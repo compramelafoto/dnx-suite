@@ -5,7 +5,8 @@ import { mandarMensaje, type DepsTelegramApi } from "@/lib/telegram/api";
 import { agregarNota, cambiarEstado } from "../buscador/contactos";
 import { destinoAgentes } from "../canal";
 import { guardarAjustesVendedor, leerAjustesVendedor } from "./ajustes";
-import { mensajePausa } from "./mensajes";
+import { registrarBajaDireccion } from "./bloqueos";
+import { mensajePausa, mensajeReenvioRebotado } from "./mensajes";
 import { AUTOR_VENDEDOR, type PasoSalida } from "./tipos";
 
 /**
@@ -40,11 +41,17 @@ export async function aplicarAvisoVendedor(
   const columna = COLUMNA[e.field];
   const correo = await prisma.dnxVendedorCorreo.findUnique({
     where: { resendId: e.emailId },
-    select: { id: true, hiloId: true, contactoId: true, para: true, entregadoEn: true, abiertoEn: true, clicEn: true, reboteEn: true, quejaEn: true },
+    select: {
+      id: true, paso: true, hiloId: true, contactoId: true, para: true, asunto: true, entregadoEn: true, abiertoEn: true,
+      clicEn: true, reboteEn: true, quejaEn: true,
+    },
   });
   if (!correo) return "DESCONOCIDO";
-  const rebote = e.field === "bouncedAt";
-  const queja = e.field === "complainedAt";
+  // Un reenvío a Daniel lleva el hilo y el contacto del prospecto, pero no se le escribió a él: su
+  // rebote o su queja se anotan en la columna y nada más (ni cierran el hilo ni tocan el contacto).
+  const alContacto = correo.paso !== "REENVIO";
+  const rebote = alContacto && e.field === "bouncedAt";
+  const queja = alContacto && e.field === "complainedAt";
 
   // El primer aviso de cada tipo gana. Un reintento del rebote o la queja sólo vuelve a mirar la salud.
   if (correo[columna] !== null) {
@@ -63,6 +70,8 @@ export async function aplicarAvisoVendedor(
     if (correo.contactoId) await agregarNota(correo.contactoId, `El email ${correo.para} rebotó: no es válido.`, AUTOR_VENDEDOR);
   }
   if (queja) {
+    // Quien se quejó no recibe nada más del Vendedor, aunque su casilla no sea de ningún contacto.
+    await registrarBajaDireccion(correo.para);
     if (correo.contactoId) {
       const r = await cambiarEstado(correo.contactoId, "NO_CONTACTAR", AUTOR_VENDEDOR);
       if (!r.ok) throw new Error(`Vendedor: no se pudo pasar a NO_CONTACTAR (${r.motivo ?? "sin motivo"})`);
@@ -77,7 +86,18 @@ export async function aplicarAvisoVendedor(
 
   const r = await prisma.dnxVendedorCorreo.updateMany({ where: { id: correo.id, [columna]: null }, data: { [columna]: e.at } });
   if (rebote || queja) await revisarSalud(ahora, deps);
+  if (!alContacto && e.field === "bouncedAt" && r.count === 1) await avisarReenvioRebotado(correo.asunto, deps);
   return r.count === 1 ? "APLICADO" : "DUPLICADO";
+}
+
+async function avisarReenvioRebotado(asunto: string, deps: DepsTelegramApi): Promise<void> {
+  try {
+    const destino = await destinoAgentes();
+    if (destino) await mandarMensaje(destino.token, destino.chatId, mensajeReenvioRebotado(asunto), null, deps);
+    else console.error("[agentes][vendedor] rebotó un reenvío a Daniel, pero no hay chat de Telegram vinculado");
+  } catch {
+    console.error("[agentes][vendedor] rebotó un reenvío a Daniel, pero no se pudo avisar por Telegram");
+  }
 }
 
 function plural(n: number, uno: string, varios: string): string {
