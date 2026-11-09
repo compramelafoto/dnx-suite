@@ -176,7 +176,9 @@ function esCasillaPropia(de: string): boolean {
 /** true si alguna de las direcciones de `para` es la casilla de Daniel del dominio. */
 export function llegoADaniel(para: string | string[]): boolean {
   const todas = (Array.isArray(para) ? para.join(",") : para).toLowerCase();
-  return todas.includes(RESPONDER_A);
+  // Compara direcciones completas: "otrodaniel@compramelafoto.com" no es la casilla de Daniel.
+  const direcciones = todas.match(/[^\s<>,;"']+@[^\s<>,;"']+/g) ?? [];
+  return direcciones.includes(RESPONDER_A);
 }
 
 /** Las cabeceras del correo recibido lo marcan como correo no deseado (o con virus). */

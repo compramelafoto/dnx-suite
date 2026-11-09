@@ -754,3 +754,16 @@ describe("procesamiento", () => {
     expect(entradas().every((e) => e.procesadoEn !== null)).toBe(true);
   });
 });
+
+describe("llegoADaniel", () => {
+  it("reconoce la casilla exacta, con nombre o en una lista", () => {
+    expect(E.llegoADaniel("daniel@compramelafoto.com")).toBe(true);
+    expect(E.llegoADaniel("Daniel <Daniel@CompraMeLaFoto.com>")).toBe(true);
+    expect(E.llegoADaniel(["info@compramelafoto.com", "daniel@compramelafoto.com"])).toBe(true);
+  });
+  it("no confunde otra casilla que contiene el mismo texto", () => {
+    expect(E.llegoADaniel("otrodaniel@compramelafoto.com")).toBe(false);
+    expect(E.llegoADaniel("daniel@compramelafoto.com.ar")).toBe(false);
+    expect(E.llegoADaniel("")).toBe(false);
+  });
+});
