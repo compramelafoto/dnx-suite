@@ -11,6 +11,7 @@ const B = await vi.hoisted(async () => {
 const telegram = vi.hoisted(() => ({
   mensajes: [] as Array<{ html: string; teclado: unknown }>,
   destino: { token: "tok", chatId: "chat" } as { token: string; chatId: string } | null,
+  falla: false,
 }));
 
 vi.mock("server-only", () => ({}));
@@ -18,6 +19,7 @@ vi.mock("@repo/db", () => ({ prisma: B.prisma, Prisma: { JsonNull: null, DbNull:
 vi.mock("../canal", () => ({
   destinoAgentes: async () => telegram.destino,
   mandarMensaje: async (_t: string, _c: string, html: string, teclado: unknown) => {
+    if (telegram.falla) return { ok: false };
     telegram.mensajes.push({ html, teclado });
     return { ok: true, resultado: { messageId: String(500 + telegram.mensajes.length) } };
   },
@@ -63,7 +65,12 @@ const cliente: ClienteClaude = {
 const clase = (c: Clase, respuesta: string | null = "Gracias por escribir. Te dejo esto: {{ENLACE}}") =>
   clasificaciones.push({ clase: c, resumen: `Resumen ${c}`, quiereCapacitarse: c === "CAPACITACION", respuesta });
 
-const deps = () => ({ ahora: () => AHORA, claude: { cliente }, enviar, telegram: {} });
+let cabecerasOriginal: Record<string, string> = {};
+const traerCorreo = async (id: string): Promise<CorreoRecibido> => ({
+  id, de: EMAIL, deNombre: null, para: ["daniel@compramelafoto.com"], asunto: "", texto: "", messageId: null, inReplyTo: null,
+  referencias: [], cabeceras: cabecerasOriginal,
+});
+const deps = () => ({ ahora: () => AHORA, claude: { cliente }, enviar, telegram: {}, traerCorreo });
 
 // --- Datos ------------------------------------------------------------------------------------
 
@@ -116,6 +123,8 @@ beforeEach(async () => {
   pedidosClaude = [];
   telegram.mensajes = [];
   telegram.destino = { token: "tok", chatId: "chat" };
+  cabecerasOriginal = {};
+  telegram.falla = false;
   vi.stubEnv("NEXT_PUBLIC_APP_URL", "https://fotoffice.com");
   vi.stubEnv("FOTOFFICE_MAILING_SECRET", "secreto-de-prueba");
   vi.stubEnv("RESEND_API_KEY", "");
@@ -229,6 +238,12 @@ describe("emparejamiento", () => {
     expect(await E.emparejarHilo(correo({ de: "desconocido@x.com" }))).toBeNull();
   });
 
+  it("por remitente sólo si escribió a daniel@: a otra casilla del dominio no es una respuesta", async () => {
+    sembrar();
+    expect(await E.emparejarHilo(correo({ para: ["info@compramelafoto.com"] }))).toBeNull();
+    expect((await E.emparejarHilo(correo({ para: ["Daniel Cuart <Daniel@compramelafoto.com>"] })))?.por).toBe("REMITENTE");
+  });
+
   it("no empareja con un hilo que todavía no salió ni con un reenvío a Daniel", async () => {
     const s = sembrar({ estadoHilo: "PENDIENTE_ENVIO" });
     expect(await E.emparejarHilo(correo())).toBeNull();
@@ -294,11 +309,11 @@ describe("registro", () => {
 
 describe("procesamiento", () => {
   it("sin emparejar se reenvía a Gmail y avisa por Telegram", async () => {
-    const r = await recibir(correo({ de: "alguien@otro.com", asunto: "Consulta", texto: "Hola, ¿venden fotos?", para: ["info@compramelafoto.com"] }));
+    const r = await recibir(correo({ de: "alguien@otro.com", asunto: "Consulta", texto: "Hola, ¿venden fotos?", para: ["daniel@compramelafoto.com"] }));
     expect(r.hiloId).toBeNull();
     expect(enviados).toHaveLength(1);
     expect(enviados[0]).toMatchObject({ to: "dnxfotografia@gmail.com", subject: "Reenviado: Consulta", replyTo: "alguien@otro.com" });
-    expect(enviados[0]!.text).toBe("De: alguien@otro.com\nPara: info@compramelafoto.com\nAsunto: Consulta\n\nHola, ¿venden fotos?");
+    expect(enviados[0]!.text).toBe("De: alguien@otro.com\nPara: daniel@compramelafoto.com\nAsunto: Consulta\n\nHola, ¿venden fotos?");
     expect(enviados[0]!.idempotencyKey).toBe(`dnx-vendedor:sin-hilo:REENVIO:${r.correoId}`);
     expect(salidas("REENVIO")).toHaveLength(1);
     expect(telegram.mensajes).toHaveLength(1);
@@ -306,6 +321,49 @@ describe("procesamiento", () => {
     expect(telegram.mensajes[0]!.html).toMatch(/reenvi/i);
     expect(fila("dnxVendedorCorreo", r.correoId).procesadoEn).toEqual(AHORA);
     expect(pedidosClaude).toHaveLength(0);
+  });
+
+  it("lo que llega a otra casilla del dominio no se reenvía: sólo el aviso por Telegram", async () => {
+    const r = await recibir(correo({ de: "alguien@otro.com", asunto: "Promo", para: ["info@compramelafoto.com"] }));
+    expect(enviados).toHaveLength(0);
+    expect(telegram.mensajes).toHaveLength(1);
+    expect(telegram.mensajes[0]!.html).toMatch(/no lo reenvi/i);
+    expect(telegram.mensajes[0]!.html).toMatch(/info@compramelafoto\.com/);
+    expect(fila("dnxVendedorCorreo", r.correoId).procesadoEn).toEqual(AHORA);
+  });
+
+  it("no se reenvía lo que las cabeceras marcan como correo no deseado", async () => {
+    cabecerasOriginal = { "x-ses-spam-verdict": "FAIL" };
+    await recibir(correo({ de: "spam@otro.com", asunto: "Ganaste" }));
+    cabecerasOriginal = { "x-spam-flag": "YES" };
+    await recibir(correo({ de: "spam2@otro.com", asunto: "Ganaste otra vez" }));
+    expect(enviados).toHaveLength(0);
+    expect(telegram.mensajes).toHaveLength(2);
+    for (const m of telegram.mensajes) expect(m.html).toMatch(/correo no deseado/);
+  });
+
+  it("no se reenvía si no se pueden leer las cabeceras del original", async () => {
+    const r = await E.registrarEntrante(correo({ de: "alguien@otro.com", asunto: "Consulta" }), AHORA);
+    await E.procesarEntrantes({ hasta: Date.now() + 60_000 }, { ...deps(), traerCorreo: async () => ({ error: "Resend caído" }) });
+    expect(enviados).toHaveLength(0);
+    expect(telegram.mensajes[0]!.html).toMatch(/no lo reenvi/i);
+    expect(fila("dnxVendedorCorreo", r.correoId).procesadoEn).toEqual(AHORA);
+  });
+
+  it(`pasados ${20} reenvíos en la última hora, sólo avisa por Telegram`, async () => {
+    for (let i = 0; i < E.MAX_REENVIOS_POR_HORA; i++) {
+      B.agregar("dnxVendedorCorreo", {
+        direccion: "SALIDA", paso: "REENVIO", resendId: `re_viejo_${i}`, de: "Daniel", para: "dnxfotografia@gmail.com",
+        asunto: "Reenviado: x", texto: "x", creadoEn: new Date(AHORA.getTime() - 30 * 60_000),
+      });
+    }
+    await recibir(correo({ de: "alguien@otro.com", asunto: "Consulta" }));
+    expect(enviados).toHaveLength(0);
+    expect(telegram.mensajes[0]!.html).toMatch(/en la última hora/);
+    // Uno de hace más de una hora ya no cuenta.
+    for (const f of B.datos.dnxVendedorCorreo) if (f.paso === "REENVIO") f.creadoEn = new Date(AHORA.getTime() - 61 * 60_000);
+    await recibir(correo({ de: "otro@otro.com", asunto: "Consulta 2" }));
+    expect(enviados).toHaveLength(1);
   });
 
   it("un correo de dnxfotografia@gmail.com o de @compramelafoto.com sin hilo no se reenvía", async () => {
@@ -369,6 +427,8 @@ describe("procesamiento", () => {
     expect(telegram.mensajes).toHaveLength(1);
     expect(telegram.mensajes[0]!.html).toMatch(/^🙋 Interesado: /);
     expect(B.datos.dnxVendedorGasto.filter((g) => g.motivo === "CLASIFICACION")).toHaveLength(1);
+    // Respuesta automática (RFC 3834): que un autorrespondedor del otro lado no conteste.
+    expect(m.headers?.["Auto-Submitted"]).toBe("auto-replied");
 
     // La segunda duda no vuelve a avisar.
     clase("INTERESADO", "Sí, es así.");
@@ -423,6 +483,48 @@ describe("procesamiento", () => {
     expect(telegram.mensajes[0]!.html).toContain("Lo consulto y te respondo.");
     const botones = (telegram.mensajes[0]!.teclado as { inline_keyboard: Array<Array<{ callback_data: string }>> }).inline_keyboard.flat();
     expect(botones.map((b) => b.callback_data)).toEqual([`ve:e:${s.hiloId}`, `ve:c:${s.hiloId}`, `ve:y:${s.hiloId}`]);
+  });
+
+  it("una respuesta emparejada por cabeceras que viene de otra dirección no se contesta sola: va a Daniel con quién escribió", async () => {
+    const s = sembrar();
+    clase("INTERESADO", "¡Qué bueno! {{ENLACE}}");
+    const r = await recibir(correo({ de: "info@club.com", inReplyTo: s.salida.messageId }));
+    expect(enviados).toHaveLength(0);
+    expect(fila("dnxVendedorHilo", s.hiloId)).toMatchObject({ estado: "ESPERA_DANIEL", respuestasAutomaticas: 0 });
+    expect(fila("dnxVendedorCorreo", r.correoId).procesadoEn).toEqual(AHORA);
+    const aviso = telegram.mensajes.find((m) => m.html.startsWith("✋"))!;
+    expect(aviso.html).toContain("De: info@club.com");
+    expect(aviso.html).toMatch(/Escribió otra dirección \(info@club\.com\)/);
+  });
+
+  it("si una respuesta espera a Daniel y Telegram falla, el correo no queda procesado", async () => {
+    const s = sembrar();
+    clase("DELICADA", "Lo consulto.");
+    telegram.falla = true;
+    const r = await recibir(correo({ inReplyTo: s.salida.messageId }));
+    expect(fila("dnxVendedorCorreo", r.correoId)).toMatchObject({ procesadoEn: null, tomadoEn: null });
+    // Vuelve Telegram: la próxima corrida lo avisa (ya esperaba a Daniel).
+    telegram.falla = false;
+    clase("DELICADA", "Lo consulto.");
+    await E.procesarEntrantes({ hasta: Date.now() + 60_000 }, deps());
+    expect(fila("dnxVendedorCorreo", r.correoId).procesadoEn).toEqual(AHORA);
+    expect(telegram.mensajes.some((m) => m.html.startsWith("✋"))).toBe(true);
+  });
+
+  it("sin chat de Telegram vinculado no gasta Claude: la respuesta queda para después", async () => {
+    const s = sembrar();
+    telegram.destino = null;
+    const r = await recibir(correo({ inReplyTo: s.salida.messageId }));
+    expect(pedidosClaude).toHaveLength(0);
+    expect(fila("dnxVendedorCorreo", r.correoId).procesadoEn).toBeNull();
+  });
+
+  it("BAJA de quien escribió: su casilla queda bloqueada aunque no sea la del contacto", async () => {
+    const s = sembrar();
+    clase("BAJA", null);
+    await recibir(correo({ de: "info@club.com", inReplyTo: s.salida.messageId }));
+    expect(B.datos.dnxVendedorBaja.map((b) => b.email)).toEqual(["info@club.com"]);
+    expect(fila("dnxContacto", s.contactoId).estado).toBe("NO_CONTACTAR");
   });
 
   it("AUTOMATICA según Claude: igual que la detección automática", async () => {

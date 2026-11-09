@@ -293,7 +293,7 @@ async function corregirRespuesta(h: HiloCorreccion, pedido: string, destino: Des
   const grupo = h.grupo;
   const [contacto, entrante] = await Promise.all([
     prisma.dnxContacto.findUnique({ where: { id: h.contactoId }, select: SELECCION_CONTACTO }),
-    prisma.dnxVendedorCorreo.findUnique({ where: { id: propuesta.entranteId }, select: { id: true, texto: true } }),
+    prisma.dnxVendedorCorreo.findUnique({ where: { id: propuesta.entranteId }, select: { id: true, texto: true, de: true } }),
   ]);
   if (!contacto || !entrante) return void (await decir("No encuentro el contacto o su correo. Tocá «Lo contesto yo»."));
   if (!(await puedeGastar(ahora)).ok) return void (await decir("Llegué al tope de gasto de Claude del mes: no puedo corregirla."));
@@ -339,6 +339,7 @@ async function corregirRespuesta(h: HiloCorreccion, pedido: string, destino: Des
 
   const html = mensajeEsperaDaniel({
     nombre: contacto.nombre,
+    de: entrante.de,
     grupo: rotulo(grupo),
     entrante: entrante.texto,
     propuesta: texto,

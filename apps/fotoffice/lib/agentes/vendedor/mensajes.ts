@@ -51,9 +51,10 @@ export function mensajeInteresado(d: {
 }
 
 /** Una respuesta que espera a Daniel: lo que escribió el contacto y, si hay, la propuesta. */
-export function mensajeEsperaDaniel(d: { nombre: string; grupo: string; entrante: string; propuesta: string | null; motivo: string }): string {
+export function mensajeEsperaDaniel(d: { nombre: string; de: string; grupo: string; entrante: string; propuesta: string | null; motivo: string }): string {
   return [
     `✋ Te toca a vos: <b>${escaparHtml(d.nombre)}</b> (${escaparHtml(d.grupo)})`,
+    `De: ${escaparHtml(d.de)}`,
     `Por qué: ${escaparHtml(d.motivo)}`,
     `Escribió:\n<blockquote>${escaparHtml(acotar(d.entrante))}</blockquote>`,
     d.propuesta === null

@@ -6,6 +6,7 @@ import { cambiarEstado } from "../buscador/contactos";
 import { destinoAgentes, mandarMensaje } from "../canal";
 import type { DepsClaude } from "../claude";
 import { anotarGasto, leerAjustesVendedor, puedeGastar } from "./ajustes";
+import { normalizarDireccion, registrarBajaDireccion } from "./bloqueos";
 import { tecladoRespuesta } from "./botones";
 import { leerConocimiento } from "./clf";
 import { armarTexto, claveVendedor, enlaceSeguimiento, enviarCorreoVendedor, urlBajaVendedor, type ResultadoEnvio } from "./correo";
@@ -13,7 +14,7 @@ import { mensajeEsperaDaniel, mensajeInteresado, mensajeSinEmparejar } from "./m
 import { datosParaPrompt } from "./prompts";
 import { clasificarYResponder } from "./redactor";
 import {
-  AUTOR_VENDEDOR, CASILLA_DANIEL, CURSO_POR_GRUPO, GRUPOS, GRUPOS_SIEMPRE_A_DANIEL, LANDING_POR_GRUPO, ROTULO_GRUPO,
+  AUTOR_VENDEDOR, CASILLA_DANIEL, CURSO_POR_GRUPO, GRUPOS, GRUPOS_SIEMPRE_A_DANIEL, LANDING_POR_GRUPO, RESPONDER_A, ROTULO_GRUPO,
   type Grupo,
 } from "./tipos";
 
@@ -27,6 +28,10 @@ import {
  *   se contesta.
  * - Un correo que viene de la casilla de Daniel o de @compramelafoto.com nunca se reenvía a Gmail
  *   (sólo va el aviso por Telegram), y si viene de @compramelafoto.com tampoco se contesta.
+ * - A Gmail sólo se reenvía lo que llegó a daniel@compramelafoto.com, sin marca de correo no deseado
+ *   y a lo sumo `MAX_REENVIOS_POR_HORA` por hora: lo demás queda en el aviso por Telegram. Así una
+ *   tanda de spam a otras casillas del dominio no sale reenviada desde nuestra dirección.
+ * - Si escribe una dirección que no es la del contacto del hilo, no se contesta solo: pasa a Daniel.
  * - El mismo `email_id` de Resend se guarda una sola vez (`resendId` único) y cada entrante lo toma
  *   un solo procesador (`tomadoEn` con `updateMany` condicional).
  * - Claude sólo ve lo nuevo de la respuesta (`textoNuevo`), nunca la cita de nuestro correo.
@@ -168,6 +173,24 @@ function esCasillaPropia(de: string): boolean {
   return de === CASILLA_DANIEL || de.endsWith("@compramelafoto.com");
 }
 
+/** true si alguna de las direcciones de `para` es la casilla de Daniel del dominio. */
+export function llegoADaniel(para: string | string[]): boolean {
+  const todas = (Array.isArray(para) ? para.join(",") : para).toLowerCase();
+  return todas.includes(RESPONDER_A);
+}
+
+/** Las cabeceras del correo recibido lo marcan como correo no deseado (o con virus). */
+export function marcadoComoSpam(cabeceras: Record<string, string>): boolean {
+  const flag = cabeceras["x-spam-flag"]?.trim().toLowerCase();
+  if (flag === "yes" || flag === "true") return true;
+  if (/^\s*yes\b/i.test(cabeceras["x-spam-status"] ?? "")) return true;
+  // Resend recibe por Amazon SES, que deja su veredicto en estas cabeceras.
+  for (const k of ["x-ses-spam-verdict", "x-ses-virus-verdict"]) {
+    if (cabeceras[k]?.trim().toUpperCase() === "FAIL") return true;
+  }
+  return false;
+}
+
 const CITA = /^(El .+ escribió:|On .+ wrote:|-----Original Message-----|De: .+)$/m;
 /** Gmail parte en dos la línea de la cita cuando es larga («… (<daniel@…>)» / «escribió:»). */
 const CITA_PARTIDA = /^(El|On) .+\n[^\n]{0,80}(escribió|wrote):$/m;
@@ -204,6 +227,9 @@ export async function emparejarHilo(c: CorreoRecibido): Promise<{ hiloId: string
     });
     if (salida?.hiloId) return { hiloId: salida.hiloId, por: "CABECERAS" };
   }
+  // Por remitente, sólo si escribió a daniel@: un prospecto que escribe a otra casilla del dominio (por
+  // una compra, por ejemplo) no es una respuesta comercial.
+  if (!llegoADaniel(c.para)) return null;
   const contactos = await prisma.dnxContacto.findMany({ where: { claveEmail: c.de }, select: { id: true } });
   if (contactos.length === 0) return null;
   const hilo = await prisma.dnxVendedorHilo.findFirst({
@@ -287,6 +313,8 @@ export type DepsEntrante = {
   claude?: DepsClaude;
   enviar?: typeof sendTransactionalEmail;
   telegram?: DepsTelegramApi;
+  /** Para mirar las cabeceras del original antes de reenviarlo (por omisión, `traerCorreoRecibido`). */
+  traerCorreo?: (resendId: string) => Promise<CorreoRecibido | { error: string }>;
 };
 
 /** Una toma más vieja que esto es de un procesador que se cortó: se puede volver a tomar. */
@@ -295,6 +323,8 @@ const TOMA_VENCE_MS = 10 * 60_000;
 const MARGEN_MS = 30_000;
 const POR_CORRIDA = 50;
 export const MAX_RESPUESTAS_AUTOMATICAS = 3;
+/** Tope de reenvíos automáticos a Gmail por hora: pasado esto, sólo el aviso por Telegram. */
+export const MAX_REENVIOS_POR_HORA = 20;
 
 export async function procesarEntrantes(o: { hasta: number }, deps: DepsEntrante = {}): Promise<{ procesados: number }> {
   const ahora = (deps.ahora ?? (() => new Date()))();
@@ -369,9 +399,30 @@ export async function reenviarADaniel(correoId: string, deps: DepsEntrante = {})
   if (!r.ok) throw new Error(`Vendedor: no se pudo reenviar a Daniel (${r.motivo})`);
 }
 
+/**
+ * Por qué un entrante NO se reenvía solo a Gmail, o null si se puede reenviar. Sólo lo que llegó a
+ * daniel@, dentro del tope por hora y sin marca de correo no deseado en las cabeceras del original
+ * (que se vuelven a pedir a Resend: si no se pueden leer, no se reenvía).
+ */
+async function motivoParaNoReenviar(correo: { resendId: string | null; para: string }, ahora: Date, deps: DepsEntrante): Promise<string | null> {
+  if (!llegoADaniel(correo.para)) return `llegó a ${correo.para || "otra casilla"}, no a ${RESPONDER_A}`;
+  const ultimaHora = await prisma.dnxVendedorCorreo.count({
+    where: { direccion: "SALIDA", paso: "REENVIO", creadoEn: { gte: new Date(ahora.getTime() - 3_600_000) } },
+  });
+  if (ultimaHora >= MAX_REENVIOS_POR_HORA) return `ya reenvié ${MAX_REENVIOS_POR_HORA} correos en la última hora`;
+  if (!correo.resendId) return "no pude revisar si era correo no deseado";
+  const original = await (deps.traerCorreo ?? ((id: string) => traerCorreoRecibido(id)))(correo.resendId);
+  if ("error" in original) return "no pude revisar si era correo no deseado";
+  if (marcadoComoSpam(original.cabeceras)) return "está marcado como correo no deseado";
+  return null;
+}
+
 const esGrupo = (g: string): g is Grupo => (GRUPOS as readonly string[]).includes(g);
 
-type Entrante = { id: string; hiloId: string | null; de: string; para: string; asunto: string; texto: string; messageId: string | null; clase: string | null };
+type Entrante = {
+  id: string; hiloId: string | null; resendId: string | null; de: string; para: string; asunto: string; texto: string;
+  messageId: string | null; clase: string | null;
+};
 type Hilo = {
   id: string; contactoId: string; grupo: string; modeloId: string | null; token: string; estado: string;
   respuestasAutomaticas: number; modoManual: boolean; avisoInteresadoEn: Date | null; recordadoEn: Date | null; registradoEn: Date | null;
@@ -380,7 +431,7 @@ type Hilo = {
 async function procesarUno(correoId: string, ahora: Date, hasta: number, deps: DepsEntrante): Promise<void> {
   const correo: Entrante | null = await prisma.dnxVendedorCorreo.findUnique({
     where: { id: correoId },
-    select: { id: true, hiloId: true, de: true, para: true, asunto: true, texto: true, messageId: true, clase: true },
+    select: { id: true, hiloId: true, resendId: true, de: true, para: true, asunto: true, texto: true, messageId: true, clase: true },
   });
   if (!correo) return;
   const marcar = (clase?: string) =>
@@ -399,11 +450,12 @@ async function procesarUno(correoId: string, ahora: Date, hasta: number, deps: D
   const contacto = hilo
     ? await prisma.dnxContacto.findUnique({
         where: { id: hilo.contactoId },
-        select: { id: true, nombre: true, ciudad: true, provincia: true, tipo: true, nichos: true, web: true, estado: true },
+        select: { id: true, nombre: true, ciudad: true, provincia: true, tipo: true, nichos: true, web: true, estado: true, email: true, claveEmail: true },
       })
     : null;
 
-  // Sin hilo: a Gmail (salvo que venga de Daniel o del propio dominio, o sea automático) y aviso.
+  // Sin hilo: a Gmail (salvo que venga de Daniel o del propio dominio, sea automático, no haya
+  // llegado a daniel@, pase el tope por hora o sea correo no deseado) y aviso.
   if (!hilo || !contacto) {
     const motivo =
       correo.clase === "AUTOMATICA"
@@ -412,7 +464,7 @@ async function procesarUno(correoId: string, ahora: Date, hasta: number, deps: D
           ? "es un rebote"
           : propia
             ? "viene de tu propia casilla o de @compramelafoto.com"
-            : null;
+            : await motivoParaNoReenviar(correo, ahora, deps);
     if (!motivo) await reenviarADaniel(correo.id, deps);
     await avisar(mensajeSinEmparejar({ de: correo.de, asunto: correo.asunto, reenviado: !motivo, motivo: motivo ?? undefined }), null, deps);
     await marcar();
@@ -426,17 +478,19 @@ async function procesarUno(correoId: string, ahora: Date, hasta: number, deps: D
       data: { estado: "ESPERA_DANIEL", propuesta: propuesta === null ? Prisma.DbNull : { texto: propuesta, entranteId: correo.id } },
     });
     const messageId = await avisar(
-      mensajeEsperaDaniel({ nombre: contacto.nombre, grupo: rotulo, entrante: correo.texto, propuesta, motivo }),
+      mensajeEsperaDaniel({ nombre: contacto.nombre, de: correo.de, grupo: rotulo, entrante: correo.texto, propuesta, motivo }),
       tecladoRespuesta(hilo.id, { conPropuesta: propuesta !== null }),
       deps,
     );
-    if (messageId) await prisma.dnxVendedorHilo.update({ where: { id: hilo.id }, data: { telegramMessageId: messageId } });
+    // Sin el aviso nadie se entera: el correo no se marca procesado y se reintenta en la próxima corrida.
+    if (!messageId) throw new Error("Vendedor: no se pudo avisar a Daniel por Telegram de una respuesta que lo espera");
+    await prisma.dnxVendedorHilo.update({ where: { id: hilo.id }, data: { telegramMessageId: messageId } });
   };
 
   // Del propio dominio: nunca se contesta solo ni se reenvía (evita el bucle con nuestros correos).
   if (correo.de.endsWith("@compramelafoto.com")) {
     await avisar(
-      mensajeEsperaDaniel({ nombre: contacto.nombre, grupo: rotulo, entrante: correo.texto, propuesta: null, motivo: `Vino de ${correo.de}: no lo contesto ni lo reenvío.` }),
+      mensajeEsperaDaniel({ nombre: contacto.nombre, de: correo.de, grupo: rotulo, entrante: correo.texto, propuesta: null, motivo: `Vino de ${correo.de}: no lo contesto ni lo reenvío.` }),
       null,
       deps,
     );
@@ -446,10 +500,14 @@ async function procesarUno(correoId: string, ahora: Date, hasta: number, deps: D
 
   // Hilo en manos de Daniel, cerrado o de alguien que no quiere más correos: a Gmail, sin Claude.
   if (hilo.modoManual || hilo.estado === "BAJA" || hilo.estado === "CERRADO" || contacto.estado === "NO_CONTACTAR") {
-    if (!propia) await reenviarADaniel(correo.id, deps);
+    const sinReenvio = propia ? "" : await motivoParaNoReenviar(correo, ahora, deps);
+    if (sinReenvio === null) await reenviarADaniel(correo.id, deps);
     const por = hilo.modoManual ? "El hilo está en modo manual." : hilo.estado === "CERRADO" ? "El hilo estaba cerrado." : "Pidió no recibir más correos.";
     await avisar(
-      mensajeEsperaDaniel({ nombre: contacto.nombre, grupo: rotulo, entrante: correo.texto, propuesta: null, motivo: propia ? por : `${por} Te lo reenvié a Gmail.` }),
+      mensajeEsperaDaniel({
+        nombre: contacto.nombre, de: correo.de, grupo: rotulo, entrante: correo.texto, propuesta: null,
+        motivo: propia ? por : sinReenvio === null ? `${por} Te lo reenvié a Gmail.` : `${por} No te lo reenvié a Gmail: ${sinReenvio}.`,
+      }),
       null,
       deps,
     );
@@ -483,6 +541,9 @@ async function procesarUno(correoId: string, ahora: Date, hasta: number, deps: D
         (x.direccion === "ENTRADA" && x.clase !== "AUTOMATICA" && x.clase !== "REBOTE")),
   );
   const historial = conversacion.map((x) => ({ direccion: x.direccion === "SALIDA" ? ("SALIDA" as const) : ("ENTRADA" as const), texto: x.texto }));
+
+  // Sin chat de Telegram no hay cómo pasarle nada a Daniel: no se gasta Claude y queda para después.
+  if (!(await destinoAgentes())) throw new Error("Vendedor: no hay chat de Telegram vinculado; la respuesta queda para la próxima corrida");
 
   const r = await clasificarYResponder(
     { contacto: datosParaPrompt(contacto), grupo, conocimiento: conocimiento.texto, historial, entrante: correo.texto },
@@ -520,6 +581,8 @@ async function procesarUno(correoId: string, ahora: Date, hasta: number, deps: D
     return;
   }
   if (v.clase === "BAJA") {
+    // Quien escribió no quiere más correos: su casilla queda bloqueada aunque no sea la del contacto.
+    await registrarBajaDireccion(correo.de);
     const b = await cambiarEstado(contacto.id, "NO_CONTACTAR", AUTOR_VENDEDOR);
     if (!b.ok) throw new Error(`Vendedor: no se pudo pasar a NO_CONTACTAR (${b.motivo ?? "sin motivo"})`);
     await prisma.dnxVendedorHilo.updateMany({ where: { id: hilo.id, estado: { not: "BAJA" } }, data: { estado: "BAJA", cierre: "BAJA" } });
@@ -535,8 +598,11 @@ async function procesarUno(correoId: string, ahora: Date, hasta: number, deps: D
   }
 
   // INTERESADO, CAPACITACION y NO_INTERESA contestan solas, salvo que algo lo impida.
+  const delContacto = [contacto.claveEmail, contacto.email].some((x) => x && normalizarDireccion(x) === normalizarDireccion(correo.de));
   const motivo =
-    hilo.estado === "ESPERA_DANIEL"
+    !delContacto
+      ? `Escribió otra dirección (${correo.de}), no la del contacto: no le contesto solo.`
+      : hilo.estado === "ESPERA_DANIEL"
       ? "Ya esperaba tu respuesta y te volvió a escribir."
       : interesa && GRUPOS_SIEMPRE_A_DANIEL.includes(grupo)
         ? "Las escuelas de fotografía interesadas las contestás vos: la alianza la decidís vos."
