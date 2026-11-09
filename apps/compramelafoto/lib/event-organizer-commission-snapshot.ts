@@ -81,7 +81,15 @@ async function resolvePaymentConfirmedAt(params: {
  */
 export async function ensureEventOrganizerCommissionSnapshotForPaidOrder(
   orderId: number,
-  options?: { paymentApprovedAt?: Date; accessTokenOverride?: string }
+  options?: {
+    paymentApprovedAt?: Date;
+    accessTokenOverride?: string;
+    /**
+     * Organizador que ya cobró su comisión directo por Split 1:N (piloto). Si coincide con el
+     * creador del evento, la fila nace como cobrada directo y nunca suma a su saldo de retiro.
+     */
+    cobradoDirectoPorOrganizadorUserId?: number;
+  }
 ): Promise<void> {
   const order = await prisma.order.findUnique({
     where: { id: orderId },
@@ -216,7 +224,10 @@ export async function ensureEventOrganizerCommissionSnapshotForPaidOrder(
   });
 
   const availableAt = new Date(paymentConfirmedAt.getTime() + AVAILABLE_AFTER_MS);
-  const organizerDirectMp = isOrganizerFullCommissionEvent(event);
+  const organizerDirectMp =
+    isOrganizerFullCommissionEvent(event) ||
+    (options?.cobradoDirectoPorOrganizadorUserId != null &&
+      options.cobradoDirectoPorOrganizadorUserId === event.creatorId);
   const directMpFields = organizerDirectMp
     ? organizerDirectMpCollectionCommissionFields(paymentConfirmedAt)
     : null;

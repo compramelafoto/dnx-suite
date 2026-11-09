@@ -18,7 +18,17 @@ export type MarcaPiloto = {
   intento?: number;
   /** Usuario de CLF que cobró como referidor por el split: su comisión nace pagada. */
   referidorUserId?: number | null;
-  reparto?: { fotografo: number; referidor: number; plataforma: number };
+  /** Organizador que cobró su comisión por el split: se registra como cobrada directo. */
+  organizadorUserId?: number | null;
+  /** Referidor del organizador que cobró por el split: su comisión nace pagada. */
+  referidorOrganizadorUserId?: number | null;
+  reparto?: {
+    fotografo: number;
+    referidor: number;
+    plataforma: number;
+    organizador?: number;
+    referidorOrganizador?: number;
+  };
 };
 
 const CLAVE = "split1nPiloto";

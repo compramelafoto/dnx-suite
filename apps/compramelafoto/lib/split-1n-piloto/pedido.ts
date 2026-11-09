@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { resolveClientMarketplaceFeePercent } from "@/lib/pricing/client-price";
-import { feeFromTotal } from "@/lib/pricing/fee-formula";
+import { baseFromTotal, feeFromTotal } from "@/lib/pricing/fee-formula";
 
 /** Lo que el piloto necesita de un pedido de álbum. Montos en pesos enteros. */
 export async function cargarPedidoPiloto(pedidoId: number) {
@@ -12,13 +12,21 @@ export async function cargarPedidoPiloto(pedidoId: number) {
       origin: true,
       albumId: true,
       buyerEmail: true,
+      mpPaymentId: true,
       totalCents: true,
       extensionSurchargeCents: true,
       referralFeeDiscountCents: true,
       pricingSnapshot: true,
       createdAt: true,
       album: {
-        select: { title: true, userId: true, eventId: true, selectedLabId: true, createdAt: true },
+        select: {
+          title: true,
+          userId: true,
+          eventId: true,
+          schoolId: true,
+          selectedLabId: true,
+          createdAt: true,
+        },
       },
       items: { select: { productType: true } },
     },
@@ -32,8 +40,11 @@ export async function cargarPedidoPiloto(pedidoId: number) {
     labId: order.album?.selectedLabId ?? null,
   });
   const extension = Number(order.extensionSurchargeCents ?? 0);
-  const feePesos = feeFromTotal(Math.max(0, order.totalCents - extension), percent) + extension;
-  return { order, feePesos };
+  const sinExtension = Math.max(0, order.totalCents - extension);
+  const feePesos = feeFromTotal(sinExtension, percent) + extension;
+  // Precio de la foto como lo toma la comisión del organizador (`ensureEventOrganizerCommission…`).
+  const basePesos = baseFromTotal(sinExtension, percent);
+  return { order, feePesos, basePesos };
 }
 
 export type PedidoPiloto = NonNullable<Awaited<ReturnType<typeof cargarPedidoPiloto>>>;
