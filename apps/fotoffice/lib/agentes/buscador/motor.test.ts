@@ -113,7 +113,7 @@ function armarDeps(extra: Partial<DepsMotor> = {}) {
   return { deps, mensajes, llamadas };
 }
 
-const correr = (deps: DepsMotor, presupuestoMs = 60_000) => M.correrBuscador({ presupuestoMs, motivo: "CRON" }, deps);
+const correr = (deps: DepsMotor, presupuestoMs = 600_000) => M.correrBuscador({ presupuestoMs, motivo: "CRON" }, deps);
 
 beforeEach(() => {
   B.vaciar();
@@ -417,6 +417,81 @@ describe("correrBuscador", () => {
     expect(r.procesadas).toBe(1);
     expect(tareaPorId(t)).toMatchObject({ estado: "PENDIENTE", intentos: 0 });
     expect(region("CENTRO").estado).toBe("EN_CURSO");
+  });
+
+  it("una tarea cortada por tiempo tres veces no relee un lugar y termina HECHA parcial", async () => {
+    sembrarRegiones();
+    const t = agregarTarea({ fuente: "GOOGLE_PLACES", paginas: 3 });
+    let reloj = 0;
+    const leidos: string[] = [];
+    const { deps } = armarDeps({
+      reloj: () => reloj,
+      places: async () => ({ lugares: [1, 2, 3, 4, 5].map((i) => lugar(i)), llamadas: { TEXT_SEARCH_ENTERPRISE: 3 } }),
+      web: {
+        descubrir: async () => ({ candidatos: [], uso: USO, descartados: 0 }),
+        // Claude no encuentra nada y tarda 50 s: después de cada lugar no queda margen para otro.
+        leer: async (l) => {
+          leidos.push(l.placeId);
+          reloj += 50_000;
+          return { candidato: null, uso: USO };
+        },
+      },
+    });
+    for (let i = 0; i < 2; i++) {
+      await correr(deps, 100_000);
+      expect(tareaPorId(t)).toMatchObject({ estado: "PENDIENTE", intentos: 0 });
+    }
+    await correr(deps, 100_000);
+    expect(leidos).toEqual(["places/1", "places/2", "places/3"]);
+    expect(tareaPorId(t)).toMatchObject({ estado: "HECHA", hechaEn: AHORA });
+    expect(tareaPorId(t).resultado).toMatchObject({ parcial: true, cortes: 3, vistos: ["places/1", "places/2", "places/3"], llamadas: { TEXT_SEARCH_ENTERPRISE: 9 } });
+  });
+
+  it("no empieza un lugar nuevo con menos de 60 s", async () => {
+    sembrarRegiones();
+    const t = agregarTarea({ fuente: "GOOGLE_PLACES" });
+    const { deps, llamadas } = armarDeps({ places: async () => ({ lugares: [lugar(1)], llamadas: { TEXT_SEARCH_ENTERPRISE: 1 } }) });
+    await correr(deps, 59_000);
+    expect(llamadas.leer).toBe(0);
+    expect(llamadas.sitio).toBe(0);
+    expect(tareaPorId(t)).toMatchObject({ estado: "PENDIENTE", intentos: 0 });
+  });
+
+  it("una EN_CURSO vieja que ya gastó sus intentos queda en FALLO", async () => {
+    sembrarRegiones();
+    const vieja = agregarTarea({ fuente: "WEB_SEARCH", estado: "EN_CURSO", tomadaEn: new Date(AHORA.getTime() - 21 * 60_000), intentos: 3 });
+    agregarTarea({ fuente: "WEB_SEARCH", provincia: "Otra" });
+    const { deps } = armarDeps();
+    await correr(deps, 0);
+    expect(tareaPorId(vieja).estado).toBe("FALLO");
+  });
+
+  it("si no se puede leer el gasto del mes, la llamada a Places se anota igual a precio lleno", async () => {
+    sembrarRegiones();
+    const t = agregarTarea({ fuente: "GOOGLE_PLACES" });
+    const original = B.tablas.dnxBuscadorTarea.findMany;
+    let romper = false;
+    B.tablas.dnxBuscadorTarea.findMany = async (args) => {
+      // Sólo la lectura del mes (`gastoDelMes` filtra con OR), y una sola vez.
+      if (romper && args?.where && "OR" in args.where) {
+        romper = false;
+        throw new Error("base caída");
+      }
+      return original(args);
+    };
+    try {
+      const { deps } = armarDeps({
+        places: async () => {
+          romper = true;
+          return { lugares: [], llamadas: { TEXT_SEARCH_ENTERPRISE: 2 } };
+        },
+      });
+      await correr(deps);
+      expect(tareaPorId(t).costoGoogleUsdMicros).toBe(70_000);
+      expect(tareaPorId(t).resultado).toMatchObject({ llamadas: { TEXT_SEARCH_ENTERPRISE: 2 } });
+    } finally {
+      B.tablas.dnxBuscadorTarea.findMany = original;
+    }
   });
 
   it("pasa los ids de los contactos nuevos a clf si está", async () => {

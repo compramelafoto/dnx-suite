@@ -40,10 +40,25 @@ export type DatosDelHtml = {
   facebook: string | null;
 };
 
+/**
+ * Sólo nombres públicos: nada de IP literales (v4 o v6), puertos raros ni nombres internos. Evita
+ * que una web cargada en Places (o una redirección) nos haga pedir algo de la red interna.
+ */
+function hostPublico(u: URL): boolean {
+  if (u.port !== "" && u.port !== "80" && u.port !== "443") return false;
+  if (u.username || u.password) return false;
+  const host = u.hostname.toLowerCase().replace(/\.$/, "");
+  if (!host || host.startsWith("[") || host.includes(":")) return false;
+  if (/^[\d.]+$/.test(host) || /^(0x[0-9a-f]+\.?)+$/i.test(host)) return false;
+  if (host === "localhost" || /\.(localhost|local|internal)$/.test(host)) return false;
+  return host.includes(".");
+}
+
 function urlHttp(texto: string): URL | null {
   try {
     const u = new URL(texto);
-    return u.protocol === "http:" || u.protocol === "https:" ? u : null;
+    if (u.protocol !== "http:" && u.protocol !== "https:") return null;
+    return hostPublico(u) ? u : null;
   } catch {
     return null;
   }

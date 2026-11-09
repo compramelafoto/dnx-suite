@@ -92,6 +92,27 @@ describe("leerSitioPropio", () => {
     expect(llamadas).toHaveLength(0);
   });
 
+  it("no pide IP literales, puertos raros ni nombres internos", async () => {
+    const { f, llamadas } = fetchFalso({});
+    for (const web of [
+      "http://169.254.169.254/x", "http://10.0.0.1:8080/", "http://[::1]/", "http://intranet.local/",
+      "http://localhost/", "http://api.localhost/", "http://db.internal/", "https://estudioluz.com.ar:8443/", "http://2130706433/",
+    ]) {
+      expect(await leerSitioPropio(web, contexto, { fetch: f })).toBeNull();
+    }
+    expect(llamadas).toHaveLength(0);
+  });
+
+  it("tampoco sigue una redirección a una IP o a un nombre interno del mismo dominio", async () => {
+    const { f, llamadas } = fetchFalso({
+      "https://estudioluz.com.ar/": redireccion("http://169.254.169.254/latest"),
+      "https://b.com.ar/": redireccion("http://intranet.b.com.ar:8080/"),
+    });
+    expect(await leerSitioPropio("https://estudioluz.com.ar/", contexto, { fetch: f })).toBeNull();
+    expect(await leerSitioPropio("https://b.com.ar/", contexto, { fetch: f })).toBeNull();
+    expect(llamadas).toHaveLength(2);
+  });
+
   it("sin nombre o sin ningún dato de contacto no hay candidato", async () => {
     const sinNombre = fetchFalso({ "https://a.com.ar/": html('<a href="mailto:x@a.com.ar">x</a>') });
     expect(await leerSitioPropio("https://a.com.ar/", contexto, { fetch: sinNombre.f })).toBeNull();

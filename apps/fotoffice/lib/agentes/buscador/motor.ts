@@ -34,6 +34,10 @@ import { descubrirEnProvincia, leerLugar } from "./web";
 const MICROS = 1_000_000;
 const MINUTOS_COLGADA = 20;
 const MAX_INTENTOS = 3;
+/** Cortes por tiempo que se le permiten a una tarea: al tercero queda HECHA (parcial) con lo avanzado. */
+const MAX_CORTES = 3;
+/** No se empieza un lugar nuevo con menos de esto: alcanza para leer la web propia (10 s) y una llamada a Claude. */
+const MARGEN_LUGAR_MS = 60_000;
 /** Por debajo de esto `conversar` ni siquiera llama a Claude (ver `claude.ts`). */
 const MINIMO_PARA_CLAUDE_MS = 15_000;
 /** Si más de esta parte de las tareas de la región terminó en FALLO, el resumen lo avisa. */
@@ -158,12 +162,14 @@ async function avisarTope(fuente: "GOOGLE" | "CLAUDE", ahora: Date, deps: DepsMo
 // ---------------------------------------------------------------------------------------------
 // Tareas
 
-/** Las `EN_CURSO` de hace más de 20 minutos son de una corrida que murió: vuelven a la cola. */
+/**
+ * Las `EN_CURSO` de hace más de 20 minutos son de una corrida que murió: vuelven a la cola, salvo
+ * que ya hayan gastado todos sus intentos (una tarea que siempre mata la corrida no se repite sin fin).
+ */
 async function rescatarColgadas(ahora: Date): Promise<void> {
-  await prisma.dnxBuscadorTarea.updateMany({
-    where: { estado: "EN_CURSO", tomadaEn: { lt: new Date(ahora.getTime() - MINUTOS_COLGADA * 60_000) } },
-    data: { estado: "PENDIENTE" },
-  });
+  const colgada = { estado: "EN_CURSO", tomadaEn: { lt: new Date(ahora.getTime() - MINUTOS_COLGADA * 60_000) } };
+  await prisma.dnxBuscadorTarea.updateMany({ where: { ...colgada, intentos: { gte: MAX_INTENTOS } }, data: { estado: "FALLO" } });
+  await prisma.dnxBuscadorTarea.updateMany({ where: { ...colgada, intentos: { lt: MAX_INTENTOS } }, data: { estado: "PENDIENTE" } });
 }
 
 /** La próxima `PENDIENTE` de la región (por prioridad e id) que esta corrida logra tomar. */
@@ -184,6 +190,16 @@ async function tomarSiguiente(region: Region, fuentes: string[], vistas: Set<str
   }
 }
 
+/** Cambia el `resultado` de la tarea a partir del actual. */
+async function cambiarResultado(id: string, cambio: (previo: Record<string, unknown>) => Record<string, unknown>): Promise<void> {
+  const fila = await prisma.dnxBuscadorTarea.findUnique({ where: { id }, select: { resultado: true } });
+  await prisma.dnxBuscadorTarea.update({ where: { id }, data: { resultado: cambio(comoObjeto(fila?.resultado)) as Prisma.InputJsonValue } });
+}
+
+function listaDeTextos(v: unknown): string[] {
+  return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
+}
+
 /** Suma a la tarea lo gastado en una tanda de llamadas (micros y llamadas por SKU). */
 async function anotarGasto(id: string, gasto: { googleMicros?: number; claudeMicros?: number; llamadas?: Record<string, number> }): Promise<void> {
   const fila = await prisma.dnxBuscadorTarea.findUnique({ where: { id }, select: { resultado: true } });
@@ -198,9 +214,18 @@ async function anotarGasto(id: string, gasto: { googleMicros?: number; claudeMic
   await prisma.dnxBuscadorTarea.update({ where: { id }, data });
 }
 
-/** Costo de Google en micros, llamada por llamada, con el cupo gratis que quede en el mes. */
+/**
+ * Costo de Google en micros, llamada por llamada, con el cupo gratis que quede en el mes. Si no se
+ * puede leer el mes, se cobra a precio lleno (sin cupo gratis): el gasto se anota igual.
+ */
 async function microsGoogle(llamadas: Record<string, number>, ahora: Date): Promise<number> {
-  const previas = (await gastoDelMes(ahora)).llamadasPorSku;
+  let previas: Record<string, number>;
+  try {
+    previas = (await gastoDelMes(ahora)).llamadasPorSku;
+  } catch {
+    console.error("[buscador] no se pudo leer el gasto del mes; Google se anota a precio lleno");
+    previas = Object.fromEntries(Object.keys(llamadas).map((sku) => [sku, Number.POSITIVE_INFINITY]));
+  }
   let micros = 0;
   for (const [sku, cantidad] of Object.entries(llamadas)) {
     for (let i = 0; i < cantidad; i++) micros += Math.round(costoLlamadaPlaces(sku, (previas[sku] ?? 0) + i) * MICROS);
@@ -231,6 +256,9 @@ async function tareaPlaces(t: FilaTarea, conteo: Conteo, ctx: Contexto): Promise
   if (Object.keys(llamadas).length > 0) await anotarGasto(t.id, { googleMicros: await microsGoogle(llamadas, ctx.ahora()), llamadas });
   if ("error" in res) throw new ErrorDeTarea(`Google Places: ${res.error}`);
 
+  // Lugares que un intento anterior ya leyó sin sacar candidato: no se vuelve a pagar Claude por ellos.
+  const vistos = new Set(listaDeTextos(comoObjeto((await prisma.dnxBuscadorTarea.findUnique({ where: { id: t.id }, select: { resultado: true } }))?.resultado).vistos));
+
   // Tope de Claude dentro de la tarea: se lleva la cuenta local para no releer el mes por lugar.
   const ajustes = await leerAjustes();
   const inicial = Math.round((await gastoDelMes(ctx.ahora())).claudeUsd * MICROS);
@@ -248,7 +276,8 @@ async function tareaPlaces(t: FilaTarea, conteo: Conteo, ctx: Contexto): Promise
   };
 
   for (const lugar of res.lugares) {
-    if (ctx.reloj() >= ctx.hasta) return "TIEMPO";
+    if (vistos.has(lugar.placeId)) continue;
+    if (ctx.hasta - ctx.reloj() < MARGEN_LUGAR_MS) return "TIEMPO";
     const existe = await prisma.dnxContacto.findFirst({ where: { googlePlaceId: lugar.placeId }, select: { id: true } });
     if (existe) continue;
 
@@ -268,6 +297,8 @@ async function tareaPlaces(t: FilaTarea, conteo: Conteo, ctx: Contexto): Promise
     }
     if (!candidato) {
       conteo.descartados++;
+      vistos.add(lugar.placeId);
+      await cambiarResultado(t.id, (r) => ({ ...r, vistos: [...vistos] }));
       continue;
     }
     await guardar(candidato, conteo, ctx);
@@ -297,19 +328,31 @@ async function tareaWeb(t: FilaTarea, conteo: Conteo, ctx: Contexto): Promise<Fi
 async function procesarTarea(t: FilaTarea, ctx: Contexto): Promise<FinTarea> {
   const conteo: Conteo = { encontrados: 0, nuevos: 0, actualizados: 0, descartados: 0, idsNuevos: [] };
   try {
-    const cortadaPor = t.fuente === "GOOGLE_PLACES" ? await tareaPlaces(t, conteo, ctx) : await tareaWeb(t, conteo, ctx);
+    let cortadaPor = t.fuente === "GOOGLE_PLACES" ? await tareaPlaces(t, conteo, ctx) : await tareaWeb(t, conteo, ctx);
+    const fila = await prisma.dnxBuscadorTarea.findUnique({ where: { id: t.id }, select: { resultado: true } });
+    const previo = comoObjeto(fila?.resultado);
+    const cortes = (typeof previo.cortes === "number" ? previo.cortes : 0) + (cortadaPor === "TIEMPO" ? 1 : 0);
+    // Al tercer corte por tiempo la tarea se da por hecha con lo avanzado (no se reintenta sin fin).
+    const parcial = cortadaPor === "TIEMPO" && cortes >= MAX_CORTES;
+    if (parcial) cortadaPor = null;
     if (cortadaPor) {
       // Cortar por tope o por tiempo no es un error: el intento no cuenta. Lo guardado queda.
-      await prisma.dnxBuscadorTarea.update({ where: { id: t.id }, data: { estado: "PENDIENTE", intentos: { decrement: 1 } } });
+      await prisma.dnxBuscadorTarea.update({
+        where: { id: t.id },
+        data: { estado: "PENDIENTE", intentos: { decrement: 1 }, resultado: { ...previo, cortes } as Prisma.InputJsonValue },
+      });
     } else {
-      const fila = await prisma.dnxBuscadorTarea.findUnique({ where: { id: t.id }, select: { resultado: true } });
-      const previo = comoObjeto(fila?.resultado);
+      const sinError = { ...previo };
+      delete sinError.error;
       const resultado = {
+        ...sinError,
         encontrados: conteo.encontrados,
         nuevos: conteo.nuevos,
         actualizados: conteo.actualizados,
         descartados: conteo.descartados,
         llamadas: sumarLlamadas(previo.llamadas, {}),
+        ...(cortes > 0 ? { cortes } : {}),
+        ...(parcial ? { parcial: true } : {}),
       };
       await prisma.dnxBuscadorTarea.update({
         where: { id: t.id },
