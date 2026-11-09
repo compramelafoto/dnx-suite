@@ -12,6 +12,10 @@ import "server-only";
  *
  * Paginación: cada pedido con `pageToken` es una llamada nueva y se cobra aparte; `paginas` es
  * el tope de llamadas.
+ *
+ * Errores: `SIN_CLAVE`, `CUOTA` (429 o RESOURCE_EXHAUSTED) y `ACCESO` (401/403 o clave inválida:
+ * la API no está habilitada o la clave no sirve) son del servicio entero, no de una consulta: el
+ * motor no gasta intentos con ellos. `HTTP` es cualquier otro error.
  */
 
 const URL_TEXT_SEARCH = "https://places.googleapis.com/v1/places:searchText";
@@ -23,7 +27,7 @@ const PLAZO_MS = 10_000;
 export type LugarPlaces = { placeId: string; nombre: string; web: string | null; direccion: string | null; lat: number | null; lng: number | null };
 
 export type ErrorPlaces = {
-  error: "SIN_CLAVE" | "HTTP" | "CUOTA";
+  error: "SIN_CLAVE" | "HTTP" | "CUOTA" | "ACCESO";
   detalle: string;
   /** Las llamadas que ya se hicieron (y se cobraron) antes de fallar, si hubo. */
   llamadas?: Record<string, number>;
@@ -34,7 +38,7 @@ export type ResultadoPlaces = { lugares: LugarPlaces[]; llamadas: Record<string,
 type RespuestaTextSearch = {
   places?: Array<{ id?: string; displayName?: { text?: string }; websiteUri?: string; formattedAddress?: string }>;
   nextPageToken?: string;
-  error?: { code?: number; message?: string; status?: string };
+  error?: { code?: number; message?: string; status?: string; details?: Array<{ reason?: string }> };
 };
 
 /** Un texto corto para el detalle, sin la clave por si Google la repitiera en el mensaje. */
@@ -69,6 +73,9 @@ export async function buscarLugares(
         signal: AbortSignal.timeout(PLAZO_MS),
       });
     } catch (e) {
+      // Un corte por tiempo o de red puede haber llegado a Google y haberse cobrado: se cuenta
+      // la llamada (conservador).
+      llamadas[SKU_TEXT_SEARCH] = (llamadas[SKU_TEXT_SEARCH] ?? 0) + 1;
       const nombre = e instanceof Error ? e.name : "error desconocido";
       return { error: "HTTP", detalle: limpiar(`sin respuesta de Google Places (${nombre})`, clave), ...conLlamadas() };
     }
@@ -82,6 +89,11 @@ export async function buscarLugares(
 
     if (res.status === 429 || cuerpo.error?.status === "RESOURCE_EXHAUSTED") {
       return { error: "CUOTA", detalle: limpiar(`${res.status} ${cuerpo.error?.message ?? "cuota de Google Places agotada"}`, clave), ...conLlamadas() };
+    }
+    const claveInvalida =
+      res.status === 400 && (cuerpo.error?.details ?? []).some((d) => d?.reason === "API_KEY_INVALID" || d?.reason === "API_KEY_EXPIRED");
+    if (res.status === 401 || res.status === 403 || claveInvalida) {
+      return { error: "ACCESO", detalle: limpiar(`${res.status} ${cuerpo.error?.message ?? res.statusText}`, clave), ...conLlamadas() };
     }
     if (!res.ok) {
       return { error: "HTTP", detalle: limpiar(`${res.status} ${cuerpo.error?.message ?? res.statusText}`, clave), ...conLlamadas() };

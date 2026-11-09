@@ -1,6 +1,6 @@
 import "server-only";
 import { z } from "zod";
-import { conversar, type DepsClaude, type ResultadoParseo } from "../claude";
+import { conversar, type DepsClaude, type FallaClaude, type ResultadoParseo } from "../claude";
 import type { UsoClaude } from "../periodista/costo";
 import { extraerJson } from "../periodista/salida";
 import { CAMPOS_DATO, type Candidato, type CampoDato, type DatoConFuente } from "./contactos";
@@ -19,11 +19,13 @@ import { REGIONES, TIPOS_CONTACTO, type Region, type TipoContacto } from "./tipo
  * propio negocio (su dominio, su perfil) es `SITIO_PROPIO`; si es de terceros, `WEB_SEARCH`. Nada
  * visto en Google (Maps, fichas) se acepta: las condiciones de Google no permiten guardarlo.
  *
- * Nunca lanza: si Claude falla, vuelve sin candidatos pero con el uso (el costo se cuenta igual).
+ * Nunca lanza: si Claude falla, vuelve sin candidatos pero con el uso (el costo se cuenta igual) y
+ * con `falla`, para que el motor distinga una caída del servicio de un error de esta búsqueda.
  */
 
-const MAX_BUSQUEDAS_PROVINCIA = 5;
-const MAX_BUSQUEDAS_LUGAR = 3;
+/** Topes de búsquedas web por llamada (el motor los usa para estimar el costo de una llamada cortada). */
+export const MAX_BUSQUEDAS_PROVINCIA = 5;
+export const MAX_BUSQUEDAS_LUGAR = 3;
 /** Plazo por omisión de cada llamada (la función tiene 300 s). */
 const PLAZO_MS = 240_000;
 /** Tope de candidatos que se revisan por respuesta (el prompt pide hasta 10). */
@@ -215,7 +217,7 @@ function textoONull(v: unknown): string | null {
 export async function descubrirEnProvincia(
   t: { provincia: string; region: Region; tipo: TipoContacto; nicho: string | null },
   deps: DepsBuscadorWeb = {},
-): Promise<{ candidatos: Candidato[]; uso: UsoClaude; descartados: number }> {
+): Promise<{ candidatos: Candidato[]; uso: UsoClaude; descartados: number; falla?: FallaClaude }> {
   const res = await conversar({
     sistema: SISTEMA_DESCUBRIR,
     pedido: pedidoDescubrir(t),
@@ -225,7 +227,7 @@ export async function descubrirEnProvincia(
     hasta: plazo(deps),
     deps,
   });
-  if (!res.ok) return { candidatos: [], uso: res.uso, descartados: 0 };
+  if (!res.ok) return { candidatos: [], uso: res.uso, descartados: 0, falla: res.falla };
 
   const candidatos: Candidato[] = [];
   let descartados = 0;
@@ -258,7 +260,7 @@ export async function leerLugar(
   lugar: LugarPlaces,
   t: { ciudad: string; provincia: string; region: Region; tipo: TipoContacto; nicho: string | null },
   deps: DepsBuscadorWeb = {},
-): Promise<{ candidato: Candidato | null; uso: UsoClaude }> {
+): Promise<{ candidato: Candidato | null; uso: UsoClaude; falla?: FallaClaude }> {
   const res = await conversar({
     sistema: SISTEMA_LEER_LUGAR,
     pedido: pedidoLeerLugar(lugar, t),
@@ -268,7 +270,8 @@ export async function leerLugar(
     hasta: plazo(deps),
     deps,
   });
-  if (!res.ok || !res.valor) return { candidato: null, uso: res.uso };
+  if (!res.ok) return { candidato: null, uso: res.uso, falla: res.falla };
+  if (!res.valor) return { candidato: null, uso: res.uso };
   // El nombre tiene que venir del modelo (de las páginas propias): el de Places no se puede guardar.
   const nombre = textoONull(res.valor.nombre);
   if (!nombre) return { candidato: null, uso: res.uso };

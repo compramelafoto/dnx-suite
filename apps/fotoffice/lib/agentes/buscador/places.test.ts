@@ -115,4 +115,27 @@ describe("buscarLugares", () => {
     const r = await buscarLugares("x", { paginas: 3 }, { fetch: f, clave: "k" });
     expect(r).toMatchObject({ error: "HTTP", llamadas: { TEXT_SEARCH_ENTERPRISE: 1 } });
   });
+  it("401 o 403 (API sin habilitar, clave sin permiso) devuelven ACCESO", async () => {
+    for (const status of [401, 403]) {
+      const { f } = fetchFalso([{ status, json: { error: { code: status, message: "Places API (New) has not been used", status: "PERMISSION_DENIED" } } }]);
+      const r = await buscarLugares("x", { paginas: 1 }, { fetch: f, clave: "k" });
+      expect(r).toMatchObject({ error: "ACCESO" });
+    }
+  });
+
+  it("una clave inválida (400 con API_KEY_INVALID) también es ACCESO", async () => {
+    const { f } = fetchFalso([
+      { status: 400, json: { error: { code: 400, message: "API key not valid", status: "INVALID_ARGUMENT", details: [{ reason: "API_KEY_INVALID" }] } } },
+    ]);
+    const r = await buscarLugares("x", { paginas: 1 }, { fetch: f, clave: "k" });
+    expect(r).toMatchObject({ error: "ACCESO" });
+  });
+
+  it("si el pedido se corta por tiempo o red, la llamada se cuenta igual", async () => {
+    const f = (async () => {
+      throw Object.assign(new Error("tiempo"), { name: "TimeoutError" });
+    }) as unknown as typeof fetch;
+    const r = await buscarLugares("x", { paginas: 2 }, { fetch: f, clave: "k" });
+    expect(r).toMatchObject({ error: "HTTP", llamadas: { TEXT_SEARCH_ENTERPRISE: 1 } });
+  });
 });

@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 /** La corrida usa hasta 4 minutos de búsqueda; el minuto restante es margen para cerrar. */
 export const maxDuration = 300;
 
-/** Tiempo de búsqueda por corrida: el motor no empieza un lugar nuevo si quedan menos de 60 s. */
+/** Tiempo de búsqueda por corrida: el motor no empieza un lugar nuevo con menos de 90 s ni una búsqueda web con menos de 120 s. */
 const PRESUPUESTO_MS = 240_000;
 
 function autorizado(request: Request): boolean {

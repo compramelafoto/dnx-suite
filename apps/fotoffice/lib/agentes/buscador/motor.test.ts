@@ -45,8 +45,12 @@ function agregarTarea(extra: Record<string, unknown> = {}): string {
   return fila.id as string;
 }
 
+/** Escribe los ajustes del Buscador (pisa la fila si ya está). */
 function ajustes(valor: Record<string, unknown>) {
-  B.agregar("systemSettings", { key: CLAVE_AJUSTES_BUSCADOR, value: JSON.stringify({ topeGoogleUsd: 20, topeClaudeUsd: 30, pausado: false, avisoTope: {}, ...valor }) });
+  const value = JSON.stringify({ topeGoogleUsd: 20, topeClaudeUsd: 30, pausado: false, avisoTope: {}, ...valor });
+  const fila = B.datos.systemSettings.find((f) => f.key === CLAVE_AJUSTES_BUSCADOR);
+  if (fila) fila.value = value;
+  else B.agregar("systemSettings", { key: CLAVE_AJUSTES_BUSCADOR, value });
 }
 
 /** Gasto ya hecho este mes (en otra región, terminada). */
@@ -108,6 +112,7 @@ function armarDeps(extra: Partial<DepsMotor> = {}) {
     },
     telegram,
     destino: async () => ({ token: "123456789:AAHdqTcvCH1vGWJxfSeofSAs0K5PALDsaw", chatId: "555" }),
+    claves: () => ({ google: true, claude: true }),
     ...extra,
   };
   return { deps, mensajes, llamadas };
@@ -118,6 +123,8 @@ const correr = (deps: DepsMotor, presupuestoMs = 600_000) => M.correrBuscador({ 
 beforeEach(() => {
   B.vaciar();
   n = 0;
+  // Sin fila de ajustes el Buscador arranca en pausa: las pruebas lo quieren andando.
+  ajustes({});
 });
 
 describe("correrBuscador", () => {
@@ -128,7 +135,8 @@ describe("correrBuscador", () => {
     const { deps } = armarDeps({ reloj: () => reloj });
     const descubrir = deps.web!.descubrir;
     deps.web = { ...deps.web!, descubrir: async (...a) => { reloj += 1000; return descubrir(...a); } };
-    const r = await correr(deps, 2500);
+    // 120 s de margen para empezar una búsqueda web + 2,5 s: entran tres de un segundo cada una.
+    const r = await correr(deps, 122_500);
     expect(r.procesadas).toBe(3);
     expect(r.nuevos).toBe(3);
     expect(r.frenadoPor).toBeNull();
@@ -406,14 +414,19 @@ describe("correrBuscador", () => {
   it("si no queda tiempo para Claude, la tarea vuelve a PENDIENTE sin gastar un intento", async () => {
     sembrarRegiones();
     const t = agregarTarea({ fuente: "WEB_SEARCH" });
+    let reloj = 0;
     const { deps } = armarDeps({
+      reloj: () => reloj,
       web: {
         // Así contesta `conversar` cuando quedan menos de 15 s: sin llamar a Claude.
-        descubrir: async () => ({ candidatos: [], uso: { entrada: 0, salida: 0, busquedas: 0 }, descartados: 0 }),
+        descubrir: async () => {
+          reloj = 125_000;
+          return { candidatos: [], uso: { entrada: 0, salida: 0, busquedas: 0 }, descartados: 0 };
+        },
         leer: async () => ({ candidato: null, uso: USO }),
       },
     });
-    const r = await correr(deps, 10_000);
+    const r = await correr(deps, 130_000);
     expect(r.procesadas).toBe(1);
     expect(tareaPorId(t)).toMatchObject({ estado: "PENDIENTE", intentos: 0 });
     expect(region("CENTRO").estado).toBe("EN_CURSO");
@@ -447,11 +460,19 @@ describe("correrBuscador", () => {
     expect(tareaPorId(t).resultado).toMatchObject({ parcial: true, cortes: 3, vistos: ["places/1", "places/2", "places/3"], llamadas: { TEXT_SEARCH_ENTERPRISE: 9 } });
   });
 
-  it("no empieza un lugar nuevo con menos de 60 s", async () => {
+  it("no empieza un lugar nuevo con menos de 90 s", async () => {
     sembrarRegiones();
     const t = agregarTarea({ fuente: "GOOGLE_PLACES" });
-    const { deps, llamadas } = armarDeps({ places: async () => ({ lugares: [lugar(1)], llamadas: { TEXT_SEARCH_ENTERPRISE: 1 } }) });
-    await correr(deps, 59_000);
+    let reloj = 0;
+    const { deps, llamadas } = armarDeps({
+      reloj: () => reloj,
+      // La búsqueda en Google tarda: después quedan 89 s.
+      places: async () => {
+        reloj = 1_000;
+        return { lugares: [lugar(1)], llamadas: { TEXT_SEARCH_ENTERPRISE: 1 } };
+      },
+    });
+    await correr(deps, 90_000);
     expect(llamadas.leer).toBe(0);
     expect(llamadas.sitio).toBe(0);
     expect(tareaPorId(t)).toMatchObject({ estado: "PENDIENTE", intentos: 0 });
@@ -524,6 +545,166 @@ describe("correrBuscador", () => {
     await correr(deps);
     expect(vistos).toHaveLength(2);
     expect(vistos[1]).toEqual(vistos[0]);
+  });
+
+  describe("servicios caídos: no queman la cola", () => {
+    const SIN_USO = { entrada: 0, salida: 0, busquedas: 0 };
+
+    it("Google con la cuota agotada tres corridas seguidas: nada en FALLO y la región sigue abierta", async () => {
+      sembrarRegiones();
+      const p1 = agregarTarea({ fuente: "GOOGLE_PLACES" });
+      const p2 = agregarTarea({ fuente: "GOOGLE_PLACES" });
+      const w = agregarTarea({ fuente: "WEB_SEARCH", provincia: "Otra" });
+      const { deps, llamadas, mensajes } = armarDeps({
+        places: async () => {
+          llamadas.places++;
+          return { error: "CUOTA", detalle: "429 RESOURCE_EXHAUSTED" };
+        },
+      });
+      for (let i = 0; i < 3; i++) {
+        const r = await correr(deps);
+        expect(r.frenadoPor).toBe("GOOGLE_NO_DISPONIBLE");
+        expect(r.regionCerrada).toBeNull();
+      }
+      // Una sola llamada a Google por corrida: después la corrida sigue sólo con la web.
+      expect(llamadas.places).toBe(3);
+      expect(tareaPorId(p1)).toMatchObject({ estado: "PENDIENTE", intentos: 0 });
+      expect(tareaPorId(p2)).toMatchObject({ estado: "PENDIENTE", intentos: 0 });
+      expect(tareaPorId(w).estado).toBe("HECHA");
+      expect(tareas().some((t) => t.estado === "FALLO")).toBe(false);
+      expect(region("CENTRO").estado).toBe("EN_CURSO");
+      expect(mensajes).toHaveLength(0);
+    });
+
+    it("Google sin acceso (API sin habilitar o clave mala) tampoco gasta intentos", async () => {
+      sembrarRegiones();
+      const p = agregarTarea({ fuente: "GOOGLE_PLACES" });
+      const { deps } = armarDeps({ places: async () => ({ error: "ACCESO", detalle: "403 PERMISSION_DENIED" }) });
+      await correr(deps);
+      expect(tareaPorId(p)).toMatchObject({ estado: "PENDIENTE", intentos: 0 });
+      expect(region("CENTRO").estado).toBe("EN_CURSO");
+    });
+
+    it("sin clave de Google las tareas de Places ni se tocan y las de web avanzan", async () => {
+      sembrarRegiones();
+      const p = agregarTarea({ fuente: "GOOGLE_PLACES" });
+      const w = agregarTarea({ fuente: "WEB_SEARCH", provincia: "Otra" });
+      const { deps, llamadas } = armarDeps({ claves: () => ({ google: false, claude: true }) });
+      const r = await correr(deps);
+      expect(llamadas.places).toBe(0);
+      expect(tareaPorId(p)).toMatchObject({ estado: "PENDIENTE", intentos: 0, tomadaEn: null });
+      expect(tareaPorId(w).estado).toBe("HECHA");
+      expect(r).toMatchObject({ procesadas: 1, frenadoPor: "GOOGLE_NO_DISPONIBLE", regionCerrada: null });
+      expect(region("CENTRO").estado).toBe("EN_CURSO");
+    });
+
+    it("sin clave de Claude sólo corren las de Places, con la web propia y sin llamar a Claude", async () => {
+      sembrarRegiones();
+      const p = agregarTarea({ fuente: "GOOGLE_PLACES" });
+      const w = agregarTarea({ fuente: "WEB_SEARCH", provincia: "Otra" });
+      const { deps, llamadas } = armarDeps({
+        claves: () => ({ google: true, claude: false }),
+        places: async () => ({ lugares: [lugar(1, "https://propio.com.ar"), lugar(2)], llamadas: { TEXT_SEARCH_ENTERPRISE: 1 } }),
+        sitio: async (_web, ctx) => {
+          llamadas.sitio++;
+          return candidato("Propio", { googlePlaceId: ctx.googlePlaceId });
+        },
+      });
+      const r = await correr(deps);
+      expect(llamadas).toMatchObject({ leer: 0, descubrir: 0, sitio: 1 });
+      expect(tareaPorId(p).estado).toBe("HECHA");
+      expect(tareaPorId(p).resultado).toMatchObject({ nuevos: 1, descartados: 1 });
+      expect(tareaPorId(p).costoClaudeUsdMicros).toBe(0);
+      expect(tareaPorId(w)).toMatchObject({ estado: "PENDIENTE", intentos: 0 });
+      expect(r.frenadoPor).toBe("CLAUDE_NO_DISPONIBLE");
+      expect(region("CENTRO").estado).toBe("EN_CURSO");
+    });
+
+    it("Claude saturado (429) tres corridas seguidas: nada en FALLO", async () => {
+      sembrarRegiones();
+      const w1 = agregarTarea({ fuente: "WEB_SEARCH", provincia: "A" });
+      const w2 = agregarTarea({ fuente: "WEB_SEARCH", provincia: "B" });
+      const { deps, llamadas, mensajes } = armarDeps({
+        web: {
+          descubrir: async () => {
+            llamadas.descubrir++;
+            return { candidatos: [], uso: SIN_USO, descartados: 0, falla: "SERVICIO" as const };
+          },
+          leer: async () => ({ candidato: null, uso: SIN_USO, falla: "SERVICIO" as const }),
+        },
+      });
+      for (let i = 0; i < 3; i++) {
+        const r = await correr(deps);
+        expect(r).toMatchObject({ frenadoPor: "CLAUDE_NO_DISPONIBLE", regionCerrada: null });
+      }
+      // La corrida se corta en la primera: no prueba con todas.
+      expect(llamadas.descubrir).toBe(3);
+      expect(tareaPorId(w1)).toMatchObject({ estado: "PENDIENTE", intentos: 0 });
+      expect(tareaPorId(w2)).toMatchObject({ estado: "PENDIENTE", intentos: 0 });
+      expect(tareas().some((t) => t.estado === "FALLO")).toBe(false);
+      expect(region("CENTRO").estado).toBe("EN_CURSO");
+      expect(mensajes).toHaveLength(0);
+    });
+
+    it("Claude caído leyendo un lugar de Places: la tarea vuelve a PENDIENTE sin gastar el intento", async () => {
+      sembrarRegiones();
+      const p = agregarTarea({ fuente: "GOOGLE_PLACES" });
+      const { deps } = armarDeps({
+        places: async () => ({ lugares: [lugar(1)], llamadas: { TEXT_SEARCH_ENTERPRISE: 1 } }),
+        web: {
+          descubrir: async () => ({ candidatos: [], uso: SIN_USO, descartados: 0 }),
+          leer: async () => ({ candidato: null, uso: SIN_USO, falla: "SERVICIO" as const }),
+        },
+      });
+      for (let i = 0; i < 3; i++) await correr(deps);
+      expect(tareaPorId(p)).toMatchObject({ estado: "PENDIENTE", intentos: 0 });
+      expect(tareaPorId(p).resultado).toMatchObject({ llamadas: { TEXT_SEARCH_ENTERPRISE: 3 } });
+      // Una caída de servicio no cuenta como corte por tiempo (no la acerca a «hecha parcial»).
+      expect(tareaPorId(p).resultado?.cortes ?? 0).toBe(0);
+    });
+  });
+
+  describe("cortes por tiempo con Claude", () => {
+    it("no empieza una búsqueda web con menos de 120 s", async () => {
+      sembrarRegiones();
+      const w = agregarTarea({ fuente: "WEB_SEARCH" });
+      const { deps, llamadas } = armarDeps();
+      const r = await correr(deps, 119_000);
+      expect(llamadas.descubrir).toBe(0);
+      expect(r.procesadas).toBe(0);
+      expect(tareaPorId(w)).toMatchObject({ estado: "PENDIENTE", intentos: 0 });
+      expect(region("CENTRO").estado).toBe("EN_CURSO");
+    });
+
+    it("una búsqueda web cortada a mitad de camino anota un costo estimado", async () => {
+      sembrarRegiones();
+      const w = agregarTarea({ fuente: "WEB_SEARCH" });
+      const { deps } = armarDeps({
+        web: {
+          descubrir: async () => ({ candidatos: [], uso: { entrada: 0, salida: 0, busquedas: 0 }, descartados: 0, falla: "CORTADA" as const }),
+          leer: async () => ({ candidato: null, uso: USO }),
+        },
+      });
+      await correr(deps);
+      // 5 búsquedas × USD 0,01 + 2.000 tokens de entrada (USD 0,004) + 1.000 de salida (USD 0,01).
+      expect(tareaPorId(w)).toMatchObject({ estado: "PENDIENTE", intentos: 0, costoClaudeUsdMicros: 64_000 });
+      expect(tareaPorId(w).resultado).toMatchObject({ cortes: 1 });
+    });
+
+    it("la lectura de un lugar cortada a mitad de camino anota un costo estimado", async () => {
+      sembrarRegiones();
+      const p = agregarTarea({ fuente: "GOOGLE_PLACES" });
+      const { deps } = armarDeps({
+        places: async () => ({ lugares: [lugar(1)], llamadas: { TEXT_SEARCH_ENTERPRISE: 1 } }),
+        web: {
+          descubrir: async () => ({ candidatos: [], uso: USO, descartados: 0 }),
+          leer: async () => ({ candidato: null, uso: { entrada: 0, salida: 0, busquedas: 0 }, falla: "CORTADA" as const }),
+        },
+      });
+      await correr(deps);
+      // 3 búsquedas × USD 0,01 + el piso de tokens (USD 0,014).
+      expect(tareaPorId(p)).toMatchObject({ estado: "PENDIENTE", intentos: 0, costoClaudeUsdMicros: 44_000 });
+    });
   });
 });
 

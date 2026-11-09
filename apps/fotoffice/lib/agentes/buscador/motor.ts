@@ -3,6 +3,7 @@ import { prisma, type Prisma } from "@repo/db";
 import { appUrl } from "@/lib/app-url";
 import type { DepsTelegramApi } from "@/lib/telegram/api";
 import { destinoAgentes, mandarMensaje } from "../canal";
+import type { FallaClaude } from "../claude";
 import { costoUsd, type UsoClaude } from "../periodista/costo";
 import { diaArgentino } from "../periodista/horario";
 import { escaparHtml } from "../periodista/mensaje";
@@ -14,7 +15,7 @@ import { costoLlamadaPlaces, gastoDelMes, leerAjustes, guardarAjustes, MARGEN_FR
 import { buscarLugares } from "./places";
 import { leerSitioPropio } from "./sitio";
 import type { Region, TipoContacto } from "./tipos";
-import { descubrirEnProvincia, leerLugar } from "./web";
+import { descubrirEnProvincia, leerLugar, MAX_BUSQUEDAS_LUGAR, MAX_BUSQUEDAS_PROVINCIA } from "./web";
 
 /**
  * Motor del Buscador: lo llama el cron. Toma tareas de la región en curso, busca (Google Places o
@@ -30,6 +31,14 @@ import { descubrirEnProvincia, leerLugar } from "./web";
  * - De Google Places sólo se usa el `placeId`: los datos salen de la web propia (lector barato,
  *   sin Claude) o, si no alcanza, de Claude (`leerLugar`).
  * - Los textos de Telegram son propios: nunca se reenvía un error crudo.
+ * - Una falla de todo un servicio (falta la clave, cuota agotada, API sin habilitar, Claude
+ *   saturado o sin conexión) no es culpa de la tarea: la tarea vuelve a `PENDIENTE` sin gastar un
+ *   intento y la corrida deja de usar ese servicio. Así una caída no quema toda la cola en FALLO
+ *   ni cierra regiones en cascada.
+ * - Sin `GOOGLE_PLACES_API_KEY` las tareas de Places ni se tocan (quedan `PENDIENTE`, la región no
+ *   se cierra) y se sigue con la búsqueda web. Sin `ANTHROPIC_API_KEY` no hay búsqueda web: sólo
+ *   corren las tareas de Places, leyendo cada lugar con el lector barato de su web propia y sin
+ *   llamar nunca a Claude (un lugar sin web legible se descarta).
  */
 
 const MICROS = 1_000_000;
@@ -38,7 +47,15 @@ const MAX_INTENTOS = 3;
 /** Cortes por tiempo que se le permiten a una tarea: al tercero queda HECHA (parcial) con lo avanzado. */
 const MAX_CORTES = 3;
 /** No se empieza un lugar nuevo con menos de esto: alcanza para leer la web propia (10 s) y una llamada a Claude. */
-const MARGEN_LUGAR_MS = 60_000;
+const MARGEN_LUGAR_MS = 90_000;
+/** No se empieza una tarea de búsqueda web con menos de esto: una búsqueda por provincia con Claude tarda. */
+const MARGEN_WEB_MS = 120_000;
+/**
+ * Piso de tokens que se anota cuando una llamada a Claude se corta por tiempo (Anthropic puede
+ * cobrarla aunque no llegue la respuesta). Se suma a las búsquedas máximas de esa llamada.
+ */
+const TOKENS_ENTRADA_CORTADA = 2_000;
+const TOKENS_SALIDA_CORTADA = 1_000;
 /** Por debajo de esto `conversar` ni siquiera llama a Claude (ver `claude.ts`). */
 const MINIMO_PARA_CLAUDE_MS = 15_000;
 /** Si más de esta parte de las tareas de la región terminó en FALLO, el resumen lo avisa. */
@@ -65,13 +82,26 @@ export type DepsMotor = {
   /** A quién escribirle; por omisión, el chat vinculado al canal de agentes. */
   destino?: () => Promise<{ token: string; chatId: string } | null>;
   /**
+   * Qué claves hay. Por omisión, mira `GOOGLE_PLACES_API_KEY` y `ANTHROPIC_API_KEY` del servidor.
+   */
+  claves?: () => { google: boolean; claude: boolean };
+  /**
    * Vincula los contactos nuevos o actualizados con usuarios de CLF. Por omisión, `vincularClf`
    * de `clf.ts`, que se saltea en silencio si no está `CLF_CONSULTA_USUARIOS_SECRET`.
    */
   clf?: (ids: string[]) => Promise<void>;
 };
 
-export type FrenoBuscador = null | "PAUSADO" | "TOPE_GOOGLE" | "TOPE_CLAUDE" | "SIN_REGION";
+export type FrenoBuscador =
+  | null
+  | "PAUSADO"
+  | "TOPE_GOOGLE"
+  | "TOPE_CLAUDE"
+  | "SIN_REGION"
+  /** Google no se pudo usar (sin clave, cuota agotada, API sin habilitar): siguió sólo con la web. */
+  | "GOOGLE_NO_DISPONIBLE"
+  /** Claude no se pudo usar (sin clave, saturado, sin conexión): no hubo búsqueda web. */
+  | "CLAUDE_NO_DISPONIBLE";
 
 export type ResultadoCorrida = { procesadas: number; nuevos: number; frenadoPor: FrenoBuscador; regionCerrada: Region | null };
 
@@ -93,11 +123,19 @@ type Contexto = {
   reloj: () => number;
   /** Instante (en `reloj`) en que se acaba el presupuesto. */
   hasta: number;
+  /** Si se puede llamar a Claude en esta corrida (hay clave). */
+  conClaude: boolean;
   deps: DepsMotor;
 };
 
-/** Cómo terminó UN intento de una tarea. */
-type FinTarea = { nuevos: number; cortadaPor: null | "TOPE_CLAUDE" | "TIEMPO" };
+/**
+ * Cómo terminó UN intento de una tarea. `GOOGLE_NO_DISPONIBLE` y `CLAUDE_NO_DISPONIBLE`: el servicio
+ * entero falló; la tarea vuelve a PENDIENTE sin gastar el intento.
+ */
+type FinTarea = { nuevos: number; cortadaPor: null | "TOPE_CLAUDE" | "TIEMPO" | "GOOGLE_NO_DISPONIBLE" | "CLAUDE_NO_DISPONIBLE" };
+
+/** Errores de Places que son del servicio entero, no de la consulta. */
+const ERRORES_GOOGLE_DE_SERVICIO = new Set(["SIN_CLAVE", "CUOTA", "ACCESO"]);
 
 /** "USD 6,10": siempre dos decimales y coma. */
 export function textoDinero(usd: number): string {
@@ -256,13 +294,39 @@ function sinTiempoParaClaude(ctx: Contexto): boolean {
   return ctx.hasta - ctx.reloj() < MINIMO_PARA_CLAUDE_MS;
 }
 
+/**
+ * Costo conservador (en micros) de una llamada a Claude que se cortó por tiempo: todas sus
+ * búsquedas posibles más un piso de tokens, a precio de Sonnet (`periodista/costo.ts`).
+ */
+function microsLlamadaCortada(maxBusquedas: number): number {
+  return Math.round(costoUsd({ entrada: TOKENS_ENTRADA_CORTADA, salida: TOKENS_SALIDA_CORTADA, busquedas: maxBusquedas }) * MICROS);
+}
+
+/**
+ * Qué hacer con una respuesta de Claude que no trajo nada. `null` = es un error de la tarea (lo
+ * decide quien llama). Una llamada cortada anota además su costo estimado.
+ */
+async function corteDeClaude(t: FilaTarea, falla: FallaClaude | undefined, maxBusquedas: number, ctx: Contexto): Promise<FinTarea["cortadaPor"] | null> {
+  if (falla === "SERVICIO") return "CLAUDE_NO_DISPONIBLE";
+  if (falla === "CORTADA") {
+    await anotarGasto(t.id, { claudeMicros: microsLlamadaCortada(maxBusquedas) });
+    return "TIEMPO";
+  }
+  if (falla === "SIN_TIEMPO" || sinTiempoParaClaude(ctx)) return "TIEMPO";
+  return null;
+}
+
 /** Tarea de Places: lugares → (web propia o Claude) → guardar. Lanza `ErrorDeTarea` si falla. */
 async function tareaPlaces(t: FilaTarea, conteo: Conteo, ctx: Contexto): Promise<FinTarea["cortadaPor"]> {
   const places = ctx.deps.places ?? buscarLugares;
   const res = await places(t.consulta, { paginas: t.paginas, region: "ar" });
-  const llamadas = ("error" in res ? res.llamadas : res.llamadas) ?? {};
+  const llamadas = res.llamadas ?? {};
   if (Object.keys(llamadas).length > 0) await anotarGasto(t.id, { googleMicros: await microsGoogle(llamadas, ctx.ahora()), llamadas });
-  if ("error" in res) throw new ErrorDeTarea(`Google Places: ${res.error}`);
+  if ("error" in res) {
+    // Sin clave, cuota agotada o API sin habilitar: no es culpa de esta consulta.
+    if (ERRORES_GOOGLE_DE_SERVICIO.has(res.error)) return "GOOGLE_NO_DISPONIBLE";
+    throw new ErrorDeTarea(`Google Places: ${res.error}`);
+  }
 
   // Lugares que un intento anterior ya leyó sin sacar candidato: no se vuelve a pagar Claude por ellos.
   const vistos = new Set(listaDeTextos(comoObjeto((await prisma.dnxBuscadorTarea.findUnique({ where: { id: t.id }, select: { resultado: true } }))?.resultado).vistos));
@@ -290,6 +354,11 @@ async function tareaPlaces(t: FilaTarea, conteo: Conteo, ctx: Contexto): Promise
     if (existe) continue;
 
     let candidato = lugar.web ? await sitio(lugar.web, { ...datosTarea, googlePlaceId: lugar.placeId }) : null;
+    if (!candidato && !ctx.conClaude) {
+      // Sin clave de Claude sólo vale la web propia: el lugar se descarta (no se marca visto).
+      conteo.descartados++;
+      continue;
+    }
     if (!candidato) {
       if (inicial + gastadoClaude >= limite) return "TOPE_CLAUDE";
       // Si queda poco tiempo, `conversar` no llama a Claude (sin uso): abajo se toma como corte, no error.
@@ -297,9 +366,10 @@ async function tareaPlaces(t: FilaTarea, conteo: Conteo, ctx: Contexto): Promise
       const micros = Math.round(costoUsd(r.uso) * MICROS);
       gastadoClaude += micros;
       if (micros > 0) await anotarGasto(t.id, { claudeMicros: micros });
-      if (sinUso(r.uso)) {
-        if (sinTiempoParaClaude(ctx)) return "TIEMPO";
-        throw new ErrorDeTarea("Claude no respondió");
+      if (r.falla === "SERVICIO" || r.falla === "CORTADA" || r.falla === "SIN_TIEMPO" || sinUso(r.uso)) {
+        const corte = await corteDeClaude(t, r.falla, MAX_BUSQUEDAS_LUGAR, ctx);
+        if (corte) return corte;
+        if (sinUso(r.uso)) throw new ErrorDeTarea("Claude no respondió");
       }
       candidato = r.candidato;
     }
@@ -323,9 +393,10 @@ async function tareaWeb(t: FilaTarea, conteo: Conteo, ctx: Contexto): Promise<Fi
   );
   const micros = Math.round(costoUsd(r.uso) * MICROS);
   if (micros > 0) await anotarGasto(t.id, { claudeMicros: micros });
-  if (sinUso(r.uso) && r.candidatos.length === 0) {
-    if (sinTiempoParaClaude(ctx)) return "TIEMPO";
-    throw new ErrorDeTarea("Claude no respondió");
+  if (r.candidatos.length === 0 && (r.falla === "SERVICIO" || r.falla === "CORTADA" || r.falla === "SIN_TIEMPO" || sinUso(r.uso))) {
+    const corte = await corteDeClaude(t, r.falla, MAX_BUSQUEDAS_PROVINCIA, ctx);
+    if (corte) return corte;
+    if (sinUso(r.uso)) throw new ErrorDeTarea("Claude no respondió");
   }
   conteo.descartados += r.descartados;
   for (const c of r.candidatos) await guardar(c, conteo, ctx);
@@ -339,12 +410,13 @@ async function procesarTarea(t: FilaTarea, ctx: Contexto): Promise<FinTarea> {
     let cortadaPor = t.fuente === "GOOGLE_PLACES" ? await tareaPlaces(t, conteo, ctx) : await tareaWeb(t, conteo, ctx);
     const fila = await prisma.dnxBuscadorTarea.findUnique({ where: { id: t.id }, select: { resultado: true } });
     const previo = comoObjeto(fila?.resultado);
+    // Sólo los cortes por tiempo cuentan para darla por hecha; una caída de servicio no.
     const cortes = (typeof previo.cortes === "number" ? previo.cortes : 0) + (cortadaPor === "TIEMPO" ? 1 : 0);
     // Al tercer corte por tiempo la tarea se da por hecha con lo avanzado (no se reintenta sin fin).
     const parcial = cortadaPor === "TIEMPO" && cortes >= MAX_CORTES;
     if (parcial) cortadaPor = null;
     if (cortadaPor) {
-      // Cortar por tope o por tiempo no es un error: el intento no cuenta. Lo guardado queda.
+      // Cortar por tope, por tiempo o por un servicio caído no es un error: el intento no cuenta. Lo guardado queda.
       await prisma.dnxBuscadorTarea.update({
         where: { id: t.id },
         data: { estado: "PENDIENTE", intentos: { decrement: 1 }, resultado: { ...previo, cortes } as Prisma.InputJsonValue },
@@ -463,6 +535,10 @@ async function cerrarSiTermino(region: Region, ahora: Date, deps: DepsMotor): Pr
 // ---------------------------------------------------------------------------------------------
 // Corrida
 
+function clavesDelServidor(): { google: boolean; claude: boolean } {
+  return { google: Boolean(process.env.GOOGLE_PLACES_API_KEY?.trim()), claude: Boolean(process.env.ANTHROPIC_API_KEY?.trim()) };
+}
+
 export async function correrBuscador(
   opciones: { presupuestoMs: number; motivo: "CRON" | "MANUAL" },
   deps: DepsMotor = {},
@@ -470,7 +546,8 @@ export async function correrBuscador(
   const ahora = deps.ahora ?? (() => new Date());
   const reloj = deps.reloj ?? Date.now;
   const inicio = reloj();
-  const ctx: Contexto = { ahora, reloj, hasta: inicio + opciones.presupuestoMs, deps };
+  const claves = (deps.claves ?? clavesDelServidor)();
+  const ctx: Contexto = { ahora, reloj, hasta: inicio + opciones.presupuestoMs, conClaude: claves.claude, deps };
   const vacio = (frenadoPor: FrenoBuscador): ResultadoCorrida => ({ procesadas: 0, nuevos: 0, frenadoPor, regionCerrada: null });
 
   if ((await leerAjustes()).pausado) return vacio("PAUSADO");
@@ -489,6 +566,10 @@ export async function correrBuscador(
   let nuevos = 0;
   let frenadoPor: FrenoBuscador = null;
   let googleAvisado = false;
+  // Google sin clave no se intenta; si en la corrida aparece una falla de servicio, deja de usarse.
+  let googleDisponible = claves.google;
+  if (!claves.google) frenadoPor = "GOOGLE_NO_DISPONIBLE";
+  if (!claves.claude) frenadoPor = "CLAUDE_NO_DISPONIBLE";
   const vistas = new Set<string>();
 
   while (reloj() - inicio < opciones.presupuestoMs) {
@@ -499,18 +580,26 @@ export async function correrBuscador(
       break;
     }
     if (!claude.ok) {
-      // Sin Claude no sirve ninguna tarea: las de Places también lo necesitan.
+      // Con el tope de Claude cumplido se frena todo (las de Places también lo usan).
       await avisarTope("CLAUDE", momento, deps);
       frenadoPor = "TOPE_CLAUDE";
       break;
     }
-    const google = await puedeUsar("GOOGLE", momento);
-    if (!google.ok) {
-      if (!googleAvisado) await avisarTope("GOOGLE", momento, deps);
-      googleAvisado = true;
-      frenadoPor = "TOPE_GOOGLE";
+    // Una tarea de Places sin tiempo para leer ni un lugar pagaría la búsqueda de Google en vano.
+    let usarGoogle = googleDisponible && ctx.hasta - reloj() >= MARGEN_LUGAR_MS;
+    if (usarGoogle) {
+      const google = await puedeUsar("GOOGLE", momento);
+      if (!google.ok) {
+        if (!googleAvisado) await avisarTope("GOOGLE", momento, deps);
+        googleAvisado = true;
+        frenadoPor = "TOPE_GOOGLE";
+        usarGoogle = false;
+      }
     }
-    const fuentes = google.ok ? ["GOOGLE_PLACES", "WEB_SEARCH"] : ["WEB_SEARCH"];
+    // La búsqueda web necesita Claude y tiempo: con menos de 120 s no se empieza una.
+    const usarWeb = claves.claude && ctx.hasta - reloj() >= MARGEN_WEB_MS;
+    const fuentes = [...(usarGoogle ? ["GOOGLE_PLACES"] : []), ...(usarWeb ? ["WEB_SEARCH"] : [])];
+    if (fuentes.length === 0) break;
     const tarea = await tomarSiguiente(region, fuentes, vistas, momento);
     if (!tarea) break;
 
@@ -523,6 +612,18 @@ export async function correrBuscador(
       break;
     }
     if (fin.cortadaPor === "TIEMPO") break;
+    if (fin.cortadaPor === "GOOGLE_NO_DISPONIBLE") {
+      // El resto de la corrida sigue sólo con la web; las de Places quedan PENDIENTE.
+      console.error("[buscador] Google Places no está disponible; sigue sólo con la búsqueda web");
+      googleDisponible = false;
+      frenadoPor = "GOOGLE_NO_DISPONIBLE";
+    }
+    if (fin.cortadaPor === "CLAUDE_NO_DISPONIBLE") {
+      // Sin Claude no sirve ni la web ni la lectura de lugares: se corta acá y se reintenta en la próxima corrida.
+      console.error("[buscador] Claude no está disponible; la corrida se corta");
+      frenadoPor = "CLAUDE_NO_DISPONIBLE";
+      break;
+    }
   }
 
   const regionCerrada = await cerrarSiTermino(region, ahora(), deps);

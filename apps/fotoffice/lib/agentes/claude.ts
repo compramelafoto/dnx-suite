@@ -51,9 +51,19 @@ export type { UsoClaude };
 
 export type ResultadoParseo<T> = { ok: true; valor: T } | { ok: false; error: string };
 
+/**
+ * Por qué falló, para quien necesite distinguirlo (el Buscador; el Periodista lo ignora):
+ * - `SERVICIO`: falla de todo el servicio, no de este pedido (falta la clave, 401/403, 429, 529
+ *   sobrecargado, sin conexión, sin crédito). Reintentar el mismo pedido ahora no sirve.
+ * - `SIN_TIEMPO`: no se hizo el pedido siguiente porque quedaba poco tiempo (lo ya respondido está en `uso`).
+ * - `CORTADA`: un pedido se cortó por tiempo a mitad de camino (Anthropic puede haberlo cobrado).
+ * - `TAREA`: falló este pedido en particular (rechazo, respuesta cortada, formato, otro error).
+ */
+export type FallaClaude = "SERVICIO" | "SIN_TIEMPO" | "CORTADA" | "TAREA";
+
 export type ResultadoRedaccion<T> =
   | { ok: true; valor: T; extractos: string[]; uso: UsoClaude }
-  | { ok: false; motivo: string; uso: UsoClaude };
+  | { ok: false; motivo: string; uso: UsoClaude; falla?: FallaClaude };
 
 function textoDe(contenido: RespuestaBeta["content"]): string {
   return contenido
@@ -70,6 +80,21 @@ function citasDe(contenido: RespuestaBeta["content"]): string[] {
     for (const c of b.citations) if ("cited_text" in c && typeof c.cited_text === "string" && c.cited_text.trim()) citas.push(c.cited_text);
   }
   return citas;
+}
+
+/** Códigos de la API que hablan del servicio entero (clave, permisos, límite, sobrecarga). */
+const ESTADOS_DE_SERVICIO = new Set([401, 403, 429, 529]);
+
+function fallaDeError(e: unknown): FallaClaude {
+  if (e instanceof Anthropic.APIConnectionTimeoutError || e instanceof Anthropic.APIUserAbortError) return "CORTADA";
+  if (e instanceof Error && (e.name === "AbortError" || e.name === "TimeoutError")) return "CORTADA";
+  if (e instanceof Anthropic.APIConnectionError) return "SERVICIO";
+  if (e instanceof Anthropic.APIError) {
+    if (e.status !== undefined && ESTADOS_DE_SERVICIO.has(e.status)) return "SERVICIO";
+    // Sin crédito en la cuenta Anthropic responde 400: tampoco es culpa del pedido.
+    if (e.status === 400 && /credit balance/i.test(e.message)) return "SERVICIO";
+  }
+  return "TAREA";
 }
 
 function nombreDeError(e: unknown): string {
@@ -102,7 +127,7 @@ async function conversarSinCosto<T>(input: Conversacion<T>): Promise<ResultadoRe
   // Se suma CADA respuesta: las continuaciones por pause_turn y el pedido de corrección del JSON.
   const uso: UsoClaude = usoVacio();
   const api = input.deps.cliente === undefined ? clienteReal() : input.deps.cliente;
-  if (!api) return { ok: false, motivo: "Falta ANTHROPIC_API_KEY en el servidor.", uso };
+  if (!api) return { ok: false, motivo: "Falta ANTHROPIC_API_KEY en el servidor.", uso, falla: "SERVICIO" };
   const ahora = input.deps.ahora ?? Date.now;
   const mensajes: MensajeBeta[] = [{ role: "user", content: input.pedido }];
   const citas: string[] = [];
@@ -110,7 +135,7 @@ async function conversarSinCosto<T>(input: Conversacion<T>): Promise<ResultadoRe
 
   for (let vuelta = 0; vuelta < MAX_VUELTAS; vuelta++) {
     const restante = input.hasta - ahora();
-    if (restante < 15_000) return { ok: false, motivo: "Se acabó el tiempo antes de terminar la nota.", uso };
+    if (restante < 15_000) return { ok: false, motivo: "Se acabó el tiempo antes de terminar la nota.", uso, falla: "SIN_TIEMPO" };
     let r: RespuestaBeta;
     try {
       r = await api.beta.messages.create(
@@ -138,24 +163,24 @@ async function conversarSinCosto<T>(input: Conversacion<T>): Promise<ResultadoRe
         { timeout: restante },
       );
     } catch (e) {
-      return { ok: false, motivo: nombreDeError(e), uso };
+      return { ok: false, motivo: nombreDeError(e), uso, falla: fallaDeError(e) };
     }
     sumarUso(uso, r.usage);
     mensajes.push({ role: "assistant", content: r.content as MensajeBeta["content"] });
     citas.push(...citasDe(r.content));
 
     if (r.stop_reason === "pause_turn") continue;
-    if (r.stop_reason === "refusal") return { ok: false, motivo: "Claude no quiso escribir esta nota.", uso };
-    if (r.stop_reason === "max_tokens") return { ok: false, motivo: "La respuesta de Claude salió cortada.", uso };
+    if (r.stop_reason === "refusal") return { ok: false, motivo: "Claude no quiso escribir esta nota.", uso, falla: "TAREA" };
+    if (r.stop_reason === "max_tokens") return { ok: false, motivo: "La respuesta de Claude salió cortada.", uso, falla: "TAREA" };
 
     const p = input.parsear(textoDe(r.content));
     if (p.ok) return { ok: true, valor: p.valor, extractos: citas, uso };
-    if (corregido) return { ok: false, motivo: `La respuesta no tenía el formato pedido (${p.error}).`, uso };
+    if (corregido) return { ok: false, motivo: `La respuesta no tenía el formato pedido (${p.error}).`, uso, falla: "TAREA" };
     corregido = true;
     mensajes.push({
       role: "user",
       content: `Tu respuesta no sirve todavía: ${p.error}. Corregilo y devolvé SOLO el bloque \`\`\`json completo, sin volver a buscar.`,
     });
   }
-  return { ok: false, motivo: "Claude no terminó la nota.", uso };
+  return { ok: false, motivo: "Claude no terminó la nota.", uso, falla: "TAREA" };
 }
