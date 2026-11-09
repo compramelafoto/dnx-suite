@@ -41,10 +41,10 @@ export function ControlesBuscador({ pausado }: { pausado: boolean }) {
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap gap-2">
-        <button type="button" className="fo-btn-primary" disabled={enCurso || pausado} onClick={() => correr(correrBuscadorAction)}>
+        <button type="button" className="fo-btn fo-btn-primary" disabled={enCurso || pausado} onClick={() => correr(correrBuscadorAction)}>
           Correr ahora
         </button>
-        <button type="button" className="fo-btn-secondary" disabled={enCurso} onClick={() => correr(() => pausarBuscadorAction(!pausado))}>
+        <button type="button" className="fo-btn fo-btn-secondary" disabled={enCurso} onClick={() => correr(() => pausarBuscadorAction(!pausado))}>
           {pausado ? "Reanudar" : "Pausar"}
         </button>
       </div>
@@ -76,7 +76,7 @@ export function FormTopes({ topeGoogleUsd, topeClaudeUsd }: { topeGoogleUsd: num
           <span className="fo-label">Tope de Claude (USD por mes)</span>
           <input value={claude} onChange={(e) => setClaude(e.target.value)} inputMode="decimal" className="fo-input w-32" />
         </label>
-        <button type="submit" className="fo-btn-secondary" disabled={enCurso}>
+        <button type="submit" className="fo-btn fo-btn-secondary" disabled={enCurso}>
           {enCurso ? "Guardando…" : "Guardar topes"}
         </button>
       </div>
@@ -121,23 +121,23 @@ export function ListaRegiones({ regiones }: { regiones: RegionPanel[] }) {
               </span>
               <span className="ml-auto flex flex-wrap items-center gap-2">
                 {r.estado === "EN_ESPERA" || r.estado === "PAUSADA" ? (
-                  <button type="button" className="fo-btn-ghost" disabled={enCurso} onClick={() => correr(() => activarRegionAction(r.region, false))}>
+                  <button type="button" className="fo-btn fo-btn-ghost" disabled={enCurso} onClick={() => correr(() => activarRegionAction(r.region, false))}>
                     Activar
                   </button>
                 ) : null}
                 {r.estado === "COMPLETA" ? (
-                  <button type="button" className="fo-btn-ghost" disabled={enCurso} onClick={() => reabrir(r)}>
+                  <button type="button" className="fo-btn fo-btn-ghost" disabled={enCurso} onClick={() => reabrir(r)}>
                     Reabrir
                   </button>
                 ) : null}
                 {i >= 0 ? (
                   <>
-                    <button type="button" className="fo-btn-ghost" disabled={enCurso || i === 0} onClick={() => mover(r.region, -1)} title="Subir">
+                    <button type="button" className="fo-btn fo-btn-ghost" disabled={enCurso || i === 0} onClick={() => mover(r.region, -1)} title="Subir">
                       <ArrowUp className="size-4" aria-label="Subir" />
                     </button>
                     <button
                       type="button"
-                      className="fo-btn-ghost"
+                      className="fo-btn fo-btn-ghost"
                       disabled={enCurso || i === movibles.length - 1}
                       onClick={() => mover(r.region, 1)}
                       title="Bajar"
