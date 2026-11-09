@@ -440,6 +440,8 @@ export function crearBaseEnMemoria() {
             return String(v).toLowerCase() === String(x).toLowerCase();
           }
           if (op === "startsWith") return String(v).startsWith(String(x));
+          // Como Prisma en una columna de lista (`String[]`): `{ has: x }` = la lista contiene x.
+          if (op === "has") return Array.isArray(v) && v.some((y) => igual(y, x));
           if (op === "contains") {
             const a = String(v), b = String(x);
             return c.mode === "insensitive" ? a.toLowerCase().includes(b.toLowerCase()) : a.includes(b);
