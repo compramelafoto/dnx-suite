@@ -53,4 +53,31 @@ describe("ajustes y tope del Vendedor", () => {
     const a = await A.leerAjustesVendedor();
     expect(a).toMatchObject({ pausado: false, arrancoEn: "2026-11-10", correosPorDia: 15 });
   });
+
+  it("un arrancoEn que no es una fecha AAAA-MM-DD se ignora y guardarlo lanza", async () => {
+    B.agregar("systemSettings", { key: A.CLAVE_AJUSTES_VENDEDOR, value: JSON.stringify({ pausado: false, arrancoEn: "ayer" }) });
+    expect((await A.leerAjustesVendedor()).arrancoEn).toBeNull();
+    await expect(A.guardarAjustesVendedor({ arrancoEn: "10/11/2026" })).rejects.toThrow();
+  });
+
+  it("guardar no pisa una pausa por salud escrita entre la lectura y la escritura", async () => {
+    await A.guardarAjustesVendedor({ pausado: false });
+    const fila = B.datos.systemSettings.find((f) => f.key === A.CLAVE_AJUSTES_VENDEDOR)!;
+    const original = B.tablas.systemSettings.updateMany;
+    let primera = true;
+    B.tablas.systemSettings.updateMany = async (a: Parameters<typeof original>[0]) => {
+      if (primera) {
+        primera = false;
+        // Otra escritura (el webhook frena por salud) gana justo antes que esta.
+        fila.value = JSON.stringify({ ...JSON.parse(fila.value as string), pausado: true, pausadoPor: "SALUD" });
+      }
+      return original(a);
+    };
+    try {
+      await A.guardarAjustesVendedor({ consultaClfDia: "2026-11-20" });
+    } finally {
+      B.tablas.systemSettings.updateMany = original;
+    }
+    expect(await A.leerAjustesVendedor()).toMatchObject({ pausado: true, pausadoPor: "SALUD", consultaClfDia: "2026-11-20" });
+  });
 });

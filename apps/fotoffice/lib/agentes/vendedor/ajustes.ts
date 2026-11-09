@@ -18,7 +18,7 @@ export type AjustesVendedor = {
   topeClaudeUsd: number;
   correosPorDia: number;
   correosPrimeraSemana: number;
-  /** Día argentino ("YYYY-MM-DD") del primer «Reanudar». */
+  /** Día argentino ("YYYY-MM-DD") del primer «Reanudar» sin contacto de prueba: desde ahí cuenta la primera semana. */
   arrancoEn: string | null;
   /** ISO desde cuando la salud está mal. */
   saludDesde: string | null;
@@ -56,7 +56,7 @@ const esquemas = {
   topeClaudeUsd: cantidad,
   correosPorDia: cantidad,
   correosPrimeraSemana: cantidad,
-  arrancoEn: texto,
+  arrancoEn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(),
   saludDesde: texto,
   avisoTope: texto,
   consultaClfDia: texto,
@@ -68,13 +68,12 @@ const esquemas = {
 const esquemaAjustes = z.object(esquemas);
 
 /** Lee campo por campo: lo válido se conserva y sólo lo inválido vuelve al valor por omisión. */
-export async function leerAjustesVendedor(): Promise<AjustesVendedor> {
-  const fila = await prisma.systemSettings.findUnique({ where: { key: CLAVE_AJUSTES_VENDEDOR }, select: { value: true } });
+function parsearAjustes(value: string | null | undefined): AjustesVendedor {
   const resultado: AjustesVendedor = { ...AJUSTES_VENDEDOR_POR_OMISION };
-  if (!fila?.value) return resultado;
+  if (!value) return resultado;
   let crudo: unknown;
   try {
-    crudo = JSON.parse(fila.value);
+    crudo = JSON.parse(value);
   } catch {
     return resultado;
   }
@@ -88,15 +87,51 @@ export async function leerAjustesVendedor(): Promise<AjustesVendedor> {
   return resultado;
 }
 
-/** Guarda mezclando con lo actual. Lanza si un valor nuevo es inválido. */
+async function leerFila(): Promise<{ value: string } | null> {
+  return prisma.systemSettings.findUnique({ where: { key: CLAVE_AJUSTES_VENDEDOR }, select: { value: true } });
+}
+
+export async function leerAjustesVendedor(): Promise<AjustesVendedor> {
+  return parsearAjustes((await leerFila())?.value);
+}
+
+const DESCRIPCION_AJUSTES = "Ajustes, tope y pausa del agente Vendedor";
+const INTENTOS_GUARDADO = 8;
+
+/**
+ * Escribe `cambio(actual)` sólo si la fila sigue igual a lo leído (compare-and-set). Devuelve false si
+ * otra escritura ganó en el medio, o si `toca` dice que ya no corresponde.
+ */
+async function intentarEscribir(
+  cambio: Partial<AjustesVendedor>,
+  toca: (actual: AjustesVendedor) => boolean,
+): Promise<"OK" | "NO_TOCA" | "CHOQUE"> {
+  const fila = await leerFila();
+  const actual = parsearAjustes(fila?.value);
+  if (!toca(actual)) return "NO_TOCA";
+  const value = JSON.stringify(esquemaAjustes.parse({ ...actual, ...cambio }));
+  if (!fila) {
+    try {
+      await prisma.systemSettings.create({ data: { key: CLAVE_AJUSTES_VENDEDOR, value, description: DESCRIPCION_AJUSTES } });
+      return "OK";
+    } catch {
+      return "CHOQUE";
+    }
+  }
+  const r = await prisma.systemSettings.updateMany({ where: { key: CLAVE_AJUSTES_VENDEDOR, value: fila.value }, data: { value } });
+  return r.count === 1 ? "OK" : "CHOQUE";
+}
+
+/**
+ * Guarda mezclando con lo actual. Lanza si un valor nuevo es inválido. Es un compare-and-set en bucle:
+ * si otra escritura (una pausa por salud, la marca de la consulta diaria) ganó en el medio, se vuelve a
+ * leer y a mezclar, así ninguna de las dos se pierde.
+ */
 export async function guardarAjustesVendedor(a: Partial<AjustesVendedor>): Promise<void> {
-  const actual = await leerAjustesVendedor();
-  const value = JSON.stringify(esquemaAjustes.parse({ ...actual, ...a }));
-  await prisma.systemSettings.upsert({
-    where: { key: CLAVE_AJUSTES_VENDEDOR },
-    create: { key: CLAVE_AJUSTES_VENDEDOR, value, description: "Ajustes, tope y pausa del agente Vendedor" },
-    update: { value },
-  });
+  for (let i = 0; i < INTENTOS_GUARDADO; i++) {
+    if ((await intentarEscribir(a, () => true)) === "OK") return;
+  }
+  throw new Error("Vendedor: no se pudieron guardar los ajustes (otra escritura los cambiaba al mismo tiempo)");
 }
 
 /**
@@ -105,20 +140,7 @@ export async function guardarAjustesVendedor(a: Partial<AjustesVendedor>): Promi
  * `true` sólo para UNA de las corridas que compiten; la que gana es la única que debe enviar.
  */
 export async function reclamarAjusteVendedor(a: Partial<AjustesVendedor>, toca: (actual: AjustesVendedor) => boolean): Promise<boolean> {
-  const fila = await prisma.systemSettings.findUnique({ where: { key: CLAVE_AJUSTES_VENDEDOR }, select: { value: true } });
-  const actual = await leerAjustesVendedor();
-  if (!toca(actual)) return false;
-  const value = JSON.stringify(esquemaAjustes.parse({ ...actual, ...a }));
-  if (!fila) {
-    try {
-      await prisma.systemSettings.create({ data: { key: CLAVE_AJUSTES_VENDEDOR, value, description: "Ajustes, tope y pausa del agente Vendedor" } });
-      return true;
-    } catch {
-      return false;
-    }
-  }
-  const r = await prisma.systemSettings.updateMany({ where: { key: CLAVE_AJUSTES_VENDEDOR, value: fila.value }, data: { value } });
-  return r.count === 1;
+  return (await intentarEscribir(a, toca)) === "OK";
 }
 
 const MICROS = 1_000_000;

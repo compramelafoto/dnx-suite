@@ -33,6 +33,13 @@ describe("cupoDelDia", () => {
     expect(cupoDelDia(a, d("2026-11-17T15:00:00Z"))).toBe(20);
     expect(cupoDelDia({ ...a, arrancoEn: null }, d("2026-11-16T15:00:00Z"))).toBe(0);
   });
+  it("con contacto de prueba, el de la primera semana aunque no haya arranque", () => {
+    expect(cupoDelDia({ ...a, arrancoEn: null, soloContactoPrueba: "c1" }, d("2026-11-16T15:00:00Z"))).toBe(10);
+    expect(cupoDelDia({ ...a, soloContactoPrueba: "c1" }, d("2026-12-16T15:00:00Z"))).toBe(10);
+  });
+  it("una fecha de arranque que no se entiende da el de la primera semana", () => {
+    expect(cupoDelDia({ ...a, arrancoEn: "basura" }, d("2026-11-16T15:00:00Z"))).toBe(10);
+  });
 });
 
 describe("cupoHastaAhora", () => {

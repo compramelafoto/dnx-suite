@@ -30,10 +30,17 @@ export function enVentanaDeEnvio(ahora: Date): boolean {
   return m >= HORA_INICIO_AR * 60 && m < HORA_FIN_AR * 60;
 }
 
-/** Cupo total del día: 0 sin arranque; el de la primera semana si pasaron menos de 7 días desde `arrancoEn`. */
+/**
+ * Cupo total del día:
+ * - con contacto de prueba, el de la primera semana (la prueba no fija el arranque ni gasta la rampa);
+ * - 0 sin arranque;
+ * - el de la primera semana si pasaron menos de 7 días desde `arrancoEn`, o si la fecha no se entiende.
+ */
 export function cupoDelDia(a: AjustesVendedor, ahora: Date): number {
+  if (a.soloContactoPrueba) return a.correosPrimeraSemana;
   if (!a.arrancoEn) return 0;
   const dias = Math.round((Date.parse(`${diaArgentino(ahora)}T12:00:00Z`) - Date.parse(`${a.arrancoEn}T12:00:00Z`)) / DIA_MS);
+  if (!Number.isFinite(dias)) return a.correosPrimeraSemana;
   return dias < 7 ? a.correosPrimeraSemana : a.correosPorDia;
 }
 
