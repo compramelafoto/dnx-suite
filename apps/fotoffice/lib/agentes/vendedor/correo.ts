@@ -79,7 +79,7 @@ function conAngulos(id: string): string {
 
 type Env = Record<string, string | undefined>;
 
-function claveVendedor(env: Env): string | null {
+export function claveVendedor(env: Env): string | null {
   return env.VENDEDOR_RESEND_API_KEY?.trim() || env.RESEND_API_KEY?.trim() || null;
 }
 
