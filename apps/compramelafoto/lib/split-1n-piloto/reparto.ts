@@ -18,13 +18,19 @@ export type RepartoPiloto = {
 export function calcularRepartoPiloto(params: {
   totalPesos: number;
   feePesos: number;
+  /**
+   * Precio de la foto como lo calcula CLF (`baseFromTotal`). Puede diferir en un peso de
+   * `total − recargo` por redondeo; el organizador se calcula sobre éste para coincidir con
+   * lo que registra la contabilidad. Si falta, se usa `total − recargo`.
+   */
+  basePesos?: number;
   hayReferidor: boolean;
   porcentajeOrganizador?: number;
   hayReferidorOrganizador?: boolean;
 }): RepartoPiloto {
   const fee = Math.max(0, Math.round(params.feePesos));
   const total = Math.round(params.totalPesos);
-  const base = total - fee;
+  const base = params.basePesos != null ? Math.round(params.basePesos) : total - fee;
   const pct = params.porcentajeOrganizador ?? 0;
   const organizador =
     Number.isFinite(pct) && pct > 0 && base > 0 ? Math.round((base * pct) / 100) : 0;
@@ -35,7 +41,7 @@ export function calcularRepartoPiloto(params: {
     ? Math.floor(fee * REFERRAL_PROGRAM_FEE_SHARE[ReferralProgram.ORGANIZER_REFERRAL])
     : 0;
   return {
-    fotografo: base - organizador,
+    fotografo: total - fee - organizador,
     referidor,
     organizador,
     referidorOrganizador,

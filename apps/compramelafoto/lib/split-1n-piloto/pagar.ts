@@ -92,7 +92,7 @@ export async function pagarPedidoPiloto(input: {
   const config = resolvePilotoConfig();
   const cargado = await cargarPedidoPiloto(input.pedidoId);
   if (!cargado) return falla("NO_DISPONIBLE");
-  const { order, feePesos } = cargado;
+  const { order, feePesos, basePesos } = cargado;
   const marca = leerMarcaPiloto(order.pricingSnapshot);
   if (!marca) return falla("NO_DISPONIBLE");
 
@@ -170,6 +170,7 @@ export async function pagarPedidoPiloto(input: {
       marca,
       totalPesos: order.totalCents,
       feePesos,
+      basePesos,
       porcentajeOrganizador: organizador?.porcentaje ?? 0,
       receivers: elegibilidad.receivers,
       payerEmail: order.buyerEmail,

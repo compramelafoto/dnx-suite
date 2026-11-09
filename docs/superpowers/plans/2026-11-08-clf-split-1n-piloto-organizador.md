@@ -52,3 +52,15 @@ Ejemplo $3.450 (fee 450), organizador 20 %: 2.400 / 600 / 225 / 90 / 135.
 ## Fuera de alcance
 
 Escuelas, agencias, preventas, impresiones, videos, eventos al 100 %. Clickatón no se toca.
+
+## Revisión final (corregido)
+
+- C1: el organizador que refirió al fotógrafo no cobra además como referidor (regla de CLF
+  `shouldSkipReferralEarningForEventOrganizer`).
+- I1: el organizador se calcula sobre `baseFromTotal`, igual que la contabilidad.
+- I2: la comisión del organizador nace cobrada directo en una sola escritura y las comisiones se
+  vuelven a asegurar en cada aviso posterior (idempotente).
+- I3: sin Mercado Pago vinculado en CLF, el referidor no cobra por el split (igual que `referrerHasMp`).
+- M2: un referidor con monto cero no va en la orden.
+- Pendiente (menor): si la elegibilidad cambia entre el resumen y el pago, el comprador ve "no
+  disponible" en `/pagar` en vez de volver a Checkout Pro.

@@ -12,6 +12,8 @@ export async function buscarReferidorActivo(photographerUserId: number): Promise
       referralProgram: "PHOTOGRAPHER_REFERRAL",
       status: "ACTIVE",
       endsAt: { gt: new Date() },
+      // Como `referrerHasMp` de CLF: sin Mercado Pago vinculado no se le genera comisión.
+      referrerUser: { OR: [{ mpUserId: { not: null } }, { mpConnectedAt: { not: null } }] },
     },
     select: { referrerUserId: true },
   });

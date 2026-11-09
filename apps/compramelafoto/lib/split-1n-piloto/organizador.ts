@@ -4,7 +4,9 @@ export type OrganizadorPiloto = {
   userId: number;
   /** Comisión del organizador sobre el precio de la foto; 0 si el evento no la tiene activa. */
   porcentaje: number;
-  /** Referidor activo del organizador en el programa de organizadores. */
+  /** `organizerCommissionEnabled` del evento (aunque el porcentaje sea 0). */
+  comisionActiva: boolean;
+  /** Referidor activo del organizador en el programa de organizadores, con Mercado Pago vinculado. */
   referrerUserId: number | null;
 };
 
@@ -30,8 +32,15 @@ export async function buscarOrganizador(eventId: number | null | undefined): Pro
       referralProgram: "ORGANIZER_REFERRAL",
       status: "ACTIVE",
       endsAt: { gt: new Date() },
+      // Como `referrerHasMp` de CLF: sin Mercado Pago vinculado no se le genera comisión.
+      referrerUser: { OR: [{ mpUserId: { not: null } }, { mpConnectedAt: { not: null } }] },
     },
     select: { referrerUserId: true },
   });
-  return { userId: event.creatorId, porcentaje, referrerUserId: attribution?.referrerUserId ?? null };
+  return {
+    userId: event.creatorId,
+    porcentaje,
+    comisionActiva: event.organizerCommissionEnabled,
+    referrerUserId: attribution?.referrerUserId ?? null,
+  };
 }

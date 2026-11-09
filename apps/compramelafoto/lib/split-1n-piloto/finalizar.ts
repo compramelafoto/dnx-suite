@@ -5,12 +5,11 @@ import { registerAuditEvent } from "@/lib/antifraud/audit";
 import { createReferralEarningsForPaidSale } from "@/lib/referral/create-referral-earnings-for-paid-sale";
 import { runAlbumOrderPaidSideEffects } from "@/lib/mercadopago/finalize-album-order-mp-approved";
 import { ensureEventOrganizerCommissionSnapshotForPaidOrder } from "@/lib/event-organizer-commission-snapshot";
-import { organizerDirectMpCollectionCommissionFields } from "@/lib/event-organizer-commission-ledger";
 import { resolvePilotoConfig } from "./config";
 import { decidirFinalizacion, pedidoIdDesdeReferencia } from "./decidir";
 import { crearClientesPiloto, leerOrdenMp } from "./mp";
-import { cargarPedidoPiloto } from "./pedido";
-import { leerMarcaPiloto, marcarSnapshotPiloto } from "./snapshot";
+import { cargarPedidoPiloto, type PedidoPiloto } from "./pedido";
+import { leerMarcaPiloto, marcarSnapshotPiloto, type MarcaPiloto } from "./snapshot";
 
 export type FinalizarPilotoResult =
   | { ok: true; resultado: "aplicado" | "ya_pagado" }
@@ -45,7 +44,19 @@ export async function finalizarPedidoPiloto(params: {
     refPedidoId: pedidoIdDesdeReferencia(mp.externalReference),
     pedidoId: order.id,
   });
-  if (decision === "ya_pagado") return { ok: true, resultado: "ya_pagado" };
+  if (decision === "ya_pagado") {
+    // Las comisiones se vuelven a asegurar (es idempotente): si una escritura falló al
+    // confirmar, un aviso posterior la completa y nadie queda con un saldo que ya cobró.
+    if (order.status === "PAID" && marca.estado === "PAGADO") {
+      await registrarComisiones({
+        order,
+        marca,
+        feePesos,
+        paymentRef: order.mpPaymentId ?? mp.paymentId ?? mp.id,
+      });
+    }
+    return { ok: true, resultado: "ya_pagado" };
+  }
   if (decision !== "aplicar") return { ok: false, error: decision };
 
   const paymentRef = mp.paymentId ?? mp.id;
@@ -70,20 +81,8 @@ export async function finalizarPedidoPiloto(params: {
 
   // Desde acá el pedido está pagado y no hay vuelta atrás: cada efecto va por separado para
   // que uno que falle no se lleve puestos a los demás.
-  const efecto = async (nombre: string, fn: () => Promise<unknown>) => {
-    try {
-      await fn();
-    } catch (err: unknown) {
-      console.error("[split-1n-piloto] efecto_fallido", {
-        orderId: order.id,
-        efecto: nombre,
-        error: err instanceof Error ? err.message : String(err),
-      });
-    }
-  };
-
   for (const eventType of ["PAYMENT_APPROVED", "CUSTOMER_DATA_RELEASED", "ORDER_ITEMS_RELEASED"] as const) {
-    await efecto(`auditoria_${eventType}`, () =>
+    await efecto(order.id, `auditoria_${eventType}`, () =>
       registerAuditEvent({
         targetOrderType: "ALBUM_ORDER",
         targetOrderId: order.id,
@@ -96,10 +95,60 @@ export async function finalizarPedidoPiloto(params: {
     );
   }
 
+  await registrarComisiones({ order, marca, feePesos, paymentRef });
+
+  await efecto(order.id, "avisos", () =>
+    runAlbumOrderPaidSideEffects({
+      orderId: order.id,
+      origin: order.origin,
+      items: order.items,
+      paymentRef,
+    }),
+  );
+
+  await efecto(order.id, "webhook_event", () =>
+    prisma.webhookEvent.create({
+      data: {
+        paymentId: paymentRef,
+        status: "approved",
+        orderId: order.id,
+        orderType: "ALBUM_ORDER",
+        externalRef: mp.externalReference ?? undefined,
+      },
+    }),
+  );
+
+  console.info("[split-1n-piloto] pedido_pagado", { orderId: order.id, providerOrderId: mp.id });
+  return { ok: true, resultado: "aplicado" };
+}
+
+async function efecto(orderId: number, nombre: string, fn: () => Promise<unknown>) {
+  try {
+    await fn();
+  } catch (err: unknown) {
+    console.error("[split-1n-piloto] efecto_fallido", {
+      orderId,
+      efecto: nombre,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
+
+/**
+ * Comisiones de referidores y organizador de un pedido del piloto ya pagado. Idempotente:
+ * se llama al confirmar y en cada aviso posterior, para completar lo que haya fallado.
+ */
+async function registrarComisiones(params: {
+  order: PedidoPiloto["order"];
+  marca: MarcaPiloto;
+  feePesos: number;
+  paymentRef: string;
+}) {
+  const { order, marca, feePesos, paymentRef } = params;
   const saleRef = `ALBUM_ORDER:${order.id}`;
   const photographerUserId = order.album?.userId;
   if (photographerUserId) {
-    await efecto("comision_referidor", async () => {
+    await efecto(order.id, "comision_referidor", async () => {
       await createReferralEarningsForPaidSale({
         saleRef,
         orderType: "ALBUM_ORDER",
@@ -127,7 +176,13 @@ export async function finalizarPedidoPiloto(params: {
           },
           data: { paidOutAt: new Date() },
         });
-        if (marcadas.count !== 1) {
+        const registrada =
+          marcadas.count === 1 ||
+          (marcadas.count === 0 &&
+            (await prisma.referralEarning.count({
+              where: { saleRef, referralProgram: programa, attribution: { referrerUserId: referidorUserId } },
+            })) === 1);
+        if (!registrada) {
           console.warn("[split-1n-piloto] comision_referidor_sin_registro", {
             orderId: order.id,
             programa,
@@ -139,56 +194,34 @@ export async function finalizarPedidoPiloto(params: {
     });
   }
 
-  // Comisión del organizador: se registra con el cálculo de siempre y, si la cobró por el
-  // split, como cobrada directo. Si quedara retenida, se le volvería a pagar por retiro.
-  if (order.album?.eventId != null) {
-    await efecto("comision_organizador", async () => {
-      const ahora = new Date();
-      await ensureEventOrganizerCommissionSnapshotForPaidOrder(order.id, { paymentApprovedAt: ahora });
-      const organizadorUserId = marca.organizadorUserId ?? null;
-      if (organizadorUserId == null) return;
-      const directa = await prisma.eventOrganizerCommission.updateMany({
-        where: { orderId: order.id, organizerUserId: organizadorUserId },
-        data: organizerDirectMpCollectionCommissionFields(ahora),
+  // Comisión del organizador: sólo si la cobró por el split, y nace como cobrada directo en
+  // una sola escritura. Si el organizador no cobró por el split no se registra nada: el dinero
+  // ya lo recibió el fotógrafo y no hay saldo que retenerle a nadie.
+  const organizadorUserId = marca.organizadorUserId ?? null;
+  if (order.album?.eventId != null && organizadorUserId != null) {
+    await efecto(order.id, "comision_organizador", async () => {
+      await ensureEventOrganizerCommissionSnapshotForPaidOrder(order.id, {
+        paymentApprovedAt: new Date(),
+        cobradoDirectoPorOrganizadorUserId: organizadorUserId,
       });
       const fila = await prisma.eventOrganizerCommission.findUnique({
         where: { orderId: order.id },
-        select: { organizerCommissionAmount: true },
+        select: { organizerUserId: true, organizerCommissionAmount: true, payoutMode: true },
       });
       const registrado = fila ? Number(fila.organizerCommissionAmount) : null;
-      if (directa.count !== 1 || registrado !== (marca.reparto?.organizador ?? null)) {
+      if (
+        !fila ||
+        fila.organizerUserId !== organizadorUserId ||
+        fila.payoutMode !== "ORGANIZER_AS_COLLECTOR" ||
+        registrado !== (marca.reparto?.organizador ?? null)
+      ) {
         console.error("[split-1n-piloto] comision_organizador_no_coincide", {
           orderId: order.id,
           organizadorUserId,
-          marcadas: directa.count,
-          registrado,
+          fila,
           cobrado: marca.reparto?.organizador ?? null,
         });
       }
     });
   }
-
-  await efecto("avisos", () =>
-    runAlbumOrderPaidSideEffects({
-      orderId: order.id,
-      origin: order.origin,
-      items: order.items,
-      paymentRef,
-    }),
-  );
-
-  await efecto("webhook_event", () =>
-    prisma.webhookEvent.create({
-      data: {
-        paymentId: paymentRef,
-        status: "approved",
-        orderId: order.id,
-        orderType: "ALBUM_ORDER",
-        externalRef: mp.externalReference ?? undefined,
-      },
-    }),
-  );
-
-  console.info("[split-1n-piloto] pedido_pagado", { orderId: order.id, providerOrderId: mp.id });
-  return { ok: true, resultado: "aplicado" };
 }

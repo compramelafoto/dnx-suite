@@ -10,7 +10,13 @@ export type ElegibilidadInput = {
    * Organizador del evento del álbum, si tiene. `porcentaje` es su comisión (0 si el evento no
    * la tiene activa) y `referrerUserId` su referidor activo en el programa de organizadores.
    */
-  organizador?: { userId: number; porcentaje: number; referrerUserId: number | null } | null;
+  organizador?: {
+    userId: number;
+    porcentaje: number;
+    /** `organizerCommissionEnabled` del evento, aunque el porcentaje sea 0. */
+    comisionActiva?: boolean;
+    referrerUserId: number | null;
+  } | null;
   /** Álbum de una escuela: tiene su propia comisión y queda fuera del piloto. */
   esEscolar?: boolean;
   items: Array<{ productType: string }>;
@@ -54,8 +60,12 @@ export function evaluarElegibilidadPiloto(input: ElegibilidadInput): Elegibilida
     input.photographerUserId != null ? config.receiverByUserId.get(input.photographerUserId) : undefined;
   if (!fotografo) return { ok: false, motivo: "fotografo_sin_consentimiento" };
 
+  // Como CLF (`shouldSkipReferralEarningForEventOrganizer`): el organizador de un evento con
+  // comisión activa no cobra además como referidor del fotógrafo en los álbumes de ese evento.
+  const referidorEsOrganizador =
+    org != null && org.comisionActiva === true && input.referrerUserId === org.userId;
   let referidor: string | null = null;
-  if (input.referrerUserId != null) {
+  if (input.referrerUserId != null && !referidorEsOrganizador) {
     referidor = config.receiverByUserId.get(input.referrerUserId) ?? null;
     if (!referidor) return { ok: false, motivo: "referidor_sin_consentimiento" };
   }

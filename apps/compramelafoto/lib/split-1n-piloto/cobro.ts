@@ -41,6 +41,8 @@ export function prepararCobro(params: {
   marca: MarcaPiloto | null;
   totalPesos: number;
   feePesos: number;
+  /** Precio de la foto según CLF (`baseFromTotal`); ver `calcularRepartoPiloto`. */
+  basePesos?: number;
   porcentajeOrganizador?: number;
   receivers: ReceptoresCobro;
   payerEmail: string;
@@ -64,6 +66,7 @@ export function prepararCobro(params: {
   const reparto = calcularRepartoPiloto({
     totalPesos: params.totalPesos,
     feePesos: params.feePesos,
+    basePesos: params.basePesos,
     hayReferidor: r.referidor != null,
     porcentajeOrganizador: organizador != null ? params.porcentajeOrganizador ?? 0 : 0,
     hayReferidorOrganizador: referidorOrganizador != null,
@@ -71,7 +74,7 @@ export function prepararCobro(params: {
 
   // Rol → receptor y monto, en orden de prioridad. Los receptores repetidos se suman al primero.
   const partes: Array<[string, string, number]> = [["fotografo", r.fotografo, reparto.fotografo]];
-  if (r.referidor != null) partes.push(["referidor", r.referidor, reparto.referidor]);
+  if (r.referidor != null && reparto.referidor > 0) partes.push(["referidor", r.referidor, reparto.referidor]);
   if (organizador != null && reparto.organizador > 0) {
     partes.push(["organizador", organizador, reparto.organizador]);
   }

@@ -510,3 +510,58 @@ describe("etapa 2: preparar el cobro con organizador", () => {
     assert.deepEqual([...r.partnerReceiverIds.values()].sort(), ["aaa", "bbb", "ccc"]);
   });
 });
+
+describe("etapa 2: correcciones de la revisión", () => {
+  it("C1: el organizador que refirió al fotógrafo no cobra además la comisión de referido", () => {
+    const r = evaluarElegibilidadPiloto(
+      entrada({
+        config: conOrganizador,
+        referrerUserId: 70,
+        organizador: { userId: 70, porcentaje: 10, comisionActiva: true, referrerUserId: null },
+      }),
+    );
+    assert.deepEqual(r, {
+      ok: true,
+      receivers: { fotografo: "aaa", referidor: null, organizador: "ccc", referidorOrganizador: null },
+    });
+  });
+
+  it("C1: con la comisión del evento apagada, el referido se paga como siempre", () => {
+    const r = evaluarElegibilidadPiloto(
+      entrada({
+        config: conOrganizador,
+        referrerUserId: 70,
+        organizador: { userId: 70, porcentaje: 0, comisionActiva: false, referrerUserId: null },
+      }),
+    );
+    assert.equal(r.ok && r.receivers.referidor, "ccc");
+  });
+
+  it("I1: el organizador se calcula sobre la base de CLF, no sobre total menos recargo", () => {
+    // total 1203 con recargo del 20 %: CLF toma base 1003 (no 1002) y el organizador al 50 % cobra 502.
+    const r = calcularRepartoPiloto({
+      totalPesos: 1203,
+      feePesos: 201,
+      basePesos: 1003,
+      hayReferidor: false,
+      porcentajeOrganizador: 50,
+    });
+    assert.equal(r.organizador, 502);
+    assert.equal(r.fotografo + r.organizador + r.referidor + r.referidorOrganizador + r.plataforma, 1203);
+  });
+
+  it("M2: un referidor con monto cero no va en la orden", () => {
+    const r = prepararCobro({
+      estadoPedido: "PENDING",
+      marca: { v: 1, estado: "PENDIENTE" },
+      totalPesos: 3000,
+      feePesos: 0,
+      receivers: { fotografo: "aaa", referidor: "bbb" },
+      payerEmail: "ariel@ejemplo.com",
+      correosReceptores: [],
+    });
+    assert.equal(r.ok, true);
+    if (!r.ok) return;
+    assert.equal(r.partnerReceiverIds.has("referidor"), false);
+  });
+});
