@@ -28598,3 +28598,15 @@ model DnxVendedorGasto {
 
   @@index([creadoEn])
 }
+
+/// Atribución de un registro en CLF al hilo del agente Vendedor de DNX (cookie clf_dnxv).
+/// Sin relación con User a propósito. Independiente del programa de referidos.
+model DnxVendedorAtribucion {
+  id       Int      @id @default(autoincrement())
+  userId   Int      @unique
+  token    String
+  rol      String
+  creadoEn DateTime @default(now())
+
+  @@index([token])
+}

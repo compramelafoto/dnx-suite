@@ -7,6 +7,7 @@ import {
   isBlogArticlePath,
   resolveBlogVisitorKey,
 } from "@/lib/blog/blog-visitor";
+import { COOKIE_VENDEDOR, EDAD_COOKIE_VENDEDOR_S, tokenVendedorValido } from "@/lib/vendedor/atribucion";
 
 const REFERRAL_COOKIE_NAME = "clf_ref";
 /** JSON: { "sourceType": "TRAINING", "sourceEntityId": number } — capacitación desde la que vino el click */
@@ -136,6 +137,15 @@ export function middleware(request: NextRequest) {
     response.headers.append(
       "Set-Cookie",
       buildCookieHeader(INFOSPOT_ATTR_COOKIE_NAME, attrPayload, REFERRAL_COOKIE_MAX_AGE)
+    );
+  }
+
+  // Agente Vendedor de DNX: cookie propia, aparte de los referidos.
+  const dnxv = tokenVendedorValido(request.nextUrl.searchParams.get("dnxv"));
+  if (dnxv) {
+    response.headers.append(
+      "Set-Cookie",
+      buildCookieHeader(COOKIE_VENDEDOR, dnxv, EDAD_COOKIE_VENDEDOR_S)
     );
   }
 

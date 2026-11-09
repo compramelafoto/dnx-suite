@@ -211,6 +211,10 @@ jobs:
       - name: Pruebas de la consulta de usuarios existentes
         run: pnpm --filter compramelafoto test:usuarios-existentes
 
+      # Atribución de registros al Vendedor (clf_dnxv): cookie propia, sin tocar el programa de referidos.
+      - name: Pruebas del agente Vendedor (CLF)
+        run: pnpm --filter compramelafoto test:vendedor
+
       # El motor de análisis corre con vitest y hasta hoy NO estaba en el CI: las
       # pruebas existían, pasaban en la máquina de quien las escribía y nadie las
       # volvía a correr. `should-run-ocr` quedó un rato reclamado por los dos
