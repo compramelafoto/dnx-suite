@@ -22,6 +22,8 @@ import { BurbujaDnxBot } from "@/components/dnx-bot/burbuja";
 import { cssDelTema, normalizarColor } from "@/lib/panel-tema/tema";
 import { programaDelAvisoDeSalida } from "@/lib/equipo/mensajes-servidor";
 import { AvisoSalida } from "@/components/equipo/aviso-salida";
+import { workspaceUsaBoxMensual } from "@/lib/box-mensual/store";
+import { BOX_MENSUAL_FEATURE } from "@/lib/box-mensual/secuencia";
 
 type PanelUser = {
   id: number;
@@ -63,11 +65,14 @@ export async function AdminShell({ user, children }: { user: PanelUser; children
   const canManageWorkspaceSettingsFlag = canManageWorkspaceSettings(activeRole);
   // Las acciones sensibles que alguna entrada del menú exige. Se calculan acá, en el servidor:
   // el menú es un componente de cliente y sólo recibe la lista ya resuelta.
-  const [actions, platformAdmin, organizationType] = await Promise.all([
+  const [actions, platformAdmin, organizationType, usaBox] = await Promise.all([
     workspace !== null ? getGrantedActions(user.id, workspace.id) : Promise.resolve([] as string[]),
     isFotofficePlatformAdmin(user.id),
     workspace !== null ? getOrganizationType(workspace.id) : Promise.resolve(null),
+    // BOX mensual: sólo si la institución la usa. Nunca lanza.
+    workspace !== null ? workspaceUsaBoxMensual(workspace.id) : Promise.resolve(false),
   ]);
+  const features: string[] = usaBox ? [BOX_MENSUAL_FEATURE] : [];
   // Sin workspace activo (recién invitado, todavía sin `ensure`) no hay fila que leer: el
   // vocabulario por omisión es lo correcto, ya que tampoco hay ningún módulo habilitado.
   const vocabulary =
@@ -115,6 +120,7 @@ export async function AdminShell({ user, children }: { user: PanelUser; children
             workspaceName={institucion}
             levels={levels}
             actions={actions}
+            features={features}
             canManageWorkspaceSettings={canManageWorkspaceSettingsFlag}
             organizationType={organizationType}
             platformAdmin={platformAdmin}

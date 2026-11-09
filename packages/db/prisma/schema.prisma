@@ -8243,6 +8243,9 @@ model MemberCategory {
   /// Se renueva cuando la persona quiere, sin deuda: no se le generan cuotas mensuales y desde
   /// su portal paga "Renovar" cuando decide. Si un mes no paga, no debe nada.
   selfRenew                 Boolean @default(false)
+  /// BOX mensual (club de SOYBELUZ): las personas de esta categoría reciben una caja de
+  /// materiales por cada mes pagado, en orden desde la BOX N°1. Ver `FotofficeBox`.
+  includesMonthlyBox        Boolean @default(false)
 
   workspace  Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   members    Member[]
@@ -8273,6 +8276,74 @@ model MemberBookingCreditGrant {
   bookings Booking[]
 
   @@index([workspaceId, memberId, validUntil])
+}
+
+/// Una caja del recorrido de la BOX mensual (club de SOYBELUZ): «BOX N°1 — Mi primer universo
+/// creativo: Soltar la mano». Cada persona socia las recibe en orden, desde la N°1, una por
+/// cada mes pagado. Después de la última queda «al día» hasta que se cargue la siguiente: el
+/// recorrido no vuelve a empezar.
+///
+/// No se borra: una caja que ya se envió se desactiva (`isActive = false`) y deja de ofrecerse.
+model FotofficeBox {
+  id          String   @id @default(cuid())
+  workspaceId String
+  /// El N° de la caja dentro del recorrido. Define el orden de envío.
+  number      Int
+  name        String
+  description String?
+  /// Lo que lleva cada caja: `[{ "material": "Lápiz grafito HB", "perBox": 1 }]`.
+  materials   Json     @default("[]")
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  shipments FotofficeBoxShipment[]
+
+  @@unique([workspaceId, number])
+  @@index([workspaceId, isActive])
+}
+
+enum FotofficeBoxShipmentStatus {
+  ENVIADA
+  ENTREGADA
+}
+
+/// El envío de una caja a una persona socia. Sólo envío a domicilio: la dirección se copia del
+/// socio en el momento de enviar y queda congelada, así una mudanza posterior no reescribe a
+/// dónde se mandó.
+///
+/// `@@unique([memberId, boxId])`: nadie recibe dos veces la misma caja.
+model FotofficeBoxShipment {
+  id              String                     @id @default(cuid())
+  workspaceId     String
+  memberId        String
+  boxId           String
+  /// Copia del N° de la caja al enviar: el historial se lee igual aunque la caja cambie.
+  boxNumber       Int
+  status          FotofficeBoxShipmentStatus @default(ENVIADA)
+  address         String
+  city            String?
+  province        String?
+  postalCode      String?
+  /// Empresa de correo (opcional).
+  carrier         String?
+  /// Número de seguimiento (opcional).
+  trackingCode    String?
+  shippedAt       DateTime                   @default(now())
+  deliveredAt     DateTime?
+  notes           String?
+  /// Quién la marcó como enviada.
+  shippedByUserId Int?
+  createdAt       DateTime                   @default(now())
+  updatedAt       DateTime                   @updatedAt
+
+  /// Restrict: el historial de envíos no se puede llevar por delante borrando un socio o una caja.
+  member Member       @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  box    FotofficeBox @relation(fields: [boxId], references: [id], onDelete: Restrict)
+
+  @@unique([memberId, boxId])
+  @@index([workspaceId, shippedAt])
+  @@index([workspaceId, memberId])
 }
 
 /// Socio/miembro institucional de un Workspace. Independiente de `User`:
@@ -8409,6 +8480,8 @@ model Member {
   originatedRecommendationBenefit MembershipRecommendationBenefit?  @relation("BenefitOrigin")
   bookings                        Booking[]
   bookingCreditGrants             MemberBookingCreditGrant[]
+  /// Las cajas de la BOX mensual que se le enviaron.
+  boxShipments                    FotofficeBoxShipment[]
   raffleEntries                   RaffleEntry[]
   raffleAwards                    RafflePrizeAward[]
   /// Ficha de cliente de este mismo socio, cuando también le compra algo al negocio.

@@ -257,6 +257,7 @@ function Section({
 export function ShellNav({
   levels,
   actions,
+  features = [],
   canManageWorkspaceSettings,
   organizationType = null,
   platformAdmin,
@@ -268,6 +269,8 @@ export function ShellNav({
   levels: ModuleLevels;
   /** Acciones sensibles vigentes, resueltas en el servidor con `hasModuleAction`. */
   actions: readonly string[];
+  /** Funciones que usa el workspace y deciden alguna pantalla (`box-mensual`). */
+  features?: readonly string[];
   /** Sólo para la sección Institución: Configuración no se delega. */
   canManageWorkspaceSettings: boolean;
   /** Tipo de organización (etapa 0.1): ordena las secciones de módulos por familia. */
@@ -286,7 +289,7 @@ export function ShellNav({
   // su grupo se abre solo.
   const [cerradoAqui, setCerradoAqui] = useState<{ path: string; title: string } | null>(null);
   // Mismos roles que `isFullAccessRole` (dueño o admin): decide las pantallas de plata, como Cobros.
-  const access: SubmoduleAccess = { levels, actions, fullAccess: canManageWorkspaceSettings };
+  const access: SubmoduleAccess = { levels, actions, features, fullAccess: canManageWorkspaceSettings };
   const ve = (moduleKey: string) => hasLevel(levels[moduleKey] ?? "NONE", "VIEW");
   const gestiona = (moduleKey: string) => hasLevel(levels[moduleKey] ?? "NONE", "MANAGE");
 
