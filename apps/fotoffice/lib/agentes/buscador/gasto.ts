@@ -20,7 +20,11 @@ export type AjustesBuscador = {
   avisoTope: { GOOGLE?: string; CLAUDE?: string };
 };
 
-export const AJUSTES_POR_OMISION: AjustesBuscador = { topeGoogleUsd: 20, topeClaudeUsd: 30, pausado: false, avisoTope: {} };
+/**
+ * Sin fila de ajustes el Buscador arranca EN PAUSA: así el cron no empieza a buscar (ni a gastar)
+ * apenas se despliega, antes de cargar las claves e importar los conocidos. Se reanuda desde el panel.
+ */
+export const AJUSTES_POR_OMISION: AjustesBuscador = { topeGoogleUsd: 20, topeClaudeUsd: 30, pausado: true, avisoTope: {} };
 
 const esquemaAjustes = z.object({
   topeGoogleUsd: z.number().finite().min(0),

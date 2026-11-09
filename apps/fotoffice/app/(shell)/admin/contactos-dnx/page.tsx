@@ -108,7 +108,7 @@ export default async function ContactosDnxPage({ searchParams }: { searchParams:
         ) : null}
         {!buscador.tieneClaveClaude ? (
           <div className="fo-alert-error" role="status">
-            Sin clave de Claude: no puede buscar en internet ni leer los sitios.
+            Sin clave de Claude: no busca en internet; de Google sólo guarda los lugares con web propia legible.
           </div>
         ) : null}
 

@@ -22,6 +22,17 @@ async function tarea(extra: Record<string, unknown>) {
 beforeEach(() => B.vaciar());
 
 describe("puedeUsar", () => {
+  // Sin ajustes guardados arranca en pausa: estas pruebas miran los topes con el Buscador andando.
+  beforeEach(async () => {
+    await G.guardarAjustes({ pausado: false });
+  });
+
+  it("sin ajustes guardados está en pausa (no arranca solo al desplegar)", async () => {
+    B.vaciar();
+    expect(await G.puedeUsar("GOOGLE", AHORA)).toEqual({ ok: false, motivo: "PAUSADO" });
+    expect(await G.puedeUsar("CLAUDE", AHORA)).toEqual({ ok: false, motivo: "PAUSADO" });
+  });
+
   it("Google frena al llegar a USD 18 con tope 20", async () => {
     await tarea({ costoGoogleUsdMicros: 17_990_000 });
     expect(await G.puedeUsar("GOOGLE", AHORA)).toEqual({ ok: true });
@@ -81,22 +92,23 @@ describe("costoLlamadaPlaces", () => {
 
 describe("ajustes", () => {
   it("por omisión y ante basura", async () => {
-    expect(await G.leerAjustes()).toEqual({ topeGoogleUsd: 20, topeClaudeUsd: 30, pausado: false, avisoTope: {} });
+    expect(await G.leerAjustes()).toEqual({ topeGoogleUsd: 20, topeClaudeUsd: 30, pausado: true, avisoTope: {} });
     B.agregar("systemSettings", { key: "fotoffice_buscador_ajustes", value: "{basura", description: "x" });
     expect((await G.leerAjustes()).topeGoogleUsd).toBe(20);
   });
   it("guarda y mezcla parcialmente", async () => {
     await G.guardarAjustes({ topeClaudeUsd: 10 });
     await G.guardarAjustes({ avisoTope: { GOOGLE: "2026-11" } });
-    expect(await G.leerAjustes()).toEqual({ topeGoogleUsd: 20, topeClaudeUsd: 10, pausado: false, avisoTope: { GOOGLE: "2026-11" } });
+    expect(await G.leerAjustes()).toEqual({ topeGoogleUsd: 20, topeClaudeUsd: 10, pausado: true, avisoTope: { GOOGLE: "2026-11" } });
   });
-  it("un campo inválido no tira los demás: pausado sigue pausado", async () => {
+  it("un campo inválido no tira los demás: el pausado guardado se conserva", async () => {
+    // pausado: false (distinto del valor por omisión) para que se vea que no vuelve al omitido.
     B.agregar("systemSettings", {
       key: "fotoffice_buscador_ajustes",
       description: "x",
-      value: JSON.stringify({ topeGoogleUsd: -5, pausado: true, avisoTope: { GOOGLE: "2026-11" } }),
+      value: JSON.stringify({ topeGoogleUsd: -5, pausado: false, avisoTope: { GOOGLE: "2026-11" } }),
     });
-    expect(await G.leerAjustes()).toEqual({ topeGoogleUsd: 20, topeClaudeUsd: 30, pausado: true, avisoTope: { GOOGLE: "2026-11" } });
+    expect(await G.leerAjustes()).toEqual({ topeGoogleUsd: 20, topeClaudeUsd: 30, pausado: false, avisoTope: { GOOGLE: "2026-11" } });
   });
   it("guardar un tope inválido lanza", async () => {
     await expect(G.guardarAjustes({ topeGoogleUsd: -1 })).rejects.toThrow();

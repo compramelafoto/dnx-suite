@@ -14,11 +14,12 @@ type Coincidencia = { clave: string; userId: number; rol: string };
 
 /** CLF falso: anota lo que le pidieron y responde las coincidencias dadas. */
 function clfFalso(coincidencias: Coincidencia[]) {
-  const pedidos: Array<{ url: string; auth: string | null; body: { emails: string[]; telefonos: string[] } }> = [];
+  const pedidos: Array<{ url: string; auth: string | null; redirect: RequestRedirect | undefined; body: { emails: string[]; telefonos: string[] } }> = [];
   const fetch = (async (url: string | URL | Request, init?: RequestInit) => {
     pedidos.push({
       url: String(url),
       auth: new Headers(init?.headers).get("authorization"),
+      redirect: init?.redirect,
       body: JSON.parse(String(init?.body)) as { emails: string[]; telefonos: string[] },
     });
     return new Response(JSON.stringify({ coincidencias }), { status: 200 });
@@ -108,5 +109,18 @@ describe("vincularClf", () => {
     expect(clf.pedidos).toHaveLength(2);
     for (const p of clf.pedidos) expect(p.body.emails.length + p.body.telefonos.length).toBeLessThanOrEqual(200);
     expect(clf.pedidos.reduce((n, p) => n + p.body.emails.length + p.body.telefonos.length, 0)).toBe(300);
+  });
+  it("sin CLF_BASE_URL consulta el host con www y no sigue redirecciones", async () => {
+    const c = contacto({ email: "luz@estudio.com.ar" });
+    const clf = clfFalso([]);
+    const antes = process.env.CLF_BASE_URL;
+    delete process.env.CLF_BASE_URL;
+    try {
+      await vincularClf([c.id], { fetch: clf.fetch, secreto: "s3cr3t" });
+    } finally {
+      if (antes !== undefined) process.env.CLF_BASE_URL = antes;
+    }
+    expect(clf.pedidos).toHaveLength(1);
+    expect(clf.pedidos[0]).toMatchObject({ url: "https://www.compramelafoto.com/api/internal/usuarios/existentes", redirect: "error" });
   });
 });

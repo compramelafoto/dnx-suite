@@ -22,7 +22,11 @@ export const ROLES_PLATAFORMA = ["PHOTOGRAPHER", "LAB_PHOTOGRAPHER", "ORGANIZER"
 /** Lo mismo que acepta CLF por pedido. */
 const MAX_CLAVES_POR_LOTE = 200;
 const TIMEOUT_MS = 10_000;
-const URL_POR_OMISION = "https://compramelafoto.com";
+/**
+ * Con `www`: `https://compramelafoto.com` redirige (308) a `www`, y `fetch` descarta el encabezado
+ * `Authorization` al seguir una redirección a otro origen, así que CLF respondería siempre 401.
+ */
+const URL_POR_OMISION = "https://www.compramelafoto.com";
 
 export type DepsClf = { fetch?: typeof fetch; url?: string; secreto?: string };
 export type ResultadoClf = { vinculados: number; compradores: number; error?: string };
@@ -50,6 +54,8 @@ async function consultar(
       headers: { "content-type": "application/json", authorization: `Bearer ${cfg.secreto}` },
       body: JSON.stringify(lote),
       signal: AbortSignal.timeout(TIMEOUT_MS),
+      // Una redirección perdería el secreto: mejor que falle a la vista que un 401 silencioso.
+      redirect: "error",
     });
     if (!res.ok) return { error: `CLF respondió ${res.status}` };
     const cuerpo = comoObjeto(await res.json());
@@ -57,7 +63,8 @@ async function consultar(
     return cuerpo.coincidencias.filter(esCoincidencia);
   } catch (e) {
     const nombre = e instanceof Error ? e.name : "";
-    return { error: nombre === "TimeoutError" || nombre === "AbortError" ? "CLF no respondió a tiempo" : "No se pudo consultar CLF" };
+    if (nombre === "TimeoutError" || nombre === "AbortError") return { error: "CLF no respondió a tiempo" };
+    return { error: "No se pudo consultar CLF (¿la dirección redirige? revisá CLF_BASE_URL)" };
   }
 }
 

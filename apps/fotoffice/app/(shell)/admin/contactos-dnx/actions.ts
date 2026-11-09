@@ -10,7 +10,7 @@ import { activarRegion } from "@/lib/agentes/buscador/consultas";
 import { candidatosParaFusionar } from "@/lib/agentes/buscador/consultas-panel";
 import { reordenarRegiones } from "@/lib/agentes/buscador/estado";
 import { etiquetaRegion, etiquetaTipo } from "@/lib/agentes/buscador/etiquetas";
-import { guardarAjustes } from "@/lib/agentes/buscador/gasto";
+import { guardarAjustes, leerAjustes } from "@/lib/agentes/buscador/gasto";
 import { correrBuscador } from "@/lib/agentes/buscador/motor";
 import { ESTADOS_CONTACTO, REGIONES, type EstadoContacto, type Region } from "@/lib/agentes/buscador/tipos";
 
@@ -178,6 +178,8 @@ export async function correrBuscadorAction(): Promise<EstadoAccionContactos> {
   if (!google && !claude) {
     return { ok: false, mensaje: "No hay clave de Google ni de Claude: el Buscador no tiene con qué buscar. Cargalas en Vercel y volvé a desplegar." };
   }
+  // El botón ya se deshabilita en pausa, pero se chequea acá también: la corrida en pausa no hace nada.
+  if ((await leerAjustes()).pausado) return { ok: false, mensaje: "El Buscador está en pausa: reanudalo primero." };
   after(async () => {
     try {
       const r = await correrBuscador({ presupuestoMs: PRESUPUESTO_MANUAL_MS, motivo: "MANUAL" });
@@ -188,7 +190,7 @@ export async function correrBuscadorAction(): Promise<EstadoAccionContactos> {
   });
   const avisos = [
     !google ? "Sin clave de Google: busca sólo en internet." : null,
-    !claude ? "Sin clave de Claude: no puede buscar en internet ni leer los sitios." : null,
+    !claude ? "Sin clave de Claude: no busca en internet; de Google sólo guarda los lugares con web propia legible." : null,
   ].filter(Boolean);
   return {
     ok: true,

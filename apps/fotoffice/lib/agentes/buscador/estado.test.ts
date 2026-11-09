@@ -59,7 +59,8 @@ describe("estadoBuscador", () => {
     expect(e.regiones.find((r) => r.region === "NOA")).toMatchObject({ hechas: 0, total: 0, fallidas: 0, estado: "EN_ESPERA" });
     expect(e.actual).toBe("CENTRO");
     expect(e.gasto).toEqual({ googleUsd: 1.5, claudeUsd: 0.25 });
-    expect(e.ajustes.pausado).toBe(false);
+    // Sin ajustes guardados el Buscador arranca en pausa (no busca solo al desplegar).
+    expect(e.ajustes.pausado).toBe(true);
   });
 
   it("sin clave de Google lo informa", async () => {
