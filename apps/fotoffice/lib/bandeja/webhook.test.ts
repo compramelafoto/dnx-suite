@@ -54,6 +54,14 @@ describe("leerWebhook", () => {
     expect(leerWebhook(json)[0]).toMatchObject({ waId: "5493413419869" });
   });
 
+  it("eco sin 'to' (Meta lo omite con los identificadores nuevos): el cliente sale de contacts", () => {
+    const j = fixture("eco.json") as { entry: { changes: { value: { message_echoes: Record<string, unknown>[]; contacts?: unknown } }[] }[] };
+    const v = j.entry[0].changes[0].value;
+    delete v.message_echoes[0].to;
+    v.contacts = [{ wa_id: "5493413419869", user_id: "AR.123" }];
+    expect(leerWebhook(j)).toEqual([expect.objectContaining({ tipo: "ECO", waId: "5493413419869" })]);
+  });
+
   it("sticker es IMAGEN; la reacción se ignora por completo (también como eco)", () => {
     const json = { entry: [{ changes: [{ field: "messages", value: { metadata: { phone_number_id: "1" }, messages: [
       { from: "5493413419869", id: "w1", timestamp: "1", type: "sticker", sticker: { id: "55", mime_type: "image/webp" } },

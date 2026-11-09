@@ -111,7 +111,7 @@ async function suscribirCuentaALaApp(wabaId: string, token: string, f: typeof fe
  * una institución reclame el número de otra (el webhook resuelve el workspace por `phoneNumberId`).
  * Devuelve el número para mostrar, o `null` si no se pudo verificar. Nunca loguea el token.
  */
-async function verificarNumeroConMeta(phoneNumberId: string, token: string, f: typeof fetch): Promise<{ displayPhone: string | null } | null> {
+export async function verificarNumeroConMeta(phoneNumberId: string, token: string, f: typeof fetch): Promise<{ displayPhone: string | null } | null> {
   const version = process.env.WHATSAPP_API_VERSION || "v21.0";
   try {
     const res = await f(`https://graph.facebook.com/${version}/${phoneNumberId}?fields=id,display_phone_number`, {
