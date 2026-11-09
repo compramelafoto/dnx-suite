@@ -228,3 +228,65 @@ describe("orders mapper", () => {
     assert.equal(a.length, 64);
   });
 });
+
+import { toOrdersCardPaymentMethod } from "./mapper.js";
+
+describe("tarjeta de débito en Orders (pedido 6059, 09/11/2026)", () => {
+  it("el id de débito del Brick (debvisa) va como marca visa y tipo debit_card", () => {
+    assert.deepEqual(toOrdersCardPaymentMethod("debvisa", null), { id: "visa", type: "debit_card" });
+  });
+
+  it("debmaster y debcabal también", () => {
+    assert.deepEqual(toOrdersCardPaymentMethod("debmaster"), { id: "master", type: "debit_card" });
+    assert.deepEqual(toOrdersCardPaymentMethod("debcabal"), { id: "cabal", type: "debit_card" });
+  });
+
+  it("el tipo que informa el Brick manda (prepaga o débito con id de marca)", () => {
+    assert.deepEqual(toOrdersCardPaymentMethod("visa", "debit_card"), { id: "visa", type: "debit_card" });
+    assert.deepEqual(toOrdersCardPaymentMethod("master", "prepaid_card"), { id: "master", type: "prepaid_card" });
+  });
+
+  it("una tarjeta de crédito queda igual que antes", () => {
+    assert.deepEqual(toOrdersCardPaymentMethod("master", null), { id: "master", type: "credit_card" });
+    assert.deepEqual(toOrdersCardPaymentMethod(undefined), { id: "visa", type: "credit_card" });
+  });
+
+  it("sin tipo, la orden queda exactamente como antes (Clickatón no cambia)", () => {
+    const built = buildMercadoPagoSplitOrderRequest({
+      externalReference: "x-1",
+      total: money("ARS", 100000n),
+      amountType: "fixed",
+      entries: [{ receiverId: "97484805", receiverType: "owner", amount: money("ARS", 100000n) }],
+      deviceSessionId: TEST_DEVICE_SESSION_ID,
+      payerEmail: "comprador@ejemplo.com",
+      statementDescriptor: "CLF FOTOS",
+      items: [singleIntangibleItem({ title: "Foto", total: money("ARS", 100000n) })],
+      paymentToken: "tok",
+      paymentMethodId: "master",
+    });
+    const pm = built.body.transactions!.payments[0]!.payment_method;
+    assert.equal(pm.id, "master");
+    assert.equal(pm.type, "credit_card");
+  });
+
+  it("la orden lleva la marca y el tipo de débito", () => {
+    const built = buildMercadoPagoSplitOrderRequest({
+      externalReference: "clf-album-order-1",
+      total: money("ARS", 100000n),
+      amountType: "fixed",
+      entries: [{ receiverId: "97484805", receiverType: "owner", amount: money("ARS", 100000n) }],
+      deviceSessionId: TEST_DEVICE_SESSION_ID,
+      payerEmail: "comprador@ejemplo.com",
+      statementDescriptor: "CLF FOTOS",
+      items: [singleIntangibleItem({ title: "Foto", total: money("ARS", 100000n) })],
+      paymentToken: "tok",
+      ...(() => {
+        const m = toOrdersCardPaymentMethod("debvisa", null);
+        return { paymentMethodId: m.id, paymentType: m.type };
+      })(),
+    });
+    const pm = built.body.transactions!.payments[0]!.payment_method;
+    assert.equal(pm.id, "visa");
+    assert.equal(pm.type, "debit_card");
+  });
+});

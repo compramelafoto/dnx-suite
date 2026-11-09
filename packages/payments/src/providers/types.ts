@@ -30,6 +30,8 @@ export interface CreateProviderOrderInput {
   paymentToken?: string;
   /** MP payment_method.id (e.g. visa) — required by Orders when token is sent. */
   paymentMethodId?: string;
+  /** Tipo de tarjeta para Orders (`debit_card`, `prepaid_card`); sin él, `credit_card`. */
+  paymentType?: "credit_card" | "debit_card" | "prepaid_card";
   /** Installments from Brick (default 1). */
   installments?: number;
   metadata?: Record<string, string>;

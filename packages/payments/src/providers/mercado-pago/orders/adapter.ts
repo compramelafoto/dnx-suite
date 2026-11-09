@@ -191,6 +191,7 @@ export class MercadoPagoOrdersAdapter implements PaymentProvider {
         : input.paymentToken
           ? { paymentMethodId: "visa" }
           : {}),
+      ...(input.paymentType ? { paymentType: input.paymentType } : {}),
       ...(input.installments != null ? { installments: input.installments } : {}),
     });
 
