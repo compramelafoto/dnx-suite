@@ -16,15 +16,19 @@ const pesos = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS
  * Pago con tarjeta de un carrito de evento (Split 1:N): fotos de varios fotógrafos, un solo pago.
  * Con todo pagado, la misma página es el centro de descargas del grupo (un botón por fotógrafo):
  * el enlace del grupo es un UUID que sólo conoce quien compró.
- * Con el carrito apagado para el evento da 404.
+ * Con el carrito apagado para el evento, un grupo sin cobrar da 404.
  */
 export default async function PagarGrupoPage({ params }: { params: Promise<{ grupoId: string }> }) {
   const { grupoId } = await params;
   const piloto = resolvePilotoConfig();
   let grupo = await cargarGrupo(grupoId);
-  if (!grupo || !piloto.publicKey || !carritoActivoParaEvento(resolveCarritoConfig(), piloto, grupo.eventId)) {
-    notFound();
-  }
+  if (!grupo) notFound();
+  // El interruptor sólo decide si se puede pagar. Un grupo ya pagado o con un cobro en curso
+  // sigue mostrando sus descargas (es el enlace del correo) y conciliando aunque se apague.
+  const puedePagar = Boolean(piloto.publicKey) && carritoActivoParaEvento(resolveCarritoConfig(), piloto, grupo.eventId);
+  const yaCobrado =
+    grupo.pedidos.some((p) => p.order.status === "PAID") || estadoDelGrupo(grupo.pedidos) !== "PENDIENTE";
+  if (!puedePagar && !yaCobrado) notFound();
 
   // Conciliación al visitar: si ya hay una orden de Mercado Pago y falta confirmar algún pedido
   // (el comprador cerró la página o el aviso no llegó), se verifica y se confirma acá.
@@ -104,14 +108,14 @@ export default async function PagarGrupoPage({ params }: { params: Promise<{ gru
               ),
             )}
           </div>
-        ) : estado !== "PENDIENTE" ? (
+        ) : estado !== "PENDIENTE" || !puedePagar ? (
           <p className="text-neutral-700">
             Estamos verificando tu pago con Mercado Pago. Te avisamos por correo a {correo} apenas se
             confirme. <strong>No pagues de nuevo.</strong>
           </p>
         ) : (
           <PagarClient
-            publicKey={piloto.publicKey!}
+            publicKey={piloto.publicKey ?? ""}
             grupoId={grupo.grupoId}
             totalPesos={total}
             correoVisible={correo}

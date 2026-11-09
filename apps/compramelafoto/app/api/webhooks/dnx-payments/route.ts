@@ -23,6 +23,10 @@ export async function POST(request: NextRequest) {
     dataId: url.searchParams.get("data.id"),
     type: url.searchParams.get("type") ?? url.searchParams.get("topic"),
   });
+  if (piloto.manejado && piloto.reintentar) {
+    // Carrito de evento cobrado que no se pudo confirmar: error para que Mercado Pago reintente.
+    return NextResponse.json({ ok: false, piloto: true, resultado: piloto.resultado }, { status: 503 });
+  }
   if (piloto.manejado) {
     return NextResponse.json({ ok: true, piloto: true, resultado: piloto.resultado }, { status: 200 });
   }

@@ -54,6 +54,8 @@ export async function finalizarGrupo(params: {
 
   let aplicados = 0;
   const fallidos: number[] = [];
+  // El pago es uno solo: lo registra en `WebhookEvent` el primer pedido del grupo.
+  const primero = grupo.pedidos[0]?.order.id;
   for (const id of decision.aConfirmar) {
     const p = porId.get(id);
     if (!p) continue;
@@ -71,6 +73,7 @@ export async function finalizarGrupo(params: {
         snapshotPagado: marcarSnapshotGrupo(p.order.pricingSnapshot, { estado: "PAGADO", providerOrderId: mp.id }),
         canal: "split-1n-carrito-evento",
         omitirComprobanteComprador: true,
+        registrarAviso: id === primero,
       });
       if (aplicado) aplicados++;
     } catch (err: unknown) {

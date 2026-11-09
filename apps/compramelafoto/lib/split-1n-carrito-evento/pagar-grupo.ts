@@ -46,6 +46,20 @@ function falla(codigo: string, mensaje?: string): PagarPilotoResult {
 
 type Reservado = { id: number; snapshot: Record<string, unknown> };
 
+/**
+ * El snapshot sin el `providerOrderId` de un intento anterior: un intento nuevo arranca sin
+ * orden, y si su resultado es incierto la conciliación no mira la orden vieja (rechazada).
+ */
+function sinOrdenAnterior(snapshot: unknown): Record<string, unknown> {
+  const base = snapshot && typeof snapshot === "object" && !Array.isArray(snapshot) ? { ...(snapshot as Record<string, unknown>) } : {};
+  const marca = base.split1nGrupo;
+  if (marca && typeof marca === "object" && !Array.isArray(marca)) {
+    const { providerOrderId: _anterior, ...resto } = marca as Record<string, unknown>;
+    base.split1nGrupo = resto;
+  }
+  return base;
+}
+
 /** Cambia la marca de todos los pedidos que sigan sin pagar (no pisa un PAGADO del aviso). */
 async function guardarMarcaGrupo(
   reservados: Reservado[],
@@ -201,7 +215,7 @@ export async function pagarGrupo(input: {
     const photographerUserId = p.order.album?.userId ?? null;
     return {
       id: p.order.id,
-      snapshot: marcarSnapshotGrupo(p.order.pricingSnapshot, {
+      snapshot: marcarSnapshotGrupo(sinOrdenAnterior(p.order.pricingSnapshot), {
         estado: "COBRANDO",
         intento,
         cobro: {

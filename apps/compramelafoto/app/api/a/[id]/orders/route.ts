@@ -50,6 +50,7 @@ import { actorPuedeUsarPagoSimulado, albumUsaPagoSimulado } from "@/lib/demos/pa
 import { desviarAlPilotoSiCorresponde } from "@/lib/split-1n-piloto/desvio";
 import { leerMarcaPiloto } from "@/lib/split-1n-piloto/snapshot";
 import { esPedidoDeCarrito } from "@/lib/split-1n-carrito-evento/pedido-interno";
+import { leerMarcaGrupo } from "@/lib/split-1n-carrito-evento/marca";
 
 function normalizePercent(value: unknown): number | null {
   const parsed = Number(value);
@@ -550,6 +551,8 @@ export async function POST(
       // Un pedido del piloto Split 1:N no se reutiliza: si el piloto se apagó o ya no aplica,
       // la compra nueva se vuelve a evaluar y puede ir por Checkout Pro.
       if (leerMarcaPiloto(candidate.pricingSnapshot)) return false;
+      // Tampoco uno de un carrito de evento: se paga sólo junto con su grupo.
+      if (leerMarcaGrupo(candidate.pricingSnapshot)) return false;
       const candidateSignature = buildOrderItemsSignature(
         candidate.items.map((item) => ({
           photoId: item.photoId,

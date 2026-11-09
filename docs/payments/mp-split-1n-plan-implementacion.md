@@ -388,6 +388,18 @@ cuenta y tarjetas del exterior en Split 1:N.
 `pricingSnapshot.split1nGrupo.providerOrderId` de cualquier pedido del grupo, y hay que marcar
 todos los pedidos del grupo. Reembolso parcial (una foto): fuera de alcance, a mano.
 
-**Pendientes conocidos:** con el carrito, el comprador no recibe la entrega por WhatsApp de cada
-pedido ni el comprobante por pedido (los reemplaza el correo del grupo); el correo de "ZIP listo"
-sigue saliendo por pedido.
+**Protecciones contra el cobro doble fuera del carrito:** los pedidos del grupo no tienen la marca
+del piloto (`/pagar/<id>` da 404), la ruta de pedidos no los reutiliza, `create-preference` y el
+reintento de pago los rechazan, y el aviso de "pedido abandonado" los saltea. Si un grupo cobrado
+no se puede confirmar, `/api/webhooks/dnx-payments` responde 503 para que Mercado Pago reintente;
+la página del grupo concilia en cada visita y sigue andando aunque el carrito se apague.
+
+**Pendientes conocidos (antes de encender):**
+- No hay conciliación programada de grupos trabados (`COBRANDO`/`EN_REVISION`): hoy dependen del
+  aviso de Mercado Pago y de la visita a la página. Si Mercado Pago rechaza un pago que estaba en
+  revisión, el grupo queda trabado y se destraba a mano.
+- El filtro por `pricingSnapshot.split1nGrupo` no tiene índice; con volumen conviene una columna.
+- El comprobante es uno por grupo; la entrega por WhatsApp y el correo de "ZIP listo" siguen
+  saliendo por pedido.
+- Los mismos huecos de `create-preference`, reintento y "pedido abandonado" existen para pedidos
+  del piloto de un álbum (no se tocaron acá).

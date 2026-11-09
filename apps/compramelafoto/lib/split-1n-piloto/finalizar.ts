@@ -99,6 +99,11 @@ export async function confirmarPedidoPagado(params: {
   canal: string;
   /** El carrito de evento manda un solo comprobante por grupo en vez de uno por pedido. */
   omitirComprobanteComprador?: boolean;
+  /**
+   * Registro del pago en `WebhookEvent` (único por pago y estado). En un carrito de evento todos
+   * los pedidos comparten el pago: lo registra uno solo. Por defecto true.
+   */
+  registrarAviso?: boolean;
 }): Promise<boolean> {
   const { order, marca, feePesos, paymentRef } = params;
   const actualizado = await prisma.order.updateMany({
@@ -140,7 +145,7 @@ export async function confirmarPedidoPagado(params: {
     }),
   );
 
-  await efecto(order.id, "webhook_event", () =>
+  if (params.registrarAviso !== false) await efecto(order.id, "webhook_event", () =>
     prisma.webhookEvent.create({
       data: {
         paymentId: paymentRef,

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { leerMarcaGrupo } from "@/lib/split-1n-carrito-evento/marca";
 import { CheckoutPaymentSource, OrderOrigin } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { createPreference, type OrderType } from "@/lib/mercadopago";
@@ -283,6 +284,15 @@ export async function POST(req: Request) {
 
       if (order.status === "PAID" || order.status === "REFUNDED") {
         return alreadyPaidResponse(orderId, orderType);
+      }
+
+      // Carrito de evento (Split 1:N): sus pedidos se pagan juntos en /pagar/grupo, nunca sueltos.
+      if (leerMarcaGrupo(order.pricingSnapshot)) {
+        console.info(LOG_BLOCKED, { reason: "album_order_carrito_evento", orderId });
+        return NextResponse.json(
+          { error: "Este pedido se paga junto con el resto de tu compra del evento.", code: "CARRITO_EVENTO" },
+          { status: 409 }
+        );
       }
 
       if (order.mpInitPoint && order.mpPreferenceId) {
