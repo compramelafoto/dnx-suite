@@ -315,6 +315,9 @@ export async function actualizarRegistros(
     if (esError(atribuciones)) errores.push(atribuciones.error);
     const porToken = new Map<string, Atribucion>();
     for (const a of esError(atribuciones) ? [] : atribuciones) {
+      // Sólo cuenta un registro de plataforma (fotógrafo u organizador), como el cruce por correo: un
+      // comprador que entró por el enlace no es un «se sumó».
+      if (!esRolPlataforma(a.rol)) continue;
       const previa = porToken.get(a.token);
       if (!previa || a.creadoEn < previa.creadoEn) porToken.set(a.token, a);
     }

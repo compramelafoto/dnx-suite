@@ -67,6 +67,15 @@ const filaContacto = (id: string) => B.datos.dnxContacto.find((c) => c.id === id
 beforeEach(() => B.vaciar());
 
 describe("registros en CLF", () => {
+  it("un comprador (CUSTOMER) que entró por el enlace no cuenta como registro", async () => {
+    const c = contacto({ email: "luz@estudio.com.ar" });
+    const h = hilo(c.id);
+    const clf = clfFalso({ atribuciones: [{ token: h.token, userId: 43, rol: "CUSTOMER", creadoEn: "2026-11-12T10:00:00.000Z" }] });
+    expect(await V.actualizarRegistros(AHORA, clf.deps)).toEqual({ nuevos: [] });
+    expect(filaHilo(h.id)).toMatchObject({ registradoEn: null, viaRegistro: null });
+    expect(filaContacto(c.id).estado).not.toBe("SE_SUMO");
+  });
+
   it("registro por cookie: SE_SUMO y registradoEn", async () => {
     const c = contacto({ email: "luz@estudio.com.ar" });
     const h = hilo(c.id);
