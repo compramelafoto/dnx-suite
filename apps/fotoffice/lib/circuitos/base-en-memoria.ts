@@ -482,6 +482,8 @@ export function crearBaseEnMemoria() {
   const UNICOS: Partial<Record<Tabla, Unico[]>> = {
     fotofficeJourney: [{ columnas: ["workspaceId", "subjectType", "subjectId", "kind"], aplica: (f) => f.closedAt === null }],
     fotofficeProcessedEvent: [{ columnas: ["journeyId", "event", "sourceRef"] }],
+    // Buscador: único con NULLS NOT DISTINCT (ciudad y nicho nulos cuentan como iguales; `igual` trata null === null).
+    dnxBuscadorTarea: [{ columnas: ["region", "provincia", "ciudad", "tipo", "nicho", "fuente"] }],
     // Presupuesto automático: una aprobación por consulta y un ajuste por categoría.
     fotofficePresupuestoAprobacion: [{ columnas: ["workspaceId", "leadId"] }],
     fotofficePresupuestoAutoCategoria: [{ columnas: ["workspaceId", "categoryId"] }],

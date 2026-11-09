@@ -13,8 +13,10 @@ const G = await import("./gasto");
 const AHORA = new Date("2026-11-08T15:00:00.000Z");
 const TAREA_BASE = { regionId: "r", provincia: "Santa Fe", tipo: "FOTOGRAFO", fuente: "GOOGLE", prioridad: 1, estado: "HECHA" };
 
+let n = 0;
 async function tarea(extra: Record<string, unknown>) {
-  B.agregar("dnxBuscadorTarea", { ...TAREA_BASE, hechaEn: new Date("2026-11-03T12:00:00.000Z"), ...extra });
+  // La ciudad distinta evita chocar con el único (region, provincia, ciudad, tipo, nicho, fuente).
+  B.agregar("dnxBuscadorTarea", { ...TAREA_BASE, ciudad: `ciudad-${n++}`, hechaEn: new Date("2026-11-03T12:00:00.000Z"), ...extra });
 }
 
 beforeEach(() => B.vaciar());
