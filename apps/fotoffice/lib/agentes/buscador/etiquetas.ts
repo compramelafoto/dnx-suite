@@ -13,6 +13,7 @@ export const ETIQUETA_TIPO: Record<TipoContacto, string> = {
   ORGANIZADOR_MUESTRAS: "Organizador de muestras",
   EMPRESA_TURISMO: "Empresa de turismo",
   NEGOCIO_FOTOGRAFIA: "Negocio de fotografía",
+  ESCUELA_FOTOGRAFIA: "Escuela de fotografía",
   OTRO: "Otro",
 };
 
