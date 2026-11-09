@@ -25,7 +25,7 @@
     "test:cuantocobro:characterization": "pnpm --filter @repo/cuanto-cobro-core test && ../../services/dnx-mcp/node_modules/.bin/vitest run --config vitest.cuantocobro.config.ts lib/cuantocobro/calculate-cuanto-cobro.characterization.test.ts lib/cuantocobro/__fixtures__/adapter-shape-contract.test.ts",
     "test:homologation-mp-split-1n": "pnpm --filter @repo/payments exec tsx --test ../../apps/compramelafoto/lib/homologation/mp-split-1n/homologation-guards.test.ts ../../apps/compramelafoto/lib/homologation/mp-split-1n/orders-webhook-guards.test.ts",
     "test:cierre-split-1n": "pnpm --filter @repo/payments exec tsx --test ../../apps/compramelafoto/lib/cierre-split-1n/cierre-guards.test.ts",
-    "test:split-1n-piloto": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.json --test lib/split-1n-piloto/piloto.test.ts",
+    "test:split-1n-piloto": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.json --test lib/split-1n-piloto/piloto.test.ts lib/split-1n-carrito-evento/carrito.test.ts",
     "admin:ensure-local-homologation-admin": "pnpm --filter @repo/payments exec tsx ../../apps/compramelafoto/scripts/ensure-local-homologation-admin.ts",
     "prisma:generate": "pnpm --filter @repo/db run db:generate",
     "report:preview": "pnpm --filter @repo/ops-daily-report exec tsx ../../apps/compramelafoto/scripts/daily-report-preview.ts",
