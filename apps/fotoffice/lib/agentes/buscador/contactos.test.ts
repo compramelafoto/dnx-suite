@@ -126,6 +126,51 @@ describe("guardarCandidato", () => {
     expect(contactos()).toHaveLength(4);
   });
 
+  it("4 sucursales con el mismo 0810, distinto placeId y ciudad quedan como 4 contactos", async () => {
+    const ids = new Set<string>();
+    for (const [i, ciudad] of ["Rosario", "Córdoba", "Mendoza", "Salta"].entries()) {
+      const r = await C.guardarCandidato(candidato({
+        tipo: "NEGOCIO_FOTOGRAFIA", nombre: `Foto Cadena ${ciudad}`, ciudad, googlePlaceId: `ChIJ-suc-${i}`,
+        datos: { telefono: { valor: "0810 555 1234", fuente: "SITIO_PROPIO", fuenteUrl: null } },
+      }));
+      ids.add(r.contactoId);
+    }
+    expect(ids.size).toBe(4);
+    expect(contactos()).toHaveLength(4);
+    expect(contactos().map((c) => c.googlePlaceId).sort()).toEqual(["ChIJ-suc-0", "ChIJ-suc-1", "ChIJ-suc-2", "ChIJ-suc-3"]);
+  });
+
+  it("mismo email de federación en 2 ciudades sin placeId quedan 2 contactos", async () => {
+    const email = { valor: "secretaria@federacion.org.ar", fuente: "WEB_SEARCH" as const, fuenteUrl: null };
+    const a = await C.guardarCandidato(candidato({ tipo: "CLUB", nombre: "Club Atlético Norte", ciudad: "Rosario", datos: { email } }));
+    const b = await C.guardarCandidato(candidato({ tipo: "CLUB", nombre: "Club Sur", ciudad: "Córdoba", datos: { email } }));
+    expect(b.nuevo).toBe(true);
+    expect(b.contactoId).not.toBe(a.contactoId);
+    expect(contactos()).toHaveLength(2);
+  });
+
+  it("mismo teléfono, misma ciudad, sin placeId sí empareja", async () => {
+    const a = await C.guardarCandidato(candidato({ datos: { telefono: { valor: "341 555 1234", fuente: "SITIO_PROPIO", fuenteUrl: null } } }));
+    const b = await C.guardarCandidato(candidato({ nombre: "Otro nombre", ciudad: "rosario", datos: { telefono: { valor: "(0341) 15-555-1234", fuente: "WEB_SEARCH", fuenteUrl: null } } }));
+    expect(b).toMatchObject({ contactoId: a.contactoId, nuevo: false });
+    expect(contactos()).toHaveLength(1);
+  });
+
+  it("misma web, distinto placeId, quedan 2 contactos", async () => {
+    const a = await C.guardarCandidato(candidato({ googlePlaceId: "ChIJ-A" }));
+    const b = await C.guardarCandidato(candidato({ nombre: "Luz Estudio Centro", googlePlaceId: "ChIJ-B" }));
+    expect(b.nuevo).toBe(true);
+    expect(b.contactoId).not.toBe(a.contactoId);
+    expect(contactos()).toHaveLength(2);
+  });
+
+  it("no guarda lat/lng", async () => {
+    const a = await C.guardarCandidato(candidato({ googlePlaceId: "ChIJ-A", lat: -32.95, lng: -60.66 }));
+    expect(contactos()[0]).toMatchObject({ lat: null, lng: null, googlePlaceId: "ChIJ-A" });
+    await C.guardarCandidato(candidato({ googlePlaceId: "ChIJ-A", lat: -32.95, lng: -60.66 }));
+    expect(contactos().find((c) => c.id === a.contactoId)).toMatchObject({ lat: null, lng: null });
+  });
+
   it("un contacto NO_CONTACTAR que reaparece sigue NO_CONTACTAR", async () => {
     const a = await C.guardarCandidato(candidato());
     expect(await C.cambiarEstado(a.contactoId, "NO_CONTACTAR", "7")).toEqual({ ok: true });

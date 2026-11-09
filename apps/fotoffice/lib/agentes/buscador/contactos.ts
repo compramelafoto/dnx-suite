@@ -101,8 +101,19 @@ async function contactoFinal(db: Db, id: string): Promise<string> {
  * correo → teléfono → nombre+ciudad. Un correo o teléfono presente en contactos de 3 o más ciudades
  * distintas (la central de una cadena, el correo de una federación) no cuenta como llave.
  * Si el que coincide se fusionó en otro, devuelve el que quedó.
+ *
+ * Además, con las llaves más débiles que el lugar de Google:
+ * - dos lugares de Google distintos son dos contactos (sucursales de una cadena con la misma web o
+ *   el mismo 0810), aunque compartan cualquier otra clave;
+ * - un correo o teléfono no empareja si las dos ciudades se conocen y son distintas.
  */
-export async function buscarExistente(claves: ClavesContacto, googlePlaceId: string | null, db: Db = prisma): Promise<string | null> {
+export async function buscarExistente(
+  claves: ClavesContacto,
+  googlePlaceId: string | null,
+  opciones: { ciudad?: string | null; db?: Db } = {},
+): Promise<string | null> {
+  const db = opciones.db ?? prisma;
+  const ciudad = ciudadLimpia(opciones.ciudad ?? null);
   if (googlePlaceId) {
     const f = await db.dnxContacto.findFirst({ where: { googlePlaceId }, select: { id: true } });
     if (f) return contactoFinal(db, f.id);
@@ -117,11 +128,22 @@ export async function buscarExistente(claves: ClavesContacto, googlePlaceId: str
       orderBy: { creadoEn: "asc" },
     });
     if (filas.length === 0) continue;
-    if (col === "claveEmail" || col === "claveTelefono") {
+    const porCiudad = col === "claveEmail" || col === "claveTelefono";
+    if (porCiudad) {
       const ciudades = new Set(filas.map((f) => ciudadLimpia(f.ciudad)).filter((c) => c !== null));
       if (ciudades.size >= CIUDADES_PARA_DEJAR_DE_SER_LLAVE) continue;
     }
-    return contactoFinal(db, filas[0]!.id);
+    for (const fila of filas) {
+      const id = await contactoFinal(db, fila.id);
+      const final = await db.dnxContacto.findUnique({ where: { id }, select: { googlePlaceId: true, ciudad: true } });
+      if (!final) continue;
+      if (googlePlaceId && final.googlePlaceId && final.googlePlaceId !== googlePlaceId) continue;
+      if (porCiudad) {
+        const suya = ciudadLimpia(final.ciudad);
+        if (ciudad && suya && ciudad !== suya) continue;
+      }
+      return id;
+    }
   }
   return null;
 }
@@ -165,7 +187,9 @@ async function crear(db: Db, c: Candidato, ahora: Date): Promise<{ contactoId: s
     data: {
       tipo: c.tipo, nichos: unir([], c.nichos), plataformas: plataformasPorTipo(c.tipo),
       nombre: c.nombre.trim(), ciudad: c.ciudad, provincia: c.provincia, region: c.region,
-      lat: c.lat ?? null, lng: c.lng ?? null, googlePlaceId: c.googlePlaceId ?? null,
+      // lat/lng NO se guardan: vendrían de Google Places y sus condiciones sólo permiten guardar
+      // el `place_id`. Los campos siguen en `Candidato` por compatibilidad, pero se ignoran.
+      lat: null, lng: null, googlePlaceId: c.googlePlaceId ?? null,
       web: valor("web"), instagram: valor("instagram"), facebook: valor("facebook"),
       email: valor("email"), telefono: valor("telefono"), whatsapp: valor("whatsapp"),
       creadoPor: c.creadoPor, ...claves,
@@ -186,8 +210,9 @@ async function completar(db: Db, id: string, c: Candidato, ahora: Date): Promise
   const cambios: Record<string, unknown> = {};
   const vacio = (k: string) => actual[k] === null || actual[k] === undefined;
 
-  for (const k of ["ciudad", "provincia", "region", "lat", "lng", "googlePlaceId"] as const) {
-    const v = k === "lat" || k === "lng" || k === "googlePlaceId" ? (c[k] ?? null) : c[k];
+  // Sin lat/lng: ver `crear` (condiciones de Google Places).
+  for (const k of ["ciudad", "provincia", "region", "googlePlaceId"] as const) {
+    const v = k === "googlePlaceId" ? (c[k] ?? null) : c[k];
     if (vacio(k) && v !== null && v !== undefined) cambios[k] = v;
   }
   if (vacio("claveNombreCiudad")) {
@@ -250,7 +275,7 @@ export async function guardarCandidato(
 
   const intentar = () =>
     prisma.$transaction(async (tx) => {
-      const existente = await buscarExistente(claves, c.googlePlaceId ?? null, tx);
+      const existente = await buscarExistente(claves, c.googlePlaceId ?? null, { ciudad: c.ciudad, db: tx });
       if (existente) return { contactoId: existente, nuevo: false, datosNuevos: await completar(tx, existente, c, ahora) };
       const r = await crear(tx, c, ahora);
       return { ...r, nuevo: true };
@@ -346,7 +371,7 @@ export async function fusionar(origenId: string, destinoId: string, autor: strin
     const vacio = (k: string) => d[k] === null || d[k] === undefined;
     const cambios: Record<string, unknown> = {};
     for (const k of [
-      ...CAMPOS_DATO, "ciudad", "provincia", "region", "lat", "lng", "vinculo", "vinculoId",
+      ...CAMPOS_DATO, "ciudad", "provincia", "region", "vinculo", "vinculoId",
       "claveDominio", "claveInstagram", "claveEmail", "claveTelefono", "claveNombreCiudad",
     ]) {
       if (vacio(k) && o[k] !== null && o[k] !== undefined) cambios[k] = o[k];
