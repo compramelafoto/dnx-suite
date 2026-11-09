@@ -1,4 +1,6 @@
+import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
+import { estadoBuscador } from "@/lib/agentes/buscador/estado";
 import { estadoCanalAgentes } from "@/lib/agentes/canal";
 import { VARIABLE_TOKEN_AGENTES } from "@/lib/agentes/canal-reglas";
 import { textoUsd } from "@/lib/agentes/periodista/costo";
@@ -28,14 +30,17 @@ const RESULTADOS: Record<string, string> = { OTRA: "pediste otra noticia" };
  * acceso lo controla el layout de /admin (sólo SUPER_ADMIN).
  */
 export default async function AdminAgentesPage() {
-  const [canal, propuestas, gustos, mes] = await Promise.all([estadoCanalAgentes(), ultimasPropuestas(), gustosDelPeriodista(), costoDelMes()]);
+  const [canal, propuestas, gustos, mes, buscador] = await Promise.all([
+    estadoCanalAgentes(), ultimasPropuestas(), gustosDelPeriodista(), costoDelMes(), estadoBuscador(new Date()),
+  ]);
+  const regionBuscador = buscador.regiones.find((r) => r.region === buscador.actual) ?? null;
   const listo = canal.tieneToken && canal.conectado && canal.vinculado;
 
   return (
     <div className="space-y-8">
       <PageHeader
         title="Agentes"
-        description="El canal de Telegram de los agentes y el Periodista, que propone 3 notas por semana para el blog de DNX Estudio."
+        description="El canal de Telegram de los agentes, el Periodista, que propone 3 notas por semana para el blog de DNX Estudio, y el Buscador de Contactos DNX."
       />
 
       <section className="fo-card space-y-4">
@@ -84,6 +89,35 @@ export default async function AdminAgentesPage() {
             {mes.corridas} {mes.corridas === 1 ? "corrida" : "corridas"}.
           </p>
         ) : null}
+      </section>
+
+      <section className="fo-card space-y-3">
+        <h2 className="text-base font-semibold text-[var(--fo-text)]">Buscador</h2>
+        <p className="text-sm text-[var(--fo-muted)] leading-relaxed">
+          Cada 15 minutos busca fotógrafos, escuelas, clubes y organizadores en Google Maps y en internet, región por región, y
+          los suma a Contactos DNX. Nadie recibe nada sin que lo decidas.
+        </p>
+        <ul className="text-sm text-[var(--fo-muted)] leading-relaxed space-y-1">
+          <li>
+            Región actual:{" "}
+            <span className="text-[var(--fo-text)]">
+              {buscador.ajustes.pausado
+                ? "en pausa"
+                : regionBuscador
+                  ? `${regionBuscador.nombre} (${regionBuscador.hechas}/${regionBuscador.total} búsquedas)`
+                  : "ninguna en curso"}
+            </span>
+          </li>
+          <li>
+            Gasto del mes: <span className="text-[var(--fo-text)]">Google {textoUsd(buscador.gasto.googleUsd)}</span> de{" "}
+            {textoUsd(buscador.ajustes.topeGoogleUsd)} · <span className="text-[var(--fo-text)]">Claude {textoUsd(buscador.gasto.claudeUsd)}</span> de{" "}
+            {textoUsd(buscador.ajustes.topeClaudeUsd)}
+          </li>
+          {!buscador.tieneClaveGoogle ? <li>Sin clave de Google: busca sólo en internet.</li> : null}
+        </ul>
+        <Link href="/admin/contactos-dnx" className="text-sm text-[var(--fo-accent)] underline">
+          Ver Contactos DNX y manejar el Buscador
+        </Link>
       </section>
 
       {gustos ? (

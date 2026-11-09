@@ -496,12 +496,12 @@ export function herramientasDeAtencion(
     defineTool({
       name: "no_responder",
       description:
-        "No le contestes nada a este chat porque no es un cliente: un proveedor que nos vende o nos cobra, publicidad, spam, o alguien del equipo. El chat queda para que lo mire una persona del estudio. Después de usarla no escribas ningún texto.",
+        "Para quien no es un cliente: un proveedor que nos vende o nos cobra, publicidad, spam, o alguien del equipo. El sistema le contesta que se lo pasamos al encargado del estudio, le avisa al dueño por Telegram y deja el chat para una persona. Después de usarla no escribas ningún texto.",
       input: z.object({ motivo: z.string().min(3).max(200) }),
       kind: "read",
       run: async ({ motivo }) => {
         motivoSilencio = motivo.trim();
-        return { ok: true, message: "Listo: no se le manda nada y el chat queda para una persona del estudio." };
+        return { ok: true, message: "Listo: el sistema le contesta que se lo pasamos al encargado y le avisa al dueño. No escribas nada." };
       },
     }),
   ];

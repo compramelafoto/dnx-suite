@@ -18,6 +18,7 @@ import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 import { ICONOS } from "@/components/shell/nav-icons";
 import { personVocabulary } from "@/lib/vocabulario/personas";
+import { BOX_MENSUAL_FEATURE } from "@/lib/box-mensual/secuencia";
 
 const RAIZ = join(import.meta.dirname, "..", "..");
 
@@ -266,6 +267,23 @@ describe("submodulesFor — niveles y acciones sensibles", () => {
   it("una acción sin el nivel no abre nada: el módulo en NONE no muestra pantallas", () => {
     expect(hrefs("cash", { levels: { cash: "NONE" }, actions: [CASH_CONFIGURE_ACTION] })).toEqual([]);
     expect(hrefs("coverages", { levels: {}, actions: [COVERAGES_COORDINATE_ACTION] })).toEqual([]);
+  });
+});
+
+describe("BOX mensual", () => {
+  const hrefs = (access: SubmoduleAccess) => submodulesFor(MEMBERS_MODULE_KEY, access, SOCIO).map((s) => s.href);
+
+  it("no aparece en una institución que no la usa, aunque gestione Socios", () => {
+    expect(hrefs(GESTIONA)).not.toContain("/members/box");
+  });
+
+  it("aparece cuando el workspace la usa y la persona gestiona Socios, y tiene su archivo", () => {
+    expect(hrefs({ ...GESTIONA, features: [BOX_MENSUAL_FEATURE] })).toContain("/members/box");
+    expect(existsSync(pageDe("/members/box"))).toBe(true);
+  });
+
+  it("quien sólo ve el padrón no la ve, aunque el workspace la use", () => {
+    expect(hrefs({ ...SOLO_VE, features: [BOX_MENSUAL_FEATURE] })).not.toContain("/members/box");
   });
 });
 

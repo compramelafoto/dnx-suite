@@ -133,10 +133,13 @@ function mensajes(value: Json, phoneNumberId: string, salida: EventoWa[]) {
 const ESTADOS: Record<string, EstadoDeEnvioWa> = { sent: "ENVIADO", delivered: "ENTREGADO", read: "LEIDO", failed: "FALLO" };
 
 function ecos(value: Json, phoneNumberId: string, salida: EventoWa[]) {
+  // Con los identificadores nuevos de Meta `to` puede faltar: el cliente queda en `contacts`.
+  const contacto = lista(value.contacts).find(esObjeto);
+  const deContacts = contacto ? waIdDeMeta(contacto.wa_id) : null;
   for (const m of lista(value.message_echoes)) {
     if (!esObjeto(m) || m.type === "reaction") continue;
     const waMessageId = texto(m.id);
-    const waId = waIdDeMeta(m.to);
+    const waId = waIdDeMeta(m.to) ?? deContacts;
     if (!waMessageId || !waId) continue;
     salida.push({ tipo: "ECO", phoneNumberId, waMessageId, waId, en: fecha(m.timestamp), ...contenido(m) });
   }

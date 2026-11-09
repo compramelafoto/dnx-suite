@@ -2,6 +2,7 @@ import { z } from "zod";
 import { categoriaValida, CATEGORIAS_NOTA, type CategoriaNota } from "./gustos";
 import type { CreditoFoto } from "./imagen";
 import { normalizarUrl } from "./url";
+import type { ResultadoParseo } from "../claude";
 
 /**
  * Lo que devuelve Claude, validado. El modelo contesta un bloque ```json (no se usa la salida
@@ -45,7 +46,8 @@ const esquemaNota = z.object({
 
 export type NotaPropuesta = z.infer<typeof esquemaNota> & { fuenteUrlNormalizada: string };
 
-export type ResultadoParseo<T> = { ok: true; valor: T } | { ok: false; error: string };
+/** Vive en `../claude.ts` (compartido entre agentes). */
+export type { ResultadoParseo };
 
 /** El JSON de la respuesta: el último bloque ```json, o si no hay, de la primera "{" a la última "}". */
 export function extraerJson(texto: string): unknown {

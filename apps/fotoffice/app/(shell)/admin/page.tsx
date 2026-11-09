@@ -2,7 +2,7 @@ import Link from "next/link";
 import { prisma } from "@repo/db";
 import { requireAuth } from "@/lib/auth";
 import { PageHeader } from "@/components/page-header";
-import { LayoutGrid, Settings, Shield, Users, Building2, UserCog, PlayCircle, Bot } from "lucide-react";
+import { LayoutGrid, Settings, Shield, Users, Building2, UserCog, PlayCircle, Bot, BookUser } from "lucide-react";
 
 export default async function AdminHubPage() {
   const sessionUser = await requireAuth();
@@ -140,6 +140,22 @@ export default async function AdminHubPage() {
               <p className="font-semibold text-[var(--fo-text)]">Agentes</p>
               <p className="text-sm text-[var(--fo-muted)] leading-relaxed">
                 Canal de Telegram de los agentes y el Periodista del blog de DNX Estudio.
+              </p>
+            </div>
+          </Link>
+        </li>
+        <li>
+          <Link
+            href="/admin/contactos-dnx"
+            className="fo-card flex gap-4 items-start h-full transition-colors hover:border-[var(--fo-accent)]/40 hover:bg-[var(--fo-surface-hover)]"
+          >
+            <div className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-[var(--fo-accent-muted)] text-[var(--fo-accent)]">
+              <BookUser className="size-5" aria-hidden />
+            </div>
+            <div className="min-w-0 space-y-1">
+              <p className="font-semibold text-[var(--fo-text)]">Contactos DNX</p>
+              <p className="text-sm text-[var(--fo-muted)] leading-relaxed">
+                La base de prospectos: fotógrafos, escuelas, clubes y organizadores para las plataformas de DNX.
               </p>
             </div>
           </Link>

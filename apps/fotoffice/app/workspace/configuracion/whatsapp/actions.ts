@@ -108,3 +108,19 @@ export async function cambiarBotAction(_prev: EstadoWhatsappConfig | undefined, 
   revalidatePath(RUTA);
   return { error: null, ok: encendido ? "El bot ya responde los chats." : "El bot dejó de responder." };
 }
+
+/** Conectar el número en coexistencia: lo llama el botón después de la ventana de Meta. */
+export async function conectarCoexistenciaAction(datos: { code: string; wabaId: string; phoneNumberId: string }): Promise<{ ok: true; aviso: string } | { ok: false; error: string }> {
+  const ctx = await contexto();
+  if (!ctx) return { ok: false, error: MENSAJES_CONEXION.sinPermiso };
+  const { conectarCoexistencia } = await import("@/lib/bandeja/coexistencia");
+  const r = await conectarCoexistencia(ctx, datos);
+  if (!r.ok) return r;
+  revalidatePath(RUTA);
+  return {
+    ok: true,
+    aviso: r.tokenPermanente
+      ? "¡Listo! El número quedó conectado. La app del celular sigue funcionando igual."
+      : "¡Listo! El número quedó conectado. Ojo: el permiso de Meta vence en 60 días; hay que asignarle el número al usuario del sistema FOTOFFICE.",
+  };
+}

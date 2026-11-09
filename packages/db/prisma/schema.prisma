@@ -8243,6 +8243,9 @@ model MemberCategory {
   /// Se renueva cuando la persona quiere, sin deuda: no se le generan cuotas mensuales y desde
   /// su portal paga "Renovar" cuando decide. Si un mes no paga, no debe nada.
   selfRenew                 Boolean @default(false)
+  /// BOX mensual (club de SOYBELUZ): las personas de esta categoría reciben una caja de
+  /// materiales por cada mes pagado, en orden desde la BOX N°1. Ver `FotofficeBox`.
+  includesMonthlyBox        Boolean @default(false)
 
   workspace  Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   members    Member[]
@@ -8273,6 +8276,74 @@ model MemberBookingCreditGrant {
   bookings Booking[]
 
   @@index([workspaceId, memberId, validUntil])
+}
+
+/// Una caja del recorrido de la BOX mensual (club de SOYBELUZ): «BOX N°1 — Mi primer universo
+/// creativo: Soltar la mano». Cada persona socia las recibe en orden, desde la N°1, una por
+/// cada mes pagado. Después de la última queda «al día» hasta que se cargue la siguiente: el
+/// recorrido no vuelve a empezar.
+///
+/// No se borra: una caja que ya se envió se desactiva (`isActive = false`) y deja de ofrecerse.
+model FotofficeBox {
+  id          String   @id @default(cuid())
+  workspaceId String
+  /// El N° de la caja dentro del recorrido. Define el orden de envío.
+  number      Int
+  name        String
+  description String?
+  /// Lo que lleva cada caja: `[{ "material": "Lápiz grafito HB", "perBox": 1 }]`.
+  materials   Json     @default("[]")
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  shipments FotofficeBoxShipment[]
+
+  @@unique([workspaceId, number])
+  @@index([workspaceId, isActive])
+}
+
+enum FotofficeBoxShipmentStatus {
+  ENVIADA
+  ENTREGADA
+}
+
+/// El envío de una caja a una persona socia. Sólo envío a domicilio: la dirección se copia del
+/// socio en el momento de enviar y queda congelada, así una mudanza posterior no reescribe a
+/// dónde se mandó.
+///
+/// `@@unique([memberId, boxId])`: nadie recibe dos veces la misma caja.
+model FotofficeBoxShipment {
+  id              String                     @id @default(cuid())
+  workspaceId     String
+  memberId        String
+  boxId           String
+  /// Copia del N° de la caja al enviar: el historial se lee igual aunque la caja cambie.
+  boxNumber       Int
+  status          FotofficeBoxShipmentStatus @default(ENVIADA)
+  address         String
+  city            String?
+  province        String?
+  postalCode      String?
+  /// Empresa de correo (opcional).
+  carrier         String?
+  /// Número de seguimiento (opcional).
+  trackingCode    String?
+  shippedAt       DateTime                   @default(now())
+  deliveredAt     DateTime?
+  notes           String?
+  /// Quién la marcó como enviada.
+  shippedByUserId Int?
+  createdAt       DateTime                   @default(now())
+  updatedAt       DateTime                   @updatedAt
+
+  /// Restrict: el historial de envíos no se puede llevar por delante borrando un socio o una caja.
+  member Member       @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  box    FotofficeBox @relation(fields: [boxId], references: [id], onDelete: Restrict)
+
+  @@unique([memberId, boxId])
+  @@index([workspaceId, shippedAt])
+  @@index([workspaceId, memberId])
 }
 
 /// Socio/miembro institucional de un Workspace. Independiente de `User`:
@@ -8409,6 +8480,8 @@ model Member {
   originatedRecommendationBenefit MembershipRecommendationBenefit?  @relation("BenefitOrigin")
   bookings                        Booking[]
   bookingCreditGrants             MemberBookingCreditGrant[]
+  /// Las cajas de la BOX mensual que se le enviaron.
+  boxShipments                    FotofficeBoxShipment[]
   raffleEntries                   RaffleEntry[]
   raffleAwards                    RafflePrizeAward[]
   /// Ficha de cliente de este mismo socio, cuando también le compra algo al negocio.
@@ -28363,4 +28436,257 @@ model FotofficeAgentePropuesta {
 
   @@index([fuenteUrl])
   @@index([agente, creadaEn])
+}
+
+// ---------------------------------------------------------------------------
+// DNX · Contactos DNX y agente Buscador: base de prospectos (escuelas, clubes, fotógrafos, etc.)
+// Tablas nuevas, sin relaciones con tablas existentes. Los conjuntos cerrados son TEXT con CHECK en el
+// SQL (las bases comparten el esquema). Diseño:
+// apps/fotoffice/docs/superpowers/specs/2026-11-08-agente-buscador-contactos-dnx-design.md
+// ---------------------------------------------------------------------------
+
+/// Un prospecto de DNX.
+model DnxContacto {
+  id              String   @id @default(cuid())
+  /// FOTOGRAFO | ESCUELA | CLUB | ORGANIZADOR_EVENTOS | ASOCIACION_FOTOGRAFOS | ORGANIZADOR_MUESTRAS | EMPRESA_TURISMO | NEGOCIO_FOTOGRAFIA | OTRO
+  tipo            String
+  /// ESCOLAR, DEPORTIVA, TURISTICA, … o `OTRO:<texto>`.
+  nichos          String[]
+  /// CLF | INFOSPOT | MUESTRAS | FOTOFFICE
+  plataformas     String[]
+  nombre          String
+  ciudad          String?
+  provincia       String?
+  /// CENTRO | BUENOS_AIRES_AMBA | CUYO | NOA | NEA | PATAGONIA
+  region          String?
+  lat             Float?
+  lng             Float?
+  web             String?
+  instagram       String?
+  facebook        String?
+  email           String?
+  telefono        String?
+  whatsapp        String?
+  googlePlaceId   String?  @unique
+  /// NUEVO | REVISADO | CONTACTADO | RESPONDIO | SE_SUMO | NO_INTERESA | DESCARTADO | NO_CONTACTAR
+  estado          String   @default("NUEVO")
+  /// CONOCIDO_DNX_ESTUDIO | USUARIO_CLF
+  vinculo         String?
+  vinculoId       String?
+  compradorClf    Boolean  @default(false)
+  creadoPor       String
+  creadoEn        DateTime @default(now())
+  actualizadoEn   DateTime @updatedAt
+  /// Si este contacto se fusionó en otro, el id del que quedó.
+  fusionadoEnId   String?
+
+  // Claves normalizadas para detectar duplicados.
+  claveDominio      String?
+  claveInstagram    String?
+  claveEmail        String?
+  claveTelefono     String?
+  claveNombreCiudad String?
+
+  datos   DnxContactoDato[]
+  eventos DnxContactoEvento[]
+
+  @@index([claveDominio])
+  @@index([claveInstagram])
+  @@index([claveEmail])
+  @@index([claveTelefono])
+  @@index([claveNombreCiudad])
+}
+
+/// Cada dato encontrado, con de dónde salió.
+model DnxContactoDato {
+  id         String   @id @default(cuid())
+  contactoId String
+  campo      String
+  valor      String
+  /// SITIO_PROPIO | WEB_SEARCH | ALBOOM | MANUAL | CLF
+  fuente     String
+  fuenteUrl  String?
+  vistoEn    DateTime @default(now())
+
+  contacto DnxContacto @relation(fields: [contactoId], references: [id], onDelete: Cascade)
+
+  @@index([contactoId, campo])
+}
+
+/// Historia del contacto.
+model DnxContactoEvento {
+  id         String   @id @default(cuid())
+  contactoId String
+  /// CREADO | DATO_NUEVO | ESTADO | NOTA | FUSIONADO | VINCULADO | CORREO_ENVIADO | CORREO_RECIBIDO
+  tipo       String
+  datos      Json?
+  autor      String
+  creadoEn   DateTime @default(now())
+
+  contacto DnxContacto @relation(fields: [contactoId], references: [id], onDelete: Cascade)
+
+  @@index([contactoId, creadoEn])
+}
+
+/// Una búsqueda pendiente del Buscador (región + provincia + tipo + nicho + fuente).
+model DnxBuscadorTarea {
+  id                   String    @id @default(cuid())
+  region               String
+  provincia            String
+  ciudad               String?
+  tipo                 String
+  nicho                String?
+  /// GOOGLE_PLACES | WEB_SEARCH
+  fuente               String
+  consulta             String
+  paginas              Int       @default(1)
+  /// PENDIENTE | EN_CURSO | HECHA | FALLO | SALTEADA
+  estado               String    @default("PENDIENTE")
+  intentos             Int       @default(0)
+  resultado            Json?
+  costoGoogleUsdMicros Int       @default(0)
+  costoClaudeUsdMicros Int       @default(0)
+  tomadaEn             DateTime?
+  hechaEn              DateTime?
+  prioridad            Int
+
+  // En el SQL el único es NULLS NOT DISTINCT (ciudad y nicho pueden ser null).
+  @@unique([region, provincia, ciudad, tipo, nicho, fuente])
+  @@index([region, estado, prioridad])
+}
+
+/// Avance del Buscador por región.
+model DnxBuscadorRegion {
+  region           String    @id
+  orden            Int
+  /// EN_ESPERA | EN_CURSO | COMPLETA | PAUSADA
+  estado           String    @default("EN_ESPERA")
+  iniciadaEn       DateTime?
+  completadaEn     DateTime?
+  resumenEnviadoEn DateTime?
+}
+
+/// Modelo de correo del Vendedor para un grupo de contactos. El vigente es el APROBADO sin `reemplazadoEn`.
+/// En el SQL van dos únicos parciales sobre `grupo` (uno PROPUESTO y uno APROBADO vigente).
+model DnxVendedorModelo {
+  id                String    @id @default(cuid())
+  grupo             String
+  /// PROPUESTO | APROBADO | DESCARTADO
+  estado            String    @default("PROPUESTO")
+  asunto            String
+  cuerpo            String
+  indicaciones      String
+  landing           String
+  contactoEjemploId String?
+  telegramMessageId String?
+  correcciones      Int       @default(0)
+  aprobadoPor       String?
+  aprobadoEn        DateTime?
+  reemplazadoEn     DateTime?
+  creadoEn          DateTime  @default(now())
+  actualizadoEn     DateTime  @updatedAt
+
+  @@index([grupo, estado])
+}
+
+/// La conversación del Vendedor con un contacto (uno por contacto).
+model DnxVendedorHilo {
+  id                    String    @id @default(cuid())
+  contactoId            String    @unique
+  grupo                 String
+  modeloId              String?
+  token                 String    @unique
+  /// PENDIENTE_ENVIO | ENVIADO | RECORDADO | RESPONDIO | ESPERA_DANIEL | CERRADO | BAJA
+  estado                String    @default("PENDIENTE_ENVIO")
+  /// REBOTE | QUEJA | NO_INTERESA | BAJA | BAJA_CLF | YA_ERA_USUARIO | FALLO | MANUAL
+  cierre                String?
+  /// { asunto, cuerpo }: el texto listo que espera salir.
+  borrador              Json?
+  /// { texto, entranteId } | null: la respuesta que espera a Daniel.
+  propuesta             Json?
+  telegramMessageId     String?
+  correcciones          Int       @default(0)
+  intentos              Int       @default(0)
+  respuestasAutomaticas Int       @default(0)
+  modoManual            Boolean   @default(false)
+  recordatorioCancelado Boolean   @default(false)
+  avisoInteresadoEn     DateTime?
+  tomadoEn              DateTime?
+  enviadoEn             DateTime?
+  recordadoEn           DateTime?
+  ultimaRespuestaEn     DateTime?
+  registradoEn          DateTime?
+  /// COOKIE | EMAIL
+  viaRegistro           String?
+  usuarioClfId          Int?
+  rolClf                String?
+  creadoEn              DateTime  @default(now())
+  actualizadoEn         DateTime  @updatedAt
+
+  @@index([estado])
+  @@index([telegramMessageId])
+}
+
+/// Cada correo que sale o entra en un hilo, con su estado de entrega (el webhook lo busca por `resendId`).
+model DnxVendedorCorreo {
+  id          String    @id @default(cuid())
+  hiloId      String?
+  contactoId  String?
+  /// SALIDA | ENTRADA
+  direccion   String
+  /// PRIMERO | RECORDATORIO | RESPUESTA | REENVIO
+  paso        String?
+  resendId    String?   @unique
+  messageId   String?
+  de          String
+  para        String
+  asunto      String
+  texto       String
+  /// INTERESADO | CAPACITACION | NO_INTERESA | BAJA | DELICADA | AUTOMATICA | REBOTE
+  clase       String?
+  eventoId    String?
+  tomadoEn    DateTime?
+  procesadoEn DateTime?
+  entregadoEn DateTime?
+  abiertoEn   DateTime?
+  clicEn      DateTime?
+  reboteEn    DateTime?
+  quejaEn     DateTime?
+  creadoEn    DateTime  @default(now())
+
+  @@index([direccion, creadoEn])
+  @@index([messageId])
+  @@index([hiloId])
+}
+
+/// Gasto de IA del Vendedor (millonésimas de dólar). Se suma por hilo, por modelo o por mes.
+model DnxVendedorGasto {
+  id        String   @id @default(cuid())
+  usdMicros Int
+  /// MODELO | CORREO | RECORDATORIO | CLASIFICACION | CORRECCION
+  motivo    String
+  hiloId    String?
+  modeloId  String?
+  creadoEn  DateTime @default(now())
+
+  @@index([creadoEn])
+}
+
+/// Casilla dada de baja del Vendedor (en minúsculas). Vale por la dirección, haya o no un contacto con ella.
+model DnxVendedorBaja {
+  id       String   @id @default(cuid())
+  email    String   @unique
+  creadoEn DateTime @default(now())
+}
+
+/// Atribución de un registro en CLF al hilo del agente Vendedor de DNX (cookie clf_dnxv).
+/// Sin relación con User a propósito. Independiente del programa de referidos.
+model DnxVendedorAtribucion {
+  id       Int      @id @default(autoincrement())
+  userId   Int      @unique
+  token    String
+  rol      String
+  creadoEn DateTime @default(now())
+
+  @@index([token])
 }

@@ -738,6 +738,7 @@ export function createMemberCategory(
     bookingCreditValidityDays?: number;
     bookingCreditLabel?: string | null;
     selfRenew?: boolean;
+    includesMonthlyBox?: boolean;
   },
 ): Promise<MemberCategory> {
   return prisma.memberCategory.create({
@@ -750,6 +751,7 @@ export function createMemberCategory(
       bookingCreditValidityDays: input.bookingCreditValidityDays ?? 30,
       bookingCreditLabel: input.bookingCreditLabel ?? null,
       selfRenew: input.selfRenew ?? false,
+      includesMonthlyBox: input.includesMonthlyBox ?? false,
       // Lo que se renueva cuando la persona quiere no genera la cuota del día 1.
       generatesDues: input.selfRenew ? false : true,
     },
@@ -765,6 +767,7 @@ export type UpdateMemberCategoryInput = {
   bookingCreditValidityDays?: number;
   bookingCreditLabel?: string | null;
   selfRenew?: boolean;
+  includesMonthlyBox?: boolean;
   generatesDues?: boolean;
 };
 

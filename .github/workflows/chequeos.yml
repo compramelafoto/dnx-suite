@@ -206,6 +206,15 @@ jobs:
       - name: Pruebas del resumen público del álbum
         run: pnpm --filter compramelafoto test:fotoffice-vinculo
 
+      # La consulta interna que usa el Buscador de FOTOFFICE para saber quién ya es usuario de CLF:
+      # secreto obligatorio, tope de claves y respuesta sin nombres (sólo clave, id y rol).
+      - name: Pruebas de la consulta de usuarios existentes
+        run: pnpm --filter compramelafoto test:usuarios-existentes
+
+      # Atribución de registros al Vendedor (clf_dnxv): cookie propia, sin tocar el programa de referidos.
+      - name: Pruebas del agente Vendedor (CLF)
+        run: pnpm --filter compramelafoto test:vendedor
+
       # El motor de análisis corre con vitest y hasta hoy NO estaba en el CI: las
       # pruebas existían, pasaban en la máquina de quien las escribía y nadie las
       # volvía a correr. `should-run-ocr` quedó un rato reclamado por los dos

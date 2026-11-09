@@ -9,6 +9,8 @@ import { estadoConexion, leerConexion } from "@/lib/bandeja/conexion";
 import { BANDEJA_MODULE_KEY } from "@/lib/bandeja/constantes";
 import { leerConfigBot } from "@/lib/dnx-bot/config";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
+import { META_APP_ID, META_CONFIG_ID_COEXISTENCIA } from "@/lib/bandeja/coexistencia";
+import { ConectarCoexistencia } from "./conectar-coexistencia";
 import { BotForm, ConexionForm, SimuladorForm } from "./whatsapp-form";
 
 export const dynamic = "force-dynamic";
@@ -63,6 +65,7 @@ export default async function ConfiguracionWhatsappPage() {
         </p>
         <p className={estado.tieneToken ? "text-[var(--fo-success)]" : "text-[var(--fo-danger)]"}>{estado.tieneToken ? "Token cargado" : "Falta el token"}</p>
       </section>
+      <ConectarCoexistencia appId={META_APP_ID} configId={META_CONFIG_ID_COEXISTENCIA} />
       <ConexionForm
         conexion={{
           modo: conexion.modo,

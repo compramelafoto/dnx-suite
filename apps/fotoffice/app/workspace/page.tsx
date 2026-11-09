@@ -5,6 +5,8 @@ import { requireOwnWorkspace } from "@/lib/entrada/require-own-workspace";
 import { resolveActiveWorkspace } from "@/lib/workspace";
 import { getEnabledModuleKeysForWorkspace } from "@/lib/modules/gating";
 import { resolveEnabledNavModules } from "@/lib/modules/nav";
+import { workspaceUsaBoxMensual } from "@/lib/box-mensual/store";
+import { BOX_MENSUAL_FEATURE } from "@/lib/box-mensual/secuencia";
 import { submodulesFor } from "@/lib/modules/submodules";
 import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { getGrantedActions, getModuleLevels } from "@/lib/permissions/module-access";
@@ -48,13 +50,19 @@ export default async function WorkspaceHomePage() {
     resolveWorkspaceRole(user.id, workspaceId),
     getModuleLevels(user.id, workspaceId),
   ]);
-  const [datos, actions] = await Promise.all([
+  const [datos, actions, usaBox] = await Promise.all([
     loadWorkspaceHome({ workspaceId, levels, now }),
     getGrantedActions(user.id, workspaceId),
+    workspaceUsaBoxMensual(workspaceId),
   ]);
   // Las mismas acciones sensibles que usa el menú lateral (`AdminShell`), con la misma función.
   // `fullAccess`: dueño o admin (`isFullAccessRole`), igual que el menú; decide Cobros.
-  const acceso = { levels, actions, fullAccess: isFullAccessRole(role) };
+  const acceso = {
+    levels,
+    actions,
+    fullAccess: isFullAccessRole(role),
+    features: usaBox ? [BOX_MENSUAL_FEATURE] : [],
+  };
   // Sólo para el aviso "Completar los datos de la institución", que lleva a Configuración.
   const admin = canManageWorkspaceSettings(role);
   // Una tarjeta por módulo que esta persona puede al menos ver: las de un módulo en NONE

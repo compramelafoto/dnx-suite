@@ -115,6 +115,14 @@
     {
       "path": "/api/cron/agente-periodista",
       "schedule": "0 12 * * 1,3,5"
+    },
+    {
+      "path": "/api/cron/agente-buscador",
+      "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/agente-vendedor",
+      "schedule": "*/15 * * * *"
     }
   ]
 }

@@ -3,7 +3,11 @@
 import { OrderOrigin, type Prisma } from "@prisma/client";
 import type { CardPaymentSubmission } from "@repo/payments/frontend";
 import { sanitizeCardPaymentSubmissionForLog } from "@repo/payments/frontend";
-import { assertLiveCollectorAccount, singleIntangibleItem } from "@repo/payments/mercado-pago";
+import {
+  assertLiveCollectorAccount,
+  singleIntangibleItem,
+  toOrdersCardPaymentMethod,
+} from "@repo/payments/mercado-pago";
 import { prisma } from "@/lib/prisma";
 import { resolvePilotoConfig } from "../split-1n-piloto/config";
 import { clasificarErrorCobro } from "../split-1n-piloto/intento";
@@ -257,6 +261,11 @@ export async function pagarGrupo(input: {
   }
 
   const externalReference = referenciaGrupo(grupoId);
+  // Orders pide la marca y el tipo por separado: `debvisa` del Brick va como visa + débito.
+  const medioTarjeta = toOrdersCardPaymentMethod(
+    input.cardPayment.paymentMethodId,
+    input.cardPayment.paymentTypeId ?? null,
+  );
   let providerOrderId: string;
   try {
     const created = await clientes.orders.createSplitOrder({
@@ -267,7 +276,8 @@ export async function pagarGrupo(input: {
       idempotencyKey: claveIntentoGrupo(grupoId, intento),
       deviceSessionId: device,
       paymentToken: token,
-      paymentMethodId: input.cardPayment.paymentMethodId,
+      paymentMethodId: medioTarjeta.id,
+      paymentType: medioTarjeta.type,
       installments: input.cardPayment.installments || 1,
       payerEmail,
       ...(input.cardPayment.payer?.identification

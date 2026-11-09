@@ -105,6 +105,13 @@ Cuando un pedido de fotos digitales se paga, el comprador recibe por mail el lin
 ## Subidas
 Si algunas fotos no se pudieron subir, el panel lo avisa y ofrece reintentar sólo esas. El logo de una escuela no puede superar 5 MB.
 
+## Agencias: subir al álbum de la agencia
+- En una agencia, cada foto queda a nombre de su autor y el autor cobra su porcentaje de las ventas de sus fotos.
+- Un miembro activo del equipo sube desde Agencias → Mis agencias → Subir fotos (/fotografo/agencias/mis-agencias): las fotos quedan a su nombre. También puede subir con DNX FLUX o por FTP. Necesita su Mercado Pago conectado y las condiciones de la agencia aceptadas.
+- El dueño sube desde Mi agencia → «Subir fotos indicando de qué fotógrafo es cada una» (/fotografo/agencias/mi-agencia/subir): elige el autor del lote y puede cambiarlo foto por foto. Sólo puede elegir miembros activos que aceptaron las condiciones y tienen Mercado Pago conectado. Si no elige a nadie, las fotos quedan de la agencia (100 % agencia).
+- Quien no es miembro activo (o fue dado de baja) no puede subir al álbum de la agencia.
+- Si la agencia espera al filtro de fotos, lo subido aparece recién cuando el filtro lo aprueba.
+
 ## Plata y Mercado Pago
 - Registrarse y crear álbumes no tiene costo. CLF cobra una comisión sólo cuando hay una venta: es un recargo que se suma encima del precio que pone el fotógrafo y lo paga el comprador, así que el fotógrafo cobra su precio completo. El porcentaje de esa cuenta está en la situación («Recargo de CLF»): si preguntan cuánto cobra CLF, decilo con ese número y un ejemplo hecho con él (con un precio de $10.000, el comprador paga $10.000 más ese porcentaje y el fotógrafo cobra $10.000). Si la situación no lo trae, ofrecé un pedido de soporte.
 - La conexión con Mercado Pago se autoriza en la pantalla oficial de Mercado Pago: CLF nunca ve la clave. El permiso sirve para generar cobros de las ventas hechas en CLF; no sirve para mover el saldo de la cuenta. Se puede revocar desde la cuenta de Mercado Pago, y sin conexión no se puede vender.

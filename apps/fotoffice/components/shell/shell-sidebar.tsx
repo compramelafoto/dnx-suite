@@ -12,6 +12,7 @@ export function ShellSidebar({
   workspaceName,
   levels,
   actions,
+  features = [],
   canManageWorkspaceSettings,
   organizationType,
   platformAdmin,
@@ -31,6 +32,8 @@ export function ShellSidebar({
   levels: ModuleLevels;
   /** Acciones sensibles vigentes que el menú necesita (`cash.configure`, `coverages.coordinate`). */
   actions: readonly string[];
+  /** Funciones que usa el workspace y deciden alguna pantalla (`box-mensual`). */
+  features?: readonly string[];
   /** Sólo para la sección Institución: Configuración no se delega. */
   canManageWorkspaceSettings: boolean;
   /** Tipo de organización (etapa 0.1): ordena las secciones del menú por familia. */
@@ -75,6 +78,7 @@ export function ShellSidebar({
       <ShellNav
         levels={levels}
         actions={actions}
+        features={features}
         canManageWorkspaceSettings={canManageWorkspaceSettings}
         organizationType={organizationType}
         platformAdmin={platformAdmin}
