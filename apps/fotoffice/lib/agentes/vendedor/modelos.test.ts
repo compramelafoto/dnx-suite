@@ -313,6 +313,15 @@ describe("modelos por grupo", () => {
     expect(enviados).toHaveLength(1);
   });
 
+  it("Enviar no manda si el contacto pasó a NO_CONTACTAR", async () => {
+    const h = esperaDaniel();
+    (B.datos.dnxContacto.find((c) => c.id === h.contactoId) as Fila).estado = "NO_CONTACTAR";
+    const r = await M.procesarBotonVendedor({ accion: "ENVIAR", id: h.hiloId }, deps());
+    expect(r).toEqual({ ok: false, texto: "Pidió no recibir más correos. Tocá «Lo contesto yo»." });
+    expect(enviados).toHaveLength(0);
+    expect(hilos().find((x) => x.id === h.hiloId)).toMatchObject({ estado: "ESPERA_DANIEL", propuesta: { entranteId: h.entranteId } });
+  });
+
   it("Lo contesto yo deja el hilo en manual y lo reenvía a Gmail", async () => {
     const h = esperaDaniel();
     const r = await M.procesarBotonVendedor({ accion: "YO", id: h.hiloId }, deps());

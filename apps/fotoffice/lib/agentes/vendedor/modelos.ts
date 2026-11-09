@@ -385,6 +385,8 @@ export async function enviarRespuestaPropuesta(hiloId: string, deps: DepsModelos
     select: { id: true, de: true, asunto: true, messageId: true },
   });
   if (!correo) return { ok: false, texto: "No encuentro el correo que contestaba. Tocá «Lo contesto yo»." };
+  const contacto = await prisma.dnxContacto.findUnique({ where: { id: h.contactoId }, select: { estado: true } });
+  if (contacto?.estado === "NO_CONTACTAR") return { ok: false, texto: "Pidió no recibir más correos. Tocá «Lo contesto yo»." };
 
   const toma = await prisma.dnxVendedorHilo.updateMany({
     where: { id: h.id, estado: "ESPERA_DANIEL" },

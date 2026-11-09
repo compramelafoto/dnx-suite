@@ -59,6 +59,21 @@ describe("envío del Vendedor", () => {
     expect(l!.mensaje.subject).toBe("Una idea para tus fotos");
   });
 
+  it("a un contacto NO_CONTACTAR no le sale nada salvo el reenvío a Daniel", async () => {
+    const c = B.agregar("dnxContacto", { tipo: "FOTOGRAFO", nombre: "Ana", creadoPor: "BUSCADOR", estado: "NO_CONTACTAR" }) as { id: string };
+    for (const paso of ["PRIMERO", "RECORDATORIO", "RESPUESTA"] as const) {
+      const r = await C.enviarCorreoVendedor(entrada({ contactoId: c.id, paso, claveIdempotencia: `k-${paso}` }), { enviar, env: ENV, traerMessageId: sinMessageId });
+      expect(r).toEqual({ ok: false, motivo: "NO_CONTACTAR", reintentable: false });
+    }
+    expect(llamadas).toHaveLength(0);
+    const reenvio = await C.enviarCorreoVendedor(
+      entrada({ contactoId: c.id, para: "dnxfotografia@gmail.com", paso: "REENVIO", claveIdempotencia: "k-reenvio" }),
+      { enviar, env: ENV, traerMessageId: sinMessageId },
+    );
+    expect(reenvio.ok).toBe(true);
+    expect(llamadas).toHaveLength(1);
+  });
+
   it("usa VENDEDOR_RESEND_API_KEY si está", async () => {
     await C.enviarCorreoVendedor(entrada(), { enviar, env: { ...ENV, VENDEDOR_RESEND_API_KEY: "clave-vendedor" }, traerMessageId: sinMessageId });
     expect(llamadas[0]!.env.RESEND_API_KEY).toBe("clave-vendedor");

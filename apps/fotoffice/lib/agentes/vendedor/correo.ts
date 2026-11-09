@@ -103,6 +103,9 @@ export type EntradaEnvio = {
 
 export type ResultadoEnvio = { ok: true; correoId: string } | { ok: false; motivo: string; reintentable: boolean };
 
+/** Pasos que le escriben al contacto (no a Daniel). */
+const PASOS_AL_CONTACTO: readonly PasoSalida[] = ["PRIMERO", "RECORDATORIO", "RESPUESTA"];
+
 /** Pasos que salen una sola vez por hilo: si ya hay un correo guardado, es el mismo envío. */
 const PASOS_UNICOS: readonly PasoSalida[] = ["PRIMERO", "RECORDATORIO"];
 
@@ -111,6 +114,13 @@ function esUnicoRepetido(e: unknown): boolean {
 }
 
 export async function enviarCorreoVendedor(i: EntradaEnvio, deps: DepsEnvio = {}): Promise<ResultadoEnvio> {
+  // «No contactar» es permanente: a ese contacto no le sale nada, aunque el hilo siga abierto. El
+  // reenvío a Daniel (REENVIO) va a su casilla, así que no se frena.
+  if (i.contactoId && PASOS_AL_CONTACTO.includes(i.paso)) {
+    const c = await prisma.dnxContacto.findUnique({ where: { id: i.contactoId }, select: { estado: true } });
+    if (c?.estado === "NO_CONTACTAR") return { ok: false, motivo: "NO_CONTACTAR", reintentable: false };
+  }
+
   // Un reintento del primero o del recordatorio que ya quedó guardado no sale de nuevo.
   if (i.hiloId && PASOS_UNICOS.includes(i.paso)) {
     const ya = await prisma.dnxVendedorCorreo.findFirst({
