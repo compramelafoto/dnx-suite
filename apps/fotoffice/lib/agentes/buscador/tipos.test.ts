@@ -11,6 +11,7 @@ describe("plataformasPorTipo", () => {
     ["ASOCIACION_FOTOGRAFOS", ["CLF", "MUESTRAS", "FOTOFFICE"]],
     ["EMPRESA_TURISMO", ["CLF"]],
     ["NEGOCIO_FOTOGRAFIA", ["CLF", "FOTOFFICE"]],
+    ["ESCUELA_FOTOGRAFIA", ["CLF", "FOTOFFICE"]],
     ["OTRO", []],
   ] as const)("%s", (tipo, esperado) => {
     expect(plataformasPorTipo(tipo)).toEqual(esperado);

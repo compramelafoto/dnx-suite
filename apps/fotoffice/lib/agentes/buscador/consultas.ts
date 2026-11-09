@@ -20,6 +20,7 @@ export const FRASES: Record<TipoContacto, string[]> = {
   ORGANIZADOR_MUESTRAS: ["muestra de fotografía en {ciudad}", "galería de arte fotografía en {ciudad}"],
   EMPRESA_TURISMO: ["agencia de turismo en {ciudad}", "empresa de excursiones en {ciudad}"],
   NEGOCIO_FOTOGRAFIA: ["casa de fotografía en {ciudad}", "venta de cámaras fotográficas en {ciudad}"],
+  ESCUELA_FOTOGRAFIA: ["escuela de fotografía en {ciudad}", "curso de fotografía en {ciudad}"],
   OTRO: [],
 };
 
@@ -37,6 +38,7 @@ export const FRASES_NICHO: Record<Nicho, string[]> = {
 /** Los tipos que, además de Places por ciudad, se buscan con web por provincia. */
 export const TIPOS_WEB: TipoContacto[] = [
   "FOTOGRAFO", "ASOCIACION_FOTOGRAFOS", "ORGANIZADOR_MUESTRAS", "ORGANIZADOR_EVENTOS", "CLUB",
+  "ESCUELA_FOTOGRAFIA",
 ];
 
 const TEXTO_NICHO: Record<string, string> = {
@@ -49,6 +51,7 @@ const TEXTO_TIPO_WEB: Partial<Record<TipoContacto, string>> = {
   ORGANIZADOR_MUESTRAS: "organizadores de muestras fotográficas",
   ORGANIZADOR_EVENTOS: "organizadores de eventos",
   CLUB: "clubes deportivos",
+  ESCUELA_FOTOGRAFIA: "escuelas, institutos y cursos de fotografía",
 };
 
 /** Prioridad 1: los tres nichos prioritarios y sus contrapartes (escuelas, turismo, clubes). */

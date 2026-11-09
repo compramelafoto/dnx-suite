@@ -41,6 +41,17 @@ describe("generarTareas", () => {
     expect(ros?.consulta).toBe("fotógrafo escolar en Rosario, Santa Fe");
   });
 
+  it("busca escuelas de fotografía por ciudad en Places y por provincia en la web", async () => {
+    await C.generarTareas("CENTRO");
+    const todas = (await tareas()).filter((t) => t.tipo === "ESCUELA_FOTOGRAFIA");
+    const ros = todas.find((t) => t.ciudad === "Rosario");
+    expect(ros?.consulta).toBe("escuela de fotografía en Rosario, Santa Fe");
+    expect(ros?.fuente).toBe("GOOGLE_PLACES");
+    const web = todas.find((t) => t.fuente === "WEB_SEARCH" && t.provincia === "Santa Fe");
+    expect(web?.consulta).toBe("escuelas, institutos y cursos de fotografía en la provincia de Santa Fe");
+    expect(new Set(todas.map((t) => t.prioridad))).toEqual(new Set([2]));
+  });
+
   it("las ciudades grandes piden 3 páginas", async () => {
     await C.generarTareas("CENTRO");
     const todas = await tareas();
