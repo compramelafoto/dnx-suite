@@ -116,4 +116,9 @@ describe("guía del bot de atención", () => {
     expect(g).toMatch(/obsoletos/);
     expect(g).toContain("20x30");
   });
+
+  it("antes de armar cualquier pedido espera el sí del cliente, aunque haya dado todo junto", () => {
+    const g = guiaDeAtencion();
+    expect(g.match(/esperá que diga que sí, aunque te haya dado todo/g)?.length).toBe(2);
+  });
 });

@@ -134,6 +134,15 @@ describe("alLlegarConsulta", () => {
     expect(await F.enPreparacionParaWhatsapp(WS, "5493410000000")).toBe(false);
   });
 
+  it("una consulta vieja (más de 7 días) o que falló no frena una nueva del mismo número", async () => {
+    const hace = (dias: number) => new Date(Date.now() - dias * 86_400_000);
+    B.agregar("fotofficePresupuestoAprobacion", { id: "viejo", leadId: "lead-v", workspaceId: WS, waId: "5493410000001", status: "AVISADO", errorCode: null, createdAt: hace(8) });
+    B.agregar("fotofficePresupuestoAprobacion", { id: "fallo", leadId: "lead-f", workspaceId: WS, waId: "5493410000001", status: "SIN_PROPUESTA", errorCode: "FALLO", createdAt: hace(1) });
+    expect(await F.enPreparacionParaWhatsapp(WS, "5493410000001")).toBe(false);
+    B.agregar("fotofficePresupuestoAprobacion", { id: "nuevo", leadId: "lead-n", workspaceId: WS, waId: "5493410000001", status: "AVISADO", errorCode: null, createdAt: hace(1) });
+    expect(await F.enPreparacionParaWhatsapp(WS, "5493410000001")).toBe(true);
+  });
+
   it("sin perfil de precios: lo dice con su propio motivo", async () => {
     const { d, avisos } = deps({ armar: async () => ({ resultado: "SIN_PERFIL", presupuestoId: null }) });
     await F.alLlegarConsulta(WS, "lead-1", "WEB", {}, d);
