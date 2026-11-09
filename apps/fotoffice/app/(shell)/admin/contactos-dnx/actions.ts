@@ -1,13 +1,18 @@
 "use server";
 
+import { after } from "next/server";
 import { revalidatePath } from "next/cache";
 import { requireAuth } from "@/lib/auth";
 import { isFotofficePlatformAdmin } from "@/lib/platform-admin";
 import { importarConocidos } from "@/lib/agentes/buscador/carga-inicial";
 import { agregarNota, cambiarEstado, CAMPOS_DATO, editarDato, fusionar, type CampoDato } from "@/lib/agentes/buscador/contactos";
+import { activarRegion } from "@/lib/agentes/buscador/consultas";
 import { candidatosParaFusionar } from "@/lib/agentes/buscador/consultas-panel";
-import { etiquetaTipo } from "@/lib/agentes/buscador/etiquetas";
-import { ESTADOS_CONTACTO, type EstadoContacto } from "@/lib/agentes/buscador/tipos";
+import { reordenarRegiones } from "@/lib/agentes/buscador/estado";
+import { etiquetaRegion, etiquetaTipo } from "@/lib/agentes/buscador/etiquetas";
+import { guardarAjustes } from "@/lib/agentes/buscador/gasto";
+import { correrBuscador } from "@/lib/agentes/buscador/motor";
+import { ESTADOS_CONTACTO, REGIONES, type EstadoContacto, type Region } from "@/lib/agentes/buscador/tipos";
 
 export type EstadoAccionContactos = { ok: boolean; mensaje: string } | null;
 
@@ -114,4 +119,114 @@ export async function fusionarAction(destinoId: string, origenId: string): Promi
   } catch (e) {
     return { ok: false, mensaje: textoError(e) };
   }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Agente Buscador (cabecera del panel). Cada acción vuelve a chequear SUPER_ADMIN: las acciones del
+// servidor son direcciones públicas y no alcanza con que el layout esconda la pantalla.
+
+/** Tope editable de cada fuente, en USD. */
+const TOPE_MAXIMO_USD = 500;
+/** Tiempo de búsqueda de «Correr ahora»: el mismo que el cron. */
+const PRESUPUESTO_MANUAL_MS = 240_000;
+
+const esRegion = (v: string): v is Region => (REGIONES as readonly string[]).includes(v);
+
+/** «Pausar» y «Reanudar»: la pausa es general (el cron y «Correr ahora» no buscan nada mientras dure). */
+export async function pausarBuscadorAction(pausado: boolean): Promise<EstadoAccionContactos> {
+  if (!(await autorSuperAdmin())) return SIN_PERMISO;
+  await guardarAjustes({ pausado: Boolean(pausado) });
+  refrescar();
+  return { ok: true, mensaje: pausado ? "Buscador en pausa." : "Buscador reanudado: sigue en la próxima corrida." };
+}
+
+/** Lee un monto escrito a mano ("6,10" o "6.10"). Devuelve null si no es un número entre 0 y el máximo. */
+function leerTope(texto: string): number | null {
+  const limpio = String(texto ?? "").trim().replace(/\s/g, "").replace(",", ".");
+  if (!/^\d+(\.\d+)?$/.test(limpio)) return null;
+  const n = Number(limpio);
+  if (!Number.isFinite(n) || n < 0 || n > TOPE_MAXIMO_USD) return null;
+  return Math.round(n * 100) / 100;
+}
+
+export async function guardarTopesAction(topeGoogle: string, topeClaude: string): Promise<EstadoAccionContactos> {
+  if (!(await autorSuperAdmin())) return SIN_PERMISO;
+  const google = leerTope(topeGoogle);
+  const claude = leerTope(topeClaude);
+  if (google === null || claude === null) {
+    const cual = google === null && claude === null ? "Los dos topes tienen" : google === null ? "El tope de Google tiene" : "El tope de Claude tiene";
+    return { ok: false, mensaje: `${cual} que ser un número entre 0 y ${TOPE_MAXIMO_USD} (en dólares).` };
+  }
+  try {
+    await guardarAjustes({ topeGoogleUsd: google, topeClaudeUsd: claude });
+  } catch (e) {
+    console.error("[contactos-dnx][buscador] guardar topes", e);
+    return { ok: false, mensaje: "No se pudieron guardar los topes. Probá de nuevo." };
+  }
+  refrescar();
+  return { ok: true, mensaje: "Topes guardados." };
+}
+
+/**
+ * «Correr ahora»: corre el Buscador en segundo plano (`after`), igual que el Periodista, porque tarda
+ * minutos. El resultado se ve al recargar la página.
+ */
+export async function correrBuscadorAction(): Promise<EstadoAccionContactos> {
+  if (!(await autorSuperAdmin())) return SIN_PERMISO;
+  const google = Boolean(process.env.GOOGLE_PLACES_API_KEY?.trim());
+  const claude = Boolean(process.env.ANTHROPIC_API_KEY?.trim());
+  if (!google && !claude) {
+    return { ok: false, mensaje: "No hay clave de Google ni de Claude: el Buscador no tiene con qué buscar. Cargalas en Vercel y volvé a desplegar." };
+  }
+  after(async () => {
+    try {
+      const r = await correrBuscador({ presupuestoMs: PRESUPUESTO_MANUAL_MS, motivo: "MANUAL" });
+      console.info("[contactos-dnx][buscador] corrida manual", r);
+    } catch (e) {
+      console.error("[contactos-dnx][buscador] corrida manual", e);
+    }
+  });
+  const avisos = [
+    !google ? "Sin clave de Google: busca sólo en internet." : null,
+    !claude ? "Sin clave de Claude: no puede buscar en internet ni leer los sitios." : null,
+  ].filter(Boolean);
+  return {
+    ok: true,
+    mensaje: ["El Buscador arrancó. Trabaja hasta 4 minutos; recargá la página para ver el avance.", ...avisos].join(" "),
+  };
+}
+
+/**
+ * «Activar región» (y «Reabrir»). Una región en espera o en pausa se activa porque lo decidís vos; una
+ * completa sólo con `reabrir` (la pantalla lo pide confirmado), y entonces sus búsquedas fallidas se
+ * vuelven a intentar.
+ */
+export async function activarRegionAction(region: string, reabrir: boolean): Promise<EstadoAccionContactos> {
+  if (!(await autorSuperAdmin())) return SIN_PERMISO;
+  if (!esRegion(region)) return { ok: false, mensaje: "Esa región no existe." };
+  try {
+    // `activarRegion` se niega a reactivar una COMPLETA sin `reabrir`.
+    const ok = await activarRegion(region, new Date(), { reabrir: Boolean(reabrir) });
+    refrescar();
+    if (!ok) return { ok: false, mensaje: `${etiquetaRegion(region)} ya está completa. Para recorrerla de nuevo, usá «Reabrir».` };
+    return { ok: true, mensaje: `${etiquetaRegion(region)} quedó en curso: el Buscador sigue por ahí.` };
+  } catch (e) {
+    console.error("[contactos-dnx][buscador] activar región", e);
+    return { ok: false, mensaje: "No se pudo activar la región. Probá de nuevo." };
+  }
+}
+
+/** Nuevo orden de recorrido. Las regiones completas no se mueven. */
+export async function reordenarRegionesAction(orden: string[]): Promise<EstadoAccionContactos> {
+  if (!(await autorSuperAdmin())) return SIN_PERMISO;
+  if (!Array.isArray(orden) || !orden.every((r) => typeof r === "string" && esRegion(r))) {
+    return { ok: false, mensaje: "Ese orden tiene regiones que no existen." };
+  }
+  try {
+    await reordenarRegiones(orden as Region[]);
+  } catch (e) {
+    return { ok: false, mensaje: textoError(e).replace(/^Buscador:\s*/, "") };
+  }
+  refrescar();
+  return { ok: true, mensaje: "Orden guardado." };
 }
