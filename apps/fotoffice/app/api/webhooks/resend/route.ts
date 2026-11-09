@@ -2,12 +2,14 @@ import { NextResponse } from "next/server";
 import { verifySvix } from "@/lib/mailing/svix";
 import { parseResendEvent } from "@/lib/mailing/webhook-events";
 import { applyWebhookEvent } from "@/lib/mailing/webhook";
+import { aplicarAvisoVendedor } from "@/lib/agentes/vendedor/avisos";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 /**
- * Avisos de Resend sobre los correos a socios: entregado, abierto, clic, rebote, queja.
+ * Avisos de Resend sobre los correos a socios y los del agente Vendedor: entregado, abierto, clic,
+ * rebote, queja.
  *
  * Se configura en Resend → Webhooks apuntando a `https://fotoffice.com/api/webhooks/resend`; el
  * secreto que da Resend (`whsec_…`) va en `RESEND_WEBHOOK_SECRET`. Sin secreto la ruta no existe
@@ -41,6 +43,11 @@ export async function POST(request: Request) {
 
   try {
     const r = await applyWebhookEvent(evento);
+    // Un correo que no es de una campaña puede ser del agente Vendedor (la misma cuenta de Resend).
+    if (r === "UNKNOWN") {
+      const vendedor = await aplicarAvisoVendedor(evento, new Date());
+      return NextResponse.json({ ok: true, result: vendedor });
+    }
     return NextResponse.json({ ok: true, result: r });
   } catch (error) {
     console.error("[fotoffice][correo] no se pudo anotar un aviso de Resend", {
