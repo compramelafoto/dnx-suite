@@ -1,8 +1,9 @@
 /**
  * Consulta interna para FOTOFFICE: ¿cuáles de estos correos o teléfonos ya son usuarios de CLF?
  *
- * Responde sólo coincidencias `{ clave, userId, rol }`: nunca nombres, correos ni teléfonos de la
- * base. La `clave` es el valor que FOTOFFICE mandó, normalizado (correo en minúsculas; teléfono
+ * Responde sólo coincidencias `{ clave, userId, rol, creadoEn, baja }`: nunca nombres, correos ni
+ * teléfonos de la base. `creadoEn` es el alta del usuario (ISO) y `baja` dice si se dio de baja de
+ * los correos de CLF (`unsubscribedAt`); los usa el agente Vendedor y el Buscador los ignora. La `clave` es el valor que FOTOFFICE mandó, normalizado (correo en minúsculas; teléfono
  * como `+54` + área + número), para que lo pueda asociar a su contacto.
  *
  * El acceso a la base se inyecta (`BuscarUsuarios`) para poder probar la lógica sin base; la ruta
@@ -24,6 +25,8 @@ export type UsuarioCandidato = {
   phone: string | null;
   whatsapp: string | null;
   role: string;
+  createdAt: Date;
+  unsubscribedAt: Date | null;
 };
 
 /**
@@ -32,7 +35,7 @@ export type UsuarioCandidato = {
  */
 export type BuscarUsuarios = (filtro: { emails: string[]; colas: string[] }) => Promise<UsuarioCandidato[]>;
 
-export type Coincidencia = { clave: string; userId: number; rol: string };
+export type Coincidencia = { clave: string; userId: number; rol: string; creadoEn: string; baja: boolean };
 
 // ---------------------------------------------------------------------------------------------
 // Normalización (copia de FOTOFFICE: no hay paquete compartido)
@@ -109,8 +112,8 @@ export async function usuariosExistentes(
     const k = `${clave}|${u.id}`;
     if (vistas.has(k)) return;
     vistas.add(k);
-    // Sólo clave, id y rol: nunca nombre, correo ni teléfono de la base.
-    out.push({ clave, userId: u.id, rol: String(u.role) });
+    // Sólo clave, id, rol, alta y baja: nunca nombre, correo ni teléfono de la base.
+    out.push({ clave, userId: u.id, rol: String(u.role), creadoEn: u.createdAt.toISOString(), baja: u.unsubscribedAt != null });
   };
   for (const u of candidatos) {
     const e = claveEmail(u.email);
@@ -131,7 +134,7 @@ function json(cuerpo: unknown, status: number): Response {
 }
 
 /** Compara en tiempo constante; largos distintos ya son distintos (sin comparar contenido). */
-function mismoSecreto(recibido: string, esperado: string): boolean {
+export function mismoSecreto(recibido: string, esperado: string): boolean {
   const a = Buffer.from(recibido, "utf8");
   const b = Buffer.from(esperado, "utf8");
   if (a.length !== b.length) return false;

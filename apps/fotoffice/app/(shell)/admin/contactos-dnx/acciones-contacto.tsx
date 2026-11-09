@@ -39,7 +39,7 @@ export function BotonImportarConocidos() {
   const { estado, enCurso, correr } = useAccion();
   return (
     <div className="space-y-2">
-      <button type="button" className="fo-btn-secondary" disabled={enCurso} onClick={() => correr(importarConocidosAction)}>
+      <button type="button" className="fo-btn fo-btn-secondary" disabled={enCurso} onClick={() => correr(importarConocidosAction)}>
         {enCurso ? "Importando… (puede tardar un minuto)" : "Importar conocidos"}
       </button>
       <Aviso estado={estado} />
@@ -73,7 +73,7 @@ export function SelectorEstado({ id, estado: actual }: { id: string; estado: str
             </option>
           ))}
         </select>
-        <button type="button" className="fo-btn-primary" disabled={enCurso || elegido === actual} onClick={guardar}>
+        <button type="button" className="fo-btn fo-btn-primary" disabled={enCurso || elegido === actual} onClick={guardar}>
           {enCurso ? "Guardando…" : "Cambiar estado"}
         </button>
       </div>
@@ -104,7 +104,7 @@ export function EditarDato({ id, campo, valor }: { id: string; campo: string; va
           aria-label={etiquetaCampo(campo)}
           disabled={enCurso}
         />
-        <button type="button" className="fo-btn-secondary" disabled={enCurso || !cambio} onClick={guardar}>
+        <button type="button" className="fo-btn fo-btn-secondary" disabled={enCurso || !cambio} onClick={guardar}>
           {enCurso ? "Guardando…" : "Guardar"}
         </button>
       </div>
@@ -128,7 +128,7 @@ export function NotaNueva({ id }: { id: string }) {
       />
       <button
         type="button"
-        className="fo-btn-primary"
+        className="fo-btn fo-btn-primary"
         disabled={enCurso || texto.trim() === ""}
         onClick={() =>
           correr(async () => {
@@ -186,7 +186,7 @@ export function FusionarCon({ id }: { id: string }) {
           placeholder="Nombre, ciudad, correo, Instagram o id del otro contacto"
           aria-label="Buscar el contacto con el que fusionar"
         />
-        <button type="button" className="fo-btn-secondary" disabled={buscando || busqueda.trim() === ""} onClick={buscar}>
+        <button type="button" className="fo-btn fo-btn-secondary" disabled={buscando || busqueda.trim() === ""} onClick={buscar}>
           {buscando ? "Buscando…" : "Buscar"}
         </button>
       </div>
@@ -201,7 +201,7 @@ export function FusionarCon({ id }: { id: string }) {
                   <span className="text-[var(--fo-text)] font-medium">{c.nombre}</span>
                   {c.detalle ? <span className="text-[var(--fo-muted)]"> · {c.detalle}</span> : null}
                 </span>
-                <button type="button" className="fo-btn-secondary" disabled={enCurso} onClick={() => fusionarCon(c)}>
+                <button type="button" className="fo-btn fo-btn-secondary" disabled={enCurso} onClick={() => fusionarCon(c)}>
                   Fusionar acá
                 </button>
               </li>

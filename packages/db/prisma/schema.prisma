@@ -28492,3 +28492,128 @@ model DnxBuscadorRegion {
   completadaEn     DateTime?
   resumenEnviadoEn DateTime?
 }
+
+/// Modelo de correo del Vendedor para un grupo de contactos. El vigente es el APROBADO sin `reemplazadoEn`.
+/// En el SQL van dos únicos parciales sobre `grupo` (uno PROPUESTO y uno APROBADO vigente).
+model DnxVendedorModelo {
+  id                String    @id @default(cuid())
+  grupo             String
+  /// PROPUESTO | APROBADO | DESCARTADO
+  estado            String    @default("PROPUESTO")
+  asunto            String
+  cuerpo            String
+  indicaciones      String
+  landing           String
+  contactoEjemploId String?
+  telegramMessageId String?
+  correcciones      Int       @default(0)
+  aprobadoPor       String?
+  aprobadoEn        DateTime?
+  reemplazadoEn     DateTime?
+  creadoEn          DateTime  @default(now())
+  actualizadoEn     DateTime  @updatedAt
+
+  @@index([grupo, estado])
+}
+
+/// La conversación del Vendedor con un contacto (uno por contacto).
+model DnxVendedorHilo {
+  id                    String    @id @default(cuid())
+  contactoId            String    @unique
+  grupo                 String
+  modeloId              String?
+  token                 String    @unique
+  /// PENDIENTE_ENVIO | ENVIADO | RECORDADO | RESPONDIO | ESPERA_DANIEL | CERRADO | BAJA
+  estado                String    @default("PENDIENTE_ENVIO")
+  /// REBOTE | QUEJA | NO_INTERESA | BAJA | BAJA_CLF | YA_ERA_USUARIO | FALLO | MANUAL
+  cierre                String?
+  /// { asunto, cuerpo }: el texto listo que espera salir.
+  borrador              Json?
+  /// { texto, entranteId } | null: la respuesta que espera a Daniel.
+  propuesta             Json?
+  telegramMessageId     String?
+  correcciones          Int       @default(0)
+  intentos              Int       @default(0)
+  respuestasAutomaticas Int       @default(0)
+  modoManual            Boolean   @default(false)
+  recordatorioCancelado Boolean   @default(false)
+  avisoInteresadoEn     DateTime?
+  tomadoEn              DateTime?
+  enviadoEn             DateTime?
+  recordadoEn           DateTime?
+  ultimaRespuestaEn     DateTime?
+  registradoEn          DateTime?
+  /// COOKIE | EMAIL
+  viaRegistro           String?
+  usuarioClfId          Int?
+  rolClf                String?
+  creadoEn              DateTime  @default(now())
+  actualizadoEn         DateTime  @updatedAt
+
+  @@index([estado])
+  @@index([telegramMessageId])
+}
+
+/// Cada correo que sale o entra en un hilo, con su estado de entrega (el webhook lo busca por `resendId`).
+model DnxVendedorCorreo {
+  id          String    @id @default(cuid())
+  hiloId      String?
+  contactoId  String?
+  /// SALIDA | ENTRADA
+  direccion   String
+  /// PRIMERO | RECORDATORIO | RESPUESTA | REENVIO
+  paso        String?
+  resendId    String?   @unique
+  messageId   String?
+  de          String
+  para        String
+  asunto      String
+  texto       String
+  /// INTERESADO | CAPACITACION | NO_INTERESA | BAJA | DELICADA | AUTOMATICA | REBOTE
+  clase       String?
+  eventoId    String?
+  tomadoEn    DateTime?
+  procesadoEn DateTime?
+  entregadoEn DateTime?
+  abiertoEn   DateTime?
+  clicEn      DateTime?
+  reboteEn    DateTime?
+  quejaEn     DateTime?
+  creadoEn    DateTime  @default(now())
+
+  @@index([direccion, creadoEn])
+  @@index([messageId])
+  @@index([hiloId])
+}
+
+/// Gasto de IA del Vendedor (millonésimas de dólar). Se suma por hilo, por modelo o por mes.
+model DnxVendedorGasto {
+  id        String   @id @default(cuid())
+  usdMicros Int
+  /// MODELO | CORREO | RECORDATORIO | CLASIFICACION | CORRECCION
+  motivo    String
+  hiloId    String?
+  modeloId  String?
+  creadoEn  DateTime @default(now())
+
+  @@index([creadoEn])
+}
+
+/// Casilla dada de baja del Vendedor (en minúsculas). Vale por la dirección, haya o no un contacto con ella.
+model DnxVendedorBaja {
+  id       String   @id @default(cuid())
+  email    String   @unique
+  creadoEn DateTime @default(now())
+}
+
+/// Atribución de un registro en CLF al hilo del agente Vendedor de DNX (cookie clf_dnxv).
+/// Sin relación con User a propósito. Independiente del programa de referidos.
+model DnxVendedorAtribucion {
+  id       Int      @id @default(autoincrement())
+  userId   Int      @unique
+  token    String
+  rol      String
+  creadoEn DateTime @default(now())
+
+  @@index([token])
+}

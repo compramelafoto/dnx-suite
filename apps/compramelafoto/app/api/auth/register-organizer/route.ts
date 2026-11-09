@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { guardarAtribucionVendedor } from "@/lib/vendedor/atribucion";
 import { ReferralProgram, Role, TokenPurpose } from "@/lib/prisma";
 import { hashPassword } from "@repo/auth";
 import { randomBytes } from "crypto";
@@ -109,6 +110,8 @@ export async function POST(req: NextRequest) {
     } catch (emailErr) {
       console.error("REGISTER ORGANIZER: error enviando verificación", emailErr);
     }
+
+    await guardarAtribucionVendedor({ req, userId: user.id, rol: String(user.role) });
 
     await tryCreateReferralAttributionOnSignup({
       referredUserId: user.id,

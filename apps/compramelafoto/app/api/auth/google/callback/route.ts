@@ -10,6 +10,7 @@ import { buildVerifyEmail } from "@/emails/templates/auth";
 import { getPostLoginDestination } from "@/lib/auth/post-login-destination";
 import { registrarUltimoIngreso } from "@/lib/auth/registrar-ultimo-ingreso";
 import { decodeGoogleOAuthState } from "@/lib/auth/google-oauth-state";
+import { guardarAtribucionVendedor } from "@/lib/vendedor/atribucion";
 import { tryCreateReferralAttributionOnSignup } from "@/lib/referral/referral-signup-attribution";
 import { inferReferralProgramForReferredUserRole } from "@/lib/referral/referral-program";
 import {
@@ -265,6 +266,8 @@ export async function GET(req: Request) {
       } catch (emailErr) {
         console.error("GOOGLE CALLBACK: error enviando verificación", emailErr);
       }
+
+      await guardarAtribucionVendedor({ req, userId: user.id, rol: String(user.role) });
 
       // Atribución de referido: state OAuth gana; si no, cookie clf_ref (middleware).
       if (user.role === Role.PHOTOGRAPHER || user.role === Role.ORGANIZER) {

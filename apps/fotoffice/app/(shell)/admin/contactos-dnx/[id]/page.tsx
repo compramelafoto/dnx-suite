@@ -9,7 +9,12 @@ import {
   etiquetaTipo, etiquetaVinculo,
 } from "@/lib/agentes/buscador/etiquetas";
 import { fechaHoraArgentina } from "@/lib/agentes/periodista/horario";
+import { leerAjustesVendedor } from "@/lib/agentes/vendedor/ajustes";
+import { MAX_RESPUESTAS_AUTOMATICAS } from "@/lib/agentes/vendedor/entrante";
+import { estadoEntrega, hiloDeContacto, type DnxVendedorCorreo } from "@/lib/agentes/vendedor/estado";
+import { ROTULO_GRUPO, type Grupo } from "@/lib/agentes/vendedor/tipos";
 import { EditarDato, FusionarCon, NotaNueva, SelectorEstado } from "../acciones-contacto";
+import { BotonContactoPrueba } from "../vendedor/acciones-vendedor";
 
 export const dynamic = "force-dynamic";
 
@@ -41,12 +46,69 @@ function describir(e: DnxContactoEvento): string {
   }
 }
 
+// --- Conversación del Vendedor ---------------------------------------------------------------
+
+const ESTADO_HILO: Record<string, string> = {
+  PENDIENTE_ENVIO: "Por enviar",
+  ENVIADO: "Enviado, esperando respuesta",
+  RECORDADO: "Recordatorio enviado, esperando respuesta",
+  RESPONDIO: "Respondió",
+  ESPERA_DANIEL: "Esperando tu respuesta",
+  CERRADO: "Cerrado",
+  BAJA: "Se dio de baja",
+};
+const CIERRE_HILO: Record<string, string> = {
+  REBOTE: "el correo rebotó",
+  QUEJA: "lo marcó como correo no deseado",
+  NO_INTERESA: "no le interesa",
+  BAJA: "pidió la baja",
+  BAJA_CLF: "se dio de baja en CompraMeLaFoto",
+  YA_ERA_USUARIO: "ya era usuario de CompraMeLaFoto",
+  FALLO: "no se pudo enviar",
+  MANUAL: "lo cerraste vos",
+};
+const PASO_CORREO: Record<string, string> = {
+  PRIMERO: "Primer correo",
+  RECORDATORIO: "Recordatorio",
+  RESPUESTA: "Respuesta",
+  REENVIO: "Reenviado a tu casilla",
+};
+const CLASE_CORREO: Record<string, string> = {
+  INTERESADO: "Interesado",
+  CAPACITACION: "Pide capacitación",
+  NO_INTERESA: "No le interesa",
+  BAJA: "Pide la baja",
+  DELICADA: "Delicada",
+  AUTOMATICA: "Respuesta automática",
+  REBOTE: "Rebote",
+};
+const VIA_REGISTRO: Record<string, string> = { COOKIE: "por el enlace del correo", EMAIL: "con el mismo correo" };
+
+function detalleCorreo(c: DnxVendedorCorreo): string {
+  if (c.direccion === "SALIDA") return `Enviado · ${c.paso ? (PASO_CORREO[c.paso] ?? c.paso) : "Correo"}`;
+  return `Recibido · ${c.clase ? (CLASE_CORREO[c.clase] ?? c.clase) : "Sin clasificar todavía"}`;
+}
+
+/** Las fechas de entrega que avisó Resend, en hora argentina. */
+function fechasEntrega(c: DnxVendedorCorreo): string {
+  return [
+    c.entregadoEn ? `entregado ${fechaHoraArgentina(c.entregadoEn)}` : null,
+    c.abiertoEn ? `abierto ${fechaHoraArgentina(c.abiertoEn)}` : null,
+    c.clicEn ? `enlace ${fechaHoraArgentina(c.clicEn)}` : null,
+    c.reboteEn ? `rebotó ${fechaHoraArgentina(c.reboteEn)}` : null,
+    c.quejaEn ? `no deseado ${fechaHoraArgentina(c.quejaEn)}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
 /** Ficha de un contacto de Contactos DNX. El acceso lo controla el layout de /admin (sólo SUPER_ADMIN). */
 export default async function FichaContactoPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const ficha = await fichaContacto(id);
   if (!ficha) notFound();
   const { contacto: c, datos, eventos } = ficha;
+  const [conversacion, ajustesVendedor] = await Promise.all([hiloDeContacto(c.id), leerAjustesVendedor()]);
 
   // Las personas firman con su userId: se muestran con su nombre.
   const ids = [...new Set(eventos.map((e) => e.autor).filter(esAutorUsuario).map(Number))];
@@ -162,6 +224,68 @@ export default async function FichaContactoPage({ params }: { params: Promise<{ 
           </section>
         </>
       ) : null}
+
+      <section className="fo-card space-y-3">
+        <h2 className="text-base font-semibold text-[var(--fo-text)]">Conversación del Vendedor</h2>
+        {conversacion ? (
+          <>
+            <ul className="text-sm text-[var(--fo-muted)] leading-relaxed space-y-1">
+              <li>
+                Estado:{" "}
+                <span className="text-[var(--fo-text)] font-medium">{ESTADO_HILO[conversacion.hilo.estado] ?? conversacion.hilo.estado}</span>
+                {conversacion.hilo.cierre ? ` (${CIERRE_HILO[conversacion.hilo.cierre] ?? conversacion.hilo.cierre})` : ""}
+                {conversacion.hilo.modoManual ? " · lo seguís vos a mano" : ""}
+              </li>
+              <li>Grupo: {ROTULO_GRUPO[conversacion.hilo.grupo as Grupo] ?? conversacion.hilo.grupo}</li>
+              <li>
+                {conversacion.hilo.registradoEn ? (
+                  <span className="text-[var(--fo-text)] font-medium">
+                    Se registró en CompraMeLaFoto el {fechaHoraArgentina(conversacion.hilo.registradoEn)}
+                    {conversacion.hilo.viaRegistro ? ` (${VIA_REGISTRO[conversacion.hilo.viaRegistro] ?? conversacion.hilo.viaRegistro})` : ""}
+                    {conversacion.hilo.rolClf ? `, como ${conversacion.hilo.rolClf}` : ""}.
+                  </span>
+                ) : (
+                  "Todavía no se registró en CompraMeLaFoto."
+                )}
+              </li>
+              <li>Respuestas automáticas del Vendedor: {conversacion.hilo.respuestasAutomaticas} de {MAX_RESPUESTAS_AUTOMATICAS}.</li>
+            </ul>
+            {conversacion.correos.length === 0 ? (
+              <p className="text-sm text-[var(--fo-muted)]">Todavía no salió ningún correo.</p>
+            ) : (
+              <ul className="divide-y divide-[var(--fo-border)]">
+                {conversacion.correos.map((m) => {
+                  const entrega = estadoEntrega(m);
+                  const fechas = fechasEntrega(m);
+                  return (
+                    <li key={m.id} className="py-3 text-sm space-y-1">
+                      <p className="flex flex-wrap items-center gap-x-2 text-xs text-[var(--fo-muted)]">
+                        <span className="font-medium text-[var(--fo-text)]">{detalleCorreo(m)}</span>
+                        <span>{fechaHoraArgentina(m.creadoEn)}</span>
+                        {entrega ? (
+                          <span className={m.reboteEn || m.quejaEn ? "text-[var(--fo-danger)] font-medium" : "font-medium"}>{entrega}</span>
+                        ) : null}
+                      </p>
+                      <p className="text-xs text-[var(--fo-muted)]">
+                        De {m.de} · para {m.para}
+                        {fechas ? ` · ${fechas}` : ""}
+                      </p>
+                      <p className="font-medium text-[var(--fo-text)]">{m.asunto}</p>
+                      <details>
+                        <summary className="cursor-pointer text-xs text-[var(--fo-accent)]">Ver el texto</summary>
+                        <p className="mt-1 whitespace-pre-line text-[var(--fo-text)]">{m.texto}</p>
+                      </details>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </>
+        ) : (
+          <p className="text-sm text-[var(--fo-muted)]">El Vendedor todavía no le escribió.</p>
+        )}
+        {!c.fusionadoEnId ? <BotonContactoPrueba id={c.id} activo={ajustesVendedor.soloContactoPrueba === c.id} /> : null}
+      </section>
 
       <section className="fo-card space-y-3">
         <h2 className="text-base font-semibold text-[var(--fo-text)]">Línea de tiempo</h2>

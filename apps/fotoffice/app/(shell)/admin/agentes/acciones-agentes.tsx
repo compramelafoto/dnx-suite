@@ -16,7 +16,7 @@ export function BotonAgentes({ accion, texto, variante = "secundario", deshabili
   const [estado, ejecutar, enCurso] = useActionState<EstadoAccionAgentes, FormData>(() => ACCIONES[accion](), null);
   return (
     <form action={ejecutar} className="space-y-2">
-      <button type="submit" disabled={enCurso || deshabilitado} className={variante === "primario" ? "fo-btn-primary" : "fo-btn-secondary"}>
+      <button type="submit" disabled={enCurso || deshabilitado} className={variante === "primario" ? "fo-btn fo-btn-primary" : "fo-btn fo-btn-secondary"}>
         {enCurso ? "Un momento…" : texto}
       </button>
       {estado ? (

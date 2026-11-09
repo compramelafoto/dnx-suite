@@ -8,6 +8,11 @@ vi.mock("./periodista/flujo", () => ({
   descartarPropuesta: vi.fn(),
   corregirPropuesta: vi.fn(),
 }));
+vi.mock("./vendedor/modelos", () => ({
+  procesarBotonVendedor: vi.fn(),
+  corregirVendedor: vi.fn(),
+  esMensajeDelVendedor: vi.fn(async () => false),
+}));
 
 const { procesarUpdateAgentes } = await import("./webhook-agentes");
 import type { CanalAgentes } from "./canal-reglas";
@@ -103,5 +108,86 @@ describe("procesarUpdateAgentes", () => {
     const sinToken = deps();
     await procesarUpdateAgentes(canal, boton(`pe:p:${ID}`), { ...sinToken.d, token: null });
     expect(sinToken.d.publicar).not.toHaveBeenCalled();
+  });
+
+  describe("Vendedor (ve:)", () => {
+    const MODELO = "cmh7x2k9a0001qz8w3e5r6t7y";
+    function conVendedor(delVendedor = true) {
+      const { api, d } = deps();
+      const vendedor = {
+        boton: vi.fn(async () => ({ ok: true, texto: "✅ Aprobado." })),
+        corregir: vi.fn(async () => undefined),
+        esDelVendedor: vi.fn(async () => delVendedor),
+      };
+      return { api, d: { ...d, vendedor } };
+    }
+    const respuesta = (de = "555") => ({ tipo: "RESPUESTA" as const, chatId: de, chatPrivado: true, deId: de, messageId: "5", respondeA: "77", texto: "más corto" });
+
+    it("ve:a aprueba y no toca las propuestas del Periodista", async () => {
+      const { api, d } = conVendedor();
+      await procesarUpdateAgentes(canal, boton(`ve:a:${MODELO}`), d);
+      expect(d.vendedor.boton).toHaveBeenCalledWith({ accion: "APROBAR", id: MODELO }, undefined);
+      expect(d.publicar).not.toHaveBeenCalled();
+      expect(d.descartar).not.toHaveBeenCalled();
+      expect(d.correr).not.toHaveBeenCalled();
+      expect(api.llamadas.map((l) => l.metodo)).toEqual(["answerCallbackQuery", "editMessageReplyMarkup", "sendMessage"]);
+      expect(api.llamadas[0]!.cuerpo).toMatchObject({ text: "✅ Aprobado." });
+    });
+
+    it("un ve: que no sale bien deja los botones", async () => {
+      const { api, d } = conVendedor();
+      d.vendedor.boton.mockResolvedValueOnce({ ok: false, texto: "Ese modelo ya no está propuesto." });
+      await procesarUpdateAgentes(canal, boton(`ve:d:${MODELO}`), d);
+      expect(d.vendedor.boton).toHaveBeenCalledWith({ accion: "DESCARTAR", id: MODELO }, undefined);
+      expect(api.llamadas.map((l) => l.metodo)).toEqual(["answerCallbackQuery"]);
+    });
+
+    it("pe:p sigue publicando igual", async () => {
+      const { api, d } = conVendedor();
+      await procesarUpdateAgentes(canal, boton(`pe:p:${ID}`), d);
+      expect(d.publicar).toHaveBeenCalledWith(ID);
+      expect(d.vendedor.boton).not.toHaveBeenCalled();
+      expect(api.llamadas.map((l) => l.metodo)).toEqual(["answerCallbackQuery", "editMessageReplyMarkup", "sendMessage"]);
+    });
+
+    it("ve:c sólo pide responder al mensaje", async () => {
+      const { api, d } = conVendedor();
+      await procesarUpdateAgentes(canal, boton(`ve:c:${MODELO}`), d);
+      expect(d.vendedor.boton).not.toHaveBeenCalled();
+      expect(d.vendedor.corregir).not.toHaveBeenCalled();
+      expect(api.llamadas).toHaveLength(1);
+      expect(api.llamadas[0]).toMatchObject({ metodo: "answerCallbackQuery", cuerpo: { text: "Respondé a este mensaje con lo que querés cambiar." } });
+    });
+
+    it("responder a un mensaje del Vendedor corrige el Vendedor, no el Periodista", async () => {
+      const { d } = conVendedor(true);
+      await procesarUpdateAgentes(canal, respuesta(), d);
+      expect(d.vendedor.esDelVendedor).toHaveBeenCalledWith("77");
+      expect(d.vendedor.corregir).toHaveBeenCalledWith("77", "más corto", undefined);
+      expect(d.corregir).not.toHaveBeenCalled();
+
+      const otro = conVendedor(false);
+      await procesarUpdateAgentes(canal, respuesta(), otro.d);
+      expect(otro.d.corregir).toHaveBeenCalledWith("77", "más corto", undefined);
+      expect(otro.d.vendedor.corregir).not.toHaveBeenCalled();
+    });
+
+    it("si no se puede saber de quién es el mensaje, corrige el Periodista", async () => {
+      const { d } = conVendedor();
+      d.vendedor.esDelVendedor.mockRejectedValueOnce(new Error("falta la tabla"));
+      await procesarUpdateAgentes(canal, respuesta(), d);
+      expect(d.corregir).toHaveBeenCalledWith("77", "más corto", undefined);
+      expect(d.vendedor.corregir).not.toHaveBeenCalled();
+    });
+
+    it("un ve: de otro chat se ignora", async () => {
+      const { api, d } = conVendedor();
+      await procesarUpdateAgentes(canal, boton(`ve:a:${MODELO}`, "666"), d);
+      await procesarUpdateAgentes(canal, respuesta("666"), d);
+      expect(d.vendedor.boton).not.toHaveBeenCalled();
+      expect(d.vendedor.esDelVendedor).not.toHaveBeenCalled();
+      expect(d.vendedor.corregir).not.toHaveBeenCalled();
+      expect(api.llamadas).toHaveLength(0);
+    });
   });
 });

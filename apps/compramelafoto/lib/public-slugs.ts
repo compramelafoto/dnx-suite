@@ -19,6 +19,7 @@ export const RESERVED_PUBLIC_SLUGS = new Set([
   "charlafotoescolar",
   "cliente",
   "comunidad",
+  "clubes",
   "cursos",
   "cuenta",
   "dashboard",
