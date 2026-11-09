@@ -144,6 +144,22 @@ describe("validarCandidato", () => {
     expect(r.ok && Object.keys(r.candidato.datos)).toEqual(["web"]);
   });
 
+  it("guarda teléfono y WhatsApp normalizados, nunca el texto del modelo", () => {
+    const r = validarCandidato(
+      bruto({
+        telefono: { valor: "0341 155-551234 (llamanos!)", fuenteUrl: "https://estudioluz.com.ar" },
+        whatsapp: { valor: "javascript:alert(1)//wa.me/5493415551234", fuenteUrl: "https://estudioluz.com.ar" },
+      }),
+    );
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.candidato.datos.telefono?.valor).toBe("+543415551234");
+      expect(r.candidato.datos.whatsapp?.valor).toBe("https://wa.me/543415551234");
+    }
+    const r2 = validarCandidato(bruto({ whatsapp: { valor: "341 155551234", fuenteUrl: "https://estudioluz.com.ar" } }));
+    expect(r2.ok && r2.candidato.datos.whatsapp?.valor).toBe("https://wa.me/543415551234");
+  });
+
   it("descarta el candidato sin ningún dato de contacto", () => {
     const r = validarCandidato(
       bruto({
@@ -200,6 +216,15 @@ describe("leerLugar", () => {
     const r = await leerLugar({ ...lugar, web: null }, t, { cliente });
     expect(r.candidato).toBeNull();
     expect(JSON.stringify(pedidos[0]!.messages)).toContain("buscá su sitio o su perfil por el nombre y la ciudad");
+    expect(r.uso.entrada).toBe(10);
+  });
+
+  it("si el modelo no devuelve nombre, leerLugar no usa el de Places", async () => {
+    const { cliente } = clienteFalso([
+      fin({ candidato: { nombre: "  ", datos: { web: { valor: "https://estudioluz.com.ar", fuenteUrl: "https://estudioluz.com.ar" } } } }),
+    ]);
+    const r = await leerLugar(lugar, t, { cliente });
+    expect(r.candidato).toBeNull();
     expect(r.uso.entrada).toBe(10);
   });
 

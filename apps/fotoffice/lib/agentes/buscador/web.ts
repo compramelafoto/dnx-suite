@@ -108,12 +108,14 @@ function valorValido(campo: CampoDato, valor: string, dominioWeb: string | null)
       return dominioWeb && deDominio(dominio, dominioWeb) ? e : null;
     }
     case "telefono":
-      return claveTelefono(valor) ? valor : null;
+      // Se guarda la forma normalizada (+54…), nunca el texto del modelo.
+      return claveTelefono(valor);
     case "whatsapp": {
-      // Un enlace wa.me / api.whatsapp.com trae el número en la ruta o en `phone=`.
+      // Un enlace wa.me / api.whatsapp.com trae el número en la ruta o en `phone=`. Se guarda un
+      // enlace armado por el código con el número normalizado, nunca el texto del modelo.
       const m = /(?:wa\.me\/|phone=)(\+?\d{8,15})/i.exec(valor);
-      if (!m && !esquemaAceptable(valor)) return null;
-      return claveTelefono(m ? m[1]! : valor) ? valor : null;
+      const tel = claveTelefono(m ? m[1]! : valor);
+      return tel ? `https://wa.me/${tel.replace(/^\+/, "")}` : null;
     }
   }
 }
@@ -249,7 +251,8 @@ export async function descubrirEnProvincia(
 
 /**
  * Lee las páginas propias de un lugar de Google Places (su web o, si no tiene, lo que encuentre por
- * nombre + ciudad). Del lugar sólo se conserva `placeId`: ningún dato sale de Google.
+ * nombre + ciudad). Del lugar sólo se conserva `placeId`: ningún dato sale de Google (tampoco el
+ * nombre: si el modelo no lo da, no hay candidato).
  */
 export async function leerLugar(
   lugar: LugarPlaces,
@@ -266,11 +269,14 @@ export async function leerLugar(
     deps,
   });
   if (!res.ok || !res.valor) return { candidato: null, uso: res.uso };
+  // El nombre tiene que venir del modelo (de las páginas propias): el de Places no se puede guardar.
+  const nombre = textoONull(res.valor.nombre);
+  if (!nombre) return { candidato: null, uso: res.uso };
 
   const v = validarCandidato({
     tipo: t.tipo,
     nichos: t.nicho ? [t.nicho] : [],
-    nombre: textoONull(res.valor.nombre) ?? lugar.nombre,
+    nombre,
     ciudad: t.ciudad,
     provincia: t.provincia,
     region: t.region,
