@@ -188,6 +188,11 @@ function AlbumsSection() {
     <Card className="space-y-4">
       <h2 className="text-xl font-medium text-[#1a1a1a]">Álbumes de la agencia</h2>
       <p className="text-sm text-[#6b7280]">Sólo tu equipo puede subir fotos a estos álbumes. Los precios y la venta se configuran como en cualquier álbum.</p>
+      {linked.length > 0 && (
+        <a className="inline-block text-sm font-medium underline" href="/fotografo/agencias/mi-agencia/subir">
+          Subir fotos indicando de qué fotógrafo es cada una
+        </a>
+      )}
       {linked.map((l) => (
         <div key={l.albumId} className="flex items-center justify-between rounded-xl border p-3">
           <a className="font-medium underline" href={`/dashboard/albums/${l.albumId}`}>{l.title}</a>
