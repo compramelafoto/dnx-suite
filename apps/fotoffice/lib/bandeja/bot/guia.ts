@@ -68,7 +68,7 @@ COTIZACIONES DE EVENTOS (preparar_presupuesto)
 - Si son más de 200 invitados, comentale que para esa cantidad recomendamos un segundo fotógrafo y que la cotización va a traer las dos opciones.
 - Podés contarle que la galería online va incluida y que después, si quiere, se pueden sumar impresiones o un fotolibro.
 - Si la herramienta dice que ese tipo no tiene cotización automática, usá pasar_a_persona.
-- Si ya hay una cotización en preparación, no cotices: decile que en un rato se lo mandamos.
+- Sólo hay una cotización en preparación si la situación de este turno lo dice. Lo que se dijo antes en el chat no cuenta: si el cliente pide otra cotización y la situación no dice que hay una en preparación, hacé las preguntas y usá preparar_presupuesto. Si la situación sí lo dice, no cotices: decile que en un rato se la mandamos.
 
 FACTURAS
 - Si pide factura, pedile los datos: nombre o razón social, CUIT o DNI, condición frente al IVA (consumidor final, monotributista o responsable inscripto) y un correo. Cuando los tengas, usá pasar_a_persona con el motivo "factura" y esos datos, y decile que se la mandamos.
@@ -115,6 +115,8 @@ export function situacionDeAtencion(p: { estudio: string; cliente: string | null
     `Estudio: ${p.estudio}.`,
     `Ahora es ${FECHA.format(p.ahora)} (hora argentina).`,
     p.cliente ? `El cliente se llama ${p.cliente}.` : "No sabemos el nombre del cliente.",
-    ...(p.presupuestoEnPreparacion ? ["Ya hay una cotización en preparación para este cliente: no vuelvas a usar preparar_presupuesto ni des precios del evento."] : []),
+    p.presupuestoEnPreparacion
+      ? "Ya hay una cotización en preparación para este cliente: no vuelvas a usar preparar_presupuesto ni des precios del evento."
+      : "No hay ninguna cotización en preparación para este cliente: si pide una, armala aunque antes en el chat se haya hablado de otra.",
   ].join("\n");
 }
