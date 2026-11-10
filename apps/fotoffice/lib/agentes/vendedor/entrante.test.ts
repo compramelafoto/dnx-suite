@@ -323,12 +323,21 @@ describe("procesamiento", () => {
     expect(pedidosClaude).toHaveLength(0);
   });
 
+  it("lo que llega a info@ (clientes de CLF que contestan) se reenvía a Gmail igual que daniel@", async () => {
+    const r = await recibir(correo({ de: "cliente@gmail.com", asunto: "Re: Ya podés descargar tu compra", para: ["info@compramelafoto.com"] }));
+    expect(salidas("REENVIO")).toHaveLength(1);
+    expect(telegram.mensajes).toHaveLength(1);
+    expect(telegram.mensajes[0]!.html).toMatch(/reenvi/i);
+    expect(telegram.mensajes[0]!.html).not.toMatch(/no lo reenvi/i);
+    expect(fila("dnxVendedorCorreo", r.correoId).procesadoEn).toEqual(AHORA);
+  });
+
   it("lo que llega a otra casilla del dominio no se reenvía: sólo el aviso por Telegram", async () => {
-    const r = await recibir(correo({ de: "alguien@otro.com", asunto: "Promo", para: ["info@compramelafoto.com"] }));
+    const r = await recibir(correo({ de: "alguien@otro.com", asunto: "Promo", para: ["ventas@compramelafoto.com"] }));
     expect(enviados).toHaveLength(0);
     expect(telegram.mensajes).toHaveLength(1);
     expect(telegram.mensajes[0]!.html).toMatch(/no lo reenvi/i);
-    expect(telegram.mensajes[0]!.html).toMatch(/info@compramelafoto\.com/);
+    expect(telegram.mensajes[0]!.html).toMatch(/ventas@compramelafoto\.com/);
     expect(fila("dnxVendedorCorreo", r.correoId).procesadoEn).toEqual(AHORA);
   });
 
@@ -765,5 +774,14 @@ describe("llegoADaniel", () => {
     expect(E.llegoADaniel("otrodaniel@compramelafoto.com")).toBe(false);
     expect(E.llegoADaniel("daniel@compramelafoto.com.ar")).toBe(false);
     expect(E.llegoADaniel("")).toBe(false);
+  });
+});
+
+describe("llegoACasillaReenviable", () => {
+  it("daniel@ e info@ se reenvían; otra casilla del dominio o una parecida, no", () => {
+    expect(E.llegoACasillaReenviable("Info <INFO@compramelafoto.com>")).toBe(true);
+    expect(E.llegoACasillaReenviable(["daniel@compramelafoto.com"])).toBe(true);
+    expect(E.llegoACasillaReenviable("ventas@compramelafoto.com")).toBe(false);
+    expect(E.llegoACasillaReenviable("noinfo@compramelafoto.com")).toBe(false);
   });
 });
