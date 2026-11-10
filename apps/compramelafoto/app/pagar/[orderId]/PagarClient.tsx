@@ -11,6 +11,7 @@ import {
 import { pagarPedidoPiloto } from "@/lib/split-1n-piloto/pagar";
 import { conTipoDeTarjeta } from "@/lib/split-1n-piloto/tarjeta";
 import { pagarGrupo } from "@/lib/split-1n-carrito-evento/pagar-grupo";
+import PlanBMercadoPago from "./PlanBMercadoPago";
 
 type Props = {
   publicKey: string;
@@ -141,6 +142,11 @@ export default function PagarClient(props: Props) {
         <p className="text-sm text-red-700" role="alert">
           {estado.mensaje}
         </p>
+      ) : null}
+      {/* Plan B (sólo pedido de un álbum): si la tarjeta falla o el comprador prefiere, el cobro
+          de siempre. Mientras se procesa la tarjeta no se ofrece, para no pagar dos veces. */}
+      {props.orderId && !props.grupoId && estado.tipo === "formulario" ? (
+        <PlanBMercadoPago pedidoId={props.orderId} destacado={estado.mensaje != null} />
       ) : null}
       <p className="text-center text-sm">
         <Link href={props.volverA} className="text-neutral-600 underline">

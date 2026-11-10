@@ -211,6 +211,11 @@ jobs:
       - name: Pruebas de la consulta de usuarios existentes
         run: pnpm --filter compramelafoto test:usuarios-existentes
 
+      # Cobro dividido Split 1:N: elegibilidad, reparto, consentimiento desde el panel y el plan B
+      # «Pagar con Mercado Pago» (que nunca se pueda cobrar dos veces el mismo pedido).
+      - name: Pruebas del cobro dividido Split 1:N
+        run: pnpm --filter compramelafoto test:split-1n-piloto
+
       # Atribución de registros al Vendedor (clf_dnxv): cookie propia, sin tocar el programa de referidos.
       - name: Pruebas del agente Vendedor (CLF)
         run: pnpm --filter compramelafoto test:vendedor

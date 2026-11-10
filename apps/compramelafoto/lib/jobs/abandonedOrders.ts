@@ -8,6 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { isOrderSuperseded } from "@/lib/order-superseded";
 import { queueEmail, getOrCreateTemplate } from "@/lib/email-queue";
 import { leerMarcaGrupo } from "@/lib/split-1n-carrito-evento/marca";
+import { cobroPilotoEnCurso } from "@/lib/split-1n-piloto/snapshot";
 
 const ONE_HOUR_MS = 60 * 60 * 1000;
 const EMAIL_TEMPLATE_KEY = "abandoned_order_reminder";
@@ -40,7 +41,8 @@ export async function processAbandonedOrders(): Promise<{
   for (const order of orders) {
     // Carrito de evento (Split 1:N): sus pedidos se pagan juntos y su cobro puede estar en
     // revisión; un "completá tu pago" por álbum invitaría a pagar dos veces.
-    if (leerMarcaGrupo(order.pricingSnapshot)) {
+    // Piloto Split 1:N con el cobro con tarjeta en curso o en revisión: lo mismo.
+    if (leerMarcaGrupo(order.pricingSnapshot) || cobroPilotoEnCurso(order.pricingSnapshot)) {
       skipped += 1;
       continue;
     }

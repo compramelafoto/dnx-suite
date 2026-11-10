@@ -5,6 +5,7 @@ import {
 } from "@/lib/prisma";
 import { prisma } from "@/lib/prisma";
 import { leerMarcaGrupo } from "@/lib/split-1n-carrito-evento/marca";
+import { bloqueaCheckoutPro } from "@/lib/split-1n-piloto/snapshot";
 import type { AuthUser } from "@/lib/auth";
 import { normalizeEmail } from "@/lib/order-claims";
 import { ensureAlbumOrderMpPreference } from "@/lib/mercadopago/album-order-mp-preference";
@@ -84,6 +85,8 @@ export function albumOrderCanRetryPayment(order: {
 }): boolean {
   if (order.isTest) return false;
   if (order.pricingSnapshot !== undefined && leerMarcaGrupo(order.pricingSnapshot)) return false;
+  // Piloto Split 1:N: se reintenta desde /pagar, que ofrece el plan B sin riesgo de doble cobro.
+  if (order.pricingSnapshot !== undefined && bloqueaCheckoutPro(order.pricingSnapshot)) return false;
   if (order.checkoutPaymentSource !== CheckoutPaymentSource.MERCADO_PAGO) return false;
   if (!SUPPORTED_ORIGINS.includes(order.origin)) return false;
   return order.status === "PENDING" || order.status === "FAILED";

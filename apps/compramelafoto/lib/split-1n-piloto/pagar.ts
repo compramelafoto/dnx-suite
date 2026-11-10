@@ -38,6 +38,8 @@ const MENSAJES: Record<string, string> = {
   PAGADOR_ES_RECEPTOR:
     "Esta compra no la puede pagar alguien que cobra parte de la venta (fotógrafo, organizador o referidor). Tiene que comprar otra persona, con su propio correo: volvé al resumen para cambiarlo.",
   NO_DISPONIBLE: "El pago con tarjeta no está disponible para esta compra. Volvé al resumen.",
+  ELIGIO_MERCADO_PAGO:
+    "Elegiste pagar esta compra con Mercado Pago. Usá el botón «Continuar con Mercado Pago».",
   CONSENTIMIENTO_NO_ACTIVO:
     "Este álbum no puede cobrar con tarjeta en este momento. Volvé al resumen para pagar con Mercado Pago.",
 };
@@ -113,6 +115,7 @@ export async function pagarPedidoPiloto(input: {
   const { order, feePesos, basePesos } = cargado;
   const marca = leerMarcaPiloto(order.pricingSnapshot);
   if (!marca) return falla("NO_DISPONIBLE");
+  if (marca.estado === "CHECKOUT_PRO") return falla("ELIGIO_MERCADO_PAGO");
 
   const device = input.cardPayment?.deviceSessionId?.trim() ?? "";
   const token = input.cardPayment?.token?.trim() ?? "";

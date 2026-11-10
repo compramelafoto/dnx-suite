@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { leerMarcaGrupo } from "@/lib/split-1n-carrito-evento/marca";
+import { bloqueaCheckoutPro } from "@/lib/split-1n-piloto/snapshot";
 import { CheckoutPaymentSource, OrderOrigin } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { createPreference, type OrderType } from "@/lib/mercadopago";
@@ -291,6 +292,15 @@ export async function POST(req: Request) {
         console.info(LOG_BLOCKED, { reason: "album_order_carrito_evento", orderId });
         return NextResponse.json(
           { error: "Este pedido se paga junto con el resto de tu compra del evento.", code: "CARRITO_EVENTO" },
+          { status: 409 }
+        );
+      }
+
+      // Piloto Split 1:N: se paga con tarjeta en /pagar; Checkout Pro sólo tras el plan B.
+      if (bloqueaCheckoutPro(order.pricingSnapshot)) {
+        console.info(LOG_BLOCKED, { reason: "album_order_split_1n_piloto", orderId });
+        return NextResponse.json(
+          { error: "Esta compra se paga desde su página de pago.", code: "SPLIT_1N_PILOTO", pagarUrl: `/pagar/${orderId}` },
           { status: 409 }
         );
       }

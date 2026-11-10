@@ -23,6 +23,14 @@ describe("album-order-payment-recovery", () => {
     assert.equal(isAlbumOrderRecoveryScope("DNX_COURSE_ENROLLMENT"), false);
   });
 
+  it("un pedido del piloto Split 1:N sólo se reintenta por Checkout Pro si eligió el plan B", () => {
+    const piloto = (estado: string) => ({ split1nPiloto: { v: 1, estado } });
+    assert.equal(albumOrderCanRetryPayment({ ...baseOrder, pricingSnapshot: piloto("PENDIENTE") }), false);
+    assert.equal(albumOrderCanRetryPayment({ ...baseOrder, pricingSnapshot: piloto("COBRANDO") }), false);
+    assert.equal(albumOrderCanRetryPayment({ ...baseOrder, pricingSnapshot: piloto("CHECKOUT_PRO") }), true);
+    assert.equal(albumOrderCanRetryPayment({ ...baseOrder, pricingSnapshot: {} }), true);
+  });
+
   it("canRetry true for PENDING and FAILED album orders", () => {
     assert.equal(albumOrderCanRetryPayment({ ...baseOrder, status: OrderStatus.PENDING }), true);
     assert.equal(albumOrderCanRetryPayment({ ...baseOrder, status: OrderStatus.FAILED }), true);

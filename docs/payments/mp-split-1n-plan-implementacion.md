@@ -403,3 +403,65 @@ la página del grupo concilia en cada visita y sigue andando aunque el carrito s
   saliendo por pedido.
 - Los mismos huecos de `create-preference`, reintento y "pedido abandonado" existen para pedidos
   del piloto de un álbum (no se tocaron acá).
+
+### 10.2 Apertura a todos los fotógrafos (construido APAGADO, 09/11/2026)
+
+Dos piezas para abrir el cobro dividido el lunes 16/11/2026. Todo apagado por defecto y sin
+migración: se usan `DnxPaymentRecipient` y `DnxSplitConsent`, que ya existen en la base de
+producción de CLF (verificado el 09/11: mismas columnas que el schema, 0 filas).
+
+**1. Consentimiento desde el panel** (`lib/split-1n-consentimiento/`, ruta
+`/api/split-1n/consentimiento`, tarjeta «Cobro dividido al instante» en Configuración del
+fotógrafo y en Comisiones del organizador).
+
+- La persona escribe el correo de su cuenta de Mercado Pago y toca «Pedir invitación». CLF
+  invita con el token de la plataforma (`POST /v1/split-consent`), guarda el `receiver_id` y el
+  enlace, y muestra «Aceptar en Mercado Pago». El estado se actualiza con `GET /v1/split-consent`
+  al abrir la tarjeta (como mucho una vez por minuto) o con «Ya acepté, revisar».
+- Un `DnxPaymentRecipient` por usuario (`displayReference` = correo de Mercado Pago) y un
+  `DnxSplitConsent` por `receiver_id` (`PRODUCTION`, `MERCADOPAGO`, `APPLICATION`,
+  `primaryProviderAccountReference` = cuenta cobradora). Dos usuarios de CLF no pueden
+  compartir una cuenta de Mercado Pago.
+- Si al cobrar Mercado Pago dice que un consentimiento ya no está ACTIVE, el estado nuevo queda
+  guardado en CLF y el próximo pedido no se desvía.
+
+**2. Plan B en `/pagar/[orderId]`** (`lib/split-1n-piloto/plan-b.ts`).
+
+- Botón «Pagar con Mercado Pago» debajo del formulario de tarjeta; después de un error de la
+  tarjeta se muestra como botón principal. Pasa el mismo pedido a Checkout Pro
+  (`ensureAlbumOrderMpPreference`).
+- Contra el cobro doble: el pase es una escritura condicionada a que la marca del piloto siga
+  en `PENDIENTE` (la misma que exige la tarjeta para reservar) y deja la marca en el estado
+  nuevo `CHECKOUT_PRO`. Con un cobro con tarjeta `COBRANDO` o `EN_REVISION`, el plan B se niega.
+- Cerrados los huecos del piloto: `create-preference`, `ensureAlbumOrderMpPreference` y el
+  reintento de pago fallido se niegan a crear un Checkout Pro para un pedido del piloto que no
+  eligió el plan B (código `SPLIT_1N_PILOTO`); `/pago/reintentar/{id}` lleva a `/pagar/{id}`; el
+  aviso de pedido abandonado no sale si el cobro con tarjeta está en curso.
+
+**Variables nuevas**
+
+| Variable | Qué hace |
+|---|---|
+| `DNX_CLF_SPLIT_1N_CONSENTIMIENTO_ENABLED=true` | Muestra la tarjeta, habilita la invitación y suma los receptores ACTIVE de CLF al mapa del piloto. |
+| `DNX_CLF_SPLIT_1N_TODOS_LOS_ALBUMES=true` | Todo álbum es candidato (reemplaza `DNX_CLF_SPLIT_1N_PILOTO_ALBUM_IDS`). Siguen mandando los consentimientos: un álbum cuyo fotógrafo, referidor u organizador no esté ACTIVE va por Checkout Pro. |
+
+Además, para invitar hace falta `DNX_MP_SPLIT_CONSENT_PRODUCTION_ENABLED=true` (freno del
+adaptador de pagos; sin eso la tarjeta muestra «no pudimos pedir la invitación»). Las demás
+del piloto siguen igual (`DNX_CLF_SPLIT_1N_PILOTO_ENABLED`, `..._OWNER_USER_ID`,
+`DNX_MP_PLATFORM_ACCESS_TOKEN`). El mapa `DNX_CLF_SPLIT_1N_PILOTO_RECEIVERS` gana sobre CLF.
+
+**Orden de encendido sugerido**
+
+1. Miércoles 11/11: `DNX_MP_SPLIT_CONSENT_PRODUCTION_ENABLED=true` y
+   `DNX_CLF_SPLIT_1N_CONSENTIMIENTO_ENABLED=true`. Los fotógrafos que ya aceptaron siguen por el
+   mapa de entorno; cualquiera puede ir pidiendo su invitación desde el panel. Probar el plan B
+   con un pedido real del piloto (elegir «Pagar con Mercado Pago» y pagar con Checkout Pro).
+2. Lunes 16/11: `DNX_CLF_SPLIT_1N_TODOS_LOS_ALBUMES=true`.
+3. Para volver atrás: apagar `DNX_CLF_SPLIT_1N_TODOS_LOS_ALBUMES` (vuelve la lista) o
+   `DNX_CLF_SPLIT_1N_PILOTO_ENABLED` (todo por Checkout Pro). Los consentimientos guardados no
+   se pierden.
+
+**Pendientes**: la búsqueda de un correo ya invitado usa la primera página de
+`GET /v1/split-consent` (100 resultados); con más consentimientos hay que paginar. Sigue
+pendiente la respuesta de Mercado Pago sobre dinero en cuenta en 1:N (por eso el plan B dice
+«con dinero en cuenta u otros medios de Mercado Pago»).

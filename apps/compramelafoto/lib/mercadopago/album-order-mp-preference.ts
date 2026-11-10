@@ -11,6 +11,7 @@ import {
 } from "@/lib/preventa-canjeable/order-checkout-kind";
 import { feeFromTotal } from "@/lib/pricing/fee-formula";
 import { buildAlbumOrderMercadoPagoCheckoutSplit } from "@/lib/event-organizer-commission-mp-checkout";
+import { bloqueaCheckoutPro } from "@/lib/split-1n-piloto/snapshot";
 import { resolveClientMarketplaceFeePercent } from "@/lib/pricing/client-price";
 import { resolvePlatformCommissionPercent } from "@/lib/services/commissionService";
 import { applyAndPersistSellerReferralDiscount } from "@/lib/referral/referral-marketplace-fee";
@@ -94,6 +95,18 @@ export async function ensureAlbumOrderMpPreference(
       error: "Este pedido es de simulación; no se crea preferencia de Mercado Pago.",
       code: "SIMULATED_ORDER",
       httpStatus: 400,
+    };
+  }
+
+  // Piloto Split 1:N: el pedido se cobra con tarjeta en /pagar y ese cobro puede estar en curso.
+  // Checkout Pro sólo después de que el comprador eligió «Pagar con Mercado Pago» (plan B).
+  if (bloqueaCheckoutPro(order.pricingSnapshot)) {
+    console.info(LOG_BLOCKED, { reason: "album_order_split_1n_piloto", orderId });
+    return {
+      ok: false,
+      error: "Esta compra se paga desde su página de pago.",
+      code: "SPLIT_1N_PILOTO",
+      httpStatus: 409,
     };
   }
 
