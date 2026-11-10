@@ -3,6 +3,65 @@ import { queueEmail, renderTemplate } from "@/lib/email-queue";
 import { getOrderDownloadTokens } from "@/lib/download-tokens";
 import { resolveClientDigitalDownloadLinks } from "@/lib/digital-download/download-center-rollout";
 import type { ZipGenerationJob } from "@/lib/prisma";
+import { notaDeImpresas } from "@/lib/digital-download/nota-de-impresas";
+
+/**
+ * Fotógrafo del pedido y cuántas fotos impresas trae. Sirve para que el correo de descarga
+ * aclare que las impresas van en papel y para que "Responder" le llegue al fotógrafo.
+ * Si algo falla, el correo sale igual que antes.
+ */
+async function fotografoEImpresas(orderId: number): Promise<{
+  fotografo: { name: string | null; email: string | null } | null;
+  cantidadImpresas: number;
+}> {
+  try {
+    const order = await prisma.order.findUnique({ where: { id: orderId }, select: { albumId: true } });
+    const album = order?.albumId
+      ? await prisma.album.findUnique({ where: { id: order.albumId }, select: { userId: true } })
+      : null;
+    const [fotografo, impresas] = await Promise.all([
+      album?.userId
+        ? prisma.user.findUnique({ where: { id: album.userId }, select: { name: true, email: true } })
+        : null,
+      prisma.orderItem.aggregate({
+        where: { orderId, productType: "PRINT" },
+        _sum: { quantity: true },
+      }),
+    ]);
+    return { fotografo: fotografo ?? null, cantidadImpresas: impresas._sum.quantity ?? 0 };
+  } catch (err) {
+    console.error("[zip-job-notifications] no se pudo leer fotógrafo/impresas", { orderId, err });
+    return { fotografo: null, cantidadImpresas: 0 };
+  }
+}
+
+/** Pone la nota después del primer párrafo (el saludo); si no lo encuentra, al principio. */
+function insertarDespuesDelSaludo(cuerpo: string, nota: string, finDeParrafo: "\n\n" | "</p>"): string {
+  const esHtml = finDeParrafo === "</p>";
+  const bloque = esHtml ? nota : `${nota}\n\n`;
+  const i = cuerpo.indexOf(finDeParrafo);
+  if (i < 0) return `${bloque}${cuerpo}`;
+  const corte = i + finDeParrafo.length;
+  return `${cuerpo.slice(0, corte)}${bloque}${cuerpo.slice(corte)}`;
+}
+
+/** Agrega la nota de impresas (si corresponde) al correo de la plantilla. */
+function aplicarNotaDeImpresas(
+  template: { subject: string; bodyText: string; bodyHtml?: string | null },
+  orderId: number,
+  datos: Awaited<ReturnType<typeof fotografoEImpresas>>
+): { subject: string; bodyText: string; bodyHtml: string } {
+  const nota = notaDeImpresas({ orderId, cantidadImpresas: datos.cantidadImpresas, fotografo: datos.fotografo });
+  if (!nota) {
+    return { subject: template.subject, bodyText: template.bodyText, bodyHtml: template.bodyHtml ?? "" };
+  }
+  return {
+    subject: nota.asunto,
+    bodyText: insertarDespuesDelSaludo(template.bodyText, nota.texto, "\n\n"),
+    // Sin HTML de plantilla, el envío arma el HTML desde el texto (que ya trae la nota).
+    bodyHtml: template.bodyHtml ? insertarDespuesDelSaludo(template.bodyHtml, nota.html, "</p>") : "",
+  };
+}
 
 const enabled =
   process.env.ENABLE_ZIP_READY_EMAIL === undefined ||
@@ -72,8 +131,10 @@ export async function notifyClientDigitalZipReady(
   const loginUrl = `${appUrl}/cliente/login`;
   const pedidosUrl = `${appUrl}/cliente/pedidos`;
 
-  let bodyText = template.bodyText;
-  let bodyHtml = template.bodyHtml ?? "";
+  const datosDelPedido = await fotografoEImpresas(order.id);
+  const conNota = aplicarNotaDeImpresas(template, order.id, datosDelPedido);
+  let bodyText = conNota.bodyText;
+  let bodyHtml = conNota.bodyHtml;
 
   if (order.buyerUserId == null) {
     const guestText = `
@@ -92,9 +153,10 @@ Mis pedidos: ${pedidosUrl}`;
 
   await queueEmail({
     to: order.buyerEmail,
-    subject: template.subject,
+    subject: conNota.subject,
     body: bodyText,
     htmlBody: bodyHtml,
+    replyTo: datosDelPedido.fotografo?.email,
     idempotencyKey: `zip-job-${job.id}-digital-download`,
   });
 
@@ -166,8 +228,10 @@ export async function resendDigitalDownloadEmailForOrder(
   const loginUrl = `${appUrl}/cliente/login`;
   const pedidosUrl = `${appUrl}/cliente/pedidos`;
 
-  let bodyText = template.bodyText;
-  let bodyHtml = template.bodyHtml ?? "";
+  const datosDelPedido = await fotografoEImpresas(order.id);
+  const conNota = aplicarNotaDeImpresas(template, order.id, datosDelPedido);
+  let bodyText = conNota.bodyText;
+  let bodyHtml = conNota.bodyHtml;
 
   if (order.buyerUserId == null) {
     const guestText = `
@@ -189,9 +253,10 @@ Mis pedidos: ${pedidosUrl}`;
 
   const { queued } = await queueEmail({
     to: order.buyerEmail,
-    subject: template.subject,
+    subject: conNota.subject,
     body: bodyText,
     htmlBody: bodyHtml,
+    replyTo: datosDelPedido.fotografo?.email,
     idempotencyKey,
   });
 

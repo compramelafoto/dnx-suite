@@ -12,6 +12,7 @@ import {
 import { textToEmailHtml, wrapEmailLayout } from "@/emails/layout";
 import { Resend } from "resend";
 import { filtrarDestinatariosDePrueba } from "@/lib/demos/identidad";
+import { responderADe } from "@/lib/email-reply-to";
 
 /**
  * Envía un email usando Resend
@@ -21,8 +22,9 @@ async function sendEmailViaProvider(params: {
   subject: string;
   bodyText: string;
   bodyHtml?: string;
+  replyTo?: string | null;
 }): Promise<{ success: boolean; error?: string }> {
-  const { to, subject, bodyText, bodyHtml } = params;
+  const { to, subject, bodyText, bodyHtml, replyTo } = params;
 
   // Demos con datos falsos: un destinatario `.test` no recibe nada (ni existe).
   if (filtrarDestinatariosDePrueba(to).enviar.length === 0) {
@@ -47,6 +49,7 @@ async function sendEmailViaProvider(params: {
       subject,
       text: bodyText,
       html: bodyHtml,
+      ...(replyTo ? { replyTo } : {}),
     });
     return { success: true };
   } catch (err: any) {
@@ -92,6 +95,7 @@ export async function processEmailQueueItem() {
       subject,
       bodyText,
       bodyHtml,
+      replyTo: responderADe(email.templateData),
     });
 
     if (result.success) {
