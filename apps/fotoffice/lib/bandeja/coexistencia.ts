@@ -76,21 +76,26 @@ export async function conectarCoexistencia(ctx: CtxConsultas, datos: DatosCoexis
   // reintenta con ella. Lo que dijo Meta se muestra, para no adivinar la causa.
   const pagina = typeof datos?.pagina === "string" && /^https:\/\/[\w.-]+(\/[\w./-]*)?$/.test(datos.pagina) ? datos.pagina : null;
   let canjeado: string | null = null;
-  let dijoMeta: string | null = null;
-  for (const redirect of pagina ? [null, pagina] : [null]) {
+  const dijo: string[] = [];
+  const raiz = pagina ? `${new URL(pagina).origin}/` : null;
+  // Sin redirect_uri, vacío, la página y la raíz del sitio: el SDK de Meta usa uno de esos.
+  const variantes: (string | null)[] = [null, "", ...(pagina ? [pagina] : []), ...(raiz && raiz !== pagina ? [raiz] : [])];
+  for (const redirect of variantes) {
     try {
-      const q = new URLSearchParams({ client_id: META_APP_ID, client_secret: secreto, code, ...(redirect ? { redirect_uri: redirect } : {}) });
+      const q = new URLSearchParams({ client_id: META_APP_ID, client_secret: secreto, code, ...(redirect !== null ? { redirect_uri: redirect } : {}) });
       const res = await f(`https://graph.facebook.com/${version}/oauth/access_token?${q}`, { cache: "no-store" });
       const j = (await res.json().catch(() => null)) as { access_token?: unknown; error?: { message?: unknown } } | null;
       if (res.ok && typeof j?.access_token === "string") {
         canjeado = j.access_token;
         break;
       }
-      if (typeof j?.error?.message === "string") dijoMeta = j.error.message.slice(0, 200);
+      const motivo = typeof j?.error?.message === "string" ? j.error.message.slice(0, 160) : `respuesta ${res.status}`;
+      dijo.push(`${redirect === null ? "sin dirección" : redirect === "" ? "dirección vacía" : redirect}: ${motivo}`);
     } catch {
-      dijoMeta = dijoMeta ?? "sin respuesta";
+      dijo.push(`${redirect ?? "sin dirección"}: sin respuesta`);
     }
   }
+  const dijoMeta = dijo.length > 0 ? dijo.join(" | ") : null;
   if (!canjeado) {
     console.warn("[fotoffice][whatsapp] Meta rechazó el canje del código de coexistencia", { dijoMeta });
     return { ok: false, error: dijoMeta ? `${MENSAJES_COEXISTENCIA.canje} Meta dijo: ${dijoMeta}` : MENSAJES_COEXISTENCIA.canje };
