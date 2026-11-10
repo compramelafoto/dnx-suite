@@ -13,6 +13,7 @@ import StatusOverlay from "@/components/layout/StatusOverlay";
 import { ensurePhotographerSession } from "@/lib/photographer-session-client";
 import { feeFromBase } from "@/lib/pricing/fee-formula";
 import MercadoPagoIntegration from "@/components/mercadopago/MercadoPagoIntegration";
+import CobroDivididoCard from "@/components/mercadopago/CobroDivididoCard";
 import CobrosInternacionalesSection from "@/components/fotografo/CobrosInternacionalesSection";
 import ReferidosTab from "@/components/referrals/ReferidosTab";
 import ConfigLegacyTabNotice, { isConfigLegacyTab } from "@/components/fotografo/ConfigLegacyTabNotice";
@@ -1690,6 +1691,7 @@ export default function ConfiguracionClient({
                   onError={setError}
                   onSuccess={setSuccess}
                 />
+                <CobroDivididoCard />
               </Card>
               )}
               </>
