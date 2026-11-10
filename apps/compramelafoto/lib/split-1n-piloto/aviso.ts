@@ -4,7 +4,9 @@ export function idOrdenDelAviso(params: {
   type: string | null;
   dataId: string | null;
 }): string | null {
-  if (!params.enabled || params.type?.toLowerCase() !== "order") return null;
+  // `order` (tarjeta) y `orders_v2` (Checkout Pro sobre Orders, según su documentación).
+  const tipo = params.type?.toLowerCase();
+  if (!params.enabled || (tipo !== "order" && tipo !== "orders_v2")) return null;
   const id = params.dataId?.trim();
   return id ? id : null;
 }

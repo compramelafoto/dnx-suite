@@ -42,7 +42,7 @@ export async function GET(
     // tarjeta o «Pagar con Mercado Pago». Con el cobro con tarjeta en curso no se ofrece nada.
     const marca = leerMarcaPiloto(order.pricingSnapshot);
     const pagarUrl =
-      marca?.estado === "PENDIENTE" && (order.status === "PENDING" || order.status === "FAILED")
+      (marca?.estado === "PENDIENTE" || marca?.estado === "CHECKOUT_SPLIT") && (order.status === "PENDING" || order.status === "FAILED")
         ? `/pagar/${order.id}`
         : null;
 

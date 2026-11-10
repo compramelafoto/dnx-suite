@@ -10,6 +10,7 @@ const base: PilotoConfig = {
   todosLosAlbumes: false,
   receptoresDesdeClf: false,
   planB: false,
+  planBSplit: false,
   receiverByUserId: new Map([[35, "aaa"]]),
   ownerUserId: "97484805",
   accessToken: "APP_USR-x",

@@ -27,6 +27,7 @@ const encendido: PilotoConfig = {
   todosLosAlbumes: false,
   receptoresDesdeClf: false,
   planB: false,
+  planBSplit: false,
   albumIds: new Set([12]),
   receiverByUserId: new Map([
     [35, "aaa"],

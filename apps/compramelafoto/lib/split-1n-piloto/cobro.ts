@@ -53,7 +53,7 @@ export function prepararCobro(params: {
     return { ok: false, codigo: "YA_PAGADO" };
   }
   const estado = params.marca?.estado;
-  if (estado === "CHECKOUT_PRO") return { ok: false, codigo: "ELIGIO_MERCADO_PAGO" };
+  if (estado === "CHECKOUT_PRO" || estado === "CHECKOUT_SPLIT") return { ok: false, codigo: "ELIGIO_MERCADO_PAGO" };
   if (estado && estado !== "PENDIENTE") {
     return { ok: false, codigo: "ORDEN_EN_CURSO" };
   }

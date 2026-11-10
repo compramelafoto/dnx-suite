@@ -90,7 +90,7 @@ export async function pagarPedidoPiloto(input: {
   const { order } = cargado;
   const marca = leerMarcaPiloto(order.pricingSnapshot);
   if (!marca) return falla("NO_DISPONIBLE");
-  if (marca.estado === "CHECKOUT_PRO") return falla("ELIGIO_MERCADO_PAGO");
+  if (marca.estado === "CHECKOUT_PRO" || marca.estado === "CHECKOUT_SPLIT") return falla("ELIGIO_MERCADO_PAGO");
 
   const device = input.cardPayment?.deviceSessionId?.trim() ?? "";
   const token = input.cardPayment?.token?.trim() ?? "";

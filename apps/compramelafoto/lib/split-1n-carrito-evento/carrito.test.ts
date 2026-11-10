@@ -51,6 +51,7 @@ const piloto: PilotoConfig = {
   todosLosAlbumes: false,
   receptoresDesdeClf: false,
   planB: false,
+  planBSplit: false,
   albumIds: new Set(),
   receiverByUserId: new Map([
     [1, "rcv-a"],
