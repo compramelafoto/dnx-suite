@@ -41,7 +41,10 @@ const lados = (medida: string): [number, number] => {
   return [Math.min(a, b), Math.max(a, b)];
 };
 /** Las copias primero, después los canvas y al final los MDF; cada grupo de menor a mayor. */
-const grupo = (medida: string) => ({ CANVAS: 1, MDF: 2 })[cuadroDeMedida(medida)?.tipo ?? ""] ?? 0;
+const grupo = (medida: string): number => {
+  const tipo = cuadroDeMedida(medida)?.tipo;
+  return tipo === "CANVAS" ? 1 : tipo === "MDF" ? 2 : 0;
+};
 
 export function opcionesDelCatalogo(catalogo: ProductoCopia[], papeles: { mate: boolean; brillo: boolean } | null): OpcionesLab {
   const porMedida = new Map<string, Set<PlazoLab>>();
