@@ -3,9 +3,14 @@ import { describe, it } from "node:test";
 import { prepararCobro } from "./cobro";
 import type { PilotoConfig } from "./config";
 import type { PedidoPiloto } from "./pedido";
+import { PaymentProviderValidationError } from "@repo/payments";
 import { resolverCheckoutSplit, type DepsCheckoutSplit } from "./plan-b-split";
 import type { CobroPedidoPreparado } from "./preparar";
 import { leerMarcaPiloto, marcarSnapshotPiloto, type MarcaPiloto } from "./snapshot";
+
+const AHORA = new Date("2026-11-10T15:00:00Z");
+const HACE_10_S = new Date(AHORA.getTime() - 10_000).toISOString();
+const HACE_5_MIN = new Date(AHORA.getTime() - 5 * 60_000).toISOString();
 
 const config: PilotoConfig = {
   enabled: true,
@@ -49,12 +54,25 @@ function escenario(opciones: {
   estadoOrden?: string | null | Error;
   preparar?: CobroPedidoPreparado;
   crear?: { id: string | null; url: string | null } | Error;
+  confirmar?: boolean;
+  /** Simula que otra pestaña cambió la marca justo después de crear la orden. */
+  pisarTrasCrear?: Omit<MarcaPiloto, "v">;
 }) {
   let snapshot: unknown = JSON.parse(JSON.stringify(marcarSnapshotPiloto({ total: 3450 }, opciones.marca)));
-  const llamadas = { crear: [] as Array<{ body: unknown; key: string }>, confirmar: 0, preparar: 0, escrituras: 0 };
+  const llamadas = {
+    crear: [] as Array<{ body: unknown; key: string }>,
+    confirmar: 0,
+    preparar: 0,
+    escrituras: 0,
+    canceladas: [] as string[],
+  };
   const deps: DepsCheckoutSplit = {
     config: { ...config, ...opciones.config },
     baseUrl: "https://www.compramelafoto.com",
+    ahora: () => AHORA,
+    async cancelarOrden(id) {
+      llamadas.canceladas.push(id);
+    },
     async cargar() {
       return {
         order: {
@@ -81,6 +99,7 @@ function escenario(opciones: {
     },
     async confirmar() {
       llamadas.confirmar++;
+      return opciones.confirmar ?? true;
     },
     async preparar() {
       llamadas.preparar++;
@@ -89,6 +108,9 @@ function escenario(opciones: {
     async crearOrden(_c, body, key) {
       llamadas.crear.push({ body, key });
       if (opciones.crear instanceof Error) throw opciones.crear;
+      if (opciones.pisarTrasCrear) {
+        snapshot = JSON.parse(JSON.stringify(marcarSnapshotPiloto({ total: 3450 }, opciones.pisarTrasCrear)));
+      }
       return opciones.crear ?? { id: "ORD-NUEVA", url: "https://www.mercadopago.com.ar/checkout/v1/redirect?order_id=ORD-NUEVA" };
     },
   };
@@ -190,7 +212,7 @@ describe("plan B con reparto: ya hay una orden", () => {
     assert.equal(e.marca()?.estado, "CHECKOUT_SPLIT");
   });
 
-  it("vencida: crea otra con un intento nuevo", async () => {
+  it("vencida: la libera sin el id viejo y crea otra con un intento nuevo", async () => {
     const e = escenario({ marca: conOrden, estadoOrden: "canceled" });
     const r = await resolverCheckoutSplit(e.deps, 4321);
     assert.equal(r.tipo, "url");
@@ -204,11 +226,59 @@ describe("plan B con reparto: ya hay una orden", () => {
     assert.equal(e.marca()?.estado, "PENDIENTE");
   });
 
-  it("reservado sin orden (se cortó): reintenta con la misma clave para recibir la misma orden", async () => {
-    const e = escenario({ marca: { estado: "CHECKOUT_SPLIT", intento: 5 } });
+  it("reservado sin orden (se cortó): reintenta con la misma clave y actualiza quiénes cobran", async () => {
+    const e = escenario({ marca: { estado: "CHECKOUT_SPLIT", intento: 5, reservadoEn: HACE_5_MIN, organizadorUserId: 1 } });
     const r = await resolverCheckoutSplit(e.deps, 4321);
     assert.equal(r.tipo, "url");
     assert.equal(e.llamadas.crear[0].key, "clf-album-order-4321-5");
+    assert.equal(e.marca()?.organizadorUserId, 77);
+  });
+
+  it("reservado hace segundos: otra pestaña está abriendo Mercado Pago, no se reintenta", async () => {
+    const e = escenario({ marca: { estado: "CHECKOUT_SPLIT", intento: 5, reservadoEn: HACE_10_S } });
+    const r = await resolverCheckoutSplit(e.deps, 4321);
+    assert.equal(r.tipo, "fin");
+    assert.equal(e.llamadas.crear.length, 0);
+    assert.equal(e.marca()?.estado, "CHECKOUT_SPLIT");
+  });
+
+  it("reservado sin orden y Mercado Pago no responde: no se libera (puede haber un enlace)", async () => {
+    const e = escenario({ marca: { estado: "CHECKOUT_SPLIT", intento: 5, reservadoEn: HACE_5_MIN }, crear: new Error("timeout") });
+    const r = await resolverCheckoutSplit(e.deps, 4321);
+    assert.equal(r.tipo, "fin");
+    assert.equal(e.marca()?.estado, "CHECKOUT_SPLIT");
+  });
+
+  it("reservado sin orden y Mercado Pago la rechaza: queda libre para el de siempre", async () => {
+    const e = escenario({
+      marca: { estado: "CHECKOUT_SPLIT", intento: 5, reservadoEn: HACE_5_MIN },
+      crear: new PaymentProviderValidationError("splits inválidos"),
+    });
+    assert.deepEqual(await resolverCheckoutSplit(e.deps, 4321), { tipo: "legacy" });
+    assert.equal(e.marca()?.estado, "PENDIENTE");
+  });
+
+  it("si otra pestaña cambió el pedido mientras se creaba, la orden se cancela y no se entrega el enlace", async () => {
+    const e = escenario({ marca: { estado: "PENDIENTE" }, pisarTrasCrear: { estado: "CHECKOUT_PRO" } });
+    const r = await resolverCheckoutSplit(e.deps, 4321);
+    assert.equal(r.tipo, "fin");
+    assert.deepEqual(e.llamadas.canceladas, ["ORD-NUEVA"]);
+  });
+
+  it("pagada pero la confirmación no salió: no dice «acreditado», pide no pagar de nuevo", async () => {
+    const e = escenario({ marca: conOrden, estadoOrden: "processed", confirmar: false });
+    const r = await resolverCheckoutSplit(e.deps, 4321);
+    assert.equal(r.tipo, "fin");
+    assert.match(r.tipo === "fin" ? r.mensaje : "", /No pagues de nuevo/);
+  });
+
+  it("devuelta o en un estado desconocido: no reutiliza ni libera", async () => {
+    for (const estadoOrden of ["refunded", "algo_nuevo"]) {
+      const e = escenario({ marca: conOrden, estadoOrden });
+      const r = await resolverCheckoutSplit(e.deps, 4321);
+      assert.equal(r.tipo, "fin");
+      assert.equal(e.llamadas.escrituras, 0);
+    }
   });
 
   it("un pedido ya pagado no se toca", async () => {

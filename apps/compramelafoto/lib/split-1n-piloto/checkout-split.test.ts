@@ -84,9 +84,10 @@ describe("Checkout Pro con reparto: ¿se reutiliza la orden vigente?", () => {
     assert.equal(decidirOrdenCheckoutSplit("expired"), "nueva");
     assert.equal(decidirOrdenCheckoutSplit("failed"), "nueva");
   });
-  it("un estado desconocido no habilita otra orden", () => {
-    assert.equal(decidirOrdenCheckoutSplit(null), "reusar");
-    assert.equal(decidirOrdenCheckoutSplit("algo_nuevo"), "reusar");
+  it("devuelta o desconocida: ni se reutiliza ni habilita otra", () => {
+    assert.equal(decidirOrdenCheckoutSplit(null), "verificar");
+    assert.equal(decidirOrdenCheckoutSplit("refunded"), "verificar");
+    assert.equal(decidirOrdenCheckoutSplit("algo_nuevo"), "verificar");
   });
 });
 

@@ -1,6 +1,6 @@
 import { armarOrdenCheckoutSplit, decidirOrdenCheckoutSplit } from "./checkout-split";
 import type { PilotoConfig } from "./config";
-import { claveIntento, siguienteIntento } from "./intento";
+import { clasificarErrorCobro, claveIntento, siguienteIntento } from "./intento";
 import type { PedidoPiloto } from "./pedido";
 import type { CobroPedidoPreparado } from "./preparar";
 import { leerMarcaPiloto, marcarSnapshotPiloto, type MarcaPiloto } from "./snapshot";
@@ -24,7 +24,16 @@ const MENSAJES = {
   pagado: "Tu pago ya se acreditó. Te mandamos las fotos por correo.",
   error: "No pudimos abrir Mercado Pago. Probá de nuevo en unos minutos.",
   cambio: "Esta compra cambió recién. Recargá la página.",
+  abriendo: "Estamos abriendo Mercado Pago para esta compra. Esperá unos segundos y volvé a tocar el botón.",
+  verificando:
+    "Estamos verificando tu pago con Mercado Pago. Te avisamos por correo apenas se confirme. No pagues de nuevo.",
 } as const;
+
+/**
+ * Una reserva sin orden más nueva que esto es de otra pestaña que todavía está esperando a
+ * Mercado Pago: no se retoma (si se retomara, las dos podrían terminar con enlaces distintos).
+ */
+export const ESPERA_RESERVA_MS = 60_000;
 
 
 type CambiosMarca = Parameters<typeof marcarSnapshotPiloto>[1];
@@ -33,12 +42,16 @@ type CambiosMarca = Parameters<typeof marcarSnapshotPiloto>[1];
 export type DepsCheckoutSplit = {
   config: PilotoConfig;
   baseUrl: string;
+  ahora(): Date;
   cargar(): Promise<PedidoPiloto | null>;
   /** Escribe la marca sólo si sigue exactamente como se leyó. `true` si escribió. */
   cambiarMarca(snapshot: unknown, leida: MarcaPiloto, cambios: CambiosMarca): Promise<boolean>;
   /** Estado de la orden en Mercado Pago. Lanza si no se pudo leer. */
   estadoOrden(providerOrderId: string): Promise<string | null>;
-  confirmar(providerOrderId: string): Promise<void>;
+  /** Confirma el pedido con la orden pagada. `true` si quedó pagado (ahora o antes). */
+  confirmar(providerOrderId: string): Promise<boolean>;
+  /** Cancela en Mercado Pago una orden que no se va a usar (sin pagar). Lanza si falla. */
+  cancelarOrden(providerOrderId: string): Promise<void>;
   preparar(cargado: PedidoPiloto, marca: MarcaPiloto): Promise<CobroPedidoPreparado>;
   /** POST /v1/orders. Lanza ante un error de red o de Mercado Pago. */
   crearOrden(
@@ -99,14 +112,21 @@ export async function resolverCheckoutSplit(
       return marca.checkoutUrl ? { tipo: "url", url: marca.checkoutUrl } : { tipo: "fin", mensaje: MENSAJES.error };
     }
     if (decision === "confirmar") {
-      await deps.confirmar(marca.providerOrderId).catch((err: unknown) =>
-        console.error("[split-1n-piloto] checkout_split_no_confirmada", { pedidoId, err }),
-      );
-      return { tipo: "fin", mensaje: MENSAJES.pagado };
+      const ok = await deps.confirmar(marca.providerOrderId).catch((err: unknown) => {
+        console.error("[split-1n-piloto] checkout_split_no_confirmada", { pedidoId, err });
+        return false;
+      });
+      return { tipo: "fin", mensaje: ok ? MENSAJES.pagado : MENSAJES.verificando };
+    }
+    if (decision === "verificar") {
+      console.warn("[split-1n-piloto] checkout_split_estado_inesperado", { pedidoId, status });
+      return { tipo: "fin", mensaje: MENSAJES.verificando };
     }
     const liberado = await deps.cambiarMarca(cargado.order.pricingSnapshot, marca, {
       estado: "PENDIENTE",
+      providerOrderId: undefined,
       checkoutUrl: undefined,
+      reservadoEn: undefined,
     });
     if (!liberado) return { tipo: "fin", mensaje: MENSAJES.cambio };
     console.info("[split-1n-piloto] checkout_split_liberada", { pedidoId, status });
@@ -123,6 +143,12 @@ export async function resolverCheckoutSplit(
     return LEGACY;
   }
   if (marca.estado !== "PENDIENTE" && !reservadoSinOrden) return LEGACY;
+  if (reservadoSinOrden) {
+    const desde = marca.reservadoEn ? Date.parse(marca.reservadoEn) : NaN;
+    if (Number.isFinite(desde) && deps.ahora().getTime() - desde < ESPERA_RESERVA_MS) {
+      return { tipo: "fin", mensaje: MENSAJES.abriendo };
+    }
+  }
 
   // 3) Mismo reparto que la tarjeta.
   const preparado = await deps.preparar(cargado, { ...marca, estado: "PENDIENTE" });
@@ -134,27 +160,26 @@ export async function resolverCheckoutSplit(
   const { clientes, cobro, quienesCobran } = preparado;
   const order = cargado.order;
 
-  // 4) Reserva.
-  let intento = marca.intento ?? 1;
-  let reservada: { snapshot: unknown; marca: MarcaPiloto | null } = { snapshot: order.pricingSnapshot, marca };
-  if (!reservadoSinOrden) {
-    intento = siguienteIntento(marca);
-    const cambios: CambiosMarca = {
-      estado: "CHECKOUT_SPLIT",
-      intento,
-      ...quienesCobran,
-      providerOrderId: undefined,
-      checkoutUrl: undefined,
-    };
-    if (!(await deps.cambiarMarca(order.pricingSnapshot, marca, cambios))) {
-      return { tipo: "fin", mensaje: MENSAJES.cambio };
-    }
-    reservada = comoQuedo(marcarSnapshotPiloto(order.pricingSnapshot, cambios));
+  // 4) Reserva (o, si se retoma una reserva cortada, se renueva con el mismo intento y con
+  //    quiénes cobran recalculado, para que las comisiones salgan del reparto de esta orden).
+  const intento = reservadoSinOrden ? marca.intento ?? 1 : siguienteIntento(marca);
+  const cambios: CambiosMarca = {
+    estado: "CHECKOUT_SPLIT",
+    intento,
+    ...quienesCobran,
+    providerOrderId: undefined,
+    checkoutUrl: undefined,
+    reservadoEn: deps.ahora().toISOString(),
+  };
+  if (!(await deps.cambiarMarca(order.pricingSnapshot, marca, cambios))) {
+    return { tipo: "fin", mensaje: MENSAJES.cambio };
   }
+  const reservada = comoQuedo(marcarSnapshotPiloto(order.pricingSnapshot, cambios));
   if (!reservada.marca) return { tipo: "fin", mensaje: MENSAJES.error };
 
   // 5) Orden en Mercado Pago.
   let creada: { id: string | null; url: string | null };
+  let incierto = false;
   try {
     const body = armarOrdenCheckoutSplit({
       pedidoId,
@@ -166,17 +191,22 @@ export async function resolverCheckoutSplit(
     });
     creada = await deps.crearOrden(clientes, body, claveIntento(pedidoId, intento));
   } catch (err: unknown) {
+    // Al retomar una reserva cortada, un error incierto (red, 409, error de Mercado Pago) puede
+    // querer decir que la orden de esta clave existe y alguien tiene su enlace: no se libera.
+    incierto = reservadoSinOrden && clasificarErrorCobro(err) === "incierto";
     console.error("[split-1n-piloto] checkout_split_no_creada", {
       pedidoId,
       intento,
+      incierto,
       error: err instanceof Error ? err.message : String(err),
     });
     creada = { id: null, url: null };
   }
 
   if (!creada.id || !creada.url) {
+    if (incierto) return { tipo: "fin", mensaje: MENSAJES.error };
     // Ningún enlace llegó al comprador: el pedido vuelve a estar libre y sigue Checkout Pro 1:1.
-    await deps.cambiarMarca(reservada.snapshot, reservada.marca, { estado: "PENDIENTE" });
+    await deps.cambiarMarca(reservada.snapshot, reservada.marca, { estado: "PENDIENTE", reservadoEn: undefined });
     return LEGACY;
   }
 
@@ -186,9 +216,18 @@ export async function resolverCheckoutSplit(
     checkoutUrl: creada.url,
   });
   if (!guardada) {
-    // No debería pasar (el pedido está reservado). El aviso de Mercado Pago igual lo confirma
-    // por la referencia, y un nuevo clic recrea la misma orden por la clave de idempotencia.
+    // Otra pestaña cambió el pedido mientras se creaba la orden. El enlace se entrega sólo si
+    // quedó guardado justo este; si no, la orden se cancela para que no haya dos enlaces vivos.
+    const ahora = await deps.cargar();
+    const actual = ahora ? leerMarcaPiloto(ahora.order.pricingSnapshot) : null;
+    if (actual?.estado === "CHECKOUT_SPLIT" && actual.providerOrderId === creada.id && actual.checkoutUrl) {
+      return { tipo: "url", url: actual.checkoutUrl };
+    }
     console.error("[split-1n-piloto] checkout_split_no_guardada", { pedidoId, providerOrderId: creada.id });
+    await deps.cancelarOrden(creada.id).catch((err: unknown) =>
+      console.error("[split-1n-piloto] checkout_split_no_cancelada", { pedidoId, providerOrderId: creada.id, err }),
+    );
+    return { tipo: "fin", mensaje: MENSAJES.cambio };
   }
   console.info("[split-1n-piloto] checkout_split_creada", { pedidoId, intento, providerOrderId: creada.id });
   return { tipo: "url", url: creada.url };

@@ -28,6 +28,8 @@ export type MarcaPiloto = {
   providerOrderId?: string;
   /** Enlace de pago de la orden de Checkout Pro con reparto (estado `CHECKOUT_SPLIT`). */
   checkoutUrl?: string;
+  /** Cuándo se reservó el pedido para crear la orden con reparto (ISO). */
+  reservadoEn?: string;
   /** Intento de cobro vigente: arma la clave de idempotencia. */
   intento?: number;
   /** Usuario de CLF que cobró como referidor por el split: su comisión nace pagada. */

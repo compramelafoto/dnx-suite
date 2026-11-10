@@ -500,3 +500,13 @@ real con dinero en cuenta que el reparto se aplique**.
   sigue el plan B 1:1 de siempre: la venta no se pierde. Con un enlace ya entregado nunca se
   cae al 1:1.
 - Requiere también `DNX_CLF_SPLIT_1N_PLAN_B_ENABLED=true` (el botón).
+- Concurrencia: una reserva sin orden de menos de 60 s es de otra pestaña («estamos abriendo
+  Mercado Pago»); al retomar una reserva cortada, un error incierto no libera el pedido; si al
+  guardar la orden otra pestaña ya cambió el pedido, la orden se cancela
+  (`POST /v1/orders/{id}/cancel`) y el enlace no se entrega.
+- Pendientes: confirmar que la aplicación DNX Suite recibe el aviso de órdenes de Checkout Pro
+  (tópico `order`/`orders_v2` con `data.id` en la URL); si no, la confirmación depende de que el
+  comprador vuelva a `/pagar` o de la conciliación. Con `DNX_CLF_SPLIT_1N_PILOTO_ENABLED`
+  apagado los avisos del piloto se ignoran, también los de órdenes con reparto todavía vivas
+  (hasta 1 día). La orden se apoya en `config.online.retries.allowed=false`, el valor por
+  defecto de Mercado Pago.

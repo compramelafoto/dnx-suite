@@ -88,16 +88,18 @@ export function armarOrdenCheckoutSplit(params: {
   };
 }
 
-export type DecisionOrdenCheckoutSplit = "reusar" | "confirmar" | "nueva";
+export type DecisionOrdenCheckoutSplit = "reusar" | "confirmar" | "nueva" | "verificar";
 
 /**
  * Qué hacer con la orden vigente cuando el comprador vuelve a tocar el botón. Sólo una orden
- * terminada sin pago (vencida, cancelada o rechazada) habilita otra: ante la duda se reutiliza,
- * así nunca hay dos enlaces de pago vivos para el mismo pedido.
+ * terminada sin pago (vencida, cancelada o rechazada) habilita otra; sólo una que todavía se
+ * puede pagar se reutiliza. Cualquier otro estado (devuelta, desconocido) queda en verificación:
+ * ni otro enlace ni el mismo.
  */
 export function decidirOrdenCheckoutSplit(status: string | null | undefined): DecisionOrdenCheckoutSplit {
   const s = (status ?? "").toLowerCase();
   if (s === "processed") return "confirmar";
   if (s === "canceled" || s === "cancelled" || s === "expired" || s === "failed") return "nueva";
-  return "reusar";
+  if (s === "created" || s === "processing" || s === "action_required") return "reusar";
+  return "verificar";
 }

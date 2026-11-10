@@ -38,24 +38,32 @@ export async function pasarPedidoACheckoutPro(input: { pedidoId: number }): Prom
   // única salida de los pedidos que quedaron con la marca.
   // Un pedido que ya eligió Mercado Pago (con o sin reparto) siempre puede continuar.
   const config = resolvePilotoConfig();
-  if (config.enabled && config.publicKey && !config.planB) {
-    const previo = await prisma.order.findUnique({ where: { id: pedidoId }, select: { pricingSnapshot: true } });
-    const estado = previo ? leerMarcaPiloto(previo.pricingSnapshot)?.estado : null;
-    if (estado !== "CHECKOUT_PRO" && estado !== "CHECKOUT_SPLIT") return { ok: false, mensaje: MENSAJES.no_disponible };
+  const previo = await prisma.order.findUnique({ where: { id: pedidoId }, select: { pricingSnapshot: true } });
+  const estadoPrevio = previo ? leerMarcaPiloto(previo.pricingSnapshot)?.estado : null;
+  if (
+    config.enabled &&
+    config.publicKey &&
+    !config.planB &&
+    estadoPrevio !== "CHECKOUT_PRO" &&
+    estadoPrevio !== "CHECKOUT_SPLIT"
+  ) {
+    return { ok: false, mensaje: MENSAJES.no_disponible };
   }
 
-  // Primero, el Checkout Pro con reparto (si está encendido y el pedido es elegible, o si ya hay
-  // una orden con reparto). Si no corresponde o no se pudo crear, sigue el de siempre.
-  try {
-    const split = await intentarCheckoutSplit(pedidoId);
-    if (split.tipo === "url") return { ok: true, initPoint: split.url };
-    if (split.tipo === "fin") return { ok: false, mensaje: split.mensaje };
-  } catch (err: unknown) {
-    console.error("[split-1n-piloto] checkout_split_fallido", {
-      pedidoId,
-      error: err instanceof Error ? err.message : String(err),
-    });
-    return { ok: false, mensaje: MENSAJES.error };
+  // Primero, el Checkout Pro con reparto (si está encendido, o si ya hay una orden con reparto).
+  // Si no corresponde o no se pudo crear, sigue el de siempre.
+  if (config.planBSplit || estadoPrevio === "CHECKOUT_SPLIT") {
+    try {
+      const split = await intentarCheckoutSplit(pedidoId);
+      if (split.tipo === "url") return { ok: true, initPoint: split.url };
+      if (split.tipo === "fin") return { ok: false, mensaje: split.mensaje };
+    } catch (err: unknown) {
+      console.error("[split-1n-piloto] checkout_split_fallido", {
+        pedidoId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return { ok: false, mensaje: MENSAJES.error };
+    }
   }
 
   const order = await prisma.order.findUnique({

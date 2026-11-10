@@ -23,6 +23,7 @@ export async function intentarCheckoutSplit(pedidoId: number): Promise<Resultado
     {
       config,
       baseUrl: process.env.APP_URL || "https://www.compramelafoto.com",
+      ahora: () => new Date(),
       cargar: () => cargarPedidoPiloto(pedidoId),
       async cambiarMarca(snapshot, leida, cambios) {
         const r = await prisma.order.updateMany({
@@ -40,7 +41,16 @@ export async function intentarCheckoutSplit(pedidoId: number): Promise<Resultado
         return (await leerOrdenMp(http, providerOrderId)).status;
       },
       async confirmar(providerOrderId) {
-        await finalizarPedidoPiloto({ pedidoId, providerOrderId });
+        const r = await finalizarPedidoPiloto({ pedidoId, providerOrderId });
+        return r.ok;
+      },
+      async cancelarOrden(providerOrderId) {
+        const { http } = crearClientesPiloto(config);
+        await http.request<unknown>({
+          method: "POST",
+          path: `/v1/orders/${encodeURIComponent(providerOrderId)}/cancel`,
+          idempotencyKey: `cancelar-${providerOrderId}`,
+        });
       },
       preparar: (cargado, marca) => prepararCobroPedidoPiloto({ config, cargado, marca }),
       async crearOrden(clientes, body, idempotencyKey) {
