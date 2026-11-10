@@ -9,6 +9,8 @@ import type { PilotoConfig } from "../split-1n-piloto/config";
  * nunca lanza: una variable mal escrita deja el carrito apagado, que es el lado seguro.
  */
 export const CARRITO_FLAG = "DNX_CLF_SPLIT_1N_CARRITO_EVENTO_ENABLED" as const;
+/** `true`: todo evento es candidato (sin lista). Igual sólo se muestra si todos aceptaron. */
+export const CARRITO_TODOS_FLAG = "DNX_CLF_SPLIT_1N_CARRITO_EVENTO_TODOS" as const;
 
 /** Receptores por orden contando la plataforma, mientras Mercado Pago no confirme el máximo. */
 export const MAX_RECEPTORES_DEFECTO = 10;
@@ -19,6 +21,8 @@ const MAX_RECEPTORES_PISO = 2;
 export type CarritoConfig = {
   enabled: boolean;
   eventIds: Set<number>;
+  /** Todos los eventos son candidatos, no sólo los de la lista. */
+  todosLosEventos: boolean;
   /** Tope de receptores por orden, contando la plataforma. */
   maxReceptores: number;
 };
@@ -43,6 +47,7 @@ export function resolveCarritoConfig(env: NodeJS.ProcessEnv = process.env): Carr
   return {
     enabled: env[CARRITO_FLAG]?.trim().toLowerCase() === "true",
     eventIds,
+    todosLosEventos: env[CARRITO_TODOS_FLAG]?.trim().toLowerCase() === "true",
     maxReceptores: leerMaxReceptores(env.DNX_CLF_SPLIT_1N_MAX_RECEPTORES),
   };
 }
@@ -53,5 +58,10 @@ export function carritoActivoParaEvento(
   piloto: PilotoConfig,
   eventId: number | null | undefined,
 ): boolean {
-  return carrito.enabled && piloto.enabled && eventId != null && carrito.eventIds.has(eventId);
+  return carrito.enabled && piloto.enabled && eventoHabilitado(carrito, eventId);
+}
+
+/** ¿El evento está en la lista, o están habilitados todos? (sin mirar el interruptor general) */
+export function eventoHabilitado(carrito: CarritoConfig, eventId: number | null | undefined): boolean {
+  return eventId != null && (carrito.todosLosEventos || carrito.eventIds.has(eventId));
 }

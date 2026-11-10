@@ -15,6 +15,7 @@ import {
 import { prepararCobroGrupo, type PedidoDelGrupo } from "./cobro-grupo";
 import { evaluarElegibilidadGrupo, type AlbumDelCarrito } from "./elegibilidad-grupo";
 import { decidirFinalizacionGrupo } from "./decidir-grupo";
+import { evaluarEventoCompleto } from "./evento-listo";
 import { armarComprobanteGrupo } from "./correo-contenido";
 import { separarPedidosDeGrupo } from "./cron";
 
@@ -64,7 +65,7 @@ const piloto: PilotoConfig = {
   accessToken: "APP_USR-x",
   publicKey: "APP_USR-pk",
 };
-const carrito: CarritoConfig = { enabled: true, eventIds: new Set([7]), maxReceptores: 10 };
+const carrito: CarritoConfig = { enabled: true, eventIds: new Set([7]), todosLosEventos: false, maxReceptores: 10 };
 
 describe("cuándo está activo el carrito de un evento", () => {
   it("sólo con la bandera, el piloto encendido y el evento en la lista", () => {
@@ -423,5 +424,47 @@ describe("red de seguridad de comprobantes", () => {
     ]);
     assert.deepEqual(r.sueltos, [1, 4]);
     assert.deepEqual(r.grupos, [GRUPO]);
+  });
+});
+
+describe("carrito para todos los eventos, sólo si todas las partes aceptaron", () => {
+  const todos: CarritoConfig = { ...carrito, eventIds: new Set(), todosLosEventos: true };
+
+  it("con TODOS encendido, cualquier evento es candidato", () => {
+    const c = resolveCarritoConfig({ DNX_CLF_SPLIT_1N_CARRITO_EVENTO_ENABLED: "true", DNX_CLF_SPLIT_1N_CARRITO_EVENTO_TODOS: "true" });
+    assert.equal(c.todosLosEventos, true);
+    assert.equal(carritoActivoParaEvento(c, piloto, 12345), true);
+  });
+
+  it("TODOS solo no enciende nada sin la bandera general", () => {
+    const c = resolveCarritoConfig({ DNX_CLF_SPLIT_1N_CARRITO_EVENTO_TODOS: "true" });
+    assert.equal(carritoActivoParaEvento(c, piloto, 12345), false);
+  });
+
+  it("el evento está listo si todos sus álbumes pueden cobrar por el split", () => {
+    const r = evaluarEventoCompleto({ piloto, carrito: todos, eventId: 7, albumes: [albumA, albumB] });
+    assert.equal(r.ok, true);
+  });
+
+  it("un solo fotógrafo sin aceptar deja al evento sin carrito", () => {
+    const sinAceptar = album({ albumId: 300, photographerUserId: 99, autoresDeFotos: [99] });
+    const r = evaluarEventoCompleto({ piloto, carrito: todos, eventId: 7, albumes: [albumA, albumB, sinAceptar] });
+    assert.deepEqual(r, { ok: false, motivos: [{ albumId: 300, motivo: "fotografo_sin_consentimiento" }] });
+  });
+
+  it("el organizador sin aceptar deja al evento sin carrito", () => {
+    const org = { userId: 77, porcentaje: 20, comisionActiva: true, referrerUserId: null };
+    const r = evaluarEventoCompleto({
+      piloto,
+      carrito: todos,
+      eventId: 7,
+      albumes: [{ ...albumA, organizador: org }, { ...albumB, organizador: org }],
+    });
+    assert.equal(r.ok, false);
+  });
+
+  it("el tope de receptores no se mira para el evento entero (se mira en cada compra)", () => {
+    const r = evaluarEventoCompleto({ piloto, carrito: { ...todos, maxReceptores: 2 }, eventId: 7, albumes: [albumA, albumB] });
+    assert.equal(r.ok, true);
   });
 });
