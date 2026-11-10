@@ -173,12 +173,28 @@ function esCasillaPropia(de: string): boolean {
   return de === CASILLA_DANIEL || de.endsWith("@compramelafoto.com");
 }
 
-/** true si alguna de las direcciones de `para` es la casilla de Daniel del dominio. */
-export function llegoADaniel(para: string | string[]): boolean {
+/** Las direcciones de `para`, en minúsculas y completas. */
+function direccionesDe(para: string | string[]): string[] {
   const todas = (Array.isArray(para) ? para.join(",") : para).toLowerCase();
   // Compara direcciones completas: "otrodaniel@compramelafoto.com" no es la casilla de Daniel.
-  const direcciones: string[] = todas.match(/[^\s<>,;"']+@[^\s<>,;"']+/g) ?? [];
-  return direcciones.includes(RESPONDER_A);
+  return todas.match(/[^\s<>,;"']+@[^\s<>,;"']+/g) ?? [];
+}
+
+/** true si alguna de las direcciones de `para` es la casilla de Daniel del dominio. */
+export function llegoADaniel(para: string | string[]): boolean {
+  return direccionesDe(para).includes(RESPONDER_A);
+}
+
+/**
+ * Casillas del dominio cuyo correo se le reenvía a Gmail: la de Daniel y la de info@, donde contestan
+ * los clientes de CompraMeLaFoto los correos de la plataforma. Lo que llega a cualquier otra dirección
+ * del dominio sólo genera el aviso por Telegram (el spam a direcciones inventadas no se reenvía).
+ */
+export const CASILLAS_A_GMAIL = [RESPONDER_A, "info@compramelafoto.com"] as const;
+
+/** true si alguna de las direcciones de `para` es una casilla que se reenvía a Gmail. */
+export function llegoACasillaReenviable(para: string | string[]): boolean {
+  return direccionesDe(para).some((d) => (CASILLAS_A_GMAIL as readonly string[]).includes(d));
 }
 
 /** Las cabeceras del correo recibido lo marcan como correo no deseado (o con virus). */
@@ -403,11 +419,11 @@ export async function reenviarADaniel(correoId: string, deps: DepsEntrante = {})
 
 /**
  * Por qué un entrante NO se reenvía solo a Gmail, o null si se puede reenviar. Sólo lo que llegó a
- * daniel@, dentro del tope por hora y sin marca de correo no deseado en las cabeceras del original
+ * daniel@ o a info@, dentro del tope por hora y sin marca de correo no deseado en las cabeceras del original
  * (que se vuelven a pedir a Resend: si no se pueden leer, no se reenvía).
  */
 async function motivoParaNoReenviar(correo: { resendId: string | null; para: string }, ahora: Date, deps: DepsEntrante): Promise<string | null> {
-  if (!llegoADaniel(correo.para)) return `llegó a ${correo.para || "otra casilla"}, no a ${RESPONDER_A}`;
+  if (!llegoACasillaReenviable(correo.para)) return `llegó a ${correo.para || "otra casilla"}, no a ${CASILLAS_A_GMAIL.join(" ni a ")}`;
   const ultimaHora = await prisma.dnxVendedorCorreo.count({
     where: { direccion: "SALIDA", paso: "REENVIO", creadoEn: { gte: new Date(ahora.getTime() - 3_600_000) } },
   });
