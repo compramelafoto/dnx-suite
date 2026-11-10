@@ -47,7 +47,7 @@ describe("conectarCoexistencia", () => {
     const guardar = vi.fn();
     expect(await conectarCoexistencia(CTX, { ...DATOS, code: "x" }, { fetch: f, guardar, appSecret: "s" })).toEqual({ ok: false, error: MENSAJES_COEXISTENCIA.datos });
     expect(await conectarCoexistencia(CTX, DATOS, { fetch: f, guardar, appSecret: "" })).toEqual({ ok: false, error: MENSAJES_COEXISTENCIA.sinSecreto });
-    expect(await conectarCoexistencia(CTX, DATOS, { fetch: f, guardar, appSecret: "s" })).toEqual({ ok: false, error: `${MENSAJES_COEXISTENCIA.canje} Meta dijo: expired` });
+    expect(await conectarCoexistencia(CTX, DATOS, { fetch: f, guardar, appSecret: "s" })).toEqual({ ok: false, error: `${MENSAJES_COEXISTENCIA.canje} Meta dijo: sin dirección: expired | dirección vacía: expired` });
     expect(guardar).not.toHaveBeenCalled();
   });
 
@@ -83,10 +83,17 @@ describe("conectarCoexistencia", () => {
     const guardar = vi.fn(async () => ({ ok: true as const }));
     const datos = { ...DATOS, pagina: "https://fotoffice.com/workspace/configuracion/whatsapp" };
     expect(await conectarCoexistencia(CTX, datos, { fetch: f, guardar, leerToken: async () => null, appSecret: "s" })).toEqual({ ok: true, tokenPermanente: false });
-    expect(urls.filter((u) => u.includes("/oauth/access_token"))[1]).toContain("redirect_uri=https%3A%2F%2Ffotoffice.com%2Fworkspace%2Fconfiguracion%2Fwhatsapp");
+    const canjes = urls.filter((u) => u.includes("/oauth/access_token"));
+    expect(canjes[0]).not.toContain("redirect_uri");
+    expect(canjes[1]).toMatch(/redirect_uri=$/);
 
     const siempreMal = (async () => new Response(JSON.stringify({ error: { message: "Invalid code" } }), { status: 400 })) as typeof fetch;
     const r = await conectarCoexistencia(CTX, datos, { fetch: siempreMal, guardar, appSecret: "s" });
-    expect(r).toEqual({ ok: false, error: `${MENSAJES_COEXISTENCIA.canje} Meta dijo: Invalid code` });
+    expect(r.ok).toBe(false);
+    const error = (r as { error: string }).error;
+    expect(error).toContain("sin dirección: Invalid code");
+    expect(error).toContain("dirección vacía: Invalid code");
+    expect(error).toContain("https://fotoffice.com/workspace/configuracion/whatsapp: Invalid code");
+    expect(error).toContain("https://fotoffice.com/: Invalid code");
   });
 });
