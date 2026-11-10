@@ -474,3 +474,29 @@ del piloto siguen igual (`DNX_CLF_SPLIT_1N_PILOTO_ENABLED`, `..._OWNER_USER_ID`,
 `GET /v1/split-consent` (100 resultados); con más consentimientos hay que paginar. Sigue
 pendiente la respuesta de Mercado Pago sobre dinero en cuenta en 1:N (por eso el plan B dice
 «con dinero en cuenta u otros medios de Mercado Pago»).
+
+### 10.3 Plan B con reparto: Checkout Pro sobre Orders (construido APAGADO, 10/11/2026)
+
+Con `DNX_CLF_SPLIT_1N_PLAN_B_SPLIT_ENABLED=true`, el botón «Pagar con Mercado Pago» de
+`/pagar/[orderId]` ya no va al Checkout Pro de siempre (1:1) sino a una orden de **Checkout Pro
+sobre la API de Orders con `splits` 1:N** (`lib/split-1n-piloto/plan-b-split.ts`,
+`checkout-split.ts`). El comprador paga en Mercado Pago con cualquier medio y Mercado Pago
+reparte en el momento, igual que con la tarjeta. Verificado el 10/11 que Mercado Pago acepta la
+orden y devuelve `checkout_url` (ORD01M71HMEKFVR92JR7WR42XBQM2); **falta confirmar con un pago
+real con dinero en cuenta que el reparto se aplique**.
+
+- Mismo reparto que la tarjeta: `prepararCobroPedidoPiloto` (`preparar.ts`) es la preparación
+  que antes vivía en `pagar.ts` (elegibilidad, consentimientos en vivo, pagador ≠ receptor,
+  reparto). Montos fijos, la plataforma como `owner`.
+- `external_reference` = `clf-album-order-<id>`: la confirman el aviso de Mercado Pago (tipos
+  `order` y `orders_v2`), la vuelta a `/pagar/<id>` (`config.online.*_url`) y la conciliación al
+  visitar, con `finalizarPedidoPiloto`, igual que la tarjeta. Las comisiones nacen pagadas.
+- Contra el cobro doble: reserva `PENDIENTE` → `CHECKOUT_SPLIT` (escritura condicionada a la
+  marca leída) antes de llamar a Mercado Pago; mientras la orden pueda pagarse la tarjeta y el
+  Checkout Pro 1:1 se niegan y cada clic reutiliza el mismo `checkout_url`. Sólo una orden
+  `canceled`, `expired` o `failed` habilita otra (intento nuevo). Vigencia `P1D`. La creación
+  usa la clave de idempotencia del intento.
+- Si la orden no se puede crear (o el pedido no es elegible), el pedido vuelve a `PENDIENTE` y
+  sigue el plan B 1:1 de siempre: la venta no se pierde. Con un enlace ya entregado nunca se
+  cae al 1:1.
+- Requiere también `DNX_CLF_SPLIT_1N_PLAN_B_ENABLED=true` (el botón).
