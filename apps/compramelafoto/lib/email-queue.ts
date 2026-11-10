@@ -4,6 +4,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { randomBytes } from "crypto";
+import { conResponderA } from "@/lib/email-reply-to";
 
 export type EmailTemplateKey =
   | "album_ready"
@@ -38,6 +39,8 @@ export async function queueEmail(params: {
   priority?: number; // 1-10, menor = mayor prioridad
   scheduledFor?: Date;
   idempotencyKey?: string; // Para evitar duplicados
+  /** A quién le llega si el destinatario toca "Responder" (p. ej. el fotógrafo). */
+  replyTo?: string | null;
 }): Promise<{ id: number; queued: boolean }> {
   const {
     to,
@@ -49,7 +52,9 @@ export async function queueEmail(params: {
     priority = 5,
     scheduledFor = new Date(),
     idempotencyKey,
+    replyTo,
   } = params;
+  const datos = conResponderA(templateData, replyTo);
 
   // Generar idempotency key si no se proporciona
   const finalIdempotencyKey =
@@ -73,7 +78,7 @@ export async function queueEmail(params: {
       body,
       htmlBody,
       templateId,
-      templateData: templateData ? (templateData as any) : null,
+      templateData: datos ? (datos as any) : null,
       priority,
       scheduledFor,
       idempotencyKey: finalIdempotencyKey,

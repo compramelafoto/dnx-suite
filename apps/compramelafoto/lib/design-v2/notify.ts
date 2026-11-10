@@ -161,6 +161,8 @@ export async function notifyBuyerDesignReady(projectId: number, generatedAt: str
       htmlBody: `<p>${escapeHtml(greeting(ctx))}</p><p>${escapeHtml(who)} revisó y aprobó el librito con las fotos que elegiste. <strong>Ya está en producción</strong>: lo mandamos a imprimir y te lo entregan cuando esté listo.</p><p>Mientras tanto, ya lo podés ver y descargar.</p>${button(url, "Ver mi librito")}`,
       // Una aprobación nueva (después de corregir) vuelve a avisar.
       idempotencyKey: `design_v2_ready_${projectId}_${generatedAt}`,
+      // Si la familia contesta, le llega al fotógrafo (no a la casilla de la plataforma).
+      replyTo: ctx.photographer?.email,
     });
   } catch (err) {
     console.error("[design_v2] no se pudo avisar al cliente (listo)", { projectId, err });
@@ -174,9 +176,11 @@ export async function notifyBuyerDesignChanges(projectId: number, note: string):
     if (ctx?.esPrueba) return;
     if (!ctx?.buyerEmail) return;
     const who = photographerLabel(ctx);
-    const contact = ctx.photographer?.email ? `\n\nRespondele a ${ctx.photographer.email}.` : "";
+    const contact = ctx.photographer?.email
+      ? `\n\nRespondé este correo y le llega directo a ${who} (${ctx.photographer.email}).`
+      : "";
     const contactHtml = ctx.photographer?.email
-      ? `<p>Respondele a <a href="mailto:${escapeHtml(ctx.photographer.email)}">${escapeHtml(ctx.photographer.email)}</a>.</p>`
+      ? `<p>Respondé este correo y le llega directo a ${escapeHtml(who)} (<a href="mailto:${escapeHtml(ctx.photographer.email)}">${escapeHtml(ctx.photographer.email)}</a>).</p>`
       : "";
     await queueEmail({
       to: ctx.buyerEmail,
@@ -184,6 +188,7 @@ export async function notifyBuyerDesignChanges(projectId: number, note: string):
       body: `${greeting(ctx)}\n\n${who} revisó el diseño con las fotos que elegiste y te pide:\n\n"${note}"${contact}\n`,
       htmlBody: `<p>${escapeHtml(greeting(ctx))}</p><p>${escapeHtml(who)} revisó el diseño con las fotos que elegiste y te pide:</p><blockquote style="border-left:3px solid #c27b3d;margin:0;padding:6px 12px;color:#374151;">${escapeHtml(note).replace(/\n/g, "<br>")}</blockquote>${contactHtml}`,
       idempotencyKey: `design_v2_changes_${projectId}_${Date.now()}`,
+      replyTo: ctx.photographer?.email,
     });
   } catch (err) {
     console.error("[design_v2] no se pudo avisar al cliente (cambios)", { projectId, err });
