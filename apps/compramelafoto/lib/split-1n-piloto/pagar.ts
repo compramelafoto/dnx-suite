@@ -1,30 +1,24 @@
 "use server";
 
-import { OrderOrigin, type Prisma } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 import type { CardPaymentSubmission } from "@repo/payments/frontend";
 import { sanitizeCardPaymentSubmissionForLog } from "@repo/payments/frontend";
 import {
-  assertLiveCollectorAccount,
   singleIntangibleItem,
   toOrdersCardPaymentMethod,
 } from "@repo/payments/mercado-pago";
 import { prisma } from "@/lib/prisma";
 import { getOrderDownloadCenterAccessToken } from "@/lib/digital-download/load-download-center";
 import { resolveClientDigitalDownloadLinks } from "@/lib/digital-download/download-center-rollout";
-import { prepararCobro } from "./cobro";
 import { referenciaPedido } from "./decidir";
-import { evaluarElegibilidadPiloto } from "./elegibilidad";
 import { finalizarPedidoPiloto } from "./finalizar";
 import { clasificarErrorCobro, claveIntento, siguienteIntento } from "./intento";
 import { mensajeRechazo } from "./mensajes";
-import { crearClientesPiloto, leerOrdenMp } from "./mp";
+import { leerOrdenMp } from "./mp";
 import { cargarPedidoPiloto } from "./pedido";
-import { buscarOrganizador } from "./organizador";
-import { buscarReferidorActivo } from "./referidor";
 import { cargarConfigPiloto } from "./receptores-clf";
-import { aplicarEstadosConsultados } from "../split-1n-consentimiento/servicio";
-import { crearRepositorioConsentimiento } from "../split-1n-consentimiento/repositorio";
 import { leerMarcaPiloto, marcarSnapshotPiloto, type MarcaPiloto } from "./snapshot";
+import { prepararCobroPedidoPiloto } from "./preparar";
 
 export type PagarPilotoResult =
   | { ok: true; estado: "ACREDITADA"; descargaUrl: string | null }
@@ -78,25 +72,6 @@ async function urlDescarga(pedidoId: number, creado: Date): Promise<string | nul
 }
 
 /**
- * Correos de CLF de quienes cobran, incluidas sus otras cuentas de CLF vinculadas a la misma
- * cuenta de Mercado Pago (pedidos 6088/6089: la organizadora compró con su cuenta vieja).
- */
-async function correosClf(userIds: Array<number | null>): Promise<string[]> {
-  const ids = userIds.filter((id): id is number => id != null);
-  if (ids.length === 0) return [];
-  const users = await prisma.user.findMany({
-    where: { id: { in: ids } },
-    select: { email: true, mpUserId: true },
-  });
-  const mpIds = [...new Set(users.map((u) => u.mpUserId).filter((m): m is string => !!m))];
-  const otras =
-    mpIds.length > 0
-      ? await prisma.user.findMany({ where: { mpUserId: { in: mpIds } }, select: { email: true } })
-      : [];
-  return [...new Set([...users, ...otras].map((u) => u.email.toLowerCase()))];
-}
-
-/**
  * Cobra un pedido del piloto con la tarjeta que cargó el comprador. El monto, los receptores
  * y el reparto los arma el servidor desde el pedido: del navegador sólo se usa la tarjeta.
  *
@@ -112,7 +87,7 @@ export async function pagarPedidoPiloto(input: {
   const config = await cargarConfigPiloto();
   const cargado = await cargarPedidoPiloto(input.pedidoId);
   if (!cargado) return falla("NO_DISPONIBLE");
-  const { order, feePesos, basePesos } = cargado;
+  const { order } = cargado;
   const marca = leerMarcaPiloto(order.pricingSnapshot);
   if (!marca) return falla("NO_DISPONIBLE");
   if (marca.estado === "CHECKOUT_PRO") return falla("ELIGIO_MERCADO_PAGO");
@@ -123,28 +98,13 @@ export async function pagarPedidoPiloto(input: {
     return falla("FORMULARIO_INCOMPLETO", "Esperá a que cargue el formulario y volvé a intentar.");
   }
 
-  // La elegibilidad se vuelve a mirar: entre el resumen y el pago pudo cambiar la lista.
-  const photographerUserId = order.album?.userId ?? null;
-  const referrerUserId =
-    photographerUserId != null ? await buscarReferidorActivo(photographerUserId) : null;
-  const organizador = await buscarOrganizador(order.album?.eventId ?? null);
-  const elegibilidad = evaluarElegibilidadPiloto({
-    config,
-    albumId: order.albumId,
-    photographerUserId,
-    referrerUserId,
-    organizador,
-    esEscolar: order.album?.schoolId != null,
-    items: order.items,
-    tieneVideos: false,
-    esCanje: false,
-    esPagoSimulado: false,
-    origenEstandar: (order.origin ?? OrderOrigin.STANDARD_CHECKOUT) === OrderOrigin.STANDARD_CHECKOUT,
-  });
-  if (!elegibilidad.ok) {
-    console.info("[split-1n-piloto] pago_no_elegible", { pedidoId: order.id, motivo: elegibilidad.motivo });
-    return falla("NO_DISPONIBLE");
+  const preparado = await prepararCobroPedidoPiloto({ config, cargado, marca });
+  if (!preparado.ok) {
+    return preparado.codigo === "PREPARACION_FALLIDA"
+      ? falla("NO_DISPONIBLE", "No pudimos procesar el pago. No se te cobró nada; probá de nuevo en unos minutos.")
+      : falla(preparado.codigo);
   }
+  const { clientes, cobro, quienesCobran } = preparado;
 
   console.info(
     JSON.stringify({
@@ -154,76 +114,6 @@ export async function pagarPedidoPiloto(input: {
       ...sanitizeCardPaymentSubmissionForLog(input.cardPayment),
     }),
   );
-
-  let clientes: ReturnType<typeof crearClientesPiloto>;
-  let cobro: Extract<ReturnType<typeof prepararCobro>, { ok: true }>;
-  try {
-    clientes = crearClientesPiloto(config);
-    const cuenta = await assertLiveCollectorAccount(clientes.http);
-
-    const rcv = elegibilidad.receivers;
-    const receptores = [
-      ...new Set(
-        [rcv.fotografo, rcv.referidor, rcv.organizador, rcv.referidorOrganizador].filter(
-          (r): r is string => r != null,
-        ),
-      ),
-    ];
-    const consultas = await Promise.all(receptores.map((r) => clientes.consents.getConsent(r)));
-    if (consultas.some((c) => c?.status !== "ACTIVE")) {
-      console.warn("[split-1n-piloto] consentimiento_no_activo", { pedidoId: order.id });
-      // Queda guardado en CLF: el próximo pedido ya no se desvía al pago con tarjeta.
-      if (config.receptoresDesdeClf && config.ownerUserId) {
-        await aplicarEstadosConsultados(crearRepositorioConsentimiento(config.ownerUserId), consultas);
-      }
-      return falla("CONSENTIMIENTO_NO_ACTIVO");
-    }
-    // Quien paga no puede cobrar: se compara con los correos de Mercado Pago y con los de CLF.
-    const correosReceptores = [
-      ...consultas.map((c) => (c?.sellerEmail ?? "").toLowerCase()),
-      ...(cuenta.email ? [cuenta.email.toLowerCase()] : []),
-      ...(await correosClf([
-        photographerUserId,
-        referrerUserId,
-        rcv.organizador != null ? organizador?.userId ?? null : null,
-        rcv.referidorOrganizador != null ? organizador?.referrerUserId ?? null : null,
-      ])),
-    ];
-
-    const preparado = prepararCobro({
-      estadoPedido: order.status,
-      marca,
-      totalPesos: order.totalCents,
-      feePesos,
-      basePesos,
-      porcentajeOrganizador: organizador?.porcentaje ?? 0,
-      receivers: elegibilidad.receivers,
-      payerEmail: order.buyerEmail,
-      correosReceptores,
-    });
-    if (!preparado.ok) return falla(preparado.codigo);
-    cobro = preparado;
-  } catch (err: unknown) {
-    console.error("[split-1n-piloto] preparacion_fallida", {
-      pedidoId: order.id,
-      error: err instanceof Error ? err.message : String(err),
-    });
-    return falla("NO_DISPONIBLE", "No pudimos procesar el pago. No se te cobró nada; probá de nuevo en unos minutos.");
-  }
-
-  // Quiénes de CLF cobran por el split: al confirmar, sus comisiones nacen pagadas.
-  const quienesCobran = {
-    referidorUserId: elegibilidad.receivers.referidor != null ? referrerUserId : null,
-    organizadorUserId:
-      elegibilidad.receivers.organizador != null && cobro.reparto.organizador > 0
-        ? organizador?.userId ?? null
-        : null,
-    referidorOrganizadorUserId:
-      elegibilidad.receivers.referidorOrganizador != null && cobro.reparto.referidorOrganizador > 0
-        ? organizador?.referrerUserId ?? null
-        : null,
-    reparto: cobro.reparto,
-  };
 
   // Reserva: sólo un intento puede pasar de PENDIENTE a COBRANDO.
   const intento = siguienteIntento(marca);
