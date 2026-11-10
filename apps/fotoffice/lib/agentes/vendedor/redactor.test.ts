@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { ClienteClaude } from "../claude";
 import { CLASES_RESPUESTA, GRUPOS } from "./tipos";
 import { ANGULO_POR_GRUPO, REGLAS_VENDEDOR, datosParaPrompt, sistemaVendedor } from "./prompts";
-import { adaptarCorreo, clasificarYResponder, redactarModelo, redactarRecordatorio, validarTexto } from "./redactor";
+import { adaptarCorreo, clasificarYResponder, landingsDelGrupo, redactarModelo, redactarRecordatorio, validarTexto } from "./redactor";
 
 type Respuesta = { stop_reason: string; content: unknown[] };
 const texto = (t: string) => ({ type: "text", text: t, citations: null });
@@ -47,6 +47,17 @@ describe("prompts", () => {
   });
   it("datosParaPrompt sólo copia campos guardados", () => {
     expect(Object.keys(contacto).sort()).toEqual(["ciudad", "nichos", "nombre", "provincia", "tipo", "web"]);
+  });
+});
+
+describe("landingsDelGrupo", () => {
+  it("Muestras Fotográficas sólo para organizadores de muestras", () => {
+    expect(landingsDelGrupo("ORGANIZADOR_MUESTRAS")).toContain("https://muestrasfotograficas.com");
+    expect(landingsDelGrupo("FOTOGRAFO:GENERAL")).not.toContain("https://muestrasfotograficas.com");
+    expect(landingsDelGrupo("EMPRESA_TURISMO")).not.toContain("https://muestrasfotograficas.com");
+  });
+  it("el ángulo de escuelas de fotografía no nombra FOTOFFICE como algo a decir", () => {
+    expect(ANGULO_POR_GRUPO.ESCUELA_FOTOGRAFIA).toContain("no digas «FOTOFFICE»");
   });
 });
 
