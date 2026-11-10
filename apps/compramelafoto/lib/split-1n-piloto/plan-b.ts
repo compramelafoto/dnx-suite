@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { ensureAlbumOrderMpPreference } from "@/lib/mercadopago/album-order-mp-preference";
 import { resolvePilotoConfig } from "./config";
 import { decidirPlanB } from "./plan-b-decidir";
+import { intentarCheckoutSplit } from "./plan-b-split-real";
 import { leerMarcaPiloto, marcarSnapshotPiloto } from "./snapshot";
 
 export type PlanBResult = { ok: true; initPoint: string } | { ok: false; mensaje: string };
@@ -20,7 +21,9 @@ const MENSAJES = {
 
 /**
  * Plan B de la página de pago: el comprador prefiere «Pagar con Mercado Pago» (o la tarjeta
- * falló). El mismo pedido pasa al cobro de siempre (Checkout Pro), sin perder la venta.
+ * falló). Con `DNX_CLF_SPLIT_1N_PLAN_B_SPLIT_ENABLED` y un pedido elegible, cobra con reparto
+ * (`plan-b-split.ts`); si no, el mismo pedido pasa al cobro de siempre (Checkout Pro 1:1), sin
+ * perder la venta.
  *
  * Contra el cobro doble: el pase es una escritura condicionada a que la marca siga en
  * `PENDIENTE`, la misma condición que exige el cobro con tarjeta para reservar. Si los dos
@@ -33,8 +36,35 @@ export async function pasarPedidoACheckoutPro(input: { pedidoId: number }): Prom
 
   // Con la tarjeta disponible, el plan B depende de su interruptor; con el piloto apagado es la
   // única salida de los pedidos que quedaron con la marca.
+  // Un pedido que ya eligió Mercado Pago (con o sin reparto) siempre puede continuar.
   const config = resolvePilotoConfig();
-  if (config.enabled && config.publicKey && !config.planB) return { ok: false, mensaje: MENSAJES.no_disponible };
+  const previo = await prisma.order.findUnique({ where: { id: pedidoId }, select: { pricingSnapshot: true } });
+  const estadoPrevio = previo ? leerMarcaPiloto(previo.pricingSnapshot)?.estado : null;
+  if (
+    config.enabled &&
+    config.publicKey &&
+    !config.planB &&
+    estadoPrevio !== "CHECKOUT_PRO" &&
+    estadoPrevio !== "CHECKOUT_SPLIT"
+  ) {
+    return { ok: false, mensaje: MENSAJES.no_disponible };
+  }
+
+  // Primero, el Checkout Pro con reparto (si está encendido, o si ya hay una orden con reparto).
+  // Si no corresponde o no se pudo crear, sigue el de siempre.
+  if (config.planBSplit || estadoPrevio === "CHECKOUT_SPLIT") {
+    try {
+      const split = await intentarCheckoutSplit(pedidoId);
+      if (split.tipo === "url") return { ok: true, initPoint: split.url };
+      if (split.tipo === "fin") return { ok: false, mensaje: split.mensaje };
+    } catch (err: unknown) {
+      console.error("[split-1n-piloto] checkout_split_fallido", {
+        pedidoId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return { ok: false, mensaje: MENSAJES.error };
+    }
+  }
 
   const order = await prisma.order.findUnique({
     where: { id: pedidoId },
@@ -46,6 +76,7 @@ export async function pasarPedidoACheckoutPro(input: { pedidoId: number }): Prom
   if (decision === "ya_pagado" || decision === "cobro_en_curso") {
     return { ok: false, mensaje: MENSAJES[decision] };
   }
+  if (decision === "split_en_curso") return { ok: false, mensaje: MENSAJES.cobro_en_curso };
 
   let pasadoAhora = false;
   if (decision === "pasar") {

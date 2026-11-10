@@ -61,7 +61,7 @@ export default async function PagarPage({ params }: { params: Promise<{ orderId:
   return (
     <main className="mx-auto max-w-lg px-4 py-10">
       <h1 className="text-2xl font-semibold">
-        {marca.estado === "CHECKOUT_PRO" || !conTarjeta ? "Pagar con Mercado Pago" : "Pagar con tarjeta"}
+        {(marca.estado === "CHECKOUT_PRO" || marca.estado === "CHECKOUT_SPLIT") || !conTarjeta ? "Pagar con Mercado Pago" : "Pagar con tarjeta"}
       </h1>
       <p className="mt-2 text-neutral-700">
         {fotos === 1 ? "1 foto" : `${fotos} fotos`} de «{titulo}» · Total{" "}
@@ -72,7 +72,7 @@ export default async function PagarPage({ params }: { params: Promise<{ orderId:
           <p className="text-emerald-700">
             Esta compra ya está pagada. Revisá tu correo ({ocultarCorreo(order.buyerEmail)}) para descargar las fotos.
           </p>
-        ) : marca.estado === "CHECKOUT_PRO" ? (
+        ) : (marca.estado === "CHECKOUT_PRO" || marca.estado === "CHECKOUT_SPLIT") ? (
           <div className="space-y-4">
             <p className="text-neutral-700">
               Elegiste pagar esta compra con Mercado Pago. Si ya pagaste, no pagues de nuevo: te avisamos por

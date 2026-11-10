@@ -14,6 +14,8 @@ export const TODOS_LOS_ALBUMES_FLAG = "DNX_CLF_SPLIT_1N_TODOS_LOS_ALBUMES" as co
 /** Apertura: consentimiento desde el panel y receptores leídos de CLF (`DnxSplitConsent`). */
 /** Plan B en /pagar: botón «Pagar con Mercado Pago» (Checkout Pro del mismo pedido). */
 export const PLAN_B_FLAG = "DNX_CLF_SPLIT_1N_PLAN_B_ENABLED" as const;
+/** Plan B con reparto: «Pagar con Mercado Pago» crea un Checkout Pro de Orders con splits 1:N. */
+export const PLAN_B_SPLIT_FLAG = "DNX_CLF_SPLIT_1N_PLAN_B_SPLIT_ENABLED" as const;
 export const CONSENTIMIENTO_FLAG = "DNX_CLF_SPLIT_1N_CONSENTIMIENTO_ENABLED" as const;
 
 export type PilotoConfig = {
@@ -23,6 +25,8 @@ export type PilotoConfig = {
   todosLosAlbumes: boolean;
   /** Con `true`, la página de pago ofrece «Pagar con Mercado Pago» junto a la tarjeta. */
   planB: boolean;
+  /** Con `true`, el plan B cobra con reparto (Checkout Pro sobre Orders) si el pedido es elegible. */
+  planBSplit: boolean;
   /** Con `true`, los receptores con consentimiento ACTIVE guardados en CLF se suman al mapa. */
   receptoresDesdeClf: boolean;
   /** userId de CLF → receiver_id de Mercado Pago, con el consentimiento ya aceptado. */
@@ -73,6 +77,7 @@ export function resolvePilotoConfig(env: NodeJS.ProcessEnv = process.env): Pilot
     todosLosAlbumes: interruptor(env[TODOS_LOS_ALBUMES_FLAG]),
     receptoresDesdeClf: interruptor(env[CONSENTIMIENTO_FLAG]),
     planB: interruptor(env[PLAN_B_FLAG]),
+    planBSplit: interruptor(env[PLAN_B_SPLIT_FLAG]),
     receiverByUserId: leerReceptores(env.DNX_CLF_SPLIT_1N_PILOTO_RECEIVERS),
     ownerUserId: texto(env.DNX_CLF_SPLIT_1N_PILOTO_OWNER_USER_ID),
     accessToken: texto(env.DNX_MP_PLATFORM_ACCESS_TOKEN),

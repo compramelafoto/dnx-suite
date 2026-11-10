@@ -9,6 +9,9 @@
  * - EN_REVISION: Mercado Pago dejó el pago pendiente; no se puede volver a cobrar.
  * - CHECKOUT_PRO: el comprador eligió «Pagar con Mercado Pago» (plan B). La tarjeta ya no cobra
  *   este pedido y Checkout Pro sí: es el único estado del piloto que lo admite.
+ * - CHECKOUT_SPLIT: el comprador eligió «Pagar con Mercado Pago» y se creó (o se está creando)
+ *   una orden de Checkout Pro con reparto (`providerOrderId`, `checkoutUrl`). Ni la tarjeta ni
+ *   el Checkout Pro de siempre cobran este pedido mientras esa orden pueda pagarse.
  */
 export type EstadoPiloto =
   | "PENDIENTE"
@@ -16,12 +19,17 @@ export type EstadoPiloto =
   | "EN_REVISION"
   | "ACREDITADA"
   | "PAGADO"
-  | "CHECKOUT_PRO";
+  | "CHECKOUT_PRO"
+  | "CHECKOUT_SPLIT";
 
 export type MarcaPiloto = {
   v: 1;
   estado: EstadoPiloto;
   providerOrderId?: string;
+  /** Enlace de pago de la orden de Checkout Pro con reparto (estado `CHECKOUT_SPLIT`). */
+  checkoutUrl?: string;
+  /** Cuándo se reservó el pedido para crear la orden con reparto (ISO). */
+  reservadoEn?: string;
   /** Intento de cobro vigente: arma la clave de idempotencia. */
   intento?: number;
   /** Usuario de CLF que cobró como referidor por el split: su comisión nace pagada. */
@@ -75,5 +83,11 @@ export function bloqueaCheckoutPro(snapshot: unknown): boolean {
 /** ¿El cobro con tarjeta está en curso, en revisión o hecho? (No se le pide que pague otra vez.) */
 export function cobroPilotoEnCurso(snapshot: unknown): boolean {
   const estado = leerMarcaPiloto(snapshot)?.estado;
-  return estado === "COBRANDO" || estado === "EN_REVISION" || estado === "ACREDITADA" || estado === "PAGADO";
+  return (
+    estado === "COBRANDO" ||
+    estado === "EN_REVISION" ||
+    estado === "ACREDITADA" ||
+    estado === "PAGADO" ||
+    estado === "CHECKOUT_SPLIT"
+  );
 }

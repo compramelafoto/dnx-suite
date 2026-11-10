@@ -1,6 +1,12 @@
 import type { MarcaPiloto } from "./snapshot";
 
-export type DecisionPlanB = "pasar" | "ya_elegido" | "cobro_en_curso" | "ya_pagado" | "no_es_piloto";
+export type DecisionPlanB =
+  | "pasar"
+  | "ya_elegido"
+  | "split_en_curso"
+  | "cobro_en_curso"
+  | "ya_pagado"
+  | "no_es_piloto";
 
 /**
  * ¿Un pedido del piloto puede pasar a Checkout Pro («Pagar con Mercado Pago»)?
@@ -13,6 +19,8 @@ export function decidirPlanB(params: { estadoPedido: string; marca: MarcaPiloto 
   if (!params.marca) return "no_es_piloto";
   if (params.estadoPedido !== "PENDING" && params.estadoPedido !== "FAILED") return "ya_pagado";
   if (params.marca.estado === "CHECKOUT_PRO") return "ya_elegido";
+  // Hay (o puede haber) un enlace de Checkout Pro con reparto: lo maneja `plan-b-split.ts`.
+  if (params.marca.estado === "CHECKOUT_SPLIT") return "split_en_curso";
   if (params.marca.estado === "PENDIENTE") return "pasar";
   return "cobro_en_curso";
 }
