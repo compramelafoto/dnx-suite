@@ -127,4 +127,15 @@ describe("guía del bot de atención", () => {
     expect(g).toContain("Sólo hay una cotización en preparación si la situación de este turno lo dice");
     expect(situacionDeAtencion({ estudio: "E", cliente: null, ahora: new Date("2026-11-09T14:00:00Z") })).toContain("No hay ninguna cotización en preparación");
   });
+
+  it("con fotos o videos sin explicación no supone que son para imprimir, no dice que no trabajamos con video y deriva los archivos de un trabajo en curso", () => {
+    const g = guiaDeAtencion();
+    expect(g).toContain("ARCHIVOS SIN EXPLICACIÓN");
+    expect(g).toContain("no supongas que son para imprimir");
+    expect(g).toContain("Nunca digas que no trabajamos con videos");
+    expect(g).toContain("archivos para un trabajo en curso");
+    expect(g).toContain("edición de videos, recortar y unir videos, copiado de videos");
+    expect(g).toContain("los analiza y los cotiza una persona del estudio");
+    expect(g).toContain("trabajo de video: ");
+  });
 });
