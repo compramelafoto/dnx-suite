@@ -123,7 +123,7 @@ export async function vinculoParaTarjeta(
   workspaceId: string,
   destino: DestinoVinculo,
   ahora: Date = new Date(),
-): Promise<{ titulo: string; enlace: string; estadoPreventa: string | null; heredadoDelPedido: boolean } | null> {
+): Promise<{ titulo: string; enlace: string; estadoPreventa: string | null; heredadoDelPedido: boolean; albumId: number } | null> {
   const v = await vinculoDe(workspaceId, destino);
-  return v ? { titulo: v.titulo, enlace: v.enlace, estadoPreventa: textoPreventaClf(v, ahora), heredadoDelPedido: v.heredadoDelPedido } : null;
+  return v ? { titulo: v.titulo, enlace: v.enlace, estadoPreventa: textoPreventaClf(v, ahora), heredadoDelPedido: v.heredadoDelPedido, albumId: v.albumId } : null;
 }

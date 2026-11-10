@@ -13,6 +13,7 @@ import {
   ChevronDown,
   ClipboardCheck,
   ClipboardList,
+  HandCoins,
   FileText,
   FolderKanban,
   Hash,
@@ -84,6 +85,7 @@ import { isBlogNavActive, isDomainNavActive, isWebsiteNavActive } from "@/lib/bl
 const QUOTES_MODULE_KEY = "quotes";
 // Ídem `lib/pedidos/acceso`.
 const ORDERS_MODULE_KEY = "orders";
+const CLF_SALES_MODULE_KEY = "clf-sales";
 // Ídem `lib/proyectos/acceso`.
 const PROJECTS_MODULE_KEY = "projects";
 // Ídem `lib/agenda/acceso`.
@@ -479,6 +481,18 @@ export function ShellNav({
             description: "Los trabajos confirmados: plan de cuotas, cobros y recibos.",
             icon: ClipboardList,
             isActive: under("/pedidos"),
+          },
+        ]
+      : []),
+    // Ventas CLF (conexión con CLF, etapa 2): módulo propio (`clf-sales`), con su nivel.
+    ...(ve(CLF_SALES_MODULE_KEY)
+      ? [
+          {
+            href: "/ventas-clf",
+            label: "Ventas CLF",
+            description: "Lo que cobrás por CompraMeLaFoto, validado contra tu Mercado Pago.",
+            icon: HandCoins,
+            isActive: under("/ventas-clf"),
           },
         ]
       : []),

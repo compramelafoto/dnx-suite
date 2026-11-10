@@ -17,7 +17,7 @@
  * proveedor: la credencial cifrada de un transportista es usuario y clave, y mandarla a
  * Google sería filtrarla.
  */
-export type IntegrationProvider = "GOOGLE" | "CORREO_ARGENTINO" | "ANDREANI" | "ALBOOM" | "WHATSAPP" | "TELEGRAM";
+export type IntegrationProvider = "GOOGLE" | "CORREO_ARGENTINO" | "ANDREANI" | "ALBOOM" | "WHATSAPP" | "TELEGRAM" | "CLF";
 export type IntegrationStatus = "AVAILABLE" | "PLANNED";
 
 export type IntegrationDefinition = {
@@ -41,6 +41,7 @@ export const ANDREANI_INTEGRATION_KEY = "andreani";
 export const ALBOOM_INTEGRATION_KEY = "alboom-crm";
 export const WHATSAPP_INTEGRATION_KEY = "whatsapp";
 export const TELEGRAM_INTEGRATION_KEY = "telegram";
+export const CLF_INTEGRATION_KEY = "compramelafoto";
 
 export const INTEGRATION_REGISTRY: readonly IntegrationDefinition[] = [
   {
@@ -115,6 +116,17 @@ export const INTEGRATION_REGISTRY: readonly IntegrationDefinition[] = [
     scopes: [],
     // Es una herramienta de migración del dueño: ningún módulo la exige.
     requiredByModules: [],
+    status: "AVAILABLE",
+  },
+  {
+    key: CLF_INTEGRATION_KEY,
+    provider: "CLF",
+    label: "CompraMeLaFoto",
+    description: "Trae tus ventas de CompraMeLaFoto, validadas contra tu Mercado Pago. Sólo lee: nunca escribe en CLF.",
+    // No es OAuth de Google: consentimiento propio de CLF y una llave cifrada en el mismo baúl.
+    // Se conecta en Configuración → CompraMeLaFoto, no en la pantalla de Integraciones.
+    scopes: [],
+    requiredByModules: ["clf-sales"],
     status: "AVAILABLE",
   },
 

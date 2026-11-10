@@ -93,6 +93,10 @@
       "schedule": "*/5 * * * *"
     },
     {
+      "path": "/api/cron/ventas-clf",
+      "schedule": "*/15 * * * *"
+    },
+    {
       "path": "/api/cron/alboom-carga",
       "schedule": "*/5 * * * *"
     },

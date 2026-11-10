@@ -449,6 +449,18 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
     dependsOn: ["quotes"],
   },
   {
+    // Conexión con CLF (etapa 2): las ventas de CompraMeLaFoto del fotógrafo, validadas contra su Mercado Pago.
+    // Separado de la Caja a propósito. El rol Equipo no lo ve por omisión (no figura en LEGACY_STAFF_LEVELS).
+    key: "clf-sales",
+    label: "Ventas CLF",
+    description: "Lo que cobrás por CompraMeLaFoto, venta por venta, validado contra tu Mercado Pago. No toca la Caja.",
+    category: "GENERAL",
+    order: 27,
+    route: "/ventas-clf",
+    status: "AVAILABLE",
+    family: "negocio",
+  },
+  {
     key: "projects",
     label: "Proyectos",
     description: "Proyectos fotográficos con sus tareas, fechas y equipo.",

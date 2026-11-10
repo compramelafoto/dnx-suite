@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   ALBOOM_INTEGRATION_KEY,
+  CLF_INTEGRATION_KEY,
   ANDREANI_INTEGRATION_KEY,
   WHATSAPP_INTEGRATION_KEY,
   TELEGRAM_INTEGRATION_KEY,
@@ -19,13 +20,14 @@ describe("catálogo de integraciones", () => {
     expect(findDuplicateIntegrationKeys()).toEqual([]);
   });
 
-  it("Google Calendar, Contacts, Correo Argentino, Andreani, Alboom, WhatsApp y Telegram son las implementadas hoy", () => {
+  it("Google Calendar, Contacts, Correo Argentino, Andreani, Alboom, CompraMeLaFoto, WhatsApp y Telegram son las implementadas hoy", () => {
     expect(listAvailableIntegrationKeys()).toEqual([
       GOOGLE_CALENDAR_INTEGRATION_KEY,
       GOOGLE_CONTACTS_INTEGRATION_KEY,
       CORREO_ARGENTINO_INTEGRATION_KEY,
       ANDREANI_INTEGRATION_KEY,
       ALBOOM_INTEGRATION_KEY,
+      CLF_INTEGRATION_KEY,
       WHATSAPP_INTEGRATION_KEY,
       TELEGRAM_INTEGRATION_KEY,
     ]);
