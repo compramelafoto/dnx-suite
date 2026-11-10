@@ -5,10 +5,10 @@ export const guia: Instructivo = {
   slug: "mostrador-pedido-laboratorio",
   titulo: "Armar un pedido para el laboratorio desde el Cobrador",
   resumen:
-    "Subir las fotos del cliente, elegir tamaño, papel y plazo de cada una, cobrar la seña o el total y dejar que el sistema le mande el pedido al laboratorio.",
+    "Subir las fotos del cliente, elegir tamaño, papel y plazo de cada una, elegir el laboratorio y dejarle un mensaje, cobrar la seña o el total y seguir el pedido hasta que el laboratorio lo descarga.",
   seccion: "Mostrador",
   moduleKey: SALES_MODULE_KEY,
-  minutos: 7,
+  minutos: 9,
   pasos: [
     {
       titulo: "Abrí el pedido para laboratorio",
@@ -31,11 +31,24 @@ export const guia: Instructivo = {
       titulo: "Ajustá cada foto",
       texto: [
         "Cada foto se muestra sobre su papel, con una línea como «10x15 · mate · ×2 · próxima semana». Para cambiar varias juntas, tildá «Elegir» en cada una (o tocá «Elegir todas»), cambiá los valores de la fila «A todas:» (o «A las N elegidas:» si tildaste algunas) y tocá «Aplicar». Lo que dice «Sin cambiar» no se toca.",
-        "Para una sola foto, tocala o tocá «Editar»: ahí la movés, la girás o la encajás para recortarla. «Quitar» la saca del pedido.",
+        "Para una sola foto, tocala o tocá «Editar»: ahí la movés, la girás o la acercás. «Quitar» la saca del pedido.",
+        "Recortar o encajar: cada foto llega con una propuesta. Si para llenar el papel se pierde poco (8 % o menos), la foto se recorta y llena todo el papel. Si se perdería más, se encaja entera y se completan los lados con franjas blancas, para que no se corte ninguna cara. En «Editar» podés cambiar entre «Recortar» y «Encajar».",
         "El «Plazo» es «para mañana» o «próxima semana». Papel: mate o brillo.",
         "Si una foto es chica para ese tamaño, aparece la marca «Pixelada». «Revisada» aparece en las fotos que ya miraste o editaste.",
       ],
       nota: "Si hay fotos «Pixeladas», al tocar «Listo» el sistema pregunta «¿Mandarlas igual?». Conviene pedirle al cliente una foto mejor.",
+    },
+    {
+      titulo: "Elegí el laboratorio y escribile un mensaje",
+      texto: [
+        "Abajo, antes de «Listo», están «Laboratorio» y «Mensaje para el laboratorio».",
+        "«Laboratorio» viene en «El de cada producto»: cada copia va al laboratorio que tiene cargado en el catálogo (hoy, Fotolag). Si este pedido tiene que ir a otro, elegilo de la lista: todas las fotos de este pedido van a ese laboratorio.",
+        "En «Mensaje para el laboratorio» escribí lo que tenga que saber de este pedido: si es urgente, si lleva borde, cuándo lo retira el cliente. Si no hace falta, dejalo vacío.",
+      ],
+      sistema: [
+        "El mensaje le llega al laboratorio en el correo del pedido, como «Indicaciones», y queda guardado en el trabajo.",
+        "Lo elegido se guarda al tocar «Listo». Si volvés a abrir el pedido antes de cobrar, aparece como lo dejaste.",
+      ],
     },
     {
       titulo: "Tocá «Listo»",
@@ -68,6 +81,15 @@ export const guia: Instructivo = {
         "El trabajo pasa solo a «En el proveedor». No tenés que escribirle ni subir nada a mano.",
       ],
       nota: "Si Impresiones está en «modo prueba», el correo del laboratorio te llega a vos, al correo de contacto del estudio, y no al laboratorio.",
+    },
+    {
+      titulo: "Seguí el pedido hasta que el laboratorio lo descarga",
+      texto: [
+        "En Proyectos → «En curso», la tarjeta del trabajo y la ficha del pedido dicen en qué punto está: «Enviado a [laboratorio]», «[laboratorio] abrió el pedido» o, en verde, «[laboratorio] descargó los archivos», con el día y la hora.",
+        "Si pasó el día y sigue en «Enviado», escribile al laboratorio para confirmar que le llegó.",
+        "Cuando vuelve del laboratorio, tocá «Llegó» en la tarjeta: pasa a «Listo para retirar» y el cliente recibe el aviso.",
+      ],
+      sistema: ["La primera vez que el laboratorio abre el pedido y la primera vez que baja las fotos, queda una nota en el trabajo."],
     },
     {
       titulo: "Qué hacer si algo no salió",
