@@ -135,6 +135,7 @@ describe("guía del bot de atención", () => {
     expect(g).toContain("Nunca digas que no trabajamos con videos");
     expect(g).toContain("archivos para un trabajo en curso");
     expect(g).toContain("edición de videos, recortar y unir videos, copiado de videos");
-    expect(g).toContain("cotizar trabajo de video");
+    expect(g).toContain("los analiza y los cotiza una persona del estudio");
+    expect(g).toContain("trabajo de video: ");
   });
 });
