@@ -29,10 +29,14 @@ export function grupoDe(c: { tipo: string; nichos: string[] }): Grupo | null {
 
 export const GRUPOS_CON_LANDING_PROPIA: readonly Grupo[] = ["FOTOGRAFO:ESCOLAR", "ESCUELA", "CLUB", "ORGANIZADOR_EVENTOS"];
 export const GRUPOS_DE_CLUBES: readonly Grupo[] = ["CLUB", "ORGANIZADOR_EVENTOS"];
+export const GRUPOS_DE_MUESTRAS: readonly Grupo[] = ["ORGANIZADOR_MUESTRAS"];
+
+/** La portada de Muestras Fotográficas: el único enlace fuera de CLF, sólo para organizadores de muestras. */
+export const URL_MUESTRAS = "https://muestrasfotograficas.com";
 
 export const LANDINGS_PERMITIDAS = [
   "/land", "/land/fotografo-escolar", "/tutoriales/fotografia-escolar", "/tutoriales/fotografia-de-turismo",
-  "/escuelas", "/dnx/escolar", "/organizador", "/clubes",
+  "/escuelas", "/dnx/escolar", "/organizador", "/clubes", URL_MUESTRAS,
 ] as const;
 
 export const LANDING_POR_GRUPO: Record<Grupo, string> = {
@@ -48,7 +52,7 @@ export const LANDING_POR_GRUPO: Record<Grupo, string> = {
   ESCUELA: "/escuelas",
   CLUB: "/clubes",
   ORGANIZADOR_EVENTOS: "/clubes",
-  ORGANIZADOR_MUESTRAS: "/organizador",
+  ORGANIZADOR_MUESTRAS: URL_MUESTRAS,
   EMPRESA_TURISMO: "/organizador",
   ASOCIACION_FOTOGRAFOS: "/land",
   NEGOCIO_FOTOGRAFIA: "/land",

@@ -25,8 +25,10 @@ export const AMBITO_BAJA_VENDEDOR = "dnx-vendedor";
 const RESEND_EMAILS = "https://api.resend.com/emails";
 const TIEMPO_RESEND_MS = 10_000;
 
+/** Una ruta de CLF (`/land`) o una dirección completa permitida (Muestras Fotográficas). */
 export function enlaceSeguimiento(ruta: string, token: string): string {
-  return `${URL_CLF}${ruta}?${PARAM_SEGUIMIENTO}=${token}`;
+  const base = /^https:\/\//.test(ruta) ? ruta : `${URL_CLF}${ruta}`;
+  return `${base}?${PARAM_SEGUIMIENTO}=${token}`;
 }
 
 export function pieDeCorreo(urlBaja: string): string {

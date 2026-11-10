@@ -3,7 +3,7 @@ import { z } from "zod";
 import { conversar, type DepsClaude, type ResultadoParseo, type ResultadoRedaccion } from "../claude";
 import { extraerJson } from "../periodista/salida";
 import { ANGULO_POR_GRUPO, sistemaVendedor, type DatosContactoPrompt } from "./prompts";
-import { CLASES_RESPUESTA, GRUPOS_DE_CLUBES, LANDINGS_PERMITIDAS, type ClaseRespuesta, type Grupo } from "./tipos";
+import { CLASES_RESPUESTA, GRUPOS_DE_CLUBES, GRUPOS_DE_MUESTRAS, LANDINGS_PERMITIDAS, URL_MUESTRAS, type ClaseRespuesta, type Grupo } from "./tipos";
 
 /**
  * Redacción del Vendedor con Claude (sin búsqueda web). Cada texto se valida con `validarTexto`
@@ -93,9 +93,14 @@ const OPC_PRIMERO = (max: number): OpcionesTexto => ({ exigirEnlace: true, permi
 
 export type CorreoModelo = { asunto: string; cuerpo: string; indicaciones: string; landing: string };
 
-/** Las landings que puede elegir un grupo: `/clubes`, sólo los clubes y los organizadores de eventos. */
+/**
+ * Las landings que puede elegir un grupo: `/clubes`, sólo los clubes y los organizadores de eventos;
+ * Muestras Fotográficas, sólo los organizadores de muestras.
+ */
 export function landingsDelGrupo(grupo: Grupo): string[] {
-  return LANDINGS_PERMITIDAS.filter((l) => l !== "/clubes" || GRUPOS_DE_CLUBES.includes(grupo));
+  return LANDINGS_PERMITIDAS.filter(
+    (l) => (l !== "/clubes" || GRUPOS_DE_CLUBES.includes(grupo)) && (l !== URL_MUESTRAS || GRUPOS_DE_MUESTRAS.includes(grupo)),
+  );
 }
 
 export function redactarModelo(

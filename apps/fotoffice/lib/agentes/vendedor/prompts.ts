@@ -29,11 +29,12 @@ export const ANGULO_POR_GRUPO: Record<Grupo, string> = {
   "FOTOGRAFO:GENERAL": "Cómo hacer más fácil el trabajo del fotógrafo, sin suponer su nicho, con la landing general.",
   ESCUELA: "Sacarse de encima el trabajo tedioso de contratar un fotógrafo y organizar todas las fotos escolares.",
   ESCUELA_FOTOGRAFIA:
-    "Ofrecer charlas gratuitas para sus alumnos, presentarles CompraMeLaFoto a los alumnos, proponer una alianza y mencionar que la escuela misma puede usar FOTOFFICE como herramienta. No comprometas fechas ni condiciones de la alianza: eso lo decide Daniel. Esta es la única excepción a «sólo lo que está en la guía» y no habilita nada más.",
+    "Presentarles CompraMeLaFoto a la escuela y a sus alumnos, con enlaces para que se informen ({{ENLACE}} y {{CURSO}}), y ofrecer charlas gratuitas para los alumnos y una alianza con la escuela. En el marco de la alianza podés contar que, además de CompraMeLaFoto, DNX tiene una plataforma para administrar escuelas de fotografía, fotoclubes y asociaciones: socios y cobro de cuotas, carnet digital y portal del socio, cursos e inscripciones, correo a los socios, sorteos, y sitio y blog propios de la institución. No la nombres por su marca (no digas «FOTOFFICE»): describila. No comprometas fechas ni condiciones de la alianza: eso lo decide Daniel. Esta es la única excepción a «sólo lo que está en la guía» y no habilita nada más.",
   CLUB: "Cómo ganar dinero con las fotos de sus eventos sin invertir dinero.",
   ORGANIZADOR_EVENTOS: "Cómo ganar dinero con las fotos de sus eventos sin invertir dinero.",
   ASOCIACION_FOTOGRAFOS: "Una herramienta para los fotógrafos asociados, con el ángulo de lo que le sirve a una asociación y a sus socios.",
-  ORGANIZADOR_MUESTRAS: "Cómo ofrecer las fotos de su muestra o exposición a los visitantes y participantes sin trabajo extra para el organizador.",
+  ORGANIZADOR_MUESTRAS:
+    "Ofrecer Muestras Fotográficas, la plataforma de DNX para muestras y exposiciones (el enlace {{ENLACE}} lleva a su portada; no escribas la dirección): digitalizar la muestra y publicarla en una galería virtual junto a cientos de muestras, imprimir un QR para cada foto que lleva a la página de la obra en el celular, para que la visita a la galería presencial sea más inmersiva, y gestionar la venta de las obras. No hables de CompraMeLaFoto ni de selfies en este correo. Esta es la única excepción a «sólo lo que está en la guía» y no habilita nada más.",
   EMPRESA_TURISMO: "Cómo ofrecer fotos a sus turistas y pasajeros sin invertir dinero ni sumar trabajo.",
   NEGOCIO_FOTOGRAFIA: "Cómo CompraMeLaFoto puede ser útil para un negocio de fotografía y sus clientes fotógrafos.",
 };

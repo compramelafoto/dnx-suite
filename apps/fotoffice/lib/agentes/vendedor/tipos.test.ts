@@ -38,6 +38,9 @@ describe("grupos", () => {
       expect(v).not.toContain("ref");
     }
   });
+  it("los organizadores de muestras van a Muestras Fotográficas", () => {
+    expect(LANDING_POR_GRUPO.ORGANIZADOR_MUESTRAS).toBe("https://muestrasfotograficas.com");
+  });
   it("las escuelas de fotografía siempre van a Daniel", () => {
     expect(GRUPOS_SIEMPRE_A_DANIEL).toEqual(["ESCUELA_FOTOGRAFIA"]);
   });

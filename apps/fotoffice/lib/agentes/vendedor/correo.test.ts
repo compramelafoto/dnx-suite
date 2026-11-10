@@ -123,6 +123,10 @@ describe("envío del Vendedor", () => {
     expect(url).not.toMatch(/[?&]ref=/);
   });
 
+  it("una dirección completa permitida (Muestras) no se pega a CLF", () => {
+    expect(C.enlaceSeguimiento("https://muestrasfotograficas.com", "tok")).toBe("https://muestrasfotograficas.com?dnxv=tok");
+  });
+
   it("el pie identifica a Daniel y ofrece la baja", () => {
     expect(C.pieDeCorreo("https://fotoffice.com/api/correo/baja-dnx?t=x")).toBe(
       "—\nDaniel Cuart\nCompraMeLaFoto · compramelafoto.com\n\nTe escribo porque tu contacto está publicado como dato comercial. Si no querés que te escriba más, respondé «baja» o entrá acá: https://fotoffice.com/api/correo/baja-dnx?t=x",
