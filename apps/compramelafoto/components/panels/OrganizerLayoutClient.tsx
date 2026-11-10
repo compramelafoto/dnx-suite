@@ -5,6 +5,7 @@ import PanelLayout from "./PanelLayout";
 import { DnxBotBubble } from "@repo/dnx-bot/ui";
 import { RUTAS_PERMITIDAS_BOT } from "@/lib/bot/rutas-panel";
 import OrganizerSidebar, { OrganizerSidebarTopBar } from "./OrganizerSidebar";
+import AceptacionCobroDivididoGate from "@/components/mercadopago/AceptacionCobroDivididoGate";
 
 const fallback = (
   <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -18,6 +19,7 @@ export default function OrganizerLayoutClient({ children }: { children: React.Re
       <PanelLayout topBar2={<OrganizerSidebarTopBar />} sidebar={<OrganizerSidebar showHeader={false} />}>
         {children}
       </PanelLayout>
+      <AceptacionCobroDivididoGate rol="organizador" />
       <DnxBotBubble basePath="/api/bot" mascotSrc="/dnx-bot/mascota.webp" mascotSpriteSrc="/dnx-bot/mascota-foto.webp" rutasPermitidas={RUTAS_PERMITIDAS_BOT} />
     </Suspense>
   );

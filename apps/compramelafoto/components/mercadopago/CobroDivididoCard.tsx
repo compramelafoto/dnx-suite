@@ -24,7 +24,14 @@ const TEXTO_ESTADO: Record<Exclude<Estado, "SIN_PEDIR" | "ACTIVE" | "PENDING">, 
  * Con eso, en cada venta Mercado Pago le deposita su parte en el momento. Si la función está
  * apagada (la API responde 404), la tarjeta no se muestra.
  */
-export default function CobroDivididoCard({ rol = "fotografo" }: { rol?: "fotografo" | "organizador" }) {
+export default function CobroDivididoCard({
+  rol = "fotografo",
+  onEstado,
+}: {
+  rol?: "fotografo" | "organizador";
+  /** Avisa cada estado nuevo (lo usa el cartel obligatorio para destrabarse solo). */
+  onEstado?: (estado: Estado) => void;
+}) {
   const [vista, setVista] = useState<Vista | null>(null);
   const [visible, setVisible] = useState(false);
   const [correo, setCorreo] = useState("");
@@ -60,6 +67,11 @@ export default function CobroDivididoCard({ rol = "fotografo" }: { rol?: "fotogr
   useEffect(() => {
     void cargar(false);
   }, [cargar]);
+
+  const estadoActual = vista?.estado;
+  useEffect(() => {
+    if (estadoActual) onEstado?.(estadoActual);
+  }, [estadoActual, onEstado]);
 
   async function pedir() {
     setCargando(true);

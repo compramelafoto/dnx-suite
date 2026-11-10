@@ -10,6 +10,7 @@ import { RUTAS_PERMITIDAS_BOT } from "@/lib/bot/rutas-panel";
 import { UploadProgressProvider, useUploadProgress } from "@/contexts/UploadProgressContext";
 import FloatingUploadBar from "@/components/photo/FloatingUploadBar";
 import PhotographerWorkLocationPromptGate from "@/components/photographer/PhotographerWorkLocationPromptGate";
+import AceptacionCobroDivididoGate from "@/components/mercadopago/AceptacionCobroDivididoGate";
 import { isTemplateV2EditorPath } from "./template-v2-editor-path";
 import { isPantallaPedidosPath } from "./pantalla-pedidos-path";
 
@@ -77,6 +78,7 @@ function FotografoLayoutInner({ children }: { children: React.ReactNode }) {
       </PanelLayout>
       <FloatingUploadBar />
       <PhotographerWorkLocationPromptGate variant="clf" />
+      {pantallaPedidos ? null : <AceptacionCobroDivididoGate rol="fotografo" />}
       {pantallaPedidos ? null : <BotBubbleMount />}
     </UploadProgressProvider>
   );
