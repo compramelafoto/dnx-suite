@@ -2,7 +2,8 @@ import type { EstadoConsentimiento } from "../split-1n-consentimiento/servicio";
 import type { AceptacionConfig } from "./config";
 
 /** Quienes cobran una parte de una venta y por eso tienen que aceptar. */
-export const ROLES_ACEPTACION = ["PHOTOGRAPHER", "LAB_PHOTOGRAPHER", "ORGANIZER", "SCHOOL_ORGANIZER"] as const;
+/** (Los álbumes escolares no entran al cobro dividido: SCHOOL_ORGANIZER no lo necesita.) */
+export const ROLES_ACEPTACION = ["PHOTOGRAPHER", "LAB_PHOTOGRAPHER", "ORGANIZER"] as const;
 
 export type DecisionAceptacion =
   | { mostrar: false }
@@ -25,8 +26,10 @@ export function decidirAceptacion(input: {
   ahora: Date;
   rol: string;
   terminosAceptados: boolean;
-  /** null: no se pudo consultar. */
+  /** null: no se pudo leer el estado. */
   estadoMp: EstadoConsentimiento | null;
+  /** false: Mercado Pago no respondió; el cartel se puede posponer aunque haya vencido el plazo. */
+  mpRespondio: boolean;
 }): DecisionAceptacion {
   const { config } = input;
   if (!config.enabled || !config.limite) return { mostrar: false };
@@ -37,16 +40,16 @@ export function decidirAceptacion(input: {
   if (!faltaTerminos && !faltaMercadoPago) return { mostrar: false };
   return {
     mostrar: true,
-    obligatorio: input.ahora.getTime() >= config.limite.getTime(),
+    obligatorio: input.mpRespondio && input.ahora.getTime() >= config.limite.getTime(),
     limite: config.limite.toISOString(),
     faltaTerminos,
     faltaMercadoPago,
   };
 }
 
-const EXENTAS = ["/fotografo/soporte", "/organizador/soporte"];
+const EXENTAS = ["/fotografo/soporte", "/organizador/soporte", "/fotografo/login", "/fotografo/registro"];
 
-/** Páginas que el cartel nunca tapa: la salida a soporte. */
+/** Páginas que el cartel nunca tapa: la salida a soporte y la de entrar con otra cuenta. */
 export function rutaExenta(pathname: string | null): boolean {
   if (!pathname) return false;
   return EXENTAS.some((r) => pathname === r || pathname.startsWith(`${r}/`));

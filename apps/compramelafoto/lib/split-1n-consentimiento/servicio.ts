@@ -25,6 +25,8 @@ export type VistaConsentimiento = {
   correo: string | null;
   inviteUrl: string | null;
   actualizadoEn: string | null;
+  /** true: se intentó consultar a Mercado Pago y no respondió (se muestra lo guardado). */
+  consultaFallida?: boolean;
 };
 
 export interface RepositorioConsentimiento {
@@ -212,7 +214,7 @@ export async function actualizarEstado(
       userId: input.userId,
       error: err instanceof Error ? err.message : String(err),
     });
-    return vista(actual, actual.lastCheckedAt);
+    return { ...vista(actual, actual.lastCheckedAt), consultaFallida: true };
   }
 }
 

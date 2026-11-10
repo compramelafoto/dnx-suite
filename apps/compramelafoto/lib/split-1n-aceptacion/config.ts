@@ -1,4 +1,5 @@
 import { resolveConsentimientoConfig } from "../split-1n-consentimiento/config";
+import { resolvePilotoConfig } from "../split-1n-piloto/config";
 
 /** Fecha límite (AAAA-MM-DD, hora argentina) desde la que el cartel ya no se puede posponer. */
 export const ACEPTACION_LIMITE_FLAG = "DNX_CLF_SPLIT_1N_ACEPTACION_LIMITE";
@@ -17,11 +18,29 @@ function medianocheArgentina(valor: string | undefined): Date | null {
 }
 
 /**
- * Cartel obligatorio del cobro dividido. Se enciende sólo con el consentimiento encendido y una
- * fecha límite válida: un error de configuración nunca bloquea el panel.
+ * ¿Está encendido todo lo necesario para que el cobro dividido corra y se pueda pedir la
+ * invitación? Piloto en todos los álbumes, consentimiento, el freno del adaptador de pagos,
+ * el token y la cuenta de la plataforma. Sin eso, pedir el anexo dejaría gente trabada.
+ */
+function cobroDivididoListo(env: NodeJS.ProcessEnv): boolean {
+  const piloto = resolvePilotoConfig(env);
+  return (
+    piloto.enabled &&
+    piloto.todosLosAlbumes &&
+    piloto.accessToken != null &&
+    piloto.ownerUserId != null &&
+    resolveConsentimientoConfig(env).enabled &&
+    env.DNX_MP_SPLIT_CONSENT_PRODUCTION_ENABLED?.trim().toLowerCase() === "true"
+  );
+}
+
+/**
+ * Cartel obligatorio del cobro dividido. Se enciende sólo con el cobro dividido listo y una
+ * fecha límite válida: un error de configuración nunca bloquea el panel. Para apagarlo de
+ * urgencia alcanza con borrar la fecha.
  */
 export function resolveAceptacionConfig(env: NodeJS.ProcessEnv = process.env): AceptacionConfig {
   const limite = medianocheArgentina(env[ACEPTACION_LIMITE_FLAG]);
-  if (!resolveConsentimientoConfig(env).enabled || !limite) return { enabled: false, limite: null };
+  if (!limite || !cobroDivididoListo(env)) return { enabled: false, limite: null };
   return { enabled: true, limite };
 }

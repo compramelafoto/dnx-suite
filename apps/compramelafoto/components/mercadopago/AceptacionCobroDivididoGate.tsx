@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import Button from "@/components/ui/Button";
 import CobroDivididoCard from "@/components/mercadopago/CobroDivididoCard";
@@ -27,14 +27,36 @@ function posponer() {
   }
 }
 
-/** «lunes 23 de noviembre», en hora argentina. */
-function fechaLimite(iso: string): string {
+/**
+ * Último día en que todavía se puede posponer, en hora argentina. El límite es la medianoche
+ * del día configurado, así que se muestra el día anterior («domingo 22 de noviembre»).
+ */
+function ultimoDia(iso: string): string {
   return new Intl.DateTimeFormat("es-AR", {
     weekday: "long",
     day: "numeric",
     month: "long",
     timeZone: "America/Argentina/Buenos_Aires",
-  }).format(new Date(iso));
+  }).format(new Date(new Date(iso).getTime() - 1));
+}
+
+/** El anexo está en Markdown: los títulos se muestran en negrita, sin los «#». */
+function TextoAnexo() {
+  return (
+    <div className="max-h-64 space-y-2 overflow-y-auto rounded-lg border border-[#e5e7eb] bg-[#f8f9fa] p-3 text-xs text-[#374151]">
+      {ANEXO_COBRO_DIVIDIDO_TEXTO.split("\n")
+        .filter((l) => l.trim() !== "")
+        .map((linea, i) =>
+          linea.startsWith("#") ? (
+            <p key={i} className="font-semibold text-[#1a1a1a]">
+              {linea.replace(/^#+\s*/, "")}
+            </p>
+          ) : (
+            <p key={i}>{linea}</p>
+          ),
+        )}
+    </div>
+  );
 }
 
 /**
@@ -50,12 +72,15 @@ export default function AceptacionCobroDivididoGate({ rol }: { rol: "fotografo" 
   const [verTexto, setVerTexto] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const abierto = useRef(false);
+  const titulo = useRef<HTMLHeadingElement>(null);
 
   const consultar = useCallback(async () => {
     try {
       const res = await fetch("/api/split-1n/aceptacion", { cache: "no-store", credentials: "include" });
       if (!res.ok) return;
       const data = (await res.json()) as DecisionAceptacion;
+      abierto.current = data.mostrar;
       setDecision(data.mostrar ? data : null);
     } catch {
       /* sin red: no se bloquea */
@@ -65,7 +90,10 @@ export default function AceptacionCobroDivididoGate({ rol }: { rol: "fotografo" 
   useEffect(() => {
     setCerrado(pospuesto());
     void consultar();
-    const alVolver = () => void consultar();
+    // Al volver de Mercado Pago se revisa de nuevo, sólo mientras el cartel está abierto.
+    const alVolver = () => {
+      if (abierto.current) void consultar();
+    };
     window.addEventListener("focus", alVolver);
     return () => window.removeEventListener("focus", alVolver);
   }, [consultar]);
@@ -92,34 +120,49 @@ export default function AceptacionCobroDivididoGate({ rol }: { rol: "fotografo" 
         setError(data?.error ?? "No pudimos guardar tu aceptación. Probá de nuevo en unos minutos.");
         return;
       }
+      abierto.current = data.mostrar;
       setDecision(data.mostrar ? data : null);
+    } catch {
+      setError("No pudimos guardar tu aceptación. Revisá tu conexión y probá de nuevo.");
     } finally {
       setGuardando(false);
     }
   }
 
-  if (!decision || rutaExenta(pathname)) return null;
-  if (cerrado && !decision.obligatorio) return null;
+  const visible = decision != null && !rutaExenta(pathname) && !(cerrado && !decision.obligatorio);
+
+  // Mientras el cartel está a la vista: el fondo no se desplaza y el foco arranca en el título.
+  useEffect(() => {
+    if (!visible) return;
+    const previo = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    titulo.current?.focus();
+    return () => {
+      document.body.style.overflow = previo;
+    };
+  }, [visible]);
+
+  if (!visible || !decision) return null;
 
   const soporte = rol === "organizador" ? "/organizador/soporte" : "/fotografo/soporte";
-  const dia = fechaLimite(decision.limite);
+  const dia = ultimoDia(decision.limite);
 
   return (
     <div
-      className="fixed inset-0 z-[1000] flex items-start justify-center overflow-y-auto bg-black/60 p-4 sm:items-center"
+      className="fixed inset-0 z-[9980] flex items-start justify-center overflow-y-auto bg-black/60 p-4 sm:items-center"
       role="dialog"
       aria-modal="true"
       aria-labelledby="cobro-dividido-titulo"
       data-testid="aceptacion-cobro-dividido"
     >
       <div className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-xl sm:p-8">
-        <h2 id="cobro-dividido-titulo" className="text-2xl font-bold text-[#1a1a1a]">
+        <h2 id="cobro-dividido-titulo" ref={titulo} tabIndex={-1} className="text-2xl font-bold text-[#1a1a1a] outline-none">
           Nuevos términos: cobro dividido con Mercado Pago
         </h2>
         <p className="mt-3 text-[#374151]">
-          Desde ahora, en cada venta Mercado Pago reparte el pago en el momento:{" "}
-          {rol === "organizador" ? "tu comisión" : "tu parte"} va directo a tu cuenta, sin esperar
-          liquidaciones. Para eso necesitamos dos cosas.
+          Empezamos a cobrar las ventas con el cobro dividido de Mercado Pago: cuando una venta se cobra
+          así, {rol === "organizador" ? "tu comisión" : "tu parte"} va directo a tu cuenta en el momento,
+          sin esperar liquidaciones. Para eso necesitamos dos cosas.
         </p>
         <p
           className={`mt-3 rounded-lg p-3 text-sm font-medium ${
@@ -128,7 +171,7 @@ export default function AceptacionCobroDivididoGate({ rol }: { rol: "fotografo" 
         >
           {decision.obligatorio
             ? "Para seguir usando el panel tenés que completar los dos pasos."
-            : `Tenés tiempo hasta el ${dia}. Desde ese día no vas a poder usar el panel sin completarlos.`}
+            : `Tenés tiempo hasta el ${dia} inclusive. Después no vas a poder usar el panel sin completarlos.`}
         </p>
 
         <section className="mt-6">
@@ -142,11 +185,7 @@ export default function AceptacionCobroDivididoGate({ rol }: { rol: "fotografo" 
               >
                 {verTexto ? "Ocultar el texto completo" : "Leer el texto completo"}
               </button>
-              {verTexto ? (
-                <pre className="max-h-64 overflow-y-auto whitespace-pre-wrap rounded-lg border border-[#e5e7eb] bg-[#f8f9fa] p-3 font-sans text-xs text-[#374151]">
-                  {ANEXO_COBRO_DIVIDIDO_TEXTO}
-                </pre>
-              ) : null}
+              {verTexto ? <TextoAnexo /> : null}
               <label className="flex items-start gap-2 text-sm text-[#374151]">
                 <input
                   type="checkbox"

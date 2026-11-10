@@ -17,17 +17,19 @@ async function anexoAceptado(userId: number): Promise<boolean> {
   return fila != null;
 }
 
-/** Estado del consentimiento en Mercado Pago, o null si no se pudo saber (no se bloquea). */
-async function estadoMercadoPago(userId: number): Promise<EstadoConsentimiento | null> {
+/** Estado del consentimiento (null si no se pudo leer) y si Mercado Pago respondió. */
+async function estadoMercadoPago(
+  userId: number,
+): Promise<{ estadoMp: EstadoConsentimiento | null; mpRespondio: boolean }> {
   try {
     const vista = await actualizarEstado(crearDepsConsentimiento(), { userId });
-    return vista.estado;
+    return { estadoMp: vista.estado, mpRespondio: vista.consultaFallida !== true };
   } catch (err: unknown) {
     console.error("[split-1n-aceptacion] estado_mp_fallido", {
       userId,
       error: err instanceof Error ? err.message : String(err),
     });
-    return null;
+    return { estadoMp: null, mpRespondio: false };
   }
 }
 
@@ -36,8 +38,8 @@ export async function decisionPara(user: { id: number; role: string }): Promise<
   const config = resolveAceptacionConfig();
   if (!config.enabled) return { mostrar: false };
   try {
-    const [terminosAceptados, estadoMp] = await Promise.all([anexoAceptado(user.id), estadoMercadoPago(user.id)]);
-    return decidirAceptacion({ config, ahora: new Date(), rol: user.role, terminosAceptados, estadoMp });
+    const [terminosAceptados, mp] = await Promise.all([anexoAceptado(user.id), estadoMercadoPago(user.id)]);
+    return decidirAceptacion({ config, ahora: new Date(), rol: user.role, terminosAceptados, ...mp });
   } catch (err: unknown) {
     console.error("[split-1n-aceptacion] decision_fallida", {
       userId: user.id,
