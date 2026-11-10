@@ -23,6 +23,8 @@ type Props = {
   correoVisible: string;
   volverA: string;
   volverTexto?: string;
+  /** Ofrecer «Pagar con Mercado Pago» (sólo pedidos de un álbum). */
+  planB?: boolean;
 };
 
 type Estado =
@@ -145,7 +147,7 @@ export default function PagarClient(props: Props) {
       ) : null}
       {/* Plan B (sólo pedido de un álbum): si la tarjeta falla o el comprador prefiere, el cobro
           de siempre. Mientras se procesa la tarjeta no se ofrece, para no pagar dos veces. */}
-      {props.orderId && !props.grupoId && estado.tipo === "formulario" ? (
+      {props.planB && props.orderId && !props.grupoId && estado.tipo === "formulario" ? (
         <PlanBMercadoPago pedidoId={props.orderId} destacado={estado.mensaje != null} />
       ) : null}
       <p className="text-center text-sm">

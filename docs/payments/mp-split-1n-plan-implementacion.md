@@ -427,8 +427,10 @@ fotógrafo y en Comisiones del organizador).
 
 **2. Plan B en `/pagar/[orderId]`** (`lib/split-1n-piloto/plan-b.ts`).
 
-- Botón «Pagar con Mercado Pago» debajo del formulario de tarjeta; después de un error de la
-  tarjeta se muestra como botón principal. Pasa el mismo pedido a Checkout Pro
+- Botón «Pagar con Mercado Pago» debajo del formulario de tarjeta (con
+  `DNX_CLF_SPLIT_1N_PLAN_B_ENABLED`); después de un error de la tarjeta se muestra como botón
+  principal. Si Checkout Pro no se puede armar (p. ej. el vínculo del fotógrafo venció) y no
+  existe ningún enlace, el pedido vuelve a la tarjeta. Pasa el mismo pedido a Checkout Pro
   (`ensureAlbumOrderMpPreference`).
 - Contra el cobro doble: el pase es una escritura condicionada a que la marca del piloto siga
   en `PENDIENTE` (la misma que exige la tarjeta para reservar) y deja la marca en el estado
@@ -436,13 +438,20 @@ fotógrafo y en Comisiones del organizador).
 - Cerrados los huecos del piloto: `create-preference`, `ensureAlbumOrderMpPreference` y el
   reintento de pago fallido se niegan a crear un Checkout Pro para un pedido del piloto que no
   eligió el plan B (código `SPLIT_1N_PILOTO`); `/pago/reintentar/{id}` lleva a `/pagar/{id}`; el
-  aviso de pedido abandonado no sale si el cobro con tarjeta está en curso.
+  aviso de pedido abandonado no sale si el cobro con tarjeta está en curso; el banner «Tenés un
+  pago pendiente» del álbum lleva a `/pagar/{id}`. Estas guardas no dependen de ningún
+  interruptor: son la corrección del hueco de doble cobro que el piloto tenía en esos caminos.
+- Consentimiento: sólo fotógrafos, organizadores y administradores; una invitación a otra cuenta
+  cada 10 minutos por persona; una invitación que ya existía en Mercado Pago (o que vuelve
+  ACTIVE de entrada) sólo se vincula si es la cuenta conectada por OAuth (`User.mpUserId`);
+  si no, queda para soporte.
 
 **Variables nuevas**
 
 | Variable | Qué hace |
 |---|---|
 | `DNX_CLF_SPLIT_1N_CONSENTIMIENTO_ENABLED=true` | Muestra la tarjeta, habilita la invitación y suma los receptores ACTIVE de CLF al mapa del piloto. |
+| `DNX_CLF_SPLIT_1N_PLAN_B_ENABLED=true` | Muestra «Pagar con Mercado Pago» en `/pagar` junto a la tarjeta. Con el piloto apagado (o sin clave pública), `/pagar` sigue atendiendo los pedidos con marca y ofrece sólo ese botón, para que no queden impagables. |
 | `DNX_CLF_SPLIT_1N_TODOS_LOS_ALBUMES=true` | Todo álbum es candidato (reemplaza `DNX_CLF_SPLIT_1N_PILOTO_ALBUM_IDS`). Siguen mandando los consentimientos: un álbum cuyo fotógrafo, referidor u organizador no esté ACTIVE va por Checkout Pro. |
 
 Además, para invitar hace falta `DNX_MP_SPLIT_CONSENT_PRODUCTION_ENABLED=true` (freno del
@@ -452,8 +461,8 @@ del piloto siguen igual (`DNX_CLF_SPLIT_1N_PILOTO_ENABLED`, `..._OWNER_USER_ID`,
 
 **Orden de encendido sugerido**
 
-1. Miércoles 11/11: `DNX_MP_SPLIT_CONSENT_PRODUCTION_ENABLED=true` y
-   `DNX_CLF_SPLIT_1N_CONSENTIMIENTO_ENABLED=true`. Los fotógrafos que ya aceptaron siguen por el
+1. Miércoles 11/11: `DNX_MP_SPLIT_CONSENT_PRODUCTION_ENABLED=true`,
+   `DNX_CLF_SPLIT_1N_CONSENTIMIENTO_ENABLED=true` y `DNX_CLF_SPLIT_1N_PLAN_B_ENABLED=true`. Los fotógrafos que ya aceptaron siguen por el
    mapa de entorno; cualquiera puede ir pidiendo su invitación desde el panel. Probar el plan B
    con un pedido real del piloto (elegir «Pagar con Mercado Pago» y pagar con Checkout Pro).
 2. Lunes 16/11: `DNX_CLF_SPLIT_1N_TODOS_LOS_ALBUMES=true`.

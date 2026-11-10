@@ -30,6 +30,8 @@ export default function CobroDivididoCard({ rol = "fotografo" }: { rol?: "fotogr
   const [correo, setCorreo] = useState("");
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** En PENDING: quien escribió mal su correo puede pedir con otro. */
+  const [otroCorreo, setOtroCorreo] = useState(false);
 
   const cargar = useCallback(async (refrescar: boolean) => {
     setError(null);
@@ -74,6 +76,7 @@ export default function CobroDivididoCard({ rol = "fotografo" }: { rol?: "fotogr
         return;
       }
       setVista((v) => ({ ...(data as Vista), correoSugerido: v?.correoSugerido ?? null }));
+      setOtroCorreo(false);
     } finally {
       setCargando(false);
     }
@@ -140,13 +143,22 @@ export default function CobroDivididoCard({ rol = "fotografo" }: { rol?: "fotogr
                 <Button variant="secondary" onClick={revisar} disabled={cargando} className="text-sm">
                   {cargando ? "Revisando…" : "Ya acepté, revisar"}
                 </Button>
+                {!otroCorreo ? (
+                  <button
+                    type="button"
+                    onClick={() => setOtroCorreo(true)}
+                    className="text-xs text-[#6b7280] underline"
+                  >
+                    Usar otro correo
+                  </button>
+                ) : null}
               </div>
             </>
           ) : null}
 
-          {estado !== "PENDING" ? (
+          {estado !== "PENDING" || otroCorreo ? (
             <>
-              {estado !== "SIN_PEDIR" ? (
+              {estado !== "SIN_PEDIR" && estado !== "PENDING" ? (
                 <p className="text-sm text-amber-800">{TEXTO_ESTADO[estado]} Podés pedir otra invitación.</p>
               ) : null}
               <div className="flex flex-col gap-2 sm:flex-row sm:items-end">

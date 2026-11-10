@@ -20,6 +20,7 @@ export function crearRepositorioConsentimiento(ownerUserId: string): Repositorio
       status: string;
       invitationReference: string | null;
       lastCheckedAt: Date | null;
+      createdAt: Date;
       recipient: { userId: number | null; displayReference: string | null } | null;
     } | null,
   ): ConsentimientoGuardado | null {
@@ -31,6 +32,7 @@ export function crearRepositorioConsentimiento(ownerUserId: string): Repositorio
       estado: normalizarEstadoMp(fila.status) ?? "PENDING",
       inviteUrl: fila.invitationReference,
       lastCheckedAt: fila.lastCheckedAt,
+      creadoEn: fila.createdAt,
     };
   }
 
@@ -39,6 +41,7 @@ export function crearRepositorioConsentimiento(ownerUserId: string): Repositorio
     status: true,
     invitationReference: true,
     lastCheckedAt: true,
+    createdAt: true,
     recipient: { select: { userId: true, displayReference: true } },
   } as const;
 
@@ -85,13 +88,18 @@ export function crearRepositorioConsentimiento(ownerUserId: string): Repositorio
         });
         const previo = await tx.dnxSplitConsent.findFirst({
           where: { ...filtro, providerReceiverId: fila.receiverId },
-          select: { id: true },
+          select: { id: true, recipient: { select: { userId: true } } },
         });
+        // Se vuelve a mirar dentro de la transacción: dos pedidos a la vez no pueden darle la
+        // misma cuenta de Mercado Pago a dos personas.
+        const duenio = previo?.recipient?.userId ?? null;
+        if (duenio != null && duenio !== userId) throw new Error("CUENTA_DE_OTRO_USUARIO");
         if (previo) {
           await tx.dnxSplitConsent.update({
             where: { id: previo.id },
             data: {
               recipientId: recipient.id,
+              primaryProviderAccountReference: ownerUserId,
               status: fila.estado,
               ...(fila.inviteUrl ? { invitationReference: fila.inviteUrl } : {}),
               lastCheckedAt: ahora,

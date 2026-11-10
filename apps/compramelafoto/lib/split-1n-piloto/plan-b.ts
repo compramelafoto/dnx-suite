@@ -3,6 +3,7 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { ensureAlbumOrderMpPreference } from "@/lib/mercadopago/album-order-mp-preference";
+import { resolvePilotoConfig } from "./config";
 import { decidirPlanB } from "./plan-b-decidir";
 import { leerMarcaPiloto, marcarSnapshotPiloto } from "./snapshot";
 
@@ -12,8 +13,9 @@ const MENSAJES = {
   cobro_en_curso:
     "Ya hay un pago con tarjeta en curso para esta compra. Esperá unos minutos y recargá la página: no pagues de nuevo.",
   ya_pagado: "Esta compra ya está pagada.",
+  no_disponible: "El pago con Mercado Pago no está disponible para esta compra.",
   no_es_piloto: "No encontramos esta compra. Volvé al álbum para empezar de nuevo.",
-  error: "No pudimos abrir Mercado Pago. Probá de nuevo en unos minutos.",
+  error: "No pudimos abrir Mercado Pago. Probá de nuevo en unos minutos o pagá con tarjeta.",
 } as const;
 
 /**
@@ -29,25 +31,31 @@ export async function pasarPedidoACheckoutPro(input: { pedidoId: number }): Prom
   const pedidoId = Number(input.pedidoId);
   if (!Number.isInteger(pedidoId) || pedidoId <= 0) return { ok: false, mensaje: MENSAJES.no_es_piloto };
 
+  // Con la tarjeta disponible, el plan B depende de su interruptor; con el piloto apagado es la
+  // única salida de los pedidos que quedaron con la marca.
+  const config = resolvePilotoConfig();
+  if (config.enabled && config.publicKey && !config.planB) return { ok: false, mensaje: MENSAJES.no_disponible };
+
   const order = await prisma.order.findUnique({
     where: { id: pedidoId },
     select: { id: true, status: true, pricingSnapshot: true },
   });
-  const decision = decidirPlanB({
-    estadoPedido: order?.status ?? "",
-    marca: order ? leerMarcaPiloto(order.pricingSnapshot) : null,
-  });
-  if (!order || decision === "no_es_piloto") return { ok: false, mensaje: MENSAJES.no_es_piloto };
+  const marca = order ? leerMarcaPiloto(order.pricingSnapshot) : null;
+  const decision = decidirPlanB({ estadoPedido: order?.status ?? "", marca });
+  if (!order || !marca || decision === "no_es_piloto") return { ok: false, mensaje: MENSAJES.no_es_piloto };
   if (decision === "ya_pagado" || decision === "cobro_en_curso") {
     return { ok: false, mensaje: MENSAJES[decision] };
   }
 
+  let pasadoAhora = false;
   if (decision === "pasar") {
+    // La condición es la marca entera tal como se leyó (no sólo el estado): si en el medio
+    // terminó otro intento con tarjeta, no se pisan su intento ni su orden de Mercado Pago.
     const pasado = await prisma.order.updateMany({
       where: {
         id: pedidoId,
         status: { in: ["PENDING", "FAILED"] },
-        pricingSnapshot: { path: ["split1nPiloto", "estado"], equals: "PENDIENTE" },
+        pricingSnapshot: { path: ["split1nPiloto"], equals: marca as unknown as Prisma.InputJsonValue },
       },
       data: {
         pricingSnapshot: marcarSnapshotPiloto(order.pricingSnapshot, {
@@ -65,25 +73,63 @@ export async function pasarPedidoACheckoutPro(input: { pedidoId: number }): Prom
         estadoPedido: ahora?.status ?? "",
         marca: ahora ? leerMarcaPiloto(ahora.pricingSnapshot) : null,
       });
+      if (otra === "pasar") return { ok: false, mensaje: MENSAJES.error };
       if (otra !== "ya_elegido") {
         return { ok: false, mensaje: otra === "ya_pagado" ? MENSAJES.ya_pagado : MENSAJES.cobro_en_curso };
       }
+    } else {
+      pasadoAhora = true;
+      console.info("[split-1n-piloto] plan_b_checkout_pro", { pedidoId });
     }
-    console.info("[split-1n-piloto] plan_b_checkout_pro", { pedidoId });
   }
 
+  let pref: Awaited<ReturnType<typeof ensureAlbumOrderMpPreference>> | null = null;
   try {
-    const pref = await ensureAlbumOrderMpPreference(pedidoId);
-    if (!pref.ok) {
-      console.error("[split-1n-piloto] plan_b_preferencia_fallida", { pedidoId, code: pref.code, error: pref.error });
-      return { ok: false, mensaje: pref.error || MENSAJES.error };
-    }
-    return { ok: true, initPoint: pref.initPoint };
+    pref = await ensureAlbumOrderMpPreference(pedidoId);
   } catch (err: unknown) {
     console.error("[split-1n-piloto] plan_b_preferencia_fallida", {
       pedidoId,
       error: err instanceof Error ? err.message : String(err),
     });
-    return { ok: false, mensaje: MENSAJES.error };
+  }
+  if (pref?.ok) return { ok: true, initPoint: pref.initPoint };
+  if (pref && !pref.ok) {
+    console.error("[split-1n-piloto] plan_b_preferencia_fallida", { pedidoId, code: pref.code, error: pref.error });
+  }
+  if (pasadoAhora) await volverAPendiente(pedidoId);
+  return { ok: false, mensaje: MENSAJES.error };
+}
+
+/**
+ * Si Checkout Pro no se pudo armar (p. ej. el vínculo del fotógrafo con Mercado Pago venció),
+ * el pedido vuelve a la tarjeta para no perder la venta. Sólo si no existe ningún enlace de
+ * Checkout Pro (`mpPreferenceId` vacío): sin enlace, nadie pudo pagar por ese lado.
+ */
+async function volverAPendiente(pedidoId: number): Promise<void> {
+  try {
+    const order = await prisma.order.findUnique({
+      where: { id: pedidoId },
+      select: { pricingSnapshot: true, mpPreferenceId: true, status: true },
+    });
+    if (!order || order.mpPreferenceId || leerMarcaPiloto(order.pricingSnapshot)?.estado !== "CHECKOUT_PRO") return;
+    await prisma.order.updateMany({
+      where: {
+        id: pedidoId,
+        status: { in: ["PENDING", "FAILED"] },
+        mpPreferenceId: null,
+        pricingSnapshot: { path: ["split1nPiloto", "estado"], equals: "CHECKOUT_PRO" },
+      },
+      data: {
+        pricingSnapshot: marcarSnapshotPiloto(order.pricingSnapshot, {
+          estado: "PENDIENTE",
+        }) as Prisma.InputJsonValue,
+      },
+    });
+    console.info("[split-1n-piloto] plan_b_vuelve_a_tarjeta", { pedidoId });
+  } catch (err: unknown) {
+    console.error("[split-1n-piloto] plan_b_no_vuelve_a_tarjeta", {
+      pedidoId,
+      error: err instanceof Error ? err.message : String(err),
+    });
   }
 }

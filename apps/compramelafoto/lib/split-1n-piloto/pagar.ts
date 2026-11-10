@@ -41,7 +41,7 @@ const MENSAJES: Record<string, string> = {
   ELIGIO_MERCADO_PAGO:
     "Elegiste pagar esta compra con Mercado Pago. Usá el botón «Continuar con Mercado Pago».",
   CONSENTIMIENTO_NO_ACTIVO:
-    "Este álbum no puede cobrar con tarjeta en este momento. Volvé al resumen para pagar con Mercado Pago.",
+    "Este álbum no puede cobrar con tarjeta en este momento. Pagá con Mercado Pago: con el botón de abajo o desde el resumen de la compra.",
 };
 
 function falla(codigo: string, mensaje?: string): PagarPilotoResult {

@@ -64,6 +64,7 @@ const guardado = (c: Partial<ConsentimientoGuardado> = {}): ConsentimientoGuarda
   estado: "PENDING",
   inviteUrl: "https://mp/inv/1",
   lastCheckedAt: null,
+  creadoEn: null,
   ...c,
 });
 
@@ -131,20 +132,47 @@ describe("consentimiento: pedir la invitación", () => {
     assert.equal(guardados.length, 1);
   });
 
-  it("si Mercado Pago no devuelve el correo, lo busca en la lista", async () => {
+  it("una invitación anterior de la lista sólo se vincula si la cuenta conectada es la misma", async () => {
+    const listar = async () => [{ sellerEmail: "FOTO@ejemplo.com", receiverId: "R9", status: "ACTIVE" }];
+    const invitar = async () => [];
+    const a = repoFalso();
+    const conCuenta = await pedirInvitacion(deps(a.repo, mpFalso({ invitar, listar }).mp), {
+      userId: 35,
+      correo: "foto@ejemplo.com",
+      mpUserId: "R9",
+    });
+    assert.equal(conCuenta.ok && conCuenta.vista.estado, "ACTIVE");
+    assert.equal(a.guardados[0]?.fila.receiverId, "R9");
+
+    const b = repoFalso();
+    const sinCuenta = await pedirInvitacion(deps(b.repo, mpFalso({ invitar, listar }).mp), {
+      userId: 35,
+      correo: "foto@ejemplo.com",
+      mpUserId: "OTRA",
+    });
+    assert.equal(sinCuenta.ok === false && sinCuenta.codigo, "YA_INVITADO");
+    assert.equal(b.guardados.length, 0);
+  });
+
+  it("si Mercado Pago responde ACTIVE de entrada, también exige la cuenta conectada", async () => {
     const { repo, guardados } = repoFalso();
-    const { mp, llamadas } = mpFalso({
-      async invitar() {
-        return [];
-      },
-      async listar() {
-        return [{ sellerEmail: "FOTO@ejemplo.com", receiverId: "R9", status: "ACTIVE" }];
+    const { mp } = mpFalso({
+      async invitar(correo) {
+        return [{ sellerEmail: correo, receiverId: "R5", status: "ACTIVE" }];
       },
     });
-    const r = await pedirInvitacion(deps(repo, mp), { userId: 35, correo: "foto@ejemplo.com" });
-    assert.equal(r.ok && r.vista.estado, "ACTIVE");
-    assert.equal(guardados[0]?.fila.receiverId, "R9");
-    void llamadas;
+    const r = await pedirInvitacion(deps(repo, mp), { userId: 35, correo: "ajeno@ejemplo.com" });
+    assert.equal(r.ok === false && r.codigo, "YA_INVITADO");
+    assert.equal(guardados.length, 0);
+  });
+
+  it("no deja pedir invitaciones para otra cuenta más de una vez cada 10 minutos", async () => {
+    const hace5 = new Date(AHORA.getTime() - 5 * 60_000);
+    const { repo } = repoFalso([guardado({ creadoEn: hace5 })]);
+    const { mp, llamadas } = mpFalso();
+    const r = await pedirInvitacion(deps(repo, mp), { userId: 35, correo: "otra@ejemplo.com" });
+    assert.equal(r.ok === false && r.codigo, "ESPERA");
+    assert.equal(llamadas.invitar, 0);
   });
 
   it("si no aparece en ningún lado, avisa que Mercado Pago no lo aceptó", async () => {

@@ -9,6 +9,7 @@ const base: PilotoConfig = {
   albumIds: new Set([12]),
   todosLosAlbumes: false,
   receptoresDesdeClf: false,
+  planB: false,
   receiverByUserId: new Map([[35, "aaa"]]),
   ownerUserId: "97484805",
   accessToken: "APP_USR-x",

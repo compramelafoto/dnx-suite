@@ -21,6 +21,8 @@ export default function PendingOrderAlbumBanner({ albumId }: Props) {
   const [orderId, setOrderId] = useState<number | null>(null);
   const [buyerEmail, setBuyerEmail] = useState<string | undefined>(undefined);
   const [checking, setChecking] = useState(true);
+  /** Pedido del piloto Split 1:N: se continúa en su página de pago, no en Checkout Pro. */
+  const [pagarUrl, setPagarUrl] = useState<string | null>(null);
 
   const {
     retryPayment,
@@ -56,12 +58,14 @@ export default function PendingOrderAlbumBanner({ albumId }: Props) {
         return;
       }
       const data = await res.json();
-      if (data.status === "PAID" || !data.canRetry) {
+      const urlPiloto = typeof data.pagarUrl === "string" ? data.pagarUrl : null;
+      if (data.status === "PAID" || (!data.canRetry && !urlPiloto)) {
         clearPendingOrderSession(albumIdStr);
         setVisible(false);
         setOrderId(null);
         return;
       }
+      setPagarUrl(urlPiloto);
       setOrderId(session.orderId);
       setBuyerEmail(session.buyerEmail);
       setVisible(true);
@@ -95,6 +99,10 @@ export default function PendingOrderAlbumBanner({ albumId }: Props) {
       albumId,
       orderId,
     });
+    if (pagarUrl) {
+      window.location.href = pagarUrl;
+      return;
+    }
     await retryPayment();
   }
 

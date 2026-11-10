@@ -16,6 +16,8 @@ export type ConsentimientoGuardado = {
   estado: EstadoMp;
   inviteUrl: string | null;
   lastCheckedAt: Date | null;
+  /** Cuándo se vinculó esta cuenta de Mercado Pago a la persona (frena invitaciones en serie). */
+  creadoEn: Date | null;
 };
 
 export type VistaConsentimiento = {
@@ -61,12 +63,17 @@ export type ResultadoInvitacion =
 
 /** No se le pregunta a Mercado Pago más de una vez por minuto por la misma persona. */
 export const INTERVALO_CONSULTA_MS = 60_000;
+/** Invitar a una cuenta distinta: como mucho una vez cada 10 minutos por persona. */
+export const INTERVALO_OTRA_CUENTA_MS = 10 * 60_000;
 
 const MENSAJES: Record<string, string> = {
   CORREO_INVALIDO: "Revisá el correo: tiene que ser el de tu cuenta de Mercado Pago.",
   MP_RECHAZO:
     "Mercado Pago no aceptó ese correo. Revisá que sea el de tu cuenta de Mercado Pago y probá de nuevo.",
   ERROR_MP: "No pudimos pedir la invitación a Mercado Pago. Probá de nuevo en unos minutos.",
+  YA_INVITADO:
+    "Ese correo ya tenía una invitación de Mercado Pago. Para vincularla a tu cuenta, escribinos a soporte.",
+  ESPERA: "Ya pediste una invitación hace un rato. Esperá unos minutos antes de probar con otro correo.",
   CUENTA_DE_OTRO_USUARIO:
     "Esa cuenta de Mercado Pago ya está vinculada a otro usuario de CompraMeLaFoto. Escribinos a soporte si es tuya.",
 };
@@ -101,7 +108,12 @@ function vista(
 
 export async function pedirInvitacion(
   deps: DepsConsentimiento,
-  input: { userId: number; correo: string },
+  input: {
+    userId: number;
+    correo: string;
+    /** Cuenta de Mercado Pago conectada por OAuth (`User.mpUserId`), si tiene. */
+    mpUserId?: string | null;
+  },
 ): Promise<ResultadoInvitacion> {
   const correo = input.correo.trim().toLowerCase();
   if (!correoValido(correo)) return falla("CORREO_INVALIDO");
@@ -114,10 +126,22 @@ export async function pedirInvitacion(
     }
   }
 
+  if (
+    actual &&
+    actual.correo !== correo &&
+    actual.creadoEn != null &&
+    deps.ahora().getTime() - actual.creadoEn.getTime() < INTERVALO_OTRA_CUENTA_MS
+  ) {
+    return falla("ESPERA");
+  }
+
   let encontrado: ConsentimientoMp | undefined;
+  /** `true` si la invitación la acaba de crear este pedido (todavía la tiene que aceptar). */
+  let nueva = false;
   try {
     const creados = await deps.mp.invitar(correo);
     encontrado = creados.find((c) => c.sellerEmail.trim().toLowerCase() === correo);
+    nueva = encontrado != null && normalizarEstadoMp(encontrado.status) !== "ACTIVE";
     // Ya invitado antes (o aceptado): Mercado Pago no lo devuelve como creado.
     if (!encontrado) {
       const existentes = await deps.mp.listar();
@@ -131,6 +155,15 @@ export async function pedirInvitacion(
     return falla("ERROR_MP");
   }
   if (!encontrado?.receiverId) return falla("MP_RECHAZO");
+
+  // Una invitación nueva sólo la puede aceptar quien entra a esa cuenta de Mercado Pago. Una que
+  // ya existía (o ya está aceptada) puede ser de otra persona: si se tomara, sus ventas le
+  // pagarían a una cuenta ajena. Se vincula sólo si es la cuenta conectada por OAuth.
+  const yaEraDeEstaPersona = actual?.receiverId === encontrado.receiverId;
+  if (!nueva && !yaEraDeEstaPersona && (!input.mpUserId || input.mpUserId !== encontrado.receiverId)) {
+    console.warn("[split-1n-consentimiento] invitacion_previa_sin_verificar", { userId: input.userId });
+    return falla("YA_INVITADO");
+  }
 
   const deOtro = await deps.repo.buscarPorReceiver(encontrado.receiverId);
   if (deOtro && deOtro.userId != null && deOtro.userId !== input.userId) {
@@ -148,7 +181,12 @@ export async function pedirInvitacion(
     estado: normalizarEstadoMp(encontrado.status) ?? "PENDING",
     inviteUrl: encontrado.inviteUrl ?? (deOtro?.inviteUrl || null),
   };
-  await deps.repo.guardar(input.userId, fila, ahora);
+  try {
+    await deps.repo.guardar(input.userId, fila, ahora);
+  } catch (err: unknown) {
+    if (err instanceof Error && err.message === "CUENTA_DE_OTRO_USUARIO") return falla("CUENTA_DE_OTRO_USUARIO");
+    throw err;
+  }
   return { ok: true, vista: vista(fila, ahora) };
 }
 
