@@ -372,10 +372,18 @@ igual (idempotente por pedido).
 |---|---|
 | `DNX_CLF_SPLIT_1N_CARRITO_EVENTO_ENABLED` | `true` para encender; ausente o cualquier otra cosa apaga |
 | `DNX_CLF_SPLIT_1N_CARRITO_EVENTO_IDS` | ids de `Event` separados por coma |
+| `DNX_CLF_SPLIT_1N_CARRITO_EVENTO_TODOS` | `true`: todos los eventos son candidatos (sin lista) |
 | `DNX_CLF_SPLIT_1N_MAX_RECEPTORES` | tope de cuentas por orden contando la plataforma; por defecto 10, se acota a 2–11 |
 
 Los fotógrafos, referidores y organizador tienen que estar en `DNX_CLF_SPLIT_1N_PILOTO_RECEIVERS`;
 los álbumes **no** necesitan estar en `DNX_CLF_SPLIT_1N_PILOTO_ALBUM_IDS` (el permiso es por evento).
+
+**Condición para que un evento muestre el carrito (10/11/2026):** además de estar encendido,
+**todas las partes del evento** tienen que haber aceptado el cobro dividido en Mercado Pago: el
+fotógrafo de cada álbum público con fotos, sus referidores, el organizador y su referidor (en
+`DNX_CLF_SPLIT_1N_PILOTO_RECEIVERS` o con consentimiento ACTIVE en CLF). Si falta una sola, el
+evento sigue como hoy (cada foto lleva a su álbum), y si alguien deja de tenerlo después, la
+compra se ofrece álbum por álbum (`evento-listo.ts`).
 
 **Apagado (estado actual):** la galería sigue llevando a cada álbum, la ruta del carrito y
 `/pagar/grupo/*` dan 404, y la ruta de pedidos de álbum se comporta igual que antes.

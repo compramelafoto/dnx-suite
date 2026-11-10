@@ -4,7 +4,7 @@ import {
   type ElegibilidadInput,
   type ReceptoresPiloto,
 } from "../split-1n-piloto/elegibilidad";
-import type { CarritoConfig } from "./config";
+import { eventoHabilitado, type CarritoConfig } from "./config";
 
 /** Un álbum del carrito con lo que necesita la elegibilidad del piloto. */
 export type AlbumDelCarrito = Omit<ElegibilidadInput, "config"> & {
@@ -46,7 +46,7 @@ export function evaluarElegibilidadGrupo(params: {
   albumes: AlbumDelCarrito[];
 }): ElegibilidadGrupo {
   const { piloto, carrito, eventId } = params;
-  if (!carrito.enabled || !piloto.enabled || !carrito.eventIds.has(eventId)) {
+  if (!carrito.enabled || !piloto.enabled || !eventoHabilitado(carrito, eventId)) {
     return { ok: false, motivos: [{ albumId: null, motivo: "carrito_apagado" }] };
   }
   if (params.albumes.length === 0) return { ok: false, motivos: [{ albumId: null, motivo: "carrito_vacio" }] };

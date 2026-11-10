@@ -10,6 +10,7 @@ import { buscarOrganizador } from "../split-1n-piloto/organizador";
 import { buscarReferidorActivo } from "../split-1n-piloto/referidor";
 import { carritoActivoParaEvento, resolveCarritoConfig } from "./config";
 import { evaluarElegibilidadGrupo, type AlbumDelCarrito, type MotivoGrupo } from "./elegibilidad-grupo";
+import { eventoListoParaCarrito } from "./evento-listo";
 import { marcarSnapshotGrupo, urlPagoGrupo } from "./marca";
 
 export { urlPagoGrupo };
@@ -141,7 +142,11 @@ async function prepararCarrito(shareSlug: string, fotosRaw: unknown) {
     });
   }
   delEvento.sort((a, b) => a.albumId - b.albumId);
-  const elegibilidad = evaluarElegibilidadGrupo({ piloto, carrito, eventId: event.id, albumes });
+  // Condición del carrito: todas las partes del evento aceptaron el cobro dividido. Si alguna
+  // dejó de tenerlo, la compra se ofrece álbum por álbum, como siempre.
+  const elegibilidad = (await eventoListoParaCarrito({ piloto, carrito, eventId: event.id }))
+    ? evaluarElegibilidadGrupo({ piloto, carrito, eventId: event.id, albumes })
+    : { ok: false as const, motivos: [{ albumId: null, motivo: "evento_incompleto" }] };
   return { ok: true as const, event, delEvento, elegibilidad };
 }
 

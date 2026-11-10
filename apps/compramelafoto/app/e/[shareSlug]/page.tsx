@@ -10,7 +10,8 @@ import EventGallery from "./EventGallery";
 import EventLocationMapSection from "./EventLocationMapSection";
 import EventAlbumShareBlock from "./EventAlbumShareBlock";
 import { ensureEventAlbumTitles } from "@/lib/events/event-album";
-import { resolvePilotoConfig } from "@/lib/split-1n-piloto/config";
+import { cargarConfigPiloto } from "@/lib/split-1n-piloto/receptores-clf";
+import { eventoListoParaCarrito } from "@/lib/split-1n-carrito-evento/evento-listo";
 import { carritoActivoParaEvento, resolveCarritoConfig } from "@/lib/split-1n-carrito-evento/config";
 import {
   eventPhotoPricingEnrollmentCopy,
@@ -101,6 +102,15 @@ export default async function PublicEventPage({
   if (!event || !canAccessEventByShareSlug(event)) return notFound();
 
   await ensureEventAlbumTitles(event.id, event.title);
+
+  // Carrito de evento (Split 1:N): sólo si está encendido y todas las partes del evento
+  // aceptaron el cobro dividido en Mercado Pago. Si no, la galería lleva a cada álbum.
+  const carritoConfig = resolveCarritoConfig();
+  const pilotoConfig = carritoConfig.enabled ? await cargarConfigPiloto() : null;
+  const carritoEvento =
+    pilotoConfig != null &&
+    carritoActivoParaEvento(carritoConfig, pilotoConfig, event.id) &&
+    (await eventoListoParaCarrito({ piloto: pilotoConfig, carrito: carritoConfig, eventId: event.id }));
 
   const user = await getAuthUser();
   const isPhotographer =
@@ -250,7 +260,7 @@ export default async function PublicEventPage({
         />
         <EventGallery
           shareSlug={shareSlug}
-          carritoEvento={carritoActivoParaEvento(resolveCarritoConfig(), resolvePilotoConfig(), event.id)}
+          carritoEvento={carritoEvento}
         />
       </main>
     </div>
