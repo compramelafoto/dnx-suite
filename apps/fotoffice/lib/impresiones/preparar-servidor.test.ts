@@ -55,6 +55,7 @@ const H = vi.hoisted(() => {
     fotofficeProyecto: {
       findMany: vi.fn(async (..._a: unknown[]) => [] as { id: string; number?: string; proveedorId?: string | null; proveedorEnviadoAt: Date | null }[]),
       update: vi.fn(async (..._a: unknown[]) => ({})),
+      findFirst: vi.fn(async (..._a: unknown[]) => null as { proveedorMensaje: string | null } | null),
     },
     fotofficeArchivoTrabajo: {
       create: vi.fn(async (..._a: unknown[]) => ({})),

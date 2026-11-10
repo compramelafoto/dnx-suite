@@ -231,6 +231,8 @@ export async function crearPedidoDeMostrador(d: {
       select: { id: true, number: true },
     });
     await tx.fotofficePrintOrderItem.createMany({ data: items.map((i) => ({ ...i, orderId: creado.id })) });
+    // El mensaje para el laboratorio que se escribió al preparar: queda en cada trabajo (va en el correo).
+    const prep = await tx.fotofficePreparacionImpresion.findFirst({ where: { id: d.preparacionId, workspaceId }, select: { mensajeProveedor: true } });
     for (const x of porRenglon) {
       // El costo del laboratorio, si el catálogo lo sabe; si no, el del trabajo queda como estaba.
       const costo = x.renglon.costoUnitario;
@@ -238,6 +240,7 @@ export async function crearPedidoDeMostrador(d: {
         where: { workspaceId, pedidoId: d.pedidoId, pedidoItemIndex: x.itemIndex },
         data: {
           proveedorId: x.renglon.proveedorId,
+          ...(prep?.mensajeProveedor ? { proveedorMensaje: prep.mensajeProveedor } : {}),
           ...(typeof costo === "number" && Number.isFinite(costo) ? { proveedorCostoArs: Math.round(costo * x.renglon.cantidad * 100) / 100 } : {}),
         },
       });

@@ -385,6 +385,8 @@ export async function prepararPedido(
       });
       const enlace = await emitirEnlace(ws, proyectoId, "LABORATORIO", ahora);
       if (!enlace.ok) throw new Error(enlace.error);
+      // El mensaje para el laboratorio que se escribió al preparar el pedido en el Mostrador.
+      const trabajo = await prisma.fotofficeProyecto.findFirst({ where: { id: proyectoId, workspaceId: ws }, select: { proveedorMensaje: true } });
 
       const correo = correoPedidoLab({
         estudio: branding?.commercialName ?? "El estudio",
@@ -398,6 +400,7 @@ export async function prepararPedido(
         plazo: items[0]?.plazo === "SEMANA" ? "SEMANA" : items[0]?.plazo === "MANANA" ? "MANANA" : null,
         calidadBaja: items.filter((i) => i.calidadBaja).map((i) => i.sourceName),
         sinRecorte: items.some((i) => i.sinRecorte),
+        mensaje: trabajo?.proveedorMensaje ?? null,
       });
       const r = await enviar({ to: destino, ...correo, sender: await loadWorkspaceSender(ws) });
       if (r.status !== "SENT") throw new Error(`El correo a ${prov.name} no salió (${r.status}).`);

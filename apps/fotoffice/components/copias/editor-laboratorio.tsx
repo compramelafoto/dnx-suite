@@ -28,6 +28,7 @@ import {
   confirmarOriginalAction,
   estadoLaboratorioAction,
   guardarPiezasLaboratorioAction,
+  guardarProveedorLaboratorioAction,
   listoLaboratorioAction,
   pedirSubidaOriginalAction,
   quitarFotoLaboratorioAction,
@@ -79,6 +80,11 @@ export function EditorLaboratorio({
   const [lote, setLote] = useState<CambioLab>({});
   const [abierta, setAbierta] = useState<string | null>(null);
   const [arrastrando, setArrastrando] = useState(false);
+  // A qué laboratorio va el pedido ("" = el de cada producto) y el mensaje para él.
+  const [laboratorios, setLaboratorios] = useState<{ id: string; name: string }[]>([]);
+  const [porDefecto, setPorDefecto] = useState<string[]>([]);
+  const [laboratorio, setLaboratorio] = useState("");
+  const [mensaje, setMensaje] = useState("");
   /** Fotos soltadas mientras otras se subían: no se suben, se avisa. */
   const [soltadasDeMas, setSoltadasDeMas] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -100,6 +106,10 @@ export function EditorLaboratorio({
         setFotos(e.fotos.map(aVista));
         setOpciones(e.opciones);
         setNuevas(valoresIniciales(e.opciones));
+        setLaboratorios(e.proveedores);
+        setPorDefecto(e.porDefecto);
+        setLaboratorio(e.proveedorId ?? "");
+        setMensaje(e.mensaje);
       })
       .catch(() => {
         if (vigente) setError("No se pudo leer lo ya preparado. Probá de nuevo.");
@@ -236,6 +246,11 @@ export function EditorLaboratorio({
     setErrorListo(null);
     try {
       if (nuevas && !(await guardar(piezasFaltantes(fotos, nuevas)))) return;
+      const g = await guardarProveedorLaboratorioAction(preparacionId, laboratorio, mensaje);
+      if (!g.ok) {
+        setErrorListo(g.error);
+        return;
+      }
       const r = await listoLaboratorioAction(preparacionId);
       if (!r.ok) {
         setErrorListo(r.error);
@@ -453,6 +468,40 @@ export function EditorLaboratorio({
         ) : (
           <p className="text-sm text-[var(--fo-muted)]">Todavía no hay fotos en el pedido.</p>
         )}
+        <div className="grid gap-3 border-t border-[var(--fo-border)] pt-3 sm:grid-cols-2">
+          <label className="block space-y-1 text-sm">
+            <span className="font-medium">Laboratorio</span>
+            <select
+              value={laboratorio}
+              onChange={(e) => setLaboratorio(e.target.value)}
+              disabled={trabajando}
+              className="fo-input h-10 w-full text-sm"
+              aria-label="Laboratorio al que va el pedido"
+            >
+              <option value="">{porDefecto.length > 0 ? `El de cada producto (${porDefecto.join(", ")})` : "El de cada producto"}</option>
+              {laboratorios.map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.name}
+                </option>
+              ))}
+            </select>
+            <span className="block text-xs text-[var(--fo-muted)]">Elegí uno para mandar todas las fotos de este pedido a ese laboratorio.</span>
+          </label>
+          <label className="block space-y-1 text-sm">
+            <span className="font-medium">Mensaje para el laboratorio</span>
+            <textarea
+              value={mensaje}
+              onChange={(e) => setMensaje(e.target.value.slice(0, 1000))}
+              rows={3}
+              maxLength={1000}
+              disabled={trabajando}
+              placeholder="Ej.: es urgente, retira el viernes a la mañana."
+              className="fo-input w-full resize-y py-2 text-sm"
+              aria-label="Mensaje para el laboratorio"
+            />
+            <span className="block text-xs text-[var(--fo-muted)]">Le llega en el correo del pedido como «Indicaciones».</span>
+          </label>
+        </div>
         <p className="text-xs text-[var(--fo-muted)]">El precio en pesos aparece en el ticket al tocar «Listo».</p>
         {errorListo ? (
           <p className="fo-alert-error" role="alert">

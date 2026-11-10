@@ -38,4 +38,11 @@ describe("correoPedidoLab: pedidos del bot", () => {
     expect(c.text).toContain("originales, sin recortar");
     expect(c.html).toContain("foto-2.jpg");
   });
+
+  it("el mensaje que se escribió al preparar va como «Indicaciones», escapado en el HTML", () => {
+    const c = correoPedidoLab({ ...base, mensaje: "  Urgente <ojo>  " });
+    expect(c.text).toContain("Indicaciones: Urgente <ojo>");
+    expect(c.html).toContain("Indicaciones: Urgente &lt;ojo&gt;");
+    expect(correoPedidoLab({ ...base, mensaje: "   " }).text).not.toContain("Indicaciones");
+  });
 });

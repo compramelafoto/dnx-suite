@@ -22366,6 +22366,8 @@ model FotofficeProyecto {
   proveedorRef       String?
   proveedorCostoArs  Decimal?  @db.Decimal(14, 2)
   proveedorEnviadoAt DateTime?
+  /// Mensaje para el proveedor que escribió el cajero al armar el pedido: va en el correo.
+  proveedorMensaje      String?
   /// Primera vez que el laboratorio abrió la carpeta con su enlace.
   proveedorAbiertoAt    DateTime?
   /// Primera vez que el laboratorio bajó un archivo de la carpeta.
@@ -23539,6 +23541,10 @@ model FotofficePreparacionImpresion {
   estado          String   @default("PREPARANDO")
   /// A dónde va a imprimirse: LOCAL | LABORATORIO (CHECK en el SQL)
   destino         String   @default("LOCAL")
+  /// Laboratorio elegido al preparar el pedido (null = el de cada producto en el catálogo).
+  proveedorId     String?
+  /// Mensaje para el laboratorio escrito al preparar el pedido: va en el correo.
+  mensajeProveedor String?
   createdByUserId Int?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt

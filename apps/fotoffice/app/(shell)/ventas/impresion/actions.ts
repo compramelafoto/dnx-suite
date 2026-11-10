@@ -16,6 +16,7 @@ import {
   crearPreparacionLaboratorio,
   estadoLaboratorio,
   guardarPiezasLaboratorio,
+  guardarProveedorLaboratorio,
   quitarFotoLaboratorio,
   renglonesDeLaPreparacion,
   type PiezaLabEntrada,
@@ -92,6 +93,12 @@ export async function crearPreparacionLaboratorioAction(d: { clientId: string | 
 export async function estadoLaboratorioAction(preparacionId: string) {
   const ctx = await ctxImpresion();
   return estadoLaboratorio(ctx, preparacionId);
+}
+
+/** «Laboratorio» y «Mensaje para el laboratorio» del pedido para laboratorio. */
+export async function guardarProveedorLaboratorioAction(preparacionId: string, proveedorId: string, mensaje: string) {
+  const ctx = await ctxImpresion();
+  return guardarProveedorLaboratorio(ctx, preparacionId, proveedorId, mensaje);
 }
 
 export async function guardarPiezasLaboratorioAction(preparacionId: string, items: PiezaLabEntrada[]) {
