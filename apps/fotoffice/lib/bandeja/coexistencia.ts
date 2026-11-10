@@ -25,7 +25,7 @@ export const MENSAJES_COEXISTENCIA = {
   numero: "No se pudo leer el número conectado en Meta. Probá de nuevo.",
 } as const;
 
-export type DatosCoexistencia = { code: unknown; wabaId: unknown; phoneNumberId: unknown };
+export type DatosCoexistencia = { code: unknown; wabaId: unknown; phoneNumberId: unknown; pagina?: unknown };
 export type ResultadoCoexistencia = { ok: true; tokenPermanente: boolean } | { ok: false; error: string };
 export type DepsCoexistencia = {
   fetch?: typeof fetch;
@@ -72,16 +72,29 @@ export async function conectarCoexistencia(ctx: CtxConsultas, datos: DatosCoexis
   const f = deps.fetch ?? fetch;
   const version = process.env.WHATSAPP_API_VERSION || "v21.0";
 
+  // Con la ventana de Meta (SDK de JavaScript) a veces el canje pide la dirección de la página: se
+  // reintenta con ella. Lo que dijo Meta se muestra, para no adivinar la causa.
+  const pagina = typeof datos?.pagina === "string" && /^https:\/\/[\w.-]+(\/[\w./-]*)?$/.test(datos.pagina) ? datos.pagina : null;
   let canjeado: string | null = null;
-  try {
-    const q = new URLSearchParams({ client_id: META_APP_ID, client_secret: secreto, code });
-    const res = await f(`https://graph.facebook.com/${version}/oauth/access_token?${q}`, { cache: "no-store" });
-    const j = (await res.json().catch(() => null)) as { access_token?: unknown } | null;
-    canjeado = res.ok && typeof j?.access_token === "string" ? j.access_token : null;
-  } catch {
-    canjeado = null;
+  let dijoMeta: string | null = null;
+  for (const redirect of pagina ? [null, pagina] : [null]) {
+    try {
+      const q = new URLSearchParams({ client_id: META_APP_ID, client_secret: secreto, code, ...(redirect ? { redirect_uri: redirect } : {}) });
+      const res = await f(`https://graph.facebook.com/${version}/oauth/access_token?${q}`, { cache: "no-store" });
+      const j = (await res.json().catch(() => null)) as { access_token?: unknown; error?: { message?: unknown } } | null;
+      if (res.ok && typeof j?.access_token === "string") {
+        canjeado = j.access_token;
+        break;
+      }
+      if (typeof j?.error?.message === "string") dijoMeta = j.error.message.slice(0, 200);
+    } catch {
+      dijoMeta = dijoMeta ?? "sin respuesta";
+    }
   }
-  if (!canjeado) return { ok: false, error: MENSAJES_COEXISTENCIA.canje };
+  if (!canjeado) {
+    console.warn("[fotoffice][whatsapp] Meta rechazó el canje del código de coexistencia", { dijoMeta });
+    return { ok: false, error: dijoMeta ? `${MENSAJES_COEXISTENCIA.canje} Meta dijo: ${dijoMeta}` : MENSAJES_COEXISTENCIA.canje };
+  }
 
   if (!wabaId) wabaId = await cuentaDelToken(canjeado, `${META_APP_ID}|${secreto}`, f, version);
   if (wabaId && !phoneNumberId) phoneNumberId = await numeroDeLaCuenta(wabaId, canjeado, f, version);

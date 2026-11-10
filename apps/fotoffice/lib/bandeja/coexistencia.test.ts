@@ -47,7 +47,7 @@ describe("conectarCoexistencia", () => {
     const guardar = vi.fn();
     expect(await conectarCoexistencia(CTX, { ...DATOS, code: "x" }, { fetch: f, guardar, appSecret: "s" })).toEqual({ ok: false, error: MENSAJES_COEXISTENCIA.datos });
     expect(await conectarCoexistencia(CTX, DATOS, { fetch: f, guardar, appSecret: "" })).toEqual({ ok: false, error: MENSAJES_COEXISTENCIA.sinSecreto });
-    expect(await conectarCoexistencia(CTX, DATOS, { fetch: f, guardar, appSecret: "s" })).toEqual({ ok: false, error: MENSAJES_COEXISTENCIA.canje });
+    expect(await conectarCoexistencia(CTX, DATOS, { fetch: f, guardar, appSecret: "s" })).toEqual({ ok: false, error: `${MENSAJES_COEXISTENCIA.canje} Meta dijo: expired` });
     expect(guardar).not.toHaveBeenCalled();
   });
 
@@ -66,5 +66,27 @@ describe("conectarCoexistencia", () => {
     expect(r).toEqual({ ok: true, tokenPermanente: false });
     expect(guardar).toHaveBeenCalledWith(CTX, expect.objectContaining({ wabaId: "288314434371834", phoneNumberId: "1111222233334444" }));
     expect(llamadas.find((u) => u.includes("/debug_token"))).toContain("access_token=2188321802064982%7Csecreto");
+  });
+
+  it("si Meta rechaza el canje, lo reintenta con la dirección de la página y, si igual falla, muestra lo que dijo Meta", async () => {
+    const urls: string[] = [];
+    const f = (async (url: string) => {
+      urls.push(url);
+      if (url.includes("/oauth/access_token")) {
+        return url.includes("redirect_uri=")
+          ? new Response(JSON.stringify({ access_token: "token-canjeado" }))
+          : new Response(JSON.stringify({ error: { message: "Error validating verification code. Please make sure your redirect_uri is identical" } }), { status: 400 });
+      }
+      if (url.includes("/1111222233334444?")) return new Response(JSON.stringify({ id: "1111222233334444", display_phone_number: "+54 9 341 341-9869" }));
+      return new Response("{}", { status: 404 });
+    }) as typeof fetch;
+    const guardar = vi.fn(async () => ({ ok: true as const }));
+    const datos = { ...DATOS, pagina: "https://fotoffice.com/workspace/configuracion/whatsapp" };
+    expect(await conectarCoexistencia(CTX, datos, { fetch: f, guardar, leerToken: async () => null, appSecret: "s" })).toEqual({ ok: true, tokenPermanente: false });
+    expect(urls.filter((u) => u.includes("/oauth/access_token"))[1]).toContain("redirect_uri=https%3A%2F%2Ffotoffice.com%2Fworkspace%2Fconfiguracion%2Fwhatsapp");
+
+    const siempreMal = (async () => new Response(JSON.stringify({ error: { message: "Invalid code" } }), { status: 400 })) as typeof fetch;
+    const r = await conectarCoexistencia(CTX, datos, { fetch: siempreMal, guardar, appSecret: "s" });
+    expect(r).toEqual({ ok: false, error: `${MENSAJES_COEXISTENCIA.canje} Meta dijo: Invalid code` });
   });
 });
