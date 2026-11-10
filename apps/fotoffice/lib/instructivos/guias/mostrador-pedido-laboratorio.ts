@@ -96,7 +96,7 @@ export const guia: Instructivo = {
         "Pasados unos minutos, el sistema prepara las fotos y le manda a cada laboratorio UN correo con el enlace para bajar todas las fotos, ordenadas por tamaño, papel y cantidad.",
         "El trabajo pasa solo a «En el proveedor». No tenés que escribirle ni subir nada a mano.",
       ],
-      nota: "Si Impresiones está en «modo prueba», el correo del laboratorio te llega a vos, al correo de contacto del estudio, y no al laboratorio.",
+      nota: "El correo le llega al «Correo para los pedidos» de cada laboratorio (Configuración → Proveedores). Si un laboratorio cambia de correo, actualizalo ahí.",
     },
     {
       titulo: "Seguí el pedido hasta que el laboratorio lo descarga",

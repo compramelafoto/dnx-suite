@@ -49,7 +49,7 @@ export const guia: Instructivo = {
       titulo: "Tu rutina del día",
       texto: [
         "Al abrir: abrí la caja (guía «Abrir la caja al empezar el día») y mirá en Proyectos → «En curso» qué hay vencido y qué está listo para retirar.",
-        "Durante el día: cobrá en el Cobrador, tomá los trabajos con seña y marcá en el tablero lo que va y vuelve del laboratorio.",
+        "Durante el día: cobrá en el Cobrador, tomá los trabajos con seña y marcá en el tablero lo que va y vuelve del laboratorio. Para saber cómo cargar cada tipo de pedido (copias, cuadros, fotolibros, revelado, digitalización, carnet), mirá la guía «Todos los tipos de pedido: cómo cargar cada uno».",
         "Al cerrar: anotá los gastos del día y cerrá la caja con el arqueo (guía «Cerrar la caja y hacer el arqueo»).",
       ],
     },
