@@ -48,6 +48,8 @@ describe("configuración del carrito de evento", () => {
 
 const piloto: PilotoConfig = {
   enabled: true,
+  todosLosAlbumes: false,
+  receptoresDesdeClf: false,
   albumIds: new Set(),
   receiverByUserId: new Map([
     [1, "rcv-a"],

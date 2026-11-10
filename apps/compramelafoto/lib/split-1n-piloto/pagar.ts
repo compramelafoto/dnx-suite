@@ -11,7 +11,6 @@ import {
 import { prisma } from "@/lib/prisma";
 import { getOrderDownloadCenterAccessToken } from "@/lib/digital-download/load-download-center";
 import { resolveClientDigitalDownloadLinks } from "@/lib/digital-download/download-center-rollout";
-import { resolvePilotoConfig } from "./config";
 import { prepararCobro } from "./cobro";
 import { referenciaPedido } from "./decidir";
 import { evaluarElegibilidadPiloto } from "./elegibilidad";
@@ -22,6 +21,7 @@ import { crearClientesPiloto, leerOrdenMp } from "./mp";
 import { cargarPedidoPiloto } from "./pedido";
 import { buscarOrganizador } from "./organizador";
 import { buscarReferidorActivo } from "./referidor";
+import { cargarConfigPiloto } from "./receptores-clf";
 import { leerMarcaPiloto, marcarSnapshotPiloto, type MarcaPiloto } from "./snapshot";
 
 export type PagarPilotoResult =
@@ -105,7 +105,7 @@ export async function pagarPedidoPiloto(input: {
   pedidoId: number;
   cardPayment: CardPaymentSubmission;
 }): Promise<PagarPilotoResult> {
-  const config = resolvePilotoConfig();
+  const config = await cargarConfigPiloto();
   const cargado = await cargarPedidoPiloto(input.pedidoId);
   if (!cargado) return falla("NO_DISPONIBLE");
   const { order, feePesos, basePesos } = cargado;

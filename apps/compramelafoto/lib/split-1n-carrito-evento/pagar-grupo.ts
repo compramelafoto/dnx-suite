@@ -9,7 +9,7 @@ import {
   toOrdersCardPaymentMethod,
 } from "@repo/payments/mercado-pago";
 import { prisma } from "@/lib/prisma";
-import { resolvePilotoConfig } from "../split-1n-piloto/config";
+import { cargarConfigPiloto } from "../split-1n-piloto/receptores-clf";
 import { clasificarErrorCobro } from "../split-1n-piloto/intento";
 import { mensajeRechazo } from "../split-1n-piloto/mensajes";
 import { crearClientesPiloto, leerOrdenMp } from "../split-1n-piloto/mp";
@@ -128,7 +128,7 @@ export async function pagarGrupo(input: {
   grupoId: string;
   cardPayment: CardPaymentSubmission;
 }): Promise<PagarPilotoResult> {
-  const piloto = resolvePilotoConfig();
+  const piloto = await cargarConfigPiloto();
   const carrito = resolveCarritoConfig();
   const grupo = await cargarGrupo(input.grupoId);
   if (!grupo || !carritoActivoParaEvento(carrito, piloto, grupo.eventId)) return falla("NO_DISPONIBLE");

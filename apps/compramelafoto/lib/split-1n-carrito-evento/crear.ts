@@ -5,7 +5,7 @@ import { albumPhotoFileKey } from "@/lib/album-photo-ref";
 import { computeCheckoutTotals } from "@/lib/pricing/pricing-engine";
 import { albumUsaPagoSimulado } from "@/lib/demos/pago-simulado-galeria";
 import { canAccessEventByShareSlug } from "@/lib/public/public-events";
-import { resolvePilotoConfig } from "../split-1n-piloto/config";
+import { cargarConfigPiloto } from "../split-1n-piloto/receptores-clf";
 import { buscarOrganizador } from "../split-1n-piloto/organizador";
 import { buscarReferidorActivo } from "../split-1n-piloto/referidor";
 import { carritoActivoParaEvento, resolveCarritoConfig } from "./config";
@@ -64,7 +64,7 @@ async function prepararCarrito(shareSlug: string, fotosRaw: unknown) {
     where: { shareSlug },
     select: { id: true, title: true, visibility: true, archivedAt: true },
   });
-  const piloto = resolvePilotoConfig();
+  const piloto = await cargarConfigPiloto();
   const carrito = resolveCarritoConfig();
   if (!event || !canAccessEventByShareSlug(event) || !carritoActivoParaEvento(carrito, piloto, event.id)) {
     return { ok: false as const, status: 404, error: "No disponible." };

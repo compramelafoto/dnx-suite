@@ -24,6 +24,8 @@ describe("configuración del piloto", () => {
 
 const encendido: PilotoConfig = {
   enabled: true,
+  todosLosAlbumes: false,
+  receptoresDesdeClf: false,
   albumIds: new Set([12]),
   receiverByUserId: new Map([
     [35, "aaa"],

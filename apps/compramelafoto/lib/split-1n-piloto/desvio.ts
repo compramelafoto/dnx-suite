@@ -1,9 +1,10 @@
 import { OrderOrigin, type Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { resolvePilotoConfig } from "./config";
+import { albumEnPiloto } from "./config";
 import { evaluarElegibilidadPiloto } from "./elegibilidad";
 import { buscarOrganizador } from "./organizador";
 import { buscarReferidorActivo } from "./referidor";
+import { cargarConfigPiloto } from "./receptores-clf";
 import { marcarSnapshotPiloto } from "./snapshot";
 
 /** Página de pago del piloto: reemplaza al `init_point` de Checkout Pro. */
@@ -27,8 +28,8 @@ export async function desviarAlPilotoSiCorresponde(params: {
   esPagoSimulado: boolean;
 }): Promise<string | null> {
   try {
-    const config = resolvePilotoConfig();
-    if (!config.enabled || !config.albumIds.has(params.order.albumId)) return null;
+    const config = await cargarConfigPiloto();
+    if (!config.enabled || !albumEnPiloto(config, params.order.albumId)) return null;
 
     const referrerUserId =
       params.photographerUserId != null
