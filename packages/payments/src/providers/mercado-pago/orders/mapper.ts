@@ -161,12 +161,16 @@ export function toOrdersCardPaymentMethod(
   const esDebitoPorId = raw.startsWith("deb") && raw.length > 3;
   const id = esDebitoPorId ? raw.slice(3) : raw;
   const informado = paymentTypeId?.trim().toLowerCase();
+  // Orders sólo acepta credit_card y debit_card: con prepaid_card responde "invalid payment
+  // method type" (pedido 6095). La prepaga (Naranja X) pasó como credit_card (pedido 6082).
   const type: OrdersCardPaymentType =
-    informado === "debit_card" || informado === "prepaid_card" || informado === "credit_card"
-      ? informado
-      : esDebitoPorId
-        ? "debit_card"
-        : "credit_card";
+    informado === "debit_card"
+      ? "debit_card"
+      : informado === "credit_card" || informado === "prepaid_card"
+        ? "credit_card"
+        : esDebitoPorId
+          ? "debit_card"
+          : "credit_card";
   return { id, type };
 }
 
