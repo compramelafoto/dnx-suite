@@ -110,7 +110,7 @@ export async function cambiarBotAction(_prev: EstadoWhatsappConfig | undefined, 
 }
 
 /** Conectar el número en coexistencia: lo llama el botón después de la ventana de Meta. */
-export async function conectarCoexistenciaAction(datos: { code: string; wabaId: string; phoneNumberId: string }): Promise<{ ok: true; aviso: string } | { ok: false; error: string }> {
+export async function conectarCoexistenciaAction(datos: { code: string; wabaId: string; phoneNumberId: string; pagina?: string }): Promise<{ ok: true; aviso: string } | { ok: false; error: string }> {
   const ctx = await contexto();
   if (!ctx) return { ok: false, error: MENSAJES_CONEXION.sinPermiso };
   const { conectarCoexistencia } = await import("@/lib/bandeja/coexistencia");

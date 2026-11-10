@@ -75,7 +75,7 @@ export function ConectarCoexistencia({ appId, configId }: { appId: string; confi
           for (let i = 0; i < 12 && !datos.current.phoneNumberId; i++) await new Promise((x) => setTimeout(x, 250));
           // Si Meta no mandó la cuenta o el número, el servidor los busca con el código.
           const { wabaId, phoneNumberId } = datos.current;
-          const res = await conectarCoexistenciaAction({ code, wabaId: wabaId ?? "", phoneNumberId: phoneNumberId ?? "" });
+          const res = await conectarCoexistenciaAction({ code, wabaId: wabaId ?? "", phoneNumberId: phoneNumberId ?? "", pagina: `${window.location.origin}${window.location.pathname}` });
           setEstado(res.ok ? { tipo: "ok", texto: res.aviso } : { tipo: "error", texto: res.error });
         })();
       },
