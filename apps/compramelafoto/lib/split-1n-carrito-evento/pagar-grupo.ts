@@ -10,6 +10,8 @@ import {
 } from "@repo/payments/mercado-pago";
 import { prisma } from "@/lib/prisma";
 import { cargarConfigPiloto } from "../split-1n-piloto/receptores-clf";
+import { aplicarEstadosConsultados } from "../split-1n-consentimiento/servicio";
+import { crearRepositorioConsentimiento } from "../split-1n-consentimiento/repositorio";
 import { clasificarErrorCobro } from "../split-1n-piloto/intento";
 import { mensajeRechazo } from "../split-1n-piloto/mensajes";
 import { crearClientesPiloto, leerOrdenMp } from "../split-1n-piloto/mp";
@@ -172,6 +174,9 @@ export async function pagarGrupo(input: {
     const consultas = await Promise.all([...receptores].map((r) => clientes.consents.getConsent(r)));
     if (consultas.some((c) => c?.status !== "ACTIVE")) {
       console.warn("[carrito-evento] consentimiento_no_activo", { grupoId });
+      if (piloto.receptoresDesdeClf && piloto.ownerUserId) {
+        await aplicarEstadosConsultados(crearRepositorioConsentimiento(piloto.ownerUserId), consultas);
+      }
       return falla("CONSENTIMIENTO_NO_ACTIVO");
     }
     const correosReceptores = [

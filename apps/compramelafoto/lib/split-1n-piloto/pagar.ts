@@ -22,6 +22,8 @@ import { cargarPedidoPiloto } from "./pedido";
 import { buscarOrganizador } from "./organizador";
 import { buscarReferidorActivo } from "./referidor";
 import { cargarConfigPiloto } from "./receptores-clf";
+import { aplicarEstadosConsultados } from "../split-1n-consentimiento/servicio";
+import { crearRepositorioConsentimiento } from "../split-1n-consentimiento/repositorio";
 import { leerMarcaPiloto, marcarSnapshotPiloto, type MarcaPiloto } from "./snapshot";
 
 export type PagarPilotoResult =
@@ -167,6 +169,10 @@ export async function pagarPedidoPiloto(input: {
     const consultas = await Promise.all(receptores.map((r) => clientes.consents.getConsent(r)));
     if (consultas.some((c) => c?.status !== "ACTIVE")) {
       console.warn("[split-1n-piloto] consentimiento_no_activo", { pedidoId: order.id });
+      // Queda guardado en CLF: el próximo pedido ya no se desvía al pago con tarjeta.
+      if (config.receptoresDesdeClf && config.ownerUserId) {
+        await aplicarEstadosConsultados(crearRepositorioConsentimiento(config.ownerUserId), consultas);
+      }
       return falla("CONSENTIMIENTO_NO_ACTIVO");
     }
     // Quien paga no puede cobrar: se compara con los correos de Mercado Pago y con los de CLF.
