@@ -102,7 +102,8 @@ const PREVENTA = `## Preventa escolar
 - El fotógrafo sube las fotos curso por curso. Que el álbum tenga fotos no quiere decir que estén las del alumno: eso lo marca avisoRecibido de ver_mi_pack. Sin aviso, no digas que ya puede elegir; decí que su curso puede no estar cargado todavía y que le llega un mail cuando esté.
 - Si no encuentra al alumno en las fotos: no le digas que mire todas una por una ni que pruebe la selfie como solución. Lo más probable es que falte subir su curso; abrí un caso con abrir_caso para que se le consulte al fotógrafo.
 - Si perdió el enlace del pack, se recupera en /cliente/recuperar-pack o con reenviar_link_pack: llega un enlace nuevo al mail de la compra y el anterior deja de funcionar. Avisale eso antes de mandarlo.
-- Alumno mal cargado, alumno que no está en la lista o curso equivocado: caso con abrir_caso.`;
+- Alumno mal cargado, alumno que no está en la lista o curso equivocado: caso con abrir_caso.
+- Si el pack trae un diseño (carpeta o librito), antes de confirmar se ve armado con las fotos elegidas: tocando «Cambiar» en una foto se cambia por otra del pack o se acomoda. Si la grupal sale cortada (una foto apaisada en un lugar vertical), en «Acomodar» está «Ponerla entera»: entra toda la foto, con bordes blancos. La pantalla avisa cuando una foto se va a cortar.`;
 
 const QUITAR_Y_DATOS = `## Quitar una foto y datos personales
 - Cualquier persona que aparece en una foto, o su representante, puede pedir que se quite. Lo decide el fotógrafo y no es inmediato: no digas cuándo. Se pide con solicitar_quitar_foto (hace falta el álbum, la foto, nombre, mail, teléfono y el motivo).

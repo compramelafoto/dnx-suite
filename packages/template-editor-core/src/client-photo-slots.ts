@@ -31,12 +31,21 @@ export const CLIENT_PHOTO_ROLE_SLOTS: Record<string, { slotNumber: number; label
 
 export type ClientPhotoRole = "individual" | "group" | "teacher" | "friends" | "extra";
 
-/** Encuadre de una foto en su hueco. `zoom` ≥ 1; `x` e `y` entre -1 y 1 (0 = centrada). */
+/**
+ * Encuadre de una foto en su hueco. `x` e `y` entre -1 y 1 (0 = centrada).
+ *
+ * `zoom` 1 = la foto cubre el hueco justo; más de 1 la acerca. Menos de 1 la aleja: la foto
+ * entra entera y lo que sobra del hueco queda en blanco (una grupal apaisada en un hueco
+ * vertical, por ejemplo). Ver `containPhotoZoom`.
+ */
 export type PhotoCrop = { zoom: number; x: number; y: number };
 
 export const DEFAULT_PHOTO_CROP: PhotoCrop = { zoom: 1, x: 0, y: 0 };
 
 export const PHOTO_CROP_MAX_ZOOM = 4;
+
+/** Lo más que se puede alejar una foto (una panorámica en un hueco muy angosto). */
+export const PHOTO_CROP_MIN_ZOOM = 0.2;
 
 export type ClientPhotoSlot = {
   blockId: string;
@@ -186,7 +195,7 @@ export function normalizePhotoCrop(raw: unknown): PhotoCrop {
   const num = (v: unknown, fallback: number) =>
     typeof v === "number" && Number.isFinite(v) ? v : fallback;
   return {
-    zoom: clamp(num(r.zoom, 1), 1, PHOTO_CROP_MAX_ZOOM),
+    zoom: clamp(num(r.zoom, 1), PHOTO_CROP_MIN_ZOOM, PHOTO_CROP_MAX_ZOOM),
     x: clamp(num(r.x, 0), -1, 1),
     y: clamp(num(r.y, 0), -1, 1),
   };
@@ -194,12 +203,43 @@ export function normalizePhotoCrop(raw: unknown): PhotoCrop {
 
 export type CropRect = { left: number; top: number; width: number; height: number };
 
+type SizesInput = { srcWidth: number; srcHeight: number; slotWidth: number; slotHeight: number };
+
+/**
+ * El zoom con el que la foto entra entera en el hueco (1 si ya entra: misma proporción).
+ * Con un zoom menor a 1 sobra hueco y la foto queda con bordes en blanco.
+ */
+export function containPhotoZoom(input: SizesInput): number {
+  const W = Math.max(1, input.srcWidth);
+  const H = Math.max(1, input.srcHeight);
+  const slotAspect = Math.max(1e-6, input.slotWidth) / Math.max(1e-6, input.slotHeight);
+  const photoAspect = W / H;
+  const z = photoAspect > slotAspect ? slotAspect / photoAspect : photoAspect / slotAspect;
+  return clamp(Math.floor(z * 10000) / 10000, PHOTO_CROP_MIN_ZOOM, 1);
+}
+
+/**
+ * ¿La foto va acostada en un hueco parado, o al revés? Con eso, cubriendo, se pierde mucho de
+ * la foto (en una grupal apaisada en un hueco vertical quedan afuera los chicos de los costados).
+ * Una foto casi cuadrada no cuenta: se recorta poco.
+ */
+export function photoOrientationMismatch(input: SizesInput): boolean {
+  const photoAspect = Math.max(1, input.srcWidth) / Math.max(1, input.srcHeight);
+  const slotAspect = Math.max(1e-6, input.slotWidth) / Math.max(1e-6, input.slotHeight);
+  const umbral = 1.15;
+  return (photoAspect >= umbral && slotAspect <= 1 / umbral) || (photoAspect <= 1 / umbral && slotAspect >= umbral);
+}
+
 /**
  * La porción de la foto (en píxeles de la foto) que se ve en el hueco.
  *
  * Primero se ajusta "cubriendo": el rectángulo más grande con la proporción del hueco que entra
  * en la foto. El zoom lo achica alrededor del centro, y `x`/`y` lo corren sobre lo que sobra:
  * -1 pega el rectángulo al borde izquierdo (o superior), 1 al derecho (o inferior).
+ *
+ * Con zoom menor a 1 el rectángulo puede ser más grande que la foto (de un lado o de los dos):
+ * entonces `left`/`top` dan negativo y lo que queda afuera de la foto es borde en blanco. Ahí
+ * `x`/`y` corren la foto dentro del hueco: -1 la pega a la izquierda (o arriba).
  */
 export function computeCoverCropRect(input: {
   srcWidth: number;
@@ -225,9 +265,10 @@ export function computeCoverCropRect(input: {
   const centerX = W / 2 + (crop.x * (W - width)) / 2;
   const centerY = H / 2 + (crop.y * (H - height)) / 2;
 
+  const between = (n: number, a: number, b: number) => clamp(n, Math.min(a, b), Math.max(a, b));
   return {
-    left: clamp(centerX - width / 2, 0, W - width),
-    top: clamp(centerY - height / 2, 0, H - height),
+    left: between(centerX - width / 2, 0, W - width),
+    top: between(centerY - height / 2, 0, H - height),
     width,
     height,
   };

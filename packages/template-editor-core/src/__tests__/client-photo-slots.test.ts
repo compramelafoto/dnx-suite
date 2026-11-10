@@ -5,9 +5,11 @@ import {
   clientPhotoInputs,
   clientPhotoSlotNumber,
   computeCoverCropRect,
+  containPhotoZoom,
   countClientPhotoInputs,
   listClientPhotoSlots,
   normalizePhotoCrop,
+  photoOrientationMismatch,
 } from "../client-photo-slots";
 
 const img = (id: string, key: string | null, pageIndex = 0, extra: Record<string, unknown> = {}) => ({
@@ -84,6 +86,44 @@ test("recorte con desplazamiento y zoom queda dentro de la foto", () => {
     crop: { zoom: 2, x: 1, y: 1 },
   });
   assert.deepEqual(zoom, { left: 3000, top: 1000, width: 1000, height: 1000 });
+});
+
+test("normaliza el recorte: se puede alejar hasta 0,2, no más", () => {
+  assert.equal(normalizePhotoCrop({ zoom: 0.5, x: 0, y: 0 }).zoom, 0.5);
+  assert.equal(normalizePhotoCrop({ zoom: 0.01, x: 0, y: 0 }).zoom, 0.2);
+});
+
+test("grupal apaisada en hueco vertical: con el zoom de «entera» se ve toda la foto, con bordes arriba y abajo", () => {
+  // Foto 3:2 (6000×4000) en el hueco vertical de la carpeta de Claudia (1649×2493).
+  const sizes = { srcWidth: 6000, srcHeight: 4000, slotWidth: 1649, slotHeight: 2493 };
+  assert.equal(photoOrientationMismatch(sizes), true);
+  const zoom = containPhotoZoom(sizes);
+  assert.ok(zoom > 0.43 && zoom < 0.45, `zoom ${zoom}`);
+  const r = computeCoverCropRect({ ...sizes, crop: { zoom, x: 0, y: 0 } });
+  // Entra todo el ancho de la foto…
+  assert.ok(r.left <= 0 && r.left + r.width >= 6000, JSON.stringify(r));
+  assert.ok(Math.abs(r.left) < 2);
+  // …y sobra alto, repartido arriba y abajo (borde en blanco).
+  assert.ok(r.top < 0 && r.top + r.height > 4000);
+  assert.ok(Math.abs(-r.top - (r.top + r.height - 4000)) < 1);
+  // Misma proporción que el hueco: lo que se ve en pantalla es lo que se imprime.
+  assert.ok(Math.abs(r.width / r.height - 1649 / 2493) < 1e-6);
+});
+
+test("alejada, x/y corren la foto dentro del hueco: -1 la pega arriba, 1 abajo", () => {
+  const sizes = { srcWidth: 6000, srcHeight: 4000, slotWidth: 1000, slotHeight: 1500 };
+  const zoom = containPhotoZoom(sizes);
+  const arriba = computeCoverCropRect({ ...sizes, crop: { zoom, x: 0, y: -1 } });
+  const abajo = computeCoverCropRect({ ...sizes, crop: { zoom, x: 0, y: 1 } });
+  assert.equal(arriba.top, 0);
+  assert.ok(Math.abs(abajo.top + abajo.height - 4000) < 1e-6);
+});
+
+test("misma orientación o casi cuadrada no avisa; entera = 1 si la proporción coincide", () => {
+  assert.equal(photoOrientationMismatch({ srcWidth: 4000, srcHeight: 6000, slotWidth: 1649, slotHeight: 2493 }), false);
+  assert.equal(photoOrientationMismatch({ srcWidth: 4000, srcHeight: 3800, slotWidth: 1649, slotHeight: 2493 }), false);
+  assert.equal(photoOrientationMismatch({ srcWidth: 4000, srcHeight: 6000, slotWidth: 3000, slotHeight: 2000 }), true);
+  assert.equal(containPhotoZoom({ srcWidth: 3000, srcHeight: 2000, slotWidth: 300, slotHeight: 200 }), 1);
 });
 
 test("la foto individual y la grupal van primero, con su nombre", () => {
