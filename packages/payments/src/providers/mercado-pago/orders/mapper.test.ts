@@ -243,7 +243,9 @@ describe("tarjeta de débito en Orders (pedido 6059, 09/11/2026)", () => {
 
   it("el tipo que informa el Brick manda (prepaga o débito con id de marca)", () => {
     assert.deepEqual(toOrdersCardPaymentMethod("visa", "debit_card"), { id: "visa", type: "debit_card" });
-    assert.deepEqual(toOrdersCardPaymentMethod("master", "prepaid_card"), { id: "master", type: "prepaid_card" });
+    // Orders no acepta prepaid_card ("invalid payment method type", pedido 6095); la misma
+    // Naranja X prepaga pasó como credit_card en el pedido 6082.
+    assert.deepEqual(toOrdersCardPaymentMethod("master", "prepaid_card"), { id: "master", type: "credit_card" });
   });
 
   it("una tarjeta de crédito queda igual que antes", () => {
