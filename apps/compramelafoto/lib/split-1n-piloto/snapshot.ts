@@ -7,8 +7,16 @@
 /**
  * - COBRANDO: hay un pedido a Mercado Pago en curso o con resultado incierto. Nadie más cobra.
  * - EN_REVISION: Mercado Pago dejó el pago pendiente; no se puede volver a cobrar.
+ * - CHECKOUT_PRO: el comprador eligió «Pagar con Mercado Pago» (plan B). La tarjeta ya no cobra
+ *   este pedido y Checkout Pro sí: es el único estado del piloto que lo admite.
  */
-export type EstadoPiloto = "PENDIENTE" | "COBRANDO" | "EN_REVISION" | "ACREDITADA" | "PAGADO";
+export type EstadoPiloto =
+  | "PENDIENTE"
+  | "COBRANDO"
+  | "EN_REVISION"
+  | "ACREDITADA"
+  | "PAGADO"
+  | "CHECKOUT_PRO";
 
 export type MarcaPiloto = {
   v: 1;
@@ -53,4 +61,19 @@ export function marcarSnapshotPiloto(
   const base = comoObjeto(snapshot);
   const anterior = leerMarcaPiloto(base) ?? {};
   return { ...base, [CLAVE]: { ...anterior, ...cambios, v: 1 } };
+}
+
+/**
+ * ¿Hay que negarle Checkout Pro a este pedido? Sí, si es del piloto y no eligió el plan B: su
+ * cobro va por tarjeta y puede estar en curso. Crear otro cobro acá es cobrar dos veces.
+ */
+export function bloqueaCheckoutPro(snapshot: unknown): boolean {
+  const marca = leerMarcaPiloto(snapshot);
+  return marca != null && marca.estado !== "CHECKOUT_PRO";
+}
+
+/** ¿El cobro con tarjeta está en curso, en revisión o hecho? (No se le pide que pague otra vez.) */
+export function cobroPilotoEnCurso(snapshot: unknown): boolean {
+  const estado = leerMarcaPiloto(snapshot)?.estado;
+  return estado === "COBRANDO" || estado === "EN_REVISION" || estado === "ACREDITADA" || estado === "PAGADO";
 }

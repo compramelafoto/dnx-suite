@@ -11,6 +11,7 @@ import { DsDashboardInner, DsInfoPanel, DsPageShell } from "@/components/ui/DsLa
 import { DsField } from "@/components/ui/DsField";
 import { DsEmptyState } from "@/components/ui/DsEmptyState";
 import OrganizerPayoutSettingsSection from "@/components/organizer/OrganizerPayoutSettingsSection";
+import CobroDivididoCard from "@/components/mercadopago/CobroDivididoCard";
 import CollaborativeEventSaleBreakdown from "@/components/sales/CollaborativeEventSaleBreakdown";
 import { validateOrganizerPayoutSettingsFieldsClient } from "@/lib/organizer-withdrawal-payout-fields";
 
@@ -543,6 +544,8 @@ export default function OrganizadorComisionesPage() {
               </Card>
             </div>
           )}
+
+          <CobroDivididoCard rol="organizador" />
 
           {summary && (
             <OrganizerPayoutSettingsSection

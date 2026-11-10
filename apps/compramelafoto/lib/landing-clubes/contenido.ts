@@ -7,7 +7,7 @@
  * Respaldo de los textos generales:
  * - Registrarse y crear el evento no cuesta nada: app/registro/organizador/page.tsx y
  *   app/api/organizer/events/route.ts (crear un evento no pide ningún pago); el recargo de CLF lo
- *   paga el comprador (lib/bot/guia/conocimiento.ts, sección «Plata y Mercado Pago»).
+ *   paga el comprador (lib/bot/guia/conocimiento.ts, sección «Dinero y Mercado Pago»).
  * - No hace falta contratar fotógrafos: los fotógrafos se suman al evento y cobran por lo que venden
  *   (app/organizador/page.tsx, preguntas frecuentes; política OPEN / REQUEST / INVITE_ONLY en
  *   app/api/organizer/events/route.ts).

@@ -1,4 +1,4 @@
-import type { PilotoConfig } from "./config";
+import { albumEnPiloto, type PilotoConfig } from "./config";
 
 export type ElegibilidadInput = {
   config: PilotoConfig;
@@ -45,7 +45,7 @@ export type Elegibilidad =
 export function evaluarElegibilidadPiloto(input: ElegibilidadInput): Elegibilidad {
   const { config } = input;
   if (!config.enabled) return { ok: false, motivo: "piloto_apagado" };
-  if (!config.albumIds.has(input.albumId)) return { ok: false, motivo: "album_fuera_de_piloto" };
+  if (!albumEnPiloto(config, input.albumId)) return { ok: false, motivo: "album_fuera_de_piloto" };
   if (input.esEscolar) return { ok: false, motivo: "album_escolar" };
   const org = input.organizador ?? null;
   if (org && org.porcentaje >= 100) return { ok: false, motivo: "organizador_cobra_todo" };

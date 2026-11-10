@@ -5,6 +5,7 @@ import { finalizarPedidoPiloto } from "@/lib/split-1n-piloto/finalizar";
 import { ocultarCorreo } from "@/lib/split-1n-piloto/mensajes";
 import { leerMarcaPiloto } from "@/lib/split-1n-piloto/snapshot";
 import PagarClient from "./PagarClient";
+import PlanBMercadoPago from "./PlanBMercadoPago";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +21,10 @@ export default async function PagarPage({ params }: { params: Promise<{ orderId:
   if (!Number.isInteger(orderId) || orderId <= 0) notFound();
 
   const config = resolvePilotoConfig();
-  if (!config.enabled || !config.publicKey) notFound();
+  // Con el piloto apagado (o sin clave pública) la página sigue atendiendo los pedidos que ya
+  // tienen la marca: sin tarjeta, su única salida es «Pagar con Mercado Pago».
+  const conTarjeta = config.enabled && config.publicKey != null;
+  const conPlanB = config.planB || !conTarjeta;
 
   const cargarPedido = () => prisma.order.findUnique({
     where: { id: orderId },
@@ -56,7 +60,9 @@ export default async function PagarPage({ params }: { params: Promise<{ orderId:
 
   return (
     <main className="mx-auto max-w-lg px-4 py-10">
-      <h1 className="text-2xl font-semibold">Pagar con tarjeta</h1>
+      <h1 className="text-2xl font-semibold">
+        {marca.estado === "CHECKOUT_PRO" || !conTarjeta ? "Pagar con Mercado Pago" : "Pagar con tarjeta"}
+      </h1>
       <p className="mt-2 text-neutral-700">
         {fotos === 1 ? "1 foto" : `${fotos} fotos`} de «{titulo}» · Total{" "}
         <strong>{pesos.format(order.totalCents)}</strong>
@@ -66,19 +72,33 @@ export default async function PagarPage({ params }: { params: Promise<{ orderId:
           <p className="text-emerald-700">
             Esta compra ya está pagada. Revisá tu correo ({ocultarCorreo(order.buyerEmail)}) para descargar las fotos.
           </p>
+        ) : marca.estado === "CHECKOUT_PRO" ? (
+          <div className="space-y-4">
+            <p className="text-neutral-700">
+              Elegiste pagar esta compra con Mercado Pago. Si ya pagaste, no pagues de nuevo: te avisamos por
+              correo a {ocultarCorreo(order.buyerEmail)} apenas se confirme.
+            </p>
+            <PlanBMercadoPago pedidoId={order.id} destacado texto="Continuar con Mercado Pago" />
+          </div>
         ) : marca.estado !== "PENDIENTE" ? (
           <p className="text-neutral-700">
             Estamos verificando tu pago con Mercado Pago. Te avisamos por correo a {ocultarCorreo(order.buyerEmail)}{" "}
             apenas se confirme. <strong>No pagues de nuevo.</strong>
           </p>
-        ) : (
+        ) : conTarjeta && config.publicKey ? (
           <PagarClient
             publicKey={config.publicKey}
             orderId={order.id}
             totalPesos={order.totalCents}
             correoVisible={ocultarCorreo(order.buyerEmail)}
             volverA={`/a/${order.albumId}/comprar/resumen`}
+            planB={conPlanB}
           />
+        ) : (
+          <div className="space-y-4">
+            <p className="text-neutral-700">El pago con tarjeta no está disponible en este momento.</p>
+            <PlanBMercadoPago pedidoId={order.id} destacado />
+          </div>
         )}
       </div>
     </main>

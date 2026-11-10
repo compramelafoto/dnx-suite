@@ -12,7 +12,7 @@ export type CobroPreparado =
       distribution: ReturnType<typeof calculateDistribution>;
       partnerReceiverIds: Map<string, string>;
     }
-  | { ok: false; codigo: "YA_PAGADO" | "ORDEN_EN_CURSO" | "PAGADOR_ES_RECEPTOR" };
+  | { ok: false; codigo: "YA_PAGADO" | "ORDEN_EN_CURSO" | "PAGADOR_ES_RECEPTOR" | "ELIGIO_MERCADO_PAGO" };
 
 /** Receptores de Mercado Pago por rol. Sólo el fotógrafo es obligatorio. */
 export type ReceptoresCobro = {
@@ -53,6 +53,7 @@ export function prepararCobro(params: {
     return { ok: false, codigo: "YA_PAGADO" };
   }
   const estado = params.marca?.estado;
+  if (estado === "CHECKOUT_PRO") return { ok: false, codigo: "ELIGIO_MERCADO_PAGO" };
   if (estado && estado !== "PENDIENTE") {
     return { ok: false, codigo: "ORDEN_EN_CURSO" };
   }

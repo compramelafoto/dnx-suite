@@ -11,7 +11,6 @@ import {
 import { prisma } from "@/lib/prisma";
 import { getOrderDownloadCenterAccessToken } from "@/lib/digital-download/load-download-center";
 import { resolveClientDigitalDownloadLinks } from "@/lib/digital-download/download-center-rollout";
-import { resolvePilotoConfig } from "./config";
 import { prepararCobro } from "./cobro";
 import { referenciaPedido } from "./decidir";
 import { evaluarElegibilidadPiloto } from "./elegibilidad";
@@ -22,6 +21,9 @@ import { crearClientesPiloto, leerOrdenMp } from "./mp";
 import { cargarPedidoPiloto } from "./pedido";
 import { buscarOrganizador } from "./organizador";
 import { buscarReferidorActivo } from "./referidor";
+import { cargarConfigPiloto } from "./receptores-clf";
+import { aplicarEstadosConsultados } from "../split-1n-consentimiento/servicio";
+import { crearRepositorioConsentimiento } from "../split-1n-consentimiento/repositorio";
 import { leerMarcaPiloto, marcarSnapshotPiloto, type MarcaPiloto } from "./snapshot";
 
 export type PagarPilotoResult =
@@ -36,8 +38,10 @@ const MENSAJES: Record<string, string> = {
   PAGADOR_ES_RECEPTOR:
     "Esta compra no la puede pagar alguien que cobra parte de la venta (fotógrafo, organizador o referidor). Tiene que comprar otra persona, con su propio correo: volvé al resumen para cambiarlo.",
   NO_DISPONIBLE: "El pago con tarjeta no está disponible para esta compra. Volvé al resumen.",
+  ELIGIO_MERCADO_PAGO:
+    "Elegiste pagar esta compra con Mercado Pago. Usá el botón «Continuar con Mercado Pago».",
   CONSENTIMIENTO_NO_ACTIVO:
-    "Este álbum no puede cobrar con tarjeta en este momento. Volvé al resumen para pagar con Mercado Pago.",
+    "Este álbum no puede cobrar con tarjeta en este momento. Pagá con Mercado Pago: con el botón de abajo o desde el resumen de la compra.",
 };
 
 function falla(codigo: string, mensaje?: string): PagarPilotoResult {
@@ -105,12 +109,13 @@ export async function pagarPedidoPiloto(input: {
   pedidoId: number;
   cardPayment: CardPaymentSubmission;
 }): Promise<PagarPilotoResult> {
-  const config = resolvePilotoConfig();
+  const config = await cargarConfigPiloto();
   const cargado = await cargarPedidoPiloto(input.pedidoId);
   if (!cargado) return falla("NO_DISPONIBLE");
   const { order, feePesos, basePesos } = cargado;
   const marca = leerMarcaPiloto(order.pricingSnapshot);
   if (!marca) return falla("NO_DISPONIBLE");
+  if (marca.estado === "CHECKOUT_PRO") return falla("ELIGIO_MERCADO_PAGO");
 
   const device = input.cardPayment?.deviceSessionId?.trim() ?? "";
   const token = input.cardPayment?.token?.trim() ?? "";
@@ -167,6 +172,10 @@ export async function pagarPedidoPiloto(input: {
     const consultas = await Promise.all(receptores.map((r) => clientes.consents.getConsent(r)));
     if (consultas.some((c) => c?.status !== "ACTIVE")) {
       console.warn("[split-1n-piloto] consentimiento_no_activo", { pedidoId: order.id });
+      // Queda guardado en CLF: el próximo pedido ya no se desvía al pago con tarjeta.
+      if (config.receptoresDesdeClf && config.ownerUserId) {
+        await aplicarEstadosConsultados(crearRepositorioConsentimiento(config.ownerUserId), consultas);
+      }
       return falla("CONSENTIMIENTO_NO_ACTIVO");
     }
     // Quien paga no puede cobrar: se compara con los correos de Mercado Pago y con los de CLF.

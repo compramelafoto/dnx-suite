@@ -86,6 +86,7 @@ const PAGOS = `## Pagos con Mercado Pago
 - Pendiente significa que Mercado Pago todavía no confirmó el pago. Algunos medios de pago tardan en acreditarse; el estado cambia solo cuando Mercado Pago lo confirma. No digas cuánto va a tardar.
 - Si está pendiente o rechazado, se puede volver a pagar en /pago/reintentar/{pedido}. Mandá ese enlace sólo cuando estado_de_pago lo devuelve en reintentar (la persona verificó su mail o te dio el número de pedido y el mail de la compra).
 - Si la persona dice que Mercado Pago le cobró y el pedido figura pendiente o rechazado, o que le cobraron dos veces: caso en el momento con abrir_caso. No le pidas que pague de nuevo.
+- En algunos álbumes el pago se hace con tarjeta en una página de CLF (/pagar/{pedido}). Si la tarjeta no pasa o la persona prefiere, en esa misma página puede aparecer el botón «Pagar con Mercado Pago», que lleva al pago de siempre; si no aparece, que vuelva al resumen de la compra. Si la página dice que se está verificando un pago, que no pague de nuevo: si pasa mucho tiempo, caso con abrir_caso.
 - Dudas sobre la seguridad de pagar: /ayuda/mercadopago/seguridad.`;
 
 const DESCARGAS = `## Descargas

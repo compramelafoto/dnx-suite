@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { albumOrderCanRetryPayment } from "@/lib/mercadopago/album-order-payment-recovery";
+import { leerMarcaPiloto } from "@/lib/split-1n-piloto/snapshot";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -29,6 +30,7 @@ export async function GET(
         isTest: true,
         checkoutPaymentSource: true,
         origin: true,
+        pricingSnapshot: true,
       },
     });
 
@@ -36,11 +38,20 @@ export async function GET(
       return NextResponse.json({ error: "Pedido no encontrado" }, { status: 404 });
     }
 
+    // Piloto Split 1:N sin cobro en curso: se sigue en su propia página de pago, que ofrece
+    // tarjeta o «Pagar con Mercado Pago». Con el cobro con tarjeta en curso no se ofrece nada.
+    const marca = leerMarcaPiloto(order.pricingSnapshot);
+    const pagarUrl =
+      marca?.estado === "PENDIENTE" && (order.status === "PENDING" || order.status === "FAILED")
+        ? `/pagar/${order.id}`
+        : null;
+
     return NextResponse.json({
       orderId: order.id,
       albumId,
       status: order.status,
       canRetry: albumOrderCanRetryPayment(order),
+      ...(pagarUrl ? { pagarUrl } : {}),
     });
   } catch (err: unknown) {
     console.error("GET checkout-status", err);
