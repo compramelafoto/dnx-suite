@@ -41,4 +41,11 @@ describe("cifras respaldadas en la atención por WhatsApp", () => {
     const ok = cifrasRespaldadasEnAtencion([], [{ role: "user", content: "tengo 3 videos" }, herramienta("- Digitalización de VHS: $ 12.000")]);
     expect(cifrasNoRespaldadas("Te queda en $30.000.", ok)).toEqual(["$30000"]);
   });
+
+  it("los porcentajes que fija la guía del bot (la seña del 50 %) valen aunque ninguna herramienta los haya dicho", async () => {
+    const { cifrasNoRespaldadas } = await import("@/lib/dnx-bot/cifras");
+    const ok = cifrasRespaldadasEnAtencion([{ role: "user", content: "tengo 12 VHS" }], [], "Para dejarlo señado pagás el 50 %.");
+    expect(cifrasNoRespaldadas("Para dejarlo señado pagás el 50 %.", ok)).toEqual([]);
+    expect(cifrasNoRespaldadas("Te hago un 37 % de descuento.", ok)).toEqual(["37%"]);
+  });
 });

@@ -1,4 +1,5 @@
 import { cifrasPermitidas, textosDelTurno } from "@/lib/dnx-bot/cifras";
+import { guiaDeAtencion } from "./guia";
 
 /**
  * Cifras que puede decir el bot de WhatsApp. Además de lo que respalda cualquier turno de DNX Bot
@@ -7,6 +8,7 @@ import { cifrasPermitidas, textosDelTurno } from "@/lib/dnx-bot/cifras";
  * - una cantidad que dijo el cliente × un precio respaldado ("2 videos" × $12.000 = $24.000), y
  * - una cantidad que nombra la propia respuesta × un precio respaldado ("si hacés 11 a $2.000, son $22.000"):
  *   la cuenta es correcta aunque la cantidad la proponga el bot.
+ * - los porcentajes que fija la propia guía del bot (por ejemplo, la seña del 50 %).
  * Un precio inventado sigue sin pasar. Módulo PURO.
  */
 
@@ -25,10 +27,14 @@ function textoDe(m: Msg): string {
     .join("\n");
 }
 
+/** Sólo los porcentajes de la guía: sus importes de ejemplo no respaldan nada. */
+const PORCENTAJES_DE_LA_GUIA = [...guiaDeAtencion().matchAll(/(\d{1,3}(?:[.,]\d{1,2})?)\s?%/g)].map((m) => `${Number(m[1].replace(",", "."))}%`);
+
 export function cifrasRespaldadasEnAtencion(history: readonly unknown[], appended: readonly unknown[], respuesta = ""): Set<string> {
   const todos = [...history, ...appended] as Msg[];
   const dichoAntes = (history as Msg[]).filter((m) => m?.role === "assistant").map(textoDe);
   const ok = cifrasPermitidas([...textosDelTurno(todos), ...dichoAntes]);
+  for (const c of PORCENTAJES_DE_LA_GUIA) ok.add(c);
 
   const conCantidades = [...todos.filter((m) => m?.role === "user").map(textoDe), respuesta.replace(/\$\s?[\d.,]+/g, " ")].join("\n");
   const cantidades = new Set<number>();
