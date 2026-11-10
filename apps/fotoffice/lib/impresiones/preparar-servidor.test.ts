@@ -88,7 +88,7 @@ vi.mock("@/lib/communications/send-email", () => ({ sendTransactionalEmail: vi.f
 vi.mock("@/lib/communications/load-workspace-sender", () => ({ loadWorkspaceSender: async () => ({ name: "DNX Estudio", replyTo: null }) }));
 vi.mock("@/lib/carpetas/subir-servidor", () => ({ subirFlujo: vi.fn() }));
 vi.mock("@/lib/carpetas/almacen", () => ({ borrarArchivoGuardado: H.borrar }));
-vi.mock("@/lib/impresion/render-laboratorio", () => ({ renderParaLaboratorio: vi.fn() }));
+vi.mock("@/lib/impresion/render-laboratorio", () => ({ renderParaLaboratorio: vi.fn(), agregarDoblez: vi.fn() }));
 vi.mock("./fuentes-servidor", () => ({ leerOriginal: vi.fn() }));
 vi.mock("./acreditar-servidor", () => ({ asegurarTrabajosDelPedido: H.asegurar, acreditarPagoImpresion: H.acreditar }));
 vi.mock("@/lib/payments/connect/collector", () => ({ resolveWorkspaceCollector: H.collector }));

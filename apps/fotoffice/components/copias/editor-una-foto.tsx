@@ -22,6 +22,7 @@ import {
 import { calidadDeCopia } from "@/lib/impresion/geometria";
 import { CANTIDAD_MAX, mismaReceta, textoDeAviso } from "@/lib/impresion/lote";
 import { colorBordeDe, type Modo, type Receta } from "@/lib/impresion/receta";
+import { DOBLEZ_CM, MODOS_DOBLEZ, MODO_DOBLEZ_POR_OMISION, TEXTO_DOBLEZ } from "@/lib/impresion/cuadros";
 import type { FotoCopia } from "@/lib/impresion/copias";
 import { Ajustes } from "@/components/foto-carnet/ajustes";
 import { PapelConFoto } from "./papel-con-foto";
@@ -46,6 +47,7 @@ export function EditorUnaFoto({
   onPegarATodas,
   onCerrar,
   cantidadMax = CANTIDAD_MAX,
+  cuadro = false,
 }: {
   foto: FotoCopia & { pieza: NonNullable<FotoCopia["pieza"]> };
   papel: Papel & { nombre: string };
@@ -54,10 +56,12 @@ export function EditorUnaFoto({
   /** Guarda esta foto; false si el servidor no la aceptó (el error lo muestra quien llama). */
   onGuardar: (d: { receta: Receta; cantidad: number; revisada: boolean }) => Promise<boolean>;
   onIr: (delta: -1 | 1) => void;
-  onPegarATodas: (d: { modo: Modo; cantidad: number }) => void;
+  onPegarATodas: (d: { modo: Modo; cantidad: number; doblez?: Receta["doblez"]; colorDoblez?: string }) => void;
   onCerrar: () => void;
   /** Tope de copias de la foto (las copias instantáneas usan `CANTIDAD_MAX`). */
   cantidadMax?: number;
+  /** Es un cuadro (canvas o MDF): se elige cómo se rellena el doblez de 5 cm por lado. */
+  cuadro?: boolean;
 }) {
   const [receta, setRecetaLibre] = useState<Receta>(foto.pieza.receta);
   const [cantidad, setCantidadLibre] = useState(foto.pieza.cantidad);
@@ -283,6 +287,53 @@ export function EditorUnaFoto({
                   />
                 </label>
               ) : null}
+              {cuadro ? (
+                <fieldset className="space-y-2 rounded-[var(--fo-radius-sm)] border border-[var(--fo-border)] p-3">
+                  <legend className="px-1 text-sm font-medium">Doblez de {DOBLEZ_CM} cm por lado</legend>
+                  <p className="text-xs text-[var(--fo-muted)]">Lo que se ve es el frente del cuadro. Elegí cómo se rellenan los laterales que doblan sobre el bastidor.</p>
+                  <div className="grid grid-cols-2 gap-1.5" role="radiogroup" aria-label="Cómo se rellena el doblez">
+                    {MODOS_DOBLEZ.map((m) => {
+                      const elegido = (receta.doblez ?? MODO_DOBLEZ_POR_OMISION) === m;
+                      return (
+                        <button
+                          key={m}
+                          type="button"
+                          role="radio"
+                          aria-checked={elegido}
+                          title={TEXTO_DOBLEZ[m].ayuda}
+                          onClick={() => setReceta((r) => ({ ...r, doblez: m }))}
+                          className={elegido ? "fo-btn fo-btn-primary h-8 text-xs" : "fo-btn fo-btn-secondary h-8 text-xs"}
+                        >
+                          {TEXTO_DOBLEZ[m].nombre}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="text-xs text-[var(--fo-muted)]">{TEXTO_DOBLEZ[receta.doblez ?? MODO_DOBLEZ_POR_OMISION].ayuda}</p>
+                  {(receta.doblez ?? MODO_DOBLEZ_POR_OMISION) === "COLOR" ? (
+                    <div className="flex flex-wrap items-center gap-2 text-sm">
+                      {[
+                        { c: "#ffffff", t: "Blanco" },
+                        { c: "#000000", t: "Negro" },
+                      ].map((o) => (
+                        <button key={o.c} type="button" className="fo-btn fo-btn-secondary h-8 text-xs" onClick={() => setReceta((r) => ({ ...r, colorDoblez: o.c }))}>
+                          {o.t}
+                        </button>
+                      ))}
+                      <label className="flex items-center gap-2">
+                        Otro
+                        <input
+                          type="color"
+                          value={receta.colorDoblez ?? "#ffffff"}
+                          onChange={(e) => setReceta((r) => ({ ...r, colorDoblez: e.target.value.toLowerCase() }))}
+                          className="h-8 w-12 cursor-pointer rounded border border-[var(--fo-border)]"
+                          aria-label="Color del doblez"
+                        />
+                      </label>
+                    </div>
+                  ) : null}
+                </fieldset>
+              ) : null}
               <label className="flex items-center gap-2 text-sm">
                 <input type="checkbox" checked={guias} onChange={(e) => setGuias(e.target.checked)} className="accent-[var(--fo-accent)]" />
                 Guías (tercios y zona de seguridad de 3 mm)
@@ -314,7 +365,7 @@ export function EditorUnaFoto({
                 className="fo-input"
               />
             </label>
-            <button type="button" className="fo-btn fo-btn-secondary" onClick={() => onPegarATodas({ modo: receta.modo, cantidad })}>
+            <button type="button" className="fo-btn fo-btn-secondary" onClick={() => onPegarATodas({ modo: receta.modo, cantidad, ...(cuadro ? { doblez: receta.doblez, colorDoblez: receta.colorDoblez } : {}) })}>
               Usar este modo y cantidad en todas
             </button>
           </div>
