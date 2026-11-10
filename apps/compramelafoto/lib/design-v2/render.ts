@@ -15,12 +15,12 @@ import {
 } from "@repo/template-engine";
 import {
   clientPhotoSlotNumber,
-  computeCoverCropRect,
   legacyPayloadToCore,
   resolveTemplateProduct,
   resolveTemplateVariablePlugin,
 } from "@/lib/template-v2/server";
 import type { DesignV2Data } from "./design-data";
+import { cropPhotoForSlot } from "./recorte-de-foto";
 import { leerRecursoDelMosaico } from "./mosaico-recursos";
 import { courseMosaicForPrint, courseMosaicOwnerForPrint } from "./values";
 import type { DesignTemplateVersion } from "./template";
@@ -37,9 +37,9 @@ import type { DesignTemplateVersion } from "./template";
 
 const PHOTO_REF_PREFIX = "design-photo:";
 
-/** Lado máximo de una foto ya recortada: más que eso no suma nada a 300 dpi en una carpeta. */
-const MAX_PHOTO_SIDE_PX = 4000;
 const IMAGE_BLOCK_TYPES = new Set(["IMAGE", "PHOTO"]);
+
+export { cropPhotoForSlot };
 
 export type DesignPhotoLoader = (photoId: number) => Promise<Uint8Array | null>;
 
@@ -131,39 +131,6 @@ async function loadStaticImage(ref: string): Promise<Uint8Array | null> {
   } catch {
     return null;
   }
-}
-
-/** La foto del cliente recortada a su hueco, a la resolución del hueco (sin agrandar). */
-export async function cropPhotoForSlot(input: {
-  bytes: Uint8Array;
-  slotWidth: number;
-  slotHeight: number;
-  crop: DesignV2Data["slots"][string]["crop"];
-  /** Un recorte sin fondo: sale en PNG para conservar la transparencia. */
-  transparente?: boolean;
-}): Promise<Uint8Array> {
-  const rotated = await sharp(input.bytes, { failOn: "none" })
-    .rotate()
-    .toBuffer({ resolveWithObject: true });
-  const rect = computeCoverCropRect({
-    srcWidth: rotated.info.width,
-    srcHeight: rotated.info.height,
-    slotWidth: input.slotWidth,
-    slotHeight: input.slotHeight,
-    crop: input.crop,
-  });
-  const left = Math.max(0, Math.round(rect.left));
-  const top = Math.max(0, Math.round(rect.top));
-  const width = Math.max(1, Math.min(rotated.info.width - left, Math.round(rect.width)));
-  const height = Math.max(1, Math.min(rotated.info.height - top, Math.round(rect.height)));
-
-  const targetWidth = Math.min(width, Math.round(input.slotWidth), MAX_PHOTO_SIDE_PX);
-  const out = await sharp(rotated.data)
-    .extract({ left, top, width, height })
-    .resize({ width: Math.max(1, targetWidth), withoutEnlargement: true })
-    [input.transparente ? "png" : "jpeg"](input.transparente ? { compressionLevel: 9 } : { quality: 90, mozjpeg: true })
-    .toBuffer();
-  return new Uint8Array(out);
 }
 
 function editorBlocksFromResolved(

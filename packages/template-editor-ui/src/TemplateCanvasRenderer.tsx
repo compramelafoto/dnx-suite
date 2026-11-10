@@ -802,6 +802,8 @@ function CroppedPhotoRenderer({
     display: "block",
     maxWidth: "none",
   };
+  // Una foto alejada (zoom < 1) deja hueco sin foto: sale en blanco, igual que en la impresión.
+  let conBordes = false;
   if (size) {
     const rect = computeCoverCropRect({
       srcWidth: size.w,
@@ -810,6 +812,7 @@ function CroppedPhotoRenderer({
       slotHeight: layoutHeight,
       crop: override.crop,
     });
+    conBordes = rect.left < 0 || rect.top < 0 || rect.left + rect.width > size.w || rect.top + rect.height > size.h;
     const scale = layoutWidth / rect.width;
     imgStyle = {
       ...imgStyle,
@@ -835,7 +838,7 @@ function CroppedPhotoRenderer({
         width: "100%",
         height: "100%",
         overflow: "hidden",
-        background: "var(--te-chrome-sunken, #eef0f2)",
+        background: conBordes ? "#ffffff" : "var(--te-chrome-sunken, #eef0f2)",
         ...clip,
       }}
     >

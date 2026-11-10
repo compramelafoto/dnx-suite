@@ -6,10 +6,12 @@ import { PAPER_TOKENS, TemplateCanvasRenderer, editorThemeStyle, type PhotoOverr
 import {
   clientPhotoSlotNumber,
   computeCoverCropRect,
+  containPhotoZoom,
   DEFAULT_PHOTO_CROP,
   imageBlockVariableKey,
   normalizePhotoCrop,
   PHOTO_CROP_MAX_ZOOM,
+  photoOrientationMismatch,
   type PhotoCrop,
 } from "@repo/template-editor-core";
 import type { DesignTemplatePayload } from "@/lib/design-v2/client-payload";
@@ -80,6 +82,38 @@ function useWidth(ref: React.RefObject<HTMLElement | null>): number {
   return width;
 }
 
+/**
+ * Medidas de las fotos (en píxeles), a medida que cargan. Sirven para avisar cuando una foto
+ * apaisada cae en un lugar vertical (o al revés): cubriendo, se corta mucho.
+ */
+function usePhotoSizes(ids: number[], photoUrl: (photoId: number) => string): Map<number, { w: number; h: number }> {
+  const [sizes, setSizes] = useState<Map<number, { w: number; h: number }>>(() => new Map());
+  const key = [...new Set(ids)].sort((a, b) => a - b).join(",");
+  useEffect(() => {
+    if (!key) return;
+    let vivo = true;
+    for (const id of key.split(",").map(Number)) {
+      const img = new Image();
+      img.onload = () => {
+        if (!vivo || !img.naturalWidth || !img.naturalHeight) return;
+        setSizes((prev) => {
+          if (prev.has(id)) return prev;
+          const next = new Map(prev);
+          next.set(id, { w: img.naturalWidth, h: img.naturalHeight });
+          return next;
+        });
+      };
+      img.src = photoUrl(id);
+    }
+    return () => {
+      vivo = false;
+    };
+    // photoUrl cambia de identidad en cada render de quien la pasa; las fotos, no.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+  return sizes;
+}
+
 function fits(kind: "PHYSICAL" | "DIGITAL", photo: { sellPrint: boolean; sellDigital: boolean } | undefined) {
   if (!photo) return false;
   return kind === "PHYSICAL" ? photo.sellPrint : photo.sellDigital;
@@ -130,6 +164,10 @@ export default function CanjeLibritoStep({
   const areaWidth = useWidth(areaRef);
 
   const libro = libros[Math.min(libroIdx, libros.length - 1)];
+  const photoSizes = usePhotoSizes(
+    filled.filter((x): x is number => x != null),
+    photoUrl,
+  );
 
   useEffect(() => {
     if (!deshacer) return;
@@ -191,6 +229,25 @@ export default function CanjeLibritoStep({
     const c = crops[place];
     return c && c.photoId === filled[place] ? c.crop : DEFAULT_PHOTO_CROP;
   };
+
+  /*
+   * Lugares donde la foto queda de costado respecto del hueco (una grupal apaisada en un hueco
+   * vertical) y la familia todavía no la acomodó: así como está, se corta mucho. Se avisa con
+   * un botón que lleva directo a ponerla entera.
+   */
+  const seCortan = t.slots.flatMap((slot) => {
+    const place = libro.placeByBlock.get(slot.blockId);
+    if (place == null) return [];
+    const pid = filled[place];
+    const size = pid != null ? photoSizes.get(pid) : undefined;
+    const block = t.blocks.find((b) => b.id === slot.blockId);
+    if (!size || !block) return [];
+    const sizes = { srcWidth: size.w, srcHeight: size.h, slotWidth: block.layout.width, slotHeight: block.layout.height };
+    if (!photoOrientationMismatch(sizes)) return [];
+    // Ya la alejó (o la acomodó a gusto): no se insiste.
+    if (crops[place]?.photoId === pid) return [];
+    return [{ slot, place, fotoApaisada: size.w > size.h }];
+  });
 
   // Lo que no llega (un logo que la escuela no cargó) no sale impreso, así que tampoco se muestra.
   const visibleBlocks = t.blocks.filter((b) => {
@@ -332,6 +389,30 @@ export default function CanjeLibritoStep({
           Girar
         </button>
       </div>
+
+      {seCortan.map(({ slot, place, fotoApaisada }) => (
+        <div
+          key={slot.blockId}
+          role="alert"
+          className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#f0d3b4] bg-[#fdf3e8] px-3 py-2.5 text-[13.5px] text-[#5c3a1c]"
+        >
+          <span>
+            La foto de <b>{placeName(place).toLowerCase()}</b> es {fotoApaisada ? "apaisada" : "vertical"} y este lugar es{" "}
+            {fotoApaisada ? "vertical" : "apaisado"}: así se corta. Podés ponerla entera, con bordes blancos.
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              setPage(slot.pageIndex);
+              setVerTodas(false);
+              setSheet({ blockId: slot.blockId, tab: "acomodar" });
+            }}
+            className="whitespace-nowrap rounded-full bg-[#c27b3d] px-3 py-1.5 text-[13px] font-semibold text-white"
+          >
+            Ponerla entera
+          </button>
+        </div>
+      ))}
 
       {/* Más ancho que el texto de arriba: el librito sale del ancho de la columna. */}
       <div
@@ -523,7 +604,10 @@ export default function CanjeLibritoStep({
                     const pid = filled[sheetPlace];
                     const prev = cropFor(sheetPlace);
                     setSheet(null);
-                    if (pid == null || (prev.zoom === crop.zoom && prev.x === crop.x && prev.y === crop.y)) return;
+                    const igual = prev.zoom === crop.zoom && prev.x === crop.x && prev.y === crop.y;
+                    // Con el aviso de «se corta», «Listo» también cuenta como decisión: deja de avisar.
+                    const avisada = seCortan.some((x) => x.place === sheetPlace);
+                    if (pid == null || (igual && !avisada)) return;
                     commit(`Acomodaste la foto de ${placeName(sheetPlace).toLowerCase()}`, filled, {
                       ...crops,
                       [sheetPlace]: { photoId: pid, crop },
@@ -694,20 +778,36 @@ function Acomodar({
   const frameW = aspect >= 1 ? 320 : Math.round(300 * aspect);
   const frameH = Math.round(frameW / aspect);
 
-  const rect = natural
-    ? computeCoverCropRect({ srcWidth: natural.w, srcHeight: natural.h, slotWidth: width, slotHeight: height, crop })
-    : null;
+  const sizes = natural ? { srcWidth: natural.w, srcHeight: natural.h, slotWidth: width, slotHeight: height } : null;
+  const rect = sizes ? computeCoverCropRect({ ...sizes, crop }) : null;
   const k = rect ? frameW / rect.width : 1;
+  // El zoom con el que la foto entra entera: la barra llega hasta ahí (con bordes blancos).
+  const zoomEntera = sizes ? containPhotoZoom(sizes) : 1;
+  const puedeEntera = zoomEntera < 0.98;
+  const deCostado = sizes ? photoOrientationMismatch(sizes) : false;
+  const entera = puedeEntera && crop.zoom <= zoomEntera + 0.005;
+  const conBordes =
+    rect && natural
+      ? rect.left < -0.5 || rect.top < -0.5 || rect.left + rect.width > natural.w + 0.5 || rect.top + rect.height > natural.h + 0.5
+      : false;
 
   return (
     <div className="flex flex-col gap-3 pb-1">
       <p className="m-0 text-sm text-[#4b4f56]">
-        Arrastrá la foto para moverla y usá la barra para acercarla. Lo que queda dentro del recuadro es lo que se
-        imprime.
+        Arrastrá la foto para moverla y usá la barra para acercarla o alejarla. Lo que queda dentro del recuadro es lo
+        que se imprime.
       </p>
+      {deCostado && !entera ? (
+        <p className="m-0 rounded-lg bg-[#fdf3e8] px-3 py-2 text-[13px] text-[#5c3a1c]">
+          Esta foto está {natural && natural.w > natural.h ? "apaisada" : "vertical"} y el lugar no: así se corta. Tocá{" "}
+          <b>Ponerla entera</b> para que se vea toda, con bordes blancos.
+        </p>
+      ) : null}
       <div className="flex justify-center">
         <div
-          className="relative max-w-full cursor-grab touch-none overflow-hidden rounded-xl bg-[#222] active:cursor-grabbing"
+          className={`relative max-w-full cursor-grab touch-none overflow-hidden rounded-xl active:cursor-grabbing ${
+            conBordes ? "bg-white ring-1 ring-[#e7e1da]" : "bg-[#222]"
+          }`}
           style={{ width: frameW, height: frameH }}
           onPointerDown={(e) => {
             e.currentTarget.setPointerCapture(e.pointerId);
@@ -717,13 +817,22 @@ function Acomodar({
           onPointerMove={(e) => {
             const d = drag.current;
             if (!d) return;
-            // Arrastrar la foto hacia la derecha muestra más de su lado izquierdo.
-            const factor = 2 / Math.max(1, d.crop.zoom);
+            if (!sizes) return;
+            /*
+             * La foto sigue al dedo. Con `computeCoverCropRect`, el borde del recorte es
+             * (W − ancho)/2 · (1 + x): mover la foto `dx` píxeles en pantalla corre `x` en
+             * −2·dx / (k · (W − ancho)). Vale igual cubriendo (el recorte es más chico que la foto)
+             * que alejada (más grande: ahí la foto se mueve dentro del hueco).
+             */
+            const r0 = computeCoverCropRect({ ...sizes, crop: d.crop });
+            const k0 = frameW / r0.width;
+            const sobraX = sizes.srcWidth - r0.width;
+            const sobraY = sizes.srcHeight - r0.height;
             setCrop(
               normalizePhotoCrop({
                 ...d.crop,
-                x: d.crop.x - ((e.clientX - d.x) / frameW) * factor,
-                y: d.crop.y - ((e.clientY - d.y) / frameH) * factor,
+                x: Math.abs(sobraX) < 1 ? d.crop.x : d.crop.x - (2 * (e.clientX - d.x)) / (k0 * sobraX),
+                y: Math.abs(sobraY) < 1 ? d.crop.y : d.crop.y - (2 * (e.clientY - d.y)) / (k0 * sobraY),
               }),
             );
           }}
@@ -758,11 +867,11 @@ function Acomodar({
         </div>
       </div>
       <label className="flex items-center gap-3 text-sm text-[#6b6f76]">
-        <span className="sr-only">Acercar</span>
+        <span className="sr-only">Acercar o alejar</span>
         <span aria-hidden>−</span>
         <input
           type="range"
-          min={1}
+          min={Math.min(1, zoomEntera, crop.zoom)}
           max={PHOTO_CROP_MAX_ZOOM}
           step={0.01}
           value={crop.zoom}
@@ -774,6 +883,21 @@ function Acomodar({
         />
         <span aria-hidden>+</span>
       </label>
+      {puedeEntera ? (
+        <button
+          type="button"
+          aria-pressed={entera}
+          onClick={() => {
+            setTocado(true);
+            setCrop(entera ? { ...DEFAULT_PHOTO_CROP } : { zoom: zoomEntera, x: 0, y: 0 });
+          }}
+          className={`min-h-11 rounded-xl text-[15px] font-semibold ${
+            entera ? "border border-[#e7e1da] text-[#4b4f56]" : "bg-[#c27b3d] text-white"
+          }`}
+        >
+          {entera ? "Que llene el lugar (se corta un poco)" : "Ponerla entera (con bordes blancos)"}
+        </button>
+      ) : null}
       <div className="flex gap-2">
         <button
           type="button"

@@ -213,7 +213,7 @@ export default function DesignEditor({ template, photos, data, onChange, readOnl
                       onWheel={(e) => {
                         // La rueda del mouse acerca o aleja la foto del hueco elegido.
                         if (readOnly || !isSelected || isEmpty || !assignment) return;
-                        const zoom = Math.min(PHOTO_CROP_MAX_ZOOM, Math.max(1, assignment.crop.zoom - e.deltaY * 0.002));
+                        const zoom = Math.min(PHOTO_CROP_MAX_ZOOM, Math.max(Math.min(1, assignment.crop.zoom), assignment.crop.zoom - e.deltaY * 0.002));
                         setCrop(slot.blockId, { ...assignment.crop, zoom });
                       }}
                       onKeyDown={(e) => {
@@ -301,7 +301,8 @@ export default function DesignEditor({ template, photos, data, onChange, readOnl
               <div className="mt-3 space-y-3">
                 <CropSlider
                   label="Acercar"
-                  min={1}
+                  // Si la familia la alejó para que entre entera (zoom < 1), no se le pisa.
+                  min={Math.min(1, selectedAssignment.crop.zoom)}
                   max={PHOTO_CROP_MAX_ZOOM}
                   step={0.01}
                   value={selectedAssignment.crop.zoom}
