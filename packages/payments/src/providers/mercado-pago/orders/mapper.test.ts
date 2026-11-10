@@ -290,3 +290,38 @@ describe("tarjeta de débito en Orders (pedido 6059, 09/11/2026)", () => {
     assert.equal(pm.type, "debit_card");
   });
 });
+
+describe("prepaga y débito sin cuotas (Naranja X prepaga, pedidos 6088/6089)", () => {
+  const base = () => ({
+    externalReference: "clf-album-order-1",
+    total: money("ARS", 100000n),
+    amountType: "fixed" as const,
+    entries: [{ receiverId: "97484805", receiverType: "owner" as const, amount: money("ARS", 100000n) }],
+    deviceSessionId: TEST_DEVICE_SESSION_ID,
+    payerEmail: "comprador@ejemplo.com",
+    statementDescriptor: "CLF FOTOS",
+    items: [singleIntangibleItem({ title: "Foto", total: money("ARS", 100000n) })],
+    paymentToken: "tok",
+    paymentMethodId: "visa",
+    installments: 1,
+  });
+
+  it("una prepaga no lleva installments (Orders lo rechaza)", () => {
+    const pm = buildMercadoPagoSplitOrderRequest({ ...base(), paymentType: "prepaid_card" }).body
+      .transactions!.payments[0]!.payment_method as Record<string, unknown>;
+    assert.equal(pm.type, "prepaid_card");
+    assert.equal("installments" in pm, false);
+  });
+
+  it("una de débito tampoco", () => {
+    const pm = buildMercadoPagoSplitOrderRequest({ ...base(), paymentType: "debit_card" }).body
+      .transactions!.payments[0]!.payment_method as Record<string, unknown>;
+    assert.equal("installments" in pm, false);
+  });
+
+  it("sin tipo (Clickatón) sigue llevando installments", () => {
+    const pm = buildMercadoPagoSplitOrderRequest(base()).body.transactions!.payments[0]!
+      .payment_method as Record<string, unknown>;
+    assert.equal(pm.installments, 1);
+  });
+});

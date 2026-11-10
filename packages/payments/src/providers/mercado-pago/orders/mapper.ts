@@ -240,7 +240,11 @@ export function buildMercadoPagoSplitOrderRequest(opts: {
             id: paymentMethodId,
             token: opts.paymentToken,
             type: opts.paymentType ?? "credit_card",
-            installments: opts.installments ?? 1,
+            // Débito y prepaga no tienen cuotas: Orders rechaza `installments` para esos tipos
+            // (pedidos 6088/6089 de CLF). Sin `paymentType` (Clickatón) queda como siempre.
+            ...(opts.paymentType === "debit_card" || opts.paymentType === "prepaid_card"
+              ? {}
+              : { installments: opts.installments ?? 1 }),
             statement_descriptor: opts.statementDescriptor,
           },
         },

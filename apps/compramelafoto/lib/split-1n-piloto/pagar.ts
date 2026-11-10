@@ -34,7 +34,7 @@ const MENSAJES: Record<string, string> = {
   ORDEN_EN_CURSO:
     "Esta compra ya tiene un pago en curso. Esperá unos minutos y recargá la página: no pagues de nuevo.",
   PAGADOR_ES_RECEPTOR:
-    "El correo de la compra es de alguien que cobra parte de esta venta. Usá otro correo.",
+    "Esta compra no la puede pagar alguien que cobra parte de la venta (fotógrafo, organizador o referidor). Tiene que comprar otra persona, con su propio correo: volvé al resumen para cambiarlo.",
   NO_DISPONIBLE: "El pago con tarjeta no está disponible para esta compra. Volvé al resumen.",
   CONSENTIMIENTO_NO_ACTIVO:
     "Este álbum no puede cobrar con tarjeta en este momento. Volvé al resumen para pagar con Mercado Pago.",
@@ -73,11 +73,23 @@ async function urlDescarga(pedidoId: number, creado: Date): Promise<string | nul
   }
 }
 
+/**
+ * Correos de CLF de quienes cobran, incluidas sus otras cuentas de CLF vinculadas a la misma
+ * cuenta de Mercado Pago (pedidos 6088/6089: la organizadora compró con su cuenta vieja).
+ */
 async function correosClf(userIds: Array<number | null>): Promise<string[]> {
   const ids = userIds.filter((id): id is number => id != null);
   if (ids.length === 0) return [];
-  const users = await prisma.user.findMany({ where: { id: { in: ids } }, select: { email: true } });
-  return users.map((u) => u.email.toLowerCase());
+  const users = await prisma.user.findMany({
+    where: { id: { in: ids } },
+    select: { email: true, mpUserId: true },
+  });
+  const mpIds = [...new Set(users.map((u) => u.mpUserId).filter((m): m is string => !!m))];
+  const otras =
+    mpIds.length > 0
+      ? await prisma.user.findMany({ where: { mpUserId: { in: mpIds } }, select: { email: true } })
+      : [];
+  return [...new Set([...users, ...otras].map((u) => u.email.toLowerCase()))];
 }
 
 /**
