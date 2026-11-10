@@ -134,5 +134,7 @@ describe("guía del bot de atención", () => {
     expect(g).toContain("no supongas que son para imprimir");
     expect(g).toContain("Nunca digas que no trabajamos con videos");
     expect(g).toContain("archivos para un trabajo en curso");
+    expect(g).toContain("edición de videos, recortar y unir videos, copiado de videos");
+    expect(g).toContain("cotizar trabajo de video");
   });
 });
