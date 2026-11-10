@@ -510,3 +510,17 @@ real con dinero en cuenta que el reparto se aplique**.
   apagado los avisos del piloto se ignoran, también los de órdenes con reparto todavía vivas
   (hasta 1 día). La orden se apoya en `config.online.retries.allowed=false`, el valor por
   defecto de Mercado Pago.
+
+### 10.4 Aceptación obligatoria con plazo (construido APAGADO, 10/11/2026)
+
+Cartel grande en el panel del fotógrafo y del organizador (`components/mercadopago/AceptacionCobroDivididoGate.tsx`) con dos pasos: aceptar el **anexo de cobro dividido** de los términos y autorizar el consentimiento en Mercado Pago (la misma `CobroDivididoCard`). Cuando están los dos, desaparece solo.
+
+- **Encendido:** `DNX_CLF_SPLIT_1N_ACEPTACION_LIMITE=AAAA-MM-DD` (hora argentina) **y** `DNX_CLF_SPLIT_1N_CONSENTIMIENTO_ENABLED=true`. Sin fecha válida o sin consentimiento, no aparece.
+- **Antes de la fecha:** se puede posponer («Ahora no»); vuelve en cada sesión del navegador. **Desde la fecha:** no se puede cerrar.
+- **Salida:** `/fotografo/soporte` y `/organizador/soporte` nunca quedan tapados; el cartel enlaza ahí. No aparece en la pantalla de pedidos.
+- **A quién:** PHOTOGRAPHER, LAB_PHOTOGRAPHER, ORGANIZER, SCHOOL_ORGANIZER. Admins y laboratorios no.
+- **Nunca bloquea por un error nuestro:** si no se pudo leer el estado (base o Mercado Pago), no se muestra.
+- **Registro:** la aceptación va a `TermsAcceptance` con la versión `anexo-cobro-dividido-2026-11`, IP, navegador y hash del texto. El `TermsDocument` del anexo se crea **inactivo**, así el inicio de sesión (que mira el documento activo más nuevo) no les pide a todos aceptar los términos generales otra vez.
+- **Es un cartel, no un candado del servidor:** las APIs del panel siguen respondiendo; quien sepa usarlas por fuera no queda frenado. Las ventas nunca se frenan: quien no autorizó sigue vendiendo con Checkout Pro (§10.2).
+- **Antes de encender:** que Daniel revise el texto del anexo (`lib/split-1n-aceptacion/anexo.ts`), en especial el punto de devoluciones; elegir la fecha; avisar por correo antes de que aparezca.
+- Pruebas: `lib/split-1n-aceptacion/aceptacion.test.ts` (en `test:split-1n-piloto`).
