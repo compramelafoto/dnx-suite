@@ -13,7 +13,7 @@ export default function PlanBMercadoPago({
   texto = "Pagar con Mercado Pago",
 }: {
   pedidoId: number;
-  /** Después de un error de la tarjeta se muestra como botón principal. */
+  /** Botón principal (azul de Mercado Pago); si no, enlace discreto. */
   destacado: boolean;
   texto?: string;
 }) {
@@ -45,16 +45,16 @@ export default function PlanBMercadoPago({
         disabled={yendo}
         className={
           destacado
-            ? "w-full rounded-lg px-5 py-3 font-semibold text-white disabled:opacity-60"
+            ? "w-full rounded-lg px-5 py-4 text-lg font-semibold text-white shadow-sm transition hover:brightness-95 disabled:opacity-60"
             : "text-sm text-neutral-700 underline disabled:opacity-60"
         }
         style={destacado ? { backgroundColor: "#009EE3" } : undefined}
       >
         {yendo ? "Abriendo Mercado Pago…" : texto}
       </button>
-      {!destacado ? (
-        <p className="text-xs text-neutral-500">Con dinero en cuenta u otros medios de Mercado Pago.</p>
-      ) : null}
+      <p className="text-xs text-neutral-500">
+        Con dinero en cuenta, tarjetas guardadas, débito o crédito.
+      </p>
       {error ? (
         <p className="text-sm text-red-700" role="alert">
           {error}

@@ -61,7 +61,11 @@ export default async function PagarPage({ params }: { params: Promise<{ orderId:
   return (
     <main className="mx-auto max-w-lg px-4 py-10">
       <h1 className="text-2xl font-semibold">
-        {(marca.estado === "CHECKOUT_PRO" || marca.estado === "CHECKOUT_SPLIT") || !conTarjeta ? "Pagar con Mercado Pago" : "Pagar con tarjeta"}
+        {(marca.estado === "CHECKOUT_PRO" || marca.estado === "CHECKOUT_SPLIT") || !conTarjeta
+          ? "Pagar con Mercado Pago"
+          : conPlanB
+            ? "Elegí cómo pagar"
+            : "Pagar con tarjeta"}
       </h1>
       <p className="mt-2 text-neutral-700">
         {fotos === 1 ? "1 foto" : `${fotos} fotos`} de «{titulo}» · Total{" "}
