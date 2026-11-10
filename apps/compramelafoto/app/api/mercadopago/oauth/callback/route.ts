@@ -2,6 +2,12 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { exchangeCodeForToken } from "@/lib/mercadopago-oauth";
 import { rutaDeVueltaMercadoPago } from "@/lib/mercadopago/ruta-de-vuelta";
+import { crearDepsConsentimiento } from "@/lib/split-1n-consentimiento/deps";
+import {
+  leerCorreoMercadoPago,
+  parametrosDeVuelta,
+  pedirInvitacionAlConectar,
+} from "@/lib/split-1n-consentimiento/al-conectar";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -90,11 +96,25 @@ export async function GET(req: Request) {
       data: { usedAt: new Date() },
     });
 
+    // Cobro dividido: con la cuenta recién conectada se pide sola la invitación de Mercado Pago,
+    // así sólo falta «Aceptar». Con los interruptores apagados no hace nada y nunca lanza.
+    let extra: Record<string, string> = {};
+    if (stateRecord.ownerType === "USER") {
+      const invitacion = await pedirInvitacionAlConectar(
+        { leerCorreo: (token) => leerCorreoMercadoPago(token), crearDeps: crearDepsConsentimiento },
+        { userId: stateRecord.ownerId, rol: rolDelUsuario, accessToken: access_token, mpUserId },
+      );
+      extra = parametrosDeVuelta(invitacion);
+    }
+
     if (rolDelUsuario === "SCHOOL_ORGANIZER") {
-      const ruta = await rutaDeVueltaMercadoPago(stateRecord.ownerId, rolDelUsuario, "USER", { mp_connected: "true" });
+      const ruta = await rutaDeVueltaMercadoPago(stateRecord.ownerId, rolDelUsuario, "USER", {
+        mp_connected: "true",
+        ...extra,
+      });
       return NextResponse.redirect(new URL(ruta, baseUrl).toString());
     }
-    return NextResponse.redirect(buildRedirect(stateRecord.ownerType, { mp_connected: "true" }));
+    return NextResponse.redirect(buildRedirect(stateRecord.ownerType, { mp_connected: "true", ...extra }));
   } catch (err: any) {
     console.error("GET /api/mercadopago/oauth/callback ERROR >>>", err);
     const baseUrl = process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || "http://localhost:3000";
