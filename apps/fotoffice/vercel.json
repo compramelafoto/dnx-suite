@@ -123,6 +123,10 @@
     {
       "path": "/api/cron/agente-vendedor",
       "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/presupuestos-seguimiento-whatsapp",
+      "schedule": "0 13 * * *"
     }
   ]
 }
