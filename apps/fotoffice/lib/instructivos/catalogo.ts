@@ -24,6 +24,7 @@ import { guia as mostradorTransferenciaYQr } from "./guias/mostrador-transferenc
 import { guia as mostradorAnularVenta } from "./guias/mostrador-anular-venta";
 import { guia as fotoCarnet } from "./guias/foto-carnet";
 import { guia as mostradorPedidoLaboratorio } from "./guias/mostrador-pedido-laboratorio";
+import { guia as mostradorPedidosAProveedores } from "./guias/mostrador-pedidos-a-proveedores";
 import { guia as clientesBuscarYAlta } from "./guias/clientes-buscar-y-alta";
 import { guia as pedidosNuevoYConfirmar } from "./guias/pedidos-nuevo-y-confirmar";
 import { guia as pedidosFichaYCobros } from "./guias/pedidos-ficha-y-cobros";
@@ -62,6 +63,7 @@ export const INSTRUCTIVOS: readonly Instructivo[] = [
   mostradorTransferenciaYQr,
   mostradorAnularVenta,
   fotoCarnet,
+  mostradorPedidosAProveedores,
   mostradorPedidoLaboratorio,
   // Trabajos y entregas, en el orden en que pasa un trabajo
   trabajosTomarConSena,
