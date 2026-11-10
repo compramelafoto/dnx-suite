@@ -86,3 +86,12 @@ export async function buscarClientesAction(q: string): Promise<{ ok: true; clien
   if (!clientes) return { ok: false, error: MENSAJES_BANDEJA.sinPermisoClientes };
   return { ok: true, clientes };
 }
+
+/** "Verificar comprobante": lee la imagen y busca el pago en el Mercado Pago del estudio. */
+export async function verificarComprobanteAction(chatId: string, mensajeId: string) {
+  return conOperar(chatId, async (ctx, id) => {
+    if (typeof mensajeId !== "string" || !mensajeId) return { ok: false as const, error: MENSAJES_BANDEJA.noExiste };
+    const { verificarComprobante } = await import("@/lib/bandeja/comprobante/verificar-servidor");
+    return verificarComprobante(ctx, id, mensajeId);
+  });
+}

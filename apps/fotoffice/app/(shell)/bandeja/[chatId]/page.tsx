@@ -53,7 +53,7 @@ export default async function ChatPage({ params }: { params: Promise<{ chatId: s
             ) : (
               <ol className="space-y-2">
                 {chat.mensajes.map((m) => (
-                  <BurbujaDeMensaje key={m.id} mensaje={m} />
+                  <BurbujaDeMensaje key={m.id} mensaje={m} verificarEn={puedeOperar ? chat.id : undefined} />
                 ))}
               </ol>
             )}
