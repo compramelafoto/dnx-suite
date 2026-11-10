@@ -21,7 +21,7 @@ export const guia: Instructivo = {
       imagen: "/instructivos/trabajos-tomar-con-sena/01-pedido-para-retirar.jpg",
       imagenAlt:
         "Ticket con una Copia instantánea 10x15 con «Seña» activada y marcada «Pedido», y una Fotocopia color para llevar con su botón «Seña» apagado; a la derecha el recuadro «Pedido para retirar · 1 trabajo» con la entrega de mañana, Deja seña o Paga todo, la seña propuesta, «Se cobra ahora $ 3.300,00 · al retirar $ 2.500,00» y el aviso «Elegí el cliente para poder cobrar.».",
-      nota: "Si el producto no muestra «Pedido» ni tenés el interruptor «Seña» activado, se cobra como venta común: se lo lleva en el momento y no aparece en el tablero de trabajos.",
+      nota: "Si el producto no muestra «Pedido» ni tenés el interruptor «Seña» activado, se cobra como venta común: se lo lleva en el momento y no aparece en el tablero de trabajos. Para copias, ampliaciones y cuadros de canvas o MDF usá «Pedido para laboratorio» (guía «Todos los tipos de pedido: cómo cargar cada uno»).",
     },
     {
       titulo: "Elegí el cliente",

@@ -33,7 +33,11 @@ export const guia: Instructivo = {
       texto: [
         "En la tarjeta «Proveedor» elegí el laboratorio (o «Sin proveedor (se hace en el estudio)»).",
         "Anotá el «N° de pedido del proveedor» (el número que te da el laboratorio), el «Costo del proveedor», la «Entrega prometida al cliente» y las «Indicaciones para el proveedor» (por ejemplo: papel mate, cortar polaroid).",
-        "Con «Enviar a … por correo» le llega todo eso al laboratorio. Si lo mandaste por otro lado, tocá «Marcar enviado a …».",
+        "Con «Enviar a … por correo» le llega todo eso al laboratorio, con el enlace a los archivos del trabajo. Si la carpeta está vacía, no se manda y avisa «Falta subir los archivos». Si lo mandaste por otro lado, tocá «Marcar enviado a …».",
+        "Si el pedido se armó con un «Mensaje para el laboratorio» y no escribís indicaciones nuevas, el correo lleva ese mensaje.",
+      ],
+      sistema: [
+        "El dato «Envío» dice en qué punto está: «Faltan los archivos», «Sale solo en unos minutos», «Enviado», «Abrió el pedido» o «Descargó los archivos», con día y hora.",
       ],
     },
     {
