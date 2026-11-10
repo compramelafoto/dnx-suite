@@ -1,5 +1,6 @@
 import type { MensajeDeChat } from "@/lib/bandeja/lecturas";
 import { fechaYHora, pesoLegible, soloHora } from "./formato";
+import { VerificarComprobante } from "./verificar-comprobante";
 
 /** Qué se muestra del estado de envío de un mensaje saliente. */
 export function textoDeEstado(estado: string, errorCodigo: string | null): { marca: string; texto: string; clase: string } | null {
@@ -39,7 +40,7 @@ function cuerpo(m: MensajeDeChat): string {
 }
 
 /** Foto en miniatura, video o enlace al archivo que mandó el cliente (bajado al R2 privado). */
-function Archivo({ id, archivo: a, tipo }: { id: string; archivo: NonNullable<MensajeDeChat["archivo"]>; tipo: string }) {
+function Archivo({ id, archivo: a, tipo, verificarEn }: { id: string; archivo: NonNullable<MensajeDeChat["archivo"]>; tipo: string; verificarEn?: string }) {
   if (a.estado === "PENDIENTE") return <p className="text-xs italic text-[var(--fo-muted)]">Bajando el archivo…</p>;
   if (a.estado === "FALLO") return <p className="text-xs text-[var(--fo-warning)]">No se pudo bajar el archivo de WhatsApp.</p>;
   if (a.estado === "GRANDE")
@@ -66,13 +67,15 @@ function Archivo({ id, archivo: a, tipo }: { id: string; archivo: NonNullable<Me
         <a href={`/api/bandeja/archivos/${id}?modo=descargar`} className="text-[var(--fo-accent)] underline">
           Descargar
         </a>
+        {esFoto && verificarEn ? <VerificarComprobante chatId={verificarEn} mensajeId={id} /> : null}
       </p>
     </div>
   );
 }
 
 /** Una burbuja: cliente a la izquierda; bot, persona o celular a la derecha; sistema, centrado y chico. */
-export function BurbujaDeMensaje({ mensaje: m }: { mensaje: MensajeDeChat }) {
+/** `verificarEn`: el chat, si quien mira puede operar (muestra «Verificar comprobante» en las fotos del cliente). */
+export function BurbujaDeMensaje({ mensaje: m, verificarEn }: { mensaje: MensajeDeChat; verificarEn?: string }) {
   if (m.autor === "SISTEMA" || m.direccion === "SISTEMA") {
     return (
       <li className="flex justify-center">
@@ -94,7 +97,7 @@ export function BurbujaDeMensaje({ mensaje: m }: { mensaje: MensajeDeChat }) {
         }`}
       >
         <p className="text-xs font-semibold text-[var(--fo-text-secondary)]">{autor}</p>
-        {m.archivo ? <Archivo id={m.id} archivo={m.archivo} tipo={m.tipo} /> : null}
+        {m.archivo ? <Archivo id={m.id} archivo={m.archivo} tipo={m.tipo} verificarEn={m.autor === "CLIENTE" ? verificarEn : undefined} /> : null}
         {m.archivo && !m.texto?.trim() ? null : <p className="whitespace-pre-wrap break-words text-sm text-[var(--fo-text)]">{cuerpo(m)}</p>}
         <p className="mt-1 flex flex-wrap items-center justify-end gap-x-2 text-[11px] text-[var(--fo-muted)]">
           <time dateTime={m.createdAt.toISOString()}>{soloHora(m.createdAt)}</time>
