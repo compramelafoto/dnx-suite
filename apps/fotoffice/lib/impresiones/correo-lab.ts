@@ -23,7 +23,7 @@ export function correoPedidoLab(d: DatosCorreoLab) {
     ...(d.sinRecorte ? ["Van los archivos originales, sin recortar: el encuadre lo deciden ustedes."] : []),
     ...(d.calidadBaja && d.calidadBaja.length > 0 ? [`Fotos con resolución baja: ${d.calidadBaja.join(", ")}.`] : []),
   ];
-  const filas = d.resumen.map((r) => `- ${r.tamano} ${r.papel}: ${r.cantidad}`).join("\n");
+  const filas = d.resumen.map((r) => `- ${[r.tamano, r.papel].filter(Boolean).join(" ")}: ${r.cantidad}`).join("\n");
   const text = [
     `Hola, ${d.laboratorio}:`,
     "",

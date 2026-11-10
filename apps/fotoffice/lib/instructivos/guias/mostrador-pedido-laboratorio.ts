@@ -13,7 +13,7 @@ export const guia: Instructivo = {
     {
       titulo: "Abrí el pedido para laboratorio",
       texto: [
-        "En Ventas (el Cobrador), tocá «Pedido para laboratorio». El botón aparece si en el catálogo hay copias para laboratorio («Copia para mañana» o «Copia próxima semana»).",
+        "En Ventas (el Cobrador), tocá «Pedido para laboratorio». El botón aparece si en el catálogo hay copias para laboratorio («Copia para mañana» o «Copia próxima semana») o cuadros («Cuadro canvas 30x40», «Cuadro MDF 50x75»).",
         "Se abre una pantalla completa, sin salir del ticket. Si ya habías armado un pedido, el mismo botón lo vuelve a abrir.",
       ],
       nota: "Si ya sabés quién es el cliente, elegilo antes en el ticket. Para cobrar un pedido para laboratorio el cliente es obligatorio.",
@@ -34,9 +34,25 @@ export const guia: Instructivo = {
         "Para una sola foto, tocala o tocá «Editar»: ahí la movés, la girás o la acercás. «Quitar» la saca del pedido.",
         "Recortar o encajar: cada foto llega con una propuesta. Si para llenar el papel se pierde poco (8 % o menos), la foto se recorta y llena todo el papel. Si se perdería más, se encaja entera y se completan los lados con franjas blancas, para que no se corte ninguna cara. En «Editar» podés cambiar entre «Recortar» y «Encajar».",
         "El «Plazo» es «para mañana» o «próxima semana». Papel: mate o brillo.",
+        "Para un cuadro, elegí en «Tamaño» la medida que empieza con «Canvas» o «MDF» (por ejemplo «Canvas 30x40»). Los cuadros salen siempre para la próxima semana. Lo que ves en pantalla es el frente del cuadro.",
         "Si una foto es chica para ese tamaño, aparece la marca «Pixelada». «Revisada» aparece en las fotos que ya miraste o editaste.",
       ],
       nota: "Si hay fotos «Pixeladas», al tocar «Listo» el sistema pregunta «¿Mandarlas igual?». Conviene pedirle al cliente una foto mejor.",
+    },
+    {
+      titulo: "Cuadros: elegí cómo se rellena el doblez",
+      texto: [
+        "Los cuadros de canvas y de MDF llevan 5 cm más en cada lateral para doblar sobre el bastidor o la placa. En «Editar», dentro de «Doblez de 5 cm por lado», elegí cómo se rellena:",
+        "«Espejo» (viene elegido): repite en espejo el borde de la foto. Parece que la foto sigue y no se pierde nada del frente.",
+        "«Desenfocado»: la foto agrandada y borrosa en los laterales.",
+        "«Color liso»: un color parejo. Tocá «Blanco», «Negro» u «Otro» para elegirlo.",
+        "«Foto envolvente»: la foto dobla sobre el lateral. Queda como cuadro de galería, pero se pierden 5 cm de cada borde del frente: no la uses si hay caras o texto cerca del borde.",
+        "Para usar el mismo doblez en todos los cuadros del pedido, elegilo y tocá «Usar este modo y cantidad en todas»: el doblez también pasa a los otros cuadros.",
+      ],
+      sistema: [
+        "El archivo del cuadro sale con el frente y los 5 cm de doblez de cada lado ya armados.",
+        "En la carpeta del laboratorio y en el correo, el cuadro aparece como «Canvas 30x40 + doblez 5 cm (espejo)», para que sepa cómo armarlo.",
+      ],
     },
     {
       titulo: "Elegí el laboratorio y escribile un mensaje",

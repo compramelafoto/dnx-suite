@@ -5,6 +5,7 @@ import { calidadDeCopia } from "@/lib/impresion/geometria";
 import { medidaEnMm, type RenglonLab } from "@/lib/impresion/laboratorio";
 import { renglonesDeLaPreparacion } from "@/lib/impresion/laboratorio-servidor";
 import { validarReceta } from "@/lib/impresion/receta";
+import { cuadroDeMedida } from "@/lib/impresion/cuadros";
 
 /**
  * El «Pedido para laboratorio» del Mostrador, del lado del cobro. Antes de crear el pedido se
@@ -86,7 +87,9 @@ export async function comprobarTicketDeLaboratorio(
 }
 
 /** La medida nominal en cm («10x15» → 10 y 15), como los pedidos del bot: así la leen el ZIP y el resumen del laboratorio. */
-function medidaNominalCm(medida: string): { widthCm: number; heightCm: number } | null {
+function medidaNominalCm(medidaRaw: string): { widthCm: number; heightCm: number } | null {
+  // Un cuadro («Canvas 30x40») mide su frente; el doblez va en el archivo.
+  const medida = cuadroDeMedida(medidaRaw)?.base ?? medidaRaw;
   const m = medida.match(/^(\d{1,3})x(\d{1,3})$/);
   return m ? { widthCm: Number(m[1]), heightCm: Number(m[2]) } : null;
 }

@@ -2,6 +2,7 @@ import "server-only";
 import { prisma, type Prisma } from "@repo/db";
 import { leerProductosDeCopia, type ProductoCopia } from "@/lib/impresiones/catalogo-copias";
 import { aspectoCoincide } from "./encuadre";
+import { leerProductosDeCuadro } from "./cuadros";
 import { huellaDe } from "./huella";
 import {
   CANTIDAD_MAX_LAB,
@@ -81,11 +82,8 @@ export async function hayCopiasDeLaboratorio(workspaceId: string): Promise<boole
     where: { workspaceId, isActive: true },
     select: { id: true, name: true, priceArs: true, costArs: true, preferredProveedorId: true },
   });
-  return (
-    leerProductosDeCopia(
-      filas.map((p) => ({ id: p.id, name: p.name, priceArs: Number(p.priceArs), costArs: p.costArs === null ? null : Number(p.costArs), preferredProveedorId: p.preferredProveedorId })),
-    ).some((p) => p.plazo !== "INSTANTANEA")
-  );
+  const productos = filas.map((p) => ({ id: p.id, name: p.name, priceArs: Number(p.priceArs), costArs: p.costArs === null ? null : Number(p.costArs), preferredProveedorId: p.preferredProveedorId }));
+  return leerProductosDeCopia(productos).some((p) => p.plazo !== "INSTANTANEA") || leerProductosDeCuadro(productos).length > 0;
 }
 
 /** Los productos de copias del catálogo (activos del negocio) y el laboratorio de cada uno. */
@@ -94,9 +92,9 @@ async function leerCatalogo(workspaceId: string): Promise<{ catalogo: ProductoCo
     where: { workspaceId, isActive: true },
     select: { id: true, name: true, priceArs: true, costArs: true, preferredProveedorId: true },
   });
-  const catalogo = leerProductosDeCopia(
-    filas.map((p) => ({ id: p.id, name: p.name, priceArs: Number(p.priceArs), costArs: p.costArs === null ? null : Number(p.costArs), preferredProveedorId: p.preferredProveedorId })),
-  );
+  const productos = filas.map((p) => ({ id: p.id, name: p.name, priceArs: Number(p.priceArs), costArs: p.costArs === null ? null : Number(p.costArs), preferredProveedorId: p.preferredProveedorId }));
+  // Copias y ampliaciones, y también los cuadros (canvas y MDF): el bot sigue leyendo sólo copias.
+  const catalogo = [...leerProductosDeCopia(productos), ...leerProductosDeCuadro(productos)];
   const ids = catalogo.map((p) => p.id);
   const reglas = ids.length
     ? await prisma.fotofficeProductoProyecto.findMany({ where: { workspaceId, productId: { in: ids } }, orderBy: { order: "asc" }, select: { productId: true, proveedorId: true } })

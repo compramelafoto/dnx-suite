@@ -4,6 +4,7 @@
  */
 import { cotizarCopias, nombreDelPlazo, type PedidoLinea, type ProductoCopia } from "@/lib/impresiones/catalogo-copias";
 import type { Papel } from "./encuadre";
+import { cuadroDeMedida } from "./cuadros";
 
 export const FOTOS_MAX_LAB = 200;
 export const CANTIDAD_MAX_LAB = 99;
@@ -19,8 +20,11 @@ const MEDIDAS_REALES: Record<string, Papel> = {
   "25x38": { anchoMm: 254, altoMm: 380 },
 };
 
-export function medidaEnMm(medida: string): Papel | null {
-  const real = MEDIDAS_REALES[medida];
+/** El frente del papel en mm. Un cuadro («Canvas 30x40») mide lo nominal; el doblez se agrega al armar el archivo. */
+export function medidaEnMm(medidaRaw: string): Papel | null {
+  const cuadro = cuadroDeMedida(medidaRaw);
+  const medida = cuadro ? cuadro.base : medidaRaw;
+  const real = cuadro ? undefined : MEDIDAS_REALES[medida];
   if (real) return { ...real };
   const m = medida.match(/^(\d{1,3})x(\d{1,3})$/);
   if (!m) return null;
@@ -33,9 +37,11 @@ export type PiezaLab = { originalId: string; medida: string; plazo: PlazoLab; pa
 export type OpcionesLab = { medidas: { medida: string; plazos: PlazoLab[] }[]; papeles: PapelLab[] };
 
 const lados = (medida: string): [number, number] => {
-  const [a, b] = medida.split("x").map(Number);
+  const [a, b] = (cuadroDeMedida(medida)?.base ?? medida).split("x").map(Number);
   return [Math.min(a, b), Math.max(a, b)];
 };
+/** Las copias primero, después los canvas y al final los MDF; cada grupo de menor a mayor. */
+const grupo = (medida: string) => ({ CANVAS: 1, MDF: 2 })[cuadroDeMedida(medida)?.tipo ?? ""] ?? 0;
 
 export function opcionesDelCatalogo(catalogo: ProductoCopia[], papeles: { mate: boolean; brillo: boolean } | null): OpcionesLab {
   const porMedida = new Map<string, Set<PlazoLab>>();
@@ -49,7 +55,7 @@ export function opcionesDelCatalogo(catalogo: ProductoCopia[], papeles: { mate: 
     .sort((x, y) => {
       const [xc, xl] = lados(x.medida);
       const [yc, yl] = lados(y.medida);
-      return xc - yc || xl - yl;
+      return grupo(x.medida) - grupo(y.medida) || xc - yc || xl - yl;
     });
   const lista: PapelLab[] = [];
   if (!papeles || papeles.mate) lista.push("MATE");

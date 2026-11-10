@@ -29,6 +29,10 @@ export type Receta = {
   ajustes: Ajustes;
   /** null = la de la salida. */
   nitidez: Nitidez | null;
+  /** Cuadros (canvas y MDF): cómo se rellena el doblez de 5 cm por lado. Si falta, en espejo. */
+  doblez?: "ESPEJO" | "DESENFOCADO" | "COLOR" | "ENVOLVENTE";
+  /** Color del doblez en modo COLOR. Si falta, blanco. */
+  colorDoblez?: string;
 };
 
 export const COLOR_BORDE_POR_OMISION = "#ffffff";
@@ -61,6 +65,8 @@ const esquema = z
     colorBorde: z.string().regex(/^#[0-9a-f]{6}$/).optional(),
     ajustes: esquemaAjustes,
     nitidez: z.enum(["SUAVE", "NORMAL", "FUERTE"]).nullable(),
+    doblez: z.enum(["ESPEJO", "DESENFOCADO", "COLOR", "ENVOLVENTE"]).optional(),
+    colorDoblez: z.string().regex(/^#[0-9a-f]{6}$/).optional(),
   })
   .strict()
   .superRefine((r, ctx) => {

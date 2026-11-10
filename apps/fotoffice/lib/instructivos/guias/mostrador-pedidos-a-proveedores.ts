@@ -19,16 +19,17 @@ export const guia: Instructivo = {
       sistema: ["Cuando se suben los archivos, el pedido sale solo al proveedor a los 5 minutos del último archivo, sin tocar nada más."],
     },
     {
-      titulo: "Copias y ampliaciones: «Pedido para laboratorio»",
+      titulo: "Copias, ampliaciones y cuadros de canvas o MDF: «Pedido para laboratorio»",
       texto: [
-        "Para «Copia para mañana», «Copia próxima semana» y las ampliaciones, usá el botón «Pedido para laboratorio» del Cobrador. Ahí subís las fotos del cliente, elegís tamaño, papel y plazo, y cada foto se recorta o se encaja con franjas blancas para la medida de impresión.",
+        "Para «Copia para mañana», «Copia próxima semana», las ampliaciones y los cuadros de canvas y MDF, usá el botón «Pedido para laboratorio» del Cobrador. Ahí subís las fotos del cliente, elegís tamaño, papel y plazo, y cada foto se recorta o se encaja con franjas blancas para la medida de impresión.",
+        "Los cuadros llevan además el doblez de 5 cm por lado: elegís si va en espejo, desenfocado, de un color liso o con la foto envolvente.",
         "En esa misma pantalla elegís el «Laboratorio» (si no, va al de cada producto, hoy Fotolag) y escribís el «Mensaje para el laboratorio».",
         "El paso a paso completo está en la guía «Armar un pedido para el laboratorio desde el Cobrador».",
       ],
       sistema: ["El sistema arma las fotos a 300 ppp, hace una carpeta ordenada por tamaño, papel y cantidad y le manda un solo correo al laboratorio."],
     },
     {
-      titulo: "Canvas, imanes, MDF, plotter y dípticos: venta común y archivos en la carpeta",
+      titulo: "Imanes, plotter y dípticos: venta común y archivos en la carpeta",
       texto: [
         "Estos productos se cargan en el ticket como cualquier producto: van al pedido con seña y al proveedor que tienen en el catálogo (La Isla o Román).",
         "Después de cobrar, abrí el trabajo en Proyectos → «En curso» y subí los archivos en «Archivos del trabajo». Tienen que estar listos para imprimir: recortados y en la medida pedida, porque van tal cual.",

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, Check, ImagePlus } from "lucide-react";
 import { cambiarModo } from "@/lib/impresion/encuadre";
+import { esMedidaDeCuadro } from "@/lib/impresion/cuadros";
 import { CANTIDAD_MAX_LAB, FOTOS_MAX_LAB, type OpcionesLab, type PapelLab, type PlazoLab } from "@/lib/impresion/laboratorio";
 import {
   TEXTO_PAPEL,
@@ -296,18 +297,24 @@ export function EditorLaboratorio({
           indice={indice}
           total={fotos.length}
           cantidadMax={CANTIDAD_MAX_LAB}
+          cuadro={esMedidaDeCuadro(piezaActual.medida)}
           onGuardar={({ receta, cantidad, revisada }) =>
             guardar([{ originalId: actual.originalId, medida: piezaActual.medida, plazo: piezaActual.plazo, papel: piezaActual.papel, receta, cantidad, revisada }])
           }
           onIr={(d) => setAbierta(fotos[indice + d]?.originalId ?? null)}
-          onPegarATodas={({ modo, cantidad }) => {
+          onPegarATodas={({ modo, cantidad, doblez, colorDoblez }) => {
             // Cada foto cambia de modo sobre su propia medida; la cantidad va a todas.
             const n = acotarCantidadLab(cantidad);
             const items: PiezaLabAGuardar[] = [];
             for (const f of fotos) {
               const papel = f.pieza ? papelDeMedida(f.pieza.medida) : null;
               if (!f.pieza || !papel) continue;
-              const receta = cambiarModo(f.pieza.receta, modo, { foto: { ancho: f.ancho, alto: f.alto }, papel });
+              const conModo = cambiarModo(f.pieza.receta, modo, { foto: { ancho: f.ancho, alto: f.alto }, papel });
+              // El doblez sólo se pega a los otros cuadros.
+              const receta =
+                doblez && esMedidaDeCuadro(f.pieza.medida) && (conModo.doblez !== doblez || conModo.colorDoblez !== colorDoblez)
+                  ? { ...conModo, doblez, ...(colorDoblez ? { colorDoblez } : {}) }
+                  : conModo;
               if (receta === f.pieza.receta && n === f.pieza.cantidad) continue;
               items.push({ ...f.pieza, originalId: f.originalId, cantidad: n, receta, revisada: false });
             }

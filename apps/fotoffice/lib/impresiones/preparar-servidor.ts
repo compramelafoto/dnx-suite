@@ -21,7 +21,8 @@ import { resumenParaLab, rutasDelZip } from "./carpeta-lab";
 import { correoPedidoLab, esc } from "./correo-lab";
 import { pedidoDeReferencia, referenciaPedido } from "./pago-servidor";
 import { recorteEnPixeles } from "./recorte";
-import { renderParaLaboratorio } from "@/lib/impresion/render-laboratorio";
+import { agregarDoblez, renderParaLaboratorio } from "@/lib/impresion/render-laboratorio";
+import { esMedidaDeCuadro, etiquetaDeCuadro } from "@/lib/impresion/cuadros";
 import { medidaEnMm } from "@/lib/impresion/laboratorio";
 import { validarReceta, type Receta } from "@/lib/impresion/receta";
 import type { Papel as PapelMm } from "@/lib/impresion/encuadre";
@@ -89,6 +90,7 @@ export type DepsPreparar = {
   recortar?: (original: Buffer, item: Item) => Promise<Buffer>;
   /** Copias de mostrador (con `piezaId`): la receta completa a la medida real del papel. */
   renderizar?: (original: Buffer, receta: Receta, papel: PapelMm) => Promise<Buffer>;
+  agregarDoblez?: (frente: Buffer, receta: Receta, papel: PapelMm) => Promise<Buffer>;
   /** Cuadros del probador. */
   renderizarCuadro?: (original: Buffer, receta: RecetaProbador) => Promise<Buffer>;
   leer?: (key: string) => Promise<Buffer>;
@@ -163,7 +165,8 @@ async function completarLaboratoriosSinTrabajo(workspaceId: string, items: Item[
   }
 }
 
-type PiezaLab = { receta: Receta; papel: PapelMm };
+/** `medida`: la del pedido («10x15», «Canvas 30x40»): un cuadro lleva el doblez. */
+type PiezaLab = { receta: Receta; papel: PapelMm; medida: string };
 
 /** Receta y medida real de las piezas de los ítems de mostrador; las que no existen, sin orientación o sin medida válida no entran. */
 async function piezasDelPedido(workspaceId: string, items: Item[]): Promise<Map<string, PiezaLab>> {
@@ -174,7 +177,7 @@ async function piezasDelPedido(workspaceId: string, items: Item[]): Promise<Map<
   for (const f of filas) {
     const receta = validarReceta(f.receta);
     const papel = f.medida ? medidaEnMm(f.medida) : null;
-    if (receta?.orientacion && papel) mapa.set(f.id, { receta, papel });
+    if (receta?.orientacion && papel && f.medida) mapa.set(f.id, { receta, papel, medida: f.medida });
   }
   return mapa;
 }
@@ -269,6 +272,7 @@ export async function prepararPedido(
   if (toma === "OCUPADO") return "OCUPADO";
   const recortar = deps.recortar ?? recortarParaImprimir;
   const renderizar = deps.renderizar ?? renderParaLaboratorio;
+  const conDoblez = deps.agregarDoblez ?? agregarDoblez;
   const renderizarCuadro = deps.renderizarCuadro ?? renderProbador;
   const leer = deps.leer ?? leerOriginal;
   const subir = deps.subir ?? subirFlujo;
@@ -334,6 +338,11 @@ export async function prepararPedido(
       const paraLab = ordenados.map((i) => ({
         itemId: i.id, proveedorId, widthCm: i.widthCm, heightCm: i.heightCm, quantity: i.quantity, sourceName: i.sourceName,
         paper: i.paper === "MATE" || i.paper === "BRILLO" ? (i.paper as Papel) : null, original: i.sinRecorte === true,
+        // Un cuadro va con su nombre y el doblez («Canvas 30x40 + doblez 5 cm (espejo)»), sin papel.
+        etiqueta: (() => {
+          const pieza = i.piezaId ? piezas.get(i.piezaId) : undefined;
+          return pieza ? (etiquetaDeCuadro(pieza.medida, pieza.receta.doblez) ?? undefined) : undefined;
+        })(),
       }));
       const rutas = new Map(rutasDelZip(p.number, p.nombre, p.paper as Papel, paraLab).map((r) => [r.itemId, r.ruta]));
       // Los cuadros del probador van por tipo y medida, numerados como en el mapa de armado.
@@ -352,6 +361,8 @@ export async function prepararPedido(
               const pieza = piezas.get(i.piezaId);
               if (!pieza) throw new Error("la pieza con el recorte de la cajera no existe o no es válida");
               jpg = await renderizar(await leer(i.sourceKey), pieza.receta, pieza.papel);
+              // Un cuadro (canvas o MDF): el doblez de 5 cm por lado para armarlo.
+              if (esMedidaDeCuadro(pieza.medida)) jpg = await conDoblez(jpg, pieza.receta, pieza.papel);
             } else jpg = await recortar(await leer(i.sourceKey), i);
             return (async function* () {
               yield new Uint8Array(jpg);
