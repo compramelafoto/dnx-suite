@@ -3,6 +3,8 @@ export type DatosCorreoLab = {
   resumen: { tamano: string; papel: string; cantidad: number }[]; prueba: boolean;
   /** Pedidos del bot (spec 2026-10-28): plazo del trabajo, fotos con resolución baja y si van los originales. */
   plazo?: "MANANA" | "SEMANA" | null; calidadBaja?: string[]; sinRecorte?: boolean;
+  /** El mensaje para el laboratorio que se escribió al preparar el pedido. */
+  mensaje?: string | null;
 };
 
 /** Escapa texto para meterlo en HTML. Se exporta: otros correos lo reutilizan. */
@@ -17,6 +19,7 @@ export function correoPedidoLab(d: DatosCorreoLab) {
   const subject = `${d.prueba ? "[PRUEBA] " : ""}Pedido ${d.numero} – ${semana ? "PARA LA PRÓXIMA SEMANA" : "PARA MAÑANA"} – ${cliente}`;
   const cuando = semana ? "para la PRÓXIMA SEMANA" : "para entregar MAÑANA";
   const notas = [
+    ...(d.mensaje && d.mensaje.trim() ? [`Indicaciones: ${d.mensaje.trim()}`] : []),
     ...(d.sinRecorte ? ["Van los archivos originales, sin recortar: el encuadre lo deciden ustedes."] : []),
     ...(d.calidadBaja && d.calidadBaja.length > 0 ? [`Fotos con resolución baja: ${d.calidadBaja.join(", ")}.`] : []),
   ];

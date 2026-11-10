@@ -34,7 +34,17 @@ export type FotoLab = {
   alto: number;
   pieza: (PiezaLab & { receta: Receta; revisada: boolean }) | null;
 };
-export type EstadoLab = { preparacionId: string; fotos: FotoLab[]; opciones: OpcionesLab };
+export type EstadoLab = {
+  preparacionId: string;
+  fotos: FotoLab[];
+  opciones: OpcionesLab;
+  /** Laboratorios activos para el selector, y el que se eligió (null = el de cada producto). */
+  proveedores: { id: string; name: string }[];
+  proveedorId: string | null;
+  /** Nombres de los laboratorios por defecto de las copias del catálogo (para «El de cada producto»). */
+  porDefecto: string[];
+  mensaje: string;
+};
 
 export type PiezaLabEntrada = { originalId: string; medida: unknown; plazo: unknown; papel: unknown; cantidad: unknown; receta: unknown; revisada: boolean };
 
@@ -117,6 +127,11 @@ export async function estadoLaboratorio(ctx: CtxImpresion, preparacionId: string
     }),
   ]);
   const opciones = await leerOpciones(ctx.workspaceId, catalogo);
+  const [proveedores, elegido] = await Promise.all([
+    prisma.fotofficeProveedor.findMany({ where: { workspaceId: ctx.workspaceId, active: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
+    prisma.fotofficePreparacionImpresion.findFirst({ where: { id: prep.id, workspaceId: ctx.workspaceId }, select: { proveedorId: true, mensajeProveedor: true } }),
+  ]);
+  const idsPorDefecto = new Set(catalogo.map((c) => c.proveedorId).filter((x): x is string => x !== null));
   const fotos = originales.map((o): FotoLab => {
     const p = piezas.find((x) => x.originalId === o.id);
     const receta = p ? validarReceta(p.receta) : null;
@@ -126,7 +141,15 @@ export async function estadoLaboratorio(ctx: CtxImpresion, preparacionId: string
         : null;
     return { originalId: o.id, nombre: o.nombre, vista: o.previewKey ? `/api/impresion/vista/${o.id}` : null, ancho: o.anchoPx, alto: o.altoPx, pieza };
   });
-  return { preparacionId: prep.id, fotos, opciones };
+  return {
+    preparacionId: prep.id,
+    fotos,
+    opciones,
+    proveedores,
+    proveedorId: elegido?.proveedorId && proveedores.some((p) => p.id === elegido.proveedorId) ? elegido.proveedorId : null,
+    porDefecto: proveedores.filter((p) => idsPorDefecto.has(p.id)).map((p) => p.name),
+    mensaje: elegido?.mensajeProveedor ?? "",
+  };
 }
 
 export async function guardarPiezasLaboratorio(ctx: CtxImpresion, preparacionId: string, items: PiezaLabEntrada[]): Promise<R<{ guardadas: number }>> {
@@ -226,6 +249,37 @@ export type PiezaDeRenglon = { id: string; originalId: string; medida: string; p
  * Los renglones del ticket de la preparación (uno por producto del catálogo). Exige al menos una
  * pieza y que TODA foto LISTO tenga la suya. Las subidas a medias (PENDIENTE) no cuentan.
  */
+/** El laboratorio elegido al preparar el pedido, si existe y está activo; null = el de cada producto. */
+async function laboratorioElegido(workspaceId: string, preparacionId: string): Promise<string | null> {
+  const prep = await prisma.fotofficePreparacionImpresion.findFirst({ where: { id: preparacionId, workspaceId }, select: { proveedorId: true } });
+  if (!prep?.proveedorId) return null;
+  const ok = await prisma.fotofficeProveedor.count({ where: { id: prep.proveedorId, workspaceId, active: true } });
+  return ok > 0 ? prep.proveedorId : null;
+}
+
+/**
+ * Al preparar el pedido: a qué laboratorio va (null = el de cada producto) y un mensaje para él.
+ * Se guarda en la preparación; al cobrar, el laboratorio va al pedido de impresión y el mensaje a
+ * cada trabajo, y los dos llegan al correo del laboratorio.
+ */
+export async function guardarProveedorLaboratorio(ctx: CtxImpresion, preparacionId: string, proveedorIdRaw: unknown, mensajeRaw: unknown): Promise<R> {
+  const prep = await preparacionLab(ctx.workspaceId, preparacionId);
+  if (!prep) return NO_EXISTE;
+  let proveedorId: string | null = null;
+  if (typeof proveedorIdRaw === "string" && proveedorIdRaw !== "") {
+    if (!esId(proveedorIdRaw)) return { ok: false, error: "Ese laboratorio no existe." };
+    const ok = await prisma.fotofficeProveedor.count({ where: { id: proveedorIdRaw, workspaceId: ctx.workspaceId, active: true } });
+    if (ok === 0) return { ok: false, error: "Ese laboratorio no existe." };
+    proveedorId = proveedorIdRaw;
+  }
+  const mensaje = typeof mensajeRaw === "string" ? mensajeRaw.trim().slice(0, 1000) : "";
+  await prisma.fotofficePreparacionImpresion.updateMany({
+    where: { id: prep.id, workspaceId: ctx.workspaceId },
+    data: { proveedorId, mensajeProveedor: mensaje || null },
+  });
+  return { ok: true };
+}
+
 export async function renglonesDeLaPreparacion(
   workspaceId: string,
   preparacionId: string,
@@ -253,9 +307,12 @@ export async function renglonesDeLaPreparacion(
     proveedorDeProducto,
   );
   if (!r.ok) return r;
+  // El laboratorio elegido al preparar reemplaza al del catálogo en todos los renglones (si sigue activo).
+  // El costo del catálogo es del laboratorio por defecto: con otro elegido no se usa.
+  const elegido = await laboratorioElegido(workspaceId, prep.id);
   return {
     ok: true,
-    renglones: r.renglones,
+    renglones: elegido ? r.renglones.map((x) => (x.proveedorId === elegido ? x : { ...x, proveedorId: elegido, costoUnitario: null })) : r.renglones,
     plazoFinal: r.plazoFinal,
     piezas: validas.map((p) => ({ id: p.id, originalId: p.originalId, medida: p.medida!, papel: p.papel as PapelLab, cantidad: p.cantidad })),
     nombres,

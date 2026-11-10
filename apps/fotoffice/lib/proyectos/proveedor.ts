@@ -152,6 +152,7 @@ async function enviarSinPermiso(
         entregaPrometida: true,
         pedidoId: true,
         pedidoItemIndex: true,
+        proveedorMensaje: true,
         product: { select: { name: true } },
         client: { select: { firstName: true, lastName: true, businessName: true } },
       },
@@ -184,7 +185,8 @@ async function enviarSinPermiso(
       cantidad: await cantidadDelRenglon(ctx.workspaceId, p.pedidoId, p.pedidoItemIndex),
       cliente: nombreDeContacto(p.client),
       entregaDeseada: ymd(p.entregaPrometida),
-      notas,
+      // Lo que se escribe al mandarlo a mano manda; si no, el mensaje que se dejó al armar el pedido.
+      notas: notas ?? p.proveedorMensaje ?? null,
       enlaceArchivos,
       materialFisico: enlaceArchivos === null,
     });
