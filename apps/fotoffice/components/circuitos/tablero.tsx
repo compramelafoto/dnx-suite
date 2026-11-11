@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore, useTran
 import { AlarmClock, Archive, CircleX, Inbox, LayoutGrid, List, Trophy } from "lucide-react";
 import { cerrarAction, moverAction } from "@/app/actions/circuitos";
 import { ETIQUETA_SALIDA } from "@/lib/circuitos/constantes";
+import { confirmarListo } from "@/lib/proyectos/confirmar-listo";
 import { formatoPesos } from "@/lib/consultas/valor";
 import { clasePuntoDeEtapa, porcentajeDe, resumenDeColumnas } from "@/lib/circuitos/tablero-vista";
 import type { Tablero as DatosTablero, TarjetaVista } from "@/lib/circuitos/tablero";
@@ -173,6 +174,7 @@ export function Tablero({
       setGanando(op);
       return;
     }
+    if (tipo === "PROYECTO" && destino.tipo === "etapa" && !confirmarListo({ name: destino.nombre }, tarjeta.sujeto.titulo)) return;
     ejecutar({ ...op, destino });
   }
 
