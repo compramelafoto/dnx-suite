@@ -199,7 +199,7 @@ def main():
     cards = []
     for c in CURSOS:
         cid = f"crs_f64_{c['key']}"
-        cover = f"{R2}/fotoffice/courses/{cid}/portada-{c['key']}-v2.jpg"
+        cover = f"{R2}/fotoffice/courses/{cid}/portada-{c['key']}-v3.jpg"
         out.append(
             insert(
                 "Course",
