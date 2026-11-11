@@ -4,13 +4,8 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { MapPin, Printer, RotateCcw, Store } from "lucide-react";
 import { cobrarSaldoImpresionAction, reintentarEnvioAction } from "@/app/actions/impresiones";
+import { etiquetaDelEstado, type Instantaneas } from "@/lib/impresiones/estado-pedido";
 
-const ESTADOS: Record<string, string> = {
-  PAGADO: "Pagado, por preparar",
-  PREPARANDO: "Preparando la carpeta",
-  ENVIADO: "Enviado al laboratorio",
-  PAGADO_SIN_ENVIAR: "Pagado, sin enviar",
-};
 const pesos = (c: number) => (c / 100).toLocaleString("es-AR", { style: "currency", currency: "ARS" });
 
 /**
@@ -22,7 +17,7 @@ export function PedidoDelTrabajo({
   puedeEditar,
 }: {
   pedido: {
-    pedidoId: string; numero: number; estado: string; lastError: string | null;
+    pedidoId: string; numero: number; estado: string; instantaneas?: Instantaneas; lastError: string | null;
     copias: { tamano: string; papel: string; cantidad: number }[]; totalCents: number; costoCents: number; gananciaCents: number; deMostrador?: boolean;
     entrega: { direccion: string; km: number | null; envioCents: number; mapa: string | null } | null;
     pagadoCents?: number | null; saldoCents?: number | null; deMasCents?: number | null;
@@ -60,7 +55,7 @@ export function PedidoDelTrabajo({
           <span className="rounded-full border border-[var(--fo-border)] px-1.5 py-px text-[10px] font-semibold tracking-wide">Mostrador</span>
         ) : null}
       </h2>
-      <p className="text-xs text-[var(--fo-muted)]">{ESTADOS[pedido.estado] ?? pedido.estado}</p>
+      <p className="text-xs text-[var(--fo-muted)]">{etiquetaDelEstado(pedido.estado, pedido.instantaneas ?? "NINGUNA")}</p>
 
       <ul className="space-y-1 text-sm">
         {pedido.copias.map((c) => (

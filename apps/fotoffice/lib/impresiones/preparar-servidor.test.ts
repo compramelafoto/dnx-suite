@@ -725,14 +725,17 @@ describe("prepararPedido: pedidos del bot de WhatsApp", () => {
     expect((d.enviar.mock.calls[0][0] as { subject: string }).subject).toContain("PARA LA PRÓXIMA SEMANA");
   });
 
-  it("las instantáneas no van al laboratorio: sin ZIP ni correo, y el pedido queda enviado", async () => {
+  it("las instantáneas no van al laboratorio: sin correo, con su ZIP en el trabajo para imprimir en el estudio", async () => {
     H.estado.pedidos = {
       ord1: { ...pedidoBase(), items: [item({ id: "w2", sourceName: "x.jpg", proveedorId: null, proyectoId: "p-mostrador", plazo: "INSTANTANEA", sinRecorte: true })] },
     };
     const d = deps();
     expect(await P.prepararPedido("ord1", d)).toBe("ENVIADO");
-    expect(d.subir).not.toHaveBeenCalled();
     expect(d.enviar).not.toHaveBeenCalled();
+    expect(d.subir).toHaveBeenCalledTimes(1);
+    expect(String(d.subir.mock.calls[0][0])).toContain("Pedido-");
+    expect(String(d.subir.mock.calls[0][0])).toContain("-instantaneas.zip");
+    expect(zips[0].buf.toString("latin1")).toContain("x.jpg");
   });
 });
 

@@ -3,6 +3,7 @@ import { prisma } from "@repo/db";
 import { enlaceDeMapa } from "@/lib/geocode/lugar";
 import { etiquetaTamano } from "./carpeta-lab";
 import { ETIQUETA_PAPEL, type Papel } from "./constantes";
+import { instantaneasDe, type Instantaneas } from "./estado-pedido";
 
 /**
  * Lo que muestra la ficha de un trabajo que nació de un pedido de copias impresas: el resumen del pedido y,
@@ -16,6 +17,8 @@ export type PedidoDelTrabajo = {
   pedidoId: string;
   numero: number;
   estado: string;
+  /** Si las copias son instantáneas (se imprimen en el estudio, no van al laboratorio). */
+  instantaneas: Instantaneas;
   lastError: string | null;
   copias: { tamano: string; papel: string; cantidad: number }[];
   totalCents: number;
@@ -40,7 +43,7 @@ export async function pedidoDelTrabajo(workspaceId: string, proyectoId: string):
       id: true, number: true, status: true, lastError: true, source: true, paper: true, totalArs: true, costTotalArs: true,
       delivery: true, shippingArs: true, shippingAddress: true, shippingLat: true, shippingLon: true, shippingKm: true,
       depositArs: true, paidArs: true,
-      items: { select: { widthCm: true, heightCm: true, quantity: true, paper: true } },
+      items: { select: { widthCm: true, heightCm: true, quantity: true, paper: true, plazo: true } },
     },
   });
   if (!p) return null;
@@ -72,7 +75,7 @@ export async function pedidoDelTrabajo(workspaceId: string, proyectoId: string):
           mapa: p.shippingLat != null && p.shippingLon != null ? enlaceDeMapa(p.shippingLat, p.shippingLon) : null,
         }
       : null;
-  return { pedidoId: p.id, numero: p.number, estado: p.status, lastError: p.lastError, copias, totalCents, deMostrador: p.source === "MOSTRADOR", costoCents,
+  return { pedidoId: p.id, numero: p.number, estado: p.status, instantaneas: instantaneasDe(p.items.map((i) => i.plazo)), lastError: p.lastError, copias, totalCents, deMostrador: p.source === "MOSTRADOR", costoCents,
     pagadoCents, saldoCents: pagadoCents === null ? null : Math.max(0, totalCents - pagadoCents),
     deMasCents: pagadoCents === null ? null : Math.max(0, pagadoCents - totalCents),
     // El envío se cobra para pagar el traslado: no es ganancia de las copias.

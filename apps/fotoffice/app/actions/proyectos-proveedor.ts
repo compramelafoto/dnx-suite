@@ -65,3 +65,20 @@ export async function llegoDelProveedorAction(proyectoId: string): Promise<Resul
   const aviso = await avisarListoParaRetirar(ctx.workspaceId, proyectoId, ctx.userId);
   return { ok: true, etapa: r.etapa, avisado: aviso.ok ? aviso.resumen : null, avisoError: aviso.ok ? null : aviso.error };
 }
+
+/**
+ * «Ya las imprimí» (Ventas → Impresiones): las instantáneas de un pedido online quedaron impresas. El
+ * trabajo pasa a «Listo para retirar» y el cliente recibe el aviso por correo y WhatsApp.
+ */
+export async function instantaneasImpresasAction(proyectoId: string): Promise<ResultadoLlego> {
+  const ctx = await contextoDeProyectos("operar");
+  if (!ctx) return SIN_PERMISO;
+  if (typeof proyectoId !== "string" || !/^[A-Za-z0-9_-]{1,64}$/.test(proyectoId)) return { ok: false, error: MENSAJES_PROYECTO.datosInvalidos };
+  const r = await moverAFase(ctx, proyectoId, "LISTO", "Instantáneas impresas en el estudio.");
+  if (!r.ok) return r;
+  revalidar(proyectoId);
+  revalidatePath("/ventas/impresiones");
+  if (!r.movido) return { ok: true, etapa: r.etapa, avisado: null, avisoError: null };
+  const aviso = await avisarListoParaRetirar(ctx.workspaceId, proyectoId, ctx.userId);
+  return { ok: true, etapa: r.etapa, avisado: aviso.ok ? aviso.resumen : null, avisoError: aviso.ok ? null : aviso.error };
+}

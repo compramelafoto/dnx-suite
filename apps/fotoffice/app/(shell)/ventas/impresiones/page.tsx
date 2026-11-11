@@ -2,7 +2,9 @@ import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
 import { requireSalesStaff } from "@/lib/sales/access";
 import { colas, type FilaCola } from "@/lib/impresion/preparaciones";
+import { instantaneasPorImprimir } from "@/lib/impresiones/instantaneas-servidor";
 import { FilaAcciones } from "./fila-acciones";
+import { InstantaneaAcciones } from "./instantanea-acciones";
 
 export const dynamic = "force-dynamic";
 
@@ -12,11 +14,32 @@ const hora = (iso: string) =>
 /** Lo que hay que imprimir, lo preparado sin cobrar y lo que salió hoy de cada impresora. */
 export default async function ImpresionesPage() {
   const { workspace } = await requireSalesStaff();
-  const c = await colas(workspace.id, new Date());
+  const ahora = new Date();
+  const [c, instantaneas] = await Promise.all([colas(workspace.id, ahora), instantaneasPorImprimir(workspace.id, ahora)]);
   return (
     <div className="space-y-6">
       <PageHeader title="Impresiones" description="Para imprimir, preparado sin cobrar e impreso hoy." />
       <Seccion titulo="Para imprimir" vacia="No hay nada cobrado esperando impresión." filas={c.paraImprimir} />
+      <section className="fo-card p-5">
+        <h2 className="mb-1 text-base font-semibold">Instantáneas pedidas por WhatsApp o la web</h2>
+        <p className="mb-3 text-xs text-[var(--fo-muted)]">Ya están pagadas. Las fotos están en el ZIP del trabajo. Al imprimirlas, tocá «Ya las imprimí» y al cliente le llega el aviso.</p>
+        {instantaneas.length === 0 ? (
+          <p className="text-sm text-[var(--fo-muted)]">No hay instantáneas esperando.</p>
+        ) : (
+          <ul className="divide-y text-sm">
+            {instantaneas.map((i) => (
+              <li key={i.proyectoId} className="flex flex-wrap items-center justify-between gap-3 py-2">
+                <span>
+                  Pedido N° {i.numero} · {i.cliente} · {i.copias.map((x) => `${x.cantidad} ${x.tamano} ${x.papel}`).join(", ")}
+                  {i.pagadoEl ? ` · pagado ${hora(i.pagadoEl.toISOString())}` : ""}
+                  {i.zipListo ? "" : " · preparando las fotos…"}
+                </span>
+                <InstantaneaAcciones proyectoId={i.proyectoId} />
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
       <Seccion titulo="Preparado sin cobrar" vacia="Todo lo preparado está cobrado." filas={c.sinCobrar} />
       <section className="fo-card p-5">
         <h2 className="mb-3 text-base font-semibold">Impreso hoy</h2>
