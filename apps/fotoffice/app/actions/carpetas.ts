@@ -51,7 +51,7 @@ export async function enlaceDeCarpetaAction(proyectoId: string, audiencia: "CLIE
 /** Recorridos donde los archivos SON lo que se entrega (digitalizaciones, revelado de rollos). */
 const ENTREGA_DIGITAL = /nube|youtube|subid[oa]/i;
 
-export type ResultadoArchivosListos = { ok: true; etapa: string | null; correo: string | null; avisoError: string | null } | { ok: false; error: string };
+export type ResultadoArchivosListos = { ok: true; etapa: string | null; avisado: string | null; avisoError: string | null } | { ok: false; error: string };
 
 /**
  * Después de subir archivos: si el recorrido del trabajo es de entrega digital (tiene una etapa
@@ -67,15 +67,15 @@ export async function archivosSubidosAction(proyectoId: string): Promise<Resulta
     where: { workspaceId: ctx.workspaceId, subjectType: "PROYECTO", subjectId: proyectoId, stageId: { not: null } },
     select: { circuitId: true },
   });
-  if (!j) return { ok: true, etapa: null, correo: null, avisoError: null };
+  if (!j) return { ok: true, etapa: null, avisado: null, avisoError: null };
   const etapas = await prisma.fotofficeStage.findMany({ where: { circuitId: j.circuitId, archivedAt: null }, select: { name: true } });
-  if (!etapas.some((e) => ENTREGA_DIGITAL.test(e.name))) return { ok: true, etapa: null, correo: null, avisoError: null };
+  if (!etapas.some((e) => ENTREGA_DIGITAL.test(e.name))) return { ok: true, etapa: null, avisado: null, avisoError: null };
 
   const avance = await moverAFase(ctx, proyectoId, "LISTO", "Archivos subidos a la carpeta.");
   if (!avance.ok) return avance;
-  if (!avance.movido) return { ok: true, etapa: null, correo: null, avisoError: null };
+  if (!avance.movido) return { ok: true, etapa: null, avisado: null, avisoError: null };
   const aviso = await avisarListoParaRetirar(ctx.workspaceId, proyectoId, ctx.userId);
   revalidatePath(`/proyectos/${proyectoId}`);
   revalidatePath("/proyectos");
-  return { ok: true, etapa: avance.etapa, correo: aviso.ok ? aviso.email : null, avisoError: aviso.ok ? null : aviso.error };
+  return { ok: true, etapa: avance.etapa, avisado: aviso.ok ? aviso.resumen : null, avisoError: aviso.ok ? null : aviso.error };
 }

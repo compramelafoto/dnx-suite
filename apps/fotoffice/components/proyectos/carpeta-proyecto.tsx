@@ -84,8 +84,8 @@ export function CarpetaProyecto({
       // Digitalizaciones y rollos: con los archivos arriba, el trabajo queda listo y el cliente recibe el aviso.
       const l = await archivosSubidosAction(proyectoId);
       if (l.ok && l.etapa) {
-        const correo = l.correo ? ` Se le avisó por correo a ${l.correo}.` : ` ${l.avisoError ?? ""}`;
-        setAviso({ ok: l.correo !== null, texto: `${subidos} Pasó a «${l.etapa}».${correo}` });
+        const correo = l.avisado ? ` ${l.avisado}` : ` ${l.avisoError ?? ""}`;
+        setAviso({ ok: l.avisado !== null, texto: `${subidos} Pasó a «${l.etapa}».${correo}` });
       } else setAviso({ ok: true, texto: subidos });
     }
     router.refresh();

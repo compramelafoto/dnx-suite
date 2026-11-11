@@ -38,21 +38,21 @@ export async function enviarAlProveedorAction(proyectoId: string, proveedorId: s
   return r;
 }
 
-/** Reenviar (o enviar a mano) el aviso de "Listo para retirar". */
+/** Reenviar por correo el aviso de "Listo para retirar" (el WhatsApp ya salió al pasar a Listo). */
 export async function avisarListoAction(proyectoId: string): Promise<ResultadoAviso> {
   const ctx = await contextoDeProyectos("operar");
   if (!ctx) return SIN_PERMISO;
   if (typeof proyectoId !== "string" || !/^[A-Za-z0-9_-]{1,64}$/.test(proyectoId)) return { ok: false, error: MENSAJES_PROYECTO.datosInvalidos };
-  const r = await avisarListoParaRetirar(ctx.workspaceId, proyectoId, ctx.userId);
+  const r = await avisarListoParaRetirar(ctx.workspaceId, proyectoId, ctx.userId, { soloCorreo: true });
   if (r.ok) revalidar(proyectoId);
   return r;
 }
 
-export type ResultadoLlego = { ok: true; etapa: string | null; correo: string | null; avisoError: string | null } | { ok: false; error: string };
+export type ResultadoLlego = { ok: true; etapa: string | null; avisado: string | null; avisoError: string | null } | { ok: false; error: string };
 
 /**
  * Llegó del laboratorio: el trabajo pasa directo a "Listo para retirar" (salteando las etapas del
- * medio) y se le avisa al cliente por correo si tiene. El aviso por WhatsApp queda en el panel.
+ * medio) y se le avisa al cliente por correo y por WhatsApp si los tiene.
  */
 export async function llegoDelProveedorAction(proyectoId: string): Promise<ResultadoLlego> {
   const ctx = await contextoDeProyectos("operar");
@@ -61,7 +61,7 @@ export async function llegoDelProveedorAction(proyectoId: string): Promise<Resul
   const r = await moverAFase(ctx, proyectoId, "LISTO", "Llegó del laboratorio.");
   if (!r.ok) return r;
   revalidar(proyectoId);
-  if (!r.movido) return { ok: true, etapa: r.etapa, correo: null, avisoError: null };
+  if (!r.movido) return { ok: true, etapa: r.etapa, avisado: null, avisoError: null };
   const aviso = await avisarListoParaRetirar(ctx.workspaceId, proyectoId, ctx.userId);
-  return { ok: true, etapa: r.etapa, correo: aviso.ok ? aviso.email : null, avisoError: aviso.ok ? null : aviso.error };
+  return { ok: true, etapa: r.etapa, avisado: aviso.ok ? aviso.resumen : null, avisoError: aviso.ok ? null : aviso.error };
 }
