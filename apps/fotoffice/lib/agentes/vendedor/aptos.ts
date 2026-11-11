@@ -63,7 +63,7 @@ async function emailsEscritos(excepto?: string): Promise<{ emails: Set<string>; 
 
 export async function colaDelDia(
   limite: number,
-  opciones: { soloContactoId?: string | null },
+  opciones: { soloContactoId?: string | null; gruposActivos?: readonly string[] | null },
 ): Promise<{ cola: ElementoCola[]; gruposSinModelo: Array<{ grupo: Grupo; contactoId: string }> }> {
   const campana = await leerCampanaEscolar();
   // Sin la lista de la campaña escolar, falla cerrado para todos los grupos.
@@ -82,6 +82,8 @@ export async function colaDelDia(
     const grupo = grupoDe(c);
     const motivo = motivoNoApto(c, { campanaEscolar: campana, emailsConHilo: emails, tieneHilo: conHilo.has(c.id), bloqueados });
     if (motivo || !grupo) continue;
+    // Grupos apagados en los ajustes: ni se les escribe ni se les propone modelo.
+    if (opciones.gruposActivos && !opciones.gruposActivos.includes(grupo)) continue;
     aptos.push({ id: c.id, grupo, puntaje: puntajeDatos(c), creadoEn: c.creadoEn });
   }
   aptos.sort((a, b) => {
