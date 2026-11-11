@@ -6,7 +6,16 @@ import {
   websiteDesignCssVars,
   websiteFontsHref,
 } from "./design-presets";
-import { compactTypographyLevels, getFont, nearestWeight, typographyLevelsSchema } from "./typography";
+import {
+  baseTypographyLevels,
+  compactTypographyLevels,
+  getFont,
+  googleFontsHref,
+  nearestWeight,
+  resolveTypographyLevels,
+  typographyLevelsSchema,
+  WEIGHT_LABELS,
+} from "./typography";
 
 describe("tipografía por niveles", () => {
   it("sin cambios, las variables viejas valen lo mismo que antes (los sitios publicados no cambian)", () => {
@@ -67,5 +76,29 @@ describe("tipografía por niveles", () => {
     const vars = websiteDesignCssVars({ ...DEFAULT_DESIGN_PRESETS, typographyLevels: { menu: { uppercase: true } } });
     expect(vars["--wsite-menu-transform"]).toBe("uppercase");
     expect(vars["--wsite-body-transform"]).toBe("none");
+  });
+});
+
+describe("Jost, la letra fina con cursiva", () => {
+  const base = baseTypographyLevels({ typographyPreset: "modern", headingWeight: 700, buttonWeight: 600 });
+
+  it("admite el grosor extra fino 200", () => {
+    expect(nearestWeight(getFont("jost"), 200)).toBe(200);
+    expect(WEIGHT_LABELS[200]).toBe("Extra fina");
+  });
+
+  it("baja recta y cursiva de los grosores que se usan, y nada del sistema", () => {
+    const niveles = resolveTypographyLevels(base, {
+      title: { font: "jost", weight: 200 },
+      body: { font: "jost", weight: 300 },
+    });
+    expect(googleFontsHref(niveles)).toBe(
+      "https://fonts.googleapis.com/css2?family=Jost:ital,wght@0,200;0,300;1,200;1,300&display=swap",
+    );
+  });
+
+  it("una letra sin cursiva sigue pidiendo sólo los grosores", () => {
+    const niveles = resolveTypographyLevels(base, { title: { font: "montserrat", weight: 300 } });
+    expect(googleFontsHref(niveles)).toBe("https://fonts.googleapis.com/css2?family=Montserrat:wght@300&display=swap");
   });
 });
