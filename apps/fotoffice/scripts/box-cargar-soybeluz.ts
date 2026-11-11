@@ -1,5 +1,5 @@
 /**
- * Carga (o actualiza) las 10 cajas de la BOX mensual del Club de Beluz (SOYBELUZ). Los datos
+ * Carga (o actualiza) los 10 BOX mensuales del Club de Beluz (SOYBELUZ). Los datos
  * viven en lib/box-mensual/catalogo-soybeluz.ts.
  *
  * Variable obligatoria: DATABASE_URL_FOTOFFICE (no se usa DATABASE_URL: el cliente de @repo/db

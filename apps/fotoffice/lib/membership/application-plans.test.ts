@@ -116,7 +116,7 @@ describe("el plan que manda el formulario", () => {
   });
 });
 
-describe("domicilio de la BOX", () => {
+describe("domicilio del BOX", () => {
   const [conBox] = offeredPlans([CON_BOX], null);
   const [sinBox] = offeredPlans([SIN_BOX], null);
 

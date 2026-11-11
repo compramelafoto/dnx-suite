@@ -10,7 +10,7 @@ const PESTANAS = [
   { href: LIVE_CONFIG_PATH, label: "Configurar", exacto: false },
 ] as const;
 
-/** Pestañas de Transmisión en vivo. Mismo dibujo que las de la BOX mensual. */
+/** Pestañas de Transmisión en vivo. Mismo dibujo que las del BOX mensual. */
 export function PestanasEnVivo() {
   const path = usePathname() ?? "";
   return (
