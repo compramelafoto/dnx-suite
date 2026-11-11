@@ -66,6 +66,15 @@ describe("submodulesFor", () => {
     expect(conFalse).not.toContain("/dashboard/cobros-de-cursos");
   });
 
+  it("Transmisión en vivo: tres pantallas, sólo para dueño o admin, y cada una tiene su archivo", () => {
+    const dueno: SubmoduleAccess = { levels: { live: "MANAGE" }, actions: [], fullAccess: true };
+    const hrefs = submodulesFor("live", dueno, SOCIO).map((s) => s.href);
+    expect(hrefs).toEqual(["/en-vivo", "/en-vivo/grabaciones", "/en-vivo/configurar"]);
+    for (const h of hrefs) expect(existsSync(pageDe(h)), `no existe la pantalla ${h}`).toBe(true);
+    // Un rol que gestiona el módulo sin ser dueño ni admin no lo ve: la página lo echaría.
+    expect(submodulesFor("live", { levels: { live: "MANAGE" }, actions: [] }, SOCIO)).toEqual([]);
+  });
+
   it("Cursos: el Mercado de cursos está entre sus pantallas y tiene su archivo", () => {
     const hrefs = submodulesFor(COURSES_SALES_MODULE_KEY, GESTIONA, SOCIO).map((s) => s.href);
     expect(hrefs).toContain("/dashboard/mercado-de-cursos");

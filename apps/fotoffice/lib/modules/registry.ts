@@ -26,6 +26,7 @@ import { POLAROID_MODULE_KEY } from "@/lib/polaroid/constantes";
 import { EVENTOS_MODULE_KEY } from "@/lib/eventos/constants";
 import { INVOICING_MODULE_KEY } from "@/lib/invoicing/constants";
 import { EQUIPO_MODULE_KEY } from "@/lib/equipo/constantes";
+import { LIVE_MODULE_KEY } from "@/lib/en-vivo/constantes";
 
 /**
  * Catálogo central de módulos de FotoOffice.
@@ -92,6 +93,20 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
     category: "GENERAL",
     order: 10,
     route: "/dashboard/courses",
+    status: "AVAILABLE",
+    family: "formacion",
+    platformFee: true,
+  },
+  {
+    // Transmisión en vivo (10/11/2026, SOYBELUZ): OBS → Cloudflare Stream, que graba y retransmite
+    // a YouTube, Instagram y TikTok. Lo enciende FOTOFFICE: cada minuto mirado cuesta en Cloudflare.
+    key: LIVE_MODULE_KEY,
+    label: "Transmisión en vivo",
+    description:
+      "Clases y charlas en vivo desde OBS: quedan grabadas, las públicas salen a la vez por YouTube, Instagram y TikTok, y las privadas se miran en el portal.",
+    category: "GENERAL",
+    order: 15,
+    route: "/en-vivo",
     status: "AVAILABLE",
     family: "formacion",
     platformFee: true,

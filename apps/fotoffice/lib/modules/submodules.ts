@@ -17,6 +17,7 @@ import { FOTOLIBROS_MODULE_KEY } from "@/lib/fotolibro/constantes";
 import { FOTO_CARNET_MODULE_KEY } from "@/lib/foto-carnet/constantes";
 import { POLAROID_MODULE_KEY } from "@/lib/polaroid/constantes";
 import { EVENTOS_MODULE_KEY } from "@/lib/eventos/constants";
+import { LIVE_MODULE_KEY } from "@/lib/en-vivo/constantes";
 import {
   BOOKINGS_CONFIGURE_ACTION,
   CASH_CONFIGURE_ACTION,
@@ -739,6 +740,38 @@ const EVENTOS: SubmoduleItem[] = [
   },
 ];
 
+// Transmisión en vivo: las tres pantallas exigen dueño o admin (`requireLive`): el canal tiene la
+// clave de OBS y cada minuto retransmitido cuesta.
+const EN_VIVO: SubmoduleItem[] = [
+  {
+    href: "/en-vivo",
+    label: "Vivo",
+    icon: "Radio",
+    description: "Preparar un vivo, elegir a qué redes sale y seguir su estado.",
+    requiresManage: true,
+    requiresFullAccess: true,
+    activeMatch: "exact",
+  },
+  {
+    href: "/en-vivo/grabaciones",
+    label: "Grabaciones",
+    icon: "Video",
+    description: "Los vivos grabados, para mirarlos y publicarlos como clase de un curso.",
+    requiresManage: true,
+    requiresFullAccess: true,
+    activeMatch: "under",
+  },
+  {
+    href: "/en-vivo/configurar",
+    label: "Configurar",
+    icon: "Settings",
+    description: "El canal para OBS, la ayuda paso a paso y la clave de YouTube.",
+    requiresManage: true,
+    requiresFullAccess: true,
+    activeMatch: "under",
+  },
+];
+
 const POR_MODULO: Record<string, SubmoduleItem[]> = {
   [MEMBERS_MODULE_KEY]: SOCIOS,
   [COURSES_SALES_MODULE_KEY]: CURSOS,
@@ -756,6 +789,7 @@ const POR_MODULO: Record<string, SubmoduleItem[]> = {
   [FOTO_CARNET_MODULE_KEY]: FOTO_CARNET,
   [POLAROID_MODULE_KEY]: POLAROID,
   [EVENTOS_MODULE_KEY]: EVENTOS,
+  [LIVE_MODULE_KEY]: EN_VIVO,
 };
 
 /**

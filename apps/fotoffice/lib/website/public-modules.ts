@@ -18,6 +18,7 @@ import { SALES_MODULE_KEY } from "@/lib/sales/constants";
 import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
 import { PRINT_ORDERS_MODULE_KEY } from "@/lib/impresiones/constantes";
 import { PROBADOR_LABEL, PROBADOR_PUBLIC_SEGMENT } from "@/lib/probador/constantes";
+import { LIVE_MODULE_KEY, LIVE_PUBLIC_SEGMENT } from "@/lib/en-vivo/constantes";
 import type { PersonVocabulary } from "@/lib/vocabulario/personas";
 
 /**
@@ -173,6 +174,9 @@ export const OPTIONAL_PUBLIC_PAGES: readonly OptionalPublicPage[] = [
     label: PROBADOR_LABEL,
     automaticWith: PRINT_ORDERS_MODULE_KEY,
   },
+  // Transmisión en vivo: el vivo PÚBLICO de ahora (`/w/<slug>/en-vivo`). Opcional para no aparecer
+  // de golpe en los menús; la ruta existe igual con el módulo encendido.
+  { key: "en-vivo", moduleKey: LIVE_MODULE_KEY, path: LIVE_PUBLIC_SEGMENT, label: "En vivo" },
 ] as const;
 
 /** Las páginas opcionales disponibles con los módulos habilitados. */

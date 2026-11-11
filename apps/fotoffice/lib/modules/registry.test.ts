@@ -46,7 +46,7 @@ describe("MODULE_REGISTRY", () => {
     }
   });
 
-  it("los módulos AVAILABLE hoy son exactamente courses-sales, evaluaciones, website, reservas, coberturas, members, membership-dues, sorteos, sponsors, portfolios, caja, clientes, captación, ventas, comunicación, tienda online, proyectos de la comisión, ¿Cuánto Cobro? para socios, fotolibros para socios, presupuestos, pedidos, proyectos, agenda, contratos, informes, digitalización, galería, pedidos de impresión, facturación electrónica, fotolibros, foto carnet, polaroid y eventos", () => {
+  it("los módulos AVAILABLE hoy son exactamente courses-sales, evaluaciones, website, reservas, coberturas, members, membership-dues, sorteos, sponsors, portfolios, caja, clientes, captación, ventas, comunicación, tienda online, proyectos de la comisión, ¿Cuánto Cobro? para socios, fotolibros para socios, presupuestos, pedidos, proyectos, agenda, contratos, informes, digitalización, galería, pedidos de impresión, facturación electrónica, fotolibros, foto carnet, polaroid, eventos y transmisión en vivo", () => {
     expect(listAvailableModuleKeys().sort()).toEqual(
       [
         COURSES_SALES_MODULE_KEY,
@@ -84,6 +84,7 @@ describe("MODULE_REGISTRY", () => {
         "foto-carnet",
         "polaroid",
         "eventos",
+        "live",
       ].sort(),
     );
   });
@@ -147,9 +148,9 @@ describe("familias y dependencias (0.1)", () => {
   it("dependsOn apunta a claves existentes", () => {
     for (const m of MODULE_REGISTRY) for (const d of m.dependsOn ?? []) expect(getModuleDefinition(d)).toBeDefined();
   });
-  it("los módulos con comisión son exactamente cuotas, reservas, digitalización y cursos", () => {
+  it("los módulos que enciende FOTOFFICE son exactamente cuotas, reservas, digitalización, cursos y transmisión en vivo", () => {
     expect(MODULE_REGISTRY.filter((m) => m.platformFee).map((m) => m.key).sort()).toEqual(
-      ["bookings", "courses-sales", "digitalizacion", "membership-dues"],
+      ["bookings", "courses-sales", "digitalizacion", "live", "membership-dues"],
     );
   });
 });

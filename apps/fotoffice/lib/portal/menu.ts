@@ -8,6 +8,7 @@ import { GOVERNANCE_MODULE_KEY } from "@/lib/governance/constants";
 import { SPONSORS_MODULE_KEY } from "@/lib/sponsors/constants";
 import { CUANTO_COBRO_SOCIO_MODULE_KEY, RUTA_CUANTO_COBRO_SOCIO } from "@/lib/cuanto-cobro-socio/constants";
 import { FOTOLIBROS_SOCIO_MODULE_KEY, RUTA_FOTOLIBROS_SOCIO } from "@/lib/fotolibro/constantes";
+import { LIVE_MODULE_KEY, LIVE_PORTAL_PATH } from "@/lib/en-vivo/constantes";
 
 /**
  * El menú del socio, en un solo lugar.
@@ -192,6 +193,15 @@ export const PORTAL_MENU: PortalMenuItem[] = [
     description: "Tus cursos y los que te tocan gratis por ser {persona}.",
     icon: "school",
     requiresModule: COURSES_SALES_MODULE_KEY,
+    built: true,
+  },
+  {
+    order: 82,
+    label: "En vivo",
+    href: LIVE_PORTAL_PATH,
+    description: "La clase que se está transmitiendo ahora y las grabaciones para mirar cuando quieras.",
+    icon: "school",
+    requiresModule: LIVE_MODULE_KEY,
     built: true,
   },
   {

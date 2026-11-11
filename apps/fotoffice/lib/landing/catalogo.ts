@@ -13,6 +13,7 @@ import { FOTOLIBROS_MODULE_KEY } from "@/lib/fotolibro/constantes";
 import { FOTO_CARNET_MODULE_KEY } from "@/lib/foto-carnet/constantes";
 import { POLAROID_MODULE_KEY } from "@/lib/polaroid/constantes";
 import { EVENTOS_MODULE_KEY } from "@/lib/eventos/constants";
+import { LIVE_MODULE_KEY } from "@/lib/en-vivo/constantes";
 import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
 import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
 import { EVALUACIONES_MODULE_KEY } from "@/lib/evaluaciones/constants";
@@ -456,6 +457,14 @@ export const MODULOS_DISPONIBLES: FichaModulo[] = [
     resuelve:
       "Para congresos, jornadas y workshops: las entradas que vendés en la tienda y los formularios del sitio suman inscriptos solos, cargás a mano las transferencias y cortesías, acreditás en la puerta desde el celular y bajás la planilla.",
     pantallas: ["Eventos", "Acreditación en la puerta"],
+  },
+  {
+    key: LIVE_MODULE_KEY,
+    cuadro: "36",
+    nombre: "Transmisión en vivo",
+    resuelve:
+      "Transmitís desde OBS y la clase queda grabada en tu espacio. Si es abierta, sale a la vez por YouTube, Instagram y TikTok; si es sólo para tus personas socias, la miran en el portal. Después la publicás como clase de un curso.",
+    pantallas: ["Vivo", "Grabaciones", "Configurar"],
   },
 ];
 /** Lo que está siempre, se encienda lo que se encienda. No son módulos con interruptor. */

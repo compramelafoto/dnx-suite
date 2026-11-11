@@ -74,6 +74,8 @@ export const RESERVED_SLUGS: ReadonlySet<string> = new Set([
   // Polaroid: el diseñador de polaroids (lib/polaroid).
   "polaroid",
   "eventos",
+  // Transmisión en vivo (lib/en-vivo).
+  "en-vivo",
   "portal",
   // El probador de cuadros dentro del panel (components/probador).
   "probador",
