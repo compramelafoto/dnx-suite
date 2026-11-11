@@ -15,6 +15,8 @@ import {
   MAP_MIN_HEIGHT_PX,
   PARTNERS_MAX_ITEMS,
   PAYMENT_MAX_AMOUNT,
+  PRICING_MAX_PLANS,
+  type PricingBlockConfig,
   type BeforeAfterBlockConfig,
   type CardsBlockConfig,
   type CountdownBlockConfig,
@@ -516,6 +518,83 @@ export function CardsInspector({ config, onChange }: { config: CardsBlockConfig;
       ) : (
         <Helper>Llegaste al máximo de {CARDS_MAX_ITEMS} tarjetas.</Helper>
       )}
+    </div>
+  );
+}
+
+function planVacio(): PricingBlockConfig["plans"][number] {
+  return {
+    id: newItemId(),
+    name: "",
+    price: "",
+    period: "por mes",
+    tagline: "",
+    badge: "",
+    highlighted: false,
+    valueNote: "",
+    featuresLead: "",
+    features: "",
+    buttonLabel: "Quiero este plan",
+    buttonUrl: "",
+    footnote: "",
+  };
+}
+
+export function PricingInspector({ config, onChange }: { config: PricingBlockConfig; onChange: (c: PricingBlockConfig) => void }) {
+  const plans = config.plans;
+  const set = (next: PricingBlockConfig["plans"]) => onChange({ ...config, plans: next });
+  const cambiar = (i: number, cambio: Partial<PricingBlockConfig["plans"][number]>) => set(plans.map((p, j) => (j === i ? { ...p, ...cambio } : p)));
+  return (
+    <div className="space-y-4">
+      <TextField label="Título" value={config.title} onChange={(v) => onChange({ ...config, title: v })} />
+      <TextAreaField label="Texto de introducción (opcional)" value={config.intro} onChange={(v) => onChange({ ...config, intro: v })} />
+      {plans.map((plan, i) => (
+        <div key={plan.id || i} className="space-y-2 rounded-lg border border-[var(--fo-border)] p-3">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-sm font-semibold">Plan {i + 1}</span>
+            <ItemActions index={i} count={plans.length} noun="plan" onMove={(to) => set(move(plans, i, to))} onRemove={() => set(plans.filter((_, j) => j !== i))} />
+          </div>
+          <TextField label="Nombre" value={plan.name} onChange={(v) => cambiar(i, { name: v })} />
+          <TextField label="Precio" value={plan.price} onChange={(v) => cambiar(i, { price: v })} helper="Como se lee: «$30.000»." />
+          <TextField label="Período" value={plan.period} onChange={(v) => cambiar(i, { period: v })} helper="Por ejemplo «por mes». Vacío, va sin período." />
+          <TextAreaField label="Para quién es (opcional)" value={plan.tagline} onChange={(v) => cambiar(i, { tagline: v })} />
+          <ToggleField
+            label="Destacar este plan"
+            checked={plan.highlighted}
+            onChange={(v) => set(plans.map((p, j) => ({ ...p, highlighted: j === i ? v : v ? false : p.highlighted })))}
+          />
+          <TextField label="Etiqueta (opcional)" value={plan.badge} onChange={(v) => cambiar(i, { badge: v })} helper="Por ejemplo «Recomendado»." />
+          <TextAreaField
+            label="Frase de valor (opcional)"
+            value={plan.valueNote}
+            onChange={(v) => cambiar(i, { valueNote: v })}
+            helper="Una frase que muestra lo que vale: «El BOX solo ya vale más de $50.000»."
+          />
+          <TextField label="Antes de la lista (opcional)" value={plan.featuresLead} onChange={(v) => cambiar(i, { featuresLead: v })} helper="Por ejemplo «Todo lo del plan Base, y además:»." />
+          <TextAreaField label="Lo que incluye" value={plan.features} onChange={(v) => cambiar(i, { features: v })} helper="Un ítem por renglón." />
+          <TextField label="Texto del botón" value={plan.buttonLabel} onChange={(v) => cambiar(i, { buttonLabel: v })} />
+          <TextField
+            label="Enlace del botón"
+            value={plan.buttonUrl}
+            onChange={(v) => cambiar(i, { buttonUrl: v })}
+            helper="Una página de tu sitio (/w/…), una sección de esta página (#…) o un enlace https://."
+          />
+          <TextField label="Aclaración debajo del botón (opcional)" value={plan.footnote} onChange={(v) => cambiar(i, { footnote: v })} />
+        </div>
+      ))}
+      {plans.length < PRICING_MAX_PLANS ? (
+        <button type="button" className="text-sm underline" onClick={() => set([...plans, planVacio()])}>
+          Agregar plan
+        </button>
+      ) : (
+        <Helper>Llegaste al máximo de {PRICING_MAX_PLANS} planes.</Helper>
+      )}
+      <TextAreaField
+        label="Tranquilidades debajo de los planes (opcional)"
+        value={config.reassurance}
+        onChange={(v) => onChange({ ...config, reassurance: v })}
+        helper="Una por renglón: cómo se paga, cómo se cancela."
+      />
     </div>
   );
 }
