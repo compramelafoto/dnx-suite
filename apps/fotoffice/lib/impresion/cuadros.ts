@@ -67,9 +67,12 @@ export function doblezEnPx(anchoPx: number, anchoMm: number): number {
   return Math.max(1, Math.round((anchoPx * DOBLEZ_CM * 10) / anchoMm));
 }
 
-/** Cómo se nombra el cuadro para el laboratorio (carpeta del ZIP y resumen del correo). */
-export function etiquetaDeCuadro(medida: string, modo: ModoDoblez | undefined): string | null {
+/**
+ * Cómo se nombra el cuadro para el laboratorio (carpetas del ZIP y resumen del correo): el tamaño
+ * («Canvas 30x40») y el acabado («Doblez 5 cm espejo»).
+ */
+export function etiquetaDeCuadro(medida: string, modo: ModoDoblez | undefined): { tamano: string; acabado: string } | null {
   const c = cuadroDeMedida(medida);
   if (!c) return null;
-  return `${PREFIJO[c.tipo]} ${c.base} + doblez ${DOBLEZ_CM} cm (${TEXTO_DOBLEZ[modo ?? MODO_DOBLEZ_POR_OMISION].nombre.toLowerCase()})`;
+  return { tamano: `${PREFIJO[c.tipo]} ${c.base}`, acabado: `Doblez ${DOBLEZ_CM} cm ${TEXTO_DOBLEZ[modo ?? MODO_DOBLEZ_POR_OMISION].nombre.toLowerCase()}` };
 }

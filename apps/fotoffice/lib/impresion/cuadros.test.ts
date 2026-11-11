@@ -20,8 +20,8 @@ describe("cuadros", () => {
     expect(doblezEnPx(3543, 300)).toBe(591);
   });
   it("la etiqueta para el laboratorio dice el doblez y su relleno", () => {
-    expect(etiquetaDeCuadro("Canvas 30x40", undefined)).toBe("Canvas 30x40 + doblez 5 cm (espejo)");
-    expect(etiquetaDeCuadro("MDF 30x40", "COLOR")).toBe("MDF 30x40 + doblez 5 cm (color liso)");
+    expect(etiquetaDeCuadro("Canvas 30x40", undefined)).toEqual({ tamano: "Canvas 30x40", acabado: "Doblez 5 cm espejo" });
+    expect(etiquetaDeCuadro("MDF 30x40", "COLOR")).toEqual({ tamano: "MDF 30x40", acabado: "Doblez 5 cm color liso" });
     expect(etiquetaDeCuadro("10x15", "ESPEJO")).toBeNull();
   });
 });

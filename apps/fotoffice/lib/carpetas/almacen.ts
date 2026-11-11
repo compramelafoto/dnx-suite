@@ -46,3 +46,15 @@ export async function borrarArchivoGuardado(clave: string): Promise<void> {
     if (!esNoEncontrado(e)) throw e;
   }
 }
+
+/** El contenido de un archivo como flujo de trozos (para armar un ZIP sin cargarlo entero); null si ya no existe. */
+export async function flujoDeArchivo(clave: string): Promise<AsyncIterable<Uint8Array> | null> {
+  try {
+    const r = await clienteR2Privado().send(new GetObjectCommand({ Bucket: bucketR2Privado(), Key: clave }));
+    return (r.Body as AsyncIterable<Uint8Array> | undefined) ?? null;
+  } catch (e) {
+    if (esNoEncontrado(e)) return null;
+    throw e;
+  }
+}
+
