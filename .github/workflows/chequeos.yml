@@ -265,11 +265,22 @@ jobs:
       # Normalmente tarda ~20 s, pero a veces la descarga se cuelga y se comía los 25 min del job.
       # Cada intento corta a los 3 min y se reintenta hasta 3 veces.
       - name: Instalar Chromium para comparar pantalla y PDF
-        timeout-minutes: 10
+        timeout-minutes: 20
         run: |
+          # Al arrancar, la máquina de GitHub a veces corre sus propias actualizaciones de paquetes y
+          # tiene tomado el lock de apt varios minutos: se frena ese servicio y se espera el lock.
+          sudo systemctl stop unattended-upgrades.service apt-daily.service apt-daily-upgrade.service 2>/dev/null || true
+          esperar_apt() {
+            for _ in $(seq 1 60); do
+              sudo fuser /var/lib/apt/lists/lock /var/lib/dpkg/lock /var/lib/dpkg/lock-frontend >/dev/null 2>&1 || return 0
+              sleep 5
+            done
+          }
           for intento in 1 2 3; do
+            esperar_apt
             timeout 180 pnpm --filter compramelafoto exec playwright install --with-deps chromium && exit 0
             echo "Intento $intento de instalar Chromium falló o se colgó; reintento."
+            sleep 15
           done
           exit 1
 
