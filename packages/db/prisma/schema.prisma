@@ -8346,6 +8346,123 @@ model FotofficeBoxShipment {
   @@index([workspaceId, memberId])
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Transmisión en vivo (módulo `live`). Diseño:
+// apps/fotoffice/docs/superpowers/specs/2026-11-10-transmision-en-vivo.md
+// El video vive en Cloudflare Stream; acá se guarda sólo lo necesario para operar y la
+// relación con el workspace. Ninguna clave de destino se guarda en claro.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Quién puede mirar un vivo: cualquiera (sitio público) o sólo las personas socias activas.
+enum FotofficeLiveVisibility {
+  PUBLICA
+  SOCIOS
+}
+
+/// Recorrido de un vivo. TERMINADA y CANCELADA no vuelven atrás.
+enum FotofficeLiveSessionStatus {
+  /// Creado desde el panel, con los destinos listos; OBS todavía no mandó señal.
+  ESPERANDO_SENAL
+  EN_VIVO
+  /// OBS se cortó. Si vuelve antes de que Cloudflare cierre la grabación, sigue EN_VIVO.
+  SENAL_CORTADA
+  TERMINADA
+  /// Se terminó sin haber recibido nunca señal.
+  CANCELADA
+}
+
+enum FotofficeLiveRecordingStatus {
+  PROCESANDO
+  LISTA
+  ERROR
+}
+
+/// El canal de transmisión de un workspace: uno solo, con su "live input" de Cloudflare Stream.
+///
+/// La clave de OBS no se guarda: se le pide a Cloudflare cada vez que hace falta mostrarla.
+/// Las claves de YouTube y TikTok se guardan cifradas con el baúl de integraciones
+/// (`apps/fotoffice/lib/integrations/vault.ts`); en claro queda sólo la terminación.
+model FotofficeLiveChannel {
+  id                   String    @id @default(cuid())
+  workspaceId          String    @unique
+  liveInputUid         String    @unique
+  /// Dirección RTMPS que se pega en OBS. No es secreta.
+  rtmpsUrl             String
+  srtUrl               String?
+  /// Clave persistente de YouTube Studio, cifrada (AES-256-GCM).
+  youtubeKeyCiphertext String?
+  youtubeKeyNonce      String?
+  youtubeKeyAuthTag    String?
+  youtubeKeyVersion    String?
+  /// Últimos 4 caracteres, para que el dueño la reconozca sin verla.
+  youtubeKeyLast4      String?
+  /// Servidor de TikTok recordado (TikTok da servidor y clave). No es secreto.
+  tiktokServerUrl      String?
+  tiktokKeyCiphertext  String?
+  tiktokKeyNonce       String?
+  tiktokKeyAuthTag     String?
+  tiktokKeyVersion     String?
+  tiktokKeyLast4       String?
+  createdByUserId      Int?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  sessions FotofficeLiveSession[]
+}
+
+/// Cada vivo: el título, quién lo puede ver, su estado y a qué redes se retransmitió.
+model FotofficeLiveSession {
+  id              String                     @id @default(cuid())
+  workspaceId     String
+  channelId       String
+  title           String
+  visibility      FotofficeLiveVisibility    @default(SOCIOS)
+  status          FotofficeLiveSessionStatus @default(ESPERANDO_SENAL)
+  /// Destinos usados: `[{ destino, outputUid, terminacion, estado, error? }]`. Nunca la clave.
+  destinations    Json                       @default("[]")
+  startedAt       DateTime?
+  endedAt         DateTime?
+  lastSignalAt    DateTime?
+  /// Último problema que informó Cloudflare (códec, GOP, cupo). Texto corto, sin secretos.
+  lastError       String?
+  createdByUserId Int?
+  createdAt       DateTime                   @default(now())
+  updatedAt       DateTime                   @updatedAt
+
+  channel    FotofficeLiveChannel     @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  recordings FotofficeLiveRecording[]
+
+  @@index([workspaceId, createdAt])
+  @@index([channelId, status])
+}
+
+/// La grabación automática de un vivo (un video de Stream). Un vivo cortado más de lo que
+/// tolera Cloudflare puede dejar más de una.
+///
+/// `publishedLessonId` vincula la grabación a la clase (`CourseLesson`) donde se publicó. Va
+/// sin relación de Prisma a propósito: no toca el modelo compartido de cursos.
+model FotofficeLiveRecording {
+  id                String                       @id @default(cuid())
+  workspaceId       String
+  sessionId         String
+  videoUid          String                       @unique
+  status            FotofficeLiveRecordingStatus @default(PROCESANDO)
+  durationSeconds   Int?
+  thumbnailUrl      String?
+  recordedAt        DateTime?
+  readyAt           DateTime?
+  publishedCourseId String?
+  publishedLessonId String?
+  publishedAt       DateTime?
+  createdAt         DateTime                     @default(now())
+  updatedAt         DateTime                     @updatedAt
+
+  session FotofficeLiveSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, createdAt])
+  @@index([sessionId])
+}
+
 /// Socio/miembro institucional de un Workspace. Independiente de `User`:
 /// una institución puede tener 300 Member sin que exista una sola cuenta
 /// de FotoOffice — `userId` es un vínculo opcional para cuando (y si) ese

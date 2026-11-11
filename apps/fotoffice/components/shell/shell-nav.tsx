@@ -59,6 +59,7 @@ import { FOTOLIBROS_MODULE_KEY } from "@/lib/fotolibro/constantes";
 import { FOTO_CARNET_MODULE_KEY } from "@/lib/foto-carnet/constantes";
 import { POLAROID_MODULE_KEY } from "@/lib/polaroid/constantes";
 import { EVENTOS_MODULE_KEY } from "@/lib/eventos/constants";
+import { LIVE_MODULE_KEY } from "@/lib/en-vivo/constantes";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
 import { RAFFLES_MODULE_KEY } from "@/lib/raffles/constants";
@@ -367,6 +368,8 @@ export function ShellNav({
   const fotoCarnet: Item[] = itemsDeModulo(FOTO_CARNET_MODULE_KEY, access, vocabulary);
   const polaroid: Item[] = itemsDeModulo(POLAROID_MODULE_KEY, access, vocabulary);
   const eventos: Item[] = itemsDeModulo(EVENTOS_MODULE_KEY, access, vocabulary);
+  // Transmisión en vivo: sólo dueño o admin (las tres pantallas piden `requiresFullAccess`).
+  const enVivo: Item[] = itemsDeModulo(LIVE_MODULE_KEY, access, vocabulary);
 
   // Evaluaciones evalúa actividades de los cursos: es del mismo dominio, no un módulo suelto.
   // Tiene su propia llave, así que puede estar encendido sin cursos — en ese caso la sección
@@ -782,6 +785,7 @@ export function ShellNav({
     { title: "WhatsApp", items: whatsapp, moduleKey: BANDEJA_MODULE_KEY },
     { title: "Coberturas", items: coberturas, moduleKey: COVERAGES_MODULE_KEY },
     { title: "Cursos", items: cursosItems, moduleKey: COURSES_SALES_MODULE_KEY },
+    { title: "En vivo", items: enVivo, moduleKey: LIVE_MODULE_KEY },
     { title: "Reservas", items: reservas, moduleKey: BOOKINGS_MODULE_KEY },
     { title: "Agenda", items: agenda, moduleKey: AGENDA_MODULE_KEY },
     { title: "Consultas", items: captacion, moduleKey: SERVICE_LEADS_MODULE_KEY },
