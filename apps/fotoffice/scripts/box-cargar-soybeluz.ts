@@ -16,7 +16,7 @@
  */
 import { prisma, type PrismaClient } from "@repo/db";
 import { CATALOGO_BOX_SOYBELUZ, WORKSPACE_SOYBELUZ } from "../lib/box-mensual/catalogo-soybeluz";
-import { etiquetaBox, leerMateriales } from "../lib/box-mensual/secuencia";
+import { etiquetaBox } from "../lib/box-mensual/secuencia";
 
 function salir(mensaje: string): never {
   console.error(mensaje);
@@ -49,23 +49,22 @@ async function main() {
 
   const existentes = await db.fotofficeBox.findMany({
     where: { workspaceId },
-    select: { number: true, name: true, materials: true },
+    select: { number: true, name: true },
   });
   const porNumero = new Map(existentes.map((c) => [c.number, c]));
 
   for (const caja of CATALOGO_BOX_SOYBELUZ) {
     const previa = porNumero.get(caja.number);
-    const igual =
-      previa &&
-      previa.name === caja.name &&
-      JSON.stringify(leerMateriales(previa.materials)) === JSON.stringify(caja.materials);
-    const accion = !previa ? "crear" : igual ? "sin cambios" : "actualizar";
-    console.log(`  ${etiquetaBox(caja)} — ${caja.materials.length} materiales — ${accion}`);
+    // Los materiales se definen desde el panel con el tiempo: a un BOX que ya existe solo se le
+    // corrige el nombre, para no borrar lo que se haya cargado ahí.
+    const igual = previa && previa.name === caja.name;
+    const accion = !previa ? "crear" : igual ? "sin cambios" : "actualizar el nombre";
+    console.log(`  ${etiquetaBox(caja)} — ${accion}`);
     if (!aplicar || igual) continue;
     await db.fotofficeBox.upsert({
       where: { workspaceId_number: { workspaceId, number: caja.number } },
       create: { workspaceId, number: caja.number, name: caja.name, materials: caja.materials },
-      update: { name: caja.name, materials: caja.materials },
+      update: { name: caja.name },
     });
   }
 

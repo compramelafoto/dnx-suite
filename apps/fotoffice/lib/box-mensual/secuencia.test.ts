@@ -112,7 +112,7 @@ describe("mesesPagados", () => {
 });
 
 describe("recorridoBox", () => {
-  it("quien recién se suma y pagó su primer mes recibe la BOX N°1, sin importar cuándo entró", () => {
+  it("quien recién se suma y pagó su primer mes recibe el BOX N°1, sin importar cuándo entró", () => {
     const r = recorridoBox({ meses: meses(1), cajasEnviadas: [], cajas: cajas(10) });
     expect(r.estado).toBe("PARA_ENVIAR");
     expect(r.proxima?.number).toBe(1);
@@ -242,11 +242,11 @@ describe("dirección de envío", () => {
 });
 
 describe("catálogo de SOYBELUZ", () => {
-  it("son las 10 cajas, numeradas del 1 al 10, con materiales válidos", () => {
+  it("son los 10 BOX, numerados del 1 al 10, todavía sin materiales definidos", () => {
     expect(CATALOGO_BOX_SOYBELUZ.map((c) => c.number)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
     for (const caja of CATALOGO_BOX_SOYBELUZ) {
-      expect(caja.materials.length).toBeGreaterThan(0);
-      expect(leerMateriales(caja.materials)).toEqual(caja.materials);
+      expect(caja.name.trim()).not.toBe("");
+      expect(caja.materials).toEqual([]);
     }
   });
 

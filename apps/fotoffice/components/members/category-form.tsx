@@ -185,9 +185,9 @@ export function CategoryForm({ category }: { category?: CategoryInitial }) {
             className="mt-1 size-4 rounded border-[var(--fo-border)]"
           />
           <span>
-            <span className="fo-label !inline">Incluye la BOX mensual</span>
+            <span className="fo-label !inline">Incluye el BOX mensual</span>
             <span className="fo-helper block mt-1">
-              Cada mes pagado habilita la caja siguiente, en orden desde la BOX N°1, con envío a domicilio.
+              Cada mes pagado habilita la caja siguiente, en orden desde el BOX N°1, con envío a domicilio.
               Si un mes no paga, ese mes no hay caja y después sigue donde quedó.
             </span>
           </span>

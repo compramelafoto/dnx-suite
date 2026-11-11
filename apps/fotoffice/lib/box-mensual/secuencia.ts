@@ -4,7 +4,7 @@ import { isRenewalPeriod } from "@/lib/membership/enrollment";
  * BOX mensual — la regla, sin base y sin red.
  *
  * Las personas socias de una categoría con caja (`MemberCategory.includesMonthlyBox`) reciben
- * una caja de materiales por cada mes pagado, **en orden y desde la BOX N°1**, sin importar
+ * una caja de materiales por cada mes pagado, **en orden y desde el BOX N°1**, sin importar
  * cuándo se sumaron. Reglas decididas por el dueño:
  *
  * 1. Cada mes pagado habilita la caja siguiente. Si un mes no paga, ese mes no hay caja; después
@@ -19,7 +19,7 @@ import { isRenewalPeriod } from "@/lib/membership/enrollment";
  * circuito de cobro.
  */
 
-/** Módulo puro: la clave con la que el menú sabe que el workspace usa la BOX mensual. */
+/** Módulo puro: la clave con la que el menú sabe que el workspace usa el BOX mensual. */
 export const BOX_MENSUAL_FEATURE = "box-mensual";
 
 export type ConceptoCargo = "INGRESO" | "MENSUAL" | "EXTRAORDINARIA" | "OTRO";

@@ -166,7 +166,7 @@ export async function guardarCajaAction(
     }
   } catch (e) {
     if ((e as { code?: unknown })?.code === "P2002") {
-      return { error: `Ya hay una BOX N°${parsed.data.number}. Elegí otro número.` };
+      return { error: `Ya hay un BOX N°${parsed.data.number}. Elegí otro número.` };
     }
     throw e;
   }

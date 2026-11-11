@@ -5,7 +5,7 @@ import type { EnvioFila } from "@/lib/box-mensual/store";
 import { fechaBox } from "@/lib/box-mensual/formato";
 
 /**
- * El recorrido de la BOX mensual en la ficha: qué cajas recibió, cuándo, con qué seguimiento, y
+ * El recorrido de el BOX mensual en la ficha: qué cajas recibió, cuándo, con qué seguimiento, y
  * cuál le toca. Sólo lectura: los envíos se marcan desde Socios → BOX mensual.
  */
 export function RecorridoBoxFicha({
@@ -24,7 +24,7 @@ export function RecorridoBoxFicha({
 }) {
   const proxima = recorrido.proxima;
   const leToca = !conBox
-    ? "Su categoría no incluye la BOX mensual."
+    ? "Su categoría no incluye el BOX mensual."
     : recorrido.estado === "PARA_ENVIAR" && proxima
       ? `Le toca la ${etiquetaBox(proxima)}.`
       : recorrido.estado === "AL_DIA"
