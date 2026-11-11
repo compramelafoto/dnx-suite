@@ -4,7 +4,9 @@
  * Ver docs/superpowers/specs/2026-11-04-tienda-remeras-dreamful-design.md.
  *
  * Datos: scripts/datos/remeras-dnx.json (diseños, mockups y estampas en el Drive de Daniel).
- * Las fotos se sirven desde Drive (lh3.googleusercontent.com): la carpeta es pública.
+ * Las fotos se sirven desde Drive (lh3.googleusercontent.com): la carpeta es pública. Los mockups
+ * armados sobre las fotos de Dreamful traen `url` (viven en public/tienda-prendas/) en vez de `driveId`.
+ * Los buzos, musculosas, crop e infantiles los carga scripts/tienda-cargar-prendas.ts.
  *
  * Variable obligatoria: DATABASE_URL_FOTOFFICE (no se usa DATABASE_URL: el cliente de @repo/db
  * puede cargar packages/db/.env, que apunta a otra base).
@@ -38,7 +40,7 @@ type Datos = {
     descripcion: string;
     estampaOscura: string | null;
     estampaClara: string | null;
-    mockups: { modelo: string; driveId: string }[];
+    mockups: { modelo: string; driveId?: string; url?: string }[];
   }[];
 };
 
@@ -60,7 +62,10 @@ function abrirCliente(url: string): PrismaClient {
   return new Clase({ datasourceUrl: url });
 }
 
-const foto = (driveId: string) => `https://lh3.googleusercontent.com/d/${driveId}=w1600`;
+const foto = (m: { driveId?: string; url?: string }) =>
+  m.url ?? `https://lh3.googleusercontent.com/d/${m.driveId ?? salir("Mockup sin driveId ni url.")}=w1600`;
+/** Tabla de talles de Dreamful (oversize, clásica hombre y clásica mujer en una sola imagen). */
+const TABLA_TALLES = "https://fotoffice.com/tienda-prendas/dnx-estudio/tabla-remera.webp";
 const archivo = (driveId: string) => `https://drive.google.com/file/d/${driveId}/view`;
 const talles = (codigoModelo: string) => (codigoModelo.startsWith("OV") ? TALLES_OVERSIZE : TALLES_CLASICA);
 
@@ -69,7 +74,7 @@ function descripcion(texto: string): string {
     texto,
     "",
     "Elegí el modelo y tu talle. Se estampa a pedido, especialmente para vos.",
-    "Modelos: oversize unisex (negra, blanca o stone wash) y clásica de hombre o de mujer (negra o blanca).",
+    "Modelos: oversize unisex (negra, blanca o stone wash), clásica de hombre (negra, blanca o beige), clásica wash azul y clásica de mujer (negra o blanca).",
     "Se produce en 24 a 48 h hábiles y se envía a todo el país.",
   ].join("\n");
 }
@@ -123,7 +128,7 @@ async function main() {
       tracksStock: false,
       supplierName: PROVEEDOR.name,
       preferredProveedorId: proveedor.id,
-      imageUrl: foto(d.mockups[0].driveId),
+      imageUrl: foto(d.mockups[0]),
       isActive: d.activo,
     };
     const producto = await db.product.upsert({
@@ -142,7 +147,10 @@ async function main() {
       lengthCm: 30,
       widthCm: 25,
       heightCm: 3,
-      sortOrder: orden,
+      // De a 10 por diseño: tienda-cargar-prendas.ts pone el crop, el infantil, el buzo y la
+      // musculosa del mismo diseño a continuación (orden*10 + 1, 2, ...).
+      sortOrder: orden * 10,
+      sizeChartImageUrl: TABLA_TALLES,
       fulfillmentProveedorId: proveedor.id,
       printFileUrl: d.estampaOscura ? archivo(d.estampaOscura) : null,
     };
@@ -155,7 +163,7 @@ async function main() {
     // Fotos: una por modelo, con el modelo en `alt` (la ficha salta a la foto del modelo elegido).
     await db.productImage.deleteMany({ where: { productId: producto.id } });
     await db.productImage.createMany({
-      data: d.mockups.map((m, i) => ({ workspaceId, productId: producto.id, url: foto(m.driveId), alt: m.modelo, sortOrder: i })),
+      data: d.mockups.map((m, i) => ({ workspaceId, productId: producto.id, url: foto(m), alt: m.modelo, sortOrder: i })),
     });
 
     let sortOrder = 0;

@@ -34,6 +34,16 @@
    "codigo": "CMB",
    "nombre": "Clásica mujer blanca",
    "oscura": false
+  },
+  {
+   "codigo": "CHE",
+   "nombre": "Clásica hombre beige",
+   "oscura": false
+  },
+  {
+   "codigo": "CWA",
+   "nombre": "Clásica wash azul",
+   "oscura": true
   }
  ],
  "disenos": [
@@ -73,6 +83,14 @@
     {
      "modelo": "Clásica mujer blanca",
      "driveId": "1o_MRag_AJ_A-J0R6Y--OPfhc3ehuUBmQ"
+    },
+    {
+     "modelo": "Clásica hombre beige",
+     "url": "https://fotoffice.com/tienda-prendas/dnx-estudio/cflag-che.webp"
+    },
+    {
+     "modelo": "Clásica wash azul",
+     "url": "https://fotoffice.com/tienda-prendas/dnx-estudio/cflag-cwa.webp"
     }
    ]
   },
@@ -112,6 +130,14 @@
     {
      "modelo": "Clásica mujer blanca",
      "driveId": "1xFi9tewD1m-oNJiEsZXHfEB81tHEaak_"
+    },
+    {
+     "modelo": "Clásica hombre beige",
+     "url": "https://fotoffice.com/tienda-prendas/dnx-estudio/dslr-che.webp"
+    },
+    {
+     "modelo": "Clásica wash azul",
+     "url": "https://fotoffice.com/tienda-prendas/dnx-estudio/dslr-cwa.webp"
     }
    ]
   },
@@ -151,6 +177,61 @@
     {
      "modelo": "Clásica mujer blanca",
      "driveId": "16fpTGIc4SWq_RP9N2SVS9vQ3KOB5jNt1"
+    },
+    {
+     "modelo": "Clásica hombre beige",
+     "url": "https://fotoffice.com/tienda-prendas/dnx-estudio/sutra-che.webp"
+    },
+    {
+     "modelo": "Clásica wash azul",
+     "url": "https://fotoffice.com/tienda-prendas/dnx-estudio/sutra-cwa.webp"
+    }
+   ]
+  },
+  {
+   "codigo": "WSUTRA",
+   "nombre": "The Camera Sutra Woman",
+   "slug": "the-camera-sutra-woman",
+   "activo": true,
+   "descripcion": "Las posturas que toda fotógrafa hizo alguna vez para lograr la toma.",
+   "estampaOscura": "1bF6RXufwJpWmO_XyaJbi6-XEcxgEpgEY",
+   "estampaClara": "1I0SDHL0e0Y1P4ag9sI-KawHsQapLaOw3",
+   "mockups": [
+    {
+     "modelo": "Oversize negra",
+     "url": "https://fotoffice.com/tienda-prendas/dnx-estudio/wsutra-ovn.webp"
+    },
+    {
+     "modelo": "Oversize blanca",
+     "url": "https://fotoffice.com/tienda-prendas/dnx-estudio/wsutra-ovb.webp"
+    },
+    {
+     "modelo": "Oversize stone wash",
+     "url": "https://fotoffice.com/tienda-prendas/dnx-estudio/wsutra-ovs.webp"
+    },
+    {
+     "modelo": "Clásica hombre negra",
+     "url": "https://fotoffice.com/tienda-prendas/dnx-estudio/wsutra-chn.webp"
+    },
+    {
+     "modelo": "Clásica hombre blanca",
+     "url": "https://fotoffice.com/tienda-prendas/dnx-estudio/wsutra-chb.webp"
+    },
+    {
+     "modelo": "Clásica mujer negra",
+     "url": "https://fotoffice.com/tienda-prendas/dnx-estudio/wsutra-cmn.webp"
+    },
+    {
+     "modelo": "Clásica mujer blanca",
+     "url": "https://fotoffice.com/tienda-prendas/dnx-estudio/wsutra-cmb.webp"
+    },
+    {
+     "modelo": "Clásica hombre beige",
+     "url": "https://fotoffice.com/tienda-prendas/dnx-estudio/wsutra-che.webp"
+    },
+    {
+     "modelo": "Clásica wash azul",
+     "url": "https://fotoffice.com/tienda-prendas/dnx-estudio/wsutra-cwa.webp"
     }
    ]
   },
@@ -190,6 +271,14 @@
     {
      "modelo": "Clásica mujer blanca",
      "driveId": "1i1AnD5K2hiawNql5FUvf3YQEf0KQNSC3"
+    },
+    {
+     "modelo": "Clásica hombre beige",
+     "url": "https://fotoffice.com/tienda-prendas/dnx-estudio/pola-che.webp"
+    },
+    {
+     "modelo": "Clásica wash azul",
+     "url": "https://fotoffice.com/tienda-prendas/dnx-estudio/pola-cwa.webp"
     }
    ]
   },
@@ -229,6 +318,14 @@
     {
      "modelo": "Clásica mujer blanca",
      "driveId": "1QYkfHQM8MLeHNnST7pqFuw1aw1MzvnWT"
+    },
+    {
+     "modelo": "Clásica hombre beige",
+     "url": "https://fotoffice.com/tienda-prendas/dnx-estudio/cams-che.webp"
+    },
+    {
+     "modelo": "Clásica wash azul",
+     "url": "https://fotoffice.com/tienda-prendas/dnx-estudio/cams-cwa.webp"
     }
    ]
   },
@@ -238,8 +335,8 @@
    "slug": "what-part-of",
    "activo": true,
    "descripcion": "La pantalla de la cámara en modo manual. ¿Qué parte no entendiste?",
-   "estampaOscura": "189465MOGttO8wvZ_c_tz4s1TFOwsrxJy",
-   "estampaClara": "1BeDrHQyk0bwHteaXDYUtpi7GaQ9kXvej",
+   "estampaOscura": "1BeDrHQyk0bwHteaXDYUtpi7GaQ9kXvej",
+   "estampaClara": "189465MOGttO8wvZ_c_tz4s1TFOwsrxJy",
    "mockups": [
     {
      "modelo": "Oversize negra",
@@ -268,6 +365,14 @@
     {
      "modelo": "Clásica mujer blanca",
      "driveId": "1GK8h5Am5ecv5NmUy_d10gymcUnw8Iq5t"
+    },
+    {
+     "modelo": "Clásica hombre beige",
+     "url": "https://fotoffice.com/tienda-prendas/dnx-estudio/wpo-che.webp"
+    },
+    {
+     "modelo": "Clásica wash azul",
+     "url": "https://fotoffice.com/tienda-prendas/dnx-estudio/wpo-cwa.webp"
     }
    ]
   },
@@ -307,6 +412,14 @@
     {
      "modelo": "Clásica mujer blanca",
      "driveId": "18EpZnQnRy1rfO1Y2d-Dp85Qls69km5me"
+    },
+    {
+     "modelo": "Clásica hombre beige",
+     "url": "https://fotoffice.com/tienda-prendas/dnx-estudio/spring-che.webp"
+    },
+    {
+     "modelo": "Clásica wash azul",
+     "url": "https://fotoffice.com/tienda-prendas/dnx-estudio/spring-cwa.webp"
     }
    ]
   },
@@ -346,6 +459,14 @@
     {
      "modelo": "Clásica mujer blanca",
      "driveId": "1mjrQHDQWOJ2eFyIOlAuxUenc_MDvS3xo"
+    },
+    {
+     "modelo": "Clásica hombre beige",
+     "url": "https://fotoffice.com/tienda-prendas/dnx-estudio/mityp-che.webp"
+    },
+    {
+     "modelo": "Clásica wash azul",
+     "url": "https://fotoffice.com/tienda-prendas/dnx-estudio/mityp-cwa.webp"
     }
    ]
   },
