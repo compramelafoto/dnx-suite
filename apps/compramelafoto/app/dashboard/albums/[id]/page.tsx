@@ -30,6 +30,7 @@ import AlbumPacksSection from "@/components/dashboard/album-packs/AlbumPacksSect
 import AlbumVideosSection from "@/components/dashboard/album-videos/AlbumVideosSection";
 import AlbumResumenSection from "@/components/dashboard/albums/AlbumResumenSection";
 import AlbumSharePanel from "@/components/dashboard/albums/AlbumSharePanel";
+import AlbumDescargarOriginales from "@/components/dashboard/albums/AlbumDescargarOriginales";
 import AlbumPublicationSection from "@/components/dashboard/albums/AlbumPublicationSection";
 import AlbumConfigurationSection from "@/components/dashboard/albums/AlbumConfigurationSection";
 import AlbumEventScheduleFields, {
@@ -2547,6 +2548,7 @@ export default function DashboardAlbumDetailPage() {
               </Link>
             </div>
           </DsInfoPanel>
+          {album.isOwner ? <AlbumDescargarOriginales albumId={album.id} /> : null}
           {editing && (
             <Card className="ds-fill-width w-full min-w-0 p-5 sm:p-6">
               <div className="ds-form-stack w-full max-w-2xl gap-4">
