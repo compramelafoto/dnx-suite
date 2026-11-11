@@ -631,10 +631,29 @@ export const CUESTIONARIO_PRODUCTORA_DOCENTE: Cuestionario = {
           ],
         },
         {
-          id: "testimonios",
-          titulo: "Comentarios de alumnos o clientas que podamos publicar",
-          ayuda: "Copiá el texto y el nombre de quien lo dijo, uno por párrafo.",
-          tipo: "parrafo",
+          id: "testimonios_alumnos",
+          titulo: "Copiá varios testimonios de tus alumnos",
+          ayuda:
+            "Los que te mandaron por WhatsApp, Instagram o correo: copiá el texto tal cual, uno por fila. Cuantos más, mejor (con tres o cuatro ya se arma la sección). Si es una captura, pegá el enlace a la imagen.",
+          tipo: "lista",
+          textoAgregar: "Agregar otro testimonio",
+          filasIniciales: [{}, {}, {}],
+          campos: [
+            { id: "nombre", titulo: "Nombre de quien lo dijo", tipo: "texto" },
+            { id: "curso", titulo: "Qué curso, taller o sesión hizo", tipo: "texto" },
+            { id: "texto", titulo: "Lo que dijo", tipo: "parrafo" },
+            { id: "enlace", titulo: "Captura o foto (opcional)", tipo: "enlace" },
+          ],
+        },
+        {
+          id: "testimonios_permiso",
+          titulo: "¿Esas personas están de acuerdo con que se publique su comentario con su nombre?",
+          tipo: "opcion",
+          opciones: [
+            { valor: "si", etiqueta: "Sí" },
+            { valor: "solo_nombre", etiqueta: "Sí, pero sólo con el nombre de pila" },
+            { valor: "consultar", etiqueta: "Tengo que preguntarles" },
+          ],
         },
         { id: "video_productos_2", titulo: "Enlace nuevo del video del Módulo 2 de Fotografía de productos", ayuda: "El que está en Drive dura 4 segundos.", tipo: "enlace" },
       ],

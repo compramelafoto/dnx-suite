@@ -31,6 +31,8 @@ export type FontOption = {
   google: string | null;
   /** Grosores que trae la letra. Las del sistema los simulan todos. */
   weights: readonly number[];
+  /** Si se baja también la cursiva (para el `<em>` de los textos). Sólo las que la tienen fina. */
+  italics?: boolean;
 };
 
 const TODOS = [300, 400, 500, 600, 700, 800] as const;
@@ -57,6 +59,8 @@ export const FONT_OPTIONS: readonly FontOption[] = [
   { id: "open-sans", label: "Open Sans", category: "sans", stack: `'Open Sans', ${SANS}`, google: "Open Sans", weights: TODOS },
   { id: "nunito", label: "Nunito", category: "sans", stack: `'Nunito', ${SANS}`, google: "Nunito", weights: TODOS },
   { id: "work-sans", label: "Work Sans", category: "sans", stack: `'Work Sans', ${SANS}`, google: "Work Sans", weights: TODOS },
+  // Geométrica y de trazo muy fino, con cursiva: la de las portadas de F64 Productora.
+  { id: "jost", label: "Jost", category: "sans", stack: `'Jost', ${SANS}`, google: "Jost", weights: [200, 300, 400, 500, 600, 700], italics: true },
   { id: "josefin-sans", label: "Josefin Sans", category: "sans", stack: `'Josefin Sans', ${SANS}`, google: "Josefin Sans", weights: [300, 400, 500, 600, 700] },
   // Google Fonts, de exhibición (para títulos).
   { id: "dm-serif-display", label: "DM Serif Display", category: "display", stack: `'DM Serif Display', ${SERIF}`, google: "DM Serif Display", weights: [400] },
@@ -83,6 +87,7 @@ export function nearestWeight(font: FontOption, weight: number): number {
 }
 
 export const WEIGHT_LABELS: Record<number, string> = {
+  200: "Extra fina",
   300: "Fina",
   400: "Normal",
   500: "Media",
@@ -290,17 +295,24 @@ export function levelStyle(level: TypographyLevelId, options: { color: boolean }
  * todas son del sistema (no se descarga nada).
  */
 export function googleFontsHref(levels: Record<TypographyLevelId, TypographyLevel>): string | null {
-  const porLetra = new Map<string, Set<number>>();
+  const porLetra = new Map<string, { pesos: Set<number>; cursiva: boolean }>();
   for (const id of LEVEL_IDS) {
     const font = getFont(levels[id].font);
     if (!font.google) continue;
-    const pesos = porLetra.get(font.google) ?? new Set<number>();
-    pesos.add(levels[id].weight);
-    porLetra.set(font.google, pesos);
+    const actual = porLetra.get(font.google) ?? { pesos: new Set<number>(), cursiva: Boolean(font.italics) };
+    actual.pesos.add(levels[id].weight);
+    porLetra.set(font.google, actual);
   }
   if (porLetra.size === 0) return null;
   const familias = [...porLetra.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([nombre, pesos]) => `family=${nombre.replace(/ /g, "+")}:wght@${[...pesos].sort((a, b) => a - b).join(";")}`);
+    .map(([nombre, { pesos, cursiva }]) => {
+      const orden = [...pesos].sort((a, b) => a - b);
+      const familia = nombre.replace(/ /g, "+");
+      // Con cursiva, Google pide los pares (0 = recta, 1 = cursiva) en ese orden.
+      return cursiva
+        ? `family=${familia}:ital,wght@${[...orden.map((w) => `0,${w}`), ...orden.map((w) => `1,${w}`)].join(";")}`
+        : `family=${familia}:wght@${orden.join(";")}`;
+    });
   return `https://fonts.googleapis.com/css2?${familias.join("&")}&display=swap`;
 }
