@@ -120,7 +120,7 @@ export function TableroEnCurso({
     start(async () => {
       const r = await avisarListoAction(t.proyectoId);
       setOcupada(null);
-      setAviso(r.ok ? { ok: true, texto: `${t.cliente}: aviso enviado a ${r.email}.` } : { ok: false, texto: `${t.cliente}: ${r.error}` });
+      setAviso(r.ok ? { ok: true, texto: `${t.cliente}: ${r.resumen}` } : { ok: false, texto: `${t.cliente}: ${r.error}` });
     });
   }
 
@@ -146,7 +146,7 @@ export function TableroEnCurso({
         setAviso({ ok: false, texto: `${t.cliente}: ${r.error}` });
         return;
       }
-      const correo = r.correo ? ` Se le avisó por correo a ${r.correo}.` : r.avisoError ? ` ${r.avisoError}` : "";
+      const correo = r.avisado ? ` ${r.avisado}` : r.avisoError ? ` ${r.avisoError}` : "";
       setAviso({ ok: true, texto: `${t.cliente}: listo para retirar.${correo}` });
       router.refresh();
     });
