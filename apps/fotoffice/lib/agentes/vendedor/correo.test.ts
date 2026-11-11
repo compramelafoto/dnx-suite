@@ -127,9 +127,18 @@ describe("envío del Vendedor", () => {
     expect(C.enlaceSeguimiento("https://muestrasfotograficas.com", "tok")).toBe("https://muestrasfotograficas.com?dnxv=tok");
   });
 
+  it("en el HTML la línea de WhatsApp es un botón y los demás enlaces siguen clicables", () => {
+    const html = C.htmlDeTexto(`Mirá https://a/x?dnxv=t.\n\n${C.pieDeCorreo("https://baja")}`);
+    expect(html).toContain('<a href="https://wa.me/5493413748324" style="');
+    expect(html).toContain(">Escribime por WhatsApp</a>");
+    expect(html).not.toContain("WhatsApp: https://wa.me");
+    expect(html).toContain('<a href="https://a/x?dnxv=t">https://a/x?dnxv=t</a>.');
+    expect(html).toContain('<a href="https://baja">https://baja</a>');
+  });
+
   it("el pie identifica a Daniel y ofrece la baja", () => {
     expect(C.pieDeCorreo("https://fotoffice.com/api/correo/baja-dnx?t=x")).toBe(
-      "—\nDaniel Cuart\nCompraMeLaFoto · compramelafoto.com\n\nTe escribo porque tu contacto está publicado como dato comercial. Si no querés que te escriba más, respondé «baja» o entrá acá: https://fotoffice.com/api/correo/baja-dnx?t=x",
+      "—\nDaniel Cuart\nCompraMeLaFoto · compramelafoto.com\nTel.: 341 374-8324\nWhatsApp: https://wa.me/5493413748324\n\nTe escribo porque tu contacto está publicado como dato comercial. Si no querés que te escriba más, respondé «baja» o entrá acá: https://fotoffice.com/api/correo/baja-dnx?t=x",
     );
     const texto = C.armarTexto("Mirá {{ENLACE}} y el curso {{CURSO}}.", { ENLACE: "https://a/x?dnxv=t", CURSO: "https://a/c?dnxv=t" }, "https://baja");
     expect(texto).toBe(`Mirá https://a/x?dnxv=t y el curso https://a/c?dnxv=t.\n\n${C.pieDeCorreo("https://baja")}`);
