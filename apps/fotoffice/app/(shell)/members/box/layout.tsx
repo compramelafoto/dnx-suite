@@ -12,7 +12,7 @@ export default async function BoxLayout({ children }: { children: React.ReactNod
     <div className="space-y-8">
       <PageHeader
         title="BOX mensual"
-        description="Cada persona socia recibe una caja por cada mes pagado, en orden desde la BOX N°1. Acá ves a quién le toca qué caja, qué hay que preparar y qué ya se envió."
+        description="Cada persona socia recibe una caja por cada mes pagado, en orden desde el BOX N°1. Acá ves a quién le toca qué caja, qué hay que preparar y qué ya se envió."
       />
       <PestanasBox />
       {children}

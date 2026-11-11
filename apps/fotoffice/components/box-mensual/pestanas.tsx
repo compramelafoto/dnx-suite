@@ -10,7 +10,7 @@ const PESTANAS = [
   { href: "/members/box/cajas", label: "Cajas", exacto: false },
 ] as const;
 
-/** Pestañas de la BOX mensual. Mismo dibujo que las de Informes. */
+/** Pestañas de el BOX mensual. Mismo dibujo que las de Informes. */
 export function PestanasBox() {
   const path = usePathname() ?? "";
   return (

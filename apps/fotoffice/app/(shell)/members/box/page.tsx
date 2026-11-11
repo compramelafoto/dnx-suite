@@ -37,7 +37,7 @@ export default async function BoxParaEnviarPage() {
         <div className="space-y-2 max-w-md">
           <p className="text-base font-semibold text-[var(--fo-text)]">Todavía no hay cajas cargadas</p>
           <p className="text-sm text-[var(--fo-muted)] leading-relaxed">
-            Cargá la BOX N°1 y las siguientes. Después marcá en Categorías cuáles incluyen la BOX mensual.
+            Cargá el BOX N°1 y las siguientes. Después marcá en Categorías cuáles incluyen el BOX mensual.
           </p>
         </div>
         <Link href="/members/box/cajas/nueva" className="fo-btn fo-btn-primary text-sm">

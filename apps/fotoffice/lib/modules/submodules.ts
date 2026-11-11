@@ -79,7 +79,7 @@ export type SubmoduleItem = {
   requiresFullAccess?: boolean;
   /**
    * Función que el workspace tiene que usar para que la pantalla aparezca (ver
-   * `SubmoduleAccess.features`). Para pantallas de una sola institución, como la BOX mensual de
+   * `SubmoduleAccess.features`). Para pantallas de una sola institución, como el BOX mensual de
    * SOYBELUZ: a las demás no se les ensucia el menú con algo que no usan.
    */
   requiresFeature?: string;

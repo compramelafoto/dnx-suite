@@ -15,7 +15,7 @@ import {
  */
 
 /**
- * Si el workspace usa la BOX mensual: alguna categoría con caja o alguna caja cargada. Decide si
+ * Si el workspace usa el BOX mensual: alguna categoría con caja o alguna caja cargada. Decide si
  * la pantalla aparece en el menú, para no ensuciar el panel de las instituciones que no la usan.
  *
  * **Nunca lanza**: la consulta corre en el menú de todas las pantallas, y si la tabla todavía no
@@ -29,7 +29,7 @@ export async function workspaceUsaBoxMensual(workspaceId: string): Promise<boole
     ]);
     return categoria !== null || caja !== null;
   } catch (error) {
-    console.error("[fotoffice][box] no se pudo saber si el workspace usa la BOX mensual", {
+    console.error("[fotoffice][box] no se pudo saber si el workspace usa el BOX mensual", {
       workspaceId,
       detalle: error instanceof Error ? error.message : String(error),
     });

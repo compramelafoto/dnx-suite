@@ -1,4 +1,4 @@
-/** Fechas de la BOX mensual, en hora argentina: `5 nov 2026`. */
+/** Fechas de el BOX mensual, en hora argentina: `5 nov 2026`. */
 export function fechaBox(d: Date | null | undefined): string {
   if (!d) return "—";
   return new Intl.DateTimeFormat("es-AR", {
