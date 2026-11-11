@@ -199,8 +199,8 @@ export async function changeMemberStatusAction(
 }
 
 /**
- * Los campos de club de la categoría: turnos incluidos (Club VIP; vacío = no incluye turnos) y la
- * BOX mensual (SOYBELUZ).
+ * Los campos de club de la categoría: turnos incluidos (Club VIP; vacío = no incluye turnos), la
+ * BOX mensual (SOYBELUZ) y si se ofrece como plan en el alta corta del sitio.
  */
 function clubFields(formData: FormData) {
   const entero = (k: string, defecto: number) => {
@@ -213,6 +213,7 @@ function clubFields(formData: FormData) {
     bookingCreditLabel: formData.get("bookingCreditLabel")?.toString()?.trim() || null,
     selfRenew: formData.get("selfRenew") === "on",
     includesMonthlyBox: formData.get("includesMonthlyBox") === "on",
+    offeredInOnlineApplication: formData.get("offeredInOnlineApplication") === "on",
   };
 }
 

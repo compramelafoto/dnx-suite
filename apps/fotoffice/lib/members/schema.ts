@@ -48,6 +48,8 @@ export const memberCategorySchema = z.object({
   selfRenew: z.boolean().optional(),
   /** BOX mensual: quienes tienen esta categoría reciben una caja por cada mes pagado. */
   includesMonthlyBox: z.boolean().optional(),
+  /** Se ofrece como plan en el alta corta del sitio. */
+  offeredInOnlineApplication: z.boolean().optional(),
 });
 
 export type MemberCategoryFormValues = z.infer<typeof memberCategorySchema>;

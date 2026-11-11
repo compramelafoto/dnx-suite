@@ -32,6 +32,7 @@ import { appUrl } from "@/lib/app-url";
 import { redirect } from "next/navigation";
 import { withSimpleFormDefaults } from "@/lib/membership/enrollment";
 import { getEnrollmentSettings } from "@/lib/membership/enrollment-store";
+import { applyPlanToSimpleForm, choosePlan } from "@/lib/membership/application-plans";
 import { startMemberDuesCheckout } from "@/lib/membership/dues-checkout";
 import { loadMemberBalance } from "@/lib/membership/balance";
 
@@ -85,7 +86,24 @@ export async function submitApplicationAction(
   // Alta sin aprobación y formulario corto: apagados por defecto (la SFPR revisa cada una).
   const alta = await getEnrollmentSettings(branding.workspaceId);
   const crudo = readForm(formData);
-  const parsed = parseApplication(alta.simpleForm ? withSimpleFormDefaults(crudo) : crudo);
+
+  /*
+    En el formulario corto la persona elige el plan. El id que manda el navegador sólo vale si
+    está entre los que ofrece esta institución (activos, de este workspace); el precio que se
+    cobra sale después de esa categoría, en la aprobación. El formulario completo sigue con la
+    categoría de las altas, como siempre.
+  */
+  let categoryId = alta.category?.id ?? null;
+  let datos = crudo;
+  if (alta.simpleForm) {
+    const eleccion = choosePlan(alta.plans, crudo.planId);
+    if (!eleccion.ok) return fail(eleccion.error);
+    const conPlan = applyPlanToSimpleForm(crudo, eleccion.plan);
+    if (!conPlan.ok) return fail(conPlan.error);
+    categoryId = eleccion.plan?.id ?? null;
+    datos = withSimpleFormDefaults(conPlan.raw);
+  }
+  const parsed = parseApplication(datos);
   if (!parsed.ok) return fail(parsed.error);
 
   if (alta.autoApprove) {
@@ -141,8 +159,8 @@ export async function submitApplicationAction(
       workspaceId: branding.workspaceId,
       ...datosSolicitud,
       recommenderMemberId: recomendante?.memberId ?? null,
-      // La categoría de las altas desde el sitio, si la institución eligió una (el VIP).
-      categoryId: alta.category?.id ?? null,
+      // El plan elegido en el alta corta, o la categoría de las altas desde el sitio (el VIP).
+      categoryId,
     },
     select: { id: true },
   });
@@ -417,7 +435,7 @@ async function irAPagarElAlta(
 ): Promise<ApplicationFormState> {
   const [cuenta, socio] = await Promise.all([
     loadMemberBalance(memberId),
-    prisma.member.findUnique({ where: { id: memberId }, select: { memberNumber: true } }),
+    prisma.member.findUnique({ where: { id: memberId }, select: { memberNumber: true, categoryId: true } }),
   ]);
   if (!socio || cuenta.dueMinor <= 0) {
     return done("Tu alta quedó hecha. Revisá tu email para entrar a tu portal.");
@@ -428,7 +446,8 @@ async function irAPagarElAlta(
     memberNumber: socio.memberNumber,
     totalMinor: cuenta.dueMinor,
     title: "Alta",
-    returnPath: `/w/${workspaceSlug}/asociarse`,
+    // Vuelve con su plan: el aviso de "pago recibido" habla de lo que incluye ese plan.
+    returnPath: `/w/${workspaceSlug}/asociarse${socio.categoryId ? `?plan=${encodeURIComponent(socio.categoryId)}` : ""}`,
   });
   if (!pago.ok) return fail(pago.error);
   redirect(pago.checkoutUrl);

@@ -18,16 +18,30 @@ const H = vi.hoisted(() => ({
   sendAndLog: vi.fn(),
   emailContext: vi.fn(),
   vocabulary: vi.fn(),
+  branding: vi.fn(),
+  cobros: vi.fn(),
+  enrollment: vi.fn(),
+  applicationFindFirst: vi.fn(),
+  applicationCreate: vi.fn(),
+  memberFindFirst: vi.fn(),
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@repo/db", async () => {
   const actual = await vi.importActual<typeof import("@repo/db")>("@repo/db");
-  return { ...actual, prisma: { fotofficeWorkspaceBranding: { findUnique: vi.fn() } } };
+  return {
+    ...actual,
+    prisma: {
+      fotofficeWorkspaceBranding: { findUnique: H.branding },
+      membershipApplication: { findFirst: H.applicationFindFirst, create: H.applicationCreate },
+      member: { findFirst: H.memberFindFirst, findUnique: vi.fn() },
+    },
+  };
 });
 vi.mock("@/lib/workspace", () => ({ requireActiveWorkspace: H.requireWorkspace }));
 vi.mock("@/lib/permissions/module-access", () => ({ hasModuleLevel: H.canManage }));
-vi.mock("@/lib/payments/connect/status", () => ({ getWorkspaceCollectionStatus: vi.fn() }));
+vi.mock("@/lib/payments/connect/status", () => ({ getWorkspaceCollectionStatus: H.cobros }));
+vi.mock("@/lib/membership/enrollment-store", () => ({ getEnrollmentSettings: H.enrollment }));
 vi.mock("@/lib/membership/repository", () => ({
   approveApplication: H.approve,
   rejectApplication: H.reject,
@@ -40,7 +54,7 @@ vi.mock("@/lib/communications/load-workspace-signature", () => ({
 // Cómo llama esta institución a la gente de su padrón: el resumen del alta la nombra.
 vi.mock("@/lib/vocabulario/load", () => ({ loadPersonVocabulary: H.vocabulary }));
 
-const { approveApplicationAction, rejectApplicationAction } = await import(
+const { approveApplicationAction, rejectApplicationAction, submitApplicationAction } = await import(
   "./membership-applications"
 );
 const { personVocabulary } = await import("@/lib/vocabulario/personas");
@@ -184,5 +198,118 @@ describe("rechazar", () => {
 
     expect(r.error).toContain("motivo");
     expect(H.sendAndLog).not.toHaveBeenCalled();
+  });
+});
+
+describe("alta corta con elección de plan", () => {
+  // Los planes ya vienen filtrados por institución y activos desde `getEnrollmentSettings`.
+  const plan = (over: Record<string, unknown> & { id: string }) => ({
+    name: over.id,
+    description: null,
+    order: 0,
+    selfRenew: false,
+    includesMonthlyBox: false,
+    bookingCreditsPerPayment: 0,
+    bookingCreditLabel: null,
+    ...over,
+  });
+  const VIP = plan({ id: "vip", name: "VIP", selfRenew: true, bookingCreditsPerPayment: 4, bookingCreditLabel: "cortes" });
+  const BOX = plan({ id: "box", name: "Club con BOX", order: 1, includesMonthlyBox: true });
+  const DATOS = { firstName: "Ana", lastName: "Pérez", email: "ana@test.com" };
+  const DOMICILIO = { address: "San Martín 1234", city: "Rosario", province: "Santa Fe", postalCode: "2000" };
+
+  function alta(over: Record<string, unknown> = {}) {
+    return {
+      autoApprove: false,
+      simpleForm: true,
+      category: { id: "vip", name: "VIP", description: null },
+      plans: [VIP],
+      ...over,
+    };
+  }
+
+  const creada = () => H.applicationCreate.mock.calls[0]?.[0] as { data: Record<string, unknown> } | undefined;
+
+  beforeEach(() => {
+    H.branding.mockReset().mockResolvedValue({ workspaceId: "ws-club", contactEmail: null });
+    H.cobros.mockReset().mockResolvedValue({ canCharge: true });
+    H.enrollment.mockReset().mockResolvedValue(alta());
+    H.applicationFindFirst.mockReset().mockResolvedValue(null);
+    H.applicationCreate.mockReset().mockResolvedValue({ id: "sol-1" });
+    H.memberFindFirst.mockReset().mockResolvedValue(null);
+  });
+
+  it("con una sola categoría de altas funciona como siempre, aunque no llegue el plan", async () => {
+    const r = await submitApplicationAction("club", undefined, form(DATOS));
+
+    expect(r.error).toBeNull();
+    expect(creada()?.data).toEqual(
+      expect.objectContaining({ categoryId: "vip", noticeAddress: expect.stringMatching(/No corresponde/), city: null }),
+    );
+  });
+
+  it("guarda el plan elegido, no el de las altas", async () => {
+    H.enrollment.mockResolvedValue(alta({ plans: [VIP, BOX] }));
+
+    const r = await submitApplicationAction("club", undefined, form({ ...DATOS, ...DOMICILIO, planId: "box" }));
+
+    expect(r.error).toBeNull();
+    expect(creada()?.data).toEqual(
+      expect.objectContaining({
+        categoryId: "box",
+        noticeAddress: "San Martín 1234",
+        city: "Rosario",
+        province: "Santa Fe",
+        postalCode: "2000",
+      }),
+    );
+  });
+
+  it("un plan que no se ofrece se rechaza: el id del navegador no alcanza", async () => {
+    H.enrollment.mockResolvedValue(alta({ plans: [VIP, BOX] }));
+
+    const r = await submitApplicationAction("club", undefined, form({ ...DATOS, planId: "categoria-de-otra-institucion" }));
+
+    expect(r.error).toContain("no está disponible");
+    expect(H.applicationCreate).not.toHaveBeenCalled();
+  });
+
+  it("con varios planes, sin elegir no entra", async () => {
+    H.enrollment.mockResolvedValue(alta({ plans: [VIP, BOX] }));
+
+    const r = await submitApplicationAction("club", undefined, form(DATOS));
+
+    expect(r.error).toBe("Elegí un plan.");
+    expect(H.applicationCreate).not.toHaveBeenCalled();
+  });
+
+  it("con BOX, sin domicilio no entra", async () => {
+    H.enrollment.mockResolvedValue(alta({ plans: [VIP, BOX] }));
+
+    const r = await submitApplicationAction("club", undefined, form({ ...DATOS, ...DOMICILIO, planId: "box", postalCode: "" }));
+
+    expect(r.error).toBe("Falta el código postal.");
+    expect(H.applicationCreate).not.toHaveBeenCalled();
+  });
+
+  it("sin BOX, el domicilio que llegue no se guarda", async () => {
+    H.enrollment.mockResolvedValue(alta({ plans: [VIP, BOX] }));
+
+    await submitApplicationAction("club", undefined, form({ ...DATOS, ...DOMICILIO, planId: "vip" }));
+
+    expect(creada()?.data).toEqual(expect.objectContaining({ categoryId: "vip", city: null, postalCode: null }));
+  });
+
+  it("el formulario completo no mira los planes: sigue con la categoría de las altas", async () => {
+    H.enrollment.mockResolvedValue(alta({ simpleForm: false, plans: [VIP, BOX] }));
+
+    const r = await submitApplicationAction(
+      "club",
+      undefined,
+      form({ ...DATOS, noticeAddress: "Mitre 50", declaredFeeScale: "PLENA", planId: "box" }),
+    );
+
+    expect(r.error).toBeNull();
+    expect(creada()?.data).toEqual(expect.objectContaining({ categoryId: "vip", noticeAddress: "Mitre 50" }));
   });
 });

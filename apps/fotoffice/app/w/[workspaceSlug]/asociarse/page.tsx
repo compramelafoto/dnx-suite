@@ -10,14 +10,22 @@ import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { asociarseAbierto } from "@/lib/course-classroom/asociarse";
 import { getEnrollmentSettings } from "@/lib/membership/enrollment-store";
-import { SimpleApplicationForm } from "@/components/membership/simple-application-form";
+import {
+  SimpleApplicationForm,
+  type SimpleApplicationPlanOption,
+} from "@/components/membership/simple-application-form";
+import { defaultPlanId, portalAccessText } from "@/lib/membership/application-plans";
 
 export const dynamic = "force-dynamic";
 
 type Props = {
   params: Promise<{ workspaceSlug: string }>;
-  /** `?rec=` es el enlace de recomendación de un socio. Ausente o inválido, el alta sigue igual. */
-  searchParams: Promise<{ rec?: string; pago?: string }>;
+  /**
+   * `?rec=` es el enlace de recomendación de un socio. Ausente o inválido, el alta sigue igual.
+   * `?plan=` preselecciona un plan del alta corta (los botones del sitio enlazan así); si no se
+   * ofrece, se ignora.
+   */
+  searchParams: Promise<{ rec?: string; pago?: string; plan?: string }>;
 };
 
 const ars = new Intl.NumberFormat("es-AR", { minimumFractionDigits: 2 });
@@ -32,7 +40,7 @@ const ars = new Intl.NumberFormat("es-AR", { minimumFractionDigits: 2 });
  */
 export default async function AsociarsePage({ params, searchParams }: Props) {
   const { workspaceSlug } = await params;
-  const { rec, pago } = await searchParams;
+  const { rec, pago, plan } = await searchParams;
 
   const branding = await prisma.fotofficeWorkspaceBranding.findUnique({
     where: { publicSlug: workspaceSlug },
@@ -55,10 +63,10 @@ export default async function AsociarsePage({ params, searchParams }: Props) {
     loadPersonVocabulary(branding.workspaceId),
     getEnrollmentSettings(branding.workspaceId),
   ]);
-  // Con una categoría para las altas (el VIP), el precio que se anuncia es el suyo.
-  const valorDeLaCategoria = alta.category
-    ? await getActiveFeeValue(branding.workspaceId, alta.category.id, new Date())
-    : null;
+  // Cada plan del alta corta anuncia su precio (el de su categoría o, si no tiene, el general).
+  const valoresDeLosPlanes = alta.simpleForm
+    ? await Promise.all(alta.plans.map((p) => getActiveFeeValue(branding.workspaceId, p.id, new Date())))
+    : [];
 
   /*
     Quién lo recomienda se resuelve en el servidor y contra el padrón. Si el código no
@@ -84,28 +92,44 @@ export default async function AsociarsePage({ params, searchParams }: Props) {
   // El módulo ya se exigió arriba con `notFound`. El criterio vive en un solo lugar.
   const abierto = asociarseAbierto({ moduloSocios: true, puedeCobrar: cobros.canCharge, hayValorCuota: Boolean(valorCuota) });
 
-  // El alta corta de un club de clientes (el VIP de Gus Barbers). El resto, como siempre.
+  // El alta corta de un club de clientes (el VIP de Gus Barbers, el BOX de SOYBELUZ). El resto,
+  // como siempre.
   if (alta.simpleForm) {
-    const valor = valorDeLaCategoria ?? valorCuota;
-    const precio = valor ? `$${ars.format(Number(valor.amountArs)).replace(/,00$/, "")} por mes` : null;
-    const nombre = alta.category?.name ?? v.singular;
+    const precioDe = (valor: { amountArs: unknown } | null) =>
+      valor ? `$${ars.format(Number(valor.amountArs)).replace(/,00$/, "")} por mes` : null;
+    const planes: SimpleApplicationPlanOption[] = alta.plans.map((p, i) => ({
+      id: p.id,
+      name: p.name,
+      description: p.description,
+      priceLabel: precioDe(valoresDeLosPlanes[i] ?? null),
+      includesMonthlyBox: p.includesMonthlyBox,
+      portalAccess: portalAccessText(p),
+    }));
+    const marcado = defaultPlanId(alta.plans, alta.category?.id ?? null, plan);
+    const planMarcado = alta.plans.find((p) => p.id === marcado) ?? null;
+    // Con un solo plan (o ninguno) la pantalla es la de siempre; con varios, se elige abajo.
+    const unoSolo = alta.plans.length <= 1 ? (alta.plans[0] ?? null) : null;
+    const nombre = unoSolo?.name ?? v.singular;
+    // "Si un mes no renovás, no debés nada" sólo es cierto si todos los planes se renuevan solos.
+    const sinDeuda = alta.plans.every((p) => p.selfRenew);
     return (
       <main className="mx-auto max-w-2xl px-4 py-12 space-y-8">
         <div className="space-y-2">
-          <h1 className="text-2xl font-semibold tracking-tight">Hacete {nombre}</h1>
-          {alta.category?.description ? (
-            <p className="text-sm text-[var(--fo-muted)] leading-relaxed">{alta.category.description}</p>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            {alta.plans.length > 1 ? `Sumate a ${institutionName}` : `Hacete ${nombre}`}
+          </h1>
+          {unoSolo?.description ? (
+            <p className="text-sm text-[var(--fo-muted)] leading-relaxed">{unoSolo.description}</p>
           ) : null}
           <p className="text-sm text-[var(--fo-muted)] leading-relaxed">
             {alta.autoApprove
-              ? "Completá tus datos y pagá con Mercado Pago. Si un mes no renovás, no debés nada."
+              ? `Completá tus datos y pagá con Mercado Pago.${sinDeuda ? " Si un mes no renovás, no debés nada." : ""}`
               : "Completá tus datos y te escribimos por email."}
           </p>
         </div>
         {pago === "ok" ? (
           <p className="fo-card p-4 text-sm text-[var(--fo-success)]">
-            ¡Listo! Recibimos tu pago. Revisá tu email: te mandamos el acceso a tu portal, donde ves tus
-            cortes y renovás.
+            ¡Listo! Recibimos tu pago. Revisá tu email: te mandamos {portalAccessText(planMarcado)}.
           </p>
         ) : null}
         {pago === "error" ? (
@@ -114,7 +138,13 @@ export default async function AsociarsePage({ params, searchParams }: Props) {
           </p>
         ) : null}
         {abierto ? (
-          <SimpleApplicationForm workspaceSlug={workspaceSlug} priceLabel={precio} autoApprove={alta.autoApprove} />
+          <SimpleApplicationForm
+            workspaceSlug={workspaceSlug}
+            plans={planes}
+            defaultPlanId={marcado}
+            fallbackPriceLabel={precioDe(valorCuota)}
+            autoApprove={alta.autoApprove}
+          />
         ) : (
           <section className="fo-card space-y-2 p-6">
             <h2 className="text-base font-semibold">Todavía no está abierto</h2>

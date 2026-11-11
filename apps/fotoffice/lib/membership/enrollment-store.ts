@@ -3,6 +3,7 @@ import { prisma } from "@repo/db";
 import { decimalArsToMinor, minorToDecimalString } from "@/lib/membership/money";
 import { getActiveFeeValue } from "@/lib/membership/settings";
 import { RENEWAL_PERIOD_PREFIX, isAbandonedRenewal, renewalPeriodFor } from "./enrollment";
+import { offeredPlans, type ApplicationPlan } from "./application-plans";
 
 /**
  * Alta sin aprobación y renovación sin deuda — la parte que toca la base (ver `enrollment.ts`).
@@ -13,6 +14,11 @@ export type EnrollmentSettings = {
   simpleForm: boolean;
   /** La categoría que recibe quien se asocia desde el sitio, si es de esta institución y está activa. */
   category: { id: string; name: string; description: string | null } | null;
+  /**
+   * Los planes del alta corta: la categoría de arriba más las marcadas para ofrecerse, activas y
+   * de esta institución, en orden. Vacío = el alta entra sin categoría, como siempre.
+   */
+  plans: ApplicationPlan[];
 };
 
 export async function getEnrollmentSettings(workspaceId: string): Promise<EnrollmentSettings> {
@@ -20,16 +26,37 @@ export async function getEnrollmentSettings(workspaceId: string): Promise<Enroll
     where: { workspaceId },
     select: { autoApproveApplications: true, simpleApplicationForm: true, applicationCategoryId: true },
   });
-  const category = fila?.applicationCategoryId
-    ? await prisma.memberCategory.findFirst({
-        where: { id: fila.applicationCategoryId, workspaceId, isActive: true },
-        select: { id: true, name: true, description: true },
-      })
-    : null;
+  const applicationCategoryId = fila?.applicationCategoryId ?? null;
+  // Una sola lectura trae la categoría de las altas y las ofrecidas; el filtro por institución
+  // y por activas va en la consulta, así un id de otra institución nunca llega a la lista.
+  const candidatas = await prisma.memberCategory.findMany({
+    where: {
+      workspaceId,
+      isActive: true,
+      OR: [
+        { offeredInOnlineApplication: true },
+        ...(applicationCategoryId ? [{ id: applicationCategoryId }] : []),
+      ],
+    },
+    select: {
+      id: true,
+      name: true,
+      description: true,
+      order: true,
+      isActive: true,
+      offeredInOnlineApplication: true,
+      selfRenew: true,
+      includesMonthlyBox: true,
+      bookingCreditsPerPayment: true,
+      bookingCreditLabel: true,
+    },
+  });
+  const propia = applicationCategoryId ? candidatas.find((c) => c.id === applicationCategoryId) : undefined;
   return {
     autoApprove: fila?.autoApproveApplications ?? false,
     simpleForm: fila?.simpleApplicationForm ?? false,
-    category,
+    category: propia ? { id: propia.id, name: propia.name, description: propia.description } : null,
+    plans: offeredPlans(candidatas, applicationCategoryId),
   };
 }
 

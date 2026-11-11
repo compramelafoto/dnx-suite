@@ -187,6 +187,10 @@ export default async function ConfiguracionCuotasPage({
                 </option>
               ))}
             </select>
+            <p className="fo-helper">
+              Con el formulario corto, para que la persona elija entre varios planes marcá &ldquo;Ofrecer como
+              plan en el alta&rdquo; en cada categoría.
+            </p>
           </div>
           <button type="submit" className="fo-btn fo-btn-secondary text-sm">
             Guardar
