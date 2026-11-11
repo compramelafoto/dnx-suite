@@ -57,7 +57,13 @@ function BotonDeAccion({
       {Object.entries(campos ?? {}).map(([k, v]) => (
         <input key={k} type="hidden" name={k} value={v} />
       ))}
-      <button type="submit" disabled={pending} className={`fo-btn fo-btn-${variante} text-sm disabled:opacity-60`}>
+      <button type="submit" disabled={pending} className={
+        variante === "secondary"
+          ? "fo-btn fo-btn-secondary text-sm disabled:opacity-60"
+          : variante === "ghost"
+            ? "fo-btn fo-btn-ghost text-sm disabled:opacity-60"
+            : "fo-btn fo-btn-primary text-sm disabled:opacity-60"
+      }>
         {pending ? pendiente : etiqueta}
       </button>
       <Aviso state={state} />
