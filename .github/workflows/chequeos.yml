@@ -267,9 +267,13 @@ jobs:
       - name: Instalar Chromium para comparar pantalla y PDF
         timeout-minutes: 10
         run: |
+          # Sin --with-deps: las librerías del sistema que usa Chromium ya vienen en la imagen de
+          # GitHub (trae Google Chrome instalado), y pasar por apt colgaba el paso (un apt-get colgado
+          # quedaba vivo con el lock tomado y hacía fallar los reintentos). Sólo se baja el navegador.
           for intento in 1 2 3; do
-            timeout 180 pnpm --filter compramelafoto exec playwright install --with-deps chromium && exit 0
+            timeout 180 pnpm --filter compramelafoto exec playwright install chromium && exit 0
             echo "Intento $intento de instalar Chromium falló o se colgó; reintento."
+            sleep 10
           done
           exit 1
 
