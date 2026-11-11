@@ -311,13 +311,33 @@ export async function prepararPedido(
     // La unidad de envío es el trabajo: un ZIP, un correo y una marca de enviado por trabajo. En un reintento,
     // el trabajo que ya salió no se vuelve a mandar.
     const porTrabajo = new Map<string, Item[]>();
-    // Las instantáneas se imprimen en el estudio: su trabajo no va al laboratorio.
+    // Las instantáneas se imprimen en el estudio: su trabajo no va al laboratorio (quedan en un ZIP aparte).
+    const instantaneas = new Map<string, Item[]>();
     for (const i of p.items as Item[]) {
-      if (i.plazo === "INSTANTANEA") continue;
-      porTrabajo.set(i.proyectoId!, [...(porTrabajo.get(i.proyectoId!) ?? []), i]);
+      const destino = i.plazo === "INSTANTANEA" ? instantaneas : porTrabajo;
+      destino.set(i.proyectoId!, [...(destino.get(i.proyectoId!) ?? []), i]);
     }
     // Las piezas de mostrador se leen una sola vez por pedido (no por copia).
     const piezas = await piezasDelPedido(ws, p.items as Item[]);
+    /** El JPG listo para imprimir de una copia (o el original tal cual). Si falla, se corta todo el ZIP. */
+    const bytesDeCopia = async (i: Item): Promise<Buffer> => {
+      try {
+        // Los originales del bot van tal cual: el encuadre lo decide el laboratorio.
+        if (esRecetaProbador(i.probador)) return await renderizarCuadro(await leer(i.sourceKey), i.probador);
+        if (i.sinRecorte) return await leer(i.sourceKey);
+        if (i.piezaId) {
+          const pieza = piezas.get(i.piezaId);
+          if (!pieza) throw new Error("la pieza con el recorte de la cajera no existe o no es válida");
+          let jpg = await renderizar(await leer(i.sourceKey), pieza.receta, pieza.papel);
+          // Un cuadro (canvas o MDF): el doblez de 5 cm por lado para armarlo.
+          if (esMedidaDeCuadro(pieza.medida)) jpg = await conDoblez(jpg, pieza.receta, pieza.papel);
+          return jpg;
+        }
+        return await recortar(await leer(i.sourceKey), i);
+      } catch (e) {
+        throw new Error(`No se pudo preparar ${i.sourceName}: ${(e as Error).message}`);
+      }
+    };
     const yaEnviados = new Set(trabajos.filter((t) => t.proveedorEnviadoAt).map((t) => t.id));
     const { laboratorio, errores } = await laboratoriosPorTrabajo(ws, porTrabajo, trabajos, yaEnviados);
 
@@ -352,24 +372,10 @@ export async function prepararPedido(
         fecha: ahora,
         abrir: async () => {
           // Si una copia falla, el pedido no sale incompleto: se corta todo el ZIP.
-          try {
-            // Los originales del bot van tal cual: el encuadre lo decide el laboratorio.
-            let jpg: Buffer;
-            if (esRecetaProbador(i.probador)) jpg = await renderizarCuadro(await leer(i.sourceKey), i.probador);
-            else if (i.sinRecorte) jpg = await leer(i.sourceKey);
-            else if (i.piezaId) {
-              const pieza = piezas.get(i.piezaId);
-              if (!pieza) throw new Error("la pieza con el recorte de la cajera no existe o no es válida");
-              jpg = await renderizar(await leer(i.sourceKey), pieza.receta, pieza.papel);
-              // Un cuadro (canvas o MDF): el doblez de 5 cm por lado para armarlo.
-              if (esMedidaDeCuadro(pieza.medida)) jpg = await conDoblez(jpg, pieza.receta, pieza.papel);
-            } else jpg = await recortar(await leer(i.sourceKey), i);
-            return (async function* () {
-              yield new Uint8Array(jpg);
-            })();
-          } catch (e) {
-            throw new Error(`No se pudo preparar ${i.sourceName}: ${(e as Error).message}`);
-          }
+          const jpg = await bytesDeCopia(i);
+          return (async function* () {
+            yield new Uint8Array(jpg);
+          })();
         },
       }));
 
@@ -419,6 +425,39 @@ export async function prepararPedido(
       await prisma.fotofficeProyecto.update({ where: { id: proyectoId }, data: { proveedorEnviadoAt: ahora } });
       // Mover de etapa es un plus: si el recorrido no lo permite (tareas obligatorias), el pedido igual salió.
       await moverAFase(contextoDeSistema(ws), proyectoId, "EN_PROVEEDOR", `Pedido de impresión ${p.number} enviado a ${prov.name}${prueba ? " (modo prueba)" : ""}.`).catch(() => undefined);
+    }
+    // Las instantáneas: un ZIP en la carpeta del trabajo para imprimirlas en el estudio (sin laboratorio ni correo).
+    for (const [proyectoId, items] of instantaneas) {
+      const nombreZip = `Pedido-${p.number}-instantaneas.zip`;
+      const ordenados = ordenarParaZip(items.map((i) => ({ ...i, widthCm: Number(i.widthCm), heightCm: Number(i.heightCm) })));
+      const rutas = new Map(
+        rutasDelZip(
+          p.number,
+          p.nombre,
+          p.paper as Papel,
+          ordenados.map((i) => ({
+            itemId: i.id, proveedorId: null, widthCm: i.widthCm, heightCm: i.heightCm, quantity: i.quantity, sourceName: i.sourceName,
+            paper: i.paper === "MATE" || i.paper === "BRILLO" ? (i.paper as Papel) : null, original: i.sinRecorte === true,
+          })),
+        ).map((r) => [r.itemId, r.ruta]),
+      );
+      const archivos = ordenados.map((i) => ({
+        nombre: rutas.get(i.id)!,
+        fecha: ahora,
+        abrir: async () => {
+          const jpg = await bytesDeCopia(i);
+          return (async function* () {
+            yield new Uint8Array(jpg);
+          })();
+        },
+      }));
+      await borrarZipAnterior(ws, proyectoId, nombreZip);
+      const archivoId = randomUUID();
+      const clave = claveDeArchivo(ws, proyectoId, archivoId, nombreZip);
+      const bytes = await subir(clave, zipEnFlujo(archivos, undefined, { conCarpetas: true }), "application/zip");
+      await prisma.fotofficeArchivoTrabajo.create({
+        data: { id: archivoId, workspaceId: ws, proyectoId, key: clave, nombre: nombreZip, tipo: "application/zip", bytes: BigInt(bytes), estado: "LISTO" },
+      });
     }
     // Los demás trabajos ya salieron; el que no se pudo resolver deja el pedido esperando un reintento.
     const pendiente = [...errores.values()][0];

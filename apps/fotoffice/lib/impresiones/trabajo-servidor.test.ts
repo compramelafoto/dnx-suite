@@ -62,7 +62,7 @@ describe("pedidoDelTrabajo", () => {
     const r = await T.pedidoDelTrabajo("ws", "p-f");
     expect(orden.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { workspaceId: "ws", items: { some: { proyectoId: "p-f" } } } }));
     expect(r).toEqual({
-      pedidoId: "ord1", numero: 8, estado: "PAGADO_SIN_ENVIAR", lastError: "Fotolag no tiene correo cargado.",
+      pedidoId: "ord1", numero: 8, estado: "PAGADO_SIN_ENVIAR", instantaneas: "NINGUNA", lastError: "Fotolag no tiene correo cargado.",
       copias: [{ tamano: "10x15", papel: "Brillo", cantidad: 3 }, { tamano: "13x18", papel: "Brillo", cantidad: 3 }],
       totalCents: 1000000, deMostrador: false, costoCents: 400050, gananciaCents: 599950, entrega: null, pagadoCents: null, saldoCents: null, deMasCents: null,
     });
