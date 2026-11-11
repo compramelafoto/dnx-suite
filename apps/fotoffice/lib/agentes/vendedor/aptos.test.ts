@@ -94,6 +94,17 @@ describe("colaDelDia", () => {
     expect(r.gruposSinModelo).toEqual([{ grupo: "FOTOGRAFO:SOCIAL", contactoId: f1.id }]);
   });
 
+  it("con grupos activos: los demás grupos ni entran a la cola ni piden modelo", async () => {
+    modelo("ESCUELA");
+    modelo("FOTOGRAFO:ESCOLAR");
+    contacto({ tipo: "ESCUELA" });
+    const f = contacto({ nichos: ["ESCOLAR"] });
+    contacto({ nichos: ["SOCIAL"] });
+    const r = await colaDelDia(10, { gruposActivos: ["FOTOGRAFO:ESCOLAR", "FOTOGRAFO:TURISTICA"] });
+    expect(r.cola.map((x) => x.contactoId)).toEqual([f.id]);
+    expect(r.gruposSinModelo).toEqual([]);
+  });
+
   it("un modelo reemplazado o sin aprobar no cuenta como vigente", async () => {
     B.agregar("dnxVendedorModelo", { grupo: "FOTOGRAFO:GENERAL", estado: "APROBADO", asunto: "a", cuerpo: "c", indicaciones: "i", landing: "/land", reemplazadoEn: new Date() });
     B.agregar("dnxVendedorModelo", { grupo: "FOTOGRAFO:GENERAL", estado: "PROPUESTO", asunto: "a", cuerpo: "c", indicaciones: "i", landing: "/land" });

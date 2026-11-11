@@ -29,6 +29,8 @@ export type AjustesVendedor = {
   informeMes: string | null;
   paginaClubesPublicada: boolean;
   soloContactoPrueba: string | null;
+  /** Grupos con los que trabaja (cola y propuestas de modelo). null = todos. */
+  gruposActivos: string[] | null;
 };
 
 /** Sin fila de ajustes el Vendedor arranca EN PAUSA. */
@@ -46,6 +48,7 @@ export const AJUSTES_VENDEDOR_POR_OMISION: AjustesVendedor = {
   informeMes: null,
   paginaClubesPublicada: false,
   soloContactoPrueba: null,
+  gruposActivos: null,
 };
 
 const cantidad = z.number().finite().min(0);
@@ -64,6 +67,7 @@ const esquemas = {
   informeMes: texto,
   paginaClubesPublicada: z.boolean(),
   soloContactoPrueba: texto,
+  gruposActivos: z.array(z.string()).nullable(),
 } satisfies { [K in keyof AjustesVendedor]: z.ZodType<AjustesVendedor[K]> };
 const esquemaAjustes = z.object(esquemas);
 

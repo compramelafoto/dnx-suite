@@ -594,7 +594,7 @@ async function corrida(
   }
 
   // 5.3 Primeros correos de la cola. También trae los grupos sin modelo (paso 6), aunque no quede cupo.
-  const { cola, gruposSinModelo } = await colaDelDia(parar || sinClf ? 0 : disponibles, { soloContactoId: ajustes.soloContactoPrueba });
+  const { cola, gruposSinModelo } = await colaDelDia(parar || sinClf ? 0 : disponibles, { soloContactoId: ajustes.soloContactoPrueba, gruposActivos: ajustes.gruposActivos });
   if (cola.length > 0 && (await seguir())) {
     const contactos = await prisma.dnxContacto.findMany({
       where: { id: { in: cola.map((x) => x.contactoId) } },

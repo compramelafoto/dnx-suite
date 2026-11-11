@@ -66,7 +66,7 @@ export async function estadoVendedor(ahora: Date): Promise<EstadoVendedor> {
   ]);
   const cupoHoy = cupoDelDia(ajustes, ahora);
   const restante = Math.max(0, cupoHoy - enviadosHoy);
-  const { cola } = restante > 0 ? await colaDelDia(restante, { soloContactoId: ajustes.soloContactoPrueba }) : { cola: [] };
+  const { cola } = restante > 0 ? await colaDelDia(restante, { soloContactoId: ajustes.soloContactoPrueba, gruposActivos: ajustes.gruposActivos }) : { cola: [] };
   const ids = cola.map((c) => c.contactoId);
   const nombres = ids.length
     ? await prisma.dnxContacto.findMany({ where: { id: { in: ids } }, select: { id: true, nombre: true } })
