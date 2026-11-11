@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 import { asignarResponsableAction, cambiarVencimientoAction, cerrarAction, moverAction } from "@/app/actions/circuitos";
 import { ETIQUETA_SALIDA } from "@/lib/circuitos/constantes";
+import { confirmarListo } from "@/lib/proyectos/confirmar-listo";
 import { finDelDiaElegido, valoresDeVencimiento } from "@/lib/circuitos/ficha-vista";
 import type { RecorridoFicha } from "@/lib/circuitos/ficha";
 import type { CandadoFicha } from "@/lib/proyectos/candado-ficha-puro";
@@ -219,6 +220,7 @@ export function Recorrido({
           className="space-y-2 rounded border border-[var(--fo-border)] p-3 text-sm"
           onSubmit={(ev) => {
             ev.preventDefault();
+            if (tipo === "PROYECTO" && !confirmarListo({ name: destino.nombre }, null)) return;
             ejecutar({ tipo: "mover", destinoId: destino.id, nombre: destino.nombre, nota: notaMover.trim() });
           }}
         >

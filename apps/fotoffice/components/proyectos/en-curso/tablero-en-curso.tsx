@@ -18,6 +18,7 @@ import {
 } from "@dnd-kit/core";
 import { AlertTriangle, ArrowRight, CalendarDays, Check, CheckCircle2, ClipboardList, Mail, MessageCircle, PackageCheck, Search, Send, Undo2, Wallet } from "lucide-react";
 import { cerrarAction, moverAction, reabrirAction } from "@/app/actions/circuitos";
+import { confirmarListo } from "@/lib/proyectos/confirmar-listo";
 import { avisarListoAction, enviarAlProveedorAction, llegoDelProveedorAction } from "@/app/actions/proyectos-proveedor";
 import { formatMinorArs } from "@/lib/membership/money";
 import {
@@ -157,6 +158,8 @@ export function TableroEnCurso({
    * tarjeta pasa a `fase` enseguida; si el servidor lo rechaza, vuelve a donde estaba.
    */
   function aplicar(t: TarjetaTrabajo, destino: DestinoDeFase, fase: Fase) {
+    // Pasar a «Listo» le avisa al cliente: se confirma, así un arrastre equivocado no manda un aviso falso.
+    if (destino.tipo === "MOVER" && FASES.indexOf(fase) > FASES.indexOf(t.fase) && !confirmarListo(destino.etapa, t.cliente)) return;
     setOcupada(t.journeyId);
     setAviso(null);
     const fases = new Map(movidas ?? []);
@@ -182,7 +185,7 @@ export function TableroEnCurso({
         return;
       }
       const adelante = FASES.indexOf(fase) > FASES.indexOf(t.fase);
-      const correo = destino.tipo === "MOVER" && adelante && fase === "LISTO" && t.email ? ` Se le avisa por correo a ${t.email}.` : "";
+      const correo = destino.tipo === "MOVER" && adelante && fase === "LISTO" ? " Se le avisa al cliente." : "";
       setAviso({
         ok: true,
         texto: destino.tipo === "CERRAR" ? `${t.cliente}: trabajo terminado.` : `${t.cliente}: pasó a «${destino.etapa.name}».${correo}`,
@@ -215,6 +218,7 @@ export function TableroEnCurso({
   function avanzar(t: TarjetaTrabajo) {
     if (!t.etapaActualId) return;
     const siguiente = etapaSiguiente(t.etapas, t.etapaActualId);
+    if (siguiente && !confirmarListo(siguiente, t.cliente)) return;
     setOcupada(t.journeyId);
     setAviso(null);
     start(async () => {
