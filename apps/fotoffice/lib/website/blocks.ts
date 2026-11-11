@@ -572,6 +572,52 @@ export const cardsConfigSchema = z.object({
   variant: z.enum(CARDS_VARIANTS).optional().catch(undefined),
 });
 
+
+/**
+ * Planes y precios: la tabla de venta de una suscripción o de paquetes. De 1 a 4 planes, cada uno
+ * con precio, para quién es, lo que incluye y su botón. Uno puede ir destacado (el que conviene
+ * mostrar primero a la vista): se dibuja lleno, con el color principal, y un trazo a mano alrededor.
+ * `valueNote` es la frase que ancla el valor («el BOX solo ya vale más de $50.000»). Debajo de todos
+ * los planes, `reassurance` lleva una tranquilidad por renglón (cómo se paga, cómo se cancela).
+ */
+export const PRICING_MAX_PLANS = 4;
+export const PRICING_MAX_FEATURES = 12;
+
+export const pricingPlanSchema = z.object({
+  id: itemIdSchema,
+  name: tolerantText(80),
+  price: tolerantText(40),
+  period: tolerantText(40),
+  tagline: tolerantText(200),
+  badge: tolerantText(40),
+  highlighted: z.boolean().catch(false),
+  valueNote: tolerantText(200),
+  featuresLead: tolerantText(120),
+  /** Lo que incluye: un ítem por renglón. */
+  features: tolerantText(2000),
+  buttonLabel: tolerantText(60),
+  buttonUrl: tolerantText(2000),
+  footnote: tolerantText(200),
+});
+export type PricingPlan = z.infer<typeof pricingPlanSchema>;
+
+export const pricingConfigSchema = z.object({
+  title: tolerantText(200),
+  intro: tolerantText(600),
+  plans: tolerantList(pricingPlanSchema, PRICING_MAX_PLANS),
+  /** Una tranquilidad por renglón, debajo de los planes. */
+  reassurance: tolerantText(600),
+});
+
+/** Los renglones con texto de un campo «uno por renglón». */
+export function pricingLines(text: string): string[] {
+  return text
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .slice(0, PRICING_MAX_FEATURES);
+}
+
 /** Set cerrado de íconos (se dibujan con lucide-react en la vista). */
 export const FEATURE_ICONS = [
   "camera",
@@ -749,6 +795,7 @@ export const whatsappButtonBlockSchema = z.object({ ...blockEnvelope, type: z.li
 export const paymentButtonBlockSchema = z.object({ ...blockEnvelope, type: z.literal("PAYMENT_BUTTON"), config: paymentButtonConfigSchema });
 export const formBlockSchema = z.object({ ...blockEnvelope, type: z.literal("FORM"), config: formConfigSchema });
 export const newsletterBlockSchema = z.object({ ...blockEnvelope, type: z.literal("NEWSLETTER"), config: newsletterConfigSchema });
+export const pricingBlockSchema = z.object({ ...blockEnvelope, type: z.literal("PRICING"), config: pricingConfigSchema });
 
 export const websiteBlockSchema = z.discriminatedUnion("type", [
   heroBlockSchema,
@@ -778,6 +825,7 @@ export const websiteBlockSchema = z.discriminatedUnion("type", [
   paymentButtonBlockSchema,
   formBlockSchema,
   newsletterBlockSchema,
+  pricingBlockSchema,
 ]);
 
 export const websitePageContentSchema = z.array(websiteBlockSchema);
@@ -842,6 +890,7 @@ export type WhatsappButtonBlockConfig = z.infer<typeof whatsappButtonConfigSchem
 export type PaymentButtonBlockConfig = z.infer<typeof paymentButtonConfigSchema>;
 export type FormBlockConfig = z.infer<typeof formConfigSchema>;
 export type NewsletterBlockConfig = z.infer<typeof newsletterConfigSchema>;
+export type PricingBlockConfig = z.infer<typeof pricingConfigSchema>;
 
 export type HeroBlock = z.infer<typeof heroBlockSchema>;
 export type TextBlock = z.infer<typeof textBlockSchema>;
@@ -870,6 +919,7 @@ export type WhatsappButtonBlock = z.infer<typeof whatsappButtonBlockSchema>;
 export type PaymentButtonBlock = z.infer<typeof paymentButtonBlockSchema>;
 export type FormBlock = z.infer<typeof formBlockSchema>;
 export type NewsletterBlock = z.infer<typeof newsletterBlockSchema>;
+export type PricingBlock = z.infer<typeof pricingBlockSchema>;
 
 /** Unión cerrada de los bloques implementados. Bloques con `type` desconocido no matchean acá
  * — el renderer y el editor deben tratarlos como inválidos y omitirlos, nunca romper la página. */
@@ -1264,6 +1314,34 @@ export const WEBSITE_BLOCK_DEFINITIONS: {
       thanksMessage: NEWSLETTER_DEFAULT_THANKS,
     }),
     previewLabel: (c) => c.title.trim() || "Boletín",
+  },
+  PRICING: {
+    type: "PRICING",
+    label: "Planes y precios",
+    description: "Los planes de tu suscripción o tus paquetes, lado a lado: precio, lo que incluye cada uno y su botón. Uno puede ir destacado.",
+    category: "COMERCIAL",
+    source: "static",
+    defaultConfig: () => ({
+      title: "Elegí tu plan",
+      intro: "",
+      plans: [false, true].map((highlighted) => ({
+        id: generateLocalId(),
+        name: "",
+        price: "",
+        period: "por mes",
+        tagline: "",
+        badge: highlighted ? "Recomendado" : "",
+        highlighted,
+        valueNote: "",
+        featuresLead: "",
+        features: "",
+        buttonLabel: "Quiero este plan",
+        buttonUrl: "",
+        footnote: "",
+      })),
+      reassurance: "",
+    }),
+    previewLabel: (c) => c.title.trim() || "Planes y precios",
   },
 };
 

@@ -44,8 +44,10 @@ import {
   PartnersInspector,
   CardsInspector,
   PaymentButtonInspector,
+  PricingInspector,
   WhatsappButtonInspector,
 } from "@/components/website/inspector/extra-blocks-inspectors";
+import { PricingBlockView } from "@/components/website/render/blocks/pricing-block-view";
 import { isAllowedMapsUrl } from "./contact";
 import { isAllowedEmbedUrl, toVideoEmbedUrl } from "./embed-hosts";
 import type { WebsiteDynamicData } from "./dynamic-data";
@@ -430,6 +432,7 @@ export const WEBSITE_BLOCK_REGISTRY: { [K in WebsiteBlockType]: BlockRegistryEnt
   PAYMENT_BUTTON: { View: PaymentButtonBlockView, Inspector: PaymentButtonInspector },
   FORM: { View: FormBlockView, Inspector: FormInspector },
   NEWSLETTER: { View: NewsletterBlockView, Inspector: NewsletterInspector },
+  PRICING: { View: PricingBlockView, Inspector: PricingInspector },
 };
 
 export { WEBSITE_BLOCK_DEFINITIONS };
