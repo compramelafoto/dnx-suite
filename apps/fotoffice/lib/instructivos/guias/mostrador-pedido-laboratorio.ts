@@ -32,7 +32,7 @@ export const guia: Instructivo = {
       texto: [
         "Cada foto se muestra sobre su papel, con una línea como «10x15 · mate · ×2 · próxima semana». Para cambiar varias juntas, tildá «Elegir» en cada una (o tocá «Elegir todas»), cambiá los valores de la fila «A todas:» (o «A las N elegidas:» si tildaste algunas) y tocá «Aplicar». Lo que dice «Sin cambiar» no se toca.",
         "Para una sola foto, tocala o tocá «Editar»: ahí la movés, la girás o la acercás. «Quitar» la saca del pedido.",
-        "Recortar o encajar: cada foto llega con una propuesta. Si para llenar el papel se pierde poco (8 % o menos), la foto se recorta y llena todo el papel. Si se perdería más, se encaja entera y se completan los lados con franjas blancas, para que no se corte ninguna cara. En «Editar» podés cambiar entre «Recortar» y «Encajar».",
+        "Recortar o encajar: cada foto llega con una propuesta. Si para llenar el papel se pierde poco (8 % o menos), la foto se recorta y llena todo el papel. Si se perdería más, se encaja entera y se completan los lados con franjas blancas, para que no se corte ninguna cara. En «Editar» podés cambiar entre «Recortar» y «Encajar». Todo el detalle está en la guía «Recortar o encajar las fotos al tamaño de la copia».",
         "El «Plazo» es «para mañana» o «próxima semana». Papel: mate o brillo.",
         "Para un cuadro, elegí en «Tamaño» la medida que empieza con «Canvas» o «MDF» (por ejemplo «Canvas 30x40»). Los cuadros salen siempre para la próxima semana. Lo que ves en pantalla es el frente del cuadro.",
         "Si una foto es chica para ese tamaño, aparece la marca «Pixelada». «Revisada» aparece en las fotos que ya miraste o editaste.",
