@@ -8,11 +8,12 @@ type Sesion = { signedIn: boolean; name: string | null };
 /**
  * El botón para entrar del encabezado del sitio, que se da cuenta de si ya entraste.
  *
- * Arranca como "Ingresar" —es lo que se ve en el HTML, que es el mismo para todos y se puede
- * guardar en caché— y le pregunta al servidor si hay sesión. Si la hay, se convierte en el
- * nombre de la persona con un menú: "Mi panel" (la puerta de la institución, que la lleva a
- * su portal o a la gestión según quién sea) y "Cerrar sesión", que la devuelve a la misma
- * página del sitio.
+ * Dice siempre lo mismo («Iniciar sesión», o el texto que eligió la institución), haya sesión o
+ * no: el encabezado es parte del sitio de la institución y no muestra el nombre de nadie
+ * (decisión de Daniel, 11/11/2026). Le pregunta al servidor si hay sesión; si la hay, en vez de
+ * llevar al ingreso abre un menú con quién entró, "Mi panel" (la puerta de la institución, que
+ * la lleva a su portal o a la gestión según quién sea) y "Cerrar sesión", que la devuelve a la
+ * misma página del sitio.
  *
  * En la vista previa del constructor (`href="#"`) no pregunta nada: ahí se diseña el sitio,
  * y mostrar el nombre de quien lo edita confundiría.
@@ -45,7 +46,7 @@ export function WebsiteLoginButton({
         }
       })
       .catch(() => {
-        // Sin respuesta, queda "Ingresar": es lo seguro.
+        // Sin respuesta, queda el enlace para entrar: es lo seguro.
       });
     return () => {
       vivo = false;
@@ -76,8 +77,6 @@ export function WebsiteLoginButton({
     );
   }
 
-  const primerNombre = (sesion.name ?? "").split(" ")[0] || "Mi cuenta";
-
   return (
     <div ref={caja} className="relative shrink-0">
       <button
@@ -88,7 +87,7 @@ export function WebsiteLoginButton({
         className={`${className} inline-flex items-center gap-1.5`}
         style={style}
       >
-        <span className="max-w-[10rem] truncate">{primerNombre}</span>
+        <span className="max-w-[10rem] truncate">{label}</span>
         <ChevronDown className="size-4" aria-hidden />
       </button>
       {abierto ? (

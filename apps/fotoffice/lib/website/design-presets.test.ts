@@ -92,14 +92,16 @@ describe("footerPreset", () => {
 });
 
 describe("loginButtonText", () => {
-  it("sin texto elegido dice Ingresar", () => {
-    expect(loginButtonText(DEFAULT_DESIGN_PRESETS)).toBe("Ingresar");
-    expect(loginButtonText({ loginButtonLabel: "" })).toBe("Ingresar");
-    expect(loginButtonText({ loginButtonLabel: "   " })).toBe("Ingresar");
+  it("sin texto elegido dice Iniciar sesión", () => {
+    expect(loginButtonText(DEFAULT_DESIGN_PRESETS)).toBe("Iniciar sesión");
+    expect(loginButtonText({ loginButtonLabel: "" })).toBe("Iniciar sesión");
+    expect(loginButtonText({ loginButtonLabel: "   " })).toBe("Iniciar sesión");
   });
 
-  it('el viejo "Iniciar sesión" que quedó guardado por defecto pasa a Ingresar', () => {
-    expect(loginButtonText({ loginButtonLabel: "Iniciar sesión" })).toBe("Ingresar");
+  it("los textos por defecto de antes (Ingresar, con espacio duro) dicen Iniciar sesión", () => {
+    expect(loginButtonText({ loginButtonLabel: "Iniciar sesión" })).toBe("Iniciar sesión");
+    expect(loginButtonText({ loginButtonLabel: "Ingresar" })).toBe("Iniciar sesión");
+    expect(loginButtonText({ loginButtonLabel: "Iniciar\u00a0sesión" })).toBe("Iniciar sesión");
   });
 
   it("un texto propio se respeta", () => {

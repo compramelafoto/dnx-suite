@@ -19,7 +19,7 @@ import { WebsiteMenuOverlay } from "./website-menu-overlay";
  * Server Component: el logo, el botón de login y el marco se dibujan acá, sin JavaScript. Lo que
  * cruza al navegador son los enlaces (necesitan saber la página actual) y el panel que se abre.
  *
- * El botón para entrar ("Ingresar") está siempre, a la derecha de todo: es la puerta de los
+ * El botón para entrar ("Iniciar sesión") está siempre, a la derecha de todo: es la puerta de los
  * socios a su panel. Lleva a `loginHref`, que arma quien llama (en el sitio, la puerta de la
  * institución, `/w/<slug>/entrar`) — nunca a una URL que el usuario escriba: evita convertirlo
  * sin querer en un vector de phishing.
@@ -42,7 +42,7 @@ export function WebsiteHeaderView({
   designPresets: WebsiteDesignPresets;
   /** A dónde lleva el logo. En la vista previa del panel no hay sitio público al que ir. */
   homeHref: string;
-  /** A dónde lleva el botón "Ingresar". En la vista previa del panel, a ningún lado ("#"). */
+  /** A dónde lleva el botón "Iniciar sesión". En la vista previa del panel, a ningún lado ("#"). */
   loginHref: string;
 }) {
   const layout = designPresets.menuLayout;

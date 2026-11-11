@@ -156,7 +156,7 @@ export const DEFAULT_DESIGN_PRESETS: WebsiteDesignPresets = {
   // Ya no se respeta: el botón para entrar se muestra siempre (ver `loginButtonText`). Queda en
   // el tipo para que los JSON guardados sigan leyéndose igual.
   showLoginButton: true,
-  loginButtonLabel: "Ingresar",
+  loginButtonLabel: "Iniciar sesión",
   logoSizePx: 40,
   typographyPreset: "modern",
   buttonPreset: "rounded",
@@ -211,8 +211,8 @@ export function parseWebsiteDesignPresets(raw: unknown): WebsiteDesignPresets {
   return parsed.success ? parsed.data : DEFAULT_DESIGN_PRESETS;
 }
 
-/** El texto que traían guardado todas las instituciones antes de que el botón pasara a "Ingresar". */
-const LEGACY_LOGIN_LABEL = "Iniciar sesión";
+/** Los textos por defecto de antes: se tratan como "sin elegir" y muestran el de hoy. */
+const LEGACY_LOGIN_LABELS = new Set(["ingresar", "iniciar sesión"]);
 
 /**
  * El texto del botón para entrar del encabezado del sitio.
@@ -221,13 +221,14 @@ const LEGACY_LOGIN_LABEL = "Iniciar sesión";
  * lo había apagado (SFPR, por ejemplo) los dejaba sin forma visible de entrar. Lo que sí se
  * puede elegir es el texto.
  *
- * "Iniciar sesión" era el valor por defecto y quedó guardado en cada versión publicada aunque
- * nadie lo eligiera; se trata como "sin elegir" y pasa a "Ingresar". Cualquier otro texto se
- * respeta tal cual.
+ * Decisión de Daniel (11/11/2026): en todos los sitios dice «Iniciar sesión». «Ingresar» fue el
+ * valor por defecto un tiempo y quedó guardado en versiones publicadas sin que nadie lo eligiera:
+ * se trata como "sin elegir", igual que el vacío. Un espacio duro (el truco que se usó para
+ * esquivar la conversión vieja) cuenta como espacio. Cualquier otro texto se respeta tal cual.
  */
 export function loginButtonText(presets: Pick<WebsiteDesignPresets, "loginButtonLabel">): string {
-  const label = presets.loginButtonLabel.trim();
-  if (!label || label === LEGACY_LOGIN_LABEL) return DEFAULT_DESIGN_PRESETS.loginButtonLabel;
+  const label = presets.loginButtonLabel.replace(/\u00a0/g, " ").replace(/\s+/g, " ").trim();
+  if (!label || LEGACY_LOGIN_LABELS.has(label.toLowerCase())) return DEFAULT_DESIGN_PRESETS.loginButtonLabel;
   return label;
 }
 

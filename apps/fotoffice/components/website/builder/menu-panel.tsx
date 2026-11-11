@@ -151,7 +151,7 @@ export function MenuPanel({
 
           <TextField
             label="Texto del botón para entrar"
-            helper='Siempre está, a la derecha del menú: lleva a los socios a su panel. Vacío = "Ingresar".'
+            helper='Siempre está, a la derecha del menú: lleva a los socios a su panel. Vacío = "Iniciar sesión".'
             value={presets.loginButtonLabel}
             onChange={(v) => onPresetsChange({ ...presets, loginButtonLabel: v })}
           />

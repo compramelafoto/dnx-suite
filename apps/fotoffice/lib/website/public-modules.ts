@@ -153,7 +153,7 @@ export type OptionalPublicPage = {
 export const OPTIONAL_PUBLIC_PAGES: readonly OptionalPublicPage[] = [
   { key: "raffles", moduleKey: RAFFLES_MODULE_KEY, path: "sorteos", label: "Sorteos" },
   { key: "coverages", moduleKey: COVERAGES_MODULE_KEY, path: "coberturas/solicitar", label: "Pedir cobertura" },
-  { key: "entrar", moduleKey: null, path: "entrar", label: "Ingresar" },
+  { key: "entrar", moduleKey: null, path: "entrar", label: "Iniciar sesión" },
   // La comisión directiva que se carga en Configuración → Comisión, a la vista de todos.
   { key: "institucional", moduleKey: null, path: INSTITUTIONAL_PUBLIC_SEGMENT, label: "Institucional" },
   // El formulario de presupuesto a página completa: la consulta entra a Consultas. Es opcional
