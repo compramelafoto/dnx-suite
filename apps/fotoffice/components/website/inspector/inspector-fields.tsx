@@ -29,16 +29,19 @@ export function TextAreaField({
   value,
   onChange,
   rows = 4,
+  helper,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   rows?: number;
+  helper?: string;
 }) {
   return (
     <label className="block space-y-1.5">
       <span className="fo-label">{label}</span>
       <textarea className="fo-input" rows={rows} value={value} onChange={(e) => onChange(e.target.value)} />
+      {helper ? <p className="fo-helper">{helper}</p> : null}
     </label>
   );
 }

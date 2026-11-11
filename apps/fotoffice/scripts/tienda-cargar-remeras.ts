@@ -67,7 +67,7 @@ function abrirCliente(url: string): PrismaClient {
 const foto = (m: { driveId?: string; url?: string }) =>
   m.url ?? `https://lh3.googleusercontent.com/d/${m.driveId ?? salir("Mockup sin driveId ni url.")}=w1600`;
 /** Tabla de talles de Dreamful (oversize, clásica hombre y clásica mujer en una sola imagen). */
-const TABLA_TALLES = "https://fotoffice.com/tienda-prendas/dnx-estudio/tabla-remera.webp?v=2";
+const TABLA_TALLES = "https://fotoffice.com/tienda-prendas/dnx-estudio/tabla-remera.webp?v=3";
 const archivo = (driveId: string) => `https://drive.google.com/file/d/${driveId}/view`;
 const talles = (codigoModelo: string) => (codigoModelo.startsWith("OV") ? TALLES_OVERSIZE : TALLES_CLASICA);
 
