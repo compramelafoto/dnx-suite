@@ -14,12 +14,16 @@ import {
   tocaRecordar,
   type PendienteDePago,
 } from "./recordatorio-pago";
+import { DIAS_ENTRE_SEGUIMIENTOS, MARCA_SEGUIMIENTO_CONSULTA, pasoPrecio, textoSeguimientoConsulta } from "./seguimiento-consulta";
 
 /**
  * Recordatorio de pago del bot (lo corre el cron cada 15 minutos): a cada chat que atiende el bot,
  * con un pedido del chat sin pagar y cerca del final de la ventana de 24 h, le escribe UNA vez.
  * Sólo si la charla terminó con un mensaje nuestro (si el cliente escribió último, ese mensaje lo
  * contesta el bot o una persona). Queda un SISTEMA en el chat, que también evita repetirlo.
+ *
+ * Si no hay nada para pagar pero el bot le pasó un precio y el cliente no compró, en el mismo
+ * momento sale el seguimiento de la consulta (`seguimiento-consulta.ts`), una vez por semana como mucho.
  */
 
 const HORA_MS = 3_600_000;
@@ -31,6 +35,8 @@ export type DepsRecordatorio = {
   botActivo?: (workspaceId: string) => Promise<boolean>;
   candidatos?: (ahora: Date) => Promise<ChatCandidato[]>;
   pendiente?: (chat: ChatCandidato, ahora: Date) => Promise<PendienteDePago | null>;
+  /** Consulta de catálogo con precio y sin compra, todavía sin seguimiento; null si no hay. */
+  consultaSinCompra?: (chat: ChatCandidato, ahora: Date) => Promise<{ desde: Date } | null>;
   yaRecordado?: (chat: ChatCandidato, p: PendienteDePago) => Promise<boolean>;
   ultimoMensaje?: (chatId: string) => Promise<{ id: string; direccion: string } | null>;
   enviar?: (workspaceId: string, chatId: string, texto: string, condicion: { ultimoMensajeId: string }) => Promise<SalidaEnvioBot>;
@@ -81,6 +87,29 @@ const POR_OMISION: Required<Omit<DepsRecordatorio, "ahora">> = {
     if (deCatalogo && deCopias) return deCatalogo.creado >= deCopias.creado ? deCatalogo : deCopias;
     return deCatalogo ?? deCopias;
   },
+  consultaSinCompra: async (chat, ahora) => {
+    const desde = new Date(ahora.getTime() - 24 * HORA_MS);
+    const conPrecio = await prisma.fotofficeWaMensaje.findMany({
+      where: { workspaceId: chat.workspaceId, chatId: chat.id, direccion: "SALIENTE", autor: "BOT", createdAt: { gte: desde }, texto: { contains: "$" } },
+      orderBy: { createdAt: "asc" },
+      select: { texto: true, createdAt: true },
+      take: 20,
+    });
+    const primero = conPrecio.find((m) => pasoPrecio(m.texto));
+    if (!primero) return null;
+    const haceDias = (n: number) => new Date(ahora.getTime() - n * 24 * HORA_MS);
+    const chatWa = await prisma.fotofficeWaChat.findUnique({ where: { id: chat.id }, select: { waId: true } });
+    const [pedidos, copias, cotizaciones, seguidos] = await Promise.all([
+      prisma.fotofficePedido.count({ where: { workspaceId: chat.workspaceId, altaKey: { startsWith: prefijoDelChat(chat.id) }, createdAt: { gte: haceDias(PEDIDO_MAXIMO_DIAS) } } }),
+      prisma.fotofficePrintOrder.count({ where: { workspaceId: chat.workspaceId, waChatId: chat.id, createdAt: { gte: haceDias(PEDIDO_MAXIMO_DIAS) } } }),
+      chatWa ? prisma.fotofficePresupuestoAprobacion.count({ where: { workspaceId: chat.workspaceId, waId: chatWa.waId, createdAt: { gte: haceDias(30) } } }) : 0,
+      prisma.fotofficeWaMensaje.count({
+        where: { workspaceId: chat.workspaceId, chatId: chat.id, direccion: "SISTEMA", texto: { startsWith: MARCA_SEGUIMIENTO_CONSULTA }, createdAt: { gte: haceDias(DIAS_ENTRE_SEGUIMIENTOS) } },
+      }),
+    ]);
+    if (pedidos + copias + cotizaciones + seguidos > 0) return null;
+    return { desde: primero.createdAt };
+  },
   yaRecordado: async (chat, p) =>
     (await prisma.fotofficeWaMensaje.count({
       where: { workspaceId: chat.workspaceId, chatId: chat.id, direccion: "SISTEMA", texto: { startsWith: MARCA_RECORDATORIO }, createdAt: { gte: p.creado } },
@@ -104,13 +133,22 @@ export async function recordarPagosPendientes(deps: DepsRecordatorio = {}): Prom
       if (!activo.has(chat.workspaceId)) activo.set(chat.workspaceId, await d.botActivo(chat.workspaceId));
       if (!activo.get(chat.workspaceId)) continue;
       const p = await d.pendiente(chat, ahora);
-      if (!p || p.aPagar <= 0 || (await d.yaRecordado(chat, p))) continue;
+      let texto: string;
+      let marca: string;
+      if (p && p.aPagar > 0) {
+        if (await d.yaRecordado(chat, p)) continue;
+        texto = textoDelRecordatorio(chat.nombre, p);
+        marca = marcaDe(p);
+      } else if (!p && (await d.consultaSinCompra(chat, ahora))) {
+        texto = textoSeguimientoConsulta(chat.nombre);
+        marca = MARCA_SEGUIMIENTO_CONSULTA;
+      } else continue;
       const ultimo = await d.ultimoMensaje(chat.id);
       if (!ultimo || ultimo.direccion !== "SALIENTE") continue;
-      const salida = await d.enviar(chat.workspaceId, chat.id, textoDelRecordatorio(chat.nombre, p), { ultimoMensajeId: ultimo.id });
+      const salida = await d.enviar(chat.workspaceId, chat.id, texto, { ultimoMensajeId: ultimo.id });
       if (salida === "omitido") continue;
       // También si falló: queda a la vista en el chat y no se insiste.
-      await d.marcar(chat.workspaceId, chat.id, marcaDe(p));
+      await d.marcar(chat.workspaceId, chat.id, marca);
       if (salida !== "fallo") enviados++;
     } catch (e) {
       console.warn("[fotoffice][whatsapp] falló un recordatorio de pago", { codigo: (e as { code?: string } | null)?.code ?? (e instanceof Error ? e.name : "desconocido") });
