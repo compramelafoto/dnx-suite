@@ -25,7 +25,7 @@ export type SimpleApplicationPlanOption = {
  * (`simpleApplicationForm`).
  *
  * Con varios planes ofrecidos, la persona elige uno; con uno solo se ve como siempre. Si el plan
- * elegido incluye la BOX mensual, se pide el domicilio de envío (el servidor lo vuelve a exigir).
+ * elegido incluye el BOX mensual, se pide el domicilio de envío (el servidor lo vuelve a exigir).
  */
 export function SimpleApplicationForm({
   workspaceSlug,
@@ -125,7 +125,7 @@ export function SimpleApplicationForm({
 
       {plan?.includesMonthlyBox ? (
         <fieldset className="space-y-4">
-          <legend className="fo-label">Domicilio de envío de la BOX</legend>
+          <legend className="fo-label">Domicilio de envío del BOX</legend>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="fo-field-stack sm:col-span-2">
               <label className="fo-label" htmlFor="address">
@@ -159,7 +159,7 @@ export function SimpleApplicationForm({
               <input id="postalCode" name="postalCode" className="fo-input" autoComplete="postal-code" required />
             </div>
           </div>
-          <p className="fo-helper">Lo usamos sólo para mandarte la caja; no se publica.</p>
+          <p className="fo-helper">Lo usamos sólo para mandarte el BOX; no se publica.</p>
         </fieldset>
       ) : null}
 

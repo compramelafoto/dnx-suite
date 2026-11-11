@@ -6,7 +6,7 @@ import { z } from "zod";
  * Los planes son categorías del padrón: la de `MembershipDuesSettings.applicationCategoryId`
  * (la que ya existía, el VIP de Gus Barbers) más las marcadas con
  * `MemberCategory.offeredInOnlineApplication`. Con una sola, el alta se ve y funciona como
- * siempre; con varias, la persona elige. Si el plan incluye la BOX mensual, se pide el
+ * siempre; con varias, la persona elige. Si el plan incluye el BOX mensual, se pide el
  * domicilio de envío.
  */
 
@@ -86,7 +86,7 @@ export function choosePlan(plans: ApplicationPlan[], rawId: string | null | unde
 
 const texto = (max: number) => z.string().trim().max(max);
 
-/** El domicilio de envío de la BOX: todo obligatorio, sin él la caja no llega. */
+/** El domicilio de envío del BOX: todo obligatorio, sin él el BOX no llega. */
 const boxAddressSchema = z.object({
   address: texto(240).min(1, "Falta la calle y el número."),
   city: texto(120).min(1, "Falta la localidad."),
