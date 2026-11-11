@@ -150,7 +150,7 @@ def main():
                 "publicSlug": SLUG,
                 "commercialName": "F64 Productora",
                 "logoUrl": f"{R2}/fotoffice/sitio/f64/logo-f64-dorado.png",
-                "coverImageUrl": f"{R2}/fotoffice/sitio/f64/portada-sitio-f64.jpg",
+                "coverImageUrl": f"{R2}/fotoffice/sitio/f64/portada-sitio-f64-v2.jpg",
                 "faviconUrl": f"{R2}/fotoffice/sitio/f64/favicon-f64.png",
                 "contactEmail": "hola@andreadefagot.ar",
                 "phone": "3492417703",
@@ -199,7 +199,7 @@ def main():
     cards = []
     for c in CURSOS:
         cid = f"crs_f64_{c['key']}"
-        cover = f"{R2}/fotoffice/courses/{cid}/portada-{c['key']}.jpg"
+        cover = f"{R2}/fotoffice/courses/{cid}/portada-{c['key']}-v2.jpg"
         out.append(
             insert(
                 "Course",
@@ -291,7 +291,7 @@ def main():
                                 "overlay": "none",
                                 "title": "Una forma de mirar. Un lugar para compartir.",
                                 "subtitle": "F64 Productora · Formación, producción y encuentros en fotografía, con Andrea Defagot.",
-                                "imageUrl": f"{R2}/fotoffice/sitio/f64/portada-sitio-f64.jpg",
+                                "imageUrl": f"{R2}/fotoffice/sitio/f64/portada-sitio-f64-v2.jpg",
                                 "imageAlt": "Logo de F64 Productora",
                                 "imageFocus": "center",
                                 "showButton": True,
@@ -381,7 +381,7 @@ def main():
         "siteSettings": {
             "seo": {
                 "keywords": ["cursos de fotografía", "Andrea Defagot", "F64 Productora", "Rafaela", "boudoir", "iluminación"],
-                "shareImageUrl": f"{R2}/fotoffice/sitio/f64/portada-sitio-f64.jpg",
+                "shareImageUrl": f"{R2}/fotoffice/sitio/f64/portada-sitio-f64-v2.jpg",
                 "googleVerification": None,
             },
             "analytics": {"ga4Id": None, "metaPixelId": None},
