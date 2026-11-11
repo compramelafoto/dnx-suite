@@ -20,6 +20,7 @@ type CategoryInitial = {
   bookingCreditLabel: string | null;
   selfRenew: boolean;
   includesMonthlyBox: boolean;
+  offeredInOnlineApplication: boolean;
 };
 
 export function CategoryForm({ category }: { category?: CategoryInitial }) {
@@ -189,6 +190,31 @@ export function CategoryForm({ category }: { category?: CategoryInitial }) {
             <span className="fo-helper block mt-1">
               Cada mes pagado habilita la caja siguiente, en orden desde el BOX N°1, con envío a domicilio.
               Si un mes no paga, ese mes no hay caja y después sigue donde quedó.
+            </span>
+          </span>
+        </label>
+      </section>
+
+      <section className="fo-card space-y-4">
+        <div>
+          <h2 className="text-base font-semibold">Alta desde el sitio</h2>
+          <p className="fo-helper mt-1">
+            Para el formulario corto de asociación. Con más de una categoría ofrecida, la persona elige
+            su plan; la categoría de las altas que figura en la configuración de cuotas se ofrece siempre.
+          </p>
+        </div>
+        <label className="flex items-start gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            name="offeredInOnlineApplication"
+            defaultChecked={category?.offeredInOnlineApplication ?? false}
+            className="mt-1 size-4 rounded border-[var(--fo-border)]"
+          />
+          <span>
+            <span className="fo-label !inline">Ofrecer como plan en el alta</span>
+            <span className="fo-helper block mt-1">
+              Aparece como opción, con su descripción y su precio mensual, en el orden de la categoría.
+              Si incluye la BOX mensual, se pide el domicilio de envío.
             </span>
           </span>
         </label>
