@@ -15,7 +15,8 @@ import { costoLlamadaPlaces, gastoDelMes, leerAjustes, guardarAjustes, MARGEN_FR
 import { buscarLugares } from "./places";
 import { leerSitioPropio } from "./sitio";
 import type { Region, TipoContacto } from "./tipos";
-import { descubrirEnProvincia, leerLugar, MAX_BUSQUEDAS_LUGAR, MAX_BUSQUEDAS_PROVINCIA } from "./web";
+import { completarCorreos, conteoCorreos, contactosSinCorreo, MARGEN_CORREO_MS } from "./correos";
+import { buscarCorreo, descubrirEnProvincia, leerLugar, MAX_BUSQUEDAS_LUGAR, MAX_BUSQUEDAS_PROVINCIA } from "./web";
 
 /**
  * Motor del Buscador: lo llama el cron. Toma tareas de la región en curso, busca (Google Places o
@@ -39,6 +40,9 @@ import { descubrirEnProvincia, leerLugar, MAX_BUSQUEDAS_LUGAR, MAX_BUSQUEDAS_PRO
  *   se cierra) y se sigue con la búsqueda web. Sin `ANTHROPIC_API_KEY` no hay búsqueda web: sólo
  *   corren las tareas de Places, leyendo cada lugar con el lector barato de su web propia y sin
  *   llamar nunca a Claude (un lugar sin web legible se descarta).
+ * - Al final de cada corrida, si queda tiempo y gasto (y hay clave de Claude), corre el paso
+ *   «completar correos» (`correos.ts`): hasta 5 contactos que ya están sin email. Mientras haya
+ *   contactos sin intentar, las tareas le guardan `RESERVA_CORREOS_MS` del presupuesto.
  */
 
 const MICROS = 1_000_000;
@@ -75,7 +79,8 @@ export type DepsMotor = {
   /** Milisegundos para medir el presupuesto de tiempo (y el plazo de Claude). */
   reloj?: () => number;
   places?: typeof buscarLugares;
-  web?: { descubrir: typeof descubrirEnProvincia; leer: typeof leerLugar };
+  /** `correo`: la búsqueda del correo de un contacto que ya está en la base (paso «completar correos»). */
+  web?: { descubrir: typeof descubrirEnProvincia; leer: typeof leerLugar; correo?: typeof buscarCorreo };
   /** Lector barato de la web propia (sin Claude). */
   sitio?: typeof leerSitioPropio;
   telegram?: DepsTelegramApi;
@@ -103,7 +108,21 @@ export type FrenoBuscador =
   /** Claude no se pudo usar (sin clave, saturado, sin conexión): no hubo búsqueda web. */
   | "CLAUDE_NO_DISPONIBLE";
 
-export type ResultadoCorrida = { procesadas: number; nuevos: number; frenadoPor: FrenoBuscador; regionCerrada: Region | null };
+export type ResultadoCorrida = {
+  procesadas: number;
+  nuevos: number;
+  frenadoPor: FrenoBuscador;
+  regionCerrada: Region | null;
+  /** Paso «completar correos» de esta corrida. */
+  correos: { intentados: number; completados: number };
+};
+
+/**
+ * Tiempo que se le guarda al paso «completar correos» mientras haya contactos sin intentar: las
+ * tareas normales trabajan con el presupuesto menos esto, así el paso entra al menos un contacto por
+ * corrida (si no, una región con muchas tareas no le dejaría nunca tiempo). Sin pendientes, nada.
+ */
+const RESERVA_CORREOS_MS = MARGEN_CORREO_MS;
 
 type FilaTarea = {
   id: string;
@@ -498,12 +517,16 @@ export async function resumenDeRegion(region: Region): Promise<string> {
   const google = tareas.reduce((s, t) => s + t.costoGoogleUsdMicros, 0) / MICROS;
   const claude = tareas.reduce((s, t) => s + t.costoClaudeUsdMicros, 0) / MICROS;
   const fallos = tareas.filter((t) => t.estado === "FALLO").length;
+  // El paso «completar correos» no es de una región: se cuenta lo hecho mientras esta región estuvo en curso.
+  const fila = await prisma.dnxBuscadorRegion.findFirst({ where: { region }, select: { iniciadaEn: true } });
+  const correos = await conteoCorreos(fila?.iniciadaEn ?? null);
 
-  const linea = (nombre: string, n: number) => `• ${escaparHtml(nombre)}: ${n}`;
+  const linea =(nombre: string, n: number) => `• ${escaparHtml(nombre)}: ${n}`;
   const partes = [`<b>Región ${escaparHtml(REGIONES_NOMBRE[region])} lista</b>`, `Contactos nuevos: ${contactos.length}`];
   if (porTipo.length) partes.push("", "<b>Por tipo</b>", ...porTipo.map(([k, n]) => linea(ETIQUETA_TIPO[k as TipoContacto] ?? k, n)));
   if (porNicho.length) partes.push("", "<b>Fotógrafos por nicho</b>", ...porNicho.map(([k, n]) => linea(ETIQUETA_NICHO[k] ?? k.replace(/^OTRO:/, ""), n)));
   if (porCiudad.length) partes.push("", "<b>Ciudades con más contactos</b>", ...porCiudad.map(([k, n]) => linea(k, n)));
+  partes.push("", `Correos completados: ${correos.completados} de ${correos.intentados} intentados`);
   partes.push("", `Gasto de la región: Google ${textoDinero(google)} · Claude ${textoDinero(claude)}`);
   if (tareas.length > 0 && fallos / tareas.length > PROPORCION_FALLO_AVISO) {
     const pct = Math.round((fallos / tareas.length) * 100);
@@ -547,19 +570,65 @@ export async function correrBuscador(
   const reloj = deps.reloj ?? Date.now;
   const inicio = reloj();
   const claves = (deps.claves ?? clavesDelServidor)();
-  const ctx: Contexto = { ahora, reloj, hasta: inicio + opciones.presupuestoMs, conClaude: claves.claude, deps };
-  const vacio = (frenadoPor: FrenoBuscador): ResultadoCorrida => ({ procesadas: 0, nuevos: 0, frenadoPor, regionCerrada: null });
+  const finCorrida = inicio + opciones.presupuestoMs;
+  const ctx: Contexto = { ahora, reloj, hasta: finCorrida, conClaude: claves.claude, deps };
+  const sinCorreos = { intentados: 0, completados: 0 };
+  const vacio = (frenadoPor: FrenoBuscador): ResultadoCorrida => ({ procesadas: 0, nuevos: 0, frenadoPor, regionCerrada: null, correos: sinCorreos });
 
   if ((await leerAjustes()).pausado) return vacio("PAUSADO");
   await rescatarColgadas(ahora());
+
+  /**
+   * Paso «completar correos», al final de la corrida: sólo con Claude disponible y sin el tope del
+   * mes cumplido. Devuelve lo hecho y, si frenó por tope o por una caída de Claude, el freno. Nunca lanza.
+   */
+  const pasoCorreos = async (frenadoAntes: FrenoBuscador): Promise<{ correos: ResultadoCorrida["correos"]; freno: FrenoBuscador }> => {
+    if (!claves.claude || frenadoAntes === "PAUSADO" || frenadoAntes === "TOPE_CLAUDE" || frenadoAntes === "CLAUDE_NO_DISPONIBLE") {
+      return { correos: sinCorreos, freno: null };
+    }
+    try {
+      if (finCorrida - reloj() < MARGEN_CORREO_MS) return { correos: sinCorreos, freno: null };
+      const claude = await puedeUsar("CLAUDE", ahora());
+      if (!claude.ok) {
+        if (claude.motivo !== "TOPE") return { correos: sinCorreos, freno: "PAUSADO" };
+        await avisarTope("CLAUDE", ahora(), deps);
+        return { correos: sinCorreos, freno: "TOPE_CLAUDE" };
+      }
+      const r = await completarCorreos({
+        ahora, reloj, hasta: finCorrida, sitio: deps.sitio, buscar: deps.web?.correo, vincular: (ids) => vincularClf(ids, deps),
+      });
+      if (r.frenadoPor === "TOPE_CLAUDE") await avisarTope("CLAUDE", ahora(), deps);
+      if (r.frenadoPor === "CLAUDE_NO_DISPONIBLE") console.error("[buscador] Claude no está disponible; se cortó el paso de correos");
+      const freno = r.frenadoPor === "TOPE_CLAUDE" || r.frenadoPor === "CLAUDE_NO_DISPONIBLE" ? r.frenadoPor : null;
+      return { correos: { intentados: r.intentados, completados: r.completados }, freno };
+    } catch {
+      console.error("[buscador] no se pudo correr el paso de correos");
+      return { correos: sinCorreos, freno: null };
+    }
+  };
 
   let region = await regionActual();
   if (!region) {
     // Nunca una PAUSADA ni una COMPLETA: la primera en espera, por orden.
     const siguiente = await prisma.dnxBuscadorRegion.findFirst({ where: { estado: "EN_ESPERA" }, orderBy: { orden: "asc" } });
-    if (!siguiente) return vacio("SIN_REGION");
+    if (!siguiente) {
+      // Sin región que recorrer, el paso de correos igual corre.
+      const paso = await pasoCorreos(null);
+      return { ...vacio(paso.freno ?? "SIN_REGION"), correos: paso.correos };
+    }
     region = siguiente.region as Region;
     await activarRegion(region, ahora());
+  }
+
+  // Con contactos sin correo por intentar, las tareas le dejan tiempo al paso de correos.
+  if (claves.claude) {
+    let pendientes = false;
+    try {
+      pendientes = (await contactosSinCorreo(1)).length > 0;
+    } catch {
+      console.error("[buscador] no se pudieron leer los contactos sin correo");
+    }
+    if (pendientes) ctx.hasta = finCorrida - RESERVA_CORREOS_MS;
   }
 
   let procesadas = 0;
@@ -572,7 +641,7 @@ export async function correrBuscador(
   if (!claves.claude) frenadoPor = "CLAUDE_NO_DISPONIBLE";
   const vistas = new Set<string>();
 
-  while (reloj() - inicio < opciones.presupuestoMs) {
+  while (reloj() < ctx.hasta) {
     const momento = ahora();
     const claude = await puedeUsar("CLAUDE", momento);
     if (claude.motivo === "PAUSADO") {
@@ -626,6 +695,8 @@ export async function correrBuscador(
     }
   }
 
+  const paso = await pasoCorreos(frenadoPor);
+  if (paso.freno) frenadoPor = paso.freno;
   const regionCerrada = await cerrarSiTermino(region, ahora(), deps);
-  return { procesadas, nuevos, frenadoPor, regionCerrada };
+  return { procesadas, nuevos, frenadoPor, regionCerrada, correos: paso.correos };
 }

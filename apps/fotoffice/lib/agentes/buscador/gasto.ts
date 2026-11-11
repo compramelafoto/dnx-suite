@@ -2,6 +2,7 @@ import "server-only";
 import { prisma } from "@repo/db";
 import { z } from "zod";
 import { inicioDelMesArgentino } from "../periodista/horario";
+import { EVENTO_BUSQUEDA_CORREO } from "./tipos";
 
 /**
  * Gasto del mes del Buscador (Google Places + Claude) y sus topes. Los topes se editan y viven en
@@ -114,8 +115,16 @@ export async function gastoDelMes(ahora: Date): Promise<{ googleUsd: number; cla
     where: { OR: [{ hechaEn: { gte: inicio } }, { hechaEn: null, tomadaEn: { gte: inicio } }] },
     select: { costoGoogleUsdMicros: true, costoClaudeUsdMicros: true, resultado: true },
   });
+  // El paso «completar correos» no tiene tarea: su gasto de Claude va en el evento de cada intento.
+  const intentosCorreo = await prisma.dnxContactoEvento.findMany({
+    where: { tipo: EVENTO_BUSQUEDA_CORREO, creadoEn: { gte: inicio } },
+    select: { datos: true },
+  });
   let google = 0;
-  let claude = 0;
+  let claude = intentosCorreo.reduce((s, e) => {
+    const m = (e.datos as { costoClaudeUsdMicros?: unknown } | null)?.costoClaudeUsdMicros;
+    return s + (typeof m === "number" && Number.isFinite(m) && m > 0 ? m : 0);
+  }, 0);
   const llamadasPorSku: Record<string, number> = {};
   for (const t of tareas) {
     google += t.costoGoogleUsdMicros;

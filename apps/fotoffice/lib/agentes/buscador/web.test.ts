@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ClienteClaude } from "../claude";
 import type { LugarPlaces } from "./places";
-import { descubrirEnProvincia, leerLugar, validarCandidato } from "./web";
+import { buscarCorreo, descubrirEnProvincia, leerLugar, validarCandidato, validarCorreoDeContacto } from "./web";
 
 type Respuesta = { stop_reason: string; content: unknown[] };
 const texto = (t: string) => ({ type: "text", text: t, citations: null });
@@ -241,5 +241,48 @@ describe("leerLugar", () => {
     expect(r.uso.salida).toBe(15);
     expect(r.uso.busquedas).toBe(3);
     expect(r.uso.costoUsd).toBeGreaterThan(0);
+  });
+});
+
+describe("buscarCorreo y validarCorreoDeContacto", () => {
+  const contacto = {
+    nombre: "Estudio Luz", ciudad: "Rosario", provincia: "Santa Fe", region: "CENTRO", tipo: "FOTOGRAFO", nichos: ["ESCOLAR"],
+    web: "estudioluz.com.ar", instagram: "@estudioluz", facebook: null,
+  };
+
+  it("acepta un correo del dominio de su web y lo da como sitio propio", async () => {
+    const { cliente, pedidos } = clienteFalso([fin({ email: { valor: "Hola@EstudioLuz.com.ar", fuenteUrl: "https://estudioluz.com.ar/contacto" } })]);
+    const r = await buscarCorreo(contacto, { cliente });
+    expect(r.email).toEqual({ valor: "hola@estudioluz.com.ar", fuente: "SITIO_PROPIO", fuenteUrl: "https://estudioluz.com.ar/contacto" });
+    const pedido = JSON.stringify(pedidos[0]);
+    expect(pedido).toContain("Web: estudioluz.com.ar");
+    expect(pedido).toContain("Instagram: @estudioluz");
+    expect(pedido).toContain('"max_uses":3');
+  });
+
+  it("un correo de otro dominio no sirve; uno gratuito visto en su Instagram sí", () => {
+    expect(validarCorreoDeContacto(contacto, { valor: "ventas@otrodominio.com", fuenteUrl: "https://estudioluz.com.ar" })).toBeNull();
+    expect(validarCorreoDeContacto(contacto, { valor: "estudioluz@gmail.com", fuenteUrl: "https://www.instagram.com/estudioluz" })).toEqual({
+      valor: "estudioluz@gmail.com", fuente: "SITIO_PROPIO", fuenteUrl: "https://www.instagram.com/estudioluz",
+    });
+  });
+
+  it("nada visto en Google Maps", () => {
+    expect(validarCorreoDeContacto(contacto, { valor: "estudioluz@gmail.com", fuenteUrl: "https://www.google.com/maps/place/x" })).toBeNull();
+  });
+
+  it("sin web, sólo un correo gratuito; visto en un directorio queda como WEB_SEARCH", () => {
+    const sinWeb = { ...contacto, web: null };
+    expect(validarCorreoDeContacto(sinWeb, { valor: "hola@estudioluz.com.ar", fuenteUrl: "https://estudioluz.com.ar" })).toBeNull();
+    expect(validarCorreoDeContacto(sinWeb, { valor: "luz@hotmail.com", fuenteUrl: "https://guiafotografos.com.ar/luz" })?.fuente).toBe("WEB_SEARCH");
+  });
+
+  it("si Claude falla, vuelve sin correo y con la falla (no lanza)", async () => {
+    const roto = clienteFalso([]);
+    const r = await buscarCorreo(contacto, { cliente: roto.cliente });
+    expect(r.email).toBeNull();
+    expect(r.falla).toBeDefined();
+    const nulo = clienteFalso([fin({ email: null })]);
+    expect((await buscarCorreo(contacto, { cliente: nulo.cliente })).email).toBeNull();
   });
 });

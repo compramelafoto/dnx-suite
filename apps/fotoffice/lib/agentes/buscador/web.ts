@@ -6,7 +6,9 @@ import { extraerJson } from "../periodista/salida";
 import { CAMPOS_DATO, type Candidato, type CampoDato, type DatoConFuente } from "./contactos";
 import { claveDominio, claveInstagram, claveTelefono } from "./normalizar";
 import type { LugarPlaces } from "./places";
-import { pedidoDescubrir, pedidoLeerLugar, SISTEMA_DESCUBRIR, SISTEMA_LEER_LUGAR } from "./prompts";
+import {
+  pedidoBuscarCorreo, pedidoDescubrir, pedidoLeerLugar, SISTEMA_BUSCAR_CORREO, SISTEMA_DESCUBRIR, SISTEMA_LEER_LUGAR,
+} from "./prompts";
 import { REGIONES, TIPOS_CONTACTO, type Region, type TipoContacto } from "./tipos";
 
 /**
@@ -26,6 +28,7 @@ import { REGIONES, TIPOS_CONTACTO, type Region, type TipoContacto } from "./tipo
 /** Topes de búsquedas web por llamada (el motor los usa para estimar el costo de una llamada cortada). */
 export const MAX_BUSQUEDAS_PROVINCIA = 5;
 export const MAX_BUSQUEDAS_LUGAR = 3;
+export const MAX_BUSQUEDAS_CORREO = 3;
 /** Plazo por omisión de cada llamada (la función tiene 300 s). */
 const PLAZO_MS = 240_000;
 /** Tope de candidatos que se revisan por respuesta (el prompt pide hasta 10). */
@@ -288,4 +291,86 @@ export async function leerLugar(
     datos: res.valor.datos,
   });
   return { candidato: v.ok ? v.candidato : null, uso: res.uso };
+}
+
+// ---------------------------------------------------------------------------------------------
+// Completar el correo de un contacto que ya está en la base
+
+export type ContactoSinCorreo = {
+  nombre: string;
+  ciudad: string | null;
+  provincia: string | null;
+  region: string | null;
+  tipo: string;
+  nichos: string[];
+  web: string | null;
+  instagram: string | null;
+  facebook: string | null;
+};
+
+function parsearCorreo(texto: string): ResultadoParseo<unknown> {
+  const json = extraerJson(texto);
+  const r = z.object({ email: z.unknown() }).safeParse(json);
+  if (!r.success) return { ok: false, error: 'falta el objeto { "email": {...} o null }' };
+  return { ok: true, valor: r.data.email ?? null };
+}
+
+/** Una dirección http(s) para usar como fuente de un dato que ya estaba en la ficha. */
+function comoUrl(texto: string): string {
+  const t = texto.trim();
+  return /^[a-z][a-z0-9+.-]*:/i.test(t) ? t : `https://${t.replace(/^\/+/, "")}`;
+}
+
+/**
+ * Los datos que la ficha YA tiene (web, Instagram, Facebook), en la forma de `validarCandidato`: le
+ * dicen cuál es el dominio propio (el correo tiene que ser de ahí o de un proveedor gratuito) y qué
+ * páginas son del propio negocio (para la fuente). Nunca se guardan: sólo sirven para validar.
+ */
+function datosConocidos(c: ContactoSinCorreo): Record<string, { valor: string; fuenteUrl: string }> {
+  const datos: Record<string, { valor: string; fuenteUrl: string }> = {};
+  if (c.web?.trim()) datos.web = { valor: comoUrl(c.web), fuenteUrl: comoUrl(c.web) };
+  const ig = claveInstagram(c.instagram);
+  if (ig) datos.instagram = { valor: `https://www.instagram.com/${ig}`, fuenteUrl: `https://www.instagram.com/${ig}` };
+  if (c.facebook?.trim()) datos.facebook = { valor: comoUrl(c.facebook), fuenteUrl: comoUrl(c.facebook) };
+  return datos;
+}
+
+/**
+ * Valida un correo visto para un contacto que ya existe, con las mismas reglas que el resto
+ * (`validarCandidato`): fuente http(s) que no sea de Google, correo del dominio de SU web (la que ya
+ * tiene la ficha) o de un proveedor gratuito. Devuelve el dato con su fuente, o null.
+ */
+export function validarCorreoDeContacto(c: ContactoSinCorreo, bruto: unknown): DatoConFuente | null {
+  const tipo = (TIPOS_CONTACTO as readonly string[]).includes(c.tipo) ? c.tipo : "OTRO";
+  const v = validarCandidato({
+    tipo,
+    nombre: c.nombre,
+    creadoPor: "BUSCADOR",
+    datos: { ...datosConocidos(c), email: bruto },
+  });
+  return v.ok ? (v.candidato.datos.email ?? null) : null;
+}
+
+/**
+ * Busca con Claude (búsqueda web acotada) el correo comercial publicado de un contacto que ya está
+ * en la base, con su nombre, ciudad, web, Instagram y Facebook. Nunca lanza: si Claude falla vuelve
+ * sin correo, con el uso (el costo se cuenta igual) y con `falla`.
+ */
+export async function buscarCorreo(
+  c: ContactoSinCorreo,
+  deps: DepsBuscadorWeb = {},
+): Promise<{ email: DatoConFuente | null; uso: UsoClaude; falla?: FallaClaude }> {
+  const tipo = ((TIPOS_CONTACTO as readonly string[]).includes(c.tipo) ? c.tipo : "OTRO") as TipoContacto;
+  const res = await conversar({
+    sistema: SISTEMA_BUSCAR_CORREO,
+    pedido: pedidoBuscarCorreo({ ...c, tipo }),
+    conBusqueda: true,
+    maxBusquedas: MAX_BUSQUEDAS_CORREO,
+    parsear: parsearCorreo,
+    hasta: plazo(deps),
+    deps,
+  });
+  if (!res.ok) return { email: null, uso: res.uso, falla: res.falla };
+  if (!res.valor) return { email: null, uso: res.uso };
+  return { email: validarCorreoDeContacto(c, res.valor), uso: res.uso };
 }
