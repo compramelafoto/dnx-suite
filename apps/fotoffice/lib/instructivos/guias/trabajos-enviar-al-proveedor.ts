@@ -39,7 +39,7 @@ export const guia: Instructivo = {
         "Antes de subir, dejá los archivos listos: recortados, en el tamaño pedido y con un nombre que el laboratorio entienda (por ejemplo «10x15-mate-x2-perez.jpg»).",
       ],
       sistema: [
-        "Al mandar el pedido, el correo lleva el enlace «Descargar los archivos»: el laboratorio baja todo desde ahí, sin Drive ni WeTransfer.",
+        "Al mandar el pedido, el correo lleva el enlace «Descargar los archivos»: el laboratorio baja todo desde ahí, sin Drive ni WeTransfer. Con «Descargar todo (ZIP)» se lleva un solo ZIP con carpetas por tamaño, acabado y cantidad de copias, y cada foto con su nombre original.",
         "La carpeta se borra sola 30 días después del primer archivo subido.",
       ],
       nota: "Si preferís mandar el enlace por WhatsApp, tocá «Enlace laboratorio»: queda copiado para pegarlo en el chat.",

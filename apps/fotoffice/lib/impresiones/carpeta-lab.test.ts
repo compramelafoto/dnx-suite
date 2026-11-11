@@ -19,9 +19,9 @@ describe("agruparPorLaboratorio", () => {
 describe("rutasDelZip", () => {
   it("ordena por tamaño, papel y cantidad, y pasa todo a .jpg", () => {
     expect(rutasDelZip(123, "Juan Pérez", "BRILLO", items.slice(0, 3))).toEqual([
-      { itemId: "1", ruta: "Pedido 123 - Juan Pérez/13x18 Brillo/1 copia/rollo-01.jpg" },
-      { itemId: "2", ruta: "Pedido 123 - Juan Pérez/13x18 Brillo/2 copias/rollo-03.jpg" },
-      { itemId: "3", ruta: "Pedido 123 - Juan Pérez/13x18 Brillo/1 copia/rollo-07.jpg" },
+      { itemId: "1", ruta: "Pedido 123 - Juan Pérez/13x18/Brillo/1 copia/rollo-01.jpg" },
+      { itemId: "2", ruta: "Pedido 123 - Juan Pérez/13x18/Brillo/2 copias/rollo-03.jpg" },
+      { itemId: "3", ruta: "Pedido 123 - Juan Pérez/13x18/Brillo/1 copia/rollo-07.jpg" },
     ]);
   });
   it("no repite nombres dentro de la misma carpeta", () => {
@@ -52,7 +52,7 @@ describe("papel por foto y archivos originales", () => {
       { itemId: "a", proveedorId: "f", widthCm: 10, heightCm: 15, quantity: 1, sourceName: "uno.png", paper: "MATE", original: true },
       { itemId: "b", proveedorId: "f", widthCm: 10, heightCm: 15, quantity: 1, sourceName: "dos.jpg" },
     ]);
-    expect(r.map((x) => x.ruta)).toEqual(["Pedido 5 - Ana/10x15 Mate/1 copia/uno.png", "Pedido 5 - Ana/10x15 Brillo/1 copia/dos.jpg"]);
+    expect(r.map((x) => x.ruta)).toEqual(["Pedido 5 - Ana/10x15/Mate/1 copia/uno.png", "Pedido 5 - Ana/10x15/Brillo/1 copia/dos.jpg"]);
   });
 
   it("el resumen separa por papel", () => {

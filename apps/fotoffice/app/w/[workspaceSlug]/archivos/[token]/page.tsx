@@ -33,5 +33,7 @@ export default async function CarpetaPublicaPage({ params }: { params: Promise<{
           })),
         }
       : vista;
-  return <CarpetaPublica vista={vistaFinal} enlaceImprimir={enlaceImprimir} slug={workspaceSlug} token={token} />;
+  const enlaceDescargarTodo =
+    vista.audiencia === "LABORATORIO" ? `/api/w/${encodeURIComponent(workspaceSlug)}/archivos/${encodeURIComponent(token)}/descargar-todo` : undefined;
+  return <CarpetaPublica vista={vistaFinal} enlaceImprimir={enlaceImprimir} enlaceDescargarTodo={enlaceDescargarTodo} slug={workspaceSlug} token={token} />;
 }

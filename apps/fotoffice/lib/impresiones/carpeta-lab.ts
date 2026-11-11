@@ -4,8 +4,8 @@ export type ItemParaLab = {
   itemId: string; proveedorId: string | null; widthCm: number; heightCm: number; quantity: number; sourceName: string;
   /** Pedidos del bot: papel de esta foto (si no, el del pedido) y si va el archivo original (conserva su extensión). */
   paper?: Papel | null; original?: boolean;
-  /** Cuadros del pedido para laboratorio: el nombre completo («Canvas 30x40 + doblez 5 cm (espejo)») en lugar de medida y papel. */
-  etiqueta?: string;
+  /** Cuadros del pedido para laboratorio: tamaño («Canvas 30x40») y acabado («Doblez 5 cm espejo») en lugar de medida y papel. */
+  etiqueta?: { tamano: string; acabado: string };
 };
 
 export function agruparPorLaboratorio<T extends { proveedorId: string | null }>(items: T[]): Map<string | null, T[]> {
@@ -26,8 +26,10 @@ export function rutasDelZip(numero: number, cliente: string, papel: Papel, items
   const raiz = `Pedido ${numero} - ${limpio(cliente)}`;
   const usados = new Map<string, number>();
   return items.map((i) => {
-    const grupo = i.etiqueta ? limpio(i.etiqueta) : `${etiquetaTamano(i.widthCm, i.heightCm)} ${ETIQUETA_PAPEL[i.paper ?? papel]}`;
-    const carpeta = `${raiz}/${grupo}/${i.quantity} ${i.quantity === 1 ? "copia" : "copias"}`;
+    // Tamaño > acabado > copias > el archivo con su nombre original: el laboratorio imprime carpeta por carpeta.
+    const tamano = i.etiqueta ? limpio(i.etiqueta.tamano) : etiquetaTamano(i.widthCm, i.heightCm);
+    const acabado = i.etiqueta ? limpio(i.etiqueta.acabado) : ETIQUETA_PAPEL[i.paper ?? papel];
+    const carpeta = `${raiz}/${tamano}/${acabado}/${i.quantity} ${i.quantity === 1 ? "copia" : "copias"}`;
     const ext = i.original ? (i.sourceName.match(/\.[A-Za-z0-9]{2,5}$/)?.[0]?.toLowerCase() ?? ".jpg") : ".jpg";
     let nombre = `${baseSinExtension(i.sourceName)}${ext}`;
     const clave = `${carpeta}/${nombre}`.toLowerCase();
@@ -41,8 +43,8 @@ export function rutasDelZip(numero: number, cliente: string, papel: Papel, items
 export function resumenParaLab(items: ItemParaLab[], papel: Papel) {
   const m = new Map<string, { tamano: string; papel: string; cantidad: number }>();
   for (const i of items) {
-    const tamano = i.etiqueta ?? etiquetaTamano(i.widthCm, i.heightCm);
-    const p = i.etiqueta ? "" : ETIQUETA_PAPEL[i.paper ?? papel];
+    const tamano = i.etiqueta?.tamano ?? etiquetaTamano(i.widthCm, i.heightCm);
+    const p = i.etiqueta?.acabado ?? ETIQUETA_PAPEL[i.paper ?? papel];
     const clave = `${tamano}|${p}`;
     const r = m.get(clave) ?? { tamano, papel: p, cantidad: 0 };
     r.cantidad += i.quantity;

@@ -24,11 +24,14 @@ function Icono({ tipo }: { tipo: string }) {
 export function CarpetaPublica({
   vista,
   enlaceImprimir,
+  enlaceDescargarTodo,
   slug,
   token,
 }: {
   vista: VistaCarpeta;
   enlaceImprimir?: string;
+  /** Laboratorio: «Descargar todo» baja un único ZIP ordenado (Tamaño > Acabado > Copias > nombre original). */
+  enlaceDescargarTodo?: string;
   slug: string;
   token: string;
 }) {
@@ -92,10 +95,17 @@ export function CarpetaPublica({
               <p className="text-sm text-[var(--fo-muted)]">
                 {vista.archivos.length} {vista.archivos.length === 1 ? "archivo" : "archivos"} · {tamanoLegible(total)}
               </p>
-              <button type="button" onClick={descargarTodo} disabled={bajando} className="fo-btn fo-btn-primary gap-2 text-sm">
-                <Download className="size-4" aria-hidden />
-                {bajando ? "Descargando…" : "Descargar todo"}
-              </button>
+              {enlaceDescargarTodo ? (
+                <a href={enlaceDescargarTodo} rel="noreferrer" className="fo-btn fo-btn-primary gap-2 text-sm" title="Un ZIP con carpetas por tamaño, acabado y cantidad de copias">
+                  <Download className="size-4" aria-hidden />
+                  Descargar todo (ZIP)
+                </a>
+              ) : (
+                <button type="button" onClick={descargarTodo} disabled={bajando} className="fo-btn fo-btn-primary gap-2 text-sm">
+                  <Download className="size-4" aria-hidden />
+                  {bajando ? "Descargando…" : "Descargar todo"}
+                </button>
+              )}
             </div>
             <ul className="space-y-3">
               {vista.archivos.map((a) => (

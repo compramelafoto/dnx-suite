@@ -171,11 +171,11 @@ describe("prepararPedido", () => {
     expect(d.subir.mock.calls[0][2]).toBe("application/zip");
     // Ordenado por tamaño: el 10x15 antes que el 13x18, con las carpetas tal cual.
     const fotolag = zips[0].buf.toString("utf8");
-    const a = fotolag.indexOf("Pedido 8 - Juan/10x15 Brillo/1 copia/a.jpg");
-    const b = fotolag.indexOf("Pedido 8 - Juan/13x18 Brillo/2 copias/b.jpg");
+    const a = fotolag.indexOf("Pedido 8 - Juan/10x15/Brillo/1 copia/a.jpg");
+    const b = fotolag.indexOf("Pedido 8 - Juan/13x18/Brillo/2 copias/b.jpg");
     expect(a).toBeGreaterThanOrEqual(0);
     expect(b).toBeGreaterThan(a);
-    expect(zips[1].buf.toString("utf8")).toContain("Pedido 8 - Juan/30x40 Brillo/1 copia/c.jpg");
+    expect(zips[1].buf.toString("utf8")).toContain("Pedido 8 - Juan/30x40/Brillo/1 copia/c.jpg");
 
     const archivoId = zips[0].clave.split("/")[3];
     expect(H.db.fotofficeArchivoTrabajo.create).toHaveBeenCalledWith({
@@ -721,7 +721,7 @@ describe("prepararPedido: pedidos del bot de WhatsApp", () => {
     expect(d.recortar).not.toHaveBeenCalled();
     const zip = zips[0].buf.toString("latin1");
     expect(zip).toContain("BYTES-ORIGINALES");
-    expect(zip).toContain("Pedido 8 - Juan/10x15 Mate/1 copia/foto.png");
+    expect(zip).toContain("Pedido 8 - Juan/10x15/Mate/1 copia/foto.png");
     expect((d.enviar.mock.calls[0][0] as { subject: string }).subject).toContain("PARA LA PRÓXIMA SEMANA");
   });
 

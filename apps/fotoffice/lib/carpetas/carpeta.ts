@@ -4,7 +4,10 @@ import { prisma } from "@repo/db";
 import { hashDeToken, resolverClaveDeEnlace, tokenConForma } from "@/lib/presupuestos/enlace";
 import { sitioDelWorkspace } from "@/lib/presupuestos/sitio";
 import { MENSAJES_PROYECTO, puedeGestionarProyectos, type CtxProyectos } from "@/lib/proyectos/acceso";
-import { borrarArchivoGuardado, tamanoDeArchivo, urlDeLecturaArchivo, urlDeSubidaArchivo } from "./almacen";
+import { borrarArchivoGuardado, flujoDeArchivo, tamanoDeArchivo, urlDeLecturaArchivo, urlDeSubidaArchivo } from "./almacen";
+import { zipEnFlujo, type ArchivoParaZip } from "@/lib/galerias/zip";
+import { itemsGuardados } from "@/lib/presupuestos/versiones";
+import { rutasDeArchivosSueltos } from "./rutas-zip";
 import {
   MAX_ARCHIVOS_CARPETA,
   MAX_BYTES_ARCHIVO,
@@ -328,3 +331,70 @@ export async function purgarCarpetas(ahora = new Date(), tope = 200): Promise<nu
   }
   return n;
 }
+
+/** Hasta acá se arma el ZIP en el momento; una carpeta más pesada se baja archivo por archivo. */
+const MAX_BYTES_ZIP_EN_VIVO = 2 * 1024 ** 3;
+
+export type DescargaTodo =
+  | { tipo: "UNO"; url: string }
+  | { tipo: "ZIP"; nombre: string; flujo: AsyncGenerator<Buffer, void, void> }
+  | { tipo: "GRANDE" };
+
+/**
+ * «Descargar todo» con el enlace del laboratorio: un solo archivo para bajar.
+ * - Si la carpeta tiene sólo el ZIP que armó el pedido para laboratorio (ya ordenado por tamaño,
+ *   acabado y copias), es ese ZIP.
+ * - Si tiene archivos sueltos, se arma un ZIP en el momento con Trabajo > Tamaño > Acabado >
+ *   Copias > el archivo con su nombre original (ver `rutas-zip.ts`). Un ZIP que ya estuviera en la
+ *   carpeta entra tal cual, en la raíz.
+ * Anota «descargó» en el trabajo. null si el enlace no es del laboratorio, venció o no hay archivos.
+ */
+export async function descargarTodoDelLaboratorio(workspaceId: string, token: unknown, ahora = new Date()): Promise<DescargaTodo | null> {
+  if (!tokenConForma(token)) return null;
+  const p = await prisma.fotofficeProyecto.findFirst({
+    where: { workspaceId, carpetaLabHash: hashDeToken(token) },
+    select: {
+      id: true,
+      number: true,
+      name: true,
+      carpetaVence: true,
+      pedidoId: true,
+      pedidoItemIndex: true,
+      client: { select: { firstName: true, lastName: true, businessName: true } },
+      product: { select: { name: true } },
+    },
+  });
+  if (!p || (p.carpetaVence && p.carpetaVence < ahora)) return null;
+  const archivos = await prisma.fotofficeArchivoTrabajo.findMany({
+    where: { workspaceId, proyectoId: p.id, estado: "LISTO" },
+    orderBy: { createdAt: "asc" },
+    select: { id: true, key: true, nombre: true, tipo: true, bytes: true, createdAt: true },
+  });
+  if (archivos.length === 0) return null;
+  const esZip = (a: { tipo: string; nombre: string }) => a.tipo === "application/zip" || /\.zip$/i.test(a.nombre);
+  if (archivos.length === 1 && esZip(archivos[0]!)) {
+    await anotarDelLaboratorio(workspaceId, p.id, "DESCARGADO", ahora);
+    return { tipo: "UNO", url: await urlDeLecturaArchivo(archivos[0]!.key, archivos[0]!.nombre, "descargar") };
+  }
+  if (archivos.reduce((s, a) => s + Number(a.bytes), 0) > MAX_BYTES_ZIP_EN_VIVO) return { tipo: "GRANDE" };
+
+  let copias = 1;
+  if (p.pedidoId && p.pedidoItemIndex !== null) {
+    const ped = await prisma.fotofficePedido.findFirst({ where: { id: p.pedidoId, workspaceId }, select: { items: true } });
+    const c = ped ? itemsGuardados(ped.items)[p.pedidoItemIndex]?.cantidad : undefined;
+    if (typeof c === "number" && Number.isFinite(c) && c > 0) copias = c;
+  }
+  const cliente = p.client?.businessName?.trim() || [p.client?.firstName, p.client?.lastName].filter(Boolean).join(" ") || "Cliente";
+  const sueltos = archivos.filter((a) => !esZip(a));
+  const rutas = new Map(
+    rutasDeArchivosSueltos({ numero: p.number, cliente, producto: p.product?.name ?? p.name, copias, archivos: sueltos }).map((r) => [r.id, r.ruta]),
+  );
+  const lista: ArchivoParaZip[] = archivos.map((a) => ({
+    nombre: rutas.get(a.id) ?? a.nombre,
+    fecha: a.createdAt,
+    abrir: () => flujoDeArchivo(a.key),
+  }));
+  await anotarDelLaboratorio(workspaceId, p.id, "DESCARGADO", ahora);
+  return { tipo: "ZIP", nombre: `Trabajo-${p.number}.zip`, flujo: zipEnFlujo(lista, undefined, { conCarpetas: true }) };
+}
+
