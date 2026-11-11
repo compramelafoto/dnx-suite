@@ -8,29 +8,29 @@
  */
 
 /**
- * Alto de la franja nítida (~7,5 cm en pantallas típicas).
- * clamp() la mantiene entre 160 px (móvil) y 256 px (escritorio).
+ * Alto de la franja nítida (~8,5 cm en pantallas típicas).
+ * clamp() la mantiene entre 184 px (móvil) y 296 px (escritorio).
  */
-export const SCAN_BAND_HEIGHT_CSS = "clamp(10rem, 27vh, 16rem)";
+export const SCAN_BAND_HEIGHT_CSS = "clamp(11.5rem, 31vh, 18.5rem)";
 
 /** Desenfoque de la capa base. Impide leer detalle sin ocultar la composición. */
 export const SCAN_BASE_BLUR_CSS = "clamp(6px, 1.2vh, 11px)";
 
 /** Velocidad del recorrido, en píxeles por segundo. */
-export const SCAN_SPEED_PX_PER_SECOND = 100;
+export const SCAN_SPEED_PX_PER_SECOND = 70;
 
 /** Velocidad para `prefers-reduced-motion`: sigue recorriendo, mucho más lento. */
-export const SCAN_SPEED_PX_PER_SECOND_REDUCED_MOTION = 33;
+export const SCAN_SPEED_PX_PER_SECOND_REDUCED_MOTION = 25;
 
 /** Límites de duración de un ciclo completo. */
-export const SCAN_MIN_DURATION_MS = 2700;
+export const SCAN_MIN_DURATION_MS = 3900;
 export const SCAN_MAX_DURATION_MS = 24000;
 
 /** Duración usada mientras todavía no se midió la imagen. */
-export const SCAN_FALLBACK_DURATION_MS = 6000;
+export const SCAN_FALLBACK_DURATION_MS = 8500;
 
 /** Alto estimado de la franja mientras no hay medición real del DOM. */
-export const SCAN_FALLBACK_BAND_HEIGHT_PX = 220;
+export const SCAN_FALLBACK_BAND_HEIGHT_PX = 254;
 
 export interface ScanProtectionDecisionInput {
   /** La vista activa la protección (galerías de cliente, no paneles internos). */
