@@ -27,17 +27,16 @@ function TrazoAMano() {
       aria-hidden="true"
       viewBox="0 0 400 600"
       preserveAspectRatio="none"
-      className="pointer-events-none absolute -inset-2.5 h-[calc(100%+1.25rem)] w-[calc(100%+1.25rem)]"
+      className="pointer-events-none absolute -left-4 -top-4 h-[calc(100%+2rem)] w-[calc(100%+2rem)] -rotate-[1.2deg]"
     >
       <path
-        d="M14 9 C 120 3, 280 6, 391 12 C 396 160, 393 420, 389 590 C 280 596, 120 593, 9 588 C 4 430, 7 170, 12 16 C 60 12, 100 10, 150 9"
+        d="M8 9 C 130 2, 270 5, 394 5 C 398 150, 396 420, 393 594 C 270 598, 130 597, 5 593 C 1 420, 3 160, 4 13 C 50 5, 110 3, 185 6"
         fill="none"
-        stroke={PRINCIPAL}
-        strokeWidth="1.8"
+        stroke={`color-mix(in srgb, ${PRINCIPAL} 70%, ${FONDO})`}
+        strokeWidth="1.6"
         strokeLinecap="round"
         strokeLinejoin="round"
         vectorEffect="non-scaling-stroke"
-        opacity="0.75"
       />
     </svg>
   );
@@ -195,10 +194,10 @@ export function PricingBlockView({ config, data }: { config: PricingBlockConfig;
         </ul>
 
         {tranquilidades.length > 0 ? (
-          <ul className="mx-auto mt-14 flex max-w-4xl flex-wrap justify-center gap-x-8 gap-y-3" style={levelStyle("body", { color: true })}>
+          <ul className="mx-auto mt-14 flex max-w-4xl flex-col gap-3 sm:flex-row sm:flex-wrap sm:justify-center sm:gap-x-8" style={levelStyle("body", { color: true })}>
             {tranquilidades.map((t, i) => (
-              <li key={i} className="flex items-center gap-2 text-[0.95rem]">
-                <Check className="h-4 w-4 shrink-0" strokeWidth={2.5} aria-hidden="true" style={{ color: PRINCIPAL }} />
+              <li key={i} className="flex items-start gap-2 text-[0.95rem] leading-snug">
+                <Check className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={2.5} aria-hidden="true" style={{ color: PRINCIPAL }} />
                 <span>{t}</span>
               </li>
             ))}
