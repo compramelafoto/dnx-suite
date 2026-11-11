@@ -1,4 +1,5 @@
 import type { Cuestionario } from "../tipos";
+import { CUESTIONARIO_CLUB_POR_SUSCRIPCION } from "./club-por-suscripcion";
 import { CUESTIONARIO_PRODUCTORA_DOCENTE } from "./productora-docente";
 
 /**
@@ -7,6 +8,7 @@ import { CUESTIONARIO_PRODUCTORA_DOCENTE } from "./productora-docente";
  */
 const CUESTIONARIOS: Record<string, Cuestionario> = {
   [CUESTIONARIO_PRODUCTORA_DOCENTE.clave]: CUESTIONARIO_PRODUCTORA_DOCENTE,
+  [CUESTIONARIO_CLUB_POR_SUSCRIPCION.clave]: CUESTIONARIO_CLUB_POR_SUSCRIPCION,
 };
 
 export function cuestionarioPorClave(clave: string): Cuestionario | null {

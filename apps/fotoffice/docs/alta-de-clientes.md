@@ -6,6 +6,11 @@ Cada alta nueva tiene que salir más rápido que la anterior; lo que se aprenda 
 
 Primer caso: F64 Productora (Andrea Defagot), noviembre de 2026. Ver `docs/proyecto-f64.md`.
 
+Cuestionarios disponibles:
+
+- `productora-docente-v1`: escuela o productora con cursos (F64, desde cero).
+- `club-suscripcion-v1`: club por suscripción con clases en vivo, grabadas y un envío mensual (SOYBELUZ). Pensado para un espacio ya armado: confirma lo cargado y pregunta lo que falta (materiales de cada BOX, envíos, cobros, clases, textos).
+
 ## 1. Juntar lo público antes de preguntar
 
 Antes de mandar el formulario, buscar en la web (Instagram, Facebook, sitio, notas de prensa) y
