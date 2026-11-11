@@ -40,6 +40,8 @@ type Datos = {
     descripcion: string;
     estampaOscura: string | null;
     estampaClara: string | null;
+    /** Archivo de impresión propio para algunos modelos (p. ej. líneas oscuras en colores claros). */
+    estampaPorModelo?: Record<string, string>;
     mockups: { modelo: string; driveId?: string; url?: string }[];
   }[];
 };
@@ -65,7 +67,7 @@ function abrirCliente(url: string): PrismaClient {
 const foto = (m: { driveId?: string; url?: string }) =>
   m.url ?? `https://lh3.googleusercontent.com/d/${m.driveId ?? salir("Mockup sin driveId ni url.")}=w1600`;
 /** Tabla de talles de Dreamful (oversize, clásica hombre y clásica mujer en una sola imagen). */
-const TABLA_TALLES = "https://fotoffice.com/tienda-prendas/dnx-estudio/tabla-remera.webp";
+const TABLA_TALLES = "https://fotoffice.com/tienda-prendas/dnx-estudio/tabla-remera.webp?v=2";
 const archivo = (driveId: string) => `https://drive.google.com/file/d/${driveId}/view`;
 const talles = (codigoModelo: string) => (codigoModelo.startsWith("OV") ? TALLES_OVERSIZE : TALLES_CLASICA);
 
@@ -178,7 +180,7 @@ async function main() {
           sortOrder: sortOrder++,
           isActive: true,
           priceArs: null,
-          printFileUrl: estampa ? archivo(estampa) : null,
+          printFileUrl: d.estampaPorModelo?.[m.codigo] ?? (estampa ? archivo(estampa) : null),
         };
         await db.productVariant.upsert({
           where: { workspaceId_sku: { workspaceId, sku: vSku } },

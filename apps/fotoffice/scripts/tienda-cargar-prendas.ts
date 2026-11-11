@@ -39,7 +39,7 @@ type Tipo = {
   texto: string;
   modelos: Modelo[];
 };
-type Prendas = { baseFotos: string; tipos: Tipo[] };
+type Prendas = { baseFotos: string; versionFotos?: string; tipos: Tipo[] };
 type Disenos = {
   disenos: {
     codigo: string;
@@ -49,6 +49,8 @@ type Disenos = {
     descripcion: string;
     estampaOscura: string | null;
     estampaClara: string | null;
+    /** Archivo de impresión propio para algunos modelos (p. ej. líneas oscuras en colores claros). */
+    estampaPorModelo?: Record<string, string>;
   }[];
 };
 
@@ -131,7 +133,10 @@ async function main() {
     for (const [it, t] of prendas.tipos.entries()) {
       const sku = `DNX-${d.codigo}-${t.codigo}`;
       const nombre = `${t.nombre} ${d.nombre}`;
-      const foto = (m: Modelo) => `${prendas.baseFotos}/${d.codigo.toLowerCase()}-${m.codigo.toLowerCase()}.webp`;
+      // `?v=` cambia cuando se rehacen los mockups: las URLs son las mismas y el CDN y los navegadores las cachean.
+      const version = prendas.versionFotos ? `?v=${prendas.versionFotos}` : "";
+      const foto = (m: Modelo) =>
+        `${prendas.baseFotos}/${d.codigo.toLowerCase()}-${m.codigo.toLowerCase()}.webp${version}`;
       const precioBase = t.modelos.map((m) => Number(m.precio)).reduce((a, b) => Math.min(a, b));
       const costoMax = t.modelos.map((m) => Number(m.costo)).reduce((a, b) => Math.max(a, b));
       const texto = descripcion(t, d.descripcion);
@@ -160,7 +165,7 @@ async function main() {
         sellAtCounter: false,
         onlineTitle: nombre,
         onlineDescription: texto,
-        sizeChartImageUrl: `${prendas.baseFotos}/${t.tabla}`,
+        sizeChartImageUrl: `${prendas.baseFotos}/${t.tabla}${version}`,
         weightGrams: t.pesoGramos,
         lengthCm: 30,
         widthCm: 25,
@@ -194,7 +199,7 @@ async function main() {
             isActive: true,
             // Sin precio propio cuando coincide con el del producto: así la tarjeta no dice "desde".
             priceArs: Number(m.precio) === precioBase ? null : m.precio,
-            printFileUrl: estampa ? archivo(estampa) : null,
+            printFileUrl: d.estampaPorModelo?.[m.codigo] ?? (estampa ? archivo(estampa) : null),
           };
           await db.productVariant.upsert({
             where: { workspaceId_sku: { workspaceId, sku: vSku } },
