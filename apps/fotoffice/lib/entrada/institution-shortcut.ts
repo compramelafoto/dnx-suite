@@ -26,6 +26,8 @@ export const RESERVED_SLUGS: ReadonlySet<string> = new Set([
   "actions",
   "admin",
   "agenda",
+  // El formulario de alta de un cliente nuevo, con enlace privado (app/alta/[token]).
+  "alta",
   "api",
   "aula",
   "bandeja",

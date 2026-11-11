@@ -3,7 +3,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { headers } from "next/headers";
 import { createHash } from "node:crypto";
+import { prisma } from "@repo/db";
 import { requireAuth } from "@/lib/auth";
+import { tamanoLegible } from "@/lib/course-classroom/material";
 import { cargarAccesoVigente } from "@/lib/course-classroom/mis-cursos";
 import { numeroDeInscripcion } from "@/lib/course-classroom/access-rules";
 import { armarAula } from "@/lib/course-classroom/aula";
@@ -76,6 +78,12 @@ export default async function ClasePage({
 
   // Registro de reproducciones. El origen va hasheado para no escribir la IP en claro en el
   // log; sirve para contar lugares distintos, no es anonimización fuerte (SHA-256 sin sal).
+  const material = await prisma.courseLessonAttachment.findMany({
+    where: { lessonId },
+    orderBy: { createdAt: "asc" },
+    select: { id: true, fileName: true, sizeBytes: true },
+  });
+
   const origen = createHash("sha256").update(clientIp(new Headers(await headers()))).digest("hex").slice(0, 12);
   logCourseEvent("aula_reproduccion_autorizada", { accessId: acceso.id, lessonId, origen, firmada: iframeUrl !== null });
 
@@ -109,6 +117,26 @@ export default async function ClasePage({
       {leccion.description ? (
         <section className="fo-card">
           <p className="whitespace-pre-line text-sm leading-relaxed">{leccion.description}</p>
+        </section>
+      ) : null}
+
+      {material.length > 0 ? (
+        <section className="fo-card space-y-3">
+          <h2 className="text-base font-semibold">Material de la clase</h2>
+          <ul className="space-y-2">
+            {material.map((m) => (
+              <li key={m.id}>
+                <a
+                  href={`/api/portal/cursos/material/${m.id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="fo-btn fo-btn-secondary text-sm"
+                >
+                  Descargar «{m.fileName}»{tamanoLegible(m.sizeBytes)}
+                </a>
+              </li>
+            ))}
+          </ul>
         </section>
       ) : null}
 

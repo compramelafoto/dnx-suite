@@ -28816,3 +28816,29 @@ model DnxVendedorAtribucion {
 
   @@index([token])
 }
+
+/// Formulario de alta de un cliente nuevo de FOTOFFICE (una institución, productora o estudio).
+/// La persona lo completa sin cuenta, desde un enlace privado (`/alta/<token>`): el token es la
+/// credencial. Las preguntas no viven en la base sino en código (`lib/alta-cliente/cuestionarios`),
+/// así que agregar o cambiar preguntas no pide migración; acá sólo se guardan las respuestas.
+/// Con las respuestas, Claude configura el espacio (ver `apps/fotoffice/docs/alta-de-clientes.md`).
+model FotofficeAltaCliente {
+  id            String    @id @default(cuid())
+  /// Al azar, largo. Es lo que va en el enlace.
+  token         String    @unique
+  /// Qué cuestionario se le muestra (clave de `lib/alta-cliente/cuestionarios`).
+  cuestionario  String
+  /// A quién va dirigido, para el saludo ("Andrea").
+  destinatario  String
+  /// El espacio que se está configurando, si ya existe. Sin relación a propósito: es una nota.
+  workspaceId   String?
+  /// { [idPregunta]: valor }. Se guarda solo mientras la persona escribe.
+  respuestas    Json      @default("{}")
+  /// BORRADOR mientras completa; ENVIADO cuando aprieta "Enviar". Puede seguir editando después.
+  estado        String    @default("BORRADOR")
+  enviadoAt     DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([workspaceId])
+}
