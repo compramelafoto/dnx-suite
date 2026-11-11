@@ -1,0 +1,348 @@
+{
+ "_nota": "Precios: remeras (crop e infantil) a $35.000 como las demás remeras; buzos y musculosas = costo de Dreamful con 1 estampa x2,3, redondeado a los $1.000 hacia arriba (pedido de Daniel, 11/11/2026). Los diseños salen de remeras-dnx.json.",
+ "baseFotos": "https://fotoffice.com/tienda-prendas/dnx-estudio",
+ "tipos": [
+  {
+   "codigo": "CROP",
+   "nombre": "Remera crop",
+   "slug": "remera-crop",
+   "categoria": "Remeras",
+   "tabla": "tabla-crop.webp",
+   "pesoGramos": 180,
+   "texto": "Remera crop de mujer, corte corto y calce al cuerpo.",
+   "modelos": [
+    {
+     "codigo": "CRG",
+     "nombre": "Crop mujer gris melange",
+     "oscura": false,
+     "costo": "14600",
+     "precio": "35000",
+     "talles": [
+      "S",
+      "M",
+      "L",
+      "XL",
+      "XXL"
+     ]
+    },
+    {
+     "codigo": "CRC",
+     "nombre": "Crop mujer crema",
+     "oscura": false,
+     "costo": "14600",
+     "precio": "35000",
+     "talles": [
+      "S",
+      "M",
+      "L",
+      "XL",
+      "XXL"
+     ]
+    },
+    {
+     "codigo": "CRH",
+     "nombre": "Crop mujer chocolate",
+     "oscura": true,
+     "costo": "14600",
+     "precio": "35000",
+     "talles": [
+      "S",
+      "M",
+      "L",
+      "XL",
+      "XXL"
+     ]
+    },
+    {
+     "codigo": "CRV",
+     "nombre": "Crop mujer visón",
+     "oscura": false,
+     "costo": "14600",
+     "precio": "35000",
+     "talles": [
+      "S",
+      "M",
+      "L",
+      "XL",
+      "XXL"
+     ]
+    }
+   ]
+  },
+  {
+   "codigo": "INF",
+   "nombre": "Remera infantil",
+   "slug": "remera-infantil",
+   "categoria": "Remeras",
+   "tabla": "tabla-infantil.webp",
+   "pesoGramos": 150,
+   "texto": "Remera infantil unisex, talles 4 a 16.",
+   "modelos": [
+    {
+     "codigo": "INB",
+     "nombre": "Infantil blanca",
+     "oscura": false,
+     "costo": "14600",
+     "precio": "35000",
+     "talles": [
+      "4",
+      "6",
+      "8",
+      "10",
+      "12",
+      "14",
+      "16"
+     ]
+    },
+    {
+     "codigo": "INN",
+     "nombre": "Infantil negra",
+     "oscura": true,
+     "costo": "14600",
+     "precio": "35000",
+     "talles": [
+      "4",
+      "6",
+      "8",
+      "10",
+      "12",
+      "14",
+      "16"
+     ]
+    },
+    {
+     "codigo": "ING",
+     "nombre": "Infantil gris",
+     "oscura": false,
+     "costo": "14600",
+     "precio": "35000",
+     "talles": [
+      "4",
+      "6",
+      "8",
+      "10",
+      "12",
+      "14",
+      "16"
+     ]
+    },
+    {
+     "codigo": "INA",
+     "nombre": "Infantil amarilla",
+     "oscura": false,
+     "costo": "14600",
+     "precio": "35000",
+     "talles": [
+      "4",
+      "6",
+      "8",
+      "10",
+      "12",
+      "14",
+      "16"
+     ]
+    },
+    {
+     "codigo": "INC",
+     "nombre": "Infantil celeste",
+     "oscura": false,
+     "costo": "14600",
+     "precio": "35000",
+     "talles": [
+      "4",
+      "6",
+      "8",
+      "10",
+      "12",
+      "14",
+      "16"
+     ]
+    },
+    {
+     "codigo": "INR",
+     "nombre": "Infantil rosa",
+     "oscura": false,
+     "costo": "14600",
+     "precio": "35000",
+     "talles": [
+      "4",
+      "6",
+      "8",
+      "10",
+      "12",
+      "14",
+      "16"
+     ]
+    }
+   ]
+  },
+  {
+   "codigo": "BUZO",
+   "nombre": "Buzo",
+   "slug": "buzo",
+   "categoria": "Buzos",
+   "tabla": "tabla-buzo.webp",
+   "pesoGramos": 650,
+   "texto": "Buzo de friza estilo oversize, unisex: cuello redondo o con capucha y bolsillo canguro.",
+   "modelos": [
+    {
+     "codigo": "BCB",
+     "nombre": "Buzo cuello redondo blanco",
+     "oscura": false,
+     "costo": "20600",
+     "precio": "48000",
+     "talles": [
+      "XS",
+      "S",
+      "M",
+      "L",
+      "XL",
+      "XXL"
+     ]
+    },
+    {
+     "codigo": "BCN",
+     "nombre": "Buzo cuello redondo negro",
+     "oscura": true,
+     "costo": "23170",
+     "precio": "54000",
+     "talles": [
+      "XS",
+      "S",
+      "M",
+      "L",
+      "XL",
+      "XXL"
+     ]
+    },
+    {
+     "codigo": "BCS",
+     "nombre": "Buzo cuello redondo stone wash",
+     "oscura": true,
+     "costo": "23170",
+     "precio": "54000",
+     "talles": [
+      "XS",
+      "S",
+      "M",
+      "L",
+      "XL",
+      "XXL"
+     ]
+    },
+    {
+     "codigo": "BHB",
+     "nombre": "Buzo con capucha blanco",
+     "oscura": false,
+     "costo": "21600",
+     "precio": "50000",
+     "talles": [
+      "XS",
+      "S",
+      "M",
+      "L",
+      "XL",
+      "XXL"
+     ]
+    },
+    {
+     "codigo": "BHN",
+     "nombre": "Buzo con capucha negro",
+     "oscura": true,
+     "costo": "24170",
+     "precio": "56000",
+     "talles": [
+      "XS",
+      "S",
+      "M",
+      "L",
+      "XL",
+      "XXL"
+     ]
+    },
+    {
+     "codigo": "BHS",
+     "nombre": "Buzo con capucha stone wash",
+     "oscura": true,
+     "costo": "25170",
+     "precio": "58000",
+     "talles": [
+      "XS",
+      "S",
+      "M",
+      "L",
+      "XL",
+      "XXL"
+     ]
+    }
+   ]
+  },
+  {
+   "codigo": "MUSC",
+   "nombre": "Musculosa",
+   "slug": "musculosa",
+   "categoria": "Musculosas",
+   "tabla": "tabla-musculosa.webp",
+   "pesoGramos": 180,
+   "texto": "Musculosa: sin mangas unisex o de morley para mujer.",
+   "modelos": [
+    {
+     "codigo": "SMB",
+     "nombre": "Sin mangas unisex blanca",
+     "oscura": false,
+     "costo": "15100",
+     "precio": "35000",
+     "talles": [
+      "S",
+      "M",
+      "L",
+      "XL",
+      "XXL"
+     ]
+    },
+    {
+     "codigo": "SMN",
+     "nombre": "Sin mangas unisex negra",
+     "oscura": true,
+     "costo": "17670",
+     "precio": "41000",
+     "talles": [
+      "S",
+      "M",
+      "L",
+      "XL",
+      "XXL"
+     ]
+    },
+    {
+     "codigo": "MMB",
+     "nombre": "Morley mujer blanca",
+     "oscura": false,
+     "costo": "13096",
+     "precio": "31000",
+     "talles": [
+      "S",
+      "M",
+      "L",
+      "XL",
+      "XXL"
+     ]
+    },
+    {
+     "codigo": "MMG",
+     "nombre": "Morley mujer gris",
+     "oscura": false,
+     "costo": "13096",
+     "precio": "31000",
+     "talles": [
+      "S",
+      "M",
+      "L",
+      "XL",
+      "XXL"
+     ]
+    }
+   ]
+  }
+ ]
+}
