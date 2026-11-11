@@ -21,6 +21,7 @@ function deps(extra: Record<string, unknown> = {}) {
       botActivo: async () => true,
       candidatos: async () => [CHAT],
       pendiente: async () => PEDIDO,
+      consultaSinCompra: async () => null,
       yaRecordado: async () => false,
       ultimoMensaje: async () => ({ id: "m9", direccion: "SALIENTE" }),
       enviar,
@@ -66,5 +67,25 @@ describe("recordarPagosPendientes", () => {
     const { d, marcar } = deps({ enviar: async () => "omitido" as const });
     expect(await recordarPagosPendientes(d)).toEqual({ revisados: 1, enviados: 0 });
     expect(marcar).not.toHaveBeenCalled();
+  });
+
+  it("consulta de catálogo sin compra: le escribe una vez para retomarla, y lo anota", async () => {
+    const { d, enviar, marcar } = deps({ pendiente: async () => null, consultaSinCompra: async () => ({ desde: hace(21) }) });
+    expect(await recordarPagosPendientes(d)).toEqual({ revisados: 1, enviados: 1 });
+    expect(enviar).toHaveBeenCalledWith("w1", "chat1", expect.stringContaining("¡Hola Daniel!"), { ultimoMensajeId: "m9" });
+    expect(marcar).toHaveBeenCalledWith("w1", "chat1", "Seguimiento de consulta enviado");
+  });
+
+  it("si hay un pago pendiente, va el recordatorio de pago y no el seguimiento de la consulta", async () => {
+    const { d, marcar } = deps({ consultaSinCompra: async () => ({ desde: hace(21) }) });
+    await recordarPagosPendientes(d);
+    expect(marcar).toHaveBeenCalledTimes(1);
+    expect(marcar).toHaveBeenCalledWith("w1", "chat1", expect.stringContaining("Recordatorio de pago"));
+  });
+
+  it("el seguimiento de la consulta tampoco sale si el cliente escribió último", async () => {
+    const { d, enviar } = deps({ pendiente: async () => null, consultaSinCompra: async () => ({ desde: hace(21) }), ultimoMensaje: async () => ({ id: "m9", direccion: "ENTRANTE" }) });
+    await recordarPagosPendientes(d);
+    expect(enviar).not.toHaveBeenCalled();
   });
 });

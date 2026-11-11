@@ -15,7 +15,8 @@ function autorizado(request: Request): boolean {
 
 /**
  * Recordatorio de pago del bot de WhatsApp: cada 15 minutos busca los chats con un pedido sin pagar
- * cerca del final de la ventana de 24 h y les escribe una vez. Devuelve sólo contadores.
+ * cerca del final de la ventana de 24 h y les escribe una vez. A los que consultaron un precio del
+ * catálogo y no compraron, les hace un seguimiento (una vez por semana como mucho). Devuelve sólo contadores.
  */
 export async function POST(request: Request) {
   if (!autorizado(request)) {
