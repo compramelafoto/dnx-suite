@@ -50,3 +50,20 @@ const PLATAFORMAS_POR_TIPO: Record<TipoContacto, Plataforma[]> = {
 export function plataformasPorTipo(tipo: TipoContacto): Plataforma[] {
   return [...PLATAFORMAS_POR_TIPO[tipo]];
 }
+
+/**
+ * Evento de `DnxContactoEvento` que deja el paso «completar correos» del Buscador por cada intento de
+ * conseguirle el correo a un contacto que ya estaba sin email. En `datos` van el resultado y el costo
+ * de Claude (`costoClaudeUsdMicros`), que `gastoDelMes` suma al gasto del Buscador.
+ */
+export const EVENTO_BUSQUEDA_CORREO = "BUSQUEDA_CORREO";
+
+/**
+ * Cómo terminó un intento. `REINTENTAR` (Claude caído, sin tiempo, llamada cortada) no cuenta como
+ * intento hecho: el contacto se vuelve a probar en otra corrida (ver `correos.ts`). `EN_CURSO` es un
+ * intento que quedó a medias porque la corrida murió: cuenta como hecho (no se repite sin fin).
+ */
+export const RESULTADOS_BUSQUEDA_CORREO = [
+  "EN_CURSO", "COMPLETADO", "SIN_CORREO", "DUPLICADO", "YA_TENIA", "ERROR", "REINTENTAR",
+] as const;
+export type ResultadoBusquedaCorreo = (typeof RESULTADOS_BUSQUEDA_CORREO)[number];

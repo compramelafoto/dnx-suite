@@ -8,6 +8,21 @@ describe("grupoDe", () => {
   it("fotógrafo: el primer nicho conocido manda", () => {
     expect(grupoDe({ tipo: "FOTOGRAFO", nichos: ["ESCOLAR", "SOCIAL"] })).toBe("FOTOGRAFO:ESCOLAR");
   });
+  it("fotógrafo: ESCOLAR en cualquier posición manda, aunque haya TURISTICA antes", () => {
+    expect(grupoDe({ tipo: "FOTOGRAFO", nichos: ["SOCIAL", "ESCOLAR"] })).toBe("FOTOGRAFO:ESCOLAR");
+    expect(grupoDe({ tipo: "FOTOGRAFO", nichos: ["TURISTICA", "DEPORTIVA", "ESCOLAR"] })).toBe("FOTOGRAFO:ESCOLAR");
+  });
+  it("fotógrafo: sin ESCOLAR, TURISTICA en cualquier posición manda", () => {
+    expect(grupoDe({ tipo: "FOTOGRAFO", nichos: ["DEPORTIVA", "TURISTICA"] })).toBe("FOTOGRAFO:TURISTICA");
+    expect(grupoDe({ tipo: "FOTOGRAFO", nichos: ["OTRO:bodas", "TURISTICA"] })).toBe("FOTOGRAFO:TURISTICA");
+  });
+  it("fotógrafo sin ESCOLAR ni TURISTICA: el primer nicho, como antes", () => {
+    expect(grupoDe({ tipo: "FOTOGRAFO", nichos: ["DEPORTIVA", "SOCIAL"] })).toBe("FOTOGRAFO:DEPORTIVA");
+    expect(grupoDe({ tipo: "FOTOGRAFO", nichos: ["OTRO:bodas", "SOCIAL"] })).toBe("FOTOGRAFO:GENERAL");
+  });
+  it("el nicho no cambia el grupo de los demás tipos", () => {
+    expect(grupoDe({ tipo: "CLUB", nichos: ["ESCOLAR"] })).toBe("CLUB");
+  });
   it("fotógrafo con nicho libre o sin nichos: general", () => {
     expect(grupoDe({ tipo: "FOTOGRAFO", nichos: ["OTRO:bodas"] })).toBe("FOTOGRAFO:GENERAL");
     expect(grupoDe({ tipo: "FOTOGRAFO", nichos: [] })).toBe("FOTOGRAFO:GENERAL");

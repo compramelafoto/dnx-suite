@@ -41,6 +41,15 @@ function describir(e: DnxContactoEvento): string {
       return d.en ? "Se fusionó en otro contacto." : "Se le sumó otro contacto (fusión).";
     case "VINCULADO":
       return `Vinculado: ${etiquetaVinculo(texto(d.vinculo))}${d.por === "email" ? " (por el correo)" : d.por === "telefono" ? " (por el teléfono)" : ""}.`;
+    case "BUSQUEDA_CORREO": {
+      const via = d.via === "SITIO_PROPIO" ? " en su web" : d.via === "CLAUDE" ? " en internet" : "";
+      if (d.resultado === "COMPLETADO") return `El Buscador le encontró el correo${via}: ${texto(d.email)}.`;
+      if (d.resultado === "DUPLICADO") return `El Buscador encontró un correo${via} (${texto(d.email)}), pero ya es de otro contacto: no se asignó.`;
+      if (d.resultado === "SIN_CORREO") return "El Buscador buscó su correo y no encontró ninguno publicado.";
+      if (d.resultado === "YA_TENIA") return "El Buscador encontró un correo, pero la ficha ya tenía uno: no se tocó.";
+      if (d.resultado === "REINTENTAR") return "El Buscador no pudo terminar de buscar su correo; lo vuelve a intentar.";
+      return "El Buscador intentó buscar su correo.";
+    }
     default:
       return e.tipo;
   }

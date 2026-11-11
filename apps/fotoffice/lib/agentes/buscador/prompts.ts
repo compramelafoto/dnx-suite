@@ -97,3 +97,40 @@ export function pedidoLeerLugar(
   ];
   return lineas.filter(Boolean).join("\n");
 }
+
+export const SISTEMA_BUSCAR_CORREO = `Sos el Buscador de DNX, un grupo de plataformas de fotografía de Argentina. Te paso UN negocio o profesional que ya conocemos (nombre, ciudad y lo que tengamos: su web, su Instagram, su Facebook). Tu único trabajo es encontrar el CORREO ELECTRÓNICO comercial que ese negocio publica para que lo contacten.
+
+Cómo trabajar (con la búsqueda web, pocas búsquedas):
+- Si te paso la web, buscá el correo en ella (la página de contacto, el pie de página).
+- Si no aparece ahí, o no hay web, buscalo en su perfil de Instagram o Facebook (la biografía, el botón de contacto) o en una página donde el propio negocio lo haya publicado.
+- Asegurate de que sea el mismo negocio (mismo nombre y misma ciudad). Si dudás, devolvé null.
+
+${REGLAS_DE_DATOS}
+
+Respondé SOLO con un bloque \`\`\`json con este objeto:
+{
+  "email": { "valor": "correo@dominio", "fuenteUrl": "https://..." } o null
+}
+Si no encontraste un correo publicado por el propio negocio, devolvé "email": null.`;
+
+export function pedidoBuscarCorreo(c: {
+  nombre: string;
+  ciudad: string | null;
+  provincia: string | null;
+  tipo: TipoContacto;
+  nichos: string[];
+  web: string | null;
+  instagram: string | null;
+  facebook: string | null;
+}): string {
+  const lugar = [c.ciudad, c.provincia ? `provincia de ${c.provincia}` : null].filter(Boolean).join(", ");
+  const lineas = [
+    `Negocio: ${c.nombre}`,
+    `Ciudad: ${lugar || "sin dato"} (Argentina)`,
+    `Tipo: ${textoTipo(c.tipo, c.nichos[0] ?? null)}`,
+    c.web ? `Web: ${c.web}` : "No tiene web conocida.",
+    c.instagram ? `Instagram: ${c.instagram}` : null,
+    c.facebook ? `Facebook: ${c.facebook}` : null,
+  ];
+  return lineas.filter(Boolean).join("\n");
+}

@@ -16,9 +16,16 @@ const TIPOS_CON_GRUPO_PROPIO: readonly string[] = [
   "ORGANIZADOR_MUESTRAS", "EMPRESA_TURISMO", "NEGOCIO_FOTOGRAFIA",
 ] satisfies TipoContacto[];
 
-/** El grupo de mensaje de un contacto; null si no se le escribe (OTRO o un tipo desconocido). */
+/**
+ * El grupo de mensaje de un contacto; null si no se le escribe (OTRO o un tipo desconocido). Un
+ * fotógrafo con ESCOLAR en cualquier posición de sus nichos va a escolar; si no, con TURISTICA en
+ * cualquier posición, a turismo (las dos campañas con landing y curso propios); si no, manda el
+ * primer nicho.
+ */
 export function grupoDe(c: { tipo: string; nichos: string[] }): Grupo | null {
   if (c.tipo === "FOTOGRAFO") {
+    if (c.nichos.includes("ESCOLAR")) return "FOTOGRAFO:ESCOLAR";
+    if (c.nichos.includes("TURISTICA")) return "FOTOGRAFO:TURISTICA";
     const nicho = c.nichos[0];
     return nicho && (NICHOS as readonly string[]).includes(nicho)
       ? (`FOTOGRAFO:${nicho}` as Grupo)
