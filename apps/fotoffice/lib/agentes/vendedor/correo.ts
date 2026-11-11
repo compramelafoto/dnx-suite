@@ -31,11 +31,20 @@ export function enlaceSeguimiento(ruta: string, token: string): string {
   return `${base}?${PARAM_SEGUIMIENTO}=${token}`;
 }
 
+/** El teléfono de Daniel en la firma (lo pone el sistema, nunca Claude: así no cambia un dígito). */
+export const TELEFONO_DANIEL = "341 374-8324";
+export const WHATSAPP_DANIEL = "https://wa.me/5493413748324";
+
+const ESTILO_BOTON_WHATSAPP =
+  "display:inline-block;background:#25D366;color:#ffffff;text-decoration:none;font-weight:bold;padding:8px 16px;border-radius:6px";
+
 export function pieDeCorreo(urlBaja: string): string {
   return [
     "—",
     "Daniel Cuart",
     "CompraMeLaFoto · compramelafoto.com",
+    `Tel.: ${TELEFONO_DANIEL}`,
+    `WhatsApp: ${WHATSAPP_DANIEL}`,
     "",
     `Te escribo porque tu contacto está publicado como dato comercial. Si no querés que te escriba más, respondé «baja» o entrá acá: ${urlBaja}`,
   ].join("\n");
@@ -57,11 +66,14 @@ function escapar(texto: string): string {
 
 /** El texto escapado en un bloque con `pre-wrap`, con los enlaces clicables y nada más. */
 export function htmlDeTexto(texto: string): string {
-  const cuerpo = escapar(texto).replace(/https?:\/\/[^\s<]+/g, (crudo) => {
-    // La puntuación del final (un punto o una coma) es de la oración, no de la dirección.
-    const url = crudo.replace(/[.,;:!?)»]+$/, "");
-    return `<a href="${url}">${url}</a>${crudo.slice(url.length)}`;
-  });
+  const cuerpo = escapar(texto)
+    // La línea de WhatsApp de la firma va como botón (en el texto simple queda el enlace).
+    .replace(`WhatsApp: ${WHATSAPP_DANIEL}`, `<a href="${WHATSAPP_DANIEL}" style="${ESTILO_BOTON_WHATSAPP}">Escribime por WhatsApp</a>`)
+    .replace(/(^|[^"])(https?:\/\/[^\s<"]+)/g, (_m, antes: string, crudo: string) => {
+      // La puntuación del final (un punto o una coma) es de la oración, no de la dirección.
+      const url = crudo.replace(/[.,;:!?)»]+$/, "");
+      return `${antes}<a href="${url}">${url}</a>${crudo.slice(url.length)}`;
+    });
   return `<div style="white-space:pre-wrap;font-family:Arial,sans-serif;font-size:14px">${cuerpo}</div>`;
 }
 
