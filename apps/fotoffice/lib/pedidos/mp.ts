@@ -238,6 +238,55 @@ export async function acreditarPagoMp(workspaceId: string, pago: PagoMp, deps: D
   }
 }
 
+export type ResultadoPorComprobante =
+  | { resultado: "acreditado"; cobroId: string; reciboNumero: string }
+  /** Ese pago ya estaba acreditado en este mismo pedido. */
+  | { resultado: "ya_acreditado" }
+  /** Ese pago ya figura en otro pedido o cobro. */
+  | { resultado: "pago_ya_usado" }
+  | { resultado: "no_aprobado" }
+  | { resultado: "sin_aplicar"; motivo: MotivoSinAcreditar };
+
+/**
+ * Una transferencia a la cuenta de Mercado Pago del estudio, verificada por el comprobante que mandó
+ * el cliente por WhatsApp (el bot cobra por transferencia). No trae la referencia de una cuota: el
+ * pedido lo dice quien llama, que ya comprobó que es un pedido del bot de ese chat esperando la seña.
+ * Es el mismo cobro de siempre (`registrarCobroDelSistema`: imputación, recibo, Caja y efectos del
+ * pago); además, con el candado por pago, revisa que ese pago no esté en un pedido de copias. No lanza.
+ */
+export async function acreditarPagoPedidoPorComprobante(workspaceId: string, pedidoId: string, pago: PagoMp, deps: DepsAcreditar = {}): Promise<ResultadoPorComprobante> {
+  try {
+    if (!pagoAprobado(pago)) return { resultado: "no_aprobado" };
+    const hechos = hechosDelPago(pago);
+    if (hechos.currency !== "ARS" || hechos.amountMinor <= 0) return { resultado: "sin_aplicar", motivo: "DATOS" };
+    const { bloquearPagoMp, pagoMpYaUsado } = await import("@/lib/impresiones/pago-unico");
+    if (await pagoMpYaUsado(prisma, workspaceId, hechos.providerPaymentId, { sinCobros: true })) return { resultado: "pago_ya_usado" };
+    const r = await registrarCobroDelSistema({
+      workspaceId,
+      pedidoId,
+      importe: desdeCentavos(hechos.amountMinor),
+      paidAt: hechos.paidAt,
+      cuotaPreferidaId: null,
+      providerPaymentRef: hechos.providerPaymentId,
+      feeArs: hechos.feeMinor === null ? null : desdeCentavos(hechos.feeMinor),
+      netArs: hechos.feeMinor === null ? null : desdeCentavos(hechos.amountMinor - hechos.feeMinor),
+      conPlataforma: hechos.conPlataforma,
+      // El cobro de otro pedido con este pago lo frena el único de `providerPaymentRef`; el de un pedido de copias, esto.
+      enLaTransaccion: async (tx) => {
+        await bloquearPagoMp(tx, hechos.providerPaymentId);
+        if (await pagoMpYaUsado(tx, workspaceId, hechos.providerPaymentId, { sinCobros: true })) throw new Error("PAGO_YA_USADO");
+      },
+    });
+    if (!r.ok) return { resultado: "sin_aplicar", motivo: r.motivo };
+    if (!r.creado) return r.pedidoId === pedidoId ? { resultado: "ya_acreditado" } : { resultado: "pago_ya_usado" };
+    programarRecibo(workspaceId, r.cobroId, deps);
+    return { resultado: "acreditado", cobroId: r.cobroId, reciboNumero: r.reciboNumero };
+  } catch (error) {
+    console.error("[fotoffice][pedidos] falló la acreditación por comprobante", { detalle: sanitizeError(error) });
+    return { resultado: "sin_aplicar", motivo: "FALLO" };
+  }
+}
+
 /**
  * Lo que retuvo la plataforma de un pago leído (sólo el `application_fee` que informa Mercado Pago),
  * con la tasa de hoy para la nota (null si no se pudo leer). null si no retuvo. Aunque la tasa no se

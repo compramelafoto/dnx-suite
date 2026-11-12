@@ -58,6 +58,18 @@ describe("guía del bot de atención", () => {
     expect(g).toContain("resumen por correo");
   });
 
+  it("cobra por transferencia primero y pide el comprobante; el link de Mercado Pago sólo con tarjeta o cuotas", () => {
+    const g = guiaDeAtencion();
+    expect(g).toContain("CÓMO SE PAGA (transferencia primero)");
+    expect(g).toContain("Ofrecé siempre primero la transferencia");
+    expect(g).toContain("mande el comprobante por acá");
+    expect(g).toContain('medio "tarjeta"');
+    expect(g).toContain("tarjeta o en cuotas");
+    expect(g).toContain("una sola pregunta por mensaje");
+    expect(g).not.toContain("los dos links de pago (seña o total, el que prefiera)");
+    expect(g).not.toContain("el enlace del pedido (ahí paga con Mercado Pago)");
+  });
+
   it("la situación dice el día y la hora en Argentina y el nombre si lo hay", () => {
     const s = situacionDeAtencion({ estudio: "DNX Estudio", cliente: "Lucía", ahora: new Date("2026-10-20T23:30:00.000Z") });
     expect(s).toContain("DNX Estudio");

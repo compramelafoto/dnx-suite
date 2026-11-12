@@ -26,10 +26,15 @@ export function tocaRecordar(ultimoEntranteEn: Date | null, ahora: Date): boolea
 
 const pesos = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", minimumFractionDigits: 0, maximumFractionDigits: 2 });
 
-export function textoDelRecordatorio(nombre: string | null, p: PendienteDePago): string {
+/** `porTransferencia`: el estudio cobra por transferencia (tiene alias o CVU cargado): no se manda el link. */
+export function textoDelRecordatorio(nombre: string | null, p: PendienteDePago, porTransferencia = false): string {
   const primero = nombre?.trim().split(/\s+/)[0];
   const hola = primero ? `¡Hola ${primero}!` : "¡Hola!";
   const monto = pesos.format(p.aPagar);
+  if (porTransferencia) {
+    const que = p.tipo === "PEDIDO" ? `el pago de tu pedido N° ${p.numero} (${monto})` : `la seña de tus copias (pedido N° ${p.numero}, ${monto})`;
+    return `${hola} Te escribo porque quedó pendiente ${que}. Cuando transfieras, mandame el comprobante por acá. ¿Querés que te pase de nuevo los datos para transferir? 😊`;
+  }
   if (p.tipo === "PEDIDO") {
     const pagar = p.url ? ` Si querés dejarlo confirmado, lo podés pagar acá: ${p.url}` : " ¿Querés que te mande el enlace para pagarlo?";
     return `${hola} Te escribo porque quedó pendiente el pago de tu pedido N° ${p.numero} (${monto}).${pagar}\nCualquier duda, escribime y lo vemos 😊`;

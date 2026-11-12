@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { verificarComprobanteAction } from "@/app/actions/bandeja";
 
-/** Botón debajo de una imagen del cliente: ¿es un comprobante y el pago entró al Mercado Pago del estudio? */
+/** Botón debajo de una imagen o un PDF del cliente: ¿es un comprobante y el pago entró al Mercado Pago del estudio? */
 export function VerificarComprobante({ chatId, mensajeId }: { chatId: string; mensajeId: string }) {
   const [pendiente, empezar] = useTransition();
   const [resultado, setResultado] = useState<{ ok: boolean; texto: string } | null>(null);

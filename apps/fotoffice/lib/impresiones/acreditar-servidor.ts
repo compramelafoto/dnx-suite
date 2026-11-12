@@ -15,6 +15,7 @@ import { sanitizeError } from "@/lib/payments/connect/log";
 import { diaEnBuenosAires } from "@/lib/presupuestos/estados";
 import { crearProyectoDeSistema } from "@/lib/proyectos/crear";
 import { avisarPedidoConfirmado } from "./avisos-servidor";
+import { bloquearPagoMp, pagoMpYaUsado } from "./pago-unico";
 import { agruparPorLaboratorio } from "./carpeta-lab";
 import { CIRCUITO_POR_OMISION, DIAS_HABILES_PROMETIDOS } from "./constantes";
 import { sumarDiasHabiles } from "./dias-habiles";
@@ -43,7 +44,16 @@ type Tx = Prisma.TransactionClient;
 
 export type ResultadoAcreditarImpresion =
   | { ok: true; yaEstaba: boolean }
-  | { ok: false; error: "NO_ES_IMPRESION" | "NO_APROBADO" | "MONEDA" | "IMPORTE_MENOR" | "NO_EXISTE" };
+  | { ok: false; error: "NO_ES_IMPRESION" | "NO_APROBADO" | "MONEDA" | "IMPORTE_MENOR" | "NO_EXISTE" | "PAGO_YA_USADO" };
+
+/**
+ * Un pago verificado por el comprobante que mandó el cliente (transferencia a la cuenta de Mercado Pago
+ * del estudio): no trae la referencia `fo-impresion:<id>`, así que el pedido lo dice quien llama. Sólo
+ * acredita un pedido del bot que espera el pago, y antes revisa (con un candado por pago) que ese pago
+ * no figure en otro pedido de copias ni en un cobro de Pedidos.
+ */
+export type OpcionesAcreditarImpresion = { porComprobante?: { pedidoId: string } };
+
 
 const ID_VALIDO = /^[A-Za-z0-9_-]{1,64}$/;
 const idValido = (v: unknown): v is string => typeof v === "string" && ID_VALIDO.test(v);
@@ -167,13 +177,16 @@ export async function asegurarTrabajosDelPedido(workspaceId: string, pedidoId: s
   }, OPCIONES_TRANSACCION);
 }
 
-export async function acreditarPagoImpresion(workspaceId: string, pago: PagoMp): Promise<ResultadoAcreditarImpresion> {
-  const id = pedidoDeReferencia(pago.externalReference);
+export async function acreditarPagoImpresion(workspaceId: string, pago: PagoMp, opciones: OpcionesAcreditarImpresion = {}): Promise<ResultadoAcreditarImpresion> {
+  const porComprobante = opciones.porComprobante ?? null;
+  const id = porComprobante ? porComprobante.pedidoId : pedidoDeReferencia(pago.externalReference);
   if (!idValido(id)) return { ok: false, error: "NO_ES_IMPRESION" };
   if (!pagoAprobado(pago)) return { ok: false, error: "NO_APROBADO" };
   if (pago.currency !== "ARS") return { ok: false, error: "MONEDA" };
   const pedido = await prisma.fotofficePrintOrder.findUnique({ where: { id }, include: { items: true } });
   if (!pedido || pedido.workspaceId !== workspaceId) return { ok: false, error: "NO_EXISTE" };
+  // Por comprobante, sólo un pedido del bot que todavía espera el pago.
+  if (porComprobante && ((pedido as { source?: string }).source !== "WHATSAPP" || pedido.status !== "PENDIENTE_PAGO")) return { ok: false, error: "NO_EXISTE" };
   const totalCents = cents(pedido.totalArs);
   const p = pedido as typeof pedido & { source?: string; depositArs?: unknown; waId?: string | null; lastError?: string | null };
   const delBot = p.source === "WHATSAPP";
@@ -193,6 +206,11 @@ export async function acreditarPagoImpresion(workspaceId: string, pago: PagoMp):
   const reemplazado = delBot && pedido.status === "CANCELADO" && p.lastError === "REEMPLAZADO";
 
   const resultado = await prisma.$transaction(async (tx) => {
+    if (porComprobante) {
+      // Una transferencia no trae referencia: el mismo pago no puede acreditar dos pedidos (ni un cobro).
+      await bloquearPagoMp(tx, hechos.providerPaymentId);
+      if (await pagoMpYaUsado(tx, workspaceId, hechos.providerPaymentId)) return { yaEstaba: false, yaUsado: true };
+    }
     const ingreso = async (montoCents: number, sourceRef: string, clientId: string | null) => {
       if (!cajaEncendida) return null;
       const cuentas = await tx.cashAccount.findMany({
@@ -229,7 +247,7 @@ export async function acreditarPagoImpresion(workspaceId: string, pago: PagoMp):
     }
 
     const cambio = await tx.fotofficePrintOrder.updateMany({
-      where: { id, workspaceId, status: { in: ["PENDIENTE_PAGO", "CANCELADO"] }, providerPaymentRef: null },
+      where: { id, workspaceId, status: { in: porComprobante ? ["PENDIENTE_PAGO"] : ["PENDIENTE_PAGO", "CANCELADO"] }, providerPaymentRef: null },
       data: {
         status: "PAGADO",
         paidAt,
@@ -240,6 +258,7 @@ export async function acreditarPagoImpresion(workspaceId: string, pago: PagoMp):
         ...(delBot ? { paidArs: pesos(pago.amountMinor) } : {}),
       },
     });
+    if (cambio.count === 0 && porComprobante) return { yaEstaba: true };
     if (cambio.count === 0 && delBot) {
       // Pedido del bot ya pagado: otro pago (el total después de la seña, o el saldo) suma a lo pagado.
       const actual = (await tx.fotofficePrintOrder.findUnique({
@@ -285,6 +304,7 @@ export async function acreditarPagoImpresion(workspaceId: string, pago: PagoMp):
     return { yaEstaba: false };
   }, OPCIONES_TRANSACCION);
 
+  if ((resultado as { yaUsado?: boolean }).yaUsado) return { ok: false, error: "PAGO_YA_USADO" };
   if (resultado.yaEstaba) return { ok: true, yaEstaba: true };
   const r = resultado as { reemplazado?: boolean; extra?: boolean; deMas?: boolean; deMasCents?: number };
   if (r.reemplazado) {

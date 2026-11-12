@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 vi.mock("@repo/db", () => ({ prisma: {} }));
 
-const { verificarComprobante } = await import("./verificar-servidor");
+const { esMimeDeComprobante, verificarComprobante } = await import("./verificar-servidor");
 type Deps = NonNullable<Parameters<typeof verificarComprobante>[3]>;
 
 const CTX = { workspaceId: "w1", userId: 1, userLabel: "Cami", role: "STAFF", acceso: {} } as never;
@@ -38,12 +38,21 @@ describe("verificarComprobante", () => {
   });
 
   it("sin imagen de ese chat, o sin Mercado Pago conectado, avisa sin inventar", async () => {
-    expect(await verificarComprobante(CTX, "c1", "m1", deps({ imagen: async () => null }).d)).toEqual({ ok: false, error: "No encontramos esa imagen en el chat." });
+    expect(await verificarComprobante(CTX, "c1", "m1", deps({ imagen: async () => null }).d)).toEqual({ ok: false, error: "No encontramos esa imagen o PDF en el chat." });
     const sinMp = deps({ pagoPorOperacion: async () => { throw new Error("NOT_CONNECTED"); } }).d;
     expect(await verificarComprobante(CTX, "c1", "m1", sinMp)).toEqual({ ok: false, error: "No se pudo consultar Mercado Pago. Revisá que esté conectado en Configuración → Cobros." });
   });
 
   it("si la IA no pudo leer la imagen, lo dice", async () => {
     expect(await verificarComprobante(CTX, "c1", "m1", deps({ leer: async () => null }).d)).toEqual({ ok: false, error: "No pude leer el comprobante. Probá de nuevo o revisalo a mano." });
+  });
+});
+
+describe("esMimeDeComprobante", () => {
+  it("acepta imágenes y el PDF que mandan los bancos; nada más", () => {
+    expect(esMimeDeComprobante("image/jpeg")).toBe(true);
+    expect(esMimeDeComprobante("application/pdf")).toBe(true);
+    expect(esMimeDeComprobante("application/msword")).toBe(false);
+    expect(esMimeDeComprobante(null)).toBe(false);
   });
 });

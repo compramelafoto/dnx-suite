@@ -31,6 +31,14 @@ describe("textoDelRecordatorio", () => {
     expect(t).toContain("enlace");
   });
 
+  it("si el estudio cobra por transferencia, no manda el link: pide el comprobante y ofrece los datos", () => {
+    const t = textoDelRecordatorio("Lucía", { tipo: "PEDIDO", numero: "2026-0042", aPagar: 43000, url: "https://fotoffice.com/p/tok", creado: AHORA }, true);
+    expect(t).not.toContain("https://");
+    expect(t).toContain("comprobante");
+    expect(t).toContain("datos para transferir");
+    expect(textoDelRecordatorio(null, { tipo: "IMPRESION", numero: 12, aPagar: 5000, creado: AHORA }, true)).not.toContain("enlace");
+  });
+
   it("la marca del chat dice qué pedido se recordó", () => {
     expect(MARCA_RECORDATORIO).toBe("Recordatorio de pago enviado");
   });
