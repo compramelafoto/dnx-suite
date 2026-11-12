@@ -10,6 +10,7 @@ Cuestionarios disponibles:
 
 - `productora-docente-v1`: escuela o productora con cursos (F64, desde cero).
 - `club-suscripcion-v1`: club por suscripción con clases en vivo, grabadas y un envío mensual (SOYBELUZ). Pensado para un espacio ya armado: confirma lo cargado y pregunta lo que falta (materiales de cada BOX, envíos, cobros, clases, textos).
+- `registro-docente-v1`: docente de escuela (asistencia, notas, períodos, Mi Escuela de Santa Fe). Estrenado con Belén Saldaña; ver `docs/analisis-registro-docente.md`.
 
 ## 1. Juntar lo público antes de preguntar
 
