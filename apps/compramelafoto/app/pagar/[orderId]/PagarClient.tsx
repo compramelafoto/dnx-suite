@@ -12,6 +12,7 @@ import { pagarPedidoPiloto } from "@/lib/split-1n-piloto/pagar";
 import { conTipoDeTarjeta } from "@/lib/split-1n-piloto/tarjeta";
 import { pagarGrupo } from "@/lib/split-1n-carrito-evento/pagar-grupo";
 import PlanBMercadoPago from "./PlanBMercadoPago";
+import VolverATarjeta from "../grupo/[grupoId]/VolverATarjeta";
 
 type Props = {
   publicKey: string;
@@ -30,6 +31,8 @@ type Props = {
    * seguir ahí y no la tarjeta (que no cobraría mientras esa orden siga vigente).
    */
   soloMercadoPago?: boolean;
+  /** Con `soloMercadoPago`: ofrecer cancelar Mercado Pago y volver a la tarjeta. */
+  permitirTarjeta?: boolean;
 };
 
 type Estado =
@@ -41,7 +44,7 @@ type Estado =
 let mpInicializadaPara: string | null = null;
 
 function asegurarMercadoPago(publicKey: string) {
-  if (mpInicializadaPara === publicKey) return;
+  if (!publicKey || mpInicializadaPara === publicKey) return;
   initMercadoPago(publicKey, { locale: "es-AR" });
   mpInicializadaPara = publicKey;
 }
@@ -153,6 +156,7 @@ export default function PagarClient(props: Props) {
         <p className="text-center text-sm text-neutral-600">
           Si ya pagaste en Mercado Pago, esperá unos minutos y recargá la página: no pagues de nuevo.
         </p>
+        {props.grupoId && props.publicKey && props.permitirTarjeta ? <VolverATarjeta grupoId={props.grupoId} /> : null}
         <p className="text-center text-sm">
           <Link href={props.volverA} className="text-neutral-600 underline">
             {props.volverTexto ?? "Volver al resumen de la compra"}

@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import type { GrupoCargado, PedidoDelGrupoCargado } from "./cargar";
 import {
   ESPERA_RESERVA_GRUPO_MS,
+  volverATarjetaGrupo,
   MENSAJES_CHECKOUT_GRUPO as M,
   marcaComunDelGrupo,
   resolverCheckoutSplitGrupo,
@@ -160,6 +161,7 @@ describe("Pagar con Mercado Pago en un carrito de evento", () => {
     const d = deps(base, { estadoOrden: async () => "expired" });
     const r = await resolverCheckoutSplitGrupo(d);
     assert.equal(r.tipo, "url");
+    assert.ok(d.llamadas.includes("cancelar:ORD01A"), "la vieja se cancela en Mercado Pago antes de liberar");
     assert.ok(d.llamadas.includes(`crear:clf-event-cart-${GRUPO}-2:clf-event-cart-${GRUPO}`));
     const marca = leerMarcaGrupo(base.filas[0].snapshot)!;
     assert.equal(marca.estado, "CHECKOUT_SPLIT");
@@ -251,7 +253,7 @@ describe("Pagar con Mercado Pago en un carrito de evento", () => {
     assert.deepEqual(d.llamadas, []);
   });
 
-  it("una reserva vieja sin orden se retoma con el MISMO intento (Mercado Pago devuelve la misma orden)", async () => {
+  it("una reserva vieja sin orden se retoma con un intento NUEVO (la orden vieja nunca llegó a nadie)", async () => {
     const base = crearBase({
       estado: "CHECKOUT_SPLIT",
       intento: 3,
@@ -260,7 +262,7 @@ describe("Pagar con Mercado Pago en un carrito de evento", () => {
     const d = deps(base);
     const r = await resolverCheckoutSplitGrupo(d);
     assert.equal(r.tipo, "url");
-    assert.ok(d.llamadas.includes(`crear:clf-event-cart-${GRUPO}-3:clf-event-cart-${GRUPO}`));
+    assert.ok(d.llamadas.includes(`crear:clf-event-cart-${GRUPO}-4:clf-event-cart-${GRUPO}`));
   });
 
   it("si otra pestaña cambió el grupo mientras se creaba la orden, la cancela", async () => {
@@ -290,5 +292,65 @@ describe("Pagar con Mercado Pago en un carrito de evento", () => {
     const r = await resolverCheckoutSplitGrupo(d);
     assert.equal(r.tipo, "fin");
     assert.deepEqual(d.llamadas, []);
+  });
+
+  it("una orden rechazada que Mercado Pago no deja cancelar y sigue viva no se libera", async () => {
+    const base = crearBase({ estado: "CHECKOUT_SPLIT", providerOrderId: "ORD01A", checkoutUrl: "https://mp/ORD01A", intento: 1 });
+    let lecturas = 0;
+    const d = deps(base, {
+      // Primero dice «failed»; después de intentar cancelar, aparece en proceso.
+      estadoOrden: async () => (lecturas++ === 0 ? "failed" : "processing"),
+    });
+    assert.deepEqual(await resolverCheckoutSplitGrupo(d), { tipo: "fin", mensaje: M.verificando });
+    assert.equal(leerMarcaGrupo(base.filas[0].snapshot)!.estado, "CHECKOUT_SPLIT");
+  });
+
+  it("si armar la orden falla, el grupo no queda trabado", async () => {
+    const base = crearBase();
+    const d = deps(base, {
+      preparar: async () => ({ ...PREPARADO, cobro: { ...(PREPARADO as Extract<GrupoPreparado, { ok: true }>).cobro, distribution: [] as never } }) as GrupoPreparado,
+    });
+    assert.deepEqual(await resolverCheckoutSplitGrupo(d), { tipo: "fin", mensaje: M.error });
+    for (const f of base.filas) assert.equal(leerMarcaGrupo(f.snapshot)!.estado, "PENDIENTE");
+  });
+});
+
+describe("Volver a la tarjeta en un carrito de evento", () => {
+  it("cancela la orden abierta y deja el grupo en PENDIENTE", async () => {
+    const base = crearBase({ estado: "CHECKOUT_SPLIT", providerOrderId: "ORD01A", checkoutUrl: "https://mp/ORD01A", intento: 1 });
+    let cancelada = false;
+    const d = deps(base, {
+      estadoOrden: async () => (cancelada ? "canceled" : "created"),
+      cancelarOrden: async () => {
+        cancelada = true;
+      },
+    });
+    assert.deepEqual(await volverATarjetaGrupo(d), { ok: true });
+    const m = leerMarcaGrupo(base.filas[0].snapshot)!;
+    assert.equal(m.estado, "PENDIENTE");
+    assert.equal(m.providerOrderId, undefined);
+  });
+
+  it("si la orden ya se pagó, confirma y no libera", async () => {
+    const base = crearBase({ estado: "CHECKOUT_SPLIT", providerOrderId: "ORD01A", checkoutUrl: "https://mp/ORD01A", intento: 1 });
+    const d = deps(base, { estadoOrden: async () => "processed" });
+    assert.deepEqual(await volverATarjetaGrupo(d), { ok: false, mensaje: M.pagado });
+    assert.equal(leerMarcaGrupo(base.filas[0].snapshot)!.estado, "CHECKOUT_SPLIT");
+  });
+
+  it("si la cancelación no se confirma, no libera", async () => {
+    const base = crearBase({ estado: "CHECKOUT_SPLIT", providerOrderId: "ORD01A", checkoutUrl: "https://mp/ORD01A", intento: 1 });
+    const d = deps(base, {
+      cancelarOrden: async () => {
+        throw new Error("409");
+      },
+    });
+    assert.deepEqual(await volverATarjetaGrupo(d), { ok: false, mensaje: M.verificando });
+    assert.equal(leerMarcaGrupo(base.filas[0].snapshot)!.estado, "CHECKOUT_SPLIT");
+  });
+
+  it("no toca un cobro con tarjeta en curso", async () => {
+    const base = crearBase({ estado: "COBRANDO", intento: 1 });
+    assert.deepEqual(await volverATarjetaGrupo(deps(base)), { ok: false, mensaje: M.tarjeta_en_curso });
   });
 });

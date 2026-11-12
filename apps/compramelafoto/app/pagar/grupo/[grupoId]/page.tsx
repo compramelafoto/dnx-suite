@@ -26,8 +26,12 @@ export default async function PagarGrupoPage({ params }: { params: Promise<{ gru
   // El interruptor sólo decide si se puede pagar. Un grupo ya pagado o con un cobro en curso
   // sigue mostrando sus descargas (es el enlace del correo) y conciliando aunque se apague.
   const puedePagar = Boolean(piloto.publicKey) && carritoActivoParaEvento(resolveCarritoConfig(), piloto, grupo.eventId);
+  // Una orden de Mercado Pago con reparto abierta también cuenta: el comprador vuelve acá desde
+  // Mercado Pago y la página tiene que conciliar aunque el carrito se haya apagado.
   const yaCobrado =
-    grupo.pedidos.some((p) => p.order.status === "PAID") || estadoDelGrupo(grupo.pedidos) !== "PENDIENTE";
+    grupo.pedidos.some((p) => p.order.status === "PAID") ||
+    estadoDelGrupo(grupo.pedidos) !== "PENDIENTE" ||
+    grupo.pedidos.some((p) => p.marca.estado === "CHECKOUT_SPLIT");
   if (!puedePagar && !yaCobrado) notFound();
 
   // Conciliación al visitar: si ya hay una orden de Mercado Pago y falta confirmar algún pedido
@@ -112,7 +116,7 @@ export default async function PagarGrupoPage({ params }: { params: Promise<{ gru
               ),
             )}
           </div>
-        ) : estado !== "PENDIENTE" || !puedePagar ? (
+        ) : estado !== "PENDIENTE" || (!puedePagar && !mercadoPagoEnCurso) ? (
           <p className="text-neutral-700">
             Estamos verificando tu pago con Mercado Pago. Te avisamos por correo a {correo} apenas se
             confirme. <strong>No pagues de nuevo.</strong>
@@ -127,6 +131,7 @@ export default async function PagarGrupoPage({ params }: { params: Promise<{ gru
             volverTexto="Volver al evento"
             planB={conMercadoPago}
             soloMercadoPago={mercadoPagoEnCurso}
+            permitirTarjeta={puedePagar}
           />
         )}
       </div>
