@@ -88,6 +88,14 @@ describe("guía del bot de atención", () => {
     expect(g).not.toContain("en breve le escribe alguien del estudio");
   });
 
+  it("el escalón de cantidad se dice 'desde 10 copias' y el plazo de mañana como 'listas mañana a última hora'", () => {
+    const g = guiaDeAtencion();
+    expect(g).toContain("desde 10 copias");
+    expect(g).toContain("de 1 a 9 copias de una medida pagan el precio de la instantánea");
+    expect(g).toContain("Si querés tenerlas listas mañana a última hora");
+    expect(g).toContain("En el momento, mañana a última hora o la próxima semana");
+  });
+
   it("saluda según la hora y ofrece las opciones; escribe corto, con una carita", () => {
     const g = guiaDeAtencion();
     expect(g).toContain("Buen día, buenas tardes o buenas noches");
