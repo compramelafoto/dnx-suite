@@ -205,14 +205,14 @@ export function FormularioTestimonio({
           </div>
           <div className="fo-field-stack">
             <label htmlFor="tst-detalle" style={labelStyle}>
-              ¿Qué hicimos juntos? (opcional)
+              ¿Qué hiciste con nosotros? (opcional)
             </label>
             <input
               id="tst-detalle"
               name="autorDetalle"
               maxLength={MAX_DETALLE}
               defaultValue={detalleSugerido ?? ""}
-              placeholder="Casamiento en Rosario, XV de Cami…"
+              placeholder="Un curso, una sesión, el Club…"
               className="fo-input"
             />
             {errores.autorDetalle ? <p className="text-sm text-[var(--fo-danger)]">{errores.autorDetalle}</p> : null}
