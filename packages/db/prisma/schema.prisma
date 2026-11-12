@@ -22401,6 +22401,8 @@ model FotofficeCobroAjustes {
   banco               String?
   /// Sumar de 1 a 99 pesos a cada transferencia esperada para que no haya dos montos iguales.
   montoUnico          Boolean  @default(false)
+  /// El bot de WhatsApp confirma solo los pagos por transferencia cuando el comprobante coincide con Mercado Pago.
+  autoAcreditarComprobante Boolean @default(false)
   updatedAt           DateTime @updatedAt
   updatedByUserId     Int?
 

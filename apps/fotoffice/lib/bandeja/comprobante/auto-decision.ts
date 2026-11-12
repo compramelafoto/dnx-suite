@@ -14,7 +14,7 @@ import type { Leido, PagoMp, Veredicto } from "./veredicto";
  *   - con PROBABLE (por monto y hora, sin el número de operación) además: el pago está a 30 minutos
  *     o menos de la hora del comprobante, es el único pago de ese monto en esa ventana y, si los dos
  *     traen nombre, el de quien paga en Mercado Pago coincide con el del comprobante;
- *   - el estudio tiene encendida la confirmación automática (`autoConfirmarPedido`).
+ *   - el estudio tiene encendida la confirmación automática (`autoAcreditarComprobante`).
  * Si no es un comprobante, el bot sigue como siempre. En cualquier otro caso, pasa a una persona.
  */
 

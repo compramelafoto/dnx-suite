@@ -14,7 +14,7 @@ import {
   tocaRecordar,
   type PendienteDePago,
 } from "./recordatorio-pago";
-import { DIAS_ENTRE_SEGUIMIENTOS, MARCA_SEGUIMIENTO_CONSULTA, pasoPrecio, textoSeguimientoConsulta } from "./seguimiento-consulta";
+import { decidirSeguimiento, DIAS_ENTRE_SEGUIMIENTOS, horarioDeSeguimiento, MARCA_SEGUIMIENTO_CONSULTA, textoSeguimientoConsulta } from "./seguimiento-consulta";
 
 /**
  * Recordatorio de pago del bot (lo corre el cron cada 15 minutos): a cada chat que atiende el bot,
@@ -23,7 +23,8 @@ import { DIAS_ENTRE_SEGUIMIENTOS, MARCA_SEGUIMIENTO_CONSULTA, pasoPrecio, textoS
  * contesta el bot o una persona). Queda un SISTEMA en el chat, que también evita repetirlo.
  *
  * Si no hay nada para pagar pero el bot le pasó un precio y el cliente no compró, en el mismo
- * momento sale el seguimiento de la consulta (`seguimiento-consulta.ts`), una vez por semana como mucho.
+ * momento sale el seguimiento de la consulta (`seguimiento-consulta.ts`), una vez por semana como mucho,
+ * sólo de 9 a 20 h de Argentina y sólo si nadie del estudio atendió el chat después (ver las reglas allá).
  */
 
 const HORA_MS = 3_600_000;
@@ -35,8 +36,8 @@ export type DepsRecordatorio = {
   botActivo?: (workspaceId: string) => Promise<boolean>;
   candidatos?: (ahora: Date) => Promise<ChatCandidato[]>;
   pendiente?: (chat: ChatCandidato, ahora: Date) => Promise<PendienteDePago | null>;
-  /** Consulta de catálogo con precio y sin compra, todavía sin seguimiento; null si no hay. */
-  consultaSinCompra?: (chat: ChatCandidato, ahora: Date) => Promise<{ desde: Date } | null>;
+  /** Consulta de catálogo con precio y sin compra, todavía sin seguimiento; null si no hay. `tema`: de qué hablaron, si se sabe. */
+  consultaSinCompra?: (chat: ChatCandidato, ahora: Date) => Promise<{ desde: Date; tema?: string | null } | null>;
   yaRecordado?: (chat: ChatCandidato, p: PendienteDePago) => Promise<boolean>;
   ultimoMensaje?: (chatId: string) => Promise<{ id: string; direccion: string } | null>;
   enviar?: (workspaceId: string, chatId: string, texto: string, condicion: { ultimoMensajeId: string }) => Promise<SalidaEnvioBot>;
@@ -91,14 +92,15 @@ const POR_OMISION: Required<Omit<DepsRecordatorio, "ahora">> = {
   },
   consultaSinCompra: async (chat, ahora) => {
     const desde = new Date(ahora.getTime() - 24 * HORA_MS);
-    const conPrecio = await prisma.fotofficeWaMensaje.findMany({
-      where: { workspaceId: chat.workspaceId, chatId: chat.id, direccion: "SALIENTE", autor: "BOT", createdAt: { gte: desde }, texto: { contains: "$" } },
-      orderBy: { createdAt: "asc" },
-      select: { texto: true, createdAt: true },
-      take: 20,
+    // Toda la charla de las últimas 24 h: quién escribió después del precio decide (`decidirSeguimiento`).
+    const charla = await prisma.fotofficeWaMensaje.findMany({
+      where: { workspaceId: chat.workspaceId, chatId: chat.id, createdAt: { gte: desde } },
+      orderBy: { createdAt: "desc" },
+      select: { direccion: true, autor: true, texto: true, createdAt: true },
+      take: 200,
     });
-    const primero = conPrecio.find((m) => pasoPrecio(m.texto));
-    if (!primero) return null;
+    const decision = decidirSeguimiento(charla.reverse());
+    if (!decision) return null;
     const haceDias = (n: number) => new Date(ahora.getTime() - n * 24 * HORA_MS);
     const chatWa = await prisma.fotofficeWaChat.findUnique({ where: { id: chat.id }, select: { waId: true } });
     const [pedidos, copias, cotizaciones, seguidos] = await Promise.all([
@@ -110,7 +112,7 @@ const POR_OMISION: Required<Omit<DepsRecordatorio, "ahora">> = {
       }),
     ]);
     if (pedidos + copias + cotizaciones + seguidos > 0) return null;
-    return { desde: primero.createdAt };
+    return decision;
   },
   yaRecordado: async (chat, p) =>
     (await prisma.fotofficeWaMensaje.count({
@@ -146,8 +148,11 @@ export async function recordarPagosPendientes(deps: DepsRecordatorio = {}): Prom
         if (await d.yaRecordado(chat, p)) continue;
         texto = textoDelRecordatorio(chat.nombre, p, await d.porTransferencia(chat.workspaceId).catch(() => false));
         marca = marcaDe(p);
-      } else if (!p && (await d.consultaSinCompra(chat, ahora))) {
-        texto = textoSeguimientoConsulta(chat.nombre);
+      } else if (!p && horarioDeSeguimiento(ahora)) {
+        // Fuera de 9 a 20 h no sale: espera a la próxima vuelta del cron (si la ventana de 24 h se cierra antes, no sale).
+        const consulta = await d.consultaSinCompra(chat, ahora);
+        if (!consulta) continue;
+        texto = textoSeguimientoConsulta(chat.nombre, consulta.tema ?? null);
         marca = MARCA_SEGUIMIENTO_CONSULTA;
       } else continue;
       const ultimo = await d.ultimoMensaje(chat.id);

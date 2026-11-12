@@ -19,11 +19,25 @@ export async function leerAjustesCobro(workspaceId: string, cliente: Lector = pr
       where: { workspaceId },
       select: { autoConfirmarPedido: true, alias: true, cbuCvu: true, titular: true, cuit: true, banco: true, montoUnico: true },
     });
-    return f ? { ...f } : { ...AJUSTES_COBRO_DE_FABRICA };
+    if (!f) return { ...AJUSTES_COBRO_DE_FABRICA };
+    return { ...f, autoAcreditarComprobante: await leerAutoAcreditar(workspaceId, cliente) };
   } catch (e) {
     const codigo = (e as { code?: unknown } | null)?.code;
     console.error("[cobro-ajustes] no se pudieron leer: van los de fábrica", { codigo: typeof codigo === "string" ? codigo : null });
     return { ...AJUSTES_COBRO_DE_FABRICA };
+  }
+}
+
+/**
+ * El interruptor de la acreditación automática se lee aparte: si su columna todavía no está en la base
+ * (la migración se aplica a mano), queda apagado y el resto de los ajustes se lee igual.
+ */
+async function leerAutoAcreditar(workspaceId: string, cliente: Lector): Promise<boolean> {
+  try {
+    const f = await cliente.fotofficeCobroAjustes.findUnique({ where: { workspaceId }, select: { autoAcreditarComprobante: true } });
+    return f?.autoAcreditarComprobante === true;
+  } catch {
+    return false;
   }
 }
 

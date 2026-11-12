@@ -122,7 +122,8 @@ export async function guardarBorradorAutoAction(categoriaId: unknown, encendido:
 }
 
 /**
- * Cobro (etapa B): crear el pedido al aceptar, datos para transferir y monto único.
+ * Cobro (etapa B): crear el pedido al aceptar, datos para transferir, monto único y la confirmación
+ * automática de las transferencias que verifica el bot de WhatsApp.
  * `guardarAjustesCobro` vuelve a chequear `configurar` y valida alias, CBU/CVU y CUIT.
  */
 export async function guardarAjustesCobroAction(
@@ -134,6 +135,7 @@ export async function guardarAjustesCobroAction(
   const r = await guardarAjustesCobro(ctx, {
     autoConfirmarPedido: fd.get("autoConfirmarPedido") === "on",
     montoUnico: fd.get("montoUnico") === "on",
+    autoAcreditarComprobante: fd.get("autoAcreditarComprobante") === "on",
     alias: texto(fd, "alias"),
     cbuCvu: texto(fd, "cbuCvu"),
     titular: texto(fd, "titular"),
