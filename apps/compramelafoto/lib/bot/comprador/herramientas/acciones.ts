@@ -171,7 +171,7 @@ function reenviarDescarga(a: CompradorActor): BotTool {
         const r = await reenviarDescargaDePedido(o, `dnx-bot-comprador-${o.id}-${hora}`, { renovar: puedeRenovar(o) });
         if (r.ok) enviados++;
         // El detalle del error queda en el log; al modelo nunca le llega (no debe cambiar la respuesta).
-        else if (!r.sinRenovar) console.error("[bot comprador] reenvío de descarga falló", { orderId: o.id, error: r.error });
+        else if (!r.sinRenovar && !r.sinFotos) console.error("[bot comprador] reenvío de descarga falló", { orderId: o.id, error: r.error });
       }
 
       await registrarAccionComprador({

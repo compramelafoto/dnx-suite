@@ -14,17 +14,31 @@ export function albumConOriginales(a: { deletedAt: Date | null; cleanupStatus: s
   return a.deletedAt == null && !LIMPIEZA_SIN_ORIGINALES.includes(a.cleanupStatus);
 }
 
+/** ¿El pedido tiene algo que bajar? (fotos digitales o videos). */
+export async function pedidoTieneDescargas(orderId: number): Promise<boolean> {
+  const [fotos, videos] = await Promise.all([
+    prisma.orderItem.count({ where: { orderId, productType: "DIGITAL" } }),
+    prisma.videoOrderItem.count({ where: { orderId } }),
+  ]);
+  return fotos + videos > 0;
+}
+
 /**
  * Reenvía el mail de descarga de un pedido; si no hay link vigente, crea uno nuevo
  * con los días de la configuración. No valida dueño ni estado: eso lo hace quien llama.
  * Con `renovar: false` (quien pide no probó ser dueño) un enlace vencido no se renueva ni se reenvía.
+ * Un pedido sin fotos digitales ni videos (p. ej. un pack de preventa sin canjear) no recibe link:
+ * el mail llevaba a «No hay fotos para descargar» (pedidos 3921 y 4673, 12/11/2026).
  */
 export async function reenviarDescargaDePedido(
   o: { id: number; albumId: number },
   idempotencyKey: string,
   opciones: { renovar?: boolean } = {},
-): Promise<{ ok: true; renovado: boolean } | { ok: false; error: string; causa?: unknown; sinRenovar?: true }> {
+): Promise<
+  { ok: true; renovado: boolean } | { ok: false; error: string; causa?: unknown; sinRenovar?: true; sinFotos?: true }
+> {
   try {
+    if (!(await pedidoTieneDescargas(o.id))) return { ok: false, error: "pedido sin fotos digitales", sinFotos: true };
     const vigente = await prisma.orderDownloadToken.findFirst({
       where: { orderId: o.id, type: "CLIENT_DIGITAL", photoId: null, expiresAt: { gt: new Date() } },
       select: { id: true },

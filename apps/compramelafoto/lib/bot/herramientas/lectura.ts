@@ -100,7 +100,7 @@ export const lecturaTools: BotTool[] = [
         where: { id: orderId, album: { userId: actor.userId } },
         select: {
           id: true, status: true, totalCents: true, buyerEmail: true, createdAt: true,
-          digitalDeliveredAt: true, items: { select: { id: true } },
+          digitalDeliveredAt: true, items: { select: { id: true } }, origin: true, redemptionOrderId: true,
         },
       });
       if (!o) return NOT_FOUND;
@@ -119,6 +119,14 @@ export const lecturaTools: BotTool[] = [
           comprador: o.status === "PAID" ? o.buyerEmail : "(oculto hasta que se pague)",
           entregado: o.digitalDeliveredAt,
           linkVigenteHasta: token?.expiresAt ?? null,
+          // Un pack de preventa no tiene fotos propias: sin esto «fotos: 0» parecía un pedido roto.
+          ...(o.origin === "PREVENTA_PACK"
+            ? {
+                pack: o.redemptionOrderId != null
+                  ? `Pack de preventa canjeado: las fotos están en el pedido #${o.redemptionOrderId}.`
+                  : "Pack de preventa sin canjear: la familia todavía no eligió sus fotos. Para que las elija hay que reenviarle el link del canje (reenviar_link_de_descarga lo hace).",
+              }
+            : {}),
         },
       };
     },
