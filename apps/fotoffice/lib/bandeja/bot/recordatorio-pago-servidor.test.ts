@@ -83,6 +83,21 @@ describe("recordarPagosPendientes", () => {
     expect(marcar).toHaveBeenCalledWith("w1", "chat1", expect.stringContaining("Recordatorio de pago"));
   });
 
+  it("el seguimiento dice de qué hablaron y ya no ofrece el enlace para pagar", async () => {
+    const { d, enviar } = deps({ pendiente: async () => null, consultaSinCompra: async () => ({ desde: hace(21), tema: "el cuadro" }) });
+    await recordarPagosPendientes(d);
+    expect(enviar).toHaveBeenCalledWith("w1", "chat1", "¡Hola Daniel! 😊 ¿Pudiste pensar lo del cuadro? Si querés, te lo dejo armado.", { ultimoMensajeId: "m9" });
+  });
+
+  it("fuera de 9 a 20 h de Argentina el seguimiento no sale (espera la próxima vuelta del cron)", async () => {
+    const consultaSinCompra = vi.fn(async () => ({ desde: hace(21) }));
+    // 08:30 UTC = 05:30 en Argentina.
+    const { d, enviar } = deps({ ahora: new Date("2026-10-29T08:30:00Z"), candidatos: async () => [{ ...CHAT, ultimoEntranteEn: new Date("2026-10-28T11:30:00Z") }], pendiente: async () => null, consultaSinCompra });
+    await recordarPagosPendientes(d);
+    expect(enviar).not.toHaveBeenCalled();
+    expect(consultaSinCompra).not.toHaveBeenCalled();
+  });
+
   it("el seguimiento de la consulta tampoco sale si el cliente escribió último", async () => {
     const { d, enviar } = deps({ pendiente: async () => null, consultaSinCompra: async () => ({ desde: hace(21) }), ultimoMensaje: async () => ({ id: "m9", direccion: "ENTRANTE" }) });
     await recordarPagosPendientes(d);

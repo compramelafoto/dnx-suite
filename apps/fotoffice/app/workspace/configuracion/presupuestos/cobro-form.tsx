@@ -8,7 +8,7 @@ const INICIAL: EstadoPresupuestosConfig = { error: null };
 
 /**
  * Cobro de los presupuestos aceptados (etapa B): crear el pedido solo al aceptar, datos para
- * transferir y monto único. Sin Mercado Pago conectado, el cliente paga por transferencia o en
+ * transferir, monto único y la confirmación automática de transferencias del bot de WhatsApp. Sin Mercado Pago conectado, el cliente paga por transferencia o en
  * efectivo con estos datos.
  */
 export function CobroForm({ ajustes, mercadoPago }: { ajustes: AjustesCobro; mercadoPago: boolean }) {
@@ -52,6 +52,16 @@ export function CobroForm({ ajustes, mercadoPago }: { ajustes: AjustesCobro; mer
           Monto único
           <span className="block text-xs text-[var(--fo-muted)]">
             A cada transferencia esperada se le suman de 1 a 99 pesos para que no haya dos iguales y se reconozca sola.
+          </span>
+        </span>
+      </label>
+      <label className="flex items-start gap-2 text-sm">
+        <input type="checkbox" name="autoAcreditarComprobante" defaultChecked={ajustes.autoAcreditarComprobante} className="mt-1" />
+        <span>
+          Confirmar solo los pagos por transferencia cuando el comprobante coincide con Mercado Pago
+          <span className="block text-xs text-[var(--fo-muted)]">
+            Cuando un cliente manda el comprobante por WhatsApp, el bot lo busca en tu Mercado Pago y, si el pago coincide con la seña
+            o el total del pedido, lo da por pagado. Apagado: el bot lo verifica y te pasa el chat para que lo confirmes vos.
           </span>
         </span>
       </label>

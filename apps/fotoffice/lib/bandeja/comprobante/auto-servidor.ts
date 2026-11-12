@@ -99,7 +99,7 @@ const POR_OMISION: Required<Omit<DepsAutoComprobante, "responder" | "pasar">> = 
   },
   autoConfirmar: async (workspaceId) => {
     const { leerAjustesCobro } = await import("@/lib/cobro-ajustes/ajustes");
-    return (await leerAjustesCobro(workspaceId)).autoConfirmarPedido;
+    return (await leerAjustesCobro(workspaceId)).autoAcreditarComprobante;
   },
   pagoCompleto: async (workspaceId, pagoId) => {
     const { resolveWorkspaceCollector } = await import("@/lib/payments/connect/collector");

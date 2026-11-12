@@ -6,6 +6,8 @@
  *   omisión; se enciende con el OK del dueño).
  * - Datos para transferir (alias, CBU o CVU, titular, CUIT, banco): se muestran en el enlace del pedido.
  * - `montoUnico`: sumar de 1 a 99 pesos a cada transferencia esperada (para la conciliación).
+ * - `autoAcreditarComprobante`: el bot de WhatsApp confirma solo los pagos por transferencia cuando el
+ *   comprobante coincide con Mercado Pago (apagado por omisión). Es independiente de `autoConfirmarPedido`.
  */
 
 export type AjustesCobro = {
@@ -16,6 +18,7 @@ export type AjustesCobro = {
   cuit: string | null;
   banco: string | null;
   montoUnico: boolean;
+  autoAcreditarComprobante: boolean;
 };
 
 export const AJUSTES_COBRO_DE_FABRICA: AjustesCobro = {
@@ -26,6 +29,7 @@ export const AJUSTES_COBRO_DE_FABRICA: AjustesCobro = {
   cuit: null,
   banco: null,
   montoUnico: false,
+  autoAcreditarComprobante: false,
 };
 
 export type DatosTransferencia = Pick<AjustesCobro, "alias" | "cbuCvu" | "titular" | "cuit" | "banco">;
@@ -63,6 +67,7 @@ export function validarAjustesCobro(raw: unknown): Resultado {
       cuit,
       banco: texto(r.banco),
       montoUnico: r.montoUnico === true,
+      autoAcreditarComprobante: r.autoAcreditarComprobante === true,
     },
   };
 }
