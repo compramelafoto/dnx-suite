@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -21,11 +21,125 @@ import {
   type OrdersRankingRow,
 } from "./orders-analytics-helpers";
 import type { PhotographerOrderRow } from "./photographer-order-types";
+import {
+  ANALYTICS_PERIOD_OPTIONS,
+  arDayKey,
+  filterOrdersForAnalytics,
+  listAnalyticsAlbums,
+  resolveAnalyticsRange,
+  type AnalyticsAlbumFilter,
+  type AnalyticsPeriod,
+} from "./orders-analytics-filters";
 
 type OrdersAnalyticsWorkspaceProps = {
   orders: PhotographerOrderRow[];
   className?: string;
+  /** Muestra los filtros de álbum y período (pantalla de estadísticas, con todos los pedidos). */
+  withFilters?: boolean;
 };
+
+function MercadoPagoWarning() {
+  return (
+    <div
+      role="note"
+      className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] leading-relaxed text-amber-900"
+    >
+      <strong className="font-semibold">Importante:</strong> estos montos no descuentan los recargos de
+      Mercado Pago (comisión por cobro, cuotas y retenciones). Lo que te acredita Mercado Pago puede ser
+      menor.
+    </div>
+  );
+}
+
+function AnalyticsFiltersBar({
+  orders,
+  album,
+  setAlbum,
+  period,
+  setPeriod,
+  from,
+  setFrom,
+  to,
+  setTo,
+}: {
+  orders: PhotographerOrderRow[];
+  album: AnalyticsAlbumFilter;
+  setAlbum: (v: AnalyticsAlbumFilter) => void;
+  period: AnalyticsPeriod;
+  setPeriod: (v: AnalyticsPeriod) => void;
+  from: string;
+  setFrom: (v: string) => void;
+  to: string;
+  setTo: (v: string) => void;
+}) {
+  const { albums, hasDirectPrints } = useMemo(() => listAnalyticsAlbums(orders), [orders]);
+  const fieldClass =
+    "h-9 rounded-md border border-gray-200 bg-white px-2 text-xs text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#c27b3d]/30 min-w-0";
+  return (
+    <div className="flex flex-wrap items-end gap-2 rounded-lg border border-gray-100 bg-white p-3">
+      <label className="flex min-w-0 flex-1 basis-56 flex-col gap-1">
+        <span className="text-[10px] font-medium uppercase tracking-[0.06em] text-gray-400">Álbum</span>
+        <select
+          className={fieldClass}
+          value={String(album)}
+          onChange={(e) => {
+            const v = e.target.value;
+            setAlbum(v === "all" || v === "prints" ? v : Number(v));
+          }}
+        >
+          <option value="all">Todos los álbumes</option>
+          {hasDirectPrints ? <option value="prints">Impresiones directas (sin álbum)</option> : null}
+          {albums.map((a) => (
+            <option key={a.id} value={a.id}>
+              {a.title}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="flex min-w-0 basis-44 flex-col gap-1">
+        <span className="text-[10px] font-medium uppercase tracking-[0.06em] text-gray-400">Período</span>
+        <select
+          className={fieldClass}
+          value={period}
+          onChange={(e) => setPeriod(e.target.value as AnalyticsPeriod)}
+        >
+          {ANALYTICS_PERIOD_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      {period === "custom" ? (
+        <>
+          <label className="flex min-w-0 basis-36 flex-col gap-1">
+            <span className="text-[10px] font-medium uppercase tracking-[0.06em] text-gray-400">Desde</span>
+            <input type="date" className={fieldClass} value={from} onChange={(e) => setFrom(e.target.value)} />
+          </label>
+          <label className="flex min-w-0 basis-36 flex-col gap-1">
+            <span className="text-[10px] font-medium uppercase tracking-[0.06em] text-gray-400">Hasta</span>
+            <input type="date" className={fieldClass} value={to} onChange={(e) => setTo(e.target.value)} />
+          </label>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+function describeSelection(
+  period: AnalyticsPeriod,
+  albumLabel: string | null,
+  range: { fromDay: string | null; toDay: string | null }
+): string {
+  const fmt = (d: string) => d.split("-").reverse().join("/");
+  const periodLabel =
+    period === "custom"
+      ? range.fromDay || range.toDay
+        ? `${range.fromDay ? fmt(range.fromDay) : "…"} al ${range.toDay ? fmt(range.toDay) : "hoy"}`
+        : "todas las fechas"
+      : (ANALYTICS_PERIOD_OPTIONS.find((o) => o.value === period)?.label ?? "").toLowerCase();
+  return `${albumLabel ?? "Todos los álbumes"} · ${periodLabel === "todo" ? "todas las fechas" : periodLabel}`;
+}
 
 const CHART_HEIGHT = 192;
 const CHART_TOOLTIP_STYLE = {
@@ -138,29 +252,90 @@ function RankingList({
   );
 }
 
-export default function OrdersAnalyticsWorkspace({ orders, className }: OrdersAnalyticsWorkspaceProps) {
-  const snapshot = useMemo(() => computeOrdersAnalyticsSnapshot(orders), [orders]);
+export default function OrdersAnalyticsWorkspace({
+  orders,
+  className,
+  withFilters = false,
+}: OrdersAnalyticsWorkspaceProps) {
+  const [album, setAlbum] = useState<AnalyticsAlbumFilter>("all");
+  const [period, setPeriod] = useState<AnalyticsPeriod>("all");
+  const [from, setFrom] = useState<string>(() => arDayKey(new Date(Date.now() - 29 * 86400000)));
+  const [to, setTo] = useState<string>(() => arDayKey(new Date()));
+
+  const filters = useMemo(() => ({ album, period, from, to }), [album, period, from, to]);
+  const range = useMemo(() => resolveAnalyticsRange(filters), [filters]);
+  const visibleOrders = useMemo(
+    () =>
+      withFilters
+        ? filterOrdersForAnalytics(orders, filters)
+        : orders.filter((o) => !o.isDemo),
+    [orders, filters, withFilters]
+  );
+  const snapshot = useMemo(
+    () => computeOrdersAnalyticsSnapshot(visibleOrders, Date.now(), withFilters ? range : undefined),
+    [visibleOrders, withFilters, range]
+  );
   const { kpis } = snapshot;
+
+  const albumLabel = useMemo(() => {
+    if (album === "all") return null;
+    if (album === "prints") return "Impresiones directas";
+    const found = orders.find((o) => o.albumId === album);
+    return found?.albumTitle?.trim() || `Álbum #${album}`;
+  }, [album, orders]);
+
+  const salesTitle = !withFilters
+    ? "Ventas · 7 días"
+    : snapshot.salesGrouping === "month"
+      ? "Ventas por mes"
+      : "Ventas por día";
 
   return (
     <section className={cn("w-full min-w-0 space-y-3", className)}>
       <div>
-        <h2 className="text-sm font-semibold text-gray-800">Analítica operativa</h2>
-        <p className="text-[11px] text-gray-400 mt-0.5">Resumen de pedidos · últimos 7 días</p>
+        <h2 className="text-sm font-semibold text-gray-800">
+          {withFilters ? "Estadísticas de ventas" : "Analítica operativa"}
+        </h2>
+        <p className="text-[11px] text-gray-400 mt-0.5">
+          {withFilters
+            ? describeSelection(period, albumLabel, range)
+            : "Resumen de tus últimos pedidos · gráfico de 7 días"}
+        </p>
       </div>
+
+      {withFilters ? (
+        <AnalyticsFiltersBar
+          orders={orders}
+          album={album}
+          setAlbum={setAlbum}
+          period={period}
+          setPeriod={setPeriod}
+          from={from}
+          setFrom={setFrom}
+          to={to}
+          setTo={setTo}
+        />
+      ) : null}
+
+      <MercadoPagoWarning />
 
       <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-2">
         <KpiCard
-          label="Ingresos totales"
-          value={formatAnalyticsMoney(kpis.totalRevenue, kpis.currency)}
-          hint="Pedidos pagos"
+          label="Neto"
+          value={formatAnalyticsMoney(kpis.netRevenue, kpis.currency)}
+          hint="Lo tuyo, sin la comisión"
           accent="text-emerald-700"
+        />
+        <KpiCard
+          label="Neto + comisión"
+          value={formatAnalyticsMoney(kpis.netPlusFee, kpis.currency)}
+          hint={`Comisión: ${formatAnalyticsMoney(kpis.platformFee, kpis.currency)}`}
         />
         <KpiCard label="Pedidos pagos" value={String(kpis.paidOrders)} hint="Confirmados" />
         <KpiCard
           label="Ticket promedio"
           value={formatAnalyticsMoney(kpis.averageTicket, kpis.currency)}
-          hint="Por pedido pago"
+          hint="Neto por pedido pago"
         />
         <KpiCard
           label="Descargas"
@@ -169,21 +344,15 @@ export default function OrdersAnalyticsWorkspace({ orders, className }: OrdersAn
           accent="text-sky-700"
         />
         <KpiCard
-          label="% digitales"
-          value={formatAnalyticsPct(kpis.digitalPct)}
+          label="% digital / impresión"
+          value={`${formatAnalyticsPct(kpis.digitalPct)} / ${formatAnalyticsPct(kpis.printPct)}`}
           hint="Mix aprox."
           accent="text-sky-700"
-        />
-        <KpiCard
-          label="% impresión"
-          value={formatAnalyticsPct(kpis.printPct)}
-          hint="Mix aprox."
-          accent="text-orange-700"
         />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
-        <ChartCard title="Ventas · 7 días" subtitle="Ingresos por día">
+        <ChartCard title={salesTitle} subtitle="Neto acreditado">
           <ChartFrame>
             <BarChart data={snapshot.dailySales} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f8fafc" vertical={false} />
@@ -195,7 +364,7 @@ export default function OrdersAnalyticsWorkspace({ orders, className }: OrdersAn
                   name === "revenue"
                     ? formatAnalyticsMoney(Number(value), kpis.currency)
                     : value,
-                  name === "revenue" ? "Ingresos" : "Pedidos",
+                  name === "revenue" ? "Neto" : "Pedidos",
                 ]}
               />
               <Bar dataKey="revenue" fill="#c27b3d" radius={[4, 4, 0, 0]} maxBarSize={32} />
