@@ -238,13 +238,16 @@ export function FormularioTestimonio({
 
         <div className="fo-field-stack">
           <label htmlFor="tst-foto" style={labelStyle}>
-            Tu foto (opcional)
+            Tu foto de perfil (opcional)
           </label>
+          <p style={ayuda}>Con tu foto, tu testimonio genera más confianza. Se ve chiquita y redonda, al lado de tu nombre.</p>
           <div className="flex items-center gap-4">
             {foto.estado === "lista" ? (
               // eslint-disable-next-line @next/next/no-img-element -- vista previa local de la foto elegida
               <img src={foto.vista} alt="" className="h-16 w-16 rounded-full object-cover" />
-            ) : null}
+            ) : (
+              <span aria-hidden className="h-16 w-16 shrink-0 rounded-full border border-dashed opacity-50" />
+            )}
             <input
               ref={entradaFoto}
               id="tst-foto"

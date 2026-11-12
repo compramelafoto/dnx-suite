@@ -121,3 +121,32 @@ describe("panel: ordenar, editar y borrar", () => {
     expect(testimonio.deleteMany).not.toHaveBeenCalled();
   });
 });
+
+describe("panel: corregir el texto y cambiar la foto", () => {
+  it("guarda el texto y el nombre corregidos, filtrando por workspace", async () => {
+    testimonio.findFirst.mockResolvedValue({ consentimiento: true });
+    testimonio.updateMany.mockResolvedValue({ count: 1 });
+    const r = await R.editarTestimonio("ws-1", "t1", { extracto: "", autorDetalle: "", texto: "Me encantó", autorNombre: "Ana" });
+    expect(r).toEqual({ ok: true });
+    expect(testimonio.updateMany.mock.calls[0][0]).toMatchObject({
+      where: { id: "t1", workspaceId: "ws-1" },
+      data: { texto: "Me encantó", autorNombre: "Ana" },
+    });
+  });
+
+  it("cambia la foto y devuelve la anterior para borrarla; quitarla deja todo en null", async () => {
+    testimonio.findFirst.mockResolvedValue({ autorFotoKey: "vieja.jpg" });
+    testimonio.updateMany.mockResolvedValue({ count: 1 });
+    expect(await R.cambiarFotoTestimonio("ws-1", "t1", { key: "nueva.jpg", url: "https://x/nueva.jpg" })).toEqual({ ok: true, fotoAnterior: "vieja.jpg" });
+    expect(testimonio.updateMany.mock.calls[0][0].data).toEqual({ autorFotoKey: "nueva.jpg", autorFotoUrl: "https://x/nueva.jpg" });
+    await R.cambiarFotoTestimonio("ws-1", "t1", null);
+    expect(testimonio.updateMany.mock.calls[1][0].data).toEqual({ autorFotoKey: null, autorFotoUrl: null });
+  });
+
+  it("un testimonio de otro workspace no se toca", async () => {
+    testimonio.findFirst.mockResolvedValue(null);
+    const r = await R.cambiarFotoTestimonio("ws-1", "ajeno", null);
+    expect(r.ok).toBe(false);
+    expect(testimonio.updateMany).not.toHaveBeenCalled();
+  });
+});

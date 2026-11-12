@@ -257,15 +257,37 @@ export function textoConsentimientoManual(quien: string, ahora: Date): string {
   return `Carga manual: ${quien.trim() || "alguien del estudio"} marcó «Tengo permiso del autor» el ${fecha}.`;
 }
 
-export type EdicionPanel = { extracto: string | null; autorDetalle: string | null };
+export type EdicionPanel = { extracto: string | null; autorDetalle: string | null; texto?: string; autorNombre?: string };
 
-/** Lo que el panel deja editar de un testimonio ya recibido: la frase destacada y el detalle del autor. */
-export function validarEdicionPanel(input: { extracto?: unknown; autorDetalle?: unknown }): { ok: true; datos: EdicionPanel } | { ok: false; error: string } {
+/**
+ * Lo que el panel deja editar de un testimonio ya recibido: la frase destacada, el detalle del autor
+ * y, para corregir errores antes de publicarlo, el texto y el nombre. El texto y el nombre son
+ * opcionales en la entrada (si no vienen, no se tocan), pero si vienen no pueden quedar vacíos.
+ */
+export function validarEdicionPanel(input: {
+  extracto?: unknown;
+  autorDetalle?: unknown;
+  texto?: unknown;
+  autorNombre?: unknown;
+}): { ok: true; datos: EdicionPanel } | { ok: false; error: string } {
   const extracto = parrafos(input.extracto);
   if (extracto.length > MAX_EXTRACTO) return { ok: false, error: MENSAJES_TESTIMONIO.extractoLargo };
   const detalle = linea(input.autorDetalle);
   if (detalle.length > MAX_DETALLE) return { ok: false, error: MENSAJES_TESTIMONIO.detalleLargo };
-  return { ok: true, datos: { extracto: extracto || null, autorDetalle: detalle || null } };
+  const datos: EdicionPanel = { extracto: extracto || null, autorDetalle: detalle || null };
+  if (input.texto !== undefined) {
+    const t = parrafos(input.texto);
+    if (!t) return { ok: false, error: MENSAJES_TESTIMONIO.texto };
+    if (t.length > MAX_TEXTO) return { ok: false, error: MENSAJES_TESTIMONIO.textoLargo };
+    datos.texto = t;
+  }
+  if (input.autorNombre !== undefined) {
+    const n = linea(input.autorNombre);
+    if (!n) return { ok: false, error: MENSAJES_TESTIMONIO.nombre };
+    if (n.length > MAX_NOMBRE) return { ok: false, error: MENSAJES_TESTIMONIO.nombreLargo };
+    datos.autorNombre = n;
+  }
+  return { ok: true, datos };
 }
 
 /** Pedido automático: cuántos días después de finalizar el proyecto se pide el testimonio. */

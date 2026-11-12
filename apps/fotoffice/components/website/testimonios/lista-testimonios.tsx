@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   DndContext,
@@ -16,6 +16,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { Check, EyeOff, GripVertical, Pencil, RotateCcw, Star, Trash2, X } from "lucide-react";
 import {
   borrarTestimonioAction,
+  cambiarFotoTestimonioAction,
   destacarTestimonioAction,
   editarTestimonioAction,
   moderarTestimonioAction,
@@ -24,12 +25,18 @@ import {
 import {
   ETIQUETA_ORIGEN_TESTIMONIO,
   LARGO_LEER_MAS,
+  FORMATOS_FOTO_AUTOR,
+  MAX_BYTES_FOTO_AUTOR,
   MAX_DETALLE,
   MAX_EXTRACTO,
+  MAX_NOMBRE,
+  MAX_TEXTO,
+  MENSAJE_FOTO_PESADA,
   MENSAJES_TESTIMONIO,
   type EstadoTestimonio,
   type OrigenTestimonio,
 } from "@/lib/testimonios/dominio";
+import { achicarFoto } from "./achicar-foto";
 
 export type TestimonioDeLista = {
   id: string;
@@ -244,6 +251,7 @@ function TarjetaTestimonio({ t, ordenable, onError }: { t: TestimonioDeLista; or
           pendiente={pendiente}
           onCancelar={() => setEditando(false)}
           onGuardar={(datos) => correr(() => editarTestimonioAction(t.id, datos), () => setEditando(false))}
+          onFoto={(fd) => correr(() => cambiarFotoTestimonioAction(t.id, fd))}
         />
       ) : (
         <div className="flex flex-wrap items-center gap-2">
@@ -318,24 +326,112 @@ function EditarTestimonio({
   pendiente,
   onCancelar,
   onGuardar,
+  onFoto,
 }: {
   t: TestimonioDeLista;
   pendiente: boolean;
   onCancelar: () => void;
-  onGuardar: (datos: { extracto: string; autorDetalle: string; permisoDelAutor: boolean }) => void;
+  onGuardar: (datos: { texto: string; autorNombre: string; extracto: string; autorDetalle: string; permisoDelAutor: boolean }) => void;
+  onFoto: (fd: FormData) => void;
 }) {
+  const [textoTestimonio, setTextoTestimonio] = useState(t.texto);
+  const [nombre, setNombre] = useState(t.autorNombre);
   const [extracto, setExtracto] = useState(t.extracto ?? "");
   const [detalle, setDetalle] = useState(t.autorDetalle ?? "");
   const [permiso, setPermiso] = useState(false);
+  const [errorFoto, setErrorFoto] = useState<string | null>(null);
+  const [preparando, setPreparando] = useState(false);
+  const entradaFoto = useRef<HTMLInputElement>(null);
+  const editado = textoTestimonio.trim() !== t.texto.trim();
+
+  async function elegirFoto(file: File | undefined) {
+    setErrorFoto(null);
+    if (!file) return;
+    if (!(FORMATOS_FOTO_AUTOR as readonly string[]).includes(file.type)) {
+      setErrorFoto("La foto tiene que ser JPG, PNG o WebP.");
+      return;
+    }
+    setPreparando(true);
+    try {
+      // Va la foto achicada, nunca la original.
+      const archivo = await achicarFoto(file);
+      if (archivo.size > MAX_BYTES_FOTO_AUTOR) {
+        setErrorFoto(MENSAJE_FOTO_PESADA);
+        return;
+      }
+      const fd = new FormData();
+      fd.set("foto", archivo, archivo.type === "image/jpeg" ? "foto.jpg" : "foto");
+      onFoto(fd);
+    } catch {
+      setErrorFoto("No pudimos leer la foto. Probá con otra.");
+    } finally {
+      setPreparando(false);
+      if (entradaFoto.current) entradaFoto.current.value = "";
+    }
+  }
+
+  function quitarFoto() {
+    const fd = new FormData();
+    fd.set("quitar", "si");
+    onFoto(fd);
+  }
 
   return (
     <form
       className="space-y-3 rounded-[var(--fo-radius)] border border-[var(--fo-border)] p-3"
       onSubmit={(e) => {
         e.preventDefault();
-        onGuardar({ extracto, autorDetalle: detalle, permisoDelAutor: permiso });
+        onGuardar({ texto: textoTestimonio, autorNombre: nombre, extracto, autorDetalle: detalle, permisoDelAutor: permiso });
       }}
     >
+      <div className="flex flex-wrap items-center gap-3">
+        {t.autorFotoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={t.autorFotoUrl} alt="" className="h-14 w-14 rounded-full object-cover" />
+        ) : (
+          <span className="flex h-14 w-14 items-center justify-center rounded-full border border-dashed border-[var(--fo-border)] text-xs text-[var(--fo-muted)]">
+            Sin foto
+          </span>
+        )}
+        <label className="fo-btn fo-btn-ghost cursor-pointer text-sm">
+          {t.autorFotoUrl ? "Cambiar foto" : "Agregar foto"}
+          <input
+            ref={entradaFoto}
+            type="file"
+            accept={FORMATOS_FOTO_AUTOR.join(",")}
+            className="sr-only"
+            disabled={pendiente || preparando}
+            onChange={(e) => void elegirFoto(e.currentTarget.files?.[0])}
+          />
+        </label>
+        {t.autorFotoUrl ? (
+          <button type="button" className="fo-btn fo-btn-ghost text-sm" disabled={pendiente || preparando} onClick={quitarFoto}>
+            Quitar foto
+          </button>
+        ) : null}
+        {preparando ? <span className="text-xs text-[var(--fo-muted)]">Preparando la foto…</span> : null}
+      </div>
+      {errorFoto ? <p className="text-sm text-[var(--fo-danger)]">{errorFoto}</p> : null}
+      <label className="block">
+        <span className="fo-label">Nombre</span>
+        <input value={nombre} onChange={(e) => setNombre(e.target.value)} maxLength={MAX_NOMBRE} required className="fo-input" />
+      </label>
+      <label className="block">
+        <span className="fo-label">Testimonio</span>
+        <textarea
+          value={textoTestimonio}
+          onChange={(e) => setTextoTestimonio(e.target.value)}
+          maxLength={MAX_TEXTO}
+          rows={6}
+          required
+          className="fo-input"
+        />
+        <span className="text-xs text-[var(--fo-muted)]">
+          Corregí errores de tipeo o de ortografía, sin cambiar lo que la persona quiso decir: sale publicado con su nombre.{" "}
+          {textoTestimonio.length} / {MAX_TEXTO}
+        </span>
+      </label>
+      {editado ? <p className="fo-alert-warning text-xs">Cambiaste el texto del testimonio.</p> : null}
       <label className="block">
         <span className="fo-label">Frase destacada (opcional)</span>
         <textarea value={extracto} onChange={(e) => setExtracto(e.target.value)} maxLength={MAX_EXTRACTO} rows={2} className="fo-input" />
@@ -349,7 +445,7 @@ function EditarTestimonio({
           value={detalle}
           onChange={(e) => setDetalle(e.target.value)}
           maxLength={MAX_DETALLE}
-          placeholder="Fiesta de XV de Cami"
+          placeholder="Participante del Club, Rosario"
           className="fo-input"
         />
       </label>
@@ -362,7 +458,7 @@ function EditarTestimonio({
         </label>
       ) : null}
       <div className="flex flex-wrap gap-2">
-        <button type="submit" className="fo-btn fo-btn-primary text-sm" disabled={pendiente}>
+        <button type="submit" className="fo-btn fo-btn-primary text-sm" disabled={pendiente || preparando}>
           Guardar
         </button>
         <button type="button" className="fo-btn fo-btn-ghost text-sm" onClick={onCancelar} disabled={pendiente}>

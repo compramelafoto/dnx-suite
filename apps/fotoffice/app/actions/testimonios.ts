@@ -20,6 +20,7 @@ import { archivoDeFoto, borrarFotoAutor, revisarFotoAutor, subirFotoAutor } from
 import { enviarPedidoTestimonio, prepararPedidoTestimonio, type PedidoPreparado } from "@/lib/testimonios/pedido";
 import {
   borrarTestimonio,
+  cambiarFotoTestimonio,
   crearTestimonio,
   editarTestimonio,
   marcarDestacado,
@@ -81,16 +82,51 @@ export async function destacarTestimonioAction(id: string, destacado: boolean) {
   });
 }
 
-export async function editarTestimonioAction(id: string, input: { extracto: string; autorDetalle: string; permisoDelAutor?: boolean }) {
+export async function editarTestimonioAction(
+  id: string,
+  input: { extracto: string; autorDetalle: string; texto?: string; autorNombre?: string; permisoDelAutor?: boolean },
+) {
   return ejecutar("editar el testimonio", async ({ workspaceId, quien }) => {
     if (!idValido(id)) return { ok: false as const, error: "Los datos no son válidos." };
     const r = await editarTestimonio(
       workspaceId,
       id,
-      { extracto: texto(input?.extracto), autorDetalle: texto(input?.autorDetalle) },
+      {
+        extracto: texto(input?.extracto),
+        autorDetalle: texto(input?.autorDetalle),
+        ...(typeof input?.texto === "string" ? { texto: input.texto } : {}),
+        ...(typeof input?.autorNombre === "string" ? { autorNombre: input.autorNombre } : {}),
+      },
       input?.permisoDelAutor === true ? quien : null,
     );
     return r.ok ? { ok: true as const, valor: true as const } : r;
+  });
+}
+
+/**
+ * Cambia la foto del autor desde el panel (`foto` en el FormData, ya achicada por el navegador) o la
+ * quita (`quitar=si`). La foto anterior se borra de R2 recién cuando la nueva quedó guardada.
+ */
+export async function cambiarFotoTestimonioAction(id: string, formData: FormData) {
+  return ejecutar("cambiar la foto del testimonio", async ({ workspaceId }) => {
+    if (!idValido(id)) return { ok: false as const, error: "Los datos no son válidos." };
+    let foto: { key: string; url: string } | null = null;
+    if (formData.get("quitar") !== "si") {
+      const archivo = archivoDeFoto(formData.get("foto"));
+      if (!archivo) return { ok: false as const, error: "Elegí una foto." };
+      const revisada = await revisarFotoAutor(archivo);
+      if (!revisada.ok) return { ok: false as const, error: revisada.error };
+      const subida = await subirFotoAutor(workspaceId, revisada);
+      if (!subida.ok) return { ok: false as const, error: subida.error };
+      foto = subida.valor;
+    }
+    const r = await cambiarFotoTestimonio(workspaceId, id, foto);
+    if (!r.ok) {
+      await borrarFotoAutor(foto?.key ?? null);
+      return r;
+    }
+    await borrarFotoAutor(r.fotoAnterior);
+    return { ok: true as const, valor: true as const };
   });
 }
 
