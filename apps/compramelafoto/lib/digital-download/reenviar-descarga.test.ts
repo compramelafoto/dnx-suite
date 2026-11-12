@@ -1,8 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const m = vi.hoisted(() => ({ token: vi.fn(), create: vi.fn(), resend: vi.fn() }));
+const m = vi.hoisted(() => ({ token: vi.fn(), create: vi.fn(), resend: vi.fn(), fotos: vi.fn(), videos: vi.fn() }));
 vi.mock("@/lib/prisma", () => ({
-  prisma: { orderDownloadToken: { findFirst: (...a: unknown[]) => m.token(...a) } },
+  prisma: {
+    orderDownloadToken: { findFirst: (...a: unknown[]) => m.token(...a) },
+    orderItem: { count: (...a: unknown[]) => m.fotos(...a) },
+    videoOrderItem: { count: (...a: unknown[]) => m.videos(...a) },
+  },
 }));
 vi.mock("@/lib/download-tokens", () => ({ createClientDownloadToken: (...a: unknown[]) => m.create(...a) }));
 vi.mock("@/lib/zip-job-notifications", () => ({
@@ -14,6 +18,8 @@ import { albumConOriginales, reenviarDescargaDePedido } from "./reenviar-descarg
 const o = { id: 5, albumId: 3 };
 beforeEach(() => {
   Object.values(m).forEach((f) => f.mockReset());
+  m.fotos.mockResolvedValue(2);
+  m.videos.mockResolvedValue(0);
 });
 
 describe("reenviarDescargaDePedido", () => {
@@ -57,6 +63,24 @@ describe("reenviarDescargaDePedido", () => {
     m.token.mockRejectedValue(e);
     expect(await reenviarDescargaDePedido(o, "k")).toEqual({ ok: false, error: "Error: db caída", causa: e });
     expect(m.resend).not.toHaveBeenCalled();
+  });
+});
+
+describe("reenviarDescargaDePedido sin nada para bajar", () => {
+  it("pack sin canjear (0 fotos digitales, 0 videos) → no crea link ni manda mail", async () => {
+    m.fotos.mockResolvedValue(0);
+    m.token.mockResolvedValue(null);
+    expect(await reenviarDescargaDePedido(o, "k")).toEqual({ ok: false, error: "pedido sin fotos digitales", sinFotos: true });
+    expect(m.fotos.mock.calls[0]![0].where).toEqual({ orderId: 5, productType: "DIGITAL" });
+    expect(m.create).not.toHaveBeenCalled();
+    expect(m.resend).not.toHaveBeenCalled();
+  });
+  it("sólo videos → reenvía", async () => {
+    m.fotos.mockResolvedValue(0);
+    m.videos.mockResolvedValue(1);
+    m.token.mockResolvedValue({ id: 1 });
+    m.resend.mockResolvedValue({ queued: true });
+    expect(await reenviarDescargaDePedido(o, "k")).toEqual({ ok: true, renovado: false });
   });
 });
 
