@@ -23,8 +23,13 @@ type Props = {
   correoVisible: string;
   volverA: string;
   volverTexto?: string;
-  /** Ofrecer «Pagar con Mercado Pago» (sólo pedidos de un álbum). */
+  /** Ofrecer «Pagar con Mercado Pago» (pedido de un álbum o carrito de evento). */
   planB?: boolean;
+  /**
+   * El carrito ya tiene una orden de Mercado Pago con reparto que se puede pagar: se ofrece
+   * seguir ahí y no la tarjeta (que no cobraría mientras esa orden siga vigente).
+   */
+  soloMercadoPago?: boolean;
 };
 
 type Estado =
@@ -129,17 +134,41 @@ export default function PagarClient(props: Props) {
   }
 
   const mostrarMercadoPago = Boolean(
-    props.planB && props.orderId && !props.grupoId && estado.tipo === "formulario",
+    props.planB && (props.orderId || props.grupoId) && estado.tipo === "formulario",
   );
+  const botonMercadoPago = props.grupoId ? (
+    <PlanBMercadoPago
+      grupoId={props.grupoId}
+      destacado
+      {...(props.soloMercadoPago ? { texto: "Seguir pagando con Mercado Pago" } : {})}
+    />
+  ) : (
+    <PlanBMercadoPago pedidoId={props.orderId!} destacado />
+  );
+
+  if (mostrarMercadoPago && props.soloMercadoPago) {
+    return (
+      <div className="space-y-3">
+        {botonMercadoPago}
+        <p className="text-center text-sm text-neutral-600">
+          Si ya pagaste en Mercado Pago, esperá unos minutos y recargá la página: no pagues de nuevo.
+        </p>
+        <p className="text-center text-sm">
+          <Link href={props.volverA} className="text-neutral-600 underline">
+            {props.volverTexto ?? "Volver al resumen de la compra"}
+          </Link>
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-3">
       {/* Mercado Pago primero: es lo que más usan los compradores (dinero en cuenta, tarjetas
-          guardadas). Sólo pedido de un álbum, y no mientras se procesa la tarjeta, para no pagar
-          dos veces. */}
+          guardadas). No mientras se procesa la tarjeta, para no pagar dos veces. */}
       {mostrarMercadoPago ? (
         <>
-          <PlanBMercadoPago pedidoId={props.orderId!} destacado />
+          {botonMercadoPago}
           <div className="flex items-center gap-3 py-2 text-sm text-neutral-500" aria-hidden="true">
             <span className="h-px flex-1 bg-neutral-200" />
             o pagá con tarjeta

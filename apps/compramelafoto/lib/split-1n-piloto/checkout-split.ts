@@ -40,11 +40,15 @@ export const VIGENCIA_ORDEN_CHECKOUT_SPLIT = "P1D";
  */
 export function armarOrdenCheckoutSplit(params: {
   pedidoId: number;
-  cobro: Extract<CobroPreparado, { ok: true }>;
+  cobro: Pick<Extract<CobroPreparado, { ok: true }>, "total" | "distribution" | "partnerReceiverIds">;
   ownerUserId: string;
   titulo: string;
   payerEmail: string;
   baseUrl: string;
+  /** Carrito de evento: su propia referencia (`clf-event-cart-<grupoId>`) en vez la del pedido. */
+  externalReference?: string;
+  /** Ruta a la que vuelve el comprador (por defecto `/pagar/<pedidoId>`). */
+  rutaDeVuelta?: string;
 }): OrdenCheckoutSplit {
   const { cobro } = params;
   const entries = buildSplitEntriesFromDistribution(cobro.distribution, params.ownerUserId, cobro.partnerReceiverIds, {
@@ -70,12 +74,12 @@ export function armarOrdenCheckoutSplit(params: {
   if (suma !== cobro.total.amountMinor) throw new Error("CHECKOUT_SPLIT_SUMA_DISTINTA");
 
   const total = moneyToMercadoPagoAmount(cobro.total);
-  const volver = `${params.baseUrl.replace(/\/+$/, "")}/pagar/${params.pedidoId}`;
+  const volver = `${params.baseUrl.replace(/\/+$/, "")}${params.rutaDeVuelta ?? `/pagar/${params.pedidoId}`}`;
   return {
     type: "online",
     processing_mode: "manual",
     total_amount: total,
-    external_reference: referenciaPedido(params.pedidoId),
+    external_reference: params.externalReference ?? referenciaPedido(params.pedidoId),
     expiration_time: VIGENCIA_ORDEN_CHECKOUT_SPLIT,
     description: params.titulo,
     payer: { email: params.payerEmail },

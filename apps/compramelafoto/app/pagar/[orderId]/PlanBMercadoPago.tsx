@@ -2,17 +2,22 @@
 
 import { useState } from "react";
 import { pasarPedidoACheckoutPro } from "@/lib/split-1n-piloto/plan-b";
+import { pagarGrupoConMercadoPago } from "@/lib/split-1n-carrito-evento/mercado-pago-grupo";
 
 /**
- * «Pagar con Mercado Pago»: el mismo pedido pasa al cobro de siempre (Checkout Pro). El
- * servidor sólo lo permite si no hay un cobro con tarjeta en curso.
+ * «Pagar con Mercado Pago»: el pedido de un álbum (`pedidoId`) o el carrito de un evento
+ * (`grupoId`) va a Checkout Pro. El servidor sólo lo permite si no hay un cobro con tarjeta en
+ * curso.
  */
 export default function PlanBMercadoPago({
   pedidoId,
+  grupoId,
   destacado,
   texto = "Pagar con Mercado Pago",
 }: {
-  pedidoId: number;
+  /** Uno de los dos. */
+  pedidoId?: number;
+  grupoId?: string;
   /** Botón principal (azul de Mercado Pago); si no, enlace discreto. */
   destacado: boolean;
   texto?: string;
@@ -25,7 +30,9 @@ export default function PlanBMercadoPago({
     setYendo(true);
     setError(null);
     try {
-      const r = await pasarPedidoACheckoutPro({ pedidoId });
+      const r = grupoId
+        ? await pagarGrupoConMercadoPago({ grupoId })
+        : await pasarPedidoACheckoutPro({ pedidoId: pedidoId ?? 0 });
       if (r.ok) {
         window.location.href = r.initPoint;
         return;

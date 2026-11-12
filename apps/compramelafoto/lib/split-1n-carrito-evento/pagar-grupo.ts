@@ -1,28 +1,18 @@
 "use server";
 
-import { OrderOrigin, type Prisma } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 import type { CardPaymentSubmission } from "@repo/payments/frontend";
 import { sanitizeCardPaymentSubmissionForLog } from "@repo/payments/frontend";
-import {
-  assertLiveCollectorAccount,
-  singleIntangibleItem,
-  toOrdersCardPaymentMethod,
-} from "@repo/payments/mercado-pago";
+import { singleIntangibleItem, toOrdersCardPaymentMethod } from "@repo/payments/mercado-pago";
 import { prisma } from "@/lib/prisma";
 import { cargarConfigPiloto } from "../split-1n-piloto/receptores-clf";
-import { aplicarEstadosConsultados } from "../split-1n-consentimiento/servicio";
-import { crearRepositorioConsentimiento } from "../split-1n-consentimiento/repositorio";
 import { clasificarErrorCobro } from "../split-1n-piloto/intento";
 import { mensajeRechazo } from "../split-1n-piloto/mensajes";
-import { crearClientesPiloto, leerOrdenMp } from "../split-1n-piloto/mp";
-import { buscarOrganizador } from "../split-1n-piloto/organizador";
+import { leerOrdenMp } from "../split-1n-piloto/mp";
 import type { PagarPilotoResult } from "../split-1n-piloto/pagar";
-import { buscarReferidorActivo } from "../split-1n-piloto/referidor";
 import type { EstadoPiloto } from "../split-1n-piloto/snapshot";
-import { cargarGrupo, estadoDelGrupo, type GrupoCargado } from "./cargar";
-import { prepararCobroGrupo } from "./cobro-grupo";
+import { cargarGrupo, estadoDelGrupo } from "./cargar";
 import { carritoActivoParaEvento, resolveCarritoConfig } from "./config";
-import { evaluarElegibilidadGrupo } from "./elegibilidad-grupo";
 import { finalizarGrupo } from "./finalizar-grupo";
 import {
   claveIntentoGrupo,
@@ -31,23 +21,11 @@ import {
   urlPagoGrupo,
   type MarcaGrupo,
 } from "./marca";
-
-const MENSAJES: Record<string, string> = {
-  YA_PAGADO: "Esta compra ya está pagada.",
-  ORDEN_EN_CURSO:
-    "Esta compra ya tiene un pago en curso. Esperá unos minutos y recargá la página: no pagues de nuevo.",
-  PAGADOR_ES_RECEPTOR:
-    "El correo de la compra es de alguien que cobra parte de esta venta. Usá otro correo.",
-  DEMASIADOS_RECEPTORES:
-    "Esta compra tiene demasiados fotógrafos para pagarla junta. Volvé al evento para pagar cada álbum por separado.",
-  NO_DISPONIBLE:
-    "El pago en un solo paso no está disponible para esta compra. Volvé al evento para pagar cada álbum por separado.",
-  CONSENTIMIENTO_NO_ACTIVO:
-    "Alguno de los fotógrafos no puede cobrar con tarjeta en este momento. Volvé al evento para pagar cada álbum por separado.",
-};
+import { mensajeGrupo } from "./mensajes-grupo";
+import { prepararPagoGrupo } from "./preparar-grupo";
 
 function falla(codigo: string, mensaje?: string): PagarPilotoResult {
-  return { ok: false, codigo, mensaje: mensaje ?? MENSAJES[codigo] ?? MENSAJES.NO_DISPONIBLE };
+  return { ok: false, codigo, mensaje: mensaje ?? mensajeGrupo(codigo) };
 }
 
 type Reservado = { id: number; snapshot: Record<string, unknown> };
@@ -79,45 +57,6 @@ async function guardarMarcaGrupo(
   }
 }
 
-async function correosClf(userIds: Array<number | null | undefined>): Promise<string[]> {
-  const ids = [...new Set(userIds.filter((id): id is number => id != null))];
-  if (ids.length === 0) return [];
-  const users = await prisma.user.findMany({ where: { id: { in: ids } }, select: { email: true } });
-  return users.map((u) => u.email.toLowerCase());
-}
-
-/** Los datos de elegibilidad de cada pedido del grupo, vueltos a leer de la base. */
-async function evaluarGrupo(grupo: GrupoCargado) {
-  const organizador = await buscarOrganizador(grupo.eventId);
-  const referidores = new Map<number, number | null>();
-  const albumes = [];
-  for (const p of grupo.pedidos) {
-    const photographerUserId = p.order.album?.userId ?? null;
-    let referrerUserId: number | null = null;
-    if (photographerUserId != null) {
-      referrerUserId = referidores.has(photographerUserId)
-        ? referidores.get(photographerUserId)!
-        : await buscarReferidorActivo(photographerUserId);
-      referidores.set(photographerUserId, referrerUserId);
-    }
-    albumes.push({
-      albumId: p.order.albumId,
-      eventId: p.order.album?.eventId ?? null,
-      photographerUserId,
-      referrerUserId,
-      organizador,
-      esEscolar: p.order.album?.schoolId != null,
-      items: p.order.items,
-      tieneVideos: false,
-      esCanje: false,
-      esPagoSimulado: false,
-      origenEstandar: (p.order.origin ?? OrderOrigin.STANDARD_CHECKOUT) === OrderOrigin.STANDARD_CHECKOUT,
-      autoresDeFotos: grupo.autoresPorPedido.get(p.order.id) ?? [],
-    });
-  }
-  return { organizador, referidores, albumes };
-}
-
 /**
  * Cobra un carrito de evento con la tarjeta del comprador: una sola orden de Mercado Pago que
  * reparte a todos. El monto, los receptores y el reparto los arma el servidor desde los pedidos.
@@ -142,14 +81,6 @@ export async function pagarGrupo(input: {
     return falla("FORMULARIO_INCOMPLETO", "Esperá a que cargue el formulario y volvé a intentar.");
   }
 
-  // La elegibilidad se vuelve a mirar: entre el carrito y el pago pudo cambiar algo.
-  const { organizador, referidores, albumes } = await evaluarGrupo(grupo);
-  const elegibilidad = evaluarElegibilidadGrupo({ piloto, carrito, eventId: grupo.eventId ?? -1, albumes });
-  if (!elegibilidad.ok) {
-    console.info("[carrito-evento] pago_no_elegible", { grupoId, motivos: elegibilidad.motivos });
-    return falla("NO_DISPONIBLE");
-  }
-
   console.info(
     JSON.stringify({
       event: "CLF_SPLIT_1N_CARRITO_EVENTO",
@@ -160,86 +91,23 @@ export async function pagarGrupo(input: {
     }),
   );
 
-  const payerEmail = grupo.pedidos[0].order.buyerEmail;
-  let clientes: ReturnType<typeof crearClientesPiloto>;
-  let cobro: Extract<ReturnType<typeof prepararCobroGrupo>, { ok: true }>;
-  try {
-    clientes = crearClientesPiloto(piloto);
-    const cuenta = await assertLiveCollectorAccount(clientes.http);
-
-    const receptores = new Set<string>();
-    for (const r of elegibilidad.receivers.values()) {
-      for (const c of [r.fotografo, r.referidor, r.organizador, r.referidorOrganizador]) if (c != null) receptores.add(c);
-    }
-    const consultas = await Promise.all([...receptores].map((r) => clientes.consents.getConsent(r)));
-    if (consultas.some((c) => c?.status !== "ACTIVE")) {
-      console.warn("[carrito-evento] consentimiento_no_activo", { grupoId });
-      if (piloto.receptoresDesdeClf && piloto.ownerUserId) {
-        await aplicarEstadosConsultados(crearRepositorioConsentimiento(piloto.ownerUserId), consultas);
-      }
-      return falla("CONSENTIMIENTO_NO_ACTIVO");
-    }
-    const correosReceptores = [
-      ...consultas.map((c) => (c?.sellerEmail ?? "").toLowerCase()),
-      ...(cuenta.email ? [cuenta.email.toLowerCase()] : []),
-      ...(await correosClf([
-        ...albumes.map((a) => a.photographerUserId),
-        ...referidores.values(),
-        organizador?.userId,
-        organizador?.referrerUserId,
-      ])),
-    ];
-
-    const preparado = prepararCobroGrupo({
-      pedidos: grupo.pedidos.map((p) => ({
-        pedidoId: p.order.id,
-        estadoPedido: p.order.status,
-        totalPesos: p.order.totalCents,
-        feePesos: p.feePesos,
-        basePesos: p.basePesos,
-        porcentajeOrganizador: organizador?.porcentaje ?? 0,
-        receivers: elegibilidad.receivers.get(p.order.albumId)!,
-      })),
-      estadoGrupo: estadoDelGrupo(grupo.pedidos),
-      payerEmail,
-      correosReceptores,
-      maxReceptores: carrito.maxReceptores,
-    });
-    if (!preparado.ok) return falla(preparado.codigo);
-    cobro = preparado;
-  } catch (err: unknown) {
-    console.error("[carrito-evento] preparacion_fallida", {
-      grupoId,
-      error: err instanceof Error ? err.message : String(err),
-    });
-    return falla("NO_DISPONIBLE", "No pudimos procesar el pago. No se te cobró nada; probá de nuevo en unos minutos.");
-  }
+  // La elegibilidad, los consentimientos y el reparto se vuelven a mirar: entre el carrito y el
+  // pago pudo cambiar algo.
+  const preparado = await prepararPagoGrupo({ grupo, piloto, carrito, estadoGrupo: estadoDelGrupo(grupo.pedidos) });
+  if (!preparado.ok) return falla(preparado.codigo);
+  const { clientes, cobro, payerEmail } = preparado;
 
   // Reserva de todo el grupo: sólo un intento puede pasar de PENDIENTE a COBRANDO, y o pasan
   // todos los pedidos o ninguno.
   const intento = Math.max(0, ...grupo.pedidos.map((p) => p.marca.intento ?? 0)) + 1;
-  const reservados: Reservado[] = grupo.pedidos.map((p) => {
-    const rcv = elegibilidad.receivers.get(p.order.albumId)!;
-    const reparto = cobro.repartos.get(p.order.id)!;
-    const photographerUserId = p.order.album?.userId ?? null;
-    return {
-      id: p.order.id,
-      snapshot: marcarSnapshotGrupo(sinOrdenAnterior(p.order.pricingSnapshot), {
-        estado: "COBRANDO",
-        intento,
-        cobro: {
-          referidorUserId:
-            rcv.referidor != null && photographerUserId != null ? referidores.get(photographerUserId) ?? null : null,
-          organizadorUserId: rcv.organizador != null && reparto.organizador > 0 ? organizador?.userId ?? null : null,
-          referidorOrganizadorUserId:
-            rcv.referidorOrganizador != null && reparto.referidorOrganizador > 0
-              ? organizador?.referrerUserId ?? null
-              : null,
-          reparto,
-        },
-      }),
-    };
-  });
+  const reservados: Reservado[] = grupo.pedidos.map((p) => ({
+    id: p.order.id,
+    snapshot: marcarSnapshotGrupo(sinOrdenAnterior(p.order.pricingSnapshot), {
+      estado: "COBRANDO",
+      intento,
+      cobro: preparado.cobroDelPedido(p),
+    }),
+  }));
   try {
     await prisma.$transaction(async (tx) => {
       for (const r of reservados) {
