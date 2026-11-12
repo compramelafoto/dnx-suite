@@ -3,8 +3,9 @@ import type { Cuestionario, Opcion } from "../tipos";
 /**
  * Cuestionario para una docente de escuela (primaria o secundaria) que quiere llevar su registro
  * en FOTOFFICE: cursos, asistencia, notas, períodos, informes y el pase a Mi Escuela (Santa Fe).
- * Lo estrenó María Belén Saldaña (Historia y Arte, escuelas públicas de Santa Fe). Las respuestas
- * definen cómo se configura el módulo; ver `docs/analisis-registro-docente.md`.
+ * Lo estrenó María Belén Saldaña (Historia y Arte, escuelas públicas de Santa Fe), pero sirve para
+ * cualquier docente: las reglas se piden por escuela y después se ajustan por curso y por estudiante,
+ * igual que en el módulo. Ver `docs/analisis-registro-docente.md`.
  */
 
 const SI_NO_A_VECES: Opcion[] = [
@@ -82,7 +83,7 @@ export const CUESTIONARIO_REGISTRO_DOCENTE: Cuestionario = {
     {
       id: "mi_escuela",
       titulo: "Mi Escuela",
-      intro: "Mi Escuela no deja importar planillas: las notas se cargan a mano. Queremos que te llegue todo listo para copiar.",
+      intro: "Mi Escuela no deja importar planillas: las notas se cargan a mano. Queremos que te llegue todo listo para copiar. Si ninguna de tus escuelas usa Mi Escuela, pasá a la sección siguiente.",
       preguntas: [
         {
           id: "mi_escuela_quien",
@@ -132,32 +133,63 @@ export const CUESTIONARIO_REGISTRO_DOCENTE: Cuestionario = {
       titulo: "Períodos y notas",
       preguntas: [
         {
-          id: "periodos_esquema",
-          titulo: "¿Cómo se divide el año en tus escuelas?",
-          tipo: "opcion",
-          obligatoria: true,
-          conOtro: true,
-          opciones: [
-            { valor: "cuatrimestral", etiqueta: "Cuatrimestres" },
-            { valor: "trimestral", etiqueta: "Trimestres" },
-            { valor: "bimestral", etiqueta: "Bimestres" },
-            { valor: "distinto", etiqueta: "Es distinto según la escuela (lo aclaro abajo)" },
+          id: "reglas_por_escuela",
+          titulo: "Las reglas de cada escuela",
+          ayuda:
+            "Cada escuela puede tener sus reglas: el sistema las usa por defecto en todos sus cursos y después podés cambiarlas en un curso o para un estudiante. Un renglón por escuela.",
+          tipo: "lista",
+          textoAgregar: "Agregar otra escuela",
+          campos: [
+            { id: "escuela", titulo: "Escuela", tipo: "texto" },
+            {
+              id: "periodos",
+              titulo: "Cómo se divide el año",
+              tipo: "opcion",
+              opciones: [
+                { valor: "cuatrimestral", etiqueta: "Cuatrimestres" },
+                { valor: "trimestral", etiqueta: "Trimestres" },
+                { valor: "bimestral", etiqueta: "Bimestres" },
+                { valor: "otro", etiqueta: "Otro" },
+              ],
+            },
+            {
+              id: "escala",
+              titulo: "Escala",
+              tipo: "opcion",
+              opciones: [
+                { valor: "enteros", etiqueta: "1 a 10, enteros" },
+                { valor: "decimales", etiqueta: "1 a 10, con decimales" },
+                { valor: "conceptual", etiqueta: "Conceptual" },
+                { valor: "aprobado", etiqueta: "Aprobado / No aprobado" },
+              ],
+            },
+            { id: "aprobacion", titulo: "Se aprueba con", tipo: "texto" },
+            { id: "faltas", titulo: "Límite de faltas (si hay)", tipo: "texto" },
+            {
+              id: "destino",
+              titulo: "Dónde se cargan las notas oficiales",
+              tipo: "opcion",
+              opciones: [
+                { valor: "mi_escuela", etiqueta: "Mi Escuela (Santa Fe)" },
+                { valor: "planilla", etiqueta: "Planilla o papel de la escuela" },
+                { valor: "otra", etiqueta: "Otra plataforma" },
+              ],
+            },
           ],
         },
-        { id: "periodos_detalle", titulo: "Contanos cómo es en cada escuela", tipo: "parrafo", mostrarSi: { pregunta: "periodos_esquema", igualA: "distinto" } },
         {
-          id: "escala",
-          titulo: "¿Con qué escala ponés las notas de exámenes y TP?",
-          tipo: "opciones",
-          conOtro: true,
-          opciones: [
-            { valor: "enteros", etiqueta: "Números enteros del 1 al 10" },
-            { valor: "decimales", etiqueta: "Del 1 al 10 con decimales (7,5)" },
-            { valor: "conceptual", etiqueta: "Conceptual (Muy bueno, Bueno, Regular…)" },
-            { valor: "aprobado", etiqueta: "Aprobado / No aprobado" },
-          ],
+          id: "cambia_por_curso",
+          titulo: "Dentro de una misma escuela, ¿algún curso o división tiene reglas distintas?",
+          ayuda: "Por ejemplo, otros pesos en un curso, o una escala distinta en primer año.",
+          tipo: "parrafo",
+          placeholder: "En 1.º A uso conceptual; en los demás, números…",
         },
-        { id: "nota_aprobacion", titulo: "¿Con cuánto se aprueba?", tipo: "texto", placeholder: "6, 7…" },
+        {
+          id: "cambia_por_estudiante",
+          titulo: "¿Hay estudiantes con criterios propios? Contanos de qué tipo, sin nombres.",
+          ayuda: "Por ejemplo: PPI con otra escala, una materia exceptuada, alguien que entró a mitad de año o recupera en otra fecha.",
+          tipo: "parrafo",
+        },
         {
           id: "nota_periodo_como",
           titulo: "¿Cómo sacás hoy la nota del período?",

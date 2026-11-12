@@ -22,7 +22,7 @@ describe("cuestionario registro-docente", () => {
   it("pregunta lo que hace falta para configurar: períodos, cálculo, Mi Escuela, señal y familias", () => {
     const ids = preguntas.map((p) => p.id);
     expect(ids).toEqual(
-      expect.arrayContaining(["periodos_esquema", "nota_periodo_como", "mi_escuela_quien", "senal", "cursos", "familias_quiere"]),
+      expect.arrayContaining(["reglas_por_escuela", "cambia_por_curso", "cambia_por_estudiante", "nota_periodo_como", "mi_escuela_quien", "senal", "cursos", "familias_quiere"]),
     );
   });
 
@@ -37,7 +37,6 @@ describe("cuestionario registro-docente", () => {
       nivel: ["secundaria"],
       ciclo_inicio: "2027",
       mi_escuela_quien: "yo",
-      periodos_esquema: "cuatrimestral",
       nota_periodo_como: "mezcla",
       senal: "a_veces",
       lo_que_mas: "Cerrar el cuatrimestre sin pasar notas dos veces",
