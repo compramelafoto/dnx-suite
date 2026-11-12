@@ -215,7 +215,7 @@ export async function contarPorEstado(workspaceId: string): Promise<Record<Estad
 export async function editarTestimonio(
   workspaceId: string,
   id: string,
-  cambios: { extracto?: unknown; autorDetalle?: unknown },
+  cambios: { extracto?: unknown; autorDetalle?: unknown; texto?: unknown; autorNombre?: unknown },
   permisoDe: string | null = null,
   ahora: Date = new Date(),
 ): Promise<ResultadoModeracion> {
@@ -229,6 +229,24 @@ export async function editarTestimonio(
       : {};
   const r = await prisma.fotofficeTestimonio.updateMany({ where: { id, workspaceId }, data: { ...v.datos, ...permiso } });
   return r.count > 0 ? { ok: true } : { ok: false, error: NO_ENCONTRADO };
+}
+
+/**
+ * Cambia (o quita, con `null`) la foto del autor desde el panel. Devuelve la key de la foto anterior
+ * para borrarla de R2 después; si el testimonio no es del workspace, no toca nada.
+ */
+export async function cambiarFotoTestimonio(
+  workspaceId: string,
+  id: string,
+  foto: { key: string; url: string } | null,
+): Promise<{ ok: true; fotoAnterior: string | null } | { ok: false; error: string }> {
+  const t = await prisma.fotofficeTestimonio.findFirst({ where: { id, workspaceId }, select: { autorFotoKey: true } });
+  if (!t) return { ok: false, error: NO_ENCONTRADO };
+  const r = await prisma.fotofficeTestimonio.updateMany({
+    where: { id, workspaceId },
+    data: { autorFotoKey: foto?.key ?? null, autorFotoUrl: foto?.url ?? null },
+  });
+  return r.count > 0 ? { ok: true, fotoAnterior: t.autorFotoKey } : { ok: false, error: NO_ENCONTRADO };
 }
 
 /** Guarda el orden recibido (0, 1, 2…). Los ids que no son del workspace se ignoran. */
