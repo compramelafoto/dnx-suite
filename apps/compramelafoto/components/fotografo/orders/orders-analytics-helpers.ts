@@ -8,9 +8,24 @@ import {
   isPrintPending,
   type PhotographerOrderRow,
 } from "./photographer-order-types";
+import {
+  arDayKey,
+  daysBetween,
+  monthsBetween,
+  orderMoney,
+  rangeLengthDays,
+  type AnalyticsRange,
+} from "./orders-analytics-filters";
 
 export type OrdersAnalyticsKpis = {
+  /** Neto del fotógrafo (igual a netRevenue; se conserva por compatibilidad). */
   totalRevenue: number;
+  /** Lo que le queda al fotógrafo, sin descontar recargos de Mercado Pago. */
+  netRevenue: number;
+  /** Comisión de la plataforma. */
+  platformFee: number;
+  /** Neto + comisión. */
+  netPlusFee: number;
   paidOrders: number;
   averageTicket: number;
   downloadsCompleted: number;
@@ -56,6 +71,8 @@ export type OrdersAnalyticsInsight = {
 export type OrdersAnalyticsSnapshot = {
   kpis: OrdersAnalyticsKpis;
   dailySales: OrdersDailySalesPoint[];
+  /** "day" o "month": cómo se agrupa el gráfico de ventas. */
+  salesGrouping: "day" | "month";
   ordersByType: OrdersTypeChartPoint[];
   downloadsChart: OrdersDownloadChartPoint[];
   fulfillmentMix: OrdersDownloadChartPoint[];
@@ -94,34 +111,60 @@ export function formatAnalyticsPct(value: number): string {
   return `${Math.round(value)}%`;
 }
 
-function getReceivedAmount(order: PhotographerOrderRow): number {
-  if (!isOrderPaid(order)) return 0;
-  return (
-    order.photographerReceivedAmount ??
-    order.eventOrganizerSale?.photographerNetAmount ??
-    order.total ??
-    0
-  );
-}
+const AR_TZ = "America/Argentina/Buenos_Aires";
 
-function dayKey(date: Date): string {
-  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
-}
+type SalesBucket = { key: string; label: string };
 
-function buildLast7Days(now = new Date()): { key: string; label: string; date: Date }[] {
-  const fmt = new Intl.DateTimeFormat("es-AR", { weekday: "short", day: "numeric" });
-  const days: { key: string; label: string; date: Date }[] = [];
-  for (let i = 6; i >= 0; i--) {
-    const date = new Date(now);
-    date.setHours(12, 0, 0, 0);
-    date.setDate(date.getDate() - i);
-    days.push({
-      key: dayKey(date),
-      label: fmt.format(date).replace(".", ""),
-      date,
-    });
+/**
+ * Casilleros del gráfico de ventas. Sin rango: los últimos 7 días (como siempre).
+ * Rango de hasta 62 días: uno por día. Más largo o "Todo": uno por mes.
+ */
+function buildSalesBuckets(
+  orders: PhotographerOrderRow[],
+  now: Date,
+  range: AnalyticsRange | undefined
+): { grouping: "day" | "month"; buckets: SalesBucket[] } {
+  const today = arDayKey(now);
+  const dayFmt = new Intl.DateTimeFormat("es-AR", { timeZone: AR_TZ, weekday: "short", day: "numeric" });
+  const shortDayFmt = new Intl.DateTimeFormat("es-AR", { timeZone: AR_TZ, day: "numeric", month: "short" });
+  const monthFmt = new Intl.DateTimeFormat("es-AR", { timeZone: AR_TZ, month: "short", year: "2-digit" });
+  const noon = (day: string) => new Date(`${day}T12:00:00-03:00`);
+
+  if (!range) {
+    const from = new Date(noon(today).getTime() - 6 * 86400000);
+    const days = daysBetween(arDayKey(from), today);
+    return {
+      grouping: "day",
+      buckets: days.map((d) => ({ key: d, label: dayFmt.format(noon(d)).replace(".", "") })),
+    };
   }
-  return days;
+
+  let fromDay = range.fromDay;
+  let toDay = range.toDay ?? today;
+  if (!fromDay) {
+    const days = orders
+      .filter((o) => isOrderPaid(o))
+      .map((o) => arDayKey(getOrderCreatedAt(o)))
+      .sort();
+    fromDay = days[0] ?? toDay;
+  }
+  if (fromDay > toDay) toDay = fromDay;
+  const len = rangeLengthDays({ fromDay, toDay }) ?? 0;
+  if (len <= 62) {
+    const days = daysBetween(fromDay, toDay);
+    const fmt = len <= 7 ? dayFmt : shortDayFmt;
+    return {
+      grouping: "day",
+      buckets: days.map((d) => ({ key: d, label: fmt.format(noon(d)).replace(".", "") })),
+    };
+  }
+  return {
+    grouping: "month",
+    buckets: monthsBetween(fromDay, toDay).map((m) => ({
+      key: m,
+      label: monthFmt.format(noon(`${m}-15`)).replace(".", ""),
+    })),
+  };
 }
 
 function isVideoOrder(order: PhotographerOrderRow): boolean {
@@ -157,13 +200,15 @@ function topRankings(map: Map<string, OrdersRankingRow>, limit = 5): OrdersRanki
 
 export function computeOrdersAnalyticsSnapshot(
   orders: PhotographerOrderRow[],
-  now = Date.now()
+  now = Date.now(),
+  range?: AnalyticsRange
 ): OrdersAnalyticsSnapshot {
   const nowDate = new Date(now);
-  const last7 = buildLast7Days(nowDate);
-  const dailyMap = new Map(last7.map((d) => [d.key, { revenue: 0, orders: 0 }]));
+  const sales = buildSalesBuckets(orders, nowDate, range);
+  const dailyMap = new Map(sales.buckets.map((d) => [d.key, { revenue: 0, orders: 0 }]));
 
   let totalRevenue = 0;
+  let platformFee = 0;
   let paidOrders = 0;
   let downloadsCompleted = 0;
   let digitalPaid = 0;
@@ -187,7 +232,8 @@ export function computeOrdersAnalyticsSnapshot(
 
   for (const order of orders) {
     const paid = isOrderPaid(order);
-    const revenue = getReceivedAmount(order);
+    const money = paid ? orderMoney(order) : { net: 0, fee: 0, netPlusFee: 0 };
+    const revenue = money.net;
     const created = getOrderCreatedAt(order);
     const variant = getOrderTypeBadgeVariant(order);
     const typeLabel = TYPE_LABELS[variant] ?? getOrderTypeLabel(order);
@@ -196,8 +242,10 @@ export function computeOrdersAnalyticsSnapshot(
     if (paid) {
       paidOrders++;
       totalRevenue += revenue;
+      platformFee += money.fee;
 
-      const dk = dayKey(created);
+      const day = arDayKey(created);
+      const dk = sales.grouping === "month" ? day.slice(0, 7) : day;
       const bucket = dailyMap.get(dk);
       if (bucket) {
         bucket.revenue += revenue;
@@ -219,8 +267,13 @@ export function computeOrdersAnalyticsSnapshot(
 
       bumpRanking(saleTypesMap, variant, typeLabel, revenue);
 
-      if (order.source === "ALBUM_ORDER") {
-        bumpRanking(albumsMap, `album-${variant}`, `Álbum · ${typeLabel}`, revenue);
+      if (order.albumId != null) {
+        bumpRanking(
+          albumsMap,
+          `album-${order.albumId}`,
+          order.albumTitle?.trim() || `Álbum #${order.albumId}`,
+          revenue
+        );
       }
 
       const eventLabel = getEventLabel(order);
@@ -253,6 +306,9 @@ export function computeOrdersAnalyticsSnapshot(
 
   const kpis: OrdersAnalyticsKpis = {
     totalRevenue,
+    netRevenue: totalRevenue,
+    platformFee,
+    netPlusFee: totalRevenue + platformFee,
     paidOrders,
     averageTicket: paidOrders > 0 ? Math.round(totalRevenue / paidOrders) : 0,
     downloadsCompleted,
@@ -261,7 +317,7 @@ export function computeOrdersAnalyticsSnapshot(
     currency,
   };
 
-  const dailySales: OrdersDailySalesPoint[] = last7.map((d) => {
+  const dailySales: OrdersDailySalesPoint[] = sales.buckets.map((d) => {
     const bucket = dailyMap.get(d.key)!;
     return {
       key: d.key,
@@ -313,6 +369,7 @@ export function computeOrdersAnalyticsSnapshot(
   return {
     kpis,
     dailySales,
+    salesGrouping: sales.grouping,
     ordersByType,
     downloadsChart,
     fulfillmentMix,

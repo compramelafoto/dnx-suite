@@ -36,6 +36,13 @@ export type PhotographerOrderRow = {
   clientPaidAmount?: number;
   eventOrganizerSale?: EventOrganizerSaleBreakdown | null;
   albumEventId?: number | null;
+  /** Álbum del pedido (null en impresiones directas). */
+  albumId?: number | null;
+  albumTitle?: string | null;
+  /** Comisión de la plataforma retenida en el pedido (pesos). No incluye recargos de Mercado Pago. */
+  platformFeeAmount?: number;
+  /** Lo que le queda al fotógrafo (pesos): total − comisión − organizador. No descuenta Mercado Pago. */
+  netAmount?: number;
   /**
    * Canje de prueba del fotógrafo ("Probar como cliente"): se lista con la etiqueta DEMO, en $0,
    * y queda fuera de totales, indicadores y acciones de cobro.

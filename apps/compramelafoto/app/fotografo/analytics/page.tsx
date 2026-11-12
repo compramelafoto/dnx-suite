@@ -35,7 +35,7 @@ export default function FotografoAnalyticsPage() {
         })
         .catch(() => {});
 
-      fetch("/api/fotografo/pedidos", { credentials: "include" })
+      fetch("/api/fotografo/pedidos?alcance=estadisticas", { credentials: "include" })
         .then(async (res) => {
           const data = await res.json();
           if (!res.ok) {
@@ -75,6 +75,11 @@ export default function FotografoAnalyticsPage() {
             clientPaidAmount: o.clientPaidAmount,
             eventOrganizerSale: o.eventOrganizerSale ?? null,
             albumEventId: o.albumEventId ?? null,
+            albumId: o.albumId ?? null,
+            albumTitle: o.albumTitle ?? null,
+            platformFeeAmount: o.platformFeeAmount,
+            netAmount: o.netAmount,
+            isDemo: o.isDemo ?? false,
           }));
           setOrders(rows);
         })
@@ -107,7 +112,7 @@ export default function FotografoAnalyticsPage() {
         <DsDashboardInner>
           <PhotographerWorkspacePageHeader
             title="Analytics"
-            subtitle="Conversión de checkout y métricas de ventas de tus pedidos."
+            subtitle="Tus ventas: neto, comisión y evolución, filtrables por álbum y período."
             actions={
               <Link href="/fotografo/pedidos">
                 <Button variant="secondary" size="sm">
@@ -117,7 +122,7 @@ export default function FotografoAnalyticsPage() {
             }
           />
           <ConversionAnalyticsSection className="mb-8" />
-          <OrdersAnalyticsWorkspace orders={orders} />
+          <OrdersAnalyticsWorkspace orders={orders} withFilters />
         </DsDashboardInner>
       </DsPageShell>
     </div>

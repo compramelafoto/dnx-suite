@@ -53,6 +53,9 @@ export async function GET(req: Request) {
     const photographerInstagram = photographerProfile?.instagram ?? null;
     const url = new URL(req.url);
     const debugMode = url.searchParams.get("debug") === "1";
+    // Estadísticas: todos los pedidos (sin el tope de 200 del listado), para que las sumas sean reales.
+    const forStats = url.searchParams.get("alcance") === "estadisticas";
+    const take = forStats ? undefined : 200;
 
     let labId: number | null = null;
     if (user.role === Role.LAB_PHOTOGRAPHER || user.role === Role.LAB) {
@@ -75,7 +78,7 @@ export async function GET(req: Request) {
     const printOrdersRaw = await prisma.printOrder.findMany({
       where: printOrderWhere,
       orderBy: { createdAt: "desc" },
-      take: 200,
+      take,
       include: { items: true, lab: true },
     });
 
@@ -83,6 +86,7 @@ export async function GET(req: Request) {
       .filter((o) => !isAlbumMirrorPrintOrder(o.tags))
       .map((o) => {
         const isPaid = o.paymentStatus === "PAID";
+        const printFee = Math.max(0, Math.round(Number(o.platformCommission ?? 0)));
         const reveal = isPaid || canRevealClientBeforePaid;
         return {
           id: o.id,
@@ -114,6 +118,10 @@ export async function GET(req: Request) {
           hasPrintItems: true,
           digitalItemsCount: 0,
           printItemsCount: o.items.length,
+          albumId: null as number | null,
+          albumTitle: null as string | null,
+          platformFeeAmount: printFee,
+          netAmount: Math.max(0, o.total - printFee),
           downloadLinkViewedAt: null as string | null,
           _dataProtected: !reveal,
           photographerInstagram,
@@ -135,13 +143,13 @@ export async function GET(req: Request) {
         status: { in: ["PAID", "PENDING", "FAILED", "REFUNDED"] },
       },
       orderBy: { createdAt: "desc" },
-      take: 200,
+      take,
       include: {
         items: true,
         // Los videos van en su propia tabla: sin esto, un pedido de sólo
         // video le aparecía al fotógrafo como "0 ítems".
         videoItems: { select: { videoId: true, videoTitle: true } },
-        album: { select: { pickupBy: true, eventId: true } },
+        album: { select: { pickupBy: true, eventId: true, title: true } },
         buyerUser: { select: { name: true, phone: true, whatsapp: true } },
       },
     });
@@ -219,6 +227,20 @@ export async function GET(req: Request) {
       const orderTotal = isDemo ? 0 : Math.round(o.totalCents);
       const photographerReceivedAmount =
         eventOrganizerSale?.photographerNetAmount ?? orderTotal;
+      // Comisión de la plataforma efectivamente retenida: la bruta menos el descuento por saldo de referidos.
+      const platformFeeAmount = isDemo
+        ? 0
+        : eventOrganizerSale
+          ? Math.round(eventOrganizerSale.platformFeeAmount)
+          : Math.max(
+            0,
+            Math.round(Number(o.platformCommissionCents ?? 0)) -
+              Math.round(Number(o.referralFeeDiscountCents ?? 0))
+          );
+      // Neto del fotógrafo: si hubo organizador de evento, su desglose ya descuenta comisión y organizador.
+      const netAmount = eventOrganizerSale
+        ? eventOrganizerSale.photographerNetAmount
+        : Math.max(0, orderTotal - platformFeeAmount);
       return {
         id: o.id,
         customerName: reveal
@@ -249,6 +271,10 @@ export async function GET(req: Request) {
         clientPaidAmount: orderTotal,
         eventOrganizerSale,
         albumEventId: (o.album as { eventId?: number | null })?.eventId ?? null,
+        albumId: o.albumId as number | null,
+        albumTitle: (o.album as { title?: string | null })?.title ?? null,
+        platformFeeAmount,
+        netAmount,
         status: o.status,
         paymentStatus: null as string | null,
         fulfillmentKind: f.kind,
