@@ -49,7 +49,10 @@ describe("herramientasDeAtencion", () => {
   const deps = {
     productos: async () => CATALOGO,
     estudio: async () => ({ nombre: "DNX Estudio", direccion: "San José 1672, Funes", horario: "Lunes a viernes de 8 a 13", ciudad: "Funes" }),
+    // Sin alias ni CVU cargados: el bot sigue con los links de Mercado Pago, como antes.
+    datosTransferencia: async () => null,
   };
+  const TRANSFERENCIA = { alias: "estudio.fotos.mp", cbuCvu: "0000003100012345678901", titular: "Estudio Ejemplo", banco: "Mercado Pago", cuit: null };
 
   it("buscar_productos devuelve nombre y precio en pesos", async () => {
     const { tools } = herramientasDeAtencion("w1", deps);
@@ -153,6 +156,27 @@ describe("herramientasDeAtencion", () => {
     expect(dudoso.message).toContain("Pendrive 128 GB");
   });
 
+  it("armar_pedido: por omisión da los datos para transferir y pide el comprobante; con medio tarjeta, el enlace", async () => {
+    const armarPedidoCatalogo = async () => ({
+      ok: true as const, numero: "2026-0042", lineas: [{ nombre: "Digitalización de VHS", cantidad: 5, precio: 12000 }],
+      total: 60000, aPagarAhora: 30000, saldo: 30000, url: "https://fotoffice.com/p/tok", fotos: 0,
+    });
+    const h = herramientasDeAtencion("w1", { ...deps, armarPedidoCatalogo, datosTransferencia: async () => TRANSFERENCIA }, { id: "c1", waId: "549", clientId: null, nombre: "Ana" });
+    const t = h.tools.find((x) => x.name === "armar_pedido")!;
+    const actor = { userId: 0, role: "CLIENTE", email: "", name: null };
+    const entrada = { lineas: [{ producto: "Digitalización de VHS", cantidad: 5 }], pago: "seña", nombre: "Ana Pérez" };
+    const r = await t.run(entrada, actor);
+    expect(r.message).toContain("estudio.fotos.mp");
+    expect(r.message).toContain("0000003100012345678901");
+    expect(r.message).toContain("Estudio Ejemplo");
+    expect(r.message).toContain("comprobante");
+    expect(r.message).not.toContain("https://fotoffice.com/p/tok");
+    expect(t.input.safeParse({ ...entrada, medio: "tarjeta" }).success).toBe(true);
+    const tarjeta = await t.run({ ...entrada, medio: "tarjeta" }, actor);
+    expect(tarjeta.message).toContain("https://fotoffice.com/p/tok");
+    expect(tarjeta.message).not.toContain("estudio.fotos.mp");
+  });
+
   it("armar_pedido traduce los números de foto de cada renglón", async () => {
     const recibidos: { lineas: unknown[] }[] = [];
     const armarPedidoCatalogo = async (_w: string, _c: unknown, d: { lineas: unknown[] }) => {
@@ -232,6 +256,29 @@ describe("herramientasDeAtencion", () => {
     expect(r.message).toMatch(/\$\s?14\.000/);
     expect(r.message).toContain("Seña del 50 %");
     expect(r.message).toMatch(/\$\s?28\.000/);
+  });
+
+  it("armar_pedido_impresion: por omisión, transferencia (sin links); con medio tarjeta, los dos links", async () => {
+    const armarPedido = async () => ({
+      ok: true as const, numero: 12, subtotal: 28000, envio: 0, total: 28000, sena: 14000, depositPct: 50, linkSena: "https://mp/sena", linkTotal: "https://mp/total",
+      lineas: [{ medida: "13x18", plazo: "MANANA" as const, cantidad: 2, precioUnitario: 7000, costoUnitario: 600, proveedorId: "f", productoId: "p" }],
+      fechas: [{ plazo: "MANANA" as const, fecha: "2026-10-29" }],
+    });
+    const fotos = new Map([[1, { id: "m1", en: new Date("2026-10-28T10:00:00Z") }]]);
+    const h = herramientasDeAtencion("w1", { ...deps, armarPedido, ultimoPedidoEn: async () => null, datosTransferencia: async () => TRANSFERENCIA }, { id: "c1", waId: "549", clientId: null, nombre: "Ana" }, fotos);
+    const t = h.tools.find((x) => x.name === "armar_pedido_impresion")!;
+    const actor = { userId: 0, role: "CLIENTE", email: "", name: null };
+    const entrada = { renglones: [{ fotos: [1], medida: "13x18", cantidad: 2, plazo: "para mañana" }] };
+    const r = await t.run(entrada, actor);
+    expect(r.message).toContain("Alias: estudio.fotos.mp");
+    expect(r.message).toContain("Banco: Mercado Pago");
+    expect(r.message).toContain("mande el comprobante por acá");
+    expect(r.message).not.toContain("https://mp/");
+    expect(r.message).toMatch(/\$\s?14\.000/);
+    const tarjeta = await t.run({ ...entrada, medio: "tarjeta" }, actor);
+    expect(tarjeta.message).toContain("https://mp/sena");
+    expect(tarjeta.message).toContain("https://mp/total");
+    expect(tarjeta.message).not.toContain("estudio.fotos.mp");
   });
 
   it("'todas' son las fotos posteriores al último pedido; avisa las que se están bajando; la seña dice el % configurado", async () => {

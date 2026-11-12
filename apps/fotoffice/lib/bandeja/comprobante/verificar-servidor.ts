@@ -11,20 +11,22 @@ import { claveDeMedia } from "../archivo-de-mensaje";
 import { decidir, textoDelVeredicto, type Leido, type PagoMp, type Veredicto } from "./veredicto";
 
 /**
- * "Verificar comprobante" en la Bandeja: una persona del equipo toca el botón sobre la imagen que
- * mandó el cliente. Se lee con Claude (operación, monto, fecha, quién paga y a quién) y se busca
+ * "Verificar comprobante" en la Bandeja: una persona del equipo toca el botón sobre la imagen (o el
+ * PDF que mandan los bancos) que mandó el cliente. Se lee con Claude (operación, monto, fecha, quién paga y a quién) y se busca
  * en el Mercado Pago conectado al estudio: primero la operación por número y, si no está, un pago
  * del mismo monto cerca de esa fecha. El resultado queda como mensaje del sistema en el chat.
  * No cambia ningún pedido ni cobro: es una ayuda para quien atiende.
+ * `leerYBuscarComprobante` es el mismo camino sin el mensaje del sistema: lo usa también la
+ * verificación automática del bot (`auto-servidor.ts`).
  */
 
 export const MENSAJES_COMPROBANTE = {
-  sinImagen: "No encontramos esa imagen en el chat.",
+  sinImagen: "No encontramos esa imagen o PDF en el chat.",
   noLeido: "No pude leer el comprobante. Probá de nuevo o revisalo a mano.",
   sinMp: "No se pudo consultar Mercado Pago. Revisá que esté conectado en Configuración → Cobros.",
 } as const;
 
-const SISTEMA = `Vas a leer una imagen que un cliente mandó por WhatsApp a un estudio de fotografía de Argentina. Puede ser un comprobante de transferencia o de pago (Mercado Pago, un banco, una billetera) o cualquier otra cosa.
+const SISTEMA = `Vas a leer una imagen o un PDF que un cliente mandó por WhatsApp a un estudio de fotografía de Argentina. Puede ser un comprobante de transferencia o de pago (Mercado Pago, un banco, una billetera) o cualquier otra cosa.
 Devolvé los datos con el esquema pedido. No inventes nada: lo que no figure, null.
 - "es_comprobante": true sólo si es un comprobante de pago o transferencia.
 - "operacion": el número de operación o de transacción, sólo dígitos y letras, sin espacios.
@@ -46,6 +48,7 @@ const ESQUEMA = {
   },
 } as const;
 
+/** El archivo listo para Claude: una imagen achicada a JPEG o el PDF tal cual. */
 type Imagen = { chatId: string; bytes: Buffer; mime: string };
 
 export type DepsComprobante = {
@@ -58,6 +61,11 @@ export type DepsComprobante = {
 
 const LIMITE_BYTES = 15 * 1024 * 1024;
 
+/** PURO. ¿Ese archivo puede ser un comprobante? Una imagen o un PDF. */
+export function esMimeDeComprobante(mime: string | null | undefined): boolean {
+  return typeof mime === "string" && (mime.startsWith("image/") || mime === "application/pdf");
+}
+
 async function imagenDelChat(workspaceId: string, chatId: string, mensajeId: string): Promise<Imagen | null> {
   const m = await prisma.fotofficeWaMensaje.findFirst({
     where: { id: mensajeId, workspaceId, chatId, direccion: "ENTRANTE", tipo: { in: ["IMAGEN", "DOCUMENTO"] } },
@@ -65,11 +73,13 @@ async function imagenDelChat(workspaceId: string, chatId: string, mensajeId: str
   });
   const clave = m ? claveDeMedia(m.media) : null;
   const mime = (m?.media as { mimeType?: unknown } | null)?.mimeType;
-  if (!clave || typeof mime !== "string" || !mime.startsWith("image/")) return null;
+  if (!clave || typeof mime !== "string" || !esMimeDeComprobante(mime)) return null;
   const res = await fetch(await urlDeLecturaArchivo(clave, "comprobante", "ver"), { cache: "no-store" });
   if (!res.ok) return null;
   const bytes = Buffer.from(await res.arrayBuffer());
   if (bytes.length > LIMITE_BYTES) return null;
+  // Los bancos mandan el comprobante en PDF: va a Claude como documento, sin tocarlo.
+  if (mime === "application/pdf") return { chatId, bytes, mime: "application/pdf" };
   // Claude acepta hasta 5 MB por imagen: se achica a 2000 px en JPEG, alcanza para leer un comprobante.
   const jpeg = await sharp(bytes).rotate().resize({ width: 2000, height: 2000, fit: "inside", withoutEnlargement: true }).jpeg({ quality: 85 }).toBuffer();
   return { chatId, bytes: jpeg, mime: "image/jpeg" };
@@ -92,8 +102,10 @@ async function leerConClaude(img: Imagen, workspaceId: string): Promise<Leido | 
         {
           role: "user",
           content: [
-            { type: "image", source: { type: "base64", media_type: "image/jpeg", data: img.bytes.toString("base64") } },
-            { type: "text", text: "Leé esta imagen." },
+            img.mime === "application/pdf"
+              ? { type: "document", source: { type: "base64", media_type: "application/pdf", data: img.bytes.toString("base64") } }
+              : { type: "image", source: { type: "base64", media_type: "image/jpeg", data: img.bytes.toString("base64") } },
+            { type: "text", text: img.mime === "application/pdf" ? "Leé este PDF." : "Leé esta imagen." },
           ],
         },
       ],
@@ -176,28 +188,41 @@ const POR_OMISION: Required<DepsComprobante> = {
   },
 };
 
+export type LecturaComprobante =
+  | { ok: true; leido: Leido; veredicto: Veredicto }
+  | { ok: false; error: (typeof MENSAJES_COMPROBANTE)[keyof typeof MENSAJES_COMPROBANTE] };
+
+/** Lee el archivo del chat y busca el pago en Mercado Pago. No escribe nada. Nunca lanza. */
+export async function leerYBuscarComprobante(workspaceId: string, chatId: string, mensajeId: string, deps: DepsComprobante = {}): Promise<LecturaComprobante> {
+  const d = { ...POR_OMISION, ...deps };
+  const img = await d.imagen(workspaceId, chatId, mensajeId).catch(() => null);
+  if (!img) return { ok: false, error: MENSAJES_COMPROBANTE.sinImagen };
+  const leido = await d.leer(img, workspaceId).catch(() => null);
+  if (!leido) return { ok: false, error: MENSAJES_COMPROBANTE.noLeido };
+  try {
+    const porOperacion = leido.esComprobante && leido.operacion ? await d.pagoPorOperacion(workspaceId, leido.operacion) : null;
+    const candidatos = leido.esComprobante && !porOperacion && leido.monto ? await d.pagosDelMonto(workspaceId, leido.monto, leido.fecha) : [];
+    return { ok: true, leido, veredicto: decidir(leido, porOperacion, candidatos) };
+  } catch (e) {
+    console.warn("[fotoffice][comprobante] no se pudo consultar Mercado Pago", { codigo: e instanceof Error ? e.message.slice(0, 40) : "desconocido" });
+    return { ok: false, error: MENSAJES_COMPROBANTE.sinMp };
+  }
+}
+
+/** Para dejar el resultado en el chat como mensaje del sistema (también lo usa el bot). */
+export async function escribirNotaComprobante(workspaceId: string, chatId: string, texto: string, deps: DepsComprobante = {}): Promise<void> {
+  await (deps.sistema ?? POR_OMISION.sistema)(workspaceId, chatId, texto).catch(() => undefined);
+}
+
 export async function verificarComprobante(
   ctx: CtxBandeja,
   chatId: string,
   mensajeId: string,
   deps: DepsComprobante = {},
 ): Promise<Resultado<{ estado: Veredicto["estado"]; texto: string }>> {
-  const d = { ...POR_OMISION, ...deps };
-  const img = await d.imagen(ctx.workspaceId, chatId, mensajeId).catch(() => null);
-  if (!img) return { ok: false, error: MENSAJES_COMPROBANTE.sinImagen };
-  const leido = await d.leer(img, ctx.workspaceId).catch(() => null);
-  if (!leido) return { ok: false, error: MENSAJES_COMPROBANTE.noLeido };
-
-  let veredicto: Veredicto;
-  try {
-    const porOperacion = leido.esComprobante && leido.operacion ? await d.pagoPorOperacion(ctx.workspaceId, leido.operacion) : null;
-    const candidatos = leido.esComprobante && !porOperacion && leido.monto ? await d.pagosDelMonto(ctx.workspaceId, leido.monto, leido.fecha) : [];
-    veredicto = decidir(leido, porOperacion, candidatos);
-  } catch (e) {
-    console.warn("[fotoffice][comprobante] no se pudo consultar Mercado Pago", { codigo: e instanceof Error ? e.message.slice(0, 40) : "desconocido" });
-    return { ok: false, error: MENSAJES_COMPROBANTE.sinMp };
-  }
-  const texto = textoDelVeredicto(veredicto, leido);
-  await d.sistema(ctx.workspaceId, chatId, `${ctx.userLabel} verificó un comprobante: ${texto}`).catch(() => undefined);
-  return { ok: true, estado: veredicto.estado, texto };
+  const r = await leerYBuscarComprobante(ctx.workspaceId, chatId, mensajeId, deps);
+  if (!r.ok) return r;
+  const texto = textoDelVeredicto(r.veredicto, r.leido);
+  await escribirNotaComprobante(ctx.workspaceId, chatId, `${ctx.userLabel} verificó un comprobante: ${texto}`, deps);
+  return { ok: true, estado: r.veredicto.estado, texto };
 }

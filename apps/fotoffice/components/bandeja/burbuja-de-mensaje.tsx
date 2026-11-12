@@ -67,14 +67,14 @@ function Archivo({ id, archivo: a, tipo, verificarEn }: { id: string; archivo: N
         <a href={`/api/bandeja/archivos/${id}?modo=descargar`} className="text-[var(--fo-accent)] underline">
           Descargar
         </a>
-        {esFoto && verificarEn ? <VerificarComprobante chatId={verificarEn} mensajeId={id} /> : null}
+        {(esFoto || a.mime === "application/pdf") && verificarEn ? <VerificarComprobante chatId={verificarEn} mensajeId={id} /> : null}
       </p>
     </div>
   );
 }
 
 /** Una burbuja: cliente a la izquierda; bot, persona o celular a la derecha; sistema, centrado y chico. */
-/** `verificarEn`: el chat, si quien mira puede operar (muestra «Verificar comprobante» en las fotos del cliente). */
+/** `verificarEn`: el chat, si quien mira puede operar (muestra «Verificar comprobante» en las fotos y los PDF del cliente). */
 export function BurbujaDeMensaje({ mensaje: m, verificarEn }: { mensaje: MensajeDeChat; verificarEn?: string }) {
   if (m.autor === "SISTEMA" || m.direccion === "SISTEMA") {
     return (

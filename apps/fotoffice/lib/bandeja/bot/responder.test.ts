@@ -120,6 +120,43 @@ describe("responderConBot", () => {
     expect(mensajes().find((m) => m.direccion === "SISTEMA")?.texto).toContain("publicidad de ropa de trabajo");
   });
 
+  it("un comprobante de un pedido que espera el pago se verifica antes del modelo: si pasa a una persona, el bot no contesta otra cosa", async () => {
+    const chatId = await chatCon(["ahí te transferí"]);
+    await P.fotofficeWaMensaje.create({
+      data: {
+        workspaceId: "w1", chatId, direccion: "ENTRANTE", autor: "CLIENTE", tipo: "DOCUMENTO", texto: null, estadoEnvio: "RECIBIDO",
+        media: { id: "meta", mimeType: "application/pdf", filename: "COMP_TRANSFERENCIA.pdf", descarga: "LISTO", clave: "k/comp.pdf" }, createdAt: new Date(AHORA.getTime() - 500),
+      },
+    });
+    const t = turnoQue("¡Gracias!");
+    const vistos: string[][] = [];
+    const comprobante = async (_chat: unknown, archivos: readonly string[], _a: Date, d: { responder: (t: string) => Promise<string>; pasar: (m: string) => Promise<void> }) => {
+      vistos.push([...archivos]);
+      await d.responder("¡Gracias! Recibí el comprobante, lo estamos chequeando y te confirmo en un ratito 😊");
+      await d.pasar("comprobante para revisar: el pago es anterior al pedido");
+      return "A_PERSONA" as const;
+    };
+    expect(await responderConBot(chatId, deps(t.fn, { comprobante }))).toBe("derivo");
+    expect(vistos).toHaveLength(1);
+    expect(t.vistos).toHaveLength(0);
+    expect(mensajes().filter((m) => m.autor === "BOT")).toHaveLength(1);
+    expect(chats()[0]).toMatchObject({ estado: "HUMANO" });
+  });
+
+  it("si el archivo no es un comprobante, el bot contesta como siempre", async () => {
+    const chatId = await chatCon([]);
+    await P.fotofficeWaMensaje.create({
+      data: {
+        workspaceId: "w1", chatId, direccion: "ENTRANTE", autor: "CLIENTE", tipo: "IMAGEN", texto: null, estadoEnvio: "RECIBIDO",
+        media: { id: "meta", mimeType: "image/jpeg", descarga: "LISTO", clave: "k/f.jpg", ancho: 1200, alto: 1600 }, createdAt: new Date(AHORA.getTime() - 500),
+      },
+    });
+    const t = turnoQue("¡Qué linda foto! ¿Qué querés hacer con ella? 😊");
+    const comprobante = async () => "SEGUIR" as const;
+    expect(await responderConBot(chatId, deps(t.fn, { comprobante }))).toBe("respondio");
+    expect(t.vistos).toHaveLength(1);
+  });
+
   it("si mientras espera entra otro mensaje, no contesta (lo hará la próxima ejecución)", async () => {
     const chatId = await chatCon(["hola"]);
     const t = turnoQue("¡Hola!");

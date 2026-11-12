@@ -17,6 +17,8 @@ import { historialParaElBot } from "./historial";
 import type { NoCliente } from "./aviso-no-cliente";
 import { botEncendido } from "./interruptor";
 import { registrarUsoWa, usoWa } from "./uso";
+import { archivosParaComprobante } from "../comprobante/auto-decision";
+import type { atenderComprobanteDelBot, SalidaAutoComprobante } from "../comprobante/auto-servidor";
 
 /**
  * Un turno del bot en un chat de la Bandeja (etapa 3a). Lo dispara `after()` cuando entra un
@@ -44,6 +46,8 @@ export type DepsResponder = {
   enviar?: typeof enviarTexto;
   herramientas?: Partial<DepsAtencion>;
   avisarNoCliente?: (workspaceId: string, p: NoCliente) => Promise<void>;
+  /** La verificación automática del comprobante (cobro por transferencia). */
+  comprobante?: (...a: Parameters<typeof atenderComprobanteDelBot>) => Promise<SalidaAutoComprobante>;
 };
 
 export type SalidaBot = "respondio" | "derivo" | "nada";
@@ -121,6 +125,8 @@ async function turno(chatId: string, deps: DepsResponder): Promise<SalidaBot> {
     take: 60,
     select: { id: true, direccion: true, autor: true, tipo: true, texto: true, media: true, createdAt: true },
   });
+  // La última tanda del cliente (antes de dar vuelta la lista: `reverse` la cambia).
+  const posiblesComprobantes = archivosParaComprobante(leidos);
   const h = historialParaElBot(leidos.reverse(), undefined, ahora());
   if (!h) return "nada";
 
@@ -142,6 +148,19 @@ async function turno(chatId: string, deps: DepsResponder): Promise<SalidaBot> {
 
   const limites = decidirLimites({ ...cfg.limits, maxMessagesPerUserPerDay: MAX_RESPUESTAS_POR_DIA }, await usoWa({ plataforma, chatId, ahora: ahora() }));
   if (!limites.permitido) return fallar(`tope_${limites.motivo}`, limites.motivo);
+
+  // El bot cobra por transferencia: si mandó un comprobante de un pedido que espera el pago, se verifica
+  // antes de hablar con el modelo. Si se acreditó o pasa a una persona, el bot no contesta otra cosa.
+  if (posiblesComprobantes.length > 0) {
+    const atender = deps.comprobante ?? (await import("../comprobante/auto-servidor")).atenderComprobanteDelBot;
+    const r = await atender({ id: chat.id, workspaceId, waId: chat.waId, nombre: chat.nombre }, posiblesComprobantes, ahora(), {
+      responder: (texto) => enviarComoBot(workspaceId, chatId, texto, { ultimoMensajeId }, { ahora: ahora(), enviar: deps.enviar }),
+      pasar: (motivo) => pasarAPersona(workspaceId, chatId, motivo, ahora()),
+    });
+    if (r === "ACREDITADO") return "respondio";
+    if (r === "A_PERSONA") return "derivo";
+    if (r === "OMITIDO") return "nada";
+  }
 
   const estudio = await prisma.fotofficeWorkspaceBranding
     .findUnique({ where: { workspaceId }, select: { commercialName: true } })

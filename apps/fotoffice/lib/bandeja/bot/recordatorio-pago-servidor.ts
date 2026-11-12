@@ -41,6 +41,8 @@ export type DepsRecordatorio = {
   ultimoMensaje?: (chatId: string) => Promise<{ id: string; direccion: string } | null>;
   enviar?: (workspaceId: string, chatId: string, texto: string, condicion: { ultimoMensajeId: string }) => Promise<SalidaEnvioBot>;
   marcar?: (workspaceId: string, chatId: string, texto: string) => Promise<void>;
+  /** ¿El estudio cobra por transferencia (alias o CVU cargado)? Entonces el recordatorio no lleva link. */
+  porTransferencia?: (workspaceId: string) => Promise<boolean>;
 };
 
 const POR_OMISION: Required<Omit<DepsRecordatorio, "ahora">> = {
@@ -118,6 +120,11 @@ const POR_OMISION: Required<Omit<DepsRecordatorio, "ahora">> = {
     prisma.fotofficeWaMensaje.findFirst({ where: { chatId, direccion: { not: "SISTEMA" } }, orderBy: { createdAt: "desc" }, select: { id: true, direccion: true } }),
   enviar: (workspaceId, chatId, texto, condicion) => enviarComoBot(workspaceId, chatId, texto, condicion),
   marcar: (workspaceId, chatId, texto) => prisma.$transaction((tx) => escribirSistema(tx, workspaceId, chatId, texto, new Date())),
+  porTransferencia: async (workspaceId) => {
+    const { leerAjustesCobro } = await import("@/lib/cobro-ajustes/ajustes");
+    const a = await leerAjustesCobro(workspaceId);
+    return Boolean(a.alias?.trim() || a.cbuCvu?.trim());
+  },
 };
 
 export async function recordarPagosPendientes(deps: DepsRecordatorio = {}): Promise<{ revisados: number; enviados: number }> {
@@ -137,7 +144,7 @@ export async function recordarPagosPendientes(deps: DepsRecordatorio = {}): Prom
       let marca: string;
       if (p && p.aPagar > 0) {
         if (await d.yaRecordado(chat, p)) continue;
-        texto = textoDelRecordatorio(chat.nombre, p);
+        texto = textoDelRecordatorio(chat.nombre, p, await d.porTransferencia(chat.workspaceId).catch(() => false));
         marca = marcaDe(p);
       } else if (!p && (await d.consultaSinCompra(chat, ahora))) {
         texto = textoSeguimientoConsulta(chat.nombre);

@@ -17,6 +17,8 @@ const H = vi.hoisted(() => {
   const db: Record<string, unknown> = {};
   Object.assign(db, {
     $transaction: vi.fn(async (f: (tx: unknown) => unknown) => f(db)),
+    $executeRaw: vi.fn(async (..._a: unknown[]) => 1),
+    fotofficeCobro: { findFirst: vi.fn(async (..._a: unknown[]) => null as unknown) },
     fotofficePrintOrder: {
       findUnique: vi.fn(async (..._a: unknown[]) => pedido as unknown),
       findFirst: vi.fn(async ({ where }: { where: { id: string; workspaceId: string } }) =>
@@ -282,6 +284,30 @@ describe("acreditarPagoImpresion: pedidos del bot de WhatsApp", () => {
     expect([ws, waId, opciones.autor]).toEqual(["ws", "5493410000000", "Pedidos de impresión"]);
     expect(texto).toContain("Recibimos tu pago");
     expect(texto).toContain("saldo de $");
+  });
+
+  it("por comprobante: acredita el pedido que se indica (sin referencia) con un candado por pago", async () => {
+    orden.findUnique.mockResolvedValueOnce(pedidoWa());
+    const r = await A.acreditarPagoImpresion("ws", pago({ amountMinor: 50000, externalReference: null as never }), { porComprobante: { pedidoId: "ord1" } });
+    expect(r).toEqual({ ok: true, yaEstaba: false });
+    expect(H.db.$executeRaw).toHaveBeenCalledTimes(1);
+    expect((orden.updateMany.mock.calls[0][0] as { where: Record<string, unknown> }).where).toMatchObject({ id: "ord1", status: { in: ["PENDIENTE_PAGO"] } });
+    await vi.waitFor(() => expect(H.whatsapp).toHaveBeenCalledTimes(1));
+  });
+
+  it("por comprobante: un pago que ya está en un cobro no acredita", async () => {
+    orden.findUnique.mockResolvedValueOnce(pedidoWa());
+    (H.db.fotofficeCobro as Record<string, ReturnType<typeof vi.fn>>).findFirst.mockResolvedValueOnce({ id: "cobro-1" });
+    expect(await A.acreditarPagoImpresion("ws", pago({ amountMinor: 50000 }), { porComprobante: { pedidoId: "ord1" } })).toEqual({ ok: false, error: "PAGO_YA_USADO" });
+    expect(orden.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("por comprobante: un pedido que no es del bot o ya no espera el pago no se toca", async () => {
+    orden.findUnique.mockResolvedValueOnce(pedidoWa({ status: "PAGADO" }));
+    expect(await A.acreditarPagoImpresion("ws", pago({ amountMinor: 50000 }), { porComprobante: { pedidoId: "ord1" } })).toEqual({ ok: false, error: "NO_EXISTE" });
+    orden.findUnique.mockResolvedValueOnce({ ...H.pedido });
+    expect(await A.acreditarPagoImpresion("ws", pago({ amountMinor: 100000 }), { porComprobante: { pedidoId: "ord1" } })).toEqual({ ok: false, error: "NO_EXISTE" });
+    expect(orden.updateMany).not.toHaveBeenCalled();
   });
 
   it("menos que la seña no acredita", async () => {

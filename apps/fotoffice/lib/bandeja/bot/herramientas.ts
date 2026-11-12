@@ -65,7 +65,26 @@ export type DepsAtencion = {
   cotizarFotolibro: (workspaceId: string, pedido: PedidoFotolibro) => Promise<RespuestaFotolibro>;
   /** Cuándo se armó el último pedido de copias del chat ("todas" las fotos = las posteriores). */
   ultimoPedidoEn: (workspaceId: string, chat: ChatAtencion) => Promise<Date | null>;
+  /** Los datos para transferir (Configuración → Presupuestos → Cobros); null si no hay alias ni CBU/CVU. */
+  datosTransferencia: (workspaceId: string) => Promise<DatosTransferencia | null>;
 };
+
+export type DatosTransferencia = { alias: string | null; cbuCvu: string | null; titular: string | null; banco: string | null; cuit: string | null };
+
+/** Cómo quiere pagar el cliente: por omisión, transferencia (sin comisión); tarjeta o cuotas, con el link de Mercado Pago. */
+const MEDIO = z.enum(["transferencia", "tarjeta"]).optional();
+
+/** PURO. Las líneas con los datos para transferir que lee el bot (sólo lo que está cargado). */
+export function lineasDeTransferencia(d: DatosTransferencia): string[] {
+  return [
+    "Datos para transferir:",
+    ...(d.alias ? [`- Alias: ${d.alias}`] : []),
+    ...(d.cbuCvu ? [`- CBU/CVU: ${d.cbuCvu}`] : []),
+    ...(d.titular ? [`- Titular: ${d.titular}`] : []),
+    ...(d.banco ? [`- Banco: ${d.banco}`] : []),
+    ...(d.cuit ? [`- CUIT: ${d.cuit}`] : []),
+  ];
+}
 
 /** Pedidos de impresión del chat, sin los reemplazados (con `lastError` nulo incluido: `NOT` dejaría afuera los NULL). */
 export function filtroPedidosDelChat(workspaceId: string, chatId: string) {
@@ -139,6 +158,13 @@ const DEPS: DepsAtencion = {
       `Total ${precioDeLista(Number(p.totalArs))}; pagado ${precioDeLista(Number(p.paidArs))}${saldo > 0 && p.status !== "PENDIENTE_PAGO" ? `; saldo ${precioDeLista(saldo)} al retirar` : ""}.`,
       p.promisedAt ? `Fecha prometida: ${p.promisedAt.toISOString().slice(8, 10)}/${p.promisedAt.toISOString().slice(5, 7)}.` : "",
     ].filter(Boolean).join(" ");
+  },
+  datosTransferencia: async (workspaceId) => {
+    const { leerAjustesCobro } = await import("@/lib/cobro-ajustes/ajustes");
+    const a = await leerAjustesCobro(workspaceId);
+    const limpio = (v: string | null) => (v && v.trim() ? v.trim() : null);
+    const d = { alias: limpio(a.alias), cbuCvu: limpio(a.cbuCvu), titular: limpio(a.titular), banco: limpio(a.banco), cuit: limpio(a.cuit) };
+    return d.alias || d.cbuCvu ? d : null;
   },
   ultimoPedidoEn: async (workspaceId, chat) => {
     const p = await prisma.fotofficePrintOrder.findFirst({ where: { workspaceId, waChatId: chat.id }, orderBy: { createdAt: "desc" }, select: { createdAt: true } });
@@ -309,7 +335,7 @@ export function herramientasDeAtencion(
     defineTool({
       name: "armar_pedido_impresion",
       description:
-        "Arma un pedido de copias o ampliaciones con las fotos que mandó el cliente por este chat (las ves numeradas: [foto 1], [foto 2]…; \"todas\" son las que mandó después de su último pedido) y devuelve el total, la seña y dos links de Mercado Pago (seña o total). Usala cuando ya sepas, para cada grupo de fotos, la medida, la cantidad de copias de cada foto y el plazo; el papel es brillante salvo que pida mate. Si quiere envío a domicilio, pasá la dirección con la localidad. Si pide el resumen por correo, pasá su email. Si el cliente cambia algo, volvé a usarla: el pedido anterior se reemplaza.",
+        "Arma un pedido de copias o ampliaciones con las fotos que mandó el cliente por este chat (las ves numeradas: [foto 1], [foto 2]…; \"todas\" son las que mandó después de su último pedido) y devuelve el total, la seña y los datos para transferir (por omisión, medio \"transferencia\"). Sólo si el cliente pide pagar con tarjeta o en cuotas, usala con medio \"tarjeta\": devuelve dos links de Mercado Pago (seña o total). Usala cuando ya sepas, para cada grupo de fotos, la medida, la cantidad de copias de cada foto y el plazo; el papel es brillante salvo que pida mate. Si quiere envío a domicilio, pasá la dirección con la localidad. Si pide el resumen por correo, pasá su email. Si el cliente cambia algo, volvé a usarla: el pedido anterior se reemplaza.",
       input: z.object({
         renglones: z
           .array(
@@ -325,9 +351,10 @@ export function herramientasDeAtencion(
           .max(20),
         envio: z.object({ direccion: z.string().min(5).max(200) }).optional(),
         email: z.string().email().max(254).optional(),
+        medio: MEDIO,
       }),
       kind: "read",
-      run: async ({ renglones, envio, email }) => {
+      run: async ({ renglones, envio, email, medio }) => {
         if (!chat) return { ok: true, message: "Ahora no puedo armar el pedido. Usá pasar_a_persona con un resumen de lo que pide." };
         // "Todas" = las fotos que llegaron después del último pedido armado en este chat.
         const desde = await deps.ultimoPedidoEn(workspaceId, chat).catch(() => null);
@@ -363,6 +390,8 @@ export function herramientasDeAtencion(
           };
           return { ok: true, message: motivos[res.motivo] ?? "No pude armar el pedido. Usá pasar_a_persona con un resumen de lo que pide." };
         }
+        // Transferencia por omisión (los links de Mercado Pago le cuestan comisión al estudio); sin alias ni CVU, el link como siempre.
+        const transferencia = medio === "tarjeta" ? null : await deps.datosTransferencia(workspaceId).catch(() => null);
         const nombrePlazo = { INSTANTANEA: "instantánea", MANANA: "para mañana", SEMANA: "para la próxima semana" } as const;
         const lineas = res.lineas.map((l) => `- ${l.cantidad} × ${l.medida} ${nombrePlazo[l.plazo]}: ${precioDeLista(l.precioUnitario)} c/u`);
         const fechas = res.fechas.map((f) => `${nombrePlazo[f.plazo]}: ${f.fecha.slice(8, 10)}/${f.fecha.slice(5, 7)}`);
@@ -375,10 +404,18 @@ export function herramientasDeAtencion(
             `Total: ${precioDeLista(res.total)}. Seña del ${res.depositPct} %: ${precioDeLista(res.sena)}.`,
             ...(fotosBajando > 0 ? [`Ojo: ${fotosBajando} ${fotosBajando === 1 ? "foto todavía se está bajando y no entró" : "fotos todavía se están bajando y no entraron"} en el pedido; si las quiere, volvé a armarlo en un momento.`] : []),
             `Fechas (si paga hoy): ${fechas.join("; ")}.`,
-            `Link para pagar la seña: ${res.linkSena}`,
-            `Link para pagar el total: ${res.linkTotal}`,
-            ...(email ? [`El resumen también salió por correo a ${email}.`] : []),
-            "Pasale al cliente el resumen corto, el total, la seña y los dos links (puede pagar cualquiera de los dos). Cuando pague, le llega la confirmación por acá.",
+            ...(transferencia
+              ? [
+                  ...lineasDeTransferencia(transferencia),
+                  ...(email ? [`El resumen también salió por correo a ${email}.`] : []),
+                  "Pasale al cliente el resumen corto, el total, la seña y los datos para transferir. Pedile que transfiera la seña o el total y que mande el comprobante por acá: cuando lo verificamos, le llega la confirmación. No le pases links de pago; si pide pagar con tarjeta o en cuotas, volvé a usar armar_pedido_impresion con los mismos datos y medio \"tarjeta\".",
+                ]
+              : [
+                  `Link para pagar la seña: ${res.linkSena}`,
+                  `Link para pagar el total: ${res.linkTotal}`,
+                  ...(email ? [`El resumen también salió por correo a ${email}.`] : []),
+                  "Pasale al cliente el resumen corto, el total, la seña y los dos links (puede pagar cualquiera de los dos). Cuando pague, le llega la confirmación por acá.",
+                ]),
           ].join("\n"),
         };
       },
@@ -404,7 +441,7 @@ export function herramientasDeAtencion(
     defineTool({
       name: "armar_pedido",
       description:
-        "Vende cualquier producto o servicio del catálogo que no sean copias o ampliaciones (fotolibros, digitalización de VHS/DVD/CD/casetes, pendrives, revelado, cuadros, dípticos, fotoimanes, Polaroid, llaveros, vasos, portarretratos…): crea el pedido a nombre del cliente y devuelve el total, lo que paga ahora (seña del 50 % o el total) y el enlace para pagar con Mercado Pago. Usala cuando sepas el producto (nombre como lo da buscar_productos y, si tiene, la medida o talle), la cantidad, el nombre y apellido del cliente y si paga seña o total; el correo es opcional. Si el producto lleva fotos del cliente (cuadros, dípticos, imanes, Polaroid, llaveros, vasos…), pasá en ese renglón los números de las fotos del chat ([foto 1], [foto 2]…; \"todas\" = las que mandó después de su último pedido): quedan en el trabajo del pedido. Para un fotolibro, pasá en su renglón el objeto fotolibro con el modelo, la medida y las hojas que te dio cotizar_fotolibro (y caja si la quiere): el precio lo vuelve a calcular el sistema. Si el cliente cambia algo, volvé a usarla: el pedido anterior sin pagar se cancela.",
+        "Vende cualquier producto o servicio del catálogo que no sean copias o ampliaciones (fotolibros, digitalización de VHS/DVD/CD/casetes, pendrives, revelado, cuadros, dípticos, fotoimanes, Polaroid, llaveros, vasos, portarretratos…): crea el pedido a nombre del cliente y devuelve el total, lo que paga ahora (seña del 50 % o el total) y los datos para transferir (por omisión, medio \"transferencia\"). Sólo si el cliente pide pagar con tarjeta o en cuotas, usala con medio \"tarjeta\": devuelve el enlace del pedido para pagar con Mercado Pago. Usala cuando sepas el producto (nombre como lo da buscar_productos y, si tiene, la medida o talle), la cantidad, el nombre y apellido del cliente y si paga seña o total; el correo es opcional. Si el producto lleva fotos del cliente (cuadros, dípticos, imanes, Polaroid, llaveros, vasos…), pasá en ese renglón los números de las fotos del chat ([foto 1], [foto 2]…; \"todas\" = las que mandó después de su último pedido): quedan en el trabajo del pedido. Para un fotolibro, pasá en su renglón el objeto fotolibro con el modelo, la medida y las hojas que te dio cotizar_fotolibro (y caja si la quiere): el precio lo vuelve a calcular el sistema. Si el cliente cambia algo, volvé a usarla: el pedido anterior sin pagar se cancela.",
       input: z.object({
         lineas: z
           .array(
@@ -429,9 +466,10 @@ export function herramientasDeAtencion(
         pago: z.enum(["seña", "total"]),
         nombre: z.string().min(2).max(120),
         email: z.string().email().max(254).optional(),
+        medio: MEDIO,
       }),
       kind: "read",
-      run: async ({ lineas, pago, nombre, email }) => {
+      run: async ({ lineas, pago, nombre, email, medio }) => {
         if (!chat) return { ok: true, message: "Ahora no puedo armar el pedido. Usá pasar_a_persona con un resumen de lo que pide." };
         // Los números de foto, como en armar_pedido_impresion: "todas" = las posteriores al último pedido de copias.
         const conFotos = lineas.some((l) => l.fotos !== undefined);
@@ -454,6 +492,7 @@ export function herramientasDeAtencion(
           renglones.push({ ...l, fotos: numeros.map((n) => ({ mensajeId: fotos.get(n)!.id })) });
         }
         const res = await deps.armarPedidoCatalogo(workspaceId, chat, { lineas: renglones, pago: pago === "total" ? "TOTAL" : "SENA", nombre, email: email ?? null });
+        const transferencia = res.ok && medio !== "tarjeta" ? await deps.datosTransferencia(workspaceId).catch(() => null) : null;
         if (!res.ok) {
           if (res.motivo === "FOTOLIBRO") return { ok: true, message: `${res.detalle ?? "No pude cotizar el fotolibro."} Revisalo con cotizar_fotolibro y volvé a usar armar_pedido.` };
                     if (res.motivo === "FOTO_NO_LISTA") return { ok: true, message: "Una de las fotos no se pudo bajar: pedile al cliente que la reenvíe." };
@@ -466,11 +505,20 @@ export function herramientasDeAtencion(
             `Pedido ${res.numero} armado.`,
             ...res.lineas.map((l) => `- ${l.cantidad} × ${l.nombre}: ${precioDeLista(l.precio)} c/u`),
             `Total: ${precioDeLista(res.total)}.`,
-            res.saldo > 0 ? `Paga ahora la seña: ${precioDeLista(res.aPagarAhora)}. Saldo: ${precioDeLista(res.saldo)} (al retirar o desde el mismo enlace).` : `Paga ahora el total: ${precioDeLista(res.aPagarAhora)}.`,
-            `Enlace del pedido para pagar: ${res.url}`,
+            ...(transferencia
+              ? [
+                  res.saldo > 0 ? `Paga ahora la seña: ${precioDeLista(res.aPagarAhora)}. Saldo: ${precioDeLista(res.saldo)} (al retirar).` : `Paga ahora el total: ${precioDeLista(res.aPagarAhora)}.`,
+                  ...lineasDeTransferencia(transferencia),
+                ]
+              : [
+                  res.saldo > 0 ? `Paga ahora la seña: ${precioDeLista(res.aPagarAhora)}. Saldo: ${precioDeLista(res.saldo)} (al retirar o desde el mismo enlace).` : `Paga ahora el total: ${precioDeLista(res.aPagarAhora)}.`,
+                  `Enlace del pedido para pagar: ${res.url}`,
+                ]),
             ...(res.fotos > 0 ? [`Las ${res.fotos === 1 ? "foto quedó" : `${res.fotos} fotos quedaron`} en el trabajo del pedido.`] : []),
             ...(email ? [`El detalle del pedido también le llega por correo a ${email}.`] : []),
-            "Pasale al cliente el resumen corto, el total, lo que paga ahora y el enlace. Si es material para digitalizar, recordale que lo trae al estudio.",
+            transferencia
+              ? `Pasale al cliente el resumen corto, el total, lo que paga ahora y los datos para transferir. Pedile que transfiera ${res.saldo > 0 ? "la seña o el total" : "el total"} y que mande el comprobante por acá: cuando lo verificamos, le llega la confirmación. No le pases el enlace; si pide pagar con tarjeta o en cuotas, volvé a usar armar_pedido con los mismos datos y medio "tarjeta". Si es material para digitalizar, recordale que lo trae al estudio.`
+              : "Pasale al cliente el resumen corto, el total, lo que paga ahora y el enlace. Si es material para digitalizar, recordale que lo trae al estudio.",
           ].join("\n"),
         };
       },
