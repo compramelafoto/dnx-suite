@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { archivosParaComprobante, decidirAutoComprobante, textoAvisoComprobante, type EntradaAutoComprobante, type PedidoEsperandoPago } from "./auto-decision";
+import { archivosParaComprobante, decidirAutoComprobante, nombresCoinciden, textoAvisoComprobante, type EntradaAutoComprobante, type PedidoEsperandoPago } from "./auto-decision";
 import type { PagoMp, Veredicto } from "./veredicto";
 
 const PEDIDO: PedidoEsperandoPago = {
@@ -7,7 +7,7 @@ const PEDIDO: PedidoEsperandoPago = {
 };
 const pago = (extra: Partial<PagoMp> = {}): PagoMp => ({ id: "555", monto: 10000, estado: "approved", fecha: "2026-11-10T18:30:00Z", pagador: null, ...extra });
 const entrada = (veredicto: Veredicto, extra: Partial<EntradaAutoComprobante> = {}): EntradaAutoComprobante => ({
-  veredicto, pedidos: [PEDIDO], pagoYaUsado: false, autoConfirmar: true, ...extra,
+  veredicto, leido: { fecha: "2026-11-10T18:25:00Z", origen: null, monto: 10000 }, candidatos: [], pedidos: [PEDIDO], pagoYaUsado: false, autoConfirmar: true, ...extra,
 });
 
 describe("decidirAutoComprobante", () => {
@@ -64,6 +64,50 @@ describe("decidirAutoComprobante", () => {
 
   it("sin la fecha del pago no se puede comprobar: a una persona", () => {
     expect(decidirAutoComprobante(entrada({ estado: "CONFIRMADO", pago: pago({ fecha: null }) }))).toMatchObject({ accion: "A_PERSONA" });
+  });
+});
+
+describe("decidirAutoComprobante: PROBABLE más estricto para acreditar solo", () => {
+  const probable = { estado: "PROBABLE" as const, pago: pago({ fecha: "2026-11-10T18:30:00Z", pagador: "María José Gómez" }) };
+
+  it("el pago tiene que estar a 30 minutos o menos de la hora del comprobante", () => {
+    expect(decidirAutoComprobante(entrada(probable, { leido: { fecha: "2026-11-10T18:00:00Z", origen: null, monto: 10000 } }))).toMatchObject({ accion: "ACREDITAR" });
+    expect(decidirAutoComprobante(entrada(probable, { leido: { fecha: "2026-11-10T17:59:00Z", origen: null, monto: 10000 } }))).toMatchObject({
+      accion: "A_PERSONA", motivo: "el pago está a más de 30 minutos de la hora del comprobante",
+    });
+  });
+
+  it("sin hora legible en el comprobante, a una persona", () => {
+    expect(decidirAutoComprobante(entrada(probable, { leido: { fecha: null, origen: null, monto: 10000 } }))).toMatchObject({ accion: "A_PERSONA", motivo: "el comprobante no tiene la hora legible" });
+    expect(decidirAutoComprobante(entrada(probable, { leido: { fecha: "ayer a la tarde", origen: null, monto: 10000 } }))).toMatchObject({ accion: "A_PERSONA" });
+  });
+
+  it("el nombre del comprobante tiene que coincidir con el del pago (sin tildes ni mayúsculas); si falta uno, se acepta", () => {
+    const con = (origen: string | null) => entrada(probable, { leido: { fecha: "2026-11-10T18:25:00Z", origen, monto: 10000 } });
+    expect(decidirAutoComprobante(con("GOMEZ MARIA J"))).toMatchObject({ accion: "ACREDITAR" });
+    expect(decidirAutoComprobante(con("Juan Pérez"))).toMatchObject({ accion: "A_PERSONA", motivo: "el nombre del comprobante no coincide con el del pago" });
+    expect(decidirAutoComprobante(con(null))).toMatchObject({ accion: "ACREDITAR" });
+    expect(decidirAutoComprobante(entrada({ estado: "PROBABLE", pago: pago({ pagador: null }) }, { leido: { fecha: "2026-11-10T18:25:00Z", origen: "Juan Pérez", monto: 10000 } }))).toMatchObject({ accion: "ACREDITAR" });
+  });
+
+  it("si hay más de un pago del mismo monto en la ventana, a una persona", () => {
+    const otro = pago({ id: "556", fecha: "2026-11-10T18:40:00Z" });
+    expect(decidirAutoComprobante(entrada(probable, { candidatos: [probable.pago, otro] }))).toMatchObject({ accion: "A_PERSONA", motivo: "hay varios pagos del mismo monto" });
+    // Uno fuera de la ventana de 30 minutos, o no aprobado, no cuenta.
+    const lejos = pago({ id: "557", fecha: "2026-11-10T20:00:00Z" });
+    const rechazado = pago({ id: "558", estado: "rejected" });
+    expect(decidirAutoComprobante(entrada(probable, { candidatos: [probable.pago, lejos, rechazado] }))).toMatchObject({ accion: "ACREDITAR" });
+  });
+
+  it("CONFIRMADO por número de operación no pide hora, nombre ni pago único", () => {
+    const confirmado = { estado: "CONFIRMADO" as const, pago: pago({ pagador: "Otra Persona" }) };
+    expect(decidirAutoComprobante(entrada(confirmado, { leido: { fecha: null, origen: "Juan Pérez", monto: 10000 }, candidatos: [pago({ id: "9" })] }))).toMatchObject({ accion: "ACREDITAR" });
+  });
+
+  it("nombresCoinciden: al menos una palabra de 4 letras en común", () => {
+    expect(nombresCoinciden("Verónica Ruiz", "VERONICA A RUIZ")).toBe(true);
+    expect(nombresCoinciden("Ana Paz", "Ana Paz")).toBe(true); // sin palabras de 4 letras: no se puede comparar
+    expect(nombresCoinciden("Carlos Fernández", "Martina Gómez")).toBe(false);
   });
 });
 

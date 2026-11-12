@@ -189,7 +189,8 @@ const POR_OMISION: Required<DepsComprobante> = {
 };
 
 export type LecturaComprobante =
-  | { ok: true; leido: Leido; veredicto: Veredicto }
+  /** `candidatos`: los pagos del mismo monto cerca de la fecha (vacío si se encontró la operación por número). */
+  | { ok: true; leido: Leido; veredicto: Veredicto; candidatos: PagoMp[] }
   | { ok: false; error: (typeof MENSAJES_COMPROBANTE)[keyof typeof MENSAJES_COMPROBANTE] };
 
 /** Lee el archivo del chat y busca el pago en Mercado Pago. No escribe nada. Nunca lanza. */
@@ -202,7 +203,7 @@ export async function leerYBuscarComprobante(workspaceId: string, chatId: string
   try {
     const porOperacion = leido.esComprobante && leido.operacion ? await d.pagoPorOperacion(workspaceId, leido.operacion) : null;
     const candidatos = leido.esComprobante && !porOperacion && leido.monto ? await d.pagosDelMonto(workspaceId, leido.monto, leido.fecha) : [];
-    return { ok: true, leido, veredicto: decidir(leido, porOperacion, candidatos) };
+    return { ok: true, leido, veredicto: decidir(leido, porOperacion, candidatos), candidatos };
   } catch (e) {
     console.warn("[fotoffice][comprobante] no se pudo consultar Mercado Pago", { codigo: e instanceof Error ? e.message.slice(0, 40) : "desconocido" });
     return { ok: false, error: MENSAJES_COMPROBANTE.sinMp };

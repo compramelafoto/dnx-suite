@@ -171,10 +171,10 @@ async function atender(chat: ChatDelComprobante, archivos: readonly string[], ah
 
   if (!lectura) return aPersona(chat, d, "no se pudo consultar Mercado Pago", pedidos[0] ?? null, "Llegó un comprobante, pero no se pudo consultar Mercado Pago.");
 
-  const { veredicto, leido } = lectura;
+  const { veredicto, leido, candidatos } = lectura;
   const texto = textoDelVeredicto(veredicto, leido);
   const pagoYaUsado = "pago" in veredicto ? await d.yaUsado(workspaceId, veredicto.pago.id) : false;
-  const decision = decidirAutoComprobante({ veredicto, pedidos, pagoYaUsado, autoConfirmar: await d.autoConfirmar(workspaceId) });
+  const decision = decidirAutoComprobante({ veredicto, leido, candidatos, pedidos, pagoYaUsado, autoConfirmar: await d.autoConfirmar(workspaceId) });
   if (decision.accion === "SEGUIR") return "SEGUIR";
   if (decision.accion === "A_PERSONA") return aPersona(chat, d, decision.motivo, decision.pedido, texto);
 

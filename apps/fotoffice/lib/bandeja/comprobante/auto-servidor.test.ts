@@ -17,7 +17,7 @@ const pedido = (tipo: "IMPRESION" | "CATALOGO") => ({ tipo, id: "p1", numero: "1
 function deps(extra: Partial<Deps> = {}) {
   const d = {
     pedidos: vi.fn(async () => [pedido("IMPRESION")]),
-    leer: vi.fn(async () => ({ ok: true as const, leido: LEIDO, veredicto: { estado: "PROBABLE" as const, pago: PAGO } })),
+    leer: vi.fn(async () => ({ ok: true as const, leido: LEIDO, veredicto: { estado: "PROBABLE" as const, pago: PAGO }, candidatos: [PAGO] })),
     yaUsado: vi.fn(async () => false),
     autoConfirmar: vi.fn(async () => true),
     pagoCompleto: vi.fn(async () => COMPLETO),
@@ -56,14 +56,14 @@ describe("atenderComprobanteDelBot", () => {
   });
 
   it("si la imagen no es un comprobante, el bot sigue como siempre", async () => {
-    const d = deps({ leer: vi.fn(async () => ({ ok: true as const, leido: { ...LEIDO, esComprobante: false }, veredicto: { estado: "NO_ES_COMPROBANTE" as const } })) });
+    const d = deps({ leer: vi.fn(async () => ({ ok: true as const, leido: { ...LEIDO, esComprobante: false }, veredicto: { estado: "NO_ES_COMPROBANTE" as const }, candidatos: [] })) });
     expect(await atenderComprobanteDelBot(CHAT, ["m1", "m2"], AHORA, d)).toBe("SEGUIR");
     expect(d.leer).toHaveBeenCalledTimes(2);
     expect(d.responder).not.toHaveBeenCalled();
   });
 
   it("no encontrado en Mercado Pago: contesta corto, pasa a una persona con el motivo y avisa por Telegram", async () => {
-    const d = deps({ leer: vi.fn(async () => ({ ok: true as const, leido: LEIDO, veredicto: { estado: "NO_ENCONTRADO" as const } })) });
+    const d = deps({ leer: vi.fn(async () => ({ ok: true as const, leido: LEIDO, veredicto: { estado: "NO_ENCONTRADO" as const }, candidatos: [] })) });
     expect(await atenderComprobanteDelBot(CHAT, ["m1"], AHORA, d)).toBe("A_PERSONA");
     expect(d.responder).toHaveBeenCalledWith(TEXTO_COMPROBANTE_A_REVISAR);
     expect(d.pasar).toHaveBeenCalledWith(expect.stringContaining("no aparece en Mercado Pago"));
@@ -77,6 +77,13 @@ describe("atenderComprobanteDelBot", () => {
     expect(await atenderComprobanteDelBot(CHAT, ["m1"], AHORA, d)).toBe("A_PERSONA");
     expect(d.acreditarImpresion).not.toHaveBeenCalled();
     expect(d.pasar).toHaveBeenCalledWith(expect.stringContaining("apagada"));
+  });
+
+  it("PROBABLE con el nombre del comprobante distinto al del pago: no acredita, pasa a una persona", async () => {
+    const d = deps({ leer: vi.fn(async () => ({ ok: true as const, leido: { ...LEIDO, origen: "Carlos Fernández" }, veredicto: { estado: "PROBABLE" as const, pago: { ...PAGO, pagador: "Martina Gómez" } }, candidatos: [] })) });
+    expect(await atenderComprobanteDelBot(CHAT, ["m1"], AHORA, d)).toBe("A_PERSONA");
+    expect(d.acreditarImpresion).not.toHaveBeenCalled();
+    expect(d.pasar).toHaveBeenCalledWith(expect.stringContaining("el nombre del comprobante no coincide"));
   });
 
   it("si la acreditación no se pudo hacer (pago ya usado en la transacción), pasa a una persona", async () => {
