@@ -1,9 +1,6 @@
 import "server-only";
 import { prisma } from "@repo/db";
-import {
-  decimalArsToMinor,
-  minorToDecimalString,
-} from "@/lib/membership/money";
+import { decimalArsToMinor, minorToDecimalString } from "@/lib/membership/money";
 import { sanitizeError } from "@/lib/payments/connect/log";
 import { splitMinorByPlatformFee } from "@/lib/platform-fee/fee";
 import { getPlatformFeeBps } from "@/lib/platform-fee/store";
@@ -65,10 +62,7 @@ export function canPayByCustomer(input: {
   if (input.paymentStatus !== "PENDING") return false;
   if (input.paymentMethod !== "MERCADO_PAGO") return false;
   if (input.totalMinor <= 0) return false;
-  if (
-    input.holdExpiresAt !== null &&
-    input.holdExpiresAt.getTime() <= input.now.getTime()
-  ) {
+  if (input.holdExpiresAt !== null && input.holdExpiresAt.getTime() <= input.now.getTime()) {
     return false;
   }
   return true;
@@ -81,13 +75,8 @@ export function canPayByCustomer(input: {
  * anota como deuda de la institución y se cobra de los próximos cobros que sí entren por
  * ahí. Es exactamente lo que ya pasa con las cuotas cobradas en efectivo.
  */
-export const MANUAL_BOOKING_PAYMENT_METHODS = [
-  "EFECTIVO",
-  "TRANSFERENCIA",
-  "TARJETA",
-] as const;
-export type ManualBookingPaymentMethod =
-  (typeof MANUAL_BOOKING_PAYMENT_METHODS)[number];
+export const MANUAL_BOOKING_PAYMENT_METHODS = ["EFECTIVO", "TRANSFERENCIA", "TARJETA"] as const;
+export type ManualBookingPaymentMethod = (typeof MANUAL_BOOKING_PAYMENT_METHODS)[number];
 
 /**
  * Registrar que una reserva se cobró por fuera de Mercado Pago: transferencia que llegó,
@@ -101,10 +90,7 @@ export async function registerBookingPayment(input: {
   paymentMethod: ManualBookingPaymentMethod;
 }): Promise<{ ok: boolean; error?: string }> {
   try {
-    const feeBps = await getPlatformFeeBps(
-      input.workspaceId,
-      BOOKINGS_MODULE_KEY,
-    );
+    const feeBps = await getPlatformFeeBps(input.workspaceId, BOOKINGS_MODULE_KEY);
 
     return await prisma.$transaction(async (tx) => {
       const reserva = await tx.booking.findFirst({
@@ -122,11 +108,8 @@ export async function registerBookingPayment(input: {
         },
       });
       if (!reserva) return { ok: false, error: "No encontramos esa reserva." };
-      if (reserva.paymentStatus === "PAID")
-        return { ok: false, error: "Esa reserva ya está paga." };
-      if (
-        !(ACTIVE_BOOKING_STATUSES as readonly string[]).includes(reserva.status)
-      ) {
+      if (reserva.paymentStatus === "PAID") return { ok: false, error: "Esa reserva ya está paga." };
+      if (!(ACTIVE_BOOKING_STATUSES as readonly string[]).includes(reserva.status)) {
         return { ok: false, error: "Esa reserva ya no está activa." };
       }
 
@@ -170,17 +153,11 @@ export async function registerBookingPayment(input: {
       return { ok: true };
     });
   } catch (error) {
-    console.error(
-      "[fotoffice][reservas] no se pudo confirmar la transferencia",
-      {
-        bookingId: input.bookingId,
-        detalle: sanitizeError(error),
-      },
-    );
-    return {
-      ok: false,
-      error: "No pudimos confirmar el pago. Probá de nuevo en un rato.",
-    };
+    console.error("[fotoffice][reservas] no se pudo confirmar la transferencia", {
+      bookingId: input.bookingId,
+      detalle: sanitizeError(error),
+    });
+    return { ok: false, error: "No pudimos confirmar el pago. Probá de nuevo en un rato." };
   }
 }
 
@@ -202,46 +179,27 @@ export async function approveBooking(input: {
   try {
     return await prisma.$transaction(async (tx) => {
       const reserva = await tx.booking.findFirst({
-        where: {
-          id: input.bookingId,
-          workspaceId: input.workspaceId,
-          status: "PENDING_APPROVAL",
-        },
+        where: { id: input.bookingId, workspaceId: input.workspaceId, status: "PENDING_APPROVAL" },
         select: {
           id: true,
           totalArs: true,
           extraLines: { select: { id: true, amountArs: true, status: true } },
         },
       });
-      if (!reserva)
-        return {
-          ok: false,
-          error: "Esa reserva no está esperando aprobación.",
-        };
+      if (!reserva) return { ok: false, error: "Esa reserva no está esperando aprobación." };
 
       const quitar = new Set(input.removeExtraLineIds);
-      const aQuitar = reserva.extraLines.filter(
-        (l) => quitar.has(l.id) && l.status !== "REMOVED",
-      );
+      const aQuitar = reserva.extraLines.filter((l) => quitar.has(l.id) && l.status !== "REMOVED");
 
       if (aQuitar.length > 0) {
         await tx.bookingExtraLine.updateMany({
-          where: {
-            id: { in: aQuitar.map((l) => l.id) },
-            bookingId: reserva.id,
-          },
+          where: { id: { in: aQuitar.map((l) => l.id) }, bookingId: reserva.id },
           data: { status: "REMOVED" },
         });
       }
 
-      const descontado = aQuitar.reduce(
-        (s, l) => s + decimalArsToMinor(l.amountArs),
-        0,
-      );
-      const nuevoTotal = Math.max(
-        0,
-        decimalArsToMinor(reserva.totalArs) - descontado,
-      );
+      const descontado = aQuitar.reduce((s, l) => s + decimalArsToMinor(l.amountArs), 0);
+      const nuevoTotal = Math.max(0, decimalArsToMinor(reserva.totalArs) - descontado);
 
       // Las líneas que quedan pasan a confirmadas: ya no están "a la espera de que alguien
       // decida", que es lo que significaba PENDING_CONFIRMATION.
@@ -256,9 +214,7 @@ export async function approveBooking(input: {
         data: {
           status: sinCargo ? "CONFIRMED" : "HOLD",
           totalArs: minorToDecimalString(nuevoTotal),
-          ...(sinCargo
-            ? { paymentMethod: "SIN_CARGO", paymentStatus: "NOT_REQUIRED" }
-            : {}),
+          ...(sinCargo ? { paymentMethod: "SIN_CARGO", paymentStatus: "NOT_REQUIRED" } : {}),
           decidedByUserId: input.byUserId,
         },
       });
@@ -270,10 +226,7 @@ export async function approveBooking(input: {
       bookingId: input.bookingId,
       detalle: sanitizeError(error),
     });
-    return {
-      ok: false,
-      error: "No pudimos aprobar la reserva. Probá de nuevo en un rato.",
-    };
+    return { ok: false, error: "No pudimos aprobar la reserva. Probá de nuevo en un rato." };
   }
 }
 
@@ -283,9 +236,7 @@ export async function approveBooking(input: {
  * **Idempotente**: correrla dos veces deja el mismo resultado. Un bloqueo vencido no puede
  * volver a vencer, y una reserva pagada nunca entra en el filtro.
  */
-export async function expireStaleHolds(
-  now: Date = new Date(),
-): Promise<{ expiradas: number }> {
+export async function expireStaleHolds(now: Date = new Date()): Promise<{ expiradas: number }> {
   const r = await prisma.booking.updateMany({
     where: {
       status: { in: ["HOLD", "PENDING_APPROVAL"] },
@@ -342,14 +293,11 @@ export async function cancelBookingForDeletedEvent(input: {
   // devolver. No se decide acá, pero no puede pasar en silencio.
   const pagadas = afectadas.filter((b) => b.paymentStatus === "PAID").length;
   if (pagadas > 0) {
-    console.warn(
-      "[fotoffice][calendar] se cancelaron reservas PAGAS por un borrado en Google",
-      {
-        spaceId: input.spaceId,
-        googleEventId: input.googleEventId,
-        pagadas,
-      },
-    );
+    console.warn("[fotoffice][calendar] se cancelaron reservas PAGAS por un borrado en Google", {
+      spaceId: input.spaceId,
+      googleEventId: input.googleEventId,
+      pagadas,
+    });
   }
 
   return { canceladas: r.count, pagadas };
