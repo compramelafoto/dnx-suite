@@ -9,7 +9,7 @@ import {
   stripClientScope,
   trimOptionalFormValue,
 } from "./admin-utils";
-import { blogAdminSectionFor, isBlogNavActive, isWebsiteNavActive, isDomainNavActive } from "./admin-nav";
+import { blogAdminSectionFor, isBlogNavActive, isWebsiteNavActive, isDomainNavActive, isTestimoniosNavActive } from "./admin-nav";
 import { toDateInputValueAr } from "./admin-form";
 
 describe("stripClientScope", () => {
@@ -99,6 +99,13 @@ describe("navegación del blog", () => {
     expect(isDomainNavActive("/website/dominio")).toBe(true);
     expect(isDomainNavActive("/website/dominios-raros")).toBe(false);
     expect(isDomainNavActive("/website")).toBe(false);
+  });
+  it("Testimonios tiene su ítem y no enciende Sitio web", () => {
+    expect(isTestimoniosNavActive("/website/testimonios")).toBe(true);
+    expect(isTestimoniosNavActive("/website/testimonios/ajustes")).toBe(true);
+    expect(isTestimoniosNavActive("/website/testimoniosx")).toBe(false);
+    expect(isWebsiteNavActive("/website/testimonios")).toBe(false);
+    expect(isWebsiteNavActive("/website")).toBe(true);
   });
 });
 

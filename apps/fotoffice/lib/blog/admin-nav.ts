@@ -37,11 +37,18 @@ export function isDomainNavActive(pathname: string): boolean {
   return pathname === WEBSITE_DOMAIN_PATH || pathname.startsWith(`${WEBSITE_DOMAIN_PATH}/`);
 }
 
-/** Para el menú lateral: "Sitio web" no se marca adentro del blog ni del dominio, que tienen su
- * propio ítem. */
+/** Testimonios (moderar, corregir y publicar): también con ítem propio en el menú lateral. */
+export const WEBSITE_TESTIMONIOS_PATH = "/website/testimonios";
+
+export function isTestimoniosNavActive(pathname: string): boolean {
+  return pathname === WEBSITE_TESTIMONIOS_PATH || pathname.startsWith(`${WEBSITE_TESTIMONIOS_PATH}/`);
+}
+
+/** Para el menú lateral: "Sitio web" no se marca adentro del blog, del dominio ni de los
+ * testimonios, que tienen su propio ítem. */
 export function isWebsiteNavActive(pathname: string): boolean {
   const enSitio = pathname === "/website" || pathname.startsWith("/website/");
-  return enSitio && blogAdminSectionFor(pathname) === null && !isDomainNavActive(pathname);
+  return enSitio && blogAdminSectionFor(pathname) === null && !isDomainNavActive(pathname) && !isTestimoniosNavActive(pathname);
 }
 
 export function isBlogNavActive(pathname: string): boolean {
