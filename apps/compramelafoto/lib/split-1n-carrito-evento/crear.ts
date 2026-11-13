@@ -12,6 +12,7 @@ import { carritoActivoParaEvento, resolveCarritoConfig } from "./config";
 import { evaluarElegibilidadGrupo, type AlbumDelCarrito, type MotivoGrupo } from "./elegibilidad-grupo";
 import { eventoListoParaCarrito } from "./evento-listo";
 import { marcarSnapshotGrupo, urlPagoGrupo } from "./marca";
+import { describirCombinacion, preciosConPacksDelEvento, type PackDelEvento, type PreciosDelCarrito } from "./packs-evento";
 
 export { urlPagoGrupo };
 
@@ -36,6 +37,8 @@ export type ResultadoCarrito =
       modo: "grupo";
       totalPesos: number;
       porFotografo: Array<{ albumId: number; fotografo: string; fotos: number; totalPesos: number }>;
+      /** Packs del evento aplicados («1 × Pack digital 5 fotos + 2 fotos sueltas»), si alguno conviene. */
+      pack?: { descripcion: string; totalSinPackPesos: number };
     }
   | { ok: true; modo: "pagar"; url: string; grupoId: string };
 
@@ -63,7 +66,7 @@ function idsDeFotos(raw: unknown): number[] | null {
 async function prepararCarrito(shareSlug: string, fotosRaw: unknown) {
   const event = await prisma.event.findUnique({
     where: { shareSlug },
-    select: { id: true, title: true, visibility: true, archivedAt: true },
+    select: { id: true, title: true, visibility: true, archivedAt: true, creatorId: true },
   });
   const piloto = await cargarConfigPiloto();
   const carrito = resolveCarritoConfig();
@@ -147,7 +150,13 @@ async function prepararCarrito(shareSlug: string, fotosRaw: unknown) {
   const elegibilidad = (await eventoListoParaCarrito({ piloto, carrito, eventId: event.id }))
     ? evaluarElegibilidadGrupo({ piloto, carrito, eventId: event.id, albumes })
     : { ok: false as const, motivos: [{ albumId: null, motivo: "evento_incompleto" }] };
-  return { ok: true as const, event, delEvento, elegibilidad };
+  return {
+    ok: true as const,
+    event,
+    delEvento,
+    elegibilidad,
+    organizadorUserId: organizador?.userId ?? event.creatorId,
+  };
 }
 
 function porAlbum(delEvento: AlbumDelEvento[], motivos: MotivoGrupo[]): ResultadoCarrito {
@@ -169,25 +178,98 @@ function itemsDigitales(photoIds: number[]) {
   return photoIds.map((id) => ({ fileKey: albumPhotoFileKey(id), tipo: "digital" as const, quantity: 1 }));
 }
 
+/**
+ * Packs del evento: los packs digitales activos del álbum de quien organiza el evento, con su
+ * precio por foto suelta. Sólo packs de fotos digitales sin diseño ni impresiones. Nunca lanza:
+ * ante un error, el carrito sigue con los precios de siempre.
+ */
+export async function cargarPacksDelEvento(
+  eventId: number,
+  organizadorUserId: number | null,
+): Promise<{ precioSuelto: number; packs: PackDelEvento[] } | null> {
+  if (organizadorUserId == null) return null;
+  try {
+    const album = await prisma.album.findFirst({
+      where: {
+        eventId,
+        userId: organizadorUserId,
+        deletedAt: null,
+        isPublic: true,
+        isHidden: false,
+        albumPackPayEnabled: true,
+      },
+      orderBy: { id: "asc" },
+      select: {
+        digitalPhotoPriceCents: true,
+        packs: {
+          where: {
+            isActive: true,
+            packType: "DIGITAL",
+            requiresDesign: false,
+            includedPhotoCount: { gt: 0 },
+            availabilityPhase: { in: ["POST_UPLOAD", "ALWAYS"] },
+            components: { none: { kind: { in: ["PRINT", "DESIGN_PRODUCT"] } } },
+          },
+          select: { id: true, name: true, price: true, includedPhotoCount: true },
+        },
+      },
+    });
+    const precioSuelto = Math.round(Number(album?.digitalPhotoPriceCents ?? 0));
+    if (!album || precioSuelto <= 0 || album.packs.length === 0) return null;
+    return {
+      precioSuelto,
+      packs: album.packs.map((p) => ({ id: p.id, nombre: p.name, fotos: p.includedPhotoCount ?? 0, precio: p.price })),
+    };
+  } catch (err: unknown) {
+    console.error("[carrito-evento] packs_no_leidos", { eventId, err });
+    return null;
+  }
+}
+
+async function preciosDelCarrito(
+  eventId: number,
+  organizadorUserId: number | null,
+  delEvento: AlbumDelEvento[],
+): Promise<PreciosDelCarrito | null> {
+  const packs = await cargarPacksDelEvento(eventId, organizadorUserId);
+  if (!packs) return null;
+  return preciosConPacksDelEvento({
+    albumes: delEvento.map((a) => ({ albumId: a.albumId, photoIds: a.photoIds })),
+    precioSuelto: packs.precioSuelto,
+    packs: packs.packs,
+  });
+}
+
 /** Total del carrito, por fotógrafo, con los precios de cada álbum. No crea nada. */
 export async function cotizarCarrito(shareSlug: string, fotosRaw: unknown): Promise<ResultadoCarrito> {
   const p = await prepararCarrito(shareSlug, fotosRaw);
   if (!p.ok) return p;
   if (!p.elegibilidad.ok) return porAlbum(p.delEvento, p.elegibilidad.motivos);
 
+  const precios = await preciosDelCarrito(p.event.id, p.organizadorUserId, p.delEvento);
   const porFotografo = [];
   let totalPesos = 0;
+  let totalSinPackPesos = 0;
   for (const a of p.delEvento) {
     const totals = await computeCheckoutTotals({
       flow: "ALBUM_ORDER",
       albumId: a.albumId,
       items: itemsDigitales(a.photoIds),
+      digitalBasePesosPorFoto: precios?.basePorFoto ?? null,
     });
     const total = Math.round(totals.displayTotalCents);
     totalPesos += total;
+    if (precios) {
+      const sinPack = await computeCheckoutTotals({ flow: "ALBUM_ORDER", albumId: a.albumId, items: itemsDigitales(a.photoIds) });
+      totalSinPackPesos += Math.round(sinPack.displayTotalCents);
+    }
     porFotografo.push({ albumId: a.albumId, fotografo: a.fotografo, fotos: a.photoIds.length, totalPesos: total });
   }
-  return { ok: true, modo: "grupo", totalPesos, porFotografo };
+  const pack =
+    precios && totalSinPackPesos > totalPesos
+      ? { descripcion: describirCombinacion(precios.combinacion), totalSinPackPesos }
+      : undefined;
+  return { ok: true, modo: "grupo", totalPesos, porFotografo, ...(pack ? { pack } : {}) };
 }
 
 /**
@@ -200,7 +282,12 @@ export async function cotizarCarrito(shareSlug: string, fotosRaw: unknown): Prom
 export async function crearCarritoEvento(params: {
   shareSlug: string;
   fotos: unknown;
-  crearPedido: (albumId: number, items: ReturnType<typeof itemsDigitales>) => Promise<
+  crearPedido: (
+    albumId: number,
+    items: ReturnType<typeof itemsDigitales>,
+    /** Precio base por foto con los packs del evento (si alguno conviene). */
+    basePorFoto: ReadonlyMap<number, number> | null,
+  ) => Promise<
     { ok: true; pedidoId: number } | { ok: false; status: number; error: string }
   >;
 }): Promise<ResultadoCarrito> {
@@ -208,6 +295,7 @@ export async function crearCarritoEvento(params: {
   if (!p.ok) return p;
   if (!p.elegibilidad.ok) return porAlbum(p.delEvento, p.elegibilidad.motivos);
 
+  const precios = await preciosDelCarrito(p.event.id, p.organizadorUserId, p.delEvento);
   const creados: number[] = [];
   const deshacer = async () => {
     if (creados.length === 0) return;
@@ -219,7 +307,7 @@ export async function crearCarritoEvento(params: {
   for (const a of p.delEvento) {
     let r: Awaited<ReturnType<typeof params.crearPedido>>;
     try {
-      r = await params.crearPedido(a.albumId, itemsDigitales(a.photoIds));
+      r = await params.crearPedido(a.albumId, itemsDigitales(a.photoIds), precios?.basePorFoto ?? null);
     } catch (err: unknown) {
       console.error("[carrito-evento] crear_pedido_fallido", { albumId: a.albumId, err });
       r = { ok: false, status: 500, error: "No pudimos armar tu compra. Probá de nuevo en unos minutos." };

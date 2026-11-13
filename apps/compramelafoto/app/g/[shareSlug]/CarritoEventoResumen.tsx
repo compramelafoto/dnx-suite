@@ -8,7 +8,13 @@ type PorFotografo = { albumId: number; fotografo: string; fotos: number; totalPe
 type PorAlbum = { albumId: number; fotografo: string; fotos: number; url: string };
 
 type Respuesta =
-  | { modo: "grupo"; totalPesos: number; porFotografo: PorFotografo[] }
+  | {
+      modo: "grupo";
+      totalPesos: number;
+      porFotografo: PorFotografo[];
+      /** Packs del evento aplicados solos según la cantidad de fotos. */
+      pack?: { descripcion: string; totalSinPackPesos: number };
+    }
   | { modo: "por_album"; albumes: PorAlbum[] }
   | { modo: "pagar"; url: string }
   | { error: string };
@@ -123,6 +129,16 @@ export default function CarritoEventoResumen(props: { shareSlug: string; photoId
             <span>{pesos.format(f.totalPesos)}</span>
           </li>
         ))}
+        {cotizacion.pack ? (
+          <li className="px-4 py-2 text-sm text-emerald-800">
+            <p className="m-0 font-medium">Precio con pack: {cotizacion.pack.descripcion}</p>
+            <p className="m-0 text-xs text-emerald-700">
+              Ahorrás {pesos.format(cotizacion.pack.totalSinPackPesos - cotizacion.totalPesos)} (sin pack:{" "}
+              <span className="line-through">{pesos.format(cotizacion.pack.totalSinPackPesos)}</span>). Las fotos
+              pueden ser de cualquier fotógrafo del evento.
+            </p>
+          </li>
+        ) : null}
         <li className="flex justify-between px-4 py-2 font-semibold">
           <span>Total, en un solo pago</span>
           <span>{pesos.format(cotizacion.totalPesos)}</span>
