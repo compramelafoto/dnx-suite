@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Button from "@/components/ui/Button";
 
 type Estado = "SIN_PEDIR" | "PENDING" | "ACTIVE" | "REJECTED" | "CANCELED" | "EXPIRED";
@@ -39,6 +39,19 @@ export default function CobroDivididoCard({
   const [error, setError] = useState<string | null>(null);
   /** En PENDING: quien escribió mal su correo puede pedir con otro. */
   const [otroCorreo, setOtroCorreo] = useState(false);
+  /** Vuelve de conectar Mercado Pago y CLF ya pidió la invitación: sólo falta aceptar. */
+  const [recienConectado, setRecienConectado] = useState(false);
+  const caja = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    try {
+      if (new URLSearchParams(window.location.search).get("cobro_dividido") === "aceptar") {
+        setRecienConectado(true);
+      }
+    } catch {
+      /* sin URL: nada */
+    }
+  }, []);
 
   const cargar = useCallback(async (refrescar: boolean) => {
     setError(null);
@@ -103,12 +116,19 @@ export default function CobroDivididoCard({
     }
   }
 
+  const destacar = recienConectado && vista?.estado === "PENDING" && !otroCorreo;
+  useEffect(() => {
+    if (!destacar) return;
+    const t = window.setTimeout(() => caja.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 300);
+    return () => window.clearTimeout(t);
+  }, [destacar]);
+
   if (!visible) return null;
   const estado = vista?.estado ?? "SIN_PEDIR";
   const quien = rol === "organizador" ? "tu comisión" : "tu parte";
 
   return (
-    <div className="pt-6 border-t border-[#e5e7eb]" data-testid="cobro-dividido">
+    <div className="pt-6 border-t border-[#e5e7eb]" data-testid="cobro-dividido" ref={caja}>
       <label className="block text-sm font-medium text-[#1a1a1a] mb-2">Cobro dividido al instante</label>
 
       {estado === "ACTIVE" ? (
@@ -129,6 +149,12 @@ export default function CobroDivididoCard({
 
           {estado === "PENDING" ? (
             <>
+              {destacar ? (
+                <p className="text-sm font-medium text-[#1a1a1a]">
+                  ¡Listo, conectaste Mercado Pago! Ya te pedimos la invitación del cobro dividido con el
+                  correo de esa cuenta: sólo tocá «Aceptar en Mercado Pago».
+                </p>
+              ) : null}
               <p className="text-sm text-amber-800">
                 Falta un paso: aceptá la invitación en Mercado Pago
                 {vista?.correo ? (
@@ -144,7 +170,9 @@ export default function CobroDivididoCard({
                     href={vista.inviteUrl}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex justify-center px-5 py-2.5 text-white font-semibold rounded-lg text-sm"
+                    className={`inline-flex justify-center px-5 py-2.5 text-white font-semibold rounded-lg text-sm${
+                      destacar ? " ring-4 ring-[#009EE3]/30 animate-pulse" : ""
+                    }`}
                     style={{ backgroundColor: "#009EE3" }}
                   >
                     Aceptar en Mercado Pago
