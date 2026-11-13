@@ -11,7 +11,7 @@ import { ShiftBlock } from "./shift-panel";
  */
 function accountTypeLabel(cuenta: CashAccountRow): string {
   if (cuenta.kind !== "EFECTIVO") return "Cuenta digital";
-  return cuenta.isVault ? "Caja fuerte" : "Efectivo de mostrador";
+  return cuenta.isVault ? "Efectivo guardado" : "Efectivo del mostrador";
 }
 
 /**
@@ -63,6 +63,10 @@ export function AccountCard({
                 Abrir turno: ¿cuánto efectivo hay?
               </label>
               <ImporteConContador id={`apertura-${cuenta.id}`} name="openingAmountArs" placeholder="20.000" required />
+              <p className="fo-helper">
+                El sistema tiene anotado {formatMinorArs(balanceMinor)}. Si contás otra cosa, la diferencia se anota
+                sola como ajuste y el saldo pasa a ser lo que contaste.
+              </p>
             </div>
             <button type="submit" className="fo-btn fo-btn-secondary w-full text-sm">
               Abrir turno

@@ -14,12 +14,12 @@ export const guia: Instructivo = {
       titulo: "Entrá al Panorama de Caja",
       texto: [
         "En el menú de la izquierda abrí Caja y elegí «Panorama».",
-        "Vas a ver una tarjeta por cada cuenta del negocio: la caja del mostrador, la caja fuerte y la cuenta digital (Mercado Pago o banco), cada una con su saldo.",
+        "Vas a ver una tarjeta por cada cuenta del negocio: la caja registradora, la Caja Fuerte y la cuenta digital (Mercado Pago o banco), cada una con su saldo.",
         "El turno se abre en la tarjeta que dice «Efectivo de mostrador». Las otras cuentas no llevan turno.",
       ],
       imagen: "/instructivos/caja-abrir-turno/01-panorama.jpg",
       imagenAlt:
-        "Pantalla Caja con los botones Vender y Anotar ingreso o gasto y una tarjeta por cuenta: Caja diaria con su bloque de turno, Caja fuerte y Mercado Pago.",
+        "Pantalla Caja con los botones Vender y Anotar ingreso o gasto y una tarjeta por cuenta: Caja registradora con su bloque de turno, Caja Fuerte y Mercado Pago.",
       nota: "Si no ves el formulario para abrir el turno, tu usuario sólo puede mirar la Caja. Pedile a quien administra FOTOFFICE que te dé permiso para operarla.",
     },
     {

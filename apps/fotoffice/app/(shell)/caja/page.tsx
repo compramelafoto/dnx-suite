@@ -67,7 +67,7 @@ export default async function CajaPage({
         <div className="fo-card space-y-3 p-6 text-center">
           <p className="text-sm text-[var(--fo-muted)]">
             {puedeConfigurar
-              ? "Todavía no hay ninguna cuenta configurada. Creá las tuyas en Cuentas y categorías —caja diaria, caja fuerte, Mercado Pago o lo que uses— para empezar a cargar movimientos."
+              ? "Todavía no hay ninguna cuenta configurada. Creá las tuyas en Cuentas y categorías —caja registradora, Caja Fuerte, Mercado Pago o lo que uses— para empezar a cargar movimientos."
               : "Todavía no hay ninguna cuenta configurada. Pedile a un administrador que las cree en Cuentas y categorías."}
           </p>
           {puedeConfigurar ? (

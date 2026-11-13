@@ -57,7 +57,7 @@ export default async function CajaConfiguracionPage({
           <div className="max-w-md space-y-2">
             <p className="text-base font-semibold">Todavía no hay nada configurado</p>
             <p className="text-sm leading-relaxed text-[var(--fo-muted)]">
-              Sembrá un punto de partida: una caja diaria, una caja fuerte, Mercado Pago y las
+              Sembrá un punto de partida: una caja registradora, una Caja Fuerte, Mercado Pago y las
               categorías más comunes. Después se puede renombrar y agregar lo que falte.
             </p>
           </div>

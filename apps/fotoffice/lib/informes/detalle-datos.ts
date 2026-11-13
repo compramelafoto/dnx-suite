@@ -38,6 +38,7 @@ export const ETIQUETAS_ORIGEN_CAJA: Record<string, string> = {
   "pedidos-pagos": "Pago a proveedor",
   galerias: "Venta de fotos de galería",
   "saldo-inicial": "Saldo inicial",
+  "ajuste-apertura": "Ajuste al abrir turno",
 };
 
 export type DetalleCargado = {

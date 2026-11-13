@@ -40,6 +40,27 @@ export function expectedAmountMinor(input: {
   );
 }
 
+/**
+ * El ajuste que hace falta al abrir el turno para que el saldo de la cuenta diga lo que de verdad
+ * hay en la caja.
+ *
+ * Al abrir se cuenta el efectivo. Si el libro dice otra cosa —porque nunca se cargó el saldo
+ * inicial, o porque el cierre anterior tuvo una diferencia que no se asentó— el saldo de la
+ * tarjeta y el «Debería haber» del turno quedarían separados para siempre. Este ajuste los
+ * vuelve a juntar: sobrante = ingreso, faltante = egreso, y queda a la vista en Movimientos.
+ * `null` si ya coinciden.
+ */
+export function openingAdjustment(input: {
+  balanceMinor: number;
+  openingMinor: number;
+}): { kind: "INGRESO" | "EGRESO"; amountMinor: number } | null {
+  const diferencia = input.openingMinor - input.balanceMinor;
+  if (diferencia === 0) return null;
+  return diferencia > 0
+    ? { kind: "INGRESO", amountMinor: diferencia }
+    : { kind: "EGRESO", amountMinor: -diferencia };
+}
+
 /** Contado − esperado. Positivo sobra, negativo falta. */
 export function shiftDifferenceMinor(expectedMinor: number, countedMinor: number): number {
   return countedMinor - expectedMinor;
@@ -68,8 +89,8 @@ export function canCloseShift(input: {
 /**
  * Sólo el efectivo del mostrador lleva turno.
  *
- * La caja fuerte queda afuera aunque sea efectivo: no se abre y se cierra por jornada, se
- * cuenta cada tanto. Un turno diario de caja fuerte sería un trámite que nadie hace y que
+ * La Caja Fuerte queda afuera aunque sea efectivo: no se abre y se cierra por jornada, se
+ * cuenta cada tanto. Un turno diario de Caja Fuerte sería un trámite que nadie hace y que
  * después ensucia el historial de arqueos con treinta filas vacías por mes.
  *
  * El índice único parcial de la base garantiza que no haya dos turnos abiertos por cuenta;
@@ -90,7 +111,7 @@ export function canOpenShift(input: {
   if (input.isVault) {
     return {
       ok: false,
-      error: "La caja fuerte no se abre por jornada. Se cuenta con un arqueo cuando quieras.",
+      error: "La Caja Fuerte no se abre por jornada. Se cuenta con un arqueo cuando quieras.",
     };
   }
   if (input.openShiftExists) return { ok: false, error: "Esa caja ya tiene un turno abierto." };

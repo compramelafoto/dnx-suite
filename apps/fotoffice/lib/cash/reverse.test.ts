@@ -154,3 +154,25 @@ describe("noSeAnulaEnCaja con saldo inicial", () => {
     );
   });
 });
+
+describe("buildReversal de un ajuste de apertura", () => {
+  it("conserva el origen: la anulación tampoco es un egreso del negocio", () => {
+    const r = buildReversal(
+      {
+        id: "aj1",
+        kind: "INGRESO",
+        amountMinor: 8_620_000,
+        accountId: "caja",
+        categoryId: null,
+        paymentMethod: "EFECTIVO",
+        clientId: null,
+        description: "Sobrante al abrir el turno",
+        alreadyReversed: false,
+        transferId: null,
+        sourceModule: "ajuste-apertura",
+      },
+      "se contó mal",
+    );
+    expect(r.ok && r.values.sourceModule).toBe("ajuste-apertura");
+  });
+});

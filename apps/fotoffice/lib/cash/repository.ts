@@ -2,7 +2,7 @@ import "server-only";
 import { prisma, type Prisma } from "@repo/db";
 import { decimalArsToMinor } from "@/lib/membership/money";
 import { clientDisplayName } from "@/lib/clients/display";
-import { isOpeningBalanceModule, OPENING_BALANCE_MODULE } from "@/lib/cash/opening-balance";
+import { isBalanceOnlyModule, OPENING_BALANCE_MODULE } from "@/lib/cash/opening-balance";
 import type { OpeningBalanceRow } from "@/lib/cash/opening-balance-rules";
 
 /**
@@ -412,7 +412,7 @@ export async function movementsForReport(
     kind: r.kind as "INGRESO" | "EGRESO",
     amountMinor: decimalArsToMinor(r.amountArs),
     isTransfer: r.transferId !== null,
-    isOpeningBalance: isOpeningBalanceModule(r.sourceModule),
+    isOpeningBalance: isBalanceOnlyModule(r.sourceModule),
     categoryId: r.categoryId,
     categoryName: r.category?.name ?? null,
     clientId: r.clientId,

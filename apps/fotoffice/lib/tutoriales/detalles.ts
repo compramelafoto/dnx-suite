@@ -15,7 +15,7 @@ export const DETALLES: Record<string, Record<string, DetalleClase>> = {
     },
     "2": {
       duracionSegundos: 82,
-      descripcion: "La caja es donde queda registrado todo el dinero que entra y sale de tu negocio. Ves el saldo del efectivo del mostrador, la caja fuerte y Mercado Pago. Vendés desde el mostrador, elegís cómo paga el cliente y la venta entra sola en la cuenta que corresponde. Anotás los gastos con su categoría y, en Reportes, ves cuánto entró, cuánto salió y el margen de lo que vendiste.",
+      descripcion: "La caja es donde queda registrado todo el dinero que entra y sale de tu negocio. Ves el saldo del efectivo del mostrador, la Caja Fuerte y Mercado Pago. Vendés desde el mostrador, elegís cómo paga el cliente y la venta entra sola en la cuenta que corresponde. Anotás los gastos con su categoría y, en Reportes, ves cuánto entró, cuánto salió y el margen de lo que vendiste.",
       capitulos: [{ en: 0, texto: "El saldo de cada cuenta" }, { en: 20, texto: "Vender desde el mostrador" }, { en: 43, texto: "Anotar un gasto" }, { en: 59, texto: "Los reportes" }],
     },
     "3": {

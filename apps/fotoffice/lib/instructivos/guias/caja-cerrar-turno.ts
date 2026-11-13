@@ -5,7 +5,7 @@ export const guia: Instructivo = {
   slug: "caja-cerrar-turno",
   titulo: "Cerrar la caja y hacer el arqueo",
   resumen:
-    "Contar lo que quedó en el cajón, compararlo con lo que el sistema espera, explicar la diferencia si la hay y guardar el sobrante en la caja fuerte.",
+    "Contar lo que quedó en el cajón, compararlo con lo que el sistema espera, explicar la diferencia si la hay y guardar el sobrante en la Caja Fuerte.",
   seccion: "Caja",
   moduleKey: CASH_MODULE_KEY,
   minutos: 5,
@@ -26,7 +26,7 @@ export const guia: Instructivo = {
       ],
       imagen: "/instructivos/caja-cerrar-turno/01-turno-abierto.jpg",
       imagenAlt:
-        "Tarjeta de la Caja diaria con el turno abierto: desde cuándo y con qué fondo, «Debería haber», el campo «Cuánto contaste», el botón Contar y el campo para explicar la diferencia.",
+        "Tarjeta de la Caja registradora con el turno abierto: desde cuándo y con qué fondo, «Debería haber», el campo «Cuánto contaste», el botón Contar y el campo para explicar la diferencia.",
     },
     {
       titulo: "Si no cuadra, explicá por qué",
@@ -49,14 +49,14 @@ export const guia: Instructivo = {
       ],
     },
     {
-      titulo: "Guardá el sobrante en la caja fuerte",
+      titulo: "Guardá el sobrante en la Caja Fuerte",
       texto: [
-        "Si el negocio tiene caja fuerte, después de cerrar aparece: «Contaste $… en [caja]. El fondo fijo de esa caja es $…».",
-        "En «¿Pasás cuánto a [caja fuerte]?» ya viene escrito lo que sobra por encima del fondo fijo (lo que queda en el cajón para dar vuelto mañana). Cambialo si vas a guardar otro importe.",
-        "Tocá «Sí, pasar» y guardá esa plata en la caja fuerte. Si hoy no la guardás, tocá «Ahora no».",
+        "Si el negocio tiene Caja Fuerte, después de cerrar aparece: «Contaste $… en [caja]. El fondo fijo de esa caja es $…».",
+        "En «¿Pasás cuánto a [Caja Fuerte]?» ya viene escrito lo que sobra por encima del fondo fijo (lo que queda en el cajón para dar vuelto mañana). Cambialo si vas a guardar otro importe.",
+        "Tocá «Sí, pasar» y guardá esa plata en la Caja Fuerte. Si hoy no la guardás, tocá «Ahora no».",
       ],
       sistema: [
-        "Anota la salida de la caja del mostrador y la entrada en la caja fuerte como un «Pase de cierre de turno». No cuenta como gasto en los reportes.",
+        "Anota la salida de la caja registradora y la entrada en la Caja Fuerte como un «Pase de cierre de turno». No cuenta como gasto en los reportes.",
       ],
     },
     {

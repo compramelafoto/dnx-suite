@@ -84,7 +84,7 @@ export const MENSAJES_CUENTA = {
   claveDeOtra: "Ese formulario ya se usó para otra cuenta. Volvé a abrirlo.",
   claveUsada: "Ese formulario ya se usó. Volvé a abrirlo.",
   sinCaja: "Para registrar pagos encendé el módulo Caja: cada pago sale de Caja.",
-  sinCuenta: "Para registrar el pago hace falta una cuenta de Caja de donde sale (que no sea la caja fuerte). Creala en Caja → Cuentas y volvé a intentar.",
+  sinCuenta: "Para registrar el pago hace falta una cuenta de Caja de donde sale (que no sea la Caja Fuerte). Creala en Caja → Cuentas y volvé a intentar.",
   motivo: "Escribí por qué se anula el pago.",
   motivoLargo: `El motivo puede tener hasta ${MAX_MOTIVO_ANULACION} caracteres.`,
   sinCajaAnular: "Para anular pagos encendé el módulo Caja: el contramovimiento va a Caja.",

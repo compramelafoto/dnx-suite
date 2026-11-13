@@ -3,7 +3,7 @@
  *
  * Es la pestaña "contador de billetes" de la planilla, pasada a la caja: una fila por
  * denominación con su cantidad, la suma (CAJA), lo que queda de cambio en el mostrador
- * (CAMBIO) y lo que va a la caja fuerte (TOTAL = CAJA − CAMBIO). Lo nuevo respecto de la
+ * (CAMBIO) y lo que va a la Caja Fuerte (TOTAL = CAJA − CAMBIO). Lo nuevo respecto de la
  * planilla es que además compara contra lo que el sistema espera y dice si sobra o falta.
  *
  * El total NUNCA se toma de lo que manda la pantalla: el servidor vuelve a sumar las
@@ -128,7 +128,7 @@ export type PlanCierre =
       ok: true;
       /** El asiento que deja el libro igual a lo contado. Null si no hay diferencia o no se pidió. */
       ajuste: { kind: "INGRESO" | "EGRESO"; amountMinor: number } | null;
-      /** El pase a la caja fuerte. Null si no se pidió, no hay caja fuerte o da cero. */
+      /** El pase a la Caja Fuerte. Null si no se pidió, no hay Caja Fuerte o da cero. */
       paseMinor: number | null;
     }
   | { ok: false; error: string };
@@ -174,7 +174,7 @@ export function planearCierreConContador(input: {
       return {
         ok: false,
         error:
-          "El libro dice que en esta caja hay menos de lo que querés pasar a la caja fuerte. Registrá la diferencia como movimiento o pasá menos.",
+          "El libro dice que en esta caja hay menos de lo que querés pasar a la Caja Fuerte. Registrá la diferencia como movimiento o pasá menos.",
       };
     }
   }

@@ -77,7 +77,7 @@ export const MENSAJES_COBRO = {
   clave: "Falta la clave del formulario. Volvé a abrirlo.",
   claveDeOtro: "Ese formulario ya se usó para otro pedido. Volvé a abrirlo.",
   sinCaja: "Para registrar cobros encendé el módulo Caja: cada cobro entra en Caja.",
-  sinCuenta: "Para registrar el cobro hace falta una cuenta de Caja donde depositarlo (que no sea la caja fuerte). Creala en Caja → Cuentas y volvé a intentar.",
+  sinCuenta: "Para registrar el cobro hace falta una cuenta de Caja donde depositarlo (que no sea la Caja Fuerte). Creala en Caja → Cuentas y volvé a intentar.",
   sinClave: "Los recibos no están configurados. Avisale a quien administra FOTOFFICE.",
   motivo: "Escribí por qué se anula el cobro.",
   motivoLargo: `El motivo puede tener hasta ${MAX_MOTIVO_ANULACION} caracteres.`,
