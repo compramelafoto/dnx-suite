@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canCancelByCustomer } from "./lifecycle";
+import { canCancelByCustomer, canPayByCustomer } from "./lifecycle";
 
 const ahora = new Date("2026-09-19T12:00:00Z");
 const en48h = new Date("2026-09-21T12:00:00Z");
@@ -67,5 +67,36 @@ describe("hasta cuándo puede cancelar quien reservó", () => {
         now: ahora,
       }),
     ).toEqual({ ok: true });
+  });
+});
+
+describe("cuándo puede pagar quien reservó una reserva pendiente", () => {
+  const base = {
+    status: "HOLD",
+    paymentStatus: "PENDING",
+    paymentMethod: "MERCADO_PAGO",
+    holdExpiresAt: new Date("2026-09-20T12:00:00Z"),
+    totalMinor: 14_000_000,
+    now: ahora,
+  };
+
+  it("esperando el pago y dentro del plazo, puede", () => {
+    expect(canPayByCustomer(base)).toBe(true);
+  });
+
+  it("con el plazo vencido, ya no", () => {
+    expect(
+      canPayByCustomer({ ...base, holdExpiresAt: new Date("2026-09-19T11:59:00Z") }),
+    ).toBe(false);
+  });
+
+  it("si ya está paga o confirmada, no", () => {
+    expect(canPayByCustomer({ ...base, paymentStatus: "PAID" })).toBe(false);
+    expect(canPayByCustomer({ ...base, status: "CONFIRMED" })).toBe(false);
+  });
+
+  it("si se paga por transferencia o no tiene monto, no", () => {
+    expect(canPayByCustomer({ ...base, paymentMethod: "TRANSFERENCIA" })).toBe(false);
+    expect(canPayByCustomer({ ...base, totalMinor: 0 })).toBe(false);
   });
 });

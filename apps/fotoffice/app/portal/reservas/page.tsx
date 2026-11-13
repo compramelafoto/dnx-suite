@@ -20,10 +20,14 @@ import { listSpaces, getBookingSettings } from "@/lib/bookings/repository";
 import { bookingWording } from "@/lib/bookings/wording";
 import { loadMemberClubBalance } from "@/lib/membership/booking-credits";
 import { loadPortalOffer } from "@/lib/bookings/portal";
-import { canCancelByCustomer } from "@/lib/bookings/lifecycle";
+import { canCancelByCustomer, canPayByCustomer } from "@/lib/bookings/lifecycle";
 import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { ReservarForm } from "./reservar-form";
-import { cancelPortalBookingAction, createPortalBookingAction } from "./actions";
+import {
+  cancelPortalBookingAction,
+  createPortalBookingAction,
+  payPortalBookingAction,
+} from "./actions";
 import { spacePriceLabel } from "@/lib/bookings/pricing";
 
 export const dynamic = "force-dynamic";
@@ -114,6 +118,8 @@ export default async function PortalReservasPage({
         status: true,
         totalArs: true,
         paymentStatus: true,
+        paymentMethod: true,
+        holdExpiresAt: true,
         spaceId: true,
         space: { select: { name: true } },
         extraLines: {
@@ -300,6 +306,30 @@ export default async function PortalReservasPage({
                         )
                         .join(", ")}
                     </p>
+                  ) : null}
+                  {canPayByCustomer({
+                    status: r.status,
+                    paymentStatus: r.paymentStatus,
+                    paymentMethod: r.paymentMethod,
+                    holdExpiresAt: r.holdExpiresAt,
+                    totalMinor: decimalArsToMinor(r.totalArs),
+                    now: ahora,
+                  }) ? (
+                    <form action={payPortalBookingAction} className="space-y-1">
+                      <input type="hidden" name="bookingId" value={r.id} />
+                      <button type="submit" className="fo-btn fo-btn-primary text-sm">
+                        Pagar con Mercado Pago
+                      </button>
+                      {r.holdExpiresAt ? (
+                        <p className="text-xs text-[var(--fo-muted-soft)]">
+                          Tenés tiempo de pagar hasta el {fmtFecha(r.holdExpiresAt)} a las{" "}
+                          {minuteOfDayToLabel(
+                            localMoment(r.holdExpiresAt, BOOKINGS_TIME_ZONE).minuteOfDay,
+                          )}
+                          .
+                        </p>
+                      ) : null}
+                    </form>
                   ) : null}
                   {puede.ok ? (
                     <form action={cancelPortalBookingAction} className="space-y-1">

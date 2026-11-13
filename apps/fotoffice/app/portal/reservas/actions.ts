@@ -14,7 +14,8 @@ import { quoteForSpace } from "@/lib/bookings/pricing";
 import { createBooking, type BookingExtraLineInput } from "@/lib/bookings/create";
 import { startBookingCheckout } from "@/lib/bookings/checkout";
 import { cancelBooking } from "@/lib/bookings/create";
-import { canCancelByCustomer } from "@/lib/bookings/lifecycle";
+import { canCancelByCustomer, canPayByCustomer } from "@/lib/bookings/lifecycle";
+import { decimalArsToMinor } from "@/lib/membership/money";
 import { getBookingSettings } from "@/lib/bookings/repository";
 import { canCoverWithCredits, creditsNeededFor } from "@/lib/bookings/club-credits";
 import { loadMemberClubBalance } from "@/lib/membership/booking-credits";
@@ -181,4 +182,59 @@ export async function cancelPortalBookingAction(formData: FormData): Promise<voi
 
   revalidatePath(PORTAL);
   redirect(r.ok ? `${PORTAL}?ok=cancelada` : `${PORTAL}?error=${encodeURIComponent(r.error ?? "")}`);
+}
+
+/**
+ * El socio paga una reserva suya que quedó esperando el pago.
+ *
+ * Pasa cuando cerró Mercado Pago sin terminar, o cuando la Secretaría le pasó a su nombre una
+ * reserva que había hecho otra persona. Se vuelve a verificar todo acá: que la reserva sea de
+ * este socio, que siga esperando el pago y que el plazo no haya vencido.
+ */
+export async function payPortalBookingAction(formData: FormData): Promise<void> {
+  const user = await requireAuth();
+  const context = await loadPortalContext(user.id);
+  if (!context) redirect("/portal");
+
+  const bookingId = String(formData.get("bookingId") ?? "").trim();
+
+  const reserva = await prisma.booking.findFirst({
+    where: {
+      id: bookingId,
+      workspaceId: context.workspace.id,
+      memberId: context.member.id,
+    },
+    select: {
+      id: true,
+      status: true,
+      paymentStatus: true,
+      paymentMethod: true,
+      holdExpiresAt: true,
+      totalArs: true,
+    },
+  });
+  if (!reserva) redirect(`${PORTAL}?error=${encodeURIComponent("No encontramos esa reserva.")}`);
+
+  const puede = canPayByCustomer({
+    status: reserva.status,
+    paymentStatus: reserva.paymentStatus,
+    paymentMethod: reserva.paymentMethod,
+    holdExpiresAt: reserva.holdExpiresAt,
+    totalMinor: decimalArsToMinor(reserva.totalArs),
+    now: new Date(),
+  });
+  if (!puede) {
+    redirect(
+      `${PORTAL}?error=${encodeURIComponent("Esa reserva ya no está esperando el pago. Escribile a la Secretaría.")}`,
+    );
+  }
+
+  const checkout = await startBookingCheckout({
+    workspaceId: context.workspace.id,
+    bookingId: reserva.id,
+    payerEmail: user.email ?? "",
+    returnPath: PORTAL,
+  });
+  if (!checkout.ok) redirect(`${PORTAL}?error=${encodeURIComponent(checkout.error)}`);
+  redirect(checkout.checkoutUrl);
 }

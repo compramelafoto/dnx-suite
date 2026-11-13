@@ -44,6 +44,31 @@ export function canCancelByCustomer(input: {
 }
 
 /**
+ * ¿Puede quien reservó pagar ahora una reserva que quedó esperando el pago?
+ *
+ * Parte PURA. El pago se abría sólo en el momento de reservar: si la persona cerraba Mercado
+ * Pago, o si la Secretaría le pasaba la reserva a su nombre, la veía "esperando tu pago" sin
+ * ningún botón para pagarla. Esto decide cuándo mostrar ese botón.
+ */
+export function canPayByCustomer(input: {
+  status: string;
+  paymentStatus: string;
+  paymentMethod: string;
+  holdExpiresAt: Date | null;
+  totalMinor: number;
+  now: Date;
+}): boolean {
+  if (input.status !== "HOLD") return false;
+  if (input.paymentStatus !== "PENDING") return false;
+  if (input.paymentMethod !== "MERCADO_PAGO") return false;
+  if (input.totalMinor <= 0) return false;
+  if (input.holdExpiresAt !== null && input.holdExpiresAt.getTime() <= input.now.getTime()) {
+    return false;
+  }
+  return true;
+}
+
+/**
  * La Secretaría confirma que la transferencia llegó.
  *
  * Ese dinero **no pasa por Mercado Pago**, así que no hay de dónde retener la comisión: se
