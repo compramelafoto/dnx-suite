@@ -15,7 +15,7 @@ function fecha(d: Date) {
  * El historial de pases entre cuentas.
  *
  * La mayoría nace en el cierre del turno (`/caja/turnos` los propone con la cuenta ya
- * hecha), pero acá se puede cargar uno suelto — por ejemplo, sacar plata de la caja fuerte
+ * hecha), pero acá se puede cargar uno suelto — por ejemplo, sacar plata de la Caja Fuerte
  * para volver a poner fondo en el mostrador.
  */
 export default async function PasesPage({
@@ -31,7 +31,7 @@ export default async function PasesPage({
 
   return (
     <div className="space-y-8">
-      <PageHeader title="Pases" description="Los pases de dinero entre cuentas: de la caja del mostrador a la caja fuerte, o al revés." />
+      <PageHeader title="Pases" description="Los pases de dinero entre cuentas: de la caja registradora a la Caja Fuerte, o al revés." />
 
       {params.error ? (
         <p className="fo-card p-4 text-sm text-[var(--fo-danger)]" role="alert">

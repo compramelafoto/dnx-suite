@@ -11,12 +11,13 @@ import {
   canCloseShift,
   canOpenShift,
   expectedAmountMinor,
+  openingAdjustment,
   parseOpeningAmountMinor,
   shiftDifferenceMinor,
 } from "@/lib/cash/shift";
 import { parseMovementForm } from "@/lib/cash/movement-form";
 import { buildReversal, noSeAnulaEnCaja } from "@/lib/cash/reverse";
-import { OPENING_BALANCE_MODULE, openingBalanceDescription, parseOpeningBalanceForm } from "@/lib/cash/opening-balance";
+import { OPENING_ADJUSTMENT_MODULE, OPENING_BALANCE_MODULE, openingBalanceDescription, parseOpeningBalanceForm } from "@/lib/cash/opening-balance";
 import { canAddOpeningBalance } from "@/lib/cash/opening-balance-rules";
 import { accountBalanceMinor } from "@/lib/cash/balance";
 import { createCashTransfer, validateTransfer } from "@/lib/cash/transfer";
@@ -63,15 +64,47 @@ export async function openShiftAction(formData: FormData): Promise<void> {
   });
   if (!permiso.ok) redirect(`/caja?error=${encodeURIComponent(permiso.error)}`);
 
+  // Lo que dice el libro para esta cuenta antes de abrir. Si lo contado no coincide, se asienta la
+  // diferencia (`openingAdjustment`) para que el saldo de la tarjeta y el «Debería haber» del turno
+  // digan lo mismo. Va sin turno: es la foto del arranque, no algo que pasó durante el turno.
+  const movimientosCuenta = await prisma.cashMovement.findMany({
+    where: { workspaceId: workspace.id, accountId },
+    select: { kind: true, amountArs: true },
+  });
+  const saldoMinor = accountBalanceMinor(
+    movimientosCuenta.map((m) => ({ kind: m.kind as "INGRESO" | "EGRESO", amountMinor: decimalArsToMinor(m.amountArs) })),
+  );
+  const ajuste = openingAdjustment({ balanceMinor: saldoMinor, openingMinor });
+
   try {
-    await prisma.cashShift.create({
-      data: {
-        workspaceId: workspace.id,
-        accountId,
-        openingAmountArs: minorToDecimalString(openingMinor),
-        openedByUserId: user.id,
-        status: "ABIERTO",
-      },
+    await prisma.$transaction(async (tx) => {
+      if (ajuste) {
+        const etiqueta = ajuste.kind === "INGRESO" ? "Sobrante al abrir el turno" : "Faltante al abrir el turno";
+        await tx.cashMovement.create({
+          data: {
+            workspaceId: workspace.id,
+            accountId,
+            shiftId: null,
+            kind: ajuste.kind,
+            amountArs: minorToDecimalString(ajuste.amountMinor),
+            occurredAt: new Date(),
+            categoryId: null,
+            paymentMethod: "EFECTIVO",
+            description: `${etiqueta}: el sistema decía ${formatMinorArs(saldoMinor)} y se contó ${formatMinorArs(openingMinor)}`,
+            sourceModule: OPENING_ADJUSTMENT_MODULE,
+            createdByUserId: user.id,
+          },
+        });
+      }
+      await tx.cashShift.create({
+        data: {
+          workspaceId: workspace.id,
+          accountId,
+          openingAmountArs: minorToDecimalString(openingMinor),
+          openedByUserId: user.id,
+          status: "ABIERTO",
+        },
+      });
     });
   } catch (e) {
     // El índice único parcial: otra persona abrió en el mismo instante.

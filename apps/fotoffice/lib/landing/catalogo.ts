@@ -204,7 +204,7 @@ export const MODULOS_DISPONIBLES: FichaModulo[] = [
     cuadro: "08",
     nombre: "Caja",
     resuelve:
-      "Lo que entra y lo que sale del negocio, con las cuentas separadas —mostrador, caja fuerte, banco— y el pase de una a otra. Cada turno se abre y se cierra con su arqueo: si la cuenta no da, la diferencia queda escrita con su explicación y no se tapa.",
+      "Lo que entra y lo que sale del negocio, con las cuentas separadas —mostrador, Caja Fuerte, banco— y el pase de una a otra. Cada turno se abre y se cierra con su arqueo: si la cuenta no da, la diferencia queda escrita con su explicación y no se tapa.",
     pantallas: [
       "Panorama de cuentas",
       "Libro de movimientos",

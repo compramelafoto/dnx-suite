@@ -223,7 +223,7 @@ export function ContadorBilletes({
       `Contado: ${formatMinorArs(total.totalMinor)}`,
       `Esperado: ${formatMinorArs(esperadoMinor)}`,
       `Diferencia: ${textoDiferencia}`,
-      ...(esVault ? [] : [`Cambio: ${formatMinorArs(cambioMinor)}`, `A caja fuerte: ${formatMinorArs(resumen.aCajaFuerteMinor)}`]),
+      ...(esVault ? [] : [`Cambio: ${formatMinorArs(cambioMinor)}`, `A la Caja Fuerte: ${formatMinorArs(resumen.aCajaFuerteMinor)}`]),
     ].join("\n");
   }
 
@@ -341,7 +341,7 @@ export function ContadorBilletes({
               />
             </div>
             <div className="flex items-baseline justify-between gap-3">
-              <span className="text-sm text-[var(--fo-muted)]">A caja fuerte</span>
+              <span className="text-sm text-[var(--fo-muted)]">A la Caja Fuerte</span>
               <span className="text-2xl font-semibold tabular-nums">{formatMinorArs(resumen.aCajaFuerteMinor)}</span>
             </div>
             {resumen.cambioFaltanteMinor > 0 ? (
@@ -364,7 +364,7 @@ export function ContadorBilletes({
               </label>
             ) : (
               <p className="text-xs text-[var(--fo-muted-soft)]">
-                No hay una caja fuerte configurada: el pase no se registra.
+                No hay una Caja Fuerte configurada: el pase no se registra.
               </p>
             )}
           </div>

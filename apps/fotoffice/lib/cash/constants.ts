@@ -49,6 +49,8 @@ export const MOVEMENT_SOURCES = [
   "impresiones",
   /** Saldo inicial de una cuenta: suma al saldo pero no es ingreso (ver `lib/cash/opening-balance.ts`). */
   "saldo-inicial",
+  /** Ajuste automático al abrir el turno: el libro pasa a decir lo que se contó. Suma al saldo, no es ingreso ni egreso. */
+  "ajuste-apertura",
 ] as const;
 export type MovementSource = (typeof MOVEMENT_SOURCES)[number];
 
@@ -59,8 +61,8 @@ export type MovementSource = (typeof MOVEMENT_SOURCES)[number];
  * para ningún reporte. Son un punto de partida editable, no una imposición.
  */
 export const SEED_ACCOUNTS = [
-  { name: "Caja diaria", kind: "EFECTIVO" as const, isVault: false, isDefault: true, order: 0 },
-  { name: "Caja fuerte", kind: "EFECTIVO" as const, isVault: true, isDefault: false, order: 10 },
+  { name: "Caja registradora", kind: "EFECTIVO" as const, isVault: false, isDefault: true, order: 0 },
+  { name: "Caja Fuerte", kind: "EFECTIVO" as const, isVault: true, isDefault: false, order: 10 },
   { name: "Mercado Pago", kind: "DIGITAL" as const, isVault: false, isDefault: false, order: 20 },
 ] as const;
 

@@ -91,7 +91,7 @@ export default async function ArqueoPage({
           turno
             ? `Turno abierto desde el ${turno.openedAt.toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" })}. Al confirmar, el turno se cierra con lo contado.`
             : cuenta.isVault
-              ? "Arqueo de la caja fuerte: se compara lo contado con el saldo del libro."
+              ? "Arqueo de la Caja Fuerte: se compara lo contado con el saldo del libro."
               : "Esta caja no tiene turno abierto: el conteo se compara con el saldo del libro."
         }
         actions={
@@ -123,7 +123,7 @@ export default async function ArqueoPage({
             ) : null}
             {numero(sp.pase) > 0 ? (
               <li>
-                Pasado a {cajaFuerte?.name ?? "la caja fuerte"}: <strong>{formatMinorArs(numero(sp.pase))}</strong>
+                Pasado a {cajaFuerte?.name ?? "la Caja Fuerte"}: <strong>{formatMinorArs(numero(sp.pase))}</strong>
               </li>
             ) : null}
           </ul>

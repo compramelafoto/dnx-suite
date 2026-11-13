@@ -19,7 +19,7 @@ export const guia: Instructivo = {
       ],
       imagen: "/instructivos/caja-movimientos-y-arqueo/01-panorama.jpg",
       imagenAlt:
-        "Pantalla Caja con el saldo de cada cuenta y el turno abierto de la Caja diaria.",
+        "Pantalla Caja con el saldo de cada cuenta y el turno abierto de la Caja registradora.",
     },
     {
       titulo: "Buscá un movimiento en el libro",

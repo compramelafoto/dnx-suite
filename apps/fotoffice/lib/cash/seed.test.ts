@@ -4,7 +4,7 @@ import { seedRowsFor } from "./seed";
 describe("seedRowsFor", () => {
   it("crea caja diaria, caja fuerte y Mercado Pago, y la diaria es la de omisión", () => {
     const { accounts } = seedRowsFor("ws-1");
-    expect(accounts.map((a) => a.name)).toEqual(["Caja diaria", "Caja fuerte", "Mercado Pago"]);
+    expect(accounts.map((a) => a.name)).toEqual(["Caja registradora", "Caja Fuerte", "Mercado Pago"]);
     expect(accounts[0].isDefault).toBe(true);
     expect(accounts[0].kind).toBe("EFECTIVO");
     expect(accounts[2].kind).toBe("DIGITAL");

@@ -38,7 +38,7 @@ export function AccountForm({ account }: { account: CashAccountRow | null }) {
           name="name"
           className="fo-input"
           defaultValue={account?.name ?? ""}
-          placeholder="Caja diaria"
+          placeholder="Caja registradora"
           required
         />
       </div>

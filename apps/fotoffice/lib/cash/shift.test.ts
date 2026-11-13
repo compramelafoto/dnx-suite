@@ -3,6 +3,7 @@ import {
   canCloseShift,
   canOpenShift,
   expectedAmountMinor,
+  openingAdjustment,
   parseOpeningAmountMinor,
   shiftDifferenceMinor,
 } from "./shift";
@@ -112,7 +113,7 @@ describe("canOpenShift", () => {
   it("la caja fuerte no lleva turno diario", () => {
     expect(canOpenShift({ accountKind: "EFECTIVO", isVault: true, openShiftExists: false })).toEqual({
       ok: false,
-      error: "La caja fuerte no se abre por jornada. Se cuenta con un arqueo cuando quieras.",
+      error: "La Caja Fuerte no se abre por jornada. Se cuenta con un arqueo cuando quieras.",
     });
   });
 });
@@ -144,5 +145,23 @@ describe("parseOpeningAmountMinor", () => {
       ok: false,
       error: "El importe de apertura no se entiende.",
     });
+  });
+});
+
+describe("openingAdjustment", () => {
+  it("no ajusta si lo contado coincide con el libro", () => {
+    expect(openingAdjustment({ balanceMinor: 8_620_000, openingMinor: 8_620_000 })).toBeNull();
+  });
+
+  it("si se contó más de lo anotado, el ajuste es un ingreso por la diferencia", () => {
+    expect(openingAdjustment({ balanceMinor: 0, openingMinor: 8_620_000 })).toEqual({ kind: "INGRESO", amountMinor: 8_620_000 });
+  });
+
+  it("si se contó menos de lo anotado, el ajuste es un egreso por la diferencia", () => {
+    expect(openingAdjustment({ balanceMinor: 9_860_000, openingMinor: 8_620_000 })).toEqual({ kind: "EGRESO", amountMinor: 1_240_000 });
+  });
+
+  it("un libro en negativo se corrige hasta lo contado", () => {
+    expect(openingAdjustment({ balanceMinor: -50_000, openingMinor: 100_000 })).toEqual({ kind: "INGRESO", amountMinor: 150_000 });
   });
 });

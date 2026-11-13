@@ -29,6 +29,7 @@ const ETIQUETA_ORIGEN: Record<MovementSource, string> = {
   galerias: "Galerías",
   impresiones: "Pedidos de impresión",
   "saldo-inicial": "Saldo inicial",
+  "ajuste-apertura": "Ajuste al abrir turno",
 };
 
 const fechaHoraAR = new Intl.DateTimeFormat("es-AR", {

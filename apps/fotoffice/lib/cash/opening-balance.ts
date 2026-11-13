@@ -15,6 +15,18 @@ import { parseArsToMinor } from "@/lib/membership/money";
 
 export const OPENING_BALANCE_MODULE = "saldo-inicial" as const;
 
+/**
+ * El ajuste automático al abrir un turno (`openingAdjustment` en `lib/cash/shift.ts`). Corrige el
+ * libro para que diga lo que se contó; igual que el saldo inicial, suma al saldo pero no es
+ * resultado del negocio: la plata ya estaba (o ya faltaba), sólo no estaba anotada.
+ */
+export const OPENING_ADJUSTMENT_MODULE = "ajuste-apertura" as const;
+
+/** Suma al saldo de la cuenta pero los informes de ingresos y egresos lo saltean. */
+export function isBalanceOnlyModule(sourceModule: string | null | undefined): boolean {
+  return sourceModule === OPENING_BALANCE_MODULE || sourceModule === OPENING_ADJUSTMENT_MODULE;
+}
+
 export function isOpeningBalanceModule(sourceModule: string | null | undefined): boolean {
   return sourceModule === OPENING_BALANCE_MODULE;
 }
