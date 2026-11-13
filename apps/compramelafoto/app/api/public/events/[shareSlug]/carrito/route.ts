@@ -37,7 +37,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ sha
     const resultado = await crearCarritoEvento({
       shareSlug,
       fotos: body.fotos,
-      crearPedido: async (albumId, items) => {
+      crearPedido: async (albumId, items, basePorFoto) => {
         const headers = new Headers({ "content-type": "application/json" });
         for (const nombre of ENCABEZADOS) {
           const valor = req.headers.get(nombre);
@@ -49,6 +49,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ sha
             headers,
             body: JSON.stringify({ ...comprador, items }),
           }),
+          basePorFoto ? { basePorFoto } : {},
         );
         const res = await crearPedidoAlbum(interno, { params: Promise.resolve({ id: String(albumId) }) });
         const data = (await res.json().catch(() => ({}))) as { id?: unknown; carritoEvento?: unknown; error?: unknown };
