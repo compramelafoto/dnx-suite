@@ -7,6 +7,8 @@ import { PresupuestoLanding } from "./presupuesto-landing";
 import { origenesPublicosSinFallar } from "@/lib/consultas/formulario-publico";
 import { loadActivePlacement } from "@/lib/sponsors/placements";
 import { SponsorLogoMarquee } from "@/components/sponsors/logo-marquee";
+import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
+import { REGISTRO_DOCENTE_MODULE_KEY } from "@/lib/registro-docente/constants";
 
 type Props = { params: Promise<{ workspaceSlug: string }> };
 
@@ -39,6 +41,10 @@ export default async function PublicWorkspaceHomePage({ params }: Props) {
       </main>
     );
   }
+
+  // Un espacio con el Registro docente es privado (datos de menores): sin sitio publicado no tiene
+  // portada, y la landing de presupuesto no tiene sentido para una docente.
+  if (await isModuleEnabledForWorkspace(site.workspaceId, REGISTRO_DOCENTE_MODULE_KEY)) notFound();
 
   const [form, origenes] = await Promise.all([
     prisma.serviceLeadForm.findFirst({
