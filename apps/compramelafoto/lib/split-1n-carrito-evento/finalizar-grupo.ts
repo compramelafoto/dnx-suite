@@ -39,6 +39,15 @@ export async function finalizarGrupo(params: {
   // Los ya pagados: se re-aseguran sus comisiones (idempotente), como en el piloto.
   for (const id of decision.yaPagados) {
     const p = porId.get(id);
+    if (p?.marca.providerOrderId && p.marca.providerOrderId !== mp.id) {
+      // Otra orden acreditada para un grupo ya pagado: sería un segundo cobro. Revisar a mano.
+      console.error("[carrito-evento] posible_segundo_pago", {
+        grupoId: grupo.grupoId,
+        pedidoId: id,
+        ordenPagada: p.marca.providerOrderId,
+        ordenNueva: mp.id,
+      });
+    }
     if (!p || p.marca.estado !== "PAGADO") continue;
     await registrarComisiones({
       order: p.order,

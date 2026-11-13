@@ -16,6 +16,10 @@ export type MarcaGrupo = {
   pedidos: number[];
   estado: EstadoPiloto;
   providerOrderId?: string;
+  /** Enlace de pago de la orden de Checkout Pro con reparto (estado `CHECKOUT_SPLIT`). */
+  checkoutUrl?: string;
+  /** Cuándo se reservó el grupo para crear la orden con reparto (ISO). */
+  reservadoEn?: string;
   intento?: number;
   cobro?: {
     referidorUserId: number | null;

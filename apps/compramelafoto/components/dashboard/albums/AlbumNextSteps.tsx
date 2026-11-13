@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import Button from "@/components/ui/Button";
 import Select from "@/components/ui/Select";
+import CobroDivididoCard from "@/components/mercadopago/CobroDivididoCard";
 import { albumModeOptions } from "@/lib/albums/album-mode-options";
 
 export type AlbumNextStepsMode = "SIMPLE" | "EVENT" | "SCHOOL" | "COLLABORATIVE";
@@ -111,6 +113,7 @@ export default function AlbumNextSteps({
   albumModeControl,
   videoMvpEnabled,
 }: AlbumNextStepsProps) {
+  const [estadoCobroDividido, setEstadoCobroDividido] = useState<string | null>(null);
   const items = STEPS_BY_MODE[mode] ?? STEPS_BY_MODE.SIMPLE;
   const actions = buildQuickActionLinks({
     mode,
@@ -159,6 +162,20 @@ export default function AlbumNextSteps({
               </li>
             ))}
           </ul>
+
+          {mode === "COLLABORATIVE" ? (
+            <div className="space-y-2 sm:pl-11">
+              {/* El texto sólo aparece si la tarjeta respondió (si el cobro dividido está apagado, no). */}
+              {estadoCobroDividido ? (
+              <p className="m-0 text-sm text-[#374151]">
+                <strong>Para vender en un solo pago con los demás fotógrafos del evento</strong>, aprobá el
+                cobro dividido: el cliente compra fotos de todos juntas y Mercado Pago le deposita a cada
+                uno su parte en el momento. Mientras falte alguien, cada álbum se cobra por separado.
+              </p>
+              ) : null}
+              <CobroDivididoCard onEstado={setEstadoCobroDividido} />
+            </div>
+          ) : null}
 
           <div
             className="flex flex-wrap gap-3 sm:pl-11"

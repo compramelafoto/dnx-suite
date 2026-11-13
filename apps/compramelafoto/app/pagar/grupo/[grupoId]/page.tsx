@@ -26,8 +26,12 @@ export default async function PagarGrupoPage({ params }: { params: Promise<{ gru
   // El interruptor sólo decide si se puede pagar. Un grupo ya pagado o con un cobro en curso
   // sigue mostrando sus descargas (es el enlace del correo) y conciliando aunque se apague.
   const puedePagar = Boolean(piloto.publicKey) && carritoActivoParaEvento(resolveCarritoConfig(), piloto, grupo.eventId);
+  // Una orden de Mercado Pago con reparto abierta también cuenta: el comprador vuelve acá desde
+  // Mercado Pago y la página tiene que conciliar aunque el carrito se haya apagado.
   const yaCobrado =
-    grupo.pedidos.some((p) => p.order.status === "PAID") || estadoDelGrupo(grupo.pedidos) !== "PENDIENTE";
+    grupo.pedidos.some((p) => p.order.status === "PAID") ||
+    estadoDelGrupo(grupo.pedidos) !== "PENDIENTE" ||
+    grupo.pedidos.some((p) => p.marca.estado === "CHECKOUT_SPLIT");
   if (!puedePagar && !yaCobrado) notFound();
 
   // Conciliación al visitar: si ya hay una orden de Mercado Pago y falta confirmar algún pedido
@@ -56,6 +60,10 @@ export default async function PagarGrupoPage({ params }: { params: Promise<{ gru
   const total = grupo.pedidos.reduce((acc, p) => acc + p.order.totalCents, 0);
   const todosPagados = grupo.pedidos.every((p) => p.order.status === "PAID");
   const estado = estadoDelGrupo(grupo.pedidos);
+  // «Pagar con Mercado Pago» con reparto (mismo interruptor que el de un álbum). Si el grupo ya
+  // tiene una orden con reparto, se sigue ahí aunque el interruptor se haya apagado.
+  const mercadoPagoEnCurso = grupo.pedidos.every((p) => p.marca.estado === "CHECKOUT_SPLIT");
+  const conMercadoPago = (piloto.planBSplit && puedePagar) || mercadoPagoEnCurso;
   const fotos = (n: number) => (n === 1 ? "1 foto" : `${n} fotos`);
 
   const descargas = todosPagados
@@ -71,7 +79,7 @@ export default async function PagarGrupoPage({ params }: { params: Promise<{ gru
   return (
     <main className="mx-auto max-w-lg px-4 py-10">
       <h1 className="text-2xl font-semibold">
-        {todosPagados ? "Tus fotos" : "Pagar con tarjeta"}
+        {todosPagados ? "Tus fotos" : "Pagar tus fotos"}
       </h1>
       <p className="mt-2 text-neutral-700">
         {evento?.title ? <>Fotos de «{evento.title}» · </> : null}Total <strong>{pesos.format(total)}</strong>
@@ -108,7 +116,7 @@ export default async function PagarGrupoPage({ params }: { params: Promise<{ gru
               ),
             )}
           </div>
-        ) : estado !== "PENDIENTE" || !puedePagar ? (
+        ) : estado !== "PENDIENTE" || (!puedePagar && !mercadoPagoEnCurso) ? (
           <p className="text-neutral-700">
             Estamos verificando tu pago con Mercado Pago. Te avisamos por correo a {correo} apenas se
             confirme. <strong>No pagues de nuevo.</strong>
@@ -121,6 +129,9 @@ export default async function PagarGrupoPage({ params }: { params: Promise<{ gru
             correoVisible={correo}
             volverA={evento?.shareSlug ? `/e/${evento.shareSlug}` : "/"}
             volverTexto="Volver al evento"
+            planB={conMercadoPago}
+            soloMercadoPago={mercadoPagoEnCurso}
+            permitirTarjeta={puedePagar}
           />
         )}
       </div>
