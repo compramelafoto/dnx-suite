@@ -6,7 +6,11 @@ import { loadPortalContext } from "@/lib/portal/access";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import { decimalArsToMinor, formatMinorArs } from "@/lib/membership/money";
 import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
-import { BOOKINGS_TIME_ZONE, localMoment, minuteOfDayToLabel } from "@/lib/bookings/time";
+import {
+  BOOKINGS_TIME_ZONE,
+  localMoment,
+  minuteOfDayToLabel,
+} from "@/lib/bookings/time";
 import { buildWeekGrid } from "@/lib/bookings/week-grid";
 import {
   calendarHref,
@@ -20,10 +24,17 @@ import { listSpaces, getBookingSettings } from "@/lib/bookings/repository";
 import { bookingWording } from "@/lib/bookings/wording";
 import { loadMemberClubBalance } from "@/lib/membership/booking-credits";
 import { loadPortalOffer } from "@/lib/bookings/portal";
-import { canCancelByCustomer } from "@/lib/bookings/lifecycle";
+import {
+  canCancelByCustomer,
+  canPayByCustomer,
+} from "@/lib/bookings/lifecycle";
 import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { ReservarForm } from "./reservar-form";
-import { cancelPortalBookingAction, createPortalBookingAction } from "./actions";
+import {
+  cancelPortalBookingAction,
+  createPortalBookingAction,
+  payPortalBookingAction,
+} from "./actions";
 import { spacePriceLabel } from "@/lib/bookings/pricing";
 
 export const dynamic = "force-dynamic";
@@ -52,7 +63,12 @@ export default async function PortalReservasPage({
   const user = await requireAuth();
   const context = await loadPortalContext(user.id);
   if (!context) redirect("/portal");
-  if (!(await isModuleEnabledForWorkspace(context.workspace.id, BOOKINGS_MODULE_KEY))) {
+  if (
+    !(await isModuleEnabledForWorkspace(
+      context.workspace.id,
+      BOOKINGS_MODULE_KEY,
+    ))
+  ) {
     redirect("/portal");
   }
 
@@ -97,12 +113,20 @@ export default async function PortalReservasPage({
       : null;
 
   // No se ofrece navegar a una semana que ya pasó entera.
-  const semanaPasada = viewInterval("semana", shiftYmd("semana", ymd, -1), BOOKINGS_TIME_ZONE);
+  const semanaPasada = viewInterval(
+    "semana",
+    shiftYmd("semana", ymd, -1),
+    BOOKINGS_TIME_ZONE,
+  );
   const hayAnterior = semanaPasada.endAt > ahora;
 
   const [settings, club, mias] = await Promise.all([
     getBookingSettings(context.workspace.id),
-    loadMemberClubBalance({ workspaceId: context.workspace.id, memberId: context.member.id, at: ahora }),
+    loadMemberClubBalance({
+      workspaceId: context.workspace.id,
+      memberId: context.member.id,
+      at: ahora,
+    }),
     prisma.booking.findMany({
       where: { workspaceId: context.workspace.id, memberId: context.member.id },
       orderBy: { startAt: "desc" },
@@ -114,6 +138,8 @@ export default async function PortalReservasPage({
         status: true,
         totalArs: true,
         paymentStatus: true,
+        paymentMethod: true,
+        holdExpiresAt: true,
         spaceId: true,
         space: { select: { name: true } },
         extraLines: {
@@ -127,7 +153,11 @@ export default async function PortalReservasPage({
   const wording = bookingWording(settings);
   const turnos = wording.kind === "PROFESIONALES";
   const vencimientoClub = club
-    ? club.validUntil.toLocaleDateString("es-AR", { timeZone: BOOKINGS_TIME_ZONE, day: "numeric", month: "numeric" })
+    ? club.validUntil.toLocaleDateString("es-AR", {
+        timeZone: BOOKINGS_TIME_ZONE,
+        day: "numeric",
+        month: "numeric",
+      })
     : null;
 
   const proximas = mias.filter((r) => r.endAt >= ahora);
@@ -144,10 +174,15 @@ export default async function PortalReservasPage({
   return (
     <div className="space-y-8">
       <header className="space-y-2">
-        <Link href="/portal" className="text-sm text-[var(--fo-muted)] underline underline-offset-4">
+        <Link
+          href="/portal"
+          className="text-sm text-[var(--fo-muted)] underline underline-offset-4"
+        >
           Volver al inicio
         </Link>
-        <h1 className="text-2xl font-semibold tracking-tight">{turnos ? "Turnos" : "Reservas"}</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">
+          {turnos ? "Turnos" : "Reservas"}
+        </h1>
         <p className="text-sm leading-relaxed text-[var(--fo-muted)]">
           {turnos
             ? `Elegí a tu ${wording.singular}, el día y la hora.`
@@ -162,22 +197,25 @@ export default async function PortalReservasPage({
       ) : null}
       {params.enviada ? (
         <p className="fo-card p-4 text-sm text-[var(--fo-success)]">
-          Tu pedido quedó enviado. La institución tiene que confirmar lo que pediste antes de
-          cobrarte: no se te va a cobrar nada hasta entonces.
+          Tu pedido quedó enviado. La institución tiene que confirmar lo que
+          pediste antes de cobrarte: no se te va a cobrar nada hasta entonces.
         </p>
       ) : null}
       {params.ok ? (
-        <p className="fo-card p-4 text-sm text-[var(--fo-success)]">Listo, tu reserva quedó hecha.</p>
+        <p className="fo-card p-4 text-sm text-[var(--fo-success)]">
+          Listo, tu reserva quedó hecha.
+        </p>
       ) : null}
       {params.pago === "ok" ? (
         <p className="fo-card p-4 text-sm text-[var(--fo-success)]">
-          Recibimos tu pago. Si la reserva todavía figura esperando, en un ratito se acredita.
+          Recibimos tu pago. Si la reserva todavía figura esperando, en un
+          ratito se acredita.
         </p>
       ) : null}
       {params.pago === "error" ? (
         <p className="fo-card p-4 text-sm text-[var(--fo-danger)]">
-          El pago no se pudo completar. Tu horario sigue reservado un rato más: podés intentar
-          de nuevo.
+          El pago no se pudo completar. Tu horario sigue reservado un rato más:
+          podés intentar de nuevo.
         </p>
       ) : null}
 
@@ -192,7 +230,10 @@ export default async function PortalReservasPage({
           {club && elegido && !elegido.acceptsClubCredits ? (
             <p className="fo-card p-4 text-sm text-[var(--fo-muted)]">
               {`Tus ${club.plural} incluidos se usan con ${
-                espacios.filter((e) => e.acceptsClubCredits).map((e) => e.name).join(" o ") || "otro profesional"
+                espacios
+                  .filter((e) => e.acceptsClubCredits)
+                  .map((e) => e.name)
+                  .join(" o ") || "otro profesional"
               }. Con ${elegido.name} el turno se paga.`}
             </p>
           ) : null}
@@ -205,14 +246,20 @@ export default async function PortalReservasPage({
               pricing={elegido}
               spaceId={elegido.id}
               spaceName={elegido.name}
-              spaceColor={spaceColor(espacios.findIndex((e) => e.id === elegido.id))}
+              spaceColor={spaceColor(
+                espacios.findIndex((e) => e.id === elegido.id),
+              )}
               description={elegido.description}
               spaces={espacios.map((e, i) => ({
                 id: e.id,
                 name: e.name,
                 color: spaceColor(i),
                 priceLabel: spacePriceLabel(e, "MEMBER"),
-                href: calendarHref("/portal/reservas", { ymd }, { espacio: e.id }),
+                href: calendarHref(
+                  "/portal/reservas",
+                  { ymd },
+                  { espacio: e.id },
+                ),
               }))}
               vocabulary={v}
               resourceSingular={wording.singular}
@@ -247,8 +294,11 @@ export default async function PortalReservasPage({
                 .map((r) => ({
                   id: r.id,
                   ymd: localMoment(r.startAt, BOOKINGS_TIME_ZONE).ymd,
-                  startMinute: localMoment(r.startAt, BOOKINGS_TIME_ZONE).minuteOfDay,
-                  endMinute: localMoment(r.endAt, BOOKINGS_TIME_ZONE).minuteOfDay || 24 * 60,
+                  startMinute: localMoment(r.startAt, BOOKINGS_TIME_ZONE)
+                    .minuteOfDay,
+                  endMinute:
+                    localMoment(r.endAt, BOOKINGS_TIME_ZONE).minuteOfDay ||
+                    24 * 60,
                   statusLabel: ETIQUETA_ESTADO[r.status] ?? r.status,
                 }))}
               extras={oferta.extras.map((o) => ({
@@ -267,7 +317,9 @@ export default async function PortalReservasPage({
         <h2 className="text-base font-semibold">Mis reservas</h2>
 
         {proximas.length === 0 ? (
-          <p className="text-sm text-[var(--fo-muted-soft)]">No tenés reservas por delante.</p>
+          <p className="text-sm text-[var(--fo-muted-soft)]">
+            No tenés reservas por delante.
+          </p>
         ) : (
           <ul className="space-y-3">
             {proximas.map((r) => {
@@ -301,8 +353,40 @@ export default async function PortalReservasPage({
                         .join(", ")}
                     </p>
                   ) : null}
+                  {canPayByCustomer({
+                    status: r.status,
+                    paymentStatus: r.paymentStatus,
+                    paymentMethod: r.paymentMethod,
+                    holdExpiresAt: r.holdExpiresAt,
+                    totalMinor: decimalArsToMinor(r.totalArs),
+                    now: ahora,
+                  }) ? (
+                    <form action={payPortalBookingAction} className="space-y-1">
+                      <input type="hidden" name="bookingId" value={r.id} />
+                      <button
+                        type="submit"
+                        className="fo-btn fo-btn-primary text-sm"
+                      >
+                        Pagar con Mercado Pago
+                      </button>
+                      {r.holdExpiresAt ? (
+                        <p className="text-xs text-[var(--fo-muted-soft)]">
+                          Tenés tiempo de pagar hasta el{" "}
+                          {fmtFecha(r.holdExpiresAt)} a las{" "}
+                          {minuteOfDayToLabel(
+                            localMoment(r.holdExpiresAt, BOOKINGS_TIME_ZONE)
+                              .minuteOfDay,
+                          )}
+                          .
+                        </p>
+                      ) : null}
+                    </form>
+                  ) : null}
                   {puede.ok ? (
-                    <form action={cancelPortalBookingAction} className="space-y-1">
+                    <form
+                      action={cancelPortalBookingAction}
+                      className="space-y-1"
+                    >
                       <input type="hidden" name="bookingId" value={r.id} />
                       <button
                         type="submit"
@@ -312,13 +396,15 @@ export default async function PortalReservasPage({
                       </button>
                       {r.paymentStatus === "PAID" ? (
                         <p className="text-xs text-[var(--fo-muted-soft)]">
-                          Si ya pagaste, la devolución la resuelve la Secretaría: no es
-                          automática.
+                          Si ya pagaste, la devolución la resuelve la
+                          Secretaría: no es automática.
                         </p>
                       ) : null}
                     </form>
                   ) : (
-                    <p className="text-xs text-[var(--fo-muted-soft)]">{puede.motivo}</p>
+                    <p className="text-xs text-[var(--fo-muted-soft)]">
+                      {puede.motivo}
+                    </p>
                   )}
                 </li>
               );

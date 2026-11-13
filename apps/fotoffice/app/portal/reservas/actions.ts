@@ -9,14 +9,27 @@ import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
 import { BOOKINGS_TIME_ZONE } from "@/lib/bookings/time";
 import { parseLocalDateTime } from "@/lib/bookings/local-datetime";
 import { loadPortalOffer, totalForBooking } from "@/lib/bookings/portal";
-import { anyRequiresConfirmation, extrasTotalMinor } from "@/lib/bookings/extras";
+import {
+  anyRequiresConfirmation,
+  extrasTotalMinor,
+} from "@/lib/bookings/extras";
 import { quoteForSpace } from "@/lib/bookings/pricing";
-import { createBooking, type BookingExtraLineInput } from "@/lib/bookings/create";
+import {
+  createBooking,
+  type BookingExtraLineInput,
+} from "@/lib/bookings/create";
 import { startBookingCheckout } from "@/lib/bookings/checkout";
 import { cancelBooking } from "@/lib/bookings/create";
-import { canCancelByCustomer } from "@/lib/bookings/lifecycle";
+import {
+  canCancelByCustomer,
+  canPayByCustomer,
+} from "@/lib/bookings/lifecycle";
+import { decimalArsToMinor } from "@/lib/membership/money";
 import { getBookingSettings } from "@/lib/bookings/repository";
-import { canCoverWithCredits, creditsNeededFor } from "@/lib/bookings/club-credits";
+import {
+  canCoverWithCredits,
+  creditsNeededFor,
+} from "@/lib/bookings/club-credits";
 import { loadMemberClubBalance } from "@/lib/membership/booking-credits";
 import { prisma } from "@repo/db";
 
@@ -29,24 +42,40 @@ const PORTAL = "/portal/reservas";
  * pantalla puede estar viejo: otro socio pudo tomar el horario, o el último flash. El
  * formulario propone; el servidor decide.
  */
-export async function createPortalBookingAction(formData: FormData): Promise<void> {
+export async function createPortalBookingAction(
+  formData: FormData,
+): Promise<void> {
   const user = await requireAuth();
   const context = await loadPortalContext(user.id);
   if (!context) redirect("/portal");
 
-  if (!(await isModuleEnabledForWorkspace(context.workspace.id, BOOKINGS_MODULE_KEY))) {
+  if (
+    !(await isModuleEnabledForWorkspace(
+      context.workspace.id,
+      BOOKINGS_MODULE_KEY,
+    ))
+  ) {
     redirect("/portal");
   }
 
   const spaceId = String(formData.get("spaceId") ?? "").trim();
-  const startAt = parseLocalDateTime(String(formData.get("startAt") ?? ""), BOOKINGS_TIME_ZONE);
-  const endAt = parseLocalDateTime(String(formData.get("endAt") ?? ""), BOOKINGS_TIME_ZONE);
+  const startAt = parseLocalDateTime(
+    String(formData.get("startAt") ?? ""),
+    BOOKINGS_TIME_ZONE,
+  );
+  const endAt = parseLocalDateTime(
+    String(formData.get("endAt") ?? ""),
+    BOOKINGS_TIME_ZONE,
+  );
   const elegidos = formData.getAll("extraIds").map((v) => String(v));
 
-  const volver = (params: string) => redirect(`${PORTAL}?espacio=${spaceId}&${params}`);
+  const volver = (params: string) =>
+    redirect(`${PORTAL}?espacio=${spaceId}&${params}`);
 
   if (!spaceId || startAt === null || endAt === null) {
-    volver(`error=${encodeURIComponent("Elegí un horario antes de reservar.")}`);
+    volver(
+      `error=${encodeURIComponent("Elegí un horario antes de reservar.")}`,
+    );
   }
 
   const range = { startAt: startAt as Date, endAt: endAt as Date };
@@ -58,7 +87,8 @@ export async function createPortalBookingAction(formData: FormData): Promise<voi
     range,
     customerType: "MEMBER",
   });
-  if (!oferta) volver(`error=${encodeURIComponent("Ese espacio ya no está disponible.")}`);
+  if (!oferta)
+    volver(`error=${encodeURIComponent("Ese espacio ya no está disponible.")}`);
 
   const { space, freeHours, extras } = oferta as NonNullable<typeof oferta>;
 
@@ -70,11 +100,17 @@ export async function createPortalBookingAction(formData: FormData): Promise<voi
     workspaceId: context.workspace.id,
     memberId: context.member.id,
   });
-  const usarClub = space.acceptsClubCredits && canCoverWithCredits({
-    balance: club,
-    needed: creditsNeededFor({ pricingMode: space.pricingMode, blockMinutes: space.blockMinutes, minutes: minutos }),
-    startAt: range.startAt,
-  });
+  const usarClub =
+    space.acceptsClubCredits &&
+    canCoverWithCredits({
+      balance: club,
+      needed: creditsNeededFor({
+        pricingMode: space.pricingMode,
+        blockMinutes: space.blockMinutes,
+        minutes: minutos,
+      }),
+      startAt: range.startAt,
+    });
   const libresParaEsta = usarClub ? 0 : freeHours.availableMinutes;
 
   const quote = quoteForSpace(space, {
@@ -96,11 +132,15 @@ export async function createPortalBookingAction(formData: FormData): Promise<voi
       unitPriceMinor: o.extra.memberPriceMinor,
       unitsConsumed: o.extra.unitsConsumed,
       amountMinor: o.amountMinor,
-      status: o.extra.requiresConfirmation ? "PENDING_CONFIRMATION" : "CONFIRMED",
+      status: o.extra.requiresConfirmation
+        ? "PENDING_CONFIRMATION"
+        : "CONFIRMED",
     }));
 
   const extrasMinor = extrasTotalMinor(extras, elegidos);
-  const total = usarClub ? extrasMinor : totalForBooking({ quote, extrasMinor });
+  const total = usarClub
+    ? extrasMinor
+    : totalForBooking({ quote, extrasMinor });
   const aConfirmar = anyRequiresConfirmation(extras, elegidos);
 
   const r = await createBooking({
@@ -110,7 +150,8 @@ export async function createPortalBookingAction(formData: FormData): Promise<voi
     customerType: "MEMBER",
     memberId: context.member.id,
     userId: user.id,
-    contactName: `${context.member.firstName} ${context.member.lastName}`.trim(),
+    contactName:
+      `${context.member.firstName} ${context.member.lastName}`.trim(),
     contactEmail: user.email ?? "",
     contactPhone: null,
     freeMinutesAvailable: libresParaEsta,
@@ -150,7 +191,9 @@ export async function createPortalBookingAction(formData: FormData): Promise<voi
  * **No devuelve dinero.** Si estaba paga, la devolución la resuelve la institución por
  * fuera. La pantalla se lo dice antes de que confirme.
  */
-export async function cancelPortalBookingAction(formData: FormData): Promise<void> {
+export async function cancelPortalBookingAction(
+  formData: FormData,
+): Promise<void> {
   const user = await requireAuth();
   const context = await loadPortalContext(user.id);
   if (!context) redirect("/portal");
@@ -158,10 +201,17 @@ export async function cancelPortalBookingAction(formData: FormData): Promise<voi
   const bookingId = String(formData.get("bookingId") ?? "").trim();
 
   const reserva = await prisma.booking.findFirst({
-    where: { id: bookingId, workspaceId: context.workspace.id, memberId: context.member.id },
+    where: {
+      id: bookingId,
+      workspaceId: context.workspace.id,
+      memberId: context.member.id,
+    },
     select: { id: true, startAt: true, status: true },
   });
-  if (!reserva) redirect(`${PORTAL}?error=${encodeURIComponent("No encontramos esa reserva.")}`);
+  if (!reserva)
+    redirect(
+      `${PORTAL}?error=${encodeURIComponent("No encontramos esa reserva.")}`,
+    );
 
   const settings = await getBookingSettings(context.workspace.id);
   const puede = canCancelByCustomer({
@@ -170,7 +220,8 @@ export async function cancelPortalBookingAction(formData: FormData): Promise<voi
     cancelWindowHours: settings.cancelWindowHours,
     now: new Date(),
   });
-  if (!puede.ok) redirect(`${PORTAL}?error=${encodeURIComponent(puede.motivo)}`);
+  if (!puede.ok)
+    redirect(`${PORTAL}?error=${encodeURIComponent(puede.motivo)}`);
 
   const r = await cancelBooking({
     workspaceId: context.workspace.id,
@@ -180,5 +231,70 @@ export async function cancelPortalBookingAction(formData: FormData): Promise<voi
   });
 
   revalidatePath(PORTAL);
-  redirect(r.ok ? `${PORTAL}?ok=cancelada` : `${PORTAL}?error=${encodeURIComponent(r.error ?? "")}`);
+  redirect(
+    r.ok
+      ? `${PORTAL}?ok=cancelada`
+      : `${PORTAL}?error=${encodeURIComponent(r.error ?? "")}`,
+  );
+}
+
+/**
+ * El socio paga una reserva suya que quedó esperando el pago.
+ *
+ * Pasa cuando cerró Mercado Pago sin terminar, o cuando la Secretaría le pasó a su nombre una
+ * reserva que había hecho otra persona. Se vuelve a verificar todo acá: que la reserva sea de
+ * este socio, que siga esperando el pago y que el plazo no haya vencido.
+ */
+export async function payPortalBookingAction(
+  formData: FormData,
+): Promise<void> {
+  const user = await requireAuth();
+  const context = await loadPortalContext(user.id);
+  if (!context) redirect("/portal");
+
+  const bookingId = String(formData.get("bookingId") ?? "").trim();
+
+  const reserva = await prisma.booking.findFirst({
+    where: {
+      id: bookingId,
+      workspaceId: context.workspace.id,
+      memberId: context.member.id,
+    },
+    select: {
+      id: true,
+      status: true,
+      paymentStatus: true,
+      paymentMethod: true,
+      holdExpiresAt: true,
+      totalArs: true,
+    },
+  });
+  if (!reserva)
+    redirect(
+      `${PORTAL}?error=${encodeURIComponent("No encontramos esa reserva.")}`,
+    );
+
+  const puede = canPayByCustomer({
+    status: reserva.status,
+    paymentStatus: reserva.paymentStatus,
+    paymentMethod: reserva.paymentMethod,
+    holdExpiresAt: reserva.holdExpiresAt,
+    totalMinor: decimalArsToMinor(reserva.totalArs),
+    now: new Date(),
+  });
+  if (!puede) {
+    redirect(
+      `${PORTAL}?error=${encodeURIComponent("Esa reserva ya no está esperando el pago. Escribile a la Secretaría.")}`,
+    );
+  }
+
+  const checkout = await startBookingCheckout({
+    workspaceId: context.workspace.id,
+    bookingId: reserva.id,
+    payerEmail: user.email ?? "",
+    returnPath: PORTAL,
+  });
+  if (!checkout.ok)
+    redirect(`${PORTAL}?error=${encodeURIComponent(checkout.error)}`);
+  redirect(checkout.checkoutUrl);
 }

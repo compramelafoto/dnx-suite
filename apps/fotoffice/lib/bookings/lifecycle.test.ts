@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canCancelByCustomer } from "./lifecycle";
+import { canCancelByCustomer, canPayByCustomer } from "./lifecycle";
 
 const ahora = new Date("2026-09-19T12:00:00Z");
 const en48h = new Date("2026-09-21T12:00:00Z");
@@ -30,7 +30,12 @@ describe("hasta cuándo puede cancelar quien reservó", () => {
 
   it("una ventana de cero deja cancelar hasta el momento de empezar", () => {
     expect(
-      canCancelByCustomer({ startAt: en2h, status: "CONFIRMED", cancelWindowHours: 0, now: ahora }),
+      canCancelByCustomer({
+        startAt: en2h,
+        status: "CONFIRMED",
+        cancelWindowHours: 0,
+        now: ahora,
+      }),
     ).toEqual({ ok: true });
   });
 
@@ -46,7 +51,12 @@ describe("hasta cuándo puede cancelar quien reservó", () => {
 
   it("una reserva ya cancelada o vencida no se vuelve a cancelar", () => {
     for (const status of ["CANCELLED", "EXPIRED"]) {
-      const r = canCancelByCustomer({ startAt: en48h, status, cancelWindowHours: 24, now: ahora });
+      const r = canCancelByCustomer({
+        startAt: en48h,
+        status,
+        cancelWindowHours: 24,
+        now: ahora,
+      });
       expect(r.ok, status).toBe(false);
     }
   });
@@ -54,7 +64,12 @@ describe("hasta cuándo puede cancelar quien reservó", () => {
   it("una que está esperando el pago sí se puede soltar", () => {
     // Es lo que hace que el socio pueda arrepentirse sin esperar el vencimiento.
     expect(
-      canCancelByCustomer({ startAt: en48h, status: "HOLD", cancelWindowHours: 24, now: ahora }),
+      canCancelByCustomer({
+        startAt: en48h,
+        status: "HOLD",
+        cancelWindowHours: 24,
+        now: ahora,
+      }),
     ).toEqual({ ok: true });
   });
 
@@ -67,5 +82,41 @@ describe("hasta cuándo puede cancelar quien reservó", () => {
         now: ahora,
       }),
     ).toEqual({ ok: true });
+  });
+});
+
+describe("cuándo puede pagar quien reservó una reserva pendiente", () => {
+  const base = {
+    status: "HOLD",
+    paymentStatus: "PENDING",
+    paymentMethod: "MERCADO_PAGO",
+    holdExpiresAt: new Date("2026-09-20T12:00:00Z"),
+    totalMinor: 14_000_000,
+    now: ahora,
+  };
+
+  it("esperando el pago y dentro del plazo, puede", () => {
+    expect(canPayByCustomer(base)).toBe(true);
+  });
+
+  it("con el plazo vencido, ya no", () => {
+    expect(
+      canPayByCustomer({
+        ...base,
+        holdExpiresAt: new Date("2026-09-19T11:59:00Z"),
+      }),
+    ).toBe(false);
+  });
+
+  it("si ya está paga o confirmada, no", () => {
+    expect(canPayByCustomer({ ...base, paymentStatus: "PAID" })).toBe(false);
+    expect(canPayByCustomer({ ...base, status: "CONFIRMED" })).toBe(false);
+  });
+
+  it("si se paga por transferencia o no tiene monto, no", () => {
+    expect(canPayByCustomer({ ...base, paymentMethod: "TRANSFERENCIA" })).toBe(
+      false,
+    );
+    expect(canPayByCustomer({ ...base, totalMinor: 0 })).toBe(false);
   });
 });
