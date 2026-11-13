@@ -2,6 +2,7 @@ import { COMMUNICATIONS_MODULE_KEY } from "@/lib/communications/constants";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 import { DIGITALIZACION_MODULE_KEY } from "@/lib/digitalizacion/constants";
 import { EVALUACIONES_MODULE_KEY } from "@/lib/evaluaciones/constants";
+import { REGISTRO_DOCENTE_MODULE_KEY } from "@/lib/registro-docente/constants";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { BOOKINGS_MODULE_KEY } from "@/lib/bookings/constants";
 import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
@@ -121,6 +122,19 @@ export const MODULE_REGISTRY: readonly ModuleDefinition[] = [
     status: "AVAILABLE",
     family: "formacion",
     dependsOn: ["courses-sales"],
+  },
+  {
+    // Registro docente (13/11/2026): escuelas, cursos, padrón, asistencia, notas y la planilla para
+    // Mi Escuela. Datos de menores: privado del espacio y sin depender de la venta de cursos.
+    key: REGISTRO_DOCENTE_MODULE_KEY,
+    label: "Registro docente",
+    description:
+      "Escuelas, cursos y estudiantes con sus reglas; asistencia desde el celular aunque no haya señal; notas, períodos y la planilla para pasar a Mi Escuela.",
+    category: "GENERAL",
+    order: 21,
+    route: "/registro-docente",
+    status: "AVAILABLE",
+    family: "formacion",
   },
   {
     key: SERVICE_LEADS_MODULE_KEY,

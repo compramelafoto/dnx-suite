@@ -37,7 +37,7 @@ export const FOTOFFICE_RESERVED_SLUGS = [
   "terms", "terminos", "privacy", "privacidad",
   "assets", "uploads", "media", "static", "public",
   "favicon", "robots", "sitemap",
-  "evaluaciones", "onboarding", "recuperar",
+  "evaluaciones", "onboarding", "recuperar", "registro-docente",
 ] as const;
 
 /**
@@ -48,7 +48,7 @@ export const FOTOFFICE_RESERVED_SLUGS = [
  */
 export const FOTOFFICE_TOP_LEVEL_APP_ROUTES = [
   "admin", "api", "courses", "cursos", "dashboard", "evaluaciones", "login", "members",
-  "onboarding", "portfolios", "recuperar", "w", "website", "workspace",
+  "onboarding", "portfolios", "recuperar", "registro-docente", "w", "website", "workspace",
 ] as const;
 
 /**

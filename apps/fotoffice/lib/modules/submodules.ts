@@ -17,6 +17,7 @@ import { FOTOLIBROS_MODULE_KEY } from "@/lib/fotolibro/constantes";
 import { FOTO_CARNET_MODULE_KEY } from "@/lib/foto-carnet/constantes";
 import { POLAROID_MODULE_KEY } from "@/lib/polaroid/constantes";
 import { EVENTOS_MODULE_KEY } from "@/lib/eventos/constants";
+import { REGISTRO_DOCENTE_MODULE_KEY } from "@/lib/registro-docente/constants";
 import { LIVE_MODULE_KEY } from "@/lib/en-vivo/constantes";
 import {
   BOOKINGS_CONFIGURE_ACTION,
@@ -740,6 +741,26 @@ const EVENTOS: SubmoduleItem[] = [
   },
 ];
 
+// Registro docente: «Pasar lista» va aparte porque es lo que se abre en el aula, desde el celular.
+const REGISTRO_DOCENTE: SubmoduleItem[] = [
+  {
+    href: "/registro-docente",
+    label: "Escuelas y cursos",
+    icon: "School",
+    description: "Escuelas con sus reglas, cursos, padrón, notas, períodos y la planilla para Mi Escuela.",
+    requiresManage: false,
+    activeMatch: "rest",
+  },
+  {
+    href: "/registro-docente/asistencia",
+    label: "Pasar lista",
+    icon: "CalendarCheck",
+    description: "Asistencia de un toque desde el celular, con la hora de llegada. Funciona sin señal.",
+    requiresManage: true,
+    activeMatch: "under",
+  },
+];
+
 // Transmisión en vivo: las tres pantallas exigen dueño o admin (`requireLive`): el canal tiene la
 // clave de OBS y cada minuto retransmitido cuesta.
 const EN_VIVO: SubmoduleItem[] = [
@@ -790,6 +811,7 @@ const POR_MODULO: Record<string, SubmoduleItem[]> = {
   [POLAROID_MODULE_KEY]: POLAROID,
   [EVENTOS_MODULE_KEY]: EVENTOS,
   [LIVE_MODULE_KEY]: EN_VIVO,
+  [REGISTRO_DOCENTE_MODULE_KEY]: REGISTRO_DOCENTE,
 };
 
 /**

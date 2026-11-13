@@ -52,6 +52,7 @@ export const NAV_KEYWORDS: Record<string, string[]> = {
   "/courses/teachers": ["profesores", "instructores", "dictan"],
   "/courses/leads": ["alumnos", "anotados", "interesados", "inscriptos"],
   "/evaluaciones": ["notas", "calificaciones", "examenes", "trabajos practicos"],
+  "/registro-docente": ["escuela", "curso", "asistencia", "lista", "notas", "mi escuela", "estudiantes", "trimestre"],
   "/courses/settings": ["ajustes", "moneda", "comision"],
 
   "/ventas/analisis": ["análisis", "analisis", "estadísticas", "horas pico", "mejores días", "más vendidos", "ranking", "informe de ventas"],

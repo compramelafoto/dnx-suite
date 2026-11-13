@@ -17,6 +17,7 @@ import { LIVE_MODULE_KEY } from "@/lib/en-vivo/constantes";
 import { COVERAGES_MODULE_KEY } from "@/lib/coverages/constants";
 import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
 import { EVALUACIONES_MODULE_KEY } from "@/lib/evaluaciones/constants";
+import { REGISTRO_DOCENTE_MODULE_KEY } from "@/lib/registro-docente/constants";
 import { MEMBERS_MODULE_KEY } from "@/lib/members/constants";
 import { MEMBERSHIP_DUES_MODULE_KEY } from "@/lib/membership/constants";
 import { PORTFOLIO_MODULE_KEY } from "@/lib/portfolio/constants";
@@ -175,6 +176,14 @@ export const MODULOS_DISPONIBLES: FichaModulo[] = [
     resuelve:
       "Las evaluaciones que acompañan a cada curso, para saber quién las hizo y cómo le fue sin llevarlo en una planilla aparte.",
     pantallas: ["Evaluaciones por curso", "Resultados"],
+  },
+  {
+    key: REGISTRO_DOCENTE_MODULE_KEY,
+    cuadro: "06a",
+    nombre: "Registro docente",
+    resuelve:
+      "Para quien da clases en una escuela: el padrón pegado desde Excel, la lista desde el celular aunque no haya señal, la planilla de notas, la nota de cada período con los pesos de la escuela y la planilla lista para pasar a Mi Escuela. Los datos de los estudiantes quedan privados.",
+    pantallas: ["Escuelas y cursos", "Pasar lista", "Planilla de notas", "Nota del período", "Planilla para Mi Escuela"],
   },
   {
     key: CLIENTS_MODULE_KEY,
