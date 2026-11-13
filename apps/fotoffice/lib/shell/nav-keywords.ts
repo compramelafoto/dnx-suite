@@ -98,6 +98,7 @@ export const NAV_KEYWORDS: Record<string, string[]> = {
   // Presencia pública
   "/website": ["web", "pagina", "sitio", "portal", "home publica", "constructor", "menu"],
   "/website/blog": ["articulos", "notas", "noticias", "publicar", "novedades"],
+  "/website/testimonios": ["opiniones", "resenas", "comentarios", "reseñas", "moderar", "clientes", "alumnos"],
   "/website/dominio": ["dominio propio", "url", "direccion web", "dns"],
 
   // Institución

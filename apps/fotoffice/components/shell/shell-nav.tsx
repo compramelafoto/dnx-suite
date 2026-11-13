@@ -26,6 +26,7 @@ import {
   LayoutDashboard,
   LayoutGrid,
   ListPlus,
+  MessageSquareQuote,
   MessageSquareText,
   Newspaper,
   Settings,
@@ -79,7 +80,7 @@ import { hasLevel, type ModuleLevels } from "@/lib/permissions/levels";
 import { ordenarSecciones } from "@/lib/modules/nav-order";
 import { itemsMenuInformes } from "@/lib/informes/menu";
 import type { PersonVocabulary } from "@/lib/vocabulario/personas";
-import { isBlogNavActive, isDomainNavActive, isWebsiteNavActive } from "@/lib/blog/admin-nav";
+import { isBlogNavActive, isDomainNavActive, isTestimoniosNavActive, isWebsiteNavActive } from "@/lib/blog/admin-nav";
 
 // Clave del módulo como texto: `lib/presupuestos/acceso` arrastra la política de acceso al navegador.
 const QUOTES_MODULE_KEY = "quotes";
@@ -545,7 +546,17 @@ export function ShellNav({
     ? [
         { href: "/website", label: "Sitio web", description: "El sitio público de la institución: páginas, diseño y menú.", icon: Globe, isActive: isWebsiteNavActive },
         ...(gestiona(WEBSITE_MODULE_KEY)
-          ? [{ href: "/website/blog", label: "Blog", description: "Los artículos y novedades del sitio.", icon: Newspaper, isActive: isBlogNavActive }]
+          ? [
+              { href: "/website/blog", label: "Blog", description: "Los artículos y novedades del sitio.", icon: Newspaper, isActive: isBlogNavActive },
+              // Mismo permiso que la pantalla (`requireBlogEditor`): revisar, corregir y publicar lo que dejan los clientes.
+              {
+                href: "/website/testimonios",
+                label: "Testimonios",
+                description: "Revisar, corregir y publicar los testimonios que dejan tus clientes o alumnos.",
+                icon: MessageSquareQuote,
+                isActive: isTestimoniosNavActive,
+              },
+            ]
           : []),
         // Conectar el dominio propio (ej. sfpr.com.ar) es un dato de la institución: dueño o admin.
         ...(canManageWorkspaceSettings
