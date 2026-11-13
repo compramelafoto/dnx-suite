@@ -43,6 +43,7 @@ export const FOTOFFICE_ONLY_SEGMENTS: ReadonlySet<string> = new Set([
   "onboarding",
   "portal",
   "portfolios",
+  "registro-docente",
   "privacidad",
   "recuperar",
   "sc",

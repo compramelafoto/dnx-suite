@@ -7420,6 +7420,7 @@ model Workspace {
   serviceLeadForms               ServiceLeadForm[]
   serviceSalesLeads              ServiceSalesLead[]
   evaluationContexts             EvaluationContext[]
+  docenteEscuelas                DocenteEscuela[]
   students                       EvaluationStudent[]
   featureModules                 WorkspaceFeatureModule[]
   workspaceMembershipsUnified    WorkspaceMembership[]
@@ -28844,4 +28845,186 @@ model FotofficeAltaCliente {
   updatedAt     DateTime  @updatedAt
 
   @@index([workspaceId])
+}
+
+/// ── Registro docente (módulo `registro-docente`) ──────────────────────────────────────────
+/// Son datos de menores: viven sólo en estas tablas, nunca en Clientes ni Socios, y no salen en
+/// el sitio público, el Club ni las comunicaciones. Las reglas se guardan en cascada: el modelo
+/// (`lib/registro-docente/reglas.ts`) → la escuela → el curso → el estudiante. Cada nivel guarda
+/// SÓLO lo que cambia respecto del anterior; borrar una clave es «volver a la regla de arriba».
+
+model DocenteEscuela {
+  id          String         @id @default(cuid())
+  workspaceId String
+  nombre      String
+  numero      String?
+  cue         String?
+  localidad   String?
+  /// Clave del modelo de reglas («santa-fe-secundaria», «general»).
+  modelo      String
+  /// Lo que la escuela cambia respecto del modelo: { [clave]: valor }.
+  reglas      Json           @default("{}")
+  archivadaAt DateTime?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  workspace   Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  cursos      DocenteCurso[]
+
+  @@index([workspaceId])
+}
+
+model DocenteCurso {
+  id                  String               @id @default(cuid())
+  workspaceId         String
+  escuelaId           String
+  cicloLectivo        Int
+  /// «1°», «2°»…
+  anio                String
+  division            String?
+  turno               String?
+  materia             String
+  /// Lo que el curso cambia respecto de la escuela.
+  reglas              Json                 @default("{}")
+  /// { [clavePeriodo]: fecha ISO } del día en que se confirmó el período en Mi Escuela.
+  confirmadoMiEscuela Json                 @default("{}")
+  archivadoAt         DateTime?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  escuela             DocenteEscuela       @relation(fields: [escuelaId], references: [id], onDelete: Cascade)
+  estudiantes         DocenteEstudiante[]
+  clases              DocenteClase[]
+  evaluaciones        DocenteEvaluacion[]
+  notasPeriodo        DocenteNotaPeriodo[]
+
+  @@index([workspaceId])
+  @@index([escuelaId])
+}
+
+model DocenteEstudiante {
+  id           String               @id @default(cuid())
+  workspaceId  String
+  cursoId      String
+  apellido     String
+  nombre       String
+  dni          String?
+  /// Orden del padrón (el mismo de Mi Escuela, para cargar renglón por renglón).
+  orden        Int
+  /// R (regular) o NR (no regular), como en Mi Escuela.
+  condicion    String               @default("R")
+  altaAt       DateTime?            @db.Date
+  bajaAt       DateTime?            @db.Date
+  bajaMotivo   String?
+  /// Lo que este estudiante cambia respecto del curso (PPI, otra nota de aprobación…).
+  reglas       Json                 @default("{}")
+  /// Sólo para la docente: nunca sale en informes, planillas ni en un portal.
+  notaPrivada  String?
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+  curso        DocenteCurso         @relation(fields: [cursoId], references: [id], onDelete: Cascade)
+  asistencias  DocenteAsistencia[]
+  notas        DocenteNota[]
+  notasPeriodo DocenteNotaPeriodo[]
+
+  @@index([cursoId, orden])
+  @@index([workspaceId])
+}
+
+model DocenteClase {
+  id          String              @id @default(cuid())
+  cursoId     String
+  fecha       DateTime            @db.Date
+  /// DICTADA o SIN_CLASE (paro, jornada, feriado, licencia: va en `motivo`).
+  estado      String              @default("DICTADA")
+  motivo      String?
+  /// Hora en que llegó la docente («08:05»). Belén la anota en su registro (cuestionario, 13/11).
+  horaDocente String?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  curso       DocenteCurso        @relation(fields: [cursoId], references: [id], onDelete: Cascade)
+  asistencias DocenteAsistencia[]
+
+  @@unique([cursoId, fecha])
+}
+
+model DocenteAsistencia {
+  id           String            @id @default(cuid())
+  claseId      String
+  estudianteId String
+  /// PRESENTE, AUSENTE, TARDE, RETIRO o JUSTIFICADA.
+  estado       String
+  /// «08:12», en hora argentina. Se anota sola al marcar «tarde».
+  horaLlegada  String?
+  /// Cuándo se tocó en el celular. Si llegan dos versiones (sin señal, dos aparatos), gana la más nueva.
+  anotadaAt    DateTime
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  clase        DocenteClase      @relation(fields: [claseId], references: [id], onDelete: Cascade)
+  estudiante   DocenteEstudiante @relation(fields: [estudianteId], references: [id], onDelete: Cascade)
+
+  @@unique([claseId, estudianteId])
+  @@index([estudianteId])
+}
+
+model DocenteEvaluacion {
+  id             String              @id @default(cuid())
+  cursoId        String
+  titulo         String
+  /// escrito, oral, tp, tp_grupal, exposicion, carpeta, participacion, autoevaluacion.
+  tipo           String
+  fecha          DateTime?           @db.Date
+  /// Clave del período de las reglas del curso («T1»…).
+  periodo        String
+  notaMaxima     Decimal             @default(10) @db.Decimal(6, 2)
+  /// Si es recuperatorio, la evaluación que recupera.
+  recuperaAId    String?
+  descripcion    String?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  curso          DocenteCurso        @relation(fields: [cursoId], references: [id], onDelete: Cascade)
+  recuperaA      DocenteEvaluacion?  @relation("DocenteRecuperatorio", fields: [recuperaAId], references: [id], onDelete: SetNull)
+  recuperatorios DocenteEvaluacion[] @relation("DocenteRecuperatorio")
+  notas          DocenteNota[]
+
+  @@index([cursoId, periodo])
+}
+
+model DocenteNota {
+  id           String            @id @default(cuid())
+  evaluacionId String
+  estudianteId String
+  valor        Decimal?          @db.Decimal(6, 2)
+  /// AUSENTE (al examen: queda pendiente), NO_ENTREGO o EXCEPTUADO.
+  especial     String?
+  entregaTarde Boolean           @default(false)
+  devolucion   String?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  evaluacion   DocenteEvaluacion @relation(fields: [evaluacionId], references: [id], onDelete: Cascade)
+  estudiante   DocenteEstudiante @relation(fields: [estudianteId], references: [id], onDelete: Cascade)
+
+  @@unique([evaluacionId, estudianteId])
+  @@index([estudianteId])
+}
+
+model DocenteNotaPeriodo {
+  id                  String            @id @default(cuid())
+  cursoId             String
+  estudianteId        String
+  /// Clave del período o «FINAL» para la nota final del ciclo.
+  periodo             String
+  /// La nota que decide la docente (la sugerida es sólo una ayuda).
+  final               Decimal?          @db.Decimal(6, 2)
+  /// Valor especial de Mi Escuela: EXCEPTUADO, NO_CORRESPONDE, SIN_CALIFICACION, AUSENTE, EN_PROCESO.
+  especial            String?
+  /// La sugerida en el momento de confirmar, para ver después si se cambió.
+  sugeridaAlConfirmar Decimal?          @db.Decimal(6, 2)
+  motivo              String?
+  pasadaMiEscuelaAt   DateTime?
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+  curso               DocenteCurso      @relation(fields: [cursoId], references: [id], onDelete: Cascade)
+  estudiante          DocenteEstudiante @relation(fields: [estudianteId], references: [id], onDelete: Cascade)
+
+  @@unique([estudianteId, periodo])
+  @@index([cursoId, periodo])
 }
