@@ -248,6 +248,12 @@ export async function computeCheckoutTotals(params: {
   items: CheckoutInputItem[];
   /** Si el checkout incluye pack face-bulk: IDs de fotos del pack (precio único base+f fee en una sola línea comercial). */
   faceBulkPackPhotoIds?: number[] | null;
+  /**
+   * Precio base (pesos, antes del recargo) por id de foto que fija el servidor: packs del evento
+   * en el carrito de evento (`lib/split-1n-carrito-evento/packs-evento.ts`). Reemplaza el precio
+   * digital del álbum y su descuento por cantidad. Nunca sale del navegador.
+   */
+  digitalBasePesosPorFoto?: ReadonlyMap<number, number> | null;
 }): Promise<CheckoutTotals> {
   const { flow, albumId, photographerId, labId } = params;
   let items = Array.isArray(params.items) ? [...params.items] : [];
@@ -631,9 +637,17 @@ export async function computeCheckoutTotals(params: {
             if (fileKey) chargedDigitalFileKeys.add(fileKey);
           }
         }
-        const discountPct = item.includedWithPrint
-          ? Math.min(100, Math.max(0, albumDigitalWithPrintDiscountPercent))
-          : digitalBulkDiscountPercent;
+        const basePack =
+          !item.includedWithPrint && !inFaceBulkPackEarly && photo?.id != null
+            ? params.digitalBasePesosPorFoto?.get(photo.id)
+            : undefined;
+        const conPackDelEvento = typeof basePack === "number" && Number.isFinite(basePack) && basePack >= 0;
+        if (conPackDelEvento) digitalBase = Math.round(basePack);
+        const discountPct = conPackDelEvento
+          ? 0
+          : item.includedWithPrint
+            ? Math.min(100, Math.max(0, albumDigitalWithPrintDiscountPercent))
+            : digitalBulkDiscountPercent;
         const discountedBase = Math.round(digitalBase * (1 - discountPct / 100));
         const inFaceBulkPack = inFaceBulkPackEarly;
         const unitPriceCents =

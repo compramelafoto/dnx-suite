@@ -4,13 +4,22 @@
  * carrito: nadie de afuera la puede poner (no es un encabezado ni un campo del cuerpo), así la
  * ruta de siempre no cambia para ningún comprador.
  */
-const pedidosDeCarrito = new WeakSet<Request>();
+export type OpcionesPedidoDeCarrito = {
+  /** Precio base por foto con los packs del evento (ver `packs-evento.ts`). */
+  basePorFoto?: ReadonlyMap<number, number>;
+};
 
-export function marcarPedidoDeCarrito<T extends Request>(req: T): T {
-  pedidosDeCarrito.add(req);
+const pedidosDeCarrito = new WeakMap<Request, OpcionesPedidoDeCarrito>();
+
+export function marcarPedidoDeCarrito<T extends Request>(req: T, opciones: OpcionesPedidoDeCarrito = {}): T {
+  pedidosDeCarrito.set(req, opciones);
   return req;
 }
 
 export function esPedidoDeCarrito(req: Request): boolean {
   return pedidosDeCarrito.has(req);
+}
+
+export function opcionesPedidoDeCarrito(req: Request): OpcionesPedidoDeCarrito | null {
+  return pedidosDeCarrito.get(req) ?? null;
 }

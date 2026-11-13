@@ -49,7 +49,7 @@ import { getDemoActiva } from "@/lib/demos/sesion-demo";
 import { actorPuedeUsarPagoSimulado, albumUsaPagoSimulado } from "@/lib/demos/pago-simulado-galeria";
 import { desviarAlPilotoSiCorresponde } from "@/lib/split-1n-piloto/desvio";
 import { leerMarcaPiloto } from "@/lib/split-1n-piloto/snapshot";
-import { esPedidoDeCarrito } from "@/lib/split-1n-carrito-evento/pedido-interno";
+import { esPedidoDeCarrito, opcionesPedidoDeCarrito } from "@/lib/split-1n-carrito-evento/pedido-interno";
 import { leerMarcaGrupo } from "@/lib/split-1n-carrito-evento/marca";
 
 function normalizePercent(value: unknown): number | null {
@@ -326,6 +326,8 @@ export async function POST(
       albumId,
       items: normalizedItems,
       faceBulkPackPhotoIds,
+      // Carrito de evento: packs del evento repartidos por foto (sólo lo pone el servidor).
+      digitalBasePesosPorFoto: carritoEvento ? opcionesPedidoDeCarrito(req)?.basePorFoto ?? null : null,
     });
 
     // Canje de un combo cobrado por fuera (link único de la familia): las impresas del
