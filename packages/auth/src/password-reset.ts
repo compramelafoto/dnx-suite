@@ -13,6 +13,18 @@ import {
 export const DNX_PASSWORD_RESET_TTL_MS = 1000 * 60 * 60; // 1 hora
 
 /**
+ * Qué pasó con el pedido. La UI de cada app decide cuánto mostrar: la mayoría
+ * responde siempre con el mensaje neutro; FotoRank avisa cuando no hay cuenta
+ * porque su registro ya revela qué correos existen.
+ */
+export type PasswordResetOutcome =
+  | "sent"
+  | "send_failed"
+  | "no_account"
+  | "blocked"
+  | "invalid_email";
+
+/**
  * Crea token de reset de un solo uso.
  * Permite Google-only (sin password) para “crear contraseña”.
  * Siempre responde de forma genérica a nivel de UI (anti-enumeración).
@@ -22,12 +34,17 @@ export async function requestPasswordReset(params: {
   appBaseUrl: string;
   appLabel?: string;
   resetPath?: string;
-}): Promise<{ ok: true; emailResult?: IdentityEmailResult; created: boolean }> {
+}): Promise<{
+  ok: true;
+  emailResult?: IdentityEmailResult;
+  created: boolean;
+  outcome: PasswordResetOutcome;
+}> {
   let email: string;
   try {
     email = requireNormalizedIdentityEmail(params.email);
   } catch {
-    return { ok: true, created: false };
+    return { ok: true, created: false, outcome: "invalid_email" };
   }
 
   const user = await prisma.user.findUnique({
@@ -35,9 +52,8 @@ export async function requestPasswordReset(params: {
     select: { id: true, isBlocked: true, password: true },
   });
 
-  if (!user || user.isBlocked) {
-    return { ok: true, created: false };
-  }
+  if (!user) return { ok: true, created: false, outcome: "no_account" };
+  if (user.isBlocked) return { ok: true, created: false, outcome: "blocked" };
 
   const { rawToken, tokenHash } = createOpaqueToken();
   const expiresAt = new Date(Date.now() + DNX_PASSWORD_RESET_TTL_MS);
@@ -76,7 +92,12 @@ export async function requestPasswordReset(params: {
     emailSent: emailResult.sent,
   });
 
-  return { ok: true, created: true, emailResult };
+  return {
+    ok: true,
+    created: true,
+    emailResult,
+    outcome: emailResult.sent ? "sent" : "send_failed",
+  };
 }
 
 export async function resetPasswordWithToken(params: {
