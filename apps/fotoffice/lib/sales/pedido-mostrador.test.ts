@@ -45,8 +45,12 @@ describe("aCobrarAhora", () => {
   it("lo que se lleva más la seña", () => {
     expect(aCobrarAhora(1_000, 10_000, 4_000)).toBe(5_000);
   });
-  it("sin seña se paga todo", () => {
+  it("paga todo (seña null): se cobra el pedido entero", () => {
     expect(aCobrarAhora(1_000, 10_000, null)).toBe(11_000);
+  });
+  it("pedido sin seña (seña 0): se cobra sólo lo que se lleva en el momento", () => {
+    expect(aCobrarAhora(1_000, 10_000, 0)).toBe(1_000);
+    expect(aCobrarAhora(0, 10_000, 0)).toBe(0);
   });
   it("una seña mayor al pedido se topea", () => {
     expect(aCobrarAhora(0, 10_000, 99_000)).toBe(10_000);
