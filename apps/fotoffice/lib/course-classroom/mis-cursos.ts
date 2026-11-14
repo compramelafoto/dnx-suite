@@ -21,6 +21,11 @@ export type AccesoParaMisCursos = {
     lessons: Array<{ id: string; title: string; durationSeconds: number | null; videoStatus: string; sortOrder: number }>;
   };
   progress: Array<{ lessonId: string; completedAt: Date | null; lastPositionSeconds: number }>;
+  /**
+   * El espacio que dio el acceso (`CourseAccess.workspaceId`): el dueño, o el espacio que lo
+   * vende o lo regala a sus socios por un curso compartido. Sin él, se toma el dueño del curso.
+   */
+  otorgadoPor?: { id: string; name: string };
 };
 
 export type CursoDeMisCursos = {
@@ -42,11 +47,12 @@ export function agruparMisCursos(
 ): GrupoDeMisCursos[] {
   const grupos = new Map<string, GrupoDeMisCursos>();
   for (const a of accesos) {
-    const estado = estadoDeAccesoAlCurso(a, { esSocioActivo: sociaActivaEn.has(a.course.workspace.id) }, ahora);
+    const espacio = a.otorgadoPor ?? a.course.workspace;
+    const estado = estadoDeAccesoAlCurso(a, { esSocioActivo: sociaActivaEn.has(espacio.id) }, ahora);
     if (estado !== "VIGENTE") continue;
     const { clases, porcentaje } = armarAula(a.course.lessons, a.progress);
     const siguiente = clases.find((c) => !c.completada) ?? clases[0] ?? null;
-    const grupo = grupos.get(a.course.workspace.id) ?? { workspace: a.course.workspace, cursos: [] };
+    const grupo = grupos.get(espacio.id) ?? { workspace: espacio, cursos: [] };
     grupo.cursos.push({
       accessId: a.id,
       courseId: a.course.id,
@@ -56,7 +62,7 @@ export function agruparMisCursos(
       porcentaje,
       siguienteClaseId: siguiente?.id ?? null,
     });
-    grupos.set(a.course.workspace.id, grupo);
+    grupos.set(espacio.id, grupo);
   }
   return [...grupos.values()];
 }
@@ -84,6 +90,7 @@ export async function cargarMisCursos(userId: number): Promise<GrupoDeMisCursos[
         origin: true,
         expiresAt: true,
         revokedAt: true,
+        workspace: { select: { id: true, name: true } },
         course: {
           select: {
             id: true,
@@ -97,7 +104,11 @@ export async function cargarMisCursos(userId: number): Promise<GrupoDeMisCursos[
     }),
     institucionesDondeEsSociaActiva(userId),
   ]);
-  return agruparMisCursos(accesos, socia, new Date());
+  return agruparMisCursos(
+    accesos.map(({ workspace, ...a }) => ({ ...a, otorgadoPor: workspace })),
+    socia,
+    new Date(),
+  );
 }
 
 /** El acceso de esta persona a este curso, sólo si vale ahora. Lo usan la clase y el avance. */
@@ -109,6 +120,7 @@ export async function cargarAccesoVigente(userId: number, courseId: string) {
       origin: true,
       expiresAt: true,
       revokedAt: true,
+      workspaceId: true,
       enrollment: { select: { id: true, name: true, dni: true } },
       course: { select: { id: true, title: true, workspaceId: true, lessons: seleccionDeLecciones } },
       progress: { select: { lessonId: true, completedAt: true, lastPositionSeconds: true } },
@@ -116,7 +128,7 @@ export async function cargarAccesoVigente(userId: number, courseId: string) {
   });
   if (!acceso) return null;
   const socia = acceso.origin === "MEMBER_BENEFIT" ? await institucionesDondeEsSociaActiva(userId) : new Set<string>();
-  const estado = estadoDeAccesoAlCurso(acceso, { esSocioActivo: socia.has(acceso.course.workspaceId) }, new Date());
+  const estado = estadoDeAccesoAlCurso(acceso, { esSocioActivo: socia.has(acceso.workspaceId) }, new Date());
   return estado === "VIGENTE" ? acceso : null;
 }
 

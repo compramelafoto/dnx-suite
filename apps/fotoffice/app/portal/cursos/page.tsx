@@ -39,7 +39,11 @@ export default async function MisCursosPage({ searchParams }: { searchParams: Pr
   const tieneNegocio = (await listUserProfiles(user.id)).some((p) => p.kind === "TEAM");
   const gratis = socio ? await cursosGratisParaSocio(socio.workspace.id, user.id) : [];
   const yaTiene = new Set(grupos.flatMap((g) => g.cursos.map((c) => c.courseId)));
-  const revendidos = socio ? (await cursosRevendidosParaSocios(socio.workspace.id)).filter((c) => !yaTiene.has(c.courseId)) : [];
+  // Un curso compartido gratis para socios aparece en "Gratis para vos", no para comprar.
+  const gratisIds = new Set(gratis.map((c) => c.id));
+  const revendidos = socio
+    ? (await cursosRevendidosParaSocios(socio.workspace.id)).filter((c) => !yaTiene.has(c.courseId) && !gratisIds.has(c.courseId))
+    : [];
   // Quien todavía no es socia recibe, por institución, la invitación a asociarse (si el
   // formulario está abierto) con los cursos que le saldrían gratis. Paralelo a `grupos`.
   const invitaciones = await Promise.all(

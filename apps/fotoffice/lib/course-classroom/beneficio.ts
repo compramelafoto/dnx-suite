@@ -36,28 +36,48 @@ export function puedeAnotarseGratis(input: {
   curso: { freeForMembers: boolean; status: string; deliveryMode: string; workspaceId: string; unicoBeneficiario: boolean } | null;
   workspaceDelSocio: string | null;
   yaTieneAcceso: boolean;
+  /** Espacios con un acuerdo ACTIVO y gratis para sus socios sobre este curso (cursos compartidos). */
+  compartidoGratisCon?: ReadonlySet<string>;
 }): ResultadoBeneficio {
   if (!input.esSocioActivo || !input.workspaceDelSocio) return { ok: false, codigo: "no-socio", motivo: MENSAJES_DE_BENEFICIO["no-socio"] };
   if (!input.curso || input.curso.status !== "PUBLISHED" || input.curso.deliveryMode !== "RECORDED") {
     return { ok: false, codigo: "no-disponible", motivo: MENSAJES_DE_BENEFICIO["no-disponible"] };
   }
-  if (!input.curso.freeForMembers) return { ok: false, codigo: "no-gratis", motivo: MENSAJES_DE_BENEFICIO["no-gratis"] };
-  if (!input.curso.unicoBeneficiario) return { ok: false, codigo: "no-gratis", motivo: MENSAJES_DE_BENEFICIO["no-gratis"] };
-  if (input.curso.workspaceId !== input.workspaceDelSocio) return { ok: false, codigo: "otra-institucion", motivo: MENSAJES_DE_BENEFICIO["otra-institucion"] };
+  const propio = input.curso.workspaceId === input.workspaceDelSocio;
+  if (!propio) {
+    // Curso ajeno: vale sólo si el dueño se lo compartió gratis al espacio del socio.
+    if (!input.compartidoGratisCon?.has(input.workspaceDelSocio)) {
+      return { ok: false, codigo: "otra-institucion", motivo: MENSAJES_DE_BENEFICIO["otra-institucion"] };
+    }
+  } else {
+    if (!input.curso.freeForMembers) return { ok: false, codigo: "no-gratis", motivo: MENSAJES_DE_BENEFICIO["no-gratis"] };
+    if (!input.curso.unicoBeneficiario) return { ok: false, codigo: "no-gratis", motivo: MENSAJES_DE_BENEFICIO["no-gratis"] };
+  }
   if (input.yaTieneAcceso) return { ok: false, codigo: "ya-lo-tiene", motivo: MENSAJES_DE_BENEFICIO["ya-lo-tiene"] };
   return { ok: true };
+}
+
+/** Condición de "compartido gratis con este espacio": acuerdo activo con `membersFree`. */
+function compartidoGratisCon(workspaceId: string) {
+  return { resaleAgreements: { some: { resellerWorkspaceId: workspaceId, status: "ACTIVO" as const, membersFree: true } } };
 }
 
 export async function cursosGratisParaSocio(workspaceId: string, userId: number) {
   return prisma.course.findMany({
     where: {
-      workspaceId,
-      freeForMembers: true,
-      // Sin beneficiarios ajenos: regalarlo dejaría sin cobrar a los demás.
-      beneficiaries: { every: { workspaceId } },
       status: "PUBLISHED",
       deliveryMode: "RECORDED",
       accesses: { none: { userId } },
+      OR: [
+        {
+          workspaceId,
+          freeForMembers: true,
+          // Sin beneficiarios ajenos: regalarlo dejaría sin cobrar a los demás.
+          beneficiaries: { every: { workspaceId } },
+        },
+        // Cursos de otros espacios que se lo compartieron gratis para sus socios.
+        compartidoGratisCon(workspaceId),
+      ],
     },
     orderBy: { createdAt: "desc" },
     select: { id: true, title: true, shortDescription: true },
@@ -77,7 +97,16 @@ export async function anotarseGratis(input: {
     loadPortalContext(input.userId),
     prisma.course.findUnique({
       where: { id: input.courseId },
-      select: { id: true, title: true, workspaceId: true, freeForMembers: true, status: true, deliveryMode: true, beneficiaries: { select: { workspaceId: true, shareBps: true } } },
+      select: {
+        id: true,
+        title: true,
+        workspaceId: true,
+        freeForMembers: true,
+        status: true,
+        deliveryMode: true,
+        beneficiaries: { select: { workspaceId: true, shareBps: true } },
+        resaleAgreements: { where: { status: "ACTIVO", membersFree: true }, select: { id: true, resellerWorkspaceId: true } },
+      },
     }),
     prisma.user.findUnique({ where: { id: input.userId }, select: { email: true } }),
     prisma.courseAccess.findUnique({
@@ -91,8 +120,14 @@ export async function anotarseGratis(input: {
     curso: curso ? { ...curso, unicoBeneficiario: esSinReparto(curso.workspaceId, curso.beneficiaries) } : null,
     workspaceDelSocio: socio?.workspace.id ?? null,
     yaTieneAcceso: existente !== null,
+    compartidoGratisCon: new Set(curso?.resaleAgreements.map((a) => a.resellerWorkspaceId) ?? []),
   });
   if (!regla.ok) return regla;
+
+  // Lo da el espacio del socio: el dueño (curso propio) o el espacio al que se lo compartieron.
+  // Con ese espacio se mide después la vigencia: si deja de ser socio de él, deja de verlo.
+  const otorgante = socio!.workspace.id;
+  const acuerdo = curso!.workspaceId === otorgante ? null : (curso!.resaleAgreements.find((a) => a.resellerWorkspaceId === otorgante) ?? null);
 
   const ficha = await prisma.member.findUnique({
     where: { id: socio!.member.id },
@@ -103,8 +138,9 @@ export async function anotarseGratis(input: {
     await prisma.$transaction(async (tx) => {
       const inscripcion = await tx.courseEnrollment.create({
         data: {
-          workspaceId: curso!.workspaceId,
+          workspaceId: otorgante,
           courseId: curso!.id,
+          resaleAgreementId: acuerdo?.id ?? null,
           name: `${ficha?.firstName ?? ""} ${ficha?.lastName ?? ""}`.trim() || (user?.email ?? ""),
           email: user?.email ?? "",
           whatsapp: ficha?.phone ?? "",
@@ -121,7 +157,7 @@ export async function anotarseGratis(input: {
       });
       await tx.courseAccess.create({
         data: {
-          workspaceId: curso!.workspaceId,
+          workspaceId: otorgante,
           courseId: curso!.id,
           enrollmentId: inscripcion.id,
           userId: input.userId,
