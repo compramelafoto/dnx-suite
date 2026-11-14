@@ -27,6 +27,15 @@ import {
 import { appUrl } from "@/lib/app-url";
 import { loadWorkspaceEmailContext } from "@/lib/communications/load-workspace-signature";
 import { sendAndLogEmail } from "@/lib/communications/send-and-log";
+import {
+  listPendingIntegrants,
+  needsInvitation,
+  recentNoticeReason,
+  URGENT_DEBT_TEMPLATE_KEY,
+  type PendingIntegrant,
+} from "@/lib/commission/urgent-notice";
+import { buildUrgentActivationEmail, buildUrgentDebtEmail } from "@/lib/commission/urgent-notice-email";
+import { inviteOneMember } from "@/lib/members/invite-member";
 
 /**
  * Acciones de la Comisión directiva: roles con su grilla de permisos, cargos e integrantes.
@@ -764,4 +773,116 @@ export async function removeCommissionMemberAction(
     await syncMembershipSafely(workspaceId, person.userId, "release");
   }
   return done();
+}
+
+// ─────────────────────────────── Aviso urgente ───────────────────────────────
+
+export type UrgentNoticeState = {
+  error: string | null;
+  ok?: boolean;
+  sent: { name: string; kind: "INVITACION" | "DEUDA" }[];
+  failed: { name: string; reason: string }[];
+  skipped: { name: string; reason: string }[];
+};
+
+const NO_APP_URL = "Falta configuración del sistema para armar el enlace. Avisale al equipo técnico.";
+
+/**
+ * Correo URGENTE a quienes integran la comisión y todavía no pueden gestionarla.
+ *
+ * - Sin cuenta → una invitación nueva (enlace de activación válido) con el texto urgente; si
+ *   además debe, el mismo correo lo dice. Se emite con `inviteOneMember`, que revoca el enlace
+ *   anterior y deja la invitación asentada como cualquier otra.
+ * - Con cuenta y cuotas vencidas → "regularizá tu situación", con el botón al portal.
+ *
+ * Exige `confirm=yes`. Nunca se corta por una persona: cada envío falla solo y queda en la lista.
+ * A quien ya se le avisó en las últimas 24 h se lo saltea (`recentNoticeReason`).
+ */
+export async function sendUrgentCommissionNoticeAction(
+  _prev: UrgentNoticeState | undefined,
+  formData: FormData,
+): Promise<UrgentNoticeState> {
+  const { user, workspaceId } = await requireCommissionAdmin();
+  const empty = { sent: [], failed: [], skipped: [] };
+  if (str(formData, "confirm") !== "yes") {
+    return { error: "Confirmá el envío del aviso urgente.", ...empty };
+  }
+
+  const now = new Date();
+  const pending = await listPendingIntegrants(workspaceId, now);
+  const result: UrgentNoticeState = { error: null, ok: true, sent: [], failed: [], skipped: [] };
+  if (pending.length === 0) return result;
+
+  let context: Awaited<ReturnType<typeof loadWorkspaceEmailContext>> | null = null;
+  const loadContext = async () => (context ??= await loadWorkspaceEmailContext(workspaceId));
+
+  for (const p of pending) {
+    if (p.blocker || !p.email) {
+      result.skipped.push({ name: p.name, reason: p.blocker ?? "No tiene correo cargado." });
+      continue;
+    }
+    // Se controla acá, en el servidor: un segundo clic, otra pestaña u otro administrador no
+    // pueden mandarle a la misma persona dos correos URGENTES en el mismo día.
+    const recent = recentNoticeReason(p.lastNoticeAt, now);
+    if (recent) {
+      result.skipped.push({ name: p.name, reason: recent });
+      continue;
+    }
+    try {
+      if (needsInvitation(p.reason)) {
+        const outcome = await inviteOneMember({ id: workspaceId }, user, p.memberId, {
+          buildBody: (ctx) =>
+            buildUrgentActivationEmail({
+              ...ctx,
+              officeName: p.officeName,
+              roleNames: p.roleNames,
+              debt: p.pendingCount > 0 ? { count: p.pendingCount, totalMinor: p.pendingTotalMinor } : null,
+            }),
+        });
+        if (outcome.ok) result.sent.push({ name: p.name, kind: "INVITACION" });
+        else result.failed.push({ name: p.name, reason: outcome.error });
+      } else {
+        const failure = await sendDebtNotice(workspaceId, p, loadContext);
+        if (failure) result.failed.push({ name: p.name, reason: failure });
+        else result.sent.push({ name: p.name, kind: "DEUDA" });
+      }
+    } catch (e) {
+      console.error("[fotoffice][comision] falló el aviso urgente", {
+        memberId: p.memberId,
+        detalle: e instanceof Error ? e.message : "error desconocido",
+      });
+      result.failed.push({ name: p.name, reason: "No se pudo enviar el correo." });
+    }
+  }
+
+  revalidatePath(COMMISSION_PATH, "layout");
+  return result;
+}
+
+/** Devuelve el motivo del fallo, o `null` si salió. */
+async function sendDebtNotice(
+  workspaceId: string,
+  p: PendingIntegrant,
+  loadContext: () => Promise<Awaited<ReturnType<typeof loadWorkspaceEmailContext>>>,
+): Promise<string | null> {
+  const base = appUrl();
+  if (!base) return NO_APP_URL;
+  const { organizationName, signature } = await loadContext();
+  const body = buildUrgentDebtEmail({
+    memberFirstName: p.firstName,
+    institution: organizationName,
+    officeName: p.officeName,
+    roleNames: p.roleNames,
+    signature,
+    duesUrl: `${base}/portal/cuotas`,
+    debt: { count: p.pendingCount, totalMinor: p.pendingTotalMinor },
+  });
+  const outcome = await sendAndLogEmail({
+    workspaceId,
+    to: p.email as string,
+    templateKey: URGENT_DEBT_TEMPLATE_KEY,
+    body,
+    userId: p.userId,
+  });
+  return outcome.status === "SENT" ? null : "El correo no salió; quedó registrado para revisarlo.";
 }
