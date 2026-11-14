@@ -341,6 +341,7 @@ export async function POST(
           userId: album.userId,
           currency: album.currency,
           digitalPhotoPriceCents: album.digitalPhotoPriceCents ?? null,
+          eventId: album.eventId ?? null,
         },
         items: normalizedItems,
         photoIdForFileKey: (fileKey) => fileKeyToPhoto.get(fileKey)?.id ?? null,

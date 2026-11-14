@@ -1,5 +1,6 @@
 import { CheckoutPaymentSource } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { resolveUserMpAccessTokenDualRead } from "@/lib/mercadopago/financial-identity-dual-read";
 import { currencyForMpSite, isIntlPilotUser } from "./pilot";
 import { latestFxRate } from "./fx-store";
 import { ensureAdvanceGranted, getWalletState } from "./wallet-store";
@@ -30,7 +31,7 @@ export async function mpAccountCurrency(
     if (!res.ok) return null;
     const json = (await res.json()) as { site_id?: string };
     const currency = currencyForMpSite(json.site_id);
-    mpSiteCache.set(userId, { currency, at: Date.now() });
+    if (currency) mpSiteCache.set(userId, { currency, at: Date.now() });
     return currency;
   } catch {
     return null;
@@ -53,7 +54,7 @@ export type CreateIntlOrderResult =
  * precio del álbum + 15 %. No pasa por el motor de precios argentino.
  */
 export async function createIntlAlbumOrder(params: {
-  album: { id: number; userId: number; currency: string; digitalPhotoPriceCents: number | null };
+  album: { id: number; userId: number; currency: string; digitalPhotoPriceCents: number | null; eventId: number | null };
   items: IntlOrderItemInput[];
   photoIdForFileKey: (fileKey: string) => number | null;
   buyer: { email: string; userId: number | null; name: string | null; phone: string | null };
@@ -80,12 +81,10 @@ export async function createIntlAlbumOrder(params: {
   }
 
   await ensureAdvanceGranted(album.userId);
-  const owner = await prisma.user.findUnique({
-    where: { id: album.userId },
-    select: { mpAccessToken: true, mpUserId: true },
-  });
-  const mpConnected = Boolean(owner?.mpAccessToken && owner?.mpUserId);
-  const mpCurrency = mpConnected ? await mpAccountCurrency(album.userId, owner!.mpAccessToken!) : null;
+  // Misma lectura del token que usa la preferencia (incluye el depósito seguro de credenciales).
+  const owner = await resolveUserMpAccessTokenDualRead(album.userId);
+  const mpConnected = Boolean(owner.accessToken && owner.mpUserId);
+  const mpCurrency = mpConnected ? await mpAccountCurrency(album.userId, owner.accessToken!) : null;
   const wallet = await getWalletState(album.userId);
   const fx = await latestFxRate(album.currency);
 
@@ -98,11 +97,12 @@ export async function createIntlAlbumOrder(params: {
     hasFx: fx != null,
     allDigital,
     unitPriceStored: album.digitalPhotoPriceCents,
+    inEvent: album.eventId != null,
   });
   if (!check.ok) return paused(check.block);
 
   const unit = album.digitalPhotoPriceCents!;
-  const totals = computeIntlDigitalTotals({ unitPriceStored: unit, photoCount: photoIds.size });
+  const totals = computeIntlDigitalTotals({ unitPriceStored: unit, photoCount: photoIds.size, currency: album.currency });
   const order = await prisma.order.create({
     data: {
       albumId: album.id,

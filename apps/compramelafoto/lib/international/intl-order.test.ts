@@ -6,6 +6,7 @@ import {
   intlBlockMessage,
   shouldUseIntlFlow,
   buildIntlSnapshot,
+  intlCollectorAllowed,
 } from "./intl-order";
 
 const ok = {
@@ -17,15 +18,16 @@ const ok = {
   hasFx: true,
   allDigital: true,
   unitPriceStored: 1000000,
+  inEvent: false,
 };
 
 test("10.000 COP + 15 % = 11.500 COP", () => {
-  assert.deepEqual(computeIntlDigitalTotals({ unitPriceStored: 1000000, photoCount: 1 }), {
+  assert.deepEqual(computeIntlDigitalTotals({ unitPriceStored: 1000000, photoCount: 1, currency: "COP" }), {
     subtotalStored: 1000000,
     commissionStored: 150000,
     totalStored: 1150000,
   });
-  assert.deepEqual(computeIntlDigitalTotals({ unitPriceStored: 999, photoCount: 3 }), {
+  assert.deepEqual(computeIntlDigitalTotals({ unitPriceStored: 999, photoCount: 3, currency: "MXN" }), {
     subtotalStored: 2997,
     commissionStored: 450,
     totalStored: 3447,
@@ -58,4 +60,25 @@ test("snapshot del pedido", () => {
   assert.deepEqual(buildIntlSnapshot({ currency: "COP", subtotalStored: 10, commissionStored: 2 }), {
     intlV1: { commissionPercent: 15, subtotalStored: 10, commissionStored: 2, currency: "COP" },
   });
+});
+
+test("COP y CLP: el total queda en unidades enteras para Mercado Pago (revisión final 5)", () => {
+  // 3.333 COP + 15 % = 3.832,95 → comisión redondeada a pesos enteros: 500 → total 3.833 COP.
+  assert.deepEqual(computeIntlDigitalTotals({ unitPriceStored: 333300, photoCount: 1, currency: "COP" }), {
+    subtotalStored: 333300,
+    commissionStored: 50000,
+    totalStored: 383300,
+  });
+  assert.deepEqual(computeIntlDigitalTotals({ unitPriceStored: 3333, photoCount: 1, currency: "CLP" }), {
+    subtotalStored: 3333,
+    commissionStored: 500,
+    totalStored: 3833,
+  });
+});
+test("álbum de evento: no se vende en el piloto (revisión final 3)", () => {
+  assert.deepEqual(canSellIntl({ ...ok, inEvent: true }), { ok: false, block: "EVENT_ALBUM" });
+});
+test("el cobro tiene que ir a la cuenta del fotógrafo", () => {
+  assert.equal(intlCollectorAllowed("PHOTOGRAPHER"), true);
+  assert.equal(intlCollectorAllowed("ORGANIZER"), false);
 });

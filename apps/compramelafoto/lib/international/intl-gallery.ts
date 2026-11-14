@@ -7,7 +7,7 @@ export function buildIntlGalleryPricing(unitPriceStored: number | null, currency
   if (!unitPriceStored || unitPriceStored <= 0) {
     return { kind: "SALES_NOT_READY", showBand: false, reason: "Sin precio digital" };
   }
-  const clientUnit = computeIntlDigitalTotals({ unitPriceStored, photoCount: 1 }).totalStored;
+  const clientUnit = computeIntlDigitalTotals({ unitPriceStored, photoCount: 1, currency }).totalStored;
   return {
     kind: "DIGITAL_UNIFORM",
     showBand: true,

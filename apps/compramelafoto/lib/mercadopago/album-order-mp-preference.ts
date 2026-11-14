@@ -18,7 +18,7 @@ import { applyAndPersistSellerReferralDiscount } from "@/lib/referral/referral-m
 import { scheduleCheckoutFeeShadowCompare } from "@/lib/pricing/checkout-fee-shadow";
 import { resolveAlbumOrderMercadoPagoCredentials } from "@/lib/mercadopago/resolve-album-order-mp-credentials";
 import { buildMercadoPagoUnauthorizedRefresher } from "@/lib/mercadopago/mp-oauth-token-refresh";
-import { shouldUseIntlFlow } from "@/lib/international/intl-order";
+import { intlCollectorAllowed, shouldUseIntlFlow } from "@/lib/international/intl-order";
 import { buildIntlPreferenceInput } from "@/lib/international/intl-preference";
 
 const LOG_BLOCKED = "[TEST_CHECKOUT] blocked real payment flow";
@@ -135,6 +135,14 @@ export async function ensureAlbumOrderMpPreference(
   // CLF internacional (piloto): moneda local, sin marketplace_fee, sin split ni referidos.
   // La comisión se descuenta del saldo en dólares del fotógrafo al confirmarse el pago.
   if (shouldUseIntlFlow(order.currency)) {
+    if (!intlCollectorAllowed(collectorType)) {
+      return {
+        ok: false,
+        error: "La venta de este álbum está pausada momentáneamente. Probá de nuevo más tarde.",
+        code: "INTL_SALE_PAUSED",
+        httpStatus: 409,
+      };
+    }
     if (
       !options?.forceRegenerate &&
       order.mpInitPoint &&

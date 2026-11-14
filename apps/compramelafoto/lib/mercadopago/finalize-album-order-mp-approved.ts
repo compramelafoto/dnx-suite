@@ -189,6 +189,15 @@ export async function finalizeAlbumOrderMercadoPagoApproved(
     (await resolveAlbumOrderMpAccessTokenByOrderId(orderId));
 
   if (order.status === "PAID") {
+    // CLF internacional: si el descuento de comisión falló la vez anterior, se reintenta.
+    // applyIntlCommission no descuenta dos veces (índice único por pedido).
+    if (shouldUseIntlFlow(order.currency)) {
+      try {
+        await applyIntlCommission(orderId);
+      } catch (err: unknown) {
+        console.error("[intl] reintento de descuento de comisión falló", { orderId, err });
+      }
+    }
     try {
       await ensureEventOrganizerCommissionSnapshotForPaidOrder(orderId, {
         accessTokenOverride: collectorAccessToken,

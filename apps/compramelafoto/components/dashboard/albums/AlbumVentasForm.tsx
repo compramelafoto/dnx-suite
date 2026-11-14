@@ -26,6 +26,7 @@ import {
 import { TERMS_VERSION, TERMS_TEXT } from "@/lib/terms/photographerTerms";
 import type { AlbumSalesFormState } from "@/lib/albums/album-sales-form-state";
 import { majorToStored, storedToMajor } from "@/lib/international/money";
+import { mpRequiresWholeUnits } from "@/lib/international/intl-order";
 
 type LabOption = { id: number; name: string; city?: string | null; province?: string | null };
 
@@ -619,7 +620,12 @@ export default function AlbumVentasForm({
       const trimmed = digitalPrice.trim().replace(",", ".");
       let parsed: number | null = null;
       if (trimmed) {
-        parsed = isIntlAlbum ? majorToStored(parseFloat(trimmed), albumCurrency) : Math.round(parseFloat(trimmed));
+        parsed = isIntlAlbum
+          ? majorToStored(
+              mpRequiresWholeUnits(albumCurrency) ? Math.round(parseFloat(trimmed)) : parseFloat(trimmed),
+              albumCurrency,
+            )
+          : Math.round(parseFloat(trimmed));
         if (!Number.isFinite(parsed) || parsed <= 0) {
           if (!options?.silent) {
             showToast("Ingresá un precio válido.", "error");
@@ -974,7 +980,7 @@ export default function AlbumVentasForm({
                 <Input
                   type="number"
                   min={isIntlAlbum ? 0 : minDigitalPhotoPrice ?? 0}
-                  step={isIntlAlbum ? "any" : "1"}
+                  step={isIntlAlbum && !mpRequiresWholeUnits(albumCurrency) ? "any" : "1"}
                   value={digitalPrice}
                   onChange={(e) => {
                     setDigitalPrice(e.target.value);

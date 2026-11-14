@@ -955,6 +955,8 @@ export default function ClientAlbumView({
 
   function handleComprar() {
     if (checkoutSubmitting) return;
+    // CLF internacional (piloto): solo fotos digitales; sin fotos elegidas no hay nada que comprar.
+    if (album.currency && album.currency !== "ARS" && selected.size === 0) return;
 
     // Sólo videos: no hay fotos que pasar por el selector, así que va derecho
     // al resumen. Antes esta línea cortaba y el botón no hacía nada.

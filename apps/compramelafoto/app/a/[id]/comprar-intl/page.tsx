@@ -35,14 +35,14 @@ export default async function ComprarIntlPage({
     : [];
   const photoIds = photos.map((p) => p.id);
   const unit = album.digitalPhotoPriceCents ?? 0;
-  const totals = computeIntlDigitalTotals({ unitPriceStored: unit, photoCount: photoIds.length });
+  const totals = computeIntlDigitalTotals({ unitPriceStored: unit, photoCount: photoIds.length, currency: album.currency });
 
   return (
     <IntlCheckoutClient
       albumId={album.id}
       albumTitle={album.title}
       photoIds={photoIds}
-      unitLabel={formatMoney(computeIntlDigitalTotals({ unitPriceStored: unit, photoCount: 1 }).totalStored, album.currency)}
+      unitLabel={formatMoney(computeIntlDigitalTotals({ unitPriceStored: unit, photoCount: 1, currency: album.currency }).totalStored, album.currency)}
       totalLabel={formatMoney(totals.totalStored, album.currency)}
       canBuy={unit > 0 && photoIds.length > 0}
     />
