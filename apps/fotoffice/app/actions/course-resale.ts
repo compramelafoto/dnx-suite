@@ -27,6 +27,8 @@ import {
   estadoAlPedir,
   porcentajeABps,
   validarDescuentoDeSocios,
+  admiteDescuentoDeSocios,
+  puedeActivarse,
   validarInvitacion,
   validarOferta,
   validarPedidoDeReventa,
@@ -139,6 +141,7 @@ export async function invitarAEspacioAction(courseId: string, _prev: EstadoFormu
     gratisSocios,
     esPropio: true,
     invitadoEsDueno: invitadoId === ctx.workspace.id,
+    invitadoEsBeneficiario: curso.beneficiaries.some((b) => b.workspaceId === invitadoId),
     sinReparto: esSinReparto(curso.workspaceId, curso.beneficiaries),
     grabadoPublicadoConPrecio: curso.status === "PUBLISHED" && curso.deliveryMode === "RECORDED" && Number(curso.priceArs ?? 0) > 0,
     acuerdoVigente: previo !== null && ESTADOS_VIGENTES.includes(previo.status as EstadoReventa),
@@ -300,6 +303,8 @@ export async function cambiarEstadoDeReventaAction(agreementId: string, accion: 
       pausedByWorkspaceId: true,
       resellerWorkspaceId: true,
       invitedByOwner: true,
+      shareBps: true,
+      membersFree: true,
       course: {
         select: {
           id: true,
@@ -309,7 +314,7 @@ export async function cambiarEstadoDeReventaAction(agreementId: string, accion: 
           status: true,
           deliveryMode: true,
           priceArs: true,
-          beneficiaries: { select: { workspaceId: true } },
+          beneficiaries: { select: { workspaceId: true, shareBps: true } },
         },
       },
     },
@@ -336,6 +341,9 @@ export async function cambiarEstadoDeReventaAction(agreementId: string, accion: 
       if (!aLaVenta) redirect(`${RUTA_ACUERDOS}?r=curso-no-disponible`);
     } else if (!acuerdo.course.offeredToResellers) {
       redirect(`${RUTA_ACUERDOS}?r=curso-no-ofrecido`);
+    }
+    if (!puedeActivarse(acuerdo, esSinReparto(acuerdo.course.workspaceId, acuerdo.course.beneficiaries))) {
+      redirect(`${RUTA_ACUERDOS}?r=ya-no-sin-reparto`);
     }
     if (acuerdo.course.beneficiaries.some((b) => b.workspaceId === acuerdo.resellerWorkspaceId)) {
       redirect(`${RUTA_ACUERDOS}?r=ya-es-beneficiario`);
@@ -398,6 +406,7 @@ export async function cambiarDescuentoDeReventaAction(agreementId: string, formD
   if (!acuerdo || !ESTADOS_VIGENTES.includes(acuerdo.status as EstadoReventa)) redirect(`${RUTA_ACUERDOS}?r=no-encontrado`);
   const textoDescuento = formData.get("descuento")?.toString().trim() ?? "";
   const descuentoBps = textoDescuento === "" ? 0 : porcentajeABps(textoDescuento);
+  if (descuentoBps !== 0 && !admiteDescuentoDeSocios(acuerdo.shareBps)) redirect(`${RUTA_ACUERDOS}?r=descuento-no-aplica`);
   if (descuentoBps === null || validarDescuentoDeSocios(descuentoBps, acuerdo.shareBps).length > 0) {
     redirect(`${RUTA_ACUERDOS}?r=descuento-invalido`);
   }

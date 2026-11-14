@@ -69,12 +69,15 @@ export function validarInvitacion(input: {
   gratisSocios: boolean;
   esPropio: boolean;
   invitadoEsDueno: boolean;
+  /** El invitado ya cobra como beneficiario del curso: no puede además revenderlo. */
+  invitadoEsBeneficiario?: boolean;
   sinReparto: boolean;
   grabadoPublicadoConPrecio: boolean;
   acuerdoVigente: boolean;
 }): string[] {
   if (!input.esPropio) return ["Sólo el dueño del curso puede compartirlo."];
   if (input.invitadoEsDueno) return ["Elegí otro espacio: el curso ya es tuyo."];
+  if (input.invitadoEsBeneficiario) return ["Ese espacio ya es beneficiario del curso: cobra su parte de cada venta."];
   if (!input.grabadoPublicadoConPrecio) return ["Sólo se comparten los cursos grabados, publicados y con precio."];
   if (input.acuerdoVigente) return ["Ya hay un acuerdo con ese espacio para este curso. Lo ves en Cursos compartidos."];
   const errores: string[] = [];
@@ -118,6 +121,19 @@ export function validarPedidoDeReventa(input: {
     errores.push("Este curso ya reparte entre el máximo de cuentas que admite Mercado Pago.");
   }
   return errores;
+}
+
+/**
+ * Al activar un acuerdo (aprobar, aceptar o reanudar): regalarlo (100%) o darlo gratis a los socios
+ * sólo vale si el dueño sigue siendo el único beneficiario. Pudo sumar beneficiarios en el medio.
+ */
+export function puedeActivarse(acuerdo: { shareBps: number; membersFree: boolean }, sinReparto: boolean): boolean {
+  return sinReparto || (acuerdo.shareBps < BPS_TOTAL && !acuerdo.membersFree);
+}
+
+/** El descuento para socios no aplica a un curso regalado: esa venta va sin reparto y cobra el precio de lista. */
+export function admiteDescuentoDeSocios(shareBps: number): boolean {
+  return shareBps < BPS_TOTAL;
 }
 
 export type CodigoReventa = "no-es-dueno" | "no-pendiente" | "no-activo" | "no-pausaste" | "ya-termino";
@@ -166,6 +182,8 @@ const MENSAJES_DE_ACUERDOS: Record<string, string> = {
   invitado: "Listo: le mandamos la invitación. Cuando el otro espacio la acepte, ya lo puede ofrecer.",
   "curso-no-disponible": "El curso ya no está publicado con precio: no se puede activar este acuerdo.",
   "invitado-sin-cursos": "Ese espacio no tiene el módulo de cursos encendido.",
+  "ya-no-sin-reparto": "El curso ahora tiene otros beneficiarios: no se puede regalar ni dar gratis a los socios. Terminá este acuerdo y armá uno nuevo.",
+  "descuento-no-aplica": "En un curso regalado no hay descuento para socios: si querés que lo tengan sin pagar, pedí que sea gratis para tus socios.",
   "no-pendiente": "Ese pedido ya no está pendiente.",
   "no-activo": "Sólo se puede pausar un acuerdo activo.",
   "no-pausaste": "Lo reanuda quien lo pausó.",

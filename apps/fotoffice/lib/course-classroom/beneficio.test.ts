@@ -33,6 +33,10 @@ describe("gratis por un curso compartido", () => {
   it("el socio del espacio al que se lo compartieron gratis lo toma, aunque el dueño no lo regale a los suyos", () => {
     expect(puedeAnotarseGratis({ ...base, curso: ajeno, compartidoGratisCon: new Set(["ws-1"]) })).toEqual({ ok: true });
   });
+  it("si el dueño sumó beneficiarios después de compartirlo, ya no es gratis", () => {
+    const r = puedeAnotarseGratis({ ...base, curso: { ...ajeno, unicoBeneficiario: false }, compartidoGratisCon: new Set(["ws-1"]) });
+    expect(r.ok === false && r.codigo).toBe("no-gratis");
+  });
   it("sin acuerdo gratis con su espacio, es de otra institución", () => {
     const r = puedeAnotarseGratis({ ...base, curso: ajeno, compartidoGratisCon: new Set(["ws-9"]) });
     expect(r.ok === false && r.codigo).toBe("otra-institucion");

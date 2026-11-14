@@ -117,7 +117,7 @@ export default async function AcuerdosDeReventaPage({ searchParams }: { searchPa
             {comoRevendedor.map((a) => (
               <li key={a.id} className="fo-card space-y-3">
                 <Resumen a={a} rotulo="De" />
-                {puedeGestionar && ESTADOS_VIGENTES.includes(a.status) ? (
+                {puedeGestionar && ESTADOS_VIGENTES.includes(a.status) && !a.membersFree && a.shareBps < BPS_TOTAL ? (
                   <form action={cambiarDescuentoDeReventaAction.bind(null, a.id)} className="flex flex-wrap items-end gap-2">
                     <label className="text-sm">
                       Descuento para tus socios (%, hasta {formatoPorcentaje(a.shareBps)}){" "}

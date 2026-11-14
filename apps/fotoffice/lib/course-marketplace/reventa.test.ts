@@ -8,6 +8,8 @@ import {
   simularReventa,
   validarDescuentoDeSocios,
   validarOferta,
+  admiteDescuentoDeSocios,
+  puedeActivarse,
   validarInvitacion,
   validarPedidoDeReventa,
 } from "./reventa";
@@ -174,6 +176,19 @@ describe("compartir un curso: invitación del dueño", () => {
     expect(validarInvitacion({ ...base, invitadoEsDueno: true }).join()).toMatch(/otro espacio/);
     expect(validarInvitacion({ ...base, grabadoPublicadoConPrecio: false }).join()).toMatch(/grabados, publicados y con precio/);
     expect(validarInvitacion({ ...base, acuerdoVigente: true }).join()).toMatch(/Ya hay un acuerdo/);
+  });
+  it("no se invita a un espacio que ya cobra como beneficiario", () => {
+    expect(validarInvitacion({ ...base, invitadoEsBeneficiario: true }).join()).toMatch(/ya es beneficiario/);
+  });
+  it("regalado o gratis sólo se activa si el dueño sigue siendo el único beneficiario", () => {
+    expect(puedeActivarse({ shareBps: 10000, membersFree: false }, true)).toBe(true);
+    expect(puedeActivarse({ shareBps: 10000, membersFree: false }, false)).toBe(false);
+    expect(puedeActivarse({ shareBps: 1000, membersFree: true }, false)).toBe(false);
+    expect(puedeActivarse({ shareBps: 1000, membersFree: false }, false)).toBe(true);
+  });
+  it("un curso regalado no admite descuento para socios", () => {
+    expect(admiteDescuentoDeSocios(10000)).toBe(false);
+    expect(admiteDescuentoDeSocios(2500)).toBe(true);
   });
   it("en una invitación responde el invitado, no el dueño", () => {
     const invitacion = { status: "PENDIENTE" as const, pausadoPor: null, invitadoPorDueno: true };

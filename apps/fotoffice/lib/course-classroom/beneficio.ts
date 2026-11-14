@@ -49,6 +49,8 @@ export function puedeAnotarseGratis(input: {
     if (!input.compartidoGratisCon?.has(input.workspaceDelSocio)) {
       return { ok: false, codigo: "otra-institucion", motivo: MENSAJES_DE_BENEFICIO["otra-institucion"] };
     }
+    // Si el dueño sumó beneficiarios después de compartirlo, regalarlo los dejaría sin cobrar.
+    if (!input.curso.unicoBeneficiario) return { ok: false, codigo: "no-gratis", motivo: MENSAJES_DE_BENEFICIO["no-gratis"] };
   } else {
     if (!input.curso.freeForMembers) return { ok: false, codigo: "no-gratis", motivo: MENSAJES_DE_BENEFICIO["no-gratis"] };
     if (!input.curso.unicoBeneficiario) return { ok: false, codigo: "no-gratis", motivo: MENSAJES_DE_BENEFICIO["no-gratis"] };
@@ -63,7 +65,7 @@ function compartidoGratisCon(workspaceId: string) {
 }
 
 export async function cursosGratisParaSocio(workspaceId: string, userId: number) {
-  return prisma.course.findMany({
+  const filas = await prisma.course.findMany({
     where: {
       status: "PUBLISHED",
       deliveryMode: "RECORDED",
@@ -80,8 +82,12 @@ export async function cursosGratisParaSocio(workspaceId: string, userId: number)
       ],
     },
     orderBy: { createdAt: "desc" },
-    select: { id: true, title: true, shortDescription: true },
+    select: { id: true, title: true, shortDescription: true, workspaceId: true, beneficiaries: { select: { workspaceId: true, shareBps: true } } },
   });
+  // Los compartidos sólo valen sin beneficiarios ajenos (los propios ya lo filtra la consulta).
+  return filas
+    .filter((c) => esSinReparto(c.workspaceId, c.beneficiaries))
+    .map(({ id, title, shortDescription }) => ({ id, title, shortDescription }));
 }
 
 /**

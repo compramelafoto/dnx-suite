@@ -8,6 +8,7 @@ import { cobroConRepartoHabilitado } from "@/lib/payments/split-1n";
 import { cargarBeneficiarios, cargarDueno } from "./cargar";
 import { estadoDeVenta, beneficiariosParaMotor } from "./beneficiarios";
 import { decidirVenta, montosDeVenta } from "./venta";
+import { admiteDescuentoDeSocios } from "./reventa";
 
 /**
  * Los cursos de otros negocios en el sitio y el portal de quien los revende (spec, sección 4.3):
@@ -133,7 +134,8 @@ async function cargarRevendidosParaSocios(workspaceId: string): Promise<CursoRev
         titulo: a.course.title,
         descripcion: a.course.shortDescription,
         precioPublicoArs: publico.ok ? publico.amountArs : null,
-        precioSocioArs: socio.ok && a.memberDiscountBps > 0 ? socio.amountArs : null,
+        // Un curso regalado (100%) se cobra sin reparto, al precio de lista: no hay precio para socios.
+        precioSocioArs: socio.ok && a.memberDiscountBps > 0 && admiteDescuentoDeSocios(a.shareBps) ? socio.amountArs : null,
         aLaVenta: decision.tipo !== "PROXIMAMENTE",
         href: `/w/${marca.publicSlug}/cursos/${a.course.slug}`,
       };
