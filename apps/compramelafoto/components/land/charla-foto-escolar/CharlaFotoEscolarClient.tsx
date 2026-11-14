@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import Button from "@/components/ui/Button";
 import { campaignFromSearch } from "@/lib/public/talk-lead-source";
+import { metaTrack } from "@/lib/meta-pixel";
 
 type TalkData = {
   id: number;
@@ -145,8 +146,13 @@ export default function CharlaFotoEscolarClient({
       if (!res.ok) {
         throw new Error(data?.error || "No pudimos registrar tus datos.");
       }
-      setLeadId(Number(data?.id) || null);
+      const newLeadId = Number(data?.id) || null;
+      setLeadId(newLeadId);
       setSubmitted(true);
+      // Campañas de Meta: mismo event_id que el aviso del servidor, para no contarlo dos veces.
+      if (newLeadId) {
+        metaTrack("Lead", { content_name: talkSlug, content_category: "charla" }, `charla-lead-${newLeadId}`);
+      }
     } catch (err: any) {
       setErrors((prev) => ({ ...prev, form: err?.message || "Error enviando el formulario." }));
     } finally {

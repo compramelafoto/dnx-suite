@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
+import { reportTalkLead } from "@/lib/meta-capi";
 import { prisma } from "@/lib/prisma";
 import { buildTalkLeadSource } from "@/lib/public/talk-lead-source";
 
@@ -62,6 +63,9 @@ export async function POST(req: NextRequest) {
         source: buildTalkLeadSource(talk.sourceTag || source, campaign),
       },
     });
+
+    // Campañas de Meta: inscripción a la charla (sale después de responder).
+    after(() => reportTalkLead({ leadId: lead.id, talkSlug: slug, email, phone: whatsapp, req }));
 
     return NextResponse.json({ id: lead.id }, { status: 200 });
   } catch (err: any) {

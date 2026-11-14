@@ -24,6 +24,10 @@ export const metadata: Metadata = {
     description: defaultDescription,
     images: [{ url: "/watermark.png" }],
   },
+  // Verificación del dominio en Meta (portfolio "Apps para fotógrafos"), para campañas pagas.
+  other: {
+    "facebook-domain-verification": "4baaok58aoa2dzpzvzqw9omlwkmvsf",
+  },
   twitter: {
     card: "summary",
     title: defaultTitle,
