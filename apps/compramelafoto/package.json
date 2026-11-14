@@ -61,6 +61,7 @@
     "test:tutoriales": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.json --test lib/tutorials/escolar-course.test.ts",
     "test:print-export": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.json --test lib/orders/print-export/export-product-name.test.ts lib/orders/print-export/copias-fuera-del-diseno.test.ts lib/orders/print-export/organizar-por-tamano.test.ts lib/orders/print-export/rutas-cortas.test.ts lib/albums/originales/originales.test.ts",
     "test:event-invites": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.json --test lib/events/nearby-invite-window.test.ts",
+    "test:meta-pixel": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.json --test lib/meta-pixel.test.ts lib/meta-capi.test.ts",
     "test:fotoffice-vinculo": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.json --test lib/public-album/resumen.test.ts"
   },
   "dependencies": {

@@ -35,6 +35,7 @@ import { resolveAlbumOrderMpAccessTokenByOrderId } from "@/lib/mercadopago/resol
 import { ensureAlbumPackDesignsForPaidOrder } from "@/lib/design-v2/album-pack-designs";
 import { classifyApprovedPaymentOnAlbumOrder } from "@/lib/mercadopago/duplicate-album-order-payment-rules";
 import { reportDuplicateAlbumOrderPayment } from "@/lib/mercadopago/duplicate-album-order-payment";
+import { reportFirstSaleIfAny } from "@/lib/meta-capi";
 
 export type FinalizeAlbumOrderMpResult =
   | { ok: true; skipped: "already_paid"; orderId: number; paymentId: string }
@@ -158,6 +159,10 @@ export async function runAlbumOrderPaidSideEffects(params: {
   } catch (err: unknown) {
     console.error("Error actualizando PrintOrder espejo (PAID):", err);
   }
+
+  // Campañas de Meta: si es la primera venta cobrada del fotógrafo, es un cliente ganado.
+  // No lanza errores y no hace nada si la API de conversiones no está configurada.
+  await reportFirstSaleIfAny(params.orderId);
 }
 
 export async function finalizeAlbumOrderMercadoPagoApproved(

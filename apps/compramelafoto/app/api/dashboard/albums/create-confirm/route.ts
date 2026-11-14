@@ -1,5 +1,6 @@
 import { parseHiddenSelfieRetentionDays } from "@/lib/albums/hidden-selfie-retention";
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
+import { reportFirstAlbumIfAny } from "@/lib/meta-capi";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
 import { Role } from "@/lib/prisma";
@@ -174,6 +175,7 @@ export async function POST(req: NextRequest) {
         include: { photos: { select: { id: true } } },
       });
 
+      after(() => reportFirstAlbumIfAny({ userId: user.id, albumId: album.id, req }));
       return NextResponse.json({ ...album, photosCount: album.photos.length });
     }
 
@@ -296,6 +298,8 @@ export async function POST(req: NextRequest) {
       include: { photos: { select: { id: true } } },
     });
 
+    // Campañas de Meta: si es su primer álbum real, se avisa (después de responder).
+    after(() => reportFirstAlbumIfAny({ userId: user.id, albumId: album.id, req }));
     return NextResponse.json({ ...album, photosCount: album.photos.length });
   } catch (err: any) {
     console.error("POST /api/dashboard/albums/create-confirm ERROR >>>", err);

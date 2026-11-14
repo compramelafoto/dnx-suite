@@ -13,6 +13,7 @@ import { useMpPaymentRetry } from "@/lib/checkout/use-mp-payment-retry";
 import { readPendingOrderSession } from "@/lib/checkout/pending-order-session";
 import { trackFunnelEvent, FUNNEL_EVENTS } from "@/lib/funnel-track-client";
 import { clearAlbumPackCartForPaidOrder } from "@/lib/album-packs/album-pack-cart-storage";
+import { metaTrackPurchase } from "@/lib/meta-pixel";
 
 export default function SuccessClient() {
   const router = useRouter();
@@ -109,6 +110,15 @@ export default function SuccessClient() {
                 : undefined,
           })
         );
+      }
+      // Compra aprobada (y no un cobro duplicado): se avisa al píxel de Meta con el importe real.
+      if (data.paymentStatus === "approved" && data.duplicatePayment !== true && orderId) {
+        metaTrackPurchase({
+          orderType,
+          orderId: Number(orderId),
+          value: typeof data.transactionAmount === "number" ? data.transactionAmount : null,
+          currency: typeof data.currency === "string" ? data.currency : null,
+        });
       }
       if (typeof data?.digitalDelivery?.videoCount === "number") {
         setVideoCount(data.digitalDelivery.videoCount);
