@@ -15,6 +15,8 @@ import { crearProyectosDelPedido, proyectosEncendidos } from "@/lib/proyectos/cr
 import { lockStockRows } from "@/lib/sales/stock-lock";
 import { applyStockMovement } from "@/lib/sales/variant-stock";
 import { aplicarConsumo, consumosPendientesDeDevolver, devolverConsumos, planificarConsumo } from "@/lib/stock/consumo-servidor";
+import { REF_EMBALAJE } from "@/lib/stock/embalaje";
+import type { OpcionesEmbalaje } from "@/lib/stock/embalaje-servidor";
 import { nombreDeContacto } from "./nombre-contacto";
 import { MENSAJES_PEDIDO, puedeGestionarPedidos, puedeVerPedidos, veCostosDePedido, type CtxPedidos } from "./acceso";
 import { rubroIngresoPorOmision } from "./ajustes";
@@ -467,6 +469,8 @@ export async function apartarStock(
     items: readonly Pick<ItemPresupuesto, "id" | "productId" | "cantidad" | "opcional">[];
     lineas: readonly LineaApartada[];
     createdByUserId: number | null;
+    /** Sobres y bolsas de la entrega: por omisión los calcula el sistema. */
+    embalaje?: OpcionesEmbalaje;
   },
 ): Promise<void> {
   // Qué insumos gasta el pedido: sólo lecturas, antes de bloquear, porque sus ids tienen que entrar
@@ -475,6 +479,7 @@ export async function apartarStock(
     tx,
     d.workspaceId,
     d.items.filter((it) => !it.opcional && it.productId).map((it) => ({ ref: it.id, productId: it.productId, qty: it.cantidad })),
+    { embalaje: d.embalaje },
   );
   // Nada que apartar ni que descontar: ni siquiera se bloquea.
   if (d.lineas.length === 0 && plan.consumos.length === 0) return;
@@ -554,7 +559,8 @@ async function devolverStockApartado(tx: Tx, d: { workspaceId: string; pedidoId:
     workspaceId: d.workspaceId,
     sourceModule: "pedidos",
     sourceRef: d.pedidoId,
-    refs: new Set(items.filter((_, i) => !entregadas.has(i)).map((it) => it.id)),
+    // El embalaje es de todo el pedido: vuelve sólo si no se entregó nada (si algo salió, ya se usó).
+    refs: new Set([...items.filter((_, i) => !entregadas.has(i)).map((it) => it.id), ...(entregadas.size === 0 ? [REF_EMBALAJE] : [])]),
   });
   if (aDevolver.length === 0 && pendientes.length === 0) return;
 
