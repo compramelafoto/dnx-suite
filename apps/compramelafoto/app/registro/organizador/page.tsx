@@ -18,6 +18,8 @@ export default function RegistroOrganizadorPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Sin marcar por defecto: el permiso de novedades lo da la persona, nunca el sistema.
+  const [marketingOptIn, setMarketingOptIn] = useState(false);
   const [refCode, setRefCode] = useState<string | null>(null);
   const [trainingMeta, setTrainingMeta] = useState<{
     sourceType: string;
@@ -59,7 +61,7 @@ export default function RegistroOrganizadorPage() {
           name: name.trim(),
           email: email.trim().toLowerCase(),
           password,
-          marketingOptIn: true,
+          marketingOptIn,
           ...(refCode ? { ref: refCode } : {}),
           ...(trainingMeta
             ? {
@@ -167,6 +169,20 @@ export default function RegistroOrganizadorPage() {
                     className="clf-field"
                   />
                 </div>
+
+                <label className="flex items-start gap-2 text-xs text-[#6b7280]">
+                  <input
+                    type="checkbox"
+                    checked={marketingOptIn}
+                    onChange={(e) => setMarketingOptIn(e.target.checked)}
+                    disabled={loading}
+                    className="mt-0.5"
+                  />
+                  <span>
+                    Quiero recibir por correo novedades de ComprameLaFoto. Podés darte de baja cuando
+                    quieras.
+                  </span>
+                </label>
 
                 <button
                   type="submit"

@@ -24,6 +24,8 @@ export default function RegisterClient() {
   const [loading, setLoading] = useState<"idle" | "submitting">("idle");
   const [error, setError] = useState<string | null>(null);
   const [countryCode, setCountryCode] = useState("");
+  // Sin marcar por defecto: el permiso de novedades lo da la persona, nunca el sistema.
+  const [marketingOptIn, setMarketingOptIn] = useState(false);
   const [refCode, setRefCode] = useState<string | null>(null);
   const [accountType, setAccountType] = useState<RegisterAccountType>(() =>
     parseAccountType(searchParams?.get("tipo") ?? null)
@@ -80,6 +82,7 @@ export default function RegisterClient() {
         refCode,
         trainingMeta,
         countryCode,
+        marketingOptIn,
       });
       const res = await fetch(endpoint, {
         method: "POST",
@@ -225,6 +228,32 @@ export default function RegisterClient() {
                 </option>
               ))}
             </select>
+          </label>
+        ) : null}
+        {accountType === "PHOTOGRAPHER" ? (
+          <label
+            style={{
+              display: "flex",
+              gap: "0.6rem",
+              alignItems: "flex-start",
+              fontFamily: "var(--auth-font)",
+              fontSize: "0.8125rem",
+              color: "var(--auth-text-secondary)",
+              cursor: submitting ? "default" : "pointer",
+            }}
+          >
+            <input
+              type="checkbox"
+              name="marketingOptIn"
+              checked={marketingOptIn}
+              onChange={(e) => setMarketingOptIn(e.target.checked)}
+              disabled={submitting}
+              style={{ marginTop: "0.15rem" }}
+            />
+            <span>
+              Quiero recibir por correo novedades y consejos para vender más con ComprameLaFoto.
+              Podés darte de baja cuando quieras.
+            </span>
           </label>
         ) : null}
         </>

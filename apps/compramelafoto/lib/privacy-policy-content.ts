@@ -27,7 +27,8 @@ export const PRIVACY_SECTIONS = [
 - **Transaccional:** procesar pagos (Mercado Pago), impresiones y logística.
 - **Soporte:** responder consultas e incidencias.
 - **Seguridad:** prevenir fraudes y uso indebido.
-- **Marketing:** solo con tu consentimiento explícito (opt-in); podés darte de baja en cualquier momento.
+- **Marketing por correo:** solo con tu consentimiento explícito (la casilla de novedades, que viene sin marcar); podés darte de baja en cualquier momento.
+- **Medición y publicidad en redes:** ver «Publicidad en redes sociales (Meta)» más abajo.
 - **Biometría:** únicamente para ayudarte a encontrar tus fotos en álbumes con búsqueda facial; nunca para identificación masiva ni otros fines.`,
   },
   {
@@ -37,7 +38,19 @@ export const PRIVACY_SECTIONS = [
 - **Laboratorios de impresión:** para producir y enviar impresiones.
 - **Logística:** datos de entrega cuando aplica envío.
 - **Pasarela de pagos:** Mercado Pago procesa pagos (datos de tarjeta no pasan por nosotros).
-- **Proveedores técnicos:** hosting (Vercel), email (Resend), almacenamiento (Cloudflare R2), análisis facial (AWS Rekognition).`,
+- **Proveedores técnicos:** hosting (Vercel), email (Resend), almacenamiento (Cloudflare R2), análisis facial (AWS Rekognition).
+- **Meta Platforms (Facebook e Instagram):** para medir nuestros anuncios y mostrarlos a las personas indicadas, como se explica en la sección siguiente.`,
+  },
+  {
+    id: "publicidad",
+    title: "Publicidad en redes sociales (Meta)",
+    content: `Usamos herramientas de Meta Platforms (Facebook e Instagram) para medir y dirigir nuestros anuncios a fotógrafos:
+
+- **Píxel y API de conversiones:** cuando navegás el sitio o realizás acciones como registrarte, crear tu primer álbum o hacer tu primera venta, le avisamos a Meta que ese evento ocurrió. Junto con el evento enviamos tu email, tu teléfono (si lo cargaste) y un identificador interno, siempre **cifrados con SHA-256** (Meta no recibe el dato legible); además la dirección IP y el navegador desde el que entraste y, en el caso de la primera venta, su monto. Nunca enviamos fotos, datos de tus compradores ni datos biométricos.
+- **Públicos personalizados:** si tenés cuenta de fotógrafo, podemos subir a Meta tu email **cifrado** para no mostrarte anuncios de registro (porque ya tenés cuenta) o para que Meta encuentre a otros fotógrafos con un perfil parecido («públicos similares»). Meta usa esos datos solo para esa coincidencia y los descarta después; no los suma a tu perfil ni se los muestra a nadie.
+- **Cómo oponerte:** desactivá «Novedades y publicidad» en Configuración, tocá «darme de baja» en cualquiera de nuestros correos o escribinos a ${CONTACT_EMAIL}. Desde ese momento no te incluimos en las próximas listas. También podés ajustar tus preferencias de anuncios desde tu cuenta de Facebook o Instagram.
+
+Meta trata estos datos según sus propias condiciones como encargado del tratamiento y puede procesarlos fuera de Argentina, con las garantías que exige la Ley 25.326.`,
   },
   {
     id: "plazos",
