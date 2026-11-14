@@ -45,3 +45,13 @@ export async function requireAdminContestScope(contestId: string): Promise<Admin
     scope: { user, organizationId: org.org.id, contestId: contest.id },
   };
 }
+
+/**
+ * El circuito "Próximamente" (vista previa, gates y cambio de fase) sólo lo
+ * opera un super admin: la mayoría de sus requisitos no tienen pantalla de
+ * carga y hoy se completan por script. Un organizador común publica con el
+ * selector de estado del encabezado del concurso.
+ */
+export function canOperateUpcomingFlow(user: Pick<AuthUser, "role" | "globalRole">): boolean {
+  return user.globalRole === "SUPER_ADMIN" || user.role === "SUPER_ADMIN";
+}

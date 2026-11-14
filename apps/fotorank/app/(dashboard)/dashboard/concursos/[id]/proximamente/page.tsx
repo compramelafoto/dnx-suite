@@ -16,7 +16,10 @@ import { PageContainer } from "../../../../../components/PageContainer";
 import { routes } from "../../../../../lib/routes";
 import { UpcomingContestCard } from "../../../../../components/contest-upcoming/UpcomingContestCard";
 import { UpcomingContestLanding } from "../../../../../components/contest-upcoming/UpcomingContestLanding";
-import { requireAdminContestScope } from "../../../../../lib/fotorank/upcoming/admin-access";
+import {
+  canOperateUpcomingFlow,
+  requireAdminContestScope,
+} from "../../../../../lib/fotorank/upcoming/admin-access";
 import {
   buildGateSnapshot,
   getAdminContestCardPreview,
@@ -87,7 +90,7 @@ function GateList({ report }: { report: ReturnType<typeof evaluateUpcomingGate> 
 export default async function ContestProximamentePage({ params }: PageProps) {
   const { id } = await params;
   const scope = await requireAdminContestScope(id);
-  if (!scope.ok) notFound();
+  if (!scope.ok || !canOperateUpcomingFlow(scope.scope.user)) notFound();
 
   const [contest, card, snapshot, phases] = await Promise.all([
     prisma.fotorankContest.findUnique({
