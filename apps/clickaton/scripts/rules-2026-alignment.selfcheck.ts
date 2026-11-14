@@ -61,7 +61,7 @@ ok(ARGENTINA_2026_SCHEDULE.captureCloseIso.includes("T20:00:00"), "capture end e
 ok(ARGENTINA_2026_SCHEDULE.uploadOpenIso.includes("T16:00:00"), "upload open 16:00");
 ok(ARGENTINA_2026_SCHEDULE.uploadCloseIso.includes("T22:00:00"), "upload close exclusive 22:00");
 ok(CAMERA_CLOCK_WARNING_ES.includes("16:00") && CAMERA_CLOCK_WARNING_ES.includes("20:00"), "camera warning V2");
-ok(CLICKATON_TERMS_VERSION === "CLICKATON_TERMS_2026_09_19_v2", "terms v2");
+ok(CLICKATON_TERMS_VERSION === "CLICKATON_TERMS_2026_10_06_v3", "terms v3");
 ok(CLICKATON_TERMS_VERSION_V1 === "CLICKATON_TERMS_2026_09_19_v1", "terms v1 retained");
 
 const windows = resolveEffectiveWindows({

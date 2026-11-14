@@ -125,6 +125,18 @@ export async function cargarResultadosDeEdicion(
     }),
   ]);
 
+  const consignasQueNoSuman = new Set(
+    (
+      await prisma.clickatonPrompt.findMany({
+        where: {
+          id: { in: snapshots.map((s) => s.promptExternalId).filter((id): id is string => Boolean(id)) },
+          countsForScoring: false,
+        },
+        select: { id: true },
+      })
+    ).map((c) => c.id),
+  );
+
   const resultados = armarResultados({
     obras: snapshots.map((s) => ({
       snapshotId: s.id,
@@ -133,6 +145,8 @@ export async function cargarResultadosDeEdicion(
       promptExternalId: s.promptExternalId,
       admissionStatus: s.entry.admissionStatus ?? "NOT_EVALUATED",
       entryStatus: s.entry.status,
+      participantKey: s.entry.externalRegistrationId,
+      countsForParticipantTotal: !(s.promptExternalId && consignasQueNoSuman.has(s.promptExternalId)),
     })),
     notas: notas.map((n) => ({
       snapshotId: n.juryEntrySnapshotId,
