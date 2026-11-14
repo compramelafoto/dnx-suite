@@ -24,6 +24,11 @@ import { requireCoursesSalesContext } from "@/lib/workspace";
 import { isFullAccessRole } from "@/lib/permissions/levels";
 import { OfertaReventaForm } from "@/components/course-marketplace/oferta-reventa-form";
 import { BeneficiariosEditor } from "@/components/course-marketplace/beneficiarios-editor";
+import { CompartirCursoForm } from "@/components/course-marketplace/compartir-curso-form";
+import { compartidosDelCurso, espaciosParaCompartir } from "@/lib/course-marketplace/compartidos";
+import { esSinReparto } from "@/lib/course-marketplace/beneficiarios";
+import { BPS_TOTAL } from "@/lib/course-marketplace/reparto";
+import { ESTADOS_VIGENTES } from "@/lib/course-marketplace/reventa";
 
 export default async function DashboardCourseDetailPage({
   params,
@@ -78,8 +83,19 @@ export default async function DashboardCourseDetailPage({
   const ROLES = { DOCENTE: "Docente", PRODUCTOR: "Productor", INSTITUCION: "Institución", OTRO: "Otro" } as const;
   const estado = dueno ? estadoDeVenta(dueno.workspaceId, beneficiarios) : null;
   const pedidosPendientes = grabado
-    ? await prisma.courseResaleAgreement.count({ where: { courseId: course.id, status: "PENDIENTE" } })
+    ? await prisma.courseResaleAgreement.count({ where: { courseId: course.id, status: "PENDIENTE", invitedByOwner: false } })
     : 0;
+  const [compartidos, espacios] =
+    grabado && puedeEditarReparto
+      ? await Promise.all([compartidosDelCurso(course.id), espaciosParaCompartir(course.workspaceId, course.id)])
+      : [[], []];
+  const vigentes = compartidos.filter((c) => ESTADOS_VIGENTES.includes(c.status));
+  const visibilidad = course.offeredToResellers
+    ? "Público: aparece en el Mercado de cursos y cualquier espacio puede pedir ofrecerlo."
+    : vigentes.length > 0
+      ? `Compartido con ${vigentes.length === 1 ? "1 espacio" : `${vigentes.length} espacios`}.`
+      : "Privado: sólo lo ofrece tu espacio.";
+  const ESTADOS_ACUERDO = { PENDIENTE: "Esperando respuesta", ACTIVO: "Activo", PAUSADO: "Pausado", RECHAZADO: "Rechazó", TERMINADO: "Terminado" } as const;
 
   return (
     <div className="space-y-10">
@@ -233,7 +249,32 @@ export default async function DashboardCourseDetailPage({
 
       {grabado && dueno && puedeEditarReparto && precioCentavos > 0 ? (
         <section className="space-y-4">
-          <h2 className="text-lg font-semibold">Ofrecer a otras instituciones</h2>
+          <h2 className="text-lg font-semibold">Compartir</h2>
+          <p className="fo-card text-sm">{visibilidad}</p>
+          {compartidos.length > 0 ? (
+            <ul className="fo-card space-y-2 text-sm">
+              {compartidos.map((c) => (
+                <li key={c.id} className="flex flex-wrap items-center justify-between gap-2">
+                  <span>
+                    <strong>{c.espacio}</strong> ·{" "}
+                    {c.shareBps === BPS_TOTAL ? "Regalado" : `${formatoPorcentaje(c.shareBps)} por venta`}
+                    {c.membersFree ? " · Gratis para sus socios" : ""} · {ESTADOS_ACUERDO[c.status]} · {c.alumnos}{" "}
+                    {c.alumnos === 1 ? "alumno" : "alumnos"}
+                  </span>
+                  <Link href={`/dashboard/mercado-de-cursos/acuerdos/${c.id}`} className="underline">
+                    Ver
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          <CompartirCursoForm
+            courseId={course.id}
+            espacios={espacios}
+            listaCentavos={precioCentavos}
+            sinReparto={esSinReparto(dueno.workspaceId, beneficiarios)}
+          />
+          <h3 className="font-medium">Público en el Mercado de cursos</h3>
           <OfertaReventaForm
             courseId={course.id}
             ofrecido={course.offeredToResellers}

@@ -29,6 +29,7 @@ export function PedirReventaForm({
   const [estado, accion, enviando] = useActionState(accionDelCurso, INICIAL);
   const [porcentaje, setPorcentaje] = useState(String(sugeridoBps / 100).replace(".", ","));
   const [descuento, setDescuento] = useState("0");
+  const [gratis, setGratis] = useState(false);
   const pedidoBps = porcentajeABps(porcentaje) ?? 0;
   const descuentoBps = porcentajeABps(descuento) ?? 0;
   const sim = useMemo(
@@ -56,6 +57,10 @@ export function PedirReventaForm({
           <input name="descuento" value={descuento} onChange={(e) => setDescuento(e.target.value)} inputMode="decimal" className="fo-input inline-block w-20" />
         </label>
       </div>
+      <label className="flex items-center gap-2 text-sm">
+        <input type="checkbox" name="gratis" checked={gratis} onChange={(e) => setGratis(e.target.checked)} />
+        Pedir que sea gratis para mis socios activos (el dueño lo tiene que aprobar)
+      </label>
       {sim.ok ? (
         <div className="space-y-1 text-sm">
           <p>
@@ -73,7 +78,9 @@ export function PedirReventaForm({
         </ul>
       )}
       <p className="text-xs text-[var(--fo-muted)]">
-        {pedidoBps <= sugeridoBps
+        {gratis
+          ? "Como pedís que sea gratis para tus socios, el dueño tiene que aprobarlo."
+          : pedidoBps <= sugeridoBps
           ? "Hasta el % sugerido, el acuerdo queda activo al instante."
           : `Supera el ${formatoPorcentaje(sugeridoBps)} sugerido: el dueño tiene que aprobarlo.`}
       </p>

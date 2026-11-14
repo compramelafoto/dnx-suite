@@ -11,7 +11,15 @@ import { cargarDueno } from "@/lib/course-marketplace/cargar";
 import { correosDeDuenos } from "@/lib/course-marketplace/correos";
 import { CURSO_REVENDIBLE } from "@/lib/course-marketplace/vitrina";
 import { formatoPorcentaje } from "@/lib/course-marketplace/reparto";
-import { buildAvisoPedidoDeReventaEmail, buildAvisoRespuestaReventaEmail } from "@/lib/course-marketplace/aviso-reventa";
+import {
+  buildAvisoInvitacionACompartirEmail,
+  buildAvisoPedidoDeReventaEmail,
+  buildAvisoRespuestaInvitacionEmail,
+  buildAvisoRespuestaReventaEmail,
+} from "@/lib/course-marketplace/aviso-reventa";
+import { esSinReparto } from "@/lib/course-marketplace/beneficiarios";
+import { BPS_TOTAL } from "@/lib/course-marketplace/reparto";
+import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 import {
   ACCIONES_REVENTA,
   ESTADOS_VIGENTES,
@@ -19,6 +27,7 @@ import {
   estadoAlPedir,
   porcentajeABps,
   validarDescuentoDeSocios,
+  validarInvitacion,
   validarOferta,
   validarPedidoDeReventa,
   type AccionReventa,
@@ -89,6 +98,99 @@ export async function guardarOfertaAction(courseId: string, _prev: EstadoFormula
   };
 }
 
+/**
+ * "Compartir con un espacio": el dueño invita a otro espacio con su % (hasta 100%, regalarlo) y,
+ * si quiere, gratis para los socios de ese espacio. Queda pendiente hasta que el invitado acepte.
+ */
+export async function invitarAEspacioAction(courseId: string, _prev: EstadoFormulario, formData: FormData): Promise<EstadoFormulario> {
+  const ctx = await gestion();
+  if (!ctx) return { error: "Sólo el dueño o un administrador del espacio puede compartir el curso.", ok: null };
+  const invitadoId = formData.get("workspaceId")?.toString().trim() ?? "";
+  if (!invitadoId) return { error: "Elegí el espacio con el que lo querés compartir.", ok: null };
+  const gratisSocios = formData.get("gratis") === "on";
+  const porcentajeBps = porcentajeABps(formData.get("porcentaje")?.toString());
+
+  const [curso, invitado] = await Promise.all([
+    prisma.course.findFirst({
+      where: { id: courseId, workspaceId: ctx.workspace.id },
+      select: {
+        id: true,
+        title: true,
+        workspaceId: true,
+        status: true,
+        deliveryMode: true,
+        priceArs: true,
+        beneficiaries: { select: { workspaceId: true, shareBps: true } },
+        resaleAgreements: { where: { resellerWorkspaceId: invitadoId }, select: { id: true, status: true } },
+      },
+    }),
+    // Sólo un espacio con el módulo de cursos puede ofrecerlo.
+    prisma.workspace.findFirst({
+      where: { id: invitadoId, featureModules: { some: { moduleKey: COURSES_SALES_MODULE_KEY, enabled: true } } },
+      select: { id: true },
+    }),
+  ]);
+  if (!curso) return { error: "Curso no encontrado.", ok: null };
+  if (!invitado) return { error: "Ese espacio no tiene el módulo de cursos encendido.", ok: null };
+
+  const previo = curso.resaleAgreements[0] ?? null;
+  const errores = validarInvitacion({
+    porcentajeBps,
+    gratisSocios,
+    esPropio: true,
+    invitadoEsDueno: invitadoId === ctx.workspace.id,
+    sinReparto: esSinReparto(curso.workspaceId, curso.beneficiaries),
+    grabadoPublicadoConPrecio: curso.status === "PUBLISHED" && curso.deliveryMode === "RECORDED" && Number(curso.priceArs ?? 0) > 0,
+    acuerdoVigente: previo !== null && ESTADOS_VIGENTES.includes(previo.status as EstadoReventa),
+  });
+  if (errores.length || porcentajeBps === null) return { error: errores.join(" ") || "Invitación inválida.", ok: null };
+
+  const data = {
+    shareBps: porcentajeBps,
+    memberDiscountBps: 0,
+    invitedByOwner: true,
+    membersFree: gratisSocios,
+    status: "PENDIENTE" as const,
+    requestedByUserId: ctx.user.id,
+    approvedByUserId: null,
+    approvedAt: null,
+    pausedByWorkspaceId: null,
+    endedAt: null,
+  };
+  try {
+    if (previo) {
+      const { count } = await prisma.courseResaleAgreement.updateMany({
+        where: { id: previo.id, status: { in: ["RECHAZADO", "TERMINADO"] } },
+        data,
+      });
+      if (count === 0) return { error: "Ya hay un acuerdo con ese espacio para este curso.", ok: null };
+    } else await prisma.courseResaleAgreement.create({ data: { courseId: curso.id, resellerWorkspaceId: invitadoId, ...data } });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      return { error: "Ya hay un acuerdo con ese espacio para este curso.", ok: null };
+    }
+    throw error;
+  }
+
+  try {
+    const [dueno, correos] = await Promise.all([cargarDueno(ctx.workspace.id), correosDeDuenos(invitadoId)]);
+    const correo = buildAvisoInvitacionACompartirEmail({
+      dueno: dueno.nombre,
+      curso: curso.title,
+      porcentaje: formatoPorcentaje(porcentajeBps),
+      regalado: porcentajeBps === BPS_TOTAL,
+      gratisSocios,
+      enlace: `${appUrl()}${RUTA_ACUERDOS}`,
+    });
+    await avisar(correos, correo, { courseId: curso.id });
+  } catch {
+    // La invitación ya quedó guardada: el invitado la ve en sus cursos compartidos.
+  }
+  revalidatePath(`/dashboard/courses/${courseId}`);
+  revalidatePath(RUTA_ACUERDOS);
+  return { error: null, ok: "Listo: le mandamos la invitación. Cuando la acepte, ya lo puede ofrecer." };
+}
+
 /** "Quiero venderlo": la institución pide revender con su % y el descuento para sus socios. */
 export async function pedirReventaAction(courseId: string, _prev: EstadoFormulario, formData: FormData): Promise<EstadoFormulario> {
   const ctx = await gestion();
@@ -101,12 +203,13 @@ export async function pedirReventaAction(courseId: string, _prev: EstadoFormular
       workspaceId: true,
       offeredToResellers: true,
       suggestedResellerBps: true,
-      beneficiaries: { select: { workspaceId: true } },
+      beneficiaries: { select: { workspaceId: true, shareBps: true } },
       resaleAgreements: { where: { resellerWorkspaceId: ctx.workspace.id }, select: { id: true, status: true } },
     },
   });
   if (!curso) return { error: "Curso no encontrado.", ok: null };
 
+  const pideGratis = formData.get("gratis") === "on";
   const pedidoBps = porcentajeABps(formData.get("porcentaje")?.toString());
   const textoDescuento = formData.get("descuento")?.toString().trim() ?? "";
   const descuentoBps = textoDescuento === "" ? 0 : porcentajeABps(textoDescuento);
@@ -121,15 +224,19 @@ export async function pedirReventaAction(courseId: string, _prev: EstadoFormular
     esBeneficiario: curso.beneficiaries.some((b) => b.workspaceId === ctx.workspace.id),
     cantidadBeneficiarios: curso.beneficiaries.length,
     acuerdoVigente: previo !== null && ESTADOS_VIGENTES.includes(previo.status as EstadoReventa),
+    pideGratis,
+    sinReparto: esSinReparto(curso.workspaceId, curso.beneficiaries),
   });
   if (errores.length || pedidoBps === null || curso.suggestedResellerBps === null) {
     return { error: errores.join(" ") || "Pedido inválido.", ok: null };
   }
 
-  const status = estadoAlPedir(pedidoBps, curso.suggestedResellerBps);
+  const status = estadoAlPedir(pedidoBps, curso.suggestedResellerBps, pideGratis);
   const data = {
     shareBps: pedidoBps,
     memberDiscountBps: descuentoBps,
+    invitedByOwner: false,
+    membersFree: pideGratis,
     status,
     requestedByUserId: ctx.user.id,
     approvedByUserId: null,
@@ -192,12 +299,16 @@ export async function cambiarEstadoDeReventaAction(agreementId: string, accion: 
       status: true,
       pausedByWorkspaceId: true,
       resellerWorkspaceId: true,
+      invitedByOwner: true,
       course: {
         select: {
           id: true,
           title: true,
           workspaceId: true,
           offeredToResellers: true,
+          status: true,
+          deliveryMode: true,
+          priceArs: true,
           beneficiaries: { select: { workspaceId: true } },
         },
       },
@@ -214,12 +325,16 @@ export async function cambiarEstadoDeReventaAction(agreementId: string, accion: 
 
   const pausadoPor: LadoReventa | null =
     acuerdo.pausedByWorkspaceId === null ? null : acuerdo.pausedByWorkspaceId === acuerdo.course.workspaceId ? "DUENO" : "REVENDEDOR";
-  const r = aplicarAccion({ status: acuerdo.status as EstadoReventa, pausadoPor }, accion, lado);
+  const r = aplicarAccion({ status: acuerdo.status as EstadoReventa, pausadoPor, invitadoPorDueno: acuerdo.invitedByOwner }, accion, lado);
   if (!r.ok) redirect(`${RUTA_ACUERDOS}?r=${r.codigo}`);
 
   // Entre el pedido y la respuesta el curso pudo dejar de ofrecerse o el revendedor pasar a cobrar como beneficiario.
   if (accion === "APROBAR" || accion === "REANUDAR") {
-    if (!acuerdo.course.offeredToResellers) {
+    // Una invitación del dueño no necesita el curso en el Mercado, pero sí a la venta.
+    if (acuerdo.invitedByOwner) {
+      const aLaVenta = acuerdo.course.status === "PUBLISHED" && acuerdo.course.deliveryMode === "RECORDED" && Number(acuerdo.course.priceArs ?? 0) > 0;
+      if (!aLaVenta) redirect(`${RUTA_ACUERDOS}?r=curso-no-disponible`);
+    } else if (!acuerdo.course.offeredToResellers) {
       redirect(`${RUTA_ACUERDOS}?r=curso-no-ofrecido`);
     }
     if (acuerdo.course.beneficiaries.some((b) => b.workspaceId === acuerdo.resellerWorkspaceId)) {
@@ -240,7 +355,20 @@ export async function cambiarEstadoDeReventaAction(agreementId: string, accion: 
   });
   if (count === 0) redirect(`${RUTA_ACUERDOS}?r=no-pendiente`);
 
-  if (accion === "APROBAR" || accion === "RECHAZAR") {
+  if ((accion === "APROBAR" || accion === "RECHAZAR") && acuerdo.invitedByOwner) {
+    try {
+      const [invitado, correos] = await Promise.all([cargarDueno(acuerdo.resellerWorkspaceId), correosDeDuenos(acuerdo.course.workspaceId)]);
+      const correo = buildAvisoRespuestaInvitacionEmail({
+        invitado: invitado.nombre,
+        curso: acuerdo.course.title,
+        aceptado: accion === "APROBAR",
+        enlace: `${appUrl()}${RUTA_ACUERDOS}`,
+      });
+      await avisar(correos, correo, { agreementId: acuerdo.id });
+    } catch {
+      // La respuesta ya quedó guardada.
+    }
+  } else if (accion === "APROBAR" || accion === "RECHAZAR") {
     try {
       const [dueno, correos] = await Promise.all([cargarDueno(acuerdo.course.workspaceId), correosDeDuenos(acuerdo.resellerWorkspaceId)]);
       const correo = buildAvisoRespuestaReventaEmail({
@@ -256,7 +384,7 @@ export async function cambiarEstadoDeReventaAction(agreementId: string, accion: 
   }
   revalidatePath(RUTA_ACUERDOS);
   revalidatePath("/dashboard/mercado-de-cursos");
-  redirect(`${RUTA_ACUERDOS}?r=${CODIGO_OK[accion]}`);
+  redirect(`${RUTA_ACUERDOS}?r=${acuerdo.invitedByOwner && accion === "APROBAR" ? "aceptado" : CODIGO_OK[accion]}`);
 }
 
 /** El revendedor cambia el descuento para sus socios: de 0 hasta su %. Vale para las ventas nuevas. */

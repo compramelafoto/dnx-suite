@@ -162,6 +162,7 @@ const MENSAJES_DE_ACUERDOS: Record<string, string> = {
   "ya-es-beneficiario": "Esa institución ya es beneficiaria del curso: no puede revenderlo.",
   "no-encontrado": "Ese acuerdo ya no está disponible.",
   "no-es-dueno": "Ese pedido lo responde la otra parte.",
+  aceptado: "Aceptaste: ya lo ofrecés en tu espacio.",
   invitado: "Listo: le mandamos la invitación. Cuando el otro espacio la acepte, ya lo puede ofrecer.",
   "curso-no-disponible": "El curso ya no está publicado con precio: no se puede activar este acuerdo.",
   "invitado-sin-cursos": "Ese espacio no tiene el módulo de cursos encendido.",
