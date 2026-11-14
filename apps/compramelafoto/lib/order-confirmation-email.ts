@@ -19,12 +19,18 @@ import {
   parsePreventaPackSnapshotV1,
   type PreventaPackSnapshotV1,
 } from "@/lib/preventa-canjeable/preventa-pack-snapshot-v1";
+import { formatMoney } from "@/lib/international/money";
 
 const APP_URL =
   process.env.APP_URL ||
   (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://compramelafoto.com");
 
-/** Formatea un monto en pesos (ARS). La plataforma usa siempre pesos. */
+/** Total del pedido en su moneda. En pesos queda exactamente igual que antes. */
+function formatOrderTotal(stored: number, currency: string | null | undefined): string {
+  return currency && currency !== "ARS" ? formatMoney(stored, currency) : formatPesos(stored);
+}
+
+/** Formatea un monto en pesos (ARS). */
 function formatPesos(pesos: number): string {
   return new Intl.NumberFormat("es-AR", {
     style: "currency",
@@ -53,6 +59,7 @@ export async function queueOrderConfirmationEmail(orderId: number): Promise<void
       createdAt: true,
       buyerEmail: true,
       totalCents: true,
+      currency: true,
       status: true,
       albumId: true,
       album: {
@@ -111,7 +118,7 @@ export async function queueOrderConfirmationEmail(orderId: number): Promise<void
   const orderUrl = `${APP_URL}/cliente/pedidos`;
   const loginUrl = `${APP_URL}/cliente/login`;
   // totalCents en la BD está en pesos (la plataforma usa pesos siempre)
-  const total = formatPesos(order.totalCents);
+  const total = formatOrderTotal(order.totalCents, order.currency);
   const status = order.status === "PAID" ? "Pagado" : order.status;
 
   let downloadCenterUrl: string | null = null;
@@ -335,6 +342,7 @@ export async function queuePhotographerOrderNotification(orderId: number): Promi
       buyerName: true,
       buyerPhone: true,
       totalCents: true,
+      currency: true,
       status: true,
       albumId: true,
       buyerUser: { select: { name: true, phone: true, whatsapp: true } },
@@ -365,7 +373,7 @@ export async function queuePhotographerOrderNotification(orderId: number): Promi
     order.items
   );
   const isMixed = kind === "MIXED";
-  const total = formatPesos(order.totalCents);
+  const total = formatOrderTotal(order.totalCents, order.currency);
   // Abre la pantalla de pedidos con este pedido ya desplegado.
   const pedidosUrl = `${APP_URL}/fotografo/pedidos?pedido=ALBUM_ORDER-${order.id}`;
   const exportPrintUrl = `${APP_URL}/api/fotografo/pedidos/${order.id}/export-print`;

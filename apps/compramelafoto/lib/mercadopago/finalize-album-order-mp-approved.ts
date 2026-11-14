@@ -36,6 +36,8 @@ import { ensureAlbumPackDesignsForPaidOrder } from "@/lib/design-v2/album-pack-d
 import { classifyApprovedPaymentOnAlbumOrder } from "@/lib/mercadopago/duplicate-album-order-payment-rules";
 import { reportDuplicateAlbumOrderPayment } from "@/lib/mercadopago/duplicate-album-order-payment";
 import { reportFirstSaleIfAny } from "@/lib/meta-capi";
+import { shouldUseIntlFlow } from "@/lib/international/intl-order";
+import { applyIntlCommission, checkIntlPayment, commissionForOrder } from "@/lib/international/intl-finalize";
 
 export type FinalizeAlbumOrderMpResult =
   | { ok: true; skipped: "already_paid"; orderId: number; paymentId: string }
@@ -287,6 +289,23 @@ export async function finalizeAlbumOrderMercadoPagoApproved(
     };
   }
 
+  // CLF internacional (piloto): el pago tiene que ser en la moneda del pedido y por el mismo monto.
+  const isIntlOrder = shouldUseIntlFlow(order.currency);
+  if (isIntlOrder) {
+    const intlCheck = checkIntlPayment(order, pay);
+    if (!intlCheck.ok) {
+      console.error("[intl] pago que no coincide con el pedido", {
+        orderId,
+        paymentId,
+        reason: intlCheck.reason,
+        orderCurrency: order.currency,
+        payCurrency: pay.currency_id,
+        payAmount: pay.transaction_amount,
+      });
+      return { ok: false, orderId, paymentId, error: `intl_payment_mismatch:${intlCheck.reason}` };
+    }
+  }
+
   const updateData: {
     status: "PAID";
     mpPaymentId: string;
@@ -297,8 +316,9 @@ export async function finalizeAlbumOrderMercadoPagoApproved(
   };
 
   const hasPrintItems = order.items.some((it) => it.productType === "PRINT");
-  const percent =
-    order.origin === OrderOrigin.PREVENTA_PACK || !hasPrintItems
+  const percent = isIntlOrder
+    ? 0
+    : order.origin === OrderOrigin.PREVENTA_PACK || !hasPrintItems
       ? await resolveClientMarketplaceFeePercent({
           photographerId: order.album?.userId ?? null,
           labId: order.album?.selectedLabId ?? null,
@@ -313,7 +333,7 @@ export async function finalizeAlbumOrderMercadoPagoApproved(
       : order.origin === OrderOrigin.PACK_REDEMPTION
         ? ("PACK_REDEMPTION" as const)
         : ("ALBUM_ORDER" as const);
-  scheduleCheckoutFeeShadowCompare({
+  if (!isIntlOrder) scheduleCheckoutFeeShadowCompare({
     site: hasPrintItems
       ? "finalize-album-order.mixed"
       : order.origin === OrderOrigin.PREVENTA_PACK
@@ -347,6 +367,11 @@ export async function finalizeAlbumOrderMercadoPagoApproved(
   const baseTotalCents = Math.max(0, order.totalCents - extensionSurchargeCents);
   const baseCommission = feeFromTotal(baseTotalCents, percent);
   updateData.platformCommissionCents = baseCommission + extensionSurchargeCents;
+  if (isIntlOrder) {
+    // Comisión en moneda local congelada al crear el pedido (15 %).
+    updateData.platformCommissionCents =
+      commissionForOrder(order.pricingSnapshot)?.commissionStored ?? Number(order.platformCommissionCents ?? 0);
+  }
   const platformFeeCents = Number(updateData.platformCommissionCents ?? 0);
 
   let preventaPackSnapshotUpdate: Prisma.InputJsonValue | undefined;
@@ -503,7 +528,18 @@ export async function finalizeAlbumOrderMercadoPagoApproved(
     eventType: "ORDER_ITEMS_RELEASED",
   });
 
-  if (order.album?.userId) {
+  if (isIntlOrder) {
+    // Descuento de la comisión en dólares. Si falla, el pedido igual queda pagado y entregado:
+    // se registra para que un administrador lo cargue a mano.
+    try {
+      await applyIntlCommission(orderId);
+    } catch (err: unknown) {
+      console.error("[intl] no se pudo descontar la comisión del saldo", { orderId, err });
+    }
+  }
+
+  // Referidos y comisiones de organizador quedan fuera del piloto internacional (etapa 6).
+  if (order.album?.userId && !isIntlOrder) {
     await createReferralEarningsForPaidSale({
       saleRef: `ALBUM_ORDER:${orderId}`,
       orderType: "ALBUM_ORDER",
@@ -517,7 +553,7 @@ export async function finalizeAlbumOrderMercadoPagoApproved(
   }
 
   const referralFeeDiscountCentsAlbum = Number(order.referralFeeDiscountCents ?? 0);
-  if (referralFeeDiscountCentsAlbum > 0 && order.album?.userId) {
+  if (referralFeeDiscountCentsAlbum > 0 && order.album?.userId && !isIntlOrder) {
     await consumeReferralEarningsForDiscount(
       order.album.userId,
       referralFeeDiscountCentsAlbum,
@@ -526,7 +562,7 @@ export async function finalizeAlbumOrderMercadoPagoApproved(
     );
   }
 
-  try {
+  if (!isIntlOrder) try {
     await createOrganizerCommissionForPaidOrder({
       orderId,
       paymentId: String(paymentId),
@@ -535,7 +571,7 @@ export async function finalizeAlbumOrderMercadoPagoApproved(
     console.error("Error creando comisión SCHOOL_ORGANIZER:", err);
   }
 
-  try {
+  if (!isIntlOrder) try {
     const paymentApprovedAt = pay.date_approved ? new Date(pay.date_approved) : new Date();
     await ensureEventOrganizerCommissionSnapshotForPaidOrder(orderId, {
       paymentApprovedAt,
