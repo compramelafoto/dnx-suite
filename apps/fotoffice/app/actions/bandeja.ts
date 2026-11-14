@@ -5,6 +5,7 @@ import { MENSAJES_BANDEJA } from "@/lib/bandeja/acceso";
 import {
   crearContactoDesdeChat,
   devolverAlBot,
+  excluirDelBot,
   marcarLeido,
   resolver,
   responder,
@@ -51,6 +52,10 @@ export async function tomarAction(chatId: string) {
 
 export async function devolverAlBotAction(chatId: string) {
   return conOperar(chatId, (ctx, id) => devolverAlBot(ctx, id));
+}
+
+export async function excluirDelBotAction(chatId: string, excluir: boolean) {
+  return conOperar(chatId, (ctx, id) => excluirDelBot(ctx, id, excluir === true));
 }
 
 export async function resolverAction(chatId: string) {

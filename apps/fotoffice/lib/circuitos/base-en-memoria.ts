@@ -244,7 +244,7 @@ const DEFECTOS: Partial<Record<Tabla, () => Fila>> = {
     createdAt: new Date(), updatedAt: new Date(),
   }),
   fotofficeWaChat: () => ({
-    nombre: null, clientId: null, estado: "BOT", asignadoUserId: null, botPausadoHasta: null, ultimoEntranteEn: null,
+    nombre: null, clientId: null, estado: "BOT", asignadoUserId: null, botPausadoHasta: null, botExcluido: false, ultimoEntranteEn: null,
     ultimoMensajeTexto: null, ultimoMensajeTipo: null, noLeidos: 0, createdAt: new Date(), updatedAt: new Date(),
   }),
   fotofficeWaMensaje: () => ({

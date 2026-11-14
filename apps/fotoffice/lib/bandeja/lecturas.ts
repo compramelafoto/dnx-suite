@@ -76,7 +76,7 @@ async function clientesPorId(workspaceId: string, ids: string[]): Promise<Map<st
 function dondeDelFiltro(filtro: FiltroBandeja, userId: number, ahora: Date): Record<string, unknown> {
   switch (filtro) {
     case "bot":
-      return { OR: [{ estado: "BOT" }, { estado: "HUMANO", asignadoUserId: null, botPausadoHasta: { lte: ahora } }] };
+      return { botExcluido: false, OR: [{ estado: "BOT" }, { estado: "HUMANO", asignadoUserId: null, botPausadoHasta: { lte: ahora } }] };
     case "mios":
       return { asignadoUserId: userId, estado: { not: "RESUELTO" } };
     case "sin-asignar":
@@ -131,7 +131,7 @@ export async function listarChats(
     take: MAXIMO_CHATS,
   })) as {
     id: string; waId: string; nombre: string | null; clientId: string | null; estado: string; asignadoUserId: number | null;
-    botPausadoHasta: Date | null; ultimoMensajeEn: Date; ultimoEntranteEn: Date | null; noLeidos: number;
+    botPausadoHasta: Date | null; botExcluido: boolean; ultimoMensajeEn: Date; ultimoEntranteEn: Date | null; noLeidos: number;
     ultimoMensajeTexto: string | null; ultimoMensajeTipo: string | null;
   }[];
 
@@ -149,7 +149,7 @@ export async function listarChats(
       titulo: clienteNombre ?? (c.nombre?.trim() || c.waId),
       waId: c.waId,
       estado,
-      atiendeElBot: atiendeElBot({ estado, asignadoUserId: c.asignadoUserId, botPausadoHasta: c.botPausadoHasta, ultimoEntranteEn: c.ultimoEntranteEn }, ahora),
+      atiendeElBot: atiendeElBot({ estado, asignadoUserId: c.asignadoUserId, botPausadoHasta: c.botPausadoHasta, ultimoEntranteEn: c.ultimoEntranteEn, botExcluido: c.botExcluido }, ahora),
       asignadoNombre: c.asignadoUserId !== null ? (usuarios.get(c.asignadoUserId) ?? "Alguien del equipo") : null,
       clienteNombre,
       ultimoMensaje: textoDeVistaPrevia(c),
@@ -192,6 +192,8 @@ export type DetalleDeChat = {
   estado: EstadoDelChat;
   atiendeElBot: boolean;
   asignadoUserId: number | null;
+  /** El bot nunca atiende este número. */
+  botExcluido: boolean;
   asignadoNombre: string | null;
   noLeidos: number;
   ultimoEntranteEn: Date | null;
@@ -209,7 +211,7 @@ export async function detalleChat(ctx: CtxBandeja, chatId: string, ahora: Date =
   if (typeof chatId !== "string" || !ID_VALIDO.test(chatId)) return null;
   const c = (await prisma.fotofficeWaChat.findFirst({ where: { id: chatId, workspaceId: ctx.workspaceId } })) as {
     id: string; waId: string; nombre: string | null; clientId: string | null; estado: string; asignadoUserId: number | null;
-    botPausadoHasta: Date | null; ultimoEntranteEn: Date | null; noLeidos: number;
+    botPausadoHasta: Date | null; botExcluido: boolean; ultimoEntranteEn: Date | null; noLeidos: number;
   } | null;
   if (!c) return null;
 
@@ -243,8 +245,9 @@ export async function detalleChat(ctx: CtxBandeja, chatId: string, ahora: Date =
     waId: c.waId,
     nombrePerfil: c.nombre,
     estado,
-    atiendeElBot: atiendeElBot({ estado, asignadoUserId: c.asignadoUserId, botPausadoHasta: c.botPausadoHasta, ultimoEntranteEn: c.ultimoEntranteEn }, ahora),
+    atiendeElBot: atiendeElBot({ estado, asignadoUserId: c.asignadoUserId, botPausadoHasta: c.botPausadoHasta, ultimoEntranteEn: c.ultimoEntranteEn, botExcluido: c.botExcluido }, ahora),
     asignadoUserId: c.asignadoUserId,
+    botExcluido: c.botExcluido,
     asignadoNombre: c.asignadoUserId !== null ? (usuarios.get(c.asignadoUserId) ?? "Alguien del equipo") : null,
     noLeidos: c.noLeidos,
     ultimoEntranteEn: c.ultimoEntranteEn,

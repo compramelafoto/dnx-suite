@@ -27096,6 +27096,8 @@ model FotofficeWaChat {
   estado           String    @default("BOT")
   asignadoUserId   Int?
   botPausadoHasta  DateTime?
+  /// El bot nunca atiende este número (p. ej. el teléfono personal del dueño o del equipo). Lo cambia una persona desde la Bandeja.
+  botExcluido      Boolean   @default(false)
   ultimoMensajeEn  DateTime
   /// Base de la ventana de 24 h para responder con texto libre.
   ultimoEntranteEn DateTime?

@@ -2,21 +2,24 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { devolverAlBotAction, resolverAction, tomarAction } from "@/app/actions/bandeja";
+import { devolverAlBotAction, excluirDelBotAction, resolverAction, tomarAction } from "@/app/actions/bandeja";
 
 type Resultado = { ok: true } | { ok: false; error: string };
 
-/** Tomar, Devolver al bot y Resolver. Sólo se dibuja para quien puede operar; el servidor lo vuelve a exigir. */
+/** Tomar, Devolver al bot, Resolver y excluir el número del bot. Sólo se dibuja para quien puede operar; el servidor lo vuelve a exigir. */
 export function BotonesDelChat({
   chatId,
   puedeTomar,
   puedeDevolver,
   puedeResolver,
+  botExcluido,
 }: {
   chatId: string;
   puedeTomar: boolean;
   puedeDevolver: boolean;
   puedeResolver: boolean;
+  /** El bot nunca atiende este número. */
+  botExcluido: boolean;
 }) {
   const router = useRouter();
   const [pendiente, iniciar] = useTransition();
@@ -31,7 +34,6 @@ export function BotonesDelChat({
     });
   }
 
-  if (!puedeTomar && !puedeDevolver && !puedeResolver) return null;
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap gap-2">
@@ -40,7 +42,7 @@ export function BotonesDelChat({
             Tomar
           </button>
         ) : null}
-        {puedeDevolver ? (
+        {puedeDevolver && !botExcluido ? (
           <button type="button" className="fo-btn fo-btn-secondary text-sm" disabled={pendiente} onClick={() => correr(() => devolverAlBotAction(chatId))}>
             Devolver al bot
           </button>
@@ -51,6 +53,14 @@ export function BotonesDelChat({
           </button>
         ) : null}
       </div>
+      <button
+        type="button"
+        className="text-xs text-[var(--fo-muted)] underline"
+        disabled={pendiente}
+        onClick={() => correr(() => excluirDelBotAction(chatId, !botExcluido))}
+      >
+        {botExcluido ? "El bot no atiende este número · Volver a activarlo" : "Que el bot no atienda nunca este número"}
+      </button>
       {error ? (
         <p role="alert" className="text-sm text-[var(--fo-danger)]">
           {error}

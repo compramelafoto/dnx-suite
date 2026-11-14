@@ -14,6 +14,8 @@ export type EstadoChat = {
   asignadoUserId: number | null;
   botPausadoHasta: Date | null;
   ultimoEntranteEn: Date | null;
+  /** El bot nunca atiende este número (lo marca una persona desde la Bandeja). */
+  botExcluido?: boolean;
 };
 
 export type ParcheChat = Partial<EstadoChat>;
@@ -34,6 +36,7 @@ const HORA_MS = 3_600_000;
  * callar es más seguro que pisar a una persona).
  */
 export function atiendeElBot(chat: EstadoChat, ahora: Date): boolean {
+  if (chat.botExcluido) return false;
   if (chat.estado === "BOT") return true;
   if (chat.estado !== "HUMANO") return false;
   if (chat.asignadoUserId !== null) return false;
@@ -127,4 +130,12 @@ export const MINUTOS_PENDIENTE_INCIERTO = 2;
 export function estadoVisible(mensaje: { estadoEnvio: string; createdAt: Date }, ahora: Date): string {
   if (mensaje.estadoEnvio !== "PENDIENTE") return mensaje.estadoEnvio;
   return ahora.getTime() - mensaje.createdAt.getTime() > MINUTOS_PENDIENTE_INCIERTO * 60_000 ? "INCIERTO" : "PENDIENTE";
+}
+
+/** Excluir (o volver a incluir) el número del bot. Nunca cambia quién atiende el chat. */
+export function alExcluirDelBot(excluir: boolean, nombre: string): ResultadoRegla {
+  return {
+    parche: { botExcluido: excluir },
+    sistema: { texto: excluir ? `${nombre} marcó que el bot no atienda este número` : `${nombre} volvió a dejar que el bot atienda este número` },
+  };
 }

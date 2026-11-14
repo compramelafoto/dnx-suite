@@ -100,7 +100,7 @@ async function turno(chatId: string, deps: DepsResponder): Promise<SalidaBot> {
 
   const chat = await prisma.fotofficeWaChat.findUnique({
     where: { id: chatId },
-    select: { id: true, workspaceId: true, waId: true, clientId: true, estado: true, asignadoUserId: true, botPausadoHasta: true, ultimoEntranteEn: true, nombre: true },
+    select: { id: true, workspaceId: true, waId: true, clientId: true, estado: true, asignadoUserId: true, botPausadoHasta: true, botExcluido: true, ultimoEntranteEn: true, nombre: true },
   });
   if (!chat) return "nada";
   const workspaceId = chat.workspaceId;
