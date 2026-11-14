@@ -30,6 +30,18 @@ describe("decidir si un curso se vende", () => {
   });
 });
 
+describe("un curso compartido al 100% (regalado)", () => {
+  const sinReparto = { tipo: "SIN_REPARTO" as const };
+  const listo = { tipo: "CON_REPARTO" as const, listo: true, faltantes: [] };
+  it("lo vende el que lo recibe sin split: cobra con su Mercado Pago", () => {
+    expect(decidirVenta({ estado: sinReparto, revendido: true, reventaBps: 10000, splitHabilitado: false })).toEqual({ tipo: "SIN_REPARTO" });
+  });
+  it("con beneficiarios ajenos o con un % menor, espera el split", () => {
+    expect(decidirVenta({ estado: listo, revendido: true, reventaBps: 10000, splitHabilitado: false }).tipo).toBe("PROXIMAMENTE");
+    expect(decidirVenta({ estado: sinReparto, revendido: true, reventaBps: 1000, splitHabilitado: false }).tipo).toBe("PROXIMAMENTE");
+  });
+});
+
 describe("los montos de una venta (spec, sección 2.2)", () => {
   it("revendido al 25%, venta al público", () => {
     const m = montosDeVenta({ listaArs: "100000", comisionPlataformaBps: 500, beneficiarios: benef, vendedorWorkspaceId: "ws-club", reventa: club, esSocioDelVendedor: false });

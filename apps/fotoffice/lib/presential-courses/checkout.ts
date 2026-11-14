@@ -9,6 +9,7 @@ import { splitByPlatformFee } from "@/lib/platform-fee/fee";
 import { estadoDeVenta } from "@/lib/course-marketplace/beneficiarios";
 import { cargarBeneficiarios, cargarDueno } from "@/lib/course-marketplace/cargar";
 import { montosDeCompraSinReparto } from "@/lib/course-marketplace/compra";
+import { decidirVenta } from "@/lib/course-marketplace/venta";
 import { COURSES_SALES_MODULE_KEY } from "@/lib/courses-sales/constants";
 import { computeAvailableSpots, getApprovedEnrollmentCountsByInstanceIds } from "./availability";
 import { logCourseEvent } from "./log";
@@ -53,7 +54,7 @@ export async function createCourseEnrollmentCheckout(input: {
 }): Promise<CourseCheckoutResult> {
   const inscripcion = await prisma.courseEnrollment.findUnique({
     where: { id: input.enrollmentId },
-    include: { course: true, courseInstance: true },
+    include: { course: true, courseInstance: true, resaleAgreement: { select: { shareBps: true, status: true } } },
   });
   if (!inscripcion) return { ok: false, error: "Inscripción no encontrada." };
   if (inscripcion.paymentStatus !== "PENDING") {
@@ -105,10 +106,19 @@ export async function createCourseEnrollmentCheckout(input: {
     // no hay Checkout Pro: se cobra con una orden que reparte sola (lib/payments/split-1n-cursos.ts),
     // apagada hasta que Mercado Pago la habilite.
     const beneficiarios = await cargarBeneficiarios(inscripcion.courseId);
-    if (inscripcion.resaleAgreementId || estadoDeVenta(inscripcion.course.workspaceId, beneficiarios).tipo !== "SIN_REPARTO") {
+    const decision = decidirVenta({
+      estado: estadoDeVenta(inscripcion.course.workspaceId, beneficiarios),
+      revendido: inscripcion.resaleAgreementId !== null,
+      reventaBps: inscripcion.resaleAgreement?.shareBps ?? null,
+      splitHabilitado: false,
+    });
+    // Un acuerdo pausado o terminado entre la inscripción y el pago ya no vende.
+    const acuerdoCaido = inscripcion.resaleAgreementId !== null && inscripcion.resaleAgreement?.status !== "ACTIVO";
+    if (decision.tipo !== "SIN_REPARTO" || acuerdoCaido) {
       return { ok: false, error: "Este curso todavía no está a la venta." };
     }
-    const dueno = await cargarDueno(inscripcion.course.workspaceId);
+    // Cobra entero quien vende: el dueño, o el espacio al que se lo regaló (acuerdo al 100%).
+    const dueno = await cargarDueno(inscripcion.workspaceId);
     const montos = montosDeCompraSinReparto({
       listaArs: inscripcion.listPriceArs.toString(),
       comisionPlataformaBps: feeBps,

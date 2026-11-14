@@ -1,5 +1,5 @@
 // lib/course-marketplace/venta.ts
-import { calcularReparto, type BeneficiarioEntrada, type ParteDelReparto } from "./reparto";
+import { BPS_TOTAL, calcularReparto, type BeneficiarioEntrada, type ParteDelReparto } from "./reparto";
 import type { EstadoDeVenta } from "./beneficiarios";
 
 /**
@@ -12,8 +12,17 @@ import type { EstadoDeVenta } from "./beneficiarios";
 
 export type DecisionDeVenta = { tipo: "SIN_REPARTO" } | { tipo: "CON_REPARTO" } | { tipo: "PROXIMAMENTE"; motivo: string };
 
-export function decidirVenta(input: { estado: EstadoDeVenta; revendido: boolean; splitHabilitado: boolean }): DecisionDeVenta {
-  if (!input.revendido && input.estado.tipo === "SIN_REPARTO") return { tipo: "SIN_REPARTO" };
+/**
+ * `reventaBps` es el % del acuerdo por el que se vende. Un curso compartido al 100% (regalado) de
+ * un dueño que es su único beneficiario no reparte nada: cobra entero el que lo vende.
+ */
+export function decidirVenta(input: {
+  estado: EstadoDeVenta;
+  revendido: boolean;
+  reventaBps?: number | null;
+  splitHabilitado: boolean;
+}): DecisionDeVenta {
+  if (input.estado.tipo === "SIN_REPARTO" && (!input.revendido || input.reventaBps === BPS_TOTAL)) return { tipo: "SIN_REPARTO" };
   if (!input.splitHabilitado) {
     return { tipo: "PROXIMAMENTE", motivo: "El reparto automático de Mercado Pago todavía no está habilitado." };
   }

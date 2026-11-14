@@ -127,7 +127,7 @@ async function cargarRevendidosParaSocios(workspaceId: string): Promise<CursoRev
       };
       const publico = montosDeVenta({ ...base, esSocioDelVendedor: false });
       const socio = montosDeVenta({ ...base, esSocioDelVendedor: true });
-      const decision = decidirVenta({ estado: estadoDeVenta(a.course.workspaceId, registrados), revendido: true, splitHabilitado });
+      const decision = decidirVenta({ estado: estadoDeVenta(a.course.workspaceId, registrados), revendido: true, reventaBps: a.shareBps, splitHabilitado });
       return {
         courseId: a.course.id,
         titulo: a.course.title,
