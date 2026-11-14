@@ -14,12 +14,19 @@ const m = vi.hoisted(() => ({
   photoCount: vi.fn(),
   userFind: vi.fn(),
   schoolFindMany: vi.fn(),
+  renameSchool: vi.fn(),
+  schoolForDeletion: vi.fn(),
+  deleteSchool: vi.fn(),
 }));
 vi.mock("@/lib/bot/escolar/progreso", () => ({ computeSchoolSetupProgress: (...a: unknown[]) => m.progreso(...a) }));
 vi.mock("@/lib/schools/school-setup", () => ({
   createSchoolForOwner: (...a: unknown[]) => m.createSchool(...a),
   findOwnedSchool: (...a: unknown[]) => m.ownedSchool(...a),
   createSchoolCoursesForOwner: (...a: unknown[]) => m.createCourses(...a),
+  renameSchoolForOwner: (...a: unknown[]) => m.renameSchool(...a),
+  getSchoolForDeletion: (...a: unknown[]) => m.schoolForDeletion(...a),
+  deleteSchoolForOwner: (...a: unknown[]) => m.deleteSchool(...a),
+  describeSchoolDeletionBlockers: (b: Record<string, number>) => (Object.values(b).some((n) => n > 0) ? "bloqueada" : null),
 }));
 vi.mock("@/lib/albums/album-school-settings", () => ({ updateAlbumSchoolSettingsForOwner: (...a: unknown[]) => m.updateSchool(...a) }));
 vi.mock("@/lib/schools/invite-organizer", () => ({ inviteSchoolOrganizerForOwner: (...a: unknown[]) => m.invite(...a) }));
@@ -57,12 +64,15 @@ beforeEach(() => {
 });
 
 describe("herramientas escolares", () => {
-  it("son las 8 de la tabla, con el tipo correcto y undo sólo donde corresponde", () => {
+  it("son las 11 de la tabla, con el tipo correcto y undo sólo donde corresponde", () => {
     const resumen = Object.fromEntries(escolarTools.map((t) => [t.name, [t.kind, Boolean(t.undo)]]));
     expect(resumen).toEqual({
       ver_progreso_escolar: ["read", false],
+      ver_mis_escuelas: ["read", false],
       crear_escuela: ["write", false],
       cargar_cursos: ["write", false],
+      renombrar_escuela: ["write", true],
+      eliminar_escuela: ["write", false],
       invitar_admin_escuela: ["write", false],
       vincular_album_a_escuela: ["write", true],
       elegir_identificacion_alumnos: ["write", true],
@@ -148,6 +158,75 @@ describe("herramientas escolares", () => {
       const i = tool("cargar_cursos").input;
       expect(i.safeParse({ schoolId: 5, cursos: [] }).success).toBe(false);
       expect(i.safeParse({ schoolId: 5, cursos: Array.from({ length: 41 }, (_, n) => ({ nombre: `${n}` })) }).success).toBe(false);
+    });
+  });
+
+  describe("ver_mis_escuelas", () => {
+    it("lista sólo las del fotógrafo, con si se pueden eliminar", async () => {
+      m.schoolFindMany.mockResolvedValue([
+        { id: 45, name: "Escuela Nº8", _count: { courses: 0, albums: 1, students: 0, organizers: 0, organizerCommissions: 0 } },
+        { id: 44, name: "Arturo Mateo Bas Nº4", _count: { courses: 0, albums: 0, students: 0, organizers: 0, organizerCommissions: 0 } },
+      ]);
+      const r = await tool("ver_mis_escuelas").run({}, actor);
+      expect(m.schoolFindMany.mock.calls[0][0].where).toEqual({ ownerId: 7 });
+      expect(r).toMatchObject({
+        ok: true,
+        data: { escuelas: [{ schoolId: 45, sePuedeEliminar: false, albumes: 1 }, { schoolId: 44, sePuedeEliminar: true }] },
+      });
+    });
+  });
+
+  describe("renombrar_escuela", () => {
+    it("describe muestra el nombre viejo y el nuevo; escuela ajena → error amable", async () => {
+      expect(await tool("renombrar_escuela").describe!({ schoolId: 5, nombre: "Escuela Nº8" }, actor)).toBe(
+        "Cambiarle el nombre a la escuela «Escuela Norte» por «Escuela Nº8»."
+      );
+      m.ownedSchool.mockResolvedValue(null);
+      await expect(tool("renombrar_escuela").describe!({ schoolId: 9, nombre: "X" }, actor)).rejects.toThrow(NO_ESCUELA);
+    });
+    it("no deja ponerle el nombre de otra escuela suya, pero sí cambiar mayúsculas de la misma", async () => {
+      m.schoolFindMany.mockResolvedValue([{ id: 6, name: "Escuela Sur" }]);
+      await expect(tool("renombrar_escuela").describe!({ schoolId: 5, nombre: "escuela sur" }, actor)).rejects.toThrow("Ya tenés una escuela llamada «Escuela Sur»");
+      m.schoolFindMany.mockResolvedValue([{ id: 5, name: "Escuela Norte" }]);
+      await expect(tool("renombrar_escuela").describe!({ schoolId: 5, nombre: "ESCUELA NORTE" }, actor)).resolves.toContain("ESCUELA NORTE");
+    });
+    it("run guarda el nombre anterior y undo lo devuelve", async () => {
+      m.renameSchool.mockResolvedValueOnce({ ok: true, before: "Escuela Norte", school: { id: 5, name: "Escuela Nº8" } });
+      const r = await tool("renombrar_escuela").run({ schoolId: 5, nombre: "Escuela Nº8" }, actor);
+      expect(r).toMatchObject({ ok: true, before: { schoolId: 5, nombre: "Escuela Norte" } });
+      expect(m.renameSchool).toHaveBeenCalledWith(7, 5, "Escuela Nº8");
+      m.renameSchool.mockResolvedValueOnce({ ok: true, before: "Escuela Nº8", school: { id: 5, name: "Escuela Norte" } });
+      const u = await tool("renombrar_escuela").undo!(json(r.ok ? r.before : null), actor);
+      expect(u).toEqual({ ok: true, message: "Le devolví el nombre «Escuela Norte» a la escuela." });
+      expect(m.renameSchool).toHaveBeenLastCalledWith(7, 5, "Escuela Norte");
+      expect(await tool("renombrar_escuela").undo!({ schoolId: "5" }, actor)).toMatchObject({ ok: false });
+    });
+    it("run con escuela ajena → no encontrada", async () => {
+      m.renameSchool.mockResolvedValue({ ok: false, status: 404, error: "Escuela no encontrada" });
+      expect(await tool("renombrar_escuela").run({ schoolId: 9, nombre: "X" }, actor)).toEqual({ ok: false, code: "NOT_FOUND", message: NO_ESCUELA });
+    });
+  });
+
+  describe("eliminar_escuela", () => {
+    const vacia = { id: 5, name: "Escuela Norte", courses: 2, blockers: { albums: 0, students: 0, organizers: 0, commissions: 0 }, blockedReason: null };
+    it("describe avisa que borra los cursos y que no se deshace", async () => {
+      m.schoolForDeletion.mockResolvedValue(vacia);
+      expect(await tool("eliminar_escuela").describe!({ schoolId: 5 }, actor)).toBe(
+        "Eliminar la escuela «Escuela Norte» y sus 2 cursos. No se puede deshacer."
+      );
+    });
+    it("con algo vinculado no arma la tarjeta y explica por qué", async () => {
+      m.schoolForDeletion.mockResolvedValue({ ...vacia, blockedReason: "No se puede eliminar porque tiene 1 álbum vinculado." });
+      await expect(tool("eliminar_escuela").describe!({ schoolId: 5 }, actor)).rejects.toThrow("1 álbum vinculado");
+      m.schoolForDeletion.mockResolvedValue(null);
+      await expect(tool("eliminar_escuela").describe!({ schoolId: 5 }, actor)).rejects.toThrow(NO_ESCUELA);
+    });
+    it("run borra a nombre del fotógrafo y devuelve el bloqueo si apareció algo en el medio", async () => {
+      m.deleteSchool.mockResolvedValueOnce({ ok: true, school: { id: 5, name: "Escuela Norte" } });
+      expect(await tool("eliminar_escuela").run({ schoolId: 5 }, actor)).toMatchObject({ ok: true, message: "Listo, eliminé la escuela «Escuela Norte»." });
+      expect(m.deleteSchool).toHaveBeenCalledWith(7, 5);
+      m.deleteSchool.mockResolvedValueOnce({ ok: false, status: 409, error: "No se puede eliminar porque tiene 3 alumnos cargados." });
+      expect(await tool("eliminar_escuela").run({ schoolId: 5 }, actor)).toEqual({ ok: false, code: "BLOCKED", message: "No se puede eliminar porque tiene 3 alumnos cargados." });
     });
   });
 
