@@ -58,7 +58,7 @@ const POR_OMISION: Required<Omit<DepsRecordatorio, "ahora">> = {
         estado: { in: ["BOT", "HUMANO"] },
         ultimoEntranteEn: { gte: new Date(ahora.getTime() - RECORDAR_HASTA_HORAS * HORA_MS), lte: new Date(ahora.getTime() - RECORDAR_DESDE_HORAS * HORA_MS) },
       },
-      select: { id: true, workspaceId: true, nombre: true, estado: true, asignadoUserId: true, botPausadoHasta: true, ultimoEntranteEn: true },
+      select: { id: true, workspaceId: true, nombre: true, estado: true, asignadoUserId: true, botPausadoHasta: true, botExcluido: true, ultimoEntranteEn: true },
       take: 200,
     });
     return chats.map((c) => ({ ...c, estado: c.estado as EstadoChat["estado"] }));

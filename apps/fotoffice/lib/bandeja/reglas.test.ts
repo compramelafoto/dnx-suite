@@ -4,6 +4,7 @@ import {
   alDevolver,
   alEco,
   alEntrante,
+  alExcluirDelBot,
   alResolver,
   alResponderDesdePanel,
   alTomar,
@@ -20,6 +21,10 @@ const chat = (p: Partial<EstadoChat> = {}): EstadoChat => ({
 
 describe("atiendeElBot", () => {
   it("BOT: sí", () => expect(atiendeElBot(chat(), AHORA)).toBe(true));
+  it("número excluido del bot: nunca, aunque esté en BOT o con la pausa vencida", () => {
+    expect(atiendeElBot(chat({ botExcluido: true }), AHORA)).toBe(false);
+    expect(atiendeElBot(chat({ estado: "HUMANO", botPausadoHasta: h(-1), botExcluido: true }), AHORA)).toBe(false);
+  });
   it("RESUELTO: no", () => expect(atiendeElBot(chat({ estado: "RESUELTO" }), AHORA)).toBe(false));
   it("HUMANO sin asignar y pausa vigente: no", () => {
     expect(atiendeElBot(chat({ estado: "HUMANO", botPausadoHasta: h(1) }), AHORA)).toBe(false);
@@ -151,5 +156,14 @@ describe("alResponderDesdePanel", () => {
   });
   it("HUMANO sin asignar (por eco) se toma", () => {
     expect(alResponderDesdePanel(chat({ estado: "HUMANO", botPausadoHasta: h(1) }), 9, "Camila").parche.asignadoUserId).toBe(9);
+  });
+});
+
+describe("alExcluirDelBot", () => {
+  it("excluye o vuelve a incluir sin cambiar quién atiende, y deja la nota", () => {
+    const a = alExcluirDelBot(true, "Dani");
+    expect(a.parche).toEqual({ botExcluido: true });
+    expect(a.sistema?.texto).toBe("Dani marcó que el bot no atienda este número");
+    expect(alExcluirDelBot(false, "Dani").parche).toEqual({ botExcluido: false });
   });
 });

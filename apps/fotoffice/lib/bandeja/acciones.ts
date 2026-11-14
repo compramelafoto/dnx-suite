@@ -9,6 +9,7 @@ import { TEXTO_MAXIMO } from "./constantes";
 import { enviarTexto, type ResultadoEnvio } from "./envio";
 import {
   alDevolver,
+  alExcluirDelBot,
   alResolver,
   alResponderDesdePanel,
   alTomar,
@@ -39,6 +40,7 @@ export const aEstado = (c: ChatFila): EstadoChat => ({
   asignadoUserId: c.asignadoUserId,
   botPausadoHasta: c.botPausadoHasta,
   ultimoEntranteEn: c.ultimoEntranteEn,
+  botExcluido: c.botExcluido,
 });
 
 /** El chat del workspace, con la fila bloqueada y releída. `null` si no existe en este workspace. */
@@ -101,6 +103,12 @@ export async function devolverAlBot(ctx: CtxBandeja, chatId: string, deps: Deps 
     (chat) => (chat.estado === "BOT" && chat.asignadoUserId === null ? null : alDevolver(userId, ctx.userLabel)),
     deps.ahora ?? new Date(),
   );
+}
+
+/** Que el bot nunca atienda (o vuelva a atender) este número. */
+export async function excluirDelBot(ctx: CtxBandeja, chatId: string, excluir: boolean, deps: Deps = {}): Promise<Resultado> {
+  if (ctx.userId === null) return no(MENSAJES_BANDEJA.sinPermiso);
+  return transicion(ctx, chatId, (chat) => (chat.botExcluido === excluir ? null : alExcluirDelBot(excluir, ctx.userLabel)), deps.ahora ?? new Date());
 }
 
 export async function resolver(ctx: CtxBandeja, chatId: string, deps: Deps = {}): Promise<Resultado> {

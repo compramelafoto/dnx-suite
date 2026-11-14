@@ -40,6 +40,7 @@ export default async function ChatPage({ params }: { params: Promise<{ chatId: s
               puedeTomar={!esMio}
               puedeDevolver={chat.estado !== "BOT"}
               puedeResolver={chat.estado !== "RESUELTO"}
+              botExcluido={chat.botExcluido}
             />
           ) : null}
         </div>
