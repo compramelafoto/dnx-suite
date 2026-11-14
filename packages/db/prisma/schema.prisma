@@ -28540,6 +28540,45 @@ model ClfIntlCollectionAccount {
   @@index([userId, status])
 }
 
+/// CLF internacional (piloto): libro de movimientos del saldo en dólares del fotógrafo.
+/// type: ADVANCE | TOPUP | ADVANCE_REPAID | COMMISSION | ADJUSTMENT. Montos en centavos de USD.
+/// ADVANCE_REPAID va con amountUsdCents = 0 y el monto devuelto en `note` como JSON {"repaidUsdCents":N}.
+/// Sin relaciones Prisma: publicar el código antes del SQL no rompe ningún modelo.
+model ClfIntlWalletMovement {
+  id              String   @id @default(cuid())
+  userId          Int
+  type            String
+  amountUsdCents  Int
+  orderId         Int?
+  /// captureId de PayPal (recargas) u otra referencia externa única.
+  externalRef     String?
+  localCurrency   String?
+  localAmount     Int?
+  fxUnitsPerUsd   String?
+  fxRateId        String?
+  note            String?
+  createdByUserId Int?
+  createdAt       DateTime @default(now())
+
+  @@unique([orderId, type])
+  @@unique([externalRef])
+  @@index([userId, createdAt])
+}
+
+/// CLF internacional (piloto): cotización diaria de cada moneda contra el dólar (unidades locales por 1 USD).
+model ClfFxRate {
+  id              String   @id @default(cuid())
+  currency        String
+  unitsPerUsdBuy  String
+  unitsPerUsdSell String
+  source          String
+  /// YYYY-MM-DD en hora argentina.
+  effectiveDate   String
+  fetchedAt       DateTime @default(now())
+
+  @@unique([currency, effectiveDate, source])
+}
+
 // ---------------------------------------------------------------------------
 // FOTOFFICE · Equipo de agentes, pieza 1: cola de propuestas (Periodista)
 // Tabla nueva sin relaciones con tablas existentes: publicar el código antes del SQL no rompe ningún
