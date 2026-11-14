@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
+import PreferenciaNovedadesCard from "@/components/fotografo/PreferenciaNovedadesCard";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
@@ -312,24 +313,6 @@ export default function ConfiguracionClient({
     return () => clearTimeout(t);
   }, [error]);
 
-  // Mantener marketing y reconocimiento facial siempre activos (sin opción de desactivar)
-  useEffect(() => {
-    if (!photographer?.id || marketingOptIn) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch("/api/users/me/marketing-opt-in", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ marketingOptIn: true, source: "profile" }),
-        });
-        if (res.ok && !cancelled) setMarketingOptIn(true);
-      } catch (_err) {
-        // silent
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [photographer?.id, marketingOptIn]);
 
   useEffect(() => {
     // Verificar si hay datos en query params (de Google OAuth)
@@ -996,6 +979,12 @@ export default function ConfiguracionClient({
                 coverageRadiusKm={coverageRadiusKm}
                 setCoverageRadiusKm={setCoverageRadiusKm}
                 highlightWorkLocation={highlightWorkLocation}
+              />
+            )}
+            {activeTab === "datos" && photographer && (
+              <PreferenciaNovedadesCard
+                marketingOptIn={marketingOptIn}
+                onChange={setMarketingOptIn}
               />
             )}
 

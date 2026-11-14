@@ -77,7 +77,6 @@ export default function ClientDashboardPage() {
   const [purchasesAwaitingVerification, setPurchasesAwaitingVerification] = useState(0);
   const [verifyState, setVerifyState] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [visitedAlbums, setVisitedAlbums] = useState<any[]>([]);
-  const [marketingOptIn, setMarketingOptIn] = useState(false);
   const [downloadingOrderId, setDownloadingOrderId] = useState<number | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
 
@@ -100,24 +99,6 @@ export default function ClientDashboardPage() {
     loadDashboard();
   }, []);
 
-  // Mantener marketing siempre activo (sin opción de desactivar)
-  useEffect(() => {
-    if (loading || marketingOptIn) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch("/api/users/me/marketing-opt-in", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ marketingOptIn: true, source: "profile" }),
-        });
-        if (res.ok && !cancelled) setMarketingOptIn(true);
-      } catch (_err) {
-        // silent
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [loading, marketingOptIn]);
 
   async function loadDashboard() {
     try {
@@ -133,7 +114,6 @@ export default function ClientDashboardPage() {
       setPreventaPacks(data.preventaPacks || []);
       setPurchasesAwaitingVerification(data.purchasesAwaitingVerification || 0);
       setVisitedAlbums(data.visitedAlbums || []);
-      setMarketingOptIn(data.marketingOptIn ?? false);
     } catch (error) {
       console.error("Error cargando dashboard:", error);
       router.push("/cliente/login");

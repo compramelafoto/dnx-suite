@@ -37,6 +37,26 @@ describe("buildRegisterAccountRequest", () => {
     });
     assert.equal(req.endpoint, "/api/auth/register-photographer");
     assert.equal(req.body.ref, "SQZW2CCT");
+  });
+
+  it("sin la casilla marcada no hay permiso de novedades", () => {
+    const req = buildRegisterAccountRequest({
+      ...base,
+      accountType: "PHOTOGRAPHER",
+      refCode: null,
+      trainingMeta: null,
+    });
+    assert.equal(req.body.marketingOptIn, false);
+  });
+
+  it("con la casilla marcada manda el permiso", () => {
+    const req = buildRegisterAccountRequest({
+      ...base,
+      accountType: "PHOTOGRAPHER",
+      refCode: null,
+      trainingMeta: null,
+      marketingOptIn: true,
+    });
     assert.equal(req.body.marketingOptIn, true);
   });
 

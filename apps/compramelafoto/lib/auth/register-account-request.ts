@@ -51,6 +51,11 @@ export function buildRegisterAccountRequest(input: {
   trainingMeta: TrainingMeta;
   /** País ISO del fotógrafo (solo se manda en el alta de fotógrafo). */
   countryCode?: string | null;
+  /**
+   * Si la persona marcó la casilla de novedades. Nunca se asume: sin casilla
+   * marcada no hay permiso de marketing (Ley 25.326 y política de privacidad).
+   */
+  marketingOptIn?: boolean;
 }): RegisterAccountRequest {
   const { name, email, password, accountType, trainingMeta } = input;
   const countryCode = input.countryCode?.trim() || null;
@@ -69,7 +74,7 @@ export function buildRegisterAccountRequest(input: {
       name,
       email,
       password,
-      marketingOptIn: true,
+      marketingOptIn: input.marketingOptIn === true,
       ...(countryCode ? { countryCode } : {}),
       ...(refCode ? { ref: refCode } : {}),
       ...(trainingMeta

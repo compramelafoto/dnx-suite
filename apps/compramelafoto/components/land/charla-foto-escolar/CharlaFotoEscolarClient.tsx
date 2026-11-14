@@ -379,6 +379,15 @@ export default function CharlaFotoEscolarClient({
                     <Button variant="primary" className="w-full py-4 text-base" disabled={submitting}>
                       {submitting ? "Enviando..." : "Continuar y agendar"}
                     </Button>
+                    <p className="text-xs leading-relaxed text-[#6b7280]">
+                      Usamos tus datos para darte el acceso a la charla, avisarte de próximas charlas y
+                      medir y mostrar nuestros anuncios en Facebook e Instagram (tu email viaja cifrado).
+                      Podés pedir la baja cuando quieras. Ver la{" "}
+                      <Link href="/privacidad#publicidad" className="text-[#9a5c2a] hover:underline">
+                        Política de Privacidad
+                      </Link>
+                      .
+                    </p>
                   </form>
                 </>
               ) : (
