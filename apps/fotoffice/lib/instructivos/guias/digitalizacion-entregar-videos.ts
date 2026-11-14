@@ -29,6 +29,7 @@ export const guia: Instructivo = {
         "Con el video «Listo» aparecen:",
         "• «Ver video»: lo reproduce ahí mismo; se puede saltar a cualquier minuto. Para cerrarlo, «Cerrar video».",
         "• «Descargar video»: baja el archivo final a la computadora.",
+        "• «Guardar en pendrive o disco»: conectá el pendrive (o el disco), tocá el botón, elegí el pendrive y la carpeta y tocá «Guardar». Copia el video final, con la placa de la marca, y muestra el avance en porcentaje. El envío por correo y la copia en la nube siguen igual. Al terminar, expulsá el pendrive antes de sacarlo.",
         "• «Editar título»: cambia el nombre que ve el cliente. Escribilo y tocá «Guardar».",
         "• «Descartar»: borra la grabación y todo lo subido. Pregunta antes y no se puede deshacer.",
         "Los cortes de prueba de 0 minutos (por ejemplo, un Grabar y Detener para probar el equipo) quedan «Sin imagen»: descartalos para que no ensucien la lista ni cuenten como un cassette.",

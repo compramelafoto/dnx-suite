@@ -298,7 +298,7 @@ export function Estacion({ minutosSinSenal, equipos, continuar, preseleccion = n
     }
     if (r.ok) {
       setFase("terminada");
-      setAviso(s.perdida ?? (s.cierre.motivoFin === "SIN_SENAL" ? `Se cortó sola: ${minutosSinSenal} minutos sin imagen.` : "Grabación terminada y subida."));
+      setAviso(s.perdida ?? (s.cierre.motivoFin === "SIN_SENAL" ? `Se cortó sola: ${minutosSinSenal} minutos sin imagen.` : "Grabación terminada y subida. Cuando termine de convertirse, en «Ver grabaciones» la podés guardar también en un pendrive o disco."));
     } else {
       setCierreFallido(r.error ?? "No pudimos cerrar la grabación.");
     }
