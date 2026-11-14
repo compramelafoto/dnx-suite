@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { assertOrganizerOwnsEvent } from "@/lib/organizer-event-access";
 import { getOrCreateEventAlbumForUser } from "@/lib/events/event-album";
 import { eventPhotographerAlbumVisibilityForEventJoin } from "@/lib/events/event-photographer-album-visibility";
+import { avisarCobroDivididoAlSumarseEnEvento } from "@/lib/split-1n-consentimiento/aviso-evento-real";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -87,6 +88,9 @@ export async function POST(
         data: eventPhotographerAlbumVisibilityForEventJoin(),
       });
     }
+
+    // Si el evento lo pide, se le avisa que acepte el cobro dividido (nunca lanza).
+    await avisarCobroDivididoAlSumarseEnEvento({ eventId: access.event.id, userId: member.userId });
 
     return NextResponse.json({
       success: true,

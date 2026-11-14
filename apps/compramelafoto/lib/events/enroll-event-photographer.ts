@@ -9,6 +9,7 @@ import { getOrCreateEventAlbumForUser } from "@/lib/events/event-album";
 import { eventPhotographerAlbumVisibilityForEventJoin } from "@/lib/events/event-photographer-album-visibility";
 import { resolveEventPhotographerTerms } from "@/lib/events/terms";
 import type { OrganizerEventForAlbum } from "@/lib/organizer-event-access";
+import { avisarCobroDivididoAlSumarseEnEvento } from "@/lib/split-1n-consentimiento/aviso-evento-real";
 
 export type EnrollPhotographerOutcome = "enrolled" | "reactivated" | "already_active";
 
@@ -154,6 +155,9 @@ export async function enrollPhotographerInEvent(params: {
       data: eventPhotographerAlbumVisibilityForEventJoin(),
     });
   }
+
+  // Si el evento lo pide, se le avisa que acepte el cobro dividido (nunca lanza).
+  await avisarCobroDivididoAlSumarseEnEvento({ eventId: event.id, userId: photographer.id });
 
   return {
     ok: true,
