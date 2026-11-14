@@ -83,6 +83,11 @@ export interface CreatePreferenceParams {
   total: number; // ARS enteros (sin centavos)
   marketplaceFee?: number; // ARS enteros (sin centavos)
   externalReference: string; // ID del pedido como string
+  /**
+   * CLF internacional: moneda de la preferencia. Si viene, `total` es el monto mayor de esa
+   * moneda (puede tener decimales). Sin este campo todo queda en ARS enteros, como siempre.
+   */
+  currencyId?: string;
   metadata: {
     orderType: OrderType;
     orderId: number;
@@ -165,8 +170,8 @@ export async function createPreference(
         description: itemDescription,
         category_id: "others", // Categoría genérica para servicios (fotos, impresión)
         quantity: 1,
-        unit_price: Number(params.total), // ARS enteros - asegurar que sea número
-        currency_id: "ARS",
+        unit_price: Number(params.total), // ARS enteros (o monto mayor de `currencyId`)
+        currency_id: params.currencyId || "ARS",
       },
     ],
     ...(Number.isFinite(params.marketplaceFee) && params.marketplaceFee && params.marketplaceFee > 0

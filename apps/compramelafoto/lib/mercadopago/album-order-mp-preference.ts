@@ -18,6 +18,8 @@ import { applyAndPersistSellerReferralDiscount } from "@/lib/referral/referral-m
 import { scheduleCheckoutFeeShadowCompare } from "@/lib/pricing/checkout-fee-shadow";
 import { resolveAlbumOrderMercadoPagoCredentials } from "@/lib/mercadopago/resolve-album-order-mp-credentials";
 import { buildMercadoPagoUnauthorizedRefresher } from "@/lib/mercadopago/mp-oauth-token-refresh";
+import { shouldUseIntlFlow } from "@/lib/international/intl-order";
+import { buildIntlPreferenceInput } from "@/lib/international/intl-preference";
 
 const LOG_BLOCKED = "[TEST_CHECKOUT] blocked real payment flow";
 
@@ -129,6 +131,41 @@ export async function ensureAlbumOrderMpPreference(
   }
 
   const { accessTokenOverride, collectorType, collectorUserId } = tokenResult;
+
+  // CLF internacional (piloto): moneda local, sin marketplace_fee, sin split ni referidos.
+  // La comisión se descuenta del saldo en dólares del fotógrafo al confirmarse el pago.
+  if (shouldUseIntlFlow(order.currency)) {
+    if (
+      !options?.forceRegenerate &&
+      order.mpInitPoint &&
+      order.mpPreferenceId &&
+      mpInitPointMatchesCredential(order.mpInitPoint, accessTokenOverride)
+    ) {
+      return { ok: true, initPoint: order.mpInitPoint, reused: true };
+    }
+    const intlInput = buildIntlPreferenceInput(order);
+    const intlPref = await createPreference(
+      {
+        title: intlInput.title,
+        total: intlInput.total,
+        currencyId: intlInput.currencyId,
+        externalReference: intlInput.externalReference,
+        metadata: { orderType: "ALBUM_ORDER", orderId, component: "DIGITAL", intl: true },
+      },
+      {
+        accessTokenOverride,
+        refreshAccessTokenOnUnauthorized: buildMercadoPagoUnauthorizedRefresher({
+          ownerType: "USER",
+          ownerId: collectorUserId,
+        }),
+      }
+    );
+    await prisma.order.update({
+      where: { id: orderId },
+      data: { status: "PENDING", mpInitPoint: intlPref.initPoint, mpPreferenceId: intlPref.preferenceId },
+    });
+    return { ok: true, initPoint: intlPref.initPoint, reused: false };
+  }
 
   if (
     !options?.forceRegenerate &&
