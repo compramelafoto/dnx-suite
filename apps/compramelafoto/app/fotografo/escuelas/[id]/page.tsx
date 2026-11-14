@@ -339,6 +339,7 @@ export default function FotografoEscuelaDetallePage() {
   const [logoUploading, setLogoUploading] = useState(false);
   const logoInputRef = useRef<HTMLInputElement>(null);
   const [saving, setSaving] = useState(false);
+  const [deletingSchool, setDeletingSchool] = useState(false);
 
   // Nuevo curso
   const [showNewCourse, setShowNewCourse] = useState(false);
@@ -780,6 +781,24 @@ export default function FotografoEscuelaDetallePage() {
       alert(err?.message || "Error al guardar");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleDeleteSchool() {
+    if (!school) return;
+    const ok = window.confirm(
+      `¿Eliminar la escuela «${school.name}»? Se borran también sus cursos. Esta acción no se puede deshacer.\n\nSólo se puede eliminar si no tiene álbumes, alumnos, administradores ni comisiones. Si sólo querés corregir el nombre, usá «Guardar» con el nombre nuevo.`
+    );
+    if (!ok) return;
+    setDeletingSchool(true);
+    try {
+      const res = await fetch(`/api/fotografo/schools/${school.id}`, { method: "DELETE", credentials: "include" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || "No se pudo eliminar la escuela");
+      router.push("/fotografo/escuelas");
+    } catch (err: any) {
+      alert(err?.message || "No se pudo eliminar la escuela");
+      setDeletingSchool(false);
     }
   }
 
@@ -1555,7 +1574,7 @@ export default function FotografoEscuelaDetallePage() {
               <h1 className="text-xl font-bold text-gray-900">{school.name}</h1>
               {!editing ? (
                 <Button variant="secondary" onClick={() => setEditing(true)}>
-                  Editar
+                  Editar nombre y datos
                 </Button>
               ) : (
                 <div className="flex flex-wrap gap-2 justify-end">
@@ -1653,6 +1672,21 @@ export default function FotografoEscuelaDetallePage() {
                     onChange={(e) => setEditNotes(e.target.value)}
                     rows={2}
                   />
+                </div>
+                <div className="mt-2 border-t border-gray-200 pt-4">
+                  <p className="text-sm font-medium text-gray-800">Eliminar escuela</p>
+                  <p className="mt-1 text-xs text-gray-500">
+                    Se borra con sus cursos y no se puede deshacer. Sólo se puede si no tiene álbumes, alumnos,
+                    administradores ni comisiones anotadas.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleDeleteSchool}
+                    disabled={deletingSchool}
+                    className="mt-2 rounded-lg border border-red-300 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+                  >
+                    {deletingSchool ? "Eliminando…" : "Eliminar escuela"}
+                  </button>
                 </div>
               </div>
             ) : (
