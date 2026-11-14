@@ -8,6 +8,9 @@ import {
   simularReventa,
   validarDescuentoDeSocios,
   validarOferta,
+  admiteDescuentoDeSocios,
+  puedeActivarse,
+  validarInvitacion,
   validarPedidoDeReventa,
 } from "./reventa";
 
@@ -140,5 +143,63 @@ describe("simular la reventa al pedirla (spec, sección 6)", () => {
   it("devuelve los errores del motor", () => {
     const s = simularReventa({ listaCentavos: 10_000_000, comisionPlataformaBps: 500, beneficiarios: benef, pedidoBps: 2500, descuentoBps: 3000 });
     expect(s.ok).toBe(false);
+  });
+});
+
+describe("compartir un curso: invitación del dueño", () => {
+  const base = {
+    porcentajeBps: 1000,
+    gratisSocios: false,
+    esPropio: true,
+    invitadoEsDueno: false,
+    sinReparto: true,
+    grabadoPublicadoConPrecio: true,
+    acuerdoVigente: false,
+  };
+  it("acepta de 1% a 100% en un curso sin beneficiarios ajenos", () => {
+    expect(validarInvitacion(base)).toEqual([]);
+    expect(validarInvitacion({ ...base, porcentajeBps: 10000, gratisSocios: true })).toEqual([]);
+    expect(validarInvitacion({ ...base, porcentajeBps: 100 })).toEqual([]);
+  });
+  it("rechaza 0%, más de 100% o un porcentaje inválido", () => {
+    expect(validarInvitacion({ ...base, porcentajeBps: 0 }).join()).toMatch(/entre 1% y 100%/);
+    expect(validarInvitacion({ ...base, porcentajeBps: 10001 }).join()).toMatch(/entre 1% y 100%/);
+    expect(validarInvitacion({ ...base, porcentajeBps: null }).join()).toMatch(/entre 1% y 100%/);
+  });
+  it("regalarlo o darlo gratis a socios exige que el dueño sea el único beneficiario", () => {
+    expect(validarInvitacion({ ...base, sinReparto: false, porcentajeBps: 10000 }).join()).toMatch(/único beneficiario/);
+    expect(validarInvitacion({ ...base, sinReparto: false, gratisSocios: true }).join()).toMatch(/único beneficiario/);
+    expect(validarInvitacion({ ...base, sinReparto: false })).toEqual([]);
+  });
+  it("sólo el dueño invita, a otro espacio, con un curso a la venta y sin acuerdo vigente", () => {
+    expect(validarInvitacion({ ...base, esPropio: false }).join()).toMatch(/Sólo el dueño/);
+    expect(validarInvitacion({ ...base, invitadoEsDueno: true }).join()).toMatch(/otro espacio/);
+    expect(validarInvitacion({ ...base, grabadoPublicadoConPrecio: false }).join()).toMatch(/grabados, publicados y con precio/);
+    expect(validarInvitacion({ ...base, acuerdoVigente: true }).join()).toMatch(/Ya hay un acuerdo/);
+  });
+  it("no se invita a un espacio que ya cobra como beneficiario", () => {
+    expect(validarInvitacion({ ...base, invitadoEsBeneficiario: true }).join()).toMatch(/ya es beneficiario/);
+  });
+  it("regalado o gratis sólo se activa si el dueño sigue siendo el único beneficiario", () => {
+    expect(puedeActivarse({ shareBps: 10000, membersFree: false }, true)).toBe(true);
+    expect(puedeActivarse({ shareBps: 10000, membersFree: false }, false)).toBe(false);
+    expect(puedeActivarse({ shareBps: 1000, membersFree: true }, false)).toBe(false);
+    expect(puedeActivarse({ shareBps: 1000, membersFree: false }, false)).toBe(true);
+  });
+  it("un curso regalado no admite descuento para socios", () => {
+    expect(admiteDescuentoDeSocios(10000)).toBe(false);
+    expect(admiteDescuentoDeSocios(2500)).toBe(true);
+  });
+  it("en una invitación responde el invitado, no el dueño", () => {
+    const invitacion = { status: "PENDIENTE" as const, pausadoPor: null, invitadoPorDueno: true };
+    expect(aplicarAccion(invitacion, "APROBAR", "REVENDEDOR")).toEqual({ ok: true, status: "ACTIVO", pausadoPor: null });
+    expect(aplicarAccion(invitacion, "RECHAZAR", "REVENDEDOR")).toEqual({ ok: true, status: "RECHAZADO", pausadoPor: null });
+    expect(aplicarAccion(invitacion, "APROBAR", "DUENO")).toEqual({ ok: false, codigo: "no-es-dueno" });
+    expect(aplicarAccion(invitacion, "TERMINAR", "DUENO")).toEqual({ ok: true, status: "TERMINADO", pausadoPor: null });
+  });
+  it("pedir desde el Mercado que sea gratis para mis socios queda pendiente y exige un curso sin reparto", () => {
+    expect(estadoAlPedir(1000, 2500, true)).toBe("PENDIENTE");
+    expect(validarPedidoDeReventa({ ...pedidoBase, pideGratis: true, sinReparto: true })).toEqual([]);
+    expect(validarPedidoDeReventa({ ...pedidoBase, pideGratis: true, sinReparto: false }).join()).toMatch(/único beneficiario/);
   });
 });

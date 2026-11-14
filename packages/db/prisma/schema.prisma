@@ -10544,10 +10544,14 @@ model CourseResaleAgreement {
   id                  String                      @id @default(cuid())
   courseId            String
   resellerWorkspaceId String
-  /// Puntos básicos de cada venta para el revendedor: 0 < shareBps < 10000.
+  /// Puntos básicos de cada venta para el revendedor: 0 < shareBps <= 10000 (10000 sólo si lo invitó el dueño).
   shareBps            Int
   /// Descuento para los socios del revendedor, en puntos básicos: 0..shareBps.
   memberDiscountBps   Int                         @default(0)
+  /// Lo inició el dueño del curso ("Compartir con un espacio"): en PENDIENTE responde el invitado, no el dueño.
+  invitedByOwner      Boolean                     @default(false)
+  /// Los socios activos del revendedor lo toman gratis desde su portal (sólo si el dueño es el único beneficiario).
+  membersFree         Boolean                     @default(false)
   status              CourseResaleAgreementStatus @default(PENDIENTE)
   /// Quién pidió y quién aprobó (User.id). Sin relación a propósito: es un registro, no un permiso.
   requestedByUserId   Int?

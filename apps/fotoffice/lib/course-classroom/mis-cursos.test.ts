@@ -61,6 +61,13 @@ describe("Mis cursos", () => {
     expect(grupos[0].cursos[0].origin).toBe("MEMBER_BENEFIT");
   });
 
+  it("un curso compartido gratis se mide y se agrupa por el espacio que lo dio, no por el dueño", () => {
+    const dadoPorOtra = acceso({ id: "compartido", origin: "MEMBER_BENEFIT", expiresAt: null, otorgadoPor: otra });
+    expect(agruparMisCursos([dadoPorOtra], new Set(["ws-1"]), ahora)).toEqual([]);
+    const grupos = agruparMisCursos([dadoPorOtra], new Set(["ws-2"]), ahora);
+    expect(grupos.map((g) => g.workspace.name)).toEqual(["Otra"]);
+  });
+
   it("con todo visto, la clase que sigue es la primera (para volver a ver)", () => {
     const grupos = agruparMisCursos(
       [

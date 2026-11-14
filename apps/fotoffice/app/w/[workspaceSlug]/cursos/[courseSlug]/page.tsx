@@ -8,6 +8,7 @@ import { cargarBeneficiarios, cargarDueno } from "@/lib/course-marketplace/carga
 import { beneficiariosParaMotor, estadoDeVenta } from "@/lib/course-marketplace/beneficiarios";
 import { buscarAcuerdoDeVitrina, ESTADOS_DE_CURSO_PROPIO } from "@/lib/course-marketplace/vitrina";
 import { decidirVenta, montosDeVenta } from "@/lib/course-marketplace/venta";
+import { admiteDescuentoDeSocios } from "@/lib/course-marketplace/reventa";
 import { cobroConRepartoHabilitado } from "@/lib/payments/split-1n";
 import { appUrl as direccionDeLaApp } from "@/lib/app-url";
 import { computeAvailableSpots, getApprovedEnrollmentCountsByInstanceIds } from "@/lib/presential-courses/availability";
@@ -114,12 +115,14 @@ export default async function PublicCourseLandingPage({ params }: Props) {
       const decision = decidirVenta({
         estado: estadoDeVenta(presentialCourse.workspaceId, registrados),
         revendido,
+        reventaBps: acuerdo?.shareBps ?? null,
         splitHabilitado: cobroConRepartoHabilitado(),
       });
       aLaVenta = decision.tipo !== "PROXIMAMENTE";
       if (acuerdo) {
         cursoDe = duenoDelCurso.nombre;
-        if (acuerdo.memberDiscountBps > 0 && presentialCourse.priceArs) {
+        // Un curso regalado (100%) se cobra sin reparto, al precio de lista: no hay precio para socios.
+        if (acuerdo.memberDiscountBps > 0 && admiteDescuentoDeSocios(acuerdo.shareBps) && presentialCourse.priceArs) {
           const m = montosDeVenta({
             listaArs: presentialCourse.priceArs.toString(),
             comisionPlataformaBps: cargoServicioBps,

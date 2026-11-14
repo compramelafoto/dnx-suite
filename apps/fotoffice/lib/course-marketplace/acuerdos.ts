@@ -11,6 +11,12 @@ export type AcuerdoVista = {
   curso: { id: string; titulo: string; listaCentavos: number };
   otraParte: string;
   pausadoPorMi: boolean;
+  /** Lo inició el dueño ("Compartir con un espacio"): en PENDIENTE responde el invitado. */
+  invitadoPorDueno: boolean;
+  /** Gratis para los socios activos del espacio que lo recibe. */
+  membersFree: boolean;
+  /** Personas con acceso al curso por ese espacio (compras y gratis). */
+  alumnos: number;
   /** La fecha que corresponde al estado actual, con su rótulo ("Activo desde", "Pausado el"…). */
   fecha: Date;
   fechaRotulo: string;
@@ -22,6 +28,9 @@ const SELECT = {
   shareBps: true,
   memberDiscountBps: true,
   resellerWorkspaceId: true,
+  invitedByOwner: true,
+  membersFree: true,
+  courseId: true,
   pausedByWorkspaceId: true,
   createdAt: true,
   updatedAt: true,
@@ -51,6 +60,16 @@ export async function cargarAcuerdos(workspaceId: string): Promise<{ comoDueno: 
     prisma.courseResaleAgreement.findMany({ where: { course: { workspaceId } }, select: SELECT, orderBy: { createdAt: "desc" } }),
     prisma.courseResaleAgreement.findMany({ where: { resellerWorkspaceId: workspaceId }, select: SELECT, orderBy: { createdAt: "desc" } }),
   ]);
+  const todos = [...comoDueno, ...comoRevendedor];
+  const conteos = todos.length
+    ? await prisma.courseAccess.groupBy({
+        by: ["courseId", "workspaceId"],
+        where: { OR: todos.map((a) => ({ courseId: a.courseId, workspaceId: a.resellerWorkspaceId })) },
+        _count: { _all: true },
+      })
+    : [];
+  const alumnosDe = (a: { courseId: string; resellerWorkspaceId: string }) =>
+    conteos.find((c) => c.courseId === a.courseId && c.workspaceId === a.resellerWorkspaceId)?._count._all ?? 0;
   const nombres = await nombresDeNegocios([
     ...new Set([...comoDueno.map((a) => a.resellerWorkspaceId), ...comoRevendedor.map((a) => a.course.workspaceId)]),
   ]);
@@ -62,6 +81,9 @@ export async function cargarAcuerdos(workspaceId: string): Promise<{ comoDueno: 
     curso: { id: a.course.id, titulo: a.course.title, listaCentavos: Math.round(Number(a.course.priceArs ?? 0) * 100) },
     otraParte: nombres.get(otra) ?? "Negocio",
     pausadoPorMi: a.pausedByWorkspaceId === workspaceId,
+    invitadoPorDueno: a.invitedByOwner,
+    membersFree: a.membersFree,
+    alumnos: alumnosDe(a),
     ...fechaDelEstado(a),
   });
   return {

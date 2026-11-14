@@ -119,6 +119,7 @@ export async function createPublicCourseEnrollmentAction(
     const decision = decidirVenta({
       estado: estadoDeVenta(course.workspaceId, registrados),
       revendido: acuerdo !== null,
+      reventaBps: acuerdo?.shareBps ?? null,
       splitHabilitado: cobroConRepartoHabilitado(),
     });
     if (decision.tipo === "PROXIMAMENTE") return { error: "Este curso todavía no está a la venta." };
@@ -126,7 +127,8 @@ export async function createPublicCourseEnrollmentAction(
       montos = montosDeCompraSinReparto({
         listaArs: objetivo.monto.toString(),
         comisionPlataformaBps: feeBps,
-        owner: await cargarDueno(course.workspaceId),
+        // Cobra entero quien vende: el dueño, o el espacio al que se lo regaló (acuerdo al 100%).
+        owner: await cargarDueno(branding.workspaceId),
       });
     } else {
       // Con reparto: sólo llega acá con el split encendido. El descuento lo decide la sesión.
@@ -178,7 +180,8 @@ export async function createPublicCourseEnrollmentAction(
       // Sólo el curso grabado guarda el precio de lista; el presencial queda en null.
       listPriceArs: montos?.ok ? new Prisma.Decimal(montos.listPriceArs) : null,
       discountArs: montos?.ok ? new Prisma.Decimal(montos.discountArs) : null,
-      resaleAgreementId: conReparto && acuerdo ? acuerdo.id : null,
+      // Siempre que se vende por un acuerdo: también al 100%, para saber por dónde entró la venta.
+      resaleAgreementId: acuerdo?.id ?? null,
     },
     select: { id: true },
     });

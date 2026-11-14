@@ -8,7 +8,9 @@ import { BPS_TOTAL, MAX_RECEPTORES_SPLIT, calcularReparto, formatoPorcentaje, ty
  * - El dueño ofrece el curso con un % sugerido. Un pedido hasta el sugerido queda ACTIVO al
  *   instante; por encima, PENDIENTE hasta que el dueño lo apruebe.
  * - El revendedor fija el descuento para sus socios, de 0 hasta su propio %: nunca toca la parte
- *   de los demás. Nunca llega a "gratis": su % es siempre menor que 100.
+ *   de los demás.
+ * - El dueño también puede invitar a un espacio ("compartir"), hasta con el 100% y gratis para
+ *   los socios de ese espacio si es el único beneficiario. Esa invitación la responde el invitado.
  * - Cualquiera de los dos pausa o termina; lo pausado lo reanuda quien lo pausó.
  */
 
@@ -49,8 +51,44 @@ export function validarDescuentoDeSocios(descuentoBps: number, parteBps: number)
   return [];
 }
 
-export function estadoAlPedir(pedidoBps: number, sugeridoBps: number): "ACTIVO" | "PENDIENTE" {
-  return pedidoBps <= sugeridoBps ? "ACTIVO" : "PENDIENTE";
+/** Hasta el sugerido se activa solo. Pedir que sea gratis para los socios lo decide siempre el dueño. */
+export function estadoAlPedir(pedidoBps: number, sugeridoBps: number, pideGratis = false): "ACTIVO" | "PENDIENTE" {
+  return !pideGratis && pedidoBps <= sugeridoBps ? "ACTIVO" : "PENDIENTE";
+}
+
+const SOLO_SIN_REPARTO =
+  "Regalarlo o darlo gratis a los socios sólo se puede si tu espacio es el único beneficiario del curso: si no, los demás quedarían sin cobrar.";
+
+/**
+ * "Compartir con un espacio": el dueño invita a otro espacio con su % (de 1% a 100%; 100% es
+ * regalarlo) y, si quiere, gratis para los socios de ese espacio. Queda pendiente hasta que el
+ * invitado acepte. No hace falta que el curso esté en el Mercado.
+ */
+export function validarInvitacion(input: {
+  porcentajeBps: number | null;
+  gratisSocios: boolean;
+  esPropio: boolean;
+  invitadoEsDueno: boolean;
+  /** El invitado ya cobra como beneficiario del curso: no puede además revenderlo. */
+  invitadoEsBeneficiario?: boolean;
+  sinReparto: boolean;
+  grabadoPublicadoConPrecio: boolean;
+  acuerdoVigente: boolean;
+}): string[] {
+  if (!input.esPropio) return ["Sólo el dueño del curso puede compartirlo."];
+  if (input.invitadoEsDueno) return ["Elegí otro espacio: el curso ya es tuyo."];
+  if (input.invitadoEsBeneficiario) return ["Ese espacio ya es beneficiario del curso: cobra su parte de cada venta."];
+  if (!input.grabadoPublicadoConPrecio) return ["Sólo se comparten los cursos grabados, publicados y con precio."];
+  if (input.acuerdoVigente) return ["Ya hay un acuerdo con ese espacio para este curso. Lo ves en Cursos compartidos."];
+  const errores: string[] = [];
+  const p = input.porcentajeBps;
+  if (p === null || !Number.isInteger(p) || p <= 0 || p > BPS_TOTAL) {
+    errores.push("El porcentaje para el otro espacio tiene que estar entre 1% y 100%.");
+  } else if (p === BPS_TOTAL && !input.sinReparto) {
+    errores.push(SOLO_SIN_REPARTO);
+  }
+  if (input.gratisSocios && !input.sinReparto && !errores.includes(SOLO_SIN_REPARTO)) errores.push(SOLO_SIN_REPARTO);
+  return errores;
 }
 
 export function validarPedidoDeReventa(input: {
@@ -62,6 +100,9 @@ export function validarPedidoDeReventa(input: {
   esBeneficiario: boolean;
   cantidadBeneficiarios: number;
   acuerdoVigente: boolean;
+  /** Pide que sea gratis para sus socios: sólo en un curso sin reparto. */
+  pideGratis?: boolean;
+  sinReparto?: boolean;
 }): string[] {
   if (!input.ofrecido || input.sugeridoBps === null) return ["Este curso no se ofrece a otras instituciones."];
   if (input.esDueno) return ["No podés revender un curso de tu propio negocio."];
@@ -75,16 +116,30 @@ export function validarPedidoDeReventa(input: {
     errores.push(...validarDescuentoDeSocios(input.descuentoBps ?? 0, pedido));
   }
   // Sin filas, el dueño es el único beneficiario: cuenta como uno.
+  if (input.pideGratis && !input.sinReparto) errores.push(SOLO_SIN_REPARTO);
   if (Math.max(1, input.cantidadBeneficiarios) + 1 > MAX_RECEPTORES_SPLIT) {
     errores.push("Este curso ya reparte entre el máximo de cuentas que admite Mercado Pago.");
   }
   return errores;
 }
 
+/**
+ * Al activar un acuerdo (aprobar, aceptar o reanudar): regalarlo (100%) o darlo gratis a los socios
+ * sólo vale si el dueño sigue siendo el único beneficiario. Pudo sumar beneficiarios en el medio.
+ */
+export function puedeActivarse(acuerdo: { shareBps: number; membersFree: boolean }, sinReparto: boolean): boolean {
+  return sinReparto || (acuerdo.shareBps < BPS_TOTAL && !acuerdo.membersFree);
+}
+
+/** El descuento para socios no aplica a un curso regalado: esa venta va sin reparto y cobra el precio de lista. */
+export function admiteDescuentoDeSocios(shareBps: number): boolean {
+  return shareBps < BPS_TOTAL;
+}
+
 export type CodigoReventa = "no-es-dueno" | "no-pendiente" | "no-activo" | "no-pausaste" | "ya-termino";
 
 export function aplicarAccion(
-  acuerdo: { status: EstadoReventa; pausadoPor: LadoReventa | null },
+  acuerdo: { status: EstadoReventa; pausadoPor: LadoReventa | null; invitadoPorDueno?: boolean },
   accion: AccionReventa,
   lado: LadoReventa,
 ): { ok: true; status: EstadoReventa; pausadoPor: LadoReventa | null } | { ok: false; codigo: CodigoReventa } {
@@ -92,7 +147,8 @@ export function aplicarAccion(
   switch (accion) {
     case "APROBAR":
     case "RECHAZAR":
-      if (lado !== "DUENO") return { ok: false, codigo: "no-es-dueno" };
+      // Responde la otra punta: el dueño a un pedido, el invitado a una invitación del dueño.
+      if (lado !== (acuerdo.invitadoPorDueno ? "REVENDEDOR" : "DUENO")) return { ok: false, codigo: "no-es-dueno" };
       if (status !== "PENDIENTE") return { ok: false, codigo: "no-pendiente" };
       return { ok: true, status: accion === "APROBAR" ? "ACTIVO" : "RECHAZADO", pausadoPor: null };
     case "PAUSAR":
@@ -121,7 +177,13 @@ const MENSAJES_DE_ACUERDOS: Record<string, string> = {
   "curso-no-ofrecido": "El curso ya no se ofrece a otras instituciones: no se puede aprobar ni reanudar este acuerdo.",
   "ya-es-beneficiario": "Esa institución ya es beneficiaria del curso: no puede revenderlo.",
   "no-encontrado": "Ese acuerdo ya no está disponible.",
-  "no-es-dueno": "Sólo el dueño del curso puede aprobar o rechazar un pedido.",
+  "no-es-dueno": "Ese pedido lo responde la otra parte.",
+  aceptado: "Aceptaste: ya lo ofrecés en tu espacio.",
+  invitado: "Listo: le mandamos la invitación. Cuando el otro espacio la acepte, ya lo puede ofrecer.",
+  "curso-no-disponible": "El curso ya no está publicado con precio: no se puede activar este acuerdo.",
+  "invitado-sin-cursos": "Ese espacio no tiene el módulo de cursos encendido.",
+  "ya-no-sin-reparto": "El curso ahora tiene otros beneficiarios: no se puede regalar ni dar gratis a los socios. Terminá este acuerdo y armá uno nuevo.",
+  "descuento-no-aplica": "En un curso regalado no hay descuento para socios: si querés que lo tengan sin pagar, pedí que sea gratis para tus socios.",
   "no-pendiente": "Ese pedido ya no está pendiente.",
   "no-activo": "Sólo se puede pausar un acuerdo activo.",
   "no-pausaste": "Lo reanuda quien lo pausó.",
