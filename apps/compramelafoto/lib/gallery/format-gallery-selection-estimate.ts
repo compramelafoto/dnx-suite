@@ -1,4 +1,5 @@
 import { formatPurchaseArs } from "@/lib/album-purchase/format-purchase-ars";
+import { formatMoney } from "@/lib/international/money";
 import {
   getDigitalBulkDiscountPercent,
   type DigitalBulkDiscountInput,
@@ -60,7 +61,11 @@ export function buildGallerySelectionEstimate(
     discountAppliedLabel:
       discountPercent > 0 ? `${discountPercent}% OFF aplicado` : null,
     totalArs,
-    estimatedTotalLabel: `Total digital estimado: ${formatPurchaseArs(totalArs)}`,
+    estimatedTotalLabel: `Total digital estimado: ${
+      galleryPricing.currency && galleryPricing.currency !== "ARS"
+        ? formatMoney(totalArs, galleryPricing.currency)
+        : formatPurchaseArs(totalArs)
+    }`,
   };
 }
 
