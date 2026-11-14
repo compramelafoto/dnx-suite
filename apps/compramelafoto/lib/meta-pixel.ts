@@ -8,7 +8,7 @@ import { FUNNEL_EVENTS, type FunnelEventName } from "@/lib/funnel-events";
  * configurar quedan sin píxel.
  */
 
-type MetaStandardEvent = "PageView" | "ViewContent" | "InitiateCheckout" | "AddPaymentInfo" | "Purchase";
+type MetaStandardEvent = "PageView" | "ViewContent" | "InitiateCheckout" | "AddPaymentInfo" | "Purchase" | "Lead";
 
 type FbqFn = ((...args: unknown[]) => void) & { callMethod?: unknown; queue?: unknown[] };
 
