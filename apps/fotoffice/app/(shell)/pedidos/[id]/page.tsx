@@ -15,6 +15,8 @@ import { ContratosDelPedido } from "@/components/contratos/contratos-del-pedido"
 import { TarjetaClf } from "@/components/clf/tarjeta-clf";
 import { vinculoParaTarjeta } from "@/lib/clf/vinculo";
 import { aItemDePedido, ItemsPedido } from "@/components/pedidos/items-pedido";
+import { AgregarAlPedido } from "@/components/pedidos/agregar-al-pedido";
+import { catalogoParaEditor } from "@/lib/presupuestos/editor-datos";
 import { RegistrarCobro } from "@/components/pedidos/registrar-cobro";
 import { TarjetaCitas } from "@/components/agenda/tarjeta-citas";
 import { puedeEnContexto } from "@/lib/access/policy";
@@ -90,6 +92,8 @@ export default async function PedidoPage({ params }: { params: Promise<{ id: str
 
   const gestiona = puedeGestionarPedidos(ctx);
   const cancelado = detalle.estado === "CANCELADO";
+  // «Agregar producto»: el catálogo (sin costos) sólo para quien gestiona y si el pedido sigue vivo.
+  const catalogoAgregar = gestiona && !cancelado ? await catalogoParaEditor(workspace.id) : null;
   const hoy = diaEnBuenosAires(new Date());
   const costos = detalle.veCostos ? await costosDelPedido(ctx, detalle) : null;
   const costosYPagos = detalle.veCostos
@@ -498,6 +502,7 @@ export default async function PedidoPage({ params }: { params: Promise<{ id: str
           {citas ? <TarjetaCitas citas={citas} nueva={`pedido=${encodeURIComponent(detalle.id)}`} vacio="Este pedido todavía no tiene citas." /> : null}
 
           <ItemsPedido items={detalle.items.map((i) => aItemDePedido(i))} totales={detalle.totals} costos={costos} />
+          {catalogoAgregar ? <AgregarAlPedido pedidoId={detalle.id} numero={detalle.numero} catalogo={catalogoAgregar} /> : null}
 
           <section aria-labelledby="historial-titulo" className="fo-card space-y-3">
             <h2 id="historial-titulo" className="text-base font-semibold text-[var(--fo-text)]">
