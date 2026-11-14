@@ -1,6 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { computeWallet, validateTopUp, topUpCharge, suggestTopUp, crossedLowBalance } from "./wallet";
+import {
+  computeWallet,
+  validateTopUp,
+  topUpCharge,
+  suggestTopUp,
+  crossedLowBalance,
+  splitTopUpPayment,
+} from "./wallet";
 
 const at = new Date("2026-11-14T12:00:00Z");
 
@@ -45,4 +52,10 @@ test("cruce del umbral de saldo bajo (5 USD)", () => {
   assert.equal(crossedLowBalance(500, 499), true);
   assert.equal(crossedLowBalance(450, 300), false);
   assert.equal(crossedLowBalance(900, 600), false);
+});
+
+test("reparto de lo pagado: primero el adelanto adeudado, el resto al saldo", () => {
+  assert.deepEqual(splitTopUpPayment(3500, 2500), { creditUsdCents: 1000, advanceRepaidUsdCents: 2500 });
+  assert.deepEqual(splitTopUpPayment(3500, 0), { creditUsdCents: 3500, advanceRepaidUsdCents: 0 });
+  assert.deepEqual(splitTopUpPayment(1000, 2500), { creditUsdCents: 0, advanceRepaidUsdCents: 1000 });
 });

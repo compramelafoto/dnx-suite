@@ -88,7 +88,8 @@ export async function recordTopUp(params: {
   userId: number;
   captureId: string;
   paidUsdCents: number;
-  chosenUsdCents: number;
+  /** Lo que va al saldo (lo pagado menos el adelanto devuelto). */
+  creditUsdCents: number;
   advanceRepaidUsdCents: number;
 }): Promise<{ created: boolean }> {
   try {
@@ -97,7 +98,7 @@ export async function recordTopUp(params: {
         data: {
           userId: params.userId,
           type: "TOPUP",
-          amountUsdCents: params.chosenUsdCents,
+          amountUsdCents: params.creditUsdCents,
           externalRef: params.captureId,
           note: JSON.stringify({ paidUsdCents: params.paidUsdCents }),
         },

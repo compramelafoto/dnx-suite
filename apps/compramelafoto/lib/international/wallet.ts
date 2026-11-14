@@ -65,3 +65,15 @@ export function suggestTopUp(last30DaysCommissionUsdCents: number): { options: n
 export function crossedLowBalance(before: number, after: number): boolean {
   return before >= LOW_BALANCE_USD_CENTS && after < LOW_BALANCE_USD_CENTS;
 }
+
+/**
+ * Reparte lo que pagó el fotógrafo: primero cancela el adelanto que debe al momento de
+ * confirmar, y el resto va al saldo. Así nunca se pierde dinero si la deuda cambió.
+ */
+export function splitTopUpPayment(
+  paidUsdCents: number,
+  advanceDebtUsdCents: number,
+): { creditUsdCents: number; advanceRepaidUsdCents: number } {
+  const advanceRepaidUsdCents = Math.min(Math.max(0, advanceDebtUsdCents), Math.max(0, paidUsdCents));
+  return { creditUsdCents: Math.max(0, paidUsdCents - advanceRepaidUsdCents), advanceRepaidUsdCents };
+}
