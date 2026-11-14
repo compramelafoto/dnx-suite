@@ -39,17 +39,19 @@ export const guia: Instructivo = {
       ],
     },
     {
-      titulo: "Seña o pago total",
+      titulo: "Seña, pago total o sin seña",
       texto: [
-        "Elegí «Deja seña» o «Paga todo».",
+        "Elegí «Deja seña», «Paga todo» o «Sin seña».",
         "Con seña, el campo «Seña» propone la mitad, redondeada hacia arriba a $100. Cambiala si el cliente deja otro importe.",
         "Debajo se ve «Se cobra ahora $… · al retirar $…».",
+        "«Sin seña» toma el pedido presupuestado: queda cargado con su total, el cliente no deja nada ahora y paga todo al retirar.",
       ],
+      nota: "Un pedido sin seña también queda retenido: no se puede entregar hasta cobrar el total. Al retirar se cobra desde el tablero con «Cobrar y entregar».",
     },
     {
       titulo: "Cobrá",
       texto: [
-        "Elegí el medio de pago y tocá «Cobrar seña $…» (o «Cobrar $…» si paga todo).",
+        "Elegí el medio de pago y tocá «Cobrar seña $…» (o «Cobrar $…» si paga todo). Sin seña, el botón dice «Tomar pedido sin cobrar» (o «Cobrar $… · pedido sin seña» si además se lleva algo en el momento).",
         "Aparece «Pedido N creado», «Cobrado $… · queda $… al retirar» y, si se llevó algo en el momento, «Y la venta #N.».",
         "Decile al cliente el número de pedido y la fecha de entrega.",
       ],

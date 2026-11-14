@@ -5,18 +5,33 @@ export const guia: Instructivo = {
   slug: "trabajos-retiro-y-saldo",
   titulo: "El cliente viene a retirar: cobrar el saldo y entregar",
   resumen:
-    "Encontrar los trabajos del cliente, cobrarle lo que debe y dejar registrado que se lo llevó.",
+    "Cobrarle lo que debe y dejar registrado que se lo llevó: en un solo paso desde el tablero de trabajos, o desde el Cobrador.",
   seccion: "Trabajos y entregas",
   moduleKey: SALES_MODULE_KEY,
   minutos: 4,
   pasos: [
+    {
+      titulo: "Lo más rápido: «Cobrar y entregar» en el tablero",
+      texto: [
+        "Entrá a Proyectos → «En curso» y buscá la tarjeta del cliente en la columna «Listo para retirar».",
+        "Si el pedido debe dinero, la tarjeta dice «Retenido · debe $…» y el botón es «Cobrar y entregar». Tocalo (también podés arrastrar la tarjeta a «Entregado»).",
+        "En la ventana elegí el medio de pago. En efectivo, si querés, escribí con cuánto paga y te muestra el vuelto.",
+        "Si el pedido tiene otros trabajos listos, aparecen tildados para entregarlos juntos: destildá los que no se lleva.",
+        "Tocá «Cobrar $… y entregar».",
+      ],
+      sistema: [
+        "Cobra el saldo del pedido entero con recibo numerado y lo anota en Caja (en efectivo, entra al turno abierto). Es el mismo cobro que «Cobrar saldo» del Cobrador.",
+        "Después marca como entregados los trabajos tildados. Si el cobro no entra, no se entrega nada.",
+      ],
+      nota: "Si el cobro entró pero la entrega falló (por ejemplo, otra persona movió la tarjeta), la ventana lo avisa y el botón pasa a «Reintentar entrega»: no se vuelve a cobrar. Los pasos de abajo son el camino largo, desde el Cobrador.",
+    },
     {
       titulo: "Buscá al cliente en el Cobrador",
       texto: [
         "Abrí el Cobrador y, en «Buscar cliente», escribí su nombre, DNI o teléfono.",
         "Debajo aparece «Tiene un pedido en curso» (o «N pedidos en curso»). Cada pedido muestra su número, «Debe $…» o «Pagado» y los trabajos con la etapa en la que están.",
       ],
-      nota: "Si el pedido debe plata y el trabajo ya está en «Listo para retirar», el Cobrador avisa «Debe $… · retenido hasta pagar»: no se puede entregar hasta cobrar el saldo. Fijate que la etapa diga «Listo para retirar» (o similar). Si dice que está en el laboratorio o en proceso, todavía no llegó: no lo cobres como entregado.",
+      nota: "Si el pedido debe dinero y el trabajo ya está en «Listo para retirar», el Cobrador avisa «Debe $… · retenido hasta pagar»: no se puede entregar hasta cobrar el saldo. Fijate que la etapa diga «Listo para retirar» (o similar). Si dice que está en el laboratorio o en proceso, todavía no llegó: no lo cobres como entregado.",
     },
     {
       titulo: "Cobrá el saldo",
@@ -36,7 +51,7 @@ export const guia: Instructivo = {
       texto: [
         "Cobrar el saldo NO marca el trabajo como entregado. Hay que hacerlo aparte.",
         "Entrá a Proyectos → «En curso», buscá la tarjeta del cliente en la columna «Listo para retirar» y tocá «Entregado».",
-        "Si el pedido todavía debe plata, la tarjeta dice «Retenido · debe $…» y el botón «Entregado» está bloqueado: pasá antes por el paso anterior y cobrá el saldo.",
+        "Si el pedido todavía debe dinero, la tarjeta dice «Retenido · debe $…» y en lugar de «Entregado» aparece «Cobrar y entregar» (el primer paso de esta guía).",
         "La tarjeta pasa a «Entregado», donde queda visible 7 días.",
       ],
       sistema: [

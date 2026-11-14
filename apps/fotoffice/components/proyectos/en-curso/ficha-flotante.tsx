@@ -2,11 +2,11 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { ArrowRight, CalendarDays, Check, CheckCircle2, ExternalLink, Mail, MessageCircle, PackageCheck, Send, Undo2, X } from "lucide-react";
+import { ArrowRight, CalendarDays, Check, CheckCircle2, ExternalLink, Mail, MessageCircle, PackageCheck, Send, Undo2, Wallet, X } from "lucide-react";
 import { detalleTrabajoAction } from "@/app/actions/en-curso";
 import { fechaBA, fechaHoraBA } from "@/lib/ficha/formato";
 import { formatMinorArs } from "@/lib/membership/money";
-import { importeSinCentavos, mensajeCandado } from "@/lib/pedidos/candado-saldo-puro";
+import { importeSinCentavos } from "@/lib/pedidos/candado-saldo-puro";
 import { FASE_INFO } from "@/lib/proyectos/en-curso-puro";
 import type { TarjetaTrabajo } from "@/lib/proyectos/en-curso";
 import type { DetalleTrabajo } from "@/lib/proyectos/en-curso-detalle";
@@ -18,6 +18,7 @@ type Acciones = {
   onCorreo: () => void;
   onEnviar: () => void;
   onLlego: () => void;
+  onCobrar: () => void;
 };
 
 /**
@@ -203,20 +204,29 @@ export function FichaFlotante({
                 </>
               ) : t.fase === "LISTO" ? (
                 <>
-                  <Accion
-                    principal
-                    icono={<Check className="size-4" aria-hidden />}
-                    texto="Entregado"
-                    explicacion={
-                      e.retiene && t.pedido
-                        ? mensajeCandado(t.pedido.numero, t.pedido.saldoMinor)
-                        : e.siguiente
+                  {e.retiene && t.pedido ? (
+                    <Accion
+                      principal
+                      icono={<Wallet className="size-4" aria-hidden />}
+                      texto="Cobrar y entregar"
+                      explicacion={`El pedido ${t.pedido.numero} debe ${importeSinCentavos(t.pedido.saldoMinor)}: lo cobra acá mismo (con recibo y Caja) y lo marca como entregado.`}
+                      onClick={acciones.onCobrar}
+                      disabled={ocupada}
+                    />
+                  ) : (
+                    <Accion
+                      principal
+                      icono={<Check className="size-4" aria-hidden />}
+                      texto="Entregado"
+                      explicacion={
+                        e.siguiente
                           ? `Pasa a «${e.siguiente.name}»: el cliente ya se lo llevó.`
                           : "Termina el trabajo: el cliente ya se lo llevó."
-                    }
-                    onClick={acciones.onAvanzar}
-                    disabled={ocupada || e.retiene}
-                  />
+                      }
+                      onClick={acciones.onAvanzar}
+                      disabled={ocupada}
+                    />
+                  )}
                   {e.whatsapp ? (
                     <Accion
                       icono={<MessageCircle className="size-4" aria-hidden />}

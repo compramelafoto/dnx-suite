@@ -35,7 +35,8 @@ import {
 } from "@/lib/proyectos/en-curso-puro";
 import { importeSinCentavos, mensajeCandado } from "@/lib/pedidos/candado-saldo-puro";
 import type { TarjetaTrabajo } from "@/lib/proyectos/en-curso";
-import { ESTILO_URGENCIA, estadoDeTarjeta, textoEntrega } from "./estado-tarjeta";
+import { DialogoCobrarEntregar } from "./dialogo-cobrar-entregar";
+import { ESTILO_URGENCIA, estadoDeTarjeta, textoEntrega, trabajosParaEntregar } from "./estado-tarjeta";
 import { FichaFlotante } from "./ficha-flotante";
 
 /** Color de cada columna: el mismo criterio que los colores de las etapas de DNX. */
@@ -76,6 +77,9 @@ export function TableroEnCurso({
   // La ficha flotante abierta (por journeyId, así muestra la tarjeta fresca después de cada cambio).
   const [abierta, setAbierta] = useState<string | null>(null);
   const tarjetaAbierta = abierta ? (tarjetas.find((x) => x.journeyId === abierta) ?? null) : null;
+  // «Cobrar y entregar» abierto (por journeyId).
+  const [cobrando, setCobrando] = useState<string | null>(null);
+  const tarjetaCobrando = cobrando ? (tarjetas.find((x) => x.journeyId === cobrando && x.pedido !== null) ?? null) : null;
   // Mouse: arrastra al moverse 6 px (un clic sigue siendo clic). Táctil: mantener apretado, para no
   // pelear con el desplazamiento del tablero.
   const sensores = useSensors(
@@ -207,6 +211,11 @@ export function TableroEnCurso({
     const t = tarjetas.find((x) => x.journeyId === e.active.id);
     const fase = e.over?.id;
     if (!t || !esFase(fase) || fase === faseDe(t)) return;
+    // Soltar en «Entregado» un trabajo retenido por saldo abre «Cobrar y entregar» en vez de rebotar.
+    if (fase === "ENTREGADO" && !t.cerrado && t.fase === "LISTO" && t.pedido && t.pedido.saldoMinor > 0) {
+      setCobrando(t.journeyId);
+      return;
+    }
     const destino = destinoParaFase(t.etapas, t.etapaActualId, fase);
     if (!destino) {
       setAviso({ ok: false, texto: `${t.cliente}: el recorrido «${t.recorrido.nombre}» no tiene una etapa de «${FASE_INFO[fase].titulo}».` });
@@ -371,6 +380,7 @@ export function TableroEnCurso({
                           onCorreo={() => avisarPorCorreo(t)}
                           onEnviar={() => enviarAlProveedor(t)}
                           onLlego={() => llego(t)}
+                          onCobrar={() => setCobrando(t.journeyId)}
                           onAbrir={() => setAbierta(t.journeyId)}
                         />
                       </Arrastrable>
@@ -406,8 +416,25 @@ export function TableroEnCurso({
             onCorreo: () => avisarPorCorreo(tarjetaAbierta),
             onEnviar: () => enviarAlProveedor(tarjetaAbierta),
             onLlego: () => llego(tarjetaAbierta),
+            onCobrar: () => {
+              setAbierta(null);
+              setCobrando(tarjetaAbierta.journeyId);
+            },
           }}
           onCerrar={() => setAbierta(null)}
+        />
+      ) : null}
+
+      {tarjetaCobrando ? (
+        <DialogoCobrarEntregar
+          key={tarjetaCobrando.journeyId}
+          trabajos={trabajosParaEntregar(tarjetaCobrando, tarjetas)}
+          onCerrar={() => setCobrando(null)}
+          onTerminado={(a) => {
+            setCobrando(null);
+            setAviso(a);
+            router.refresh();
+          }}
         />
       ) : null}
     </div>
@@ -499,7 +526,8 @@ function BotonIcono({ titulo, onClick, href, disabled, children }: { titulo: str
  * entrega y la acción que corresponde a la columna:
  * - Recibido / En proceso con proveedor sin enviar: «Enviar a …» (correo al laboratorio y pasa sola a En el proveedor).
  * - En el proveedor: «Llegó» (pasa directo a Listo para retirar y le avisa al cliente por correo).
- * - Listo para retirar: WhatsApp, correo y «Entregado».
+ * - Listo para retirar: WhatsApp, correo y «Entregado»; si el pedido debe saldo, «Cobrar y entregar»
+ *   (cobra lo que falta y lo marca entregado en un solo paso, sin ir al Cobrador).
  * - El resto: la etapa siguiente.
  * Tocarla fuera de sus botones abre la ficha flotante, con todo el detalle y qué hace cada acción.
  */
@@ -515,6 +543,7 @@ function Tarjeta({
   onCorreo = () => {},
   onEnviar = () => {},
   onLlego = () => {},
+  onCobrar = () => {},
   onAbrir,
 }: {
   t: TarjetaTrabajo;
@@ -529,6 +558,7 @@ function Tarjeta({
   onCorreo?: () => void;
   onEnviar?: () => void;
   onLlego?: () => void;
+  onCobrar?: () => void;
   /** Sin esto (la copia que viaja al arrastrar) la tarjeta no abre la ficha. */
   onAbrir?: () => void;
 }) {
@@ -540,6 +570,13 @@ function Tarjeta({
   if (!t.cerrado && puedeOperar && !movida) {
     if (porEnviar) principal = { texto: `Enviar a ${t.proveedor}`, icono: <Send className="size-3.5" aria-hidden />, onClick: onEnviar, titulo: "Le manda el pedido por correo y pasa a En el proveedor" };
     else if (t.fase === "EN_PROVEEDOR") principal = { texto: "Llegó", icono: <PackageCheck className="size-3.5" aria-hidden />, onClick: onLlego, titulo: "Pasa a Listo para retirar y le avisa al cliente por correo" };
+    else if (t.fase === "LISTO" && retiene && t.pedido)
+      principal = {
+        texto: "Cobrar y entregar",
+        icono: <Wallet className="size-3.5" aria-hidden />,
+        onClick: onCobrar,
+        titulo: `Cobra el saldo del pedido ${t.pedido.numero} (${importeSinCentavos(t.pedido.saldoMinor)}) y lo marca como entregado`,
+      };
     else if (t.fase === "LISTO") principal = { texto: "Entregado", icono: <Check className="size-3.5" aria-hidden />, onClick: onAvanzar, titulo: retiene && t.pedido ? mensajeCandado(t.pedido.numero, t.pedido.saldoMinor) : siguiente ? `Pasar a «${siguiente.name}»` : "Terminar el trabajo", bloqueado: retiene };
     else principal = { texto: siguiente ? siguiente.name : "Terminar", icono: siguiente ? <ArrowRight className="size-3.5" aria-hidden /> : <CheckCircle2 className="size-3.5" aria-hidden />, onClick: onAvanzar, titulo: siguiente ? `Pasar a «${siguiente.name}»` : "Terminar el trabajo" };
   }

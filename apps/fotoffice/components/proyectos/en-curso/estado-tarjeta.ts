@@ -83,3 +83,15 @@ export function estadoDeTarjeta(t: TarjetaTrabajo, hoy: string, estudio: string)
         : null,
   };
 }
+
+/**
+ * «Cobrar y entregar»: los trabajos que se entregan junto con `t` al cobrar el saldo de su pedido.
+ * El saldo es del pedido entero, así que se ofrecen también los otros trabajos del mismo pedido que
+ * ya están en «Listo para retirar» (abiertos). `t` va siempre primero. Sin pedido, sólo `t`.
+ */
+export function trabajosParaEntregar(t: TarjetaTrabajo, todas: readonly TarjetaTrabajo[]): TarjetaTrabajo[] {
+  if (!t.pedido) return [t];
+  const pedidoId = t.pedido.id;
+  const otros = todas.filter((x) => x.journeyId !== t.journeyId && !x.cerrado && x.fase === "LISTO" && x.pedido?.id === pedidoId);
+  return [t, ...otros];
+}

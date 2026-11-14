@@ -295,7 +295,8 @@ export function Pos({
   } | null>(null);
   // Pedido para retirar (cuando el ticket tiene trabajos con proceso).
   const [entregaElegida, setEntregaElegida] = useState<string | null>(null);
-  const [conSena, setConSena] = useState(true);
+  // Cómo paga el pedido: deja seña, paga todo, o no deja nada (queda presupuestado y paga al retirar).
+  const [pagoPedido, setPagoPedido] = useState<"SENA" | "TOTAL" | "NADA">("SENA");
   const [senaText, setSenaText] = useState("");
   const claveCobroRef = useRef<string | null>(null);
   // Pedidos abiertos del cliente elegido: para cobrar el saldo cuando viene a retirar.
@@ -833,7 +834,7 @@ export function Pos({
     setEditandoPrecio(null);
     setCliente(null);
     setEntregaElegida(null);
-    setConSena(true);
+    setPagoPedido("SENA");
     setSenaText("");
     setPagoVerificado(null);
     setPagoQr(null);
@@ -862,7 +863,8 @@ export function Pos({
     );
     const entrega = entregaElegida ?? sugerirEntrega(hoyEnArgentina(), plazo);
     const senaTipeada = parseArsToMinor(senaText);
-    const sena = conSena ? Math.min(senaTipeada ?? senaSugerida(totalPedido), totalPedido) : null;
+    const sena =
+      pagoPedido === "NADA" ? 0 : pagoPedido === "SENA" ? Math.min(senaTipeada ?? senaSugerida(totalPedido), totalPedido) : null;
     return {
       hay: filas.length > 0,
       filas: filas.length,
@@ -1725,19 +1727,22 @@ export function Pos({
                   aria-label="Fecha de entrega"
                 />
               </label>
-              <div className="grid grid-cols-2 gap-1.5" role="radiogroup" aria-label="Cómo paga el pedido">
-                {[
-                  { v: true, t: "Deja seña" },
-                  { v: false, t: "Paga todo" },
-                ].map((o) => (
+              <div className="grid grid-cols-3 gap-1.5" role="radiogroup" aria-label="Cómo paga el pedido">
+                {(
+                  [
+                    { v: "SENA", t: "Deja seña" },
+                    { v: "TOTAL", t: "Paga todo" },
+                    { v: "NADA", t: "Sin seña" },
+                  ] as const
+                ).map((o) => (
                   <button
                     key={o.t}
                     type="button"
                     role="radio"
-                    aria-checked={conSena === o.v}
-                    onClick={() => setConSena(o.v)}
+                    aria-checked={pagoPedido === o.v}
+                    onClick={() => setPagoPedido(o.v)}
                     className={`rounded-[var(--fo-radius-sm)] border px-2 py-1.5 text-xs font-medium ${
-                      conSena === o.v
+                      pagoPedido === o.v
                         ? "border-[var(--fo-accent)] bg-[var(--fo-accent-muted)] text-[var(--fo-text)]"
                         : "border-[var(--fo-border)] bg-[var(--fo-bg-elevated)] text-[var(--fo-muted)]"
                     }`}
@@ -1746,7 +1751,7 @@ export function Pos({
                   </button>
                 ))}
               </div>
-              {conSena ? (
+              {pagoPedido === "SENA" ? (
                 <label className="flex items-center justify-between gap-2 text-sm">
                   <span className="text-[var(--fo-muted)]">Seña</span>
                   <InputMoneda
@@ -1758,6 +1763,12 @@ export function Pos({
                     aria-label="Seña"
                   />
                 </label>
+              ) : null}
+              {pagoPedido === "NADA" ? (
+                <p className="text-xs text-[var(--fo-muted)]">
+                  Queda presupuestado en <strong className="text-[var(--fo-text)]">{formatMinorArs(pedido.totalPedido)}</strong>: no deja nada ahora y paga todo
+                  al retirar. No se puede entregar hasta cobrarlo.
+                </p>
               ) : null}
               <p className="text-xs text-[var(--fo-muted)]">
                 Se cobra ahora <strong className="text-[var(--fo-text)]">{formatMinorArs(pedido.aCobrar)}</strong>
@@ -1926,8 +1937,11 @@ export function Pos({
                   <>
                     <p className="font-semibold text-[var(--fo-success)]">Pedido {ultimaVenta.pedido.numero} creado</p>
                     <p className="text-[var(--fo-text)]">
-                      Cobrado {formatMinorArs(ultimaVenta.pedido.cobradoMinor)}
-                      {ultimaVenta.pedido.saldoMinor > 0 ? ` · queda ${formatMinorArs(ultimaVenta.pedido.saldoMinor)} al retirar` : " · pagado"}
+                      {ultimaVenta.pedido.cobradoMinor === 0 && ultimaVenta.pedido.saldoMinor > 0
+                        ? `Sin seña · paga ${formatMinorArs(ultimaVenta.pedido.saldoMinor)} al retirar`
+                        : `Cobrado ${formatMinorArs(ultimaVenta.pedido.cobradoMinor)}${
+                            ultimaVenta.pedido.saldoMinor > 0 ? ` · queda ${formatMinorArs(ultimaVenta.pedido.saldoMinor)} al retirar` : " · pagado"
+                          }`}
                     </p>
                     {ultimaVenta.saleNumber !== null ? <p className="text-[var(--fo-text)]">Y la venta #{ultimaVenta.saleNumber}.</p> : null}
                     {ultimaVenta.pedido.aviso ? <p className="text-[var(--fo-warning)]">{ultimaVenta.pedido.aviso}</p> : null}
@@ -1979,8 +1993,12 @@ export function Pos({
               ? "Cobrando…"
               : rows.length === 0
                 ? "Cobrar"
-                : pedido.hay && pedido.sena !== null && pedido.sena < pedido.totalPedido
-                  ? `Cobrar seña ${formatMinorArs(pedido.aCobrar)}`
+                : pedido.hay && pedido.aCobrar === 0
+                  ? "Tomar pedido sin cobrar"
+                  : pedido.hay && pedido.sena === 0
+                    ? `Cobrar ${formatMinorArs(pedido.aCobrar)} · pedido sin seña`
+                    : pedido.hay && pedido.sena !== null && pedido.sena < pedido.totalPedido
+                      ? `Cobrar seña ${formatMinorArs(pedido.aCobrar)}`
                   : `Cobrar ${formatMinorArs(pedido.aCobrar)}`}
           </button>
         </div>
