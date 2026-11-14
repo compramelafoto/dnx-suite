@@ -18,9 +18,11 @@ import { referenciaPedido } from "./pago-servidor";
 
 export type FotoDelPedido = { mensajeId: string };
 export type RenglonBot = { fotos: FotoDelPedido[]; medida: string; cantidad: number; plazo: Plazo; papel: "BRILLO" | "MATE" };
-export type DatosPedidoBot = { renglones: RenglonBot[]; envio: { direccion: string } | null; nombre: string; email?: string | null };
+/** Datos para transferir del estudio (alias o CVU cargado). Con ellos, el correo no lleva links de Mercado Pago. */
+export type TransferenciaDelEstudio = { alias: string | null; cbuCvu: string | null; titular: string | null; banco: string | null; cuit?: string | null };
+export type DatosPedidoBot = { renglones: RenglonBot[]; envio: { direccion: string } | null; nombre: string; email?: string | null; transferencia?: TransferenciaDelEstudio | null };
 
-export type ResumenPorCorreo = { email: string; nombre: string; numero: number; lineas: LineaCotizada[]; envio: number; total: number; sena: number; depositPct: number; linkSena: string; linkTotal: string; fechas: { plazo: Plazo; fecha: string }[] };
+export type ResumenPorCorreo = { email: string; nombre: string; numero: number; lineas: LineaCotizada[]; envio: number; total: number; sena: number; depositPct: number; linkSena: string; linkTotal: string; fechas: { plazo: Plazo; fecha: string }[]; transferencia?: TransferenciaDelEstudio | null };
 export type ChatDelPedido = { id: string; waId: string; clientId: string | null; nombre: string | null };
 
 export type ResultadoPedidoBot =
@@ -254,7 +256,7 @@ export async function crearPedidoDesdeWhatsapp(workspaceId: string, chat: ChatDe
     const fechas = plazos.map((plazo) => ({ plazo, fecha: fechaPorPlazo(plazo, ahora) }));
     if (email) {
       await (deps.enviarResumen ?? enviarResumenPorCorreo)(workspaceId, {
-        email, nombre, numero: pedido.number, lineas: cot.lineas, envio: envio?.pesos ?? 0, total, sena, depositPct, linkSena, linkTotal, fechas,
+        email, nombre, numero: pedido.number, lineas: cot.lineas, envio: envio?.pesos ?? 0, total, sena, depositPct, linkSena, linkTotal, fechas, transferencia: datos.transferencia ?? null,
       }).catch(() => console.warn("[impresiones] no salió el resumen por correo", { numero: pedido.number }));
     }
     return {
@@ -279,7 +281,7 @@ export async function crearPedidoDesdeWhatsapp(workspaceId: string, chat: ChatDe
 const precio = (n: number) => `$${Math.round(n).toLocaleString("es-AR")}`;
 const ddmm = (ymd: string) => `${ymd.slice(8, 10)}/${ymd.slice(5, 7)}`;
 
-/** El resumen del pedido por correo (si el cliente lo pidió): lo mismo que le pasa el bot, con los dos links. */
+/** El resumen del pedido por correo (si el cliente lo pidió): lo mismo que le pasa el bot; con datos para transferir si el estudio los tiene, si no con los dos links. */
 async function enviarResumenPorCorreo(workspaceId: string, d: ResumenPorCorreo): Promise<void> {
   const [{ sendTransactionalEmail }, { loadWorkspaceSender }, { esc }] = await Promise.all([
     import("@/lib/communications/send-email"),
@@ -298,10 +300,17 @@ async function enviarResumenPorCorreo(workspaceId: string, d: ResumenPorCorreo):
     `Seña (${d.depositPct} %): ${precio(d.sena)}`,
     `Fechas si pagás hoy: ${d.fechas.map((f) => `${plazo[f.plazo]}, ${ddmm(f.fecha)}`).join("; ")}`,
     "",
-    `Pagar la seña: ${d.linkSena}`,
-    `Pagar el total: ${d.linkTotal}`,
-    "",
-    "Cuando pagues, el pedido sale a imprimir. Te esperamos en el estudio.",
+    ...(d.transferencia
+      ? [
+          "Podés transferir la seña o el total a:",
+          ...(d.transferencia.alias ? [`Alias: ${d.transferencia.alias}`] : []),
+          ...(d.transferencia.cbuCvu ? [`CBU/CVU: ${d.transferencia.cbuCvu}`] : []),
+          ...(d.transferencia.titular ? [`Titular: ${d.transferencia.titular}`] : []),
+          ...(d.transferencia.banco ? [`Banco: ${d.transferencia.banco}`] : []),
+          "",
+          "Mandanos el comprobante por WhatsApp: cuando lo verificamos, el pedido sale a imprimir. Te esperamos en el estudio.",
+        ]
+      : [`Pagar la seña: ${d.linkSena}`, `Pagar el total: ${d.linkTotal}`, "", "Cuando pagues, el pedido sale a imprimir. Te esperamos en el estudio."]),
   ].join("\n");
   await sendTransactionalEmail({
     to: d.email,

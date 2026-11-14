@@ -22,6 +22,8 @@ export type DatosListoWhatsapp = {
   horario: string | null;
   /** Enlace para ver y descargar los archivos (entregas digitales). Sólo va en el texto libre. */
   urlArchivos?: string | null;
+  /** Alias o CVU del estudio: el saldo se ofrece por transferencia, sin link de Mercado Pago. */
+  transferencia?: { alias: string | null; cbuCvu: string | null } | null;
 };
 
 const IDIOMA = "es_AR";
@@ -35,7 +37,9 @@ export function textoListoWhatsapp(d: DatosListoWhatsapp): string {
   const partes = [`${saludo} 😊 Tu pedido (${d.trabajo}) ya está listo para retirar.`];
   if (d.saldoMinor > 0) {
     partes.push(
-      d.urlPago
+      d.transferencia && (d.transferencia.alias || d.transferencia.cbuCvu)
+        ? `Te queda un saldo de ${pesos(d.saldoMinor)}: podés pagarlo al retirar o transferirlo ${d.transferencia.alias ? `al alias ${d.transferencia.alias}` : `al CBU/CVU ${d.transferencia.cbuCvu}`} y mandarnos el comprobante por acá.`
+        : d.urlPago
         ? `Te queda un saldo de ${pesos(d.saldoMinor)}: podés pagarlo al retirar o desde acá ${d.urlPago}`
         : `Te queda un saldo de ${pesos(d.saldoMinor)}, que abonás al retirar.`,
     );

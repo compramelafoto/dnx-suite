@@ -378,6 +378,9 @@ export function herramientasDeAtencion(
             papel: r.papel === "mate" ? "MATE" : "BRILLO",
           });
         }
+        // Transferencia por omisión (los links de Mercado Pago le cuestan comisión al estudio); sin alias ni CVU, el link como siempre.
+        const transferencia = medio === "tarjeta" ? null : await deps.datosTransferencia(workspaceId).catch(() => null);
+        datos.transferencia = transferencia;
         const res = await deps.armarPedido(workspaceId, chat, datos);
         if (!res.ok) {
           const motivos: Record<string, string> = {
@@ -390,8 +393,6 @@ export function herramientasDeAtencion(
           };
           return { ok: true, message: motivos[res.motivo] ?? "No pude armar el pedido. Usá pasar_a_persona con un resumen de lo que pide." };
         }
-        // Transferencia por omisión (los links de Mercado Pago le cuestan comisión al estudio); sin alias ni CVU, el link como siempre.
-        const transferencia = medio === "tarjeta" ? null : await deps.datosTransferencia(workspaceId).catch(() => null);
         const nombrePlazo = { INSTANTANEA: "instantánea", MANANA: "para mañana", SEMANA: "para la próxima semana" } as const;
         const lineas = res.lineas.map((l) => `- ${l.cantidad} × ${l.medida} ${nombrePlazo[l.plazo]}: ${precioDeLista(l.precioUnitario)} c/u`);
         const fechas = res.fechas.map((f) => `${nombrePlazo[f.plazo]}: ${f.fecha.slice(8, 10)}/${f.fecha.slice(5, 7)}`);

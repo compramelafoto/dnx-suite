@@ -88,11 +88,13 @@ export async function avisarListoParaRetirar(
 
   let whatsappSalio = false;
   if (waId) {
-    const urlPago = saldoMinor > 0 && p.pedidoId ? await enlaceDelPedidoDelSistema(workspaceId, p.pedidoId).catch(() => null) : null;
+    // Con alias o CVU cargado, el saldo se ofrece por transferencia: sin link de Mercado Pago (y sin el botón de la plantilla).
+    const transferencia = saldoMinor > 0 && (ajustes.alias || ajustes.cbuCvu) ? { alias: ajustes.alias, cbuCvu: ajustes.cbuCvu } : null;
+    const urlPago = saldoMinor > 0 && p.pedidoId && !transferencia ? await enlaceDelPedidoDelSistema(workspaceId, p.pedidoId).catch(() => null) : null;
     whatsappSalio = await avisarPorWhatsapp(
       workspaceId,
       waId,
-      { nombre, trabajo, numeroPedido: pedido?.number ?? null, saldoMinor, urlPago: urlPago?.ok ? urlPago.url : null, horario: branding?.atencionHorario ?? null, urlArchivos: enlace && enlace.ok ? enlace.url : null },
+      { nombre, trabajo, numeroPedido: pedido?.number ?? null, saldoMinor, urlPago: urlPago?.ok ? urlPago.url : null, horario: branding?.atencionHorario ?? null, urlArchivos: enlace && enlace.ok ? enlace.url : null, transferencia },
       branding?.publicSlug ?? null,
     );
   }
@@ -174,3 +176,4 @@ export async function avisarSiQuedoListo(workspaceId: string, proyectoId: string
     console.error("[proyectos][aviso-listo] falló el aviso automático", { error: e instanceof Error ? e.name : "?" });
   }
 }
+

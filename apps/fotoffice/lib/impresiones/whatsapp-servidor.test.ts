@@ -141,6 +141,13 @@ describe("crear un pedido de impresión desde WhatsApp", () => {
     expect(enviarResumen).toHaveBeenCalledTimes(1);
   });
 
+  it("con datos para transferir: el resumen por correo los recibe (y no ofrece los links)", async () => {
+    const enviarResumen = vi.fn(async (..._a: unknown[]) => undefined);
+    const transferencia = { alias: "estudio.mp", cbuCvu: "000", titular: "Estudio", banco: "MP" };
+    await crearPedidoDesdeWhatsapp("w1", chat, { renglones: [renglon(["m1"])], envio: null, nombre: "Ana", email: "ana@test.com", transferencia }, { ...B.deps, enviarResumen });
+    expect((enviarResumen.mock.calls[0] as [string, { transferencia: unknown }])[1].transferencia).toEqual(transferencia);
+  });
+
   it("módulo apagado o sin Mercado Pago: no arma", async () => {
     expect(await crearPedidoDesdeWhatsapp("w1", chat, { renglones: [renglon(["m1"])], envio: null, nombre: "Ana" }, { ...B.deps, moduloEncendido: async () => false })).toMatchObject({ ok: false, motivo: "MODULO" });
     expect(await crearPedidoDesdeWhatsapp("w1", chat, { renglones: [renglon(["m1"])], envio: null, nombre: "Ana" }, { ...B.deps, collector: async () => null })).toMatchObject({ ok: false, motivo: "SIN_MP" });

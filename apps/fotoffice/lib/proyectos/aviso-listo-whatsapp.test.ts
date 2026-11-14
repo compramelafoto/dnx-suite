@@ -17,6 +17,13 @@ describe("textoListoWhatsapp", () => {
     expect(t).toContain("https://fotoffice.com/w/dnx/pedido/abc");
     expect(t).toContain("de 14 a 19 h");
   });
+  it("con saldo y alias del estudio: ofrece transferir y mandar el comprobante, sin link", () => {
+    const t = textoListoWhatsapp({ ...base, saldoMinor: 750_000, urlPago: "https://fotoffice.com/w/dnx/pedido/abc", transferencia: { alias: "estudio.mp", cbuCvu: null } });
+    expect(t).toMatch(/saldo de \$\s7\.500/);
+    expect(t).toContain("al alias estudio.mp");
+    expect(t).toContain("comprobante");
+    expect(t).not.toContain("https://");
+  });
   it("entrega digital: suma el enlace de los archivos", () => {
     expect(textoListoWhatsapp({ ...base, urlArchivos: "https://fotoffice.com/c/x" })).toContain("https://fotoffice.com/c/x");
   });
