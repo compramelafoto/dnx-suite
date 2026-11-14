@@ -3,6 +3,7 @@ import "./globals.css";
 import MainLayout from "@/components/layout/MainLayout";
 import ComprameLaFotoDesignProvider from "@/components/providers/ComprameLaFotoDesignProvider";
 import { getPublicSiteOrigin } from "@/lib/public-site-url";
+import MetaPixel from "@/components/analytics/MetaPixel";
 import CuadroGuia from "@/components/demos/CuadroGuia";
 
 const defaultTitle = "ComprameLaFoto - Compra y descarga tus fotos digitales e impresas";
@@ -39,6 +40,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <MainLayout>{children}</MainLayout>
           <CuadroGuia />
         </ComprameLaFotoDesignProvider>
+        <MetaPixel />
       </body>
     </html>
   );

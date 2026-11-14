@@ -9,10 +9,11 @@ const monorepoRoot = path.join(appDir, "../..");
 // va.vercel-scripts.com: Vercel Web Analytics en desarrollo y previews. En
 // producción el script se sirve desde /_vercel/insights (mismo origen), pero
 // sin este origen la analítica de las landings /dnx no carga fuera de prod.
+// connect.facebook.net: píxel de Meta para medir campañas pagas (components/analytics/MetaPixel.tsx).
 // Card Payment Brick (homologation) — official MP origins only (no wildcards).
 // Observed Brick frames: sdk / http2.mlstatic / secure-fields / mercadolibre.com (device).
 const scriptSrcValue =
-  "'self' 'unsafe-inline' 'unsafe-eval' https://sdk.mercadopago.com https://www.mercadopago.com https://www.mercadopago.com.ar https://http2.mlstatic.com https://secure-fields.mercadopago.com https://www.mercadolibre.com https://vercel.live https://va.vercel-scripts.com";
+  "'self' 'unsafe-inline' 'unsafe-eval' https://sdk.mercadopago.com https://www.mercadopago.com https://www.mercadopago.com.ar https://http2.mlstatic.com https://secure-fields.mercadopago.com https://www.mercadolibre.com https://vercel.live https://va.vercel-scripts.com https://connect.facebook.net";
 
 const frameSrcValue = [
   "https://www.mercadopago.com",
