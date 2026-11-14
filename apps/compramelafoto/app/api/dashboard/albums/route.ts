@@ -1,5 +1,6 @@
 import { parseHiddenSelfieRetentionDays } from "@/lib/albums/hidden-selfie-retention";
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
+import { reportFirstAlbumIfAny } from "@/lib/meta-capi";
 import { prisma } from "@/lib/prisma";
 import { ensureAlbumPhotosQueuedForHiddenMode } from "@/lib/hidden-album/prepare-hidden-album-photos";
 import { requireAuth } from "@/lib/auth";
@@ -855,6 +856,10 @@ export async function POST(req: NextRequest) {
         console.warn("No se pudo encolar análisis facial para fotos ocultas:", queueErr);
       }
     }
+
+    // Campañas de Meta: si es su primer álbum real, se avisa (después de responder).
+    const createdAlbumId = album.id;
+    after(() => reportFirstAlbumIfAny({ userId: user.id, albumId: createdAlbumId, req }));
 
     return NextResponse.json({
       ...album,

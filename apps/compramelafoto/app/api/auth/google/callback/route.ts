@@ -1,4 +1,5 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
+import { reportPhotographerSignup } from "@/lib/meta-capi";
 import { prisma } from "@/lib/prisma";
 import { setAuthCookieOnResponse } from "@/lib/auth";
 import { Role, LabApprovalStatus, TokenPurpose } from "@/lib/prisma";
@@ -268,6 +269,10 @@ export async function GET(req: Request) {
       }
 
       await guardarAtribucionVendedor({ req, userId: user.id, rol: String(user.role) });
+
+      // Campañas de Meta: fotógrafo registrado con Google (sale después de responder).
+      const signedUp = { id: user.id, email: user.email, role: String(user.role) };
+      after(() => reportPhotographerSignup({ user: signedUp, req, method: "google" }));
 
       // Atribución de referido: state OAuth gana; si no, cookie clf_ref (middleware).
       if (user.role === Role.PHOTOGRAPHER || user.role === Role.ORGANIZER) {
