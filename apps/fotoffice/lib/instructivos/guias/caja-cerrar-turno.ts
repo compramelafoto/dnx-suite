@@ -5,7 +5,7 @@ export const guia: Instructivo = {
   slug: "caja-cerrar-turno",
   titulo: "Cerrar la caja y hacer el arqueo",
   resumen:
-    "Contar lo que quedó en el cajón, compararlo con lo que el sistema espera, explicar la diferencia si la hay y guardar el sobrante en la Caja Fuerte.",
+    "Contar lo que quedó en el cajón, compararlo con lo que el sistema espera, explicar la diferencia si la hay, dejar el cambio y guardar el resto en la Caja Fuerte.",
   seccion: "Caja",
   moduleKey: CASH_MODULE_KEY,
   minutos: 5,
@@ -18,46 +18,60 @@ export const guia: Instructivo = {
       ],
     },
     {
-      titulo: "Contá el efectivo",
+      titulo: "Tocá «Cerrar contando billetes»",
       texto: [
-        "Entrá a Caja → «Panorama». En la tarjeta del mostrador vas a ver «Turno abierto» y «Debería haber $…».",
-        "Contá todo el efectivo del cajón. Podés usar «Contar» para sumarlo billete por billete.",
-        "Escribí el total en «Cuánto contaste».",
+        "Entrá a Caja → «Panorama». En la tarjeta de la Caja registradora vas a ver «Turno abierto» y «Debería haber $…».",
+        "Tocá el botón naranja «Cerrar contando billetes». Es la forma recomendada: en una sola pantalla contás, dejás el cambio, guardás el resto en la Caja Fuerte y cerrás.",
       ],
       imagen: "/instructivos/caja-cerrar-turno/01-turno-abierto.jpg",
       imagenAlt:
-        "Tarjeta de la Caja registradora con el turno abierto: desde cuándo y con qué fondo, «Debería haber», el campo «Cuánto contaste», el botón Contar y el campo para explicar la diferencia.",
+        "Tarjeta de la Caja registradora con el turno abierto: desde cuándo y con qué fondo, «Debería haber», el botón «Cerrar contando billetes» y, debajo, el cierre rápido escribiendo el total.",
+    },
+    {
+      titulo: "Contá billete por billete",
+      texto: [
+        "Escribí cuántos billetes hay de cada uno. Las monedas van en «Monedas (opcional)».",
+        "A la derecha (en el teléfono, abajo) ves «Contado», «Esperado según el sistema» y la «Diferencia».",
+      ],
+    },
+    {
+      titulo: "Dejá el cambio y guardá el resto en la Caja Fuerte",
+      texto: [
+        "En «Dejar de cambio en el mostrador» escribí cuánto queda en el cajón para dar vuelto mañana.",
+        "«A la Caja Fuerte» muestra el resto. Dejá marcado «Registrar el pase de $… a Caja Fuerte» y guardá esa plata en la Caja Fuerte.",
+      ],
+      sistema: [
+        "Anota la salida de la Caja registradora y la entrada en la Caja Fuerte como un pase. No cuenta como gasto en los reportes.",
+        "Mañana, al abrir, la Caja registradora va a tener anotado justo el cambio que dejaste: si contás lo mismo, no hay ajuste.",
+      ],
+      nota: "Si guardás plata en la Caja Fuerte sin registrar el pase, mañana al abrir va a aparecer un «Faltante al abrir el turno» por ese importe.",
     },
     {
       titulo: "Si no cuadra, explicá por qué",
       texto: [
-        "Si lo contado no es igual a «Debería haber», el sistema pide una explicación. Escribila en «Si no cuadra, explicá por qué» (por ejemplo: «di vuelto de más a un cliente», «faltó anotar la compra de pilas»).",
-        "Si cuadra justo, el campo se puede dejar vacío.",
+        "Si la diferencia no es cero, escribí el motivo en «¿Por qué no cuadra?» (por ejemplo: «di vuelto de más a un cliente», «faltó anotar la compra de pilas»).",
+        "Dejá marcado «Registrar el sobrante como ingreso» (o «el faltante como egreso»): así el saldo de la caja dice lo que de verdad hay.",
       ],
-      imagen: "/instructivos/caja-cerrar-turno/02-contar.jpg",
-      imagenAlt:
-        "El contador de billetes del cierre con las cantidades cargadas y el total pasado al campo «Cuánto contaste».",
-      nota: "Sin explicación no te deja cerrar: aparece «La caja no cuadra. Explicá la diferencia antes de cerrar.».",
+      nota: "Antes de explicar una diferencia, fijate si no falta cargar un gasto del día: es la causa más común.",
     },
     {
       titulo: "Cerrá el turno",
-      texto: ["Tocá «Cerrar turno». Te lleva a la pantalla «Arqueos»."],
+      texto: ["Tocá «Cerrar turno con este conteo». Arriba aparece «Turno cerrado.» con lo contado, lo pasado a la Caja Fuerte y la diferencia."],
       sistema: [
         "Calcula lo esperado: fondo con el que abriste + lo que entró − lo que salió de esa caja durante el turno.",
-        "Guarda lo esperado, lo contado y la diferencia (si sobra es positiva; si falta, negativa), con tu explicación y quién cerró.",
+        "Guarda lo esperado, lo contado y la diferencia (si sobra es positiva; si falta, negativa), con tu explicación, quién cerró y el detalle por billete.",
         "Esos números quedan congelados: aunque mañana alguien anule una venta de hoy, el arqueo de hoy no cambia.",
       ],
     },
     {
-      titulo: "Guardá el sobrante en la Caja Fuerte",
+      titulo: "Cierre rápido (sin contador)",
       texto: [
-        "Si el negocio tiene Caja Fuerte, después de cerrar aparece: «Contaste $… en [caja]. El fondo fijo de esa caja es $…».",
-        "En «¿Pasás cuánto a [Caja Fuerte]?» ya viene escrito lo que sobra por encima del fondo fijo (lo que queda en el cajón para dar vuelto mañana). Cambialo si vas a guardar otro importe.",
-        "Tocá «Sí, pasar» y guardá esa plata en la Caja Fuerte. Si hoy no la guardás, tocá «Ahora no».",
+        "Si ya tenés el total contado, en la misma tarjeta escribilo en «O escribí el total contado», explicá la diferencia si la hay y tocá «Cerrar turno».",
+        "Después te ofrece pasar el sobrante a la Caja Fuerte: tocá «Sí, pasar» o «Ahora no».",
       ],
-      sistema: [
-        "Anota la salida de la caja registradora y la entrada en la Caja Fuerte como un «Pase de cierre de turno». No cuenta como gasto en los reportes.",
-      ],
+      imagen: "/instructivos/caja-cerrar-turno/02-contar.jpg",
+      imagenAlt: "El contador de billetes del cierre rápido con las cantidades cargadas y el total pasado al campo.",
+      nota: "Este cierre no corrige el saldo por la diferencia: queda anotada en el arqueo, y el ajuste se hace solo al abrir el próximo turno.",
     },
     {
       titulo: "Revisá los arqueos anteriores",
