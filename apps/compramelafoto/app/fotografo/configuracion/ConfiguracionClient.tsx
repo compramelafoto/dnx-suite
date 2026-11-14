@@ -16,6 +16,7 @@ import { feeFromBase } from "@/lib/pricing/fee-formula";
 import MercadoPagoIntegration from "@/components/mercadopago/MercadoPagoIntegration";
 import CobroDivididoCard from "@/components/mercadopago/CobroDivididoCard";
 import CobrosInternacionalesSection from "@/components/fotografo/CobrosInternacionalesSection";
+import SaldoInternacionalSection from "@/components/fotografo/SaldoInternacionalSection";
 import ReferidosTab from "@/components/referrals/ReferidosTab";
 import ConfigLegacyTabNotice, { isConfigLegacyTab } from "@/components/fotografo/ConfigLegacyTabNotice";
 import PreferenciasMarcaSection from "@/components/fotografo/PreferenciasMarcaSection";
@@ -844,6 +845,7 @@ export default function ConfiguracionClient({
       { id: "laboratorio", label: "Lab preferido y márgenes" },
       { id: "productos", label: "Mis Productos Impresos" },
       { id: "mercadopago", label: "Mercado Pago" },
+      { id: "saldo", label: "Saldo" },
       { id: "upselling", label: "Adicionales" },
       { id: "referidos", label: "Referidos" },
     ],
@@ -1663,8 +1665,9 @@ export default function ConfiguracionClient({
             )}
 
             {/* Tab: Mercado Pago */}
-            {activeTab === "mercadopago" && (
+            {(activeTab === "mercadopago" || activeTab === "saldo") && (
               <>
+              <SaldoInternacionalSection resultadoRecarga={searchParams?.get("recarga") ?? null} />
               <CobrosInternacionalesSection onAvailability={setIntlAvailable} />
               {!intlAvailable && (
               <Card className="space-y-6">
