@@ -77,3 +77,19 @@ test("con token configurado arma el pedido a Meta con código de prueba", async 
     delete process.env.META_CAPI_TEST_EVENT_CODE;
   }
 });
+
+test("un inscripto a la charla (sin cuenta) viaja sin external_id, con correo y teléfono cifrados", () => {
+  const ev = buildMetaServerEvent({
+    eventName: "Lead",
+    eventId: "charla-lead-12",
+    user: { email: "Foto@Escolar.com", phone: "341 5123456" },
+    req: req({ "user-agent": "Mozilla/5.0" }),
+    eventSourceUrl: "https://www.compramelafoto.com/charlafotoescolar",
+  });
+  assert.equal(ev.event_name, "Lead");
+  assert.equal(ev.event_id, "charla-lead-12");
+  assert.equal("external_id" in ev.user_data, false);
+  assert.deepEqual(ev.user_data.em, [sha("foto@escolar.com")]);
+  assert.deepEqual(ev.user_data.ph, [sha("543415123456")]);
+  assert.equal(ev.action_source, "website");
+});

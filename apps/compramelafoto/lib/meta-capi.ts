@@ -20,7 +20,7 @@ import { prisma } from "@/lib/prisma";
 const GRAPH_VERSION = process.env.META_GRAPH_API_VERSION?.trim() || "v24.0";
 const TIMEOUT_MS = 4000;
 
-export type MetaServerEventName = "CompleteRegistration" | "PrimerAlbum" | "PrimeraVenta";
+export type MetaServerEventName = "CompleteRegistration" | "PrimerAlbum" | "PrimeraVenta" | "Lead";
 
 /** Lo mínimo que se lee del pedido HTTP (sirve un NextRequest o un Request). */
 type RequestLike = {
@@ -31,7 +31,8 @@ export type MetaServerEventInput = {
   eventName: MetaServerEventName;
   /** Identificador estable: Meta descarta repetidos con el mismo id. */
   eventId: string;
-  user: { id: number; email: string | null | undefined; phone?: string | null };
+  /** `id` es el usuario de CLF; un inscripto a una charla todavía no tiene cuenta. */
+  user: { id?: number | null; email: string | null | undefined; phone?: string | null };
   /** Pedido del navegador del fotógrafo (registro, álbum). No existe en la primera venta. */
   req?: RequestLike | null;
   customData?: Record<string, unknown>;
@@ -81,7 +82,7 @@ export function buildMetaServerEvent(input: MetaServerEventInput, nowMs = Date.n
   if (em) userData.em = [em];
   const ph = sha256Normalized(normalizePhoneForMeta(input.user.phone));
   if (ph) userData.ph = [ph];
-  userData.external_id = [sha256Normalized(`clf-user-${input.user.id}`)];
+  if (input.user.id != null) userData.external_id = [sha256Normalized(`clf-user-${input.user.id}`)];
 
   if (input.req) {
     const fbp = readCookie(input.req, "_fbp");
@@ -244,4 +245,25 @@ export async function reportFirstSaleIfAny(orderId: number): Promise<void> {
   } catch (err) {
     console.error("[meta-capi] primera venta", err);
   }
+}
+
+/**
+ * Inscripción a una charla gratuita: es el "Lead" con el que optimiza la campaña principal.
+ * El navegador manda el mismo evento con el mismo event_id y Meta se queda con uno solo.
+ */
+export async function reportTalkLead(params: {
+  leadId: number;
+  talkSlug: string;
+  email: string;
+  phone?: string | null;
+  req: RequestLike;
+}): Promise<void> {
+  await sendMetaServerEvent({
+    eventName: "Lead",
+    eventId: `charla-lead-${params.leadId}`,
+    user: { email: params.email, phone: params.phone },
+    req: params.req,
+    eventSourceUrl: siteUrl(`/${params.talkSlug}`),
+    customData: { content_name: params.talkSlug, content_category: "charla" },
+  });
 }
