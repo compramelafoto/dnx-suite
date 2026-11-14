@@ -15,7 +15,7 @@ export const guia: Instructivo = {
       texto: [
         "En el menú de la izquierda abrí Caja y elegí «Panorama».",
         "Vas a ver una tarjeta por cada cuenta del negocio: la caja registradora, la Caja Fuerte y la cuenta digital (Mercado Pago o banco), cada una con su saldo.",
-        "El turno se abre en la tarjeta que dice «Efectivo de mostrador». Las otras cuentas no llevan turno.",
+        "El turno se abre en la tarjeta de la Caja registradora (debajo del nombre dice «Efectivo del mostrador»). La Caja Fuerte y Mercado Pago no llevan turno.",
       ],
       imagen: "/instructivos/caja-abrir-turno/01-panorama.jpg",
       imagenAlt:
@@ -37,12 +37,14 @@ export const guia: Instructivo = {
       titulo: "Abrí el turno",
       texto: [
         "Si no usaste el contador, escribí el total en «Abrir turno: ¿cuánto efectivo hay?» (por ejemplo, 20.000).",
+        "Debajo del campo dice «El sistema tiene anotado $…». Escribí siempre lo que contaste, aunque sea otro número: no copies el del sistema.",
         "Tocá «Abrir turno». Arriba aparece «Listo.» en verde.",
       ],
       sistema: [
         "Guarda la hora, quién abrió el turno y con cuánto fondo arrancó.",
+        "Si lo que contaste no es igual a lo que tenía anotado, carga solo un movimiento «Sobrante al abrir el turno» o «Faltante al abrir el turno» por la diferencia. Así el saldo de la tarjeta pasa a ser lo que contaste. Ese ajuste no cuenta como venta ni como gasto en los reportes, y queda a la vista en Movimientos.",
         "Desde ese momento suma o resta sola cada venta en efectivo, cada cobro de un trabajo y cada gasto que salga de esa caja.",
-        "En la tarjeta muestra «Turno abierto», desde cuándo y «Debería haber $…»: lo que tendría que haber en el cajón en ese momento.",
+        "En la tarjeta muestra «Turno abierto», desde cuándo y «Debería haber $…»: lo que tendría que haber en el cajón en ese momento. Mientras no haya movimientos fuera del turno, es el mismo número que el saldo de arriba.",
       ],
       nota: "Abrí el turno antes de la primera venta. Se puede vender con el turno cerrado, pero esas ventas no entran en la cuenta del cierre y la caja después no cuadra.",
     },
@@ -51,7 +53,7 @@ export const guia: Instructivo = {
       texto: [
         "«Esa caja ya tiene un turno abierto.»: alguien ya lo abrió (o quedó abierto de ayer). No abras otro: cerrá primero el anterior con lo que hay contado.",
         "«El importe de apertura no se entiende.»: escribí sólo números, con o sin puntos de miles.",
-        "Si dejás el campo vacío, el turno se abre con $0.",
+        "Si al abrir aparece un ajuste grande en Movimientos, revisá si el día anterior quedó algo sin anotar (un gasto, un retiro, plata que se guardó en la Caja Fuerte sin registrar el pase). Si el conteo de la mañana estuvo mal, anulá el ajuste desde Movimientos y volvé a contar.",
       ],
     },
   ],
