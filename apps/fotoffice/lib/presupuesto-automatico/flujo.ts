@@ -503,19 +503,29 @@ export async function pendientesDeAprobar(workspaceId: string): Promise<Pendient
 /** ¿Hay un presupuesto en preparación para ese número de WhatsApp? (el bot no vuelve a cotizar). */
 /** Una consulta sin respuesta más vieja que esto ya no frena otra del mismo número. */
 export const DIAS_EN_PREPARACION = 7;
+/** Motivos con los que una consulta del mismo número no frena otra. */
+const NO_FRENAN = ["SIN_HORAS", "FALLO"] as const;
+
+/** La condición de "hay una cotización en preparación" para ese número (exportada para probarla). */
+export function condicionEnPreparacion(workspaceId: string, waId: string, ahora: Date) {
+  return {
+    workspaceId,
+    waId,
+    status: { in: [...ESTADOS_APROBABLES, "SIN_PROPUESTA", "ENVIANDO"] },
+    createdAt: { gte: new Date(ahora.getTime() - DIAS_EN_PREPARACION * 86_400_000) },
+    // OJO: `NOT { errorCode: { in } }` en Postgres descarta las filas con errorCode NULL (que son
+    // justamente las normales): el bot no veía la cotización pendiente y armaba otra por cada
+    // mensaje del cliente. El NULL va explícito.
+    OR: [{ errorCode: null }, { errorCode: { notIn: [...NO_FRENAN] } }],
+  } satisfies Prisma.FotofficePresupuestoAprobacionWhereInput;
+}
 
 export async function enPreparacionParaWhatsapp(workspaceId: string, waId: string, ahora: Date = new Date()): Promise<boolean> {
   try {
     const f = await prisma.fotofficePresupuestoAprobacion.findFirst({
       // No frenan otra consulta del mismo número: la que no tenía horas (el cliente puede decirlas
       // después), la que falló y la que quedó sin aprobar más de DIAS_EN_PREPARACION días.
-      where: {
-        workspaceId,
-        waId,
-        status: { in: [...ESTADOS_APROBABLES, "SIN_PROPUESTA", "ENVIANDO"] },
-        createdAt: { gte: new Date(ahora.getTime() - DIAS_EN_PREPARACION * 86_400_000) },
-        NOT: { errorCode: { in: ["SIN_HORAS", "FALLO"] } },
-      },
+      where: condicionEnPreparacion(workspaceId, waId, ahora),
       select: { id: true },
     });
     return f !== null;
