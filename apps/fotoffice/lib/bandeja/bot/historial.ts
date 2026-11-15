@@ -6,6 +6,7 @@
  * se le dijo. Los mensajes del sistema (tomas, devoluciones) no son parte de la charla.
  */
 
+import { anuncioDeMedia, etiquetaDeAnuncio } from "../anuncio";
 import { archivoDeMensaje } from "../archivo-de-mensaje";
 import { medidasQueAlcanzan } from "../calidad";
 
@@ -79,6 +80,8 @@ export function historialParaElBot(
     if (m.direccion === "SISTEMA" || m.autor === "SISTEMA") continue;
     const role = m.direccion === "ENTRANTE" ? "user" : "assistant";
     let contenido = role === "user" ? textoDe(m, ahora) : m.texto?.trim();
+    const anuncio = role === "user" ? anuncioDeMedia(m.media) : null;
+    if (anuncio) contenido = contenido ? `${etiquetaDeAnuncio(anuncio)} ${contenido}` : etiquetaDeAnuncio(anuncio);
     const a = role === "user" && m.id ? archivoDeMensaje(m.tipo, m.media) : null;
     const esFoto = a !== null && (m.tipo === "IMAGEN" || (a.mime?.startsWith("image/") ?? false));
     if (esFoto && a!.estado === "LISTO") {

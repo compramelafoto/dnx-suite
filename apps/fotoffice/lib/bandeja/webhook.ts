@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { anuncioDeReferral, type AnuncioWa } from "./anuncio";
 import type { TipoMensaje } from "./constantes";
 import { waIdDe } from "./telefono";
 
@@ -17,6 +18,8 @@ export type MediaWa = {
   longitude?: number;
   nombre?: string;
   direccion?: string;
+  /** Anuncio de Meta del que vino el cliente (sólo en el primer mensaje tras tocar el anuncio). */
+  anuncio?: AnuncioWa;
 };
 
 type Comun = {
@@ -112,9 +115,13 @@ function mensajes(value: Json, phoneNumberId: string, salida: EventoWa[]) {
     const waMessageId = texto(m.id);
     const waId = waIdDeMeta(m.from);
     if (!waMessageId || !waId) continue;
+    const c = contenido(m);
+    // Anuncio "clic a WhatsApp": viaja junto al mensaje, sin cambiar su tipo ni su texto.
+    const anuncio = anuncioDeReferral(m.referral);
     salida.push({
       tipo: "ENTRANTE", phoneNumberId, waMessageId, waId, en: fecha(m.timestamp),
-      nombre: perfiles.get(waId) ?? null, ...contenido(m),
+      nombre: perfiles.get(waId) ?? null, ...c,
+      media: anuncio ? { ...(c.media ?? {}), anuncio } : c.media,
     });
   }
   for (const s of lista(value.statuses)) {
