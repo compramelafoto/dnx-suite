@@ -141,3 +141,59 @@ test("registra cuánto tardó en generarse", async () => {
   assert.ok(snapshot.generationMs >= 0);
   assert.equal(snapshot.timeZone, "America/Argentina/Buenos_Aires");
 });
+
+test("los colectores corren de a uno para no agotar las conexiones a la base", async () => {
+  let running = 0;
+  let maxRunning = 0;
+
+  function slowCollector(key: string): Collector {
+    return {
+      key,
+      title: key,
+      async run() {
+        running += 1;
+        maxRunning = Math.max(maxRunning, running);
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        running -= 1;
+        return {
+          section: { key, title: key, status: "ok", error: null, groups: [], tables: [] },
+          alerts: [],
+        };
+      },
+    };
+  }
+
+  const snapshot = await buildDailyReport({
+    window: WINDOW,
+    collectors: [slowCollector("a"), slowCollector("b"), slowCollector("c")],
+    now: NOW,
+  });
+
+  assert.equal(maxRunning, 1);
+  assert.deepEqual(
+    snapshot.sections.map((section) => section.key),
+    ["a", "b", "c"],
+  );
+});
+
+test("un colector que falla una vez se reintenta y la sección sale bien", async () => {
+  let attempts = 0;
+  const flaky: Collector = {
+    key: "flaky",
+    title: "flaky",
+    async run() {
+      attempts += 1;
+      if (attempts === 1) throw new Error("Timed out fetching a new connection");
+      return {
+        section: { key: "flaky", title: "flaky", status: "ok", error: null, groups: [], tables: [] },
+        alerts: [],
+      };
+    },
+  };
+
+  const snapshot = await buildDailyReport({ window: WINDOW, collectors: [flaky], now: NOW });
+
+  assert.equal(attempts, 2);
+  assert.equal(snapshot.status, "complete");
+  assert.equal(snapshot.alerts.length, 0);
+});

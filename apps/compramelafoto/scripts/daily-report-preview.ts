@@ -31,7 +31,6 @@ import {
   renderFailedSectionsNote,
   renderSummaryBlock,
 } from "../lib/daily-report/render-blocks";
-import { createClfLegacyCollector } from "../lib/daily-report/clf-legacy-collector";
 import { createPrismaClickatonPort } from "../lib/daily-report/prisma-clickaton-port";
 import { createPrismaFotofficePort } from "../lib/daily-report/prisma-fotoffice-port";
 import { createPrismaFotorankPort } from "../lib/daily-report/prisma-fotorank-port";
@@ -138,7 +137,6 @@ async function main(): Promise<void> {
     now,
     collectors: [
       createClfMonorepoCollector(createPrismaSalesPort(prisma), window, { adminBaseUrl }),
-      createClfLegacyCollector(window, { adminBaseUrl }),
       createClickatonCollector(createPrismaClickatonPort(prisma), window, { adminBaseUrl }),
       createFotorankCollector(createPrismaFotorankPort(prisma), window, { adminBaseUrl }),
       createInfoSpotCollector(createPrismaInfoSpotPort(prisma), window, { adminBaseUrl }),
