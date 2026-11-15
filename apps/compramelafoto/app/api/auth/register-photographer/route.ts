@@ -2,6 +2,7 @@ import { NextRequest, NextResponse, after } from "next/server";
 import { reportPhotographerSignup } from "@/lib/meta-capi";
 import { prisma } from "@/lib/prisma";
 import { guardarAtribucionVendedor } from "@/lib/vendedor/atribucion";
+import { guardarOrigenEnUsuario } from "@/lib/origen-campania";
 import { ReferralProgram, Role, TokenPurpose } from "@/lib/prisma";
 import { hashPassword } from "@repo/auth";
 import { randomBytes } from "crypto";
@@ -135,6 +136,7 @@ export async function POST(req: NextRequest) {
     }
 
     await guardarAtribucionVendedor({ req, userId: user.id, rol: String(user.role) });
+    await guardarOrigenEnUsuario({ req, userId: user.id });
 
     // Campañas de Meta: fotógrafo registrado (sale después de responder).
     after(() =>
