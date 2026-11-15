@@ -8,6 +8,7 @@ import {
   resolveBlogVisitorKey,
 } from "@/lib/blog/blog-visitor";
 import { COOKIE_VENDEDOR, EDAD_COOKIE_VENDEDOR_S, tokenVendedorValido } from "@/lib/vendedor/atribucion";
+import { COOKIE_ORIGEN, EDAD_COOKIE_ORIGEN_S, origenDesdeParams } from "@/lib/origen-campania";
 
 const REFERRAL_COOKIE_NAME = "clf_ref";
 /** JSON: { "sourceType": "TRAINING", "sourceEntityId": number } — capacitación desde la que vino el click */
@@ -147,6 +148,12 @@ export function middleware(request: NextRequest) {
       "Set-Cookie",
       buildCookieHeader(COOKIE_VENDEDOR, dnxv, EDAD_COOKIE_VENDEDOR_S)
     );
+  }
+
+  // Origen de campaña (UTM o fbclid de un anuncio): se copia a la cuenta al registrarse.
+  const origen = origenDesdeParams(request.nextUrl.searchParams);
+  if (origen) {
+    response.headers.append("Set-Cookie", buildCookieHeader(COOKIE_ORIGEN, origen, EDAD_COOKIE_ORIGEN_S));
   }
 
   return response;

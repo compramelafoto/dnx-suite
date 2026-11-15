@@ -12,6 +12,7 @@ import { getPostLoginDestination } from "@/lib/auth/post-login-destination";
 import { registrarUltimoIngreso } from "@/lib/auth/registrar-ultimo-ingreso";
 import { decodeGoogleOAuthState } from "@/lib/auth/google-oauth-state";
 import { guardarAtribucionVendedor } from "@/lib/vendedor/atribucion";
+import { guardarOrigenEnUsuario } from "@/lib/origen-campania";
 import { tryCreateReferralAttributionOnSignup } from "@/lib/referral/referral-signup-attribution";
 import { inferReferralProgramForReferredUserRole } from "@/lib/referral/referral-program";
 import {
@@ -269,6 +270,7 @@ export async function GET(req: Request) {
       }
 
       await guardarAtribucionVendedor({ req, userId: user.id, rol: String(user.role) });
+      await guardarOrigenEnUsuario({ req, userId: user.id });
 
       // Campañas de Meta: fotógrafo registrado con Google (sale después de responder).
       const signedUp = { id: user.id, email: user.email, role: String(user.role) };
