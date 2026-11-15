@@ -10,6 +10,7 @@ import {
   photosForCanjeRole,
   placesForUnit,
   isCanjeComplete,
+  packPermiteMismasFotos,
   removeCanjePhotoFromBenefit,
   studentNameForGreeting,
   toggleCanjePhoto,
@@ -360,5 +361,63 @@ describe("libritos con otras fotos (maestra, amigos, libre) y más de 2 fotos", 
     const g = corto.groups[0];
     const lugares = placesForUnit(slots, g.slotIndexes, 0, g.photosPerUnit);
     assert.deepEqual([...lugares.keys()].sort(), ["contratapa-grupal", "int-maestra"]);
+  });
+});
+
+describe("varias carpetas: mismas fotos o distintas", () => {
+  const carpeta = (unidades: number) =>
+    ben({
+      stableKey: "88:benefit:102",
+      selectionMode: "MULTI_PHOTO_FIXED",
+      includedQuantity: unidades,
+      requiredPhotoCount: 2,
+      name: `${unidades}× Carpeta escolar · 2 fotos`,
+    });
+
+  it("sólo pregunta cuando hay más de una carpeta de varias fotos", () => {
+    assert.equal(packPermiteMismasFotos([carpeta(1)]), false);
+    assert.equal(packPermiteMismasFotos([carpeta(2)]), true);
+    // Copias sueltas de una foto: no es "la misma carpeta", no se pregunta.
+    assert.equal(packPermiteMismasFotos([ben({ includedQuantity: 3 })]), false);
+  });
+
+  it("con mismas fotos se eligen sólo las de una carpeta", () => {
+    const plan = buildCanjeSlotPlan([carpeta(2)], { mismasFotos: true });
+    assert.equal(plan.slots.length, 2);
+    assert.equal(plan.groups[0].units, 1);
+    assert.equal(plan.groups[0].copias, 2);
+  });
+
+  it("con fotos distintas se eligen las de cada carpeta", () => {
+    const plan = buildCanjeSlotPlan([carpeta(2)]);
+    assert.equal(plan.slots.length, 4);
+    assert.equal(plan.groups[0].units, 2);
+    assert.equal(plan.groups[0].copias, 1);
+  });
+
+  it("al confirmar, las fotos de la carpeta se repiten en todas", () => {
+    const plan = buildCanjeSlotPlan([carpeta(3)], { mismasFotos: true });
+    const sel = buildRedeemSelections(plan, [10, 20], { 0: { zoom: 1.2, x: 0, y: 0 } });
+    assert.deepEqual(sel[0].units, [
+      [10, 20],
+      [10, 20],
+      [10, 20],
+    ]);
+    assert.equal(sel[0].crops?.length, 3);
+    assert.deepEqual(sel[0].crops?.[2], [{ zoom: 1.2, x: 0, y: 0 }, null]);
+  });
+
+  it("los demás beneficios del pack no cambian", () => {
+    const plan = buildCanjeSlotPlan(
+      [carpeta(2), ben({ stableKey: "88:benefit:200", kind: "DIGITAL", includedQuantity: 2, sortOrder: 1 })],
+      { mismasFotos: true }
+    );
+    assert.equal(plan.slots.length, 4);
+    const sel = buildRedeemSelections(plan, [10, 20, 30, 40]);
+    assert.deepEqual(sel[0].units, [
+      [10, 20],
+      [10, 20],
+    ]);
+    assert.deepEqual(sel[1].units, [[30], [40]]);
   });
 });
