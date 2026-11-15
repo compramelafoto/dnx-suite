@@ -1,0 +1,58 @@
+/**
+ * De qué anuncio de Meta llegó un cliente (anuncios "clic a WhatsApp"). Módulo PURO.
+ *
+ * Cuando alguien toca un anuncio que abre WhatsApp, el primer mensaje trae `referral` con el anuncio:
+ * su id, el título (`headline`) y el texto (`body`). Se guarda dentro de `media.anuncio` del mensaje
+ * (columna Json, sin migración) para que el bot conteste sobre el tema del anuncio.
+ */
+
+export type AnuncioWa = {
+  /** Id del anuncio (o de la publicación) en Meta. */
+  id?: string;
+  /** "ad" o "post". */
+  tipo?: string;
+  url?: string;
+  titulo?: string;
+  texto?: string;
+};
+
+type Json = Record<string, unknown>;
+const esObjeto = (v: unknown): v is Json => typeof v === "object" && v !== null && !Array.isArray(v);
+const cadena = (v: unknown, max = 500): string | null =>
+  typeof v === "string" && v.trim().length > 0 ? v.trim().slice(0, max) : typeof v === "number" ? String(v) : null;
+
+/** `referral` del mensaje de Meta → anuncio. `null` si no vino o no trae nada útil. */
+export function anuncioDeReferral(referral: unknown): AnuncioWa | null {
+  if (!esObjeto(referral)) return null;
+  const a: AnuncioWa = {};
+  const id = cadena(referral.source_id, 64);
+  const tipo = cadena(referral.source_type, 20);
+  const url = cadena(referral.source_url, 300);
+  const titulo = cadena(referral.headline, 200);
+  const texto = cadena(referral.body, 500);
+  if (id) a.id = id;
+  if (tipo) a.tipo = tipo;
+  if (url) a.url = url;
+  if (titulo) a.titulo = titulo;
+  if (texto) a.texto = texto;
+  return a.titulo || a.texto || a.id ? a : null;
+}
+
+/** El anuncio guardado en `media` de un mensaje, si lo hay. */
+export function anuncioDeMedia(media: unknown): AnuncioWa | null {
+  if (!esObjeto(media) || !esObjeto(media.anuncio)) return null;
+  const m = media.anuncio;
+  const a: AnuncioWa = {};
+  for (const k of ["id", "tipo", "url", "titulo", "texto"] as const) {
+    const v = cadena(m[k]);
+    if (v) a[k] = v;
+  }
+  return a.titulo || a.texto || a.id ? a : null;
+}
+
+/** Lo que ve el bot antes del mensaje del cliente. Las comillas marcan que es texto del anuncio, no instrucciones. */
+export function etiquetaDeAnuncio(a: AnuncioWa): string {
+  const partes = [a.titulo, a.texto].filter((s): s is string => Boolean(s)).map((s) => s.replace(/\s+/g, " "));
+  const de = partes.length > 0 ? `: «${partes.join(" — ")}»` : "";
+  return `[el cliente llegó tocando un anuncio del estudio en Facebook/Instagram${de}]`;
+}
