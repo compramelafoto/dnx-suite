@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { runSendAlbumNotifications } from "@/lib/cron/send-album-notifications";
 import { runAlbumInterestDigest } from "@/lib/cron/album-interest-digest";
 import { runReencolarConfirmacionesPedido } from "@/lib/cron/reencolar-confirmaciones-pedido";
+import { runControlarPacksConUnidades } from "@/lib/cron/controlar-packs-con-unidades";
 import { assertCronAuth } from "@/lib/cron-auth";
 import { logCronMetrics } from "@/lib/cron-metrics";
 
@@ -16,6 +17,7 @@ export const maxDuration = 300;
  * - Notificaciones de álbum (solo pendientes reales, con límite por sección)
  * - Emails de interés en álbum (digest agrupado, límite batch)
  * - Comprobantes de pedido que no llegaron a la cola (pedidos pagados de los últimos 3 días)
+ * - Packs de preventa sin canjear con menos unidades de las que se pagaron (aviso al admin)
  *
  * Protegido: Authorization: Bearer <CRON_SECRET>
  */
@@ -26,10 +28,15 @@ export async function GET(req: NextRequest) {
   const started = Date.now();
   const dryRun = req.nextUrl.searchParams.get("dry") === "1";
 
-  const [albumNotifications, albumInterest, orderConfirmations] = await Promise.all([
+  const [albumNotifications, albumInterest, orderConfirmations, packsConUnidades] = await Promise.all([
     runSendAlbumNotifications({ dryRun }),
     runAlbumInterestDigest({ dryRun }),
     runReencolarConfirmacionesPedido({ dryRun }),
+    // Un control que falla no puede frenar los envíos de la hora.
+    runControlarPacksConUnidades({ dryRun }).catch((err) => {
+      console.error("[cron:hourly] controlar-packs-con-unidades", err);
+      return null;
+    }),
   ]);
 
   const jobsOk =
@@ -48,6 +55,7 @@ export async function GET(req: NextRequest) {
     albumNotifications,
     albumInterest,
     orderConfirmations,
+    packsConUnidades,
   };
 
   logCronMetrics({

@@ -349,13 +349,10 @@ export async function executePreventaPackRedeemV1InTransaction(
 
   validateRedeemSelectionsAgainstSnapshot(snapshot, selections, now);
   // VALIDACIÓN GLOBAL: ninguna foto puede repetirse entre beneficios
+  // (dentro de un beneficio ya se validó arriba: varias carpetas pueden repetir sus fotos).
   const allPhotoIds = [];
   for (const s of selections) {
-    for (const unit of s.units) {
-      for (const pid of unit) {
-        allPhotoIds.push(pid);
-      }
-    }
+    allPhotoIds.push(...new Set(s.units.flat()));
   }
   const unique = new Set(allPhotoIds);
   if (unique.size !== allPhotoIds.length) {
@@ -458,11 +455,14 @@ export async function executePreventaPackRedeemV1InTransaction(
         ? (finishRaw || "BRILLO").toUpperCase()
         : null;
 
+    // Con varias carpetas iguales, cada foto se descarga una sola vez.
+    const digitalesDelBeneficio = new Set<number>();
     for (let unitIdx = 0; unitIdx < sel.units.length; unitIdx++) {
       const unit = sel.units[unitIdx];
       for (const photoId of unit) {
         // Impreso con su digital (librito + digital): la misma foto también sale en digital.
-        if (ben.kind === "PHYSICAL" && ben.includesDigital) {
+        if (ben.kind === "PHYSICAL" && ben.includesDigital && !digitalesDelBeneficio.has(photoId)) {
+          digitalesDelBeneficio.add(photoId);
           itemsToCreate.push({
             photoId,
             productType: OrderItemType.DIGITAL,

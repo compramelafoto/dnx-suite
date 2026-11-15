@@ -41,6 +41,11 @@ export type CanjeSlotGroup = {
   label: string;
   units: number;
   photosPerUnit: number;
+  /**
+   * Cuántas veces se repite lo que se elige. Con "mismas fotos en todas las carpetas" la familia
+   * elige una sola carpeta (`units` = 1) y al confirmar se copia a las `copias` que pagó.
+   */
+  copias: number;
   /** Índices en la lista plana de lugares. */
   slotIndexes: number[];
 };
@@ -103,11 +108,31 @@ export function placesForUnit(
   return map;
 }
 
-export function buildCanjeSlotPlan(benefits: BenefitInput[]): CanjeSlotPlan {
+/**
+ * Un beneficio que se puede repetir igual: más de una unidad y varias fotos por unidad (dos
+ * carpetas, dos libritos). Las copias sueltas de una foto no entran: ahí cada lugar es una foto.
+ */
+function repetible(b: BenefitInput): boolean {
+  return b.includedQuantity > 1 && b.selectionMode !== "SINGLE_PHOTO" && photosPerUnit(b) > 1;
+}
+
+/**
+ * Si la familia compró varias carpetas (o libritos) en el mismo pedido, se le pregunta si van
+ * todas con las mismas fotos o cada una con las suyas.
+ */
+export function packPermiteMismasFotos(benefits: BenefitInput[]): boolean {
+  return benefits.some(repetible);
+}
+
+export function buildCanjeSlotPlan(
+  benefits: BenefitInput[],
+  opts?: { mismasFotos?: boolean }
+): CanjeSlotPlan {
   const slots: CanjeSlot[] = [];
   const groups: CanjeSlotGroup[] = [];
   for (const b of [...benefits].sort((x, y) => x.sortOrder - y.sortOrder)) {
-    const units = Math.max(0, b.includedQuantity);
+    const copias = opts?.mismasFotos && repetible(b) ? b.includedQuantity : 1;
+    const units = Math.max(0, copias > 1 ? 1 : b.includedQuantity);
     const per = photosPerUnit(b);
     const slotIndexes: number[] = [];
     for (let u = 0; u < units; u++) {
@@ -128,6 +153,7 @@ export function buildCanjeSlotPlan(benefits: BenefitInput[]): CanjeSlotPlan {
         label: groupLabel(b),
         units,
         photosPerUnit: per,
+        copias,
         slotIndexes,
       });
     }
@@ -266,6 +292,11 @@ export function buildRedeemSelections(
       const crop = crops?.[i] ?? null;
       if (crop) anyCrop = true;
       unitCrops[u].push(crop);
+    }
+    // Mismas fotos en todas: la carpeta elegida se repite en cada una de las que pagó.
+    for (let c = 1; c < g.copias; c++) {
+      units.push([...units[0]]);
+      unitCrops.push([...unitCrops[0]]);
     }
     return anyCrop
       ? { benefitStableKey: g.benefitKey, units, crops: unitCrops }

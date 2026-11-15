@@ -12,6 +12,7 @@ import {
   buildRedeemSelections,
   emptyCanjeFill,
   isCanjeComplete,
+  packPermiteMismasFotos,
   removeCanjePhotoFromBenefit,
   toggleCanjePhoto,
 } from "@/lib/preventa-canjeable/preventa-canje-slots";
@@ -107,8 +108,12 @@ function primerNombre(nombre: string | null): string | null {
   return nombre ? nombre.trim().split(/\s+/)[0] : null;
 }
 
-function describirGrupo(g: { kind: string; units: number; photosPerUnit: number }, conDigital = false): string {
+function describirGrupo(
+  g: { kind: string; units: number; photosPerUnit: number; copias: number },
+  conDigital = false
+): string {
   const formato = g.kind === "DIGITAL" ? "digital" : conDigital ? "impresa + su digital" : "impresa";
+  if (g.copias > 1) return `${g.copias} iguales · ${g.photosPerUnit} fotos distintas · ${formato}`;
   if (g.photosPerUnit > 1) {
     return g.units === 1
       ? `${g.photosPerUnit} fotos distintas · ${formato}`
@@ -135,7 +140,19 @@ export default function PreventaCanjeFlow({
   modoPrueba = false,
   cursosParaSumar = [],
 }: Props) {
-  const plan = useMemo(() => buildCanjeSlotPlan(pack.benefits), [pack.benefits]);
+  /** Varias carpetas (o libritos) en el mismo pedido: se pregunta si van con las mismas fotos. */
+  const permiteMismas = useMemo(() => packPermiteMismasFotos(pack.benefits), [pack.benefits]);
+  const [mismasFotos, setMismasFotos] = useState(false);
+  const plan = useMemo(
+    () => buildCanjeSlotPlan(pack.benefits, { mismasFotos }),
+    [pack.benefits, mismasFotos]
+  );
+  /** Cuántas carpetas compró y cómo se llaman ("2", "Carpeta escolar"), para hacer la pregunta. */
+  const repetidas = useMemo(() => {
+    const g = buildCanjeSlotPlan(pack.benefits, { mismasFotos: true }).groups.find((x) => x.copias > 1);
+    return g ? { cantidad: g.copias, nombre: g.label } : null;
+  }, [pack.benefits]);
+  const copiasIguales = plan.groups.find((g) => g.copias > 1)?.copias ?? 1;
   const beneficio = useMemo(() => new Map(pack.benefits.map((b) => [b.stableKey, b])), [pack.benefits]);
   const [boceto, setBoceto] = useState<{ url: string; titulo: string } | null>(null);
   const [nombre, setNombre] = useState(pack.parentName ?? "");
@@ -227,6 +244,17 @@ export default function PreventaCanjeFlow({
     setPaso(p);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
+
+  /** Elegir "iguales" o "distintas" arma otros lugares: lo elegido antes no sirve. */
+  function elegirModo(mismas: boolean) {
+    if (mismas !== mismasFotos) {
+      setMismasFotos(mismas);
+      setFilled(emptyCanjeFill(buildCanjeSlotPlan(pack.benefits, { mismasFotos: mismas })));
+      setCrops({});
+      setDestino(null);
+    }
+    irA("elegir");
+  }
 
   function tocar(id: number) {
     setAviso(null);
@@ -476,18 +504,44 @@ export default function PreventaCanjeFlow({
             <div className="my-7">{casilleros("md", false)}</div>
             <p className="m-0 text-left text-[15px] leading-relaxed text-[#3d4148]">
               <strong>
-                Elegí {total === 1 ? "la foto" : `las ${total} fotos`} de tu pack.
+                {permiteMismas && repetidas
+                  ? "Elegí las fotos de tu pack."
+                  : `Elegí ${total === 1 ? "la foto" : `las ${total} fotos`} de tu pack.`}
               </strong>{" "}
               {total === 1 ? "Ya está paga: no vas a pagar nada por ella." : "Ya están pagas: no vas a pagar nada por ellas."}
               {hayImpresas ? ` ${entregaImpresas}` : ""}
             </p>
-            <button
-              type="button"
-              onClick={() => irA("elegir")}
-              className="mt-8 min-h-12 w-full rounded-xl bg-[#c27b3d] px-6 text-base font-semibold text-white hover:bg-[#a8652e] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#c27b3d] sm:w-auto"
-            >
-              {total === 1 ? "Elegir mi foto" : `Elegir mis ${total} fotos`}
-            </button>
+            {permiteMismas && repetidas ? (
+              <div className="mt-8 border-t border-[#efeae4] pt-6">
+                <p className="m-0 text-base font-semibold text-[#1f2328]">
+                  Compraste {repetidas.cantidad} unidades de «{repetidas.nombre}». ¿Van todas con las mismas fotos?
+                </p>
+                <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:justify-center">
+                  <button
+                    type="button"
+                    onClick={() => elegirModo(true)}
+                    className="min-h-12 rounded-xl bg-[#c27b3d] px-6 text-base font-semibold text-white hover:bg-[#a8652e] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#c27b3d]"
+                  >
+                    Sí, todas con las mismas fotos
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => elegirModo(false)}
+                    className="min-h-12 rounded-xl border-2 border-[#c27b3d] px-6 text-base font-semibold text-[#a8652e] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#c27b3d]"
+                  >
+                    No, cada una con otras fotos
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => irA("elegir")}
+                className="mt-8 min-h-12 w-full rounded-xl bg-[#c27b3d] px-6 text-base font-semibold text-white hover:bg-[#a8652e] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#c27b3d] sm:w-auto"
+              >
+                {total === 1 ? "Elegir mi foto" : `Elegir mis ${total} fotos`}
+              </button>
+            )}
           </section>
         ) : null}
 
@@ -497,6 +551,11 @@ export default function PreventaCanjeFlow({
               <h1 className="m-0 text-lg font-semibold text-[#1f2328]">
                 Elegí {total === 1 ? "la foto" : `las ${total} fotos`} de tu pack
               </h1>
+              {copiasIguales > 1 ? (
+                <p className="m-0 text-sm text-[#4b4f56]">
+                  Estas fotos van en las {copiasIguales} unidades de tu pack.
+                </p>
+              ) : null}
               <p className="m-0 mb-3 text-sm text-[#2f7d5b]">
                 {completo
                   ? total === 1
@@ -605,6 +664,11 @@ export default function PreventaCanjeFlow({
               Al confirmar {total === 1 ? "queda pedida y no se puede cambiar" : "quedan pedidas y no se pueden cambiar"}.
               No vas a pagar nada.
             </p>
+            {copiasIguales > 1 ? (
+              <p className="m-0 mt-2 font-medium text-[#2f7d5b]">
+                Recibís {copiasIguales} unidades iguales, con estas fotos.
+              </p>
+            ) : null}
             <button
               type="button"
               onClick={() => irA("elegir")}

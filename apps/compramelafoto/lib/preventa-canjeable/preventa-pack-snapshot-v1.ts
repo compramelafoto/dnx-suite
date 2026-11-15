@@ -536,8 +536,12 @@ export function validateRedeemSelectionsAgainstSnapshot(
         }
       }
     }
+    // Varias carpetas (o libritos) del mismo pedido pueden llevar las mismas fotos: la familia
+    // eligió "las dos iguales". Dentro de una misma carpeta, en cambio, nunca se repite.
+    // En las copias sueltas (una foto por unidad) cada unidad es una foto distinta.
+    const puedeRepetirEntreUnidades = ben.selectionMode !== "SINGLE_PHOTO";
     const uniqueAcrossBenefit = new Set(allPhotosInBenefit);
-    if (uniqueAcrossBenefit.size !== allPhotosInBenefit.length) {
+    if (!puedeRepetirEntreUnidades && uniqueAcrossBenefit.size !== allPhotosInBenefit.length) {
       throw new PreventaPackRedeemValidationError(
         `${ben.stableKey}: no podés usar la misma foto más de una vez en este beneficio`
       );
