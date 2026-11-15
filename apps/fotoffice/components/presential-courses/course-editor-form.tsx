@@ -26,6 +26,8 @@ type CourseFormInitial = {
   accessMonths?: number;
   completionPercent?: number;
   freeForMembers?: boolean;
+  /** `AAAA-MM-DDTHH:MM` en hora argentina, para el `datetime-local`. */
+  releaseAt?: string | null;
   faqJson?: unknown;
   classroomLink?: string | null;
   classroomCode?: string | null;
@@ -116,6 +118,13 @@ export function CourseEditorForm({
               <input type="checkbox" name="freeForMembers" defaultChecked={initial?.freeForMembers ?? false} />
               Gratis para socios: el socio activo lo toma sin pagar desde su portal; el público paga el precio.
             </label>
+            <div className="fo-field-stack md:max-w-xs">
+              <label className="fo-label" htmlFor="releaseAt">Fecha de estreno (opcional)</label>
+              <input id="releaseAt" name="releaseAt" type="datetime-local" defaultValue={initial?.releaseAt ?? ""} className="fo-input" />
+              <p className="text-xs text-[var(--fo-muted)]">
+                Hora argentina. Hasta ese momento el curso se ve con su portada y «Se estrena el …», pero nadie lo puede tomar, comprar ni mirar.
+              </p>
+            </div>
           </fieldset>
           <div className="fo-field-stack">
             <label className="fo-label" htmlFor="instructorName">

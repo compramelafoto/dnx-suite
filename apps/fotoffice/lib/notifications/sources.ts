@@ -196,18 +196,23 @@ const sorteos: Fuente = async (c) => {
 
 const cursos: Fuente = async (c) => {
   const nuevos = await prisma.course.findMany({
-    where: { workspaceId: c.workspaceId, status: { in: ["PUBLISHED", "UPCOMING"] }, createdAt: { gte: c.desde } },
+    where: {
+      workspaceId: c.workspaceId,
+      status: { in: ["PUBLISHED", "UPCOMING"] },
+      // Un curso con fecha de estreno avisa el día que se estrena, no cuando se cargó.
+      OR: [{ releaseAt: null, createdAt: { gte: c.desde } }, { releaseAt: { gte: c.desde, lte: c.ahora } }],
+    },
     orderBy: { createdAt: "desc" },
     take: 10,
-    select: { id: true, title: true, createdAt: true },
+    select: { id: true, title: true, createdAt: true, releaseAt: true },
   });
   return nuevos.map((x) => ({
     key: `course:${x.id}`,
     kind: "course" as const,
-    title: `Nuevo curso: ${x.title}`,
-    body: "Mirá las fechas y si te toca gratis por ser socio.",
+    title: x.releaseAt ? `Se estrenó: ${x.title}` : `Nuevo curso: ${x.title}`,
+    body: x.releaseAt ? "Ya lo podés mirar en Mis cursos." : "Mirá las fechas y si te toca gratis por ser socio.",
     href: "/portal/cursos",
-    at: x.createdAt,
+    at: x.releaseAt ?? x.createdAt,
   }));
 };
 

@@ -48,6 +48,8 @@ export default async function MuestraPage({ params }: Props) {
         status: "PUBLISHED",
         deliveryMode: "RECORDED",
         OR: [{ workspaceId: branding.workspaceId }, ...(acuerdo ? [{ id: acuerdo.courseId }] : [])],
+        // Antes del estreno no se mira nada, tampoco la muestra.
+        AND: [{ OR: [{ releaseAt: null }, { releaseAt: { lte: new Date() } }] }],
       },
     },
     select: {

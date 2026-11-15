@@ -50,6 +50,16 @@ describe("gratis por un curso compartido", () => {
   });
 });
 
+describe("estreno", () => {
+  const estreno = new Date("2026-12-04T13:00:00.000Z");
+  it("antes del estreno no se puede tomar; desde el estreno, sí", () => {
+    const conEstreno = { ...curso, releaseAt: estreno };
+    const antes = puedeAnotarseGratis({ ...base, curso: conEstreno, ahora: new Date("2026-12-04T12:00:00.000Z") });
+    expect(antes).toMatchObject({ ok: false, codigo: "sin-estrenar" });
+    expect(puedeAnotarseGratis({ ...base, curso: conEstreno, ahora: estreno })).toEqual({ ok: true });
+  });
+});
+
 describe("mensajes del aviso", () => {
   it("traduce un código conocido", () => {
     expect(mensajeDeBeneficio("ya-lo-tiene")).toBe("Ya tenés este curso.");

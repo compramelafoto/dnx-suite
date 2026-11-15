@@ -65,3 +65,23 @@ export function estadoDeAccesoAlCurso(
   if (!acceso.expiresAt) return "VIGENTE";
   return ahora.getTime() < acceso.expiresAt.getTime() ? "VIGENTE" : "VENCIDO";
 }
+
+/**
+ * Si un curso ya se estrenó. Sin fecha de estreno, está disponible desde que se publica. Antes
+ * de la fecha se muestra (portada y "Se estrena el …") pero no se toma, no se compra y no se mira.
+ */
+export function cursoEstrenado(releaseAt: Date | null | undefined, ahora: Date): boolean {
+  return !releaseAt || releaseAt.getTime() <= ahora.getTime();
+}
+
+const FECHA_DE_ESTRENO = new Intl.DateTimeFormat("es-AR", {
+  weekday: "long",
+  day: "numeric",
+  month: "long",
+  timeZone: "America/Argentina/Buenos_Aires",
+});
+
+/** «viernes 4 de diciembre», en hora argentina. */
+export function fechaDeEstreno(fecha: Date): string {
+  return FECHA_DE_ESTRENO.format(fecha).replace(",", "");
+}

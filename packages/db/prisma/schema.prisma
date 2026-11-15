@@ -10379,6 +10379,9 @@ model Course {
   offeredToResellers    Boolean                 @default(false)
   /// % sugerido para revendedores, en puntos básicos. Hasta acá un pedido se aprueba solo.
   suggestedResellerBps  Int?
+  /// Fecha de estreno. Antes de ella el curso se muestra con su portada y "Se estrena el …",
+  /// pero no se toma, no se compra y no se mira. Null = disponible apenas se publica.
+  releaseAt             DateTime?
   createdAt             DateTime                @default(now())
   updatedAt             DateTime                @updatedAt
   workspace             Workspace               @relation(fields: [workspaceId], references: [id], onDelete: Cascade)

@@ -1,7 +1,7 @@
 import "server-only";
 // lib/course-classroom/mis-cursos.ts
 import { prisma } from "@repo/db";
-import { estadoDeAccesoAlCurso, type OrigenAcceso } from "./access-rules";
+import { cursoEstrenado, estadoDeAccesoAlCurso, type OrigenAcceso } from "./access-rules";
 import { armarAula } from "./aula";
 
 /**
@@ -17,6 +17,8 @@ export type AccesoParaMisCursos = {
   course: {
     id: string;
     title: string;
+    /** Fecha de estreno. Antes de ella el curso figura, pero sin clases para mirar. */
+    releaseAt?: Date | null;
     workspace: { id: string; name: string };
     lessons: Array<{ id: string; title: string; durationSeconds: number | null; videoStatus: string; sortOrder: number }>;
   };
@@ -36,6 +38,8 @@ export type CursoDeMisCursos = {
   expiresAt: Date | null;
   porcentaje: number;
   siguienteClaseId: string | null;
+  /** Si todavía no se estrenó, la fecha de estreno. */
+  estrenaEl: Date | null;
 };
 
 export type GrupoDeMisCursos = { workspace: { id: string; name: string }; cursos: CursoDeMisCursos[] };
@@ -51,7 +55,8 @@ export function agruparMisCursos(
     const estado = estadoDeAccesoAlCurso(a, { esSocioActivo: sociaActivaEn.has(espacio.id) }, ahora);
     if (estado !== "VIGENTE") continue;
     const { clases, porcentaje } = armarAula(a.course.lessons, a.progress);
-    const siguiente = clases.find((c) => !c.completada) ?? clases[0] ?? null;
+    const estrenado = cursoEstrenado(a.course.releaseAt, ahora);
+    const siguiente = estrenado ? (clases.find((c) => !c.completada) ?? clases[0] ?? null) : null;
     const grupo = grupos.get(espacio.id) ?? { workspace: espacio, cursos: [] };
     grupo.cursos.push({
       accessId: a.id,
@@ -61,6 +66,7 @@ export function agruparMisCursos(
       expiresAt: a.expiresAt,
       porcentaje,
       siguienteClaseId: siguiente?.id ?? null,
+      estrenaEl: estrenado ? null : (a.course.releaseAt ?? null),
     });
     grupos.set(espacio.id, grupo);
   }
@@ -95,6 +101,7 @@ export async function cargarMisCursos(userId: number): Promise<GrupoDeMisCursos[
           select: {
             id: true,
             title: true,
+            releaseAt: true,
             workspace: { select: { id: true, name: true } },
             lessons: seleccionDeLecciones,
           },
@@ -122,11 +129,13 @@ export async function cargarAccesoVigente(userId: number, courseId: string) {
       revokedAt: true,
       workspaceId: true,
       enrollment: { select: { id: true, name: true, dni: true } },
-      course: { select: { id: true, title: true, workspaceId: true, lessons: seleccionDeLecciones } },
+      course: { select: { id: true, title: true, workspaceId: true, releaseAt: true, lessons: seleccionDeLecciones } },
       progress: { select: { lessonId: true, completedAt: true, lastPositionSeconds: true } },
     },
   });
   if (!acceso) return null;
+  // Antes del estreno no se mira, aunque el acceso exista (lo compró o lo tomó antes).
+  if (!cursoEstrenado(acceso.course.releaseAt, new Date())) return null;
   const socia = acceso.origin === "MEMBER_BENEFIT" ? await institucionesDondeEsSociaActiva(userId) : new Set<string>();
   const estado = estadoDeAccesoAlCurso(acceso, { esSocioActivo: socia.has(acceso.workspaceId) }, new Date());
   return estado === "VIGENTE" ? acceso : null;

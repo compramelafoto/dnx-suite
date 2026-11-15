@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   calcularVencimiento,
+  cursoEstrenado,
+  fechaDeEstreno,
   estadoDeAccesoAlCurso,
   fechaLegibleArgentina,
   numeroDeInscripcion,
@@ -84,5 +86,21 @@ describe("vencimiento de un acceso nuevo", () => {
     const { vencimientoDeAcceso } = await import("./access-rules");
     expect(vencimientoDeAcceso(new Date(Date.UTC(2026, 9, 23)), 0)).toBeNull();
     expect(vencimientoDeAcceso(new Date(Date.UTC(2026, 9, 23)), 12)?.toISOString()).toBe("2027-10-23T00:00:00.000Z");
+  });
+});
+
+describe("estreno del curso", () => {
+  const estreno = new Date("2026-12-04T13:00:00.000Z"); // viernes 4/12, 10 h en Argentina
+  it("sin fecha de estreno está disponible", () => {
+    expect(cursoEstrenado(null, new Date("2026-01-01T00:00:00Z"))).toBe(true);
+  });
+  it("antes de la fecha no está disponible; desde la fecha, sí", () => {
+    expect(cursoEstrenado(estreno, new Date("2026-12-04T12:59:59Z"))).toBe(false);
+    expect(cursoEstrenado(estreno, estreno)).toBe(true);
+  });
+  it("muestra la fecha en hora argentina", () => {
+    expect(fechaDeEstreno(estreno)).toBe("viernes 4 de diciembre");
+    // Las 2 h del sábado en UTC son las 23 h del viernes en Argentina.
+    expect(fechaDeEstreno(new Date("2026-12-05T02:00:00Z"))).toBe("viernes 4 de diciembre");
   });
 });
