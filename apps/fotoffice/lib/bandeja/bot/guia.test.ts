@@ -158,4 +158,10 @@ describe("guía del bot de atención", () => {
     expect(g).toContain("los analiza y los cotiza una persona del estudio");
     expect(g).toContain("trabajo de video: ");
   });
+  it("un anuncio de XV es cobertura de la fiesta aunque hable de edición: primero la fecha", () => {
+    const g = guiaDeAtencion();
+    expect(g).toContain('TEMA: cobertura fotográfica de una fiesta de XV');
+    expect(g).toContain("no le preguntes si quiere retocar fotos que ya tiene");
+    expect(g).toContain("¿Para qué fecha es la fiesta? 🎉");
+  });
 });

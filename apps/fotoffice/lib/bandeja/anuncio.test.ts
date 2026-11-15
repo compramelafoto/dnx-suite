@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { anuncioDeMedia, anuncioDeReferral, etiquetaDeAnuncio } from "./anuncio";
+import { anuncioDeMedia, anuncioDeReferral, etiquetaDeAnuncio, temaDeAnuncio } from "./anuncio";
 import { historialParaElBot } from "./bot/historial";
 import { leerWebhook } from "./webhook";
 
@@ -86,6 +86,30 @@ describe("el bot ve de qué anuncio vino", () => {
     ]);
     expect(r?.userText).toBe(
       "[el cliente llegó tocando un anuncio del estudio en Facebook/Instagram: «¿TENÉS VHS GUARDADOS?»] ¡Hola! Quiero más información.",
+    );
+  });
+});
+
+describe("anuncios de XV: siempre cobertura de la fiesta", () => {
+  /** El anuncio real del 15/11/2026: apunta a madres de quinceañeras aunque hable de edición. */
+  const XV_EDICION = { headline: "Más info", body: "¿Edición y retoques en fotos de quinceañeras?", source_type: "ad", source_url: "https://fb.me/xv" };
+
+  it("detecta el tema XV por quince, quinceañera, XV o 15 años", () => {
+    expect(temaDeAnuncio({ texto: "¿Edición y retoques en fotos de quinceañeras?" })).toBe("XV");
+    expect(temaDeAnuncio({ titulo: "Tus XV como los soñaste" })).toBe("XV");
+    expect(temaDeAnuncio({ texto: "Fotos para la fiesta de 15 años" })).toBe("XV");
+    expect(temaDeAnuncio({ texto: "Cómo dirigir a una quince" })).toBe("XV");
+    expect(temaDeAnuncio({ texto: "¿TENÉS VHS GUARDADOS?" })).toBeNull();
+    expect(temaDeAnuncio({ texto: "Revelado en 15 minutos" })).toBeNull();
+  });
+
+  it("el bot recibe el anuncio de edición de XV marcado como cobertura de la fiesta, no como retoque", () => {
+    const [e] = leerWebhook(webhookConReferral({ type: "text", text: { body: "¡Hola! Quiero más información" }, referral: XV_EDICION }));
+    const r = historialParaElBot([
+      { direccion: "ENTRANTE", autor: "CLIENTE", tipo: "TEXTO", texto: e.texto, media: e.media },
+    ]);
+    expect(r?.userText).toBe(
+      "[el cliente llegó tocando un anuncio del estudio en Facebook/Instagram: «Más info — ¿Edición y retoques en fotos de quinceañeras?» · TEMA: cobertura fotográfica de una fiesta de XV (busca fotógrafo para la fiesta; no es retoque de fotos sueltas)] ¡Hola! Quiero más información",
     );
   });
 });
