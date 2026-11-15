@@ -31,9 +31,10 @@ const webhookConReferral = (mensaje: Record<string, unknown>) => ({
 });
 
 describe("anuncioDeReferral", () => {
-  it("toma id, tipo, url, título y texto", () => {
+  it("toma id, tipo, url, título, texto y el código del clic", () => {
     expect(anuncioDeReferral(REFERRAL)).toEqual({
       id: "120250851161490497", tipo: "ad", url: "https://fb.me/abc", titulo: "Chatea con nosotros", texto: "¿TENÉS VHS GUARDADOS?",
+      ctwaClid: "ARAkLkA8rmlFeiCktEJQ",
     });
   });
 

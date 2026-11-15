@@ -14,6 +14,8 @@ export type AnuncioWa = {
   url?: string;
   titulo?: string;
   texto?: string;
+  /** Código del clic (`ctwa_clid`): con él se le avisa a Meta qué chats terminaron en cotización o venta. */
+  ctwaClid?: string;
 };
 
 type Json = Record<string, unknown>;
@@ -30,6 +32,8 @@ export function anuncioDeReferral(referral: unknown): AnuncioWa | null {
   const url = cadena(referral.source_url, 300);
   const titulo = cadena(referral.headline, 200);
   const texto = cadena(referral.body, 500);
+  const ctwaClid = cadena(referral.ctwa_clid, 300);
+  if (ctwaClid) a.ctwaClid = ctwaClid;
   if (id) a.id = id;
   if (tipo) a.tipo = tipo;
   if (url) a.url = url;
@@ -43,7 +47,7 @@ export function anuncioDeMedia(media: unknown): AnuncioWa | null {
   if (!esObjeto(media) || !esObjeto(media.anuncio)) return null;
   const m = media.anuncio;
   const a: AnuncioWa = {};
-  for (const k of ["id", "tipo", "url", "titulo", "texto"] as const) {
+  for (const k of ["id", "tipo", "url", "titulo", "texto", "ctwaClid"] as const) {
     const v = cadena(m[k]);
     if (v) a[k] = v;
   }

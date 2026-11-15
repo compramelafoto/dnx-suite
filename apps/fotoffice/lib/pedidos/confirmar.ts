@@ -15,6 +15,7 @@ import { buscarOpcion, condicionesDeInstantanea, opcionesParaPresupuesto, parseP
 import { leerCuotasEditadas, type CuotaParaGuardar } from "./plan";
 import { planDesdeOpcion, validarPlan, type AvisoPlan, type CuotaPlan } from "./plan-cuotas";
 import { apartarStock, etiquetaDeEvento, insertarPedido, nombreDeContacto, rubroDeItems } from "./pedidos";
+import { programarConversion } from "@/lib/bandeja/conversiones-servidor";
 
 /**
  * "Confirmar pedido" desde un presupuesto aceptado (spec §2 A.2 y §5).
@@ -275,7 +276,7 @@ export async function confirmarPedido(
   const conCitas = await agendaEncendida(workspaceId);
 
   try {
-    return await prisma.$transaction(async (tx): Promise<ResultadoConfirmacion> => {
+    const r = await prisma.$transaction(async (tx): Promise<ResultadoConfirmacion> => {
       await bloquearPresupuesto(tx, presupuestoId);
       const d = await preparar(tx, workspaceId, presupuestoId, ahora);
       let cuotas: CuotaParaGuardar[] = d.cuotas;
@@ -292,9 +293,20 @@ export async function confirmarPedido(
         ctx, cuotas, aviso, titulos: tareas.titulos, createdByUserId: ctx.userId, conProyectos, conCitas, omitidos, citasSinCrear, ahora,
       });
     }, OPCIONES_TRANSACCION_PEDIDO);
+    avisarVentaAMeta(workspaceId, r);
+    return r;
   } catch (e) {
     return await resolverError(e, workspaceId, presupuestoId, "confirmarPedido");
   }
+}
+
+/**
+ * Si el cliente llegó por un anuncio de WhatsApp, Meta se entera de la venta (con el total) y
+ * aprende a buscar gente que contrata. Corre después de responder y nunca frena la confirmación.
+ */
+function avisarVentaAMeta(workspaceId: string, r: ResultadoConfirmacion): void {
+  if (!r.ok) return;
+  programarConversion({ evento: "Purchase", workspaceId, eventoId: `pedido-${r.pedidoId}`, pedidoId: r.pedidoId });
 }
 
 /** La escritura del pedido: la comparten la confirmación a mano y la del sistema. */
@@ -380,7 +392,7 @@ export async function confirmarPedidoPorSistema(workspaceId: string, presupuesto
   try {
     const conProyectos = await proyectosEncendidos(workspaceId);
     const conCitas = await agendaEncendida(workspaceId);
-    return await prisma.$transaction(async (tx): Promise<ResultadoConfirmacion> => {
+    const r = await prisma.$transaction(async (tx): Promise<ResultadoConfirmacion> => {
       await bloquearPresupuesto(tx, presupuestoId);
       const d = await preparar(tx, workspaceId, presupuestoId, ahora);
       const tareas = await titulosParaPedidoNuevo(tx, workspaceId, undefined);
@@ -390,6 +402,8 @@ export async function confirmarPedidoPorSistema(workspaceId: string, presupuesto
         conProyectos, conCitas, omitidos: new Set(), citasSinCrear: new Set(), ahora,
       });
     }, OPCIONES_TRANSACCION_PEDIDO);
+    avisarVentaAMeta(workspaceId, r);
+    return r;
   } catch (e) {
     return await resolverError(e, workspaceId, presupuestoId, "confirmarPedidoPorSistema");
   }

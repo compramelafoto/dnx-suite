@@ -173,7 +173,14 @@ const DEPS: DepsAtencion = {
   prepararPresupuesto: async (workspaceId, chat, datos) => {
     // Se carga recién acá: el alta de consultas y Presupuestos no hacen falta para contestar precios.
     const { prepararDesdeWhatsapp } = await import("@/lib/presupuesto-automatico/whatsapp");
-    return prepararDesdeWhatsapp(workspaceId, chat, datos);
+    const r = await prepararDesdeWhatsapp(workspaceId, chat, datos);
+    if (r.ok) {
+      // Si el chat vino de un anuncio, Meta se entera de que pidió cotización (una vez por día y chat).
+      const { programarConversion } = await import("@/lib/bandeja/conversiones-servidor");
+      const dia = new Date().toISOString().slice(0, 10);
+      programarConversion({ evento: "LeadSubmitted", workspaceId, eventoId: `cotizacion-${chat.id}-${dia}`, chatId: chat.id });
+    }
+    return r;
   },
 };
 
