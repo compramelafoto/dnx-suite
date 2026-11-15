@@ -27,7 +27,6 @@ import {
 } from "@repo/ops-daily-report";
 
 import { prisma } from "@/lib/prisma";
-import { createClfLegacyCollector } from "./clf-legacy-collector";
 import { createPrismaClickatonPort } from "./prisma-clickaton-port";
 import { createPrismaFinancePort } from "./prisma-finance-port";
 import { createPrismaFotofficePort } from "./prisma-fotoffice-port";
@@ -128,7 +127,6 @@ export async function runDailyReport(options: { now: Date }): Promise<RunDailyRe
     now: options.now,
     collectors: [
       createClfMonorepoCollector(createPrismaSalesPort(prisma), window, { adminBaseUrl }),
-      createClfLegacyCollector(window, { adminBaseUrl }),
       createClickatonCollector(createPrismaClickatonPort(prisma), window, {
         adminBaseUrl: clickatonBaseUrl,
       }),
