@@ -1,6 +1,6 @@
 # CLF internacional: cobro directo al fotógrafo y saldo prepago
 
-Fecha: 2026-11-04 · Estado: diseño para aprobar · App: `apps/compramelafoto`
+Fecha: 2026-11-04 · Estado: aprobado; piloto definido en la sección 11 (2026-11-14) · App: `apps/compramelafoto`
 
 ## 1. Para qué y por qué
 
@@ -309,3 +309,36 @@ oculto hasta la etapa 7).
 - Preventas y productos de álbum apagados en álbumes internacionales.
 - Álbumes existentes del exterior: se pasan a su moneda sin venta hasta que el fotógrafo cargue
   los precios.
+
+## 11. Cambios del owner para el piloto (2026-11-14)
+
+Estas decisiones **reemplazan** lo que digan las secciones anteriores sobre el mismo tema.
+
+1. **Comisión internacional: 15 %.** Se suma al precio del fotógrafo: si la foto vale 10.000 en su
+   moneda, el cliente paga 11.500 y el fotógrafo recibe los 11.500 en su cuenta. Los 1.500 se pasan
+   a dólares y se descuentan de su saldo. No usa el porcentaje argentino ni sus excepciones.
+2. **Adelanto de 25 USD (no es un regalo).** Al habilitarse, el fotógrafo arranca con 25 USD de
+   saldo prestados. La primera recarga cobra **el adelanto (25 USD) más lo que elija cargar**.
+   Mientras no la pague, el adelanto figura como deuda en su panel. Se da una sola vez por cuenta
+   de Mercado Pago (`User.mpUserId`), no por usuario de CLF.
+3. **Recarga: mínimo 10 USD** (sin contar el adelanto). El sistema sugiere 25, 50 o 100 USD según
+   lo que se le descontó en los últimos 30 días, y marca como recomendado el monto que le alcanza
+   para un mes de ventas. Sin historial, recomienda 25.
+4. **Mercado Pago con la conexión que ya tienen.** Para los países con Mercado Pago no se pide pegar
+   claves: se usa la conexión OAuth existente (`User.mpAccessToken`), que funciona con cuentas de
+   Chile, Colombia, México, Perú y Uruguay (comprobado el 05/11 y el 14/11). La preferencia va en
+   la moneda local y **sin** `marketplace_fee`.
+5. **El dinero de las recargas queda en el PayPal de DNX.** No hace falta retirarlo: se usa para
+   pagar servicios desde ahí.
+
+### 11.1 Alcance del piloto
+
+- Solo fotógrafos de países con Mercado Pago (CL, CO, MX, PE, UY) que estén en la lista del piloto
+  (`CLF_INTL_PILOT_USER_IDS`). El primero: Wilson Lozada (id 1038, Colombia).
+- Solo **fotos digitales** de álbumes nuevos creados por el fotógrafo del piloto. Sin impresiones,
+  preventas, packs, videos, eventos con organizador ni referidos (etapa 6).
+- Devoluciones: en el piloto las registra a mano un administrador (ajuste). La revisión diaria
+  automática queda para después.
+- Aviso de saldo bajo por debajo de **5 USD** (correo una vez + aviso en el panel). Con saldo en 0
+  o menos, las compras nuevas se pausan.
+- Fotógrafos del exterior fuera de la lista: todo sigue como hoy.

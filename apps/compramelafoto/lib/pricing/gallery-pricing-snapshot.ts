@@ -37,6 +37,8 @@ export type GalleryPricingSnapshot =
       digitalDiscount5Plus?: number | null;
       digitalDiscount10Plus?: number | null;
       digitalDiscount20Plus?: number | null;
+      /** CLF internacional: moneda de los montos. Ausente = pesos (ARS). */
+      currency?: string;
     } & DigitalBulkDiscountInput)
   | {
       kind: GalleryPricingUnavailableKind;

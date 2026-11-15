@@ -25,6 +25,8 @@ import {
 } from "@/lib/pricing/album-sales-calculator";
 import { TERMS_VERSION, TERMS_TEXT } from "@/lib/terms/photographerTerms";
 import type { AlbumSalesFormState } from "@/lib/albums/album-sales-form-state";
+import { majorToStored, storedToMajor } from "@/lib/international/money";
+import { mpRequiresWholeUnits } from "@/lib/international/intl-order";
 
 type LabOption = { id: number; name: string; city?: string | null; province?: string | null };
 
@@ -56,6 +58,8 @@ export type AlbumVentasFormProps = {
     albumPackPayEnabled?: boolean;
     termsAcceptedAt?: string | null;
     termsVersion?: string | null;
+    /** CLF internacional (piloto): moneda del álbum. ARS o ausente = pesos, como siempre. */
+    currency?: string | null;
   };
   albumSales: AlbumSalesState | null;
   albumSalesLoading: boolean;
@@ -84,6 +88,13 @@ const AUTOSAVE_DEBOUNCE_MS = 750;
 function numToInput(value: number | null | undefined): string {
   if (value == null || !Number.isFinite(value)) return "";
   return String(value);
+}
+
+/** Precio guardado → texto del campo. En pesos es idéntico a `numToInput`. */
+function priceToInput(stored: number | null | undefined, currency: string): string {
+  if (currency === "ARS") return numToInput(stored);
+  if (stored == null || !Number.isFinite(stored)) return "";
+  return String(storedToMajor(stored, currency));
 }
 
 function useDebounced<T>(value: T, delay: number): T {
@@ -145,6 +156,8 @@ export default function AlbumVentasForm({
   canShareWithClients = true,
   shareBlockReasons = [],
 }: AlbumVentasFormProps) {
+  const albumCurrency = album.currency && album.currency.trim() !== "" ? album.currency : "ARS";
+  const isIntlAlbum = albumCurrency !== "ARS";
 
   const [digitalPrice, setDigitalPrice] = useState("");
   const [discount5, setDiscount5] = useState("");
@@ -231,7 +244,7 @@ export default function AlbumVentasForm({
   useEffect(() => {
     formHydratedRef.current = false;
     const digitalFields = {
-      digitalPrice: numToInput(album.digitalPhotoPriceCents),
+      digitalPrice: priceToInput(album.digitalPhotoPriceCents, albumCurrency),
       discount5: numToInput(album.digitalDiscount5Plus),
       discount10: numToInput(album.digitalDiscount10Plus),
       discount20: numToInput(album.digitalDiscount20Plus),
@@ -607,7 +620,12 @@ export default function AlbumVentasForm({
       const trimmed = digitalPrice.trim().replace(",", ".");
       let parsed: number | null = null;
       if (trimmed) {
-        parsed = Math.round(parseFloat(trimmed));
+        parsed = isIntlAlbum
+          ? majorToStored(
+              mpRequiresWholeUnits(albumCurrency) ? Math.round(parseFloat(trimmed)) : parseFloat(trimmed),
+              albumCurrency,
+            )
+          : Math.round(parseFloat(trimmed));
         if (!Number.isFinite(parsed) || parsed <= 0) {
           if (!options?.silent) {
             showToast("Ingresá un precio válido.", "error");
@@ -615,7 +633,7 @@ export default function AlbumVentasForm({
           return false;
         }
         const min = minDigitalPhotoPrice ?? 5000;
-        if (parsed < min) {
+        if (!isIntlAlbum && parsed < min) {
           if (!options?.silent) {
             showToast(`El precio mínimo es $${min.toLocaleString("es-AR")}.`, "error");
           }
@@ -673,6 +691,8 @@ export default function AlbumVentasForm({
     },
     [
       organizerLocksAlbumDigitalPricing,
+      isIntlAlbum,
+      albumCurrency,
       digitalPrice,
       discount5,
       discount10,
@@ -955,12 +975,12 @@ export default function AlbumVentasForm({
             <div className="ds-form-stack w-full gap-4">
               <div className="w-full min-w-0 space-y-2">
                 <label className="block text-sm font-medium text-[#1a1a1a]">
-                  Precio por foto digital (ARS)
+                  Precio por foto digital ({albumCurrency})
                 </label>
                 <Input
                   type="number"
-                  min={minDigitalPhotoPrice ?? 0}
-                  step="1"
+                  min={isIntlAlbum ? 0 : minDigitalPhotoPrice ?? 0}
+                  step={isIntlAlbum && !mpRequiresWholeUnits(albumCurrency) ? "any" : "1"}
                   value={digitalPrice}
                   onChange={(e) => {
                     setDigitalPrice(e.target.value);
@@ -969,6 +989,13 @@ export default function AlbumVentasForm({
                   className="w-full"
                 />
               </div>
+              {isIntlAlbum ? (
+                <p className="ds-readable-text text-sm text-[#374151] m-0 rounded-lg border border-[#bfdbfe] bg-[#f0f9ff] px-4 py-3">
+                  El cliente paga este precio más 15 % de comisión; vos recibís el total en tu Mercado Pago. La
+                  comisión se descuenta de tu saldo en dólares.
+                </p>
+              ) : (
+              <>
               <div className="grid gap-3 sm:grid-cols-3">
                 {[
                   { label: "Descuento 5+ fotos (%)", value: discount5, set: setDiscount5 },
@@ -1046,6 +1073,8 @@ export default function AlbumVentasForm({
                   ) : null}
                 </div>
               ) : null}
+              </>
+              )}
 
               <AutosaveStatus state={digitalAutosave} errorMessage={digitalAutosaveError} />
             </div>

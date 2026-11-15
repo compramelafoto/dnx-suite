@@ -13,7 +13,8 @@ const n = (v: { toNumber(): number } | number | null | undefined) => (v == null 
 export async function loadClfRows() {
   const [orders, prints, referrals] = await Promise.all([
     prisma.order.findMany({
-      where: { status: "PAID", isTest: false, createdAt: { gte: SINCE_DATE } },
+      // Solo pesos: las ventas internacionales (CLF piloto) guardan montos en otra moneda.
+      where: { status: "PAID", isTest: false, currency: "ARS", createdAt: { gte: SINCE_DATE } },
       select: { createdAt: true, totalCents: true, platformCommissionCents: true, referralFeeDiscountCents: true },
     }),
     prisma.printOrder.findMany({

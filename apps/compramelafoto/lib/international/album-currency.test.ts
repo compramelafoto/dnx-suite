@@ -11,3 +11,7 @@ test("encendido: moneda del país del dueño", () => {
   assert.equal(currencyForNewAlbum("AR", true), "ARS");
   assert.equal(currencyForNewAlbum(null, true), "ARS");
 });
+test("piloto: moneda del país aunque el interruptor esté apagado", () => {
+  assert.equal(currencyForNewAlbum("CO", false, true), "COP");
+  assert.equal(currencyForNewAlbum("CO", false, false), "ARS");
+});

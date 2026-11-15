@@ -51,6 +51,9 @@ import { desviarAlPilotoSiCorresponde } from "@/lib/split-1n-piloto/desvio";
 import { leerMarcaPiloto } from "@/lib/split-1n-piloto/snapshot";
 import { esPedidoDeCarrito, opcionesPedidoDeCarrito } from "@/lib/split-1n-carrito-evento/pedido-interno";
 import { leerMarcaGrupo } from "@/lib/split-1n-carrito-evento/marca";
+import { shouldUseIntlFlow, intlBlockMessage } from "@/lib/international/intl-order";
+import { createIntlAlbumOrder } from "@/lib/international/intl-order-service";
+import { ensureAlbumOrderMpPreference } from "@/lib/mercadopago/album-order-mp-preference";
 
 function normalizePercent(value: unknown): number | null {
   const parsed = Number(value);
@@ -172,6 +175,7 @@ export async function POST(
           albumProfitMarginPercent: true,
           pickupBy: true,
           digitalPhotoPriceCents: true,
+          currency: true,
           termsAcceptedAt: true,
           termsVersion: true,
           photos: {
@@ -198,6 +202,7 @@ export async function POST(
             albumProfitMarginPercent: true,
             pickupBy: true,
             digitalPhotoPriceCents: true,
+            currency: true,
             termsAcceptedAt: true,
             termsVersion: true,
             photos: {
@@ -320,6 +325,65 @@ export async function POST(
       uploaderId: item.uploaderId ?? null,
       uploaderDigitalPriceCents: item.uploaderDigitalPriceCents ?? null,
     }));
+
+    // CLF internacional (piloto): un álbum en otra moneda no pasa por el motor de precios argentino.
+    // Solo fotos digitales, precio del álbum + 15 %, cobro con el Mercado Pago del fotógrafo.
+    if (shouldUseIntlFlow(album.currency)) {
+      if (carritoEvento || canjeVoucher || pagoSimulado) {
+        return NextResponse.json(
+          { error: intlBlockMessage("NOT_DIGITAL_ONLY"), code: "INTL_SALE_PAUSED" },
+          { status: 409 }
+        );
+      }
+      const intl = await createIntlAlbumOrder({
+        album: {
+          id: album.id,
+          userId: album.userId,
+          currency: album.currency,
+          digitalPhotoPriceCents: album.digitalPhotoPriceCents ?? null,
+          eventId: album.eventId ?? null,
+        },
+        items: normalizedItems,
+        photoIdForFileKey: (fileKey) => fileKeyToPhoto.get(fileKey)?.id ?? null,
+        buyer: {
+          email: normalizedBuyerEmail,
+          userId: authUser?.id ?? null,
+          name: trimmedBuyerName,
+          phone: rawBuyerPhone || null,
+        },
+      });
+      if (!intl.ok) return NextResponse.json(intl.body, { status: intl.status });
+
+      await vincularPedidoConBot(intl.orderId, req.headers.get("cookie"));
+      const intlMeta = getRequestMetadata(req);
+      await registerAuditEvent({
+        actorUserId: authUser?.id ?? null,
+        actorRole: authUser?.role ?? "GUEST",
+        targetOrderType: "ALBUM_ORDER",
+        targetOrderId: intl.orderId,
+        targetAlbumId: albumId,
+        eventType: "TERMS_ACCEPTED",
+        ipAddress: intlMeta.ipAddress,
+        userAgent: intlMeta.userAgent,
+        metadata: {
+          ...buildCheckoutTermsAcceptanceMetadata(new Date()),
+          buyerEmail: normalizedBuyerEmail,
+        },
+      });
+
+      const pref = await ensureAlbumOrderMpPreference(intl.orderId);
+      if (!pref.ok) {
+        console.error("[intl-order] no se pudo crear la preferencia", { orderId: intl.orderId, error: pref.error });
+        return NextResponse.json(
+          { id: intl.orderId, totalCents: intl.totalStored, error: pref.error, code: pref.code },
+          { status: 201 }
+        );
+      }
+      return NextResponse.json(
+        { id: intl.orderId, totalCents: intl.totalStored, initPoint: pref.initPoint },
+        { status: 201 }
+      );
+    }
 
     let totals = await computeCheckoutTotals({
       flow: "ALBUM_ORDER",

@@ -24,6 +24,8 @@ import {
   listPublicReadyVideosForAlbum,
 } from "@/lib/videos/public-ready-videos";
 import { isVideoMvpEnabled } from "@/lib/videos/video-feature-flag";
+import { shouldUseIntlFlow } from "@/lib/international/intl-order";
+import { buildIntlGalleryPricing } from "@/lib/international/intl-gallery";
 
 function normalizeLogoUrl(logoUrl: string | null | undefined): string | null {
   if (!logoUrl) return null;
@@ -180,6 +182,7 @@ export default async function Page({
     albumProfitMarginPercent: true,
     pickupBy: true,
     digitalPhotoPriceCents: true,
+    currency: true,
     digitalDiscount5Plus: true,
     digitalDiscount10Plus: true,
     digitalDiscount20Plus: true,
@@ -748,7 +751,8 @@ export default async function Page({
     clientSubtotalArs: 0,
     prismaClient: prisma,
   });
-  const galleryPricing = await loadGalleryPricingSnapshot(
+  const albumSaleCurrency = (album as { currency?: string | null }).currency || "ARS";
+  const galleryPricingBase = await loadGalleryPricingSnapshot(
     prisma,
     {
       userId: album.userId,
@@ -780,6 +784,13 @@ export default async function Page({
     },
     checkoutDigitalFeePercent
   );
+  // CLF internacional (piloto): precio por foto en la moneda del álbum, + 15 %.
+  const galleryPricing = shouldUseIntlFlow(albumSaleCurrency)
+    ? buildIntlGalleryPricing(
+        (album as { digitalPhotoPriceCents?: number | null }).digitalPhotoPriceCents ?? null,
+        albumSaleCurrency,
+      )
+    : galleryPricingBase;
   const publicVideosEnabled = isVideoMvpEnabled();
   const hasPublicReadyVideos = publicVideosEnabled
     ? await albumHasPublicReadyVideos(prisma, album.id)
@@ -823,6 +834,7 @@ export default async function Page({
             initialPublicVideos={initialPublicVideos}
             album={{
               id: album.id,
+              currency: albumSaleCurrency,
               title: album.title,
               location: album.location,
               eventDate: album.eventDate ? album.eventDate.toISOString() : null,

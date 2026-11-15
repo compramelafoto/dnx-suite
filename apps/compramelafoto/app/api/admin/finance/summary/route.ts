@@ -22,7 +22,8 @@ export async function GET(req: NextRequest) {
     const toDate = searchParams.get("toDate");
 
     const printWhere: any = { paymentStatus: "PAID" };
-    const orderWhere: any = { ...excludeTestOrderWhere, status: "PAID" };
+    // Solo pesos: las ventas internacionales (CLF piloto) guardan montos en otra moneda.
+    const orderWhere: any = { ...excludeTestOrderWhere, status: "PAID", currency: "ARS" };
 
     if (fromDate || toDate) {
       const dateFilter: any = {};

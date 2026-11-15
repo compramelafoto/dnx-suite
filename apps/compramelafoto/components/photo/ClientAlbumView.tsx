@@ -112,6 +112,8 @@ type Album = {
   faceBulkPriceCents?: number | null;
   /** Precio base digital por foto del álbum (centavos), para comparar conveniencia */
   digitalPhotoPriceCents?: number | null;
+  /** CLF internacional (piloto): moneda del álbum. ARS o ausente = circuito de siempre. */
+  currency?: string;
   /** % fee plataforma sobre base digital (servidor: `getPlatformFeePercent`). */
   checkoutDigitalFeePercent?: number;
   publicVisiblePacks?: PublicPack[];
@@ -953,6 +955,8 @@ export default function ClientAlbumView({
 
   function handleComprar() {
     if (checkoutSubmitting) return;
+    // CLF internacional (piloto): solo fotos digitales; sin fotos elegidas no hay nada que comprar.
+    if (album.currency && album.currency !== "ARS" && selected.size === 0) return;
 
     // Sólo videos: no hay fotos que pasar por el selector, así que va derecho
     // al resumen. Antes esta línea cortaba y el botón no hacía nada.
@@ -979,6 +983,11 @@ export default function ClientAlbumView({
         "No pudimos armar la lista de fotos para comprar. Probá actualizar la página o elegir otras fotos."
       );
       setCheckoutSubmitting(false);
+      return;
+    }
+    // CLF internacional (piloto): compra de fotos digitales en la moneda del álbum, en su propia página.
+    if (album.currency && album.currency !== "ARS") {
+      startCheckoutNavigation(`/a/${album.id}/comprar-intl?fotos=${encodeURIComponent(arr.join(","))}`);
       return;
     }
     writeAlbumCheckoutSelection(String(album.id), arr);

@@ -54,6 +54,8 @@ import {
   toClfAlbumWelcomePublicPayload,
 } from "@/lib/public/partners-album-welcome";
 import type { ClfAlbumWelcomePublicPayload } from "@/lib/public/partners-album-welcome-shared";
+import { shouldUseIntlFlow } from "@/lib/international/intl-order";
+import { buildIntlGalleryPricing } from "@/lib/international/intl-gallery";
 
 async function resolveClfAlbumWelcomePayload(input: {
   albumId: number;
@@ -148,6 +150,7 @@ const selectAlbumBase = {
   albumProfitMarginPercent: true,
   pickupBy: true,
   digitalPhotoPriceCents: true,
+  currency: true,
   digitalDiscount5Plus: true,
   digitalDiscount10Plus: true,
   digitalDiscount20Plus: true,
@@ -599,7 +602,8 @@ export default async function AlbumPublicPage({
     clientSubtotalArs: 0,
     prismaClient: prisma,
   });
-  const galleryPricing = await loadGalleryPricingSnapshot(
+  const albumSaleCurrency = (album as { currency?: string | null }).currency || "ARS";
+  const galleryPricingBase = await loadGalleryPricingSnapshot(
     prisma,
     {
       userId: album.userId,
@@ -631,6 +635,13 @@ export default async function AlbumPublicPage({
     },
     checkoutDigitalFeePercent
   );
+  // CLF internacional (piloto): precio por foto en la moneda del álbum, + 15 %.
+  const galleryPricing = shouldUseIntlFlow(albumSaleCurrency)
+    ? buildIntlGalleryPricing(
+        (album as { digitalPhotoPriceCents?: number | null }).digitalPhotoPriceCents ?? null,
+        albumSaleCurrency,
+      )
+    : galleryPricingBase;
   const albumPackPayButtonEnabled = isAlbumPackPaymentGloballyAllowedForAlbum(album.albumPackPayEnabled);
 
   const applyVideoExpiresFilter = !(isOwner || isAdmin || Boolean(hasAccess));
@@ -694,6 +705,7 @@ export default async function AlbumPublicPage({
             initialPublicVideos={initialPublicVideos}
             album={{
               id: album.id,
+              currency: albumSaleCurrency,
               title: album.title,
               location: album.location,
               eventDate: album.eventDate ? album.eventDate.toISOString() : null,
