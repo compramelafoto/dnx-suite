@@ -143,6 +143,16 @@ describe("alLlegarConsulta", () => {
     expect(await F.enPreparacionParaWhatsapp(WS, "5493410000001")).toBe(true);
   });
 
+  it("la consulta pendiente sin código de error frena otra aunque Postgres trate NULL como desconocido", async () => {
+    // La base en memoria evalúa NOT/IN como JavaScript; Postgres descarta el NULL en `NOT (x IN …)`.
+    // Por eso fijamos que la condición acepte el errorCode NULL de forma explícita.
+    B.agregar("fotofficePresupuestoAprobacion", { id: "pend", leadId: "lead-p", workspaceId: WS, waId: "5493410000002", status: "AVISADO", errorCode: null, createdAt: new Date() });
+    expect(await F.enPreparacionParaWhatsapp(WS, "5493410000002")).toBe(true);
+    const where = F.condicionEnPreparacion(WS, "5493410000002", new Date()) as Record<string, unknown>;
+    expect(where.NOT).toBeUndefined();
+    expect(where.OR).toContainEqual({ errorCode: null });
+  });
+
   it("sin perfil de precios: lo dice con su propio motivo", async () => {
     const { d, avisos } = deps({ armar: async () => ({ resultado: "SIN_PERFIL", presupuestoId: null }) });
     await F.alLlegarConsulta(WS, "lead-1", "WEB", {}, d);
