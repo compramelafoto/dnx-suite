@@ -7,7 +7,7 @@ import { z } from "zod";
 import { requireCoursesSalesContext } from "@/lib/workspace";
 import { esSinReparto } from "@/lib/course-marketplace/beneficiarios";
 import { slugify } from "@/lib/slug";
-import { leerCamposDeVenta } from "./course-sale-fields";
+import { leerCamposDeVenta, leerFechaDeEstreno } from "./course-sale-fields";
 import { logCourseEvent } from "@/lib/presential-courses/log";
 import {
   computeAvailableSpots,
@@ -43,6 +43,8 @@ const courseSchema = z.object({
   accessMonths: z.coerce.number().int().min(0).max(120).default(12),
   completionPercent: z.coerce.number().int().min(1).max(100).default(80),
   freeForMembers: z.boolean().default(false),
+  /// Fecha de estreno: antes de ella se muestra pero no se toma ni se mira. Sin el campo, no se toca.
+  releaseAt: z.date({ message: "La fecha de estreno no es válida." }).nullable().optional(),
   classroomLink: z.string().url().optional().nullable().or(z.literal("")),
   classroomCode: z.string().max(200).optional().nullable(),
   classroomInstructions: z.string().max(5000).optional().nullable(),
@@ -115,6 +117,7 @@ function normalizeCourseInput(input: z.input<typeof courseSchema>) {
     accessMonths: parsed.accessMonths,
     completionPercent: parsed.completionPercent,
     freeForMembers: parsed.freeForMembers,
+    releaseAt: parsed.releaseAt,
     classroomLink: emptyToNull(parsed.classroomLink ?? undefined),
     classroomCode: emptyToNull(parsed.classroomCode ?? undefined),
     classroomInstructions: emptyToNull(parsed.classroomInstructions ?? undefined),
@@ -411,6 +414,7 @@ export async function createPresentialCourseAction(
         (formData.get("deliveryMode")?.toString() as z.infer<typeof deliveryModeSchema>) ??
         "PRESENCIAL",
       ...leerCamposDeVenta(formData),
+      ...leerFechaDeEstreno(formData),
       classroomLink: emptyToNull(formData.get("classroomLink")?.toString()),
       classroomCode: emptyToNull(formData.get("classroomCode")?.toString()),
       classroomInstructions: emptyToNull(formData.get("classroomInstructions")?.toString()),
@@ -446,6 +450,7 @@ export async function updatePresentialCourseAction(
         (formData.get("deliveryMode")?.toString() as z.infer<typeof deliveryModeSchema>) ??
         "PRESENCIAL",
       ...leerCamposDeVenta(formData),
+      ...leerFechaDeEstreno(formData),
       classroomLink: emptyToNull(formData.get("classroomLink")?.toString()),
       classroomCode: emptyToNull(formData.get("classroomCode")?.toString()),
       classroomInstructions: emptyToNull(formData.get("classroomInstructions")?.toString()),

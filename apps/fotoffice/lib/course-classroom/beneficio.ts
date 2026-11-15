@@ -3,6 +3,7 @@ import { Prisma, prisma } from "@repo/db";
 import { esSinReparto } from "@/lib/course-marketplace/beneficiarios";
 import { loadPortalContext } from "@/lib/portal/access";
 import { logCourseEvent } from "@/lib/presential-courses/log";
+import { cursoEstrenado } from "./access-rules";
 
 /**
  * Cursos gratis para socios: el público los paga, el socio activo de esa institución los toma
@@ -10,7 +11,7 @@ import { logCourseEvent } from "@/lib/presential-courses/log";
  * ser socio activo (spec §8).
  */
 
-export type CodigoDeBeneficio = "no-socio" | "no-disponible" | "no-gratis" | "otra-institucion" | "ya-lo-tiene";
+export type CodigoDeBeneficio = "no-socio" | "no-disponible" | "no-gratis" | "otra-institucion" | "ya-lo-tiene" | "sin-estrenar";
 
 /**
  * Textos fijos que la página de Mis cursos muestra según el `?aviso=` de la URL. La URL nunca
@@ -22,6 +23,7 @@ export const MENSAJES_DE_BENEFICIO: Record<CodigoDeBeneficio, string> = {
   "no-gratis": "Este curso no es gratis para socios.",
   "otra-institucion": "Este curso es de otra institución.",
   "ya-lo-tiene": "Ya tenés este curso.",
+  "sin-estrenar": "Este curso todavía no se estrenó. Vas a poder anotarte el día del estreno.",
 };
 
 export function mensajeDeBeneficio(codigo: string | undefined): string | null {
@@ -33,11 +35,19 @@ type ResultadoBeneficio = { ok: true } | { ok: false; codigo: CodigoDeBeneficio;
 
 export function puedeAnotarseGratis(input: {
   esSocioActivo: boolean;
-  curso: { freeForMembers: boolean; status: string; deliveryMode: string; workspaceId: string; unicoBeneficiario: boolean } | null;
+  curso: {
+    freeForMembers: boolean;
+    status: string;
+    deliveryMode: string;
+    workspaceId: string;
+    unicoBeneficiario: boolean;
+    releaseAt?: Date | null;
+  } | null;
   workspaceDelSocio: string | null;
   yaTieneAcceso: boolean;
   /** Espacios con un acuerdo ACTIVO y gratis para sus socios sobre este curso (cursos compartidos). */
   compartidoGratisCon?: ReadonlySet<string>;
+  ahora?: Date;
 }): ResultadoBeneficio {
   if (!input.esSocioActivo || !input.workspaceDelSocio) return { ok: false, codigo: "no-socio", motivo: MENSAJES_DE_BENEFICIO["no-socio"] };
   if (!input.curso || input.curso.status !== "PUBLISHED" || input.curso.deliveryMode !== "RECORDED") {
@@ -56,6 +66,9 @@ export function puedeAnotarseGratis(input: {
     if (!input.curso.unicoBeneficiario) return { ok: false, codigo: "no-gratis", motivo: MENSAJES_DE_BENEFICIO["no-gratis"] };
   }
   if (input.yaTieneAcceso) return { ok: false, codigo: "ya-lo-tiene", motivo: MENSAJES_DE_BENEFICIO["ya-lo-tiene"] };
+  if (!cursoEstrenado(input.curso.releaseAt, input.ahora ?? new Date())) {
+    return { ok: false, codigo: "sin-estrenar", motivo: MENSAJES_DE_BENEFICIO["sin-estrenar"] };
+  }
   return { ok: true };
 }
 
@@ -82,12 +95,40 @@ export async function cursosGratisParaSocio(workspaceId: string, userId: number)
       ],
     },
     orderBy: { createdAt: "desc" },
-    select: { id: true, title: true, shortDescription: true, workspaceId: true, beneficiaries: { select: { workspaceId: true, shareBps: true } } },
+    select: {
+      id: true,
+      title: true,
+      shortDescription: true,
+      coverImageUrl: true,
+      thumbnailImageUrl: true,
+      releaseAt: true,
+      createdAt: true,
+      workspaceId: true,
+      beneficiaries: { select: { workspaceId: true, shareBps: true } },
+    },
   });
+  const ahora = new Date();
   // Los compartidos sólo valen sin beneficiarios ajenos (los propios ya lo filtra la consulta).
-  return filas
+  const cursos = filas
     .filter((c) => esSinReparto(c.workspaceId, c.beneficiaries))
-    .map(({ id, title, shortDescription }) => ({ id, title, shortDescription }));
+    .map(({ id, title, shortDescription, coverImageUrl, thumbnailImageUrl, releaseAt, createdAt }) => ({
+      id,
+      title,
+      shortDescription,
+      portada: thumbnailImageUrl ?? coverImageUrl,
+      estrenaEl: cursoEstrenado(releaseAt, ahora) ? null : releaseAt,
+      orden: (releaseAt ?? createdAt).getTime(),
+    }));
+  // Primero lo que ya se puede tomar, lo más nuevo arriba; después lo que viene, lo más próximo primero.
+  const disponibles = cursos.filter((c) => !c.estrenaEl).sort((a, b) => b.orden - a.orden);
+  const proximos = cursos.filter((c) => c.estrenaEl).sort((a, b) => a.orden - b.orden);
+  return [...disponibles, ...proximos].map((c) => ({
+    id: c.id,
+    title: c.title,
+    shortDescription: c.shortDescription,
+    portada: c.portada,
+    estrenaEl: c.estrenaEl,
+  }));
 }
 
 /**
@@ -110,6 +151,7 @@ export async function anotarseGratis(input: {
         freeForMembers: true,
         status: true,
         deliveryMode: true,
+        releaseAt: true,
         beneficiaries: { select: { workspaceId: true, shareBps: true } },
         resaleAgreements: { where: { status: "ACTIVO", membersFree: true }, select: { id: true, resellerWorkspaceId: true } },
       },

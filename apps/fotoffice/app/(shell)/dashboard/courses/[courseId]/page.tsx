@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { fechaDeEstrenoParaFormulario } from "@/app/actions/course-sale-fields";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/page-header";
 import { CourseEditorForm } from "@/components/presential-courses/course-editor-form";
@@ -127,6 +128,7 @@ export default async function DashboardCourseDetailPage({
           accessMonths: course.accessMonths,
           completionPercent: course.completionPercent,
           freeForMembers: course.freeForMembers,
+          releaseAt: fechaDeEstrenoParaFormulario(course.releaseAt),
           faqJson: course.faqJson,
           classroomLink: course.classroomLink,
           classroomCode: course.classroomCode,

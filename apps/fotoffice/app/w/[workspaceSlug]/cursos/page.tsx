@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@repo/db";
 import { esCursoGratuito } from "@/lib/courses-video/youtube";
+import { cursoEstrenado, fechaDeEstreno } from "@/lib/course-classroom/access-rules";
 import { formatMoney } from "@/lib/format";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import { cursosRevendidosDe } from "@/lib/course-marketplace/vitrina";
@@ -33,8 +34,10 @@ export default async function PublicWorkspaceCoursesPage({ params }: Props) {
         take: 1,
       },
     },
-    orderBy: { updatedAt: "desc" },
+    // Con fecha de estreno, en el orden del calendario; los demás, lo último tocado primero.
+    orderBy: [{ releaseAt: { sort: "asc", nulls: "last" } }, { updatedAt: "desc" }],
   });
+  const ahora = new Date();
 
   const revendidos = await cursosRevendidosDe(branding.workspaceId);
   const slugsPropios = new Set(courses.map((c) => c.slug));
@@ -58,11 +61,15 @@ export default async function PublicWorkspaceCoursesPage({ params }: Props) {
                 <img
                   src={course.thumbnailImageUrl ?? course.coverImageUrl ?? ""}
                   alt=""
-                  className="h-40 w-full object-cover rounded-[var(--fo-radius-sm)] border border-[var(--fo-border)]"
+                  className="aspect-video w-full object-cover rounded-[var(--fo-radius-sm)] border border-[var(--fo-border)]"
                 />
               ) : null}
               <p className="text-xs uppercase tracking-wide text-[var(--fo-muted-soft)]">
-                {course.status === "UPCOMING" ? "Próximamente" : "Publicado"}
+                {!cursoEstrenado(course.releaseAt, ahora) && course.releaseAt
+                  ? `Se estrena el ${fechaDeEstreno(course.releaseAt)}`
+                  : course.status === "UPCOMING"
+                    ? "Próximamente"
+                    : "Publicado"}
               </p>
               <h2 className="text-lg font-semibold">{course.title}</h2>
               {course.shortDescription ? (
@@ -72,7 +79,9 @@ export default async function PublicWorkspaceCoursesPage({ params }: Props) {
                 {course.deliveryMode === "RECORDED"
                   ? esCursoGratuito(course)
                     ? "Curso gratuito"
-                    : `Curso grabado · ${formatMoney(Number(course.priceArs), "ARS")}`
+                    : course.freeForMembers
+                      ? `Gratis para socios · ${formatMoney(Number(course.priceArs), "ARS")} suelto`
+                      : `Curso grabado · ${formatMoney(Number(course.priceArs), "ARS")}`
                   : course.instances[0]
                     ? `Desde ${formatMoney(course.instances[0].priceArs, "ARS")}`
                     : "Sin ediciones activas"}

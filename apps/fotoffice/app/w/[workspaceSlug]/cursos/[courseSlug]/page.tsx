@@ -18,6 +18,7 @@ import { CourseHero } from "@/components/presential-courses/course-hero";
 import { bloquesDeVenta } from "@/lib/presential-courses/texto-de-venta";
 import { duracionLegible } from "@/lib/course-classroom/aula";
 import { esCursoGratuito } from "@/lib/courses-video/youtube";
+import { cursoEstrenado, fechaDeEstreno } from "@/lib/course-classroom/access-rules";
 import { montosDeCompraSinReparto } from "@/lib/course-marketplace/compra";
 import { PublicCourseEnrollmentForm } from "@/components/presential-courses/public-course-enrollment-form";
 
@@ -149,8 +150,12 @@ export default async function PublicCourseLandingPage({ params }: Props) {
     .sort((a, b) => a - b)[0];
   const faqItems = Array.isArray(presentialCourse.faqJson) ? presentialCourse.faqJson : [];
 
+  // Antes del estreno se ve la ficha, pero no se compra ni se abre la clase de muestra.
+  const estrenado = cursoEstrenado(presentialCourse.releaseAt, new Date());
   const etiqueta =
-    presentialCourse.status === "UPCOMING"
+    !estrenado && presentialCourse.releaseAt
+      ? `Se estrena el ${fechaDeEstreno(presentialCourse.releaseAt)}`
+      : presentialCourse.status === "UPCOMING"
       ? "Próximamente"
       : gratuito
         ? "Curso gratuito"
@@ -193,7 +198,7 @@ export default async function PublicCourseLandingPage({ params }: Props) {
       ]
     : [];
   const sePuedeComprar =
-    esCursoGrabado && !gratuito && presentialCourse.status === "PUBLISHED" && aLaVenta && Boolean(presentialCourse.priceArs);
+    esCursoGrabado && !gratuito && presentialCourse.status === "PUBLISHED" && estrenado && aLaVenta && Boolean(presentialCourse.priceArs);
 
   return (
     <main className="max-w-5xl mx-auto px-4 md:px-8 py-12 md:py-16 space-y-10">
@@ -272,7 +277,7 @@ export default async function PublicCourseLandingPage({ params }: Props) {
           appUrl={appUrl}
           precioArs={presentialCourse.priceArs?.toString() ?? null}
           accessMonths={presentialCourse.accessMonths}
-          publicado={presentialCourse.status === "PUBLISHED"}
+          publicado={presentialCourse.status === "PUBLISHED" && estrenado}
           clases={presentialCourse.lessons}
           gratisParaSocios={presentialCourse.freeForMembers && !revendido ? { institucion: branding.commercialName } : null}
           cargoServicioBps={cargoServicioBps}

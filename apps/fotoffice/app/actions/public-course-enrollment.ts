@@ -1,5 +1,6 @@
 "use server";
 
+import { cursoEstrenado } from "@/lib/course-classroom/access-rules";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { Prisma, prisma } from "@repo/db";
@@ -87,6 +88,9 @@ export async function createPublicCourseEnrollmentAction(
     });
   }
   if (!course) return { error: "Curso no disponible para inscripción." };
+  if (!cursoEstrenado(course.releaseAt, new Date())) {
+    return { error: "Este curso todavía no se estrenó. Vas a poder comprarlo el día del estreno." };
+  }
   const instance = course.instances[0] ?? null;
   if (parsed.data.courseInstanceId && !instance) {
     return { error: "La edición seleccionada no es válida." };

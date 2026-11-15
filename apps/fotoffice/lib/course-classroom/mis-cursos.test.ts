@@ -84,4 +84,20 @@ describe("Mis cursos", () => {
     );
     expect(grupos[0].cursos[0]).toMatchObject({ porcentaje: 100, siguienteClaseId: "c1" });
   });
+
+  it("antes del estreno muestra el curso con su fecha, sin clase para empezar", () => {
+    const estreno = new Date(Date.UTC(2026, 11, 4, 13));
+    const [grupo] = agruparMisCursos(
+      [acceso({ id: "nuevo", course: { ...acceso({ id: "nuevo" }).course, releaseAt: estreno } })],
+      new Set(),
+      ahora,
+    );
+    expect(grupo.cursos[0]).toMatchObject({ siguienteClaseId: null, estrenaEl: estreno });
+    const [despues] = agruparMisCursos(
+      [acceso({ id: "nuevo", course: { ...acceso({ id: "nuevo" }).course, releaseAt: estreno } })],
+      new Set(),
+      estreno,
+    );
+    expect(despues.cursos[0]).toMatchObject({ siguienteClaseId: "c1", estrenaEl: null });
+  });
 });

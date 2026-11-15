@@ -4,7 +4,7 @@ import Link from "next/link";
 import { requireAuth } from "@/lib/auth";
 import { cargarMisCursos } from "@/lib/course-classroom/mis-cursos";
 import { otorgarAccesosPendientes } from "@/lib/course-classroom/alumno";
-import { fechaLegibleArgentina } from "@/lib/course-classroom/access-rules";
+import { fechaDeEstreno, fechaLegibleArgentina } from "@/lib/course-classroom/access-rules";
 import { cursosGratisParaSocio, mensajeDeBeneficio } from "@/lib/course-classroom/beneficio";
 import { cursosGratisDeLaInstitucion, rutaAsociarse } from "@/lib/course-classroom/asociarse";
 import { loadPortalContext } from "@/lib/portal/access";
@@ -110,7 +110,9 @@ export default async function MisCursosPage({ searchParams }: { searchParams: Pr
                     <div className="h-full bg-[var(--fo-accent)]" style={{ width: `${curso.porcentaje}%` }} />
                   </div>
                   <p className="text-xs text-[var(--fo-muted)]">{curso.porcentaje}% visto</p>
-                  {curso.siguienteClaseId ? (
+                  {curso.estrenaEl ? (
+                    <p className="text-sm font-medium">Se estrena el {fechaDeEstreno(curso.estrenaEl)}</p>
+                  ) : curso.siguienteClaseId ? (
                     <Link
                       href={`/portal/cursos/${curso.courseId}/clase/${curso.siguienteClaseId}`}
                       className="fo-btn fo-btn-primary inline-flex text-sm"
@@ -160,19 +162,33 @@ export default async function MisCursosPage({ searchParams }: { searchParams: Pr
       {gratis.length > 0 ? (
         <section className="space-y-3">
           <h2 className="text-lg font-semibold">Gratis para vos</h2>
-          <p className="text-sm text-[var(--fo-muted)]">Por ser socio, estos cursos no te cuestan nada.</p>
+          <p className="text-sm text-[var(--fo-muted)]">Por ser socio, estos cursos no te cuestan nada. Los que todavía no se estrenaron muestran su fecha.</p>
           <ul className="grid gap-3 md:grid-cols-2">
             {gratis.map((curso) => (
               <li key={curso.id} className="fo-card space-y-2">
+                {curso.portada ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- portada externa (R2), sin optimizar
+                  <img
+                    src={curso.portada}
+                    alt=""
+                    className="aspect-video w-full rounded-lg object-cover"
+                  />
+                ) : null}
                 <p className="font-medium">{curso.title}</p>
                 {curso.shortDescription ? (
                   <p className="text-sm text-[var(--fo-muted)] line-clamp-2">{curso.shortDescription}</p>
                 ) : null}
-                <form action={anotarmeGratisAction.bind(null, curso.id)}>
-                  <button type="submit" className="fo-btn fo-btn-primary text-sm">
-                    Anotarme
-                  </button>
-                </form>
+                {curso.estrenaEl ? (
+                  <p className="inline-flex rounded-full bg-[var(--fo-border)] px-3 py-1 text-sm font-medium">
+                    Disponible el {fechaDeEstreno(curso.estrenaEl)}
+                  </p>
+                ) : (
+                  <form action={anotarmeGratisAction.bind(null, curso.id)}>
+                    <button type="submit" className="fo-btn fo-btn-primary text-sm">
+                      Anotarme
+                    </button>
+                  </form>
+                )}
               </li>
             ))}
           </ul>

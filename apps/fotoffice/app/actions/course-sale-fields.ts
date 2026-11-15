@@ -30,3 +30,21 @@ export function leerCamposDeVenta(formData: FormData): {
     freeForMembers: formData.get("freeForMembers") === "on",
   };
 }
+
+/**
+ * La fecha de estreno del formulario (`<input type="datetime-local">`), que llega sin zona:
+ * se toma como hora argentina (UTC-3, sin horario de verano). Vacío = sin estreno programado.
+ * Un valor ilegible devuelve una fecha inválida para que la validación lo rechace.
+ */
+export function leerFechaDeEstreno(formData: FormData): { releaseAt: Date | null } {
+  const texto = formData.get("releaseAt")?.toString().trim();
+  if (!texto) return { releaseAt: null };
+  const conSegundos = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(texto) ? `${texto}:00` : texto;
+  return { releaseAt: new Date(`${conSegundos}-03:00`) };
+}
+
+/** Para el valor inicial del `datetime-local`: la fecha en hora argentina, `AAAA-MM-DDTHH:MM`. */
+export function fechaDeEstrenoParaFormulario(fecha: Date | null | undefined): string {
+  if (!fecha) return "";
+  return new Date(fecha.getTime() - 3 * 3600_000).toISOString().slice(0, 16);
+}
