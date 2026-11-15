@@ -44,3 +44,20 @@ export function resolveAceptacionConfig(env: NodeJS.ProcessEnv = process.env): A
   if (!limite || !cobroDivididoListo(env)) return { enabled: false, limite: null };
   return { enabled: true, limite };
 }
+
+/**
+ * Aviso del cobro dividido para quienes participan en un evento con aviso
+ * (`EVENTOS_CON_AVISO_COBRO_DIVIDIDO`): fotógrafos, organizador y referidores de los fotógrafos.
+ * No necesita «todos los álbumes» ni fecha límite (el carrito de evento cobra con split por su
+ * lado), y por eso nunca es obligatorio: se puede posponer siempre.
+ */
+export function resolveAceptacionEventoConfig(env: NodeJS.ProcessEnv = process.env): AceptacionConfig {
+  const piloto = resolvePilotoConfig(env);
+  const listo =
+    piloto.enabled &&
+    piloto.accessToken != null &&
+    piloto.ownerUserId != null &&
+    resolveConsentimientoConfig(env).enabled &&
+    env.DNX_MP_SPLIT_CONSENT_PRODUCTION_ENABLED?.trim().toLowerCase() === "true";
+  return { enabled: listo, limite: null };
+}

@@ -11,7 +11,8 @@ export type DecisionAceptacion =
       mostrar: true;
       /** Pasada la fecha límite: sin botón «Ahora no». */
       obligatorio: boolean;
-      limite: string;
+      /** null: aviso sin fecha límite (participantes de un evento con aviso); nunca obligatorio. */
+      limite: string | null;
       faltaTerminos: boolean;
       faltaMercadoPago: boolean;
     };
@@ -32,7 +33,7 @@ export function decidirAceptacion(input: {
   mpRespondio: boolean;
 }): DecisionAceptacion {
   const { config } = input;
-  if (!config.enabled || !config.limite) return { mostrar: false };
+  if (!config.enabled) return { mostrar: false };
   if (!(ROLES_ACEPTACION as readonly string[]).includes(input.rol)) return { mostrar: false };
   if (input.estadoMp == null) return { mostrar: false };
   const faltaTerminos = !input.terminosAceptados;
@@ -40,8 +41,8 @@ export function decidirAceptacion(input: {
   if (!faltaTerminos && !faltaMercadoPago) return { mostrar: false };
   return {
     mostrar: true,
-    obligatorio: input.mpRespondio && input.ahora.getTime() >= config.limite.getTime(),
-    limite: config.limite.toISOString(),
+    obligatorio: config.limite != null && input.mpRespondio && input.ahora.getTime() >= config.limite.getTime(),
+    limite: config.limite?.toISOString() ?? null,
     faltaTerminos,
     faltaMercadoPago,
   };

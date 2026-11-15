@@ -15,6 +15,7 @@ import { useRouter, useParams, useSearchParams, usePathname } from "next/navigat
 import Link from "next/link";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
+import AlbumTerminosAviso from "@/components/dashboard/albums/AlbumTerminosAviso";
 import Input from "@/components/ui/Input";
 import { useUploadProgress } from "@/contexts/UploadProgressContext";
 import Cropper, { Area, Point } from "react-easy-crop";
@@ -2227,6 +2228,14 @@ export default function DashboardAlbumDetailPage() {
               sticky
             />
             <div className="mt-4 flex w-full min-w-0 max-w-full flex-1 min-h-0 flex-col pt-0 [&>*]:w-full [&>*]:max-w-full [&>.ds-tab-panel]:min-w-[min(100%,20rem)] items-stretch self-stretch">
+            {album && !schoolAlbumMode && (
+              <AlbumTerminosAviso
+                albumId={album.id}
+                termsAcceptedAt={album.termsAcceptedAt}
+                termsVersion={album.termsVersion}
+                onAceptados={(patch) => setAlbum((prev) => (prev ? { ...prev, ...patch } : prev))}
+              />
+            )}
             {resolvedAlbumTab === "resumen" && album && (
               <AlbumResumenSection
                 albumId={album.id}

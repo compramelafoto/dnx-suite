@@ -145,7 +145,7 @@ export default function AceptacionCobroDivididoGate({ rol }: { rol: "fotografo" 
   if (!visible || !decision) return null;
 
   const soporte = rol === "organizador" ? "/organizador/soporte" : "/fotografo/soporte";
-  const dia = ultimoDia(decision.limite);
+  const dia = decision.limite ? ultimoDia(decision.limite) : null;
 
   return (
     <div
@@ -171,7 +171,9 @@ export default function AceptacionCobroDivididoGate({ rol }: { rol: "fotografo" 
         >
           {decision.obligatorio
             ? "Para seguir usando el panel tenés que completar los dos pasos."
-            : `Tenés tiempo hasta el ${dia} inclusive. Después no vas a poder usar el panel sin completarlos.`}
+            : dia
+              ? `Tenés tiempo hasta el ${dia} inclusive. Después no vas a poder usar el panel sin completarlos.`
+              : "Participás en un evento con varios fotógrafos: completalo para que cada venta se reparta sola y tu parte te llegue al instante."}
         </p>
 
         <section className="mt-6">
