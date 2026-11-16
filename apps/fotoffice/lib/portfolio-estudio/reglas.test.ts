@@ -126,6 +126,14 @@ describe("agrupar", () => {
     expect(r.grupos[0].estilos[0].trabajos.map((x) => x.id)).toEqual(["dest", "nuevo", "viejo", "sin"]);
   });
 
+  it("une estilos que sólo difieren en mayúsculas entre trabajos distintos (muestra la primera forma)", () => {
+    const r = agrupar(
+      [rubro("xv", 0)],
+      [t({ id: "a", rubroId: "xv", estilos: ["Fiesta"], destacado: true }), t({ id: "b", rubroId: "xv", estilos: ["fiesta"] })],
+    );
+    expect(r.grupos[0].estilos.map((e) => [e.estilo, e.trabajos.map((x) => x.id)])).toEqual([["Fiesta", ["a", "b"]]]);
+  });
+
   it("rubro inexistente o nulo → sinEtiquetar; rubro sin trabajos igual aparece con total 0", () => {
     const r = agrupar([rubro("xv", 0), rubro("infantiles", 1)], [t({ id: "a", rubroId: "borrado" }), t({ id: "b" }), t({ id: "c", rubroId: "xv" })]);
     expect(r.sinEtiquetar.map((x) => x.id)).toEqual(["a", "b"]);

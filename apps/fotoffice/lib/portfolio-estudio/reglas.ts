@@ -152,13 +152,19 @@ export function agrupar(rubros: Rubro[], trabajos: PortfolioTrabajo[]): { grupos
     .sort((a, b) => a.orden - b.orden || a.nombre.localeCompare(b.nombre, "es"))
     .map((rubro): GrupoRubro => {
       const lista = porRubro.get(rubro.id) ?? [];
-      const estilos = new Map<string, PortfolioTrabajo[]>();
+      // Clave sin mayúsculas ni espacios de más: «Fiesta» y «fiesta» son el mismo grupo (se muestra la primera forma).
+      const estilos = new Map<string, GrupoEstilo>();
       const otros: PortfolioTrabajo[] = [];
       for (const tr of lista) {
         if (tr.estilos.length === 0) otros.push(tr);
-        for (const e of tr.estilos) estilos.set(e, [...(estilos.get(e) ?? []), tr]);
+        for (const e of tr.estilos) {
+          const clave = espacios(e).toLocaleLowerCase("es");
+          const g = estilos.get(clave) ?? { estilo: espacios(e), trabajos: [] };
+          if (!g.trabajos.includes(tr)) g.trabajos.push(tr);
+          estilos.set(clave, g);
+        }
       }
-      const grupos = [...estilos].map(([estilo, trabajos]) => ({ estilo, trabajos }));
+      const grupos = [...estilos.values()];
       if (otros.length) grupos.push({ estilo: OTROS, trabajos: otros });
       return { rubro, estilos: grupos, total: lista.length };
     });

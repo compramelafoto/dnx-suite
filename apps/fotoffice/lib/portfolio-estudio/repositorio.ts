@@ -1,6 +1,8 @@
 import "server-only";
 import { prisma } from "@repo/db";
 import { appUrl } from "@/lib/app-url";
+import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
+import { WEBSITE_MODULE_KEY } from "@/lib/website/constants";
 import { sitioDelWorkspace } from "@/lib/presupuestos/sitio";
 import { miniaturasDePortadas } from "@/lib/trabajos/publico";
 import { esCodigoUnico, esTablaFaltante } from "@/lib/trabajos/reglas";
@@ -203,7 +205,7 @@ export async function cargarPortfoliosDelEstudio(
       prisma.fotofficeTrabajoPortfolio.findMany({ where: { workspaceId }, select: { trabajoId: true, rubroId: true, estilos: true } }),
     ]);
     if (rubros === FALTAN_TABLAS) return FALTAN_TABLAS;
-    const [filas, categorias, website, sitio] = await Promise.all([
+    const [filas, categorias, website, sitio, moduloEncendido] = await Promise.all([
       prisma.fotofficeTrabajo.findMany({
         where: { workspaceId },
         select: { id: true, titulo: true, slug: true, lugar: true, fecha: true, destacado: true, portadaUrl: true, estado: true, categoriaId: true },
@@ -211,11 +213,13 @@ export async function cargarPortfoliosDelEstudio(
       prisma.fotofficeTrabajoCategoria.findMany({ where: { workspaceId }, select: { id: true, slug: true, visible: true } }),
       prisma.fotofficeWorkspaceWebsite.findUnique({ where: { workspaceId }, select: { publishedAt: true } }),
       sitioDelWorkspace(workspaceId),
+      // La página pública de un trabajo da 404 sin el módulo Sitio web (cargarSitioDeTrabajos).
+      isModuleEnabledForWorkspace(workspaceId, WEBSITE_MODULE_KEY),
     ]);
     const miniaturas = await miniaturasDePortadas(workspaceId, filas);
     const porCategoria = new Map(categorias.map((c) => [c.id, c]));
     const porTrabajo = new Map(etiquetas.map((e) => [e.trabajoId, e]));
-    const sitioPublicado = Boolean(website?.publishedAt);
+    const sitioPublicado = Boolean(website?.publishedAt) && moduloEncendido;
     const trabajos: PortfolioTrabajo[] = [];
     for (const f of filas) {
       const cat = f.categoriaId ? porCategoria.get(f.categoriaId) : undefined;

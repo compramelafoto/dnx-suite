@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { rubro, etiqueta, trabajo, categoria, website, tx, sitio } = vi.hoisted(() => ({
+const { rubro, etiqueta, trabajo, categoria, website, tx, sitio, modulo } = vi.hoisted(() => ({
   rubro: { findMany: vi.fn(), findFirst: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn(), aggregate: vi.fn() },
   etiqueta: { findMany: vi.fn(), findFirst: vi.fn(), upsert: vi.fn(), deleteMany: vi.fn(), updateMany: vi.fn() },
   trabajo: { findMany: vi.fn(), findFirst: vi.fn() },
@@ -8,7 +8,9 @@ const { rubro, etiqueta, trabajo, categoria, website, tx, sitio } = vi.hoisted((
   website: { findUnique: vi.fn() },
   tx: vi.fn(),
   sitio: vi.fn(),
+  modulo: vi.fn(),
 }));
+vi.mock("@/lib/modules/gating", () => ({ isModuleEnabledForWorkspace: modulo }));
 
 vi.mock("server-only", () => ({}));
 vi.mock("@repo/db", () => ({
@@ -35,6 +37,8 @@ beforeEach(() => {
   tx.mockImplementation(async (ops: unknown[]) => ops);
   sitio.mockReset();
   sitio.mockResolvedValue({ slug: "dnx-estudio", customDomain: null });
+  modulo.mockReset();
+  modulo.mockResolvedValue(true);
 });
 
 describe("crearRubro", () => {
@@ -140,6 +144,15 @@ describe("listarRubros / cargarPortfoliosDelEstudio", () => {
     const borr = r.grupos[0].estilos[0].trabajos.find((x) => x.id === "t2");
     expect(borr).toMatchObject({ compartible: false, motivo: "Es un borrador" });
     expect(r.sinEtiquetar.find((x) => x.id === "t3")).toMatchObject({ motivo: "Su categoría está oculta en el sitio" });
+  });
+
+  it("módulo Sitio web apagado → nada es compartible (la página pública daría 404)", async () => {
+    escenario();
+    modulo.mockResolvedValue(false);
+    const r = await cargarPortfoliosDelEstudio("ws-1", { incluirNoCompartibles: true });
+    if (r === "FALTAN_TABLAS") throw new Error("no");
+    expect(modulo).toHaveBeenCalledWith("ws-1", "website");
+    expect(r.grupos[0].estilos.flatMap((e) => e.trabajos).every((x) => !x.compartible && x.url === null)).toBe(true);
   });
 
   it("sitio sin publicar → nada es compartible", async () => {

@@ -48,7 +48,9 @@ export function ListaPortfolios({ rubros, sinEtiquetar }: { rubros: VistaRubro[]
             value={busqueda}
             onChange={(e) => setBusqueda(e.target.value)}
             placeholder="Buscar por nombre o lugar…"
-            className="fo-input pl-9"
+            className="fo-input"
+            // fo-input fija su propio padding; inline para dejar lugar a la lupa.
+            style={{ paddingLeft: "2.25rem" }}
           />
         </label>
         {rubros.length > 1 ? (
@@ -86,8 +88,8 @@ export function ListaPortfolios({ rubros, sinEtiquetar }: { rubros: VistaRubro[]
             <div className="space-y-1">
               <h3 className="text-xs font-medium uppercase tracking-wide text-[var(--fo-muted)]">Presentaciones de venta</h3>
               <ul className="divide-y divide-[var(--fo-border)]">
-                {r.enlaces.map((e) => (
-                  <li key={e.url} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                {r.enlaces.map((e, i) => (
+                  <li key={`${i}-${e.url}`}className="flex flex-wrap items-center justify-between gap-2 py-2">
                     <span className="text-sm font-medium">{e.titulo}</span>
                     <Botones url={e.url} titulo={e.titulo} />
                   </li>
@@ -150,8 +152,9 @@ function Fila({ t, fichaHref }: { t: TarjetaPortfolio; fichaHref?: string }) {
       ) : (
         <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded bg-[var(--fo-bg-elevated)] text-xs text-[var(--fo-muted)]">sin foto</span>
       )}
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium">{t.titulo}</p>
+      {/* Ancho mínimo: en el celular los botones bajan a otra línea en vez de aplastar el título. */}
+      <div className="min-w-[12rem] flex-1">
+        <p className="line-clamp-2 text-sm font-medium">{t.titulo}</p>
         {t.detalle ? <p className="text-xs text-[var(--fo-muted)]">{t.detalle}</p> : null}
         {t.motivo ? <p className="text-xs text-[var(--fo-warning)]">No se puede compartir: {t.motivo.toLowerCase()}.</p> : null}
       </div>

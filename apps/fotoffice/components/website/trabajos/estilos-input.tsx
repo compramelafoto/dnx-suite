@@ -23,7 +23,10 @@ export function EstilosInput({
 
   function agregar(t: string) {
     if (!t.trim()) return;
-    onChange(normalizarEstilos([...valor, t]));
+    // Si ya existe en el rubro con otras mayúsculas, se usa esa forma para no partir el grupo.
+    const clave = t.replace(/\s+/g, " ").trim().toLocaleLowerCase("es");
+    const existente = sugerencias.find((s) => s.toLocaleLowerCase("es") === clave);
+    onChange(normalizarEstilos([...valor, existente ?? t]));
     setTexto("");
   }
 
