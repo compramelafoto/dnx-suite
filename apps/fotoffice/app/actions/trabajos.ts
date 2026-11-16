@@ -21,6 +21,7 @@ import {
   type Resultado,
 } from "@/lib/trabajos/repositorio";
 import { AVISO_TABLAS_FALTANTES, TRABAJOS_ADMIN_BASE, esTablaFaltante } from "@/lib/trabajos/reglas";
+import { guardarEtiquetas } from "@/lib/portfolio-estudio/repositorio";
 import { confirmarSubida, type MedidasFoto } from "@/lib/trabajos/subida";
 import { toVideoEmbedUrl } from "@/lib/website/embed-hosts";
 
@@ -81,6 +82,8 @@ export type FormularioTrabajo = {
   destacado: boolean;
   seoTitle: string;
   seoDescription: string;
+  /** Etiquetas del portfolio interno. Ausente (por ejemplo, sin las tablas) → no se tocan. */
+  portfolio?: { rubroId: string; estilos: string[] } | null;
 };
 
 export async function guardarTrabajoAction(id: string, input: FormularioTrabajo) {
@@ -99,7 +102,12 @@ export async function guardarTrabajoAction(id: string, input: FormularioTrabajo)
       seoDescription: textoONulo(input.seoDescription)?.slice(0, 320) ?? null,
     };
     const r = await editarTrabajo(ws, texto(id), datos);
-    return r.ok ? { ok: true as const, valor: true as const } : r;
+    if (!r.ok) return r;
+    if (input.portfolio) {
+      const e = await guardarEtiquetas(ws, texto(id), { rubroId: input.portfolio.rubroId, estilos: input.portfolio.estilos });
+      if (!e.ok) return e;
+    }
+    return { ok: true as const, valor: true as const };
   });
 }
 
