@@ -27969,6 +27969,37 @@ model FotofficeTrabajoFoto {
   @@index([trabajoId, orden])
 }
 
+/// Portfolios del estudio (spec 2026-11-15): los rubros con los que la vendedora busca qué mandarle
+/// a cada cliente. Es interno: no se ve en el sitio público. Sin relaciones Prisma (SQL a mano).
+model FotofficePortfolioRubro {
+  id          String   @id @default(cuid())
+  workspaceId String
+  nombre      String
+  orden       Int      @default(0)
+  /// Presentaciones de venta del rubro: [{ titulo, url }] (https, máx. 10).
+  enlacesJson Json     @default("[]")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([workspaceId, nombre])
+  @@index([workspaceId, orden])
+}
+
+/// Las etiquetas internas de un trabajo para Portfolios del estudio (0 o 1 fila por trabajo). Tabla
+/// aparte y no columnas de `FotofficeTrabajo`: si faltara en una base, sólo se apaga esta pantalla.
+model FotofficeTrabajoPortfolio {
+  id          String   @id @default(cuid())
+  workspaceId String
+  trabajoId   String   @unique
+  rubroId     String?
+  /// Textos libres (máx. 6 de 40 caracteres): «Book previo», «Fiesta», «Sesión temática»…
+  estilos     String[] @default([])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([workspaceId, rubroId])
+}
+
 // ---------------------------------------------------------------------------
 // FOTOFFICE · Testimonios del sitio (PR 3 del sitio público)
 // Sin relaciones Prisma a tablas existentes: el SQL se aplica a mano y el código tolera que falte.
