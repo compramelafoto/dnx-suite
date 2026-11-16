@@ -1,9 +1,12 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
+import { prisma } from "@repo/db";
 import { PageHeader } from "@/components/page-header";
 import { loadPersonVocabulary } from "@/lib/vocabulario/load";
 import { resolvePortfolioViewerContext } from "@/lib/portfolio/admin-access";
 import { loadPortfoliosForAdmin, summarizePortfolios } from "@/lib/portfolio/admin-queries";
 import { PortfolioAdminRow } from "@/components/portfolios/portfolio-admin-row";
+import { PortfoliosDelEstudio } from "@/components/portfolios/estudio/portfolios-del-estudio";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Portfolios" };
@@ -17,11 +20,35 @@ export const metadata = { title: "Portfolios" };
  *
  * La tabla lista a TODO el padrón, no sólo a quienes publicaron, por la misma razón.
  */
-export default async function PortfoliosPage() {
+type Props = { searchParams: Promise<{ vista?: string }> };
+
+/**
+ * Dos solapas (spec 2026-11-15): «De los socios» (lo de siempre) y «Del estudio» (los trabajos del
+ * estudio por rubro y estilo, para la vendedora). Sin socios en el padrón —un estudio— no hay
+ * solapas: se abre directo en «Del estudio».
+ */
+export default async function PortfoliosPage({ searchParams }: Props) {
   // Con VIEW se mira en sólo lectura; bajar y publicar piden MANAGE (y la acción lo vuelve a pedir).
   const ctx = await resolvePortfolioViewerContext();
   // Sin permiso, sin workspace o con el módulo apagado: la pantalla no existe.
   if (!ctx) redirect("/dashboard");
+
+  const { vista } = await searchParams;
+  const socios = await prisma.member.count({ where: { workspaceId: ctx.workspace.id } });
+  const estudio = socios === 0 || vista === "estudio";
+
+  if (estudio) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="Portfolios del estudio"
+          description="Los trabajos publicados, ordenados para mandarle a cada cliente el que corresponde."
+        />
+        {socios > 0 ? <Solapas activa="estudio" /> : null}
+        <PortfoliosDelEstudio userId={ctx.user.id} workspaceId={ctx.workspace.id} puedeAdministrar={ctx.canManage} />
+      </div>
+    );
+  }
 
   const [vocabulario, filas] = await Promise.all([
     loadPersonVocabulary(ctx.workspace.id),
@@ -35,6 +62,7 @@ export default async function PortfoliosPage() {
         title="Portfolios"
         description={`La obra que cada ${vocabulario.singular} publica en el sitio de la institución.`}
       />
+      <Solapas activa="socios" />
 
       <section className="grid gap-4 sm:grid-cols-3">
         <Numero valor={resumen.publicados} etiqueta="Publicados" />
@@ -77,6 +105,32 @@ export default async function PortfoliosPage() {
         nadie: la obra es de quien la hizo.
       </p>
     </div>
+  );
+}
+
+function Solapas({ activa }: { activa: "socios" | "estudio" }) {
+  const solapas = [
+    { key: "socios", label: "De los socios", href: "/portfolios" },
+    { key: "estudio", label: "Del estudio", href: "/portfolios?vista=estudio" },
+  ] as const;
+  return (
+    <nav className="flex gap-1 border-b border-[var(--fo-border)]" aria-label="Portfolios">
+      {solapas.map((s) => (
+        <Link
+          key={s.key}
+          href={s.href}
+          aria-current={s.key === activa ? "page" : undefined}
+          className={[
+            "-mb-px border-b-2 px-3 py-2.5 text-xs font-medium whitespace-nowrap transition-colors",
+            s.key === activa
+              ? "border-[var(--fo-accent)] text-[var(--fo-text)]"
+              : "border-transparent text-[var(--fo-muted)] hover:text-[var(--fo-text)]",
+          ].join(" ")}
+        >
+          {s.label}
+        </Link>
+      ))}
+    </nav>
   );
 }
 
