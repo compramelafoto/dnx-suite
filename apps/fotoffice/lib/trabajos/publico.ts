@@ -66,7 +66,7 @@ type FilaTrabajo = {
  * La portada de un trabajo es siempre una de sus fotos (se elige entre ellas): su miniatura se
  * busca por la dirección. Una consulta para todas las tarjetas de la página.
  */
-async function miniaturasDePortadas(workspaceId: string, filas: Array<{ portadaUrl: string | null }>): Promise<Map<string, string>> {
+export async function miniaturasDePortadas(workspaceId: string, filas: Array<{ portadaUrl: string | null }>): Promise<Map<string, string>> {
   const urls = [...new Set(filas.map((f) => f.portadaUrl).filter((u): u is string => !!u))];
   if (urls.length === 0) return new Map();
   const fotos = await prisma.fotofficeTrabajoFoto.findMany({

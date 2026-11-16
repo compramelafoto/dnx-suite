@@ -9,6 +9,7 @@ import {
   MAX_FOTOS_POR_TRABAJO,
   diaUtc,
   esCodigoUnico,
+  esTablaFaltante,
   prefijoFotosTrabajo,
   prefijoWorkspaceTrabajos,
   slugDeTitulo,
@@ -210,6 +211,12 @@ export async function borrarTrabajo(workspaceId: string, id: string): Promise<Re
     prisma.fotofficeTrabajoFoto.deleteMany({ where: { trabajoId: id, workspaceId } }),
     prisma.fotofficeTrabajo.delete({ where: { id } }),
   ]);
+  // Sus etiquetas del portfolio interno (tabla aparte, SQL a mano): si la tabla no existe, nada que borrar.
+  try {
+    await prisma.fotofficeTrabajoPortfolio.deleteMany({ where: { workspaceId, trabajoId: id } });
+  } catch (err) {
+    if (!esTablaFaltante(err)) console.error("[fotoffice][trabajos] no se pudieron borrar las etiquetas del trabajo:", id, err);
+  }
   const huerfanas: string[] = [];
   const propio = prefijoWorkspaceTrabajos(workspaceId);
   const aBorrar = new Set<string>();
