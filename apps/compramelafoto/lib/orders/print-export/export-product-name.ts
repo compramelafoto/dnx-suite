@@ -53,3 +53,35 @@ export function chosenProductNameFromMetadata(metadata: unknown): string | null 
   const name = (metadata as Record<string, unknown>).productName;
   return typeof name === "string" && name.trim() ? name.trim() : null;
 }
+
+/**
+ * Productos que valen para un pedido: si el álbum tiene productos propios
+ * (`PhotographerProduct.albumId`), sólo esos; si no, los generales del fotógrafo.
+ * Sin esto, en un álbum con su "Foto impresa" sin acabado aparecían los "15x21 Mate" de otros álbumes.
+ */
+export function productosDelAlbum<T extends ExportProductRow & { albumId: number | null }>(
+  rows: T[],
+  albumId: number | null | undefined,
+): T[] {
+  const propios = albumId != null ? rows.filter((p) => p.albumId === albumId) : [];
+  if (propios.length > 0) return propios;
+  return rows.filter((p) => p.albumId == null);
+}
+
+/**
+ * Acabado a mostrar en el ZIP. Varios caminos de compra (canjes, packs) graban "BRILLO" por defecto
+ * aunque el fotógrafo no haya cargado acabado: si ninguno de los productos posibles tiene acabado,
+ * no se muestra ("Sin acabado" en el resumen) en vez de inventar "Brillo".
+ */
+export function acabadoParaExportar(
+  rows: ExportProductRow[],
+  size: string,
+  finish: string,
+  chosenName?: string | null,
+): string {
+  const bySize = rows.filter((p) => norm(p.size) === norm(size));
+  const byName = chosenName ? bySize.filter((p) => norm(p.name) === norm(chosenName)) : [];
+  const candidatos = byName.length > 0 ? byName : bySize;
+  if (candidatos.length > 0 && candidatos.every((p) => !norm(p.acabado))) return "";
+  return finish;
+}

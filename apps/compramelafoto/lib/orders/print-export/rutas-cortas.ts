@@ -49,8 +49,8 @@ export function carpetaDeImpresion(i: { tamano: string; acabado: string; product
 }
 
 /** Carpeta del pedido: "3888 Maria Fernanda Gonzal". */
-export function carpetaDePedido(codigo: string, cliente: string | null | undefined): string {
-  const nombre = recortar(limpio(cliente), 24);
+export function carpetaDePedido(codigo: string, cliente: string | null | undefined, max = 24): string {
+  const nombre = recortar(limpio(cliente), max);
   return nombre ? `${codigo} ${nombre}` : codigo;
 }
 
