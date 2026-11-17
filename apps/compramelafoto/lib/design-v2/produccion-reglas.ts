@@ -274,3 +274,21 @@ export function geometriaDeEtiqueta(ancho: number, alto: number, conQr: boolean)
   const y = (alto - lado) / 2;
   return { textoX, textoMax: x - 6 - textoX, qr: { x, y, lado }, id: { x: textoX, y: 12 } };
 }
+
+/**
+ * Copia impresa que una familia pidió aparte de su librito, dentro del lote:
+ * «001 - 7 A - Celoria Pedro - 15x21 Mate - 1x DSC_1234.jpg». Empieza igual que el librito del
+ * mismo alumno, así la imprenta y quien embolsa los encuentran juntos.
+ */
+export function nombreDeCopiaDelLote(
+  posicion: number,
+  libro: LibritoEnProduccion,
+  total: number,
+  carpetaDeImpresion: string,
+  archivo: string,
+): string {
+  return `${prefijoDeTrabajo(posicion, libro, total)} - ${limpioParaArchivo(carpetaDeImpresion)} - ${limpioParaArchivo(archivo)}`;
+}
+
+/** Subcarpeta del lote con las copias pedidas aparte del librito. */
+export const CARPETA_COPIAS_SUELTAS = "Copias sueltas";

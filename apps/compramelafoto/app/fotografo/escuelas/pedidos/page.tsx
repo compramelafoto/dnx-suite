@@ -731,7 +731,7 @@ export default function FotografoEscuelasPedidosPage() {
             </div>
             {nota(
               (elegidas.length ? "Va sólo lo que marcaste. " : "Sin marcar nada, va todo lo de este paso. ") +
-                `El lote junta los archivos finales en orden de impresión (colegio, curso y alumno). Conviene un lote por curso: el PDF único admite hasta 40 librititos, el ZIP de PDF hasta 60 y el ZIP de JPG hasta ${MAX_ZIP_JPG} (un JPG de 300 dpi por cara, con el alumno y la cara en el nombre).`,
+                `El lote junta los archivos finales en orden de impresión (colegio, curso y alumno). Los ZIP traen también, en la carpeta «Copias sueltas», las copias que esas familias pidieron aparte del librito. Conviene un lote por curso: el PDF único admite hasta 40 librititos, el ZIP de PDF hasta 60 y el ZIP de JPG hasta ${MAX_ZIP_JPG} (un JPG de 300 dpi por cara, con el alumno y la cara en el nombre).`,
             )}
           </>
         );
