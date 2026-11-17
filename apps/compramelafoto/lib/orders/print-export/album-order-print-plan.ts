@@ -11,7 +11,13 @@ import { urlToR2Key } from "@/lib/r2-client";
 import { safeFilename } from "@/lib/safe-filename";
 import { formatBuyerContactForPhotographer } from "@/lib/orders/resolve-album-order-buyer-contact";
 import type { PrintExportFile, PrintExportPlan } from "./stream-print-export-zip";
-import { chosenProductNameFromMetadata, resolveExportProductName } from "./export-product-name";
+import {
+  acabadoParaExportar,
+  chosenProductNameFromMetadata,
+  productosDelAlbum,
+  resolveExportProductName,
+} from "./export-product-name";
+import { alumnoDesdeRefs, rotuloDeAlumno, type AlumnoDelPedido } from "./alumno-del-pedido";
 import { copiasFueraDelDiseno } from "./copias-fuera-del-diseno";
 import { loadOrderDesigns } from "./order-designs";
 import { acabadoCorto, carpetaDeImpresion, carpetaDePedido, nombreDeCopia, recortar, tamanoCorto } from "./rutas-cortas";
@@ -43,7 +49,8 @@ async function buildPdf(
   },
   buyer: { name: string | null; email: string | null; phone: string | null },
   getProductName: (size: string, acabado: string, metadata?: unknown) => string,
-  extraLines: string[] = []
+  extraLines: string[] = [],
+  alumno: AlumnoDelPedido | null = null
 ): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.create();
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
@@ -64,7 +71,13 @@ async function buildPdf(
   draw(`Total: $${order.totalCents} ARS`, 12);
   y -= 10;
 
-  draw("Datos del cliente", 13);
+  if (alumno) {
+    draw("Alumno", 13);
+    draw(`Nombre: ${alumno.alumno}`, 12);
+    draw(`Curso: ${alumno.curso || "-"}`, 12);
+    y -= 10;
+  }
+  draw(alumno ? "Adulto que hizo el pedido" : "Datos del cliente", 13);
   draw(`Nombre: ${buyer.name || "-"}`, 12);
   draw(`Email: ${buyer.email || "-"}`, 12);
   draw(`WhatsApp / teléfono: ${buyer.phone || "-"}`, 12);
@@ -139,12 +152,32 @@ export async function loadAlbumOrderPrintPlan(orderId: number, user: PrintExport
     return { ok: false, status: 400, error: "Este pedido no tiene ítems de impresión" };
   }
 
-  const productRows = await prisma.photographerProduct.findMany({
-    where: { userId: order.album!.userId, isActive: true },
-    select: { name: true, size: true, acabado: true },
-  });
+  const productRows = productosDelAlbum(
+    await prisma.photographerProduct.findMany({
+      where: { userId: order.album!.userId, isActive: true },
+      select: { name: true, size: true, acabado: true, albumId: true },
+    }),
+    order.albumId,
+  );
   const getProductName = (size: string, acabado: string, metadata?: unknown) =>
     resolveExportProductName(productRows, size, acabado, chosenProductNameFromMetadata(metadata));
+  // Sin acabado cargado en el producto no se muestra el "BRILLO" que grabó el canje por defecto.
+  const sueltasLimpias = sueltas.map((it) => ({
+    ...it,
+    finish: acabadoParaExportar(
+      productRows,
+      String(it.size || ""),
+      String(it.finish || ""),
+      chosenProductNameFromMetadata(it.metadata),
+    ),
+  }));
+
+  // Pedido canjeado desde un pack escolar cobrado por fuera: la carpeta va con alumno y curso.
+  const packs = await prisma.order.findMany({
+    where: { redemptionOrderId: order.id },
+    select: { redemptionPaymentRefsJson: true },
+  });
+  const alumno = packs.map((p) => alumnoDesdeRefs(p.redemptionPaymentRefsJson)).find(Boolean) ?? null;
 
   const buyer = formatBuyerContactForPhotographer(order, order.buyerUser);
   if (!buyer.phone) {
@@ -159,9 +192,11 @@ export async function loadAlbumOrderPrintPlan(orderId: number, user: PrintExport
 
   // Rutas cortas: Windows no descomprime rutas largas (ver `rutas-cortas`).
   const codigo = String(order.id);
-  const folder = carpetaDePedido(codigo, buyer.name || buyer.email || "Cliente");
+  const folder = alumno
+    ? carpetaDePedido(codigo, rotuloDeAlumno(alumno), 32)
+    : carpetaDePedido(codigo, buyer.name || buyer.email || "Cliente");
 
-  const files: PrintExportFile[] = sueltas.map((it) => {
+  const files: PrintExportFile[] = sueltasLimpias.map((it) => {
     const finish = acabadoCorto(it.finish);
     const size = tamanoCorto(it.size);
     const qty = Number(it.quantity || 0);
@@ -233,7 +268,8 @@ export async function loadAlbumOrderPrintPlan(orderId: number, user: PrintExport
       notes,
       manifestHeader: [
         `Pedido Álbum: ${order.id}`,
-        `Nombre: ${buyer.name || "-"}`,
+        ...(alumno ? [`Alumno: ${alumno.alumno}`, `Curso: ${alumno.curso || "-"}`] : []),
+        `${alumno ? "Adulto" : "Nombre"}: ${buyer.name || "-"}`,
         `Email: ${buyer.email || "-"}`,
         `WhatsApp / teléfono: ${buyer.phone || "-"}`,
         `Fecha: ${order.createdAt.toISOString()}`,
@@ -244,10 +280,11 @@ export async function loadAlbumOrderPrintPlan(orderId: number, user: PrintExport
       ],
       files,
       pdfBytes: await buildPdf(
-        { ...order, items: sueltas },
+        { ...order, items: sueltasLimpias },
         buyer,
         getProductName,
-        designLines.length ? ["Diseños (carpetas, libritos)", ...designLines] : []
+        designLines.length ? ["Diseños (carpetas, libritos)", ...designLines] : [],
+        alumno
       ),
     },
   };
