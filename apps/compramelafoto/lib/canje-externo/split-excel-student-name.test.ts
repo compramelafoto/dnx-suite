@@ -29,3 +29,11 @@ test("nombreNaturalDesdeExcel: saluda con el nombre de pila, no con el apellido"
   assert.equal(nombreNaturalDesdeExcel("  "), null);
   assert.equal(nombreNaturalDesdeExcel(null), null);
 });
+
+test("apellido compuesto con coma: «Romero Acuña, Lola»", () => {
+  assert.deepEqual(splitExcelStudentName("Romero Acuña, Lola"), { lastName: "Romero Acuña", firstName: "Lola" });
+  assert.deepEqual(splitExcelStudentName("  De La Fuente ,  Juan  Pablo "), { lastName: "De La Fuente", firstName: "Juan Pablo" });
+  assert.equal(nombreNaturalDesdeExcel("Romero Acuña, Lola"), "Lola Romero Acuña");
+  // Sin coma sigue igual: primera palabra = apellido.
+  assert.deepEqual(splitExcelStudentName("Otalora Rafael"), { lastName: "Otalora", firstName: "Rafael" });
+});

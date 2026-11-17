@@ -60,9 +60,9 @@ export function parseExternalPreventaRefs(raw: unknown): ExternalPreventaRefs | 
  * Parte el nombre de un alumno tal como vino en el Excel de una preventa cobrada por fuera.
  *
  * Esos listados traen el apellido primero («Araujo Ines»): se toma la primera palabra como
- * apellido y el resto como nombre. Un apellido compuesto («De La Fuente Juan») queda mal
- * partido; para el listado del curso y los formatos del nombre es un mal menor frente a no
- * tenerlos, y el nombre completo se sigue imprimiendo tal como vino.
+ * apellido y el resto como nombre. Un apellido compuesto se carga con coma: «Romero Acuña, Lola»
+ * → apellido «Romero Acuña», nombre «Lola». Sin coma, «Romero Acuña Lola» se partiría como
+ * apellido «Romero» y nombre «Acuña Lola».
  */
 /**
  * "Valenza Sabrina" (como viene en el Excel: apellido primero) → "Sabrina Valenza", para saludar y
@@ -75,7 +75,14 @@ export function nombreNaturalDesdeExcel(raw: string | null | undefined): string 
 }
 
 export function splitExcelStudentName(raw: string | null | undefined): { firstName: string; lastName: string } | null {
-  const partes = (raw ?? "").trim().split(/\s+/).filter(Boolean);
+  const texto = (raw ?? "").trim();
+  const coma = texto.indexOf(",");
+  if (coma >= 0) {
+    const lastName = texto.slice(0, coma).replace(/\s+/g, " ").trim();
+    const firstName = texto.slice(coma + 1).replace(/\s+/g, " ").trim();
+    if (lastName || firstName) return { firstName, lastName };
+  }
+  const partes = texto.split(/\s+/).filter(Boolean);
   if (partes.length === 0) return null;
   if (partes.length === 1) return { firstName: "", lastName: partes[0]! };
   return { lastName: partes[0]!, firstName: partes.slice(1).join(" ") };
