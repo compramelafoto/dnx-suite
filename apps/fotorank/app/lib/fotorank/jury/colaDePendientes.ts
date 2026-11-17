@@ -91,8 +91,44 @@ export function estaPendiente(cola: Pendiente[], entryId: string): boolean {
 
 /* ---------- guardarlo en el aparato ---------- */
 
-export function claveDeLaCola(contestId: string): string {
+/**
+ * Dónde se guarda la cola: una por concurso y por jurado.
+ *
+ * Antes era sólo por concurso. Si dos jurados entraban desde el mismo
+ * teléfono --uno revisando lo del otro, por ejemplo--, el segundo heredaba
+ * la cola del primero: veía notas ajenas pisando las suyas y el visor
+ * intentaba guardarlas en su cuenta.
+ */
+export function claveDeLaCola(contestId: string, judgeAccountId: string): string {
+  return `fr-visor-pendientes-${contestId}-${judgeAccountId}`;
+}
+
+/**
+ * La clave vieja, sin jurado, para poder borrarla.
+ *
+ * No se adopta: no hay forma de saber de quién era lo que tiene adentro.
+ */
+export function claveViejaDeLaCola(contestId: string): string {
   return `fr-visor-pendientes-${contestId}`;
+}
+
+/**
+ * Saca de la cola lo que ya no se puede ni se debe mandar.
+ *
+ * Queda afuera lo de obras que este jurado ya envió --el servidor lo rechaza
+ * por cerrado y el reintento giraría para siempre, con el cartel de "sin
+ * confirmar" sobre trabajo entregado-- y lo de obras que no están en su lista.
+ */
+export function depurarCola(
+  cola: Pendiente[],
+  obras: Array<{ entryId: string; snapshotId: string | null; enviada: boolean }>,
+): Pendiente[] {
+  const abiertas = new Set(
+    obras
+      .filter((o) => !o.enviada && o.snapshotId)
+      .map((o) => `${o.entryId}|${o.snapshotId}`),
+  );
+  return cola.filter((p) => abiertas.has(`${p.entryId}|${p.snapshotId}`));
 }
 
 /**

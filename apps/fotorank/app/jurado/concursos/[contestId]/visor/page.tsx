@@ -39,5 +39,11 @@ export default async function VisorPage({ params }: Props) {
   });
   if (!acepto) redirect(`/jurado/concursos/${contestId}`);
 
-  return <VisorDeCalificacion contestId={contestId} cola={cola} />;
+  return (
+    <VisorDeCalificacion
+      contestId={contestId}
+      judgeAccountId={judge.id}
+      cola={cola}
+    />
+  );
 }

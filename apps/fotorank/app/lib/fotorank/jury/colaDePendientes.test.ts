@@ -3,8 +3,11 @@ import assert from "node:assert/strict";
 
 import {
   aplicarPendientes,
+  claveDeLaCola,
+  claveViejaDeLaCola,
   confirmar,
   cuantasEsperan,
+  depurarCola,
   encolar,
   estaPendiente,
   fallo,
@@ -174,4 +177,32 @@ test("un pendiente sin comentario deja el que traía el servidor", () => {
 test("un pendiente con comentario lo pisa", () => {
   const cola = encolar([], pendiente("2", { a: 5 }, { comentario: "nuevo" }));
   assert.equal(aplicarPendientes(OBRAS, cola)[1]?.comentario, "nuevo");
+});
+
+test("la cola se guarda aparte para cada jurado del mismo concurso", () => {
+  const marcos = claveDeLaCola("concurso-1", "jurado-marcos");
+  const melisa = claveDeLaCola("concurso-1", "jurado-melisa");
+  assert.notEqual(marcos, melisa);
+  assert.notEqual(marcos, claveViejaDeLaCola("concurso-1"));
+});
+
+test("lo ya enviado sale de la cola y no se reintenta para siempre", () => {
+  const cola = [pendiente("a", { luz: 7 }), pendiente("b", { luz: 5 })];
+  const obras = [
+    { entryId: "a", snapshotId: "snap-a", enviada: true },
+    { entryId: "b", snapshotId: "snap-b", enviada: false },
+  ];
+  assert.deepEqual(
+    depurarCola(cola, obras).map((p) => p.snapshotId),
+    ["snap-b"],
+  );
+});
+
+test("lo de obras que no están en la lista del jurado sale de la cola", () => {
+  const cola = [pendiente("a", { luz: 7 })];
+  assert.deepEqual(depurarCola(cola, []), []);
+  assert.deepEqual(
+    depurarCola(cola, [{ entryId: "a", snapshotId: null, enviada: false }]),
+    [],
+  );
 });
