@@ -1245,6 +1245,13 @@ export default function ClientAlbumView({
         photoIds: selectedIds,
       });
       setPackSelectionMode(null);
+      // El cliente confirma el pack desde la galería, lejos del recuadro "Compra preparada"
+      // que tiene el botón de pago. Lo llevamos hasta ahí para que vea el total del pack.
+      if (!purchaseUxV2 && typeof window !== "undefined") {
+        window.requestAnimationFrame(() => {
+          packsSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+        });
+      }
     } catch (err: any) {
       const message = String(err?.message ?? "");
       if (message.includes("Revisá la cantidad de fotos seleccionadas.")) {
@@ -1754,6 +1761,14 @@ export default function ClientAlbumView({
     onClearSelection: handleClearPurchaseSelection,
     onOpenFaceSearch: () => void openFaceSearchFlow(),
   });
+
+  const showFloatingPayPack =
+    !purchaseUxV2 &&
+    !packSelectionMode &&
+    albumPackPayButtonEnabled &&
+    packDraftPreparedSummaries.length > 0 &&
+    selected.size === 0 &&
+    selectedVideoIds.length === 0;
 
   const showPurchaseStickyUx =
     purchaseUxV2 &&
@@ -3253,8 +3268,33 @@ export default function ClientAlbumView({
         </button>
       ) : null}
 
+      {/*
+       * Pack listo para pagar y ninguna foto suelta marcada: el botón flotante paga el pack.
+       *
+       * Antes quedaba "Seleccioná fotos o videos" y el "Pagar pack" vivía arriba, fuera de
+       * pantalla. Los clientes volvían a tocar las mismas fotos, el botón pasaba a
+       * "Comprar 10 fotos" y el carrito las cobraba sueltas (10 × precio unitario) en vez
+       * del precio del pack. Reclamado por clientes de Fotoshow el 17/11/2026.
+       */}
+      {showFloatingPayPack && (
+        <button
+          type="button"
+          onClick={handlePayPreparedPack}
+          disabled={packPaymentSubmitting}
+          data-dnxbot-evitar=""
+          className="fixed z-50 right-5 bottom-5 md:right-8 md:bottom-8 px-4 py-3 rounded-full shadow-lg text-white text-sm font-semibold transition-all disabled:pointer-events-none bg-[#c27b3d] hover:bg-[#a0652d] disabled:bg-[#9ca3af]"
+          style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 16px)" }}
+        >
+          {packPaymentSubmitting
+            ? "Iniciando pago…"
+            : `${packDraftPreparedSummaries.length > 1 ? "Pagar packs" : "Pagar pack"} · ${formatPurchaseArs(
+                sumPackCartTotalCents(packDraftPreparedSummaries)
+              )}`}
+        </button>
+      )}
+
       {/* CTA flotante (legacy — oculto con UX V2) */}
-      {canPurchaseSingles && !packSelectionMode && !purchaseUxV2 && (
+      {canPurchaseSingles && !packSelectionMode && !purchaseUxV2 && !showFloatingPayPack && (
         <button
           type="button"
           onClick={handleComprar}
