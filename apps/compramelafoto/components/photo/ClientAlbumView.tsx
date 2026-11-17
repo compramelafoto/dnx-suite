@@ -75,8 +75,20 @@ import {
 } from "@/lib/album-packs/validate-album-pack-buyer-contact";
 import GalleryPricingBand from "@/components/gallery/GalleryPricingBand";
 import GallerySalesNotReadyNotice from "@/components/gallery/GallerySalesNotReadyNotice";
-import { buildGallerySelectionEstimate, formatGallerySelectionButtonTotal } from "@/lib/gallery/format-gallery-selection-estimate";
+import {
+  buildGallerySelectionEstimate,
+  estimateUniformDigitalTotalArs,
+  formatGallerySelectionButtonTotal,
+} from "@/lib/gallery/format-gallery-selection-estimate";
+import {
+  computePackSavings,
+  findPackForSinglesSelection,
+  isFixedDigitalPack,
+  packClientTotalArs,
+} from "@/lib/album-packs/pack-vs-singles";
 import type { GalleryPricingSnapshot } from "@/lib/pricing/gallery-pricing-snapshot";
+import { clientTotalFromPhotographerBaseArs } from "@/lib/pricing/client-price";
+import type { DigitalBulkDiscountInput } from "@/lib/pricing/digital-bulk-discount";
 import { Trash2 } from "lucide-react";
 
 type Album = {
@@ -112,6 +124,10 @@ type Album = {
   faceBulkPriceCents?: number | null;
   /** Precio base digital por foto del álbum (centavos), para comparar conveniencia */
   digitalPhotoPriceCents?: number | null;
+  /** Descuentos digitales por cantidad del álbum (%), para comparar packs contra sueltas. */
+  digitalDiscount5Plus?: number | null;
+  digitalDiscount10Plus?: number | null;
+  digitalDiscount20Plus?: number | null;
   /** CLF internacional (piloto): moneda del álbum. ARS o ausente = circuito de siempre. */
   currency?: string;
   /** % fee plataforma sobre base digital (servidor: `getPlatformFeePercent`). */
@@ -654,6 +670,13 @@ export default function ClientAlbumView({
   const [packPaymentError, setPackPaymentError] = useState<string | null>(null);
   /** Aviso (no error) cuando el carrito guardado ya estaba pagado y lo reiniciamos. */
   const [packCartNotice, setPackCartNotice] = useState<string | null>(null);
+  /** Ventana "Tu pack está listo" que aparece al confirmar un pack (vista legacy). */
+  const [packReadyNotice, setPackReadyNotice] = useState<{
+    packName: string;
+    photoCount: number;
+  } | null>(null);
+  const [singlesToPackSaving, setSinglesToPackSaving] = useState(false);
+  const [singlesToPackError, setSinglesToPackError] = useState<string | null>(null);
   const [packDraftPreparedSummaries, setPackDraftPreparedSummaries] = useState<
     PackDraftPreparedSummary[]
   >([]);
@@ -1246,11 +1269,9 @@ export default function ClientAlbumView({
       });
       setPackSelectionMode(null);
       // El cliente confirma el pack desde la galería, lejos del recuadro "Compra preparada"
-      // que tiene el botón de pago. Lo llevamos hasta ahí para que vea el total del pack.
-      if (!purchaseUxV2 && typeof window !== "undefined") {
-        window.requestAnimationFrame(() => {
-          packsSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-        });
+      // que tiene el botón de pago: le mostramos una ventana con el total y el botón de pagar.
+      if (!purchaseUxV2) {
+        setPackReadyNotice({ packName: packSelectionMode.packName, photoCount: selectedIds.length });
       }
     } catch (err: any) {
       const message = String(err?.message ?? "");
@@ -1761,6 +1782,94 @@ export default function ClientAlbumView({
     onClearSelection: handleClearPurchaseSelection,
     onOpenFaceSearch: () => void openFaceSearchFlow(),
   });
+
+  /** Lo que pagaría el cliente por `count` fotos digitales sueltas (con recargo de extensión). */
+  const singlesClientTotalArsFor = useCallback(
+    (count: number): number => {
+      // Los álbumes internacionales cobran en otra moneda: no comparamos contra packs en pesos.
+      if (album.currency && album.currency !== "ARS") return 0;
+      let unitArs = 0;
+      let discounts: DigitalBulkDiscountInput = album;
+      if (galleryPricing?.kind === "DIGITAL_UNIFORM") {
+        if (galleryPricing.currency && galleryPricing.currency !== "ARS") return 0;
+        unitArs = galleryPricing.digitalUnitPriceArs;
+        discounts = galleryPricing;
+      } else {
+        // La banda de precios puede no estar (p. ej. "venta no habilitada" aunque las sueltas se
+        // venden): usamos el precio por foto del álbum más la comisión, como hace el carrito.
+        const baseArs = Number(album.digitalPhotoPriceCents ?? 0);
+        const feePct = album.checkoutDigitalFeePercent;
+        if (!(baseArs > 0) || typeof feePct !== "number" || !Number.isFinite(feePct)) return 0;
+        unitArs = clientTotalFromPhotographerBaseArs(baseArs, feePct);
+      }
+      if (!(unitArs > 0)) return 0;
+      const { totalArs } = estimateUniformDigitalTotalArs(unitArs, count, discounts);
+      if (!extensionSalesPricing?.active || !extensionSurchargeMode) return totalArs;
+      return applyAlbumExtensionSurchargeToClientTotalArs({
+        clientSubtotalArs: totalArs,
+        extensionDays: extensionSalesPricing.extensionDays,
+        mode: extensionSurchargeMode,
+        active: true,
+      }).clientTotalArs;
+    },
+    [album, galleryPricing, extensionSalesPricing, extensionSurchargeMode]
+  );
+
+  /**
+   * Fotos sueltas marcadas que coinciden con un pack digital más barato: se le ofrece al
+   * cliente pasarlas al pack con un toque. Los clientes marcaban 10 fotos esperando el pack
+   * de 10 y terminaban pagándolas sueltas.
+   */
+  const singlesPackSuggestion = useMemo(() => {
+    if (purchaseUxV2 || packSelectionMode || !albumPackPayButtonEnabled) return null;
+    if (!canPurchasePacks || selected.size === 0 || selectedVideoIds.length > 0) return null;
+    return findPackForSinglesSelection(
+      publicVisiblePacksWithClientPrice,
+      selected.size,
+      singlesClientTotalArsFor
+    );
+  }, [
+    purchaseUxV2,
+    packSelectionMode,
+    albumPackPayButtonEnabled,
+    canPurchasePacks,
+    selected,
+    selectedVideoIds.length,
+    publicVisiblePacksWithClientPrice,
+    singlesClientTotalArsFor,
+  ]);
+
+  useEffect(() => {
+    setSinglesToPackError(null);
+  }, [selected]);
+
+  async function handleUseSuggestedPack() {
+    if (!singlesPackSuggestion || singlesToPackSaving || packSelectionSaving) return;
+    const { pack } = singlesPackSuggestion;
+    const photoIds = Array.from(selected)
+      .map((id) => parseInt(id, 10))
+      .filter((n) => Number.isFinite(n) && n > 0);
+    if (photoIds.length !== Number(pack.includedPhotoCount)) return;
+    setSinglesToPackSaving(true);
+    setSinglesToPackError(null);
+    setPackPaymentError(null);
+    setPackCartNotice(null);
+    try {
+      await persistPackSelectionForAlbumPack({
+        packId: pack.id,
+        packName: pack.name,
+        photoIds,
+      });
+      setSelected(new Set());
+      setPackReadyNotice({ packName: pack.name, photoCount: photoIds.length });
+    } catch (err: any) {
+      setSinglesToPackError(
+        String(err?.message ?? "") || "No pudimos pasar tus fotos al pack. Probá de nuevo."
+      );
+    } finally {
+      setSinglesToPackSaving(false);
+    }
+  }
 
   const showFloatingPayPack =
     !purchaseUxV2 &&
@@ -2481,6 +2590,12 @@ export default function ClientAlbumView({
               ).length;
               const hasPreparedForPack = preparedCountForPack > 0;
               const repeatPackLabel = "Agregar otro pack igual";
+              const packSavingsVsSingles = isFixedDigitalPack(pack)
+                ? computePackSavings(
+                    packClientTotalArs(pack),
+                    singlesClientTotalArsFor(Number(pack.includedPhotoCount))
+                  )
+                : null;
 
               return (
                 <article
@@ -2517,9 +2632,24 @@ export default function ClientAlbumView({
                           <p className="text-sm text-[#6b7280] leading-relaxed">{purchaseNote}</p>
                         ) : null}
                       </div>
-                      <p className="shrink-0 text-sm font-semibold text-[#1a1a1a]">
-                        {formatPurchaseArs(pack.clientPriceArs ?? pack.price)}
-                      </p>
+                      <div className="shrink-0 text-right">
+                        <p className="text-sm font-semibold text-[#1a1a1a]">
+                          {formatPurchaseArs(pack.clientPriceArs ?? pack.price)}
+                        </p>
+                        {packSavingsVsSingles ? (
+                          <>
+                            <p className="text-xs text-[#6b7280]">
+                              <span className="line-through">
+                                {formatPurchaseArs(packSavingsVsSingles.singlesTotalArs)}
+                              </span>{" "}
+                              sueltas
+                            </p>
+                            <p className="text-xs font-semibold text-emerald-700">
+                              Ahorrás {packSavingsVsSingles.savingsPercent} %
+                            </p>
+                          </>
+                        ) : null}
+                      </div>
                     </div>
                   </div>
                   <div className="pt-1">
@@ -3266,6 +3396,101 @@ export default function ClientAlbumView({
               ? `Continuar con el canje (${selected.size})`
               : "Elegí tus fotos"}
         </button>
+      ) : null}
+
+      {/* Aviso sobre el botón flotante: pasar las sueltas al pack, o que se cobran aparte. */}
+      {!purchaseUxV2 && !packSelectionMode && (singlesPackSuggestion || (packDraftPreparedSummaries.length > 0 && selected.size > 0)) ? (
+        <div
+          data-dnxbot-evitar=""
+          className="fixed z-50 left-4 right-4 md:left-auto md:right-8 md:w-[22rem] rounded-xl border border-[#e5e7eb] bg-white p-4 shadow-xl text-sm"
+          style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 76px)" }}
+        >
+          {singlesPackSuggestion ? (
+            <div className="space-y-3">
+              <p className="text-[#1a1a1a]">
+                Con el pack <strong>{singlesPackSuggestion.pack.name}</strong> pagás{" "}
+                <strong>{formatPurchaseArs(singlesPackSuggestion.savings.packTotalArs)}</strong> en vez de{" "}
+                <span className="line-through">
+                  {formatPurchaseArs(singlesPackSuggestion.savings.singlesTotalArs)}
+                </span>
+                .
+              </p>
+              <p className="font-semibold text-emerald-700">
+                Ahorrás {formatPurchaseArs(singlesPackSuggestion.savings.savingsArs)}
+              </p>
+              {singlesToPackError ? <p className="text-red-600">{singlesToPackError}</p> : null}
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => void handleUseSuggestedPack()}
+                disabled={singlesToPackSaving || packSelectionSaving || checkoutSubmitting}
+                className="w-full"
+              >
+                {singlesToPackSaving ? "Pasando tus fotos al pack…" : "Usar el pack con estas fotos"}
+              </Button>
+            </div>
+          ) : (
+            <p className="text-[#374151]">
+              Ya tenés un pack listo para pagar. Las fotos que marcaste ahora se cobran aparte, como
+              sueltas.
+            </p>
+          )}
+        </div>
+      ) : null}
+
+      {/* Ventana al confirmar un pack: deja claro el total y el próximo paso. */}
+      {!purchaseUxV2 && packReadyNotice && packDraftPreparedSummaries.length > 0 ? (
+        <div
+          className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/40 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="pack-listo-titulo"
+          onClick={() => setPackReadyNotice(null)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="space-y-1">
+              <p id="pack-listo-titulo" className="text-lg font-semibold text-[#1a1a1a]">
+                ✓ Tu pack está listo
+              </p>
+              <p className="text-sm text-[#6b7280]">
+                {packReadyNotice.packName} · {packReadyNotice.photoCount} foto
+                {packReadyNotice.photoCount === 1 ? "" : "s"}
+              </p>
+            </div>
+            <p className="text-sm text-[#374151]">
+              Total a pagar:{" "}
+              <strong className="text-[#1a1a1a]">
+                {formatPurchaseArs(sumPackCartTotalCents(packDraftPreparedSummaries))}
+              </strong>
+            </p>
+            <div className="space-y-2">
+              {albumPackPayButtonEnabled ? (
+                <Button
+                  variant="primary"
+                  className="w-full"
+                  onClick={() => {
+                    setPackReadyNotice(null);
+                    void handlePayPreparedPack();
+                  }}
+                  disabled={packPaymentSubmitting}
+                >
+                  {packDraftPreparedSummaries.length > 1 ? "Pagar packs" : "Pagar pack"} ·{" "}
+                  {formatPurchaseArs(sumPackCartTotalCents(packDraftPreparedSummaries))}
+                </Button>
+              ) : null}
+              <button
+                type="button"
+                className="w-full py-2 text-sm text-[#6b7280] underline hover:text-[#1a1a1a]"
+                onClick={() => setPackReadyNotice(null)}
+              >
+                Seguir viendo el álbum
+              </button>
+            </div>
+          </div>
+        </div>
       ) : null}
 
       {/*
