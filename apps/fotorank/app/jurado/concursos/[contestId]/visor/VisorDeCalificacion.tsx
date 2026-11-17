@@ -42,8 +42,10 @@ import {
 import {
   aplicarPendientes,
   claveDeLaCola,
+  claveViejaDeLaCola,
   confirmar,
   cuantasEsperan,
+  depurarCola,
   encolar,
   estaPendiente,
   fallo,
@@ -149,9 +151,12 @@ const CLAVE_DEL_FONDO = "fr-visor-fondo";
 
 export function VisorDeCalificacion({
   contestId,
+  judgeAccountId,
   cola,
 }: {
   contestId: string;
+  /** Quién califica: la cola guardada en el aparato es de cada jurado. */
+  judgeAccountId: string;
   cola: ColaDelVisor;
 }) {
   const criterios = useMemo(
@@ -167,6 +172,8 @@ export function VisorDeCalificacion({
   const Grupo = cola.agrupadoPor === "CATEGORIA" ? "Categoría" : "Consigna";
 
   const [obras, setObras] = useState<ObraEnElVisor[]>(cola.obras);
+  /** Lo que mandó el servidor al entrar: dice qué obras ya están enviadas. */
+  const obrasDelServidor = useRef(cola.obras);
   const [consigna, setConsigna] = useState<number | null>(
     cola.consignas[0]?.numero ?? null,
   );
@@ -342,7 +349,7 @@ export function VisorDeCalificacion({
 
   /* ---------- la cola de pendientes ---------- */
 
-  const clave = claveDeLaCola(contestId);
+  const clave = claveDeLaCola(contestId, judgeAccountId);
 
   /** Guarda la cola en el aparato. Sin almacenamiento el visor sigue andando. */
   const guardarCola = useCallback(
@@ -369,11 +376,23 @@ export function VisorDeCalificacion({
   useEffect(() => {
     let guardado: string | null = null;
     try {
+      // La cola vieja, sin jurado, no se sabe de quién es: se tira.
+      window.localStorage.removeItem(claveViejaDeLaCola(contestId));
       guardado = window.localStorage.getItem(clave);
     } catch {
       return;
     }
-    const cola = leerCola(guardado);
+    const leida = leerCola(guardado);
+    // Lo ya enviado no vuelve: el servidor lo rechazaría para siempre.
+    const cola = depurarCola(leida, obrasDelServidor.current);
+    if (cola.length !== leida.length) {
+      try {
+        if (cola.length === 0) window.localStorage.removeItem(clave);
+        else window.localStorage.setItem(clave, JSON.stringify(cola));
+      } catch {
+        /* Sin almacenamiento el visor sigue andando. */
+      }
+    }
     if (cola.length === 0) return;
     pendientesRef.current = cola;
     setPendientes(cola);
@@ -381,7 +400,7 @@ export function VisorDeCalificacion({
     setAviso(
       `Recuperamos ${cola.length} ${cola.length === 1 ? "obra" : "obras"} que habían quedado sin guardar.`,
     );
-  }, [clave]);
+  }, [clave, contestId]);
 
   /*
    * El reintento: de a una, sin pisarse, mientras quede algo.
