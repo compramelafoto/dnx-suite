@@ -4009,6 +4009,30 @@ model AbandonedOrderReminder {
 }
 
 /// * Grupo de fulfillment por fotógrafo (multi-entrega)
+/// CLF preventa: varios pedidos (uno por pack) cobrados con UN solo pago de Mercado Pago.
+/// `orderIds` es la composición del cobro; la referencia externa del pago es `clf-preventa-grupo-<id>`.
+/// A propósito sin relaciones ni columnas nuevas en `Order`: si la tabla no está aplicada, sólo falla el agrupado.
+model OrderPaymentGroup {
+  id             String    @id
+  albumId        Int
+  buyerEmail     String
+  orderIds       Int[]
+  /// Pesos enteros (suma de Order.totalCents de los pedidos).
+  totalArs       Int
+  /// PENDING | PAID | REFUNDED | FAILED
+  status         String    @default("PENDING")
+  mpPreferenceId String?
+  mpInitPoint    String?
+  mpPaymentId    String?
+  paidAt         DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([orderIds], type: Gin)
+  @@index([albumId])
+  @@index([mpPaymentId])
+}
+
 model OrderFulfillmentGroup {
   id             Int          @id @default(autoincrement())
   orderId        Int

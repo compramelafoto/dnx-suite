@@ -38,6 +38,7 @@ import { reportDuplicateAlbumOrderPayment } from "@/lib/mercadopago/duplicate-al
 import { reportFirstSaleIfAny } from "@/lib/meta-capi";
 import { shouldUseIntlFlow } from "@/lib/international/intl-order";
 import { applyIntlCommission, checkIntlPayment, commissionForOrder } from "@/lib/international/intl-finalize";
+import { referenciaEsDelPedido } from "@/lib/preventa-canjeable/pago-grupo/reglas";
 
 export type FinalizeAlbumOrderMpResult =
   | { ok: true; skipped: "already_paid"; orderId: number; paymentId: string }
@@ -170,7 +171,16 @@ export async function runAlbumOrderPaidSideEffects(params: {
 export async function finalizeAlbumOrderMercadoPagoApproved(
   orderId: number,
   paymentId: string,
-  options?: { accessTokenOverride?: string }
+  options?: {
+    accessTokenOverride?: string;
+    /**
+     * Varios packs de preventa pagados juntos: el pago trae la referencia del grupo
+     * (`clf-preventa-grupo-<id>`) en vez del número del pedido. Sólo lo pasa `pago-grupo/servicio.ts`.
+     */
+    grupo?: { id: string; orderIds: number[] };
+    /** El comprobante del pack lo manda el grupo (uno solo con todos los packs). */
+    omitirComprobantePack?: boolean;
+  }
 ): Promise<FinalizeAlbumOrderMpResult> {
   const order = await prisma.order.findUnique({
     where: { id: orderId },
@@ -244,7 +254,8 @@ export async function finalizeAlbumOrderMercadoPagoApproved(
       if (
         duplicatePay &&
         duplicatePay.status === "approved" &&
-        parseExternalReferenceOrderId(duplicatePay.external_reference) === orderId
+        (parseExternalReferenceOrderId(duplicatePay.external_reference) === orderId ||
+          referenciaEsDelPedido(duplicatePay.external_reference, orderId, options?.grupo))
       ) {
         await reportDuplicateAlbumOrderPayment({
           orderId,
@@ -289,7 +300,7 @@ export async function finalizeAlbumOrderMercadoPagoApproved(
   }
 
   const refOrderId = parseExternalReferenceOrderId(pay.external_reference);
-  if (refOrderId !== orderId) {
+  if (refOrderId !== orderId && !referenciaEsDelPedido(pay.external_reference, orderId, options?.grupo)) {
     return {
       ok: false,
       orderId,
@@ -497,10 +508,12 @@ export async function finalizeAlbumOrderMercadoPagoApproved(
     } catch (err) {
       console.error("pack-access-token create failed", { orderId, err });
     }
-    try {
-      await queuePreventaPackAccessEmail(orderId, packAccessUrl);
-    } catch (err) {
-      console.error("preventa-pack-access-email: no se pudo encolar", { orderId, err });
+    if (!options?.omitirComprobantePack) {
+      try {
+        await queuePreventaPackAccessEmail(orderId, packAccessUrl);
+      } catch (err) {
+        console.error("preventa-pack-access-email: no se pudo encolar", { orderId, err });
+      }
     }
   }
 

@@ -2,6 +2,8 @@ import { CheckoutPaymentSource, OrderStatus } from "@/lib/prisma";
 import { prisma } from "@/lib/prisma";
 import { searchPaymentsByExternalReference } from "@/lib/mercadopago";
 import { finalizeAlbumOrderMercadoPagoApproved } from "@/lib/mercadopago/finalize-album-order-mp-approved";
+import { referenciaGrupoPreventa } from "@/lib/preventa-canjeable/pago-grupo/reglas";
+import { buscarGrupoDelPedido, finalizarGrupoPreventa } from "@/lib/preventa-canjeable/pago-grupo/servicio";
 
 export type ReconcilePendingAlbumOrdersResult = {
   scanned: number;
@@ -36,9 +38,14 @@ async function reconcileOneAlbumOrder(
     accessTokenOverride = photographer?.mpAccessToken ?? undefined;
   }
 
+  // Varios packs de preventa en un solo pago: el pago se busca por la referencia del grupo y
+  // confirma todos sus pedidos juntos.
+  const grupo = await buscarGrupoDelPedido(order.id);
+  const referencia = grupo ? referenciaGrupoPreventa(grupo.id) : String(order.id);
+
   let payments: Awaited<ReturnType<typeof searchPaymentsByExternalReference>> = [];
   try {
-    payments = await searchPaymentsByExternalReference(String(order.id), {
+    payments = await searchPaymentsByExternalReference(referencia, {
       accessTokenOverride,
       dateRangeDays: opts.searchRangeDays,
     });
@@ -51,7 +58,7 @@ async function reconcileOneAlbumOrder(
       return;
     }
     try {
-      payments = await searchPaymentsByExternalReference(String(order.id), {
+      payments = await searchPaymentsByExternalReference(referencia, {
         dateRangeDays: opts.searchRangeDays,
       });
     } catch (e2: unknown) {
@@ -87,9 +94,22 @@ async function reconcileOneAlbumOrder(
     return;
   }
 
-  const result = await finalizeAlbumOrderMercadoPagoApproved(order.id, best.id, {
-    accessTokenOverride,
-  });
+  let result: { ok: boolean; error?: string; skipped?: string; applied?: boolean };
+  if (grupo) {
+    const r = await finalizarGrupoPreventa({ grupoId: grupo.id, paymentId: best.id, accessTokenOverride });
+    const falloEste = r.ok ? r.fallidos.find((f) => f.orderId === order.id) : null;
+    result = !r.ok
+      ? { ok: false, error: r.error }
+      : falloEste
+        ? { ok: false, error: falloEste.error }
+        : r.confirmados.includes(order.id)
+          ? { ok: true, applied: true }
+          : { ok: true, skipped: "already_paid" };
+  } else {
+    result = await finalizeAlbumOrderMercadoPagoApproved(order.id, best.id, {
+      accessTokenOverride,
+    });
+  }
 
   if (result.ok && "applied" in result && result.applied) {
     out.applied += 1;
@@ -104,7 +124,7 @@ async function reconcileOneAlbumOrder(
   } else if (!result.ok) {
     out.errors.push({
       orderId: order.id,
-      message: result.error,
+      message: result.error ?? "error",
     });
   }
 }
@@ -191,17 +211,20 @@ export async function recoverAlbumOrderFromMercadoPagoPayment(opts: {
     accessTokenOverride = photographer?.mpAccessToken ?? undefined;
   }
 
+  const grupoRecuperar = await buscarGrupoDelPedido(order.id);
+  const referenciaRecuperar = grupoRecuperar ? referenciaGrupoPreventa(grupoRecuperar.id) : String(order.id);
+
   let paymentId = opts.paymentId?.trim();
   if (!paymentId) {
     let payments: Awaited<ReturnType<typeof searchPaymentsByExternalReference>> = [];
     try {
-      payments = await searchPaymentsByExternalReference(String(order.id), {
+      payments = await searchPaymentsByExternalReference(referenciaRecuperar, {
         accessTokenOverride,
         dateRangeDays: 400,
       });
     } catch (e: unknown) {
       if (accessTokenOverride) {
-        payments = await searchPaymentsByExternalReference(String(order.id), {
+        payments = await searchPaymentsByExternalReference(referenciaRecuperar, {
           dateRangeDays: 400,
         });
       } else {
@@ -220,6 +243,14 @@ export async function recoverAlbumOrderFromMercadoPagoPayment(opts: {
   }
 
   const previousStatus = order.status;
+  if (grupoRecuperar) {
+    const r = await finalizarGrupoPreventa({ grupoId: grupoRecuperar.id, paymentId, accessTokenOverride });
+    if (!r.ok) return { ok: false, error: r.error };
+    const falloEste = r.fallidos.find((f) => f.orderId === order.id);
+    if (falloEste) return { ok: false, error: falloEste.error };
+    if (r.confirmados.includes(order.id)) return { ok: true, applied: true, paymentId, previousStatus };
+    return { ok: true, skipped: "already_paid", paymentId };
+  }
   const result = await finalizeAlbumOrderMercadoPagoApproved(order.id, paymentId, {
     accessTokenOverride,
   });

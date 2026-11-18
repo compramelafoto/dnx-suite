@@ -88,6 +88,11 @@ export interface CreatePreferenceParams {
    * moneda (puede tener decimales). Sin este campo todo queda en ARS enteros, como siempre.
    */
   currencyId?: string;
+  /**
+   * Varios renglones (pago de varios pedidos de preventa juntos). Si viene, reemplaza al renglón
+   * único armado con `title`/`total`, y la suma de `unitPrice` tiene que ser `total`.
+   */
+  items?: Array<{ id: string; title: string; unitPrice: number }>;
   metadata: {
     orderType: OrderType;
     orderId: number;
@@ -162,18 +167,36 @@ export async function createPreference(
   const itemId = `ORD-${params.metadata.orderType}-${params.metadata.orderId}`;
   const itemDescription = params.title.length > 256 ? params.title.substring(0, 253) + "..." : params.title;
 
+  const customItems = params.items && params.items.length > 0 ? params.items : null;
+  if (customItems) {
+    const suma = customItems.reduce((s, it) => s + Number(it.unitPrice), 0);
+    if (suma !== Number(params.total) || customItems.some((it) => !(Number(it.unitPrice) > 0))) {
+      throw new Error(`Los renglones no suman el total. Suma: ${suma}, total: ${params.total}`);
+    }
+  }
+
   const preferenceBody: any = {
-    items: [
-      {
-        id: itemId,
-        title: params.title,
-        description: itemDescription,
-        category_id: "others", // Categoría genérica para servicios (fotos, impresión)
-        quantity: 1,
-        unit_price: Number(params.total), // ARS enteros (o monto mayor de `currencyId`)
-        currency_id: params.currencyId || "ARS",
-      },
-    ],
+    items: customItems
+      ? customItems.map((it) => ({
+          id: it.id,
+          title: it.title,
+          description: it.title.length > 256 ? it.title.substring(0, 253) + "..." : it.title,
+          category_id: "others",
+          quantity: 1,
+          unit_price: Number(it.unitPrice),
+          currency_id: params.currencyId || "ARS",
+        }))
+      : [
+          {
+            id: itemId,
+            title: params.title,
+            description: itemDescription,
+            category_id: "others", // Categoría genérica para servicios (fotos, impresión)
+            quantity: 1,
+            unit_price: Number(params.total), // ARS enteros (o monto mayor de `currencyId`)
+            currency_id: params.currencyId || "ARS",
+          },
+        ],
     ...(Number.isFinite(params.marketplaceFee) && params.marketplaceFee && params.marketplaceFee > 0
       ? { marketplace_fee: Number(params.marketplaceFee) }
       : {}),

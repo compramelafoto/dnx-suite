@@ -23,7 +23,7 @@ import { seccionPantallasDelPanel } from "../rutas-panel";
 
 const VENTA_ESCOLAR = `## Venta escolar
 Cómo funciona en CLF:
-- Preventa: el fotógrafo arma packs (por ejemplo, una carpeta impresa más el digital) y las familias los pagan por Mercado Pago antes de la toma o antes de que se suban las fotos. Cada familia recibe su comprobante y el fotógrafo cobra su precio completo; CLF suma un recargo que paga la familia encima de ese precio.
+- Preventa: el fotógrafo arma packs (por ejemplo, una carpeta impresa más el digital) y las familias los pagan por Mercado Pago antes de la toma o antes de que se suban las fotos. Cada familia recibe su comprobante y el fotógrafo cobra su precio completo; CLF suma un recargo que paga la familia encima de ese precio. Si una familia elige varios packs distintos, los paga juntos en un solo pago, pero en el panel aparecen como un pedido por pack (cada uno con su canje).
 - Canje: cuando las fotos están subidas, cada familia entra con su link personal (/canje/preventa/…), elige las fotos que le corresponden según el pack que pagó y canjea. Si el álbum vende fotos sueltas, después puede comprar más fotos desde la galería del álbum (botón «Comprar más fotos»), pagándolas por Mercado Pago.
 - Cursos: la escuela tiene sus cursos cargados; la familia indica el curso al comprar y cada pedido queda con su curso.
 - Identificación del alumno, en palabras simples: sin identificación (la familia no dice de qué alumno es), carga manual (la familia escribe el nombre del alumno), lista opcional (la familia puede elegir al alumno de la lista del curso) o lista obligatoria (tiene que elegirlo de la lista). Para las dos con lista hay que cargar la lista de alumnos.
