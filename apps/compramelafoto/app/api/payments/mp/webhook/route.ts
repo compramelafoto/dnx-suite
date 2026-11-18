@@ -15,6 +15,8 @@ import { resolveAlbumOrderMpAccessTokenByOrderId } from "@/lib/mercadopago/resol
 import { reverseAlbumOrderMercadoPagoIfWasPaid } from "@/lib/mercadopago/reverse-album-order-mercado-pago";
 import { syncPreCompraOrderFromMercadoPagoPayment } from "@/lib/mercadopago/reverse-precompra-order-mercado-pago";
 import { logLegacyPreventaUsage } from "@/lib/observability/legacy-preventa-usage";
+import { grupoIdDesdeReferenciaPreventa } from "@/lib/preventa-canjeable/pago-grupo/reglas";
+import { procesarAvisoGrupoPreventa } from "@/lib/preventa-canjeable/pago-grupo/servicio";
 import {
   DNX_FOTO_BASICA_FUNES_MAX_SEATS,
   getDnxCourseMpAccessToken,
@@ -127,6 +129,13 @@ export async function POST(req: Request) {
     }
 
     let pay = await getPaymentByIdWithCourseMpFallback(String(paymentId), accessTokenOverride);
+
+    // Varios packs de preventa en un solo pago: la referencia es del grupo, no de un pedido.
+    // Se confirman (o anulan) todos los pedidos del grupo juntos.
+    if (grupoIdDesdeReferenciaPreventa(pay.external_reference)) {
+      const r = await procesarAvisoGrupoPreventa({ paymentId: String(paymentId), accessTokenOverride });
+      return NextResponse.json({ ok: true, paymentId, status: r.status, paymentGroupId: r.grupoId, note: r.note });
+    }
 
     let orderId = Number(pay.external_reference);
     // Si external_reference tiene formato "PREFIX:123", extraer el número

@@ -69,125 +69,30 @@ async function resolveAlbumOrderMpAccessToken(
   };
 }
 
+type AlbumOrderForCheckoutLine = NonNullable<Awaited<ReturnType<typeof loadAlbumOrderForCheckout>>>;
+type AlbumForCheckoutLine = { userId: number | null; eventId: number | null; selectedLabId: number | null } | null;
+
+async function loadAlbumOrderForCheckout(orderId: number) {
+  return prisma.order.findUnique({ where: { id: orderId }, include: { items: true } });
+}
+
 /**
- * Crea o reutiliza la preferencia de Mercado Pago para un pedido de álbum (ALBUM_ORDER).
+ * Monto y comisión de UN pedido de álbum para Checkout Pro (fee de plataforma, descuento de
+ * referidos y parte del organizador). Lo usan la preferencia del pedido suelto y la del grupo de
+ * preventa (varios packs en un pago), que suma la comisión de cada pedido.
  */
-export async function ensureAlbumOrderMpPreference(
-  orderId: number,
-  options?: { forceRegenerate?: boolean }
-): Promise<EnsureAlbumOrderMpPreferenceResult> {
-  const order = await prisma.order.findUnique({
-    where: { id: orderId },
-    include: { items: true },
-  });
-
-  if (!order) {
-    return { ok: false, error: "Pedido de álbum no encontrado", httpStatus: 404 };
-  }
-
-  if (order.isTest || order.checkoutPaymentSource === CheckoutPaymentSource.SIMULATED) {
-    console.info(LOG_BLOCKED, {
-      reason: "album_order_simulated_or_test",
-      orderId,
-      isTest: order.isTest,
-      checkoutPaymentSource: order.checkoutPaymentSource,
-    });
-    return {
-      ok: false,
-      error: "Este pedido es de simulación; no se crea preferencia de Mercado Pago.",
-      code: "SIMULATED_ORDER",
-      httpStatus: 400,
-    };
-  }
-
-  // Piloto Split 1:N: el pedido se cobra con tarjeta en /pagar y ese cobro puede estar en curso.
-  // Checkout Pro sólo después de que el comprador eligió «Pagar con Mercado Pago» (plan B).
-  if (bloqueaCheckoutPro(order.pricingSnapshot)) {
-    console.info(LOG_BLOCKED, { reason: "album_order_split_1n_piloto", orderId });
-    return {
-      ok: false,
-      error: "Esta compra se paga desde su página de pago.",
-      code: "SPLIT_1N_PILOTO",
-      httpStatus: 409,
-    };
-  }
-
-  const album = await prisma.album.findUnique({
-    where: { id: order.albumId },
-    select: { userId: true, eventId: true, selectedLabId: true },
-  });
-
-  const tokenResult = await resolveAlbumOrderMpAccessToken(
-    album?.userId ?? null,
-    album?.eventId ?? null
-  );
-  if (!tokenResult.ok) {
-    return {
-      ok: false,
-      error: tokenResult.error,
-      code: tokenResult.code,
-      httpStatus: 400,
-    };
-  }
-
-  const { accessTokenOverride, collectorType, collectorUserId } = tokenResult;
-
-  // CLF internacional (piloto): moneda local, sin marketplace_fee, sin split ni referidos.
-  // La comisión se descuenta del saldo en dólares del fotógrafo al confirmarse el pago.
-  if (shouldUseIntlFlow(order.currency)) {
-    if (!intlCollectorAllowed(collectorType)) {
-      return {
-        ok: false,
-        error: "La venta de este álbum está pausada momentáneamente. Probá de nuevo más tarde.",
-        code: "INTL_SALE_PAUSED",
-        httpStatus: 409,
-      };
-    }
-    if (
-      !options?.forceRegenerate &&
-      order.mpInitPoint &&
-      order.mpPreferenceId &&
-      mpInitPointMatchesCredential(order.mpInitPoint, accessTokenOverride)
-    ) {
-      return { ok: true, initPoint: order.mpInitPoint, reused: true };
-    }
-    const intlInput = buildIntlPreferenceInput(order);
-    const intlPref = await createPreference(
-      {
-        title: intlInput.title,
-        total: intlInput.total,
-        currencyId: intlInput.currencyId,
-        externalReference: intlInput.externalReference,
-        metadata: { orderType: "ALBUM_ORDER", orderId, component: "DIGITAL", intl: true },
-      },
-      {
-        accessTokenOverride,
-        refreshAccessTokenOnUnauthorized: buildMercadoPagoUnauthorizedRefresher({
-          ownerType: "USER",
-          ownerId: collectorUserId,
-        }),
-      }
-    );
-    await prisma.order.update({
-      where: { id: orderId },
-      data: { status: "PENDING", mpInitPoint: intlPref.initPoint, mpPreferenceId: intlPref.preferenceId },
-    });
-    return { ok: true, initPoint: intlPref.initPoint, reused: false };
-  }
-
-  if (
-    !options?.forceRegenerate &&
-    order.mpInitPoint &&
-    order.mpPreferenceId &&
-    mpInitPointMatchesCredential(order.mpInitPoint, accessTokenOverride)
-  ) {
-    return {
-      ok: true,
-      initPoint: order.mpInitPoint,
-      reused: true,
-    };
-  }
-
+export async function computeAlbumOrderCheckoutLine(
+  order: AlbumOrderForCheckoutLine,
+  album: AlbumForCheckoutLine,
+  collectorType: "PHOTOGRAPHER" | "ORGANIZER"
+): Promise<{
+  title: string;
+  total: number;
+  marketplaceFee: number;
+  component: "PRINT" | "DIGITAL";
+  packDefFromSnap: number | null;
+}> {
+  const orderId = order.id;
   const title =
     order.origin === OrderOrigin.PREVENTA_PACK
       ? `Preventa pack - Pedido #${order.id}`
@@ -281,6 +186,155 @@ export async function ensureAlbumOrderMpPreference(
   marketplaceFee = checkoutSplit.marketplaceFeePesos;
 
   const packDefFromSnap = readPackDefinitionIdFromOrderPricingSnapshot(order.pricingSnapshot);
+  return { title, total, marketplaceFee, component, packDefFromSnap };
+}
+
+/**
+ * Crea o reutiliza la preferencia de Mercado Pago para un pedido de álbum (ALBUM_ORDER).
+ */
+export async function ensureAlbumOrderMpPreference(
+  orderId: number,
+  options?: { forceRegenerate?: boolean }
+): Promise<EnsureAlbumOrderMpPreferenceResult> {
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    include: { items: true },
+  });
+
+  if (!order) {
+    return { ok: false, error: "Pedido de álbum no encontrado", httpStatus: 404 };
+  }
+
+  if (order.isTest || order.checkoutPaymentSource === CheckoutPaymentSource.SIMULATED) {
+    console.info(LOG_BLOCKED, {
+      reason: "album_order_simulated_or_test",
+      orderId,
+      isTest: order.isTest,
+      checkoutPaymentSource: order.checkoutPaymentSource,
+    });
+    return {
+      ok: false,
+      error: "Este pedido es de simulación; no se crea preferencia de Mercado Pago.",
+      code: "SIMULATED_ORDER",
+      httpStatus: 400,
+    };
+  }
+
+  // Piloto Split 1:N: el pedido se cobra con tarjeta en /pagar y ese cobro puede estar en curso.
+  // Checkout Pro sólo después de que el comprador eligió «Pagar con Mercado Pago» (plan B).
+  if (bloqueaCheckoutPro(order.pricingSnapshot)) {
+    console.info(LOG_BLOCKED, { reason: "album_order_split_1n_piloto", orderId });
+    return {
+      ok: false,
+      error: "Esta compra se paga desde su página de pago.",
+      code: "SPLIT_1N_PILOTO",
+      httpStatus: 409,
+    };
+  }
+
+  // Varios packs de preventa en un solo pago: si el pedido está en un grupo pendiente, se abre
+  // el pago del grupo entero (reintentos, recordatorios). Si el grupo ya no se puede cobrar
+  // junto (p. ej. otro pack se pagó aparte), sigue el pago de este pedido solo.
+  if (
+    order.origin === OrderOrigin.PREVENTA_PACK &&
+    (order.status === "PENDING" || order.status === "FAILED")
+  ) {
+    const { buscarGrupoDelPedido, asegurarPreferenciaGrupo } = await import(
+      "@/lib/preventa-canjeable/pago-grupo/servicio"
+    );
+    const grupo = await buscarGrupoDelPedido(orderId);
+    if (grupo && grupo.status === "PENDING") {
+      try {
+        const pref = await asegurarPreferenciaGrupo(grupo.id, options);
+        if (pref.ok) return { ok: true, initPoint: pref.initPoint, reused: pref.reused };
+        console.info("[preventa-grupo] pago suelto en vez del grupo", { orderId, grupoId: grupo.id, codigo: pref.codigo });
+      } catch (err: unknown) {
+        console.error("[preventa-grupo] preferencia del grupo falló; sigue suelto", { orderId, grupoId: grupo.id, err: String(err) });
+      }
+    }
+  }
+
+  const album = await prisma.album.findUnique({
+    where: { id: order.albumId },
+    select: { userId: true, eventId: true, selectedLabId: true },
+  });
+
+  const tokenResult = await resolveAlbumOrderMpAccessToken(
+    album?.userId ?? null,
+    album?.eventId ?? null
+  );
+  if (!tokenResult.ok) {
+    return {
+      ok: false,
+      error: tokenResult.error,
+      code: tokenResult.code,
+      httpStatus: 400,
+    };
+  }
+
+  const { accessTokenOverride, collectorType, collectorUserId } = tokenResult;
+
+  // CLF internacional (piloto): moneda local, sin marketplace_fee, sin split ni referidos.
+  // La comisión se descuenta del saldo en dólares del fotógrafo al confirmarse el pago.
+  if (shouldUseIntlFlow(order.currency)) {
+    if (!intlCollectorAllowed(collectorType)) {
+      return {
+        ok: false,
+        error: "La venta de este álbum está pausada momentáneamente. Probá de nuevo más tarde.",
+        code: "INTL_SALE_PAUSED",
+        httpStatus: 409,
+      };
+    }
+    if (
+      !options?.forceRegenerate &&
+      order.mpInitPoint &&
+      order.mpPreferenceId &&
+      mpInitPointMatchesCredential(order.mpInitPoint, accessTokenOverride)
+    ) {
+      return { ok: true, initPoint: order.mpInitPoint, reused: true };
+    }
+    const intlInput = buildIntlPreferenceInput(order);
+    const intlPref = await createPreference(
+      {
+        title: intlInput.title,
+        total: intlInput.total,
+        currencyId: intlInput.currencyId,
+        externalReference: intlInput.externalReference,
+        metadata: { orderType: "ALBUM_ORDER", orderId, component: "DIGITAL", intl: true },
+      },
+      {
+        accessTokenOverride,
+        refreshAccessTokenOnUnauthorized: buildMercadoPagoUnauthorizedRefresher({
+          ownerType: "USER",
+          ownerId: collectorUserId,
+        }),
+      }
+    );
+    await prisma.order.update({
+      where: { id: orderId },
+      data: { status: "PENDING", mpInitPoint: intlPref.initPoint, mpPreferenceId: intlPref.preferenceId },
+    });
+    return { ok: true, initPoint: intlPref.initPoint, reused: false };
+  }
+
+  if (
+    !options?.forceRegenerate &&
+    order.mpInitPoint &&
+    order.mpPreferenceId &&
+    mpInitPointMatchesCredential(order.mpInitPoint, accessTokenOverride)
+  ) {
+    return {
+      ok: true,
+      initPoint: order.mpInitPoint,
+      reused: true,
+    };
+  }
+
+  const { title, total, marketplaceFee, component, packDefFromSnap } = await computeAlbumOrderCheckoutLine(
+    order,
+    album,
+    collectorType
+  );
 
   const { initPoint, preferenceId } = await createPreference(
     {

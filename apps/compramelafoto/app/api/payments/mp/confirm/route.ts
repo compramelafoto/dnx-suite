@@ -16,6 +16,16 @@ import {
 import { getOrderDownloadTokens, revokeOrderDownloadTokens } from "@/lib/download-tokens";
 import { enlaceDelPackParaPagoExitoso } from "@/lib/preventa-canjeable/enlace-pago-exitoso";
 import { cargarPacksPendientesDeLaMismaCompra } from "@/lib/preventa-canjeable/cargar-packs-pendientes-misma-compra";
+import {
+  grupoIdDesdeReferenciaPreventa,
+  referenciaEsDelPedido,
+} from "@/lib/preventa-canjeable/pago-grupo/reglas";
+import {
+  cargarGrupoPreventa,
+  finalizarGrupoPreventa,
+  packsDelGrupoParaPagoExitoso,
+  revertirGrupoPreventa,
+} from "@/lib/preventa-canjeable/pago-grupo/servicio";
 import type { PackPendienteDeLaMismaCompra } from "@/lib/preventa-canjeable/packs-pendientes-misma-compra";
 import {
   buildZipDownloadApiUrl,
@@ -164,8 +174,16 @@ export async function POST(req: Request) {
     // Consultar el pago en Mercado Pago con el token correcto
     const paymentInfo = await getPaymentById(paymentId, { accessTokenOverride });
 
+    // Varios packs de preventa en un solo pago: la referencia es del grupo y el pedido tiene que ser parte de él.
+    const grupoIdDelPago =
+      orderType === "ALBUM_ORDER" ? grupoIdDesdeReferenciaPreventa(paymentInfo.external_reference) : null;
+    const grupoDelPago = grupoIdDelPago ? await cargarGrupoPreventa(grupoIdDelPago) : null;
+
     // Verificar que el external_reference coincida con el orderId
-    if (paymentInfo.external_reference !== String(orderId)) {
+    if (
+      paymentInfo.external_reference !== String(orderId) &&
+      !referenciaEsDelPedido(paymentInfo.external_reference, orderId, grupoDelPago)
+    ) {
       return NextResponse.json(
         {
           error: "El paymentId no corresponde al orderId",
@@ -188,6 +206,8 @@ export async function POST(req: Request) {
     let packAccessUrlForClient: string | null = null;
     /** Pagos encadenados: otros packs de la misma compra que la familia todavía tiene que pagar. */
     let packsPendientesForClient: PackPendienteDeLaMismaCompra[] = [];
+    /** Varios packs pagados juntos: cada pack con su enlace personal. */
+    let packsDelGrupoForClient: Array<{ orderId: number; packName: string; packAccessUrl: string | null }> = [];
 
     // Actualizar el pedido según su tipo
     if (orderType === "PRINT_ORDER") {
@@ -323,9 +343,27 @@ export async function POST(req: Request) {
         const { finalizeAlbumOrderMercadoPagoApproved } = await import(
           "@/lib/mercadopago/finalize-album-order-mp-approved"
         );
-        const fin = await finalizeAlbumOrderMercadoPagoApproved(orderId, paymentId, {
-          accessTokenOverride,
-        });
+        let fin: { ok: boolean; error?: string; skipped?: string };
+        if (grupoDelPago) {
+          const finGrupo = await finalizarGrupoPreventa({
+            grupoId: grupoDelPago.id,
+            paymentId,
+            accessTokenOverride,
+          });
+          if (!finGrupo.ok) fin = { ok: false, error: finGrupo.error };
+          else {
+            const falloEste = finGrupo.fallidos.find((f) => f.orderId === orderId);
+            fin = falloEste
+              ? { ok: false, error: falloEste.error }
+              : finGrupo.duplicados.includes(orderId)
+                ? { ok: true, skipped: "duplicate_payment" }
+                : { ok: true };
+          }
+        } else {
+          fin = await finalizeAlbumOrderMercadoPagoApproved(orderId, paymentId, {
+            accessTokenOverride,
+          });
+        }
         if (!fin.ok) {
           return NextResponse.json(
             {
@@ -336,7 +374,7 @@ export async function POST(req: Request) {
             { status: 400 }
           );
         }
-        if ("skipped" in fin && fin.skipped === "duplicate_payment") {
+        if (fin.skipped === "duplicate_payment") {
           duplicatePaymentForClient = true;
         }
         // Pack de preventa: la familia casi siempre compra sin cuenta, así que la pantalla de
@@ -350,7 +388,11 @@ export async function POST(req: Request) {
           !duplicatePaymentForClient
         ) {
           packAccessUrlForClient = await enlaceDelPackParaPagoExitoso(orderId);
-          packsPendientesForClient = await cargarPacksPendientesDeLaMismaCompra(orderId);
+          if (grupoDelPago) {
+            packsDelGrupoForClient = await packsDelGrupoParaPagoExitoso(grupoDelPago.id);
+          } else {
+            packsPendientesForClient = await cargarPacksPendientesDeLaMismaCompra(orderId);
+          }
         }
         digitalDelivery = await ensureDigitalDelivery(orderId);
         if (digitalDelivery) {
@@ -411,6 +453,17 @@ export async function POST(req: Request) {
             }
           }
         }
+      } else if (grupoDelPago) {
+        // Pago conjunto no aprobado: devolución/contracargo anula todos los pedidos del grupo;
+        // rechazo/cancelación deja fallidos los que esperaban. Pendiente: no se toca nada.
+        if (["refunded", "charged_back", "rejected", "cancelled"].includes(String(paymentInfo.status))) {
+          await revertirGrupoPreventa({
+            grupoId: grupoDelPago.id,
+            paymentId,
+            mpStatus: String(paymentInfo.status),
+            statusDetail: paymentInfo.status_detail,
+          });
+        }
       } else if (foreignPaymentOnPaidOrder) {
         console.warn("[duplicate-payment] confirm: pago ajeno a un pedido ya pagado, no se toca el pedido", {
           orderId,
@@ -468,6 +521,7 @@ export async function POST(req: Request) {
         preCompraOrderId: preCompraOrderIdForClient,
         packAccessUrl: packAccessUrlForClient,
         packsPendientes: packsPendientesForClient,
+        packsDelGrupo: packsDelGrupoForClient,
         duplicatePayment: duplicatePaymentForClient,
         paymentId,
         paymentStatus: paymentInfo.status,

@@ -16,6 +16,9 @@ import { clearAlbumPackCartForPaidOrder } from "@/lib/album-packs/album-pack-car
 import { metaTrackPurchase } from "@/lib/meta-pixel";
 import type { PackPendienteDeLaMismaCompra } from "@/lib/preventa-canjeable/packs-pendientes-misma-compra";
 
+/** Un pack de un pago conjunto (varios packs de preventa en un solo pago). */
+type PackDelPagoConjunto = { orderId: number; packName: string; packAccessUrl: string | null };
+
 export default function SuccessClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -59,6 +62,8 @@ export default function SuccessClient() {
   const [destinoDelPack, setDestinoDelPack] = useState<string | null>(null);
   const [pagandoSiguiente, setPagandoSiguiente] = useState<number | null>(null);
   const [errorSiguiente, setErrorSiguiente] = useState<string | null>(null);
+  /** Varios packs pagados en un solo pago: cada uno con su enlace. */
+  const [packsDelGrupo, setPacksDelGrupo] = useState<PackDelPagoConjunto[]>([]);
 
   const numericOrderId = orderId ? Number(orderId) : null;
   const isAlbumOrder = orderType === "ALBUM_ORDER" && numericOrderId != null && Number.isFinite(numericOrderId);
@@ -203,6 +208,20 @@ export default function SuccessClient() {
                 Number.isInteger((p as PackPendienteDeLaMismaCompra).orderId),
             )
           : [];
+        // Pagó varios packs juntos: le muestra el enlace de cada uno en vez de irse al primero.
+        const delGrupo: PackDelPagoConjunto[] = Array.isArray(data.packsDelGrupo)
+          ? data.packsDelGrupo.filter(
+              (p: unknown): p is PackDelPagoConjunto =>
+                typeof p === "object" &&
+                p !== null &&
+                Number.isInteger((p as PackDelPagoConjunto).orderId) &&
+                typeof (p as PackDelPagoConjunto).packName === "string",
+            )
+          : [];
+        if (delGrupo.length > 1) {
+          setPacksDelGrupo(delGrupo);
+          return;
+        }
         // Eligió varios packs: falta pagar alguno. No se va sola; le muestra el botón para pagarlo.
         if (pendientes.length > 0) {
           setPacksPendientes(pendientes);
@@ -467,6 +486,37 @@ export default function SuccessClient() {
               </p>
             </div>
           )}
+        </div>
+      )}
+
+      {paymentStatus === "approved" && packsDelGrupo.length > 1 && (
+        <div className="mt-5 rounded-xl border-2 border-emerald-300 bg-emerald-50 px-4 py-4">
+          <p className="text-emerald-950 font-semibold">Pagaste {packsDelGrupo.length} packs en un solo pago</p>
+          <p className="text-emerald-900/90 mt-1 text-sm leading-relaxed">
+            Cada pack tiene su propio link para elegir las fotos. También te los mandamos por email.
+          </p>
+          <ul className="mt-3 space-y-2">
+            {packsDelGrupo.map((p) => (
+              <li
+                key={p.orderId}
+                className="flex flex-col gap-2 rounded-lg bg-white px-3 py-3 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <span className="text-sm text-[#111827]">
+                  <b>{p.packName}</b> · Pedido #{p.orderId}
+                </span>
+                {p.packAccessUrl ? (
+                  <Link
+                    href={p.packAccessUrl}
+                    className="inline-flex min-h-[2.75rem] items-center justify-center rounded-lg bg-emerald-700 px-4 text-sm font-semibold text-white hover:bg-emerald-800"
+                  >
+                    Abrir este pack
+                  </Link>
+                ) : (
+                  <span className="text-sm text-[#6b7280]">El link te llega por email</span>
+                )}
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 

@@ -220,6 +220,11 @@ jobs:
       - name: Pruebas del cobro dividido Split 1:N
         run: pnpm --filter compramelafoto test:split-1n-piloto
 
+      # Varios packs de preventa en un solo pago: agrupado, webhook que confirma todos los pedidos,
+      # devoluciones y comprobante único (y los pagos encadenados, que quedan de respaldo).
+      - name: Pruebas del pago conjunto de preventa
+        run: pnpm --filter compramelafoto test:preventa-un-pago
+
       # Atribución de registros al Vendedor (clf_dnxv): cookie propia, sin tocar el programa de referidos.
       - name: Pruebas del agente Vendedor (CLF)
         run: pnpm --filter compramelafoto test:vendedor

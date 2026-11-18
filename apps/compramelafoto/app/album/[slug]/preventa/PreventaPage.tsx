@@ -389,7 +389,8 @@ export default function PreventaPage({ testClientPreview = false }: PreventaPage
         body.organizerReferralSchoolId = organizerReferralSchoolId;
       }
       // Cada pedido guarda un solo pack (de eso dependen el canje y el diseño del libro). Con
-      // varios packs distintos se arma un pedido por pack y se pagan uno después del otro: al
+      // varios packs distintos se arma un pedido por pack y se cobran todos juntos en UN solo
+      // pago (`/api/precompra/grupo-pago`). Si eso no se puede, se pagan uno después del otro: al
       // volver de Mercado Pago, la pantalla de pago exitoso ofrece pagar el siguiente.
       const creados: Array<{ preCompraOrderId: number; albumOrderId: number }> = [];
       for (const item of items) {
@@ -419,6 +420,23 @@ export default function PreventaPage({ testClientPreview = false }: PreventaPage
       if (pagoSimulado) {
         router.push(`/pago-simulado/${albumOrderId}`);
         return;
+      }
+
+      if (creados.length > 1) {
+        try {
+          const grupoRes = await fetch("/api/precompra/grupo-pago", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ orderIds: creados.map((c) => c.albumOrderId), buyerEmail: normalizedEmail }),
+          });
+          const grupoData = await grupoRes.json().catch(() => ({}));
+          if (grupoRes.ok && typeof grupoData?.initPoint === "string" && grupoData.initPoint) {
+            window.location.href = grupoData.initPoint;
+            return;
+          }
+        } catch {
+          // Sin pago conjunto: sigue con un pago por pack.
+        }
       }
 
       const prefRes = await fetch("/api/payments/mp/create-preference", {
@@ -517,7 +535,7 @@ export default function PreventaPage({ testClientPreview = false }: PreventaPage
 
   const packs = catalog.packs;
   const totalItems = Object.values(quantities).reduce((a, b) => a + b, 0);
-  /** Packs distintos elegidos: con más de uno se pagan por separado, uno después del otro. */
+  /** Packs distintos elegidos: con más de uno se pagan juntos en un solo pago. */
   const packsElegidos = packs.filter((p) => (quantities[p.id] ?? 0) > 0);
   const totalArs = packs.reduce((sum, p) => sum + (quantities[p.id] ?? 0) * p.price, 0);
   const minPrice = Math.min(...packs.map((p) => p.price));
@@ -1138,10 +1156,9 @@ export default function PreventaPage({ testClientPreview = false }: PreventaPage
 
             {packsElegidos.length > 1 ? (
               <div className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
-                <p className="font-semibold">Elegiste {packsElegidos.length} packs: se pagan por separado.</p>
+                <p className="font-semibold">Elegiste {packsElegidos.length} packs: los pagás juntos, en un solo pago.</p>
                 <p className="mt-1">
-                  Primero pagás «{packsElegidos[0].name}». Cuando termines, te mostramos el botón
-                  para pagar {packsElegidos.length === 2 ? `«${packsElegidos[1].name}»` : "los que siguen"}.
+                  Cada pack queda como un pedido aparte, con su propio link para elegir las fotos.
                 </p>
               </div>
             ) : null}
