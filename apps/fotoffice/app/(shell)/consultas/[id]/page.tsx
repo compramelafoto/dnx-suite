@@ -53,6 +53,15 @@ const ID_VALIDO = /^[A-Za-z0-9_-]{1,64}$/;
  * después la lectura acotada al workspace de la sesión: una consulta de otro workspace o
  * inexistente cae en `notFound()`.
  */
+/** Las respuestas del formulario que la consulta guardó (horas, segundo fotógrafo, distancia); sólo las que hay. */
+function respuestasComoDatos(r: { horas: number | null; km: number | null; segundoFotografo: boolean }): { termino: string; valor: React.ReactNode }[] {
+  const out: { termino: string; valor: React.ReactNode }[] = [];
+  if (r.horas !== null && r.horas > 0) out.push({ termino: "Horas de cobertura", valor: `${String(r.horas).replace(".", ",")} h` });
+  if (r.segundoFotografo) out.push({ termino: "Segundo fotógrafo", valor: "Sí, lo pidió" });
+  if (r.km !== null && r.km > 0) out.push({ termino: "Distancia desde el estudio", valor: `${Math.round(r.km)} km` });
+  return out;
+}
+
 export default async function FichaConsultaPage({ params }: { params: Promise<{ id: string }> }) {
   const { user, workspace } = await requireServiceLeadsStaff();
   if (!workspace) redirect("/workspace");
@@ -148,6 +157,7 @@ export default async function FichaConsultaPage({ params }: { params: Promise<{ 
     { termino: "Fecha del evento", valor: consulta.fechaEvento ? fechaDeEvento(consulta.fechaEvento) : null },
     { termino: "Lugar", valor: consulta.lugar },
     { termino: "Formulario de origen", valor: consulta.formulario },
+    ...respuestasComoDatos(consulta.respuestas),
     { termino: "Alta", valor: fechaHoraBA(consulta.alta) },
   ].filter((d) => !yaEnConsulta.has(d.termino));
 

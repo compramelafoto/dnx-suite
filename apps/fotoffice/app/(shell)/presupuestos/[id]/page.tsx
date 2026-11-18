@@ -23,6 +23,8 @@ import { fechaDelEvento } from "@/lib/presupuestos/evento";
 import { entradaGuardada, importeDeOpcion, opcionesPublicas, opcionesVacias } from "@/lib/presupuestos/opciones-pago";
 import { puedeGestionarPedidos } from "@/lib/pedidos/acceso";
 import { pedidoDePresupuesto } from "@/lib/pedidos/pedidos";
+import { EventoDeCotizacionTarjeta } from "@/components/presupuestos/evento-de-cotizacion";
+import { eventoDeLaConsulta, vistasDeCotizaciones } from "@/lib/presupuestos/evento-de-cotizacion";
 
 export const dynamic = "force-dynamic";
 
@@ -117,6 +119,8 @@ export default async function PresupuestoPage({ params }: { params: Promise<{ id
   const aceptado = detalle.estado === "ACEPTADO";
   const pedido = aceptado ? await pedidoDePresupuesto(ctx, detalle.id) : null;
   const confirmaPedido = aceptado && pedido === null && puedeGestionarPedidos(ctx);
+  // El evento se lee de la consulta (sin copia) y las aperturas, de todas las versiones.
+  const [evento, vistas] = await Promise.all([eventoDeLaConsulta(workspace.id, detalle.consultaLeadId), vistasDeCotizaciones(workspace.id, [detalle.id])]);
 
   return (
     <div className="space-y-6">
@@ -142,6 +146,13 @@ export default async function PresupuestoPage({ params }: { params: Promise<{ id
         </span>
         {detalle.pedidoPorConfirmar ? <span className="text-[var(--fo-muted)]">Pedido por confirmar</span> : null}
       </div>
+
+      <EventoDeCotizacionTarjeta
+        evento={evento}
+        vistas={vistas.get(detalle.id) ?? null}
+        enviada={detalle.versiones.some((v) => v.sentAt !== null)}
+        consultaHref={`/consultas/${encodeURIComponent(detalle.consultaLeadId)}`}
+      />
 
       {pedido ? (
         <p className="fo-card text-sm">

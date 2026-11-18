@@ -2,6 +2,7 @@ import "server-only";
 import { prisma } from "@repo/db";
 import { buildWhatsappUrl } from "@/lib/contact/whatsapp";
 import { SERVICE_LEAD_EVENT_TYPE_LABELS, SERVICE_LEAD_SUBTYPE_LABELS } from "@/lib/service-leads/form-definitions";
+import { respuestasDelFormulario } from "@/lib/presupuestos/evento-vista";
 import { estaVencida, proyeccion } from "./calculos";
 import { SALIDAS, type Clase, type TipoSujeto } from "./constantes";
 import { describirPaso, tareasVisibles, type PasoVista, type TareaFicha } from "./ficha-vista";
@@ -28,6 +29,8 @@ export type ConsultaFicha = {
   lugar: string | null;
   mensaje: string | null;
   formulario: string | null;
+  /** Respuestas del formulario o del presupuesto por horas (`metaJson.porHoras`). */
+  respuestas: { horas: number | null; km: number | null; segundoFotografo: boolean };
   alta: string;
 };
 
@@ -177,7 +180,7 @@ export async function cargarFicha(workspaceId: string, leadId: string, ahora: Da
     where: { id: leadId, workspaceId },
     select: {
       id: true, name: true, email: true, phone: true, eventType: true, eventSubtype: true, eventDate: true,
-      eventLocation: true, message: true, formId: true, createdAt: true,
+      eventLocation: true, message: true, metaJson: true, formId: true, createdAt: true,
     },
   });
   if (!lead) return null;
@@ -203,6 +206,7 @@ export async function cargarFicha(workspaceId: string, leadId: string, ahora: Da
     lugar: lead.eventLocation,
     mensaje: lead.message,
     formulario: form?.name ?? null,
+    respuestas: respuestasDelFormulario(lead.metaJson),
     alta: lead.createdAt.toISOString(),
   };
 
