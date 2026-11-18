@@ -1,5 +1,6 @@
 import { prisma, type Prisma } from "@repo/db";
 import { PAUSA_BOT_HORAS_POR_DEFECTO, type Canal } from "./constantes";
+import { partirPorBytes } from "./instagram/partir";
 import { perfilInstagram, type PerfilInstagram } from "./instagram/perfil";
 import { alEco, alEntrante, atiendeElBot, MINUTOS_PENDIENTE_INCIERTO, type EstadoChat, type ParcheChat, type ResultadoRegla } from "./reglas";
 import { mismoTelefono, ultimos6 } from "./telefono";
@@ -165,7 +166,10 @@ async function registrarMensaje(
 /**
  * ¿El eco de Instagram es de un mensaje nuestro (bot o panel)? Lo es si hay una respuesta saliente
  * reciente del chat sin `mid` todavía (el envío no lo guardó aún) con el mismo texto: entonces se le
- * asigna el `mid` del eco. También si lo mandó nuestra app de Meta (`app_id` = `META_APP_ID`).
+ * asigna el `mid` del eco. Una respuesta de más de 1000 bytes sale partida (`partirPorBytes`) y
+ * vuelve un eco por parte: también es propio el eco igual a una de sus partes, aunque la fila ya
+ * tenga `mid` (lo pudo poner el eco de otra parte); el `mid` se asigna sólo si sigue vacío.
+ * También si lo mandó nuestra app de Meta (`app_id` = `META_APP_ID`).
  */
 async function ecoPropioDeInstagram(workspaceId: string, ev: EventoEco, ahora: Date): Promise<boolean> {
   const chat = ev.texto
@@ -179,21 +183,27 @@ async function ecoPropioDeInstagram(workspaceId: string, ev: EventoEco, ahora: D
       where: {
         chatId: chat.id,
         direccion: "SALIENTE",
-        waMessageId: null,
         estadoEnvio: { in: ["PENDIENTE", "ENVIADO"] },
         createdAt: { gte: new Date(ahora.getTime() - MINUTOS_PENDIENTE_INCIERTO * 60_000) },
       },
-      select: { id: true, texto: true },
+      select: { id: true, texto: true, waMessageId: true },
       orderBy: { createdAt: "asc" },
     });
     const texto = ev.texto;
-    const propio = candidatos.find((m) => mismoTextoSeguro(m.texto ?? "", texto));
+    const propio =
+      candidatos.find((m) => m.waMessageId === null && mismoTextoSeguro(m.texto ?? "", texto)) ??
+      candidatos.find((m) => {
+        const partes = partirPorBytes(m.texto ?? "");
+        return partes.length > 1 && partes.some((p) => mismoTextoSeguro(p, texto));
+      });
     if (propio) {
-      // Si el envío guardó su `mid` entre medio, queda el suyo (el `where` lo exige nulo).
-      try {
-        await prisma.fotofficeWaMensaje.updateMany({ where: { id: propio.id, waMessageId: null }, data: { waMessageId: ev.waMessageId } });
-      } catch (e) {
-        if (!esChoqueDeUnico(e)) throw e;
+      // Si el envío (o el eco de otra parte) ya guardó un `mid`, queda ése (el `where` lo exige nulo).
+      if (propio.waMessageId === null) {
+        try {
+          await prisma.fotofficeWaMensaje.updateMany({ where: { id: propio.id, waMessageId: null }, data: { waMessageId: ev.waMessageId } });
+        } catch (e) {
+          if (!esChoqueDeUnico(e)) throw e;
+        }
       }
       return true;
     }

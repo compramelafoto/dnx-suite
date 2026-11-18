@@ -569,6 +569,30 @@ describe("Instagram", () => {
     expect(mensajes()).toHaveLength(2);
   });
 
+  it("respuesta larga del bot partida en 3: sus 3 ecos no crean CELULAR ni pausan al bot", async () => {
+    const { partirPorBytes } = await import("./instagram/partir");
+    let texto = "";
+    while (Buffer.byteLength(texto) < 2500) texto += "foto 📸 casamiento ";
+    texto = texto.trim();
+    const partes = partirPorBytes(texto);
+    expect(partes).toHaveLength(3);
+    const chat = await conRespuestaDelBot(texto, 20);
+    for (const [i, parte] of partes.entries()) {
+      expect(await aplicarEventos([igEco({ waMessageId: `m_p${i + 1}`, texto: parte })], AHORA)).toMatchObject({ aplicados: 0, duplicados: 1 });
+    }
+    expect(mensajes()).toHaveLength(2);
+    expect(mensajes().some((m) => m.autor === "CELULAR")).toBe(false);
+    // El mid sólo se asigna si la fila no tenía: queda el del primer eco.
+    expect(mensajes()[1]).toMatchObject({ autor: "BOT", waMessageId: "m_p1" });
+    expect(chats()[0]).toMatchObject({ id: chat.id, estado: "BOT", botPausadoHasta: null });
+  });
+
+  it("un eco corto igual a una respuesta que ya tiene su mid sigue siendo ajeno", async () => {
+    await conRespuestaDelBot("listo", 10, { estadoEnvio: "ENVIADO", waMessageId: "m_ya" });
+    expect(await aplicarEventos([igEco({ texto: "listo" })], AHORA)).toMatchObject({ aplicados: 1 });
+    expect(mensajes().some((m) => m.autor === "CELULAR")).toBe(true);
+  });
+
   it("eco propio también si el envío ya quedó ENVIADO sin mid", async () => {
     await conRespuestaDelBot("listo", 10, { estadoEnvio: "ENVIADO" });
     expect(await aplicarEventos([igEco({ texto: "listo" })], AHORA)).toMatchObject({ duplicados: 1 });
