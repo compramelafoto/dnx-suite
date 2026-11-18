@@ -98,7 +98,7 @@ contesta y la consulta queda cargada en DNX Estudio con origen «Instagram».
 - Los 3 puntos que hoy envían (`acciones.ts` del panel, `aviso-sistema.ts`, `bot/envio-bot.ts`) pasan
   el chat completo. Plantillas (`enviarPlantilla`) quedan sólo para WhatsApp: con un chat de
   Instagram se omiten (no fallan).
-- La ventana de Instagram usa la misma `ultimoEntranteEn` (24 h; 7 días si el chat vino de anuncio).
+- La ventana de Instagram usa la misma `ultimoEntranteEn` (24 h). La extensión a 7 días de los anuncios «clic a Direct» queda para después.
 
 ### 5.4 El bot en Instagram
 
@@ -116,8 +116,7 @@ contesta y la consulta queda cargada en DNX Estudio con origen «Instagram».
     lo dio) y pasa a persona.
 - **Cómo le llega la cotización (decisión de Daniel, 18/11: gratis):** sale **por Instagram y por
   correo**, sin plantillas pagas. Por Instagram se manda el texto de la cotización con el enlace
-  (`textoWhatsappDelPresupuesto` sirve igual) si la ventana de Instagram sigue abierta (24 h, o 7 días
-  si vino de anuncio); si se cerró, queda anotado «Instagram no: pasaron más de 24 h» y sale sólo el
+  (`textoWhatsappDelPresupuesto` sirve igual) si la ventana de Instagram sigue abierta (24 h); si se cerró, queda anotado «Instagram no: pasaron más de 24 h» y sale sólo el
   correo, como hoy con WhatsApp. Si casualmente el cliente ya tiene la ventana de WhatsApp abierta
   con ese teléfono, también sale por WhatsApp (gratis, regla de hoy). El teléfono que dio sirve para
   los **seguimientos** de WhatsApp a los 2, 7 y 12 días (la plantilla `seguimiento_cotizacion` que
