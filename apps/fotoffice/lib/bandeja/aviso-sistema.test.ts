@@ -7,9 +7,10 @@ const B = await vi.hoisted(async () => {
 vi.mock("server-only", () => ({}));
 vi.mock("@repo/db", () => ({ prisma: B.prisma }));
 vi.mock("@/lib/integrations/whatsapp/credentials", () => ({ leerTokenWhatsapp: vi.fn(async () => null), hayTokenWhatsapp: vi.fn(async () => true), guardarTokenWhatsapp: vi.fn() }));
-vi.mock("@/lib/integrations/instagram/credentials", () => ({ leerTokenInstagram: vi.fn(async () => null) }));
+const IG_TOKEN = vi.hoisted(() => ({ hay: true }));
+vi.mock("@/lib/integrations/instagram/credentials", () => ({ leerTokenInstagram: vi.fn(async () => null), hayTokenInstagram: vi.fn(async () => IG_TOKEN.hay) }));
 
-const { enviarAvisoAlChat, enviarAvisoPorWhatsapp } = await import("./aviso-sistema");
+const { enviarAvisoAlChat, enviarAvisoPorWhatsapp, estadoInstagramDe } = await import("./aviso-sistema");
 
 const AHORA = new Date("2026-11-18T15:00:00.000Z");
 const hace = (horas: number) => new Date(AHORA.getTime() - horas * 3_600_000);
@@ -27,6 +28,7 @@ const chatDe = async (canal: string, waId: string, ultimoEntranteEn: Date | null
 
 beforeEach(() => {
   B.vaciar();
+  IG_TOKEN.hay = true;
   vi.spyOn(console, "error").mockImplementation(() => undefined);
 });
 
@@ -122,3 +124,22 @@ describe("enviarAvisoPorWhatsapp (sin cambios)", () => {
     expect(await enviarAvisoPorWhatsapp("w1", WA, "hola", { ahora: AHORA, enviar: vi.fn() })).toBe("SIN_CONEXION");
   });
 });
+
+describe("estadoInstagramDe", () => {
+  it("conectado sólo con REAL, Instagram activo, página y token; la ventana es la del chat de Instagram", async () => {
+    await conexionReal();
+    const { id } = await chatDe("INSTAGRAM", IGSID);
+    expect(await estadoInstagramDe("w1", id, AHORA)).toEqual({ conectado: true, ventanaAbierta: true });
+    IG_TOKEN.hay = false;
+    expect(await estadoInstagramDe("w1", id, AHORA)).toEqual({ conectado: false, ventanaAbierta: true });
+  });
+
+  it("Instagram apagado: no conectado; un chat de WhatsApp con ese id no cuenta", async () => {
+    await P.fotofficeWaConexion.create({ data: { workspaceId: "w1", modo: "REAL", phoneNumberId: "123", igPageId: "pg1", igActivo: false } });
+    const ig = await chatDe("INSTAGRAM", IGSID, hace(30));
+    const wa = await chatDe("WHATSAPP", WA);
+    expect(await estadoInstagramDe("w1", ig.id, AHORA)).toEqual({ conectado: false, ventanaAbierta: false });
+    expect((await estadoInstagramDe("w1", wa.id, AHORA)).ventanaAbierta).toBe(false);
+  });
+});
+

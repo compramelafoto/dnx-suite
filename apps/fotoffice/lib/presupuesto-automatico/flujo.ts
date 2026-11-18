@@ -1,8 +1,7 @@
 import "server-only";
 import { prisma, type Prisma } from "@repo/db";
 import { appUrl } from "@/lib/app-url";
-import { estadoWhatsappDe, enviarAvisoAlChat, enviarAvisoPorWhatsapp } from "@/lib/bandeja/aviso-sistema";
-import { puedeResponderLibre } from "@/lib/bandeja/reglas";
+import { estadoInstagramDe, estadoWhatsappDe, enviarAvisoAlChat, enviarAvisoPorWhatsapp } from "@/lib/bandeja/aviso-sistema";
 import { waIdDe } from "@/lib/bandeja/telefono";
 import { numeroDe } from "@/lib/numeracion/asignar";
 import { correoValido } from "@/lib/plantillas/contexto";
@@ -70,6 +69,8 @@ export type DepsFlujo = DepsPropuestaAutomatica & {
   enviarPresupuesto?: typeof enviarPresupuestoDelSistema;
   estadoWhatsapp?: typeof estadoWhatsappDe;
   enviarWhatsapp?: typeof enviarAvisoPorWhatsapp;
+  /** ¿Instagram conectado y la ventana de ese chat abierta? */
+  estadoInstagram?: typeof estadoInstagramDe;
   /** El aviso por el chat de Instagram (la cotización aprobada). */
   enviarInstagram?: typeof enviarAvisoAlChat;
   /** Dirección de FOTOFFICE para los botones (undefined: la del entorno). */
@@ -371,7 +372,7 @@ export async function aprobarYEnviar(
 
     const waId = a.waId ?? waIdDe(lead?.phone ?? null);
     const wa = await (deps.estadoWhatsapp ?? estadoWhatsappDe)(workspaceId, waId, ahora);
-    const instagram = a.igChatId ? { chatId: a.igChatId, ventanaAbierta: await ventanaInstagramAbierta(workspaceId, a.igChatId, ahora) } : undefined;
+    const instagram = a.igChatId ? { chatId: a.igChatId, ...(await (deps.estadoInstagram ?? estadoInstagramDe)(workspaceId, a.igChatId, ahora)) } : undefined;
     const decision = decidirCanales({
       correoValido: correoValido(lead?.email ?? null),
       waId,
@@ -409,7 +410,7 @@ export async function aprobarYEnviar(
     }
     let instagramSalida: ResultadoInstagram | undefined;
     if (a.igChatId) {
-      instagramSalida = decision.instagram ? "FALLO" : "VENTANA_CERRADA";
+      instagramSalida = decision.motivoSinInstagram ?? "FALLO";
       if (decision.instagram && textoAlCliente) {
         const s = await (deps.enviarInstagram ?? enviarAvisoAlChat)(workspaceId, a.igChatId, textoAlCliente, { ahora });
         // Sin conexión de Instagram también es FALLO: el chat existe, pero no hay por dónde mandarlo.
@@ -430,16 +431,6 @@ export async function aprobarYEnviar(
     // Si se reclamó y algo lanzó, queda FALLO para revisar a mano (pudo haber salido): nunca se reintenta solo.
     if (reclamada) await terminar(workspaceId, aprobacionId, { status: "FALLO", errorCode: "ERROR_INTERNO" }).catch(() => undefined);
     return falla("ERROR");
-  }
-}
-
-/** ¿El cliente escribió por ese chat de Instagram hace menos de 24 h? Nunca lanza (ante la duda, no). */
-async function ventanaInstagramAbierta(workspaceId: string, chatId: string, ahora: Date): Promise<boolean> {
-  try {
-    const chat = await prisma.fotofficeWaChat.findFirst({ where: { id: chatId, workspaceId, canal: "INSTAGRAM" }, select: { ultimoEntranteEn: true } });
-    return chat ? puedeResponderLibre(chat, ahora) : false;
-  } catch {
-    return false;
   }
 }
 

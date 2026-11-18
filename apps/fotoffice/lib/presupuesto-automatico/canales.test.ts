@@ -55,7 +55,7 @@ describe("textos de los canales", () => {
 });
 
 describe("Instagram", () => {
-  const IG = { chatId: "chat-ig", ventanaAbierta: true };
+  const IG = { chatId: "chat-ig", conectado: true, ventanaAbierta: true };
 
   it("con chat de Instagram y la ventana abierta sale también por Instagram", () => {
     expect(decidirCanales({ ...TODO, instagram: IG })).toMatchObject({ correo: true, whatsapp: true, instagram: true });
@@ -64,7 +64,15 @@ describe("Instagram", () => {
 
   it("ventana cerrada o sin chat: no sale por Instagram y el correo sí", () => {
     expect(decidirCanales({ ...TODO, instagram: { ...IG, ventanaAbierta: false } })).toMatchObject({ correo: true, instagram: false });
-    expect(decidirCanales({ ...TODO, instagram: { chatId: null, ventanaAbierta: true } })).toMatchObject({ instagram: false });
+    expect(decidirCanales({ ...TODO, instagram: { ...IG, chatId: null } })).toMatchObject({ instagram: false });
+  });
+
+  it("Instagram desconectado no cuenta como canal y lo dice", () => {
+    expect(decidirCanales({ ...TODO, correoValido: false, waId: null, instagram: { ...IG, conectado: false } })).toMatchObject({
+      correo: false, whatsapp: false, instagram: false, motivoSinInstagram: "SIN_CONEXION",
+    });
+    expect(decidirCanales({ ...TODO, instagram: { ...IG, ventanaAbierta: false } })).toMatchObject({ motivoSinInstagram: "VENTANA_CERRADA" });
+    expect(textoDeCanales({ correo: "ENVIADO", whatsapp: "SIN_CELULAR", instagram: "SIN_CONEXION" })).toContain("Instagram no: la conexión con Meta no está activa");
   });
 
   it("los textos nombran Instagram", () => {

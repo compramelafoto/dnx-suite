@@ -195,5 +195,17 @@ describe("prepararDesdeWhatsapp desde un chat de Instagram", () => {
     expect(B.datos.serviceSalesLead[0]).toMatchObject({ phone: "+5493415551234" });
     expect(H.altas).toHaveLength(0);
   });
+
+  it("si lo da después y la ficha ya tenía otro teléfono, no lo pisa y lo anota en la consulta", async () => {
+    encender();
+    H.enPreparacionIg = true;
+    B.agregar("client", { id: "cli-otro", workspaceId: WS, phone: "+5493410000009" });
+    B.agregar("serviceSalesLead", { id: "lead-ig", workspaceId: WS, phone: "+5493410000009", message: "Consulta por Instagram (@sofi.r).", metaJson: null });
+    B.agregar("fotofficePresupuestoAprobacion", { id: "ap-ig", workspaceId: WS, leadId: "lead-ig", igChatId: "chat-ig", waId: null, status: "AVISADO", errorCode: null, createdAt: new Date() });
+    await W.prepararDesdeWhatsapp(WS, { ...ig, clientId: "cli-otro" }, { tipo: "15 años", nombre: "Sofía Rodríguez", whatsapp: "341 555-1234" });
+    expect(B.datos.client[0]).toMatchObject({ phone: "+5493410000009" });
+    expect(B.datos.serviceSalesLead[0]).toMatchObject({ phone: "+5493410000009", message: "Consulta por Instagram (@sofi.r). (WhatsApp que dio: +5493415551234)" });
+    expect(B.datos.fotofficePresupuestoAprobacion[0]).toMatchObject({ waId: "5493415551234" });
+  });
 });
 

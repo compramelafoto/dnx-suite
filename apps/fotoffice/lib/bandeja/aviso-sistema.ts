@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@repo/db";
+import { hayTokenInstagram } from "@/lib/integrations/instagram/credentials";
 import { hayTokenWhatsapp } from "@/lib/integrations/whatsapp/credentials";
 import { aEstado, canalDe, chatBloqueado, enviarPorCanal, guardarResultadoDelEnvio } from "./acciones";
 import { leerConexion } from "./conexion";
@@ -25,6 +26,21 @@ export async function estadoWhatsappDe(workspaceId: string, waId: string | null,
     const conectado = conexion.modo === "REAL" && conexion.phoneNumberId !== null && (await hayTokenWhatsapp(workspaceId));
     if (!waId) return { conectado, ventanaAbierta: false };
     const chat = await prisma.fotofficeWaChat.findFirst({ where: { workspaceId, canal: "WHATSAPP", waId }, select: { ultimoEntranteEn: true } });
+    return { conectado, ventanaAbierta: chat ? puedeResponderLibre(chat, ahora) : false };
+  } catch {
+    return { conectado: false, ventanaAbierta: false };
+  }
+}
+
+/**
+ * ¿Se le puede escribir ahora a ese chat de Instagram? Conectado = conexión REAL, Instagram activo,
+ * con página y con token de página. La ventana es la del chat (canal INSTAGRAM). Nunca lanza.
+ */
+export async function estadoInstagramDe(workspaceId: string, chatId: string, ahora: Date): Promise<EstadoWhatsappCliente> {
+  try {
+    const conexion = await leerConexion(workspaceId);
+    const conectado = conexion.modo === "REAL" && conexion.igActivo && conexion.igPageId !== null && (await hayTokenInstagram(workspaceId));
+    const chat = await prisma.fotofficeWaChat.findFirst({ where: { id: chatId, workspaceId, canal: "INSTAGRAM" }, select: { ultimoEntranteEn: true } });
     return { conectado, ventanaAbierta: chat ? puedeResponderLibre(chat, ahora) : false };
   } catch {
     return { conectado: false, ventanaAbierta: false };

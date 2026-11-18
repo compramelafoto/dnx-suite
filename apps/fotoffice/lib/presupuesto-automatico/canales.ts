@@ -20,7 +20,7 @@ export type EntradaCanales = {
   /** Hay un chat con ese número y el último mensaje del cliente es de hace menos de 24 h. */
   ventanaAbierta: boolean;
   /** El chat de Instagram por el que entró la consulta (sólo consultas de Instagram). */
-  instagram?: { chatId: string | null; ventanaAbierta: boolean };
+  instagram?: { chatId: string | null; conectado: boolean; ventanaAbierta: boolean };
 };
 
 export type DecisionCanales = {
@@ -29,7 +29,16 @@ export type DecisionCanales = {
   motivoSinWhatsapp: MotivoSinWhatsapp | null;
   /** Sólo en las consultas de Instagram. */
   instagram?: boolean;
+  motivoSinInstagram?: MotivoSinInstagram | null;
 };
+
+export type MotivoSinInstagram = "SIN_CONEXION" | "VENTANA_CERRADA";
+
+function motivoInstagram(i: NonNullable<EntradaCanales["instagram"]>): MotivoSinInstagram | null {
+  if (!i.chatId || !i.conectado) return "SIN_CONEXION";
+  if (!i.ventanaAbierta) return "VENTANA_CERRADA";
+  return null;
+}
 
 export function decidirCanales(c: EntradaCanales): DecisionCanales {
   let motivo: MotivoSinWhatsapp | null = null;
@@ -40,14 +49,14 @@ export function decidirCanales(c: EntradaCanales): DecisionCanales {
     correo: c.correoValido,
     whatsapp: motivo === null,
     motivoSinWhatsapp: motivo,
-    ...(c.instagram ? { instagram: !!c.instagram.chatId && c.instagram.ventanaAbierta } : {}),
+    ...(c.instagram ? { instagram: motivoInstagram(c.instagram) === null, motivoSinInstagram: motivoInstagram(c.instagram) } : {}),
   };
 }
 
 /** Lo que pasó con cada canal (se guarda en `channels` y se muestra en Telegram y en el historial). */
 export type ResultadoCorreo = "ENVIADO" | "FALLO" | "SIN_CORREO";
 export type ResultadoWhatsapp = "ENVIADO" | "FALLO" | MotivoSinWhatsapp;
-export type ResultadoInstagram = "ENVIADO" | "FALLO" | "VENTANA_CERRADA";
+export type ResultadoInstagram = "ENVIADO" | "FALLO" | MotivoSinInstagram;
 export type ResultadoCanales = { correo: ResultadoCorreo; whatsapp: ResultadoWhatsapp; instagram?: ResultadoInstagram };
 
 const MOTIVOS_WHATSAPP: Record<Exclude<ResultadoWhatsapp, "ENVIADO">, string> = {
@@ -59,6 +68,7 @@ const MOTIVOS_WHATSAPP: Record<Exclude<ResultadoWhatsapp, "ENVIADO">, string> = 
 
 const MOTIVOS_INSTAGRAM: Record<Exclude<ResultadoInstagram, "ENVIADO">, string> = {
   FALLO: "Instagram no salió (Meta lo rechazó o no está conectado)",
+  SIN_CONEXION: "Instagram no: la conexión con Meta no está activa",
   VENTANA_CERRADA: "Instagram no: pasaron más de 24 h",
 };
 

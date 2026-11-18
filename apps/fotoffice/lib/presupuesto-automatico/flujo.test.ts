@@ -61,6 +61,11 @@ function deps(extra: Partial<DepsFlujo> = {}) {
       return { ok: true, repetido: false, versionId: "ver-1", numero: "P-1", enlace: "https://dnx.com.ar/p/tok", whatsappUrl: null };
     },
     estadoWhatsapp: async () => ({ conectado: false, ventanaAbierta: false }),
+    estadoInstagram: async (_ws, chatId, ahora) => {
+      const c = B.datos.fotofficeWaChat.find((x) => x.id === chatId && x.canal === "INSTAGRAM");
+      const ultimo = c?.ultimoEntranteEn as Date | null | undefined;
+      return { conectado: true, ventanaAbierta: !!ultimo && ahora.getTime() - ultimo.getTime() < 24 * 3_600_000 };
+    },
     enviarWhatsapp: async (_ws, _wa, texto) => {
       whatsapps.push(texto);
       return "ENVIADO";
@@ -321,14 +326,38 @@ describe("consultas que entran por Instagram", () => {
     expect(r.texto).toContain("Instagram no: pasaron más de 24 h");
   });
 
-  it("sin correo pero con Instagram abierto, sale por Instagram (no queda SIN_CANAL)", async () => {
+  it("sin correo pero con Instagram conectado y abierto, sale sólo por Instagram (no queda SIN_CANAL)", async () => {
     sembrar({ email: null, phone: null });
     chatIg(new Date(AHORA.getTime() - 3_600_000));
-    const { d, envios } = deps({ enviarInstagram: async () => "SIN_CONEXION" });
+    const { d, envios } = deps({ enviarInstagram: async () => "ENVIADO" });
     await F.alLlegarConsulta(WS, "lead-1", "INSTAGRAM", { waId: null, igChatId: "chat-ig" }, d);
     const r = await F.aprobarYEnviar(WS, (await fila())!.id as string, { tipo: "TELEGRAM" }, d);
     expect(envios).toEqual([{ sinCorreo: true }]);
-    expect(r).toMatchObject({ ok: true, canales: { correo: "SIN_CORREO", instagram: "FALLO" } });
+    expect(r).toMatchObject({ ok: true, canales: { correo: "SIN_CORREO", instagram: "ENVIADO" } });
+  });
+
+  it("sin correo y con Instagram desconectado: SIN_CANAL, no congela nada y se puede volver a aprobar", async () => {
+    sembrar({ email: null, phone: null });
+    chatIg(new Date(AHORA.getTime() - 3_600_000));
+    let llamadas = 0;
+    const { d, envios } = deps({
+      estadoInstagram: async () => ({ conectado: false, ventanaAbierta: true }),
+      enviarInstagram: async () => (llamadas++, "ENVIADO"),
+    });
+    await F.alLlegarConsulta(WS, "lead-1", "INSTAGRAM", { waId: null, igChatId: "chat-ig" }, d);
+    const id = (await fila())!.id as string;
+    expect(await F.aprobarYEnviar(WS, id, { tipo: "TELEGRAM" }, d)).toMatchObject({ ok: false, codigo: "SIN_CANAL" });
+    expect(envios).toHaveLength(0);
+    expect(llamadas).toBe(0);
+    expect(await fila()).toMatchObject({ status: "AVISADO", errorCode: "SIN_CANAL" });
+  });
+
+  it("con correo y con Instagram desconectado: sale el correo y queda anotado por qué no salió por Instagram", async () => {
+    chatIg(new Date(AHORA.getTime() - 3_600_000));
+    const { d } = deps({ estadoInstagram: async () => ({ conectado: false, ventanaAbierta: true }) });
+    await F.alLlegarConsulta(WS, "lead-1", "INSTAGRAM", { waId: null, igChatId: "chat-ig" }, d);
+    const r = await F.aprobarYEnviar(WS, (await fila())!.id as string, { tipo: "TELEGRAM" }, d);
+    expect(r).toMatchObject({ ok: true, canales: { correo: "ENVIADO", instagram: "SIN_CONEXION" } });
   });
 });
 

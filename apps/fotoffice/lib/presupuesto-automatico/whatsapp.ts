@@ -201,8 +201,20 @@ async function completarTelefono(workspaceId: string, chat: ChatDelBot, telefono
     });
     if (!fila) return false;
     await prisma.fotofficePresupuestoAprobacion.updateMany({ where: { id: fila.id, workspaceId, waId: null }, data: { waId: telefono } });
-    await prisma.serviceSalesLead.updateMany({ where: { id: fila.leadId, workspaceId, phone: null }, data: { phone: `+${telefono}` } });
-    if (chat.clientId) await anotarEnLaFicha(workspaceId, chat.clientId, telefono);
+    const otroEnLaFicha = chat.clientId ? await anotarEnLaFicha(workspaceId, chat.clientId, telefono) : null;
+    const lead = await prisma.serviceSalesLead.findFirst({ where: { id: fila.leadId, workspaceId }, select: { phone: true, message: true } });
+    if (lead) {
+      const sinTelefono = !lead.phone?.trim();
+      // Si la consulta (o la ficha) ya tenía otro teléfono, no se pisa: el que dio queda anotado.
+      const nota = ` (WhatsApp que dio: +${telefono})`;
+      const anotar = (otroEnLaFicha !== null || (!sinTelefono && waIdDe(lead.phone) !== telefono)) && !(lead.message ?? "").includes(nota);
+      if (sinTelefono || anotar) {
+        await prisma.serviceSalesLead.updateMany({
+          where: { id: fila.leadId, workspaceId },
+          data: { ...(sinTelefono ? { phone: `+${telefono}` } : {}), ...(anotar ? { message: `${lead.message ?? ""}${nota}`.trim() } : {}) },
+        });
+      }
+    }
     return true;
   } catch {
     return false;
