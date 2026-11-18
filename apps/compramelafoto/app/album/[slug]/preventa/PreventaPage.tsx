@@ -53,6 +53,9 @@ type Pack = {
 
 type SchoolCourse = { id: number; name: string; division: string | null };
 
+/** Error que devolvió el servidor al armar el pedido: su texto se le muestra a la familia. */
+class PreventaOrderError extends Error {}
+
 type Catalog = {
   album: {
     id: number;
@@ -326,12 +329,10 @@ export default function PreventaPage({ testClientPreview = false }: PreventaPage
       setSubmitting(false);
       return;
     }
-    const items = Object.entries(quantities)
-      .filter(([, q]) => q > 0)
-      .map(([packDefinitionId, quantity]) => ({
-        packDefinitionId: Number(packDefinitionId),
-        quantity,
-      }));
+    // En el orden en que se muestran los packs: así se pagan (el aviso nombra el primero).
+    const items = catalog.packs
+      .filter((p) => (quantities[p.id] ?? 0) > 0)
+      .map((p) => ({ packDefinitionId: p.id, quantity: quantities[p.id] ?? 0 }));
     if (items.length === 0) {
       setError("Elegí al menos un pack.");
       setSubmitting(false);
@@ -387,20 +388,33 @@ export default function PreventaPage({ testClientPreview = false }: PreventaPage
       if (organizerReferralSchoolId != null) {
         body.organizerReferralSchoolId = organizerReferralSchoolId;
       }
-      const res = await fetch(pagoSimulado ? "/api/precompra/order/test" : "/api/precompra/order", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-idempotency-key": idempotencyKey,
-        },
-        body: JSON.stringify(body),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || "No se pudo iniciar el pedido");
+      // Cada pedido guarda un solo pack (de eso dependen el canje y el diseño del libro). Con
+      // varios packs distintos se arma un pedido por pack y se pagan uno después del otro: al
+      // volver de Mercado Pago, la pantalla de pago exitoso ofrece pagar el siguiente.
+      const creados: Array<{ preCompraOrderId: number; albumOrderId: number }> = [];
+      for (const item of items) {
+        const res = await fetch(pagoSimulado ? "/api/precompra/order/test" : "/api/precompra/order", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-idempotency-key":
+              items.length > 1 ? `${idempotencyKey}:pack-${item.packDefinitionId}` : idempotencyKey,
+          },
+          body: JSON.stringify({ ...body, items: [item] }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new PreventaOrderError(
+            typeof data?.error === "string" && data.error.trim() ? data.error : "No se pudo iniciar el pedido",
+          );
+        }
+        const pcId = Number(data.preCompraOrderId ?? data.order?.id);
+        const aoId = Number(data.orderId);
+        if (!pcId || !aoId) throw new Error("No se pudo iniciar el pedido");
+        creados.push({ preCompraOrderId: pcId, albumOrderId: aoId });
+      }
 
-      const preCompraOrderId = data.preCompraOrderId ?? data.order?.id;
-      const albumOrderId = data.orderId;
-      if (!preCompraOrderId || !albumOrderId) throw new Error("No se pudo iniciar el pedido");
+      const { preCompraOrderId, albumOrderId } = creados[0];
 
       if (pagoSimulado) {
         router.push(`/pago-simulado/${albumOrderId}`);
@@ -418,9 +432,15 @@ export default function PreventaPage({ testClientPreview = false }: PreventaPage
         return;
       }
       router.push(`/order/${preCompraOrderId}/selfies`);
-    } catch {
+    } catch (err) {
       submitAttemptKeyRef.current = null;
-      setError("Hubo un problema preparando tu compra. Por favor intentá nuevamente.");
+      // Si el servidor explicó por qué no armó el pedido, se le muestra eso a la familia; si no,
+      // el aviso genérico (antes se tapaba siempre y parecía un problema de conexión).
+      setError(
+        err instanceof PreventaOrderError
+          ? err.message
+          : "Hubo un problema preparando tu compra. Por favor intentá nuevamente.",
+      );
       setSubmitting(false);
     } finally {
       // Si todo sale bien, redirige y mantenemos el bloqueo para evitar doble submit.
@@ -497,6 +517,8 @@ export default function PreventaPage({ testClientPreview = false }: PreventaPage
 
   const packs = catalog.packs;
   const totalItems = Object.values(quantities).reduce((a, b) => a + b, 0);
+  /** Packs distintos elegidos: con más de uno se pagan por separado, uno después del otro. */
+  const packsElegidos = packs.filter((p) => (quantities[p.id] ?? 0) > 0);
   const totalArs = packs.reduce((sum, p) => sum + (quantities[p.id] ?? 0) * p.price, 0);
   const minPrice = Math.min(...packs.map((p) => p.price));
 
@@ -1113,6 +1135,16 @@ export default function PreventaPage({ testClientPreview = false }: PreventaPage
                 </div>
               </div>
             )}
+
+            {packsElegidos.length > 1 ? (
+              <div className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
+                <p className="font-semibold">Elegiste {packsElegidos.length} packs: se pagan por separado.</p>
+                <p className="mt-1">
+                  Primero pagás «{packsElegidos[0].name}». Cuando termines, te mostramos el botón
+                  para pagar {packsElegidos.length === 2 ? `«${packsElegidos[1].name}»` : "los que siguen"}.
+                </p>
+              </div>
+            ) : null}
 
             <div className="hidden sm:block w-full min-w-0 pt-2">
               <Button

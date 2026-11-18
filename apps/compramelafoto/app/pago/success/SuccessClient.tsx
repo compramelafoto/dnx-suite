@@ -14,6 +14,7 @@ import { readPendingOrderSession } from "@/lib/checkout/pending-order-session";
 import { trackFunnelEvent, FUNNEL_EVENTS } from "@/lib/funnel-track-client";
 import { clearAlbumPackCartForPaidOrder } from "@/lib/album-packs/album-pack-cart-storage";
 import { metaTrackPurchase } from "@/lib/meta-pixel";
+import type { PackPendienteDeLaMismaCompra } from "@/lib/preventa-canjeable/packs-pendientes-misma-compra";
 
 export default function SuccessClient() {
   const router = useRouter();
@@ -52,6 +53,12 @@ export default function SuccessClient() {
   const [refreshing, setRefreshing] = useState(false);
   /** Este pago llegó sobre un pedido que ya estaba pagado con otro pago (cobro duplicado). */
   const [duplicatePayment, setDuplicatePayment] = useState(false);
+  /** Pagos encadenados de preventa: packs de la misma compra que falta pagar. */
+  const [packsPendientes, setPacksPendientes] = useState<PackPendienteDeLaMismaCompra[]>([]);
+  /** A dónde iba la pantalla sola si no faltara pagar nada (queda como enlace). */
+  const [destinoDelPack, setDestinoDelPack] = useState<string | null>(null);
+  const [pagandoSiguiente, setPagandoSiguiente] = useState<number | null>(null);
+  const [errorSiguiente, setErrorSiguiente] = useState<string | null>(null);
 
   const numericOrderId = orderId ? Number(orderId) : null;
   const isAlbumOrder = orderType === "ALBUM_ORDER" && numericOrderId != null && Number.isFinite(numericOrderId);
@@ -180,17 +187,30 @@ export default function SuccessClient() {
         typeof data.preCompraOrderId === "number" &&
         Number.isFinite(data.preCompraOrderId)
       ) {
+        // Con el enlace del pack (código personal) la familia entra sin sesión; antes iba a
+        // `/cliente/pack/<id>`, que pide sesión y mostraba "Error: No autenticado".
+        const destino = destinoTrasPagoDePreventa({
+          packAccessUrl: data.packAccessUrl,
+          preventaUxV2: isPreventaUxV2EnabledClient(),
+          orderId,
+          selfiesOrderId: data.preCompraOrderId,
+        });
+        const pendientes: PackPendienteDeLaMismaCompra[] = Array.isArray(data.packsPendientes)
+          ? data.packsPendientes.filter(
+              (p: unknown): p is PackPendienteDeLaMismaCompra =>
+                typeof p === "object" &&
+                p !== null &&
+                Number.isInteger((p as PackPendienteDeLaMismaCompra).orderId),
+            )
+          : [];
+        // Eligió varios packs: falta pagar alguno. No se va sola; le muestra el botón para pagarlo.
+        if (pendientes.length > 0) {
+          setPacksPendientes(pendientes);
+          setDestinoDelPack(destino);
+          return;
+        }
         setTimeout(() => {
-          // Con el enlace del pack (código personal) la familia entra sin sesión; antes iba a
-          // `/cliente/pack/<id>`, que pide sesión y mostraba "Error: No autenticado".
-          router.push(
-            destinoTrasPagoDePreventa({
-              packAccessUrl: data.packAccessUrl,
-              preventaUxV2: isPreventaUxV2EnabledClient(),
-              orderId,
-              selfiesOrderId: data.preCompraOrderId,
-            }),
-          );
+          router.push(destino);
         }, 1500);
         return;
       }
@@ -276,6 +296,31 @@ export default function SuccessClient() {
       setRefreshing(false);
     }
   }, [confirmPayment, orderId, paymentId]);
+
+  const pagarSiguientePack = useCallback(async (siguienteOrderId: number) => {
+    setPagandoSiguiente(siguienteOrderId);
+    setErrorSiguiente(null);
+    try {
+      const res = await fetch("/api/payments/mp/create-preference", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId: siguienteOrderId, orderType: "ALBUM_ORDER" }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && typeof data?.initPoint === "string" && data.initPoint) {
+        window.location.href = data.initPoint;
+        return;
+      }
+      setErrorSiguiente(
+        typeof data?.error === "string" && data.error.trim()
+          ? data.error
+          : "No pudimos abrir el pago. Probá de nuevo en un momento.",
+      );
+    } catch {
+      setErrorSiguiente("No pudimos abrir el pago. Revisá tu conexión y probá de nuevo.");
+    }
+    setPagandoSiguiente(null);
+  }, []);
 
   const showRecovery =
     isAlbumOrder &&
@@ -422,6 +467,49 @@ export default function SuccessClient() {
               </p>
             </div>
           )}
+        </div>
+      )}
+
+      {paymentStatus === "approved" && packsPendientes.length > 0 && (
+        <div className="mt-5 rounded-xl border-2 border-sky-300 bg-sky-50 px-4 py-4">
+          <p className="text-sky-950 font-semibold">
+            {packsPendientes.length === 1
+              ? "Te falta pagar 1 pack de tu compra"
+              : `Te faltan pagar ${packsPendientes.length} packs de tu compra`}
+          </p>
+          <p className="text-sky-900/90 mt-1 text-sm leading-relaxed">
+            Los packs se pagan por separado. Ya quedó pago el primero; seguí con el que falta.
+          </p>
+          <ul className="mt-3 space-y-2">
+            {packsPendientes.map((p, i) => (
+              <li
+                key={p.orderId}
+                className="flex flex-col gap-2 rounded-lg bg-white px-3 py-3 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <span className="text-sm text-[#111827]">
+                  <b>{p.packName}</b> · ${p.totalArs.toLocaleString("es-AR")}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => void pagarSiguientePack(p.orderId)}
+                  disabled={pagandoSiguiente != null}
+                  className={`inline-flex min-h-[2.75rem] items-center justify-center rounded-lg px-4 text-sm font-semibold text-white disabled:opacity-60 ${
+                    i === 0 ? "bg-sky-700 hover:bg-sky-800" : "bg-sky-600 hover:bg-sky-700"
+                  }`}
+                >
+                  {pagandoSiguiente === p.orderId ? "Abriendo el pago…" : "Pagar ahora"}
+                </button>
+              </li>
+            ))}
+          </ul>
+          {errorSiguiente ? (
+            <p role="alert" className="mt-2 text-sm text-red-700">{errorSiguiente}</p>
+          ) : null}
+          {destinoDelPack ? (
+            <Link href={destinoDelPack} className="mt-3 inline-block text-sm font-medium text-sky-800 underline">
+              Ver el pack que ya pagué
+            </Link>
+          ) : null}
         </div>
       )}
 

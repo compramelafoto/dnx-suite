@@ -15,6 +15,8 @@ import {
 } from "@/lib/digital-delivery";
 import { getOrderDownloadTokens, revokeOrderDownloadTokens } from "@/lib/download-tokens";
 import { enlaceDelPackParaPagoExitoso } from "@/lib/preventa-canjeable/enlace-pago-exitoso";
+import { cargarPacksPendientesDeLaMismaCompra } from "@/lib/preventa-canjeable/cargar-packs-pendientes-misma-compra";
+import type { PackPendienteDeLaMismaCompra } from "@/lib/preventa-canjeable/packs-pendientes-misma-compra";
 import {
   buildZipDownloadApiUrl,
 } from "@/lib/digital-download/download-center-url";
@@ -184,6 +186,8 @@ export async function POST(req: Request) {
     let preCompraOrderIdForClient: number | null = null;
     /** Enlace personal del pack de preventa (sin sesión), para la pantalla de pago exitoso. */
     let packAccessUrlForClient: string | null = null;
+    /** Pagos encadenados: otros packs de la misma compra que la familia todavía tiene que pagar. */
+    let packsPendientesForClient: PackPendienteDeLaMismaCompra[] = [];
 
     // Actualizar el pedido según su tipo
     if (orderType === "PRINT_ORDER") {
@@ -346,6 +350,7 @@ export async function POST(req: Request) {
           !duplicatePaymentForClient
         ) {
           packAccessUrlForClient = await enlaceDelPackParaPagoExitoso(orderId);
+          packsPendientesForClient = await cargarPacksPendientesDeLaMismaCompra(orderId);
         }
         digitalDelivery = await ensureDigitalDelivery(orderId);
         if (digitalDelivery) {
@@ -462,6 +467,7 @@ export async function POST(req: Request) {
         albumId: albumIdForClient,
         preCompraOrderId: preCompraOrderIdForClient,
         packAccessUrl: packAccessUrlForClient,
+        packsPendientes: packsPendientesForClient,
         duplicatePayment: duplicatePaymentForClient,
         paymentId,
         paymentStatus: paymentInfo.status,
