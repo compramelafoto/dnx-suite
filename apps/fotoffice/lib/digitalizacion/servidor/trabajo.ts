@@ -135,7 +135,7 @@ export async function grabacionesDelTrabajo(workspaceId: string, proyectoId: str
     select: {
       id: true, titulo: true, tipo: true, estado: true, cassetteNumero: true, duracionSeg: true, iniciadaAt: true, ultimoLatidoAt: true,
       sinImagen: true, mimeType: true, conversionEstado: true, conversionError: true, videoDuracionSeg: true, partesBorradasAt: true,
-      hlsKey: true, videoBorradoAt: true, descargasExtra: true, motivoFin: true,
+      hlsKey: true, videoBorradoAt: true, descargasExtra: true, motivoFin: true, bonificacionArs: true,
     },
   });
 }

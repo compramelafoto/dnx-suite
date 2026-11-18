@@ -93,3 +93,11 @@ describe("cuenta de cassettes con los que no se pudieron", () => {
     expect(cumpleGrabado(todosNo)).toBe(false);
   });
 });
+
+describe("textoNoDigitalizable con descuento en el pedido", () => {
+  it("lo agrega sólo si se descontó algo", () => {
+    const g = { tipo: "VHS", cassetteNumero: 7, titulo: "Cinta cortada" };
+    expect(textoNoDigitalizable({ ...g, bonificacionArs: "10000.00" })).toBe("Cassette 7 · No se pudo digitalizar: Cinta cortada · descuento de 10.000 pesos en el pedido");
+    expect(textoNoDigitalizable({ ...g, bonificacionArs: null })).toBe("Cassette 7 · No se pudo digitalizar: Cinta cortada");
+  });
+});

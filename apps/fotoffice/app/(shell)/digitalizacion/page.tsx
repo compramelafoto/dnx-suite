@@ -3,7 +3,7 @@ import { vistaPreviaAgotada } from "@/lib/digitalizacion/hls";
 import { PageHeader } from "@/components/page-header";
 import { AccionesGrabacion, AjusteMinutos } from "@/components/digitalizacion/acciones-grabacion";
 import { AccionesEntrega, AjustesEntrega, EnvioYCargos, VerComoCliente } from "@/components/digitalizacion/entregas";
-import { QuitarNoDigitalizable } from "@/components/digitalizacion/no-digitalizable";
+import { AjustePrecioNoDigitalizable, QuitarNoDigitalizable } from "@/components/digitalizacion/no-digitalizable";
 import { esNoDigitalizable, textoNoDigitalizable } from "@/lib/digitalizacion/no-digitalizable";
 import { confirmacionEnvioIncompleto, textoDeCassettes } from "@/lib/digitalizacion/cassettes";
 import { estadoVisibleDeEntrega, pesos } from "@/lib/digitalizacion/entrega";
@@ -65,6 +65,7 @@ export default async function DigitalizacionPage() {
           <div className="mt-3 space-y-4">
             <AjusteMinutos minutos={ajustes.minutosSinSenal} />
             <AjustesEntrega envioAutomatico={ajustes.envioAutomatico} franjas={ajustes.franjas} />
+            <AjustePrecioNoDigitalizable precio={ajustes.precioNoDigitalizableArs} />
           </div>
         </details>
       ) : null}

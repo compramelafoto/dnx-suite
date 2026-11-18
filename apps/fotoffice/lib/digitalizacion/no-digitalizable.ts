@@ -16,6 +16,7 @@
  */
 import type { TipoGrabacion } from "./constants";
 import { ID_VALIDO } from "./claves";
+import { textoBonificacion } from "./bonificacion";
 
 export const MOTIVO_FIN_NO_DIGITALIZABLE = "NO_DIGITALIZABLE";
 
@@ -69,6 +70,14 @@ export function esNoDigitalizable(g: { motivoFin?: string | null }): boolean {
 }
 
 type Datos = { tipo: string; cassetteNumero: number | null; titulo: string | null };
+/** Lo que se descontó del pedido por ese cassette (Decimal de Prisma, número o null). */
+type ConBonificacion = Datos & { bonificacionArs?: { toString(): string } | number | null };
+
+function bonificacionDe(g: ConBonificacion): number | null {
+  if (g.bonificacionArs == null) return null;
+  const n = Number(String(g.bonificacionArs));
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
 
 /** «Cassette 7», «Cassette» o «DVD». */
 export function nombreDelCassette(g: { tipo: string; cassetteNumero: number | null }): string {
@@ -81,9 +90,14 @@ export function motivoDe(g: { titulo: string | null }): string {
   return g.titulo?.trim() || "sin motivo";
 }
 
-/** Para el equipo (trabajo, pedido, lista): «Cassette 7 · No se pudo digitalizar: Cinta cortada». */
-export function textoNoDigitalizable(g: Datos): string {
-  return `${nombreDelCassette(g)} · No se pudo digitalizar: ${motivoDe(g)}`;
+/**
+ * Para el equipo (trabajo, pedido, lista): «Cassette 7 · No se pudo digitalizar: Cinta cortada» y, si
+ * se descontó algo del pedido, «· descuento de 10.000 pesos en el pedido».
+ */
+export function textoNoDigitalizable(g: ConBonificacion): string {
+  const b = bonificacionDe(g);
+  const base = `${nombreDelCassette(g)} · No se pudo digitalizar: ${motivoDe(g)}`;
+  return b === null ? base : `${base} · ${textoBonificacion(b, null)}`;
 }
 
 /** Para el cliente: «Cassette 7: no se pudo digitalizar (Cinta cortada)». */

@@ -13,9 +13,14 @@ const almacen = vi.hoisted(() => ({ urlDeSubidaParte: vi.fn(async () => "https:/
 vi.mock("./almacen", () => almacen);
 const etapas = vi.hoisted(() => ({ avanzarTrabajos: vi.fn(async () => ({ MOVIDO: 1, SIN_CAMBIO: 0, FALLO: 0 })) }));
 vi.mock("./etapas", () => etapas);
+const bonif = vi.hoisted(() => ({
+  bonificarNoDigitalizable: vi.fn(async (..._a: unknown[]) => ({ estado: "NADA" }) as unknown),
+  deshacerBonificacion: vi.fn(async (..._a: unknown[]) => ({ estado: "NADA" }) as unknown),
+}));
+vi.mock("./bonificacion", () => bonif);
 
 import type { NuevaGrabacion } from "../validar";
-import { guardarAjustesEntrega, leerAjustes, quitarNoDigitalizable, registrarNoDigitalizable, cerrarGrabacion, confirmarParte, crearGrabacion, descartarGrabacion, pedirParte, registrarLatido, reintentarConversion, terminarConLoGrabado, urlDeVideo, urlsDeLectura, editarTitulo, listarGrabaciones, hlsDeGrabacion } from "./grabaciones";
+import { guardarAjustesEntrega, guardarPrecioNoDigitalizable, leerAjustes, quitarNoDigitalizable, registrarNoDigitalizable, cerrarGrabacion, confirmarParte, crearGrabacion, descartarGrabacion, pedirParte, registrarLatido, reintentarConversion, terminarConLoGrabado, urlDeVideo, urlsDeLectura, editarTitulo, listarGrabaciones, hlsDeGrabacion } from "./grabaciones";
 
 const ctx = { workspaceId: "ws1", userId: 7 };
 const vhs: NuevaGrabacion = { titulo: null, tipo: "VHS", proyectoId: "p1", cassetteNumero: 1, calidad: "MEDIA", mimeType: "video/webm;codecs=vp9,opus", corregirProporcion: false, equipoId: null, dvdArchivos: null };
@@ -370,7 +375,21 @@ describe("ajustes de la entrega", () => {
   });
   it("leerAjustes: valores por defecto sin fila", async () => {
     db.digitalizacionAjustes.findUnique.mockResolvedValue(null);
-    expect(await leerAjustes("ws1")).toEqual({ minutosSinSenal: 5, envioAutomatico: true, franjas: [] });
+    expect(await leerAjustes("ws1")).toEqual({ minutosSinSenal: 5, envioAutomatico: true, franjas: [], precioNoDigitalizableArs: null });
+    db.digitalizacionAjustes.findUnique.mockResolvedValue({ minutosSinSenal: 5, envioAutomatico: true, enviosFranjas: null, precioNoDigitalizableArs: "2000.00" });
+    expect(await leerAjustes("ws1")).toMatchObject({ precioNoDigitalizableArs: 2000 });
+  });
+  it("precio de un cassette que no se pudo digitalizar: vacío = completo, número válido, o error", async () => {
+    db.digitalizacionAjustes.upsert.mockClear();
+    expect(await guardarPrecioNoDigitalizable(ctx, "2000")).toEqual({ ok: true, precio: 2000 });
+    expect(db.digitalizacionAjustes.upsert).toHaveBeenCalledWith({
+      where: { workspaceId: "ws1" }, create: { workspaceId: "ws1", precioNoDigitalizableArs: "2000.00" }, update: { precioNoDigitalizableArs: "2000.00" },
+    });
+    expect(await guardarPrecioNoDigitalizable(ctx, "")).toEqual({ ok: true, precio: null });
+    expect(db.digitalizacionAjustes.upsert.mock.calls.at(-1)![0].update).toEqual({ precioNoDigitalizableArs: null });
+    db.digitalizacionAjustes.upsert.mockClear();
+    expect(await guardarPrecioNoDigitalizable(ctx, "-5")).toMatchObject({ ok: false });
+    expect(db.digitalizacionAjustes.upsert).not.toHaveBeenCalled();
   });
 });
 
@@ -473,15 +492,29 @@ describe("cassette que no se pudo digitalizar", () => {
     expect(await registrarNoDigitalizable(ctx, nuevo)).toMatchObject({ ok: false });
     expect(db.digitalizacionGrabacion.create).not.toHaveBeenCalled();
   });
-  it("«Quitar»: la deja DESCARTADA, sólo si es «no se pudo» y del negocio, sin tocar R2", async () => {
+  it("con precio configurado, el aviso cuenta lo que se descontó (o que quedó para hacer a mano)", async () => {
+    db.fotofficeProyecto.findFirst.mockResolvedValue({ id: "p1" });
+    db.digitalizacionGrabacion.findFirst.mockResolvedValue(null);
+    db.digitalizacionGrabacion.create.mockResolvedValue({ id: "n3" });
+    bonif.bonificarNoDigitalizable.mockResolvedValueOnce({ estado: "APLICADA", bonificacionArs: 10000, precioArs: 2000 });
+    expect(await registrarNoDigitalizable(ctx, nuevo)).toEqual({ ok: true, id: "n3", aviso: "Registrado. Se cobra 2.000 pesos: se descontaron 10.000 pesos del pedido." });
+    expect(bonif.bonificarNoDigitalizable).toHaveBeenLastCalledWith({ workspaceId: "ws1", proyectoId: "p1", grabacionId: "n3", cassette: "Cassette 7" });
+    bonif.bonificarNoDigitalizable.mockResolvedValueOnce({ estado: "A_MANO", bonificacionArs: 10000 });
+    expect(await registrarNoDigitalizable(ctx, nuevo)).toMatchObject({ ok: true, aviso: expect.stringContaining("Quedó una tarea en el pedido") });
+  });
+  it("«Quitar»: la deja DESCARTADA, sólo si es «no se pudo» y del negocio, sin tocar R2; devuelve el descuento", async () => {
+    db.digitalizacionGrabacion.findFirst.mockResolvedValue({ id: "n1", tipo: "VHS", cassetteNumero: 7 });
     db.digitalizacionGrabacion.updateMany.mockResolvedValue({ count: 1 });
     expect(await quitarNoDigitalizable(ctx, "n1")).toEqual({ ok: true });
+    bonif.deshacerBonificacion.mockResolvedValueOnce({ estado: "DEVUELTA", bonificacionArs: 10000 });
+    expect(await quitarNoDigitalizable(ctx, "n1")).toEqual({ ok: true, aviso: "Volvieron 10.000 pesos al pedido." });
+    expect(bonif.deshacerBonificacion).toHaveBeenLastCalledWith({ workspaceId: "ws1", grabacionId: "n1", cassette: "Cassette 7" });
     expect(db.digitalizacionGrabacion.updateMany).toHaveBeenCalledWith({
       where: { id: "n1", workspaceId: "ws1", motivoFin: "NO_DIGITALIZABLE", estado: "COMPLETA" },
       data: { estado: "DESCARTADA", conversionEstado: null },
     });
     expect(almacen.borrarPrefijo).not.toHaveBeenCalled();
-    db.digitalizacionGrabacion.updateMany.mockResolvedValue({ count: 0 });
+    db.digitalizacionGrabacion.findFirst.mockResolvedValue(null);
     expect(await quitarNoDigitalizable(ctx, "g1")).toMatchObject({ ok: false });
     expect(await quitarNoDigitalizable(ctx, "../x")).toMatchObject({ ok: false });
   });

@@ -287,7 +287,11 @@ export async function pedirDescargaExtra(workspaceId: string, token: unknown, gr
       if (!p) throw new Corte(MENSAJES_CARGOS.noExiste);
       const listos = await tx.digitalizacionGrabacion.count({ where: { workspaceId, estado: "COMPLETA", conversionEstado: "LISTA", proyecto: { pedidoId: e.pedidoId, workspaceId } } });
       const renglones = ((p.totals as { renglones?: unknown } | null)?.renglones ?? {}) as Record<string, { neto?: unknown }>;
+      const bonificadas = g.proyectoId
+        ? await tx.digitalizacionGrabacion.findMany({ where: { workspaceId, proyectoId: g.proyectoId, estado: "COMPLETA", bonificacionArs: { not: null } }, select: { bonificacionArs: true } })
+        : [];
       const { precio } = precioUnitarioDelTrabajo({
+        bonificacionesArs: bonificadas.reduce((s, b) => s + (b.bonificacionArs ? pesosDeBase(b.bonificacionArs) : 0), 0),
         items: Array.isArray(p.items) ? (p.items as { id: unknown; cantidad: unknown; precioUnitario: unknown }[]) : [],
         renglones: typeof renglones === "object" && renglones !== null ? renglones : {},
         pedidoItemIndex: trabajo?.pedidoItemIndex ?? null,
