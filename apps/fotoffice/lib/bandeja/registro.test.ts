@@ -587,6 +587,27 @@ describe("Instagram", () => {
     expect(chats()[0]).toMatchObject({ id: chat.id, estado: "BOT", botPausadoHasta: null });
   });
 
+  it("ecos recortados (sin el espacio final de cada parte, o del texto completo) también son propios", async () => {
+    const { partirPorBytes } = await import("./instagram/partir");
+    let texto = "";
+    while (Buffer.byteLength(texto) < 2500) texto += "foto 📸 casamiento ";
+    const partes = partirPorBytes(texto.trim());
+    expect(partes.slice(0, -1).every((p) => /\s$/.test(p))).toBe(true);
+    await conRespuestaDelBot(texto.trim(), 20);
+    for (const [i, parte] of partes.entries()) {
+      expect(await aplicarEventos([igEco({ waMessageId: `m_r${i + 1}`, texto: parte.trim() })], AHORA)).toMatchObject({ aplicados: 0, duplicados: 1 });
+    }
+    expect(mensajes().some((m) => m.autor === "CELULAR")).toBe(false);
+    expect(chats()[0]).toMatchObject({ estado: "BOT", botPausadoHasta: null });
+
+    // Texto corto guardado con espacios al final: el eco recortado igual es propio.
+    B.datos.fotofficeWaChat.length = 0;
+    B.datos.fotofficeWaMensaje.length = 0;
+    await conRespuestaDelBot("listo  \n", 10);
+    expect(await aplicarEventos([igEco({ waMessageId: "m_corto", texto: "listo" })], AHORA)).toMatchObject({ duplicados: 1 });
+    expect(mensajes()[1]).toMatchObject({ autor: "BOT", waMessageId: "m_corto" });
+  });
+
   it("un eco corto igual a una respuesta que ya tiene su mid sigue siendo ajeno", async () => {
     await conRespuestaDelBot("listo", 10, { estadoEnvio: "ENVIADO", waMessageId: "m_ya" });
     expect(await aplicarEventos([igEco({ texto: "listo" })], AHORA)).toMatchObject({ aplicados: 1 });

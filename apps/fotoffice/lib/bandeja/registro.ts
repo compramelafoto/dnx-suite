@@ -189,12 +189,13 @@ async function ecoPropioDeInstagram(workspaceId: string, ev: EventoEco, ahora: D
       select: { id: true, texto: true, waMessageId: true },
       orderBy: { createdAt: "asc" },
     });
-    const texto = ev.texto;
+    // Se compara sin espacios en los bordes: las partes salen recortadas y Meta puede recortar el eco.
+    const texto = ev.texto.trim();
     const propio =
-      candidatos.find((m) => m.waMessageId === null && mismoTextoSeguro(m.texto ?? "", texto)) ??
+      candidatos.find((m) => m.waMessageId === null && mismoTextoSeguro((m.texto ?? "").trim(), texto)) ??
       candidatos.find((m) => {
         const partes = partirPorBytes(m.texto ?? "");
-        return partes.length > 1 && partes.some((p) => mismoTextoSeguro(p, texto));
+        return partes.length > 1 && partes.some((p) => mismoTextoSeguro(p.trim(), texto));
       });
     if (propio) {
       // Si el envío (o el eco de otra parte) ya guardó un `mid`, queda ése (el `where` lo exige nulo).

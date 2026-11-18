@@ -108,7 +108,9 @@ describe("enviarTextoInstagram", () => {
     expect(f.mock.calls.length).toBeGreaterThanOrEqual(3);
     expect(r).toEqual({ ok: true, simulado: false, waMessageId: `m_${f.mock.calls.length}` });
     const enviados = (f.mock.calls as unknown as [string, RequestInit][]).map(([, init]) => JSON.parse(init.body as string).message.text as string);
-    expect(enviados.join("")).toBe(texto);
+    // Cada parte sale sin el espacio o la línea en blanco del final (así se ve, y así vuelve el eco).
+    expect(enviados).toEqual(partirPorBytes(texto).map((p) => p.trimEnd()));
+    for (const e of enviados) expect(e).not.toMatch(/\s$/);
   });
 
   it("error de Meta: devuelve su code; si falla una parte posterior, falla todo", async () => {

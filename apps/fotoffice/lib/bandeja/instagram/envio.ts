@@ -25,7 +25,8 @@ export async function enviarTextoInstagram(
   if (conexion.igActivo !== true || !conexion.igPageId) return { ok: false, codigo: "SIN_PAGINA" };
   const token = await (deps.leerToken ?? leerTokenInstagram)(conexion.workspaceId).catch(() => null);
   if (!token) return { ok: false, codigo: "SIN_TOKEN" };
-  const partes = partirPorBytes(texto);
+  // Cada parte sin el espacio o la línea en blanco donde se cortó: así se ve, y así vuelve el eco.
+  const partes = partirPorBytes(texto).map((p) => p.trimEnd()).filter((p) => p.length > 0);
   if (partes.length === 0) return { ok: false, codigo: "SIN_TEXTO" };
 
   const version = process.env.WHATSAPP_API_VERSION || "v21.0";
