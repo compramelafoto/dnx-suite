@@ -1,4 +1,5 @@
 import { prisma, type Prisma } from "@repo/db";
+import { META_APP_ID } from "./coexistencia";
 import { PAUSA_BOT_HORAS_POR_DEFECTO, type Canal } from "./constantes";
 import { partirPorBytes } from "./instagram/partir";
 import { perfilInstagram, type PerfilInstagram } from "./instagram/perfil";
@@ -169,7 +170,7 @@ async function registrarMensaje(
  * asigna el `mid` del eco. Una respuesta de más de 1000 bytes sale partida (`partirPorBytes`) y
  * vuelve un eco por parte: también es propio el eco igual a una de sus partes, aunque la fila ya
  * tenga `mid` (lo pudo poner el eco de otra parte); el `mid` se asigna sólo si sigue vacío.
- * También si lo mandó nuestra app de Meta (`app_id` = `META_APP_ID`).
+ * También si lo mandó nuestra app de Meta (`app_id` = `META_APP_ID` de `coexistencia.ts`).
  */
 async function ecoPropioDeInstagram(workspaceId: string, ev: EventoEco, ahora: Date): Promise<boolean> {
   const chat = ev.texto
@@ -209,8 +210,7 @@ async function ecoPropioDeInstagram(workspaceId: string, ev: EventoEco, ahora: D
       return true;
     }
   }
-  const nuestraApp = process.env.META_APP_ID?.trim();
-  return Boolean(nuestraApp && ev.media?.appId && ev.media.appId === nuestraApp);
+  return Boolean(ev.media?.appId && ev.media.appId === META_APP_ID.trim());
 }
 
 /** `paraElBot`: el chat, si entró un mensaje del cliente y lo atiende el bot. `mensajeConMedio`: el mensaje, si el cliente mandó un archivo. */

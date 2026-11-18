@@ -12,6 +12,7 @@ vi.mock("./instagram/perfil", () => ({ perfilInstagram: perfil.fn }));
 const P = B.prisma as Record<string, any>;
 
 const { aplicarEventos, clienteDelTelefono } = await import("./registro");
+const { META_APP_ID } = await import("./coexistencia");
 
 const AHORA = new Date("2026-10-09T15:00:00.000Z");
 const min = (n: number) => new Date(AHORA.getTime() + n * 60_000);
@@ -512,7 +513,6 @@ describe("Instagram", () => {
     conectar();
     perfil.fn.mockClear();
     perfil.fn.mockImplementation(async () => ({ nombre: "Lucía Gómez", usuario: "luciag" }));
-    delete process.env.META_APP_ID;
   });
 
   /** Chat de Instagram con una respuesta del bot que todavía no guardó su `mid`. */
@@ -620,17 +620,15 @@ describe("Instagram", () => {
     expect(mensajes()[1].waMessageId).toBe("m_eco1");
   });
 
-  it("eco con media.appId igual a META_APP_ID: propio", async () => {
-    process.env.META_APP_ID = " 123456 ";
+  it("eco con media.appId igual a META_APP_ID (el de coexistencia.ts): propio", async () => {
     await aplicarEventos([igEntrante({ en: min(-5) })], AHORA);
-    const r = await aplicarEventos([igEco({ texto: "otro texto", media: { appId: "123456" } })], AHORA);
+    const r = await aplicarEventos([igEco({ texto: "otro texto", media: { appId: META_APP_ID } })], AHORA);
     expect(r).toMatchObject({ aplicados: 0, duplicados: 1 });
     expect(mensajes()).toHaveLength(1);
     expect(chats()[0]).toMatchObject({ estado: "BOT", botPausadoHasta: null });
   });
 
   it("eco ajeno: autor CELULAR y pausa al bot (como WhatsApp)", async () => {
-    process.env.META_APP_ID = "123456";
     // Texto distinto, respuesta vieja (más de MINUTOS_PENDIENTE_INCIERTO) y otra app: nada lo hace propio.
     await conRespuestaDelBot("ya te contesto", 30);
     await P.fotofficeWaMensaje.create({
