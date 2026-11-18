@@ -1,0 +1,32 @@
+{
+  "object": "instagram",
+  "entry": [
+    {
+      "id": "17841400000000001",
+      "time": 1700000000000,
+      "messaging": [
+        {
+          "sender": {
+            "id": "5550001"
+          },
+          "recipient": {
+            "id": "17841400000000001"
+          },
+          "timestamp": 1700000000123,
+          "message": {
+            "mid": "m_ad",
+            "text": "Info por favor",
+            "referral": {
+              "source": "ADS",
+              "type": "OPEN_THREAD",
+              "source_id": "ad_99",
+              "source_type": "ad",
+              "headline": "Sesión de 15 años",
+              "body": "Reservá tu fecha"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
