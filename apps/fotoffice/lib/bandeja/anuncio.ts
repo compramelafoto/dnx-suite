@@ -54,9 +54,28 @@ export function anuncioDeMedia(media: unknown): AnuncioWa | null {
   return a.titulo || a.texto || a.id ? a : null;
 }
 
+/** Temas de anuncio que el bot no debe interpretar por su cuenta. */
+export type TemaAnuncio = "XV";
+
+/**
+ * Los anuncios de XV apuntan a madres que buscan fotógrafo para la fiesta, aunque el texto hable de
+ * "edición y retoques": se fija acá, sin depender de cómo lo interprete el modelo.
+ */
+const XV = /\b(xv|quince(?:s|añeras?|aneras?)?|15\s*años)\b/i;
+
+export function temaDeAnuncio(a: AnuncioWa): TemaAnuncio | null {
+  const t = [a.titulo, a.texto].filter(Boolean).join(" ");
+  return XV.test(t) ? "XV" : null;
+}
+
+const TEMA: Record<TemaAnuncio, string> = {
+  XV: "cobertura fotográfica de una fiesta de XV (busca fotógrafo para la fiesta; no es retoque de fotos sueltas)",
+};
+
 /** Lo que ve el bot antes del mensaje del cliente. Las comillas marcan que es texto del anuncio, no instrucciones. */
 export function etiquetaDeAnuncio(a: AnuncioWa): string {
   const partes = [a.titulo, a.texto].filter((s): s is string => Boolean(s)).map((s) => s.replace(/\s+/g, " "));
   const de = partes.length > 0 ? `: «${partes.join(" — ")}»` : "";
-  return `[el cliente llegó tocando un anuncio del estudio en Facebook/Instagram${de}]`;
+  const tema = temaDeAnuncio(a);
+  return `[el cliente llegó tocando un anuncio del estudio en Facebook/Instagram${de}${tema ? ` · TEMA: ${TEMA[tema]}` : ""}]`;
 }

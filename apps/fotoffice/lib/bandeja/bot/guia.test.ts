@@ -158,6 +158,12 @@ describe("guía del bot de atención", () => {
     expect(g).toContain("los analiza y los cotiza una persona del estudio");
     expect(g).toContain("trabajo de video: ");
   });
+  it("un anuncio de XV es cobertura de la fiesta aunque hable de edición: primero la fecha", () => {
+    const g = guiaDeAtencion();
+    expect(g).toContain('TEMA: cobertura fotográfica de una fiesta de XV');
+    expect(g).toContain("no le preguntes si quiere retocar fotos que ya tiene");
+    expect(g).toContain("¿Para qué fecha es la fiesta? 🎉");
+  });
 
   it("en Instagram pide el WhatsApp para cotizar y manda las copias e impresiones a WhatsApp por el enlace", () => {
     const base = { estudio: "DNX Estudio", cliente: "Sofi", ahora: new Date("2026-11-18T15:00:00Z") };
