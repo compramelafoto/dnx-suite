@@ -231,3 +231,25 @@ describe("responderConBot", () => {
     expect(chats()[0].estado).toBe("HUMANO");
   });
 });
+
+describe("responderConBot en un chat de Instagram", () => {
+  it("le dice al bot que atiende por Instagram, no le da herramientas de pedidos y mira la cotización por el chat", async () => {
+    const chatId = await chatCon(["hola, cuánto sale una cobertura de XV?"], { canal: "INSTAGRAM", waId: "17841400000000001", usuarioInstagram: "sofi.r" });
+    B.agregar("fotofficePresupuestoAprobacion", { id: "ap", workspaceId: "w1", leadId: "l1", igChatId: chatId, waId: null, status: "AVISADO", errorCode: null, createdAt: AHORA });
+    const t = turnoQue("¡Hola! En un rato te mandamos la cotización 😊");
+    await responderConBot(chatId, deps(t.fn));
+    const i = t.vistos[0]!;
+    expect(i.situation).toContain("Estás atendiendo por Instagram");
+    expect(i.situation).toContain("Ya hay una cotización en preparación");
+    expect(i.tools.map((x) => x.name)).not.toContain("armar_pedido_impresion");
+  });
+
+  it("en WhatsApp la situación no nombra Instagram", async () => {
+    const chatId = await chatCon(["hola"]);
+    const t = turnoQue("¡Hola! ¿En qué te puedo ayudar? 😊");
+    await responderConBot(chatId, deps(t.fn));
+    expect(t.vistos[0]!.situation).not.toContain("Instagram");
+    expect(t.vistos[0]!.tools.map((x) => x.name)).toContain("armar_pedido_impresion");
+  });
+});
+

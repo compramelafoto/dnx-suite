@@ -314,3 +314,33 @@ describe("herramientasDeAtencion", () => {
     expect(herramientasDeAtencion("w1", deps).tools.every((t) => t.kind === "read")).toBe(true);
   });
 });
+
+describe("herramientasDeAtencion en un chat de Instagram", () => {
+  const IG = { id: "c-ig", waId: "17841400000000001", clientId: null, nombre: "Sofi", canal: "INSTAGRAM" as const, usuarioInstagram: "sofi.r" };
+
+  it("no arma pedidos ni cotiza fotolibros: sólo precios, cursos, datos, cotización de eventos y pasar a persona", () => {
+    const { tools } = herramientasDeAtencion("w1", {}, IG);
+    expect(tools.map((t) => t.name)).toEqual(["buscar_productos", "cursos_del_estudio", "datos_del_estudio", "preparar_presupuesto", "pasar_a_persona", "no_responder"]);
+  });
+
+  it("preparar_presupuesto acepta el WhatsApp que dio el cliente y se lo pasa al estudio", async () => {
+    const recibidos: unknown[] = [];
+    const prepararPresupuesto = async (_w: string, _c: unknown, d: unknown) => {
+      recibidos.push(d);
+      return { ok: true, message: "listo" };
+    };
+    const t = herramientasDeAtencion("w1", { prepararPresupuesto }, IG).tools.find((x) => x.name === "preparar_presupuesto")!;
+    const datos = { tipo: "15 años", nombre: "Sofía Rodríguez", horas: 5, whatsapp: "341 555-1234" };
+    expect(t.input.safeParse(datos).success).toBe(true);
+    expect(t.input.safeParse({ ...datos, whatsapp: "1".repeat(31) }).success).toBe(false);
+    await t.run(datos, { userId: 0, role: "CLIENTE", email: "", name: null });
+    expect(recibidos[0]).toMatchObject({ whatsapp: "341 555-1234" });
+  });
+
+  it("en WhatsApp siguen todas las herramientas", () => {
+    const { tools } = herramientasDeAtencion("w1", {}, { id: "c1", waId: "5493410000000", clientId: null, nombre: null });
+    expect(tools.map((t) => t.name)).toContain("armar_pedido_impresion");
+    expect(tools.map((t) => t.name)).toContain("estado_de_mi_pedido");
+  });
+});
+

@@ -53,3 +53,33 @@ describe("textos de los canales", () => {
     expect(textoDeAcuse("Hola, ya te escribimos")).toBe("Hola, ya te escribimos");
   });
 });
+
+describe("Instagram", () => {
+  const IG = { chatId: "chat-ig", ventanaAbierta: true };
+
+  it("con chat de Instagram y la ventana abierta sale también por Instagram", () => {
+    expect(decidirCanales({ ...TODO, instagram: IG })).toMatchObject({ correo: true, whatsapp: true, instagram: true });
+    expect(decidirCanales({ ...TODO, waId: null, instagram: IG })).toMatchObject({ whatsapp: false, instagram: true });
+  });
+
+  it("ventana cerrada o sin chat: no sale por Instagram y el correo sí", () => {
+    expect(decidirCanales({ ...TODO, instagram: { ...IG, ventanaAbierta: false } })).toMatchObject({ correo: true, instagram: false });
+    expect(decidirCanales({ ...TODO, instagram: { chatId: null, ventanaAbierta: true } })).toMatchObject({ instagram: false });
+  });
+
+  it("los textos nombran Instagram", () => {
+    expect(textoDeCanales({ correo: "ENVIADO", whatsapp: "SIN_CELULAR", instagram: "ENVIADO" })).toBe("Enviado por correo e Instagram. WhatsApp no: no dejó celular.");
+    expect(textoDeCanales({ correo: "ENVIADO", whatsapp: "VENTANA_CERRADA", instagram: "VENTANA_CERRADA" })).toBe(
+      "Enviado por correo. WhatsApp no: pasaron más de 24 h desde su último mensaje. Instagram no: pasaron más de 24 h.",
+    );
+    expect(textoDeCanales({ correo: "SIN_CORREO", whatsapp: "ENVIADO", instagram: "ENVIADO" })).toBe("Enviado por WhatsApp e Instagram. No dejó correo.");
+    expect(textoDeCanales({ correo: "ENVIADO", whatsapp: "ENVIADO", instagram: "ENVIADO" })).toBe("Enviado por correo, WhatsApp e Instagram.");
+    expect(textoDeCanales({ correo: "ENVIADO", whatsapp: "SIN_CELULAR", instagram: "FALLO" })).toContain("Instagram no salió");
+  });
+
+  it("algunoSalio cuenta Instagram", () => {
+    expect(algunoSalio({ correo: "FALLO", whatsapp: "SIN_CELULAR", instagram: "ENVIADO" })).toBe(true);
+    expect(algunoSalio({ correo: "FALLO", whatsapp: "SIN_CELULAR", instagram: "VENTANA_CERRADA" })).toBe(false);
+  });
+});
+

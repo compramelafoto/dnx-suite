@@ -100,9 +100,10 @@ async function turno(chatId: string, deps: DepsResponder): Promise<SalidaBot> {
 
   const chat = await prisma.fotofficeWaChat.findUnique({
     where: { id: chatId },
-    select: { id: true, workspaceId: true, waId: true, clientId: true, estado: true, asignadoUserId: true, botPausadoHasta: true, botExcluido: true, ultimoEntranteEn: true, nombre: true },
+    select: { id: true, workspaceId: true, waId: true, clientId: true, estado: true, asignadoUserId: true, botPausadoHasta: true, botExcluido: true, ultimoEntranteEn: true, nombre: true, canal: true, usuarioInstagram: true },
   });
   if (!chat) return "nada";
+  const canal = chat.canal === "INSTAGRAM" ? "INSTAGRAM" : "WHATSAPP";
   const workspaceId = chat.workspaceId;
   const estado = { ...chat, estado: chat.estado as "BOT" | "HUMANO" | "RESUELTO" };
   if (!atiendeElBot(estado, ahora()) || !puedeResponderLibre(estado, ahora())) return "nada";
@@ -168,9 +169,11 @@ async function turno(chatId: string, deps: DepsResponder): Promise<SalidaBot> {
     .catch(() => "el estudio");
   const { tools, pedidoDePersona, pedidoDeSilencio } = herramientasDeAtencion(workspaceId, deps.herramientas, {
     id: chat.id, waId: chat.waId, clientId: chat.clientId, nombre: chat.nombre,
+    ...(canal === "INSTAGRAM" ? { canal, usuarioInstagram: chat.usuarioInstagram ?? null } : {}),
   }, h.fotos, h.fotosBajando);
+  // En Instagram el `waId` es el IGSID: la cotización en preparación se busca por el chat.
   const enPreparacion = await import("@/lib/presupuesto-automatico/flujo")
-    .then((m) => m.enPreparacionParaWhatsapp(workspaceId, chat.waId))
+    .then((m) => (canal === "INSTAGRAM" ? m.enPreparacionParaInstagram(workspaceId, chat.id, ahora()) : m.enPreparacionParaWhatsapp(workspaceId, chat.waId)))
     .catch(() => false);
 
   let result: BotTurnResult;
@@ -180,7 +183,7 @@ async function turno(chatId: string, deps: DepsResponder): Promise<SalidaBot> {
       model: cfg.model,
       effort: cfg.effort,
       systemGuide: guiaDeAtencion(),
-      situation: situacionDeAtencion({ estudio, cliente: chat.nombre, ahora: ahora(), presupuestoEnPreparacion: enPreparacion }),
+      situation: situacionDeAtencion({ estudio, cliente: chat.nombre, ahora: ahora(), presupuestoEnPreparacion: enPreparacion, ...(canal === "INSTAGRAM" ? { canal } : {}) }),
       tools,
       actor: { userId: 0, role: "CLIENTE_WHATSAPP", email: "", name: chat.nombre },
       history: h.history,

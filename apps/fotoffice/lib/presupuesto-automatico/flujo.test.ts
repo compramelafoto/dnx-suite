@@ -264,6 +264,74 @@ describe("aprobarYEnviar: nunca dos envíos del mismo presupuesto", () => {
   });
 });
 
+describe("consultas que entran por Instagram", () => {
+  const chatIg = (ultimoEntranteEn: Date | null) =>
+    B.agregar("fotofficeWaChat", { id: "chat-ig", workspaceId: WS, canal: "INSTAGRAM", waId: "17841400000000001", ultimoEntranteEn, estado: "BOT" });
+
+  it("presupuesto por horas: una fila de Instagram va a Telegram igual que una de WhatsApp, con el chat de Instagram y el teléfono", async () => {
+    await B.tablas.fotofficeConsulta.updateMany({ where: { leadId: "lead-1" }, data: { categoryId: "cat-boda" } });
+    B.agregar("fotofficePresupuestoAutoAjustes", { workspaceId: WS, porHoras: { encendido: true } });
+    B.agregar("fotofficePropuestaModelo", { workspaceId: WS, categoryId: "cat-boda", items: [] });
+    const { d, avisos } = deps();
+    expect(await F.alLlegarConsulta(WS, "lead-1", "INSTAGRAM", { waId: "5493415551234", igChatId: "chat-ig" }, d)).toBe("AVISADO");
+    expect(await fila()).toMatchObject({ origin: "INSTAGRAM", waId: "5493415551234", igChatId: "chat-ig" });
+    expect(avisos[0]).toContain("Consulta nueva por Instagram");
+    const datos = await F.datosDelResumen(WS, (await fila())!.id as string, d);
+    expect(datos?.origen).toBe("INSTAGRAM");
+    expect((await F.pendientesDeAprobar(WS))[0]).toMatchObject({ origen: "INSTAGRAM" });
+  });
+
+  it("entroPorElBot: WhatsApp e Instagram sí, la web no", () => {
+    expect(F.entroPorElBot("WHATSAPP")).toBe(true);
+    expect(F.entroPorElBot("INSTAGRAM")).toBe(true);
+    expect(F.entroPorElBot("WEB")).toBe(false);
+  });
+
+  it("una cotización en preparación para ese chat de Instagram se ve por el chat (no por el teléfono)", async () => {
+    B.agregar("fotofficePresupuestoAprobacion", { id: "ig", leadId: "lead-i", workspaceId: WS, waId: null, igChatId: "chat-ig", status: "AVISADO", errorCode: null, createdAt: new Date() });
+    expect(await F.enPreparacionParaInstagram(WS, "chat-ig")).toBe(true);
+    expect(await F.enPreparacionParaInstagram(WS, "chat-otro")).toBe(false);
+  });
+
+  it("al aprobar sale por Instagram (ventana abierta) y por correo, con el enlace", async () => {
+    chatIg(new Date(AHORA.getTime() - 3_600_000));
+    const instagrams: { chatId: string; texto: string }[] = [];
+    const { d, ediciones } = deps({
+      enviarInstagram: async (_ws, chatId, texto) => {
+        instagrams.push({ chatId, texto });
+        return "ENVIADO";
+      },
+    });
+    await F.alLlegarConsulta(WS, "lead-1", "INSTAGRAM", { waId: null, igChatId: "chat-ig" }, d);
+    const r = await F.aprobarYEnviar(WS, (await fila())!.id as string, { tipo: "TELEGRAM" }, d);
+    expect(r).toMatchObject({ ok: true, canales: { correo: "ENVIADO", instagram: "ENVIADO" } });
+    expect(r.texto).toContain("Instagram");
+    expect(instagrams).toEqual([{ chatId: "chat-ig", texto: expect.stringContaining("https://dnx.com.ar/p/tok") }]);
+    expect(ediciones.at(-1)).toContain("Instagram");
+  });
+
+  it("con la ventana de Instagram cerrada sale sólo el correo y queda anotado", async () => {
+    chatIg(new Date(AHORA.getTime() - 30 * 3_600_000));
+    let llamadas = 0;
+    const { d } = deps({ enviarInstagram: async () => (llamadas++, "ENVIADO") });
+    await F.alLlegarConsulta(WS, "lead-1", "INSTAGRAM", { waId: null, igChatId: "chat-ig" }, d);
+    const r = await F.aprobarYEnviar(WS, (await fila())!.id as string, { tipo: "TELEGRAM" }, d);
+    expect(r).toMatchObject({ ok: true, canales: { correo: "ENVIADO", instagram: "VENTANA_CERRADA" } });
+    expect(llamadas).toBe(0);
+    expect(r.texto).toContain("Instagram no: pasaron más de 24 h");
+  });
+
+  it("sin correo pero con Instagram abierto, sale por Instagram (no queda SIN_CANAL)", async () => {
+    sembrar({ email: null, phone: null });
+    chatIg(new Date(AHORA.getTime() - 3_600_000));
+    const { d, envios } = deps({ enviarInstagram: async () => "SIN_CONEXION" });
+    await F.alLlegarConsulta(WS, "lead-1", "INSTAGRAM", { waId: null, igChatId: "chat-ig" }, d);
+    const r = await F.aprobarYEnviar(WS, (await fila())!.id as string, { tipo: "TELEGRAM" }, d);
+    expect(envios).toEqual([{ sinCorreo: true }]);
+    expect(r).toMatchObject({ ok: true, canales: { correo: "SIN_CORREO", instagram: "FALLO" } });
+  });
+});
+
 describe("resumenDeVersion", () => {
   it("sin renglones que sumen no inventa costo ni margen", () => {
     const r = F.resumenDeVersion({

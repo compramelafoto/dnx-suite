@@ -5,6 +5,8 @@
  * - WhatsApp: sólo con celular, con la conexión con Meta en modo REAL (con token) y con la ventana
  *   de 24 h abierta (el cliente escribió hace menos de 24 h). Fuera de la ventana Meta exige
  *   plantillas pagas, que no se usan: queda anotado "ventana cerrada" y sale sólo el correo.
+ * - Instagram (spec 2026-11-18 §5.4): si la consulta entró por un mensaje directo, por ese chat,
+ *   con la ventana de 24 h abierta (no hay plantillas). Sin chat de Instagram, el canal no existe.
  */
 
 export type MotivoSinWhatsapp = "SIN_CELULAR" | "SIN_CONEXION" | "VENTANA_CERRADA";
@@ -17,22 +19,36 @@ export type EntradaCanales = {
   whatsappConectado: boolean;
   /** Hay un chat con ese número y el último mensaje del cliente es de hace menos de 24 h. */
   ventanaAbierta: boolean;
+  /** El chat de Instagram por el que entró la consulta (sólo consultas de Instagram). */
+  instagram?: { chatId: string | null; ventanaAbierta: boolean };
 };
 
-export type DecisionCanales = { correo: boolean; whatsapp: boolean; motivoSinWhatsapp: MotivoSinWhatsapp | null };
+export type DecisionCanales = {
+  correo: boolean;
+  whatsapp: boolean;
+  motivoSinWhatsapp: MotivoSinWhatsapp | null;
+  /** Sólo en las consultas de Instagram. */
+  instagram?: boolean;
+};
 
 export function decidirCanales(c: EntradaCanales): DecisionCanales {
   let motivo: MotivoSinWhatsapp | null = null;
   if (!c.waId) motivo = "SIN_CELULAR";
   else if (!c.whatsappConectado) motivo = "SIN_CONEXION";
   else if (!c.ventanaAbierta) motivo = "VENTANA_CERRADA";
-  return { correo: c.correoValido, whatsapp: motivo === null, motivoSinWhatsapp: motivo };
+  return {
+    correo: c.correoValido,
+    whatsapp: motivo === null,
+    motivoSinWhatsapp: motivo,
+    ...(c.instagram ? { instagram: !!c.instagram.chatId && c.instagram.ventanaAbierta } : {}),
+  };
 }
 
 /** Lo que pasó con cada canal (se guarda en `channels` y se muestra en Telegram y en el historial). */
 export type ResultadoCorreo = "ENVIADO" | "FALLO" | "SIN_CORREO";
 export type ResultadoWhatsapp = "ENVIADO" | "FALLO" | MotivoSinWhatsapp;
-export type ResultadoCanales = { correo: ResultadoCorreo; whatsapp: ResultadoWhatsapp };
+export type ResultadoInstagram = "ENVIADO" | "FALLO" | "VENTANA_CERRADA";
+export type ResultadoCanales = { correo: ResultadoCorreo; whatsapp: ResultadoWhatsapp; instagram?: ResultadoInstagram };
 
 const MOTIVOS_WHATSAPP: Record<Exclude<ResultadoWhatsapp, "ENVIADO">, string> = {
   FALLO: "WhatsApp no salió (Meta lo rechazó)",
@@ -41,20 +57,37 @@ const MOTIVOS_WHATSAPP: Record<Exclude<ResultadoWhatsapp, "ENVIADO">, string> = 
   VENTANA_CERRADA: "WhatsApp no: pasaron más de 24 h desde su último mensaje",
 };
 
+const MOTIVOS_INSTAGRAM: Record<Exclude<ResultadoInstagram, "ENVIADO">, string> = {
+  FALLO: "Instagram no salió (Meta lo rechazó o no está conectado)",
+  VENTANA_CERRADA: "Instagram no: pasaron más de 24 h",
+};
+
+/** "correo", "correo y WhatsApp", "correo e Instagram", "correo, WhatsApp e Instagram". */
+function enumerar(xs: string[]): string {
+  if (xs.length <= 1) return xs.join("");
+  const ultimo = xs[xs.length - 1]!;
+  return `${xs.slice(0, -1).join(", ")} ${/^h?i/i.test(ultimo) ? "e" : "y"} ${ultimo}`;
+}
+
 /** "Enviado por correo y WhatsApp." / "Enviado por correo. WhatsApp no: no dejó celular." */
 export function textoDeCanales(r: ResultadoCanales): string {
-  const salieron = [r.correo === "ENVIADO" ? "correo" : null, r.whatsapp === "ENVIADO" ? "WhatsApp" : null].filter(Boolean);
+  const salieron = [
+    r.correo === "ENVIADO" ? "correo" : null,
+    r.whatsapp === "ENVIADO" ? "WhatsApp" : null,
+    r.instagram === "ENVIADO" ? "Instagram" : null,
+  ].filter((x): x is string => x !== null);
   const partes: string[] = [];
-  partes.push(salieron.length > 0 ? `Enviado por ${salieron.join(" y ")}.` : "No salió por ningún canal.");
+  partes.push(salieron.length > 0 ? `Enviado por ${enumerar(salieron)}.` : "No salió por ningún canal.");
   if (r.correo === "FALLO") partes.push("El correo no salió: reenvialo desde la cotización.");
   if (r.correo === "SIN_CORREO") partes.push("No dejó correo.");
   if (r.whatsapp !== "ENVIADO") partes.push(`${MOTIVOS_WHATSAPP[r.whatsapp]}.`);
+  if (r.instagram && r.instagram !== "ENVIADO") partes.push(`${MOTIVOS_INSTAGRAM[r.instagram]}.`);
   return partes.join(" ");
 }
 
 /** ¿Le llegó algo al cliente? */
 export function algunoSalio(r: ResultadoCanales): boolean {
-  return r.correo === "ENVIADO" || r.whatsapp === "ENVIADO";
+  return r.correo === "ENVIADO" || r.whatsapp === "ENVIADO" || r.instagram === "ENVIADO";
 }
 
 const nombrePila = (n: string | null) => (n ?? "").trim().split(/\s+/)[0] ?? "";
