@@ -24,7 +24,7 @@ export async function estadoWhatsappDe(workspaceId: string, waId: string | null,
     const conexion = await leerConexion(workspaceId);
     const conectado = conexion.modo === "REAL" && conexion.phoneNumberId !== null && (await hayTokenWhatsapp(workspaceId));
     if (!waId) return { conectado, ventanaAbierta: false };
-    const chat = await prisma.fotofficeWaChat.findFirst({ where: { workspaceId, waId }, select: { ultimoEntranteEn: true } });
+    const chat = await prisma.fotofficeWaChat.findFirst({ where: { workspaceId, canal: "WHATSAPP", waId }, select: { ultimoEntranteEn: true } });
     return { conectado, ventanaAbierta: chat ? puedeResponderLibre(chat, ahora) : false };
   } catch {
     return { conectado: false, ventanaAbierta: false };
@@ -44,7 +44,7 @@ export async function enviarAvisoPorWhatsapp(
   try {
     const conexion = await leerConexion(workspaceId);
     if (conexion.modo !== "REAL") return "SIN_CONEXION";
-    const chatId = (await prisma.fotofficeWaChat.findFirst({ where: { workspaceId, waId }, select: { id: true } }))?.id;
+    const chatId = (await prisma.fotofficeWaChat.findFirst({ where: { workspaceId, canal: "WHATSAPP", waId }, select: { id: true } }))?.id;
     if (!chatId) return "VENTANA_CERRADA";
     const guardado = await prisma.$transaction(async (tx) => {
       const chat = await chatBloqueado(tx, workspaceId, chatId);

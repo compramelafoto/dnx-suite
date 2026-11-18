@@ -244,7 +244,7 @@ const DEFECTOS: Partial<Record<Tabla, () => Fila>> = {
     createdAt: new Date(), updatedAt: new Date(),
   }),
   fotofficeWaChat: () => ({
-    nombre: null, clientId: null, estado: "BOT", asignadoUserId: null, botPausadoHasta: null, botExcluido: false, ultimoEntranteEn: null,
+    canal: "WHATSAPP", usuarioInstagram: null, nombre: null, clientId: null, estado: "BOT", asignadoUserId: null, botPausadoHasta: null, botExcluido: false, ultimoEntranteEn: null,
     ultimoMensajeTexto: null, ultimoMensajeTipo: null, noLeidos: 0, createdAt: new Date(), updatedAt: new Date(),
   }),
   fotofficeWaMensaje: () => ({
@@ -665,7 +665,7 @@ export function crearBaseEnMemoria() {
       { columnas: ["workspaceId"] },
       { columnas: ["phoneNumberId"], aplica: (f) => f.phoneNumberId !== null && f.phoneNumberId !== undefined },
     ],
-    fotofficeWaChat: [{ columnas: ["workspaceId", "waId"] }],
+    fotofficeWaChat: [{ columnas: ["workspaceId", "canal", "waId"] }],
     // Testimonios: el hash del token y la clave del pedido automático son únicos (la clave, sólo si hay).
     fotofficeTestimonioInvitacion: [
       { columnas: ["tokenHash"] },

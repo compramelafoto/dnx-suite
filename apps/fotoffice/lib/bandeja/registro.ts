@@ -147,7 +147,7 @@ async function escribir(tx: Db, workspaceId: string, pausaBotHoras: number, ev: 
   const cuando = ev.en && ev.en.getTime() < ahora.getTime() ? ev.en : ahora;
   const entrante = ev.tipo === "ENTRANTE";
 
-  const clave = { workspaceId_waId: { workspaceId, waId: ev.waId } };
+  const clave = { workspaceId_canal_waId: { workspaceId, canal: "WHATSAPP", waId: ev.waId } };
   let chat = await tx.fotofficeWaChat.findUnique({ where: clave });
   /** Cliente ya buscado al crear el chat: no se busca de nuevo en el mismo evento. */
   let clienteBuscado: { id: string | null } | null = null;
@@ -160,7 +160,7 @@ async function escribir(tx: Db, workspaceId: string, pausaBotHoras: number, ev: 
     clienteBuscado = { id: await clienteDelTelefono(workspaceId, ev.waId, tx) };
     chat = await tx.fotofficeWaChat.create({
       data: {
-        workspaceId, waId: ev.waId, nombre: entrante ? ev.nombre : null, ultimoMensajeEn: cuando, ...vistaPreviaDe(ev.texto, ev.mensajeTipo),
+        workspaceId, canal: "WHATSAPP", waId: ev.waId, nombre: entrante ? ev.nombre : null, ultimoMensajeEn: cuando, ...vistaPreviaDe(ev.texto, ev.mensajeTipo),
         clientId: clienteBuscado.id,
       },
     });

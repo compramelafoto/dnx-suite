@@ -476,3 +476,23 @@ describe("chats para el bot (etapa 3a)", () => {
     expect((await aplicarEventos([entrante()], AHORA)).paraElBot).toEqual([]);
   });
 });
+
+describe("mismo waId en dos canales", () => {
+  it("un entrante de WhatsApp con los mismos dígitos que un IGSID crea otro chat y la búsqueda por teléfono no ve el de Instagram", async () => {
+    await P.fotofficeWaChat.create({
+      data: { workspaceId: WS, canal: "INSTAGRAM", waId: WA, usuarioInstagram: "lucia", ultimoMensajeEn: min(-5), ultimoEntranteEn: min(-5) },
+    });
+    const { estadoWhatsappDe } = await import("./aviso-sistema");
+    // Sólo existe el chat de Instagram: para WhatsApp no hay ventana abierta.
+    expect((await estadoWhatsappDe(WS, WA, AHORA)).ventanaAbierta).toBe(false);
+
+    await aplicarEventos([entrante()], AHORA);
+    expect(chats()).toHaveLength(2);
+    const ig = chats().find((c: { canal: string }) => c.canal === "INSTAGRAM");
+    const wa = chats().find((c: { canal: string }) => c.canal === "WHATSAPP");
+    expect(ig).toMatchObject({ waId: WA, usuarioInstagram: "lucia", noLeidos: 0 });
+    expect(wa).toMatchObject({ waId: WA, noLeidos: 1 });
+    expect(mensajes()).toHaveLength(1);
+    expect(mensajes()[0].chatId).toBe(wa.id);
+  });
+});

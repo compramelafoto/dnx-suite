@@ -59,7 +59,7 @@ async function candidatosDeLaBase(ahora: Date): Promise<Candidato[]> {
       prisma.serviceSalesLead.findUnique({ where: { id: a.leadId }, select: { name: true } }).catch(() => null),
       a.categoryId ? prisma.fotofficeConsultaCategoria.findUnique({ where: { id: a.categoryId }, select: { name: true } }).catch(() => null) : null,
       prisma.fotofficeWorkspaceBranding.findUnique({ where: { workspaceId: a.workspaceId }, select: { publicSlug: true } }),
-      prisma.fotofficeWaChat.findFirst({ where: { workspaceId: a.workspaceId, waId: a.waId }, select: { id: true, estado: true, ultimoEntranteEn: true } }),
+      prisma.fotofficeWaChat.findFirst({ where: { workspaceId: a.workspaceId, canal: "WHATSAPP", waId: a.waId }, select: { id: true, estado: true, ultimoEntranteEn: true } }),
     ]);
     if (!presupuesto) continue;
     const estado = estadoEfectivo(presupuesto.status as EstadoPresupuesto, presupuesto.validUntil, ahora);
