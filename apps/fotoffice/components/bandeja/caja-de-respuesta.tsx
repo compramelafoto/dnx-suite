@@ -7,6 +7,8 @@ import { responderAction } from "@/app/actions/bandeja";
 const MAXIMO = 4096;
 const AVISO_FUERA_DE_VENTANA =
   "Pasaron más de 24 horas desde el último mensaje del cliente: WhatsApp sólo permite responder con una plantilla aprobada.";
+const AVISO_FUERA_DE_VENTANA_INSTAGRAM =
+  "Pasaron más de 24 horas desde el último mensaje del cliente: Instagram no deja responder hasta que vuelva a escribir.";
 
 /**
  * Caja de respuesta. Genera un identificador por envío (`crypto.randomUUID()`) para que un
@@ -18,9 +20,12 @@ export function CajaDeRespuesta({
   chatId,
   dentroDeVentana,
   ultimoMensajeId,
+  canal = "WHATSAPP",
 }: {
   chatId: string;
   dentroDeVentana: boolean;
+  /** Sólo cambia el aviso fuera de la ventana: Instagram no tiene plantillas. */
+  canal?: "WHATSAPP" | "INSTAGRAM";
   /** Id del último mensaje que muestra la conversación: cuando cambia, el servidor ya trajo el nuestro. */
   ultimoMensajeId: string | null;
 }) {
@@ -78,7 +83,7 @@ export function CajaDeRespuesta({
   if (!dentroDeVentana) {
     return (
       <p role="status" className="rounded-[var(--fo-radius-sm)] border border-[var(--fo-warning-border)] bg-[var(--fo-warning-soft)] px-3 py-2 text-sm text-[var(--fo-warning)]">
-        {AVISO_FUERA_DE_VENTANA}
+        {canal === "INSTAGRAM" ? AVISO_FUERA_DE_VENTANA_INSTAGRAM : AVISO_FUERA_DE_VENTANA}
       </p>
     );
   }

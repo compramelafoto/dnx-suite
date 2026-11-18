@@ -4,12 +4,14 @@ const B = await vi.hoisted(async () => {
   const { crearBaseEnMemoria } = await import("../circuitos/base-en-memoria");
   return crearBaseEnMemoria();
 });
-const H = vi.hoisted(() => ({ hayToken: vi.fn(), guardarToken: vi.fn(), leerToken: vi.fn() }));
+const H = vi.hoisted(() => ({ hayToken: vi.fn(), guardarToken: vi.fn(), leerToken: vi.fn(), igGuardar: vi.fn(), igBorrar: vi.fn(), igHay: vi.fn() }));
 vi.mock("server-only", () => ({}));
 vi.mock("@repo/db", () => ({ prisma: B.prisma }));
 vi.mock("@/lib/integrations/whatsapp/credentials", () => ({ hayTokenWhatsapp: H.hayToken, guardarTokenWhatsapp: H.guardarToken, leerTokenWhatsapp: H.leerToken }));
 
-const { leerConexion, guardarConexion, estadoConexion } = await import("./conexion");
+vi.mock("@/lib/integrations/instagram/credentials", () => ({ guardarTokenInstagram: H.igGuardar, borrarTokenInstagram: H.igBorrar, hayTokenInstagram: H.igHay }));
+
+const { leerConexion, guardarConexion, estadoConexion, conectarInstagram, desconectarInstagram, estadoInstagram } = await import("./conexion");
 
 const ADMIN = { workspaceId: "w1", userId: 1, userLabel: "Dueño", role: "WORKSPACE_OWNER", acceso: { role: "WORKSPACE_OWNER", levels: {} } as never };
 const EQUIPO = { workspaceId: "w1", userId: 2, userLabel: "Ana", role: "STAFF", acceso: { role: "STAFF", levels: { "whatsapp-inbox": "MANAGE" } } as never };
@@ -20,6 +22,9 @@ beforeEach(() => {
   H.guardarToken.mockReset();
   H.hayToken.mockResolvedValue(false);
   H.leerToken.mockResolvedValue(null);
+  H.igGuardar.mockReset();
+  H.igBorrar.mockReset();
+  H.igHay.mockResolvedValue(false);
 });
 
 const metaOk = (id: string, display = "+54 9 341 555-1234") =>
@@ -198,5 +203,110 @@ describe("si Meta rechaza la suscripción, se ve su motivo", () => {
     expect(error).toContain("does not exist");
     expect(error).toContain("100");
     expect(error).not.toContain("EAAG-secreto");
+  });
+});
+
+describe("conectarInstagram", () => {
+  type Llamada = [string, RequestInit?];
+  /** Meta falso: `/me/accounts` devuelve `paginas`; la suscripción responde `suscripcion`. */
+  const metaIg = (paginas: unknown[], suscripcion: Response = new Response(JSON.stringify({ success: true }), { status: 200 })) =>
+    vi.fn(async (url: string, init?: RequestInit) =>
+      init?.method === "POST" ? suscripcion : new Response(JSON.stringify({ data: paginas }), { status: 200 }),
+    ) as unknown as typeof fetch;
+  const llamadas = (f: typeof fetch) => (f as unknown as { mock: { calls: Llamada[] } }).mock.calls;
+  const PAGINA = { id: "111", name: "DNX Estudio", access_token: "EAAP-pagina", instagram_business_account: { id: "1784", username: "dnxestudio" } };
+
+  it("con fetch falso guarda página, cuenta y usuario, suscribe la página y guarda el token de página (no el del sistema)", async () => {
+    const f = metaIg([{ id: "999", name: "Sin IG", access_token: "EAAP-otra" }, PAGINA]);
+    expect(await conectarInstagram(ADMIN, { token: " EAAG-sistema " }, { fetch: f })).toEqual({ ok: true });
+    const [[urlGet, initGet], [urlPost, initPost]] = llamadas(f);
+    expect(urlGet).toBe("https://graph.facebook.com/v21.0/me/accounts?fields=id,name,access_token,instagram_business_account%7Bid,username%7D");
+    expect((initGet?.headers as Record<string, string>).Authorization).toBe("Bearer EAAG-sistema");
+    expect(urlPost).toBe("https://graph.facebook.com/v21.0/111/subscribed_apps?subscribed_fields=messages");
+    expect((initPost?.headers as Record<string, string>).Authorization).toBe("Bearer EAAP-pagina");
+    expect(H.igGuardar).toHaveBeenCalledWith("w1", "EAAP-pagina", 1);
+    expect(H.igGuardar).not.toHaveBeenCalledWith("w1", "EAAG-sistema", expect.anything());
+    expect(await leerConexion("w1")).toMatchObject({ igPageId: "111", igAccountId: "1784", igUsuario: "dnxestudio", igActivo: true, modo: "SIMULADO" });
+    expect(JSON.stringify(B.datos.fotofficeWaConexion)).not.toContain("EAAP-pagina");
+  });
+
+  it("no cambia lo de WhatsApp de una conexión que ya existía", async () => {
+    B.agregar("fotofficeWaConexion", { workspaceId: "w1", phoneNumberId: "123456", modo: "REAL", pausaBotHoras: 6 });
+    expect(await conectarInstagram(ADMIN, { token: "EAAG" }, { fetch: metaIg([PAGINA]) })).toEqual({ ok: true });
+    expect(await leerConexion("w1")).toMatchObject({ phoneNumberId: "123456", modo: "REAL", pausaBotHoras: 6, igActivo: true });
+  });
+
+  it("con varias páginas con Instagram elige la de la cuenta ya guardada", async () => {
+    B.agregar("fotofficeWaConexion", { workspaceId: "w1", modo: "SIMULADO", igAccountId: "2000" });
+    const otra = { id: "222", access_token: "EAAP-2", instagram_business_account: { id: "2000", username: "otra" } };
+    expect(await conectarInstagram(ADMIN, { token: "EAAG" }, { fetch: metaIg([PAGINA, otra]) })).toEqual({ ok: true });
+    expect(await leerConexion("w1")).toMatchObject({ igPageId: "222", igUsuario: "otra" });
+  });
+
+  it("token sin página con Instagram: error claro y no guarda nada", async () => {
+    const r = await conectarInstagram(ADMIN, { token: "EAAG" }, { fetch: metaIg([{ id: "999", access_token: "x" }]) });
+    expect(r).toMatchObject({ ok: false, error: expect.stringContaining("Ese token no ve ninguna página con Instagram vinculado") });
+    expect(B.datos.fotofficeWaConexion).toHaveLength(0);
+    expect(H.igGuardar).not.toHaveBeenCalled();
+  });
+
+  it("si Meta rechaza el token, muestra su motivo (nunca el token)", async () => {
+    const f = vi.fn(async () => new Response(JSON.stringify({ error: { message: "Invalid OAuth access token EAAG-secreto", code: 190 } }), { status: 400 })) as unknown as typeof fetch;
+    const r = await conectarInstagram(ADMIN, { token: "EAAG-secreto" }, { fetch: f });
+    expect(r).toMatchObject({ ok: false });
+    const error = (r as { error: string }).error;
+    expect(error).toContain("Invalid OAuth");
+    expect(error).toContain("190");
+    expect(error).not.toContain("EAAG-secreto");
+  });
+
+  it("si Meta no acepta suscribir la página, no queda activo y dice el motivo", async () => {
+    const f = metaIg([PAGINA], new Response(JSON.stringify({ error: { message: "(#200) Permissions error", code: 200 } }), { status: 403 }));
+    const r = await conectarInstagram(ADMIN, { token: "EAAG" }, { fetch: f });
+    expect(r).toMatchObject({ ok: false, error: expect.stringContaining("Permissions error") });
+    expect((r as { error: string }).error).not.toContain("EAAP-pagina");
+    expect(B.datos.fotofficeWaConexion).toHaveLength(0);
+    expect(H.igGuardar).not.toHaveBeenCalled();
+  });
+
+  it("sólo un administrador, y el token es obligatorio", async () => {
+    const f = metaIg([PAGINA]);
+    expect(await conectarInstagram(EQUIPO, { token: "EAAG" }, { fetch: f })).toMatchObject({ ok: false });
+    expect(await conectarInstagram(ADMIN, { token: "  " }, { fetch: f })).toMatchObject({ ok: false });
+    expect(f).not.toHaveBeenCalled();
+  });
+
+  it("la misma cuenta de Instagram en otra institución choca con un mensaje claro", async () => {
+    B.agregar("fotofficeWaConexion", { workspaceId: "w2", modo: "SIMULADO", igAccountId: "1784" });
+    expect(await conectarInstagram(ADMIN, { token: "EAAG" }, { fetch: metaIg([PAGINA]) })).toMatchObject({ ok: false, error: expect.stringContaining("otra institución") });
+    expect(H.igGuardar).not.toHaveBeenCalled();
+  });
+
+  it("si no se puede guardar el token de página, no queda activo", async () => {
+    H.igGuardar.mockRejectedValue(new Error("sin clave"));
+    expect(await conectarInstagram(ADMIN, { token: "EAAG" }, { fetch: metaIg([PAGINA]) })).toMatchObject({ ok: false });
+    expect((await leerConexion("w1")).igActivo).toBe(false);
+  });
+});
+
+describe("desconectarInstagram y estadoInstagram", () => {
+  it("apaga Instagram, borra el token y conserva WhatsApp", async () => {
+    B.agregar("fotofficeWaConexion", { workspaceId: "w1", phoneNumberId: "123456", modo: "REAL", igAccountId: "1784", igPageId: "111", igUsuario: "dnxestudio", igActivo: true });
+    expect(await desconectarInstagram(ADMIN)).toEqual({ ok: true });
+    expect(H.igBorrar).toHaveBeenCalledWith("w1");
+    expect(await leerConexion("w1")).toMatchObject({ igActivo: false, modo: "REAL", phoneNumberId: "123456" });
+  });
+
+  it("sólo un administrador", async () => {
+    expect(await desconectarInstagram(EQUIPO)).toMatchObject({ ok: false });
+    expect(H.igBorrar).not.toHaveBeenCalled();
+  });
+
+  it("conectado sólo si está activo y hay token; nunca el token", async () => {
+    expect(await estadoInstagram("w1")).toEqual({ conectado: false, usuario: null });
+    B.agregar("fotofficeWaConexion", { workspaceId: "w1", modo: "SIMULADO", igAccountId: "1784", igPageId: "111", igUsuario: "dnxestudio", igActivo: true });
+    expect(await estadoInstagram("w1")).toEqual({ conectado: false, usuario: "dnxestudio" });
+    H.igHay.mockResolvedValue(true);
+    expect(await estadoInstagram("w1")).toEqual({ conectado: true, usuario: "dnxestudio" });
   });
 });

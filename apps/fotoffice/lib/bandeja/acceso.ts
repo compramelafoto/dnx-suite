@@ -27,15 +27,18 @@ export const MENSAJES_BANDEJA = {
   textoLargo: "El mensaje puede tener hasta 4096 caracteres.",
   fueraDeVentana:
     "Pasaron más de 24 horas desde el último mensaje del cliente: WhatsApp sólo permite responder con una plantilla aprobada.",
+  fueraDeVentanaInstagram:
+    "Pasaron más de 24 horas desde el último mensaje del cliente: Instagram no deja responder hasta que vuelva a escribir.",
   cliente: "No encontramos ese cliente.",
   yaVinculado: "Este chat ya tiene un cliente vinculado.",
+  contactoInstagram: "Un chat de Instagram no trae teléfono: buscá el cliente y vinculalo, o creá la ficha desde Clientes.",
   sinPermisoClientes: "Para crear un cliente necesitás permiso de gestión en Clientes.",
   sinToken: "Falta el token de WhatsApp en Configuración → WhatsApp.",
   clienteDistinto: "Este chat ya está vinculado a otro cliente.",
   sinClientToken: "Falta el identificador del envío. Recargá la página e intentá de nuevo.",
   noConfirmado: "No pudimos confirmar el envío; revisá el chat en WhatsApp.",
   falloEnvio: "No se pudo enviar el mensaje por WhatsApp. Quedó registrado como fallido.",
-  sinConexionInstagram: "Instagram no está conectado: revisá la conexión en Configuración.",
+  sinConexionInstagram: "Instagram no está conectado: revisá la conexión en Configuración → WhatsApp → Instagram.",
   falloEnvioInstagram: "No se pudo enviar el mensaje por Instagram. Quedó registrado como fallido.",
   fallo: "No se pudo completar la acción. Probá de nuevo.",
 } as const;

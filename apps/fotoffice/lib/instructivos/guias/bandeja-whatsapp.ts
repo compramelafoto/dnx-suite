@@ -66,6 +66,12 @@ export const guia: Instructivo = {
       ],
     },
     {
+      titulo: "Los chats de Instagram",
+      texto: [
+        "Los mensajes directos de Instagram del estudio también entran a la Bandeja, con el ícono de Instagram al lado del nombre y el @usuario del cliente. Con el filtro «Instagram» ves sólo esos. Se atienden igual que los de WhatsApp (el bot contesta, podés tomarlos, responder, resolver o devolverlos al bot) y también rige la regla de las 24 horas. Como Instagram no trae el teléfono, para vincular el chat a un cliente buscalo por su nombre.",
+      ],
+    },
+    {
       titulo: "Lo que sigue igual en el celular",
       texto: [
         "La app WhatsApp Business del celular del estudio sigue funcionando como siempre: ves todos los chats y podés responder.",

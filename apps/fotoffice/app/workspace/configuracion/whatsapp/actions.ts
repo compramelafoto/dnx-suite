@@ -7,7 +7,7 @@ import { puede } from "@/lib/access/policy";
 import { cambiarBot } from "@/lib/bandeja/bot/interruptor";
 import { BANDEJA_MODULE_KEY } from "@/lib/bandeja/constantes";
 import { borrarTokenWhatsapp } from "@/lib/integrations/whatsapp/credentials";
-import { guardarConexion, leerConexion, MENSAJES_CONEXION } from "@/lib/bandeja/conexion";
+import { conectarInstagram, desconectarInstagram, guardarConexion, leerConexion, MENSAJES_CONEXION } from "@/lib/bandeja/conexion";
 import { MENSAJES_SIMULADOR, simularEntrante } from "@/lib/bandeja/simulador";
 import type { CtxConsultas } from "@/lib/consultas/catalogo";
 import { etiquetaDeUsuario } from "@/lib/listado/acceso";
@@ -123,4 +123,26 @@ export async function conectarCoexistenciaAction(datos: { code: string; wabaId: 
       ? "¡Listo! El número quedó conectado. La app del celular sigue funcionando igual."
       : "¡Listo! El número quedó conectado. Ojo: el permiso de Meta vence en 60 días; hay que asignarle el número al usuario del sistema FOTOFFICE.",
   };
+}
+
+/** Conecta Instagram con el token del usuario del sistema (se guarda el de la página, nunca este). */
+export async function conectarInstagramAction(_prev: EstadoWhatsappConfig | undefined, fd: FormData): Promise<EstadoWhatsappConfig> {
+  const ctx = await contexto();
+  if (!ctx) return { error: MENSAJES_CONEXION.igSinPermiso };
+  const r = await conectarInstagram(ctx, { token: texto(fd, "token") ?? "" });
+  if (!r.ok) return { error: r.error };
+  revalidatePath(RUTA);
+  revalidatePath("/bandeja");
+  return { error: null, ok: "¡Listo! Instagram quedó conectado." };
+}
+
+/** Apaga Instagram y borra el token de la página. WhatsApp sigue igual. */
+export async function desconectarInstagramAction(_prev: EstadoWhatsappConfig | undefined, _fd: FormData): Promise<EstadoWhatsappConfig> {
+  const ctx = await contexto();
+  if (!ctx) return { error: MENSAJES_CONEXION.igSinPermiso };
+  const r = await desconectarInstagram(ctx);
+  if (!r.ok) return { error: r.error };
+  revalidatePath(RUTA);
+  revalidatePath("/bandeja");
+  return { error: null, ok: "Instagram quedó desconectado." };
 }

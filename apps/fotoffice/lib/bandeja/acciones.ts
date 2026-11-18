@@ -234,7 +234,7 @@ export async function responder(
       if (!chat) return no(MENSAJES_BANDEJA.noExiste);
       const repetido = await previo(tx, chat.id);
       if (repetido) return { ok: true, repetido: respuestaDe(repetido, canalDe(chat)) };
-      if (!puedeResponderLibre(aEstado(chat), ahora)) return no(MENSAJES_BANDEJA.fueraDeVentana);
+      if (!puedeResponderLibre(aEstado(chat), ahora)) return no(chat.canal === "INSTAGRAM" ? MENSAJES_BANDEJA.fueraDeVentanaInstagram : MENSAJES_BANDEJA.fueraDeVentana);
       const regla = alResponderDesdePanel(aEstado(chat), userId, ctx.userLabel);
       if (regla.sistema) await escribirSistema(tx, ctx.workspaceId, chat.id, regla.sistema.texto, ahora);
       const m = await tx.fotofficeWaMensaje.create({
@@ -317,6 +317,8 @@ export async function crearContactoDesdeChat(ctx: CtxBandeja, chatId: string, no
       const chat = await chatBloqueado(tx, ctx.workspaceId, chatId);
       if (!chat) return no(MENSAJES_BANDEJA.noExiste);
       if (chat.clientId) return no(MENSAJES_BANDEJA.yaVinculado);
+      // En Instagram `waId` es el IGSID, no un teléfono: no se usa para buscar ni crear la ficha.
+      if (chat.canal === "INSTAGRAM") return no(MENSAJES_BANDEJA.contactoInstagram);
       let clientId = await clienteDelTelefono(ctx.workspaceId, chat.waId, tx);
       if (!clientId) {
         const completo = (typeof nombre === "string" ? nombre.trim() : "") || chat.nombre?.trim() || "Contacto de WhatsApp";

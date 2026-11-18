@@ -31,7 +31,26 @@ export default async function ChatPage({ params }: { params: Promise<{ chatId: s
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0 space-y-1">
             <h1 className="break-words text-2xl font-semibold tracking-tight text-[var(--fo-text)]">{chat.titulo}</h1>
-            <p className="text-sm text-[var(--fo-muted)]">+{chat.waId}</p>
+            {chat.canal === "INSTAGRAM" ? (
+              <p className="text-sm text-[var(--fo-muted)]">
+                Instagram
+                {chat.usuarioInstagram ? (
+                  <>
+                    {" · "}
+                    <a
+                      href={`https://instagram.com/${encodeURIComponent(chat.usuarioInstagram)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[var(--fo-accent-hover)] underline"
+                    >
+                      @{chat.usuarioInstagram}
+                    </a>
+                  </>
+                ) : null}
+              </p>
+            ) : (
+              <p className="text-sm text-[var(--fo-muted)]">+{chat.waId}</p>
+            )}
             <InsigniaEstado estado={chat.estado} atiendeElBot={chat.atiendeElBot} asignadoNombre={chat.asignadoNombre} />
           </div>
           {puedeOperar ? (
@@ -61,7 +80,7 @@ export default async function ChatPage({ params }: { params: Promise<{ chatId: s
             <DesplazarAlFinal clave={ultimo?.id ?? "vacio"} />
           </section>
           {puedeOperar ? (
-            <CajaDeRespuesta chatId={chat.id} dentroDeVentana={chat.dentroDeVentana} ultimoMensajeId={ultimo?.id ?? null} />
+            <CajaDeRespuesta chatId={chat.id} dentroDeVentana={chat.dentroDeVentana} ultimoMensajeId={ultimo?.id ?? null} canal={chat.canal} />
           ) : (
             <p role="status" className="text-sm text-[var(--fo-muted)]">
               Tenés permiso para ver la bandeja, pero no para responder.
@@ -77,6 +96,8 @@ export default async function ChatPage({ params }: { params: Promise<{ chatId: s
             puedeCrearContacto={puedeOperarClientes}
             nombrePerfil={chat.nombrePerfil}
             waId={chat.waId}
+            canal={chat.canal}
+            usuarioInstagram={chat.usuarioInstagram}
           />
         </aside>
       </div>

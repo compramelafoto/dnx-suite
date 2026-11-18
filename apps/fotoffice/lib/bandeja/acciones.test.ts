@@ -245,6 +245,14 @@ describe("vincular y crear contacto", () => {
     expect(B.datos.client).toHaveLength(1);
   });
 
+  it("un chat de Instagram no crea la ficha con el IGSID como teléfono", async () => {
+    const { id } = await chatNuevo({ canal: "INSTAGRAM", waId: "3413419869", usuarioInstagram: "lu" });
+    B.agregar("client", { id: "viejo", workspaceId: "w1", firstName: "Lu", phone: "341 341-9869" });
+    expect(await A.crearContactoDesdeChat(ANA, id)).toMatchObject({ ok: false, error: expect.stringContaining("Instagram") });
+    expect(B.datos.client).toHaveLength(1);
+    expect(chats()[0].clientId).toBeNull();
+  });
+
   it("crear la ficha exige también Gestionar en Clientes", async () => {
     const { id } = await chatNuevo();
     const sinClientes = ctxDe(5, "Sol", { "whatsapp-inbox": "MANAGE", clients: "VIEW" });
@@ -385,7 +393,7 @@ describe("responder en un chat de Instagram", () => {
     const { id } = await chatNuevo({ canal: "INSTAGRAM", waId: "5550001" });
     B.agregar("fotofficeWaConexion", { workspaceId: "w1", modo: "REAL", phoneNumberId: "123", igPageId: null, igActivo: false });
     const r = await A.responder(ANA, id, "hola", "t-ig2", { ahora: AHORA });
-    expect(r).toEqual({ ok: false, error: "Instagram no está conectado: revisá la conexión en Configuración." });
+    expect(r).toEqual({ ok: false, error: "Instagram no está conectado: revisá la conexión en Configuración → WhatsApp → Instagram." });
     expect(mensajes().at(-1)).toMatchObject({ estadoEnvio: "FALLO", errorCodigo: "SIN_PAGINA" });
   });
 

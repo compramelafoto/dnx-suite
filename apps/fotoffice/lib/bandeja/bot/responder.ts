@@ -208,7 +208,10 @@ async function turno(chatId: string, deps: DepsResponder): Promise<SalidaBot> {
     const salida = await enviarComoBot(workspaceId, chatId, TEXTO_NO_CLIENTE, { ultimoMensajeId }, { ahora: ahora(), enviar: deps.enviar });
     if (salida === "omitido") return "nada";
     const avisar = deps.avisarNoCliente ?? (await import("./aviso-no-cliente-servidor")).avisarNoClienteAlDueno;
-    await avisar(workspaceId, { nombre: chat.nombre, waId: chat.waId, motivo: silencio, texto: h.userText });
+    await avisar(workspaceId, {
+      nombre: chat.nombre, waId: chat.waId, motivo: silencio, texto: h.userText,
+      ...(canal === "INSTAGRAM" ? { canal, usuarioInstagram: chat.usuarioInstagram ?? null } : {}),
+    });
     await pasarAPersona(workspaceId, chatId, `no es un cliente (${silencio}); se avisó al dueño por Telegram`, ahora());
     return "derivo";
   }

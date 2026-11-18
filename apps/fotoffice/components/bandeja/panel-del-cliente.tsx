@@ -27,6 +27,8 @@ export function PanelDelCliente({
   puedeCrearContacto,
   nombrePerfil,
   waId,
+  canal = "WHATSAPP",
+  usuarioInstagram = null,
 }: {
   chatId: string;
   cliente: ClienteDelPanel | null;
@@ -36,7 +38,12 @@ export function PanelDelCliente({
   puedeCrearContacto: boolean;
   nombrePerfil: string | null;
   waId: string;
+  /** En Instagram `waId` es el IGSID: no se muestra ni se ofrece crear la ficha con él. */
+  canal?: "WHATSAPP" | "INSTAGRAM";
+  usuarioInstagram?: string | null;
 }) {
+  const instagram = canal === "INSTAGRAM";
+  const contacto = instagram ? (usuarioInstagram ? `Instagram @${usuarioInstagram}` : "Instagram") : `+${waId}`;
   const router = useRouter();
   const idBusqueda = useId();
   const [q, setQ] = useState("");
@@ -98,7 +105,7 @@ export function PanelDelCliente({
         <p className="text-sm text-[var(--fo-muted)]">Este chat está vinculado a un cliente, pero no tenés permiso para ver Clientes.</p>
       ) : (
         <p className="text-sm text-[var(--fo-muted)]">
-          {nombrePerfil ? `${nombrePerfil} · ` : ""}+{waId}. Todavía no está vinculado a un cliente.
+          {nombrePerfil ? `${nombrePerfil} · ` : ""}{contacto}. Todavía no está vinculado a un cliente.
         </p>
       )}
 
@@ -148,7 +155,7 @@ export function PanelDelCliente({
               </ul>
             )
           ) : null}
-          {puedeCrearContacto ? (
+          {instagram ? null : puedeCrearContacto ? (
           <div>
               <button type="button" className="fo-btn fo-btn-ghost text-sm" disabled={ocupado} onClick={() => correr(() => crearContactoDesdeChatAction(chatId, nombrePerfil ?? undefined))}>
                 Crear contacto con este número
