@@ -105,6 +105,7 @@ describe("anuncios de XV: siempre cobertura de la fiesta", () => {
 
   it("el bot recibe el anuncio de edición de XV marcado como cobertura de la fiesta, no como retoque", () => {
     const [e] = leerWebhook(webhookConReferral({ type: "text", text: { body: "¡Hola! Quiero más información" }, referral: XV_EDICION }));
+    if (e?.tipo !== "ENTRANTE") throw new Error("se esperaba un mensaje entrante");
     const r = historialParaElBot([
       { direccion: "ENTRANTE", autor: "CLIENTE", tipo: "TEXTO", texto: e.texto, media: e.media },
     ]);
