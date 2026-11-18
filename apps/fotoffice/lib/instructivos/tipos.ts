@@ -37,6 +37,7 @@ export type Instructivo = {
     | "Digitalización"
     | "Stock"
     | "Clientes y pedidos"
+    | "Ventas"
     | "Galerías"
     | "Socios"
     | "Comunicación"

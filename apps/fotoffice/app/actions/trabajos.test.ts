@@ -16,11 +16,14 @@ vi.mock("next/cache", () => ({ revalidatePath: revalidar }));
 vi.mock("@/lib/blog/access", () => ({ requireBlogEditor: guardia }));
 vi.mock("@/lib/trabajos/subida", () => ({ confirmarSubida: confirmar }));
 vi.mock("@/lib/trabajos/repositorio", () => repo);
+const { etiquetas } = vi.hoisted(() => ({ etiquetas: vi.fn() }));
+vi.mock("@/lib/portfolio-estudio/repositorio", () => ({ guardarEtiquetas: etiquetas }));
 
 const acciones = await import("./trabajos");
 
 beforeEach(() => {
-  for (const f of [guardia, confirmar, revalidar, ...Object.values(repo)]) f.mockReset();
+  for (const f of [guardia, confirmar, revalidar, etiquetas, ...Object.values(repo)]) f.mockReset();
+  etiquetas.mockResolvedValue({ ok: true, valor: null });
   guardia.mockResolvedValue({ user: { id: 1 }, workspace: { id: "ws-1" } });
 });
 
@@ -81,5 +84,24 @@ describe("acciones de Trabajos", () => {
     confirmar.mockResolvedValueOnce({ ok: true, valor: { agregadas: 1, rechazadas: [] } });
     await acciones.confirmarSubidaAction("t1", ["k1"], { k1: { ancho: 10, alto: 20 } });
     expect(confirmar).toHaveBeenCalledWith("ws-1", "t1", ["k1"], { k1: { ancho: 10, alto: 20 } });
+  });
+  it("guarda las etiquetas del portfolio interno después del trabajo", async () => {
+    repo.editarTrabajo.mockResolvedValue({ ok: true, valor: {} });
+    const form = { titulo: "Boda", slug: "boda", categoriaId: "", lugar: "", fecha: "", descripcionHtml: "", destacado: false, seoTitle: "", seoDescription: "" };
+    await acciones.guardarTrabajoAction("t1", { ...form, portfolio: { rubroId: "r1", estilos: ["Fiesta"] } });
+    expect(etiquetas).toHaveBeenCalledWith("ws-1", "t1", { rubroId: "r1", estilos: ["Fiesta"] });
+    etiquetas.mockClear();
+    await acciones.guardarTrabajoAction("t1", form);
+    expect(etiquetas).not.toHaveBeenCalled();
+  });
+
+  it("si el trabajo no se guardó, no toca las etiquetas; si las etiquetas fallan, avisa", async () => {
+    const form = { titulo: "Boda", slug: "boda", categoriaId: "", lugar: "", fecha: "", descripcionHtml: "", destacado: false, seoTitle: "", seoDescription: "", portfolio: { rubroId: "r1", estilos: [] } };
+    repo.editarTrabajo.mockResolvedValueOnce({ ok: false, error: "x" });
+    expect(await acciones.guardarTrabajoAction("t1", form)).toEqual({ ok: false, error: "x" });
+    expect(etiquetas).not.toHaveBeenCalled();
+    repo.editarTrabajo.mockResolvedValueOnce({ ok: true, valor: {} });
+    etiquetas.mockResolvedValueOnce({ ok: false, error: "Ese rubro no existe." });
+    expect(await acciones.guardarTrabajoAction("t1", form)).toEqual({ ok: false, error: "Ese rubro no existe." });
   });
 });

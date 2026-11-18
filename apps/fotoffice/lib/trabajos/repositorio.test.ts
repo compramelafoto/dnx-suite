@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { trabajo, foto, categoria, borrarR2, listarR2, tx } = vi.hoisted(() => ({
+const { trabajo, foto, categoria, etiquetas, borrarR2, listarR2, tx } = vi.hoisted(() => ({
+  etiquetas: { deleteMany: vi.fn() },
   trabajo: { findMany: vi.fn(), findFirst: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn(), updateMany: vi.fn() },
   foto: { findMany: vi.fn(), findFirst: vi.fn(), count: vi.fn(), createMany: vi.fn(), deleteMany: vi.fn(), delete: vi.fn() },
   categoria: { findFirst: vi.fn() },
@@ -14,6 +15,7 @@ vi.mock("@repo/db", () => ({
     fotofficeTrabajo: trabajo,
     fotofficeTrabajoFoto: foto,
     fotofficeTrabajoCategoria: categoria,
+    fotofficeTrabajoPortfolio: etiquetas,
     $transaction: tx,
   },
 }));
@@ -25,7 +27,7 @@ const { crearTrabajo, editarTrabajo, agregarFotos, borrarTrabajo, borrarFoto } =
 const P = "fotoffice/site-trabajos/ws-1/t1/";
 
 beforeEach(() => {
-  for (const m of [trabajo, foto, categoria]) for (const f of Object.values(m)) f.mockReset();
+  for (const m of [trabajo, foto, categoria, etiquetas]) for (const f of Object.values(m)) f.mockReset();
   borrarR2.mockReset();
   listarR2.mockReset();
   listarR2.mockResolvedValue([]);
@@ -100,6 +102,23 @@ describe("agregarFotos con keys repetidas", () => {
 });
 
 describe("borrarTrabajo", () => {
+  it("borra también sus etiquetas del portfolio interno", async () => {
+    trabajo.findFirst.mockResolvedValueOnce({ id: "t1" });
+    foto.findMany.mockResolvedValueOnce([]);
+    tx.mockResolvedValueOnce([]);
+    const r = await borrarTrabajo("ws-1", "t1");
+    expect(r.ok).toBe(true);
+    expect(etiquetas.deleteMany).toHaveBeenCalledWith({ where: { workspaceId: "ws-1", trabajoId: "t1" } });
+  });
+
+  it("si la tabla de etiquetas no existe, igual borra el trabajo", async () => {
+    trabajo.findFirst.mockResolvedValueOnce({ id: "t1" });
+    foto.findMany.mockResolvedValueOnce([]);
+    tx.mockResolvedValueOnce([]);
+    etiquetas.deleteMany.mockRejectedValueOnce(Object.assign(new Error("no existe"), { code: "P2021" }));
+    expect((await borrarTrabajo("ws-1", "t1")).ok).toBe(true);
+  });
+
   it("borra de R2 de a varias a la vez (nunca más de 10) y anota las que fallan", async () => {
     trabajo.findFirst.mockResolvedValueOnce({ id: "t1" });
     foto.findMany.mockResolvedValueOnce([]);

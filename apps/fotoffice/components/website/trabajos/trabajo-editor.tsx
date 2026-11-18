@@ -10,6 +10,7 @@ import {
 } from "@/app/actions/trabajos";
 import { RichTextField } from "@/components/website/inspector/rich-text-field";
 import { TRABAJOS_ADMIN_BASE } from "@/lib/trabajos/reglas";
+import { EstilosInput } from "./estilos-input";
 
 type Categoria = { id: string; nombre: string; visible: boolean };
 
@@ -24,11 +25,16 @@ export function TrabajoEditor({
   id,
   publicado,
   categorias,
+  rubros,
+  sugerencias,
   inicial,
 }: {
   id: string;
   publicado: boolean;
   categorias: Categoria[];
+  /** null: las tablas del portfolio interno no están en esta base → no se muestra el recuadro. */
+  rubros: { id: string; nombre: string }[] | null;
+  sugerencias: Record<string, string[]>;
   inicial: FormularioTrabajo;
 }) {
   const [form, setForm] = useState<FormularioTrabajo>(inicial);
@@ -140,6 +146,48 @@ export function TrabajoEditor({
         <input type="checkbox" checked={form.destacado} onChange={(e) => cambiar("destacado", e.target.checked)} />
         Destacado (aparece primero donde se muestran los destacados)
       </label>
+
+      {rubros && form.portfolio ? (
+        <fieldset className="space-y-3 rounded-[var(--fo-radius)] border border-[var(--fo-border)] px-4 py-3">
+          <legend className="px-1 text-sm font-medium">Portfolio interno (no se ve en el sitio)</legend>
+          <p className="text-xs text-[var(--fo-muted)]">Para que la vendedora encuentre este trabajo en Portfolios.</p>
+          {rubros.length === 0 ? (
+            <p className="text-sm text-[var(--fo-muted)]">
+              Todavía no hay rubros. Creálos en{" "}
+              <a href="/portfolios" className="text-[var(--fo-accent)] hover:underline">
+                Portfolios → Del estudio
+              </a>
+              .
+            </p>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className="block">
+                <span className="fo-label">Rubro</span>
+                <select
+                  value={form.portfolio.rubroId}
+                  onChange={(e) => cambiar("portfolio", { ...form.portfolio!, rubroId: e.target.value })}
+                  className="fo-input"
+                >
+                  <option value="">Sin rubro</option>
+                  {rubros.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.nombre}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="block">
+                <span className="fo-label">Estilos</span>
+                <EstilosInput
+                  valor={form.portfolio.estilos}
+                  sugerencias={sugerencias[form.portfolio.rubroId] ?? []}
+                  onChange={(estilos) => cambiar("portfolio", { ...form.portfolio!, estilos })}
+                />
+              </div>
+            </div>
+          )}
+        </fieldset>
+      ) : null}
 
       <details className="rounded-[var(--fo-radius)] border border-[var(--fo-border)] px-4 py-3">
         <summary className="cursor-pointer text-sm font-medium">Google (opcional)</summary>

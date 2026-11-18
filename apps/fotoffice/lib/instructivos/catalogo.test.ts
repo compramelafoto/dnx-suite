@@ -65,6 +65,12 @@ describe("catálogo de instructivos", () => {
     expect(temas.indexOf("Digitalización")).toBe(temas.indexOf("Trabajos y entregas") + 1);
   });
 
+  it("la vendedora con Portfolios ve la guía de portfolios, en Ventas", () => {
+    const visibles = instructivosVisibles(INSTRUCTIVOS, { portfolio: "VIEW" });
+    expect(visibles.find((g) => g.slug === "ventas-portfolios-del-estudio")?.seccion).toBe("Ventas");
+    expect(instructivosVisibles(INSTRUCTIVOS, { sales: "MANAGE" }).some((g) => g.slug === "ventas-portfolios-del-estudio")).toBe(false);
+  });
+
   it("ningún paso tiene un recuadro del sistema vacío", () => {
     for (const g of INSTRUCTIVOS) {
       for (const p of g.pasos) {
