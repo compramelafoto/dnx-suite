@@ -7,7 +7,8 @@ import { detalleDeError } from "./registro";
 
 /**
  * Archivos entrantes de WhatsApp (etapa 2 del bot): se bajan de Meta enseguida (la URL vence en
- * minutos) y se guardan en el R2 privado. El resultado queda en la misma columna `media` (sin
+ * minutos) y se guardan en el R2 privado. Los de Instagram traen la dirección ya firmada (`media.url`)
+ * y se bajan directo, sin token. El resultado queda en la misma columna `media` (sin
  * migración). Nunca loguea el token ni la URL de Meta.
  */
 
@@ -35,6 +36,25 @@ const EXTENSION: Record<string, string> = {
   "application/pdf": "pdf",
 };
 
+/** Instagram manda los audios como mp4 sin video. */
+const EXTENSION_INSTAGRAM: Record<string, string> = { ...EXTENSION, "audio/mp4": "m4a" };
+
+/**
+ * Instagram manda la dirección del archivo ya firmada (sin token). Sólo se piden direcciones https
+ * de los servidores de archivos de Meta: una dirección cualquiera no puede usarse para que el
+ * servidor pida lo que sea.
+ */
+export function urlDeMetaValida(url: string): boolean {
+  try {
+    const u = new URL(url);
+    if (u.protocol !== "https:") return false;
+    const host = u.hostname.toLowerCase();
+    return host.endsWith(".fbcdn.net") || host.endsWith(".cdninstagram.com") || host === "lookaside.fbsbx.com" || host.endsWith(".lookaside.fbsbx.com");
+  } catch {
+    return false;
+  }
+}
+
 /** Ancho y alto como se ven (una foto de celular "acostada" en EXIF se da vuelta). */
 async function medidasConSharp(cuerpo: Buffer): Promise<{ ancho: number; alto: number } | null> {
   const { default: sharp } = await import("sharp");
@@ -53,7 +73,9 @@ export async function descargarMedio(mensajeId: string, deps: DepsMedios = {}): 
     select: { id: true, workspaceId: true, chatId: true, tipo: true, media: true },
   })) as { id: string; workspaceId: string; chatId: string; tipo: string; media: unknown } | null;
   const media = (m?.media && typeof m.media === "object" && !Array.isArray(m.media) ? m.media : null) as MediaGuardada | null;
-  if (!m || !media || typeof media.id !== "string" || !media.id || media.descarga) return "omitido";
+  const idDeMeta = typeof media?.id === "string" && media.id ? media.id : null;
+  const urlDirecta = !idDeMeta && typeof media?.url === "string" && media.url ? media.url : null;
+  if (!m || !media || (!idDeMeta && !urlDirecta) || media.descarga) return "omitido";
   const conexion = await db.fotofficeWaConexion.findUnique({ where: { workspaceId: m.workspaceId }, select: { modo: true } });
   if (conexion?.modo !== "REAL") return "omitido";
 
@@ -61,26 +83,40 @@ export async function descargarMedio(mensajeId: string, deps: DepsMedios = {}): 
     db.fotofficeWaMensaje.update({ where: { id: m.id }, data: { media: { ...media, ...extra } as Prisma.InputJsonObject } });
 
   try {
-    const token = await (deps.leerToken ?? leerTokenWhatsapp)(m.workspaceId);
-    if (!token) throw new Error("sin token");
     const pedir = deps.fetch ?? fetch;
-    const auth = { Authorization: `Bearer ${token}` };
-    const version = process.env.WHATSAPP_API_VERSION || "v21.0";
+    let cuerpo: Buffer;
+    let mimeDeMeta: string | null;
+    if (urlDirecta) {
+      // Instagram: la dirección ya viene firmada; se baja directo, sin token.
+      if (!urlDeMetaValida(urlDirecta)) throw new Error("url no permitida");
+      const archivo = await pedir(urlDirecta, { signal: AbortSignal.timeout(TIEMPO_ARCHIVO_MS) });
+      if (!archivo.ok) throw new Error(`Descarga ${archivo.status}`);
+      if (Number(archivo.headers.get("content-length") ?? 0) > MAX_BYTES_MEDIO) throw new Grande();
+      cuerpo = Buffer.from(await archivo.arrayBuffer());
+      mimeDeMeta = archivo.headers.get("content-type");
+    } else {
+      const token = await (deps.leerToken ?? leerTokenWhatsapp)(m.workspaceId);
+      if (!token) throw new Error("sin token");
+      const auth = { Authorization: `Bearer ${token}` };
+      const version = process.env.WHATSAPP_API_VERSION || "v21.0";
 
-    const info = await pedir(`https://graph.facebook.com/${version}/${encodeURIComponent(media.id)}`, { headers: auth, signal: AbortSignal.timeout(TIEMPO_GRAPH_MS) });
-    if (!info.ok) throw new Error(`Graph ${info.status}`);
-    const datos = (await info.json()) as { url?: unknown; mime_type?: unknown; file_size?: unknown };
-    if (typeof datos.url !== "string") throw new Error("Graph sin url");
-    if (typeof datos.file_size === "number" && datos.file_size > MAX_BYTES_MEDIO) throw new Grande();
+      const info = await pedir(`https://graph.facebook.com/${version}/${encodeURIComponent(idDeMeta ?? "")}`, { headers: auth, signal: AbortSignal.timeout(TIEMPO_GRAPH_MS) });
+      if (!info.ok) throw new Error(`Graph ${info.status}`);
+      const datos = (await info.json()) as { url?: unknown; mime_type?: unknown; file_size?: unknown };
+      if (typeof datos.url !== "string") throw new Error("Graph sin url");
+      if (typeof datos.file_size === "number" && datos.file_size > MAX_BYTES_MEDIO) throw new Grande();
 
-    const archivo = await pedir(datos.url, { headers: auth, signal: AbortSignal.timeout(TIEMPO_ARCHIVO_MS) });
-    if (!archivo.ok) throw new Error(`Descarga ${archivo.status}`);
-    const cuerpo = Buffer.from(await archivo.arrayBuffer());
+      const archivo = await pedir(datos.url, { headers: auth, signal: AbortSignal.timeout(TIEMPO_ARCHIVO_MS) });
+      if (!archivo.ok) throw new Error(`Descarga ${archivo.status}`);
+      cuerpo = Buffer.from(await archivo.arrayBuffer());
+      mimeDeMeta = typeof datos.mime_type === "string" ? datos.mime_type : null;
+    }
     if (cuerpo.length > MAX_BYTES_MEDIO) throw new Grande();
 
-    const mime = media.mimeType ?? (typeof datos.mime_type === "string" ? datos.mime_type : "application/octet-stream");
+    const mime = media.mimeType ?? mimeDeMeta ?? "application/octet-stream";
     const base = mime.split(";")[0].trim();
-    const clave = `bandeja/${m.workspaceId}/${m.chatId}/${m.id}.${EXTENSION[base] ?? "bin"}`;
+    const extensiones = urlDirecta ? EXTENSION_INSTAGRAM : EXTENSION;
+    const clave = `bandeja/${m.workspaceId}/${m.chatId}/${m.id}.${extensiones[base] ?? "bin"}`;
     await (deps.subir ?? subirBuffer)(clave, cuerpo, base);
 
     const esImagen = m.tipo === "IMAGEN" || base.startsWith("image/");
@@ -92,7 +128,7 @@ export async function descargarMedio(mensajeId: string, deps: DepsMedios = {}): 
       await guardar({ descarga: "GRANDE" });
       return "GRANDE";
     }
-    console.error("[fotoffice][whatsapp] no se pudo bajar un archivo", { mensajeId, ...detalleDeError(e) });
+    console.error(`[fotoffice][${urlDirecta ? "instagram" : "whatsapp"}] no se pudo bajar un archivo`, { mensajeId, ...detalleDeError(e) });
     await guardar({ descarga: "FALLO" });
     return "FALLO";
   }

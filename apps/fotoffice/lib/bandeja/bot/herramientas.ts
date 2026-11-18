@@ -5,6 +5,7 @@ import { listProducts } from "@/lib/sales/repository";
 import type { DatosPedidoBot, ResultadoPedidoBot } from "@/lib/impresiones/whatsapp-servidor";
 import type { DatosPedidoCatalogo, ResultadoPedidoCatalogo } from "@/lib/pedidos/whatsapp-servidor";
 import type { PedidoFotolibro, RespuestaFotolibro } from "@/lib/fotolibro/bot";
+import type { Canal } from "../constantes";
 import type { FotoNumerada } from "./historial";
 
 /**
@@ -36,8 +37,22 @@ export type CursoAtencion = {
   proximas: { fecha: string; lugar: string; precio: number }[];
 };
 
-/** El chat que atiende el bot (para `preparar_presupuesto`). */
-export type ChatAtencion = { id: string; waId: string; clientId: string | null; nombre: string | null };
+/** El chat que atiende el bot (para `preparar_presupuesto`). En Instagram, `waId` es el IGSID. */
+export type ChatAtencion = {
+  id: string;
+  waId: string;
+  clientId: string | null;
+  nombre: string | null;
+  /** Por omisión, WHATSAPP. */
+  canal?: Canal;
+  usuarioInstagram?: string | null;
+};
+
+/**
+ * Lo que el bot NO hace en un chat de Instagram (spec 2026-11-18 §5.4): los pedidos se arman por
+ * WhatsApp (las fotos llegan comprimidas y el pago y el seguimiento viven ahí).
+ */
+export const HERRAMIENTAS_SOLO_WHATSAPP = ["armar_pedido_impresion", "armar_pedido", "cotizar_fotolibro", "estado_de_mi_pedido"] as const;
 export type DatosPresupuestoBot = {
   tipo: string;
   nombre: string;
@@ -48,6 +63,8 @@ export type DatosPresupuestoBot = {
   horas?: number | null;
   email?: string | null;
   detalle?: string | null;
+  /** Sólo en Instagram: el WhatsApp que dio el cliente. */
+  whatsapp?: string | null;
 };
 
 export type DepsAtencion = {
@@ -264,8 +281,19 @@ export function herramientasDeAtencion(
   const deps: DepsAtencion = { ...DEPS, ...parciales };
   let motivoPersona: string | null = null;
   let motivoSilencio: string | null = null;
+  const esInstagram = chat?.canal === "INSTAGRAM";
+  const entradaPresupuesto = z.object({
+    tipo: z.string().min(2).max(80),
+    nombre: z.string().min(2).max(80),
+    fecha: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    lugar: z.string().max(200).optional(),
+    invitados: z.number().int().min(1).max(100000).optional(),
+    horas: z.number().min(0.5).max(24).optional(),
+    email: z.string().email().max(200).optional(),
+    detalle: z.string().max(500).optional(),
+  });
 
-  const tools: BotTool[] = [
+  const todas: BotTool[] = [
     defineTool({
       name: "buscar_productos",
       description:
@@ -322,19 +350,14 @@ export function herramientasDeAtencion(
     defineTool({
       name: "preparar_presupuesto",
       description:
-        "Para cualquier evento o sesión de fotos (XV / 15 años, casamientos, cumpleaños, bautismos, comuniones, eventos corporativos, sesiones, books…): registra la consulta y el estudio arma la cotización (te la aprueba una persona y le llega al cliente por WhatsApp y correo). Usala cuando ya sepas el tipo, el nombre del cliente y cuántas horas dura (horas, de a media hora); si podés, también la fecha (aaaa-mm-dd), el lugar (salón o dirección y localidad), los invitados y el correo. No digas precios: la cotización la manda el estudio. Si la herramienta te dice que no hay cotización automática para ese tipo, usá pasar_a_persona.",
-      input: z.object({
-        tipo: z.string().min(2).max(80),
-        nombre: z.string().min(2).max(80),
-        fecha: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-        lugar: z.string().max(200).optional(),
-        invitados: z.number().int().min(1).max(100000).optional(),
-        horas: z.number().min(0.5).max(24).optional(),
-        email: z.string().email().max(200).optional(),
-        detalle: z.string().max(500).optional(),
-      }),
+        "Para cualquier evento o sesión de fotos (XV / 15 años, casamientos, cumpleaños, bautismos, comuniones, eventos corporativos, sesiones, books…): registra la consulta y el estudio arma la cotización (te la aprueba una persona y le llega al cliente por WhatsApp y correo). Usala cuando ya sepas el tipo, el nombre del cliente y cuántas horas dura (horas, de a media hora); si podés, también la fecha (aaaa-mm-dd), el lugar (salón o dirección y localidad), los invitados y el correo. No digas precios: la cotización la manda el estudio. Si la herramienta te dice que no hay cotización automática para ese tipo, usá pasar_a_persona." +
+        (esInstagram
+          ? " En Instagram, pasá también en whatsapp el número que dio el cliente, con la característica (por ejemplo 341 555-1234); si no lo quiso dar, usala igual sin whatsapp."
+          : ""),
+      // En Instagram suma el WhatsApp que dio el cliente (en WhatsApp la herramienta queda igual).
+      input: esInstagram ? entradaPresupuesto.extend({ whatsapp: z.string().max(30).optional() }) : entradaPresupuesto,
       kind: "read",
-      run: async (datos) => {
+      run: async (datos: DatosPresupuestoBot) => {
         if (!chat) return { ok: true, message: "Ahora no puedo registrar la consulta. Usá pasar_a_persona con un resumen de lo que pide." };
         return deps.prepararPresupuesto(workspaceId, chat, datos);
       },
@@ -561,6 +584,8 @@ export function herramientasDeAtencion(
       },
     }),
   ];
+  const soloWhatsapp = new Set<string>(HERRAMIENTAS_SOLO_WHATSAPP);
+  const tools = esInstagram ? todas.filter((t) => !soloWhatsapp.has(t.name)) : todas;
 
   return { tools, pedidoDePersona: () => motivoPersona, pedidoDeSilencio: () => motivoSilencio };
 }

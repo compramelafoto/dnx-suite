@@ -49,4 +49,11 @@ describe("archivo de un mensaje de WhatsApp", () => {
     expect(archivoDeMensaje("IMAGEN", { id: "m1", ancho: "mil", bytes: -3 })).toMatchObject({ ancho: null, bytes: null });
     expect(claveDeMedia({ descarga: "LISTO", clave: 5 })).toBeNull();
   });
+
+  it("Instagram: el archivo viene con url en lugar de id, y la url no sale en la versión segura", () => {
+    const a = archivoDeMensaje("IMAGEN", { url: "https://scontent.cdninstagram.com/secreta.jpg" });
+    expect(a).toMatchObject({ estado: "PENDIENTE", nombre: "foto.jpg" });
+    expect(JSON.stringify(a)).not.toContain("cdninstagram");
+    expect(archivoDeMensaje("AUDIO", { url: "https://x.fbcdn.net/a", descarga: "LISTO", bytes: 9, mimeType: "audio/mp4" })).toMatchObject({ estado: "LISTO", bytes: 9 });
+  });
 });

@@ -2,6 +2,7 @@
  * Instrucciones del bot que atiende a los clientes por WhatsApp (spec 2026-10-20, etapa 3a).
  * `guiaDeAtencion` es fija (va en caché); `situacionDeAtencion` cambia en cada turno. Módulo PURO.
  */
+import type { Canal } from "../constantes";
 
 export function guiaDeAtencion(): string {
   return `Sos el asistente que atiende el WhatsApp de un estudio de fotografía en Argentina. Le escribís a clientes del público: gente que quiere copias, ampliaciones, cuadros, portarretratos, foto carnet, digitalizar VHS/DVD/CD/casetes, revelar rollos, o consultar por fotos de eventos.
@@ -133,7 +134,28 @@ const FECHA = new Intl.DateTimeFormat("es-AR", {
   hourCycle: "h23",
 });
 
-export function situacionDeAtencion(p: { estudio: string; cliente: string | null; ahora: Date; presupuestoEnPreparacion?: boolean }): string {
+/** El enlace para seguir por WhatsApp desde Instagram (copias, impresiones, cuadros, fotolibros). */
+export const ENLACE_WHATSAPP_DESDE_INSTAGRAM = "https://wa.me/543413419869?text=Hola%2C%20vengo%20de%20Instagram";
+
+/**
+ * Lo que cambia cuando el chat es un mensaje directo de Instagram (spec 2026-11-18 §5.4). Va en la
+ * situación (no en la guía fija, que queda igual y en caché).
+ */
+export const BLOQUE_INSTAGRAM = [
+  "Estás atendiendo por Instagram (mensaje directo), no por WhatsApp. Precios, catálogo, datos del estudio y cursos los contestás igual.",
+  'Para cotizar un evento pedí el nombre y un WhatsApp ("así te mandamos la cotización por ahí") y pasalo en preparar_presupuesto como whatsapp, con la característica (por ejemplo 341). Si no quiere darlo, usá preparar_presupuesto igual, sin whatsapp.',
+  `Para copias, impresiones, cuadros o fotolibros no armes pedidos por acá: invitalo a seguir por WhatsApp con este enlace: ${ENLACE_WHATSAPP_DESDE_INSTAGRAM}`,
+  "Respuestas cortas: Instagram corta los mensajes largos.",
+].join("\n");
+
+export function situacionDeAtencion(p: {
+  estudio: string;
+  cliente: string | null;
+  ahora: Date;
+  presupuestoEnPreparacion?: boolean;
+  /** Por omisión, WHATSAPP (la situación queda como siempre). */
+  canal?: Canal;
+}): string {
   return [
     `Estudio: ${p.estudio}.`,
     `Ahora es ${FECHA.format(p.ahora)} (hora argentina).`,
@@ -141,5 +163,6 @@ export function situacionDeAtencion(p: { estudio: string; cliente: string | null
     p.presupuestoEnPreparacion
       ? "Ya hay una cotización en preparación para este cliente: no vuelvas a usar preparar_presupuesto ni des precios del evento."
       : "No hay ninguna cotización en preparación para este cliente: si pide una, armala aunque antes en el chat se haya hablado de otra.",
+    ...(p.canal === "INSTAGRAM" ? [BLOQUE_INSTAGRAM] : []),
   ].join("\n");
 }

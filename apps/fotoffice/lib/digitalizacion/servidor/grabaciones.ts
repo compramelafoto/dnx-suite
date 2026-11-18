@@ -5,7 +5,10 @@ import { MINUTOS_SIN_SENAL_MAX, MINUTOS_SIN_SENAL_MIN, MINUTOS_SIN_SENAL_POR_DEF
 import type { CtxDigitalizacion } from "../contexto";
 import { leerFranjas, validarFranjas, type FranjaEnvio } from "../entrega";
 import { nombreArchivoVideo, nombreCliente } from "../nombre-archivo";
-import { MIME_NO_DIGITALIZABLE, MOTIVO_FIN_NO_DIGITALIZABLE, type NoDigitalizableNuevo } from "../no-digitalizable";
+import { MIME_NO_DIGITALIZABLE, MOTIVO_FIN_NO_DIGITALIZABLE, nombreDelCassette, type NoDigitalizableNuevo } from "../no-digitalizable";
+import { pesosTexto, validarPrecioNoDigitalizable } from "../bonificacion";
+import { bonificarNoDigitalizable, deshacerBonificacion } from "./bonificacion";
+import { pesosDeBase } from "@/lib/pedidos/plan";
 import { estadoVisible, validarTitulo, type Cierre, type Latido, type NuevaGrabacion, type PedidoParte } from "../validar";
 import { borrarPrefijo, tamanoDeParte, urlDeLecturaParte, urlDeSubidaParte, urlDeVideo as firmarVideo } from "./almacen";
 import { avanzarTrabajos } from "./etapas";
@@ -250,8 +253,11 @@ export async function descartarGrabacion(ctx: CtxDigitalizacion, id: string): Pr
  * trabajo ya cerrada, sin partes y con la conversión en SIN_IMAGEN, así el worker nunca la toma y
  * cuenta como grabada y hecha para los cassettes vendidos. Después mira si el trabajo puede avanzar:
  * puede ser la que completa la cantidad (primero «Subido…», si no «Grabado»).
+ *
+ * Si el negocio configuró el precio de un cassette que no funcionó, se descuenta del pedido la
+ * diferencia (`./bonificacion.ts`); `aviso` le cuenta a la persona qué pasó con el dinero.
  */
-export async function registrarNoDigitalizable(ctx: CtxDigitalizacion, n: NoDigitalizableNuevo): Promise<Resultado<{ id: string }>> {
+export async function registrarNoDigitalizable(ctx: CtxDigitalizacion, n: NoDigitalizableNuevo): Promise<Resultado<{ id: string; aviso?: string }>> {
   const p = await prisma.fotofficeProyecto.findFirst({ where: { id: n.proyectoId, workspaceId: ctx.workspaceId }, select: { id: true } });
   if (!p) return { ok: false, error: "No encontramos ese trabajo.", definitivo: true };
   if (n.cassetteNumero !== null) {
@@ -291,17 +297,47 @@ export async function registrarNoDigitalizable(ctx: CtxDigitalizacion, n: NoDigi
   } catch (e) {
     console.error("[digitalizacion] no se pudo avanzar la etapa del trabajo", e instanceof Error ? e.name : "error");
   }
+  const b = await bonificarNoDigitalizable({ workspaceId: ctx.workspaceId, proyectoId: p.id, grabacionId: creada.id, cassette: nombreDelCassette(n) });
+  if (b.estado === "APLICADA") {
+    return { ok: true, id: creada.id, aviso: `Registrado. Se cobra ${pesosTexto(b.precioArs)}: se descontaron ${pesosTexto(b.bonificacionArs)} del pedido.` };
+  }
+  if (b.estado === "A_MANO") {
+    return { ok: true, id: creada.id, aviso: `Registrado. El pedido ya tiene esos pagos hechos: no se descontaron ${pesosTexto(b.bonificacionArs)} solos. Quedó una tarea en el pedido para resolverlo a mano.` };
+  }
   return { ok: true, id: creada.id };
 }
 
 /** «Quitar» un cassette que no se pudo digitalizar: queda DESCARTADO y deja de contar. No toca R2 (no hay archivos). */
-export async function quitarNoDigitalizable(ctx: CtxDigitalizacion, id: string): Promise<Resultado<Nada>> {
+export async function quitarNoDigitalizable(ctx: CtxDigitalizacion, id: string): Promise<Resultado<{ aviso?: string }>> {
   if (!ID_VALIDO.test(id)) return NO_EXISTE;
+  const g = await prisma.digitalizacionGrabacion.findFirst({
+    where: { id, workspaceId: ctx.workspaceId, motivoFin: MOTIVO_FIN_NO_DIGITALIZABLE, estado: "COMPLETA" },
+    select: { id: true, tipo: true, cassetteNumero: true },
+  });
+  if (!g) return NO_EXISTE;
   const r = await prisma.digitalizacionGrabacion.updateMany({
     where: { id, workspaceId: ctx.workspaceId, motivoFin: MOTIVO_FIN_NO_DIGITALIZABLE, estado: "COMPLETA" },
     data: { estado: "DESCARTADA", conversionEstado: null },
   });
-  return r.count === 1 ? { ok: true } : NO_EXISTE;
+  if (r.count !== 1) return NO_EXISTE;
+  // Si se había descontado algo del pedido, vuelve.
+  const d = await deshacerBonificacion({ workspaceId: ctx.workspaceId, grabacionId: g.id, cassette: nombreDelCassette(g) });
+  if (d.estado === "DEVUELTA") return { ok: true, aviso: `Volvieron ${pesosTexto(d.bonificacionArs)} al pedido.` };
+  if (d.estado === "A_MANO") return { ok: true, aviso: `El pedido se editó a mano: no se volvieron a sumar ${pesosTexto(d.bonificacionArs)} solos. Quedó una tarea en el pedido.` };
+  return { ok: true };
+}
+
+/** Configuración: lo que se cobra por un cassette que no se pudo digitalizar (vacío = se cobra completo). */
+export async function guardarPrecioNoDigitalizable(ctx: CtxDigitalizacion, valor: unknown): Promise<Resultado<{ precio: number | null }>> {
+  const v = validarPrecioNoDigitalizable(valor);
+  if (!v.ok) return v;
+  const precioNoDigitalizableArs = v.precio === null ? null : String(v.precio.toFixed(2));
+  await prisma.digitalizacionAjustes.upsert({
+    where: { workspaceId: ctx.workspaceId },
+    create: { workspaceId: ctx.workspaceId, precioNoDigitalizableArs },
+    update: { precioNoDigitalizableArs },
+  });
+  return { ok: true, precio: v.precio };
 }
 
 export async function urlsDeLectura(ctx: CtxDigitalizacion, id: string): Promise<Resultado<{ urls: string[]; nombre: string }>> {
@@ -412,12 +448,13 @@ export async function guardarAjustesEntrega(ctx: CtxDigitalizacion, envioAutomat
   return { ok: true, franjas: f.franjas };
 }
 
-export async function leerAjustes(workspaceId: string): Promise<{ minutosSinSenal: number; envioAutomatico: boolean; franjas: FranjaEnvio[] }> {
-  const a = await prisma.digitalizacionAjustes.findUnique({ where: { workspaceId }, select: { minutosSinSenal: true, envioAutomatico: true, enviosFranjas: true } });
+export async function leerAjustes(workspaceId: string): Promise<{ minutosSinSenal: number; envioAutomatico: boolean; franjas: FranjaEnvio[]; precioNoDigitalizableArs: number | null }> {
+  const a = await prisma.digitalizacionAjustes.findUnique({ where: { workspaceId }, select: { minutosSinSenal: true, envioAutomatico: true, enviosFranjas: true, precioNoDigitalizableArs: true } });
   return {
     minutosSinSenal: a?.minutosSinSenal ?? MINUTOS_SIN_SENAL_POR_DEFECTO,
     envioAutomatico: a?.envioAutomatico ?? true,
     franjas: leerFranjas(a?.enviosFranjas ?? null),
+    precioNoDigitalizableArs: a?.precioNoDigitalizableArs == null ? null : pesosDeBase(a.precioNoDigitalizableArs),
   };
 }
 
@@ -435,7 +472,7 @@ export async function listarGrabaciones(workspaceId: string) {
     orderBy: { createdAt: "desc" },
     take: 200,
     select: {
-      id: true, titulo: true, tipo: true, estado: true, motivoFin: true, cassetteNumero: true, duracionSeg: true, bytesSubidos: true,
+      id: true, titulo: true, tipo: true, estado: true, motivoFin: true, bonificacionArs: true, cassetteNumero: true, duracionSeg: true, bytesSubidos: true,
       tramos: true, ultimoLatidoAt: true, iniciadaAt: true, sinImagen: true, mimeType: true,
       conversionEstado: true, conversionError: true, videoBytes: true, videoDuracionSeg: true, partesBorradasAt: true, hlsKey: true, videoBorradoAt: true,
       proyecto: { select: { number: true, name: true, pedido: { select: { number: true } }, client: { select: { firstName: true, lastName: true, businessName: true } } } },

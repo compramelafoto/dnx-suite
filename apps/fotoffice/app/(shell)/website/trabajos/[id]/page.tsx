@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { requireBlogEditor } from "@/lib/blog/access";
 import { loadPublicSlug } from "@/lib/blog/admin-queries";
 import { listarCategorias, obtenerTrabajo } from "@/lib/trabajos/repositorio";
+import { FALTAN_TABLAS, etiquetasDeTrabajo, listarRubros, sugerenciasDeEstilos } from "@/lib/portfolio-estudio/repositorio";
 import { esTablaFaltante } from "@/lib/trabajos/reglas";
 import { TRABAJOS_PUBLIC_SEGMENT } from "@/lib/website/constants";
 import { AvisoTablasFaltantes, TrabajosShell } from "@/components/website/trabajos/trabajos-shell";
@@ -39,6 +40,13 @@ export default async function TrabajoPage({ params }: Props) {
     );
   }
   if (!trabajo) notFound();
+  // Portfolio interno: si sus tablas no están, el recuadro no se muestra (y nada se rompe).
+  const [rubros, etiquetas, sugerencias] = await Promise.all([
+    listarRubros(workspace.id),
+    etiquetasDeTrabajo(workspace.id, trabajo.id),
+    sugerenciasDeEstilos(workspace.id),
+  ]);
+  const conPortfolio = rubros !== FALTAN_TABLAS && etiquetas !== FALTAN_TABLAS;
 
   const categoria = trabajo.categoriaId ? categorias.find((c) => c.id === trabajo.categoriaId) : undefined;
   const publicado = trabajo.estado === "PUBLICADO";
@@ -72,6 +80,8 @@ export default async function TrabajoPage({ params }: Props) {
           id={trabajo.id}
           publicado={publicado}
           categorias={categorias.map((c) => ({ id: c.id, nombre: c.nombre, visible: c.visible }))}
+          rubros={conPortfolio ? rubros.map((r) => ({ id: r.id, nombre: r.nombre })) : null}
+          sugerencias={sugerencias}
           inicial={{
             titulo: trabajo.titulo,
             slug: trabajo.slug,
@@ -83,6 +93,7 @@ export default async function TrabajoPage({ params }: Props) {
             destacado: trabajo.destacado,
             seoTitle: trabajo.seoTitle ?? "",
             seoDescription: trabajo.seoDescription ?? "",
+            portfolio: conPortfolio ? { rubroId: etiquetas.rubroId ?? "", estilos: etiquetas.estilos } : null,
           }}
         />
         <TrabajoFotos

@@ -1,6 +1,6 @@
 /**
  * Lo que se guarda del archivo de un mensaje de WhatsApp (columna `media`, Json) y su versión
- * segura para la pantalla y el bot: nunca expone la clave de R2 ni el id de Meta. Módulo PURO.
+ * segura para la pantalla y el bot: nunca expone la clave de R2, el id de Meta ni la url de Instagram. Módulo PURO.
  */
 
 export type EstadoDescarga = "LISTO" | "FALLO" | "GRANDE" | "PENDIENTE";
@@ -8,6 +8,8 @@ export type EstadoDescarga = "LISTO" | "FALLO" | "GRANDE" | "PENDIENTE";
 /** `media` después de la etapa 2: lo de Meta (`id`, `mimeType`, …) más el resultado de la descarga. */
 export type MediaGuardada = {
   id?: string;
+  /** Instagram: dirección firmada del archivo (en vez de `id`). Nunca sale a la pantalla. */
+  url?: string;
   mimeType?: string;
   filename?: string;
   caption?: string;
@@ -41,7 +43,8 @@ export const PENDIENTE_MAXIMO_MS = 10 * 60_000;
 export type ContextoDeMensaje = { direccion: string; createdAt: Date; ahora: Date };
 
 export function archivoDeMensaje(tipo: string, media: unknown, contexto?: ContextoDeMensaje): ArchivoDeMensaje | null {
-  if (!CON_ARCHIVO.has(tipo) || !esObjeto(media) || !cadena(media.id)) return null;
+  // WhatsApp guarda el id del archivo en Meta; Instagram, su dirección.
+  if (!CON_ARCHIVO.has(tipo) || !esObjeto(media) || (!cadena(media.id) && !cadena(media.url))) return null;
   const d = media.descarga;
   let estado: EstadoDescarga = d === "LISTO" || d === "FALLO" || d === "GRANDE" ? d : "PENDIENTE";
   if (estado === "PENDIENTE" && contexto) {

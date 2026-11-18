@@ -1,0 +1,26 @@
+{
+  "object": "instagram",
+  "entry": [
+    {
+      "id": "17841400000000001",
+      "time": 1700000000000,
+      "messaging": [
+        {
+          "sender": {
+            "id": "17841400000000001"
+          },
+          "recipient": {
+            "id": "5550001"
+          },
+          "timestamp": 1700000005000,
+          "message": {
+            "mid": "m_eco",
+            "text": "Te paso el precio",
+            "is_echo": true,
+            "app_id": "123456"
+          }
+        }
+      ]
+    }
+  ]
+}

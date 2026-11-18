@@ -18,6 +18,8 @@ import {
   planDelLoteJpg,
 } from "@/lib/design-v2/produccion-reglas";
 import { streamPrintExportZip } from "@/lib/orders/print-export/stream-print-export-zip";
+import { copiasSueltasDelLote, lineaDeCopiasSueltas } from "@/lib/design-v2/copias-sueltas-del-lote";
+import type { DesignActor } from "@/lib/design-v2/projects";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -57,15 +59,16 @@ export async function GET(req: NextRequest) {
       );
     }
     const nombre = filtro.lote ?? `Librititos ${new Date().toISOString().slice(0, 10)}`;
-    return formato === "jpg" ? await zipDeJpg(nombre, libros) : await zipDePdf(nombre, libros);
+    return formato === "jpg" ? await zipDeJpg(actor, nombre, libros) : await zipDePdf(actor, nombre, libros);
   } catch (err) {
     return respuestaDeError(err, "zip del lote");
   }
 }
 
-async function zipDePdf(nombre: string, libros: LibritoParaProducir[]) {
+async function zipDePdf(actor: DesignActor, nombre: string, libros: LibritoParaProducir[]) {
   const archivos = archivosDelLote(libros);
   const carpeta = carpetaDelLote(nombre);
+  const copias = await copiasSueltasDelLote(actor, libros, carpeta);
   const sinArchivo = libros.flatMap((l, i) => (l.pdfKey ? [] : [nombreDeTrabajo(i + 1, l, libros.length)]));
   return streamPrintExportZip(
     [
@@ -73,13 +76,16 @@ async function zipDePdf(nombre: string, libros: LibritoParaProducir[]) {
         folder: carpeta,
         manifestName: ARCHIVOS_DE_CONTROL.control,
         summaryName: ARCHIVOS_DE_CONTROL.resumen,
-        manifestHeader: [nombre, `${archivos.length} librititos`, ""],
-        files: archivos.map((a) => ({
-          zipPath: `${carpeta}/${a.nombre}`,
-          r2Key: a.r2Key,
-          manifestLine: `OK      ${a.nombre}`,
-          missingLine: `FALTA   ${a.nombre}`,
-        })),
+        manifestHeader: [nombre, `${archivos.length} librititos`, "", ...lineaDeCopiasSueltas(copias)],
+        files: [
+          ...archivos.map((a) => ({
+            zipPath: `${carpeta}/${a.nombre}`,
+            r2Key: a.r2Key,
+            manifestLine: `OK      ${a.nombre}`,
+            missingLine: `FALTA   ${a.nombre}`,
+          })),
+          ...copias,
+        ],
         pdfBytes: await resumenDelLote(nombre, libros),
         notes: sinArchivo.length
           ? [
@@ -95,8 +101,9 @@ async function zipDePdf(nombre: string, libros: LibritoParaProducir[]) {
   );
 }
 
-async function zipDeJpg(nombre: string, libros: LibritoParaProducir[]) {
+async function zipDeJpg(actor: DesignActor, nombre: string, libros: LibritoParaProducir[]) {
   const plan = planDelLoteJpg(nombre, await conEtiquetasDeCaras(libros));
+  const copias = await copiasSueltasDelLote(actor, libros, plan.carpeta);
   const trabajos = libros.length - plan.faltantes.length;
   return streamPrintExportZip(
     [
@@ -104,17 +111,23 @@ async function zipDeJpg(nombre: string, libros: LibritoParaProducir[]) {
         folder: plan.carpeta,
         manifestName: ARCHIVOS_DE_CONTROL.control,
         summaryName: ARCHIVOS_DE_CONTROL.resumen,
-        manifestHeader: [nombre, `${trabajos} trabajos · ${plan.archivos.length} JPG`, ""],
-        files: plan.archivos.map((a) => ({
-          zipPath: a.zipPath,
-          r2Key: a.r2Key,
-          manifestLine: `OK      ${a.nombre}`,
-          missingLine: `FALTA   ${a.nombre}`,
-          transform: (bytes) => jpgConDensidad(bytes, 300),
-        })),
+        manifestHeader: [nombre, `${trabajos} trabajos · ${plan.archivos.length} JPG`, "", ...lineaDeCopiasSueltas(copias)],
+        files: [
+          ...plan.archivos.map((a) => ({
+            zipPath: a.zipPath,
+            r2Key: a.r2Key,
+            manifestLine: `OK      ${a.nombre}`,
+            missingLine: `FALTA   ${a.nombre}`,
+            transform: (bytes: Buffer) => jpgConDensidad(bytes, 300),
+          })),
+          ...copias,
+        ],
         pdfBytes: await resumenDelLote(nombre, libros),
         notes: [
-          { name: ARCHIVOS_DE_CONTROL.leeme, content: plan.leeme },
+          {
+            name: ARCHIVOS_DE_CONTROL.leeme,
+            content: copias.length ? `${plan.leeme}\r\n${lineaDeCopiasSueltas(copias)[0]}\r\n` : plan.leeme,
+          },
           ...(plan.faltantes.length
             ? [
                 {

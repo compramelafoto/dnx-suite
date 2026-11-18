@@ -29,7 +29,7 @@ export type PresupuestoDelResumen = {
 
 export type DatosResumen = {
   aprobacionId: string;
-  origen: "WEB" | "WHATSAPP";
+  origen: "WEB" | "WHATSAPP" | "INSTAGRAM";
   numeroConsulta: string | null;
   cliente: string;
   email: string | null;
@@ -126,7 +126,8 @@ export function lineasDePrecio(p: PresupuestoDelResumen): string[] {
 
 export function armarResumen(d: DatosResumen, estado: EstadoDelAviso = { tipo: "PENDIENTE" }): { html: string; teclado: TecladoTelegram | null } {
   const l: string[] = [];
-  const titulo = d.origen === "WHATSAPP" ? "Consulta nueva por WhatsApp" : "Consulta nueva desde la web";
+  const titulo =
+    d.origen === "WHATSAPP" ? "Consulta nueva por WhatsApp" : d.origen === "INSTAGRAM" ? "Consulta nueva por Instagram" : "Consulta nueva desde la web";
   l.push(`<b>📩 ${titulo}${d.numeroConsulta ? ` · N° ${e(d.numeroConsulta)}` : ""}</b>`);
   l.push("");
   l.push(`👤 <b>${e(d.cliente) || "Sin nombre"}</b>`);

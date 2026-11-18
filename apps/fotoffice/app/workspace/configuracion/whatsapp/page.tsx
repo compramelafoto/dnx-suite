@@ -5,12 +5,13 @@ import { requireActiveWorkspaceRole } from "@/lib/access/active-context";
 import { puede } from "@/lib/access/policy";
 import { appUrl } from "@/lib/app-url";
 import { botEncendido } from "@/lib/bandeja/bot/interruptor";
-import { estadoConexion, leerConexion } from "@/lib/bandeja/conexion";
+import { estadoConexion, estadoInstagram, leerConexion } from "@/lib/bandeja/conexion";
 import { BANDEJA_MODULE_KEY } from "@/lib/bandeja/constantes";
 import { leerConfigBot } from "@/lib/dnx-bot/config";
 import { isModuleEnabledForWorkspace } from "@/lib/modules/gating";
 import { META_APP_ID, META_CONFIG_ID_COEXISTENCIA } from "@/lib/bandeja/coexistencia";
 import { ConectarCoexistencia } from "./conectar-coexistencia";
+import { InstagramForm } from "./instagram-form";
 import { BotForm, ConexionForm, SimuladorForm } from "./whatsapp-form";
 
 export const dynamic = "force-dynamic";
@@ -34,9 +35,10 @@ export default async function ConfiguracionWhatsappPage() {
     );
   }
 
-  const [conexion, estado, encendido, bot, cabeceras] = await Promise.all([
+  const [conexion, estado, instagram, encendido, bot, cabeceras] = await Promise.all([
     leerConexion(workspace.id),
     estadoConexion(workspace.id),
+    estadoInstagram(workspace.id),
     isModuleEnabledForWorkspace(workspace.id, BANDEJA_MODULE_KEY),
     botEncendido(workspace.id),
     headers(),
@@ -46,6 +48,7 @@ export default async function ConfiguracionWhatsappPage() {
   const host = cabeceras.get("x-forwarded-host") ?? cabeceras.get("host");
   const origen = appUrl() || (host ? `${cabeceras.get("x-forwarded-proto") ?? "https"}://${host}` : "");
   const urlWebhook = `${origen}/api/webhooks/whatsapp`;
+  const urlWebhookInstagram = `${origen}/api/webhooks/instagram`;
   const real = conexion.modo === "REAL";
 
   return (
@@ -76,11 +79,14 @@ export default async function ConfiguracionWhatsappPage() {
         }}
         tieneToken={estado.tieneToken}
       />
+      <InstagramForm conectado={instagram.conectado} usuario={instagram.usuario} />
       <BotForm encendido={bot} disponible={botDisponible} />
       <section className="fo-card space-y-2 p-5 text-sm" aria-labelledby="wa-meta-titulo">
         <h2 id="wa-meta-titulo" className="text-base font-semibold">Datos para Meta</h2>
         <p className="text-[var(--fo-muted)]">En el panel de Meta, en Webhooks, pegá esta dirección:</p>
         <p><code className="break-all">{urlWebhook}</code></p>
+        <p className="text-[var(--fo-muted)]">Y para los mensajes directos de Instagram, en el producto Instagram de la misma app:</p>
+        <p><code className="break-all">{urlWebhookInstagram}</code></p>
         <p className="text-[var(--fo-muted)]">
           El token de verificación y el secreto de la app son variables de entorno que carga la plataforma; acá no se ven ni se editan.
         </p>

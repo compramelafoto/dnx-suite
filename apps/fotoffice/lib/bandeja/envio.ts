@@ -1,6 +1,8 @@
 import "server-only";
 import { leerTokenWhatsapp } from "@/lib/integrations/whatsapp/credentials";
 import type { Conexion } from "./conexion";
+import type { Canal } from "./constantes";
+import { enviarTextoInstagram } from "./instagram/envio";
 
 /**
  * Salida a WhatsApp (§6 del diseño). Con la conexión SIMULADA simula; en REAL manda de verdad o
@@ -33,12 +35,20 @@ export function destinoParaMeta(waId: string): string {
   return waId;
 }
 
+/**
+ * Envía un texto por el canal del chat. En Instagram `waId` es el IGSID de quien escribe y la salida
+ * va por la página vinculada (`enviarTextoInstagram`); el resto es WhatsApp, como siempre.
+ */
 export async function enviarTexto(
-  conexion: Pick<Conexion, "workspaceId" | "modo" | "phoneNumberId">,
+  conexion: Pick<Conexion, "workspaceId" | "modo" | "phoneNumberId"> & Partial<Pick<Conexion, "igPageId" | "igActivo">>,
   waId: string,
   texto: string,
   deps: DepsEnvio = {},
+  canal: Canal = "WHATSAPP",
 ): Promise<ResultadoEnvio> {
+  if (canal === "INSTAGRAM") {
+    return enviarTextoInstagram({ workspaceId: conexion.workspaceId, modo: conexion.modo, igPageId: conexion.igPageId ?? null, igActivo: conexion.igActivo }, waId, texto, deps);
+  }
   if (conexion.modo !== "REAL") return { ok: true, simulado: true };
   // En modo REAL la honestidad gana: sin número o sin token usable (falta, revocado, no se puede
   // descifrar) NO se simula —parecería enviado—: falla con un código que la pantalla explica.

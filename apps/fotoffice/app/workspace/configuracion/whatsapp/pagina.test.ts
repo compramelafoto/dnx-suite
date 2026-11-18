@@ -12,7 +12,7 @@ describe("Configuración → WhatsApp", () => {
     const p = aqui("page.tsx");
     const guarda = p.indexOf('puede(role, "configurar")');
     expect(guarda).toBeGreaterThan(p.indexOf("await requireActiveWorkspaceRole()"));
-    for (const lectura of ["leerConexion(", "estadoConexion(", "isModuleEnabledForWorkspace("]) {
+    for (const lectura of ["leerConexion(", "estadoConexion(", "estadoInstagram(", "isModuleEnabledForWorkspace("]) {
       expect(p.indexOf(lectura, guarda), lectura).toBeGreaterThan(guarda);
     }
   });
@@ -26,9 +26,10 @@ describe("Configuración → WhatsApp", () => {
   });
 
   it("el token nunca se lee ni se dibuja", () => {
-    for (const f of ["page.tsx", "whatsapp-form.tsx"]) {
+    for (const f of ["page.tsx", "whatsapp-form.tsx", "instagram-form.tsx"]) {
       const s = aqui(f);
       expect(s, f).not.toContain("leerTokenWhatsapp");
+      expect(s, f).not.toContain("leerTokenInstagram");
       expect(s, f).not.toMatch(/defaultValue=\{[^}]*token/i);
     }
     expect(aqui("whatsapp-form.tsx")).toContain('type="password"');
@@ -46,6 +47,8 @@ describe("Configuración → WhatsApp", () => {
     expect(a).not.toMatch(/fd\.get\(["']workspaceId["']\)/);
     expect(a.indexOf("const ctx = await contexto()")).toBeLessThan(a.indexOf("guardarConexion(ctx"));
     expect(a).toContain("simularEntrante(ctx");
+    expect(a.indexOf("const ctx = await contexto()", a.indexOf("conectarInstagramAction"))).toBeLessThan(a.indexOf("conectarInstagram(ctx"));
+    expect(a.indexOf("const ctx = await contexto()", a.indexOf("desconectarInstagramAction"))).toBeLessThan(a.indexOf("desconectarInstagram(ctx"));
   });
 
   it("el simulador pasa por aplicarEventos, sin duplicar el registro", () => {

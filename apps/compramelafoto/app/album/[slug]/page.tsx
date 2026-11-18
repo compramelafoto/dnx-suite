@@ -728,6 +728,9 @@ export default async function AlbumPublicPage({
                 typeof (album as any).digitalPhotoPriceCents === "number"
                   ? (album as any).digitalPhotoPriceCents
                   : null,
+              digitalDiscount5Plus: (album as { digitalDiscount5Plus?: number | null }).digitalDiscount5Plus ?? null,
+              digitalDiscount10Plus: (album as { digitalDiscount10Plus?: number | null }).digitalDiscount10Plus ?? null,
+              digitalDiscount20Plus: (album as { digitalDiscount20Plus?: number | null }).digitalDiscount20Plus ?? null,
               checkoutDigitalFeePercent,
               publicVisiblePacks,
               photos: photosForClient,

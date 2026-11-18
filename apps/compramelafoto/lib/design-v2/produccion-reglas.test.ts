@@ -175,3 +175,11 @@ test("el plan del lote: todo en una carpeta, números de la lista completa y fal
   assert.match(plan.leeme, /2 trabajos · 3 JPG/);
   assert.match(plan.leeme, /SIN ARCHIVO[\s\S]*Arce Olivia/);
 });
+
+test("copia pedida aparte: empieza como el librito del mismo alumno", async () => {
+  const { nombreDeCopiaDelLote, nombreDeArchivo } = await import("./produccion-reglas");
+  const libro = { id: 165, alumno: "Celoria Pedro", curso: "7º A", colegio: "Colegio San Patricio" };
+  const copia = nombreDeCopiaDelLote(1, libro, 12, "15x21 Mate", "1x DSC_1234.jpg");
+  assert.equal(copia, "001 - 7 A - Celoria Pedro - 15x21 Mate - 1x DSC_1234.jpg");
+  assert.ok(nombreDeArchivo(1, libro, 12).startsWith("001 - 7 A - Celoria Pedro"));
+});

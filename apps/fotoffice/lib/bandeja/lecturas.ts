@@ -8,7 +8,7 @@ import { etiquetaDeUsuario } from "@/lib/listado/acceso";
 import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
 import { puedeOperarBandeja, puedeVerBandeja, type CtxBandeja } from "./acceso";
 import { archivoDeMensaje, type ArchivoDeMensaje } from "./archivo-de-mensaje";
-import type { Autor, Direccion, EstadoDelChat, TipoMensaje } from "./constantes";
+import { CANALES, type Autor, type Canal, type Direccion, type EstadoDelChat, type TipoMensaje } from "./constantes";
 import { atiendeElBot, estadoVisible, puedeResponderLibre } from "./reglas";
 import { textoDeVistaPrevia, truncarSeguro } from "./vista-previa";
 
@@ -36,11 +36,32 @@ const ID_VALIDO = /^[A-Za-z0-9_-]{1,64}$/;
 const CLAVE_CONSULTAS = SERVICE_LEADS_MODULE_KEY;
 const CLAVE_PRESUPUESTOS = "quotes";
 
+/** Filtro de canal de la lista (parámetro de URL `canal`). */
+export const FILTROS_CANAL = ["todos", ...CANALES] as const;
+export type FiltroCanal = (typeof FILTROS_CANAL)[number];
+
+export const ETIQUETA_CANAL: Record<FiltroCanal, string> = { todos: "Todos", WHATSAPP: "WhatsApp", INSTAGRAM: "Instagram" };
+
+/**
+ * Título de un chat: el cliente vinculado; si no, en Instagram `@usuario`, el nombre o «Instagram»
+ * (nunca el IGSID, que no le dice nada a nadie); en WhatsApp el nombre del perfil o el número.
+ */
+function tituloDelChat(c: { canal: string; waId: string; nombre: string | null; usuarioInstagram: string | null }, clienteNombre: string | null): string {
+  if (clienteNombre) return clienteNombre;
+  const nombre = c.nombre?.trim() || null;
+  if (c.canal === "INSTAGRAM") return c.usuarioInstagram ? `@${c.usuarioInstagram}` : (nombre ?? "Instagram");
+  return nombre ?? c.waId;
+}
+
+const canalDe = (v: string | null | undefined): Canal => (v === "INSTAGRAM" ? "INSTAGRAM" : "WHATSAPP");
+
 export type ChatDeLista = {
   id: string;
-  /** Nombre del cliente vinculado, o el del perfil de WhatsApp, o el número. */
+  /** Nombre del cliente vinculado, o el del perfil (en Instagram, `@usuario`), o el número. */
   titulo: string;
   waId: string;
+  canal: Canal;
+  usuarioInstagram: string | null;
   estado: EstadoDelChat;
   /** Lo atiende el bot ahora (incluye la pausa vencida de un chat sin asignar). */
   atiendeElBot: boolean;
@@ -95,12 +116,14 @@ function dondeDelFiltro(filtro: FiltroBandeja, userId: number, ahora: Date): Rec
  */
 export async function listarChats(
   ctx: CtxBandeja,
-  opciones: { filtro?: FiltroBandeja; q?: string; ahora?: Date } = {},
+  opciones: { filtro?: FiltroBandeja; canal?: Canal | "todos"; q?: string; ahora?: Date } = {},
 ): Promise<ChatDeLista[] | null> {
   if (!puedeVerBandeja(ctx) || ctx.userId === null) return null;
   const ahora = opciones.ahora ?? new Date();
   const filtro = (FILTROS_BANDEJA as readonly string[]).includes(opciones.filtro ?? "") ? (opciones.filtro as FiltroBandeja) : "todos";
   const condiciones: Record<string, unknown>[] = [{ workspaceId: ctx.workspaceId }, dondeDelFiltro(filtro, ctx.userId, ahora)];
+  // Un canal inventado se trata como "todos".
+  if ((CANALES as readonly unknown[]).includes(opciones.canal)) condiciones.push({ canal: opciones.canal });
 
   // Sin permiso de Clientes la búsqueda no entra a la ficha: sólo perfil de WhatsApp y número.
   const veClientes = puedeEnContexto(ctx, "ver", CLIENTS_MODULE_KEY);
@@ -120,7 +143,10 @@ export async function listarChats(
       take: 50,
     })) as { id: string }[]);
     const o: Record<string, unknown>[] = [{ nombre: { contains: q, mode: "insensitive" } }];
-    if (digitos.length >= 3) o.push({ waId: { contains: digitos } });
+    // El número sólo se busca en WhatsApp: en Instagram `waId` es el IGSID, no un teléfono.
+    if (digitos.length >= 3) o.push({ canal: "WHATSAPP", waId: { contains: digitos } });
+    const usuario = q.replace(/^@/, "");
+    if (usuario) o.push({ usuarioInstagram: { contains: usuario, mode: "insensitive" } });
     if (porNombre.length > 0) o.push({ clientId: { in: porNombre.map((c) => c.id) } });
     condiciones.push({ OR: o });
   }
@@ -130,7 +156,7 @@ export async function listarChats(
     orderBy: { ultimoMensajeEn: "desc" },
     take: MAXIMO_CHATS,
   })) as {
-    id: string; waId: string; nombre: string | null; clientId: string | null; estado: string; asignadoUserId: number | null;
+    id: string; waId: string; canal: string; usuarioInstagram: string | null; nombre: string | null; clientId: string | null; estado: string; asignadoUserId: number | null;
     botPausadoHasta: Date | null; botExcluido: boolean; ultimoMensajeEn: Date; ultimoEntranteEn: Date | null; noLeidos: number;
     ultimoMensajeTexto: string | null; ultimoMensajeTipo: string | null;
   }[];
@@ -146,8 +172,10 @@ export async function listarChats(
     const estado = c.estado as EstadoDelChat;
     return {
       id: c.id,
-      titulo: clienteNombre ?? (c.nombre?.trim() || c.waId),
+      titulo: tituloDelChat(c, clienteNombre),
       waId: c.waId,
+      canal: canalDe(c.canal),
+      usuarioInstagram: c.usuarioInstagram ?? null,
       estado,
       atiendeElBot: atiendeElBot({ estado, asignadoUserId: c.asignadoUserId, botPausadoHasta: c.botPausadoHasta, ultimoEntranteEn: c.ultimoEntranteEn, botExcluido: c.botExcluido }, ahora),
       asignadoNombre: c.asignadoUserId !== null ? (usuarios.get(c.asignadoUserId) ?? "Alguien del equipo") : null,
@@ -188,6 +216,8 @@ export type DetalleDeChat = {
   id: string;
   titulo: string;
   waId: string;
+  canal: Canal;
+  usuarioInstagram: string | null;
   nombrePerfil: string | null;
   estado: EstadoDelChat;
   atiendeElBot: boolean;
@@ -210,7 +240,7 @@ export async function detalleChat(ctx: CtxBandeja, chatId: string, ahora: Date =
   if (!puedeVerBandeja(ctx)) return null;
   if (typeof chatId !== "string" || !ID_VALIDO.test(chatId)) return null;
   const c = (await prisma.fotofficeWaChat.findFirst({ where: { id: chatId, workspaceId: ctx.workspaceId } })) as {
-    id: string; waId: string; nombre: string | null; clientId: string | null; estado: string; asignadoUserId: number | null;
+    id: string; waId: string; canal: string; usuarioInstagram: string | null; nombre: string | null; clientId: string | null; estado: string; asignadoUserId: number | null;
     botPausadoHasta: Date | null; botExcluido: boolean; ultimoEntranteEn: Date | null; noLeidos: number;
   } | null;
   if (!c) return null;
@@ -241,8 +271,10 @@ export async function detalleChat(ctx: CtxBandeja, chatId: string, ahora: Date =
   const estado = c.estado as EstadoDelChat;
   return {
     id: c.id,
-    titulo: cliente?.nombre ?? (c.nombre?.trim() || c.waId),
+    titulo: tituloDelChat(c, cliente?.nombre ?? null),
     waId: c.waId,
+    canal: canalDe(c.canal),
+    usuarioInstagram: c.usuarioInstagram ?? null,
     nombrePerfil: c.nombre,
     estado,
     atiendeElBot: atiendeElBot({ estado, asignadoUserId: c.asignadoUserId, botPausadoHasta: c.botPausadoHasta, ultimoEntranteEn: c.ultimoEntranteEn, botExcluido: c.botExcluido }, ahora),

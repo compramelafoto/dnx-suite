@@ -45,7 +45,9 @@ type ItemLeido = { id: unknown; cantidad: unknown; precioUnitario: unknown };
  * del ítem del pedido que lo originó (`pedidoItemIndex`): de ahí sale el neto del renglón dividido
  * por su cantidad (con su descuento, si tiene) o, si no hay renglón guardado, su precio de lista.
  * Sin índice o con un ítem que no está (trabajo creado a mano, pedido migrado), el total original
- * repartido entre los videos listos del pedido.
+ * repartido entre los videos listos del pedido. `bonificacionesArs` es lo ya descontado del renglón
+ * por cassettes que no se pudieron digitalizar: se suma de vuelta, así una descarga extra se cobra
+ * sobre el precio completo del cassette.
  */
 export function precioUnitarioDelTrabajo(a: {
   items: readonly ItemLeido[];
@@ -53,12 +55,14 @@ export function precioUnitarioDelTrabajo(a: {
   pedidoItemIndex: number | null;
   totalOriginal: number;
   videosListos: number;
+  bonificacionesArs?: number;
 }): { precio: number; origen: "ITEM" | "REPARTO" } {
   const it = a.pedidoItemIndex !== null && Number.isInteger(a.pedidoItemIndex) ? a.items[a.pedidoItemIndex] : undefined;
   const cantidad = typeof it?.cantidad === "number" && Number.isFinite(it.cantidad) && it.cantidad > 0 ? it.cantidad : null;
   if (it && cantidad !== null) {
     const neto = typeof it.id === "string" ? a.renglones[it.id]?.neto : undefined;
-    if (typeof neto === "number" && Number.isFinite(neto) && neto > 0) return { precio: Math.round((neto / cantidad) * 100) / 100, origen: "ITEM" };
+    const bonif = typeof a.bonificacionesArs === "number" && Number.isFinite(a.bonificacionesArs) && a.bonificacionesArs > 0 ? a.bonificacionesArs : 0;
+    if (typeof neto === "number" && Number.isFinite(neto) && neto + bonif > 0) return { precio: Math.round(((neto + bonif) / cantidad) * 100) / 100, origen: "ITEM" };
     if (typeof it.precioUnitario === "number" && Number.isFinite(it.precioUnitario) && it.precioUnitario > 0) return { precio: it.precioUnitario, origen: "ITEM" };
   }
   return { precio: Math.round((a.totalOriginal / Math.max(1, a.videosListos)) * 100) / 100, origen: "REPARTO" };

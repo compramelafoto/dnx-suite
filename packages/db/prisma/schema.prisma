@@ -22655,6 +22655,8 @@ model DigitalizacionGrabacion {
   estado             String    @default("GRABANDO")
   /// MANUAL | SIN_SENAL | TOPE | DVD_COMPLETO | TERMINADA_CON_LO_GRABADO
   motivoFin          String?
+  /// Cassette que no se pudo digitalizar: lo que se le descontó al pedido (pesos). null = nada.
+  bonificacionArs    Decimal?  @db.Decimal(12, 2)
   mimeType           String
   /// ALTA | MEDIA | BAJA (null en DVD)
   calidad            String?
@@ -22752,6 +22754,9 @@ model DigitalizacionAjustes {
   envioAutomatico Boolean @default(true)
   /// Franjas de envío de cassettes: [{ hastaKm, precioArs }] ordenadas por km. null = a coordinar.
   enviosFranjas   Json?
+  /// Lo que se cobra por un cassette que no se pudo digitalizar (pesos). null = se cobra completo.
+  /// Migración a mano: 20270213090000_fotoffice_digitalizacion_precio_no_digitalizable.
+  precioNoDigitalizableArs Decimal? @db.Decimal(12, 2)
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 }
@@ -27080,6 +27085,11 @@ model FotofficeWaConexion {
   /// SIMULADO | REAL
   modo          String   @default("SIMULADO")
   pausaBotHoras Int      @default(4)
+  /// Instagram: cuenta profesional (IGSID de la cuenta), página de Facebook vinculada, @usuario y si está encendido.
+  igAccountId   String?  @unique
+  igPageId      String?
+  igUsuario     String?
+  igActivo      Boolean  @default(false)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -27090,8 +27100,12 @@ model FotofficeWaConexion {
 model FotofficeWaChat {
   id               String    @id @default(cuid())
   workspaceId      String
-  /// Teléfono E.164 sin "+" (ej. 5493413419869).
+  /// WHATSAPP | INSTAGRAM
+  canal            String    @default("WHATSAPP")
+  /// Teléfono E.164 sin "+" (ej. 5493413419869) en WhatsApp; el IGSID del cliente en Instagram.
   waId             String
+  /// @usuario del cliente en Instagram (sólo canal INSTAGRAM).
+  usuarioInstagram String?
   /// Nombre del perfil de WhatsApp.
   nombre           String?
   clientId         String?
@@ -27115,7 +27129,7 @@ model FotofficeWaChat {
   client    Client?              @relation(fields: [clientId], references: [id], onDelete: SetNull)
   mensajes  FotofficeWaMensaje[]
 
-  @@unique([workspaceId, waId])
+  @@unique([workspaceId, canal, waId])
   @@index([workspaceId, estado, ultimoMensajeEn])
   @@index([workspaceId, asignadoUserId])
   @@index([clientId])
@@ -27867,10 +27881,12 @@ model FotofficePresupuestoAprobacion {
   /// Nulo cuando la categoría no tiene propuesta modelo (el aviso ofrece abrir la consulta).
   presupuestoId     String?
   categoryId        String?
-  /// WEB | WHATSAPP
+  /// WEB | WHATSAPP | INSTAGRAM
   origin            String
   /// Teléfono de WhatsApp (E.164 sin "+") cuando la consulta entró por el bot.
   waId              String?
+  /// Chat de Instagram de la consulta (cuando entró por mensaje directo).
+  igChatId          String?
   status            String
   telegramChatId    String?
   telegramMessageId String?
@@ -27967,6 +27983,37 @@ model FotofficeTrabajoFoto {
 
   @@unique([trabajoId, r2Key])
   @@index([trabajoId, orden])
+}
+
+/// Portfolios del estudio (spec 2026-11-15): los rubros con los que la vendedora busca qué mandarle
+/// a cada cliente. Es interno: no se ve en el sitio público. Sin relaciones Prisma (SQL a mano).
+model FotofficePortfolioRubro {
+  id          String   @id @default(cuid())
+  workspaceId String
+  nombre      String
+  orden       Int      @default(0)
+  /// Presentaciones de venta del rubro: [{ titulo, url }] (https, máx. 10).
+  enlacesJson Json     @default("[]")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([workspaceId, nombre])
+  @@index([workspaceId, orden])
+}
+
+/// Las etiquetas internas de un trabajo para Portfolios del estudio (0 o 1 fila por trabajo). Tabla
+/// aparte y no columnas de `FotofficeTrabajo`: si faltara en una base, sólo se apaga esta pantalla.
+model FotofficeTrabajoPortfolio {
+  id          String   @id @default(cuid())
+  workspaceId String
+  trabajoId   String   @unique
+  rubroId     String?
+  /// Textos libres (máx. 6 de 40 caracteres): «Book previo», «Fiesta», «Sesión temática»…
+  estilos     String[] @default([])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([workspaceId, rubroId])
 }
 
 // ---------------------------------------------------------------------------
