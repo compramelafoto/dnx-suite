@@ -35,5 +35,7 @@ export const MENSAJES_BANDEJA = {
   sinClientToken: "Falta el identificador del envío. Recargá la página e intentá de nuevo.",
   noConfirmado: "No pudimos confirmar el envío; revisá el chat en WhatsApp.",
   falloEnvio: "No se pudo enviar el mensaje por WhatsApp. Quedó registrado como fallido.",
+  sinConexionInstagram: "Instagram no está conectado: revisá la conexión en Configuración.",
+  falloEnvioInstagram: "No se pudo enviar el mensaje por Instagram. Quedó registrado como fallido.",
   fallo: "No se pudo completar la acción. Probá de nuevo.",
 } as const;

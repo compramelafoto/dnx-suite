@@ -5,7 +5,7 @@ import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
 import { findOrCreateClient } from "@/lib/clients/find-or-create";
 import { MENSAJES_BANDEJA, puedeOperarBandeja, puedeVerBandeja, type CtxBandeja } from "./acceso";
 import { leerConexion } from "./conexion";
-import { TEXTO_MAXIMO } from "./constantes";
+import { CANALES, TEXTO_MAXIMO, type Canal } from "./constantes";
 import { enviarTexto, type ResultadoEnvio } from "./envio";
 import {
   alDevolver,
@@ -138,8 +138,64 @@ export type RespuestaEnviada = { mensajeId: string; estadoEnvio: string; aviso?:
 const TOKEN_VALIDO = /^[A-Za-z0-9_-]{1,64}$/;
 const esChoqueDeUnico = (e: unknown) => (e as { code?: unknown } | null)?.code === "P2002";
 
+/** El canal del chat (lo que no se reconoce, WhatsApp: el canal por omisión). */
+export const canalDe = (c: { canal?: string | null }): Canal => ((CANALES as readonly unknown[]).includes(c.canal) ? (c.canal as Canal) : "WHATSAPP");
+
+/**
+ * Llama al envío según el canal. Con WhatsApp la llamada es la de siempre (tres argumentos), así los
+ * envíos inyectados en las pruebas no cambian; con Instagram suma el canal.
+ */
+export function enviarPorCanal(
+  enviar: typeof enviarTexto,
+  conexion: Parameters<typeof enviarTexto>[0],
+  waId: string,
+  texto: string,
+  canal: Canal,
+): Promise<ResultadoEnvio> {
+  return canal === "WHATSAPP" ? enviar(conexion, waId, texto) : enviar(conexion, waId, texto, {}, canal);
+}
+
+/**
+ * Guarda en el mensaje cómo salió el envío (SIMULADO, ENVIADO con su id, o FALLO con el código) y
+ * devuelve lo que quedó, o `null` si no se pudo guardar. El id puede estar ya puesto en ESTA fila (el
+ * eco de Instagram llegó antes y el registro se lo asignó): es el mismo valor y no choca. Si OTRA fila
+ * ya tiene ese id (choque de único), queda ENVIADO sin el id y se loguea. Nunca lanza.
+ */
+export async function guardarResultadoDelEnvio(
+  mensajeId: string,
+  envio: ResultadoEnvio,
+  mensajeDeLog: string,
+): Promise<{ estadoEnvio: string; errorCodigo: string | null } | null> {
+  const guardar = (d: Prisma.FotofficeWaMensajeUpdateInput) => prisma.fotofficeWaMensaje.update({ where: { id: mensajeId }, data: d });
+  const datos: Prisma.FotofficeWaMensajeUpdateInput = !envio.ok
+    ? { estadoEnvio: "FALLO", errorCodigo: envio.codigo }
+    : envio.simulado
+      ? { estadoEnvio: "SIMULADO" }
+      : { estadoEnvio: "ENVIADO", waMessageId: envio.waMessageId };
+  try {
+    await guardar(datos);
+    return { estadoEnvio: datos.estadoEnvio as string, errorCodigo: (datos.errorCodigo as string | undefined) ?? null };
+  } catch (e) {
+    if (esChoqueDeUnico(e) && envio.ok && !envio.simulado) {
+      console.error(`[fotoffice][bandeja] ${mensajeDeLog}: el id de Meta ya estaba en otro mensaje`, detalleDeError(e));
+      try {
+        await guardar({ estadoEnvio: "ENVIADO" });
+        return { estadoEnvio: "ENVIADO", errorCodigo: null };
+      } catch (e2) {
+        console.error(`[fotoffice][bandeja] ${mensajeDeLog}`, detalleDeError(e2));
+        return null;
+      }
+    }
+    console.error(`[fotoffice][bandeja] ${mensajeDeLog}`, detalleDeError(e));
+    return null;
+  }
+}
+
 /** Lo que se le cuenta a quien envió, según lo que QUEDÓ guardado del mensaje. */
-function respuestaDe(m: { id: string; estadoEnvio: string; errorCodigo: string | null }): Resultado<RespuestaEnviada> {
+function respuestaDe(m: { id: string; estadoEnvio: string; errorCodigo: string | null }, canal: Canal = "WHATSAPP"): Resultado<RespuestaEnviada> {
+  if (m.estadoEnvio === "FALLO" && canal === "INSTAGRAM") {
+    return no(m.errorCodigo === "SIN_TOKEN" || m.errorCodigo === "SIN_PAGINA" ? MENSAJES_BANDEJA.sinConexionInstagram : MENSAJES_BANDEJA.falloEnvioInstagram);
+  }
   if (m.estadoEnvio === "FALLO") return no(m.errorCodigo === "SIN_TOKEN" ? MENSAJES_BANDEJA.sinToken : MENSAJES_BANDEJA.falloEnvio);
   if (m.estadoEnvio === "PENDIENTE") return { ok: true, mensajeId: m.id, estadoEnvio: "PENDIENTE", aviso: MENSAJES_BANDEJA.noConfirmado };
   return { ok: true, mensajeId: m.id, estadoEnvio: m.estadoEnvio };
@@ -171,13 +227,13 @@ export async function responder(
   const previo = (tx: Tx | typeof prisma, chat: string) =>
     tx.fotofficeWaMensaje.findFirst({ where: { chatId: chat, workspaceId: ctx.workspaceId, clientToken }, select: { id: true, estadoEnvio: true, errorCodigo: true } });
 
-  let guardado: { mensajeId: string; waId: string };
+  let guardado: { mensajeId: string; waId: string; canal: Canal };
   try {
-    const r = await prisma.$transaction(async (tx): Promise<Resultado<{ mensajeId: string; waId: string }> | { ok: true; repetido: Resultado<RespuestaEnviada> }> => {
+    const r = await prisma.$transaction(async (tx): Promise<Resultado<{ mensajeId: string; waId: string; canal: Canal }> | { ok: true; repetido: Resultado<RespuestaEnviada> }> => {
       const chat = await chatBloqueado(tx, ctx.workspaceId, chatId);
       if (!chat) return no(MENSAJES_BANDEJA.noExiste);
       const repetido = await previo(tx, chat.id);
-      if (repetido) return { ok: true, repetido: respuestaDe(repetido) };
+      if (repetido) return { ok: true, repetido: respuestaDe(repetido, canalDe(chat)) };
       if (!puedeResponderLibre(aEstado(chat), ahora)) return no(MENSAJES_BANDEJA.fueraDeVentana);
       const regla = alResponderDesdePanel(aEstado(chat), userId, ctx.userLabel);
       if (regla.sistema) await escribirSistema(tx, ctx.workspaceId, chat.id, regla.sistema.texto, ahora);
@@ -195,7 +251,7 @@ export async function responder(
           ...(ahora.getTime() > chat.ultimoMensajeEn.getTime() ? { ultimoMensajeEn: new Date(ahora.getTime() + 1), ...vistaPreviaDe(texto, "TEXTO") } : {}),
         },
       });
-      return { ok: true, mensajeId: m.id, waId: chat.waId };
+      return { ok: true, mensajeId: m.id, waId: chat.waId, canal: canalDe(chat) };
     });
     if (!r.ok) return r;
     if ("repetido" in r) return r.repetido;
@@ -214,36 +270,14 @@ export async function responder(
   let envio: ResultadoEnvio;
   try {
     const conexion = await leerConexion(ctx.workspaceId);
-    envio = await (deps.enviar ?? enviarTexto)(conexion, guardado.waId, texto);
+    envio = await enviarPorCanal(deps.enviar ?? enviarTexto, conexion, guardado.waId, texto, guardado.canal);
   } catch {
     envio = { ok: false, codigo: "INTERNO" };
   }
 
   // Se actualiza apenas vuelve la API: el aviso de estado de Meta puede llegar enseguida.
-  const datos: Prisma.FotofficeWaMensajeUpdateInput = !envio.ok
-    ? { estadoEnvio: "FALLO", errorCodigo: envio.codigo }
-    : envio.simulado
-      ? { estadoEnvio: "SIMULADO" }
-      : { estadoEnvio: "ENVIADO", waMessageId: envio.waMessageId };
-  const guardar = (d: Prisma.FotofficeWaMensajeUpdateInput) => prisma.fotofficeWaMensaje.update({ where: { id: guardado.mensajeId }, data: d });
-  let persistido: { estadoEnvio: string; errorCodigo: string | null } = { estadoEnvio: "PENDIENTE", errorCodigo: null };
-  try {
-    await guardar(datos);
-    persistido = { estadoEnvio: datos.estadoEnvio as string, errorCodigo: (datos.errorCodigo as string | undefined) ?? null };
-  } catch (e) {
-    if (esChoqueDeUnico(e) && envio.ok && !envio.simulado) {
-      // Ese waMessageId ya existe (el eco del celular llegó primero): se deja ENVIADO sin id.
-      try {
-        await guardar({ estadoEnvio: "ENVIADO" });
-        persistido = { estadoEnvio: "ENVIADO", errorCodigo: null };
-      } catch (e2) {
-        console.error("[fotoffice][whatsapp] no se pudo registrar el resultado del envío", detalleDeError(e2));
-      }
-    } else {
-      console.error("[fotoffice][whatsapp] no se pudo registrar el resultado del envío", detalleDeError(e));
-    }
-  }
-  return respuestaDe({ id: guardado.mensajeId, ...persistido });
+  const persistido = (await guardarResultadoDelEnvio(guardado.mensajeId, envio, "no se pudo registrar el resultado del envío")) ?? { estadoEnvio: "PENDIENTE", errorCodigo: null };
+  return respuestaDe({ id: guardado.mensajeId, ...persistido }, guardado.canal);
 }
 
 /**

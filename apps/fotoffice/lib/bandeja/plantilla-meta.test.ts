@@ -33,3 +33,11 @@ describe("enviarPlantilla", () => {
     expect(await enviarPlantilla(CONEXION, "5493413748324", { nombre: "x", idioma: "es_AR", cuerpo: [] }, { fetch: f, leerToken: async () => "t" })).toEqual({ ok: false, codigo: "132001" });
   });
 });
+
+describe("enviarPlantilla en Instagram", () => {
+  it("con un chat de Instagram no llama a Meta: SIN_PLANTILLAS_INSTAGRAM", async () => {
+    const f = vi.fn();
+    expect(await enviarPlantilla(CONEXION, "5550001", { nombre: "x", idioma: "es_AR", cuerpo: [] }, { fetch: f as never, leerToken: async () => "t" }, "INSTAGRAM")).toEqual({ ok: false, codigo: "SIN_PLANTILLAS_INSTAGRAM" });
+    expect(f).not.toHaveBeenCalled();
+  });
+});

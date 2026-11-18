@@ -19,6 +19,11 @@ export type Conexion = {
   displayPhone: string | null;
   modo: ModoConexion;
   pausaBotHoras: number;
+  /** Instagram (mensajes directos): cuenta profesional, página de Facebook vinculada (para enviar), @usuario y si está encendido. */
+  igAccountId: string | null;
+  igPageId: string | null;
+  igUsuario: string | null;
+  igActivo: boolean;
 };
 
 export const PAUSA_MINIMA_HORAS = 1;
@@ -40,7 +45,10 @@ export const MENSAJES_CONEXION = {
 } as const;
 
 export function conexionPorOmision(workspaceId: string): Conexion {
-  return { workspaceId, phoneNumberId: null, wabaId: null, displayPhone: null, modo: "SIMULADO", pausaBotHoras: PAUSA_BOT_HORAS_POR_DEFECTO };
+  return {
+    workspaceId, phoneNumberId: null, wabaId: null, displayPhone: null, modo: "SIMULADO", pausaBotHoras: PAUSA_BOT_HORAS_POR_DEFECTO,
+    igAccountId: null, igPageId: null, igUsuario: null, igActivo: false,
+  };
 }
 
 /** La conexión del workspace; sin fila, la simulada por omisión. */
@@ -54,6 +62,10 @@ export async function leerConexion(workspaceId: string): Promise<Conexion> {
     displayPhone: f.displayPhone,
     modo: (MODOS_CONEXION as readonly string[]).includes(f.modo) ? (f.modo as ModoConexion) : "SIMULADO",
     pausaBotHoras: f.pausaBotHoras ?? PAUSA_BOT_HORAS_POR_DEFECTO,
+    igAccountId: f.igAccountId ?? null,
+    igPageId: f.igPageId ?? null,
+    igUsuario: f.igUsuario ?? null,
+    igActivo: f.igActivo === true,
   };
 }
 

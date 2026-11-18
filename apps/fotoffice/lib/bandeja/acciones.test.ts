@@ -369,3 +369,30 @@ describe("vista previa del chat", () => {
     expect(chats()[0]).toMatchObject({ ultimoMensajeTexto: "Te paso el presupuesto", ultimoMensajeTipo: "TEXTO" });
   });
 });
+
+describe("responder en un chat de Instagram", () => {
+  it("le pasa el canal INSTAGRAM y el IGSID al envío", async () => {
+    const { id } = await chatNuevo({ canal: "INSTAGRAM", waId: "5550001" });
+    const enviar = vi.fn(async () => ({ ok: true as const, simulado: false as const, waMessageId: "m_1" }));
+    const r = await A.responder(ANA, id, "hola", "t-ig", { ahora: AHORA, enviar });
+    expect(r).toMatchObject({ ok: true, estadoEnvio: "ENVIADO" });
+    const [, destino, texto, deps, canal] = enviar.mock.calls[0] as unknown as [unknown, string, string, unknown, string];
+    expect([destino, texto, deps, canal]).toEqual(["5550001", "hola", {}, "INSTAGRAM"]);
+    expect(mensajes().find((m) => m.clientToken === "t-ig")).toMatchObject({ estadoEnvio: "ENVIADO", waMessageId: "m_1" });
+  });
+
+  it("Instagram sin conectar: el aviso habla de Instagram, no del token de WhatsApp", async () => {
+    const { id } = await chatNuevo({ canal: "INSTAGRAM", waId: "5550001" });
+    B.agregar("fotofficeWaConexion", { workspaceId: "w1", modo: "REAL", phoneNumberId: "123", igPageId: null, igActivo: false });
+    const r = await A.responder(ANA, id, "hola", "t-ig2", { ahora: AHORA });
+    expect(r).toEqual({ ok: false, error: "Instagram no está conectado: revisá la conexión en Configuración." });
+    expect(mensajes().at(-1)).toMatchObject({ estadoEnvio: "FALLO", errorCodigo: "SIN_PAGINA" });
+  });
+
+  it("un chat de WhatsApp sigue llamando al envío como siempre (sin canal: WhatsApp por omisión)", async () => {
+    const { id } = await chatNuevo();
+    const enviar = vi.fn(async () => ({ ok: true as const, simulado: true as const }));
+    await A.responder(ANA, id, "hola", "t-wa", { ahora: AHORA, enviar });
+    expect(enviar.mock.calls[0] as unknown as unknown[]).toHaveLength(3);
+  });
+});

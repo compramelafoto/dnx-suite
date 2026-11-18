@@ -70,3 +70,26 @@ describe("pasarAPersona", () => {
     expect(mensajes().find((m) => m.direccion === "SISTEMA")?.texto).toBe("El bot pasó el chat a una persona: presupuesto de boda");
   });
 });
+
+describe("enviarComoBot en Instagram", () => {
+  it("le pasa el canal del chat al envío y guarda el mid aunque el eco ya lo haya puesto", async () => {
+    const { chatId, ultimo } = await escenario({ canal: "INSTAGRAM", waId: "5550001" });
+    const enviar = vi.fn(async () => {
+      const m = mensajes().find((x) => x.autor === "BOT");
+      Object.assign(m!, { waMessageId: "m_eco" });
+      return { ok: true as const, simulado: false as const, waMessageId: "m_eco" };
+    });
+    expect(await enviarComoBot("w1", chatId, "¡Hola!", { ultimoMensajeId: ultimo }, { ahora: AHORA, enviar })).toBe("enviado");
+    const [, destino, , , canal] = enviar.mock.calls[0] as unknown as [unknown, string, string, unknown, string];
+    expect([destino, canal]).toEqual(["5550001", "INSTAGRAM"]);
+    expect(mensajes().find((m) => m.autor === "BOT")).toMatchObject({ estadoEnvio: "ENVIADO", waMessageId: "m_eco" });
+  });
+
+  it("si otra fila ya tiene ese mid, el mensaje del bot queda ENVIADO igual", async () => {
+    const { chatId, ultimo } = await escenario({ canal: "INSTAGRAM", waId: "5550001" });
+    await P.fotofficeWaMensaje.create({ data: { workspaceId: "w1", chatId, direccion: "SALIENTE", autor: "CELULAR", tipo: "TEXTO", texto: "x", estadoEnvio: "ENVIADO", waMessageId: "m_dup", createdAt: hace(5) } });
+    const enviar = vi.fn(async () => ({ ok: true as const, simulado: false as const, waMessageId: "m_dup" }));
+    expect(await enviarComoBot("w1", chatId, "¡Hola!", { ultimoMensajeId: ultimo }, { ahora: AHORA, enviar })).toBe("enviado");
+    expect(mensajes().find((m) => m.autor === "BOT")).toMatchObject({ estadoEnvio: "ENVIADO", waMessageId: null });
+  });
+});
