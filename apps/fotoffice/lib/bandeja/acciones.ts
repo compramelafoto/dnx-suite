@@ -306,7 +306,8 @@ export async function vincularCliente(ctx: CtxBandeja, chatId: string, clientId:
 /**
  * Crea la ficha del contacto con el teléfono del chat y la vincula. Pide además "Gestionar" en
  * Clientes: crear una ficha es una escritura del padrón. Si ya hay un cliente con ese teléfono se
- * vincula ése en lugar de duplicarlo.
+ * vincula ése en lugar de duplicarlo. En Instagram la ficha nace sin teléfono, con el nombre o el
+ * @usuario del perfil.
  */
 export async function crearContactoDesdeChat(ctx: CtxBandeja, chatId: string, nombre?: unknown): Promise<Resultado<{ clientId: string }>> {
   const userId = ctx.userId;
@@ -317,16 +318,19 @@ export async function crearContactoDesdeChat(ctx: CtxBandeja, chatId: string, no
       const chat = await chatBloqueado(tx, ctx.workspaceId, chatId);
       if (!chat) return no(MENSAJES_BANDEJA.noExiste);
       if (chat.clientId) return no(MENSAJES_BANDEJA.yaVinculado);
-      // En Instagram `waId` es el IGSID, no un teléfono: no se usa para buscar ni crear la ficha.
-      if (chat.canal === "INSTAGRAM") return no(MENSAJES_BANDEJA.contactoInstagram);
-      let clientId = await clienteDelTelefono(ctx.workspaceId, chat.waId, tx);
+      // En Instagram `waId` es el IGSID, no un teléfono (§5.7): no se busca ficha por él y la nueva
+      // nace sin teléfono. Sin teléfono, correo ni documento, `findOrCreateClient` siempre crea una
+      // ficha nueva: nunca vincula a un cliente existente por casualidad.
+      const instagram = chat.canal === "INSTAGRAM";
+      let clientId = instagram ? null : await clienteDelTelefono(ctx.workspaceId, chat.waId, tx);
       if (!clientId) {
-        const completo = (typeof nombre === "string" ? nombre.trim() : "") || chat.nombre?.trim() || "Contacto de WhatsApp";
+        const porOmision = instagram ? (chat.usuarioInstagram ? `@${chat.usuarioInstagram}` : "Contacto de Instagram") : "Contacto de WhatsApp";
+        const completo = (typeof nombre === "string" ? nombre.trim() : "") || chat.nombre?.trim() || porOmision;
         const [primero, ...resto] = truncarSeguro(completo, 120, false).split(/\s+/);
         const creado = await findOrCreateClient(
           tx,
           {
-            workspaceId: ctx.workspaceId, phone: chat.waId, firstName: primero ?? completo, lastName: resto.join(" ") || null,
+            workspaceId: ctx.workspaceId, phone: instagram ? null : chat.waId, firstName: primero ?? completo, lastName: resto.join(" ") || null,
             createdByUserId: userId,
           },
           { userId, label: ctx.userLabel },

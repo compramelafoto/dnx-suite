@@ -31,7 +31,6 @@ export const MENSAJES_BANDEJA = {
     "Pasaron más de 24 horas desde el último mensaje del cliente: Instagram no deja responder hasta que vuelva a escribir.",
   cliente: "No encontramos ese cliente.",
   yaVinculado: "Este chat ya tiene un cliente vinculado.",
-  contactoInstagram: "Un chat de Instagram no trae teléfono: buscá el cliente y vinculalo, o creá la ficha desde Clientes.",
   sinPermisoClientes: "Para crear un cliente necesitás permiso de gestión en Clientes.",
   sinToken: "Falta el token de WhatsApp en Configuración → WhatsApp.",
   clienteDistinto: "Este chat ya está vinculado a otro cliente.",

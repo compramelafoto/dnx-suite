@@ -155,10 +155,10 @@ export function PanelDelCliente({
               </ul>
             )
           ) : null}
-          {instagram ? null : puedeCrearContacto ? (
+          {puedeCrearContacto ? (
           <div>
               <button type="button" className="fo-btn fo-btn-ghost text-sm" disabled={ocupado} onClick={() => correr(() => crearContactoDesdeChatAction(chatId, nombrePerfil ?? undefined))}>
-                Crear contacto con este número
+                {instagram ? "Crear ficha" : "Crear contacto con este número"}
               </button>
             </div>
           ) : null}

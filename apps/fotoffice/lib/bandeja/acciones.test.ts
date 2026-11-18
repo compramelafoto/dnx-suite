@@ -245,12 +245,22 @@ describe("vincular y crear contacto", () => {
     expect(B.datos.client).toHaveLength(1);
   });
 
-  it("un chat de Instagram no crea la ficha con el IGSID como teléfono", async () => {
-    const { id } = await chatNuevo({ canal: "INSTAGRAM", waId: "3413419869", usuarioInstagram: "lu" });
+  it("un chat de Instagram crea la ficha sin teléfono y nunca vincula por el IGSID", async () => {
+    const { id } = await chatNuevo({ canal: "INSTAGRAM", waId: "3413419869", nombre: "Lu Pérez", usuarioInstagram: "lu" });
     B.agregar("client", { id: "viejo", workspaceId: "w1", firstName: "Lu", phone: "341 341-9869" });
-    expect(await A.crearContactoDesdeChat(ANA, id)).toMatchObject({ ok: false, error: expect.stringContaining("Instagram") });
-    expect(B.datos.client).toHaveLength(1);
-    expect(chats()[0].clientId).toBeNull();
+    B.agregar("client", { id: "sinTel", workspaceId: "w1", firstName: "Lu", lastName: "Pérez", phone: null });
+    const r = await A.crearContactoDesdeChat(ANA, id);
+    expect(r).toMatchObject({ ok: true });
+    const clientId = (r as { clientId: string }).clientId;
+    expect(["viejo", "sinTel"]).not.toContain(clientId);
+    expect(B.datos.client.find((c) => c.id === clientId)).toMatchObject({ phone: null, firstName: "Lu", lastName: "Pérez" });
+    expect(chats()[0].clientId).toBe(clientId);
+  });
+
+  it("sin nombre de perfil, la ficha de Instagram se llama @usuario", async () => {
+    const { id } = await chatNuevo({ canal: "INSTAGRAM", waId: "17841400000001", usuarioInstagram: "sofi.rodriguez" });
+    const r = await A.crearContactoDesdeChat(ANA, id);
+    expect(B.datos.client.find((c) => c.id === (r as { clientId: string }).clientId)).toMatchObject({ phone: null, firstName: "@sofi.rodriguez" });
   });
 
   it("crear la ficha exige también Gestionar en Clientes", async () => {
