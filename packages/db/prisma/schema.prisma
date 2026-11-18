@@ -22655,6 +22655,8 @@ model DigitalizacionGrabacion {
   estado             String    @default("GRABANDO")
   /// MANUAL | SIN_SENAL | TOPE | DVD_COMPLETO | TERMINADA_CON_LO_GRABADO
   motivoFin          String?
+  /// Cassette que no se pudo digitalizar: lo que se le descontó al pedido (pesos). null = nada.
+  bonificacionArs    Decimal?  @db.Decimal(12, 2)
   mimeType           String
   /// ALTA | MEDIA | BAJA (null en DVD)
   calidad            String?
@@ -22752,6 +22754,9 @@ model DigitalizacionAjustes {
   envioAutomatico Boolean @default(true)
   /// Franjas de envío de cassettes: [{ hastaKm, precioArs }] ordenadas por km. null = a coordinar.
   enviosFranjas   Json?
+  /// Lo que se cobra por un cassette que no se pudo digitalizar (pesos). null = se cobra completo.
+  /// Migración a mano: 20270213090000_fotoffice_digitalizacion_precio_no_digitalizable.
+  precioNoDigitalizableArs Decimal? @db.Decimal(12, 2)
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 }

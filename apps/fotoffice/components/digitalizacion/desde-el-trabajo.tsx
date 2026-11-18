@@ -94,6 +94,8 @@ type GrabacionDelTrabajo = {
   ultimoLatidoAt: Date | null; sinImagen: boolean; mimeType: string; conversionEstado: string | null; conversionError: string | null;
   videoDuracionSeg: number | null; partesBorradasAt: Date | null; hlsKey: string | null; videoBorradoAt: Date | null; descargasExtra: number;
   motivoFin: string | null;
+  /** Lo que se descontó del pedido si no se pudo digitalizar (Decimal de Prisma). */
+  bonificacionArs?: { toString(): string } | null;
 };
 
 /** La sección «Digitalización» de la ficha del trabajo. */

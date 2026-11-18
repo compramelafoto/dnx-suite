@@ -3,13 +3,16 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { quitarNoDigitalizableAction, registrarNoDigitalizableAction } from "@/app/(shell)/digitalizacion/actions";
+import { guardarPrecioNoDigitalizableAction, quitarNoDigitalizableAction, registrarNoDigitalizableAction } from "@/app/(shell)/digitalizacion/actions";
+import { InputMoneda } from "@/components/campos/input-moneda";
 import { MAX_MOTIVO_OTRO, MOTIVOS_NO_DIGITALIZABLE, type MotivoNoDigitalizable } from "@/lib/digitalizacion/no-digitalizable";
 
 /**
  * «Registrar cassette que no se pudo digitalizar» de la ficha del trabajo: el número (por defecto,
  * el siguiente), el tipo y el motivo. Queda como un cassette hecho, así el pedido se puede completar
- * (18 grabados + 2 que no se pudieron de 20 vendidos). El servidor vuelve a validar todo.
+ * (18 grabados + 2 que no se pudieron de 20 vendidos). El servidor vuelve a validar todo. Si el
+ * negocio configuró el precio de un cassette que no funcionó, el servidor descuenta la diferencia
+ * del pedido y el aviso queda a la vista junto al botón.
  */
 export function RegistrarNoDigitalizable({ proyectoId, siguiente, tipo: tipoInicial }: { proyectoId: string; siguiente: number; tipo: "VHS" | "DVD" }) {
   const [abierto, setAbierto] = useState(false);
@@ -18,14 +21,18 @@ export function RegistrarNoDigitalizable({ proyectoId, siguiente, tipo: tipoInic
   const [motivo, setMotivo] = useState<MotivoNoDigitalizable>("CORTADA");
   const [otro, setOtro] = useState("");
   const [aviso, setAviso] = useState<string | null>(null);
+  const [hecho, setHecho] = useState<string | null>(null);
   const [pendiente, empezar] = useTransition();
   const router = useRouter();
 
   if (!abierto) {
     return (
-      <button type="button" className="fo-btn fo-btn-secondary text-xs" onClick={() => { setNumero(String(siguiente)); setAviso(null); setAbierto(true); }}>
-        Registrar cassette que no se pudo digitalizar
-      </button>
+      <span className="inline-flex flex-wrap items-center gap-2 text-sm">
+        <button type="button" className="fo-btn fo-btn-secondary text-xs" onClick={() => { setNumero(String(siguiente)); setAviso(null); setHecho(null); setAbierto(true); }}>
+          Registrar cassette que no se pudo digitalizar
+        </button>
+        {hecho ? <span role="status" className="text-gray-700">{hecho}</span> : null}
+      </span>
     );
   }
 
@@ -37,6 +44,7 @@ export function RegistrarNoDigitalizable({ proyectoId, siguiente, tipo: tipoInic
       if (motivo === "OTRO" && !otro.trim()) { setAviso("Escribí el motivo."); return; }
       const r = await registrarNoDigitalizableAction({ proyectoId, tipo, cassetteNumero: n, motivo, otro: motivo === "OTRO" ? otro : undefined });
       if (!r.ok) { setAviso(r.error); return; }
+      setHecho("aviso" in r && r.aviso ? r.aviso : null);
       setAbierto(false);
       setOtro("");
       router.refresh();
@@ -97,10 +105,11 @@ export function QuitarNoDigitalizable({ id }: { id: string }) {
         className="fo-btn fo-btn-secondary text-xs"
         disabled={pendiente}
         onClick={() => {
-          if (!window.confirm("¿Quitar este cassette? Deja de contar como hecho.")) return;
+          if (!window.confirm("¿Quitar este cassette? Deja de contar como hecho y, si se había descontado algo del pedido, vuelve a sumarse.")) return;
           empezar(async () => {
             const r = await quitarNoDigitalizableAction(id);
             if (!r.ok) { setAviso(r.error); return; }
+            if ("aviso" in r && r.aviso) window.alert(r.aviso);
             router.refresh();
           });
         }}
@@ -109,5 +118,42 @@ export function QuitarNoDigitalizable({ id }: { id: string }) {
       </button>
       {aviso ? <span className="text-gray-600">{aviso}</span> : null}
     </span>
+  );
+}
+
+/**
+ * Configuración: cuánto se cobra por un cassette que no se pudo digitalizar. Vacío = se cobra
+ * completo (no se descuenta nada). Al registrar uno, el pedido baja la diferencia sola.
+ */
+export function AjustePrecioNoDigitalizable({ precio }: { precio: number | null }) {
+  const [valor, setValor] = useState(precio === null ? "" : String(precio));
+  const [aviso, setAviso] = useState<string | null>(null);
+  const [pendiente, empezar] = useTransition();
+  const router = useRouter();
+  const guardar = () =>
+    empezar(async () => {
+      const r = await guardarPrecioNoDigitalizableAction(valor);
+      if (!r.ok) { setAviso(r.error); return; }
+      setValor(r.precio === null ? "" : String(r.precio));
+      setAviso("Guardado.");
+      router.refresh();
+    });
+  return (
+    <div className="space-y-1 text-sm">
+      <p className="font-medium">Cassette que no se pudo digitalizar</p>
+      <p className="text-xs text-gray-600">
+        Lo que se cobra por un cassette que no funcionó (cinta cortada, vacía, mojada…). Al registrarlo, el pedido baja solo la diferencia
+        con el precio del cassette. Vacío: se cobra completo.
+      </p>
+      <div className="flex flex-wrap items-center gap-2">
+        <label className="flex items-center gap-2">
+          Se cobra
+          <InputMoneda envio="punto" decimales value={valor} onChange={setValor} className="w-28 rounded border p-1" aria-label="Precio de un cassette que no se pudo digitalizar" />
+          pesos
+        </label>
+        <button type="button" className="fo-btn fo-btn-primary text-xs" disabled={pendiente} onClick={guardar}>Guardar</button>
+        {aviso ? <span>{aviso}</span> : null}
+      </div>
+    </div>
   );
 }

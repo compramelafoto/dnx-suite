@@ -112,3 +112,13 @@ describe("vencimiento extendido", () => {
     expect(vencimientoExtendido(null, AHORA).toISOString()).toBe("2026-11-22T02:59:59.999Z");
   });
 });
+
+describe("precioUnitarioDelTrabajo con cassettes que no se pudieron digitalizar", () => {
+  it("suma de vuelta lo descontado: la descarga extra se cobra sobre el precio completo", () => {
+    const items = [{ id: "m1", cantidad: 3, precioUnitario: 12000 }];
+    // 3 × 12.000 = 36.000, con 10.000 descontados por un cassette que no funcionó: neto 26.000.
+    const a = { items, renglones: { m1: { neto: 26000 } }, pedidoItemIndex: 0, totalOriginal: 26000, videosListos: 2 };
+    expect(precioUnitarioDelTrabajo({ ...a, bonificacionesArs: 10000 })).toEqual({ precio: 12000, origen: "ITEM" });
+    expect(precioUnitarioDelTrabajo(a).precio).toBeCloseTo(8666.67, 2);
+  });
+});

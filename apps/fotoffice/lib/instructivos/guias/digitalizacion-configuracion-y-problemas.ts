@@ -17,6 +17,7 @@ export const guia: Instructivo = {
         "• «Cortar tras … minutos sin imagen»: cuánto espera con la pantalla azul o negra antes de cortar sola la grabación. Viene en 5; se puede poner de 1 a 30. Tocá «Guardar».",
         "• «Enviar al cliente automáticamente al terminar»: si está tildado, los pedidos nuevos mandan los videos solos cuando están todos los cassettes. En cada pedido se puede cambiar con «Enviar automáticamente».",
         "• «Envío de cassettes a domicilio»: las franjas de precio según la distancia desde el estudio. Cada franja es «Hasta … km cuesta … pesos». Tocá «Agregar franja» para sumar una, «Quitar» para borrarla y «Guardar» al final.",
+        "• «Cassette que no se pudo digitalizar»: cuánto se cobra por un cassette que no funcionó (cinta cortada, vacía, mojada o que la casetera no lee). En DNX son 2.000 pesos. Al registrar uno, el pedido baja solo la diferencia con el precio del cassette. Si lo dejás vacío, se cobra completo. Tocá «Guardar».",
       ],
       nota: "Si el cliente vive más lejos que la última franja, o no hay franjas cargadas, el envío queda «A coordinar» y hay que escribirle. Una franja de 0 pesos es envío sin cargo.",
     },

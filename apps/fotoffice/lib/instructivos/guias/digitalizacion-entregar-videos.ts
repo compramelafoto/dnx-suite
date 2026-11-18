@@ -42,11 +42,15 @@ export const guia: Instructivo = {
         "En la ficha del trabajo, en la tarjeta «Digitalización», tocá «Registrar cassette que no se pudo digitalizar».",
         "Elegí el «Tipo» (VHS o DVD), el «N.°» de cassette (viene el siguiente) y el «Motivo»: «Cinta cortada», «Cinta vacía (sin grabación)», «Cinta mojada u hongos», «La casetera no la lee» u «Otro» (y escribilo). Tocá «Registrar».",
         "Ejemplo: se vendieron 20 cassettes, se grabaron 18 y 2 no se pudieron. Con esos 2 registrados, el pedido cuenta 20 de 20 y sigue solo.",
-        "Si lo registraste por error, tocá «Quitar»: deja de contar como hecho.",
+        "Si lo registraste por error, tocá «Quitar»: deja de contar como hecho y, si se había descontado algo del pedido, vuelve a sumarse (como una cuota nueva que vence hoy).",
+        "Un cassette que no funcionó no se cobra completo: se cobra lo que diga Digitalización → «Configuración» → «Cassette que no se pudo digitalizar» (en DNX, 2.000 pesos). Al tocar «Registrar», el pedido baja solo la diferencia. Ejemplo: el cassette vale 12.000 pesos y se cobra 2.000: el pedido baja 10.000.",
+        "Si el cliente ya pagó todo, el sistema no toca lo cobrado: te avisa y deja una tarea en el pedido para que le devuelvas la diferencia o ajustes el plan a mano.",
       ],
       sistema: [
         "Queda como un cassette hecho: cuenta para completar el pedido.",
         "El cliente lo ve en su página y en el correo, por ejemplo «Cassette 7: no se pudo digitalizar (Cinta cortada)».",
+        "El descuento se ve en el renglón de los cassettes del pedido, sale del saldo pendiente (de la última cuota hacia atrás) y queda una nota en el trabajo. En la ficha se lee «Cassette 7 · No se pudo digitalizar: Cinta cortada · descuento de 10.000 pesos en el pedido».",
+        "Si el campo de precio está vacío, se cobra completo, como antes.",
       ],
     },
     {

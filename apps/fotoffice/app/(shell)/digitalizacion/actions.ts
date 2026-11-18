@@ -148,6 +148,15 @@ export async function reintentarConversionAction(grabacionId: string) {
   return r;
 }
 
+/** Configuración: precio de un cassette que no se pudo digitalizar (vacío = se cobra completo). */
+export async function guardarPrecioNoDigitalizableAction(valor: unknown) {
+  const ctx = await contextoDigitalizacion("MANAGE");
+  if (!ctx) return SIN_PERMISO;
+  const r = await G.guardarPrecioNoDigitalizable(ctx, valor);
+  refrescar();
+  return r;
+}
+
 // --- Entrega de los videos (spec 2026-10-22) ---------------------------------------------------
 
 export async function guardarAjustesEntregaAction(envioAutomatico: unknown, franjas: unknown) {
