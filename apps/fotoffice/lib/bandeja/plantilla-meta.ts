@@ -1,6 +1,7 @@
 import "server-only";
 import { leerTokenWhatsapp } from "@/lib/integrations/whatsapp/credentials";
 import type { Conexion } from "./conexion";
+import type { Canal } from "./constantes";
 import { destinoParaMeta, type DepsEnvio, type ResultadoEnvio } from "./envio";
 
 /**
@@ -25,7 +26,10 @@ export async function enviarPlantilla(
   waId: string,
   p: Plantilla,
   deps: DepsEnvio = {},
+  /** Instagram no tiene plantillas: con un chat de Instagram no se llama a Meta y el llamador lo trata como omitido. */
+  canal: Canal = "WHATSAPP",
 ): Promise<ResultadoEnvio> {
+  if (canal === "INSTAGRAM") return { ok: false, codigo: "SIN_PLANTILLAS_INSTAGRAM" };
   if (conexion.modo !== "REAL") return { ok: true, simulado: true };
   if (!conexion.phoneNumberId) return { ok: false, codigo: "SIN_NUMERO" };
   const token = await (deps.leerToken ?? leerTokenWhatsapp)(conexion.workspaceId).catch(() => null);

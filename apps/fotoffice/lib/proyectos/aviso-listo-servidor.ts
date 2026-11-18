@@ -112,7 +112,7 @@ export async function avisarListoParaRetirar(
 /** El WhatsApp del cliente: el de su chat en la Bandeja (el más reciente) o, si no hay, el de su teléfono. */
 async function whatsappDelCliente(workspaceId: string, clientId: string | null, telefono: string | null): Promise<string | null> {
   if (clientId) {
-    const chat = await prisma.fotofficeWaChat.findFirst({ where: { workspaceId, clientId }, orderBy: { ultimoMensajeEn: "desc" }, select: { waId: true } });
+    const chat = await prisma.fotofficeWaChat.findFirst({ where: { workspaceId, clientId, canal: "WHATSAPP" }, orderBy: { ultimoMensajeEn: "desc" }, select: { waId: true } });
     if (chat) return chat.waId;
   }
   return waIdDe(telefono);
@@ -127,7 +127,7 @@ async function avisarPorWhatsapp(workspaceId: string, waId: string, d: DatosList
     const conexion = await leerConexion(workspaceId);
     if (conexion.modo !== "REAL") return false;
     const ahora = new Date();
-    const chat = await prisma.fotofficeWaChat.findFirst({ where: { workspaceId, waId }, select: { id: true, ultimoEntranteEn: true } });
+    const chat = await prisma.fotofficeWaChat.findFirst({ where: { workspaceId, canal: "WHATSAPP", waId }, select: { id: true, ultimoEntranteEn: true } });
     if (chat && puedeResponderLibre(chat, ahora)) {
       const r = await enviarAvisoPorWhatsapp(workspaceId, waId, textoListoWhatsapp(d), { ahora, autor: "Aviso de pedido listo" });
       if (r === "ENVIADO") return true;

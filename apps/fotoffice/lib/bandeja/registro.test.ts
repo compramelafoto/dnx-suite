@@ -6,10 +6,13 @@ const B = await vi.hoisted(async () => {
   return crearBaseEnMemoria();
 });
 vi.mock("@repo/db", () => ({ prisma: B.prisma }));
+const perfil = vi.hoisted(() => ({ fn: vi.fn(async () => ({ nombre: "Lucía Gómez" as string | null, usuario: "luciag" as string | null })) }));
+vi.mock("./instagram/perfil", () => ({ perfilInstagram: perfil.fn }));
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- la base en memoria tipa el cliente como mapa suelto
 const P = B.prisma as Record<string, any>;
 
 const { aplicarEventos, clienteDelTelefono } = await import("./registro");
+const { META_APP_ID } = await import("./coexistencia");
 
 const AHORA = new Date("2026-10-09T15:00:00.000Z");
 const min = (n: number) => new Date(AHORA.getTime() + n * 60_000);
@@ -474,5 +477,199 @@ describe("chats para el bot (etapa 3a)", () => {
   it("un mensaje repetido no se marca dos veces", async () => {
     await aplicarEventos([entrante()], AHORA);
     expect((await aplicarEventos([entrante()], AHORA)).paraElBot).toEqual([]);
+  });
+});
+
+describe("mismo waId en dos canales", () => {
+  it("un entrante de WhatsApp con los mismos dígitos que un IGSID crea otro chat y la búsqueda por teléfono no ve el de Instagram", async () => {
+    await P.fotofficeWaChat.create({
+      data: { workspaceId: WS, canal: "INSTAGRAM", waId: WA, usuarioInstagram: "lucia", ultimoMensajeEn: min(-5), ultimoEntranteEn: min(-5) },
+    });
+    const { estadoWhatsappDe } = await import("./aviso-sistema");
+    // Sólo existe el chat de Instagram: para WhatsApp no hay ventana abierta.
+    expect((await estadoWhatsappDe(WS, WA, AHORA)).ventanaAbierta).toBe(false);
+
+    await aplicarEventos([entrante()], AHORA);
+    expect(chats()).toHaveLength(2);
+    const ig = chats().find((c) => c.canal === "INSTAGRAM");
+    const wa = chats().find((c) => c.canal === "WHATSAPP");
+    expect(ig).toMatchObject({ waId: WA, usuarioInstagram: "lucia", noLeidos: 0 });
+    expect(wa).toMatchObject({ waId: WA, noLeidos: 1 });
+    expect(mensajes()).toHaveLength(1);
+    expect(mensajes()[0].chatId).toBe(wa?.id);
+  });
+});
+
+describe("Instagram", () => {
+  const IG = "17841400000000001";
+  const IGSID = "5550001";
+  const igEntrante = (p: Partial<Extract<EventoWa, { tipo: "ENTRANTE" }>> = {}): EventoWa =>
+    entrante({ canal: "INSTAGRAM", phoneNumberId: IG, waId: IGSID, nombre: null, waMessageId: "m_1", ...p });
+  const igEco = (p: Partial<Extract<EventoWa, { tipo: "ECO" }>> = {}): EventoWa =>
+    eco({ canal: "INSTAGRAM", phoneNumberId: IG, waId: IGSID, waMessageId: "m_eco1", ...p });
+  const conectar = (extra: Record<string, unknown> = {}) => Object.assign(B.datos.fotofficeWaConexion[0], { igAccountId: IG, igPageId: "pg1", igActivo: true, ...extra });
+
+  beforeEach(() => {
+    conectar();
+    perfil.fn.mockClear();
+    perfil.fn.mockImplementation(async () => ({ nombre: "Lucía Gómez", usuario: "luciag" }));
+  });
+
+  /** Chat de Instagram con una respuesta del bot que todavía no guardó su `mid`. */
+  async function conRespuestaDelBot(texto: string, hace: number, extra: Record<string, unknown> = {}) {
+    await aplicarEventos([igEntrante({ en: min(-5) })], AHORA);
+    const chat = chats()[0];
+    await P.fotofficeWaMensaje.create({
+      data: {
+        workspaceId: WS, chatId: chat.id, direccion: "SALIENTE", autor: "BOT", estadoEnvio: "PENDIENTE",
+        tipo: "TEXTO", texto, waMessageId: null, createdAt: new Date(AHORA.getTime() - hace * 1000), ...extra,
+      },
+    });
+    return chat;
+  }
+
+  it("un entrante crea el chat de Instagram con el perfil y sin buscar cliente por teléfono", async () => {
+    await P.client.create({ data: { id: "c1", workspaceId: WS, phone: "555-0001" } });
+    B.sql.length = 0;
+    const r = await aplicarEventos([igEntrante()], AHORA);
+    expect(r).toMatchObject({ aplicados: 1, ignorados: 0, paraElBot: [chats()[0].id] });
+    expect(chats()[0]).toMatchObject({ workspaceId: WS, canal: "INSTAGRAM", waId: IGSID, clientId: null, nombre: "Lucía Gómez", usuarioInstagram: "luciag", noLeidos: 1 });
+    expect(perfil.fn).toHaveBeenCalledWith(WS, IGSID);
+    expect(B.sql.some((q: { texto: string }) => q.texto.includes("clientes-por-telefono"))).toBe(false);
+    // El segundo mensaje no vuelve a pedir el perfil ni busca por teléfono.
+    await aplicarEventos([igEntrante({ waMessageId: "m_2" })], AHORA);
+    expect(perfil.fn).toHaveBeenCalledTimes(1);
+    expect(B.sql.some((q: { texto: string }) => q.texto.includes("clientes-por-telefono"))).toBe(false);
+    expect(chats()[0]).toMatchObject({ clientId: null, nombre: "Lucía Gómez", noLeidos: 2 });
+  });
+
+  it("perfil sin nombre usa @usuario; perfil que falla no frena el registro", async () => {
+    perfil.fn.mockImplementation(async () => ({ nombre: null, usuario: "luciag" }));
+    await aplicarEventos([igEntrante()], AHORA);
+    expect(chats()[0]).toMatchObject({ nombre: "@luciag", usuarioInstagram: "luciag" });
+
+    B.datos.fotofficeWaChat.length = 0;
+    B.datos.fotofficeWaMensaje.length = 0;
+    perfil.fn.mockImplementation(async () => { throw new Error("Graph caído"); });
+    const r = await aplicarEventos([igEntrante({ waMessageId: "m_9" })], AHORA);
+    expect(r).toMatchObject({ aplicados: 1, fallidos: 0 });
+    expect(chats()[0]).toMatchObject({ canal: "INSTAGRAM", nombre: null, usuarioInstagram: null });
+  });
+
+  it("eco propio sin mid todavía: le asigna el mid a la respuesta del bot, no crea mensaje y no pausa al bot", async () => {
+    const chat = await conRespuestaDelBot("¡Hola! ¿Para qué fecha?", 30);
+    const r = await aplicarEventos([igEco({ texto: "¡Hola! ¿Para qué fecha?" })], AHORA);
+    expect(r).toMatchObject({ aplicados: 0, duplicados: 1 });
+    expect(mensajes()).toHaveLength(2);
+    expect(mensajes()[1]).toMatchObject({ autor: "BOT", waMessageId: "m_eco1" });
+    expect(mensajes().some((m) => m.autor === "CELULAR")).toBe(false);
+    expect(chats()[0]).toMatchObject({ id: chat.id, estado: "BOT", botPausadoHasta: null });
+    // Reintento de Meta del mismo eco: duplicado por waMessageId.
+    expect(await aplicarEventos([igEco({ texto: "¡Hola! ¿Para qué fecha?" })], AHORA)).toMatchObject({ duplicados: 1 });
+    expect(mensajes()).toHaveLength(2);
+  });
+
+  it("respuesta larga del bot partida en 3: sus 3 ecos no crean CELULAR ni pausan al bot", async () => {
+    const { partirPorBytes } = await import("./instagram/partir");
+    let texto = "";
+    while (Buffer.byteLength(texto) < 2500) texto += "foto 📸 casamiento ";
+    texto = texto.trim();
+    const partes = partirPorBytes(texto);
+    expect(partes).toHaveLength(3);
+    const chat = await conRespuestaDelBot(texto, 20);
+    for (const [i, parte] of partes.entries()) {
+      expect(await aplicarEventos([igEco({ waMessageId: `m_p${i + 1}`, texto: parte })], AHORA)).toMatchObject({ aplicados: 0, duplicados: 1 });
+    }
+    expect(mensajes()).toHaveLength(2);
+    expect(mensajes().some((m) => m.autor === "CELULAR")).toBe(false);
+    // El mid sólo se asigna si la fila no tenía: queda el del primer eco.
+    expect(mensajes()[1]).toMatchObject({ autor: "BOT", waMessageId: "m_p1" });
+    expect(chats()[0]).toMatchObject({ id: chat.id, estado: "BOT", botPausadoHasta: null });
+  });
+
+  it("ecos recortados (sin el espacio final de cada parte, o del texto completo) también son propios", async () => {
+    const { partirPorBytes } = await import("./instagram/partir");
+    let texto = "";
+    while (Buffer.byteLength(texto) < 2500) texto += "foto 📸 casamiento ";
+    const partes = partirPorBytes(texto.trim());
+    expect(partes.slice(0, -1).every((p) => /\s$/.test(p))).toBe(true);
+    await conRespuestaDelBot(texto.trim(), 20);
+    for (const [i, parte] of partes.entries()) {
+      expect(await aplicarEventos([igEco({ waMessageId: `m_r${i + 1}`, texto: parte.trim() })], AHORA)).toMatchObject({ aplicados: 0, duplicados: 1 });
+    }
+    expect(mensajes().some((m) => m.autor === "CELULAR")).toBe(false);
+    expect(chats()[0]).toMatchObject({ estado: "BOT", botPausadoHasta: null });
+
+    // Texto corto guardado con espacios al final: el eco recortado igual es propio.
+    B.datos.fotofficeWaChat.length = 0;
+    B.datos.fotofficeWaMensaje.length = 0;
+    await conRespuestaDelBot("listo  \n", 10);
+    expect(await aplicarEventos([igEco({ waMessageId: "m_corto", texto: "listo" })], AHORA)).toMatchObject({ duplicados: 1 });
+    expect(mensajes()[1]).toMatchObject({ autor: "BOT", waMessageId: "m_corto" });
+  });
+
+  it("un eco corto igual a una respuesta que ya tiene su mid sigue siendo ajeno", async () => {
+    await conRespuestaDelBot("listo", 10, { estadoEnvio: "ENVIADO", waMessageId: "m_ya" });
+    expect(await aplicarEventos([igEco({ texto: "listo" })], AHORA)).toMatchObject({ aplicados: 1 });
+    expect(mensajes().some((m) => m.autor === "CELULAR")).toBe(true);
+  });
+
+  it("eco propio también si el envío ya quedó ENVIADO sin mid", async () => {
+    await conRespuestaDelBot("listo", 10, { estadoEnvio: "ENVIADO" });
+    expect(await aplicarEventos([igEco({ texto: "listo" })], AHORA)).toMatchObject({ duplicados: 1 });
+    expect(mensajes()[1].waMessageId).toBe("m_eco1");
+  });
+
+  it("eco con media.appId igual a META_APP_ID (el de coexistencia.ts): propio", async () => {
+    await aplicarEventos([igEntrante({ en: min(-5) })], AHORA);
+    const r = await aplicarEventos([igEco({ texto: "otro texto", media: { appId: META_APP_ID } })], AHORA);
+    expect(r).toMatchObject({ aplicados: 0, duplicados: 1 });
+    expect(mensajes()).toHaveLength(1);
+    expect(chats()[0]).toMatchObject({ estado: "BOT", botPausadoHasta: null });
+  });
+
+  it("eco ajeno: autor CELULAR y pausa al bot (como WhatsApp)", async () => {
+    // Texto distinto, respuesta vieja (más de MINUTOS_PENDIENTE_INCIERTO) y otra app: nada lo hace propio.
+    await conRespuestaDelBot("ya te contesto", 30);
+    await P.fotofficeWaMensaje.create({
+      data: { workspaceId: WS, chatId: chats()[0].id, direccion: "SALIENTE", autor: "BOT", estadoEnvio: "PENDIENTE", tipo: "TEXTO", texto: "te escribo desde el celu", waMessageId: null, createdAt: min(-10) },
+    });
+    const r = await aplicarEventos([igEco({ texto: "te escribo desde el celu", media: { appId: "999" } })], AHORA);
+    expect(r).toMatchObject({ aplicados: 1, duplicados: 0 });
+    const celular = mensajes().find((m) => m.autor === "CELULAR");
+    expect(celular).toMatchObject({ direccion: "SALIENTE", waMessageId: "m_eco1" });
+    expect(chats()[0].botPausadoHasta).not.toBeNull();
+    expect(mensajes().filter((m) => m.autor === "BOT").every((m) => m.waMessageId === null)).toBe(true);
+  });
+
+  it("un eco de WhatsApp con el mismo texto que una respuesta pendiente sigue siendo del celular", async () => {
+    await aplicarEventos([entrante({ en: min(-5) })], AHORA);
+    await P.fotofficeWaMensaje.create({
+      data: { workspaceId: WS, chatId: chats()[0].id, direccion: "SALIENTE", autor: "BOT", estadoEnvio: "PENDIENTE", tipo: "TEXTO", texto: "ya te contesto", waMessageId: null, createdAt: new Date(AHORA.getTime() - 30_000) },
+    });
+    const r = await aplicarEventos([eco({ texto: "ya te contesto" })], AHORA);
+    expect(r).toMatchObject({ aplicados: 1 });
+    expect(mensajes().some((m) => m.autor === "CELULAR")).toBe(true);
+  });
+
+  it("cuenta desconocida: igAccountId sin conexión, SIMULADA o apagada → ignorado", async () => {
+    expect(await aplicarEventos([igEntrante({ phoneNumberId: "999" })], AHORA)).toMatchObject({ ignorados: 1, aplicados: 0 });
+    conectar({ modo: "SIMULADO" });
+    expect(await aplicarEventos([igEntrante()], AHORA)).toMatchObject({ ignorados: 1, aplicados: 0 });
+    conectar({ modo: "REAL", igActivo: false });
+    expect(await aplicarEventos([igEntrante()], AHORA)).toMatchObject({ ignorados: 1, aplicados: 0 });
+    expect(chats()).toHaveLength(0);
+  });
+
+  it("el id de la cuenta de Instagram no se confunde con un phoneNumberId", async () => {
+    // Un evento de WhatsApp cuyo phoneNumberId coincide con el igAccountId no encuentra la conexión.
+    expect(await aplicarEventos([entrante({ phoneNumberId: IG })], AHORA)).toMatchObject({ ignorados: 1 });
+    // Y en el mismo lote, Instagram sí (no se mezcla la memoria de conexiones).
+    expect(await aplicarEventos([entrante({ phoneNumberId: IG }), igEntrante()], AHORA)).toMatchObject({ ignorados: 1, aplicados: 1 });
+  });
+
+  it("una foto del cliente por Instagram entra en medios", async () => {
+    const r = await aplicarEventos([igEntrante({ mensajeTipo: "IMAGEN", texto: null, media: { url: "https://scontent.cdninstagram.com/x.jpg" } })], AHORA);
+    expect(r.medios).toEqual([mensajes()[0].id]);
   });
 });

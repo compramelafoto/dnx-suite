@@ -200,7 +200,7 @@ export default async function ConfiguracionTelegramPage() {
                     {p.categoria ? ` · ${p.categoria}` : ""}
                   </p>
                   <p className="text-xs text-[var(--fo-muted)]">
-                    {fecha.format(p.creada)} · {p.origen === "WHATSAPP" ? "WhatsApp" : "Web"} · {ESTADOS[p.status] ?? p.status}
+                    {fecha.format(p.creada)} · {p.origen === "WHATSAPP" ? "WhatsApp" : p.origen === "INSTAGRAM" ? "Instagram" : "Web"} · {ESTADOS[p.status] ?? p.status}
                     {p.errorCode === "SIN_CANAL" ? " · no dejó correo y no se le puede escribir por WhatsApp" : ""}
                   </p>
                   {p.precios.length > 0 ? (

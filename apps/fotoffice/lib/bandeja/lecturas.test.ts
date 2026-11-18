@@ -285,3 +285,49 @@ describe("truncarSeguro", () => {
     expect(r.endsWith("…")).toBe(true);
   });
 });
+
+describe("canal Instagram", () => {
+  it("listarChats({ canal: \"INSTAGRAM\" }) sólo trae Instagram; WhatsApp, sólo WhatsApp; todos, los dos", async () => {
+    const wa = await chat("5491111111111");
+    const ig = await chat("17841400000001", { canal: "INSTAGRAM", usuarioInstagram: "sofi.rodriguez" });
+    const ids = async (canal?: "WHATSAPP" | "INSTAGRAM" | "todos") => (await L.listarChats(ANA, { canal, ahora: AHORA }))!.map((c) => c.id).sort();
+    expect(await ids("INSTAGRAM")).toEqual([ig.id]);
+    expect(await ids("WHATSAPP")).toEqual([wa.id]);
+    expect(await ids("todos")).toEqual([wa.id, ig.id].sort());
+    expect(await ids()).toEqual([wa.id, ig.id].sort());
+  });
+
+  it("buscar por número no ve el IGSID; buscar por @usuario sí encuentra el chat de Instagram", async () => {
+    const wa = await chat("5493415551234");
+    const ig = await chat("3415551234999", { canal: "INSTAGRAM", usuarioInstagram: "sofi.rodriguez" });
+    expect((await L.listarChats(ANA, { q: "3415551234", ahora: AHORA }))!.map((c) => c.id)).toEqual([wa.id]);
+    expect((await L.listarChats(ANA, { q: "@sofi", ahora: AHORA }))!.map((c) => c.id)).toEqual([ig.id]);
+  });
+
+  it("un canal inventado se trata como todos", async () => {
+    await chat("5491111111111");
+    await chat("17841400000001", { canal: "INSTAGRAM" });
+    expect(await L.listarChats(ANA, { canal: "TELEGRAM" as never, ahora: AHORA })).toHaveLength(2);
+  });
+
+  it("sin ficha el título es @usuario, si no el nombre, si no «Instagram» (nunca el IGSID)", async () => {
+    await chat("17841400000001", { canal: "INSTAGRAM", usuarioInstagram: "sofi.rodriguez", nombre: "Sofi", ultimoMensajeEn: hace(1) });
+    await chat("17841400000002", { canal: "INSTAGRAM", nombre: "Mica", ultimoMensajeEn: hace(2) });
+    await chat("17841400000003", { canal: "INSTAGRAM", ultimoMensajeEn: hace(3) });
+    const lista = (await L.listarChats(ANA, { ahora: AHORA }))!;
+    expect(lista.map((c) => c.titulo)).toEqual(["@sofi.rodriguez", "Mica", "Instagram"]);
+    expect(lista[0]).toMatchObject({ canal: "INSTAGRAM", usuarioInstagram: "sofi.rodriguez" });
+  });
+
+  it("un chat de WhatsApp trae su canal y sin usuario de Instagram", async () => {
+    await chat("5491111111111");
+    expect((await L.listarChats(ANA, { ahora: AHORA }))![0]).toMatchObject({ canal: "WHATSAPP", usuarioInstagram: null, titulo: "5491111111111" });
+  });
+
+  it("detalleChat trae el canal, el usuario y el título de Instagram", async () => {
+    const ig = await chat("17841400000001", { canal: "INSTAGRAM", usuarioInstagram: "sofi.rodriguez" });
+    expect(await L.detalleChat(ANA, ig.id, AHORA)).toMatchObject({ canal: "INSTAGRAM", usuarioInstagram: "sofi.rodriguez", titulo: "@sofi.rodriguez" });
+    const wa = await chat("5491111111111", { nombre: "Lu" });
+    expect(await L.detalleChat(ANA, wa.id, AHORA)).toMatchObject({ canal: "WHATSAPP", usuarioInstagram: null, titulo: "Lu" });
+  });
+});

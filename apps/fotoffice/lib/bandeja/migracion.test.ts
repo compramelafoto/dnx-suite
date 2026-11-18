@@ -59,7 +59,7 @@ describe("migración de la Bandeja de WhatsApp", () => {
   });
 
   it("el esquema coincide y las tablas existentes sólo reciben relaciones inversas", () => {
-    expect(modelo("FotofficeWaChat")).toContain("@@unique([workspaceId, waId])");
+    expect(modelo("FotofficeWaChat")).toContain("@@unique([workspaceId, canal, waId])");
     expect(modelo("FotofficeWaChat")).toContain("@@index([workspaceId, estado, ultimoMensajeEn])");
     expect(modelo("FotofficeWaMensaje")).toContain("@@unique([workspaceId, waMessageId])");
     expect(modelo("FotofficeWaMensaje")).toContain("@@unique([chatId, clientToken])");
@@ -69,5 +69,39 @@ describe("migración de la Bandeja de WhatsApp", () => {
     expect(modelo("Workspace")).toMatch(/fotofficeWaConexion\s+FotofficeWaConexion\?/);
     expect(modelo("Workspace")).toMatch(/fotofficeWaChats\s+FotofficeWaChat\[\]/);
     expect(modelo("Client")).toMatch(/fotofficeWaChats\s+FotofficeWaChat\[\]/);
+  });
+});
+
+describe("migración: el canal Instagram en la Bandeja", () => {
+  const sqlIg = readFileSync(
+    join(RAIZ, "packages/db/prisma/migrations/20270213090000_fotoffice_bandeja_instagram/migration.sql"),
+    "utf8",
+  );
+
+  it("suma el canal al chat y cambia el único sin tocar datos", () => {
+    expect(sqlIg).toContain(`ADD COLUMN "canal" TEXT NOT NULL DEFAULT 'WHATSAPP'`);
+    expect(sqlIg).toContain(`ADD COLUMN "usuarioInstagram" TEXT`);
+    expect(sqlIg).toContain(`DROP INDEX "FotofficeWaChat_workspaceId_waId_key"`);
+    expect(sqlIg).toContain(`CREATE UNIQUE INDEX "FotofficeWaChat_workspaceId_canal_waId_key" ON "FotofficeWaChat"("workspaceId", "canal", "waId")`);
+    expect(sqlIg).not.toMatch(/DELETE FROM|UPDATE "|DROP TABLE/);
+  });
+
+  it("conexión de Instagram con único por cuenta", () => {
+    expect(sqlIg).toContain(`ADD COLUMN "igAccountId" TEXT`);
+    expect(sqlIg).toContain(`ADD COLUMN "igPageId" TEXT`);
+    expect(sqlIg).toContain(`ADD COLUMN "igUsuario" TEXT`);
+    expect(sqlIg).toContain(`ADD COLUMN "igActivo" BOOLEAN NOT NULL DEFAULT false`);
+    expect(sqlIg).toContain(`CREATE UNIQUE INDEX "FotofficeWaConexion_igAccountId_key" ON "FotofficeWaConexion"("igAccountId")`);
+  });
+
+  it("la aprobación recuerda el chat de Instagram", () => {
+    expect(sqlIg).toMatch(/ALTER TABLE "FotofficePresupuestoAprobacion" ADD COLUMN "igChatId" TEXT/);
+  });
+
+  it("el esquema coincide", () => {
+    expect(modelo("FotofficeWaChat")).toMatch(/canal\s+String\s+@default\("WHATSAPP"\)/);
+    expect(modelo("FotofficeWaChat")).toContain("@@unique([workspaceId, canal, waId])");
+    expect(modelo("FotofficeWaConexion")).toMatch(/igAccountId\s+String\?\s+@unique/);
+    expect(modelo("FotofficePresupuestoAprobacion")).toMatch(/igChatId\s+String\?/);
   });
 });

@@ -1,7 +1,7 @@
 import "server-only";
 import { prisma, type Prisma } from "@repo/db";
 import { appUrl } from "@/lib/app-url";
-import { estadoWhatsappDe, enviarAvisoPorWhatsapp } from "@/lib/bandeja/aviso-sistema";
+import { estadoInstagramDe, estadoWhatsappDe, enviarAvisoAlChat, enviarAvisoPorWhatsapp } from "@/lib/bandeja/aviso-sistema";
 import { waIdDe } from "@/lib/bandeja/telefono";
 import { numeroDe } from "@/lib/numeracion/asignar";
 import { correoValido } from "@/lib/plantillas/contexto";
@@ -25,6 +25,7 @@ import {
   textoWhatsappDelPresupuesto,
   type ResultadoCanales,
   type ResultadoCorreo,
+  type ResultadoInstagram,
   type ResultadoWhatsapp,
 } from "./canales";
 import { leerAjustesPorHoras, leerPorHorasDeConsulta } from "./por-horas";
@@ -45,9 +46,20 @@ import { armarResumen, lineasDePrecio, type DatosResumen, type EstadoDelAviso, t
  * reintentar sin riesgo de un segundo envío).
  *
  * Nunca lanza y nunca loguea datos personales: sólo códigos.
+ *
+ * Instagram (spec 2026-11-18 §5.7): la consulta que arma el bot en un mensaje directo entra con
+ * origen INSTAGRAM, que el flujo trata como WHATSAPP (`entroPorElBot`). La fila guarda el teléfono
+ * que dio el cliente (`waId`, para los seguimientos) y el chat de Instagram (`igChatId`), por donde
+ * sale la cotización si la ventana de 24 h sigue abierta.
  */
 
-export type OrigenConsulta = "WEB" | "WHATSAPP";
+export type OrigenConsulta = "WEB" | "WHATSAPP" | "INSTAGRAM";
+
+/** ¿La consulta la armó el bot (WhatsApp o Instagram)? Ahí rige el presupuesto por horas. */
+export const entroPorElBot = (o: OrigenConsulta | string | null | undefined): boolean => o === "WHATSAPP" || o === "INSTAGRAM";
+
+/** El origen guardado en la fila, leído de vuelta (lo desconocido es WEB). */
+export const origenDeFila = (o: string | null | undefined): OrigenConsulta => (o === "WHATSAPP" || o === "INSTAGRAM" ? o : "WEB");
 export const ESTADOS_APROBABLES = ["AVISADO", "AVISO_FALLIDO"] as const;
 
 export type DepsFlujo = DepsPropuestaAutomatica & {
@@ -57,6 +69,10 @@ export type DepsFlujo = DepsPropuestaAutomatica & {
   enviarPresupuesto?: typeof enviarPresupuestoDelSistema;
   estadoWhatsapp?: typeof estadoWhatsappDe;
   enviarWhatsapp?: typeof enviarAvisoPorWhatsapp;
+  /** ¿Instagram conectado y la ventana de ese chat abierta? */
+  estadoInstagram?: typeof estadoInstagramDe;
+  /** El aviso por el chat de Instagram (la cotización aprobada). */
+  enviarInstagram?: typeof enviarAvisoAlChat;
   /** Dirección de FOTOFFICE para los botones (undefined: la del entorno). */
   origenApp?: string;
 };
@@ -100,21 +116,21 @@ export async function alLlegarConsulta(
   workspaceId: string,
   leadId: string,
   origen: OrigenConsulta,
-  extra: { waId?: string | null } = {},
+  extra: { waId?: string | null; igChatId?: string | null } = {},
   deps: DepsFlujo = {},
 ): Promise<ResultadoAlLlegar> {
   try {
     const ficha = await prisma.fotofficeConsulta.findFirst({ where: { workspaceId, leadId }, select: { categoryId: true } });
-    // Por WhatsApp con el presupuesto por horas encendido, toda consulta pasa por la aprobación
-    // (la que tiene propuesta modelo la usa aunque su interruptor esté apagado). Spec 2026-10-28 §9.
-    const porWhatsapp = origen === "WHATSAPP" && ficha?.categoryId ? porHorasAplica(await leerAjustesPorHoras(workspaceId), ficha.categoryId) : false;
+    // Por el bot (WhatsApp o Instagram) con el presupuesto por horas encendido, toda consulta pasa
+    // por la aprobación (la que tiene propuesta modelo la usa aunque su interruptor esté apagado). Spec 2026-10-28 §9.
+    const porWhatsapp = entroPorElBot(origen) && ficha?.categoryId ? porHorasAplica(await leerAjustesPorHoras(workspaceId), ficha.categoryId) : false;
     if (!ficha || !(porWhatsapp || (await apruebaPorTelegram(workspaceId, ficha.categoryId)))) return "APAGADO";
 
     // La fila primero: el único (workspace + consulta) frena un segundo aviso de la misma consulta.
     let filaId: string;
     try {
       const f = await prisma.fotofficePresupuestoAprobacion.create({
-        data: { workspaceId, leadId, categoryId: ficha.categoryId, origin: origen, waId: extra.waId ?? null, status: "AVISO_FALLIDO" },
+        data: { workspaceId, leadId, categoryId: ficha.categoryId, origin: origen, waId: extra.waId ?? null, igChatId: extra.igChatId ?? null, status: "AVISO_FALLIDO" },
         select: { id: true },
       });
       filaId = f.id;
@@ -175,7 +191,7 @@ export async function datosDelResumen(workspaceId: string, aprobacionId: string,
   const fecha = consulta?.eventStartsAt ?? lead?.eventDate ?? null;
   return {
     aprobacionId: a.id,
-    origen: a.origin === "WHATSAPP" ? "WHATSAPP" : "WEB",
+    origen: origenDeFila(a.origin),
     numeroConsulta: numeros.get(a.leadId) ?? null,
     cliente: lead?.name ?? "Sin nombre",
     email: lead?.email ?? null,
@@ -336,7 +352,7 @@ export async function aprobarYEnviar(
 
     const a = await prisma.fotofficePresupuestoAprobacion.findFirst({
       where: { id: aprobacionId, workspaceId },
-      select: { leadId: true, presupuestoId: true, categoryId: true, waId: true, telegramChatId: true, telegramMessageId: true },
+      select: { leadId: true, presupuestoId: true, categoryId: true, waId: true, igChatId: true, telegramChatId: true, telegramMessageId: true },
     });
     if (!a?.presupuestoId) return await volverAAvisado(workspaceId, aprobacionId, "SIN_PRESUPUESTO");
 
@@ -356,8 +372,15 @@ export async function aprobarYEnviar(
 
     const waId = a.waId ?? waIdDe(lead?.phone ?? null);
     const wa = await (deps.estadoWhatsapp ?? estadoWhatsappDe)(workspaceId, waId, ahora);
-    const decision = decidirCanales({ correoValido: correoValido(lead?.email ?? null), waId, whatsappConectado: wa.conectado, ventanaAbierta: wa.ventanaAbierta });
-    if (!decision.correo && !decision.whatsapp) return await volverAAvisado(workspaceId, aprobacionId, "SIN_CANAL");
+    const instagram = a.igChatId ? { chatId: a.igChatId, ...(await (deps.estadoInstagram ?? estadoInstagramDe)(workspaceId, a.igChatId, ahora)) } : undefined;
+    const decision = decidirCanales({
+      correoValido: correoValido(lead?.email ?? null),
+      waId,
+      whatsappConectado: wa.conectado,
+      ventanaAbierta: wa.ventanaAbierta,
+      ...(instagram ? { instagram } : {}),
+    });
+    if (!decision.correo && !decision.whatsapp && !decision.instagram) return await volverAAvisado(workspaceId, aprobacionId, "SIN_CANAL");
 
     const plantillaId = await plantillaDelEnvio(workspaceId, a.categoryId);
     if (!plantillaId) return await volverAAvisado(workspaceId, aprobacionId, "NO_SALIO", "SIN_PLANTILLA");
@@ -377,13 +400,24 @@ export async function aprobarYEnviar(
       return await volverAAvisado(workspaceId, aprobacionId, "NO_SALIO", "NO_ENVIADO");
     }
 
+    const textoAlCliente = enlace
+      ? textoWhatsappDelPresupuesto({ nombre: lead?.name ?? null, categoria: categoria?.name ?? null, enlace, estudio: branding?.commercialName ?? null })
+      : null;
     let whatsapp: ResultadoWhatsapp = decision.motivoSinWhatsapp ?? "FALLO";
-    if (decision.whatsapp && waId && enlace) {
-      const texto = textoWhatsappDelPresupuesto({ nombre: lead?.name ?? null, categoria: categoria?.name ?? null, enlace, estudio: branding?.commercialName ?? null });
-      const s = await (deps.enviarWhatsapp ?? enviarAvisoPorWhatsapp)(workspaceId, waId, texto, { ahora });
+    if (decision.whatsapp && waId && textoAlCliente) {
+      const s = await (deps.enviarWhatsapp ?? enviarAvisoPorWhatsapp)(workspaceId, waId, textoAlCliente, { ahora });
       whatsapp = s === "ENVIADO" ? "ENVIADO" : s === "VENTANA_CERRADA" ? "VENTANA_CERRADA" : s === "SIN_CONEXION" ? "SIN_CONEXION" : "FALLO";
     }
-    const canales: ResultadoCanales = { correo, whatsapp };
+    let instagramSalida: ResultadoInstagram | undefined;
+    if (a.igChatId) {
+      instagramSalida = decision.motivoSinInstagram ?? "FALLO";
+      if (decision.instagram && textoAlCliente) {
+        const s = await (deps.enviarInstagram ?? enviarAvisoAlChat)(workspaceId, a.igChatId, textoAlCliente, { ahora });
+        // Sin conexión de Instagram también es FALLO: el chat existe, pero no hay por dónde mandarlo.
+        instagramSalida = s === "ENVIADO" ? "ENVIADO" : s === "VENTANA_CERRADA" ? "VENTANA_CERRADA" : "FALLO";
+      }
+    }
+    const canales: ResultadoCanales = instagramSalida ? { correo, whatsapp, instagram: instagramSalida } : { correo, whatsapp };
     await terminar(workspaceId, aprobacionId, {
       status: "ENVIADO",
       channels: canales as unknown as Prisma.InputJsonValue,
@@ -488,7 +522,7 @@ export async function pendientesDeAprobar(workspaceId: string): Promise<Pendient
       presupuestoId: f.presupuestoId,
       cliente: nombre.get(f.leadId) ?? "Sin nombre",
       categoria: f.categoryId ? cat.get(f.categoryId) ?? null : null,
-      origen: f.origin === "WHATSAPP" ? "WHATSAPP" : "WEB",
+      origen: origenDeFila(f.origin),
       status: f.status,
       errorCode: f.errorCode,
       creada: f.createdAt,
@@ -508,9 +542,13 @@ const NO_FRENAN = ["SIN_HORAS", "FALLO"] as const;
 
 /** La condición de "hay una cotización en preparación" para ese número (exportada para probarla). */
 export function condicionEnPreparacion(workspaceId: string, waId: string, ahora: Date) {
+  return { ...condicionPendiente(workspaceId, ahora), waId } satisfies Prisma.FotofficePresupuestoAprobacionWhereInput;
+}
+
+/** Lo mismo sin el número: lo comparten WhatsApp (por teléfono) e Instagram (por chat). */
+function condicionPendiente(workspaceId: string, ahora: Date) {
   return {
     workspaceId,
-    waId,
     status: { in: [...ESTADOS_APROBABLES, "SIN_PROPUESTA", "ENVIANDO"] },
     createdAt: { gte: new Date(ahora.getTime() - DIAS_EN_PREPARACION * 86_400_000) },
     // OJO: `NOT { errorCode: { in } }` en Postgres descarta las filas con errorCode NULL (que son
@@ -518,6 +556,23 @@ export function condicionEnPreparacion(workspaceId: string, waId: string, ahora:
     // mensaje del cliente. El NULL va explícito.
     OR: [{ errorCode: null }, { errorCode: { notIn: [...NO_FRENAN] } }],
   } satisfies Prisma.FotofficePresupuestoAprobacionWhereInput;
+}
+
+/**
+ * Lo mismo para un chat de Instagram: se mira por el chat (`igChatId`), no por el teléfono (el
+ * cliente pudo no darlo, y el IGSID no es un teléfono).
+ */
+export function condicionEnPreparacionInstagram(workspaceId: string, igChatId: string, ahora: Date) {
+  return { ...condicionPendiente(workspaceId, ahora), igChatId } satisfies Prisma.FotofficePresupuestoAprobacionWhereInput;
+}
+
+export async function enPreparacionParaInstagram(workspaceId: string, igChatId: string, ahora: Date = new Date()): Promise<boolean> {
+  try {
+    const f = await prisma.fotofficePresupuestoAprobacion.findFirst({ where: condicionEnPreparacionInstagram(workspaceId, igChatId, ahora), select: { id: true } });
+    return f !== null;
+  } catch {
+    return false;
+  }
 }
 
 export async function enPreparacionParaWhatsapp(workspaceId: string, waId: string, ahora: Date = new Date()): Promise<boolean> {

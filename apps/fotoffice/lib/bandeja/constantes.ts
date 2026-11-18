@@ -5,6 +5,10 @@
 
 export const BANDEJA_MODULE_KEY = "whatsapp-inbox";
 
+/** Canales de la Bandeja. En la base son texto. */
+export const CANALES = ["WHATSAPP", "INSTAGRAM"] as const;
+export type Canal = (typeof CANALES)[number];
+
 export const ESTADOS_CHAT = ["BOT", "HUMANO", "RESUELTO"] as const;
 export type EstadoDelChat = (typeof ESTADOS_CHAT)[number];
 

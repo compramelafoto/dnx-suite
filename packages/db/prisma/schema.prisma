@@ -27085,6 +27085,11 @@ model FotofficeWaConexion {
   /// SIMULADO | REAL
   modo          String   @default("SIMULADO")
   pausaBotHoras Int      @default(4)
+  /// Instagram: cuenta profesional (IGSID de la cuenta), página de Facebook vinculada, @usuario y si está encendido.
+  igAccountId   String?  @unique
+  igPageId      String?
+  igUsuario     String?
+  igActivo      Boolean  @default(false)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -27095,8 +27100,12 @@ model FotofficeWaConexion {
 model FotofficeWaChat {
   id               String    @id @default(cuid())
   workspaceId      String
-  /// Teléfono E.164 sin "+" (ej. 5493413419869).
+  /// WHATSAPP | INSTAGRAM
+  canal            String    @default("WHATSAPP")
+  /// Teléfono E.164 sin "+" (ej. 5493413419869) en WhatsApp; el IGSID del cliente en Instagram.
   waId             String
+  /// @usuario del cliente en Instagram (sólo canal INSTAGRAM).
+  usuarioInstagram String?
   /// Nombre del perfil de WhatsApp.
   nombre           String?
   clientId         String?
@@ -27120,7 +27129,7 @@ model FotofficeWaChat {
   client    Client?              @relation(fields: [clientId], references: [id], onDelete: SetNull)
   mensajes  FotofficeWaMensaje[]
 
-  @@unique([workspaceId, waId])
+  @@unique([workspaceId, canal, waId])
   @@index([workspaceId, estado, ultimoMensajeEn])
   @@index([workspaceId, asignadoUserId])
   @@index([clientId])
@@ -27872,10 +27881,12 @@ model FotofficePresupuestoAprobacion {
   /// Nulo cuando la categoría no tiene propuesta modelo (el aviso ofrece abrir la consulta).
   presupuestoId     String?
   categoryId        String?
-  /// WEB | WHATSAPP
+  /// WEB | WHATSAPP | INSTAGRAM
   origin            String
   /// Teléfono de WhatsApp (E.164 sin "+") cuando la consulta entró por el bot.
   waId              String?
+  /// Chat de Instagram de la consulta (cuando entró por mensaje directo).
+  igChatId          String?
   status            String
   telegramChatId    String?
   telegramMessageId String?

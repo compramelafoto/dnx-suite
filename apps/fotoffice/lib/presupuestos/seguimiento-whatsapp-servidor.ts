@@ -3,6 +3,8 @@ import { prisma } from "@repo/db";
 import { leerConexion } from "@/lib/bandeja/conexion";
 import type { ResultadoEnvio } from "@/lib/bandeja/envio";
 import { enviarPlantilla, type Plantilla } from "@/lib/bandeja/plantilla-meta";
+import { waIdDe } from "@/lib/bandeja/telefono";
+import { entroPorElBot } from "@/lib/presupuesto-automatico/flujo";
 import { resolverClaveDeEnlace, tokenDeVersion } from "./enlace";
 import type { EstadoPresupuesto } from "./constantes";
 import { estadoEfectivo } from "./estados";
@@ -17,13 +19,23 @@ import {
  * cotización, y en ese caso ya no corresponde insistir. Si Meta la rechaza (por ejemplo, todavía no está
  * aprobada) no se anota y se vuelve a intentar al día siguiente. Cada envío deja un mensaje del
  * sistema en el chat, que es lo que cuenta cuántos salieron.
+ *
+ * Consultas que armó el bot (WhatsApp o Instagram, spec 2026-11-18 §5.4): si el cliente dio un
+ * teléfono válido pero no hay chat de WhatsApp con ese número (lo normal cuando llegó por Instagram),
+ * el chat se crea en el momento de mandar la plantilla, para que el envío y la marca queden ahí como
+ * siempre. Las consultas de la web siguen igual: sin chat de WhatsApp no hay seguimiento.
  */
 
 const DIA_MS = 86_400_000;
 
+type ChatSeguimiento = { id: string; estado: string; ultimoEntranteEn: Date | null };
+
 type Candidato = {
   aprobacionId: string;
   workspaceId: string;
+  leadId: string;
+  /** La consulta la armó el bot (origen WHATSAPP o INSTAGRAM). */
+  entroPorElBot: boolean;
   waId: string;
   enviadaEn: Date;
   nombre: string | null;
@@ -31,7 +43,7 @@ type Candidato = {
   abierta: boolean;
   /** Lo que va después de la dirección de FOTOFFICE: `w/<slug>/presupuesto/<token>`. */
   ruta: string | null;
-  chat: { id: string; estado: string; ultimoEntranteEn: Date | null } | null;
+  chat: ChatSeguimiento | null;
   yaEnviados: number;
 };
 
@@ -42,12 +54,46 @@ export type DepsSeguimientoWa = {
   candidatos?: (ahora: Date) => Promise<Candidato[]>;
   plantilla?: (workspaceId: string, waId: string, p: Plantilla, chatId: string) => Promise<ResultadoEnvio>;
   marcar?: (workspaceId: string, chatId: string, texto: string) => Promise<void>;
+  /** Busca o crea el chat de WhatsApp de ese número (consultas del bot sin chat de WhatsApp). */
+  chatNuevo?: (workspaceId: string, waId: string, leadId: string, nombre: string | null, ahora: Date) => Promise<ChatSeguimiento>;
 };
+
+/** Teléfono guardado en la fila → waId como lo arma el webhook de Meta; `null` si no es un teléfono válido. */
+export function waIdParaSeguimiento(guardado: string): string | null {
+  const digitos = guardado.replace(/\D/g, "");
+  return digitos ? waIdDe(`+${digitos}`) : null;
+}
+
+const esChoqueDeUnico = (e: unknown) => (e as { code?: unknown } | null)?.code === "P2002";
+
+/**
+ * Chat de WhatsApp para el seguimiento: el que ya hay con ese número o uno nuevo (estado BOT, sin
+ * mensajes del cliente todavía, atado a la ficha de la consulta). Si otro proceso lo crea al mismo
+ * tiempo, el único `workspaceId_canal_waId` choca y se usa el que quedó.
+ */
+export async function chatWhatsappParaSeguimiento(workspaceId: string, waId: string, leadId: string, nombre: string | null, ahora: Date): Promise<ChatSeguimiento> {
+  const where = { workspaceId_canal_waId: { workspaceId, canal: "WHATSAPP", waId } };
+  const select = { id: true, estado: true, ultimoEntranteEn: true } as const;
+  const existente = await prisma.fotofficeWaChat.findUnique({ where, select });
+  if (existente) return existente;
+  const consulta = await prisma.fotofficeConsulta.findUnique({ where: { leadId }, select: { clientId: true } }).catch(() => null);
+  try {
+    return await prisma.fotofficeWaChat.create({
+      data: { workspaceId, canal: "WHATSAPP", waId, nombre, clientId: consulta?.clientId ?? null, estado: "BOT", ultimoMensajeEn: ahora, ultimoEntranteEn: null },
+      select,
+    });
+  } catch (e) {
+    if (!esChoqueDeUnico(e)) throw e;
+    const otro = await prisma.fotofficeWaChat.findUnique({ where, select });
+    if (!otro) throw e;
+    return otro;
+  }
+}
 
 async function candidatosDeLaBase(ahora: Date): Promise<Candidato[]> {
   const aprobaciones = await prisma.fotofficePresupuestoAprobacion.findMany({
     where: { status: "ENVIADO", waId: { not: null }, presupuestoId: { not: null }, sentAt: { gte: new Date(ahora.getTime() - (DIAS_MAXIMO + 1) * DIA_MS), lte: new Date(ahora.getTime() - DIAS_PRIMERO * DIA_MS) } },
-    select: { id: true, workspaceId: true, waId: true, presupuestoId: true, leadId: true, categoryId: true, sentAt: true },
+    select: { id: true, workspaceId: true, waId: true, presupuestoId: true, leadId: true, categoryId: true, origin: true, sentAt: true },
     take: 200,
   });
   const clave = resolverClaveDeEnlace();
@@ -59,7 +105,7 @@ async function candidatosDeLaBase(ahora: Date): Promise<Candidato[]> {
       prisma.serviceSalesLead.findUnique({ where: { id: a.leadId }, select: { name: true } }).catch(() => null),
       a.categoryId ? prisma.fotofficeConsultaCategoria.findUnique({ where: { id: a.categoryId }, select: { name: true } }).catch(() => null) : null,
       prisma.fotofficeWorkspaceBranding.findUnique({ where: { workspaceId: a.workspaceId }, select: { publicSlug: true } }),
-      prisma.fotofficeWaChat.findFirst({ where: { workspaceId: a.workspaceId, waId: a.waId }, select: { id: true, estado: true, ultimoEntranteEn: true } }),
+      prisma.fotofficeWaChat.findFirst({ where: { workspaceId: a.workspaceId, canal: "WHATSAPP", waId: a.waId }, select: { id: true, estado: true, ultimoEntranteEn: true } }),
     ]);
     if (!presupuesto) continue;
     const estado = estadoEfectivo(presupuesto.status as EstadoPresupuesto, presupuesto.validUntil, ahora);
@@ -72,7 +118,7 @@ async function candidatosDeLaBase(ahora: Date): Promise<Candidato[]> {
       ? `w/${encodeURIComponent(branding.publicSlug)}/presupuesto/${encodeURIComponent(tokenDeVersion(presupuesto.currentVersionId, clave))}`
       : null;
     salida.push({
-      aprobacionId: a.id, workspaceId: a.workspaceId, waId: a.waId, enviadaEn: a.sentAt, nombre: lead?.name ?? null, categoria: categoria?.name ?? null,
+      aprobacionId: a.id, workspaceId: a.workspaceId, leadId: a.leadId, entroPorElBot: entroPorElBot(a.origin), waId: a.waId, enviadaEn: a.sentAt, nombre: lead?.name ?? null, categoria: categoria?.name ?? null,
       abierta: (estado === "ENVIADO" || estado === "VISTO") && !presupuesto.acceptedVersionId, ruta, chat, yaEnviados,
     });
   }
@@ -96,6 +142,7 @@ const POR_OMISION: Required<Omit<DepsSeguimientoWa, "ahora" | "prueba">> = {
       .catch((e) => console.warn("[fotoffice][seguimiento] no se pudo guardar la plantilla en el chat", { codigo: e instanceof Error ? e.name : "desconocido" }));
     return r;
   },
+  chatNuevo: chatWhatsappParaSeguimiento,
   marcar: async (workspaceId, chatId, texto) => {
     const { escribirSistema } = await import("@/lib/bandeja/acciones");
     await prisma.$transaction((tx) => escribirSistema(tx, workspaceId, chatId, texto, new Date()));
@@ -112,23 +159,39 @@ export async function seguirCotizacionesPorWhatsapp(deps: DepsSeguimientoWa = {}
   for (const c of await d.candidatos(ahora)) {
     revisadas++;
     try {
-      if (!c.chat || !c.ruta) continue;
-      const numero = cualSeguimiento({
-        enviadaEn: c.enviadaEn, ahora, yaEnviados: c.yaEnviados, abierta: c.abierta,
-        respondioDespues: c.chat.ultimoEntranteEn !== null && c.chat.ultimoEntranteEn.getTime() > c.enviadaEn.getTime(),
-        atiendePersona: c.chat.estado === "HUMANO",
-      });
+      if (!c.ruta) continue;
+      // Sin chat de WhatsApp: la web sigue como siempre (no hay seguimiento); la consulta del bot
+      // con un teléfono válido lo va a tener nuevo (sin mensajes del cliente, lo atiende el bot).
+      const waIdNuevo = !c.chat && c.entroPorElBot ? waIdParaSeguimiento(c.waId) : null;
+      if (!c.chat && !waIdNuevo) continue;
+      const decidir = (chat: { estado: string; ultimoEntranteEn: Date | null }) =>
+        cualSeguimiento({
+          enviadaEn: c.enviadaEn, ahora, yaEnviados: c.yaEnviados, abierta: c.abierta,
+          respondioDespues: chat.ultimoEntranteEn !== null && chat.ultimoEntranteEn.getTime() > c.enviadaEn.getTime(),
+          atiendePersona: chat.estado === "HUMANO",
+        });
+      let numero = decidir(c.chat ?? { estado: "BOT", ultimoEntranteEn: null });
       if (!numero) continue;
       if (deps.prueba) {
         prueba.push({ aprobacionId: c.aprobacionId, numero });
         continue;
       }
-      const ok = (await d.plantilla(c.workspaceId, c.waId, { ...PLANTILLA_SEGUIMIENTO, cuerpo: [nombreDePila(c.nombre) || "¡hola", tipoDeEvento(c.categoria)], boton: c.ruta }, c.chat.id)).ok;
+      let chat = c.chat;
+      let destino = c.waId;
+      if (!chat && waIdNuevo) {
+        chat = await d.chatNuevo(c.workspaceId, waIdNuevo, c.leadId, c.nombre, ahora);
+        destino = waIdNuevo;
+        // Si el chat ya existía (otro proceso lo creó recién), se vuelve a decidir con su estado real.
+        numero = decidir(chat);
+        if (!numero) continue;
+      }
+      if (!chat) continue;
+      const ok = (await d.plantilla(c.workspaceId, destino, { ...PLANTILLA_SEGUIMIENTO, cuerpo: [nombreDePila(c.nombre) || "¡hola", tipoDeEvento(c.categoria)], boton: c.ruta }, chat.id)).ok;
       if (!ok) {
         fallidas++;
         continue;
       }
-      await d.marcar(c.workspaceId, c.chat.id, marcaDe(numero));
+      await d.marcar(c.workspaceId, chat.id, marcaDe(numero));
       enviadas++;
     } catch (e) {
       fallidas++;

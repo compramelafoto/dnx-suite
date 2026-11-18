@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { anuncioDeReferral, type AnuncioWa } from "./anuncio";
-import type { TipoMensaje } from "./constantes";
+import type { Canal, TipoMensaje } from "./constantes";
 import { waIdDe } from "./telefono";
 
 /**
@@ -20,11 +20,17 @@ export type MediaWa = {
   direccion?: string;
   /** Anuncio de Meta del que vino el cliente (sólo en el primer mensaje tras tocar el anuncio). */
   anuncio?: AnuncioWa;
+  /** Instagram: dirección del archivo (los adjuntos de Instagram llegan con url, no con id). */
+  url?: string;
+  /** Instagram, sólo en ecos: app que mandó el mensaje (sirve para distinguir al bot de una persona). */
+  appId?: string;
 };
 
 type Comun = {
-  /** Identifica la conexión (y por ella el workspace). */
+  /** Identifica la conexión (y por ella el workspace). En Instagram lleva el id de la cuenta. */
   phoneNumberId: string;
+  /** Canal del evento; ausente = WhatsApp. */
+  canal?: Canal;
   /** Mensaje de WhatsApp: clave de idempotencia. */
   waMessageId: string;
   /** Hora que informa Meta; `null` si vino ilegible (quien registra usa la hora de recepción). */

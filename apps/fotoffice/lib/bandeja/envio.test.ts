@@ -81,3 +81,31 @@ describe("enviarTexto", () => {
     expect(destinoParaMeta("5511987654321")).toBe("5511987654321");
   });
 });
+
+describe("enviarTexto por canal", () => {
+  const CON_IG = { ...REAL, igPageId: "1122334455", igActivo: true };
+
+  it("con INSTAGRAM no toca la ruta de WhatsApp: va a la página de Instagram, sin messaging_product", async () => {
+    const f = vi.fn(async () => json(200, { recipient_id: "5550001", message_id: "m_IG" }));
+    const r = await enviarTexto(CON_IG, "5493413419869", "hola", { fetch: f as never, leerToken: conToken }, "INSTAGRAM");
+    expect(r).toEqual({ ok: true, simulado: false, waMessageId: "m_IG" });
+    expect(f).toHaveBeenCalledTimes(1);
+    const [url, init] = f.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe("https://graph.facebook.com/v21.0/1122334455/messages");
+    expect(url).not.toContain("106540352242922");
+    // El IGSID va tal cual (sin el ajuste del 9 de los celulares de WhatsApp).
+    expect(JSON.parse(init.body as string)).toEqual({ recipient: { id: "5493413419869" }, message: { text: "hola" } });
+  });
+
+  it("con INSTAGRAM sin página: SIN_PAGINA aunque haya número de WhatsApp", async () => {
+    const f = vi.fn();
+    expect(await enviarTexto(REAL, "5550001", "hola", { fetch: f as never, leerToken: conToken }, "INSTAGRAM")).toEqual({ ok: false, codigo: "SIN_PAGINA" });
+    expect(f).not.toHaveBeenCalled();
+  });
+
+  it("sin canal (o WHATSAPP) sigue siendo WhatsApp", async () => {
+    const f = vi.fn(async () => json(200, { messages: [{ id: "wamid.W" }] }));
+    expect(await enviarTexto(CON_IG, "5493413419869", "hola", { fetch: f as never, leerToken: conToken }, "WHATSAPP")).toEqual({ ok: true, simulado: false, waMessageId: "wamid.W" });
+    expect((f.mock.calls[0] as unknown as [string])[0]).toBe("https://graph.facebook.com/v21.0/106540352242922/messages");
+  });
+});

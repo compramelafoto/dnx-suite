@@ -245,6 +245,24 @@ describe("vincular y crear contacto", () => {
     expect(B.datos.client).toHaveLength(1);
   });
 
+  it("un chat de Instagram crea la ficha sin teléfono y nunca vincula por el IGSID", async () => {
+    const { id } = await chatNuevo({ canal: "INSTAGRAM", waId: "3413419869", nombre: "Lu Pérez", usuarioInstagram: "lu" });
+    B.agregar("client", { id: "viejo", workspaceId: "w1", firstName: "Lu", phone: "341 341-9869" });
+    B.agregar("client", { id: "sinTel", workspaceId: "w1", firstName: "Lu", lastName: "Pérez", phone: null });
+    const r = await A.crearContactoDesdeChat(ANA, id);
+    expect(r).toMatchObject({ ok: true });
+    const clientId = (r as { clientId: string }).clientId;
+    expect(["viejo", "sinTel"]).not.toContain(clientId);
+    expect(B.datos.client.find((c) => c.id === clientId)).toMatchObject({ phone: null, firstName: "Lu", lastName: "Pérez" });
+    expect(chats()[0].clientId).toBe(clientId);
+  });
+
+  it("sin nombre de perfil, la ficha de Instagram se llama @usuario", async () => {
+    const { id } = await chatNuevo({ canal: "INSTAGRAM", waId: "17841400000001", usuarioInstagram: "sofi.rodriguez" });
+    const r = await A.crearContactoDesdeChat(ANA, id);
+    expect(B.datos.client.find((c) => c.id === (r as { clientId: string }).clientId)).toMatchObject({ phone: null, firstName: "@sofi.rodriguez" });
+  });
+
   it("crear la ficha exige también Gestionar en Clientes", async () => {
     const { id } = await chatNuevo();
     const sinClientes = ctxDe(5, "Sol", { "whatsapp-inbox": "MANAGE", clients: "VIEW" });
@@ -367,5 +385,32 @@ describe("vista previa del chat", () => {
     const enviar = vi.fn(async () => ({ ok: true as const, waMessageId: "wamid.x" }));
     await A.responder(ANA, id, "Te paso el presupuesto", "tok-prev", { ahora: AHORA, enviar } as never);
     expect(chats()[0]).toMatchObject({ ultimoMensajeTexto: "Te paso el presupuesto", ultimoMensajeTipo: "TEXTO" });
+  });
+});
+
+describe("responder en un chat de Instagram", () => {
+  it("le pasa el canal INSTAGRAM y el IGSID al envío", async () => {
+    const { id } = await chatNuevo({ canal: "INSTAGRAM", waId: "5550001" });
+    const enviar = vi.fn(async () => ({ ok: true as const, simulado: false as const, waMessageId: "m_1" }));
+    const r = await A.responder(ANA, id, "hola", "t-ig", { ahora: AHORA, enviar });
+    expect(r).toMatchObject({ ok: true, estadoEnvio: "ENVIADO" });
+    const [, destino, texto, deps, canal] = enviar.mock.calls[0] as unknown as [unknown, string, string, unknown, string];
+    expect([destino, texto, deps, canal]).toEqual(["5550001", "hola", {}, "INSTAGRAM"]);
+    expect(mensajes().find((m) => m.clientToken === "t-ig")).toMatchObject({ estadoEnvio: "ENVIADO", waMessageId: "m_1" });
+  });
+
+  it("Instagram sin conectar: el aviso habla de Instagram, no del token de WhatsApp", async () => {
+    const { id } = await chatNuevo({ canal: "INSTAGRAM", waId: "5550001" });
+    B.agregar("fotofficeWaConexion", { workspaceId: "w1", modo: "REAL", phoneNumberId: "123", igPageId: null, igActivo: false });
+    const r = await A.responder(ANA, id, "hola", "t-ig2", { ahora: AHORA });
+    expect(r).toEqual({ ok: false, error: "Instagram no está conectado: revisá la conexión en Configuración → WhatsApp → Instagram." });
+    expect(mensajes().at(-1)).toMatchObject({ estadoEnvio: "FALLO", errorCodigo: "SIN_PAGINA" });
+  });
+
+  it("un chat de WhatsApp sigue llamando al envío como siempre (sin canal: WhatsApp por omisión)", async () => {
+    const { id } = await chatNuevo();
+    const enviar = vi.fn(async () => ({ ok: true as const, simulado: true as const }));
+    await A.responder(ANA, id, "hola", "t-wa", { ahora: AHORA, enviar });
+    expect(enviar.mock.calls[0] as unknown as unknown[]).toHaveLength(3);
   });
 });

@@ -158,4 +158,17 @@ describe("guía del bot de atención", () => {
     expect(g).toContain("los analiza y los cotiza una persona del estudio");
     expect(g).toContain("trabajo de video: ");
   });
+
+  it("en Instagram pide el WhatsApp para cotizar y manda las copias e impresiones a WhatsApp por el enlace", () => {
+    const base = { estudio: "DNX Estudio", cliente: "Sofi", ahora: new Date("2026-11-18T15:00:00Z") };
+    const ig = situacionDeAtencion({ ...base, canal: "INSTAGRAM" });
+    expect(ig).toContain("Instagram");
+    expect(ig).toContain("WhatsApp");
+    expect(ig).toContain("https://wa.me/543413419869?text=Hola%2C%20vengo%20de%20Instagram");
+    expect(ig).toContain("preparar_presupuesto");
+    expect(ig).toMatch(/no armes pedidos/);
+    // WhatsApp: la situación no cambia.
+    expect(situacionDeAtencion({ ...base, canal: "WHATSAPP" })).toBe(situacionDeAtencion(base));
+    expect(situacionDeAtencion(base)).not.toContain("Instagram");
+  });
 });

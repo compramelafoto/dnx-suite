@@ -5,15 +5,25 @@ import { escaparHtml } from "@/lib/presupuesto-automatico/resumen";
  * proveedores, spam): quién, por qué el bot lo descartó y el mensaje, recortado.
  */
 
-export type NoCliente = { nombre: string | null; waId: string; motivo: string; texto: string };
+export type NoCliente = {
+  nombre: string | null;
+  waId: string;
+  motivo: string;
+  texto: string;
+  /** Sólo en Instagram: ahí `waId` es el IGSID, que no es un teléfono y no se muestra. */
+  canal?: "INSTAGRAM";
+  usuarioInstagram?: string | null;
+};
 
 const MAX_TEXTO = 800;
 
 export function textoAvisoNoCliente(p: NoCliente): string {
   const texto = p.texto.length > MAX_TEXTO ? `${p.texto.slice(0, MAX_TEXTO)}…` : p.texto;
-  const quien = p.nombre ? `${escaparHtml(p.nombre)} (+${escaparHtml(p.waId)})` : `+${escaparHtml(p.waId)}`;
+  const instagram = p.canal === "INSTAGRAM";
+  const contacto = instagram ? (p.usuarioInstagram ? `Instagram @${escaparHtml(p.usuarioInstagram)}` : "Instagram") : `+${escaparHtml(p.waId)}`;
+  const quien = p.nombre ? `${escaparHtml(p.nombre)} (${contacto})` : contacto;
   return [
-    "📣 <b>Mensaje que no es de un cliente</b> en el WhatsApp del estudio",
+    `📣 <b>Mensaje que no es de un cliente</b> en el ${instagram ? "Instagram" : "WhatsApp"} del estudio`,
     `De: ${quien}`,
     `Motivo: ${escaparHtml(p.motivo)}`,
     "",

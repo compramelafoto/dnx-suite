@@ -13,4 +13,12 @@ describe("textoAvisoNoCliente", () => {
   it("recorta un mensaje muy largo", () => {
     expect(textoAvisoNoCliente({ nombre: null, waId: "1", motivo: "spam", texto: "x".repeat(5000) }).length).toBeLessThan(1500);
   });
+
+  it("en Instagram muestra «Instagram @usuario» y nunca el IGSID como si fuera un teléfono", () => {
+    const t = textoAvisoNoCliente({ nombre: "Sofi", waId: "17841400000001", motivo: "spam", texto: "hola", canal: "INSTAGRAM", usuarioInstagram: "sofi.rodriguez" });
+    expect(t).toContain("Sofi (Instagram @sofi.rodriguez)");
+    expect(t).toContain("en el Instagram del estudio");
+    expect(t).not.toContain("17841400000001");
+    expect(textoAvisoNoCliente({ nombre: null, waId: "17841400000001", motivo: "spam", texto: "hola", canal: "INSTAGRAM" })).toContain("De: Instagram\n");
+  });
 });

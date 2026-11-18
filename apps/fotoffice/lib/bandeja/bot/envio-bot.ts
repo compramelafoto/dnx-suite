@@ -1,10 +1,9 @@
 import "server-only";
-import { prisma, type Prisma } from "@repo/db";
-import { aEstado, chatBloqueado, escribirSistema } from "../acciones";
+import { prisma } from "@repo/db";
+import { aEstado, canalDe, chatBloqueado, enviarPorCanal, escribirSistema, guardarResultadoDelEnvio } from "../acciones";
 import { leerConexion } from "../conexion";
 import { TEXTO_MAXIMO } from "../constantes";
 import { enviarTexto, type ResultadoEnvio } from "../envio";
-import { detalleDeError } from "../registro";
 import { atiendeElBot, puedeResponderLibre } from "../reglas";
 import { truncarSeguro, vistaPreviaDe } from "../vista-previa";
 
@@ -50,26 +49,17 @@ export async function enviarComoBot(
       where: { id: chat.id },
       data: { ultimoMensajeEn: new Date(ahora.getTime() + 1), ...vistaPreviaDe(texto, "TEXTO") },
     });
-    return { mensajeId: m.id, waId: chat.waId };
+    return { mensajeId: m.id, waId: chat.waId, canal: canalDe(chat) };
   });
   if (!guardado) return "omitido";
 
   let envio: ResultadoEnvio;
   try {
-    envio = await (deps.enviar ?? enviarTexto)(await leerConexion(workspaceId), guardado.waId, texto);
+    envio = await enviarPorCanal(deps.enviar ?? enviarTexto, await leerConexion(workspaceId), guardado.waId, texto, guardado.canal);
   } catch {
     envio = { ok: false, codigo: "INTERNO" };
   }
-  const datos: Prisma.FotofficeWaMensajeUpdateInput = !envio.ok
-    ? { estadoEnvio: "FALLO", errorCodigo: envio.codigo }
-    : envio.simulado
-      ? { estadoEnvio: "SIMULADO" }
-      : { estadoEnvio: "ENVIADO", waMessageId: envio.waMessageId };
-  try {
-    await prisma.fotofficeWaMensaje.update({ where: { id: guardado.mensajeId }, data: datos });
-  } catch (e) {
-    console.error("[fotoffice][whatsapp] no se pudo guardar el estado de un mensaje del bot", detalleDeError(e));
-  }
+  await guardarResultadoDelEnvio(guardado.mensajeId, envio, "no se pudo guardar el estado de un mensaje del bot");
   return !envio.ok ? "fallo" : envio.simulado ? "simulado" : "enviado";
 }
 
