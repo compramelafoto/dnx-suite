@@ -241,6 +241,7 @@ const DEFECTOS: Partial<Record<Tabla, () => Fila>> = {
   fotofficePropuestaBorradorAuto: () => ({ createdAt: new Date(), createdByUserId: null }),
   fotofficeWaConexion: () => ({
     phoneNumberId: null, wabaId: null, displayPhone: null, modo: "SIMULADO", pausaBotHoras: 4,
+    igAccountId: null, igPageId: null, igUsuario: null, igActivo: false,
     createdAt: new Date(), updatedAt: new Date(),
   }),
   fotofficeWaChat: () => ({
@@ -664,6 +665,7 @@ export function crearBaseEnMemoria() {
     fotofficeWaConexion: [
       { columnas: ["workspaceId"] },
       { columnas: ["phoneNumberId"], aplica: (f) => f.phoneNumberId !== null && f.phoneNumberId !== undefined },
+      { columnas: ["igAccountId"], aplica: (f) => f.igAccountId !== null && f.igAccountId !== undefined },
     ],
     fotofficeWaChat: [{ columnas: ["workspaceId", "canal", "waId"] }],
     // Testimonios: el hash del token y la clave del pedido automático son únicos (la clave, sólo si hay).

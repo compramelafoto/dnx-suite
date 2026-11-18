@@ -102,3 +102,58 @@ describe("bajar archivos de WhatsApp", () => {
     await expect(descargarMedios(["m1", "m2"], { db: db as never })).resolves.toBeUndefined();
   });
 });
+
+describe("bajar archivos de Instagram", () => {
+  const foto = (url = "https://scontent-gru1-1.cdninstagram.com/v/t51/foto.jpg?sig=1"): Fila =>
+    ({ id: "m2", workspaceId: "w1", chatId: "c9", tipo: "IMAGEN", media: { url } });
+  const cdn = (opciones: { tipo?: string; largo?: number; estado?: number } = {}) =>
+    vi.fn(async (_url: string, _init?: RequestInit) => new Response(new Uint8Array(opciones.largo ?? 4), {
+      status: opciones.estado ?? 200,
+      headers: { "content-type": opciones.tipo ?? "image/jpeg" },
+    }));
+
+  it("baja directo de la url, sin token ni Authorization, con la misma clave R2", async () => {
+    const { db, guardado } = base(foto());
+    const fetch = cdn();
+    const leerToken = vi.fn(async () => "tok");
+    const subir = vi.fn(async () => undefined);
+    const r = await descargarMedio("m2", { db: db as never, fetch, leerToken, subir, medidas: async () => ({ ancho: 1080, alto: 1350 }) });
+    expect(r).toBe("LISTO");
+    expect(fetch).toHaveBeenCalledTimes(1);
+    const [url, init] = fetch.mock.calls[0];
+    expect(url).toBe("https://scontent-gru1-1.cdninstagram.com/v/t51/foto.jpg?sig=1");
+    expect(JSON.stringify(init?.headers ?? {})).not.toContain("Bearer");
+    expect(init?.signal).toBeInstanceOf(AbortSignal);
+    expect(leerToken).not.toHaveBeenCalled();
+    expect(subir).toHaveBeenCalledWith("bandeja/w1/c9/m2.jpg", expect.any(Buffer), "image/jpeg");
+    expect(guardado[0]).toMatchObject({ descarga: "LISTO", clave: "bandeja/w1/c9/m2.jpg", bytes: 4, mimeType: "image/jpeg", ancho: 1080, alto: 1350 });
+  });
+
+  it("acepta fbcdn.net y lookaside.fbsbx.com; audio de Instagram (mp4) queda como .m4a", async () => {
+    const subir = vi.fn(async () => undefined);
+    expect(await descargarMedio("m2", { db: base(foto("https://video.xx.fbcdn.net/v/a.mp4")).db as never, fetch: cdn({ tipo: "video/mp4" }), subir })).toBe("LISTO");
+    expect(await descargarMedio("m2", { db: base({ ...foto("https://lookaside.fbsbx.com/ig_messaging_cdn/?asset_id=1"), tipo: "AUDIO" }).db as never, fetch: cdn({ tipo: "audio/mp4" }), subir })).toBe("LISTO");
+    expect(subir.mock.calls.map((c) => (c as unknown as [string])[0])).toEqual(["bandeja/w1/c9/m2.mp4", "bandeja/w1/c9/m2.m4a"]);
+  });
+
+  it("una url que no es https o no es de Meta → FALLO sin pedirla", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    for (const url of ["http://scontent.cdninstagram.com/x.jpg", "https://evil.com/x.jpg", "https://cdninstagram.com.evil.com/x", "https://evilfbcdn.net/x", "no es url"]) {
+      const { db, guardado } = base(foto(url));
+      const fetch = cdn();
+      expect(await descargarMedio("m2", { db: db as never, fetch })).toBe("FALLO");
+      expect(fetch).not.toHaveBeenCalled();
+      expect(guardado[0]).toMatchObject({ descarga: "FALLO" });
+    }
+  });
+
+  it("más de 100 MB → GRANDE; error del CDN → FALLO sin loguear la url", async () => {
+    const { db, guardado } = base(foto());
+    const grande = vi.fn(async () => new Response(new Uint8Array(1), { status: 200, headers: { "content-length": String(200 * 1024 * 1024) } }));
+    expect(await descargarMedio("m2", { db: db as never, fetch: grande, subir: vi.fn() })).toBe("GRANDE");
+    expect(guardado[0]).toMatchObject({ descarga: "GRANDE" });
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    expect(await descargarMedio("m2", { db: base(foto()).db as never, fetch: cdn({ estado: 403 }) })).toBe("FALLO");
+    expect(JSON.stringify(log.mock.calls)).not.toContain("cdninstagram");
+  });
+});

@@ -1,9 +1,10 @@
 import { prisma, type Prisma } from "@repo/db";
-import { PAUSA_BOT_HORAS_POR_DEFECTO } from "./constantes";
-import { alEco, alEntrante, atiendeElBot, type EstadoChat, type ParcheChat, type ResultadoRegla } from "./reglas";
+import { PAUSA_BOT_HORAS_POR_DEFECTO, type Canal } from "./constantes";
+import { perfilInstagram, type PerfilInstagram } from "./instagram/perfil";
+import { alEco, alEntrante, atiendeElBot, MINUTOS_PENDIENTE_INCIERTO, type EstadoChat, type ParcheChat, type ResultadoRegla } from "./reglas";
 import { mismoTelefono, ultimos6 } from "./telefono";
 import { vistaPreviaDe } from "./vista-previa";
-import type { EventoEco, EventoEntrante, EventoEstado, EventoWa } from "./webhook";
+import { mismoTextoSeguro, type EventoEco, type EventoEntrante, type EventoEstado, type EventoWa } from "./webhook";
 
 /**
  * Registro de la Bandeja de WhatsApp (servidor): aplica los eventos del webhook a chats y mensajes
@@ -63,15 +64,23 @@ export async function aplicarEventos(
 
   for (const [indice, ev] of eventos.entries()) {
     try {
-      const clave = opciones.workspaceId ?? ev.phoneNumberId;
+      // En Instagram `phoneNumberId` lleva el id de la cuenta: la clave lleva el canal para no
+      // confundirlo con un número de WhatsApp con los mismos dígitos.
+      const instagram = ev.canal === "INSTAGRAM";
+      const clave = opciones.workspaceId ?? `${instagram ? "ig" : "wa"}:${ev.phoneNumberId}`;
       let conexion = conexiones.get(clave);
       if (conexion === undefined) {
         const c = await prisma.fotofficeWaConexion.findUnique({
-          where: opciones.workspaceId ? { workspaceId: opciones.workspaceId } : { phoneNumberId: ev.phoneNumberId },
-          select: { workspaceId: true, pausaBotHoras: true, modo: true },
+          where: opciones.workspaceId
+            ? { workspaceId: opciones.workspaceId }
+            : instagram
+              ? { igAccountId: ev.phoneNumberId }
+              : { phoneNumberId: ev.phoneNumberId },
+          select: { workspaceId: true, pausaBotHoras: true, modo: true, igActivo: true },
         });
-        // Por `phoneNumberId` sólo cuentan las conexiones REALES: una simulada no puede reclamar un número ajeno.
-        const vale = c && (opciones.workspaceId || c.modo === "REAL");
+        // Por `phoneNumberId` (o `igAccountId`) sólo cuentan las conexiones REALES: una simulada no
+        // puede reclamar un número ni una cuenta ajenos. Instagram, además, tiene que estar encendido.
+        const vale = c && (opciones.workspaceId || (c.modo === "REAL" && (!instagram || c.igActivo)));
         conexion = c && vale ? { workspaceId: c.workspaceId, pausaBotHoras: c.pausaBotHoras ?? PAUSA_BOT_HORAS_POR_DEFECTO } : null;
         conexiones.set(clave, conexion);
       }
@@ -95,7 +104,8 @@ export async function aplicarEventos(
       }
     } catch (error) {
       r.fallidos++;
-      console.error("[fotoffice][whatsapp] falló un evento del lote", { indice, tipo: ev.tipo, ...detalleDeError(error) });
+      const canalDelLog = ev.canal === "INSTAGRAM" ? "instagram" : "whatsapp";
+      console.error(`[fotoffice][${canalDelLog}] falló un evento del lote`, { indice, tipo: ev.tipo, ...detalleDeError(error) });
     }
   }
   return r;
@@ -126,11 +136,24 @@ async function registrarMensaje(
     prisma.fotofficeWaMensaje.findUnique({ where: { workspaceId_waMessageId: { workspaceId, waMessageId: ev.waMessageId } }, select: { id: true } });
   if (await existe()) return "duplicado";
 
+  const canal: Canal = ev.canal ?? "WHATSAPP";
+  let perfil: PerfilInstagram | null = null;
+  if (canal === "INSTAGRAM") {
+    // Instagram avisa también lo que manda el bot (WhatsApp no): ese eco no es "el estudio contestó desde el celular".
+    if (ev.tipo === "ECO" && (await ecoPropioDeInstagram(workspaceId, ev, ahora))) return "duplicado";
+    // El perfil se pide afuera de la transacción (es una llamada a Meta) y sólo para un chat nuevo.
+    const yaEsta = await prisma.fotofficeWaChat.findUnique({
+      where: { workspaceId_canal_waId: { workspaceId, canal, waId: ev.waId } },
+      select: { id: true },
+    });
+    if (!yaEsta) perfil = await perfilInstagram(workspaceId, ev.waId).catch(() => null);
+  }
+
   // Dos intentos: el choque de único puede ser el mensaje (reintento simultáneo de Meta: ya está,
   // no se reaplica nada) o la creación simultánea del chat (la segunda vuelta ya lo encuentra).
   for (let intento = 0; ; intento++) {
     try {
-      return await prisma.$transaction((tx) => escribir(tx, workspaceId, pausaBotHoras, ev, ahora));
+      return await prisma.$transaction((tx) => escribir(tx, workspaceId, pausaBotHoras, ev, ahora, canal, perfil));
     } catch (e) {
       if (!esChoqueDeUnico(e)) throw e;
       if (await existe()) return "duplicado";
@@ -139,15 +162,66 @@ async function registrarMensaje(
   }
 }
 
+/**
+ * ¿El eco de Instagram es de un mensaje nuestro (bot o panel)? Lo es si hay una respuesta saliente
+ * reciente del chat sin `mid` todavía (el envío no lo guardó aún) con el mismo texto: entonces se le
+ * asigna el `mid` del eco. También si lo mandó nuestra app de Meta (`app_id` = `META_APP_ID`).
+ */
+async function ecoPropioDeInstagram(workspaceId: string, ev: EventoEco, ahora: Date): Promise<boolean> {
+  const chat = ev.texto
+    ? await prisma.fotofficeWaChat.findUnique({
+        where: { workspaceId_canal_waId: { workspaceId, canal: "INSTAGRAM", waId: ev.waId } },
+        select: { id: true },
+      })
+    : null;
+  if (chat && ev.texto) {
+    const candidatos = await prisma.fotofficeWaMensaje.findMany({
+      where: {
+        chatId: chat.id,
+        direccion: "SALIENTE",
+        waMessageId: null,
+        estadoEnvio: { in: ["PENDIENTE", "ENVIADO"] },
+        createdAt: { gte: new Date(ahora.getTime() - MINUTOS_PENDIENTE_INCIERTO * 60_000) },
+      },
+      select: { id: true, texto: true },
+      orderBy: { createdAt: "asc" },
+    });
+    const texto = ev.texto;
+    const propio = candidatos.find((m) => mismoTextoSeguro(m.texto ?? "", texto));
+    if (propio) {
+      // Si el envío guardó su `mid` entre medio, queda el suyo (el `where` lo exige nulo).
+      try {
+        await prisma.fotofficeWaMensaje.updateMany({ where: { id: propio.id, waMessageId: null }, data: { waMessageId: ev.waMessageId } });
+      } catch (e) {
+        if (!esChoqueDeUnico(e)) throw e;
+      }
+      return true;
+    }
+  }
+  const nuestraApp = process.env.META_APP_ID?.trim();
+  return Boolean(nuestraApp && ev.media?.appId && ev.media.appId === nuestraApp);
+}
+
 /** `paraElBot`: el chat, si entró un mensaje del cliente y lo atiende el bot. `mensajeConMedio`: el mensaje, si el cliente mandó un archivo. */
 type Escrito = { paraElBot: string | null; mensajeConMedio: string | null };
 
-async function escribir(tx: Db, workspaceId: string, pausaBotHoras: number, ev: EventoEntrante | EventoEco, ahora: Date): Promise<Escrito> {
+async function escribir(
+  tx: Db,
+  workspaceId: string,
+  pausaBotHoras: number,
+  ev: EventoEntrante | EventoEco,
+  ahora: Date,
+  canal: Canal,
+  /** Instagram: perfil de quien escribe, ya pedido (sólo si el chat no existía). */
+  perfil: PerfilInstagram | null,
+): Promise<Escrito> {
   // La hora del hecho, sin pasar de la de recepción (un reloj adelantado no debe fijar una pausa eterna).
   const cuando = ev.en && ev.en.getTime() < ahora.getTime() ? ev.en : ahora;
   const entrante = ev.tipo === "ENTRANTE";
 
-  const clave = { workspaceId_canal_waId: { workspaceId, canal: "WHATSAPP", waId: ev.waId } };
+  const clave = { workspaceId_canal_waId: { workspaceId, canal, waId: ev.waId } };
+  // En Instagram el `waId` es un IGSID, no un teléfono: nunca se busca un cliente por él.
+  const buscaCliente = canal === "WHATSAPP";
   let chat = await tx.fotofficeWaChat.findUnique({ where: clave });
   /** Cliente ya buscado al crear el chat: no se busca de nuevo en el mismo evento. */
   let clienteBuscado: { id: string | null } | null = null;
@@ -157,11 +231,15 @@ async function escribir(tx: Db, workspaceId: string, pausaBotHoras: number, ev: 
     await tx.$executeRaw`SELECT 1 FROM "FotofficeWaChat" WHERE id = ${chat.id} FOR UPDATE`;
     chat = (await tx.fotofficeWaChat.findUnique({ where: clave })) ?? chat;
   } else {
-    clienteBuscado = { id: await clienteDelTelefono(workspaceId, ev.waId, tx) };
+    clienteBuscado = { id: buscaCliente ? await clienteDelTelefono(workspaceId, ev.waId, tx) : null };
+    const nombre = canal === "INSTAGRAM"
+      ? (perfil?.nombre ?? (perfil?.usuario ? `@${perfil.usuario}` : null))
+      : entrante ? ev.nombre : null;
     chat = await tx.fotofficeWaChat.create({
       data: {
-        workspaceId, canal: "WHATSAPP", waId: ev.waId, nombre: entrante ? ev.nombre : null, ultimoMensajeEn: cuando, ...vistaPreviaDe(ev.texto, ev.mensajeTipo),
+        workspaceId, canal, waId: ev.waId, nombre, ultimoMensajeEn: cuando, ...vistaPreviaDe(ev.texto, ev.mensajeTipo),
         clientId: clienteBuscado.id,
+        ...(canal === "INSTAGRAM" ? { usuarioInstagram: perfil?.usuario ?? null } : {}),
       },
     });
   }
@@ -199,7 +277,7 @@ async function escribir(tx: Db, workspaceId: string, pausaBotHoras: number, ev: 
     parche.noLeidos = { increment: 1 };
     if (ev.nombre && ev.nombre !== chat.nombre) parche.nombre = ev.nombre;
   }
-  if (!chat.clientId && !clienteBuscado) {
+  if (buscaCliente && !chat.clientId && !clienteBuscado) {
     const clientId = await clienteDelTelefono(workspaceId, ev.waId, tx);
     if (clientId) parche.clientId = clientId;
   }
@@ -215,7 +293,8 @@ async function escribir(tx: Db, workspaceId: string, pausaBotHoras: number, ev: 
   }
   return {
     paraElBot: entrante && atiendeElBot({ ...estado, ...regla.parche }, ahora) ? chat.id : null,
-    mensajeConMedio: entrante && ev.media?.id ? creado.id : null,
+    // WhatsApp trae el id del archivo en Meta; Instagram, su dirección.
+    mensajeConMedio: entrante && (ev.media?.id || ev.media?.url) ? creado.id : null,
   };
 }
 
