@@ -63,8 +63,8 @@ describe("lista de Presupuestos (motor 0.2)", () => {
   it("columnas, filtros y lote pedidos; ninguna columna de plata interna", () => {
     const d = L.listadoPresupuestos;
     expect(d.clave).toBe("presupuestos");
-    expect(d.columnas.map((c) => c.clave)).toEqual(["numero", "contacto", "consulta", "estado", "total", "vence", "responsable", "actualizado"]);
-    expect(d.filtros.map((f) => f.clave)).toEqual(["estado", "vencidos", "responsable"]);
+    expect(d.columnas.map((c) => c.clave)).toEqual(["numero", "contacto", "consulta", "tipoEvento", "fechaEvento", "estado", "total", "vence", "responsable", "actualizado"]);
+    expect(d.filtros.map((f) => f.clave)).toEqual(["estado", "vencidos", "responsable", "categoria"]);
     expect(d.acciones.map((a) => [a.clave, a.capacidad])).toEqual([["marcar-vencidos", "operar"]]);
     expect(JSON.stringify(d.exportar.columnas.map((c) => c.titulo))).not.toMatch(/costo|margen/i);
   });

@@ -11,6 +11,9 @@ import type { CtxPresupuestos } from "./acceso";
 import { ENTIDAD_NUMERACION, ESTADOS_PRESUPUESTO, ETIQUETA_ESTADO, esEstadoPresupuesto, type EstadoPresupuesto } from "./constantes";
 import { estadoEfectivo, ESTADOS_QUE_VENCEN, hoyEnBuenosAires, textoDeFecha } from "./estados";
 import { marcarVencidos } from "./presupuestos";
+import { vistasDeCotizaciones } from "./evento-de-cotizacion";
+import { textoCortoDeVistas, textoDeFechaDelEvento } from "./evento-vista";
+import { SERVICE_LEAD_EVENT_TYPE_LABELS } from "@/lib/service-leads/form-definitions";
 
 /**
  * Lista de Presupuestos sobre el motor de listas (0.2). Columnas: número, contacto, consulta,
@@ -37,6 +40,13 @@ export type FilaListaPresupuesto = {
   contacto: string;
   consultaLeadId: string;
   consulta: string;
+  /** La categoría de la consulta (XV, Boda…), o el tipo de evento viejo. */
+  tipoEvento: string | null;
+  /** El día del evento de la consulta. */
+  fechaEvento: Date | null;
+  fechaEventoConHora: boolean;
+  /** "2 veces · última 17/11": las aperturas del cliente; null si nunca la abrió. */
+  vistas: string | null;
   total: number;
   /** "aaaa-mm-dd". */
   validUntil: string | null;
@@ -55,7 +65,14 @@ const SELECT_FILA = {
   createdAt: true,
   updatedAt: true,
   client: { select: { firstName: true, lastName: true, businessName: true } },
-  consultaLead: { select: { name: true } },
+  consultaLead: {
+    select: {
+      name: true,
+      eventType: true,
+      eventDate: true,
+      fotofficeConsulta: { select: { eventStartsAt: true, eventTimeKnown: true, category: { select: { name: true } } } },
+    },
+  },
   currentVersion: { select: { totals: true } },
 } satisfies Prisma.FotofficePresupuestoSelect;
 
@@ -131,6 +148,9 @@ export function wherePresupuestos(
   else if (c.filtros.vencidos === "no") and.push({ NOT: whereVencido(hoy) });
   const responsable = Number(c.filtros.responsable);
   if (c.filtros.responsable && Number.isSafeInteger(responsable) && responsable > 0) and.push({ ownerUserId: responsable });
+  if (c.filtros.categoria && ID_VALIDO.test(c.filtros.categoria)) {
+    and.push({ consultaLead: { is: { fotofficeConsulta: { is: { categoryId: c.filtros.categoria } } } } });
+  }
   return and.length > 0 ? { workspaceId, AND: and } : { workspaceId };
 }
 
@@ -182,6 +202,8 @@ function ordenarPor(c: ConsultaResuelta): Prisma.FotofficePresupuestoOrderByWith
       return [{ validUntil: { sort: dir, nulls: "last" } }, { id: dir }];
     case "alta":
       return [{ createdAt: dir }, { id: dir }];
+    case "evento":
+      return [{ consultaLead: { fotofficeConsulta: { eventStartsAt: { sort: dir, nulls: "last" } } } }, { id: dir }];
     default:
       return [{ updatedAt: dir }, { id: dir }];
   }
@@ -197,12 +219,26 @@ function totalDe(totals: unknown): number {
   return typeof t === "number" && Number.isFinite(t) ? t : 0;
 }
 
+const TIPOS_VIEJOS = SERVICE_LEAD_EVENT_TYPE_LABELS as Record<string, string>;
+
+/** Puro: tipo y fecha del evento de la fila, de la consulta (o de sus datos viejos). */
+export function eventoDeFila(f: Pick<FilaBase, "consultaLead">): Pick<FilaListaPresupuesto, "tipoEvento" | "fechaEvento" | "fechaEventoConHora"> {
+  const l = f.consultaLead;
+  const c = l?.fotofficeConsulta ?? null;
+  return {
+    tipoEvento: c?.category.name ?? (l?.eventType ? (TIPOS_VIEJOS[l.eventType] ?? l.eventType) : null),
+    fechaEvento: c ? c.eventStartsAt : (l?.eventDate ?? null),
+    fechaEventoConHora: c?.eventTimeKnown === true,
+  };
+}
+
 async function completar(workspaceId: string, filas: FilaBase[]): Promise<FilaListaPresupuesto[]> {
   const ahora = new Date();
-  const [numeros, numerosConsulta, equipo] = await Promise.all([
+  const [numeros, numerosConsulta, equipo, vistas] = await Promise.all([
     numeroDe(workspaceId, ENTIDAD_NUMERACION, filas.map((f) => f.id)),
     numeroDe(workspaceId, TIPO_CONSULTA, filas.map((f) => f.consultaLeadId)),
     filas.some((f) => f.ownerUserId !== null) ? responsablesDe(workspaceId) : Promise.resolve([]),
+    vistasDeCotizaciones(workspaceId, filas.map((f) => f.id)),
   ]);
   const nombres = new Map(equipo.map((r) => [r.id, r.nombre]));
   const out: FilaListaPresupuesto[] = [];
@@ -218,6 +254,8 @@ async function completar(workspaceId: string, filas: FilaBase[]): Promise<FilaLi
       contacto: nombreDeContacto(f.client),
       consultaLeadId: f.consultaLeadId,
       consulta: numeroConsulta ? `N° ${numeroConsulta}` : f.consultaLead?.name || "Consulta",
+      ...eventoDeFila(f),
+      vistas: textoCortoDeVistas(vistas.get(f.id) ?? null),
       total: totalDe(f.currentVersion?.totals),
       validUntil: textoDeFecha(f.validUntil),
       responsable: f.ownerUserId === null ? null : (nombres.get(f.ownerUserId) ?? `Usuario ${f.ownerUserId}`),
@@ -308,10 +346,22 @@ export const listadoPresupuestos: DefinicionListado<FilaListaPresupuesto> = {
         </Link>
       ),
     },
+    { clave: "tipoEvento", titulo: "Tipo de evento", celda: (f) => f.tipoEvento ?? "—" },
+    {
+      clave: "fechaEvento",
+      titulo: "Fecha del evento",
+      orden: "evento",
+      celda: (f) => <span className="whitespace-nowrap">{f.fechaEvento ? textoDeFechaDelEvento(f.fechaEvento, false) : "—"}</span>,
+    },
     {
       clave: "estado",
       titulo: "Estado",
-      celda: (f) => <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${claseDeEstado(f.estado)}`}>{ETIQUETA_ESTADO[f.estado]}</span>,
+      celda: (f) => (
+        <span className="inline-flex flex-col items-start gap-0.5">
+          <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${claseDeEstado(f.estado)}`}>{ETIQUETA_ESTADO[f.estado]}</span>
+          {f.vistas ? <span className="whitespace-nowrap text-xs text-[var(--fo-muted)]">{f.vistas}</span> : null}
+        </span>
+      ),
     },
     { clave: "total", titulo: "Total", alinear: "derecha", celda: (f) => <span className="whitespace-nowrap tabular-nums">{pesos(f.total)}</span> },
     {
@@ -327,8 +377,9 @@ export const listadoPresupuestos: DefinicionListado<FilaListaPresupuesto> = {
     { tipo: "opcion", clave: "estado", etiqueta: "Estado", opciones: OPCIONES_ESTADO },
     { tipo: "siNo", clave: "vencidos", etiqueta: "Vencidas", si: "Vencidas", no: "Sin vencer" },
     { tipo: "relacion", clave: "responsable", etiqueta: "Responsable" },
+    { tipo: "relacion", clave: "categoria", etiqueta: "Tipo de evento" },
   ],
-  ordenes: ["actualizado", "vence", "alta"],
+  ordenes: ["actualizado", "vence", "alta", "evento"],
   ordenPorDefecto: { campo: "actualizado", desc: true },
   idDe: (f) => f.id,
   hrefFicha: (id) => `/presupuestos/${encodeURIComponent(id)}`,
@@ -342,9 +393,24 @@ export const listadoPresupuestos: DefinicionListado<FilaListaPresupuesto> = {
     return filas.map((f) => f.id);
   },
   traerPorIds: async (ctx, ids) => filasPorIds(ctx.workspaceId, ids),
-  opcionesRelacion: async (ctx, clave) =>
-    clave === "responsable" ? (await responsablesDe(ctx.workspaceId)).map((r) => ({ valor: String(r.id), etiqueta: r.nombre })) : [],
+  opcionesRelacion: async (ctx, clave) => {
+    if (clave === "categoria") {
+      // También las archivadas: las consultas viejas las siguen usando.
+      const filas = await prisma.fotofficeConsultaCategoria.findMany({
+        where: { workspaceId: ctx.workspaceId },
+        select: { id: true, name: true, archivedAt: true },
+        orderBy: [{ order: "asc" }, { name: "asc" }, { id: "asc" }],
+      });
+      return filas.map((c) => ({ valor: c.id, etiqueta: c.archivedAt ? `${c.name} (archivada)` : c.name }));
+    }
+    return clave === "responsable" ? (await responsablesDe(ctx.workspaceId)).map((r) => ({ valor: String(r.id), etiqueta: r.nombre })) : [];
+  },
   validarRelacion: async (ctx, clave, id) => {
+    if (clave === "categoria") {
+      if (!ID_VALIDO.test(id)) return null;
+      const c = await prisma.fotofficeConsultaCategoria.findFirst({ where: { id, workspaceId: ctx.workspaceId }, select: { name: true } });
+      return c?.name ?? null;
+    }
     if (clave !== "responsable" || !/^\d{1,10}$/.test(id)) return null;
     const r = (await responsablesDe(ctx.workspaceId)).find((x) => String(x.id) === id);
     return r?.nombre ?? null;
@@ -356,6 +422,9 @@ export const listadoPresupuestos: DefinicionListado<FilaListaPresupuesto> = {
       { titulo: "N°", tipo: "texto", valor: (f) => f.numero },
       { titulo: "Contacto", tipo: "texto", valor: (f) => f.contacto },
       { titulo: "Consulta", tipo: "texto", valor: (f) => f.consulta },
+      { titulo: "Tipo de evento", tipo: "texto", valor: (f) => f.tipoEvento },
+      { titulo: "Fecha del evento", tipo: "texto", valor: (f) => (f.fechaEvento ? textoDeFechaDelEvento(f.fechaEvento, false) : null) },
+      { titulo: "Aperturas del cliente", tipo: "texto", valor: (f) => f.vistas },
       { titulo: "Estado", tipo: "texto", valor: (f) => ETIQUETA_ESTADO[f.estado] },
       { titulo: "Total", tipo: "importe", valor: (f) => f.total },
       { titulo: "Vence", tipo: "texto", valor: (f) => fecha(f.validUntil) },
