@@ -203,7 +203,7 @@ const DEFECTOS: Partial<Record<Tabla, () => Fila>> = {
   fotofficeOrigen: () => ({ order: 0, archivedAt: null, createdAt: new Date() }),
   fotofficeRolParticipante: () => ({ order: 0, archivedAt: null, createdAt: new Date() }),
   fotofficeConsultaParticipante: () => ({ note: null, createdAt: new Date() }),
-  fotofficeConsultaAjustes: () => ({ defaultOwnerUserId: null, notifyEmail: true, createTask: true, updatedAt: new Date() }),
+  fotofficeConsultaAjustes: () => ({ defaultOwnerUserId: null, notifyEmail: true, createTask: true, eventsPerDay: 1, updatedAt: new Date() }),
   product: () => ({ kind: "PRODUCTO", categoryId: null, isActive: true, costArs: null, createdAt: new Date(), updatedAt: new Date() }),
   productCategory: () => ({ order: 0, isActive: true, createdAt: new Date(), updatedAt: new Date() }),
   fotofficeProductoCatalogo: () => ({

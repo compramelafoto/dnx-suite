@@ -21632,6 +21632,8 @@ model FotofficeConsultaAjustes {
   defaultOwnerUserId Int?
   notifyEmail        Boolean  @default(true)
   createTask         Boolean  @default(true)
+  /// Eventos que el estudio puede cubrir el mismo día (semáforo de fechas: rojo al llegar a este número). Entre 1 y 20.
+  eventsPerDay       Int      @default(1)
   updatedAt          DateTime @updatedAt
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)

@@ -14,6 +14,9 @@ import { formatoPesos, valorComoNumero } from "@/lib/consultas/valor";
 import { ACCIONES_CONSULTAS } from "./lote";
 import { SERVICE_LEAD_EVENT_TYPE_LABELS } from "./form-definitions";
 import { TIPO_CONSULTA } from "./numero";
+import { PuntoSemaforo } from "@/components/consultas/punto-semaforo";
+import { semaforosDeConsultas } from "@/lib/consultas/semaforo";
+import type { Semaforo } from "@/lib/consultas/semaforo-puro";
 
 const SELECT_FILA = {
   id: true,
@@ -43,7 +46,8 @@ export type RecorridoDeFila = {
 
 type FilaBase = Prisma.ServiceSalesLeadGetPayload<{ select: typeof SELECT_FILA }>;
 /** `numero`: el número de la consulta ("2026-0042"), null si todavía no tiene. */
-export type FilaCaptacion = FilaBase & { recorrido: RecorridoDeFila | null; numero: string | null };
+/** `semaforo`: el de la fecha, sólo en las consultas abiertas con fecha. */
+export type FilaCaptacion = FilaBase & { recorrido: RecorridoDeFila | null; numero: string | null; semaforo?: Semaforo };
 
 /** Los ids que llegan de una dirección se validan en forma antes de tocar la base. */
 const ID_VALIDO = /^[A-Za-z0-9_-]{1,64}$/;
@@ -324,10 +328,14 @@ async function conRecorrido(workspaceId: string, filas: FilaBase[]): Promise<Fil
   const ids = filas.map((f) => f.id);
   const [mapa, numeros] = await Promise.all([recorridosDe(workspaceId, ids), numeroDe(workspaceId, TIPO_CONSULTA, ids)]);
   const nombres = await nombresDeResponsables(workspaceId, [...mapa.values()].map((r) => r.responsableId));
+  // Semáforo de fechas: sólo las abiertas (recorrido sin salida) con fecha.
+  const abiertas = filas.filter((f) => f.eventDate && mapa.get(f.id) && mapa.get(f.id)!.outcome === null);
+  const semaforos = await semaforosDeConsultas(workspaceId, abiertas.map((f) => ({ leadId: f.id, fecha: f.eventDate }))).catch(() => new Map<string, Semaforo>());
   return filas.map((f) => {
     const r = mapa.get(f.id) ?? null;
     const recorrido = r && r.responsableId !== null ? { ...r, responsable: nombres.get(r.responsableId) ?? `Usuario ${r.responsableId}` } : r;
-    return { ...f, recorrido, numero: numeros.get(f.id) ?? null };
+    const semaforo = semaforos.get(f.id);
+    return { ...f, recorrido, numero: numeros.get(f.id) ?? null, ...(semaforo ? { semaforo } : {}) };
   });
 }
 
@@ -412,7 +420,21 @@ export const listadoCaptacion: DefinicionListado<FilaCaptacion> = {
       ),
     },
     { clave: "categoria", titulo: "Categoría", celda: categoriaDe },
-    { clave: "evento", titulo: "Fecha del evento", orden: "evento", celda: (f) => (f.eventDate ? fechaDeEvento(f.eventDate) : "—") },
+    {
+      clave: "evento",
+      titulo: "Fecha del evento",
+      orden: "evento",
+      celda: (f) => {
+        if (!f.eventDate) return "—";
+        if (!f.semaforo) return fechaDeEvento(f.eventDate);
+        return (
+          <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+            <PuntoSemaforo semaforo={f.semaforo} />
+            {fechaDeEvento(f.eventDate)}
+          </span>
+        );
+      },
+    },
     { clave: "etapa", titulo: "Etapa", celda: celdaEtapa },
     {
       clave: "valor",
@@ -565,6 +587,7 @@ export const listadoCaptacion: DefinicionListado<FilaCaptacion> = {
       { titulo: "Valor estimado", tipo: "importe", valor: (f) => valorDe(f) },
       { titulo: "Responsable", tipo: "texto", valor: (f) => f.recorrido?.responsable ?? null },
       { titulo: "Fecha del evento", tipo: "texto", valor: (f) => (f.eventDate ? fechaDeEvento(f.eventDate) : null) },
+      { titulo: "Semáforo de la fecha", tipo: "texto", valor: (f) => (f.semaforo ? f.semaforo.texto : null) },
       { titulo: "Circuito", tipo: "texto", valor: (f) => f.recorrido?.circuito ?? null },
       { titulo: "Etapa", tipo: "texto", valor: (f) => f.recorrido?.etapa?.nombre ?? null },
       { titulo: "Resultado", tipo: "texto", valor: (f) => textoResultado(f.recorrido) },

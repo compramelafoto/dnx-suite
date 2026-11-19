@@ -14,14 +14,17 @@ export type AjustesConsultas = {
   responsableUserId: number | null;
   notificarCorreo: boolean;
   crearTarea: boolean;
+  /** Eventos que se pueden cubrir el mismo día (semáforo de fechas). */
+  eventosPorDia: number;
 };
 
-export const AJUSTES_DE_FABRICA: AjustesConsultas = { responsableUserId: null, notificarCorreo: true, crearTarea: true };
+export const AJUSTES_DE_FABRICA: AjustesConsultas = { responsableUserId: null, notificarCorreo: true, crearTarea: true, eventosPorDia: 1 };
 
 export const MENSAJES_AJUSTES = {
   sinPermiso: "Sólo un administrador puede configurar las consultas.",
   datosInvalidos: "Los datos no son válidos.",
   responsable: "El responsable tiene que ser alguien del equipo con permiso para gestionar Consultas.",
+  eventosPorDia: "Los eventos por día tienen que ser un número entre 1 y 20.",
 } as const;
 
 export type DepsAjustes = {
@@ -35,10 +38,10 @@ const tieneGestionarPorDefecto = (userId: number, workspaceId: string) =>
 export async function leerAjustes(workspaceId: string): Promise<AjustesConsultas> {
   const f = await prisma.fotofficeConsultaAjustes.findUnique({
     where: { workspaceId },
-    select: { defaultOwnerUserId: true, notifyEmail: true, createTask: true },
+    select: { defaultOwnerUserId: true, notifyEmail: true, createTask: true, eventsPerDay: true },
   });
   if (!f) return { ...AJUSTES_DE_FABRICA };
-  return { responsableUserId: f.defaultOwnerUserId, notificarCorreo: f.notifyEmail, crearTarea: f.createTask };
+  return { responsableUserId: f.defaultOwnerUserId, notificarCorreo: f.notifyEmail, crearTarea: f.createTask, eventosPorDia: f.eventsPerDay ?? 1 };
 }
 
 /** ¿Puede ser responsable de consultas? Del equipo del workspace y con "Gestionar" en Consultas. */
@@ -52,7 +55,7 @@ export async function puedeSerResponsable(workspaceId: string, userId: unknown, 
 /** Guarda los tres ajustes. Exige `configurar`; el responsable se valida contra el equipo. */
 export async function guardarAjustes(
   ctx: CtxConsultas,
-  datos: { responsableUserId: unknown; notificarCorreo: unknown; crearTarea: unknown },
+  datos: { responsableUserId: unknown; notificarCorreo: unknown; crearTarea: unknown; eventosPorDia?: unknown },
   deps: DepsAjustes = {},
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   if (!puedeEnContexto(ctx, "configurar")) return { ok: false, error: MENSAJES_AJUSTES.sinPermiso };
@@ -64,10 +67,16 @@ export async function guardarAjustes(
   if (responsable !== null && !(await puedeSerResponsable(ctx.workspaceId, responsable, deps))) {
     return { ok: false, error: MENSAJES_AJUSTES.responsable };
   }
+  // Sin el dato (formularios viejos), el tope que ya tenía no se toca.
+  const eventos = datos.eventosPorDia;
+  if (eventos !== undefined && (typeof eventos !== "number" || !Number.isInteger(eventos) || eventos < 1 || eventos > 20)) {
+    return { ok: false, error: MENSAJES_AJUSTES.eventosPorDia };
+  }
   const valores = {
     defaultOwnerUserId: responsable as number | null,
     notifyEmail: datos.notificarCorreo,
     createTask: datos.crearTarea,
+    ...(eventos !== undefined ? { eventsPerDay: eventos } : {}),
   };
   try {
     await prisma.fotofficeConsultaAjustes.upsert({

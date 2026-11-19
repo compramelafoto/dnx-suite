@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { PageHeader } from "@/components/page-header";
+import { PuntoSemaforo } from "@/components/consultas/punto-semaforo";
+import { semaforosDeConsultas } from "@/lib/consultas/semaforo";
 import { MasDatos } from "@/components/campos/mas-datos";
 import { Mensaje } from "@/components/mensajes/mensaje";
 import { Historial } from "@/components/circuitos/historial";
@@ -123,6 +125,11 @@ export default async function FichaConsultaPage({ params }: { params: Promise<{ 
   const citas = await citasDeOrigen(ctxPresupuestos, { consultaLeadId: id });
 
   const { consulta, recorrido } = ficha;
+  // Semáforo de la fecha: sólo mientras la consulta está abierta y tiene fecha.
+  const semaforo =
+    recorrido?.abierto === true && consulta.fechaEvento
+      ? ((await semaforosDeConsultas(workspace.id, [{ leadId: id, fecha: new Date(consulta.fechaEvento) }]).catch(() => new Map())).get(id) ?? null)
+      : null;
   const evento = [consulta.tipo, consulta.subtipo].filter(Boolean).join(" · ");
   const recorridoAbierto = recorrido?.abierto === true ? recorrido : null;
   const responsableId = recorridoAbierto?.responsableId ?? null;
@@ -182,6 +189,13 @@ export default async function FichaConsultaPage({ params }: { params: Promise<{ 
           </div>
         }
       />
+
+      {semaforo ? (
+        <p role="status" className={`fo-card flex flex-wrap items-center gap-2 !py-2.5 text-sm ${semaforo.color === "ROJO" ? "border-[var(--fo-danger-border)]" : ""}`}>
+          <PuntoSemaforo semaforo={semaforo} conTexto />
+          <span className="text-[var(--fo-muted)]">{semaforo.texto}</span>
+        </p>
+      ) : null}
 
       {datosConsulta ? (
         <AvisosConsulta
