@@ -23,6 +23,8 @@ export type MensajeVista = {
   plantilla: string | null;
   asunto: string | null;
   cuerpo: string;
+  /** Avisos del correo, en orden: "Entregado 15/11 21:39", "Abierto 15/11 21:40", "Clic 15/11 21:41". */
+  seguimiento: { texto: string; tipo: "ok" | "abierto" | "problema" }[];
 };
 
 /** La fila tal como la lee el proveedor (sólo lo que se muestra). */
@@ -37,7 +39,34 @@ export type FilaMensaje = {
   errorCode: string | null;
   actorLabel: string | null;
   createdAt: Date;
+  /** Avisos de Resend (sólo correo); pueden faltar en lecturas viejas. */
+  deliveredAt?: Date | null;
+  openedAt?: Date | null;
+  clickedAt?: Date | null;
+  bouncedAt?: Date | null;
+  complainedAt?: Date | null;
 };
+
+const fechaCorta = new Intl.DateTimeFormat("es-AR", {
+  timeZone: "America/Argentina/Buenos_Aires", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+});
+const corta = (d: Date) => fechaCorta.format(d).replace(",", "");
+
+/**
+ * Puro: lo que Resend avisó de un correo. El rebote y la queja van primero (son problemas: la
+ * dirección no sirve o lo marcaron como spam). La apertura puede aparecer sola en algunos
+ * programas de correo que abren las imágenes automáticamente; el clic es la señal segura.
+ */
+export function seguimientoDe(f: Pick<FilaMensaje, "channel" | "deliveredAt" | "openedAt" | "clickedAt" | "bouncedAt" | "complainedAt">): MensajeVista["seguimiento"] {
+  if (f.channel !== "EMAIL") return [];
+  const out: MensajeVista["seguimiento"] = [];
+  if (f.bouncedAt) out.push({ texto: `Rebotó ${corta(f.bouncedAt)}: la dirección no recibe correos`, tipo: "problema" });
+  if (f.complainedAt) out.push({ texto: `Lo marcó como spam ${corta(f.complainedAt)}`, tipo: "problema" });
+  if (f.deliveredAt && !f.bouncedAt) out.push({ texto: `Entregado ${corta(f.deliveredAt)}`, tipo: "ok" });
+  if (f.openedAt) out.push({ texto: `Abierto ${corta(f.openedAt)}`, tipo: "abierto" });
+  if (f.clickedAt) out.push({ texto: `Hizo clic ${corta(f.clickedAt)}`, tipo: "abierto" });
+  return out;
+}
 
 /** Motivo legible de un código de error guardado (nunca el detalle del proveedor). */
 export function motivoDeFalla(codigo: string | null | undefined): string | null {
@@ -71,6 +100,7 @@ export function vistaDeMensaje(f: FilaMensaje, plantilla: string | null): Mensaj
     plantilla,
     asunto: f.subject?.trim() ? f.subject : null,
     cuerpo: f.body,
+    seguimiento: seguimientoDe(f),
   };
 }
 

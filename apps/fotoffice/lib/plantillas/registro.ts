@@ -7,6 +7,7 @@ import { vistaDeMensaje, type MensajeVista } from "./vista-mensaje";
 export const SELECT_MENSAJE = {
   id: true, channel: true, status: true, automatic: true, toAddress: true, subject: true, body: true, errorCode: true,
   actorLabel: true, createdAt: true, templateId: true,
+  deliveredAt: true, openedAt: true, clickedAt: true, bouncedAt: true, complainedAt: true,
 } as const;
 
 /** Nombre de las plantillas usadas, sólo del workspace (una plantilla borrada no tiene nombre). */

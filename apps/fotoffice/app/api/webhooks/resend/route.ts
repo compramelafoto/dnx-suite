@@ -3,6 +3,7 @@ import { verifySvix } from "@/lib/mailing/svix";
 import { parseResendEvent } from "@/lib/mailing/webhook-events";
 import { applyWebhookEvent } from "@/lib/mailing/webhook";
 import { aplicarAvisoVendedor } from "@/lib/agentes/vendedor/avisos";
+import { aplicarAvisoDeCorreo } from "@/lib/communications/avisos-de-correo";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -51,8 +52,11 @@ export async function POST(request: Request) {
 
   try {
     const r = await applyWebhookEvent(evento);
-    // Un correo que no es de una campaña puede ser del agente Vendedor (la misma cuenta de Resend).
+    // Un correo que no es de una campaña puede ser uno registrado en FOTOFFICE (consulta,
+    // cotización, contrato, pedido) o del agente Vendedor (la misma cuenta de Resend).
     if (r === "UNKNOWN") {
+      const mensaje = await aplicarAvisoDeCorreo(evento, new Date());
+      if (mensaje !== "DESCONOCIDO") return NextResponse.json({ ok: true, result: mensaje });
       const vendedor = await aplicarAvisoVendedor(evento, new Date());
       return NextResponse.json({ ok: true, result: vendedor });
     }
