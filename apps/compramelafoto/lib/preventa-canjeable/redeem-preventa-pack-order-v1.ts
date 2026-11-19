@@ -347,19 +347,11 @@ export async function executePreventaPackRedeemV1InTransaction(
     throw new PreventaPackRedeemValidationError(`Snapshot inválido: ${msg}`);
   }
 
+  // Dentro de un beneficio una foto no se repite (lo valida `validateRedeemSelectionsAgainstSnapshot`).
+  // Entre beneficios sí: la familia puede querer impresa y en digital la misma foto, o la individual
+  // del librito también como copia suelta. La pantalla del canje lo deja (PR 860) y acá se rechazaba
+  // al confirmar con «No podés usar la misma foto en más de un beneficio».
   validateRedeemSelectionsAgainstSnapshot(snapshot, selections, now);
-  // VALIDACIÓN GLOBAL: ninguna foto puede repetirse entre beneficios
-  // (dentro de un beneficio ya se validó arriba: varias carpetas pueden repetir sus fotos).
-  const allPhotoIds = [];
-  for (const s of selections) {
-    allPhotoIds.push(...new Set(s.units.flat()));
-  }
-  const unique = new Set(allPhotoIds);
-  if (unique.size !== allPhotoIds.length) {
-    throw new PreventaPackRedeemValidationError(
-      "No podés usar la misma foto en más de un beneficio"
-    );
-  }
 
 
   const photoIds = collectPhotoIds(selections);

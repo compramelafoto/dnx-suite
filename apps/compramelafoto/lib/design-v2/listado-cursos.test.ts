@@ -95,3 +95,15 @@ test("un listado viejo con «7 A» reconoce al curso del padrón «7° A»", () 
   const viejo = { title: "7 A", students: alumnos("x", 3) };
   assert.equal(claveDelCursoPropio([viejo], disponibles), A.key);
 });
+
+test("un librito del Excel no ofrece sumar su propio curso del padrón", () => {
+  const delExcel = { title: "7° A", courseKey: "excel|7° A", students: propio.students };
+  assert.equal(claveDelCursoPropio([delExcel], disponibles), A.key);
+  assert.deepEqual(
+    cursosParaSumar([delExcel], disponibles).map((c) => c.key),
+    [B.key, C.key],
+  );
+  // El propio queda con su clave del Excel y los sumados detrás.
+  const out = armarListadoConCursos([delExcel], disponibles, [A.key, B.key]);
+  assert.deepEqual(out.map((g) => g.courseKey), ["excel|7° A", B.key]);
+});

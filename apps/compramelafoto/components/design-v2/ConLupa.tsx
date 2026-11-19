@@ -18,6 +18,7 @@ export default function ConLupa({
   diametro = 220,
   conDedo = false,
   activa = true,
+  giro = 0,
   children,
 }: {
   /** Tamaño de la cara en sus unidades (las del lienzo de la plantilla). */
@@ -32,26 +33,33 @@ export default function ConLupa({
   /** También con el dedo (en el celular, apoyar y arrastrar). */
   conDedo?: boolean;
   activa?: boolean;
+  /** Si la cara se muestra girada (en grados, a favor del reloj): para ubicar bien la lupa. */
+  giro?: 0 | 90 | 180 | 270;
   children: ReactNode;
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  const [punto, setPunto] = useState<{ x: number; y: number } | null>(null);
+  const [punto, setPunto] = useState<{ x: number; y: number; dedo: boolean } | null>(null);
 
   function mover(e: React.PointerEvent) {
     if (!activa) return;
     if (e.pointerType !== "mouse" && !conDedo) return;
     const r = ref.current?.getBoundingClientRect();
     if (!r) return;
-    const x = e.clientX - r.left;
-    const y = e.clientY - r.top;
-    if (x < 0 || y < 0 || x > r.width || y > r.height) return setPunto(null);
-    setPunto({ x, y });
+    // El rectángulo de una cara girada es el de la vista girada: se vuelve a las coordenadas de la cara.
+    const u = e.clientX - r.left;
+    const v = e.clientY - r.top;
+    const A = ancho * escala;
+    const H = alto * escala;
+    const [x, y] =
+      giro === 90 ? [v, H - u] : giro === 180 ? [A - u, H - v] : giro === 270 ? [A - v, u] : [u, v];
+    if (x < 0 || y < 0 || x > A || y > H) return setPunto(null);
+    setPunto({ x, y, dedo: e.pointerType !== "mouse" });
   }
 
   const grande = escala * aumento;
   const radio = diametro / 2;
   // Con el dedo, la lupa va arriba del dedo para que no la tape.
-  const arribaDelDedo = conDedo && punto ? radio + 40 : 0;
+  const arribaDelDedo = punto?.dedo && giro === 0 ? radio + 40 : 0;
 
   return (
     <div

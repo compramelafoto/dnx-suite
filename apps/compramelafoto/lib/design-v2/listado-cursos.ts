@@ -85,7 +85,12 @@ export function claveDelCursoPropio(
 ): string | null {
   const propio = groups[0];
   if (!propio) return null;
-  if (propio.courseKey) return propio.courseKey;
+  // La clave sirve si es la de un curso del álbum. Un librito de un pack del Excel trae la del
+  // Excel («excel|6º grado A») y el álbum ofrece los del padrón: sin esto se ofrecía sumar el
+  // mismo curso del librito como si fuera otro.
+  if (propio.courseKey && (disponibles.length === 0 || disponibles.some((c) => c.key === propio.courseKey))) {
+    return propio.courseKey;
+  }
   const porTitulo = disponibles.find((c) => propio.title && normalizar(c.title) === normalizar(propio.title));
   if (porTitulo) return porTitulo.key;
   const nombres = new Set(propio.students.map((s) => normalizar(`${s.firstName} ${s.lastName}`)));
@@ -94,7 +99,8 @@ export function claveDelCursoPropio(
     const comunes = c.students.filter((s) => nombres.has(normalizar(`${s.firstName} ${s.lastName}`))).length;
     if (comunes > 0 && (!mejor || comunes > mejor.comunes)) mejor = { key: c.key, comunes };
   }
-  return mejor && mejor.comunes * 2 >= propio.students.length ? mejor.key : null;
+  if (mejor && mejor.comunes * 2 >= propio.students.length) return mejor.key;
+  return propio.courseKey ?? null;
 }
 
 /** Las claves de los cursos que ya están en el listado, además del propio. */

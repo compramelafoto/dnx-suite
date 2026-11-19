@@ -41,6 +41,11 @@ export default function VisorAmpliado({
   const [pagina, setPagina] = useState(paginaInicial);
   const [zoom, setZoom] = useState(1);
   const [lupa, setLupa] = useState(false);
+  /** Para leer un listado impreso de costado. */
+  const [giro, setGiro] = useState<0 | 90 | 180 | 270>(0);
+  const deCostado = giro === 90 || giro === 270;
+  const anchoVisto = deCostado ? alto : ancho;
+  const altoVisto = deCostado ? ancho : alto;
   const [caja, setCaja] = useState({ width: 0, height: 0 });
   /** Qué punto de la cara (0..1) tiene que quedar en el centro después de cambiar el zoom. */
   const centroPendiente = useRef<{ x: number; y: number } | null>(null);
@@ -73,23 +78,24 @@ export default function VisorAmpliado({
     };
   }, [onCerrar, paginas]);
 
-  const ajuste = caja.width > 0 ? Math.min((caja.width - MARGEN * 2) / ancho, (caja.height - MARGEN * 2) / alto) : 0;
+  const ajuste =
+    caja.width > 0 ? Math.min((caja.width - MARGEN * 2) / anchoVisto, (caja.height - MARGEN * 2) / altoVisto) : 0;
   const escala = Math.max(0, ajuste) * zoom;
 
   const cambiarZoom = useCallback(
     (nuevo: number) => {
       const el = areaRef.current;
       if (el && escala > 0) {
-        const anchoVisto = ancho * escala + MARGEN * 2;
-        const altoVisto = alto * escala + MARGEN * 2;
+        const w = anchoVisto * escala + MARGEN * 2;
+        const h = altoVisto * escala + MARGEN * 2;
         centroPendiente.current = {
-          x: (el.scrollLeft + el.clientWidth / 2) / Math.max(anchoVisto, el.clientWidth),
-          y: (el.scrollTop + el.clientHeight / 2) / Math.max(altoVisto, el.clientHeight),
+          x: (el.scrollLeft + el.clientWidth / 2) / Math.max(w, el.clientWidth),
+          y: (el.scrollTop + el.clientHeight / 2) / Math.max(h, el.clientHeight),
         };
       }
       setZoom(limitar(nuevo));
     },
-    [ancho, alto, escala],
+    [anchoVisto, altoVisto, escala],
   );
 
   // Después de cambiar el zoom, deja en el centro lo que estaba en el centro.
@@ -194,8 +200,22 @@ export default function VisorAmpliado({
             className="flex min-h-full min-w-full items-center justify-center"
             style={{ padding: MARGEN, width: "max-content", height: "max-content" }}
           >
-            <div className="bg-white shadow-[0_10px_40px_rgba(0,0,0,.5)]">
+            <div
+              className="relative bg-white shadow-[0_10px_40px_rgba(0,0,0,.5)]"
+              style={{ width: anchoVisto * escala, height: altoVisto * escala }}
+            >
+              <div
+                style={{
+                  position: "absolute",
+                  left: "50%",
+                  top: "50%",
+                  width: ancho * escala,
+                  height: alto * escala,
+                  transform: `translate(-50%, -50%) rotate(${giro}deg)`,
+                }}
+              >
               <ConLupa
+                giro={giro}
                 ancho={ancho}
                 alto={alto}
                 escala={escala}
@@ -207,6 +227,7 @@ export default function VisorAmpliado({
               >
                 {dibujar(pagina, escala)}
               </ConLupa>
+              </div>
             </div>
           </div>
         ) : null}
@@ -221,6 +242,17 @@ export default function VisorAmpliado({
         </button>
         <button type="button" className={boton} onClick={() => cambiarZoom(zoom * PASO)} disabled={zoom >= ZOOM_MAX} aria-label="Acercar">
           +
+        </button>
+        <button
+          type="button"
+          className={boton}
+          onClick={() => setGiro((g) => ((g + 90) % 360) as 0 | 90 | 180 | 270)}
+          aria-label="Girar la hoja"
+          title="Girar la hoja"
+        >
+          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <path d="M20 11a8 8 0 10-2.3 5.7M20 4v7h-7" />
+          </svg>
         </button>
         <button
           type="button"
