@@ -6,6 +6,7 @@ import Button from "@/components/ui/Button";
 import CobroDivididoCard from "@/components/mercadopago/CobroDivididoCard";
 import { ANEXO_COBRO_DIVIDIDO_TEXTO } from "@/lib/split-1n-aceptacion/anexo";
 import { rutaExenta, type DecisionAceptacion } from "@/lib/split-1n-aceptacion/regla";
+import CobroDivididoExplicacion from "@/components/mercadopago/CobroDivididoExplicacion";
 
 type Mostrar = Extract<DecisionAceptacion, { mostrar: true }>;
 
@@ -164,6 +165,7 @@ export default function AceptacionCobroDivididoGate({ rol }: { rol: "fotografo" 
           así, {rol === "organizador" ? "tu comisión" : "tu parte"} va directo a tu cuenta en el momento,
           sin esperar liquidaciones. Para eso necesitamos dos cosas.
         </p>
+        <CobroDivididoExplicacion rol={rol} />
         <p
           className={`mt-3 rounded-lg p-3 text-sm font-medium ${
             decision.obligatorio ? "bg-red-50 text-red-800" : "bg-amber-50 text-amber-900"
