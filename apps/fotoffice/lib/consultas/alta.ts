@@ -6,6 +6,7 @@ import { notificarEvento } from "@/lib/circuitos/eventos";
 import { OPCIONES_TRANSACCION } from "@/lib/circuitos/recorridos";
 import { responderConsultaNueva } from "@/lib/plantillas/automaticos";
 import type { ResultadoPropuestaAutomatica } from "@/lib/presupuestos/propuesta-automatica";
+import { waIdDe } from "@/lib/bandeja/telefono";
 import { SERVICE_LEADS_MODULE_KEY } from "@/lib/service-leads/constants";
 import { numerarConsultaNueva } from "@/lib/service-leads/numero";
 import { puedeSerResponsable, type DepsAjustes } from "./ajustes";
@@ -500,6 +501,31 @@ export async function altaDeConsulta(
       // Presupuesto automático con aprobación por Telegram (spec 2026-10-25): en esas categorías la
       // propuesta modelo NO sale sola; la respuesta automática común hace de acuse y el presupuesto
       // espera el "Aprobar y enviar" de Telegram.
+      // Mismo teléfono con una cotización ya en preparación (la armó el bot por WhatsApp, o el mismo
+      // formulario mandado dos veces): no se arma otra. Sólo va el acuse común y la consulta queda para
+      // el equipo, que ya recibió el aviso. Así no le llegan dos cotizaciones al cliente ni dos
+      // aprobaciones a Telegram. El teléfono del formulario no está verificado: lo peor que puede pasar
+      // es que esta consulta espere a una persona en vez de cotizarse sola.
+      let waIdDelFormulario: string | null = null;
+      try {
+        const lead = await prisma.serviceSalesLead.findFirst({ where: { id: leadId, workspaceId }, select: { phone: true } });
+        waIdDelFormulario = waIdDe(lead?.phone ?? null);
+        if (waIdDelFormulario) {
+          const { enPreparacionParaWhatsapp } = await import("@/lib/presupuesto-automatico/flujo");
+          if (await enPreparacionParaWhatsapp(workspaceId, waIdDelFormulario)) {
+            console.warn("[consultas] formulario con una cotización en preparación para el mismo teléfono", { codigo: "WEB_COTIZACION_EN_CURSO" });
+            try {
+              await responderConsultaNueva(workspaceId, leadId);
+            } catch (error) {
+              registrarFalla("responderConsultaNueva", error);
+            }
+            return;
+          }
+        }
+      } catch (error) {
+        registrarFalla("cotizacionEnCurso", error);
+      }
+
       let porTelegram = false;
       try {
         const { consultaVaPorTelegram } = await import("@/lib/presupuesto-automatico/flujo");
@@ -528,7 +554,8 @@ export async function altaDeConsulta(
       if (porTelegram) {
         try {
           const { alLlegarConsulta } = await import("@/lib/presupuesto-automatico/flujo");
-          await alLlegarConsulta(workspaceId, leadId, "WEB", {}, deps);
+          // Con el teléfono guardado, el bot ve esta cotización y no arma otra si el cliente escribe.
+          await alLlegarConsulta(workspaceId, leadId, "WEB", { waId: waIdDelFormulario }, deps);
         } catch (error) {
           registrarFalla("alLlegarConsulta", error);
         }

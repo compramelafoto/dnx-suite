@@ -6,7 +6,7 @@ import { useEffect, useRef, type ReactNode } from "react";
 import type { DnxPagina, DnxPaleta } from "@/components/dnx/DnxCta";
 
 /**
- * "Pedí tu presupuesto": el formulario de consulta de FOTOFFICE (DNX Estudio) insertado en la
+ * "Pedí tu cotización": el formulario de consulta de FOTOFFICE (DNX Estudio) insertado en la
  * landing. La consulta entra a FOTOFFICE con su categoría (XV o boda) y desde ahí sale el
  * presupuesto con la propuesta modelo de esa categoría: por eso las landings ya no muestran
  * importes. El formulario avisa su alto ({ type: "fotoffice-form-height", height }) y acá se
@@ -43,7 +43,7 @@ export function DnxCtaPresupuesto({
   paleta,
   variant = "primary",
   className = "",
-  children = "Pedí tu presupuesto",
+  children = "Pedí tu cotización",
 }: {
   pagina: DnxPagina;
   paleta: DnxPaleta;

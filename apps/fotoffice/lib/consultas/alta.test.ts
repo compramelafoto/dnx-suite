@@ -17,6 +17,10 @@ const H = vi.hoisted(() => ({
   // Borrador automático: se arma sólo si la propuesta no salió (tiene sus pruebas en propuesta-automatica.test).
   borrador: vi.fn(async (..._a: unknown[]): Promise<string> => "NO_APLICA"),
   nivel: vi.fn(async (..._a: unknown[]) => true),
+  // Cotización automática por Telegram (tiene sus pruebas en presupuesto-automatico/flujo.test).
+  enPreparacion: vi.fn(async (..._a: unknown[]): Promise<boolean> => false),
+  porTelegram: vi.fn(async (..._a: unknown[]): Promise<boolean> => false),
+  alLlegar: vi.fn(async (..._a: unknown[]): Promise<string> => "APAGADO"),
 }));
 
 vi.mock("server-only", () => ({}));
@@ -35,6 +39,11 @@ vi.mock("@/lib/presupuestos/propuesta-automatica", () => ({
   correspondeAutorespuestaComun: (r: string) => r !== "ENVIADA" && r !== "APAGADA" && r !== "YA_RESPONDIDO",
 }));
 vi.mock("@/lib/permissions/module-access", () => ({ hasModuleLevel: H.nivel }));
+vi.mock("@/lib/presupuesto-automatico/flujo", () => ({
+  enPreparacionParaWhatsapp: H.enPreparacion,
+  consultaVaPorTelegram: H.porTelegram,
+  alLlegarConsulta: H.alLlegar,
+}));
 
 const A = await import("./alta");
 const K = await import("./constantes");
@@ -58,7 +67,10 @@ const orden = (f: { mock: { invocationCallOrder: number[] } }) => f.mock.invocat
 let errores: ReturnType<typeof vi.spyOn>;
 beforeEach(() => {
   B.vaciar();
-  for (const f of [H.numerar, H.notificar, H.avisar, H.responder, H.propuesta, H.borrador]) f.mockClear();
+  for (const f of [H.numerar, H.notificar, H.avisar, H.responder, H.propuesta, H.borrador, H.enPreparacion, H.porTelegram, H.alLlegar]) f.mockClear();
+  H.enPreparacion.mockResolvedValue(false);
+  H.porTelegram.mockResolvedValue(false);
+  H.alLlegar.mockResolvedValue("APAGADO");
   H.borrador.mockResolvedValue("NO_APLICA");
   H.propuesta.mockResolvedValue("NO_APLICA");
   H.numerar.mockResolvedValue({ display: "2026-0001" });
@@ -468,5 +480,32 @@ describe("altaDeConsulta: avisos", () => {
     ]);
     const sinFecha = await A.altaDeConsulta(SISTEMA, ENTRADA, WEB);
     expect(sinFecha.ok && sinFecha.avisos).toEqual({});
+  });
+});
+
+describe("formulario de un teléfono que ya tiene una cotización en preparación", () => {
+  it("no arma otra cotización: sólo el acuse común", async () => {
+    H.enPreparacion.mockResolvedValue(true);
+    const r = await A.altaDeConsulta(SISTEMA, ENTRADA, WEB);
+    expect(r.ok).toBe(true);
+    // El teléfono del formulario se busca como lo guarda WhatsApp.
+    expect(H.enPreparacion).toHaveBeenCalledWith("ws-1", "5493415550000");
+    expect(H.responder).toHaveBeenCalledTimes(1);
+    for (const f of [H.porTelegram, H.alLlegar, H.propuesta, H.borrador]) expect(f).not.toHaveBeenCalled();
+    // La consulta igual queda y el equipo recibe el aviso.
+    expect(leads()).toHaveLength(1);
+    expect(H.avisar).toHaveBeenCalledTimes(1);
+  });
+
+  it("sin cotización en preparación sigue igual y guarda el teléfono para que el bot no arme otra", async () => {
+    H.porTelegram.mockResolvedValue(true);
+    const r = await A.altaDeConsulta(SISTEMA, ENTRADA, WEB);
+    const leadId = r.ok ? r.leadId : "";
+    expect(H.alLlegar).toHaveBeenCalledWith("ws-1", leadId, "WEB", { waId: "5493415550000" }, {});
+  });
+
+  it("sin teléfono no busca nada", async () => {
+    await A.altaDeConsulta(SISTEMA, { ...ENTRADA, contacto: { nombre: "Laura Pérez", email: "laura@persona.test" } }, WEB);
+    expect(H.enPreparacion).not.toHaveBeenCalled();
   });
 });

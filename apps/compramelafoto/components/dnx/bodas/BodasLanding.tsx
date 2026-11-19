@@ -5,12 +5,13 @@ import { DnxCtaEntrevista, DnxCtaWhatsapp, DnxEnlaceExterno, type DnxPagina } fr
 import DnxPlanes, { DnxPropuestasSinPrecio } from "@/components/dnx/DnxPlanes";
 import { DnxCtaPresupuesto, DnxFormularioPresupuesto, PRESUPUESTO_SECTION_ID } from "@/components/dnx/DnxPresupuesto";
 import {
+  COTIZACION_WHATSAPP_URL,
   DNX_WEB_URL,
   GOOGLE_REVIEWS_URL,
   INSTAGRAM_URL,
-  ONLINE_CALENDAR_URL,
+  ENTREVISTA_ONLINE_URL,
+  ENTREVISTA_PRESENCIAL_URL,
   PORTFOLIO_SECTION_ID,
-  PRESENCIAL_CALENDAR_URL,
   PROPUESTAS_SECTION_ID,
   WHATSAPP_URL,
   ceremoniaImages,
@@ -45,23 +46,40 @@ export default function BodasLanding({
 }) {
   const pagina: DnxPagina = paginaElegida ?? (mostrarPrecios ? "bodas" : "bodas-sp");
 
-  const presupuesto = (variant: "primary" | "secondary" = "primary") => (
-    <DnxCtaPresupuesto pagina={pagina} paleta={PALETA} variant={variant} />
-  );
+  // La presentación (/sp) es la que manda la vendedora a quien YA está hablando por WhatsApp. Ahí hay
+  // un solo camino: pedir la cotización por ese mismo chat. Sin formulario ni entrevistas aparte, para
+  // que no nazca una segunda consulta ni el cliente tenga que volver a contar lo que ya contó.
+  const esPresentacion = pagina === "bodas-sp";
 
-  const entrevistaPresencial = (variant: "primary" | "secondary" = "primary") => (
-    <DnxCtaEntrevista href={PRESENCIAL_CALENDAR_URL} pagina={pagina} paleta={PALETA} modo="presencial" variant={variant}>
-      Entrevista presencial
-    </DnxCtaEntrevista>
-  );
+  const presupuesto = (variant: "primary" | "secondary" = "primary") =>
+    esPresentacion ? (
+      <DnxCtaWhatsapp href={COTIZACION_WHATSAPP_URL} pagina={pagina} paleta={PALETA} variant={variant}>
+        Quiero mi cotización
+      </DnxCtaWhatsapp>
+    ) : (
+      <DnxCtaPresupuesto pagina={pagina} paleta={PALETA} variant={variant} />
+    );
 
-  const entrevistaOnline = (
-    <DnxCtaEntrevista href={ONLINE_CALENDAR_URL} pagina={pagina} paleta={PALETA} modo="online" variant="secondary">
+  // Las entrevistas se piden por el WhatsApp del estudio (antes iban a Google Calendar, fuera de FOTOFFICE).
+  const entrevistaPresencial = (variant: "primary" | "secondary" = "primary") =>
+    esPresentacion ? null : (
+      <DnxCtaEntrevista href={ENTREVISTA_PRESENCIAL_URL} pagina={pagina} paleta={PALETA} modo="presencial" variant={variant}>
+        Entrevista presencial
+      </DnxCtaEntrevista>
+    );
+
+  const entrevistaOnline = esPresentacion ? null : (
+    <DnxCtaEntrevista href={ENTREVISTA_ONLINE_URL} pagina={pagina} paleta={PALETA} modo="online" variant="secondary">
       Entrevista online
     </DnxCtaEntrevista>
   );
 
-  const whatsapp = (
+  // En la presentación, el único otro camino es una entrevista, pedida por el mismo chat.
+  const whatsapp = esPresentacion ? (
+    <DnxCtaEntrevista href={ENTREVISTA_PRESENCIAL_URL} pagina={pagina} paleta={PALETA} modo="presencial" variant="ghost">
+      Prefiero una entrevista antes
+    </DnxCtaEntrevista>
+  ) : (
     <DnxCtaWhatsapp href={WHATSAPP_URL} pagina={pagina} paleta={PALETA}>
       Consultar disponibilidad por WhatsApp
     </DnxCtaWhatsapp>
@@ -416,26 +434,42 @@ export default function BodasLanding({
           )}
         </div>
 
-        <div
-          id={PRESUPUESTO_SECTION_ID}
-          className="mx-auto mt-12 w-full max-w-2xl scroll-mt-6 rounded-3xl border border-stone-200 bg-white p-4 shadow-sm md:p-8"
-        >
-          <h3 className="text-center text-xl font-semibold text-stone-900 md:text-2xl">Pedí tu presupuesto</h3>
-          <p className="mt-2 text-center text-sm text-stone-600">
-            Dejanos la fecha y el lugar de la boda y te mandamos la propuesta completa, con importes y formas de pago, por WhatsApp y por correo.
-          </p>
-          <div className="mt-4">
-            <DnxFormularioPresupuesto formulario="boda" titulo="Pedí el presupuesto de tu boda" />
+        {esPresentacion ? (
+          <div id={PRESUPUESTO_SECTION_ID} className="mx-auto mt-12 w-full max-w-2xl scroll-mt-6 rounded-3xl border border-stone-200 bg-white p-4 shadow-sm md:p-8 text-center">
+            <h3 className="text-xl font-semibold text-stone-900 md:text-2xl">¿Te gustó lo que viste?</h3>
+            <p className="mt-2 text-sm text-stone-600">
+              Pedinos la cotización por este mismo chat de WhatsApp. Ya tenemos tus datos: no hace falta que vuelvas a
+              contarnos nada. La fecha de la boda queda reservada con la seña.
+            </p>
+            <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
+              {presupuesto()}
+              {whatsapp}
+            </div>
           </div>
-        </div>
-        <p className="mx-auto mt-8 max-w-3xl text-center text-sm text-stone-600">
-          ¿Preferís conversarlo antes? Agendá una entrevista sin costo o escribinos por WhatsApp.
-        </p>
-        <div className="mt-4 flex flex-wrap justify-center gap-3">
-          {entrevistaPresencial("secondary")}
-          {entrevistaOnline}
-          {whatsapp}
-        </div>
+        ) : (
+          <>
+            <div
+              id={PRESUPUESTO_SECTION_ID}
+              className="mx-auto mt-12 w-full max-w-2xl scroll-mt-6 rounded-3xl border border-stone-200 bg-white p-4 shadow-sm md:p-8"
+            >
+              <h3 className="text-center text-xl font-semibold text-stone-900 md:text-2xl">Pedí tu cotización</h3>
+              <p className="mt-2 text-center text-sm text-stone-600">
+                Dejanos la fecha y el lugar de la boda y te mandamos la propuesta completa, con importes y formas de pago, por WhatsApp y por correo.
+              </p>
+              <div className="mt-4">
+                <DnxFormularioPresupuesto formulario="boda" titulo="Pedí el presupuesto de tu boda" />
+              </div>
+            </div>
+            <p className="mx-auto mt-8 max-w-3xl text-center text-sm text-stone-600">
+              ¿Preferís conversarlo antes? Agendá una entrevista sin costo o escribinos por WhatsApp.
+            </p>
+            <div className="mt-4 flex flex-wrap justify-center gap-3">
+              {entrevistaPresencial("secondary")}
+              {entrevistaOnline}
+              {whatsapp}
+            </div>
+          </>
+        )}
       </section>
 
       {/* 12. Quiénes somos */}
@@ -512,7 +546,7 @@ export default function BodasLanding({
             },
             {
               q: "¿Cómo reservamos la fecha?",
-              a: "Primero coordinamos una entrevista para revisar disponibilidad, propuesta y condiciones. Si la fecha está disponible, te indicamos cómo avanzar con la reserva.",
+              a: "La fecha queda reservada con la seña. Te mandamos la cotización por WhatsApp y por correo, y desde ese enlace elegís la propuesta y la forma de pago. Si querés, antes hacemos una entrevista sin costo, presencial u online.",
             },
             {
               q: "¿Podemos personalizar el pack?",
@@ -544,7 +578,7 @@ export default function BodasLanding({
           <div className="space-y-4">
             <h2 className="text-2xl font-semibold md:text-3xl">El primer paso es revisar tu fecha y resolver tus dudas</h2>
             <p className="text-stone-200">
-              Agendá una entrevista presencial u online. Te mostramos las propuestas completas, vemos disponibilidad para
+              Pedinos la cotización: revisamos la disponibilidad de
               tu fecha y te ayudamos a elegir la opción más conveniente para conservar el recuerdo de tu boda.
             </p>
             <p className="text-stone-400">La entrevista es sin costo y no te compromete a contratar.</p>
@@ -581,21 +615,27 @@ export default function BodasLanding({
       </footer>
 
       <div className="fixed bottom-3 left-1/2 z-50 w-[calc(100%-1.5rem)] -translate-x-1/2 rounded-2xl border border-stone-200 bg-white/95 p-2 shadow-lg backdrop-blur md:hidden">
-        <div className="grid grid-cols-2 gap-2">
-          <DnxCtaPresupuesto pagina={pagina} paleta={PALETA} className="w-full !px-4">
-            Presupuesto
-          </DnxCtaPresupuesto>
-          <DnxCtaEntrevista
-            href={PRESENCIAL_CALENDAR_URL}
-            pagina={pagina}
-            paleta={PALETA}
-            modo="presencial"
-            variant="secondary"
-            className="w-full !px-4"
-          >
-            Entrevista
-          </DnxCtaEntrevista>
-        </div>
+        {esPresentacion ? (
+          <DnxCtaWhatsapp href={COTIZACION_WHATSAPP_URL} pagina={pagina} paleta={PALETA} variant="primary" className="w-full !px-4">
+            Quiero mi cotización
+          </DnxCtaWhatsapp>
+        ) : (
+          <div className="grid grid-cols-2 gap-2">
+            <DnxCtaPresupuesto pagina={pagina} paleta={PALETA} className="w-full !px-4">
+              Cotización
+            </DnxCtaPresupuesto>
+            <DnxCtaEntrevista
+              href={ENTREVISTA_PRESENCIAL_URL}
+              pagina={pagina}
+              paleta={PALETA}
+              modo="presencial"
+              variant="secondary"
+              className="w-full !px-4"
+            >
+              Entrevista
+            </DnxCtaEntrevista>
+          </div>
+        )}
       </div>
     </main>
   );
