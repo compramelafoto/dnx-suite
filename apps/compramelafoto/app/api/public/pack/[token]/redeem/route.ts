@@ -53,6 +53,8 @@ const BodySchema = z.object({
       textos: z.record(z.string(), z.string().max(500)).optional(),
       cursos: z.array(z.string().min(1).max(300)).max(30).optional(),
       avisos: z.array(z.string().max(2000)).max(5).optional(),
+      /** Nombres del listado que la familia corrigió (sólo en su librito). Se limpian en el servidor. */
+      nombres: z.array(z.unknown()).max(50).optional(),
     })
     .optional(),
 });

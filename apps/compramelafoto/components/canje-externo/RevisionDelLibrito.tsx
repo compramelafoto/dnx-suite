@@ -1,7 +1,13 @@
 "use client";
 
 import RevisionDeImpresion from "@/components/revision-de-impresion/RevisionDeImpresion";
-import { listasAImprimir, textosAImprimir } from "@/lib/revision-de-impresion/revision-del-canje";
+import {
+  FRASE_DE_AUTORIZACION_LIBRITO,
+  listasAImprimir,
+  textosAImprimir,
+} from "@/lib/revision-de-impresion/revision-del-canje";
+import type { CambioDeNombre } from "@/lib/design-v2/corregir-nombres";
+import CorregirNombreDelListado from "./CorregirNombreDelListado";
 import { avisoDeMuchaGente, cursosDelListado, type CursoDelAlbum } from "@/lib/design-v2/listado-cursos";
 import type { ClassListOptions } from "@repo/template-engine";
 
@@ -25,6 +31,9 @@ export default function RevisionDelLibrito({
   fotografo,
   autorizado,
   onAutorizar,
+  valoresSinCorregir,
+  nombresCorregidos,
+  onNombresCorregidos,
 }: {
   textVariables: string[];
   opcionesDelListado?: ClassListOptions;
@@ -41,6 +50,10 @@ export default function RevisionDelLibrito({
   fotografo: string | null;
   autorizado: boolean;
   onAutorizar: (v: boolean) => void;
+  /** Los textos antes de corregir nombres del listado: de ahí se elige a quién corregir. */
+  valoresSinCorregir: Record<string, string>;
+  nombresCorregidos: CambioDeNombre[];
+  onNombresCorregidos: (cambios: CambioDeNombre[]) => void;
 }) {
   const textos = textosAImprimir(textVariables, valores);
   const listas = listasAImprimir(valores, opcionesDelListado);
@@ -53,13 +66,37 @@ export default function RevisionDelLibrito({
   return (
     <RevisionDeImpresion
       titulo="Lo que se va a imprimir"
-      bajada="Esto es lo que se va a imprimir. Mirá bien los nombres: después de confirmar no se puede cambiar."
+      bajada={
+        <>
+          Esto es <strong>exactamente</strong> lo que se va a imprimir. Revisá con atención cada nombre, el curso y las
+          fotos. Si algo está mal escrito, corregilo ahora.
+        </>
+      }
+      frase={FRASE_DE_AUTORIZACION_LIBRITO}
+      antesDeAutorizar={
+        <div role="note" className="mt-6 rounded-xl border-2 border-[#b42318] bg-[#fef3f2] p-4 text-[#7a271a]">
+          <p className="m-0 text-[15px] font-bold">Importante: después de confirmar no se puede cambiar nada.</p>
+          <p className="m-0 mt-1 text-sm">
+            El librito se imprime tal cual lo ves acá. No se aceptan cambios ni reclamos por errores que no hayas corregido
+            o avisado en este paso.
+          </p>
+        </div>
+      }
       textos={textos}
       onCambiarTexto={onCambiarTexto}
       listas={listas}
       tituloDeListas={listas.length > 1 ? "Listado de los cursos" : "Listado del curso"}
       debajoDeListas={
-        aviso || mostrarCursos ? (
+        <>
+        {grupos.length > 0 ? (
+          <CorregirNombreDelListado
+            valoresSinCorregir={valoresSinCorregir}
+            cambios={nombresCorregidos}
+            onCambios={onNombresCorregidos}
+            fotografo={fotografo ?? "el fotógrafo"}
+          />
+        ) : null}
+        {aviso || mostrarCursos ? (
           <div className="mt-3 rounded-xl bg-[#fff4e5] px-4 py-3 text-sm text-[#7a4a12]">
             {aviso ? (
               <p className="m-0">
@@ -93,7 +130,8 @@ export default function RevisionDelLibrito({
               <p className="m-0 mt-1">Si falta otro curso, avisale al fotógrafo con el botón de abajo.</p>
             ) : null}
           </div>
-        ) : null
+        ) : null}
+        </>
       }
       avisos={avisos}
       onAvisos={grupos.length > 0 ? onAvisos : undefined}

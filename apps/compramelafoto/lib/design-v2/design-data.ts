@@ -140,6 +140,11 @@ export type DesignV2Edit =
    * navegador: la ruta lo arma con el padrón del álbum.
    */
   | { kind: "set-class-list"; value: string }
+  /**
+   * Varios textos largos a la vez (el listado, el mosaico y la tapa al corregir un nombre). No lo
+   * manda el navegador: lo arma el servidor (`corregir-nombres`). `null` borra el texto.
+   */
+  | { kind: "set-values"; values: Record<string, string | null> }
   | { kind: "reset"; slots: ClientPhotoSlot[] };
 
 export type ApplyEditResult = { ok: true; data: DesignV2Data } | { ok: false; error: string };
@@ -187,6 +192,16 @@ export function applyDesignV2Edit(data: DesignV2Data, edit: DesignV2Edit): Apply
     case "set-class-list": {
       if (edit.value.length > 50_000) return { ok: false, error: "El listado es demasiado largo." };
       next.values[CLASS_LIST_VARIABLE_KEY] = edit.value;
+      return { ok: true, data: next };
+    }
+    case "set-values": {
+      for (const [key, value] of Object.entries(edit.values)) {
+        const k = key.trim();
+        if (!k) return { ok: false, error: "Falta el nombre del dato." };
+        if (value != null && value.length > 50_000) return { ok: false, error: "El texto es demasiado largo." };
+        if (value == null || value.trim() === "") delete next.values[k];
+        else next.values[k] = value;
+      }
       return { ok: true, data: next };
     }
     case "reset": {

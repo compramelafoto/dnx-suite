@@ -100,7 +100,8 @@ export default function ListadoDelCursoPanel({
             ))}
           </ul>
           <p className="mt-1 text-xs text-amber-800">
-            Corregí el listado antes de aprobar. La familia no puede cambiar los nombres de los compañeros.
+            Corregí el listado antes de aprobar con «Corregir nombres». Lo que la familia corrigió quedó sólo en su
+            librito: si el error es de la lista, aplicalo a todos.
           </p>
         </Card>
       ) : null}

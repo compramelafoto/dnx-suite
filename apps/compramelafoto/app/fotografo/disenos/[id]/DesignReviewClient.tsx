@@ -10,6 +10,7 @@ import { emptySlotIds, type DesignV2Data, type DesignV2Edit } from "@/lib/design
 import { DESIGN_STATUS_TONES, designStatusLabel } from "@/lib/design-v2/labels";
 import RecortesPanel from "./RecortesPanel";
 import ListadoDelCursoPanel from "./ListadoDelCursoPanel";
+import CorregirNombresPanel from "./CorregirNombresPanel";
 
 type DesignInfo = {
   id: number;
@@ -407,6 +408,17 @@ export default function DesignReviewClient({ designId }: { designId: string }) {
           .map((s) => s.photoId ?? "")
           .join(",")}
         clientReview={data.clientReview}
+        beforeSave={flush}
+        onSaved={(next, status) =>
+          setLoaded((prev) =>
+            prev ? { ...prev, data: next, design: { ...prev.design, status: status ?? prev.design.status } } : prev,
+          )
+        }
+      />
+
+      <CorregirNombresPanel
+        designId={designId}
+        values={data.values}
         beforeSave={flush}
         onSaved={(next, status) =>
           setLoaded((prev) =>

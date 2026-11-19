@@ -15,12 +15,32 @@ import {
 } from "@/lib/design-v2/listado-cursos";
 import {
   aplicarCorrecciones,
-  FRASE_DE_AUTORIZACION,
   limpiarAvisos,
   type ListaAImprimir,
   type RevisionDelCliente,
   type TextoAImprimir,
 } from "./autorizacion";
+import {
+  corregirNombresEnValores,
+  nombreCompleto,
+  normalizarCambiosDeNombre,
+  type CambioDeNombre,
+} from "@/lib/design-v2/corregir-nombres";
+
+/**
+ * Lo que tilda la familia al confirmar el librito. Se guarda tal cual con la autorización: es la
+ * prueba de qué aceptó. Tiene que ser claro y sin vueltas, para que después no haya reclamos por
+ * algo que se pudo corregir antes de imprimir.
+ */
+export const FRASE_DE_AUTORIZACION_LIBRITO =
+  "Revisé las fotos, el nombre de mi hijo o hija, el curso y todos los nombres del listado. Están bien escritos y autorizo que se imprima exactamente así. Entiendo que después de confirmar no se puede cambiar nada.";
+
+/** El aviso que le llega al fotógrafo cuando la familia corrigió nombres del listado. */
+export function avisoDeNombresCorregidos(cambios: readonly CambioDeNombre[]): string | null {
+  if (cambios.length === 0) return null;
+  const lista = cambios.map((c) => `«${nombreCompleto(c.de)}» → «${nombreCompleto(c.a)}»`).join(", ");
+  return `Corrigió en su librito: ${lista}. Si el error es de la lista del colegio, corregilo en todos.`.slice(0, 2000);
+}
 
 /**
  * La revisión del librito en el canje escolar: qué textos ve la familia, cuáles puede corregir,
@@ -39,6 +59,8 @@ export type RevisionPedida = {
   cursos?: string[];
   /** Avisos de error en el listado, para el fotógrafo. */
   avisos?: string[];
+  /** Nombres del listado que corrigió la familia: van sólo en su librito y se le avisan al fotógrafo. */
+  nombres?: unknown[];
 };
 
 /** La familia corrige sus datos (nombre del alumno, el suyo), no los del colegio ni los compañeros. */
@@ -97,23 +119,33 @@ export function aplicarRevisionDelCanje(input: {
   const cursos = input.permiteSumar
     ? [...new Set((input.revision.cursos ?? []).filter((k) => posibles.has(k)))]
     : [];
-  const values = cursos.length ? valoresConCursos(corregido.values, input.disponibles, cursos) : corregido.values;
+  const conCursos = cursos.length ? valoresConCursos(corregido.values, input.disponibles, cursos) : corregido.values;
+  // Los nombres van después de sumar cursos: la familia pudo corregir a alguien de un curso sumado.
+  const nombres = normalizarCambiosDeNombre(input.revision.nombres);
+  const conNombres = corregirNombresEnValores(conCursos, nombres);
+  const nombresAplicados = nombres.filter((c) => corregirNombresEnValores(conCursos, [c]).cambiados.length > 0);
+  const values = conNombres.values;
+  const avisoNombres = avisoDeNombresCorregidos(nombresAplicados);
+  const avisos = [...(avisoNombres ? [avisoNombres] : []), ...(input.revision.avisos ?? [])];
   return {
     values,
     clientReview: {
       authorization: {
         authorizedAt: input.now.toISOString(),
-        statement: FRASE_DE_AUTORIZACION,
+        statement: FRASE_DE_AUTORIZACION_LIBRITO,
         subject: input.subject,
         by: input.by,
         texts: textosAImprimir(input.textVariables, values).map(({ key, label, value }) => ({ key, label, value })),
         lists: listasAImprimir(values, input.opcionesDelListado),
-        edits: corregido.edits,
+        edits: [
+          ...corregido.edits,
+          ...nombresAplicados.map((c) => ({ key: "nombre del listado", from: nombreCompleto(c.de), to: nombreCompleto(c.a) })),
+        ],
         digest: null,
         revisionId: null,
         userAgent: input.userAgent?.slice(0, 300) ?? null,
       },
-      reports: limpiarAvisos(input.revision.avisos, "listado", input.now),
+      reports: limpiarAvisos(avisos, "listado", input.now),
       extraCourseKeys: cursos,
     },
   };
