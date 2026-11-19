@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { armarTexto, contarVariables, describirEvento, parsearPlantillas, sugerirValores, urlDelBoton, validarValores } from "./plantillas-puro";
+import { armarTexto, contarVariables, describirEvento, paraElegir, parsearPlantillas, sugerirValores, urlDelBoton, validarValores } from "./plantillas-puro";
 
 const META = {
   data: [
@@ -76,5 +76,25 @@ describe("texto y valores", () => {
     expect(validarValores(1, ["a".repeat(201)])).toMatchObject({ ok: false });
     expect(validarValores(1, "Ana")).toMatchObject({ ok: false });
     expect(validarValores(0, [])).toEqual({ ok: true, valores: [] });
+  });
+});
+
+describe("qué se ofrece en el chat", () => {
+  const SEGUIMIENTO = {
+    name: "seguimiento_cotizacion", language: "es_AR", status: "APPROVED", category: "MARKETING",
+    components: [{ type: "BODY", text: "¡Hola {{1}}! Por la cotización de {{2}}." }, { type: "BUTTONS", buttons: [{ type: "URL", text: "Ver la cotización", url: "https://fotoffice.com/{{1}}" }] }],
+  };
+  const todas = parsearPlantillas({ data: [...META.data, SEGUIMIENTO] });
+  const base = { nombre: "Martina", categoria: "Boda", fechaEvento: null, proximaCita: null };
+
+  it("las de ventas primero; sin el enlace que FOTOFFICE conoce, la de botón dinámico no se ofrece", () => {
+    expect(paraElegir(todas, base).map((p) => p.nombre)).toEqual(["retomar_consulta", "coordinar_entrevista"]);
+  });
+
+  it("con la cotización abierta, el seguimiento trae su enlace completo", () => {
+    const p = paraElegir(todas, { ...base, enlaceCotizacion: "w/dnx-estudio/presupuesto/abc" });
+    expect(p.map((x) => x.nombre)).toEqual(["retomar_consulta", "seguimiento_cotizacion", "coordinar_entrevista"]);
+    expect(p.find((x) => x.nombre === "seguimiento_cotizacion")).toMatchObject({ sugeridos: ["Martina", "tu casamiento"], sugeridoBoton: "w/dnx-estudio/presupuesto/abc" });
+    expect(p.find((x) => x.nombre === "coordinar_entrevista")?.sugeridoBoton).toBe("");
   });
 });

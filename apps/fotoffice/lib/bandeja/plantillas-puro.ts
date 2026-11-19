@@ -27,7 +27,8 @@ export type PlantillaDisponible = {
 };
 
 /** Lo que recibe la pantalla del chat: la plantilla con los valores propuestos para ese chat. */
-export type PlantillaParaElegir = PlantillaDisponible & { sugeridos: string[] };
+/** `sugeridoBoton`: el final del enlace del botón dinámico, cuando FOTOFFICE lo conoce (p. ej. el de la cotización). */
+export type PlantillaParaElegir = PlantillaDisponible & { sugeridos: string[]; sugeridoBoton: string };
 
 export const ETIQUETA_CATEGORIA: Record<CategoriaPlantilla, string> = {
   MARKETING: "Marketing",
@@ -144,7 +145,34 @@ export type DatosParaSugerir = {
   fechaEvento: Date | null;
   /** Próxima cita en la Agenda. */
   proximaCita: Date | null;
+  /** Lo que va después de la dirección fija en el enlace de su última cotización abierta ("w/<slug>/presupuesto/<token>"). */
+  enlaceCotizacion?: string | null;
 };
+
+/** Las plantillas de ventas van primero, en este orden; el resto, por nombre. */
+const ORDEN_VENTAS = ["retomar_consulta", "seguimiento_cotizacion", "coordinar_entrevista", "recordatorio_entrevista"];
+
+/** Puro: el final del enlace del botón dinámico que FOTOFFICE puede completar solo ("" si no lo conoce). */
+export function sugerirBoton(p: Pick<PlantillaDisponible, "nombre" | "boton">, d: DatosParaSugerir): string {
+  if (!p.boton?.dinamico) return "";
+  if (p.nombre === "seguimiento_cotizacion") return d.enlaceCotizacion ?? "";
+  return "";
+}
+
+/**
+ * Puro: lo que se ofrece en el chat. Una plantilla con botón de enlace dinámico que FOTOFFICE no sabe
+ * completar (el de un pedido, un fotolibro…) no se ofrece: nadie conoce ese final de memoria.
+ */
+export function paraElegir(plantillas: readonly PlantillaDisponible[], d: DatosParaSugerir): PlantillaParaElegir[] {
+  const rango = (n: string) => {
+    const i = ORDEN_VENTAS.indexOf(n);
+    return i === -1 ? ORDEN_VENTAS.length : i;
+  };
+  return plantillas
+    .map((p) => ({ ...p, sugeridos: sugerirValores(p, d), sugeridoBoton: sugerirBoton(p, d) }))
+    .filter((p) => !p.boton?.dinamico || p.sugeridoBoton !== "")
+    .sort((a, b) => rango(a.nombre) - rango(b.nombre) || a.nombre.localeCompare(b.nombre));
+}
 
 const ZONA = "America/Argentina/Buenos_Aires";
 const fechaEventoUTC = new Intl.DateTimeFormat("es-AR", { timeZone: "UTC", day: "2-digit", month: "2-digit", year: "numeric" });
