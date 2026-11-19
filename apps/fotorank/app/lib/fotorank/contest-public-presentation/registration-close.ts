@@ -71,3 +71,31 @@ export function resolveRegistrationCloseLabel(input: {
     input.timezone,
   );
 }
+
+/**
+ * Último momento en que se puede entregar, para mostrar al público.
+ * `submissionDeadline` es exclusivo (2/12 00:00 ART = se recibe todo el 1/12),
+ * así que se muestra el minuto anterior: "1 de diciembre de 2026, 23:59 h".
+ * Restar un minuto (no un día) sirve también para cierres que no caen a medianoche.
+ */
+export function formatUploadDeadlineLabel(
+  submissionDeadline: Date | null | undefined,
+  timeZone?: string | null,
+): string | null {
+  if (!submissionDeadline) return null;
+  const last = new Date(submissionDeadline.getTime() - 60_000);
+  const tz = timeZone || ZONA_PUBLICA_POR_DEFECTO;
+  const day = formatPublicDate(last, tz);
+  if (!day) return null;
+  try {
+    const time = last.toLocaleTimeString("es-AR", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+      timeZone: tz,
+    });
+    return `${day}, ${time} h`;
+  } catch {
+    return day;
+  }
+}

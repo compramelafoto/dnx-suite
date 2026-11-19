@@ -24,6 +24,7 @@ import { ContestPartnersSection, RulesDocument } from "../../components/contest-
 import type { PublicPartnerGroup } from "@repo/partners";
 import {
   formatPublicDate,
+  formatUploadDeadlineLabel,
   resolveRegistrationCloseLabel,
 } from "../../lib/fotorank/contest-public-presentation";
 import type { StatusTone } from "../../lib/fotorank/public-ux/participant-status";
@@ -54,7 +55,7 @@ function igHref(raw: string): string {
 }
 
 function phaseTone(phase: ReturnType<typeof getLandingPhase>): StatusTone {
-  if (phase === "open" || phase === "last-days") return "primary";
+  if (phase === "open" || phase === "last-days" || phase === "uploads-only") return "primary";
   if (phase === "coming-soon") return "neutral";
   if (phase === "in-evaluation") return "warning";
   if (phase === "finalized") return "success";
@@ -88,11 +89,16 @@ export function ContestPublicLanding({
     status: contest.status,
     startAt: contest.startAt,
     submissionDeadline: contest.submissionDeadline,
+    registrationClosesAt: contest.registrationClosesAt,
     judgingStartAt: contest.judgingStartAt,
     resultsAt: contest.resultsAt,
   });
+  const uploadsOnly = phase === "uploads-only";
+  const uploadDeadlineLabel = uploadsOnly
+    ? formatUploadDeadlineLabel(contest.submissionDeadline)
+    : null;
   const cta = phaseCta(phase);
-  const finalCta = finalCtaCopy(phase);
+  const finalCta = finalCtaCopy(phase, uploadDeadlineLabel);
   const sfefBanner = "/contest-assets/santa-fe-en-foco/hero/hero-desktop.jpg";
   const sfefBannerMobile = "/contest-assets/santa-fe-en-foco/hero/hero-mobile.jpg";
   const heroImage =
@@ -210,6 +216,33 @@ export function ContestPublicLanding({
         </PageContainer>
       </nav>
 
+      {uploadsOnly ? (
+        <section className="fr-public-section" data-testid="contest-uploads-only-notice">
+          <PageContainer>
+            <Notice
+              tone="info"
+              title={
+                uploadDeadlineLabel
+                  ? `Carga de fotos abierta hasta el ${uploadDeadlineLabel}`
+                  : "Carga de fotos abierta para inscriptos"
+              }
+            >
+              La inscripción ya cerró, pero quienes están inscriptos pueden cargar su fotografía
+              {uploadDeadlineLabel ? (
+                <>
+                  {" "}hasta el <strong>{uploadDeadlineLabel}</strong>
+                </>
+              ) : null}
+              . Entrá con tu cuenta y subí tu foto desde{" "}
+              <a href={inscripcionHref} className="underline">
+                Cargar mi foto
+              </a>
+              .
+            </Notice>
+          </PageContainer>
+        </section>
+      ) : null}
+
       <section className="fr-public-section">
         <PageContainer>
           <PublicSectionHeader title="Información esencial" />
@@ -231,6 +264,9 @@ export function ContestPublicLanding({
              * instante se guarda exclusivo, se publica el último día inclusivo).
              */}
             <DateCard label="Cierre de inscripción" dateLabel={registrationCloseLabel(contest)} />
+            {uploadDeadlineLabel ? (
+              <DateCard label="Carga de fotos (inscriptos)" dateLabel={uploadDeadlineLabel} />
+            ) : null}
             <DateCard label="Resultados" dateLabel={fmtDate(contest.resultsAt)} />
           </div>
         </PageContainer>
@@ -422,6 +458,7 @@ export function ContestPublicLanding({
               // "Información esencial": el cronograma también mostraba acá el
               // instante crudo y contradecía al resto de la página.
               ["Cierre de inscripción", registrationCloseLabel(contest)],
+              ["Carga de fotos para inscriptos", uploadDeadlineLabel],
               ["Inicio de evaluación", fmtDate(contest.judgingStartAt)],
               ["Fin de evaluación", fmtDate(contest.judgingEndAt)],
               ["Resultados", fmtDate(contest.resultsAt)],
@@ -517,7 +554,7 @@ export function ContestPublicLanding({
             <StatusBadge label={PHASE_LABEL[phase]} tone={phaseTone(phase)} />
             <h2 className="fr-public-title text-2xl md:text-3xl">{finalCta.title}</h2>
             <p className="fr-public-body">{finalCta.body}</p>
-            {registrationCloseLabel(contest) ? (
+            {!uploadsOnly && registrationCloseLabel(contest) ? (
               <p className="fr-public-cta-meta">
                 Inscripciones hasta el{" "}
                 <strong className="text-[var(--foreground)]">
