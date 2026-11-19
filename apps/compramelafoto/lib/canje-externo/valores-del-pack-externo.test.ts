@@ -129,4 +129,57 @@ describe("valoresDelPackExternoDesdePacks", () => {
       ["Julia Ema Bessone"],
     );
   });
+
+  const filaSimple = (id: number, nombre: string, apellido: string) => ({
+    id,
+    snapshotFirstName: nombre,
+    snapshotLastName: apellido,
+    mosaicPhotoId: null,
+    mosaicPhotoAspect: null,
+    mosaicPhotoCrop: null,
+    urlDeVista: null,
+  });
+
+  it("toma nombre y apellido del padrón, con el nombre primero", () => {
+    const v = valoresDelPackExternoDesdePacks({
+      externo: pack("Carranza Saroli Delfina", "7° Grado A"),
+      packsDelAlbum: [],
+      schoolName: null,
+      schoolLogoUrl: null,
+      buyerName: null,
+      photographerName: null,
+      padronDelCurso: [filaSimple(1, "Delfina", "Carranza Saroli"), filaSimple(2, "Camila", "Bilesio")],
+    });
+    assert.equal(v["student.firstName"], "Delfina");
+    assert.equal(v["student.lastName"], "Carranza Saroli");
+    assert.equal(v["student.fullName"], "Delfina Carranza Saroli");
+    assert.equal(v["student.lastNameFirst"], "Carranza Saroli, Delfina");
+  });
+
+  it("reconoce al alumno aunque el Excel tenga un apellido de más que el padrón", () => {
+    const v = valoresDelPackExternoDesdePacks({
+      externo: pack("Carranza Saroli Delfina", "7° Grado A"),
+      packsDelAlbum: [],
+      schoolName: null,
+      schoolLogoUrl: null,
+      buyerName: null,
+      photographerName: null,
+      padronDelCurso: [filaSimple(1, "Delfina", "Carranza"), filaSimple(2, "Camila", "Bilesio")],
+    });
+    assert.equal(v["student.fullName"], "Delfina Carranza");
+    assert.equal(v["student.firstName"], "Delfina");
+  });
+
+  it("sin padrón, el nombre completo va con el nombre primero", () => {
+    const v = valoresDelPackExternoDesdePacks({
+      externo: pack("Salinas Sofía", "1° Grado A"),
+      packsDelAlbum: [],
+      schoolName: null,
+      schoolLogoUrl: null,
+      buyerName: null,
+      photographerName: null,
+    });
+    assert.equal(v["student.fullName"], "Sofía Salinas");
+    assert.equal(v["student.firstName"], "Sofía");
+  });
 });

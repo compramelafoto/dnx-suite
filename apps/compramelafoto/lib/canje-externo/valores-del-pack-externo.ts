@@ -31,9 +31,11 @@ function nombreComparable(nombre: string, apellido: string): string {
 /**
  * La fila del padrón del alumno del pack. Primero, el mismo nombre completo; si no, la única fila
  * que contiene todas sus palabras (el Excel trae «Bessone Julia» y la lista del colegio «Bessone,
- * Julia Ema»). Con dos candidatas no elige ninguna.
+ * Julia Ema»). Si tampoco, la única fila cuyas palabras están todas en el Excel (el Excel trae
+ * «Carranza Saroli Delfina» y la lista del colegio «Carranza, Delfina»). Con dos candidatas no
+ * elige ninguna.
  */
-function duenoEnElPadron<T extends { snapshotFirstName: string; snapshotLastName: string }>(
+export function duenoEnElPadron<T extends { snapshotFirstName: string; snapshotLastName: string }>(
   padron: T[],
   partes: { firstName: string; lastName: string } | null,
 ): T | null {
@@ -42,11 +44,20 @@ function duenoEnElPadron<T extends { snapshotFirstName: string; snapshotLastName
   const exacto = padron.find((f) => nombreComparable(f.snapshotFirstName, f.snapshotLastName) === clave);
   if (exacto) return exacto;
   const buscadas = palabrasDelNombre(partes.firstName, partes.lastName);
-  const candidatas = padron.filter((f) => {
+  const unica = (filas: T[]) => (filas.length === 1 ? filas[0]! : null);
+  const contienenAlExcel = padron.filter((f) => {
     const tiene = new Set(palabrasDelNombre(f.snapshotFirstName, f.snapshotLastName));
     return buscadas.every((w) => tiene.has(w));
   });
-  return candidatas.length === 1 ? candidatas[0]! : null;
+  if (contienenAlExcel.length > 0) return unica(contienenAlExcel);
+  const enElExcel = new Set(buscadas);
+  return unica(
+    padron.filter((f) => {
+      const palabras = palabrasDelNombre(f.snapshotFirstName, f.snapshotLastName);
+      // Nombre y apellido como mínimo: «Delfina» sola no alcanza para decir que es ella.
+      return palabras.length >= 2 && palabras.every((w) => enElExcel.has(w));
+    }),
+  );
 }
 
 /** La clave de un curso de los packs cargados del Excel (la misma que usa `class-list`). */
@@ -111,10 +122,17 @@ export function valoresDelPackExternoDesdePacks(input: {
     padron.length > 0
       ? padron.map((f) => ({ firstName: f.snapshotFirstName, lastName: f.snapshotLastName, isOwner: f === dueno }))
       : courseStudents;
+  // El nombre del alumno sale del padrón (la lista del colegio), que separa bien nombre y apellido.
+  // El Excel trae «Apellido Nombre» sin separar: «Carranza Saroli Delfina» se partía como apellido
+  // «Carranza» y nombre «Saroli Delfina», y el nombre completo se imprimía tal cual, con el
+  // apellido primero. Sin fila en el padrón, se usa el Excel, pero siempre «Nombre Apellido».
+  const alumno = dueno
+    ? { firstName: dueno.snapshotFirstName.trim(), lastName: dueno.snapshotLastName.trim() }
+    : partes;
   return buildDesignValues({
-    studentName: externo.studentName,
-    studentFirstName: partes?.firstName,
-    studentLastName: partes?.lastName,
+    studentName: alumno ? [alumno.firstName, alumno.lastName].filter(Boolean).join(" ") : null,
+    studentFirstName: alumno?.firstName,
+    studentLastName: alumno?.lastName,
     courseName: externo.courseName,
     schoolName: input.schoolName ?? externo.schoolName,
     schoolLogoUrl: input.schoolLogoUrl,
