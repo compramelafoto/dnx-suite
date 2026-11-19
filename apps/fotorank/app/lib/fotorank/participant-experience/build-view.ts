@@ -4,7 +4,12 @@ import { resolveParticipantNextAction, resolveSecondaryActions } from "./next-ac
 import { resolveNextStepBlock } from "./next-step-copy";
 import { resolveParticipantProgress } from "./progress";
 import { presentPrimaryParticipationStatus } from "./status-labels";
-import type { ParticipantEntrySlice, ParticipantParticipationView } from "./types";
+import type {
+  ParticipantContestCover,
+  ParticipantEntrySlice,
+  ParticipantParticipationView,
+  ParticipantPhotoThumb,
+} from "./types";
 import { resolveUploadWindow, type UploadWindowInput } from "./upload-window";
 
 export type BuildParticipationInput = {
@@ -12,6 +17,9 @@ export type BuildParticipationInput = {
   contestId: string;
   contestTitle: string;
   contestSlug: string;
+  organizerName?: string | null;
+  cover?: ParticipantContestCover | null;
+  photos?: ParticipantPhotoThumb[];
   registrationNumber: string;
   categoryId: string;
   categoryName: string;
@@ -81,6 +89,9 @@ export function buildParticipantParticipationView(
     contestId: input.contestId,
     contestTitle: input.contestTitle,
     contestSlug: input.contestSlug,
+    organizerName: input.organizerName ?? null,
+    cover: input.cover ?? null,
+    photos: input.photos ?? [],
     registrationNumber: input.registrationNumber,
     categoryId: input.categoryId,
     categoryName: input.categoryName,

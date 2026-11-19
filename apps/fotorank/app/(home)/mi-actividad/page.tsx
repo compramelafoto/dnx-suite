@@ -1,8 +1,12 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireAuth } from "../../lib/auth";
+import { ParticipantEntryCard, ParticipantHowItWorks } from "../../components/participant";
 import { resolveHomeCapabilities } from "../../lib/fotorank/access/home-capabilities";
-import { routes } from "../../lib/routes";
+import {
+  listMyParticipationViews,
+  type ParticipantParticipationView,
+} from "../../lib/fotorank/participant-experience";
 
 export default async function MiActividadPage() {
   const user = await requireAuth();
@@ -14,6 +18,16 @@ export default async function MiActividadPage() {
 
   // El hub es del fotógrafo. El super admin tiene su propio inicio.
   if (caps.isSuperAdmin) redirect("/super-admin");
+
+  /*
+   * Misma vista que "Mis participaciones": estado en palabras, etapas, próximo
+   * paso y fotos. Antes mostraba el estado crudo ("CONFIRMED") y un "Continuar"
+   * que siempre llevaba al formulario de inscripción.
+   */
+  const views: ParticipantParticipationView[] = caps.hasParticipations
+    ? await listMyParticipationViews(user.id).catch(() => [])
+    : [];
+  const shown = views.slice(0, 3);
 
   /*
    * Fuera de eso, esta página no redirige. Antes, con un solo perfil, mandaba a la persona a
@@ -29,7 +43,7 @@ export default async function MiActividadPage() {
           Hola{user.name?.trim() ? `, ${user.name.trim().split(/\s+/)[0]}` : ""}
         </h1>
         <p className="max-w-2xl text-base leading-relaxed text-fr-muted">
-          Tus inscripciones y las fotos que enviaste a cada concurso.
+          En qué etapa está cada concurso y qué tenés que hacer.
         </p>
       </header>
 
@@ -66,30 +80,30 @@ export default async function MiActividadPage() {
       ) : null}
 
       {caps.hasParticipations ? (
-        <section className="space-y-6" data-testid="section-participaciones">
-          <div className="space-y-2">
-            <h2 className="text-2xl font-semibold tracking-tight">Participaciones</h2>
-            <p className="text-sm text-fr-muted">Mis inscripciones, estado y fotografías.</p>
+        <section className="fr-pp-section" data-testid="section-participaciones">
+          <div className="fr-pp-section__head">
+            <h2 className="fr-pp-section__title">Tus concursos</h2>
+            {views.length > shown.length ? (
+              <Link href="/participaciones" className="fr-pp-section__more">
+                Ver las {views.length} →
+              </Link>
+            ) : null}
           </div>
-          <ul className="grid gap-8 md:grid-cols-2">
-            {caps.participations.slice(0, 6).map((p) => (
-              <li key={p.id} className="fr-recuadro border border-fr-border bg-fr-card">
-                <h3 className="text-lg font-semibold">{p.contestTitle}</h3>
-                <p className="mt-4 text-sm text-fr-muted">
-                  {p.registrationNumber} · {p.status}
-                </p>
-                <Link
-                  href={routes.concursos.inscripcion(p.contestSlug)}
-                  className="fr-btn fr-btn-primary mt-8 inline-flex px-5 py-3 text-sm"
-                >
-                  Continuar
-                </Link>
-              </li>
-            ))}
-          </ul>
-          <Link href="/participaciones" className="text-sm font-medium text-gold hover:text-gold-hover">
-            Ver todas las participaciones →
-          </Link>
+          {shown.length > 0 ? (
+            <ul className="fr-pp-list">
+              {shown.map((view) => (
+                <ParticipantEntryCard key={view.id} view={view} />
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-fr-muted">
+              No pudimos cargar tus participaciones.{" "}
+              <Link href="/participaciones" className="text-gold hover:text-gold-hover">
+                Abrir Mis participaciones
+              </Link>
+            </p>
+          )}
+          <ParticipantHowItWorks />
         </section>
       ) : null}
 

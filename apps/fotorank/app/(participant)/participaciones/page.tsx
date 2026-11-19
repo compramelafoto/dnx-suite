@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ParticipantEntryCard } from "../../components/participant";
+import { ParticipantEntryCard, ParticipantHowItWorks } from "../../components/participant";
 import { requireAuth } from "../../lib/auth";
 import { listMyParticipationViews } from "../../lib/fotorank/participant-experience";
 
@@ -23,8 +23,9 @@ export default async function ParticipacionesPage() {
           ) : null}
         </div>
         <p className="max-w-2xl text-base leading-relaxed text-fr-muted">
-          Consultá el estado de cada inscripción y qué tenés que hacer ahora.
+          Cada tarjeta te muestra en qué etapa está el concurso y qué tenés que hacer ahora.
         </p>
+        <ParticipantHowItWorks />
       </header>
 
       {count === 0 ? (
@@ -35,7 +36,7 @@ export default async function ParticipacionesPage() {
           </Link>
         </div>
       ) : (
-        <ul className="fr-participant-entry-grid" data-testid="participaciones-list">
+        <ul className="fr-pp-list" data-testid="participaciones-list">
           {views.map((view) => (
             <ParticipantEntryCard key={view.id} view={view} />
           ))}

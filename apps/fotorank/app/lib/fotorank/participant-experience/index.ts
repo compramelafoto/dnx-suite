@@ -17,4 +17,9 @@ export { resolveParticipantProgress, type ParticipantProgressStep } from "./prog
 export { resolveNextStepBlock, type NextStepBlock } from "./next-step-copy";
 export { buildParticipantParticipationView } from "./build-view";
 export { getMyParticipationView, listMyParticipationViews } from "./load-participations";
-export type { ParticipantEntrySlice, ParticipantParticipationView } from "./types";
+export type {
+  ParticipantContestCover,
+  ParticipantEntrySlice,
+  ParticipantParticipationView,
+  ParticipantPhotoThumb,
+} from "./types";
