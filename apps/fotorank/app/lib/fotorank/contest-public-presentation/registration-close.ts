@@ -28,9 +28,10 @@ function overrideLabel(slug: string): string | null {
   /**
    * Santa Fe en Foco 2026: contenido legal del concurso (bases v3), no un
    * comportamiento del sistema public-ui. Hasta el 29/09 decía "30 de
-   * septiembre de 2026"; la organización extendió la recepción al 31/10.
+   * septiembre de 2026"; la organización extendió la recepción al 31/10 y el
+   * 19/11 reabrió inscripción y carga hasta el 1/12 (cierre exclusivo 2/12 00:00 ART).
    */
-  if (isSantaFeEnFocoSlug(slug)) return "31 de octubre de 2026";
+  if (isSantaFeEnFocoSlug(slug)) return "1 de diciembre de 2026";
   return null;
 }
 

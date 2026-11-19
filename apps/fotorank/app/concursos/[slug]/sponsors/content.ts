@@ -251,7 +251,7 @@ export const SFEF_SPONSORS_HTML = `<header class="hero">
     <div class="hero-facts">
       <span>En premios<b>$4.800.000</b></span>
       <span>Categorías<b>Cuatro</b></span>
-      <span>Cierre de inscripción<b>31 de octubre</b></span>
+      <span>Cierre de inscripción<b>1 de diciembre</b></span>
       <span>Premiación<b>10 de diciembre</b></span>
     </div>
   </div>
@@ -596,7 +596,7 @@ export const SFEF_SPONSORS_HTML = `<header class="hero">
     <h3 style="margin-top:14px">Fechas</h3>
     <div class="facts">
       <div class="fact"><span class="k">Apertura</span><span class="v">1 de agosto de 2026</span></div>
-      <div class="fact"><span class="k">Cierre de inscripción</span><span class="v">31 de octubre de 2026</span></div>
+      <div class="fact"><span class="k">Cierre de inscripción</span><span class="v">1 de diciembre de 2026</span></div>
       <div class="fact"><span class="k">Evaluación</span><span class="v">Noviembre de 2026</span></div>
       <div class="fact"><span class="k">Presentación de premios</span><span class="v">10 de diciembre de 2026</span></div>
     </div>
